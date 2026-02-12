@@ -64,8 +64,13 @@ $ ninja buddy-stable-diffusion-run
 $ cd bin
 $ ./buddy-stable-diffusion-run
 ```
+If you already have a local Stable Diffusion model, set
+`STABLE_DIFFUSION_MODEL_PATH` before running `ninja`:
+
+```
+$ export STABLE_DIFFUSION_MODEL_PATH=/path-to-stable-diffusion-2-1-base-model/
+```
 This build will spend a few minutes. We recommend you to use better cpu such as server-level cpu to run buddy-stable-diffusion-run.
 
 If you wish to utilize `mimalloc` as a memory allocator, you need to set `BUDDY_MLIR_USE_MIMALLOC` and `MIMALLOC_BUILD_DIR`.
 For more details, please see [here](../../thirdparty/README.md#the-mimalloc-allocator).
-

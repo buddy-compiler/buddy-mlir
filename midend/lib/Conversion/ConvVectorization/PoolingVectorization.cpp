@@ -170,7 +170,8 @@ public:
                 });
             // Load into a vector.
             Value vec = rewriter.create<vector::TransferReadOp>(
-                loc, vecTy, window, ValueRange{c0});
+                loc, vecTy, window, ValueRange{c0},
+                /*padding=*/nullptr, /*inBounds=*/nullptr, /*mask=*/nullptr);
             // Reduce vector.
             Value res = rewriter.create<vector::ReductionOp>(
                 loc, vector::CombiningKind::ADD, vec);
@@ -219,7 +220,8 @@ public:
                 });
             // Load into a vector.
             Value vec = rewriter.create<vector::TransferReadOp>(
-                loc, vecTy, window, ValueRange{c0});
+                loc, vecTy, window, ValueRange{c0},
+                /*padding=*/nullptr, /*inBounds=*/nullptr, /*mask=*/nullptr);
             // Reduce vector.
             Value res = rewriter.create<vector::ReductionOp>(
                 loc, vector::CombiningKind::ADD, vec);

@@ -56,8 +56,10 @@ void registerBatchMatMulVectorizationDecodePass();
 void registerTransposeOptimizationPass();
 void registerSiLUFusionPass();
 void registerAssumeTightMemRefLayoutPass();
+void registerStaticizeMemRefLayoutPass();
 void registerSimplifyTosaReshapePass();
 void registerSimplifyTosaMatmulScalarPass();
+void registerEliminateMemRefCopyPass();
 } // namespace buddy
 } // namespace mlir
 
@@ -98,6 +100,8 @@ void mlir::buddy::registerAllPasses() {
   mlir::buddy::registerTransposeOptimizationPass();
   mlir::buddy::registerSiLUFusionPass();
   mlir::buddy::registerAssumeTightMemRefLayoutPass();
+  mlir::buddy::registerStaticizeMemRefLayoutPass();
   mlir::buddy::registerSimplifyTosaReshapePass();
   mlir::buddy::registerSimplifyTosaMatmulScalarPass();
+  mlir::buddy::registerEliminateMemRefCopyPass();
 }

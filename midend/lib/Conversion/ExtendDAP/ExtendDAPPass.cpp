@@ -247,7 +247,7 @@ Value initMelFilter(PatternRewriter &rewriter, Location loc, Value c0, Value c1,
   auto mTp =
       MemRefType::get(melFilterType.getShape(), melFilterType.getElementType());
   Value melFilterMemRef =
-      rewriter.create<bufferization::ToMemrefOp>(loc, mTp, melFilter);
+      bufferization::ToBufferOp::create(rewriter, loc, mTp, melFilter);
 
   // TODO : remove tomemref & totensor, and use insert to replace store. !!
   Value c391 = rewriter.create<ConstantIndexOp>(loc, 391);
@@ -272,8 +272,10 @@ Value initMelFilter(PatternRewriter &rewriter, Location loc, Value c0, Value c1,
 
   rewriter.setInsertionPointAfter(loopOp);
 
-  Value newMelFilter = rewriter.create<bufferization::ToTensorOp>(
-      loc, melFilterMemRef, /*restrict=*/true, /*writable=*/false);
+  Value newMelFilter = bufferization::ToTensorOp::create(
+      rewriter, loc,
+      memref::getTensorTypeFromMemRefType(melFilterMemRef.getType()),
+      melFilterMemRef, /*restrict=*/true, /*writable=*/false);
 
   return newMelFilter;
 }
@@ -1608,9 +1610,9 @@ void radf3Extend(OpBuilder &opBuilder, Location loc, Value cc, Value ch,
 
   FloatType f64Ty = opBuilder.getF64Type();
   Value taur =
-      opBuilder.create<ConstantFloatOp>(loc, APFloat(double(-0.5)), f64Ty);
+      opBuilder.create<ConstantFloatOp>(loc, f64Ty, APFloat(double(-0.5)));
   Value taui = opBuilder.create<ConstantFloatOp>(
-      loc, APFloat(double(0.86602540378443864676)), f64Ty);
+      loc, f64Ty, APFloat(double(0.86602540378443864676)));
 
   Value c0 = opBuilder.create<ConstantIndexOp>(loc, 0);
   Value c1 = opBuilder.create<ConstantIndexOp>(loc, 1);
@@ -1690,9 +1692,9 @@ void radf3(OpBuilder &opBuilder, Location loc, Value cc, Value ch, Value wa,
   FloatType f64Ty = opBuilder.getF64Type();
   Value cdim = opBuilder.create<ConstantIndexOp>(loc, 3);
   Value taur =
-      opBuilder.create<ConstantFloatOp>(loc, APFloat(double(-0.5)), f64Ty);
+      opBuilder.create<ConstantFloatOp>(loc, f64Ty, APFloat(double(-0.5)));
   Value taui = opBuilder.create<ConstantFloatOp>(
-      loc, APFloat(double(0.86602540378443864676)), f64Ty);
+      loc, f64Ty, APFloat(double(0.86602540378443864676)));
 
   Value c0 = opBuilder.create<ConstantIndexOp>(loc, 0);
   Value c1 = opBuilder.create<ConstantIndexOp>(loc, 1);
@@ -1807,7 +1809,7 @@ void radf4(OpBuilder &opBuilder, Location loc, Value cc, Value ch, Value wa,
   FloatType f64Ty = opBuilder.getF64Type();
   Value cdim = opBuilder.create<ConstantIndexOp>(loc, 4);
   Value hsqt2 = opBuilder.create<ConstantFloatOp>(
-      loc, APFloat(double(0.70710678118654752440)), f64Ty);
+      loc, f64Ty, APFloat(double(0.70710678118654752440)));
   Value idom1 = opBuilder.create<arith::SubIOp>(loc, ido, c1);
 
   opBuilder.create<scf::ForOp>(
@@ -1837,7 +1839,7 @@ void radf4(OpBuilder &opBuilder, Location loc, Value cc, Value ch, Value wa,
   opBuilder.create<scf::IfOp>(
       loc, condition0, [&](OpBuilder &builder, Location loc) {
         Value negHsqt2 = builder.create<ConstantFloatOp>(
-            loc, APFloat(double(-0.70710678118654752440)), f64Ty);
+            loc, f64Ty, APFloat(double(-0.70710678118654752440)));
 
         builder.create<scf::ForOp>(
             loc, c0, l1, c1, std::nullopt,
@@ -1993,13 +1995,13 @@ void radf5(OpBuilder &builder, Location loc, Value cc, Value ch, Value wa,
   FloatType f64Ty = builder.getF64Type();
   Value cdim = builder.create<ConstantIndexOp>(loc, 5);
   Value tr11 = builder.create<ConstantFloatOp>(
-      loc, APFloat(double(0.3090169943749474241)), f64Ty);
+      loc, f64Ty, APFloat(double(0.3090169943749474241)));
   Value tr12 = builder.create<ConstantFloatOp>(
-      loc, APFloat(double(-0.8090169943749474241)), f64Ty);
+      loc, f64Ty, APFloat(double(-0.8090169943749474241)));
   Value ti11 = builder.create<ConstantFloatOp>(
-      loc, APFloat(double(0.95105651629515357212)), f64Ty);
+      loc, f64Ty, APFloat(double(0.95105651629515357212)));
   Value ti12 = builder.create<ConstantFloatOp>(
-      loc, APFloat(double(0.58778525229247312917)), f64Ty);
+      loc, f64Ty, APFloat(double(0.58778525229247312917)));
   Value idom1 = builder.create<arith::SubIOp>(loc, ido, c1);
 
   builder.create<scf::ForOp>(
@@ -2308,19 +2310,19 @@ void my_sincosm1pi(OpBuilder &opBuilder, Location loc, Value a, Value res,
   Value s = opBuilder.create<arith::MulFOp>(loc, a, a);
 
   Value r1 = opBuilder.create<ConstantFloatOp>(
-      loc, APFloat(double(-1.0369917389758117e-4)), f64Ty);
+      loc, f64Ty, APFloat(double(-1.0369917389758117e-4)));
   Value r2 = opBuilder.create<ConstantFloatOp>(
-      loc, APFloat(double(1.9294935641298806e-3)), f64Ty);
+      loc, f64Ty, APFloat(double(1.9294935641298806e-3)));
   Value r3 = opBuilder.create<ConstantFloatOp>(
-      loc, APFloat(double(-2.5806887942825395e-2)), f64Ty);
+      loc, f64Ty, APFloat(double(-2.5806887942825395e-2)));
   Value r4 = opBuilder.create<ConstantFloatOp>(
-      loc, APFloat(double(2.3533063028328211e-1)), f64Ty);
+      loc, f64Ty, APFloat(double(2.3533063028328211e-1)));
   Value r5 = opBuilder.create<ConstantFloatOp>(
-      loc, APFloat(double(-1.3352627688538006e+0)), f64Ty);
+      loc, f64Ty, APFloat(double(-1.3352627688538006e+0)));
   Value r6 = opBuilder.create<ConstantFloatOp>(
-      loc, APFloat(double(4.0587121264167623e+0)), f64Ty);
+      loc, f64Ty, APFloat(double(4.0587121264167623e+0)));
   Value r7 = opBuilder.create<ConstantFloatOp>(
-      loc, APFloat(double(-4.9348022005446790e+0)), f64Ty);
+      loc, f64Ty, APFloat(double(-4.9348022005446790e+0)));
 
   Value fma1 = opBuilder.create<math::FmaOp>(loc, r1, s, r2);
   Value fma2 = opBuilder.create<math::FmaOp>(loc, fma1, s, r3);
@@ -2332,17 +2334,17 @@ void my_sincosm1pi(OpBuilder &opBuilder, Location loc, Value a, Value res,
   Value c = opBuilder.create<arith::MulFOp>(loc, fma6, s);
 
   Value r8 = opBuilder.create<ConstantFloatOp>(
-      loc, APFloat(double(4.6151442520157035e-4)), f64Ty);
+      loc, f64Ty, APFloat(double(4.6151442520157035e-4)));
   Value r9 = opBuilder.create<ConstantFloatOp>(
-      loc, APFloat(double(-7.3700183130883555e-3)), f64Ty);
+      loc, f64Ty, APFloat(double(-7.3700183130883555e-3)));
   Value r10 = opBuilder.create<ConstantFloatOp>(
-      loc, APFloat(double(8.2145868949323936e-2)), f64Ty);
+      loc, f64Ty, APFloat(double(8.2145868949323936e-2)));
   Value r11 = opBuilder.create<ConstantFloatOp>(
-      loc, APFloat(double(-5.9926452893214921e-1)), f64Ty);
+      loc, f64Ty, APFloat(double(-5.9926452893214921e-1)));
   Value r12 = opBuilder.create<ConstantFloatOp>(
-      loc, APFloat(double(2.5501640398732688e+0)), f64Ty);
+      loc, f64Ty, APFloat(double(2.5501640398732688e+0)));
   Value r13 = opBuilder.create<ConstantFloatOp>(
-      loc, APFloat(double(-5.1677127800499516e+0)), f64Ty);
+      loc, f64Ty, APFloat(double(-5.1677127800499516e+0)));
 
   Value fma7 = opBuilder.create<math::FmaOp>(loc, r8, s, r9);
   Value fma8 = opBuilder.create<math::FmaOp>(loc, fma7, s, r10);
@@ -2354,7 +2356,7 @@ void my_sincosm1pi(OpBuilder &opBuilder, Location loc, Value a, Value res,
   Value r = opBuilder.create<arith::MulFOp>(loc, fma11, s_new);
 
   Value pi = opBuilder.create<ConstantFloatOp>(
-      loc, APFloat(double(3.1415926535897931e+0)), f64Ty);
+      loc, f64Ty, APFloat(double(3.1415926535897931e+0)));
   Value s_final = opBuilder.create<math::FmaOp>(loc, a, pi, r);
 
   opBuilder.create<memref::StoreOp>(loc, c, res_raw, c0);
@@ -2395,12 +2397,12 @@ void calc_first_octant_extend2(OpBuilder &opBuilder, Location loc, Value den,
       SmallVector<OpFoldResult>{remaining_size}, SmallVector<OpFoldResult>{c1});
 
   Value f2 =
-      opBuilder.create<ConstantFloatOp>(loc, APFloat(double(2.0)), f64Ty);
+      opBuilder.create<ConstantFloatOp>(loc, f64Ty, APFloat(double(2.0)));
   Value f1 =
-      opBuilder.create<ConstantFloatOp>(loc, APFloat(double(1.0)), f64Ty);
+      opBuilder.create<ConstantFloatOp>(loc, f64Ty, APFloat(double(1.0)));
   // TODO: remove f0?
   // Value f0 =
-  //     opBuilder.create<ConstantFloatOp>(loc, APFloat(double(0.0)), f64Ty);
+  //     opBuilder.create<ConstantFloatOp>(loc, f64Ty, APFloat(double(0.0)));
 
   Value n_f64 = index_to_f64(opBuilder, loc, n);
   Value l1_f64 = opBuilder.create<math::SqrtOp>(loc, n_f64);
@@ -2534,9 +2536,9 @@ void calc_first_octant_extend1(OpBuilder &opBuilder, Location loc, Value den,
       SmallVector<OpFoldResult>{remaining_size}, SmallVector<OpFoldResult>{c1});
 
   Value f1 =
-      opBuilder.create<ConstantFloatOp>(loc, APFloat(double(1.0)), f64Ty);
+      opBuilder.create<ConstantFloatOp>(loc, f64Ty, APFloat(double(1.0)));
   Value f0 =
-      opBuilder.create<ConstantFloatOp>(loc, APFloat(double(0.0)), f64Ty);
+      opBuilder.create<ConstantFloatOp>(loc, f64Ty, APFloat(double(0.0)));
 
   opBuilder.create<memref::StoreOp>(loc, f1, res_raw, c0);
   opBuilder.create<memref::StoreOp>(loc, f0, res_raw, c1);
@@ -2683,10 +2685,10 @@ void calc_first_half(OpBuilder &opBuilder, Location loc, Value n, Value res) {
   FloatType f64Ty = opBuilder.getF64Type();
 
   Value f0 =
-      opBuilder.create<ConstantFloatOp>(loc, APFloat(double(0.0)), f64Ty);
+      opBuilder.create<ConstantFloatOp>(loc, f64Ty, APFloat(double(0.0)));
   // TODO: remove f1?
   // Value f1 =
-  //     opBuilder.create<ConstantFloatOp>(loc, APFloat(double(1.0)), f64Ty);
+  //     opBuilder.create<ConstantFloatOp>(loc, f64Ty, APFloat(double(1.0)));
 
   Value n_plus_1 = opBuilder.create<arith::AddIOp>(loc, n, c1);
   Value ndone = opBuilder.create<arith::ShRUIOp>(loc, n_plus_1, c1);
@@ -2879,7 +2881,7 @@ void fill_first_quadrant(OpBuilder &opBuilder, Location loc, Value n,
   FloatType f64Ty = opBuilder.getF64Type();
 
   Value hsqt2 = opBuilder.create<ConstantFloatOp>(
-      loc, APFloat(double(0.707106781186547524400844362104849)), f64Ty);
+      loc, f64Ty, APFloat(double(0.707106781186547524400844362104849)));
 
   Value quart = opBuilder.create<arith::ShRUIOp>(loc, n, c2);
   Value n_mod_8 = opBuilder.create<arith::RemUIOp>(loc, n, c8);
@@ -2930,7 +2932,7 @@ void fill_first_half(OpBuilder &opBuilder, Location loc, Value n, Value res) {
 
   FloatType f64Ty = opBuilder.getF64Type();
   Value c_1 =
-      opBuilder.create<ConstantFloatOp>(loc, APFloat(double(-1.0)), f64Ty);
+      opBuilder.create<ConstantFloatOp>(loc, f64Ty, APFloat(double(-1.0)));
 
   Value half = opBuilder.create<arith::ShRUIOp>(loc, n, c1);
   Value n_mod_4 = opBuilder.create<arith::RemUIOp>(loc, n, c4);
@@ -3136,9 +3138,9 @@ Value rfftp_comp_twiddle(OpBuilder &opBuilder, Location loc, Value length,
             loc, condition2, [&](OpBuilder &b, Location loc) {
               Value fct_k = b.create<memref::LoadOp>(loc, Rfftp_fctdata_tws, k);
               Value c_f0 =
-                  b.create<ConstantFloatOp>(loc, APFloat(double(0.0)), f64Ty);
+                  b.create<ConstantFloatOp>(loc, f64Ty, APFloat(double(0.0)));
               Value c_f1 =
-                  b.create<ConstantFloatOp>(loc, APFloat(double(1.0)), f64Ty);
+                  b.create<ConstantFloatOp>(loc, f64Ty, APFloat(double(1.0)));
 
               b.create<memref::StoreOp>(loc, c_f1, fct_k, c0);
               b.create<memref::StoreOp>(loc, c_f0, fct_k, c1);
@@ -3307,7 +3309,7 @@ void copy_and_norm(OpBuilder &opBuilder, Location loc, Value c, Value p1,
   // Value c3 = opBuilder.create<ConstantIndexOp>(loc, 3);
   FloatType f64Ty = opBuilder.getF64Type();
   Value f1 =
-      opBuilder.create<ConstantFloatOp>(loc, APFloat(double(1.0)), f64Ty);
+      opBuilder.create<ConstantFloatOp>(loc, f64Ty, APFloat(double(1.0)));
 
   Value flag_val = opBuilder.create<memref::LoadOp>(loc, flag, c0);
   Value condition = opBuilder.create<arith::CmpIOp>(
@@ -3581,7 +3583,7 @@ Value spectrogram(PatternRewriter &rewriter, Location loc, Value f0, Value c0,
         Value multiplied = mulfOp.getResult(0);
 
         Value bufferMem_raw =
-            builder.create<bufferization::ToMemrefOp>(loc, mTp, multiplied);
+            bufferization::ToBufferOp::create(builder, loc, mTp, multiplied);
 
         MemRefType type0 = MemRefType::get({400}, f64Ty);
         MemRefType type1 = MemRefType::get(ShapedType::kDynamic, f64Ty);
@@ -3617,8 +3619,9 @@ Value spectrogram(PatternRewriter &rewriter, Location loc, Value f0, Value c0,
       /*permutation=*/ArrayRef<int64_t>{1, 0});
   Value melFiltersT = transposeOp0.getResult()[0];
 
-  Value gram = rewriter.create<bufferization::ToTensorOp>(
-      loc, spectrogram, /*restrict=*/true, /*writable=*/false);
+  Value gram = bufferization::ToTensorOp::create(
+      rewriter, loc, memref::getTensorTypeFromMemRefType(spectrogram.getType()),
+      spectrogram, /*restrict=*/true, /*writable=*/false);
   Value init1 = rewriter.create<tensor::EmptyOp>(
       loc, ArrayRef<int64_t>{201, 3001}, f64Ty);
   auto transposeOp1 = rewriter.create<linalg::TransposeOp>(
@@ -3639,7 +3642,7 @@ Value spectrogram(PatternRewriter &rewriter, Location loc, Value f0, Value c0,
   // Initialize a tensor with constant `1e-10`.
   RankedTensorType tensorTy1 = RankedTensorType::get({80, 3001}, f64Ty);
   Value cMelFloor = rewriter.create<ConstantFloatOp>(
-      loc, APFloat(double(0.0000000001)), f64Ty);
+      loc, f64Ty, APFloat(double(0.0000000001)));
   Value melFloor = rewriter.create<tensor::SplatOp>(loc, tensorTy1, cMelFloor);
 
   auto linalgMaxOp = rewriter.create<linalg::MaxOp>(
@@ -3694,8 +3697,10 @@ public:
     // Value c25 = rewriter.create<ConstantIndexOp>(loc, 25);
     // Value c50 = rewriter.create<ConstantIndexOp>(loc, 50);
 
-    Value inputFeatures = rewriter.create<bufferization::ToTensorOp>(
-        loc, bufferMem, /*restrict=*/true, /*writable=*/true);
+    Value inputFeatures = bufferization::ToTensorOp::create(
+        rewriter, loc, memref::getTensorTypeFromMemRefType(bufferMem.getType()),
+        bufferMem,
+        /*restrict=*/true, /*writable=*/true);
     Value inputFeaturesSize =
         rewriter.create<tensor::DimOp>(loc, inputFeatures, c0);
 
@@ -3703,9 +3708,9 @@ public:
 
     // TODO: remove the following values?
     // Value f0 =
-    //     rewriter.create<ConstantFloatOp>(loc, APFloat(double(0.0)), f64Ty);
+    //     rewriter.create<ConstantFloatOp>(loc, f64Ty, APFloat(double(0.0)));
     Value f1 =
-        rewriter.create<ConstantFloatOp>(loc, APFloat(double(1.0)), f64Ty);
+        rewriter.create<ConstantFloatOp>(loc, f64Ty, APFloat(double(1.0)));
 
     std::vector<Value> plan = make_rfftp_plan(rewriter, loc, inputFeaturesSize);
 
@@ -3752,8 +3757,9 @@ public:
     FloatType f32 = Float32Type::get(ctx);
     FloatType f64 = Float64Type::get(ctx);
 
-    Value inputFeatures = rewriter.create<bufferization::ToTensorOp>(
-        loc, input, /*restrict=*/true, /*writable=*/false);
+    Value inputFeatures = bufferization::ToTensorOp::create(
+        rewriter, loc, memref::getTensorTypeFromMemRefType(input.getType()),
+        input, /*restrict=*/true, /*writable=*/false);
     Value inputFeaturesSize =
         rewriter.create<tensor::DimOp>(loc, inputFeatures, c0);
     Value padConstantHigh =
@@ -3769,7 +3775,7 @@ public:
     highValues.push_back(padConstantHigh);
 
     Value f0 =
-        rewriter.create<arith::ConstantFloatOp>(loc, APFloat(double(0.0)), f64);
+        rewriter.create<arith::ConstantFloatOp>(loc, f64, APFloat(double(0.0)));
     auto padConstantOp = rewriter.create<tensor::PadOp>(
         loc, RankedTensorType::get(paddedShape, f64), inputFeatures, lowValues,
         highValues, f0);
@@ -3795,7 +3801,7 @@ public:
     Value logSpecCut = extractSliceOp.getResult();
 
     Value maxInit =
-        rewriter.create<ConstantFloatOp>(loc, APFloat(double(-10.0)), f64);
+        rewriter.create<ConstantFloatOp>(loc, f64, APFloat(double(-10.0)));
     auto forOp0 = rewriter.create<scf::ForOp>(
         loc, c0, c80, c1, maxInit,
         [&](OpBuilder &builder, Location loc, Value i, ValueRange iargs0) {
@@ -3814,7 +3820,7 @@ public:
         });
     Value maxNum = forOp0.getResults()[0];
 
-    Value f8 = rewriter.create<ConstantFloatOp>(loc, APFloat(double(8.0)), f64);
+    Value f8 = rewriter.create<ConstantFloatOp>(loc, f64, APFloat(double(8.0)));
     Value maxNumMinus8 = rewriter.create<arith::SubFOp>(loc, maxNum, f8);
     Value logSpecFloor = rewriter.create<tensor::SplatOp>(
         loc, RankedTensorType::get({80, 3000}, f64), maxNumMinus8);
@@ -3825,8 +3831,8 @@ public:
     Value logSpecMax = linalgMaxOp.getResultTensors()[0];
 
     Value f0F32 =
-        rewriter.create<ConstantFloatOp>(loc, APFloat(float(0.0)), f32);
-    Value f4 = rewriter.create<ConstantFloatOp>(loc, APFloat(double(4.0)), f64);
+        rewriter.create<ConstantFloatOp>(loc, f32, APFloat(float(0.0)));
+    Value f4 = rewriter.create<ConstantFloatOp>(loc, f64, APFloat(double(4.0)));
     RankedTensorType resultTy = RankedTensorType::get({80, 3000}, f32);
     Value InputFeaturesF32 =
         rewriter.create<tensor::SplatOp>(loc, resultTy, f0F32);
@@ -3868,8 +3874,8 @@ public:
 
     auto resultMemTp =
         MemRefType::get(expandTy.getShape(), expandTy.getElementType());
-    Value resultMemRef = rewriter.create<bufferization::ToMemrefOp>(
-        loc, resultMemTp, resultExpand);
+    Value resultMemRef = bufferization::ToBufferOp::create(
+        rewriter, loc, resultMemTp, resultExpand);
 
     // Replace 'dap.whisper_preprocess' operation with the generated result. The
     // replaced op is erased.

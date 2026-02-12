@@ -3,6 +3,7 @@
 // RUN:     -convert-cf-to-llvm \
 // RUN:     -convert-vector-to-llvm -finalize-memref-to-llvm -convert-func-to-llvm \
 // RUN:     -convert-arith-to-llvm \
+// RUN:     -convert-ub-to-llvm \
 // RUN:     -reconcile-unrealized-casts \
 // RUN: | mlir-runner  -e main -entry-point-result=i32 \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \

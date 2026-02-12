@@ -93,8 +93,8 @@ void registerLowerBuckyballPass();
 void registerLowerGemminiPass();
 void registerLowerLinalgToGemminiPass();
 void registerLowerIMEPass();
-void registerFuncBufferizeDynamicOffsetPass();
 void registerAssumeTightMemRefLayoutPass();
+void registerStaticizeMemRefLayoutPass();
 void registerConvertMemcpyToGPUPass();
 void registerLegalizeShmemOutliningPass();
 void registerMatMulTransposeBVecPass();
@@ -105,6 +105,7 @@ void registerMatMulVectorizationBLISPass();
 void registerSimplifyTosaReshapePass();
 void registerSiLUFusionPass();
 void registerSimplifyTosaMatmulScalarPass();
+void registerEliminateMemRefCopyPass();
 } // namespace buddy
 } // namespace mlir
 
@@ -151,8 +152,8 @@ int main(int argc, char **argv) {
   mlir::buddy::registerConvNhwcFhwcOptimizePass();
   mlir::buddy::registerConvNhwcFhwcTileOptimizePass();
   mlir::buddy::registerDepthwiseConv2DNhwcHwcOptimizePass();
-  mlir::buddy::registerFuncBufferizeDynamicOffsetPass();
   mlir::buddy::registerAssumeTightMemRefLayoutPass();
+  mlir::buddy::registerStaticizeMemRefLayoutPass();
   mlir::buddy::registerMatMulTransposeBVecPass();
   mlir::buddy::registerVIRToVectorPass();
   mlir::buddy::registerLinalgToVIRPass();
@@ -160,6 +161,8 @@ int main(int argc, char **argv) {
   mlir::buddy::registerSimplifyTosaReshapePass();
   // Register tosa.matmul(K=1,J=1) -> tosa.mul rewrite.
   mlir::buddy::registerSimplifyTosaMatmulScalarPass();
+  // Register eliminate redundant memref.copy pass.
+  mlir::buddy::registerEliminateMemRefCopyPass();
   mlir::buddy::registerSiLUFusionPass();
   // Register gpu passes
   mlir::buddy::registerConvertMemcpyToGPUPass();

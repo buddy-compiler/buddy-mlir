@@ -28,13 +28,14 @@ add_llvm_component_library(LLVMBuddyCodeGen
   ${LLVM_CodeGen_DIR}/DeadMachineInstructionElim.cpp
   ${LLVM_CodeGen_DIR}/DetectDeadLanes.cpp
   ${LLVM_CodeGen_DIR}/DFAPacketizer.cpp
+  ${LLVM_CodeGen_DIR}/DroppedVariableStatsMIR.cpp
   ${LLVM_CodeGen_DIR}/DwarfEHPrepare.cpp
   ${LLVM_CodeGen_DIR}/EarlyIfConversion.cpp
   ${LLVM_CodeGen_DIR}/EdgeBundles.cpp
-  ${LLVM_CodeGen_DIR}/EHContGuardCatchret.cpp
+  ${LLVM_CodeGen_DIR}/EHContGuardTargets.cpp
   ${LLVM_CodeGen_DIR}/ExecutionDomainFix.cpp
   ${LLVM_CodeGen_DIR}/ExpandLargeDivRem.cpp
-  ${LLVM_CodeGen_DIR}/ExpandLargeFpConvert.cpp
+  ${LLVM_CodeGen_DIR}/ExpandFp.cpp
   ${LLVM_CodeGen_DIR}/ExpandMemCmp.cpp
   ${LLVM_CodeGen_DIR}/ExpandPostRAPseudos.cpp
   ${LLVM_CodeGen_DIR}/ExpandReductions.cpp
@@ -205,6 +206,7 @@ add_llvm_component_library(LLVMBuddyCodeGen
   ${LLVM_CodeGen_DIR}/StackProtector.cpp
   ${LLVM_CodeGen_DIR}/StackSlotColoring.cpp
   ${LLVM_CodeGen_DIR}/StaticDataSplitter.cpp
+  ${LLVM_CodeGen_DIR}/StaticDataAnnotator.cpp
   ${LLVM_CodeGen_DIR}/SwiftErrorValueTracking.cpp
   ${LLVM_CodeGen_DIR}/SwitchLoweringUtils.cpp
   ${LLVM_CodeGen_DIR}/TailDuplication.cpp
@@ -226,6 +228,7 @@ add_llvm_component_library(LLVMBuddyCodeGen
   ${LLVM_CodeGen_DIR}/VirtRegMap.cpp
   ${LLVM_CodeGen_DIR}/WasmEHPrepare.cpp
   ${LLVM_CodeGen_DIR}/WindowScheduler.cpp
+  ${LLVM_CodeGen_DIR}/WindowsSecureHotPatching.cpp
   ${LLVM_CodeGen_DIR}/WinEHPrepare.cpp
   ${LLVM_CodeGen_DIR}/XRayInstrumentation.cpp
 

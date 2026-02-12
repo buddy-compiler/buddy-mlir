@@ -90,7 +90,7 @@ def RVVLoadOp : RVV_Op<"load">,
   }];
   let extraClassDeclaration = [{
     mlir::MemRefType getMemRefType() {
-      return getBase().getType().cast<mlir::MemRefType>();
+      return mlir::cast<mlir::MemRefType>(getBase().getType());
     }
   }];
   let assemblyFormat = "$base `[` $index `]` `,` $length attr-dict `:` "
@@ -106,7 +106,7 @@ def RVVStoreOp : RVV_Op<"store">,
   }];
   let extraClassDeclaration = [{
     mlir::MemRefType getMemRefType() {
-      return getBase().getType().cast<mlir::MemRefType>();
+      return mlir::cast<mlir::MemRefType>(getBase().getType());
     }
   }];
   let assemblyFormat = "$value `,` $base `[` $index `]` `,` $length attr-dict "

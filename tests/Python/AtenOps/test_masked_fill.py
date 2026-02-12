@@ -33,5 +33,8 @@ graph.lower_to_top_level_ir()
 print(graph._imported_module)
 
 # CHECK: func.func
-# CHECK: tosa.select
+# CHECK: arith.constant
+# CHECK: tensor.empty
+# CHECK: linalg.generic
+# CHECK: arith.select
 # CHECK: return

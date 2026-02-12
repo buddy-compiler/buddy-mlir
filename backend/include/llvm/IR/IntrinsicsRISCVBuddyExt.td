@@ -33,16 +33,7 @@ let TargetPrefix = "riscv" in
 def int_riscv_flush : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
 
 let TargetPrefix = "riscv" in
-def int_riscv_config_ld : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
-
-let TargetPrefix = "riscv" in
-def int_riscv_config_st : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
-
-let TargetPrefix = "riscv" in
-def int_riscv_config_ex : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
-
-let TargetPrefix = "riscv" in
-def int_riscv_config_norm : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
+def int_riscv_config : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
 
 let TargetPrefix = "riscv" in
 def int_riscv_preload : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
@@ -97,18 +88,29 @@ def int_riscv_loop_conv_ws_config6 : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], [
 //===----------------------------------------------------------------------===//
 
 let TargetPrefix = "riscv" in
-def int_riscv_ime_vmadot : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty, llvm_i64_ty], []>;
+def int_riscv_ime_vmadot : Intrinsic<[llvm_anyvector_ty],
+                                     [LLVMMatchType<0>, llvm_anyvector_ty, llvm_anyvector_ty],
+                                     [IntrNoMem]>;
 
 let TargetPrefix = "riscv" in
-def int_riscv_ime_vmadotu : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty, llvm_i64_ty], []>;
+def int_riscv_ime_vmadotu : Intrinsic<[llvm_anyvector_ty],
+                                      [LLVMMatchType<0>, llvm_anyvector_ty, llvm_anyvector_ty],
+                                      [IntrNoMem]>;
 
 let TargetPrefix = "riscv" in
-def int_riscv_ime_vmadotsu : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty, llvm_i64_ty], []>;
+def int_riscv_ime_vmadotsu : Intrinsic<[llvm_anyvector_ty],
+                                       [LLVMMatchType<0>, llvm_anyvector_ty, llvm_anyvector_ty],
+                                       [IntrNoMem]>;
 
 let TargetPrefix = "riscv" in
-def int_riscv_ime_vmadotus : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty, llvm_i64_ty], []>;
+def int_riscv_ime_vmadotus : Intrinsic<[llvm_anyvector_ty],
+                                       [LLVMMatchType<0>, llvm_anyvector_ty, llvm_anyvector_ty],
+                                       [IntrNoMem]>;
 
 let TargetPrefix = "riscv" in
+def int_riscv_ime_vfmadot : Intrinsic<[llvm_anyvector_ty],
+                                      [LLVMMatchType<0>, llvm_anyvector_ty, llvm_anyvector_ty],
+                                      [IntrNoMem]>;
 def int_riscv_ime_vfmadot : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty, llvm_i64_ty], []>;
 
 //===----------------------------------------------------------------------===//

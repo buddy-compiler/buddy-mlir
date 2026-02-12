@@ -19,10 +19,12 @@
 #include <buddy/LLM/TextContainer.h>
 #include <chrono>
 #include <cstddef>
+#include <cstdio>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <sys/time.h>
 
 using namespace buddy;
 double total_time = 0;
@@ -33,6 +35,19 @@ constexpr size_t MaxTokenLength = 1024;
 constexpr size_t NUM_LAYERS = 56;
 constexpr size_t HiddenSize = 128;
 constexpr size_t HeadNum = 2;
+
+extern "C" double _mlir_ciface_rtclock() {
+#ifndef _WIN32
+  struct timeval tp;
+  int stat = gettimeofday(&tp, nullptr);
+  if (stat != 0)
+    fprintf(stderr, "Error returning time from gettimeofday: %d\n", stat);
+  return (tp.tv_sec + tp.tv_usec * 1.0e-6);
+#else
+  fprintf(stderr, "Timing utility not implemented on Windows\n");
+  return 0.0;
+#endif // _WIN32
+}
 
 struct MemRefContainer {
 

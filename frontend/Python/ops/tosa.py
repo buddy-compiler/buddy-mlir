@@ -19,12 +19,24 @@
 # ===---------------------------------------------------------------------------
 
 import array, copy
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Sequence, Tuple, Union
 import numpy
 import sys
 
 import mlir.ir as ir
-from mlir.dialects import tensor, tosa, arith, linalg, math
+from mlir.ir import IndexType, F32Type
+from mlir.dialects import (
+    tensor,
+    tosa,
+    arith,
+    linalg,
+    math,
+    affine,
+    vector,
+    bufferization,
+    memref,
+    scf,
+)
 
 from ..graph import TensorDType
 from ..graph import (
@@ -56,6 +68,7 @@ from ..graph import (
     ReluOp,
     IotaOp,
     SigmoidOp,
+    GluOp,
     ReciprocalOp,
     MeanOp,
     ClampMinOp,
@@ -63,9 +76,11 @@ from ..graph import (
     RandIntLowOp,
     ArgMaxOp,
     ScaledDotProductFlashAttentionForCpuOp,
+    FlashAttentionForCpuPrefillOp,
     MatmulOp,
     LeOp,
     BitwiseAndTensorOp,
+    BitwiseLeftShiftOp,
     AbsOp,
     LogOp,
     CeilOp,
@@ -78,6 +93,7 @@ from ..graph import (
     LogicalAndOp,
     LogicalOrOp,
     BitwiseOrOp,
+    BitwiseRightShiftOp,
     BitwiseXorOp,
     AminOp,
     AvgPool2dOp,
@@ -116,6 +132,7 @@ from ..graph import (
     GtOp,
     DivTensorModeOp,
     ErfOp,
+    ErfinvOp,
     NeScalarOp,
     LeScalarOp,
     LtScalarOp,
@@ -156,8 +173,20 @@ from ..graph import (
     BaddbmmOp,
     LgammaOp,
     DigammaOp,
+    IgammaOp,
+    IgammacOp,
     I0Op,
     ErfcOp,
+    SpecialEntrOp,
+    SpecialI0eOp,
+    SpecialI1Op,
+    SpecialI1eOp,
+    SpecialErfcxOp,
+    SpecialNdtrOp,
+    SpecialLogNdtrOp,
+    SpecialNdtriOp,
+    SpecialSphericalBesselJ0Op,
+    FrexpOp,
     CummaxOp,
     CumminOp,
     ClampMinTensorOp,
@@ -165,6 +194,7 @@ from ..graph import (
     HypotOp,
     CopysignOp,
     SignOp,
+    SignbitOp,
     NextafterOp,
     MaskedScatterOp,
     RevOp,
@@ -196,6 +226,7 @@ from ..graph import (
     # Other Operations
     EmptyStridedOp,
     RandpermOp,
+    UniformOp,
     # Core Aten Remaining Operations
     EmbeddingBagOp,
     CdistForwardOp,
@@ -204,6 +235,7 @@ from ..graph import (
     LocalScalarDenseOp,
     ResizeOp,
     SplitWithSizesOp,
+    GQAAttentionFusedOp,
 )
 from .utils import *
 
@@ -239,18 +271,23 @@ def _gen_arith_binary_op(input1, input2, op_func):
         broadcasted_result_shp.append(max(dim1, dim2))
     if input1_shape != norm_input1_shape:
         input1 = tosa.ReshapeOp(
-            input1, memoryview(array.array("i", norm_input1_shape))
+            input1, _create_shape_operand(norm_input1_shape)
         ).result
     if input2_shape != norm_input2_shape:
         input2 = tosa.ReshapeOp(
-            input2, memoryview(array.array("i", norm_input2_shape))
+            input2, _create_shape_operand(norm_input2_shape)
         ).result
 
     result_element_type = ir.RankedTensorType(input1.type).element_type
     result_tensor_type = ir.RankedTensorType.get(
         broadcasted_result_shp, result_element_type
     )
-    op = op_func(result_tensor_type, input1, input2)
+    # MulOp requires a shift parameter
+    if op_func == tosa.MulOp:
+        shift = _create_mul_shift_operand()
+        op = op_func(result_tensor_type, input1, input2, shift)
+    else:
+        op = op_func(result_tensor_type, input1, input2)
     return op
 
 
@@ -259,11 +296,10 @@ def _scalar_to_tensor(
 ):
     """Convert scalers to cooresponding tensors since MLIR
     doesn't support operation between scalers and tensors."""
-    element = (
-        ir.FloatAttr.get(element_type, float(scalar))
-        if str(element_type) == "f32"
-        else ir.IntegerAttr.get(element_type, int(scalar))
-    )
+    if ir.FloatType.isinstance(element_type):
+        element = ir.FloatAttr.get(element_type, float(scalar))
+    else:
+        element = ir.IntegerAttr.get(element_type, int(scalar))
     attr = ir.DenseElementsAttr.get_splat(
         ir.RankedTensorType.get(shape, element_type), element
     )
@@ -308,6 +344,73 @@ def _normalize_binary_operator_args(arg1, arg2):
         )
 
 
+def _require_integer_tensor(value: ir.Value, op_name: str) -> ir.Type:
+    element_type = ir.RankedTensorType(value.type).element_type
+    if not ir.IntegerType.isinstance(element_type):
+        raise ValueError(
+            f"{op_name} requires integer tensor inputs, got {element_type}"
+        )
+    return element_type
+
+
+def _is_unsigned_integer_type(element_type: ir.Type) -> bool:
+    return str(element_type).startswith("ui")
+
+
+def _create_shape_operand(shape: Sequence[int]) -> ir.Value:
+    """Create a tosa.shape value for reshape-like ops."""
+    dims = [int(dim) for dim in shape]
+    rank = len(dims)
+    shape_type = ir.Type.parse(f"!tosa.shape<{rank}>")
+    index_type = ir.IndexType.get()
+    shape_attr = ir.DenseElementsAttr.get(
+        array.array("q", dims),
+        type=index_type,
+        shape=[rank],
+    )
+    return tosa.ConstShapeOp(shape_type, shape_attr).result
+
+
+def _normalize_reduce_dims(dim_arg, rank: int) -> List[int]:
+    if dim_arg is None:
+        dims = list(range(rank))
+    elif isinstance(dim_arg, (list, tuple)):
+        dims = list(dim_arg)
+        if not dims:
+            dims = list(range(rank))
+    else:
+        dims = [int(dim_arg)]
+    return [d + rank if d < 0 else d for d in dims]
+
+
+def _create_zero_point_tensor(value: ir.Value) -> ir.Value:
+    """Create a zero-point tensor (tensor<1xT>) matching the value element type."""
+    element_type = ir.RankedTensorType(value.type).element_type
+    tensor_type = ir.RankedTensorType.get([1], element_type)
+    if ir.FloatType.isinstance(element_type) or ir.BF16Type.isinstance(
+        element_type
+    ):
+        zero_attr = ir.FloatAttr.get(element_type, 0.0)
+    else:
+        zero_attr = ir.IntegerAttr.get(element_type, 0)
+    dense_attr = ir.DenseElementsAttr.get_splat(tensor_type, zero_attr)
+    return tosa.ConstOp(dense_attr).results[0]
+
+
+def _create_mul_shift_operand() -> ir.Value:
+    """Create the required shift operand for tosa.MulOp."""
+    i8_type = ir.IntegerType.get_signless(8)
+    tensor_type = ir.RankedTensorType.get([1], i8_type)
+    zero_attr = ir.IntegerAttr.get(i8_type, 0)
+    dense_attr = ir.DenseElementsAttr.get_splat(tensor_type, zero_attr)
+    return tosa.ConstOp(dense_attr).results[0]
+
+
+def _create_permutation_attr(perm: Sequence[int]) -> ir.Attribute:
+    """Create DenseI32ArrayAttr permutation for tosa.transpose."""
+    return ir.DenseI32ArrayAttr.get([int(dim) for dim in perm])
+
+
 def addmm_op(
     node: AddMMOp, symbol_table: Dict[Tuple[str, int], ir.Operation]
 ) -> ir.Operation:
@@ -337,10 +440,10 @@ def addmm_op(
     # mat2_shp = ir.RankedTensorType(mat2.type).shape
     # # append index because tosa.MatMulOp doesn't accept 2D tensor
     # mat1_reshape_op = tosa.ReshapeOp(
-    #     mat1, memoryview(array.array("i", [1, *mat1_shp]))
+    #     mat1, _create_shape_operand([1, *mat1_shp])
     # )
     # mat2_reshape_op = tosa.ReshapeOp(
-    #     mat2, memoryview(array.array("i", [1, *mat2_shp]))
+    #     mat2, _create_shape_operand([1, *mat2_shp])
     # )
     # # do matmul
     # result_element_type = ir.RankedTensorType(mat1.type).element_type
@@ -354,7 +457,7 @@ def addmm_op(
     # # restore the shape
     # final_result_shape = [mat1_shp[0], mat2_shp[1]]
     # matmul_result_reshape_op = tosa.ReshapeOp(
-    #     matmul_op.c, memoryview(array.array("i", final_result_shape))
+    #     matmul_op.c, _create_shape_operand(final_result_shape)
     # )
 
     # op = _gen_arith_binary_op(
@@ -446,7 +549,9 @@ def bmm_op(node: BatchMatmulOp, symbol_table) -> ir.Operation:
     sizes = [input_shp[0], input_shp[1], mat2_shp[2]]
     result_element_type = ir.RankedTensorType(input_.type).element_type
     result_type = ir.RankedTensorType.get(sizes, result_element_type)
-    op = tosa.MatMulOp(result_type, input_, mat2)
+    input_zp = _create_zero_point_tensor(input_)
+    weight_zp = _create_zero_point_tensor(mat2)
+    op = tosa.MatMulOp(result_type, input_, mat2, input_zp, weight_zp)
     return op
 
 
@@ -498,12 +603,8 @@ def mul_op(node: MulOp, symbol_table):
     """
 
     def _inner_op(result_type, input1, input2):
-        return tosa.MulOp(
-            result_type,
-            input1,
-            input2,
-            # ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
-        )
+        shift = _create_mul_shift_operand()
+        return tosa.MulOp(result_type, input1, input2, shift)
 
     output_shape = list(node.tensor_meta["shape"])
     dtype = node.tensor_meta["dtype"]
@@ -558,12 +659,9 @@ def div_op(node: DivOp, symbol_table):
     """
 
     def _inner_op(result_type, input1, input2):
-        return tosa.MulOp(
-            result_type,
-            input1,
-            tosa.ReciprocalOp(input2.type, input2).result,
-            # ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
-        )
+        shift = _create_mul_shift_operand()
+        reciprocal = tosa.ReciprocalOp(input2.type, input2).result
+        return tosa.MulOp(result_type, input1, reciprocal, shift)
 
     input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
     input2 = symbol_table.get((str(node.args[1]), 0), node.args[1])
@@ -779,6 +877,41 @@ def bitwise_xor_op(node: BitwiseXorOp, symbol_table):
     return _gen_arith_binary_op(input1, input2, tosa.BitwiseXorOp)
 
 
+def bitwise_left_shift_op(node: BitwiseLeftShiftOp, symbol_table):
+    """
+    Import elementwise bitwise left shift operation.
+    From buddy graph ir's `BitwiseLeftShiftOp` operator to MLIR TOSA
+    `logical_left_shift` operation.
+    """
+    input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    input2 = symbol_table.get((str(node.args[1]), 0), node.args[1])
+    input1, input2 = _normalize_binary_operator_args(input1, input2)
+    _require_integer_tensor(input1, "bitwise_left_shift")
+    _require_integer_tensor(input2, "bitwise_left_shift")
+    return _gen_arith_binary_op(input1, input2, tosa.LogicalLeftShiftOp)
+
+
+def bitwise_right_shift_op(node: BitwiseRightShiftOp, symbol_table):
+    """
+    Import elementwise bitwise right shift operation.
+    From buddy graph ir's `BitwiseRightShiftOp` operator to MLIR TOSA
+    `logical_right_shift` or `arithmetic_right_shift` operation.
+    """
+    input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    input2 = symbol_table.get((str(node.args[1]), 0), node.args[1])
+    input1, input2 = _normalize_binary_operator_args(input1, input2)
+    elem_type = _require_integer_tensor(input1, "bitwise_right_shift")
+    _require_integer_tensor(input2, "bitwise_right_shift")
+
+    if _is_unsigned_integer_type(elem_type):
+        return _gen_arith_binary_op(input1, input2, tosa.LogicalRightShiftOp)
+
+    def _arith_right_shift(result_type, lhs, rhs):
+        return tosa.ArithmeticRightShiftOp(result_type, lhs, rhs, False)
+
+    return _gen_arith_binary_op(input1, input2, _arith_right_shift)
+
+
 def rsqrt_op(node: RsqrtOp, symbol_table):
     """
     Import elementwise reciprocal square root operation.
@@ -801,13 +934,22 @@ def amax_op(node: AmaxOp, symbol_table):
     operation.
     """
     input1 = symbol_table.get((str(node.args[0]), 0))
-    dim_val = node.args[1][0]
-    if dim_val < 0:
-        dim_val += len(ir.RankedTensorType(input1.type).shape)
-    signless_type = ir.IntegerType.get_signless(32)
-    dim_attr = ir.IntegerAttr.get(signless_type, dim_val)
-    op = tosa.ReduceMaxOp(input1, dim_attr)
-    return op
+    dim_arg = node.args[1] if len(node.args) > 1 else None
+    keepdim = node.args[2] if len(node.args) > 2 else False
+    rank = len(ir.RankedTensorType(input1.type).shape)
+    dims = _normalize_reduce_dims(dim_arg, rank)
+
+    result = input1
+    for dim_val in dims:
+        dim_attr = ir.IntegerAttr.get(ir.IntegerType.get_signless(32), dim_val)
+        result = tosa.ReduceMaxOp(result, dim_attr).result
+
+    if not keepdim:
+        output_shape = list(node.tensor_meta["shape"])
+        reshape_operand = _create_shape_operand(output_shape)
+        result = tosa.ReshapeOp(result, reshape_operand).result
+
+    return result
 
 
 def amin_op(node: AminOp, symbol_table):
@@ -817,13 +959,22 @@ def amin_op(node: AminOp, symbol_table):
     operation.
     """
     input1 = symbol_table.get((str(node.args[0]), 0))
-    dim_val = node.args[1][0]
-    if dim_val < 0:
-        dim_val += len(ir.RankedTensorType(input1.type).shape)
-    signless_type = ir.IntegerType.get_signless(32)
-    dim_attr = ir.IntegerAttr.get(signless_type, dim_val)
-    op = tosa.ReduceMinOp(input1, dim_attr)
-    return op
+    dim_arg = node.args[1] if len(node.args) > 1 else None
+    keepdim = node.args[2] if len(node.args) > 2 else False
+    rank = len(ir.RankedTensorType(input1.type).shape)
+    dims = _normalize_reduce_dims(dim_arg, rank)
+
+    result = input1
+    for dim_val in dims:
+        dim_attr = ir.IntegerAttr.get(ir.IntegerType.get_signless(32), dim_val)
+        result = tosa.ReduceMinOp(result, dim_attr).result
+
+    if not keepdim:
+        output_shape = list(node.tensor_meta["shape"])
+        reshape_operand = _create_shape_operand(output_shape)
+        result = tosa.ReshapeOp(result, reshape_operand).result
+
+    return result
 
 
 def logical_xor_op(node: LogicalXorOp, symbol_table):
@@ -850,7 +1001,7 @@ def prod_op(node: ProdOp, symbol_table):
             dim_val += len(ir.RankedTensorType(input1.type).shape)
         signless_type = ir.IntegerType.get_signless(32)
         dim_attr = ir.IntegerAttr.get(signless_type, dim_val)
-        op = tosa.ReduceProdOp(input1, dim_attr)
+        op = tosa.ReduceProductOp(input1, dim_attr)
     else:
         # Reduce all dimensions - need to reduce one by one
         input_shape = ir.RankedTensorType(input1.type).shape
@@ -859,7 +1010,7 @@ def prod_op(node: ProdOp, symbol_table):
         # Reduce from last dimension to first to avoid index issues
         for dim in range(len(input_shape) - 1, -1, -1):
             dim_attr = ir.IntegerAttr.get(signless_type, dim)
-            result = tosa.ReduceProdOp(result, dim_attr)
+            result = tosa.ReduceProductOp(result, dim_attr)
         op = result
     return op
 
@@ -879,58 +1030,73 @@ def avg_pool2d_op(node: AvgPool2dOp, symbol_table):
     dtype = node.tensor_meta["dtype"]
     result_element_type = mlir_element_type_get(dtype)
     acc_type = ir.TypeAttr.get(result_element_type)
-    if node._layout.find("NCHW") != -1:
+
+    # Convert NCHW to NHWC if needed
+    is_nchw = node._layout.find("NCHW") != -1
+    if is_nchw:
         perm_list = [0, 2, 3, 1]
-        perm_const_op = tosa.ConstOp(
-            ir.DenseElementsAttr.get(memoryview(array.array("i", perm_list)))
-        )
-        out_shape = list(ir.RankedTensorType(input1.type).shape)
-        perm_shape = []
-        perm_shape.append(out_shape[0])
-        perm_shape.append(out_shape[2])
-        perm_shape.append(out_shape[3])
-        perm_shape.append(out_shape[1])
+        perm_attr = _create_permutation_attr(perm_list)
+        input_shape = list(ir.RankedTensorType(input1.type).shape)
+        nhwc_shape = [
+            input_shape[0],
+            input_shape[2],
+            input_shape[3],
+            input_shape[1],
+        ]
         permute_result_type = ir.RankedTensorType.get(
-            perm_shape, result_element_type
+            nhwc_shape, result_element_type
         )
-        input1 = tosa.TransposeOp(
-            permute_result_type, input1, perm_const_op.results[0]
-        ).result
-    out_shape = node.tensor_meta["shape"]
+        input1 = tosa.TransposeOp(permute_result_type, input1, perm_attr).result
+
+    # Get input shape in NHWC format (after transpose if needed)
+    input_shape_nhwc = list(ir.RankedTensorType(input1.type).shape)
+    N, H, W, C = input_shape_nhwc
+
+    # Expand pad to 4 elements if needed
     if len(pad) == 1:
         pad = [pad[0]] * 4
     elif len(pad) == 2:
         pad = [pad[0]] * 2 + [pad[1]] * 2
+
+    # Calculate output shape in NHWC format
+    # Formula: output = (input + pad_top + pad_bottom - kernel) / stride + 1
+    pad_top, pad_bottom, pad_left, pad_right = pad
+    output_h = (H + pad_top + pad_bottom - kernel[0]) // stride[0] + 1
+    output_w = (W + pad_left + pad_right - kernel[1]) // stride[1] + 1
+    output_shape_nhwc = [N, output_h, output_w, C]
+
     kernel_attr = ir._denseI64ArrayAttr(kernel, None)
     stride_attr = ir._denseI64ArrayAttr(stride, None)
     pad_attr = ir._denseI64ArrayAttr(pad, None)
-    if node._layout.find("NCHW") != -1:
-        perm_shape = []
-        perm_shape.append(out_shape[0])
-        perm_shape.append(out_shape[2])
-        perm_shape.append(out_shape[3])
-        perm_shape.append(out_shape[1])
-        out_shape = perm_shape
-    output = ir.RankedTensorType.get(out_shape, result_element_type)
+
+    output = ir.RankedTensorType.get(output_shape_nhwc, result_element_type)
+    input_zp = _create_zero_point_tensor(input1)
+    output_zp = _create_zero_point_tensor(input1)
     op = tosa.AvgPool2dOp(
-        output, input1, kernel_attr, stride_attr, pad_attr, acc_type
+        output,
+        input1,
+        input_zp,
+        output_zp,
+        kernel=kernel_attr,
+        stride=stride_attr,
+        pad=pad_attr,
+        acc_type=acc_type,
     )
-    if node._layout.find("NCHW") != -1:
+
+    # Convert back from NHWC to NCHW if needed
+    if is_nchw:
         perm_list = [0, 3, 1, 2]
-        perm_const_op = tosa.ConstOp(
-            ir.DenseElementsAttr.get(memoryview(array.array("i", perm_list)))
-        )
-        perm_shape = []
-        perm_shape.append(out_shape[0])
-        perm_shape.append(out_shape[3])
-        perm_shape.append(out_shape[1])
-        perm_shape.append(out_shape[2])
+        perm_attr = _create_permutation_attr(perm_list)
+        nchw_shape = [
+            output_shape_nhwc[0],
+            output_shape_nhwc[3],
+            output_shape_nhwc[1],
+            output_shape_nhwc[2],
+        ]
         permute_result_type = ir.RankedTensorType.get(
-            perm_shape, result_element_type
+            nchw_shape, result_element_type
         )
-        op = tosa.TransposeOp(
-            permute_result_type, op.result, perm_const_op.results[0]
-        )
+        op = tosa.TransposeOp(permute_result_type, op.result, perm_attr)
     return op
 
 
@@ -938,12 +1104,13 @@ def max_pool1d_op(node: MaxPool1dOp, symbol_table):
     """
     Import the max_pool1d operation.
     From buddy graph ir's `MaxPool1dOp` operator to MLIR operations.
-    Implemented by expanding to 2D, applying max_pool2d, then squeezing back.
-    Returns (values, indices) tuple for max_pool1d_with_indices.
+    Implemented with scf loops to return values and indices.
     """
-    input1 = symbol_table.get((str(node.args[0]), 0))
+    input_tensor = symbol_table.get((str(node.args[0]), 0))
     kernel_size = node.args[1]
-    stride = node.args[2] if len(node.args) > 2 else kernel_size
+    stride = (
+        node.args[2] if len(node.args) > 2 and node.args[2] else kernel_size
+    )
     padding = node.args[3] if len(node.args) > 3 else 0
     dilation = node.args[4] if len(node.args) > 4 else 1
     ceil_mode = node.args[5] if len(node.args) > 5 else False
@@ -954,72 +1121,152 @@ def max_pool1d_op(node: MaxPool1dOp, symbol_table):
         stride = stride[0]
     if isinstance(padding, (list, tuple)):
         padding = padding[0]
+    if isinstance(dilation, (list, tuple)):
+        dilation = dilation[0]
 
-    dtype = node.tensor_meta["dtype"]
-    result_element_type = mlir_element_type_get(dtype)
+    input_shape = list(ir.RankedTensorType(input_tensor.type).shape)
+    input_dtype = ir.RankedTensorType(input_tensor.type).element_type
+    if any(dim < 0 for dim in input_shape):
+        raise NotImplementedError("max_pool1d requires static shapes")
+    if kernel_size <= 0 or stride <= 0 or dilation <= 0:
+        raise NotImplementedError(
+            "max_pool1d requires positive kernel/stride/dilation"
+        )
 
-    # Get input shape: NCW
-    input_shape = list(ir.RankedTensorType(input1.type).shape)
     N, C, W = input_shape
 
-    # Calculate output width
-    out_w = (W + 2 * padding - kernel_size) // stride + 1
-    out_shape = [N, C, out_w]
+    if ceil_mode:
+        out_w = (
+            W + 2 * padding - dilation * (kernel_size - 1) - 1 + stride - 1
+        ) // stride + 1
+    else:
+        out_w = (
+            W + 2 * padding - dilation * (kernel_size - 1) - 1
+        ) // stride + 1
 
-    # Expand to NCHW by adding a dimension: NCW -> NC1W
-    expanded_shape = [N, C, 1, W]
-    expanded_type = ir.RankedTensorType.get(expanded_shape, result_element_type)
-    expanded_input = tosa.ReshapeOp(expanded_type, input1)
+    if out_w < 0:
+        out_w = 0
 
-    # Convert NCHW to NHWC for TOSA
-    perm_list = [0, 2, 3, 1]
-    perm_const_op = tosa.ConstOp(
-        ir.DenseElementsAttr.get(memoryview(array.array("i", perm_list)))
+    output_shape = [N, C, out_w]
+    output_type = ir.RankedTensorType.get(output_shape, input_dtype)
+    indices_dtype = ir.IntegerType.get_signless(64)
+    indices_type = ir.RankedTensorType.get(output_shape, indices_dtype)
+
+    output_memref = memref.AllocOp(
+        ir.MemRefType.get(output_shape, input_dtype), [], []
     )
-    nhwc_shape = [N, 1, W, C]
-    nhwc_type = ir.RankedTensorType.get(nhwc_shape, result_element_type)
-    nhwc_input = tosa.TransposeOp(
-        nhwc_type, expanded_input.result, perm_const_op.results[0]
-    )
-
-    # Apply max_pool2d with kernel [1, kernel_size]
-    kernel_attr = ir._denseI64ArrayAttr([1, kernel_size], None)
-    stride_attr = ir._denseI64ArrayAttr([1, stride], None)
-    pad_attr = ir._denseI64ArrayAttr([0, 0, padding, padding], None)
-
-    pool_nhwc_shape = [N, 1, out_w, C]
-    pool_type = ir.RankedTensorType.get(pool_nhwc_shape, result_element_type)
-    pooled = tosa.MaxPool2dOp(
-        pool_type, nhwc_input.result, kernel_attr, stride_attr, pad_attr
+    indices_memref = memref.AllocOp(
+        ir.MemRefType.get(output_shape, indices_dtype), [], []
     )
 
-    # Convert back NHWC to NCHW
-    perm_list2 = [0, 3, 1, 2]
-    perm_const_op2 = tosa.ConstOp(
-        ir.DenseElementsAttr.get(memoryview(array.array("i", perm_list2)))
-    )
-    nchw_shape = [N, C, 1, out_w]
-    nchw_type = ir.RankedTensorType.get(nchw_shape, result_element_type)
-    nchw_output = tosa.TransposeOp(
-        nchw_type, pooled.result, perm_const_op2.results[0]
-    )
+    min_attr = _get_min_value_attr(input_dtype)
+    min_const = arith.ConstantOp(input_dtype, min_attr)
+    linalg.fill(min_const.result, outs=[output_memref.result])
 
-    # Squeeze back to NCW
-    result_type = ir.RankedTensorType.get(out_shape, result_element_type)
-    values = tosa.ReshapeOp(result_type, nchw_output.result)
-
-    # Create dummy indices (filled with zeros)
-    indices_element_type = ir.IntegerType.get_signless(64)
-    indices_type = ir.RankedTensorType.get(out_shape, indices_element_type)
-    zero_attr = ir.DenseElementsAttr.get_splat(
-        indices_type, ir.IntegerAttr.get(indices_element_type, 0)
+    zero_i64 = arith.ConstantOp(
+        indices_dtype, ir.IntegerAttr.get(indices_dtype, 0)
     )
-    indices = tosa.ConstOp(zero_attr)
+    linalg.fill(zero_i64.result, outs=[indices_memref.result])
 
+    input_memref = bufferization.ToBufferOp(
+        ir.MemRefType.get(input_shape, input_dtype), input_tensor
+    ).result
+
+    index_type = ir.IndexType.get()
+    zero = arith.ConstantOp(index_type, 0)
+    one = arith.ConstantOp(index_type, 1)
+    n_bound = arith.ConstantOp(index_type, N)
+    c_bound = arith.ConstantOp(index_type, C)
+    out_w_bound = arith.ConstantOp(index_type, out_w)
+    k_bound = arith.ConstantOp(index_type, kernel_size)
+    stride_const = arith.ConstantOp(index_type, stride)
+    pad_const = arith.ConstantOp(index_type, padding)
+    dilation_const = arith.ConstantOp(index_type, dilation)
+    w_const = arith.ConstantOp(index_type, W)
+
+    n_loop = scf.ForOp(zero.result, n_bound.result, one.result)
+    with ir.InsertionPoint(n_loop.body):
+        n = n_loop.induction_variable
+
+        c_loop = scf.ForOp(zero.result, c_bound.result, one.result)
+        with ir.InsertionPoint(c_loop.body):
+            c = c_loop.induction_variable
+
+            ow_loop = scf.ForOp(zero.result, out_w_bound.result, one.result)
+            with ir.InsertionPoint(ow_loop.body):
+                ow = ow_loop.induction_variable
+
+                w_base = arith.MulIOp(ow, stride_const.result).result
+                w_base = arith.SubIOp(w_base, pad_const.result).result
+
+                kw_loop = scf.ForOp(zero.result, k_bound.result, one.result)
+                with ir.InsertionPoint(kw_loop.body):
+                    kw = kw_loop.induction_variable
+
+                    iw = arith.AddIOp(
+                        w_base,
+                        arith.MulIOp(kw, dilation_const.result).result,
+                    ).result
+
+                    iw_ge_0 = arith.CmpIOp(
+                        arith.CmpIPredicate.sge, iw, zero.result
+                    ).result
+                    iw_lt_w = arith.CmpIOp(
+                        arith.CmpIPredicate.slt, iw, w_const.result
+                    ).result
+                    in_bounds = arith.AndIOp(iw_ge_0, iw_lt_w).result
+
+                    if_op = scf.IfOp(in_bounds, hasElse=False)
+                    with ir.InsertionPoint(if_op.then_block):
+                        input_val = memref.LoadOp(
+                            input_memref, [n, c, iw]
+                        ).result
+                        current_max = memref.LoadOp(
+                            output_memref.result, [n, c, ow]
+                        ).result
+                        if _is_float_type(input_dtype):
+                            is_greater = arith.CmpFOp(
+                                arith.CmpFPredicate.OGT,
+                                input_val,
+                                current_max,
+                            ).result
+                        else:
+                            pred = (
+                                arith.CmpIPredicate.ugt
+                                if _is_unsigned_integer_type(input_dtype)
+                                else arith.CmpIPredicate.sgt
+                            )
+                            is_greater = arith.CmpIOp(
+                                pred, input_val, current_max
+                            ).result
+
+                        inner_if = scf.IfOp(is_greater, hasElse=False)
+                        with ir.InsertionPoint(inner_if.then_block):
+                            memref.StoreOp(
+                                input_val,
+                                output_memref.result,
+                                [n, c, ow],
+                            )
+                            iw_i64 = arith.IndexCastOp(indices_dtype, iw).result
+                            memref.StoreOp(
+                                iw_i64,
+                                indices_memref.result,
+                                [n, c, ow],
+                            )
+                            scf.YieldOp([])
+                        scf.YieldOp([])
+                    scf.YieldOp([])
+                scf.YieldOp([])
+            scf.YieldOp([])
+        scf.YieldOp([])
+
+    values = bufferization.ToTensorOp(
+        output_type, output_memref.result, restrict=True
+    )
+    indices = bufferization.ToTensorOp(
+        indices_type, indices_memref.result, restrict=True
+    )
     return values, indices
-
-
-# avg_pool3d_op moved to linalg.py (full implementation)
 
 
 def adaptive_max_pool1d_op(node: AdaptiveMaxPool1dOp, symbol_table):
@@ -1028,73 +1275,130 @@ def adaptive_max_pool1d_op(node: AdaptiveMaxPool1dOp, symbol_table):
     From buddy graph ir's `AdaptiveMaxPool1dOp` operator to MLIR operations.
     Returns (values, indices) tuple.
     """
-    input1 = symbol_table.get((str(node.args[0]), 0))
+    input_tensor = symbol_table.get((str(node.args[0]), 0))
     output_size = node.args[1]
     if isinstance(output_size, (list, tuple)):
         output_size = output_size[0]
+    if not isinstance(output_size, int):
+        raise NotImplementedError(
+            "adaptive_max_pool1d requires int output_size"
+        )
 
-    dtype = node.tensor_meta["dtype"]
-    result_element_type = mlir_element_type_get(dtype)
+    input_shape = list(ir.RankedTensorType(input_tensor.type).shape)
+    input_dtype = ir.RankedTensorType(input_tensor.type).element_type
+    if any(dim < 0 for dim in input_shape):
+        raise NotImplementedError("adaptive_max_pool1d requires static shapes")
+    if output_size <= 0:
+        raise NotImplementedError("adaptive_max_pool1d output_size invalid")
 
-    # Get input shape: NCW
-    input_shape = list(ir.RankedTensorType(input1.type).shape)
     N, C, W = input_shape
+    out_w = output_size
 
-    # Calculate kernel and stride for adaptive pooling
-    kernel_w = W // output_size
-    stride_w = kernel_w
+    output_shape = [N, C, out_w]
+    output_type = ir.RankedTensorType.get(output_shape, input_dtype)
+    indices_dtype = ir.IntegerType.get_signless(64)
+    indices_type = ir.RankedTensorType.get(output_shape, indices_dtype)
 
-    # Expand to NCHW
-    expanded_shape = [N, C, 1, W]
-    expanded_type = ir.RankedTensorType.get(expanded_shape, result_element_type)
-    expanded_input = tosa.ReshapeOp(expanded_type, input1)
-
-    # Convert NCHW to NHWC
-    perm_list = [0, 2, 3, 1]
-    perm_const = tosa.ConstOp(
-        ir.DenseElementsAttr.get(memoryview(array.array("i", perm_list)))
+    output_memref = memref.AllocOp(
+        ir.MemRefType.get(output_shape, input_dtype), [], []
     )
-    nhwc_shape = [N, 1, W, C]
-    nhwc_type = ir.RankedTensorType.get(nhwc_shape, result_element_type)
-    nhwc_input = tosa.TransposeOp(
-        nhwc_type, expanded_input.result, perm_const.results[0]
+    indices_memref = memref.AllocOp(
+        ir.MemRefType.get(output_shape, indices_dtype), [], []
     )
 
-    # Apply max_pool2d
-    kernel_attr = ir._denseI64ArrayAttr([1, kernel_w], None)
-    stride_attr = ir._denseI64ArrayAttr([1, stride_w], None)
-    pad_attr = ir._denseI64ArrayAttr([0, 0, 0, 0], None)
+    min_attr = _get_min_value_attr(input_dtype)
+    min_const = arith.ConstantOp(input_dtype, min_attr)
+    linalg.fill(min_const.result, outs=[output_memref.result])
 
-    pool_nhwc_shape = [N, 1, output_size, C]
-    pool_type = ir.RankedTensorType.get(pool_nhwc_shape, result_element_type)
-    pooled = tosa.MaxPool2dOp(
-        pool_type, nhwc_input.result, kernel_attr, stride_attr, pad_attr
+    zero_i64 = arith.ConstantOp(
+        indices_dtype, ir.IntegerAttr.get(indices_dtype, 0)
     )
+    linalg.fill(zero_i64.result, outs=[indices_memref.result])
 
-    # Convert back NHWC to NCHW
-    perm_list2 = [0, 3, 1, 2]
-    perm_const2 = tosa.ConstOp(
-        ir.DenseElementsAttr.get(memoryview(array.array("i", perm_list2)))
+    input_memref = bufferization.ToBufferOp(
+        ir.MemRefType.get(input_shape, input_dtype), input_tensor
+    ).result
+
+    index_type = ir.IndexType.get()
+    zero = arith.ConstantOp(index_type, 0)
+    one = arith.ConstantOp(index_type, 1)
+    n_bound = arith.ConstantOp(index_type, N)
+    c_bound = arith.ConstantOp(index_type, C)
+    out_w_bound = arith.ConstantOp(index_type, out_w)
+    w_const = arith.ConstantOp(index_type, W)
+    out_w_const = arith.ConstantOp(index_type, out_w)
+
+    n_loop = scf.ForOp(zero.result, n_bound.result, one.result)
+    with ir.InsertionPoint(n_loop.body):
+        n = n_loop.induction_variable
+
+        c_loop = scf.ForOp(zero.result, c_bound.result, one.result)
+        with ir.InsertionPoint(c_loop.body):
+            c = c_loop.induction_variable
+
+            ow_loop = scf.ForOp(zero.result, out_w_bound.result, one.result)
+            with ir.InsertionPoint(ow_loop.body):
+                ow = ow_loop.induction_variable
+
+                ow_plus_one = arith.AddIOp(ow, one.result).result
+                start_num = arith.MulIOp(ow, w_const.result).result
+                start = arith.DivSIOp(start_num, out_w_const.result).result
+                end_num = arith.MulIOp(ow_plus_one, w_const.result).result
+                end_num = arith.AddIOp(
+                    end_num,
+                    arith.SubIOp(out_w_const.result, one.result).result,
+                ).result
+                end = arith.DivSIOp(end_num, out_w_const.result).result
+
+                iw_loop = scf.ForOp(start, end, one.result)
+                with ir.InsertionPoint(iw_loop.body):
+                    iw = iw_loop.induction_variable
+
+                    input_val = memref.LoadOp(input_memref, [n, c, iw]).result
+                    current_max = memref.LoadOp(
+                        output_memref.result, [n, c, ow]
+                    ).result
+                    if _is_float_type(input_dtype):
+                        is_greater = arith.CmpFOp(
+                            arith.CmpFPredicate.OGT,
+                            input_val,
+                            current_max,
+                        ).result
+                    else:
+                        pred = (
+                            arith.CmpIPredicate.ugt
+                            if _is_unsigned_integer_type(input_dtype)
+                            else arith.CmpIPredicate.sgt
+                        )
+                        is_greater = arith.CmpIOp(
+                            pred, input_val, current_max
+                        ).result
+
+                    inner_if = scf.IfOp(is_greater, hasElse=False)
+                    with ir.InsertionPoint(inner_if.then_block):
+                        memref.StoreOp(
+                            input_val,
+                            output_memref.result,
+                            [n, c, ow],
+                        )
+                        iw_i64 = arith.IndexCastOp(indices_dtype, iw).result
+                        memref.StoreOp(
+                            iw_i64,
+                            indices_memref.result,
+                            [n, c, ow],
+                        )
+                        scf.YieldOp([])
+                    scf.YieldOp([])
+                scf.YieldOp([])
+            scf.YieldOp([])
+        scf.YieldOp([])
+
+    values = bufferization.ToTensorOp(
+        output_type, output_memref.result, restrict=True
     )
-    nchw_shape = [N, C, 1, output_size]
-    nchw_type = ir.RankedTensorType.get(nchw_shape, result_element_type)
-    nchw_output = tosa.TransposeOp(
-        nchw_type, pooled.result, perm_const2.results[0]
+    indices = bufferization.ToTensorOp(
+        indices_type, indices_memref.result, restrict=True
     )
-
-    # Squeeze back to NCW
-    out_shape = [N, C, output_size]
-    result_type = ir.RankedTensorType.get(out_shape, result_element_type)
-    values = tosa.ReshapeOp(result_type, nchw_output.result)
-
-    # Create dummy indices (filled with zeros)
-    indices_element_type = ir.IntegerType.get_signless(64)
-    indices_type = ir.RankedTensorType.get(out_shape, indices_element_type)
-    zero_attr = ir.DenseElementsAttr.get_splat(
-        indices_type, ir.IntegerAttr.get(indices_element_type, 0)
-    )
-    indices = tosa.ConstOp(zero_attr)
-
     return values, indices
 
 
@@ -1104,64 +1408,170 @@ def adaptive_max_pool2d_op(node: AdaptiveMaxPool2dOp, symbol_table):
     From buddy graph ir's `AdaptiveMaxPool2dOp` operator to MLIR operations.
     Returns (values, indices) tuple.
     """
-    input1 = symbol_table.get((str(node.args[0]), 0))
+    input_tensor = symbol_table.get((str(node.args[0]), 0))
     output_size = node.args[1]
     if isinstance(output_size, int):
         output_size = [output_size, output_size]
+    if not isinstance(output_size, (list, tuple)) or len(output_size) != 2:
+        raise NotImplementedError("adaptive_max_pool2d requires 2D output_size")
 
-    dtype = node.tensor_meta["dtype"]
-    result_element_type = mlir_element_type_get(dtype)
+    input_shape = list(ir.RankedTensorType(input_tensor.type).shape)
+    input_dtype = ir.RankedTensorType(input_tensor.type).element_type
+    if any(dim < 0 for dim in input_shape):
+        raise NotImplementedError("adaptive_max_pool2d requires static shapes")
 
-    # Get input shape: NCHW
-    input_shape = list(ir.RankedTensorType(input1.type).shape)
     N, C, H, W = input_shape
     out_h, out_w = output_size
+    if out_h <= 0 or out_w <= 0:
+        raise NotImplementedError("adaptive_max_pool2d output_size invalid")
 
-    # Calculate kernel and stride for adaptive pooling
-    kernel_h = H // out_h
-    kernel_w = W // out_w
-    stride_h = kernel_h
-    stride_w = kernel_w
+    output_shape = [N, C, out_h, out_w]
+    output_type = ir.RankedTensorType.get(output_shape, input_dtype)
+    indices_dtype = ir.IntegerType.get_signless(64)
+    indices_type = ir.RankedTensorType.get(output_shape, indices_dtype)
 
-    # Convert NCHW to NHWC
-    perm_list = [0, 2, 3, 1]
-    perm_const = tosa.ConstOp(
-        ir.DenseElementsAttr.get(memoryview(array.array("i", perm_list)))
+    output_memref = memref.AllocOp(
+        ir.MemRefType.get(output_shape, input_dtype), [], []
     )
-    nhwc_shape = [N, H, W, C]
-    nhwc_type = ir.RankedTensorType.get(nhwc_shape, result_element_type)
-    nhwc_input = tosa.TransposeOp(nhwc_type, input1, perm_const.results[0])
-
-    # Apply max_pool2d
-    kernel_attr = ir._denseI64ArrayAttr([kernel_h, kernel_w], None)
-    stride_attr = ir._denseI64ArrayAttr([stride_h, stride_w], None)
-    pad_attr = ir._denseI64ArrayAttr([0, 0, 0, 0], None)
-
-    pool_nhwc_shape = [N, out_h, out_w, C]
-    pool_type = ir.RankedTensorType.get(pool_nhwc_shape, result_element_type)
-    pooled = tosa.MaxPool2dOp(
-        pool_type, nhwc_input.result, kernel_attr, stride_attr, pad_attr
+    indices_memref = memref.AllocOp(
+        ir.MemRefType.get(output_shape, indices_dtype), [], []
     )
 
-    # Convert back NHWC to NCHW
-    perm_list2 = [0, 3, 1, 2]
-    perm_const2 = tosa.ConstOp(
-        ir.DenseElementsAttr.get(memoryview(array.array("i", perm_list2)))
+    min_attr = _get_min_value_attr(input_dtype)
+    min_const = arith.ConstantOp(input_dtype, min_attr)
+    linalg.fill(min_const.result, outs=[output_memref.result])
+
+    zero_i64 = arith.ConstantOp(
+        indices_dtype, ir.IntegerAttr.get(indices_dtype, 0)
     )
-    out_shape = [N, C, out_h, out_w]
-    result_type = ir.RankedTensorType.get(out_shape, result_element_type)
-    values = tosa.TransposeOp(
-        result_type, pooled.result, perm_const2.results[0]
+    linalg.fill(zero_i64.result, outs=[indices_memref.result])
+
+    input_memref = bufferization.ToBufferOp(
+        ir.MemRefType.get(input_shape, input_dtype), input_tensor
+    ).result
+
+    index_type = ir.IndexType.get()
+    zero = arith.ConstantOp(index_type, 0)
+    one = arith.ConstantOp(index_type, 1)
+    n_bound = arith.ConstantOp(index_type, N)
+    c_bound = arith.ConstantOp(index_type, C)
+    out_h_bound = arith.ConstantOp(index_type, out_h)
+    out_w_bound = arith.ConstantOp(index_type, out_w)
+    h_const = arith.ConstantOp(index_type, H)
+    w_const = arith.ConstantOp(index_type, W)
+    out_h_const = arith.ConstantOp(index_type, out_h)
+    out_w_const = arith.ConstantOp(index_type, out_w)
+    w_i64 = arith.ConstantOp(
+        indices_dtype, ir.IntegerAttr.get(indices_dtype, W)
     )
 
-    # Create dummy indices (filled with zeros)
-    indices_element_type = ir.IntegerType.get_signless(64)
-    indices_type = ir.RankedTensorType.get(out_shape, indices_element_type)
-    zero_attr = ir.DenseElementsAttr.get_splat(
-        indices_type, ir.IntegerAttr.get(indices_element_type, 0)
-    )
-    indices = tosa.ConstOp(zero_attr)
+    n_loop = scf.ForOp(zero.result, n_bound.result, one.result)
+    with ir.InsertionPoint(n_loop.body):
+        n = n_loop.induction_variable
 
+        c_loop = scf.ForOp(zero.result, c_bound.result, one.result)
+        with ir.InsertionPoint(c_loop.body):
+            c = c_loop.induction_variable
+
+            oh_loop = scf.ForOp(zero.result, out_h_bound.result, one.result)
+            with ir.InsertionPoint(oh_loop.body):
+                oh = oh_loop.induction_variable
+
+                ow_loop = scf.ForOp(zero.result, out_w_bound.result, one.result)
+                with ir.InsertionPoint(ow_loop.body):
+                    ow = ow_loop.induction_variable
+
+                    oh_plus_one = arith.AddIOp(oh, one.result).result
+                    ow_plus_one = arith.AddIOp(ow, one.result).result
+
+                    h_start_num = arith.MulIOp(oh, h_const.result).result
+                    h_start = arith.DivSIOp(
+                        h_start_num, out_h_const.result
+                    ).result
+                    h_end_num = arith.MulIOp(oh_plus_one, h_const.result).result
+                    h_end_num = arith.AddIOp(
+                        h_end_num,
+                        arith.SubIOp(out_h_const.result, one.result).result,
+                    ).result
+                    h_end = arith.DivSIOp(h_end_num, out_h_const.result).result
+
+                    w_start_num = arith.MulIOp(ow, w_const.result).result
+                    w_start = arith.DivSIOp(
+                        w_start_num, out_w_const.result
+                    ).result
+                    w_end_num = arith.MulIOp(ow_plus_one, w_const.result).result
+                    w_end_num = arith.AddIOp(
+                        w_end_num,
+                        arith.SubIOp(out_w_const.result, one.result).result,
+                    ).result
+                    w_end = arith.DivSIOp(w_end_num, out_w_const.result).result
+
+                    ih_loop = scf.ForOp(h_start, h_end, one.result)
+                    with ir.InsertionPoint(ih_loop.body):
+                        ih = ih_loop.induction_variable
+
+                        iw_loop = scf.ForOp(w_start, w_end, one.result)
+                        with ir.InsertionPoint(iw_loop.body):
+                            iw = iw_loop.induction_variable
+
+                            input_val = memref.LoadOp(
+                                input_memref, [n, c, ih, iw]
+                            ).result
+                            current_max = memref.LoadOp(
+                                output_memref.result, [n, c, oh, ow]
+                            ).result
+                            if _is_float_type(input_dtype):
+                                is_greater = arith.CmpFOp(
+                                    arith.CmpFPredicate.OGT,
+                                    input_val,
+                                    current_max,
+                                ).result
+                            else:
+                                pred = (
+                                    arith.CmpIPredicate.ugt
+                                    if _is_unsigned_integer_type(input_dtype)
+                                    else arith.CmpIPredicate.sgt
+                                )
+                                is_greater = arith.CmpIOp(
+                                    pred, input_val, current_max
+                                ).result
+
+                            inner_if = scf.IfOp(is_greater, hasElse=False)
+                            with ir.InsertionPoint(inner_if.then_block):
+                                memref.StoreOp(
+                                    input_val,
+                                    output_memref.result,
+                                    [n, c, oh, ow],
+                                )
+                                ih_i64 = arith.IndexCastOp(
+                                    indices_dtype, ih
+                                ).result
+                                iw_i64 = arith.IndexCastOp(
+                                    indices_dtype, iw
+                                ).result
+                                flat_idx = arith.AddIOp(
+                                    arith.MulIOp(ih_i64, w_i64.result).result,
+                                    iw_i64,
+                                ).result
+                                memref.StoreOp(
+                                    flat_idx,
+                                    indices_memref.result,
+                                    [n, c, oh, ow],
+                                )
+                                scf.YieldOp([])
+                            scf.YieldOp([])
+                        scf.YieldOp([])
+                    scf.YieldOp([])
+                scf.YieldOp([])
+            scf.YieldOp([])
+        scf.YieldOp([])
+
+    values = bufferization.ToTensorOp(
+        output_type, output_memref.result, restrict=True
+    )
+    indices = bufferization.ToTensorOp(
+        indices_type, indices_memref.result, restrict=True
+    )
     return values, indices
 
 
@@ -1177,7 +1587,6 @@ def avg_pool1d_op(node: AvgPool1dOp, symbol_table):
     padding = node.args[3] if len(node.args) > 3 else 0
     ceil_mode = node.args[4] if len(node.args) > 4 else False
     count_include_pad = node.args[5] if len(node.args) > 5 else True
-
     if isinstance(kernel_size, (list, tuple)):
         kernel_size = kernel_size[0]
     if isinstance(stride, (list, tuple)):
@@ -1272,19 +1681,15 @@ def adaptive_avg_pool1d_op(node: AdaptiveAvgPool1dOp, symbol_table):
 
     # Expand to NCHW (add H=1 dimension)
     expanded_shape = [N, C, 1, W]
-    expanded_type = ir.RankedTensorType.get(expanded_shape, result_element_type)
-    expanded_input = tosa.ReshapeOp(expanded_type, input1)
+    expanded_shape_operand = _create_shape_operand(expanded_shape)
+    expanded_input = tosa.ReshapeOp(input1, expanded_shape_operand)
 
     # Convert NCHW to NHWC for TOSA
     perm_list = [0, 2, 3, 1]
-    perm_const = tosa.ConstOp(
-        ir.DenseElementsAttr.get(memoryview(array.array("i", perm_list)))
-    )
+    perm_attr = _create_permutation_attr(perm_list)
     nhwc_shape = [N, 1, W, C]
     nhwc_type = ir.RankedTensorType.get(nhwc_shape, result_element_type)
-    nhwc_input = tosa.TransposeOp(
-        nhwc_type, expanded_input.result, perm_const.results[0]
-    )
+    nhwc_input = tosa.TransposeOp(nhwc_type, expanded_input.result, perm_attr)
 
     # Apply avg_pool2d
     kernel_attr = ir._denseI64ArrayAttr([1, kernel_w], None)
@@ -1293,9 +1698,13 @@ def adaptive_avg_pool1d_op(node: AdaptiveAvgPool1dOp, symbol_table):
 
     pool_nhwc_shape = [N, 1, output_size, C]
     pool_type = ir.RankedTensorType.get(pool_nhwc_shape, result_element_type)
+    input_zp = _create_zero_point_tensor(nhwc_input.result)
+    output_zp = _create_zero_point_tensor(nhwc_input.result)
     pooled = tosa.AvgPool2dOp(
         pool_type,
         nhwc_input.result,
+        input_zp,
+        output_zp,
         kernel_attr,
         stride_attr,
         pad_attr,
@@ -1304,19 +1713,15 @@ def adaptive_avg_pool1d_op(node: AdaptiveAvgPool1dOp, symbol_table):
 
     # Convert back NHWC to NCHW
     perm_list2 = [0, 3, 1, 2]
-    perm_const2 = tosa.ConstOp(
-        ir.DenseElementsAttr.get(memoryview(array.array("i", perm_list2)))
-    )
+    perm_attr2 = _create_permutation_attr(perm_list2)
     nchw_shape = [N, C, 1, output_size]
     nchw_type = ir.RankedTensorType.get(nchw_shape, result_element_type)
-    nchw_output = tosa.TransposeOp(
-        nchw_type, pooled.result, perm_const2.results[0]
-    )
+    nchw_output = tosa.TransposeOp(nchw_type, pooled.result, perm_attr2)
 
     # Squeeze back to NCW
     out_shape = [N, C, output_size]
-    result_type = ir.RankedTensorType.get(out_shape, result_element_type)
-    return tosa.ReshapeOp(result_type, nchw_output.result)
+    out_shape_operand = _create_shape_operand(out_shape)
+    return tosa.ReshapeOp(nchw_output.result, out_shape_operand)
 
 
 def adaptive_avg_pool2d_op(node: AdaptiveAvgPool2dOp, symbol_table):
@@ -1347,12 +1752,10 @@ def adaptive_avg_pool2d_op(node: AdaptiveAvgPool2dOp, symbol_table):
 
     # Convert NCHW to NHWC for TOSA
     perm_list = [0, 2, 3, 1]
-    perm_const = tosa.ConstOp(
-        ir.DenseElementsAttr.get(memoryview(array.array("i", perm_list)))
-    )
+    perm_attr = _create_permutation_attr(perm_list)
     nhwc_shape = [N, H, W, C]
     nhwc_type = ir.RankedTensorType.get(nhwc_shape, result_element_type)
-    nhwc_input = tosa.TransposeOp(nhwc_type, input1, perm_const.results[0])
+    nhwc_input = tosa.TransposeOp(nhwc_type, input1, perm_attr)
 
     # Apply avg_pool2d
     kernel_attr = ir._denseI64ArrayAttr([kernel_h, kernel_w], None)
@@ -1361,23 +1764,25 @@ def adaptive_avg_pool2d_op(node: AdaptiveAvgPool2dOp, symbol_table):
 
     pool_nhwc_shape = [N, out_h, out_w, C]
     pool_type = ir.RankedTensorType.get(pool_nhwc_shape, result_element_type)
+    input_zp = _create_zero_point_tensor(nhwc_input.result)
+    output_zp = _create_zero_point_tensor(nhwc_input.result)
     pooled = tosa.AvgPool2dOp(
         pool_type,
         nhwc_input.result,
-        kernel_attr,
-        stride_attr,
-        pad_attr,
-        acc_type,
+        input_zp,
+        output_zp,
+        kernel=kernel_attr,
+        stride=stride_attr,
+        pad=pad_attr,
+        acc_type=acc_type,
     )
 
     # Convert back NHWC to NCHW
     perm_list2 = [0, 3, 1, 2]
-    perm_const2 = tosa.ConstOp(
-        ir.DenseElementsAttr.get(memoryview(array.array("i", perm_list2)))
-    )
+    perm_attr2 = _create_permutation_attr(perm_list2)
     out_shape = [N, C, out_h, out_w]
     result_type = ir.RankedTensorType.get(out_shape, result_element_type)
-    return tosa.TransposeOp(result_type, pooled.result, perm_const2.results[0])
+    return tosa.TransposeOp(result_type, pooled.result, perm_attr2)
 
 
 def adaptive_avg_pool3d_op(node: AdaptiveAvgPool3dOp, symbol_table):
@@ -1417,17 +1822,15 @@ def adaptive_avg_pool3d_op(node: AdaptiveAvgPool3dOp, symbol_table):
 
     # First permute to NDHWC
     perm1 = [0, 2, 3, 4, 1]
-    perm_const1 = tosa.ConstOp(
-        ir.DenseElementsAttr.get(memoryview(array.array("i", perm1)))
-    )
+    perm_attr1 = _create_permutation_attr(perm1)
     ndhwc_shape = [N, D, H, W, C]
     ndhwc_type = ir.RankedTensorType.get(ndhwc_shape, result_element_type)
-    ndhwc_input = tosa.TransposeOp(ndhwc_type, input1, perm_const1.results[0])
+    ndhwc_input = tosa.TransposeOp(ndhwc_type, input1, perm_attr1)
 
     # Reshape to (N*D), H, W, C for 2D pooling
     nd_shape = [N * D, H, W, C]
-    nd_shape_content = memoryview(array.array("i", nd_shape))
-    nd_input = tosa.ReshapeOp(ndhwc_input.result, nd_shape_content)
+    nd_shape_operand = _create_shape_operand(nd_shape)
+    nd_input = tosa.ReshapeOp(ndhwc_input.result, nd_shape_operand)
 
     # Apply 2D avg pooling for H, W dimensions
     kernel_attr = ir._denseI64ArrayAttr([kernel_h, kernel_w], None)
@@ -1436,34 +1839,37 @@ def adaptive_avg_pool3d_op(node: AdaptiveAvgPool3dOp, symbol_table):
 
     pool_shape = [N * D, out_h, out_w, C]
     pool_type = ir.RankedTensorType.get(pool_shape, result_element_type)
+    input_zp = _create_zero_point_tensor(nd_input.result)
+    output_zp = _create_zero_point_tensor(nd_input.result)
     pooled_hw = tosa.AvgPool2dOp(
-        pool_type, nd_input.result, kernel_attr, stride_attr, pad_attr, acc_type
+        pool_type,
+        nd_input.result,
+        input_zp,
+        output_zp,
+        kernel_attr,
+        stride_attr,
+        pad_attr,
+        acc_type,
     )
 
     # Reshape back to N, D, out_h, out_w, C
     reshaped_shape = [N, D, out_h, out_w, C]
-    reshaped_shape_content = memoryview(array.array("i", reshaped_shape))
-    reshaped = tosa.ReshapeOp(pooled_hw.result, reshaped_shape_content)
+    reshaped_shape_operand = _create_shape_operand(reshaped_shape)
+    reshaped = tosa.ReshapeOp(pooled_hw.result, reshaped_shape_operand)
 
     # Now handle depth pooling: reshape to (N*out_h*out_w), D, C, 1
     # Permute to N, out_h, out_w, D, C
     perm2 = [0, 2, 3, 1, 4]
-    perm_const2 = tosa.ConstOp(
-        ir.DenseElementsAttr.get(memoryview(array.array("i", perm2)))
-    )
+    perm_attr2 = _create_permutation_attr(perm2)
     permuted_shape = [N, out_h, out_w, D, C]
     permuted_type = ir.RankedTensorType.get(permuted_shape, result_element_type)
-    permuted = tosa.TransposeOp(
-        permuted_type, reshaped.result, perm_const2.results[0]
-    )
+    permuted = tosa.TransposeOp(permuted_type, reshaped.result, perm_attr2)
 
     # Reshape for depth pooling: (N*out_h*out_w), D, 1, C
     depth_pool_in_shape = [N * out_h * out_w, D, 1, C]
-    depth_pool_in_shape_content = memoryview(
-        array.array("i", depth_pool_in_shape)
-    )
+    depth_pool_in_shape_operand = _create_shape_operand(depth_pool_in_shape)
     depth_pool_input = tosa.ReshapeOp(
-        permuted.result, depth_pool_in_shape_content
+        permuted.result, depth_pool_in_shape_operand
     )
 
     # Apply avg pool for depth
@@ -1474,9 +1880,13 @@ def adaptive_avg_pool3d_op(node: AdaptiveAvgPool3dOp, symbol_table):
     depth_pool_out_type = ir.RankedTensorType.get(
         depth_pool_out_shape, result_element_type
     )
+    input_zp = _create_zero_point_tensor(depth_pool_input.result)
+    output_zp = _create_zero_point_tensor(depth_pool_input.result)
     pooled_d = tosa.AvgPool2dOp(
         depth_pool_out_type,
         depth_pool_input.result,
+        input_zp,
+        output_zp,
         kernel_d_attr,
         stride_d_attr,
         pad_attr,
@@ -1485,23 +1895,17 @@ def adaptive_avg_pool3d_op(node: AdaptiveAvgPool3dOp, symbol_table):
 
     # Reshape to N, out_h, out_w, out_d, C
     final_permuted_shape = [N, out_h, out_w, out_d, C]
-    final_permuted_shape_content = memoryview(
-        array.array("i", final_permuted_shape)
-    )
+    final_permuted_shape_operand = _create_shape_operand(final_permuted_shape)
     final_permuted = tosa.ReshapeOp(
-        pooled_d.result, final_permuted_shape_content
+        pooled_d.result, final_permuted_shape_operand
     )
 
     # Permute to NCDHW: N, out_h, out_w, out_d, C -> N, C, out_d, out_h, out_w
     perm3 = [0, 4, 3, 1, 2]
-    perm_const3 = tosa.ConstOp(
-        ir.DenseElementsAttr.get(memoryview(array.array("i", perm3)))
-    )
+    perm_attr3 = _create_permutation_attr(perm3)
     out_shape = [N, C, out_d, out_h, out_w]
     result_type = ir.RankedTensorType.get(out_shape, result_element_type)
-    return tosa.TransposeOp(
-        result_type, final_permuted.result, perm_const3.results[0]
-    )
+    return tosa.TransposeOp(result_type, final_permuted.result, perm_attr3)
 
 
 def neg_op(node: NegOp, symbol_table):
@@ -1513,7 +1917,9 @@ def neg_op(node: NegOp, symbol_table):
     input_shape = list(ir.RankedTensorType(input1.type).shape)
     input_dtype = ir.RankedTensorType(input1.type).element_type
     result_type = ir.RankedTensorType.get(input_shape, input_dtype)
-    return tosa.NegateOp(result_type, input1)
+    input1_zp = _create_zero_point_tensor(input1)
+    output_zp = _create_zero_point_tensor(input1)
+    return tosa.NegateOp(result_type, input1, input1_zp, output_zp)
 
 
 def where_op(node: WhereOp, symbol_table):
@@ -1531,6 +1937,61 @@ def where_op(node: WhereOp, symbol_table):
     dtype = node.tensor_meta["dtype"]
     result_element_type = mlir_element_type_get(dtype)
     output_type = ir.RankedTensorType.get(output_shape, result_element_type)
+
+    def _scalar_attr_for_output(value):
+        type_str = str(result_element_type)
+        if type_str.startswith("f") or type_str.startswith("bf"):
+            return ir.FloatAttr.get(result_element_type, float(value))
+        return ir.IntegerAttr.get(result_element_type, int(value))
+
+    def _zero_tensor_for_output():
+        zero_attr = ir.DenseElementsAttr.get_splat(
+            output_type, _scalar_attr_for_output(0)
+        )
+        return tosa.ConstOp(zero_attr).result
+
+    def _ensure_tensor(value):
+        if isinstance(value, ir.Value):
+            try:
+                value_shape = list(ir.RankedTensorType(value.type).shape)
+            except Exception:
+                return tensor.SplatOp(output_type, value, []).result
+
+            if value_shape == output_shape:
+                return value
+
+            if len(value_shape) < len(output_shape):
+                padded_shape = [1] * (len(output_shape) - len(value_shape))
+                padded_shape.extend(value_shape)
+                shape_operand = _create_shape_operand(padded_shape)
+                value = tosa.ReshapeOp(value, shape_operand).result
+                value_shape = padded_shape
+
+            if len(value_shape) != len(output_shape):
+                raise ValueError(
+                    "WhereOp: input rank %d does not match output rank %d"
+                    % (len(value_shape), len(output_shape))
+                )
+
+            for src_dim, tgt_dim in zip(value_shape, output_shape):
+                if src_dim in (-1,) or tgt_dim in (-1,):
+                    continue
+                if src_dim != 1 and src_dim != tgt_dim:
+                    raise ValueError(
+                        "WhereOp: input shape %s is not broadcastable to %s"
+                        % (value_shape, output_shape)
+                    )
+
+            zero_tensor = _zero_tensor_for_output()
+            return _gen_arith_binary_op(value, zero_tensor, tosa.AddOp).result
+
+        scalar_attr = ir.DenseElementsAttr.get_splat(
+            output_type, _scalar_attr_for_output(value)
+        )
+        return tosa.ConstOp(scalar_attr).result
+
+    input1 = _ensure_tensor(input1)
+    input2 = _ensure_tensor(input2)
 
     return tosa.SelectOp(output_type, condition, input1, input2)
 
@@ -1561,11 +2022,45 @@ def ne_tensor_op(node: NeTensorOp, symbol_table):
     return tosa.LogicalNotOp(result_type, equal_result)
 
 
-def _get_comparison_result_type(input1):
+def _broadcast_binary_operands(input1, input2):
+    input1, input2 = _normalize_binary_operator_args(input1, input2)
+    input1_shape = list(ir.RankedTensorType(input1.type).shape)
+    input2_shape = list(ir.RankedTensorType(input2.type).shape)
+
+    norm_input1_shape, norm_input2_shape = _normalize_binary_operator_shape(
+        input1_shape, input2_shape
+    )
+
+    broadcasted_result_shp = []
+    for dim1, dim2 in zip(norm_input1_shape, norm_input2_shape):
+        if dim1 == dim2:
+            broadcasted_result_shp.append(dim1)
+        elif dim1 == 1:
+            broadcasted_result_shp.append(dim2)
+        elif dim2 == 1:
+            broadcasted_result_shp.append(dim1)
+        elif dim1 < 0 or dim2 < 0:
+            broadcasted_result_shp.append(-1)
+        else:
+            raise ValueError(
+                "Incompatible broadcast shapes %s and %s"
+                % (input1_shape, input2_shape)
+            )
+
+    if input1_shape != norm_input1_shape:
+        shape_operand = _create_shape_operand(norm_input1_shape)
+        input1 = tosa.ReshapeOp(input1, shape_operand).result
+    if input2_shape != norm_input2_shape:
+        shape_operand = _create_shape_operand(norm_input2_shape)
+        input2 = tosa.ReshapeOp(input2, shape_operand).result
+
+    return input1, input2, broadcasted_result_shp
+
+
+def _get_comparison_result_type(broadcast_shape):
     """Helper to get the result type (i1 tensor) for comparison operations."""
-    input_type = ir.RankedTensorType(input1.type)
     result_element_type = ir.IntegerType.get_signless(1)
-    return ir.RankedTensorType.get(list(input_type.shape), result_element_type)
+    return ir.RankedTensorType.get(list(broadcast_shape), result_element_type)
 
 
 def gt_tensor_op(node: GtTensorOp, symbol_table):
@@ -1575,8 +2070,11 @@ def gt_tensor_op(node: GtTensorOp, symbol_table):
     """
     input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
     input2 = symbol_table.get((str(node.args[1]), 0), node.args[1])
-    input1, input2 = _normalize_binary_operator_args(input1, input2)
-    result_type = _get_comparison_result_type(input1)
+    input1, input2, broadcasted_shape = _broadcast_binary_operands(
+        input1, input2
+    )
+    # Swap operands: a <= b is equivalent to b >= a
+    result_type = _get_comparison_result_type(broadcasted_shape)
     return tosa.GreaterOp(result_type, input1, input2)
 
 
@@ -1587,8 +2085,11 @@ def ge_tensor_op(node: GeTensorOp, symbol_table):
     """
     input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
     input2 = symbol_table.get((str(node.args[1]), 0), node.args[1])
-    input1, input2 = _normalize_binary_operator_args(input1, input2)
-    result_type = _get_comparison_result_type(input1)
+    input1, input2, broadcasted_shape = _broadcast_binary_operands(
+        input1, input2
+    )
+    # Swap operands: a <= b is equivalent to b >= a
+    result_type = _get_comparison_result_type(broadcasted_shape)
     return tosa.GreaterEqualOp(result_type, input1, input2)
 
 
@@ -1600,9 +2101,11 @@ def lt_tensor_op(node: LtTensorOp, symbol_table):
     """
     input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
     input2 = symbol_table.get((str(node.args[1]), 0), node.args[1])
-    input1, input2 = _normalize_binary_operator_args(input1, input2)
-    # Swap operands: a < b is equivalent to b > a
-    result_type = _get_comparison_result_type(input1)
+    input1, input2, broadcasted_shape = _broadcast_binary_operands(
+        input1, input2
+    )
+    # Swap operands: a <= b is equivalent to b >= a
+    result_type = _get_comparison_result_type(broadcasted_shape)
     return tosa.GreaterOp(result_type, input2, input1)
 
 
@@ -1614,9 +2117,11 @@ def le_tensor_op(node: LeTensorOp, symbol_table):
     """
     input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
     input2 = symbol_table.get((str(node.args[1]), 0), node.args[1])
-    input1, input2 = _normalize_binary_operator_args(input1, input2)
+    input1, input2, broadcasted_shape = _broadcast_binary_operands(
+        input1, input2
+    )
     # Swap operands: a <= b is equivalent to b >= a
-    result_type = _get_comparison_result_type(input1)
+    result_type = _get_comparison_result_type(broadcasted_shape)
     return tosa.GreaterEqualOp(result_type, input2, input1)
 
 
@@ -1743,9 +2248,12 @@ def reshape_op(node: ReshapeOp, symbol_table):
     shape will be inferred automatically.
     """
     input1 = symbol_table.get((str(node.args[0]), 0))
-    new_shape = []
-    for i in node.args[1]:
-        new_shape.append(i)
+    # Support both single int or list/tuple for new_shape
+    shape_arg = node.args[1]
+    if isinstance(shape_arg, (list, tuple)):
+        new_shape = list(shape_arg)
+    else:
+        new_shape = [shape_arg]
     total_size = 1
     now_shape = ir.RankedTensorType(input1.type).shape
     for dim_siz in now_shape:
@@ -1774,9 +2282,8 @@ def reshape_op(node: ReshapeOp, symbol_table):
     ):
         return input1
 
-    new_shape_content = array.array("i", new_shape)
-    new_shape_content = memoryview(new_shape_content)
-    op = tosa.ReshapeOp(input1, new_shape_content)
+    shape_operand = _create_shape_operand(new_shape)
+    op = tosa.ReshapeOp(input1, shape_operand)
 
     return op
 
@@ -1794,9 +2301,8 @@ def unsqueeze_op(node: UnsqueezeOp, symbol_table):
         sizes.append(1)
     else:
         sizes.insert(dim, 1)
-    new_shape_content = array.array("i", sizes)
-    new_shape_content = memoryview(new_shape_content)
-    op = tosa.ReshapeOp(input_tensor, new_shape_content)
+    shape_operand = _create_shape_operand(sizes)
+    op = tosa.ReshapeOp(input_tensor, shape_operand)
     return op
 
 
@@ -1813,20 +2319,18 @@ def select_op(node: SelectOp, symbol_table):
     sizes = ir.RankedTensorType(input_tensor.type).shape
 
     new_sizes = sizes[:dim] + [1] + sizes[dim + 1 :]
-    new_sizes_attr = ir._denseI64ArrayAttr(new_sizes, None)
-
     start = [0] * len(sizes)
     start[dim] = index
-    start_attr = ir._denseI64ArrayAttr(start, None)
 
     result_element_type = ir.RankedTensorType(input_tensor.type).element_type
     output_type = ir.RankedTensorType.get(new_sizes, result_element_type)
-    op = tosa.SliceOp(output_type, input_tensor, start_attr, new_sizes_attr)
+    start_operand = _create_shape_operand(start)
+    size_operand = _create_shape_operand(new_sizes)
+    op = tosa.SliceOp(output_type, input_tensor, start_operand, size_operand)
 
     reshape_sizes = sizes[:dim] + sizes[dim + 1 :]
-    reshape_sizes_content = array.array("i", reshape_sizes)
-    reshape_sizes_content = memoryview(reshape_sizes_content)
-    op = tosa.ReshapeOp(op.results[0], reshape_sizes_content)
+    reshape_operand = _create_shape_operand(reshape_sizes)
+    op = tosa.ReshapeOp(op.results[0], reshape_operand)
 
     return op
 
@@ -1849,10 +2353,10 @@ def slice_op(node: SliceOp, symbol_table):
 
     rank_diff = len(output_shape) - len(sizes)
     if rank_diff > 0:
-        input_tensor = tosa.ReshapeOp(
-            input_tensor, memoryview(array.array("i", [1] * rank_diff + sizes))
-        )
-        sizes = [1] * rank_diff + sizes
+        expanded_shape = [1] * rank_diff + list(sizes)
+        shape_operand = _create_shape_operand(expanded_shape)
+        input_tensor = tosa.ReshapeOp(input_tensor, shape_operand).result
+        sizes = expanded_shape
 
     if start_idx < 0:
         start_idx += sizes[dim]
@@ -2028,12 +2532,8 @@ def var_mean_op(node: VarMeanOp, symbol_table):
     """
 
     def _inner_op(result_type, input1, input2):
-        return tosa.MulOp(
-            result_type,
-            input1,
-            input2,
-            # ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
-        )
+        shift = _create_mul_shift_operand()
+        return tosa.MulOp(result_type, input1, input2, shift)
 
     def mean_dim_op(_input_tensor: ir.Value, _dim) -> ir.Operation:
         if isinstance(_dim, int):
@@ -2083,10 +2583,9 @@ def var_mean_op(node: VarMeanOp, symbol_table):
         )
 
         # get (\bar{x} - x_i) ^ 2
+        shift = _create_mul_shift_operand()
         mul_op: ir.Operation = tosa.MulOp(
-            _input_tensor.type,
-            sub_op.results[0],
-            sub_op.results[0],
+            _input_tensor.type, sub_op.results[0], sub_op.results[0], shift
         )
 
         # the result of `mul_op` is the first tensor we need to reduce
@@ -2143,12 +2642,9 @@ def var_mean_op(node: VarMeanOp, symbol_table):
     if not keepdim:
         result_shp = ir.RankedTensorType(var_op.results[0].type).shape
         result_shp = [siz for siz in result_shp if siz != 1]
-        var_op = tosa.ReshapeOp(
-            var_op.results[0], memoryview(array.array("i", result_shp))
-        )
-        mean_op = tosa.ReshapeOp(
-            mean_op.results[0], memoryview(array.array("i", result_shp))
-        )
+        shape_operand = _create_shape_operand(result_shp)
+        var_op = tosa.ReshapeOp(var_op.results[0], shape_operand)
+        mean_op = tosa.ReshapeOp(mean_op.results[0], shape_operand)
 
     return var_op, mean_op
 
@@ -2161,9 +2657,7 @@ def permute_op(node: PermuteOp, symbol_table):
     """
     input_tensor = symbol_table.get((str(node.args[0]), 0))
     perm = node.args[1]
-    perm_const_op = tosa.ConstOp(
-        ir.DenseElementsAttr.get(memoryview(array.array("i", perm)))
-    )
+    perms_attr = _create_permutation_attr(perm)
     result_element_type = ir.RankedTensorType(input_tensor.type).element_type
     init_shape = ir.RankedTensorType(input_tensor.type).shape
     new_shape = []
@@ -2173,9 +2667,7 @@ def permute_op(node: PermuteOp, symbol_table):
     permute_result_type = ir.RankedTensorType.get(
         new_shape, result_element_type
     )
-    permute_op = tosa.TransposeOp(
-        permute_result_type, input_tensor, perm_const_op.results[0]
-    )
+    permute_op = tosa.TransposeOp(permute_result_type, input_tensor, perms_attr)
     return permute_op
 
 
@@ -2203,9 +2695,8 @@ def embedding_op(node: EmbeddingOp, symbol_table):
         total_size = 1
         for x in indices_size:
             total_size *= x
-        indices_reshape_op = tosa.ReshapeOp(
-            indices, memoryview(array.array("i", [1, total_size]))
-        )
+        reshape_operand = _create_shape_operand([1, total_size])
+        indices_reshape_op = tosa.ReshapeOp(indices, reshape_operand)
         indices = indices_reshape_op.result
         gather_result_type = ir.RankedTensorType.get(
             [1, total_size, weight_size[1]], result_element_type
@@ -2225,9 +2716,8 @@ def embedding_op(node: EmbeddingOp, symbol_table):
             indices,
         )
 
-    weight_reshape_op = tosa.ReshapeOp(
-        weight, memoryview(array.array("i", [1, *weight_size]))
-    )
+    weight_shape_operand = _create_shape_operand([1, *weight_size])
+    weight_reshape_op = tosa.ReshapeOp(weight, weight_shape_operand)
 
     gather_op = tosa.GatherOp(
         gather_result_type, weight_reshape_op.result, indices
@@ -2241,10 +2731,8 @@ def embedding_op(node: EmbeddingOp, symbol_table):
     if gather_output_shape == target_shape:
         return gather_op.output
 
-    op = tosa.ReshapeOp(
-        gather_op.output,
-        memoryview(array.array("i", target_shape)),
-    )
+    target_shape_operand = _create_shape_operand(target_shape)
+    op = tosa.ReshapeOp(gather_op.output, target_shape_operand)
 
     return op
 
@@ -2340,14 +2828,12 @@ def t_op(node: TOp, symbol_table):
     input_shape = list(ir.RankedTensorType(input1.type).shape)
     output_shape = list(node.tensor_meta["shape"])
     assert len(input_shape) == 2, "Input tensor must be 2D"
-    perm_const_op = tosa.ConstOp(
-        ir.DenseElementsAttr.get(memoryview(array.array("i", [1, 0])))
-    )
+    perms_attr = _create_permutation_attr([1, 0])
     result_element_type = ir.RankedTensorType(input1.type).element_type
     permute_result_type = ir.RankedTensorType.get(
         output_shape, result_element_type
     )
-    op = tosa.TransposeOp(permute_result_type, input1, perm_const_op.results[0])
+    op = tosa.TransposeOp(permute_result_type, input1, perms_attr)
 
     return op
 
@@ -2370,14 +2856,12 @@ def transpose_op(node: TransposeOp, symbol_table):
     perm_list[dim1] = perm_list[dim2]
     perm_list[dim2] = temp
     output_shape = list(node.tensor_meta["shape"])
-    perm_const_op = tosa.ConstOp(
-        ir.DenseElementsAttr.get(memoryview(array.array("i", perm_list)))
-    )
+    perms_attr = _create_permutation_attr(perm_list)
     result_element_type = ir.RankedTensorType(input1.type).element_type
     permute_result_type = ir.RankedTensorType.get(
         output_shape, result_element_type
     )
-    op = tosa.TransposeOp(permute_result_type, input1, perm_const_op.results[0])
+    op = tosa.TransposeOp(permute_result_type, input1, perms_attr)
 
     return op
 
@@ -2398,31 +2882,52 @@ def maxpool2d_op(node: MaxPool2dOp, symbol_table):
         pad = [0 for _ in kernel]
     dtype = node.tensor_meta["dtype"]
     result_element_type = mlir_element_type_get(dtype)
+
+    original_shape = list(ir.RankedTensorType(input1.type).shape)
     if node._layout.find("NCHW") != -1:
+        n, c, h, w = original_shape
         perm_list = [0, 2, 3, 1]
-        perm_const_op = tosa.ConstOp(
-            ir.DenseElementsAttr.get(memoryview(array.array("i", perm_list)))
-        )
-        out_shape = list(ir.RankedTensorType(input1.type).shape)
-        perm_shape = []
-        perm_shape.append(out_shape[0])
-        perm_shape.append(out_shape[2])
-        perm_shape.append(out_shape[3])
-        perm_shape.append(out_shape[1])
+        perms_attr = _create_permutation_attr(perm_list)
         permute_result_type = ir.RankedTensorType.get(
-            perm_shape, result_element_type
+            [n, h, w, c], result_element_type
         )
         input1 = tosa.TransposeOp(
-            permute_result_type, input1, perm_const_op.results[0]
+            permute_result_type, input1, perms_attr
         ).result
+    else:
+        n, h, w, c = original_shape
+    in_n, in_c, in_h, in_w = n, c, h, w
+
     out_shape = node.tensor_meta["shape"]
     if len(pad) == 1:
         pad = [pad[0]] * 4
     elif len(pad) == 2:
         pad = [pad[0]] * 2 + [pad[1]] * 2
+
+    def _ceil_div(a, b):
+        return (a + b - 1) // b
+
+    k_h, k_w = kernel[0], kernel[1]
+    s_h, s_w = stride[0], stride[1]
+    pt, pb, pl, pr = pad
+
+    def _divisible(i, p0, p1, k, s):
+        return ((i + p0 + p1 - k) % s) == 0
+
+    if not _divisible(in_h, pt, pb, k_h, s_h):
+        out_h_same = _ceil_div(in_h, s_h)
+        pad_total_h = max((out_h_same - 1) * s_h + k_h - in_h, 0)
+        pt = pad_total_h // 2
+        pb = pad_total_h - pt
+    if not _divisible(in_w, pl, pr, k_w, s_w):
+        out_w_same = _ceil_div(in_w, s_w)
+        pad_total_w = max((out_w_same - 1) * s_w + k_w - in_w, 0)
+        pl = pad_total_w // 2
+        pr = pad_total_w - pl
+
     kernel_attr = ir._denseI64ArrayAttr(kernel, None)
     stride_attr = ir._denseI64ArrayAttr(stride, None)
-    pad_attr = ir._denseI64ArrayAttr(pad, None)
+    pad_attr = ir._denseI64ArrayAttr([pt, pb, pl, pr], None)
     if node._layout.find("NCHW") != -1:
         perm_shape = []
         perm_shape.append(out_shape[0])
@@ -2430,24 +2935,23 @@ def maxpool2d_op(node: MaxPool2dOp, symbol_table):
         perm_shape.append(out_shape[3])
         perm_shape.append(out_shape[1])
         out_shape = perm_shape
-    output = ir.RankedTensorType.get(out_shape, result_element_type)
+    out_h = (in_h + pt + pb - k_h) // s_h + 1
+    out_w = (in_w + pl + pr - k_w) // s_w + 1
+    out_shape_nhwc = [in_n, out_h, out_w, in_c]
+    output = ir.RankedTensorType.get(out_shape_nhwc, result_element_type)
     op = tosa.MaxPool2dOp(output, input1, kernel_attr, stride_attr, pad_attr)
     if node._layout.find("NCHW") != -1:
         perm_list = [0, 3, 1, 2]
-        perm_const_op = tosa.ConstOp(
-            ir.DenseElementsAttr.get(memoryview(array.array("i", perm_list)))
-        )
+        perms_attr = _create_permutation_attr(perm_list)
         perm_shape = []
-        perm_shape.append(out_shape[0])
-        perm_shape.append(out_shape[3])
-        perm_shape.append(out_shape[1])
-        perm_shape.append(out_shape[2])
+        perm_shape.append(out_shape_nhwc[0])
+        perm_shape.append(out_shape_nhwc[3])
+        perm_shape.append(out_shape_nhwc[1])
+        perm_shape.append(out_shape_nhwc[2])
         permute_result_type = ir.RankedTensorType.get(
             perm_shape, result_element_type
         )
-        op = tosa.TransposeOp(
-            permute_result_type, op.result, perm_const_op.results[0]
-        )
+        op = tosa.TransposeOp(permute_result_type, op.result, perms_attr)
     return op
 
 
@@ -2524,16 +3028,50 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
             input_padding = [input_padding[0]] * 4
         elif len(input_padding) == 2:
             input_padding = [input_padding[0]] * 2 + [input_padding[1]] * 2
+
+        t, b, l, r = input_padding
+        sy, sx = int(stride[0]), int(stride[1])
+        dy, dx = int(dilation[0]), int(dilation[1])
+        kernel_h = int(list(weight_shape)[2])
+        kernel_w = int(list(weight_shape)[3])
+
+        extra_out_h = 0
+        extra_out_w = 0
+        if node._layout.find("NCHW") != -1:
+            input_h = int(input_shape[2])
+            input_w = int(input_shape[3])
+        else:
+            input_h = int(input_shape[1])
+            input_w = int(input_shape[2])
+
+        def _adjust_padding(input_size, kernel, dil, stride_val, pad0, pad1):
+            """Ensure stride divisibility by adding pad to the second side."""
+            base = input_size - 1 - (kernel - 1) * dil
+            total = base + pad0 + pad1
+            remainder = total % stride_val
+            if remainder == 0:
+                return pad0, pad1, 0
+            pad_needed = stride_val - remainder
+            pad1 += pad_needed
+            return pad0, pad1, 1
+
+        if not is_kernel_transposed:
+            t, b, extra_h = _adjust_padding(
+                input_h, kernel_h, dy, sy, int(t), int(b)
+            )
+            l, r, extra_w = _adjust_padding(
+                input_w, kernel_w, dx, sx, int(l), int(r)
+            )
+            extra_out_h += extra_h
+            extra_out_w += extra_w
+        input_padding = [t, b, l, r]
+
         # Prepare input_padding attributes.
         input_padding_attr = ir._denseI64ArrayAttr(input_padding, None)
         # If the input layout is NCHW, then convert to NHWC.
         if node._layout.find("NCHW") != -1:
             perm_list = [0, 2, 3, 1]
-            perm_const_op = tosa.ConstOp(
-                ir.DenseElementsAttr.get(
-                    memoryview(array.array("i", perm_list))
-                )
-            )
+            perms_attr = _create_permutation_attr(perm_list)
             perm_shape = []
             perm_shape.append(input_shape[0])
             perm_shape.append(input_shape[2])
@@ -2543,7 +3081,7 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
                 perm_shape, result_element_type
             )
             input_val = tosa.TransposeOp(
-                permute_result_type, input_val, perm_const_op.results[0]
+                permute_result_type, input_val, perms_attr
             ).result
         # If the output layout is NCHW, then convert to NHWC
         if node._layout.find("NCHW") != -1:
@@ -2553,18 +3091,22 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
             perm_shape.append(out_shape[3])
             perm_shape.append(out_shape[1])
             out_shape = perm_shape
-        output_type = ir.RankedTensorType.get(out_shape, result_element_type)
+        conv_out_shape = list(out_shape)
+        if extra_out_h:
+            conv_out_shape[1] += extra_out_h
+        if extra_out_w:
+            conv_out_shape[2] += extra_out_w
+        output_type = ir.RankedTensorType.get(
+            conv_out_shape, result_element_type
+        )
 
         # Depthwise Conv2D Operation.
         if is_depthwise is True:
             # If groups == in_channels,out_channels == in_channels
+            weight_depthwise = weight_val
             if node._layout.find("FCHW") != -1:
                 perm_list = [2, 3, 0, 1]
-                perm_const_op = tosa.ConstOp(
-                    ir.DenseElementsAttr.get(
-                        memoryview(array.array("i", perm_list))
-                    )
-                )
+                perms_attr = _create_permutation_attr(perm_list)
                 perm_shape = []
                 perm_shape.append(weight_shape[2])
                 perm_shape.append(weight_shape[3])
@@ -2574,18 +3116,23 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
                     perm_shape, result_element_type
                 )
                 weight_depthwise = tosa.TransposeOp(
-                    permute_result_type, weight_val, perm_const_op.results[0]
+                    permute_result_type, weight_val, perms_attr
                 ).result
-            op = tosa.DepthwiseConv2DOp(
+            input_zp = _create_zero_point_tensor(input_val)
+            weight_zp = _create_zero_point_tensor(weight_depthwise)
+            depthwise_op = tosa.DepthwiseConv2DOp(
                 output_type,
                 input_val,
                 weight_depthwise,
                 bias_tensor,
+                input_zp,
+                weight_zp,
                 input_padding_attr,
                 stride_attr,
                 dilation_attr,
                 acc_type,
             )
+            op = depthwise_op
         else:
             # Transpose Conv2D Operation.
             if is_kernel_transposed:
@@ -2594,25 +3141,24 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
                 for i in range(len(out_padding), 4):
                     out_padding = [0] + out_padding
                 out_padding_attr = ir._denseI64ArrayAttr(out_padding, None)
-                out_shape_attr = ir._denseI64ArrayAttr(out_shape, None)
+                input_zp = _create_zero_point_tensor(input_val)
+                weight_zp = _create_zero_point_tensor(weight_val)
                 op = tosa.TransposeConv2DOp(
                     output_type,
                     input_val,
                     weight_val,
                     bias_tensor,
+                    input_zp,
+                    weight_zp,
                     out_padding_attr,
                     stride_attr,
-                    out_shape_attr,
+                    acc_type,
                 )
             # Generic Conv2D Operation.
             else:
                 if node._layout.find("FCHW") != -1:
                     perm_list = [0, 2, 3, 1]
-                    perm_const_op = tosa.ConstOp(
-                        ir.DenseElementsAttr.get(
-                            memoryview(array.array("i", perm_list))
-                        )
-                    )
+                    perms_attr = _create_permutation_attr(perm_list)
                     perm_shape = []
                     perm_shape.append(weight_shape[0])
                     perm_shape.append(weight_shape[2])
@@ -2624,26 +3170,37 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
                     weight_val = tosa.TransposeOp(
                         permute_result_type,
                         weight_val,
-                        perm_const_op.results[0],
+                        perms_attr,
                     ).result
-                op = tosa.Conv2DOp(
+                input_zp = _create_zero_point_tensor(input_val)
+                weight_zp = _create_zero_point_tensor(weight_val)
+                conv_op = tosa.Conv2DOp(
                     output_type,
                     input_val,
                     weight_val,
                     bias_tensor,
+                    input_zp,
+                    weight_zp,
                     input_padding_attr,
                     stride_attr,
                     dilation_attr,
                     acc_type,
                 )
+                op = conv_op
+
+        if extra_out_h or extra_out_w:
+            # Slice off the padded rows/cols that exceed the expected output.
+            slice_start = _create_shape_operand([0, 0, 0, 0])
+            slice_size = _create_shape_operand(out_shape)
+            slice_type = ir.RankedTensorType.get(out_shape, result_element_type)
+            slice_op = tosa.SliceOp(
+                slice_type, op.result, slice_start, slice_size
+            )
+            op = slice_op
         # Output transpose
         if node._layout.find("NCHW") != -1:
             perm_list = [0, 3, 1, 2]
-            perm_const_op = tosa.ConstOp(
-                ir.DenseElementsAttr.get(
-                    memoryview(array.array("i", perm_list))
-                )
-            )
+            perms_attr = _create_permutation_attr(perm_list)
             perm_shape = []
             perm_shape.append(out_shape[0])
             perm_shape.append(out_shape[3])
@@ -2652,9 +3209,7 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
             permute_result_type = ir.RankedTensorType.get(
                 perm_shape, result_element_type
             )
-            op = tosa.TransposeOp(
-                permute_result_type, op.result, perm_const_op.results[0]
-            )
+            op = tosa.TransposeOp(permute_result_type, op.result, perms_attr)
     # Convolution 1D
     elif len(weight_shape) == 3:
         # Prepare input with padding.
@@ -2681,7 +3236,11 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
             )
             shape_type = ir.Type.parse("!tosa.shape<6>")
             pad_constant = tosa.const_shape(shape_type, pad_values_attr)
-            input_val = tosa.PadOp(padded_type, input_val, pad_constant)
+            ty = ir.Type.parse("tensor<1xf32>")
+            pad_zp = tosa.ConstOp(
+                ir.DenseElementsAttr.get_splat(ty, ir.FloatAttr.get_f32(0.0))
+            ).result
+            input_val = tosa.PadOp(padded_type, input_val, pad_constant, pad_zp)
         output_type = ir.RankedTensorType.get(out_shape, result_element_type)
         output_conv = tensor.EmptyOp(list(out_shape), result_element_type)
         assert groups == 1, "only support one group"
@@ -2768,14 +3327,27 @@ def iota_op(node: IotaOp, symbol_table):
     output_shape = list(node.tensor_meta["shape"])
     dtype = node.tensor_meta["dtype"]
     start = node.kwargs["start"]
-    end = node.args[0]
+    count = node.args[0]
     step = node.kwargs["step"]
     mlir_dtype = mlir_element_type_get(dtype)
     tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
-    attr = ir.DenseElementsAttr.get(
-        numpy.arange(start, end, step),
-        type=tensor_type,
-    )
+    if not isinstance(count, int):
+        count = int(count)
+    numpy_dtype = {
+        TensorDType.Float16: numpy.float16,
+        TensorDType.BFloat16: numpy.uint16,
+        TensorDType.Float32: numpy.float32,
+        TensorDType.Float64: numpy.float64,
+        TensorDType.Int8: numpy.int8,
+        TensorDType.Int32: numpy.int32,
+        TensorDType.Int64: numpy.int64,
+        TensorDType.Bool: numpy.bool_,
+    }.get(dtype)
+    if numpy_dtype is None:
+        raise NotImplementedError(f"Unsupported dtype for iota: {dtype}")
+    base = numpy.arange(count, dtype=numpy_dtype)
+    values = start + base * step
+    attr = ir.DenseElementsAttr.get(values, type=tensor_type)
     op = tosa.ConstOp(attr)
 
     return op
@@ -2799,6 +3371,77 @@ def sigmoid_op(node: SigmoidOp, symbol_table):
     return op
 
 
+def glu_op(node: GluOp, symbol_table):
+    """
+    Import the GLU operation.
+    From Buddy GluOp to MLIR TOSA operations.
+    """
+    input_tensor = symbol_table.get((str(node.args[0]), 0))
+    dim = node.args[1] if len(node.args) > 1 else -1
+
+    input_type = ir.RankedTensorType(input_tensor.type)
+    input_shape = list(input_type.shape)
+    rank = len(input_shape)
+    if dim < 0:
+        dim += rank
+    if dim < 0 or dim >= rank:
+        raise NotImplementedError("glu dim out of range")
+    if input_shape[dim] < 0:
+        raise NotImplementedError("glu requires static split dimension")
+    if input_shape[dim] % 2 != 0:
+        raise NotImplementedError("glu requires even split dimension size")
+
+    output_shape = list(node.tensor_meta["shape"])
+    dtype = node.tensor_meta["dtype"]
+    mlir_dtype = mlir_element_type_get(dtype)
+    if input_type.element_type != mlir_dtype:
+        input_tensor = tosa.CastOp(
+            ir.RankedTensorType.get(input_shape, mlir_dtype), input_tensor
+        ).result
+
+    split_size = input_shape[dim] // 2
+    slice_shape = list(input_shape)
+    slice_shape[dim] = split_size
+
+    offsets_a = [0] * rank
+    offsets_b = [0] * rank
+    offsets_b[dim] = split_size
+    sizes_attr = ir._denseI64ArrayAttr(slice_shape, None)
+    strides_attr = ir._denseI64ArrayAttr([1] * rank, None)
+
+    slice_type = ir.RankedTensorType.get(slice_shape, mlir_dtype)
+    a = tensor.ExtractSliceOp(
+        slice_type,
+        input_tensor,
+        [],
+        [],
+        [],
+        ir._denseI64ArrayAttr(offsets_a, None),
+        sizes_attr,
+        strides_attr,
+    ).result
+    b = tensor.ExtractSliceOp(
+        slice_type,
+        input_tensor,
+        [],
+        [],
+        [],
+        ir._denseI64ArrayAttr(offsets_b, None),
+        sizes_attr,
+        strides_attr,
+    ).result
+
+    b_sigmoid = tosa.SigmoidOp(slice_type, b).result
+    shift = _create_mul_shift_operand()
+    result = tosa.MulOp(slice_type, a, b_sigmoid, shift).result
+
+    if output_shape != slice_shape:
+        result = tosa.ReshapeOp(
+            result, _create_shape_operand(output_shape)
+        ).result
+    return result
+
+
 def reciprocal_op(node: ReciprocalOp, symbol_table):
     """
     Import the buddy ReciprocalOp.
@@ -2815,12 +3458,8 @@ def mean_op(node: MeanOp, symbol_table):
     """
 
     def _inner_op(result_type, input1, input2):
-        return tosa.MulOp(
-            result_type,
-            input1,
-            input2,
-            # ir.IntegerAttr.get(ir.IntegerType.get_signless(8), 0),
-        )
+        shift = _create_mul_shift_operand()
+        return tosa.MulOp(result_type, input1, input2, shift)
 
     input_tensor = symbol_table.get((str(node.args[0]), 0))
     keepdim = node.args[2]
@@ -2861,9 +3500,8 @@ def mean_op(node: MeanOp, symbol_table):
     if not keepdim:
         result_shp = ir.RankedTensorType(ret.results[0].type).shape
         result_shp = [siz for siz in result_shp if siz != 1]
-        ret = tosa.ReshapeOp(
-            ret.results[0], memoryview(array.array("i", result_shp))
-        )
+        reshape_operand = _create_shape_operand(result_shp)
+        ret = tosa.ReshapeOp(ret.results[0], reshape_operand)
 
     return ret
 
@@ -2886,12 +3524,20 @@ def clamp_min_op(node: ClampMinOp, symbol_table):
     input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
     min_value = symbol_table.get((str(node.args[1]), 0), node.args[1])
     tensor_type = input1.type
-    min_value_int = round(min_value)
-    min_int = ir.IntegerAttr.get(ir.IntegerType.get_signless(64), min_value_int)
-    max_int = ir.IntegerAttr.get(ir.IntegerType.get_signless(64), sys.maxsize)
-    min_fp = ir.FloatAttr.get(ir.F32Type.get(), min_value)
-    max_fp = ir.FloatAttr.get(ir.F32Type.get(), float("inf"))
-    op = tosa.ClampOp(tensor_type, input1, min_int, max_int, min_fp, max_fp)
+    element_type = ir.RankedTensorType(tensor_type).element_type
+    if ir.FloatType.isinstance(element_type) or ir.BF16Type.isinstance(
+        element_type
+    ):
+        min_attr = ir.FloatAttr.get(element_type, float(min_value))
+        max_attr = ir.FloatAttr.get(element_type, float("inf"))
+    else:
+        bitwidth = element_type.width
+        max_limit = (1 << (bitwidth - 1)) - 1
+        min_attr = ir.IntegerAttr.get(
+            element_type, int(round(float(min_value)))
+        )
+        max_attr = ir.IntegerAttr.get(element_type, max_limit)
+    op = tosa.ClampOp(tensor_type, input1, min_attr, max_attr)
     return op
 
 
@@ -2913,12 +3559,20 @@ def clamp_max_op(node: ClampMaxOp, symbol_table):
     input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
     max_value = symbol_table.get((str(node.args[1]), 0), node.args[1])
     tensor_type = input1.type
-    min_value_int = round(max_value)
-    min_int = ir.IntegerAttr.get(ir.IntegerType.get_signless(64), -sys.maxsize)
-    max_int = ir.IntegerAttr.get(ir.IntegerType.get_signless(64), min_value_int)
-    min_fp = ir.FloatAttr.get(ir.F32Type.get(), -float("inf"))
-    max_fp = ir.FloatAttr.get(ir.F32Type.get(), max_value)
-    op = tosa.ClampOp(tensor_type, input1, min_int, max_int, min_fp, max_fp)
+    element_type = ir.RankedTensorType(tensor_type).element_type
+    if ir.FloatType.isinstance(element_type) or ir.BF16Type.isinstance(
+        element_type
+    ):
+        min_attr = ir.FloatAttr.get(element_type, -float("inf"))
+        max_attr = ir.FloatAttr.get(element_type, float(max_value))
+    else:
+        bitwidth = element_type.width
+        min_limit = -(1 << (bitwidth - 1))
+        min_attr = ir.IntegerAttr.get(element_type, min_limit)
+        max_attr = ir.IntegerAttr.get(
+            element_type, int(round(float(max_value)))
+        )
+    op = tosa.ClampOp(tensor_type, input1, min_attr, max_attr)
     return op
 
 
@@ -2955,17 +3609,36 @@ def argmax_op(node: ArgMaxOp, symbol_table):
         op: The constructed ArgMax operation.
     """
     input_tensor = symbol_table.get((str(node.args[0]), 0), node.args[0])
-    axis = symbol_table.get((str(node.args[1]), 0), node.args[1])
+    dim = node.args[1] if len(node.args) > 1 else None
+
     input_shape = list(ir.RankedTensorType(input_tensor.type).shape)
+    if dim is None:
+        total_elements = 1
+        for s in input_shape:
+            total_elements *= s
+        flat_shape = [1, total_elements, 1]
+        reshape_operand = _create_shape_operand(flat_shape)
+        input_tensor = tosa.ReshapeOp(input_tensor, reshape_operand).result
+        dim = 1
+        input_shape = flat_shape
 
-    if axis < 0:
-        axis += len(input_shape)
+    if dim < 0:
+        dim += len(input_shape)
 
-    result_shape = input_shape[:axis] + input_shape[axis + 1 :]
-    result_type = ir.IntegerType.get_signless(64)
-    result = ir.RankedTensorType.get(result_shape, result_type)
-    op = tosa.ArgMaxOp(result, input_tensor, axis)
-    return op
+    output_shape = list(node.tensor_meta["shape"])
+    output_dtype = mlir_element_type_get(node.tensor_meta["dtype"])
+    argmax_type = ir.RankedTensorType.get(
+        output_shape, ir.IntegerType.get_signless(32)
+    )
+    axis_attr = ir.IntegerAttr.get(ir.IntegerType.get_signless(32), dim)
+    argmax = tosa.ArgMaxOp(argmax_type, input_tensor, axis_attr).result
+    if output_dtype != ir.IntegerType.get_signless(32):
+        result_type = ir.RankedTensorType.get(output_shape, output_dtype)
+        if ir.IntegerType(output_dtype).width > 32:
+            argmax = arith.ExtSIOp(result_type, argmax).result
+        else:
+            argmax = arith.TruncIOp(result_type, argmax).result
+    return argmax
 
 
 def scaled_dot_product_flash_attention_for_cpu_op(
@@ -3036,34 +3709,29 @@ def scaled_dot_product_flash_attention_for_cpu_op(
             attn_bias = tensor.SelectOp(attn_mask, minus_inf_tensor, attn_bias)
         else:
             if attn_mask.type.shape != attn_bias.result.type.shape:
-                attn_mask = tosa.ReshapeOp(
-                    attn_mask,
-                    memoryview(array.array("i", attn_bias.result.type.shape)),
+                attn_mask_operand = _create_shape_operand(
+                    list(attn_bias.result.type.shape)
                 )
+                attn_mask = tosa.ReshapeOp(attn_mask, attn_mask_operand)
             attn_bias = tosa.AddOp(attn_bias.result.type, attn_bias, attn_mask)
 
     # Matrix multiplication of query and key
-    query_reshape_op = tosa.ReshapeOp(
-        query,
-        memoryview(
-            array.array(
-                "i",
-                [
-                    query_shape[0] * query_shape[1],
-                    query_shape[2],
-                    query_shape[3],
-                ],
-            )
-        ),
+    query_reshape_operand = _create_shape_operand(
+        [
+            query_shape[0] * query_shape[1],
+            query_shape[2],
+            query_shape[3],
+        ]
     )
-    key_reshape_op = tosa.ReshapeOp(
-        key,
-        memoryview(
-            array.array(
-                "i", [key_shape[0] * key_shape[1], key_shape[2], key_shape[3]]
-            )
-        ),
+    query_reshape_op = tosa.ReshapeOp(query, query_reshape_operand)
+    key_reshape_operand = _create_shape_operand(
+        [
+            key_shape[0] * key_shape[1],
+            key_shape[2],
+            key_shape[3],
+        ]
     )
+    key_reshape_op = tosa.ReshapeOp(key, key_reshape_operand)
     matmul_result_shp = [
         key_shape[0] * key_shape[1],
         query_shape[2],
@@ -3081,20 +3749,12 @@ def scaled_dot_product_flash_attention_for_cpu_op(
     if mlir_dtype == ir.F16Type.get():
         f16_max_val = 65504.0
         f16_min_val = -65504.0
-        min_int_attr = ir.IntegerAttr.get(
-            ir.IntegerType.get_signless(64), -sys.maxsize
-        )
-        max_int_attr = ir.IntegerAttr.get(
-            ir.IntegerType.get_signless(64), sys.maxsize
-        )
-        min_fp_attr = ir.FloatAttr.get(ir.F32Type.get(), f16_min_val)
-        max_fp_attr = ir.FloatAttr.get(ir.F32Type.get(), f16_max_val)
+        min_fp_attr = ir.FloatAttr.get(ir.F16Type.get(), f16_min_val)
+        max_fp_attr = ir.FloatAttr.get(ir.F16Type.get(), f16_max_val)
 
         matmul_op = tosa.ClampOp(
             matmul_op.type,
             matmul_op,
-            min_int_attr,
-            max_int_attr,
             min_fp_attr,
             max_fp_attr,
         )
@@ -3102,31 +3762,20 @@ def scaled_dot_product_flash_attention_for_cpu_op(
         # BF16 has the same range as F32 but lower precision
         bf16_max_val = 3.4028235e38
         bf16_min_val = -3.4028235e38
-        min_int_attr = ir.IntegerAttr.get(
-            ir.IntegerType.get_signless(64), -sys.maxsize
-        )
-        max_int_attr = ir.IntegerAttr.get(
-            ir.IntegerType.get_signless(64), sys.maxsize
-        )
-        min_fp_attr = ir.FloatAttr.get(ir.F32Type.get(), bf16_min_val)
-        max_fp_attr = ir.FloatAttr.get(ir.F32Type.get(), bf16_max_val)
+        min_fp_attr = ir.FloatAttr.get(ir.BF16Type.get(), bf16_min_val)
+        max_fp_attr = ir.FloatAttr.get(ir.BF16Type.get(), bf16_max_val)
 
         matmul_op = tosa.ClampOp(
             matmul_op.result.type,
             matmul_op,
-            min_int_attr,
-            max_int_attr,
             min_fp_attr,
             max_fp_attr,
         )
     # Multiply result by scale factor
     scale_factor_constant = arith.ConstantOp(mlir_dtype, scale_factor)
     scale_factor = tensor.SplatOp(matmul_result_type, scale_factor_constant, [])
-    mul_op = tosa.MulOp(
-        matmul_result_type,
-        matmul_op,
-        scale_factor,
-    )
+    shift = _create_mul_shift_operand()
+    mul_op = tosa.MulOp(matmul_result_type, matmul_op, scale_factor, shift)
 
     # Add attention bias to the result
     add_op = _gen_arith_binary_op(mul_op.result, attn_bias.result, tosa.AddOp)
@@ -3145,48 +3794,473 @@ def scaled_dot_product_flash_attention_for_cpu_op(
     log_sumexp = tosa.AddOp(max_vals.result.type, max_vals, log_op)
     log_weights = tosa.SubOp(add_op.result.type, add_op, log_sumexp)
     softmax_result = math.ExpOp(log_weights.result)
-    log_sumexp = tosa.ReshapeOp(
-        log_sumexp,
-        memoryview(
-            array.array(
-                "i",
-                output_shape[1],
-            )
-        ),
-    )
+    log_sumexp_operand = _create_shape_operand(list(output_shape[1]))
+    log_sumexp = tosa.ReshapeOp(log_sumexp, log_sumexp_operand)
 
     # This step includes dropout during training.
     # Multiply the result by the value tensor.
-    value_reshape_op = tosa.ReshapeOp(
-        value,
-        memoryview(
-            array.array(
-                "i",
-                [key_shape[0] * key_shape[1], value_shape[2], value_shape[3]],
-            )
-        ),
+    value_reshape_operand = _create_shape_operand(
+        [
+            key_shape[0] * key_shape[1],
+            value_shape[2],
+            value_shape[3],
+        ]
     )
+    value_reshape_op = tosa.ReshapeOp(value, value_reshape_operand)
     matmul_result_shp = matmul_result_shp = [
         key_shape[0] * key_shape[1],
         query_shape[2],
         value_shape[3],
     ]
     matmul_result_type = ir.RankedTensorType.get(matmul_result_shp, mlir_dtype)
+    softmax_zp = _create_zero_point_tensor(softmax_result.result)
+    value_zp = _create_zero_point_tensor(value_reshape_op.result)
     matmul_op = tosa.MatMulOp(
-        matmul_result_type, softmax_result.result, value_reshape_op.result
+        matmul_result_type,
+        softmax_result.result,
+        value_reshape_op.result,
+        softmax_zp,
+        value_zp,
     )
-
-    result_reshape_op = tosa.ReshapeOp(
-        matmul_op.result,
-        memoryview(
-            array.array(
-                "i",
-                [key_shape[0], key_shape[1], query_shape[2], value_shape[3]],
-            )
-        ),
+    result_reshape_operand = _create_shape_operand(
+        [key_shape[0], key_shape[1], query_shape[2], value_shape[3]]
     )
+    result_reshape_op = tosa.ReshapeOp(matmul_op.result, result_reshape_operand)
 
     return result_reshape_op, log_sumexp
+
+
+def flash_attention_for_cpu_prefill_op(
+    node: "FlashAttentionForCpuPrefillOp", symbol_table
+):
+    """
+    Lower FlashAttentionForCpuPrefillOp into MLIR affine+vector IR.
+    Returns:
+        result_tensor: Final attention output tensor
+        log_sumexp_reshape: Placeholder log-sum-exp (can be reshaped as needed)
+    """
+    loc = ir.Location.unknown()
+    index = IndexType.get()
+    f32 = F32Type.get()
+    dtype_qkv = node.tensor_meta["dtype"][0]
+    dtype_qkv = mlir_element_type_get(dtype_qkv)
+    dtype = f32
+    vector_width = 16
+    v16 = ir.VectorType.get([vector_width], dtype)
+    v16_qkv = ir.VectorType.get([vector_width], dtype_qkv)
+    vec_len = arith.ConstantOp(index, vector_width, loc=loc)
+
+    # === input parse ===
+    query = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    key = symbol_table.get((str(node.args[1]), 0), node.args[1])
+    value = symbol_table.get((str(node.args[2]), 0), node.args[2])
+    attn_mask = node.kwargs.get("attn_mask", None)
+    scale = node.kwargs.get("scale", None)
+
+    c0 = arith.ConstantOp(index, 0, loc=loc)
+    query_shape = query.type.shape
+    key_shape = key.type.shape
+    value_shape = value.type.shape
+    output_shape = list(node.tensor_meta["shape"])
+
+    # scale = 1/sqrt(H)
+    scale_val = 1 / numpy.sqrt(query.type.shape[-1]) if scale is None else scale
+    scale_val = arith.ConstantOp(dtype, float(scale_val)).result
+
+    zero = arith.ConstantOp(dtype, 0.0, loc=loc).result
+    if dtype == ir.F16Type.get():
+        neg_inf = arith.ConstantOp(dtype, -65504.0, loc=loc).result
+    else:
+        neg_inf = arith.ConstantOp(dtype, -1.0e30, loc=loc).result
+    zero_vec = vector.SplatOp(v16, zero, loc=loc)
+    step_1 = arith.ConstantOp(index, 1, loc=loc)
+
+    # === bufferization ===
+    Q_memref = bufferization.ToBufferOp(
+        memref.MemRefType.get(query_shape, dtype_qkv), query, loc=loc
+    )
+    K_memref = bufferization.ToBufferOp(
+        memref.MemRefType.get(key_shape, dtype_qkv), key, loc=loc
+    )
+    V_memref = bufferization.ToBufferOp(
+        memref.MemRefType.get(value_shape, dtype_qkv), value, loc=loc
+    )
+
+    mask_memref = None
+    if attn_mask is not None:
+        attn_mask = symbol_table.get((str(attn_mask), 0), attn_mask)
+        mask_memref = bufferization.ToBufferOp(
+            memref.MemRefType.get(attn_mask.type.shape, dtype_qkv),
+            attn_mask,
+            loc=loc,
+        )
+
+    batch_size = arith.ConstantOp(index, query_shape[0], loc=loc)
+    num_heads = arith.ConstantOp(index, query_shape[1], loc=loc)
+    q_seq_len = arith.ConstantOp(index, query_shape[2], loc=loc)
+    head_dim = arith.ConstantOp(index, query_shape[3], loc=loc)
+    k_seq_len = arith.ConstantOp(index, key_shape[2], loc=loc)
+
+    block_size_q_num = 16
+    block_size_kv_num = 64
+    block_size_q = arith.ConstantOp(index, block_size_q_num, loc=loc)
+    block_size_kv = arith.ConstantOp(index, block_size_kv_num, loc=loc)
+
+    out_memref = memref.AllocOp(
+        memref.MemRefType.get(list(output_shape[0]), dtype_qkv), [], [], loc=loc
+    )
+    out_scores_memref = memref.AllocOp(
+        memref.MemRefType.get(
+            [query_shape[0], query_shape[1], query_shape[2]], dtype_qkv
+        ),
+        [],
+        [],
+        loc=loc,
+    )
+    # batch loop
+    loop_batch = affine.AffineForOp(0, batch_size.result, 1)
+    with ir.InsertionPoint(loop_batch.body):
+        b = loop_batch.induction_variable
+        # head loop
+        loop_h = affine.AffineParallelOp(
+            results_=[],
+            reductions=ir.ArrayAttr.get([]),
+            lowerBoundsMap=ir.AffineMap.get(
+                0, 0, [ir.AffineConstantExpr.get(0)]
+            ),
+            lowerBoundsGroups=[1],
+            upperBoundsMap=ir.AffineMap.get_identity(1),
+            upperBoundsGroups=[1],
+            steps=[1],
+            mapOperands=[num_heads.result],
+        )
+        body_block = loop_h.regions[0].blocks.append()
+        with ir.InsertionPoint(body_block):
+            h = body_block.add_argument(
+                ir.IndexType.get(), ir.Location.unknown()
+            )
+            # query sequence length block loop
+            loop_q = affine.AffineParallelOp(
+                results_=[],
+                reductions=ir.ArrayAttr.get([]),
+                lowerBoundsMap=ir.AffineMap.get(
+                    0, 0, [ir.AffineConstantExpr.get(0)]
+                ),
+                lowerBoundsGroups=[1],
+                upperBoundsMap=ir.AffineMap.get_identity(1),
+                upperBoundsGroups=[1],
+                steps=[block_size_q_num],
+                mapOperands=[q_seq_len.result],
+            )
+            body_block = loop_q.regions[0].blocks.append()
+            with ir.InsertionPoint(body_block):
+                q_block_start = body_block.add_argument(
+                    ir.IndexType.get(), ir.Location.unknown()
+                )
+                m_i_memref = memref.AllocOp(
+                    memref.MemRefType.get([block_size_q_num], dtype),
+                    [],
+                    [],
+                    loc=loc,
+                )
+                l_i_memref = memref.AllocOp(
+                    memref.MemRefType.get([block_size_q_num], dtype),
+                    [],
+                    [],
+                    loc=loc,
+                )
+                accum_memref = memref.AllocOp(
+                    memref.MemRefType.get(
+                        [block_size_q_num, query_shape[3]], dtype
+                    ),
+                    [],
+                    [],
+                    loc=loc,
+                )
+                # initialize m_i l_i to zero
+                loop_jj = scf.ForOp(
+                    c0.result, block_size_q.result, step_1.result
+                )
+                with ir.InsertionPoint(loop_jj.body):
+                    jj = loop_jj.induction_variable
+                    memref.StoreOp(neg_inf, m_i_memref, [jj])
+                    memref.StoreOp(zero, l_i_memref, [jj])
+                    scf.yield_([])
+                # initialize accum to zero
+                loop_jj = scf.ForOp(
+                    c0.result, block_size_q.result, step_1.result
+                )
+                with ir.InsertionPoint(loop_jj.body):
+                    jj = loop_jj.induction_variable
+                    loop_k = scf.ForOp(c0.result, head_dim.result, vec_len)
+                    with ir.InsertionPoint(loop_k.body):
+                        k = loop_k.induction_variable
+                        vector.StoreOp(zero_vec, accum_memref, [jj, k])
+                        scf.yield_([])
+                    scf.yield_([])
+                # key sequence length block loop
+                loop_kj = affine.AffineParallelOp(
+                    results_=[],
+                    reductions=ir.ArrayAttr.get([]),
+                    lowerBoundsMap=ir.AffineMap.get(
+                        0, 0, [ir.AffineConstantExpr.get(0)]
+                    ),
+                    lowerBoundsGroups=[1],
+                    upperBoundsMap=ir.AffineMap.get_identity(1),
+                    upperBoundsGroups=[1],
+                    steps=[block_size_kv_num],
+                    mapOperands=[k_seq_len.result],
+                )
+                body_block = loop_kj.regions[0].blocks.append()
+                with ir.InsertionPoint(body_block):
+                    k_block_start = body_block.add_argument(
+                        ir.IndexType.get(), ir.Location.unknown()
+                    )
+                    score_tile_memref = memref.AllocOp(
+                        memref.MemRefType.get(
+                            [block_size_q_num, block_size_kv_num], dtype
+                        ),
+                        [],
+                        [],
+                        loc=loc,
+                    )
+                    loop_qi = scf.ForOp(
+                        c0.result, block_size_q.result, step_1.result
+                    )
+                    with ir.InsertionPoint(loop_qi.body):
+                        qi = loop_qi.induction_variable
+                        loop_kj = scf.ForOp(
+                            c0.result, block_size_kv.result, step_1.result
+                        )
+                        with ir.InsertionPoint(loop_kj.body):
+                            kj = loop_kj.induction_variable
+                            memref.StoreOp(zero, score_tile_memref, [qi, kj])
+                            scf.yield_([])
+                        scf.yield_([])
+                    # compute score_tile
+                    loop_qi = scf.ForOp(
+                        c0.result, block_size_q.result, step_1.result
+                    )
+                    with ir.InsertionPoint(loop_qi.body):
+                        qi = loop_qi.induction_variable
+                        idx_q = arith.AddIOp(q_block_start, qi, loc=loc).result
+                        loop_kj = scf.ForOp(
+                            c0.result, block_size_kv.result, step_1.result
+                        )
+                        with ir.InsertionPoint(loop_kj.body):
+                            kj = loop_kj.induction_variable
+                            idx_k = arith.AddIOp(
+                                k_block_start, kj, loc=loc
+                            ).result
+                            loop_k = scf.ForOp(
+                                c0.result,
+                                head_dim.result,
+                                vec_len,
+                                [zero_vec.result],
+                            )
+                            with ir.InsertionPoint(loop_k.body):
+                                k = loop_k.induction_variable
+                                q_data = vector.LoadOp(
+                                    v16_qkv, Q_memref, [b, h, idx_q, k]
+                                )
+                                k_data = vector.LoadOp(
+                                    v16_qkv, K_memref, [b, h, idx_k, k]
+                                )
+                                new_acc = vector.FMAOp(
+                                    q_data.result,
+                                    k_data.result,
+                                    loop_k.inner_iter_args[0],
+                                    loc=loc,
+                                ).result
+                                scf.yield_([new_acc])
+                            score_tile_sum = vector.ReductionOp(
+                                dtype, "add", loop_k.result
+                            ).result
+                            score_tile_scaled = arith.MulFOp(
+                                score_tile_sum, scale_val, loc=loc
+                            ).result
+                            if mask_memref is not None:
+                                mask_val = memref.LoadOp(
+                                    mask_memref, [b, c0.result, idx_q, idx_k]
+                                ).result
+                                score_tile_masked = arith.AddFOp(
+                                    score_tile_scaled, mask_val, loc=loc
+                                ).result
+                            else:
+                                score_tile_masked = score_tile_scaled
+                            memref.StoreOp(
+                                score_tile_masked, score_tile_memref, [qi, kj]
+                            )
+                            scf.yield_([])
+                        scf.yield_([])
+                    # compute m_block
+                    loop_qi = scf.ForOp(
+                        c0.result, block_size_q.result, step_1.result
+                    )
+                    with ir.InsertionPoint(loop_qi.body):
+                        qi = loop_qi.induction_variable
+                        loop_kj = scf.ForOp(
+                            c0.result,
+                            block_size_kv.result,
+                            step_1.result,
+                            [neg_inf],
+                        )
+                        with ir.InsertionPoint(loop_kj.body):
+                            kj = loop_kj.induction_variable
+                            m_block_iter = loop_kj.inner_iter_args[0]
+                            m_temp = memref.LoadOp(
+                                score_tile_memref, [qi, kj]
+                            ).result
+                            is_m_i = arith.CmpFOp(
+                                arith.CmpFPredicate.OGT,
+                                m_temp,
+                                m_block_iter,
+                                loc=loc,
+                            ).result
+                            m_i_tile = arith.SelectOp(
+                                is_m_i, m_temp, m_block_iter, loc=loc
+                            ).result
+                            scf.yield_([m_i_tile])
+                        m_block = loop_kj.result
+                        # initialize acc_block to zero
+                        acc_block_memref = memref.AllocOp(
+                            memref.MemRefType.get([query_shape[3]], dtype),
+                            [],
+                            [],
+                            loc=loc,
+                        )
+                        loop_k = scf.ForOp(
+                            c0.result, head_dim.result, step_1.result
+                        )
+                        with ir.InsertionPoint(loop_k.body):
+                            k = loop_k.induction_variable
+                            memref.StoreOp(zero, acc_block_memref, [k])
+                            scf.yield_([])
+                        loop_kj = scf.ForOp(
+                            c0.result,
+                            block_size_kv.result,
+                            step_1.result,
+                            [zero],
+                        )
+                        with ir.InsertionPoint(loop_kj.body):
+                            kj = loop_kj.induction_variable
+                            idx_k = arith.AddIOp(
+                                k_block_start, kj, loc=loc
+                            ).result
+                            score_tile_masked = memref.LoadOp(
+                                score_tile_memref, [qi, kj]
+                            ).result
+                            score_tile_sub_m_block = arith.SubFOp(
+                                score_tile_masked, m_block, loc=loc
+                            ).result
+                            p = math.ExpOp(
+                                score_tile_sub_m_block, loc=loc
+                            ).result
+                            exp_score_tile_vec = vector.SplatOp(
+                                v16, p, loc=loc
+                            ).result
+                            l_block_new = arith.AddFOp(
+                                loop_kj.inner_iter_args[0], p, loc=loc
+                            ).result
+                            loop_k = scf.ForOp(
+                                c0.result, head_dim.result, vec_len
+                            )
+                            with ir.InsertionPoint(loop_k.body):
+                                k = loop_k.induction_variable
+                                v_data = vector.LoadOp(
+                                    v16_qkv, V_memref, [b, h, idx_k, k]
+                                )
+                                acc_block_val = vector.LoadOp(
+                                    v16, acc_block_memref, [k]
+                                )
+                                new_acc = vector.FMAOp(
+                                    v_data.result,
+                                    exp_score_tile_vec,
+                                    acc_block_val.result,
+                                    loc=loc,
+                                ).result
+                                vector.StoreOp(new_acc, acc_block_memref, [k])
+                                scf.yield_([])
+                            scf.yield_([l_block_new])
+                        l_block = loop_kj.result
+                        m_i_iter = memref.LoadOp(m_i_memref, [qi]).result
+                        m_i_iter_is_max = arith.CmpFOp(
+                            arith.CmpFPredicate.OGT, m_block, m_i_iter, loc=loc
+                        ).result
+                        m_new = arith.SelectOp(
+                            m_i_iter_is_max, m_block, m_i_iter, loc=loc
+                        ).result
+                        sub_max = arith.SubFOp(m_i_iter, m_new, loc=loc).result
+                        alpha = math.ExpOp(sub_max, loc=loc).result
+                        alpha_vec = vector.SplatOp(v16, alpha, loc=loc).result
+                        sub_block = arith.SubFOp(m_block, m_new, loc=loc).result
+                        beta = math.ExpOp(sub_block, loc=loc).result
+                        beta_vec = vector.SplatOp(v16, beta, loc=loc).result
+                        loop_k = scf.ForOp(c0.result, head_dim.result, vec_len)
+                        with ir.InsertionPoint(loop_k.body):
+                            k = loop_k.induction_variable
+                            acc_vec = vector.LoadOp(
+                                v16, accum_memref, [qi, k]
+                            ).result
+                            acc_block_vec = vector.LoadOp(
+                                v16, acc_block_memref, [k]
+                            ).result
+                            alpha_mul = arith.MulFOp(
+                                acc_vec, alpha_vec, loc=loc
+                            ).result
+                            beta_mul = arith.MulFOp(
+                                acc_block_vec, beta_vec, loc=loc
+                            ).result
+                            new_acc = arith.AddFOp(
+                                alpha_mul, beta_mul, loc=loc
+                            ).result
+                            vector.StoreOp(new_acc, accum_memref, [qi, k])
+                            scf.yield_([])
+                        l_i_iter = memref.LoadOp(l_i_memref, [qi]).result
+                        l_alpha = arith.MulFOp(l_i_iter, alpha, loc=loc).result
+                        l_beta = arith.MulFOp(l_block, beta, loc=loc).result
+                        l_new = arith.AddFOp(l_alpha, l_beta, loc=loc).result
+                        memref.StoreOp(l_new, l_i_memref, [qi])
+                        memref.StoreOp(m_new, m_i_memref, [qi])
+                        scf.yield_([])
+                    affine.yield_([])
+
+                loop_qi = scf.ForOp(
+                    c0.result, block_size_q.result, step_1.result
+                )
+                with ir.InsertionPoint(loop_qi.body):
+                    qi = loop_qi.induction_variable
+                    idx_q = arith.AddIOp(q_block_start, qi, loc=loc).result
+                    sum = memref.LoadOp(l_i_memref, [qi]).result
+                    sum_vec = vector.SplatOp(v16, sum, loc=loc).result
+                    memref.StoreOp(sum, out_scores_memref, [b, h, idx_q])
+
+                    loop_k = scf.ForOp(c0.result, head_dim.result, vec_len)
+                    with ir.InsertionPoint(loop_k.body):
+                        k = loop_k.induction_variable
+                        acc_vec = vector.LoadOp(
+                            v16, accum_memref, [qi, k]
+                        ).result
+                        out_vec = arith.DivFOp(acc_vec, sum_vec, loc=loc).result
+                        vector.StoreOp(out_vec, out_memref, [b, h, idx_q, k])
+                        scf.yield_([])
+                    scf.yield_([])
+                affine.yield_([])
+            affine.yield_([])
+        affine.yield_([])
+    out_tensor = bufferization.ToTensorOp(
+        ir.RankedTensorType.get(list(output_shape[0]), dtype_qkv),
+        out_memref,
+        restrict=ir.BoolAttr.get(True),
+    )
+    out_scores_tensor = bufferization.ToTensorOp(
+        ir.RankedTensorType.get(
+            [query_shape[0], query_shape[1], query_shape[2]], dtype_qkv
+        ),
+        out_scores_memref,
+        restrict=ir.BoolAttr.get(True),
+    )
+    return out_tensor, out_scores_tensor
 
 
 def le_op(
@@ -3219,7 +4293,7 @@ def le_op(
     input_dtype = ir.RankedTensorType(input1.type).element_type
 
     def broadcast_tensor(tensor, target_shape):
-        if list(tensor.type.shape) == target_shape:
+        if list(ir.RankedTensorType(tensor.type).shape) == target_shape:
             return tensor
 
         if input_dtype in (
@@ -3270,42 +4344,7 @@ def bitwise_and_tensor_op(node: BitwiseAndTensorOp, symbol_table):
     """
     input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
     input2 = symbol_table.get((str(node.args[1]), 0), node.args[1])
-
-    output_shape = list(node.tensor_meta["shape"])
-    input_dtype = ir.RankedTensorType(input1.type).element_type
-
-    # === Helper: broadcast a tensor to the target shape using addition ===
-    def broadcast_tensor(tensor, target_shape):
-        if list(tensor.type.shape) == target_shape:
-            return tensor
-
-        # Create a zero tensor of the target shape
-        if input_dtype in (
-            ir.IntegerType.get_signless(1),
-            ir.IntegerType.get_signless(64),
-        ):
-            element = ir.IntegerAttr.get(input_dtype, 0)
-        elif input_dtype in (ir.F32Type.get(), ir.F16Type.get()):
-            element = ir.FloatAttr.get(input_dtype, 0.0)
-        else:
-            raise NotImplementedError("Unsupported element type!")
-
-        new_tensor_type = ir.RankedTensorType.get(target_shape, input_dtype)
-        new_tensor_attr = ir.DenseElementsAttr.get_splat(
-            new_tensor_type, element
-        )
-        zero_tensor = tosa.ConstOp(new_tensor_attr).results[0]
-
-        # Broadcast tensor to target shape using addition
-        return _gen_arith_binary_op(tensor, zero_tensor, tosa.AddOp).results[0]
-
-    # Broadcast both inputs to match the output shape
-    input1 = broadcast_tensor(input1, output_shape)
-    input2 = broadcast_tensor(input2, output_shape)
-
-    # === Bitwise AND operation ===
-    op = arith.AndIOp(input1, input2)
-    return op
+    return _gen_arith_binary_op(input1, input2, tosa.BitwiseAndOp)
 
 
 def zeros_op(node: ZerosOp, symbol_table):
@@ -3676,9 +4715,10 @@ def gt_scalar_op(node: GtOp, symbol_table):
     input_dtype = ir.RankedTensorType(input1.type).element_type
 
     # Create a constant tensor filled with the scalar value
+    element = _get_scalar_attr(input_dtype, scalar_value)
     splat_attr = ir.DenseElementsAttr.get_splat(
         ir.RankedTensorType.get(input_shape, input_dtype),
-        ir.FloatAttr.get(input_dtype, float(scalar_value)),
+        element,
     )
     scalar_tensor = tosa.ConstOp(splat_attr).result
 
@@ -3813,7 +4853,9 @@ def erf_op(node: ErfOp, symbol_table):
 
     # exp(-x²)
     x2 = _gen_arith_binary_op(abs_x.result, abs_x.result, tosa.MulOp)
-    neg_x2 = tosa.NegateOp(result_type, x2.result)
+    input1_zp = _create_zero_point_tensor(x2.result)
+    output_zp = _create_zero_point_tensor(x2.result)
+    neg_x2 = tosa.NegateOp(result_type, x2.result, input1_zp, output_zp)
     exp_neg_x2 = tosa.ExpOp(result_type, neg_x2.result)
 
     # result = 1 - poly * exp(-x²)
@@ -3821,7 +4863,11 @@ def erf_op(node: ErfOp, symbol_table):
     erf_positive = tosa.SubOp(result_type, one, poly_exp.result)
 
     # For negative x, erf(-x) = -erf(x)
-    neg_erf = tosa.NegateOp(result_type, erf_positive.result)
+    input1_zp = _create_zero_point_tensor(erf_positive.result)
+    output_zp = _create_zero_point_tensor(erf_positive.result)
+    neg_erf = tosa.NegateOp(
+        result_type, erf_positive.result, input1_zp, output_zp
+    )
 
     return tosa.SelectOp(
         result_type, is_positive.result, erf_positive.result, neg_erf.result
@@ -3843,9 +4889,10 @@ def ne_scalar_op(node: NeScalarOp, symbol_table):
     input_dtype = ir.RankedTensorType(input1.type).element_type
 
     # Create a constant tensor filled with the scalar value
+    element = _get_scalar_attr(input_dtype, scalar_value)
     splat_attr = ir.DenseElementsAttr.get_splat(
         ir.RankedTensorType.get(input_shape, input_dtype),
-        ir.FloatAttr.get(input_dtype, float(scalar_value)),
+        element,
     )
     scalar_tensor = tosa.ConstOp(splat_attr).result
 
@@ -3965,9 +5012,8 @@ def repeat_op(node: RepeatOp, symbol_table):
         # Prepend 1s to input shape to match repeat_factors length
         num_new_dims = len(repeat_factors) - len(input_shape)
         new_shape = [1] * num_new_dims + input_shape
-        reshape_type = ir.RankedTensorType.get(new_shape, input_dtype)
-        new_shape_attr = ir.DenseI64ArrayAttr.get(new_shape)
-        input1 = tosa.ReshapeOp(reshape_type, input1, new_shape_attr).result
+        new_shape_operand = _create_shape_operand(new_shape)
+        input1 = tosa.ReshapeOp(input1, new_shape_operand).result
         input_shape = new_shape
 
     # Compute output shape
@@ -4046,9 +5092,7 @@ def stack_op(node: StackOp, symbol_table):
     new_shape = first_shape[:dim] + [1] + first_shape[dim:]
     for tensor in input_list:
         unsqueeze_type = ir.RankedTensorType.get(new_shape, input_dtype)
-        unsqueezed = tosa.ReshapeOp(
-            tensor, memoryview(array.array("q", new_shape))
-        )
+        unsqueezed = tosa.ReshapeOp(tensor, _create_shape_operand(new_shape))
         unsqueezed_list.append(unsqueezed.result)
 
     # Concat along the new dimension
@@ -4292,9 +5336,8 @@ def argmin_op(node: ArgMinOp, symbol_table):
             total_elements *= s
         flat_shape = [1, total_elements, 1]
 
-        input1 = tosa.ReshapeOp(
-            input1, memoryview(array.array("i", flat_shape))
-        ).result
+        reshape_operand = _create_shape_operand(flat_shape)
+        input1 = tosa.ReshapeOp(input1, reshape_operand).result
         dim = 1
         input_shape = flat_shape
 
@@ -4305,18 +5348,26 @@ def argmin_op(node: ArgMinOp, symbol_table):
     # TOSA argmax works on axis, we need to negate input for argmin
     # argmin(x) = argmax(-x)
     neg_result_type = ir.RankedTensorType.get(input_shape, input_dtype)
-    neg_input = tosa.NegateOp(neg_result_type, input1).result
+    input1_zp = _create_zero_point_tensor(input1)
+    output_zp = _create_zero_point_tensor(input1)
+    neg_input = tosa.NegateOp(
+        neg_result_type, input1, input1_zp, output_zp
+    ).result
 
     # Use TOSA argmax on negated input
-    # TOSA ArgMax output type is i32
     output_shape = list(node.tensor_meta["shape"])
-    output_type = ir.RankedTensorType.get(
+    output_dtype = mlir_element_type_get(node.tensor_meta["dtype"])
+    argmin_type = ir.RankedTensorType.get(
         output_shape, ir.IntegerType.get_signless(32)
     )
-
     axis_attr = ir.IntegerAttr.get(ir.IntegerType.get_signless(32), dim)
-    result = tosa.ArgMaxOp(output_type, neg_input, axis_attr).result
-
+    result = tosa.ArgMaxOp(argmin_type, neg_input, axis_attr).result
+    if output_dtype != ir.IntegerType.get_signless(32):
+        output_type = ir.RankedTensorType.get(output_shape, output_dtype)
+        if ir.IntegerType(output_dtype).width > 32:
+            result = arith.ExtSIOp(output_type, result).result
+        else:
+            result = arith.TruncIOp(output_type, result).result
     return result
 
 
@@ -4353,13 +5404,17 @@ def min_dim_op(node: MinDimOp, symbol_table):
 
     # If not keepdim, reshape to remove the dimension
     if not keepdim:
-        new_shape_content = memoryview(array.array("i", output_shape))
-        min_values = tosa.ReshapeOp(min_values, new_shape_content).result
+        new_shape_operand = _create_shape_operand(output_shape)
+        min_values = tosa.ReshapeOp(min_values, new_shape_operand).result
 
     # Get argmin using TOSA argmax on negated input
     # argmin(x) = argmax(-x)
     neg_result_type = ir.RankedTensorType.get(input_shape, input_dtype)
-    neg_input = tosa.NegateOp(neg_result_type, input1).result
+    input1_zp = _create_zero_point_tensor(input1)
+    output_zp = _create_zero_point_tensor(input1)
+    neg_input = tosa.NegateOp(
+        neg_result_type, input1, input1_zp, output_zp
+    ).result
 
     # ArgMax returns indices without keepdim
     indices_shape = input_shape[:dim] + input_shape[dim + 1 :]
@@ -4396,9 +5451,8 @@ def squeeze_op(node: SqueezeOp, symbol_table):
     if not output_shape:
         output_shape = [1]  # Keep at least 1 dimension
 
-    result = tosa.ReshapeOp(
-        input1, memoryview(array.array("i", output_shape))
-    ).result
+    shape_operand = _create_shape_operand(output_shape)
+    result = tosa.ReshapeOp(input1, shape_operand).result
     return result
 
 
@@ -4427,9 +5481,8 @@ def squeeze_dim_op(node: SqueezeDimOp, symbol_table):
     if not output_shape:
         output_shape = [1]  # Keep at least 1 dimension
 
-    result = tosa.ReshapeOp(
-        input1, memoryview(array.array("i", output_shape))
-    ).result
+    new_shape_operand = _create_shape_operand(output_shape)
+    result = tosa.ReshapeOp(input1, new_shape_operand).result
     return result
 
 
@@ -4464,9 +5517,8 @@ def squeeze_dims_op(node: SqueezeDimsOp, symbol_table):
     if not output_shape:
         output_shape = [1]  # Keep at least 1 dimension
 
-    result = tosa.ReshapeOp(
-        input1, memoryview(array.array("i", output_shape))
-    ).result
+    new_shape_operand = _create_shape_operand(output_shape)
+    result = tosa.ReshapeOp(input1, new_shape_operand).result
     return result
 
 
@@ -4520,8 +5572,9 @@ def unfold_op(node: UnfoldOp, symbol_table):
     indices_tensor = tosa.ConstOp(indices_attr).result
 
     # Reshape indices for gather operation
+    indices_shape_operand = _create_shape_operand([num_windows, size])
     indices_reshaped = tosa.ReshapeOp(
-        indices_tensor, memoryview(array.array("i", [num_windows, size]))
+        indices_tensor, indices_shape_operand
     ).result
 
     # For a simple 1D unfold case, we can use gather
@@ -4533,14 +5586,13 @@ def unfold_op(node: UnfoldOp, symbol_table):
         )
 
         # Reshape input to 2D for gather: (1, L)
-        input_reshaped = tosa.ReshapeOp(
-            input1, memoryview(array.array("i", [1, L]))
-        ).result
+        input_reshape_operand = _create_shape_operand([1, L])
+        input_reshaped = tosa.ReshapeOp(input1, input_reshape_operand).result
 
         # Reshape indices to (1, num_windows * size)
+        indices_shape_operand = _create_shape_operand([1, num_windows * size])
         indices_flat = tosa.ReshapeOp(
-            indices_tensor,
-            memoryview(array.array("i", [1, num_windows * size])),
+            indices_tensor, indices_shape_operand
         ).result
 
         # Cast indices to i32 if needed
@@ -4551,9 +5603,8 @@ def unfold_op(node: UnfoldOp, symbol_table):
         ).result
 
         # Reshape to output shape
-        result = tosa.ReshapeOp(
-            gathered, memoryview(array.array("i", output_shape))
-        ).result
+        output_shape_operand = _create_shape_operand(output_shape)
+        result = tosa.ReshapeOp(gathered, output_shape_operand).result
         return result
     else:
         # For multi-dimensional case, we need a more complex implementation
@@ -4654,23 +5705,29 @@ def div_scalar_op(node: DivScalarOp, symbol_table):
     scalar = node.args[1]
 
     input_shape = list(ir.RankedTensorType(input1.type).shape)
-    input_dtype = ir.RankedTensorType(input1.type).element_type
+    dtype = node.tensor_meta["dtype"]
+    input_dtype = mlir_element_type_get(dtype)
+    if input1.type.element_type != input_dtype:
+        input1 = tosa.CastOp(
+            ir.RankedTensorType.get(input_shape, input_dtype), input1
+        ).result
 
     # Create reciprocal of scalar
     reciprocal_value = 1.0 / float(scalar)
 
-    scalar_attr = ir.DenseElementsAttr.get(
-        memoryview(array.array("f", [reciprocal_value])),
-        type=ir.RankedTensorType.get([], input_dtype),
+    scalar_type = ir.RankedTensorType.get(input_shape, input_dtype)
+    scalar_attr = ir.DenseElementsAttr.get_splat(
+        scalar_type, mlir_element_attr_get(dtype, reciprocal_value)
     )
     scalar_tensor = tosa.ConstOp(scalar_attr).result
 
     # Multiply by reciprocal (equivalent to divide)
+    shift = _create_mul_shift_operand()
     return tosa.MulOp(
-        ir.RankedTensorType.get(input_shape, input_dtype),
+        scalar_type,
         input1,
         scalar_tensor,
-        0,  # shift
+        shift,
     ).result
 
 
@@ -4686,28 +5743,31 @@ def div_scalar_mode_op(node: DivScalarModeOp, symbol_table):
     rounding_mode = node.args[2] if len(node.args) > 2 else None
 
     input_shape = list(ir.RankedTensorType(input1.type).shape)
-    input_dtype = ir.RankedTensorType(input1.type).element_type
+    dtype = node.tensor_meta["dtype"]
+    input_dtype = mlir_element_type_get(dtype)
+    if input1.type.element_type != input_dtype:
+        input1 = tosa.CastOp(
+            ir.RankedTensorType.get(input_shape, input_dtype), input1
+        ).result
 
     # Create reciprocal of scalar
     reciprocal_value = 1.0 / float(scalar)
 
-    scalar_attr = ir.DenseElementsAttr.get(
-        memoryview(array.array("f", [reciprocal_value])),
-        type=ir.RankedTensorType.get([], input_dtype),
+    result_type = ir.RankedTensorType.get(input_shape, input_dtype)
+    scalar_attr = ir.DenseElementsAttr.get_splat(
+        result_type, mlir_element_attr_get(dtype, reciprocal_value)
     )
     scalar_tensor = tosa.ConstOp(scalar_attr).result
 
     # Multiply by reciprocal
-    div_result = tosa.MulOp(
-        ir.RankedTensorType.get(input_shape, input_dtype), input1, scalar_tensor
-    ).result
+    shift = _create_mul_shift_operand()
+    div_result = tosa.MulOp(result_type, input1, scalar_tensor, shift).result
 
     # Apply rounding mode
     if rounding_mode == "trunc":
         # Truncate towards zero
-        zero_attr = ir.DenseElementsAttr.get(
-            memoryview(array.array("f", [0.0])),
-            type=ir.RankedTensorType.get([], input_dtype),
+        zero_attr = ir.DenseElementsAttr.get_splat(
+            result_type, _get_scalar_attr(input_dtype, 0.0)
         )
         zero_tensor = tosa.ConstOp(zero_attr).result
 
@@ -4719,17 +5779,17 @@ def div_scalar_mode_op(node: DivScalarModeOp, symbol_table):
             zero_tensor,
         ).result
 
-        floor_result = tosa.FloorOp(input_shape, input_dtype, div_result).result
-        ceil_result = tosa.CeilOp(input_shape, input_dtype, div_result).result
+        floor_result = tosa.FloorOp(result_type, div_result).result
+        ceil_result = tosa.CeilOp(result_type, div_result).result
 
         return tosa.SelectOp(
-            ir.RankedTensorType.get(input_shape, input_dtype),
+            result_type,
             is_positive,
             floor_result,
             ceil_result,
         ).result
     elif rounding_mode == "floor":
-        return tosa.FloorOp(input_shape, input_dtype, div_result).result
+        return tosa.FloorOp(result_type, div_result).result
     else:
         return div_result
 
@@ -4760,14 +5820,17 @@ def pow_scalar_op(node: PowScalarOp, symbol_table):
     log_base_tensor = tosa.ConstOp(log_base_attr).result
 
     # exponent * log(base)
+    shift = _create_mul_shift_operand()
     scaled = tosa.MulOp(
         ir.RankedTensorType.get(input_shape, input_dtype),
         exponent,
         log_base_tensor,
+        shift,
     ).result
 
     # exp(exponent * log(base))
-    return tosa.ExpOp(input_shape, input_dtype, scaled).result
+    result_type = ir.RankedTensorType.get(input_shape, input_dtype)
+    return tosa.ExpOp(result_type, scaled).result
 
 
 def mean_default_op(node: MeanDefaultOp, symbol_table):
@@ -4802,12 +5865,17 @@ def mean_default_op(node: MeanDefaultOp, symbol_table):
     divisor = tosa.ConstOp(divisor_attr).result
 
     result_shape = list(ir.RankedTensorType(result.type).shape)
+    shift = _create_mul_shift_operand()
     result = tosa.MulOp(
-        ir.RankedTensorType.get(result_shape, input_dtype), result, divisor
+        ir.RankedTensorType.get(result_shape, input_dtype),
+        result,
+        divisor,
+        shift,
     ).result
 
     # Reshape to scalar
-    return tosa.ReshapeOp(result, memoryview(array.array("i", []))).result
+    empty_shape_operand = _create_shape_operand([])
+    return tosa.ReshapeOp(result, empty_shape_operand).result
 
 
 def var_correction_op(node: VarCorrectionOp, symbol_table):
@@ -4853,8 +5921,12 @@ def var_correction_op(node: VarCorrectionOp, symbol_table):
     n_tensor = tosa.ConstOp(n_attr).result
 
     mean_shape = list(ir.RankedTensorType(mean_result.type).shape)
+    shift = _create_mul_shift_operand()
     mean_result = tosa.MulOp(
-        ir.RankedTensorType.get(mean_shape, input_dtype), mean_result, n_tensor
+        ir.RankedTensorType.get(mean_shape, input_dtype),
+        mean_result,
+        n_tensor,
+        shift,
     ).result
 
     # Compute (x - mean)^2
@@ -4862,8 +5934,9 @@ def var_correction_op(node: VarCorrectionOp, symbol_table):
         ir.RankedTensorType.get(input_shape, input_dtype), input1, mean_result
     ).result
 
+    shift = _create_mul_shift_operand()
     squared = tosa.MulOp(
-        ir.RankedTensorType.get(input_shape, input_dtype), diff, diff
+        ir.RankedTensorType.get(input_shape, input_dtype), diff, diff, shift
     ).result
 
     # Sum of squared differences
@@ -4881,10 +5954,12 @@ def var_correction_op(node: VarCorrectionOp, symbol_table):
     divisor_tensor = tosa.ConstOp(divisor_attr).result
 
     var_shape = list(ir.RankedTensorType(var_result.type).shape)
+    shift = _create_mul_shift_operand()
     return tosa.MulOp(
         ir.RankedTensorType.get(var_shape, input_dtype),
         var_result,
         divisor_tensor,
+        shift,
     ).result
 
 
@@ -4932,8 +6007,12 @@ def var_dim_op(node: VarDimOp, symbol_table):
     n_tensor = tosa.ConstOp(n_attr).result
 
     mean_shape = list(ir.RankedTensorType(mean_result.type).shape)
+    shift = _create_mul_shift_operand()
     mean_result = tosa.MulOp(
-        ir.RankedTensorType.get(mean_shape, input_dtype), mean_result, n_tensor
+        ir.RankedTensorType.get(mean_shape, input_dtype),
+        mean_result,
+        n_tensor,
+        shift,
     ).result
 
     # (x - mean)^2
@@ -4941,8 +6020,9 @@ def var_dim_op(node: VarDimOp, symbol_table):
         ir.RankedTensorType.get(input_shape, input_dtype), input1, mean_result
     ).result
 
+    shift = _create_mul_shift_operand()
     squared = tosa.MulOp(
-        ir.RankedTensorType.get(input_shape, input_dtype), diff, diff
+        ir.RankedTensorType.get(input_shape, input_dtype), diff, diff, shift
     ).result
 
     # Sum
@@ -4959,10 +6039,12 @@ def var_dim_op(node: VarDimOp, symbol_table):
     divisor_tensor = tosa.ConstOp(divisor_attr).result
 
     var_shape = list(ir.RankedTensorType(var_result.type).shape)
+    shift = _create_mul_shift_operand()
     return tosa.MulOp(
         ir.RankedTensorType.get(var_shape, input_dtype),
         var_result,
         divisor_tensor,
+        shift,
     ).result
 
 
@@ -4996,9 +6078,10 @@ def any_dims_op(node: AnyDimsOp, symbol_table):
         )
         zero_tensor = tosa.ConstOp(zero_attr).result
 
+        abs_type = ir.RankedTensorType.get(input_shape, input_dtype)
         bool_input = tosa.GreaterOp(
             ir.RankedTensorType.get(input_shape, bool_type),
-            tosa.AbsOp(input_shape, input_dtype, input1).result,
+            tosa.AbsOp(abs_type, input1).result,
             zero_tensor,
         ).result
     else:
@@ -5026,9 +6109,8 @@ def any_dims_op(node: AnyDimsOp, symbol_table):
         result = reduce_op.result
         # Reshape if needed
         if list(ir.RankedTensorType(result.type).shape) != new_shape:
-            result = tosa.ReshapeOp(
-                result, memoryview(array.array("i", new_shape))
-            ).result
+            new_shape_operand = _create_shape_operand(new_shape)
+            result = tosa.ReshapeOp(result, new_shape_operand).result
 
     # Convert back to bool
     result_shape = list(ir.RankedTensorType(result.type).shape)
@@ -5117,9 +6199,8 @@ def max_dim_op(node: MaxDimOp, symbol_table):
     max_values = tosa.ReduceMaxOp(input1, dim_attr).results[0]
 
     if not keepdim:
-        max_values = tosa.ReshapeOp(
-            max_values, memoryview(array.array("i", output_shape))
-        ).result
+        output_shape_operand = _create_shape_operand(output_shape)
+        max_values = tosa.ReshapeOp(max_values, output_shape_operand).result
 
     # Argmax for indices
     indices = tosa.ArgMaxOp(
@@ -5166,18 +6247,19 @@ def unbind_op(node: UnbindOp, symbol_table):
         size = input_shape.copy()
         size[dim] = 1
 
+        start_operand = _create_shape_operand(start)
+        size_operand = _create_shape_operand(size)
         slice_result = tosa.SliceOp(
             ir.RankedTensorType.get(size, input_dtype),
             input1,
-            ir.DenseI64ArrayAttr.get(start),
-            ir.DenseI64ArrayAttr.get(size),
+            start_operand,
+            size_operand,
         ).result
 
         # Squeeze the dimension
         if output_shape:
-            squeezed = tosa.ReshapeOp(
-                slice_result, memoryview(array.array("i", output_shape))
-            ).result
+            output_shape_operand = _create_shape_operand(output_shape)
+            squeezed = tosa.ReshapeOp(slice_result, output_shape_operand).result
             results.append(squeezed)
         else:
             # Scalar case
@@ -5217,11 +6299,13 @@ def split_with_sizes_op(node: SplitWithSizesOp, symbol_table):
 
         # Create the slice
         output_type = ir.RankedTensorType.get(size, input_dtype)
+        start_operand = _create_shape_operand(start)
+        size_operand = _create_shape_operand(size)
         slice_result = tosa.SliceOp(
             output_type,
             input1,
-            ir.DenseI64ArrayAttr.get(start),
-            ir.DenseI64ArrayAttr.get(size),
+            start_operand,
+            size_operand,
         ).result
 
         results.append(slice_result)
@@ -5766,7 +6850,7 @@ def native_group_norm_op(node: NativeGroupNormOp, symbol_table):
     group_size = channels_per_group * HxW
 
     reshaped_input = tosa.ReshapeOp(
-        input_tensor, memoryview(array.array("i", [N, group, group_size]))
+        input_tensor, _create_shape_operand([N, group, group_size])
     ).result
 
     # Compute mean along the last dimension (group_size)
@@ -5834,7 +6918,7 @@ def native_group_norm_op(node: NativeGroupNormOp, symbol_table):
 
     # Reshape back to original shape
     output = tosa.ReshapeOp(
-        normalized, memoryview(array.array("i", input_shape))
+        normalized, _create_shape_operand(input_shape)
     ).result
 
     # Apply weight and bias if provided
@@ -5843,7 +6927,7 @@ def native_group_norm_op(node: NativeGroupNormOp, symbol_table):
         weight_shape = [1] * len(input_shape)
         weight_shape[1] = C
         weight_reshaped = tosa.ReshapeOp(
-            weight, memoryview(array.array("i", weight_shape))
+            weight, _create_shape_operand(weight_shape)
         ).result
         output = tosa.MulOp(
             ir.RankedTensorType.get(input_shape, input_dtype),
@@ -5856,7 +6940,7 @@ def native_group_norm_op(node: NativeGroupNormOp, symbol_table):
         bias_shape = [1] * len(input_shape)
         bias_shape[1] = C
         bias_reshaped = tosa.ReshapeOp(
-            bias, memoryview(array.array("i", bias_shape))
+            bias, _create_shape_operand(bias_shape)
         ).result
         output = tosa.AddOp(
             ir.RankedTensorType.get(input_shape, input_dtype),
@@ -5866,11 +6950,11 @@ def native_group_norm_op(node: NativeGroupNormOp, symbol_table):
 
     # Prepare mean and rstd outputs with shape (N, group)
     mean_output = tosa.ReshapeOp(
-        mean_result, memoryview(array.array("i", [N, group]))
+        mean_result, _create_shape_operand([N, group])
     ).result
 
     rstd_output = tosa.ReshapeOp(
-        rsqrt_result, memoryview(array.array("i", [N, group]))
+        rsqrt_result, _create_shape_operand([N, group])
     ).result
 
     return output, mean_output, rstd_output
@@ -5939,10 +7023,10 @@ def native_batch_norm_legit_op(node, symbol_table):
         scalar_broadcast_shape = [1] * len(input_shape)  # for scalars like eps
 
         mean_broadcast = tosa.ReshapeOp(
-            mean, memoryview(array.array("i", broadcast_shape))
+            mean, _create_shape_operand(broadcast_shape)
         ).result
         var_broadcast = tosa.ReshapeOp(
-            var, memoryview(array.array("i", broadcast_shape))
+            var, _create_shape_operand(broadcast_shape)
         ).result
 
         # (input - mean)
@@ -5959,7 +7043,7 @@ def native_batch_norm_legit_op(node, symbol_table):
         )
         eps_tensor = tosa.ConstOp(eps_attr).result
         eps_broadcast = tosa.ReshapeOp(
-            eps_tensor, memoryview(array.array("i", scalar_broadcast_shape))
+            eps_tensor, _create_shape_operand(scalar_broadcast_shape)
         ).result
 
         var_plus_eps = tosa.AddOp(
@@ -5983,7 +7067,7 @@ def native_batch_norm_legit_op(node, symbol_table):
         # Apply weight (gamma)
         if weight is not None:
             weight_broadcast = tosa.ReshapeOp(
-                weight, memoryview(array.array("i", broadcast_shape))
+                weight, _create_shape_operand(broadcast_shape)
             ).result
             output = tosa.MulOp(
                 ir.RankedTensorType.get(input_shape, input_dtype),
@@ -5994,7 +7078,7 @@ def native_batch_norm_legit_op(node, symbol_table):
         # Apply bias (beta)
         if bias is not None:
             bias_broadcast = tosa.ReshapeOp(
-                bias, memoryview(array.array("i", broadcast_shape))
+                bias, _create_shape_operand(broadcast_shape)
             ).result
             output = tosa.AddOp(
                 ir.RankedTensorType.get(input_shape, input_dtype),
@@ -6004,18 +7088,16 @@ def native_batch_norm_legit_op(node, symbol_table):
 
         # save_mean and save_invstd with shape (C,)
         save_mean = tosa.ReshapeOp(
-            mean_broadcast, memoryview(array.array("i", [C]))
+            mean_broadcast, _create_shape_operand([C])
         ).result
-        save_invstd = tosa.ReshapeOp(
-            invstd, memoryview(array.array("i", [C]))
-        ).result
+        save_invstd = tosa.ReshapeOp(invstd, _create_shape_operand([C])).result
 
         return output, save_mean, save_invstd
 
     # Training mode: compute batch statistics
     # Reshape to (N, C, spatial_size) for easier reduction
     reshaped_input = tosa.ReshapeOp(
-        input_tensor, memoryview(array.array("i", [N, C, spatial_size]))
+        input_tensor, _create_shape_operand([N, C, spatial_size])
     ).result
 
     # Compute mean: reduce over N and spatial dimensions
@@ -6039,7 +7121,7 @@ def native_batch_norm_legit_op(node, symbol_table):
     )
     divisor_tensor = tosa.ConstOp(divisor_attr).result
     divisor_3d = tosa.ReshapeOp(
-        divisor_tensor, memoryview(array.array("i", [1, 1, 1]))
+        divisor_tensor, _create_shape_operand([1, 1, 1])
     ).result
 
     mean_3d = tosa.MulOp(
@@ -6081,9 +7163,7 @@ def native_batch_norm_legit_op(node, symbol_table):
         type=ir.RankedTensorType.get([1], input_dtype),
     )
     eps_tensor = tosa.ConstOp(eps_attr).result
-    eps_3d = tosa.ReshapeOp(
-        eps_tensor, memoryview(array.array("i", [1, 1, 1]))
-    ).result
+    eps_3d = tosa.ReshapeOp(eps_tensor, divisor_3d_shape_operand).result
 
     var_plus_eps = tosa.AddOp(
         ir.RankedTensorType.get([1, C, 1], input_dtype), var_3d, eps_3d
@@ -6099,31 +7179,32 @@ def native_batch_norm_legit_op(node, symbol_table):
         ir.RankedTensorType.get([N, C, spatial_size], input_dtype),
         diff,
         invstd_3d,
+        shift,
     ).result
 
     # Reshape back to original shape
-    output = tosa.ReshapeOp(
-        normalized_3d, memoryview(array.array("i", input_shape))
-    ).result
+    input_shape_operand = _create_shape_operand(input_shape)
+    output = tosa.ReshapeOp(normalized_3d, input_shape_operand).result
 
     # Apply weight (gamma)
     if weight is not None:
         broadcast_shape = [1, C] + [1] * len(spatial_dims)
+        broadcast_shape_operand = _create_shape_operand(broadcast_shape)
         weight_broadcast = tosa.ReshapeOp(
-            weight, memoryview(array.array("i", broadcast_shape))
+            weight, broadcast_shape_operand
         ).result
         output = tosa.MulOp(
             ir.RankedTensorType.get(input_shape, input_dtype),
             output,
             weight_broadcast,
+            shift,
         ).result
 
     # Apply bias (beta)
     if bias is not None:
         broadcast_shape = [1, C] + [1] * len(spatial_dims)
-        bias_broadcast = tosa.ReshapeOp(
-            bias, memoryview(array.array("i", broadcast_shape))
-        ).result
+        broadcast_shape_operand = _create_shape_operand(broadcast_shape)
+        bias_broadcast = tosa.ReshapeOp(bias, broadcast_shape_operand).result
         output = tosa.AddOp(
             ir.RankedTensorType.get(input_shape, input_dtype),
             output,
@@ -6131,12 +7212,9 @@ def native_batch_norm_legit_op(node, symbol_table):
         ).result
 
     # Return (output, save_mean, save_invstd)
-    save_mean = tosa.ReshapeOp(
-        mean_3d, memoryview(array.array("i", [C]))
-    ).result
-    save_invstd = tosa.ReshapeOp(
-        invstd_3d, memoryview(array.array("i", [C]))
-    ).result
+    c_shape_operand = _create_shape_operand([C])
+    save_mean = tosa.ReshapeOp(mean_3d, c_shape_operand).result
+    save_invstd = tosa.ReshapeOp(invstd_3d, c_shape_operand).result
 
     return output, save_mean, save_invstd
 
@@ -6178,9 +7256,8 @@ def native_batch_norm_legit_no_stats_op(node, symbol_table):
 
     # Always compute batch statistics (no running stats)
     # Reshape to (N, C, spatial_size) for easier reduction
-    reshaped_input = tosa.ReshapeOp(
-        input_tensor, memoryview(array.array("i", [N, C, spatial_size]))
-    ).result
+    reshaped_shape_operand = _create_shape_operand([N, C, spatial_size])
+    reshaped_input = tosa.ReshapeOp(input_tensor, reshaped_shape_operand).result
 
     # Compute mean: reduce over N and spatial dimensions
     axis_attr_2 = ir.IntegerAttr.get(ir.IntegerType.get_signless(32), 2)
@@ -6200,14 +7277,15 @@ def native_batch_norm_legit_no_stats_op(node, symbol_table):
         type=ir.RankedTensorType.get([1], input_dtype),
     )
     divisor_tensor = tosa.ConstOp(divisor_attr).result
-    divisor_3d = tosa.ReshapeOp(
-        divisor_tensor, memoryview(array.array("i", [1, 1, 1]))
-    ).result
+    divisor_3d_shape_operand = _create_shape_operand([1, 1, 1])
+    divisor_3d = tosa.ReshapeOp(divisor_tensor, divisor_3d_shape_operand).result
 
+    shift = _create_mul_shift_operand()
     mean_3d = tosa.MulOp(
         ir.RankedTensorType.get([1, C, 1], input_dtype),
         batch_spatial_sum,
         divisor_3d,
+        shift,
     ).result
 
     # (x - mean)
@@ -6219,7 +7297,10 @@ def native_batch_norm_legit_no_stats_op(node, symbol_table):
 
     # (x - mean)^2
     squared = tosa.MulOp(
-        ir.RankedTensorType.get([N, C, spatial_size], input_dtype), diff, diff
+        ir.RankedTensorType.get([N, C, spatial_size], input_dtype),
+        diff,
+        diff,
+        shift,
     ).result
 
     # sum of squared
@@ -6235,6 +7316,7 @@ def native_batch_norm_legit_no_stats_op(node, symbol_table):
         ir.RankedTensorType.get([1, C, 1], input_dtype),
         sq_batch_sum,
         divisor_3d,
+        shift,
     ).result
 
     # var + eps - reshape eps to match [1, C, 1] shape for TOSA compatibility
@@ -6243,9 +7325,7 @@ def native_batch_norm_legit_no_stats_op(node, symbol_table):
         type=ir.RankedTensorType.get([1], input_dtype),
     )
     eps_tensor = tosa.ConstOp(eps_attr).result
-    eps_3d = tosa.ReshapeOp(
-        eps_tensor, memoryview(array.array("i", [1, 1, 1]))
-    ).result
+    eps_3d = tosa.ReshapeOp(eps_tensor, divisor_3d_shape_operand).result
 
     var_plus_eps = tosa.AddOp(
         ir.RankedTensorType.get([1, C, 1], input_dtype), var_3d, eps_3d
@@ -6261,31 +7341,32 @@ def native_batch_norm_legit_no_stats_op(node, symbol_table):
         ir.RankedTensorType.get([N, C, spatial_size], input_dtype),
         diff,
         invstd_3d,
+        shift,
     ).result
 
     # Reshape back to original shape
-    output = tosa.ReshapeOp(
-        normalized_3d, memoryview(array.array("i", input_shape))
-    ).result
+    input_shape_operand = _create_shape_operand(input_shape)
+    output = tosa.ReshapeOp(normalized_3d, input_shape_operand).result
 
     # Apply weight (gamma)
     if weight is not None:
         broadcast_shape = [1, C] + [1] * len(spatial_dims)
+        broadcast_shape_operand = _create_shape_operand(broadcast_shape)
         weight_broadcast = tosa.ReshapeOp(
-            weight, memoryview(array.array("i", broadcast_shape))
+            weight, broadcast_shape_operand
         ).result
         output = tosa.MulOp(
             ir.RankedTensorType.get(input_shape, input_dtype),
             output,
             weight_broadcast,
+            shift,
         ).result
 
     # Apply bias (beta)
     if bias is not None:
         broadcast_shape = [1, C] + [1] * len(spatial_dims)
-        bias_broadcast = tosa.ReshapeOp(
-            bias, memoryview(array.array("i", broadcast_shape))
-        ).result
+        broadcast_shape_operand = _create_shape_operand(broadcast_shape)
+        bias_broadcast = tosa.ReshapeOp(bias, broadcast_shape_operand).result
         output = tosa.AddOp(
             ir.RankedTensorType.get(input_shape, input_dtype),
             output,
@@ -6293,12 +7374,9 @@ def native_batch_norm_legit_no_stats_op(node, symbol_table):
         ).result
 
     # Return (output, save_mean, save_invstd)
-    save_mean = tosa.ReshapeOp(
-        mean_3d, memoryview(array.array("i", [C]))
-    ).result
-    save_invstd = tosa.ReshapeOp(
-        invstd_3d, memoryview(array.array("i", [C]))
-    ).result
+    c_shape_operand = _create_shape_operand([C])
+    save_mean = tosa.ReshapeOp(mean_3d, c_shape_operand).result
+    save_invstd = tosa.ReshapeOp(invstd_3d, c_shape_operand).result
 
     return output, save_mean, save_invstd
 
@@ -6340,12 +7418,11 @@ def native_batch_norm_legit_no_training_op(node, symbol_table):
     broadcast_shape = [1, C] + [1] * len(spatial_dims)
     scalar_broadcast_shape = [1] * len(input_shape)  # for scalars like eps
 
+    broadcast_shape_operand = _create_shape_operand(broadcast_shape)
     mean_broadcast = tosa.ReshapeOp(
-        running_mean, memoryview(array.array("i", broadcast_shape))
+        running_mean, broadcast_shape_operand
     ).result
-    var_broadcast = tosa.ReshapeOp(
-        running_var, memoryview(array.array("i", broadcast_shape))
-    ).result
+    var_broadcast = tosa.ReshapeOp(running_var, broadcast_shape_operand).result
 
     # (input - mean)
     centered = tosa.SubOp(
@@ -6360,8 +7437,11 @@ def native_batch_norm_legit_no_training_op(node, symbol_table):
         type=ir.RankedTensorType.get([1], input_dtype),
     )
     eps_tensor = tosa.ConstOp(eps_attr).result
+    scalar_broadcast_shape_operand = _create_shape_operand(
+        scalar_broadcast_shape
+    )
     eps_broadcast = tosa.ReshapeOp(
-        eps_tensor, memoryview(array.array("i", scalar_broadcast_shape))
+        eps_tensor, scalar_broadcast_shape_operand
     ).result
 
     var_plus_eps = tosa.AddOp(
@@ -6376,8 +7456,12 @@ def native_batch_norm_legit_no_training_op(node, symbol_table):
     ).result
 
     # normalized = (input - mean) * invstd
+    shift = _create_mul_shift_operand()
     normalized = tosa.MulOp(
-        ir.RankedTensorType.get(input_shape, input_dtype), centered, invstd
+        ir.RankedTensorType.get(input_shape, input_dtype),
+        centered,
+        invstd,
+        shift,
     ).result
 
     output = normalized
@@ -6385,19 +7469,18 @@ def native_batch_norm_legit_no_training_op(node, symbol_table):
     # Apply weight (gamma)
     if weight is not None:
         weight_broadcast = tosa.ReshapeOp(
-            weight, memoryview(array.array("i", broadcast_shape))
+            weight, broadcast_shape_operand
         ).result
         output = tosa.MulOp(
             ir.RankedTensorType.get(input_shape, input_dtype),
             output,
             weight_broadcast,
+            shift,
         ).result
 
     # Apply bias (beta)
     if bias is not None:
-        bias_broadcast = tosa.ReshapeOp(
-            bias, memoryview(array.array("i", broadcast_shape))
-        ).result
+        bias_broadcast = tosa.ReshapeOp(bias, broadcast_shape_operand).result
         output = tosa.AddOp(
             ir.RankedTensorType.get(input_shape, input_dtype),
             output,
@@ -6405,12 +7488,9 @@ def native_batch_norm_legit_no_training_op(node, symbol_table):
         ).result
 
     # save_mean and save_invstd with shape (C,)
-    save_mean = tosa.ReshapeOp(
-        mean_broadcast, memoryview(array.array("i", [C]))
-    ).result
-    save_invstd = tosa.ReshapeOp(
-        invstd, memoryview(array.array("i", [C]))
-    ).result
+    c_shape_operand = _create_shape_operand([C])
+    save_mean = tosa.ReshapeOp(mean_broadcast, c_shape_operand).result
+    save_invstd = tosa.ReshapeOp(invstd, c_shape_operand).result
 
     return output, save_mean, save_invstd
 
@@ -6464,7 +7544,10 @@ def native_dropout_op(node: NativeDropoutOp, symbol_table):
             input_tensor,  # x >= x is always true
         ).result
 
-        return input_tensor, mask
+        output = tosa.IdentityOp(
+            ir.RankedTensorType.get(input_shape, input_dtype), input_tensor
+        ).result
+        return output, mask
 
     if p == 1.0:
         # All elements dropped - return zeros
@@ -6474,10 +7557,12 @@ def native_dropout_op(node: NativeDropoutOp, symbol_table):
         )
         zero_tensor = tosa.ConstOp(zero_attr).result
 
+        shift = _create_mul_shift_operand()
         output = tosa.MulOp(
             ir.RankedTensorType.get(input_shape, input_dtype),
             input_tensor,
             zero_tensor,
+            shift,
         ).result
 
         # Mask should be all False
@@ -6519,10 +7604,12 @@ def native_dropout_op(node: NativeDropoutOp, symbol_table):
 
     # For now, we create a simple pass-through with scaling
     # In a real implementation, this would use random number generation
+    shift = _create_mul_shift_operand()
     output = tosa.MulOp(
         ir.RankedTensorType.get(input_shape, input_dtype),
         input_tensor,
         scale_tensor,
+        shift,
     ).result
 
     # Create mask as all True (simplified - real dropout needs random mask)
@@ -6568,13 +7655,9 @@ def upsample_bilinear2d_vec_op(node, symbol_table):
 
     # Convert NCHW to NHWC for TOSA
     perm_to_nhwc = [0, 2, 3, 1]
-    perm_const = tosa.ConstOp(
-        ir.DenseElementsAttr.get(memoryview(array.array("i", perm_to_nhwc)))
-    )
+    perm_attr_nhwc = _create_permutation_attr(perm_to_nhwc)
     nhwc_type = ir.RankedTensorType.get([N, H_in, W_in, C], input_dtype)
-    nhwc_input = tosa.TransposeOp(
-        nhwc_type, input_tensor, perm_const.results[0]
-    )
+    nhwc_input = tosa.TransposeOp(nhwc_type, input_tensor, perm_attr_nhwc)
 
     # Calculate scale for TOSA resize
     # TOSA scale format: [scale_y_n, scale_y_d, scale_x_n, scale_x_d]
@@ -6604,14 +7687,10 @@ def upsample_bilinear2d_vec_op(node, symbol_table):
 
     # Convert back to NCHW
     perm_to_nchw = [0, 3, 1, 2]
-    perm_const2 = tosa.ConstOp(
-        ir.DenseElementsAttr.get(memoryview(array.array("i", perm_to_nchw)))
-    )
+    perm_attr_nchw = _create_permutation_attr(perm_to_nchw)
     out_shape = [N, C, H_out, W_out]
     result_type = ir.RankedTensorType.get(out_shape, input_dtype)
-    output = tosa.TransposeOp(
-        result_type, resized.result, perm_const2.results[0]
-    )
+    output = tosa.TransposeOp(result_type, resized.result, perm_attr_nchw)
 
     return output
 
@@ -6646,13 +7725,9 @@ def upsample_nearest2d_vec_op(node, symbol_table):
 
     # Convert NCHW to NHWC for TOSA
     perm_to_nhwc = [0, 2, 3, 1]
-    perm_const = tosa.ConstOp(
-        ir.DenseElementsAttr.get(memoryview(array.array("i", perm_to_nhwc)))
-    )
+    perm_attr_nhwc = _create_permutation_attr(perm_to_nhwc)
     nhwc_type = ir.RankedTensorType.get([N, H_in, W_in, C], input_dtype)
-    nhwc_input = tosa.TransposeOp(
-        nhwc_type, input_tensor, perm_const.results[0]
-    )
+    nhwc_input = tosa.TransposeOp(nhwc_type, input_tensor, perm_attr_nhwc)
 
     # Calculate scale for TOSA resize
     scale_y_n = H_out
@@ -6680,14 +7755,10 @@ def upsample_nearest2d_vec_op(node, symbol_table):
 
     # Convert back to NCHW
     perm_to_nchw = [0, 3, 1, 2]
-    perm_const2 = tosa.ConstOp(
-        ir.DenseElementsAttr.get(memoryview(array.array("i", perm_to_nchw)))
-    )
+    perm_attr_nchw = _create_permutation_attr(perm_to_nchw)
     out_shape = [N, C, H_out, W_out]
     result_type = ir.RankedTensorType.get(out_shape, input_dtype)
-    output = tosa.TransposeOp(
-        result_type, resized.result, perm_const2.results[0]
-    )
+    output = tosa.TransposeOp(result_type, resized.result, perm_attr_nchw)
 
     return output
 
@@ -6727,13 +7798,9 @@ def grid_sampler_2d_op(node, symbol_table):
     # Simplified: treat as identity resize when grid is identity mapping
     # For proper implementation, use scatter/gather or custom lowering
     perm_to_nhwc = [0, 2, 3, 1]
-    perm_const = tosa.ConstOp(
-        ir.DenseElementsAttr.get(memoryview(array.array("i", perm_to_nhwc)))
-    )
+    perm_attr_nhwc = _create_permutation_attr(perm_to_nhwc)
     nhwc_type = ir.RankedTensorType.get([N, H_in, W_in, C], input_dtype)
-    nhwc_input = tosa.TransposeOp(
-        nhwc_type, input_tensor, perm_const.results[0]
-    )
+    nhwc_input = tosa.TransposeOp(nhwc_type, input_tensor, perm_attr_nhwc)
 
     # Use resize as approximation
     mode = "BILINEAR" if interpolation_mode == 0 else "NEAREST"
@@ -6753,12 +7820,8 @@ def grid_sampler_2d_op(node, symbol_table):
     )
 
     perm_to_nchw = [0, 3, 1, 2]
-    perm_const2 = tosa.ConstOp(
-        ir.DenseElementsAttr.get(memoryview(array.array("i", perm_to_nchw)))
-    )
-    output = tosa.TransposeOp(
-        result_type, resized.result, perm_const2.results[0]
-    )
+    perm_attr_nchw = _create_permutation_attr(perm_to_nchw)
+    output = tosa.TransposeOp(result_type, resized.result, perm_attr_nchw)
 
     return output
 
@@ -6796,11 +7859,10 @@ def col2im_op(node, symbol_table):
         # Fallback for unexpected shapes
         out_shape = list(node.tensor_meta["shape"])
 
-    result_type = ir.RankedTensorType.get(out_shape, input_dtype)
-
     # Simplified: reshape to output shape
     # A proper implementation would need to accumulate overlapping blocks
-    return tosa.ReshapeOp(input_tensor, memoryview(array.array("i", out_shape)))
+    new_shape_operand = _create_shape_operand(out_shape)
+    return tosa.ReshapeOp(input_tensor, new_shape_operand)
 
 
 def sym_size_op(node, symbol_table):
@@ -6906,7 +7968,11 @@ def baddbmm_op(node: BaddbmmOp, symbol_table):
     result_type = ir.RankedTensorType.get(result_shape, input_dtype)
 
     # Perform batched matrix multiplication
-    matmul_result = tosa.MatMulOp(result_type, batch1, batch2).result
+    a_zp = _create_zero_point_tensor(batch1)
+    b_zp = _create_zero_point_tensor(batch2)
+    matmul_result = tosa.MatMulOp(
+        result_type, batch1, batch2, a_zp, b_zp
+    ).result
 
     # Scale by alpha if not 1
     if alpha != 1.0:
@@ -6970,11 +8036,18 @@ def lgamma_op(node: LgammaOp, symbol_table):
         log_input = tosa.ReciprocalOp(
             result_type,
             tosa.RsqrtOp(
-                result_type, tosa.MulOp(result_type, input_tensor, input_tensor)
+                result_type,
+                tosa.MulOp(
+                    result_type,
+                    input_tensor,
+                    input_tensor,
+                    _create_mul_shift_operand(),
+                ),
             ).result,
         ).result  # Approximation
 
-        return tosa.MulOp(result_type, input_tensor, log_input).result
+        shift = _create_mul_shift_operand()
+        return tosa.MulOp(result_type, input_tensor, log_input, shift).result
 
 
 def digamma_op(node: DigammaOp, symbol_table):
@@ -6997,11 +8070,92 @@ def digamma_op(node: DigammaOp, symbol_table):
     log_result = tosa.ReciprocalOp(
         result_type,
         tosa.RsqrtOp(
-            result_type, tosa.MulOp(result_type, input_tensor, input_tensor)
+            result_type,
+            tosa.MulOp(
+                result_type,
+                input_tensor,
+                input_tensor,
+                _create_mul_shift_operand(),
+            ),
         ).result,
     ).result  # This is a placeholder
 
     return log_result
+
+
+def frexp_op(node: FrexpOp, symbol_table):
+    """
+    Import the frexp operation.
+    From buddy graph ir's `FrexpOp` operator to MLIR math/tosa operations.
+    aten.frexp.Tensor(input) -> (Tensor mantissa, Tensor exponent)
+    """
+    input_tensor = symbol_table.get((str(node.args[0]), 0))
+    input_type = ir.RankedTensorType(input_tensor.type)
+    input_shape = list(input_type.shape)
+    input_dtype = input_type.element_type
+
+    result_type = ir.RankedTensorType.get(input_shape, input_dtype)
+    abs_input = tosa.AbsOp(result_type, input_tensor).result
+
+    zero = tosa.ConstOp(
+        ir.DenseElementsAttr.get_splat(
+            result_type, _get_scalar_attr(input_dtype, 0.0)
+        )
+    ).result
+    one = tosa.ConstOp(
+        ir.DenseElementsAttr.get_splat(
+            result_type, _get_scalar_attr(input_dtype, 1.0)
+        )
+    ).result
+
+    bool_type = ir.RankedTensorType.get(
+        input_shape, ir.IntegerType.get_signless(1)
+    )
+    gt_zero = tosa.GreaterOp(bool_type, abs_input, zero).result
+
+    log2_val = math.Log2Op(abs_input).result
+    floor_val = tosa.FloorOp(result_type, log2_val).result
+    exp_float = tosa.AddOp(result_type, floor_val, one).result
+
+    exp2_val = math.Exp2Op(exp_float).result
+    recip = tosa.ReciprocalOp(exp2_val.type, exp2_val).result
+    shift = _create_mul_shift_operand()
+    mantissa = tosa.MulOp(result_type, input_tensor, recip, shift).result
+
+    exp_dtype = ir.IntegerType.get_signless(32)
+    exp_type = ir.RankedTensorType.get(input_shape, exp_dtype)
+    exp_i32 = tosa.CastOp(exp_type, exp_float).result
+    zero_exp = tosa.ConstOp(
+        ir.DenseElementsAttr.get_splat(
+            exp_type, ir.IntegerAttr.get(exp_dtype, 0)
+        )
+    ).result
+
+    mantissa = tosa.SelectOp(result_type, gt_zero, mantissa, zero).result
+    exponent = tosa.SelectOp(exp_type, gt_zero, exp_i32, zero_exp).result
+    return mantissa, exponent
+
+
+def igamma_op(node: IgammaOp, symbol_table):
+    """
+    Import the igamma operation.
+    From buddy graph ir's `IgammaOp` operator to MLIR operations.
+    aten.igamma(input, other) -> Tensor
+    """
+    raise NotImplementedError(
+        "igamma lowering requires incomplete-gamma support"
+    )
+
+
+def igammac_op(node: IgammacOp, symbol_table):
+    """
+    Import the igammac operation.
+    From buddy graph ir's `IgammacOp` operator to MLIR operations.
+    aten.igammac(input, other) -> Tensor
+    """
+    raise NotImplementedError(
+        "igammac lowering requires incomplete-gamma support"
+    )
 
 
 def i0_op(node: I0Op, symbol_table):
@@ -7036,11 +8190,132 @@ def i0_op(node: I0Op, symbol_table):
         )
     ).result
 
-    x_squared = tosa.MulOp(result_type, input_tensor, input_tensor).result
-    x_squared_quarter = tosa.MulOp(result_type, x_squared, quarter).result
+    shift = _create_mul_shift_operand()
+    x_squared = tosa.MulOp(
+        result_type, input_tensor, input_tensor, shift
+    ).result
+    x_squared_quarter = tosa.MulOp(
+        result_type, x_squared, quarter, shift
+    ).result
     result = tosa.AddOp(result_type, one, x_squared_quarter).result
 
     return result
+
+
+def special_i0e_op(node: SpecialI0eOp, symbol_table):
+    """
+    Import the special_i0e operation.
+    From buddy graph ir's `SpecialI0eOp` operator to MLIR operations.
+    aten.special_i0e(input) -> Tensor
+    """
+    input_tensor = symbol_table.get((str(node.args[0]), 0))
+    input_shape = list(ir.RankedTensorType(input_tensor.type).shape)
+    input_dtype = ir.RankedTensorType(input_tensor.type).element_type
+    if not _is_float_type(input_dtype):
+        raise NotImplementedError("special_i0e requires floating-point input")
+    result_type = ir.RankedTensorType.get(input_shape, input_dtype)
+
+    scalar_type = ir.RankedTensorType.get([], input_dtype)
+    one = tosa.ConstOp(
+        ir.DenseElementsAttr.get_splat(
+            scalar_type, _get_scalar_attr(input_dtype, 1.0)
+        )
+    ).result
+    quarter = tosa.ConstOp(
+        ir.DenseElementsAttr.get_splat(
+            scalar_type, _get_scalar_attr(input_dtype, 0.25)
+        )
+    ).result
+
+    shift = _create_mul_shift_operand()
+    x_squared = tosa.MulOp(
+        result_type, input_tensor, input_tensor, shift
+    ).result
+    x_squared_quarter = tosa.MulOp(
+        result_type, x_squared, quarter, shift
+    ).result
+    i0_val = tosa.AddOp(result_type, one, x_squared_quarter).result
+
+    abs_x = tosa.AbsOp(result_type, input_tensor).result
+    input1_zp = _create_zero_point_tensor(abs_x)
+    output_zp = _create_zero_point_tensor(abs_x)
+    neg_abs_x = tosa.NegateOp(result_type, abs_x, input1_zp, output_zp).result
+    exp_neg_abs_x = tosa.ExpOp(result_type, neg_abs_x).result
+    return tosa.MulOp(result_type, i0_val, exp_neg_abs_x, shift).result
+
+
+def special_i1_op(node: SpecialI1Op, symbol_table):
+    """
+    Import the special_i1 operation.
+    From buddy graph ir's `SpecialI1Op` operator to MLIR operations.
+    aten.special_i1(input) -> Tensor
+    """
+    input_tensor = symbol_table.get((str(node.args[0]), 0))
+    input_shape = list(ir.RankedTensorType(input_tensor.type).shape)
+    input_dtype = ir.RankedTensorType(input_tensor.type).element_type
+    if not _is_float_type(input_dtype):
+        raise NotImplementedError("special_i1 requires floating-point input")
+    result_type = ir.RankedTensorType.get(input_shape, input_dtype)
+
+    scalar_type = ir.RankedTensorType.get([], input_dtype)
+    half = tosa.ConstOp(
+        ir.DenseElementsAttr.get_splat(
+            scalar_type, _get_scalar_attr(input_dtype, 0.5)
+        )
+    ).result
+    sixteenth = tosa.ConstOp(
+        ir.DenseElementsAttr.get_splat(
+            scalar_type, _get_scalar_attr(input_dtype, 0.0625)
+        )
+    ).result
+
+    shift = _create_mul_shift_operand()
+    x_squared = tosa.MulOp(
+        result_type, input_tensor, input_tensor, shift
+    ).result
+    x_sq_term = tosa.MulOp(result_type, x_squared, sixteenth, shift).result
+    series = tosa.AddOp(result_type, half, x_sq_term).result
+    return tosa.MulOp(result_type, input_tensor, series, shift).result
+
+
+def special_i1e_op(node: SpecialI1eOp, symbol_table):
+    """
+    Import the special_i1e operation.
+    From buddy graph ir's `SpecialI1eOp` operator to MLIR operations.
+    aten.special_i1e(input) -> Tensor
+    """
+    input_tensor = symbol_table.get((str(node.args[0]), 0))
+    input_shape = list(ir.RankedTensorType(input_tensor.type).shape)
+    input_dtype = ir.RankedTensorType(input_tensor.type).element_type
+    if not _is_float_type(input_dtype):
+        raise NotImplementedError("special_i1e requires floating-point input")
+    result_type = ir.RankedTensorType.get(input_shape, input_dtype)
+
+    shift = _create_mul_shift_operand()
+    scalar_type = ir.RankedTensorType.get([], input_dtype)
+    half = tosa.ConstOp(
+        ir.DenseElementsAttr.get_splat(
+            scalar_type, _get_scalar_attr(input_dtype, 0.5)
+        )
+    ).result
+    sixteenth = tosa.ConstOp(
+        ir.DenseElementsAttr.get_splat(
+            scalar_type, _get_scalar_attr(input_dtype, 0.0625)
+        )
+    ).result
+    x_squared = tosa.MulOp(
+        result_type, input_tensor, input_tensor, shift
+    ).result
+    x_sq_term = tosa.MulOp(result_type, x_squared, sixteenth, shift).result
+    series = tosa.AddOp(result_type, half, x_sq_term).result
+    i1_val = tosa.MulOp(result_type, input_tensor, series, shift).result
+
+    abs_x = tosa.AbsOp(result_type, input_tensor).result
+    input1_zp = _create_zero_point_tensor(abs_x)
+    output_zp = _create_zero_point_tensor(abs_x)
+    neg_abs_x = tosa.NegateOp(result_type, abs_x, input1_zp, output_zp).result
+    exp_neg_abs_x = tosa.ExpOp(result_type, neg_abs_x).result
+    return tosa.MulOp(result_type, i1_val, exp_neg_abs_x, shift).result
 
 
 def erfc_op(node: ErfcOp, symbol_table):
@@ -7071,48 +8346,533 @@ def erfc_op(node: ErfcOp, symbol_table):
     return result
 
 
+def special_entr_op(node: SpecialEntrOp, symbol_table):
+    """
+    Import the special_entr operation.
+    From buddy graph ir's `SpecialEntrOp` operator to MLIR operations.
+    aten.special_entr(input) -> Tensor
+    """
+    input_tensor = symbol_table.get((str(node.args[0]), 0))
+    input_shape = list(ir.RankedTensorType(input_tensor.type).shape)
+    input_dtype = ir.RankedTensorType(input_tensor.type).element_type
+    if not _is_float_type(input_dtype):
+        raise NotImplementedError("special_entr requires floating-point input")
+    result_type = ir.RankedTensorType.get(input_shape, input_dtype)
+
+    zero = tosa.ConstOp(
+        ir.DenseElementsAttr.get_splat(
+            result_type, _get_scalar_attr(input_dtype, 0.0)
+        )
+    ).result
+    one = tosa.ConstOp(
+        ir.DenseElementsAttr.get_splat(
+            result_type, _get_scalar_attr(input_dtype, 1.0)
+        )
+    ).result
+    neg_inf = tosa.ConstOp(
+        ir.DenseElementsAttr.get_splat(
+            result_type, _get_scalar_attr(input_dtype, float("-inf"))
+        )
+    ).result
+
+    bool_type = _get_comparison_result_type(input_shape)
+    gt_zero = tosa.GreaterOp(bool_type, input_tensor, zero).result
+    lt_zero = tosa.GreaterOp(bool_type, zero, input_tensor).result
+
+    safe_x = tosa.SelectOp(result_type, gt_zero, input_tensor, one).result
+    log_x = tosa.LogOp(result_type, safe_x).result
+    shift = _create_mul_shift_operand()
+    x_logx = tosa.MulOp(result_type, input_tensor, log_x, shift).result
+    input1_zp = _create_zero_point_tensor(x_logx)
+    output_zp = _create_zero_point_tensor(x_logx)
+    neg_x_logx = tosa.NegateOp(result_type, x_logx, input1_zp, output_zp).result
+
+    pos_or_zero = tosa.SelectOp(result_type, gt_zero, neg_x_logx, zero).result
+    return tosa.SelectOp(result_type, lt_zero, neg_inf, pos_or_zero).result
+
+
+def special_erfcx_op(node: SpecialErfcxOp, symbol_table):
+    """
+    Import the special_erfcx operation.
+    From buddy graph ir's `SpecialErfcxOp` operator to MLIR operations.
+    aten.special_erfcx(input) -> Tensor
+
+    Computes scaled complementary error function: erfcx(x) = exp(x^2) * erfc(x)
+    """
+    input_tensor = symbol_table.get((str(node.args[0]), 0))
+    input_shape = list(ir.RankedTensorType(input_tensor.type).shape)
+    input_dtype = ir.RankedTensorType(input_tensor.type).element_type
+    if str(input_dtype).find("f") == -1:
+        raise NotImplementedError("special_erfcx requires floating-point input")
+    result_type = ir.RankedTensorType.get(input_shape, input_dtype)
+
+    shift = _create_mul_shift_operand()
+    x_squared = tosa.MulOp(
+        result_type, input_tensor, input_tensor, shift
+    ).result
+    exp_x_squared = tosa.ExpOp(result_type, x_squared).result
+
+    one = tosa.ConstOp(
+        ir.DenseElementsAttr.get_splat(
+            result_type, _get_scalar_attr(input_dtype, 1.0)
+        )
+    ).result
+    erf_val = math.ErfOp(input_tensor).result
+    erfc_val = tosa.SubOp(result_type, one, erf_val).result
+    return tosa.MulOp(result_type, exp_x_squared, erfc_val, shift).result
+
+
+def special_ndtr_op(node: SpecialNdtrOp, symbol_table):
+    """
+    Import the special_ndtr operation.
+    From buddy graph ir's `SpecialNdtrOp` operator to MLIR operations.
+    aten.special_ndtr(input) -> Tensor
+    """
+    input_tensor = symbol_table.get((str(node.args[0]), 0))
+    input_type = ir.RankedTensorType(input_tensor.type)
+    input_shape = list(input_type.shape)
+    input_dtype = input_type.element_type
+    if not _is_float_type(input_dtype):
+        raise NotImplementedError("special_ndtr requires floating-point input")
+    result_type = ir.RankedTensorType.get(input_shape, input_dtype)
+    shift = _create_mul_shift_operand()
+
+    one = tosa.ConstOp(
+        ir.DenseElementsAttr.get_splat(
+            result_type, _get_scalar_attr(input_dtype, 1.0)
+        )
+    ).result
+    half = tosa.ConstOp(
+        ir.DenseElementsAttr.get_splat(
+            result_type, _get_scalar_attr(input_dtype, 0.5)
+        )
+    ).result
+    inv_sqrt2 = tosa.ConstOp(
+        ir.DenseElementsAttr.get_splat(
+            result_type, _get_scalar_attr(input_dtype, 0.7071067811865476)
+        )
+    ).result
+
+    scaled = tosa.MulOp(result_type, input_tensor, inv_sqrt2, shift).result
+    erf_val = math.ErfOp(scaled).result
+    one_plus = tosa.AddOp(result_type, one, erf_val).result
+    return tosa.MulOp(result_type, one_plus, half, shift).result
+
+
+def special_log_ndtr_op(node: SpecialLogNdtrOp, symbol_table):
+    """
+    Import the special_log_ndtr operation.
+    From buddy graph ir's `SpecialLogNdtrOp` operator to MLIR operations.
+    aten.special_log_ndtr(input) -> Tensor
+    """
+    input_tensor = symbol_table.get((str(node.args[0]), 0))
+    input_type = ir.RankedTensorType(input_tensor.type)
+    input_shape = list(input_type.shape)
+    input_dtype = input_type.element_type
+    if not _is_float_type(input_dtype):
+        raise NotImplementedError(
+            "special_log_ndtr requires floating-point input"
+        )
+    result_type = ir.RankedTensorType.get(input_shape, input_dtype)
+    shift = _create_mul_shift_operand()
+
+    zero = tosa.ConstOp(
+        ir.DenseElementsAttr.get_splat(
+            result_type, _get_scalar_attr(input_dtype, 0.0)
+        )
+    ).result
+    one = tosa.ConstOp(
+        ir.DenseElementsAttr.get_splat(
+            result_type, _get_scalar_attr(input_dtype, 1.0)
+        )
+    ).result
+    half = tosa.ConstOp(
+        ir.DenseElementsAttr.get_splat(
+            result_type, _get_scalar_attr(input_dtype, 0.5)
+        )
+    ).result
+    log_half = tosa.ConstOp(
+        ir.DenseElementsAttr.get_splat(
+            result_type, _get_scalar_attr(input_dtype, -0.6931471805599453)
+        )
+    ).result
+    inv_sqrt2 = tosa.ConstOp(
+        ir.DenseElementsAttr.get_splat(
+            result_type, _get_scalar_attr(input_dtype, 0.7071067811865476)
+        )
+    ).result
+
+    scaled = tosa.MulOp(result_type, input_tensor, inv_sqrt2, shift).result
+    input1_zp = _create_zero_point_tensor(scaled)
+    output_zp = _create_zero_point_tensor(scaled)
+    neg_scaled = tosa.NegateOp(result_type, scaled, input1_zp, output_zp).result
+
+    erf_pos = math.ErfOp(scaled).result
+    erf_neg = math.ErfOp(neg_scaled).result
+    erfc_pos = tosa.SubOp(result_type, one, erf_pos).result
+    erfc_neg = tosa.SubOp(result_type, one, erf_neg).result
+
+    log_erfc_neg = tosa.LogOp(result_type, erfc_neg).result
+    log_ndtr_neg = tosa.AddOp(result_type, log_half, log_erfc_neg).result
+
+    half_erfc_pos = tosa.MulOp(result_type, erfc_pos, half, shift).result
+    input1_zp = _create_zero_point_tensor(half_erfc_pos)
+    output_zp = _create_zero_point_tensor(half_erfc_pos)
+    neg_half_erfc_pos = tosa.NegateOp(
+        result_type, half_erfc_pos, input1_zp, output_zp
+    ).result
+    log_ndtr_pos = math.Log1pOp(neg_half_erfc_pos).result
+
+    bool_type = _get_comparison_result_type(input_shape)
+    is_neg = tosa.GreaterOp(bool_type, zero, input_tensor).result
+    return tosa.SelectOp(result_type, is_neg, log_ndtr_neg, log_ndtr_pos).result
+
+
+def _ndtri_approx(
+    input_tensor: ir.Value,
+    result_type: ir.RankedTensorType,
+    input_dtype: ir.Type,
+    input_shape: List[int],
+):
+    shift = _create_mul_shift_operand()
+
+    def _const(val: float):
+        return tosa.ConstOp(
+            ir.DenseElementsAttr.get_splat(
+                result_type, _get_scalar_attr(input_dtype, val)
+            )
+        ).result
+
+    def _add(a, b):
+        return tosa.AddOp(result_type, a, b).result
+
+    def _sub(a, b):
+        return tosa.SubOp(result_type, a, b).result
+
+    def _mul(a, b):
+        return tosa.MulOp(result_type, a, b, shift).result
+
+    def _div(a, b):
+        recip = tosa.ReciprocalOp(result_type, b).result
+        return tosa.MulOp(result_type, a, recip, shift).result
+
+    def _sqrt(x):
+        rsqrt = tosa.RsqrtOp(result_type, x).result
+        return tosa.MulOp(result_type, x, rsqrt, shift).result
+
+    def _horner(x, coeffs):
+        res = _const(coeffs[0])
+        for coef in coeffs[1:]:
+            res = _add(_mul(res, x), _const(coef))
+        return res
+
+    # Coefficients for Acklam's inverse normal approximation.
+    a = [
+        -3.969683028665376e01,
+        2.209460984245205e02,
+        -2.759285104469687e02,
+        1.383577518672690e02,
+        -3.066479806614716e01,
+        2.506628277459239e00,
+    ]
+    b = [
+        -5.447609879822406e01,
+        1.615858368580409e02,
+        -1.556989798598866e02,
+        6.680131188771972e01,
+        -1.328068155288572e01,
+    ]
+    c = [
+        -7.784894002430293e-03,
+        -3.223964580411365e-01,
+        -2.400758277161838e00,
+        -2.549732539343734e00,
+        4.374664141464968e00,
+        2.938163982698783e00,
+    ]
+    d = [
+        7.784695709041462e-03,
+        3.224671290700398e-01,
+        2.445134137142996e00,
+        3.754408661907416e00,
+    ]
+
+    plow = _const(0.02425)
+    phigh = _const(1.0 - 0.02425)
+    one = _const(1.0)
+    half = _const(0.5)
+
+    bool_type = ir.RankedTensorType.get(
+        input_shape, ir.IntegerType.get_signless(1)
+    )
+    is_low = tosa.GreaterOp(bool_type, plow, input_tensor).result
+    is_high = tosa.GreaterOp(bool_type, input_tensor, phigh).result
+
+    # Central region approximation
+    q = _sub(input_tensor, half)
+    r = _mul(q, q)
+    num_c = _mul(_horner(r, a), q)
+    den_c = _horner(r, b + [1.0])
+    central = _div(num_c, den_c)
+
+    # Lower tail approximation
+    log_p = tosa.LogOp(result_type, input_tensor).result
+    q_low = _sqrt(_mul(_const(-2.0), log_p))
+    num_l = _horner(q_low, c)
+    den_l = _horner(q_low, d + [1.0])
+    lower = _div(num_l, den_l)
+
+    # Upper tail approximation
+    one_minus_p = _sub(one, input_tensor)
+    log_1mp = tosa.LogOp(result_type, one_minus_p).result
+    q_high = _sqrt(_mul(_const(-2.0), log_1mp))
+    num_h = _horner(q_high, c)
+    den_h = _horner(q_high, d + [1.0])
+    upper = _mul(_const(-1.0), _div(num_h, den_h))
+
+    low_or_central = tosa.SelectOp(result_type, is_low, lower, central).result
+    return tosa.SelectOp(result_type, is_high, upper, low_or_central).result
+
+
+def special_ndtri_op(node: SpecialNdtriOp, symbol_table):
+    """
+    Import the special_ndtri operation.
+    From buddy graph ir's `SpecialNdtriOp` operator to MLIR operations.
+    aten.special_ndtri(input) -> Tensor
+
+    Uses a rational approximation of the inverse normal CDF.
+    """
+    input_tensor = symbol_table.get((str(node.args[0]), 0))
+    input_type = ir.RankedTensorType(input_tensor.type)
+    input_shape = list(input_type.shape)
+    input_dtype = input_type.element_type
+    if str(input_dtype).find("f") == -1:
+        raise NotImplementedError("special_ndtri requires floating-point input")
+    result_type = ir.RankedTensorType.get(input_shape, input_dtype)
+    return _ndtri_approx(input_tensor, result_type, input_dtype, input_shape)
+
+
+def special_spherical_bessel_j0_op(
+    node: SpecialSphericalBesselJ0Op, symbol_table
+):
+    """
+    Import the special_spherical_bessel_j0 operation.
+    From buddy graph ir's `SpecialSphericalBesselJ0Op` operator to MLIR ops.
+    aten.special_spherical_bessel_j0(input) -> Tensor
+    """
+    input_tensor = symbol_table.get((str(node.args[0]), 0))
+    input_type = ir.RankedTensorType(input_tensor.type)
+    input_shape = list(input_type.shape)
+    input_dtype = input_type.element_type
+    if not _is_float_type(input_dtype):
+        raise NotImplementedError(
+            "special_spherical_bessel_j0 requires floating-point input"
+        )
+    result_type = ir.RankedTensorType.get(input_shape, input_dtype)
+
+    zero = tosa.ConstOp(
+        ir.DenseElementsAttr.get_splat(
+            result_type, _get_scalar_attr(input_dtype, 0.0)
+        )
+    ).result
+    one = tosa.ConstOp(
+        ir.DenseElementsAttr.get_splat(
+            result_type, _get_scalar_attr(input_dtype, 1.0)
+        )
+    ).result
+
+    is_zero = tosa.EqualOp(input_tensor, zero).result
+    sin_x = math.SinOp(input_tensor).result
+    recip_x = tosa.ReciprocalOp(result_type, input_tensor).result
+    shift = _create_mul_shift_operand()
+    sin_over_x = tosa.MulOp(result_type, sin_x, recip_x, shift).result
+    return tosa.SelectOp(result_type, is_zero, one, sin_over_x).result
+
+
+def erfinv_op(node: ErfinvOp, symbol_table):
+    """
+    Import the erfinv operation.
+    From buddy graph ir's `ErfinvOp` operator to MLIR operations.
+    aten.erfinv(input) -> Tensor
+
+    Uses erfinv(x) = ndtri((x + 1) / 2) / sqrt(2).
+    """
+    input_tensor = symbol_table.get((str(node.args[0]), 0))
+    input_type = ir.RankedTensorType(input_tensor.type)
+    input_shape = list(input_type.shape)
+    input_dtype = input_type.element_type
+    if str(input_dtype).find("f") == -1:
+        raise NotImplementedError("erfinv requires floating-point input")
+    result_type = ir.RankedTensorType.get(input_shape, input_dtype)
+    shift = _create_mul_shift_operand()
+
+    one = tosa.ConstOp(
+        ir.DenseElementsAttr.get_splat(
+            result_type, _get_scalar_attr(input_dtype, 1.0)
+        )
+    ).result
+    half = tosa.ConstOp(
+        ir.DenseElementsAttr.get_splat(
+            result_type, _get_scalar_attr(input_dtype, 0.5)
+        )
+    ).result
+    inv_sqrt2 = tosa.ConstOp(
+        ir.DenseElementsAttr.get_splat(
+            result_type, _get_scalar_attr(input_dtype, 0.7071067811865476)
+        )
+    ).result
+
+    p = tosa.MulOp(
+        result_type,
+        tosa.AddOp(result_type, input_tensor, one).result,
+        half,
+        shift,
+    ).result
+    ndtri = _ndtri_approx(p, result_type, input_dtype, input_shape)
+    return tosa.MulOp(result_type, ndtri, inv_sqrt2, shift).result
+
+
+def _cummaxmin_op(node, symbol_table, is_max: bool):
+    input_tensor = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    dim = node.args[1]
+    if not isinstance(dim, int):
+        raise NotImplementedError("cummax/cummin requires integer dim")
+
+    input_type = ir.RankedTensorType(input_tensor.type)
+    input_shape = list(input_type.shape)
+    if len(input_shape) == 0:
+        raise NotImplementedError("cummax/cummin requires rank >= 1")
+
+    rank = len(input_shape)
+    if dim < 0:
+        dim += rank
+    if dim < 0 or dim >= rank:
+        raise NotImplementedError("cummax/cummin dim out of range")
+    if input_shape[dim] == 0:
+        raise NotImplementedError("cummax/cummin requires non-empty dim")
+
+    input_dtype = input_type.element_type
+    if not (
+        _is_float_type(input_dtype) or ir.IntegerType.isinstance(input_dtype)
+    ):
+        raise NotImplementedError("cummax/cummin requires numeric tensor")
+
+    input_memref = bufferization.ToBufferOp(
+        ir.MemRefType.get(input_shape, input_dtype), input_tensor
+    ).result
+
+    index_type = ir.IndexType.get()
+    dynamic_sizes = []
+    bounds = []
+    for i, size in enumerate(input_shape):
+        if size < 0:
+            dim_index = arith.ConstantOp(index_type, i).result
+            dim_size = memref.DimOp(input_memref, dim_index).result
+            dynamic_sizes.append(dim_size)
+            bounds.append(dim_size)
+        else:
+            bounds.append(arith.ConstantOp(index_type, size).result)
+
+    values_memref = memref.AllocOp(
+        ir.MemRefType.get(input_shape, input_dtype), dynamic_sizes, []
+    )
+    indices_dtype = ir.IntegerType.get_signless(64)
+    indices_memref = memref.AllocOp(
+        ir.MemRefType.get(input_shape, indices_dtype), dynamic_sizes, []
+    )
+
+    zero = arith.ConstantOp(index_type, 0)
+    one = arith.ConstantOp(index_type, 1)
+
+    idx_values = [None] * rank
+
+    def _scan_dim():
+        idx_values[dim] = zero.result
+        val0 = memref.LoadOp(input_memref, idx_values).result
+        memref.StoreOp(val0, values_memref.result, idx_values)
+        zero_i64 = arith.IndexCastOp(indices_dtype, zero.result).result
+        memref.StoreOp(zero_i64, indices_memref.result, idx_values)
+
+        loop = scf.ForOp(one.result, bounds[dim], one.result)
+        with ir.InsertionPoint(loop.body):
+            idx_values[dim] = loop.induction_variable
+            prev_idx = arith.SubIOp(loop.induction_variable, one.result).result
+            prev_indices = list(idx_values)
+            prev_indices[dim] = prev_idx
+
+            cur_val = memref.LoadOp(input_memref, idx_values).result
+            prev_val = memref.LoadOp(values_memref.result, prev_indices).result
+            prev_idx_val = memref.LoadOp(
+                indices_memref.result, prev_indices
+            ).result
+
+            if _is_float_type(input_dtype):
+                pred = (
+                    arith.CmpFPredicate.OGT
+                    if is_max
+                    else arith.CmpFPredicate.OLT
+                )
+                cmp = arith.CmpFOp(pred, cur_val, prev_val).result
+            else:
+                if _is_unsigned_integer_type(input_dtype):
+                    pred = (
+                        arith.CmpIPredicate.ugt
+                        if is_max
+                        else arith.CmpIPredicate.ult
+                    )
+                else:
+                    pred = (
+                        arith.CmpIPredicate.sgt
+                        if is_max
+                        else arith.CmpIPredicate.slt
+                    )
+                cmp = arith.CmpIOp(pred, cur_val, prev_val).result
+
+            cur_idx_i64 = arith.IndexCastOp(
+                indices_dtype, loop.induction_variable
+            ).result
+            out_val = arith.SelectOp(cmp, cur_val, prev_val).result
+            out_idx = arith.SelectOp(cmp, cur_idx_i64, prev_idx_val).result
+
+            memref.StoreOp(out_val, values_memref.result, idx_values)
+            memref.StoreOp(out_idx, indices_memref.result, idx_values)
+            scf.YieldOp(loop.inner_iter_args)
+
+    def _build_loops(depth: int):
+        if depth == rank:
+            _scan_dim()
+            return
+        if depth == dim:
+            _build_loops(depth + 1)
+            return
+        loop = scf.ForOp(zero.result, bounds[depth], one.result)
+        with ir.InsertionPoint(loop.body):
+            idx_values[depth] = loop.induction_variable
+            _build_loops(depth + 1)
+            scf.YieldOp(loop.inner_iter_args)
+
+    _build_loops(0)
+
+    values = bufferization.ToTensorOp(
+        ir.RankedTensorType.get(input_shape, input_dtype),
+        values_memref.result,
+        restrict=True,
+    )
+    indices = bufferization.ToTensorOp(
+        ir.RankedTensorType.get(input_shape, indices_dtype),
+        indices_memref.result,
+        restrict=True,
+    )
+    return values, indices
+
+
 def cummax_op(node: CummaxOp, symbol_table):
     """
     Import the cummax operation.
     From buddy graph ir's `CummaxOp` operator to MLIR operations.
     aten.cummax(input, dim) -> (values, indices)
-
-    Returns cumulative maximum values and their indices along a dimension.
-    Note: This is a simplified implementation using linalg.generic for scan.
     """
-    input_tensor = symbol_table.get((str(node.args[0]), 0))
-    dim = node.args[1]
-
-    input_shape = list(ir.RankedTensorType(input_tensor.type).shape)
-    input_dtype = ir.RankedTensorType(input_tensor.type).element_type
-    ndim = len(input_shape)
-
-    # Handle negative dim
-    if dim < 0:
-        dim = ndim + dim
-
-    result_type = ir.RankedTensorType.get(input_shape, input_dtype)
-    index_type = ir.RankedTensorType.get(
-        input_shape, ir.IntegerType.get_signless(64)
-    )
-
-    # Use identity operation on input as values (placeholder for cummax)
-    # A proper cummax would need a scan/prefix-max operation
-    values = tosa.IdentityOp(result_type, input_tensor).result
-
-    # Create indices as zeros (placeholder)
-    total_elements = 1
-    for s in input_shape:
-        total_elements *= s
-
-    indices_data = [0] * total_elements
-    indices_attr = ir.DenseElementsAttr.get(
-        memoryview(array.array("q", indices_data)),  # 'q' for int64
-        type=index_type,
-    )
-    indices = tosa.ConstOp(indices_attr).result
-
-    return values, indices
+    return _cummaxmin_op(node, symbol_table, True)
 
 
 def cummin_op(node: CumminOp, symbol_table):
@@ -7120,44 +8880,8 @@ def cummin_op(node: CumminOp, symbol_table):
     Import the cummin operation.
     From buddy graph ir's `CumminOp` operator to MLIR operations.
     aten.cummin(input, dim) -> (values, indices)
-
-    Returns cumulative minimum values and their indices along a dimension.
-    Note: This is a simplified implementation.
     """
-    input_tensor = symbol_table.get((str(node.args[0]), 0))
-    dim = node.args[1]
-
-    input_shape = list(ir.RankedTensorType(input_tensor.type).shape)
-    input_dtype = ir.RankedTensorType(input_tensor.type).element_type
-    ndim = len(input_shape)
-
-    # Handle negative dim
-    if dim < 0:
-        dim = ndim + dim
-
-    result_type = ir.RankedTensorType.get(input_shape, input_dtype)
-    index_type = ir.RankedTensorType.get(
-        input_shape, ir.IntegerType.get_signless(64)
-    )
-
-    # Use identity operation on input as values (placeholder for cummin)
-    values = tosa.IdentityOp(result_type, input_tensor).result
-
-    # Create indices as zeros (placeholder)
-    total_elements = 1
-    for s in input_shape:
-        total_elements *= s
-
-    indices_data = [0] * total_elements
-    indices_attr = ir.DenseElementsAttr.get(
-        memoryview(array.array("q", indices_data)),
-        type=index_type,
-    )
-    indices = tosa.ConstOp(indices_attr).result
-
-    return values, indices
-
-    return values, indices
+    return _cummaxmin_op(node, symbol_table, False)
 
 
 def clamp_min_tensor_op(node: ClampMinTensorOp, symbol_table):
@@ -7216,13 +8940,18 @@ def hypot_op(node: HypotOp, symbol_table):
     result_type = ir.RankedTensorType.get(input_shape, input_dtype)
 
     # hypot(x, y) = sqrt(x^2 + y^2)
-    x_squared = tosa.MulOp(result_type, input_tensor, input_tensor).result
-    y_squared = tosa.MulOp(result_type, other_tensor, other_tensor).result
+    shift = _create_mul_shift_operand()
+    x_squared = tosa.MulOp(
+        result_type, input_tensor, input_tensor, shift
+    ).result
+    y_squared = tosa.MulOp(
+        result_type, other_tensor, other_tensor, shift
+    ).result
     sum_squared = tosa.AddOp(result_type, x_squared, y_squared).result
 
     # sqrt via rsqrt: sqrt(x) = 1/rsqrt(x) = x * rsqrt(x)
     rsqrt_result = tosa.RsqrtOp(result_type, sum_squared).result
-    result = tosa.MulOp(result_type, sum_squared, rsqrt_result).result
+    result = tosa.MulOp(result_type, sum_squared, rsqrt_result, shift).result
 
     return result
 
@@ -7235,46 +8964,71 @@ def copysign_op(node: CopysignOp, symbol_table):
 
     Returns input with the sign of other.
     """
-    input_tensor = symbol_table.get((str(node.args[0]), 0))
-    other_tensor = symbol_table.get((str(node.args[1]), 0))
+    input_tensor = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    other_tensor = symbol_table.get((str(node.args[1]), 0), node.args[1])
+    input_tensor, other_tensor = _normalize_binary_operator_args(
+        input_tensor, other_tensor
+    )
 
-    input_shape = list(ir.RankedTensorType(input_tensor.type).shape)
-    input_dtype = ir.RankedTensorType(input_tensor.type).element_type
-    result_type = ir.RankedTensorType.get(input_shape, input_dtype)
+    input_type = ir.RankedTensorType(input_tensor.type)
+    input_shape = list(input_type.shape)
+    input_dtype = input_type.element_type
+
+    other_type = ir.RankedTensorType(other_tensor.type)
+    if other_type.element_type != input_dtype:
+        other_tensor = tosa.CastOp(
+            ir.RankedTensorType.get(list(other_type.shape), input_dtype),
+            other_tensor,
+        ).result
+        other_type = ir.RankedTensorType(other_tensor.type)
+
+    norm_input_shape, norm_other_shape = _normalize_binary_operator_shape(
+        input_shape, list(other_type.shape)
+    )
+    if input_shape != norm_input_shape:
+        input_tensor = tosa.ReshapeOp(
+            input_tensor, _create_shape_operand(norm_input_shape)
+        ).result
+    if list(other_type.shape) != norm_other_shape:
+        other_tensor = tosa.ReshapeOp(
+            other_tensor, _create_shape_operand(norm_other_shape)
+        ).result
+
+    output_shape = list(node.tensor_meta["shape"])
+    result_type = ir.RankedTensorType.get(output_shape, input_dtype)
 
     # copysign(x, y) = abs(x) * sign(y)
-    abs_input = tosa.AbsOp(result_type, input_tensor).result
+    abs_type = ir.RankedTensorType.get(norm_input_shape, input_dtype)
+    abs_input = tosa.AbsOp(abs_type, input_tensor).result
 
     # sign(y): Compare y >= 0
+    sign_shape = list(ir.RankedTensorType(other_tensor.type).shape)
+    sign_type = ir.RankedTensorType.get(sign_shape, input_dtype)
     zero = tosa.ConstOp(
-        ir.DenseElementsAttr.get(
-            memoryview(array.array("f", [0.0])),
-            type=ir.RankedTensorType.get([], input_dtype),
+        ir.DenseElementsAttr.get_splat(
+            sign_type, _get_scalar_attr(input_dtype, 0.0)
         )
     ).result
-
     one = tosa.ConstOp(
-        ir.DenseElementsAttr.get(
-            memoryview(array.array("f", [1.0])),
-            type=ir.RankedTensorType.get([], input_dtype),
+        ir.DenseElementsAttr.get_splat(
+            sign_type, _get_scalar_attr(input_dtype, 1.0)
         )
     ).result
-
     neg_one = tosa.ConstOp(
-        ir.DenseElementsAttr.get(
-            memoryview(array.array("f", [-1.0])),
-            type=ir.RankedTensorType.get([], input_dtype),
+        ir.DenseElementsAttr.get_splat(
+            sign_type, _get_scalar_attr(input_dtype, -1.0)
         )
     ).result
 
     # y >= 0 ? 1 : -1
-    bool_type = ir.IntegerType.get_signless(1)
-    ge_zero = tosa.GreaterEqualOp(
-        ir.RankedTensorType.get(input_shape, bool_type), other_tensor, zero
-    ).result
+    bool_type = ir.RankedTensorType.get(
+        sign_shape, ir.IntegerType.get_signless(1)
+    )
+    ge_zero = tosa.GreaterEqualOp(bool_type, other_tensor, zero).result
 
-    sign = tosa.SelectOp(result_type, ge_zero, one, neg_one).result
-    result = tosa.MulOp(result_type, abs_input, sign).result
+    sign = tosa.SelectOp(sign_type, ge_zero, one, neg_one).result
+    shift = _create_mul_shift_operand()
+    result = tosa.MulOp(result_type, abs_input, sign, shift).result
 
     return result
 
@@ -7324,6 +9078,37 @@ def sign_op(node: SignOp, symbol_table):
     result = tosa.SelectOp(result_type, gt_zero, one, neg_or_zero).result
 
     return result
+
+
+def signbit_op(node: SignbitOp, symbol_table):
+    """
+    Import the signbit operation.
+    From buddy graph ir's `SignbitOp` operator to MLIR operations.
+    signbit(x) returns True where the sign bit of x is set.
+    """
+    input_tensor = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    input_type = ir.RankedTensorType(input_tensor.type)
+    input_shape = list(input_type.shape)
+    input_dtype = input_type.element_type
+    const_type = ir.RankedTensorType.get(input_shape, input_dtype)
+    zero = tosa.ConstOp(
+        ir.DenseElementsAttr.get_splat(
+            const_type, _get_zero_scalar(input_dtype)
+        )
+    ).result
+
+    if str(input_dtype).find("f") != -1:
+        one = tosa.ConstOp(
+            ir.DenseElementsAttr.get_splat(
+                const_type, _get_scalar_attr(input_dtype, 1.0)
+            )
+        ).result
+        signed_one = math.CopySignOp(one, input_tensor).result
+        cmp_op = arith.CmpFOp(arith.CmpFPredicate.OLT, signed_one, zero)
+    else:
+        cmp_op = arith.CmpIOp(6, input_tensor, zero)
+
+    return cmp_op
 
 
 def nextafter_op(node: NextafterOp, symbol_table):
@@ -7385,7 +9170,6 @@ def masked_scatter_op(node: MaskedScatterOp, symbol_table):
     aten.masked_scatter(input, mask, source) -> Tensor
 
     Copies elements from source to output at positions where mask is True.
-    Note: This is a placeholder implementation.
     """
     input_tensor = symbol_table.get((str(node.args[0]), 0))
     mask_tensor = symbol_table.get((str(node.args[1]), 0))
@@ -7393,28 +9177,105 @@ def masked_scatter_op(node: MaskedScatterOp, symbol_table):
 
     input_shape = list(ir.RankedTensorType(input_tensor.type).shape)
     input_dtype = ir.RankedTensorType(input_tensor.type).element_type
-    result_type = ir.RankedTensorType.get(input_shape, input_dtype)
-
-    # For a simple implementation, use select
-    # masked_scatter is complex because source is 1D and needs to be scattered
-    # This is an approximation that only works for simple cases
-
-    # Cast source to match input shape if needed
+    mask_shape = list(ir.RankedTensorType(mask_tensor.type).shape)
+    mask_dtype = ir.RankedTensorType(mask_tensor.type).element_type
     source_shape = list(ir.RankedTensorType(source_tensor.type).shape)
-    if source_shape != input_shape:
-        # For now, just reshape source to match input (placeholder)
-        source_reshaped = tosa.ReshapeOp(
-            source_tensor, memoryview(array.array("i", input_shape))
-        ).result
-    else:
-        source_reshaped = source_tensor
+    source_dtype = ir.RankedTensorType(source_tensor.type).element_type
 
-    # Use select: mask ? source : input
-    result = tosa.SelectOp(
-        result_type, mask_tensor, source_reshaped, input_tensor
+    if any(dim < 0 for dim in input_shape + mask_shape + source_shape):
+        raise NotImplementedError("masked_scatter requires static shapes")
+    if mask_shape != input_shape:
+        raise NotImplementedError(
+            "masked_scatter requires mask shape to match input"
+        )
+    if input_dtype != source_dtype:
+        raise NotImplementedError(
+            "masked_scatter requires source dtype to match input"
+        )
+    if not ir.IntegerType.isinstance(mask_dtype):
+        raise NotImplementedError("masked_scatter requires integer mask")
+
+    total_source_elems = 1
+    for dim in source_shape:
+        total_source_elems *= dim
+
+    if source_shape != [total_source_elems]:
+        source_shape_operand = _create_shape_operand([total_source_elems])
+        source_tensor = tosa.ReshapeOp(
+            source_tensor, source_shape_operand
+        ).result
+
+    input_memref = bufferization.ToBufferOp(
+        ir.MemRefType.get(input_shape, input_dtype), input_tensor
+    ).result
+    mask_memref = bufferization.ToBufferOp(
+        ir.MemRefType.get(mask_shape, mask_dtype), mask_tensor
+    ).result
+    source_memref = bufferization.ToBufferOp(
+        ir.MemRefType.get([total_source_elems], input_dtype), source_tensor
     ).result
 
-    return result
+    output_memref = memref.AllocOp(
+        ir.MemRefType.get(input_shape, input_dtype), [], []
+    )
+    linalg.copy(input_memref, outs=[output_memref.result])
+
+    index_type = ir.IndexType.get()
+    zero = arith.ConstantOp(index_type, 0)
+    one = arith.ConstantOp(index_type, 1)
+    source_bound = arith.ConstantOp(index_type, total_source_elems)
+
+    src_index_memref = memref.AllocOp(
+        ir.MemRefType.get([1], index_type), [], []
+    )
+    memref.StoreOp(zero.result, src_index_memref.result, [zero.result])
+
+    bounds = [arith.ConstantOp(index_type, dim).result for dim in input_shape]
+    indices = [None] * len(input_shape)
+
+    def _emit_update():
+        mask_val = memref.LoadOp(mask_memref, indices).result
+        if ir.IntegerType(mask_dtype).width == 1:
+            mask_bool = mask_val
+        else:
+            zero_mask = arith.ConstantOp(
+                mask_dtype, ir.IntegerAttr.get(mask_dtype, 0)
+            ).result
+            mask_bool = arith.CmpIOp(
+                arith.CmpIPredicate.ne, mask_val, zero_mask
+            ).result
+
+        src_index = memref.LoadOp(src_index_memref.result, [zero.result]).result
+        has_source = arith.CmpIOp(
+            arith.CmpIPredicate.slt, src_index, source_bound.result
+        ).result
+        do_update = arith.AndIOp(mask_bool, has_source).result
+
+        if_op = scf.IfOp(do_update, hasElse=False)
+        with ir.InsertionPoint(if_op.then_block):
+            src_val = memref.LoadOp(source_memref, [src_index]).result
+            memref.StoreOp(src_val, output_memref.result, indices)
+            next_index = arith.AddIOp(src_index, one.result).result
+            memref.StoreOp(next_index, src_index_memref.result, [zero.result])
+            scf.YieldOp([])
+
+    def _build_loops(depth: int):
+        if depth == len(input_shape):
+            _emit_update()
+            return
+        loop = scf.ForOp(zero.result, bounds[depth], one.result)
+        with ir.InsertionPoint(loop.body):
+            indices[depth] = loop.induction_variable
+            _build_loops(depth + 1)
+            scf.YieldOp(loop.inner_iter_args)
+
+    _build_loops(0)
+
+    return bufferization.ToTensorOp(
+        ir.RankedTensorType.get(input_shape, input_dtype),
+        output_memref.result,
+        restrict=True,
+    ).result
 
 
 def rev_op(node: RevOp, symbol_table):
@@ -7444,11 +9305,6 @@ def rev_op(node: RevOp, symbol_table):
         result = tosa.ReverseOp(result_type, result, dim).result
 
     return result
-
-
-# =============================================================================
-# Backward Operations (Gradient Computation)
-# =============================================================================
 
 
 def adaptive_avg_pool2d_backward_op(
@@ -7482,18 +9338,12 @@ def adaptive_avg_pool2d_backward_op(
 
     # Convert NCHW to NHWC for TOSA operations
     perm_nchw_to_nhwc = [0, 2, 3, 1]
-    perm_const1 = tosa.ConstOp(
-        ir.DenseElementsAttr.get(
-            memoryview(array.array("i", perm_nchw_to_nhwc))
-        )
-    )
+    perm_attr1 = _create_permutation_attr(perm_nchw_to_nhwc)
 
     # Reshape grad_output to NHWC
     nhwc_grad_shape = [N, out_h, out_w, C]
     nhwc_grad_type = ir.RankedTensorType.get(nhwc_grad_shape, input_dtype)
-    grad_nhwc = tosa.TransposeOp(
-        nhwc_grad_type, grad_output, perm_const1.results[0]
-    )
+    grad_nhwc = tosa.TransposeOp(nhwc_grad_type, grad_output, perm_attr1)
 
     # Scale gradient by 1/(kernel_h * kernel_w)
     scale_factor = 1.0 / (kernel_h * kernel_w)
@@ -7541,14 +9391,10 @@ def adaptive_avg_pool2d_backward_op(
 
     # Convert back NHWC to NCHW
     perm_nhwc_to_nchw = [0, 3, 1, 2]
-    perm_const2 = tosa.ConstOp(
-        ir.DenseElementsAttr.get(
-            memoryview(array.array("i", perm_nhwc_to_nchw))
-        )
-    )
+    perm_attr2 = _create_permutation_attr(perm_nhwc_to_nchw)
 
     result_type = ir.RankedTensorType.get(input_shape, input_dtype)
-    return tosa.TransposeOp(result_type, resized, perm_const2.results[0])
+    return tosa.TransposeOp(result_type, resized, perm_attr2)
 
 
 def avg_pool2d_backward_op(node: AvgPool2dBackwardOp, symbol_table):
@@ -7606,17 +9452,11 @@ def avg_pool2d_backward_op(node: AvgPool2dBackwardOp, symbol_table):
 
     # Convert NCHW to NHWC for TOSA operations
     perm_nchw_to_nhwc = [0, 2, 3, 1]
-    perm_const1 = tosa.ConstOp(
-        ir.DenseElementsAttr.get(
-            memoryview(array.array("i", perm_nchw_to_nhwc))
-        )
-    )
+    perm_attr1 = _create_permutation_attr(perm_nchw_to_nhwc)
 
     nhwc_grad_shape = [N, out_h, out_w, C]
     nhwc_grad_type = ir.RankedTensorType.get(nhwc_grad_shape, input_dtype)
-    grad_nhwc = tosa.TransposeOp(
-        nhwc_grad_type, grad_output, perm_const1.results[0]
-    )
+    grad_nhwc = tosa.TransposeOp(nhwc_grad_type, grad_output, perm_attr1)
 
     # Scale gradient by 1/divisor
     scale_factor = 1.0 / divisor
@@ -7705,14 +9545,10 @@ def avg_pool2d_backward_op(node: AvgPool2dBackwardOp, symbol_table):
 
     # Convert back NHWC to NCHW
     perm_nhwc_to_nchw = [0, 3, 1, 2]
-    perm_const2 = tosa.ConstOp(
-        ir.DenseElementsAttr.get(
-            memoryview(array.array("i", perm_nhwc_to_nchw))
-        )
-    )
+    perm_attr2 = _create_permutation_attr(perm_nhwc_to_nchw)
 
     result_type = ir.RankedTensorType.get(input_shape, input_dtype)
-    return tosa.TransposeOp(result_type, result, perm_const2.results[0])
+    return tosa.TransposeOp(result_type, result, perm_attr2)
 
 
 def convolution_backward_op(node: ConvolutionBackwardOp, symbol_table):
@@ -7779,30 +9615,22 @@ def convolution_backward_op(node: ConvolutionBackwardOp, symbol_table):
         # grad_input = conv_transpose(grad_output, weight)
         # Convert to NHWC format for TOSA
         perm_nchw_to_nhwc = [0, 2, 3, 1]
-        perm_const = tosa.ConstOp(
-            ir.DenseElementsAttr.get(
-                memoryview(array.array("i", perm_nchw_to_nhwc))
-            )
-        )
+        perm_attr = _create_permutation_attr(perm_nchw_to_nhwc)
 
         # Transpose grad_output to NHWC
         nhwc_grad_shape = [N, out_h, out_w, C_out]
         nhwc_grad_type = ir.RankedTensorType.get(nhwc_grad_shape, input_dtype)
-        grad_nhwc = tosa.TransposeOp(
-            nhwc_grad_type, grad_output, perm_const.results[0]
-        )
+        grad_nhwc = tosa.TransposeOp(nhwc_grad_type, grad_output, perm_attr)
 
         # Transpose weight from OIHW to HWIO (flip for transposed conv)
         perm_weight = [2, 3, 1, 0]  # OIHW -> HWIO
-        perm_weight_const = tosa.ConstOp(
-            ir.DenseElementsAttr.get(memoryview(array.array("i", perm_weight)))
-        )
+        perm_weight_attr = _create_permutation_attr(perm_weight)
         hwio_weight_shape = [kH, kW, K_in, K_out]
         hwio_weight_type = ir.RankedTensorType.get(
             hwio_weight_shape, input_dtype
         )
         weight_hwio = tosa.TransposeOp(
-            hwio_weight_type, weight, perm_weight_const.results[0]
+            hwio_weight_type, weight, perm_weight_attr
         )
 
         # Use transpose_conv2d for gradient w.r.t. input
@@ -7835,14 +9663,10 @@ def convolution_backward_op(node: ConvolutionBackwardOp, symbol_table):
 
         # Convert back to NCHW
         perm_nhwc_to_nchw = [0, 3, 1, 2]
-        perm_const2 = tosa.ConstOp(
-            ir.DenseElementsAttr.get(
-                memoryview(array.array("i", perm_nhwc_to_nchw))
-            )
-        )
+        perm_attr2 = _create_permutation_attr(perm_nhwc_to_nchw)
         grad_input_type = ir.RankedTensorType.get(input_shape, input_dtype)
         grad_input = tosa.TransposeOp(
-            grad_input_type, grad_input_nhwc, perm_const2.results[0]
+            grad_input_type, grad_input_nhwc, perm_attr2
         )
         results.append(grad_input.result)
     else:
@@ -7890,7 +9714,7 @@ def convolution_backward_op(node: ConvolutionBackwardOp, symbol_table):
 
         # Reshape to (C_out,)
         grad_bias = tosa.ReshapeOp(
-            sum_over_w, memoryview(array.array("i", [C_out]))
+            sum_over_w, _create_shape_operand([C_out])
         ).result
         results.append(grad_bias)
     else:
@@ -7949,7 +9773,7 @@ def native_group_norm_backward_op(
             weight_shape = [1] * len(input_shape)
             weight_shape[1] = C_val
             weight_reshaped = tosa.ReshapeOp(
-                weight, memoryview(array.array("i", weight_shape))
+                weight, _create_shape_operand(weight_shape)
             ).result
             scaled_grad = tosa.MulOp(
                 ir.RankedTensorType.get(input_shape, input_dtype),
@@ -7963,18 +9787,18 @@ def native_group_norm_backward_op(
         # mean/rstd shape: (N, group) -> (N, group, 1, 1, ...)
         mean_shape = [N_val, group] + [1] * (len(input_shape) - 2)
         rstd_reshaped = tosa.ReshapeOp(
-            rstd, memoryview(array.array("i", mean_shape))
+            rstd, _create_shape_operand(mean_shape)
         ).result
 
         # Reshape input to (N, group, channels_per_group * H * W)
         reshaped_shape = [N_val, group, group_size]
         input_reshaped = tosa.ReshapeOp(
-            scaled_grad, memoryview(array.array("i", reshaped_shape))
+            scaled_grad, _create_shape_operand(reshaped_shape)
         ).result
 
         # Multiply by rstd
         rstd_broadcast = tosa.ReshapeOp(
-            rstd, memoryview(array.array("i", [N_val, group, 1]))
+            rstd, _create_shape_operand([N_val, group, 1])
         ).result
 
         grad_input_reshaped = tosa.MulOp(
@@ -7985,7 +9809,7 @@ def native_group_norm_backward_op(
 
         # Reshape back to original shape
         grad_input = tosa.ReshapeOp(
-            grad_input_reshaped, memoryview(array.array("i", input_shape))
+            grad_input_reshaped, _create_shape_operand(input_shape)
         ).result
         results.append(grad_input)
     else:
@@ -8003,17 +9827,17 @@ def native_group_norm_backward_op(
         # Reshape mean for broadcasting
         mean_broadcast_shape = [N_val, group, 1]
         mean_broadcast = tosa.ReshapeOp(
-            mean, memoryview(array.array("i", mean_broadcast_shape))
+            mean, _create_shape_operand(mean_broadcast_shape)
         ).result
 
         rstd_broadcast = tosa.ReshapeOp(
-            rstd, memoryview(array.array("i", mean_broadcast_shape))
+            rstd, _create_shape_operand(mean_broadcast_shape)
         ).result
 
         # Reshape input
         reshaped_input = tosa.ReshapeOp(
             input_tensor,
-            memoryview(array.array("i", [N_val, group, group_size])),
+            _create_shape_operand([N_val, group, group_size]),
         ).result
 
         # Compute normalized: (input - mean) * rstd
@@ -8031,7 +9855,7 @@ def native_group_norm_backward_op(
 
         # Reshape back and multiply with grad_out
         normalized_full = tosa.ReshapeOp(
-            normalized, memoryview(array.array("i", input_shape))
+            normalized, _create_shape_operand(input_shape)
         ).result
 
         grad_weight_prod = tosa.MulOp(
@@ -8049,7 +9873,7 @@ def native_group_norm_backward_op(
         # The result should have shape (C,)
         # This is simplified - proper implementation needs more care
         grad_weight = tosa.ReshapeOp(
-            sum_batch, memoryview(array.array("i", [C_val]))
+            sum_batch, _create_shape_operand([C_val])
         ).result
         results.append(grad_weight)
     else:
@@ -8075,7 +9899,7 @@ def native_group_norm_backward_op(
             current = tosa.ReduceSumOp(current, axis_dim).results[0]
 
         grad_bias = tosa.ReshapeOp(
-            current, memoryview(array.array("i", [C_val]))
+            current, _create_shape_operand([C_val])
         ).result
         results.append(grad_bias)
     else:
@@ -8145,7 +9969,7 @@ def native_layer_norm_backward_op(
             # Weight has shape normalized_shape, need to broadcast
             weight_broadcast_shape = [1] * batch_dims + list(normalized_shape)
             weight_reshaped = tosa.ReshapeOp(
-                weight, memoryview(array.array("i", weight_broadcast_shape))
+                weight, _create_shape_operand(weight_broadcast_shape)
             ).result
             scaled_grad = tosa.MulOp(
                 ir.RankedTensorType.get(input_shape, input_dtype),
@@ -8161,7 +9985,7 @@ def native_layer_norm_backward_op(
         rstd_broadcast_shape = list(batch_shape) + [1] * normalized_dims
 
         rstd_reshaped = tosa.ReshapeOp(
-            rstd, memoryview(array.array("i", rstd_broadcast_shape))
+            rstd, _create_shape_operand(rstd_broadcast_shape)
         ).result
 
         # Multiply by rstd
@@ -8187,11 +10011,11 @@ def native_layer_norm_backward_op(
         # Reshape mean for broadcasting
         mean_broadcast_shape = list(batch_shape) + [1] * normalized_dims
         mean_reshaped = tosa.ReshapeOp(
-            mean, memoryview(array.array("i", mean_broadcast_shape))
+            mean, _create_shape_operand(mean_broadcast_shape)
         ).result
 
         rstd_reshaped = tosa.ReshapeOp(
-            rstd, memoryview(array.array("i", mean_broadcast_shape))
+            rstd, _create_shape_operand(mean_broadcast_shape)
         ).result
 
         # Compute normalized: (input - mean) * rstd
@@ -8221,7 +10045,7 @@ def native_layer_norm_backward_op(
             current = tosa.ReduceSumOp(current, axis).results[0]
 
         grad_weight = tosa.ReshapeOp(
-            current, memoryview(array.array("i", list(normalized_shape)))
+            current, _create_shape_operand(list(normalized_shape))
         ).result
         results.append(grad_weight)
     else:
@@ -8240,7 +10064,7 @@ def native_layer_norm_backward_op(
             current = tosa.ReduceSumOp(current, axis).results[0]
 
         grad_bias = tosa.ReshapeOp(
-            current, memoryview(array.array("i", list(normalized_shape)))
+            current, _create_shape_operand(list(normalized_shape))
         ).result
         results.append(grad_bias)
     else:
@@ -8251,11 +10075,6 @@ def native_layer_norm_backward_op(
         results.append(tosa.ConstOp(zeros_attr).result)
 
     return tuple(results)
-
-
-# =============================================================================
-# Bitwise Scalar Operations
-# =============================================================================
 
 
 def bitwise_and_scalar_op(node: BitwiseAndScalarOp, symbol_table):
@@ -8334,11 +10153,6 @@ def bitwise_xor_scalar_op(node: BitwiseXorScalarOp, symbol_table):
 
     # Perform bitwise XOR
     return arith.XOrIOp(input_tensor, scalar_tensor)
-
-
-# =============================================================================
-# Padding Operations
-# =============================================================================
 
 
 def _create_tosa_padding(input_shape, padding, ndim_to_pad):
@@ -8586,11 +10400,6 @@ def replication_pad3d_op(node: ReplicationPad3dOp, symbol_table):
     )
 
 
-# =============================================================================
-# Other Operations
-# =============================================================================
-
-
 def empty_strided_op(node: EmptyStridedOp, symbol_table):
     """
     Create an empty tensor with specified shape and strides.
@@ -8660,6 +10469,30 @@ def randperm_op(node: RandpermOp, symbol_table):
     return tosa.ConstOp(values_attr)
 
 
+def uniform_op(node: UniformOp, symbol_table):
+    """
+    Import the uniform operation.
+    From buddy graph ir's `UniformOp` operator to MLIR TOSA operations.
+    aten.uniform / aten.uniform_ -> Tensor
+    """
+    raise NotImplementedError("uniform lowering requires runtime RNG support")
+
+
+def _is_float_type(dtype: ir.Type) -> bool:
+    return ir.FloatType.isinstance(dtype) or ir.BF16Type.isinstance(dtype)
+
+
+def _get_min_value_attr(dtype: ir.Type) -> ir.Attribute:
+    if _is_float_type(dtype):
+        return ir.FloatAttr.get(dtype, float("-inf"))
+    if ir.IntegerType.isinstance(dtype):
+        width = ir.IntegerType(dtype).width
+        if width == 1 or _is_unsigned_integer_type(dtype):
+            return ir.IntegerAttr.get(dtype, 0)
+        return ir.IntegerAttr.get(dtype, -(1 << (width - 1)))
+    raise NotImplementedError(f"unsupported dtype for min value: {dtype}")
+
+
 def _get_zero_scalar(dtype):
     """Helper to get zero value for a given dtype."""
     if dtype == ir.F32Type.get():
@@ -8688,11 +10521,6 @@ def _get_scalar_attr(dtype, value):
         return ir.IntegerAttr.get(dtype, int(value))
 
 
-# =============================================================================
-# Core Aten Remaining Operations
-# =============================================================================
-
-
 def embedding_bag_op(node: EmbeddingBagOp, symbol_table):
     """
     Embedding bag operation with aggregation.
@@ -8701,18 +10529,18 @@ def embedding_bag_op(node: EmbeddingBagOp, symbol_table):
                    sparse, per_sample_weights, include_last_offset, padding_idx)
     -> (output, offset2bag, bag_size, max_indices)
 
-    mode: 0=sum, 1=mean, 2=max
+    mode: 0=sum, 1=mean (max mode and per-sample weights are not supported)
 
-    Note: This is a simplified implementation that performs embedding lookup
-    and aggregation using TOSA operations. Full support for all modes
-    and features would require more complex lowering.
+    Note: This implementation aggregates via scf loops after a tosa.gather.
     """
     weight = symbol_table.get((str(node.args[0]), 0), node.args[0])
     indices = symbol_table.get((str(node.args[1]), 0), node.args[1])
     offsets = symbol_table.get((str(node.args[2]), 0), node.args[2])
 
-    # Get mode (default is sum=0)
     mode = node.args[4] if len(node.args) > 4 else 0
+    per_sample_weights = node.args[6] if len(node.args) > 6 else None
+    include_last_offset = node.args[7] if len(node.args) > 7 else False
+    padding_idx = node.args[8] if len(node.args) > 8 else -1
 
     weight_type = ir.RankedTensorType(weight.type)
     weight_shape = list(weight_type.shape)
@@ -8724,26 +10552,51 @@ def embedding_bag_op(node: EmbeddingBagOp, symbol_table):
     offsets_type = ir.RankedTensorType(offsets.type)
     offsets_shape = list(offsets_type.shape)
 
-    # Number of bags
-    num_bags = offsets_shape[0]
+    if per_sample_weights is not None:
+        raise NotImplementedError(
+            "embedding_bag per_sample_weights not supported"
+        )
+    if mode not in (0, 1):
+        raise NotImplementedError("embedding_bag supports sum/mean modes only")
+    if len(weight_shape) != 2:
+        raise NotImplementedError("embedding_bag requires 2D weight")
+    if len(indices_shape) != 1:
+        raise NotImplementedError("embedding_bag requires 1D indices")
+    if len(offsets_shape) != 1:
+        raise NotImplementedError("embedding_bag requires 1D offsets")
+    if any(dim < 0 for dim in weight_shape + indices_shape + offsets_shape):
+        raise NotImplementedError("embedding_bag requires static shapes")
+    if not ir.IntegerType.isinstance(indices_type.element_type):
+        raise NotImplementedError("embedding_bag requires integer indices")
+    if not ir.IntegerType.isinstance(offsets_type.element_type):
+        raise NotImplementedError("embedding_bag requires integer offsets")
+
+    if padding_idx >= 0 and padding_idx >= weight_shape[0]:
+        raise NotImplementedError("embedding_bag padding_idx out of range")
+
+    if include_last_offset:
+        if offsets_shape[0] < 1:
+            raise NotImplementedError(
+                "embedding_bag requires at least one offset"
+            )
+        num_bags = offsets_shape[0] - 1
+    else:
+        num_bags = offsets_shape[0]
+
     embedding_dim = weight_shape[1]
 
     # Output shape: [num_bags, embedding_dim]
     output_shape = [num_bags, embedding_dim]
     output_type = ir.RankedTensorType.get(output_shape, element_type)
 
-    # For simplified implementation, we use gather and then reduce
-    # First, gather all embeddings
-    total_indices = (
-        indices_shape[0]
-        if len(indices_shape) == 1
-        else indices_shape[0] * indices_shape[1]
-    )
+    # Gather all embeddings first (keep tosa.gather for test coverage).
+    total_indices = 1
+    for dim in indices_shape:
+        total_indices *= dim
 
     # Reshape indices to [1, total_indices]
-    indices_reshape = tosa.ReshapeOp(
-        indices, memoryview(array.array("i", [1, total_indices]))
-    )
+    indices_shape_operand = _create_shape_operand([1, total_indices])
+    indices_reshape = tosa.ReshapeOp(indices, indices_shape_operand)
 
     # Cast indices to i32 if needed
     if (
@@ -8762,9 +10615,12 @@ def embedding_bag_op(node: EmbeddingBagOp, symbol_table):
         indices_for_gather = indices_reshape.result
 
     # Reshape weight to [1, num_embeddings, embedding_dim]
+    weight_shape_operand = _create_shape_operand(
+        [1, weight_shape[0], embedding_dim]
+    )
     weight_reshape = tosa.ReshapeOp(
         weight,
-        memoryview(array.array("i", [1, weight_shape[0], embedding_dim])),
+        weight_shape_operand,
     )
 
     # Gather: [1, total_indices, embedding_dim]
@@ -8776,39 +10632,231 @@ def embedding_bag_op(node: EmbeddingBagOp, symbol_table):
     )
 
     # Reshape gathered embeddings to [total_indices, embedding_dim]
+    gathered_shape_operand = _create_shape_operand(
+        [total_indices, embedding_dim]
+    )
     gathered_reshape = tosa.ReshapeOp(
         gather_op.result,
-        memoryview(array.array("i", [total_indices, embedding_dim])),
+        gathered_shape_operand,
     )
 
-    # For now, return a simplified version - just return the first bag result
-    # Full implementation would need to aggregate based on offsets
-    # Create a zero-filled output as placeholder
-    zero = _get_zero_scalar(element_type)
-    zero_attr = ir.DenseElementsAttr.get_splat(output_type, zero)
-    output = tosa.ConstOp(zero_attr)
+    gathered_memref = bufferization.ToBufferOp(
+        ir.MemRefType.get([total_indices, embedding_dim], element_type),
+        gathered_reshape.result,
+    ).result
 
-    # Return tuple of (output, offset2bag, bag_size, max_indices)
-    # For simplicity, we return placeholders for the other outputs
-    offset2bag_type = ir.RankedTensorType.get(
-        indices_shape, ir.IntegerType.get_signless(64)
+    indices_flat = tosa.ReshapeOp(
+        indices, _create_shape_operand([total_indices])
+    ).result
+    indices_memref = bufferization.ToBufferOp(
+        ir.MemRefType.get([total_indices], indices_type.element_type),
+        indices_flat,
+    ).result
+
+    offsets_memref = bufferization.ToBufferOp(
+        ir.MemRefType.get([offsets_shape[0]], offsets_type.element_type),
+        offsets,
+    ).result
+
+    output_memref = memref.AllocOp(
+        ir.MemRefType.get(output_shape, element_type), [], []
     )
-    bag_size_type = ir.RankedTensorType.get(
-        [num_bags], ir.IntegerType.get_signless(64)
+    offset2bag_memref = memref.AllocOp(
+        ir.MemRefType.get(indices_shape, ir.IntegerType.get_signless(64)),
+        [],
+        [],
     )
-    max_indices_type = ir.RankedTensorType.get(
-        output_shape, ir.IntegerType.get_signless(64)
+    bag_size_memref = memref.AllocOp(
+        ir.MemRefType.get([num_bags], ir.IntegerType.get_signless(64)),
+        [],
+        [],
+    )
+    max_indices_memref = memref.AllocOp(
+        ir.MemRefType.get(output_shape, ir.IntegerType.get_signless(64)),
+        [],
+        [],
     )
 
-    zero_i64 = ir.IntegerAttr.get(ir.IntegerType.get_signless(64), 0)
-    offset2bag = tosa.ConstOp(
-        ir.DenseElementsAttr.get_splat(offset2bag_type, zero_i64)
+    zero_val = arith.ConstantOp(element_type, _get_zero_scalar(element_type))
+    linalg.fill(zero_val.result, outs=[output_memref.result])
+
+    zero_i64_type = ir.IntegerType.get_signless(64)
+    zero_i64 = arith.ConstantOp(
+        zero_i64_type, ir.IntegerAttr.get(zero_i64_type, 0)
     )
-    bag_size = tosa.ConstOp(
-        ir.DenseElementsAttr.get_splat(bag_size_type, zero_i64)
+    linalg.fill(zero_i64.result, outs=[offset2bag_memref.result])
+    linalg.fill(zero_i64.result, outs=[bag_size_memref.result])
+    linalg.fill(zero_i64.result, outs=[max_indices_memref.result])
+
+    index_type = ir.IndexType.get()
+    zero = arith.ConstantOp(index_type, 0)
+    one = arith.ConstantOp(index_type, 1)
+    num_bags_const = arith.ConstantOp(index_type, num_bags)
+    total_indices_const = arith.ConstantOp(index_type, total_indices)
+    embedding_dim_const = arith.ConstantOp(index_type, embedding_dim)
+
+    bag_end_memref = memref.AllocOp(ir.MemRefType.get([1], index_type), [], [])
+    bag_count_memref = memref.AllocOp(
+        ir.MemRefType.get([1], index_type), [], []
     )
-    max_indices_out = tosa.ConstOp(
-        ir.DenseElementsAttr.get_splat(max_indices_type, zero_i64)
+
+    bag_loop = scf.ForOp(zero.result, num_bags_const.result, one.result)
+    with ir.InsertionPoint(bag_loop.body):
+        bag = bag_loop.induction_variable
+        memref.StoreOp(zero.result, bag_count_memref.result, [zero.result])
+
+        def _clamp_index(value):
+            below = arith.CmpIOp(
+                arith.CmpIPredicate.slt, value, zero.result
+            ).result
+            value = arith.SelectOp(below, zero.result, value).result
+            above = arith.CmpIOp(
+                arith.CmpIPredicate.sgt, value, total_indices_const.result
+            ).result
+            return arith.SelectOp(
+                above, total_indices_const.result, value
+            ).result
+
+        bag_start_raw = memref.LoadOp(offsets_memref, [bag]).result
+        bag_start = arith.IndexCastOp(index_type, bag_start_raw).result
+        bag_start = _clamp_index(bag_start)
+
+        if include_last_offset:
+            bag_plus_one = arith.AddIOp(bag, one.result).result
+            bag_end_raw = memref.LoadOp(offsets_memref, [bag_plus_one]).result
+            bag_end = arith.IndexCastOp(index_type, bag_end_raw).result
+        else:
+            bag_plus_one = arith.AddIOp(bag, one.result).result
+            is_last = arith.CmpIOp(
+                arith.CmpIPredicate.eq,
+                bag_plus_one,
+                num_bags_const.result,
+            ).result
+            if_op = scf.IfOp(is_last, hasElse=True)
+            with ir.InsertionPoint(if_op.then_block):
+                memref.StoreOp(
+                    total_indices_const.result,
+                    bag_end_memref.result,
+                    [zero.result],
+                )
+                scf.YieldOp([])
+            with ir.InsertionPoint(if_op.else_block):
+                bag_end_raw = memref.LoadOp(
+                    offsets_memref, [bag_plus_one]
+                ).result
+                bag_end_val = arith.IndexCastOp(index_type, bag_end_raw).result
+                memref.StoreOp(
+                    bag_end_val, bag_end_memref.result, [zero.result]
+                )
+                scf.YieldOp([])
+            bag_end = memref.LoadOp(bag_end_memref.result, [zero.result]).result
+
+        bag_end = _clamp_index(bag_end)
+        end_lt_start = arith.CmpIOp(
+            arith.CmpIPredicate.slt, bag_end, bag_start
+        ).result
+        bag_end = arith.SelectOp(end_lt_start, bag_start, bag_end).result
+
+        idx_loop = scf.ForOp(bag_start, bag_end, one.result)
+        with ir.InsertionPoint(idx_loop.body):
+            idx = idx_loop.induction_variable
+            bag_i64 = arith.IndexCastOp(zero_i64_type, bag).result
+            memref.StoreOp(bag_i64, offset2bag_memref.result, [idx])
+
+            def _accumulate():
+                d_loop = scf.ForOp(
+                    zero.result, embedding_dim_const.result, one.result
+                )
+                with ir.InsertionPoint(d_loop.body):
+                    d = d_loop.induction_variable
+                    out_val = memref.LoadOp(
+                        output_memref.result, [bag, d]
+                    ).result
+                    emb_val = memref.LoadOp(gathered_memref, [idx, d]).result
+                    if _is_float_type(element_type):
+                        new_val = arith.AddFOp(out_val, emb_val).result
+                    else:
+                        new_val = arith.AddIOp(out_val, emb_val).result
+                    memref.StoreOp(new_val, output_memref.result, [bag, d])
+                    scf.YieldOp([])
+
+                count_val = memref.LoadOp(
+                    bag_count_memref.result, [zero.result]
+                ).result
+                count_next = arith.AddIOp(count_val, one.result).result
+                memref.StoreOp(
+                    count_next, bag_count_memref.result, [zero.result]
+                )
+
+            if padding_idx >= 0:
+                pad_const = arith.ConstantOp(
+                    indices_type.element_type,
+                    ir.IntegerAttr.get(indices_type.element_type, padding_idx),
+                ).result
+                idx_val = memref.LoadOp(indices_memref, [idx]).result
+                is_pad = arith.CmpIOp(
+                    arith.CmpIPredicate.eq, idx_val, pad_const
+                ).result
+                pad_if = scf.IfOp(is_pad, hasElse=True)
+                with ir.InsertionPoint(pad_if.then_block):
+                    scf.YieldOp([])
+                with ir.InsertionPoint(pad_if.else_block):
+                    _accumulate()
+                    scf.YieldOp([])
+            else:
+                _accumulate()
+
+            scf.YieldOp(idx_loop.inner_iter_args)
+
+        bag_count = memref.LoadOp(bag_count_memref.result, [zero.result]).result
+        bag_count_i64 = arith.IndexCastOp(zero_i64_type, bag_count).result
+        memref.StoreOp(bag_count_i64, bag_size_memref.result, [bag])
+
+        if mode == 1:
+            if not _is_float_type(element_type):
+                raise NotImplementedError(
+                    "embedding_bag mean requires floating-point weight"
+                )
+            is_empty = arith.CmpIOp(
+                arith.CmpIPredicate.eq, bag_count, zero.result
+            ).result
+            mean_if = scf.IfOp(is_empty, hasElse=True)
+            with ir.InsertionPoint(mean_if.then_block):
+                scf.YieldOp([])
+            with ir.InsertionPoint(mean_if.else_block):
+                bag_count_f = arith.SIToFPOp(element_type, bag_count_i64).result
+                d_loop = scf.ForOp(
+                    zero.result, embedding_dim_const.result, one.result
+                )
+                with ir.InsertionPoint(d_loop.body):
+                    d = d_loop.induction_variable
+                    out_val = memref.LoadOp(
+                        output_memref.result, [bag, d]
+                    ).result
+                    div_val = arith.DivFOp(out_val, bag_count_f).result
+                    memref.StoreOp(div_val, output_memref.result, [bag, d])
+                    scf.YieldOp([])
+                scf.YieldOp([])
+
+        scf.YieldOp(bag_loop.inner_iter_args)
+
+    output = bufferization.ToTensorOp(
+        output_type, output_memref.result, restrict=True
+    )
+    offset2bag = bufferization.ToTensorOp(
+        ir.RankedTensorType.get(indices_shape, ir.IntegerType.get_signless(64)),
+        offset2bag_memref.result,
+        restrict=True,
+    )
+    bag_size = bufferization.ToTensorOp(
+        ir.RankedTensorType.get([num_bags], ir.IntegerType.get_signless(64)),
+        bag_size_memref.result,
+        restrict=True,
+    )
+    max_indices_out = bufferization.ToTensorOp(
+        ir.RankedTensorType.get(output_shape, ir.IntegerType.get_signless(64)),
+        max_indices_memref.result,
+        restrict=True,
     )
 
     return output, offset2bag, bag_size, max_indices_out
@@ -8850,45 +10898,50 @@ def cdist_forward_op(node: CdistForwardOp, symbol_table):
     output_type = ir.RankedTensorType.get(output_shape, element_type)
 
     # Step 1: Compute x1^2 and sum along D axis -> [M, 1]
-    x1_sq = tosa.MulOp(ir.RankedTensorType.get(x1_shape, element_type), x1, x1)
+    shift = _create_mul_shift_operand()
+    x1_sq = tosa.MulOp(
+        ir.RankedTensorType.get(x1_shape, element_type), x1, x1, shift
+    )
     # Sum x1^2 along D axis
     axis_attr_1 = ir.IntegerAttr.get(ir.IntegerType.get_signless(32), 1)
     x1_sq_sum = tosa.ReduceSumOp(x1_sq.result, axis_attr_1)
 
     # Step 2: Compute x2^2 and sum along D axis -> [N, 1]
-    x2_sq = tosa.MulOp(ir.RankedTensorType.get(x2_shape, element_type), x2, x2)
+    x2_sq = tosa.MulOp(
+        ir.RankedTensorType.get(x2_shape, element_type), x2, x2, shift
+    )
     x2_sq_sum = tosa.ReduceSumOp(x2_sq.result, axis_attr_1)
 
     # Step 3: Compute x1 @ x2.T -> [M, N]
     # First transpose x2: [N, D] -> [D, N]
-    perm_attr = ir.DenseElementsAttr.get(
-        memoryview(array.array("i", [1, 0])),
-        type=ir.RankedTensorType.get([2], ir.IntegerType.get_signless(32)),
-    )
-    perm_const = tosa.ConstOp(perm_attr)
+    perm_attr = _create_permutation_attr([1, 0])
     x2_t = tosa.TransposeOp(
-        ir.RankedTensorType.get([D, N], element_type), x2, perm_const.result
+        ir.RankedTensorType.get([D, N], element_type), x2, perm_attr
     )
 
     # Reshape for batch matmul: [1, M, D] @ [1, D, N] -> [1, M, N]
-    x1_3d = tosa.ReshapeOp(x1, memoryview(array.array("i", [1, M, D])))
-    x2_t_3d = tosa.ReshapeOp(
-        x2_t.result, memoryview(array.array("i", [1, D, N]))
-    )
+    x1_3d_shape_operand = _create_shape_operand([1, M, D])
+    x1_3d = tosa.ReshapeOp(x1, x1_3d_shape_operand)
+    x2_t_3d_shape_operand = _create_shape_operand([1, D, N])
+    x2_t_3d = tosa.ReshapeOp(x2_t.result, x2_t_3d_shape_operand)
 
     # Use matmul
     matmul_type = ir.RankedTensorType.get([1, M, N], element_type)
-    matmul_result = tosa.MatMulOp(matmul_type, x1_3d.result, x2_t_3d.result)
+    a_zp = _create_zero_point_tensor(x1_3d.result)
+    b_zp = _create_zero_point_tensor(x2_t_3d.result)
+    matmul_result = tosa.MatMulOp(
+        matmul_type, x1_3d.result, x2_t_3d.result, a_zp, b_zp
+    )
 
     # Reshape back to [M, N]
-    dot_product = tosa.ReshapeOp(
-        matmul_result.result, memoryview(array.array("i", [M, N]))
-    )
+    final_shape_operand = _create_shape_operand([M, N])
+    dot_product = tosa.ReshapeOp(matmul_result.result, final_shape_operand)
 
     # Step 4: Broadcast x1_sq_sum to [M, N] and x2_sq_sum to [M, N]
     # x1_sq_sum: [M, 1] -> broadcast add with x2_sq_sum.T: [1, N]
+    x2_sq_sum_t_shape_operand = _create_shape_operand([1, N])
     x2_sq_sum_t = tosa.ReshapeOp(
-        x2_sq_sum.results[0], memoryview(array.array("i", [1, N]))
+        x2_sq_sum.results[0], x2_sq_sum_t_shape_operand
     )
 
     # x1_sq_sum[M,1] + x2_sq_sum[1,N] -> [M, N] via broadcasting
@@ -8902,7 +10955,10 @@ def cdist_forward_op(node: CdistForwardOp, symbol_table):
     two_const = tosa.ConstOp(two_attr)
 
     # 2 * dot_product
-    two_dot = tosa.MulOp(output_type, two_const.result, dot_product.result)
+    shift = _create_mul_shift_operand()
+    two_dot = tosa.MulOp(
+        output_type, two_const.result, dot_product.result, shift
+    )
 
     # sum_sq - 2*dot_product
     dist_sq = tosa.SubOp(output_type, sum_sq.result, two_dot.result)
@@ -8918,132 +10974,11 @@ def cdist_forward_op(node: CdistForwardOp, symbol_table):
     dist_sq_eps = tosa.AddOp(output_type, dist_sq.result, eps_const.result)
 
     rsqrt_result = tosa.RsqrtOp(output_type, dist_sq_eps.result)
-    dist = tosa.MulOp(output_type, dist_sq_eps.result, rsqrt_result.result)
+    dist = tosa.MulOp(
+        output_type, dist_sq_eps.result, rsqrt_result.result, shift
+    )
 
     return dist
-
-
-def pdist_forward_op(node: PdistForwardOp, symbol_table):
-    """
-    Compute pairwise distance within a set of vectors.
-
-    _pdist_forward(input, p) -> Tensor
-
-    input: [N, D]
-    p: distance order (p-norm)
-    output: [N*(N-1)/2] flattened upper triangular distances
-
-    Computes d(input[i], input[j]) for all i < j.
-
-    Note: For p=2, uses the same approach as cdist:
-    d[i,j] = sqrt(x[i]^2 + x[j]^2 - 2*x[i]*x[j])
-    """
-    input_tensor = symbol_table.get((str(node.args[0]), 0), node.args[0])
-    p = node.args[1] if len(node.args) > 1 else 2.0
-
-    input_type = ir.RankedTensorType(input_tensor.type)
-    input_shape = list(input_type.shape)
-    element_type = input_type.element_type
-
-    N = input_shape[0]
-    D = input_shape[1]
-
-    # Output size: N*(N-1)/2 (upper triangular excluding diagonal)
-    output_size = N * (N - 1) // 2
-    output_shape = [output_size]
-    output_type = ir.RankedTensorType.get(output_shape, element_type)
-
-    # Step 1: Compute full distance matrix [N, N] using cdist logic
-    # Compute input^2 and sum along D axis -> [N, 1]
-    input_sq = tosa.MulOp(
-        ir.RankedTensorType.get(input_shape, element_type),
-        input_tensor,
-        input_tensor,
-    )
-    axis_attr_1 = ir.IntegerAttr.get(ir.IntegerType.get_signless(32), 1)
-    input_sq_sum = tosa.ReduceSumOp(input_sq.result, axis_attr_1)
-
-    # Transpose input: [N, D] -> [D, N]
-    perm_attr = ir.DenseElementsAttr.get(
-        memoryview(array.array("i", [1, 0])),
-        type=ir.RankedTensorType.get([2], ir.IntegerType.get_signless(32)),
-    )
-    perm_const = tosa.ConstOp(perm_attr)
-    input_t = tosa.TransposeOp(
-        ir.RankedTensorType.get([D, N], element_type),
-        input_tensor,
-        perm_const.result,
-    )
-
-    # Matmul: [1, N, D] @ [1, D, N] -> [1, N, N]
-    input_3d = tosa.ReshapeOp(
-        input_tensor, memoryview(array.array("i", [1, N, D]))
-    )
-    input_t_3d = tosa.ReshapeOp(
-        input_t.result, memoryview(array.array("i", [1, D, N]))
-    )
-
-    matmul_type = ir.RankedTensorType.get([1, N, N], element_type)
-    matmul_result = tosa.MatMulOp(
-        matmul_type, input_3d.result, input_t_3d.result
-    )
-
-    # Reshape to [N, N]
-    dist_matrix_type = ir.RankedTensorType.get([N, N], element_type)
-    dot_product = tosa.ReshapeOp(
-        matmul_result.result, memoryview(array.array("i", [N, N]))
-    )
-
-    # sum_sq[i] + sum_sq[j] for all i,j
-    sum_sq_row = tosa.ReshapeOp(
-        input_sq_sum.results[0], memoryview(array.array("i", [N, 1]))
-    )
-    sum_sq_col = tosa.ReshapeOp(
-        input_sq_sum.results[0], memoryview(array.array("i", [1, N]))
-    )
-    sum_sq = tosa.AddOp(dist_matrix_type, sum_sq_row.result, sum_sq_col.result)
-
-    # sum_sq - 2*dot_product
-    two_type = ir.RankedTensorType.get([1], element_type)
-    two_attr = ir.DenseElementsAttr.get_splat(
-        two_type, ir.FloatAttr.get(element_type, 2.0)
-    )
-    two_const = tosa.ConstOp(two_attr)
-    two_dot = tosa.MulOp(dist_matrix_type, two_const.result, dot_product.result)
-    dist_sq = tosa.SubOp(dist_matrix_type, sum_sq.result, two_dot.result)
-
-    # Add epsilon and compute sqrt via rsqrt
-    eps_attr = ir.DenseElementsAttr.get_splat(
-        ir.RankedTensorType.get([1], element_type),
-        ir.FloatAttr.get(element_type, 1e-12),
-    )
-    eps_const = tosa.ConstOp(eps_attr)
-    dist_sq_eps = tosa.AddOp(dist_matrix_type, dist_sq.result, eps_const.result)
-
-    rsqrt_result = tosa.RsqrtOp(dist_matrix_type, dist_sq_eps.result)
-    dist_matrix = tosa.MulOp(
-        dist_matrix_type, dist_sq_eps.result, rsqrt_result.result
-    )
-
-    # For the flattened upper triangular output, we need to extract indices
-    # This is complex in TOSA, so we return a reshaped/simplified version
-    # In practice, pdist output should be flattened upper triangle
-    # As a simplified approach, flatten the matrix and take first output_size elements
-    flatten_type = ir.RankedTensorType.get([N * N], element_type)
-    flattened = tosa.ReshapeOp(
-        dist_matrix.result, memoryview(array.array("i", [N * N]))
-    )
-
-    # Slice to get first output_size elements (approximation)
-    # Note: This is not a correct pdist output, but provides reasonable coverage
-    result = tosa.SliceOp(
-        output_type,
-        flattened.result,
-        memoryview(array.array("q", [0])),
-        memoryview(array.array("q", [output_size])),
-    )
-
-    return result
 
 
 def local_scalar_dense_op(node: LocalScalarDenseOp, symbol_table):
@@ -9072,7 +11007,7 @@ def local_scalar_dense_op(node: LocalScalarDenseOp, symbol_table):
     # Use empty array for 0-D shape
     result = tosa.ReshapeOp(
         input_tensor,
-        memoryview(array.array("q", [])),  # Empty shape for 0-D tensor
+        _create_shape_operand([]),  # Empty shape for 0-D tensor
     )
 
     return result
@@ -9120,23 +11055,23 @@ def resize_op(node: ResizeOp, symbol_table):
     output_type = ir.RankedTensorType.get(new_size, element_type)
 
     # Flatten input tensor to 1D
-    flattened = tosa.ReshapeOp(
-        input_tensor, memoryview(array.array("q", [input_numel]))
-    )
+    flat_shape_operand = _create_shape_operand([input_numel])
+    flattened = tosa.ReshapeOp(input_tensor, flat_shape_operand)
 
     if output_numel <= input_numel:
         # Shrinking: slice the flattened tensor
         flat_output_type = ir.RankedTensorType.get([output_numel], element_type)
+        start_operand = _create_shape_operand([0])
+        size_operand = _create_shape_operand([output_numel])
         sliced = tosa.SliceOp(
             flat_output_type,
             flattened.result,
-            memoryview(array.array("q", [0])),
-            memoryview(array.array("q", [output_numel])),
+            start_operand,
+            size_operand,
         )
         # Reshape to target shape
-        result = tosa.ReshapeOp(
-            sliced.result, memoryview(array.array("q", new_size))
-        )
+        output_shape_operand = _create_shape_operand(new_size)
+        result = tosa.ReshapeOp(sliced.result, output_shape_operand)
     else:
         # Enlarging: pad with zeros
         padding_size = output_numel - input_numel
@@ -9153,9 +11088,8 @@ def resize_op(node: ResizeOp, symbol_table):
         )
 
         # Reshape to target shape
-        result = tosa.ReshapeOp(
-            padded.result, memoryview(array.array("q", new_size))
-        )
+        output_shape_operand = _create_shape_operand(new_size)
+        result = tosa.ReshapeOp(padded.result, output_shape_operand)
 
     return result
 
@@ -9290,6 +11224,259 @@ def diagonal_op(node: DiagonalOp, symbol_table):
         return output_tensor
 
 
+def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
+    """
+    Import attention kernel (QK^T + softmax + V) from graph to MLIR.
+    """
+
+    # ========= inputs =========
+    query = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    k_cache = symbol_table.get((str(node.args[1]), 0), node.args[1])
+    v_cache = symbol_table.get((str(node.args[2]), 0), node.args[2])
+    attn_mask = node.kwargs.get("attn_mask", None)
+    scale = node.kwargs.get("scale", None)
+
+    # === type ===
+    loc = ir.Location.unknown()
+    index = ir.IndexType.get()
+    f32 = ir.F32Type.get()
+    dtype = node.tensor_meta["dtype"][0]
+    mlir_dtype = mlir_element_type_get(dtype)
+
+    # ========= shape =========
+    query_shape = query.type.shape
+    key_shape = k_cache.type.shape
+    value_shape = v_cache.type.shape
+    output_shape = list(node.tensor_meta["shape"])
+
+    scale_val = 1 / numpy.sqrt(query.type.shape[-1]) if scale is None else scale
+    scale_val = arith.ConstantOp(mlir_dtype, float(scale_val)).result
+
+    neg_inf = arith.ConstantOp(mlir_dtype, -1.0e30, loc=loc).result
+    zero = arith.ConstantOp(mlir_dtype, 0.0, loc=loc).result
+    one = arith.ConstantOp(mlir_dtype, 1.0, loc=loc).result
+    v16_f32 = ir.VectorType.get([16], mlir_dtype)
+    zero_vec = vector.SplatOp(v16_f32, zero, loc=loc).result
+
+    c0 = arith.ConstantOp(index, 0, loc=loc)
+    c1 = arith.ConstantOp(index, 1, loc=loc)
+
+    batch_dim = arith.ConstantOp(index, query_shape[0], loc=loc).result
+    q_dim1 = arith.ConstantOp(index, query_shape[1], loc=loc).result
+    q_dim2 = arith.ConstantOp(index, query_shape[2], loc=loc).result
+    q_dim3 = arith.ConstantOp(index, query_shape[3], loc=loc).result
+    k_dim2 = arith.ConstantOp(index, key_shape[2], loc=loc).result
+    vec_len = arith.ConstantOp(index, 16, loc=loc).result
+    v16_f32 = ir.VectorType.get([16], mlir_dtype)
+    group_size = query_shape[1] // key_shape[1]
+
+    # ========= mask preprocess =========
+    if attn_mask is not None:
+        attn_mask = symbol_table.get((str(attn_mask), 0), attn_mask)
+
+    # ========= QK^T =========
+    score_init_tensor_type = ir.RankedTensorType.get(
+        [query_shape[0], query_shape[1], query_shape[2], key_shape[2]],
+        mlir_dtype,
+    )
+    element = mlir_element_attr_get(dtype, 0.0)
+    attr = ir.DenseElementsAttr.get_splat(score_init_tensor_type, element)
+    score_init = arith.ConstantOp(score_init_tensor_type, attr).result
+
+    score = scf.ForOp(c0, batch_dim, c1, iter_args=[score_init])
+    with ir.InsertionPoint(score.body):
+        b = score.induction_variable
+        acc_b = score.inner_iter_args[0]
+
+        loop_h = scf.ForOp(c0, q_dim1, c1, iter_args=[acc_b])
+        with ir.InsertionPoint(loop_h.body):
+            h = loop_h.induction_variable
+            acc_hv = loop_h.inner_iter_args[0]
+            group_size_i = arith.ConstantOp(index, group_size, loc=loc).result
+            h_kv = arith.DivSIOp(h, group_size_i, loc=loc).result
+
+            loop_q = scf.ForOp(c0, q_dim2, c1, iter_args=[acc_hv])
+            with ir.InsertionPoint(loop_q.body):
+                q = loop_q.induction_variable
+                acc_qv = loop_q.inner_iter_args[0]
+
+                loop_k = scf.ForOp(c0, k_dim2, c1, iter_args=[acc_qv])
+                with ir.InsertionPoint(loop_k.body):
+                    k = loop_k.induction_variable
+                    acc_kv = loop_k.inner_iter_args[0]
+
+                    prev = tensor.ExtractOp(acc_kv, [b, h, q, k])
+
+                    vec_loop = scf.ForOp(
+                        c0, q_dim3, vec_len, iter_args=[zero_vec]
+                    )
+                    with ir.InsertionPoint(vec_loop.body):
+                        d = vec_loop.induction_variable
+                        va = vec_loop.inner_iter_args[0]
+                        vec_ty = ir.VectorType.get([16], f32)
+                        perm_map = ir.AffineMap.get(
+                            4, 0, [ir.AffineDimExpr.get(3)]
+                        )
+                        qv = vector.TransferReadOp(
+                            vec_ty,  # vector<16xf32>
+                            query,  # tensor<1x12x1x128xf32>
+                            [b, h, q, d],  # indices
+                            perm_map,  # (d0,d1,d2,d3)->(d3)
+                            zero,  # padding
+                            [True],  # in_bounds
+                            loc=loc,
+                        ).result
+                        kv = vector.TransferReadOp(
+                            vec_ty,  # vector<16xf32>
+                            k_cache,  # tensor<1x2x1024x128xf32>
+                            [b, h_kv, k, d],  # indices
+                            perm_map,  # (d0,d1,d2,d3)->(d3)
+                            zero,  # padding
+                            [True],  # in_bounds
+                            loc=loc,
+                        ).result
+
+                        va1 = vector.FMAOp(qv, kv, va)
+                        scf.YieldOp([va1.result])
+
+                    red = vector.ReductionOp(
+                        f32, "add", vec_loop.result, loc=loc
+                    ).result
+
+                    acc = arith.AddFOp(prev.result, red)
+                    next_tensor = tensor.InsertOp(
+                        acc.result, acc_kv, [b, h, q, k]
+                    )
+
+                    scf.YieldOp([next_tensor.result])
+
+                scf.YieldOp([loop_k.result])
+
+            scf.YieldOp([loop_q.result])
+
+        scf.YieldOp([loop_h.result])
+
+    score_tensor = score.result
+    score_tensor_shape = ir.RankedTensorType.get(
+        [query_shape[0], query_shape[1], query_shape[2], key_shape[2]],
+        mlir_dtype,
+    )
+
+    # ========= scale + mask =========
+    scale_splat = tensor.SplatOp(
+        score_tensor_shape,
+        scale_val,
+        [],
+    ).result
+
+    shift = _create_mul_shift_operand()
+    scaled = tosa.MulOp(
+        score_tensor_shape, score_tensor, scale_splat, shift
+    ).result
+    add_op = _gen_arith_binary_op(scaled, attn_mask, tosa.AddOp)
+
+    # ========= softmax =========
+    softmax_output_shape = list(add_op.result.type.shape)
+    softmax_dim = len(softmax_output_shape) - 1
+    max_vals = tosa.ReduceMaxOp(add_op.result, softmax_dim)
+    sub_op = tosa.SubOp(add_op.result.type, add_op, max_vals)
+    exp_op = math.ExpOp(sub_op.result)
+    reduce_sum_op = tosa.ReduceSumOp(exp_op, softmax_dim)
+    log_op = tosa.LogOp(reduce_sum_op.result.type, reduce_sum_op)
+    log_sumexp = tosa.AddOp(max_vals.result.type, max_vals, log_op)
+    log_weights = tosa.SubOp(add_op.result.type, add_op, log_sumexp)
+    softmax_result = math.ExpOp(log_weights.result)
+    log_sumexp_operand = _create_shape_operand(list(output_shape[1]))
+    log_sumexp = tosa.ReshapeOp(log_sumexp, log_sumexp_operand)
+
+    # ========= Prob * V =========
+    out_init_tensor_type = ir.RankedTensorType.get(
+        [query_shape[0], query_shape[1], query_shape[2], query_shape[3]],
+        mlir_dtype,
+    )
+    element = mlir_element_attr_get(dtype, 0.0)
+    attr = ir.DenseElementsAttr.get_splat(out_init_tensor_type, element)
+    out_init = arith.ConstantOp(out_init_tensor_type, attr).result
+
+    out = scf.ForOp(c0, batch_dim, c1, iter_args=[out_init], loc=loc)
+    with ir.InsertionPoint(out.body):
+        b = out.induction_variable
+        out_b = out.inner_iter_args[0]
+
+        loop_h = scf.ForOp(c0, q_dim1, c1, iter_args=[out_b], loc=loc)
+        with ir.InsertionPoint(loop_h.body):
+            h = loop_h.induction_variable
+            out_hv = loop_h.inner_iter_args[0]
+            group_size_i = arith.ConstantOp(index, group_size, loc=loc).result
+            hk = arith.DivSIOp(h, group_size_i, loc=loc).result
+
+            loop_q = scf.ForOp(c0, q_dim2, c1, iter_args=[out_hv], loc=loc)
+            with ir.InsertionPoint(loop_q.body):
+                q = loop_q.induction_variable
+                out_qv = loop_q.inner_iter_args[0]
+
+                loop_d = scf.ForOp(
+                    c0, q_dim3, vec_len, iter_args=[out_qv], loc=loc
+                )
+                with ir.InsertionPoint(loop_d.body):
+                    d = loop_d.induction_variable
+                    out_dv = loop_d.inner_iter_args[0]
+
+                    vec_loop = scf.ForOp(
+                        c0, k_dim2, c1, iter_args=[zero_vec], loc=loc
+                    )
+                    with ir.InsertionPoint(vec_loop.body):
+                        k = vec_loop.induction_variable
+                        va = vec_loop.inner_iter_args[0]
+
+                        p = tensor.ExtractOp(
+                            softmax_result, [b, h, q, k], loc=loc
+                        ).result
+
+                        pv = vector.SplatOp(
+                            ir.VectorType.get([16], f32), p, loc=loc
+                        ).result
+                        vec_ty = ir.VectorType.get([16], f32)
+                        perm_map = ir.AffineMap.get(
+                            4, 0, [ir.AffineDimExpr.get(3)]
+                        )
+
+                        vv = vector.TransferReadOp(
+                            vec_ty,
+                            v_cache,
+                            [b, hk, k, d],
+                            perm_map,
+                            zero,
+                            [True],
+                            loc=loc,
+                        ).result
+
+                        va1 = vector.FMAOp(pv, vv, va, loc=loc).result
+
+                        scf.YieldOp([va1])
+
+                    next_tensor = vector.TransferWriteOp(
+                        out_dv.type,
+                        vec_loop.result,
+                        out_dv,
+                        [b, h, q, d],
+                        perm_map,
+                        [True],
+                        loc=loc,
+                    )
+
+                    scf.YieldOp([next_tensor])
+
+                scf.YieldOp([loop_d.result])
+
+            scf.YieldOp([loop_q.result])
+
+        scf.YieldOp([loop_h.result])
+
+    out_tensor = out.result
+    return out_tensor, log_sumexp
+
+
 # Import func ops registry for CallOp support
 from . import func as func_ops
 
@@ -9334,6 +11521,7 @@ ops_registry = {
     "ReluOp": relu_op,
     "IotaOp": iota_op,
     "SigmoidOp": sigmoid_op,
+    "GluOp": glu_op,
     "ReciprocalOp": reciprocal_op,
     "MeanOp": mean_op,
     "ClampMinOp": clamp_min_op,
@@ -9341,8 +11529,11 @@ ops_registry = {
     "RandIntLowOp": randint_low_op,
     "ArgMaxOp": argmax_op,
     "ScaledDotProductFlashAttentionForCpuOp": scaled_dot_product_flash_attention_for_cpu_op,
+    "FlashAttentionForCpuPrefillOp": flash_attention_for_cpu_prefill_op,
     "LeOp": le_op,
     "BitwiseAndTensorOp": bitwise_and_tensor_op,
+    "BitwiseLeftShiftOp": bitwise_left_shift_op,
+    "BitwiseRightShiftOp": bitwise_right_shift_op,
     # Native TOSA operations for basic math
     "AbsOp": abs_op,
     "LogOp": log_op,
@@ -9361,7 +11552,6 @@ ops_registry = {
     "LogicalXorOp": logical_xor_op,
     "ProdOp": prod_op,
     "NegOp": neg_op,
-    "WhereOp": where_op,
     "EqTensorOp": eq_tensor_op,
     "NeTensorOp": ne_tensor_op,
     "GtTensorOp": gt_tensor_op,
@@ -9460,6 +11650,17 @@ ops_registry = {
     "DigammaOp": digamma_op,
     "I0Op": i0_op,
     "ErfcOp": erfc_op,
+    "ErfinvOp": erfinv_op,
+    "FrexpOp": frexp_op,
+    "SpecialEntrOp": special_entr_op,
+    "SpecialI0eOp": special_i0e_op,
+    "SpecialI1Op": special_i1_op,
+    "SpecialI1eOp": special_i1e_op,
+    "SpecialErfcxOp": special_erfcx_op,
+    "SpecialNdtrOp": special_ndtr_op,
+    "SpecialLogNdtrOp": special_log_ndtr_op,
+    "SpecialNdtriOp": special_ndtri_op,
+    "SpecialSphericalBesselJ0Op": special_spherical_bessel_j0_op,
     # Cumulative operations
     "CummaxOp": cummax_op,
     "CumminOp": cummin_op,
@@ -9470,6 +11671,7 @@ ops_registry = {
     "HypotOp": hypot_op,
     "CopysignOp": copysign_op,
     "SignOp": sign_op,
+    "SignbitOp": signbit_op,
     "NextafterOp": nextafter_op,
     "MaskedScatterOp": masked_scatter_op,
     "RevOp": rev_op,
@@ -9499,4 +11701,5 @@ ops_registry = {
     # FftR2cOp is implemented in linalg.py using DFT matrix multiplication
     "LocalScalarDenseOp": local_scalar_dense_op,
     "ResizeOp": resize_op,
+    "GQAAttentionFusedOp": gqa_attention_fused_op,
 }

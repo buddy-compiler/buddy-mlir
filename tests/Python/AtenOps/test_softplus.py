@@ -29,5 +29,8 @@ print(graph._imported_module)
 # CHECK: func.func @forward
 # CHECK: tosa.exp
 # CHECK: math.log1p
-# CHECK: tosa.select
+# CHECK: tosa.greater
+# CHECK: tensor.empty
+# CHECK: linalg.generic
+# CHECK: arith.select
 # CHECK: return

@@ -41,7 +41,6 @@ add_custom_command(
             -ownership-based-buffer-deallocation
             -buffer-deallocation-simplification
             -bufferization-lower-deallocations
-            -func-bufferize-dynamic-offset
             -convert-linalg-to-loops
             -convert-scf-to-cf
             -convert-cf-to-llvm

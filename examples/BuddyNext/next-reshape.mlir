@@ -18,7 +18,6 @@
 // RUN:     -convert-vector-to-scf \
 // RUN:     -lower-affine \
 // RUN:     -convert-scf-to-openmp \
-// RUN:     -func-bufferize-dynamic-offset \
 // RUN:     -cse \
 // RUN:     -memref-expand \
 // RUN:     -arith-expand \
@@ -51,7 +50,8 @@ func.func private @printMemrefF32(%ptr : tensor<*xf32>)
 func.func @kernel(%arg0: tensor<1536x8960xf32>, %arg1: tensor<1x1024x1536xf32>, %arg2: tensor<1024x8960xf32>) -> tensor<1024x8960xf32> {
   %t_start = call @rtclock() : () -> f64
 
-  %176 = tosa.reshape %arg1 {new_shape = array<i64: 1024, 1536>} : (tensor<1x1024x1536xf32>) -> tensor<1024x1536xf32>
+  %s0 = tosa.const_shape {values = dense<[1024, 1536]> : tensor<2xindex>} : () -> !tosa.shape<2>
+  %176 = tosa.reshape %arg1, %s0 : (tensor<1x1024x1536xf32>, !tosa.shape<2>) -> tensor<1024x1536xf32>
   %177 = linalg.matmul ins(%176, %arg0 : tensor<1024x1536xf32>, tensor<1536x8960xf32>) outs(%arg2 : tensor<1024x8960xf32>) -> tensor<1024x8960xf32>
 
   %t_end = call @rtclock() : () -> f64

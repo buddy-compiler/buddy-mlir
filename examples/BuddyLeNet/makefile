@@ -26,24 +26,24 @@ buddy-lenet-lower:
 	${BUDDY_OPT} \
 		-eliminate-empty-tensors \
 		-convert-tensor-to-linalg \
-		-linalg-bufferize \
+		-one-shot-bufferize="bufferize-function-boundaries" \
+		-ownership-based-buffer-deallocation \
+		-buffer-deallocation-simplification \
+		-bufferization-lower-deallocations \
 		-batchmatmul-optimize \
 		-convert-linalg-to-affine-loops \
-		-lower-affine \
-		-func-bufferize \
-		-arith-bufferize \
-		-tensor-bufferize \
-		-buffer-deallocation \
-		-finalizing-bufferize \
 		-convert-vector-to-scf \
 		-expand-strided-metadata \
+		-lower-affine \
 		-convert-vector-to-llvm \
 		-convert-arith-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-llvm-request-c-wrappers \
 		-convert-arith-to-llvm \
 		-convert-func-to-llvm \
-		-reconcile-unrealized-casts \
+		-reconcile-unrealized-casts | \
 		-o ./log.mlir
 
 buddy-lenet-translate:
@@ -52,20 +52,21 @@ buddy-lenet-translate:
 	${BUDDY_OPT} \
 		-eliminate-empty-tensors \
 		-convert-tensor-to-linalg \
-		-linalg-bufferize \
+		-one-shot-bufferize="bufferize-function-boundaries" \
+		-ownership-based-buffer-deallocation \
+		-buffer-deallocation-simplification \
+		-bufferization-lower-deallocations \
+		-batchmatmul-optimize \
 		-convert-linalg-to-affine-loops \
-		-lower-affine \
-		-func-bufferize \
-		-arith-bufferize \
-		-tensor-bufferize \
-		-buffer-deallocation \
-		-finalizing-bufferize \
 		-convert-vector-to-scf \
 		-expand-strided-metadata \
+		-lower-affine \
 		-convert-vector-to-llvm \
 		-convert-arith-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-llvm-request-c-wrappers \
 		-convert-arith-to-llvm \
 		-convert-func-to-llvm \
 		-reconcile-unrealized-casts | \
@@ -78,20 +79,21 @@ buddy-lenet-run:
 	${BUDDY_OPT} \
 		-eliminate-empty-tensors \
 		-convert-tensor-to-linalg \
-		-linalg-bufferize \
+		-one-shot-bufferize="bufferize-function-boundaries" \
+		-ownership-based-buffer-deallocation \
+		-buffer-deallocation-simplification \
+		-bufferization-lower-deallocations \
+		-batchmatmul-optimize \
 		-convert-linalg-to-affine-loops \
-		-lower-affine \
-		-func-bufferize \
-		-arith-bufferize \
-		-tensor-bufferize \
-		-buffer-deallocation \
-		-finalizing-bufferize \
 		-convert-vector-to-scf \
 		-expand-strided-metadata \
+		-lower-affine \
 		-convert-vector-to-llvm \
 		-convert-arith-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-llvm-request-c-wrappers \
 		-convert-arith-to-llvm \
 		-convert-func-to-llvm \
 		-reconcile-unrealized-casts | \
@@ -104,21 +106,21 @@ buddy-lenet-opt-run:
 	${BUDDY_OPT} \
 		-eliminate-empty-tensors \
 		-convert-tensor-to-linalg \
-		-linalg-bufferize \
+		-one-shot-bufferize="bufferize-function-boundaries" \
+		-ownership-based-buffer-deallocation \
+		-buffer-deallocation-simplification \
+		-bufferization-lower-deallocations \
 		-batchmatmul-optimize \
 		-convert-linalg-to-affine-loops \
-		-lower-affine \
-		-func-bufferize \
-		-arith-bufferize \
-		-tensor-bufferize \
-		-buffer-deallocation \
-		-finalizing-bufferize \
 		-convert-vector-to-scf \
 		-expand-strided-metadata \
+		-lower-affine \
 		-convert-vector-to-llvm \
 		-convert-arith-to-llvm \
 		-finalize-memref-to-llvm \
 		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-llvm-request-c-wrappers \
 		-convert-arith-to-llvm \
 		-convert-func-to-llvm \
 		-reconcile-unrealized-casts | \

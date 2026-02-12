@@ -64,7 +64,7 @@ def ConfigStOp : Gemmini_Op<"config_st"> {
   }];
   let arguments = (ins I64:$stride,
                        DefaultValuedAttr<I64Attr, "0">:$activation,
-                       DefaultValuedAttr<F32Attr, "1.0">:$scale);  
+                       DefaultValuedAttr<F32Attr, "1.0">:$scale);
   let assemblyFormat = "$stride attr-dict `:` type($stride)";
 }
 
@@ -88,19 +88,19 @@ def ConfigExOp : Gemmini_Op<"config_ex"> {
     ConfigExOp configures the execute pipeline.
     - dataflow: output-stationary (0) or weight-stationary (1) dataflow
     - sysAct: activation function relu (1) or no activation function (0)
-    - sysShift: the number of bits by which the accumulated result of a matmul 
+    - sysShift: the number of bits by which the accumulated result of a matmul
                 is right-shifted when leaving the systolic array.
-    - sysAccScale: the scalar value by which we scale the accType output of the 
+    - sysAccScale: the scalar value by which we scale the accType output of the
                    accumulator down to inputType values when reading from the
                    accumulator.
                    (In the default config, rs1[63:32] is of type float32)
     - cStride: TODO
-    - aStride: the stride (in scratchpad addresses) by which the rows of A are 
-               fed into the systolic array.  "A" in this context refers to the 
-               left-hand matrix A in the matmul represented by A * B = C. 
-               If this stride is 1, then we feed consecutive rows in the 
-               scratchpad, starting from the starting address of A, into the 
-               systolic array as the A matrix. If the stride is 2, then we feed 
+    - aStride: the stride (in scratchpad addresses) by which the rows of A are
+               fed into the systolic array.  "A" in this context refers to the
+               left-hand matrix A in the matmul represented by A * B = C.
+               If this stride is 1, then we feed consecutive rows in the
+               scratchpad, starting from the starting address of A, into the
+               systolic array as the A matrix. If the stride is 2, then we feed
                every other row into the systolic array instead.
     - aTranspose: transpose A
     - bTranspose: transpose B
@@ -192,7 +192,7 @@ def MvoutOp : Gemmini_Op<"mvout"> {
 
 def PrintOp : Gemmini_Op<"print"> {
   let summary = "Print memref value.";
-  let arguments = (ins AnyTypeOf<[I8MemRef, I32MemRef, F32MemRef, F64MemRef]>:$input); 
+  let arguments = (ins AnyTypeOf<[I8MemRef, I32MemRef, F32MemRef, F64MemRef]>:$input);
   let assemblyFormat = "$input attr-dict `:` type($input)";
 }
 
@@ -224,7 +224,7 @@ def PreloadOp : Gemmini_Op<"preload"> {
   let arguments = (ins I64:$bdAddr, I64:$cAddr, I64:$bdRows,
                        I64:$bdCols, I64:$cRows, I64:$cCols);
   let assemblyFormat = [{
-    $bdAddr $cAddr $bdRows $bdCols $cRows $cCols  attr-dict `:` type($bdAddr) 
+    $bdAddr $cAddr $bdRows $bdCols $cRows $cCols  attr-dict `:` type($bdAddr)
     type($cAddr) type($bdRows) type($bdCols) type($cRows) type($cCols)
   }];
 }
@@ -308,17 +308,17 @@ def TileConvOp : Gemmini_Op<"tile_conv"> {
                        I64:$outRowDim, I64:$outColDim, I64:$kernelDim,
                        DefaultValuedAttr<F32Attr, "1.0">:$scale,
                        DefaultValuedAttr<I64Attr, "1">:$stride,
-                       DefaultValuedAttr<I64Attr, "1">:$inputDilation, 
+                       DefaultValuedAttr<I64Attr, "1">:$inputDilation,
                        DefaultValuedAttr<I64Attr, "1">:$kernelDilation,
-                       DefaultValuedAttr<I64Attr, "0">:$padding, 
+                       DefaultValuedAttr<I64Attr, "0">:$padding,
                        DefaultValuedAttr<BoolAttr, "false">:$wrot180,
-                       DefaultValuedAttr<BoolAttr, "false">:$transOutput1203, 
+                       DefaultValuedAttr<BoolAttr, "false">:$transOutput1203,
                        DefaultValuedAttr<BoolAttr, "false">:$transInput3120,
-                       DefaultValuedAttr<BoolAttr, "false">:$transWeight1203, 
+                       DefaultValuedAttr<BoolAttr, "false">:$transWeight1203,
                        DefaultValuedAttr<BoolAttr, "false">:$transWeight0132,
                        DefaultValuedAttr<I64Attr, "0">:$act,
                        DefaultValuedAttr<I64Attr, "0">:$poolSize,
-                       DefaultValuedAttr<I64Attr, "0">:$poolStride, 
+                       DefaultValuedAttr<I64Attr, "0">:$poolStride,
                        DefaultValuedAttr<I64Attr, "0">:$poolPadding);
   let assemblyFormat = [{
     $input $weights $bias $output $outRowDim $outColDim $kernelDim attr-dict `:` type($input)
@@ -330,13 +330,13 @@ def TileConvOp : Gemmini_Op<"tile_conv"> {
 // Gemmini intrinsic operation definitions
 //===----------------------------------------------------------------------===//
 
-class Gemmini_IntrOpBase<string mnemonic, list<Trait> traits = []> : 
-  LLVM_IntrOpBase</*Dialect dialect=*/Gemmini_Dialect, 
+class Gemmini_IntrOpBase<string mnemonic, list<Trait> traits = []> :
+  LLVM_IntrOpBase</*Dialect dialect=*/Gemmini_Dialect,
                   /*string opName=*/"intr." # mnemonic,
                   /*string enumName=*/"riscv_" # !subst(".", "_", mnemonic),
-                  /*list<int> overloadedResults=*/[], 
-                  /*list<int> overloadedOperands=*/[], 
-                  /*list<Trait> traits=*/traits, 
+                  /*list<int> overloadedResults=*/[],
+                  /*list<int> overloadedOperands=*/[],
+                  /*list<Trait> traits=*/traits,
                   /*int numResults=*/0>;
 
 def Gemmini_Mvin_IntrOp : Gemmini_IntrOpBase<"mvin">,
@@ -354,16 +354,7 @@ def Gemmini_Mvout_IntrOp : Gemmini_IntrOpBase<"mvout">,
 def Gemmini_Flush_IntrOp : Gemmini_IntrOpBase<"flush">,
   Arguments<(ins LLVM_Type, LLVM_Type)>;
 
-def Gemmini_ConifgLd_IntrOp : Gemmini_IntrOpBase<"config_ld">,
-  Arguments<(ins LLVM_Type, LLVM_Type)>;
-
-def Gemmini_ConfigSt_IntrOp : Gemmini_IntrOpBase<"config_st">, 
-  Arguments<(ins LLVM_Type, LLVM_Type)>;
-
-def Gemmini_ConfigEX_IntrOp : Gemmini_IntrOpBase<"config_ex">, 
-  Arguments<(ins LLVM_Type, LLVM_Type)>;
-
-def Gemmini_ConfigNorm_IntrOp : Gemmini_IntrOpBase<"config_norm">, 
+def Gemmini_Config_IntrOp : Gemmini_IntrOpBase<"config">,
   Arguments<(ins LLVM_Type, LLVM_Type)>;
 
 def Gemmini_Preload_IntrOp : Gemmini_IntrOpBase<"preload">,
@@ -414,4 +405,4 @@ def Gemmini_LoopConvWsConfig5_IntrOp : Gemmini_IntrOpBase<"loop_conv_ws_config5"
 def Gemmini_LoopConvWsConfig6_IntrOp : Gemmini_IntrOpBase<"loop_conv_ws_config6">,
   Arguments<(ins LLVM_Type, LLVM_Type)>;
 
-#endif 
+#endif

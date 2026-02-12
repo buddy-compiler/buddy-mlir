@@ -28,6 +28,9 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Tosa/IR/TosaOps.h"
 #include "mlir/IR/PatternMatch.h"
+#include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinAttributes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
@@ -93,8 +96,16 @@ struct ReplaceScalarLikeMatmul : public OpRewritePattern<tosa::MatMulOp> {
 
     // Replace matmul with elementwise mul; types are already aligned so
     // broadcasting of rhs [...,1,1] to lhs [...,I,1] is valid.
+    // Create shift operand for MulOp (required by TOSA spec)
+    auto i8Type = IntegerType::get(op.getContext(), 8);
+    auto shiftType = RankedTensorType::get({1}, i8Type);
+    auto zeroAttr = IntegerAttr::get(i8Type, 0);
+    auto denseAttr = DenseElementsAttr::get(shiftType, zeroAttr);
+    auto shiftOp = rewriter.create<tosa::ConstOp>(op.getLoc(), shiftType,
+                                                   denseAttr);
+    
     rewriter.replaceOpWithNewOp<tosa::MulOp>(op, outTy, op.getA(), op.getB(),
-                                             Value());
+                                             shiftOp.getResult());
     return success();
   }
 };
@@ -116,7 +127,7 @@ public:
     patterns.add<ReplaceScalarLikeMatmul>(ctx);
 
     GreedyRewriteConfig config;
-    config.strictMode = GreedyRewriteStrictness::AnyOp; // allow creating mul
+    config.setStrictness(GreedyRewriteStrictness::AnyOp); // allow creating mul
     (void)applyPatternsGreedily(func, std::move(patterns), config);
   }
 

@@ -70,7 +70,8 @@ public:
     dip::BoundaryOption boundaryOptionAttr = op.getBoundaryOption();
     Value strideVal = rewriter.create<arith::ConstantIndexOp>(loc, stride);
 
-    auto inElemTy = input.getType().cast<MemRefType>().getElementType();
+    auto inElemTy =
+        mlir::cast<mlir::MemRefType>(input.getType()).getElementType();
     dip::DIP_ERROR error = dip::checkDIPCommonTypes<dip::Corr2DOp>(
         op, {input, kernel, output, constantValue});
 
@@ -175,7 +176,8 @@ public:
     Value angleVal = op->getOperand(1);
     Value output = op->getOperand(2);
 
-    auto inElemTy = input.getType().cast<MemRefType>().getElementType();
+    auto inElemTy =
+        mlir::cast<mlir::MemRefType>(input.getType()).getElementType();
     dip::DIP_ERROR error =
         dip::checkDIPCommonTypes<dip::Rotate2DOp>(op, {input, output});
 
@@ -234,7 +236,8 @@ public:
     Value output = op->getOperand(2);
     auto imageFormatAttr = op.getImageFormat();
 
-    auto inElemTy = input.getType().cast<MemRefType>().getElementType();
+    auto inElemTy =
+        mlir::cast<mlir::MemRefType>(input.getType()).getElementType();
     dip::DIP_ERROR error =
         dip::checkDIPCommonTypes<dip::Rotate4DOp>(op, {input, output});
 
@@ -302,7 +305,8 @@ public:
     auto interpolationAttr = op.getInterpolationType();
     Value strideVal = rewriter.create<arith::ConstantIndexOp>(loc, stride);
 
-    auto inElemTy = input.getType().cast<MemRefType>().getElementType();
+    auto inElemTy =
+        mlir::cast<mlir::MemRefType>(input.getType()).getElementType();
     dip::DIP_ERROR error =
         dip::checkDIPCommonTypes<dip::Resize2DOp>(op, {input, output});
 
@@ -427,7 +431,8 @@ public:
     auto interpolationAttr = op.getInterpolationType();
     Value strideVal = rewriter.create<arith::ConstantIndexOp>(loc, stride);
 
-    auto inElemTy = input.getType().cast<MemRefType>().getElementType();
+    auto inElemTy =
+        mlir::cast<mlir::MemRefType>(input.getType()).getElementType();
     dip::DIP_ERROR error =
         dip::checkDIPCommonTypes<dip::Resize4D_NHWCOp>(op, {input, output});
 
@@ -568,7 +573,8 @@ public:
     auto interpolationAttr = op.getInterpolationType();
     Value strideVal = rewriter.create<arith::ConstantIndexOp>(loc, stride);
 
-    auto inElemTy = input.getType().cast<MemRefType>().getElementType();
+    auto inElemTy =
+        mlir::cast<mlir::MemRefType>(input.getType()).getElementType();
     dip::DIP_ERROR error =
         dip::checkDIPCommonTypes<dip::Resize4D_NCHWOp>(op, {input, output});
 
@@ -712,7 +718,8 @@ public:
     dip::BoundaryOption boundaryOptionAttr = op.getBoundaryOption();
     Value strideVal = rewriter.create<arith::ConstantIndexOp>(loc, stride);
 
-    auto inElemTy = input.getType().cast<MemRefType>().getElementType();
+    auto inElemTy =
+        mlir::cast<mlir::MemRefType>(input.getType()).getElementType();
     dip::DIP_ERROR error = dip::checkDIPCommonTypes<dip::Erosion2DOp>(
         op, {input, kernel, output, copymemref, constantValue});
 
@@ -785,7 +792,8 @@ public:
     dip::BoundaryOption boundaryOptionAttr = op.getBoundaryOption();
     Value strideVal = rewriter.create<arith::ConstantIndexOp>(loc, stride);
 
-    auto inElemTy = input.getType().cast<MemRefType>().getElementType();
+    auto inElemTy =
+        mlir::cast<mlir::MemRefType>(input.getType()).getElementType();
     dip::DIP_ERROR error = dip::checkDIPCommonTypes<dip::Dilation2DOp>(
         op, {input, kernel, output, copymemref, constantValue});
 
@@ -858,7 +866,8 @@ public:
     dip::BoundaryOption boundaryOptionAttr = op.getBoundaryOption();
     Value strideVal = rewriter.create<arith::ConstantIndexOp>(loc, stride);
 
-    auto inElemTy = input.getType().cast<MemRefType>().getElementType();
+    auto inElemTy =
+        mlir::cast<mlir::MemRefType>(input.getType()).getElementType();
     dip::DIP_ERROR error = dip::checkDIPCommonTypes<dip::Opening2DOp>(
         op, {input, kernel, output, output1, copymemref, copymemref1,
              constantValue});
@@ -953,7 +962,8 @@ public:
     dip::BoundaryOption boundaryOptionAttr = op.getBoundaryOption();
     Value strideVal = rewriter.create<arith::ConstantIndexOp>(loc, stride);
 
-    auto inElemTy = input.getType().cast<MemRefType>().getElementType();
+    auto inElemTy =
+        mlir::cast<mlir::MemRefType>(input.getType()).getElementType();
     dip::DIP_ERROR error = dip::checkDIPCommonTypes<dip::Closing2DOp>(
         op, {input, kernel, output, output1, copymemref, copymemref1,
              constantValue});
@@ -1054,7 +1064,8 @@ public:
     dip::BoundaryOption boundaryOptionAttr = op.getBoundaryOption();
     Value strideVal = rewriter.create<arith::ConstantIndexOp>(loc, stride);
 
-    auto inElemTy = input.getType().cast<MemRefType>().getElementType();
+    auto inElemTy =
+        mlir::cast<mlir::MemRefType>(input.getType()).getElementType();
     auto bitWidth = inElemTy.getIntOrFloatBitWidth();
     dip::DIP_ERROR error = dip::checkDIPCommonTypes<dip::TopHat2DOp>(
         op, {input, kernel, output, output1, output2, input1, copymemref,
@@ -1258,7 +1269,8 @@ public:
     dip::BoundaryOption boundaryOptionAttr = op.getBoundaryOption();
     Value strideVal = rewriter.create<arith::ConstantIndexOp>(loc, stride);
 
-    auto inElemTy = input.getType().cast<MemRefType>().getElementType();
+    auto inElemTy =
+        mlir::cast<mlir::MemRefType>(input.getType()).getElementType();
     auto bitWidth = inElemTy.getIntOrFloatBitWidth();
     dip::DIP_ERROR error = dip::checkDIPCommonTypes<dip::BottomHat2DOp>(
         op, {input, kernel, output, output1, output2, input1, copymemref,
@@ -1456,7 +1468,8 @@ public:
     dip::BoundaryOption boundaryOptionAttr = op.getBoundaryOption();
     Value strideVal = rewriter.create<arith::ConstantIndexOp>(loc, stride);
 
-    auto inElemTy = input.getType().cast<MemRefType>().getElementType();
+    auto inElemTy =
+        mlir::cast<mlir::MemRefType>(input.getType()).getElementType();
     auto bitWidth = inElemTy.getIntOrFloatBitWidth();
     dip::DIP_ERROR error = dip::checkDIPCommonTypes<dip::MorphGrad2DOp>(
         op, {input, kernel, output, output1, output2, input1, copymemref,

@@ -30,9 +30,12 @@ print(graph._imported_module)
 
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
+# CHECK: %{{.*}} = tosa.const_shape
 # CHECK: %{{.*}} = tosa.reshape
+# CHECK: %{{.*}} = tosa.const_shape
 # CHECK: %{{.*}} = tosa.reshape
 # CHECK: %{{.*}} = tosa.gather
+# CHECK: %{{.*}} = tosa.const_shape
 # CHECK: %{{.*}} = tosa.reshape
 # CHECK: return %{{.*}}
 # CHECK: }
@@ -50,9 +53,12 @@ print(graphs[0]._imported_module)
 
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
+# CHECK: %{{.*}} = tosa.const_shape
 # CHECK: %{{.*}} = tosa.reshape
+# CHECK: %{{.*}} = tosa.const_shape
 # CHECK: %{{.*}} = tosa.reshape
 # CHECK: %{{.*}} = tosa.gather
+# CHECK: %{{.*}} = tosa.const_shape
 # CHECK: %{{.*}} = tosa.reshape
 # CHECK: return %{{.*}}
 # CHECK: }
@@ -63,10 +69,13 @@ print(graphs[1]._imported_module)
 
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
+# CHECK: %{{.*}} = tosa.const_shape
 # CHECK: %{{.*}} = tosa.reshape
 # CHECK: %{{.*}} = tosa.cast
+# CHECK: %{{.*}} = tosa.const_shape
 # CHECK: %{{.*}} = tosa.reshape
 # CHECK: %{{.*}} = tosa.gather
+# CHECK: %{{.*}} = tosa.const_shape
 # CHECK: %{{.*}} = tosa.reshape
 # CHECK: return %{{.*}}
 # CHECK: }

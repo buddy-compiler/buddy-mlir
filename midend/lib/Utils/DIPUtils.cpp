@@ -96,7 +96,7 @@ DIP_ERROR checkDIPCommonTypes(DIPOP op, const std::vector<Value> &args) {
   const auto getType = [&](int argIndex) { return args[argIndex].getType(); };
 
   const auto getElementType = [&](int argIndex) {
-    return getType(argIndex).template cast<MemRefType>().getElementType();
+    return mlir::cast<mlir::MemRefType>(getType(argIndex)).getElementType();
   };
 
   // NB: we can infer element type for all related memrefs to be the same as
@@ -330,10 +330,10 @@ std::vector<Value> standardRotate(OpBuilder &builder, Location loc,
 // Get center co-ordinates w.r.t given dimension.
 Value getCenter(OpBuilder &builder, Location loc, MLIRContext *ctx, Value dim) {
   Value dimF32 = indexToF32(builder, loc, dim);
-  Value c1f = builder.create<arith::ConstantFloatOp>(loc, (llvm::APFloat)1.0f,
-                                                     builder.getF32Type());
-  Value c2f = builder.create<arith::ConstantFloatOp>(loc, (llvm::APFloat)2.0f,
-                                                     builder.getF32Type());
+  Value c1f = builder.create<arith::ConstantFloatOp>(loc, builder.getF32Type(),
+                                                     (llvm::APFloat)1.0f);
+  Value c2f = builder.create<arith::ConstantFloatOp>(loc, builder.getF32Type(),
+                                                     (llvm::APFloat)2.0f);
 
   Value temp1 = builder.create<arith::AddFOp>(loc, dimF32, c1f);
   Value temp2 = builder.create<arith::DivFOp>(loc, temp1, c2f);
@@ -359,8 +359,8 @@ Value pixelScaling(OpBuilder &builder, Location loc, Value imageDImF32Vec,
 std::vector<Value> extractIndices(OpBuilder &builder, Location loc, Value xVec,
                                   Value yVec, Value vecIndex, Value xUpperBound,
                                   Value yUpperBound, Value c0F32) {
-  Value xPos = builder.create<vector::ExtractElementOp>(loc, xVec, vecIndex);
-  Value yPos = builder.create<vector::ExtractElementOp>(loc, yVec, vecIndex);
+  Value xPos = vector::ExtractOp::create(builder, loc, xVec, vecIndex);
+  Value yPos = vector::ExtractOp::create(builder, loc, yVec, vecIndex);
 
   Value xPosBound = valBound(builder, loc, xPos, xUpperBound, c0F32);
   Value yPosBound = valBound(builder, loc, yPos, yUpperBound, c0F32);
@@ -455,8 +455,8 @@ void fillPixelsNearestNeighbour4D(
 
 // Calculate tan(angle / 2) where angle is a function parameter.
 Value customTanVal(OpBuilder &builder, Location loc, Value angleVal) {
-  Value c2F32 = builder.create<arith::ConstantFloatOp>(loc, (llvm::APFloat)2.0f,
-                                                       builder.getF32Type());
+  Value c2F32 = builder.create<arith::ConstantFloatOp>(
+      loc, builder.getF32Type(), (llvm::APFloat)2.0f);
   Value angleVal_2 = builder.create<arith::DivFOp>(loc, angleVal, c2F32);
 
   Value sinVal = builder.create<math::SinOp>(loc, angleVal_2);
@@ -799,9 +799,9 @@ void fillPixelsBilinearInterpolate(
 
         std::vector<Value> indexWeights;
         Value xPos_temp =
-            builder.create<vector::ExtractElementOp>(loc, xVecWeight, ivs[0]);
+            vector::ExtractOp::create(builder, loc, xVecWeight, ivs[0]);
         Value yPos_temp =
-            builder.create<vector::ExtractElementOp>(loc, yVecWeight, ivs[0]);
+            vector::ExtractOp::create(builder, loc, yVecWeight, ivs[0]);
 
         indexWeights.push_back(
             valBound(builder, loc, xPos_temp, inputColLastElemF32, c0F32));
@@ -886,9 +886,9 @@ void fillPixelsBilinearInterpolate4D(
 
         std::vector<Value> indexWeights;
         Value xPos_temp =
-            builder.create<vector::ExtractElementOp>(loc, xVecWeight, ivs[0]);
+            vector::ExtractOp::create(builder, loc, xVecWeight, ivs[0]);
         Value yPos_temp =
-            builder.create<vector::ExtractElementOp>(loc, yVecWeight, ivs[0]);
+            vector::ExtractOp::create(builder, loc, yVecWeight, ivs[0]);
 
         indexWeights.push_back(
             valBound(builder, loc, xPos_temp, inputColLastElemF32, c0F32));

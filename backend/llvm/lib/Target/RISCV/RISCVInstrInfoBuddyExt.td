@@ -13,7 +13,7 @@
 // limitations under the License.
 //
 //===----------------------------------------------------------------------===//
-// 
+//
 // This is the instruction information file of RISC-V buddy extension.
 //
 //===----------------------------------------------------------------------===//
@@ -32,7 +32,7 @@ include "llvm/IR/IntrinsicsRISCVBuddyExt.td"
 let hasSideEffects = 1, mayLoad = 1, mayStore = 1, Predicates = [HasBuddyExt] in
 def MVIN : RVInstR<0b0000010, 0b011, OPC_CUSTOM_3, (outs),
                    (ins GPR:$rs1, GPR:$rs2), "mvin","$rs1, $rs2"> {
-  let rd = 0;              
+  let rd = 0;
 }
 
 let hasSideEffects = 1, mayLoad = 1, mayStore = 1, Predicates = [HasBuddyExt] in
@@ -47,139 +47,182 @@ def MVIN3 : RVInstR<0b0001110, 0b011, OPC_CUSTOM_3, (outs),
   let rd = 0;
 }
 
-let hasSideEffects = 1, mayLoad = 1, mayStore = 1, Predicates = [HasBuddyExt] in 
+let hasSideEffects = 1, mayLoad = 1, mayStore = 1, Predicates = [HasBuddyExt] in
 def MVOUT : RVInstR<0b0000011, 0b011, OPC_CUSTOM_3, (outs),
                     (ins GPR:$rs1, GPR:$rs2), "mvout","$rs1, $rs2">{
   let rd = 0;
 }
 
-let hasSideEffects = 1, mayLoad = 1, mayStore = 1, Predicates = [HasBuddyExt] in 
+let hasSideEffects = 1, mayLoad = 1, mayStore = 1, Predicates = [HasBuddyExt] in
 def FLUSH : RVInstR<0b0000111, 0b011, OPC_CUSTOM_3, (outs),
                     (ins GPR:$rs1, GPR:$rs2), "flush", "$rs1"> {
   let rd = 0;
 }
 
-let Predicates = [HasBuddyExt] in 
-def CONFIG_LD : RVInstR<0b0000000, 0b011, OPC_CUSTOM_3, (outs),
-                    (ins GPR:$rs1, GPR:$rs2), "config_ld", "$rs1, $rs2"> {
+let Predicates = [HasBuddyExt] in
+def CONFIG : RVInstR<0b0000000, 0b011, OPC_CUSTOM_3, (outs),
+                    (ins GPR:$rs1, GPR:$rs2), "config", "$rs1, $rs2"> {
   let rd = 0;
 }
 
-let Predicates = [HasBuddyExt] in 
-def CONFIG_ST : RVInstR<0b0000000, 0b011, OPC_CUSTOM_3, (outs),
-                    (ins GPR:$rs1, GPR:$rs2), "config_st", "$rs1, $rs2"> {
-  let rd = 0;
-}
-
-let Predicates = [HasBuddyExt] in 
-def CONFIG_EX : RVInstR<0b0000000, 0b011, OPC_CUSTOM_3,(outs),
-                    (ins GPR:$rs1, GPR:$rs2), "config_ex", "$rs1, $rs2"> {
-  let rd = 0;
-}
-
-let Predicates = [HasBuddyExt] in 
-def CONFIG_NORM : RVInstR<0b0000000, 0b011, OPC_CUSTOM_3,(outs),
-                    (ins GPR:$rs1, GPR:$rs2), "config_norm", "$rs1, $rs2"> {
-  let rd = 0;
-}
-
-let hasSideEffects = 1, mayLoad = 1, mayStore =1, Predicates = [HasBuddyExt] in 
-def PRELOAD : RVInstR<0b0000110, 0b011,OPC_CUSTOM_3,(outs),
+let hasSideEffects = 1, mayLoad = 1, mayStore =1, Predicates = [HasBuddyExt] in
+def PRELOAD : RVInstR<0b0000110, 0b011, OPC_CUSTOM_3, (outs),
                     (ins GPR:$rs1, GPR:$rs2), "preload", "$rs1, $rs2">{
   let rd = 0;
 }
 
-let Predicates = [HasBuddyExt] in 
+let Predicates = [HasBuddyExt] in
 def COMPUTE_PRELOADED : RVInstR<0b0000100, 0b011, OPC_CUSTOM_3, (outs),
                      (ins GPR:$rs1, GPR:$rs2), "compute_preloaded", "$rs1, $rs2">{
   let rd = 0;
 }
 
-let Predicates = [HasBuddyExt] in 
+let Predicates = [HasBuddyExt] in
 def COMPUTE_ACCUMULATED : RVInstR<0b0000101, 0b011, OPC_CUSTOM_3, (outs),
                       (ins GPR:$rs1, GPR:$rs2), "compute_accumulated", "$rs1, $rs2"> {
   let rd = 0;
 }
 
-let Predicates = [HasBuddyExt] in 
-def LOOP_WS_CONFIG_BOUNDS : RVInstR<0b0001001, 0b011, OPC_CUSTOM_3,(outs),
+let Predicates = [HasBuddyExt] in
+def LOOP_WS_CONFIG_BOUNDS : RVInstR<0b0001001, 0b011, OPC_CUSTOM_3, (outs),
                       (ins GPR:$rs1, GPR:$rs2), "loop_ws_config_bounds","$rs1, $rs2">{
   let rd = 0;
 }
 
-let Predicates = [HasBuddyExt] in 
+let Predicates = [HasBuddyExt] in
 def LOOP_WS_CONFIG_ADDRS_AB : RVInstR<0b0001010, 0b011, OPC_CUSTOM_3, (outs),
                       (ins GPR:$rs1, GPR:$rs2), "loop_ws_config_addrs_ab", "$rs1, $rs2"> {
   let rd = 0;
-} 
+}
 
-let Predicates = [HasBuddyExt] in 
-def LOOP_WS_CONFIG_ADDRS_DC : RVInstR<0b0001011, 0b011, OPC_CUSTOM_3, (outs), 
+let Predicates = [HasBuddyExt] in
+def LOOP_WS_CONFIG_ADDRS_DC : RVInstR<0b0001011, 0b011, OPC_CUSTOM_3, (outs),
                       (ins GPR:$rs1, GPR:$rs2), "loop_ws_config_addrs_dc", "$rs1, $rs2"> {
   let rd = 0;
 }
 
-let Predicates = [HasBuddyExt] in 
-def LOOP_WS_CONFIG_STRIDES_AB : RVInstR<0b0001100, 0b011, OPC_CUSTOM_3,(outs), 
+let Predicates = [HasBuddyExt] in
+def LOOP_WS_CONFIG_STRIDES_AB : RVInstR<0b0001100, 0b011, OPC_CUSTOM_3,(outs),
                        (ins GPR:$rs1, GPR:$rs2), "loop_ws_config_strides_ab", "$rs1, $rs2"> {
   let rd = 0;
 }
 
-let Predicates = [HasBuddyExt] in 
-def LOOP_WS_CONFIG_STRIDES_DC : RVInstR<0b0001101, 0b011, OPC_CUSTOM_3, (outs), 
+let Predicates = [HasBuddyExt] in
+def LOOP_WS_CONFIG_STRIDES_DC : RVInstR<0b0001101, 0b011, OPC_CUSTOM_3, (outs),
                         (ins GPR:$rs1, GPR:$rs2), "loop_ws_config_strides_dc", "$rs1, $rs2"> {
   let rd = 0;
 }
 
-let Predicates = [HasBuddyExt] in 
-def LOOP_WS : RVInstR<0b0001000, 0b011, OPC_CUSTOM_3, (outs), 
+let Predicates = [HasBuddyExt] in
+def LOOP_WS : RVInstR<0b0001000, 0b011, OPC_CUSTOM_3, (outs),
                         (ins GPR:$rs1, GPR:$rs2), "loop_ws", "$rs1, $rs2"> {
     let rd = 0;
 }
 
-let hasSideEffects = 1, mayLoad = 1, mayStore =1, Predicates = [HasBuddyExt] in 
-def LOOP_CONV_WS : RVInstR<0b0001111, 0b011, OPC_CUSTOM_3, (outs), 
+let hasSideEffects = 1, mayLoad = 1, mayStore =1, Predicates = [HasBuddyExt] in
+def LOOP_CONV_WS : RVInstR<0b0001111, 0b011, OPC_CUSTOM_3, (outs),
                         (ins GPR:$rs1, GPR:$rs2), "loop_conv_ws", "$rs1, $rs2"> {
     let rd = 0;
 }
 
-let Predicates = [HasBuddyExt] in 
+let Predicates = [HasBuddyExt] in
 def LOOP_CONV_WS_CONFIG1 : RVInstR<0b0010000, 0b011, OPC_CUSTOM_3, (outs),
                         (ins GPR:$rs1, GPR:$rs2), "loop_conv_ws_config1", "$rs1, $rs2"> {
     let rd = 0;
 }
 
-let Predicates = [HasBuddyExt] in 
+let Predicates = [HasBuddyExt] in
 def LOOP_CONV_WS_CONFIG2 : RVInstR<0b0010001, 0b011, OPC_CUSTOM_3, (outs),
                         (ins GPR:$rs1, GPR:$rs2), "loop_conv_ws_config2", "$rs1, $rs2"> {
     let rd = 0;
 }
 
-let Predicates = [HasBuddyExt] in 
-def LOOP_CONV_WS_CONFIG3 : RVInstR<0b0010010, 0b011, OPC_CUSTOM_3, (outs), 
+let Predicates = [HasBuddyExt] in
+def LOOP_CONV_WS_CONFIG3 : RVInstR<0b0010010, 0b011, OPC_CUSTOM_3, (outs),
                         (ins GPR:$rs1, GPR:$rs2), "loop_conv_ws_config3", "$rs1, $rs2"> {
     let rd = 0;
 }
 
-let Predicates = [HasBuddyExt] in 
-def LOOP_CONV_WS_CONFIG4 : RVInstR<0b0010011, 0b011, OPC_CUSTOM_3, (outs), 
+let Predicates = [HasBuddyExt] in
+def LOOP_CONV_WS_CONFIG4 : RVInstR<0b0010011, 0b011, OPC_CUSTOM_3, (outs),
                         (ins GPR:$rs1, GPR:$rs2), "loop_conv_ws_config4", "$rs1, $rs2"> {
     let rd = 0;
 }
 
-let Predicates = [HasBuddyExt] in 
-def LOOP_CONV_WS_CONFIG5 : RVInstR<0b0010100, 0b011, OPC_CUSTOM_3, (outs), 
+let Predicates = [HasBuddyExt] in
+def LOOP_CONV_WS_CONFIG5 : RVInstR<0b0010100, 0b011, OPC_CUSTOM_3, (outs),
                         (ins GPR:$rs1, GPR:$rs2), "loop_conv_ws_config5", "$rs1, $rs2"> {
     let rd = 0;
 }
 
-let Predicates = [HasBuddyExt] in 
+let Predicates = [HasBuddyExt] in
 def LOOP_CONV_WS_CONFIG6 : RVInstR<0b0010101, 0b011, OPC_CUSTOM_3, (outs),
                         (ins GPR:$rs1, GPR:$rs2), "loop_conv_ws_config6", "$rs1, $rs2"> {
     let rd = 0;
 }
 
-let Predicates = [HasBuddyExt] in 
+//===----------------------------------------------------------------------===//
+// IME Extension Instructions
+//===----------------------------------------------------------------------===//
+
+class RVInstIME<bits<7> funct7, bits<3> funct3, dag outs, dag ins,
+                string opcodestr, string argstr>
+    : RVInst<outs, ins, opcodestr, argstr, [], InstFormatR> {
+  bits<5> vs2;
+  bits<5> vs1;
+  bits<5> vd;
+
+  let Inst{31-25} = funct7;
+  let Inst{24-20} = vs2;
+  let Inst{19-15} = vs1;
+  let Inst{14-12} = funct3;
+  let Inst{11-7} = vd;
+  let Inst{6-0} = OPC_CUSTOM_1.Value;
+
+  let Uses = [VTYPE, VL];
+}
+
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def IME_VMADOT : RVInstIME<0b1110001, 0b000,
+                           (outs VRM4:$vd),
+                           (ins VRM4:$vd_in, VRM4:$vs1, VRM4:$vs2),
+                           "vmadot", "$vd, $vs1, $vs2"> {
+  let Constraints = "$vd = $vd_in";
+}
+
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def IME_VMADOTU : RVInstIME<0b1110001, 0b011,
+                            (outs VRM4:$vd),
+                            (ins VRM4:$vd_in, VRM4:$vs1, VRM4:$vs2),
+                            "vmadotu", "$vd, $vs1, $vs2"> {
+  let Constraints = "$vd = $vd_in";
+}
+
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def IME_VMADOTSU : RVInstIME<0b1110001, 0b001,
+                             (outs VRM4:$vd),
+                             (ins VRM4:$vd_in, VRM4:$vs1, VRM4:$vs2),
+                             "vmadotsu", "$vd, $vs1, $vs2"> {
+  let Constraints = "$vd = $vd_in";
+}
+
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def IME_VMADOTUS : RVInstIME<0b1110001, 0b010,
+                             (outs VRM4:$vd),
+                             (ins VRM4:$vd_in, VRM4:$vs1, VRM4:$vs2),
+                             "vmadotus", "$vd, $vs1, $vs2"> {
+  let Constraints = "$vd = $vd_in";
+}
+
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def IME_VFMADOT : RVInstIME<0b1110101, 0b000,
+                            (outs VRM4:$vd),
+                            (ins VRM4:$vd_in, VRM4:$vs1, VRM4:$vs2),
+                            "vfmadot", "$vd, $vs1, $vs2"> {
+  let Constraints = "$vd = $vd_in";
+}
+
+let Predicates = [HasBuddyExt] in
 def : Pat<(int_riscv_mvin GPR:$rs1, GPR:$rs2), (MVIN GPR:$rs1, GPR:$rs2)>;
 
 let Predicates = [HasBuddyExt] in
@@ -188,72 +231,91 @@ def : Pat<(int_riscv_mvin2 GPR:$rs1, GPR:$rs2), (MVIN2 GPR:$rs1, GPR:$rs2)>;
 let Predicates = [HasBuddyExt] in
 def : Pat<(int_riscv_mvin3 GPR:$rs1, GPR:$rs2), (MVIN3 GPR:$rs1, GPR:$rs2)>;
 
-let Predicates = [HasBuddyExt] in 
+let Predicates = [HasBuddyExt] in
 def : Pat<(int_riscv_mvout GPR:$rs1, GPR:$rs2), (MVOUT GPR:$rs1, GPR:$rs2)>;
 
-let Predicates = [HasBuddyExt] in  
+let Predicates = [HasBuddyExt] in
 def : Pat<(int_riscv_flush GPR:$rs1, GPR:$rs2), (FLUSH GPR:$rs1, GPR:$rs2)>;
 
-let Predicates = [HasBuddyExt] in 
-def : Pat<(int_riscv_config_ld GPR:$rs1, GPR:$rs2), (CONFIG_LD GPR:$rs1, GPR:$rs2)>;
-
-let Predicates = [HasBuddyExt] in 
-def : Pat<(int_riscv_config_st GPR:$rs1, GPR:$rs2), (CONFIG_ST GPR:$rs1, GPR:$rs2)>;
-
-let Predicates = [HasBuddyExt] in 
-def : Pat<(int_riscv_config_ex GPR:$rs1, GPR:$rs2), (CONFIG_EX GPR:$rs1, GPR:$rs2)>;
+let Predicates = [HasBuddyExt] in
+def : Pat<(int_riscv_config GPR:$rs1, GPR:$rs2), (CONFIG GPR:$rs1, GPR:$rs2)>;
 
 let Predicates = [HasBuddyExt] in
-def : Pat<(int_riscv_config_norm GPR:$rs1, GPR:$rs2), (CONFIG_NORM GPR:$rs1, GPR:$rs2)>;
-
-let Predicates = [HasBuddyExt] in 
 def : Pat<(int_riscv_preload GPR:$rs1, GPR:$rs2), (PRELOAD GPR:$rs1, GPR:$rs2)>;
 
-let Predicates = [HasBuddyExt] in 
+let Predicates = [HasBuddyExt] in
 def : Pat<(int_riscv_compute_preloaded GPR:$rs1, GPR:$rs2), (COMPUTE_PRELOADED GPR:$rs1, GPR:$rs2)>;
 
-let Predicates = [HasBuddyExt] in 
+let Predicates = [HasBuddyExt] in
 def : Pat<(int_riscv_compute_accumulated GPR:$rs1, GPR:$rs2), (COMPUTE_ACCUMULATED GPR:$rs1, GPR:$rs2)>;
 
-let Predicates = [HasBuddyExt] in 
+let Predicates = [HasBuddyExt] in
 def : Pat<(int_riscv_loop_ws_config_bounds GPR:$rs1, GPR:$rs2), (LOOP_WS_CONFIG_BOUNDS GPR:$rs1, GPR:$rs2)>;
 
-let Predicates = [HasBuddyExt] in 
+let Predicates = [HasBuddyExt] in
 def : Pat<(int_riscv_loop_ws_config_addrs_ab GPR:$rs1, GPR:$rs2), (LOOP_WS_CONFIG_ADDRS_AB GPR:$rs1, GPR:$rs2)>;
 
-let Predicates = [HasBuddyExt] in 
+let Predicates = [HasBuddyExt] in
 def : Pat<(int_riscv_loop_ws_config_addrs_dc GPR:$rs1, GPR:$rs2), (LOOP_WS_CONFIG_ADDRS_DC GPR:$rs1, GPR:$rs2)>;
 
-let Predicates = [HasBuddyExt] in 
+let Predicates = [HasBuddyExt] in
 def : Pat<(int_riscv_loop_ws_config_strides_ab GPR:$rs1, GPR:$rs2), (LOOP_WS_CONFIG_STRIDES_AB GPR:$rs1, GPR:$rs2)>;
 
-let Predicates = [HasBuddyExt] in 
+let Predicates = [HasBuddyExt] in
 def : Pat<(int_riscv_loop_ws_config_strides_dc GPR:$rs1, GPR:$rs2), (LOOP_WS_CONFIG_STRIDES_DC GPR:$rs1, GPR:$rs2)>;
 
-let Predicates = [HasBuddyExt] in 
+let Predicates = [HasBuddyExt] in
 def : Pat<(int_riscv_loop_ws GPR:$rs1, GPR:$rs2), (LOOP_WS GPR:$rs1, GPR:$rs2)>;
 
-let Predicates = [HasBuddyExt] in 
+let Predicates = [HasBuddyExt] in
 def : Pat<(int_riscv_loop_conv_ws GPR:$rs1, GPR:$rs2), (LOOP_CONV_WS GPR:$rs1, GPR:$rs2)>;
 
-let Predicates = [HasBuddyExt] in 
+let Predicates = [HasBuddyExt] in
 def : Pat<(int_riscv_loop_conv_ws_config1 GPR:$rs1, GPR:$rs2), (LOOP_CONV_WS_CONFIG1 GPR:$rs1, GPR:$rs2)>;
 
-let Predicates = [HasBuddyExt] in 
+let Predicates = [HasBuddyExt] in
 def : Pat<(int_riscv_loop_conv_ws_config2 GPR:$rs1, GPR:$rs2), (LOOP_CONV_WS_CONFIG2 GPR:$rs1, GPR:$rs2)>;
 
-let Predicates = [HasBuddyExt] in 
+let Predicates = [HasBuddyExt] in
 def : Pat<(int_riscv_loop_conv_ws_config3 GPR:$rs1, GPR:$rs2), (LOOP_CONV_WS_CONFIG3 GPR:$rs1, GPR:$rs2)>;
 
-let Predicates = [HasBuddyExt] in 
+let Predicates = [HasBuddyExt] in
 def : Pat<(int_riscv_loop_conv_ws_config4 GPR:$rs1, GPR:$rs2), (LOOP_CONV_WS_CONFIG4 GPR:$rs1, GPR:$rs2)>;
 
-let Predicates = [HasBuddyExt] in 
+let Predicates = [HasBuddyExt] in
 def : Pat<(int_riscv_loop_conv_ws_config5 GPR:$rs1, GPR:$rs2), (LOOP_CONV_WS_CONFIG5 GPR:$rs1, GPR:$rs2)>;
 
-let Predicates = [HasBuddyExt] in 
+let Predicates = [HasBuddyExt] in
 def : Pat<(int_riscv_loop_conv_ws_config6 GPR:$rs1, GPR:$rs2), (LOOP_CONV_WS_CONFIG6 GPR:$rs1, GPR:$rs2)>;
 
+//===----------------------------------------------------------------------===//
+// IME Extension Patterns
+//===----------------------------------------------------------------------===//
+
+let Predicates = [HasBuddyExt] in {
+  def : Pat<(nxv8i32 (int_riscv_ime_vmadot nxv8i32:$vd, nxv32i8:$vs1, nxv32i8:$vs2)),
+            (IME_VMADOT VRM4:$vd, VRM4:$vs1, VRM4:$vs2)>;
+}
+
+let Predicates = [HasBuddyExt] in {
+  def : Pat<(nxv8i32 (int_riscv_ime_vmadotu nxv8i32:$vd, nxv32i8:$vs1, nxv32i8:$vs2)),
+            (IME_VMADOTU VRM4:$vd, VRM4:$vs1, VRM4:$vs2)>;
+}
+
+let Predicates = [HasBuddyExt] in {
+  def : Pat<(nxv8i32 (int_riscv_ime_vmadotsu nxv8i32:$vd, nxv32i8:$vs1, nxv32i8:$vs2)),
+            (IME_VMADOTSU VRM4:$vd, VRM4:$vs1, VRM4:$vs2)>;
+}
+
+let Predicates = [HasBuddyExt] in {
+  def : Pat<(nxv8i32 (int_riscv_ime_vmadotus nxv8i32:$vd, nxv32i8:$vs1, nxv32i8:$vs2)),
+            (IME_VMADOTUS VRM4:$vd, VRM4:$vs1, VRM4:$vs2)>;
+}
+
+let Predicates = [HasBuddyExt] in {
+  def : Pat<(nxv16f16 (int_riscv_ime_vfmadot nxv16f16:$vd, nxv16f16:$vs1, nxv16f16:$vs2)),
+            (IME_VFMADOT VRM4:$vd, VRM4:$vs1, VRM4:$vs2)>;
+}
 
 
 //===----------------------------------------------------------------------===//
