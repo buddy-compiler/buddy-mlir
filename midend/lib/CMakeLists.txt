@@ -12,11 +12,15 @@ set(LinkedLibs
   MLIRSupport
   ${extension_libs}
 
+  BuddyTile
   ConvOptimization
   CBConvVectorization
   LowerBudPass
   LowerDAPPass
   LowerDIPPass
+  LowerLinalgToTilePass
+  LowerTileToBuckyballPass
+  LowerBuckyballPass
   LowerGemminiPass
   LowerLinalgToGemminiPass
   LowerIMEPass
