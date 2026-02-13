@@ -262,9 +262,10 @@ public:
         /*constraints=*/"=r",
         /*has_side_effects=*/false,
         /*is_align_stack=*/false,
+        /*tail_call_kind=*/LLVM::tailcallkind::TailCallKind::None,
         /*asm_dialect=*/LLVM::AsmDialectAttr::get(context, LLVM::AsmDialect::AD_ATT),
         /*operand_attrs=*/ArrayAttr());
-    
+
     rewriter.create<LLVM::StoreOp>(loc, rdcycleAsm.getResult(0), counterGlobal);
     
     rewriter.eraseOp(op);
@@ -312,7 +313,7 @@ public:
     
     auto i64Type = rewriter.getI64Type();
     Value startCycles = rewriter.create<LLVM::LoadOp>(loc, i64Type, counterGlobal);
-    
+
     auto rdcycleAsm = rewriter.create<LLVM::InlineAsmOp>(
         loc,
         /*resultTypes=*/i64Type,
@@ -321,9 +322,10 @@ public:
         /*constraints=*/"=r",
         /*has_side_effects=*/false,
         /*is_align_stack=*/false,
+        /*tail_call_kind=*/LLVM::tailcallkind::TailCallKind::None,
         /*asm_dialect=*/LLVM::AsmDialectAttr::get(context, LLVM::AsmDialect::AD_ATT),
         /*operand_attrs=*/ArrayAttr());
-    
+
     Value endCycles = rdcycleAsm.getResult(0);
     Value cyclesDiff = rewriter.create<LLVM::SubOp>(loc, endCycles, startCycles);
     

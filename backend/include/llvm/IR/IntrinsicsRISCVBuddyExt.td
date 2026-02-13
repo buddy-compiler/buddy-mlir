@@ -111,7 +111,6 @@ let TargetPrefix = "riscv" in
 def int_riscv_ime_vfmadot : Intrinsic<[llvm_anyvector_ty],
                                       [LLVMMatchType<0>, llvm_anyvector_ty, llvm_anyvector_ty],
                                       [IntrNoMem]>;
-def int_riscv_ime_vfmadot : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty, llvm_i64_ty], []>;
 
 //===----------------------------------------------------------------------===//
 // BB intrinsics
