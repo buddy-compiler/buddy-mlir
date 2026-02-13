@@ -53,8 +53,27 @@ jobs:
           restore-keys: |
             llvm-build-
 
-      # 6. If the cache is not found, configure and build LLVM.
+      # 6. Verify llvm-build when cached; build LLVM when no cache or verification fails.
+      - name: Check LLVM cache
+        id: check-llvm-cache
+        if: steps.cache-llvm-build-dir.outputs.cache-hit == 'true'
+        run: |
+          for conda in ~/miniconda3/bin/activate ~/miniforge3/bin/activate; do
+            [ -f "$conda" ] && source "$conda" buddy && break
+          done
+          cd $GITHUB_WORKSPACE
+          rm -rf build && mkdir build && cd build
+          if ! cmake -G Ninja .. \
+            -DMLIR_DIR=$GITHUB_WORKSPACE/llvm/build/lib/cmake/mlir \
+            -DLLVM_DIR=$GITHUB_WORKSPACE/llvm/build/lib/cmake/llvm \
+            -DCMAKE_BUILD_TYPE=RELEASE -DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON \
+            -DPython3_EXECUTABLE=$(which python3); then
+            echo "need-rebuild=true" >> $GITHUB_OUTPUT
+          fi
+        continue-on-error: true
+
       - name: Configure and Build LLVM
+        if: steps.cache-llvm-build-dir.outputs.cache-hit != 'true' || steps.check-llvm-cache.outputs.need-rebuild == 'true'
         run: |
           for conda in ~/miniconda3/bin/activate ~/miniforge3/bin/activate; do
             [ -f "$conda" ] && source "$conda" buddy && break
@@ -74,20 +93,20 @@ jobs:
             -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
             -DPython3_EXECUTABLE=$(which python3)
           ninja check-clang check-mlir omp
-        if: steps.cache-llvm-build-dir.outputs.cache-hit != 'true'
 
-      # 7. Check the build process of buddy-mlir repository.
+      # 7. Check buddy-mlir build.
       - name: Check buddy-mlir build
         run: |
           for conda in ~/miniconda3/bin/activate ~/miniforge3/bin/activate; do
             [ -f "$conda" ] && source "$conda" buddy && break
           done
           pip install -r requirements.txt
+          rm -rf build
           mkdir build
           cd build
           cmake -G Ninja .. \
-            -DMLIR_DIR=./llvm/build/lib/cmake/mlir \
-            -DLLVM_DIR=./llvm/build/lib/cmake/llvm \
+            -DMLIR_DIR=$GITHUB_WORKSPACE/llvm/build/lib/cmake/mlir \
+            -DLLVM_DIR=$GITHUB_WORKSPACE/llvm/build/lib/cmake/llvm \
             -DLLVM_ENABLE_ASSERTIONS=ON \
             -DCMAKE_BUILD_TYPE=RELEASE \
             -DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON \
