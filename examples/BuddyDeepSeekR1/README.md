@@ -203,3 +203,93 @@ cd buddy-mlir/build/
 ninja buddy-deepseek-r1-run
 ./bin/buddy-deepseek-r1-run
 ```
+
+## How to cross compile RISC-V target on x86_64 machine
+
+0. Clone code and initialize
+  Refer to steps 0. Prepare `buddy-mlir` and Submodules in the [docs/RVVEnvironment.md](https://github.com/buddy-compiler/buddy-mlir/blob/main/docs/RVVEnvironment.md).
+
+1. Build and test LLVM/MLIR
+  Refer to steps 1. Build Local LLVM/MLIR in the [docs/RVVEnvironment.md](https://github.com/buddy-compiler/buddy-mlir/blob/main/docs/RVVEnvironment.md).
+
+2. Build buddy-mlir
+  Refer to steps 2. Build Local `buddy-mlir` in the [docs/RVVEnvironment.md](https://github.com/buddy-compiler/buddy-mlir/blob/main/docs/RVVEnvironment.md) and add `export BUDDY_MLIR_BUILD_DIR=$PWD` `export PYTHONPATH=${BUILD_LOCAL_LLVM_DIR}/tools/mlir/python_packages/mlir_core:${BUDDY_MLIR_BUILD_DIR}/python_packages:${PYTHONPATH}` after execution.
+
+3. Build Cross-Compiled MLIR
+  Refer to steps 4. Build Cross-Compiled MLIR in the [docs/RVVEnvironment.md](https://github.com/buddy-compiler/buddy-mlir/blob/main/docs/RVVEnvironment.md).
+  Note: Add the `-DMLIR_IRDL_TO_CPP_EXE=${BUILD_LOCAL_LLVM_DIR}/bin/mlir-irdl-to-cpp` parameter at the end of cmake.
+       Add `export BUDDY_DEEPSEEKR1_LLVMOPT=${BUILD_CROSS_MLIR_DIR}/lib/libLLVMSupport.a` `export RISCV_MLIR_C_RUNNER_UTILS=${BUILD_CROSS_MLIR_DIR}/lib/libmlir_c_runner_utils.so.22.0git` parameter after execution.
+
+4. Pull the OpenMP shared library of RISC-V
+   Since the repository depends on OpenMP shared libraries, follow the steps below to set up the OpenMP dependency:
+```bash
+$ cd ${BUILD_LOCAL_LLVM_DIR}/../
+$ wget --no-check-certificate 'https://docs.google.com/uc?export=download&id=1XEsAhOcMioN9gdufuyO9OrHIdR0UtHh2' -O build-omp-shared-rv.tar.gz
+$ mkdir build-omp-shared-rv && tar -xzf build-omp-shared-rv.tar.gz -C build-omp-shared-rv && rm build-omp-shared-rv.tar.gz
+$ export RISCV_OMP_SHARED=${BUILD_LOCAL_LLVM_DIR}/../build-omp-shared-rv/libomp.so
+```
+
+5. Build for the target platform
+
+```bash
+$ cd buddy-mlir/build
+$ cmake -G Ninja .. \
+-DRISCV_GNU_TOOLCHAIN=${BUILD_RISCV_GNU_TOOLCHAIN_DIR} \
+-DDEEPSEEKR1_EXAMPLE_PATH=. \
+-DDEEPSEEKR1_EXAMPLE_BUILD_PATH=. \
+-DBUDDY_DEEPSEEKR1_EXAMPLES=ON \
+-DIS_RVV_CROSSCOMPILING=ON \
+-DRISCV_OMP_SHARED=${RISCV_OMP_SHARED} \
+-DRISCV_MLIR_C_RUNNER_UTILS=${RISCV_MLIR_C_RUNNER_UTILS} \
+-DBUILD_CROSS_MLIR_DIR=${BUILD_CROSS_MLIR_DIR} \
+-DBUDDY_MLIR_BUILD_DIR=${BUDDY_MLIR_BUILD_DIR}
+$ ninja <target> # For example: `ninja buddy-deepseek-r1-run`
+```
+
+Compile, package, and run
+```bash
+# f32
+$ ninja buddy-deepseek-r1-run
+$ ninja buddy-deepseek-r1-rvv-package
+$ scp ./examples/BuddyDeepSeekR1/buddy-deepseek-r1-rvv-package.tgz user@risc-v-host:
+# On risc-v-host
+rv-user$ tar xzf buddy-deepseek-r1-rvv-package.tgz && cd buddy-deepseek-r1-rvv-package
+rv-user$ export LD_LIBRARY_PATH=${PWD}:$LD_LIBRARY_PATH
+rv-user$ ./buddy-deepseek-r1-run
+
+# f16
+$ ninja buddy-deepseek-r1-f16-run
+$ ninja buddy-deepseek-r1-f16-rvv-package
+$ scp ./examples/BuddyDeepSeekR1/buddy-deepseek-r1-f16-rvv-package.tgz user@risc-v-host:
+# On risc-v-host
+rv-user$ tar xzf buddy-deepseek-r1-f16-rvv-package.tgz && cd buddy-deepseek-r1-f16-rvv-package
+rv-user$ export LD_LIBRARY_PATH=${PWD}:$LD_LIBRARY_PATH
+rv-user$ ./buddy-deepseek-r1-f16-run
+
+# bf16
+$ ninja buddy-deepseek-r1-bf16-run
+$ ninja buddy-deepseek-r1-bf16-rvv-package
+$ scp ./examples/BuddyDeepSeekR1/buddy-deepseek-r1-bf16-rvv-package.tgz user@risc-v-host:
+# On risc-v-host
+rv-user$ tar xzf buddy-deepseek-r1-bf16-rvv-package.tgz && cd buddy-deepseek-r1-bf16-rvv-package
+rv-user$ export LD_LIBRARY_PATH=${PWD}:$LD_LIBRARY_PATH
+rv-user$ ./buddy-deepseek-r1-bf16-run
+
+# cli
+$ ninja buddy-deepseek-r1-cli
+$ ninja buddy-deepseek-r1-cli-rvv-package
+$ scp ./examples/BuddyDeepSeekR1/buddy-deepseek-r1-cli-rvv-package.tgz user@risc-v-host:
+# On risc-v-host
+rv-user:~$ tar xzf buddy-deepseek-r1-cli-rvv-package.tgz && cd buddy-deepseek-r1-cli-rvv-package
+rv-user:~$ export LD_LIBRARY_PATH=${PWD}:$LD_LIBRARY_PATH
+rv-user:~$ echo "Hello." | ./buddy-deepseek-r1-cli --no-stats 
+
+# kv
+$ ninja buddy-deepseek-r1-tiered-kv-cache-run
+$ ninja buddy-deepseek-r1-tiered-kv-cache-run-rvv-package
+$ scp /examples/BuddyDeepSeekR1/buddy-deepseek-r1-tiered-kv-cache-run-rvv-pkg.tgz user@risc-v-host:
+# On risc-v-host
+rv-user:~$ tar xzf buddy-deepseek-r1-tiered-kv-cache-run-rvv-pkg.tgz && cd buddy-deepseek-r1-tiered-kv-cache-run-rvv-pkg
+rv-user:~$ export LD_LIBRARY_PATH=${PWD}:$LD_LIBRARY_PATH
+rv-user:~$ ./buddy-deepseek-r1-tiered-kv-cache-run
+```
