@@ -56,7 +56,9 @@ jobs:
       # 6. If the cache is not found, configure and build LLVM.
       - name: Configure and Build LLVM
         run: |
-          source ~/miniconda3/bin/activate buddy
+          for conda in ~/miniconda3/bin/activate ~/miniforge3/bin/activate; do
+            [ -f "$conda" ] && source "$conda" buddy && break
+          done
           test -f $(python3 -c "from sysconfig import get_paths; print(get_paths()['include'])")/Python.h
           test -f $(python3 -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR'))")/libpython3.10.so
           echo "Python dev headers OK"
@@ -77,7 +79,9 @@ jobs:
       # 7. Check the build process of buddy-mlir repository.
       - name: Check buddy-mlir build
         run: |
-          source ~/miniconda3/bin/activate buddy
+          for conda in ~/miniconda3/bin/activate ~/miniforge3/bin/activate; do
+            [ -f "$conda" ] && source "$conda" buddy && break
+          done
           pip install -r requirements.txt
           mkdir build
           cd build
