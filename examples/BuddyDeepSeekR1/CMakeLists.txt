@@ -3,6 +3,10 @@ set(BUFFERIZE_FULL_OPTS "unknown-type-conversion=identity-layout-map function-bo
 set(BUFFERIZE_SIMPLE_OPTS "bufferize-function-boundaries")
 set(TOSA_PIPELINE "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))")
 
+if(IS_RVV_CROSSCOMPILING)
+set(CMAKE_C_COMPILER ${BUDDY_MLIR_BUILD_DIR}/../llvm/build/bin/clang)
+set(CMAKE_CXX_COMPILER ${BUDDY_MLIR_BUILD_DIR}/../llvm/build/bin/clang++)
+endif()
 # Detect RISC-V Vector (RVV) platform
 # Use HAVE_LOCAL_RVV from check_simd.cmake which is already called in the main CMakeLists.txt
 if(HAVE_LOCAL_RVV)
@@ -19,6 +23,24 @@ if(IS_RVV_PLATFORM)
 else()
   set(OPENMP_NUM_THREADS "num-threads=48")
   set(LLC_RISCV_ATTRS "")
+endif()
+
+if(IS_RVV_CROSSCOMPILING)
+  message(STATUS "CROSSCOMPILING RISC-V Vector (RVV) platform")
+  set(OPENMP_NUM_THREADS "num-threads=8")
+  set(LLC_RISCV_ATTRS "-march=riscv64;-mattr=+m,+d,+v")
+  set(RISCV_COMPILE_OPTS
+      -march=rv64gcv
+      --target=riscv64-unknown-linux-gnu
+      --sysroot=${RISCV_GNU_TOOLCHAIN}/sysroot
+      --gcc-toolchain=${RISCV_GNU_TOOLCHAIN}
+      -fPIC
+  )
+  set(RISCV_LINK_OPTS
+    --target=riscv64-unknown-linux-gnu
+    --sysroot=${RISCV_GNU_TOOLCHAIN}/sysroot
+    --gcc-toolchain=${RISCV_GNU_TOOLCHAIN}
+  )
 endif()
 
 # Skip import commands on RVV platform
@@ -296,7 +318,7 @@ add_custom_command(
             -reconcile-unrealized-casts |
         ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
         ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
-        ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
+        ${LLVM_TOOLS_BINARY_DIR}/llc ${LLC_RISCV_ATTRS} -filetype=obj -relocation-model=pic -O3
           -o ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill-f16.o
   DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill-f16.mlir
   COMMENT "Building forward_prefill-f16.o "
@@ -346,7 +368,7 @@ add_custom_command(
             -reconcile-unrealized-casts |
           ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
           ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
-          ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
+          ${LLVM_TOOLS_BINARY_DIR}/llc ${LLC_RISCV_ATTRS} -filetype=obj -relocation-model=pic -O3
             -o ${CMAKE_CURRENT_BINARY_DIR}/subgraph_prefill-f16.o
     DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill-f16.mlir
     COMMENT "Building subgraph_prefill-f16.o "
@@ -395,7 +417,7 @@ add_custom_command(
             -reconcile-unrealized-casts |
         ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
         ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
-        ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
+        ${LLVM_TOOLS_BINARY_DIR}/llc ${LLC_RISCV_ATTRS} -filetype=obj -relocation-model=pic -O3
           -o ${CMAKE_CURRENT_BINARY_DIR}/forward_decode-f16.o
   DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/forward_decode-f16.mlir
   COMMENT "Building forward_decode-f16.o "
@@ -447,7 +469,7 @@ add_custom_command(
             -reconcile-unrealized-casts |
           ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
           ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
-          ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
+          ${LLVM_TOOLS_BINARY_DIR}/llc ${LLC_RISCV_ATTRS} -filetype=obj -relocation-model=pic -O3
             -o ${CMAKE_CURRENT_BINARY_DIR}/subgraph_decode-f16.o
     DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode-f16.mlir
     COMMENT "Building subgraph_decode-f16.o "
@@ -493,7 +515,7 @@ add_custom_command(
             -reconcile-unrealized-casts |
         ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
         ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
-        ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
+        ${LLVM_TOOLS_BINARY_DIR}/llc ${LLC_RISCV_ATTRS} -filetype=obj -relocation-model=pic -O3
           -o ${CMAKE_CURRENT_BINARY_DIR}/forward-bf16.o
   DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/forward-bf16.mlir
   COMMENT "Building forward.o "
@@ -540,7 +562,7 @@ add_custom_command(
             -reconcile-unrealized-casts |
           ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
           ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
-          ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
+          ${LLVM_TOOLS_BINARY_DIR}/llc ${LLC_RISCV_ATTRS} -filetype=obj -relocation-model=pic -O3
             -o ${CMAKE_CURRENT_BINARY_DIR}/subgraph-bf16.o
     DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0-bf16.mlir
     COMMENT "Building subgraph.o "
@@ -576,8 +598,13 @@ add_executable(buddy-deepseek-r1-f16-run buddy-deepseek-r1-f16-main.cpp)
 add_executable(buddy-deepseek-r1-bf16-run buddy-deepseek-r1-bf16-main.cpp)
 add_executable(buddy-deepseek-r1-cli buddy-deepseek-r1-cli.cpp)
 
-set(DEEPSEEKR1_EXAMPLE_PATH ${CMAKE_CURRENT_SOURCE_DIR})
-set(DEEPSEEKR1_EXAMPLE_BUILD_PATH ${CMAKE_CURRENT_BINARY_DIR})
+if(IS_RVV_CROSSCOMPILING)
+  set(DEEPSEEKR1_EXAMPLE_PATH ${DEEPSEEKR1_EXAMPLE_PATH})
+  set(DEEPSEEKR1_EXAMPLE_BUILD_PATH ${DEEPSEEKR1_EXAMPLE_BUILD_PATH})
+else()
+  set(DEEPSEEKR1_EXAMPLE_PATH ${CMAKE_CURRENT_SOURCE_DIR})
+  set(DEEPSEEKR1_EXAMPLE_BUILD_PATH ${CMAKE_CURRENT_BINARY_DIR})
+endif()
 
 target_compile_definitions(buddy-deepseek-r1-run PRIVATE
   DEEPSEEKR1_EXAMPLE_PATH="${DEEPSEEKR1_EXAMPLE_PATH}/"
@@ -598,31 +625,57 @@ target_compile_definitions(buddy-deepseek-r1-cli PRIVATE
 target_compile_options(buddy-deepseek-r1-cli PRIVATE -fno-rtti)
 
 # Add RISC-V specific compile and link options for the main executable
-if(IS_RVV_PLATFORM)
+if(IS_RVV_PLATFORM OR IS_RVV_CROSSCOMPILING)
   target_compile_options(buddy-deepseek-r1-run PRIVATE ${RISCV_COMPILE_OPTS})
+  target_compile_options(buddy-deepseek-r1-f16-run PRIVATE ${RISCV_COMPILE_OPTS})
+  target_compile_options(buddy-deepseek-r1-bf16-run PRIVATE ${RISCV_COMPILE_OPTS})
+  target_compile_options(buddy-deepseek-r1-cli PRIVATE ${RISCV_COMPILE_OPTS})
+
   target_link_options(buddy-deepseek-r1-run PRIVATE ${RISCV_LINK_OPTS})
-endif()
+  target_link_options(buddy-deepseek-r1-f16-run PRIVATE ${RISCV_LINK_OPTS})
+  target_link_options(buddy-deepseek-r1-bf16-run PRIVATE ${RISCV_LINK_OPTS})
+  target_link_options(buddy-deepseek-r1-cli PRIVATE ${RISCV_LINK_OPTS})
+ endif()
 
 target_link_directories(buddy-deepseek-r1-run PRIVATE ${LLVM_LIBRARY_DIR})
 target_link_directories(buddy-deepseek-r1-f16-run PRIVATE ${LLVM_LIBRARY_DIR})
 target_link_directories(buddy-deepseek-r1-bf16-run PRIVATE ${LLVM_LIBRARY_DIR})
 target_link_directories(buddy-deepseek-r1-cli PRIVATE ${LLVM_LIBRARY_DIR})
 
-set(BUDDY_DEEPSEEKR1_LIBS
-  DEEPSEEKR1
-  mlir_c_runner_utils
-  omp
-)
-set(BUDDY_DEEPSEEKR1_F16_LIBS
-  DEEPSEEKR1_F16
-  mlir_c_runner_utils
-  omp
-)
-set(BUDDY_DEEPSEEKR1_BF16_LIBS
-  DEEPSEEKR1_BF16
-  mlir_c_runner_utils
-  omp
-)
+if(IS_RVV_CROSSCOMPILING)
+  set(BUDDY_DEEPSEEKR1_LIBS
+    DEEPSEEKR1
+    ${RISCV_MLIR_C_RUNNER_UTILS}
+    ${RISCV_OMP_SHARED}
+  )
+  set(BUDDY_DEEPSEEKR1_F16_LIBS
+    DEEPSEEKR1_F16
+    ${RISCV_MLIR_C_RUNNER_UTILS}
+    ${RISCV_OMP_SHARED}
+  )
+  set(BUDDY_DEEPSEEKR1_BF16_LIBS
+    DEEPSEEKR1_BF16
+    ${RISCV_MLIR_C_RUNNER_UTILS}
+    ${RISCV_OMP_SHARED}
+  )
+else()
+  set(BUDDY_DEEPSEEKR1_LIBS
+    DEEPSEEKR1
+    mlir_c_runner_utils
+    omp
+  )
+  set(BUDDY_DEEPSEEKR1_F16_LIBS
+    DEEPSEEKR1_F16
+    mlir_c_runner_utils
+    omp
+  )
+  set(BUDDY_DEEPSEEKR1_BF16_LIBS
+    DEEPSEEKR1_BF16
+    mlir_c_runner_utils
+    omp
+  )
+endif()
+
 if(BUDDY_MLIR_USE_MIMALLOC)
   list(APPEND BUDDY_DEEPSEEKR1_LIBS mimalloc)
   list(APPEND BUDDY_DEEPSEEKR1_F16_LIBS mimalloc)
@@ -632,7 +685,16 @@ endif()
 target_link_libraries(buddy-deepseek-r1-run ${BUDDY_DEEPSEEKR1_LIBS})
 target_link_libraries(buddy-deepseek-r1-f16-run ${BUDDY_DEEPSEEKR1_F16_LIBS})
 target_link_libraries(buddy-deepseek-r1-bf16-run ${BUDDY_DEEPSEEKR1_BF16_LIBS})
-target_link_libraries(buddy-deepseek-r1-cli ${BUDDY_DEEPSEEKR1_LIBS} LLVMOption)
+if(IS_RVV_CROSSCOMPILING)
+  target_link_libraries(buddy-deepseek-r1-cli
+                        ${BUDDY_DEEPSEEKR1_LIBS}
+                        ${BUILD_CROSS_MLIR_DIR}/lib/libLLVMOption.a
+                        ${BUILD_CROSS_MLIR_DIR}/lib/libLLVMSupport.a
+                        ${BUILD_CROSS_MLIR_DIR}/lib/libLLVMDemangle.a)
+else()
+  target_link_libraries(buddy-deepseek-r1-cli ${BUDDY_DEEPSEEKR1_LIBS} LLVMOption)
+endif()
+
 
 # Create a distributable package
 set(DIST_PACKAGE_NAME "buddy-deepseek-r1")
@@ -658,6 +720,128 @@ add_custom_target(buddy-deepseek-r1-package
     ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill.mlir
     ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode.mlir
     ${CMAKE_CURRENT_BINARY_DIR}/arg0.data
+  USES_TERMINAL
+  VERBATIM
+)
+
+set(R1_RVV_PKG_NAME "buddy-deepseek-r1-rvv-package")
+set(R1_RVV_PKG_DIR ${CMAKE_CURRENT_BINARY_DIR}/${R1_RVV_PKG_NAME})
+set(R1_RVV_PKG_ARCHIVE ${CMAKE_CURRENT_BINARY_DIR}/${R1_RVV_PKG_NAME}.tgz)
+add_custom_target(buddy-deepseek-r1-rvv-package DEPENDS ${R1_RVV_PKG_ARCHIVE})
+add_custom_command(
+  OUTPUT ${R1_RVV_PKG_ARCHIVE}
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${R1_RVV_PKG_DIR}
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    ${BUILD_CROSS_MLIR_DIR}/lib/libmlir_float16_utils.so.22.0git
+    ${CMAKE_CURRENT_BINARY_DIR}/arg0.data
+    ${CMAKE_BINARY_DIR}/bin/buddy-deepseek-r1-run
+    ${CMAKE_SOURCE_DIR}/examples/BuddyDeepSeekR1/vocab.txt
+    ${RISCV_MLIR_C_RUNNER_UTILS}
+    ${RISCV_OMP_SHARED}
+    ${R1_RVV_PKG_DIR}/
+  COMMAND sh -c "tar -czf ${R1_RVV_PKG_ARCHIVE} ${R1_RVV_PKG_NAME}"
+  COMMAND ${CMAKE_COMMAND} -E remove_directory ${R1_RVV_PKG_DIR}
+  COMMENT "Creating RVV package: ${R1_RVV_PKG_ARCHIVE}"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS
+    ${BUILD_CROSS_MLIR_DIR}/lib/libmlir_float16_utils.so.22.0git
+    ${CMAKE_CURRENT_BINARY_DIR}/arg0.data
+    ${CMAKE_BINARY_DIR}/bin/buddy-deepseek-r1-run
+    ${CMAKE_SOURCE_DIR}/examples/BuddyDeepSeekR1/vocab.txt
+    ${RISCV_MLIR_C_RUNNER_UTILS}
+    ${RISCV_OMP_SHARED}
+  USES_TERMINAL
+  VERBATIM
+)
+
+set(R1F16_RVV_PKG_NAME "buddy-deepseek-r1-f16-rvv-package")
+set(R1F16_RVV_PKG_DIR ${CMAKE_CURRENT_BINARY_DIR}/${R1F16_RVV_PKG_NAME})
+set(R1F16_RVV_PKG_ARCHIVE ${CMAKE_CURRENT_BINARY_DIR}/${R1F16_RVV_PKG_NAME}.tgz)
+add_custom_target(buddy-deepseek-r1-f16-rvv-package DEPENDS ${R1F16_RVV_PKG_ARCHIVE})
+add_custom_command(
+  OUTPUT ${R1F16_RVV_PKG_ARCHIVE}
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${R1F16_RVV_PKG_DIR}
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    ${BUILD_CROSS_MLIR_DIR}/lib/libmlir_float16_utils.so.22.0git
+    ${CMAKE_CURRENT_BINARY_DIR}/arg0-f16.data
+    ${CMAKE_BINARY_DIR}/bin/buddy-deepseek-r1-f16-run
+    ${CMAKE_SOURCE_DIR}/examples/BuddyDeepSeekR1/vocab.txt
+    ${RISCV_MLIR_C_RUNNER_UTILS}
+    ${RISCV_OMP_SHARED}
+    ${R1F16_RVV_PKG_DIR}/
+  COMMAND sh -c "tar -czf ${R1F16_RVV_PKG_ARCHIVE} ${R1F16_RVV_PKG_NAME}"
+  COMMAND ${CMAKE_COMMAND} -E remove_directory ${R1F16_RVV_PKG_DIR}
+  COMMENT "Creating RVV package: ${R1F16_RVV_PKG_ARCHIVE}"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS
+    ${BUILD_CROSS_MLIR_DIR}/lib/libmlir_float16_utils.so.22.0git
+    ${CMAKE_CURRENT_BINARY_DIR}/arg0-f16.data
+    ${CMAKE_BINARY_DIR}/bin/buddy-deepseek-r1-f16-run
+    ${CMAKE_SOURCE_DIR}/examples/BuddyDeepSeekR1/vocab.txt
+    ${RISCV_MLIR_C_RUNNER_UTILS}
+    ${RISCV_OMP_SHARED}
+  USES_TERMINAL
+  VERBATIM
+)
+
+set(R1BF16_RVV_PKG_NAME "buddy-deepseek-r1-bf16-rvv-package")
+set(R1BF16_RVV_PKG_DIR ${CMAKE_CURRENT_BINARY_DIR}/${R1BF16_RVV_PKG_NAME})
+set(R1BF16_RVV_PKG_ARCHIVE ${CMAKE_CURRENT_BINARY_DIR}/${R1BF16_RVV_PKG_NAME}.tgz)
+add_custom_target(buddy-deepseek-r1-bf16-rvv-package DEPENDS ${R1BF16_RVV_PKG_ARCHIVE})
+add_custom_command(
+  OUTPUT ${R1BF16_RVV_PKG_ARCHIVE}
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${R1BF16_RVV_PKG_DIR}
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    ${BUILD_CROSS_MLIR_DIR}/lib/libmlir_float16_utils.so.22.0git
+    ${CMAKE_CURRENT_BINARY_DIR}/arg0-bf16.data
+    ${CMAKE_BINARY_DIR}/bin/buddy-deepseek-r1-bf16-run
+    ${CMAKE_SOURCE_DIR}/examples/BuddyDeepSeekR1/vocab.txt
+    ${RISCV_MLIR_C_RUNNER_UTILS}
+    ${RISCV_OMP_SHARED}
+    ${R1F16_RVV_PKG_DIR}/
+  COMMAND sh -c "tar -czf ${R1BF16_RVV_PKG_ARCHIVE} ${R1BF16_RVV_PKG_NAME}"
+  COMMAND ${CMAKE_COMMAND} -E remove_directory ${R1BF16_RVV_PKG_DIR}
+  COMMENT "Creating RVV package: ${R1BF16_RVV_PKG_ARCHIVE}"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS
+    ${BUILD_CROSS_MLIR_DIR}/lib/libmlir_float16_utils.so.22.0git
+    ${CMAKE_CURRENT_BINARY_DIR}/arg0-bf16.data
+    ${CMAKE_BINARY_DIR}/bin/buddy-deepseek-r1-bf16-run
+    ${CMAKE_SOURCE_DIR}/examples/BuddyDeepSeekR1/vocab.txt
+    ${RISCV_MLIR_C_RUNNER_UTILS}
+    ${RISCV_OMP_SHARED}
+  USES_TERMINAL
+  VERBATIM
+)
+
+
+
+set(R1CLI_RVV_PKG_NAME "buddy-deepseek-r1-cli-rvv-package")
+set(R1CLI_RVV_PKG_DIR ${CMAKE_CURRENT_BINARY_DIR}/${R1CLI_RVV_PKG_NAME})
+set(R1CLI_RVV_PKG_ARCHIVE ${CMAKE_CURRENT_BINARY_DIR}/${R1CLI_RVV_PKG_NAME}.tgz)
+add_custom_target(buddy-deepseek-r1-cli-rvv-package DEPENDS ${R1CLI_RVV_PKG_ARCHIVE})
+add_custom_command(
+  OUTPUT ${R1CLI_RVV_PKG_ARCHIVE}
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${R1CLI_RVV_PKG_DIR}
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    ${BUILD_CROSS_MLIR_DIR}/lib/libmlir_float16_utils.so.22.0git
+    ${CMAKE_CURRENT_BINARY_DIR}/arg0.data
+    ${CMAKE_BINARY_DIR}/bin/buddy-deepseek-r1-cli
+    ${CMAKE_SOURCE_DIR}/examples/BuddyDeepSeekR1/vocab.txt
+    ${RISCV_MLIR_C_RUNNER_UTILS}
+    ${RISCV_OMP_SHARED}
+    ${R1CLI_RVV_PKG_DIR}/
+  COMMAND sh -c "tar -czf ${R1CLI_RVV_PKG_ARCHIVE} ${R1CLI_RVV_PKG_NAME}"
+  COMMAND ${CMAKE_COMMAND} -E remove_directory ${R1CLI_RVV_PKG_DIR}
+  COMMENT "Creating RVV package: ${R1CLI_RVV_PKG_ARCHIVE}"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS
+    ${BUILD_CROSS_MLIR_DIR}/lib/libmlir_float16_utils.so.22.0git
+    ${CMAKE_CURRENT_BINARY_DIR}/arg0.data
+    ${CMAKE_BINARY_DIR}/bin/buddy-deepseek-r1-cli
+    ${CMAKE_SOURCE_DIR}/examples/BuddyDeepSeekR1/vocab.txt
+    ${RISCV_MLIR_C_RUNNER_UTILS}
+    ${RISCV_OMP_SHARED}
   USES_TERMINAL
   VERBATIM
 )
@@ -788,7 +972,7 @@ foreach(CACHE_SIZE ${KV_CACHE_SIZES})
               -reconcile-unrealized-casts |
             ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
             ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
-            ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
+            ${LLVM_TOOLS_BINARY_DIR}/llc ${LLC_RISCV_ATTRS} -filetype=obj -relocation-model=pic -O3
               -o ${CMAKE_CURRENT_BINARY_DIR}/subgraph_decode_${CACHE_SIZE}.o
     DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode_${CACHE_SIZE}.mlir
     COMMENT "Building subgraph_decode_${CACHE_SIZE}.o"
@@ -924,7 +1108,7 @@ target_compile_definitions(buddy-deepseek-r1-tiered-kv-cache-run PRIVATE
   DEEPSEEKR1_EXAMPLE_BUILD_PATH="${DEEPSEEKR1_EXAMPLE_BUILD_PATH}/"
 )
 
-if(IS_RVV_PLATFORM)
+if(IS_RVV_PLATFORM OR IS_RVV_CROSSCOMPILING)
   target_compile_options(buddy-deepseek-r1-tiered-kv-cache-run PRIVATE ${RISCV_COMPILE_OPTS})
   target_link_options(buddy-deepseek-r1-tiered-kv-cache-run PRIVATE ${RISCV_LINK_OPTS})
 endif()
@@ -935,11 +1119,19 @@ target_link_directories(buddy-deepseek-r1-tiered-kv-cache-run PRIVATE ${LLVM_LIB
 # bufferization-lower-deallocations; allow multiple definitions when linking.
 target_link_options(buddy-deepseek-r1-tiered-kv-cache-run PRIVATE -Wl,--allow-multiple-definition)
 
+if(IS_RVV_CROSSCOMPILING)
+  set(BUDDY_DEEPSEEKR1_TIERED_KV_CACHE_LIBS
+    DEEPSEEKR1_TIERED_KV_CACHE
+    ${RISCV_MLIR_C_RUNNER_UTILS}
+    ${RISCV_OMP_SHARED}
+  )
+else()
 set(BUDDY_DEEPSEEKR1_TIERED_KV_CACHE_LIBS
   DEEPSEEKR1_TIERED_KV_CACHE
   mlir_c_runner_utils
   omp
 )
+endif()
 if(BUDDY_MLIR_USE_MIMALLOC)
   list(APPEND BUDDY_DEEPSEEKR1_TIERED_KV_CACHE_LIBS mimalloc)
 endif()
@@ -952,3 +1144,33 @@ add_custom_target(deepseekr1-tiered-kv-cache
 )
 
 message(STATUS "DeepSeekR1 Multi-Cache: Building prefill and decode subgraphs for cache sizes: ${KV_CACHE_SIZES}")
+
+set(R1KV_CACHE_RVV_PKG_NAME "buddy-deepseek-r1-tiered-kv-cache-run-rvv-pkg")
+set(R1KV_CACHE_RVV_PKG_DIR ${CMAKE_CURRENT_BINARY_DIR}/${R1KV_CACHE_RVV_PKG_NAME})
+set(R1KV_CACHE_RVV_PKG_ARCHIVE ${CMAKE_CURRENT_BINARY_DIR}/${R1KV_CACHE_RVV_PKG_NAME}.tgz)
+add_custom_target(buddy-deepseek-r1-tiered-kv-cache-run-rvv-package DEPENDS ${R1KV_CACHE_RVV_PKG_ARCHIVE})
+add_custom_command(
+  OUTPUT ${R1KV_CACHE_RVV_PKG_ARCHIVE}
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${R1KV_CACHE_RVV_PKG_DIR}
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    ${BUILD_CROSS_MLIR_DIR}/lib/libmlir_float16_utils.so.22.0git
+    ${CMAKE_CURRENT_BINARY_DIR}/arg0_mc.data
+    ${CMAKE_BINARY_DIR}/bin/buddy-deepseek-r1-tiered-kv-cache-run
+    ${CMAKE_SOURCE_DIR}/examples/BuddyDeepSeekR1/vocab.txt
+    ${RISCV_MLIR_C_RUNNER_UTILS}
+    ${RISCV_OMP_SHARED}
+    ${R1KV_CACHE_RVV_PKG_DIR}/
+  COMMAND sh -c "tar -czf ${R1KV_CACHE_RVV_PKG_ARCHIVE} ${R1KV_CACHE_RVV_PKG_NAME}"
+  COMMAND ${CMAKE_COMMAND} -E remove_directory ${R1KV_CACHE_RVV_PKG_DIR}
+  COMMENT "Creating RVV package: ${R1KV_CACHE_RVV_PKG_ARCHIVE}"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS
+    ${BUILD_CROSS_MLIR_DIR}/lib/libmlir_float16_utils.so.22.0git
+    ${CMAKE_CURRENT_BINARY_DIR}/arg0_mc.data
+    ${CMAKE_BINARY_DIR}/bin/buddy-deepseek-r1-tiered-kv-cache-run
+    ${CMAKE_SOURCE_DIR}/examples/BuddyDeepSeekR1/vocab.txt
+    ${RISCV_MLIR_C_RUNNER_UTILS}
+    ${RISCV_OMP_SHARED}
+  USES_TERMINAL
+  VERBATIM
+)
