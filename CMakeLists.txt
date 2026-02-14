@@ -238,6 +238,7 @@ endif()
 #-------------------------------------------------------------------------------
 
 add_subdirectory(cmake)
+add_subdirectory(runtime)
 add_subdirectory(frontend)
 add_subdirectory(midend)
 add_subdirectory(backend)

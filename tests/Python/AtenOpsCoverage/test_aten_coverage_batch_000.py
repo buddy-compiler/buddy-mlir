@@ -1,9 +1,69 @@
 # RUN: %PYTHON %s 2>&1 | FileCheck %s
-from aten_op_batch_runner import run_aten_op_batch
+from aten_coverage_runner import run_aten_coverage_batch
+import os
 import torch
 
 # Define custom input templates for this batch to allow per-op tuning.
 CUSTOM_TEMPLATES = {}
+
+
+def _dtype_variant(default: torch.dtype = torch.float16) -> torch.dtype:
+    """
+    Select dtype for *_dtype* variants via env without touching op lists.
+
+    - Default: float16 (non-float32 coverage)
+    - Override: set BUDDY_OC_DTYPE_VARIANT to one of:
+      float16|f16|fp16, float32|f32|fp32, bfloat16|bf16, float64|f64|fp64
+    """
+    raw = os.getenv("BUDDY_OC_DTYPE_VARIANT", "").strip().lower()
+    if not raw:
+        return default
+    table = {
+        "f16": torch.float16,
+        "float16": torch.float16,
+        "fp16": torch.float16,
+        "f32": torch.float32,
+        "float32": torch.float32,
+        "fp32": torch.float32,
+        "bf16": torch.bfloat16,
+        "bfloat16": torch.bfloat16,
+        "f64": torch.float64,
+        "float64": torch.float64,
+        "fp64": torch.float64,
+    }
+    return table.get(raw, default)
+
+
+def _template_addmm_dtype():
+    dt = _dtype_variant()
+    bias = torch.randn(2, 4, dtype=dt)
+    mat1 = torch.randn(2, 3, dtype=dt)
+    mat2 = torch.randn(3, 4, dtype=dt)
+    return [bias, mat1, mat2, dt], {}
+
+
+def _template_addmm_dtype_out():
+    args, kwargs = _template_addmm_dtype()
+    out = torch.empty((2, 4), dtype=args[3])
+    kwargs = dict(kwargs)
+    kwargs["out"] = out
+    return args, kwargs
+
+
+def _template_baddbmm_dtype():
+    dt = _dtype_variant()
+    bias = torch.randn(2, 3, 5, dtype=dt)
+    batch1 = torch.randn(2, 3, 4, dtype=dt)
+    batch2 = torch.randn(2, 4, 5, dtype=dt)
+    return [bias, batch1, batch2, dt], {}
+
+
+def _template_baddbmm_dtype_out():
+    args, kwargs = _template_baddbmm_dtype()
+    out = torch.empty((2, 3, 5), dtype=args[3])
+    kwargs = dict(kwargs)
+    kwargs["out"] = out
+    return args, kwargs
 
 
 def _template_addmm():
@@ -145,6 +205,45 @@ def _template_affine_grid_out():
     args, _ = _template_affine_grid()
     out = torch.empty((1, 4, 4, 2), dtype=torch.float32)
     return args, {"out": out}
+
+
+def _template_bernoulli_tensor():
+    p = torch.tensor([[0.4, 0.6, 0.2], [0.9, 0.1, 0.7]], dtype=torch.float32)
+    self = torch.empty_like(p)
+    return [self, p], {}
+
+
+def _template_bernoulli_tensor_out():
+    args, _ = _template_bernoulli_tensor()
+    out = torch.empty_like(args[1])
+    return args, {"out": out}
+
+
+def _template_bernoulli_default():
+    args, _ = _template_bernoulli_tensor()
+    return [args[1]], {}
+
+
+def _template_bernoulli_out():
+    args, _ = _template_bernoulli_tensor()
+    out = torch.empty_like(args[1])
+    return [args[1]], {"out": out}
+
+
+def _template_bernoulli_p():
+    x = torch.empty((2, 3), dtype=torch.float32)
+    return [x, 0.5], {}
+
+
+def _template_bernoulli_float_out():
+    x = torch.empty((2, 3), dtype=torch.float32)
+    out = torch.empty_like(x)
+    return [x, 0.5], {"out": out}
+
+
+def _template_bernoulli_inplace_tensor():
+    args, _ = _template_bernoulli_tensor()
+    return [args[0].clone(), args[1]], {}
 
 
 def _template_arg_reduce_out(kind: str):
@@ -376,8 +475,8 @@ CUSTOM_TEMPLATES.update(
     {
         "addmm.default": _template_addmm,
         "addmm.out": _wrap_out_tensor(_template_addmm),
-        "addmm.dtype": _skip("unsupported_cpu_dtype"),
-        "addmm.dtype_out": _skip("unsupported_cpu_dtype"),
+        "addmm.dtype": _template_addmm_dtype,
+        "addmm.dtype_out": _template_addmm_dtype_out,
         "addmv.default": _template_addmv,
         "addmv.out": _wrap_out_tensor(_template_addmv),
         "addbmm.default": _template_addbmm2d,
@@ -389,8 +488,8 @@ CUSTOM_TEMPLATES.update(
         "addbmm_.default": _template_addbmm2d,
         "baddbmm.default": _template_baddbmm,
         "baddbmm.out": _wrap_out_tensor(_template_baddbmm),
-        "baddbmm.dtype": _skip("unsupported_cpu_dtype"),
-        "baddbmm.dtype_out": _skip("unsupported_cpu_dtype"),
+        "baddbmm.dtype": _template_baddbmm_dtype,
+        "baddbmm.dtype_out": _template_baddbmm_dtype_out,
         "baddbmm_.default": _template_baddbmm,
         "aminmax.out": _template_aminmax_out_scalar,
         "addmm_.default": _template_addmm,
@@ -491,14 +590,15 @@ CUSTOM_TEMPLATES.update(
         "any.dimname": _skip("dimname_not_supported"),
         "any.dimname_out": _skip("dimname_not_supported"),
         "angle.Scalar": lambda: ([0.5], {}),
-        "bernoulli.default": _skip("randop_not_supported"),
-        "bernoulli.out": _skip("randop_not_supported"),
-        "bernoulli.p": _skip("randop_not_supported"),
-        "bernoulli.Tensor": _skip("randop_not_supported"),
-        "bernoulli.Tensor_out": _skip("randop_not_supported"),
-        "bernoulli.float_out": _skip("randop_not_supported"),
-        "bernoulli_.Tensor": _skip("randop_not_supported"),
-        # Complex types not supported
+        "bernoulli.default": _template_bernoulli_default,
+        "bernoulli.out": _template_bernoulli_out,
+        "bernoulli.p": _template_bernoulli_p,
+        "bernoulli.Tensor": _template_bernoulli_tensor,
+        "bernoulli.Tensor_out": _template_bernoulli_tensor_out,
+        "bernoulli.float_out": _template_bernoulli_float_out,
+        "bernoulli_.Tensor": _template_bernoulli_inplace_tensor,
+        # Complex scalar overloads: Dynamo fake tensor currently cannot trace
+        # these signatures (expects Scalar complex, but receives FakeTensor).
         "acos.complex": _skip("complex_not_supported"),
         "acosh.complex": _skip("complex_not_supported"),
         "add.complex": _skip("complex_not_supported"),
@@ -718,12 +818,13 @@ OPS = [
 ]
 
 if __name__ == "__main__":
-    run_aten_op_batch(
+    run_aten_coverage_batch(
         OPS,
         batch_label="test_batch_0",
         max_fails=20,
         templates=CUSTOM_TEMPLATES,
         show_skips=True,
+        mode="graph",
     )
 # CHECK: SUMMARY pass=
 # CHECK-SAME: fail=0

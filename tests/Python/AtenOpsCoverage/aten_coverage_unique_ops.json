@@ -1,0 +1,2806 @@
+[
+  {
+    "op": "abs",
+    "overload_count": 2
+  },
+  {
+    "op": "abs_",
+    "overload_count": 1
+  },
+  {
+    "op": "absolute",
+    "overload_count": 2
+  },
+  {
+    "op": "absolute_",
+    "overload_count": 1
+  },
+  {
+    "op": "acos",
+    "overload_count": 6
+  },
+  {
+    "op": "acos_",
+    "overload_count": 1
+  },
+  {
+    "op": "acosh",
+    "overload_count": 6
+  },
+  {
+    "op": "acosh_",
+    "overload_count": 1
+  },
+  {
+    "op": "adaptive_max_pool2d",
+    "overload_count": 2
+  },
+  {
+    "op": "adaptive_max_pool2d_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "adaptive_max_pool3d",
+    "overload_count": 2
+  },
+  {
+    "op": "adaptive_max_pool3d_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "add",
+    "overload_count": 16
+  },
+  {
+    "op": "add_",
+    "overload_count": 3
+  },
+  {
+    "op": "addbmm",
+    "overload_count": 2
+  },
+  {
+    "op": "addbmm_",
+    "overload_count": 1
+  },
+  {
+    "op": "addcdiv",
+    "overload_count": 2
+  },
+  {
+    "op": "addcdiv_",
+    "overload_count": 1
+  },
+  {
+    "op": "addcmul",
+    "overload_count": 2
+  },
+  {
+    "op": "addcmul_",
+    "overload_count": 1
+  },
+  {
+    "op": "addmm",
+    "overload_count": 4
+  },
+  {
+    "op": "addmm_",
+    "overload_count": 1
+  },
+  {
+    "op": "addmv",
+    "overload_count": 2
+  },
+  {
+    "op": "addmv_",
+    "overload_count": 1
+  },
+  {
+    "op": "addr",
+    "overload_count": 2
+  },
+  {
+    "op": "affine_grid_generator",
+    "overload_count": 2
+  },
+  {
+    "op": "alias",
+    "overload_count": 1
+  },
+  {
+    "op": "alias_copy",
+    "overload_count": 2
+  },
+  {
+    "op": "all",
+    "overload_count": 11
+  },
+  {
+    "op": "alpha_dropout",
+    "overload_count": 1
+  },
+  {
+    "op": "amax",
+    "overload_count": 2
+  },
+  {
+    "op": "amin",
+    "overload_count": 2
+  },
+  {
+    "op": "aminmax",
+    "overload_count": 2
+  },
+  {
+    "op": "angle",
+    "overload_count": 6
+  },
+  {
+    "op": "any",
+    "overload_count": 12
+  },
+  {
+    "op": "arange",
+    "overload_count": 5
+  },
+  {
+    "op": "arccos",
+    "overload_count": 2
+  },
+  {
+    "op": "arccos_",
+    "overload_count": 1
+  },
+  {
+    "op": "arccosh",
+    "overload_count": 2
+  },
+  {
+    "op": "arccosh_",
+    "overload_count": 1
+  },
+  {
+    "op": "arcsin",
+    "overload_count": 2
+  },
+  {
+    "op": "arcsin_",
+    "overload_count": 1
+  },
+  {
+    "op": "arcsinh",
+    "overload_count": 2
+  },
+  {
+    "op": "arcsinh_",
+    "overload_count": 1
+  },
+  {
+    "op": "arctan",
+    "overload_count": 2
+  },
+  {
+    "op": "arctan2",
+    "overload_count": 2
+  },
+  {
+    "op": "arctan2_",
+    "overload_count": 1
+  },
+  {
+    "op": "arctan_",
+    "overload_count": 1
+  },
+  {
+    "op": "arctanh",
+    "overload_count": 2
+  },
+  {
+    "op": "arctanh_",
+    "overload_count": 1
+  },
+  {
+    "op": "argmax",
+    "overload_count": 2
+  },
+  {
+    "op": "argmin",
+    "overload_count": 2
+  },
+  {
+    "op": "as_strided",
+    "overload_count": 1
+  },
+  {
+    "op": "as_strided_",
+    "overload_count": 1
+  },
+  {
+    "op": "as_strided_copy",
+    "overload_count": 2
+  },
+  {
+    "op": "as_strided_scatter",
+    "overload_count": 2
+  },
+  {
+    "op": "asin",
+    "overload_count": 6
+  },
+  {
+    "op": "asin_",
+    "overload_count": 1
+  },
+  {
+    "op": "asinh",
+    "overload_count": 6
+  },
+  {
+    "op": "asinh_",
+    "overload_count": 1
+  },
+  {
+    "op": "atan",
+    "overload_count": 6
+  },
+  {
+    "op": "atan2",
+    "overload_count": 7
+  },
+  {
+    "op": "atan2_",
+    "overload_count": 1
+  },
+  {
+    "op": "atan_",
+    "overload_count": 1
+  },
+  {
+    "op": "atanh",
+    "overload_count": 6
+  },
+  {
+    "op": "atanh_",
+    "overload_count": 1
+  },
+  {
+    "op": "avg_pool2d",
+    "overload_count": 2
+  },
+  {
+    "op": "avg_pool2d_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "avg_pool3d",
+    "overload_count": 2
+  },
+  {
+    "op": "avg_pool3d_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "baddbmm",
+    "overload_count": 4
+  },
+  {
+    "op": "baddbmm_",
+    "overload_count": 1
+  },
+  {
+    "op": "batch_norm_backward",
+    "overload_count": 1
+  },
+  {
+    "op": "bernoulli",
+    "overload_count": 6
+  },
+  {
+    "op": "bernoulli_",
+    "overload_count": 2
+  },
+  {
+    "op": "binary_cross_entropy",
+    "overload_count": 2
+  },
+  {
+    "op": "binary_cross_entropy_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "binary_cross_entropy_with_logits",
+    "overload_count": 2
+  },
+  {
+    "op": "bincount",
+    "overload_count": 2
+  },
+  {
+    "op": "bitwise_and",
+    "overload_count": 6
+  },
+  {
+    "op": "bitwise_and_",
+    "overload_count": 2
+  },
+  {
+    "op": "bitwise_left_shift",
+    "overload_count": 6
+  },
+  {
+    "op": "bitwise_left_shift_",
+    "overload_count": 2
+  },
+  {
+    "op": "bitwise_not",
+    "overload_count": 2
+  },
+  {
+    "op": "bitwise_not_",
+    "overload_count": 1
+  },
+  {
+    "op": "bitwise_or",
+    "overload_count": 6
+  },
+  {
+    "op": "bitwise_or_",
+    "overload_count": 2
+  },
+  {
+    "op": "bitwise_right_shift",
+    "overload_count": 6
+  },
+  {
+    "op": "bitwise_right_shift_",
+    "overload_count": 2
+  },
+  {
+    "op": "bitwise_xor",
+    "overload_count": 6
+  },
+  {
+    "op": "bitwise_xor_",
+    "overload_count": 2
+  },
+  {
+    "op": "block_diag",
+    "overload_count": 2
+  },
+  {
+    "op": "bmm",
+    "overload_count": 4
+  },
+  {
+    "op": "broadcast_tensors",
+    "overload_count": 1
+  },
+  {
+    "op": "bucketize",
+    "overload_count": 4
+  },
+  {
+    "op": "cat",
+    "overload_count": 4
+  },
+  {
+    "op": "cauchy",
+    "overload_count": 2
+  },
+  {
+    "op": "cauchy_",
+    "overload_count": 1
+  },
+  {
+    "op": "ceil",
+    "overload_count": 5
+  },
+  {
+    "op": "ceil_",
+    "overload_count": 1
+  },
+  {
+    "op": "celu",
+    "overload_count": 2
+  },
+  {
+    "op": "celu_",
+    "overload_count": 1
+  },
+  {
+    "op": "channel_shuffle",
+    "overload_count": 2
+  },
+  {
+    "op": "cholesky",
+    "overload_count": 2
+  },
+  {
+    "op": "cholesky_inverse",
+    "overload_count": 2
+  },
+  {
+    "op": "cholesky_solve",
+    "overload_count": 2
+  },
+  {
+    "op": "clamp",
+    "overload_count": 4
+  },
+  {
+    "op": "clamp_",
+    "overload_count": 2
+  },
+  {
+    "op": "clamp_max",
+    "overload_count": 4
+  },
+  {
+    "op": "clamp_max_",
+    "overload_count": 2
+  },
+  {
+    "op": "clamp_min",
+    "overload_count": 4
+  },
+  {
+    "op": "clamp_min_",
+    "overload_count": 2
+  },
+  {
+    "op": "clip",
+    "overload_count": 4
+  },
+  {
+    "op": "clip_",
+    "overload_count": 2
+  },
+  {
+    "op": "clone",
+    "overload_count": 2
+  },
+  {
+    "op": "col2im",
+    "overload_count": 2
+  },
+  {
+    "op": "complex",
+    "overload_count": 2
+  },
+  {
+    "op": "conj",
+    "overload_count": 1
+  },
+  {
+    "op": "conj_physical",
+    "overload_count": 2
+  },
+  {
+    "op": "conj_physical_",
+    "overload_count": 1
+  },
+  {
+    "op": "constant_pad_nd",
+    "overload_count": 2
+  },
+  {
+    "op": "conv2d",
+    "overload_count": 2
+  },
+  {
+    "op": "convolution",
+    "overload_count": 2
+  },
+  {
+    "op": "convolution_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "copy",
+    "overload_count": 9
+  },
+  {
+    "op": "copy_",
+    "overload_count": 4
+  },
+  {
+    "op": "copysign",
+    "overload_count": 9
+  },
+  {
+    "op": "copysign_",
+    "overload_count": 2
+  },
+  {
+    "op": "cos",
+    "overload_count": 6
+  },
+  {
+    "op": "cos_",
+    "overload_count": 1
+  },
+  {
+    "op": "cosh",
+    "overload_count": 6
+  },
+  {
+    "op": "cosh_",
+    "overload_count": 1
+  },
+  {
+    "op": "count_nonzero",
+    "overload_count": 4
+  },
+  {
+    "op": "cudnn_batch_norm",
+    "overload_count": 2
+  },
+  {
+    "op": "cudnn_batch_norm_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "cummax",
+    "overload_count": 4
+  },
+  {
+    "op": "cummin",
+    "overload_count": 4
+  },
+  {
+    "op": "cumprod",
+    "overload_count": 4
+  },
+  {
+    "op": "cumprod_",
+    "overload_count": 2
+  },
+  {
+    "op": "cumsum",
+    "overload_count": 4
+  },
+  {
+    "op": "cumsum_",
+    "overload_count": 2
+  },
+  {
+    "op": "deg2rad",
+    "overload_count": 2
+  },
+  {
+    "op": "deg2rad_",
+    "overload_count": 1
+  },
+  {
+    "op": "dense_dim",
+    "overload_count": 1
+  },
+  {
+    "op": "detach",
+    "overload_count": 1
+  },
+  {
+    "op": "diag",
+    "overload_count": 2
+  },
+  {
+    "op": "diag_embed",
+    "overload_count": 2
+  },
+  {
+    "op": "diagonal",
+    "overload_count": 2
+  },
+  {
+    "op": "diagonal_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "diagonal_copy",
+    "overload_count": 2
+  },
+  {
+    "op": "diagonal_scatter",
+    "overload_count": 2
+  },
+  {
+    "op": "digamma",
+    "overload_count": 2
+  },
+  {
+    "op": "digamma_",
+    "overload_count": 1
+  },
+  {
+    "op": "dim",
+    "overload_count": 1
+  },
+  {
+    "op": "dist",
+    "overload_count": 2
+  },
+  {
+    "op": "div",
+    "overload_count": 12
+  },
+  {
+    "op": "div_",
+    "overload_count": 4
+  },
+  {
+    "op": "divide",
+    "overload_count": 6
+  },
+  {
+    "op": "divide_",
+    "overload_count": 4
+  },
+  {
+    "op": "dot",
+    "overload_count": 2
+  },
+  {
+    "op": "dropout",
+    "overload_count": 1
+  },
+  {
+    "op": "elu",
+    "overload_count": 2
+  },
+  {
+    "op": "elu_",
+    "overload_count": 1
+  },
+  {
+    "op": "elu_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "embedding",
+    "overload_count": 2
+  },
+  {
+    "op": "embedding_dense_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "empty",
+    "overload_count": 4
+  },
+  {
+    "op": "empty_like",
+    "overload_count": 2
+  },
+  {
+    "op": "empty_permuted",
+    "overload_count": 2
+  },
+  {
+    "op": "empty_strided",
+    "overload_count": 2
+  },
+  {
+    "op": "eq",
+    "overload_count": 21
+  },
+  {
+    "op": "eq_",
+    "overload_count": 2
+  },
+  {
+    "op": "erf",
+    "overload_count": 5
+  },
+  {
+    "op": "erf_",
+    "overload_count": 1
+  },
+  {
+    "op": "erfc",
+    "overload_count": 5
+  },
+  {
+    "op": "erfc_",
+    "overload_count": 1
+  },
+  {
+    "op": "erfinv",
+    "overload_count": 2
+  },
+  {
+    "op": "erfinv_",
+    "overload_count": 1
+  },
+  {
+    "op": "exp",
+    "overload_count": 6
+  },
+  {
+    "op": "exp2",
+    "overload_count": 2
+  },
+  {
+    "op": "exp2_",
+    "overload_count": 1
+  },
+  {
+    "op": "exp_",
+    "overload_count": 1
+  },
+  {
+    "op": "expand",
+    "overload_count": 1
+  },
+  {
+    "op": "expand_copy",
+    "overload_count": 2
+  },
+  {
+    "op": "expm1",
+    "overload_count": 5
+  },
+  {
+    "op": "expm1_",
+    "overload_count": 1
+  },
+  {
+    "op": "exponential",
+    "overload_count": 2
+  },
+  {
+    "op": "exponential_",
+    "overload_count": 1
+  },
+  {
+    "op": "eye",
+    "overload_count": 4
+  },
+  {
+    "op": "fft_fft",
+    "overload_count": 2
+  },
+  {
+    "op": "fft_fft2",
+    "overload_count": 2
+  },
+  {
+    "op": "fft_fftn",
+    "overload_count": 2
+  },
+  {
+    "op": "fft_fftshift",
+    "overload_count": 1
+  },
+  {
+    "op": "fft_hfft",
+    "overload_count": 2
+  },
+  {
+    "op": "fft_hfft2",
+    "overload_count": 2
+  },
+  {
+    "op": "fft_hfftn",
+    "overload_count": 2
+  },
+  {
+    "op": "fft_ifft",
+    "overload_count": 2
+  },
+  {
+    "op": "fft_ifft2",
+    "overload_count": 2
+  },
+  {
+    "op": "fft_ifftn",
+    "overload_count": 2
+  },
+  {
+    "op": "fft_ifftshift",
+    "overload_count": 1
+  },
+  {
+    "op": "fft_ihfft",
+    "overload_count": 2
+  },
+  {
+    "op": "fft_ihfft2",
+    "overload_count": 2
+  },
+  {
+    "op": "fft_ihfftn",
+    "overload_count": 2
+  },
+  {
+    "op": "fft_irfft",
+    "overload_count": 2
+  },
+  {
+    "op": "fft_irfft2",
+    "overload_count": 2
+  },
+  {
+    "op": "fft_irfftn",
+    "overload_count": 2
+  },
+  {
+    "op": "fft_rfft",
+    "overload_count": 2
+  },
+  {
+    "op": "fft_rfft2",
+    "overload_count": 2
+  },
+  {
+    "op": "fft_rfftn",
+    "overload_count": 2
+  },
+  {
+    "op": "fill",
+    "overload_count": 4
+  },
+  {
+    "op": "fill_",
+    "overload_count": 2
+  },
+  {
+    "op": "fix",
+    "overload_count": 2
+  },
+  {
+    "op": "fix_",
+    "overload_count": 1
+  },
+  {
+    "op": "flip",
+    "overload_count": 2
+  },
+  {
+    "op": "float_power_",
+    "overload_count": 2
+  },
+  {
+    "op": "floor",
+    "overload_count": 5
+  },
+  {
+    "op": "floor_",
+    "overload_count": 1
+  },
+  {
+    "op": "floor_divide",
+    "overload_count": 4
+  },
+  {
+    "op": "floor_divide_",
+    "overload_count": 2
+  },
+  {
+    "op": "fmax",
+    "overload_count": 2
+  },
+  {
+    "op": "fmin",
+    "overload_count": 2
+  },
+  {
+    "op": "fmod",
+    "overload_count": 9
+  },
+  {
+    "op": "fmod_",
+    "overload_count": 2
+  },
+  {
+    "op": "frac",
+    "overload_count": 2
+  },
+  {
+    "op": "frac_",
+    "overload_count": 1
+  },
+  {
+    "op": "fractional_max_pool2d",
+    "overload_count": 2
+  },
+  {
+    "op": "frexp",
+    "overload_count": 3
+  },
+  {
+    "op": "full",
+    "overload_count": 4
+  },
+  {
+    "op": "full_like",
+    "overload_count": 2
+  },
+  {
+    "op": "gather",
+    "overload_count": 4
+  },
+  {
+    "op": "gcd",
+    "overload_count": 3
+  },
+  {
+    "op": "gcd_",
+    "overload_count": 1
+  },
+  {
+    "op": "ge",
+    "overload_count": 10
+  },
+  {
+    "op": "ge_",
+    "overload_count": 2
+  },
+  {
+    "op": "gelu",
+    "overload_count": 2
+  },
+  {
+    "op": "gelu_",
+    "overload_count": 1
+  },
+  {
+    "op": "gelu_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "geometric",
+    "overload_count": 2
+  },
+  {
+    "op": "geometric_",
+    "overload_count": 1
+  },
+  {
+    "op": "glu",
+    "overload_count": 2
+  },
+  {
+    "op": "glu_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "greater",
+    "overload_count": 4
+  },
+  {
+    "op": "greater_",
+    "overload_count": 2
+  },
+  {
+    "op": "greater_equal",
+    "overload_count": 4
+  },
+  {
+    "op": "greater_equal_",
+    "overload_count": 2
+  },
+  {
+    "op": "grid_sampler_2d",
+    "overload_count": 2
+  },
+  {
+    "op": "grid_sampler_2d_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "grid_sampler_3d",
+    "overload_count": 2
+  },
+  {
+    "op": "grid_sampler_3d_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "gru",
+    "overload_count": 2
+  },
+  {
+    "op": "gt",
+    "overload_count": 10
+  },
+  {
+    "op": "gt_",
+    "overload_count": 2
+  },
+  {
+    "op": "hardshrink",
+    "overload_count": 2
+  },
+  {
+    "op": "hardsigmoid",
+    "overload_count": 2
+  },
+  {
+    "op": "hardsigmoid_",
+    "overload_count": 1
+  },
+  {
+    "op": "hardsigmoid_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "hardswish",
+    "overload_count": 2
+  },
+  {
+    "op": "hardswish_",
+    "overload_count": 1
+  },
+  {
+    "op": "hardswish_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "hardtanh",
+    "overload_count": 2
+  },
+  {
+    "op": "hardtanh_",
+    "overload_count": 1
+  },
+  {
+    "op": "hardtanh_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "heaviside",
+    "overload_count": 2
+  },
+  {
+    "op": "heaviside_",
+    "overload_count": 1
+  },
+  {
+    "op": "hinge_embedding_loss",
+    "overload_count": 1
+  },
+  {
+    "op": "histc",
+    "overload_count": 2
+  },
+  {
+    "op": "huber_loss",
+    "overload_count": 2
+  },
+  {
+    "op": "huber_loss_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "hypot",
+    "overload_count": 2
+  },
+  {
+    "op": "hypot_",
+    "overload_count": 1
+  },
+  {
+    "op": "i0",
+    "overload_count": 2
+  },
+  {
+    "op": "i0_",
+    "overload_count": 1
+  },
+  {
+    "op": "igamma",
+    "overload_count": 2
+  },
+  {
+    "op": "igamma_",
+    "overload_count": 1
+  },
+  {
+    "op": "igammac",
+    "overload_count": 2
+  },
+  {
+    "op": "igammac_",
+    "overload_count": 1
+  },
+  {
+    "op": "im2col",
+    "overload_count": 2
+  },
+  {
+    "op": "imag",
+    "overload_count": 1
+  },
+  {
+    "op": "index",
+    "overload_count": 9
+  },
+  {
+    "op": "index_add",
+    "overload_count": 3
+  },
+  {
+    "op": "index_add_",
+    "overload_count": 1
+  },
+  {
+    "op": "index_copy",
+    "overload_count": 3
+  },
+  {
+    "op": "index_copy_",
+    "overload_count": 2
+  },
+  {
+    "op": "index_fill",
+    "overload_count": 6
+  },
+  {
+    "op": "index_fill_",
+    "overload_count": 4
+  },
+  {
+    "op": "index_put",
+    "overload_count": 3
+  },
+  {
+    "op": "index_put_",
+    "overload_count": 2
+  },
+  {
+    "op": "index_reduce",
+    "overload_count": 2
+  },
+  {
+    "op": "index_reduce_",
+    "overload_count": 1
+  },
+  {
+    "op": "index_select",
+    "overload_count": 4
+  },
+  {
+    "op": "is_coalesced",
+    "overload_count": 1
+  },
+  {
+    "op": "is_complex",
+    "overload_count": 1
+  },
+  {
+    "op": "is_contiguous",
+    "overload_count": 2
+  },
+  {
+    "op": "is_non_overlapping_and_dense",
+    "overload_count": 1
+  },
+  {
+    "op": "is_pinned",
+    "overload_count": 1
+  },
+  {
+    "op": "is_same_size",
+    "overload_count": 1
+  },
+  {
+    "op": "is_strides_like_format",
+    "overload_count": 1
+  },
+  {
+    "op": "isfinite",
+    "overload_count": 3
+  },
+  {
+    "op": "isin",
+    "overload_count": 6
+  },
+  {
+    "op": "isinf",
+    "overload_count": 4
+  },
+  {
+    "op": "isnan",
+    "overload_count": 4
+  },
+  {
+    "op": "isneginf",
+    "overload_count": 2
+  },
+  {
+    "op": "isposinf",
+    "overload_count": 2
+  },
+  {
+    "op": "istft",
+    "overload_count": 1
+  },
+  {
+    "op": "item",
+    "overload_count": 1
+  },
+  {
+    "op": "kthvalue",
+    "overload_count": 4
+  },
+  {
+    "op": "lcm",
+    "overload_count": 2
+  },
+  {
+    "op": "lcm_",
+    "overload_count": 1
+  },
+  {
+    "op": "le",
+    "overload_count": 10
+  },
+  {
+    "op": "le_",
+    "overload_count": 2
+  },
+  {
+    "op": "leaky_relu",
+    "overload_count": 2
+  },
+  {
+    "op": "leaky_relu_",
+    "overload_count": 1
+  },
+  {
+    "op": "leaky_relu_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "lerp",
+    "overload_count": 4
+  },
+  {
+    "op": "lerp_",
+    "overload_count": 2
+  },
+  {
+    "op": "less",
+    "overload_count": 4
+  },
+  {
+    "op": "less_",
+    "overload_count": 2
+  },
+  {
+    "op": "less_equal",
+    "overload_count": 4
+  },
+  {
+    "op": "less_equal_",
+    "overload_count": 2
+  },
+  {
+    "op": "lgamma",
+    "overload_count": 5
+  },
+  {
+    "op": "lgamma_",
+    "overload_count": 1
+  },
+  {
+    "op": "lift",
+    "overload_count": 2
+  },
+  {
+    "op": "lift_fresh",
+    "overload_count": 1
+  },
+  {
+    "op": "lift_fresh_copy",
+    "overload_count": 2
+  },
+  {
+    "op": "linalg_cholesky_ex",
+    "overload_count": 2
+  },
+  {
+    "op": "linalg_cross",
+    "overload_count": 2
+  },
+  {
+    "op": "linalg_eig",
+    "overload_count": 2
+  },
+  {
+    "op": "linalg_eigvals",
+    "overload_count": 2
+  },
+  {
+    "op": "linalg_householder_product",
+    "overload_count": 2
+  },
+  {
+    "op": "linalg_inv_ex",
+    "overload_count": 2
+  },
+  {
+    "op": "linalg_ldl_factor_ex",
+    "overload_count": 2
+  },
+  {
+    "op": "linalg_ldl_solve",
+    "overload_count": 2
+  },
+  {
+    "op": "linalg_lu",
+    "overload_count": 2
+  },
+  {
+    "op": "linalg_lu_factor_ex",
+    "overload_count": 2
+  },
+  {
+    "op": "linalg_lu_solve",
+    "overload_count": 2
+  },
+  {
+    "op": "linalg_matrix_exp",
+    "overload_count": 2
+  },
+  {
+    "op": "linalg_qr",
+    "overload_count": 2
+  },
+  {
+    "op": "linalg_solve_triangular",
+    "overload_count": 2
+  },
+  {
+    "op": "linalg_vector_norm",
+    "overload_count": 2
+  },
+  {
+    "op": "linear",
+    "overload_count": 2
+  },
+  {
+    "op": "linear_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "linspace",
+    "overload_count": 8
+  },
+  {
+    "op": "log",
+    "overload_count": 16
+  },
+  {
+    "op": "log10",
+    "overload_count": 6
+  },
+  {
+    "op": "log10_",
+    "overload_count": 1
+  },
+  {
+    "op": "log1p",
+    "overload_count": 5
+  },
+  {
+    "op": "log1p_",
+    "overload_count": 1
+  },
+  {
+    "op": "log2",
+    "overload_count": 2
+  },
+  {
+    "op": "log2_",
+    "overload_count": 1
+  },
+  {
+    "op": "log_",
+    "overload_count": 1
+  },
+  {
+    "op": "log_normal",
+    "overload_count": 2
+  },
+  {
+    "op": "log_normal_",
+    "overload_count": 1
+  },
+  {
+    "op": "log_sigmoid_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "log_sigmoid_forward",
+    "overload_count": 2
+  },
+  {
+    "op": "logaddexp",
+    "overload_count": 2
+  },
+  {
+    "op": "logaddexp2",
+    "overload_count": 2
+  },
+  {
+    "op": "logcumsumexp",
+    "overload_count": 4
+  },
+  {
+    "op": "logical_and",
+    "overload_count": 2
+  },
+  {
+    "op": "logical_and_",
+    "overload_count": 1
+  },
+  {
+    "op": "logical_not",
+    "overload_count": 2
+  },
+  {
+    "op": "logical_not_",
+    "overload_count": 1
+  },
+  {
+    "op": "logical_or",
+    "overload_count": 2
+  },
+  {
+    "op": "logical_or_",
+    "overload_count": 1
+  },
+  {
+    "op": "logical_xor",
+    "overload_count": 2
+  },
+  {
+    "op": "logical_xor_",
+    "overload_count": 1
+  },
+  {
+    "op": "logit",
+    "overload_count": 2
+  },
+  {
+    "op": "logit_",
+    "overload_count": 1
+  },
+  {
+    "op": "logit_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "logspace",
+    "overload_count": 8
+  },
+  {
+    "op": "logsumexp",
+    "overload_count": 4
+  },
+  {
+    "op": "lstm",
+    "overload_count": 2
+  },
+  {
+    "op": "lt",
+    "overload_count": 10
+  },
+  {
+    "op": "lt_",
+    "overload_count": 2
+  },
+  {
+    "op": "lu_unpack",
+    "overload_count": 2
+  },
+  {
+    "op": "margin_ranking_loss",
+    "overload_count": 1
+  },
+  {
+    "op": "masked_fill",
+    "overload_count": 4
+  },
+  {
+    "op": "masked_fill_",
+    "overload_count": 2
+  },
+  {
+    "op": "masked_scatter",
+    "overload_count": 2
+  },
+  {
+    "op": "masked_scatter_",
+    "overload_count": 1
+  },
+  {
+    "op": "masked_scatter_backward",
+    "overload_count": 1
+  },
+  {
+    "op": "masked_select",
+    "overload_count": 2
+  },
+  {
+    "op": "matmul",
+    "overload_count": 2
+  },
+  {
+    "op": "max",
+    "overload_count": 8
+  },
+  {
+    "op": "max_pool2d_with_indices",
+    "overload_count": 2
+  },
+  {
+    "op": "max_pool2d_with_indices_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "max_pool3d_with_indices",
+    "overload_count": 2
+  },
+  {
+    "op": "max_pool3d_with_indices_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "max_unpool2d",
+    "overload_count": 2
+  },
+  {
+    "op": "max_unpool3d",
+    "overload_count": 2
+  },
+  {
+    "op": "maximum",
+    "overload_count": 2
+  },
+  {
+    "op": "mean",
+    "overload_count": 6
+  },
+  {
+    "op": "median",
+    "overload_count": 6
+  },
+  {
+    "op": "meshgrid",
+    "overload_count": 2
+  },
+  {
+    "op": "min",
+    "overload_count": 8
+  },
+  {
+    "op": "minimum",
+    "overload_count": 2
+  },
+  {
+    "op": "miopen_batch_norm",
+    "overload_count": 2
+  },
+  {
+    "op": "miopen_batch_norm_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "mish",
+    "overload_count": 2
+  },
+  {
+    "op": "mish_",
+    "overload_count": 1
+  },
+  {
+    "op": "mish_backward",
+    "overload_count": 1
+  },
+  {
+    "op": "mkldnn_rnn_layer",
+    "overload_count": 2
+  },
+  {
+    "op": "mkldnn_rnn_layer_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "mm",
+    "overload_count": 4
+  },
+  {
+    "op": "mode",
+    "overload_count": 4
+  },
+  {
+    "op": "mse_loss",
+    "overload_count": 2
+  },
+  {
+    "op": "mse_loss_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "mul",
+    "overload_count": 16
+  },
+  {
+    "op": "mul_",
+    "overload_count": 3
+  },
+  {
+    "op": "multi_margin_loss",
+    "overload_count": 2
+  },
+  {
+    "op": "multilabel_margin_loss_forward",
+    "overload_count": 2
+  },
+  {
+    "op": "multinomial",
+    "overload_count": 2
+  },
+  {
+    "op": "multiply",
+    "overload_count": 3
+  },
+  {
+    "op": "multiply_",
+    "overload_count": 2
+  },
+  {
+    "op": "mv",
+    "overload_count": 2
+  },
+  {
+    "op": "mvlgamma",
+    "overload_count": 2
+  },
+  {
+    "op": "mvlgamma_",
+    "overload_count": 1
+  },
+  {
+    "op": "nan_to_num",
+    "overload_count": 2
+  },
+  {
+    "op": "nan_to_num_",
+    "overload_count": 1
+  },
+  {
+    "op": "nanmedian",
+    "overload_count": 6
+  },
+  {
+    "op": "nansum",
+    "overload_count": 2
+  },
+  {
+    "op": "narrow",
+    "overload_count": 2
+  },
+  {
+    "op": "narrow_copy",
+    "overload_count": 2
+  },
+  {
+    "op": "native_batch_norm",
+    "overload_count": 2
+  },
+  {
+    "op": "native_batch_norm_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "native_dropout",
+    "overload_count": 2
+  },
+  {
+    "op": "native_dropout_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "native_group_norm",
+    "overload_count": 2
+  },
+  {
+    "op": "native_group_norm_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "native_layer_norm",
+    "overload_count": 2
+  },
+  {
+    "op": "native_layer_norm_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "ne",
+    "overload_count": 21
+  },
+  {
+    "op": "ne_",
+    "overload_count": 2
+  },
+  {
+    "op": "neg",
+    "overload_count": 6
+  },
+  {
+    "op": "neg_",
+    "overload_count": 1
+  },
+  {
+    "op": "negative",
+    "overload_count": 2
+  },
+  {
+    "op": "negative_",
+    "overload_count": 1
+  },
+  {
+    "op": "new_empty",
+    "overload_count": 2
+  },
+  {
+    "op": "new_empty_strided",
+    "overload_count": 2
+  },
+  {
+    "op": "new_full",
+    "overload_count": 2
+  },
+  {
+    "op": "new_ones",
+    "overload_count": 2
+  },
+  {
+    "op": "new_zeros",
+    "overload_count": 2
+  },
+  {
+    "op": "nextafter",
+    "overload_count": 2
+  },
+  {
+    "op": "nextafter_",
+    "overload_count": 1
+  },
+  {
+    "op": "nll_loss",
+    "overload_count": 2
+  },
+  {
+    "op": "nll_loss2d_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "nll_loss2d_forward",
+    "overload_count": 2
+  },
+  {
+    "op": "nll_loss_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "nll_loss_forward",
+    "overload_count": 2
+  },
+  {
+    "op": "nonzero",
+    "overload_count": 2
+  },
+  {
+    "op": "nonzero_numpy",
+    "overload_count": 1
+  },
+  {
+    "op": "nonzero_static",
+    "overload_count": 2
+  },
+  {
+    "op": "norm",
+    "overload_count": 12
+  },
+  {
+    "op": "normal",
+    "overload_count": 9
+  },
+  {
+    "op": "normal_",
+    "overload_count": 1
+  },
+  {
+    "op": "not_equal",
+    "overload_count": 4
+  },
+  {
+    "op": "not_equal_",
+    "overload_count": 2
+  },
+  {
+    "op": "numel",
+    "overload_count": 1
+  },
+  {
+    "op": "ones",
+    "overload_count": 4
+  },
+  {
+    "op": "ones_like",
+    "overload_count": 2
+  },
+  {
+    "op": "ormqr",
+    "overload_count": 2
+  },
+  {
+    "op": "pad_sequence",
+    "overload_count": 1
+  },
+  {
+    "op": "pairwise_distance",
+    "overload_count": 1
+  },
+  {
+    "op": "pdist",
+    "overload_count": 1
+  },
+  {
+    "op": "permute",
+    "overload_count": 1
+  },
+  {
+    "op": "permute_copy",
+    "overload_count": 2
+  },
+  {
+    "op": "pin_memory",
+    "overload_count": 1
+  },
+  {
+    "op": "pixel_shuffle",
+    "overload_count": 2
+  },
+  {
+    "op": "pixel_unshuffle",
+    "overload_count": 2
+  },
+  {
+    "op": "poisson",
+    "overload_count": 2
+  },
+  {
+    "op": "polar",
+    "overload_count": 7
+  },
+  {
+    "op": "polygamma",
+    "overload_count": 2
+  },
+  {
+    "op": "positive",
+    "overload_count": 1
+  },
+  {
+    "op": "pow",
+    "overload_count": 15
+  },
+  {
+    "op": "pow_",
+    "overload_count": 2
+  },
+  {
+    "op": "prelu",
+    "overload_count": 1
+  },
+  {
+    "op": "prod",
+    "overload_count": 6
+  },
+  {
+    "op": "quantized_gru",
+    "overload_count": 4
+  },
+  {
+    "op": "quantized_lstm",
+    "overload_count": 4
+  },
+  {
+    "op": "rad2deg",
+    "overload_count": 2
+  },
+  {
+    "op": "rad2deg_",
+    "overload_count": 1
+  },
+  {
+    "op": "rand",
+    "overload_count": 8
+  },
+  {
+    "op": "rand_like",
+    "overload_count": 2
+  },
+  {
+    "op": "randint",
+    "overload_count": 8
+  },
+  {
+    "op": "randint_like",
+    "overload_count": 6
+  },
+  {
+    "op": "randn",
+    "overload_count": 8
+  },
+  {
+    "op": "randn_like",
+    "overload_count": 2
+  },
+  {
+    "op": "randperm",
+    "overload_count": 4
+  },
+  {
+    "op": "real",
+    "overload_count": 1
+  },
+  {
+    "op": "reciprocal",
+    "overload_count": 2
+  },
+  {
+    "op": "reciprocal_",
+    "overload_count": 1
+  },
+  {
+    "op": "reflection_pad1d",
+    "overload_count": 2
+  },
+  {
+    "op": "reflection_pad1d_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "reflection_pad2d",
+    "overload_count": 2
+  },
+  {
+    "op": "reflection_pad2d_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "reflection_pad3d",
+    "overload_count": 2
+  },
+  {
+    "op": "reflection_pad3d_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "relu",
+    "overload_count": 2
+  },
+  {
+    "op": "relu6",
+    "overload_count": 1
+  },
+  {
+    "op": "relu_",
+    "overload_count": 1
+  },
+  {
+    "op": "remainder",
+    "overload_count": 11
+  },
+  {
+    "op": "remainder_",
+    "overload_count": 2
+  },
+  {
+    "op": "renorm",
+    "overload_count": 2
+  },
+  {
+    "op": "renorm_",
+    "overload_count": 1
+  },
+  {
+    "op": "repeat",
+    "overload_count": 2
+  },
+  {
+    "op": "repeat_interleave",
+    "overload_count": 4
+  },
+  {
+    "op": "replication_pad1d",
+    "overload_count": 2
+  },
+  {
+    "op": "replication_pad1d_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "replication_pad2d",
+    "overload_count": 2
+  },
+  {
+    "op": "replication_pad2d_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "replication_pad3d",
+    "overload_count": 2
+  },
+  {
+    "op": "replication_pad3d_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "reshape",
+    "overload_count": 1
+  },
+  {
+    "op": "resize",
+    "overload_count": 2
+  },
+  {
+    "op": "resize_as",
+    "overload_count": 2
+  },
+  {
+    "op": "resize_as_",
+    "overload_count": 1
+  },
+  {
+    "op": "rnn_relu",
+    "overload_count": 2
+  },
+  {
+    "op": "rnn_tanh",
+    "overload_count": 2
+  },
+  {
+    "op": "roll",
+    "overload_count": 2
+  },
+  {
+    "op": "rot90",
+    "overload_count": 2
+  },
+  {
+    "op": "round",
+    "overload_count": 7
+  },
+  {
+    "op": "round_",
+    "overload_count": 2
+  },
+  {
+    "op": "rrelu_with_noise",
+    "overload_count": 2
+  },
+  {
+    "op": "rrelu_with_noise_",
+    "overload_count": 1
+  },
+  {
+    "op": "rrelu_with_noise_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "rrelu_with_noise_functional",
+    "overload_count": 1
+  },
+  {
+    "op": "rsqrt",
+    "overload_count": 2
+  },
+  {
+    "op": "rsqrt_",
+    "overload_count": 1
+  },
+  {
+    "op": "rsub",
+    "overload_count": 4
+  },
+  {
+    "op": "scalar_tensor",
+    "overload_count": 2
+  },
+  {
+    "op": "scatter",
+    "overload_count": 10
+  },
+  {
+    "op": "scatter_",
+    "overload_count": 4
+  },
+  {
+    "op": "scatter_add",
+    "overload_count": 3
+  },
+  {
+    "op": "scatter_add_",
+    "overload_count": 1
+  },
+  {
+    "op": "scatter_reduce",
+    "overload_count": 2
+  },
+  {
+    "op": "scatter_reduce_",
+    "overload_count": 1
+  },
+  {
+    "op": "searchsorted",
+    "overload_count": 4
+  },
+  {
+    "op": "segment_reduce",
+    "overload_count": 2
+  },
+  {
+    "op": "select",
+    "overload_count": 3
+  },
+  {
+    "op": "select_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "select_scatter",
+    "overload_count": 2
+  },
+  {
+    "op": "selu",
+    "overload_count": 1
+  },
+  {
+    "op": "selu_",
+    "overload_count": 1
+  },
+  {
+    "op": "set_",
+    "overload_count": 5
+  },
+  {
+    "op": "sgn",
+    "overload_count": 2
+  },
+  {
+    "op": "sgn_",
+    "overload_count": 1
+  },
+  {
+    "op": "sigmoid",
+    "overload_count": 2
+  },
+  {
+    "op": "sigmoid_",
+    "overload_count": 1
+  },
+  {
+    "op": "sigmoid_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "sign",
+    "overload_count": 2
+  },
+  {
+    "op": "sign_",
+    "overload_count": 1
+  },
+  {
+    "op": "signbit",
+    "overload_count": 2
+  },
+  {
+    "op": "silu",
+    "overload_count": 2
+  },
+  {
+    "op": "silu_",
+    "overload_count": 1
+  },
+  {
+    "op": "silu_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "sin",
+    "overload_count": 6
+  },
+  {
+    "op": "sin_",
+    "overload_count": 1
+  },
+  {
+    "op": "sinc",
+    "overload_count": 2
+  },
+  {
+    "op": "sinc_",
+    "overload_count": 1
+  },
+  {
+    "op": "sinh",
+    "overload_count": 6
+  },
+  {
+    "op": "sinh_",
+    "overload_count": 1
+  },
+  {
+    "op": "size",
+    "overload_count": 3
+  },
+  {
+    "op": "slice",
+    "overload_count": 3
+  },
+  {
+    "op": "slice_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "slice_scatter",
+    "overload_count": 2
+  },
+  {
+    "op": "smooth_l1_loss",
+    "overload_count": 2
+  },
+  {
+    "op": "smooth_l1_loss_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "soft_margin_loss",
+    "overload_count": 2
+  },
+  {
+    "op": "soft_margin_loss_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "softplus",
+    "overload_count": 2
+  },
+  {
+    "op": "softplus_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "softshrink",
+    "overload_count": 2
+  },
+  {
+    "op": "sort",
+    "overload_count": 14
+  },
+  {
+    "op": "sparse_dim",
+    "overload_count": 1
+  },
+  {
+    "op": "special_airy_ai",
+    "overload_count": 2
+  },
+  {
+    "op": "special_bessel_j0",
+    "overload_count": 2
+  },
+  {
+    "op": "special_bessel_j1",
+    "overload_count": 2
+  },
+  {
+    "op": "special_bessel_y0",
+    "overload_count": 2
+  },
+  {
+    "op": "special_bessel_y1",
+    "overload_count": 2
+  },
+  {
+    "op": "special_chebyshev_polynomial_t",
+    "overload_count": 6
+  },
+  {
+    "op": "special_chebyshev_polynomial_u",
+    "overload_count": 6
+  },
+  {
+    "op": "special_chebyshev_polynomial_v",
+    "overload_count": 6
+  },
+  {
+    "op": "special_chebyshev_polynomial_w",
+    "overload_count": 6
+  },
+  {
+    "op": "special_entr",
+    "overload_count": 2
+  },
+  {
+    "op": "special_erfcx",
+    "overload_count": 2
+  },
+  {
+    "op": "special_hermite_polynomial_h",
+    "overload_count": 6
+  },
+  {
+    "op": "special_hermite_polynomial_he",
+    "overload_count": 6
+  },
+  {
+    "op": "special_i0e",
+    "overload_count": 2
+  },
+  {
+    "op": "special_i1",
+    "overload_count": 2
+  },
+  {
+    "op": "special_i1e",
+    "overload_count": 2
+  },
+  {
+    "op": "special_laguerre_polynomial_l",
+    "overload_count": 6
+  },
+  {
+    "op": "special_legendre_polynomial_p",
+    "overload_count": 6
+  },
+  {
+    "op": "special_log_ndtr",
+    "overload_count": 2
+  },
+  {
+    "op": "special_modified_bessel_i0",
+    "overload_count": 2
+  },
+  {
+    "op": "special_modified_bessel_i1",
+    "overload_count": 2
+  },
+  {
+    "op": "special_modified_bessel_k0",
+    "overload_count": 2
+  },
+  {
+    "op": "special_modified_bessel_k1",
+    "overload_count": 2
+  },
+  {
+    "op": "special_ndtr",
+    "overload_count": 2
+  },
+  {
+    "op": "special_ndtri",
+    "overload_count": 2
+  },
+  {
+    "op": "special_scaled_modified_bessel_k0",
+    "overload_count": 2
+  },
+  {
+    "op": "special_scaled_modified_bessel_k1",
+    "overload_count": 2
+  },
+  {
+    "op": "special_shifted_chebyshev_polynomial_t",
+    "overload_count": 6
+  },
+  {
+    "op": "special_shifted_chebyshev_polynomial_u",
+    "overload_count": 6
+  },
+  {
+    "op": "special_shifted_chebyshev_polynomial_v",
+    "overload_count": 6
+  },
+  {
+    "op": "special_shifted_chebyshev_polynomial_w",
+    "overload_count": 6
+  },
+  {
+    "op": "special_spherical_bessel_j0",
+    "overload_count": 2
+  },
+  {
+    "op": "special_xlog1py",
+    "overload_count": 6
+  },
+  {
+    "op": "special_zeta",
+    "overload_count": 6
+  },
+  {
+    "op": "split",
+    "overload_count": 4
+  },
+  {
+    "op": "split_with_sizes",
+    "overload_count": 1
+  },
+  {
+    "op": "split_with_sizes_copy",
+    "overload_count": 2
+  },
+  {
+    "op": "sqrt",
+    "overload_count": 6
+  },
+  {
+    "op": "sqrt_",
+    "overload_count": 1
+  },
+  {
+    "op": "square",
+    "overload_count": 2
+  },
+  {
+    "op": "square_",
+    "overload_count": 1
+  },
+  {
+    "op": "squeeze",
+    "overload_count": 4
+  },
+  {
+    "op": "squeeze_copy",
+    "overload_count": 6
+  },
+  {
+    "op": "stack",
+    "overload_count": 2
+  },
+  {
+    "op": "std",
+    "overload_count": 9
+  },
+  {
+    "op": "std_mean",
+    "overload_count": 6
+  },
+  {
+    "op": "stft",
+    "overload_count": 2
+  },
+  {
+    "op": "storage_offset",
+    "overload_count": 1
+  },
+  {
+    "op": "stride",
+    "overload_count": 3
+  },
+  {
+    "op": "sub",
+    "overload_count": 14
+  },
+  {
+    "op": "sub_",
+    "overload_count": 2
+  },
+  {
+    "op": "subtract",
+    "overload_count": 3
+  },
+  {
+    "op": "subtract_",
+    "overload_count": 2
+  },
+  {
+    "op": "sum",
+    "overload_count": 10
+  },
+  {
+    "op": "svd",
+    "overload_count": 2
+  },
+  {
+    "op": "sym_constrain_range",
+    "overload_count": 1
+  },
+  {
+    "op": "sym_constrain_range_for_size",
+    "overload_count": 1
+  },
+  {
+    "op": "sym_numel",
+    "overload_count": 1
+  },
+  {
+    "op": "sym_size",
+    "overload_count": 2
+  },
+  {
+    "op": "sym_storage_offset",
+    "overload_count": 1
+  },
+  {
+    "op": "sym_stride",
+    "overload_count": 2
+  },
+  {
+    "op": "t",
+    "overload_count": 1
+  },
+  {
+    "op": "t_",
+    "overload_count": 1
+  },
+  {
+    "op": "t_copy",
+    "overload_count": 2
+  },
+  {
+    "op": "take",
+    "overload_count": 2
+  },
+  {
+    "op": "tan",
+    "overload_count": 6
+  },
+  {
+    "op": "tan_",
+    "overload_count": 1
+  },
+  {
+    "op": "tanh",
+    "overload_count": 6
+  },
+  {
+    "op": "tanh_",
+    "overload_count": 1
+  },
+  {
+    "op": "tanh_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "tensor_split",
+    "overload_count": 3
+  },
+  {
+    "op": "threshold",
+    "overload_count": 2
+  },
+  {
+    "op": "threshold_",
+    "overload_count": 1
+  },
+  {
+    "op": "threshold_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "to",
+    "overload_count": 7
+  },
+  {
+    "op": "topk",
+    "overload_count": 2
+  },
+  {
+    "op": "trace",
+    "overload_count": 2
+  },
+  {
+    "op": "transpose",
+    "overload_count": 2
+  },
+  {
+    "op": "transpose_",
+    "overload_count": 1
+  },
+  {
+    "op": "transpose_copy",
+    "overload_count": 2
+  },
+  {
+    "op": "triangular_solve",
+    "overload_count": 2
+  },
+  {
+    "op": "tril",
+    "overload_count": 2
+  },
+  {
+    "op": "tril_",
+    "overload_count": 1
+  },
+  {
+    "op": "tril_indices",
+    "overload_count": 2
+  },
+  {
+    "op": "triu",
+    "overload_count": 2
+  },
+  {
+    "op": "triu_",
+    "overload_count": 1
+  },
+  {
+    "op": "triu_indices",
+    "overload_count": 2
+  },
+  {
+    "op": "true_divide",
+    "overload_count": 3
+  },
+  {
+    "op": "true_divide_",
+    "overload_count": 2
+  },
+  {
+    "op": "trunc",
+    "overload_count": 2
+  },
+  {
+    "op": "trunc_",
+    "overload_count": 1
+  },
+  {
+    "op": "unbind",
+    "overload_count": 2
+  },
+  {
+    "op": "unbind_copy",
+    "overload_count": 2
+  },
+  {
+    "op": "unfold",
+    "overload_count": 1
+  },
+  {
+    "op": "unfold_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "unfold_copy",
+    "overload_count": 2
+  },
+  {
+    "op": "uniform",
+    "overload_count": 2
+  },
+  {
+    "op": "uniform_",
+    "overload_count": 1
+  },
+  {
+    "op": "unique_consecutive",
+    "overload_count": 2
+  },
+  {
+    "op": "unique_dim",
+    "overload_count": 2
+  },
+  {
+    "op": "unsafe_chunk",
+    "overload_count": 1
+  },
+  {
+    "op": "unsafe_split",
+    "overload_count": 2
+  },
+  {
+    "op": "unsafe_split_with_sizes",
+    "overload_count": 2
+  },
+  {
+    "op": "unsqueeze",
+    "overload_count": 1
+  },
+  {
+    "op": "unsqueeze_",
+    "overload_count": 1
+  },
+  {
+    "op": "unsqueeze_copy",
+    "overload_count": 2
+  },
+  {
+    "op": "upsample_bicubic2d",
+    "overload_count": 3
+  },
+  {
+    "op": "upsample_bilinear2d",
+    "overload_count": 4
+  },
+  {
+    "op": "upsample_linear1d",
+    "overload_count": 3
+  },
+  {
+    "op": "upsample_nearest1d",
+    "overload_count": 3
+  },
+  {
+    "op": "upsample_nearest2d",
+    "overload_count": 4
+  },
+  {
+    "op": "upsample_nearest2d_backward",
+    "overload_count": 2
+  },
+  {
+    "op": "upsample_nearest3d",
+    "overload_count": 3
+  },
+  {
+    "op": "upsample_trilinear3d",
+    "overload_count": 3
+  },
+  {
+    "op": "var",
+    "overload_count": 9
+  },
+  {
+    "op": "var_mean",
+    "overload_count": 6
+  },
+  {
+    "op": "vdot",
+    "overload_count": 2
+  },
+  {
+    "op": "view",
+    "overload_count": 2
+  },
+  {
+    "op": "view_as_complex",
+    "overload_count": 1
+  },
+  {
+    "op": "view_as_real",
+    "overload_count": 1
+  },
+  {
+    "op": "view_copy",
+    "overload_count": 4
+  },
+  {
+    "op": "where",
+    "overload_count": 6
+  },
+  {
+    "op": "xlogy",
+    "overload_count": 6
+  },
+  {
+    "op": "xlogy_",
+    "overload_count": 2
+  },
+  {
+    "op": "zero",
+    "overload_count": 2
+  },
+  {
+    "op": "zero_",
+    "overload_count": 1
+  },
+  {
+    "op": "zeros",
+    "overload_count": 4
+  },
+  {
+    "op": "zeros_like",
+    "overload_count": 2
+  }
+]

@@ -1,7 +1,7 @@
 # RUN: %PYTHON %s 2>&1 | FileCheck %s
 
 import torch
-from aten_op_batch_runner import run_aten_op_batch
+from aten_coverage_runner import run_aten_coverage_batch
 
 CUSTOM_TEMPLATES = {}
 
@@ -65,6 +65,18 @@ def _template_linalg_cross():
 
 def _template_linalg_cross_out():
     args, _ = _template_linalg_cross()
+    out = torch.empty_like(args[0])
+    return args, {"out": out}
+
+
+def _template_logical_binary():
+    a = torch.tensor([True, False, True], dtype=torch.bool)
+    b = torch.tensor([False, False, True], dtype=torch.bool)
+    return [a, b], {}
+
+
+def _template_logical_binary_out():
+    args, _ = _template_logical_binary()
     out = torch.empty_like(args[0])
     return args, {"out": out}
 
@@ -147,6 +159,18 @@ def _template_linalg_ldl_solve_out():
     args, kwargs = _template_linalg_ldl_solve()
     out = torch.empty_like(args[2])
     return args, {"out": out, **kwargs}
+
+
+def _template_linalg_inv_ex():
+    A = _mat2x2()
+    return [A], {"check_errors": False}
+
+
+def _template_linalg_inv_ex_inverse():
+    args, kwargs = _template_linalg_inv_ex()
+    inverse = torch.empty_like(args[0])
+    info = torch.empty((), dtype=torch.int32)
+    return args, {"inverse": inverse, "info": info, **kwargs}
 
 
 def _template_linalg_lu():
@@ -277,8 +301,8 @@ def _template_linspace_out():
 
 
 def _template_linspace_tensor():
-    start = torch.tensor(0.0)
-    end = torch.tensor(1.0)
+    start = torch.tensor(0.0, dtype=torch.float64)
+    end = torch.tensor(1.0, dtype=torch.float64)
     return [start, end, 5], {}
 
 
@@ -289,7 +313,7 @@ def _template_linspace_tensor_out():
 
 
 def _template_linspace_tensor_scalar():
-    start = torch.tensor(0.0)
+    start = torch.tensor(0.0, dtype=torch.float64)
     return [start, 1.0, 5], {}
 
 
@@ -300,7 +324,7 @@ def _template_linspace_tensor_scalar_out():
 
 
 def _template_linspace_scalar_tensor():
-    end = torch.tensor(1.0)
+    end = torch.tensor(1.0, dtype=torch.float64)
     return [0.0, end, 5], {}
 
 
@@ -319,6 +343,11 @@ def _template_log_normal_out():
     args, _ = _template_log_normal()
     out = torch.empty_like(args[0])
     return args, {"out": out}
+
+
+def _template_log_normal_inplace():
+    args, _ = _template_log_normal()
+    return args, {}
 
 
 def _template_log_sigmoid_forward():
@@ -556,33 +585,42 @@ CUSTOM_TEMPLATES.update(
         "lcm_.default": _template_lcm_tensor,
         "logcumsumexp.dimname": _skip("named_tensor_torchscript"),
         "logcumsumexp.dimname_out": _skip("named_tensor_torchscript"),
-        "linalg_cholesky_ex.default": _skip("linalg_not_supported"),
+        "linalg_cholesky_ex.default": _template_linalg_cholesky_ex,
         "linalg_cholesky_ex.L": _skip("linalg_not_supported"),
         "linalg_cross.default": _template_linalg_cross,
         "linalg_cross.out": _template_linalg_cross_out,
+        "logical_and.default": _template_logical_binary,
+        "logical_and.out": _template_logical_binary_out,
+        "logical_and_.default": _template_logical_binary,
+        "logical_or.default": _template_logical_binary,
+        "logical_or.out": _template_logical_binary_out,
+        "logical_or_.default": _template_logical_binary,
+        "logical_xor.default": _template_logical_binary,
+        "logical_xor.out": _template_logical_binary_out,
+        "logical_xor_.default": _template_logical_binary,
         "linalg_eig.default": _skip("linalg_not_supported"),
         "linalg_eig.out": _skip("linalg_not_supported"),
         "linalg_eigvals.default": _skip("linalg_not_supported"),
         "linalg_eigvals.out": _skip("linalg_not_supported"),
         "linalg_householder_product.default": _skip("linalg_not_supported"),
         "linalg_householder_product.out": _skip("linalg_not_supported"),
-        "linalg_inv_ex.default": _skip("linalg_not_supported"),
-        "linalg_inv_ex.inverse": _skip("linalg_not_supported"),
+        "linalg_inv_ex.default": _template_linalg_inv_ex,
+        "linalg_inv_ex.inverse": _skip("linalg_out_variant_not_enabled"),
         "linalg_ldl_factor_ex.default": _skip("linalg_not_supported"),
         "linalg_ldl_factor_ex.out": _skip("linalg_not_supported"),
         "linalg_ldl_solve.default": _skip("linalg_not_supported"),
         "linalg_ldl_solve.out": _skip("linalg_not_supported"),
-        "linalg_lu.default": _skip("linalg_not_supported"),
+        "linalg_lu.default": _template_linalg_lu,
         "linalg_lu.out": _skip("linalg_not_supported"),
-        "linalg_lu_factor_ex.default": _skip("linalg_not_supported"),
+        "linalg_lu_factor_ex.default": _template_linalg_lu_factor_ex,
         "linalg_lu_factor_ex.out": _skip("linalg_not_supported"),
-        "linalg_lu_solve.default": _skip("linalg_not_supported"),
+        "linalg_lu_solve.default": _template_linalg_lu_solve,
         "linalg_lu_solve.out": _skip("linalg_not_supported"),
         "linalg_matrix_exp.default": _skip("linalg_not_supported"),
         "linalg_matrix_exp.out": _skip("linalg_not_supported"),
         "linalg_qr.default": _skip("linalg_not_supported"),
         "linalg_qr.out": _skip("linalg_not_supported"),
-        "linalg_solve_triangular.default": _skip("linalg_not_supported"),
+        "linalg_solve_triangular.default": _template_linalg_solve_triangular,
         "linalg_solve_triangular.out": _skip("linalg_not_supported"),
         "linalg_vector_norm.default": _template_linalg_vector_norm,
         "linalg_vector_norm.out": _template_linalg_vector_norm_out,
@@ -590,16 +628,16 @@ CUSTOM_TEMPLATES.update(
         "linear.out": _template_linear_out,
         "linear_backward.default": _skip("linear_backward_backend_missing"),
         "linear_backward.out": _skip("linear_backward_backend_missing"),
-        "linspace.default": _skip("backend_crash_linspace"),
-        "linspace.out": _skip("backend_crash_linspace"),
-        "linspace.Tensor_Tensor": _skip("backend_crash_linspace"),
-        "linspace.Tensor_Scalar": _skip("backend_crash_linspace"),
-        "linspace.Scalar_Tensor": _skip("backend_crash_linspace"),
-        "linspace.Tensor_Tensor_out": _skip("backend_crash_linspace"),
-        "linspace.Tensor_Scalar_out": _skip("backend_crash_linspace"),
-        "linspace.Scalar_Tensor_out": _skip("backend_crash_linspace"),
-        "log_normal.default": _skip("random_op_not_supported"),
-        "log_normal.out": _skip("random_op_not_supported"),
+        "linspace.default": _template_linspace,
+        "linspace.out": _template_linspace_out,
+        "linspace.Tensor_Tensor": _template_linspace_tensor,
+        "linspace.Tensor_Scalar": _template_linspace_tensor_scalar,
+        "linspace.Scalar_Tensor": _template_linspace_scalar_tensor,
+        "linspace.Tensor_Tensor_out": _template_linspace_tensor_out,
+        "linspace.Tensor_Scalar_out": _template_linspace_tensor_scalar_out,
+        "linspace.Scalar_Tensor_out": _template_linspace_scalar_tensor_out,
+        "log_normal.default": _template_log_normal,
+        "log_normal.out": _template_log_normal_out,
         "log_sigmoid_backward.default": _template_log_sigmoid_backward,
         "log_sigmoid_backward.grad_input": _template_log_sigmoid_backward_grad_input,
         "log_sigmoid_forward.default": _template_log_sigmoid_forward,
@@ -621,10 +659,10 @@ CUSTOM_TEMPLATES.update(
         "log.Scalar_Scalar": lambda: _template_scalar_pair(2.0, 3.0),
         "log10.Scalar": lambda: _template_scalar_input(2.0),
         "log1p.Scalar": lambda: _template_scalar_input(2.0),
-        "log_normal_.default": _skip("random_op_not_supported"),
+        "log_normal_.default": _template_log_normal_inplace,
         "lstm.input": _skip("rnn_not_supported"),
         "lstm.data": _skip("rnn_not_supported"),
-        "lu_unpack.default": _skip("linalg_not_supported"),
+        "lu_unpack.default": _template_lu_unpack,
         "lu_unpack.out": _skip("linalg_not_supported"),
         "masked_fill.Tensor": _template_masked_fill_tensor,
         "masked_fill.Tensor_out": _template_masked_fill_tensor_out,
@@ -886,12 +924,13 @@ OPS = [
 ]
 
 if __name__ == "__main__":
-    run_aten_op_batch(
+    run_aten_coverage_batch(
         OPS,
         batch_label="test_batch_4",
         max_fails=20,
         templates=CUSTOM_TEMPLATES,
         show_skips=True,
+        mode="graph",
     )
 # CHECK: SUMMARY pass=
 # CHECK-SAME: fail=0
