@@ -16,6 +16,10 @@ if(BUDDY_QWEN3_EXAMPLES)
   add_subdirectory(BuddyQwen3)
 endif()
 
+if(BUDDY_TENSORPARALLEL_EXAMPLES)
+  add_subdirectory(BuddyTensorParallel)
+endif()
+
 if(BUDDY_TRANSFORMER_EXAMPLES)
   add_subdirectory(BuddyTransformer)
 endif()

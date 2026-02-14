@@ -23,6 +23,7 @@ from types import FunctionType
 import ctypes
 import functools
 import numpy as np
+import torch
 
 import mlir.ir as ir
 import mlir.dialects.func as func
@@ -126,6 +127,7 @@ class Graph:
         """
         self._body = []
         self._inputs = inputs
+        self._outputs = None
         self.node_table: Dict[str, Op] = {}
         self._fake_params = fake_params
         self.device = device
@@ -298,6 +300,63 @@ class Graph:
             self.group_map_device[subgraph_name] = DeviceType.CPU
             self.op_groups[subgraph_name] = group
 
+    def infer_graph_inputs(self, op_group: List[Op]) -> List[Op]:
+        """
+        Infer the input operations of a subgraph.
+
+        Args:
+        - op_group (List[Op]): Operations forming a subgraph.
+
+        Returns:
+        - List[Op]: External input operations of the subgraph.
+        """
+        inputs: List[Op] = []
+        op_group_set = set(op_group)
+
+        for op in op_group:
+            for parent_id in op._parents:
+                parent_op = self.node_table[parent_id]
+                if parent_op not in op_group_set and parent_op not in inputs:
+                    inputs.append(parent_op)
+
+        return inputs
+    
+    def infer_subgraph_outputs(
+        self,
+        op_group: List[Op],
+        subgraphs_inputs: Dict[int, List[Op]],
+        output_nodes: List[Op],
+        dependencies: set,
+    ) -> List[Op]:
+        """
+        Identify the output operations of a subgraph and update its dependencies
+        on other subgraphs.
+
+        Args:
+        - op_group (List[Op]): List of operations forming the subgraph.
+        - subgraphs_inputs (Dict[int, List[Op]]): Mapping from subgraph ID to
+        its input operations.
+        - output_nodes (List[Op]): Operations explicitly marked as output nodes.
+        - dependencies (set): A set to record IDs of subgraphs that consume this
+        subgraph's outputs.
+
+        Returns:
+        - List[Op]: List of operations that are outputs of the subgraph.
+        """
+        outputs: List[Op] = []
+
+        for op in op_group:
+            for subgraph_id, subgraph_inputs in subgraphs_inputs.items():
+                if op in subgraph_inputs:
+                    if op not in outputs:
+                        outputs.append(op)
+                    dependencies.add(subgraph_id)
+
+            if op in output_nodes and op not in outputs:
+                outputs.append(op)
+
+        return outputs
+    
     def fuse_ops(self, pattern_list: List[FunctionType]):
         """
         Fuse operations in the graph based on provided fusion patterns.
@@ -362,6 +421,7 @@ class Graph:
             )
             self._imported_module = fx_importer.import_graph()
             outputs = fx_importer.get_output_nodes()
+            self._outputs = outputs
         self._output_memref = []
         output_ranks = []
         output_dtypes = []
@@ -489,6 +549,7 @@ class GraphImporter:
         if ops_registry is None:
             ops_registry = {}
         self._symbol_table = {}
+        self._symbol_table_output = {}
         self._body = body
         self._device = device
         self._func_name = func_name
@@ -679,6 +740,8 @@ class GraphImporter:
                         ]
                         self._symbol_table[("output", 0)] = returns
                     elif isinstance(node, PlaceholderOp):
+                        if node._newshape is not None:
+                            node.tensor_meta['shape'] = torch.Size(list(node._newshape))
                         self._import_placeholder(node, args_list)
                     elif isinstance(node, GetItemOp):
                         self._symbol_table[(str(node.name), 0)] = (
@@ -832,17 +895,21 @@ class GraphImporter:
                     operation, ir.OpView
                 ):
                     self._symbol_table[(str(node.name), i)] = operation.result
+                    self._symbol_table_output[(str(node.name), i)] = operation.result
                 elif isinstance(operation, ir.OpResult):
                     self._symbol_table[(str(node.name), i)] = operation
+                    self._symbol_table_output[(str(node.name), i)] = operation
                 else:
                     raise NotImplementedError
         elif isinstance(op_ret, ir.OpResult):
             self._symbol_table[(str(node.name), 0)] = op_ret
+            self._symbol_table_output[(str(node.name), 0)] = op_ret
         elif isinstance(op_ret, ir.BlockArgument):
             self._symbol_table[(str(node.name), 0)] = op_ret
         else:
             for i, result in enumerate(op_ret.results):
                 self._symbol_table[(str(node.name), i)] = result
+                self._symbol_table_output[(str(node.name), i)] = result
 
     def get_output_nodes(self):
         """
