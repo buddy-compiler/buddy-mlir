@@ -39,8 +39,8 @@ from buddy.compiler.graph.transform import (
     apply_classic_fusion,
     eliminate_transpose,
     eliminate_matmul_transpose_reshape,
-    flash_attention_prefill,
-    gqa_attention_fusion,
+    gqa_flash_attention_prefill_fusion,
+    gqa_attention_decode_fusion,
 )
 from buddy.compiler.graph.type import DeviceType
 from buddy.compiler.graph.operation import *
@@ -250,12 +250,12 @@ else:
     pattern_list_prefill = [
         simply_fuse,
         apply_classic_fusion,
-        flash_attention_prefill,
+        gqa_flash_attention_prefill_fusion,
     ]
     pattern_list_decode = [
         simply_fuse,
         apply_classic_fusion,
-        gqa_attention_fusion,
+        gqa_attention_decode_fusion,
     ]
 
     graphs_prefill[0].fuse_ops(pattern_list_prefill)
