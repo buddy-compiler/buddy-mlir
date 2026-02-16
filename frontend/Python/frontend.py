@@ -65,6 +65,7 @@ class DynamoCompiler:
         primary_registry: Optional[dict] = None,
         aot_autograd_decomposition: Optional[dict] = None,
         verbose=False,
+        enable_profile=False,
         enable_external_calls: bool = False,
     ) -> None:
         """
@@ -99,6 +100,7 @@ class DynamoCompiler:
         self._func_name = func_name
         self._aot_autograd_decomposition = aot_autograd_decomposition
         self._verbose = verbose
+        self._enable_profile = enable_profile
         self._enable_external_calls = enable_external_calls
         self._imported_graphs = []
         self._ops_registry = {}
@@ -684,6 +686,7 @@ class DynamoCompiler:
                 self._func_name,
                 DeviceType.CPU,
                 self._verbose,
+                self._enable_profile,
                 self._enable_external_calls,
             )
             graph._params_ref = params_flat
