@@ -1,13 +1,13 @@
 #SparseMatrix = #sparse_tensor.encoding<{
-  dimLevelType = [ "compressed", "compressed" ]
+  map = (d0, d1) -> (d0 : compressed, d1 : compressed)
 }>
 
 #SparseVector = #sparse_tensor.encoding<{
-  dimLevelType = ["compressed"]
+  map = (d0) -> (d0 : compressed)
 }>
 
 #CSR = #sparse_tensor.encoding<{
-  dimLevelType = [ "dense", "compressed" ]
+  map = (d0, d1) -> (d0 : dense, d1 : compressed)
 }>
 
 func.func private @printMemrefInd(%arg0 : memref<*xindex>)
