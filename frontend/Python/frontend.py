@@ -24,6 +24,7 @@
 
 from typing import Any, List, Optional
 import operator
+import time
 import os
 import ctypes
 import platform
@@ -938,8 +939,13 @@ class DynamoCompiler:
         Returns:
             imported_graphs: The imported buddy graphs.
         """
+        start_end = time.time();
         exported_program = torch.export.export(module, args, kwargs)
         self._compile_fx(exported_program.graph_module, list(args))
+        end_time = time.time();
+
+        if self._verbose:
+            print(f"The graph compilation time is {(end_time - start_end) * 1000:.2f}ms.")
         return self._imported_graphs
 
     def dynamo_run(self):
@@ -959,6 +965,7 @@ class DynamoCompiler:
             else:
                 raise RuntimeError("Unsupported platform")
 
+        start_time = time.time()
         # Dynamo's graph break may import more than one graph.
         graph = self._imported_graphs[-1]
         graph.compile()
@@ -1058,7 +1065,12 @@ class DynamoCompiler:
             args_memref = output_memref + input_memref
             # Invoke the graph's function using the provided execution engine
             # and memory references
+            kernel_start_time = time.time()
             ee.invoke(graph._func_name, *args_memref)
+            kernel_end_time = time.time()
+
+            if self._verbose:
+                print(f"Kernel running time is {(kernel_end_time - kernel_start_time) * 1000:.2f}ms.")
 
             output_tensor = []
             outdata_ptr = args_memref[0][0]
@@ -1077,4 +1089,8 @@ class DynamoCompiler:
             # of tensors
             return [torch.from_numpy(tensor) for tensor in output_tensor]
 
+        end_time = time.time()
+
+        if self._verbose:
+            print(f"The MLIR compilation time is {(end_time - start_time) * 1000:.2f}ms.")
         return exec_buddy_graph
