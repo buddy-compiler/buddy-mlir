@@ -2447,3 +2447,27 @@ next-tosa-matmul-manual:
 	numactl --cpunodebind=0,1 --membind=0,1 \
 	taskset -c 0-47 \
 	./next-tosa-matmul-manual.out || true
+
+next-linalg-matmul-vec-perf-run:
+	@${BUDDY_OPT} ./next-linalg-matmul-vec-perf.mlir \
+		-matmul-parallel-vectorization-optimize \
+		-convert-linalg-to-affine-loops \
+		-affine-parallelize \
+		-lower-affine \
+		-convert-scf-to-openmp \
+		-convert-vector-to-scf \
+		-expand-strided-metadata \
+		-convert-vector-to-llvm \
+		-memref-expand \
+		-arith-expand \
+		-convert-arith-to-llvm \
+		-finalize-memref-to-llvm  \
+		-convert-scf-to-cf \
+		-convert-openmp-to-llvm \
+		-convert-math-to-llvm \
+		-convert-math-to-libm  \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts |\
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS} \
+		-shared-libs=${OMP_LIB}
