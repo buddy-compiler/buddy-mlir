@@ -96,6 +96,57 @@ private:
   int64_t stride;
 };
 
+class DIPCorr2DOpNCHWFCHWLowering
+    : public OpRewritePattern<dip::Corr2DOpNCHWFCHW> {
+public:
+  using OpRewritePattern<dip::Corr2DOpNCHWFCHW>::OpRewritePattern;
+
+  explicit DIPCorr2DOpNCHWFCHWLowering(MLIRContext *context,
+                                       int64_t strideParam)
+      : OpRewritePattern(context) {
+    stride = strideParam;
+  }
+
+  LogicalResult matchAndRewrite(dip::Corr2DOpNCHWFCHW op,
+                                PatternRewriter &rewriter) const override {
+    auto loc = op->getLoc();
+    auto *ctx = op->getContext();
+
+    // Register operand values.
+    Value input = op->getOperand(0);
+    Value kernel = op->getOperand(1);
+    Value output = op->getOperand(2);
+    Value centerX = op->getOperand(3);
+    Value centerY = op->getOperand(4);
+    Value constantValue = op->getOperand(5);
+    dip::BoundaryOption boundaryOptionAttr = op.getBoundaryOption();
+    Value strideVal = rewriter.create<arith::ConstantIndexOp>(loc, stride);
+
+    auto inElemTy = input.getType().cast<MemRefType>().getElementType();
+    dip::DIP_ERROR error = dip::checkDIPCommonTypes<dip::Corr2DOpNCHWFCHW>(
+        op, {input, kernel, output, constantValue});
+
+    if (error == dip::DIP_ERROR::INCONSISTENT_TYPES) {
+      return op->emitOpError() << "input, kernel, output and constant must "
+                                  "have the same element type";
+    } else if (error == dip::DIP_ERROR::UNSUPPORTED_TYPE) {
+      return op->emitOpError() << "supports only f32, f64 and integer types. "
+                               << inElemTy << "is passed";
+    }
+
+    traverseImagewBoundaryExtrapolation4DMemRefsNCHWFCHW(
+        rewriter, loc, ctx, input, kernel, output, centerX, centerY,
+        constantValue, strideVal, inElemTy, boundaryOptionAttr, stride,
+        dip::DIP_OP::CORRELATION_2D);
+    // Remove the origin convolution operation.
+    rewriter.eraseOp(op);
+    return success();
+  }
+
+private:
+  int64_t stride;
+};
+
 class DIPCorrFFT2DOpLowering : public OpRewritePattern<dip::CorrFFT2DOp> {
 public:
   using OpRewritePattern<dip::CorrFFT2DOp>::OpRewritePattern;
@@ -1644,6 +1695,7 @@ private:
 void populateLowerDIPConversionPatterns(RewritePatternSet &patterns,
                                         int64_t stride) {
   patterns.add<DIPCorr2DOpLowering>(patterns.getContext(), stride);
+  patterns.add<DIPCorr2DOpNCHWFCHWLowering>(patterns.getContext(), stride);
   patterns.add<DIPCorrFFT2DOpLowering>(patterns.getContext(), stride);
   patterns.add<DIPRotate2DOpLowering>(patterns.getContext(), stride);
   patterns.add<DIPRotate4DOpLowering>(patterns.getContext(), stride);
