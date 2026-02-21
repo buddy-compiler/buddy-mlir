@@ -396,6 +396,37 @@ tile-conv-run:
 	@riscv64-unknown-linux-gnu-gcc log.o -O2 -static -o a.out
 	@spike --extension=gemmini pk a.out
 
+dw-tile-conv-lower:
+	@${BUDDY_OPT} ./dw-tile-conv.mlir \
+		-convert-linalg-to-loops \
+		-lower-gemmini \
+		-o log.mlir
+
+dw-tile-conv-translate:
+	@${BUDDY_OPT} ./dw-tile-conv.mlir \
+		-convert-linalg-to-loops \
+		-lower-gemmini | \
+	${BUDDY_TRANSLATE} -buddy-to-llvmir \
+		-o log.ll
+
+dw-tile-conv-asm:
+	@${BUDDY_OPT} ./dw-tile-conv.mlir \
+		-convert-linalg-to-loops \
+		-lower-gemmini | \
+	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
+	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
+		-mattr=+buddyext,+D -float-abi=hard \
+		-o log.s
+
+dw-tile-conv-run:
+	@${BUDDY_OPT} ./dw-tile-conv.mlir -convert-linalg-to-loops -lower-gemmini | \
+	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
+	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
+		-mattr=+buddyext,+D -float-abi=hard \
+		-o log.o
+	@riscv64-unknown-linux-gnu-gcc log.o -O2 -static -o a.out
+	@spike --extension=gemmini pk a.out
+
 tile-conv-igelu-lower:
 	@${BUDDY_OPT} ./tile-conv-igelu.mlir \
 		-lower-gemmini \
@@ -600,6 +631,43 @@ gemmini-linalg-conv2d-nchw-fchw-i8-asm:
 
 gemmini-linalg-conv2d-nchw-fchw-i8-run:
 	@${BUDDY_OPT} ./conv_2d_nchw_fchw_i8.mlir \
+		-convert-linalg-to-gemmini \
+		-convert-linalg-to-loops \
+		-lower-gemmini | \
+	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
+	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
+		-mattr=+buddyext,+D -float-abi=hard \
+		-o log.o
+	@riscv64-unknown-linux-gnu-gcc log.o -O2 -static -o a.out
+	@spike --extension=gemmini pk a.out
+
+gemmini-linalg-dw-conv2d-nchw-chw-i8-lower:
+	@${BUDDY_OPT} ./dw_conv_2d_nchw_chw_i8.mlir \
+		-convert-linalg-to-gemmini \
+		-convert-linalg-to-loops \
+		-lower-gemmini \
+		-o log.mlir
+
+gemmini-linalg-dw-conv2d-nchw-chw-i8-translate:
+	@${BUDDY_OPT} ./dw_conv_2d_nchw_chw_i8.mlir \
+		-convert-linalg-to-gemmini \
+		-convert-linalg-to-loops \
+		-lower-gemmini | \
+	${BUDDY_TRANSLATE} -buddy-to-llvmir \
+		-o log.ll
+
+gemmini-linalg-dw-conv2d-nchw-chw-i8-asm:
+	@${BUDDY_OPT} ./dw_conv_2d_nchw_chw_i8.mlir \
+		-convert-linalg-to-gemmini \
+		-convert-linalg-to-loops \
+		-lower-gemmini | \
+	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
+	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
+		-mattr=+buddyext,+D -float-abi=hard \
+		-o log.s
+
+gemmini-linalg-dw-conv2d-nchw-chw-i8-run:
+	@${BUDDY_OPT} ./dw_conv_2d_nchw_chw_i8.mlir \
 		-convert-linalg-to-gemmini \
 		-convert-linalg-to-loops \
 		-lower-gemmini | \
