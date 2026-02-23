@@ -10,22 +10,22 @@ def run(f):
     return f
 
 
-class MatrixMultiply(torch.nn.Module):
-    def forward(self, a, b):
-        return torch.matmul(a, b)
+class Sigmoid(torch.nn.Module):
+    def forward(self, x):
+        return torch.sigmoid(x)
 
 
 @run
-def test_matrix_multiply():
+def test_sigmoid():
     torch.manual_seed(0)
-    a = torch.rand([2048, 2048], dtype=torch.float32)
-    b = torch.rand([2048, 2048], dtype=torch.float32)
 
-    model = MatrixMultiply()
+    x = torch.randn((1024,), dtype=torch.float32)
+
+    model = Sigmoid()
     compiled = torch.compile(model, backend=dynamo_compiler)
 
-    actual = compiled(a, b)
-    expect = model(a, b)
+    actual = compiled(x)
+    expect = model(x)
 
     # CHECK: Is MLIR equal to Torch? True
     print(

@@ -1,5 +1,5 @@
 # RUN: %PYTHON %s 2>&1 | FileCheck %s
-from aten_op_batch_runner import run_aten_op_batch
+from aten_coverage_runner import run_aten_coverage_batch
 import torch
 import torch.nn.functional as F
 
@@ -93,6 +93,13 @@ def _template_bincount_out():
 def _template_bernoulli_float():
     x = torch.tensor([0.4, 0.6], dtype=torch.float32)
     return [x.clone(), 0.5], {}
+
+
+def _template_bernoulli_inplace_float():
+    # Keep shape small to reduce execution overhead in numeric mode.
+    # Numeric validation resets RNG seed per op, so results are reproducible.
+    x = torch.empty((2, 3), dtype=torch.float32)
+    return [x, 0.5], {}
 
 
 def _template_block_diag():
@@ -292,6 +299,12 @@ def _template_complex_out():
     return [real, imag], {"out": out}
 
 
+def _template_complex_default():
+    real = torch.tensor([1.0], dtype=torch.float32)
+    imag = torch.tensor([2.0], dtype=torch.float32)
+    return [real, imag], {}
+
+
 def _conv2d_base():
     inp = torch.randn(1, 1, 4, 4, dtype=torch.float32)
     weight = torch.randn(1, 1, 3, 3, dtype=torch.float32)
@@ -426,6 +439,18 @@ def _template_bce_backward_grad_input():
     grad_output = torch.ones_like(inp)
     grad_input = torch.empty_like(inp)
     return [grad_output, inp, target], {"grad_input": grad_input}
+
+
+def _template_binary_cross_entropy_default():
+    inp = torch.tensor([0.2, 0.7], dtype=torch.float32)
+    target = torch.tensor([1.0, 0.0], dtype=torch.float32)
+    return [inp, target, None, 1], {}
+
+
+def _template_binary_cross_entropy_out():
+    args, _ = _template_binary_cross_entropy_default()
+    out = torch.empty((), dtype=torch.float32)
+    return args, {"out": out}
 
 
 def _template_count_nonzero_out():
@@ -698,16 +723,25 @@ def _template_copy_dict_complex():
 
 CUSTOM_TEMPLATES.update(
     {
-        "bernoulli_.float": _skip("missing_lowering"),
+        "bernoulli_.float": _template_bernoulli_inplace_float,
+        "binary_cross_entropy.default": _template_binary_cross_entropy_default,
+        "binary_cross_entropy.out": _template_binary_cross_entropy_out,
         "binary_cross_entropy_backward.grad_input": _template_bce_backward_grad_input,
-        "bincount.default": _skip("missing_lowering"),
-        "bincount.out": _skip("missing_lowering"),
+        # NOTE: `aten.bincount` produces a data-dependent output size
+        # (typically max(self)+1), which frequently triggers Dynamo import-time
+        # graph breaks. We deliberately keep it skipped here rather than adding
+        # a traceable shim/workaround, so coverage stats don't hide graph-break
+        # limitations behind composite rewrites.
+        "bincount.default": _skip(
+            "dynamo_graph_break:data_dependent_output_shape"
+        ),
+        "bincount.out": _skip("dynamo_graph_break:data_dependent_output_shape"),
         "block_diag.default": _template_block_diag,
         "block_diag.out": _template_block_diag_out,
         "bmm.default": _template_bmm,
         "bmm.out": _template_bmm_out,
-        "bmm.dtype": _skip("unsupported_cpu_dtype"),
-        "bmm.dtype_out": _skip("unsupported_cpu_dtype"),
+        "bmm.dtype": _template_bmm_dtype,
+        "bmm.dtype_out": _template_bmm_dtype_out,
         "broadcast_tensors.default": _template_broadcast_tensors,
         "bucketize.Tensor": _template_bucketize_tensor,
         "bucketize.Tensor_out": _template_bucketize_tensor_out,
@@ -722,27 +756,27 @@ CUSTOM_TEMPLATES.update(
         "cat.names_out": _skip("named_tensor_unsupported"),
         "channel_shuffle.default": _template_channel_shuffle,
         "channel_shuffle.out": _template_channel_shuffle_out,
-        "cholesky.default": _skip("linalg_not_supported"),
+        "cholesky.default": _template_cholesky,
         "cholesky.out": _skip("linalg_not_supported"),
-        "cholesky_inverse.default": _skip("linalg_not_supported"),
+        "cholesky_inverse.default": _template_cholesky_inverse,
         "cholesky_inverse.out": _skip("linalg_not_supported"),
-        "cholesky_solve.default": _skip("linalg_not_supported"),
+        "cholesky_solve.default": _template_cholesky_solve,
         "cholesky_solve.out": _skip("linalg_not_supported"),
         "col2im.default": _template_col2im,
         "col2im.out": _template_col2im_out,
         "constant_pad_nd.default": _template_constant_pad_nd,
         "constant_pad_nd.out": _template_constant_pad_nd_out,
-        "complex.default": _skip("complex64_not_supported"),
-        "complex.out": _skip("complex64_not_supported"),
+        "complex.default": _template_complex_default,
+        "complex.out": _template_complex_out,
         "conv2d.default": _template_conv2d_default,
         "conv2d.padding": _template_conv2d_padding,
         "convolution.default": _template_convolution,
         "convolution.out": _template_convolution_out,
         "convolution_backward.default": _skip("backward_not_supported"),
         "convolution_backward.out": _skip("backward_not_supported"),
-        "cauchy.default": _skip("randop_not_supported"),
+        "cauchy.default": _template_cauchy,
         "cauchy.out": _skip("randop_not_supported"),
-        "cauchy_.default": _skip("randop_not_supported"),
+        "cauchy_.default": _template_cauchy_inplace,
         "count_nonzero.out": _template_count_nonzero_out,
         "count_nonzero.dim_IntList": _template_count_nonzero_dimlist,
         "count_nonzero.dim_IntList_out": _template_count_nonzero_dimlist_out,
@@ -802,7 +836,6 @@ CUSTOM_TEMPLATES.update(
         "cos.complex": _skip("complex_not_supported"),
         "cosh.complex": _skip("complex_not_supported"),
         # Sparse tensor attribute query
-        "dense_dim.default": _skip("sparse_not_supported"),
     }
 )
 
@@ -1059,12 +1092,13 @@ OPS = [
 ]
 
 if __name__ == "__main__":
-    run_aten_op_batch(
+    run_aten_coverage_batch(
         OPS,
         batch_label="test_batch_1",
         max_fails=20,
         templates=CUSTOM_TEMPLATES,
         show_skips=True,
+        mode="graph",
     )
 # CHECK: SUMMARY pass=
 # CHECK-SAME: fail=0

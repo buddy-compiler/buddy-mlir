@@ -10,18 +10,19 @@ def run(f):
     return f
 
 
-class MatrixMultiply(torch.nn.Module):
+class AddRelu(torch.nn.Module):
     def forward(self, a, b):
-        return torch.matmul(a, b)
+        return torch.relu(a + b)
 
 
 @run
-def test_matrix_multiply():
+def test_add_relu():
     torch.manual_seed(0)
-    a = torch.rand([2048, 2048], dtype=torch.float32)
-    b = torch.rand([2048, 2048], dtype=torch.float32)
 
-    model = MatrixMultiply()
+    a = torch.rand([256, 256], dtype=torch.float32)
+    b = torch.rand([256, 256], dtype=torch.float32)
+
+    model = AddRelu()
     compiled = torch.compile(model, backend=dynamo_compiler)
 
     actual = compiled(a, b)
