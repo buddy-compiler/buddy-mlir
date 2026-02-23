@@ -224,7 +224,7 @@ add_custom_command(
             -eliminate-memref-copy
             -assume-tight-memref-layout
             -staticize-memref-layout
-            -matmul-vectorization-decode=vector-size=32
+            -matmul-vectorization-decode=vector-size=64
             -batch-matmul-vectorization-decode=vector-size=128
             -batchmatmul-transpose-b-vectorization=vector-size=16
             -convert-linalg-to-affine-loops
