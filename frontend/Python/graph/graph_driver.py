@@ -28,8 +28,8 @@ import torch
 from collections import deque, defaultdict
 
 from .graph import Graph, GraphImporter, TensorMeta
-from .operation import *
-from .type import *
+from .operation import PlaceholderOp, MatmulOp, PermuteOp, AddMMOp, AddOp, SubOp, MulOp, DivOp, ViewOp, CatOp, IndexPutOp, ReshapeOp, ExpandOp, FuncOp, CallOp, GetItemOp, OutputOp
+from .type import DeviceType
 from dataclasses import dataclass, field
 from typing import Dict, List, Any, Union, Type, Optional
 
@@ -137,9 +137,6 @@ class GraphDriver:
     def modules(self):
         return list(self._modules.values())
     
-    @property
-    def subgraph_param_indices(self):
-       return list(self._subgraph_param_indices.values())
     
     def _add_paral_op_shape(self, op_name, shape):
         if op_name not in self._paral_op_shape.keys():
@@ -749,11 +746,10 @@ class GraphDriver:
         """
         # Analysis topology order to sort subgraph call.
         topo_order = self.topological_sort_subgraph()
-        if topo_order == None:
+        if topo_order is None:
             print("Error : Graph Partitioning is illegal!")
             return None
         # Adding FuncOp nodes for each subgraph
-        inputs0 = self._graph._inputs
         split_group = []
         param_size_group = []
         num_subgraphs = len(self._subgraphs)
@@ -877,7 +873,7 @@ class GraphDriver:
                     if node in value:
                         call_node.add_argument(
                             arg=self._call_table[key].name,
-                            arg_index=value.index(node.name),
+                            arg_index=value.index(node),
                         )
                         break
             outputs = self._subgraphs[subgraph_name]._outputs

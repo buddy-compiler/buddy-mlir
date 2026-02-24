@@ -18,7 +18,6 @@
 #
 # ===---------------------------------------------------------------------------
 
-import torch
 from typing import Dict, Tuple, List
 
 import mlir.ir as ir

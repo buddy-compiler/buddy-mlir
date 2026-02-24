@@ -125,7 +125,15 @@ class Op:
         Split the node into two nodes.
         """
         shape = self._tensor_meta["shape"]
-        shape[dim] = shape[dim] / parallel
+        # shape[dim] = shape[dim] / parallel
+        original_dim = shape[dim]
+        if parallel <= 0:
+            raise ValueError("parallel must be positive when splitting a node.")
+        if original_dim % parallel != 0:
+            raise ValueError(
+                f"Cannot split dim={dim} size={original_dim} into {parallel} parts."
+            )
+        shape[dim] = original_dim // parallel
         self._tensor_meta["shape"] = shape
 
     @property

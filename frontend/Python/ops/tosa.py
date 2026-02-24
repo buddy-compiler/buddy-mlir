@@ -2796,7 +2796,6 @@ def expand_op(node: ExpandOp, symbol_table) -> ir.Operation:
         shape_val = tosa.ConstShapeOp(shape_type, padded_original_size).result
 
 
-        reshaped_ty = ir.RankedTensorType.get(padded_original_size, result_element_type)
         input_for_add = tosa.ReshapeOp(to_expand_tensor, shape_val).result
 
 
@@ -11294,7 +11293,6 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
     query_shape = query.type.shape
     key_shape = k_cache.type.shape
     value_shape = v_cache.type.shape
-    output_shape = list(query_shape)
 
     scale_val = 1 / numpy.sqrt(query.type.shape[-1]) if scale is None else scale
     scale_val = arith.ConstantOp(mlir_dtype, float(scale_val)).result
