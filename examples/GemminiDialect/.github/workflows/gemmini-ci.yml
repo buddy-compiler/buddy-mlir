@@ -1,0 +1,95 @@
+name: Gemmini CI Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'examples/GemminiDialect/**'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'examples/GemminiDialect/**'
+
+jobs:
+  test-gemmini:
+    runs-on: ubuntu-latest
+    # 0. Checkout the code
+    steps:
+    - name: Checkout the code
+      uses: actions/checkout@v3
+
+    # 1. Set up the RISC-V toolchain
+    - name: Set up the RISC-V toolchain
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential git wget
+
+        # Install the RISC-V toolchain
+        wget https://github.com/riscv/riscv-gnu-toolchain/releases/download/2021.09.21/riscv64-elf-gcc-10.2.0-2021.09.21-x86_64-linux-ubuntu14.tar.gz
+        sudo tar -xzf riscv64-elf-gcc-10.2.0-2021.09.21-x86_64-linux-ubuntu14.tar.gz -C /opt
+        echo "/opt/riscv64-elf-gcc-10.2.0-2021.09.21-x86_64-linux-ubuntu14/bin" >> $GITHUB_PATH
+
+        # Install the Spike simulator
+        git clone https://github.com/riscv-software-src/riscv-isa-sim.git
+        cd riscv-isa-sim
+        mkdir build && cd build
+        ../configure --prefix=/usr/local
+        make -j$(nproc)
+        sudo make install
+        cd ../..
+
+        # Install the pk (Proxy Kernel)
+        git clone https://github.com/riscv-software-src/riscv-pk.git
+        cd riscv-pk
+        mkdir build && cd build
+        ../configure --prefix=/usr/local --host=riscv64-unknown-elf
+        make -j$(nproc)
+        sudo make install
+        cd ../..
+    # 2. Build the Buddy MLIR
+    - name: Build the Buddy MLIR
+      run: |
+        cd $GITHUB_WORKSPACE
+        mkdir build && cd build
+        cmake .. -DLLVM_ENABLE_PROJECTS="mlir" -DLLVM_TARGETS_TO_BUILD="RISCV" -DCMAKE_BUILD_TYPE=Release
+        make -j$(nproc)
+    # 3. Run the Gemmini CI tests
+    - name: Run the Gemmini CI tests
+      run: |
+        cd $GITHUB_WORKSPACE/examples/GemminiDialect
+
+        # Set the environment variables
+        export BUDDY_OPT=$GITHUB_WORKSPACE/build/bin/buddy-opt
+        export BUDDY_TRANSLATE=$GITHUB_WORKSPACE/build/bin/buddy-translate
+        export BUDDY_LLC=$GITHUB_WORKSPACE/build/bin/buddy-llc
+        export PK=/usr/local/riscv64-unknown-elf/bin/pk
+
+        # Run the quick CI tests
+        make ci-test-quick
+    # 4. Run the full CI test suite
+    - name: Run the full CI test suite
+      run: |
+        cd $GITHUB_WORKSPACE/examples/GemminiDialect
+
+        # Set the environment variables
+        export BUDDY_OPT=$GITHUB_WORKSPACE/build/bin/buddy-opt
+        export BUDDY_TRANSLATE=$GITHUB_WORKSPACE/build/bin/buddy-translate
+        export BUDDY_LLC=$GITHUB_WORKSPACE/build/bin/buddy-llc
+        export PK=/usr/local/riscv64-unknown-elf/bin/pk
+
+        # Run the full CI tests
+        make ci-test
+    # 5. Clean the test files
+    - name: Clean the test files
+      if: always()
+      run: |
+        cd $GITHUB_WORKSPACE/examples/GemminiDialect
+        make ci-clean
+
+    # 6. Upload the test logs
+    - name: Upload the test logs
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: gemmini-test-logs
+        path: examples/GemminiDialect/*.log
