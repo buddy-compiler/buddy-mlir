@@ -3630,12 +3630,6 @@ def index_put_op(
     accumulate = node.args[3] if len(node.args) > 3 else False
 
     if len(input3_shape) == 0:
-        # Scalar update value: broadcast it to match the update iteration space.
-        # For our loop-based implementation, the iteration space is:
-        #   broadcast_shape(index_tensors) + output_shape[len(index_list):]
-        # This matches common patterns like index_fill(dim=0) where the update
-        # spans the remaining dimensions.
-        idx_shapes: List[List[int]] = []
         for idx in input2:
             if idx is None:
                 continue
@@ -3643,38 +3637,21 @@ def index_put_op(
             if idx_val is None:
                 continue
             idx_shape = list(ir.RankedTensorType(idx_val.type).shape)
-            if idx_shape:
-                idx_shapes.append(idx_shape)
+            if not idx_shape:
+                continue
+            scalar_val = tensor.ExtractOp(input3, []).result
+            splat_type = ir.RankedTensorType.get(
+                idx_shape, ir.RankedTensorType(input3.type).element_type
+            )
+            input3 = tensor.SplatOp(splat_type, scalar_val, []).result
+            input3_shape = idx_shape
+            break
 
-        broadcast_shape: List[int] = []
-        if idx_shapes:
-            max_rank = max(len(s) for s in idx_shapes)
-            padded = []
-            for s in idx_shapes:
-                padded_shape = [1] * (max_rank - len(s)) + list(s)
-                padded.append(padded_shape)
-            for dims in zip(*padded):
-                broadcast_shape.append(max(dims))
-
-        tail_shape = output_shape[len(input2) :]
-        update_shape = broadcast_shape + list(tail_shape)
-        if not update_shape:
-            update_shape = [1]
-
-        scalar_val = tensor.ExtractOp(input3, []).result
-        splat_type = ir.RankedTensorType.get(
-            update_shape, ir.RankedTensorType(input3.type).element_type
-        )
-        input3 = tensor.SplatOp(splat_type, scalar_val, []).result
-        input3_shape = update_shape
-
-    input1_elem_type = input1.type.element_type
-    input1_memref_type = ir.MemRefType.get(input1_shape, input1_elem_type)
-    input1_memref = bufferization.ToBufferOp(input1_memref_type, input1).result
-    output_memref = memref.AllocOp(
-        ir.MemRefType.get(output_shape, input1_elem_type), [], []
+    input1_memref_element_type = input1.type.element_type
+    input1_memref_type = ir.MemRefType.get(
+        input1_shape, input1_memref_element_type
     )
-    linalg.copy(input1_memref, outs=[output_memref.result])
+    input1_memref = bufferization.ToBufferOp(input1_memref_type, input1)
 
     # Check if we can vectorize trailing dimensions
     num_vec_dims, vector_length = _get_vectorizable_trailing_dims(
@@ -3742,7 +3719,7 @@ def index_put_op(
             return op
 
     # Fallback to scalar path
-    def _broadcast_index_tensor(value, target_shape, *, dim: int):
+    def _broadcast_index_tensor(value, target_shape):
         try:
             value_type = ir.RankedTensorType(value.type)
             value_shape = list(value_type.shape)
@@ -3751,35 +3728,6 @@ def index_put_op(
             elem_type = value.type
             target_type = ir.RankedTensorType.get(target_shape, elem_type)
             return tensor.SplatOp(target_type, value, []).result
-
-        # Special-case 1D index tensors used for a specific output dimension:
-        # reshape `[K]` into `[1,..,1,K,1,..,1]` so broadcasting expands across
-        # the remaining value dimensions in the correct axis order (e.g.,
-        # index_fill(dim=0, index=[K], value.shape=[K, W] -> index.shape=[K, 1]).
-        if (
-            len(value_shape) == 1
-            and len(target_shape) == len(output_shape)
-            and dim < len(target_shape)
-            and value_shape[0] == target_shape[dim]
-        ):
-            reshaped = (
-                [1] * dim
-                + [value_shape[0]]
-                + [1] * (len(target_shape) - dim - 1)
-            )
-            if reshaped != value_shape:
-                shape_ty = ir.Type.parse(f"!tosa.shape<{len(reshaped)}>")
-                index_ty = ir.IndexType.get()
-                shape_val = tosa.ConstShapeOp(
-                    shape_ty,
-                    ir.DenseElementsAttr.get(
-                        array.array("q", reshaped),
-                        type=index_ty,
-                        shape=[len(reshaped)],
-                    ),
-                ).result
-                value = tosa.ReshapeOp(value, shape_val).result
-                value_shape = reshaped
 
         if len(value_shape) == 0 and len(target_shape) > 0:
             scalar_val = tensor.ExtractOp(value, []).result
@@ -3840,26 +3788,26 @@ def index_put_op(
         input2_ = symbol_table.get((str(input2[i]), 0))
         if input2_ is None:
             return
-        index_tensor = _broadcast_index_tensor(input2_, input3_shape, dim=i)
+        index_tensor = _broadcast_index_tensor(input2_, input3_shape)
         index_elem_type = ir.RankedTensorType(index_tensor.type).element_type
         memref_type = ir.MemRefType.get(input3_shape, index_elem_type)
         input2_memref.append(
-            bufferization.ToBufferOp(memref_type, index_tensor).result
+            bufferization.ToBufferOp(memref_type, index_tensor)
         )
 
     input3_memref_element_type = input3.type.element_type
     input3_memref_type = ir.MemRefType.get(
         input3_shape, input3_memref_element_type
     )
-    input3_memref = bufferization.ToBufferOp(input3_memref_type, input3).result
+    input3_memref = bufferization.ToBufferOp(input3_memref_type, input3)
 
-    lb = arith.ConstantOp(ir.IndexType.get(), 0).result
-    step = arith.ConstantOp(ir.IndexType.get(), 1).result
+    lb = arith.ConstantOp(ir.IndexType.get(), 0)
+    step = arith.ConstantOp(ir.IndexType.get(), 1)
 
     # Create upper bounds for each dimension of source tensor
     ub = []
     for i in range(len(input3_shape)):
-        ub.append(arith.ConstantOp(ir.IndexType.get(), input3_shape[i]).result)
+        ub.append(arith.ConstantOp(ir.IndexType.get(), input3_shape[i]))
 
     # Generate nested loops dynamically based on number of dimensions
     def create_nested_loops(dim, loops, idx_vars):
@@ -3878,9 +3826,7 @@ def index_put_op(
                     idx_dim_val = memref.LoadOp(
                         input2_memref[d], val_index
                     ).result
-                    idx_dim = arith.IndexCastOp(
-                        ir.IndexType.get(), idx_dim_val
-                    ).result
+                    idx_dim = arith.IndexCastOp(ir.IndexType.get(), idx_dim_val)
                     store_index.append(idx_dim)
                 elif d < len(idx_vars):
                     store_index.append(idx_vars[d])
@@ -3890,16 +3836,14 @@ def index_put_op(
 
             if accumulate:
                 # Load existing value and add
-                existing_val = memref.LoadOp(
-                    output_memref.result, store_index
-                ).result
+                existing_val = memref.LoadOp(input1_memref, store_index).result
                 if str(mlir_dtype).find("f") != -1:
                     new_val = arith.AddFOp(existing_val, put_val)
                 else:
                     new_val = arith.AddIOp(existing_val, put_val)
-                memref.StoreOp(new_val, output_memref.result, store_index)
+                memref.StoreOp(new_val, input1_memref, store_index)
             else:
-                memref.StoreOp(put_val, output_memref.result, store_index)
+                memref.StoreOp(put_val, input1_memref, store_index)
             return
 
         # Create loop for this dimension
@@ -3914,7 +3858,7 @@ def index_put_op(
 
     output_tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
     op = bufferization.ToTensorOp(
-        output_tensor_type, output_memref.result, restrict=True
+        output_tensor_type, input1_memref, restrict=True
     )
     return op
 
