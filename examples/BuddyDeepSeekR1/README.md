@@ -116,7 +116,26 @@ $ ./bin/buddy-deepseek-r1-cli --interactive --no-stats
 - Use options like `--max-tokens` and `--eos-id` to constrain the generation length/termination. Add `--no-stats` when you want pure text output without the performance summary.
 - `--interactive` starts a REPL similar to `buddy-deepseek-r1-main.cpp`, handling one prompt and one response at a time. `--prompt` can act as a system prefix prepended to every user entry.
 
-6. Enjoy it!
+6. Python end-to-end inference by executing exported subgraphs
+
+This path keeps graph export in Buddy import flow, then uses Python to run prefill/decode MLIR subgraphs end to end.
+
+```bash
+# from buddy-mlir/
+python3 examples/BuddyDeepSeekR1/run-subgraphs-python.py \
+  --prompt "Hello, who are you?" \
+  --export-subgraphs
+```
+
+Useful options:
+
+- `--artifact-dir`: directory containing `forward_prefill.mlir`, `forward_decode.mlir`, `arg0.data` (default: `build/examples/BuddyDeepSeekR1`).
+- `--llvm-build-dir`: LLVM build directory that provides `libmlir_runner_utils.so` and related runtime libs (default: `llvm/build`).
+- `--model-path`: HF model id or local model path for tokenizer.
+- `--max-new-tokens`: generated token upper bound.
+- `--omp-num-threads`, `--omp-proc-bind`, `--omp-places`, `--kmp-affinity`: optional OpenMP tuning knobs.
+
+7. Enjoy it!
 
 ## How to run on RISC-V machine
 
