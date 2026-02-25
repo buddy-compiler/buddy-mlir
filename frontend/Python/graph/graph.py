@@ -510,6 +510,59 @@ class GraphImporter:
         self._current_param_pack_offset = None
         self._enable_external_calls = enable_external_calls
 
+        # Explicit, order-independent mapping from placeholder node name to its
+        # argument category/index. This avoids relying on placeholder traversal
+        # order in the graph body.
+        self._placeholder_specs = self._build_placeholder_specs()
+
+    # ---------------------------------------------------------------------
+    # Placeholder specification helpers
+    # ---------------------------------------------------------------------
+    def _extract_meta(self, meta):
+        """Return (shape, dtype) tuple for TensorMeta or dict."""
+        if isinstance(meta, dict):
+            return meta.get("shape"), meta.get("dtype")
+        else:
+            return getattr(meta, "shape", None), getattr(meta, "dtype", None)
+
+    def _meta_equal(self, meta_a, meta_b) -> bool:
+        """Compare two meta representations (TensorMeta or dict)."""
+        shape_a, dtype_a = self._extract_meta(meta_a)
+        shape_b, dtype_b = self._extract_meta(meta_b)
+        if shape_a is None or shape_b is None:
+            return False
+        return list(shape_a) == list(shape_b) and dtype_a == dtype_b
+
+    def _find_placeholder_for_meta(self, meta, used_nodes: set):
+        for n in self._body:
+            if isinstance(n, PlaceholderOp) and n.name not in used_nodes:
+                if self._meta_equal(meta, n.tensor_meta):
+                    used_nodes.add(n.name)
+                    return n
+        return None
+
+    def _build_placeholder_specs(self):
+        """Return mapping node.name -> (kind, arg_index).
+        kind is 'param' or 'input'. arg_index is position in function args list.
+        """
+        specs = {}
+        used = set()
+        arg_idx = 0
+        # Params first
+        for param_meta in self._params:
+            pnode = self._find_placeholder_for_meta(param_meta, used)
+            if pnode is not None:
+                specs[pnode.name] = ("param", arg_idx)
+            arg_idx += 1
+        # Inputs next
+        for inp_meta in self._inputs:
+            inode = self._find_placeholder_for_meta(inp_meta, used)
+            if inode is not None:
+                specs[inode.name] = ("input", arg_idx)
+            arg_idx += 1
+        return specs
+
+    # ---------------------------------------------------------------------
     def _str_to_mlir_dtype(self, dtype: str) -> ir.Type:
         """
         Converts a str to the corresponding MLIR dtype.
@@ -720,7 +773,12 @@ class GraphImporter:
         Returns:
         None
         """
-        if self._num_input_visited < len(self._params) and self._do_param_pack:
+        # Fetch explicit specification
+        kind, arg_index = self._placeholder_specs.get(node.name, (None, None))
+        if kind is None:
+            # Fallback to old behaviour if not found (should not happen)
+            arg_index = self._num_input_visited
+        if self._do_param_pack and kind == "param":
             dtype = node.tensor_meta["dtype"]
             pack_of_dtype = None
             for pack in args_list:
@@ -735,19 +793,18 @@ class GraphImporter:
             self._current_param_pack_offset[dtype] += functools.reduce(
                 lambda x, y: x * y, list(node.tensor_meta["shape"]), 1
             )
-        elif self._do_param_pack:
-            if len(self._params) > 0:
-                placeholder_name = args_list[
-                    self._num_input_visited
-                    - len(self._params)
-                    + len(self._param_packs)
-                ]
-            else:
-                placeholder_name = args_list[self._num_input_visited]
         else:
-            placeholder_name = args_list[self._num_input_visited]
+            # For inputs or param_pack disabled.
+            if self._do_param_pack and kind == "input":
+                real_index = (
+                    arg_index - len(self._params) + len(self._param_packs)
+                )
+            else:
+                real_index = arg_index
+            placeholder_name = args_list[real_index]
 
         self._symbol_table[(str(node.name), 0)] = placeholder_name
+        # Maintain counter for compatibility although we no longer rely on it
         self._num_input_visited += 1
 
     def _generate_external_func_decl(self, call_node):
