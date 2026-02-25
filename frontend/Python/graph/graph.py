@@ -20,6 +20,7 @@
 
 from typing import Any, List, Optional
 from types import FunctionType
+from enum import Enum, auto
 import ctypes
 import functools
 import numpy as np
@@ -67,6 +68,10 @@ def make_output_memref_descriptor(ranks, dtypes):
 
     return OutputDescriptor
 
+class NodeType(Enum):
+    FakeNode = auto()
+    InputNode = auto()
+    OtherNode = auto()
 
 class Graph:
     """
@@ -101,8 +106,6 @@ class Graph:
 
     def __init__(
         self,
-        inputs: List[TensorMeta],
-        fake_params: List[TensorMeta],
         ops_registry: dict,
         func_name: str,
         device: DeviceType = DeviceType.CPU,
@@ -125,9 +128,9 @@ class Graph:
                 Enable external function call support (for oneDNN, etc.)
         """
         self._body = []
-        self._inputs = inputs
+        self._inputs = []
         self.node_table: Dict[str, Op] = {}
-        self._fake_params = fake_params
+        self._fake_params = []
         self.device = device
         self._imported_module = None
         self._params_ref = None
@@ -150,7 +153,7 @@ class Graph:
     def body(self, new_body):
         self._body = new_body
 
-    def add_node(self, node: Op):
+    def add_node(self, node: Op, node_type: NodeType = NodeType.OtherNode):
         """
         Adds an operation node to the graph's body.
 
@@ -167,8 +170,61 @@ class Graph:
         graph_instance.add_node(op_node)
         # The op_node is now part of the graph's body
         """
+        node_idx = len(self._body)
         self._body.append(node)
         self.node_table[node.name] = node
+        if node_type == NodeType.FakeNode:
+            self._fake_params.append(node_idx)
+        elif node_type == NodeType.InputNode:
+            self._inputs.append(node_idx)
+
+    def get_input(self, i):
+        return self._body[self._inputs[i]]
+
+    @property 
+    def inputs(self) -> list[Op]:
+        return [self.get_input(i) for i in range(len(self._inputs))]
+
+    @property
+    def inputs_shapes(self) -> list[TensorMeta]:
+        tm_list = []
+        for input in self.inputs:
+            input_tm_dict = input.tensor_meta
+            # FIXME: for backwards compatibility reasons we have to
+            # check the actual type of the tm stored in the node
+            if isinstance(input_tm_dict, TensorMeta):
+                tm_list.append(input_tm_dict)
+                continue
+            tm_list.append(TensorMeta(
+                shape=input_tm_dict["shape"],
+                dtype=input_tm_dict["dtype"],
+            ))
+
+        return tm_list
+
+    def get_fake_params(self, i):
+        return self._body[self._fake_params[i]]
+
+    @property
+    def params(self) -> list[Op]:
+        return [self.get_fake_params(i) for i in range(len(self._fake_params))]
+    
+    @property
+    def params_shapes(self) -> list[TensorMeta]:
+        tm_list = []
+        for param in self.params:
+            param_tm_dict = param.tensor_meta
+            # FIXME: for backwards compatibility reasons we have to
+            # check the actual type of the tm stored in the node
+            if isinstance(param_tm_dict, TensorMeta):
+                tm_list.append(param_tm_dict)
+                continue
+            tm_list.append(TensorMeta(
+                shape=param_tm_dict["shape"],
+                dtype=param_tm_dict["dtype"],
+            ))
+
+        return tm_list
 
     def check_delete_node(self, node: Op) -> bool:
         """
@@ -198,6 +254,23 @@ class Graph:
         Returns:
             None
         """
+
+        node_idx = self._body.index(node)
+
+        if node_idx in self._inputs:
+            self._inputs.remove(node_idx)
+
+        for i, ref_idx in enumerate(self._inputs):
+            if ref_idx > node_idx:
+                self._inputs[i] -= 1
+
+        if node_idx in self._fake_params:
+            self._fake_params.remove(node_idx)
+
+        for i, ref_idx in enumerate(self._fake_params):
+            if ref_idx > node_idx:
+                self._fake_params[i] -= 1
+            
         for i in parents:
             i._children.remove(node.name)
         node.args.clear()
@@ -282,6 +355,51 @@ class Graph:
         node_idx = self._body.index(node)
         self._body = self.body[:node_idx] + chain + self.body[node_idx + 1 :]
 
+    def replace_as_child(self, parent_ops: list[Op] | Op, child_op: Op, new_op: Op):
+        """
+        Replace `child_op`, a child of the `parent_ops` with `new_op`.
+
+        Args:
+            parent_ops (list[Op]): parents op `child_op` to replace `child_op` with `new_op` among the children
+            child_op (Op): See above
+            new_op (Op): See above
+        """
+
+        if not isinstance(parent_ops, list):
+            parent_ops = [parent_ops]
+
+        child_name = child_op._name
+        new_child_name = new_op._name
+
+        for parent_name in parent_ops:
+            parent_op = self.node_table[parent_name]
+            parent_op._children[parent_op._children.index(child_name)] = new_child_name
+            
+    def replace_as_parent(self, parent_op: Op, child_ops: list[Op] | Op, new_op: Op):
+        """
+        Replace `parent_op` with `new_op` as the the parent node of the `child_ops` list.
+
+        Args:
+            parent_op (Op): Parent to replace
+            child_ops (list[Op]): Child ops for which replace `parent_op` as their 
+            new_op (Op): op to replace `parent_op` with
+        """
+
+        if not isinstance(child_ops, list):
+            child_ops = [child_ops]
+
+        parent_name = parent_op._name
+        new_parent_name = new_op._name
+
+        for child_name in child_ops:
+            child_op = self.node_table[child_name]
+
+            if parent_name in child_op._parents:
+                child_op._parents[child_op._parents.index(parent_name)] = new_parent_name
+
+            if parent_name in child_op._arguments:
+                child_op._arguments[child_op._arguments.index(parent_name)] = new_parent_name
+
     def init_op_group(self):
         """
         Initializes operation groups within the graph.
@@ -350,8 +468,8 @@ class Graph:
         with ir.Location.unknown(self._ctx):
             fx_importer = GraphImporter(
                 self._body,
-                self._fake_params,
-                self._inputs,
+                self.params_shapes,
+                self.inputs_shapes,
                 self._func_name,
                 self._ops_registry,
                 False,
@@ -474,8 +592,8 @@ class GraphImporter:
     def __init__(
         self,
         body: List[Op],
-        params: List[TensorMeta],
-        inputs: List[TensorMeta],
+        params_shapes: List[TensorMeta],
+        inputs_shapes: List[TensorMeta],
         func_name: str,
         ops_registry: dict,
         do_param_pack: bool = False,
@@ -499,8 +617,8 @@ class GraphImporter:
         self._body = body
         self._device = device
         self._func_name = func_name
-        self._params = params
-        self._inputs = inputs
+        self._params_shapes = params_shapes
+        self._inputs_shapes = inputs_shapes
         self._verbose = verbose
         self._do_param_pack = do_param_pack
         self._param_packs = []
@@ -559,12 +677,12 @@ class GraphImporter:
         graph_instance._pack_params()
         # The parameters of the graph are now packed to one memref.
         """
-        dtypes = list(set([param.dtype for param in self._params]))
+        dtypes = list(set([param.dtype for param in self._params_shapes]))
         dtypes.sort(key=str)
         self._current_param_pack_offset = {dtype: 0 for dtype in dtypes}
         for dtype in dtypes:
             params_of_dtype = [
-                param for param in self._params if param.dtype == dtype
+                param for param in self._params_shapes if param.dtype == dtype
             ]
             param_total_size = 0
             for param in params_of_dtype:
@@ -586,7 +704,7 @@ class GraphImporter:
         assert self._do_param_pack == False
         with ir.InsertionPoint(self._module.body):
             arguments = []
-            inputs = self._params + self._inputs
+            inputs = self._params_shapes + self._inputs_shapes
             for arg in inputs:
                 shape_list = list(arg.shape)
                 dtype = arg.dtype
@@ -663,9 +781,9 @@ class GraphImporter:
             if self._do_param_pack:
                 self._pack_params()
                 arguments.extend(self._param_packs)
-                inputs = self._inputs
+                inputs = self._inputs_shapes
             else:
-                inputs = self._params + self._inputs
+                inputs = self._params_shapes + self._inputs_shapes
             for arg in inputs:
                 shape_list = list(arg.shape)
                 dtype = arg.dtype
@@ -720,7 +838,7 @@ class GraphImporter:
         Returns:
         None
         """
-        if self._num_input_visited < len(self._params) and self._do_param_pack:
+        if self._num_input_visited < len(self._params_shapes) and self._do_param_pack:
             dtype = node.tensor_meta["dtype"]
             pack_of_dtype = None
             for pack in args_list:
@@ -736,10 +854,10 @@ class GraphImporter:
                 lambda x, y: x * y, list(node.tensor_meta["shape"]), 1
             )
         elif self._do_param_pack:
-            if len(self._params) > 0:
+            if len(self._params_shapes) > 0:
                 placeholder_name = args_list[
                     self._num_input_visited
-                    - len(self._params)
+                    - len(self._params_shapes)
                     + len(self._param_packs)
                 ]
             else:

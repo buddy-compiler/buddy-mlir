@@ -34,3 +34,6 @@ from .onednn_replace import (
     replace_matmul_with_onednn_selective,
 )
 from .rand_replace import RUNTIME_RNG_TRANSFORMS
+from .quantization import (
+    weight_only_channel_wise,
+)

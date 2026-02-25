@@ -182,6 +182,7 @@ def param_extract(
         TensorDType.Float16: ir.F16Type.get(),
         TensorDType.BFloat16: ir.BF16Type.get(),
         TensorDType.Float32: ir.F32Type.get(),
+        TensorDType.Int8: ir.IntegerType.get_signless(8),
         TensorDType.Int64: ir.IntegerType.get_signless(64),
     }
     memref_element_type = dtype_mapping[node.tensor_meta["dtype"]]
