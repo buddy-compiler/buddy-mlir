@@ -120,20 +120,20 @@ else:
 with torch.no_grad():
     if args.precision == "f16":
         past_key_values_prefill = StaticCache(
-            config=model.config, max_cache_len=20
+            config=model.config, max_cache_len=1024
         )
         past_key_values_decode = StaticCache(
-            config=model.config, max_cache_len=20
+            config=model.config, max_cache_len=1024
         )
 
         data_prefill = {
-            "input_ids": torch.zeros((1, 20), dtype=torch.int64),
+            "input_ids": torch.zeros((1, 1024), dtype=torch.int64),
         }
         data_decode = {
             "input_ids": torch.zeros((1, 1), dtype=torch.int64),
         }
 
-        cache_position = torch.tensor([10], dtype=torch.int64)
+        cache_position = torch.tensor([200], dtype=torch.int64)
 
         graphs_prefill = dynamo_compiler_prefill.importer(
             model,
