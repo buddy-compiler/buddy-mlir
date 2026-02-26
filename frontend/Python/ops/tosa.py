@@ -447,6 +447,24 @@ def _create_mul_shift_operand() -> ir.Value:
     return tosa.ConstOp(dense_attr).results[0]
 
 
+def _create_integer_division(lhs: ir.Value, rhs: ir.Value) -> ir.Value:
+    """Create integer division with i32 TOSA constraint and cast back if needed."""
+    lhs_type = ir.RankedTensorType(lhs.type)
+    result_type = lhs_type
+    element_type = lhs_type.element_type
+
+    int_type = ir.IntegerType(element_type)
+    if int_type.width == 32:
+        return tosa.IntDivOp(result_type, lhs, rhs).result
+
+    i32 = ir.IntegerType.get_signless(32)
+    i32_type = ir.RankedTensorType.get(list(lhs_type.shape), i32)
+    lhs_i32 = tosa.CastOp(i32_type, lhs).result
+    rhs_i32 = tosa.CastOp(i32_type, rhs).result
+    div_i32 = tosa.IntDivOp(i32_type, lhs_i32, rhs_i32).result
+    return tosa.CastOp(result_type, div_i32).result
+
+
 def _create_permutation_attr(perm: Sequence[int]) -> ir.Attribute:
     """Create DenseI32ArrayAttr permutation for tosa.transpose."""
     return ir.DenseI32ArrayAttr.get([int(dim) for dim in perm])
@@ -4931,6 +4949,9 @@ def floor_divide_op(node: FloorDivideOp, symbol_table):
     input_dtype = ir.RankedTensorType(input1.type).element_type
     result_type = ir.RankedTensorType.get(input_shape, input_dtype)
 
+    if ir.IntegerType.isinstance(input_dtype):
+        return _create_integer_division(input1, input2)
+
     # Compute x / y
     recip_y = tosa.ReciprocalOp(result_type, input2)
     div_result = _gen_arith_binary_op(input1, recip_y.result, tosa.MulOp)
@@ -5195,6 +5216,12 @@ def div_tensor_mode_op(node: DivTensorModeOp, symbol_table):
 
     # Get rounding mode from kwargs
     rounding_mode = node.kwargs.get("rounding_mode", None)
+
+    if ir.IntegerType.isinstance(input_dtype) and rounding_mode in (
+        "floor",
+        "trunc",
+    ):
+        return _create_integer_division(input1, input2)
 
     # Compute x / y using reciprocal and multiplication
     recip = tosa.ReciprocalOp(result_type, input2)
