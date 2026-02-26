@@ -78,7 +78,8 @@ from ..graph import (
     RandIntLowOp,
     ArgMaxOp,
     ScaledDotProductFlashAttentionForCpuOp,
-    FlashAttentionForCpuPrefillOp,
+    GQAFlashAttentionPrefillFusedOp,
+    GQAAttentionDecodeFusedOp,
     MatmulOp,
     LeOp,
     BitwiseAndTensorOp,
@@ -261,7 +262,6 @@ from ..graph import (
     LocalScalarDenseOp,
     ResizeOp,
     SplitWithSizesOp,
-    GQAAttentionFusedOp,
 )
 from .utils import *
 
@@ -4171,11 +4171,11 @@ def scaled_dot_product_flash_attention_for_cpu_op(
     return result_reshape_op, log_sumexp
 
 
-def flash_attention_for_cpu_prefill_op(
-    node: "FlashAttentionForCpuPrefillOp", symbol_table
+def gqa_flash_attention_prefill_fused_op(
+    node: "GQAFlashAttentionPrefillFusedOp", symbol_table
 ):
     """
-    Lower FlashAttentionForCpuPrefillOp into MLIR affine+vector IR.
+    Lower GQAFlashAttentionPrefillFusedOp into MLIR affine+vector IR.
     Returns:
         result_tensor: Final attention output tensor
         log_sumexp_reshape: Placeholder log-sum-exp (can be reshaped as needed)
@@ -4280,6 +4280,8 @@ def flash_attention_for_cpu_prefill_op(
             h = body_block.add_argument(
                 ir.IndexType.get(), ir.Location.unknown()
             )
+            c6i = arith.ConstantOp(index, 6, loc=loc).result
+            hk = arith.DivSIOp(h, c6i, loc=loc).result
             # query sequence length block loop
             loop_q = affine.AffineParallelOp(
                 results_=[],
@@ -4405,7 +4407,7 @@ def flash_attention_for_cpu_prefill_op(
                                     v16_qkv, Q_memref, [b, h, idx_q, k]
                                 )
                                 k_data = vector.LoadOp(
-                                    v16_qkv, K_memref, [b, h, idx_k, k]
+                                    v16_qkv, K_memref, [b, hk, idx_k, k]
                                 )
                                 new_acc = vector.FMAOp(
                                     q_data.result,
@@ -4509,7 +4511,7 @@ def flash_attention_for_cpu_prefill_op(
                             with ir.InsertionPoint(loop_k.body):
                                 k = loop_k.induction_variable
                                 v_data = vector.LoadOp(
-                                    v16_qkv, V_memref, [b, h, idx_k, k]
+                                    v16_qkv, V_memref, [b, hk, idx_k, k]
                                 )
                                 acc_block_val = vector.LoadOp(
                                     v16, acc_block_memref, [k]
@@ -13660,7 +13662,9 @@ def diagonal_op(node: DiagonalOp, symbol_table):
         return output_tensor
 
 
-def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
+def gqa_attention_decode_fused_op(
+    node: GQAAttentionDecodeFusedOp, symbol_table
+):
     """
     Import attention kernel (QK^T + softmax + V) from graph to MLIR.
     """
@@ -13966,7 +13970,8 @@ ops_registry = {
     "RandIntLowOp": randint_low_op,
     "ArgMaxOp": argmax_op,
     "ScaledDotProductFlashAttentionForCpuOp": scaled_dot_product_flash_attention_for_cpu_op,
-    "FlashAttentionForCpuPrefillOp": flash_attention_for_cpu_prefill_op,
+    "GQAFlashAttentionPrefillFusedOp": gqa_flash_attention_prefill_fused_op,
+    "GQAAttentionDecodeFusedOp": gqa_attention_decode_fused_op,
     "LeOp": le_op,
     "BitwiseAndTensorOp": bitwise_and_tensor_op,
     "BitwiseLeftShiftOp": bitwise_left_shift_op,
@@ -14166,5 +14171,4 @@ ops_registry = {
     # FftR2cOp is implemented in linalg.py using DFT matrix multiplication
     "LocalScalarDenseOp": local_scalar_dense_op,
     "ResizeOp": resize_op,
-    "GQAAttentionFusedOp": gqa_attention_fused_op,
 }
