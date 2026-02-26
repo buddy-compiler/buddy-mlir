@@ -47,6 +47,7 @@ config.excludes = [
     "BuddyDeepSeekR1",
     "BuddyQwen3",
     "BuddyTransformer",
+    "BuddyYOLO26",
     "BuddyResNet18",
     "BuddyGPU",
     "BuddyOneDNN",
