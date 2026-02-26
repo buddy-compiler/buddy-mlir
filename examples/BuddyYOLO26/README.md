@@ -73,3 +73,6 @@ $ cmake -G Ninja .. -DBUDDY_YOLO26_EXAMPLES=ON
 $ ninja buddy-yolo26n-run
 $ ./bin/buddy-yolo26n-run ../examples/BuddyYOLO26/images/bus.bmp
 ```
+
+The runtime prints both `class_id` and label name resolved from
+`examples/BuddyYOLO26/labels.txt`.

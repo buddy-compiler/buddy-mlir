@@ -97,6 +97,30 @@ std::string getBuildDir() {
 #endif
 }
 
+std::string getExampleDir() {
+#ifdef YOLO26_EXAMPLE_PATH
+  return YOLO26_EXAMPLE_PATH;
+#else
+  return ".";
+#endif
+}
+
+std::vector<std::string> loadLabels(const std::string &labelsFilePath) {
+  std::ifstream labelsFile(labelsFilePath);
+  if (!labelsFile.is_open()) {
+    throw std::runtime_error("[Error] Failed to open labels file!");
+  }
+
+  std::vector<std::string> labels;
+  std::string line;
+  while (std::getline(labelsFile, line)) {
+    if (!line.empty()) {
+      labels.push_back(line);
+    }
+  }
+  return labels;
+}
+
 LetterboxResult letterboxImage(dip::Image<float, 4> &image) {
   const int originalH = static_cast<int>(image.getSizes()[2]);
   const int originalW = static_cast<int>(image.getSizes()[3]);
@@ -182,6 +206,8 @@ int main(int argc, char **argv) {
   const std::string imagePath = argv[1];
   const std::string paramsPath =
       argc >= 3 ? argv[2] : getBuildDir() + "/arg0.data";
+  const std::vector<std::string> labels =
+      loadLabels(getExampleDir() + "/labels.txt");
   std::string imageExt = std::filesystem::path(imagePath).extension().string();
   std::transform(imageExt.begin(), imageExt.end(), imageExt.begin(),
                  [](unsigned char c) { return std::tolower(c); });
@@ -220,10 +246,11 @@ int main(int argc, char **argv) {
       continue;
     }
     const Detection mapped = mapToOriginalImage(det, letterbox);
+    const std::string &label = labels[static_cast<size_t>(mapped.classId)];
     std::cout << "[" << validCount << "] class_id=" << mapped.classId
-              << " score=" << mapped.score << " box=(" << mapped.x1 << ", "
-              << mapped.y1 << ", " << mapped.x2 << ", " << mapped.y2 << ")"
-              << std::endl;
+              << " label=" << label << " score=" << mapped.score << " box=("
+              << mapped.x1 << ", " << mapped.y1 << ", " << mapped.x2 << ", "
+              << mapped.y2 << ")" << std::endl;
     ++validCount;
   }
   std::cout << "Detections: " << validCount << std::endl;
