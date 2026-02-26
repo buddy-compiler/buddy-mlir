@@ -887,8 +887,9 @@ class DynamoCompiler:
             buffers_nodes = []
             input_nodes = []
             other_nodes = []
+            all_nodes = list(_gm.graph.nodes)
             for i, node in enumerate(
-                list(_gm.graph.nodes)[num_cached_kv:], start=0
+                all_nodes[num_cached_kv:], start=num_cached_kv
             ):
                 if i in params_pos:
                     param_nodes.append(node)
@@ -898,12 +899,12 @@ class DynamoCompiler:
                     input_nodes.append(node)
                 else:
                     other_nodes.append(node)
-            input_nodes.extend(list(_gm.graph.nodes)[:num_cached_kv])
+            input_nodes.extend(all_nodes[:num_cached_kv])
             gm_nodes = [
                 (NodeType.FakeNode, param_nodes),
                 (NodeType.FakeNode, buffers_nodes),
                 (NodeType.InputNode, input_nodes),
-                (NodeType.OtherNode, other_nodes)
+                (NodeType.OtherNode, other_nodes),
             ]
 
             for node_type, gm_nodes_sublist in gm_nodes:
@@ -979,7 +980,9 @@ class DynamoCompiler:
                             gm_node.insert_arg(len(gm_node.args), value)
                             val = gm_node.meta.get("val")
                             node_shape = val.shape
-                            node_dtype = self._torch_dtype_translate(str(val.dtype))
+                            node_dtype = self._torch_dtype_translate(
+                                str(val.dtype)
+                            )
                             buddy_node = self._create_node(
                                 "_tensor_constant",
                                 gm_node.name,
@@ -1012,11 +1015,15 @@ class DynamoCompiler:
                         elif num_returns > 1:
                             node_dtype = tuple(
                                 [
-                                    self._torch_dtype_translate(str(val_item.dtype))
+                                    self._torch_dtype_translate(
+                                        str(val_item.dtype)
+                                    )
                                     for val_item in val
                                 ]
                             )
-                            node_shape = tuple([val_item.shape for val_item in val])
+                            node_shape = tuple(
+                                [val_item.shape for val_item in val]
+                            )
                         else:
                             raise RuntimeError("Zero returns is not supported.")
 
