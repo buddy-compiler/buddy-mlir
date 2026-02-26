@@ -26,6 +26,8 @@ project(buddy-mlir LANGUAGES CXX C)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED YES)
 include(ExternalProject)
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
 
 #-------------------------------------------------------------------------------
 # Options and settings
@@ -86,6 +88,7 @@ set(BUDDY_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR})
 set(BUDDY_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/bin)
 set(BUDDY_LIBRARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(BUDDY_EXAMPLES_DIR ${BUDDY_SOURCE_DIR}/examples)
+set(BUDDY_MLIR_INTERFACE_DIR ${BUDDY_SOURCE_DIR}/frontend/Interfaces)
 set(BUDDY_MIDEND_INCLUDE_DIR ${BUDDY_SOURCE_DIR}/midend/include)
 set(BUDDY_THIRDPARTY_INCLUDE_DIR ${BUDDY_SOURCE_DIR}/thirdparty/include)
 set(BUDDY_MLIR_PYTHON_PACKAGES_DIR ${BUDDY_BUILD_DIR}/python_packages)
@@ -247,3 +250,23 @@ install(DIRECTORY buddy/Core buddy/DAP buddy/DIP buddy/LLM
   FILES_MATCHING
   PATTERN "*.h"
   )
+
+set(BUDDY_MLIR_INSTALL_CMAKE_DIR "${CMAKE_INSTALL_LIBDIR}/cmake/BuddyMLIR")
+
+configure_package_config_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/cmake/BuddyMLIRConfig.cmake.in
+  ${CMAKE_CURRENT_BINARY_DIR}/BuddyMLIRConfig.cmake
+  INSTALL_DESTINATION ${BUDDY_MLIR_INSTALL_CMAKE_DIR}
+)
+
+write_basic_package_version_file(
+  ${CMAKE_CURRENT_BINARY_DIR}/BuddyMLIRConfigVersion.cmake
+  VERSION 0.1.0
+  COMPATIBILITY AnyNewerVersion
+)
+
+install(FILES
+  ${CMAKE_CURRENT_BINARY_DIR}/BuddyMLIRConfig.cmake
+  ${CMAKE_CURRENT_BINARY_DIR}/BuddyMLIRConfigVersion.cmake
+  DESTINATION ${BUDDY_MLIR_INSTALL_CMAKE_DIR}
+)
