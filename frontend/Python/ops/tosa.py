@@ -4194,6 +4194,7 @@ def flash_attention_for_cpu_prefill_op(
 ):
     """
     Lower FlashAttentionForCpuPrefillOp into MLIR affine+vector IR.
+    Uses f32 intermediate precision for numerical stability when input is f16.
     Returns:
         result_tensor: Final attention output tensor
         log_sumexp_reshape: Placeholder log-sum-exp (can be reshaped as needed)
@@ -4203,7 +4204,9 @@ def flash_attention_for_cpu_prefill_op(
     f32 = F32Type.get()
     dtype_qkv = node.tensor_meta["dtype"][0]
     dtype_qkv = mlir_element_type_get(dtype_qkv)
+    # Use f32 for all intermediate computation (numerical stability)
     dtype = f32
+    need_cast = dtype_qkv != dtype
     vector_width = 16
     v16 = ir.VectorType.get([vector_width], dtype)
     v16_qkv = ir.VectorType.get([vector_width], dtype_qkv)
@@ -4227,10 +4230,7 @@ def flash_attention_for_cpu_prefill_op(
     scale_val = arith.ConstantOp(dtype, float(scale_val)).result
 
     zero = arith.ConstantOp(dtype, 0.0, loc=loc).result
-    if dtype == ir.F16Type.get():
-        neg_inf = arith.ConstantOp(dtype, -65504.0, loc=loc).result
-    else:
-        neg_inf = arith.ConstantOp(dtype, -1.0e30, loc=loc).result
+    neg_inf = arith.ConstantOp(dtype, -1.0e30, loc=loc).result
     zero_vec = vector.SplatOp(v16, zero, loc=loc)
     step_1 = arith.ConstantOp(index, 1, loc=loc)
 
@@ -4419,15 +4419,27 @@ def flash_attention_for_cpu_prefill_op(
                             )
                             with ir.InsertionPoint(loop_k.body):
                                 k = loop_k.induction_variable
+                                # Load Q, K in tensor element type (f16 or f32)
                                 q_data = vector.LoadOp(
                                     v16_qkv, Q_memref, [b, h, idx_q, k]
                                 )
                                 k_data = vector.LoadOp(
                                     v16_qkv, K_memref, [b, h, idx_k, k]
                                 )
+                                # Upcast to f32 for FMA accumulation
+                                if need_cast:
+                                    q_f32 = arith.ExtFOp(
+                                        v16, q_data.result, loc=loc
+                                    ).result
+                                    k_f32 = arith.ExtFOp(
+                                        v16, k_data.result, loc=loc
+                                    ).result
+                                else:
+                                    q_f32 = q_data.result
+                                    k_f32 = k_data.result
                                 new_acc = vector.FMAOp(
-                                    q_data.result,
-                                    k_data.result,
+                                    q_f32,
+                                    k_f32,
                                     loop_k.inner_iter_args[0],
                                     loc=loc,
                                 ).result
@@ -4442,6 +4454,11 @@ def flash_attention_for_cpu_prefill_op(
                                 mask_val = memref.LoadOp(
                                     mask_memref, [b, c0.result, idx_q, idx_k]
                                 ).result
+                                # Upcast mask to f32 if needed
+                                if need_cast:
+                                    mask_val = arith.ExtFOp(
+                                        dtype, mask_val, loc=loc
+                                    ).result
                                 score_tile_masked = arith.AddFOp(
                                     score_tile_scaled, mask_val, loc=loc
                                 ).result
@@ -4526,14 +4543,22 @@ def flash_attention_for_cpu_prefill_op(
                             )
                             with ir.InsertionPoint(loop_k.body):
                                 k = loop_k.induction_variable
+                                # Load V in tensor element type
                                 v_data = vector.LoadOp(
                                     v16_qkv, V_memref, [b, h, idx_k, k]
                                 )
+                                # Upcast to f32 for FMA
+                                if need_cast:
+                                    v_f32 = arith.ExtFOp(
+                                        v16, v_data.result, loc=loc
+                                    ).result
+                                else:
+                                    v_f32 = v_data.result
                                 acc_block_val = vector.LoadOp(
                                     v16, acc_block_memref, [k]
                                 )
                                 new_acc = vector.FMAOp(
-                                    v_data.result,
+                                    v_f32,
                                     exp_score_tile_vec,
                                     acc_block_val.result,
                                     loc=loc,
@@ -4584,6 +4609,7 @@ def flash_attention_for_cpu_prefill_op(
                         scf.yield_([])
                     affine.yield_([])
 
+                # Write output: truncate f32 results to dtype_qkv if needed
                 loop_qi = scf.ForOp(
                     c0.result, block_size_q.result, step_1.result
                 )
@@ -4592,7 +4618,14 @@ def flash_attention_for_cpu_prefill_op(
                     idx_q = arith.AddIOp(q_block_start, qi, loc=loc).result
                     sum = memref.LoadOp(l_i_memref, [qi]).result
                     sum_vec = vector.SplatOp(v16, sum, loc=loc).result
-                    memref.StoreOp(sum, out_scores_memref, [b, h, idx_q])
+                    # Truncate sum to dtype_qkv for out_scores_memref
+                    if need_cast:
+                        sum_qkv = arith.TruncFOp(
+                            dtype_qkv, sum, loc=loc
+                        ).result
+                    else:
+                        sum_qkv = sum
+                    memref.StoreOp(sum_qkv, out_scores_memref, [b, h, idx_q])
 
                     loop_k = scf.ForOp(c0.result, head_dim.result, vec_len)
                     with ir.InsertionPoint(loop_k.body):
@@ -4601,6 +4634,11 @@ def flash_attention_for_cpu_prefill_op(
                             v16, accum_memref, [qi, k]
                         ).result
                         out_vec = arith.DivFOp(acc_vec, sum_vec, loc=loc).result
+                        # Truncate f32 vector to dtype_qkv for output memref
+                        if need_cast:
+                            out_vec = arith.TruncFOp(
+                                v16_qkv, out_vec, loc=loc
+                            ).result
                         vector.StoreOp(out_vec, out_memref, [b, h, idx_q, k])
                         scf.yield_([])
                     scf.yield_([])
@@ -13690,6 +13728,7 @@ def diagonal_op(node: DiagonalOp, symbol_table):
 def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
     """
     Import attention kernel (QK^T + softmax + V) from graph to MLIR.
+    Uses f32 intermediate precision for numerical stability when input is f16.
     """
 
     # ========= inputs =========
@@ -13702,9 +13741,18 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
     # === type ===
     loc = ir.Location.unknown()
     index = ir.IndexType.get()
-    f32 = ir.F32Type.get()
     dtype = node.tensor_meta["dtype"][0]
     mlir_dtype = mlir_element_type_get(dtype)
+
+    # Use f32 for intermediate computation to ensure numerical stability
+    f32 = ir.F32Type.get()
+    compute_dtype = f32
+    need_cast = mlir_dtype != compute_dtype
+
+    # I/O vector type (matches tensor element type for TransferRead/Write)
+    v16_io = ir.VectorType.get([16], mlir_dtype)
+    # Compute vector type (f32 for numerical stability)
+    v16_compute = ir.VectorType.get([16], compute_dtype)
 
     # ========= shape =========
     query_shape = query.type.shape
@@ -13712,14 +13760,22 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
     value_shape = v_cache.type.shape
     output_shape = list(node.tensor_meta["shape"])
 
-    scale_val = 1 / numpy.sqrt(query.type.shape[-1]) if scale is None else scale
-    scale_val = arith.ConstantOp(mlir_dtype, float(scale_val)).result
+    # All intermediate constants use compute_dtype (f32)
+    scale_val = (
+        1 / numpy.sqrt(query.type.shape[-1]) if scale is None else scale
+    )
+    scale_val = arith.ConstantOp(compute_dtype, float(scale_val)).result
 
-    neg_inf = arith.ConstantOp(mlir_dtype, -1.0e30, loc=loc).result
-    zero = arith.ConstantOp(mlir_dtype, 0.0, loc=loc).result
-    one = arith.ConstantOp(mlir_dtype, 1.0, loc=loc).result
-    v16_f32 = ir.VectorType.get([16], mlir_dtype)
-    zero_vec = vector.SplatOp(v16_f32, zero, loc=loc).result
+    neg_inf = arith.ConstantOp(compute_dtype, -1.0e30, loc=loc).result
+    zero_compute = arith.ConstantOp(compute_dtype, 0.0, loc=loc).result
+    one = arith.ConstantOp(compute_dtype, 1.0, loc=loc).result
+    zero_vec = vector.SplatOp(v16_compute, zero_compute, loc=loc).result
+
+    # Padding value for TransferReadOp must match tensor element type
+    if need_cast:
+        zero_io = arith.ConstantOp(mlir_dtype, 0.0, loc=loc).result
+    else:
+        zero_io = zero_compute
 
     c0 = arith.ConstantOp(index, 0, loc=loc)
     c1 = arith.ConstantOp(index, 1, loc=loc)
@@ -13730,19 +13786,25 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
     q_dim3 = arith.ConstantOp(index, query_shape[3], loc=loc).result
     k_dim2 = arith.ConstantOp(index, key_shape[2], loc=loc).result
     vec_len = arith.ConstantOp(index, 16, loc=loc).result
-    v16_f32 = ir.VectorType.get([16], mlir_dtype)
     group_size = query_shape[1] // key_shape[1]
 
     # ========= mask preprocess =========
     if attn_mask is not None:
         attn_mask = symbol_table.get((str(attn_mask), 0), attn_mask)
+        # Cast mask to compute_dtype (f32) if input is f16
+        if need_cast:
+            mask_cast_type = ir.RankedTensorType.get(
+                list(attn_mask.type.shape), compute_dtype
+            )
+            attn_mask = tosa.CastOp(mask_cast_type, attn_mask).result
 
     # ========= QK^T =========
+    # Score tensor uses compute_dtype (f32) for numerical stability
     score_init_tensor_type = ir.RankedTensorType.get(
         [query_shape[0], query_shape[1], query_shape[2], key_shape[2]],
-        mlir_dtype,
+        compute_dtype,
     )
-    element = mlir_element_attr_get(dtype, 0.0)
+    element = ir.FloatAttr.get(compute_dtype, 0.0)
     attr = ir.DenseElementsAttr.get_splat(score_init_tensor_type, element)
     score_init = arith.ConstantOp(score_init_tensor_type, attr).result
 
@@ -13776,34 +13838,45 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
                     with ir.InsertionPoint(vec_loop.body):
                         d = vec_loop.induction_variable
                         va = vec_loop.inner_iter_args[0]
-                        vec_ty = ir.VectorType.get([16], f32)
                         perm_map = ir.AffineMap.get(
                             4, 0, [ir.AffineDimExpr.get(3)]
                         )
-                        qv = vector.TransferReadOp(
-                            vec_ty,  # vector<16xf32>
-                            query,  # tensor<1x12x1x128xf32>
-                            [b, h, q, d],  # indices
-                            perm_map,  # (d0,d1,d2,d3)->(d3)
-                            zero,  # padding
-                            [True],  # in_bounds
+                        # Read Q, K in tensor element type (f16 or f32)
+                        qv_raw = vector.TransferReadOp(
+                            v16_io,
+                            query,
+                            [b, h, q, d],
+                            perm_map,
+                            zero_io,
+                            [True],
                             loc=loc,
                         ).result
-                        kv = vector.TransferReadOp(
-                            vec_ty,  # vector<16xf32>
-                            k_cache,  # tensor<1x2x1024x128xf32>
-                            [b, h_kv, k, d],  # indices
-                            perm_map,  # (d0,d1,d2,d3)->(d3)
-                            zero,  # padding
-                            [True],  # in_bounds
+                        kv_raw = vector.TransferReadOp(
+                            v16_io,
+                            k_cache,
+                            [b, h_kv, k, d],
+                            perm_map,
+                            zero_io,
+                            [True],
                             loc=loc,
                         ).result
+                        # Upcast to f32 for FMA accumulation
+                        if need_cast:
+                            qv = arith.ExtFOp(
+                                v16_compute, qv_raw, loc=loc
+                            ).result
+                            kv_val = arith.ExtFOp(
+                                v16_compute, kv_raw, loc=loc
+                            ).result
+                        else:
+                            qv = qv_raw
+                            kv_val = kv_raw
 
-                        va1 = vector.FMAOp(qv, kv, va)
+                        va1 = vector.FMAOp(qv, kv_val, va)
                         scf.YieldOp([va1.result])
 
                     red = vector.ReductionOp(
-                        f32, "add", vec_loop.result, loc=loc
+                        compute_dtype, "add", vec_loop.result, loc=loc
                     ).result
 
                     acc = arith.AddFOp(prev.result, red)
@@ -13822,7 +13895,7 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
     score_tensor = score.result
     score_tensor_shape = ir.RankedTensorType.get(
         [query_shape[0], query_shape[1], query_shape[2], key_shape[2]],
-        mlir_dtype,
+        compute_dtype,
     )
 
     # ========= scale + mask =========
@@ -13838,7 +13911,7 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
     ).result
     add_op = _gen_arith_binary_op(scaled, attn_mask, tosa.AddOp)
 
-    # ========= softmax =========
+    # ========= softmax (in f32 for stability) =========
     softmax_output_shape = list(add_op.result.type.shape)
     softmax_dim = len(softmax_output_shape) - 1
     max_vals = tosa.ReduceMaxOp(add_op.result, softmax_dim)
@@ -13852,12 +13925,20 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
     log_sumexp_operand = _create_shape_operand(list(output_shape[1]))
     log_sumexp = tosa.ReshapeOp(log_sumexp, log_sumexp_operand)
 
+    # Cast log_sumexp back to output dtype if needed
+    if need_cast:
+        log_sumexp_cast_type = ir.RankedTensorType.get(
+            list(output_shape[1]), mlir_dtype
+        )
+        log_sumexp = tosa.CastOp(log_sumexp_cast_type, log_sumexp).result
+
     # ========= Prob * V =========
+    # Output accumulation tensor in compute_dtype (f32)
     out_init_tensor_type = ir.RankedTensorType.get(
         [query_shape[0], query_shape[1], query_shape[2], query_shape[3]],
-        mlir_dtype,
+        compute_dtype,
     )
-    element = mlir_element_attr_get(dtype, 0.0)
+    element = ir.FloatAttr.get(compute_dtype, 0.0)
     attr = ir.DenseElementsAttr.get_splat(out_init_tensor_type, element)
     out_init = arith.ConstantOp(out_init_tensor_type, attr).result
 
@@ -13892,32 +13973,41 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
                         k = vec_loop.induction_variable
                         va = vec_loop.inner_iter_args[0]
 
+                        # softmax_result is in compute_dtype (f32)
                         p = tensor.ExtractOp(
                             softmax_result, [b, h, q, k], loc=loc
                         ).result
 
                         pv = vector.SplatOp(
-                            ir.VectorType.get([16], f32), p, loc=loc
+                            v16_compute, p, loc=loc
                         ).result
-                        vec_ty = ir.VectorType.get([16], f32)
                         perm_map = ir.AffineMap.get(
                             4, 0, [ir.AffineDimExpr.get(3)]
                         )
 
-                        vv = vector.TransferReadOp(
-                            vec_ty,
+                        # Read V in tensor element type (f16 or f32)
+                        vv_raw = vector.TransferReadOp(
+                            v16_io,
                             v_cache,
                             [b, hk, k, d],
                             perm_map,
-                            zero,
+                            zero_io,
                             [True],
                             loc=loc,
                         ).result
+                        # Upcast to f32 for FMA
+                        if need_cast:
+                            vv = arith.ExtFOp(
+                                v16_compute, vv_raw, loc=loc
+                            ).result
+                        else:
+                            vv = vv_raw
 
                         va1 = vector.FMAOp(pv, vv, va, loc=loc).result
 
                         scf.YieldOp([va1])
 
+                    # Write f32 vector to f32 output tensor
                     next_tensor = vector.TransferWriteOp(
                         out_dv.type,
                         vec_loop.result,
@@ -13937,6 +14027,14 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
         scf.YieldOp([loop_h.result])
 
     out_tensor = out.result
+
+    # Cast output from f32 back to mlir_dtype (f16) if needed
+    if need_cast:
+        out_cast_type = ir.RankedTensorType.get(
+            list(output_shape[0]), mlir_dtype
+        )
+        out_tensor = tosa.CastOp(out_cast_type, out_tensor).result
+
     return out_tensor, log_sumexp
 
 
