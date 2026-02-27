@@ -19,6 +19,12 @@
           # Help other use packages in this flake
           legacyPackages = pkgs;
 
+          packages = {
+            buddy-llvm = pkgs.buddy-llvm;
+            buddy-mlir = pkgs.buddy-mlir;
+            default = pkgs.buddy-mlir;
+          };
+
           devShells.default = pkgs.buddy-mlir.devShell;
 
           formatter = pkgs.nixpkgs-fmt;

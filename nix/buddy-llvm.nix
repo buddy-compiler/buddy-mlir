@@ -9,18 +9,18 @@ let
   pythonEnv = python3.withPackages (ps: [
     ps.numpy
     ps.pybind11
+    ps.nanobind
     ps.pyyaml
-    ps.ml-dtypes
   ]);
 in
 stdenv.mkDerivation rec {
   name = "llvm-for-buddy-mlir";
-  version = "6c59f0e1b0fb56c909ad7c9aad4bde37dc006ae0";
+  version = "01f36b39bd2475a271bbeb95fb9db8ed65e2d065";
   src = fetchFromGitHub {
     owner = "llvm";
     repo = "llvm-project";
     rev = version;
-    hash = "sha256-bMJJ2q1hSh7m0ewclHOmIe7lOHv110rz/P7D3pw8Uiw=";
+    hash = "sha256-JzMItIr8ZGrQ8LcLRrjucIEdTZInR6BTpiwB1SIQFhk=";
   };
 
   requiredSystemFeatures = [ "big-parallel" ];
@@ -36,7 +36,7 @@ stdenv.mkDerivation rec {
 
   cmakeDir = "../llvm";
   cmakeFlags = [
-    "-DLLVM_ENABLE_PROJECTS=mlir"
+    "-DLLVM_ENABLE_PROJECTS=mlir;clang"
     "-DLLVM_TARGETS_TO_BUILD=host;RISCV"
     "-DLLVM_ENABLE_ASSERTIONS=ON"
     "-DCMAKE_BUILD_TYPE=Release"
@@ -53,7 +53,7 @@ stdenv.mkDerivation rec {
     # and those LLVM backend headers require this config.h header file.
     # However for LLVM, this config.h is meant to be used on build phase only,
     # so it will not be installed for cmake install.
-    # We have to do some hack 
+    # We have to do some hack
     cp -v "include/llvm/Config/config.h" "$dev/include/llvm/Config/config.h"
 
     # move llvm-config to $dev to resolve a circular dependency
@@ -62,6 +62,9 @@ stdenv.mkDerivation rec {
     # move all lib files to $lib except lib/cmake
     moveToOutput "lib" "$lib"
     moveToOutput "lib/cmake" "$dev"
+
+    # move python source files to $dev so buddy-mlir can find them via cmake
+    moveToOutput "src/python" "$dev"
 
     # patch configuration files so each path points to the new $lib or $dev paths
     substituteInPlace "$dev/lib/cmake/llvm/LLVMConfig.cmake" \
