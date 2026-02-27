@@ -208,38 +208,38 @@ def gqa_attention_fusion_check(graph: Graph):
             ):
                 continue
 
-            # trace Key branch: View <- Clone <- Expand <- slice1 <- slice2 <- unsqueeze
+            # trace Key branch for torch2.10:
+            # View <- Clone <- Expand <- Unsqueeze <- IndexPut
             k_clone = graph.node_table.get(k_view_node._parents[0], None)
             if not isinstance(k_clone, CloneOp):
                 continue
             k_expand = graph.node_table.get(k_clone._parents[0], None)
             if not isinstance(k_expand, ExpandOp):
                 continue
-            k_slice1 = graph.node_table.get(k_expand._parents[0], None)
-            if not isinstance(k_slice1, SliceOp):
-                continue
-            k_slice2 = graph.node_table.get(k_slice1._parents[0], None)
-            if not isinstance(k_slice2, SliceOp):
-                continue
-            k_cache_unsqueeze = graph.node_table.get(k_slice2._parents[0], None)
+            k_cache_unsqueeze = graph.node_table.get(k_expand._parents[0], None)
             if not isinstance(k_cache_unsqueeze, UnsqueezeOp):
                 continue
+            k_index_put = graph.node_table.get(
+                k_cache_unsqueeze._parents[0], None
+            )
+            if not isinstance(k_index_put, IndexPutOp):
+                continue
 
-            # trace Value branch: View <- Clone <- Expand <- slice1 <- slice2 <- unsqueeze
+            # trace Value branch for torch2.10:
+            # View <- Clone <- Expand <- Unsqueeze <- IndexPut
             v_clone = graph.node_table.get(v_view_node._parents[0], None)
             if not isinstance(v_clone, CloneOp):
                 continue
             v_expand = graph.node_table.get(v_clone._parents[0], None)
             if not isinstance(v_expand, ExpandOp):
                 continue
-            v_slice1 = graph.node_table.get(v_expand._parents[0], None)
-            if not isinstance(v_slice1, SliceOp):
-                continue
-            v_slice2 = graph.node_table.get(v_slice1._parents[0], None)
-            if not isinstance(v_slice2, SliceOp):
-                continue
-            v_cache_unsqueeze = graph.node_table.get(v_slice2._parents[0], None)
+            v_cache_unsqueeze = graph.node_table.get(v_expand._parents[0], None)
             if not isinstance(v_cache_unsqueeze, UnsqueezeOp):
+                continue
+            v_index_put = graph.node_table.get(
+                v_cache_unsqueeze._parents[0], None
+            )
+            if not isinstance(v_index_put, IndexPutOp):
                 continue
             replace_gqa_attention_with_fused_op(
                 graph,
@@ -247,14 +247,10 @@ def gqa_attention_fusion_check(graph: Graph):
                 k_view_node,
                 k_clone,
                 k_expand,
-                k_slice1,
-                k_slice2,
                 k_cache_unsqueeze,
                 v_view_node,
                 v_clone,
                 v_expand,
-                v_slice1,
-                v_slice2,
                 v_cache_unsqueeze,
                 "gqa_attention_fusion",
             )
@@ -266,14 +262,10 @@ def replace_gqa_attention_with_fused_op(
     k_view: Op,
     k_clone: Op,
     k_expand: Op,
-    k_slice1: Op,
-    k_slice2: Op,
     k_cache_unsqueeze: Op,
     v_view: Op,
     v_clone: Op,
     v_expand: Op,
-    v_slice1: Op,
-    v_slice2: Op,
     v_cache_unsqueeze: Op,
     pattern: str,
 ):
@@ -309,11 +301,7 @@ def replace_gqa_attention_with_fused_op(
     if graph.check_delete_node(k_clone):
         graph.delete_node(k_clone, [k_expand])
     if graph.check_delete_node(k_expand):
-        graph.delete_node(k_expand, [k_slice1])
-    if graph.check_delete_node(k_slice1):
-        graph.delete_node(k_slice1, [k_slice2])
-    if graph.check_delete_node(k_slice2):
-        graph.delete_node(k_slice2, [k_cache_unsqueeze])
+        graph.delete_node(k_expand, [k_cache_unsqueeze])
     if graph.check_delete_node(k_cache_unsqueeze):
         k_orig_parents = [
             graph.node_table.get(p, None) for p in k_cache_unsqueeze._parents
@@ -326,11 +314,7 @@ def replace_gqa_attention_with_fused_op(
     if graph.check_delete_node(v_clone):
         graph.delete_node(v_clone, [v_expand])
     if graph.check_delete_node(v_expand):
-        graph.delete_node(v_expand, [v_slice1])
-    if graph.check_delete_node(v_slice1):
-        graph.delete_node(v_slice1, [v_slice2])
-    if graph.check_delete_node(v_slice2):
-        graph.delete_node(v_slice2, [v_cache_unsqueeze])
+        graph.delete_node(v_expand, [v_cache_unsqueeze])
     if graph.check_delete_node(v_cache_unsqueeze):
         v_orig_parents = [
             graph.node_table.get(p, None) for p in v_cache_unsqueeze._parents
