@@ -872,9 +872,6 @@ class DynamoCompiler:
 
         def _compiler(_gm: torch.fx.GraphModule, _inputs: List[torch.Tensor]):
             """Compile a FX graph in Aten/Prims IR to MLIR."""
-            num_cached_kv = 0
-            if self._model_config.decode_with_cache:
-                num_cached_kv = self._model_config.num_hidden_layers * 2
             graph = Graph(
                 self._ops_registry,
                 self._func_name,
@@ -888,9 +885,7 @@ class DynamoCompiler:
             input_nodes = []
             other_nodes = []
             all_nodes = list(_gm.graph.nodes)
-            for i, node in enumerate(
-                all_nodes[num_cached_kv:], start=num_cached_kv
-            ):
+            for i, node in enumerate(all_nodes):
                 if i in params_pos:
                     param_nodes.append(node)
                 elif i in buffers_pos:
@@ -899,7 +894,6 @@ class DynamoCompiler:
                     input_nodes.append(node)
                 else:
                     other_nodes.append(node)
-            input_nodes.extend(all_nodes[:num_cached_kv])
             gm_nodes = [
                 (NodeType.FakeNode, param_nodes),
                 (NodeType.FakeNode, buffers_nodes),
