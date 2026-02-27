@@ -129,7 +129,7 @@ def eliminate_transpose(graph: Graph):
         transpose_info = None
         node_dtype = input_node.tensor_meta.get("dtype")
 
-        for idx, tensor_meta in enumerate(graph._fake_params):
+        for idx, tensor_meta in enumerate(graph.params_shapes):
             if (
                 list(tensor_meta.shape) == current_shape
                 and tensor_meta.dtype == node_dtype
@@ -143,8 +143,6 @@ def eliminate_transpose(graph: Graph):
         if param_idx is None:
             continue
 
-        input_node.tensor_meta["shape"] = torch.Size(list(transposed_shape))
-
         if is_t_op:
             transpose_info = {"type": "t", "dims": [1, 0]}
         elif is_permute_op:
@@ -153,13 +151,15 @@ def eliminate_transpose(graph: Graph):
             transpose_info = {"type": "transpose", "dims": [dim1, dim2]}
 
         if param_idx is not None:
-            tensor_meta = graph._fake_params[param_idx]
+            # Read params_shapes BEFORE updating the node's tensor_meta,
+            # because params_shapes is a computed property that reads from
+            # live Op nodes. Updating the node first would cause the shape
+            # comparison below to fail for non-square matrices.
+            tensor_meta = graph.params_shapes[param_idx]
             if (
                 list(tensor_meta.shape) == current_shape
                 and tensor_meta.dtype == node_dtype
             ):
-                tensor_meta.shape = torch.Size(list(transposed_shape))
-
                 if (
                     hasattr(graph, "_params_ref")
                     and graph._params_ref is not None
@@ -201,6 +201,10 @@ def eliminate_transpose(graph: Graph):
                             graph._params_ref[param_idx] = param_tensor_data
 
                 graph._transposed_params[param_idx] = transpose_info
+
+        # Update the node's tensor_meta shape AFTER reading params_shapes
+        # and transposing the parameter data.
+        input_node.tensor_meta["shape"] = torch.Size(list(transposed_shape))
 
         transpose_children = list(node._children)
 
