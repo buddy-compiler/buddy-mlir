@@ -34,6 +34,8 @@ target_link_libraries(buddy-opt
   LowerVectorExpPass
   BuddyGemmini
   LowerGemminiPass
+  LowerGemminiToFuncPass
+  LowerGemminiToLLVMPass
   LowerLinalgToGemminiPass
   BuddyIME
   BuddyIMETransforms
