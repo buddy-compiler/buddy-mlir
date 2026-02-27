@@ -18,7 +18,7 @@ if(IS_RVV_PLATFORM)
   set(RISCV_LINK_OPTS "-march=rv64gcv;-mabi=lp64d")
 else()
   set(OPENMP_NUM_THREADS "num-threads=48")
-  set(LLC_RISCV_ATTRS "")
+  set(LLC_RISCV_ATTRS "-mcpu=native")
 endif()
 
 # Skip import commands on RVV platform
@@ -278,8 +278,7 @@ add_custom_command(
             -affine-parallelize
             -convert-vector-to-scf
             -lower-affine
-            -convert-scf-to-openmp=num-threads=48
-            -cse
+            -convert-scf-to-openmp=${OPENMP_NUM_THREADS}
             -memref-expand
             -arith-expand
             -convert-vector-to-llvm
@@ -296,7 +295,7 @@ add_custom_command(
             -reconcile-unrealized-casts |
         ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
         ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
-        ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
+        ${LLVM_TOOLS_BINARY_DIR}/llc ${LLC_RISCV_ATTRS} -filetype=obj -relocation-model=pic -O3
           -o ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill-f16.o
   DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill-f16.mlir
   COMMENT "Building forward_prefill-f16.o "
@@ -328,7 +327,7 @@ add_custom_command(
             -affine-parallelize
             -convert-vector-to-scf
             -lower-affine
-            -convert-scf-to-openmp=num-threads=48
+            -convert-scf-to-openmp=${OPENMP_NUM_THREADS}
             -cse
             -memref-expand
             -arith-expand
@@ -346,7 +345,7 @@ add_custom_command(
             -reconcile-unrealized-casts |
           ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
           ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
-          ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
+          ${LLVM_TOOLS_BINARY_DIR}/llc ${LLC_RISCV_ATTRS} -filetype=obj -relocation-model=pic -O3
             -o ${CMAKE_CURRENT_BINARY_DIR}/subgraph_prefill-f16.o
     DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill-f16.mlir
     COMMENT "Building subgraph_prefill-f16.o "
@@ -370,15 +369,13 @@ add_custom_command(
             -cse
             -canonicalize
             -optimize-allocation-liveness
-            -assume-tight-memref-layout
             -matmul-vectorization-blis
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
             -affine-parallelize
             -convert-vector-to-scf
             -lower-affine
-            -convert-scf-to-openmp=num-threads=48
-            -cse
+            -convert-scf-to-openmp=${OPENMP_NUM_THREADS}
             -memref-expand
             -arith-expand
             -convert-vector-to-llvm
@@ -395,7 +392,7 @@ add_custom_command(
             -reconcile-unrealized-casts |
         ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
         ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
-        ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
+        ${LLVM_TOOLS_BINARY_DIR}/llc ${LLC_RISCV_ATTRS} -filetype=obj -relocation-model=pic -O3
           -o ${CMAKE_CURRENT_BINARY_DIR}/forward_decode-f16.o
   DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/forward_decode-f16.mlir
   COMMENT "Building forward_decode-f16.o "
@@ -421,15 +418,16 @@ add_custom_command(
             -cse
             -canonicalize
             -optimize-allocation-liveness
+            -eliminate-memref-copy
             -assume-tight-memref-layout
-            -matmul-vectorization-decode=vector-size=128
+            -staticize-memref-layout
+            -matmul-vectorization-decode=vector-size=32
             -batch-matmul-vectorization-decode=vector-size=128
-            -batchmatmul-transpose-b-vectorization
+            -batchmatmul-transpose-b-vectorization=vector-size=16
             -convert-linalg-to-affine-loops
-            -affine-parallelize
             -convert-vector-to-scf
             -lower-affine
-            -convert-scf-to-openmp=num-threads=48
+            -convert-scf-to-openmp=${OPENMP_NUM_THREADS}
             -cse
             -memref-expand
             -arith-expand
@@ -447,7 +445,7 @@ add_custom_command(
             -reconcile-unrealized-casts |
           ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
           ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
-          ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
+          ${LLVM_TOOLS_BINARY_DIR}/llc ${LLC_RISCV_ATTRS} -filetype=obj -relocation-model=pic -O3
             -o ${CMAKE_CURRENT_BINARY_DIR}/subgraph_decode-f16.o
     DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode-f16.mlir
     COMMENT "Building subgraph_decode-f16.o "

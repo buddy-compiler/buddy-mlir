@@ -120,20 +120,20 @@ else:
 with torch.no_grad():
     if args.precision == "f16":
         past_key_values_prefill = StaticCache(
-            config=model.config, max_cache_len=20
+            config=model.config, max_cache_len=1024
         )
         past_key_values_decode = StaticCache(
-            config=model.config, max_cache_len=20
+            config=model.config, max_cache_len=1024
         )
 
         data_prefill = {
-            "input_ids": torch.zeros((1, 20), dtype=torch.int64),
+            "input_ids": torch.zeros((1, 1024), dtype=torch.int64),
         }
         data_decode = {
             "input_ids": torch.zeros((1, 1), dtype=torch.int64),
         }
 
-        cache_position = torch.tensor([10], dtype=torch.int64)
+        cache_position = torch.tensor([200], dtype=torch.int64)
 
         graphs_prefill = dynamo_compiler_prefill.importer(
             model,
@@ -213,10 +213,19 @@ if args.precision == "f16":
     graphs_decode[0].perform(
         [eliminate_transpose, eliminate_matmul_transpose_reshape]
     )
-    pattern_list = [simply_fuse, apply_classic_fusion]
+    pattern_list_prefill = [
+        simply_fuse,
+        apply_classic_fusion,
+        flash_attention_prefill,
+    ]
+    pattern_list_decode = [
+        simply_fuse,
+        apply_classic_fusion,
+        gqa_attention_fusion,
+    ]
 
-    graphs_prefill[0].fuse_ops(pattern_list)
-    graphs_decode[0].fuse_ops(pattern_list)
+    graphs_prefill[0].fuse_ops(pattern_list_prefill)
+    graphs_decode[0].fuse_ops(pattern_list_decode)
 
     graph_prefill.op_groups["subgraph0_prefill"] = graph_prefill.op_groups.pop(
         "subgraph0"

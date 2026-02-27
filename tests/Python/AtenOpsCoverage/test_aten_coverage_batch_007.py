@@ -1,5 +1,5 @@
 # RUN: %PYTHON %s 2>&1 | FileCheck %s
-from aten_op_batch_runner import run_aten_op_batch
+from aten_coverage_runner import run_aten_coverage_batch
 import torch
 
 CUSTOM_TEMPLATES = {}
@@ -458,16 +458,31 @@ def _template_signbit_out():
     return [x], {"out": out}
 
 
+def _template_special_bessel_j_default():
+    x = torch.tensor([0.5, 2.0], dtype=torch.float32)
+    return [x], {}
+
+
+def _template_special_bessel_y_default():
+    x = torch.tensor([8.0, 12.0], dtype=torch.float32)
+    return [x], {}
+
+
+def _template_special_airy_ai_default():
+    x = torch.tensor([5.0, 8.0], dtype=torch.float32)
+    return [x], {}
+
+
 CUSTOM_TEMPLATES.update(
     {
         "rot90.default": _template_rot90_default,
         "rot90.out": _template_rot90_out,
-        "rrelu_with_noise.default": _skip("random_op_not_supported"),
-        "rrelu_with_noise.out": _skip("random_op_not_supported"),
-        "rrelu_with_noise_.default": _skip("random_op_not_supported"),
+        "rrelu_with_noise.default": _template_rrelu_with_noise,
+        "rrelu_with_noise.out": _template_rrelu_with_noise_out,
+        "rrelu_with_noise_.default": _template_rrelu_with_noise_inplace,
         "rrelu_with_noise_backward.default": _template_rrelu_with_noise_backward,
         "rrelu_with_noise_backward.out": _template_rrelu_with_noise_backward_out,
-        "rrelu_with_noise_functional.default": _skip("random_op_not_supported"),
+        "rrelu_with_noise_functional.default": _template_rrelu_with_noise_functional,
         "scalar_tensor.default": _template_scalar_tensor,
         "scalar_tensor.out": _template_scalar_tensor_out,
         "scatter.value": _template_scatter_value,
@@ -536,19 +551,17 @@ CUSTOM_TEMPLATES.update(
         "sort.dimname_values_stable": _skip("dynamo_dimname_fake_tensor"),
         "sort.str": _skip("dynamo_list_mutation"),
         "sort.any": _skip("dynamo_immutable_list"),
-        "special_airy_ai.default": _skip("special_function_not_supported"),
+        "special_airy_ai.default": _template_special_airy_ai_default,
         "special_airy_ai.out": _skip("special_function_not_supported"),
-        "special_bessel_j0.default": _skip("special_function_not_supported"),
+        "special_bessel_j0.default": _template_special_bessel_j_default,
         "special_bessel_j0.out": _skip("special_function_not_supported"),
-        "special_bessel_j1.default": _skip("special_function_not_supported"),
+        "special_bessel_j1.default": _template_special_bessel_j_default,
         "special_bessel_j1.out": _skip("special_function_not_supported"),
-        "special_bessel_y0.default": _skip("special_function_not_supported"),
+        "special_bessel_y0.default": _template_special_bessel_y_default,
         "special_bessel_y0.out": _skip("special_function_not_supported"),
-        "special_bessel_y1.default": _skip("special_function_not_supported"),
+        "special_bessel_y1.default": _template_special_bessel_y_default,
         "special_bessel_y1.out": _skip("special_function_not_supported"),
-        "special_chebyshev_polynomial_t.default": _skip(
-            "special_polynomial_not_supported"
-        ),
+        "special_chebyshev_polynomial_t.default": _template_poly_default,
         "special_chebyshev_polynomial_t.out": _skip(
             "special_polynomial_not_supported"
         ),
@@ -564,9 +577,7 @@ CUSTOM_TEMPLATES.update(
         "special_chebyshev_polynomial_t.n_scalar_out": _skip(
             "special_polynomial_not_supported"
         ),
-        "special_chebyshev_polynomial_u.default": _skip(
-            "special_polynomial_not_supported"
-        ),
+        "special_chebyshev_polynomial_u.default": _template_poly_default,
         "special_chebyshev_polynomial_u.out": _skip(
             "special_polynomial_not_supported"
         ),
@@ -582,9 +593,7 @@ CUSTOM_TEMPLATES.update(
         "special_chebyshev_polynomial_u.n_scalar_out": _skip(
             "special_polynomial_not_supported"
         ),
-        "special_chebyshev_polynomial_v.default": _skip(
-            "special_polynomial_not_supported"
-        ),
+        "special_chebyshev_polynomial_v.default": _template_poly_default,
         "special_chebyshev_polynomial_v.out": _skip(
             "special_polynomial_not_supported"
         ),
@@ -600,9 +609,7 @@ CUSTOM_TEMPLATES.update(
         "special_chebyshev_polynomial_v.n_scalar_out": _skip(
             "special_polynomial_not_supported"
         ),
-        "special_chebyshev_polynomial_w.default": _skip(
-            "special_polynomial_not_supported"
-        ),
+        "special_chebyshev_polynomial_w.default": _template_poly_default,
         "special_chebyshev_polynomial_w.out": _skip(
             "special_polynomial_not_supported"
         ),
@@ -618,9 +625,7 @@ CUSTOM_TEMPLATES.update(
         "special_chebyshev_polynomial_w.n_scalar_out": _skip(
             "special_polynomial_not_supported"
         ),
-        "special_hermite_polynomial_h.default": _skip(
-            "special_polynomial_not_supported"
-        ),
+        "special_hermite_polynomial_h.default": _template_poly_default,
         "special_hermite_polynomial_h.out": _skip(
             "special_polynomial_not_supported"
         ),
@@ -636,9 +641,7 @@ CUSTOM_TEMPLATES.update(
         "special_hermite_polynomial_h.n_scalar_out": _skip(
             "special_polynomial_not_supported"
         ),
-        "special_hermite_polynomial_he.default": _skip(
-            "special_polynomial_not_supported"
-        ),
+        "special_hermite_polynomial_he.default": _template_poly_default,
         "special_hermite_polynomial_he.out": _skip(
             "special_polynomial_not_supported"
         ),
@@ -654,9 +657,7 @@ CUSTOM_TEMPLATES.update(
         "special_hermite_polynomial_he.n_scalar_out": _skip(
             "special_polynomial_not_supported"
         ),
-        "special_laguerre_polynomial_l.default": _skip(
-            "special_polynomial_not_supported"
-        ),
+        "special_laguerre_polynomial_l.default": _template_poly_default,
         "special_laguerre_polynomial_l.out": _skip(
             "special_polynomial_not_supported"
         ),
@@ -872,11 +873,12 @@ OPS = [
 ]
 
 if __name__ == "__main__":
-    run_aten_op_batch(
+    run_aten_coverage_batch(
         OPS,
         batch_label="test_batch_7",
         max_fails=20,
         templates=CUSTOM_TEMPLATES,
+        mode="graph",
     )
 # CHECK: SUMMARY pass=
 # CHECK-SAME: fail=0

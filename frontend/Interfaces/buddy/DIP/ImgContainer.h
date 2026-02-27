@@ -213,6 +213,9 @@ bool Image<T, N>::decodeBMP(const std::vector<uint8_t> &fileData) {
   this->bitDepth = *reinterpret_cast<const uint16_t *>(&fileData[28]);
   uint32_t compression = *reinterpret_cast<const uint32_t *>(&fileData[30]);
   size_t pixelDataOffset = *reinterpret_cast<const uint32_t *>(&fileData[10]);
+  size_t bytesPerPixel = this->bitDepth / 8;
+  size_t rowStride =
+      ((static_cast<size_t>(this->bitDepth) * this->width + 31) / 32) * 4;
 
   // Currently, only the BI_RGB (value 0) or BI_BITFIELDS (value 3) compression
   // method is supported.
@@ -241,7 +244,7 @@ bool Image<T, N>::decodeBMP(const std::vector<uint8_t> &fileData) {
           for (size_t j = 0; j < this->width; j++) {
             // Locate the current pixel.
             size_t pixelIndex =
-                pixelDataOffset + (((i - 1) * this->width) + j) * 4;
+                pixelDataOffset + (i - 1) * rowStride + j * bytesPerPixel;
             // Extract the blue, green, and red value from the current pixel.
             int bluePixel =
                 *reinterpret_cast<const uint8_t *>(&fileData[pixelIndex]);
@@ -265,7 +268,7 @@ bool Image<T, N>::decodeBMP(const std::vector<uint8_t> &fileData) {
           for (size_t j = 0; j < this->width; j++) {
             // Locate the current pixel.
             size_t pixelIndex =
-                pixelDataOffset + (((i - 1) * this->width) + j) * 3;
+                pixelDataOffset + (i - 1) * rowStride + j * bytesPerPixel;
             // Extract the blue, green, and red value from the current pixel.
             int bluePixel =
                 *reinterpret_cast<const uint8_t *>(&fileData[pixelIndex]);
@@ -289,7 +292,7 @@ bool Image<T, N>::decodeBMP(const std::vector<uint8_t> &fileData) {
           for (size_t j = 0; j < this->width; j++) {
             // Locate the current pixel.
             size_t pixelIndex =
-                pixelDataOffset + (((i - 1) * this->width) + j) * 2;
+                pixelDataOffset + (i - 1) * rowStride + j * bytesPerPixel;
             // Extract the 16-bit pixel value
             uint16_t pixelValue =
                 *reinterpret_cast<const uint16_t *>(&fileData[pixelIndex]);
@@ -350,7 +353,8 @@ bool Image<T, N>::decodeBMP(const std::vector<uint8_t> &fileData) {
         for (size_t i = height; i > 0; i--) {
           for (size_t j = 0; j < width; j++) {
             // Locate the current pixel.
-            size_t pixelIndex = pixelDataOffset + (((i - 1) * width) + j) * 4;
+            size_t pixelIndex =
+                pixelDataOffset + (i - 1) * rowStride + j * bytesPerPixel;
             // Extract the blue, green, and red value from the current pixel.
             int bluePixel =
                 *reinterpret_cast<const uint8_t *>(&fileData[pixelIndex]);
@@ -376,7 +380,8 @@ bool Image<T, N>::decodeBMP(const std::vector<uint8_t> &fileData) {
         for (size_t i = height; i > 0; i--) {
           for (size_t j = 0; j < width; j++) {
             // Locate the current pixel.
-            size_t pixelIndex = pixelDataOffset + (((i - 1) * width) + j) * 3;
+            size_t pixelIndex =
+                pixelDataOffset + (i - 1) * rowStride + j * bytesPerPixel;
             // Extract the blue, green, and red value from the current pixel.
             int bluePixel =
                 *reinterpret_cast<const uint8_t *>(&fileData[pixelIndex]);
@@ -402,7 +407,8 @@ bool Image<T, N>::decodeBMP(const std::vector<uint8_t> &fileData) {
         for (size_t i = height; i > 0; i--) {
           for (size_t j = 0; j < width; j++) {
             // Locate the current pixel.
-            size_t pixelIndex = pixelDataOffset + (((i - 1) * width) + j) * 2;
+            size_t pixelIndex =
+                pixelDataOffset + (i - 1) * rowStride + j * bytesPerPixel;
             // Extract the 16-bit pixel value
             uint16_t pixelValue =
                 *reinterpret_cast<const uint16_t *>(&fileData[pixelIndex]);

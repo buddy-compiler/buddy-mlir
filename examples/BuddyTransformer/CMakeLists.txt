@@ -76,7 +76,7 @@ add_custom_command(
             -convert-vector-to-scf
             -lower-affine
             -convert-scf-to-openmp
-            -func-bufferize-dynamic-offset
+            # -func-bufferize-dynamic-offset
             -cse
             -memref-expand
             -arith-expand
@@ -122,7 +122,7 @@ add_custom_command(
             -convert-vector-to-scf
             -lower-affine
             -convert-scf-to-openmp
-            -func-bufferize-dynamic-offset
+            # -func-bufferize-dynamic-offset
             -cse
             -memref-expand
             -arith-expand
@@ -239,7 +239,7 @@ add_custom_command(
             -convert-vector-to-scf
             -lower-affine
             -convert-scf-to-openmp
-            -func-bufferize-dynamic-offset
+            # -func-bufferize-dynamic-offset
             -cse
             -memref-expand
             -arith-expand
