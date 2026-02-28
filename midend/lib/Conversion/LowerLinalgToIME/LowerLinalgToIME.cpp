@@ -35,13 +35,7 @@
 using namespace mlir;
 using namespace buddy::ime;
 
-//===----------------------------------------------------------------------===//
-// Helper Functions
-//===----------------------------------------------------------------------===//
 
-/// Get the tile sizes based on element type.
-/// For int8: TILE_M=4, TILE_K=8, TILE_N=4
-/// For int16: TILE_M=4, TILE_K=4, TILE_N=4
 static void getTileSizes(Type elemType, int64_t &tileM, int64_t &tileK,
                          int64_t &tileN) {
   if (elemType.isInteger(8)) {
@@ -223,30 +217,11 @@ public:
   }
 };
 
-//===----------------------------------------------------------------------===//
-// Matmul to IME Lowering with Boundary Handling (Static Padding Strategy)
-//===----------------------------------------------------------------------===//
-
-/// This pattern handles matmul operations where dimensions may not be aligned
-/// to IME tile sizes. It uses a STATIC PADDING strategy with explicit tile copying:
-///
-/// 1. For each tile position (i, j):
-///    a. Allocate contiguous tile buffers (ATile[tileM×tileK], BTile[tileK×tileN], CTile[tileM×tileN])
-///    b. Copy C tile from original matrix (with zero padding for boundaries)
-///    c. For each K tile:
-///       - Copy A tile from original matrix (with zero padding)
-///       - Copy B tile from original matrix (with zero padding)
-///       - Run ime.vmadot on contiguous buffers
-///    d. Copy CTile back to original C matrix (only valid elements)
-///
-/// This approach ensures IME always works on contiguous memory as required by hardware.
-
 class MatmulWithBoundaryToIMELowering
     : public OpRewritePattern<linalg::MatmulOp> {
 public:
   using OpRewritePattern<linalg::MatmulOp>::OpRewritePattern;
 
-  // Set lower benefit than the simple MatmulToIMELowering so it's tried second
   MatmulWithBoundaryToIMELowering(MLIRContext *context)
       : OpRewritePattern<linalg::MatmulOp>(context, /*benefit=*/1) {}
 
@@ -344,12 +319,8 @@ public:
     Value zeroI32 = rewriter.create<arith::ConstantOp>(
         loc, rewriter.getI32Type(), rewriter.getI32IntegerAttr(0));
 
-    // Allocate contiguous tile buffers (these have contiguous memory layout)
-    // Note: ATile is row-major: ATile[m][k]
-    // Note: BTile is column-major packed: BTile[n][k] to match IME's expected layout
-    //       IME expects B to be stored as: col0 elements, col1 elements, ...
     auto ATileType = MemRefType::get({tileM, tileK}, AElemType);
-    auto BTileType = MemRefType::get({tileN, tileK}, AElemType);  // Note: [N, K] for column-major pack
+    auto BTileType = MemRefType::get({tileN, tileK}, AElemType);  // [N, K] for column-major pack
     auto CTileType = MemRefType::get({tileM, tileN}, CElemType);
 
     Value ATile = rewriter.create<memref::AllocaOp>(loc, ATileType);

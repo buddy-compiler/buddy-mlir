@@ -368,7 +368,7 @@ def IME_VFMADOT3 : RVInstIME<0b1111000, 0b000,
   let Constraints = "$vd = $vd_in";
 }
 
-let Predicates = [HasBuddyExt] in 
+let Predicates = [HasBuddyExt] in
 def : Pat<(int_riscv_mvin GPR:$rs1, GPR:$rs2), (MVIN GPR:$rs1, GPR:$rs2)>;
 
 let Predicates = [HasBuddyExt] in
