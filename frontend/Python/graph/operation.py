@@ -56,6 +56,7 @@ class OpType(Enum):
     PlaceholderType = 6
     GetItemType = 7
     Unfusable = 8
+    ShapeType = 9
 
 
 class Op:
@@ -198,6 +199,12 @@ class ViewOp(Op):
         self._op_type = OpType.ReshapeType
 
 
+class ViewDtypeOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReshapeType
+
+
 class EmbeddingOp(Op):
     def __init__(self) -> None:
         super().__init__()
@@ -289,6 +296,72 @@ class CatOp(Op):
 
 
 class BatchMatmulOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReduceType
+
+
+class TriangularSolveOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReduceType
+
+
+class LinalgSolveTriangularOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReduceType
+
+
+class CholeskyOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReduceType
+
+
+class LinalgCholeskyExOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReduceType
+
+
+class CholeskySolveOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReduceType
+
+
+class CholeskyInverseOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReduceType
+
+
+class LinalgInvExOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReduceType
+
+
+class LinalgLuOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReduceType
+
+
+class LinalgLuFactorExOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReduceType
+
+
+class LinalgLuSolveOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReduceType
+
+
+class LuUnpackOp(Op):
     def __init__(self) -> None:
         super().__init__()
         self._op_type = OpType.ReduceType
@@ -426,6 +499,12 @@ class ErfOp(Op):
         self._op_type = OpType.ElementwiseType
 
 
+class ErfinvOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
 class Conv2dOp(Op):
     def __init__(self) -> None:
         super().__init__()
@@ -445,6 +524,28 @@ class SigmoidOp(Op):
         self._op_type = OpType.ElementwiseType
 
 
+class GluOp(Op):
+    """
+    Gated linear unit operation.
+    Implements aten.glu.default: Splits tensor and applies sigmoid gate.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReshapeType
+
+
+class GruOp(Op):
+    """
+    Gated recurrent unit operation.
+    Implements aten.gru.input.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.Unfusable
+
+
 class IotaOp(Op):
     def __init__(self) -> None:
         super().__init__()
@@ -455,6 +556,18 @@ class ScalarTensorOp(Op):
     def __init__(self) -> None:
         super().__init__()
         self._op_type = OpType.PlaceholderType
+
+
+class LowMemoryMaxPoolWithOffsetsOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReduceType
+
+
+class LowMemoryMaxPoolOffsetsToIndicesOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReduceType
 
 
 class MaxPool2dWithIndicesOp(Op):
@@ -556,10 +669,12 @@ class CallExternalOp(Op):
         tensor_meta: dict,
         name: str = None,
     ) -> None:
-        super().__init__(name)
+        super().__init__()
+        if name is not None:
+            self._name = name
         self.call_func_name = call_func_name
-        self.args = args
-        self._args_index = args_index
+        self._arguments = list(args)
+        self._args_index = list(args_index)
         self.tensor_meta = tensor_meta
         self._op_type = OpType.Unfusable
 
@@ -853,6 +968,17 @@ class GeOp(Op):
         self._op_type = OpType.ElementwiseType
 
 
+class GcdOp(Op):
+    """
+    Greatest common divisor operation.
+    Implements aten.gcd.default.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
 class GreaterThanOp(Op):
     def __init__(self) -> None:
         super().__init__()
@@ -938,6 +1064,12 @@ class TensorConstantOp(Op):
 
 
 class RepeatOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class RepeatInterleaveOp(Op):
     def __init__(self) -> None:
         super().__init__()
         self._op_type = OpType.ElementwiseType
@@ -1058,6 +1190,17 @@ class CumProdOp(Op):
     """
     Cumulative product operation.
     Implements aten.cumprod: returns cumulative product along a dimension.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReduceType
+
+
+class LogCumsumExpOp(Op):
+    """
+    Log cumulative sum exp operation.
+    Implements aten.logcumsumexp.
     """
 
     def __init__(self) -> None:
@@ -1209,6 +1352,17 @@ class UpsampleNearest2dVecOp(Op):
         self._op_type = OpType.ReshapeType
 
 
+class UpsampleTrilinear3dOp(Op):
+    """
+    Upsample trilinear 3D operation.
+    Implements aten.upsample_trilinear3d.default.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReshapeType
+
+
 class SymSizeOp(Op):
     """
     Symbolic size operation.
@@ -1279,6 +1433,17 @@ class BaddbmmOp(Op):
     """
     Batched matrix-matrix product with addition.
     Implements aten.baddbmm: batch1 @ batch2 + input * beta + alpha * batch1 @ batch2
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.Unfusable
+
+
+class AddbmmOp(Op):
+    """
+    Add batched matrix-matrix product.
+    Implements aten.addbmm.
     """
 
     def __init__(self) -> None:
@@ -2001,10 +2166,131 @@ class RandnOp(Op):
         self._op_type = OpType.ReshapeType
 
 
+class RandLikeOp(Op):
+    """
+    Random uniform tensor like operation.
+    Implements aten.rand_like.default.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReshapeType
+
+
+class RandnLikeOp(Op):
+    """
+    Random normal tensor like operation.
+    Implements aten.randn_like.default.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReshapeType
+
+
+class NormalOp(Op):
+    """
+    Normal distribution sampling.
+    Implements aten.normal.* / aten.normal_.* variants.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReshapeType
+
+
+class PoissonOp(Op):
+    """
+    Poisson distribution sampling.
+    Implements aten.poisson.default / aten.poisson.out.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReshapeType
+
+
+class MultinomialOp(Op):
+    """
+    Multinomial sampling.
+    Implements aten.multinomial.default / aten.multinomial.out.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReshapeType
+
+
+class LogNormalOp(Op):
+    """
+    Log-normal distribution sampling.
+    Implements aten.log_normal.* / aten.log_normal_.* variants.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReshapeType
+
+
+class RreluWithNoiseOp(Op):
+    """
+    RReLU with noise sampling.
+    Implements aten.rrelu_with_noise.* variants.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReshapeType
+
+
+class RandintLikeOp(Op):
+    """
+    Random integer tensor like operation.
+    Implements aten.randint_like.* variants.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReshapeType
+
+
+class GeometricOp(Op):
+    """
+    Geometric distribution sampling.
+    Implements aten.geometric.default / aten.geometric.out / aten.geometric_.default.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReshapeType
+
+
+class ExponentialOp(Op):
+    """
+    Exponential distribution sampling.
+    Implements aten.exponential.default / aten.exponential.out / aten.exponential_.default.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReshapeType
+
+
 class SelectScatterOp(Op):
     """
     Select scatter operation.
     Implements aten.select_scatter.default: Scatters values at selected indices.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReshapeType
+
+
+class DiagonalScatterOp(Op):
+    """
+    Diagonal scatter operation.
+    Implements aten.diagonal_scatter.default: Scatters values along a diagonal.
     """
 
     def __init__(self) -> None:
@@ -2038,6 +2324,17 @@ class NonzeroOp(Op):
     """
     Nonzero elements operation.
     Implements aten.nonzero.default: Returns indices of nonzero elements.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReshapeType
+
+
+class MaskedSelectOp(Op):
+    """
+    Masked select operation.
+    Implements aten.masked_select: Select elements according to a boolean mask.
     """
 
     def __init__(self) -> None:
@@ -2437,6 +2734,70 @@ class FftR2cOp(Op):
         self._op_type = OpType.ElementwiseType
 
 
+class FftC2cOp(Op):
+    """Complex-to-complex FFT transform"""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class FftC2rOp(Op):
+    """Complex-to-real FFT transform"""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class ComplexOp(Op):
+    """Build complex tensor from real and imag tensors"""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class ViewAsComplexOp(Op):
+    """View real tensor with trailing size-2 dim as complex tensor"""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReshapeType
+
+
+class ViewAsRealOp(Op):
+    """View complex tensor as real tensor with trailing size-2 dim"""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReshapeType
+
+
+class ImagOp(Op):
+    """Extract imaginary component of complex tensor"""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class ConjOp(Op):
+    """Complex conjugate operation"""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class PolarOp(Op):
+    """Build complex tensor from magnitude and angle tensors"""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
 class LocalScalarDenseOp(Op):
     """Convert single-element tensor to scalar"""
 
@@ -2454,6 +2815,570 @@ class ResizeOp(Op):
 
 
 class GQAAttentionFusedOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class AsStridedScatterOp(Op):
+    """
+    Scatter into a base tensor via as_strided view.
+    Implements aten.as_strided_scatter.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class BitwiseLeftShiftOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.BroadcastType
+
+
+class BitwiseRightShiftOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.BroadcastType
+
+
+class FractionalMaxPool2dOp(Op):
+    """
+    Fractional max pool 2D operation.
+    Implements aten.fractional_max_pool2d.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReduceType
+        self._layout = "NCHW"
+
+
+class FrexpOp(Op):
+    """
+    Frexp decomposition.
+    Implements aten.frexp: Returns mantissa and exponent.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class GridSampler3dOp(Op):
+    """
+    Grid sampler 3D operation.
+    Implements aten.grid_sampler_3d: Sample from input using grid coordinates.
+    Args: input, grid, interpolation_mode, padding_mode, align_corners
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReshapeType
+
+
+class HistcOp(Op):
+    """
+    Histogram count operation.
+    Implements aten.histc.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReduceType
+
+
+class IgammaOp(Op):
+    """
+    Lower regularized incomplete gamma.
+    Implements aten.igamma: igamma(a, x).
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class IgammacOp(Op):
+    """
+    Upper regularized incomplete gamma.
+    Implements aten.igammac: igammac(a, x).
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class KthValueOp(Op):
+    """
+    Kth value operation.
+    Implements aten.kthvalue: returns k-th smallest values and indices.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReduceType
+
+
+class MedianOp(Op):
+    """
+    Median reduction operation.
+    Implements aten.median (default and dim variants).
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReduceType
+
+
+class ModeOp(Op):
+    """
+    Mode reduction operation.
+    Implements aten.mode.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReduceType
+
+
+class NanMedianOp(Op):
+    """
+    NaN-aware median reduction operation.
+    Implements aten.nanmedian (default and dim variants).
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReduceType
+
+
+class NewEmptyStridedOp(Op):
+    """
+    Empty tensor creation with explicit stride.
+    Implements aten.new_empty_strided.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReshapeType
+
+
+class NonzeroStaticOp(Op):
+    """
+    Nonzero elements with fixed output size.
+    Implements aten.nonzero_static.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReshapeType
+
+
+class SearchSortedOp(Op):
+    """
+    Searchsorted operation.
+    Implements aten.searchsorted on tensors.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReduceType
+
+
+class BucketizeOp(Op):
+    """
+    Bucketize operation.
+    Implements aten.bucketize on tensors.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReduceType
+
+
+class SignbitOp(Op):
+    """
+    Signbit operation.
+    Implements aten.signbit: Returns a boolean tensor indicating negative values.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class SpecialEntrOp(Op):
+    """
+    Elementwise entropy.
+    Implements aten.special_entr.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class SpecialI0eOp(Op):
+    """
+    Scaled modified Bessel function of the first kind, order 0.
+    Implements aten.special_i0e.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class SpecialI1Op(Op):
+    """
+    Modified Bessel function of the first kind, order 1.
+    Implements aten.special_i1.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class SpecialI1eOp(Op):
+    """
+    Scaled modified Bessel function of the first kind, order 1.
+    Implements aten.special_i1e.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class SpecialShiftedChebyshevPolynomialTOp(Op):
+    """
+    Shifted Chebyshev polynomial of the first kind.
+    Implements aten.special_shifted_chebyshev_polynomial_t.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class SpecialShiftedChebyshevPolynomialUOp(Op):
+    """
+    Shifted Chebyshev polynomial of the second kind.
+    Implements aten.special_shifted_chebyshev_polynomial_u.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class SpecialShiftedChebyshevPolynomialVOp(Op):
+    """
+    Shifted Chebyshev polynomial of the third kind.
+    Implements aten.special_shifted_chebyshev_polynomial_v.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class SpecialShiftedChebyshevPolynomialWOp(Op):
+    """
+    Shifted Chebyshev polynomial of the fourth kind.
+    Implements aten.special_shifted_chebyshev_polynomial_w.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class SpecialModifiedBesselK0Op(Op):
+    """
+    Modified Bessel function of the second kind, order 0.
+    Implements aten.special_modified_bessel_k0.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class SpecialModifiedBesselK1Op(Op):
+    """
+    Modified Bessel function of the second kind, order 1.
+    Implements aten.special_modified_bessel_k1.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class SpecialScaledModifiedBesselK0Op(Op):
+    """
+    Scaled modified Bessel function of the second kind, order 0.
+    Implements aten.special_scaled_modified_bessel_k0.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class SpecialScaledModifiedBesselK1Op(Op):
+    """
+    Scaled modified Bessel function of the second kind, order 1.
+    Implements aten.special_scaled_modified_bessel_k1.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class SpecialZetaOp(Op):
+    """
+    Hurwitz zeta function.
+    Implements aten.special_zeta.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class SpecialLegendrePolynomialPOp(Op):
+    """
+    Legendre polynomial of degree n.
+    Implements aten.special_legendre_polynomial_p.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class SpecialChebyshevPolynomialTOp(Op):
+    """
+    Chebyshev polynomial of the first kind.
+    Implements aten.special_chebyshev_polynomial_t.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class SpecialChebyshevPolynomialUOp(Op):
+    """
+    Chebyshev polynomial of the second kind.
+    Implements aten.special_chebyshev_polynomial_u.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class SpecialChebyshevPolynomialVOp(Op):
+    """
+    Chebyshev polynomial of the third kind.
+    Implements aten.special_chebyshev_polynomial_v.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class SpecialChebyshevPolynomialWOp(Op):
+    """
+    Chebyshev polynomial of the fourth kind.
+    Implements aten.special_chebyshev_polynomial_w.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class SpecialHermitePolynomialHOp(Op):
+    """
+    Physicists' Hermite polynomial.
+    Implements aten.special_hermite_polynomial_h.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class SpecialHermitePolynomialHeOp(Op):
+    """
+    Probabilists' Hermite polynomial.
+    Implements aten.special_hermite_polynomial_he.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class SpecialLaguerrePolynomialLOp(Op):
+    """
+    Laguerre polynomial.
+    Implements aten.special_laguerre_polynomial_l.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class SpecialAiryAiOp(Op):
+    """
+    Airy Ai function.
+    Implements aten.special_airy_ai.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class SpecialBesselJ0Op(Op):
+    """
+    Bessel J0 function.
+    Implements aten.special_bessel_j0.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class SpecialBesselJ1Op(Op):
+    """
+    Bessel J1 function.
+    Implements aten.special_bessel_j1.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class SpecialBesselY0Op(Op):
+    """
+    Bessel Y0 function.
+    Implements aten.special_bessel_y0.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class SpecialBesselY1Op(Op):
+    """
+    Bessel Y1 function.
+    Implements aten.special_bessel_y1.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class SpecialErfcxOp(Op):
+    """
+    Scaled complementary error function.
+    Implements aten.special_erfcx: exp(x^2) * erfc(x).
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class SpecialNdtrOp(Op):
+    """
+    Standard normal CDF.
+    Implements aten.special_ndtr.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class SpecialLogNdtrOp(Op):
+    """
+    Log CDF of the standard normal distribution.
+    Implements aten.special_log_ndtr.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class SpecialNdtriOp(Op):
+    """
+    Inverse of the standard normal CDF.
+    Implements aten.special_ndtri.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class SpecialSphericalBesselJ0Op(Op):
+    """
+    Spherical Bessel function of the first kind, order 0.
+    Implements aten.special_spherical_bessel_j0.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class UniformOp(Op):
+    """
+    Uniform random fill operation.
+    Implements aten.uniform / aten.uniform_.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReshapeType
+
+
+class CauchyOp(Op):
+    """
+    Cauchy random fill operation.
+    Implements aten.cauchy / aten.cauchy_.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReshapeType
+
+
+class BernoulliOp(Op):
+    """
+    Bernoulli sampling operation.
+    Implements aten.bernoulli.* variants (functional forms).
+    """
+
     def __init__(self) -> None:
         super().__init__()
         self._op_type = OpType.ElementwiseType

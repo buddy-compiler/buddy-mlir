@@ -46,7 +46,6 @@ bool testImages(cv::Mat img1, cv::Mat img2) {
         std::cout << "Pixels not equal at : (" << i << "," << j << ")\n";
         std::cout << (int)img1.at<uchar>(i, j) << "\n";
         std::cout << (int)img2.at<uchar>(i, j) << "\n\n";
-
         std::cout << img1 << "\n\n";
         std::cout << img2 << "\n\n";
         return 0;
@@ -78,6 +77,10 @@ bool testImplementation(int argc, char *argv[], std::ptrdiff_t x,
   MemRef<float, 2> kernel(kernelAlign, sizesKernel);
   MemRef<float, 2> output1(sizesOutput);
   MemRef<float, 2> output2(sizesOutput);
+
+  // Zero-initialize buffers to ensure deterministic validation results.
+  memset(output1.getData(), 0, output1.getSize() * sizeof(float));
+  memset(output2.getData(), 0, output2.getSize() * sizeof(float));
 
   Mat kernel1 = Mat(3, 3, CV_32FC1, laplacianKernelAlign);
 

@@ -46,7 +46,7 @@ in5 = 1.0 / (128**0.5)
 dynamo_compiler = DynamoCompiler(
     primary_registry=tosa.ops_registry,
     aot_autograd_decomposition=inductor_decomp,
-    verbose=True,
+    verbose=False,
 )
 
 graphs = dynamo_compiler.importer(foo, in1, in2, in3, in4, in5)
@@ -60,19 +60,22 @@ graph.lower_to_top_level_ir()
 print(graph._imported_module)
 
 # CHECK-LABEL: func.func @forward
-# CHECK: affine.for %[[B:.*]] = 0 to {{.*}}
-# CHECK:   affine.for %[[H:.*]] = 0 to {{.*}}
-# CHECK:     arith.divsi
-# CHECK: %{{.*}}:2 = affine.for %[[S:.*]] = 0 to {{.*}} iter_args(%[[M:.*]] = {{.*}}, %[[SUM:.*]] = {{.*}})
-# CHECK: %[[VEC_RES:.*]] = affine.for %{{.*}} = 0 to {{.*}} step 16 iter_args(%{{.*}} = %{{.*}})
-# CHECK:   vector.load
-# CHECK:   vector.load
-# CHECK:   %[[FMA:.*]] = vector.fma
-# CHECK:   affine.yield %[[FMA]]
-# CHECK: vector.reduction <add>, %[[VEC_RES]]
+# CHECK: arith.divsi
+# CHECK: scf.for
+# CHECK:   vector.transfer_read
+# CHECK:   vector.transfer_read
+# CHECK:   vector.fma
+# CHECK: vector.reduction <add>
+# CHECK: tosa.reduce_max
 # CHECK: math.exp
-# CHECK: arith.select
-# CHECK: arith.select
-# CHECK: affine.for %{{.*}} = 0 to {{.*}}
-# CHECK:   %[[LOAD:.*]] = memref.load
-# CHECK:   arith.divf %[[LOAD]]
+# CHECK: tosa.reduce_sum
+# CHECK: tosa.log
+# CHECK: tosa.sub
+# CHECK: math.exp
+# CHECK: scf.for
+# CHECK:   tensor.extract
+# CHECK:   vector.splat
+# CHECK:   vector.transfer_read
+# CHECK:   vector.fma
+# CHECK:   vector.transfer_write
+# CHECK: return %{{.*}} : tensor<1x12x1x128xf32>

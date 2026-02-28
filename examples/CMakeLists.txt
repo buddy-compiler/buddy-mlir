@@ -12,6 +12,10 @@ if(BUDDY_DEEPSEEKR1_EXAMPLES)
   add_subdirectory(BuddyDeepSeekR1)
 endif()
 
+if(BUDDY_QWEN3_EXAMPLES)
+  add_subdirectory(BuddyQwen3)
+endif()
+
 if(BUDDY_TRANSFORMER_EXAMPLES)
   add_subdirectory(BuddyTransformer)
 endif()
@@ -34,6 +38,10 @@ endif()
 
 if (BUDDY_RESNET_EXAMPLES)
   add_subdirectory(BuddyResNet18)
+endif()
+
+if (BUDDY_YOLO26_EXAMPLES)
+  add_subdirectory(BuddyYOLO26)
 endif()
 
 if (BUDDY_STABLE_DIFFUSION_EXAMPLES)

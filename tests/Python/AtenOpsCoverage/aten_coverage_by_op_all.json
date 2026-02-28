@@ -1,0 +1,7012 @@
+[
+  {
+    "op": "abs",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "abs_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "absolute",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "absolute_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "acos",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 3,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "int",
+    "sample_fail_reason": "output:arity_mismatch expected=1 actual=0"
+  },
+  {
+    "op": "acos_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "acosh",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 3,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "int",
+    "sample_fail_reason": "output:arity_mismatch expected=1 actual=0"
+  },
+  {
+    "op": "acosh_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "adaptive_max_pool2d",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "adaptive_max_pool2d_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "adaptive_max_pool3d",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "adaptive_max_pool3d_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "add",
+    "status": "pass",
+    "pass_overload_count": 3,
+    "fail_overload_count": 4,
+    "skip_overload_count": 9,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "float",
+    "sample_fail_reason": "output:arity_mismatch expected=1 actual=0"
+  },
+  {
+    "op": "add_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 1,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "Scalar",
+    "sample_fail_reason": "output:0:AssertionError:allclose_failed max_abs=2.0 rtol=0.0001 atol=1e-05"
+  },
+  {
+    "op": "addbmm",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "addbmm_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "addcdiv",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "addcdiv_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "addcmul",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "addcmul_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "addmm",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "addmm_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "addmv",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "addmv_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "addr",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "affine_grid_generator",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "alias",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "alias_copy",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "all",
+    "status": "pass",
+    "pass_overload_count": 6,
+    "fail_overload_count": 0,
+    "skip_overload_count": 5,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "alpha_dropout",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "amax",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "amin",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "aminmax",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "angle",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 4,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "int",
+    "sample_fail_reason": "output:arity_mismatch expected=1 actual=0"
+  },
+  {
+    "op": "any",
+    "status": "pass",
+    "pass_overload_count": 6,
+    "fail_overload_count": 0,
+    "skip_overload_count": 6,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "arange",
+    "status": "pass",
+    "pass_overload_count": 5,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "arccos",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "arccos_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "arccosh",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "arccosh_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "arcsin",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "arcsin_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "arcsinh",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "arcsinh_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "arctan",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "arctan2",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "arctan2_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "arctan_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "arctanh",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "arctanh_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "argmax",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "argmin",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "as_strided",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "as_strided_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "as_strided_copy",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "as_strided_scatter",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "asin",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 3,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "int",
+    "sample_fail_reason": "output:arity_mismatch expected=1 actual=0"
+  },
+  {
+    "op": "asin_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "asinh",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 3,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "int",
+    "sample_fail_reason": "output:arity_mismatch expected=1 actual=0"
+  },
+  {
+    "op": "asinh_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "atan",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 3,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "int",
+    "sample_fail_reason": "output:arity_mismatch expected=1 actual=0"
+  },
+  {
+    "op": "atan2",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 5,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "int",
+    "sample_fail_reason": "output:arity_mismatch expected=1 actual=0"
+  },
+  {
+    "op": "atan2_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "atan_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "atanh",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 3,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "int",
+    "sample_fail_reason": "output:arity_mismatch expected=1 actual=0"
+  },
+  {
+    "op": "atanh_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "avg_pool2d",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "avg_pool2d_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "avg_pool3d",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "avg_pool3d_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "baddbmm",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "baddbmm_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "batch_norm_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "bernoulli",
+    "status": "pass",
+    "pass_overload_count": 6,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "bernoulli_",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "binary_cross_entropy",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 1,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "out",
+    "sample_fail_reason": "output:0:AssertionError:allclose_failed max_abs=0.20273256301879883 rtol=0.0001 atol=1e-05"
+  },
+  {
+    "op": "binary_cross_entropy_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "binary_cross_entropy_with_logits",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "bincount",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "bitwise_and",
+    "status": "pass",
+    "pass_overload_count": 6,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "bitwise_and_",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "bitwise_left_shift",
+    "status": "pass",
+    "pass_overload_count": 6,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "bitwise_left_shift_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 1,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "Tensor_Scalar",
+    "sample_fail_reason": "output:0:AssertionError:Tensor-likes are not equal!\n\nMismatched elements: 3 / 3 (100.0%)\nGreatest absolute difference: 6 at index (2,)\nGreatest relative difference: 1.0 at index (0,)"
+  },
+  {
+    "op": "bitwise_not",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "bitwise_not_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "bitwise_or",
+    "status": "pass",
+    "pass_overload_count": 6,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "bitwise_or_",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "bitwise_right_shift",
+    "status": "pass",
+    "pass_overload_count": 6,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "bitwise_right_shift_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 1,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "Tensor_Scalar",
+    "sample_fail_reason": "output:0:AssertionError:Tensor-likes are not equal!\n\nMismatched elements: 2 / 3 (66.7%)\nGreatest absolute difference: 1 at index (1,)\nGreatest relative difference: 1.0 at index (1,)"
+  },
+  {
+    "op": "bitwise_xor",
+    "status": "pass",
+    "pass_overload_count": 6,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "bitwise_xor_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 1,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "Scalar",
+    "sample_fail_reason": "output:0:AssertionError:Tensor-likes are not equal!\n\nMismatched elements: 3 / 3 (100.0%)\nGreatest absolute difference: 1 at index (0,)\nGreatest relative difference: inf at index (0,)"
+  },
+  {
+    "op": "block_diag",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "bmm",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 1,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "dtype",
+    "sample_fail_reason": "import_backend:BackendCompilerFailed:backend='_compile_fx_wrapped' raised:\nKeyError: 'bmm.dtype'\n\nSet TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS=\"+dynamo\"\n"
+  },
+  {
+    "op": "broadcast_tensors",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "bucketize",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "cat",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "cauchy",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "cauchy_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "ceil",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 4,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "ceil_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "celu",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "celu_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "channel_shuffle",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "cholesky",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "cholesky_inverse",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "cholesky_solve",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "clamp",
+    "status": "pass",
+    "pass_overload_count": 4,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "clamp_",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "clamp_max",
+    "status": "pass",
+    "pass_overload_count": 3,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "clamp_max_",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "clamp_min",
+    "status": "pass",
+    "pass_overload_count": 3,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "clamp_min_",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "clip",
+    "status": "pass",
+    "pass_overload_count": 4,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "clip_",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "clone",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "col2im",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "complex",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "conj",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "conj_physical",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "conj_physical_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "constant_pad_nd",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "conv2d",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "convolution",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "convolution_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "copy",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 8,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "copy_",
+    "status": "pass",
+    "pass_overload_count": 4,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "copysign",
+    "status": "pass",
+    "pass_overload_count": 3,
+    "fail_overload_count": 4,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "int",
+    "sample_fail_reason": "output:arity_mismatch expected=1 actual=0"
+  },
+  {
+    "op": "copysign_",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "cos",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 3,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "int",
+    "sample_fail_reason": "output:arity_mismatch expected=1 actual=0"
+  },
+  {
+    "op": "cos_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "cosh",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 3,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "int",
+    "sample_fail_reason": "output:arity_mismatch expected=1 actual=0"
+  },
+  {
+    "op": "cosh_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "count_nonzero",
+    "status": "pass",
+    "pass_overload_count": 4,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "cudnn_batch_norm",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "cudnn_batch_norm_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "cummax",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "cummin",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "cumprod",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "cumprod_",
+    "status": "fail",
+    "pass_overload_count": 0,
+    "fail_overload_count": 1,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "default",
+    "sample_fail_reason": "output:0:AssertionError:allclose_failed max_abs=6.0 rtol=0.0001 atol=1e-05"
+  },
+  {
+    "op": "cumsum",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "cumsum_",
+    "status": "fail",
+    "pass_overload_count": 0,
+    "fail_overload_count": 1,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "default",
+    "sample_fail_reason": "output:0:AssertionError:allclose_failed max_abs=4.0 rtol=0.0001 atol=1e-05"
+  },
+  {
+    "op": "deg2rad",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "deg2rad_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "dense_dim",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "detach",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "diag",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "diag_embed",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "diagonal",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "diagonal_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "diagonal_copy",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "diagonal_scatter",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "digamma",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "digamma_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "dim",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "dist",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "div",
+    "status": "pass",
+    "pass_overload_count": 7,
+    "fail_overload_count": 2,
+    "skip_overload_count": 3,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "int",
+    "sample_fail_reason": "output:arity_mismatch expected=1 actual=0"
+  },
+  {
+    "op": "div_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 3,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "Tensor_mode",
+    "sample_fail_reason": "output:0:AssertionError:allclose_failed max_abs=1.0 rtol=0.0001 atol=1e-05"
+  },
+  {
+    "op": "divide",
+    "status": "pass",
+    "pass_overload_count": 5,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "divide_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 3,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "Tensor_mode",
+    "sample_fail_reason": "output:0:AssertionError:allclose_failed max_abs=1.0 rtol=0.0001 atol=1e-05"
+  },
+  {
+    "op": "dot",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "dropout",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "elu",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "elu_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "elu_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "embedding",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "embedding_dense_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "empty",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "out",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "empty_like",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "empty_permuted",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "empty_strided",
+    "status": "fail",
+    "pass_overload_count": 0,
+    "fail_overload_count": 2,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "default",
+    "sample_fail_reason": "numeric:MLIRError:Failure while executing pass pipeline:\nerror: unknown: 'tosa.const' op result #0 must be tosa-conformant tensor of number values, but got 'tensor<0xf32>'\n note: unknown: see current operation: %2 = \"tosa.const\"() <{values = dense<0.000000e+00> : tensor<0xf32>}> : () -> tensor<0xf32>"
+  },
+  {
+    "op": "eq",
+    "status": "pass",
+    "pass_overload_count": 3,
+    "fail_overload_count": 0,
+    "skip_overload_count": 18,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "eq_",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "erf",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 3,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "int",
+    "sample_fail_reason": "output:arity_mismatch expected=1 actual=0"
+  },
+  {
+    "op": "erf_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "erfc",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 3,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "int",
+    "sample_fail_reason": "output:arity_mismatch expected=1 actual=0"
+  },
+  {
+    "op": "erfc_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "erfinv",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "erfinv_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "exp",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 3,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "int",
+    "sample_fail_reason": "output:arity_mismatch expected=1 actual=0"
+  },
+  {
+    "op": "exp2",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "exp2_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "exp_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "expand",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "expand_copy",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "expm1",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 3,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "int",
+    "sample_fail_reason": "output:arity_mismatch expected=1 actual=0"
+  },
+  {
+    "op": "expm1_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "exponential",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "exponential_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "eye",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "fft_fft",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "fft_fft2",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "fft_fftn",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "fft_fftshift",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "fft_hfft",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "fft_hfft2",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "fft_hfftn",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "fft_ifft",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "fft_ifft2",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "fft_ifftn",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "fft_ifftshift",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "fft_ihfft",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "fft_ihfft2",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "fft_ihfftn",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "fft_irfft",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "fft_irfft2",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "fft_irfftn",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "fft_rfft",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "fft_rfft2",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "fft_rfftn",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "fill",
+    "status": "pass",
+    "pass_overload_count": 4,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "fill_",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "fix",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "fix_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "flip",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "float_power_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 1,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "Scalar",
+    "sample_fail_reason": "output:0:AssertionError:allclose_failed max_abs=72.0 rtol=1e-06 atol=1e-08"
+  },
+  {
+    "op": "floor",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 4,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "floor_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "floor_divide",
+    "status": "pass",
+    "pass_overload_count": 3,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "floor_divide_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 1,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "Scalar",
+    "sample_fail_reason": "output:0:AssertionError:allclose_failed max_abs=1.0 rtol=0.0001 atol=1e-05"
+  },
+  {
+    "op": "fmax",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "fmin",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "fmod",
+    "status": "pass",
+    "pass_overload_count": 3,
+    "fail_overload_count": 4,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "int",
+    "sample_fail_reason": "output:arity_mismatch expected=1 actual=0"
+  },
+  {
+    "op": "fmod_",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "frac",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "frac_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "fractional_max_pool2d",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "frexp",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "full",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "full_like",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "gather",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "gcd",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "gcd_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "ge",
+    "status": "pass",
+    "pass_overload_count": 4,
+    "fail_overload_count": 0,
+    "skip_overload_count": 6,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "ge_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 1,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "Scalar",
+    "sample_fail_reason": "output:0:AssertionError:allclose_failed max_abs=1.0 rtol=0.0001 atol=1e-05"
+  },
+  {
+    "op": "gelu",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "gelu_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "gelu_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "geometric",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "geometric_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "glu",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "glu_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "greater",
+    "status": "pass",
+    "pass_overload_count": 4,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "greater_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 1,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "Scalar",
+    "sample_fail_reason": "output:0:AssertionError:allclose_failed max_abs=1.0 rtol=0.0001 atol=1e-05"
+  },
+  {
+    "op": "greater_equal",
+    "status": "pass",
+    "pass_overload_count": 4,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "greater_equal_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 1,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "Scalar",
+    "sample_fail_reason": "output:0:AssertionError:allclose_failed max_abs=1.0 rtol=0.0001 atol=1e-05"
+  },
+  {
+    "op": "grid_sampler_2d",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "grid_sampler_2d_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "grid_sampler_3d",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "grid_sampler_3d_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "gru",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "input",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "gt",
+    "status": "pass",
+    "pass_overload_count": 4,
+    "fail_overload_count": 0,
+    "skip_overload_count": 6,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "gt_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 1,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "Scalar",
+    "sample_fail_reason": "output:0:AssertionError:allclose_failed max_abs=1.0 rtol=0.0001 atol=1e-05"
+  },
+  {
+    "op": "hardshrink",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "hardsigmoid",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "hardsigmoid_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "hardsigmoid_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "hardswish",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "hardswish_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "hardswish_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "hardtanh",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "hardtanh_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "hardtanh_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "heaviside",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 1,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "out",
+    "sample_fail_reason": "numeric:MLIRError:Failure while executing pass pipeline:\nerror: unknown: 'tosa.const' op result #0 must be tosa-conformant tensor of number values, but got 'tensor<0xf32>'\n note: unknown: see current operation: %0 = \"tosa.const\"() <{values = dense<0.000000e+00> : tensor<0xf32>}> : () -> tensor<0xf32>"
+  },
+  {
+    "op": "heaviside_",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "hinge_embedding_loss",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "histc",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "huber_loss",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "huber_loss_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "hypot",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "hypot_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "i0",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "i0_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "igamma",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "igamma_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "igammac",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "igammac_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "im2col",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "imag",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "index",
+    "status": "pass",
+    "pass_overload_count": 3,
+    "fail_overload_count": 0,
+    "skip_overload_count": 6,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "index_add",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "index_add_",
+    "status": "fail",
+    "pass_overload_count": 0,
+    "fail_overload_count": 1,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "default",
+    "sample_fail_reason": "output:0:AssertionError:allclose_failed max_abs=1.0 rtol=0.0001 atol=1e-05"
+  },
+  {
+    "op": "index_copy",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "index_copy_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "index_fill",
+    "status": "pass",
+    "pass_overload_count": 4,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "int_Tensor",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "index_fill_",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "int_Tensor",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "index_put",
+    "status": "pass",
+    "pass_overload_count": 3,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "index_put_",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "index_reduce",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "index_reduce_",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "index_select",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "is_coalesced",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "is_complex",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "is_contiguous",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "is_non_overlapping_and_dense",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "is_pinned",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "is_same_size",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "is_strides_like_format",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "isfinite",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "isin",
+    "status": "pass",
+    "pass_overload_count": 4,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "Tensor_Tensor",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "isinf",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "isnan",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "isneginf",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "isposinf",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "istft",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "item",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "kthvalue",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "lcm",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "lcm_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "le",
+    "status": "pass",
+    "pass_overload_count": 3,
+    "fail_overload_count": 0,
+    "skip_overload_count": 7,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "le_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 1,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "Scalar",
+    "sample_fail_reason": "output:0:AssertionError:allclose_failed max_abs=1.0 rtol=0.0001 atol=1e-05"
+  },
+  {
+    "op": "leaky_relu",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "leaky_relu_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "leaky_relu_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "lerp",
+    "status": "pass",
+    "pass_overload_count": 3,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "lerp_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 1,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "Scalar",
+    "sample_fail_reason": "output:0:AssertionError:allclose_failed max_abs=0.5 rtol=0.0001 atol=1e-05"
+  },
+  {
+    "op": "less",
+    "status": "pass",
+    "pass_overload_count": 4,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "less_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 1,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "Scalar",
+    "sample_fail_reason": "output:0:AssertionError:allclose_failed max_abs=1.0 rtol=0.0001 atol=1e-05"
+  },
+  {
+    "op": "less_equal",
+    "status": "pass",
+    "pass_overload_count": 4,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "less_equal_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 1,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "Scalar",
+    "sample_fail_reason": "output:0:AssertionError:allclose_failed max_abs=1.0 rtol=0.0001 atol=1e-05"
+  },
+  {
+    "op": "lgamma",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 3,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "int",
+    "sample_fail_reason": "output:arity_mismatch expected=1 actual=0"
+  },
+  {
+    "op": "lgamma_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "lift",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "lift_fresh",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "lift_fresh_copy",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "linalg_cholesky_ex",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "linalg_cross",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "linalg_eig",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "linalg_eigvals",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "linalg_householder_product",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "linalg_inv_ex",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "linalg_ldl_factor_ex",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "linalg_ldl_solve",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "linalg_lu",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "linalg_lu_factor_ex",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "linalg_lu_solve",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "linalg_matrix_exp",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "linalg_qr",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "linalg_solve_triangular",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "linalg_vector_norm",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "linear",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "linear_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "linspace",
+    "status": "pass",
+    "pass_overload_count": 8,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "log",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 8,
+    "skip_overload_count": 7,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "int",
+    "sample_fail_reason": "output:arity_mismatch expected=1 actual=0"
+  },
+  {
+    "op": "log10",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 3,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "int",
+    "sample_fail_reason": "output:arity_mismatch expected=1 actual=0"
+  },
+  {
+    "op": "log10_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "log1p",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 3,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "int",
+    "sample_fail_reason": "output:arity_mismatch expected=1 actual=0"
+  },
+  {
+    "op": "log1p_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "log2",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "log2_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "log_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "log_normal",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "log_normal_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "log_sigmoid_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "log_sigmoid_forward",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "logaddexp",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "logaddexp2",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "logcumsumexp",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 3,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "logical_and",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "logical_and_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "logical_not",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "logical_not_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "logical_or",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "logical_or_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "logical_xor",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "logical_xor_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "logit",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "logit_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "logit_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "logspace",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 8,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "logsumexp",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 3,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "lstm",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "lt",
+    "status": "pass",
+    "pass_overload_count": 4,
+    "fail_overload_count": 0,
+    "skip_overload_count": 6,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "lt_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 1,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "Scalar",
+    "sample_fail_reason": "output:0:AssertionError:allclose_failed max_abs=1.0 rtol=0.0001 atol=1e-05"
+  },
+  {
+    "op": "lu_unpack",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "margin_ranking_loss",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "masked_fill",
+    "status": "pass",
+    "pass_overload_count": 4,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "masked_fill_",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "masked_scatter",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "masked_scatter_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "masked_scatter_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "masked_select",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "matmul",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "max",
+    "status": "pass",
+    "pass_overload_count": 4,
+    "fail_overload_count": 0,
+    "skip_overload_count": 4,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "max_pool2d_with_indices",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "max_pool2d_with_indices_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "max_pool3d_with_indices",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "max_pool3d_with_indices_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "max_unpool2d",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "max_unpool3d",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "maximum",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "mean",
+    "status": "pass",
+    "pass_overload_count": 4,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "median",
+    "status": "pass",
+    "pass_overload_count": 3,
+    "fail_overload_count": 0,
+    "skip_overload_count": 3,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "meshgrid",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "min",
+    "status": "pass",
+    "pass_overload_count": 4,
+    "fail_overload_count": 0,
+    "skip_overload_count": 4,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "minimum",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "miopen_batch_norm",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "miopen_batch_norm_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "mish",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "mish_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "mish_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "mkldnn_rnn_layer",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "mkldnn_rnn_layer_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "mm",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "mode",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "mse_loss",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "mse_loss_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "mul",
+    "status": "pass",
+    "pass_overload_count": 3,
+    "fail_overload_count": 4,
+    "skip_overload_count": 9,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "float",
+    "sample_fail_reason": "output:arity_mismatch expected=1 actual=0"
+  },
+  {
+    "op": "mul_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 1,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "Scalar",
+    "sample_fail_reason": "output:0:AssertionError:allclose_failed max_abs=4.0 rtol=0.0001 atol=1e-05"
+  },
+  {
+    "op": "multi_margin_loss",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "multilabel_margin_loss_forward",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "multinomial",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "multiply",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "multiply_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 1,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "Scalar",
+    "sample_fail_reason": "output:0:AssertionError:allclose_failed max_abs=4.0 rtol=0.0001 atol=1e-05"
+  },
+  {
+    "op": "mv",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "mvlgamma",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "mvlgamma_",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "nan_to_num",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "nan_to_num_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "nanmedian",
+    "status": "pass",
+    "pass_overload_count": 3,
+    "fail_overload_count": 0,
+    "skip_overload_count": 3,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "nansum",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "narrow",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "narrow_copy",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "native_batch_norm",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "native_batch_norm_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "native_dropout",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 1,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "out",
+    "sample_fail_reason": "numeric:MLIRError:Failure while executing pass pipeline:\nerror: unknown: 'tosa.mul' op a and b operands don't have matching ranks, got 2 and 0\n note: unknown: see current operation: %2 = \"tosa.mul\"(%arg2, %0, %1) : (tensor<2x3xf32>, tensor<f32>, tensor<1xi8>) -> tensor<2x3xf32>"
+  },
+  {
+    "op": "native_dropout_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "native_group_norm",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "native_group_norm_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "native_layer_norm",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "native_layer_norm_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "ne",
+    "status": "pass",
+    "pass_overload_count": 3,
+    "fail_overload_count": 0,
+    "skip_overload_count": 18,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "ne_",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "neg",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 2,
+    "skip_overload_count": 3,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "float",
+    "sample_fail_reason": "output:arity_mismatch expected=1 actual=0"
+  },
+  {
+    "op": "neg_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "negative",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "negative_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "new_empty",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "new_empty_strided",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "new_full",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "new_ones",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "new_zeros",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "nextafter",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "nextafter_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "nll_loss",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "nll_loss2d_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "nll_loss2d_forward",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "nll_loss_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "nll_loss_forward",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "nonzero",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "nonzero_numpy",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "nonzero_static",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "norm",
+    "status": "pass",
+    "pass_overload_count": 7,
+    "fail_overload_count": 0,
+    "skip_overload_count": 5,
+    "sample_pass_overload": "out",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "normal",
+    "status": "pass",
+    "pass_overload_count": 8,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "Tensor_float",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "normal_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "not_equal",
+    "status": "pass",
+    "pass_overload_count": 3,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "not_equal_",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "numel",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "ones",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "ones_like",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "ormqr",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "pad_sequence",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "pairwise_distance",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "pdist",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "permute",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "permute_copy",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "pin_memory",
+    "status": "fail",
+    "pass_overload_count": 0,
+    "fail_overload_count": 1,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "default",
+    "sample_fail_reason": "runtime:accelerator_unavailable"
+  },
+  {
+    "op": "pixel_shuffle",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "pixel_unshuffle",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "poisson",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "polar",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 5,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "polygamma",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "positive",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "pow",
+    "status": "pass",
+    "pass_overload_count": 5,
+    "fail_overload_count": 6,
+    "skip_overload_count": 4,
+    "sample_pass_overload": "Tensor_Tensor",
+    "sample_fail_overload": "int",
+    "sample_fail_reason": "output:arity_mismatch expected=1 actual=0"
+  },
+  {
+    "op": "pow_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 1,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "Scalar",
+    "sample_fail_reason": "output:0:AssertionError:allclose_failed max_abs=12.0 rtol=0.0001 atol=1e-05"
+  },
+  {
+    "op": "prelu",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "prod",
+    "status": "pass",
+    "pass_overload_count": 4,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "quantized_gru",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 4,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "quantized_lstm",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 4,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "rad2deg",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "rad2deg_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "rand",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 7,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "rand_like",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "randint",
+    "status": "pass",
+    "pass_overload_count": 4,
+    "fail_overload_count": 0,
+    "skip_overload_count": 4,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "randint_like",
+    "status": "pass",
+    "pass_overload_count": 3,
+    "fail_overload_count": 0,
+    "skip_overload_count": 3,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "randn",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 7,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "randn_like",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "randperm",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "real",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "reciprocal",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "reciprocal_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "reflection_pad1d",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "reflection_pad1d_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "reflection_pad2d",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "reflection_pad2d_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "reflection_pad3d",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "reflection_pad3d_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "relu",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "relu6",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "relu_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "remainder",
+    "status": "pass",
+    "pass_overload_count": 5,
+    "fail_overload_count": 4,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "float",
+    "sample_fail_reason": "output:arity_mismatch expected=1 actual=0"
+  },
+  {
+    "op": "remainder_",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "renorm",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "renorm_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "repeat",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "repeat_interleave",
+    "status": "pass",
+    "pass_overload_count": 4,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "replication_pad1d",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "replication_pad1d_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "replication_pad2d",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "replication_pad2d_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "replication_pad3d",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "replication_pad3d_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "reshape",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "resize",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "resize_as",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "resize_as_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "rnn_relu",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "rnn_tanh",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "roll",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "rot90",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "round",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 3,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "int",
+    "sample_fail_reason": "output:arity_mismatch expected=1 actual=0"
+  },
+  {
+    "op": "round_",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "rrelu_with_noise",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "rrelu_with_noise_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "rrelu_with_noise_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "rrelu_with_noise_functional",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "rsqrt",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "rsqrt_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "rsub",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "scalar_tensor",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "scatter",
+    "status": "pass",
+    "pass_overload_count": 4,
+    "fail_overload_count": 0,
+    "skip_overload_count": 6,
+    "sample_pass_overload": "value",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "scatter_",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "src",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "scatter_add",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "scatter_add_",
+    "status": "fail",
+    "pass_overload_count": 0,
+    "fail_overload_count": 1,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "default",
+    "sample_fail_reason": "output:0:AssertionError:allclose_failed max_abs=9.0 rtol=0.0001 atol=1e-05"
+  },
+  {
+    "op": "scatter_reduce",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "two",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "scatter_reduce_",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "searchsorted",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "segment_reduce",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "select",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "int",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "select_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "select_scatter",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "selu",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "selu_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "set_",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 5,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "sgn",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "sgn_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "sigmoid",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "sigmoid_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "sigmoid_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "sign",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "sign_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "signbit",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "silu",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "silu_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "silu_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "sin",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 3,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "int",
+    "sample_fail_reason": "output:arity_mismatch expected=1 actual=0"
+  },
+  {
+    "op": "sin_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "sinc",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "sinc_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "sinh",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 3,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "int",
+    "sample_fail_reason": "output:arity_mismatch expected=1 actual=0"
+  },
+  {
+    "op": "sinh_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "size",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "slice",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "slice_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "slice_scatter",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "smooth_l1_loss",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "smooth_l1_loss_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "soft_margin_loss",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "soft_margin_loss_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "softplus",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "softplus_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "softshrink",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "sort",
+    "status": "pass",
+    "pass_overload_count": 4,
+    "fail_overload_count": 0,
+    "skip_overload_count": 10,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "sparse_dim",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "special_airy_ai",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "special_bessel_j0",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "special_bessel_j1",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "special_bessel_y0",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "special_bessel_y1",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "special_chebyshev_polynomial_t",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 5,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "special_chebyshev_polynomial_u",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 5,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "special_chebyshev_polynomial_v",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 5,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "special_chebyshev_polynomial_w",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 5,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "special_entr",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "special_erfcx",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "special_hermite_polynomial_h",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 5,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "special_hermite_polynomial_he",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 5,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "special_i0e",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "special_i1",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "special_i1e",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "special_laguerre_polynomial_l",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 5,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "special_legendre_polynomial_p",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 5,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "special_log_ndtr",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "special_modified_bessel_i0",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "special_modified_bessel_i1",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "special_modified_bessel_k0",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "special_modified_bessel_k1",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "special_ndtr",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "special_ndtri",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "special_scaled_modified_bessel_k0",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "special_scaled_modified_bessel_k1",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "special_shifted_chebyshev_polynomial_t",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 5,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "special_shifted_chebyshev_polynomial_u",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 5,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "special_shifted_chebyshev_polynomial_v",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 5,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "special_shifted_chebyshev_polynomial_w",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 5,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "special_spherical_bessel_j0",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "special_xlog1py",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 5,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "special_zeta",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 5,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "split",
+    "status": "pass",
+    "pass_overload_count": 3,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "split_with_sizes",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "split_with_sizes_copy",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "sqrt",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 3,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "int",
+    "sample_fail_reason": "output:arity_mismatch expected=1 actual=0"
+  },
+  {
+    "op": "sqrt_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "square",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "square_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "squeeze",
+    "status": "pass",
+    "pass_overload_count": 3,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "squeeze_copy",
+    "status": "pass",
+    "pass_overload_count": 3,
+    "fail_overload_count": 0,
+    "skip_overload_count": 3,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "stack",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "std",
+    "status": "pass",
+    "pass_overload_count": 5,
+    "fail_overload_count": 0,
+    "skip_overload_count": 4,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "std_mean",
+    "status": "pass",
+    "pass_overload_count": 4,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "stft",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "storage_offset",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "stride",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "sub",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 3,
+    "skip_overload_count": 9,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "float",
+    "sample_fail_reason": "output:arity_mismatch expected=1 actual=0"
+  },
+  {
+    "op": "sub_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 1,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "Scalar",
+    "sample_fail_reason": "output:0:AssertionError:allclose_failed max_abs=1.0 rtol=0.0001 atol=1e-05"
+  },
+  {
+    "op": "subtract",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "subtract_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 1,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "Scalar",
+    "sample_fail_reason": "output:0:AssertionError:allclose_failed max_abs=1.0 rtol=0.0001 atol=1e-05"
+  },
+  {
+    "op": "sum",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 1,
+    "skip_overload_count": 7,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "float",
+    "sample_fail_reason": "output:arity_mismatch expected=1 actual=0"
+  },
+  {
+    "op": "svd",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "sym_constrain_range",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "sym_constrain_range_for_size",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "sym_numel",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "sym_size",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "sym_storage_offset",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "sym_stride",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "t",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "t_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "t_copy",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "take",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "tan",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 3,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "int",
+    "sample_fail_reason": "output:arity_mismatch expected=1 actual=0"
+  },
+  {
+    "op": "tan_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "tanh",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 3,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "int",
+    "sample_fail_reason": "output:arity_mismatch expected=1 actual=0"
+  },
+  {
+    "op": "tanh_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "tanh_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "tensor_split",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "sections",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "threshold",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "threshold_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "threshold_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "to",
+    "status": "pass",
+    "pass_overload_count": 4,
+    "fail_overload_count": 0,
+    "skip_overload_count": 3,
+    "sample_pass_overload": "device",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "topk",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "trace",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "transpose",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "int",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "transpose_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "transpose_copy",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "int",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "triangular_solve",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "tril",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "tril_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "tril_indices",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "triu",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "triu_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "triu_indices",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "true_divide",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "true_divide_",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "trunc",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "trunc_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "unbind",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "int",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "unbind_copy",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "int",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "unfold",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "unfold_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "unfold_copy",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "uniform",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "uniform_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "unique_consecutive",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "unique_dim",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "unsafe_chunk",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "unsafe_split",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "unsafe_split_with_sizes",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "unsqueeze",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "unsqueeze_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "unsqueeze_copy",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "upsample_bicubic2d",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "upsample_bilinear2d",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "upsample_linear1d",
+    "status": "pass",
+    "pass_overload_count": 3,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "upsample_nearest1d",
+    "status": "pass",
+    "pass_overload_count": 3,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "upsample_nearest2d",
+    "status": "pass",
+    "pass_overload_count": 4,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "upsample_nearest2d_backward",
+    "status": "skip",
+    "pass_overload_count": 0,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "upsample_nearest3d",
+    "status": "pass",
+    "pass_overload_count": 3,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "upsample_trilinear3d",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "var",
+    "status": "pass",
+    "pass_overload_count": 5,
+    "fail_overload_count": 0,
+    "skip_overload_count": 4,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "var_mean",
+    "status": "pass",
+    "pass_overload_count": 4,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "vdot",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "view",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "view_as_complex",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "view_as_real",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "view_copy",
+    "status": "pass",
+    "pass_overload_count": 4,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "where",
+    "status": "pass",
+    "pass_overload_count": 5,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "self",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "xlogy",
+    "status": "pass",
+    "pass_overload_count": 5,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "xlogy_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 1,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "Tensor",
+    "sample_fail_overload": "Scalar_Other",
+    "sample_fail_reason": "output:0:AssertionError:allclose_failed max_abs=0.6380825042724609 rtol=0.0001 atol=1e-05"
+  },
+  {
+    "op": "zero",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "zero_",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 0,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "zeros",
+    "status": "pass",
+    "pass_overload_count": 2,
+    "fail_overload_count": 0,
+    "skip_overload_count": 2,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  },
+  {
+    "op": "zeros_like",
+    "status": "pass",
+    "pass_overload_count": 1,
+    "fail_overload_count": 0,
+    "skip_overload_count": 1,
+    "sample_pass_overload": "default",
+    "sample_fail_overload": "",
+    "sample_fail_reason": ""
+  }
+]

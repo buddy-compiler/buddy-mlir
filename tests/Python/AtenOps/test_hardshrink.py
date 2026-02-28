@@ -31,7 +31,6 @@ print(graph._imported_module)
 # CHECK: arith.cmpf
 # CHECK: arith.constant
 # CHECK: tensor.empty
-# CHECK: tensor.splat
 # CHECK: linalg.generic
 # CHECK: arith.select
 # CHECK: return
