@@ -31,7 +31,9 @@ BUDDY_LLC := ../../build/bin/buddy-llc
         vfmadot2-lower vfmadot2-translate vfmadot2-asm vfmadot2-run \
         vfmadot3-lower vfmadot3-translate vfmadot3-asm vfmadot3-run \
         linalg-matmul-lower linalg-matmul-translate linalg-matmul-asm \
-        linalg-conv-lower linalg-conv-translate linalg-conv-asm
+        linalg-conv-lower linalg-conv-translate linalg-conv-asm \
+        linalg-matmul-boundary-lower linalg-matmul-boundary-translate \
+        linalg-matmul-boundary-asm linalg-matmul-boundary-run
 
 all: vmadot vmadotu vmadotsu vmadotus vfmadot vmadotn vmadotnu vmadotnsu vmadotnus vfmadotn
 
@@ -1605,3 +1607,113 @@ linalg-conv-asm:
 		-mattr=+m,+v,+buddyext \
 		-o log.s
 	@echo "Output written to log.s"
+# ===========================================================================
+# Linalg to IME Matmul with Boundary Handling
+# ===========================================================================
+# These targets demonstrate lowering of linalg.matmul to IME with boundary
+# handling for non-aligned matrix dimensions.
+#
+# Use cases:
+#   - Matrices where M, N, or K are not multiples of IME tile sizes
+#   - For int8: TILE_M=4, TILE_K=8, TILE_N=4
+#   - For int16: TILE_M=4, TILE_K=4, TILE_N=4
+
+linalg-matmul-boundary-lower:
+	@echo "=== Lowering linalg.matmul with boundary handling to IME ==="
+	@${BUDDY_OPT} ./linalg-to-ime-matmul-boundary.mlir \
+		-lower-linalg-to-ime \
+		-o log.mlir
+	@echo "Output written to log.mlir"
+	@echo ""
+	@echo "Key features in output:"
+	@echo "  - Main loop: processes full tiles with ime.vmadot"
+	@echo "  - Tail loops: handle remaining elements with scalar operations"
+	@echo "  - Boundary checks: scf.if guards for each region"
+
+linalg-matmul-boundary-translate:
+	@echo "=== linalg.matmul (boundary) -> IME -> LLVM IR ==="
+	@${BUDDY_OPT} ./linalg-to-ime-matmul-boundary.mlir \
+		-lower-linalg-to-ime \
+		-lower-ime \
+		-convert-linalg-to-loops \
+		-lower-affine \
+		-expand-strided-metadata \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-math-to-llvm \
+		-convert-func-to-llvm \
+		-finalize-memref-to-llvm \
+		-reconcile-unrealized-casts | \
+	${BUDDY_TRANSLATE} -buddy-to-llvmir \
+		-o log.ll
+	@echo "Output written to log.ll"
+
+linalg-matmul-boundary-asm:
+	@echo "=== linalg.matmul (boundary) -> IME -> Assembly ==="
+	@${BUDDY_OPT} ./linalg-to-ime-matmul-boundary.mlir \
+		-lower-linalg-to-ime \
+		-lower-ime \
+		-convert-linalg-to-loops \
+		-lower-affine \
+		-expand-strided-metadata \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-math-to-llvm \
+		-convert-func-to-llvm \
+		-finalize-memref-to-llvm \
+		-reconcile-unrealized-casts | \
+	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
+	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
+		-mattr=+m,+v,+buddyext \
+		-o log.s
+	@echo "Output written to log.s"
+
+linalg-matmul-boundary-run:
+	@echo "=== Building matmul boundary test executable ==="
+	@${BUDDY_OPT} ./linalg-to-ime-matmul-boundary-func.mlir \
+		-lower-linalg-to-ime \
+		-lower-ime \
+		-convert-linalg-to-loops \
+		-lower-affine \
+		-expand-strided-metadata \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-math-to-llvm \
+		-convert-func-to-llvm \
+		-finalize-memref-to-llvm \
+		-reconcile-unrealized-casts | \
+	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
+	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
+		-mattr=+m,+v,+buddyext \
+		-o matmul_boundary.s
+	riscv64-unknown-linux-gnu-gcc -march=rv64gcv -static \
+		matmul_boundary.s runtime_matmul_boundary.c \
+		-o matmul_boundary_test
+	@echo "Executable: matmul_boundary_test"
+	@echo "Run with: qemu-riscv64 ./matmul_boundary_test"
+
+# Help target for boundary handling
+help-boundary:
+	@echo "=== Linalg to IME Matmul Boundary Handling ==="
+	@echo ""
+	@echo "Available targets:"
+	@echo "  linalg-matmul-boundary-lower     - Show lowering from linalg to IME"
+	@echo "  linalg-matmul-boundary-translate - Generate LLVM IR"
+	@echo "  linalg-matmul-boundary-asm       - Generate RISC-V assembly"
+	@echo "  linalg-matmul-boundary-run       - Build test executable"
+	@echo ""
+	@echo "Test cases in linalg-to-ime-matmul-boundary.mlir:"
+	@echo "  - matmul_i8_boundary_M: M=6 (non-aligned M)"
+	@echo "  - matmul_i8_boundary_N: N=6 (non-aligned N)"
+	@echo "  - matmul_i8_boundary_K: K=10 (non-aligned K)"
+	@echo "  - matmul_i8_boundary_all: M=7, N=5, K=10 (all non-aligned)"
+	@echo "  - matmul_i8_large_boundary: M=18, N=14, K=25"
+	@echo "  - matmul_i8_small_all_scalar: M=3, N=2, K=5 (all scalar)"
+	@echo "  - matmul_i16_boundary: int16 with M=6, N=5, K=7"
+	@echo ""
+	@echo "IME Tile Sizes:"
+	@echo "  int8:  TILE_M=4, TILE_K=8, TILE_N=4"
+	@echo "  int16: TILE_M=4, TILE_K=4, TILE_N=4"

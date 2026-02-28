@@ -125,6 +125,17 @@ public:
     int64_t tileM, tileK, tileN;
     getTileSizes(AElemType, tileM, tileK, tileN);
 
+    // This pattern only handles aligned dimensions.
+    // Non-aligned dimensions are handled by MatmulWithBoundaryToIMELowering.
+    if (!isDynamic) {
+      bool isAligned = (M % tileM == 0) && (K % tileK == 0) && (N % tileN == 0);
+      if (!isAligned) {
+        return rewriter.notifyMatchFailure(
+            matmulOp, "non-aligned dimensions - use boundary handling pattern");
+      }
+    }
+    getTileSizes(AElemType, tileM, tileK, tileN);
+
     Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
     Value stepM = rewriter.create<arith::ConstantIndexOp>(loc, tileM);
     Value stepK = rewriter.create<arith::ConstantIndexOp>(loc, tileK);
@@ -141,6 +152,15 @@ public:
       boundN = rewriter.create<arith::ConstantIndexOp>(loc, N);
     }
 
+    Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+    Value tileKVal = rewriter.create<arith::ConstantIndexOp>(loc, tileK);
+    Value tileNVal = rewriter.create<arith::ConstantIndexOp>(loc, tileN);
+
+    // Allocate contiguous buffer for B tile in column-major pack format
+    // BTile[N][K] for column-major packing (IME expects B transposed)
+    auto BTileType = MemRefType::get({tileN, tileK}, AElemType);
+    Value BTileBuffer = rewriter.create<memref::AllocaOp>(loc, BTileType);
+
     auto loopI = rewriter.create<scf::ForOp>(loc, c0, boundM, stepM);
     rewriter.setInsertionPointToStart(loopI.getBody());
     Value ivI = loopI.getInductionVar();
@@ -153,6 +173,7 @@ public:
     rewriter.setInsertionPointToStart(loopK.getBody());
     Value ivK = loopK.getInductionVar();
 
+    // A tile: use SubView (no transpose needed)
     SmallVector<OpFoldResult> aOffsets = {ivI, ivK};
     SmallVector<OpFoldResult> aSizes = {rewriter.getIndexAttr(tileM),
                                         rewriter.getIndexAttr(tileK)};
@@ -162,15 +183,27 @@ public:
     Value ATile =
         rewriter.create<memref::SubViewOp>(loc, A, aOffsets, aSizes, aStrides);
 
-    SmallVector<OpFoldResult> bOffsets = {ivK, ivJ};
-    SmallVector<OpFoldResult> bSizes = {rewriter.getIndexAttr(tileK),
-                                        rewriter.getIndexAttr(tileN)};
-    SmallVector<OpFoldResult> bStrides = {rewriter.getIndexAttr(1),
-                                          rewriter.getIndexAttr(1)};
+    // B tile: copy with transpose (B[k][n] -> BTile[n][k])
+    // IME requires B to be in column-major pack format
+    auto copyBLoopN = rewriter.create<scf::ForOp>(loc, c0, tileNVal, c1);
+    rewriter.setInsertionPointToStart(copyBLoopN.getBody());
+    Value bn = copyBLoopN.getInductionVar();
 
-    Value BTile =
-        rewriter.create<memref::SubViewOp>(loc, B, bOffsets, bSizes, bStrides);
+    auto copyBLoopK = rewriter.create<scf::ForOp>(loc, c0, tileKVal, c1);
+    rewriter.setInsertionPointToStart(copyBLoopK.getBody());
+    Value bk = copyBLoopK.getInductionVar();
 
+    // Global indices in B matrix
+    Value globalBk = rewriter.create<arith::AddIOp>(loc, ivK, bk);
+    Value globalBn = rewriter.create<arith::AddIOp>(loc, ivJ, bn);
+
+    // Load B[globalBk][globalBn] and store to BTile[bn][bk] (transposed)
+    Value bVal = rewriter.create<memref::LoadOp>(loc, B, ValueRange{globalBk, globalBn});
+    rewriter.create<memref::StoreOp>(loc, bVal, BTileBuffer, ValueRange{bn, bk});
+
+    rewriter.setInsertionPointAfter(copyBLoopN);
+
+    // C tile: use SubView
     SmallVector<OpFoldResult> cOffsets = {ivI, ivJ};
     SmallVector<OpFoldResult> cSizes = {rewriter.getIndexAttr(tileM),
                                         rewriter.getIndexAttr(tileN)};
@@ -180,10 +213,292 @@ public:
     Value CTile =
         rewriter.create<memref::SubViewOp>(loc, C, cOffsets, cSizes, cStrides);
 
-    rewriter.create<VmadotOp>(loc, CTile, ATile, BTile);
+    rewriter.create<VmadotOp>(loc, CTile, ATile, BTileBuffer);
 
     rewriter.setInsertionPointAfter(loopI);
 
+    rewriter.eraseOp(matmulOp);
+
+    return success();
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// Matmul to IME Lowering with Boundary Handling (Static Padding Strategy)
+//===----------------------------------------------------------------------===//
+
+/// This pattern handles matmul operations where dimensions may not be aligned
+/// to IME tile sizes. It uses a STATIC PADDING strategy with explicit tile copying:
+///
+/// 1. For each tile position (i, j):
+///    a. Allocate contiguous tile buffers (ATile[tileM×tileK], BTile[tileK×tileN], CTile[tileM×tileN])
+///    b. Copy C tile from original matrix (with zero padding for boundaries)
+///    c. For each K tile:
+///       - Copy A tile from original matrix (with zero padding)
+///       - Copy B tile from original matrix (with zero padding)
+///       - Run ime.vmadot on contiguous buffers
+///    d. Copy CTile back to original C matrix (only valid elements)
+///
+/// This approach ensures IME always works on contiguous memory as required by hardware.
+
+class MatmulWithBoundaryToIMELowering
+    : public OpRewritePattern<linalg::MatmulOp> {
+public:
+  using OpRewritePattern<linalg::MatmulOp>::OpRewritePattern;
+
+  // Set lower benefit than the simple MatmulToIMELowering so it's tried second
+  MatmulWithBoundaryToIMELowering(MLIRContext *context)
+      : OpRewritePattern<linalg::MatmulOp>(context, /*benefit=*/1) {}
+
+  LogicalResult matchAndRewrite(linalg::MatmulOp matmulOp,
+                                PatternRewriter &rewriter) const override {
+    Location loc = matmulOp.getLoc();
+
+    Value A = matmulOp.getInputs()[0];  // M x K
+    Value B = matmulOp.getInputs()[1];  // K x N
+    Value C = matmulOp.getOutputs()[0]; // M x N
+
+    auto AType = dyn_cast<MemRefType>(A.getType());
+    auto BType = dyn_cast<MemRefType>(B.getType());
+    auto CType = dyn_cast<MemRefType>(C.getType());
+
+    if (!AType || !BType || !CType) {
+      return rewriter.notifyMatchFailure(matmulOp,
+                                         "operands must be memref types");
+    }
+
+    Type AElemType = AType.getElementType();
+    Type BElemType = BType.getElementType();
+    Type CElemType = CType.getElementType();
+
+    if (!isSupportedElementType(AElemType) ||
+        !isSupportedElementType(BElemType)) {
+      return rewriter.notifyMatchFailure(
+          matmulOp, "only int8 and int16 element types are supported");
+    }
+
+    if (AElemType != BElemType) {
+      return rewriter.notifyMatchFailure(
+          matmulOp, "A and B must have the same element type");
+    }
+
+    if (!CElemType.isInteger(32)) {
+      return rewriter.notifyMatchFailure(
+          matmulOp, "output C must be int32 for accumulation");
+    }
+
+    ArrayRef<int64_t> AShape = AType.getShape();
+    ArrayRef<int64_t> BShape = BType.getShape();
+
+    if (AShape.size() != 2 || BShape.size() != 2) {
+      return rewriter.notifyMatchFailure(matmulOp,
+                                         "only 2D matrices are supported");
+    }
+
+    int64_t M = AShape[0];
+    int64_t K = AShape[1];
+    int64_t N = BShape[1];
+
+    // Get tile sizes for the element type
+    int64_t tileM, tileK, tileN;
+    getTileSizes(AElemType, tileM, tileK, tileN);
+
+    // This pattern only handles static dimensions
+    bool hasStaticDims = !ShapedType::isDynamic(M) &&
+                         !ShapedType::isDynamic(K) && !ShapedType::isDynamic(N);
+
+    if (!hasStaticDims) {
+      return rewriter.notifyMatchFailure(
+          matmulOp, "dynamic dimensions not supported in boundary pattern");
+    }
+
+    // For static dimensions, check if they are aligned
+    bool isAligned = (M % tileM == 0) && (K % tileK == 0) && (N % tileN == 0);
+    if (isAligned) {
+      // Let the simpler MatmulToIMELowering handle aligned cases
+      return rewriter.notifyMatchFailure(
+          matmulOp, "aligned dimensions - use simple lowering");
+    }
+
+    // Calculate number of tiles (ceiling division)
+    int64_t numTilesM = (M + tileM - 1) / tileM;
+    int64_t numTilesK = (K + tileK - 1) / tileK;
+    int64_t numTilesN = (N + tileN - 1) / tileN;
+
+    // Create constants
+    Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+    Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+    Value tileMVal = rewriter.create<arith::ConstantIndexOp>(loc, tileM);
+    Value tileKVal = rewriter.create<arith::ConstantIndexOp>(loc, tileK);
+    Value tileNVal = rewriter.create<arith::ConstantIndexOp>(loc, tileN);
+    Value boundM = rewriter.create<arith::ConstantIndexOp>(loc, M);
+    Value boundK = rewriter.create<arith::ConstantIndexOp>(loc, K);
+    Value boundN = rewriter.create<arith::ConstantIndexOp>(loc, N);
+    Value numTilesMVal = rewriter.create<arith::ConstantIndexOp>(loc, numTilesM);
+    Value numTilesKVal = rewriter.create<arith::ConstantIndexOp>(loc, numTilesK);
+    Value numTilesNVal = rewriter.create<arith::ConstantIndexOp>(loc, numTilesN);
+
+    // Create zero constants for padding
+    Value zeroElem = rewriter.create<arith::ConstantOp>(
+        loc, AElemType, rewriter.getZeroAttr(AElemType));
+    Value zeroI32 = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getI32Type(), rewriter.getI32IntegerAttr(0));
+
+    // Allocate contiguous tile buffers (these have contiguous memory layout)
+    // Note: ATile is row-major: ATile[m][k]
+    // Note: BTile is column-major packed: BTile[n][k] to match IME's expected layout
+    //       IME expects B to be stored as: col0 elements, col1 elements, ...
+    auto ATileType = MemRefType::get({tileM, tileK}, AElemType);
+    auto BTileType = MemRefType::get({tileN, tileK}, AElemType);  // Note: [N, K] for column-major pack
+    auto CTileType = MemRefType::get({tileM, tileN}, CElemType);
+
+    Value ATile = rewriter.create<memref::AllocaOp>(loc, ATileType);
+    Value BTile = rewriter.create<memref::AllocaOp>(loc, BTileType);
+    Value CTile = rewriter.create<memref::AllocaOp>(loc, CTileType);
+
+    // Loop over M tiles
+    auto loopTileM = rewriter.create<scf::ForOp>(loc, c0, numTilesMVal, c1);
+    rewriter.setInsertionPointToStart(loopTileM.getBody());
+    Value tileIdxM = loopTileM.getInductionVar();
+    Value baseM = rewriter.create<arith::MulIOp>(loc, tileIdxM, tileMVal);
+
+    // Loop over N tiles
+    auto loopTileN = rewriter.create<scf::ForOp>(loc, c0, numTilesNVal, c1);
+    rewriter.setInsertionPointToStart(loopTileN.getBody());
+    Value tileIdxN = loopTileN.getInductionVar();
+    Value baseN = rewriter.create<arith::MulIOp>(loc, tileIdxN, tileNVal);
+
+    // Initialize CTile to zeros (or copy from C for initial values)
+    auto initCLoop1 = rewriter.create<scf::ForOp>(loc, c0, tileMVal, c1);
+    rewriter.setInsertionPointToStart(initCLoop1.getBody());
+    Value initCi = initCLoop1.getInductionVar();
+    auto initCLoop2 = rewriter.create<scf::ForOp>(loc, c0, tileNVal, c1);
+    rewriter.setInsertionPointToStart(initCLoop2.getBody());
+    Value initCj = initCLoop2.getInductionVar();
+
+    // Calculate global indices
+    Value globalCi = rewriter.create<arith::AddIOp>(loc, baseM, initCi);
+    Value globalCj = rewriter.create<arith::AddIOp>(loc, baseN, initCj);
+
+    // Check if within bounds
+    Value inBoundM = rewriter.create<arith::CmpIOp>(
+        loc, arith::CmpIPredicate::ult, globalCi, boundM);
+    Value inBoundN = rewriter.create<arith::CmpIOp>(
+        loc, arith::CmpIPredicate::ult, globalCj, boundN);
+    Value inBound = rewriter.create<arith::AndIOp>(loc, inBoundM, inBoundN);
+
+    // Load from C if in bounds, else use zero
+    auto selectC = rewriter.create<scf::IfOp>(
+        loc, CElemType, inBound, /*withElseRegion=*/true);
+    rewriter.setInsertionPointToStart(&selectC.getThenRegion().front());
+    Value cLoadVal = rewriter.create<memref::LoadOp>(loc, C, ValueRange{globalCi, globalCj});
+    rewriter.create<scf::YieldOp>(loc, cLoadVal);
+    rewriter.setInsertionPointToStart(&selectC.getElseRegion().front());
+    rewriter.create<scf::YieldOp>(loc, zeroI32);
+    rewriter.setInsertionPointAfter(selectC);
+
+    rewriter.create<memref::StoreOp>(loc, selectC.getResult(0), CTile, ValueRange{initCi, initCj});
+    rewriter.setInsertionPointAfter(initCLoop1);
+
+    // Loop over K tiles
+    auto loopTileK = rewriter.create<scf::ForOp>(loc, c0, numTilesKVal, c1);
+    rewriter.setInsertionPointToStart(loopTileK.getBody());
+    Value tileIdxK = loopTileK.getInductionVar();
+    Value baseK = rewriter.create<arith::MulIOp>(loc, tileIdxK, tileKVal);
+
+    // Copy A tile with boundary handling
+    auto copyALoop1 = rewriter.create<scf::ForOp>(loc, c0, tileMVal, c1);
+    rewriter.setInsertionPointToStart(copyALoop1.getBody());
+    Value copyAi = copyALoop1.getInductionVar();
+    auto copyALoop2 = rewriter.create<scf::ForOp>(loc, c0, tileKVal, c1);
+    rewriter.setInsertionPointToStart(copyALoop2.getBody());
+    Value copyAk = copyALoop2.getInductionVar();
+
+    Value globalAi = rewriter.create<arith::AddIOp>(loc, baseM, copyAi);
+    Value globalAk = rewriter.create<arith::AddIOp>(loc, baseK, copyAk);
+    Value inBoundAM = rewriter.create<arith::CmpIOp>(
+        loc, arith::CmpIPredicate::ult, globalAi, boundM);
+    Value inBoundAK = rewriter.create<arith::CmpIOp>(
+        loc, arith::CmpIPredicate::ult, globalAk, boundK);
+    Value inBoundA = rewriter.create<arith::AndIOp>(loc, inBoundAM, inBoundAK);
+
+    auto selectA = rewriter.create<scf::IfOp>(
+        loc, AElemType, inBoundA, /*withElseRegion=*/true);
+    rewriter.setInsertionPointToStart(&selectA.getThenRegion().front());
+    Value aLoadVal = rewriter.create<memref::LoadOp>(loc, A, ValueRange{globalAi, globalAk});
+    rewriter.create<scf::YieldOp>(loc, aLoadVal);
+    rewriter.setInsertionPointToStart(&selectA.getElseRegion().front());
+    rewriter.create<scf::YieldOp>(loc, zeroElem);
+    rewriter.setInsertionPointAfter(selectA);
+
+    rewriter.create<memref::StoreOp>(loc, selectA.getResult(0), ATile, ValueRange{copyAi, copyAk});
+    rewriter.setInsertionPointAfter(copyALoop1);
+
+    // Copy B tile with boundary handling
+    // Note: B is stored in column-major pack format for IME
+    // B[k][n] in original matrix -> BTile[n][k] in packed format
+    auto copyBLoop1 = rewriter.create<scf::ForOp>(loc, c0, tileNVal, c1);
+    rewriter.setInsertionPointToStart(copyBLoop1.getBody());
+    Value copyBn = copyBLoop1.getInductionVar();
+    auto copyBLoop2 = rewriter.create<scf::ForOp>(loc, c0, tileKVal, c1);
+    rewriter.setInsertionPointToStart(copyBLoop2.getBody());
+    Value copyBk = copyBLoop2.getInductionVar();
+
+    Value globalBk = rewriter.create<arith::AddIOp>(loc, baseK, copyBk);
+    Value globalBn = rewriter.create<arith::AddIOp>(loc, baseN, copyBn);
+    Value inBoundBK = rewriter.create<arith::CmpIOp>(
+        loc, arith::CmpIPredicate::ult, globalBk, boundK);
+    Value inBoundBN = rewriter.create<arith::CmpIOp>(
+        loc, arith::CmpIPredicate::ult, globalBn, boundN);
+    Value inBoundB = rewriter.create<arith::AndIOp>(loc, inBoundBK, inBoundBN);
+
+    auto selectB = rewriter.create<scf::IfOp>(
+        loc, AElemType, inBoundB, /*withElseRegion=*/true);
+    rewriter.setInsertionPointToStart(&selectB.getThenRegion().front());
+    // Load from B[k][n] in row-major
+    Value bLoadVal = rewriter.create<memref::LoadOp>(loc, B, ValueRange{globalBk, globalBn});
+    rewriter.create<scf::YieldOp>(loc, bLoadVal);
+    rewriter.setInsertionPointToStart(&selectB.getElseRegion().front());
+    rewriter.create<scf::YieldOp>(loc, zeroElem);
+    rewriter.setInsertionPointAfter(selectB);
+
+    // Store to BTile[n][k] in column-major pack format
+    rewriter.create<memref::StoreOp>(loc, selectB.getResult(0), BTile, ValueRange{copyBn, copyBk});
+    rewriter.setInsertionPointAfter(copyBLoop1);
+
+    // IME vmadot on contiguous tile buffers
+    rewriter.create<VmadotOp>(loc, CTile, ATile, BTile);
+
+    // End of K tile loop
+    rewriter.setInsertionPointAfter(loopTileK);
+
+    // Copy CTile back to C (only valid elements)
+    auto storeCLoop1 = rewriter.create<scf::ForOp>(loc, c0, tileMVal, c1);
+    rewriter.setInsertionPointToStart(storeCLoop1.getBody());
+    Value storeCi = storeCLoop1.getInductionVar();
+    auto storeCLoop2 = rewriter.create<scf::ForOp>(loc, c0, tileNVal, c1);
+    rewriter.setInsertionPointToStart(storeCLoop2.getBody());
+    Value storeCj = storeCLoop2.getInductionVar();
+
+    Value globalStoreCi = rewriter.create<arith::AddIOp>(loc, baseM, storeCi);
+    Value globalStoreCj = rewriter.create<arith::AddIOp>(loc, baseN, storeCj);
+    Value inBoundStoreM = rewriter.create<arith::CmpIOp>(
+        loc, arith::CmpIPredicate::ult, globalStoreCi, boundM);
+    Value inBoundStoreN = rewriter.create<arith::CmpIOp>(
+        loc, arith::CmpIPredicate::ult, globalStoreCj, boundN);
+    Value inBoundStore = rewriter.create<arith::AndIOp>(loc, inBoundStoreM, inBoundStoreN);
+
+    auto storeIf = rewriter.create<scf::IfOp>(loc, inBoundStore, /*withElseRegion=*/false);
+    rewriter.setInsertionPointToStart(&storeIf.getThenRegion().front());
+    Value cResult = rewriter.create<memref::LoadOp>(loc, CTile, ValueRange{storeCi, storeCj});
+    rewriter.create<memref::StoreOp>(loc, cResult, C, ValueRange{globalStoreCi, globalStoreCj});
+
+    rewriter.setInsertionPointAfter(storeCLoop1);
+
+    // End of N and M tile loops
+    rewriter.setInsertionPointAfter(loopTileM);
+
+    // Erase the original operation
     rewriter.eraseOp(matmulOp);
 
     return success();
@@ -800,8 +1115,12 @@ void LowerLinalgToIMEPass::runOnOperation() {
 
   RewritePatternSet patterns(context);
 
+  // Add patterns with higher benefit first (aligned dimensions)
   patterns.add<MatmulToIMELowering>(context);
   patterns.add<GenericMatmulToIMELowering>(context);
+
+  // Add boundary handling pattern with lower benefit (tried after aligned cases fail)
+  patterns.add<MatmulWithBoundaryToIMELowering>(context);
 
   patterns.add<Conv2DNhwcHwcfToIMELowering>(context);
   patterns.add<Conv2DNchwFchwToIMELowering>(context);
