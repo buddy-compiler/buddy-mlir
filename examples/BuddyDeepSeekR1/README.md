@@ -82,8 +82,14 @@ $ cmake -G Ninja .. -DBUDDY_DEEPSEEKR1_EXAMPLES=ON
 $ ninja buddy-deepseek-r1-run
 $ ./bin/buddy-deepseek-r1-run
 
+//f32 tiered-kv-cache (dynamic prefill & decode optimization)
+$ ninja buddy-deepseek-r1-tiered-kv-cache-run
+$ ./bin/buddy-deepseek-r1-tiered-kv-cache-run
+
 // NUMA node binding
 numactl --cpunodebind=0,1,2,3 --interleave=0,1,2,3 taskset -c 0-47 ./bin/buddy-deepseek-r1-run
+or
+numactl --cpunodebind=0 --membind=0 ./bin/buddy-deepseek-r1-run
 
 //f16
 $ ninja buddy-deepseek-r1-f16-run

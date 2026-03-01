@@ -25,7 +25,7 @@ graph = graphs[0]
 graph.lower_to_top_level_ir()
 print(graph._imported_module)
 
-# CHECK: builtin.module
-# CHECK: func.func
+# CHECK: module {
+# CHECK-LABEL: func.func @forward
 # CHECK: tosa.pad
-# CHECK: func.return
+# CHECK: return

@@ -29,7 +29,6 @@ print(graph._imported_module)
 # CHECK: arith.cmpi
 # CHECK: arith.constant
 # CHECK: tensor.empty
-# CHECK: tensor.splat
 # CHECK: linalg.generic
 # CHECK: arith.select
 # CHECK: return

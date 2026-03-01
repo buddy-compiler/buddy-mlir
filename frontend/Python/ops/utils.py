@@ -37,12 +37,22 @@ def mlir_element_type_get(type_name):
             return ir.BF16Type.get()
         case TensorDType.Float32:
             return ir.F32Type.get()
+        case TensorDType.Float64:
+            return ir.F64Type.get()
+        case TensorDType.Complex64:
+            return ir.ComplexType.get(ir.F32Type.get())
+        case TensorDType.Complex128:
+            return ir.ComplexType.get(ir.F64Type.get())
+        case TensorDType.Int8:
+            return ir.IntegerType.get_signless(8)
         case TensorDType.Int32:
             return ir.IntegerType.get_signless(32)
         case TensorDType.Int64:
             return ir.IntegerType.get_signless(64)
         case TensorDType.Bool:
             return ir.IntegerType.get_signless(1)
+        case _:
+            raise NotImplementedError(f"Unsupported dtype {type_name}")
 
 
 def mlir_element_attr_get(type_name, value):
@@ -59,7 +69,25 @@ def mlir_element_attr_get(type_name, value):
             return ir.FloatAttr.get(ir.BF16Type.get(), value)
         case TensorDType.Float32:
             return ir.FloatAttr.get(ir.F32Type.get(), value)
+        case TensorDType.Float64:
+            return ir.FloatAttr.get(ir.F64Type.get(), value)
+        case TensorDType.Int8:
+            return ir.IntegerAttr.get(
+                ir.IntegerType.get_signless(8), int(value)
+            )
+        case TensorDType.Int32:
+            return ir.IntegerAttr.get(
+                ir.IntegerType.get_signless(32), int(value)
+            )
         case TensorDType.Int64:
-            return ir.IntegerAttr.get(ir.IntegerType.get_signless(64), value)
+            return ir.IntegerAttr.get(
+                ir.IntegerType.get_signless(64), int(value)
+            )
         case TensorDType.Bool:
-            return ir.IntegerAttr.get(ir.IntegerType.get_signless(1), value)
+            return ir.IntegerAttr.get(
+                ir.IntegerType.get_signless(1), int(value)
+            )
+        case _:
+            raise NotImplementedError(
+                f"Unsupported dtype for attribute {type_name}"
+            )

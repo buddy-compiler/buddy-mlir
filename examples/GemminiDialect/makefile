@@ -721,6 +721,72 @@ gemmini-linalg-conv2d-nhwc-hwcf-f32-run:
 	@riscv64-unknown-linux-gnu-gcc log.o -O2 -static -o a.out
 	@spike --extension=gemmini pk a.out
 
+gemmini-linalg-conv2d-nhwc-fhwc-i8-lower:
+	@${BUDDY_OPT} ./conv_2d_nhwc_fhwc_i8.mlir \
+		-convert-linalg-to-gemmini \
+		-convert-linalg-to-loops \
+		-lower-gemmini \
+		-o log.mlir
+
+gemmini-linalg-conv2d-nhwc-fhwc-i8-translate:
+	@${BUDDY_OPT} ./conv_2d_nhwc_fhwc_i8.mlir \
+		-convert-linalg-to-gemmini \
+		-convert-linalg-to-loops \
+		-lower-gemmini | \
+	${BUDDY_TRANSLATE} -buddy-to-llvmir \
+		-o log.ll
+
+gemmini-linalg-conv2d-nhwc-fhwc-i8-asm:
+	@${BUDDY_OPT} ./conv_2d_nhwc_fhwc_i8.mlir \
+		-convert-linalg-to-gemmini \
+		-convert-linalg-to-loops \
+		-lower-gemmini | \
+	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
+	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
+		-mattr=+buddyext,+D -float-abi=hard \
+		-o log.s
+
+gemmini-linalg-conv2d-nhwc-fhwc-i8-run:
+	@${BUDDY_OPT} ./conv_2d_nhwc_fhwc_i8.mlir \
+		-convert-linalg-to-gemmini \
+		-convert-linalg-to-loops \
+		-lower-gemmini | \
+	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
+	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
+		-mattr=+buddyext,+D -float-abi=hard \
+		-o log.o
+	@riscv64-unknown-linux-gnu-gcc log.o -O2 -static -o a.out
+	@spike --extension=gemmini pk a.out
+
+gemmini-linalg-conv2d-nhwc-fhwc-f32-lower:
+	@${BUDDY_OPT} ./conv_2d_nhwc_fhwc_f32.mlir \
+		-convert-linalg-to-gemmini="acc_t=f32" \
+		-convert-linalg-to-loops \
+		-lower-gemmini="dim=4 acc_t=f32 elem_t=f32" \
+		-o log.mlir
+
+gemmini-linalg-conv2d-nhwc-fhwc-f32-asm:
+	@${BUDDY_OPT} ./conv_2d_nhwc_fhwc_f32.mlir \
+		-convert-linalg-to-gemmini="acc_t=f32" \
+		-convert-linalg-to-loops \
+		-lower-gemmini="dim=4 acc_t=f32 elem_t=f32" | \
+	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
+	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
+		-mattr=+buddyext,+D -float-abi=hard \
+		-o log.s
+
+gemmini-linalg-conv2d-nhwc-fhwc-f32-run:
+	@${BUDDY_OPT} ./conv_2d_nhwc_fhwc_f32.mlir \
+		-convert-linalg-to-gemmini="acc_t=f32" \
+		-convert-linalg-to-loops \
+		-lower-gemmini="dim=4 acc_t=f32 elem_t=f32" | \
+	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
+	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
+		-mattr=+buddyext,+D -float-abi=hard \
+		-o log.o
+	@riscv64-unknown-linux-gnu-gcc log.o -O2 -static -o a.out
+	@spike --extension=gemmini pk a.out
+
 gemmini-linalg-batch-matmul-lower:
 	@${BUDDY_OPT} ./batch_matmul.mlir \
 		-convert-linalg-to-gemmini \

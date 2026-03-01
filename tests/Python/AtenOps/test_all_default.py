@@ -27,7 +27,9 @@ print(graph._imported_module)
 
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
-# CHECK: tosa.reduce_max
+# CHECK: tosa.logical_not
+# CHECK: tosa.reduce_any
+# CHECK: tosa.logical_not
 # CHECK: return %{{.*}}
 # CHECK: }
 # CHECK: }

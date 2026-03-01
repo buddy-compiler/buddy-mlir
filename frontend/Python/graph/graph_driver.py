@@ -23,7 +23,7 @@
 from mlir import ir
 from collections import deque, defaultdict
 
-from .graph import Graph, GraphImporter, TensorMeta
+from .graph import Graph, GraphImporter, TensorMeta, NodeType
 from .operation import FuncOp, CallOp, PlaceholderOp, OutputOp, GetItemOp
 
 
@@ -119,8 +119,15 @@ class GraphDriver:
         # Construct each subgraph
         for subgraph_name in self._graph.op_groups.keys():
             subgraph_input = []
-            subgraph_body = []
             subgraph_device = self._graph.group_map_device[subgraph_name]
+
+            # Create subgraph and add it to the dictionary
+            subgraph = Graph(
+                self._graph._ops_registry,
+                subgraph_name,
+                subgraph_device,
+                verbose=self._graph._verbose,
+            )
 
             # Construct input placeholder nodes
             for inp in subgraphs_inputs[subgraph_name]:
@@ -135,11 +142,11 @@ class GraphDriver:
                 for op in self._graph.op_groups[subgraph_name]:
                     if inp in node._parents:
                         placeholder_node.add_children(op.name)
-                subgraph_body.append(placeholder_node)
+                subgraph.add_node(placeholder_node, NodeType.InputNode)
 
             # Add operations to subgraph body
             for op in self._graph.op_groups[subgraph_name]:
-                subgraph_body.append(op)
+                subgraph.add_node(op, NodeType.OtherNode)
 
             # Construct output node
             output_node = OutputOp()
@@ -147,19 +154,10 @@ class GraphDriver:
             for output in subgraphs_outputs[subgraph_name]:
                 output_node.add_argument(output)
                 output_node.add_parent(output)
-            subgraph_body.append(output_node)
+            
+            subgraph.add_node(node=output_node, node_type=NodeType.OtherNode)
 
-            # Create subgraph and add it to the dictionary
-            subgraph = Graph(
-                subgraph_input,
-                [],
-                self._graph._ops_registry,
-                subgraph_name,
-                subgraph_device,
-                verbose=self._graph._verbose,
-            )
-            subgraph.body = subgraph_body
-            for op in subgraph_body:
+            for op in subgraph._body:
                 subgraph.node_table[op.name] = op
             subgraphs[subgraph_name] = subgraph
 
@@ -214,19 +212,23 @@ class GraphDriver:
 
         """
         main_graph = Graph(
-            self._graph._inputs,
-            self._graph._fake_params,
-            self._graph._ops_registry,
-            self._graph._func_name,
-            self._graph._verbose,
+            ops_registry=self._graph._ops_registry,
+            func_name=self._graph._func_name,
+            verbose=self._graph._verbose,
         )
+
+        # Adding placeholder operations from the original graph        
+        for op in self._graph.params:
+            main_graph.add_node(op, node_type=NodeType.FakeNode)
+        for op in self._graph.inputs:
+            main_graph.add_node(op, node_type=NodeType.InputNode)
 
         # Adding FuncOp nodes for each subgraph
         for subgraph_name in self._subgraphs.keys():
             func_node = FuncOp()
             func_node.name = subgraph_name
             func_node.tensor_meta = {"shape": [], "dtype": []}
-            for inp in self._subgraphs[subgraph_name]._inputs:
+            for inp in self._subgraphs[subgraph_name].inputs_shapes:
                 func_node.add_argument(inp)
             for output in self._subgraphs_outputs[subgraph_name]:
                 func_node.tensor_meta["shape"].append(
@@ -237,10 +239,6 @@ class GraphDriver:
                 )
             main_graph.add_node(func_node)
 
-        # Adding placeholder operations from the original graph
-        for op in self._graph.body:
-            if isinstance(op, PlaceholderOp):
-                main_graph.add_node(op)
         # Analysis topology order to sort subgraph call.
         topo_order = self.topological_sort_subgraph()
         if topo_order == None:
@@ -288,8 +286,8 @@ class GraphDriver:
         with ir.Location.unknown(ir.Context()):
             main_importer = GraphImporter(
                 main_graph.body,
-                main_graph._fake_params,
-                main_graph._inputs,
+                main_graph.params_shapes,
+                main_graph.inputs_shapes,
                 main_graph._func_name,
                 main_graph._ops_registry,
                 do_param_pack,
