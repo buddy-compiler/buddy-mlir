@@ -568,8 +568,7 @@ def addmm_op(
             matmul_result_type,
             (
                 ir.FloatAttr.get(result_element_type, 0.0)
-                if str(result_element_type) == "f32"
-                or str(result_element_type) == "f16"
+                if _is_float_type(result_element_type)
                 else ir.IntegerAttr.get(result_element_type, 0)
             ),
         )

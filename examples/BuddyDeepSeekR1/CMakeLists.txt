@@ -47,8 +47,10 @@ if(NOT IS_RVV_PLATFORM)
   )
 
   add_custom_command(
-    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/forward-bf16.mlir
-           ${CMAKE_CURRENT_BINARY_DIR}/subgraph0-bf16.mlir
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill-bf16.mlir
+           ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill-bf16.mlir
+           ${CMAKE_CURRENT_BINARY_DIR}/forward_decode-bf16.mlir
+           ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode-bf16.mlir
            ${CMAKE_CURRENT_BINARY_DIR}/arg0-bf16.data
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-deepseek-r1.py
             --output-dir ${CMAKE_CURRENT_BINARY_DIR}
@@ -452,13 +454,15 @@ add_custom_command(
     VERBATIM)
 
 add_custom_command(
-  OUTPUT forward-bf16.o
-  COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/forward-bf16.mlir
-            -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" |
+  OUTPUT forward_prefill-bf16.o
+  COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill-bf16.mlir
+            -simplify-tosa-reshape |
+          ${LLVM_TOOLS_BINARY_DIR}/mlir-opt
+            -pass-pipeline ${TOSA_PIPELINE} |
           ${BUDDY_BINARY_DIR}/buddy-opt
             -eliminate-empty-tensors
             -empty-tensor-to-alloc-tensor
-            -one-shot-bufferize="bufferize-function-boundaries"
+            -one-shot-bufferize=${BUFFERIZE_SIMPLE_OPTS}
             -expand-strided-metadata
             -ownership-based-buffer-deallocation
             -canonicalize
@@ -467,14 +471,16 @@ add_custom_command(
             -cse
             -canonicalize
             -optimize-allocation-liveness
-            -matmul-parallel-vectorization-optimize
+            -eliminate-memref-copy
+            -assume-tight-memref-layout
+            -staticize-memref-layout
+            -matmul-vectorization-blis
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
             -affine-parallelize
             -convert-vector-to-scf
             -lower-affine
-            -convert-scf-to-openmp
-            -cse
+            -convert-scf-to-openmp=${OPENMP_NUM_THREADS}
             -memref-expand
             -arith-expand
             -convert-vector-to-llvm
@@ -491,21 +497,23 @@ add_custom_command(
             -reconcile-unrealized-casts |
         ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
         ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
-        ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
-          -o ${CMAKE_CURRENT_BINARY_DIR}/forward-bf16.o
-  DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/forward-bf16.mlir
-  COMMENT "Building forward.o "
+        ${LLVM_TOOLS_BINARY_DIR}/llc ${LLC_RISCV_ATTRS} -filetype=obj -relocation-model=pic -O3
+          -o ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill-bf16.o
+  DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill-bf16.mlir
+  COMMENT "Building forward_prefill-bf16.o "
   VERBATIM)
 
 add_custom_command(
-    OUTPUT subgraph-bf16.o
-    COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0-bf16.mlir
-              -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" |
+    OUTPUT subgraph_prefill-bf16.o
+    COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill-bf16.mlir
+              -simplify-tosa-reshape |
+            ${LLVM_TOOLS_BINARY_DIR}/mlir-opt
+              -pass-pipeline ${TOSA_PIPELINE} |
             ${BUDDY_BINARY_DIR}/buddy-opt
             -eliminate-empty-tensors
             -empty-tensor-to-alloc-tensor
             -convert-elementwise-to-linalg
-            -one-shot-bufferize="bufferize-function-boundaries"
+            -one-shot-bufferize=${BUFFERIZE_SIMPLE_OPTS}
             -expand-strided-metadata
             -ownership-based-buffer-deallocation
             -canonicalize
@@ -514,13 +522,17 @@ add_custom_command(
             -cse
             -canonicalize
             -optimize-allocation-liveness
-            -matmul-parallel-vectorization-optimize
+            -eliminate-memref-copy
+            -assume-tight-memref-layout
+            -staticize-memref-layout
+            -matmul-vectorization-blis
             -batchmatmul-optimize
+            -batchmatmul-transpose-b-vectorization
             -convert-linalg-to-affine-loops
             -affine-parallelize
             -convert-vector-to-scf
             -lower-affine
-            -convert-scf-to-openmp
+            -convert-scf-to-openmp=${OPENMP_NUM_THREADS}
             -cse
             -memref-expand
             -arith-expand
@@ -538,15 +550,118 @@ add_custom_command(
             -reconcile-unrealized-casts |
           ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
           ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
-          ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
-            -o ${CMAKE_CURRENT_BINARY_DIR}/subgraph-bf16.o
-    DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0-bf16.mlir
-    COMMENT "Building subgraph.o "
+          ${LLVM_TOOLS_BINARY_DIR}/llc ${LLC_RISCV_ATTRS} -filetype=obj -relocation-model=pic -O3
+            -o ${CMAKE_CURRENT_BINARY_DIR}/subgraph_prefill-bf16.o
+    DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill-bf16.mlir
+    COMMENT "Building subgraph_prefill-bf16.o "
+    VERBATIM)
+
+add_custom_command(
+  OUTPUT forward_decode-bf16.o
+  COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/forward_decode-bf16.mlir
+            -simplify-tosa-reshape |
+          ${LLVM_TOOLS_BINARY_DIR}/mlir-opt
+            -pass-pipeline ${TOSA_PIPELINE} |
+          ${BUDDY_BINARY_DIR}/buddy-opt
+            -eliminate-empty-tensors
+            -empty-tensor-to-alloc-tensor
+            -one-shot-bufferize=${BUFFERIZE_SIMPLE_OPTS}
+            -expand-strided-metadata
+            -ownership-based-buffer-deallocation
+            -canonicalize
+            -buffer-deallocation-simplification
+            -bufferization-lower-deallocations
+            -cse
+            -canonicalize
+            -optimize-allocation-liveness
+            -eliminate-memref-copy
+            -assume-tight-memref-layout
+            -staticize-memref-layout
+            -matmul-vectorization-blis
+            -batchmatmul-optimize
+            -convert-linalg-to-affine-loops
+            -affine-parallelize
+            -convert-vector-to-scf
+            -lower-affine
+            -convert-scf-to-openmp=${OPENMP_NUM_THREADS}
+            -memref-expand
+            -arith-expand
+            -convert-vector-to-llvm
+            -convert-arith-to-llvm
+            -finalize-memref-to-llvm
+            -convert-scf-to-cf
+            -convert-cf-to-llvm
+            -llvm-request-c-wrappers
+            -convert-openmp-to-llvm
+            -convert-arith-to-llvm
+            -convert-math-to-llvm
+            -convert-math-to-libm
+            -convert-func-to-llvm
+            -reconcile-unrealized-casts |
+        ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
+        ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
+        ${LLVM_TOOLS_BINARY_DIR}/llc ${LLC_RISCV_ATTRS} -filetype=obj -relocation-model=pic -O3
+          -o ${CMAKE_CURRENT_BINARY_DIR}/forward_decode-bf16.o
+  DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/forward_decode-bf16.mlir
+  COMMENT "Building forward_decode-bf16.o "
+  VERBATIM)
+
+add_custom_command(
+    OUTPUT subgraph_decode-bf16.o
+    COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode-bf16.mlir
+              -simplify-tosa-reshape
+              -simplify-tosa-matmul-scalar |
+            ${LLVM_TOOLS_BINARY_DIR}/mlir-opt
+              -pass-pipeline ${TOSA_PIPELINE} |
+            ${BUDDY_BINARY_DIR}/buddy-opt
+            -eliminate-empty-tensors
+            -empty-tensor-to-alloc-tensor
+            -convert-elementwise-to-linalg
+            -one-shot-bufferize=${BUFFERIZE_SIMPLE_OPTS}
+            -expand-strided-metadata
+            -ownership-based-buffer-deallocation
+            -canonicalize
+            -buffer-deallocation-simplification
+            -bufferization-lower-deallocations
+            -cse
+            -canonicalize
+            -optimize-allocation-liveness
+            -eliminate-memref-copy
+            -assume-tight-memref-layout
+            -staticize-memref-layout
+            -matmul-vectorization-decode=vector-size=32
+            -batch-matmul-vectorization-decode=vector-size=128
+            -batchmatmul-transpose-b-vectorization=vector-size=16
+            -convert-linalg-to-affine-loops
+            -convert-vector-to-scf
+            -lower-affine
+            -convert-scf-to-openmp=${OPENMP_NUM_THREADS}
+            -cse
+            -memref-expand
+            -arith-expand
+            -convert-vector-to-llvm
+            -convert-arith-to-llvm
+            -finalize-memref-to-llvm
+            -convert-scf-to-cf
+            -convert-cf-to-llvm
+            -llvm-request-c-wrappers
+            -convert-openmp-to-llvm
+            -convert-arith-to-llvm
+            -convert-math-to-llvm
+            -convert-math-to-libm
+            -convert-func-to-llvm
+            -reconcile-unrealized-casts |
+          ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
+          ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
+          ${LLVM_TOOLS_BINARY_DIR}/llc ${LLC_RISCV_ATTRS} -filetype=obj -relocation-model=pic -O3
+            -o ${CMAKE_CURRENT_BINARY_DIR}/subgraph_decode-bf16.o
+    DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode-bf16.mlir
+    COMMENT "Building subgraph_decode-bf16.o "
     VERBATIM)
 
 add_library(DEEPSEEKR1 STATIC forward_prefill.o subgraph_prefill.o forward_decode.o subgraph_decode.o)
 add_library(DEEPSEEKR1_F16 STATIC forward_prefill-f16.o subgraph_prefill-f16.o forward_decode-f16.o subgraph_decode-f16.o)
-add_library(DEEPSEEKR1_BF16 STATIC forward-bf16.o subgraph-bf16.o)
+add_library(DEEPSEEKR1_BF16 STATIC forward_prefill-bf16.o subgraph_prefill-bf16.o forward_decode-bf16.o subgraph_decode-bf16.o)
 
 SET_SOURCE_FILES_PROPERTIES(
   template.o
@@ -586,8 +701,8 @@ target_compile_definitions(buddy-deepseek-r1-f16-run PRIVATE
   DEEPSEEKR1_EXAMPLE_BUILD_PATH="${DEEPSEEKR1_EXAMPLE_BUILD_PATH}/"
 )
 target_compile_definitions(buddy-deepseek-r1-bf16-run PRIVATE
-  DEEPSEEKR1_EXAMPLE_PATH="${DEEPSEEKR1_EXAMPLE_PATH}"
-  DEEPSEEKR1_EXAMPLE_BUILD_PATH="${DEEPSEEKR1_EXAMPLE_BUILD_PATH}"
+  DEEPSEEKR1_EXAMPLE_PATH="${DEEPSEEKR1_EXAMPLE_PATH}/"
+  DEEPSEEKR1_EXAMPLE_BUILD_PATH="${DEEPSEEKR1_EXAMPLE_BUILD_PATH}/"
 )
 target_compile_definitions(buddy-deepseek-r1-cli PRIVATE
   DEEPSEEKR1_EXAMPLE_PATH="${DEEPSEEKR1_EXAMPLE_PATH}/"
