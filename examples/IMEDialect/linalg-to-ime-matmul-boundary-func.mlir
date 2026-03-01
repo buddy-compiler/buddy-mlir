@@ -1,5 +1,5 @@
-// Matmul with boundary - kernel function only (no main)
-// This file is compiled and linked with runtime_matmul_boundary.c
+// This file is not a test file - it is a kernel function for runtime testing.
+// It is compiled and linked with runtime_matmul_boundary.c
 //
 // Test case: C[7x5] = A[7x10] * B[10x5] with non-aligned dimensions
 // For int8: TILE_M=4, TILE_K=8, TILE_N=4

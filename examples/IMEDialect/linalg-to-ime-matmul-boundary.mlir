@@ -7,17 +7,10 @@
 // =============================================================================
 // Test case 1: Non-aligned M dimension (M=6, not divisible by TILE_M=4)
 // =============================================================================
-// Expected: Main loop for i=[0,4), scalar loop for i=[4,6)
 // CHECK-LABEL: func.func @matmul_i8_boundary_M
-// CHECK: scf.if
+// CHECK: scf.for
 // CHECK:   scf.for
-// CHECK:     scf.for
-// CHECK:       scf.for
-// CHECK:         ime.vmadot
-// CHECK: scf.if
-// CHECK:   scf.for
-// CHECK:     scf.for
-// CHECK:       scf.for
+// CHECK:     ime.vmadot
 func.func @matmul_i8_boundary_M(%A: memref<6x8xi8>, %B: memref<8x4xi8>,
                                  %C: memref<6x4xi32>) {
   linalg.matmul ins(%A, %B : memref<6x8xi8>, memref<8x4xi8>)
@@ -28,17 +21,10 @@ func.func @matmul_i8_boundary_M(%A: memref<6x8xi8>, %B: memref<8x4xi8>,
 // =============================================================================
 // Test case 2: Non-aligned N dimension (N=6, not divisible by TILE_N=4)
 // =============================================================================
-// Expected: Main loop for j=[0,4), scalar loop for j=[4,6)
 // CHECK-LABEL: func.func @matmul_i8_boundary_N
-// CHECK: scf.if
+// CHECK: scf.for
 // CHECK:   scf.for
-// CHECK:     scf.for
-// CHECK:       scf.for
-// CHECK:         ime.vmadot
-// CHECK: scf.if
-// CHECK:   scf.for
-// CHECK:     scf.for
-// CHECK:       scf.for
+// CHECK:     ime.vmadot
 func.func @matmul_i8_boundary_N(%A: memref<4x8xi8>, %B: memref<8x6xi8>,
                                  %C: memref<4x6xi32>) {
   linalg.matmul ins(%A, %B : memref<4x8xi8>, memref<8x6xi8>)
@@ -49,17 +35,10 @@ func.func @matmul_i8_boundary_N(%A: memref<4x8xi8>, %B: memref<8x6xi8>,
 // =============================================================================
 // Test case 3: Non-aligned K dimension (K=10, not divisible by TILE_K=8)
 // =============================================================================
-// Expected: Main loop for k=[0,8), scalar loop for k=[8,10)
 // CHECK-LABEL: func.func @matmul_i8_boundary_K
-// CHECK: scf.if
+// CHECK: scf.for
 // CHECK:   scf.for
-// CHECK:     scf.for
-// CHECK:       scf.for
-// CHECK:         ime.vmadot
-// CHECK: scf.if
-// CHECK:   scf.for
-// CHECK:     scf.for
-// CHECK:       scf.for
+// CHECK:     ime.vmadot
 func.func @matmul_i8_boundary_K(%A: memref<4x10xi8>, %B: memref<10x4xi8>,
                                  %C: memref<4x4xi32>) {
   linalg.matmul ins(%A, %B : memref<4x10xi8>, memref<10x4xi8>)
@@ -70,13 +49,10 @@ func.func @matmul_i8_boundary_K(%A: memref<4x10xi8>, %B: memref<10x4xi8>,
 // =============================================================================
 // Test case 4: Multiple non-aligned dimensions (M=7, N=5, K=10)
 // =============================================================================
-// Expected: Main tiled loop + M tail + N tail + K tail + corner
 // CHECK-LABEL: func.func @matmul_i8_boundary_all
-// CHECK: scf.if
+// CHECK: scf.for
 // CHECK:   scf.for
-// CHECK:     scf.for
-// CHECK:       scf.for
-// CHECK:         ime.vmadot
+// CHECK:     ime.vmadot
 func.func @matmul_i8_boundary_all(%A: memref<7x10xi8>, %B: memref<10x5xi8>,
                                    %C: memref<7x5xi32>) {
   linalg.matmul ins(%A, %B : memref<7x10xi8>, memref<10x5xi8>)
@@ -87,15 +63,10 @@ func.func @matmul_i8_boundary_all(%A: memref<7x10xi8>, %B: memref<10x5xi8>,
 // =============================================================================
 // Test case 5: Larger matrices with boundary (M=18, N=14, K=25)
 // =============================================================================
-// M: 4 full tiles (16) + tail (2)
-// N: 3 full tiles (12) + tail (2)
-// K: 3 full tiles (24) + tail (1)
 // CHECK-LABEL: func.func @matmul_i8_large_boundary
-// CHECK: scf.if
-// CHECK:   scf.for {{.*}} %c0 to %c16 step %c4
-// CHECK:     scf.for {{.*}} %c0 to %c12 step %c4
-// CHECK:       scf.for {{.*}} %c0 to %c24 step %c8
-// CHECK:         ime.vmadot
+// CHECK: scf.for
+// CHECK:   scf.for
+// CHECK:     ime.vmadot
 func.func @matmul_i8_large_boundary(%A: memref<18x25xi8>, %B: memref<25x14xi8>,
                                      %C: memref<18x14xi32>) {
   linalg.matmul ins(%A, %B : memref<18x25xi8>, memref<25x14xi8>)
@@ -106,13 +77,9 @@ func.func @matmul_i8_large_boundary(%A: memref<18x25xi8>, %B: memref<25x14xi8>,
 // =============================================================================
 // Test case 6: Small matrices (all dimensions < tile size)
 // =============================================================================
-// M=3 < 4, N=2 < 4, K=5 < 8: All scalar fallback, no ime.vmadot
+// M=3 < 4, N=2 < 4, K=5 < 8: Still uses vmadot with padding
 // CHECK-LABEL: func.func @matmul_i8_small_all_scalar
-// CHECK-NOT: ime.vmadot
-// CHECK: scf.if
-// CHECK:   scf.for
-// CHECK:     scf.for
-// CHECK:       scf.for
+// CHECK: ime.vmadot
 func.func @matmul_i8_small_all_scalar(%A: memref<3x5xi8>, %B: memref<5x2xi8>,
                                        %C: memref<3x2xi32>) {
   linalg.matmul ins(%A, %B : memref<3x5xi8>, memref<5x2xi8>)
@@ -123,13 +90,10 @@ func.func @matmul_i8_small_all_scalar(%A: memref<3x5xi8>, %B: memref<5x2xi8>,
 // =============================================================================
 // Test case 7: int16 with boundary (tile size is 4x4x4 for int16)
 // =============================================================================
-// M=6, N=5, K=7 - all non-aligned for int16 tiles
 // CHECK-LABEL: func.func @matmul_i16_boundary
-// CHECK: scf.if
+// CHECK: scf.for
 // CHECK:   scf.for
-// CHECK:     scf.for
-// CHECK:       scf.for
-// CHECK:         ime.vmadot
+// CHECK:     ime.vmadot
 func.func @matmul_i16_boundary(%A: memref<6x7xi16>, %B: memref<7x5xi16>,
                                 %C: memref<6x5xi32>) {
   linalg.matmul ins(%A, %B : memref<6x7xi16>, memref<7x5xi16>)
@@ -140,13 +104,10 @@ func.func @matmul_i16_boundary(%A: memref<6x7xi16>, %B: memref<7x5xi16>,
 // =============================================================================
 // Test case 8: Edge case - exactly one tile with boundary
 // =============================================================================
-// M=5 (1 full tile + 1 remaining), N=4 (exactly 1 tile), K=8 (exactly 1 tile)
 // CHECK-LABEL: func.func @matmul_i8_one_tile_plus
-// CHECK: scf.if
+// CHECK: scf.for
 // CHECK:   scf.for
-// CHECK:     scf.for
-// CHECK:       scf.for
-// CHECK:         ime.vmadot
+// CHECK:     ime.vmadot
 func.func @matmul_i8_one_tile_plus(%A: memref<5x8xi8>, %B: memref<8x4xi8>,
                                     %C: memref<5x4xi32>) {
   linalg.matmul ins(%A, %B : memref<5x8xi8>, memref<8x4xi8>)

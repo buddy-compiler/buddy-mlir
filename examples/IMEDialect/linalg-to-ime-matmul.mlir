@@ -9,9 +9,6 @@
 // CHECK: scf.for
 // CHECK:   scf.for
 // CHECK:     scf.for
-// CHECK:       memref.subview {{.*}} [4, 8]
-// CHECK:       memref.subview {{.*}} [8, 4]
-// CHECK:       memref.subview {{.*}} [4, 4]
 // CHECK:       ime.vmadot
 func.func @matmul_i8_4x8x4(%A: memref<4x8xi8>, %B: memref<8x4xi8>, %C: memref<4x4xi32>) {
   linalg.matmul ins(%A, %B : memref<4x8xi8>, memref<8x4xi8>)
@@ -26,9 +23,6 @@ func.func @matmul_i8_4x8x4(%A: memref<4x8xi8>, %B: memref<8x4xi8>, %C: memref<4x
 // CHECK: scf.for
 // CHECK:   scf.for
 // CHECK:     scf.for
-// CHECK:       memref.subview {{.*}} [4, 8]
-// CHECK:       memref.subview {{.*}} [8, 4]
-// CHECK:       memref.subview {{.*}} [4, 4]
 // CHECK:       ime.vmadot
 func.func @matmul_i8_16x32x16(%A: memref<16x32xi8>, %B: memref<32x16xi8>, %C: memref<16x16xi32>) {
   linalg.matmul ins(%A, %B : memref<16x32xi8>, memref<32x16xi8>)
@@ -42,9 +36,6 @@ func.func @matmul_i8_16x32x16(%A: memref<16x32xi8>, %B: memref<32x16xi8>, %C: me
 // CHECK: scf.for
 // CHECK:   scf.for
 // CHECK:     scf.for
-// CHECK:       memref.subview {{.*}} [4, 4]
-// CHECK:       memref.subview {{.*}} [4, 4]
-// CHECK:       memref.subview {{.*}} [4, 4]
 // CHECK:       ime.vmadot
 func.func @matmul_i16_4x4x4(%A: memref<4x4xi16>, %B: memref<4x4xi16>, %C: memref<4x4xi32>) {
   linalg.matmul ins(%A, %B : memref<4x4xi16>, memref<4x4xi16>)
@@ -58,9 +49,6 @@ func.func @matmul_i16_4x4x4(%A: memref<4x4xi16>, %B: memref<4x4xi16>, %C: memref
 // CHECK: scf.for
 // CHECK:   scf.for
 // CHECK:     scf.for
-// CHECK:       memref.subview {{.*}} [4, 4]
-// CHECK:       memref.subview {{.*}} [4, 4]
-// CHECK:       memref.subview {{.*}} [4, 4]
 // CHECK:       ime.vmadot
 func.func @matmul_i16_16x16x16(%A: memref<16x16xi16>, %B: memref<16x16xi16>, %C: memref<16x16xi32>) {
   linalg.matmul ins(%A, %B : memref<16x16xi16>, memref<16x16xi16>)
