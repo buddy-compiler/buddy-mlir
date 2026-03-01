@@ -85,16 +85,6 @@ def _sample_next_token(
     return int(rng.choice(len(probs), p=probs))
 
 
-def _export_artifacts(example_dir: Path, output_dir: Path):
-    cmd = [
-        "python3",
-        str(example_dir / "import-deepseek-r1.py"),
-        "--output-dir",
-        str(output_dir),
-    ]
-    subprocess.check_call(cmd)
-
-
 def _resolve_path(path_arg: Path, repo_root: Path) -> Path:
     path_arg = path_arg.expanduser()
     if path_arg.is_absolute():
@@ -290,11 +280,6 @@ def main():
         action="store_true",
         help="Disable tokenizer chat template and use raw --prompt encoding.",
     )
-    parser.add_argument(
-        "--export-subgraphs",
-        action="store_true",
-        help="Regenerate forward/subgraph MLIR and arg0.data before running",
-    )
     parser.add_argument("--omp-num-threads", type=int, default=None)
     parser.add_argument("--omp-proc-bind", type=str, default=None)
     parser.add_argument("--omp-places", type=str, default=None)
@@ -307,13 +292,10 @@ def main():
     _apply_omp_env(args)
 
     repo_root = Path(__file__).resolve().parents[2]
-    example_dir = Path(__file__).resolve().parent
     artifact_dir = _resolve_path(args.artifact_dir, repo_root)
     llvm_build_dir = _resolve_path(args.llvm_build_dir, repo_root)
 
     artifact_dir.mkdir(parents=True, exist_ok=True)
-    if args.export_subgraphs:
-        _export_artifacts(example_dir, artifact_dir)
 
     param_file = artifact_dir / "arg0.data"
 
@@ -330,7 +312,7 @@ def main():
         raise FileNotFoundError(
             "Missing artifacts:\n  "
             + "\n  ".join(missing)
-            + "\nRun with --export-subgraphs first."
+            + "\nPlease generate them under --artifact-dir before running."
         )
 
     params = np.fromfile(param_file, dtype=np.float32)

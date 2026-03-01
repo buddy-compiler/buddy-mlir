@@ -118,13 +118,21 @@ $ ./bin/buddy-deepseek-r1-cli --interactive --no-stats
 
 6. Python end-to-end inference by executing exported subgraphs
 
-This path keeps graph export in Buddy import flow, then uses Python to run prefill/decode MLIR subgraphs end to end.
+This path reuses artifacts already generated under `build/examples/BuddyDeepSeekR1`, then uses Python to run prefill/decode MLIR subgraphs end to end.
 
 ```bash
-# from buddy-mlir/
-python3 examples/BuddyDeepSeekR1/run-subgraphs-python.py \
+# from buddy-mlir/examples/BuddyDeepSeekR1
+python3 run-subgraphs-python.py \
   --prompt "Hello, who are you?" \
-  --export-subgraphs
+  --artifact-dir path_to_buddyDeepSeekR1_build \
+  --llvm-build-dir path_to_llvm_build
+```
+
+Example:
+
+```bash
+# from buddy-mlir/examples/BuddyDeepSeekR1
+python3 run-subgraphs-python.py --prompt "hello" --artifact-dir ../../build/examples/BuddyDeepSeekR1 --llvm-build-dir ../../llvm/build --omp-num-threads 48 --omp-proc-bind close
 ```
 
 Useful options:
