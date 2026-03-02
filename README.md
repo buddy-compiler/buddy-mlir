@@ -81,6 +81,33 @@ $ cmake -G Ninja .. -DBUDDY_ENABLE_E2E_TESTS=ON
 $ ninja check-e2e
 ```
 
+## Build Python Package
+
+We use `scikit-build-core` + CMake to produce a wheel that contains both the
+`buddy` front-end Python package and the `buddy_mlir` bindings.
+
+```bash
+# From repo root
+export MLIR_PREFIX=$(pwd)/llvm/build
+export CMAKE_ARGS="-DMLIR_DIR=${MLIR_PREFIX}/lib/cmake/mlir \
+  -DLLVM_DIR=${MLIR_PREFIX}/lib/cmake/llvm \
+  -DCMAKE_PREFIX_PATH=${MLIR_PREFIX}/lib/cmake \
+  -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
+  -DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON \
+  -DBUDDY_MLIR_PYTHON_INSTALL_PREFIX=. \
+  -DPython3_EXECUTABLE=$(which python)"
+export SKBUILD_CONFIGURE_OPTIONS="$CMAKE_ARGS"
+python -m build -w -o build/dist
+```
+
+Install and test the wheel:
+
+```bash
+pip install torch --index-url https://download.pytorch.org/whl/cpu
+pip install build/dist/buddy-*.whl --no-deps
+python -c "import buddy; import buddy_mlir; print('ok')"
+```
+
 ## Examples
 
 We provide examples to demonstrate how to use the passes and interfaces in `buddy-mlir`, including IR-level transformations, domain-specific applications, and testing demonstrations.

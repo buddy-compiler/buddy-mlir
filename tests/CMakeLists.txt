@@ -59,6 +59,7 @@ if(BUDDY_ENABLE_E2E_TESTS)
   buddy-translate
   mlir-runner
   buddy-lenet-run-test-cpu
+  python-package
   )
 
   add_lit_testsuite(check-e2e "Running E2E tests for Models directory..."

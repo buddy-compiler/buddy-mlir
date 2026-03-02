@@ -1,2 +1,27 @@
 [tool.black]
 line-length = 80
+
+[build-system]
+requires = [
+  "scikit-build-core>=0.7",
+  "build>=1.2",
+  "cmake>=3.22",
+  "ninja",
+  "setuptools>=61",
+  "wheel",
+  # required at build time for midend/python
+  "numpy<2",
+  "pybind11==2.11.1",
+  "nanobind>=2.4",
+]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "buddy"
+version = "0.0.1"
+description = "An MLIR-based compiler framework bridges DSLs (domain-specific languages) to DSAs (domain-specific architectures)."
+requires-python = ">=3.10"
+
+[tool.scikit-build]
+cmake.minimum-version = "3.22"
+wheel.expand-macos-universal-tags = false

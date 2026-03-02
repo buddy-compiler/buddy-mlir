@@ -25,11 +25,11 @@ import ctypes
 import functools
 import numpy as np
 
-import mlir.ir as ir
-import mlir.dialects.func as func
-from mlir.passmanager import *
-from mlir.execution_engine import *
-from mlir import runtime as rt
+import buddy_mlir.ir as ir
+import buddy_mlir.dialects.func as func
+from buddy_mlir.passmanager import *
+from buddy_mlir.execution_engine import *
+from buddy_mlir import runtime as rt
 
 from .operation import *
 from .type import *
@@ -585,7 +585,7 @@ class GraphImporter:
         _func_name (str): Name of the generated MLIR function.
         _inputs (List[TensorMeta]): Input tensor(s) of the FX graph.
         _num_input_visited (int): Number of input nodes that have been visited.
-        _module (mlir.ir.Module): The generated MLIR module.
+        _module (buddy_mlir.ir.Module): The generated MLIR module.
         _ops_registry (dict): Registry for the candidate operations.
     """
 
@@ -636,7 +636,7 @@ class GraphImporter:
             dtype (str): The tensor type.
 
         Returns:
-            mlir.ir.Type: The corresponding MLIR data type.
+            buddy_mlir.ir.Type: The corresponding MLIR data type.
 
         Raises:
             NotImplementedError: If the given dtype is not supported.
@@ -699,7 +699,7 @@ class GraphImporter:
         Imports buddy graph and generates an MLIR module in high-level dialects.
 
         Returns:
-            mlir.ir.Module: An MLIR module in high-level dialects.
+            buddy_mlir.ir.Module: An MLIR module in high-level dialects.
         """
         assert self._do_param_pack == False
         with ir.InsertionPoint(self._module.body):
@@ -774,7 +774,7 @@ class GraphImporter:
         module in high-level dialects with memref.
 
         Returns:
-            mlir.ir.Module: An MLIR module in high-level dialects.
+            buddy_mlir.ir.Module: An MLIR module in high-level dialects.
         """
         with ir.InsertionPoint(self._module.body):
             arguments = []
@@ -833,7 +833,7 @@ class GraphImporter:
         Parameters:
         - node (PlaceholderOp): The PlaceholderOp node representing the
         placeholder.
-        - args_list (List[mlir.ir.BlockArgument]): List of input memrefs.
+        - args_list (List[buddy_mlir.ir.BlockArgument]): List of input memrefs.
 
         Returns:
         None
