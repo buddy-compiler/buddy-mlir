@@ -35,7 +35,7 @@ namespace {
 class MatMulVectorizationDecodePattern : public ConversionPattern {
 public:
   MatMulVectorizationDecodePattern(MLIRContext *ctx, int64_t vecSize,
-                                    bool scalableParam)
+                                   bool scalableParam)
       : ConversionPattern(linalg::MatmulOp::getOperationName(), 1, ctx),
         vecSize(vecSize), scalable(scalableParam) {}
 
@@ -61,12 +61,24 @@ public:
     if (cType.getRank() != 2 || cType.getDimSize(0) != 1)
       return failure();
 
+    // Type elementType = cType.getElementType();
+    // auto vectorType = VectorType::get({vecSize}, elementType, {scalable});
+    // Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+    // Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+    // Value step = rewriter.create<arith::ConstantIndexOp>(loc, vecSize);
+    int64_t nDim = cType.getDimSize(1);
+    int64_t dynamicVecSize = vecSize;
+    if (nDim != ShapedType::kDynamic) {
+      int64_t suggestedSize = (nDim <= 256) ? 8 : (nDim >= 8192 ? 64 : 32);
+      dynamicVecSize = std::min({suggestedSize, vecSize, nDim});
+    }
     Type elementType = cType.getElementType();
-    auto vectorType = VectorType::get({vecSize}, elementType, {scalable});
-
+    auto vectorType =
+        VectorType::get({dynamicVecSize}, elementType, {scalable});
     Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
     Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
-    Value step = rewriter.create<arith::ConstantIndexOp>(loc, vecSize);
+    Value step = rewriter.create<arith::ConstantIndexOp>(loc, dynamicVecSize);
+
     if (scalable) {
       Value vscale = rewriter.create<vector::VectorScaleOp>(loc);
       step = rewriter.create<arith::MulIOp>(loc, step, vscale);
@@ -128,7 +140,8 @@ public:
   MatMulVectorizationDecodePass(const MatMulVectorizationDecodePass &) {}
 
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<linalg::LinalgDialect, scf::SCFDialect, vector::VectorDialect>();
+    registry.insert<linalg::LinalgDialect, scf::SCFDialect,
+                    vector::VectorDialect>();
   }
 
   void runOnOperation() override {
@@ -157,7 +170,8 @@ public:
 
     RewritePatternSet patterns(context);
     bool isScalable = (vectorType == "scalable");
-    patterns.add<MatMulVectorizationDecodePattern>(context, vectorSize, isScalable);
+    patterns.add<MatMulVectorizationDecodePattern>(context, vectorSize,
+                                                   isScalable);
 
     if (failed(applyPartialConversion(module, target, std::move(patterns))))
       signalPassFailure();
