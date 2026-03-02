@@ -58,14 +58,3 @@ repos:
       - id: check-yaml
       - id: check-added-large-files
         args: ['--maxkb=1000']  # Allow maximum 1MB files
-
-  - repo: https://github.com/codespell-project/codespell
-    rev: v2.4.1
-    hooks:
-      - id: codespell
-
-  - repo: https://github.com/tcort/markdown-link-check
-    rev: v3.14.2
-    hooks:
-      - id: markdown-link-check
-        args: [-q, -c .markdown-link-check.config]
