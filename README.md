@@ -71,7 +71,7 @@ Set the `PYTHONPATH` environment variable to include both the LLVM/MLIR Python b
 ```
 $ export BUDDY_MLIR_BUILD_DIR=$PWD
 $ export LLVM_MLIR_BUILD_DIR=$PWD/../llvm/build
-$ export PYTHONPATH=${LLVM_MLIR_BUILD_DIR}/tools/mlir/python_packages/mlir_core:${BUDDY_MLIR_BUILD_DIR}/python_packages:${PYTHONPATH}
+$ export PYTHONPATH=${BUDDY_MLIR_BUILD_DIR}/python_packages:${PYTHONPATH}
 ```
 
 If you want to test your model end-to-end conversion and inference, you can add the following configuration

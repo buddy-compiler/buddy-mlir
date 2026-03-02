@@ -20,8 +20,8 @@
 
 from typing import Dict, Tuple, List
 
-import mlir.ir as ir
-from mlir.dialects import (
+import buddy_mlir.ir as ir
+from buddy_mlir.dialects import (
     tosa,
     linalg,
     arith,
