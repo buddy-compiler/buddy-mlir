@@ -19,6 +19,7 @@ set(LinkedLibs
   LowerDIPPass
   LowerGemminiPass
   LowerLinalgToGemminiPass
+  LowerLinalgToIMEPass
   LowerIMEPass
   LowerRVVPass
   LowerVectorExpPass

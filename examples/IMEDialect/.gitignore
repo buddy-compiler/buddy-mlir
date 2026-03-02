@@ -10,3 +10,4 @@ vmadot-variants.mlir
 *.o
 *.s
 *_test
+test_instructions.sh

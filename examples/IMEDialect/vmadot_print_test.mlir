@@ -1,4 +1,5 @@
-// IME vmadot test: signed × signed matrix multiply-accumulate
+// RUN: buddy-opt %s | FileCheck %s
+// CHECK: func.func @main
 //
 // vmadot computes: C[i,j] += sum_k(signed(A[i,k]) * signed(B[j,k]))
 //
