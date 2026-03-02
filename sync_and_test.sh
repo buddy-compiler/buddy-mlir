@@ -101,7 +101,7 @@ if [ ! -d "$LLVM_MLIR_BUILD_DIR" ]; then
 fi
 
 # Set PYTHONPATH
-export PYTHONPATH="${LLVM_MLIR_BUILD_DIR}/tools/mlir/python_packages/mlir_core:${BUDDY_MLIR_BUILD_DIR}/python_packages:${PYTHONPATH}"
+export PYTHONPATH="${BUDDY_MLIR_BUILD_DIR}/python_packages:${PYTHONPATH}"
 
 print_success "Environment variables setup completed"
 print_info "BUDDY_MLIR_BUILD_DIR=$BUDDY_MLIR_BUILD_DIR"

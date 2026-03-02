@@ -1,0 +1,76 @@
+name: build-manylinux
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version tag (e.g., v0.1.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  wheel:
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.11", "3.12", "3.13"]
+        torch_version: ["2.8"]  # placeholder; not used in build, keeps matrix extensible
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Record LLVM submodule commit
+        id: llvm_rev
+        run: echo "sha=$(git -C llvm rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache LLVM build tree
+        id: cache-llvm-build
+        uses: actions/cache@v4
+        with:
+          path: llvm/build.docker
+          key: llvm-${{ runner.os }}-${{ matrix.python }}-${{ steps.llvm_rev.outputs.sha }}
+
+      - name: Build manylinux wheel in container
+        run: |
+          set -euo pipefail
+          PY_VER="${{ matrix.python }}"
+          PY_NODOT="${PY_VER//./}"
+          PY_TAG="cp${PY_NODOT}-cp${PY_NODOT}"
+          export TORCH_VERSION="${{ matrix.torch_version }}"
+          export LLVM_CACHE_HIT="${{ steps.cache-llvm-build.outputs.cache-hit }}"
+          ./scripts/release_wheel_manylinux.sh "${PY_TAG}"
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-py${{ matrix.python }}-torch${{ matrix.torch_version }}
+          path: build.docker/dist/*.whl
+
+  release:
+    needs: wheel
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download wheels
+        uses: actions/download-artifact@v4
+        with:
+          pattern: wheels-*
+          path: dist
+          merge-multiple: true
+
+      - name: Upload assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.version }}
+          overwrite_files: true
+          files: dist/*manylinux*.whl
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
