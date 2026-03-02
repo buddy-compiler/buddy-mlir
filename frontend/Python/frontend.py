@@ -872,9 +872,6 @@ class DynamoCompiler:
 
         def _compiler(_gm: torch.fx.GraphModule, _inputs: List[torch.Tensor]):
             """Compile a FX graph in Aten/Prims IR to MLIR."""
-            num_cached_kv = 0
-            if self._model_config.decode_with_cache:
-                num_cached_kv = self._model_config.num_hidden_layers * 2
             graph = Graph(
                 self._ops_registry,
                 self._func_name,
@@ -887,9 +884,8 @@ class DynamoCompiler:
             buffers_nodes = []
             input_nodes = []
             other_nodes = []
-            for i, node in enumerate(
-                list(_gm.graph.nodes)[num_cached_kv:], start=0
-            ):
+            all_nodes = list(_gm.graph.nodes)
+            for i, node in enumerate(all_nodes):
                 if i in params_pos:
                     param_nodes.append(node)
                 elif i in buffers_pos:
@@ -898,12 +894,11 @@ class DynamoCompiler:
                     input_nodes.append(node)
                 else:
                     other_nodes.append(node)
-            input_nodes.extend(list(_gm.graph.nodes)[:num_cached_kv])
             gm_nodes = [
                 (NodeType.FakeNode, param_nodes),
                 (NodeType.FakeNode, buffers_nodes),
                 (NodeType.InputNode, input_nodes),
-                (NodeType.OtherNode, other_nodes)
+                (NodeType.OtherNode, other_nodes),
             ]
 
             for node_type, gm_nodes_sublist in gm_nodes:
@@ -979,7 +974,9 @@ class DynamoCompiler:
                             gm_node.insert_arg(len(gm_node.args), value)
                             val = gm_node.meta.get("val")
                             node_shape = val.shape
-                            node_dtype = self._torch_dtype_translate(str(val.dtype))
+                            node_dtype = self._torch_dtype_translate(
+                                str(val.dtype)
+                            )
                             buddy_node = self._create_node(
                                 "_tensor_constant",
                                 gm_node.name,
@@ -1012,11 +1009,15 @@ class DynamoCompiler:
                         elif num_returns > 1:
                             node_dtype = tuple(
                                 [
-                                    self._torch_dtype_translate(str(val_item.dtype))
+                                    self._torch_dtype_translate(
+                                        str(val_item.dtype)
+                                    )
                                     for val_item in val
                                 ]
                             )
-                            node_shape = tuple([val_item.shape for val_item in val])
+                            node_shape = tuple(
+                                [val_item.shape for val_item in val]
+                            )
                         else:
                             raise RuntimeError("Zero returns is not supported.")
 

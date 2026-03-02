@@ -3359,22 +3359,17 @@ def _get_vectorizable_trailing_dims(input2, input3_shape, accumulate):
     if accumulate:
         return 0, 0
 
-    # Count trailing dimensions without index tensors
-    num_vectorizable_dims = 0
-    for d in range(len(input3_shape) - 1, -1, -1):
-        if d < len(input2) and input2[d] is not None:
-            break  # This dimension has an index tensor, stop
-        num_vectorizable_dims += 1
-
-    if num_vectorizable_dims == 0:
+    # Current vectorized lowering only supports vectorizing the last dimension.
+    # Multi-dimension vectorization would require flattening/collapsing memrefs
+    # before transfer_read/write.
+    last_dim = len(input3_shape) - 1
+    if last_dim < 0:
+        return 0, 0
+    if last_dim < len(input2) and input2[last_dim] is not None:
         return 0, 0
 
-    # Calculate vector length (product of vectorizable dimensions)
-    vector_length = 1
-    for d in range(
-        len(input3_shape) - num_vectorizable_dims, len(input3_shape)
-    ):
-        vector_length *= input3_shape[d]
+    num_vectorizable_dims = 1
+    vector_length = input3_shape[last_dim]
 
     # Only vectorize if beneficial (at least 4 elements)
     if vector_length < 4:
@@ -3518,14 +3513,14 @@ def _generate_vectorized_index_put(
     vector_type = ir.VectorType.get([vector_length], mlir_dtype)
 
     # Padding value for transfer_read
-    if str(mlir_dtype).startswith("f"):
+    if ir.FloatType.isinstance(mlir_dtype) or ir.BF16Type.isinstance(
+        mlir_dtype
+    ):
         padding = arith.ConstantOp(
             mlir_dtype, ir.FloatAttr.get(mlir_dtype, 0.0)
         )
     else:
-        padding = arith.ConstantOp(
-            mlir_dtype, ir.IntegerAttr.get(mlir_dtype, 0)
-        )
+        padding = arith.ConstantOp(mlir_dtype, 0)
 
     # AffineMap: map from rank-D memref to 1D vector (last num_vec_dims -> 1)
     # For a rank-4 memref with 1 vec dim: (d0, d1, d2, d3) -> (d3)
@@ -3562,11 +3557,14 @@ def _generate_vectorized_index_put(
                         # Vectorized dimension with index - this shouldn't happen
                         # as we don't vectorize dimensions with indices
                         dst_indices.append(lb)
-                elif d < len(idx_vars):
-                    dst_indices.append(idx_vars[d])
                 else:
-                    # This is a vectorized dimension, use 0 as starting index
-                    dst_indices.append(lb)
+                    # Vector path only runs on equal-rank source/destination.
+                    # Keep non-index dims aligned by original dimension position.
+                    if d < len(idx_vars):
+                        dst_indices.append(idx_vars[d])
+                    else:
+                        # Vectorized trailing dim starts at 0.
+                        dst_indices.append(lb)
 
             # Vector read from source
             vec_val = vector.TransferReadOp(
@@ -3665,12 +3663,27 @@ def index_put_op(
 
     input1_elem_type = input1.type.element_type
     input1_memref_type = ir.MemRefType.get(input1_shape, input1_elem_type)
-    input1_memref = bufferization.ToBufferOp(input1_memref_type, input1).result
+    input1_src_memref = bufferization.ToBufferOp(
+        input1_memref_type, input1
+    ).result
+    input1_memref = memref.AllocOp(input1_memref_type, [], []).result
+    memref.CopyOp(input1_src_memref, input1_memref)
 
     # Check if we can vectorize trailing dimensions
     num_vec_dims, vector_length = _get_vectorizable_trailing_dims(
         input2, input3_shape, accumulate
     )
+    non_index_dims = [
+        d
+        for d in range(len(output_shape))
+        if d >= len(input2) or input2[d] is None
+    ]
+    broadcast_rank = len(input3_shape) - len(non_index_dims)
+
+    # Vector path uses a single permutation_map for transfer_read/write.
+    # Keep it on equal-rank source/destination updates only.
+    if len(input1_shape) != len(input3_shape):
+        num_vec_dims = 0
 
     if num_vec_dims > 0:
         # Use vectorized path
@@ -3691,17 +3704,16 @@ def index_put_op(
             if input2_ is None:
                 input2_memref_list.append(None)
                 continue
-            # For vectorized path, index tensors should have shape of loop dims
-            # Broadcast to loop dimensions shape
-            loop_shape = input3_shape[:num_loop_dims]
             try:
                 index_tensor = _broadcast_index_tensor_for_vec(
-                    input2_, loop_shape
+                    input2_, input3_shape[:num_loop_dims]
                 )
                 index_elem_type = ir.RankedTensorType(
                     index_tensor.type
                 ).element_type
-                memref_type = ir.MemRefType.get(loop_shape, index_elem_type)
+                memref_type = ir.MemRefType.get(
+                    input3_shape[:num_loop_dims], index_elem_type
+                )
                 input2_memref_list.append(
                     bufferization.ToBufferOp(memref_type, index_tensor)
                 )
@@ -3745,7 +3757,6 @@ def index_put_op(
 
         if (
             len(value_shape) == 1
-            and len(target_shape) == len(output_shape)
             and dim < len(target_shape)
             and value_shape[0] == target_shape[dim]
         ):
@@ -3818,21 +3829,37 @@ def index_put_op(
 
         return value
 
-    # Convert index tensors to memrefs
+    index_iter_shape = input3_shape[:broadcast_rank]
+
+    # Convert index tensors to memrefs.
+    # Prefer full-shape broadcast (covers complex patterns like col2im), and
+    # fall back to broadcast-index-shape for pure advanced-index cases.
     input2_memref = []
+    input2_use_full_shape = []
     for i in range(len(input2)):
         if input2[i] is None:
             input2_memref.append(None)
+            input2_use_full_shape.append(False)
             continue
         input2_ = symbol_table.get((str(input2[i]), 0))
         if input2_ is None:
             return
-        index_tensor = _broadcast_index_tensor(input2_, input3_shape, dim=i)
+        use_full_shape = True
+        try:
+            index_tensor = _broadcast_index_tensor(input2_, input3_shape, dim=i)
+            memref_shape = input3_shape
+        except ValueError:
+            use_full_shape = False
+            index_tensor = _broadcast_index_tensor(
+                input2_, index_iter_shape, dim=i
+            )
+            memref_shape = index_iter_shape
         index_elem_type = ir.RankedTensorType(index_tensor.type).element_type
-        memref_type = ir.MemRefType.get(input3_shape, index_elem_type)
+        memref_type = ir.MemRefType.get(memref_shape, index_elem_type)
         input2_memref.append(
             bufferization.ToBufferOp(memref_type, index_tensor)
         )
+        input2_use_full_shape.append(use_full_shape)
 
     input3_memref_element_type = input3.type.element_type
     input3_memref_type = ir.MemRefType.get(
@@ -3858,20 +3885,28 @@ def index_put_op(
 
             # Build store indices: use index tensors where available, loop vars otherwise
             store_index = []
+            non_index_cursor = 0
             for d in range(len(output_shape)):
                 if d < len(input2) and input2[d] is not None:
                     # Use corresponding index tensor
                     # The index tensor should have shape matching input3_shape
+                    idx_access = (
+                        val_index
+                        if input2_use_full_shape[d]
+                        else val_index[:broadcast_rank]
+                    )
                     idx_dim_val = memref.LoadOp(
-                        input2_memref[d], val_index
+                        input2_memref[d], idx_access
                     ).result
                     idx_dim = arith.IndexCastOp(ir.IndexType.get(), idx_dim_val)
                     store_index.append(idx_dim)
-                elif d < len(idx_vars):
-                    store_index.append(idx_vars[d])
                 else:
-                    # Use constant 0 for missing dimensions
-                    store_index.append(lb)
+                    if len(input3_shape) == len(output_shape):
+                        store_index.append(idx_vars[d])
+                    else:
+                        source_pos = broadcast_rank + non_index_cursor
+                        store_index.append(idx_vars[source_pos])
+                        non_index_cursor += 1
 
             if accumulate:
                 # Load existing value and add

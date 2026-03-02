@@ -568,8 +568,7 @@ def addmm_op(
             matmul_result_type,
             (
                 ir.FloatAttr.get(result_element_type, 0.0)
-                if str(result_element_type) == "f32"
-                or str(result_element_type) == "f16"
+                if _is_float_type(result_element_type)
                 else ir.IntegerAttr.get(result_element_type, 0)
             ),
         )
@@ -4620,9 +4619,7 @@ def flash_attention_for_cpu_prefill_op(
                     sum_vec = vector.SplatOp(v16, sum, loc=loc).result
                     # Truncate sum to dtype_qkv for out_scores_memref
                     if need_cast:
-                        sum_qkv = arith.TruncFOp(
-                            dtype_qkv, sum, loc=loc
-                        ).result
+                        sum_qkv = arith.TruncFOp(dtype_qkv, sum, loc=loc).result
                     else:
                         sum_qkv = sum
                     memref.StoreOp(sum_qkv, out_scores_memref, [b, h, idx_q])
@@ -6583,9 +6580,14 @@ def alias_op(node: AliasOp, symbol_table):
     input_shape = list(ir.RankedTensorType(input1.type).shape)
     input_dtype = ir.RankedTensorType(input1.type).element_type
 
-    # Alias is essentially identity
+    output_shape = list(node.tensor_meta["shape"])
+    output_dtype = mlir_element_type_get(node.tensor_meta["dtype"])
+
+    if input_shape == output_shape and input_dtype == output_dtype:
+        return input1
+
     return tosa.IdentityOp(
-        ir.RankedTensorType.get(input_shape, input_dtype), input1
+        ir.RankedTensorType.get(output_shape, output_dtype), input1
     ).result
 
 
@@ -13761,9 +13763,7 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
     output_shape = list(node.tensor_meta["shape"])
 
     # All intermediate constants use compute_dtype (f32)
-    scale_val = (
-        1 / numpy.sqrt(query.type.shape[-1]) if scale is None else scale
-    )
+    scale_val = 1 / numpy.sqrt(query.type.shape[-1]) if scale is None else scale
     scale_val = arith.ConstantOp(compute_dtype, float(scale_val)).result
 
     neg_inf = arith.ConstantOp(compute_dtype, -1.0e30, loc=loc).result
@@ -13978,9 +13978,7 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
                             softmax_result, [b, h, q, k], loc=loc
                         ).result
 
-                        pv = vector.SplatOp(
-                            v16_compute, p, loc=loc
-                        ).result
+                        pv = vector.SplatOp(v16_compute, p, loc=loc).result
                         perm_map = ir.AffineMap.get(
                             4, 0, [ir.AffineDimExpr.get(3)]
                         )
