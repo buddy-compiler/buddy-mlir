@@ -118,7 +118,34 @@ $ ./bin/buddy-deepseek-r1-cli --interactive --no-stats
 - Use options like `--max-tokens` and `--eos-id` to constrain the generation length/termination. Add `--no-stats` when you want pure text output without the performance summary.
 - `--interactive` starts a REPL similar to `buddy-deepseek-r1-main.cpp`, handling one prompt and one response at a time. `--prompt` can act as a system prefix prepended to every user entry.
 
-6. Enjoy it!
+6. Python end-to-end inference by executing exported subgraphs
+
+This path reuses artifacts already generated under `build/examples/BuddyDeepSeekR1`, then uses Python to run prefill/decode MLIR subgraphs end to end.
+
+```bash
+# from buddy-mlir/examples/BuddyDeepSeekR1
+python3 run-subgraphs-python.py \
+  --prompt "Hello, who are you?" \
+  --artifact-dir path_to_buddyDeepSeekR1_build \
+  --llvm-build-dir path_to_llvm_build
+```
+
+Example:
+
+```bash
+# from buddy-mlir/examples/BuddyDeepSeekR1
+python3 run-subgraphs-python.py --prompt "hello" --artifact-dir ../../build/examples/BuddyDeepSeekR1 --llvm-build-dir ../../llvm/build --omp-num-threads 48 --omp-proc-bind close
+```
+
+Useful options:
+
+- `--artifact-dir`: directory containing `forward_prefill.mlir`, `forward_decode.mlir`, `arg0.data` (default: `build/examples/BuddyDeepSeekR1`).
+- `--llvm-build-dir`: LLVM build directory that provides `libmlir_runner_utils.so` and related runtime libs (default: `llvm/build`).
+- `--model-path`: HF model id or local model path for tokenizer.
+- `--max-new-tokens`: generated token upper bound.
+- `--omp-num-threads`, `--omp-proc-bind`, `--omp-places`, `--kmp-affinity`: optional OpenMP tuning knobs.
+
+7. Enjoy it!
 
 ## How to run on RISC-V machine
 
