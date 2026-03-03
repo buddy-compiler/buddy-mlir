@@ -643,14 +643,15 @@ def OPC_AME : RISCVOpcode<"OPC_AME", 0b0111111>;
 // AME Custom Operand Types for Tile Register Indices
 //===----------------------------------------------------------------------===//
 // These operand types allow intrinsics to pass immediate indices (0-7)
-// that will be printed as tile register names (tr0-tr7, acc0-acc7).
-// This provides a bridge between LLVM IR (uses immediate indices) and
-// assembly output (uses register names).
+// for tile and accumulator registers. The AsmString of pseudo instructions
+// hardcodes "acc" and "tr" prefixes so that indices 0-7 are printed as
+// acc0-acc7 and tr0-tr7 respectively, without modifying LLVM submodule.
 
 // AsmOperandClass for tile register index (0-7)
 def AMETileIndexAsmOperand : AsmOperandClass {
   let Name = "AMETileIndex";
   let RenderMethod = "addImmOperands";
+  let PredicateMethod = "isUImm3";
   let DiagnosticType = "InvalidAMETileIndex";
 }
 
@@ -658,21 +659,20 @@ def AMETileIndexAsmOperand : AsmOperandClass {
 def AMEAccIndexAsmOperand : AsmOperandClass {
   let Name = "AMEAccIndex";
   let RenderMethod = "addImmOperands";
+  let PredicateMethod = "isUImm3";
   let DiagnosticType = "InvalidAMEAccIndex";
 }
 
-// Operand type for TileReg index (prints as tr0-tr7)
+// Operand type for TileReg index (0-7), printed with "tr" prefix in AsmString
 def AMETileIndex : RISCVOp<i64> {
   let ParserMatchClass = AMETileIndexAsmOperand;
-  let PrintMethod = "printAMETileIndex";
   let DecoderMethod = "decodeUImmOperand<3>";
   let OperandType = "OPERAND_UIMM3";
 }
 
-// Operand type for AccReg index (prints as acc0-acc7)
+// Operand type for AccReg index (0-7), printed with "acc" prefix in AsmString
 def AMEAccIndex : RISCVOp<i64> {
   let ParserMatchClass = AMEAccIndexAsmOperand;
-  let PrintMethod = "printAMEAccIndex";
   let DecoderMethod = "decodeUImmOperand<3>";
   let OperandType = "OPERAND_UIMM3";
 }
@@ -1326,8 +1326,8 @@ let Predicates = [HasBuddyExt] in {
 // assembly output. This allows the pseudo instructions to be printed directly
 // without needing complex expansion logic.
 //
-// For load/store/mma instructions, the AMETileIndex and AMEAccIndex operand
-// types use custom PrintMethod to output tr0-tr7 and acc0-acc7 respectively.
+// For load/store/mma instructions, the AsmString hardcodes "acc" and "tr"
+// prefixes so that indices 0-7 are printed as acc0-acc7 and tr0-tr7.
 //===----------------------------------------------------------------------===//
 
 // Pseudo instruction for msettilemi with i64 immediate
@@ -1356,28 +1356,28 @@ def AME_MSETTILEKI_PSEUDO : Pseudo<(outs), (ins i64imm:$imm), []> {
 let Predicates = [HasBuddyExt], hasSideEffects = 1, mayLoad = 0, mayStore = 0,
     isCodeGenOnly = 1 in
 def AME_MZERO_PSEUDO : Pseudo<(outs), (ins AMEAccIndex:$md), []> {
-  let AsmString = "mzero.m\t$md";
+  let AsmString = "mzero.m\tacc$md";
 }
 
 // Pseudo instruction for mlae32.m with tile index
 let Predicates = [HasBuddyExt], hasSideEffects = 1, mayLoad = 1, mayStore = 0,
     isCodeGenOnly = 1 in
 def AME_MLAE32_M_PSEUDO : Pseudo<(outs), (ins AMETileIndex:$md, GPR:$rs1, GPR:$rs2), []> {
-  let AsmString = "mlae32.m\t$md, ($rs1), $rs2";
+  let AsmString = "mlae32.m\ttr$md, ($rs1), $rs2";
 }
 
 // Pseudo instruction for mlbe32.m with tile index
 let Predicates = [HasBuddyExt], hasSideEffects = 1, mayLoad = 1, mayStore = 0,
     isCodeGenOnly = 1 in
 def AME_MLBE32_M_PSEUDO : Pseudo<(outs), (ins AMETileIndex:$md, GPR:$rs1, GPR:$rs2), []> {
-  let AsmString = "mlbe32.m\t$md, ($rs1), $rs2";
+  let AsmString = "mlbe32.m\ttr$md, ($rs1), $rs2";
 }
 
 // Pseudo instruction for msce32.m with accumulator index
 let Predicates = [HasBuddyExt], hasSideEffects = 1, mayLoad = 0, mayStore = 1,
     isCodeGenOnly = 1 in
 def AME_MSCE32_M_PSEUDO : Pseudo<(outs), (ins AMEAccIndex:$ms3, GPR:$rs1, GPR:$rs2), []> {
-  let AsmString = "msce32.m\t$ms3, ($rs1), $rs2";
+  let AsmString = "msce32.m\tacc$ms3, ($rs1), $rs2";
 }
 
 // Pseudo instruction for mma.w.mm.tile with indices
@@ -1386,7 +1386,7 @@ let Predicates = [HasBuddyExt], hasSideEffects = 1, mayLoad = 1, mayStore = 1,
     isCodeGenOnly = 1 in
 def AME_MMA_W_MM_TILE_PSEUDO : Pseudo<(outs), 
     (ins AMEAccIndex:$md, AMETileIndex:$ms1, AMETileIndex:$ms2), []> {
-  let AsmString = "mma.w.mm\t$md, $ms1, $ms2";
+  let AsmString = "mma.w.mm\tacc$md, tr$ms1, tr$ms2";
 }
 
 //===----------------------------------------------------------------------===//
