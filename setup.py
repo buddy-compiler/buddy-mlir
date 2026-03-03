@@ -147,10 +147,7 @@ ENTRY_POINTS = {
 
 
 def _resolve_install_requires() -> list[str]:
-    """Pin torch version when TORCH_VERSION is provided."""
-    torch_ver = os.environ.get("TORCH_VERSION", "").strip()
-    if torch_ver:
-        return [f"torch=={torch_ver}"]
+    """No hard pin from build env."""
     return []
 
 
@@ -162,27 +159,12 @@ class build(_build):
 
 
 class bdist_wheel(_bdist_wheel):
-    """Mark the wheel as non-pure and optionally set a build tag."""
+    """Mark the wheel as non-pure."""
 
     def finalize_options(self):
         super().finalize_options()
         # Force platform-specific wheel since we bundle native libs.
         self.root_is_pure = False
-
-        torch_ver = os.environ.get("TORCH_VERSION", "unknown")
-        mlir_major = "unknown"
-
-        llvm_version_path = ROOT / "llvm" / "cmake" / "Modules" / "LLVMVersion.cmake"
-        if llvm_version_path.is_file():
-            for line in llvm_version_path.read_text(encoding="utf-8").splitlines():
-                line = line.strip()
-                if line.startswith("set(LLVM_VERSION_MAJOR"):
-                    parts = line.split()
-                    if len(parts) >= 2:
-                        mlir_major = parts[1].rstrip(")")
-                    break
-
-        self.build_number = f"1torch{torch_ver.replace('.', '')}_2mlir{mlir_major}"
 
 
 class BinaryDistribution(Distribution):

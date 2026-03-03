@@ -13,12 +13,12 @@ permissions:
 
 jobs:
   wheel:
-    runs-on: ubuntu-22.04
+    runs-on: ${{ matrix.target_arch == 'x86_64' && 'ubuntu-22.04' || 'self-host' }}
     strategy:
       fail-fast: false
       matrix:
+        target_arch: [x86_64, riscv64]
         python: ["3.10", "3.11", "3.12", "3.13"]
-        torch_version: ["2.8"]  # placeholder; not used in build, keeps matrix extensible
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -33,8 +33,8 @@ jobs:
         id: cache-llvm-build
         uses: actions/cache@v4
         with:
-          path: llvm/build.docker
-          key: llvm-${{ runner.os }}-${{ matrix.python }}-${{ steps.llvm_rev.outputs.sha }}
+          path: llvm/build-docker/${{ matrix.target_arch }}
+          key: llvm-${{ runner.os }}-${{ matrix.target_arch }}-${{ matrix.python }}-${{ steps.llvm_rev.outputs.sha }}
 
       - name: Build manylinux wheel in container
         run: |
@@ -42,28 +42,26 @@ jobs:
           PY_VER="${{ matrix.python }}"
           PY_NODOT="${PY_VER//./}"
           PY_TAG="cp${PY_NODOT}-cp${PY_NODOT}"
-          export TORCH_VERSION="${{ matrix.torch_version }}"
           export LLVM_CACHE_HIT="${{ steps.cache-llvm-build.outputs.cache-hit }}"
-          ./scripts/release_wheel_manylinux.sh "${PY_TAG}"
+          ./scripts/release_wheel_manylinux.sh "${PY_TAG}" "${{ matrix.target_arch }}"
 
-      - name: Upload wheels
+      - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-py${{ matrix.python }}-torch${{ matrix.torch_version }}
-          path: build.docker/dist/*.whl
+          name: wheels-${{ matrix.target_arch }}-py${{ matrix.python }}
+          path: |
+            build-docker/${{ matrix.target_arch }}/*/target/*manylinux*.whl
+            build-docker/${{ matrix.target_arch }}/*/target/*.tar.gz
 
   release:
     needs: wheel
     runs-on: ubuntu-22.04
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
       - name: Download wheels
         uses: actions/download-artifact@v4
         with:
           pattern: wheels-*
-          path: dist
+          path: dist/wheels
           merge-multiple: true
 
       - name: Upload assets
@@ -71,6 +69,8 @@ jobs:
         with:
           tag_name: ${{ inputs.version }}
           overwrite_files: true
-          files: dist/*manylinux*.whl
+          files: |
+            dist/wheels/*manylinux*.whl
+            dist/wheels/*.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,18 +1,57 @@
 #!/usr/bin/env bash
-# Build a manylinux_x86_64 wheel inside the official manylinux container.
+# Build a manylinux wheel inside the official manylinux container.
 # This script must be run on a host with Docker available.
 #
 # Usage:
-#   ./scripts/build_manylinux.sh [cp_tag]
+#   ./scripts/release_wheel_manylinux.sh [cp_tag] [target_arch]
 # cp_tag defaults to cp310-cp310. Other valid tags are the Python versions
-# present under /opt/python in the manylinux image (e.g., cp311-cp311).
+# present under /opt/python in the selected manylinux image.
+# target_arch defaults to x86_64 and supports: x86_64, riscv64.
 
 set -euo pipefail
 
-IMAGE="quay.io/pypa/manylinux_2_28_x86_64"
-
 PY_TAG="${1:-cp310-cp310}"
-TORCH_VERSION="${TORCH_VERSION:-2.8}"
+TARGET_ARCH="${2:-${TARGET_ARCH:-x86_64}}"
+
+HOST_ARCH_RAW="$(uname -m)"
+case "${HOST_ARCH_RAW}" in
+  x86_64|amd64)
+    HOST_ARCH="x86_64"
+    ;;
+  riscv64)
+    HOST_ARCH="riscv64"
+    ;;
+  *)
+    HOST_ARCH="${HOST_ARCH_RAW}"
+    ;;
+esac
+
+case "${TARGET_ARCH}" in
+  x86_64)
+    DEFAULT_MANYLINUX_IMAGE="quay.io/pypa/manylinux_2_28_x86_64"
+    DEFAULT_DOCKER_PLATFORM="linux/amd64"
+    DEFAULT_MANYLINUX_TAG="manylinux_2_28_x86_64"
+    ;;
+  riscv64)
+    DEFAULT_MANYLINUX_IMAGE="quay.io/pypa/manylinux_2_39_riscv64"
+    DEFAULT_DOCKER_PLATFORM="linux/riscv64"
+    DEFAULT_MANYLINUX_TAG="manylinux_2_39_riscv64"
+    ;;
+  *)
+    echo "Unsupported target arch: ${TARGET_ARCH}" >&2
+    echo "Supported: x86_64, riscv64" >&2
+    exit 1
+    ;;
+esac
+
+MANYLINUX_IMAGE="${MANYLINUX_IMAGE:-${DEFAULT_MANYLINUX_IMAGE}}"
+# Native same-arch host does not need --platform and some daemons reject it.
+if [ "${HOST_ARCH}" = "${TARGET_ARCH}" ] && [ -z "${DOCKER_PLATFORM+x}" ]; then
+  DOCKER_PLATFORM=""
+else
+  DOCKER_PLATFORM="${DOCKER_PLATFORM:-${DEFAULT_DOCKER_PLATFORM}}"
+fi
+MANYLINUX_TAG="${MANYLINUX_TAG:-${DEFAULT_MANYLINUX_TAG}}"
 # MLIR version is calculated in setup.py
 
 # Host dir
@@ -20,24 +59,34 @@ REPO_ROOT=$(cd "$(dirname "$0")/.." && pwd)
 # Docker dir (default mount)
 WORKSPACE=/workspace/buddy-mlir
 
-# Note: outputs are placed under build.docker/ to avoid clashing with host builds.
-BUDDY_BUILD_DIR="${WORKSPACE}/build.docker"
-LLVM_BUILD_DIR="${WORKSPACE}/llvm/build.docker"
+# Note: build trees are split by arch + python tag to avoid cross-version CMake cache pollution.
+PY_TAG_SAFE="${PY_TAG//-/_}"
+BUDDY_BUILD_ROOT="${WORKSPACE}/build-docker/${TARGET_ARCH}"
+LLVM_BUILD_ROOT="${WORKSPACE}/llvm/build-docker/${TARGET_ARCH}"
+BUDDY_BUILD_DIR="${BUDDY_BUILD_ROOT}/${PY_TAG_SAFE}"
+LLVM_BUILD_DIR="${LLVM_BUILD_ROOT}/${PY_TAG_SAFE}"
 
-docker run --rm -i \
+DOCKER_RUN_ARGS=(run --rm -i)
+if [ -n "${DOCKER_PLATFORM}" ]; then
+  DOCKER_RUN_ARGS+=(--platform "${DOCKER_PLATFORM}")
+fi
+
+docker "${DOCKER_RUN_ARGS[@]}" \
   -e WORKSPACE="${WORKSPACE}" \
+  -e BUDDY_BUILD_ROOT="${BUDDY_BUILD_ROOT}" \
+  -e LLVM_BUILD_ROOT="${LLVM_BUILD_ROOT}" \
   -e BUDDY_BUILD_DIR="${BUDDY_BUILD_DIR}" \
   -e LLVM_BUILD_DIR="${LLVM_BUILD_DIR}" \
   -e LLVM_CACHE_HIT="${LLVM_CACHE_HIT:-false}" \
   -e CLEAN_BUILD="${CLEAN_BUILD:-0}" \
   -e PY_TAG="${PY_TAG}" \
-  -e TORCH_VERSION="${TORCH_VERSION}" \
+  -e MANYLINUX_TAG="${MANYLINUX_TAG}" \
   -e HOST_UID="$(id -u)" \
   -e HOST_GID="$(id -g)" \
   -e HOME=/workspace \
   -v "${REPO_ROOT}:${WORKSPACE}" \
   -w "${WORKSPACE}" \
-  "${IMAGE}" \
+  "${MANYLINUX_IMAGE}" \
   /bin/bash -s <<'BASH'
     set -euo pipefail
     set -x
@@ -61,6 +110,9 @@ docker run --rm -i \
     export CC=gcc
     export CXX=g++
 
+    # Install image deps via dnf.
+    dnf install -y libpng-devel libjpeg-turbo-devel zlib-devel
+
     "$PYBIN" -m pip install --upgrade pip build auditwheel ninja cmake numpy pybind11==2.10.* nanobind==2.4.* PyYAML >/dev/null
 
     # Optional clean rebuild (set CLEAN_BUILD=1 to force)
@@ -68,7 +120,16 @@ docker run --rm -i \
       rm -rf "${LLVM_BUILD_DIR}" "${BUDDY_BUILD_DIR}"
     fi
 
+    LLVM_INSTALL_DIR="${LLVM_BUILD_DIR}/dist"
+    BUDDY_INSTALL_DIR="${BUDDY_BUILD_DIR}/dist"
+    ARTIFACT_DIR="${BUDDY_BUILD_DIR}/target"
+    mkdir -p "${ARTIFACT_DIR}"
+
     if [ "${LLVM_CACHE_HIT:-false}" = "true" ]; then
+      if [ ! -x "${LLVM_BUILD_DIR}/bin/mlir-opt" ]; then
+        echo "LLVM_CACHE_HIT=true but missing ${LLVM_BUILD_DIR}/bin/mlir-opt" >&2
+        exit 1
+      fi
       echo "LLVM build cache hit; skipping LLVM build."
     else
       # Build LLVM/MLIR first
@@ -79,8 +140,15 @@ docker run --rm -i \
         -DOPENMP_ENABLE_LIBOMPTARGET=OFF \
         -DCMAKE_BUILD_TYPE=RELEASE \
         -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
-        -DPython3_EXECUTABLE="$PYBIN"
+        -DPython3_EXECUTABLE="$PYBIN" \
+        -DCMAKE_INSTALL_PREFIX="${LLVM_INSTALL_DIR}"
       ninja -C "${LLVM_BUILD_DIR}" check-clang check-mlir omp || true
+    fi
+    cmake --build "${LLVM_BUILD_DIR}" --target install -j
+    OPENMP_LIB_DIR="$(find "${LLVM_INSTALL_DIR}/lib" -maxdepth 1 -type d -name '*-linux-gnu' | head -n 1 || true)"
+    if [ -n "${OPENMP_LIB_DIR}" ]; then
+      cp -f "${OPENMP_LIB_DIR}/libomp.so" "${LLVM_INSTALL_DIR}/lib/" || true
+      cp -f "${OPENMP_LIB_DIR}/libomp.a" "${LLVM_INSTALL_DIR}/lib/" || true
     fi
     ${LLVM_BUILD_DIR}/bin/mlir-opt --version
 
@@ -92,17 +160,39 @@ docker run --rm -i \
       -DCMAKE_BUILD_TYPE=Release \
       -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
       -DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON \
-      -DPython3_EXECUTABLE="$PYBIN"
+      -DBUDDY_MLIR_ENABLE_DIP_LIB=ON \
+      -DPython3_EXECUTABLE="$PYBIN" \
+      -DCMAKE_INSTALL_PREFIX="${BUDDY_INSTALL_DIR}"
     ninja -C "${BUDDY_BUILD_DIR}"
     ninja -C "${BUDDY_BUILD_DIR}" python-package-buddy python-package-buddy-mlir || true
+    cmake --build "${BUDDY_BUILD_DIR}" --target install -j
     ${BUDDY_BUILD_DIR}/bin/buddy-opt --version
 
-    # Optional build tag (must start with a digit). Example: 1pytorch2_2mlir19
-    "$PYBIN" -m build --wheel --outdir "${BUDDY_BUILD_DIR}/dist"
-    auditwheel repair "${BUDDY_BUILD_DIR}/dist"/buddy-*.whl -w "${BUDDY_BUILD_DIR}/dist"
+    # Optional build tag (must start with a digit). Example: 1mlir22
+    "$PYBIN" -m build --wheel --outdir "${ARTIFACT_DIR}"
+    auditwheel repair "${ARTIFACT_DIR}"/buddy-*.whl -w "${ARTIFACT_DIR}"
+
+    LLVM_VERSION_FILE="$(find "${LLVM_INSTALL_DIR}" -path '*/cmake/llvm/LLVMConfigVersion.cmake' | head -n 1)"
+    BUDDY_VERSION_FILE="$(find "${BUDDY_INSTALL_DIR}" -path '*/cmake/BuddyMLIR/BuddyMLIRConfigVersion.cmake' | head -n 1)"
+    LLVM_PACKAGE_VERSION="$(sed -nE 's/^[[:space:]]*set\(PACKAGE_VERSION[[:space:]]+"([^"]+)".*/\1/p' "${LLVM_VERSION_FILE}" | head -n 1)"
+    BUDDY_PACKAGE_VERSION="$(sed -nE 's/^[[:space:]]*set\(PACKAGE_VERSION[[:space:]]+"([^"]+)".*/\1/p' "${BUDDY_VERSION_FILE}" | head -n 1)"
+    LLVM_PACKAGE_VERSION="${LLVM_PACKAGE_VERSION:-unknown}"
+    BUDDY_PACKAGE_VERSION="${BUDDY_PACKAGE_VERSION:-unknown}"
+    ARTIFACT_SUFFIX="${PY_TAG}-${MANYLINUX_TAG}"
+    LLVM_TAR_NAME="llvm-${LLVM_PACKAGE_VERSION}-${ARTIFACT_SUFFIX}.tar.gz"
+    BUDDY_TAR_NAME="buddy-${BUDDY_PACKAGE_VERSION}-${ARTIFACT_SUFFIX}.tar.gz"
+    LLVM_TAR_TMP="${BUDDY_BUILD_DIR}/${LLVM_TAR_NAME}"
+    BUDDY_TAR_TMP="${BUDDY_BUILD_DIR}/${BUDDY_TAR_NAME}"
+    tar -C "${LLVM_INSTALL_DIR}" -czf "${LLVM_TAR_TMP}" .
+    tar -C "${BUDDY_INSTALL_DIR}" -czf "${BUDDY_TAR_TMP}" .
+    mv -f "${LLVM_TAR_TMP}" "${ARTIFACT_DIR}/${LLVM_TAR_NAME}"
+    mv -f "${BUDDY_TAR_TMP}" "${ARTIFACT_DIR}/${BUDDY_TAR_NAME}"
 
     # Fix ownership for host user
-    chown -R "$HOST_UID":"$HOST_GID" "${BUDDY_BUILD_DIR}" "${LLVM_BUILD_DIR}" || true
+    chown -R "$HOST_UID":"$HOST_GID" "${BUDDY_BUILD_ROOT}" "${LLVM_BUILD_ROOT}" || true
 BASH
 
-echo "Wheels are in ${REPO_ROOT}/build.docker/dist"
+echo "Artifacts are in ${REPO_ROOT}/build-docker/${TARGET_ARCH}/${PY_TAG_SAFE}/target"
+echo "Python build dirs:"
+echo "  ${REPO_ROOT}/build-docker/${TARGET_ARCH}/${PY_TAG_SAFE}"
+echo "  ${REPO_ROOT}/llvm/build-docker/${TARGET_ARCH}/${PY_TAG_SAFE}"
