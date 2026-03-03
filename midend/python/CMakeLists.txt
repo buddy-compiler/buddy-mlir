@@ -130,3 +130,5 @@ add_mlir_python_modules(BuddyMLIRPythonModules
     BuddyMLIRPythonCAPI
     MLIRPythonCAPI
   )
+
+add_custom_target(python-package-buddy-mlir DEPENDS BuddyMLIRPythonModules)

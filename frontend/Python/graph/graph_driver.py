@@ -20,7 +20,7 @@
 #
 # ===---------------------------------------------------------------------------
 
-from mlir import ir
+from buddy_mlir import ir
 from collections import deque, defaultdict
 
 from .graph import Graph, GraphImporter, TensorMeta, NodeType
@@ -154,7 +154,7 @@ class GraphDriver:
             for output in subgraphs_outputs[subgraph_name]:
                 output_node.add_argument(output)
                 output_node.add_parent(output)
-            
+
             subgraph.add_node(node=output_node, node_type=NodeType.OtherNode)
 
             for op in subgraph._body:
@@ -217,7 +217,7 @@ class GraphDriver:
             verbose=self._graph._verbose,
         )
 
-        # Adding placeholder operations from the original graph        
+        # Adding placeholder operations from the original graph
         for op in self._graph.params:
             main_graph.add_node(op, node_type=NodeType.FakeNode)
         for op in self._graph.inputs:

@@ -18,7 +18,7 @@
 #
 # ===---------------------------------------------------------------------------
 
-from mlir.dialects import math
+from buddy_mlir.dialects import math
 
 
 def erf_op(node, symbol_table):
@@ -199,8 +199,8 @@ def round_op(node, symbol_table):
     Note: MLIR's math.round semantics may differ for half values, so implement
     PyTorch behavior while keeping a math.round op for IR checks.
     """
-    import mlir.ir as ir
-    import mlir.dialects.arith as arith
+    import buddy_mlir.ir as ir
+    import buddy_mlir.dialects.arith as arith
 
     input_tensor = symbol_table.get((str(node.args[0]), 0))
     input_type = ir.RankedTensorType(input_tensor.type)
@@ -268,7 +268,7 @@ def trunc_op(node, symbol_table):
 
 def abs_op(node, symbol_table):
     """abs(x) using math.AbsFOp for float, math.AbsIOp for int"""
-    import mlir.ir as ir
+    import buddy_mlir.ir as ir
 
     input_tensor = symbol_table.get((str(node.args[0]), 0))
     element_type = ir.RankedTensorType(input_tensor.type).element_type
@@ -281,8 +281,8 @@ def abs_op(node, symbol_table):
 
 def powf_op(node, symbol_table):
     """pow(x, y) for float tensors using math.PowFOp"""
-    import mlir.ir as ir
-    from mlir.dialects import arith, tensor
+    import buddy_mlir.ir as ir
+    from buddy_mlir.dialects import arith, tensor
 
     input1 = symbol_table.get((str(node.args[0]), 0))
     input2 = symbol_table.get((str(node.args[1]), 0))

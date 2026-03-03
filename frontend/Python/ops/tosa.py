@@ -23,9 +23,9 @@ from typing import Dict, List, Sequence, Tuple, Union
 import numpy
 import sys
 
-import mlir.ir as ir
-from mlir.ir import IndexType, F32Type
-from mlir.dialects import (
+import buddy_mlir.ir as ir
+from buddy_mlir.ir import IndexType, F32Type
+from buddy_mlir.dialects import (
     tensor,
     tosa,
     arith,
