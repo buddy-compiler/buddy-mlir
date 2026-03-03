@@ -89,6 +89,11 @@ class build_py(_build_py):
         self._extra_outputs = []
         super().run()
 
+        self._copy_tree(
+            STAGING_SRC / "buddy_mlir" / "_mlir_libs",
+            Path(self.build_lib) / "buddy_mlir" / "_mlir_libs",
+        )
+
         tools_root = Path(self.build_lib) / "buddy_tools"
         self._copy_tree(BIN_DIR, tools_root / "bin", allow_missing=True)
         self._copy_tree(LIB_DIR, tools_root / "lib", allow_missing=True)
