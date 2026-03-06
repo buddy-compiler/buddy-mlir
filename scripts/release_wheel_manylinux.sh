@@ -125,14 +125,7 @@ docker "${DOCKER_RUN_ARGS[@]}" \
     ARTIFACT_DIR="${BUDDY_BUILD_DIR}/target"
     mkdir -p "${ARTIFACT_DIR}"
 
-    if [ "${LLVM_CACHE_HIT:-false}" = "true" ]; then
-      if [ ! -x "${LLVM_BUILD_DIR}/bin/mlir-opt" ]; then
-        echo "LLVM_CACHE_HIT=true but missing ${LLVM_BUILD_DIR}/bin/mlir-opt" >&2
-        exit 1
-      fi
-      echo "LLVM build cache hit; skipping LLVM build."
-    else
-      # Build LLVM/MLIR first
+    if [ "${LLVM_CACHE_HIT:-false}" != "true" ]; then
       cmake -G Ninja -S "${WORKSPACE}/llvm/llvm" -B "${LLVM_BUILD_DIR}" \
         -DLLVM_ENABLE_PROJECTS="mlir;clang;openmp" \
         -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
@@ -142,16 +135,10 @@ docker "${DOCKER_RUN_ARGS[@]}" \
         -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
         -DPython3_EXECUTABLE="$PYBIN" \
         -DCMAKE_INSTALL_PREFIX="${LLVM_INSTALL_DIR}"
+      # Build LLVM/MLIR/OpenMP without running checks.
       ninja -C "${LLVM_BUILD_DIR}" check-clang check-mlir omp || true
+      cmake --build "${LLVM_BUILD_DIR}" --target install -j
     fi
-    cmake --build "${LLVM_BUILD_DIR}" --target install -j
-    OPENMP_LIB_DIR="$(find "${LLVM_INSTALL_DIR}/lib" -maxdepth 1 -type d -name '*-linux-gnu' | head -n 1 || true)"
-    if [ -n "${OPENMP_LIB_DIR}" ]; then
-      cp -f "${OPENMP_LIB_DIR}/libomp.so" "${LLVM_INSTALL_DIR}/lib/" || true
-      cp -f "${OPENMP_LIB_DIR}/libomp.a" "${LLVM_INSTALL_DIR}/lib/" || true
-    fi
-    ${LLVM_BUILD_DIR}/bin/mlir-opt --version
-
     # Build buddy-mlir with Python packages enabled
     cmake -G Ninja -S "${WORKSPACE}" -B "${BUDDY_BUILD_DIR}" \
       -DLLVM_DIR="${LLVM_BUILD_DIR}/lib/cmake/llvm" \
@@ -166,11 +153,15 @@ docker "${DOCKER_RUN_ARGS[@]}" \
     ninja -C "${BUDDY_BUILD_DIR}"
     ninja -C "${BUDDY_BUILD_DIR}" python-package-buddy python-package-buddy-mlir || true
     cmake --build "${BUDDY_BUILD_DIR}" --target install -j
+
+    cp -a "${LLVM_BUILD_DIR}/lib"/libmlir*.so* "${BUDDY_INSTALL_DIR}/lib/"
+    cp -a "${LLVM_BUILD_DIR}/lib/libomp.so"* "${BUDDY_INSTALL_DIR}/lib/"
+
     ${BUDDY_BUILD_DIR}/bin/buddy-opt --version
 
     # Optional build tag (must start with a digit). Example: 1mlir22
     "$PYBIN" -m build --wheel --outdir "${ARTIFACT_DIR}"
-    auditwheel repair "${ARTIFACT_DIR}"/buddy-*.whl -w "${ARTIFACT_DIR}"
+    auditwheel repair "${ARTIFACT_DIR}"/buddy-*-linux_*.whl -w "${ARTIFACT_DIR}"
 
     LLVM_VERSION_FILE="$(find "${LLVM_INSTALL_DIR}" -path '*/cmake/llvm/LLVMConfigVersion.cmake' | head -n 1)"
     BUDDY_VERSION_FILE="$(find "${BUDDY_INSTALL_DIR}" -path '*/cmake/BuddyMLIR/BuddyMLIRConfigVersion.cmake' | head -n 1)"
