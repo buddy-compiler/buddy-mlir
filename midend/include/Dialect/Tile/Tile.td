@@ -102,8 +102,22 @@ def TileTransposeOp : Tile_Op<"tile_transpose"> {
   }];
   let arguments = (ins MemRefRankOf<[AnyType], [2]>:$aMemArray,
                        MemRefRankOf<[AnyType], [2]>:$bMemArray);
-  let assemblyFormat = [{$aMemArray $bMemArray attr-dict `:` 
+  let assemblyFormat = [{$aMemArray $bMemArray attr-dict `:`
     type($aMemArray) type($bMemArray)}];
+}
+
+def TileConv2dOp : Tile_Op<"tile_conv2d"> {
+  let summary = "Tiled 2D convolution (NHWC layout)";
+  let description = [{
+    Perform 2D convolution with automatic tiling.
+    Input: [N, H, W, C], Filter: [KH, KW, C, OC], Output: [N, OH, OW, OC].
+    Lowered to Im2col + MatMul sequences on Buckyball hardware.
+  }];
+  let arguments = (ins MemRefRankOf<[AnyType], [4]>:$input,
+                       MemRefRankOf<[AnyType], [4]>:$filter,
+                       MemRefRankOf<[AnyType], [4]>:$output);
+  let assemblyFormat = [{$input $filter $output attr-dict `:`
+    type($input) type($filter) type($output)}];
 }
 
 #endif // TILE_OPS

@@ -362,36 +362,19 @@ public:
   LowerBuckyballToLLVMPass(const LowerBuckyballToLLVMPass &) {}
 
 
-  Option<int64_t> dim{*this, "dim", 
-                      llvm::cl::desc("Size of Scratchpad line."),
-                      llvm::cl::init(16)};
-  Option<int64_t> memAddrLen{*this, "mem_addr_len",
-                          llvm::cl::desc("The length of memory address."),
-                          llvm::cl::init(32)};
-  Option<int64_t> spAddrLen{*this, "sp_addr_len",
-                          llvm::cl::desc("The length of sp address."),
-                          llvm::cl::init(14)};
-  Option<int64_t> spadRows{*this, "spad_rows",
-                           llvm::cl::desc("The row of spad."),
-                           llvm::cl::init(1024)};
-  Option<int64_t> accRows{*this, "acc_rows", llvm::cl::desc("The row of acc."),
-                          llvm::cl::init(1024)};
-  Option<int64_t> bankRows{*this, "bank_rows",
-                           llvm::cl::desc("The row of the bank."),
-                           llvm::cl::init(4096)};
-  Option<std::string> elemType{*this, "elem_t",
-                               llvm::cl::desc("The type of elem_t."),
-                               llvm::cl::init("i8")};
-  Option<std::string> accType{*this, "acc_t",
-                              llvm::cl::desc("The type of acc_t."),
-                              llvm::cl::init("i32")};
-  Option<int64_t> warp{*this, "warp", 
-                       llvm::cl::desc("Size of warp."),
+  Option<int64_t> lane{*this, "lane",
+                       llvm::cl::desc("Hardware lane width."),
                        llvm::cl::init(16)};
-  Option<int64_t> lane{*this, "lane", 
-                       llvm::cl::desc("Size of lane."),
+  Option<int64_t> warp{*this, "warp",
+                       llvm::cl::desc("Hardware warp depth."),
                        llvm::cl::init(16)};
-  Option<int32_t> hartId{*this, "hartId", 
+  Option<int64_t> bankDepth{*this, "bank_depth",
+                            llvm::cl::desc("Depth of each bank."),
+                            llvm::cl::init(4096)};
+  Option<int64_t> bankNum{*this, "bank_num",
+                          llvm::cl::desc("Number of banks."),
+                          llvm::cl::init(8)};
+  Option<int32_t> hartId{*this, "hartId",
                        llvm::cl::desc("The hart id."),
                        llvm::cl::init(0)};
 
@@ -412,22 +395,12 @@ public:
 void LowerBuckyballToLLVMPass::runOnOperation() {
   MLIRContext *context = &getContext();
   ModuleOp module = getOperation();
-  // The default elem_t is int8_t,
-  // so the default size of elem_t is 1 type.
-  size_t sizeOfElemT = sizeof(int8_t);
-  if (elemType == "f32")
-    sizeOfElemT = sizeof(float);
-  // The default acc_t is int32_t,
-  // so the default size of acc_t is 4 type.
-  size_t sizeOfAccT = sizeof(int32_t);
-  if (accType == "f32")
-    sizeOfAccT = sizeof(float);
   LLVMTypeConverter converter(context);
   RewritePatternSet patterns(context);
   LLVMConversionTarget target(*context);
   configureBuckyballLegalizeForExportTarget(target);
-  populateBuckyballLegalizeForLLVMExportPatterns(converter, patterns, dim, memAddrLen, 
-    spAddrLen, accRows, spadRows, sizeOfElemT, sizeOfAccT, warp, lane, hartId);
+  populateBuckyballLegalizeForLLVMExportPatterns(converter, patterns,
+      lane, warp, bankDepth, bankNum);
   populateAffineToStdConversionPatterns(patterns);
   populateSCFToControlFlowConversionPatterns(patterns);
   mlir::arith::populateArithToLLVMConversionPatterns(converter, patterns);

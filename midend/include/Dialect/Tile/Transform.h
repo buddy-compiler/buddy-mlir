@@ -27,8 +27,8 @@ void populateLowerLinalgToTileConversionPatterns(RewritePatternSet &patterns);
 
 // Populate patterns for lowering Tile dialect to Buckyball dialect
 void populateLowerTileToBuckyballConversionPatterns(
-    RewritePatternSet &patterns, int64_t dim, int64_t spadRows, 
-    int64_t accRows, int64_t warp, int64_t lane);
+    RewritePatternSet &patterns, int64_t lane, int64_t warp,
+    int64_t bankDepth, int64_t bankNum);
 
 } // namespace mlir
 

@@ -130,10 +130,38 @@ def TransposeOp : Buckyball_Op<"bb_transpose"> {
 def Im2colOp : Buckyball_Op<"bb_im2col"> {
   let summary = "Im2col operation";
   let description = [{
-    Perform im2col operation on vector.
+    Perform im2col data rearrangement for convolution.
+    Extracts patches from input and rearranges them into columns.
   }];
-  let arguments = (ins);
-  let assemblyFormat = "attr-dict";
+  let arguments = (ins MemRefRankOf<[AnyType], [2]>:$input,
+                       MemRefRankOf<[AnyType], [2]>:$output,
+                       I64:$kRow, I64:$kCol,
+                       I64:$inRow, I64:$inCol,
+                       I64:$startRow, I64:$startCol);
+  let assemblyFormat = [{$input $output $kRow $kCol $inRow $inCol $startRow $startCol
+    attr-dict `:` type($input) type($output)}];
+}
+
+def QuantOp : Buckyball_Op<"bb_quant"> {
+  let summary = "Quantize FP32 to INT8";
+  let description = [{
+    Quantize floating-point data to int8 using the given scale factor.
+  }];
+  let arguments = (ins MemRefRankOf<[AnyType], [2]>:$input,
+                       MemRefRankOf<[AnyType], [2]>:$output,
+                       F32:$scale);
+  let assemblyFormat = [{$input $output $scale attr-dict `:` type($input) type($output) type($scale)}];
+}
+
+def DequantOp : Buckyball_Op<"bb_dequant"> {
+  let summary = "Dequantize INT8 to FP32";
+  let description = [{
+    Dequantize int8 data to floating-point using the given scale factor.
+  }];
+  let arguments = (ins MemRefRankOf<[AnyType], [2]>:$input,
+                       MemRefRankOf<[AnyType], [2]>:$output,
+                       F32:$scale);
+  let assemblyFormat = [{$input $output $scale attr-dict `:` type($input) type($output) type($scale)}];
 }
 
 //===----------------------------------------------------------------------===//
@@ -205,6 +233,15 @@ def Buckyball_Im2col_IntrOp : Buckyball_IntrOpBase<"bb_im2col">,
   Arguments<(ins LLVM_Type, LLVM_Type)>;
 
 def Buckyball_Transpose_IntrOp : Buckyball_IntrOpBase<"bb_transpose">,
+  Arguments<(ins LLVM_Type, LLVM_Type)>;
+
+def Buckyball_Relu_IntrOp : Buckyball_IntrOpBase<"bb_relu">,
+  Arguments<(ins LLVM_Type, LLVM_Type)>;
+
+def Buckyball_Quant_IntrOp : Buckyball_IntrOpBase<"bb_quant">,
+  Arguments<(ins LLVM_Type, LLVM_Type)>;
+
+def Buckyball_Dequant_IntrOp : Buckyball_IntrOpBase<"bb_dequant">,
   Arguments<(ins LLVM_Type, LLVM_Type)>;
 
 #endif // BUCKYBALL_OPS

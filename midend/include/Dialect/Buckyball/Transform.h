@@ -17,11 +17,7 @@
 #ifndef BUCKYBALL_TRANSLATE_H
 #define BUCKYBALL_TRANSLATE_H
 
-typedef uint32_t acc_scale_t_bits;
-typedef float acc_scale_t;
-typedef uint32_t scale_t_bits;
-typedef float scale_t;
-typedef int32_t scale_acc_t;
+#include <cstdint>
 
 namespace mlir {
 
@@ -30,11 +26,9 @@ class LLVMTypeConverter;
 class RewritePatternSet;
 using OwningRewritePatternList = RewritePatternSet;
 
-// defined in midend/lib/Dialect/Buckyball/Transforms/LegalizeForLLVMExport.cpp
 void populateBuckyballLegalizeForLLVMExportPatterns(
-    LLVMTypeConverter &converter, RewritePatternSet &patterns, int64_t dim,
-    int64_t memAddrLen, int64_t spAddrLen, int64_t accRows, int64_t bankRows, size_t sizeOfElemT,
-    size_t sizeOfAccT, int64_t warp, int64_t lane, int64_t hartId);
+    LLVMTypeConverter &converter, RewritePatternSet &patterns,
+    int64_t lane, int64_t warp, int64_t bankDepth, int64_t bankNum);
 void configureBuckyballLegalizeForExportTarget(LLVMConversionTarget &target);
 
 } // namespace mlir

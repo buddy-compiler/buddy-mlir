@@ -429,5 +429,14 @@ def int_riscv_bb_mul_warp16 : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
 let TargetPrefix = "riscv" in 
 def int_riscv_bb_im2col : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
 
-let TargetPrefix = "riscv" in 
+let TargetPrefix = "riscv" in
 def int_riscv_bb_transpose : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
+
+let TargetPrefix = "riscv" in
+def int_riscv_bb_relu : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
+
+let TargetPrefix = "riscv" in
+def int_riscv_bb_quant : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
+
+let TargetPrefix = "riscv" in
+def int_riscv_bb_dequant : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;

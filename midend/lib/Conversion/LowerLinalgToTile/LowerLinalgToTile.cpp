@@ -140,16 +140,39 @@ public:
 class TransposeOpLowering : public OpRewritePattern<linalg::TransposeOp> {
 public:
   explicit TransposeOpLowering(MLIRContext *context) : OpRewritePattern<linalg::TransposeOp>(context) {}
-  
+
   LogicalResult matchAndRewrite(linalg::TransposeOp transposeOp,
                                 PatternRewriter &rewriter) const override {
 
     Value input = transposeOp.getInput();
     Value output = transposeOp.getInit();
     Location loc = transposeOp.getLoc();
-    
+
     rewriter.replaceOpWithNewOp<tile::TileTransposeOp>(
         transposeOp, input, output);
+    return success();
+  }
+};
+
+class Conv2dNhwcHwcfLowering
+    : public OpRewritePattern<linalg::Conv2DNhwcHwcfOp> {
+public:
+  using OpRewritePattern<linalg::Conv2DNhwcHwcfOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(linalg::Conv2DNhwcHwcfOp convOp,
+                                PatternRewriter &rewriter) const override {
+    auto inputs = convOp.getInputs();
+    auto outputs = convOp.getOutputs();
+    if (inputs.size() != 2 || outputs.size() != 1)
+      return failure();
+    Value input = inputs[0];
+    Value filter = inputs[1];
+    Value output = outputs[0];
+    if (!isa<MemRefType>(input.getType()) ||
+        !isa<MemRefType>(filter.getType()) ||
+        !isa<MemRefType>(output.getType()))
+      return failure();
+    rewriter.replaceOpWithNewOp<tile::TileConv2dOp>(convOp, input, filter,
+                                                    output);
     return success();
   }
 };
@@ -160,6 +183,7 @@ void populateLowerLinalgToTileConversionPatterns(RewritePatternSet &patterns) {
   patterns.add<MatmulLowering>(patterns.getContext());
   patterns.add<BatchMatMulOpLowering>(patterns.getContext());
   patterns.add<TransposeOpLowering>(patterns.getContext());
+  patterns.add<Conv2dNhwcHwcfLowering>(patterns.getContext());
 }
 
 //===----------------------------------------------------------------------===//
