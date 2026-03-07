@@ -12,7 +12,7 @@
 let
   self = stdenv.mkDerivation {
     pname = "buddy-mlir";
-    version = "unstable-2024-07-18";
+    version = "unstable-2026-02-12";
 
     src = with lib.fileset; toSource {
       root = ./..;
@@ -22,6 +22,7 @@ let
         ./../examples
         ./../frontend
         ./../midend
+        ./../scripts
         ./../tests
         ./../tools
         ./../thirdparty
@@ -44,9 +45,11 @@ let
     cmakeFlags = [
       "-DMLIR_DIR=${buddy-llvm.dev}/lib/cmake/mlir"
       "-DLLVM_DIR=${buddy-llvm.dev}/lib/cmake/llvm"
-      "-DLLVM_MAIN_SRC_DIR=${buddy-llvm.src}/llvm"
-      "-DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON"
+      "-DLLVM_ENABLE_ASSERTIONS=ON"
       "-DCMAKE_BUILD_TYPE=Release"
+      "-DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON"
+      "-DLLVM_MAIN_SRC_DIR=${buddy-llvm.src}/llvm"
+      "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
     ];
 
     passthru = {

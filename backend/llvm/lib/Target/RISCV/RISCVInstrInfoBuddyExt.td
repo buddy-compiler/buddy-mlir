@@ -1490,3 +1490,82 @@ let Predicates = [HasBuddyExt] in {
 // Utility:
 //   - mzero.m: Zero out AccReg
 //===----------------------------------------------------------------------===//
+
+//===----------------------------------------------------------------------===//
+// 
+// Buckyball intrinsics
+//
+//===----------------------------------------------------------------------===//
+
+let hasSideEffects = 1, mayLoad = 1, mayStore = 1, Predicates = [HasBuddyExt] in 
+def BB_MVIN : RVInstR<0b0011000, 0b011, OPC_CUSTOM_3, (outs),
+                    (ins GPR:$rs1, GPR:$rs2), "bb_mvin", "$rs1, $rs2"> {
+  let rd = 0;
+}
+
+let hasSideEffects = 1, mayLoad = 1, mayStore = 1, Predicates = [HasBuddyExt] in 
+def BB_MVOUT : RVInstR<0b0011001, 0b011, OPC_CUSTOM_3, (outs),
+                    (ins GPR:$rs1, GPR:$rs2), "bb_mvout", "$rs1, $rs2"> {
+  let rd = 0;
+}
+
+let Predicates = [HasBuddyExt] in 
+def BB_BBFP_MUL : RVInstR<0b0011010, 0b011, OPC_CUSTOM_3, (outs),
+                    (ins GPR:$rs1, GPR:$rs2), "bb_bbfp_mul", "$rs1, $rs2"> {
+  let rd = 0;
+}
+
+let Predicates = [HasBuddyExt] in 
+def BB_MATMUL_WS : RVInstR<0b0011011, 0b011, OPC_CUSTOM_3, (outs),
+                    (ins GPR:$rs1, GPR:$rs2), "bb_matmul_ws", "$rs1, $rs2"> {
+  let rd = 0;
+}
+
+
+let Predicates = [HasBuddyExt] in 
+def BB_FENCE : RVInstR<0b0011111, 0b011, OPC_CUSTOM_3, (outs),
+                    (ins GPR:$rs1, GPR:$rs2), "bb_fence", "$rs1, $rs2"> {
+  let rd = 0;
+}
+
+let Predicates = [HasBuddyExt] in 
+def BB_MUL_WARP16 : RVInstR<0b0100000, 0b011, OPC_CUSTOM_3, (outs),
+                    (ins GPR:$rs1, GPR:$rs2), "bb_mul_warp16", "$rs1, $rs2"> {
+  let rd = 0;
+}
+
+let Predicates = [HasBuddyExt] in 
+def BB_IM2COL : RVInstR<0b0100001, 0b011, OPC_CUSTOM_3, (outs),
+                    (ins GPR:$rs1, GPR:$rs2), "bb_im2col", "$rs1, $rs2"> {
+  let rd = 0;
+}
+
+let Predicates = [HasBuddyExt] in 
+def BB_TRANSPOSE : RVInstR<0b0100010, 0b011, OPC_CUSTOM_3, (outs),
+                    (ins GPR:$rs1, GPR:$rs2), "bb_transpose", "$rs1, $rs2"> {
+  let rd = 0;
+}
+
+let Predicates = [HasBuddyExt] in 
+def : Pat<(int_riscv_bb_mvin GPR:$rs1, GPR:$rs2), (BB_MVIN GPR:$rs1, GPR:$rs2)>;
+
+let Predicates = [HasBuddyExt] in 
+def : Pat<(int_riscv_bb_mvout GPR:$rs1, GPR:$rs2), (BB_MVOUT GPR:$rs1, GPR:$rs2)>;
+
+let Predicates = [HasBuddyExt] in 
+def : Pat<(int_riscv_bb_bbfp_mul GPR:$rs1, GPR:$rs2), (BB_BBFP_MUL GPR:$rs1, GPR:$rs2)>;
+
+let Predicates = [HasBuddyExt] in 
+def : Pat<(int_riscv_bb_matmul_ws GPR:$rs1, GPR:$rs2), (BB_MATMUL_WS GPR:$rs1, GPR:$rs2)>;
+
+let Predicates = [HasBuddyExt] in 
+def : Pat<(int_riscv_bb_fence GPR:$rs1, GPR:$rs2), (BB_FENCE GPR:$rs1, GPR:$rs2)>;
+
+let Predicates = [HasBuddyExt] in 
+def : Pat<(int_riscv_bb_mul_warp16 GPR:$rs1, GPR:$rs2), (BB_MUL_WARP16 GPR:$rs1, GPR:$rs2)>;
+
+let Predicates = [HasBuddyExt] in 
+def : Pat<(int_riscv_bb_im2col GPR:$rs1, GPR:$rs2), (BB_IM2COL GPR:$rs1, GPR:$rs2)>;
+
+let Predicates = [HasBuddyExt] in 
+def : Pat<(int_riscv_bb_transpose GPR:$rs1, GPR:$rs2), (BB_TRANSPOSE GPR:$rs1, GPR:$rs2)>;

@@ -97,7 +97,9 @@ jobs:
         id: check-llvm-cache
         if: matrix.arch == 'x64' && (steps.cache-llvm-build-dir.outputs.cache-hit == 'true')
         run: |
-          source ~/miniforge3/bin/activate buddy
+          for conda in ~/miniconda3/bin/activate ~/miniforge3/bin/activate; do
+            [ -f "$conda" ] && source "$conda" buddy && break
+          done
           cd $GITHUB_WORKSPACE
           rm -rf build && mkdir build && cd build
           if ! cmake -G Ninja .. \
@@ -113,7 +115,12 @@ jobs:
         if: matrix.arch == 'x64' &&
           (steps.cache-llvm-build-dir.outputs.cache-hit != 'true' || steps.check-llvm-cache.outputs.need-rebuild == 'true')
         run: |
-          source ~/miniforge3/bin/activate buddy
+          for conda in ~/miniconda3/bin/activate ~/miniforge3/bin/activate; do
+            [ -f "$conda" ] && source "$conda" buddy && break
+          done
+          test -f $(python3 -c "from sysconfig import get_paths; print(get_paths()['include'])")/Python.h
+          test -f $(python3 -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR'))")/libpython3.10.so
+          echo "Python dev headers OK"
           cd llvm
           rm -rf build
           mkdir build
@@ -198,7 +205,9 @@ jobs:
       - name: Check buddy-mlir build (x86)
         if: matrix.arch == 'x64'
         run: |
-          source ~/miniforge3/bin/activate buddy
+          for conda in ~/miniconda3/bin/activate ~/miniforge3/bin/activate; do
+            [ -f "$conda" ] && source "$conda" buddy && break
+          done
           pip install -r requirements.txt
           rm -rf build
           mkdir build
