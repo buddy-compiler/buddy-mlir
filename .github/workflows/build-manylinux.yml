@@ -48,15 +48,10 @@ jobs:
       - name: Checkout from local Gitea (riscv64)
         if: matrix.arch == 'riscv64'
         run: |
-          # Self-hosted workspaces are dirty; reset remotes and force the exact GitHub SHA.
-          git remote remove origin || true
-          git remote remove github || true
-          git remote add origin https://community-ci.openruyi.cn/RuyiAI-Stack/buddy-mlir
+          git clone --no-checkout https://community-ci.openruyi.cn/RuyiAI-Stack/buddy-mlir .
           git remote add github https://github.com/buddy-compiler/buddy-mlir.git
-          git fetch --depth=1 origin
           git fetch github ${{ github.sha }}
-          git checkout --force ${{ github.sha }}
-          git clean -fdx
+          git checkout ${{ github.sha }}
 
       - name: Prepare variables
         id: vars
