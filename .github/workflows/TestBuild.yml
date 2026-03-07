@@ -79,6 +79,7 @@ jobs:
         if: matrix.arch == 'x64' && steps.cache-llvm-source.outputs.cache-hit != 'true'
         run: |
           rm -rf llvm
+          rm -rf .git/modules/llvm
           git submodule update --init --recursive llvm
 
       # 5. Cache the LLVM build directory.
