@@ -30,15 +30,28 @@ jobs:
           - arch: x64
             target_arch: x86_64
             experimental: false
+            runs_on: '"ubuntu-22.04"'
           - arch: riscv64
             target_arch: riscv64
             experimental: true
+            runs_on: '["self-hosted", "riscv64"]'
 
-    runs-on:
-      - self-hosted
-      - ${{ matrix.arch }}
+    runs-on: ${{ fromJson(matrix.runs_on) }}
 
     steps:
+      - name: Ensure Node.js (riscv64)
+        if: matrix.arch == 'riscv64'
+        run: |
+          sudo apt update
+          sudo apt install -y nodejs
+          node --version
+
+          sudo apt install -y podman
+          podman --version
+          podman info
+          podman run --rm quay.io/pypa/manylinux_2_39_riscv64 /bin/true
+
+
       - name: Checkout repository (x64)
         if: matrix.arch == 'x64'
         uses: actions/checkout@v4
@@ -52,6 +65,7 @@ jobs:
           git remote add github https://github.com/buddy-compiler/buddy-mlir.git
           git fetch github ${{ github.sha }}
           git checkout ${{ github.sha }}
+
 
       - name: Prepare variables
         id: vars
@@ -95,6 +109,9 @@ jobs:
         run: |
           set -euo pipefail
           export LLVM_CACHE_HIT="${{ steps.llvm.outputs.cache_hit }}"
+          if [ "${{ matrix.arch }}" = "riscv64" ]; then
+            export CONTAINER_CMD=podman
+          fi
           ./scripts/release_wheel_manylinux.sh "${{ steps.vars.outputs.py_tag }}" "${{ matrix.target_arch }}"
 
       - name: Upload build artifacts

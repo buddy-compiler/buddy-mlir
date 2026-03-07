@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Build a manylinux wheel inside the official manylinux container.
-# This script must be run on a host with Docker available.
+# By default this script uses Docker; set CONTAINER_CMD=podman to use Podman.
 #
 # Usage:
 #   ./scripts/release_wheel_manylinux.sh [cp_tag] [target_arch]
@@ -12,6 +12,7 @@ set -euo pipefail
 
 PY_TAG="${1:-cp310-cp310}"
 TARGET_ARCH="${2:-${TARGET_ARCH:-x86_64}}"
+CONTAINER_CMD="${CONTAINER_CMD:-docker}"
 
 HOST_ARCH_RAW="$(uname -m)"
 case "${HOST_ARCH_RAW}" in
@@ -70,7 +71,7 @@ if [ -n "${DOCKER_PLATFORM}" ]; then
   DOCKER_RUN_ARGS+=(--platform "${DOCKER_PLATFORM}")
 fi
 
-docker "${DOCKER_RUN_ARGS[@]}" \
+"${CONTAINER_CMD}" "${DOCKER_RUN_ARGS[@]}" \
   -e WORKSPACE="${WORKSPACE}" \
   -e BUDDY_BUILD_ROOT="${BUDDY_BUILD_ROOT}" \
   -e LLVM_BUILD_ROOT="${LLVM_BUILD_ROOT}" \
