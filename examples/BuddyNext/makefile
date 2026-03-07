@@ -180,6 +180,34 @@ next-batchmatmul-decode-size-omp-run:
 		-o next-batchmatmul-decode-size-omp-run.out
 	./next-batchmatmul-decode-size-omp-run.out || true
 
+transpose-matmul-benchmark-run:
+	@${BUDDY_OPT} ./transpose-matmul-benchmark.mlir \
+		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
+	${BUDDY_OPT} \
+		-eliminate-empty-tensors \
+		-empty-tensor-to-alloc-tensor \
+		-convert-elementwise-to-linalg \
+		-convert-tensor-to-linalg \
+		-one-shot-bufferize="bufferize-function-boundaries function-boundary-type-conversion=identity-layout-map unknown-type-conversion=identity-layout-map" \
+		-expand-strided-metadata \
+		-batchmatmul-optimize \
+		-convert-linalg-to-affine-loops \
+		-lower-affine \
+		-convert-vector-to-scf \
+		-convert-vector-to-llvm \
+		-convert-arith-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-openmp-to-llvm \
+		-convert-math-to-llvm \
+		-convert-math-to-libm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+		-shared-libs=${MLIR_RUNNER_UTILS} \
+		-shared-libs=${MLIR_C_RUNNER_UTILS}
+
 next-sgemm-parallel-unroll-vec-aligned-run:
 	@${MLIR_OPT} ./next-sgemm-unroll-vec-aligned.mlir \
 	-convert-linalg-to-affine-loops \
@@ -1535,6 +1563,39 @@ next-batchmatmul-sgemm-unroll-vec-aot:
 		-Wl,-rpath,${MLIR_LIB} \
 		-o next-batchmatmul-sgemm-unroll-vec.out
 	./next-batchmatmul-sgemm-unroll-vec.out || true
+
+next-batchmatmul-transpose-vec-aot:
+	@${BUDDY_OPT} ./next-batchmatmul-transpose.mlir \
+		-convert-linalg-to-affine-loops \
+		-affine-loop-fusion \
+		-affine-parallelize \
+		-lower-affine \
+		-convert-scf-to-openmp \
+		-func-bufferize-dynamic-offset \
+		-convert-vector-to-scf \
+		-expand-strided-metadata \
+		-lower-affine \
+		-cse \
+		-convert-vector-to-llvm \
+		-memref-expand \
+		-arith-expand \
+		-convert-arith-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-openmp-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-math-to-llvm \
+		-convert-math-to-libm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+    ${MLIR_TRANSLATE} -mlir-to-llvmir | \
+	${CLANG} -x ir - \
+		${MARCH_FLAG} -O3 \
+		-L${MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils -lomp -lm \
+		-Wl,-rpath,${MLIR_LIB} \
+		-o next-batchmatmul-transpose-vec.out
+	./next-batchmatmul-transpose-vec.out || true
 
 next-attention-lower:
 	@${MLIR_OPT} ./next-attention.mlir \
