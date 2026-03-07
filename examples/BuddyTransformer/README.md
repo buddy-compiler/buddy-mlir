@@ -33,7 +33,7 @@ pip install -r requirements.txt
 ```bash
 export BUDDY_MLIR_BUILD_DIR=/path/to/buddy-mlir/build
 export LLVM_MLIR_BUILD_DIR=/path/to/buddy-mlir/llvm/build
-export PYTHONPATH=${LLVM_MLIR_BUILD_DIR}/tools/mlir/python_packages/mlir_core:${BUDDY_MLIR_BUILD_DIR}/python_packages:${PYTHONPATH}
+export PYTHONPATH=${BUDDY_MLIR_BUILD_DIR}/python_packages:${PYTHONPATH}
 ```
 
 ### Build Commands

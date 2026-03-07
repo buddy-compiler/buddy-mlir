@@ -71,7 +71,7 @@ Set the `PYTHONPATH` environment variable to include both the LLVM/MLIR Python b
 ```
 $ export BUDDY_MLIR_BUILD_DIR=$PWD
 $ export LLVM_MLIR_BUILD_DIR=$PWD/../llvm/build
-$ export PYTHONPATH=${LLVM_MLIR_BUILD_DIR}/tools/mlir/python_packages/mlir_core:${BUDDY_MLIR_BUILD_DIR}/python_packages:${PYTHONPATH}
+$ export PYTHONPATH=${BUDDY_MLIR_BUILD_DIR}/python_packages:${PYTHONPATH}
 ```
 
 If you want to test your model end-to-end conversion and inference, you can add the following configuration
@@ -79,6 +79,23 @@ If you want to test your model end-to-end conversion and inference, you can add 
 ```
 $ cmake -G Ninja .. -DBUDDY_ENABLE_E2E_TESTS=ON
 $ ninja check-e2e
+```
+
+## Build Python Package
+
+We use `setuptools` to bundle CMake outputs (Python packages, `bin/`, and
+`lib/`) into a single wheel.
+
+run `./scripts/release_wheel_manylinux.sh`.
+
+This script calls `docker run` internally to enter the manylinux container, builds LLVM and buddy_mlir, and writes the wheel to `./build.docker/dist`.
+
+Install and test the wheel:
+
+```bash
+pip install buddy-*.whl --no-deps
+python -c "import buddy; import buddy_mlir; print('ok')"
+buddy-opt --help
 ```
 
 ## Examples

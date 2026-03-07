@@ -13,19 +13,16 @@ from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import tosa
 
 
-def foo(query, k_cache, v_cache, mask, scale):
-
-    k_unsqueeze = torch.unsqueeze(k_cache, 2)
-    k_slice1 = torch.narrow(k_unsqueeze, 3, 0, k_unsqueeze.size(3))
-    k_slice2 = torch.narrow(k_slice1, 4, 0, k_slice1.size(4))
-    k_expanded = k_slice2.expand(1, 2, 6, 1024, 128)
+def foo(query, k_cache, v_cache, index, mask, scale):
+    k_updated = torch.index_put(k_cache, (index,), k_cache[0:1])
+    k_unsqueeze = torch.unsqueeze(k_updated, 2)
+    k_expanded = k_unsqueeze.expand(1, 2, 6, 1024, 128)
     k_clone = k_expanded.clone()
     k_view = k_clone.view(1, 12, 1024, 128)
 
-    v_unsqueeze = torch.unsqueeze(v_cache, 2)
-    v_slice1 = torch.narrow(v_unsqueeze, 3, 0, v_unsqueeze.size(3))
-    v_slice2 = torch.narrow(v_slice1, 4, 0, v_slice1.size(4))
-    v_expanded = v_slice2.expand(1, 2, 6, 1024, 128)
+    v_updated = torch.index_put(v_cache, (index,), v_cache[0:1])
+    v_unsqueeze = torch.unsqueeze(v_updated, 2)
+    v_expanded = v_unsqueeze.expand(1, 2, 6, 1024, 128)
     v_clone = v_expanded.clone()
     v_view = v_clone.view(1, 12, 1024, 128)
 
@@ -39,8 +36,9 @@ def foo(query, k_cache, v_cache, mask, scale):
 in1 = torch.randn(1, 12, 1, 128)  # [Batch, Head, MaxSeq, Dim]
 in2 = torch.randn(1, 2, 1024, 128)
 in3 = torch.randn(1, 2, 1024, 128)  # [Batch, Head, 1, Dim]
-in4 = torch.randn(1, 1, 1, 1024)
-in5 = 1.0 / (128**0.5)
+in4 = torch.tensor([0], dtype=torch.int64)
+in5 = torch.randn(1, 1, 1, 1024)
+in6 = 1.0 / (128**0.5)
 
 # Initialize the dynamo compiler.
 dynamo_compiler = DynamoCompiler(
@@ -49,7 +47,7 @@ dynamo_compiler = DynamoCompiler(
     verbose=False,
 )
 
-graphs = dynamo_compiler.importer(foo, in1, in2, in3, in4, in5)
+graphs = dynamo_compiler.importer(foo, in1, in2, in3, in4, in5, in6)
 assert len(graphs) == 1
 graph = graphs[0]
 

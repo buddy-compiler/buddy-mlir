@@ -29,7 +29,7 @@ Make sure you are in the build directory.
 ```bash
 $ export BUDDY_MLIR_BUILD_DIR=$PWD
 $ export LLVM_MLIR_BUILD_DIR=$PWD/../llvm/build
-$ export PYTHONPATH=${LLVM_MLIR_BUILD_DIR}/tools/mlir/python_packages/mlir_core:${BUDDY_MLIR_BUILD_DIR}/python_packages:${PYTHONPATH}
+$ export PYTHONPATH=${BUDDY_MLIR_BUILD_DIR}/python_packages:${PYTHONPATH}
 ```
 
 3. Build and run the MobileNetV3 example
@@ -40,4 +40,3 @@ $ ninja buddy-mobilenetv3-run
 $ cd bin
 $ ./buddy-mobilenetv3-run
 ```
-

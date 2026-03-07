@@ -1,4 +1,5 @@
-// IME vmadotu test: unsigned × unsigned matrix multiply-accumulate
+// RUN: buddy-opt %s | FileCheck %s
+// CHECK: func.func @main
 //
 // vmadotu computes: C[i,j] += sum_k(unsigned(A[i,k]) * unsigned(B[j,k]))
 //

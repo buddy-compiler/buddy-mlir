@@ -40,9 +40,12 @@ target_link_libraries(buddy-opt
   BuddyGemmini
   LowerGemminiPass
   LowerLinalgToGemminiPass
+  LowerLinalgToIMEPass
   BuddyIME
   BuddyIMETransforms
   LowerIMEPass
+  BuddyAME
+  BuddyAMETransforms
   MLIRGPUPasses
   BuddyGPUTransformOPs
   MLIRTestTransforms

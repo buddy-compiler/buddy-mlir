@@ -47,6 +47,10 @@ SET_TARGET_PROPERTIES(BuddyLibDIP PROPERTIES
   ARCHIVE_OUTPUT_DIRECTORY ${LIBRARY_OUTPUT_DIRECTORY}
   )
 
+install(TARGETS BuddyLibDIP
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+)
+
 #-------------------------------------------------------------------------------
 # Generate Buddy DAP Library: BuddyLibDAP
 #-------------------------------------------------------------------------------
@@ -146,4 +150,8 @@ add_library(BuddyLibDAP STATIC
 SET_TARGET_PROPERTIES(BuddyLibDAP PROPERTIES
   LINKER_LANGUAGE CXX
   ARCHIVE_OUTPUT_DIRECTORY ${LIBRARY_OUTPUT_DIRECTORY}
+)
+
+install(TARGETS BuddyLibDAP
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )

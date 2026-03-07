@@ -9,7 +9,7 @@ This example shows how to use Buddy Compiler to compile a BERT model to MLIR cod
 
 2. Set the `PYTHONPATH` environment variable.
 ```bash
-$ export PYTHONPATH=/path-to-buddy-mlir/llvm/build/tools/mlir/python_packages/mlir_core:/path-to-buddy-mlir/build/python_packages:${PYTHONPATH}
+$ export PYTHONPATH=/path-to-buddy-mlir/build/python_packages:${PYTHONPATH}
 ```
 
 3. Build and run the BERT example

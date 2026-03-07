@@ -1,2 +1,20 @@
 [tool.black]
 line-length = 80
+
+[build-system]
+requires = [
+  "setuptools>=69",
+  "wheel",
+  "build>=1.2",
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "buddy"
+version = "0.0.1"
+description = "An MLIR-based compiler framework bridges DSLs (domain-specific languages) to DSAs (domain-specific architectures)."
+requires-python = ">=3.10"
+dynamic = ["entry-points", "scripts"]
+
+[tool.setuptools]
+include-package-data = true

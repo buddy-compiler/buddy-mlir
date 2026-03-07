@@ -47,6 +47,9 @@
 #include "GPU/TransformOps.h"
 #include "Gemmini/GemminiDialect.h"
 #include "Gemmini/GemminiOps.h"
+#include "AME/AMEDialect.h"
+#include "AME/AMEOps.h"
+#include "AME/Transform.h"
 #include "IME/IMEDialect.h"
 #include "IME/IMEOps.h"
 #include "RVV/RVVDialect.h"
@@ -92,7 +95,9 @@ void registerLowerTileToBuckyballPass();
 void registerLowerBuckyballPass();
 void registerLowerGemminiPass();
 void registerLowerLinalgToGemminiPass();
+void registerLowerLinalgToIMEPass();
 void registerLowerIMEPass();
+void registerLowerAMEPass();
 void registerAssumeTightMemRefLayoutPass();
 void registerStaticizeMemRefLayoutPass();
 void registerConvertMemcpyToGPUPass();
@@ -132,7 +137,9 @@ int main(int argc, char **argv) {
   mlir::buddy::registerLowerBuckyballPass();
   mlir::buddy::registerLowerGemminiPass();
   mlir::buddy::registerLowerLinalgToGemminiPass();
+  mlir::buddy::registerLowerLinalgToIMEPass();
   mlir::buddy::registerLowerIMEPass();
+  mlir::buddy::registerLowerAMEPass();
 
   // Register Several Optimize Pass.
   mlir::buddy::registerMatMulVectorizationBLISPass();
@@ -181,6 +188,7 @@ int main(int argc, char **argv) {
                   buddy::vector_exp::VectorExpDialect,
                   buddy::vir::VIRDialect,
                   buddy::gemmini::GemminiDialect,
+                  buddy::ame::AMEDialect,
                   buddy::tile::TileDialect,
                   buddy::buckyball::BuckyballDialect,
                   buddy::ime::IMEDialect>();
