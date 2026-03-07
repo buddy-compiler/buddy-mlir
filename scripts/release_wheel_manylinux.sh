@@ -60,11 +60,10 @@ REPO_ROOT=$(cd "$(dirname "$0")/.." && pwd)
 WORKSPACE=/workspace/buddy-mlir
 
 # Note: build trees are split by arch + python tag to avoid cross-version CMake cache pollution.
-PY_TAG_SAFE="${PY_TAG//-/_}"
 BUDDY_BUILD_ROOT="${WORKSPACE}/build-docker/${TARGET_ARCH}"
 LLVM_BUILD_ROOT="${WORKSPACE}/llvm/build-docker/${TARGET_ARCH}"
-BUDDY_BUILD_DIR="${BUDDY_BUILD_ROOT}/${PY_TAG_SAFE}"
-LLVM_BUILD_DIR="${LLVM_BUILD_ROOT}/${PY_TAG_SAFE}"
+BUDDY_BUILD_DIR="${BUDDY_BUILD_ROOT}/${PY_TAG}"
+LLVM_BUILD_DIR="${LLVM_BUILD_ROOT}/${PY_TAG}"
 
 DOCKER_RUN_ARGS=(run --rm -i)
 if [ -n "${DOCKER_PLATFORM}" ]; then
@@ -120,12 +119,18 @@ docker "${DOCKER_RUN_ARGS[@]}" \
       rm -rf "${LLVM_BUILD_DIR}" "${BUDDY_BUILD_DIR}"
     fi
 
+    LLVM_STAMP_FILE="${LLVM_BUILD_DIR}/.manylinux-llvm-ready"
     LLVM_INSTALL_DIR="${LLVM_BUILD_DIR}/dist"
     BUDDY_INSTALL_DIR="${BUDDY_BUILD_DIR}/dist"
     ARTIFACT_DIR="${BUDDY_BUILD_DIR}/target"
     mkdir -p "${ARTIFACT_DIR}"
 
-    if [ "${LLVM_CACHE_HIT:-false}" != "true" ]; then
+    LLVM_CACHE_READY="${LLVM_CACHE_HIT:-false}"
+    if [ "${LLVM_CACHE_READY}" = "true" ] && [ ! -f "${LLVM_STAMP_FILE}" ]; then
+      LLVM_CACHE_READY="false"
+    fi
+
+    if [ "${LLVM_CACHE_READY}" != "true" ]; then
       cmake -G Ninja -S "${WORKSPACE}/llvm/llvm" -B "${LLVM_BUILD_DIR}" \
         -DLLVM_ENABLE_PROJECTS="mlir;clang;openmp" \
         -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
@@ -135,9 +140,10 @@ docker "${DOCKER_RUN_ARGS[@]}" \
         -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
         -DPython3_EXECUTABLE="$PYBIN" \
         -DCMAKE_INSTALL_PREFIX="${LLVM_INSTALL_DIR}"
-      # Build LLVM/MLIR/OpenMP without running checks.
+      # Keep the release flow moving even if upstream check targets are flaky.
       ninja -C "${LLVM_BUILD_DIR}" check-clang check-mlir omp || true
       cmake --build "${LLVM_BUILD_DIR}" --target install -j
+      printf 'ready\n' > "${LLVM_STAMP_FILE}"
     fi
     # Build buddy-mlir with Python packages enabled
     cmake -G Ninja -S "${WORKSPACE}" -B "${BUDDY_BUILD_DIR}" \
@@ -154,6 +160,7 @@ docker "${DOCKER_RUN_ARGS[@]}" \
     ninja -C "${BUDDY_BUILD_DIR}" python-package-buddy python-package-buddy-mlir || true
     cmake --build "${BUDDY_BUILD_DIR}" --target install -j
 
+    # Make the buddy bundle self-contained, so that user won't have to include llvm bundle
     cp -a "${LLVM_BUILD_DIR}/lib"/libmlir*.so* "${BUDDY_INSTALL_DIR}/lib/"
     cp -a "${LLVM_BUILD_DIR}/lib/libomp.so"* "${BUDDY_INSTALL_DIR}/lib/"
 
@@ -179,11 +186,11 @@ docker "${DOCKER_RUN_ARGS[@]}" \
     mv -f "${LLVM_TAR_TMP}" "${ARTIFACT_DIR}/${LLVM_TAR_NAME}"
     mv -f "${BUDDY_TAR_TMP}" "${ARTIFACT_DIR}/${BUDDY_TAR_NAME}"
 
+    echo "Artifacts are in ${ARTIFACT_DIR}"
+    echo "Python build dirs:"
+    echo "  ${BUDDY_BUILD_DIR}"
+    echo "  ${LLVM_BUILD_DIR}"
+
     # Fix ownership for host user
     chown -R "$HOST_UID":"$HOST_GID" "${BUDDY_BUILD_ROOT}" "${LLVM_BUILD_ROOT}" || true
 BASH
-
-echo "Artifacts are in ${REPO_ROOT}/build-docker/${TARGET_ARCH}/${PY_TAG_SAFE}/target"
-echo "Python build dirs:"
-echo "  ${REPO_ROOT}/build-docker/${TARGET_ARCH}/${PY_TAG_SAFE}"
-echo "  ${REPO_ROOT}/llvm/build-docker/${TARGET_ARCH}/${PY_TAG_SAFE}"
