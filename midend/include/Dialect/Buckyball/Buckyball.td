@@ -72,6 +72,17 @@ def MvoutOp : Buckyball_Op<"bb_mvout"> {
 }
 
 // instruction level operation
+def MsetOp : Buckyball_Op<"bb_mset"> {
+  let summary = "Bank memory allocation";
+  let description = [{
+    Allocate bank memory before mvin. Must be called before writing to a bank.
+    - bank_id: target bank ID (0-7)
+  }];
+  let arguments = (ins I64:$bankId);
+  let assemblyFormat = "$bankId attr-dict `:` type($bankId)";
+}
+
+// instruction level operation
 def FenceOp : Buckyball_Op<"bb_fence"> {
   let summary = "Fence operation";
   let description = [{
@@ -242,6 +253,9 @@ def Buckyball_Quant_IntrOp : Buckyball_IntrOpBase<"bb_quant">,
   Arguments<(ins LLVM_Type, LLVM_Type)>;
 
 def Buckyball_Dequant_IntrOp : Buckyball_IntrOpBase<"bb_dequant">,
+  Arguments<(ins LLVM_Type, LLVM_Type)>;
+
+def Buckyball_Mset_IntrOp : Buckyball_IntrOpBase<"bb_mset">,
   Arguments<(ins LLVM_Type, LLVM_Type)>;
 
 #endif // BUCKYBALL_OPS

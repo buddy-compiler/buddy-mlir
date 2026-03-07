@@ -103,6 +103,20 @@ public:
 };
 
 //===----------------------------------------------------------------------===//
+// Mset helper — emit bb_mset(bank_id, alloc=1, row=1, col=1)
+//   rs1 = BB_BANK0(bank_id) | BB_WR
+//   rs2 = FIELD(row, 0, 4) | FIELD(col, 5, 9) | FIELD(alloc, 10, 10)
+//===----------------------------------------------------------------------===//
+
+static void emitMset(ConversionPatternRewriter &rewriter, Location loc,
+                     uint64_t bankId, uint64_t row = 1, uint64_t col = 1) {
+  uint64_t rs1 = bbBank0(bankId) | BB_WR;
+  uint64_t rs2 = field(row, 0, 4) | field(col, 5, 9) | field(1, 10, 10);
+  rewriter.create<Mset_IntrOp>(loc, cst(rewriter, loc, rs1),
+                                cst(rewriter, loc, rs2));
+}
+
+//===----------------------------------------------------------------------===//
 // Fence
 //===----------------------------------------------------------------------===//
 
@@ -112,6 +126,33 @@ struct BuckyballFenceLowering : public ConvertOpToLLVMPattern<FenceOp> {
   matchAndRewrite(FenceOp op, OpAdaptor,
                   ConversionPatternRewriter &rewriter) const override {
     rewriter.replaceOpWithNewOp<Fence_IntrOp>(op);
+    return success();
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// Mset — bb_mset(bank_id)
+//   rs1 = BB_BANK0(bank_id) | BB_WR
+//   rs2 = FIELD(row=1, 0, 4) | FIELD(col=1, 5, 9) | FIELD(alloc=1, 10, 10)
+//===----------------------------------------------------------------------===//
+
+struct BuckyballMsetLowering : public ConvertOpToLLVMPattern<MsetOp> {
+  using ConvertOpToLLVMPattern<MsetOp>::ConvertOpToLLVMPattern;
+  LogicalResult
+  matchAndRewrite(MsetOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value bankId = adaptor.getBankId();
+
+    // rs1 = BB_BANK0(bankId) | BB_WR  (dynamic bankId)
+    Value rs1 = rewriter.create<arith::OrIOp>(loc, bankId,
+        cst(rewriter, loc, BB_WR));
+
+    // rs2 = FIELD(1,0,4) | FIELD(1,5,9) | FIELD(1,10,10)
+    uint64_t rs2Val = field(1, 0, 4) | field(1, 5, 9) | field(1, 10, 10);
+
+    rewriter.replaceOpWithNewOp<Mset_IntrOp>(op, rs1,
+        cst(rewriter, loc, rs2Val));
     return success();
   }
 };
@@ -205,6 +246,11 @@ struct BuckyballMatMulLowering : public ConvertOpToLLVMPattern<MatMulOp> {
 
     const uint64_t aBankId = 0, bBankId = 1, cBankId = 2;
 
+    // --- Alloc banks ---
+    emitMset(rewriter, loc, aBankId);
+    emitMset(rewriter, loc, bBankId);
+    emitMset(rewriter, loc, cBankId);
+
     // --- Mvin A ---
     Value aPtr = extractPtr(rewriter, loc, aMemArray);
     uint64_t aRs1Const = bbBank0(aBankId) | BB_WR;
@@ -271,6 +317,10 @@ struct BuckyballTransposeLowering : public ConvertOpToLLVMPattern<TransposeOp> {
 
     const uint64_t inBankId = 0, outBankId = 1;
 
+    // --- Alloc banks ---
+    emitMset(rewriter, loc, inBankId);
+    emitMset(rewriter, loc, outBankId);
+
     // --- Mvin input ---
     Value inPtr = extractPtr(rewriter, loc, input);
     uint64_t inRs1Const = bbBank0(inBankId) | BB_WR;
@@ -321,6 +371,10 @@ struct BuckyballIm2colLowering : public ConvertOpToLLVMPattern<Im2colOp> {
     uint64_t inRows = inType.getShape()[0];
 
     const uint64_t inBankId = 0, outBankId = 1;
+
+    // --- Alloc banks ---
+    emitMset(rewriter, loc, inBankId);
+    emitMset(rewriter, loc, outBankId);
 
     // --- Mvin input ---
     Value inPtr = extractPtr(rewriter, loc, input);
@@ -396,6 +450,10 @@ struct BuckyballQuantLowering : public ConvertOpToLLVMPattern<QuantOp> {
 
     const uint64_t inBankId = 0, outBankId = 1;
 
+    // --- Alloc banks ---
+    emitMset(rewriter, loc, inBankId);
+    emitMset(rewriter, loc, outBankId);
+
     // --- Mvin input ---
     Value inPtr = extractPtr(rewriter, loc, input);
     uint64_t inRs1Const = bbBank0(inBankId) | BB_WR;
@@ -461,6 +519,10 @@ struct BuckyballDequantLowering : public ConvertOpToLLVMPattern<DequantOp> {
 
     const uint64_t inBankId = 0, outBankId = 1;
 
+    // --- Alloc banks ---
+    emitMset(rewriter, loc, inBankId);
+    emitMset(rewriter, loc, outBankId);
+
     // --- Mvin input ---
     Value inPtr = extractPtr(rewriter, loc, input);
     uint64_t inRs1Const = bbBank0(inBankId) | BB_WR;
@@ -515,6 +577,7 @@ void mlir::populateBuckyballLegalizeForLLVMExportPatterns(
       .add<ForwardOperands<func::CallOp>, ForwardOperands<func::CallIndirectOp>,
            ForwardOperands<func::ReturnOp>>(converter, &converter.getContext());
   patterns.add<BuckyballFenceLowering>(converter);
+  patterns.add<BuckyballMsetLowering>(converter);
   patterns.add<BuckyballMvinLowering>(converter);
   patterns.add<BuckyballMvoutLowering>(converter);
   patterns.add<BuckyballMatMulLowering>(converter, lane, warp, bankDepth);
@@ -528,8 +591,9 @@ void mlir::configureBuckyballLegalizeForExportTarget(
     LLVMConversionTarget &target) {
   target.addLegalOp<Fence_IntrOp, Mvin_IntrOp, Mvout_IntrOp,
                     Mul_Warp16_IntrOp, Transpose_IntrOp, Im2col_IntrOp,
-                    Quant_IntrOp, Dequant_IntrOp, Relu_IntrOp>();
-  target.addIllegalOp<FenceOp, MvinOp, MvoutOp, MatMulOp, TransposeOp,
+                    Quant_IntrOp, Dequant_IntrOp, Relu_IntrOp,
+                    Mset_IntrOp>();
+  target.addIllegalOp<FenceOp, MsetOp, MvinOp, MvoutOp, MatMulOp, TransposeOp,
                       Im2colOp, QuantOp, DequantOp>();
   target.addLegalDialect<memref::MemRefDialect>();
   target.addLegalDialect<arith::ArithDialect>();
