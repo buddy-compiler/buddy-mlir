@@ -128,5 +128,6 @@ add_mlir_python_modules(BuddyMLIRPythonModules
     MLIRPythonExtension.Core
   COMMON_CAPI_LINK_LIBS
     BuddyMLIRPythonCAPI
-    MLIRPythonCAPI
   )
+
+add_custom_target(python-package-buddy-mlir DEPENDS BuddyMLIRPythonModules)

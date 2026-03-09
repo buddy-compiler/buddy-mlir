@@ -12,6 +12,8 @@ set(LinkedLibs
   MLIRSupport
   ${extension_libs}
 
+  BuddyAME
+  BuddyAMETransforms
   ConvOptimization
   CBConvVectorization
   LowerBudPass

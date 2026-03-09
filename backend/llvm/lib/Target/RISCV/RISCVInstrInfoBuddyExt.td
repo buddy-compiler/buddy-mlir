@@ -607,3 +607,886 @@ let Predicates = [HasBuddyExt] in {
   def : Pat<(nxv16f16 (int_riscv_ime_vfmadotn nxv16f16:$vd, nxv32f16:$vs1, nxv16f16:$vs2, GPR:$rs1)),
             (IME_VFMADOTN VRM4:$vd, VRM8:$vs1, VRM4:$vs2, GPR:$rs1)>;
 }
+
+//===----------------------------------------------------------------------===//
+// AME (RISC-V Matrix Extension) 64-bit Instructions
+//===----------------------------------------------------------------------===//
+// Reference: RISC-V Matrix Extension Specification
+// 64-bit encoding format with prefix 0111111 at bits [6:0]
+//
+// Register Model:
+//   - TileReg (tr0-tr7): Input matrices A and B, MLEN bits each
+//   - AccReg (acc0-acc7): Accumulator matrix C, MLEN×AMUL bits each
+//
+// Data Flow:
+//   Memory --[mlae/mlbe]--> TileReg --[mma/mwma/mqma]--> AccReg --[msce]--> Memory
+//
+// Matrix Multiplication Instruction Format (64-bit):
+// | 63:59 | 58  | 57:55 | 54:52 | 51:49 | 48:47 | 46:44 | 43:39   | 38:32   |
+// | sps   | sp  | typ2  | typ1  | typd  | bma   | frm   | funct5  | opcode  |
+// | 31:26   | 25 | 24:20 | 19:15 | 14:12  | 11:7 | 6:0    |
+// | funct6  | fp | ms2   | ms1   | funct3 | md   | suffix |
+//
+// suffix = 0111111 (AME prefix)
+// funct3 = 100 (matrix multiplication)
+//
+// Widening Instructions (required for AMUL > 1):
+//   - mqma.b.mm: int8 → int32 (quad-widen, AMUL ≥ 4, mmi8i32 MANDATORY)
+//   - mwma.h.mm: int16 → int32 (double-widen, AMUL ≥ 2)
+//   - mwma.w.mm: int32 → int64 (double-widen, AMUL ≥ 2)
+//===----------------------------------------------------------------------===//
+
+// AME Opcode suffix (bits [6:0])
+def OPC_AME : RISCVOpcode<"OPC_AME", 0b0111111>;
+
+//===----------------------------------------------------------------------===//
+// AME Custom Operand Types for Tile Register Indices
+//===----------------------------------------------------------------------===//
+// These operand types allow intrinsics to pass immediate indices (0-7)
+// for tile and accumulator registers. The AsmString of pseudo instructions
+// hardcodes "acc" and "tr" prefixes so that indices 0-7 are printed as
+// acc0-acc7 and tr0-tr7 respectively, without modifying LLVM submodule.
+
+// AsmOperandClass for tile register index (0-7)
+def AMETileIndexAsmOperand : AsmOperandClass {
+  let Name = "AMETileIndex";
+  let RenderMethod = "addImmOperands";
+  let PredicateMethod = "isUImm3";
+  let DiagnosticType = "InvalidAMETileIndex";
+}
+
+// AsmOperandClass for accumulator register index (0-7)
+def AMEAccIndexAsmOperand : AsmOperandClass {
+  let Name = "AMEAccIndex";
+  let RenderMethod = "addImmOperands";
+  let PredicateMethod = "isUImm3";
+  let DiagnosticType = "InvalidAMEAccIndex";
+}
+
+// Operand type for TileReg index (0-7), printed with "tr" prefix in AsmString
+def AMETileIndex : RISCVOp<i64> {
+  let ParserMatchClass = AMETileIndexAsmOperand;
+  let DecoderMethod = "decodeUImmOperand<3>";
+  let OperandType = "OPERAND_UIMM3";
+}
+
+// Operand type for AccReg index (0-7), printed with "acc" prefix in AsmString
+def AMEAccIndex : RISCVOp<i64> {
+  let ParserMatchClass = AMEAccIndexAsmOperand;
+  let DecoderMethod = "decodeUImmOperand<3>";
+  let OperandType = "OPERAND_UIMM3";
+}
+
+//===----------------------------------------------------------------------===//
+// AME 64-bit Instruction Format Base Class
+//===----------------------------------------------------------------------===//
+
+// Base class for AME 64-bit matrix multiplication instructions
+// Uses TileReg for inputs (ms1, ms2) and AccReg for output (md)
+class RVInstAME64<dag outs, dag ins, string opcodestr, string argstr>
+    : RVInst64<outs, ins, opcodestr, argstr, [], InstFormatOther> {
+  // Low 32 bits
+  bits<5> md;
+  bits<5> ms1;
+  bits<5> ms2;
+  bits<6> funct6;
+  bit fp;
+  bits<3> funct3;
+  
+  // High 32 bits
+  bits<5> funct5;
+  bits<3> frm;
+  bits<2> bma;
+  bits<3> typd;
+  bits<3> typ1;
+  bits<3> typ2;
+  bit sp;
+  bits<5> sps;
+  bits<7> opcode_hi;  // [38:32]
+
+  // Encode low 32 bits (suffix word)
+  let Inst{6-0} = 0b0111111;   // AME prefix
+  let Inst{11-7} = md;
+  let Inst{14-12} = funct3;
+  let Inst{19-15} = ms1;
+  let Inst{24-20} = ms2;
+  let Inst{25} = fp;
+  let Inst{31-26} = funct6;
+  
+  // Encode high 32 bits (opcode word)
+  let Inst{38-32} = opcode_hi;
+  let Inst{43-39} = funct5;
+  let Inst{46-44} = frm;
+  let Inst{48-47} = bma;
+  let Inst{51-49} = typd;
+  let Inst{54-52} = typ1;
+  let Inst{57-55} = typ2;
+  let Inst{58} = sp;
+  let Inst{63-59} = sps;
+}
+
+//===----------------------------------------------------------------------===//
+// AME Matrix Multiplication Instructions
+//===----------------------------------------------------------------------===//
+// Format: mma.{h|w|dw}.mm acc, tr, tr
+// Semantics: acc = acc + tr1 * tr2
+//
+// Data Flow: TileReg × TileReg → AccReg (accumulate)
+//   - ms1: TileReg for matrix A
+//   - ms2: TileReg for matrix B
+//   - md:  AccReg for accumulation result C
+//
+// typ1/typ2/typd encoding:
+//   000 = int8 (b), 001 = int16 (h), 010 = int32 (w), 011 = int64 (dw)
+//   100 = use mtype.msew, 111 = int4
+//
+// funct5 encoding:
+//   00001 = mma (signed, no saturation)
+//   00010 = mwma (double-widen)
+//   00100 = mqma (quad-widen)
+//   10001 = msma (signed, saturated)
+//===----------------------------------------------------------------------===//
+
+// No-widen matrix multiply-accumulate: acc = acc + tr1 * tr2
+// Input and output have the same element width
+class AME_MMA_MM<bits<3> typd_val, bits<3> typ1_val, bits<3> typ2_val,
+                 string opcodestr>
+    : RVInstAME64<(outs AccReg:$md),
+                  (ins AccReg:$md_in, TileReg:$ms1, TileReg:$ms2),
+                  opcodestr, "$md, $ms1, $ms2"> {
+  let Constraints = "$md = $md_in";  // Accumulator constraint
+  let funct6 = 0b000000;
+  let fp = 0;
+  let funct3 = 0b100;        // Matrix multiplication
+  let opcode_hi = 0b0000011; // xxyyy11 where xx=00, yyy=001
+  let funct5 = 0b00001;      // mma (signed, no saturation)
+  let frm = 0b000;
+  let bma = 0b00;            // Default: not agnostic
+  let typd = typd_val;
+  let typ1 = typ1_val;
+  let typ2 = typ2_val;
+  let sp = 0;                // No sparsity
+  let sps = 0b00000;
+}
+
+// mma.h.mm - int16 × int16 → int16 accumulate (no widen)
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def AME_MMA_H_MM : AME_MMA_MM<0b001, 0b001, 0b001, "mma.h.mm">;
+
+// mma.w.mm - int32 × int32 → int32 accumulate (no widen)
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def AME_MMA_W_MM : AME_MMA_MM<0b010, 0b010, 0b010, "mma.w.mm">;
+
+// mma.dw.mm - int64 × int64 → int64 accumulate (no widen)
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def AME_MMA_DW_MM : AME_MMA_MM<0b011, 0b011, 0b011, "mma.dw.mm">;
+
+//===----------------------------------------------------------------------===//
+// AME Widening Matrix Multiplication Instructions
+//===----------------------------------------------------------------------===//
+// Double-widen: output element is 2× width of input elements
+// Quad-widen: output element is 4× width of input elements
+//
+// These require AMUL ≥ 2 (double) or AMUL ≥ 4 (quad) to ensure
+// accumulator has sufficient width.
+//
+// Mandatory: mqma.b.mm (int8→int32) for mmi8i32 feature
+//===----------------------------------------------------------------------===//
+
+// Double-widen: acc = acc + tr1 * tr2, output is 2× width
+// Requires AMUL ≥ 2
+class AME_MWMA_MM<bits<3> typd_val, bits<3> typ1_val, bits<3> typ2_val,
+                  string opcodestr>
+    : RVInstAME64<(outs AccReg:$md),
+                  (ins AccReg:$md_in, TileReg:$ms1, TileReg:$ms2),
+                  opcodestr, "$md, $ms1, $ms2"> {
+  let Constraints = "$md = $md_in";
+  let funct6 = 0b000000;
+  let fp = 0;
+  let funct3 = 0b100;
+  let opcode_hi = 0b0000011;
+  let funct5 = 0b00010;      // mwma (double-widen)
+  let frm = 0b000;
+  let bma = 0b00;
+  let typd = typd_val;
+  let typ1 = typ1_val;
+  let typ2 = typ2_val;
+  let sp = 0;
+  let sps = 0b00000;
+}
+
+// mwma.h.mm - int16 × int16 → int32 accumulate (double-widen)
+// Requires: AMUL ≥ 2, mmi16i32 feature
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def AME_MWMA_H_MM : AME_MWMA_MM<0b010, 0b001, 0b001, "mwma.h.mm">;
+
+// mwma.w.mm - int32 × int32 → int64 accumulate (double-widen)
+// Requires: AMUL ≥ 2, mmi32i64 feature
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def AME_MWMA_W_MM : AME_MWMA_MM<0b011, 0b010, 0b010, "mwma.w.mm">;
+
+// Quad-widen: acc = acc + tr1 * tr2, output is 4× width
+// Requires AMUL ≥ 4
+class AME_MQMA_MM<bits<3> typd_val, bits<3> typ1_val, bits<3> typ2_val,
+                  string opcodestr>
+    : RVInstAME64<(outs AccReg:$md),
+                  (ins AccReg:$md_in, TileReg:$ms1, TileReg:$ms2),
+                  opcodestr, "$md, $ms1, $ms2"> {
+  let Constraints = "$md = $md_in";
+  let funct6 = 0b000000;
+  let fp = 0;
+  let funct3 = 0b100;
+  let opcode_hi = 0b0000011;
+  let funct5 = 0b00100;      // mqma (quad-widen)
+  let frm = 0b000;
+  let bma = 0b00;
+  let typd = typd_val;
+  let typ1 = typ1_val;
+  let typ2 = typ2_val;
+  let sp = 0;
+  let sps = 0b00000;
+}
+
+// mqma.b.mm - int8 × int8 → int32 accumulate (quad-widen)
+// MANDATORY for mmi8i32 feature (required by Spec)
+// Requires: AMUL ≥ 4
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def AME_MQMA_B_MM : AME_MQMA_MM<0b010, 0b000, 0b000, "mqma.b.mm">;
+
+//===----------------------------------------------------------------------===//
+// AME Configuration Instructions
+//===----------------------------------------------------------------------===//
+// Configuration instruction format (64-bit):
+// | 63:43           | 42:39  | 38:32   |
+// | imm[31:11]      | funct4 | opcode  |
+// | 31:26  | 25:20       | 19:15 | 14:12  | 11:7 | 6:0    |
+// | funct6 | imm[10:5]   | rs1   | funct3 | rd   | suffix |
+//===----------------------------------------------------------------------===//
+
+class RVInstAMEConfig64<bits<6> funct6_val, string opcodestr>
+    : RVInst64<(outs GPR:$rd), (ins GPR:$rs1),
+               opcodestr, "$rd, $rs1", [], InstFormatOther> {
+  bits<5> rd;
+  bits<5> rs1;
+  
+  let Inst{6-0} = 0b0111111;   // AME prefix
+  let Inst{11-7} = rd;
+  let Inst{14-12} = 0b000;     // funct3 for config
+  let Inst{19-15} = rs1;
+  let Inst{25-20} = 0b000000;
+  let Inst{31-26} = funct6_val;
+  let Inst{38-32} = 0b0000011; // opcode
+  let Inst{42-39} = 0b0000;    // funct4
+  let Inst{63-43} = 0;         // imm[31:11] = 0
+}
+
+class RVInstAMEConfigImm64<bits<6> funct6_val, string opcodestr>
+    : RVInst64<(outs GPR:$rd), (ins uimm32:$imm),
+               opcodestr, "$rd, $imm", [], InstFormatOther> {
+  bits<5> rd;
+  bits<32> imm;
+  
+  let Inst{6-0} = 0b0111111;   // AME prefix
+  let Inst{11-7} = rd;
+  let Inst{14-12} = 0b000;     // funct3 for config
+  let Inst{19-15} = imm{4-0};  // imm[4:0] in rs1 field
+  let Inst{25-20} = imm{10-5}; // imm[10:5]
+  let Inst{31-26} = funct6_val;
+  let Inst{38-32} = 0b0000011; // opcode
+  let Inst{42-39} = 0b0000;    // funct4
+  let Inst{63-43} = imm{31-11}; // imm[31:11]
+}
+
+// msettilem - set tile M dimension from register
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def AME_MSETTILEM : RVInstAMEConfig64<0b000100, "msettilem">;
+
+// msettilemi - set tile M dimension from immediate
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def AME_MSETTILEMI : RVInstAMEConfigImm64<0b000101, "msettilemi">;
+
+// msettilen - set tile N dimension from register
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def AME_MSETTILEN : RVInstAMEConfig64<0b001000, "msettilen">;
+
+// msettileni - set tile N dimension from immediate
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def AME_MSETTILENI : RVInstAMEConfigImm64<0b001001, "msettileni">;
+
+// msettilek - set tile K dimension from register
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def AME_MSETTILEK : RVInstAMEConfig64<0b001100, "msettilek">;
+
+// msettileki - set tile K dimension from immediate
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def AME_MSETTILEKI : RVInstAMEConfigImm64<0b001101, "msettileki">;
+
+//===----------------------------------------------------------------------===//
+// AME Load/Store Instructions
+//===----------------------------------------------------------------------===//
+// Load/Store instruction format (64-bit):
+// | 63:51 | 50:49 | 48:47 | 46:44 | 43:39  | 38:32   |
+// | resv  | mt    | bma   | eew   | funct5 | opcode  |
+// | 31:26  | 25 | 24:20 | 19:15 | 14:12  | 11:7    | 6:0    |
+// | funct6 | ls | rs2   | rs1   | funct3 | ms3/md  | suffix |
+//
+// mt (matrix type): 00=accumulator(C), 01=left(A), 10=right(B), 11=result
+// eew (element width): 000=8b, 001=16b, 010=32b, 011=64b
+//
+// Register Usage:
+//   - mt=01 (A) or mt=10 (B): Uses TileReg
+//   - mt=00 (C): Uses AccReg
+//
+// Data Flow Examples:
+//   mlae32.m tr0, (a0), a1    # Load matrix A into TileReg
+//   mlbe32.m tr1, (a0), a1    # Load matrix B into TileReg  
+//   mqma.b.mm acc0, tr0, tr1  # Compute: AccReg = AccReg + TileReg × TileReg
+//   msce32.m acc0, (a0), a1   # Store AccReg to memory
+//===----------------------------------------------------------------------===//
+
+// Load into TileReg (for matrix A and B)
+class RVInstAMELoadTile64<bits<2> mt_val, bits<3> eew_val, string opcodestr>
+    : RVInst64<(outs TileReg:$md), (ins GPR:$rs1, GPR:$rs2),
+               opcodestr, "$md, $rs1, $rs2", [], InstFormatOther> {
+  bits<5> md;
+  bits<5> rs1;
+  bits<5> rs2;
+  
+  let Inst{6-0} = 0b0111111;   // AME prefix
+  let Inst{11-7} = md;
+  let Inst{14-12} = 0b001;     // funct3 for load/store
+  let Inst{19-15} = rs1;
+  let Inst{24-20} = rs2;
+  let Inst{25} = 0;            // ls = 0 for load
+  let Inst{31-26} = 0b000000;  // funct6
+  let Inst{38-32} = 0b0000011; // opcode
+  let Inst{43-39} = 0b00000;   // funct5
+  let Inst{46-44} = eew_val;   // eew
+  let Inst{48-47} = 0b00;      // bma
+  let Inst{50-49} = mt_val;    // mt
+  let Inst{63-51} = 0;         // reserved
+}
+
+// Load into AccReg (for accumulator C)
+class RVInstAMELoadAcc64<bits<2> mt_val, bits<3> eew_val, string opcodestr>
+    : RVInst64<(outs AccReg:$md), (ins GPR:$rs1, GPR:$rs2),
+               opcodestr, "$md, $rs1, $rs2", [], InstFormatOther> {
+  bits<5> md;
+  bits<5> rs1;
+  bits<5> rs2;
+  
+  let Inst{6-0} = 0b0111111;
+  let Inst{11-7} = md;
+  let Inst{14-12} = 0b001;
+  let Inst{19-15} = rs1;
+  let Inst{24-20} = rs2;
+  let Inst{25} = 0;
+  let Inst{31-26} = 0b000000;
+  let Inst{38-32} = 0b0000011;
+  let Inst{43-39} = 0b00000;
+  let Inst{46-44} = eew_val;
+  let Inst{48-47} = 0b00;
+  let Inst{50-49} = mt_val;
+  let Inst{63-51} = 0;
+}
+
+// Store from TileReg (for matrix A and B)
+class RVInstAMEStoreTile64<bits<2> mt_val, bits<3> eew_val, string opcodestr>
+    : RVInst64<(outs), (ins TileReg:$ms3, GPR:$rs1, GPR:$rs2),
+               opcodestr, "$ms3, $rs1, $rs2", [], InstFormatOther> {
+  bits<5> ms3;
+  bits<5> rs1;
+  bits<5> rs2;
+  
+  let Inst{6-0} = 0b0111111;
+  let Inst{11-7} = ms3;
+  let Inst{14-12} = 0b001;
+  let Inst{19-15} = rs1;
+  let Inst{24-20} = rs2;
+  let Inst{25} = 1;            // ls = 1 for store
+  let Inst{31-26} = 0b000000;
+  let Inst{38-32} = 0b0000011;
+  let Inst{43-39} = 0b00000;
+  let Inst{46-44} = eew_val;
+  let Inst{48-47} = 0b00;
+  let Inst{50-49} = mt_val;
+  let Inst{63-51} = 0;
+}
+
+// Store from AccReg (for accumulator C)
+class RVInstAMEStoreAcc64<bits<2> mt_val, bits<3> eew_val, string opcodestr>
+    : RVInst64<(outs), (ins AccReg:$ms3, GPR:$rs1, GPR:$rs2),
+               opcodestr, "$ms3, $rs1, $rs2", [], InstFormatOther> {
+  bits<5> ms3;
+  bits<5> rs1;
+  bits<5> rs2;
+  
+  let Inst{6-0} = 0b0111111;
+  let Inst{11-7} = ms3;
+  let Inst{14-12} = 0b001;
+  let Inst{19-15} = rs1;
+  let Inst{24-20} = rs2;
+  let Inst{25} = 1;
+  let Inst{31-26} = 0b000000;
+  let Inst{38-32} = 0b0000011;
+  let Inst{43-39} = 0b00000;
+  let Inst{46-44} = eew_val;
+  let Inst{48-47} = 0b00;
+  let Inst{50-49} = mt_val;
+  let Inst{63-51} = 0;
+}
+
+//===----------------------------------------------------------------------===//
+// Load matrix A (left operand) into TileReg - mlae*.m
+// Syntax: mlae{8|16|32|64}.m tr, (rs1), rs2
+//   tr:  Destination TileReg
+//   rs1: Base address (GPR)
+//   rs2: Row stride in bytes (GPR)
+//===----------------------------------------------------------------------===//
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 1, mayStore = 0 in {
+  def AME_MLAE8_M  : RVInstAMELoadTile64<0b01, 0b000, "mlae8.m">;
+  def AME_MLAE16_M : RVInstAMELoadTile64<0b01, 0b001, "mlae16.m">;
+  def AME_MLAE32_M : RVInstAMELoadTile64<0b01, 0b010, "mlae32.m">;
+  def AME_MLAE64_M : RVInstAMELoadTile64<0b01, 0b011, "mlae64.m">;
+}
+
+//===----------------------------------------------------------------------===//
+// Load matrix B (right operand) into TileReg - mlbe*.m
+// Syntax: mlbe{8|16|32|64}.m tr, (rs1), rs2
+//===----------------------------------------------------------------------===//
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 1, mayStore = 0 in {
+  def AME_MLBE8_M  : RVInstAMELoadTile64<0b10, 0b000, "mlbe8.m">;
+  def AME_MLBE16_M : RVInstAMELoadTile64<0b10, 0b001, "mlbe16.m">;
+  def AME_MLBE32_M : RVInstAMELoadTile64<0b10, 0b010, "mlbe32.m">;
+  def AME_MLBE64_M : RVInstAMELoadTile64<0b10, 0b011, "mlbe64.m">;
+}
+
+//===----------------------------------------------------------------------===//
+// Load matrix C (accumulator) into AccReg - mlce*.m
+// Syntax: mlce{8|16|32|64}.m acc, (rs1), rs2
+//   acc: Destination AccReg (MLEN×AMUL bits)
+// Note: eew here refers to the output element width after widening
+//===----------------------------------------------------------------------===//
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 1, mayStore = 0 in {
+  def AME_MLCE8_M  : RVInstAMELoadAcc64<0b00, 0b000, "mlce8.m">;
+  def AME_MLCE16_M : RVInstAMELoadAcc64<0b00, 0b001, "mlce16.m">;
+  def AME_MLCE32_M : RVInstAMELoadAcc64<0b00, 0b010, "mlce32.m">;
+  def AME_MLCE64_M : RVInstAMELoadAcc64<0b00, 0b011, "mlce64.m">;
+}
+
+//===----------------------------------------------------------------------===//
+// Store matrix A from TileReg - msae*.m
+// Syntax: msae{8|16|32|64}.m tr, (rs1), rs2
+//===----------------------------------------------------------------------===//
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 1 in {
+  def AME_MSAE8_M  : RVInstAMEStoreTile64<0b01, 0b000, "msae8.m">;
+  def AME_MSAE16_M : RVInstAMEStoreTile64<0b01, 0b001, "msae16.m">;
+  def AME_MSAE32_M : RVInstAMEStoreTile64<0b01, 0b010, "msae32.m">;
+  def AME_MSAE64_M : RVInstAMEStoreTile64<0b01, 0b011, "msae64.m">;
+}
+
+//===----------------------------------------------------------------------===//
+// Store matrix B from TileReg - msbe*.m
+// Syntax: msbe{8|16|32|64}.m tr, (rs1), rs2
+//===----------------------------------------------------------------------===//
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 1 in {
+  def AME_MSBE8_M  : RVInstAMEStoreTile64<0b10, 0b000, "msbe8.m">;
+  def AME_MSBE16_M : RVInstAMEStoreTile64<0b10, 0b001, "msbe16.m">;
+  def AME_MSBE32_M : RVInstAMEStoreTile64<0b10, 0b010, "msbe32.m">;
+  def AME_MSBE64_M : RVInstAMEStoreTile64<0b10, 0b011, "msbe64.m">;
+}
+
+//===----------------------------------------------------------------------===//
+// Store matrix C (accumulator) from AccReg - msce*.m
+// Syntax: msce{8|16|32|64}.m acc, (rs1), rs2
+//   acc: Source AccReg (MLEN×AMUL bits)
+// This is the primary store for computation results
+//===----------------------------------------------------------------------===//
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 1 in {
+  def AME_MSCE8_M  : RVInstAMEStoreAcc64<0b00, 0b000, "msce8.m">;
+  def AME_MSCE16_M : RVInstAMEStoreAcc64<0b00, 0b001, "msce16.m">;
+  def AME_MSCE32_M : RVInstAMEStoreAcc64<0b00, 0b010, "msce32.m">;
+  def AME_MSCE64_M : RVInstAMEStoreAcc64<0b00, 0b011, "msce64.m">;
+}
+
+//===----------------------------------------------------------------------===//
+// AME Extension Pattern Matching
+//===----------------------------------------------------------------------===//
+// Connect LLVM intrinsics to AME machine instructions
+//
+// Register Model:
+//   - TileReg (tr0-tr7): For input matrices A and B
+//   - AccReg (acc0-acc7): For output/accumulator C
+//
+// Typical Data Flow for Matrix Multiplication (e.g., int8→int32):
+//   1. msettilem/n/k: Configure tile dimensions
+//   2. mlae8.m tr0, (a0), stride_a: Load matrix A into TileReg
+//   3. mlbe8.m tr1, (a1), stride_b: Load matrix B into TileReg
+//   4. mqma.b.mm acc0, tr0, tr1: Compute acc0 = acc0 + tr0 × tr1
+//   5. msce32.m acc0, (a2), stride_c: Store AccReg to memory
+//
+// Note: For quad-widen (int8→int32), input uses 8-bit load (mlae8/mlbe8)
+// but output uses 32-bit store (msce32) because AMUL=4 widens the output.
+//===----------------------------------------------------------------------===//
+
+// Configuration instruction patterns
+// These use GPR operands and return the actual configured value
+let Predicates = [HasBuddyExt] in {
+  // msettilem - set tile M dimension from GPR, returns actual value
+  def : Pat<(i64 (int_riscv_buddy_msettilem GPR:$rs1)),
+            (AME_MSETTILEM GPR:$rs1)>;
+  
+  // msettilen - set tile N dimension from GPR, returns actual value
+  def : Pat<(i64 (int_riscv_buddy_msettilen GPR:$rs1)),
+            (AME_MSETTILEN GPR:$rs1)>;
+  
+  // msettilek - set tile K dimension from GPR, returns actual value
+  def : Pat<(i64 (int_riscv_buddy_msettilek GPR:$rs1)),
+            (AME_MSETTILEK GPR:$rs1)>;
+}
+
+//===----------------------------------------------------------------------===//
+// AME Additional Integer Matrix Operations
+//===----------------------------------------------------------------------===//
+// Unsigned and mixed-sign matrix multiplication variants
+//
+// Naming convention:
+//   - mma: signed × signed
+//   - mmau: unsigned × unsigned
+//   - mmasu: signed × unsigned
+//   - mmaus: unsigned × signed
+//===----------------------------------------------------------------------===//
+
+// Unsigned no-widen multiply-accumulate
+class AME_MMAU_MM<bits<3> typd_val, bits<3> typ1_val, bits<3> typ2_val,
+                  string opcodestr>
+    : RVInstAME64<(outs AccReg:$md),
+                  (ins AccReg:$md_in, TileReg:$ms1, TileReg:$ms2),
+                  opcodestr, "$md, $ms1, $ms2"> {
+  let Constraints = "$md = $md_in";
+  let funct6 = 0b000000;
+  let fp = 0;
+  let funct3 = 0b100;
+  let opcode_hi = 0b0000011;
+  let funct5 = 0b01001;      // mmau (unsigned)
+  let frm = 0b000;
+  let bma = 0b00;
+  let typd = typd_val;
+  let typ1 = typ1_val;
+  let typ2 = typ2_val;
+  let sp = 0;
+  let sps = 0b00000;
+}
+
+// mmau.b.mm - uint8 × uint8 → uint32 (for unsigned int8)
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def AME_MMAU_B_MM : AME_MMAU_MM<0b010, 0b000, 0b000, "mmau.b.mm">;
+
+// Unsigned quad-widen multiply-accumulate
+class AME_MQMAU_MM<bits<3> typd_val, bits<3> typ1_val, bits<3> typ2_val,
+                   string opcodestr>
+    : RVInstAME64<(outs AccReg:$md),
+                  (ins AccReg:$md_in, TileReg:$ms1, TileReg:$ms2),
+                  opcodestr, "$md, $ms1, $ms2"> {
+  let Constraints = "$md = $md_in";
+  let funct6 = 0b000000;
+  let fp = 0;
+  let funct3 = 0b100;
+  let opcode_hi = 0b0000011;
+  let funct5 = 0b01100;      // mqmau (unsigned quad-widen)
+  let frm = 0b000;
+  let bma = 0b00;
+  let typd = typd_val;
+  let typ1 = typ1_val;
+  let typ2 = typ2_val;
+  let sp = 0;
+  let sps = 0b00000;
+}
+
+// mqmau.b.mm - uint8 × uint8 → uint32 (quad-widen unsigned)
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def AME_MQMAU_B_MM : AME_MQMAU_MM<0b010, 0b000, 0b000, "mqmau.b.mm">;
+
+// Mixed-sign: signed × unsigned
+class AME_MQMASU_MM<bits<3> typd_val, bits<3> typ1_val, bits<3> typ2_val,
+                    string opcodestr>
+    : RVInstAME64<(outs AccReg:$md),
+                  (ins AccReg:$md_in, TileReg:$ms1, TileReg:$ms2),
+                  opcodestr, "$md, $ms1, $ms2"> {
+  let Constraints = "$md = $md_in";
+  let funct6 = 0b000000;
+  let fp = 0;
+  let funct3 = 0b100;
+  let opcode_hi = 0b0000011;
+  let funct5 = 0b00101;      // mqmasu (signed × unsigned quad-widen)
+  let frm = 0b000;
+  let bma = 0b00;
+  let typd = typd_val;
+  let typ1 = typ1_val;
+  let typ2 = typ2_val;
+  let sp = 0;
+  let sps = 0b00000;
+}
+
+// mqmasu.b.mm - int8 × uint8 → int32
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def AME_MQMASU_B_MM : AME_MQMASU_MM<0b010, 0b000, 0b000, "mqmasu.b.mm">;
+
+// Mixed-sign: unsigned × signed
+class AME_MQMAUS_MM<bits<3> typd_val, bits<3> typ1_val, bits<3> typ2_val,
+                    string opcodestr>
+    : RVInstAME64<(outs AccReg:$md),
+                  (ins AccReg:$md_in, TileReg:$ms1, TileReg:$ms2),
+                  opcodestr, "$md, $ms1, $ms2"> {
+  let Constraints = "$md = $md_in";
+  let funct6 = 0b000000;
+  let fp = 0;
+  let funct3 = 0b100;
+  let opcode_hi = 0b0000011;
+  let funct5 = 0b00110;      // mqmaus (unsigned × signed quad-widen)
+  let frm = 0b000;
+  let bma = 0b00;
+  let typd = typd_val;
+  let typ1 = typ1_val;
+  let typ2 = typ2_val;
+  let sp = 0;
+  let sps = 0b00000;
+}
+
+// mqmaus.b.mm - uint8 × int8 → int32
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def AME_MQMAUS_B_MM : AME_MQMAUS_MM<0b010, 0b000, 0b000, "mqmaus.b.mm">;
+
+//===----------------------------------------------------------------------===//
+// AME Zero/Initialize Instructions
+//===----------------------------------------------------------------------===//
+// mzero - Zero out an accumulation register
+// Useful for initializing before accumulation loop
+
+class AME_MZERO<string opcodestr>
+    : RVInst64<(outs AccReg:$md), (ins),
+               opcodestr, "$md", [], InstFormatOther> {
+  bits<5> md;
+  
+  let Inst{6-0} = 0b0111111;
+  let Inst{11-7} = md;
+  let Inst{14-12} = 0b101;     // funct3 for arithmetic
+  let Inst{19-15} = 0b00000;
+  let Inst{24-20} = 0b00000;
+  let Inst{25} = 0;
+  let Inst{31-26} = 0b000000;
+  let Inst{38-32} = 0b0000011;
+  let Inst{43-39} = 0b10000;   // funct5 for zero
+  let Inst{63-44} = 0;
+}
+
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def AME_MZERO_M : AME_MZERO<"mzero.m">;
+
+//===----------------------------------------------------------------------===//
+// AME Intrinsic Pattern Matching
+//===----------------------------------------------------------------------===//
+// These patterns map LLVM intrinsics to AME machine instructions.
+// 
+// Note: AME intrinsics use i64 indices for tile registers instead of
+// actual register operands. This is because the MLIR lowering generates
+// calls with constant indices that get mapped to physical registers
+// at the final code generation stage.
+//
+// For tile-based operations, the tile register index (0-7) is encoded
+// directly into the instruction's register field.
+//===----------------------------------------------------------------------===//
+
+//===----------------------------------------------------------------------===//
+// Configuration Instruction Patterns
+//===----------------------------------------------------------------------===//
+
+// msettilem - set tile M dimension from GPR
+let Predicates = [HasBuddyExt] in {
+  def : Pat<(i64 (int_riscv_buddy_msettilem i64:$rs1)),
+            (AME_MSETTILEM GPR:$rs1)>;
+}
+
+// msettilen - set tile N dimension from GPR
+let Predicates = [HasBuddyExt] in {
+  def : Pat<(i64 (int_riscv_buddy_msettilen i64:$rs1)),
+            (AME_MSETTILEN GPR:$rs1)>;
+}
+
+// msettilek - set tile K dimension from GPR
+let Predicates = [HasBuddyExt] in {
+  def : Pat<(i64 (int_riscv_buddy_msettilek i64:$rs1)),
+            (AME_MSETTILEK GPR:$rs1)>;
+}
+
+//===----------------------------------------------------------------------===//
+// Pseudo Instructions for Index-Based Operations
+//===----------------------------------------------------------------------===//
+// These pseudo instructions accept i64 indices and have AsmString for direct
+// assembly output. This allows the pseudo instructions to be printed directly
+// without needing complex expansion logic.
+//
+// For load/store/mma instructions, the AsmString hardcodes "acc" and "tr"
+// prefixes so that indices 0-7 are printed as acc0-acc7 and tr0-tr7.
+//===----------------------------------------------------------------------===//
+
+// Pseudo instruction for msettilemi with i64 immediate
+// Output: msettilemi x0, <imm>
+let Predicates = [HasBuddyExt], hasSideEffects = 1, mayLoad = 0, mayStore = 0,
+    isCodeGenOnly = 1 in
+def AME_MSETTILEMI_PSEUDO : Pseudo<(outs), (ins i64imm:$imm), []> {
+  let AsmString = "msettilemi\tx0, $imm";
+}
+
+// Pseudo instruction for msettileni with i64 immediate
+let Predicates = [HasBuddyExt], hasSideEffects = 1, mayLoad = 0, mayStore = 0,
+    isCodeGenOnly = 1 in
+def AME_MSETTILENI_PSEUDO : Pseudo<(outs), (ins i64imm:$imm), []> {
+  let AsmString = "msettileni\tx0, $imm";
+}
+
+// Pseudo instruction for msettileki with i64 immediate  
+let Predicates = [HasBuddyExt], hasSideEffects = 1, mayLoad = 0, mayStore = 0,
+    isCodeGenOnly = 1 in
+def AME_MSETTILEKI_PSEUDO : Pseudo<(outs), (ins i64imm:$imm), []> {
+  let AsmString = "msettileki\tx0, $imm";
+}
+
+// Pseudo instruction for mzero with accumulator index
+let Predicates = [HasBuddyExt], hasSideEffects = 1, mayLoad = 0, mayStore = 0,
+    isCodeGenOnly = 1 in
+def AME_MZERO_PSEUDO : Pseudo<(outs), (ins AMEAccIndex:$md), []> {
+  let AsmString = "mzero.m\tacc$md";
+}
+
+// Pseudo instruction for mlae32.m with tile index
+let Predicates = [HasBuddyExt], hasSideEffects = 1, mayLoad = 1, mayStore = 0,
+    isCodeGenOnly = 1 in
+def AME_MLAE32_M_PSEUDO : Pseudo<(outs), (ins AMETileIndex:$md, GPR:$rs1, GPR:$rs2), []> {
+  let AsmString = "mlae32.m\ttr$md, ($rs1), $rs2";
+}
+
+// Pseudo instruction for mlbe32.m with tile index
+let Predicates = [HasBuddyExt], hasSideEffects = 1, mayLoad = 1, mayStore = 0,
+    isCodeGenOnly = 1 in
+def AME_MLBE32_M_PSEUDO : Pseudo<(outs), (ins AMETileIndex:$md, GPR:$rs1, GPR:$rs2), []> {
+  let AsmString = "mlbe32.m\ttr$md, ($rs1), $rs2";
+}
+
+// Pseudo instruction for msce32.m with accumulator index
+let Predicates = [HasBuddyExt], hasSideEffects = 1, mayLoad = 0, mayStore = 1,
+    isCodeGenOnly = 1 in
+def AME_MSCE32_M_PSEUDO : Pseudo<(outs), (ins AMEAccIndex:$ms3, GPR:$rs1, GPR:$rs2), []> {
+  let AsmString = "msce32.m\tacc$ms3, ($rs1), $rs2";
+}
+
+// Pseudo instruction for mma.w.mm.tile with indices
+// md: AccReg index (0-7), ms1/ms2: TileReg indices (0-7)
+let Predicates = [HasBuddyExt], hasSideEffects = 1, mayLoad = 1, mayStore = 1,
+    isCodeGenOnly = 1 in
+def AME_MMA_W_MM_TILE_PSEUDO : Pseudo<(outs), 
+    (ins AMEAccIndex:$md, AMETileIndex:$ms1, AMETileIndex:$ms2), []> {
+  let AsmString = "mma.w.mm\tacc$md, tr$ms1, tr$ms2";
+}
+
+//===----------------------------------------------------------------------===//
+// Pattern Matching for Immediate Configuration Instructions
+//===----------------------------------------------------------------------===//
+
+// msettilemi - set tile M dimension with immediate
+let Predicates = [HasBuddyExt] in {
+  def : Pat<(int_riscv_buddy_msettilemi timm:$imm),
+            (AME_MSETTILEMI_PSEUDO timm:$imm)>;
+}
+
+// msettileni - set tile N dimension with immediate
+let Predicates = [HasBuddyExt] in {
+  def : Pat<(int_riscv_buddy_msettileni timm:$imm),
+            (AME_MSETTILENI_PSEUDO timm:$imm)>;
+}
+
+// msettileki - set tile K dimension with immediate
+let Predicates = [HasBuddyExt] in {
+  def : Pat<(int_riscv_buddy_msettileki timm:$imm),
+            (AME_MSETTILEKI_PSEUDO timm:$imm)>;
+}
+
+//===----------------------------------------------------------------------===//
+// Pattern Matching for Zero Instruction
+//===----------------------------------------------------------------------===//
+
+let Predicates = [HasBuddyExt] in {
+  def : Pat<(int_riscv_buddy_mzero timm:$md),
+            (AME_MZERO_PSEUDO timm:$md)>;
+}
+
+//===----------------------------------------------------------------------===//
+// Pattern Matching for Load Instructions
+//===----------------------------------------------------------------------===//
+
+// mlae32.m - Load 32-bit left matrix A to tile register
+let Predicates = [HasBuddyExt] in {
+  def : Pat<(int_riscv_buddy_mlae32_m timm:$md, iPTR:$rs1, i64:$rs2),
+            (AME_MLAE32_M_PSEUDO timm:$md, GPR:$rs1, GPR:$rs2)>;
+}
+
+// mlbe32.m - Load 32-bit right matrix B to tile register
+let Predicates = [HasBuddyExt] in {
+  def : Pat<(int_riscv_buddy_mlbe32_m timm:$md, iPTR:$rs1, i64:$rs2),
+            (AME_MLBE32_M_PSEUDO timm:$md, GPR:$rs1, GPR:$rs2)>;
+}
+
+//===----------------------------------------------------------------------===//
+// Pattern Matching for Store Instructions
+//===----------------------------------------------------------------------===//
+
+// msce32.m - Store 32-bit output matrix C from accumulator
+let Predicates = [HasBuddyExt] in {
+  def : Pat<(int_riscv_buddy_msce32_m timm:$ms3, iPTR:$rs1, i64:$rs2),
+            (AME_MSCE32_M_PSEUDO timm:$ms3, GPR:$rs1, GPR:$rs2)>;
+}
+
+//===----------------------------------------------------------------------===//
+// Pattern Matching for Tile-Based Matrix Multiply
+//===----------------------------------------------------------------------===//
+
+// mma.w.mm.tile - int32 tile matrix multiply: md = md + ms1 x ms2
+let Predicates = [HasBuddyExt] in {
+  def : Pat<(int_riscv_buddy_mma_w_mm_tile timm:$md, timm:$ms1, timm:$ms2),
+            (AME_MMA_W_MM_TILE_PSEUDO timm:$md, timm:$ms1, timm:$ms2)>;
+}
+
+//===----------------------------------------------------------------------===//
+// AME Summary
+//===----------------------------------------------------------------------===//
+// Complete instruction set for basic matrix operations:
+//
+// Configuration:
+//   - msettilem, msettilemi: Set M dimension
+//   - msettilen, msettileni: Set N dimension
+//   - msettilek, msettileki: Set K dimension
+//
+// Load (Memory → Register):
+//   - mlae{8|16|32|64}.m: Load A into TileReg
+//   - mlbe{8|16|32|64}.m: Load B into TileReg
+//   - mlce{8|16|32|64}.m: Load C into AccReg
+//
+// Compute (TileReg × TileReg → AccReg):
+//   No-widen:
+//     - mma.{h|w|dw}.mm: Signed int16/32/64
+//   Double-widen (AMUL ≥ 2):
+//     - mwma.{h|w}.mm: int16→int32, int32→int64
+//   Quad-widen (AMUL ≥ 4, mmi8i32 MANDATORY):
+//     - mqma.b.mm: int8 → int32 (signed)
+//     - mqmau.b.mm: uint8 → uint32 (unsigned)
+//     - mqmasu.b.mm: int8 × uint8 → int32
+//     - mqmaus.b.mm: uint8 × int8 → int32
+//
+// Store (Register → Memory):
+//   - msae{8|16|32|64}.m: Store TileReg A
+//   - msbe{8|16|32|64}.m: Store TileReg B
+//   - msce{8|16|32|64}.m: Store AccReg C
+//
+// Utility:
+//   - mzero.m: Zero out AccReg
+//===----------------------------------------------------------------------===//

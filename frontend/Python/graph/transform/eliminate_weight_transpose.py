@@ -174,14 +174,28 @@ def eliminate_transpose(graph: Graph):
                         else:
                             param_tensor_data = param_tensor.detach().clone()
 
+                        if list(param_tensor_data.shape) != current_shape:
+                            continue
+
                         if transpose_info["type"] == "t":
+                            if param_tensor_data.dim() != 2:
+                                continue
                             param_tensor_data = param_tensor_data.T
                         elif transpose_info["type"] == "transpose":
                             dim1, dim2 = transpose_info["dims"]
+                            if (
+                                dim1 >= param_tensor_data.dim()
+                                or dim2 >= param_tensor_data.dim()
+                            ):
+                                continue
                             param_tensor_data = param_tensor_data.swapaxes(
                                 dim1, dim2
                             )
                         elif transpose_info["type"] == "permute":
+                            if param_tensor_data.dim() != len(
+                                transpose_info["perm"]
+                            ):
+                                continue
                             param_tensor_data = param_tensor_data.permute(
                                 transpose_info["perm"]
                             )

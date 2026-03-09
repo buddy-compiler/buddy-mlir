@@ -25,11 +25,11 @@ import ctypes
 import functools
 import numpy as np
 
-import mlir.ir as ir
-import mlir.dialects.func as func
-from mlir.passmanager import *
-from mlir.execution_engine import *
-from mlir import runtime as rt
+import buddy_mlir.ir as ir
+import buddy_mlir.dialects.func as func
+from buddy_mlir.passmanager import *
+from buddy_mlir.execution_engine import *
+from buddy_mlir import runtime as rt
 
 from .operation import *
 from .type import *
@@ -68,10 +68,12 @@ def make_output_memref_descriptor(ranks, dtypes):
 
     return OutputDescriptor
 
+
 class NodeType(Enum):
     FakeNode = auto()
     InputNode = auto()
     OtherNode = auto()
+
 
 class Graph:
     """
@@ -181,7 +183,7 @@ class Graph:
     def get_input(self, i):
         return self._body[self._inputs[i]]
 
-    @property 
+    @property
     def inputs(self) -> list[Op]:
         return [self.get_input(i) for i in range(len(self._inputs))]
 
@@ -195,10 +197,12 @@ class Graph:
             if isinstance(input_tm_dict, TensorMeta):
                 tm_list.append(input_tm_dict)
                 continue
-            tm_list.append(TensorMeta(
-                shape=input_tm_dict["shape"],
-                dtype=input_tm_dict["dtype"],
-            ))
+            tm_list.append(
+                TensorMeta(
+                    shape=input_tm_dict["shape"],
+                    dtype=input_tm_dict["dtype"],
+                )
+            )
 
         return tm_list
 
@@ -208,7 +212,7 @@ class Graph:
     @property
     def params(self) -> list[Op]:
         return [self.get_fake_params(i) for i in range(len(self._fake_params))]
-    
+
     @property
     def params_shapes(self) -> list[TensorMeta]:
         tm_list = []
@@ -219,10 +223,12 @@ class Graph:
             if isinstance(param_tm_dict, TensorMeta):
                 tm_list.append(param_tm_dict)
                 continue
-            tm_list.append(TensorMeta(
-                shape=param_tm_dict["shape"],
-                dtype=param_tm_dict["dtype"],
-            ))
+            tm_list.append(
+                TensorMeta(
+                    shape=param_tm_dict["shape"],
+                    dtype=param_tm_dict["dtype"],
+                )
+            )
 
         return tm_list
 
@@ -270,7 +276,7 @@ class Graph:
         for i, ref_idx in enumerate(self._fake_params):
             if ref_idx > node_idx:
                 self._fake_params[i] -= 1
-            
+
         for i in parents:
             i._children.remove(node.name)
         node.args.clear()
@@ -355,7 +361,9 @@ class Graph:
         node_idx = self._body.index(node)
         self._body = self.body[:node_idx] + chain + self.body[node_idx + 1 :]
 
-    def replace_as_child(self, parent_ops: list[Op] | Op, child_op: Op, new_op: Op):
+    def replace_as_child(
+        self, parent_ops: list[Op] | Op, child_op: Op, new_op: Op
+    ):
         """
         Replace `child_op`, a child of the `parent_ops` with `new_op`.
 
@@ -373,15 +381,19 @@ class Graph:
 
         for parent_name in parent_ops:
             parent_op = self.node_table[parent_name]
-            parent_op._children[parent_op._children.index(child_name)] = new_child_name
-            
-    def replace_as_parent(self, parent_op: Op, child_ops: list[Op] | Op, new_op: Op):
+            parent_op._children[parent_op._children.index(child_name)] = (
+                new_child_name
+            )
+
+    def replace_as_parent(
+        self, parent_op: Op, child_ops: list[Op] | Op, new_op: Op
+    ):
         """
         Replace `parent_op` with `new_op` as the the parent node of the `child_ops` list.
 
         Args:
             parent_op (Op): Parent to replace
-            child_ops (list[Op]): Child ops for which replace `parent_op` as their 
+            child_ops (list[Op]): Child ops for which replace `parent_op` as their
             new_op (Op): op to replace `parent_op` with
         """
 
@@ -395,10 +407,14 @@ class Graph:
             child_op = self.node_table[child_name]
 
             if parent_name in child_op._parents:
-                child_op._parents[child_op._parents.index(parent_name)] = new_parent_name
+                child_op._parents[child_op._parents.index(parent_name)] = (
+                    new_parent_name
+                )
 
             if parent_name in child_op._arguments:
-                child_op._arguments[child_op._arguments.index(parent_name)] = new_parent_name
+                child_op._arguments[child_op._arguments.index(parent_name)] = (
+                    new_parent_name
+                )
 
     def init_op_group(self):
         """
@@ -585,7 +601,7 @@ class GraphImporter:
         _func_name (str): Name of the generated MLIR function.
         _inputs (List[TensorMeta]): Input tensor(s) of the FX graph.
         _num_input_visited (int): Number of input nodes that have been visited.
-        _module (mlir.ir.Module): The generated MLIR module.
+        _module (buddy_mlir.ir.Module): The generated MLIR module.
         _ops_registry (dict): Registry for the candidate operations.
     """
 
@@ -636,7 +652,7 @@ class GraphImporter:
             dtype (str): The tensor type.
 
         Returns:
-            mlir.ir.Type: The corresponding MLIR data type.
+            buddy_mlir.ir.Type: The corresponding MLIR data type.
 
         Raises:
             NotImplementedError: If the given dtype is not supported.
@@ -699,7 +715,7 @@ class GraphImporter:
         Imports buddy graph and generates an MLIR module in high-level dialects.
 
         Returns:
-            mlir.ir.Module: An MLIR module in high-level dialects.
+            buddy_mlir.ir.Module: An MLIR module in high-level dialects.
         """
         assert self._do_param_pack == False
         with ir.InsertionPoint(self._module.body):
@@ -774,7 +790,7 @@ class GraphImporter:
         module in high-level dialects with memref.
 
         Returns:
-            mlir.ir.Module: An MLIR module in high-level dialects.
+            buddy_mlir.ir.Module: An MLIR module in high-level dialects.
         """
         with ir.InsertionPoint(self._module.body):
             arguments = []
@@ -833,12 +849,15 @@ class GraphImporter:
         Parameters:
         - node (PlaceholderOp): The PlaceholderOp node representing the
         placeholder.
-        - args_list (List[mlir.ir.BlockArgument]): List of input memrefs.
+        - args_list (List[buddy_mlir.ir.BlockArgument]): List of input memrefs.
 
         Returns:
         None
         """
-        if self._num_input_visited < len(self._params_shapes) and self._do_param_pack:
+        if (
+            self._num_input_visited < len(self._params_shapes)
+            and self._do_param_pack
+        ):
             dtype = node.tensor_meta["dtype"]
             pack_of_dtype = None
             for pack in args_list:
