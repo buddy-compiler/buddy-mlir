@@ -38,7 +38,7 @@ $ cmake -G Ninja ../llvm \
     -DCMAKE_BUILD_TYPE=RELEASE \
     -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
     -DPython3_EXECUTABLE=$(which python3)
-$ ninja check-clang check-mlir omp
+$ ninja check-clang check-mlir 
 $ export BUILD_LOCAL_LLVM_DIR=$PWD
 ```
 
