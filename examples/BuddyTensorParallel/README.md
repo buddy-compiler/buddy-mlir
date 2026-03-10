@@ -1,4 +1,4 @@
-# Buddy Compiler DeepSeekR1 Example
+# Buddy Compiler DeepSeekR1 Distributed Tensor Parallel Example
 
 ## Introduction
 
@@ -78,6 +78,178 @@ Alternatively, you can leave the path blank, and import-deepseek-r1.py will auto
 ```bash
 $ cmake -G Ninja .. -DBUDDY_TENSORPARALLEL_EXAMPLES=ON
 
-$ ninja buddy-dis-run
-$ ./bin/buddy-dis-run
+$ ninja buddy-deepseek-r1-distributed
+```
+Run the distributed executable locally with MPICH Hydra:
+
+```bash
+$ ./examples/BuddyTensorParallel/mpich-install/bin/mpiexec.hydra \
+    -n 3 \
+    -outfile-pattern "output-%r.txt" \
+    ./buddy-deepseek-r1-distributed
+```
+This launches three MPI ranks on the same machine and simulates inter-process communication locally
+This generates:
+
+- `output-0.txt`
+- `output-1.txt`
+- `output-2.txt`
+
+These files correspond to the outputs from rank 0, rank 1, and rank 2 respectively.
+
+The final inference result is written to `output-0.txt`.
+
+## How to cross compile RISC-V target on x86_64 machine
+
+
+### 0. Prepare the RVV build environment
+
+First, prepare the RVV cross-compilation environment by following the [RVV environment setup document]([buddy-mlir/docs/RVVEnvironment.md at f6af831381e8ad7dc4ca74c136ac8721d9bc78a7 · buddy-compiler/buddy-mlir](https://github.com/buddy-compiler/buddy-mlir/blob/f6af831381e8ad7dc4ca74c136ac8721d9bc78a7/docs/RVVEnvironment.md)). 
+
+This example depends on the RISC-V OpenMP shared library. Download and extract it with:
+
+```bash
+$ cd buddy-mlir/llvm/
+$ wget --no-check-certificate 'https://docs.google.com/uc?export=download&id=1XEsAhOcMioN9gdufuyO9OrHIdR0UtHh2' -O build-omp-shared-rv.tar.gz
+$ mkdir build-omp-shared-rv
+$ tar -xzf build-omp-shared-rv.tar.gz -C build-omp-shared-rv
+$ rm build-omp-shared-rv.tar.gz
+```
+
+### 1. Set environment variables
+
+export the required environment variables:
+
+```bash
+$ cd buddy-mlir/build #your local buddy-mlir
+$ export BUDDY_MLIR_BUILD_DIR=$PWD
+$ export LLVM_MLIR_BUILD_DIR=${BUDDY_MLIR_BUILD_DIR}/../llvm/build/
+$ export PYTHONPATH=${LLVM_MLIR_BUILD_DIR}/tools/mlir/python_packages/mlir_core:${BUDDY_MLIR_BUILD_DIR}/python_packages:${PYTHONPATH}
+$ export RISCV_GNU_TOOLCHAIN=${BUDDY_MLIR_BUILD_DIR}/thirdparty/riscv-gnu-toolchain
+$ export RISCV_OMP_SHARED=${LLVM_MLIR_BUILD_DIR}/../build-omp-shared-rv/libomp.so
+$ export RISCV_SYSROOT=${RISCV_GNU_TOOLCHAIN}/sysroot/
+$ export BUDDY_MLIR_BUILD_CROSS_DIR=${BUDDY_MLIR_BUILD_DIR}/../build-cross-rv
+```
+
+### 2. Configure and build
+
+Create a dedicated build directory for this distributed example and run CMake:
+
+```bash
+$ cd buddy-mlir
+$ mkdir build-deepseek-distributed && cd build-deepseek-distributed
+$ cmake -G Ninja .. \
+    -DBUDDY_TENSORPARALLEL_EXAMPLES=ON \
+    -DMLIR_DIR=${BUDDY_MLIR_BUILD_DIR}/../llvm/build/lib/cmake/mlir \
+    -DCROSS_COMPILE_RVV=ON \
+    -DBUDDY_MLIR_BUILD_DIR=${BUDDY_MLIR_BUILD_DIR} \
+    -DLLVM_MLIR_BUILD_DIR=${LLVM_MLIR_BUILD_DIR} \
+    -DBUDDY_MLIR_BUILD_CROSS_DIR=${BUDDY_MLIR_BUILD_CROSS_DIR} \
+    -DRISCV_GNU_TOOLCHAIN=${RISCV_GNU_TOOLCHAIN} \
+    -DRISCV_SYSROOT=${RISCV_SYSROOT} \
+    -DRISCV_OMP_SHARED=${RISCV_OMP_SHARED} \
+    -DCMAKE_C_COMPILER=${RISCV_GNU_TOOLCHAIN}/bin/riscv64-unknown-linux-gnu-gcc \
+    -DCMAKE_CXX_COMPILER=${RISCV_GNU_TOOLCHAIN}/bin/riscv64-unknown-linux-gnu-g++ \
+    -DDSTP_EXAMPLE_PATH=. \
+    -DDSTP_EXAMPLE_BUILD_PATH=.
+```
+
+Build the executable and generate the RVV runtime packages:
+
+```bash
+$ ninja buddy-deepseek-r1-distributed
+$ ninja buddy-deepseek-r1-rvv-packages
+```
+
+This generates multiple compressed packages under: `./examples/BuddyTensorParallel/`
+
+- `buddy-deepseek-r1-rvv-package-rank0.tgz`
+- `buddy-deepseek-r1-rvv-package-rank1.tgz`
+- `buddy-deepseek-r1-rvv-package-rank2.tgz`
+
+### 3. Copy packages to RVV hosts
+
+```bash
+$ scp ./examples/BuddyTensorParallel/buddy-deepseek-r1-rvv-package-rank0.tgz user@rvv-host0:
+$ scp ./examples/BuddyTensorParallel/buddy-deepseek-r1-rvv-package-rank1.tgz user@rvv-host1:
+$ scp ./examples/BuddyTensorParallel/buddy-deepseek-r1-rvv-package-rank2.tgz user@rvv-host2:
+```
+
+ on **each** RVV host:
+
+```
+$ mkdir -p ~/buddy-deepseek-r1-dist
+$ tar xzf buddy-deepseek-r1-rvv-package-rank0.tgz --strip-components=1 -C ~/buddy-deepseek-r1-dist
+```
+
+For rank1 and rank2 hosts, replace the archive name accordingly:
+
+```
+$ mkdir -p ~/buddy-deepseek-r1-dist
+$ tar xzf buddy-deepseek-r1-rvv-package-rank1.tgz --strip-components=1 -C ~/buddy-deepseek-r1-dist
+
+$ kdir -p ~/buddy-deepseek-r1-dist
+$ tar xzf buddy-deepseek-r1-rvv-package-rank2.tgz --strip-components=1 -C ~/buddy-deepseek-r1-dist
+```
+
+After extraction, all hosts should have the same runtime directory layout:
+
+```
+~/buddy-deepseek-r1-dist/
+  buddy-deepseek-r1-distributed
+  mpich-install/
+  libomp.so
+  ...
+```
+
+### 4. SSH & Hosts Configuration for MPICH
+
+On the host that will launch rank 0, configure passwordless SSH access to the other machines:
+
+```
+$ ssh-keygen -t rsa
+$ ssh-copy-id <user>@<target-ip-of-rvv-host1>
+$ ssh-copy-id <user>@<target-ip-of-rvv-host2>
+```
+
+Verify that rank0 can SSH to the other hosts without a password prompt.
+
+The file content should be the IP addresses or hostnames of all participating RVV hosts, one per line.
+
+For example:
+
+```bash
+$ cd ~/buddy-deepseek-r1-dist
+
+$ cat > hosts <<'EOF'
+    target-ip-of-rvv-host0
+    target-ip-of-rvv-host1
+    target-ip-of-rvv-host2
+    EOF
+```
+
+### 5. Launch distributed inference
+
+On `rvv-host0` (the machine acting as rank 0), run:
+
+```
+$ cd ~/buddy-deepseek-r1-dist
+$ export LD_LIBRARY_PATH="$(pwd)/mpich-install/lib:$(pwd):${LD_LIBRARY_PATH}"
+
+$ ./mpich-install/bin/mpiexec.hydra \
+    -f hosts \
+    -n 3 \
+    -outfile-pattern "output-%r.txt" \
+    ./buddy-deepseek-r1-distributed
+```
+
+This generates:
+
+- `output-0.txt`
+- `output-1.txt`
+- `output-2.txt`
+
+These files correspond to the outputs from rank 0, rank 1, and rank 2 respectively.
+
+The final inference result is written to `output-0.txt`.
 

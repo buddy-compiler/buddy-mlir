@@ -426,7 +426,6 @@ int main() {
       _mlir_ciface_forward_decode1(&decodeData, &paramsContainers[m * 6],
                                    &inputMemrefDecode);
 
-
       _mlir_ciface_forward_decode2(
           kvDecodeContainerPtr0, &paramsContainers[m * 6 + 1], &cachePosition,
           &kv0[2 * m], &kv0[2 * m + 1], &resultContainerDecodePtr->mask,
@@ -434,7 +433,6 @@ int main() {
           &decodeData);
       kv0[2 * m] = kvDecodeContainerPtr0->kcache;
       kv0[2 * m + 1] = kvDecodeContainerPtr0->vcache;
-
 
       _mlir_ciface_forward_decode2(
           kvDecodeContainerPtr1, &paramsContainers[m * 6 + 2], &cachePosition,
@@ -448,7 +446,6 @@ int main() {
       mhaDecodeData1 = kvDecodeContainerPtr1->data;
       mhaDecodeData0.addMemRef(mhaDecodeData0, mhaDecodeData1);
 
-
       _mlir_ciface_forward_decode3(&inputMemrefDecode, &inputMemrefDecode,
                                    &mhaDecodeData0);
       _mlir_ciface_forward_decode1(&decodeData, &paramsContainers[m * 6 + 3],
@@ -459,7 +456,6 @@ int main() {
       _mlir_ciface_forward_decode5(&mhaDecodeData1,
                                    &paramsContainers[m * 6 + 5], &decodeData);
       mhaDecodeData0.addMemRef(mhaDecodeData0, mhaDecodeData1);
-
 
       _mlir_ciface_forward_decode3(&inputMemrefDecode, &inputMemrefDecode,
                                    &mhaDecodeData0);
