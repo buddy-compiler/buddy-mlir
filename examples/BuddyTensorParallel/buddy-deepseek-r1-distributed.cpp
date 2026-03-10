@@ -319,9 +319,12 @@ int main(int argc, char *argv[]) {
     size_t decodeTokens = 0;
 
     MPI_Request send_req_decode[8];
-
+    int ctrl = 0;
+    bool sentStop = false;
     for (int i = 1; i <= generateLen; i++) {
-
+      ctrl = 0;
+      MPI_Send(&ctrl, 1, MPI_INT, 1, 99, MPI_COMM_WORLD);
+      MPI_Send(&ctrl, 1, MPI_INT, 2, 99, MPI_COMM_WORLD);
       const auto inferenceStart = std::chrono::high_resolution_clock::now();
       _mlir_ciface_forward_decode0(resultContainerDecodePtr, &paramsContainer0,
                                    &inputContainerDecode, &cachePosition);
@@ -369,12 +372,21 @@ int main(int argc, char *argv[]) {
       // Print the generated token and inference time.
       printIterInfo(i, tok, inferenceTime.count() / 1000);
       if (maxIndex == 151643) {
+        ctrl = 1;
+        MPI_Send(&ctrl, 1, MPI_INT, 1, 99, MPI_COMM_WORLD);
+        MPI_Send(&ctrl, 1, MPI_INT, 2, 99, MPI_COMM_WORLD);
+        sentStop = true;
         break;
       }
 
       inputContainerDecode.getData()[0] = maxIndex;
       outputContainer.appendTokenIdx(maxIndex);
       cachePosition.getData()[0] += 1;
+    }
+    if (!sentStop) {
+      ctrl = 1;
+      MPI_Send(&ctrl, 1, MPI_INT, 1, 99, MPI_COMM_WORLD);
+      MPI_Send(&ctrl, 1, MPI_INT, 2, 99, MPI_COMM_WORLD);
     }
 
     double decodeSeconds = decodeTimeAccumMs / 1000.0;
@@ -442,6 +454,7 @@ int main(int argc, char *argv[]) {
     std::vector<MemRef<float, 1>> paramsContainersRMS, paramsContainersRMS0;
     std::vector<MemRef<float, 1>> paramsContainersMHA, paramsContainersMLP;
 
+    int ctrl = 0;
     // RMS
     for (int i = 1; i < 169; i += 6) {
       paramsDirsRMS.emplace_back(deepSeekR1BuildDir + "/subgraph0_prefill" +
@@ -481,9 +494,9 @@ int main(int argc, char *argv[]) {
 
     MPI_Irecv(mhaMemRef4DPtr, MaxTokenLength * MaxTokenLength, MPI_INT8_T,
               source, 1, MPI_COMM_WORLD, &mha_recv_req[0]);
-    MPI_Irecv(mhaMemRef3D1Ptr, MaxTokenLength * HiddenSize0, MPI_FLOAT, source,
+    MPI_Irecv(mhaMemRef3D1Ptr, MaxTokenLength * HiddenSize, MPI_FLOAT, source,
               2, MPI_COMM_WORLD, &mha_recv_req[1]);
-    MPI_Irecv(mhaMemRef3D2Ptr, MaxTokenLength * HiddenSize0, MPI_FLOAT, source,
+    MPI_Irecv(mhaMemRef3D2Ptr, MaxTokenLength * HiddenSize, MPI_FLOAT, source,
               3, MPI_COMM_WORLD, &mha_recv_req[2]);
 
     MPI_Irecv(subResultPtr, subSize, MPI_FLOAT, source, 0, MPI_COMM_WORLD,
@@ -501,6 +514,15 @@ int main(int argc, char *argv[]) {
     MPI_Comm_create_group(MPI_COMM_WORLD, sub_group, 0, &comm_sub);
 
     for (int m = 0; m < times; m++) {
+      int stopFlag = 0;
+      MPI_Status stopStatus;
+      int hasStop = 0;
+      MPI_Iprobe(source, 99, MPI_COMM_WORLD, &hasStop, &stopStatus);
+      if (hasStop) {
+        MPI_Recv(&stopFlag, 1, MPI_INT, source, 99, MPI_COMM_WORLD,
+                 MPI_STATUS_IGNORE);
+        break;
+      }
 
       _mlir_ciface_forward_prefill1(&sub3DContainer, &paramsContainersRMS[m],
                                     &subResultContainer);
@@ -587,8 +609,13 @@ int main(int argc, char *argv[]) {
     MemRef<float, 2> mhaDataDecode0({1, HiddenSize0});
     MemRefContainer2 kvDecodeContainer0(kv0[0], kv0[1], tmp2DContainerDecode);
     MemRefContainer2 *kvDecodeContainerPtr0 = &kvDecodeContainer0;
-
-    for (int i = 1; i <= generateLen; i++) {
+    int i = 1;
+    for (i = 1; i <= generateLen; i++) {
+      MPI_Recv(&ctrl, 1, MPI_INT, source, 99, MPI_COMM_WORLD,
+               MPI_STATUS_IGNORE);
+      if (ctrl == 1) {
+        break;
+      }
       MPI_Irecv(mhaMemRef4DPtrDecode, MaxTokenLength, MPI_INT8_T, source, 1,
                 MPI_COMM_WORLD, &mha_recv_decode[0]);
       MPI_Irecv(mhaMemRef3D1PtrDecode, HiddenSize, MPI_FLOAT, source, 2,
@@ -666,6 +693,7 @@ int main(int argc, char *argv[]) {
       MPI_Group_free(&world_group);
     }
   }
+
   MPI_Finalize();
 
   return 0;
