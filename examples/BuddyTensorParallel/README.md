@@ -104,7 +104,7 @@ The final inference result is written to `output-0.txt`.
 
 ### 0. Prepare the RVV build environment
 
-First, prepare the RVV cross-compilation environment by following the [RVV environment setup document]([buddy-mlir/docs/RVVEnvironment.md at f6af831381e8ad7dc4ca74c136ac8721d9bc78a7 · buddy-compiler/buddy-mlir](https://github.com/buddy-compiler/buddy-mlir/blob/f6af831381e8ad7dc4ca74c136ac8721d9bc78a7/docs/RVVEnvironment.md)). 
+First, prepare the RVV cross-compilation environment by following the [RVV environment setup document](https://github.com/asdf1113/buddy-mlir/blob/split-ds/docs/RVVEnvironment.md). 
 
 This example depends on the RISC-V OpenMP shared library. Download and extract it with:
 
