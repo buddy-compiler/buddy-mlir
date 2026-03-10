@@ -86,7 +86,7 @@ Run the distributed executable locally with MPICH Hydra:
 $ ./examples/BuddyTensorParallel/mpich-install/bin/mpiexec.hydra \
     -n 3 \
     -outfile-pattern "output-%r.txt" \
-    ./buddy-deepseek-r1-distributed
+    ./bin/buddy-deepseek-r1-distributed
 ```
 This launches three MPI ranks on the same machine and simulates inter-process communication locally
 This generates:
