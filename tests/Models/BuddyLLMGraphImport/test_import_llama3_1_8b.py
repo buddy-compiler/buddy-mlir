@@ -1,5 +1,5 @@
 # RUN: %PYTHON %s
-# ===- test_import_mistral_7b.py ---------------------------------------------
+# ===- test_import_llama3_1_8b.py --------------------------------------------
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 #
 # ===---------------------------------------------------------------------------
 #
-# This is the graph coverage test for Mistral-7B-Instruct-v0.3 model.
+# This is the graph coverage test for Llama-3.1-8B-Instruct model.
 #
 # ===---------------------------------------------------------------------------
 
@@ -39,42 +39,39 @@ from transformers import AutoConfig, AutoModelForCausalLM
 from torch._inductor.decomposition import decompositions as inductor_decomp
 
 # Parse command-line arguments
-parser = argparse.ArgumentParser(description="Mistral-7B graph coverage test")
+parser = argparse.ArgumentParser(description="Llama-3.1-8B graph coverage test")
 parser.add_argument(
     "--output-dir",
     type=str,
     default=None,
-    help="Directory to save output MLIR files (default: build/tests/Models/BuddyLLMGraphCoverage/mistral_7b)",
+    help="Directory to save output MLIR files (default: build/tests/Models/BuddyLLMGraphImport/llama3_1_8b)",
 )
 args = parser.parse_args()
 
 # Determine output directory
 if args.output_dir is None:
-    # Default to build directory structure
     script_dir = Path(__file__).parent
     build_dir = os.environ.get("BUDDY_MLIR_BUILD_DIR")
     if build_dir:
         output_dir = (
-            Path(build_dir) / "tests/Models/BuddyLLMGraphCoverage/mistral_7b"
+            Path(build_dir) / "tests/Models/BuddyLLMGraphImport/llama3_1_8b"
         )
     else:
-        # Fallback: assume standard build directory layout
         repo_root = script_dir.parent.parent.parent
         output_dir = (
-            repo_root / "build/tests/Models/BuddyLLMGraphCoverage/mistral_7b"
+            repo_root / "build/tests/Models/BuddyLLMGraphImport/llama3_1_8b"
         )
 else:
     output_dir = Path(args.output_dir)
 
-# Ensure output directory exists
 output_dir.mkdir(parents=True, exist_ok=True)
 
 # Retrieve model path from environment variable
-model_path = os.environ.get("MISTRAL_7B_MODEL_PATH")
+model_path = os.environ.get("LLAMA3_1_8B_MODEL_PATH")
 if model_path is None:
-    model_path = "mistralai/Mistral-7B-Instruct-v0.3"
+    model_path = "meta-llama/Llama-3.1-8B-Instruct"
 
-print(f"Loading Mistral-7B model from: {model_path}")
+print(f"Loading Llama-3.1-8B model from: {model_path}")
 
 # Load config (full layers, only downloads config.json if not local)
 config = AutoConfig.from_pretrained(model_path)
@@ -146,4 +143,4 @@ with open(forward_path, "w") as f:
     print(driver.construct_main_graph(True), file=f)
 print(f"  Saved forward MLIR to: {forward_path}")
 
-print("✓ Mistral-7B-Instruct-v0.3 graph construction test PASSED")
+print("✓ Llama-3.1-8B-Instruct graph construction test PASSED")

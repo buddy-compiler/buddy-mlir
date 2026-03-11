@@ -710,6 +710,22 @@ class DynamoCompiler:
             return [], TensorDType.Bool
         return None
 
+    def _infer_meta_from_value(self, value):
+        if value is None:
+            return None
+        if isinstance(value, torch.Tensor):
+            node_dtype = self._torch_dtype_translate(str(value.dtype))
+            return value.shape, node_dtype
+        if isinstance(value, np.generic):
+            value = value.item()
+        if isinstance(value, (torch.SymInt, int)):
+            return [], TensorDType.Int64
+        if isinstance(value, (torch.SymFloat, float)):
+            return [], TensorDType.Float32
+        if isinstance(value, (torch.SymBool, bool)):
+            return [], TensorDType.Bool
+        return None
+
     def _resolve_call_function_node_name(self, target):
         """Map Python call_function targets to Buddy op names."""
         node_name = str(target.__name__)
@@ -749,7 +765,13 @@ class DynamoCompiler:
             return tensor_meta.shape, node_dtype
         if str(gm_node.target) == "aten.unbind.int":
             return self._infer_unbind_output_meta(gm_node)
-        inferred = self._infer_meta_from_schema(schema)
+        inferred = self._infer_meta_from_value(gm_node.meta.get("val"))
+        if inferred is None:
+            inferred = self._infer_meta_from_value(
+                gm_node.meta.get("example_value")
+            )
+        if inferred is None:
+            inferred = self._infer_meta_from_schema(schema)
         if inferred is None and gm_node.op == "call_function":
             inferred = self._infer_meta_from_call_function_target(gm_node)
         if inferred is None:

@@ -1,5 +1,5 @@
 # RUN: %PYTHON %s
-# ===- test_import_qwen2_5_7b.py ----------------------------------------------
+# ===- test_import_mistral_7b.py ---------------------------------------------
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 #
 # ===---------------------------------------------------------------------------
 #
-# This is the graph coverage test for Qwen2.5-7B-Instruct model.
+# This is the graph coverage test for Mistral-7B-Instruct-v0.3 model.
 #
 # ===---------------------------------------------------------------------------
 
@@ -35,47 +35,49 @@ from buddy.compiler.ops import tosa
 
 # Then import torch and transformers
 import torch
-from transformers import AutoConfig, AutoModelForCausalLM, StaticCache
+from transformers import AutoConfig, AutoModelForCausalLM
 from torch._inductor.decomposition import decompositions as inductor_decomp
 
 # Parse command-line arguments
-parser = argparse.ArgumentParser(description="Qwen2.5-7B graph coverage test")
+parser = argparse.ArgumentParser(description="Mistral-7B graph coverage test")
 parser.add_argument(
     "--output-dir",
     type=str,
     default=None,
-    help="Directory to save output MLIR files (default: build/tests/Models/BuddyLLMGraphCoverage/qwen2_5_7b)",
+    help="Directory to save output MLIR files (default: build/tests/Models/BuddyLLMGraphImport/mistral_7b)",
 )
 args = parser.parse_args()
 
 # Determine output directory
 if args.output_dir is None:
+    # Default to build directory structure
     script_dir = Path(__file__).parent
     build_dir = os.environ.get("BUDDY_MLIR_BUILD_DIR")
     if build_dir:
         output_dir = (
-            Path(build_dir) / "tests/Models/BuddyLLMGraphCoverage/qwen2_5_7b"
+            Path(build_dir) / "tests/Models/BuddyLLMGraphImport/mistral_7b"
         )
     else:
+        # Fallback: assume standard build directory layout
         repo_root = script_dir.parent.parent.parent
         output_dir = (
-            repo_root / "build/tests/Models/BuddyLLMGraphCoverage/qwen2_5_7b"
+            repo_root / "build/tests/Models/BuddyLLMGraphImport/mistral_7b"
         )
 else:
     output_dir = Path(args.output_dir)
 
+# Ensure output directory exists
 output_dir.mkdir(parents=True, exist_ok=True)
 
 # Retrieve model path from environment variable
-model_path = os.environ.get("QWEN2_5_7B_MODEL_PATH")
+model_path = os.environ.get("MISTRAL_7B_MODEL_PATH")
 if model_path is None:
-    model_path = "Qwen/Qwen2.5-7B-Instruct"
+    model_path = "mistralai/Mistral-7B-Instruct-v0.3"
 
-print(f"Loading Qwen2.5-7B model from: {model_path}")
+print(f"Loading Mistral-7B model from: {model_path}")
 
 # Load config (full layers, only downloads config.json if not local)
 config = AutoConfig.from_pretrained(model_path)
-# Disable default dynamic cache; use StaticCache via importer args instead
 config.use_cache = False
 
 print(f"Model config loaded: {config.num_hidden_layers} layers")
@@ -144,4 +146,4 @@ with open(forward_path, "w") as f:
     print(driver.construct_main_graph(True), file=f)
 print(f"  Saved forward MLIR to: {forward_path}")
 
-print("✓ Qwen2.5-7B-Instruct graph construction test PASSED")
+print("✓ Mistral-7B-Instruct-v0.3 graph construction test PASSED")

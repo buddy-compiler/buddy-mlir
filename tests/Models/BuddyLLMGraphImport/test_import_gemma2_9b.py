@@ -1,5 +1,5 @@
 # RUN: %PYTHON %s
-# ===- test_import_chatglm3_6b.py --------------------------------------------
+# ===- test_import_gemma2_9b.py -----------------------------------------------
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 #
 # ===---------------------------------------------------------------------------
 #
-# This is the graph coverage test for ChatGLM3-6B model.
+# This is the graph coverage test for Gemma-2-9B-It model.
 #
 # ===---------------------------------------------------------------------------
 
@@ -35,16 +35,16 @@ from buddy.compiler.ops import tosa
 
 # Then import torch and transformers
 import torch
-from transformers import AutoConfig, AutoModel
+from transformers import AutoConfig, AutoModelForCausalLM
 from torch._inductor.decomposition import decompositions as inductor_decomp
 
 # Parse command-line arguments
-parser = argparse.ArgumentParser(description="ChatGLM3-6B graph coverage test")
+parser = argparse.ArgumentParser(description="Gemma-2-9B graph coverage test")
 parser.add_argument(
     "--output-dir",
     type=str,
     default=None,
-    help="Directory to save output MLIR files (default: build/tests/Models/BuddyLLMGraphCoverage/chatglm3_6b)",
+    help="Directory to save output MLIR files (default: build/tests/Models/BuddyLLMGraphImport/gemma2_9b)",
 )
 args = parser.parse_args()
 
@@ -54,12 +54,12 @@ if args.output_dir is None:
     build_dir = os.environ.get("BUDDY_MLIR_BUILD_DIR")
     if build_dir:
         output_dir = (
-            Path(build_dir) / "tests/Models/BuddyLLMGraphCoverage/chatglm3_6b"
+            Path(build_dir) / "tests/Models/BuddyLLMGraphImport/gemma2_9b"
         )
     else:
         repo_root = script_dir.parent.parent.parent
         output_dir = (
-            repo_root / "build/tests/Models/BuddyLLMGraphCoverage/chatglm3_6b"
+            repo_root / "build/tests/Models/BuddyLLMGraphImport/gemma2_9b"
         )
 else:
     output_dir = Path(args.output_dir)
@@ -67,21 +67,20 @@ else:
 output_dir.mkdir(parents=True, exist_ok=True)
 
 # Retrieve model path from environment variable
-model_path = os.environ.get("CHATGLM3_6B_MODEL_PATH")
+model_path = os.environ.get("GEMMA2_9B_MODEL_PATH")
 if model_path is None:
-    model_path = "THUDM/chatglm3-6b"
+    model_path = "google/gemma-2-9b-it"
 
-print(f"Loading ChatGLM3-6B model from: {model_path}")
+print(f"Loading Gemma-2-9B model from: {model_path}")
 
 # Load config (full layers, only downloads config.json if not local)
-config = AutoConfig.from_pretrained(model_path, trust_remote_code=True)
+config = AutoConfig.from_pretrained(model_path)
 config.use_cache = False
 
-print(f"Model config loaded: {config.num_layers} layers")
+print(f"Model config loaded: {config.num_hidden_layers} layers")
 
 # Create model from config (random weights)
-# ChatGLM3 requires trust_remote_code for custom modeling code
-model = AutoModel.from_config(config, trust_remote_code=True).eval()
+model = AutoModelForCausalLM.from_config(config).eval()
 
 print("Model created with random weights")
 
@@ -89,18 +88,20 @@ print("Model created with random weights")
 dynamo_compiler = DynamoCompiler(
     primary_registry=tosa.ops_registry,
     aot_autograd_decomposition=inductor_decomp,
+    capture_scalar_outputs=True,
 )
 
 print("DynamoCompiler initialized")
 
-# Import model with KV cache enabled
+# Import model with StaticCache enabled
 with torch.no_grad():
     input_ids = torch.zeros((1, 32), dtype=torch.int64)
-    print("Importing model graph (use_cache=True)...")
+    print("Importing model graph (use_cache=True, StaticCache)...")
     graphs = dynamo_compiler.importer(
         model,
         input_ids=input_ids,
         use_cache=True,
+        cache_implementation="static",
     )
 
 print(f"Graph import completed: {len(graphs)} graph(s) generated")
@@ -143,4 +144,4 @@ with open(forward_path, "w") as f:
     print(driver.construct_main_graph(True), file=f)
 print(f"  Saved forward MLIR to: {forward_path}")
 
-print("✓ ChatGLM3-6B graph construction test PASSED")
+print("✓ Gemma-2-9B-It graph construction test PASSED")

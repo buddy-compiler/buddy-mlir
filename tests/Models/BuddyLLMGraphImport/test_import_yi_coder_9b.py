@@ -1,5 +1,5 @@
 # RUN: %PYTHON %s
-# ===- test_import_phi3_mini_4k.py -------------------------------------------
+# ===- test_import_yi_coder_9b.py --------------------------------------------
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 #
 # ===---------------------------------------------------------------------------
 #
-# This is the graph coverage test for Phi-3-mini-4k-instruct model.
+# This is the graph coverage test for Yi-Coder-9B-Chat model.
 #
 # ===---------------------------------------------------------------------------
 
@@ -39,14 +39,12 @@ from transformers import AutoConfig, AutoModelForCausalLM
 from torch._inductor.decomposition import decompositions as inductor_decomp
 
 # Parse command-line arguments
-parser = argparse.ArgumentParser(
-    description="Phi-3-mini-4k graph coverage test"
-)
+parser = argparse.ArgumentParser(description="Yi-Coder-9B graph coverage test")
 parser.add_argument(
     "--output-dir",
     type=str,
     default=None,
-    help="Directory to save output MLIR files (default: build/tests/Models/BuddyLLMGraphCoverage/phi3_mini_4k)",
+    help="Directory to save output MLIR files (default: build/tests/Models/BuddyLLMGraphImport/yi_coder_9b)",
 )
 args = parser.parse_args()
 
@@ -56,12 +54,12 @@ if args.output_dir is None:
     build_dir = os.environ.get("BUDDY_MLIR_BUILD_DIR")
     if build_dir:
         output_dir = (
-            Path(build_dir) / "tests/Models/BuddyLLMGraphCoverage/phi3_mini_4k"
+            Path(build_dir) / "tests/Models/BuddyLLMGraphImport/yi_coder_9b"
         )
     else:
         repo_root = script_dir.parent.parent.parent
         output_dir = (
-            repo_root / "build/tests/Models/BuddyLLMGraphCoverage/phi3_mini_4k"
+            repo_root / "build/tests/Models/BuddyLLMGraphImport/yi_coder_9b"
         )
 else:
     output_dir = Path(args.output_dir)
@@ -69,11 +67,11 @@ else:
 output_dir.mkdir(parents=True, exist_ok=True)
 
 # Retrieve model path from environment variable
-model_path = os.environ.get("PHI3_MINI_4K_MODEL_PATH")
+model_path = os.environ.get("YI_CODER_9B_MODEL_PATH")
 if model_path is None:
-    model_path = "microsoft/Phi-3-mini-4k-instruct"
+    model_path = "01-ai/Yi-Coder-9B-Chat"
 
-print(f"Loading Phi-3-mini-4k model from: {model_path}")
+print(f"Loading Yi-Coder-9B model from: {model_path}")
 
 # Load config (full layers, only downloads config.json if not local)
 config = AutoConfig.from_pretrained(model_path)
@@ -145,4 +143,4 @@ with open(forward_path, "w") as f:
     print(driver.construct_main_graph(True), file=f)
 print(f"  Saved forward MLIR to: {forward_path}")
 
-print("✓ Phi-3-mini-4k-instruct graph construction test PASSED")
+print("✓ Yi-Coder-9B-Chat graph construction test PASSED")

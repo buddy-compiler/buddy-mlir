@@ -1,5 +1,5 @@
 # RUN: %PYTHON %s
-# ===- test_import_gemma2_9b.py -----------------------------------------------
+# ===- test_import_qwen2_5_7b.py ----------------------------------------------
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 #
 # ===---------------------------------------------------------------------------
 #
-# This is the graph coverage test for Gemma-2-9B-It model.
+# This is the graph coverage test for Qwen2.5-7B-Instruct model.
 #
 # ===---------------------------------------------------------------------------
 
@@ -35,16 +35,16 @@ from buddy.compiler.ops import tosa
 
 # Then import torch and transformers
 import torch
-from transformers import AutoConfig, AutoModelForCausalLM
+from transformers import AutoConfig, AutoModelForCausalLM, StaticCache
 from torch._inductor.decomposition import decompositions as inductor_decomp
 
 # Parse command-line arguments
-parser = argparse.ArgumentParser(description="Gemma-2-9B graph coverage test")
+parser = argparse.ArgumentParser(description="Qwen2.5-7B graph coverage test")
 parser.add_argument(
     "--output-dir",
     type=str,
     default=None,
-    help="Directory to save output MLIR files (default: build/tests/Models/BuddyLLMGraphCoverage/gemma2_9b)",
+    help="Directory to save output MLIR files (default: build/tests/Models/BuddyLLMGraphImport/qwen2_5_7b)",
 )
 args = parser.parse_args()
 
@@ -54,12 +54,12 @@ if args.output_dir is None:
     build_dir = os.environ.get("BUDDY_MLIR_BUILD_DIR")
     if build_dir:
         output_dir = (
-            Path(build_dir) / "tests/Models/BuddyLLMGraphCoverage/gemma2_9b"
+            Path(build_dir) / "tests/Models/BuddyLLMGraphImport/qwen2_5_7b"
         )
     else:
         repo_root = script_dir.parent.parent.parent
         output_dir = (
-            repo_root / "build/tests/Models/BuddyLLMGraphCoverage/gemma2_9b"
+            repo_root / "build/tests/Models/BuddyLLMGraphImport/qwen2_5_7b"
         )
 else:
     output_dir = Path(args.output_dir)
@@ -67,14 +67,15 @@ else:
 output_dir.mkdir(parents=True, exist_ok=True)
 
 # Retrieve model path from environment variable
-model_path = os.environ.get("GEMMA2_9B_MODEL_PATH")
+model_path = os.environ.get("QWEN2_5_7B_MODEL_PATH")
 if model_path is None:
-    model_path = "google/gemma-2-9b-it"
+    model_path = "Qwen/Qwen2.5-7B-Instruct"
 
-print(f"Loading Gemma-2-9B model from: {model_path}")
+print(f"Loading Qwen2.5-7B model from: {model_path}")
 
 # Load config (full layers, only downloads config.json if not local)
 config = AutoConfig.from_pretrained(model_path)
+# Disable default dynamic cache; use StaticCache via importer args instead
 config.use_cache = False
 
 print(f"Model config loaded: {config.num_hidden_layers} layers")
@@ -88,7 +89,6 @@ print("Model created with random weights")
 dynamo_compiler = DynamoCompiler(
     primary_registry=tosa.ops_registry,
     aot_autograd_decomposition=inductor_decomp,
-    capture_scalar_outputs=True,
 )
 
 print("DynamoCompiler initialized")
@@ -144,4 +144,4 @@ with open(forward_path, "w") as f:
     print(driver.construct_main_graph(True), file=f)
 print(f"  Saved forward MLIR to: {forward_path}")
 
-print("✓ Gemma-2-9B-It graph construction test PASSED")
+print("✓ Qwen2.5-7B-Instruct graph construction test PASSED")

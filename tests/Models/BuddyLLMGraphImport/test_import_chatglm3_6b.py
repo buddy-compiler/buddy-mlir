@@ -1,5 +1,5 @@
 # RUN: %PYTHON %s
-# ===- test_import_tinyllama_1_1b.py -----------------------------------------
+# ===- test_import_chatglm3_6b.py --------------------------------------------
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 #
 # ===---------------------------------------------------------------------------
 #
-# This is the graph coverage test for TinyLlama-1.1B-Chat-v1.0 model.
+# This is the graph coverage test for ChatGLM3-6B model.
 #
 # ===---------------------------------------------------------------------------
 
@@ -35,18 +35,16 @@ from buddy.compiler.ops import tosa
 
 # Then import torch and transformers
 import torch
-from transformers import AutoConfig, AutoModelForCausalLM
+from transformers import AutoConfig, AutoModel
 from torch._inductor.decomposition import decompositions as inductor_decomp
 
 # Parse command-line arguments
-parser = argparse.ArgumentParser(
-    description="TinyLlama-1.1B graph coverage test"
-)
+parser = argparse.ArgumentParser(description="ChatGLM3-6B graph coverage test")
 parser.add_argument(
     "--output-dir",
     type=str,
     default=None,
-    help="Directory to save output MLIR files (default: build/tests/Models/BuddyLLMGraphCoverage/tinyllama_1_1b)",
+    help="Directory to save output MLIR files (default: build/tests/Models/BuddyLLMGraphImport/chatglm3_6b)",
 )
 args = parser.parse_args()
 
@@ -56,14 +54,12 @@ if args.output_dir is None:
     build_dir = os.environ.get("BUDDY_MLIR_BUILD_DIR")
     if build_dir:
         output_dir = (
-            Path(build_dir)
-            / "tests/Models/BuddyLLMGraphCoverage/tinyllama_1_1b"
+            Path(build_dir) / "tests/Models/BuddyLLMGraphImport/chatglm3_6b"
         )
     else:
         repo_root = script_dir.parent.parent.parent
         output_dir = (
-            repo_root
-            / "build/tests/Models/BuddyLLMGraphCoverage/tinyllama_1_1b"
+            repo_root / "build/tests/Models/BuddyLLMGraphImport/chatglm3_6b"
         )
 else:
     output_dir = Path(args.output_dir)
@@ -71,20 +67,21 @@ else:
 output_dir.mkdir(parents=True, exist_ok=True)
 
 # Retrieve model path from environment variable
-model_path = os.environ.get("TINYLLAMA_1_1B_MODEL_PATH")
+model_path = os.environ.get("CHATGLM3_6B_MODEL_PATH")
 if model_path is None:
-    model_path = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+    model_path = "THUDM/chatglm3-6b"
 
-print(f"Loading TinyLlama-1.1B model from: {model_path}")
+print(f"Loading ChatGLM3-6B model from: {model_path}")
 
 # Load config (full layers, only downloads config.json if not local)
-config = AutoConfig.from_pretrained(model_path)
+config = AutoConfig.from_pretrained(model_path, trust_remote_code=True)
 config.use_cache = False
 
-print(f"Model config loaded: {config.num_hidden_layers} layers")
+print(f"Model config loaded: {config.num_layers} layers")
 
 # Create model from config (random weights)
-model = AutoModelForCausalLM.from_config(config).eval()
+# ChatGLM3 requires trust_remote_code for custom modeling code
+model = AutoModel.from_config(config, trust_remote_code=True).eval()
 
 print("Model created with random weights")
 
@@ -96,15 +93,14 @@ dynamo_compiler = DynamoCompiler(
 
 print("DynamoCompiler initialized")
 
-# Import model with StaticCache enabled
+# Import model with KV cache enabled
 with torch.no_grad():
     input_ids = torch.zeros((1, 32), dtype=torch.int64)
-    print("Importing model graph (use_cache=True, StaticCache)...")
+    print("Importing model graph (use_cache=True)...")
     graphs = dynamo_compiler.importer(
         model,
         input_ids=input_ids,
         use_cache=True,
-        cache_implementation="static",
     )
 
 print(f"Graph import completed: {len(graphs)} graph(s) generated")
@@ -147,4 +143,4 @@ with open(forward_path, "w") as f:
     print(driver.construct_main_graph(True), file=f)
 print(f"  Saved forward MLIR to: {forward_path}")
 
-print("✓ TinyLlama-1.1B-Chat-v1.0 graph construction test PASSED")
+print("✓ ChatGLM3-6B graph construction test PASSED")

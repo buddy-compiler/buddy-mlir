@@ -7,7 +7,7 @@
 # Usage:
 #   1. Edit the paths below to point to your local model directories
 #   2. Source this script: source set_model_env.sh
-#   3. Run tests: python tests/Models/BuddyLLMGraphCoverage/test_import_mistral_7b.py
+#   3. Run tests: python tests/Models/BuddyLLMGraphImport/test_import_mistral_7b.py
 #
 # ===---------------------------------------------------------------------------
 
