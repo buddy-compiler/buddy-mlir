@@ -71,6 +71,7 @@ class DynamoCompiler:
         aot_autograd_decomposition: Optional[dict] = None,
         verbose=False,
         enable_external_calls: bool = False,
+        capture_scalar_outputs: bool = False,
     ) -> None:
         """
         Initializes the Dynamo Compiler.
@@ -84,6 +85,8 @@ class DynamoCompiler:
                 debugging purposes. The default value is False, indicating that
                 no extra debug information will be printed.
             enable_external_calls (bool): Enable external function call support (for oneDNN, etc.)
+            capture_scalar_outputs (bool): Enable scalar output capture in
+                TorchDynamo to avoid graph breaks from scalar escapes.
         Attributes:
             _func_name: The function name to be used.
             _aot_autograd_decomposition (Optional[dict], optional):
@@ -98,6 +101,7 @@ class DynamoCompiler:
         """
         # Make custom dynamo compiler take effect.
         dynamo.reset()
+        dynamo.config.capture_scalar_outputs = capture_scalar_outputs
         # Initialize the attributes.
         if primary_registry is None:
             primary_registry = {}

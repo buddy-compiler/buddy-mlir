@@ -1,9 +1,6 @@
 import os
 
-config.excludes = getattr(config, "excludes", []) + [
-    "set_model_env.sh",
-    "compare_cache.py",
-]
+config.excludes = getattr(config, "excludes", []) + ["set_model_env.sh"]
 
 config.excludes.extend(
     name

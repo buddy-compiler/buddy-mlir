@@ -35,11 +35,8 @@ from buddy.compiler.ops import tosa
 
 # Then import torch and transformers
 import torch
-import torch._dynamo
 from transformers import AutoConfig, AutoModelForCausalLM
 from torch._inductor.decomposition import decompositions as inductor_decomp
-
-torch._dynamo.config.capture_scalar_outputs = True
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="Gemma-2-9B graph coverage test")
@@ -91,6 +88,7 @@ print("Model created with random weights")
 dynamo_compiler = DynamoCompiler(
     primary_registry=tosa.ops_registry,
     aot_autograd_decomposition=inductor_decomp,
+    capture_scalar_outputs=True,
 )
 
 print("DynamoCompiler initialized")
