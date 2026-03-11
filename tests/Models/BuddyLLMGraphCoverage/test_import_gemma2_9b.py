@@ -35,8 +35,11 @@ from buddy.compiler.ops import tosa
 
 # Then import torch and transformers
 import torch
-from transformers import AutoConfig, AutoModelForCausalLM, StaticCache
+import torch._dynamo
+from transformers import AutoConfig, AutoModelForCausalLM
 from torch._inductor.decomposition import decompositions as inductor_decomp
+
+torch._dynamo.config.capture_scalar_outputs = True
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="Gemma-2-9B graph coverage test")
@@ -75,6 +78,7 @@ print(f"Loading Gemma-2-9B model from: {model_path}")
 
 # Load config (full layers, only downloads config.json if not local)
 config = AutoConfig.from_pretrained(model_path)
+config.use_cache = False
 
 print(f"Model config loaded: {config.num_hidden_layers} layers")
 
@@ -91,24 +95,15 @@ dynamo_compiler = DynamoCompiler(
 
 print("DynamoCompiler initialized")
 
-# Import model with StaticCache
-batch_size, seq_len = 1, 32
-past_key_values = StaticCache(
-    config=config,
-    batch_size=batch_size,
-    max_cache_len=seq_len,
-    device="cpu",
-    dtype=torch.float32,
-)
-
+# Import model with StaticCache enabled
 with torch.no_grad():
-    input_ids = torch.zeros((batch_size, seq_len), dtype=torch.int64)
-    print("Importing model graph...")
+    input_ids = torch.zeros((1, 32), dtype=torch.int64)
+    print("Importing model graph (use_cache=True, StaticCache)...")
     graphs = dynamo_compiler.importer(
         model,
         input_ids=input_ids,
-        past_key_values=past_key_values,
         use_cache=True,
+        cache_implementation="static",
     )
 
 print(f"Graph import completed: {len(graphs)} graph(s) generated")

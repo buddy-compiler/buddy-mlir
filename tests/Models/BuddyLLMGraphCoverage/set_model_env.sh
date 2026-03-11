@@ -15,7 +15,7 @@
 
 export MISTRAL_7B_MODEL_PATH="$HOME/model/Mistral-7B-Instruct-v0.3"
 export QWEN2_5_7B_MODEL_PATH="$HOME/model/Qwen2.5-7B-Instruct"
-export GEMMA2_9B_MODEL_PATH="$HOME/model/gemma-2-9b-it"
+export GEMMA2_9B_MODEL_PATH="$HOME/model/Gemma-2-9B-It"
 export DEEPSEEK_R1_LLAMA_8B_MODEL_PATH="$HOME/model/DeepSeek-R1-Distill-Llama-8B"
 export PHI3_MINI_4K_MODEL_PATH="$HOME/model/Phi-3-mini-4k-instruct"
 export LLAMA3_1_8B_MODEL_PATH="$HOME/model/Llama-3.1-8B-Instruct"
