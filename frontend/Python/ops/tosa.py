@@ -262,6 +262,7 @@ from ..graph import (
     ResizeOp,
     SplitWithSizesOp,
     GQAAttentionFusedOp,
+    Int4UnpackOp,
 )
 from .utils import *
 
@@ -2644,12 +2645,18 @@ def convert_element_type_op(node: ConvertElementTypeOp, symbol_table):
         TensorDType.BFloat16: ir.BF16Type.get(),
         TensorDType.Int64: ir.IntegerType.get_signless(64),
         TensorDType.Int32: ir.IntegerType.get_signless(32),
+        TensorDType.Int8: ir.IntegerType.get_signless(8),
         TensorDType.Bool: ir.IntegerType.get_signless(1),
         TensorDType.Complex64: ir.ComplexType.get(ir.F32Type.get()),
         TensorDType.Complex128: ir.ComplexType.get(ir.F64Type.get()),
     }
     input_tensor = symbol_table.get((str(node.args[0]), 0))
-    to_cast_type = types_mapping[node.args[1]]
+    if len(node.args) >= 2 and node.args[1] in types_mapping:
+        to_cast_type = types_mapping[node.args[1]]
+    else:
+        to_cast_type = types_mapping.get(
+            node.tensor_meta.get("dtype"), ir.F32Type.get()
+        )
     input_type = ir.RankedTensorType(input_tensor.type).element_type
     output_shape = list(node.tensor_meta["shape"])
 
@@ -12048,6 +12055,53 @@ def native_layer_norm_backward_op(
     return tuple(results)
 
 
+def int4_unpack_op(node: Int4UnpackOp, symbol_table):
+    """
+    Unpack int4-packed i8 tensor via TOSA bitwise ops + concat + reshape.
+
+    Input:  tensor<*shape x (N/2) x i8>   (two int4 values per byte)
+    Output: tensor<*shape x N x i8>        (one int4 value per byte, sign-extended)
+
+    Low nibble (even index):  (byte & 0x0F) << 4 >> 4  (arithmetic shift for sign ext)
+    High nibble (odd index):  byte >> 4                 (arithmetic shift for sign ext)
+    Then interleave: [low, high] along last axis.
+    """
+    packed = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    packed_type = ir.RankedTensorType(packed.type)
+    packed_shape = list(packed_type.shape)
+    i8_type = packed_type.element_type
+
+    mask_attr = ir.DenseElementsAttr.get_splat(
+        ir.RankedTensorType.get(packed_shape, i8_type),
+        ir.IntegerAttr.get(i8_type, 15),
+    )
+    mask_val = tosa.ConstOp(mask_attr).results[0]
+
+    shift_attr = ir.DenseElementsAttr.get_splat(
+        ir.RankedTensorType.get(packed_shape, i8_type),
+        ir.IntegerAttr.get(i8_type, 4),
+    )
+    shift_val = tosa.ConstOp(shift_attr).results[0]
+
+    pt = ir.RankedTensorType.get(packed_shape, i8_type)
+
+    low_masked = tosa.BitwiseAndOp(pt, packed, mask_val).result
+    low_shifted = tosa.LogicalLeftShiftOp(pt, low_masked, shift_val).result
+    low = tosa.ArithmeticRightShiftOp(pt, low_shifted, shift_val, False).result
+
+    high = tosa.ArithmeticRightShiftOp(pt, packed, shift_val, False).result
+
+    shape_3d = packed_shape[:-1] + [packed_shape[-1], 1]
+    low_3d = tosa.ReshapeOp(low, _create_shape_operand(shape_3d)).result
+    high_3d = tosa.ReshapeOp(high, _create_shape_operand(shape_3d)).result
+
+    cat_shape = packed_shape[:-1] + [packed_shape[-1], 2]
+    cat = tosa.ConcatOp([low_3d, high_3d], len(cat_shape) - 1).result
+
+    output_shape = list(node.tensor_meta["shape"])
+    return tosa.ReshapeOp(cat, _create_shape_operand(output_shape))
+
+
 def bitwise_and_scalar_op(node: BitwiseAndScalarOp, symbol_table):
     """
     Perform element-wise bitwise AND between a tensor and a scalar.
@@ -14267,6 +14321,8 @@ ops_registry = {
     "ConvolutionBackwardOp": convolution_backward_op,
     "NativeGroupNormBackwardOp": native_group_norm_backward_op,
     "NativeLayerNormBackwardOp": native_layer_norm_backward_op,
+    # Int4 unpack
+    "Int4UnpackOp": int4_unpack_op,
     # Bitwise scalar operations
     "BitwiseAndScalarOp": bitwise_and_scalar_op,
     "BitwiseOrScalarOp": bitwise_or_scalar_op,

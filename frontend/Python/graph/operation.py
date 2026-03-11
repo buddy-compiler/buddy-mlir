@@ -421,6 +421,26 @@ class AddMMOp(Op):
         self._op_type = OpType.ReduceType
 
 
+class QuantizedMatmulOp(Op):
+    """W8A8 quantized matmul: dynamic activation quant + i8 matmul + rescale.
+    args: [activation(f32), weight(i8), weight_scale(f32)]
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReduceType
+
+
+class QuantizedAddMMOp(Op):
+    """W8A8 quantized addmm: dynamic activation quant + i8 matmul + rescale + bias.
+    args: [bias(f32), activation(f32), weight(i8), weight_scale(f32)]
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReduceType
+
+
 class AmaxOp(Op):
     def __init__(self) -> None:
         super().__init__()
@@ -2611,6 +2631,14 @@ class NativeLayerNormBackwardOp(Op):
 
 
 # === Bitwise Scalar Operations ===
+
+
+class Int4UnpackOp(Op):
+    """Unpack int4-packed i8 tensor: [*shape, N/2] -> [*shape, N] via bitwise ops + interleave."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReshapeType
 
 
 class BitwiseAndScalarOp(Op):
