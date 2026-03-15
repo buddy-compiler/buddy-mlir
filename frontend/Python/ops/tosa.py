@@ -2381,14 +2381,25 @@ def reshape_op(node: ReshapeOp, symbol_table):
     shape will be inferred automatically.
     """
     input1 = symbol_table.get((str(node.args[0]), 0))
-    # Support both single int or list/tuple for new_shape
-    shape_arg = node.args[1]
-    if isinstance(shape_arg, (list, tuple)):
-        new_shape = list(shape_arg)
+    new_shape = []
+    if node._newshape is None:
+        shape_arg = node.args[1]
+        
+        if isinstance(shape_arg, (list, tuple)):
+            new_shape = list(shape_arg)
+        else:
+            
+            try:
+                
+                new_shape = list(shape_arg)
+            except TypeError:
+                new_shape = [shape_arg]
     else:
-        new_shape = [shape_arg]
-    total_size = 1
+        new_shape = list(node._newshape)
+
+    
     now_shape = ir.RankedTensorType(input1.type).shape
+    total_size = 1
     for dim_siz in now_shape:
         total_size *= dim_siz
 
@@ -2408,7 +2419,6 @@ def reshape_op(node: ReshapeOp, symbol_table):
             if new_shape[i] == -1:
                 new_shape[i] = infer_dim_size
 
-    # Optimize: if the new shape is the same as the current shape, skip the reshape
     if len(new_shape) == len(now_shape) and all(
         int(new_dim) == int(old_dim)
         for new_dim, old_dim in zip(new_shape, now_shape)
@@ -2518,6 +2528,7 @@ def _reshape_or_extract_for_complex(input_tensor, output_shape):
 
     shape_operand = _create_shape_operand(output_shape)
     return tosa.ReshapeOp(input_tensor, shape_operand).result
+
 
 
 def unsqueeze_op(node: UnsqueezeOp, symbol_table):
@@ -3069,7 +3080,7 @@ def expand_op(node: ExpandOp, symbol_table) -> ir.Operation:
     to_expand_tensor = symbol_table.get((str(node.args[0]), 0))
     if to_expand_tensor is None:
         return
-    original_size = list(to_expand_tensor.type.shape)
+    original_size = list(ir.RankedTensorType(to_expand_tensor.type).shape)
     new_size = list(node.args[1])
     result_element_type = ir.RankedTensorType(
         to_expand_tensor.type
@@ -3087,27 +3098,37 @@ def expand_op(node: ExpandOp, symbol_table) -> ir.Operation:
         element = ir.FloatAttr.get(result_element_type, 0.0)
     else:
         raise NotImplementedError("Unsupported element type!")
+
     # `aten.expand` aligns shapes from the right and may add leading dimensions.
-    # Ensure the input tensor rank matches the requested rank by prepending 1s.
     if len(original_size) < len(new_size):
-        reshape_shape = [1] * (
+        padded_original_size = [1] * (
             len(new_size) - len(original_size)
         ) + original_size
-        to_expand_tensor = tosa.ReshapeOp(
-            to_expand_tensor, _create_shape_operand(reshape_shape)
-        ).result
-        original_size = reshape_shape
     elif len(original_size) > len(new_size):
         raise ValueError(
-            f"expand_op: invalid target rank {len(new_size)} for input rank {len(original_size)}"
+            f"expand_op: invalid target rank {len(new_size)} "
+            f"for input rank {len(original_size)}"
         )
+    else:
+        padded_original_size = original_size
 
-    expanded_size: List[int] = []
-    for dim, size in zip(original_size, new_size):
-        expanded_size.append(dim if size == -1 else int(size))
+    input_for_add = to_expand_tensor
+    if original_size != padded_original_size:
+        input_for_add = tosa.ReshapeOp(
+            to_expand_tensor,
+            _create_shape_operand(padded_original_size),
+        ).result
 
-    if original_size == expanded_size:
-        return to_expand_tensor
+    expanded_size = []
+    for dim, size in zip(padded_original_size, new_size):
+        if size == -1:
+            expanded_size.append(dim)
+        else:
+            expanded_size.append(int(size))
+
+    if padded_original_size == expanded_size:
+        return input_for_add
+
     new_size_tensor_type = ir.RankedTensorType.get(
         expanded_size, result_element_type
     )
@@ -3115,7 +3136,7 @@ def expand_op(node: ExpandOp, symbol_table) -> ir.Operation:
         new_size_tensor_type, element
     )
     new_size_tensor = tosa.ConstOp(new_size_attr).results[0]
-    op = _gen_arith_binary_op(to_expand_tensor, new_size_tensor, tosa.AddOp)
+    op = _gen_arith_binary_op(input_for_add, new_size_tensor, tosa.AddOp)
     return op
 
 
@@ -3717,7 +3738,8 @@ def sigmoid_op(node: SigmoidOp, symbol_table):
     input1 = symbol_table.get((str(node.args[0]), 0))
     if input1 is None:
         return
-    output_shape = list(node.tensor_meta["shape"])
+    input_shape = ir.RankedTensorType(input1.type).shape
+    output_shape = list(input_shape)
     dtype = node.tensor_meta["dtype"]
     mlir_dtype = mlir_element_type_get(dtype)
     tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
@@ -4159,7 +4181,12 @@ def scaled_dot_product_flash_attention_for_cpu_op(
     log_sumexp = tosa.AddOp(max_vals.result.type, max_vals, log_op)
     log_weights = tosa.SubOp(add_op.result.type, add_op, log_sumexp)
     softmax_result = math.ExpOp(log_weights.result)
-    log_sumexp_operand = _create_shape_operand(list(output_shape[1]))
+    new_shape = [
+        int(query_shape[0]),
+        int(query_shape[1]),
+        int(query_shape[2]),
+        ]
+    log_sumexp_operand = _create_shape_operand(new_shape)
     log_sumexp = tosa.ReshapeOp(log_sumexp, log_sumexp_operand)
 
     # This step includes dropout during training.
@@ -4219,9 +4246,21 @@ def flash_attention_for_cpu_prefill_op(
     vec_len = arith.ConstantOp(index, vector_width, loc=loc)
 
     # === input parse ===
-    query = symbol_table.get((str(node.args[0]), 0), node.args[0])
-    key = symbol_table.get((str(node.args[1]), 0), node.args[1])
-    value = symbol_table.get((str(node.args[2]), 0), node.args[2])
+    def lookup_input(name):
+        if name in symbol_table:
+            return symbol_table[name]
+        elif (str(name), 0) in symbol_table:
+            return symbol_table[(str(name), 0)]
+        else:
+            raise KeyError(f"FlashAttention input '{name}' not found in symbol_table.")
+        
+    # query = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    # key = symbol_table.get((str(node.args[1]), 0), node.args[1])
+    # value = symbol_table.get((str(node.args[2]), 0), node.args[2])
+    query = lookup_input(node.args[0])
+    key = lookup_input(node.args[1])
+    value = lookup_input(node.args[2])
+    
     attn_mask = node.kwargs.get("attn_mask", None)
     scale = node.kwargs.get("scale", None)
 
@@ -4229,7 +4268,7 @@ def flash_attention_for_cpu_prefill_op(
     query_shape = query.type.shape
     key_shape = key.type.shape
     value_shape = value.type.shape
-    output_shape = list(node.tensor_meta["shape"])
+    output_shape = list(query_shape)
 
     # scale = 1/sqrt(H)
     scale_val = 1 / numpy.sqrt(query.type.shape[-1]) if scale is None else scale
@@ -4272,7 +4311,7 @@ def flash_attention_for_cpu_prefill_op(
     block_size_kv = arith.ConstantOp(index, block_size_kv_num, loc=loc)
 
     out_memref = memref.AllocOp(
-        memref.MemRefType.get(list(output_shape[0]), dtype_qkv), [], [], loc=loc
+        memref.MemRefType.get(output_shape, dtype_qkv), [], [], loc=loc
     )
     out_scores_memref = memref.AllocOp(
         memref.MemRefType.get(
@@ -4650,7 +4689,7 @@ def flash_attention_for_cpu_prefill_op(
             affine.yield_([])
         affine.yield_([])
     out_tensor = bufferization.ToTensorOp(
-        ir.RankedTensorType.get(list(output_shape[0]), dtype_qkv),
+        ir.RankedTensorType.get(output_shape, dtype_qkv),
         out_memref,
         restrict=ir.BoolAttr.get(True),
     )
@@ -13814,7 +13853,6 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
     query_shape = query.type.shape
     key_shape = k_cache.type.shape
     value_shape = v_cache.type.shape
-    output_shape = list(node.tensor_meta["shape"])
 
     # All intermediate constants use compute_dtype (f32)
     scale_val = 1 / numpy.sqrt(query.type.shape[-1]) if scale is None else scale
@@ -13976,7 +14014,8 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
     log_sumexp = tosa.AddOp(max_vals.result.type, max_vals, log_op)
     log_weights = tosa.SubOp(add_op.result.type, add_op, log_sumexp)
     softmax_result = math.ExpOp(log_weights.result)
-    log_sumexp_operand = _create_shape_operand(list(output_shape[1]))
+    # log_sumexp_operand = _create_shape_operand(list(output_shape[1]))
+    log_sumexp_operand = _create_shape_operand([query_shape[0], query_shape[1], query_shape[2]])
     log_sumexp = tosa.ReshapeOp(log_sumexp, log_sumexp_operand)
 
     # Cast log_sumexp back to output dtype if needed
