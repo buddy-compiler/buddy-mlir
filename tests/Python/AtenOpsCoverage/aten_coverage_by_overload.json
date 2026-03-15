@@ -1,0 +1,9 @@
+[
+  {
+    "name": "add.Tensor",
+    "op": "add",
+    "overload": "Tensor",
+    "status": "pass",
+    "reason": ""
+  }
+]

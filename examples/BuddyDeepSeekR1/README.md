@@ -53,14 +53,14 @@ $ ninja check-buddy
 Set the `PYTHONPATH` environment variable. Make sure that the `PYTHONPATH` variable includes the directory of LLVM/MLIR python bindings and the directory of Buddy MLIR python packages.
 
 ```bash
-$ export PYTHONPATH=/path-to-buddy-mlir/llvm/build/tools/mlir/python_packages/mlir_core:/path-to-buddy-mlir/build/python_packages:${PYTHONPATH}
+$ export PYTHONPATH=/path-to-buddy-mlir/build/python_packages:${PYTHONPATH}
 
 // For example:
 // Navigate to your buddy-mlir/build directory
 $ cd buddy-mlir/build
 $ export BUDDY_MLIR_BUILD_DIR=$PWD
 $ export LLVM_MLIR_BUILD_DIR=$PWD/../llvm/build
-$ export PYTHONPATH=${LLVM_MLIR_BUILD_DIR}/tools/mlir/python_packages/mlir_core:${BUDDY_MLIR_BUILD_DIR}/python_packages:${PYTHONPATH}
+$ export PYTHONPATH=${BUDDY_MLIR_BUILD_DIR}/python_packages:${PYTHONPATH}
 ```
 
 3. Set model environment variable.
@@ -88,6 +88,8 @@ $ ./bin/buddy-deepseek-r1-tiered-kv-cache-run
 
 // NUMA node binding
 numactl --cpunodebind=0,1,2,3 --interleave=0,1,2,3 taskset -c 0-47 ./bin/buddy-deepseek-r1-run
+or
+numactl --cpunodebind=0 --membind=0 ./bin/buddy-deepseek-r1-run
 
 //f16
 $ ninja buddy-deepseek-r1-f16-run
@@ -96,6 +98,22 @@ $ ./bin/buddy-deepseek-r1-f16-run
 //bf16
 $ ninja buddy-deepseek-r1-bf16-run
 $ ./bin/buddy-deepseek-r1-bf16-run
+
+//w8a32: weight-only int8 quantization, f32 activations
+$ ninja buddy-deepseek-r1-w8a32-run
+$ ./bin/buddy-deepseek-r1-w8a32-run
+
+//w8a8: full int8 quantization (int8 weights + int8 activations)
+$ ninja buddy-deepseek-r1-w8a8-run
+$ ./bin/buddy-deepseek-r1-w8a8-run
+
+//w4a16: int4 weight quantization (int4-packed storage), f16 activations
+$ ninja buddy-deepseek-r1-w4a16-run
+$ ./bin/buddy-deepseek-r1-w4a16-run
+
+//w8a16: weight-only int8 quantization, f16 activations
+$ ninja buddy-deepseek-r1-w8a16-run
+$ ./bin/buddy-deepseek-r1-w8a16-run
 ```
 
 5. Streaming inference with buddy-deepseek-r1-cli

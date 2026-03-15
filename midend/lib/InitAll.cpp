@@ -24,6 +24,7 @@
 #include "Dialect/DAP/DAPDialect.h"
 #include "Dialect/DIP/DIPDialect.h"
 #include "Dialect/Gemmini/GemminiDialect.h"
+#include "Dialect/AME/AMEDialect.h"
 #include "Dialect/IME/IMEDialect.h"
 #include "Dialect/RVV/RVVDialect.h"
 #include "Dialect/VectorExp/VectorExpDialect.h"
@@ -39,6 +40,7 @@ void registerLowerDAPPass();
 void registerLowerDIPPass();
 void registerLowerGemminiPass();
 void registerLowerLinalgToGemminiPass();
+void registerLowerLinalgToIMEPass();
 void registerLowerIMEPass();
 void registerLowerRVVPass();
 void registerLowerVectorExpPass();
@@ -59,6 +61,7 @@ void registerEliminateMemRefCopyPass();
 } // namespace mlir
 
 void mlir::buddy::registerAllDialects(mlir::DialectRegistry &registry) {
+  registry.insert<::buddy::ame::AMEDialect>();
   registry.insert<::buddy::bud::BudDialect>();
   registry.insert<::buddy::dap::DAPDialect>();
   registry.insert<::buddy::dip::DIPDialect>();
@@ -78,6 +81,7 @@ void mlir::buddy::registerAllPasses() {
   mlir::buddy::registerLowerDIPPass();
   mlir::buddy::registerLowerGemminiPass();
   mlir::buddy::registerLowerLinalgToGemminiPass();
+  mlir::buddy::registerLowerLinalgToIMEPass();
   mlir::buddy::registerLowerIMEPass();
   mlir::buddy::registerLowerRVVPass();
   mlir::buddy::registerLowerVectorExpPass();

@@ -32,7 +32,6 @@ from torch._inductor.decomposition import decompositions as inductor_decomp
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import tosa
 from buddy.compiler.graph import SplitStrategy, GraphDriver
-# from buddy.compiler.graph import GraphDriver
 from buddy.compiler.graph.transform import (
     simply_fuse,
     apply_classic_fusion,
@@ -173,8 +172,7 @@ graph_decode.group_map_device["subgraph0_decode"] = DeviceType.CPU
 DECODE_STRATEGY = SplitStrategy(
     name="decode",
     parallel_num=2,
-    # ops_count=[56,19],
-    ops_count=[6, 48, 2, 6, 11, 2],
+    ops_count=[6, 42, 2, 6, 11, 2],
     stage_boundary_op=PowOp,
     stage_boundary_op_num = 57,
     paral_input_positions={
@@ -182,7 +180,7 @@ DECODE_STRATEGY = SplitStrategy(
         169: [-1, -1, -1],
         "default": [
             [-1, -1],
-            [1,0,1,0,1,0,0,-1,1,1,-1,-1,-1,-1],
+            [1, 0, 1, 0, 1, 0, 0, -1, 1, 1, -1, -1, -1, -1],
             [-1, -1],
             [-1, -1],
             [1, 1, 0, -1],
@@ -194,7 +192,7 @@ DECODE_STRATEGY = SplitStrategy(
 PREFILL_STRATEGY = SplitStrategy(
     name="prefill",
     parallel_num=2,
-    ops_count=[6, 61, 2, 6, 11, 2],
+    ops_count=[6, 51, 2, 6, 11, 2],
     stage_boundary_op=PowOp,
     stage_boundary_op_num = 57 ,
     paral_input_positions={

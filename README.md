@@ -71,7 +71,7 @@ Set the `PYTHONPATH` environment variable to include both the LLVM/MLIR Python b
 ```
 $ export BUDDY_MLIR_BUILD_DIR=$PWD
 $ export LLVM_MLIR_BUILD_DIR=$PWD/../llvm/build
-$ export PYTHONPATH=${LLVM_MLIR_BUILD_DIR}/tools/mlir/python_packages/mlir_core:${BUDDY_MLIR_BUILD_DIR}/python_packages:${PYTHONPATH}
+$ export PYTHONPATH=${BUDDY_MLIR_BUILD_DIR}/python_packages:${PYTHONPATH}
 ```
 
 If you want to test your model end-to-end conversion and inference, you can add the following configuration
@@ -79,6 +79,40 @@ If you want to test your model end-to-end conversion and inference, you can add 
 ```
 $ cmake -G Ninja .. -DBUDDY_ENABLE_E2E_TESTS=ON
 $ ninja check-e2e
+```
+
+## Build Python Package
+
+We use `setuptools` to bundle CMake outputs (Python packages, `bin/`, and
+`lib/`) into a single wheel.
+
+Build x86_64 artifacts:
+
+```bash
+./scripts/release_wheel_manylinux.sh cp310-cp310 x86_64
+```
+
+Build riscv64 artifacts:
+
+```bash
+./scripts/release_wheel_manylinux.sh cp310-cp310 riscv64
+```
+
+This script calls `docker run` internally to enter the offical manylinux container,
+builds LLVM and buddy_mlir, and writes artifacts to:
+
+- `./build-docker/x86_64/<py_tag>/target`
+- `./build-docker/riscv64/<py_tag>/target`
+
+See [Manylinux release notes](./docs/ManylinuxReleaseNotes.md) for current
+known build notes.
+
+Install and test the wheel:
+
+```bash
+pip install buddy-*.whl --no-deps
+python -c "import buddy; import buddy_mlir; print('ok')"
+buddy-opt --help
 ```
 
 ## Examples

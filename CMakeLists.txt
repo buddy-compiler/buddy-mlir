@@ -26,6 +26,8 @@ project(buddy-mlir LANGUAGES CXX C)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED YES)
 include(ExternalProject)
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
 
 #-------------------------------------------------------------------------------
 # Options and settings
@@ -86,6 +88,7 @@ set(BUDDY_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR})
 set(BUDDY_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/bin)
 set(BUDDY_LIBRARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/lib)
 set(BUDDY_EXAMPLES_DIR ${BUDDY_SOURCE_DIR}/examples)
+set(BUDDY_MLIR_INTERFACE_DIR ${BUDDY_SOURCE_DIR}/frontend/Interfaces)
 set(BUDDY_MIDEND_INCLUDE_DIR ${BUDDY_SOURCE_DIR}/midend/include)
 set(BUDDY_THIRDPARTY_INCLUDE_DIR ${BUDDY_SOURCE_DIR}/thirdparty/include)
 set(BUDDY_MLIR_PYTHON_PACKAGES_DIR ${BUDDY_BUILD_DIR}/python_packages)
@@ -217,27 +220,11 @@ if(BUDDY_MLIR_ENABLE_RISCV_GNU_TOOLCHAIN)
 endif()
 
 #-------------------------------------------------------------------------------
-# Initialize Python packages
-#-------------------------------------------------------------------------------
-if(BUDDY_MLIR_ENABLE_PYTHON_PACKAGES)
-  # Find the Python interpreter and development components,
-  # requiring a minimum version of 3.10
-  find_package(Python3 3.10 REQUIRED COMPONENTS Interpreter Development)
-  # Create directories for the BUDDY-MLIR Python packages
-  file(MAKE_DIRECTORY ${BUDDY_MLIR_PYTHON_PACKAGES_DIR}/buddy)
-  file(MAKE_DIRECTORY ${BUDDY_MLIR_PYTHON_PACKAGES_DIR}/buddy/compiler)
-  # Create empty __init__.py files to make these directories Python packages
-  file(WRITE ${BUDDY_MLIR_PYTHON_PACKAGES_DIR}/buddy/__init__.py "")
-  file(WRITE ${BUDDY_MLIR_PYTHON_PACKAGES_DIR}/buddy/compiler/__init__.py "")
-
-  install(DIRECTORY ${BUDDY_MLIR_PYTHON_PACKAGES_DIR}/buddy DESTINATION python_packages)
-endif()
-
-#-------------------------------------------------------------------------------
 # Directory setup
 #-------------------------------------------------------------------------------
 
 add_subdirectory(cmake)
+add_subdirectory(runtime)
 add_subdirectory(frontend)
 add_subdirectory(midend)
 add_subdirectory(backend)
@@ -256,10 +243,31 @@ add_custom_target(check-buddy
 # Target install
 #-------------------------------------------------------------------------------
 
-# Install frontend interfaces into include directory, so that the downstream project can use them in distribution
-install(DIRECTORY buddy/Core buddy/DAP buddy/DIP buddy/LLM
+# Install frontend interfaces into include directory, so that the downstream
+# project can use them in distribution.
+install(DIRECTORY frontend/Interfaces/buddy
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/buddy-mlir
   COMPONENT buddy-mlir-interfaces-headers
   FILES_MATCHING
   PATTERN "*.h"
   )
+
+set(BUDDY_MLIR_INSTALL_CMAKE_DIR "${CMAKE_INSTALL_LIBDIR}/cmake/BuddyMLIR")
+
+configure_package_config_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/cmake/BuddyMLIRConfig.cmake.in
+  ${CMAKE_CURRENT_BINARY_DIR}/BuddyMLIRConfig.cmake
+  INSTALL_DESTINATION ${BUDDY_MLIR_INSTALL_CMAKE_DIR}
+)
+
+write_basic_package_version_file(
+  ${CMAKE_CURRENT_BINARY_DIR}/BuddyMLIRConfigVersion.cmake
+  VERSION 0.0.1
+  COMPATIBILITY AnyNewerVersion
+)
+
+install(FILES
+  ${CMAKE_CURRENT_BINARY_DIR}/BuddyMLIRConfig.cmake
+  ${CMAKE_CURRENT_BINARY_DIR}/BuddyMLIRConfigVersion.cmake
+  DESTINATION ${BUDDY_MLIR_INSTALL_CMAKE_DIR}
+)

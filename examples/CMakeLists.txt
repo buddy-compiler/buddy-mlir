@@ -44,6 +44,10 @@ if (BUDDY_RESNET_EXAMPLES)
   add_subdirectory(BuddyResNet18)
 endif()
 
+if (BUDDY_YOLO26_EXAMPLES)
+  add_subdirectory(BuddyYOLO26)
+endif()
+
 if (BUDDY_STABLE_DIFFUSION_EXAMPLES)
   add_subdirectory(BuddyStableDiffusion)
 endif()
@@ -70,8 +74,8 @@ set(BUDDY_EXAMPLES_DEPENDS
   mlir-runner
   )
 
-if(BUDDY_MLIR_ENABLE_PYTHON_PACKAGES)
-  list(APPEND BUDDY_TEST_DEPENDS BuddyMLIRPythonModules)
+if(BUDDY_MLIR_ENABLE_PYTHON_PACKAGES AND MLIR_ENABLE_BINDINGS_PYTHON)
+  list(APPEND BUDDY_TEST_DEPENDS python-package-buddy-mlir)
 endif()
 
 add_lit_testsuite(check-examples "Checking the buddy-mlir examples..."

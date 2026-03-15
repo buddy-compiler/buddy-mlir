@@ -1,3 +1,4 @@
+add_subdirectory(AME)
 add_subdirectory(Bud)
 add_subdirectory(DAP)
 add_subdirectory(DIP)

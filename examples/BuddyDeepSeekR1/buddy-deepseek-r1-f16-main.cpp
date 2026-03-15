@@ -31,7 +31,7 @@ using namespace buddy;
 double total_time = 0;
 constexpr size_t ParamsSize = 1777088064;
 constexpr size_t MaxVocabSize = 151936;
-constexpr size_t MaxTokenLength = 20;
+constexpr size_t MaxTokenLength = 1024;
 
 constexpr size_t NUM_LAYERS = 56;
 constexpr size_t HiddenSize = 128;
@@ -419,6 +419,7 @@ int main() {
   //  - Find and append the generated token.
   //  - Continue iterating until the terminal condition is met.
 
+  double prefillTokensPerSec = 0.0;
   const auto inferenceStart = std::chrono::high_resolution_clock::now();
   _mlir_ciface_forward_prefill(ptrPrefillResultContainer, &ParamsContainer,
                                &inputContainerPrefill);
@@ -432,6 +433,10 @@ int main() {
   int maxIndex = findMaxIndex(startPtr, MaxVocabSize);
   std::string tok = inputContainerPrefill.getStr(maxIndex);
   printIterInfo(0, tok, inferenceTime.count() / 1000);
+  const double prefillSeconds = inferenceTime.count() / 1000.0;
+  if (prefillSeconds > 0.0) {
+    prefillTokensPerSec = static_cast<double>(MaxTokenLength) / prefillSeconds;
+  }
   inputContainerDecode.getData()[0] = (long long)maxIndex;
   outputContainer.appendTokenIdx(maxIndex);
 
@@ -451,6 +456,8 @@ int main() {
 
   cachePosition.getData()[0] = inputContainerPrefill.getTokenCnt();
   int generateLen = MaxTokenLength - inputContainerPrefill.getTokenCnt();
+  double decodeTimeAccumMs = 0.0;
+  size_t decodeTokens = 0;
   for (int i = 1; i <= generateLen; i++) {
     const auto inferenceStart = std::chrono::high_resolution_clock::now();
     _mlir_ciface_forward_decode(
@@ -488,6 +495,8 @@ int main() {
     const auto inferenceEnd = std::chrono::high_resolution_clock::now();
     const std::chrono::duration<double, std::milli> inferenceTime =
         inferenceEnd - inferenceStart;
+    decodeTimeAccumMs += inferenceTime.count();
+    decodeTokens += 1;
 
     // Determine the generated token.
     const uint16_t *startPtr = ptrDecodeResultContainer->logits.getData();
@@ -506,8 +515,17 @@ int main() {
     cachePosition.getData()[0] += 1;
   }
 
+  const double decodeSeconds = decodeTimeAccumMs / 1000.0;
+  const double decodeTokensPerSec =
+      decodeSeconds > 0.0 ? static_cast<double>(decodeTokens) / decodeSeconds
+                          : 0.0;
+
   /// Print the final result
   std::cout << "\n\033[33;1m[Total time]\033[0m " << total_time << std::endl;
+  std::cout << "\033[33;1m[Prefilling]\033[0m " << prefillTokensPerSec
+            << " tokens/s" << std::endl;
+  std::cout << "\033[33;1m[Decoding]\033[0m " << decodeTokensPerSec
+            << " tokens/s" << std::endl;
   std::cout << "\033[33;1m[Input]\033[0m " << inputStr << std::endl;
   std::cout << "\033[33;1m[Output]\033[0m "
             << outputContainer.revertDeepSeekR1() << std::endl;

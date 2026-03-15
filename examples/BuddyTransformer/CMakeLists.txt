@@ -76,7 +76,6 @@ add_custom_command(
             -convert-vector-to-scf
             -lower-affine
             -convert-scf-to-openmp
-            -func-bufferize-dynamic-offset
             -cse
             -memref-expand
             -arith-expand
@@ -122,7 +121,6 @@ add_custom_command(
             -convert-vector-to-scf
             -lower-affine
             -convert-scf-to-openmp
-            -func-bufferize-dynamic-offset
             -cse
             -memref-expand
             -arith-expand
@@ -239,7 +237,6 @@ add_custom_command(
             -convert-vector-to-scf
             -lower-affine
             -convert-scf-to-openmp
-            -func-bufferize-dynamic-offset
             -cse
             -memref-expand
             -arith-expand
@@ -302,7 +299,7 @@ set_target_properties(transformer-runner-staged PROPERTIES
 
 # Include Buddy headers
 target_include_directories(transformer-runner-staged PRIVATE
-    ${CMAKE_SOURCE_DIR}/frontend/Interfaces
+    ${BUDDY_MLIR_INTERFACE_DIR}
 )
 
 # Define paths for the staged executable
@@ -375,7 +372,7 @@ set_target_properties(transformer-runner PROPERTIES
 
 # Include Buddy headers for one-step executable
 target_include_directories(transformer-runner PRIVATE
-    ${CMAKE_SOURCE_DIR}/frontend/Interfaces
+    ${BUDDY_MLIR_INTERFACE_DIR}
 )
 
 # Define paths for the one-step executable
@@ -424,7 +421,7 @@ set_target_properties(transformer-runner-timed PROPERTIES
 
 # Include Buddy headers for timed executable
 target_include_directories(transformer-runner-timed PRIVATE
-    ${CMAKE_SOURCE_DIR}/frontend/Interfaces
+    ${BUDDY_MLIR_INTERFACE_DIR}
 )
 
 # Define paths for the timed executable

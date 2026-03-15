@@ -106,6 +106,18 @@ if config.buddy_mlir_enable_python_packages:
         append_path=True,
     )
 
+    buddy_init = os.path.join(
+        config.buddy_python_packages_dir, "buddy_mlir", "__init__.py"
+    )
+    if not os.path.exists(buddy_init):
+        pycache_dir = os.path.join(
+            config.buddy_python_packages_dir, "buddy_mlir", "__pycache__"
+        )
+        if os.path.isdir(pycache_dir):
+            for name in os.listdir(pycache_dir):
+                if name.startswith("__init__.") and name.endswith(".pyc"):
+                    os.remove(os.path.join(pycache_dir, name))
+
 if config.buddy_enable_opencv == "ON":
     tools.append("buddy-image-container-test")
 

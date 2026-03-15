@@ -90,10 +90,15 @@ public:
     const Value n = rewriter.create<memref::DimOp>(loc, C, c1);
     const Value k = rewriter.create<memref::DimOp>(loc, A, c1);
 
-    // Get element type and create vector type
+    // Get element types: input type from A, accumulation type from C
     ShapedType ATy = cast<ShapedType>(A.getType());
     Type eleTy = ATy.getElementType();
-    VectorType vectorTy = VectorType::get({32}, eleTy); // Fixed vector size 32
+    ShapedType CTy = cast<ShapedType>(C.getType());
+    Type accEleTy = CTy.getElementType();
+    bool isInteger = isa<IntegerType>(eleTy);
+    VectorType vectorTy = VectorType::get({32}, eleTy);
+    VectorType accVecTy =
+        isInteger ? VectorType::get({32}, accEleTy) : vectorTy;
 
     // BLIS 5-loop structure
     // Loop 1: jc - column blocking
@@ -109,49 +114,39 @@ public:
           auto ncActual = builder.create<arith::SubIOp>(loc, jcActualEnd, jc);
 
           // Loop 2: pc - k blocking
-          builder.create<
-              scf::
-                  ForOp>(loc, c0, k, kc, ValueRange{},
-                         [&](OpBuilder &builder, Location loc, Value pc,
-                             ValueRange) {
-                           // Compute actual kc for this block
-                           auto pcEnd =
-                               builder.create<arith::AddIOp>(loc, pc, kc);
-                           auto pcBound = builder.create<arith::CmpIOp>(
-                               loc, arith::CmpIPredicate::slt, pcEnd, k);
-                           auto pcActualEnd = builder.create<arith::SelectOp>(
-                               loc, pcBound, pcEnd, k);
-                           auto kcActual = builder.create<arith::SubIOp>(
-                               loc, pcActualEnd, pc);
+          builder.create<scf::ForOp>(
+              loc, c0, k, kc, ValueRange{},
+              [&](OpBuilder &builder, Location loc, Value pc, ValueRange) {
+                // Compute actual kc for this block
+                auto pcEnd = builder.create<arith::AddIOp>(loc, pc, kc);
+                auto pcBound = builder.create<arith::CmpIOp>(
+                    loc, arith::CmpIPredicate::slt, pcEnd, k);
+                auto pcActualEnd =
+                    builder.create<arith::SelectOp>(loc, pcBound, pcEnd, k);
+                auto kcActual =
+                    builder.create<arith::SubIOp>(loc, pcActualEnd, pc);
 
-                           // Check if we should allocate B_packed (avoid
-                           // allocation for empty blocks)
-                           auto kcActualPositive =
-                               builder.create<arith::CmpIOp>(
-                                   loc, arith::CmpIPredicate::sgt, kcActual,
-                                   c0);
-                           auto ncActualPositive =
-                               builder.create<arith::CmpIOp>(
-                                   loc, arith::CmpIPredicate::sgt, ncActual,
-                                   c0);
-                           auto shouldAllocB = builder.create<arith::AndIOp>(
-                               loc, kcActualPositive, ncActualPositive);
+                // Check if we should allocate B_packed (avoid
+                // allocation for empty blocks)
+                auto kcActualPositive = builder.create<arith::CmpIOp>(
+                    loc, arith::CmpIPredicate::sgt, kcActual, c0);
+                auto ncActualPositive = builder.create<arith::CmpIOp>(
+                    loc, arith::CmpIPredicate::sgt, ncActual, c0);
+                auto shouldAllocB = builder.create<arith::AndIOp>(
+                    loc, kcActualPositive, ncActualPositive);
 
-                           builder.create<scf::IfOp>(
-                               loc, shouldAllocB,
-                               [&](OpBuilder &builder, Location loc) {
-                                 // Allocate and pack B block
-                                 auto B_packedType = MemRefType::get(
-                                     {ShapedType::kDynamic,
-                                      ShapedType::kDynamic},
-                                     eleTy, AffineMap(), nullptr);
-                                 Value B_packed =
-                                     builder.create<memref::AllocOp>(
-                                         loc, B_packedType,
-                                         ValueRange{kcActual, ncActual});
+                builder.create<scf::IfOp>(
+                    loc, shouldAllocB,
+                    [&](OpBuilder &builder, Location loc) {
+                      // Allocate and pack B block
+                      auto B_packedType = MemRefType::get(
+                          {ShapedType::kDynamic, ShapedType::kDynamic}, eleTy,
+                          AffineMap(), nullptr);
+                      Value B_packed = builder.create<memref::AllocOp>(
+                          loc, B_packedType, ValueRange{kcActual, ncActual});
 
-                                 // Pack B block
-                                 // clang-format off
+                      // Pack B block
+                      // clang-format off
                     builder.create<scf::ForOp>(
                         loc, c0, kcActual, c1, ValueRange{},
                         [&](OpBuilder &builder, Location loc, Value kp, ValueRange) {
@@ -160,9 +155,9 @@ public:
                               [&](OpBuilder &builder, Location loc, Value j, ValueRange) {
                                 auto bRowIdx = builder.create<arith::AddIOp>(loc, pc, kp);
                                 auto bColIdx = builder.create<arith::AddIOp>(loc, jc, j);
-                                auto bVal = builder.create<memref::LoadOp>(loc, B, 
+                                auto bVal = builder.create<memref::LoadOp>(loc, B,
                                                                          ValueRange{bRowIdx, bColIdx});
-                                builder.create<memref::StoreOp>(loc, bVal, B_packed, 
+                                builder.create<memref::StoreOp>(loc, bVal, B_packed,
                                                               ValueRange{kp, j});
                                 builder.create<scf::YieldOp>(loc);
                               });
@@ -175,7 +170,7 @@ public:
                             Value ic = ivs[0];
                           // Compute actual mc for this block
                           auto icEnd = builder.create<arith::AddIOp>(loc, ic, mc);
-                          auto icBound = builder.create<arith::CmpIOp>(loc, 
+                          auto icBound = builder.create<arith::CmpIOp>(loc,
                                                         arith::CmpIPredicate::slt, icEnd, m);
                           auto icActualEnd = builder.create<arith::SelectOp>(loc, icBound, icEnd, m);
                           auto mcActual = builder.create<arith::SubIOp>(loc, icActualEnd, ic);
@@ -188,9 +183,9 @@ public:
                           builder.create<scf::IfOp>(loc, shouldAllocA,
                             [&](OpBuilder &builder, Location loc) {
                               // Allocate and pack A block
-                              auto A_packedType = MemRefType::get({ShapedType::kDynamic, ShapedType::kDynamic}, 
+                              auto A_packedType = MemRefType::get({ShapedType::kDynamic, ShapedType::kDynamic},
                                                 eleTy,AffineMap(),  nullptr);
-                              Value A_packed = builder.create<memref::AllocOp>(loc, A_packedType, 
+                              Value A_packed = builder.create<memref::AllocOp>(loc, A_packedType,
                                                                              ValueRange{mcActual, kcActual});
 
                               // Pack A block
@@ -202,9 +197,9 @@ public:
                                         [&](OpBuilder &builder, Location loc, Value kp, ValueRange) {
                                           auto aRowIdx = builder.create<arith::AddIOp>(loc, ic, i);
                                           auto aColIdx = builder.create<arith::AddIOp>(loc, pc, kp);
-                                          auto aVal = builder.create<memref::LoadOp>(loc, A, 
+                                          auto aVal = builder.create<memref::LoadOp>(loc, A,
                                                                                    ValueRange{aRowIdx, aColIdx});
-                                          builder.create<memref::StoreOp>(loc, aVal, A_packed, 
+                                          builder.create<memref::StoreOp>(loc, aVal, A_packed,
                                                                         ValueRange{i, kp});
                                           builder.create<scf::YieldOp>(loc);
                                         });
@@ -267,73 +262,99 @@ public:
                                                             auto ir7 = builder.create<arith::AddIOp>(loc, ir, c7);
 
                                                             auto sumInit = builder.create<arith::ConstantOp>(
-                                                                loc, vectorTy, builder.getZeroAttr(vectorTy));
+                                                                loc, accVecTy, builder.getZeroAttr(accVecTy));
 
                                                             auto sumIterVecs = builder.create<scf::ForOp>(
                                                                 loc, c0, kcActual, c1,
                                                                 ValueRange{sumInit, sumInit, sumInit, sumInit,
                                                                          sumInit, sumInit, sumInit, sumInit},
-                                                                [&](OpBuilder &builder, Location loc, Value kInner, 
+                                                                [&](OpBuilder &builder, Location loc, Value kInner,
                                                                     ValueRange iterArgs) {
                                                                   // Load A values for 8 rows
-                                                                  auto aVal0 = builder.create<memref::LoadOp>(
+                                                                  Value aVal0 = builder.create<memref::LoadOp>(
                                                                       loc, A_packed, ValueRange{ir0, kInner});
-                                                                  auto aVal1 = builder.create<memref::LoadOp>(
+                                                                  Value aVal1 = builder.create<memref::LoadOp>(
                                                                       loc, A_packed, ValueRange{ir1, kInner});
-                                                                  auto aVal2 = builder.create<memref::LoadOp>(
+                                                                  Value aVal2 = builder.create<memref::LoadOp>(
                                                                       loc, A_packed, ValueRange{ir2, kInner});
-                                                                  auto aVal3 = builder.create<memref::LoadOp>(
+                                                                  Value aVal3 = builder.create<memref::LoadOp>(
                                                                       loc, A_packed, ValueRange{ir3, kInner});
-                                                                  auto aVal4 = builder.create<memref::LoadOp>(
+                                                                  Value aVal4 = builder.create<memref::LoadOp>(
                                                                       loc, A_packed, ValueRange{ir4, kInner});
-                                                                  auto aVal5 = builder.create<memref::LoadOp>(
+                                                                  Value aVal5 = builder.create<memref::LoadOp>(
                                                                       loc, A_packed, ValueRange{ir5, kInner});
-                                                                  auto aVal6 = builder.create<memref::LoadOp>(
+                                                                  Value aVal6 = builder.create<memref::LoadOp>(
                                                                       loc, A_packed, ValueRange{ir6, kInner});
-                                                                  auto aVal7 = builder.create<memref::LoadOp>(
+                                                                  Value aVal7 = builder.create<memref::LoadOp>(
                                                                       loc, A_packed, ValueRange{ir7, kInner});
 
-                                                                  // Broadcast A values to vectors
+                                                                  if (isInteger) {
+                                                                    aVal0 = builder.create<arith::ExtSIOp>(loc, accEleTy, aVal0);
+                                                                    aVal1 = builder.create<arith::ExtSIOp>(loc, accEleTy, aVal1);
+                                                                    aVal2 = builder.create<arith::ExtSIOp>(loc, accEleTy, aVal2);
+                                                                    aVal3 = builder.create<arith::ExtSIOp>(loc, accEleTy, aVal3);
+                                                                    aVal4 = builder.create<arith::ExtSIOp>(loc, accEleTy, aVal4);
+                                                                    aVal5 = builder.create<arith::ExtSIOp>(loc, accEleTy, aVal5);
+                                                                    aVal6 = builder.create<arith::ExtSIOp>(loc, accEleTy, aVal6);
+                                                                    aVal7 = builder.create<arith::ExtSIOp>(loc, accEleTy, aVal7);
+                                                                  }
+
+                                                                  // Broadcast A values to accumulation vectors
                                                                   auto aVec0 = builder.create<vector::BroadcastOp>(
-                                                                      loc, vectorTy, aVal0);
+                                                                      loc, accVecTy, aVal0);
                                                                   auto aVec1 = builder.create<vector::BroadcastOp>(
-                                                                      loc, vectorTy, aVal1);
+                                                                      loc, accVecTy, aVal1);
                                                                   auto aVec2 = builder.create<vector::BroadcastOp>(
-                                                                      loc, vectorTy, aVal2);
+                                                                      loc, accVecTy, aVal2);
                                                                   auto aVec3 = builder.create<vector::BroadcastOp>(
-                                                                      loc, vectorTy, aVal3);
+                                                                      loc, accVecTy, aVal3);
                                                                   auto aVec4 = builder.create<vector::BroadcastOp>(
-                                                                      loc, vectorTy, aVal4);
+                                                                      loc, accVecTy, aVal4);
                                                                   auto aVec5 = builder.create<vector::BroadcastOp>(
-                                                                      loc, vectorTy, aVal5);
+                                                                      loc, accVecTy, aVal5);
                                                                   auto aVec6 = builder.create<vector::BroadcastOp>(
-                                                                      loc, vectorTy, aVal6);
+                                                                      loc, accVecTy, aVal6);
                                                                   auto aVec7 = builder.create<vector::BroadcastOp>(
-                                                                      loc, vectorTy, aVal7);
+                                                                      loc, accVecTy, aVal7);
 
-                                                                  // Load B vector
+                                                                  // Load B vector and sign-extend for integer
                                                                   auto bColIdx = builder.create<arith::AddIOp>(loc, jr, nIdx);
-                                                                  auto bVec = builder.create<vector::LoadOp>(
-                                                                      loc, vectorTy, B_packed, 
+                                                                  Value bVec = builder.create<vector::LoadOp>(
+                                                                      loc, vectorTy, B_packed,
                                                                       ValueRange{kInner, bColIdx});
+                                                                  if (isInteger)
+                                                                    bVec = builder.create<arith::ExtSIOp>(loc, accVecTy, bVec);
 
-                                                                  // Fused multiply-add
-                                                                  auto resSumVec0 = builder.create<vector::FMAOp>(
-                                                                      loc, aVec0, bVec, iterArgs[0]);
-                                                                  auto resSumVec1 = builder.create<vector::FMAOp>(
-                                                                      loc, aVec1, bVec, iterArgs[1]);
-                                                                  auto resSumVec2 = builder.create<vector::FMAOp>(
-                                                                      loc, aVec2, bVec, iterArgs[2]);
-                                                                  auto resSumVec3 = builder.create<vector::FMAOp>(
-                                                                      loc, aVec3, bVec, iterArgs[3]);
-                                                                  auto resSumVec4 = builder.create<vector::FMAOp>(
-                                                                      loc, aVec4, bVec, iterArgs[4]);
-                                                                  auto resSumVec5 = builder.create<vector::FMAOp>(
-                                                                      loc, aVec5, bVec, iterArgs[5]);
-                                                                  auto resSumVec6 = builder.create<vector::FMAOp>(
-                                                                      loc, aVec6, bVec, iterArgs[6]);
-                                                                  auto resSumVec7 = builder.create<vector::FMAOp>(
-                                                                      loc, aVec7, bVec, iterArgs[7]);
+                                                                  // Multiply-accumulate
+                                                                  Value resSumVec0, resSumVec1, resSumVec2, resSumVec3,
+                                                                        resSumVec4, resSumVec5, resSumVec6, resSumVec7;
+                                                                  if (isInteger) {
+                                                                    resSumVec0 = builder.create<arith::AddIOp>(loc, iterArgs[0],
+                                                                        builder.create<arith::MulIOp>(loc, aVec0, bVec));
+                                                                    resSumVec1 = builder.create<arith::AddIOp>(loc, iterArgs[1],
+                                                                        builder.create<arith::MulIOp>(loc, aVec1, bVec));
+                                                                    resSumVec2 = builder.create<arith::AddIOp>(loc, iterArgs[2],
+                                                                        builder.create<arith::MulIOp>(loc, aVec2, bVec));
+                                                                    resSumVec3 = builder.create<arith::AddIOp>(loc, iterArgs[3],
+                                                                        builder.create<arith::MulIOp>(loc, aVec3, bVec));
+                                                                    resSumVec4 = builder.create<arith::AddIOp>(loc, iterArgs[4],
+                                                                        builder.create<arith::MulIOp>(loc, aVec4, bVec));
+                                                                    resSumVec5 = builder.create<arith::AddIOp>(loc, iterArgs[5],
+                                                                        builder.create<arith::MulIOp>(loc, aVec5, bVec));
+                                                                    resSumVec6 = builder.create<arith::AddIOp>(loc, iterArgs[6],
+                                                                        builder.create<arith::MulIOp>(loc, aVec6, bVec));
+                                                                    resSumVec7 = builder.create<arith::AddIOp>(loc, iterArgs[7],
+                                                                        builder.create<arith::MulIOp>(loc, aVec7, bVec));
+                                                                  } else {
+                                                                    resSumVec0 = builder.create<vector::FMAOp>(loc, aVec0, bVec, iterArgs[0]);
+                                                                    resSumVec1 = builder.create<vector::FMAOp>(loc, aVec1, bVec, iterArgs[1]);
+                                                                    resSumVec2 = builder.create<vector::FMAOp>(loc, aVec2, bVec, iterArgs[2]);
+                                                                    resSumVec3 = builder.create<vector::FMAOp>(loc, aVec3, bVec, iterArgs[3]);
+                                                                    resSumVec4 = builder.create<vector::FMAOp>(loc, aVec4, bVec, iterArgs[4]);
+                                                                    resSumVec5 = builder.create<vector::FMAOp>(loc, aVec5, bVec, iterArgs[5]);
+                                                                    resSumVec6 = builder.create<vector::FMAOp>(loc, aVec6, bVec, iterArgs[6]);
+                                                                    resSumVec7 = builder.create<vector::FMAOp>(loc, aVec7, bVec, iterArgs[7]);
+                                                                  }
 
                                                                   builder.create<scf::YieldOp>(
                                                                       loc, ValueRange{resSumVec0, resSumVec1, resSumVec2,
@@ -353,41 +374,46 @@ public:
                                                             auto cColBase = builder.create<arith::AddIOp>(loc, jc, jr);
                                                             auto cColIdx = builder.create<arith::AddIOp>(loc, cColBase, nIdx);
 
-                                                            // Load current C values - FIXED: add vectorTy parameter
+                                                            // Load current C values (accumulation type)
                                                             auto cVec0 = builder.create<vector::LoadOp>(
-                                                                loc, vectorTy, C, ValueRange{cRow0, cColIdx});
+                                                                loc, accVecTy, C, ValueRange{cRow0, cColIdx});
                                                             auto cVec1 = builder.create<vector::LoadOp>(
-                                                                loc, vectorTy, C, ValueRange{cRow1, cColIdx});
+                                                                loc, accVecTy, C, ValueRange{cRow1, cColIdx});
                                                             auto cVec2 = builder.create<vector::LoadOp>(
-                                                                loc, vectorTy, C, ValueRange{cRow2, cColIdx});
+                                                                loc, accVecTy, C, ValueRange{cRow2, cColIdx});
                                                             auto cVec3 = builder.create<vector::LoadOp>(
-                                                                loc, vectorTy, C, ValueRange{cRow3, cColIdx});
+                                                                loc, accVecTy, C, ValueRange{cRow3, cColIdx});
                                                             auto cVec4 = builder.create<vector::LoadOp>(
-                                                                loc, vectorTy, C, ValueRange{cRow4, cColIdx});
+                                                                loc, accVecTy, C, ValueRange{cRow4, cColIdx});
                                                             auto cVec5 = builder.create<vector::LoadOp>(
-                                                                loc, vectorTy, C, ValueRange{cRow5, cColIdx});
+                                                                loc, accVecTy, C, ValueRange{cRow5, cColIdx});
                                                             auto cVec6 = builder.create<vector::LoadOp>(
-                                                                loc, vectorTy, C, ValueRange{cRow6, cColIdx});
+                                                                loc, accVecTy, C, ValueRange{cRow6, cColIdx});
                                                             auto cVec7 = builder.create<vector::LoadOp>(
-                                                                loc, vectorTy, C, ValueRange{cRow7, cColIdx});
+                                                                loc, accVecTy, C, ValueRange{cRow7, cColIdx});
 
                                                             // Accumulate: C = C + A*B
-                                                            auto finalVec0 = builder.create<arith::AddFOp>(
-                                                                loc, cVec0, sumIterVecs.getResult(0));
-                                                            auto finalVec1 = builder.create<arith::AddFOp>(
-                                                                loc, cVec1, sumIterVecs.getResult(1));
-                                                            auto finalVec2 = builder.create<arith::AddFOp>(
-                                                                loc, cVec2, sumIterVecs.getResult(2));
-                                                            auto finalVec3 = builder.create<arith::AddFOp>(
-                                                                loc, cVec3, sumIterVecs.getResult(3));
-                                                            auto finalVec4 = builder.create<arith::AddFOp>(
-                                                                loc, cVec4, sumIterVecs.getResult(4));
-                                                            auto finalVec5 = builder.create<arith::AddFOp>(
-                                                                loc, cVec5, sumIterVecs.getResult(5));
-                                                            auto finalVec6 = builder.create<arith::AddFOp>(
-                                                                loc, cVec6, sumIterVecs.getResult(6));
-                                                            auto finalVec7 = builder.create<arith::AddFOp>(
-                                                                loc, cVec7, sumIterVecs.getResult(7));
+                                                            Value finalVec0, finalVec1, finalVec2, finalVec3,
+                                                                  finalVec4, finalVec5, finalVec6, finalVec7;
+                                                            if (isInteger) {
+                                                              finalVec0 = builder.create<arith::AddIOp>(loc, cVec0, sumIterVecs.getResult(0));
+                                                              finalVec1 = builder.create<arith::AddIOp>(loc, cVec1, sumIterVecs.getResult(1));
+                                                              finalVec2 = builder.create<arith::AddIOp>(loc, cVec2, sumIterVecs.getResult(2));
+                                                              finalVec3 = builder.create<arith::AddIOp>(loc, cVec3, sumIterVecs.getResult(3));
+                                                              finalVec4 = builder.create<arith::AddIOp>(loc, cVec4, sumIterVecs.getResult(4));
+                                                              finalVec5 = builder.create<arith::AddIOp>(loc, cVec5, sumIterVecs.getResult(5));
+                                                              finalVec6 = builder.create<arith::AddIOp>(loc, cVec6, sumIterVecs.getResult(6));
+                                                              finalVec7 = builder.create<arith::AddIOp>(loc, cVec7, sumIterVecs.getResult(7));
+                                                            } else {
+                                                              finalVec0 = builder.create<arith::AddFOp>(loc, cVec0, sumIterVecs.getResult(0));
+                                                              finalVec1 = builder.create<arith::AddFOp>(loc, cVec1, sumIterVecs.getResult(1));
+                                                              finalVec2 = builder.create<arith::AddFOp>(loc, cVec2, sumIterVecs.getResult(2));
+                                                              finalVec3 = builder.create<arith::AddFOp>(loc, cVec3, sumIterVecs.getResult(3));
+                                                              finalVec4 = builder.create<arith::AddFOp>(loc, cVec4, sumIterVecs.getResult(4));
+                                                              finalVec5 = builder.create<arith::AddFOp>(loc, cVec5, sumIterVecs.getResult(5));
+                                                              finalVec6 = builder.create<arith::AddFOp>(loc, cVec6, sumIterVecs.getResult(6));
+                                                              finalVec7 = builder.create<arith::AddFOp>(loc, cVec7, sumIterVecs.getResult(7));
+                                                            }
 
                                                             // Store back to C
                                                             builder.create<vector::StoreOp>(
@@ -417,21 +443,34 @@ public:
                                                                   builder.create<scf::ForOp>(
                                                                       loc, ir, irActualEnd, c1, ValueRange{},
                                                                       [&](OpBuilder &builder, Location loc, Value ii, ValueRange) {
-                                                                        auto sumInit = builder.create<arith::ConstantOp>(
-                                                                            loc, eleTy, builder.getFloatAttr(eleTy, 0.0));
+                                                                        Value sumInit;
+                                                                        if (isInteger)
+                                                                          sumInit = builder.create<arith::ConstantOp>(
+                                                                              loc, accEleTy, builder.getIntegerAttr(accEleTy, 0));
+                                                                        else
+                                                                          sumInit = builder.create<arith::ConstantOp>(
+                                                                              loc, accEleTy, builder.getFloatAttr(accEleTy, 0.0));
                                                                         auto sumIter = builder.create<scf::ForOp>(
                                                                             loc, c0, kcActual, c1,
                                                                             ValueRange{sumInit},
-                                                                            [&](OpBuilder &builder, Location loc, Value kInner, 
+                                                                            [&](OpBuilder &builder, Location loc, Value kInner,
                                                                                 ValueRange iterArgs) {
-                                                                              auto aVal = builder.create<memref::LoadOp>(
+                                                                              Value aVal = builder.create<memref::LoadOp>(
                                                                                   loc, A_packed, ValueRange{ii, kInner});
                                                                               auto bColBase = builder.create<arith::AddIOp>(loc, jr, nIdx);
                                                                               auto bColIdx = builder.create<arith::AddIOp>(loc, bColBase, jj);
-                                                                              auto bVal = builder.create<memref::LoadOp>(
+                                                                              Value bVal = builder.create<memref::LoadOp>(
                                                                                   loc, B_packed, ValueRange{kInner, bColIdx});
-                                                                              auto prod = builder.create<arith::MulFOp>(loc, aVal, bVal);
-                                                                              auto newSum = builder.create<arith::AddFOp>(loc, iterArgs[0], prod);
+                                                                              Value prod, newSum;
+                                                                              if (isInteger) {
+                                                                                aVal = builder.create<arith::ExtSIOp>(loc, accEleTy, aVal);
+                                                                                bVal = builder.create<arith::ExtSIOp>(loc, accEleTy, bVal);
+                                                                                prod = builder.create<arith::MulIOp>(loc, aVal, bVal);
+                                                                                newSum = builder.create<arith::AddIOp>(loc, iterArgs[0], prod);
+                                                                              } else {
+                                                                                prod = builder.create<arith::MulFOp>(loc, aVal, bVal);
+                                                                                newSum = builder.create<arith::AddFOp>(loc, iterArgs[0], prod);
+                                                                              }
                                                                               builder.create<scf::YieldOp>(loc, ValueRange{newSum});
                                                                             });
                                                                         auto cRowIdx = builder.create<arith::AddIOp>(loc, ic, ii);
@@ -440,8 +479,11 @@ public:
                                                                         auto cColIdx = builder.create<arith::AddIOp>(loc, cColBase2, jj);
                                                                         auto currentVal = builder.create<memref::LoadOp>(
                                                                             loc, C, ValueRange{cRowIdx, cColIdx});
-                                                                        auto finalSum = builder.create<arith::AddFOp>(loc, currentVal, 
-                                                                                                                    sumIter.getResult(0));
+                                                                        Value finalSum;
+                                                                        if (isInteger)
+                                                                          finalSum = builder.create<arith::AddIOp>(loc, currentVal, sumIter.getResult(0));
+                                                                        else
+                                                                          finalSum = builder.create<arith::AddFOp>(loc, currentVal, sumIter.getResult(0));
                                                                         builder.create<memref::StoreOp>(
                                                                             loc, finalSum, C, ValueRange{cRowIdx, cColIdx});
                                                                         builder.create<scf::YieldOp>(loc);
@@ -468,24 +510,37 @@ public:
                                                             loc, arith::CmpIPredicate::slt, irEnd, mcActual);
                                                             auto irActualEnd = builder.create<arith::SelectOp>(
                                                             loc, irBound, irEnd, mcActual);
-                                                            
+
                                                             builder.create<scf::ForOp>(
                                                                 loc, ir, irActualEnd, c1, ValueRange{},
                                                                 [&](OpBuilder &builder, Location loc, Value ii, ValueRange) {
-                                                                  auto sumInit = builder.create<arith::ConstantOp>(
-                                                                      loc, eleTy, builder.getFloatAttr(eleTy, 0.0));
+                                                                  Value sumInit;
+                                                                  if (isInteger)
+                                                                    sumInit = builder.create<arith::ConstantOp>(
+                                                                        loc, accEleTy, builder.getIntegerAttr(accEleTy, 0));
+                                                                  else
+                                                                    sumInit = builder.create<arith::ConstantOp>(
+                                                                        loc, accEleTy, builder.getFloatAttr(accEleTy, 0.0));
                                                                   auto sumIter = builder.create<scf::ForOp>(
                                                                       loc, c0, kcActual, c1,
                                                                       ValueRange{sumInit},
-                                                                      [&](OpBuilder &builder, Location loc, Value kInner, 
+                                                                      [&](OpBuilder &builder, Location loc, Value kInner,
                                                                           ValueRange iterArgs) {
-                                                                        auto aVal = builder.create<memref::LoadOp>(
+                                                                        Value aVal = builder.create<memref::LoadOp>(
                                                                             loc, A_packed, ValueRange{ii, kInner});
                                                                         auto bColBase = builder.create<arith::AddIOp>(loc, jr, nIdxTail);
-                                                                        auto bVal = builder.create<memref::LoadOp>(
+                                                                        Value bVal = builder.create<memref::LoadOp>(
                                                                             loc, B_packed, ValueRange{kInner, bColBase});
-                                                                        auto prod = builder.create<arith::MulFOp>(loc, aVal, bVal);
-                                                                        auto newSum = builder.create<arith::AddFOp>(loc, iterArgs[0], prod);
+                                                                        Value prod, newSum;
+                                                                        if (isInteger) {
+                                                                          aVal = builder.create<arith::ExtSIOp>(loc, accEleTy, aVal);
+                                                                          bVal = builder.create<arith::ExtSIOp>(loc, accEleTy, bVal);
+                                                                          prod = builder.create<arith::MulIOp>(loc, aVal, bVal);
+                                                                          newSum = builder.create<arith::AddIOp>(loc, iterArgs[0], prod);
+                                                                        } else {
+                                                                          prod = builder.create<arith::MulFOp>(loc, aVal, bVal);
+                                                                          newSum = builder.create<arith::AddFOp>(loc, iterArgs[0], prod);
+                                                                        }
                                                                         builder.create<scf::YieldOp>(loc, ValueRange{newSum});
                                                                       });
                                                                   auto cRowIdx = builder.create<arith::AddIOp>(loc, ic, ii);
@@ -493,8 +548,11 @@ public:
                                                                   auto cColIdx = builder.create<arith::AddIOp>(loc, cColBase, nIdxTail);
                                                                   auto currentVal = builder.create<memref::LoadOp>(
                                                                       loc, C, ValueRange{cRowIdx, cColIdx});
-                                                                  auto finalSum = builder.create<arith::AddFOp>(loc, currentVal, 
-                                                                                                              sumIter.getResult(0));
+                                                                  Value finalSum;
+                                                                  if (isInteger)
+                                                                    finalSum = builder.create<arith::AddIOp>(loc, currentVal, sumIter.getResult(0));
+                                                                  else
+                                                                    finalSum = builder.create<arith::AddFOp>(loc, currentVal, sumIter.getResult(0));
                                                                   builder.create<memref::StoreOp>(
                                                                       loc, finalSum, C, ValueRange{cRowIdx, cColIdx});
                                                                   builder.create<scf::YieldOp>(loc);
@@ -505,30 +563,31 @@ public:
                                                     });
                                                 builder.create<scf::YieldOp>(loc);
                                               });
-                                        
+
                                           builder.create<scf::YieldOp>(loc);
                                         });
                                     builder.create<scf::YieldOp>(loc);
                                   });
-                               // clang-format on   
-                              // Deallocate A_packed
-                              builder.create<memref::DeallocOp>(loc, A_packed);
-                              builder.create<scf::YieldOp>(loc);
-                            },
-                            [&](OpBuilder &builder, Location loc) {
-                              // Skip A_packed allocation for empty blocks
-                              builder.create<scf::YieldOp>(loc);
-                            });
-                        });
+                                  // clang-format on
+                                  // Deallocate A_packed
+                                  builder.create<memref::DeallocOp>(loc,
+                                                                    A_packed);
+                                  builder.create<scf::YieldOp>(loc);
+                                },
+                                [&](OpBuilder &builder, Location loc) {
+                                  // Skip A_packed allocation for empty blocks
+                                  builder.create<scf::YieldOp>(loc);
+                                });
+                          });
 
-                    // Deallocate B_packed
-                    builder.create<memref::DeallocOp>(loc, B_packed);
-                    builder.create<scf::YieldOp>(loc);
-                  },
-                  [&](OpBuilder &builder, Location loc) {
-                    // Skip B_packed allocation for empty blocks
-                    builder.create<scf::YieldOp>(loc);
-                  });
+                      // Deallocate B_packed
+                      builder.create<memref::DeallocOp>(loc, B_packed);
+                      builder.create<scf::YieldOp>(loc);
+                    },
+                    [&](OpBuilder &builder, Location loc) {
+                      // Skip B_packed allocation for empty blocks
+                      builder.create<scf::YieldOp>(loc);
+                    });
 
                 builder.create<scf::YieldOp>(loc);
               });
@@ -550,8 +609,8 @@ class MatMulVectorizationBLISPass
 public:
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(MatMulVectorizationBLISPass)
   StringRef getArgument() const final { return "matmul-vectorization-blis"; }
-  StringRef getDescription() const final { 
-    return "BLIS-style MatMul Vectorization with fixed blocking parameters."; 
+  StringRef getDescription() const final {
+    return "BLIS-style MatMul Vectorization with fixed blocking parameters.";
   }
   MatMulVectorizationBLISPass() = default;
   MatMulVectorizationBLISPass(const MatMulVectorizationBLISPass &) {}
@@ -559,9 +618,9 @@ public:
   void runOnOperation() override;
 
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<linalg::LinalgDialect, scf::SCFDialect,
-                    affine::AffineDialect, VectorDialect, 
-                    memref::MemRefDialect, arith::ArithDialect>();
+    registry
+        .insert<linalg::LinalgDialect, scf::SCFDialect, affine::AffineDialect,
+                VectorDialect, memref::MemRefDialect, arith::ArithDialect>();
   }
 };
 } // end anonymous namespace.
