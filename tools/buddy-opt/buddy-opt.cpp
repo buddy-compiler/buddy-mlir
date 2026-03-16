@@ -34,6 +34,9 @@
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/ToolOutputFile.h"
 
+#include "AME/AMEDialect.h"
+#include "AME/AMEOps.h"
+#include "AME/Transform.h"
 #include "Bud/BudDialect.h"
 #include "Bud/BudOps.h"
 #include "DAP/DAPDialect.h"
@@ -43,9 +46,6 @@
 #include "GPU/TransformOps.h"
 #include "Gemmini/GemminiDialect.h"
 #include "Gemmini/GemminiOps.h"
-#include "AME/AMEDialect.h"
-#include "AME/AMEOps.h"
-#include "AME/Transform.h"
 #include "IME/IMEDialect.h"
 #include "IME/IMEOps.h"
 #include "RVV/RVVDialect.h"
@@ -77,6 +77,8 @@ void registerLowerRVVPass();
 void registerMatMulOptimizePass();
 void registerMatMulVectorizationPass();
 void registerMatMulVectorizationDecodePass();
+void registerDequantMatMulVectorizationDecodePass();
+void registerInt4DequantMatMulVectorizationDecodePass();
 void registerMatMulParallelVectorizationPass();
 void registerMatMulTransposeBUnrollVecPass();
 void registerMatmulAMXPass();
@@ -141,6 +143,8 @@ int main(int argc, char **argv) {
   mlir::buddy::registerBatchMatMulVectorizationDecodePass();
   mlir::buddy::registerMatMulVectorizationPass();
   mlir::buddy::registerMatMulVectorizationDecodePass();
+  mlir::buddy::registerDequantMatMulVectorizationDecodePass();
+  mlir::buddy::registerInt4DequantMatMulVectorizationDecodePass();
   mlir::buddy::registerMatMulParallelVectorizationPass();
   mlir::buddy::registerMatMulTransposeBUnrollVecPass();
   mlir::buddy::registerMatmulAMXPass();

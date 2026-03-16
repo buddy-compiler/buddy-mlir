@@ -237,3 +237,75 @@ linalg-bf16-matmul-run:
 		-reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e linalg_main -entry-point-result=void \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
+dequant-matmul-vectorization-decode-lower:
+	@${BUDDY_OPT} ./dequant-matmul-vectorization-decode.mlir \
+		-dequant-matmul-vectorization-decode=vector-size=8 \
+		-o ./log-dequant-decode.mlir
+
+dequant-matmul-vectorization-decode-run:
+	@${BUDDY_OPT} ./dequant-matmul-vectorization-decode.mlir \
+		-dequant-matmul-vectorization-decode=vector-size=8 \
+		-convert-linalg-to-affine-loops \
+		-lower-affine \
+		-convert-vector-to-scf \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-vector-to-llvm \
+		-convert-math-to-llvm \
+		-convert-math-to-libm \
+		-convert-arith-to-llvm \
+		-convert-func-to-llvm \
+		-expand-strided-metadata \
+		-finalize-memref-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
+int4-dequant-matmul-vectorization-decode-lower:
+	@${BUDDY_OPT} ./int4-dequant-matmul-vectorization-decode.mlir \
+		-int4-dequant-matmul-vectorization-decode=vector-size=8 \
+		-o ./log-int4-dequant-decode.mlir
+
+int4-dequant-matmul-vectorization-decode-run:
+	@${BUDDY_OPT} ./int4-dequant-matmul-vectorization-decode.mlir \
+		-int4-dequant-matmul-vectorization-decode=vector-size=8 \
+		-convert-linalg-to-affine-loops \
+		-lower-affine \
+		-convert-vector-to-scf \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-vector-to-llvm \
+		-convert-math-to-llvm \
+		-convert-math-to-libm \
+		-convert-arith-to-llvm \
+		-convert-func-to-llvm \
+		-expand-strided-metadata \
+		-finalize-memref-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
+dequant-matmul-vectorization-blis-prefill-lower:
+	@${BUDDY_OPT} ./dequant-matmul-vectorization-blis-prefill.mlir \
+		-matmul-vectorization-blis \
+		-o ./log-dequant-blis-prefill.mlir
+
+dequant-matmul-vectorization-blis-prefill-run:
+	@${BUDDY_OPT} ./dequant-matmul-vectorization-blis-prefill.mlir \
+		-matmul-vectorization-blis \
+		-convert-linalg-to-affine-loops \
+		-lower-affine \
+		-convert-vector-to-scf \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-vector-to-llvm \
+		-convert-math-to-llvm \
+		-convert-math-to-libm \
+		-convert-arith-to-llvm \
+		-convert-func-to-llvm \
+		-expand-strided-metadata \
+		-finalize-memref-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
