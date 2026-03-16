@@ -4024,11 +4024,11 @@ def scaled_dot_product_flash_attention_for_cpu_op(
 
     if len(node.args) == 4:
         dropout_p = node.args[3]
-        assert dropout_p != 0.0
+        assert dropout_p == 0.0
     if len(node.args) == 5:
         dropout_p = node.args[3]
         is_causal = node.args[4]
-        assert dropout_p != 0.0
+        assert dropout_p == 0.0
         assert is_causal == True
 
     attn_mask = node.kwargs.get("attn_mask", None)
@@ -4131,7 +4131,7 @@ def scaled_dot_product_flash_attention_for_cpu_op(
         max_fp_attr = ir.FloatAttr.get(ir.BF16Type.get(), bf16_max_val)
 
         matmul_op = tosa.ClampOp(
-            matmul_op.result.type,
+            matmul_op.type,
             matmul_op,
             min_fp_attr,
             max_fp_attr,
