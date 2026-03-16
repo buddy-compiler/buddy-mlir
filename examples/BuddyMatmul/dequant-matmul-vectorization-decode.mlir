@@ -94,16 +94,22 @@ module {
     %Wi8 = memref.alloc() : memref<8x8xi8>
     %scale = memref.alloc() : memref<1x8xf32>
 
-    // Initialize A with 1.0, Wi8 with small ints, scale with 0.5.
+    // Initialize A with 1.0, Wi8 with small ints (cols 0,1 = 2, rest = 0), scale with 0.5.
     %one = arith.constant 1.0 : f32
     %half = arith.constant 5.000000e-01 : f32
     %two_i8 = arith.constant 2 : i8
+    %zero_i8 = arith.constant 0 : i8
+    %c2 = arith.constant 2 : index
 
-    scf.for %i = %c0 to %c1 step %c1 {
+    scf.for %j = %c0 to %c8 step %c1 {
+      memref.store %one, %A[%c0, %j] : memref<1x8xf32>
+      memref.store %half, %scale[%c0, %j] : memref<1x8xf32>
+    }
+    scf.for %i = %c0 to %c8 step %c1 {
       scf.for %j = %c0 to %c8 step %c1 {
-        memref.store %one, %A[%i, %j] : memref<1x8xf32>
-        memref.store %two_i8, %Wi8[%j, %i] : memref<8x8xi8>
-        memref.store %half, %scale[%i, %j] : memref<1x8xf32>
+        %cmp = arith.cmpi ult, %i, %c2 : index
+        %w_val = arith.select %cmp, %two_i8, %zero_i8 : i8
+        memref.store %w_val, %Wi8[%j, %i] : memref<8x8xi8>
       }
     }
 
@@ -113,10 +119,8 @@ module {
     %Ccast = memref.cast %C : memref<1x8xf32> to memref<*xf32>
     func.call @printMemrefF32(%Ccast) : (memref<*xf32>) -> ()
 
-    // CHECK: Unranked Memref base@ = {{.*}} rank = 2 offset = 0 sizes = [1, 8] strides = [8, 1] data =
-    // CHECK-NEXT: [
-    // CHECK-NEXT:   [8, 8, 0, 0, 0, 0, 0, 0]
-    // CHECK-NEXT: ]
+    // CHECK: Unranked Memref base@ = {{0x[0-9a-fA-F]+}} rank = 2 offset = 0 sizes = [1, 8] strides = [8, 1] data =
+    // CHECK{LITERAL}-NEXT: [[8,   8,   0,   0,   0,   0,   0,   0]]
 
     return
   }
