@@ -2464,8 +2464,8 @@ next-tfla-run:
 		-one-shot-bufferize="bufferize-function-boundaries" \
 		-convert-linalg-to-affine-loops \
 		-affine-loop-fusion \
-		-lower-affine \
 		-convert-vector-to-scf \
+		-lower-affine \
 		-expand-strided-metadata \
 		-convert-scf-to-cf \
 		-convert-bufferization-to-memref \

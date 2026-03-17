@@ -8,8 +8,8 @@
 // RUN:     -one-shot-bufferize="bufferize-function-boundaries" \
 // RUN:     -convert-linalg-to-affine-loops \
 // RUN:     -affine-loop-fusion \
-// RUN:     -lower-affine \
 // RUN:     -convert-vector-to-scf \
+// RUN:     -lower-affine \
 // RUN:     -expand-strided-metadata \
 // RUN:     -convert-scf-to-cf \
 // RUN:     -convert-bufferization-to-memref \
@@ -195,6 +195,7 @@ func.func @main() {
 
   // Don't print output (same as GQA)
   vector.print %time : f64
+  // CHECK: {{[0-9]+\.[0-9]+}}
 
   return
 }

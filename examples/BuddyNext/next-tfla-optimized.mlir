@@ -12,8 +12,8 @@
 // RUN:     -batchmatmul-transpose-b-vectorization=vector-size=16 \
 // RUN:     -convert-linalg-to-affine-loops \
 // RUN:     -affine-loop-fusion \
-// RUN:     -lower-affine \
 // RUN:     -convert-vector-to-scf \
+// RUN:     -lower-affine \
 // RUN:     -convert-scf-to-openmp=num-threads=48 \
 // RUN:     -convert-bufferization-to-memref \
 // RUN:     -cse \
@@ -194,6 +194,7 @@ func.func @main() {
 
   // Print timing
   vector.print %time : f64
+  // CHECK: {{[0-9]+\.[0-9]+}}
 
   return
 }
