@@ -20,11 +20,11 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/Dialect.h"
 
+#include "Dialect/AME/AMEDialect.h"
 #include "Dialect/Bud/BudDialect.h"
 #include "Dialect/DAP/DAPDialect.h"
 #include "Dialect/DIP/DIPDialect.h"
 #include "Dialect/Gemmini/GemminiDialect.h"
-#include "Dialect/AME/AMEDialect.h"
 #include "Dialect/IME/IMEDialect.h"
 #include "Dialect/RVV/RVVDialect.h"
 #include "Dialect/VectorExp/VectorExpDialect.h"
@@ -49,6 +49,8 @@ void registerMatMulOptimizePass();
 void registerMatMulParallelVectorizationPass();
 void registerMatMulVectorizationPass();
 void registerMatMulVectorizationDecodePass();
+void registerDequantMatMulVectorizationDecodePass();
+void registerInt4DequantMatMulVectorizationDecodePass();
 void registerBatchMatMulVectorizationDecodePass();
 void registerTransposeOptimizationPass();
 void registerSiLUFusionPass();
@@ -90,6 +92,8 @@ void mlir::buddy::registerAllPasses() {
   mlir::buddy::registerMatMulParallelVectorizationPass();
   mlir::buddy::registerMatMulVectorizationPass();
   mlir::buddy::registerMatMulVectorizationDecodePass();
+  mlir::buddy::registerDequantMatMulVectorizationDecodePass();
+  mlir::buddy::registerInt4DequantMatMulVectorizationDecodePass();
   mlir::buddy::registerBatchMatMulVectorizationDecodePass();
   mlir::buddy::registerTransposeOptimizationPass();
   mlir::buddy::registerSiLUFusionPass();
