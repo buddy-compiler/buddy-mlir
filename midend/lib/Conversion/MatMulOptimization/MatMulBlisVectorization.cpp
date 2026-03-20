@@ -18,6 +18,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <optional>
+
 #include <mlir/Dialect/Affine/IR/AffineOps.h>
 #include <mlir/Dialect/Arith/IR/Arith.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
@@ -30,6 +32,7 @@
 #include <mlir/IR/TypeUtilities.h>
 #include <mlir/IR/Value.h>
 #include <mlir/Pass/Pass.h>
+#include <mlir/Transforms/DialectConversion.h>
 
 using namespace mlir;
 using namespace vector;
@@ -39,6 +42,259 @@ using namespace vector;
 //===----------------------------------------------------------------------===//
 
 namespace {
+
+//===----------------------------------------------------------------------===//
+// Helpers: detect dequant chain and (optional) int4 unpack chain.
+//===----------------------------------------------------------------------===//
+
+struct DequantChain {
+  Value i8Weight;   // i8 weight after unpack (for int4) or original i8 weight
+  Value scale;      // scale memref
+  Value dequantBuf; // B operand of matmul (to be eliminated)
+  Value castBuf;    // intermediate cast buffer (to be eliminated)
+  linalg::GenericOp castOp;
+  linalg::GenericOp mulOp;
+  int scaleAxis; // first non-1 dimension in scale type
+};
+
+static bool isSingleSitofpGeneric(linalg::GenericOp op) {
+  if (op.getNumDpsInputs() != 1 || op.getNumDpsInits() != 1)
+    return false;
+  auto &body = op.getRegion().front();
+  if (body.getNumArguments() != 2)
+    return false;
+  auto yield = cast<linalg::YieldOp>(body.getTerminator());
+  auto sitofpOp =
+      dyn_cast_or_null<arith::SIToFPOp>(yield.getOperand(0).getDefiningOp());
+  if (!sitofpOp)
+    return false;
+  if (sitofpOp.getOperand() != body.getArgument(0))
+    return false;
+  auto inType = dyn_cast<MemRefType>(op.getInputs()[0].getType());
+  return inType && inType.getElementType().isInteger(8);
+}
+
+static bool isSingleMulfGeneric(linalg::GenericOp op) {
+  if (op.getNumDpsInputs() != 2 || op.getNumDpsInits() != 1)
+    return false;
+  auto &body = op.getRegion().front();
+  if (body.getNumArguments() != 3)
+    return false;
+  auto yield = cast<linalg::YieldOp>(body.getTerminator());
+  auto mulfOp =
+      dyn_cast_or_null<arith::MulFOp>(yield.getOperand(0).getDefiningOp());
+  if (!mulfOp)
+    return false;
+  auto lhs = mulfOp.getLhs();
+  auto rhs = mulfOp.getRhs();
+  return (lhs == body.getArgument(0) && rhs == body.getArgument(1)) ||
+         (lhs == body.getArgument(1) && rhs == body.getArgument(0));
+}
+
+static std::optional<DequantChain> findDequantChain(Value matmulB) {
+  // matmulB is the B operand of linalg.matmul (a memref). We find:
+  //   cast_generic(i8 -> f32/f16) -> castBuf
+  //   mul_generic(castBuf * scale) -> dequantBuf (= matmulB)
+  linalg::GenericOp mulGeneric = nullptr;
+  for (auto *user : matmulB.getUsers()) {
+    auto genOp = dyn_cast<linalg::GenericOp>(user);
+    if (!genOp)
+      continue;
+    for (auto output : genOp.getDpsInits()) {
+      if (output == matmulB && isSingleMulfGeneric(genOp)) {
+        mulGeneric = genOp;
+        break;
+      }
+    }
+    if (mulGeneric)
+      break;
+  }
+  if (!mulGeneric)
+    return std::nullopt;
+
+  Value castResult = mulGeneric.getInputs()[0];
+  Value scaleInput = mulGeneric.getInputs()[1];
+
+  linalg::GenericOp castGeneric = nullptr;
+  for (auto *user : castResult.getUsers()) {
+    auto genOp = dyn_cast<linalg::GenericOp>(user);
+    if (!genOp)
+      continue;
+    for (auto output : genOp.getDpsInits()) {
+      if (output == castResult && isSingleSitofpGeneric(genOp)) {
+        castGeneric = genOp;
+        break;
+      }
+    }
+    if (castGeneric)
+      break;
+  }
+  if (!castGeneric) {
+    std::swap(castResult, scaleInput);
+    for (auto *user : castResult.getUsers()) {
+      auto genOp = dyn_cast<linalg::GenericOp>(user);
+      if (!genOp)
+        continue;
+      for (auto output : genOp.getDpsInits()) {
+        if (output == castResult && isSingleSitofpGeneric(genOp)) {
+          castGeneric = genOp;
+          break;
+        }
+      }
+      if (castGeneric)
+        break;
+    }
+    if (!castGeneric)
+      return std::nullopt;
+  }
+
+  Value i8Weight = castGeneric.getInputs()[0];
+
+  auto scaleType = dyn_cast<MemRefType>(scaleInput.getType());
+  int scaleAxis = -1;
+  if (scaleType) {
+    for (int i = 0; i < (int)scaleType.getRank(); i++) {
+      if (scaleType.getDimSize(i) != 1) {
+        scaleAxis = i;
+        break;
+      }
+    }
+  }
+
+  DequantChain chain;
+  chain.i8Weight = i8Weight;
+  chain.scale = scaleInput;
+  chain.dequantBuf = matmulB;
+  chain.castBuf = castResult;
+  chain.castOp = castGeneric;
+  chain.mulOp = mulGeneric;
+  chain.scaleAxis = scaleAxis;
+  return chain;
+}
+
+struct Int4UnpackInfo {
+  Value packedWeight; // Original packed i8 buffer [K, N/2]
+  SmallVector<Operation *> allOps;
+  SmallVector<Value> allBuffers;
+};
+
+static linalg::GenericOp findProducerGeneric(Value buf) {
+  for (auto *user : buf.getUsers()) {
+    auto gen = dyn_cast<linalg::GenericOp>(user);
+    if (!gen)
+      continue;
+    for (auto out : gen.getDpsInits()) {
+      if (out == buf)
+        return gen;
+    }
+  }
+  return nullptr;
+}
+
+static bool bodyHasOnlyOp(linalg::GenericOp gen,
+                          llvm::function_ref<bool(Operation *)> pred) {
+  auto &body = gen.getRegion().front();
+  auto yieldOp = cast<linalg::YieldOp>(body.getTerminator());
+  auto *defOp = yieldOp.getOperand(0).getDefiningOp();
+  return defOp && pred(defOp);
+}
+
+static std::optional<Int4UnpackInfo> findInt4UnpackChain(Value i8Weight) {
+  // i8Weight should be defined by a reinterpret_cast from a [K, N/2, 2] concat
+  // buffer that interleaves low/high nibbles.
+  auto rcOp = i8Weight.getDefiningOp<memref::ReinterpretCastOp>();
+  if (!rcOp)
+    return std::nullopt;
+
+  Value concatBuf = rcOp.getSource();
+  auto concatType = dyn_cast<MemRefType>(concatBuf.getType());
+  if (!concatType || concatType.getRank() != 3 || concatType.getDimSize(2) != 2)
+    return std::nullopt;
+
+  Int4UnpackInfo info;
+  info.allBuffers.push_back(concatBuf);
+
+  // Find the two memref.copy operations into slices of concatBuf.
+  SmallVector<memref::CopyOp> copies;
+  for (auto *user : concatBuf.getUsers()) {
+    auto sliceRC = dyn_cast<memref::ReinterpretCastOp>(user);
+    if (!sliceRC || sliceRC == rcOp)
+      continue;
+    info.allOps.push_back(sliceRC);
+    for (auto *sliceUser : sliceRC.getResult().getUsers()) {
+      auto cp = dyn_cast<memref::CopyOp>(sliceUser);
+      if (cp && cp.getTarget() == sliceRC.getResult()) {
+        copies.push_back(cp);
+        info.allOps.push_back(cp);
+      }
+    }
+  }
+  if (copies.size() != 2)
+    return std::nullopt;
+
+  Value packedBuf = nullptr;
+
+  for (auto cp : copies) {
+    Value src = cp.getSource();
+    auto srcRC = src.getDefiningOp<memref::ReinterpretCastOp>();
+    if (!srcRC)
+      return std::nullopt;
+    info.allOps.push_back(srcRC);
+
+    Value nibbleBuf = srcRC.getSource();
+    info.allBuffers.push_back(nibbleBuf);
+
+    auto producer = findProducerGeneric(nibbleBuf);
+    if (!producer)
+      return std::nullopt;
+
+    // Producer must be shrsi generic.
+    if (!bodyHasOnlyOp(producer,
+                       [](Operation *op) { return isa<arith::ShRSIOp>(op); }))
+      return std::nullopt;
+    info.allOps.push_back(producer);
+
+    Value firstInput = producer.getInputs()[0];
+
+    // Low path: shrsi <- shli <- andi <- packed
+    auto shliProducer = findProducerGeneric(firstInput);
+    if (shliProducer && bodyHasOnlyOp(shliProducer, [](Operation *op) {
+          return isa<arith::ShLIOp>(op);
+        })) {
+      info.allOps.push_back(shliProducer);
+      info.allBuffers.push_back(firstInput);
+
+      Value andiInput = shliProducer.getInputs()[0];
+      auto andiProducer = findProducerGeneric(andiInput);
+      if (!andiProducer || !bodyHasOnlyOp(andiProducer, [](Operation *op) {
+            return isa<arith::AndIOp>(op);
+          }))
+        return std::nullopt;
+      info.allOps.push_back(andiProducer);
+      info.allBuffers.push_back(andiInput);
+
+      Value candidate = andiProducer.getInputs()[0];
+      if (packedBuf && packedBuf != candidate)
+        return std::nullopt;
+      packedBuf = candidate;
+    } else {
+      // High path: shrsi(packed, shift)
+      if (packedBuf && packedBuf != firstInput)
+        return std::nullopt;
+      packedBuf = firstInput;
+    }
+  }
+
+  if (!packedBuf)
+    return std::nullopt;
+  auto packedType = dyn_cast<MemRefType>(packedBuf.getType());
+  if (!packedType || packedType.getRank() != 2 ||
+      !packedType.getElementType().isInteger(8))
+    return std::nullopt;
+
+  info.packedWeight = packedBuf;
+  return info;
+}
 
 class MatMulVectorizationBLISPattern : public ConversionPattern {
 public:
@@ -85,6 +341,12 @@ public:
     Value B = op->getOperand(1);
     Value C = op->getOperand(2);
 
+    // Detect dequant chain for B (w8a32/w8a16/w4a16 prefill).
+    auto dequantChain = findDequantChain(B);
+    std::optional<Int4UnpackInfo> int4Info;
+    if (dequantChain)
+      int4Info = findInt4UnpackChain(dequantChain->i8Weight);
+
     // Get dimensions
     const Value m = rewriter.create<memref::DimOp>(loc, A, c0);
     const Value n = rewriter.create<memref::DimOp>(loc, C, c1);
@@ -99,6 +361,16 @@ public:
     VectorType vectorTy = VectorType::get({32}, eleTy);
     VectorType accVecTy =
         isInteger ? VectorType::get({32}, accEleTy) : vectorTy;
+
+    // Pre-create constants for int4 unpack (scalar) and scale indexing.
+    Value i8Mask15 = nullptr;
+    Value i8Shift4 = nullptr;
+    if (dequantChain && int4Info) {
+      i8Mask15 = rewriter.create<arith::ConstantOp>(
+          loc, rewriter.getIntegerAttr(rewriter.getI8Type(), 15));
+      i8Shift4 = rewriter.create<arith::ConstantOp>(
+          loc, rewriter.getIntegerAttr(rewriter.getI8Type(), 4));
+    }
 
     // BLIS 5-loop structure
     // Loop 1: jc - column blocking
@@ -155,10 +427,62 @@ public:
                               [&](OpBuilder &builder, Location loc, Value j, ValueRange) {
                                 auto bRowIdx = builder.create<arith::AddIOp>(loc, pc, kp);
                                 auto bColIdx = builder.create<arith::AddIOp>(loc, jc, j);
-                                auto bVal = builder.create<memref::LoadOp>(loc, B,
-                                                                         ValueRange{bRowIdx, bColIdx});
-                                builder.create<memref::StoreOp>(loc, bVal, B_packed,
-                                                              ValueRange{kp, j});
+
+                                // If B is produced by a dequant chain, fuse dequant into packing.
+                                if (dequantChain) {
+                                  // Load per-channel scale (broadcasted over K).
+                                  Value scaleScalar = nullptr;
+                                  if (auto scaleType = dyn_cast<MemRefType>(dequantChain->scale.getType())) {
+                                    SmallVector<Value> scaleIdx;
+                                    int axis = dequantChain->scaleAxis;
+                                    if (axis < 0)
+                                      axis = (int)scaleType.getRank() - 1;
+                                    for (int si = 0; si < (int)scaleType.getRank(); si++) {
+                                      if (si == axis)
+                                        scaleIdx.push_back(bColIdx);
+                                      else
+                                        scaleIdx.push_back(c0);
+                                    }
+                                    scaleScalar = builder.create<memref::LoadOp>(
+                                        loc, dequantChain->scale, scaleIdx);
+                                  }
+
+                                  Value weightI8 = nullptr;
+                                  if (int4Info) {
+                                    // packed index = bColIdx / 2
+                                    Value packedColIdx = builder.create<arith::DivUIOp>(loc, bColIdx, c2);
+                                    Value packedByte = builder.create<memref::LoadOp>(
+                                        loc, int4Info->packedWeight, ValueRange{bRowIdx, packedColIdx});
+                                    // low = ((packed & 0x0F) << 4) >> 4
+                                    Value lowMasked = builder.create<arith::AndIOp>(loc, packedByte, i8Mask15);
+                                    Value lowShifted = builder.create<arith::ShLIOp>(loc, lowMasked, i8Shift4);
+                                    Value low = builder.create<arith::ShRSIOp>(loc, lowShifted, i8Shift4);
+                                    // high = packed >> 4
+                                    Value high = builder.create<arith::ShRSIOp>(loc, packedByte, i8Shift4);
+                                    // select based on parity
+                                    Value rem = builder.create<arith::RemUIOp>(loc, bColIdx, c2);
+                                    Value isLow = builder.create<arith::CmpIOp>(
+                                        loc, arith::CmpIPredicate::eq, rem, c0);
+                                    weightI8 = builder.create<arith::SelectOp>(loc, isLow, low, high);
+                                  } else {
+                                    weightI8 = builder.create<memref::LoadOp>(
+                                        loc, dequantChain->i8Weight, ValueRange{bRowIdx, bColIdx});
+                                  }
+
+                                  // i8 -> eleTy, then * scale
+                                  Value wFloat = builder.create<arith::SIToFPOp>(loc, eleTy, weightI8);
+                                  Value wDequant = scaleScalar
+                                                       ? builder.create<arith::MulFOp>(loc, wFloat, scaleScalar)
+                                                       : wFloat;
+                                  builder.create<memref::StoreOp>(loc, wDequant, B_packed,
+                                                                  ValueRange{kp, j});
+                                } else {
+                                  // Default path: just pack from B.
+                                  auto bVal = builder.create<memref::LoadOp>(loc, B,
+                                                                           ValueRange{bRowIdx, bColIdx});
+                                  builder.create<memref::StoreOp>(loc, bVal, B_packed,
+                                                                ValueRange{kp, j});
+                                }
                                 builder.create<scf::YieldOp>(loc);
                               });
                           builder.create<scf::YieldOp>(loc);
@@ -594,6 +918,82 @@ public:
         });
 
     rewriter.eraseOp(op);
+
+    // If we fused dequant into packing, clean up the now-dead dequant/unpack
+    // IR.
+    if (dequantChain) {
+      SmallPtrSet<Operation *, 32> erasedOps;
+      erasedOps.insert(op);
+
+      auto canEraseBuf = [&](Value buf, Operation *producer) -> bool {
+        for (auto *user : buf.getUsers()) {
+          if (user == producer || erasedOps.contains(user))
+            continue;
+          if (isa<memref::DeallocOp>(user))
+            continue;
+          return false;
+        }
+        return true;
+      };
+
+      auto eraseBufferChain = [&](Value buf, Operation *producer) {
+        SmallVector<Operation *> toErase;
+        for (auto *user : buf.getUsers()) {
+          if (isa<memref::DeallocOp>(user))
+            toErase.push_back(user);
+        }
+        for (auto *deadOp : toErase) {
+          rewriter.eraseOp(deadOp);
+          erasedOps.insert(deadOp);
+        }
+        rewriter.eraseOp(producer);
+        erasedOps.insert(producer);
+        if (auto allocOp = buf.getDefiningOp()) {
+          rewriter.eraseOp(allocOp);
+          erasedOps.insert(allocOp);
+        }
+      };
+
+      if (canEraseBuf(dequantChain->dequantBuf, dequantChain->mulOp))
+        eraseBufferChain(dequantChain->dequantBuf, dequantChain->mulOp);
+
+      if (canEraseBuf(dequantChain->castBuf, dequantChain->castOp))
+        eraseBufferChain(dequantChain->castBuf, dequantChain->castOp);
+
+      if (int4Info) {
+        // Best-effort cleanup of unpack intermediates if they became dead.
+        for (auto *deadOp : llvm::reverse(int4Info->allOps)) {
+          if (!erasedOps.contains(deadOp)) {
+            rewriter.eraseOp(deadOp);
+            erasedOps.insert(deadOp);
+          }
+        }
+        for (auto buf : llvm::reverse(int4Info->allBuffers)) {
+          for (auto *user : buf.getUsers()) {
+            if (isa<memref::DeallocOp>(user) && !erasedOps.contains(user)) {
+              rewriter.eraseOp(user);
+              erasedOps.insert(user);
+            }
+          }
+          if (auto *defOp = buf.getDefiningOp()) {
+            if (!erasedOps.contains(defOp)) {
+              bool allUsersDead = true;
+              for (auto *user : buf.getUsers()) {
+                if (!erasedOps.contains(user)) {
+                  allUsersDead = false;
+                  break;
+                }
+              }
+              if (allUsersDead) {
+                rewriter.eraseOp(defOp);
+                erasedOps.insert(defOp);
+              }
+            }
+          }
+        }
+      }
+    }
+
     return success();
   }
 };

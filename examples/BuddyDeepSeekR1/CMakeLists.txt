@@ -126,6 +126,9 @@ add_custom_command(
             -cse
             -canonicalize
             -optimize-allocation-liveness
+            -eliminate-memref-copy
+            -assume-tight-memref-layout
+            -staticize-memref-layout
             -matmul-vectorization-blis
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
@@ -174,6 +177,9 @@ add_custom_command(
             -cse
             -canonicalize
             -optimize-allocation-liveness
+            -eliminate-memref-copy
+            -assume-tight-memref-layout
+            -staticize-memref-layout
             -matmul-vectorization-blis
             -batchmatmul-optimize
             -batchmatmul-transpose-b-vectorization
@@ -181,7 +187,7 @@ add_custom_command(
             -affine-parallelize
             -convert-vector-to-scf
             -lower-affine
-            -convert-scf-to-openmp=num-threads=48
+            -convert-scf-to-openmp=${OPENMP_NUM_THREADS}
             -cse
             -memref-expand
             -arith-expand
@@ -223,6 +229,9 @@ add_custom_command(
             -cse
             -canonicalize
             -optimize-allocation-liveness
+            -eliminate-memref-copy
+            -assume-tight-memref-layout
+            -staticize-memref-layout
             -matmul-vectorization-blis
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
@@ -371,6 +380,9 @@ add_custom_command(
             -cse
             -canonicalize
             -optimize-allocation-liveness
+            -eliminate-memref-copy
+            -assume-tight-memref-layout
+            -staticize-memref-layout
             -matmul-vectorization-blis
             -batchmatmul-optimize
             -batchmatmul-transpose-b-vectorization
@@ -781,7 +793,7 @@ add_custom_command(
             -affine-parallelize
             -convert-vector-to-scf
             -lower-affine
-            -convert-scf-to-openmp=num-threads=48
+            -convert-scf-to-openmp=${OPENMP_NUM_THREADS}
             -cse
             -memref-expand
             -arith-expand
@@ -875,6 +887,7 @@ add_custom_command(
             -eliminate-memref-copy
             -assume-tight-memref-layout
             -staticize-memref-layout
+            -dequant-matmul-vectorization-decode=vector-size=32
             -matmul-vectorization-decode=vector-size=32
             -batch-matmul-vectorization-decode=vector-size=128
             -batchmatmul-transpose-b-vectorization=vector-size=16
@@ -978,7 +991,7 @@ add_custom_command(
             -affine-parallelize
             -convert-vector-to-scf
             -lower-affine
-            -convert-scf-to-openmp=num-threads=48
+            -convert-scf-to-openmp=${OPENMP_NUM_THREADS}
             -cse
             -memref-expand
             -arith-expand
@@ -1072,6 +1085,7 @@ add_custom_command(
             -eliminate-memref-copy
             -assume-tight-memref-layout
             -staticize-memref-layout
+            -int4-dequant-matmul-vectorization-decode=vector-size=32
             -matmul-vectorization-decode=vector-size=32
             -batch-matmul-vectorization-decode=vector-size=128
             -batchmatmul-transpose-b-vectorization=vector-size=16
@@ -1175,7 +1189,7 @@ add_custom_command(
             -affine-parallelize
             -convert-vector-to-scf
             -lower-affine
-            -convert-scf-to-openmp=num-threads=48
+            -convert-scf-to-openmp=${OPENMP_NUM_THREADS}
             -cse
             -memref-expand
             -arith-expand
@@ -1371,7 +1385,7 @@ add_custom_command(
             -affine-parallelize
             -convert-vector-to-scf
             -lower-affine
-            -convert-scf-to-openmp=num-threads=48
+            -convert-scf-to-openmp=${OPENMP_NUM_THREADS}
             -cse
             -memref-expand
             -arith-expand
@@ -1465,6 +1479,7 @@ add_custom_command(
             -eliminate-memref-copy
             -assume-tight-memref-layout
             -staticize-memref-layout
+            -dequant-matmul-vectorization-decode=vector-size=32
             -matmul-vectorization-decode=vector-size=32
             -batch-matmul-vectorization-decode=vector-size=128
             -batchmatmul-transpose-b-vectorization=vector-size=16
