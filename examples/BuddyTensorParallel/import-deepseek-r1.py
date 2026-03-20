@@ -31,7 +31,7 @@ from torch._inductor.decomposition import decompositions as inductor_decomp
 
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import tosa
-from buddy.compiler.graph import SplitStrategy, GraphDriver
+from buddy.compiler.graph import SplitStrategy, PartitionedGraphDriver
 from buddy.compiler.graph.transform import (
     simply_fuse,
     apply_classic_fusion,
@@ -207,7 +207,7 @@ PREFILL_STRATEGY = SplitStrategy(
     }
 )
 
-driver_prefill = GraphDriver(graphs_prefill[0], PREFILL_STRATEGY)
+driver_prefill = PartitionedGraphDriver(graphs_prefill[0], PREFILL_STRATEGY)
 for i in range(len(driver_prefill.subgraphs)):
     driver_prefill.subgraphs[i].lower_to_top_level_ir()
 driver_prefill.construct_main_graph(True)
@@ -220,7 +220,7 @@ for entry in driver_prefill._subgraph_param_info.items():
     driver_prefill.construct_sub_params(params, entry, output_dir)
 
 
-driver_decode = GraphDriver(graphs_decode[0], DECODE_STRATEGY)
+driver_decode = PartitionedGraphDriver(graphs_decode[0], DECODE_STRATEGY)
 for i in range(len(driver_decode.subgraphs)):
     driver_decode.subgraphs[i].lower_to_top_level_ir()
 driver_decode.construct_main_graph(True)

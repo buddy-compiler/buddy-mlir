@@ -20,6 +20,6 @@
 
 from .graph import Graph, NodeType
 from .graph_driver import GraphDriver
-from .graph_driver import SplitStrategy
+from .partitioned_graph_driver import SplitStrategy, PartitionedGraphDriver
 from .operation import *
 from .type import TensorDType, TensorMeta, DeviceType
