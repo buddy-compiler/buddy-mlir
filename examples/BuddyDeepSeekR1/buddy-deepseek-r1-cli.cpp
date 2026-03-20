@@ -491,11 +491,16 @@ RopeFreqArray buildInverseRopeFreqs(float theta) {
 GenerationResult runGeneration(const std::string &prompt,
                                MemRef<float, 1> &paramsContainer,
                                const std::string &vocabPath, int maxNewTokens,
-                               long long eosTokenId, std::ostream &tokenStream,
-                               Sampler &sampler) {
+                               const std::vector<long long> &stopTokenIds,
+                               std::ostream &tokenStream, Sampler &sampler) {
   GenerationResult stats;
   const RopeFreqArray ropeInverseFreqs =
       buildInverseRopeFreqs(RopeThetaOpt.getValue());
+
+  auto isStopToken = [&](int tokenId) {
+    return std::find(stopTokenIds.begin(), stopTokenIds.end(), tokenId) !=
+           stopTokenIds.end();
+  };
 
   Text<size_t, 2> outputContainer;
   Text<size_t, 2> inputContainerPrefill(prompt);
@@ -632,7 +637,7 @@ GenerationResult runGeneration(const std::string &prompt,
 
   cachePosition.getData()[0] = inputContainerPrefill.getTokenCnt();
   inputContainerDecode.getData()[0] = static_cast<long long>(maxIndex);
-  if (maxIndex == eosTokenId) {
+  if (isStopToken(maxIndex)) {
     tokenStream << std::endl;
     stats.totalSeconds = prefillSeconds;
     stats.finalText = streamed;
@@ -724,7 +729,7 @@ GenerationResult runGeneration(const std::string &prompt,
     maxIndex = sampler.sample(decodeStartPtr, MaxVocabSize, recentTokens);
     recentTokens.push_back(maxIndex);
 
-    if (maxIndex == eosTokenId) {
+    if (isStopToken(maxIndex)) {
       break;
     }
 
@@ -765,8 +770,9 @@ void printStats(const GenerationResult &result) {
 void runInteractiveSession(const std::string &systemPrompt,
                            MemRef<float, 1> &paramsContainer,
                            const std::string &vocabPath, int maxNewTokens,
-                           long long eosTokenId, bool suppressStats,
-                           Sampler &sampler, ConversationManager *conv) {
+                           const std::vector<long long> &stopTokenIds,
+                           bool suppressStats, Sampler &sampler,
+                           ConversationManager *conv) {
   const bool hasConv = (conv != nullptr);
   llvm::errs() << "Entering interactive mode.\n"
                << "  - Type your prompt and press Enter to submit\n"
@@ -799,7 +805,7 @@ void runInteractiveSession(const std::string &systemPrompt,
     }
     GenerationResult result =
         runGeneration(finalPrompt, paramsContainer, vocabPath, maxNewTokens,
-                      eosTokenId, std::cout, sampler);
+                      stopTokenIds, std::cout, sampler);
     if (hasConv) {
       conv->addMessage("assistant", result.finalText);
     }
@@ -1028,11 +1034,21 @@ int main(int argc, char **argv) {
   }
 
   try {
+    // Build stop token list: always include --eos-id, plus template stop
+    // tokens.
+    std::vector<long long> stopTokenIds = {EosIdOpt.getValue()};
+
     if (InteractiveOpt) {
       // Load chat template if provided; enables multi-turn conversation.
       std::unique_ptr<ConversationManager> conv;
       if (!ChatTemplateOpt.empty()) {
         ChatTemplate tmpl = ChatTemplate::fromFile(ChatTemplateOpt);
+        for (int id : tmpl.stopTokenIds()) {
+          if (std::find(stopTokenIds.begin(), stopTokenIds.end(), id) ==
+              stopTokenIds.end()) {
+            stopTokenIds.push_back(static_cast<long long>(id));
+          }
+        }
         conv = std::make_unique<ConversationManager>(std::move(tmpl));
         if (!prompt.empty()) {
           conv->setSystemPrompt(prompt);
@@ -1041,19 +1057,25 @@ int main(int argc, char **argv) {
                         "enabled.\n";
       }
       runInteractiveSession(prompt, paramsContainer, vocabPath,
-                            static_cast<int>(maxNewTokens), EosIdOpt,
+                            static_cast<int>(maxNewTokens), stopTokenIds,
                             SuppressStatsOpt, sampler, conv.get());
     } else {
       // In single-shot mode, apply chat template if provided.
       std::string finalPrompt = prompt;
       if (!ChatTemplateOpt.empty()) {
         ChatTemplate tmpl = ChatTemplate::fromFile(ChatTemplateOpt);
+        for (int id : tmpl.stopTokenIds()) {
+          if (std::find(stopTokenIds.begin(), stopTokenIds.end(), id) ==
+              stopTokenIds.end()) {
+            stopTokenIds.push_back(static_cast<long long>(id));
+          }
+        }
         std::vector<Message> msgs = {{"user", prompt}};
         finalPrompt = tmpl.apply(msgs);
       }
       GenerationResult result = runGeneration(
           finalPrompt, paramsContainer, vocabPath,
-          static_cast<int>(maxNewTokens), EosIdOpt, std::cout, sampler);
+          static_cast<int>(maxNewTokens), stopTokenIds, std::cout, sampler);
       if (!SuppressStatsOpt) {
         printStats(result);
       }
