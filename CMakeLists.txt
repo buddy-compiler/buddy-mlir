@@ -243,8 +243,9 @@ add_custom_target(check-buddy
 # Target install
 #-------------------------------------------------------------------------------
 
-# Install frontend interfaces into include directory, so that the downstream project can use them in distribution
-install(DIRECTORY buddy/Core buddy/DAP buddy/DIP buddy/LLM
+# Install frontend interfaces into include directory, so that the downstream
+# project can use them in distribution.
+install(DIRECTORY frontend/Interfaces/buddy
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/buddy-mlir
   COMPONENT buddy-mlir-interfaces-headers
   FILES_MATCHING
@@ -261,7 +262,7 @@ configure_package_config_file(
 
 write_basic_package_version_file(
   ${CMAKE_CURRENT_BINARY_DIR}/BuddyMLIRConfigVersion.cmake
-  VERSION 0.1.0
+  VERSION 0.0.1
   COMPATIBILITY AnyNewerVersion
 )
 

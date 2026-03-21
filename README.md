@@ -86,9 +86,26 @@ $ ninja check-e2e
 We use `setuptools` to bundle CMake outputs (Python packages, `bin/`, and
 `lib/`) into a single wheel.
 
-run `./scripts/release_wheel_manylinux.sh`.
+Build x86_64 artifacts:
 
-This script calls `docker run` internally to enter the manylinux container, builds LLVM and buddy_mlir, and writes the wheel to `./build.docker/dist`.
+```bash
+./scripts/release_wheel_manylinux.sh cp310-cp310 x86_64
+```
+
+Build riscv64 artifacts:
+
+```bash
+./scripts/release_wheel_manylinux.sh cp310-cp310 riscv64
+```
+
+This script calls `docker run` internally to enter the offical manylinux container,
+builds LLVM and buddy_mlir, and writes artifacts to:
+
+- `./build-docker/x86_64/<py_tag>/target`
+- `./build-docker/riscv64/<py_tag>/target`
+
+See [Manylinux release notes](./docs/ManylinuxReleaseNotes.md) for current
+known build notes.
 
 Install and test the wheel:
 

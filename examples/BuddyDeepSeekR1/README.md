@@ -98,6 +98,22 @@ $ ./bin/buddy-deepseek-r1-f16-run
 //bf16
 $ ninja buddy-deepseek-r1-bf16-run
 $ ./bin/buddy-deepseek-r1-bf16-run
+
+//w8a32: weight-only int8 quantization, f32 activations
+$ ninja buddy-deepseek-r1-w8a32-run
+$ ./bin/buddy-deepseek-r1-w8a32-run
+
+//w8a8: full int8 quantization (int8 weights + int8 activations)
+$ ninja buddy-deepseek-r1-w8a8-run
+$ ./bin/buddy-deepseek-r1-w8a8-run
+
+//w4a16: int4 weight quantization (int4-packed storage), f16 activations
+$ ninja buddy-deepseek-r1-w4a16-run
+$ ./bin/buddy-deepseek-r1-w4a16-run
+
+//w8a16: weight-only int8 quantization, f16 activations
+$ ninja buddy-deepseek-r1-w8a16-run
+$ ./bin/buddy-deepseek-r1-w8a16-run
 ```
 
 5. Streaming inference with buddy-deepseek-r1-cli

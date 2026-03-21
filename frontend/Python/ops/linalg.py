@@ -12672,8 +12672,214 @@ def linalg_inv_ex_op(node, symbol_table):
     return inv, info
 
 
+def _create_tosa_shape_operand(shape):
+    """Create a tosa.shape value for reshape-like ops (local copy for linalg.py)."""
+    dims = [int(dim) for dim in shape]
+    rank = len(dims)
+    shape_type = ir.Type.parse(f"!tosa.shape<{rank}>")
+    index_type = ir.IndexType.get()
+    shape_attr = ir.DenseElementsAttr.get(
+        array.array("q", dims),
+        type=index_type,
+    )
+    return tosa.ConstShapeOp(shape_type, shape_attr).result
+
+
+def _make_tosa_mul_shift():
+    """Create the shift operand (i8 tensor<1xi8> = 0) required by tosa.MulOp."""
+    i8_type = ir.IntegerType.get_signless(8)
+    t = ir.RankedTensorType.get([1], i8_type)
+    attr = ir.DenseElementsAttr.get_splat(t, ir.IntegerAttr.get(i8_type, 0))
+    return tosa.ConstOp(attr).results[0]
+
+
+def _quantize_activation_i8(activation, symbol_table):
+    """Generate MLIR ops for dynamic per-tensor activation quantization f32→i8.
+    Returns (activation_i8, activation_scale_f32)."""
+    act_type = ir.RankedTensorType(activation.type)
+    act_shape = list(act_type.shape)
+    f32 = ir.F32Type.get()
+    i8 = ir.IntegerType.get_signless(8)
+    i32 = ir.IntegerType.get_signless(32)
+
+    abs_result = tosa.AbsOp(activation.type, activation).result
+
+    for dim in range(len(act_shape)):
+        dim_attr = ir.IntegerAttr.get(ir.IntegerType.get_signless(32), dim)
+        abs_result = tosa.ReduceMaxOp(abs_result, dim_attr).result
+
+    scalar_shape = [1] * len(act_shape)
+    scalar_type = ir.RankedTensorType.get(scalar_shape, f32)
+
+    c127 = arith.ConstantOp(
+        scalar_type,
+        ir.DenseElementsAttr.get_splat(
+            scalar_type, ir.FloatAttr.get(f32, 127.0)
+        ),
+    ).result
+    eps_val = arith.ConstantOp(
+        scalar_type,
+        ir.DenseElementsAttr.get_splat(
+            scalar_type, ir.FloatAttr.get(f32, 1e-10)
+        ),
+    ).result
+
+    reciprocal_127 = tosa.ReciprocalOp(scalar_type, c127).result
+    raw_scale = tosa.MulOp(
+        scalar_type, abs_result, reciprocal_127, _make_tosa_mul_shift()
+    ).result
+    scale = tosa.MaximumOp(scalar_type, raw_scale, eps_val).result
+
+    inv_scale = tosa.ReciprocalOp(scalar_type, scale).result
+    x_scaled = tosa.MulOp(
+        activation.type, activation, inv_scale, _make_tosa_mul_shift()
+    ).result
+
+    x_round = tosa.CastOp(
+        ir.RankedTensorType.get(act_shape, i32), x_scaled
+    ).result
+    x_round_f32 = tosa.CastOp(activation.type, x_round).result
+
+    # clamp to [-128, 127] using max/min
+    lo = arith.ConstantOp(
+        activation.type,
+        ir.DenseElementsAttr.get_splat(
+            activation.type, ir.FloatAttr.get(f32, -128.0)
+        ),
+    ).result
+    hi = arith.ConstantOp(
+        activation.type,
+        ir.DenseElementsAttr.get_splat(
+            activation.type, ir.FloatAttr.get(f32, 127.0)
+        ),
+    ).result
+    x_clamped = tosa.MaximumOp(activation.type, x_round_f32, lo).result
+    x_clamped = tosa.MinimumOp(activation.type, x_clamped, hi).result
+
+    i8_type = ir.RankedTensorType.get(act_shape, i8)
+    act_i8 = tosa.CastOp(i8_type, x_clamped).result
+
+    return act_i8, scale
+
+
+def quantized_matmul_op(node, symbol_table):
+    """W8A8 quantized matmul: args = [activation(f32), weight(i8), weight_scale(f32)]
+    Generates: dynamic_quant(activation) → i8×i8→i32 matmul → rescale → f32"""
+    activation = symbol_table.get((str(node.args[0]), 0))
+    weight_i8 = symbol_table.get((str(node.args[1]), 0))
+    weight_scale = symbol_table.get((str(node.args[2]), 0))
+
+    f32 = ir.F32Type.get()
+    i32 = ir.IntegerType.get_signless(32)
+
+    act_shape = list(ir.RankedTensorType(activation.type).shape)
+    w_shape = list(ir.RankedTensorType(weight_i8.type).shape)
+    out_shape = [act_shape[0], w_shape[1]]
+
+    # Dynamic quantize activation
+    act_i8, act_scale = _quantize_activation_i8(activation, symbol_table)
+
+    # i8 × i8 → i32 matmul
+    i32_type = ir.RankedTensorType.get(out_shape, i32)
+    zero_i32 = arith.ConstantOp(
+        i32_type,
+        ir.DenseElementsAttr.get_splat(i32_type, ir.IntegerAttr.get(i32, 0)),
+    ).result
+
+    generic_map = _safe_get_permutation([0, 1, 2])
+    matmul = linalg.MatmulOp(
+        result_tensors=[i32_type],
+        inputs=[act_i8, weight_i8],
+        outputs=[zero_i32],
+        indexing_maps=[
+            generic_map.get_submap([0, 2]),
+            generic_map.get_submap([2, 1]),
+            generic_map.get_submap([0, 1]),
+        ],
+        cast="cast_signed",
+    )
+    linalg.fill_builtin_region(matmul.operation)
+
+    # Cast i32 → f32
+    f32_type = ir.RankedTensorType.get(out_shape, f32)
+    result_f32 = tosa.CastOp(f32_type, matmul.result).result
+
+    # Rescale: result * act_scale * weight_scale
+    combined_scale = tosa.MulOp(
+        weight_scale.type, act_scale, weight_scale, _make_tosa_mul_shift()
+    ).result
+    result = tosa.MulOp(
+        f32_type, result_f32, combined_scale, _make_tosa_mul_shift()
+    ).result
+
+    return result
+
+
+def quantized_addmm_op(node, symbol_table):
+    """W8A8 quantized addmm: args = [bias(f32), activation(f32), weight(i8), weight_scale(f32)]
+    Same as quantized_matmul_op but with bias addition."""
+    bias = symbol_table.get((str(node.args[0]), 0))
+    activation = symbol_table.get((str(node.args[1]), 0))
+    weight_i8 = symbol_table.get((str(node.args[2]), 0))
+    weight_scale = symbol_table.get((str(node.args[3]), 0))
+
+    f32 = ir.F32Type.get()
+    i32 = ir.IntegerType.get_signless(32)
+
+    act_shape = list(ir.RankedTensorType(activation.type).shape)
+    w_shape = list(ir.RankedTensorType(weight_i8.type).shape)
+    out_shape = [act_shape[0], w_shape[1]]
+
+    act_i8, act_scale = _quantize_activation_i8(activation, symbol_table)
+
+    i32_type = ir.RankedTensorType.get(out_shape, i32)
+    zero_i32 = arith.ConstantOp(
+        i32_type,
+        ir.DenseElementsAttr.get_splat(i32_type, ir.IntegerAttr.get(i32, 0)),
+    ).result
+
+    generic_map = _safe_get_permutation([0, 1, 2])
+    matmul = linalg.MatmulOp(
+        result_tensors=[i32_type],
+        inputs=[act_i8, weight_i8],
+        outputs=[zero_i32],
+        indexing_maps=[
+            generic_map.get_submap([0, 2]),
+            generic_map.get_submap([2, 1]),
+            generic_map.get_submap([0, 1]),
+        ],
+        cast="cast_signed",
+    )
+    linalg.fill_builtin_region(matmul.operation)
+
+    f32_type = ir.RankedTensorType.get(out_shape, f32)
+    result_f32 = tosa.CastOp(f32_type, matmul.result).result
+
+    combined_scale = tosa.MulOp(
+        weight_scale.type, act_scale, weight_scale, _make_tosa_mul_shift()
+    ).result
+    result = tosa.MulOp(
+        f32_type, result_f32, combined_scale, _make_tosa_mul_shift()
+    ).result
+
+    # Add bias with broadcasting (bias may be 1D, result is 2D)
+    bias_shape = list(ir.RankedTensorType(bias.type).shape)
+    if bias_shape != out_shape:
+        new_bias_shape = [1] * (len(out_shape) - len(bias_shape)) + bias_shape
+        if new_bias_shape != bias_shape:
+            shape_operand = _create_tosa_shape_operand(new_bias_shape)
+            bias = tosa.ReshapeOp(bias, shape_operand).result
+        result = tosa.AddOp(f32_type, result, bias).result
+    else:
+        result = tosa.AddOp(f32_type, result, bias).result
+
+    return result
+
+
 ops_registry = {
     "MatmulOp": matmul_op,
+    "QuantizedMatmulOp": quantized_matmul_op,
+    "QuantizedAddMMOp": quantized_addmm_op,
     "TransposeMatmulFusedOp": matmul_transpose_b_op,
     "ArangeOp": arange_op,
     "UnsqueezeOp": unsqueeze_op,
