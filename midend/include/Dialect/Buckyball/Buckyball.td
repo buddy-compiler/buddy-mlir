@@ -51,9 +51,10 @@ class Buckyball_Op<string mnemonic, list<Trait> traits = []> :
 def MvinOp : Buckyball_Op<"bb_mvin"> {
   let summary = "Load operation";
   let description = [{
-    Move data from main memory to scratchpad
-    - MemRef to load in (DRAM address)
-    - Local scratchpad address.
+    Move data from main memory to a scratchpad bank (see `bb-tests/workloads/lib/bbhw/isa/33_mvin.c`).
+    - `input`: source memref in DRAM; base pointer is encoded in the instruction.
+    - `addr`: virtual bank id (operand historically named `addr`; maps to `BB_BANK0` in rs1).
+    - `stride`: line stride field in rs2 (same units as hardware `FIELD(stride, 10, 28)`).
   }];
   let arguments = (ins MemRefRankOf<[AnyType], [2]>:$input, I64:$addr, I64:$stride);
   let assemblyFormat = "$input $addr $stride attr-dict `:` type($input) type($addr) type($stride)";
@@ -63,9 +64,9 @@ def MvinOp : Buckyball_Op<"bb_mvin"> {
 def MvoutOp : Buckyball_Op<"bb_mvout"> {
   let summary = "Store operation";
   let description = [{
-    Move data from scratchpad to main memory
-    - MemRef to store from scratchpad.
-    - Local scratchpad address.
+    Move data from a scratchpad bank to main memory (see `bb-tests/workloads/lib/bbhw/isa` mvout).
+    - `output`: destination memref in DRAM.
+    - `addr`: virtual bank id for the source bank.
   }];
   let arguments = (ins MemRefRankOf<[AnyType], [2]>:$output, I64:$addr);
   let assemblyFormat = "$output $addr attr-dict `:` type($output) type($addr)";
@@ -73,12 +74,13 @@ def MvoutOp : Buckyball_Op<"bb_mvout"> {
 
 // instruction level operation
 def MsetOp : Buckyball_Op<"bb_mset"> {
-  let summary = "Bank memory allocation";
+  let summary = "Bank memory allocation / release";
   let description = [{
-    Allocate bank memory before mvin. Must be called before writing to a bank.
-    - bank_id: target bank ID (0-7)
+    Bind or free a scratchpad virtual bank (`32_mset.c`): `alloc = true` allocates
+    (default), `alloc = false` releases the mapping after mvin/mvout.
   }];
-  let arguments = (ins I64:$bankId);
+  let arguments =
+      (ins I64:$bankId, DefaultValuedAttr<BoolAttr, "true">:$alloc);
   let assemblyFormat = "$bankId attr-dict `:` type($bankId)";
 }
 
@@ -229,9 +231,6 @@ def Buckyball_Mvout_IntrOp : Buckyball_IntrOpBase<"bb_mvout">,
   Arguments<(ins LLVM_Type, LLVM_Type)>;
 
 def Buckyball_BFP_Mul_IntrOp : Buckyball_IntrOpBase<"bb_bbfp_mul">,
-  Arguments<(ins LLVM_Type, LLVM_Type)>;
-
-def Buckyball_Matmul_Ws_IntrOp : Buckyball_IntrOpBase<"bb_matmul_ws">,
   Arguments<(ins LLVM_Type, LLVM_Type)>;
 
 // No arguments needed for fence operation

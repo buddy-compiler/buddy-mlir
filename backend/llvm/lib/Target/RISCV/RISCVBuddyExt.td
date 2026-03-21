@@ -26,6 +26,14 @@ def HasBuddyExt : Predicate<"Subtarget->hasBuddyExt()">,
                             AssemblerPredicate<(all_of FeatureBuddyExt),
                             "'BuddyExt' (Buddy RISC-V Extension)">;
 
+// Buckyball custom-3 (bb_*): separate from Gemmini ROCC under buddyext.
+// def FeatureBuddyBB
+//     : SubtargetFeature<"buddyext-bb", "HasBuddyBB", "true",
+//                        "Buckyball BB custom-3 (bb_mvin, bb_mvout, ...)">;
+// def HasBuddyBB : Predicate<"Subtarget->hasBuddyBB()">,
+//                  AssemblerPredicate<(all_of FeatureBuddyBB),
+//                  "'buddyext-bb' (Buckyball bb_* instructions)">;
+
 //===----------------------------------------------------------------------===//
 // AME (RISC-V Matrix Extension) Register Definitions
 //===----------------------------------------------------------------------===//
