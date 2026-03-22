@@ -32,17 +32,13 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 def Tile_Dialect : Dialect {
   let name = "tile";
   let cppNamespace = "::buddy::tile";
-  let summary = "A dialect for multi-level tiling operations";
+  let summary = "A dialect for tiled ops that lower to Buckyball";
   let description = [{
-    The Tile dialect provides operations for hierarchical matrix tiling and 
-    computation. It serves as an intermediate abstraction between high-level 
-    linear algebra operations (Linalg) and low-level hardware-specific 
-    operations (Buckyball).
-    
-    The dialect supports a multi-level tiling hierarchy:
-    - VecTile: Top-level tile operations
-    - MergeTile: Mid-level tile operations  
-    - MetaTile: Fine-grained tile operations
+    Tile ops (`tile_matmul`, `tile_transpose`, `tile_conv2d`) take whole
+    memrefs and are lowered by `convert-tile-to-buckyball` into `scf` loops
+    plus `memref.subview` tiles and per-tile Buckyball ops (`bb_matmul`, etc.).
+    There is no separate MergeTile/MetaTile dialect layer; tiling depth is
+    decided inside that pass (lane/warp/bank limits), not as distinct ops here.
   }];
 }
 

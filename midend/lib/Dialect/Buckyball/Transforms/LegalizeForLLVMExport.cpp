@@ -299,9 +299,9 @@ struct BuckyballMatMulLowering : public ConvertOpToLLVMPattern<MatMulOp> {
     Value rs2C = packRs2MemStride(rewriter, loc, cPtr, stride1);
     rewriter.create<Mvout_IntrOp>(loc, rs1C, rs2C);
 
-    emitMset(rewriter, loc, aBank, 1, 1, 0);
-    emitMset(rewriter, loc, bBank, 1, 1, 0);
-    emitMset(rewriter, loc, cBank, 1, 1, 0);
+    emitMset(rewriter, loc, aBank, 0, 0, 0);
+    emitMset(rewriter, loc, bBank, 0, 0, 0);
+    emitMset(rewriter, loc, cBank, 0, 0, 0);
 
     rewriter.eraseOp(op);
     return success();
@@ -382,8 +382,8 @@ struct BuckyballTransposeLowering : public ConvertOpToLLVMPattern<TransposeOp> {
     Value rs2Out = packRs2MemStride(rewriter, loc, outPtr, stride1);
     rewriter.create<Mvout_IntrOp>(loc, rs1Out, rs2Out);
 
-    emitMset(rewriter, loc, inBank, 1, 1, 0);
-    emitMset(rewriter, loc, outBank, 1, 1, 0);
+    emitMset(rewriter, loc, inBank, 0, 0, 0);
+    emitMset(rewriter, loc, outBank, 0, 0, 0);
 
     rewriter.eraseOp(op);
     return success();
@@ -457,8 +457,8 @@ struct BuckyballIm2colLowering : public ConvertOpToLLVMPattern<Im2colOp> {
     Value rs2Out = packRs2MemStride(rewriter, loc, outPtr, stride1);
     rewriter.create<Mvout_IntrOp>(loc, rs1Out, rs2Out);
 
-    emitMset(rewriter, loc, inBank, 1, 1, 0);
-    emitMset(rewriter, loc, outBank, 1, 1, 0);
+    emitMset(rewriter, loc, inBank, 0, 0, 0);
+    emitMset(rewriter, loc, outBank, 0, 0, 0);
 
     rewriter.eraseOp(op);
     return success();
@@ -517,8 +517,8 @@ struct BuckyballQuantLowering : public ConvertOpToLLVMPattern<QuantOp> {
     Value rs2Out = packRs2MemStride(rewriter, loc, outPtr, stride1);
     rewriter.create<Mvout_IntrOp>(loc, rs1Out, rs2Out);
 
-    emitMset(rewriter, loc, inBank, 1, 1, 0);
-    emitMset(rewriter, loc, outBank, 1, 1, 0);
+    emitMset(rewriter, loc, inBank, 0, 0, 0);
+    emitMset(rewriter, loc, outBank, 0, 0, 0);
 
     rewriter.eraseOp(op);
     return success();
@@ -573,8 +573,8 @@ struct BuckyballDequantLowering : public ConvertOpToLLVMPattern<DequantOp> {
     Value rs2Out = packRs2MemStride(rewriter, loc, outPtr, stride1);
     rewriter.create<Mvout_IntrOp>(loc, rs1Out, rs2Out);
 
-    emitMset(rewriter, loc, inBank, 1, 1, 0);
-    emitMset(rewriter, loc, outBank, 1, 1, 0);
+    emitMset(rewriter, loc, inBank, 0, 0, 0);
+    emitMset(rewriter, loc, outBank, 0, 0, 0);
 
     rewriter.eraseOp(op);
     return success();

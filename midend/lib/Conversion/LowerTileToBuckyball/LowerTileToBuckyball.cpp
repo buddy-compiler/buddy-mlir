@@ -78,7 +78,7 @@ public:
     size_t K = aShape[aShape.size() - 1];
     size_t N = bShape[bShape.size() - 1];
 
-    // Meta tile lengths (fixed by hardware)
+    // Block counts per axis: each unit is lane×lane×warp elements (see mTileSize below).
     const size_t mMeta = lane;
     const size_t nMeta = lane;
     const size_t kMeta = warp;

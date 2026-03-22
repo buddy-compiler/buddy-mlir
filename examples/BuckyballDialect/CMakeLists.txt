@@ -4,6 +4,7 @@ set(BUDDY_LLC ../../build/bin/buddy-llc)
 set(LINUX_RISCV_GCC riscv64-unknown-linux-gnu-gcc)
 
 # MLIR + debug_helper.c (bb_test_report), for host-side TEST PASS / TEST FAILED lines.
+# Always run -convert-tile-to-buckyball before -lower-buckyball: no-op if the module has no tile ops.
 function(add_buckyball_linux_mlir_c STEM)
   set(_in "${CMAKE_CURRENT_SOURCE_DIR}/${STEM}.mlir")
   set(_c "${CMAKE_CURRENT_SOURCE_DIR}/debug_helper.c")
@@ -17,6 +18,7 @@ function(add_buckyball_linux_mlir_c STEM)
     OUTPUT ${_exe}
     BYPRODUCTS ${_mid} ${_ll} ${_o} ${_co}
     COMMAND ${BUDDY_OPT} ${_in}
+      -convert-tile-to-buckyball
       -lower-buckyball -expand-strided-metadata -memref-expand
       -convert-to-llvm -reconcile-unrealized-casts -o ${_mid}
     COMMAND ${BUDDY_TRANSLATE} ${_mid} --buddy-to-llvmir -o ${_ll}
@@ -35,6 +37,7 @@ add_buckyball_linux_mlir_c(bb_mvin_mvout)
 add_buckyball_linux_mlir_c(bb_mul_warp16)
 add_buckyball_linux_mlir_c(bb_matmul)
 add_buckyball_linux_mlir_c(bb_transpose)
+add_buckyball_linux_mlir_c(bb_tile_matmul)
 
 add_custom_target(buckyball-dialect-examples ALL)
 add_dependencies(buckyball-dialect-examples
@@ -42,4 +45,5 @@ add_dependencies(buckyball-dialect-examples
   buckyball_bb_mul_warp16_linux
   buckyball_bb_matmul_linux
   buckyball_bb_transpose_linux
+  buckyball_bb_tile_matmul_linux
   )
