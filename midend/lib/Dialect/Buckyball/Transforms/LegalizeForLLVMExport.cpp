@@ -26,8 +26,12 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/PatternMatch.h"
+#include "mlir/IR/Types.h"
+#include "llvm/ADT/SmallVector.h"
 #include "mlir/Pass/Pass.h"
+#include "llvm/Support/ErrorHandling.h"
 
 #include "Buckyball/BuckyballDialect.h"
 #include "Buckyball/BuckyballOps.h"
@@ -57,9 +61,35 @@ static Value cstI64(OpBuilder &b, Location loc, uint64_t v) {
                                      b.getI64IntegerAttr(v));
 }
 
+static int64_t elemByteSize(Type el) {
+  if (auto it = dyn_cast<IntegerType>(el))
+    return it.getWidth() / 8;
+  if (auto ft = dyn_cast<FloatType>(el))
+    return ft.getWidth() / 8;
+  return -1;
+}
+
+/// Base aligned pointer + linear byte offset for strided subviews (ExtractAlignedPointer
+/// alone misses StridedLayoutAttr offset).
 static Value extractPtr(OpBuilder &b, Location loc, Value memref) {
+  auto ty = cast<MemRefType>(memref.getType());
   Value idx = b.create<memref::ExtractAlignedPointerAsIndexOp>(
       loc, b.getIndexType(), memref);
+  SmallVector<int64_t, 4> strides;
+  int64_t offElems = 0;
+  if (failed(ty.getStridesAndOffset(strides, offElems)))
+    return b.create<arith::IndexCastOp>(loc, b.getI64Type(), idx);
+  if (ShapedType::isDynamic(offElems))
+    llvm_unreachable(
+        "bb memref intrinsic: dynamic linear offset not supported yet");
+  if (offElems == 0)
+    return b.create<arith::IndexCastOp>(loc, b.getI64Type(), idx);
+  int64_t eb = elemByteSize(ty.getElementType());
+  if (eb <= 0)
+    llvm_unreachable("bb memref intrinsic: unsupported element type for ptr offset");
+  int64_t offBytes = offElems * eb;
+  Value add = b.create<arith::ConstantIndexOp>(loc, offBytes);
+  idx = b.create<arith::AddIOp>(loc, idx, add);
   return b.create<arith::IndexCastOp>(loc, b.getI64Type(), idx);
 }
 
@@ -276,16 +306,38 @@ struct BuckyballMatMulLowering : public ConvertOpToLLVMPattern<MatMulOp> {
     Value aPtr = extractPtr(rewriter, loc, aMem);
     Value bPtr = extractPtr(rewriter, loc, bMem);
     Value cPtr = extractPtr(rewriter, loc, cMem);
-    Value stride1 = cstI64(rewriter, loc, 1);
+    // Row-major tile A[M,K] is dense: 16-byte mvin lines scan contiguous storage (stride=1).
+    Value strideA = cstI64(rewriter, loc, 1);
+    // B/C may be subviews: row pitch in memory uses parent leading dim, not tile width.
+    // bebop mvin/mvout: byte step = 16*rs2_stride*line_blocks -> rs2_stride = rowElem/16.
+    SmallVector<int64_t, 4> bStrides, cStrides;
+    int64_t bOff = 0, cOff = 0;
+    if (failed(bTy.getStridesAndOffset(bStrides, bOff)) || bStrides.size() < 2)
+      return rewriter.notifyMatchFailure(
+          op, "bb_matmul B memref needs static strides (use subview with strided layout)");
+    if (failed(cTy.getStridesAndOffset(cStrides, cOff)) || cStrides.size() < 2)
+      return rewriter.notifyMatchFailure(
+          op, "bb_matmul C memref needs static strides (use subview with strided layout)");
+    if (ShapedType::isDynamic(bStrides[0]) ||
+        ShapedType::isDynamic(cStrides[0]))
+      return rewriter.notifyMatchFailure(op, "bb_matmul: static row stride required");
+    if (bStrides[0] % 16 != 0 || cStrides[0] % 16 != 0)
+      return rewriter.notifyMatchFailure(
+          op, "bb_matmul: row stride (elements) must be divisible by 16");
+
+    Value strideBN =
+        cstI64(rewriter, loc, (uint64_t)bStrides[0] / 16);
+    Value strideCN =
+        cstI64(rewriter, loc, (uint64_t)cStrides[0] / 16);
 
     Value rs1A = packRs1BankIter(rewriter, loc, cstI64(rewriter, loc, aBank),
                                  cstI64(rewriter, loc, depthA));
-    Value rs2A = packRs2MemStride(rewriter, loc, aPtr, stride1);
+    Value rs2A = packRs2MemStride(rewriter, loc, aPtr, strideA);
     rewriter.create<Mvin_IntrOp>(loc, rs1A, rs2A);
 
     Value rs1B = packRs1BankIter(rewriter, loc, cstI64(rewriter, loc, bBank),
                                  cstI64(rewriter, loc, depthB));
-    Value rs2B = packRs2MemStride(rewriter, loc, bPtr, stride1);
+    Value rs2B = packRs2MemStride(rewriter, loc, bPtr, strideBN);
     rewriter.create<Mvin_IntrOp>(loc, rs1B, rs2B);
 
     uint64_t rs1Mul = fieldBits(aBank, 0, 9) | fieldBits(bBank, 10, 19) |
@@ -296,7 +348,7 @@ struct BuckyballMatMulLowering : public ConvertOpToLLVMPattern<MatMulOp> {
 
     Value rs1C = packRs1BankIter(rewriter, loc, cstI64(rewriter, loc, cBank),
                                  cstI64(rewriter, loc, depthC));
-    Value rs2C = packRs2MemStride(rewriter, loc, cPtr, stride1);
+    Value rs2C = packRs2MemStride(rewriter, loc, cPtr, strideCN);
     rewriter.create<Mvout_IntrOp>(loc, rs1C, rs2C);
 
     emitMset(rewriter, loc, aBank, 0, 0, 0);

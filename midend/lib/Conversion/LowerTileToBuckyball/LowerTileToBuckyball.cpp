@@ -41,6 +41,26 @@ using namespace buddy;
 
 static size_t ceilDiv(size_t a, size_t b) { return (a + b - 1) / b; }
 
+// Matches `BuckyballMatMulLowering` mvout depthC = M * (N/16) on C (i32 acc, cols=4).
+// Spike/bebop: BANK_SIZE / (cols*16) = 16384/64 = 256 lines per mvout.
+static constexpr size_t kMaxAccMvoutDepthLines = 256;
+
+static size_t cMvoutDepthLines(size_t mEl, size_t nEl) {
+  return mEl * (nEl / 16);
+}
+
+// `BuckyballMatMulLowering` mvin: depthA = M*(K/16), depthB = K*(N/16); i8 bank line_bytes=16.
+// Spike/bebop: BANK_SIZE/16 = 1024 lines per mvin.
+static constexpr size_t kMaxI8MvinDepthLines = 1024;
+
+static size_t aMvinDepthLines(size_t mEl, size_t kEl) {
+  return mEl * (kEl / 16);
+}
+
+static size_t bMvinDepthLines(size_t kEl, size_t nEl) {
+  return kEl * (nEl / 16);
+}
+
 //===----------------------------------------------------------------------===//
 // Tile Matmul Lowering Pattern
 //===----------------------------------------------------------------------===//
@@ -88,23 +108,35 @@ public:
     const size_t nPad = ceilDiv(N, nMeta) * nMeta;
     const size_t kPad = ceilDiv(K, kMeta) * kMeta;
 
-    // Compute tile lengths to maximize utilization within bank capacity
+    // Tile lengths: grow K first so kTileSize is fixed when checking mvin B depth on N;
+    // then N (c mvout + mvin B), then M (mvin A). Order avoids oversized depthA/B.
     size_t mTileLen = 1, nTileLen = 1, kTileLen = 1;
 
-    // Extend N dimension first
+    while ((kTileLen + 1) * kMeta <= kPad &&
+           computeBankRows(1, 1, kTileLen + 1) <= (size_t)bankDepth)
+      kTileLen++;
+
+    const size_t kTileSize = kTileLen * kMeta;
+
     while ((nTileLen + 1) * nMeta <= nPad &&
-           computeBankRows(mTileLen, nTileLen + 1, kTileLen) <= (size_t)bankDepth)
+           computeBankRows(1, nTileLen + 1, kTileLen) <= (size_t)bankDepth &&
+           cMvoutDepthLines(mMeta, (nTileLen + 1) * nMeta) <=
+               kMaxAccMvoutDepthLines &&
+           bMvinDepthLines(kTileSize, (nTileLen + 1) * nMeta) <=
+               kMaxI8MvinDepthLines)
       nTileLen++;
 
-    // Then extend M dimension
     while ((mTileLen + 1) * mMeta <= mPad &&
-           computeBankRows(mTileLen + 1, nTileLen, kTileLen) <= (size_t)bankDepth)
+           computeBankRows(mTileLen + 1, nTileLen, kTileLen) <= (size_t)bankDepth &&
+           cMvoutDepthLines((mTileLen + 1) * mMeta, nTileLen * nMeta) <=
+               kMaxAccMvoutDepthLines &&
+           aMvinDepthLines((mTileLen + 1) * mMeta, kTileSize) <=
+               kMaxI8MvinDepthLines)
       mTileLen++;
 
-    // Tile sizes and counts
     const size_t mTileSize = mTileLen * mMeta;
     const size_t nTileSize = nTileLen * nMeta;
-    const size_t kTileSize = kTileLen * kMeta;
+
     const size_t mTileNum = ceilDiv(mPad, mTileSize);
     const size_t nTileNum = ceilDiv(nPad, nTileSize);
     const size_t kTileNum = ceilDiv(kPad, kTileSize);

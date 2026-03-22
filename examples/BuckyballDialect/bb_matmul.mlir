@@ -46,7 +46,7 @@ func.func @grm_matmul_ref(%a : memref<16x1024xi8>, %b : memref<1024x16xi8>, %c :
 // -----------------------------------------------------------------------------
 // GRM — compare full 16×16 i32 tiles (any mismatch => false)
 // -----------------------------------------------------------------------------
-func.func private @grm_cmp_i32_16x16(%g : memref<16x16xi32>, %d : memref<16x16xi32>) -> i1 {
+func.func private @grm_cmp(%g : memref<16x16xi32>, %d : memref<16x16xi32>) -> i1 {
   %c0 = arith.constant 0 : index
   %c1 = arith.constant 1 : index
   %n = arith.constant 16 : index
@@ -86,7 +86,7 @@ func.func @main() -> i8 {
     (memref<16x1024xi8>, memref<1024x16xi8>, memref<16x16xi32>) -> ()
 
   // --- compare GRM vs DUT (full tile) ---
-  %match = func.call @grm_cmp_i32_16x16(%c_grm, %c_dut) : (memref<16x16xi32>, memref<16x16xi32>) -> i1
+  %match = func.call @grm_cmp(%c_grm, %c_dut) : (memref<16x16xi32>, memref<16x16xi32>) -> i1
   %true = arith.constant true
   %fail_i1 = arith.cmpi ne, %match, %true : i1
   %fail = arith.extui %fail_i1 : i1 to i32
