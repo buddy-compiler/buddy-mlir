@@ -26,17 +26,20 @@ function(add_buckyball_linux_mlir_c STEM)
     COMMAND ${LINUX_RISCV_GCC} ${_o} ${_co} -O2 -static -o ${_exe}
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     DEPENDS ${_in} ${_c}
-    COMMENT "BuckyballDialect: ${STEM}.mlir+debug_helper.c -> ${STEM}-linux"
+    COMMENT "BuckyballDialect: ${STEM}.mlir -> ${STEM}-linux"
   )
   add_custom_target(buckyball_${STEM}_linux DEPENDS ${_exe})
 endfunction()
 
 add_buckyball_linux_mlir_c(bb_mvin_mvout)
 add_buckyball_linux_mlir_c(bb_mul_warp16)
-add_buckyball_linux_mlir_c(bb_tile_matmul)
+add_buckyball_linux_mlir_c(bb_matmul)
+add_buckyball_linux_mlir_c(bb_transpose)
 
 add_custom_target(buckyball-dialect-examples ALL)
 add_dependencies(buckyball-dialect-examples
   buckyball_bb_mvin_mvout_linux
   buckyball_bb_mul_warp16_linux
-  buckyball_bb_tile_matmul_linux)
+  buckyball_bb_matmul_linux
+  buckyball_bb_transpose_linux
+  )
