@@ -4,10 +4,18 @@ An MLIR-based compiler framework designed for a co-design ecosystem from DSL (do
 
 ## Getting Started
 
-### LLVM/MLIR Dependencies
+### Dependencies
+
+- **LLVM/MLIR dependencies**
 
 Please make sure [the dependencies](https://llvm.org/docs/GettingStarted.html#requirements) are available
 on your machine.
+
+- **Other dependencies**
+
+```
+sudo apt install flatbuffers-compiler libflatbuffers-dev libnuma-dev
+```
 
 ### Clone and Initialize
 
@@ -79,6 +87,31 @@ If you want to test your model end-to-end conversion and inference, you can add 
 ```
 $ cmake -G Ninja .. -DBUDDY_ENABLE_E2E_TESTS=ON
 $ ninja check-e2e
+```
+
+### Building and running the model
+
+Build the model, produce the shared library, and pack it into FlatBuffers:
+
+```
+ninja deepseek_r1_model_so
+ninja deepseek_r1_rax
+```
+
+Run the model:
+
+```
+./bin/buddy-cli \
+  --model ./models/deepseek_r1/deepseek_r1.rax \
+  --prompt "Tell me a joke in 200 words."
+
+
+# Equivalent to: numactl --cpunodebind=0,1,2,3 --interleave=0,1,2,3 taskset -c 0-47
+./bin/buddy-cli \
+  --numa 0,1,2,3 \
+  --cpus 0-47 \
+  --model ./models/deepseek_r1/deepseek_r1.rax \
+  --prompt "Tell me a joke in 200 words."
 ```
 
 ## Build Python Package

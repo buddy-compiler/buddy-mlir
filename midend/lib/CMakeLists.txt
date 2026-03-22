@@ -14,6 +14,7 @@ set(LinkedLibs
 
   BuddyAME
   BuddyAMETransforms
+  BuddyRHAL
   ConvOptimization
   CBConvVectorization
   LowerBudPass

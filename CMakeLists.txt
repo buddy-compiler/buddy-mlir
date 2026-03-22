@@ -202,6 +202,23 @@ if(BUDDY_MLIR_USE_MIMALLOC)
 endif()
 
 #-------------------------------------------------------------------------------
+# flatc — FlatBuffers schema compiler
+# Required for generating buddy/runtime/rax/RAX.h from runtime/rax/rax.fbs.
+#-------------------------------------------------------------------------------
+
+find_program(FLATC_EXECUTABLE flatc
+  HINTS /usr/bin /usr/local/bin
+  DOC "FlatBuffers schema compiler (flatc)"
+)
+if(NOT FLATC_EXECUTABLE)
+  message(FATAL_ERROR
+    "flatc not found. Install it with:\n"
+    "  sudo apt install flatbuffers-compiler\n"
+    "or set -DFLATC_EXECUTABLE=/path/to/flatc")
+endif()
+message(STATUS "Found flatc: ${FLATC_EXECUTABLE}")
+
+#-------------------------------------------------------------------------------
 # The RISC-V toolchain
 #-------------------------------------------------------------------------------
 
@@ -225,6 +242,7 @@ endif()
 
 add_subdirectory(cmake)
 add_subdirectory(runtime)
+add_subdirectory(models)
 add_subdirectory(frontend)
 add_subdirectory(midend)
 add_subdirectory(backend)
