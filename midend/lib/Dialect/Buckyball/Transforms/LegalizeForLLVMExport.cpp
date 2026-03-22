@@ -63,18 +63,37 @@ static Value extractPtr(OpBuilder &b, Location loc, Value memref) {
   return b.create<arith::IndexCastOp>(loc, b.getI64Type(), idx);
 }
 
-static Value dimAsI64(OpBuilder &b, Location loc, Value memref, unsigned dim) {
-  Value d = b.create<memref::DimOp>(loc, memref, dim);
-  return b.create<arith::IndexCastOp>(loc, b.getI64Type(), d);
+/// rs1 = BB_BANK0 | BB_BANK1 | BB_BANK2 | BB_ITER — isa.h
+/// BB_BANK0/BB_BANK1: read bank ids (rbank); BB_BANK2: write bank id (wbank).
+/// Each id masked to 10 bits; iter to 34 bits (bits [63:30]).
+static Value packRs1BanksIter(OpBuilder &b, Location loc, Value rBank0,
+                              Value rBank1, Value wBank, Value iter) {
+  Value rBank0Field =
+      b.create<arith::AndIOp>(loc, rBank0, cstI64(b, loc, 0x3FF));
+  Value rBank1Field = b.create<arith::ShLIOp>(
+      loc,
+      b.create<arith::AndIOp>(loc, rBank1, cstI64(b, loc, 0x3FF)),
+      cstI64(b, loc, 10));
+  Value wBankField = b.create<arith::ShLIOp>(
+      loc,
+      b.create<arith::AndIOp>(loc, wBank, cstI64(b, loc, 0x3FF)),
+      cstI64(b, loc, 20));
+  Value iterField = b.create<arith::ShLIOp>(
+      loc,
+      b.create<arith::AndIOp>(loc, iter, cstI64(b, loc, (1ULL << 34) - 1)),
+      cstI64(b, loc, 30));
+  Value rs1Part01 =
+      b.create<arith::OrIOp>(loc, rBank0Field, rBank1Field);
+  Value rs1Part012 =
+      b.create<arith::OrIOp>(loc, rs1Part01, wBankField);
+  return b.create<arith::OrIOp>(loc, rs1Part012, iterField);
 }
 
-/// rs1 = BB_BANK0(bank_id) | BB_ITER(depth) — see 33_mvin.c / decode.rs
+/// mvin/mvout: only BB_BANK0 (rbank); BB_BANK1/BB_BANK2 unset (`33_mvin.c`, `16_mvout.c`).
 static Value packRs1BankIter(OpBuilder &b, Location loc, Value bankId,
                              Value depth) {
-  Value bank = b.create<arith::AndIOp>(loc, bankId, cstI64(b, loc, 0x3FF));
-  Value d = b.create<arith::AndIOp>(loc, depth, cstI64(b, loc, (1ULL << 34) - 1));
-  Value dHi = b.create<arith::ShLIOp>(loc, d, cstI64(b, loc, 30));
-  return b.create<arith::OrIOp>(loc, bank, dHi);
+  Value z = cstI64(b, loc, 0);
+  return packRs1BanksIter(b, loc, bankId, z, z, depth);
 }
 
 /// rs2 = FIELD(mem, 0, 38) | FIELD(stride, 39, 57)
@@ -152,7 +171,11 @@ struct BuckyballMsetLowering : public ConvertOpToLLVMPattern<MsetOp> {
     Value bankId = adaptor.getBankId();
     Value rs1 = rewriter.create<arith::AndIOp>(loc, bankId, cstI64(rewriter, loc, 0x3FF));
     uint64_t allocBit = op.getAlloc() ? 1u : 0u;
-    uint64_t rs2Val = fieldBits(1, 0, 4) | fieldBits(1, 5, 9) |
+    uint64_t rowVal =
+        op.getAlloc() ? static_cast<uint64_t>(op.getRow()) : 0u;
+    uint64_t colVal =
+        op.getAlloc() ? static_cast<uint64_t>(op.getCol()) : 0u;
+    uint64_t rs2Val = fieldBits(rowVal, 0, 4) | fieldBits(colVal, 5, 9) |
                       fieldBits(allocBit, 10, 10);
     rewriter.replaceOpWithNewOp<Mset_IntrOp>(
         op, rs1, cstI64(rewriter, loc, rs2Val));
@@ -175,7 +198,7 @@ struct BuckyballMvinLowering : public ConvertOpToLLVMPattern<MvinOp> {
     Value stride = adaptor.getStride();
 
     Value memAddr = extractPtr(rewriter, loc, input);
-    Value depth = dimAsI64(rewriter, loc, input, 0);
+    Value depth = adaptor.getDepth();
 
     Value rs1 = packRs1BankIter(rewriter, loc, bankId, depth);
     Value rs2 = packRs2MemStride(rewriter, loc, memAddr, stride);
@@ -195,11 +218,11 @@ struct BuckyballMvoutLowering : public ConvertOpToLLVMPattern<MvoutOp> {
     Value bankId = adaptor.getAddr();
 
     Value memAddr = extractPtr(rewriter, loc, output);
-    Value depth = dimAsI64(rewriter, loc, output, 0);
-    Value strideOne = cstI64(rewriter, loc, 1);
+    Value depth = adaptor.getDepth();
+    Value stride = adaptor.getStride();
 
     Value rs1 = packRs1BankIter(rewriter, loc, bankId, depth);
-    Value rs2 = packRs2MemStride(rewriter, loc, memAddr, strideOne);
+    Value rs2 = packRs2MemStride(rewriter, loc, memAddr, stride);
 
     rewriter.replaceOpWithNewOp<Mvout_IntrOp>(op, rs1, rs2);
     return success();
@@ -281,6 +304,23 @@ struct BuckyballMatMulLowering : public ConvertOpToLLVMPattern<MatMulOp> {
     emitMset(rewriter, loc, cBank, 1, 1, 0);
 
     rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+struct BuckyballMulWarp16Lowering
+    : public ConvertOpToLLVMPattern<MulWarp16Op> {
+  using ConvertOpToLLVMPattern<MulWarp16Op>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(MulWarp16Op op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value rs1 = packRs1BanksIter(rewriter, loc, adaptor.getOp1Bank(),
+                                 adaptor.getOp2Bank(), adaptor.getWrBank(),
+                                 adaptor.getIter());
+    Value rs2 = adaptor.getMode();
+    rewriter.replaceOpWithNewOp<Mul_Warp16_IntrOp>(op, rs1, rs2);
     return success();
   }
 };
@@ -563,6 +603,7 @@ void mlir::populateBuckyballLegalizeForLLVMExportPatterns(
   patterns.add<BuckyballMvinLowering>(converter);
   patterns.add<BuckyballMvoutLowering>(converter);
   patterns.add<BuckyballMatMulLowering>(converter);
+  patterns.add<BuckyballMulWarp16Lowering>(converter);
   patterns.add<BuckyballTransposeLowering>(converter);
   patterns.add<BuckyballIm2colLowering>(converter);
   patterns.add<BuckyballQuantLowering>(converter);
@@ -574,8 +615,8 @@ void mlir::configureBuckyballLegalizeForExportTarget(
   target.addLegalOp<Fence_IntrOp, Mvin_IntrOp, Mvout_IntrOp, Mul_Warp16_IntrOp,
                     Transpose_IntrOp, Im2col_IntrOp, Quant_IntrOp,
                     Dequant_IntrOp, Relu_IntrOp, Mset_IntrOp>();
-  target.addIllegalOp<FenceOp, MsetOp, MvinOp, MvoutOp, MatMulOp, TransposeOp,
-                      Im2colOp, QuantOp, DequantOp>();
+  target.addIllegalOp<FenceOp, MsetOp, MvinOp, MvoutOp, MatMulOp, MulWarp16Op,
+                      TransposeOp, Im2colOp, QuantOp, DequantOp>();
   target.addLegalDialect<memref::MemRefDialect>();
   target.addLegalDialect<arith::ArithDialect>();
 }

@@ -51,37 +51,60 @@ class Buckyball_Op<string mnemonic, list<Trait> traits = []> :
 def MvinOp : Buckyball_Op<"bb_mvin"> {
   let summary = "Load operation";
   let description = [{
-    Move data from main memory to a scratchpad bank (see `bb-tests/workloads/lib/bbhw/isa/33_mvin.c`).
-    - `input`: source memref in DRAM; base pointer is encoded in the instruction.
-    - `addr`: virtual bank id (operand historically named `addr`; maps to `BB_BANK0` in rs1).
-    - `stride`: line stride field in rs2 (same units as hardware `FIELD(stride, 10, 28)`).
+    Matches `bb_mvin(mem_addr, bank_id, depth, stride)` in `bb-tests/workloads/lib/bbhw/isa/33_mvin.c`:
+    rs1 = `BB_BANK0(bank_id) | BB_ITER(depth)`, rs2 = `FIELD(mem,0,38) | FIELD(stride,39,57)`.
+    - `input`: memref whose base address is encoded as `mem_addr` in rs2.
+    - `addr`: virtual bank id (`BB_BANK0`).
+    - `depth`: BB_ITER — number of lines to move (same as C macro `depth`, not inferred from shape).
+    - `stride`: rs2 stride field (`FIELD(stride,39,57)` in isa.h).
   }];
-  let arguments = (ins MemRefRankOf<[AnyType], [2]>:$input, I64:$addr, I64:$stride);
-  let assemblyFormat = "$input $addr $stride attr-dict `:` type($input) type($addr) type($stride)";
+  let arguments = (ins MemRefRankOf<[AnyType], [2]>:$input, I64:$addr, I64:$depth,
+                       I64:$stride);
+  let assemblyFormat =
+      "$input $addr $depth $stride attr-dict `:` type($input) type($addr) type($depth) type($stride)";
 }
 
 // instruction level operation
 def MvoutOp : Buckyball_Op<"bb_mvout"> {
   let summary = "Store operation";
   let description = [{
-    Move data from a scratchpad bank to main memory (see `bb-tests/workloads/lib/bbhw/isa` mvout).
-    - `output`: destination memref in DRAM.
-    - `addr`: virtual bank id for the source bank.
+    Matches `bb_mvout(mem_addr, bank_id, depth, stride)` in `bb-tests/workloads/lib/bbhw/isa/16_mvout.c`
+    (same rs1/rs2 layout as mvin).
+    - `output`: destination memref; base encoded as `mem_addr` in rs2.
+    - `addr`: virtual bank id.
+    - `depth`: BB_ITER — line count (explicit, not inferred from memref shape).
+    - `stride`: rs2 stride field.
   }];
-  let arguments = (ins MemRefRankOf<[AnyType], [2]>:$output, I64:$addr);
-  let assemblyFormat = "$output $addr attr-dict `:` type($output) type($addr)";
+  let arguments = (ins MemRefRankOf<[AnyType], [2]>:$output, I64:$addr, I64:$depth,
+                       I64:$stride);
+  let assemblyFormat =
+      "$output $addr $depth $stride attr-dict `:` type($output) type($addr) type($depth) type($stride)";
 }
 
 // instruction level operation
 def MsetOp : Buckyball_Op<"bb_mset"> {
   let summary = "Bank memory allocation / release";
   let description = [{
-    Bind or free a scratchpad virtual bank (`32_mset.c`): `alloc = true` allocates
-    (default), `alloc = false` releases the mapping after mvin/mvout.
+    Matches `bb_mset(bank_id, alloc, row, col)` in `32_mset.c` (rs2 packs row/col).
+    Defaults row=1 col=1; use col=4 for accumulator bank used by `bb_mul_warp16` wr slot.
   }];
-  let arguments =
-      (ins I64:$bankId, DefaultValuedAttr<BoolAttr, "true">:$alloc);
+  let arguments = (ins I64:$bankId, DefaultValuedAttr<BoolAttr, "true">:$alloc,
+                       DefaultValuedAttr<I64Attr, "1">:$row,
+                       DefaultValuedAttr<I64Attr, "1">:$col);
   let assemblyFormat = "$bankId attr-dict `:` type($bankId)";
+}
+
+// Standalone `bb_mul_warp16` (SPAD must already contain A/B and wr layout); see `64_mul_warp16.c`.
+def MulWarp16Op : Buckyball_Op<"bb_mul_warp16"> {
+  let summary = "Warp-16 matmul on loaded SPAD banks";
+  let description = [{
+    Matches `bb_mul_warp16(op1_bank_id, op2_bank_id, wr_bank_id, iter, mode)` in
+    `bb-tests/workloads/lib/bbhw/isa/64_mul_warp16.c`. Does not mvin/mvout — pair with
+    mset + mvin (+ mvout) explicitly when testing this instruction alone.
+  }];
+  let arguments = (ins I64:$op1Bank, I64:$op2Bank, I64:$wrBank, I64:$iter, I64:$mode);
+  let assemblyFormat =
+      "$op1Bank $op2Bank $wrBank $iter $mode attr-dict `:` type($op1Bank) type($op2Bank) type($wrBank) type($iter) type($mode)";
 }
 
 // instruction level operation
