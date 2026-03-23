@@ -57,11 +57,11 @@ jobs:
           git fetch github ${{ github.sha }}
           git checkout ${{ github.sha }}
 
-      # 2. Retrieve the commit ID of the LLVM submodule.
+      # 2. Submodule pointer in the superproject (no +/- prefix from submodule status).
       - name: Get LLVM submodule commit
         id: llvm-submodule-commit
         run: |
-          echo "commit=$(git submodule status llvm | awk '{print $1;}')" >> $GITHUB_OUTPUT
+          echo "commit=$(git ls-tree HEAD llvm | awk '{print $3}')" >> $GITHUB_OUTPUT
 
       # 3. Cache the LLVM submodule source code (only for x86).
       - name: Cache LLVM source (x86)
@@ -74,9 +74,26 @@ jobs:
           restore-keys: |
             llvm-source-
 
-      # 4. If the cache is not found, pull the LLVM submodule. (x86, cache miss)
+      # 3b. Restore-keys can populate llvm without an exact cache hit; only re-clone when
+      # the tree is missing, not a git checkout, or at the wrong revision.
+      - name: Check LLVM source revision (x86)
+        if: matrix.arch == 'x64'
+        id: llvm-source-checkout-needed
+        run: |
+          want="${{ steps.llvm-submodule-commit.outputs.commit }}"
+          need=true
+          if [ -n "$want" ] && [ -e llvm/.git ]; then
+            have=$(git -C llvm rev-parse HEAD 2>/dev/null) || have=""
+            if [ -n "$have" ] && [ "$have" = "$want" ]; then
+              need=false
+            fi
+          fi
+          echo "need-checkout=$need" >> $GITHUB_OUTPUT
+          echo "LLVM submodule: want=$want have=$(git -C llvm rev-parse HEAD 2>/dev/null || echo n/a) need-checkout=$need"
+
+      # 4. Fetch LLVM submodule only when the working tree is missing or wrong revision.
       - name: Checkout LLVM submodule
-        if: matrix.arch == 'x64' && steps.cache-llvm-source.outputs.cache-hit != 'true'
+        if: matrix.arch == 'x64' && steps.llvm-source-checkout-needed.outputs.need-checkout == 'true'
         run: |
           rm -rf llvm
           rm -rf .git/modules/llvm
