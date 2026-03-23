@@ -390,6 +390,45 @@ public:
 
   void runOnOperation() override;
 };
+
+class LowerBankSSAToIntrinsicsPass
+    : public PassWrapper<LowerBankSSAToIntrinsicsPass, OperationPass<ModuleOp>> {
+public:
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(LowerBankSSAToIntrinsicsPass)
+  StringRef getArgument() const final { return "lower-bank-ssa-to-intrinsics"; }
+  StringRef getDescription() const final {
+    return "Lower bank-SSA and Buckyball ops to intrinsic ops.";
+  }
+  LowerBankSSAToIntrinsicsPass() = default;
+  LowerBankSSAToIntrinsicsPass(const LowerBankSSAToIntrinsicsPass &) {}
+
+  Option<int64_t> lane{*this, "lane",
+                       llvm::cl::desc("Hardware lane width."),
+                       llvm::cl::init(16)};
+  Option<int64_t> warp{*this, "warp",
+                       llvm::cl::desc("Hardware warp depth."),
+                       llvm::cl::init(16)};
+  Option<int64_t> bankDepth{*this, "bank_depth",
+                            llvm::cl::desc("Depth of each bank."),
+                            llvm::cl::init(4096)};
+  Option<int64_t> bankNum{*this, "bank_num",
+                          llvm::cl::desc("Number of banks."),
+                          llvm::cl::init(8)};
+  Option<int32_t> hartId{*this, "hartId",
+                         llvm::cl::desc("The hart id."),
+                         llvm::cl::init(0)};
+
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<LLVM::LLVMDialect>();
+    registry.insert<LLVM::LLVMDialect>();
+    registry.insert<arith::ArithDialect>();
+    registry.insert<memref::MemRefDialect>();
+    registry.insert<scf::SCFDialect>();
+    registry.insert<buckyball::BuckyballDialect>();
+  }
+
+  void runOnOperation() override;
+};
 } // namespace
 
 void LowerBuckyballToLLVMPass::runOnOperation() {
@@ -415,8 +454,34 @@ void LowerBuckyballToLLVMPass::runOnOperation() {
     signalPassFailure();
 }
 
+void LowerBankSSAToIntrinsicsPass::runOnOperation() {
+  MLIRContext *context = &getContext();
+  ModuleOp module = getOperation();
+  LLVMTypeConverter converter(context);
+  RewritePatternSet patterns(context);
+  LLVMConversionTarget target(*context);
+  configureBuckyballLegalizeForExportTarget(target);
+  populateBuckyballLegalizeForLLVMExportPatterns(converter, patterns,
+      lane, warp, bankDepth, bankNum);
+  populateAffineToStdConversionPatterns(patterns);
+  populateSCFToControlFlowConversionPatterns(patterns);
+  mlir::arith::populateArithToLLVMConversionPatterns(converter, patterns);
+  populateFinalizeMemRefToLLVMConversionPatterns(converter, patterns);
+  cf::populateControlFlowToLLVMConversionPatterns(converter, patterns);
+  populateFuncToLLVMConversionPatterns(converter, patterns);
+  patterns.add<BBPrintMemRefOpLowering>(&getContext());
+  patterns.add<BBPrintScalarOpLowering>(&getContext());
+  patterns.add<BBCounterStartOpLowering>(&getContext());
+  patterns.add<BBCounterStopOpLowering>(&getContext());
+  if (failed(applyPartialConversion(module, target, std::move(patterns))))
+    signalPassFailure();
+}
+
 namespace mlir {
 namespace buddy {
 void registerLowerBuckyballPass() { PassRegistration<LowerBuckyballToLLVMPass>(); }
+void registerLowerBankSSAToIntrinsicsPass() {
+  PassRegistration<LowerBankSSAToIntrinsicsPass>();
+}
 } // namespace buddy
 } // namespace mlir

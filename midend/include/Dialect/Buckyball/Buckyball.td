@@ -149,6 +149,89 @@ def MatMulOp : Buckyball_Op<"bb_matmul"> {
     type($aMemArray) type($bMemArray) type($cMemArray)}];
 }
 
+//===----------------------------------------------------------------------===//
+// Bank SSA Operations
+//===----------------------------------------------------------------------===//
+
+def BankAllocOp : Buckyball_Op<"bb_bank_alloc"> {
+  let summary = "Allocate a virtual on-chip bank resource";
+  let description = [{
+    Create a virtual bank handle in SSA form.
+    - row/col encode bank-array shape used by allocator.
+    - The result i64 is a virtual bank handle, not physical id.
+  }];
+  let arguments = (ins
+    DefaultValuedAttr<I64Attr, "1">:$row,
+    DefaultValuedAttr<I64Attr, "1">:$col);
+  let results = (outs I64:$bank);
+  let assemblyFormat = "attr-dict";
+}
+
+def BankReleaseOp : Buckyball_Op<"bb_bank_release"> {
+  let summary = "Release a virtual bank handle";
+  let arguments = (ins I64:$bank);
+  let assemblyFormat = "$bank attr-dict `:` type($bank)";
+}
+
+def BankMvinOp : Buckyball_Op<"bb_bank_mvin"> {
+  let summary = "Load into a virtual bank handle";
+  let arguments = (ins MemRefRankOf<[AnyType], [2]>:$input, I64:$bank, I64:$depth,
+                       I64:$stride);
+  let results = (outs I64:$bankOut);
+  let assemblyFormat =
+      "$input $bank $depth $stride attr-dict `:` type($input) type($bank) type($depth) type($stride)";
+}
+
+def BankMvoutOp : Buckyball_Op<"bb_bank_mvout"> {
+  let summary = "Store from a virtual bank handle";
+  let arguments = (ins MemRefRankOf<[AnyType], [2]>:$output, I64:$bank, I64:$depth,
+                       I64:$stride);
+  let results = (outs I64:$bankOut);
+  let assemblyFormat =
+      "$output $bank $depth $stride attr-dict `:` type($output) type($bank) type($depth) type($stride)";
+}
+
+def BankMulWarp16Op : Buckyball_Op<"bb_bank_mul_warp16"> {
+  let summary = "Warp-16 matmul using virtual bank handles";
+  let arguments = (ins I64:$op1Bank, I64:$op2Bank, I64:$wrBank, I64:$iter, I64:$mode);
+  let results = (outs I64:$wrBankOut);
+  let assemblyFormat =
+      "$op1Bank $op2Bank $wrBank $iter $mode attr-dict `:` type($op1Bank) type($op2Bank) type($wrBank) type($iter) type($mode)";
+}
+
+def BankTransposeOp : Buckyball_Op<"bb_bank_transpose"> {
+  let summary = "Transpose using virtual bank handles";
+  let arguments = (ins I64:$inBank, I64:$outBank, I64:$cols, I64:$mode);
+  let results = (outs I64:$outBankOut);
+  let assemblyFormat =
+      "$inBank $outBank $cols $mode attr-dict `:` type($inBank) type($outBank) type($cols) type($mode)";
+}
+
+def BankIm2colOp : Buckyball_Op<"bb_bank_im2col"> {
+  let summary = "Im2col using virtual bank handles";
+  let arguments = (ins I64:$inBank, I64:$outBank, I64:$kRow, I64:$kCol,
+                       I64:$inRow, I64:$inCol, I64:$startRow, I64:$startCol);
+  let results = (outs I64:$outBankOut);
+  let assemblyFormat =
+      "$inBank $outBank $kRow $kCol $inRow $inCol $startRow $startCol attr-dict `:` type($inBank) type($outBank) type($kRow) type($kCol) type($inRow) type($inCol) type($startRow) type($startCol)";
+}
+
+def BankQuantOp : Buckyball_Op<"bb_bank_quant"> {
+  let summary = "Quantize using virtual bank handles";
+  let arguments = (ins I64:$inBank, I64:$outBank, I64:$rows, F32:$scale);
+  let results = (outs I64:$outBankOut);
+  let assemblyFormat =
+      "$inBank $outBank $rows $scale attr-dict `:` type($inBank) type($outBank) type($rows) type($scale)";
+}
+
+def BankDequantOp : Buckyball_Op<"bb_bank_dequant"> {
+  let summary = "Dequantize using virtual bank handles";
+  let arguments = (ins I64:$inBank, I64:$outBank, I64:$rows, F32:$scale);
+  let results = (outs I64:$outBankOut);
+  let assemblyFormat =
+      "$inBank $outBank $rows $scale attr-dict `:` type($inBank) type($outBank) type($rows) type($scale)";
+}
+
 // TODO: add really detailed deployment
 // instruction level operation
 def TransposeOp : Buckyball_Op<"bb_transpose"> {

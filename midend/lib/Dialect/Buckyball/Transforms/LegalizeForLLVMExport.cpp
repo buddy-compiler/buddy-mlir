@@ -668,7 +668,9 @@ void mlir::configureBuckyballLegalizeForExportTarget(
                     Transpose_IntrOp, Im2col_IntrOp, Quant_IntrOp,
                     Dequant_IntrOp, Relu_IntrOp, Mset_IntrOp>();
   target.addIllegalOp<FenceOp, MsetOp, MvinOp, MvoutOp, MatMulOp, MulWarp16Op,
-                      TransposeOp, Im2colOp, QuantOp, DequantOp>();
+                      TransposeOp, Im2colOp, QuantOp, DequantOp, BankAllocOp,
+                      BankReleaseOp, BankMvinOp, BankMvoutOp, BankMulWarp16Op,
+                      BankTransposeOp, BankIm2colOp, BankQuantOp, BankDequantOp>();
   target.addLegalDialect<memref::MemRefDialect>();
   target.addLegalDialect<arith::ArithDialect>();
 }
