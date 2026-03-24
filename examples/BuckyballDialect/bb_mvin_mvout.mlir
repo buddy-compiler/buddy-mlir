@@ -11,6 +11,7 @@
 // CHECK: bb_mset
 
 "memref.global"() {sym_name = "input_a", type = memref<16x1024xi8>, initial_value = dense<3> : tensor<16x1024xi8>, visibility = "private"} : () -> ()
+"memref.global"() {sym_name = "output_b", type = memref<16x1024xi8>, initial_value = dense<5> : tensor<16x1024xi8>, visibility = "private"} : () -> ()
 
 func.func private @bb_test_report(i32) -> ()
 
@@ -18,7 +19,7 @@ func.func @main() -> i8 {
   %zero = arith.constant 0 : i8
   %one = arith.constant 1 : i8
   %a = memref.get_global @input_a : memref<16x1024xi8>
-  %b = memref.alloc() : memref<16x1024xi8>
+  %b = memref.get_global @output_b : memref<16x1024xi8>
   %bank = arith.constant 0 : i64
   // 16 rows * (1024/16) lines per row = 1024 (same convention as bb_matmul lowering depthA)
   %depth = arith.constant 1024 : i64
@@ -37,6 +38,5 @@ func.func @main() -> i8 {
   func.call @bb_test_report(%fail) : (i32) -> ()
   %rc = arith.select %bad, %one, %zero : i8
 
-  memref.dealloc %b : memref<16x1024xi8>
   return %rc : i8
 }

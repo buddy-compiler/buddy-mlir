@@ -73,24 +73,21 @@ static int64_t elemByteSize(Type el) {
 /// alone misses StridedLayoutAttr offset).
 static Value extractPtr(OpBuilder &b, Location loc, Value memref) {
   auto ty = cast<MemRefType>(memref.getType());
-  Value idx = b.create<memref::ExtractAlignedPointerAsIndexOp>(
-      loc, b.getIndexType(), memref);
-  SmallVector<int64_t, 4> strides;
-  int64_t offElems = 0;
-  if (failed(ty.getStridesAndOffset(strides, offElems)))
-    return b.create<arith::IndexCastOp>(loc, b.getI64Type(), idx);
-  if (ShapedType::isDynamic(offElems))
-    llvm_unreachable(
-        "bb memref intrinsic: dynamic linear offset not supported yet");
-  if (offElems == 0)
-    return b.create<arith::IndexCastOp>(loc, b.getI64Type(), idx);
   int64_t eb = elemByteSize(ty.getElementType());
   if (eb <= 0)
     llvm_unreachable("bb memref intrinsic: unsupported element type for ptr offset");
-  int64_t offBytes = offElems * eb;
-  Value add = b.create<arith::ConstantIndexOp>(loc, offBytes);
-  idx = b.create<arith::AddIOp>(loc, idx, add);
-  return b.create<arith::IndexCastOp>(loc, b.getI64Type(), idx);
+  auto meta = b.create<memref::ExtractStridedMetadataOp>(loc, memref);
+  Value base = meta.getBaseBuffer();
+  Value off = meta.getOffset();
+  Value baseIdx = b.create<memref::ExtractAlignedPointerAsIndexOp>(
+      loc, b.getIndexType(), base);
+  Value baseI64 = b.create<arith::IndexCastOp>(loc, b.getI64Type(), baseIdx);
+  Value offI64 = b.create<arith::IndexCastOp>(loc, b.getI64Type(), off);
+  Value offBytes = offI64;
+  if (eb != 1) {
+    offBytes = b.create<arith::MulIOp>(loc, offI64, cstI64(b, loc, eb));
+  }
+  return b.create<arith::AddIOp>(loc, baseI64, offBytes);
 }
 
 /// rs1 = BB_BANK0 | BB_BANK1 | BB_BANK2 | BB_ITER — isa.h

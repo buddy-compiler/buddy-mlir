@@ -7,6 +7,8 @@
 
 "memref.global"() {sym_name = "a_g", type = memref<64x1024xi8>, initial_value = dense<1> : tensor<64x1024xi8>, visibility = "private"} : () -> ()
 "memref.global"() {sym_name = "b_g", type = memref<1024x1024xi8>, initial_value = dense<1> : tensor<1024x1024xi8>, visibility = "private"} : () -> ()
+"memref.global"() {sym_name = "c_grm_g", type = memref<64x1024xi32>, initial_value = dense<7> : tensor<64x1024xi32>, visibility = "private"} : () -> ()
+"memref.global"() {sym_name = "c_dut_g", type = memref<64x1024xi32>, initial_value = dense<9> : tensor<64x1024xi32>, visibility = "private"} : () -> ()
 
 func.func private @bb_test_report(i32) -> ()
 
@@ -67,8 +69,8 @@ func.func @main() -> i8 {
 
   %a = memref.get_global @a_g : memref<64x1024xi8>
   %b = memref.get_global @b_g : memref<1024x1024xi8>
-  %c_grm = memref.alloc() : memref<64x1024xi32>
-  %c_dut = memref.alloc() : memref<64x1024xi32>
+  %c_grm = memref.get_global @c_grm_g : memref<64x1024xi32>
+  %c_dut = memref.get_global @c_dut_g : memref<64x1024xi32>
 
   func.call @grm_matmul_ref(%a, %b, %c_grm) : (memref<64x1024xi8>, memref<1024x1024xi8>, memref<64x1024xi32>) -> ()
 
@@ -81,7 +83,5 @@ func.func @main() -> i8 {
   func.call @bb_test_report(%fail) : (i32) -> ()
   %rc = arith.select %fail_i1, %one, %zero : i8
 
-  memref.dealloc %c_grm : memref<64x1024xi32>
-  memref.dealloc %c_dut : memref<64x1024xi32>
   return %rc : i8
 }
