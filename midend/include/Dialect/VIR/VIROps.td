@@ -140,4 +140,22 @@ def VIR_FMAOp : VIR_Op<"fma", [AllTypesMatch<["lhs", "rhs", "acc", "result"]>]> 
   let assemblyFormat = "$lhs `,` $rhs `,` $acc attr-dict `:` qualified(type($lhs))";
 }
 
+def VIR_SelectOp : VIR_Op<"select",
+    [AllTypesMatch<["trueValue", "falseValue", "result"]>]> {
+  let summary = "Select operation for dynamic vector IR.";
+  let description = [{
+    The `select` operation selects elements from `trueValue` or `falseValue`
+    based on the boolean `condition` vector.
+  }];
+  let arguments = (ins
+    VIR_DynamicVectorType:$condition,
+    VIR_DynamicVectorType:$trueValue,
+    VIR_DynamicVectorType:$falseValue
+  );
+  let results = (outs VIR_DynamicVectorType:$result);
+
+  let assemblyFormat = "$condition `,` $trueValue `,` $falseValue attr-dict "
+                       "`:` qualified(type($condition)) `,` qualified(type($trueValue))";
+}
+
 #endif // VIR_VIROPS_TD
