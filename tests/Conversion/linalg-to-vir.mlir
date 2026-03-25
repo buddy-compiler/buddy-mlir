@@ -15,7 +15,6 @@ func.func @eltwise_add(%A: memref<1024x?xf32>, %B: memref<1024x?xf32>, %C: memre
 }
 
 // CHECK-LABEL: func @eltwise_add
-// CHECK: %[[C0:.*]] = arith.constant 0 : index
 // CHECK: %[[C1:.*]] = arith.constant 1 : index
 // CHECK: %[[VL:.*]] = memref.dim %arg0, %[[C1]] : memref<1024x?xf32>
 // CHECK: vir.set_vl %[[VL]] : index {
@@ -27,7 +26,7 @@ func.func @eltwise_add(%A: memref<1024x?xf32>, %B: memref<1024x?xf32>, %C: memre
 // CHECK:   %[[VA:.*]] = vir.load %[[SA]][] : memref<1024x?xf32, strided<[?, 1]>> -> !vir.vec<1024x?xf32>
 // CHECK:   %[[VB:.*]] = vir.load %[[SB]][] : memref<1024x?xf32, strided<[?, 1]>> -> !vir.vec<1024x?xf32>
 // CHECK:   %[[ADD:.*]] = arith.addf %[[VA]], %[[VB]] : !vir.vec<1024x?xf32>
-// CHECK:   vir.store %[[ADD]], %[[TC]][%[[C0]], %[[C0]]] : !vir.vec<1024x?xf32> -> memref<1024x?xf32, strided<[?, 1]>>
+// CHECK:   vir.store %[[ADD]], %[[TC]]
 
 // -----
 // Basic elementwise addition on i32.
@@ -45,7 +44,6 @@ func.func @eltwise_add_i32(%A: memref<4x?xi32>, %B: memref<4x?xi32>, %C: memref<
 }
 
 // CHECK-LABEL: func @eltwise_add_i32
-// CHECK: %[[C0_I:.*]] = arith.constant 0 : index
 // CHECK: %[[C1_I:.*]] = arith.constant 1 : index
 // CHECK: %[[VL_I32:.*]] = memref.dim %arg0, %[[C1_I]] : memref<4x?xi32>
 // CHECK: vir.set_vl %[[VL_I32]] : index {
@@ -57,7 +55,7 @@ func.func @eltwise_add_i32(%A: memref<4x?xi32>, %B: memref<4x?xi32>, %C: memref<
 // CHECK:   %[[LA:.*]] = vir.load %[[SA]][] : memref<4x?xi32, strided<[?, 1]>> -> !vir.vec<4x?xi32>
 // CHECK:   %[[LB:.*]] = vir.load %[[SB]][] : memref<4x?xi32, strided<[?, 1]>> -> !vir.vec<4x?xi32>
 // CHECK:   %[[ADD_I32:.*]] = arith.addi %[[LA]], %[[LB]] : !vir.vec<4x?xi32>
-// CHECK:   vir.store %[[ADD_I32]], %[[TC]][%[[C0_I]], %[[C0_I]]] : !vir.vec<4x?xi32> -> memref<4x?xi32, strided<[?, 1]>>
+// CHECK:   vir.store %[[ADD_I32]], %[[TC]]
 
 // -----
 // Scalar addition to a tensor.
@@ -75,7 +73,6 @@ func.func @scalar_plus_tensor(%A: memref<2x?xf32>, %C: memref<2x?xf32>) {
 }
 
 // CHECK-LABEL: func @scalar_plus_tensor
-// CHECK: %[[C0_S:.*]] = arith.constant 0 : index
 // CHECK: %[[C1_S:.*]] = arith.constant 1 : index
 // CHECK: %[[VL_S:.*]] = memref.dim %arg0, %[[C1_S]] : memref<2x?xf32>
 // CHECK: vir.set_vl %[[VL_S]] : index {
@@ -85,7 +82,7 @@ func.func @scalar_plus_tensor(%A: memref<2x?xf32>, %C: memref<2x?xf32>) {
 // CHECK:   %[[V:.*]] = vir.load %[[SA]][] : memref<2x?xf32, strided<[?, 1]>> -> !vir.vec<2x?xf32>
 // CHECK:   %[[BC:.*]] = vir.broadcast %{{.*}} : f32 -> !vir.vec<2x?xf32>
 // CHECK:   %[[R:.*]] = arith.addf %[[V]], %[[BC]] : !vir.vec<2x?xf32>
-// CHECK:   vir.store %[[R]], %[[TC]][%[[C0_S]], %[[C0_S]]] : !vir.vec<2x?xf32> -> memref<2x?xf32, strided<[?, 1]>>
+// CHECK:   vir.store %[[R]], %[[TC]]
 
 // -----
 // Multiple elementwise ops chained on f32 tensors.
@@ -110,7 +107,6 @@ func.func @mul_add(%A: memref<16x?xf32>, %B: memref<16x?xf32>, %C: memref<16x?xf
 }
 
 // CHECK-LABEL: func @mul_add
-// CHECK: %[[C0_M:.*]] = arith.constant 0 : index
 // CHECK: %[[C1_M:.*]] = arith.constant 1 : index
 // CHECK: %[[VL_M:.*]] = memref.dim %arg0, %[[C1_M]] : memref<16x?xf32>
 // CHECK: vir.set_vl %[[VL_M]] : index {
@@ -130,7 +126,7 @@ func.func @mul_add(%A: memref<16x?xf32>, %B: memref<16x?xf32>, %C: memref<16x?xf
 // CHECK:   %[[BC:.*]] = vir.broadcast %{{.*}} : f32 -> !vir.vec<16x?xf32>
 // CHECK:   %[[T5:.*]] = arith.mulf %[[T4]], %[[BC]] : !vir.vec<16x?xf32>
 // CHECK:   %[[T6:.*]] = arith.addf %[[T5]], %[[T0]] : !vir.vec<16x?xf32>
-// CHECK:   vir.store %[[T6]], %[[TC]][%[[C0_M]], %[[C0_M]]] : !vir.vec<16x?xf32> -> memref<16x?xf32, strided<[?, 1]>>
+// CHECK:   vir.store %[[T6]], %[[TC]]
 
 // -----
 // Transposed addition of two tensors. Only one dynamic dimension supported,
@@ -147,13 +143,12 @@ func.func @permute_input(%A: memref<8x4xf32>, %B: memref<4x8xf32>) {
 }
 
 // CHECK-LABEL: func @permute_input
-// CHECK: %[[C0_P:.*]] = arith.constant 0 : index
 // CHECK: %[[C8_P:.*]] = arith.constant 8 : index
 // CHECK: vir.set_vl %[[C8_P]] : index {
 // CHECK:   %[[TA:.*]] = memref.transpose %arg0 (d0, d1) -> (d1, d0) : memref<8x4xf32> to memref<4x8xf32, strided<[1, 4]>>
 // CHECK:   %[[TB:.*]] = memref.transpose %arg1 (d0, d1) -> (d0, d1) : memref<4x8xf32> to memref<4x8xf32, strided<[8, 1]>>
 // CHECK:   %[[VA:.*]] = vir.load %[[TA]][] : memref<4x8xf32, strided<[1, 4]>> -> !vir.vec<4x8xf32>
-// CHECK:   vir.store %[[VA]], %[[TB]][%[[C0_P]], %[[C0_P]]] : !vir.vec<4x8xf32> -> memref<4x8xf32, strided<[8, 1]>>
+// CHECK:   vir.store %[[VA]], %[[TB]]
 
 // -----
 // Initialize a constant tensor.
@@ -172,7 +167,6 @@ func.func @constant_init(%C: memref<16x?xf32>) {
 }
 
 // CHECK-LABEL: func @constant_init
-// CHECK: %[[C0_C:.*]] = arith.constant 0 : index
 // CHECK: %[[C1_C:.*]] = arith.constant 1 : index
 // CHECK: %[[VL_C:.*]] = memref.dim %arg0, %[[C1_C]] : memref<16x?xf32>
 // CHECK: vir.set_vl %[[VL_C]] : index {
@@ -180,7 +174,7 @@ func.func @constant_init(%C: memref<16x?xf32>) {
 // CHECK:   %[[BC0:.*]] = vir.broadcast %{{.*}} : f32 -> !vir.vec<16x?xf32>
 // CHECK:   %[[BC1:.*]] = vir.broadcast %{{.*}} : f32 -> !vir.vec<16x?xf32>
 // CHECK:   %[[SUM:.*]] = arith.addf %[[BC0]], %[[BC1]] : !vir.vec<16x?xf32>
-// CHECK:   vir.store %[[SUM]], %[[T]][%[[C0_C]], %[[C0_C]]] : !vir.vec<16x?xf32> -> memref<16x?xf32, strided<[?, 1]>>
+// CHECK:   vir.store %[[SUM]], %[[T]]
 
 // -----
 // Broadcast along the first loop dimension: input rank 1, loop rank 2.
@@ -205,4 +199,4 @@ func.func @broadcast_along_i(%A: memref<?xf32>, %B: memref<2x?xf32>) {
 // CHECK:   %[[SV:.*]] = memref.subview %[[T0]][0, 0] [2, %[[VL_B]]] [0, 1] : memref<1x?xf32, strided<[?, 1]>> to memref<2x?xf32, strided<[0, 1]>>
 // CHECK:   %[[T1:.*]] = memref.transpose %arg1 (d0, d1) -> (d0, d1) : memref<2x?xf32> to memref<2x?xf32, strided<[?, 1]>>
 // CHECK:   %[[V:.*]] = vir.load %[[SV]][] : memref<2x?xf32, strided<[0, 1]>> -> !vir.vec<2x?xf32>
-// CHECK:   vir.store %[[V]], %[[T1]][%[[C0_B]], %[[C0_B]]] : !vir.vec<2x?xf32> -> memref<2x?xf32, strided<[?, 1]>>
+// CHECK:   vir.store %[[V]], %[[T1]]
