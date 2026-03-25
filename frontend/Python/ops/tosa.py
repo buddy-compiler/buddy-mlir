@@ -3817,7 +3817,7 @@ def mean_op(node: MeanOp, symbol_table):
         return tosa.MulOp(result_type, input1, input2, shift)
 
     input_tensor = symbol_table.get((str(node.args[0]), 0))
-    keepdim = node.args[2]
+    keepdim = node.args[2] if len(node.args) > 2 else False
     dims = [x for x in node.args[1]]
     if isinstance(dims, int):
         dims = [dims]
