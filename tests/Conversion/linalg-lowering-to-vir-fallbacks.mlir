@@ -117,10 +117,9 @@ func.func @cast_extf(%arg0: memref<16xf16>, %arg1: memref<16xf32>) {
 
 // CHECK-LABEL: func.func @cast_extf
 // CHECK-NOT: linalg.generic
-// CHECK: scf.for
-// CHECK: memref.load
-// CHECK: arith.extf
-// CHECK: memref.store
+// CHECK: vir.set_vl
+// CHECK: vir.extf
+// CHECK: vir.store
 
 // -----
 // CASE: linalg-generic-cast-to-scf-fallback-truncf-f32-f16.mlir
@@ -137,7 +136,26 @@ func.func @cast_truncf(%arg0: memref<16xf32>, %arg1: memref<16xf16>) {
 
 // CHECK-LABEL: func.func @cast_truncf
 // CHECK-NOT: linalg.generic
+// CHECK: vir.set_vl
+// CHECK: vir.truncf
+// CHECK: vir.store
+
+// -----
+// CASE: non-extf/truncf casts still use scalar fallback.
+func.func @cast_sitofp_fallback(%arg0: memref<16xi32>, %arg1: memref<16xf32>) {
+  linalg.generic {indexing_maps = [affine_map<(i)->(i)>, affine_map<(i)->(i)>], iterator_types = ["parallel"]}
+      ins(%arg0 : memref<16xi32>)
+      outs(%arg1 : memref<16xf32>) {
+    ^bb0(%in: i32, %out: f32):
+      %v = arith.sitofp %in : i32 to f32
+      linalg.yield %v : f32
+  }
+  return
+}
+
+// CHECK-LABEL: func.func @cast_sitofp_fallback
+// CHECK-NOT: linalg.generic
 // CHECK: scf.for
 // CHECK: memref.load
-// CHECK: arith.truncf
+// CHECK: arith.sitofp
 // CHECK: memref.store

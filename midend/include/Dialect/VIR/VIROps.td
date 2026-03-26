@@ -158,4 +158,28 @@ def VIR_SelectOp : VIR_Op<"select",
                        "`:` qualified(type($condition)) `,` qualified(type($trueValue))";
 }
 
+def VIR_ExtFOp : VIR_Op<"extf"> {
+  let summary = "Floating-point extend for dynamic vector IR.";
+  let description = [{
+    The `extf` operation extends floating-point element type width
+    elementwise on a dynamic vector.
+  }];
+  let arguments = (ins VIR_DynamicVectorType:$in);
+  let results = (outs VIR_DynamicVectorType:$result);
+
+  let assemblyFormat = "$in attr-dict `:` qualified(type($in)) `->` qualified(type($result))";
+}
+
+def VIR_TruncFOp : VIR_Op<"truncf"> {
+  let summary = "Floating-point truncate for dynamic vector IR.";
+  let description = [{
+    The `truncf` operation truncates floating-point element type width
+    elementwise on a dynamic vector.
+  }];
+  let arguments = (ins VIR_DynamicVectorType:$in);
+  let results = (outs VIR_DynamicVectorType:$result);
+
+  let assemblyFormat = "$in attr-dict `:` qualified(type($in)) `->` qualified(type($result))";
+}
+
 #endif // VIR_VIROPS_TD
