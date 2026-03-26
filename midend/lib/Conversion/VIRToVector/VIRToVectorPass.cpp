@@ -484,6 +484,55 @@ private:
               virSymbolTable[op.getResult()] = vectorFMAOp.getResult();
             }
           })
+          .Case<vir::ReduceOp>([&](vir::ReduceOp op) {
+            Value input = findValue(op.getInput());
+            Value acc = findValue(op.getAcc());
+            if (!input || !acc) {
+              op.emitError("reduce operands not found in symbol table");
+              return;
+            }
+
+            auto kindAttr = op->getAttrOfType<StringAttr>("kind");
+            if (!kindAttr) {
+              op.emitError("missing 'kind' attribute on vir.reduce");
+              return;
+            }
+            StringRef kind = kindAttr.getValue();
+
+            if (isTailLoop) {
+              Value out;
+              if (kind == "add") {
+                out = builder.create<arith::AddFOp>(loc, input, acc);
+              } else if (kind == "maxnum") {
+                out = builder.create<arith::MaxNumFOp>(loc, input, acc);
+              } else {
+                op.emitError("unsupported vir.reduce kind (expected add/maxnum)");
+                return;
+              }
+              virSymbolTable[op.getResult()] = out;
+              return;
+            }
+
+            auto vecTy = dyn_cast<VectorType>(input.getType());
+            if (!vecTy) {
+              op.emitError("expected vector input for non-tail vir.reduce");
+              return;
+            }
+
+            vector::CombiningKind combineKind;
+            if (kind == "add") {
+              combineKind = vector::CombiningKind::ADD;
+            } else if (kind == "maxnum") {
+              combineKind = vector::CombiningKind::MAXNUMF;
+            } else {
+              op.emitError("unsupported vir.reduce kind (expected add/maxnum)");
+              return;
+            }
+
+            auto reduced =
+                builder.create<vector::ReductionOp>(loc, combineKind, input, acc);
+            virSymbolTable[op.getResult()] = reduced.getResult();
+          })
           .Case<vir::SelectOp>([&](vir::SelectOp op) {
             Value cond = findValue(op.getCondition());
             Value tVal = findValue(op.getTrueValue());
@@ -672,6 +721,21 @@ private:
 
             auto newLoadOp = builder.create<memref::LoadOp>(loc, base, indices);
             virSymbolTable[op.getResult()] = newLoadOp.getResult();
+          })
+          .Case<memref::StoreOp>([&](memref::StoreOp op) {
+            Value base = findValue(op.getMemRef());
+            if (!base)
+              base = op.getMemRef();
+            Value value = findValue(op.getValue());
+            if (!value)
+              value = op.getValue();
+
+            SmallVector<Value> indices;
+            for (Value index : op.getIndices()) {
+              Value mappedIndex = findValue(index);
+              indices.push_back(mappedIndex);
+            }
+            builder.create<memref::StoreOp>(loc, value, base, indices);
           })
           .Case<arith::AddFOp>([&](arith::AddFOp op) {
             Value lhs = findValue(op.getLhs());

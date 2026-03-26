@@ -306,12 +306,14 @@ static LogicalResult computeShapeAndVL(linalg::LinalgOp linalgOp,
   return success();
 }
 
+static buddy::vir::SetVLOp createSetVLRegion(PatternRewriter &rewriter,
+                                             Location loc, Value vlVal);
+
 enum class SupportedReduceCombinerKind { AddF, MaxNumF };
 
 static FailureOr<SupportedReduceCombinerKind>
 getSupportedReduceCombinerKind(linalg::ReduceOp reduceOp,
-                               PatternRewriter &rewriter,
-                               Operation *&combinerOut) {
+                               PatternRewriter &rewriter) {
   Block *body = reduceOp.getBody();
   if (!body || body->getNumArguments() != 2)
     return failure();
@@ -329,46 +331,11 @@ getSupportedReduceCombinerKind(linalg::ReduceOp reduceOp,
   if (!combiner || yield.getOperand(0) != combiner->getResult(0))
     return failure();
 
-  combinerOut = combiner;
   if (isa<arith::AddFOp>(combiner))
     return SupportedReduceCombinerKind::AddF;
   if (isa<arith::MaxNumFOp>(combiner))
     return SupportedReduceCombinerKind::MaxNumF;
   return failure();
-}
-
-static FailureOr<Value> createReduceCombinerValue(
-    PatternRewriter &rewriter, Location loc, linalg::ReduceOp reduceOp,
-    Operation *combiner, SupportedReduceCombinerKind combinerKind, Value inVal,
-    Value acc) {
-  auto mapCombinerOperand = [&](Value v) -> FailureOr<Value> {
-    Block *body = reduceOp.getBody();
-    if (v == body->getArgument(0))
-      return inVal;
-    if (v == body->getArgument(1))
-      return acc;
-    return failure();
-  };
-
-  switch (combinerKind) {
-  case SupportedReduceCombinerKind::AddF: {
-    auto addf = cast<arith::AddFOp>(combiner);
-    auto lhs = mapCombinerOperand(addf.getLhs());
-    auto rhs = mapCombinerOperand(addf.getRhs());
-    if (failed(lhs) || failed(rhs))
-      return failure();
-    return rewriter.create<arith::AddFOp>(loc, *lhs, *rhs).getResult();
-  }
-  case SupportedReduceCombinerKind::MaxNumF: {
-    auto maxnumf = cast<arith::MaxNumFOp>(combiner);
-    auto lhs = mapCombinerOperand(maxnumf.getLhs());
-    auto rhs = mapCombinerOperand(maxnumf.getRhs());
-    if (failed(lhs) || failed(rhs))
-      return failure();
-    return rewriter.create<arith::MaxNumFOp>(loc, *lhs, *rhs).getResult();
-  }
-  }
-  llvm_unreachable("unknown reduce combiner kind");
 }
 
 static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
@@ -390,8 +357,7 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
     return rewriter.notifyMatchFailure(reduceOp,
                                        "only f32 reduction supported");
 
-  Operation *combiner = nullptr;
-  auto combinerKind = getSupportedReduceCombinerKind(reduceOp, rewriter, combiner);
+  auto combinerKind = getSupportedReduceCombinerKind(reduceOp, rewriter);
   if (failed(combinerKind))
     return rewriter.notifyMatchFailure(
         reduceOp,
@@ -405,33 +371,50 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
   Value lower = rewriter.create<arith::ConstantIndexOp>(loc, 0);
   Value step = rewriter.create<arith::ConstantIndexOp>(loc, 1);
 
+  auto kindToString = [&](SupportedReduceCombinerKind k) -> StringRef {
+    switch (k) {
+    case SupportedReduceCombinerKind::AddF:
+      return "add";
+    case SupportedReduceCombinerKind::MaxNumF:
+      return "maxnum";
+    }
+    llvm_unreachable("unknown reduce combiner");
+  };
+
   // Case A: rank-1 -> rank-0, dimensions = [0].
   if (inTy.getRank() == 1 && outTy.getRank() == 0) {
     if (dims.size() != 1 || dims[0] != 0)
       return rewriter.notifyMatchFailure(
           reduceOp, "rank-1 -> rank-0 reduction requires dimensions=[0]");
 
-    Value upper = rewriter.create<memref::DimOp>(loc, input, 0);
+    Value n = rewriter.create<memref::DimOp>(loc, input, 0);
+    Type elemTy = inTy.getElementType();
+    auto accBufTy = MemRefType::get({}, elemTy);
+    Value accBuf = rewriter.create<memref::AllocaOp>(loc, accBufTy);
     Value initVal = rewriter.create<memref::LoadOp>(loc, init, ValueRange{});
-    auto loop = rewriter.create<scf::ForOp>(loc, lower, upper, step,
-                                            ValueRange{initVal});
+    rewriter.create<memref::StoreOp>(loc, initVal, accBuf, ValueRange{});
 
-    {
-      OpBuilder::InsertionGuard g(rewriter);
-      rewriter.setInsertionPointToStart(loop.getBody());
-      Value iv = loop.getInductionVar();
-      Value acc = loop.getRegionIterArgs().front();
-      Value inVal = rewriter.create<memref::LoadOp>(loc, input, ValueRange{iv});
-      FailureOr<Value> next = createReduceCombinerValue(
-          rewriter, loc, reduceOp, combiner, *combinerKind, inVal, acc);
-      if (failed(next))
-        return rewriter.notifyMatchFailure(reduceOp,
-                                           "unsupported reduce combiner operands");
-      rewriter.create<scf::YieldOp>(loc, *next);
-    }
+    auto setVl = createSetVLRegion(rewriter, loc, n);
+    auto vecTy =
+        buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, elemTy);
+    Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+    Value loaded = rewriter
+                       .create<buddy::vir::LoadOp>(loc, vecTy, input,
+                                                   ValueRange{c0})
+                       .getResult();
+    Value acc = rewriter.create<memref::LoadOp>(loc, accBuf, ValueRange{});
+    Value reduced =
+        rewriter
+            .create<buddy::vir::ReduceOp>(
+                loc, elemTy, loaded, acc,
+                rewriter.getStringAttr(kindToString(*combinerKind)))
+            .getResult();
+    rewriter.create<memref::StoreOp>(loc, reduced, accBuf, ValueRange{});
+    rewriter.create<vector::YieldOp>(loc);
 
-    Value reduced = loop.getResult(0);
-    rewriter.create<memref::StoreOp>(loc, reduced, init, ValueRange{});
+    rewriter.setInsertionPointAfter(setVl);
+    Value finalVal = rewriter.create<memref::LoadOp>(loc, accBuf, ValueRange{});
+    rewriter.create<memref::StoreOp>(loc, finalVal, init, ValueRange{});
     rewriter.eraseOp(reduceOp);
     return success();
   }
@@ -450,35 +433,46 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
           reduceOp, "input/output leading dimension mismatch");
     }
 
+    Type elemTy = inTy.getElementType();
     Value upperM = rewriter.create<memref::DimOp>(loc, input, 0);
     Value upperN = rewriter.create<memref::DimOp>(loc, input, 1);
+    Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
     auto outerLoop = rewriter.create<scf::ForOp>(loc, lower, upperM, step);
 
     {
       OpBuilder::InsertionGuard g(rewriter);
       rewriter.setInsertionPointToStart(outerLoop.getBody());
       Value i = outerLoop.getInductionVar();
+      auto accBufTy = MemRefType::get({}, elemTy);
+      Value accBuf = rewriter.create<memref::AllocaOp>(loc, accBufTy);
       Value initVal = rewriter.create<memref::LoadOp>(loc, init, ValueRange{i});
-      auto innerLoop = rewriter.create<scf::ForOp>(loc, lower, upperN, step,
-                                                   ValueRange{initVal});
+      rewriter.create<memref::StoreOp>(loc, initVal, accBuf, ValueRange{});
 
-      {
-        OpBuilder::InsertionGuard gg(rewriter);
-        rewriter.setInsertionPointToStart(innerLoop.getBody());
-        Value j = innerLoop.getInductionVar();
-        Value acc = innerLoop.getRegionIterArgs().front();
-        Value inVal =
-            rewriter.create<memref::LoadOp>(loc, input, ValueRange{i, j});
-        FailureOr<Value> next = createReduceCombinerValue(
-            rewriter, loc, reduceOp, combiner, *combinerKind, inVal, acc);
-        if (failed(next))
-          return rewriter.notifyMatchFailure(
-              reduceOp, "unsupported reduce combiner operands");
-        rewriter.create<scf::YieldOp>(loc, *next);
-      }
+      auto setVl = rewriter.create<buddy::vir::SetVLOp>(
+          loc, /*results=*/TypeRange{}, /*operands=*/ValueRange{upperN});
+      Region &region = setVl.getRegion();
+      Block &block = region.emplaceBlock();
+      rewriter.setInsertionPointToStart(&block);
 
-      Value reduced = innerLoop.getResult(0);
-      rewriter.create<memref::StoreOp>(loc, reduced, init, ValueRange{i});
+      auto vecTy =
+          buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, elemTy);
+      Value row = rewriter
+                      .create<buddy::vir::LoadOp>(loc, vecTy, input,
+                                                  ValueRange{i, c0})
+                      .getResult();
+      Value acc = rewriter.create<memref::LoadOp>(loc, accBuf, ValueRange{});
+      Value reduced =
+          rewriter
+              .create<buddy::vir::ReduceOp>(
+                  loc, elemTy, row, acc,
+                  rewriter.getStringAttr(kindToString(*combinerKind)))
+              .getResult();
+      rewriter.create<memref::StoreOp>(loc, reduced, accBuf, ValueRange{});
+      rewriter.create<vector::YieldOp>(loc);
+
+      rewriter.setInsertionPointAfter(setVl);
+      Value finalVal = rewriter.create<memref::LoadOp>(loc, accBuf, ValueRange{});
+      rewriter.create<memref::StoreOp>(loc, finalVal, init, ValueRange{i});
     }
 
     rewriter.eraseOp(reduceOp);
