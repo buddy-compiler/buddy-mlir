@@ -250,6 +250,23 @@ static Operation *createGenericElementwiseVIR(Operation *op,
     return created.getOperation();
   }
 
+  // arith.extf/truncf cannot directly produce !vir.vec types. Represent them as
+  // dedicated VIR ops and lower later in VIRToVector.
+  if (auto extf = dyn_cast<arith::ExtFOp>(op)) {
+    auto outTy =
+        buddy::vir::DynamicVectorType::get(virShape, extf.getType());
+    auto created =
+        rewriter.create<buddy::vir::ExtFOp>(loc, outTy, vecOperands[0]);
+    return created.getOperation();
+  }
+  if (auto truncf = dyn_cast<arith::TruncFOp>(op)) {
+    auto outTy =
+        buddy::vir::DynamicVectorType::get(virShape, truncf.getType());
+    auto created =
+        rewriter.create<buddy::vir::TruncFOp>(loc, outTy, vecOperands[0]);
+    return created.getOperation();
+  }
+
   // Compute VIR vector result types matching original element types.
   SmallVector<Type> resultTypes;
   resultTypes.reserve(op->getNumResults());
@@ -562,6 +579,10 @@ static bool isScalarCastOp(Operation &op) {
              arith::TruncFOp, arith::SIToFPOp, arith::UIToFPOp,
              arith::FPToSIOp, arith::FPToUIOp, arith::BitcastOp,
              arith::IndexCastOp, arith::IndexCastUIOp>(op);
+}
+
+static bool isVectorizableFloatCastOp(Operation &op) {
+  return isa<arith::ExtFOp, arith::TruncFOp>(op);
 }
 
 static LogicalResult
@@ -984,6 +1005,8 @@ struct LinalgGenericToVIRPattern : public RewritePattern {
         continue;
       }
       if (isScalarCastOp(inner)) {
+        if (isVectorizableFloatCastOp(inner))
+          continue;
         hasCastSemantics = true;
         continue;
       }

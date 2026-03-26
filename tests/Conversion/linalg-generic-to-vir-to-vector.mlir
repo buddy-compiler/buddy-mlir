@@ -1,5 +1,6 @@
 // RUN: buddy-opt %s -lower-linalg-to-vir -lower-vir-to-vector="vector-width=4" -cse --convert-vector-to-scf --expand-strided-metadata --lower-affine --convert-math-to-llvm --convert-scf-to-cf --convert-cf-to-llvm --convert-vector-to-llvm --finalize-memref-to-llvm --convert-arith-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts | mlir-runner -O0 -e main -entry-point-result=i32 -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext,%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext | FileCheck %s
 // RUN: buddy-opt %s -lower-linalg-to-vir -lower-vir-to-vector="vector-width=4" -cse | FileCheck %s --check-prefix=CHECK-VEC-MATH
+// RUN: buddy-opt %s -lower-linalg-to-vir -lower-vir-to-vector="vector-width=4" -cse | FileCheck %s --check-prefix=CHECK-VEC-CAST
 
 func.func private @printMemrefF32(memref<*xf32>) attributes { llvm.emit_c_interface }
 func.func private @printMemrefI32(memref<*xi32>) attributes { llvm.emit_c_interface }
@@ -277,6 +278,89 @@ func.func @case_linalg_generic_to_vir_to_vector_math_sqrt_f32() -> i32 {
 // CHECK-VEC-MATH: math.sqrt {{.*}} : vector<4xf32>
 // CHECK-VEC-MATH: math.sqrt {{.*}} : f32
 
+// Test: f16->f32 cast vectorization.
+func.func @case_linalg_generic_to_vir_to_vector_cast_extf_f16_f32() -> i32 {
+  %n = arith.constant 10 : index
+  %A = memref.alloc(%n) : memref<?xf16>
+  %B = memref.alloc(%n) : memref<?xf32>
+
+  affine.for %i = 0 to 10 {
+    %ii32 = arith.index_cast %i : index to i32
+    %v = arith.sitofp %ii32 : i32 to f16
+    memref.store %v, %A[%i] : memref<?xf16>
+  }
+
+  linalg.generic
+      { indexing_maps = [affine_map<(i)->(i)>, affine_map<(i)->(i)>],
+        iterator_types = ["parallel"] }
+      ins(%A : memref<?xf16>)
+      outs(%B : memref<?xf32>) {
+    ^bb0(%a: f16, %b: f32):
+      %x = arith.extf %a : f16 to f32
+      linalg.yield %x : f32
+  }
+
+  %printed = memref.cast %B : memref<?xf32> to memref<*xf32>
+  call @printMemrefF32(%printed) : (memref<*xf32>) -> ()
+  // CHECK: {{Unranked Memref base@ = 0x[0-9A-Fa-f]{1,} rank = 1 offset = 0 sizes = \[10\] strides = \[1\] data =}}
+  // CHECK{LITERAL}: [0,  1,  2,  3,  4,  5,  6,  7,  8,  9]
+
+  %ret = arith.constant 0 : i32
+  return %ret : i32
+}
+
+// CHECK-VEC-CAST-LABEL: func.func @case_linalg_generic_to_vir_to_vector_cast_extf_f16_f32
+// CHECK-VEC-CAST: arith.extf {{.*}} : vector<4xf16> to vector<4xf32>
+// CHECK-VEC-CAST: arith.extf {{.*}} : f16 to f32
+
+// Test: f32->f16 cast vectorization, then f16->f32 for checking.
+func.func @case_linalg_generic_to_vir_to_vector_cast_truncf_f32_f16() -> i32 {
+  %n = arith.constant 10 : index
+  %A = memref.alloc(%n) : memref<?xf32>
+  %B = memref.alloc(%n) : memref<?xf16>
+  %C = memref.alloc(%n) : memref<?xf32>
+
+  affine.for %i = 0 to 10 {
+    %ii32 = arith.index_cast %i : index to i32
+    %f = arith.sitofp %ii32 : i32 to f32
+    %half = arith.constant 0.5 : f32
+    %v = arith.addf %f, %half : f32
+    memref.store %v, %A[%i] : memref<?xf32>
+  }
+
+  linalg.generic
+      { indexing_maps = [affine_map<(i)->(i)>, affine_map<(i)->(i)>],
+        iterator_types = ["parallel"] }
+      ins(%A : memref<?xf32>)
+      outs(%B : memref<?xf16>) {
+    ^bb0(%a: f32, %b: f16):
+      %x = arith.truncf %a : f32 to f16
+      linalg.yield %x : f16
+  }
+
+  linalg.generic
+      { indexing_maps = [affine_map<(i)->(i)>, affine_map<(i)->(i)>],
+        iterator_types = ["parallel"] }
+      ins(%B : memref<?xf16>)
+      outs(%C : memref<?xf32>) {
+    ^bb0(%a: f16, %c: f32):
+      %x = arith.extf %a : f16 to f32
+      linalg.yield %x : f32
+  }
+
+  %printed = memref.cast %C : memref<?xf32> to memref<*xf32>
+  call @printMemrefF32(%printed) : (memref<*xf32>) -> ()
+  // CHECK: {{Unranked Memref base@ = 0x[0-9A-Fa-f]{1,} rank = 1 offset = 0 sizes = \[10\] strides = \[1\] data =}}
+  // CHECK{LITERAL}: [0.5,  1.5,  2.5,  3.5,  4.5,  5.5,  6.5,  7.5,  8.5,  9.5]
+
+  %ret = arith.constant 0 : i32
+  return %ret : i32
+}
+
+// CHECK-VEC-CAST-LABEL: func.func @case_linalg_generic_to_vir_to_vector_cast_truncf_f32_f16
+// CHECK-VEC-CAST: arith.truncf {{.*}} : vector<4xf32> to vector<4xf16>
+// CHECK-VEC-CAST: arith.truncf {{.*}} : f32 to f16
+
 func.func @main() -> i32 {
   %res_case_linalg_generic_to_vir_to_vector_arith_chain_f32 = call @case_linalg_generic_to_vir_to_vector_arith_chain_f32() : () -> i32
   %res_case_linalg_generic_to_vir_to_vector_arith_chain_i32 = call @case_linalg_generic_to_vir_to_vector_arith_chain_i32() : () -> i32
@@ -285,6 +369,8 @@ func.func @main() -> i32 {
   %res_case_linalg_generic_to_vir_to_vector_minmax_f32 = call @case_linalg_generic_to_vir_to_vector_minmax_f32() : () -> i32
   %res_case_linalg_generic_to_vir_to_vector_math_exp_f32 = call @case_linalg_generic_to_vir_to_vector_math_exp_f32() : () -> i32
   %res_case_linalg_generic_to_vir_to_vector_math_sqrt_f32 = call @case_linalg_generic_to_vir_to_vector_math_sqrt_f32() : () -> i32
+  %res_case_linalg_generic_to_vir_to_vector_cast_extf_f16_f32 = call @case_linalg_generic_to_vir_to_vector_cast_extf_f16_f32() : () -> i32
+  %res_case_linalg_generic_to_vir_to_vector_cast_truncf_f32_f16 = call @case_linalg_generic_to_vir_to_vector_cast_truncf_f32_f16() : () -> i32
   %ret = arith.constant 0 : i32
   return %ret : i32
 }

@@ -501,6 +501,36 @@ private:
               virSymbolTable[op.getResult()] = newOp.getResult();
             }
           })
+          .Case<vir::ExtFOp>([&](vir::ExtFOp op) {
+            Value in = findValue(op.getIn());
+            Type outTy = op.getType();
+            if (auto dyn = dyn_cast<vir::DynamicVectorType>(outTy)) {
+              Type elem = dyn.getElementType();
+              if (auto vecTy = dyn_cast<VectorType>(in.getType())) {
+                outTy = VectorType::get(vecTy.getShape(), elem,
+                                        vecTy.getScalableDims());
+              } else {
+                outTy = elem;
+              }
+            }
+            auto newOp = builder.create<arith::ExtFOp>(loc, outTy, in);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<vir::TruncFOp>([&](vir::TruncFOp op) {
+            Value in = findValue(op.getIn());
+            Type outTy = op.getType();
+            if (auto dyn = dyn_cast<vir::DynamicVectorType>(outTy)) {
+              Type elem = dyn.getElementType();
+              if (auto vecTy = dyn_cast<VectorType>(in.getType())) {
+                outTy = VectorType::get(vecTy.getShape(), elem,
+                                        vecTy.getScalableDims());
+              } else {
+                outTy = elem;
+              }
+            }
+            auto newOp = builder.create<arith::TruncFOp>(loc, outTy, in);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
           .Case<affine::AffineForOp>([&](affine::AffineForOp op) {
             // Find the corresponding values of the initial iteration parameters
             // of the loop in the symbol table
