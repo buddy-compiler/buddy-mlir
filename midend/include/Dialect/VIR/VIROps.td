@@ -140,6 +140,27 @@ def VIR_FMAOp : VIR_Op<"fma", [AllTypesMatch<["lhs", "rhs", "acc", "result"]>]> 
   let assemblyFormat = "$lhs `,` $rhs `,` $acc attr-dict `:` qualified(type($lhs))";
 }
 
+def VIR_ReduceOp : VIR_Op<"reduce"> {
+  let summary = "Horizontal reduction for dynamic vector IR.";
+  let description = [{
+    The `reduce` operation reduces a dynamic vector into a scalar using a
+    predefined combiner kind.
+
+    v1 semantics:
+    - `kind = \"add\"`    : floating-point sum reduction
+    - `kind = \"maxnum\"` : floating-point maxnum reduction
+  }];
+  let arguments = (ins
+    VIR_DynamicVectorType:$input,
+    AnyFloat:$acc,
+    StrAttr:$kind
+  );
+  let results = (outs AnyFloat:$result);
+
+  let assemblyFormat = "$input `,` $acc attr-dict `:` qualified(type($input))"
+                       " `,` type($acc) `->` type($result)";
+}
+
 def VIR_SelectOp : VIR_Op<"select",
     [AllTypesMatch<["trueValue", "falseValue", "result"]>]> {
   let summary = "Select operation for dynamic vector IR.";

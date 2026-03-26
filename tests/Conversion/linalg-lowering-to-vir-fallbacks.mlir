@@ -1,4 +1,5 @@
 // RUN: buddy-opt %s -split-input-file -lower-linalg-to-vir | FileCheck %s
+// RUN: buddy-opt %s -split-input-file -lower-linalg-to-vir -lower-vir-to-vector="vector-width=4" -cse | FileCheck %s --check-prefix=CHECK-VEC-REDUCE
 
 // -----
 // CASE: linalg-reduce-to-vir-scalar-addf-f32.mlir
@@ -13,12 +14,13 @@ func.func @reduce_addf(%arg0: memref<16xf32>, %arg1: memref<f32>) {
 
 // CHECK-LABEL: func.func @reduce_addf
 // CHECK-NOT: linalg.reduce
-// CHECK: %[[INIT:.+]] = memref.load %arg1[]
-// CHECK: %[[FOR:.+]] = scf.for
-// CHECK: %[[IN:.+]] = memref.load %arg0
-// CHECK: %[[NEXT:.+]] = arith.addf %[[IN]], %{{.+}} : f32
-// CHECK: scf.yield %[[NEXT]] : f32
-// CHECK: memref.store %[[FOR]], %arg1[]
+// CHECK: vir.set_vl
+// CHECK: vir.load %arg0
+// CHECK: vir.reduce
+// CHECK: memref.store
+// CHECK-VEC-REDUCE-LABEL: func.func @reduce_addf
+// CHECK-VEC-REDUCE: vector.reduction <add>
+// CHECK-VEC-REDUCE: arith.addf
 
 // -----
 // CASE: linalg-reduce-to-vir-scalar-maxnumf-f32.mlir
@@ -33,12 +35,13 @@ func.func @reduce_maxnumf(%arg0: memref<16xf32>, %arg1: memref<f32>) {
 
 // CHECK-LABEL: func.func @reduce_maxnumf
 // CHECK-NOT: linalg.reduce
-// CHECK: %[[INIT:.+]] = memref.load %arg1[]
-// CHECK: %[[FOR:.+]] = scf.for
-// CHECK: %[[IN:.+]] = memref.load %arg0
-// CHECK: %[[NEXT:.+]] = arith.maxnumf %[[IN]], %{{.+}} : f32
-// CHECK: scf.yield %[[NEXT]] : f32
-// CHECK: memref.store %[[FOR]], %arg1[]
+// CHECK: vir.set_vl
+// CHECK: vir.load %arg0
+// CHECK: vir.reduce
+// CHECK: memref.store
+// CHECK-VEC-REDUCE-LABEL: func.func @reduce_maxnumf
+// CHECK-VEC-REDUCE: vector.reduction <maxnumf>
+// CHECK-VEC-REDUCE: arith.maxnumf
 
 // -----
 // CASE: linalg-reduce-to-vir-2d-to-1d-addf-f32.mlir
@@ -55,11 +58,13 @@ func.func @reduce_2d_to_1d_addf(%arg0: memref<4x8xf32>, %arg1: memref<4xf32>) {
 // CHECK-NOT: linalg.reduce
 // CHECK: scf.for %[[I:[^ ]+]] =
 // CHECK: %[[INIT:.+]] = memref.load %arg1[%[[I]]]
-// CHECK: %[[INNER:.+]] = scf.for %[[J:[^ ]+]] =
-// CHECK: %[[IN:.+]] = memref.load %arg0[%[[I]], %[[J]]]
-// CHECK: %[[NEXT:.+]] = arith.addf %[[IN]], %{{.+}} : f32
-// CHECK: scf.yield %[[NEXT]] : f32
-// CHECK: memref.store %[[INNER]], %arg1[%[[I]]]
+// CHECK: vir.set_vl
+// CHECK: vir.load %arg0[%[[I]]
+// CHECK: vir.reduce
+// CHECK: memref.store
+// CHECK-VEC-REDUCE-LABEL: func.func @reduce_2d_to_1d_addf
+// CHECK-VEC-REDUCE: vector.reduction <add>
+// CHECK-VEC-REDUCE: arith.addf
 
 // -----
 // CASE: linalg-reduce-to-vir-2d-to-1d-maxnumf-f32.mlir
@@ -76,11 +81,13 @@ func.func @reduce_2d_to_1d_maxnumf(%arg0: memref<4x8xf32>, %arg1: memref<4xf32>)
 // CHECK-NOT: linalg.reduce
 // CHECK: scf.for %[[I:[^ ]+]] =
 // CHECK: %[[INIT:.+]] = memref.load %arg1[%[[I]]]
-// CHECK: %[[INNER:.+]] = scf.for %[[J:[^ ]+]] =
-// CHECK: %[[IN:.+]] = memref.load %arg0[%[[I]], %[[J]]]
-// CHECK: %[[NEXT:.+]] = arith.maxnumf %[[IN]], %{{.+}} : f32
-// CHECK: scf.yield %[[NEXT]] : f32
-// CHECK: memref.store %[[INNER]], %arg1[%[[I]]]
+// CHECK: vir.set_vl
+// CHECK: vir.load %arg0[%[[I]]
+// CHECK: vir.reduce
+// CHECK: memref.store
+// CHECK-VEC-REDUCE-LABEL: func.func @reduce_2d_to_1d_maxnumf
+// CHECK-VEC-REDUCE: vector.reduction <maxnumf>
+// CHECK-VEC-REDUCE: arith.maxnumf
 
 // -----
 // CASE: linalg-index-generic-to-scf-fallback.mlir
