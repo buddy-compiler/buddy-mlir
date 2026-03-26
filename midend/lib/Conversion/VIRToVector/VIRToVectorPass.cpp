@@ -973,6 +973,21 @@ private:
             auto newOp = builder.create<math::ExpOp>(loc, outTy, in);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
+          .Case<math::SqrtOp>([&](math::SqrtOp op) {
+            Value in = findValue(op.getOperand());
+            Type outTy = op.getType();
+            if (auto dyn = dyn_cast<vir::DynamicVectorType>(outTy)) {
+              Type elem = dyn.getElementType();
+              if (auto vecTy = dyn_cast<VectorType>(in.getType())) {
+                outTy = VectorType::get(vecTy.getShape(), elem,
+                                        vecTy.getScalableDims());
+              } else {
+                outTy = elem;
+              }
+            }
+            auto newOp = builder.create<math::SqrtOp>(loc, outTy, in);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
           .Default([&](Operation *op) {
             emitWarning(loc, "Unsupported operation during lowering: " +
                                  op->getName().getStringRef());

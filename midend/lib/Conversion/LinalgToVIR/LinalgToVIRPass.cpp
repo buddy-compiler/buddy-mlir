@@ -660,8 +660,8 @@ static bool isSupportedGenericBodyOp(Operation &inner) {
              arith::AndIOp, arith::OrIOp, arith::XOrIOp, arith::ShLIOp,
              arith::ShRUIOp, arith::ShRSIOp, arith::MaximumFOp,
              arith::MinimumFOp, arith::MaxSIOp, arith::MinSIOp,
-             arith::MaxUIOp, arith::MinUIOp, arith::MaxNumFOp,
-             math::ExpOp>(inner);
+             arith::MaxUIOp, arith::MinUIOp, arith::MaxNumFOp, math::ExpOp,
+             math::SqrtOp>(inner);
 }
 
 static buddy::vir::SetVLOp createSetVLRegion(PatternRewriter &rewriter,
