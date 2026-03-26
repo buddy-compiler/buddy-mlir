@@ -41,6 +41,48 @@ func.func @reduce_maxnumf(%arg0: memref<16xf32>, %arg1: memref<f32>) {
 // CHECK: memref.store %[[FOR]], %arg1[]
 
 // -----
+// CASE: linalg-reduce-to-vir-2d-to-1d-addf-f32.mlir
+func.func @reduce_2d_to_1d_addf(%arg0: memref<4x8xf32>, %arg1: memref<4xf32>) {
+  linalg.reduce ins(%arg0 : memref<4x8xf32>) outs(%arg1 : memref<4xf32>) dimensions = [1]
+    (%in: f32, %init: f32) {
+      %sum = arith.addf %in, %init : f32
+      linalg.yield %sum : f32
+    }
+  return
+}
+
+// CHECK-LABEL: func.func @reduce_2d_to_1d_addf
+// CHECK-NOT: linalg.reduce
+// CHECK: scf.for %[[I:[^ ]+]] =
+// CHECK: %[[INIT:.+]] = memref.load %arg1[%[[I]]]
+// CHECK: %[[INNER:.+]] = scf.for %[[J:[^ ]+]] =
+// CHECK: %[[IN:.+]] = memref.load %arg0[%[[I]], %[[J]]]
+// CHECK: %[[NEXT:.+]] = arith.addf %[[IN]], %{{.+}} : f32
+// CHECK: scf.yield %[[NEXT]] : f32
+// CHECK: memref.store %[[INNER]], %arg1[%[[I]]]
+
+// -----
+// CASE: linalg-reduce-to-vir-2d-to-1d-maxnumf-f32.mlir
+func.func @reduce_2d_to_1d_maxnumf(%arg0: memref<4x8xf32>, %arg1: memref<4xf32>) {
+  linalg.reduce ins(%arg0 : memref<4x8xf32>) outs(%arg1 : memref<4xf32>) dimensions = [1]
+    (%in: f32, %init: f32) {
+      %max = arith.maxnumf %in, %init : f32
+      linalg.yield %max : f32
+    }
+  return
+}
+
+// CHECK-LABEL: func.func @reduce_2d_to_1d_maxnumf
+// CHECK-NOT: linalg.reduce
+// CHECK: scf.for %[[I:[^ ]+]] =
+// CHECK: %[[INIT:.+]] = memref.load %arg1[%[[I]]]
+// CHECK: %[[INNER:.+]] = scf.for %[[J:[^ ]+]] =
+// CHECK: %[[IN:.+]] = memref.load %arg0[%[[I]], %[[J]]]
+// CHECK: %[[NEXT:.+]] = arith.maxnumf %[[IN]], %{{.+}} : f32
+// CHECK: scf.yield %[[NEXT]] : f32
+// CHECK: memref.store %[[INNER]], %arg1[%[[I]]]
+
+// -----
 // CASE: linalg-index-generic-to-scf-fallback.mlir
 func.func @index_init(%out: memref<16xi32>) {
   linalg.generic {indexing_maps = [affine_map<(i)->(i)>], iterator_types = ["parallel"]}
