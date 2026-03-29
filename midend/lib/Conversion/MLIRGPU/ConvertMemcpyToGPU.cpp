@@ -80,6 +80,42 @@ MemRefType stripMemRefLayout(const MemRefType &base) {
                          base.getMemorySpace());
 }
 
+// Returns true if `v` is (directly or through view ops) an argument to a
+// gpu::LaunchFuncOp.
+static bool hasGPULaunchUser(Value v) {
+  for (auto *user : v.getUsers()) {
+    if (isa<gpu::LaunchFuncOp>(user))
+      return true;
+    if (isa<memref::ExpandShapeOp, memref::CollapseShapeOp, memref::SubViewOp,
+            memref::CastOp, memref::ReinterpretCastOp>(user)) {
+      for (auto res : user->getResults())
+        if (isa<MemRefType>(res.getType()) && hasGPULaunchUser(res))
+          return true;
+    }
+  }
+  return false;
+}
+
+// Returns true if `v` has any user that is NOT a GPU operation, memory
+// deallocation, memcpy (which the pass will convert), or a pure view op.
+// Such users are host-side (CPU) compute operations.
+static bool hasCPUComputeUser(Value v) {
+  for (auto *user : v.getUsers()) {
+    if (isa<gpu::LaunchFuncOp, gpu::MemcpyOp, memref::DeallocOp,
+            memref::CopyOp, func::CallOp>(user))
+      continue;
+    if (isa<memref::ExpandShapeOp, memref::CollapseShapeOp, memref::SubViewOp,
+            memref::CastOp, memref::ReinterpretCastOp>(user)) {
+      for (auto res : user->getResults())
+        if (isa<MemRefType>(res.getType()) && hasCPUComputeUser(res))
+          return true;
+      continue;
+    }
+    return true;
+  }
+  return false;
+}
+
 void ConvertMemcpyToGPUPass::runOnOperation() {
   auto funcOp = getOperation();
 
@@ -106,6 +142,14 @@ void ConvertMemcpyToGPUPass::runOnOperation() {
       // Create a gpu.alloc op, then copy memory to it
       // TODO: Move this out of operation, make the copy process async
       auto memrefType = dyn_cast<MemRefType>(arg.getType());
+      if (!memrefType)
+        continue;
+      // Skip bookkeeping memrefs (e.g. from @dealloc_helper): they use
+      // dynamic shapes or index/i1 element types and must not go to GPU.
+      if (llvm::any_of(memrefType.getShape(), ShapedType::isDynamic) ||
+          memrefType.getElementType().isIndex() ||
+          memrefType.getElementType().isInteger(1))
+        continue;
 
       auto gpuAllocOp = builder.create<gpu::AllocOp>(
           builder.getUnknownLoc(), TypeRange({stripMemRefLayout(memrefType)}),
@@ -127,6 +171,10 @@ void ConvertMemcpyToGPUPass::runOnOperation() {
       auto memrefType = dyn_cast<MemRefType>(result.getType());
       auto memorySpace = memrefType.getMemorySpace();
 
+      // Skip index-typed memrefs (bookkeeping buffers, not compute data).
+      if (memrefType.getElementType().isIndex())
+        return WalkResult::advance();
+
       // Filter operations.
       if (memorySpace) {
         if (auto intMemorySpace = llvm::dyn_cast<IntegerAttr>(memorySpace)) {
@@ -142,25 +190,68 @@ void ConvertMemcpyToGPUPass::runOnOperation() {
           return WalkResult::advance();
       }
 
+      // Skip allocs with no GPU launch_func users at all: these are purely
+      // host-side buffers (e.g. reduction accumulators, scalar temporaries)
+      // and must remain on CPU.
+      if (!hasGPULaunchUser(result))
+        return WalkResult::advance();
+
       auto gpuAllocOp = builder.create<gpu::AllocOp>(
           allocOp->getLoc(), TypeRange({stripMemRefLayout(memrefType)}),
-          ValueRange({}));
+          allocOp.getDynamicSizes());
 
-      for (auto user : llvm::make_early_inc_range(result.getUsers())) {
-        if (auto deallocOp = dyn_cast<memref::DeallocOp>(user)) {
-          builder.setInsertionPointAfter(deallocOp);
-          builder.create<gpu::DeallocOp>(deallocOp->getLoc(), TypeRange(),
-                                         ValueRange(), gpuAllocOp.getResult(0));
-          deallocOp->erase();
-        } else {
-          for (auto &opOperand : user->getOpOperands()) {
-            if (opOperand.is(result)) {
-              opOperand.set(gpuAllocOp.getResult(0));
+      bool mixed = hasCPUComputeUser(result);
+
+      if (!mixed) {
+        // Pure GPU alloc: replace all uses with the GPU buffer.
+        for (auto user : llvm::make_early_inc_range(result.getUsers())) {
+          if (auto deallocOp = dyn_cast<memref::DeallocOp>(user)) {
+            builder.setInsertionPointAfter(deallocOp);
+            builder.create<gpu::DeallocOp>(deallocOp->getLoc(), TypeRange(),
+                                           ValueRange(),
+                                           gpuAllocOp.getResult(0));
+            deallocOp->erase();
+          } else {
+            for (auto &opOperand : user->getOpOperands()) {
+              if (opOperand.is(result))
+                opOperand.set(gpuAllocOp.getResult(0));
             }
           }
         }
+        allocOp->erase();
+      } else {
+        // Mixed CPU+GPU alloc: the buffer is used by both host code and GPU
+        // kernels (e.g. a CPU reduction reads a buffer that a GPU kernel wrote,
+        // or a GPU kernel reads a scalar that CPU code computed).
+        // Strategy: keep the CPU alloc for host users; for each gpu.launch_func
+        // that uses this alloc, insert cpu→gpu copy before the launch and
+        // gpu→cpu copy after the launch so both sides see consistent data.
+        unDeallocatedValue.push_back(gpuAllocOp.getResult(0));
+
+        SmallVector<gpu::LaunchFuncOp> launchUsers;
+        for (auto *user : result.getUsers())
+          if (auto launchOp = dyn_cast<gpu::LaunchFuncOp>(user))
+            launchUsers.push_back(launchOp);
+
+        for (auto launchOp : launchUsers) {
+          // Copy CPU→GPU before the kernel (handles CPU-write→GPU-read case).
+          builder.setInsertionPoint(launchOp);
+          builder.create<gpu::MemcpyOp>(launchOp->getLoc(), TypeRange(),
+                                        ValueRange(), gpuAllocOp.getResult(0),
+                                        result);
+          // Redirect the kernel argument to the GPU buffer.
+          for (auto &opOperand : launchOp->getOpOperands())
+            if (opOperand.is(result))
+              opOperand.set(gpuAllocOp.getResult(0));
+          // Copy GPU→CPU after the kernel (handles GPU-write→CPU-read case).
+          builder.setInsertionPointAfter(launchOp);
+          builder.create<gpu::MemcpyOp>(launchOp->getLoc(), TypeRange(),
+                                        ValueRange(), result,
+                                        gpuAllocOp.getResult(0));
+        }
+        // CPU users (memref.load/store, scf.for bodies, etc.) keep using the
+        // original CPU alloc — no changes needed for them.
       }
-      allocOp->erase();
     }
     // Replace all memory.copy operations with gpu.memcpy
     else if (auto copyOp = dyn_cast<memref::CopyOp>(nestedOp)) {
@@ -168,27 +259,52 @@ void ConvertMemcpyToGPUPass::runOnOperation() {
       auto dst = copyOp.getOperand(1);
       // Notice: GPU.memcpy has a different src dst order
       builder.setInsertionPointAfter(copyOp);
-      auto gpuMemcpyOp = builder.create<gpu::MemcpyOp>(
-          copyOp->getLoc(), TypeRange(), ValueRange(), dst, src);
-      src.replaceAllUsesWith(gpuMemcpyOp->getResult(1));
-      dst.replaceAllUsesWith(gpuMemcpyOp->getResult(0));
+      builder.create<gpu::MemcpyOp>(copyOp->getLoc(), TypeRange(), ValueRange(),
+                                    dst, src);
       copyOp->erase();
     }
-    // Allocate space on GPU and copy global memrefs to GPU, needs deallocation
+    // Allocate/copy globals to GPU only when they are consumed by GPU kernels.
+    // Keep pure CPU global uses untouched to avoid host load/store on GPU pointers.
     else if (auto getGlobalOp = dyn_cast<memref::GetGlobalOp>(nestedOp)) {
-      builder.setInsertionPointAfter(getGlobalOp);
       auto result = getGlobalOp->getResult(0);
       auto memrefType = dyn_cast<MemRefType>(result.getType());
+
+      if (!hasGPULaunchUser(result))
+        return WalkResult::advance();
+
+      builder.setInsertionPointAfter(getGlobalOp);
       auto gpuAllocOp = builder.create<gpu::AllocOp>(
           getGlobalOp->getLoc(), TypeRange({stripMemRefLayout(memrefType)}),
           ValueRange({}));
       unDeallocatedValue.push_back(gpuAllocOp->getResult(0));
 
-      auto src = result;
-      auto dst = gpuAllocOp->getResult(0);
-      auto gpuMemcpyOp = builder.create<gpu::MemcpyOp>(
-          gpuAllocOp->getLoc(), TypeRange(), ValueRange(), dst, src);
-      src.replaceAllUsesExcept(dst, gpuMemcpyOp);
+      bool mixed = hasCPUComputeUser(result);
+      if (!mixed) {
+        auto src = result;
+        auto dst = gpuAllocOp->getResult(0);
+        auto gpuMemcpyOp = builder.create<gpu::MemcpyOp>(
+            gpuAllocOp->getLoc(), TypeRange(), ValueRange(), dst, src);
+        src.replaceAllUsesExcept(dst, gpuMemcpyOp);
+      } else {
+        SmallVector<gpu::LaunchFuncOp> launchUsers;
+        for (auto *user : result.getUsers())
+          if (auto launchOp = dyn_cast<gpu::LaunchFuncOp>(user))
+            launchUsers.push_back(launchOp);
+
+        for (auto launchOp : launchUsers) {
+          builder.setInsertionPoint(launchOp);
+          builder.create<gpu::MemcpyOp>(launchOp->getLoc(), TypeRange(),
+                                        ValueRange(), gpuAllocOp.getResult(0),
+                                        result);
+          for (auto &opOperand : launchOp->getOpOperands())
+            if (opOperand.is(result))
+              opOperand.set(gpuAllocOp.getResult(0));
+          builder.setInsertionPointAfter(launchOp);
+          builder.create<gpu::MemcpyOp>(launchOp->getLoc(), TypeRange(),
+                                        ValueRange(), result,
+                                        gpuAllocOp.getResult(0));
+        }
+      }
     }
     // Copy data back to CPU, deallocate GPU, then return
     else if (auto returnOp = dyn_cast<func::ReturnOp>(nestedOp)) {
