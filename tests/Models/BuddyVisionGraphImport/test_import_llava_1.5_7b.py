@@ -1,5 +1,5 @@
 # RUN: %PYTHON %s
-# ===- test_import_clip_vit_base_patch32.py ----------------------------------------------
+# ===- test_import_llava_1.5_7b.py -----------------------------------------
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 #
 # ===---------------------------------------------------------------------------
 #
-# This is the graph coverage test for Clip-ViT-Base-Patch32 model.
+# This is the graph coverage test for LLaVA-1.5-7B model.
 #
 # ===---------------------------------------------------------------------------
 
@@ -33,19 +33,18 @@ from buddy.compiler.graph.transform import (
 )
 from buddy.compiler.ops import tosa
 
+# Then import torch and transformers
 import torch
 from transformers import AutoConfig, AutoModel
 from torch._inductor.decomposition import decompositions as inductor_decomp
 
 # Parse command-line arguments
-parser = argparse.ArgumentParser(
-    description="Clip-ViT-Base graph coverage test"
-)
+parser = argparse.ArgumentParser(description="LLaVA-1.5-7B graph coverage test")
 parser.add_argument(
     "--output-dir",
     type=str,
     default=None,
-    help="Directory to save output MLIR files (default: build/tests/Models/BuddyVisionGraphImport/clip-vit-base)",
+    help="Directory to save output MLIR files (default: build/tests/Models/BuddyVisionGraphImport/llava-1.5-7b)",
 )
 args = parser.parse_args()
 
@@ -55,14 +54,12 @@ if args.output_dir is None:
     build_dir = os.environ.get("BUDDY_MLIR_BUILD_DIR")
     if build_dir:
         output_dir = (
-            Path(build_dir)
-            / "tests/Models/BuddyVisionGraphImport/clip-vit-base"
+            Path(build_dir) / "tests/Models/BuddyVisionGraphImport/llava-1.5-7b"
         )
     else:
         repo_root = script_dir.parent.parent.parent
         output_dir = (
-            repo_root
-            / "build/tests/Models/BuddyVisionGraphImport/clip-vit-base"
+            repo_root / "build/tests/Models/BuddyVisionGraphImport/llava-1.5-7b"
         )
 else:
     output_dir = Path(args.output_dir)
@@ -70,36 +67,26 @@ else:
 output_dir.mkdir(parents=True, exist_ok=True)
 
 # Retrieve model path from environment variable
-model_path = os.environ.get("CLIP_VIT_BASE_MODEL_PATH")
+model_path = os.environ.get("LLAVA_1.5_7B_MODEL_PATH")
 if model_path is None:
-    model_path = "openai/clip-vit-base-patch32"
+    model_path = "llava-hf/llava-1.5-7b-hf"
 
-print(f"Loading Clip-ViT-Base model from: {model_path}")
+print(f"Loading LLaVA-1.5-7B model from: {model_path}")
 
+# Load config (full layers, only downloads config.json if not local)
 config = AutoConfig.from_pretrained(model_path)
+# Disable cache for graph import
+config.use_cache = False
 
 print("Model config loaded:")
-print(f"  Vision encoder: {config.vision_config.num_hidden_layers} layers")
-print(f"  Text encoder: {config.text_config.num_hidden_layers} layers")
+print(f"  Model type: {config.model_type}")
+print(f"  Text encoder: {config.text_config.model_type}")
+print(f"  Vision encoder: {config.vision_config.model_type}")
 
 # Create model from config (random weights)
 model = AutoModel.from_config(config).eval()
 
 print("Model created with random weights")
-
-# Prepare dummy inputs
-batch_size = 1
-seq_length = 16
-image_size = 224
-
-# Create dummy text input
-input_ids = torch.randint(0, 49408, (batch_size, seq_length), dtype=torch.int64)
-attention_mask = torch.ones((batch_size, seq_length), dtype=torch.int64)
-
-# Create dummy image input
-pixel_values = torch.randn(
-    batch_size, 3, image_size, image_size, dtype=torch.float32
-)
 
 # Initialize compiler
 dynamo_compiler = DynamoCompiler(
@@ -109,14 +96,14 @@ dynamo_compiler = DynamoCompiler(
 
 print("DynamoCompiler initialized")
 
-# Import model with both image and text inputs
+# Import model with image and text inputs (LLaVA is VLM model)
 with torch.no_grad():
+    # Text input
+    input_ids = torch.zeros((1, 32), dtype=torch.int64)
     print("Importing model graph...")
     graphs = dynamo_compiler.importer(
         model,
         input_ids=input_ids,
-        attention_mask=attention_mask,
-        pixel_values=pixel_values,
     )
 
 print(f"Graph import completed: {len(graphs)} graph(s) generated")
@@ -159,4 +146,4 @@ with open(forward_path, "w") as f:
     print(driver.construct_main_graph(True), file=f)
 print(f"  Saved forward MLIR to: {forward_path}")
 
-print("✓ Clip-ViT-Base graph construction test PASSED")
+print("✓ LLaVA-1.5-7B graph construction test PASSED")

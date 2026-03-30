@@ -22,7 +22,11 @@ These tests are currently intended to be run directly with Python.
 | Model | Test Script | Type |
 |-------|-------------|------|
 | MobileViT Small | `test_import_mobilevit_small.py` | Vision |
+| DINOv2 Base | `test_import_dinov2_base.py` | Vision |
 | CLIP ViT Base Patch32 | `test_import_clip_vit_base_patch32.py` | Vision-Language (Multimodal) |
+| SmolVLM-256M-Instruct | `test_import_smolvlm_256m.py` | Vision-Language (VLM) |
+| Qwen3-VL-2B-Instruct | `test_import_qwen3_vl_2b.py` | Vision-Language (VLM) |
+| LLaVA-1.5-7B | `test_import_llava_1.5_7b.py` | Vision-Language (VLM) |
 
 ## Prerequisites
 
@@ -47,8 +51,12 @@ You can also export a single model path directly without sourcing the helper
 script. For example:
 
 ```bash
-export CLIP_ViT_BASE_MODEL_PATH=/path-to-clip-vit-base-patch32
+export CLIP_VIT_BASE_MODEL_PATH=/path-to-clip-vit-base-patch32
 export MOBILEVIT_SMALL_MODEL_PATH=/path-to-mobilevit-small
+export DINOV2_BASE_MODEL_PATH=/path-to-dinov2-base
+export SMOLVLM_256M_MODEL_PATH=/path-to-SmolVLM-256M-Instruct
+export QWEN3_VL_2B_MODEL_PATH=/path-to-Qwen3-VL-2B-Instruct
+export LLAVA_1.5_7B_MODEL_PATH=/path-to-llava-1.5-7b-hf
 ```
 
 ## Run One Model Test
