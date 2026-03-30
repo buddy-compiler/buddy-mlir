@@ -26,3 +26,6 @@ target_link_libraries(buddy_runtime_core INTERFACE
   buddy_rax
 )
 target_compile_features(buddy_runtime_core INTERFACE cxx_std_17)
+
+# LLM runtime utilities (text generation, interactive REPL).
+add_subdirectory(llm)

@@ -42,6 +42,7 @@ target_compile_definitions(buddy_models_deepseekr1 PUBLIC
 # CMAKE_DL_LIBS      → -ldl for dlopen/dlsym/dlclose
 target_link_libraries(buddy_models_deepseekr1 PUBLIC
   buddy_runtime_core
+  buddy_runtime_llm
   ${CMAKE_DL_LIBS}
   LLVMSupport
 )

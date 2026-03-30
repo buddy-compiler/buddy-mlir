@@ -30,17 +30,14 @@
 
 #include "buddy/runtime/core/BufferPool.h"
 #include "buddy/runtime/core/ModelManifest.h"
+#include "buddy/runtime/llm/LLMSession.h"
 
 #include "buddy/Core/Container.h"
 #include "buddy/LLM/TextContainer.h"
 
 #include <cstdint>
-#include <functional>
 #include <memory>
 #include <string>
-
-// Bring buddy::Text into scope alongside the global MemRef.
-using buddy::Text;
 
 namespace buddy {
 namespace runtime {
@@ -66,13 +63,6 @@ namespace runtime {
 #define BUDDY_DSR1_PARAMS_SIZE 1777088064LL
 #endif
 
-/// Token sampler callback.
-/// Receives logits pointer + vocab size, returns selected token id.
-using TokenSampler = std::function<int(const float *, int)>;
-
-/// Default greedy (argmax) sampler.
-int greedySample(const float *logits, int vocabSize);
-
 //===----------------------------------------------------------------------===//
 // ModelSession
 //===----------------------------------------------------------------------===//
@@ -82,14 +72,14 @@ int greedySample(const float *logits, int vocabSize);
 /// Lifecycle:
 ///   1. Fill Config, set modelSoPath = "/path/to/deepseek_r1_model.so"
 ///   2. session = ModelSession::create(cfg)   — dlopen + symbol resolve
-///   3. session->prefill(weights, tokens)     — returns first token
-///   4. session->decode(weights, token)       — returns next token (loop)
+///   3. session->prefill(weights, tokens)     — populates logits
+///   4. session->decode(weights, token)       — populates next logits (loop)
 ///   5. ~ModelSession()                       — dlclose
 ///
 /// The session does NOT own model weights (arg0) — caller loads and passes
 /// them.
 ///
-class ModelSession {
+class ModelSession : public LLMSession {
 public:
   struct Config {
     /// Path to the runtime-loadable model shared library.
@@ -102,9 +92,6 @@ public:
     int hiddenSize = BUDDY_DSR1_HIDDEN_SIZE;
     int vocabSize = BUDDY_DSR1_VOCAB_SIZE;
     int kvLayers = BUDDY_DSR1_KV_LAYERS;
-
-    /// Custom sampler (nullptr → greedySample)
-    TokenSampler sampler;
   };
 
   /// Create a session: allocates KV cache, then dlopen + dlsym.
@@ -118,7 +105,7 @@ public:
   static std::unique_ptr<ModelSession>
   createFromRax(const std::string &raxPath, ModelManifest &resolvedManifest);
 
-  ~ModelSession();
+  ~ModelSession() override;
 
   // Non-copyable
   ModelSession(const ModelSession &) = delete;
@@ -127,31 +114,30 @@ public:
   /// Run prefill pass.
   /// @param weights  Flat model parameter buffer (Constant, caller-owned)
   /// @param tokens   Input token sequence
-  /// @return         First generated token id
-  int prefill(MemRef<float, 1> &weights, Text<size_t, 2> &tokens);
+  void prefill(MemRef<float, 1> &weights, Text<size_t, 2> &tokens) override;
 
   /// Run one decode step.
   /// @param weights  Model parameter buffer
   /// @param tokenId  Current input token
-  /// @return         Next token id
-  int decode(MemRef<float, 1> &weights, int tokenId);
+  void decode(MemRef<float, 1> &weights, int tokenId) override;
 
   /// Reset decode position (allows session reuse with a new prompt).
-  void resetPosition();
+  void resetPosition() override;
 
   /// Handle KV cache overflow: discard half of non-essential tokens and
   /// adjust RoPE on surviving key cache entries.
   /// @param keepTokenNum  Number of initial tokens to preserve.
   /// @param ropeTheta     RoPE theta (default 10000.0 for DeepSeek/Qwen).
   /// @return true if overflow was handled, false if no overflow.
-  bool handleKVCacheOverflow(int keepTokenNum, float ropeTheta = 10000.0f);
+  bool handleKVCacheOverflow(int keepTokenNum,
+                             float ropeTheta = 10000.0f) override;
 
   /// Current position (tokens processed so far).
-  int position() const { return position_; }
+  int position() const override { return position_; }
 
   /// Direct logits access for custom sampling.
-  const float *logitsData() const;
-  int vocabSize() const { return cfg_.vocabSize; }
+  const float *logitsData() const override;
+  int vocabSize() const override { return cfg_.vocabSize; }
 
   /// Path to the .so that was loaded by this session.
   std::string loadedSoPath() const;
