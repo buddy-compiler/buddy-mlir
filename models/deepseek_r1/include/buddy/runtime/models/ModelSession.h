@@ -139,6 +139,13 @@ public:
   /// Reset decode position (allows session reuse with a new prompt).
   void resetPosition();
 
+  /// Handle KV cache overflow: discard half of non-essential tokens and
+  /// adjust RoPE on surviving key cache entries.
+  /// @param keepTokenNum  Number of initial tokens to preserve.
+  /// @param ropeTheta     RoPE theta (default 10000.0 for DeepSeek/Qwen).
+  /// @return true if overflow was handled, false if no overflow.
+  bool handleKVCacheOverflow(int keepTokenNum, float ropeTheta = 10000.0f);
+
   /// Current position (tokens processed so far).
   int position() const { return position_; }
 

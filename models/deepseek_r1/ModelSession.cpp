@@ -25,6 +25,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "buddy/runtime/models/ModelSession.h"
+#include "buddy/LLM/KVCacheManager.h"
 
 #include <cstring>
 #include <dlfcn.h>
@@ -271,6 +272,36 @@ int ModelSession::decode(MemRef<float, 1> &weights, int tokenId) {
 //===----------------------------------------------------------------------===//
 
 void ModelSession::resetPosition() { position_ = 0; }
+
+bool ModelSession::handleKVCacheOverflow(int keepTokenNum, float ropeTheta) {
+  if (position_ < cfg_.maxTokenLen)
+    return false;
+
+  const int currentTokens = std::min(position_, cfg_.maxTokenLen);
+  keepTokenNum = std::clamp(keepTokenNum, 0, currentTokens - 1);
+  const int discardLen = std::max(1, (currentTokens - keepTokenNum) / 2);
+
+  // Extract raw float* from KV cache MemRefs.
+  float *rawPtrs[BUDDY_DSR1_KV_LAYERS];
+  for (int i = 0; i < cfg_.kvLayers; ++i)
+    rawPtrs[i] = impl_->abi.kv(i).getData();
+
+  // Step 1: Discard tokens (memmove + memset).
+  buddy::kvcache::discardKVCache(rawPtrs, cfg_.kvLayers, cfg_.headNum,
+                                 cfg_.maxTokenLen, cfg_.hiddenSize,
+                                 keepTokenNum, discardLen, currentTokens);
+
+  // Step 2: Adjust RoPE on surviving tail (now relocated to keepTokenNum).
+  auto inverseFreqs =
+      buddy::kvcache::buildInverseRopeFreqs(ropeTheta, cfg_.hiddenSize);
+  buddy::kvcache::adjustKeyCacheRope(
+      rawPtrs, cfg_.kvLayers, cfg_.headNum, cfg_.maxTokenLen, cfg_.hiddenSize,
+      keepTokenNum, discardLen, currentTokens, inverseFreqs);
+
+  // Step 3: Update position.
+  position_ = std::clamp(currentTokens - discardLen, 0, cfg_.maxTokenLen);
+  return true;
+}
 
 const float *ModelSession::logitsData() const {
   return impl_->abi.logits().getData();

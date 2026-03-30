@@ -43,6 +43,7 @@ target_compile_definitions(buddy_models_deepseekr1 PUBLIC
 target_link_libraries(buddy_models_deepseekr1 PUBLIC
   buddy_runtime_core
   ${CMAKE_DL_LIBS}
+  LLVMSupport
 )
 
 # ══════════════════════════════════════════════════════════════════════════════

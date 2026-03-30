@@ -84,6 +84,8 @@ public:
     return filteredSample(work);
   }
 
+  const SamplerConfig &config() const { return config_; }
+
 private:
   SamplerConfig config_;
   std::mt19937 rng_;
