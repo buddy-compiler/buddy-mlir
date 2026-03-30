@@ -20,8 +20,8 @@
 #include <buddy/Core/Container.h>
 #include <buddy/LLM/ChatTemplate.h>
 #include <buddy/LLM/ConversationManager.h>
-#include <buddy/LLM/Sampler.h>
 #include <buddy/LLM/TextContainer.h>
+#include <buddy/runtime/llm/Sampler.h>
 #include <chrono>
 #include <cmath>
 #include <csignal>

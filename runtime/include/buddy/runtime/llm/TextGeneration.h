@@ -25,9 +25,9 @@
 #define BUDDY_RUNTIME_LLM_TEXTGENERATION_H
 
 #include "buddy/Core/Container.h"
-#include "buddy/LLM/Sampler.h"
 #include "buddy/LLM/TextContainer.h"
 #include "buddy/runtime/llm/LLMSession.h"
+#include "buddy/runtime/llm/Sampler.h"
 
 #include <atomic>
 #include <functional>

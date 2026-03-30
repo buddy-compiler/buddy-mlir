@@ -23,8 +23,8 @@
 
 #include "buddy/Core/Container.h"
 #include "buddy/LLM/ConversationManager.h"
-#include "buddy/LLM/Sampler.h"
 #include "buddy/runtime/core/InferenceRunner.h"
+#include "buddy/runtime/llm/Sampler.h"
 #include "buddy/runtime/llm/TextGeneration.h"
 
 #include <string>

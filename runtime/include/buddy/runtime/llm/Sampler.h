@@ -22,8 +22,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef FRONTEND_INTERFACES_BUDDY_LLM_SAMPLER
-#define FRONTEND_INTERFACES_BUDDY_LLM_SAMPLER
+#ifndef BUDDY_RUNTIME_LLM_SAMPLER_H
+#define BUDDY_RUNTIME_LLM_SAMPLER_H
 
 #include <algorithm>
 #include <cassert>
@@ -200,4 +200,4 @@ private:
 
 } // namespace buddy
 
-#endif // FRONTEND_INTERFACES_BUDDY_LLM_SAMPLER
+#endif // BUDDY_RUNTIME_LLM_SAMPLER_H

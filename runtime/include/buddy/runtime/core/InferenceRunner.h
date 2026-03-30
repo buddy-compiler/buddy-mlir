@@ -34,7 +34,7 @@
 #include <string>
 #include <vector>
 
-#include "buddy/LLM/Sampler.h"
+#include "buddy/runtime/llm/Sampler.h"
 
 namespace buddy {
 namespace runtime {

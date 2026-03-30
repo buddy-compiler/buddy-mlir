@@ -26,8 +26,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef FRONTEND_INTERFACES_BUDDY_LLM_KVCACHEMANAGER
-#define FRONTEND_INTERFACES_BUDDY_LLM_KVCACHEMANAGER
+#ifndef BUDDY_RUNTIME_LLM_KVCACHEMANAGER_H
+#define BUDDY_RUNTIME_LLM_KVCACHEMANAGER_H
 
 #include <algorithm>
 #include <cmath>
@@ -196,4 +196,4 @@ inline void adjustKeyCacheRope(float *kvBuffers[], int numLayers, int headNum,
 } // namespace kvcache
 } // namespace buddy
 
-#endif // FRONTEND_INTERFACES_BUDDY_LLM_KVCACHEMANAGER
+#endif // BUDDY_RUNTIME_LLM_KVCACHEMANAGER_H

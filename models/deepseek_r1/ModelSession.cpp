@@ -25,7 +25,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "buddy/runtime/models/ModelSession.h"
-#include "buddy/LLM/KVCacheManager.h"
+#include "buddy/runtime/llm/KVCacheManager.h"
 
 #include <cstring>
 #include <dlfcn.h>
