@@ -32,6 +32,9 @@
 
 #include <memory>
 #include <string>
+#include <vector>
+
+#include "buddy/runtime/llm/Sampler.h"
 
 namespace buddy {
 namespace runtime {
@@ -48,8 +51,23 @@ struct RunConfig {
 
   std::string prompt;
   /// Upper bound on total sequence length (prompt + generated), in tokens.
-  /// buddy-cli default (see BUDDY_DSR1_DEFAULT_MAX_NEW_TOKENS).
-  int maxNewTokens = 1024;
+  /// 0 = no limit (generate until stop token or interrupt).
+  int maxNewTokens = 4096;
+
+  // ── Sampling configuration ──
+  buddy::SamplerConfig samplerConfig;
+
+  // ── Chat template ──
+  /// Path to chat template JSON config file (empty = disabled).
+  std::string chatTemplatePath;
+
+  // ── Output control ──
+  /// Suppress performance statistics output.
+  bool suppressStats = false;
+
+  // ── Interactive mode ──
+  /// Enable REPL interactive mode for multi-turn conversation.
+  bool interactive = false;
 };
 
 /// Abstract base class for model inference runners.

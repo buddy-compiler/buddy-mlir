@@ -18,7 +18,10 @@
 #include <array>
 #include <atomic>
 #include <buddy/Core/Container.h>
+#include <buddy/LLM/ChatTemplate.h>
+#include <buddy/LLM/ConversationManager.h>
 #include <buddy/LLM/TextContainer.h>
+#include <buddy/runtime/llm/Sampler.h>
 #include <chrono>
 #include <cmath>
 #include <csignal>
@@ -27,6 +30,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <memory>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -223,23 +227,37 @@ static llvm::cl::opt<unsigned>
                                 "(including the first decoded token)"),
                  llvm::cl::init(1024));
 
-static llvm::cl::opt<double> TemperatureOpt(
-    "temperature",
-    llvm::cl::desc(
-        "Sampling temperature (currently only greedy decoding is supported)"),
-    llvm::cl::init(0.0));
+static llvm::cl::opt<double>
+    TemperatureOpt("temperature",
+                   llvm::cl::desc("Sampling temperature (0.0 = greedy)"),
+                   llvm::cl::init(0.0));
 
 static llvm::cl::opt<int>
-    TopKOpt("top-k",
-            llvm::cl::desc(
-                "Top-k sampling (currently only greedy decoding is supported)"),
-            llvm::cl::init(1));
+    TopKOpt("top-k", llvm::cl::desc("Top-K candidates (0 = disabled)"),
+            llvm::cl::init(0));
 
 static llvm::cl::opt<double>
     TopPOpt("top-p",
-            llvm::cl::desc(
-                "Top-p sampling (currently only greedy decoding is supported)"),
+            llvm::cl::desc("Nucleus sampling threshold (1.0 = disabled)"),
             llvm::cl::init(1.0));
+
+static llvm::cl::opt<double>
+    MinPOpt("min-p", llvm::cl::desc("Min-P threshold (0.0 = disabled)"),
+            llvm::cl::init(0.0));
+
+static llvm::cl::opt<double>
+    RepeatPenaltyOpt("repeat-penalty",
+                     llvm::cl::desc("Repetition penalty (1.0 = disabled)"),
+                     llvm::cl::init(1.0));
+
+static llvm::cl::opt<int>
+    RepeatLastNOpt("repeat-last-n",
+                   llvm::cl::desc("Repeat penalty window size"),
+                   llvm::cl::init(64));
+
+static llvm::cl::opt<unsigned long long>
+    SeedOpt("seed", llvm::cl::desc("Random seed for sampling (0 = random)"),
+            llvm::cl::init(0));
 
 static llvm::cl::opt<long long>
     EosIdOpt("eos-id", llvm::cl::desc("ID of the end-of-sequence token"),
@@ -263,9 +281,10 @@ static llvm::cl::opt<float>
                                 "DeepSeek/Qwen, 1000000.0 for long context)"),
                  llvm::cl::init(10000.0f));
 
-int findMaxIndex(const float *start, const float *end) {
-  return std::distance(start, std::max_element(start, end));
-}
+static llvm::cl::opt<std::string>
+    ChatTemplateOpt("chat-template",
+                    llvm::cl::desc("Path to chat template JSON config"),
+                    llvm::cl::value_desc("path"), llvm::cl::init(""));
 
 /// Copies KV cache from prefill to decode container.
 void copyKVByCachePositionBlock(const MemRefContainer &prefill,
@@ -472,11 +491,16 @@ RopeFreqArray buildInverseRopeFreqs(float theta) {
 GenerationResult runGeneration(const std::string &prompt,
                                MemRef<float, 1> &paramsContainer,
                                const std::string &vocabPath, int maxNewTokens,
-                               long long eosTokenId,
-                               std::ostream &tokenStream) {
+                               const std::vector<long long> &stopTokenIds,
+                               std::ostream &tokenStream, Sampler &sampler) {
   GenerationResult stats;
   const RopeFreqArray ropeInverseFreqs =
       buildInverseRopeFreqs(RopeThetaOpt.getValue());
+
+  auto isStopToken = [&](int tokenId) {
+    return std::find(stopTokenIds.begin(), stopTokenIds.end(), tokenId) !=
+           stopTokenIds.end();
+  };
 
   Text<size_t, 2> outputContainer;
   Text<size_t, 2> inputContainerPrefill(prompt);
@@ -587,6 +611,7 @@ GenerationResult runGeneration(const std::string &prompt,
   }
 
   std::string streamed;
+  std::vector<int> recentTokens;
 
   MemRef<float, 3> logitsDecode({1, 1, MaxVocabSize});
   MemRefContainer decodeResult(
@@ -601,8 +626,8 @@ GenerationResult runGeneration(const std::string &prompt,
       static_cast<int>(inputContainerPrefill.getTokenCnt()) - 1;
   const float *startPtr =
       prefillPtr->logits.getData() + tokenIndex * MaxVocabSize;
-  const float *endPtr = startPtr + MaxVocabSize;
-  int maxIndex = findMaxIndex(startPtr, endPtr);
+  int maxIndex = sampler.sample(startPtr, MaxVocabSize, recentTokens);
+  recentTokens.push_back(maxIndex);
 
   // Copy KV cache from prefill to decode.
   getInfoStream() << "[Debug] Copying KV cache...\n";
@@ -612,7 +637,7 @@ GenerationResult runGeneration(const std::string &prompt,
 
   cachePosition.getData()[0] = inputContainerPrefill.getTokenCnt();
   inputContainerDecode.getData()[0] = static_cast<long long>(maxIndex);
-  if (maxIndex == eosTokenId) {
+  if (isStopToken(maxIndex)) {
     tokenStream << std::endl;
     stats.totalSeconds = prefillSeconds;
     stats.finalText = streamed;
@@ -701,10 +726,10 @@ GenerationResult runGeneration(const std::string &prompt,
     ++decodeTokens;
 
     const float *decodeStartPtr = decodePtr->logits.getData();
-    const float *decodeEndPtr = decodeStartPtr + MaxVocabSize;
-    maxIndex = findMaxIndex(decodeStartPtr, decodeEndPtr);
+    maxIndex = sampler.sample(decodeStartPtr, MaxVocabSize, recentTokens);
+    recentTokens.push_back(maxIndex);
 
-    if (maxIndex == eosTokenId) {
+    if (isStopToken(maxIndex)) {
       break;
     }
 
@@ -745,31 +770,55 @@ void printStats(const GenerationResult &result) {
 void runInteractiveSession(const std::string &systemPrompt,
                            MemRef<float, 1> &paramsContainer,
                            const std::string &vocabPath, int maxNewTokens,
-                           long long eosTokenId, bool suppressStats) {
+                           const std::vector<long long> &stopTokenIds,
+                           bool suppressStats, Sampler &sampler,
+                           ConversationManager *conv) {
+  const bool hasConv = (conv != nullptr);
   llvm::errs() << "Entering interactive mode.\n"
                << "  - Type your prompt and press Enter to submit\n"
                << "  - End a line with '\\' to continue to the next line\n"
                << "  - Type :paste to enter paste mode (for long text)\n"
-               << "  - Type :clear to discard the buffer\n"
-               << "  - Type :exit or :quit to end the session\n";
+               << "  - Type :clear to discard the "
+               << (hasConv ? "conversation history" : "buffer") << "\n";
+  if (hasConv) {
+    llvm::errs() << "  - Type /regen to regenerate the last response\n"
+                 << "  - Type /history to show conversation history\n"
+                 << "  - Type /system <text> to set system prompt\n"
+                 << "  - Type /read <file> to insert file content\n";
+  }
+  llvm::errs() << "  - Type :exit or :quit to end the session\n";
+
   std::string userInput;
   std::string bufferedPrompt;
   bool pasteMode = false;
+
+  auto runAndRecord = [&](const std::string &userText) {
+    std::string finalPrompt;
+    if (hasConv) {
+      conv->addMessage("user", userText);
+      finalPrompt = conv->buildPromptWithLimit(MaxTokenLength);
+    } else {
+      finalPrompt = userText;
+      if (!systemPrompt.empty()) {
+        finalPrompt = systemPrompt + "\n\n" + finalPrompt;
+      }
+    }
+    GenerationResult result =
+        runGeneration(finalPrompt, paramsContainer, vocabPath, maxNewTokens,
+                      stopTokenIds, std::cout, sampler);
+    if (hasConv) {
+      conv->addMessage("assistant", result.finalText);
+    }
+    if (!suppressStats) {
+      printStats(result);
+    }
+  };
 
   auto submitBufferedPrompt = [&]() {
     if (bufferedPrompt.empty()) {
       return;
     }
-    std::string finalPrompt = bufferedPrompt;
-    if (!systemPrompt.empty()) {
-      finalPrompt = systemPrompt + "\n\n" + finalPrompt;
-    }
-    GenerationResult result =
-        runGeneration(finalPrompt, paramsContainer, vocabPath, maxNewTokens,
-                      eosTokenId, std::cout);
-    if (!suppressStats) {
-      printStats(result);
-    }
+    runAndRecord(bufferedPrompt);
     bufferedPrompt.clear();
   };
 
@@ -810,14 +859,19 @@ void runInteractiveSession(const std::string &systemPrompt,
       continue;
     }
 
-    // Normal Mode Logic
+    // Command handling
     if (userInput == ":exit" || userInput == ":quit") {
       llvm::errs() << "Leaving interactive mode\n";
       break;
     }
     if (userInput == ":clear") {
       bufferedPrompt.clear();
-      llvm::errs() << "Prompt buffer cleared\n";
+      if (hasConv) {
+        conv->clearHistory();
+        llvm::errs() << "Conversation history cleared.\n";
+      } else {
+        llvm::errs() << "Prompt buffer cleared.\n";
+      }
       continue;
     }
     if (userInput == ":paste") {
@@ -827,8 +881,57 @@ void runInteractiveSession(const std::string &systemPrompt,
       continue;
     }
 
+    // Conversation-aware commands (only when chat template is loaded)
+    if (hasConv && userInput == "/regen") {
+      // Remove the last assistant response, then re-run from the last user msg.
+      if (!conv->removeLastAssistantMessage()) {
+        llvm::errs() << "No assistant message to regenerate.\n";
+        continue;
+      }
+      // The last message should now be the user message that triggered it.
+      if (!conv->messages().empty() && conv->messages().back().role == "user") {
+        std::string lastUserMsg = conv->messages().back().content;
+        conv->removeLastMessage(); // Remove user msg; runAndRecord re-adds it.
+        runAndRecord(lastUserMsg);
+      } else {
+        llvm::errs() << "No user message to regenerate from.\n";
+      }
+      continue;
+    }
+    if (hasConv && userInput == "/history") {
+      const auto &msgs = conv->messages();
+      if (msgs.empty()) {
+        llvm::errs() << "(empty)\n";
+      }
+      for (size_t i = 0; i < msgs.size(); ++i) {
+        llvm::errs() << "[" << msgs[i].role << "] ";
+        if (msgs[i].content.size() > 100) {
+          llvm::errs() << msgs[i].content.substr(0, 100) << "...\n";
+        } else {
+          llvm::errs() << msgs[i].content << "\n";
+        }
+      }
+      continue;
+    }
+    if (hasConv && userInput.substr(0, 8) == "/system ") {
+      conv->setSystemPrompt(userInput.substr(8));
+      llvm::errs() << "System prompt updated.\n";
+      continue;
+    }
+    if (hasConv && userInput.substr(0, 6) == "/read ") {
+      std::string path = userInput.substr(6);
+      try {
+        std::string content = readPromptFromFile(path);
+        llvm::errs() << "Read " << content.size() << " bytes from " << path
+                     << "\n";
+        runAndRecord(content);
+      } catch (const std::exception &ex) {
+        llvm::errs() << ex.what() << "\n";
+      }
+      continue;
+    }
+
     if (userInput.empty()) {
-      // If buffer is not empty (e.g. previous line ended with '\'), submit it.
       if (!bufferedPrompt.empty()) {
         submitBufferedPrompt();
       }
@@ -837,7 +940,7 @@ void runInteractiveSession(const std::string &systemPrompt,
 
     // Check for continuation character '\'
     if (userInput.back() == '\\') {
-      userInput.pop_back(); // Remove the backslash
+      userInput.pop_back();
       if (!bufferedPrompt.empty())
         bufferedPrompt.push_back('\n');
       bufferedPrompt += userInput;
@@ -909,13 +1012,18 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  if (TemperatureOpt != 0.0 || TopKOpt != 1 || TopPOpt != 1.0) {
-    llvm::errs() << "Only greedy decoding is implemented; "
-                    "temperature/top-k/top-p arguments are ignored for now\n";
-  }
-
   const unsigned maxNewTokens =
       std::min(MaxTokensOpt.getValue(), static_cast<unsigned>(MaxTokenLength));
+
+  SamplerConfig samplerCfg;
+  samplerCfg.temperature = static_cast<float>(TemperatureOpt.getValue());
+  samplerCfg.topK = TopKOpt.getValue();
+  samplerCfg.topP = static_cast<float>(TopPOpt.getValue());
+  samplerCfg.minP = static_cast<float>(MinPOpt.getValue());
+  samplerCfg.repeatPenalty = static_cast<float>(RepeatPenaltyOpt.getValue());
+  samplerCfg.repeatLastN = RepeatLastNOpt.getValue();
+  samplerCfg.seed = SeedOpt.getValue();
+  Sampler sampler(samplerCfg);
 
   MemRef<float, 1> paramsContainer({ParamsSize});
   try {
@@ -926,14 +1034,48 @@ int main(int argc, char **argv) {
   }
 
   try {
+    // Build stop token list: always include --eos-id, plus template stop
+    // tokens.
+    std::vector<long long> stopTokenIds = {EosIdOpt.getValue()};
+
     if (InteractiveOpt) {
+      // Load chat template if provided; enables multi-turn conversation.
+      std::unique_ptr<ConversationManager> conv;
+      if (!ChatTemplateOpt.empty()) {
+        ChatTemplate tmpl = ChatTemplate::fromFile(ChatTemplateOpt);
+        for (int id : tmpl.stopTokenIds()) {
+          if (std::find(stopTokenIds.begin(), stopTokenIds.end(), id) ==
+              stopTokenIds.end()) {
+            stopTokenIds.push_back(static_cast<long long>(id));
+          }
+        }
+        conv = std::make_unique<ConversationManager>(std::move(tmpl));
+        if (!prompt.empty()) {
+          conv->setSystemPrompt(prompt);
+        }
+        llvm::errs() << "Chat template loaded. Multi-turn conversation "
+                        "enabled.\n";
+      }
       runInteractiveSession(prompt, paramsContainer, vocabPath,
-                            static_cast<int>(maxNewTokens), EosIdOpt,
-                            SuppressStatsOpt);
+                            static_cast<int>(maxNewTokens), stopTokenIds,
+                            SuppressStatsOpt, sampler, conv.get());
     } else {
-      GenerationResult result =
-          runGeneration(prompt, paramsContainer, vocabPath,
-                        static_cast<int>(maxNewTokens), EosIdOpt, std::cout);
+      // In single-shot mode, apply chat template if provided.
+      std::string finalPrompt = prompt;
+      if (!ChatTemplateOpt.empty()) {
+        ChatTemplate tmpl = ChatTemplate::fromFile(ChatTemplateOpt);
+        for (int id : tmpl.stopTokenIds()) {
+          if (std::find(stopTokenIds.begin(), stopTokenIds.end(), id) ==
+              stopTokenIds.end()) {
+            stopTokenIds.push_back(static_cast<long long>(id));
+          }
+        }
+        std::vector<Message> msgs = {{"user", prompt}};
+        finalPrompt = tmpl.apply(msgs);
+      }
+      GenerationResult result = runGeneration(
+          finalPrompt, paramsContainer, vocabPath,
+          static_cast<int>(maxNewTokens), stopTokenIds, std::cout, sampler);
       if (!SuppressStatsOpt) {
         printStats(result);
       }

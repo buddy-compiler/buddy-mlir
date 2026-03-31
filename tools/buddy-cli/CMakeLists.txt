@@ -7,6 +7,7 @@ target_compile_features(buddy-cli PRIVATE cxx_std_17)
 target_link_libraries(buddy-cli PRIVATE
   buddy_models_deepseekr1
   mlir_c_runner_utils
+  LLVMSupport
 )
 target_link_directories(buddy-cli PRIVATE ${LLVM_LIBRARY_DIR})
 

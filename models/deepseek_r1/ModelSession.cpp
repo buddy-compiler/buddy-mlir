@@ -25,6 +25,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "buddy/runtime/models/ModelSession.h"
+#include "buddy/runtime/llm/KVCacheManager.h"
 
 #include <cstring>
 #include <dlfcn.h>
@@ -84,18 +85,6 @@ using DecodeFn = void (*)(KVCacheABI *, MemRef<float, 1> *,
                           KV4);
 
 //===----------------------------------------------------------------------===//
-// Token sampler
-//===----------------------------------------------------------------------===//
-
-int greedySample(const float *logits, int vocabSize) {
-  int best = 0;
-  for (int i = 1; i < vocabSize; ++i)
-    if (logits[i] > logits[best])
-      best = i;
-  return best;
-}
-
-//===----------------------------------------------------------------------===//
 // ModelSession::Impl
 //===----------------------------------------------------------------------===//
 
@@ -150,8 +139,6 @@ struct ModelSession::Impl {
 //===----------------------------------------------------------------------===//
 
 ModelSession::ModelSession(const Config &cfg) : cfg_(cfg) {
-  if (!cfg_.sampler)
-    cfg_.sampler = greedySample;
   if (cfg_.modelSoPath.empty())
     throw std::runtime_error(
         "[BuddyRuntime] Config.modelSoPath must not be empty.\n"
@@ -226,24 +213,18 @@ void ModelSession::allocateKVCache() {
 // Prefill
 //===----------------------------------------------------------------------===//
 
-int ModelSession::prefill(MemRef<float, 1> &weights, Text<size_t, 2> &tokens) {
+void ModelSession::prefill(MemRef<float, 1> &weights, Text<size_t, 2> &tokens) {
   impl_->prefillFn(&impl_->abi, &weights, &tokens);
 
-  // Sample from the last token's logits row.
   int tokenCount = (int)tokens.getTokenCnt();
-  const float *row = impl_->abi.logits().getData() +
-                     (int64_t)(tokenCount - 1) * cfg_.vocabSize;
-  int tok = cfg_.sampler(row, cfg_.vocabSize);
-
   position_ = tokenCount;
-  return tok;
 }
 
 //===----------------------------------------------------------------------===//
 // Decode
 //===----------------------------------------------------------------------===//
 
-int ModelSession::decode(MemRef<float, 1> &weights, int tokenId) {
+void ModelSession::decode(MemRef<float, 1> &weights, int tokenId) {
   decodeTokenInput_->getData()[0] = (long long)tokenId;
   cachePosition_->getData()[0] = (long long)position_;
 
@@ -261,9 +242,6 @@ int ModelSession::decode(MemRef<float, 1> &weights, int tokenId) {
       &a.kv(51), &a.kv(52), &a.kv(53), &a.kv(54), &a.kv(55));
 
   position_ += 1;
-
-  int tok = cfg_.sampler(impl_->abi.logits().getData(), cfg_.vocabSize);
-  return tok;
 }
 
 //===----------------------------------------------------------------------===//
@@ -271,6 +249,36 @@ int ModelSession::decode(MemRef<float, 1> &weights, int tokenId) {
 //===----------------------------------------------------------------------===//
 
 void ModelSession::resetPosition() { position_ = 0; }
+
+bool ModelSession::handleKVCacheOverflow(int keepTokenNum, float ropeTheta) {
+  if (position_ < cfg_.maxTokenLen)
+    return false;
+
+  const int currentTokens = std::min(position_, cfg_.maxTokenLen);
+  keepTokenNum = std::clamp(keepTokenNum, 0, currentTokens - 1);
+  const int discardLen = std::max(1, (currentTokens - keepTokenNum) / 2);
+
+  // Extract raw float* from KV cache MemRefs.
+  float *rawPtrs[BUDDY_DSR1_KV_LAYERS];
+  for (int i = 0; i < cfg_.kvLayers; ++i)
+    rawPtrs[i] = impl_->abi.kv(i).getData();
+
+  // Step 1: Discard tokens (memmove + memset).
+  buddy::kvcache::discardKVCache(rawPtrs, cfg_.kvLayers, cfg_.headNum,
+                                 cfg_.maxTokenLen, cfg_.hiddenSize,
+                                 keepTokenNum, discardLen, currentTokens);
+
+  // Step 2: Adjust RoPE on surviving tail (now relocated to keepTokenNum).
+  auto inverseFreqs =
+      buddy::kvcache::buildInverseRopeFreqs(ropeTheta, cfg_.hiddenSize);
+  buddy::kvcache::adjustKeyCacheRope(
+      rawPtrs, cfg_.kvLayers, cfg_.headNum, cfg_.maxTokenLen, cfg_.hiddenSize,
+      keepTokenNum, discardLen, currentTokens, inverseFreqs);
+
+  // Step 3: Update position.
+  position_ = std::clamp(currentTokens - discardLen, 0, cfg_.maxTokenLen);
+  return true;
+}
 
 const float *ModelSession::logitsData() const {
   return impl_->abi.logits().getData();
