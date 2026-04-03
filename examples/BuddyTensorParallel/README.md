@@ -165,14 +165,12 @@ This generates multiple compressed packages under: `./examples/BuddyTensorParall
 
 - `buddy-deepseek-r1-rvv-package-rank0.tgz`
 - `buddy-deepseek-r1-rvv-package-rank1.tgz`
-- `buddy-deepseek-r1-rvv-package-rank2.tgz`
 
 ### 3. Copy packages to RVV hosts
 
 ```bash
 $ scp ./examples/BuddyTensorParallel/buddy-deepseek-r1-rvv-package-rank0.tgz user@rvv-host0:
 $ scp ./examples/BuddyTensorParallel/buddy-deepseek-r1-rvv-package-rank1.tgz user@rvv-host1:
-$ scp ./examples/BuddyTensorParallel/buddy-deepseek-r1-rvv-package-rank2.tgz user@rvv-host2:
 ```
 
  on **each** RVV host:
@@ -182,14 +180,10 @@ $ mkdir -p ~/buddy-deepseek-r1-dist
 $ tar xzf buddy-deepseek-r1-rvv-package-rank0.tgz --strip-components=1 -C ~/buddy-deepseek-r1-dist
 ```
 
-For rank1 and rank2 hosts, replace the archive name accordingly:
 
 ```
 $ mkdir -p ~/buddy-deepseek-r1-dist
 $ tar xzf buddy-deepseek-r1-rvv-package-rank1.tgz --strip-components=1 -C ~/buddy-deepseek-r1-dist
-
-$ kdir -p ~/buddy-deepseek-r1-dist
-$ tar xzf buddy-deepseek-r1-rvv-package-rank2.tgz --strip-components=1 -C ~/buddy-deepseek-r1-dist
 ```
 
 After extraction, all hosts should have the same runtime directory layout:
@@ -209,12 +203,11 @@ On the host that will launch rank 0, configure passwordless SSH access to the ot
 ```
 $ ssh-keygen -t rsa
 $ ssh-copy-id <user>@<target-ip-of-rvv-host1>
-$ ssh-copy-id <user>@<target-ip-of-rvv-host2>
 ```
 
 Verify that rank0 can SSH to the other hosts without a password prompt.
 
-The file content should be the IP addresses or hostnames of all participating RVV hosts, one per line.
+Create a hosts file on the rank0 machine.The file content should be the IP addresses or hostnames of all participating RVV hosts, one per line.
 
 For example:
 
@@ -224,7 +217,6 @@ $ cd ~/buddy-deepseek-r1-dist
 $ cat > hosts <<'EOF'
     target-ip-of-rvv-host0
     target-ip-of-rvv-host1
-    target-ip-of-rvv-host2
     EOF
 ```
 
@@ -238,7 +230,7 @@ $ export LD_LIBRARY_PATH="$(pwd)/mpich-install/lib:$(pwd):${LD_LIBRARY_PATH}"
 
 $ ./mpich-install/bin/mpiexec.hydra \
     -f hosts \
-    -n 3 \
+    -n 2 \
     -outfile-pattern "output-%r.txt" \
     ./buddy-deepseek-r1-distributed
 ```
@@ -247,9 +239,8 @@ This generates:
 
 - `output-0.txt`
 - `output-1.txt`
-- `output-2.txt`
 
-These files correspond to the outputs from rank 0, rank 1, and rank 2 respectively.
+These files correspond to the outputs from rank 0 and rank 1 respectively.
 
 The final inference result is written to `output-0.txt`.
 

@@ -290,30 +290,26 @@ add_custom_command(
   ${CMAKE_CURRENT_BINARY_DIR}/forward_decode1.mlir
   ${CMAKE_CURRENT_BINARY_DIR}/forward_decode2.mlir
   ${CMAKE_CURRENT_BINARY_DIR}/forward_decode3.mlir
-  ${CMAKE_CURRENT_BINARY_DIR}/forward_decode4.mlir
-  ${CMAKE_CURRENT_BINARY_DIR}/forward_decode6.mlir
-  ${CMAKE_CURRENT_BINARY_DIR}/forward_decode197.mlir
+  ${CMAKE_CURRENT_BINARY_DIR}/forward_decode5.mlir
+  ${CMAKE_CURRENT_BINARY_DIR}/forward_decode169.mlir
   ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode0.mlir
   ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode1.mlir
   ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode2.mlir
   ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode3.mlir
-  ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode4.mlir
-  ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode6.mlir
-  ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode197.mlir
+  ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode5.mlir
+  ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode169.mlir
   ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill0.mlir
   ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill1.mlir
   ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill2.mlir
   ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill3.mlir
-  ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill4.mlir
-  ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill6.mlir
-  ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill197.mlir
+  ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill5.mlir
+  ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill169.mlir
   ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill0.mlir
   ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill1.mlir
   ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill2.mlir
   ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill3.mlir
-  ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill4.mlir
-  ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill6.mlir
-  ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill197.mlir
+  ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill5.mlir
+  ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill169.mlir
   COMMAND ${Python3_EXECUTABLE}
   ${CMAKE_CURRENT_SOURCE_DIR}/import-deepseek-r1.py
   --output-dir ${CMAKE_CURRENT_BINARY_DIR}
@@ -691,7 +687,7 @@ endfunction()
 # ==============================================================================
 # Build libraries
 # ==============================================================================
-foreach(N 0 1 2 3 4 6 197)
+foreach(N 0 1 2 3 5 169)
   build_forward_prefill(${N})
   build_subgraph_prefill(${N})
   add_library(DSR1TP_prefill${N} STATIC
@@ -707,9 +703,9 @@ endforeach()
 
 set_target_properties(
   DSR1TP_prefill0 DSR1TP_prefill1 DSR1TP_prefill2
-  DSR1TP_prefill3 DSR1TP_prefill4 DSR1TP_prefill6 DSR1TP_prefill197
+  DSR1TP_prefill3 DSR1TP_prefill5 DSR1TP_prefill169
   DSR1TP_decode0 DSR1TP_decode1 DSR1TP_decode2
-  DSR1TP_decode3 DSR1TP_decode4 DSR1TP_decode6 DSR1TP_decode197
+  DSR1TP_decode3 DSR1TP_decode5 DSR1TP_decode169
   PROPERTIES
   LINKER_LANGUAGE C
 )
@@ -739,16 +735,14 @@ target_link_libraries(buddy-deepseek-r1-distributed PRIVATE
   DSR1TP_prefill1
   DSR1TP_prefill2
   DSR1TP_prefill3
-  DSR1TP_prefill4
-  DSR1TP_prefill6
-  DSR1TP_prefill197
+  DSR1TP_prefill5
+  DSR1TP_prefill169
   DSR1TP_decode0
   DSR1TP_decode1
   DSR1TP_decode2
   DSR1TP_decode3
-  DSR1TP_decode4
-  DSR1TP_decode6
-  DSR1TP_decode197
+  DSR1TP_decode5
+  DSR1TP_decode169
   "${MLIR_RUNNER_UTILS_LIB}"
   "${OPENMP_LIB}"
   mpich_cxx
@@ -766,55 +760,74 @@ set(DEEPSEEKR1_RUNTIME_VOCAB "${CMAKE_SOURCE_DIR}/examples/BuddyTensorParallel/v
 # Package 1 parameters
 set(DEEPSEEKR1_PKG1_PARAM_FILES
   ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill0_arg0.data
-  ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill197_arg0.data
+  ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill169_arg0.data
 )
 
 # Package 2/3 common RMS parameters
 set(DEEPSEEKR1_PKG23_RMS_FILES)
-foreach(i RANGE 1 190 7)
+foreach(i 1 7 13 19 25 31 37 43 49 55 61 67 73 79 85 91 97 103 109 115 121 127 133 139 145 151 157 163)
   list(APPEND DEEPSEEKR1_PKG23_RMS_FILES
     ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill${i}_arg0.data
   )
-  math(EXPR i_plus_4 "${i} + 4")
+  math(EXPR i_plus_3 "${i} + 3")
   list(APPEND DEEPSEEKR1_PKG23_RMS_FILES
-    ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill${i_plus_4}_arg0.data
+    ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill${i_plus_3}_arg0.data
   )
 endforeach()
 
 # Package 2: MHA arg0, MLP arg0
 set(DEEPSEEKR1_PKG2_PARAM_FILES ${DEEPSEEKR1_PKG23_RMS_FILES})
-
-# MHA0 + MHA1
-foreach(i RANGE 2 191 7)
+foreach(i 2 8 14 20 26 32 38 44 50 56 62 68 74 80 86 92 98 104 110 116 122 128 134 140 146 152 158 164)
   list(APPEND DEEPSEEKR1_PKG2_PARAM_FILES
     ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill${i}_arg0.data
   )
-  math(EXPR i_plus_1 "${i} + 1")
+  math(EXPR i_plus_3 "${i} + 3")
   list(APPEND DEEPSEEKR1_PKG2_PARAM_FILES
-    ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill${i_plus_1}_arg0.data
+    ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill${i_plus_3}_arg0.data
   )
 endforeach()
 
 # Package 3: MHA arg1, MLP arg1
 set(DEEPSEEKR1_PKG3_PARAM_FILES ${DEEPSEEKR1_PKG23_RMS_FILES})
-
-# MHA0 + MHA1
-foreach(i RANGE 2 191 7)
+foreach(i 2 8 14 20 26 32 38 44 50 56 62 68 74 80 86 92 98 104 110 116 122 128 134 140 146 152 158 164)
   list(APPEND DEEPSEEKR1_PKG3_PARAM_FILES
     ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill${i}_arg1.data
   )
-  math(EXPR i_plus_1 "${i} + 1")
+  math(EXPR i_plus_3 "${i} + 3")
   list(APPEND DEEPSEEKR1_PKG3_PARAM_FILES
-    ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill${i_plus_1}_arg1.data
+    ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill${i_plus_3}_arg1.data
   )
 endforeach()
 
-# MLP
-foreach(i RANGE 6 195 7)
-  list(APPEND DEEPSEEKR1_PKG3_PARAM_FILES
-    ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill${i}_arg1.data
-  )
-endforeach()
+# Decode unembedding parameters
+set(DEEPSEEKR1_DECODE_RANK0_PARAM_FILES
+  ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode169_arg0.data
+)
+
+set(DEEPSEEKR1_DECODE_RANK1_PARAM_FILES
+  ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode169_arg1.data
+)
+
+# Final package parameter lists
+# rank0:
+#   - prefill0/prefill169 arg0
+#   - all RMS params
+#   - all prefill arg0 MHA/MLP shard params
+#   - decode169 arg0
+set(DEEPSEEKR1_PKG_RANK0_PARAM_FILES
+  ${DEEPSEEKR1_PKG1_PARAM_FILES}
+  ${DEEPSEEKR1_PKG2_PARAM_FILES}
+  ${DEEPSEEKR1_DECODE_RANK0_PARAM_FILES}
+)
+
+# rank1:
+#   - all RMS params
+#   - all prefill arg1 MHA/MLP shard params
+#   - decode169 arg1
+set(DEEPSEEKR1_PKG_RANK1_PARAM_FILES
+  ${DEEPSEEKR1_PKG3_PARAM_FILES}
+  ${DEEPSEEKR1_DECODE_RANK1_PARAM_FILES}
+)
 
 function(add_deepseek_r1_package TARGET_NAME PKG_BASENAME INCLUDE_VOCAB)
   set(options)
@@ -889,7 +902,7 @@ if(CROSS_COMPILE_RVV)
     buddy-deepseek-r1-rvv-package-rank0
     TRUE
     PARAM_FILES
-    ${DEEPSEEKR1_PKG1_PARAM_FILES}
+    ${DEEPSEEKR1_PKG_RANK0_PARAM_FILES}
   )
 
   add_deepseek_r1_package(
@@ -897,21 +910,12 @@ if(CROSS_COMPILE_RVV)
     buddy-deepseek-r1-rvv-package-rank1
     FALSE
     PARAM_FILES
-    ${DEEPSEEKR1_PKG2_PARAM_FILES}
-  )
-
-  add_deepseek_r1_package(
-    buddy-deepseek-r1-rvv-package-rank2
-    buddy-deepseek-r1-rvv-package-rank2
-    FALSE
-    PARAM_FILES
-    ${DEEPSEEKR1_PKG3_PARAM_FILES}
+    ${DEEPSEEKR1_PKG_RANK1_PARAM_FILES}
   )
 
   add_custom_target(buddy-deepseek-r1-rvv-packages
     DEPENDS
     buddy-deepseek-r1-rvv-package-rank0
     buddy-deepseek-r1-rvv-package-rank1
-    buddy-deepseek-r1-rvv-package-rank2
   )
 endif()
