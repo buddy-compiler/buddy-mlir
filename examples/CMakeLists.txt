@@ -1,3 +1,30 @@
+set(BUDDY_EXAMPLES_USE_EXTERNAL_TOOLS OFF CACHE BOOL
+  "Use external buddy tools (buddy-opt/buddy-translate) from MLIR_RELEASE_PKG/bin")
+if(BUDDY_EXAMPLES_USE_EXTERNAL_TOOLS)
+  if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    message(FATAL_ERROR "Configure from buddy-mlir top-level (cmake -S <buddy-mlir> ...).")
+  endif()
+
+  if(DEFINED ENV{MLIR_RELEASE_PKG})
+    list(PREPEND CMAKE_PREFIX_PATH "$ENV{MLIR_RELEASE_PKG}")
+  endif()
+
+  find_package(LLVM CONFIG REQUIRED)
+  find_package(MLIR CONFIG REQUIRED)
+  find_package(BuddyMLIR CONFIG REQUIRED)
+  find_package(Python3 3.10 REQUIRED COMPONENTS Interpreter)
+
+  if(NOT TARGET buddy-opt)
+    add_custom_target(buddy-opt DEPENDS "${BUDDY_BINARY_DIR}/buddy-opt")
+  endif()
+  if(NOT TARGET buddy-translate)
+    add_custom_target(buddy-translate DEPENDS "${BUDDY_BINARY_DIR}/buddy-translate")
+  endif()
+
+  include_directories(${BUDDY_MLIR_INTERFACE_DIR})
+  link_directories(${BUDDY_MLIR_LIB_DIR})
+endif()
+
 if(BUDDY_EXAMPLES)
   add_subdirectory(ConvOpt)
   add_subdirectory(DIPDialect)
@@ -56,6 +83,7 @@ if(BUDDY_DSL_EXAMPLES)
   add_subdirectory(ToyDSL)
 endif()
 
+if(BUDDY_MLIR_ENABLE_TESTS)
 configure_lit_site_cfg(
   ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
   ${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py
@@ -81,3 +109,4 @@ add_lit_testsuite(check-examples "Checking the buddy-mlir examples..."
 set_target_properties(check-examples PROPERTIES FOLDER "Examples")
 
 add_lit_testsuites(BUDDY-EXAMPLES ${CMAKE_CURRENT_SOURCE_DIR} DEPENDS ${BUDDY_EXAMPLES_DEPENDS})
+endif()

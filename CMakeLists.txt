@@ -36,6 +36,8 @@ include(CMakePackageConfigHelpers)
 option(LLVM_INCLUDE_TOOLS "Generate build targets for the LLVM tools." ON)
 option(LLVM_BUILD_TOOLS "Build the LLVM tools. If OFF, just generate build targets." ON)
 option(BUDDY_MLIR_OUT_OF_TREE_BUILD "Specifies an out of tree build" OFF)
+option(BUDDY_MLIR_ENABLE_CORE "Enable core buddy-mlir libs and tools." ON)
+option(BUDDY_MLIR_ENABLE_TESTS "Enable buddy-mlir tests (lit + unit tests)." ON)
 
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR OR BUDDY_MLIR_OUT_OF_TREE_BUILD)
     message(STATUS "buddy-mlir two-step build.")
@@ -240,22 +242,28 @@ endif()
 # Directory setup
 #-------------------------------------------------------------------------------
 
-add_subdirectory(cmake)
-add_subdirectory(runtime)
-add_subdirectory(models)
-add_subdirectory(frontend)
-add_subdirectory(midend)
-add_subdirectory(backend)
-add_subdirectory(tools)
+if(BUDDY_MLIR_ENABLE_CORE)
+  add_subdirectory(cmake)
+  add_subdirectory(runtime)
+  add_subdirectory(models)
+  add_subdirectory(frontend)
+  add_subdirectory(midend)
+  add_subdirectory(backend)
+  add_subdirectory(tools)
+
+  if(BUDDY_MLIR_ENABLE_TESTS)
+    add_subdirectory(tests)
+  endif()
+endif()
 add_subdirectory(examples)
-add_subdirectory(tests)
 #-------------------------------------------------------------------------------
 # Target check-buddy
 #-------------------------------------------------------------------------------
 
-add_custom_target(check-buddy
-  DEPENDS check-examples check-tests
-)
+add_custom_target(check-buddy)
+if(TARGET check-tests)
+  add_dependencies(check-buddy check-tests)
+endif()
 
 #-------------------------------------------------------------------------------
 # Target install

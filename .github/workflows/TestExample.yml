@@ -1,20 +1,17 @@
-name: test build process
+name: Test All Examples
 
 on:
-  push:
-    branches: [ main, ci, ci-test ]
-  pull_request:
-    branches: [ main, ci, ci-test ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
     name: Build (${{ matrix.arch }})
     timeout-minutes: 360
     continue-on-error: ${{ matrix.experimental }}
-
-    concurrency:
-      group: buddy-mlir-${{ matrix.arch }}
-      cancel-in-progress: true
 
     strategy:
       fail-fast: false
@@ -57,11 +54,11 @@ jobs:
           git fetch github ${{ github.sha }}
           git checkout ${{ github.sha }}
 
-      # 2. Submodule pointer in the superproject (no +/- prefix from submodule status).
+      # 2. Retrieve the commit ID of the LLVM submodule.
       - name: Get LLVM submodule commit
         id: llvm-submodule-commit
         run: |
-          echo "commit=$(git ls-tree HEAD llvm | awk '{print $3}')" >> $GITHUB_OUTPUT
+          echo "commit=$(git submodule status llvm | awk '{print $1;}')" >> $GITHUB_OUTPUT
 
       # 3. Cache the LLVM submodule source code (only for x86).
       - name: Cache LLVM source (x86)
@@ -74,26 +71,9 @@ jobs:
           restore-keys: |
             llvm-source-
 
-      # 3b. Restore-keys can populate llvm without an exact cache hit; only re-clone when
-      # the tree is missing, not a git checkout, or at the wrong revision.
-      - name: Check LLVM source revision (x86)
-        if: matrix.arch == 'x64'
-        id: llvm-source-checkout-needed
-        run: |
-          want="${{ steps.llvm-submodule-commit.outputs.commit }}"
-          need=true
-          if [ -n "$want" ] && [ -e llvm/.git ]; then
-            have=$(git -C llvm rev-parse HEAD 2>/dev/null) || have=""
-            if [ -n "$have" ] && [ "$have" = "$want" ]; then
-              need=false
-            fi
-          fi
-          echo "need-checkout=$need" >> $GITHUB_OUTPUT
-          echo "LLVM submodule: want=$want have=$(git -C llvm rev-parse HEAD 2>/dev/null || echo n/a) need-checkout=$need"
-
-      # 4. Fetch LLVM submodule only when the working tree is missing or wrong revision.
+      # 4. If the cache is not found, pull the LLVM submodule. (x86, cache miss)
       - name: Checkout LLVM submodule
-        if: matrix.arch == 'x64' && steps.llvm-source-checkout-needed.outputs.need-checkout == 'true'
+        if: matrix.arch == 'x64' && steps.cache-llvm-source.outputs.cache-hit != 'true'
         run: |
           rm -rf llvm
           rm -rf .git/modules/llvm
@@ -257,11 +237,16 @@ jobs:
           ninja check-buddy -j$(nproc) || true
           deactivate
 
-      - name: Test build and run examples (x86)
+      - name: Check examples
         if: matrix.arch == 'x64' && github.event_name == 'workflow_dispatch'
         run: |
           source ~/miniforge3/bin/activate buddy
-          ./examples/run_examples.py
+          python3 ./examples/run_examples.py run \
+            --source-dir $PWD \
+            --build-dir $PWD/build \
+            --mlir-dir $PWD/llvm/build/lib/cmake/mlir \
+            --llvm-dir $PWD/llvm/build/lib/cmake/llvm \
+            --buddy-dir $PWD/cmake
 
       - name: Cleanup old LLVM build cache (riscv64)
         if: matrix.arch == 'riscv64'
