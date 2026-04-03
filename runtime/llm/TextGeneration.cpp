@@ -94,7 +94,8 @@ GenerationResult runGeneration(const std::string &prompt, LLMSession &session,
                                const std::string &vocabPath, int maxNewTokens,
                                const std::vector<long long> &stopTokenIds,
                                buddy::Sampler &sampler, const TextCodec &codec,
-                               bool suppress) {
+                               bool suppress, bool resetKV, int thinkTokenId,
+                               int endThinkTokenId) {
   GenerationResult result;
 
   const int keepTokenNum = codec.maxTokenLen / 4;
@@ -105,8 +106,8 @@ GenerationResult runGeneration(const std::string &prompt, LLMSession &session,
            stopTokenIds.end();
   };
 
-  // Reset session for this generation pass.
-  session.resetPosition();
+  if (resetKV)
+    session.resetPosition();
 
   Text<size_t, 2> inputTokens(prompt);
   codec.tokenize(inputTokens, vocabPath);
@@ -116,19 +117,56 @@ GenerationResult runGeneration(const std::string &prompt, LLMSession &session,
 
   std::vector<int> recentTokens;
 
-  // ── Prefill ─────────────────────────────────────────────────────────────
+  // ── Prefill or incremental decode ───────────────────────────────────────
   const auto t0 = std::chrono::high_resolution_clock::now();
-  session.prefill(inputTokens);
+
+  int firstToken;
+  if (resetKV) {
+    session.prefill(inputTokens);
+
+    if (thinkTokenId >= 0) {
+      size_t *inputData = inputTokens.getData();
+      const int inputLen = static_cast<int>(inputTokens.getTokenCnt());
+      for (int i = 0; i < inputLen; ++i) {
+        if (static_cast<int>(inputData[i]) == thinkTokenId) {
+          result.thinkingRange.startPos = session.position() - inputLen + i;
+          break;
+        }
+      }
+    }
+
+    const int tokenIndex = static_cast<int>(inputTokens.getTokenCnt()) - 1;
+    const float *prefillLogits = session.logitsData(tokenIndex);
+    firstToken =
+        sampler.sample(prefillLogits, session.vocabSize(), recentTokens);
+  } else {
+    size_t *inputData = inputTokens.getData();
+    const int inputLen = static_cast<int>(inputTokens.getTokenCnt());
+    for (int i = 0; i < inputLen; ++i) {
+      if (session.position() >= codec.maxTokenLen) {
+        printLog("KV cache overflow at position " +
+                     std::to_string(session.position()) + ", discarding...",
+                 suppress);
+        session.handleKVCacheOverflow(keepTokenNum, kRopeTheta);
+        printLog("New position: " + std::to_string(session.position()),
+                 suppress);
+      }
+      session.decode(static_cast<int>(inputData[i]));
+    }
+    firstToken =
+        sampler.sample(session.logitsData(), session.vocabSize(), recentTokens);
+  }
+
   result.prefillSecs = std::chrono::duration<double>(
                            std::chrono::high_resolution_clock::now() - t0)
                            .count();
-
-  // Sample first token from prefill logits.
-  const int tokenIndex = static_cast<int>(inputTokens.getTokenCnt()) - 1;
-  const float *prefillLogits = session.logitsData(tokenIndex);
-  int firstToken =
-      sampler.sample(prefillLogits, session.vocabSize(), recentTokens);
   recentTokens.push_back(firstToken);
+
+  if (thinkTokenId >= 0 && firstToken == thinkTokenId &&
+      result.thinkingRange.startPos < 0)
+    result.thinkingRange.startPos = session.position();
+  if (endThinkTokenId >= 0 && firstToken == endThinkTokenId)
+    result.thinkingRange.endPos = session.position();
 
   if (isStopToken(firstToken)) {
     std::cout << std::endl;
@@ -179,6 +217,12 @@ GenerationResult runGeneration(const std::string &prompt, LLMSession &session,
     if ((int)recentTokens.size() > sampler.config().repeatLastN * 2)
       recentTokens.erase(recentTokens.begin(),
                          recentTokens.end() - sampler.config().repeatLastN);
+
+    if (thinkTokenId >= 0 && nextToken == thinkTokenId &&
+        result.thinkingRange.startPos < 0)
+      result.thinkingRange.startPos = session.position();
+    if (endThinkTokenId >= 0 && nextToken == endThinkTokenId)
+      result.thinkingRange.endPos = session.position();
 
     if (isStopToken(nextToken))
       break;

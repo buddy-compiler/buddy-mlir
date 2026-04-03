@@ -79,6 +79,10 @@ public:
   virtual bool handleKVCacheOverflow(int keepTokenNum,
                                      float ropeTheta = 10000.0f) = 0;
 
+  /// Discard a specific range of KV cache entries and adjust RoPE.
+  virtual void discardKVRange(int keepTokenNum, int discardLen,
+                              float ropeTheta = 10000.0f) = 0;
+
 protected:
   LLMSession() = default;
 };

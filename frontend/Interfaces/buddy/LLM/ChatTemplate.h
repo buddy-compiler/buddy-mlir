@@ -105,6 +105,13 @@ public:
   const std::vector<std::string> &stopTokens() const { return stopTokens_; }
   const std::string &bosToken() const { return bosToken_; }
   const std::string &eosToken() const { return eosToken_; }
+  const std::string &turnSuffix() const { return turnSuffix_; }
+  const std::string &roleSuffix() const { return roleSuffix_; }
+  /// Get the role prefix for a given role (empty string if not found).
+  std::string rolePrefix(const std::string &role) const {
+    auto it = rolePrefixes_.find(role);
+    return (it != rolePrefixes_.end()) ? it->second : "";
+  }
 
 private:
   std::string bosToken_;
