@@ -84,7 +84,7 @@ Run the distributed executable locally with MPICH Hydra:
 
 ```bash
 $ ./examples/BuddyTensorParallel/mpich-install/bin/mpiexec.hydra \
-    -n 3 \
+    -n 2 \
     -outfile-pattern "output-%r.txt" \
     ./bin/buddy-deepseek-r1-distributed
 ```

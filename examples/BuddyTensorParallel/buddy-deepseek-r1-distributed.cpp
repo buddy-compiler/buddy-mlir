@@ -1,4 +1,4 @@
-//===-mha2.cpp--------------------------------------===//
+//===buddy-deepseek-r1-distributed.cpp-------------------------------------===//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -17,7 +17,6 @@
 #include <buddy/Core/Container.h>
 #include <buddy/LLM/TextContainer.h>
 #include <chrono>
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -26,8 +25,10 @@
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <limits>
 #include <mpi.h>
 #include <string>
+#include <vector>
 
 using namespace buddy;
 double total_time = 0;
@@ -36,13 +37,13 @@ constexpr size_t MaxTokenLength = 1024;
 constexpr size_t SubMaxTokenLength = 512;
 
 constexpr size_t VocabShardSize = MaxVocabSize / 2;
-constexpr int DecodeTopValTag = 5;
-constexpr int DecodeTopIdxTag = 6;
 
 constexpr size_t NUM_LAYERS = 56;
 constexpr size_t HiddenSize = 128;
 constexpr size_t HiddenSize0 = 1536;
 constexpr size_t HeadNum = 2;
+constexpr int FrontendRank = 0;
+constexpr int PeerRank = 1;
 
 struct MemRefContainer0 {
   MemRef<float, 3> data;
@@ -103,6 +104,13 @@ void _mlir_ciface_forward_decode169(MemRef<float, 3> *, MemRef<float, 1> *,
 // Helper Functions
 // -----------------------------------------------------------------------------
 
+using HighResClock = std::chrono::high_resolution_clock;
+
+struct MaxLocPair {
+  float value = -std::numeric_limits<float>::infinity();
+  int index = -1;
+};
+
 /// Capture input message.
 void getUserInput(std::string &inputStr) {
   std::cout << "\nPlease send a message:" << std::endl;
@@ -115,7 +123,7 @@ void getUserInput(std::string &inputStr) {
 void printLogLabel() { std::cout << "\033[34;1m[Log] \033[0m"; }
 
 /// Print information for each iteration.
-void printIterInfo(size_t iterIdx, std::string str, double time) {
+void printIterInfo(size_t iterIdx, const std::string &str, double time) {
   total_time += time;
   std::cout << "\033[32;1m[Iteration " << iterIdx << "] \033[0m";
   std::cout << "Token: " << str << " | "
@@ -128,9 +136,9 @@ void tokenizeInput(const std::string &vocabFile,
   printLogLabel();
   std::cout << "Vocab file: " << std::filesystem::canonical(vocabFile)
             << std::endl;
-  const auto buddyTokenizeStart = std::chrono::high_resolution_clock::now();
+  const auto buddyTokenizeStart = HighResClock::now();
   inputContainer.tokenizeDeepSeekR1(vocabFile, MaxTokenLength);
-  const auto buddyTokenizeEnd = std::chrono::high_resolution_clock::now();
+  const auto buddyTokenizeEnd = HighResClock::now();
   const std::chrono::duration<double, std::milli> buddyTokenizeTime =
       buddyTokenizeEnd - buddyTokenizeStart;
   printLogLabel();
@@ -141,7 +149,7 @@ void tokenizeInput(const std::string &vocabFile,
 /// Load parameters into data container.
 void loadParameters(const std::string &paramFilePath,
                     MemRef<float, 1> &params) {
-  const auto loadStart = std::chrono::high_resolution_clock::now();
+  const auto loadStart = HighResClock::now();
   std::ifstream paramFile(paramFilePath, std::ios::in | std::ios::binary);
   if (!paramFile.is_open()) {
     std::cout << paramFilePath << std::endl;
@@ -158,12 +166,11 @@ void loadParameters(const std::string &paramFilePath,
     throw std::runtime_error("Error occurred while reading params file!");
   }
   paramFile.close();
-  const auto loadEnd = std::chrono::high_resolution_clock::now();
+  const auto loadEnd = HighResClock::now();
   const std::chrono::duration<double, std::milli> loadTime =
       loadEnd - loadStart;
   printLogLabel();
-  std::cout << "Params load time: " << (double)(loadTime.count()) / 1000
-            << "s\n"
+  std::cout << "Params load time: " << loadTime.count() / 1000.0 << "s\n"
             << std::endl;
 }
 
@@ -172,6 +179,38 @@ int findMaxIndex(const float *start, const float *end) {
   return std::distance(start, std::max_element(start, end));
 }
 
+inline void addFloatVectorInPlace(float *dst, const float *src, int count) {
+  for (int i = 0; i < count; ++i) {
+    dst[i] += src[i];
+  }
+}
+
+inline void reduceSumTwoRanksSendrecv(const float *localBuf, float *sumBuf,
+                                      int count, int peerRankInComm, int tag,
+                                      MPI_Comm comm) {
+  if (comm == MPI_COMM_NULL) {
+    std::memcpy(sumBuf, localBuf, sizeof(float) * count);
+    return;
+  }
+  MPI_Sendrecv(localBuf, count, MPI_FLOAT, peerRankInComm, tag, sumBuf, count,
+               MPI_FLOAT, peerRankInComm, tag, comm, MPI_STATUS_IGNORE);
+  addFloatVectorInPlace(sumBuf, localBuf, count);
+}
+
+inline MaxLocPair reduceMaxLoc(float localValue, int globalIndex,
+                               MPI_Comm comm) {
+  if (comm == MPI_COMM_NULL) {
+    return MaxLocPair{localValue, globalIndex};
+  }
+
+  struct {
+    float value;
+    int index;
+  } local{localValue, globalIndex}, global{0.0f, -1};
+
+  MPI_Allreduce(&local, &global, 1, MPI_FLOAT_INT, MPI_MAXLOC, comm);
+  return MaxLocPair{global.value, global.index};
+}
 
 // -----------------------------------------------------------------------------
 // DeepSeekR1 Inference Main Entry
@@ -179,12 +218,11 @@ int findMaxIndex(const float *start, const float *end) {
 
 int main(int argc, char *argv[]) {
 
-  /// Define directories of vacabulary and parameter file.
+  /// Define directories of vocabulary and parameter file.
   std::string deepSeekR1Dir = DEEPSEEKR1_EXAMPLE_PATH;
   std::string deepSeekR1BuildDir = DEEPSEEKR1_EXAMPLE_BUILD_PATH;
   const std::string vocabDir = deepSeekR1Dir + "/vocab.txt";
 
-  // Common variables needed by all ranks
   int subSize = SubMaxTokenLength * HiddenSize0;
   int offset0 = subSize;
 
@@ -196,15 +234,15 @@ int main(int argc, char *argv[]) {
   MPI_Comm_size(MPI_COMM_WORLD, &size);
 
   if (size != 2) {
-    if (rank == 0) {
-      std::cerr << "[Error] This intermediate version requires exactly 2 MPI ranks.\n";
+    if (rank == FrontendRank) {
+      std::cerr
+          << "[Error] This intermediate version requires exactly 2 MPI ranks.\n";
     }
     MPI_Finalize();
     return 1;
   }
 
-  if (rank == 0) {
-    /// Print the title of this example.
+  if (rank == FrontendRank) {
     const std::string title = "DeepSeekR1  Inference Powered by Buddy Compiler";
     std::cout << "\033[33;1m" << title << "\033[0m" << std::endl;
 
@@ -214,16 +252,6 @@ int main(int argc, char *argv[]) {
     Text<size_t, 2> outputContainer;
     outputContainer.loadVocab(vocabDir);
 
-    MemRef<float, 3> myMemRef1({1, MaxTokenLength, HiddenSize0});
-    MemRef<int8_t, 4> myMemRef2({1, 1, MaxTokenLength, MaxTokenLength});
-    MemRef<float, 3> myMemRef3({1, MaxTokenLength, HiddenSize});
-    MemRef<float, 3> myMemRef4({1, MaxTokenLength, HiddenSize});
-    MemRefContainer0 resultContainer(myMemRef1, myMemRef2, myMemRef3,
-                                     myMemRef4);
-    MemRefContainer0 *resultContainerPtr = &resultContainer;
-
-    MemRef<float, 3> tmp3DMemRef({1, MaxTokenLength, HiddenSize0});
-    MemRef<float, 3> resultPrefill({1, MaxTokenLength, MaxVocabSize});
     MemRef<long long, 2> inputContainerDecode({1, 1}, 0LL);
     MemRef<long long, 1> cachePosition({1}, 0LL);
 
@@ -234,38 +262,21 @@ int main(int argc, char *argv[]) {
     MemRefContainer0 resultContainerDecode(myMemRef_decode1, myMemRef_decode2,
                                            myMemRef_decode3, myMemRef_decode4);
     MemRefContainer0 *resultContainerDecodePtr = &resultContainerDecode;
-    // MemRef<float, 3> resultDecode({1, 1, MaxVocabSize});
     MemRef<float, 3> resultDecodeShard0({1, 1, VocabShardSize});
 
     // -----------------------------------------------------------------------
     // Rank 0 local TP shard resources.
     // -----------------------------------------------------------------------
-    MemRef<float, 3> subResultContainer({1, SubMaxTokenLength, HiddenSize0});
-    MemRef<float, 3> sub3DContainer({1, SubMaxTokenLength, HiddenSize0});
-    MemRef<float, 2> tmp2DContainer({MaxTokenLength, HiddenSize0});
-    MemRef<float, 2> sub2DContainer({SubMaxTokenLength, HiddenSize0});
     std::vector<MemRef<float, 4>> kv0;
-    kv0.reserve(56);
-    for (int i = 0; i < 56; ++i) {
+    kv0.reserve(NUM_LAYERS);
+    for (size_t i = 0; i < NUM_LAYERS; ++i) {
       kv0.emplace_back(std::vector<size_t>{1, 1, MaxTokenLength, HiddenSize});
     }
-    MemRefContainer2 kvContainer0(kv0[0], kv0[1], tmp2DContainer);
-    MemRefContainer2 *kvContainerPtr0 = &kvContainer0;
 
-    float *subResultPtr = subResultContainer.getData();
-    float *rmsPtr = sub3DContainer.getData();
-    float *mhaOutputPtr = tmp2DContainer.getData();
-    float *sub2DPtr = sub2DContainer.getData();
-
-    // Decode local TP shard resources.
     MemRef<float, 3> subResultContainerDecode({1, 1, HiddenSize0});
     MemRef<float, 3> sub3DContainerDecode({1, 1, HiddenSize0});
     MemRef<float, 2> tmp2DContainerDecode({1, HiddenSize0});
     MemRef<float, 2> sub2DContainerDecode({1, HiddenSize0});
-    // Do not cache subResultContainerDecode.getData() across iterations.
-    // MLIR iface calls may update the active MemRef descriptor, so a cached
-    // raw pointer can become stale and still point to the previous
-    // iteration's buffer.
     float *mhaOutputPtrDecode = tmp2DContainerDecode.getData();
     MemRefContainer2 kvDecodeContainer0(kv0[0], kv0[1], tmp2DContainerDecode);
     MemRefContainer2 *kvDecodeContainerPtr0 = &kvDecodeContainer0;
@@ -276,16 +287,11 @@ int main(int argc, char *argv[]) {
     constexpr size_t param_size0 = 233373760;
     const std::string paramsDir0 =
         deepSeekR1BuildDir + "/subgraph0_prefill0_arg0.data";
-    constexpr size_t param_size1 = 233375232;
-    const std::string paramsDir1 =
-        deepSeekR1BuildDir + "/subgraph0_prefill169_arg0.data";
     constexpr size_t param_size2 = 116688384;
     const std::string paramsDir2 =
         deepSeekR1BuildDir + "/subgraph0_decode169_arg0.data";
     MemRef<float, 1> paramsContainer0({param_size0});
     loadParameters(paramsDir0, paramsContainer0);
-    MemRef<float, 1> paramsContainer1({param_size1});
-    loadParameters(paramsDir1, paramsContainer1);
     MemRef<float, 1> paramsContainer2({param_size2});
     loadParameters(paramsDir2, paramsContainer2);
 
@@ -333,7 +339,7 @@ int main(int argc, char *argv[]) {
     MPI_Comm comm_sub = MPI_COMM_NULL;
     MPI_Group world_group = MPI_GROUP_NULL;
     MPI_Group sub_group = MPI_GROUP_NULL;
-    int ranks_in_sub[2] = {0, 1};
+    int ranks_in_sub[2] = {FrontendRank, PeerRank};
     MPI_Comm_group(MPI_COMM_WORLD, &world_group);
     MPI_Group_incl(world_group, 2, ranks_in_sub, &sub_group);
     MPI_Comm_create_group(MPI_COMM_WORLD, sub_group, 0, &comm_sub);
@@ -348,144 +354,184 @@ int main(int argc, char *argv[]) {
     std::cout << "Input token count: " << inputContainerPrefill.getTokenCnt()
               << std::endl;
 
-    MPI_Request send_req_hidden = MPI_REQUEST_NULL;
-    MPI_Request send_req_mha[3];
-    MPI_Request recv_req_prefill = MPI_REQUEST_NULL;
-
-    float *inputPtr = nullptr;
-    float *outputPtr = tmp3DMemRef.getData();
-
+    int maxIndex = 0;
+    std::string tok;
     double prefillTokensPerSec = 0.0;
-    const auto inferenceStart = std::chrono::high_resolution_clock::now();
+    double prefillSeconds = 0.0;
+    float *inputPtr = nullptr;
 
-    std::cout << "\n\033[33;1m[Inference Start]\033[0m" << std::endl;
-    _mlir_ciface_forward_prefill0(resultContainerPtr, &paramsContainer0,
-                                  &inputContainerPrefill);
-    inputPtr = resultContainerPtr->data.getData();
+    {
+      MemRef<float, 3> myMemRef1({1, MaxTokenLength, HiddenSize0});
+      MemRef<int8_t, 4> myMemRef2({1, 1, MaxTokenLength, MaxTokenLength});
+      MemRef<float, 3> myMemRef3({1, MaxTokenLength, HiddenSize});
+      MemRef<float, 3> myMemRef4({1, MaxTokenLength, HiddenSize});
+      MemRefContainer0 resultContainer(myMemRef1, myMemRef2, myMemRef3,
+                                       myMemRef4);
+      MemRefContainer0 *resultContainerPtr = &resultContainer;
 
-    // rank0 keeps the first half locally, sends the second half to rank1.
-    std::memcpy(subResultPtr, inputPtr, sizeof(float) * subSize);
-    MPI_Isend(inputPtr + offset0, subSize, MPI_FLOAT, 1, 0, MPI_COMM_WORLD,
-              &send_req_hidden);
+      MemRef<float, 3> tmp3DMemRef({1, MaxTokenLength, HiddenSize0});
+      MemRef<float, 3> resultPrefill({1, MaxTokenLength, MaxVocabSize});
 
-    MPI_Isend(resultContainerPtr->mask.getData(),
-              MaxTokenLength * MaxTokenLength, MPI_INT8_T, 1, 1,
-              MPI_COMM_WORLD, &send_req_mha[0]);
-    MPI_Isend(resultContainerPtr->cos.getData(), MaxTokenLength * HiddenSize,
-              MPI_FLOAT, 1, 2, MPI_COMM_WORLD, &send_req_mha[1]);
-    MPI_Isend(resultContainerPtr->sin.getData(), MaxTokenLength * HiddenSize,
-              MPI_FLOAT, 1, 3, MPI_COMM_WORLD, &send_req_mha[2]);
+      MemRef<float, 3> subResultContainer({1, SubMaxTokenLength, HiddenSize0});
+      MemRef<float, 3> sub3DContainer({1, SubMaxTokenLength, HiddenSize0});
+      MemRef<float, 2> tmp2DContainer({MaxTokenLength, HiddenSize0});
+      MemRef<float, 2> sub2DContainer({SubMaxTokenLength, HiddenSize0});
+      MemRefContainer2 kvContainer0(kv0[0], kv0[1], tmp2DContainer);
+      MemRefContainer2 *kvContainerPtr0 = &kvContainer0;
 
-    MPI_Irecv(outputPtr + offset0, subSize, MPI_FLOAT, 1, 0, MPI_COMM_WORLD,
-              &recv_req_prefill);
+      constexpr size_t param_size1 = 233375232;
+      const std::string paramsDir1 =
+          deepSeekR1BuildDir + "/subgraph0_prefill169_arg0.data";
+      MemRef<float, 1> paramsContainer1({param_size1});
+      loadParameters(paramsDir1, paramsContainer1);
 
-    for (int m = 0; m < times; m++) {
-      _mlir_ciface_forward_prefill1(&sub3DContainer, &paramsContainersRMS[m],
-                                    &subResultContainer);
-      rmsPtr = sub3DContainer.getData();
+      MPI_Request send_req_hidden = MPI_REQUEST_NULL;
+      MPI_Request send_req_mha[3];
+      MPI_Request recv_req_prefill = MPI_REQUEST_NULL;
 
-      if (comm_sub != MPI_COMM_NULL) {
-        MPI_Allgather(rmsPtr, subSize, MPI_FLOAT, tmp3DMemRef.getData(),
-                      subSize, MPI_FLOAT, comm_sub);
+      float *outputPtr = tmp3DMemRef.getData();
+      float *subResultPtr = subResultContainer.getData();
+      float *rmsPtr = sub3DContainer.getData();
+      float *mhaOutputPtr = tmp2DContainer.getData();
+      float *sub2DPtr = sub2DContainer.getData();
+
+      const auto inferenceStart = HighResClock::now();
+
+      std::cout << "\n\033[33;1m[Inference Start]\033[0m" << std::endl;
+
+      _mlir_ciface_forward_prefill0(resultContainerPtr, &paramsContainer0,
+                                    &inputContainerPrefill);
+      inputPtr = resultContainerPtr->data.getData();
+
+      std::memcpy(subResultPtr, inputPtr, sizeof(float) * subSize);
+
+      MPI_Isend(inputPtr + offset0, subSize, MPI_FLOAT, PeerRank, 0,
+                MPI_COMM_WORLD, &send_req_hidden);
+      MPI_Isend(resultContainerPtr->mask.getData(),
+                MaxTokenLength * MaxTokenLength, MPI_INT8_T, PeerRank, 1,
+                MPI_COMM_WORLD, &send_req_mha[0]);
+      MPI_Isend(resultContainerPtr->cos.getData(),
+                MaxTokenLength * HiddenSize, MPI_FLOAT, PeerRank, 2,
+                MPI_COMM_WORLD, &send_req_mha[1]);
+      MPI_Isend(resultContainerPtr->sin.getData(),
+                MaxTokenLength * HiddenSize, MPI_FLOAT, PeerRank, 3,
+                MPI_COMM_WORLD, &send_req_mha[2]);
+      MPI_Irecv(outputPtr + offset0, subSize, MPI_FLOAT, PeerRank, 0,
+                MPI_COMM_WORLD, &recv_req_prefill);
+
+      for (int m = 0; m < times; m++) {
+        _mlir_ciface_forward_prefill1(&sub3DContainer, &paramsContainersRMS[m],
+                                      &subResultContainer);
+        rmsPtr = sub3DContainer.getData();
+
+        if (comm_sub != MPI_COMM_NULL) {
+          MPI_Allgather(rmsPtr, subSize, MPI_FLOAT, tmp3DMemRef.getData(),
+                        subSize, MPI_FLOAT, comm_sub);
+        }
+
+        _mlir_ciface_forward_prefill2(kvContainerPtr0, &paramsContainersMHA[m],
+                                      &resultContainerPtr->mask,
+                                      &resultContainerPtr->cos,
+                                      &resultContainerPtr->sin, &tmp3DMemRef);
+        kv0[2 * m] = kvContainerPtr0->kcache;
+        kv0[2 * m + 1] = kvContainerPtr0->vcache;
+        tmp2DContainer = kvContainerPtr0->data;
+        mhaOutputPtr = tmp2DContainer.getData();
+
+        if (comm_sub != MPI_COMM_NULL) {
+          MPI_Reduce_scatter_block(mhaOutputPtr, sub2DPtr, subSize, MPI_FLOAT,
+                                   MPI_SUM, comm_sub);
+        }
+
+        _mlir_ciface_forward_prefill3(&subResultContainer, &subResultContainer,
+                                      &sub2DContainer);
+
+        _mlir_ciface_forward_prefill1(&sub3DContainer, &paramsContainersRMS0[m],
+                                      &subResultContainer);
+        rmsPtr = sub3DContainer.getData();
+
+        if (comm_sub != MPI_COMM_NULL) {
+          MPI_Allgather(rmsPtr, subSize, MPI_FLOAT, tmp3DMemRef.getData(),
+                        subSize, MPI_FLOAT, comm_sub);
+        }
+
+        _mlir_ciface_forward_prefill5(&tmp2DContainer, &paramsContainersMLP[m],
+                                      &tmp3DMemRef);
+        mhaOutputPtr = tmp2DContainer.getData();
+
+        if (comm_sub != MPI_COMM_NULL) {
+          MPI_Reduce_scatter_block(mhaOutputPtr, sub2DPtr, subSize, MPI_FLOAT,
+                                   MPI_SUM, comm_sub);
+        }
+
+        _mlir_ciface_forward_prefill3(&subResultContainer, &subResultContainer,
+                                      &sub2DContainer);
       }
 
-      _mlir_ciface_forward_prefill2(kvContainerPtr0, &paramsContainersMHA[m],
-                                    &resultContainerPtr->mask,
-                                    &resultContainerPtr->cos,
-                                    &resultContainerPtr->sin,
-                                    &tmp3DMemRef);
-      kv0[2 * m] = kvContainerPtr0->kcache;
-      kv0[2 * m + 1] = kvContainerPtr0->vcache;
+      std::memcpy(outputPtr, subResultContainer.getData(),
+                  sizeof(float) * subSize);
+      MPI_Wait(&recv_req_prefill, MPI_STATUS_IGNORE);
+      MPI_Wait(&send_req_hidden, MPI_STATUS_IGNORE);
+      MPI_Waitall(3, send_req_mha, MPI_STATUSES_IGNORE);
 
-      tmp2DContainer = kvContainerPtr0->data;
-      mhaOutputPtr = tmp2DContainer.getData();
+      _mlir_ciface_forward_prefill169(&resultPrefill, &paramsContainer1,
+                                      &tmp3DMemRef);
 
-      if (comm_sub != MPI_COMM_NULL) {
-        MPI_Reduce_scatter_block(mhaOutputPtr, sub2DPtr, subSize, MPI_FLOAT,
-                                 MPI_SUM, comm_sub);
+      const auto inferenceEnd = HighResClock::now();
+      const std::chrono::duration<double> inferenceTime =
+          inferenceEnd - inferenceStart;
+      prefillSeconds = inferenceTime.count();
+
+      int tokenIndex = inputContainerPrefill.getTokenCnt() - 1;
+      const float *startPtr =
+          resultPrefill.getData() + tokenIndex * MaxVocabSize;
+      const float *endPtr = startPtr + MaxVocabSize;
+      maxIndex = findMaxIndex(startPtr, endPtr);
+      tok = inputContainerPrefill.getStr(maxIndex);
+      printIterInfo(0, tok, prefillSeconds);
+
+      if (prefillSeconds > 0.0) {
+        prefillTokensPerSec =
+            static_cast<double>(MaxTokenLength) / prefillSeconds;
       }
 
-      _mlir_ciface_forward_prefill3(&subResultContainer, &subResultContainer,
-                                    &sub2DContainer);
-      _mlir_ciface_forward_prefill1(&sub3DContainer, &paramsContainersRMS0[m],
-                                    &subResultContainer);
-      rmsPtr = sub3DContainer.getData();
-
-      if (comm_sub != MPI_COMM_NULL) {
-        MPI_Allgather(rmsPtr, subSize, MPI_FLOAT, tmp3DMemRef.getData(),
-                      subSize, MPI_FLOAT, comm_sub);
-      }
-
-      _mlir_ciface_forward_prefill5(&tmp2DContainer, &paramsContainersMLP[m],
-                                    &tmp3DMemRef);
-      mhaOutputPtr = tmp2DContainer.getData();
-
-      if (comm_sub != MPI_COMM_NULL) {
-        MPI_Reduce_scatter_block(mhaOutputPtr, sub2DPtr, subSize, MPI_FLOAT,
-                                 MPI_SUM, comm_sub);
-      }
-
-      _mlir_ciface_forward_prefill3(&subResultContainer, &subResultContainer,
-                                    &sub2DContainer);
+      inputContainerDecode.getData()[0] = static_cast<long long>(maxIndex);
+      outputContainer.appendTokenIdx(maxIndex);
+      cachePosition.getData()[0] = inputContainerPrefill.getTokenCnt();
+      generateLen = MaxTokenLength - inputContainerPrefill.getTokenCnt();
     }
 
-    // Assemble full hidden states for the final frontend head.
-    std::memcpy(outputPtr, subResultContainer.getData(), sizeof(float) * subSize);
-    MPI_Wait(&recv_req_prefill, MPI_STATUS_IGNORE);
-    MPI_Wait(&send_req_hidden, MPI_STATUS_IGNORE);
-    MPI_Waitall(3, send_req_mha, MPI_STATUSES_IGNORE);
-
-    _mlir_ciface_forward_prefill169(&resultPrefill, &paramsContainer1,
-                                    &tmp3DMemRef);
-    const auto inferenceEnd = std::chrono::high_resolution_clock::now();
-    const std::chrono::duration<double, std::milli> inferenceTime =
-        inferenceEnd - inferenceStart;
-
-    int tokenIndex = inputContainerPrefill.getTokenCnt() - 1;
-    const float *startPtr = resultPrefill.getData() + tokenIndex * MaxVocabSize;
-    const float *endPtr = startPtr + MaxVocabSize;
-    int maxIndex = findMaxIndex(startPtr, endPtr);
-    std::string tok = inputContainerPrefill.getStr(maxIndex);
-    printIterInfo(0, tok, inferenceTime.count() / 1000);
-
-    const double prefillSeconds = inferenceTime.count() / 1000.0;
-    if (prefillSeconds > 0.0) {
-      prefillTokensPerSec = static_cast<double>(MaxTokenLength) / prefillSeconds;
-    }
-
-    inputContainerDecode.getData()[0] = (long long)maxIndex;
-    outputContainer.appendTokenIdx(maxIndex);
-    cachePosition.getData()[0] = inputContainerPrefill.getTokenCnt();
-    generateLen = MaxTokenLength - inputContainerPrefill.getTokenCnt();
     double decodeTimeAccumMs = 0.0;
     size_t decodeTokens = 0;
 
-    MPI_Request send_req_decode[4];
+    MPI_Request send_req_decode[5];
     int ctrl = 0;
     bool sentStop = false;
 
     for (int i = 1; i <= generateLen; i++) {
       ctrl = 0;
-      MPI_Send(&ctrl, 1, MPI_INT, 1, 99, MPI_COMM_WORLD);
-      const auto decodeStart = std::chrono::high_resolution_clock::now();
+      MPI_Send(&ctrl, 1, MPI_INT, PeerRank, 99, MPI_COMM_WORLD);
+
+      const auto decodeStart = HighResClock::now();
 
       _mlir_ciface_forward_decode0(resultContainerDecodePtr, &paramsContainer0,
                                    &inputContainerDecode, &cachePosition);
       inputPtr = resultContainerDecodePtr->data.getData();
 
-      MPI_Isend(inputPtr, HiddenSize0, MPI_FLOAT, 1, 0, MPI_COMM_WORLD,
+      MPI_Isend(inputPtr, HiddenSize0, MPI_FLOAT, PeerRank, 0, MPI_COMM_WORLD,
                 &send_req_decode[0]);
       MPI_Isend(resultContainerDecodePtr->mask.getData(), MaxTokenLength,
-                MPI_INT8_T, 1, 1, MPI_COMM_WORLD, &send_req_decode[1]);
+                MPI_INT8_T, PeerRank, 1, MPI_COMM_WORLD, &send_req_decode[1]);
       MPI_Isend(resultContainerDecodePtr->cos.getData(), HiddenSize, MPI_FLOAT,
-                1, 2, MPI_COMM_WORLD, &send_req_decode[2]);
+                PeerRank, 2, MPI_COMM_WORLD, &send_req_decode[2]);
       MPI_Isend(resultContainerDecodePtr->sin.getData(), HiddenSize, MPI_FLOAT,
-                1, 3, MPI_COMM_WORLD, &send_req_decode[3]);
-      MPI_Send(cachePosition.getData(), 1, MPI_LONG_LONG, 1, 4, MPI_COMM_WORLD);
+                PeerRank, 3, MPI_COMM_WORLD, &send_req_decode[3]);
+      MPI_Isend(cachePosition.getData(), 1, MPI_LONG_LONG, PeerRank, 4,
+                MPI_COMM_WORLD, &send_req_decode[4]);
 
-      // Rank0 local TP shard compute.
       std::memcpy(subResultContainerDecode.getData(), inputPtr,
                   sizeof(float) * HiddenSize0);
+
       for (int m = 0; m < times; m++) {
         _mlir_ciface_forward_decode1(&sub3DContainerDecode,
                                      &paramsContainersRMS[m],
@@ -502,13 +548,18 @@ int main(int argc, char *argv[]) {
         mhaOutputPtrDecode = tmp2DContainerDecode.getData();
 
         if (comm_sub != MPI_COMM_NULL) {
-          MPI_Allreduce(mhaOutputPtrDecode, sub2DContainerDecode.getData(),
-                        HiddenSize0, MPI_FLOAT, MPI_SUM, comm_sub);
+          reduceSumTwoRanksSendrecv(mhaOutputPtrDecode,
+                                    sub2DContainerDecode.getData(),
+                                    HiddenSize0, PeerRank, 1000 + m, comm_sub);
+        } else {
+          std::memcpy(sub2DContainerDecode.getData(), mhaOutputPtrDecode,
+                      sizeof(float) * HiddenSize0);
         }
 
         _mlir_ciface_forward_decode3(&subResultContainerDecode,
                                      &subResultContainerDecode,
                                      &sub2DContainerDecode);
+
         _mlir_ciface_forward_decode1(&sub3DContainerDecode,
                                      &paramsContainersRMS0[m],
                                      &subResultContainerDecode);
@@ -519,39 +570,24 @@ int main(int argc, char *argv[]) {
         mhaOutputPtrDecode = tmp2DContainerDecode.getData();
 
         if (comm_sub != MPI_COMM_NULL) {
-          MPI_Allreduce(mhaOutputPtrDecode, sub2DContainerDecode.getData(),
-                        HiddenSize0, MPI_FLOAT, MPI_SUM, comm_sub);
+          reduceSumTwoRanksSendrecv(mhaOutputPtrDecode,
+                                    sub2DContainerDecode.getData(),
+                                    HiddenSize0, PeerRank, 2000 + m, comm_sub);
+        } else {
+          std::memcpy(sub2DContainerDecode.getData(), mhaOutputPtrDecode,
+                      sizeof(float) * HiddenSize0);
         }
 
         _mlir_ciface_forward_decode3(&subResultContainerDecode,
                                      &subResultContainerDecode,
                                      &sub2DContainerDecode);
       }
-///////////
-      // MPI_Waitall(4, send_req_decode, MPI_STATUSES_IGNORE);
-      // std::memcpy(myMemRef_decode1.getData(), subResultContainerDecode.getData(),
-      //             sizeof(float) * HiddenSize0);
 
-      // _mlir_ciface_forward_decode169(&resultDecode, &paramsContainer1,
-      //                                &myMemRef_decode1);
-      // const auto decodeEnd = std::chrono::high_resolution_clock::now();
-      // const std::chrono::duration<double, std::milli> decodeTime =
-      //     decodeEnd - decodeStart;
-      // decodeTimeAccumMs += decodeTime.count();
-      // decodeTokens += 1;
+      MPI_Waitall(5, send_req_decode, MPI_STATUSES_IGNORE);
 
-      // const float *decodeStartPtr = resultDecode.getData();
-      // const float *decodeEndPtr = decodeStartPtr + MaxVocabSize;
-      // maxIndex = findMaxIndex(decodeStartPtr, decodeEndPtr);
-      // tok = inputContainerPrefill.getStr(maxIndex);
-      // printIterInfo(i, tok, decodeTime.count() / 1000);
-////////////////
-
-      MPI_Waitall(4, send_req_decode, MPI_STATUSES_IGNORE);
       std::memcpy(myMemRef_decode1.getData(), subResultContainerDecode.getData(),
                   sizeof(float) * HiddenSize0);
 
-      // rank0: compute local vocab shard logits.
       _mlir_ciface_forward_decode169(&resultDecodeShard0, &paramsContainer2,
                                      &myMemRef_decode1);
 
@@ -561,33 +597,22 @@ int main(int argc, char *argv[]) {
           findMaxIndex(decodeShard0StartPtr, decodeShard0EndPtr);
       float localDecodeMaxValue = decodeShard0StartPtr[localDecodeMaxIndex];
 
-      // Receive rank1 local-top1 result, then decide global top1 on rank0.
-      float peerDecodeMaxValue = 0.0f;
-      int peerDecodeMaxIndex = 0;
-      MPI_Recv(&peerDecodeMaxValue, 1, MPI_FLOAT, 1, DecodeTopValTag,
-               MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-      MPI_Recv(&peerDecodeMaxIndex, 1, MPI_INT, 1, DecodeTopIdxTag,
-               MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      MaxLocPair globalTop1 =
+          reduceMaxLoc(localDecodeMaxValue, localDecodeMaxIndex, comm_sub);
+      maxIndex = globalTop1.index;
 
-      if (localDecodeMaxValue >= peerDecodeMaxValue) {
-        maxIndex = localDecodeMaxIndex;
-      } else {
-        maxIndex = static_cast<int>(VocabShardSize) + peerDecodeMaxIndex;
-      }
-
-      const auto decodeEnd = std::chrono::high_resolution_clock::now();
+      const auto decodeEnd = HighResClock::now();
       const std::chrono::duration<double, std::milli> decodeTime =
           decodeEnd - decodeStart;
       decodeTimeAccumMs += decodeTime.count();
       decodeTokens += 1;
 
       tok = inputContainerPrefill.getStr(maxIndex);
-      printIterInfo(i, tok, decodeTime.count() / 1000);
-
+      printIterInfo(i, tok, decodeTime.count() / 1000.0);
 
       if (maxIndex == 151643) {
         ctrl = 1;
-        MPI_Send(&ctrl, 1, MPI_INT, 1, 99, MPI_COMM_WORLD);
+        MPI_Send(&ctrl, 1, MPI_INT, PeerRank, 99, MPI_COMM_WORLD);
         sentStop = true;
         break;
       }
@@ -599,7 +624,7 @@ int main(int argc, char *argv[]) {
 
     if (!sentStop) {
       ctrl = 1;
-      MPI_Send(&ctrl, 1, MPI_INT, 1, 99, MPI_COMM_WORLD);
+      MPI_Send(&ctrl, 1, MPI_INT, PeerRank, 99, MPI_COMM_WORLD);
     }
 
     double decodeSeconds = decodeTimeAccumMs / 1000.0;
@@ -626,40 +651,20 @@ int main(int argc, char *argv[]) {
       MPI_Group_free(&world_group);
     }
 
-  } else if (rank == 1) {
+  } else if (rank == PeerRank) {
 
-    MemRef<float, 3> subResultContainer({1, SubMaxTokenLength, HiddenSize0});
-    MemRef<float, 3> sub3DContainer({1, SubMaxTokenLength, HiddenSize0});
-    MemRef<int8_t, 4> mhaMemRef4D({1, 1, MaxTokenLength, MaxTokenLength});
-    MemRef<float, 3> mhaMemRef3D1({1, MaxTokenLength, HiddenSize});
-    MemRef<float, 3> mhaMemRef3D2({1, MaxTokenLength, HiddenSize});
-    MemRef<float, 3> tmp3DMemRef({1, MaxTokenLength, HiddenSize0});
-    MemRef<float, 2> tmp2DContainer({MaxTokenLength, HiddenSize0});
-    MemRef<float, 2> sub2DContainer({SubMaxTokenLength, HiddenSize0});
     std::vector<MemRef<float, 4>> kv0;
-    kv0.reserve(56);
-    for (int i = 0; i < 56; ++i) {
+    kv0.reserve(NUM_LAYERS);
+    for (size_t i = 0; i < NUM_LAYERS; ++i) {
       kv0.emplace_back(std::vector<size_t>{1, 1, MaxTokenLength, HiddenSize});
     }
-    MemRefContainer2 kvContainer0(kv0[0], kv0[1], tmp2DContainer);
-    MemRefContainer2 *kvContainerPtr0 = &kvContainer0;
-
-    float *subResultPtr = subResultContainer.getData();
-    float *rmsPtr = sub3DContainer.getData();
-    int8_t *mhaMemRef4DPtr = mhaMemRef4D.getData();
-    float *mhaMemRef3D1Ptr = mhaMemRef3D1.getData();
-    float *mhaMemRef3D2Ptr = mhaMemRef3D2.getData();
-    float *mhaOutputPtr = tmp2DContainer.getData();
-    float *sub2DPtr = sub2DContainer.getData();
 
     constexpr size_t paramSizeRMS = 1536;
     constexpr size_t paramSizeMHA = 2753536;
     constexpr size_t paramSizeMLP = 20643840;
     int times = 28;
-    int source = 0;
-    MPI_Request recv_req_hidden = MPI_REQUEST_NULL;
-    MPI_Request recv_req_mha[3];
-    MPI_Request recv_req_decode[4];
+    int source = FrontendRank;
+
     std::vector<std::string> paramsDirsRMS, paramsDirsRMS0;
     std::vector<std::string> paramsDirsMHA, paramsDirsMLP;
     std::vector<MemRef<float, 1>> paramsContainersRMS, paramsContainersRMS0;
@@ -696,7 +701,6 @@ int main(int argc, char *argv[]) {
       paramsContainersMLP.push_back(paramsContainerMLP);
     }
 
-    
     constexpr size_t param_size2 = 116688384;
     const std::string paramsDir2 =
         deepSeekR1BuildDir + "/subgraph0_decode169_arg1.data";
@@ -706,73 +710,98 @@ int main(int argc, char *argv[]) {
     MPI_Comm comm_sub = MPI_COMM_NULL;
     MPI_Group world_group = MPI_GROUP_NULL;
     MPI_Group sub_group = MPI_GROUP_NULL;
-    int ranks_in_sub[2] = {0, 1};
+    int ranks_in_sub[2] = {FrontendRank, PeerRank};
     MPI_Comm_group(MPI_COMM_WORLD, &world_group);
     MPI_Group_incl(world_group, 2, ranks_in_sub, &sub_group);
     MPI_Comm_create_group(MPI_COMM_WORLD, sub_group, 0, &comm_sub);
 
-    MPI_Irecv(mhaMemRef4DPtr, MaxTokenLength * MaxTokenLength, MPI_INT8_T,
-              source, 1, MPI_COMM_WORLD, &recv_req_mha[0]);
-    MPI_Irecv(mhaMemRef3D1Ptr, MaxTokenLength * HiddenSize, MPI_FLOAT, source,
-              2, MPI_COMM_WORLD, &recv_req_mha[1]);
-    MPI_Irecv(mhaMemRef3D2Ptr, MaxTokenLength * HiddenSize, MPI_FLOAT, source,
-              3, MPI_COMM_WORLD, &recv_req_mha[2]);
+    {
+      MemRef<float, 3> subResultContainer({1, SubMaxTokenLength, HiddenSize0});
+      MemRef<float, 3> sub3DContainer({1, SubMaxTokenLength, HiddenSize0});
+      MemRef<int8_t, 4> mhaMemRef4D({1, 1, MaxTokenLength, MaxTokenLength});
+      MemRef<float, 3> mhaMemRef3D1({1, MaxTokenLength, HiddenSize});
+      MemRef<float, 3> mhaMemRef3D2({1, MaxTokenLength, HiddenSize});
+      MemRef<float, 3> tmp3DMemRef({1, MaxTokenLength, HiddenSize0});
+      MemRef<float, 2> tmp2DContainer({MaxTokenLength, HiddenSize0});
+      MemRef<float, 2> sub2DContainer({SubMaxTokenLength, HiddenSize0});
+      MemRefContainer2 kvContainer0(kv0[0], kv0[1], tmp2DContainer);
+      MemRefContainer2 *kvContainerPtr0 = &kvContainer0;
 
-    MPI_Irecv(subResultPtr, subSize, MPI_FLOAT, source, 0, MPI_COMM_WORLD,
-              &recv_req_hidden);
-    MPI_Wait(&recv_req_hidden, MPI_STATUS_IGNORE);
-    MPI_Waitall(3, recv_req_mha, MPI_STATUSES_IGNORE);
+      float *subResultPtr = subResultContainer.getData();
+      float *rmsPtr = sub3DContainer.getData();
+      int8_t *mhaMemRef4DPtr = mhaMemRef4D.getData();
+      float *mhaMemRef3D1Ptr = mhaMemRef3D1.getData();
+      float *mhaMemRef3D2Ptr = mhaMemRef3D2.getData();
+      float *mhaOutputPtr = tmp2DContainer.getData();
+      float *sub2DPtr = sub2DContainer.getData();
 
-    for (int m = 0; m < times; m++) {
-      _mlir_ciface_forward_prefill1(&sub3DContainer, &paramsContainersRMS[m],
-                                    &subResultContainer);
-      rmsPtr = sub3DContainer.getData();
+      MPI_Request recv_req_hidden = MPI_REQUEST_NULL;
+      MPI_Request recv_req_mha[3];
 
-      if (comm_sub != MPI_COMM_NULL) {
-        MPI_Allgather(rmsPtr, subSize, MPI_FLOAT, tmp3DMemRef.getData(),
-                      subSize, MPI_FLOAT, comm_sub);
+      MPI_Irecv(mhaMemRef4DPtr, MaxTokenLength * MaxTokenLength, MPI_INT8_T,
+                source, 1, MPI_COMM_WORLD, &recv_req_mha[0]);
+      MPI_Irecv(mhaMemRef3D1Ptr, MaxTokenLength * HiddenSize, MPI_FLOAT, source,
+                2, MPI_COMM_WORLD, &recv_req_mha[1]);
+      MPI_Irecv(mhaMemRef3D2Ptr, MaxTokenLength * HiddenSize, MPI_FLOAT, source,
+                3, MPI_COMM_WORLD, &recv_req_mha[2]);
+      MPI_Irecv(subResultPtr, subSize, MPI_FLOAT, source, 0, MPI_COMM_WORLD,
+                &recv_req_hidden);
+
+      MPI_Wait(&recv_req_hidden, MPI_STATUS_IGNORE);
+      MPI_Waitall(3, recv_req_mha, MPI_STATUSES_IGNORE);
+
+      for (int m = 0; m < times; m++) {
+        _mlir_ciface_forward_prefill1(&sub3DContainer, &paramsContainersRMS[m],
+                                      &subResultContainer);
+        rmsPtr = sub3DContainer.getData();
+
+        if (comm_sub != MPI_COMM_NULL) {
+          MPI_Allgather(rmsPtr, subSize, MPI_FLOAT, tmp3DMemRef.getData(),
+                        subSize, MPI_FLOAT, comm_sub);
+        }
+
+        _mlir_ciface_forward_prefill2(kvContainerPtr0, &paramsContainersMHA[m],
+                                      &mhaMemRef4D, &mhaMemRef3D1,
+                                      &mhaMemRef3D2, &tmp3DMemRef);
+        kv0[2 * m] = kvContainerPtr0->kcache;
+        kv0[2 * m + 1] = kvContainerPtr0->vcache;
+        tmp2DContainer = kvContainerPtr0->data;
+        mhaOutputPtr = tmp2DContainer.getData();
+
+        if (comm_sub != MPI_COMM_NULL) {
+          MPI_Reduce_scatter_block(mhaOutputPtr, sub2DPtr, subSize, MPI_FLOAT,
+                                   MPI_SUM, comm_sub);
+        }
+
+        _mlir_ciface_forward_prefill3(&subResultContainer, &subResultContainer,
+                                      &sub2DContainer);
+
+        _mlir_ciface_forward_prefill1(&sub3DContainer, &paramsContainersRMS0[m],
+                                      &subResultContainer);
+        rmsPtr = sub3DContainer.getData();
+
+        if (comm_sub != MPI_COMM_NULL) {
+          MPI_Allgather(rmsPtr, subSize, MPI_FLOAT, tmp3DMemRef.getData(),
+                        subSize, MPI_FLOAT, comm_sub);
+        }
+
+        _mlir_ciface_forward_prefill5(&tmp2DContainer, &paramsContainersMLP[m],
+                                      &tmp3DMemRef);
+        mhaOutputPtr = tmp2DContainer.getData();
+
+        if (comm_sub != MPI_COMM_NULL) {
+          MPI_Reduce_scatter_block(mhaOutputPtr, sub2DPtr, subSize, MPI_FLOAT,
+                                   MPI_SUM, comm_sub);
+        }
+
+        _mlir_ciface_forward_prefill3(&subResultContainer, &subResultContainer,
+                                      &sub2DContainer);
       }
 
-      _mlir_ciface_forward_prefill2(kvContainerPtr0, &paramsContainersMHA[m],
-                                    &mhaMemRef4D, &mhaMemRef3D1, &mhaMemRef3D2,
-                                    &tmp3DMemRef);
-      kv0[2 * m] = kvContainerPtr0->kcache;
-      kv0[2 * m + 1] = kvContainerPtr0->vcache;
-
-      tmp2DContainer = kvContainerPtr0->data;
-      mhaOutputPtr = tmp2DContainer.getData();
-
-      if (comm_sub != MPI_COMM_NULL) {
-        MPI_Reduce_scatter_block(mhaOutputPtr, sub2DPtr, subSize, MPI_FLOAT,
-                                 MPI_SUM, comm_sub);
-      }
-
-      _mlir_ciface_forward_prefill3(&subResultContainer, &subResultContainer,
-                                    &sub2DContainer);
-      _mlir_ciface_forward_prefill1(&sub3DContainer, &paramsContainersRMS0[m],
-                                    &subResultContainer);
-      rmsPtr = sub3DContainer.getData();
-
-      if (comm_sub != MPI_COMM_NULL) {
-        MPI_Allgather(rmsPtr, subSize, MPI_FLOAT, tmp3DMemRef.getData(),
-                      subSize, MPI_FLOAT, comm_sub);
-      }
-
-      _mlir_ciface_forward_prefill5(&tmp2DContainer, &paramsContainersMLP[m],
-                                    &tmp3DMemRef);
-      mhaOutputPtr = tmp2DContainer.getData();
-
-      if (comm_sub != MPI_COMM_NULL) {
-        MPI_Reduce_scatter_block(mhaOutputPtr, sub2DPtr, subSize, MPI_FLOAT,
-                                 MPI_SUM, comm_sub);
-      }
-
-      _mlir_ciface_forward_prefill3(&subResultContainer, &subResultContainer,
-                                    &sub2DContainer);
+      subResultPtr = subResultContainer.getData();
+      MPI_Send(subResultPtr, subSize, MPI_FLOAT, FrontendRank, 0,
+               MPI_COMM_WORLD);
     }
-
-    subResultPtr = subResultContainer.getData();
-    MPI_Send(subResultPtr, subSize, MPI_FLOAT, 0, 0, MPI_COMM_WORLD);
 
     // -----------------------------------------------------------------------
     // Decode on peer shard.
@@ -793,7 +822,9 @@ int main(int argc, char *argv[]) {
     MemRefContainer2 kvDecodeContainer0(kv0[0], kv0[1], tmp2DContainerDecode);
     MemRefContainer2 *kvDecodeContainerPtr0 = &kvDecodeContainer0;
 
+    MPI_Request recv_req_decode[5];
     int ctrl = 0;
+
     for (int i = 1; i <= generateLen; i++) {
       MPI_Recv(&ctrl, 1, MPI_INT, source, 99, MPI_COMM_WORLD,
                MPI_STATUS_IGNORE);
@@ -809,32 +840,44 @@ int main(int argc, char *argv[]) {
                 MPI_COMM_WORLD, &recv_req_decode[2]);
       MPI_Irecv(mhaMemRef3D2PtrDecode, HiddenSize, MPI_FLOAT, source, 3,
                 MPI_COMM_WORLD, &recv_req_decode[3]);
-      MPI_Recv(cachePosition.getData(), 1, MPI_LONG_LONG, source, 4,
-               MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-      MPI_Waitall(4, recv_req_decode, MPI_STATUSES_IGNORE);
+      MPI_Irecv(cachePosition.getData(), 1, MPI_LONG_LONG, source, 4,
+                MPI_COMM_WORLD, &recv_req_decode[4]);
+
+      MPI_Wait(&recv_req_decode[0], MPI_STATUS_IGNORE);
 
       for (int m = 0; m < times; m++) {
         _mlir_ciface_forward_decode1(&sub3DContainerDecode,
                                      &paramsContainersRMS[m],
                                      &subResultContainerDecode);
 
+        if (m == 0) {
+          MPI_Waitall(4, &recv_req_decode[1], MPI_STATUSES_IGNORE);
+        }
+
         _mlir_ciface_forward_decode2(
             kvDecodeContainerPtr0, &paramsContainersMHA[m], &cachePosition,
             &kv0[2 * m], &kv0[2 * m + 1], &mhaMemRef4DDecode,
-            &mhaMemRef3D1Decode, &mhaMemRef3D2Decode, &sub3DContainerDecode);
+            &mhaMemRef3D1Decode, &mhaMemRef3D2Decode,
+            &sub3DContainerDecode);
         kv0[2 * m] = kvDecodeContainerPtr0->kcache;
         kv0[2 * m + 1] = kvDecodeContainerPtr0->vcache;
         tmp2DContainerDecode = kvDecodeContainerPtr0->data;
         mhaOutputPtrDecode = tmp2DContainerDecode.getData();
 
         if (comm_sub != MPI_COMM_NULL) {
-          MPI_Allreduce(mhaOutputPtrDecode, sub2DContainerDecode.getData(),
-                        HiddenSize0, MPI_FLOAT, MPI_SUM, comm_sub);
+          reduceSumTwoRanksSendrecv(mhaOutputPtrDecode,
+                                    sub2DContainerDecode.getData(),
+                                    HiddenSize0, FrontendRank, 1000 + m,
+                                    comm_sub);
+        } else {
+          std::memcpy(sub2DContainerDecode.getData(), mhaOutputPtrDecode,
+                      sizeof(float) * HiddenSize0);
         }
 
         _mlir_ciface_forward_decode3(&subResultContainerDecode,
                                      &subResultContainerDecode,
                                      &sub2DContainerDecode);
+
         _mlir_ciface_forward_decode1(&sub3DContainerDecode,
                                      &paramsContainersRMS0[m],
                                      &subResultContainerDecode);
@@ -845,15 +888,20 @@ int main(int argc, char *argv[]) {
         mhaOutputPtrDecode = tmp2DContainerDecode.getData();
 
         if (comm_sub != MPI_COMM_NULL) {
-          MPI_Allreduce(mhaOutputPtrDecode, sub2DContainerDecode.getData(),
-                        HiddenSize0, MPI_FLOAT, MPI_SUM, comm_sub);
+          reduceSumTwoRanksSendrecv(mhaOutputPtrDecode,
+                                    sub2DContainerDecode.getData(),
+                                    HiddenSize0, FrontendRank, 2000 + m,
+                                    comm_sub);
+        } else {
+          std::memcpy(sub2DContainerDecode.getData(), mhaOutputPtrDecode,
+                      sizeof(float) * HiddenSize0);
         }
 
         _mlir_ciface_forward_decode3(&subResultContainerDecode,
                                      &subResultContainerDecode,
                                      &sub2DContainerDecode);
       }
-            // rank1: compute local vocab shard logits and send local top1 to rank0.
+
       _mlir_ciface_forward_decode169(&resultDecodeShard1, &paramsContainer2,
                                      &subResultContainerDecode);
 
@@ -863,10 +911,9 @@ int main(int argc, char *argv[]) {
           findMaxIndex(decodeShard1StartPtr, decodeShard1EndPtr);
       float localDecodeMaxValue = decodeShard1StartPtr[localDecodeMaxIndex];
 
-      MPI_Send(&localDecodeMaxValue, 1, MPI_FLOAT, 0, DecodeTopValTag,
-               MPI_COMM_WORLD);
-      MPI_Send(&localDecodeMaxIndex, 1, MPI_INT, 0, DecodeTopIdxTag,
-               MPI_COMM_WORLD);
+      (void)reduceMaxLoc(localDecodeMaxValue,
+                         static_cast<int>(VocabShardSize) + localDecodeMaxIndex,
+                         comm_sub);
     }
 
     if (comm_sub != MPI_COMM_NULL) {
