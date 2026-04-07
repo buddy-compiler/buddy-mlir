@@ -41,6 +41,9 @@ namespace runtime {
 ///   /history        Show conversation history
 ///   /system <text>  Set system prompt
 ///   Line ending \   Multi-line continuation
+///
+/// Preconditions: `session` must already have weights loaded (e.g.
+/// ModelSession::loadWeights) when using DeepSeek.
 void runInteractiveSession(LLMSession &session, const std::string &vocabPath,
                            const RunConfig &cfg,
                            const std::vector<long long> &stopTokenIds,

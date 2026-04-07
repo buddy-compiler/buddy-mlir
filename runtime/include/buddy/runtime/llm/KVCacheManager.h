@@ -137,6 +137,16 @@ inline std::vector<float> buildInverseRopeFreqs(float theta, int hiddenSize) {
 /// Keeps the first `keepTokenNum` tokens intact, discards `discardLen` tokens
 /// after them, and moves the remaining tail tokens forward. Stale tail regions
 /// are zeroed to prevent garbage reads.
+///
+/// @tparam T  KV element type (float, uint16_t for f16/bf16, etc.).
+/// @param kvBuffers       Array of raw pointers for each KV layer.
+/// @param numLayers       Number of KV layers (e.g. 56).
+/// @param headNum         Number of attention heads.
+/// @param maxTokenLen     Maximum token length (cache time dimension).
+/// @param hiddenSize      Hidden dimension per head.
+/// @param keepTokenNum    Number of initial tokens to preserve.
+/// @param discardLen      Number of tokens to discard after the kept prefix.
+/// @param currentTokenCount Current number of valid tokens in cache.
 template <typename T>
 inline void discardKVCache(T *kvBuffers[], int numLayers, int headNum,
                            int maxTokenLen, int hiddenSize, int keepTokenNum,

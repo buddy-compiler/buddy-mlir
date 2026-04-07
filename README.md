@@ -98,7 +98,9 @@ python3 tools/buddy-codegen/build_model.py \
   --spec models/deepseek_r1/specs/f32.json
 ```
 
-
+After a normal CMake configure, you can build the same artifacts with Ninja
+(`ninja deepseek_r1_model_so`, then `ninja deepseek_r1_rax`) instead of the
+script above; both drive `buddy_add_model` in `models/deepseek_r1/CMakeLists.txt`.
 
 Run the model:
 

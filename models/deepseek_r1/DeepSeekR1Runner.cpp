@@ -121,6 +121,8 @@ void DeepSeekR1Runner::run(const RunConfig &cfgIn) {
   }
 
   // ── Load weights into session ───────────────────────────────────────────
+  // Reads weight files from disk into session-owned MemRefs (layout and
+  // element types match the compiled variant; see manifest constant order).
   session->loadWeights(weightPaths);
   printLog("Weights loaded.", suppress);
 

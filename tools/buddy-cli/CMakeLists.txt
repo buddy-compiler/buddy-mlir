@@ -4,6 +4,7 @@ add_executable(buddy-cli buddy-cli.cpp)
 
 target_compile_features(buddy-cli PRIVATE cxx_std_17)
 
+# buddy_models_<name> is produced by buddy_add_model(NAME <name> …) in models/
 target_link_libraries(buddy-cli PRIVATE
   buddy_models_deepseek_r1
   mlir_c_runner_utils

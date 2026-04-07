@@ -52,7 +52,7 @@ python3 tools/buddy-codegen/build_model.py --spec models/deepseek_r1/specs/f32.j
 └───────────────────────────────────────────┘
 ```
 
-**C++ namespaces**: Shared runtime APIs (`InferenceRunner`, `ModelManifest`, `BufferPool`, `ModelSession`, etc.) live in the nested namespace **`buddy::runtime`**, alongside the compiler frontend `buddy::` and the RHAL dialect `buddy::rhal`. The DeepSeek static library target is **`buddy_models_deepseek_r1`**.
+**C++ namespaces**: Shared runtime APIs (`InferenceRunner`, `ModelManifest`, `BufferPool`, `ModelSession`, etc.) live in the nested namespace **`buddy::runtime`**, alongside the compiler frontend `buddy::` and the RHAL dialect `buddy::rhal`. Build targets: core runtime **`buddy_runtime_core`**; DeepSeek model library **`buddy_models_deepseek_r1`** (from `buddy_add_model(NAME deepseek_r1 …)` — CMake identifiers only).
 
 `buddy-cli` reads the `model_name` field from `.rax` and constructs the matching `InferenceRunner` via `makeRunner()`. To add a model:
 
@@ -104,7 +104,7 @@ Total KV cache memory: `56 × 2 × 1024 × 128 × 4 bytes = 56 MB`.
 | `Input` | Prompt tokens / decode token | Call | Host |
 | `Output` | Logits | Call | Inside session |
 | `State` | kv0..kv55 (56-layer KV cache) | Session | **Runtime (session owns)** |
-| `Workspace` | Temp buffers from compiler | Runtime-internal | Runtime-internal |
+| `Workspace` | Temp buffers from compiler | Runtime-internal | Runtime |
 
 ---
 

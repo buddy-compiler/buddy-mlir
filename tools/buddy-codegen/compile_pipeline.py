@@ -17,6 +17,8 @@
 #
 # Replaces the CMake macros dsr1_mlir_to_obj / dsr1_subgraph_to_obj /
 # dsr1_subgraph_decode_to_obj with a single config-driven Python script.
+# Subgraph vs forward passes and decode-specific vectorization are selected here
+# (mirroring the old macro differences: extra TOSA / linalg / vector passes).
 #
 # Single file:
 #   python compile_pipeline.py --config config.json \

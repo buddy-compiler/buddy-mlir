@@ -3,6 +3,20 @@
 #
 # Variant JSON → gen_config + ModelSession + RHAL manifest + import_model +
 # compile_pipeline + .so + .rax  (see tools/buddy-codegen/)
+#
+# Part 1 (shape / compile-time constants): values come from the chosen
+# specs/<variant>.json via gen_config.py (not hand-edited CMake cache vars).
+# Default --max-tokens / RunConfig::maxNewTokens should stay aligned with
+# buddy::runtime::RunConfig in InferenceRunner.h and buddy-cli defaults.
+#
+# Part 2 (linking the static model library): buddy_model.cmake links
+#   buddy_runtime_core + buddy_runtime_llm + CMAKE_DL_LIBS (-ldl) + LLVMSupport
+# Part 3 (MLIR pipeline): Pipe is roughly
+#   buddy-opt → mlir-opt (TOSA) → buddy-opt (bufferize + vectorize + lower) →
+#   mlir-translate → llvm-as → llc → .o → link .so → gen_manifest → rax-pack → .rax
+#   Mode A: pre-built .o | Mode B: pre-generated MLIR | Mode C: import_model.py
+# Output .rax and vocab.txt live next to the .so so manifest URIs like
+# file:model.so and file:vocab.txt resolve relative to the .rax directory.
 # ══════════════════════════════════════════════════════════════════════════════
 
 include(${CMAKE_SOURCE_DIR}/tools/buddy-codegen/cmake/buddy_model.cmake)

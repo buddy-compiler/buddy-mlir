@@ -159,6 +159,10 @@ function(buddy_add_model)
 
   # ════════════════════════════════════════════════════════════════════════════
   # Part 2: Model compilation pipeline (MLIR → .o → .so)
+  #
+  # Rough pipe (same as legacy dsr1_* macros): buddy-opt → mlir-opt (TOSA) →
+  # buddy-opt (bufferize, vectorize, lower) → mlir-translate → llvm-as → llc → .o
+  # Subgraph / decode file naming and extra flags are handled in compile_pipeline.py.
   # ════════════════════════════════════════════════════════════════════════════
 
   set(MODEL_SO "${BIN}/${MDL_NAME}_model.so")
