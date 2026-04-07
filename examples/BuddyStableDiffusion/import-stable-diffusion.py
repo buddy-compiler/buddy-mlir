@@ -44,6 +44,12 @@ parser.add_argument(
     default="./",
     help="Directory to save the output files.",
 )
+parser.add_argument(
+    "--model-path",
+    type=str,
+    default=None,
+    help="Model path or Hugging Face repo id (overrides SD_MODEL_PATH).",
+)
 args = parser.parse_args()
 output_dir = args.output_dir
 
@@ -53,24 +59,19 @@ os.makedirs(output_dir, exist_ok=True)
 device = torch.device("cpu")
 
 
-def resolve_model_source():
-    env_model_dir = os.environ.get("STABLE_DIFFUSION_MODEL_PATH")
-    if env_model_dir:
-        candidate = Path(env_model_dir).expanduser()
-        if candidate.exists():
-            return str(candidate.resolve()), True
-        return env_model_dir, False
-
-    for candidate in (
-        Path(__file__).resolve().parents[2] / "stable-diffusion-2-1-base",
-    ):
-        if candidate.exists():
-            return str(candidate.resolve()), True
-
-    return "stabilityai/stable-diffusion-2-1-base", False
+def resolve_model_source(model_path):
+    candidate = Path(model_path).expanduser()
+    if candidate.exists():
+        return str(candidate.resolve()), True
+    return model_path, False
 
 
-model_source, local_files_only = resolve_model_source()
+resolved_model_path = (
+    args.model_path
+    or os.environ.get("SD_MODEL_PATH")
+    or "stabilityai/stable-diffusion-2-1-base"
+)
+model_source, local_files_only = resolve_model_source(resolved_model_path)
 
 pipe = StableDiffusionPipeline.from_pretrained(
     model_source, torch_dtype=torch.float32, local_files_only=local_files_only
