@@ -46,10 +46,12 @@ output_dir = Path(args.output_dir)
 output_dir.mkdir(parents=True, exist_ok=True)
 
 # Retrieve the LeNet model path.
-model_path = os.path.dirname(os.path.abspath(__file__))
+model_path = os.environ.get("LENET_MODEL_PATH")
+if model_path is None:
+    model_path = Path(__file__).resolve().parent / "lenet-model.pth"
 
 model = LeNet()
-model = torch.load(model_path + "/lenet-model.pth", weights_only=False)
+model = torch.load(model_path, weights_only=False)
 model = model.eval()
 
 # Initialize Dynamo Compiler with specific configurations as an importer.
