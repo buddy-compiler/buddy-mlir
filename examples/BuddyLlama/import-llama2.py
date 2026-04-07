@@ -18,18 +18,17 @@
 #
 # ===---------------------------------------------------------------------------
 
-import os
 import argparse
-import torch
-import torch._dynamo as dynamo
-from transformers import LlamaForCausalLM, LlamaTokenizer
-from torch._inductor.decomposition import decompositions as inductor_decomp
-import numpy
+import os
 
+import numpy
+import torch
 from buddy.compiler.frontend import DynamoCompiler
-from buddy.compiler.ops import tosa
 from buddy.compiler.graph import GraphDriver
-from buddy.compiler.graph.transform import simply_fuse, apply_classic_fusion
+from buddy.compiler.graph.transform import simply_fuse
+from buddy.compiler.ops import tosa
+from torch._inductor.decomposition import decompositions as inductor_decomp
+from transformers import LlamaForCausalLM, LlamaTokenizer
 
 # Add argument parser to allow custom output directory.
 parser = argparse.ArgumentParser(description="LLaMA2 model AOT importer")
@@ -48,9 +47,7 @@ os.makedirs(output_dir, exist_ok=True)
 # Retrieve the LLaMA model path from environment variables.
 model_path = os.environ.get("LLAMA_MODEL_PATH")
 if model_path is None:
-    raise EnvironmentError(
-        "The environment variable 'LLAMA_MODEL_PATH' is not set or is invalid."
-    )
+    model_path = "meta-llama/Llama-2-7b"
 
 # Initialize the tokenizer and model from the specified model path.
 tokenizer = LlamaTokenizer.from_pretrained(model_path, legacy=True)

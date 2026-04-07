@@ -56,7 +56,7 @@ add_custom_command(
 set(LENET_EXAMPLE_PATH ${CMAKE_CURRENT_SOURCE_DIR})
 set(LENET_EXAMPLE_BUILD_PATH ${CMAKE_CURRENT_BINARY_DIR})
 
-add_library(LENET STATIC subgraph0.o forward.o)
+add_library(LENET STATIC forward.o subgraph0.o)
 
 SET_TARGET_PROPERTIES(LENET PROPERTIES LINKER_LANGUAGE C)
 
@@ -84,7 +84,7 @@ set_tests_properties(
   example.buddy-lenet-run
   PROPERTIES
     LABELS "example"
-    PASS_REGULAR_EXPRESSION "Passed"
+    PASS_REGULAR_EXPRESSION "Classification: 1[\r\n\t ]*Probability: 1"
     TIMEOUT 600
 )
 
@@ -132,7 +132,7 @@ add_custom_command(
   COMMENT "Building subgraph0_gpu.o"
   VERBATIM)
 
-add_library(LENET_GPU STATIC subgraph0_gpu.o forward_gpu.o)
+add_library(LENET_GPU STATIC forward_gpu.o subgraph0_gpu.o)
 
 SET_TARGET_PROPERTIES(LENET_GPU PROPERTIES LINKER_LANGUAGE C)
 
