@@ -75,6 +75,19 @@ target_compile_definitions(buddy-lenet-run PRIVATE
     LENET_EXAMPLE_BUILD_PATH="${LENET_EXAMPLE_BUILD_PATH}"
 )
 
+add_test(
+  NAME example.buddy-lenet-run
+  COMMAND $<TARGET_FILE:buddy-lenet-run>
+  WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+)
+set_tests_properties(
+  example.buddy-lenet-run
+  PROPERTIES
+    LABELS "example"
+    PASS_REGULAR_EXPRESSION "Passed"
+    TIMEOUT 600
+)
+
 set(ONE_SHOT_BUFFERIZE_OPTION "bufferize-function-boundaries=1 function-boundary-type-conversion=identity-layout-map")
 set(LOWER_TO_NVVM_OPTION "cubin-chip=sm_80 cubin-features=+ptx71 cubin-format=fatbin")
 set(CONVERT_MEMCPY_TO_GPU_OPTION "process-args=1")

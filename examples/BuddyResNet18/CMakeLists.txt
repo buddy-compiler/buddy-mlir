@@ -80,3 +80,16 @@ target_link_directories(buddy-resnet-run PRIVATE ${LLVM_LIBRARY_DIR})
 
 set(BUDDY_RESNET_LIBS RESNET mlir_c_runner_utils BuddyLibDIP ${PNG_LIBRARIES})
 target_link_libraries(buddy-resnet-run ${BUDDY_RESNET_LIBS})
+
+add_test(
+  NAME example.buddy-resnet-run
+  COMMAND $<TARGET_FILE:buddy-resnet-run>
+  WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+)
+set_tests_properties(
+  example.buddy-resnet-run
+  PROPERTIES
+    LABELS "example"
+    PASS_REGULAR_EXPRESSION "Passed"
+    TIMEOUT 1200
+)

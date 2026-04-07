@@ -268,6 +268,19 @@ set_target_properties(buddy-onednn-run PROPERTIES
     BUILD_RPATH "$ORIGIN/../lib:${CMAKE_BINARY_DIR}/lib:${MLIR_RUNNER_UTILS_LIB}:${CMAKE_CURRENT_BINARY_DIR}"
 )
 
+add_test(
+    NAME example.buddy-onednn-run
+    COMMAND $<TARGET_FILE:buddy-onednn-run>
+    WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+)
+set_tests_properties(
+    example.buddy-onednn-run
+    PROPERTIES
+        LABELS "example;benchmark;external"
+        PASS_REGULAR_EXPRESSION "Test PASSED!"
+        TIMEOUT 300
+)
+
 # ============================================================================
 # All Target
 # ============================================================================
