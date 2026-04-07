@@ -147,9 +147,10 @@ function(buddy_add_model)
 
   target_include_directories(${LIB_TARGET} PUBLIC
     "${GEN_DIR}"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include"
-    "${BUDDY_SOURCE_DIR}/frontend/Interfaces"
-    "${BUDDY_BINARY_DIR}/frontend/Interfaces"
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${BUDDY_SOURCE_DIR}/frontend/Interfaces>
+    $<BUILD_INTERFACE:${BUDDY_BINARY_DIR}/frontend/Interfaces>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/buddy-mlir>
   )
   target_compile_features(${LIB_TARGET} PUBLIC cxx_std_17)
   target_link_libraries(${LIB_TARGET} PUBLIC
@@ -157,6 +158,14 @@ function(buddy_add_model)
     buddy_runtime_llm
     ${CMAKE_DL_LIBS}
     LLVMSupport
+  )
+  install(FILES ${MDL_RUNNER_SRC}
+    DESTINATION include/buddy-mlir/buddy/runtime/models/
+    COMPONENT buddy_runtime
+  )
+  install(TARGETS ${LIB_TARGET}
+    EXPORT BuddyMLIRTargets
+    COMPONENT buddy_runtime
   )
 
   # ════════════════════════════════════════════════════════════════════════════

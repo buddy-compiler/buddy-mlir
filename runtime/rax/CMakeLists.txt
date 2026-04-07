@@ -38,3 +38,10 @@ target_include_directories(buddy_rax INTERFACE
   "${FLATBUFFERS_INCLUDE_DIR}"  # system flatbuffers headers (libflatbuffers-dev)
   "${RAX_INCLUDE_ROOT}"         # buddy/runtime/rax/RAX.h (build tree)
 )
+
+install(DIRECTORY ${RAX_INCLUDE_ROOT}/buddy
+        DESTINATION include/buddy-mlir/
+        COMPONENT buddy_runtime)
+install(TARGETS buddy_rax
+        EXPORT BuddyMLIRTargets
+        COMPONENT buddy_runtime)
