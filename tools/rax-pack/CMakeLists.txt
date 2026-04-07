@@ -12,10 +12,10 @@ target_link_libraries(rax-pack PRIVATE
 
 # Include midend generated headers (RHALOps*.inc)
 target_include_directories(rax-pack PRIVATE
-  ${BUDDY_SOURCE_DIR}/midend/include/Dialect
-  ${CMAKE_BINARY_DIR}/midend/include/Dialect
+  $<BUILD_INTERFACE:${BUDDY_SOURCE_DIR}/midend/include/Dialect>
+  $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/midend/include/Dialect>
 )
 
-set_target_properties(rax-pack PROPERTIES
-  RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
-)
+install(TARGETS rax-pack
+        EXPORT BuddyMLIRTargets
+        COMPONENT buddy_tools)

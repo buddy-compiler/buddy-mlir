@@ -25,3 +25,7 @@ endif()
 if(BUDDY_MLIR_USE_MIMALLOC)
   target_link_libraries(buddy-cli PRIVATE mimalloc)
 endif()
+
+install(TARGETS buddy-cli
+        EXPORT BuddyMLIRTargets
+        COMPONENT buddy_tools)

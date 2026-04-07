@@ -29,6 +29,10 @@ include(ExternalProject)
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+
 #-------------------------------------------------------------------------------
 # Options and settings
 #-------------------------------------------------------------------------------
@@ -62,11 +66,6 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR OR BUDDY_MLIR_OUT_OF_TREE_
 
     find_program(LLVM_TABLEGEN_EXE "llvm-tblgen" ${LLVM_TOOLS_BINARY_DIR}
             NO_DEFAULT_PATH)
-
-    include(TableGen)
-    include(AddLLVM)
-    include(AddMLIR)
-    include(HandleLLVMOptions)
 else()
     message(STATUS "buddy-mlir one-step build.")
     # one-step build with LLVM_EXTERNAL_PROJECTS=buddy-mlir
@@ -84,29 +83,27 @@ endif()
 
 # BUDDY project.
 set(BUDDY_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
-set(BUDDY_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR})
-set(BUDDY_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/bin)
-set(BUDDY_LIBRARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/lib)
+set(BUDDY_BUILD_DIR ${CMAKE_BINARY_DIR})
+set(BUDDY_BINARY_DIR ${CMAKE_BINARY_DIR}/bin)
+set(BUDDY_LIBRARY_DIR ${CMAKE_BINARY_DIR}/lib)
+
 set(BUDDY_EXAMPLES_DIR ${BUDDY_SOURCE_DIR}/examples)
 set(BUDDY_MLIR_INTERFACE_DIR ${BUDDY_SOURCE_DIR}/frontend/Interfaces)
 set(BUDDY_MIDEND_INCLUDE_DIR ${BUDDY_SOURCE_DIR}/midend/include)
 set(BUDDY_THIRDPARTY_INCLUDE_DIR ${BUDDY_SOURCE_DIR}/thirdparty/include)
 set(BUDDY_MLIR_PYTHON_PACKAGES_DIR ${BUDDY_BUILD_DIR}/python_packages)
 
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${BUDDY_BINARY_DIR})
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${BUDDY_LIBRARY_DIR})
-
 set(BUDDY_EXAMPLES OFF CACHE BOOL "Build examples")
 set(BUDDY_TRANSFORMER_EXAMPLES OFF CACHE BOOL "Build transformer examples")
 set(BUDDY_ENABLE_OPENCV OFF CACHE BOOL "Enable OpenCV support.")
 
- if(BUDDY_ENABLE_OPENCV)
-   add_definitions(-DBUDDY_ENABLE_OPENCV)
-   find_package(JPEG REQUIRED)
-   find_package(PNG REQUIRED)
-   find_package(OpenCV REQUIRED CONFIG)
-   include_directories(${OpenCV_INCLUDE_DIRS})
- endif()
+if(BUDDY_ENABLE_OPENCV)
+  add_definitions(-DBUDDY_ENABLE_OPENCV)
+  find_package(JPEG REQUIRED)
+  find_package(PNG REQUIRED)
+  find_package(OpenCV REQUIRED CONFIG)
+  include_directories(${OpenCV_INCLUDE_DIRS})
+endif()
 
 if(BUDDY_MLIR_ENABLE_DIP_LIB)
   add_definitions(-DBUDDY_MLIR_ENABLE_DIP_LIB)
@@ -117,9 +114,6 @@ if(BUDDY_ENABLE_PNG)
   add_definitions(-DBUDDY_ENABLE_PNG)
   find_package(PNG REQUIRED)
 endif()
-
-# Generate libraries into `lib` of build directory.
-set(LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 
 # Add BUDDY files to the include path
 include_directories(${BUDDY_MAIN_INCLUDE_DIR})
@@ -262,15 +256,6 @@ add_custom_target(check-buddy
 #-------------------------------------------------------------------------------
 # Target install
 #-------------------------------------------------------------------------------
-
-# Install frontend interfaces into include directory, so that the downstream
-# project can use them in distribution.
-install(DIRECTORY frontend/Interfaces/buddy
-  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/buddy-mlir
-  COMPONENT buddy-mlir-interfaces-headers
-  FILES_MATCHING
-  PATTERN "*.h"
-  )
 
 set(BUDDY_MLIR_INSTALL_CMAKE_DIR "${CMAKE_INSTALL_LIBDIR}/cmake/BuddyMLIR")
 
