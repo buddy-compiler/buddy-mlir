@@ -26,13 +26,18 @@
 #include "buddy/Core/Container.h"
 #include "buddy/LLM/TextContainer.h"
 
+#include <string>
+#include <vector>
+
 namespace buddy {
 namespace runtime {
 
 /// Abstract inference session for autoregressive LLM generation.
 ///
 /// Concrete implementations own model-specific state (KV cache, loaded .so,
-/// function pointers) and expose a uniform prefill/decode interface.
+/// function pointers, **weights**) and expose a uniform prefill/decode
+/// interface.  Weights are loaded once via loadWeights() and held internally,
+/// so callers never need to know the element type (float, f16, int8, …).
 class LLMSession {
 public:
   virtual ~LLMSession() = default;
@@ -41,13 +46,19 @@ public:
   LLMSession(const LLMSession &) = delete;
   LLMSession &operator=(const LLMSession &) = delete;
 
+  /// Load model weights from one or more files.
+  /// The ordering matches the weight descriptors in the model config
+  /// (e.g. f32: {"arg0.data"}, w8a16: {"f16.data", "i8.data"}).
+  virtual void loadWeights(const std::vector<std::string> &weightPaths) = 0;
+
   /// Run prefill pass over the full input token sequence.
+  /// Weights must have been loaded via loadWeights() beforehand.
   /// Populates internal logits buffer accessible via logitsData().
-  virtual void prefill(MemRef<float, 1> &weights, Text<size_t, 2> &tokens) = 0;
+  virtual void prefill(Text<size_t, 2> &tokens) = 0;
 
   /// Run one decode step for a single token.
   /// Populates internal logits buffer accessible via logitsData().
-  virtual void decode(MemRef<float, 1> &weights, int tokenId) = 0;
+  virtual void decode(int tokenId) = 0;
 
   /// Reset decode position (allows session reuse with a new prompt).
   virtual void resetPosition() = 0;
@@ -55,8 +66,10 @@ public:
   /// Current position (tokens processed so far).
   virtual int position() const = 0;
 
-  /// Pointer to the logits output buffer (vocabSize floats per position).
-  virtual const float *logitsData() const = 0;
+  /// Pointer to vocabSize floats for the given token position.
+  /// For f32 variants, returns a direct pointer into the raw buffer.
+  /// For non-f32 variants, converts the slice to float internally.
+  virtual const float *logitsData(int tokenOffset = 0) const = 0;
 
   /// Vocabulary size (number of logits per position).
   virtual int vocabSize() const = 0;

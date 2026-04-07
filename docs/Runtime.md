@@ -5,26 +5,32 @@ Buddy Runtime is the inference runtime layer of buddy-mlir. It wraps MLIR compil
 ## End-to-end pipeline
 
 ```
-models/deepseek_r1/import_deepseek_r1.py
+tools/buddy-codegen/import_model.py  (+ models/deepseek_r1/specs/<variant>.json)
         │
-        ▼  Stage 1: Python → MLIR (download model from Hugging Face)
-forward_prefill.mlir  subgraph0_prefill.mlir
-forward_decode.mlir   subgraph0_decode.mlir   arg0.data
+        ▼  Stage 1: Python → MLIR + weights (optional; skip with DEEPSEEKR1_MLIR_DIR)
+forward_prefill*.mlir  subgraph0_prefill*.mlir
+forward_decode*.mlir   subgraph0_decode*.mlir   arg0*.data
         │
-        ▼  Stage 2: MLIR → .o (buddy-opt / mlir-opt / llc toolchain)
+        ▼  Stage 2: MLIR → .o (compile_pipeline.py: buddy-opt / mlir-opt / llc)
 forward_prefill.o  subgraph_prefill.o
 forward_decode.o   subgraph_decode.o
         │
         ▼  Stage 3: Link → .so
 deepseek_r1_model.so
         │
-        ▼  Stage 4: rax-pack → .rax (FlatBuffer manifest) + auto-copy vocab.txt
+        ▼  Stage 4: gen_manifest → rax-pack → .rax + auto-copy vocab.txt
 deepseek_r1.rax ──────► buddy-cli --model deepseek_r1.rax --prompt "..."
 vocab.txt               (runtime: dlopen + inference)
 ```
 
-All stages are driven by `models/deepseek_r1/CMakeLists.txt` and complete under a single output directory.
-After `ninja deepseek_r1_rax`, `build/models/deepseek_r1/` contains everything needed for inference except the `arg0.data` weight file (~7 GB, not shipped in the source tree).
+CMake drives this via `models/deepseek_r1/CMakeLists.txt` → `buddy_add_model` (`tools/buddy-codegen/cmake/buddy_model.cmake`).
+After `ninja deepseek_r1_rax`, `build/models/deepseek_r1/` contains artifacts for inference except large weight files (not shipped in the source tree).
+
+One-command configure + build from repo root:
+
+```bash
+python3 tools/buddy-codegen/build_model.py --spec models/deepseek_r1/specs/f32.json
+```
 
 ---
 
@@ -39,14 +45,14 @@ After `ninja deepseek_r1_rax`, `build/models/deepseek_r1/` contains everything n
 │  InferenceRunner  (runtime/core/)         │  ← Abstract interface; one subclass per model
 ├───────────────────────────────────────────┤
 │  DeepSeekR1Runner (models/deepseek_r1/)   │  ← Full loop: tokenize → prefill → decode
-│  ModelSession     (models/deepseek_r1/)   │  ← dlopen + KV cache (56 layers) + prefill/decode
+│  ModelSession     (generated or checked-in) │  ← dlopen + KV cache (56 layers) + prefill/decode
 ├───────────────────────────────────────────┤
 │  deepseek_r1_model.so                     │  ← dlopen at runtime; buddy-cli has zero compile-time link to model
 │  (_mlir_ciface_forward_prefill/decode)    │
 └───────────────────────────────────────────┘
 ```
 
-**C++ namespaces**: Shared runtime APIs (`InferenceRunner`, `ModelManifest`, `BufferPool`, `ModelSession`, etc.) live in the nested namespace **`buddy::runtime`**, alongside the compiler frontend `buddy::` and the RHAL dialect `buddy::rhal`. CMake target names remain `buddy_runtime_core` / `buddy_models_deepseekr1` (build-system identifiers only).
+**C++ namespaces**: Shared runtime APIs (`InferenceRunner`, `ModelManifest`, `BufferPool`, `ModelSession`, etc.) live in the nested namespace **`buddy::runtime`**, alongside the compiler frontend `buddy::` and the RHAL dialect `buddy::rhal`. The DeepSeek static library target is **`buddy_models_deepseek_r1`**.
 
 `buddy-cli` reads the `model_name` field from `.rax` and constructs the matching `InferenceRunner` via `makeRunner()`. To add a model:
 
@@ -60,25 +66,25 @@ After `ninja deepseek_r1_rax`, `build/models/deepseek_r1/` contains everything n
 ```
 buddy-cli --model deepseek_r1.rax
   │
-  ├─ ModelManifest::loadFromRax()       Read FlatBuffer → modelName / soPath / weightsPath
-  ├─ makeRunner("deepseek_r1_fp32")    Construct DeepSeekR1Runner
+  ├─ ModelManifest::loadFromRax()       Read FlatBuffer → modelName / soPath / weight paths
+  ├─ makeRunner(...)                  Construct DeepSeekR1Runner
   └─ runner->run(cfg)
        ├─ ModelSession::createFromRax()
-       │    ├─ allocateKVCache()        56 × tensor<1×2×1024×128×f32> (owned by session)
+       │    ├─ allocateKVCache()        56 × KV tensors (owned by session)
        │    └─ dlopen(soPath)
        │         ├─ dlsym("_mlir_ciface_forward_prefill")
        │         └─ dlsym("_mlir_ciface_forward_decode")
-       ├─ loadWeights(weightsPath)      mmap ~7 GB → MemRef<float,1>
+       ├─ loadWeights(...)
        ├─ tokenize(prompt)
-       ├─ session->prefill(weights, tokens)   → first token
-       └─ session->decode(weights, tok) × N   → following tokens (loop)
+       ├─ session->prefill(...)   → first token
+       └─ session->decode(...) × N   → following tokens (loop)
 ```
 
 The `buddy-cli` binary carries no model symbols (`nm buddy-cli | grep ciface` is empty).
 
 ### KV cache shape
 
-Each KV buffer has shape `tensor<1 × 2 × 1024 × 128 × f32>`:
+Each KV buffer has shape `tensor<1 × 2 × 1024 × 128 × f32>` (typical fp32 variant):
 
 | Dimension | Value | Meaning | CMake variable |
 |-----------|-------|---------|----------------|
@@ -94,11 +100,11 @@ Total KV cache memory: `56 × 2 × 1024 × 128 × 4 bytes = 56 MB`.
 
 | Role | Resource | Lifetime | Ownership |
 |------|----------|----------|-----------|
-| `Constant` | Model weights `arg0.data` | Module | Loaded on host; borrowed by session |
+| `Constant` | Model weights `arg0.data` (or multiple blobs) | Module | Loaded on host; borrowed by session |
 | `Input` | Prompt tokens / decode token | Call | Host |
 | `Output` | Logits | Call | Inside session |
 | `State` | kv0..kv55 (56-layer KV cache) | Session | **Runtime (session owns)** |
-| `Workspace` | Temp buffers from compiler | Runtime-internal | Runtime |
+| `Workspace` | Temp buffers from compiler | Runtime-internal | Runtime-internal |
 
 ---
 
@@ -108,18 +114,23 @@ Total KV cache memory: `56 × 2 × 1024 × 128 × 4 bytes = 56 MB`.
 
 Packs RHAL MLIR dialect (`.mlir`) into a binary `.rax`:
 
+The DeepSeek R1 RHAL manifest is **generated** (not checked in): CMake runs
+`tools/buddy-codegen/gen_manifest.py` from the generated `config.json` (from your
+variant spec under `models/deepseek_r1/specs/`). The MLIR file is written under
+`build/models/deepseek_r1/generated/deepseek_r1.mlir` before `rax-pack`.
+
 ```bash
-build-runtime/bin/rax-pack models/deepseek_r1/deepseek_r1.mlir -o deepseek_r1.rax
+build/bin/rax-pack build/models/deepseek_r1/generated/deepseek_r1.mlir -o deepseek_r1.rax
 ```
 
-The `.mlir` uses standard MLIR syntax with `rhal` dialect ops:
+The `.mlir` uses standard MLIR syntax with `rhal` dialect ops (shape example for fp32):
 
 ```mlir
 rhal.module @deepseek_r1 attributes {
     version = "0.1.0",
-    model_name = "deepseek_r1_fp32",
+    model_name = "deepseek_r1_f32",
     vocab_uri = "file:vocab.txt"} {
-  rhal.constant @weights {id = 1 : i32, storage = "external",
+  rhal.constant @params {id = 1 : i32, storage = "external",
                            type = tensor<1777088064xf32>,
                            uri = "file:arg0.data"}
   rhal.codeobj @model_kernels {id = 1 : i32, kind = "host_shared_lib",
@@ -144,9 +155,9 @@ build-runtime/bin/rax-inspect <file.rax>
 
 ## FAQ
 
-**Q: I changed `deepseek_r1.mlir` (e.g. weight path). Do I need to rebuild C++?**
+**Q: I changed the manifest (e.g. weight path in the spec or generated MLIR). Do I need to rebuild C++?**
 
-No—repack only:
+No—repack only (regenerate manifest from spec if needed, then `rax-pack`):
 
 ```bash
 ninja deepseek_r1_rax
@@ -168,11 +179,7 @@ ninja deepseek_r1_model_so
 
 **Q: How do I set OpenMP compile thread count?**
 
-```bash
-cmake -DDEEPSEEKR1_NUM_THREADS=96 ...
-```
-
-This is a **compile-time** knob for parallelism in the generated MLIR pipeline. Runtime thread count is controlled by `OMP_NUM_THREADS`.
+Set `num_threads` in your variant JSON (processed by `gen_config.py` / `compile_pipeline.py`), or pass the appropriate `-D` if your workflow exposes it. Runtime thread count is still controlled by `OMP_NUM_THREADS`.
 
 **Q: After changing the `rax.fbs` schema, how do I refresh `RAX.h`?**
 

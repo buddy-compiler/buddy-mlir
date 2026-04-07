@@ -93,24 +93,25 @@ $ ninja check-e2e
 
 Build the model, produce the shared library, and pack it into FlatBuffers:
 
+```bash
+python3 tools/buddy-codegen/build_model.py \
+  --spec models/deepseek_r1/specs/f32.json
 ```
-ninja deepseek_r1_model_so
-ninja deepseek_r1_rax
-```
+
+
 
 Run the model:
 
 ```
-./bin/buddy-cli \
-  --model ./models/deepseek_r1/deepseek_r1.rax \
+./build/bin/buddy-cli \
+  --model ./build/models/deepseek_r1/deepseek_r1.rax \
   --prompt "Tell me a joke in 200 words."
 
-
 # Equivalent to: numactl --cpunodebind=0,1,2,3 --interleave=0,1,2,3 taskset -c 0-47
-./bin/buddy-cli \
+./build/bin/buddy-cli \
   --numa 0,1,2,3 \
   --cpus 0-47 \
-  --model ./models/deepseek_r1/deepseek_r1.rax \
+  --model ./build/models/deepseek_r1/deepseek_r1.rax \
   --prompt "Tell me a joke in 200 words."
 ```
 
