@@ -314,3 +314,16 @@ if(BUDDY_MLIR_USE_MIMALLOC)
 endif()
 
 target_link_libraries(buddy-stable-diffusion-run ${BUDDY_STABLE_DIFFUSION_LIBS})
+
+add_test(
+  NAME example.buddy-stable-diffusion-run
+  COMMAND sh -c "printf '%s\n' 'Hi' '1' 'Hi' | \"$<TARGET_FILE:buddy-stable-diffusion-run>\""
+  WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+)
+set_tests_properties(
+  example.buddy-stable-diffusion-run
+  PROPERTIES
+    LABELS "example"
+    PASS_REGULAR_EXPRESSION "Image saved successfully to"
+    TIMEOUT 3600
+)

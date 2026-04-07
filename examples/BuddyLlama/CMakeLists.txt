@@ -132,3 +132,16 @@ if(BUDDY_MLIR_USE_MIMALLOC)
 endif()
 
 target_link_libraries(buddy-llama-run ${BUDDY_LLAMA_LIBS})
+
+add_test(
+  NAME example.buddy-llama-run
+  COMMAND sh -c "printf '%s\n' 'Hi' | \"$<TARGET_FILE:buddy-llama-run>\""
+  WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+)
+set_tests_properties(
+  example.buddy-llama-run
+  PROPERTIES
+    LABELS "example;benchmark;manual"
+    PASS_REGULAR_EXPRESSION ".+"
+    TIMEOUT 1800
+)

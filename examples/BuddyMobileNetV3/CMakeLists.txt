@@ -80,3 +80,16 @@ target_link_directories(buddy-mobilenetv3-run PRIVATE ${LLVM_LIBRARY_DIR})
 
 set(BUDDY_MOBILENETV3_LIBS MOBILENETV3 mlir_c_runner_utils BuddyLibDIP ${PNG_LIBRARIES})
 target_link_libraries(buddy-mobilenetv3-run ${BUDDY_MOBILENETV3_LIBS})
+
+add_test(
+  NAME example.buddy-mobilenetv3-run
+  COMMAND $<TARGET_FILE:buddy-mobilenetv3-run>
+  WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+)
+set_tests_properties(
+  example.buddy-mobilenetv3-run
+  PROPERTIES
+    LABELS "example"
+    PASS_REGULAR_EXPRESSION "Probability: 0.66194"
+    TIMEOUT 1200
+)
