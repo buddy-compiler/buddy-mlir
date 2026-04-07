@@ -13,7 +13,7 @@ from torch._inductor.decomposition import decompositions as inductor_decomp
 import numpy
 
 from buddy.compiler.frontend import DynamoCompiler
-from buddy.compiler.ops import tosa
+from buddy.compiler.ops import tosa, func
 from buddy.compiler.graph import GraphDriver
 from buddy.compiler.graph.transform import (
     simply_fuse,
