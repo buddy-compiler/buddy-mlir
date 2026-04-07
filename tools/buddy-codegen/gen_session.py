@@ -22,7 +22,9 @@
 #   - dlopen/dlsym, placement-new KV cache, decode call expansion
 #
 # Usage:
-#   python gen_session.py --config deepseek_r1_f32.json --output-dir generated/
+#   python gen_session.py --config deepseek_r1_f32.json --output-dir build/generated/
+#   # emits build/generated/buddy/runtime/models/ModelSession.h and
+#   #       build/generated/ModelSession.cpp
 #
 # ===----------------------------------------------------------------------===//
 
@@ -299,7 +301,7 @@ def gen_impl(config: dict) -> str:
     need_logits_conv = logits_cpp != "float"
 
     p(_CPP_FILE_PROLOGUE)
-    p('#include "ModelSession.h"')
+    p('#include "buddy/runtime/models/ModelSession.h"')
     p('#include "buddy/runtime/llm/KVCacheManager.h"')
     p()
     p("#include <cstring>")
@@ -793,7 +795,10 @@ def main():
     parser.add_argument(
         "--output-dir",
         required=True,
-        help="Output directory (files: ModelSession.h, ModelSession.cpp)",
+        help=(
+            "Output root: writes buddy/runtime/models/ModelSession.h and "
+            "ModelSession.cpp (no other copies; CMake uses build dir only)."
+        ),
     )
     args = parser.parse_args()
 
@@ -801,8 +806,10 @@ def main():
         config = json.load(f)
 
     os.makedirs(args.output_dir, exist_ok=True)
+    h_dir = os.path.join(args.output_dir, "buddy", "runtime", "models")
+    os.makedirs(h_dir, exist_ok=True)
 
-    h_path = os.path.join(args.output_dir, "ModelSession.h")
+    h_path = os.path.join(h_dir, "ModelSession.h")
     cpp_path = os.path.join(args.output_dir, "ModelSession.cpp")
 
     with open(h_path, "w") as f:

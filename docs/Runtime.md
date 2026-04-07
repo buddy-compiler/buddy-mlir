@@ -45,7 +45,7 @@ python3 tools/buddy-codegen/build_model.py --spec models/deepseek_r1/specs/f32.j
 │  InferenceRunner  (runtime/core/)         │  ← Abstract interface; one subclass per model
 ├───────────────────────────────────────────┤
 │  DeepSeekR1Runner (models/deepseek_r1/)   │  ← Full loop: tokenize → prefill → decode
-│  ModelSession     (generated or checked-in) │  ← dlopen + KV cache (56 layers) + prefill/decode
+│  ModelSession     (generated under build/.../generated/) │  ← dlopen + KV cache (56 layers) + prefill/decode
 ├───────────────────────────────────────────┤
 │  deepseek_r1_model.so                     │  ← dlopen at runtime; buddy-cli has zero compile-time link to model
 │  (_mlir_ciface_forward_prefill/decode)    │

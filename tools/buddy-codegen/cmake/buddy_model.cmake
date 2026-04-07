@@ -90,7 +90,9 @@ function(buddy_add_model)
   # ════════════════════════════════════════════════════════════════════════════
 
   set(GEN_CONFIG  "${GEN_DIR}/config.json")
-  set(GEN_SESS_H  "${GEN_DIR}/ModelSession.h")
+  # Header under buddy/runtime/models/ so #include "buddy/runtime/models/ModelSession.h"
+  # resolves with -I ${GEN_DIR} only (no checked-in copy under models/<name>/include).
+  set(GEN_SESS_H  "${GEN_DIR}/buddy/runtime/models/ModelSession.h")
   set(GEN_SESS_CC "${GEN_DIR}/ModelSession.cpp")
   set(GEN_RHAL    "${GEN_DIR}/${MDL_NAME}.mlir")
 
