@@ -39,9 +39,7 @@
 using buddy::Text;
 
 #include <algorithm>
-#include <chrono>
 #include <filesystem>
-#include <fstream>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -50,28 +48,7 @@ namespace buddy {
 namespace runtime {
 
 namespace {
-
 static constexpr int kEosToken = 151643; // <|end▁of▁sentence|>
-
-void loadWeights(const std::string &path, MemRef<float, 1> &weights,
-                 bool suppress = false) {
-  printLog("Weights: " + std::filesystem::canonical(path).string(), suppress);
-  const auto t0 = std::chrono::high_resolution_clock::now();
-
-  std::ifstream f(path, std::ios::binary);
-  if (!f)
-    throw std::runtime_error("Cannot open weights: " + path);
-  f.read(reinterpret_cast<char *>(weights.getData()),
-         sizeof(float) * weights.getSize());
-  if (f.fail())
-    throw std::runtime_error("Read failed: " + path);
-
-  const double secs = std::chrono::duration<double>(
-                          std::chrono::high_resolution_clock::now() - t0)
-                          .count();
-  printLog("Weights loaded in " + std::to_string(secs) + "s", suppress);
-}
-
 } // namespace
 
 //===----------------------------------------------------------------------===//
@@ -105,7 +82,7 @@ void DeepSeekR1Runner::run(const RunConfig &cfgIn) {
 
   // ── Create session ───────────────────────────────────────────────────────
   std::unique_ptr<ModelSession> session;
-  std::string weightsPath;
+  std::vector<std::string> weightPaths;
   std::string vocabPath;
 
   if (!cfg.raxPath.empty()) {
@@ -113,7 +90,7 @@ void DeepSeekR1Runner::run(const RunConfig &cfgIn) {
     ModelManifest manifest;
     session = ModelSession::createFromRax(cfg.raxPath, manifest);
 
-    weightsPath = manifest.weightsPath;
+    weightPaths = manifest.weightPaths;
     vocabPath = manifest.vocabPath.empty()
                     ? (std::filesystem::path(manifest.soPath).parent_path() /
                        "vocab.txt")
@@ -121,7 +98,8 @@ void DeepSeekR1Runner::run(const RunConfig &cfgIn) {
                     : manifest.vocabPath;
 
     printLog("  .so     = " + manifest.soPath, suppress);
-    printLog("  weights = " + manifest.weightsPath, suppress);
+    for (const auto &wp : weightPaths)
+      printLog("  weights = " + wp, suppress);
     printLog("  vocab   = " + vocabPath, suppress);
   } else {
     if (cfg.modelSoPath.empty())
@@ -129,7 +107,7 @@ void DeepSeekR1Runner::run(const RunConfig &cfgIn) {
     if (cfg.weightsPath.empty())
       throw std::runtime_error("Mode B requires weightsPath (--weights).");
 
-    weightsPath = cfg.weightsPath;
+    weightPaths.push_back(cfg.weightsPath);
     vocabPath = cfg.vocabPath.empty()
                     ? (std::filesystem::path(cfg.modelSoPath).parent_path() /
                        "vocab.txt")
@@ -142,10 +120,11 @@ void DeepSeekR1Runner::run(const RunConfig &cfgIn) {
     session = ModelSession::create(mcfg);
   }
 
-  // ── Load weights ─────────────────────────────────────────────────────────
-  intptr_t weightsShape[1] = {BUDDY_DSR1_PARAMS_SIZE};
-  MemRef<float, 1> weights(weightsShape);
-  loadWeights(weightsPath, weights, suppress);
+  // ── Load weights into session ───────────────────────────────────────────
+  // Reads weight files from disk into session-owned MemRefs (layout and
+  // element types match the compiled variant; see manifest constant order).
+  session->loadWeights(weightPaths);
+  printLog("Weights loaded.", suppress);
 
   printLog("Vocab: " + vocabPath, suppress);
   printLog("KV cache: " + std::to_string(BUDDY_DSR1_KV_LAYERS) + " x {1," +
@@ -180,8 +159,8 @@ void DeepSeekR1Runner::run(const RunConfig &cfgIn) {
     if (!cfg.prompt.empty())
       conv.setSystemPrompt(cfg.prompt);
 
-    runInteractiveSession(*session, weights, vocabPath, cfg, stopTokenIds, conv,
-                          codec, sampler);
+    runInteractiveSession(*session, vocabPath, cfg, stopTokenIds, conv, codec,
+                          sampler);
   } else {
     // Single-shot: format prompt with chat template if available.
     std::string finalPrompt = cfg.prompt;
@@ -191,8 +170,8 @@ void DeepSeekR1Runner::run(const RunConfig &cfgIn) {
     }
 
     GenerationResult result =
-        runGeneration(finalPrompt, *session, weights, vocabPath,
-                      cfg.maxNewTokens, stopTokenIds, sampler, codec, suppress);
+        runGeneration(finalPrompt, *session, vocabPath, cfg.maxNewTokens,
+                      stopTokenIds, sampler, codec, suppress);
 
     if (!suppress)
       printStats(result, /*verbose=*/true);

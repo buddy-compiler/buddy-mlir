@@ -49,8 +49,9 @@ struct ModelManifest {
   std::string modelName;
   // absolute path to the kernel .so  (dlopen)
   std::string soPath;
-  // absolute path to the weight blob  (mmap / fread)
-  std::string weightsPath;
+  // absolute paths to weight files, in manifest order (supports multi-weight
+  // variants like w8a16 which have separate f16 + i8 files).
+  std::vector<std::string> weightPaths;
   // absolute path to the vocab file   (tokenizer, may be empty)
   std::string vocabPath;
 
@@ -112,16 +113,14 @@ struct ModelManifest {
       throw std::runtime_error(
           "ModelManifest: no HostSharedLib code object in " + raxPath);
 
-    // --- Constant → weightsPath (first External constant) ----------------
+    // --- Constants → weightPaths (all External constants, in order) ------
     if (!mod->constants() || mod->constants()->size() == 0)
       throw std::runtime_error("ModelManifest: no constants in " + raxPath);
     for (auto c : *mod->constants()) {
-      if (c->storage() == rhal::rax::ConstantStorage_External) {
-        out.weightsPath = resolveUri(c->uri(), "constant.uri");
-        break;
-      }
+      if (c->storage() == rhal::rax::ConstantStorage_External)
+        out.weightPaths.push_back(resolveUri(c->uri(), "constant.uri"));
     }
-    if (out.weightsPath.empty())
+    if (out.weightPaths.empty())
       throw std::runtime_error(
           "ModelManifest: no External constant (weights) in " + raxPath);
 

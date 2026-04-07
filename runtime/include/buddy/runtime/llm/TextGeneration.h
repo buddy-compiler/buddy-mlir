@@ -97,8 +97,8 @@ void printStats(const GenerationResult &result, bool verbose = false);
 
 /// Run a single generation pass: tokenize → prefill → decode loop.
 /// Resets session position before prefill (safe for multi-turn reuse).
+/// Weights must already be loaded into the session via loadWeights().
 GenerationResult runGeneration(const std::string &prompt, LLMSession &session,
-                               MemRef<float, 1> &weights,
                                const std::string &vocabPath, int maxNewTokens,
                                const std::vector<long long> &stopTokenIds,
                                buddy::Sampler &sampler, const TextCodec &codec,

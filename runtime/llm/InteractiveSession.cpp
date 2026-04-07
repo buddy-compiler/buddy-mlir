@@ -24,8 +24,8 @@
 namespace buddy {
 namespace runtime {
 
-void runInteractiveSession(LLMSession &session, MemRef<float, 1> &weights,
-                           const std::string &vocabPath, const RunConfig &cfg,
+void runInteractiveSession(LLMSession &session, const std::string &vocabPath,
+                           const RunConfig &cfg,
                            const std::vector<long long> &stopTokenIds,
                            buddy::ConversationManager &conv,
                            const TextCodec &codec, buddy::Sampler &sampler) {
@@ -130,7 +130,7 @@ void runInteractiveSession(LLMSession &session, MemRef<float, 1> &weights,
     std::string fullPrompt = conv.chatTemplate().apply(msgs);
 
     GenerationResult result =
-        runGeneration(fullPrompt, session, weights, vocabPath, cfg.maxNewTokens,
+        runGeneration(fullPrompt, session, vocabPath, cfg.maxNewTokens,
                       stopTokenIds, sampler, codec, suppress);
 
     conv.addMessage("assistant", result.text);

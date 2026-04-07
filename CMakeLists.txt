@@ -242,8 +242,10 @@ endif()
 
 add_subdirectory(cmake)
 add_subdirectory(runtime)
-add_subdirectory(models)
+# Before models/: codegen (buddy_add_model) needs target python-package-buddy and
+# ${CMAKE_BINARY_DIR}/python_packages for import_model.py (buddy.compiler.*).
 add_subdirectory(frontend)
+add_subdirectory(models)
 add_subdirectory(midend)
 add_subdirectory(backend)
 add_subdirectory(tools)

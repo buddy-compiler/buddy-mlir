@@ -91,7 +91,6 @@ void printStats(const GenerationResult &result, bool verbose) {
 //===----------------------------------------------------------------------===//
 
 GenerationResult runGeneration(const std::string &prompt, LLMSession &session,
-                               MemRef<float, 1> &weights,
                                const std::string &vocabPath, int maxNewTokens,
                                const std::vector<long long> &stopTokenIds,
                                buddy::Sampler &sampler, const TextCodec &codec,
@@ -119,15 +118,14 @@ GenerationResult runGeneration(const std::string &prompt, LLMSession &session,
 
   // ── Prefill ─────────────────────────────────────────────────────────────
   const auto t0 = std::chrono::high_resolution_clock::now();
-  session.prefill(weights, inputTokens);
+  session.prefill(inputTokens);
   result.prefillSecs = std::chrono::duration<double>(
                            std::chrono::high_resolution_clock::now() - t0)
                            .count();
 
   // Sample first token from prefill logits.
   const int tokenIndex = static_cast<int>(inputTokens.getTokenCnt()) - 1;
-  const float *prefillLogits =
-      session.logitsData() + tokenIndex * session.vocabSize();
+  const float *prefillLogits = session.logitsData(tokenIndex);
   int firstToken =
       sampler.sample(prefillLogits, session.vocabSize(), recentTokens);
   recentTokens.push_back(firstToken);
@@ -167,7 +165,7 @@ GenerationResult runGeneration(const std::string &prompt, LLMSession &session,
     }
 
     const auto ds = std::chrono::high_resolution_clock::now();
-    session.decode(weights, curToken);
+    session.decode(curToken);
     const double stepMs = std::chrono::duration<double, std::milli>(
                               std::chrono::high_resolution_clock::now() - ds)
                               .count();
