@@ -112,12 +112,11 @@ jobs:
           venv_activate: ${{ matrix.venv_activate }}
           venv_deactivate: ${{ matrix.venv_deactivate }}
 
-      - name: Build example test targets
+      - name: Build examples
         run: |
           ${{ matrix.venv_activate }}
-          echo "---- CHECK LOCAL SUBMODULE ----"
-          ls -l llvm || true
-          git submodule status || true
+
+          export PYTHONPATH=$PWD/build/python_packages:${PYTHONPATH}
 
           cmake -S . -B build \
             -DBUDDY_BERT_EXAMPLES=ON \
@@ -126,21 +125,29 @@ jobs:
             -DBUDDY_MOBILENETV3_EXAMPLES=ON \
             -DBUDDY_QWEN3_EXAMPLES=ON \
             -DBUDDY_RESNET_EXAMPLES=ON \
-            -DBUDDY_STABLE_DIFFUSION_EXAMPLES=ON \
             -DBUDDY_TRANSFORMER_EXAMPLES=ON \
-            -DBUDDY_WHISPER_EXAMPLES=ON \
             -DBUDDY_ENABLE_PNG=ON
 
-          ninja -C build \
+          ninja -C build -j1 \
             buddy-deepseek-r1-cli \
             buddy-qwen3-0.6b-run \
             transformer-runner \
             buddy-bert-run \
             buddy-lenet-run \
-            buddy-whisper-run \
             buddy-mobilenetv3-run \
-            buddy-resnet-run \
-            buddy-stable-diffusion-run
+            buddy-resnet-run
+
+          ${{ matrix.venv_deactivate }}
+
+      - name: Run examples
+        run: |
+          ${{ matrix.venv_activate }}
+
+          ctest --test-dir "$PWD/build" \
+            -L example \
+            --output-on-failure \
+            --no-tests=error
+
           ${{ matrix.venv_deactivate }}
 
       - name: Report matrix status

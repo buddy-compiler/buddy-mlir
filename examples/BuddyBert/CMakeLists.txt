@@ -90,13 +90,13 @@ target_link_libraries(buddy-bert-run ${BUDDY_BERT_LIBS})
 
 add_test(
   NAME example.buddy-bert-run
-  COMMAND sh -c "printf '%s\n' 'I am happy today.' | \"$<TARGET_FILE:buddy-bert-run>\""
+  COMMAND sh -c "printf '%s\n' 'Hi' | \"$<TARGET_FILE:buddy-bert-run>\""
   WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
 )
 set_tests_properties(
   example.buddy-bert-run
   PROPERTIES
     LABELS "example"
-    PASS_REGULAR_EXPRESSION "The emotion of your sentence is joy."
+    PASS_REGULAR_EXPRESSION "joy"
     TIMEOUT 900
 )

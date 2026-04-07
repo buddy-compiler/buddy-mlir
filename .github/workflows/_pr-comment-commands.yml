@@ -52,6 +52,7 @@ jobs:
           fi
 
           gh workflow run test-example.yml \
+            -R "${{ github.repository }}" \
             --ref "$dispatch_ref" \
             -f source_repository="${{ steps.pr.outputs.head_repository }}" \
             -f source_ref="${{ steps.pr.outputs.head_ref }}" \
