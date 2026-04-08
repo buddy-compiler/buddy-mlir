@@ -265,9 +265,10 @@ configure_package_config_file(
   INSTALL_DESTINATION ${BUDDY_MLIR_INSTALL_CMAKE_DIR}
 )
 
+option(BUDDY_PACKAGE_VERSION "Release VERSION" "0.0.0")
 write_basic_package_version_file(
   ${CMAKE_CURRENT_BINARY_DIR}/BuddyMLIRConfigVersion.cmake
-  VERSION 0.0.1
+  VERSION ${BUDDY_PACKAGE_VERSION}
   COMPATIBILITY AnyNewerVersion
 )
 
