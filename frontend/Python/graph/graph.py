@@ -453,7 +453,7 @@ class Graph:
                     inputs.append(parent_op)
 
         return inputs
-    
+
     def infer_subgraph_outputs(
         self,
         op_group: List[Op],
@@ -489,7 +489,7 @@ class Graph:
                 outputs.append(op)
 
         return outputs
-    
+
     def fuse_ops(self, pattern_list: List[FunctionType]):
         """
         Fuse operations in the graph based on provided fusion patterns.
@@ -888,7 +888,9 @@ class GraphImporter:
                         self._symbol_table[("output", 0)] = returns
                     elif isinstance(node, PlaceholderOp):
                         if node._newshape is not None:
-                            node.tensor_meta['shape'] = torch.Size(list(node._newshape))
+                            node.tensor_meta["shape"] = torch.Size(
+                                list(node._newshape)
+                            )
                         self._import_placeholder(node, args_list)
                     elif isinstance(node, GetItemOp):
                         self._symbol_table[(str(node.name), 0)] = (
@@ -1045,7 +1047,9 @@ class GraphImporter:
                     operation, ir.OpView
                 ):
                     self._symbol_table[(str(node.name), i)] = operation.result
-                    self._symbol_table_output[(str(node.name), i)] = operation.result
+                    self._symbol_table_output[(str(node.name), i)] = (
+                        operation.result
+                    )
                 elif isinstance(operation, ir.OpResult):
                     self._symbol_table[(str(node.name), i)] = operation
                     self._symbol_table_output[(str(node.name), i)] = operation

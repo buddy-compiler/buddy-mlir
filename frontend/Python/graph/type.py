@@ -96,15 +96,15 @@ class TensorMeta(dict):
     @property
     def shape(self):
         return self["shape"]
-    
+
     @shape.setter
     def shape(self, value):
         self["shape"] = value
-    
+
     @property
     def dtype(self):
         return self["dtype"]
-    
+
     @dtype.setter
     def dtype(self, value):
         self["dtype"] = value

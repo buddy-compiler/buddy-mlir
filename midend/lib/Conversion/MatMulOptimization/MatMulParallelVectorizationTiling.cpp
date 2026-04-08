@@ -20,8 +20,8 @@
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/Attributes.h"
@@ -82,7 +82,7 @@ public:
     // Define constants.
     const Value zeroIndex =
         rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0));
-    const Value oneIndex = 
+    const Value oneIndex =
         rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1));
     const AffineExpr d0 = rewriter.getAffineDimExpr(0);
     const AffineExpr d1 = rewriter.getAffineDimExpr(1);
@@ -105,8 +105,7 @@ public:
 
     // Apply the column of matrix B
     Value appliedColOfB = rewriter.create<affine::AffineApplyOp>(
-                          loc, AffineMap::get(1, 0, d0 - affineVectorSize + 1),
-                          ValueRange{bCol});                        
+        loc, AffineMap::get(1, 0, d0 - affineVectorSize + 1), ValueRange{bCol});
 
     // Create the primary parallel loop for matrix multiplication.
     AffineParallelOp parallelLoop = rewriter.create<affine::AffineParallelOp>(
@@ -124,7 +123,8 @@ public:
                                   AffineMapAttr::get(AffineMap::get(
                                       1, 0, {d0}, rewriter.getContext()))),
             rewriter.getNamedAttr("reductions", rewriter.getArrayAttr({})),
-            rewriter.getNamedAttr("steps", rewriter.getI64ArrayAttr({affineVectorSize}))}); 
+            rewriter.getNamedAttr(
+                "steps", rewriter.getI64ArrayAttr({affineVectorSize}))});
 
     // Create the loop body for the parallel loop.
     Block *loopBody = new Block();
@@ -140,133 +140,132 @@ public:
     affine::buildAffineLoopNest(
         rewriter, loc, {zeroIndex}, {bRow}, /*Step=*/{kBlockSize},
         [&](OpBuilder &builder, Location loc, ValueRange ivRange) {
-            Value kLow = ivRange.front();
-            Value kHigh = builder.create<affine::AffineMinOp>(
-                loc,
-                AffineMap::get(1,1,{d0 + kBlockSize, s0},
-                                builder.getContext()),
-                SmallVector<Value>{kLow, bRow});
-            affine::buildAffineLoopNest(
-                builder, loc, {zeroIndex}, {aRow}, 1,
-                [&](OpBuilder &builder, Location loc, ValueRange ivRange) {
-                    Value loopVarRowOfA = ivRange.front();
-                    Value cVec = builder.create<affine::AffineVectorLoadOp>(
-                        loc, VectorType::get({affineVectorSize}, elementType), C,
-                        AffineMap::get(2, 0, {d0, d1},
-                                       rewriter.getContext()),
-                        ValueRange{loopVarRowOfA, loopVarColOfB});
-                    auto iter_vec = builder.create<scf::ForOp>(
-                        loc, kLow, kHigh, /*Step=*/oneIndex, ValueRange{cVec},
-                        [&](OpBuilder &builder, Location loc, Value iv1,
-                            ValueRange itrArgs0){
-                                Value bVec = builder.create<vector::LoadOp>(
-                                    loc, VectorType::get({affineVectorSize}, elementType), B,
-                                    ValueRange{iv1, loopVarColOfB});
-                                Value aElement = builder.create<memref::LoadOp>(
-                                        loc, A, ValueRange{loopVarRowOfA, iv1});
-                                Value aVec = builder.create<vector::BroadcastOp>(
-                                        loc, VectorType::get({affineVectorSize}, elementType),
-                                        aElement);
-                                Value computedVec;
+          Value kLow = ivRange.front();
+          Value kHigh = builder.create<affine::AffineMinOp>(
+              loc,
+              AffineMap::get(1, 1, {d0 + kBlockSize, s0}, builder.getContext()),
+              SmallVector<Value>{kLow, bRow});
+          affine::buildAffineLoopNest(
+              builder, loc, {zeroIndex}, {aRow}, 1,
+              [&](OpBuilder &builder, Location loc, ValueRange ivRange) {
+                Value loopVarRowOfA = ivRange.front();
+                Value cVec = builder.create<affine::AffineVectorLoadOp>(
+                    loc, VectorType::get({affineVectorSize}, elementType), C,
+                    AffineMap::get(2, 0, {d0, d1}, rewriter.getContext()),
+                    ValueRange{loopVarRowOfA, loopVarColOfB});
+                auto iter_vec = builder.create<scf::ForOp>(
+                    loc, kLow, kHigh, /*Step=*/oneIndex, ValueRange{cVec},
+                    [&](OpBuilder &builder, Location loc, Value iv1,
+                        ValueRange itrArgs0) {
+                      Value bVec = builder.create<vector::LoadOp>(
+                          loc, VectorType::get({affineVectorSize}, elementType),
+                          B, ValueRange{iv1, loopVarColOfB});
+                      Value aElement = builder.create<memref::LoadOp>(
+                          loc, A, ValueRange{loopVarRowOfA, iv1});
+                      Value aVec = builder.create<vector::BroadcastOp>(
+                          loc, VectorType::get({affineVectorSize}, elementType),
+                          aElement);
+                      Value computedVec;
 
-                                // Compute the result vector either through integer
-                                // multiplication and addition or fused multiply-add
-                                // based on the element type.
-                                if (isa<IntegerType>(elementType)) {
-                                    Value mulVec =
-                                        builder.create<arith::MulIOp>(loc, aVec, bVec);
-                                    computedVec =
-                                        builder.create<arith::AddIOp>(loc, mulVec, itrArgs0[0]);
-                                  } else {
-                                    computedVec =
-                                        builder.create<vector::FMAOp>(loc, aVec, bVec, itrArgs0[0]);
-                                  }
-                                  builder.create<scf::YieldOp>(loc, computedVec);
-                            });
-                            builder.create<vector::StoreOp>(
-                                loc, iter_vec.getResult(0), C,
-                                ValueRange{loopVarRowOfA, loopVarColOfB});
-            });
+                      // Compute the result vector either through integer
+                      // multiplication and addition or fused multiply-add
+                      // based on the element type.
+                      if (isa<IntegerType>(elementType)) {
+                        Value mulVec =
+                            builder.create<arith::MulIOp>(loc, aVec, bVec);
+                        computedVec = builder.create<arith::AddIOp>(
+                            loc, mulVec, itrArgs0[0]);
+                      } else {
+                        computedVec = builder.create<vector::FMAOp>(
+                            loc, aVec, bVec, itrArgs0[0]);
+                      }
+                      builder.create<scf::YieldOp>(loc, computedVec);
+                    });
+                builder.create<vector::StoreOp>(
+                    loc, iter_vec.getResult(0), C,
+                    ValueRange{loopVarRowOfA, loopVarColOfB});
+              });
         });
-        rewriter.create<affine::AffineYieldOp>(loc);
+    rewriter.create<affine::AffineYieldOp>(loc);
 
-        // Finalize the loop and erase the original operation.
-        parallelLoop.getRegion().push_back(loopBody);
-        rewriter.setInsertionPointAfter(parallelLoop);       
+    // Finalize the loop and erase the original operation.
+    parallelLoop.getRegion().push_back(loopBody);
+    rewriter.setInsertionPointAfter(parallelLoop);
 
     // Compile time branch detection.
     if (cast<MemRefType>(C.getType()).isDynamicDim(1) ||
         cast<MemRefType>(C.getType()).getDimSize(1) % affineVectorSize != 0) {
-            
+
       // Depending on the position, use either full vectors or tail vectors.
       affine::AffineIfOp branchingOp = rewriter.create<affine::AffineIfOp>(
-          loc,
-          IntegerSet::get(
-              1, 0, {d0 % affineVectorSize - 1}, {false}),
+          loc, IntegerSet::get(1, 0, {d0 % affineVectorSize - 1}, {false}),
           ValueRange{bCol}, /*hasElse=*/false);
 
       // Branch handling operations on the tail.
       OpBuilder trueBranchBuilder = branchingOp.getThenBodyBuilder();
       Value tailSize = trueBranchBuilder.create<affine::AffineApplyOp>(
-        loc, AffineMap::get(1, 0, d0 % affineVectorSize), ValueRange{bCol});
+          loc, AffineMap::get(1, 0, d0 % affineVectorSize), ValueRange{bCol});
       Value maskVector = trueBranchBuilder.create<vector::CreateMaskOp>(
-        loc, VectorType::get({affineVectorSize}, rewriter.getI1Type()),
-        ValueRange{tailSize});
-      Value loopVarColOfBTail = trueBranchBuilder.create<arith::SubIOp>(loc, bCol, tailSize);
+          loc, VectorType::get({affineVectorSize}, rewriter.getI1Type()),
+          ValueRange{tailSize});
+      Value loopVarColOfBTail =
+          trueBranchBuilder.create<arith::SubIOp>(loc, bCol, tailSize);
 
       affine::buildAffineLoopNest(
-        trueBranchBuilder, loc, {zeroIndex}, {bRow}, {kBlockSize},
-        [&](OpBuilder &builder, Location loc, ValueRange ivRange) {
+          trueBranchBuilder, loc, {zeroIndex}, {bRow}, {kBlockSize},
+          [&](OpBuilder &builder, Location loc, ValueRange ivRange) {
             Value kLow = ivRange.front();
             Value kHigh = builder.create<affine::AffineMinOp>(
-                loc, 
-                AffineMap::get(1,1,{d0 + kBlockSize, s0},
-                    builder.getContext()),
+                loc,
+                AffineMap::get(1, 1, {d0 + kBlockSize, s0},
+                               builder.getContext()),
                 SmallVector<Value>{kLow, bRow});
             affine::buildAffineLoopNest(
                 builder, loc, {zeroIndex}, {aRow}, 1,
-                [&](OpBuilder &builder, Location loc, ValueRange ivRange){
-                    Value loopVarRowOfA = ivRange.front();
-                    Value cVec = builder.create<vector::MaskedLoadOp>(
-                        loc, VectorType::get({affineVectorSize}, elementType), C,
-                        ValueRange{loopVarRowOfA, loopVarColOfBTail}, maskVector,
-                        zeroElementTypeVec);
-                    auto iter_vec = builder.create<scf::ForOp>(
-                        loc, kLow, kHigh, /*Step=*/oneIndex, ValueRange{cVec},
-                        [&](OpBuilder &builder, Location loc, Value iv1,
-                        ValueRange itrArgs0){
-                            Value bVec = builder.create<vector::MaskedLoadOp>(
-                                loc, VectorType::get({affineVectorSize}, elementType), B,
-                                ValueRange{iv1, loopVarColOfBTail}, maskVector,
-                                zeroElementTypeVec);
-                                
-                            Value aElement = builder.create<memref::LoadOp>(
-                                loc, A, ValueRange{loopVarRowOfA, iv1});
-                            Value aVec = builder.create<vector::BroadcastOp>(
-                                loc, VectorType::get({affineVectorSize}, elementType),
-                                aElement);
-                            Value computedVec;
-          
-                            // Compute the result vector either through integer
-                            // multiplication and addition or fused multiply-add
-                            // based on the element type.
-                            if (isa<IntegerType>(elementType)) {
-                              Value mulVec =
-                                  builder.create<arith::MulIOp>(loc, aVec, bVec);
-                              computedVec =
-                                  builder.create<arith::AddIOp>(loc, mulVec, itrArgs0[0]);
-                            } else {
-                              computedVec =
-                                  builder.create<vector::FMAOp>(loc, aVec, bVec, itrArgs0[0]);
-                            }
-                            builder.create<scf::YieldOp>(loc, computedVec);
-                        }); 
-                        builder.create<vector::MaskedStoreOp>(
-                            loc, C, ValueRange{loopVarRowOfA, loopVarColOfBTail},
-                            maskVector, iter_vec.getResult(0));
-                    });
+                [&](OpBuilder &builder, Location loc, ValueRange ivRange) {
+                  Value loopVarRowOfA = ivRange.front();
+                  Value cVec = builder.create<vector::MaskedLoadOp>(
+                      loc, VectorType::get({affineVectorSize}, elementType), C,
+                      ValueRange{loopVarRowOfA, loopVarColOfBTail}, maskVector,
+                      zeroElementTypeVec);
+                  auto iter_vec = builder.create<scf::ForOp>(
+                      loc, kLow, kHigh, /*Step=*/oneIndex, ValueRange{cVec},
+                      [&](OpBuilder &builder, Location loc, Value iv1,
+                          ValueRange itrArgs0) {
+                        Value bVec = builder.create<vector::MaskedLoadOp>(
+                            loc,
+                            VectorType::get({affineVectorSize}, elementType), B,
+                            ValueRange{iv1, loopVarColOfBTail}, maskVector,
+                            zeroElementTypeVec);
+
+                        Value aElement = builder.create<memref::LoadOp>(
+                            loc, A, ValueRange{loopVarRowOfA, iv1});
+                        Value aVec = builder.create<vector::BroadcastOp>(
+                            loc,
+                            VectorType::get({affineVectorSize}, elementType),
+                            aElement);
+                        Value computedVec;
+
+                        // Compute the result vector either through integer
+                        // multiplication and addition or fused multiply-add
+                        // based on the element type.
+                        if (isa<IntegerType>(elementType)) {
+                          Value mulVec =
+                              builder.create<arith::MulIOp>(loc, aVec, bVec);
+                          computedVec = builder.create<arith::AddIOp>(
+                              loc, mulVec, itrArgs0[0]);
+                        } else {
+                          computedVec = builder.create<vector::FMAOp>(
+                              loc, aVec, bVec, itrArgs0[0]);
+                        }
+                        builder.create<scf::YieldOp>(loc, computedVec);
+                      });
+                  builder.create<vector::MaskedStoreOp>(
+                      loc, C, ValueRange{loopVarRowOfA, loopVarColOfBTail},
+                      maskVector, iter_vec.getResult(0));
                 });
-            }
+          });
+    }
     rewriter.eraseOp(op);
     return success();
   }
@@ -305,8 +304,8 @@ public:
   MatMulParallelVectorizationTilingPass(
       const MatMulParallelVectorizationTilingPass &) {}
 
-  explicit MatMulParallelVectorizationTilingPass(
-      int64_t affineVectorSizeParam, int64_t kBlockSizeParam) {
+  explicit MatMulParallelVectorizationTilingPass(int64_t affineVectorSizeParam,
+                                                 int64_t kBlockSizeParam) {
     affineVectorSize = affineVectorSizeParam;
     kBlockSize = kBlockSizeParam;
   }
@@ -318,15 +317,13 @@ public:
                     affine::AffineDialect, VectorDialect>();
   }
 
-  Option<int64_t> affineVectorSize{
-      *this, "vector-size",
-      llvm::cl::desc("Affine vector size."),
-      llvm::cl::init(64)};
+  Option<int64_t> affineVectorSize{*this, "vector-size",
+                                   llvm::cl::desc("Affine vector size."),
+                                   llvm::cl::init(64)};
 
-  Option<int64_t> kBlockSize{
-      *this, "k-block-size",
-      llvm::cl::desc("K block size."),
-      llvm::cl::init(32)};
+  Option<int64_t> kBlockSize{*this, "k-block-size",
+                             llvm::cl::desc("K block size."),
+                             llvm::cl::init(32)};
 };
 } // end anonymous namespace.
 

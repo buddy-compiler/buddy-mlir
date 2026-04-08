@@ -1,4 +1,4 @@
-# ===- graph_driver.py ---------------------------------------------------------
+# ===- partitioned_graph_driver.py ---------------------------------------------
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -29,36 +29,58 @@ from .graph import Graph, GraphImporter, TensorMeta, NodeType
 import torch
 from collections import deque, defaultdict
 
-from .operation import PlaceholderOp, MatmulOp, PermuteOp, AddMMOp, AddOp, SubOp, MulOp, DivOp, ViewOp, CatOp, IndexPutOp, ReshapeOp, ExpandOp, FuncOp, CallOp, GetItemOp, OutputOp
+from .operation import (
+    PlaceholderOp,
+    MatmulOp,
+    PermuteOp,
+    AddMMOp,
+    AddOp,
+    SubOp,
+    MulOp,
+    DivOp,
+    ViewOp,
+    CatOp,
+    IndexPutOp,
+    ReshapeOp,
+    ExpandOp,
+    FuncOp,
+    CallOp,
+    GetItemOp,
+    OutputOp,
+)
 from .type import DeviceType
 from dataclasses import dataclass, field
 from typing import Dict, List, Any, Union, Type, Optional
 
+
 @dataclass
 class SplitStrategy:
     name: str = "default_no_split"
-    parallel_num: int = 1 
+    parallel_num: int = 1
     ops_count: List[int] = field(default_factory=list)
     stage_boundary_op: Optional[Type] = None
-    stage_boundary_op_num: int = 0 
-    
-    paral_input_positions: Dict[Union[int, str], Any] = field(default_factory=dict)
+    stage_boundary_op_num: int = 0
+
+    paral_input_positions: Dict[Union[int, str], Any] = field(
+        default_factory=dict
+    )
 
     def get_paral_pos(self, subgraph_idx: int) -> List[int]:
         if self.parallel_num <= 1:
             return []
-            
+
         if subgraph_idx in self.paral_input_positions:
             return self.paral_input_positions[subgraph_idx]
-        
+
         default_configs = self.paral_input_positions.get("default", [])
         if default_configs and self.ops_count:
             block_idx = (subgraph_idx - 1) % len(self.ops_count)
-            
+
             if block_idx < len(default_configs):
                 return default_configs[block_idx]
-                
-        return [] 
+
+        return []
+
 
 class PartitionedGraphDriver:
     """Split the graph with a strategy, build subgraphs, and construct main graphs.
@@ -73,7 +95,9 @@ class PartitionedGraphDriver:
     output op's result.
     """
 
-    def __init__(self, graph: Graph, strategy: Optional[SplitStrategy] = None) -> None:
+    def __init__(
+        self, graph: Graph, strategy: Optional[SplitStrategy] = None
+    ) -> None:
         """
         Initialize the GraphDriver object with a given computational graph.
 
@@ -95,12 +119,10 @@ class PartitionedGraphDriver:
             self._subgraphs_inputs,
             self._subgraphs_outputs,
         ) = self.get_split_strategy()
-        (
-            self._subgraphs
-        ) = self.build_subgraph_by_group()
+        self._subgraphs = self.build_subgraph_by_group()
         self.group_map_device = self._graph.group_map_device
 
-        self._call_table = {}  
+        self._call_table = {}
 
         self._maingraphs = {}
         self._modules = {}
@@ -113,12 +135,11 @@ class PartitionedGraphDriver:
     @property
     def maingraphs(self):
         return list(self._maingraphs.values())
-    
+
     @property
     def modules(self):
         return list(self._modules.values())
-    
-    
+
     def _add_paral_op_shape(self, op_name, shape):
         if op_name not in self._paral_op_shape.keys():
             self._paral_op_shape[op_name] = shape
@@ -133,7 +154,7 @@ class PartitionedGraphDriver:
         while len(shp2) < len(shp1):
             shp2.insert(0, 1)
         return shp1, shp2
-    
+
     def _infer_new_shape(self, old_shape, new_shape):
         total_size = 1
         for dim_siz in old_shape:
@@ -155,7 +176,7 @@ class PartitionedGraphDriver:
                 if new_shape[i] == -1:
                     new_shape[i] = infer_dim_size
         return new_shape
-    
+
     def get_pack_params_size(self, tensors_meta: list[TensorMeta]) -> int:
         param_total_size = 0
         for tensor_meta in tensors_meta:
@@ -165,72 +186,75 @@ class PartitionedGraphDriver:
         return param_total_size
 
     def get_split_strategy(self):
-      """
-      Group ops based on the computational graph in terms of subgraphs.
-      
-      Analyse the inputs and outputs of each subgraph.
+        """
+        Group ops based on the computational graph in terms of subgraphs.
 
-      Update the shape information of the nodes in each subgraph 
-      associated with the weight matrix to be split.
+        Analyse the inputs and outputs of each subgraph.
 
-      Returns:
-      -  inputs and outputs of each subgraph
-      """
-        
-      if self._parallelism < 1:
+        Update the shape information of the nodes in each subgraph
+        associated with the weight matrix to be split.
+
+        Returns:
+        -  inputs and outputs of each subgraph
+        """
+
+        if self._parallelism < 1:
             raise ValueError("Parallelism must be greater than or equal to 1")
-        
-        
-      self.op_groups = {}
-      self.group_map_device = {}
-      self._subgraphs_inputs = {}
-      self._subgraphs_outputs = {}
-      self._paral_op_shape = {}
-        
-      self._perform_vertical_split()
-        
-      self._analyze_subgraph_dependencies()
-        
-      if self._parallelism > 1:
+
+        self.op_groups = {}
+        self.group_map_device = {}
+        self._subgraphs_inputs = {}
+        self._subgraphs_outputs = {}
+        self._paral_op_shape = {}
+
+        self._perform_vertical_split()
+
+        self._analyze_subgraph_dependencies()
+
+        if self._parallelism > 1:
             self._apply_horizontal_parallelism()
 
-      return self._subgraphs_inputs, self._subgraphs_outputs
-    
+        return self._subgraphs_inputs, self._subgraphs_outputs
+
     def _apply_horizontal_parallelism(self):
-        
+
         for i, subgraph_name in enumerate(self.op_groups.keys()):
-            paral_pos = self.strategy.get_paral_pos(i) 
-                
+            paral_pos = self.strategy.get_paral_pos(i)
+
             input_count = 0
             for node in self._subgraphs_inputs[subgraph_name]:
-                
+
                 original_shape = list(node.tensor_meta["shape"])
-                
+
                 if input_count >= len(paral_pos):
                     break
-                
+
                 split_dim = paral_pos[input_count]
                 input_count += 1
-                
-                
-                if split_dim != -1 and split_dim < len(original_shape):
-                    original_shape[split_dim] = original_shape[split_dim] // self._parallelism
-                    self._add_paral_op_shape(node.name, original_shape)
-                self._subgraph_input_shape[subgraph_name][node.name] = original_shape
 
-                
+                if split_dim != -1 and split_dim < len(original_shape):
+                    original_shape[split_dim] = (
+                        original_shape[split_dim] // self._parallelism
+                    )
+                    self._add_paral_op_shape(node.name, original_shape)
+                self._subgraph_input_shape[subgraph_name][
+                    node.name
+                ] = original_shape
+
         for subgraph_name in self.op_groups.keys():
             current_ops = self.op_groups[subgraph_name]
-            
+
             for node in current_ops:
                 # 1. PermuteOp
                 if isinstance(node, PermuteOp):
                     if node.args[0] in self._paral_op_shape:
                         old_shape = self._paral_op_shape[node.args[0]]
                         permute_indices = node.args[1]
-                        
+
                         try:
-                            new_shape = [old_shape[index] for index in permute_indices]
+                            new_shape = [
+                                old_shape[index] for index in permute_indices
+                            ]
                             self._add_paral_op_shape(node.name, new_shape)
                         except IndexError:
                             print(f"\n[ERROR] PermuteOp Shape Mismatch!")
@@ -238,14 +262,22 @@ class PartitionedGraphDriver:
                             print(f"  Input Node: {node.args[0]}")
                             print(f"  Input Shape (old_shape): {old_shape}")
                             print(f"  Permute Indices: {permute_indices}")
-                            print(f"  Reason: Indices require rank {max(permute_indices)+1}, but input has rank {len(old_shape)}.")
-                            raise  
+                            print(
+                                f"  Reason: Indices require rank {max(permute_indices)+1}, but input has rank {len(old_shape)}."
+                            )
+                            raise
 
                 # 2. MatmulOp
                 elif isinstance(node, MatmulOp):
-                    if (node.args[0] in self._paral_op_shape) or (node.args[1] in self._paral_op_shape):
-                        input1_shape = self._get_shape_from_cache_or_node(node.args[0])
-                        input2_shape = self._get_shape_from_cache_or_node(node.args[1])
+                    if (node.args[0] in self._paral_op_shape) or (
+                        node.args[1] in self._paral_op_shape
+                    ):
+                        input1_shape = self._get_shape_from_cache_or_node(
+                            node.args[0]
+                        )
+                        input2_shape = self._get_shape_from_cache_or_node(
+                            node.args[1]
+                        )
 
                         new_shape = list(input1_shape)
                         new_shape[-1] = input2_shape[-1]
@@ -254,12 +286,22 @@ class PartitionedGraphDriver:
                 # 3. AddMMOp
                 elif isinstance(node, AddMMOp):
                     # args: bias, input, weight
-                    if (node.args[1] in self._paral_op_shape) or (node.args[2] in self._paral_op_shape):
-                        input_shape = self._get_shape_from_cache_or_node(node.args[1]) # [M, K]
-                        weight_shape = self._get_shape_from_cache_or_node(node.args[2]) # [K, N]
-                        
+                    if (node.args[1] in self._paral_op_shape) or (
+                        node.args[2] in self._paral_op_shape
+                    ):
+                        input_shape = self._get_shape_from_cache_or_node(
+                            node.args[1]
+                        )  # [M, K]
+                        weight_shape = self._get_shape_from_cache_or_node(
+                            node.args[2]
+                        )  # [K, N]
+
                         if input_shape and weight_shape:
-                            M = input_shape[-2] if len(input_shape) >= 2 else input_shape[0]
+                            M = (
+                                input_shape[-2]
+                                if len(input_shape) >= 2
+                                else input_shape[0]
+                            )
                             N = weight_shape[-1]
                             new_shape = [M, N]
                             self._add_paral_op_shape(node.name, new_shape)
@@ -268,16 +310,24 @@ class PartitionedGraphDriver:
                 elif isinstance(node, (AddOp, SubOp, MulOp, DivOp)):
                     arg0_name = node.args[0]
                     arg1_name = node.args[1]
-                    
-                    is_arg0_split = isinstance(arg0_name, str) and (arg0_name in self._paral_op_shape)
-                    is_arg1_split = isinstance(arg1_name, str) and (arg1_name in self._paral_op_shape)
+
+                    is_arg0_split = isinstance(arg0_name, str) and (
+                        arg0_name in self._paral_op_shape
+                    )
+                    is_arg1_split = isinstance(arg1_name, str) and (
+                        arg1_name in self._paral_op_shape
+                    )
 
                     if is_arg0_split or is_arg1_split:
                         shape0 = self._get_shape_from_cache_or_node(arg0_name)
                         shape1 = self._get_shape_from_cache_or_node(arg1_name)
-                        
+
                         if shape0 and shape1:
-                            norm_s1, norm_s2 = self._normalize_binary_operator_shape(shape0, shape1)
+                            norm_s1, norm_s2 = (
+                                self._normalize_binary_operator_shape(
+                                    shape0, shape1
+                                )
+                            )
                             new_shape = []
                             for d1, d2 in zip(norm_s1, norm_s2):
                                 new_shape.append(max(d1, d2))
@@ -290,37 +340,43 @@ class PartitionedGraphDriver:
                         target_shape_args = list(node.args[1])
 
                         current_total = 1
-                        for x in old_shape: current_total *= x
-                        
+                        for x in old_shape:
+                            current_total *= x
+
                         target_total = 1
-                        for x in target_shape_args: target_total *= x
-                        
+                        for x in target_shape_args:
+                            target_total *= x
+
                         new_shape = target_shape_args.copy()
 
                         if current_total != target_total:
                             old_len = len(old_shape)
                             new_len = len(new_shape)
-                            
+
                             tmp_old = [d for d in old_shape if d != 1]
                             tmp_new = [d for d in new_shape if d != 1]
 
                             if len(tmp_old) == len(tmp_new):
                                 if old_len < new_len:
                                     for i in range(old_len):
-                                        new_shape[i+1] = old_shape[i]
+                                        new_shape[i + 1] = old_shape[i]
                                 elif old_len == new_len:
                                     for i in range(new_len):
                                         new_shape[i] = old_shape[i]
                                 else:
                                     for i in range(new_len):
-                                        new_shape[i] = old_shape[i+1]
+                                        new_shape[i] = old_shape[i + 1]
                             else:
                                 if old_len < new_len:
                                     if new_shape[-1] != 0:
-                                        new_shape[-2] = old_shape[-1] // new_shape[-1]
+                                        new_shape[-2] = (
+                                            old_shape[-1] // new_shape[-1]
+                                        )
                                 else:
-                                    new_shape = self._infer_new_shape(old_shape, new_shape)
-                        
+                                    new_shape = self._infer_new_shape(
+                                        old_shape, new_shape
+                                    )
+
                         self._add_paral_op_shape(node.name, new_shape)
 
                 # 6. CatOp
@@ -329,25 +385,31 @@ class PartitionedGraphDriver:
                     for t in tensors:
                         t_name = str(t)
                         if t_name in self._paral_op_shape:
-                            self._add_paral_op_shape(node.name, self._paral_op_shape[t_name])
+                            self._add_paral_op_shape(
+                                node.name, self._paral_op_shape[t_name]
+                            )
                             break
 
                 # 7. IndexPutOp
                 elif isinstance(node, IndexPutOp):
                     target_arg = str(node.args[0])
-                    target_shape = self._get_shape_from_cache_or_node(target_arg)
+                    target_shape = self._get_shape_from_cache_or_node(
+                        target_arg
+                    )
                     if target_shape:
                         node.tensor_meta["shape"] = target_shape
                         self._add_paral_op_shape(node.name, target_shape)
-                
+
                 elif isinstance(node, ReshapeOp):
                     parent = node.args[0]
                     if parent in self._paral_op_shape:
-                        old_shape = list(self._paral_op_shape[parent])  # e.g. [1,1,6,128]
+                        old_shape = list(
+                            self._paral_op_shape[parent]
+                        )  # e.g. [1,1,6,128]
                     else:
                         # self._add_paral_op_shape(node.name, self._paral_op_shape[arg])
                         continue
-                    
+
                     target_shape_args = list(node.args[1])
 
                     # print("  Parent:", parent)
@@ -373,28 +435,36 @@ class PartitionedGraphDriver:
                                 neg_idx = i
                             else:
                                 known *= d
-                        
+
                         if known != 0 and neg_idx is not None:
                             new_shape[neg_idx] = old_total // known
 
                     if len(old_shape) == len(new_shape):
-                        non1_slots = [i for i, d in enumerate(new_shape) if d != 1]
-                        
+                        non1_slots = [
+                            i for i, d in enumerate(new_shape) if d != 1
+                        ]
+
                         old_non1_vals = [d for d in old_shape if d != 1]
 
-                        if len(non1_slots) == len(old_non1_vals) and len(non1_slots) > 0:
-                            
+                        if (
+                            len(non1_slots) == len(old_non1_vals)
+                            and len(non1_slots) > 0
+                        ):
+
                             locked = {}
                             remaining_old = old_non1_vals.copy()
 
                             for idx in non1_slots:
                                 want = new_shape[idx]
-                                
-                                if isinstance(want, int) and want > 1 and want in remaining_old:
+
+                                if (
+                                    isinstance(want, int)
+                                    and want > 1
+                                    and want in remaining_old
+                                ):
                                     locked[idx] = want
                                     remaining_old.remove(want)
 
-                            
                             filled = new_shape.copy()
                             rem_iter = iter(remaining_old)
                             for idx in non1_slots:
@@ -403,21 +473,22 @@ class PartitionedGraphDriver:
                                 else:
                                     filled[idx] = next(rem_iter)
 
-                            
                             if prod(filled) == prod(old_shape):
                                 new_shape = filled
 
-                    
                     old_candidates = [d for d in old_shape if d != 1]
-                    
-                    old_non_trailing = old_candidates[:-1] if len(old_candidates) > 1 else old_candidates
+
+                    old_non_trailing = (
+                        old_candidates[:-1]
+                        if len(old_candidates) > 1
+                        else old_candidates
+                    )
 
                     for i, d in enumerate(new_shape):
                         if d > 1 and d not in old_shape:
                             if len(old_non_trailing) == 1:
                                 new_shape[i] = old_non_trailing[0]
 
-                    
                     if prod(new_shape) != prod(old_shape):
                         # print(f"[WARN] ReshapeOp {node.name} inferred shape mismatch: old={old_shape}, new={new_shape}. Keep old.")
                         new_shape = old_shape
@@ -425,16 +496,20 @@ class PartitionedGraphDriver:
                     # print("  Inferred Shape:", new_shape)
                     self._add_paral_op_shape(node.name, new_shape)
 
-
                 # 8. ExpandOp
-                elif isinstance(node, ExpandOp) and node != self.op_groups[subgraph_name][-1]:
+                elif (
+                    isinstance(node, ExpandOp)
+                    and node != self.op_groups[subgraph_name][-1]
+                ):
                     op_arg = str(node.args[0])
                     if op_arg in self._paral_op_shape:
                         input_split_shape = list(self._paral_op_shape[op_arg])
                         old_new_size = list(node.args[1])
 
                         # original unsplit shape
-                        input_orig_shape = self._get_shape_from_original_node(op_arg)
+                        input_orig_shape = self._get_shape_from_original_node(
+                            op_arg
+                        )
 
                         if len(input_split_shape) > len(old_new_size):
                             raise ValueError(
@@ -443,8 +518,12 @@ class PartitionedGraphDriver:
                                 f"op={node.name}"
                             )
 
-                        padded_split_shape = [1] * (len(old_new_size) - len(input_split_shape)) + input_split_shape
-                        padded_orig_shape = [1] * (len(old_new_size) - len(input_orig_shape)) + input_orig_shape
+                        padded_split_shape = [1] * (
+                            len(old_new_size) - len(input_split_shape)
+                        ) + input_split_shape
+                        padded_orig_shape = [1] * (
+                            len(old_new_size) - len(input_orig_shape)
+                        ) + input_orig_shape
 
                         new_new_size = old_new_size.copy()
 
@@ -484,9 +563,11 @@ class PartitionedGraphDriver:
                 else:
                     for arg in node.args:
                         if isinstance(arg, str) and arg in self._paral_op_shape:
-                            self._add_paral_op_shape(node.name, self._paral_op_shape[arg])
+                            self._add_paral_op_shape(
+                                node.name, self._paral_op_shape[arg]
+                            )
                             break
-     
+
     def _get_shape_from_original_node(self, arg_name):
         arg_name = str(arg_name)
         if arg_name in self._graph.node_table:
@@ -495,13 +576,12 @@ class PartitionedGraphDriver:
                 return list(shape[0])
             return list(shape)
         return []
-        
-    
+
     def _get_shape_from_cache_or_node(self, arg_name):
-        
+
         if isinstance(arg_name, (int, float)):
-            return [] # 标量
-        
+            return []  # 标量
+
         arg_name = str(arg_name)
         if arg_name in self._paral_op_shape:
             return self._paral_op_shape[arg_name]
@@ -514,48 +594,48 @@ class PartitionedGraphDriver:
                 return list(shape[0])
             return list(shape)
         return None
-       
-    
+
     def _perform_vertical_split(self):
-        
+
         ops_count = self.strategy.ops_count
         max_strategy_op_count = self.strategy.stage_boundary_op_num
-        
+
         submodel_count = 0
         strategy_op_count = 0
         tsf_count = 0
-        
+
         def new_subgraph():
             nonlocal submodel_count, tsf_count
             key = list(self._graph.op_groups.keys())[0]
-            name = f"{key}{submodel_count}"       
+            name = f"{key}{submodel_count}"
             self.op_groups[name] = []
             self.group_map_device[name] = DeviceType.CPU
             tsf_count = 0
             return name
-        
+
         current_subgraph = None
         for op in self._graph.body:
             if isinstance(op, (PlaceholderOp, OutputOp)):
                 continue
-            
+
             if current_subgraph is None:
                 current_subgraph = new_subgraph()
                 self.op_groups[current_subgraph].append(op)
                 continue
-        
-            if (self.strategy.stage_boundary_op is not None and 
-                isinstance(op, self.strategy.stage_boundary_op)):
+
+            if self.strategy.stage_boundary_op is not None and isinstance(
+                op, self.strategy.stage_boundary_op
+            ):
                 strategy_op_count += 1
                 submodel_count += 1
                 current_subgraph = new_subgraph()
                 tsf_count = 1
                 self.op_groups[current_subgraph].append(op)
                 continue
-            
-            if 0 < strategy_op_count  < max_strategy_op_count  and ops_count:
+
+            if 0 < strategy_op_count < max_strategy_op_count and ops_count:
                 target = ops_count[(submodel_count - 1) % len(ops_count)]
-            
+
                 if tsf_count == target:
                     submodel_count += 1
                     current_subgraph = new_subgraph()
@@ -566,30 +646,27 @@ class PartitionedGraphDriver:
                     tsf_count += 1
 
             self.op_groups[current_subgraph].append(op)
-        
-
 
     def _analyze_subgraph_dependencies(self):
-        
+
         total_graph_outputs = []
         for node in self._graph.body:
             if isinstance(node, OutputOp):
                 total_graph_outputs.extend([arg for arg in node.args])
-        
 
         for name, ops in self.op_groups.items():
             self._subgraphs_inputs[name] = []
             self._subgraphs_outputs[name] = []
-            
+
             op_set_in_subgraph = set(ops)
-            
+
             for op in ops:
                 deps = self._get_op_all_dependencies(op)
-                
+
                 for parent_name in deps:
                     if parent_name not in self._graph.node_table:
                         continue
-                    
+
                     parent_op = self._graph.node_table[parent_name]
                     if parent_op not in op_set_in_subgraph:
                         if parent_op not in self._subgraphs_inputs[name]:
@@ -605,27 +682,34 @@ class PartitionedGraphDriver:
                 if op in all_inputs_set or op.name in total_graph_outputs:
                     if op not in self._subgraphs_outputs[name]:
                         self._subgraphs_outputs[name].append(op)
-            
+
             self._subgraph_dependencies[name] = set()
-        node_to_index = {node: i for i, node in enumerate(self._graph.body)}    
+        node_to_index = {node: i for i, node in enumerate(self._graph.body)}
         for name in self._subgraphs_inputs:
-            self._subgraphs_inputs[name].sort(key=lambda node: node_to_index.get(node, -1))
-            
+            self._subgraphs_inputs[name].sort(
+                key=lambda node: node_to_index.get(node, -1)
+            )
+
     def _get_op_all_dependencies(self, op) -> List[str]:
         deps = []
         for p in op._parents:
-            if isinstance(p, str): deps.append(p)
-            elif hasattr(p, "name"): deps.append(p.name)
-        
+            if isinstance(p, str):
+                deps.append(p)
+            elif hasattr(p, "name"):
+                deps.append(p.name)
+
         for arg in op.args:
             if isinstance(arg, list):
                 for item in arg:
                     if item is not None:
-                        name = item if isinstance(item, str) else getattr(item, 'name', None)
+                        name = (
+                            item
+                            if isinstance(item, str)
+                            else getattr(item, "name", None)
+                        )
                         if name and name in self._graph.node_table:
                             deps.append(name)
         return list(set(deps))
-            
 
     def build_subgraph_by_group(self):
         """
@@ -660,7 +744,9 @@ class PartitionedGraphDriver:
                     subgraph_name in self._subgraph_input_shape
                     and node.name in self._subgraph_input_shape[subgraph_name]
                 ):
-                    node_shape = self._subgraph_input_shape[subgraph_name][node.name]
+                    node_shape = self._subgraph_input_shape[subgraph_name][
+                        node.name
+                    ]
                 elif node.name in self._paral_op_shape.keys():
                     node_shape = self._paral_op_shape[node.name]
                 else:
@@ -686,7 +772,9 @@ class PartitionedGraphDriver:
 
                 for op in self.op_groups[subgraph_name]:
                     if node.name in (
-                        op._parents if isinstance(op._parents, (list, tuple)) else []
+                        op._parents
+                        if isinstance(op._parents, (list, tuple))
+                        else []
                     ):
                         placeholder_node.add_children(op.name)
 
@@ -694,7 +782,10 @@ class PartitionedGraphDriver:
 
             # Add operations to subgraph body
             for op in self.op_groups[subgraph_name]:
-                if isinstance(op, (ViewOp, ReshapeOp)) and self._parallelism > 1:
+                if (
+                    isinstance(op, (ViewOp, ReshapeOp))
+                    and self._parallelism > 1
+                ):
                     if op.args[0] in self._paral_op_shape.keys():
                         op._newshape = self._paral_op_shape[op.name]
                 subgraph.add_node(op, NodeType.OtherNode)
@@ -711,11 +802,11 @@ class PartitionedGraphDriver:
             # Keep node_table in sync if add_node does not already do so
             for op in subgraph._body:
                 subgraph.node_table[op.name] = op
-                
+
             subgraphs[subgraph_name] = subgraph
 
         return subgraphs
-    
+
     def topological_sort_subgraph(self):
         """
         Performs topological sorting on the subgraphs based on their dependencies.
@@ -792,7 +883,9 @@ class PartitionedGraphDriver:
                 for out_node in outputs:
                     out_type = ir.RankedTensorType(out_node.type)
                     output_shape = list(out_type.shape)
-                    func_node.tensor_meta["shape"].append(torch.Size(output_shape))
+                    func_node.tensor_meta["shape"].append(
+                        torch.Size(output_shape)
+                    )
             else:
                 for output in self._subgraphs_outputs[subgraph_name]:
                     func_node.tensor_meta["shape"].append(
@@ -829,10 +922,15 @@ class PartitionedGraphDriver:
                                 node._newshape = self._paral_op_shape[node.name]
 
                                 if hasattr(param_node, "tensor_meta"):
-                                    param_node.tensor_meta["shape"] = torch.Size(node._newshape)
+                                    param_node.tensor_meta["shape"] = (
+                                        torch.Size(node._newshape)
+                                    )
 
                                 current_param_info["params"].append(
-                                    {"index": ph_count, "split_degree": node._newshape}
+                                    {
+                                        "index": ph_count,
+                                        "split_degree": node._newshape,
+                                    }
                                 )
                                 issplit = True
                             else:
@@ -840,7 +938,9 @@ class PartitionedGraphDriver:
                                     {"index": ph_count, "split_degree": []}
                                 )
 
-                            main_graph.add_node(param_node, node_type=NodeType.FakeNode)
+                            main_graph.add_node(
+                                param_node, node_type=NodeType.FakeNode
+                            )
                         else:
                             if node.name in self._paral_op_shape:
                                 node_shape = self._paral_op_shape[node.name]
@@ -848,17 +948,23 @@ class PartitionedGraphDriver:
                                 node_shape = node.tensor_meta["shape"]
 
                             node_dtype = node.tensor_meta["dtype"]
-                            input_tensor_meta = TensorMeta(node_shape, node_dtype)
+                            input_tensor_meta = TensorMeta(
+                                node_shape, node_dtype
+                            )
                             maingraph_input.append(input_tensor_meta)
 
                             new_input_node = PlaceholderOp()
                             new_input_node.name = node.name
                             new_input_node.tensor_meta = input_tensor_meta
-                            main_graph.add_node(new_input_node, node_type=NodeType.InputNode)
+                            main_graph.add_node(
+                                new_input_node, node_type=NodeType.InputNode
+                            )
 
                     ph_count += 1
 
-            param_size_group.append(self.get_pack_params_size(main_graph.params_shapes))
+            param_size_group.append(
+                self.get_pack_params_size(main_graph.params_shapes)
+            )
 
             if issplit:
                 current_param_info["total_partitions"] = self._parallelism
@@ -873,9 +979,12 @@ class PartitionedGraphDriver:
                 if node.name not in main_graph.node_table:
                     if (
                         subgraph_name in self._subgraph_input_shape
-                        and node.name in self._subgraph_input_shape[subgraph_name]
+                        and node.name
+                        in self._subgraph_input_shape[subgraph_name]
                     ):
-                        node_shape = self._subgraph_input_shape[subgraph_name][node.name]
+                        node_shape = self._subgraph_input_shape[subgraph_name][
+                            node.name
+                        ]
                     else:
                         node_shape = node.tensor_meta["shape"]
 
@@ -886,7 +995,9 @@ class PartitionedGraphDriver:
                     placeholder_node = PlaceholderOp()
                     placeholder_node.name = node.name
                     placeholder_node.tensor_meta = input_tensor_meta
-                    main_graph.add_node(placeholder_node, node_type=NodeType.InputNode)
+                    main_graph.add_node(
+                        placeholder_node, node_type=NodeType.InputNode
+                    )
 
             # Add CallOp to invoke current subgraph
             call_node = CallOp()
@@ -912,7 +1023,9 @@ class PartitionedGraphDriver:
                 for out_node in outputs:
                     out_type = ir.RankedTensorType(out_node.type)
                     output_shape = list(out_type.shape)
-                    call_node.tensor_meta["shape"].append(torch.Size(output_shape))
+                    call_node.tensor_meta["shape"].append(
+                        torch.Size(output_shape)
+                    )
             else:
                 for output in self._subgraphs_outputs[subgraph_name]:
                     call_node.tensor_meta["shape"].append(
@@ -952,9 +1065,11 @@ class PartitionedGraphDriver:
                     main_graph._ops_registry,
                     do_param_pack,
                 )
-                self._modules[main_graph_name] = main_importer.import_main_graph()
+                self._modules[main_graph_name] = (
+                    main_importer.import_main_graph()
+                )
 
-        if(self._graph._verbose):
+        if self._graph._verbose:
             print(f"split_group: {split_group}")
             print(f"param_size_group: {param_size_group}")
 
@@ -963,12 +1078,11 @@ class PartitionedGraphDriver:
             first_module_name = list(self._modules.keys())[0]
             return self._modules[first_module_name]
         return None
-        
-    
+
     def construct_sub_params(self, params, subgraph_entry, output_dir):
         """
         Process parameters and generate multiple weight files based on the subgraph configuration.
-        
+
         Parameters:
         params: All separated parameters, obtained via params = dynamo_compiler.imported_params[graph]
         subgraph: A dictionary containing the ‘params’ (parameter configuration list) and ‘total_partitions’ keys,
@@ -981,21 +1095,21 @@ class PartitionedGraphDriver:
         total_partitions = subgraph["total_partitions"]
 
         partition_data = [[] for _ in range(total_partitions)]
-        
+
         for param_info in subgraph["params"]:
             idx = param_info["index"]
             split_degree = param_info["split_degree"]
-            
+
             tensor = params[idx]
-            
+
             np_tensor = tensor.detach().cpu().numpy()
             orig_shape = np_tensor.shape
-            
+
             if not split_degree:
                 flat = np_tensor.reshape(-1)
                 for part in range(total_partitions):
                     partition_data[part].append(flat)
-            
+
             else:
                 slice_shape = tuple(split_degree)
                 if len(orig_shape) != len(slice_shape):
@@ -1004,8 +1118,13 @@ class PartitionedGraphDriver:
                     )
                 axis = None
                 for dim in range(len(orig_shape)):
-                    if slice_shape[dim] * total_partitions == orig_shape[dim] and \
-                    all(slice_shape[d] == orig_shape[d] for d in range(len(orig_shape)) if d != dim):
+                    if slice_shape[dim] * total_partitions == orig_shape[
+                        dim
+                    ] and all(
+                        slice_shape[d] == orig_shape[d]
+                        for d in range(len(orig_shape))
+                        if d != dim
+                    ):
                         axis = dim
                         break
                 if axis is None:
@@ -1025,6 +1144,7 @@ class PartitionedGraphDriver:
                 concat_arr = np.concatenate(partition_data[part])
             else:
                 concat_arr = np.array([])
-            filename = os.path.join(output_dir, f"{subgraph_name}_arg{part}.data")
+            filename = os.path.join(
+                output_dir, f"{subgraph_name}_arg{part}.data"
+            )
             concat_arr.tofile(filename)
-

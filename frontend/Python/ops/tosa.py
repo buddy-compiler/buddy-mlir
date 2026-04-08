@@ -2384,20 +2384,19 @@ def reshape_op(node: ReshapeOp, symbol_table):
     new_shape = []
     if node._newshape is None:
         shape_arg = node.args[1]
-        
+
         if isinstance(shape_arg, (list, tuple)):
             new_shape = list(shape_arg)
         else:
-            
+
             try:
-                
+
                 new_shape = list(shape_arg)
             except TypeError:
                 new_shape = [shape_arg]
     else:
         new_shape = list(node._newshape)
 
-    
     now_shape = ir.RankedTensorType(input1.type).shape
     total_size = 1
     for dim_siz in now_shape:
@@ -2528,7 +2527,6 @@ def _reshape_or_extract_for_complex(input_tensor, output_shape):
 
     shape_operand = _create_shape_operand(output_shape)
     return tosa.ReshapeOp(input_tensor, shape_operand).result
-
 
 
 def unsqueeze_op(node: UnsqueezeOp, symbol_table):
@@ -4185,7 +4183,7 @@ def scaled_dot_product_flash_attention_for_cpu_op(
         int(query_shape[0]),
         int(query_shape[1]),
         int(query_shape[2]),
-        ]
+    ]
     log_sumexp_operand = _create_shape_operand(new_shape)
     log_sumexp = tosa.ReshapeOp(log_sumexp, log_sumexp_operand)
 
@@ -4252,15 +4250,17 @@ def flash_attention_for_cpu_prefill_op(
         elif (str(name), 0) in symbol_table:
             return symbol_table[(str(name), 0)]
         else:
-            raise KeyError(f"FlashAttention input '{name}' not found in symbol_table.")
-        
+            raise KeyError(
+                f"FlashAttention input '{name}' not found in symbol_table."
+            )
+
     # query = symbol_table.get((str(node.args[0]), 0), node.args[0])
     # key = symbol_table.get((str(node.args[1]), 0), node.args[1])
     # value = symbol_table.get((str(node.args[2]), 0), node.args[2])
     query = lookup_input(node.args[0])
     key = lookup_input(node.args[1])
     value = lookup_input(node.args[2])
-    
+
     attn_mask = node.kwargs.get("attn_mask", None)
     scale = node.kwargs.get("scale", None)
 
@@ -14015,7 +14015,9 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
     log_weights = tosa.SubOp(add_op.result.type, add_op, log_sumexp)
     softmax_result = math.ExpOp(log_weights.result)
     # log_sumexp_operand = _create_shape_operand(list(output_shape[1]))
-    log_sumexp_operand = _create_shape_operand([query_shape[0], query_shape[1], query_shape[2]])
+    log_sumexp_operand = _create_shape_operand(
+        [query_shape[0], query_shape[1], query_shape[2]]
+    )
     log_sumexp = tosa.ReshapeOp(log_sumexp, log_sumexp_operand)
 
     # Cast log_sumexp back to output dtype if needed

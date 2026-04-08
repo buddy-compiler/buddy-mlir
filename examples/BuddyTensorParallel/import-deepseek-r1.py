@@ -113,7 +113,7 @@ with torch.no_grad():
         # past_key_values=past_key_values_prefill,
         cache_implementation="static",
     )
-        # Initialize past_key_values once during the first forward call
+    # Initialize past_key_values once during the first forward call
     model(
         input_ids=data_decode["input_ids"],
         past_key_values=past_key_values_decode,
@@ -175,7 +175,7 @@ DECODE_STRATEGY = SplitStrategy(
     ops_count=[6, 42, 2, 6, 11, 2],
     # ops_count=[6, 14, 28, 2, 6, 11, 2],
     stage_boundary_op=PowOp,
-    stage_boundary_op_num = 57,
+    stage_boundary_op_num=57,
     paral_input_positions={
         0: [-1, -1, -1, -1],
         169: [-1, 1, -1],
@@ -187,9 +187,9 @@ DECODE_STRATEGY = SplitStrategy(
             [-1, -1],
             [-1, -1],
             [1, 1, 0, -1],
-            [-1, -1]
-        ]
-    }
+            [-1, -1],
+        ],
+    },
 )
 
 PREFILL_STRATEGY = SplitStrategy(
@@ -198,29 +198,35 @@ PREFILL_STRATEGY = SplitStrategy(
     ops_count=[6, 51, 2, 6, 11, 2],
     # ops_count=[6, 15, 36, 2, 6, 11, 2],
     stage_boundary_op=PowOp,
-    stage_boundary_op_num = 57 ,
+    stage_boundary_op_num=57,
     paral_input_positions={
         0: [-1, -1, -1],
         169: [-1, -1, -1],
         "default": [
             [-1, 1],
-            [1,0,1,0,1,0,0,-1,-1,-1,-1],
+            [1, 0, 1, 0, 1, 0, 0, -1, -1, -1, -1],
             # [1,0,1,0,1,0,-1],
             # [0,-1,-1,-1,1,1,1],
             [1, 0],
-            [-1, 1], [1, 1, 0, -1],[1, 0]
-        ]
-    }
+            [-1, 1],
+            [1, 1, 0, -1],
+            [1, 0],
+        ],
+    },
 )
 
 driver_prefill = PartitionedGraphDriver(graphs_prefill[0], PREFILL_STRATEGY)
 for i in range(len(driver_prefill.subgraphs)):
     driver_prefill.subgraphs[i].lower_to_top_level_ir()
 driver_prefill.construct_main_graph(True)
-for i in range(len(driver_prefill.subgraphs)): 
-    with open(os.path.join(output_dir, f"subgraph0_prefill{i}.mlir"), "w") as module_file:
+for i in range(len(driver_prefill.subgraphs)):
+    with open(
+        os.path.join(output_dir, f"subgraph0_prefill{i}.mlir"), "w"
+    ) as module_file:
         print(driver_prefill.subgraphs[i]._imported_module, file=module_file)
-    with open(os.path.join(output_dir, f"forward_prefill{i}.mlir"), "w") as module_file:
+    with open(
+        os.path.join(output_dir, f"forward_prefill{i}.mlir"), "w"
+    ) as module_file:
         print(driver_prefill.modules[i], file=module_file)
 for entry in driver_prefill._subgraph_param_info.items():
     driver_prefill.construct_sub_params(params, entry, output_dir)
@@ -230,10 +236,14 @@ driver_decode = PartitionedGraphDriver(graphs_decode[0], DECODE_STRATEGY)
 for i in range(len(driver_decode.subgraphs)):
     driver_decode.subgraphs[i].lower_to_top_level_ir()
 driver_decode.construct_main_graph(True)
-for i in range(len(driver_decode.subgraphs)): 
-    with open(os.path.join(output_dir, f"subgraph0_decode{i}.mlir"), "w") as module_file:
+for i in range(len(driver_decode.subgraphs)):
+    with open(
+        os.path.join(output_dir, f"subgraph0_decode{i}.mlir"), "w"
+    ) as module_file:
         print(driver_decode.subgraphs[i]._imported_module, file=module_file)
-    with open(os.path.join(output_dir, f"forward_decode{i}.mlir"), "w") as module_file:
+    with open(
+        os.path.join(output_dir, f"forward_decode{i}.mlir"), "w"
+    ) as module_file:
         print(driver_decode.modules[i], file=module_file)
 target_name = "subgraph0_decode169"
 entry = (target_name, driver_decode._subgraph_param_info[target_name])

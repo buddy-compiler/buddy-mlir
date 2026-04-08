@@ -60,11 +60,13 @@ public:
   // Desctrutor.
   ~MemRef();
   // Concat two MemRefs into a MemRef.
-  void concatenateMemRefs(MemRef<T, N> &other0, MemRef<T, N> &other1, MemRef<T, N> &other2, size_t concatDim);
+  void concatenateMemRefs(MemRef<T, N> &other0, MemRef<T, N> &other1,
+                          MemRef<T, N> &other2, size_t concatDim);
   // Split a MemRef into two MemRefs.
-  void splitMemRef(MemRef<T, N> &&other0, MemRef<T, N> &other1, MemRef<T, N> &other2, size_t splitDim, size_t splitIndex);
+  void splitMemRef(MemRef<T, N> &&other0, MemRef<T, N> &other1,
+                   MemRef<T, N> &other2, size_t splitDim, size_t splitIndex);
   // Add two MemRef
-  void addMemRef(MemRef<T, N>& a, MemRef<T, N>& b);
+  void addMemRef(MemRef<T, N> &a, MemRef<T, N> &b);
   // Get the data pointer.
   T *getData();
   // Get the data.
@@ -194,7 +196,8 @@ MemRef<T, N>::MemRef(const T *data, intptr_t sizes[N], intptr_t offset) {
 }
 
 template <typename T, std::size_t N>
-MemRef<T, N>::MemRef(const T *data, std::vector<size_t> sizes, intptr_t offset) {
+MemRef<T, N>::MemRef(const T *data, std::vector<size_t> sizes,
+                     intptr_t offset) {
   if (sizes.size() != N) {
     throw std::runtime_error("Invalid number of dimensions.");
   }
@@ -384,7 +387,8 @@ template <typename T, size_t N> T *MemRef<T, N>::release() {
 }
 
 template <typename T, std::size_t N>
-void MemRef<T, N>::concatenateMemRefs(MemRef<T, N> &other0, MemRef<T, N> &other1,
+void MemRef<T, N>::concatenateMemRefs(MemRef<T, N> &other0,
+                                      MemRef<T, N> &other1,
                                       MemRef<T, N> &other2, size_t concatDim) {
   if (concatDim >= N) {
     throw std::runtime_error("Invalid concatenation dimension.");
@@ -407,8 +411,10 @@ void MemRef<T, N>::concatenateMemRefs(MemRef<T, N> &other0, MemRef<T, N> &other1
 
   other2.setStrides();
 
-  intptr_t concatOffset0 = other0.getStrides()[concatDim] * other0.getSizes()[concatDim];
-  intptr_t concatOffset1 = other1.getStrides()[concatDim] * other1.getSizes()[concatDim];
+  intptr_t concatOffset0 =
+      other0.getStrides()[concatDim] * other0.getSizes()[concatDim];
+  intptr_t concatOffset1 =
+      other1.getStrides()[concatDim] * other1.getSizes()[concatDim];
 
   size_t offset0 = 0;
   size_t offset1 = 0;
@@ -433,7 +439,8 @@ void MemRef<T, N>::concatenateMemRefs(MemRef<T, N> &other0, MemRef<T, N> &other1
 
 template <typename T, std::size_t N>
 void MemRef<T, N>::splitMemRef(MemRef<T, N> &&other0, MemRef<T, N> &other1,
-                 MemRef<T, N> &other2, size_t splitDim, size_t splitIndex) {
+                               MemRef<T, N> &other2, size_t splitDim,
+                               size_t splitIndex) {
   if (splitDim >= N) {
     throw std::runtime_error("Invalid split dimension.");
   }
@@ -472,9 +479,9 @@ void MemRef<T, N>::splitMemRef(MemRef<T, N> &&other0, MemRef<T, N> &other1,
 
 /// Add two MemRef
 template <typename T, size_t N>
-void MemRef<T, N>::addMemRef(MemRef<T, N>& a, MemRef<T, N>& b) {
-  const intptr_t * aSizes = a.getSizes();
-  const intptr_t * bSizes = b.getSizes();
+void MemRef<T, N>::addMemRef(MemRef<T, N> &a, MemRef<T, N> &b) {
+  const intptr_t *aSizes = a.getSizes();
+  const intptr_t *bSizes = b.getSizes();
   for (size_t i = 0; i < N; i++) {
     if (aSizes[i] != bSizes[i]) {
       throw std::runtime_error("Shapes are not compatible for concatenation.");

@@ -273,7 +273,7 @@ def replace_gqa_attention_with_fused_op(
     v_expand: Op,
     v_cache_unsqueeze: Op,
     pattern: str,
-    unique_index: int = 1
+    unique_index: int = 1,
 ):
     """
     Fuse GQA subgraph

@@ -235,8 +235,8 @@ int main(int argc, char *argv[]) {
 
   if (size != 2) {
     if (rank == FrontendRank) {
-      std::cerr
-          << "[Error] This intermediate version requires exactly 2 MPI ranks.\n";
+      std::cerr << "[Error] This intermediate version requires exactly 2 MPI "
+                   "ranks.\n";
     }
     MPI_Finalize();
     return 1;
@@ -410,12 +410,10 @@ int main(int argc, char *argv[]) {
       MPI_Isend(resultContainerPtr->mask.getData(),
                 MaxTokenLength * MaxTokenLength, MPI_INT8_T, PeerRank, 1,
                 MPI_COMM_WORLD, &send_req_mha[0]);
-      MPI_Isend(resultContainerPtr->cos.getData(),
-                MaxTokenLength * HiddenSize, MPI_FLOAT, PeerRank, 2,
-                MPI_COMM_WORLD, &send_req_mha[1]);
-      MPI_Isend(resultContainerPtr->sin.getData(),
-                MaxTokenLength * HiddenSize, MPI_FLOAT, PeerRank, 3,
-                MPI_COMM_WORLD, &send_req_mha[2]);
+      MPI_Isend(resultContainerPtr->cos.getData(), MaxTokenLength * HiddenSize,
+                MPI_FLOAT, PeerRank, 2, MPI_COMM_WORLD, &send_req_mha[1]);
+      MPI_Isend(resultContainerPtr->sin.getData(), MaxTokenLength * HiddenSize,
+                MPI_FLOAT, PeerRank, 3, MPI_COMM_WORLD, &send_req_mha[2]);
       MPI_Irecv(outputPtr + offset0, subSize, MPI_FLOAT, PeerRank, 0,
                 MPI_COMM_WORLD, &recv_req_prefill);
 
@@ -429,10 +427,9 @@ int main(int argc, char *argv[]) {
                         subSize, MPI_FLOAT, comm_sub);
         }
 
-        _mlir_ciface_forward_prefill2(kvContainerPtr0, &paramsContainersMHA[m],
-                                      &resultContainerPtr->mask,
-                                      &resultContainerPtr->cos,
-                                      &resultContainerPtr->sin, &tmp3DMemRef);
+        _mlir_ciface_forward_prefill2(
+            kvContainerPtr0, &paramsContainersMHA[m], &resultContainerPtr->mask,
+            &resultContainerPtr->cos, &resultContainerPtr->sin, &tmp3DMemRef);
         kv0[2 * m] = kvContainerPtr0->kcache;
         kv0[2 * m + 1] = kvContainerPtr0->vcache;
         tmp2DContainer = kvContainerPtr0->data;
@@ -549,8 +546,8 @@ int main(int argc, char *argv[]) {
 
         if (comm_sub != MPI_COMM_NULL) {
           reduceSumTwoRanksSendrecv(mhaOutputPtrDecode,
-                                    sub2DContainerDecode.getData(),
-                                    HiddenSize0, PeerRank, 1000 + m, comm_sub);
+                                    sub2DContainerDecode.getData(), HiddenSize0,
+                                    PeerRank, 1000 + m, comm_sub);
         } else {
           std::memcpy(sub2DContainerDecode.getData(), mhaOutputPtrDecode,
                       sizeof(float) * HiddenSize0);
@@ -571,8 +568,8 @@ int main(int argc, char *argv[]) {
 
         if (comm_sub != MPI_COMM_NULL) {
           reduceSumTwoRanksSendrecv(mhaOutputPtrDecode,
-                                    sub2DContainerDecode.getData(),
-                                    HiddenSize0, PeerRank, 2000 + m, comm_sub);
+                                    sub2DContainerDecode.getData(), HiddenSize0,
+                                    PeerRank, 2000 + m, comm_sub);
         } else {
           std::memcpy(sub2DContainerDecode.getData(), mhaOutputPtrDecode,
                       sizeof(float) * HiddenSize0);
@@ -585,7 +582,8 @@ int main(int argc, char *argv[]) {
 
       MPI_Waitall(5, send_req_decode, MPI_STATUSES_IGNORE);
 
-      std::memcpy(myMemRef_decode1.getData(), subResultContainerDecode.getData(),
+      std::memcpy(myMemRef_decode1.getData(),
+                  subResultContainerDecode.getData(),
                   sizeof(float) * HiddenSize0);
 
       _mlir_ciface_forward_decode169(&resultDecodeShard0, &paramsContainer2,
@@ -857,8 +855,7 @@ int main(int argc, char *argv[]) {
         _mlir_ciface_forward_decode2(
             kvDecodeContainerPtr0, &paramsContainersMHA[m], &cachePosition,
             &kv0[2 * m], &kv0[2 * m + 1], &mhaMemRef4DDecode,
-            &mhaMemRef3D1Decode, &mhaMemRef3D2Decode,
-            &sub3DContainerDecode);
+            &mhaMemRef3D1Decode, &mhaMemRef3D2Decode, &sub3DContainerDecode);
         kv0[2 * m] = kvDecodeContainerPtr0->kcache;
         kv0[2 * m + 1] = kvDecodeContainerPtr0->vcache;
         tmp2DContainerDecode = kvDecodeContainerPtr0->data;
@@ -866,9 +863,8 @@ int main(int argc, char *argv[]) {
 
         if (comm_sub != MPI_COMM_NULL) {
           reduceSumTwoRanksSendrecv(mhaOutputPtrDecode,
-                                    sub2DContainerDecode.getData(),
-                                    HiddenSize0, FrontendRank, 1000 + m,
-                                    comm_sub);
+                                    sub2DContainerDecode.getData(), HiddenSize0,
+                                    FrontendRank, 1000 + m, comm_sub);
         } else {
           std::memcpy(sub2DContainerDecode.getData(), mhaOutputPtrDecode,
                       sizeof(float) * HiddenSize0);
@@ -889,9 +885,8 @@ int main(int argc, char *argv[]) {
 
         if (comm_sub != MPI_COMM_NULL) {
           reduceSumTwoRanksSendrecv(mhaOutputPtrDecode,
-                                    sub2DContainerDecode.getData(),
-                                    HiddenSize0, FrontendRank, 2000 + m,
-                                    comm_sub);
+                                    sub2DContainerDecode.getData(), HiddenSize0,
+                                    FrontendRank, 2000 + m, comm_sub);
         } else {
           std::memcpy(sub2DContainerDecode.getData(), mhaOutputPtrDecode,
                       sizeof(float) * HiddenSize0);

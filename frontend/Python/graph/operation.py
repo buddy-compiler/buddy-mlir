@@ -120,7 +120,6 @@ class Op:
         """
         self._children.append(child)
 
-    
     def split_node(self, dim: int, parallel: int):
         """
         Split the node into two nodes.
@@ -140,7 +139,7 @@ class Op:
     @property
     def args(self):
         return self._arguments
-    
+
     @property
     def parents(self):
         return self._parents
