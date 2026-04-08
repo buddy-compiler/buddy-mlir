@@ -3,15 +3,11 @@
 # This script must be run on a host with Docker available.
 #
 # Usage:
-#   ./scripts/release_wheel_manylinux.sh [cp_tag] [target_arch]
-# cp_tag defaults to cp310-cp310. Other valid tags are the Python versions
-# present under /opt/python in the selected manylinux image.
-# target_arch defaults to x86_64 and supports: x86_64, riscv64.
+#   ./scripts/release_wheel_manylinux.sh [cp_tag] [version] [target_arch]
 
 set -euo pipefail
 
-PY_TAG="${1:-cp310-cp310}"
-TARGET_ARCH="${2:-${TARGET_ARCH:-x86_64}}"
+PY_TAG="${1:?Error: Python ABI (parameter 1, format \"cp310-cp310\") is required but not set.}"
 
 HOST_ARCH_RAW="$(uname -m)"
 case "${HOST_ARCH_RAW}" in
@@ -25,6 +21,9 @@ case "${HOST_ARCH_RAW}" in
     HOST_ARCH="${HOST_ARCH_RAW}"
     ;;
 esac
+
+VERSION="${2:?Error: VERSION (parameter 3, format \"0.0.0\") is required but not set.}"
+TARGET_ARCH="${3:-${TARGET_ARCH:-${HOST_ARCH}}}"
 
 case "${TARGET_ARCH}" in
   x86_64)
@@ -72,6 +71,8 @@ fi
 
 docker "${DOCKER_RUN_ARGS[@]}" \
   -e WORKSPACE="${WORKSPACE}" \
+  -e TARGET_ARCH="${TARGET_ARCH}" \
+  -e BUDDY_PACKAGE_VERSION="${VERSION}" \
   -e BUDDY_BUILD_ROOT="${BUDDY_BUILD_ROOT}" \
   -e LLVM_BUILD_ROOT="${LLVM_BUILD_ROOT}" \
   -e BUDDY_BUILD_DIR="${BUDDY_BUILD_DIR}" \
@@ -87,6 +88,7 @@ docker "${DOCKER_RUN_ARGS[@]}" \
   -w "${WORKSPACE}" \
   "${MANYLINUX_IMAGE}" \
   /bin/bash -s <<'BASH'
+    ARTIFACT_SUFFIX="${PY_TAG}-${MANYLINUX_TAG}"
     set -euo pipefail
     set -x
 
@@ -112,7 +114,25 @@ docker "${DOCKER_RUN_ARGS[@]}" \
     # Install image deps via dnf.
     dnf install -y libpng-devel libjpeg-turbo-devel zlib-devel
 
-    "$PYBIN" -m pip install --upgrade pip build auditwheel ninja cmake numpy pybind11==2.10.* nanobind==2.4.* PyYAML >/dev/null
+    FLATBUFFERS_VERSION="25.12.19"
+    git clone --depth 1 --branch "v${FLATBUFFERS_VERSION}" https://github.com/google/flatbuffers.git /tmp/flatbuffers
+    pushd /tmp/flatbuffers
+      mkdir build && cd build
+      cmake .. \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DFLATBUFFERS_BUILD_TESTS=OFF \
+        -DFLATBUFFERS_INSTALL=ON \
+        -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+      make -j$(nproc)
+      make install
+    popd
+
+    "$PYBIN" -m pip install --upgrade pip build auditwheel ninja cmake numpy pybind11==2.10.* nanobind==2.4.* PyYAML
+    if [ "${TARGET_ARCH}" = "riscv64" ]; then
+      dnf install -y rust cargo
+      "$PYBIN" -m pip install -i https://ruyirepo.ruyicommunity.cn/pypi/simple/ torch
+    fi
+    "$PYBIN" -m pip install transformers==4.56.2
 
     # Optional clean rebuild (set CLEAN_BUILD=1 to force)
     if [ "${CLEAN_BUILD:-0}" = "1" ]; then
@@ -134,15 +154,22 @@ docker "${DOCKER_RUN_ARGS[@]}" \
       cmake -G Ninja -S "${WORKSPACE}/llvm/llvm" -B "${LLVM_BUILD_DIR}" \
         -DLLVM_ENABLE_PROJECTS="mlir;clang;openmp" \
         -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
-        -DLLVM_ENABLE_ASSERTIONS=ON \
+        -DLLVM_ENABLE_ASSERTIONS=OFF \
         -DOPENMP_ENABLE_LIBOMPTARGET=OFF \
         -DCMAKE_BUILD_TYPE=RELEASE \
         -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
         -DPython3_EXECUTABLE="$PYBIN" \
         -DCMAKE_INSTALL_PREFIX="${LLVM_INSTALL_DIR}"
       # Keep the release flow moving even if upstream check targets are flaky.
-      ninja -C "${LLVM_BUILD_DIR}" check-clang check-mlir omp || true
+      ninja -C "${LLVM_BUILD_DIR}"
       cmake --build "${LLVM_BUILD_DIR}" --target install -j
+      LLVM_VERSION_FILE="$(find "${LLVM_INSTALL_DIR}" -path '*/cmake/llvm/LLVMConfigVersion.cmake' | head -n 1)"
+      LLVM_PACKAGE_VERSION="$(sed -nE 's/^[[:space:]]*set\(PACKAGE_VERSION[[:space:]]+"([^"]+)".*/\1/p' "${LLVM_VERSION_FILE}" | head -n 1)"
+      LLVM_PACKAGE_VERSION="${LLVM_PACKAGE_VERSION:-unknown}"
+      LLVM_TAR_NAME="llvm-${LLVM_PACKAGE_VERSION}-${ARTIFACT_SUFFIX}.tar.gz"
+      LLVM_TAR_TMP="${BUDDY_BUILD_DIR}/${LLVM_TAR_NAME}"
+      tar -C "${LLVM_INSTALL_DIR}" -czf "${LLVM_TAR_TMP}" .
+      mv -f "${LLVM_TAR_TMP}" "${ARTIFACT_DIR}/${LLVM_TAR_NAME}"
       printf 'ready\n' > "${LLVM_STAMP_FILE}"
     fi
     # Build buddy-mlir with Python packages enabled.
@@ -156,10 +183,10 @@ docker "${DOCKER_RUN_ARGS[@]}" \
       -DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON \
       -DBUDDY_MLIR_ENABLE_DIP_LIB=ON \
       -DBUDDY_BUILD_DEEPSEEK_R1_MODEL=OFF \
-      -DPython3_EXECUTABLE="$PYBIN" \
+      -DPython3_EXECUTABLE="${PYBIN}" \
+      -DBUDDY_PACKAGE_VERSION="${BUDDY_PACKAGE_VERSION}" \
       -DCMAKE_INSTALL_PREFIX="${BUDDY_INSTALL_DIR}"
     ninja -C "${BUDDY_BUILD_DIR}"
-    ninja -C "${BUDDY_BUILD_DIR}" python-package-buddy python-package-buddy-mlir || true
     cmake --build "${BUDDY_BUILD_DIR}" --target install -j
 
     # Make the buddy bundle self-contained, so that user won't have to include llvm bundle
@@ -172,20 +199,9 @@ docker "${DOCKER_RUN_ARGS[@]}" \
     "$PYBIN" -m build --wheel --outdir "${ARTIFACT_DIR}"
     auditwheel repair "${ARTIFACT_DIR}"/buddy-*-linux_*.whl -w "${ARTIFACT_DIR}"
 
-    LLVM_VERSION_FILE="$(find "${LLVM_INSTALL_DIR}" -path '*/cmake/llvm/LLVMConfigVersion.cmake' | head -n 1)"
-    BUDDY_VERSION_FILE="$(find "${BUDDY_INSTALL_DIR}" -path '*/cmake/BuddyMLIR/BuddyMLIRConfigVersion.cmake' | head -n 1)"
-    LLVM_PACKAGE_VERSION="$(sed -nE 's/^[[:space:]]*set\(PACKAGE_VERSION[[:space:]]+"([^"]+)".*/\1/p' "${LLVM_VERSION_FILE}" | head -n 1)"
-    BUDDY_PACKAGE_VERSION="$(sed -nE 's/^[[:space:]]*set\(PACKAGE_VERSION[[:space:]]+"([^"]+)".*/\1/p' "${BUDDY_VERSION_FILE}" | head -n 1)"
-    LLVM_PACKAGE_VERSION="${LLVM_PACKAGE_VERSION:-unknown}"
-    BUDDY_PACKAGE_VERSION="${BUDDY_PACKAGE_VERSION:-unknown}"
-    ARTIFACT_SUFFIX="${PY_TAG}-${MANYLINUX_TAG}"
-    LLVM_TAR_NAME="llvm-${LLVM_PACKAGE_VERSION}-${ARTIFACT_SUFFIX}.tar.gz"
     BUDDY_TAR_NAME="buddy-${BUDDY_PACKAGE_VERSION}-${ARTIFACT_SUFFIX}.tar.gz"
-    LLVM_TAR_TMP="${BUDDY_BUILD_DIR}/${LLVM_TAR_NAME}"
     BUDDY_TAR_TMP="${BUDDY_BUILD_DIR}/${BUDDY_TAR_NAME}"
-    tar -C "${LLVM_INSTALL_DIR}" -czf "${LLVM_TAR_TMP}" .
     tar -C "${BUDDY_INSTALL_DIR}" -czf "${BUDDY_TAR_TMP}" .
-    mv -f "${LLVM_TAR_TMP}" "${ARTIFACT_DIR}/${LLVM_TAR_NAME}"
     mv -f "${BUDDY_TAR_TMP}" "${ARTIFACT_DIR}/${BUDDY_TAR_NAME}"
 
     echo "Artifacts are in ${ARTIFACT_DIR}"

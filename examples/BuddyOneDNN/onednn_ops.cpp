@@ -72,7 +72,8 @@ void onednn_matmul_2d_f32(float *A, int64_t *A_shape, int64_t A_rank, float *B,
     auto c_mem = memory(c_md, eng, C);
 
     // Create matmul primitive
-    auto matmul_pd = matmul::primitive_desc(eng, a_md, b_md, c_md);
+    auto matmul_d = matmul::desc(a_md, b_md, c_md);
+    auto matmul_pd = matmul::primitive_desc(matmul_d, eng);
     auto matmul_prim = matmul(matmul_pd);
 
     // Execute
@@ -136,7 +137,8 @@ void onednn_matmul_3d_f32(float *A, int64_t *A_shape, int64_t A_rank, float *B,
           memory::desc(b_dims, memory::data_type::f32, memory::format_tag::abc);
       auto b_mem = memory(b_md, eng, B);
 
-      auto matmul_pd = matmul::primitive_desc(eng, a_md, b_md, c_md);
+      auto matmul_d = matmul::desc(a_md, b_md, c_md);
+      auto matmul_pd = matmul::primitive_desc(matmul_d, eng);
       auto matmul_prim = matmul(matmul_pd);
 
       matmul_prim.execute(s, {{DNNL_ARG_SRC, a_mem},
@@ -165,8 +167,8 @@ void onednn_matmul_3d_f32(float *A, int64_t *A_shape, int64_t A_rank, float *B,
         auto a_batch_mem = memory(a_batch_md, eng, a_batch_ptr);
         auto c_batch_mem = memory(c_batch_md, eng, c_batch_ptr);
 
-        auto matmul_pd =
-            matmul::primitive_desc(eng, a_batch_md, b_md, c_batch_md);
+        auto matmul_d = matmul::desc(a_batch_md, b_md, c_batch_md);
+        auto matmul_pd = matmul::primitive_desc(matmul_d, eng);
         auto matmul_prim = matmul(matmul_pd);
 
         matmul_prim.execute(s, {{DNNL_ARG_SRC, a_batch_mem},
@@ -269,7 +271,8 @@ void _mlir_ciface_onednn_matmul_f32(MemRefDescriptor2D_f32 *result,
     auto c_mem = memory(c_md, eng, c_data);
 
     // 5. Create matmul primitive descriptor
-    auto matmul_pd = matmul::primitive_desc(eng, a_md, b_md, c_md);
+    auto matmul_d = matmul::desc(a_md, b_md, c_md);
+    auto matmul_pd = matmul::primitive_desc(matmul_d, eng);
 
     // 6. Create matmul primitive
     auto matmul_prim = matmul(matmul_pd);

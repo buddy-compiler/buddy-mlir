@@ -4,21 +4,34 @@
 #
 # ===---------------------------------------------------------------------------
 
-# Environment variables
-set(CONDA_PREFIX $ENV{CONDA_PREFIX})
-if(NOT CONDA_PREFIX)
-    set(CONDA_PREFIX "$ENV{HOME}/miniforge3/envs/buddy")
+# Find Python3 (used by frontend script generation)
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+
+# Find oneDNN through CMake package config.
+# Different distributions may expose either dnnl or DNNL package names.
+find_package(dnnl CONFIG QUIET)
+if(dnnl_FOUND)
+  if(TARGET dnnl::dnnl)
+    set(ONEDNN_TARGET dnnl::dnnl)
+  elseif(TARGET DNNL::dnnl)
+    set(ONEDNN_TARGET DNNL::dnnl)
+  endif()
 endif()
 
-set(ONEDNN_INCLUDE ${CONDA_PREFIX}/include)
-set(ONEDNN_LIB ${CONDA_PREFIX}/lib)
+if(NOT ONEDNN_TARGET)
+  find_package(DNNL CONFIG REQUIRED)
+  if(TARGET DNNL::dnnl)
+    set(ONEDNN_TARGET DNNL::dnnl)
+  elseif(TARGET dnnl::dnnl)
+    set(ONEDNN_TARGET dnnl::dnnl)
+  endif()
+endif()
 
-message(STATUS "CONDA_PREFIX: ${CONDA_PREFIX}")
-message(STATUS "oneDNN include: ${ONEDNN_INCLUDE}")
-message(STATUS "oneDNN lib: ${ONEDNN_LIB}")
+if(NOT ONEDNN_TARGET)
+  message(FATAL_ERROR "Found oneDNN package, but no known target (dnnl::dnnl or DNNL::dnnl) is available.")
+endif()
 
-# Find Python3
-find_package(Python3 REQUIRED COMPONENTS Interpreter)
+message(STATUS "Using oneDNN target: ${ONEDNN_TARGET}")
 
 # ============================================================================
 # oneDNN Wrapper Library
@@ -28,16 +41,8 @@ add_library(onednn_ops SHARED
     ${CMAKE_CURRENT_SOURCE_DIR}/onednn_ops.cpp
 )
 
-target_include_directories(onednn_ops PRIVATE
-    ${ONEDNN_INCLUDE}
-)
-
-target_link_directories(onednn_ops PRIVATE
-    ${ONEDNN_LIB}
-)
-
 target_link_libraries(onednn_ops PRIVATE
-    dnnl
+    ${ONEDNN_TARGET}
 )
 
 set_target_properties(onednn_ops PROPERTIES
@@ -56,7 +61,9 @@ add_custom_command(
            ${CMAKE_CURRENT_BINARY_DIR}/arg0.data
            ${CMAKE_CURRENT_BINARY_DIR}/graph.log
            ${CMAKE_CURRENT_BINARY_DIR}/graph_transformed.log
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import_simple_model.py
+    COMMAND ${CMAKE_COMMAND} -E env
+            "PYTHONPATH=${CMAKE_BINARY_DIR}/python_packages:$ENV{PYTHONPATH}"
+            ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import_simple_model.py
             --output-dir ${CMAKE_CURRENT_BINARY_DIR}
     COMMENT "Generating MLIR from PyTorch model with oneDNN transform..."
     VERBATIM
@@ -114,7 +121,6 @@ add_custom_command(
               -convert-linalg-to-affine-loops
               -affine-loop-fusion
               -lower-affine
-              -func-bufferize-dynamic-offset
               -cse
               -memref-expand
               -arith-expand
@@ -246,21 +252,20 @@ add_executable(buddy-onednn-run
 )
 
 target_link_directories(buddy-onednn-run PRIVATE
-    ${ONEDNN_LIB}
     ${MLIR_RUNNER_UTILS_LIB}
 )
 
 target_link_libraries(buddy-onednn-run
     onednn_ops                      # oneDNN wrapper
-    dnnl                            # oneDNN library
+    ${ONEDNN_TARGET}                # oneDNN library
     mlir_c_runner_utils             # MLIR C runtime
     mlir_runner_utils               # MLIR runtime
 )
 
 set_target_properties(buddy-onednn-run PROPERTIES
-    INSTALL_RPATH "${ONEDNN_LIB}:${MLIR_RUNNER_UTILS_LIB}:${CMAKE_CURRENT_BINARY_DIR}"
+    INSTALL_RPATH "$ORIGIN/../lib:${MLIR_RUNNER_UTILS_LIB}:${CMAKE_CURRENT_BINARY_DIR}"
     BUILD_WITH_INSTALL_RPATH TRUE
-    BUILD_RPATH "${ONEDNN_LIB}:${MLIR_RUNNER_UTILS_LIB}:${CMAKE_CURRENT_BINARY_DIR}"
+    BUILD_RPATH "$ORIGIN/../lib:${CMAKE_BINARY_DIR}/lib:${MLIR_RUNNER_UTILS_LIB}:${CMAKE_CURRENT_BINARY_DIR}"
 )
 
 # ============================================================================

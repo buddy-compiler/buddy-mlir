@@ -1,12 +1,7 @@
 # -----------------------------------------------------------------------------
-# Runtime helper libraries (shared) for Python-driven execution.
+# External-call kernel libraries used by Python-driven execution.
 # -----------------------------------------------------------------------------
-
-add_library(buddy_rng_utils SHARED buddy_rng_utils.cpp)
-target_compile_features(buddy_rng_utils PRIVATE cxx_std_17)
-install(TARGETS buddy_rng_utils
-        EXPORT BuddyMLIRTargets
-        COMPONENT buddy_runtime)
+add_subdirectory(external_kernels)
 
 # RAX schema + FlatBuffers interface target (used by rax-pack, rax-inspect,
 # and the model-agnostic runtime core).

@@ -232,11 +232,13 @@ def main():
         1 for node in graph.body if type(node).__name__ == "MatmulOp"
     )
     call_count = sum(
-        1 for node in graph.body if type(node).__name__ == "CallOp"
+        1
+        for node in graph.body
+        if type(node).__name__ in ("CallOp", "CallExternalOp")
     )
 
     print(f"MatmulOp count: {matmul_count} (should be 0)")
-    print(f"CallOp count: {call_count} (should be 1)")
+    print(f"CallOp/CallExternalOp count: {call_count} (should be 1)")
 
     if matmul_count == 0 and call_count >= 1:
         print("Transform successful! MatmulOp replaced with CallOp")
