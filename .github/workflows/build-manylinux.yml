@@ -29,14 +29,15 @@ jobs:
         include:
           - arch: x64
             target_arch: x86_64
+            label: self-hosted-amd64-dind
             experimental: false
           - arch: riscv64
             target_arch: riscv64
+            label: self-hosted-riscv64-dind
             experimental: true
 
     runs-on:
-      - self-hosted
-      - ${{ matrix.arch }}
+      - ${{ matrix.label }}
 
     steps:
       - name: Checkout repository (x64)
