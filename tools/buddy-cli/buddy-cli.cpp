@@ -28,7 +28,9 @@
 
 #include "buddy/runtime/core/InferenceRunner.h"
 #include "buddy/runtime/core/ModelManifest.h"
+#ifdef BUDDY_CLI_HAVE_DEEPSEEK_R1_MODEL
 #include "buddy/runtime/models/DeepSeekR1Runner.h"
+#endif
 
 #include <cerrno>
 #include <cstring>
@@ -139,14 +141,26 @@ static void applyNumaCpuBind(const std::string &) {
 
 static std::unique_ptr<buddy::runtime::InferenceRunner>
 makeRunner(const std::string &modelName) {
+#ifdef BUDDY_CLI_HAVE_DEEPSEEK_R1_MODEL
   if (modelName.rfind("deepseek_r1", 0) == 0)
     return std::make_unique<buddy::runtime::DeepSeekR1Runner>();
+#endif
 
-  throw std::runtime_error(
-      "buddy-cli: unknown model '" + modelName +
-      "'.\n"
+#ifdef BUDDY_CLI_HAVE_DEEPSEEK_R1_MODEL
+  const char *unknownHint =
       "  Supported models: deepseek_r1\n"
-      "  To add a new model, implement InferenceRunner and register it here.");
+      "  To add a new model, implement InferenceRunner and register it here.";
+#else
+  const char *unknownHint =
+      "  This buddy-cli was built without DeepSeek R1 (no model runner "
+      "linked).\n"
+      "  Re-configure with -DBUDDY_BUILD_DEEPSEEK_R1_MODEL=ON and rebuild, or "
+      "run:\n"
+      "    python3 tools/buddy-codegen/build_model.py --spec "
+      "models/deepseek_r1/specs/<variant>.json";
+#endif
+  throw std::runtime_error(std::string("buddy-cli: unknown model '") +
+                           modelName + "'.\n" + unknownHint);
 }
 
 //===----------------------------------------------------------------------===//

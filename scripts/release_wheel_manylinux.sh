@@ -145,7 +145,8 @@ docker "${DOCKER_RUN_ARGS[@]}" \
       cmake --build "${LLVM_BUILD_DIR}" --target install -j
       printf 'ready\n' > "${LLVM_STAMP_FILE}"
     fi
-    # Build buddy-mlir with Python packages enabled
+    # Build buddy-mlir with Python packages enabled.
+    # DeepSeek R1 stays OFF: gen_config.py needs HF config/transformers; wheel images do not provide them.
     cmake -G Ninja -S "${WORKSPACE}" -B "${BUDDY_BUILD_DIR}" \
       -DLLVM_DIR="${LLVM_BUILD_DIR}/lib/cmake/llvm" \
       -DMLIR_DIR="${LLVM_BUILD_DIR}/lib/cmake/mlir" \
@@ -154,6 +155,7 @@ docker "${DOCKER_RUN_ARGS[@]}" \
       -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
       -DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON \
       -DBUDDY_MLIR_ENABLE_DIP_LIB=ON \
+      -DBUDDY_BUILD_DEEPSEEK_R1_MODEL=OFF \
       -DPython3_EXECUTABLE="$PYBIN" \
       -DCMAKE_INSTALL_PREFIX="${BUDDY_INSTALL_DIR}"
     ninja -C "${BUDDY_BUILD_DIR}"
