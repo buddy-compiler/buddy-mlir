@@ -8,7 +8,7 @@ set(BUDDY_MLIR_PYTHON_PACKAGES_DIR ${CMAKE_BINARY_DIR}/python_packages)
 file(MAKE_DIRECTORY ${BUDDY_MLIR_PYTHON_PACKAGES_DIR}/buddy)
 file(MAKE_DIRECTORY ${BUDDY_MLIR_PYTHON_PACKAGES_DIR}/buddy/compiler)
 # Create empty __init__.py files to make these directories Python packages
-file(WRITE ${BUDDY_MLIR_PYTHON_PACKAGES_DIR}/buddy/__init__.py "")
+file(WRITE ${BUDDY_MLIR_PYTHON_PACKAGES_DIR}/buddy/__init__.py "__version__ = '${BUDDY_PACKAGE_VERSION}'\n")
 file(WRITE ${BUDDY_MLIR_PYTHON_PACKAGES_DIR}/buddy/compiler/__init__.py "")
 
 # Recursively retrieve all python files from the current directory.
