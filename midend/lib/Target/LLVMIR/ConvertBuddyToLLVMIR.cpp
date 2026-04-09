@@ -27,6 +27,7 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 
+#include "Target/LLVMIR/Dialect/XTAME/XTAMEToLLVMIRTranslation.h"
 #include "Target/LLVMIR/Dialect/AME/AMEToLLVMIRTranslation.h"
 #include "Target/LLVMIR/Dialect/Gemmini/GemminiToLLVMIRTranslation.h"
 #include "Target/LLVMIR/Dialect/IME/IMEToLLVMIRTranslation.h"
@@ -57,6 +58,7 @@ void registerBuddyToLLVMIRTranslation() {
         registerGemminiDialectTranslation(registry);
         registerIMEDialectTranslation(registry);
         registerAMEDialectTranslation(registry);
+        registerXTAMEDialectTranslation(registry);
       });
 }
 } // namespace buddy

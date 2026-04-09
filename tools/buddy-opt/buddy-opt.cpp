@@ -43,6 +43,9 @@
 #include "GPU/TransformOps.h"
 #include "Gemmini/GemminiDialect.h"
 #include "Gemmini/GemminiOps.h"
+#include "XTAME/XTAMEDialect.h"
+#include "XTAME/XTAMEOps.h"
+#include "XTAME/Transform.h"
 #include "AME/AMEDialect.h"
 #include "AME/AMEOps.h"
 #include "AME/Transform.h"
@@ -91,6 +94,7 @@ void registerLowerLinalgToGemminiPass();
 void registerLowerLinalgToIMEPass();
 void registerLowerIMEPass();
 void registerLowerAMEPass();
+void registerLowerXTAMEPass();
 void registerAssumeTightMemRefLayoutPass();
 void registerStaticizeMemRefLayoutPass();
 void registerConvertMemcpyToGPUPass();
@@ -130,6 +134,7 @@ int main(int argc, char **argv) {
   mlir::buddy::registerLowerLinalgToIMEPass();
   mlir::buddy::registerLowerIMEPass();
   mlir::buddy::registerLowerAMEPass();
+  mlir::buddy::registerLowerXTAMEPass();
 
   // Register Several Optimize Pass.
   mlir::buddy::registerMatMulVectorizationBLISPass();
@@ -178,6 +183,7 @@ int main(int argc, char **argv) {
                   buddy::vector_exp::VectorExpDialect,
                   buddy::vir::VIRDialect,
                   buddy::gemmini::GemminiDialect,
+                  buddy::xtame::XTAMEDialect,
                   buddy::ame::AMEDialect,
                   buddy::ime::IMEDialect>();
   // clang-format on

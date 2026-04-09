@@ -212,6 +212,7 @@ def int_riscv_ime_vfmadotn : Intrinsic<[llvm_anyvector_ty],
                                        [LLVMMatchType<0>, llvm_anyvector_ty, llvm_anyvector_ty, llvm_i64_ty],
                                        [IntrNoMem]>;
 
+
 //===----------------------------------------------------------------------===//
 // AME (RISC-V Matrix Extension) Intrinsics
 //===----------------------------------------------------------------------===//
@@ -405,3 +406,259 @@ let TargetPrefix = "riscv" in {
                                                llvm_i64_ty, llvm_i64_ty, llvm_i64_ty],
                                               []>;
 }
+
+
+
+
+
+//===----------------------------------------------------------------------===//
+// XuanTie AME (xuantie Matrix Extension 0.5.0) Intrinsics
+//===----------------------------------------------------------------------===//
+
+// Matrix configuration intrinsics (with register rs1)
+let TargetPrefix = "riscv" in {
+  // th.mcfg - Set entire tile from register
+  def int_riscv_buddy_th_mcfg : Intrinsic<[llvm_i64_ty], [llvm_i64_ty], [IntrNoMem]>;
+  
+  // th.mcfgm - Set tile M dimension from register
+  def int_riscv_buddy_th_mcfgm : Intrinsic<[llvm_i64_ty], [llvm_i64_ty], [IntrNoMem]>;
+  
+  // th.mcfgn - Set tile N dimension from register
+  def int_riscv_buddy_th_mcfgn : Intrinsic<[llvm_i64_ty], [llvm_i64_ty], [IntrNoMem]>;
+  
+  // th.mcfgk - Set tile K dimension from register
+  def int_riscv_buddy_th_mcfgk : Intrinsic<[llvm_i64_ty], [llvm_i64_ty], [IntrNoMem]>;
+}
+
+// Matrix configuration intrinsics (with immediate)
+let TargetPrefix = "riscv" in {
+  // th.mcfgmi - Set tile M dimension with immediate
+  def int_riscv_buddy_th_mcfgmi : Intrinsic<[], [llvm_i64_ty], 
+                                             [IntrNoMem, IntrHasSideEffects, ImmArg<ArgIndex<0>>]>;
+  
+  // th.mcfgni - Set tile N dimension with immediate
+  def int_riscv_buddy_th_mcfgni : Intrinsic<[], [llvm_i64_ty], 
+                                             [IntrNoMem, IntrHasSideEffects, ImmArg<ArgIndex<0>>]>;
+  
+  // th.mcfgki - Set tile K dimension with immediate
+  def int_riscv_buddy_th_mcfgki : Intrinsic<[], [llvm_i64_ty], 
+                                             [IntrNoMem, IntrHasSideEffects, ImmArg<ArgIndex<0>>]>;
+}
+
+// Matrix zero intrinsic
+let TargetPrefix = "riscv" in {
+  // zero 1 matrix register (all elements in the tile register are set to zero)
+  def int_riscv_buddy_th_mzero : Intrinsic<[], [llvm_i64_ty], 
+                                        [IntrNoMem, IntrHasSideEffects, ImmArg<ArgIndex<0>>]>;
+  
+  // zero 2 matrix registers (all elements in the two tile registers are set to zero)
+  def int_riscv_buddy_th_mzero2r : Intrinsic<[], [llvm_i64_ty], 
+                                        [IntrNoMem, IntrHasSideEffects, ImmArg<ArgIndex<0>>]>;
+  
+  // zero 4 matrix registers (all elements in the four tile registers are set to zero)
+  def int_riscv_buddy_th_mzero4r : Intrinsic<[], [llvm_i64_ty], 
+                                        [IntrNoMem, IntrHasSideEffects, ImmArg<ArgIndex<0>>]>;
+  
+  // zero 8 matrix registers (all elements in the eight tile registers are set to zero)
+  def int_riscv_buddy_th_mzero8r : Intrinsic<[], [llvm_i64_ty], 
+                                        [IntrNoMem, IntrHasSideEffects, ImmArg<ArgIndex<0>>]>;
+}
+
+// Matrix load intrinsics (load to tile register)
+// Format: md = tile register index, base = address, stride = row byte stride
+let TargetPrefix = "riscv" in {
+  // th.mlde8 - Load 8-bit matrix to tile register
+  def int_riscv_buddy_th_mlde8 : Intrinsic<[], 
+                                         [llvm_i64_ty, llvm_i64_ty, llvm_ptr_ty],
+                                         [IntrReadMem, IntrHasSideEffects, ImmArg<ArgIndex<0>>]>;
+
+  // th.mlde16 - Load 16-bit matrix to tile register
+  def int_riscv_buddy_th_mlde16 : Intrinsic<[], 
+                                          [llvm_i64_ty, llvm_i64_ty, llvm_ptr_ty],
+                                          [IntrReadMem, IntrHasSideEffects, ImmArg<ArgIndex<0>>]>;
+
+  // th.mlde32 - Load 32-bit matrix to tile register
+  def int_riscv_buddy_th_mlde32 : Intrinsic<[], 
+                                          [llvm_i64_ty, llvm_i64_ty, llvm_ptr_ty],
+                                          [IntrReadMem, IntrHasSideEffects, ImmArg<ArgIndex<0>>]>;
+
+  // th.mlde64 - Load 64-bit matrix to tile register
+  def int_riscv_buddy_th_mlde64 : Intrinsic<[], 
+                                          [llvm_i64_ty, llvm_i64_ty, llvm_ptr_ty],
+                                          [IntrReadMem, IntrHasSideEffects, ImmArg<ArgIndex<0>>]>;
+  
+  // Matrix prefetch load intrinsics (load from memory to cache)
+  def int_riscv_buddy_th_mplde8 : Intrinsic<[], 
+                                          [llvm_i64_ty, llvm_ptr_ty],
+                                          [IntrReadMem, IntrHasSideEffects]>;
+
+  def int_riscv_buddy_th_mplde16 : Intrinsic<[], 
+                                           [llvm_i64_ty, llvm_ptr_ty],
+                                           [IntrReadMem, IntrHasSideEffects]>;
+
+  def int_riscv_buddy_th_mplde32 : Intrinsic<[], 
+                                           [llvm_i64_ty, llvm_ptr_ty],
+                                           [IntrReadMem, IntrHasSideEffects]>;
+
+  def int_riscv_buddy_th_mplde64 : Intrinsic<[], 
+                                           [llvm_i64_ty, llvm_ptr_ty],
+                                           [IntrReadMem, IntrHasSideEffects]>;
+  
+  //  Transposed Load Instructions
+  // th.mldte8 - Load 8-bit transposed matrix to tile register
+  def int_riscv_buddy_th_mldte8 : Intrinsic<[], 
+                                          [llvm_i64_ty, llvm_i64_ty, llvm_ptr_ty],
+                                          [IntrReadMem, IntrHasSideEffects, ImmArg<ArgIndex<0>>]>;
+
+  // th.mldte16 - Load 16-bit transposed matrix to tile register
+  def int_riscv_buddy_th_mldte16 : Intrinsic<[], 
+                                           [llvm_i64_ty, llvm_i64_ty, llvm_ptr_ty],
+                                           [IntrReadMem, IntrHasSideEffects, ImmArg<ArgIndex<0>>]>;
+  
+  // th.mldte32 - Load 32-bit transposed matrix to tile register
+  def int_riscv_buddy_th_mldte32 : Intrinsic<[], 
+                                           [llvm_i64_ty, llvm_i64_ty, llvm_ptr_ty],
+                                           [IntrReadMem, IntrHasSideEffects, ImmArg<ArgIndex<0>>]>;
+  
+  // th.mldte64 - Load 64-bit transposed matrix to tile register
+  def int_riscv_buddy_th_mldte64 : Intrinsic<[], 
+                                           [llvm_i64_ty, llvm_i64_ty, llvm_ptr_ty],
+                                           [IntrReadMem, IntrHasSideEffects, ImmArg<ArgIndex<0>>]>;
+}
+
+// Matrix store intrinsics (store from tile register)
+let TargetPrefix = "riscv" in {
+  // th.mste8 - Store 8-bit matrix from tile register
+  def int_riscv_buddy_th_mste8 : Intrinsic<[],
+                                         [llvm_i64_ty, llvm_i64_ty, llvm_ptr_ty],
+                                         [IntrWriteMem, IntrHasSideEffects, ImmArg<ArgIndex<0>>]>;
+  
+  // th.mste16 - Store 16-bit matrix from tile register
+  def int_riscv_buddy_th_mste16 : Intrinsic<[],
+                                          [llvm_i64_ty, llvm_i64_ty, llvm_ptr_ty],
+                                          [IntrWriteMem, IntrHasSideEffects, ImmArg<ArgIndex<0>>]>;
+  
+  // th.mste32 - Store 32-bit matrix from tile register
+  def int_riscv_buddy_th_mste32 : Intrinsic<[],
+                                          [llvm_i64_ty, llvm_i64_ty, llvm_ptr_ty],
+                                          [IntrWriteMem, IntrHasSideEffects, ImmArg<ArgIndex<0>>]>;
+  
+  // th.mste64 - Store 64-bit matrix from tile register
+  def int_riscv_buddy_th_mste64 : Intrinsic<[],
+                                          [llvm_i64_ty, llvm_i64_ty, llvm_ptr_ty],
+                                          [IntrWriteMem, IntrHasSideEffects, ImmArg<ArgIndex<0>>]>;
+}
+
+
+
+// Tile register matrix multiplication intrinsics (operate on tile registers)
+// integer matrix multiplication and add, md = md + ms1 * ms2.
+let TargetPrefix = "riscv" in {
+  // th.mmacc.w.b - signed 8bit, output quad-widen
+  def int_riscv_buddy_th_mmacc_w_b : Intrinsic<[],
+                                                [llvm_i64_ty, llvm_i64_ty, llvm_i64_ty],
+                                                [IntrHasSideEffects, ImmArg<ArgIndex<0>>, 
+                                                 ImmArg<ArgIndex<1>>, ImmArg<ArgIndex<2>>]>;
+
+  // th.mmaccu.w.b - unsigned 8bit, output quad-widen
+  def int_riscv_buddy_th_mmaccu_w_b : Intrinsic<[],
+                                                [llvm_i64_ty, llvm_i64_ty, llvm_i64_ty],
+                                                [IntrHasSideEffects, ImmArg<ArgIndex<0>>, 
+                                                 ImmArg<ArgIndex<1>>, ImmArg<ArgIndex<2>>]>;
+  
+  // th.mmaccus.w.b - unsigned-signed 8bit, output quad-widen
+  def int_riscv_buddy_th_mmaccus_w_b : Intrinsic<[],
+                                                 [llvm_i64_ty, llvm_i64_ty, llvm_i64_ty],
+                                                 [IntrHasSideEffects, ImmArg<ArgIndex<0>>, 
+                                                  ImmArg<ArgIndex<1>>, ImmArg<ArgIndex<2>>]>;
+  
+  // th.mmaccsu.w.b - signed-unsigned 8bit, output quad-widen 
+  def int_riscv_buddy_th_mmaccsu_w_b : Intrinsic<[],
+                                                 [llvm_i64_ty, llvm_i64_ty, llvm_i64_ty],
+                                                 [IntrHasSideEffects, ImmArg<ArgIndex<0>>, 
+                                                  ImmArg<ArgIndex<1>>, ImmArg<ArgIndex<2>>]>;
+                                                                                                                                              
+}
+
+// Tile register Float point matrix multiplication and add, md = md + ms1 * ms2.
+let TargetPrefix = "riscv" in {
+  // th.mfmacc.h - 16-bit float point(fp16)
+  def int_riscv_buddy_th_mfmacc_h : Intrinsic<[],
+                                                [llvm_i64_ty, llvm_i64_ty, llvm_i64_ty],
+                                                [IntrHasSideEffects, ImmArg<ArgIndex<0>>, 
+                                                 ImmArg<ArgIndex<1>>, ImmArg<ArgIndex<2>>]>;
+
+  // th.mfmacc.bf16 - 16-bit float point(bf16)
+  def int_riscv_buddy_th_mfmacc_bf16 : Intrinsic<[],
+                                                [llvm_i64_ty, llvm_i64_ty, llvm_i64_ty],
+                                                [IntrHasSideEffects, ImmArg<ArgIndex<0>>, 
+                                                 ImmArg<ArgIndex<1>>, ImmArg<ArgIndex<2>>]>;
+
+  // th.mfmacc.s - 32-bit float point
+  def int_riscv_buddy_th_mfmacc_s : Intrinsic<[],
+                                                [llvm_i64_ty, llvm_i64_ty, llvm_i64_ty],
+                                                [IntrHasSideEffects, ImmArg<ArgIndex<0>>, 
+                                                 ImmArg<ArgIndex<1>>, ImmArg<ArgIndex<2>>]>;
+
+  // th.mfmacc.d - 64-bit float point
+  def int_riscv_buddy_th_mfmacc_d : Intrinsic<[],
+                                                 [llvm_i64_ty, llvm_i64_ty, llvm_i64_ty],
+                                                 [IntrHasSideEffects, ImmArg<ArgIndex<0>>, 
+                                                  ImmArg<ArgIndex<1>>, ImmArg<ArgIndex<2>>]>;
+
+  // th.mfmacc.h.e4m3 - 8-bit float point, output double-widen
+  def int_riscv_buddy_th_mfmacc_h_e4m3 : Intrinsic<[],
+                                                  [llvm_i64_ty, llvm_i64_ty, llvm_i64_ty],
+                                                  [IntrHasSideEffects, ImmArg<ArgIndex<0>>, 
+                                                   ImmArg<ArgIndex<1>>, ImmArg<ArgIndex<2>>]>;
+
+  // th.mfmacc.h.e5m2 - 8-bit float point, output double-widen
+  def int_riscv_buddy_th_mfmacc_h_e5m2 : Intrinsic<[],
+                                                  [llvm_i64_ty, llvm_i64_ty, llvm_i64_ty],
+                                                  [IntrHasSideEffects, ImmArg<ArgIndex<0>>, 
+                                                   ImmArg<ArgIndex<1>>, ImmArg<ArgIndex<2>>]>;  
+
+  // th.mfmacc.bf16.e4m3 - 8-bit float point, output double-widen
+  def int_riscv_buddy_th_mfmacc_bf16_e4m3 : Intrinsic<[],
+                                                  [llvm_i64_ty, llvm_i64_ty, llvm_i64_ty],
+                                                  [IntrHasSideEffects, ImmArg<ArgIndex<0>>, 
+                                                   ImmArg<ArgIndex<1>>, ImmArg<ArgIndex<2>>]>;
+
+  // th.mfmacc_bf16.e5m2 - 8-bit float point, output double-widen
+  def int_riscv_buddy_th_mfmacc_bf16_e5m2 : Intrinsic<[],
+                                                  [llvm_i64_ty, llvm_i64_ty, llvm_i64_ty],
+                                                  [IntrHasSideEffects, ImmArg<ArgIndex<0>>, 
+                                                   ImmArg<ArgIndex<1>>, ImmArg<ArgIndex<2>>]>;
+
+  // th.mfmacc.s.h - 16-bit float point, output double-widen
+  def int_riscv_buddy_th_mfmacc_s_h : Intrinsic<[],
+                                                  [llvm_i64_ty, llvm_i64_ty, llvm_i64_ty],
+                                                  [IntrHasSideEffects, ImmArg<ArgIndex<0>>, 
+                                                   ImmArg<ArgIndex<1>>, ImmArg<ArgIndex<2>>]>;
+
+  // th.mfmacc.s.bf16 - 16-bit float point, output double-widen
+  def int_riscv_buddy_th_mfmacc_s_bf16 : Intrinsic<[],
+                                                  [llvm_i64_ty, llvm_i64_ty, llvm_i64_ty],
+                                                  [IntrHasSideEffects, ImmArg<ArgIndex<0>>, 
+                                                   ImmArg<ArgIndex<1>>, ImmArg<ArgIndex<2>>]>;
+
+  // th.mfmacc.d.s - 32-bit float point, output double-widen
+  def int_riscv_buddy_th_mfmacc_d_s : Intrinsic<[],
+                                                  [llvm_i64_ty, llvm_i64_ty, llvm_i64_ty],
+                                                  [IntrHasSideEffects, ImmArg<ArgIndex<0>>, 
+                                                   ImmArg<ArgIndex<1>>, ImmArg<ArgIndex<2>>]>;
+
+  // th.mfmacc.s.e4m3 8-bit float point, output quad-widen
+  def int_riscv_buddy_th_mfmacc_s_e4m3 : Intrinsic<[],
+                                                  [llvm_i64_ty, llvm_i64_ty, llvm_i64_ty],
+                                                  [IntrHasSideEffects, ImmArg<ArgIndex<0>>, 
+                                                   ImmArg<ArgIndex<1>>, ImmArg<ArgIndex<2>>]>;
+
+  // th.mfmacc.s.e5m2 8-bit float point, output quad-widen
+  def int_riscv_buddy_th_mfmacc_s_e5m2 : Intrinsic<[],
+                                                  [llvm_i64_ty, llvm_i64_ty, llvm_i64_ty],
+                                                  [IntrHasSideEffects, ImmArg<ArgIndex<0>>, 
+                                                   ImmArg<ArgIndex<1>>, ImmArg<ArgIndex<2>>]>;
+}
+
+
