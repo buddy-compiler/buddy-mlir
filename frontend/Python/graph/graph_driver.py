@@ -127,6 +127,7 @@ class GraphDriver:
                 subgraph_name,
                 subgraph_device,
                 verbose=self._graph._verbose,
+                enable_external_calls=self._graph._enable_external_calls,
             )
 
             # Construct input placeholder nodes

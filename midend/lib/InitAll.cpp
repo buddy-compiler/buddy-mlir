@@ -20,13 +20,18 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/Dialect.h"
 
+#include "Dialect/AME/AMEDialect.h"
 #include "Dialect/Bud/BudDialect.h"
 #include "Dialect/DAP/DAPDialect.h"
 #include "Dialect/DIP/DIPDialect.h"
 #include "Dialect/Gemmini/GemminiDialect.h"
+<<<<<<< HEAD
 #include "Dialect/XTAME/XTAMEDialect.h"
 #include "Dialect/AME/AMEDialect.h"
+=======
+>>>>>>> upstream/main
 #include "Dialect/IME/IMEDialect.h"
+#include "Dialect/RHAL/RHALDialect.h"
 #include "Dialect/RVV/RVVDialect.h"
 #include "Dialect/VectorExp/VectorExpDialect.h"
 
@@ -50,6 +55,8 @@ void registerMatMulOptimizePass();
 void registerMatMulParallelVectorizationPass();
 void registerMatMulVectorizationPass();
 void registerMatMulVectorizationDecodePass();
+void registerDequantMatMulVectorizationDecodePass();
+void registerInt4DequantMatMulVectorizationDecodePass();
 void registerBatchMatMulVectorizationDecodePass();
 void registerTransposeOptimizationPass();
 void registerSiLUFusionPass();
@@ -69,6 +76,7 @@ void mlir::buddy::registerAllDialects(mlir::DialectRegistry &registry) {
   registry.insert<::buddy::dip::DIPDialect>();
   registry.insert<::buddy::gemmini::GemminiDialect>();
   registry.insert<::buddy::ime::IMEDialect>();
+  registry.insert<::buddy::rhal::RHALDialect>();
   registry.insert<::buddy::rvv::RVVDialect>();
   registry.insert<::buddy::vector_exp::VectorExpDialect>();
 }
@@ -92,6 +100,8 @@ void mlir::buddy::registerAllPasses() {
   mlir::buddy::registerMatMulParallelVectorizationPass();
   mlir::buddy::registerMatMulVectorizationPass();
   mlir::buddy::registerMatMulVectorizationDecodePass();
+  mlir::buddy::registerDequantMatMulVectorizationDecodePass();
+  mlir::buddy::registerInt4DequantMatMulVectorizationDecodePass();
   mlir::buddy::registerBatchMatMulVectorizationDecodePass();
   mlir::buddy::registerTransposeOptimizationPass();
   mlir::buddy::registerSiLUFusionPass();

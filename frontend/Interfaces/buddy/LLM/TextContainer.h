@@ -721,39 +721,19 @@ template <typename T, size_t N> std::string Text<T, N>::revertWhisper() {
 }
 
 template <typename T, size_t N> std::string Text<T, N>::revertDeepSeekR1() {
-  std::string dst;
-
-  const int EOS_ID = 151643;
-
-  for (size_t i = 0; i < this->tokenCnt; i++) {
-    int id = this->aligned[i];
-    if (id == EOS_ID)
-      break;
-    // Replace each "Ġ" with a space.
-    std::string token = this->idToTokenVec[id];
-    size_t pos = token.find("Ġ");
-    while (pos != std::string::npos) {
-      token.replace(pos, 2, " ");
-      pos = token.find("Ġ", pos + 1);
-    }
-    // Replace each "Ċ" with \n.
-    pos = token.find("Ċ");
-    while (pos != std::string::npos) {
-      token.replace(pos, 2, "\n");
-      pos = token.find("Ċ", pos + 1);
-    }
-
-    dst.append(token);
-  }
-  if (dst[0] == ' ') {
-    dst.erase(0, 1);
-  }
-  return dst;
+  // DeepSeek R1 Distill uses Qwen's byte-level BPE tokenizer.
+  // Reuse the same BPE-to-byte decoding logic as revertQwen3().
+  return revertQwen3();
 }
 
 template <typename T, size_t N> std::string Text<T, N>::revertQwen3() {
   std::vector<unsigned char> byte_buffer;
   const int EOS_ID = 151643;
+
+  // Maximum code point used by the GPT-2/Qwen BPE byte mapping.
+  // Direct: 33-126, 161-172, 174-255 (188 bytes).
+  // Remapped: 0-32, 127-160, 173 (68 bytes) → code points 256-323.
+  constexpr unsigned int kMaxBpeCodePoint = 323;
 
   for (size_t i = 0; i < this->tokenCnt; i++) {
     int id = this->aligned[i];
@@ -787,9 +767,16 @@ template <typename T, size_t N> std::string Text<T, N>::revertQwen3() {
         continue;
       }
 
+      if (code <= kMaxBpeCodePoint) {
+        // BPE-encoded character: reverse the byte mapping.
+        byte_buffer.push_back(this->revert_single_bpe_char(code));
+      } else {
+        // Raw UTF-8 character (e.g. CJK): copy original bytes directly.
+        for (int k = 0; k < len; ++k)
+          byte_buffer.push_back((unsigned char)token[j + k]);
+      }
+
       j += len;
-      // Directly call the class member function
-      byte_buffer.push_back(this->revert_single_bpe_char(code));
     }
   }
 

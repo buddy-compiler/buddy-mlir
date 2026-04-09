@@ -1,0 +1,17 @@
+{
+  "model_family": "deepseek-r1",
+  "bos_token": "<|begin▁of▁sentence|>",
+  "eos_token": "<|end▁of▁sentence|>",
+  "roles": {
+    "system": "",
+    "user": "<|User|>",
+    "assistant": "<|Assistant|>"
+  },
+  "stop_tokens": ["<|end▁of▁sentence|>", "<|EOT|>"],
+  "stop_token_ids": [151643, 151647],
+  "role_suffix": "",
+  "turn_suffix": "<|end▁of▁sentence|>",
+  "add_bos": true,
+  "add_generation_prompt": true,
+  "system_in_first_user": true
+}

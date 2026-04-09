@@ -52,6 +52,14 @@ from .graph.transform import (
 )
 from .graph.type import *
 
+EXTERNAL_CALL_TRANSFORM_GROUPS = {
+    "rng": tuple(RUNTIME_RNG_TRANSFORMS),
+}
+
+EXTERNAL_CALL_GROUP_LIBS = {
+    "rng": "libbuddy_external_rng",
+}
+
 
 class DynamoCompiler:
     """
@@ -71,6 +79,7 @@ class DynamoCompiler:
         aot_autograd_decomposition: Optional[dict] = None,
         verbose=False,
         enable_external_calls: bool = False,
+        capture_scalar_outputs: bool = False,
     ) -> None:
         """
         Initializes the Dynamo Compiler.
@@ -84,6 +93,8 @@ class DynamoCompiler:
                 debugging purposes. The default value is False, indicating that
                 no extra debug information will be printed.
             enable_external_calls (bool): Enable external function call support (for oneDNN, etc.)
+            capture_scalar_outputs (bool): Enable scalar output capture in
+                TorchDynamo to avoid graph breaks from scalar escapes.
         Attributes:
             _func_name: The function name to be used.
             _aot_autograd_decomposition (Optional[dict], optional):
@@ -98,6 +109,7 @@ class DynamoCompiler:
         """
         # Make custom dynamo compiler take effect.
         dynamo.reset()
+        dynamo.config.capture_scalar_outputs = capture_scalar_outputs
         # Initialize the attributes.
         if primary_registry is None:
             primary_registry = {}
@@ -706,6 +718,22 @@ class DynamoCompiler:
             return [], TensorDType.Bool
         return None
 
+    def _infer_meta_from_value(self, value):
+        if value is None:
+            return None
+        if isinstance(value, torch.Tensor):
+            node_dtype = self._torch_dtype_translate(str(value.dtype))
+            return value.shape, node_dtype
+        if isinstance(value, np.generic):
+            value = value.item()
+        if isinstance(value, (torch.SymInt, int)):
+            return [], TensorDType.Int64
+        if isinstance(value, (torch.SymFloat, float)):
+            return [], TensorDType.Float32
+        if isinstance(value, (torch.SymBool, bool)):
+            return [], TensorDType.Bool
+        return None
+
     def _resolve_call_function_node_name(self, target):
         """Map Python call_function targets to Buddy op names."""
         node_name = str(target.__name__)
@@ -745,7 +773,13 @@ class DynamoCompiler:
             return tensor_meta.shape, node_dtype
         if str(gm_node.target) == "aten.unbind.int":
             return self._infer_unbind_output_meta(gm_node)
-        inferred = self._infer_meta_from_schema(schema)
+        inferred = self._infer_meta_from_value(gm_node.meta.get("val"))
+        if inferred is None:
+            inferred = self._infer_meta_from_value(
+                gm_node.meta.get("example_value")
+            )
+        if inferred is None:
+            inferred = self._infer_meta_from_schema(schema)
         if inferred is None and gm_node.op == "call_function":
             inferred = self._infer_meta_from_call_function_target(gm_node)
         if inferred is None:
@@ -1041,8 +1075,15 @@ class DynamoCompiler:
             transform_list = [
                 maxpool2d_simplify,
             ]
+            enabled_external_groups = []
             if self._enable_external_calls:
-                transform_list.extend(RUNTIME_RNG_TRANSFORMS)
+                for (
+                    group_name,
+                    group_transforms,
+                ) in EXTERNAL_CALL_TRANSFORM_GROUPS.items():
+                    transform_list.extend(group_transforms)
+                    enabled_external_groups.append(group_name)
+            graph._enabled_external_groups = enabled_external_groups
             graph.perform(transform_list)
             self._imported_graphs.append(graph)
             self._imported_params[graph] = params_flat
@@ -1199,11 +1240,13 @@ class DynamoCompiler:
         buddy_lib_base_path = os.path.abspath(
             os.path.join(path_prefix, "../../../lib")
         )
-        buddy_rng_lib = os.path.join(
-            buddy_lib_base_path, "libbuddy_rng_utils" + lib_extension
-        )
+        enabled_external_groups = getattr(graph, "_enabled_external_groups", [])
         if self._enable_external_calls:
-            shared_libs.append(buddy_rng_lib)
+            for group_name in enabled_external_groups:
+                lib_name = EXTERNAL_CALL_GROUP_LIBS[group_name]
+                shared_libs.append(
+                    os.path.join(buddy_lib_base_path, lib_name + lib_extension)
+                )
         # Define execution engine.
         ee = ExecutionEngine(
             graph._imported_module, opt_level=3, shared_libs=shared_libs
