@@ -36,7 +36,6 @@
 #include <cstring>
 #include <iostream>
 #include <memory>
-#include <sched.h>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -48,6 +47,13 @@
 //===----------------------------------------------------------------------===//
 // Affinity helpers
 //===----------------------------------------------------------------------===//
+
+#ifdef __APPLE__
+static void applyCpuAffinity(const std::string &spec) {
+  std::cerr << "[buddy-cli] Doesn't support applyCpuAffinity; --cpus ignored\n";
+}
+#else
+#include <sched.h>
 
 // Parse "0-47" or "0-15,32-47,64" into a cpu_set_t.
 static cpu_set_t parseCpuSet(const std::string &spec) {
@@ -85,6 +91,7 @@ static void applyCpuAffinity(const std::string &spec) {
   else
     std::cout << "[buddy-cli] CPU affinity set: " << spec << "\n";
 }
+#endif
 
 #ifdef BUDDY_CLI_HAVE_NUMA
 // Parse "0,1,2,3" into a numa bitmask.
