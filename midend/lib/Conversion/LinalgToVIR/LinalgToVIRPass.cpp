@@ -382,6 +382,7 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
   };
 
   // Case A: rank-1 -> rank-0, dimensions = [0].
+  // Reduce the full 1D buffer into a scalar accumulator.
   if (inTy.getRank() == 1 && outTy.getRank() == 0) {
     if (dims.size() != 1 || dims[0] != 0)
       return rewriter.notifyMatchFailure(
@@ -420,60 +421,240 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
   }
 
   // Case B: rank-2 -> rank-1, dimensions = [1].
+  // Reduce each row of the MxN input into one output element.
   if (inTy.getRank() == 2 && outTy.getRank() == 1) {
-    if (dims.size() != 1 || dims[0] != 1)
+    if (dims.size() != 1)
       return rewriter.notifyMatchFailure(
-          reduceOp, "rank-2 -> rank-1 reduction requires dimensions=[1]");
+          reduceOp, "rank-2 -> rank-1 reduction requires one dimension");
 
     int64_t inStaticM = inTy.getShape()[0];
+    int64_t inStaticN = inTy.getShape()[1];
     int64_t outStaticM = outTy.getShape()[0];
-    if (!ShapedType::isDynamic(inStaticM) && !ShapedType::isDynamic(outStaticM) &&
-        inStaticM != outStaticM) {
-      return rewriter.notifyMatchFailure(
-          reduceOp, "input/output leading dimension mismatch");
+    Type elemTy = inTy.getElementType();
+    Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+
+    if (dims[0] == 1) {
+      if (!ShapedType::isDynamic(inStaticM) &&
+          !ShapedType::isDynamic(outStaticM) && inStaticM != outStaticM) {
+        return rewriter.notifyMatchFailure(
+            reduceOp, "input/output leading dimension mismatch");
+      }
+
+      Value upperM = rewriter.create<memref::DimOp>(loc, input, 0);
+      Value upperN = rewriter.create<memref::DimOp>(loc, input, 1);
+      auto outerLoop = rewriter.create<scf::ForOp>(loc, lower, upperM, step);
+
+      {
+        OpBuilder::InsertionGuard g(rewriter);
+        rewriter.setInsertionPointToStart(outerLoop.getBody());
+        Value i = outerLoop.getInductionVar();
+        auto accBufTy = MemRefType::get({}, elemTy);
+        Value accBuf = rewriter.create<memref::AllocaOp>(loc, accBufTy);
+        Value initVal = rewriter.create<memref::LoadOp>(loc, init, ValueRange{i});
+        rewriter.create<memref::StoreOp>(loc, initVal, accBuf, ValueRange{});
+
+        auto setVl = rewriter.create<buddy::vir::SetVLOp>(
+            loc, /*results=*/TypeRange{}, /*operands=*/ValueRange{upperN});
+        Region &region = setVl.getRegion();
+        Block &block = region.emplaceBlock();
+        rewriter.setInsertionPointToStart(&block);
+
+        auto vecTy =
+            buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, elemTy);
+        Value row = rewriter
+                        .create<buddy::vir::LoadOp>(loc, vecTy, input,
+                                                    ValueRange{i, c0})
+                        .getResult();
+        Value acc = rewriter.create<memref::LoadOp>(loc, accBuf, ValueRange{});
+        Value reduced =
+            rewriter
+                .create<buddy::vir::ReduceOp>(
+                    loc, elemTy, row, acc,
+                    rewriter.getStringAttr(kindToString(*combinerKind)))
+                .getResult();
+        rewriter.create<memref::StoreOp>(loc, reduced, accBuf, ValueRange{});
+        rewriter.create<vector::YieldOp>(loc);
+
+        rewriter.setInsertionPointAfter(setVl);
+        Value finalVal =
+            rewriter.create<memref::LoadOp>(loc, accBuf, ValueRange{});
+        rewriter.create<memref::StoreOp>(loc, finalVal, init, ValueRange{i});
+      }
+
+      rewriter.eraseOp(reduceOp);
+      return success();
     }
 
+    // Case C: rank-2 -> rank-1, dimensions = [0].
+    // First transpose MxN -> NxM so reducing the original leading dimension
+    // becomes a reduction across one transposed row. The transpose view has a
+    // non-unit stride on the minor dimension, so we materialize it into a
+    // contiguous NxM scratch buffer before lowering further; otherwise
+    // -lower-vir-to-vector would reject the eventual vector.load because the
+    // innermost dimension would not be unit-stride.
+    if (dims[0] == 0) {
+      int64_t outStaticN = outTy.getShape()[0];
+      if (ShapedType::isDynamic(inStaticM) || ShapedType::isDynamic(inStaticN) ||
+          ShapedType::isDynamic(outStaticN)) {
+        return rewriter.notifyMatchFailure(
+            reduceOp, "rank-2 -> rank-1 dimensions=[0] requires static M/N");
+      }
+      if (inStaticN != outStaticN)
+        return rewriter.notifyMatchFailure(
+            reduceOp, "input/output trailing dimension mismatch");
+
+      Value upperN = rewriter.create<arith::ConstantIndexOp>(loc, inStaticN);
+      Value upperM = rewriter.create<arith::ConstantIndexOp>(loc, inStaticM);
+      SmallVector<int64_t> permutation = {1, 0};
+      auto permutationMap =
+          AffineMap::getPermutationMap(permutation, rewriter.getContext());
+      auto scope = rewriter.create<memref::AllocaScopeOp>(loc, TypeRange{});
+      Block *scopeBlock = rewriter.createBlock(&scope.getBodyRegion());
+      rewriter.setInsertionPointToStart(scopeBlock);
+
+      Value transposed = rewriter.create<memref::TransposeOp>(
+          loc, input, AffineMapAttr::get(permutationMap));
+      auto scratchTy = MemRefType::get({inStaticN, inStaticM}, elemTy);
+      Value scratch = rewriter.create<memref::AllocaOp>(loc, scratchTy);
+      rewriter.create<memref::CopyOp>(loc, transposed, scratch);
+      auto outerLoop = rewriter.create<scf::ForOp>(loc, lower, upperN, step);
+
+      {
+        OpBuilder::InsertionGuard g(rewriter);
+        rewriter.setInsertionPointToStart(outerLoop.getBody());
+        Value j = outerLoop.getInductionVar();
+        auto accBufTy = MemRefType::get({}, elemTy);
+        Value accBuf = rewriter.create<memref::AllocaOp>(loc, accBufTy);
+        Value initVal = rewriter.create<memref::LoadOp>(loc, init, ValueRange{j});
+        rewriter.create<memref::StoreOp>(loc, initVal, accBuf, ValueRange{});
+
+        auto setVl = rewriter.create<buddy::vir::SetVLOp>(
+            loc, /*results=*/TypeRange{}, /*operands=*/ValueRange{upperM});
+        Region &region = setVl.getRegion();
+        Block &block = region.emplaceBlock();
+        rewriter.setInsertionPointToStart(&block);
+
+        auto vecTy =
+            buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, elemTy);
+        Value col =
+            rewriter
+                .create<buddy::vir::LoadOp>(loc, vecTy, scratch, ValueRange{j, c0})
+                .getResult();
+        Value acc = rewriter.create<memref::LoadOp>(loc, accBuf, ValueRange{});
+        Value reduced =
+            rewriter
+                .create<buddy::vir::ReduceOp>(
+                    loc, elemTy, col, acc,
+                    rewriter.getStringAttr(kindToString(*combinerKind)))
+                .getResult();
+        rewriter.create<memref::StoreOp>(loc, reduced, accBuf, ValueRange{});
+        rewriter.create<vector::YieldOp>(loc);
+
+        rewriter.setInsertionPointAfter(setVl);
+        Value finalVal =
+            rewriter.create<memref::LoadOp>(loc, accBuf, ValueRange{});
+        rewriter.create<memref::StoreOp>(loc, finalVal, init, ValueRange{j});
+      }
+      rewriter.setInsertionPointToEnd(scopeBlock);
+      rewriter.create<memref::AllocaScopeReturnOp>(loc, ValueRange{});
+
+      rewriter.eraseOp(reduceOp);
+      return success();
+    }
+
+    return rewriter.notifyMatchFailure(
+        reduceOp, "rank-2 -> rank-1 reduction requires dimensions=[0] or [1]");
+  }
+
+  // Case D: rank-3 -> rank-2, dimensions = [0].
+  // Transpose MxNxK -> NxKxM so reducing the original leading dimension becomes
+  // a reduction across one contiguous length-M slice per (j, k). The transpose
+  // view is still strided on the minor dimension, so we materialize it into a
+  // contiguous NxKxM scratch buffer; otherwise -lower-vir-to-vector would
+  // reject the eventual vector.load because the innermost dimension would not
+  // be unit-stride.
+  if (inTy.getRank() == 3 && outTy.getRank() == 2) {
+    if (dims.size() != 1 || dims[0] != 0)
+      return rewriter.notifyMatchFailure(
+          reduceOp, "rank-3 -> rank-2 reduction requires dimensions=[0]");
+
+    int64_t inStaticM = inTy.getShape()[0];
+    int64_t inStaticN = inTy.getShape()[1];
+    int64_t inStaticK = inTy.getShape()[2];
+    int64_t outStaticN = outTy.getShape()[0];
+    int64_t outStaticK = outTy.getShape()[1];
+    if (ShapedType::isDynamic(inStaticM) || ShapedType::isDynamic(inStaticN) ||
+        ShapedType::isDynamic(inStaticK) || ShapedType::isDynamic(outStaticN) ||
+        ShapedType::isDynamic(outStaticK)) {
+      return rewriter.notifyMatchFailure(
+          reduceOp, "rank-3 -> rank-2 dimensions=[0] requires static M/N/K");
+    }
+    if (inStaticN != outStaticN || inStaticK != outStaticK)
+      return rewriter.notifyMatchFailure(
+          reduceOp, "input/output trailing dimensions mismatch");
+
     Type elemTy = inTy.getElementType();
-    Value upperM = rewriter.create<memref::DimOp>(loc, input, 0);
-    Value upperN = rewriter.create<memref::DimOp>(loc, input, 1);
     Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
-    auto outerLoop = rewriter.create<scf::ForOp>(loc, lower, upperM, step);
+    Value upperN = rewriter.create<arith::ConstantIndexOp>(loc, inStaticN);
+    Value upperK = rewriter.create<arith::ConstantIndexOp>(loc, inStaticK);
+    Value upperM = rewriter.create<arith::ConstantIndexOp>(loc, inStaticM);
+    SmallVector<int64_t> permutation = {1, 2, 0};
+    auto permutationMap =
+        AffineMap::getPermutationMap(permutation, rewriter.getContext());
+
+    Value transposed = rewriter.create<memref::TransposeOp>(
+        loc, input, AffineMapAttr::get(permutationMap));
+    auto scratchTy = MemRefType::get({inStaticN, inStaticK, inStaticM}, elemTy);
+    Value scratch = rewriter.create<memref::AllocOp>(loc, scratchTy);
+    rewriter.create<memref::CopyOp>(loc, transposed, scratch);
+    auto outerLoop = rewriter.create<scf::ForOp>(loc, lower, upperN, step);
 
     {
       OpBuilder::InsertionGuard g(rewriter);
       rewriter.setInsertionPointToStart(outerLoop.getBody());
-      Value i = outerLoop.getInductionVar();
-      auto accBufTy = MemRefType::get({}, elemTy);
-      Value accBuf = rewriter.create<memref::AllocaOp>(loc, accBufTy);
-      Value initVal = rewriter.create<memref::LoadOp>(loc, init, ValueRange{i});
-      rewriter.create<memref::StoreOp>(loc, initVal, accBuf, ValueRange{});
+      Value j = outerLoop.getInductionVar();
+      auto innerLoop = rewriter.create<scf::ForOp>(loc, lower, upperK, step);
 
-      auto setVl = rewriter.create<buddy::vir::SetVLOp>(
-          loc, /*results=*/TypeRange{}, /*operands=*/ValueRange{upperN});
-      Region &region = setVl.getRegion();
-      Block &block = region.emplaceBlock();
-      rewriter.setInsertionPointToStart(&block);
+      {
+        OpBuilder::InsertionGuard innerGuard(rewriter);
+        rewriter.setInsertionPointToStart(innerLoop.getBody());
+        Value k = innerLoop.getInductionVar();
+        auto accBufTy = MemRefType::get({}, elemTy);
+        Value accBuf = rewriter.create<memref::AllocaOp>(loc, accBufTy);
+        Value initVal =
+            rewriter.create<memref::LoadOp>(loc, init, ValueRange{j, k});
+        rewriter.create<memref::StoreOp>(loc, initVal, accBuf, ValueRange{});
 
-      auto vecTy =
-          buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, elemTy);
-      Value row = rewriter
-                      .create<buddy::vir::LoadOp>(loc, vecTy, input,
-                                                  ValueRange{i, c0})
-                      .getResult();
-      Value acc = rewriter.create<memref::LoadOp>(loc, accBuf, ValueRange{});
-      Value reduced =
-          rewriter
-              .create<buddy::vir::ReduceOp>(
-                  loc, elemTy, row, acc,
-                  rewriter.getStringAttr(kindToString(*combinerKind)))
-              .getResult();
-      rewriter.create<memref::StoreOp>(loc, reduced, accBuf, ValueRange{});
-      rewriter.create<vector::YieldOp>(loc);
+        auto setVl = rewriter.create<buddy::vir::SetVLOp>(
+            loc, /*results=*/TypeRange{}, /*operands=*/ValueRange{upperM});
+        Region &region = setVl.getRegion();
+        Block &block = region.emplaceBlock();
+        rewriter.setInsertionPointToStart(&block);
 
-      rewriter.setInsertionPointAfter(setVl);
-      Value finalVal = rewriter.create<memref::LoadOp>(loc, accBuf, ValueRange{});
-      rewriter.create<memref::StoreOp>(loc, finalVal, init, ValueRange{i});
+        auto vecTy =
+            buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, elemTy);
+        Value slice =
+            rewriter
+                .create<buddy::vir::LoadOp>(loc, vecTy, scratch,
+                                            ValueRange{j, k, c0})
+                .getResult();
+        Value acc = rewriter.create<memref::LoadOp>(loc, accBuf, ValueRange{});
+        Value reduced =
+            rewriter
+                .create<buddy::vir::ReduceOp>(
+                    loc, elemTy, slice, acc,
+                    rewriter.getStringAttr(kindToString(*combinerKind)))
+                .getResult();
+        rewriter.create<memref::StoreOp>(loc, reduced, accBuf, ValueRange{});
+        rewriter.create<vector::YieldOp>(loc);
+
+        rewriter.setInsertionPointAfter(setVl);
+        Value finalVal =
+            rewriter.create<memref::LoadOp>(loc, accBuf, ValueRange{});
+        rewriter.create<memref::StoreOp>(loc, finalVal, init, ValueRange{j, k});
+      }
     }
+    rewriter.create<memref::DeallocOp>(loc, scratch);
 
     rewriter.eraseOp(reduceOp);
     return success();
@@ -482,7 +663,8 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
   return rewriter.notifyMatchFailure(
       reduceOp,
       "only rank-1 -> rank-0 (dimensions=[0]) and rank-2 -> rank-1 "
-      "(dimensions=[1]) reductions are supported");
+      "(dimensions=[1] or static-shape dimensions=[0]) plus static-shape "
+      "rank-3 -> rank-2 (dimensions=[0]) reductions are supported");
 }
 
 static LogicalResult lowerIndexOnlyGenericToScalarLoop(linalg::LinalgOp linalgOp,
@@ -1097,8 +1279,9 @@ struct LinalgReduceToVIRPattern : public RewritePattern {
       return success();
     reduceOp.emitError(
         "unsupported linalg.reduce for -lower-linalg-to-vir; supported forms "
-        "are rank-1->rank-0 dimensions=[0] and rank-2->rank-1 "
-        "dimensions=[1], both with f32 addf/maxnumf combiner");
+        "are rank-1->rank-0 dimensions=[0], rank-2->rank-1 dimensions=[1], "
+        "static-shape rank-2->rank-1 dimensions=[0], and static-shape "
+        "rank-3->rank-2 dimensions=[0], all with f32 addf/maxnumf combiner");
     return failure();
   }
 };
