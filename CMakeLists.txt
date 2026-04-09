@@ -97,6 +97,13 @@ set(BUDDY_EXAMPLES OFF CACHE BOOL "Build examples")
 set(BUDDY_TRANSFORMER_EXAMPLES OFF CACHE BOOL "Build transformer examples")
 set(BUDDY_ENABLE_OPENCV OFF CACHE BOOL "Enable OpenCV support.")
 
+# DeepSeek R1 (buddy-codegen): heavy codegen, MLIR import, .so / .rax. Off by default
+# so plain `ninja` does not build model artifacts; enable when using
+# tools/buddy-codegen/build_model.py or -DBUDDY_BUILD_DEEPSEEK_R1_MODEL=ON.
+option(BUDDY_BUILD_DEEPSEEK_R1_MODEL
+  "Build models/deepseek_r1 (buddy_models_deepseek_r1, .so, .rax) and link into buddy-cli"
+  OFF)
+
 if(BUDDY_ENABLE_OPENCV)
   add_definitions(-DBUDDY_ENABLE_OPENCV)
   find_package(JPEG REQUIRED)

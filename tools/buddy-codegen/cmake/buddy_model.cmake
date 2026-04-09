@@ -185,7 +185,6 @@ function(buddy_add_model)
 
   if(MDL_BUILD_DIR)
     # ── Mode A: pre-built .o ───────────────────────────────────────────────
-    message(STATUS "[${MDL_NAME}] Mode A: pre-built .o from ${MDL_BUILD_DIR}")
     set(OBJ_FP "${MDL_BUILD_DIR}/forward_prefill.o")
     set(OBJ_SP "${MDL_BUILD_DIR}/subgraph_prefill.o")
     set(OBJ_FD "${MDL_BUILD_DIR}/forward_decode.o")
@@ -195,7 +194,6 @@ function(buddy_add_model)
     # Determine MLIR source directory
     if(MDL_MLIR_DIR)
       # Mode B: pre-generated MLIR
-      message(STATUS "[${MDL_NAME}] Mode B: MLIR from ${MDL_MLIR_DIR}")
       set(MLIR_SRC "${MDL_MLIR_DIR}")
     else()
       # Mode C: full pipeline (import → compile)
@@ -207,7 +205,6 @@ function(buddy_add_model)
           "tools/buddy-codegen/build_model.py passes this by default.")
       endif()
 
-      message(STATUS "[${MDL_NAME}] Mode C: full pipeline (import + compile)")
       set(MLIR_SRC "${BIN}")
 
       # Stamp output: import_model may write *-w8a16.mlir etc.; a single stamp keeps
@@ -318,16 +315,5 @@ function(buddy_add_model)
     DEPENDS "${MODEL_RAX}" "${VOCAB_DST}"
     COMMENT "${MDL_NAME}.rax + vocab.txt → ${BIN}"
   )
-
-  # ════════════════════════════════════════════════════════════════════════════
-  # Summary
-  # ════════════════════════════════════════════════════════════════════════════
-
-  message(STATUS "[${MDL_NAME}] Targets:")
-  message(STATUS "  ${LIB_TARGET}       → static runtime lib")
-  message(STATUS "  ${MDL_NAME}_model_so → ${MODEL_SO}")
-  message(STATUS "  ${MDL_NAME}_rax      → ${MODEL_RAX}")
-  message(STATUS "[${MDL_NAME}] After build, run inference with:")
-  message(STATUS "  buddy-cli --model ${MODEL_RAX} --prompt '...'")
 
 endfunction()

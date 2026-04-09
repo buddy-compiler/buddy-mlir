@@ -118,10 +118,11 @@ jobs:
           source ~/miniforge3/bin/activate buddy
           cd $GITHUB_WORKSPACE
           rm -rf build && mkdir build && cd build
-          if ! cmake -G Ninja .. \
+          if !           cmake -G Ninja .. \
             -DMLIR_DIR=$GITHUB_WORKSPACE/llvm/build/lib/cmake/mlir \
             -DLLVM_DIR=$GITHUB_WORKSPACE/llvm/build/lib/cmake/llvm \
             -DCMAKE_BUILD_TYPE=RELEASE -DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON \
+            -DBUDDY_BUILD_DEEPSEEK_R1_MODEL=OFF \
             -DPython3_EXECUTABLE=$(which python3); then
             echo "need-rebuild=true" >> $GITHUB_OUTPUT
           fi
@@ -227,6 +228,7 @@ jobs:
             -DLLVM_ENABLE_ASSERTIONS=ON \
             -DCMAKE_BUILD_TYPE=RELEASE \
             -DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON \
+            -DBUDDY_BUILD_DEEPSEEK_R1_MODEL=OFF \
             -DPython3_EXECUTABLE=$(which python3)
           ninja
           ninja check-buddy
@@ -252,6 +254,7 @@ jobs:
             -DLLVM_ENABLE_ASSERTIONS=ON \
             -DCMAKE_BUILD_TYPE=RELEASE \
             -DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON \
+            -DBUDDY_BUILD_DEEPSEEK_R1_MODEL=OFF \
             -DPython3_EXECUTABLE=$(which python3)
           ninja -j$(nproc)
           ninja check-buddy -j$(nproc) || true

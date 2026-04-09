@@ -12,7 +12,7 @@ This guide explains how to integrate new models with the **current buddy-cli + B
 | **`.rax`** | FlatBuffers-packed RHAL manifest: kernel **`.so`**, weight URIs, vocab, etc.; **`model_name` must match the runner registration** (below). |
 | **`buddy_add_model`** (`tools/buddy-codegen/cmake/buddy_model.cmake`) | From **variant spec JSON**: `gen_config` → `gen_session` / `gen_manifest` → (optional) `import_model` → `compile_pipeline` → link **`.so`** → `rax-pack`. Today’s implementation is **shaped for autoregressive LLMs (prefill/decode + KV)**. |
 
-**As of this repo:** `tools/buddy-cli/buddy-cli.cpp` **`makeRunner` only recognizes the prefix `deepseek_r1`** and links **`buddy_models_deepseek_r1`**. Any other name fails with an error that points to how to extend the CLI.
+**As of this repo:** `tools/buddy-cli/buddy-cli.cpp` **`makeRunner` only recognizes the prefix `deepseek_r1`** when CMake is configured with **`BUDDY_BUILD_DEEPSEEK_R1_MODEL=ON`** (linking **`buddy_models_deepseek_r1`**). Any other name fails with an error that points to how to extend the CLI.
 
 ---
 
@@ -29,7 +29,7 @@ This guide explains how to integrate new models with the **current buddy-cli + B
 2. **`gen_config.py`** expands **`VARIANT_PRECISION`**, **`VARIANT_WEIGHT_TEMPLATES`**, and related tables into a full **`config.json`** (shapes, weight tags, MLIR/C++ types).
 3. **Build:**
    `python3 tools/buddy-codegen/build_model.py --spec models/deepseek_r1/specs/<variant>.json`
-   or configure CMake with **`BUDDY_DSR1_SPEC`** and run `ninja deepseek_r1_rax`.
+   or configure CMake with **`BUDDY_DSR1_SPEC`**, **`BUDDY_BUILD_DEEPSEEK_R1_MODEL=ON`**, and run `ninja deepseek_r1_rax`.
 
 **Relationship to `examples/BuddyDeepSeekR1`:** that tree often contains **legacy scripts / standalone CMake demos** (e.g. per-precision imports). **Prefer `models/deepseek_r1/specs/*.json` + `buddy_add_model` as the single source of truth**; when migrating, fold differences into **spec JSON + `gen_config` tables** instead of maintaining multiple hand-written pipelines.
 
