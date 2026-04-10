@@ -25,11 +25,7 @@
 #include "Dialect/DAP/DAPDialect.h"
 #include "Dialect/DIP/DIPDialect.h"
 #include "Dialect/Gemmini/GemminiDialect.h"
-<<<<<<< HEAD
 #include "Dialect/XTAME/XTAMEDialect.h"
-#include "Dialect/AME/AMEDialect.h"
-=======
->>>>>>> upstream/main
 #include "Dialect/IME/IMEDialect.h"
 #include "Dialect/RHAL/RHALDialect.h"
 #include "Dialect/RVV/RVVDialect.h"

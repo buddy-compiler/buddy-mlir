@@ -46,15 +46,9 @@
 #include "GPU/TransformOps.h"
 #include "Gemmini/GemminiDialect.h"
 #include "Gemmini/GemminiOps.h"
-<<<<<<< HEAD
 #include "XTAME/XTAMEDialect.h"
 #include "XTAME/XTAMEOps.h"
 #include "XTAME/Transform.h"
-#include "AME/AMEDialect.h"
-#include "AME/AMEOps.h"
-#include "AME/Transform.h"
-=======
->>>>>>> upstream/main
 #include "IME/IMEDialect.h"
 #include "IME/IMEOps.h"
 #include "RVV/RVVDialect.h"
