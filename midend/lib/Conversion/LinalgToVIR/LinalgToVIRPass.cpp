@@ -1142,6 +1142,106 @@ static LogicalResult storeYieldValues(linalg::LinalgOp linalgOp,
   return success();
 }
 
+static FailureOr<SmallVector<int64_t>>
+computeTransposedMemRefShape(MemRefType inputType,
+                             ArrayRef<int64_t> permutation) {
+  if (!inputType.hasStaticShape())
+    return failure();
+  if (static_cast<int64_t>(permutation.size()) != inputType.getRank())
+    return failure();
+
+  SmallVector<int64_t> outputShape;
+  outputShape.reserve(permutation.size());
+  for (int64_t dim : permutation) {
+    if (dim < 0 || dim >= inputType.getRank())
+      return failure();
+    outputShape.push_back(inputType.getShape()[dim]);
+  }
+  return outputShape;
+}
+
+static FailureOr<Value> createZeroPaddingValue(OpBuilder &builder, Location loc,
+                                               Type elementType) {
+  TypedAttr zeroAttr = builder.getZeroAttr(elementType);
+  if (!zeroAttr)
+    return failure();
+  return builder.create<arith::ConstantOp>(loc, zeroAttr).getResult();
+}
+
+struct LinalgTransposeToVectorPattern : public RewritePattern {
+  LinalgTransposeToVectorPattern(MLIRContext *ctx)
+      : RewritePattern(linalg::TransposeOp::getOperationName(),
+                       /*benefit=*/4, ctx) {}
+
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override {
+    auto transposeOp = dyn_cast<linalg::TransposeOp>(op);
+    if (!transposeOp)
+      return rewriter.notifyMatchFailure(op, "expected linalg.transpose");
+    if (!transposeOp.hasPureBufferSemantics()) {
+      return rewriter.notifyMatchFailure(op, "expected pure buffer semantics");
+    }
+    if (transposeOp.getNumDpsInputs() != 1 || transposeOp.getNumDpsInits() != 1)
+      return rewriter.notifyMatchFailure(op, "expected one input and one output");
+
+    auto inputType = dyn_cast<MemRefType>(transposeOp.getInput().getType());
+    if (!inputType)
+      return rewriter.notifyMatchFailure(op, "expected memref input");
+    auto outputType = dyn_cast<MemRefType>(transposeOp.getInit().getType());
+    if (!outputType)
+      return rewriter.notifyMatchFailure(op, "expected memref output");
+    if (!inputType.hasStaticShape() || !outputType.hasStaticShape()) {
+      return rewriter.notifyMatchFailure(op, "expected fully static memref shapes");
+    }
+    if (inputType.getRank() != outputType.getRank()) {
+      return rewriter.notifyMatchFailure(op, "expected input/output ranks to match");
+    }
+    if (inputType.getElementType() != outputType.getElementType()) {
+      return rewriter.notifyMatchFailure(
+          op, "expected input/output element types to match");
+    }
+
+    FailureOr<SmallVector<int64_t>> transposedShape =
+        computeTransposedMemRefShape(inputType, transposeOp.getPermutation());
+    if (failed(transposedShape)) {
+      return rewriter.notifyMatchFailure(op, "invalid transpose permutation");
+    }
+    if (ArrayRef<int64_t>(*transposedShape) != outputType.getShape()) {
+      return rewriter.notifyMatchFailure(
+          op, "output shape does not match permuted input shape");
+    }
+    if (llvm::any_of(inputType.getShape(),
+                     [](int64_t dim) { return dim == 0; })) {
+      // Zero-element transposes have no reads or writes to perform.
+      rewriter.eraseOp(transposeOp);
+      return success();
+    }
+
+    Location loc = transposeOp.getLoc();
+    Value zeroIndex = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+    SmallVector<Value> indices(inputType.getRank(), zeroIndex);
+    auto vectorType =
+        VectorType::get(inputType.getShape(), inputType.getElementType());
+    FailureOr<Value> padding =
+        createZeroPaddingValue(rewriter, loc, inputType.getElementType());
+    if (failed(padding))
+      return rewriter.notifyMatchFailure(op, "failed to create zero padding");
+
+    AffineMap identityMap = rewriter.getMultiDimIdentityMap(inputType.getRank());
+    SmallVector<bool> inBounds(inputType.getRank(), true);
+    Value read = rewriter.create<vector::TransferReadOp>(
+        loc, vectorType, transposeOp.getInput(), indices, *padding, identityMap,
+        inBounds);
+    Value transposed =
+        rewriter.create<vector::TransposeOp>(loc, read, transposeOp.getPermutation());
+    rewriter.create<vector::TransferWriteOp>(loc, transposed,
+                                             transposeOp.getInit(), indices,
+                                             identityMap);
+    rewriter.eraseOp(transposeOp);
+    return success();
+  }
+};
+
 struct LinalgGenericToVIRPattern : public RewritePattern {
   LinalgGenericToVIRPattern(MLIRContext *ctx)
       : RewritePattern(MatchAnyOpTypeTag(), /*benefit=*/1, ctx) {}
@@ -1314,6 +1414,7 @@ public:
   void runOnOperation() override {
     MLIRContext *ctx = &getContext();
     RewritePatternSet patterns(ctx);
+    patterns.add<LinalgTransposeToVectorPattern>(ctx);
     patterns.add<LinalgReduceToVIRPattern>(ctx);
     patterns.add<LinalgMatmulToVIRPattern>(ctx);
     patterns.add<LinalgGenericToVIRPattern>(ctx);
