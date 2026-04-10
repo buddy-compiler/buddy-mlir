@@ -50,6 +50,7 @@ config.excludes = [
     "BuddyYOLO26",
     "BuddyResNet18",
     "BuddyGPU",
+    "BuddyNextGPU",
     "BuddyOneDNN",
     "BuddyGraph",
     "ConvOpt",

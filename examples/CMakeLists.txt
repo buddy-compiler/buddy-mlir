@@ -16,6 +16,10 @@ if(BUDDY_QWEN3_EXAMPLES)
   add_subdirectory(BuddyQwen3)
 endif()
 
+if(BUDDY_QWEN3_GPU_EXAMPLES)
+  add_subdirectory(BuddyQwen3GPU)
+endif()
+
 if(BUDDY_TRANSFORMER_EXAMPLES)
   add_subdirectory(BuddyTransformer)
 endif()
