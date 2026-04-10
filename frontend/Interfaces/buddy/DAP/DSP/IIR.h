@@ -63,7 +63,7 @@ void iirLowpass(MemRef<T, N> &input, const zpk<T> &filter, T frequency, T fs) {
 }
 
 // Filter parameters are represented by Second Order Section (SOS) filter, which
-// accept a MemRef with 2 dimension only (with the second dimension set to 6). 
+// accept a MemRef with 2 dimension only (with the second dimension set to 6).
 template <typename T, size_t N>
 void IIR(MemRef<float, N> *input, MemRef<T, 2> *filter,
          MemRef<float, N> *output, bool isVectorization=false) {

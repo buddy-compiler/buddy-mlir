@@ -27,6 +27,6 @@ module attributes {gpu.container_module} {
     %result_v_reshape = vector.shape_cast %result_v : vector<8xi32> to vector<2x4xi32>
     vector.print %result_v_reshape : vector<2x4xi32>
 
-    func.return 
+    func.return
   }
 }

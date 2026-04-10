@@ -47,7 +47,7 @@ target_link_libraries(buddy-biquad
 
 add_executable(buddy-iir-scalar IIRLowpass.cpp)
 add_dependencies(buddy-iir-scalar buddy-opt)
-target_link_libraries(buddy-iir-scalar 
+target_link_libraries(buddy-iir-scalar
   BuddyLibDAP
   mlir_c_runner_utils
 )

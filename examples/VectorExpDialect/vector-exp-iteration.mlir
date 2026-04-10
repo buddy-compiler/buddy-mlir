@@ -36,7 +36,7 @@ func.func @main() -> i32 {
       vector.yield %ele : vector<[2]xf32>
     } : vector<[2]xf32>
 
-    %res = "llvm.intr.vp.fadd" (%load_vec1, %load_vec2, %mask, %iter_vl_i32) : 
+    %res = "llvm.intr.vp.fadd" (%load_vec1, %load_vec2, %mask, %iter_vl_i32) :
         (vector<[2]xf32>, vector<[2]xf32>, vector<[2]xi1>, i32) -> vector<[2]xf32>
 
     vector_exp.predication %mask, %iter_vl_i32 : vector<[2]xi1>, i32 {

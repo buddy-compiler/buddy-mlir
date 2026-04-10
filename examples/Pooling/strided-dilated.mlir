@@ -1,4 +1,4 @@
-memref.global "private" @input : memref<1x4x6x1xf32> = 
+memref.global "private" @input : memref<1x4x6x1xf32> =
   dense<[[[[0.],  [1.],  [2.],  [3.],  [4.],  [5.]],
     [[6.], [7.],  [8.],  [9.],  [10.], [11.]],
     [[12.], [13.], [14.], [15.], [16.], [17.]],
@@ -32,4 +32,3 @@ func.func @main() {
 
     return
   }
-

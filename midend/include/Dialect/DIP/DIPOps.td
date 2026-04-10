@@ -113,21 +113,21 @@ def DIP_Corr2DOp : DIP_Op<"corr_2d"> {
 
 def DIP_CorrFFT2DOp : DIP_Op<"corrfft_2d">
 {
-  let summary = [{ 
-    This operation provides a way for calculating 2D Correlation using the Discrete Fast Fourier 
-    Transform. The image and kernel should be broadcasted as per the anchor point position into 
-    containers of approproate sizes, which are then converted to the frequency domain. Simple 
-    Hadamard product of these containers is calculated followed by Inverse of Discrete Fast Fourier 
+  let summary = [{
+    This operation provides a way for calculating 2D Correlation using the Discrete Fast Fourier
+    Transform. The image and kernel should be broadcasted as per the anchor point position into
+    containers of approproate sizes, which are then converted to the frequency domain. Simple
+    Hadamard product of these containers is calculated followed by Inverse of Discrete Fast Fourier
     Transform to get the desired result.
     For example:
 
     ```mlir
-      dip.corrfft_2d %inputImageReal, %inputImageImag, %kernelReal, %kernelImag, %intermediateReal, 
-        %intermediateImag : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, 
+      dip.corrfft_2d %inputImageReal, %inputImageImag, %kernelReal, %kernelImag, %intermediateReal,
+        %intermediateImag : memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>, memref<?x?xf32>,
         memref<?x?xf32>, memref<?x?xf32>
     ```
 
-    Separate containers for real and imaginary parts of image, kernel and intermediate image are 
+    Separate containers for real and imaginary parts of image, kernel and intermediate image are
     expected to be provided by the user.
    }];
 
@@ -145,9 +145,9 @@ def DIP_CorrFFT2DOp : DIP_Op<"corrfft_2d">
                            [MemRead]>:$memrefIntImag);
 
   let assemblyFormat = [{
-    $memrefIReal `,` $memrefIImag `,` $memrefKReal `,` $memrefKImag `,` $memrefIntReal `,` 
-    $memrefIntImag attr-dict `:` 
-    type($memrefIReal) `,` type($memrefIImag) `,` type($memrefKReal) `,` 
+    $memrefIReal `,` $memrefIImag `,` $memrefKReal `,` $memrefKImag `,` $memrefIntReal `,`
+    $memrefIntImag attr-dict `:`
+    type($memrefIReal) `,` type($memrefIImag) `,` type($memrefKReal) `,`
     type($memrefKImag) `,` type($memrefIntReal) `,` type($memrefIntImag)
   }];
 }

@@ -77,7 +77,7 @@ int main() {
   outputContainer.setSamplesNum(inputContainer.getSamplesNum());
   outputContainer.setChannelsNum(inputContainer.getChannelsNum());
   outputContainer.setSampleRate(inputContainer.getSampleRate());
-  
+
   // Save the processed data to an audio file.
   std::string saveFileName = "FIRTestAudio.wav";
   outputContainer.saveToFile(saveFileName, "wave");

@@ -103,7 +103,7 @@ struct ReplaceScalarLikeMatmul : public OpRewritePattern<tosa::MatMulOp> {
     auto denseAttr = DenseElementsAttr::get(shiftType, zeroAttr);
     auto shiftOp = rewriter.create<tosa::ConstOp>(op.getLoc(), shiftType,
                                                    denseAttr);
-    
+
     rewriter.replaceOpWithNewOp<tosa::MulOp>(op, outTy, op.getA(), op.getB(),
                                              shiftOp.getResult());
     return success();

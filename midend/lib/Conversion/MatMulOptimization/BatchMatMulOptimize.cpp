@@ -234,7 +234,7 @@ public:
 
                         builder.create<scf::YieldOp>(loc, ValueRange{resSums});
                       });
-                  
+
                   for (int i = 0; i < unrollSize; i++) {
                     rewriter.create<memref::StoreOp>(
                         loc, sumIterVecs.getResult(i), C,

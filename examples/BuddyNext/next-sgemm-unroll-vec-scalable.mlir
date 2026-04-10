@@ -14,7 +14,7 @@
 // RUN:   -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
 // RUN: | FileCheck %s
-// 
+//
 // REQUIRES: has_scalable_vector
 
 module {
@@ -166,7 +166,7 @@ module {
                        %res_sum_6,
                        %res_sum_7 : f32, f32, f32, f32, f32, f32, f32, f32
         }
-        
+
         memref.store %sum_iter_0, %c[%m_idx, %n_idx] : memref<?x?xf32>
         memref.store %sum_iter_1, %c[%m_idx_1, %n_idx] : memref<?x?xf32>
         memref.store %sum_iter_2, %c[%m_idx_2, %n_idx] : memref<?x?xf32>

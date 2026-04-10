@@ -1,5 +1,5 @@
 // RUN: buddy-opt %s -lower-linalg-to-ime | FileCheck %s
-// 
+//
 // This file tests the lowering of linalg.matmul to ime.vmadot operations.
 //
 
