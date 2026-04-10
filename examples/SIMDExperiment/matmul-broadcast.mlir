@@ -75,6 +75,6 @@ module{
     memref.dealloc %C : memref<?x?xf32>
     memref.dealloc %B : memref<?x?xf32>
     memref.dealloc %A : memref<?x?xf32>
-    return 
+    return
   }
 }

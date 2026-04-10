@@ -4,7 +4,7 @@ add_mlir_translation_library(BuddyGemminiToLLVMIRTranslation
   DEPENDS
   BuddyGemminiConversionsIncGen
   buddy_intrinsics_gen
-  
+
   LINK_COMPONENTS
   Core
 

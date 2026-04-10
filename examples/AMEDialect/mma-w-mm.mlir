@@ -5,7 +5,7 @@
 // where ms1, ms2, and md are all int32 matrices.
 
 module {
-  func.func @mma_w_mm_demo(%md: memref<4x4xi32>, 
+  func.func @mma_w_mm_demo(%md: memref<4x4xi32>,
                            %ms1: memref<4x8xi32>,
                            %ms2: memref<8x4xi32>) {
     // int32 matrix multiply: C[4x4] += A[4x8] × B[8x4]

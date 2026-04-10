@@ -9,4 +9,3 @@ frontendgen-emit-antlr:
 
 frontendgen-emit-visitor:
 	@${BUDDY_FRONTEND_GEN} -f ./example.fegen -emit=visitor -g Toy
-

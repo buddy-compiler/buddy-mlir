@@ -220,13 +220,13 @@ def int_riscv_ime_vfmadotn : Intrinsic<[llvm_anyvector_ty],
 let TargetPrefix = "riscv" in {
   // msettype - Set matrix type configuration
   def int_riscv_buddy_msettype : Intrinsic<[llvm_i64_ty], [llvm_i64_ty], [IntrNoMem]>;
-  
+
   // msettilem - Set tile M dimension from register
   def int_riscv_buddy_msettilem : Intrinsic<[llvm_i64_ty], [llvm_i64_ty], [IntrNoMem]>;
-  
+
   // msettilen - Set tile N dimension from register
   def int_riscv_buddy_msettilen : Intrinsic<[llvm_i64_ty], [llvm_i64_ty], [IntrNoMem]>;
-  
+
   // msettilek - Set tile K dimension from register
   def int_riscv_buddy_msettilek : Intrinsic<[llvm_i64_ty], [llvm_i64_ty], [IntrNoMem]>;
 }
@@ -234,15 +234,15 @@ let TargetPrefix = "riscv" in {
 // Matrix configuration intrinsics (with immediate)
 let TargetPrefix = "riscv" in {
   // msettilemi - Set tile M dimension with immediate
-  def int_riscv_buddy_msettilemi : Intrinsic<[], [llvm_i64_ty], 
+  def int_riscv_buddy_msettilemi : Intrinsic<[], [llvm_i64_ty],
                                              [IntrNoMem, IntrHasSideEffects, ImmArg<ArgIndex<0>>]>;
-  
+
   // msettileni - Set tile N dimension with immediate
-  def int_riscv_buddy_msettileni : Intrinsic<[], [llvm_i64_ty], 
+  def int_riscv_buddy_msettileni : Intrinsic<[], [llvm_i64_ty],
                                              [IntrNoMem, IntrHasSideEffects, ImmArg<ArgIndex<0>>]>;
-  
+
   // msettileki - Set tile K dimension with immediate
-  def int_riscv_buddy_msettileki : Intrinsic<[], [llvm_i64_ty], 
+  def int_riscv_buddy_msettileki : Intrinsic<[], [llvm_i64_ty],
                                              [IntrNoMem, IntrHasSideEffects, ImmArg<ArgIndex<0>>]>;
 }
 
@@ -250,30 +250,30 @@ let TargetPrefix = "riscv" in {
 // Format: md = tile register index, base = address, stride = row byte stride
 let TargetPrefix = "riscv" in {
   // mlae32.m - Load 32-bit left matrix A to tile register
-  def int_riscv_buddy_mlae32_m : Intrinsic<[], 
+  def int_riscv_buddy_mlae32_m : Intrinsic<[],
                                            [llvm_i64_ty, llvm_ptr_ty, llvm_i64_ty],
                                            [IntrReadMem, IntrHasSideEffects, ImmArg<ArgIndex<0>>]>;
-  
+
   // mlae64.m - Load 64-bit left matrix A to tile register
-  def int_riscv_buddy_mlae64_m : Intrinsic<[], 
+  def int_riscv_buddy_mlae64_m : Intrinsic<[],
                                            [llvm_i64_ty, llvm_ptr_ty, llvm_i64_ty],
                                            [IntrReadMem, IntrHasSideEffects, ImmArg<ArgIndex<0>>]>;
-  
+
   // mlbe32.m - Load 32-bit right matrix B to tile register
   def int_riscv_buddy_mlbe32_m : Intrinsic<[],
                                            [llvm_i64_ty, llvm_ptr_ty, llvm_i64_ty],
                                            [IntrReadMem, IntrHasSideEffects, ImmArg<ArgIndex<0>>]>;
-  
+
   // mlbe64.m - Load 64-bit right matrix B to tile register
   def int_riscv_buddy_mlbe64_m : Intrinsic<[],
                                            [llvm_i64_ty, llvm_ptr_ty, llvm_i64_ty],
                                            [IntrReadMem, IntrHasSideEffects, ImmArg<ArgIndex<0>>]>;
-  
+
   // mlce32.m - Load 32-bit output matrix C to accumulator
   def int_riscv_buddy_mlce32_m : Intrinsic<[],
                                            [llvm_i64_ty, llvm_ptr_ty, llvm_i64_ty],
                                            [IntrReadMem, IntrHasSideEffects, ImmArg<ArgIndex<0>>]>;
-  
+
   // mlce64.m - Load 64-bit output matrix C to accumulator
   def int_riscv_buddy_mlce64_m : Intrinsic<[],
                                            [llvm_i64_ty, llvm_ptr_ty, llvm_i64_ty],
@@ -286,7 +286,7 @@ let TargetPrefix = "riscv" in {
   def int_riscv_buddy_msce32_m : Intrinsic<[],
                                            [llvm_i64_ty, llvm_ptr_ty, llvm_i64_ty],
                                            [IntrWriteMem, IntrHasSideEffects, ImmArg<ArgIndex<0>>]>;
-  
+
   // msce64.m - Store 64-bit output matrix C from accumulator
   def int_riscv_buddy_msce64_m : Intrinsic<[],
                                            [llvm_i64_ty, llvm_ptr_ty, llvm_i64_ty],
@@ -295,7 +295,7 @@ let TargetPrefix = "riscv" in {
 
 // Matrix zero intrinsic
 let TargetPrefix = "riscv" in {
-  def int_riscv_buddy_mzero : Intrinsic<[], [llvm_i64_ty], 
+  def int_riscv_buddy_mzero : Intrinsic<[], [llvm_i64_ty],
                                         [IntrNoMem, IntrHasSideEffects, ImmArg<ArgIndex<0>>]>;
 }
 
@@ -304,33 +304,33 @@ let TargetPrefix = "riscv" in {
   // mma.w.mm - int32 tile matrix multiply: md = md + ms1 x ms2
   def int_riscv_buddy_mma_w_mm_tile : Intrinsic<[],
                                                 [llvm_i64_ty, llvm_i64_ty, llvm_i64_ty],
-                                                [IntrHasSideEffects, ImmArg<ArgIndex<0>>, 
+                                                [IntrHasSideEffects, ImmArg<ArgIndex<0>>,
                                                  ImmArg<ArgIndex<1>>, ImmArg<ArgIndex<2>>]>;
-  
+
   // mma.dw.mm - int64 tile matrix multiply: md = md + ms1 x ms2
   def int_riscv_buddy_mma_dw_mm_tile : Intrinsic<[],
                                                  [llvm_i64_ty, llvm_i64_ty, llvm_i64_ty],
-                                                 [IntrHasSideEffects, ImmArg<ArgIndex<0>>, 
+                                                 [IntrHasSideEffects, ImmArg<ArgIndex<0>>,
                                                   ImmArg<ArgIndex<1>>, ImmArg<ArgIndex<2>>]>;
 }
 
 // Legacy matrix load/store intrinsics (for backward compatibility)
 let TargetPrefix = "riscv" in {
   // mlae - Load matrix A with element width
-  def int_riscv_buddy_mlae : Intrinsic<[llvm_anyvector_ty], 
+  def int_riscv_buddy_mlae : Intrinsic<[llvm_anyvector_ty],
                                        [llvm_ptr_ty, llvm_i64_ty, llvm_i64_ty],
                                        [IntrReadMem]>;
-  
+
   // mlbe - Load matrix B with element width
   def int_riscv_buddy_mlbe : Intrinsic<[llvm_anyvector_ty],
                                        [llvm_ptr_ty, llvm_i64_ty, llvm_i64_ty],
                                        [IntrReadMem]>;
-  
+
   // mlce - Load matrix C (accumulator)
   def int_riscv_buddy_mlce : Intrinsic<[llvm_anyvector_ty],
                                        [llvm_ptr_ty, llvm_i64_ty, llvm_i64_ty],
                                        [IntrReadMem]>;
-  
+
   // msce - Store matrix C (accumulator)
   def int_riscv_buddy_msce : Intrinsic<[],
                                        [llvm_anyvector_ty, llvm_ptr_ty, llvm_i64_ty, llvm_i64_ty],
@@ -344,25 +344,25 @@ let TargetPrefix = "riscv" in {
                                             [llvm_ptr_ty, llvm_ptr_ty, llvm_ptr_ty,
                                              llvm_i64_ty, llvm_i64_ty, llvm_i64_ty],
                                             []>;
-  
+
   // mma.h.mm - int16 matrix multiply
   def int_riscv_buddy_mma_h_mm : Intrinsic<[],
                                            [llvm_ptr_ty, llvm_ptr_ty, llvm_ptr_ty,
                                             llvm_i64_ty, llvm_i64_ty, llvm_i64_ty],
                                            []>;
-  
+
   // mma.w.mm - int32 matrix multiply
   def int_riscv_buddy_mma_w_mm : Intrinsic<[],
                                            [llvm_ptr_ty, llvm_ptr_ty, llvm_ptr_ty,
                                             llvm_i64_ty, llvm_i64_ty, llvm_i64_ty],
                                            []>;
-  
+
   // mma.dw.mm - int64 matrix multiply
   def int_riscv_buddy_mma_dw_mm : Intrinsic<[],
                                             [llvm_ptr_ty, llvm_ptr_ty, llvm_ptr_ty,
                                              llvm_i64_ty, llvm_i64_ty, llvm_i64_ty],
                                             []>;
-  
+
   // mwma.h.mm - int16 double-widen matrix multiply (int16 x int16 -> int32)
   def int_riscv_buddy_mwma_h_mm : Intrinsic<[],
                                             [llvm_ptr_ty, llvm_ptr_ty, llvm_ptr_ty,
@@ -377,7 +377,7 @@ let TargetPrefix = "riscv" in {
                                              [llvm_ptr_ty, llvm_ptr_ty, llvm_ptr_ty,
                                               llvm_i64_ty, llvm_i64_ty, llvm_i64_ty],
                                              []>;
-  
+
   // mmau.h.mm - uint16 matrix multiply
   def int_riscv_buddy_mmau_h_mm : Intrinsic<[],
                                             [llvm_ptr_ty, llvm_ptr_ty, llvm_ptr_ty,
@@ -392,13 +392,13 @@ let TargetPrefix = "riscv" in {
                                             [llvm_ptr_ty, llvm_ptr_ty, llvm_ptr_ty,
                                              llvm_i64_ty, llvm_i64_ty, llvm_i64_ty],
                                             []>;
-  
+
   // mfma.hf.mm - fp16 matrix multiply
   def int_riscv_buddy_mfma_hf_mm : Intrinsic<[],
                                              [llvm_ptr_ty, llvm_ptr_ty, llvm_ptr_ty,
                                               llvm_i64_ty, llvm_i64_ty, llvm_i64_ty],
                                              []>;
-  
+
   // mfwma.hf.mm - fp16 double-widen matrix multiply (fp16 x fp16 -> fp32)
   def int_riscv_buddy_mfwma_hf_mm : Intrinsic<[],
                                               [llvm_ptr_ty, llvm_ptr_ty, llvm_ptr_ty,

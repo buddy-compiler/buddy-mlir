@@ -51,5 +51,4 @@ print(driver.construct_main_graph(True))
 # CHECK-NEXT:     %1 = call @subgraph1(%cast_1, %cast_2) : (memref<10xf32, strided<[1], offset: ?>>, memref<10xf32, strided<[1], offset: ?>>) -> memref<10xf32>
 # CHECK-NEXT:     return %1 : memref<10xf32>
 # CHECK-NEXT:   }
-# CHECK-NEXT: } 
-
+# CHECK-NEXT: }

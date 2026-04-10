@@ -31,4 +31,3 @@ print(graph._imported_module)
 # CHECK-LABEL: func.func @forward
 #       CHECK: %[[iota:.*]] = "tosa.const"
 #       CHECK: return %[[iota]]
-

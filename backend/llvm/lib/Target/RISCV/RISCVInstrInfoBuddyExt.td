@@ -692,7 +692,7 @@ class RVInstAME64<dag outs, dag ins, string opcodestr, string argstr>
   bits<6> funct6;
   bit fp;
   bits<3> funct3;
-  
+
   // High 32 bits
   bits<5> funct5;
   bits<3> frm;
@@ -712,7 +712,7 @@ class RVInstAME64<dag outs, dag ins, string opcodestr, string argstr>
   let Inst{24-20} = ms2;
   let Inst{25} = fp;
   let Inst{31-26} = funct6;
-  
+
   // Encode high 32 bits (opcode word)
   let Inst{38-32} = opcode_hi;
   let Inst{43-39} = funct5;
@@ -868,7 +868,7 @@ class RVInstAMEConfig64<bits<6> funct6_val, string opcodestr>
                opcodestr, "$rd, $rs1", [], InstFormatOther> {
   bits<5> rd;
   bits<5> rs1;
-  
+
   let Inst{6-0} = 0b0111111;   // AME prefix
   let Inst{11-7} = rd;
   let Inst{14-12} = 0b000;     // funct3 for config
@@ -885,7 +885,7 @@ class RVInstAMEConfigImm64<bits<6> funct6_val, string opcodestr>
                opcodestr, "$rd, $imm", [], InstFormatOther> {
   bits<5> rd;
   bits<32> imm;
-  
+
   let Inst{6-0} = 0b0111111;   // AME prefix
   let Inst{11-7} = rd;
   let Inst{14-12} = 0b000;     // funct3 for config
@@ -939,7 +939,7 @@ def AME_MSETTILEKI : RVInstAMEConfigImm64<0b001101, "msettileki">;
 //
 // Data Flow Examples:
 //   mlae32.m tr0, (a0), a1    # Load matrix A into TileReg
-//   mlbe32.m tr1, (a0), a1    # Load matrix B into TileReg  
+//   mlbe32.m tr1, (a0), a1    # Load matrix B into TileReg
 //   mqma.b.mm acc0, tr0, tr1  # Compute: AccReg = AccReg + TileReg × TileReg
 //   msce32.m acc0, (a0), a1   # Store AccReg to memory
 //===----------------------------------------------------------------------===//
@@ -951,7 +951,7 @@ class RVInstAMELoadTile64<bits<2> mt_val, bits<3> eew_val, string opcodestr>
   bits<5> md;
   bits<5> rs1;
   bits<5> rs2;
-  
+
   let Inst{6-0} = 0b0111111;   // AME prefix
   let Inst{11-7} = md;
   let Inst{14-12} = 0b001;     // funct3 for load/store
@@ -974,7 +974,7 @@ class RVInstAMELoadAcc64<bits<2> mt_val, bits<3> eew_val, string opcodestr>
   bits<5> md;
   bits<5> rs1;
   bits<5> rs2;
-  
+
   let Inst{6-0} = 0b0111111;
   let Inst{11-7} = md;
   let Inst{14-12} = 0b001;
@@ -997,7 +997,7 @@ class RVInstAMEStoreTile64<bits<2> mt_val, bits<3> eew_val, string opcodestr>
   bits<5> ms3;
   bits<5> rs1;
   bits<5> rs2;
-  
+
   let Inst{6-0} = 0b0111111;
   let Inst{11-7} = ms3;
   let Inst{14-12} = 0b001;
@@ -1020,7 +1020,7 @@ class RVInstAMEStoreAcc64<bits<2> mt_val, bits<3> eew_val, string opcodestr>
   bits<5> ms3;
   bits<5> rs1;
   bits<5> rs2;
-  
+
   let Inst{6-0} = 0b0111111;
   let Inst{11-7} = ms3;
   let Inst{14-12} = 0b001;
@@ -1135,11 +1135,11 @@ let Predicates = [HasBuddyExt] in {
   // msettilem - set tile M dimension from GPR, returns actual value
   def : Pat<(i64 (int_riscv_buddy_msettilem GPR:$rs1)),
             (AME_MSETTILEM GPR:$rs1)>;
-  
+
   // msettilen - set tile N dimension from GPR, returns actual value
   def : Pat<(i64 (int_riscv_buddy_msettilen GPR:$rs1)),
             (AME_MSETTILEN GPR:$rs1)>;
-  
+
   // msettilek - set tile K dimension from GPR, returns actual value
   def : Pat<(i64 (int_riscv_buddy_msettilek GPR:$rs1)),
             (AME_MSETTILEK GPR:$rs1)>;
@@ -1267,7 +1267,7 @@ class AME_MZERO<string opcodestr>
     : RVInst64<(outs AccReg:$md), (ins),
                opcodestr, "$md", [], InstFormatOther> {
   bits<5> md;
-  
+
   let Inst{6-0} = 0b0111111;
   let Inst{11-7} = md;
   let Inst{14-12} = 0b101;     // funct3 for arithmetic
@@ -1287,7 +1287,7 @@ def AME_MZERO_M : AME_MZERO<"mzero.m">;
 // AME Intrinsic Pattern Matching
 //===----------------------------------------------------------------------===//
 // These patterns map LLVM intrinsics to AME machine instructions.
-// 
+//
 // Note: AME intrinsics use i64 indices for tile registers instead of
 // actual register operands. This is because the MLIR lowering generates
 // calls with constant indices that get mapped to physical registers
@@ -1345,7 +1345,7 @@ def AME_MSETTILENI_PSEUDO : Pseudo<(outs), (ins i64imm:$imm), []> {
   let AsmString = "msettileni\tx0, $imm";
 }
 
-// Pseudo instruction for msettileki with i64 immediate  
+// Pseudo instruction for msettileki with i64 immediate
 let Predicates = [HasBuddyExt], hasSideEffects = 1, mayLoad = 0, mayStore = 0,
     isCodeGenOnly = 1 in
 def AME_MSETTILEKI_PSEUDO : Pseudo<(outs), (ins i64imm:$imm), []> {
@@ -1384,7 +1384,7 @@ def AME_MSCE32_M_PSEUDO : Pseudo<(outs), (ins AMEAccIndex:$ms3, GPR:$rs1, GPR:$r
 // md: AccReg index (0-7), ms1/ms2: TileReg indices (0-7)
 let Predicates = [HasBuddyExt], hasSideEffects = 1, mayLoad = 1, mayStore = 1,
     isCodeGenOnly = 1 in
-def AME_MMA_W_MM_TILE_PSEUDO : Pseudo<(outs), 
+def AME_MMA_W_MM_TILE_PSEUDO : Pseudo<(outs),
     (ins AMEAccIndex:$md, AMETileIndex:$ms1, AMETileIndex:$ms2), []> {
   let AsmString = "mma.w.mm\tacc$md, tr$ms1, tr$ms2";
 }

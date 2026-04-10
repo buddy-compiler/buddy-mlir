@@ -13,7 +13,7 @@
 // limitations under the License.
 //
 //===----------------------------------------------------------------------===//
-// 
+//
 // This is the top file for intrinsic definition of RISC-V buddy extension.
 //
 //===----------------------------------------------------------------------===//

@@ -72,7 +72,7 @@ for.end7:                                         ; preds = %for.cond
   %7 = ptrtoint ptr %arraydecay8 to i64
   store i64 %7, ptr %outputAddr, align 8
   call void @llvm.riscv.configLd(i64 4575657221409472769, i64 14)
-  %call9 = call signext i32 (ptr, ...) @printf(ptr noundef @.str) 
+  %call9 = call signext i32 (ptr, ...) @printf(ptr noundef @.str)
   call void @llvm.riscv.configSt(i64 2, i64 4575657221408423952)
   %call10 = call signext i32 (ptr, ...) @printf(ptr noundef @.str.1)
   call void @llvm.riscv.mvin(i64 %6, i64 3659234826780672)

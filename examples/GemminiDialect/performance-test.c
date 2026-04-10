@@ -30,7 +30,7 @@
 
 #elif MATMUL == 6
 #define I 1024
-#define J 1024 
+#define J 1024
 #define K 1024
 
 #endif
@@ -57,19 +57,19 @@
 #define OUT_DIM 252
 
 #elif CONV == 3
-#define KERNEL_DIM 7 
+#define KERNEL_DIM 7
 #define OUT_DIM 250
 
 #elif CONV == 4
-#define KERNEL_DIM 9 
+#define KERNEL_DIM 9
 #define OUT_DIM 248
 
 #elif CONV == 5
-#define KERNEL_DIM 11 
-#define OUT_DIM 246 
+#define KERNEL_DIM 11
+#define OUT_DIM 246
 
-#elif CONV == 6 
-#define KERNEL_DIM 13 
+#elif CONV == 6
+#define KERNEL_DIM 13
 #define OUT_DIM 244
 #endif
 #endif
@@ -95,7 +95,7 @@ int main() {
     static elem_t a[I][K];
     static elem_t b[K][J];
     static elem_t c[I][J];
-    
+
     for (size_t i = 0; i != I; i++)
       for (size_t k = 0; k != K; k++)
         a[i][k] = 1;

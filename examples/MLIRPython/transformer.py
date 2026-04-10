@@ -46,12 +46,12 @@ def train_bench():
           'batch_size': 8,
           'sequence_length':128
   }
-    
+
   inputs = prepare_inputs(**args)
   model = prepare_train_model(config_1_lay)
   opt = torch.optim.Adam(model.parameters())
-    
-  # timing eager 
+
+  # timing eager
   eager_times = []
   for i in range(N_ITER):
     opt.zero_grad(True)

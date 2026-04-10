@@ -751,7 +751,7 @@ for.end316:                                       ; preds = %for.cond297
   ret i32 0
 }
 
-declare dso_local signext i32 @rand() 
+declare dso_local signext i32 @rand()
 declare dso_local signext i32 @printf(ptr noundef, ...)
 declare void @llvm.riscv.mvin(i64, i64)
 declare void @llvm.riscv.mvout(i64, i64)

@@ -53,7 +53,7 @@ stdenv.mkDerivation rec {
     # and those LLVM backend headers require this config.h header file.
     # However for LLVM, this config.h is meant to be used on build phase only,
     # so it will not be installed for cmake install.
-    # We have to do some hack 
+    # We have to do some hack
     cp -v "include/llvm/Config/config.h" "$dev/include/llvm/Config/config.h"
 
     # move llvm-config to $dev to resolve a circular dependency
