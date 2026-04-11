@@ -13,6 +13,17 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Compute pre-commit args
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "PRE_COMMIT_ARGS=--color=always --show-diff-on-failure --from-ref ${{ github.event.pull_request.base.sha }} --to-ref ${{ github.event.pull_request.head.sha }}" >> "$GITHUB_ENV"
+          elif [[ "${{ github.event_name }}" == "push" && "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]]; then
+            echo "PRE_COMMIT_ARGS=--color=always --show-diff-on-failure --from-ref ${{ github.event.before }} --to-ref ${{ github.event.after }}" >> "$GITHUB_ENV"
+          else
+            echo "PRE_COMMIT_ARGS=--color=always --show-diff-on-failure --all-files" >> "$GITHUB_ENV"
+          fi
+
       - uses: pre-commit/action@v3.0.0
         with:
-          extra_args: --color=always --from-ref ${{ github.event.pull_request.base.sha }} --to-ref ${{ github.event.pull_request.head.sha }}
+          extra_args: ${{ env.PRE_COMMIT_ARGS }}
