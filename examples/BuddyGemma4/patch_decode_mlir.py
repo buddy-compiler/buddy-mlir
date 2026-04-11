@@ -13,6 +13,7 @@ The pattern to fix:
 We replace the constant representing the old cumlen value with the first cumlen input arg
 (%arg16 in the subgraph).
 """
+
 import re
 import sys
 
@@ -22,7 +23,7 @@ mlir_path = (
     else "/home/zhuxinye/buddy-mlir/build/examples/BuddyGemma4/subgraph0_decode_e2b.mlir"
 )
 
-with open(mlir_path, "r") as f:
+with open(mlir_path) as f:
     content = f.read()
 
 lines = content.split("\n")
@@ -58,26 +59,19 @@ while i < len(lines):
         if m0 and m1:
             var0 = m0.group(1)
             var1 = m1.group(1)
-            m2 = re.match(
-                rf"(%\w+) = tosa\.add {re.escape(var0)}, {re.escape(var1)}", l2
-            )
+            m2 = re.match(rf"(%\w+) = tosa\.add {re.escape(var0)}, {re.escape(var1)}", l2)
             if m2:
                 result_var = m2.group(1)
                 # Replace: use %arg16 instead of the const 0
                 # %Z = tosa.add %arg16, %Y (where %Y = const 1 = kv_length)
                 old_line = lines[i + 2]
-                new_line = old_line.replace(
-                    f"tosa.add {var0}, {var1}", f"tosa.add {var0}, %arg16"
-                )
+                new_line = old_line.replace(f"tosa.add {var0}, {var1}", f"tosa.add {var0}, %arg16")
                 lines[i + 2] = new_line
                 patch_count += 1
-                print(
-                    f"  Line {i + 3}: {old_line.strip()} -> {new_line.strip()}"
-                )
+                print(f"  Line {i + 3}: {old_line.strip()} -> {new_line.strip()}")
                 i += 3
                 continue
     i += 1
-
 
 if patch_count == 0:
     print("WARNING: No patches applied!")
