@@ -16,6 +16,10 @@ if(BUDDY_QWEN3_EXAMPLES)
   add_subdirectory(BuddyQwen3)
 endif()
 
+if(BUDDY_GEMMA4_EXAMPLES)
+  add_subdirectory(BuddyGemma4)
+endif()
+
 if(BUDDY_TRANSFORMER_EXAMPLES)
   add_subdirectory(BuddyTransformer)
 endif()
