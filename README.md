@@ -100,6 +100,15 @@ python3 tools/buddy-codegen/build_model.py \
   --build-dir build
 ```
 
+To import weights from a **local** HuggingFace style directory (offline or a custom path), pass `--local-model` to that directory (it must contain `config.json` and the weight files). If you omit `--hf-config`, `build_model.py` uses `<local-model>/config.json` for codegen when present:
+
+```bash
+python3 tools/buddy-codegen/build_model.py \
+  --spec models/deepseek_r1/specs/f32.json \
+  --build-dir build \
+  --local-model /path/to/DeepSeek-R1-Distill-Qwen-1.5B
+```
+
 If CMake is configured with `-DBUDDY_BUILD_DEEPSEEK_R1_MODEL=ON`, you can build the model with:
 
 ```bash
