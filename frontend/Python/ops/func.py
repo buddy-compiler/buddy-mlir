@@ -186,7 +186,8 @@ def param_extract(
         TensorDType.Int64: ir.IntegerType.get_signless(64),
     }
     memref_element_type = dtype_mapping[node.tensor_meta["dtype"]]
-    if len(node.tensor_meta["shape"]) == 0:
+    is_scalar = len(node.tensor_meta["shape"]) == 0
+    if is_scalar:
         output_shape = [1]
     else:
         output_shape = list(node.tensor_meta["shape"])
@@ -213,6 +214,24 @@ def param_extract(
         size_attr,
         stride_attr,
     )
+    if is_scalar:
+        scalar_memref_attr = ir.Attribute.parse(
+            "strided<[], offset: {}>".format(offset)
+        )
+        scalar_memref_type = ir.MemRefType.get(
+            [], memref_element_type, scalar_memref_attr if offset != 0 else None
+        )
+        scalar_subview_op = memref.SubViewOp(
+            scalar_memref_type,
+            params_mlir_node,
+            [],
+            [],
+            [],
+            offset_attr,
+            size_attr,
+            stride_attr,
+        )
+        return scalar_subview_op
     if len(output_shape) == 1:
         return memref_subview_op
     stride = []
