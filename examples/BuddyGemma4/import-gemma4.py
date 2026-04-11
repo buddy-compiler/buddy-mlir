@@ -200,6 +200,7 @@ pattern_list_decode = [
     gqa_attention_fusion,
 ]
 
+
 graphs_prefill[0].fuse_ops(pattern_list_prefill)
 graphs_decode[0].fuse_ops(pattern_list_decode)
 

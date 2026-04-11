@@ -78,6 +78,7 @@ while i < len(lines):
                 continue
     i += 1
 
+
 if patch_count == 0:
     print("WARNING: No patches applied!")
     sys.exit(1)

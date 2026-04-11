@@ -15,6 +15,7 @@ install(TARGETS buddy_frontend_interface
         EXPORT BuddyMLIRTargets
         COMPONENT buddy_dev)
 
+
 if(BUDDY_MLIR_ENABLE_PYTHON_PACKAGES)
   add_subdirectory(Python)
 endif()

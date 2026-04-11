@@ -80,6 +80,7 @@ Alternatively, you can leave the path blank, and import-gemma4.py will automatic
 ```bash
 $ cmake -G Ninja .. -DBUDDY_GEMMA4_EXAMPLES=ON
 
+
 // f32
 $ ninja buddy-gemma4-e2b-run
 $ ./bin/buddy-gemma4-e2b-run

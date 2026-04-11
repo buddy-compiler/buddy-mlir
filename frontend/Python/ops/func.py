@@ -248,6 +248,7 @@ def param_extract(
         memref_type = ir.MemRefType.get(
             output_shape, memref_element_type, memref_attr
         )
+
     axis = ir.ArrayAttr.get(
         [
             ir.IntegerAttr.get(ir.IntegerType.get_signless(64), i)
