@@ -18,7 +18,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-// RUN: buddy-lenet-run-test-cpu %s 2>&1 | FileCheck %s 
+// RUN: buddy-lenet-run-test-cpu %s 2>&1 | FileCheck %s
 
 #include <buddy/Core/Container.h>
 #include <buddy/DIP/ImgContainer.h>

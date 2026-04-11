@@ -52,6 +52,14 @@ from .graph.transform import (
 )
 from .graph.type import *
 
+EXTERNAL_CALL_TRANSFORM_GROUPS = {
+    "rng": tuple(RUNTIME_RNG_TRANSFORMS),
+}
+
+EXTERNAL_CALL_GROUP_LIBS = {
+    "rng": "libbuddy_external_rng",
+}
+
 
 class DynamoCompiler:
     """
@@ -1067,8 +1075,15 @@ class DynamoCompiler:
             transform_list = [
                 maxpool2d_simplify,
             ]
+            enabled_external_groups = []
             if self._enable_external_calls:
-                transform_list.extend(RUNTIME_RNG_TRANSFORMS)
+                for (
+                    group_name,
+                    group_transforms,
+                ) in EXTERNAL_CALL_TRANSFORM_GROUPS.items():
+                    transform_list.extend(group_transforms)
+                    enabled_external_groups.append(group_name)
+            graph._enabled_external_groups = enabled_external_groups
             graph.perform(transform_list)
             self._imported_graphs.append(graph)
             self._imported_params[graph] = params_flat
@@ -1225,11 +1240,13 @@ class DynamoCompiler:
         buddy_lib_base_path = os.path.abspath(
             os.path.join(path_prefix, "../../../lib")
         )
-        buddy_rng_lib = os.path.join(
-            buddy_lib_base_path, "libbuddy_rng_utils" + lib_extension
-        )
+        enabled_external_groups = getattr(graph, "_enabled_external_groups", [])
         if self._enable_external_calls:
-            shared_libs.append(buddy_rng_lib)
+            for group_name in enabled_external_groups:
+                lib_name = EXTERNAL_CALL_GROUP_LIBS[group_name]
+                shared_libs.append(
+                    os.path.join(buddy_lib_base_path, lib_name + lib_extension)
+                )
         # Define execution engine.
         ee = ExecutionEngine(
             graph._imported_module, opt_level=3, shared_libs=shared_libs

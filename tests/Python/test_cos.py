@@ -23,12 +23,11 @@ foo_mlir = torch.compile(foo, backend=dynamo_compiler)
 assert torch.allclose(foo_mlir(x), foo(x), equal_nan=True)
 
 graphs = dynamo_compiler._imported_graphs
-assert len(graphs) == 1 
+assert len(graphs) == 1
 graph = graphs[0]
 graph.lower_to_top_level_ir()
 print(graph._imported_module)
 
 # CHECK-LABEL: func.func @forward
-#       CHECK: %[[cos:.*]] = math.cos 
+#       CHECK: %[[cos:.*]] = math.cos
 #       CHECK: return %[[cos]]
-

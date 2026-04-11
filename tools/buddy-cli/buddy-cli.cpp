@@ -28,13 +28,14 @@
 
 #include "buddy/runtime/core/InferenceRunner.h"
 #include "buddy/runtime/core/ModelManifest.h"
+#ifdef BUDDY_CLI_HAVE_DEEPSEEK_R1_MODEL
 #include "buddy/runtime/models/DeepSeekR1Runner.h"
+#endif
 
 #include <cerrno>
 #include <cstring>
 #include <iostream>
 #include <memory>
-#include <sched.h>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -46,6 +47,13 @@
 //===----------------------------------------------------------------------===//
 // Affinity helpers
 //===----------------------------------------------------------------------===//
+
+#ifdef __APPLE__
+static void applyCpuAffinity(const std::string &spec) {
+  std::cerr << "[buddy-cli] Doesn't support applyCpuAffinity; --cpus ignored\n";
+}
+#else
+#include <sched.h>
 
 // Parse "0-47" or "0-15,32-47,64" into a cpu_set_t.
 static cpu_set_t parseCpuSet(const std::string &spec) {
@@ -83,6 +91,7 @@ static void applyCpuAffinity(const std::string &spec) {
   else
     std::cout << "[buddy-cli] CPU affinity set: " << spec << "\n";
 }
+#endif
 
 #ifdef BUDDY_CLI_HAVE_NUMA
 // Parse "0,1,2,3" into a numa bitmask.
@@ -139,14 +148,26 @@ static void applyNumaCpuBind(const std::string &) {
 
 static std::unique_ptr<buddy::runtime::InferenceRunner>
 makeRunner(const std::string &modelName) {
+#ifdef BUDDY_CLI_HAVE_DEEPSEEK_R1_MODEL
   if (modelName.rfind("deepseek_r1", 0) == 0)
     return std::make_unique<buddy::runtime::DeepSeekR1Runner>();
+#endif
 
-  throw std::runtime_error(
-      "buddy-cli: unknown model '" + modelName +
-      "'.\n"
+#ifdef BUDDY_CLI_HAVE_DEEPSEEK_R1_MODEL
+  const char *unknownHint =
       "  Supported models: deepseek_r1\n"
-      "  To add a new model, implement InferenceRunner and register it here.");
+      "  To add a new model, implement InferenceRunner and register it here.";
+#else
+  const char *unknownHint =
+      "  This buddy-cli was built without DeepSeek R1 (no model runner "
+      "linked).\n"
+      "  Re-configure with -DBUDDY_BUILD_DEEPSEEK_R1_MODEL=ON and rebuild, or "
+      "run:\n"
+      "    python3 tools/buddy-codegen/build_model.py --spec "
+      "models/deepseek_r1/specs/<variant>.json";
+#endif
+  throw std::runtime_error(std::string("buddy-cli: unknown model '") +
+                           modelName + "'.\n" + unknownHint);
 }
 
 //===----------------------------------------------------------------------===//

@@ -81,11 +81,11 @@ module {
   func.func @main() {
     %fake_params = arith.constant dense<1.0> : tensor<44426xf32>
     %fake_input = arith.constant dense<2.0> : tensor<1x1x28x28xf32>
-    
+
     %t_start = call @rtclock() : () -> f64
     %fake_output = call @forward(%fake_params, %fake_input) : (tensor<44426xf32>, tensor<1x1x28x28xf32>) -> tensor<1x10xf32>
     %t_end = call @rtclock() : () -> f64
-  
+
     %tensor_unranked = tensor.cast %fake_output : tensor<1x10xf32> to tensor<*xf32>
     call @printMemrefF32(%tensor_unranked) : (tensor<*xf32>) -> ()
 

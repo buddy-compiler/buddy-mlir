@@ -19,7 +19,7 @@ transform.sequence failures(propagate) {
     : (!pdl.operation) -> !pdl.operation
 
   %func = transform.vector.lower_contraction %f
-    lowering_strategy = "outerproduct" 
+    lowering_strategy = "outerproduct"
       : (!pdl.operation) -> !pdl.operation
 
   %func_2 = transform.vector.apply_transfer_permutation_patterns %func

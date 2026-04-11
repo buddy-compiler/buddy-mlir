@@ -33,7 +33,7 @@ def DAP_FirOp : DAP_Op<"fir"> {
   convolution of the input signal with a filter kernel.
 
   ```mlir
-    dsp.fir %input, %kernel, %output :memref<?x?xf32>, memref<?x?xf32>, 
+    dsp.fir %input, %kernel, %output :memref<?x?xf32>, memref<?x?xf32>,
             memref<?x?xf32>
   ```
   }];
@@ -46,7 +46,7 @@ def DAP_FirOp : DAP_Op<"fir"> {
                            [MemRead]>:$memrefO);
 
   let assemblyFormat = [{
-    $memrefI `,` $memrefK `,` $memrefO attr-dict `:` type($memrefI) `,` type($memrefK) `,` type($memrefO) 
+    $memrefI `,` $memrefK `,` $memrefO attr-dict `:` type($memrefI) `,` type($memrefK) `,` type($memrefO)
   }];
 }
 
@@ -54,7 +54,7 @@ def DAP_BiquadOp : DAP_Op<"biquad"> {
   let summary = [{Biquad filter, a infinite impulse response (IIR) filter.
 
   ```mlir
-    dap.biquad %input, %kernel, %output :memref<?x?xf32>, memref<?x?xf32>, 
+    dap.biquad %input, %kernel, %output :memref<?x?xf32>, memref<?x?xf32>,
             memref<?x?xf32>
   ```
   }];
@@ -67,16 +67,16 @@ def DAP_BiquadOp : DAP_Op<"biquad"> {
                            [MemRead]>:$memrefO);
 
   let assemblyFormat = [{
-    $memrefI `,` $memrefK `,` $memrefO attr-dict `:` type($memrefI) `,` type($memrefK) `,` type($memrefO) 
+    $memrefI `,` $memrefK `,` $memrefO attr-dict `:` type($memrefI) `,` type($memrefK) `,` type($memrefO)
   }];
 }
 
 def DAP_IirOp : DAP_Op<"iir"> {
-  let summary = [{IIR filter, a infinite impulse response (IIR), Unlike FIR filters, 
+  let summary = [{IIR filter, a infinite impulse response (IIR), Unlike FIR filters,
   they have a feedback(a recursive part of a filter).
 
   ```mlir
-    dsp.iir %input, %kernel, %output :memref<?xf32>, memref<?x?xf32>, 
+    dsp.iir %input, %kernel, %output :memref<?xf32>, memref<?x?xf32>,
             memref<?xf32>
   ```
   }];
@@ -89,23 +89,23 @@ def DAP_IirOp : DAP_Op<"iir"> {
                            [MemRead]>:$memrefO);
 
   let assemblyFormat = [{
-    $memrefI `,` $memrefK `,` $memrefO attr-dict `:` type($memrefI) `,` type($memrefK) `,` type($memrefO) 
+    $memrefI `,` $memrefK `,` $memrefO attr-dict `:` type($memrefI) `,` type($memrefK) `,` type($memrefO)
   }];
 }
 
 def DAP_RFFTOp : DAP_Op<"rfft"> {
   let summary = "RFFT operation.";
   let description = [{
-    The RFFT algorithm is designed to handle real-valued input signals. Real 
-    signals exhibit conjugate symmetry in the frequency domain, meaning that 
-    the positive and negative frequency components are complex conjugates of 
-    each other. This symmetry property allows the RFFT algorithm to compute 
+    The RFFT algorithm is designed to handle real-valued input signals. Real
+    signals exhibit conjugate symmetry in the frequency domain, meaning that
+    the positive and negative frequency components are complex conjugates of
+    each other. This symmetry property allows the RFFT algorithm to compute
     only half of the frequency spectrum, reducing computational costs.
 
     Example:
 
     ```mlir
-    dap.rfft %data : memref<?xf64> 
+    dap.rfft %data : memref<?xf64>
     ```
   }];
 
@@ -118,8 +118,8 @@ def DAP_RFFTOp : DAP_Op<"rfft"> {
 def DAP_WhisperPreprocessOp : DAP_Op<"whisper_preprocess"> {
   let summary = "preprocessor for Whisper model";
   let description = [{
-    Preprocessor for Whisper model, do features extraction for input audio. 
-    Input MemRef stores the raw speech data, Output MemRef contains computed 
+    Preprocessor for Whisper model, do features extraction for input audio.
+    Input MemRef stores the raw speech data, Output MemRef contains computed
     features with shape memref<1x80x3000xf32>.
 
     Example:
@@ -134,7 +134,7 @@ def DAP_WhisperPreprocessOp : DAP_Op<"whisper_preprocess"> {
   let results = (outs Res<AnyRankedOrUnrankedMemRef, "outputMemref",
                            [MemAlloc]>:$memrefO);
   let assemblyFormat = [{
-    $memrefI attr-dict `:` type($memrefI) `to` type($memrefO) 
+    $memrefI attr-dict `:` type($memrefI) `to` type($memrefO)
   }];
 }
 

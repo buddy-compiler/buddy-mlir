@@ -70,7 +70,7 @@ The vector.set_vl operation complements vector.get_vl by setting the vector leng
 
 // Without return value.
 func.func @vector_add(%in1: memref<?xi32>, %in2: memref<?xi32>, %out: memref<?xi32>) {
-  %c0 = arith.constant 0 : index  
+  %c0 = arith.constant 0 : index
   %dim_size = memref.dim %in1, %c0 : memref<?xi32>
   vector.set_vl %dim_size : index {
     %vec_input1 = vector.load %in1[%c0] : memref<?xi32>, vector<?xi32>
@@ -82,7 +82,7 @@ func.func @vector_add(%in1: memref<?xi32>, %in2: memref<?xi32>, %out: memref<?xi
 
 // With return value.
 func.func @vector_add(%in1: memref<?xi32>, %in2: memref<?xi32>) -> vector<?xi32> {
-  %c0 = arith.constant 0 : index  
+  %c0 = arith.constant 0 : index
   %dim_size = memref.dim %in1, %c0 : memref<?xi32>
   %vec_ret = vector.set_vl %dim_size : index {
     %vec_input1 = vector.load %in1[%c0] : memref<?xi32>, vector<?xi32>
@@ -161,7 +161,7 @@ scf.if %cond {
     %vec_input1 = vector.load %input1[%rem_idx] : memref<?xi32>, vector<?xi32>
     %vec_input2 = vector.load %input2[%rem_idx] : memref<?xi32>, vector<?xi32>
     %vec_output = arith.addi %vec_input1, %vec_input2 : vector<?xi32>
-    vector.store %vec_output %output[%rem_idx] : memref<?xi32>, vector<?xi32> 
+    vector.store %vec_output %output[%rem_idx] : memref<?xi32>, vector<?xi32>
   }
 }
 ```

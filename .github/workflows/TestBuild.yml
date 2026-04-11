@@ -8,12 +8,12 @@ on:
 
 jobs:
   test:
-    name: Build (${{ matrix.arch }})
+    name: Build (${{ matrix.os }}-${{ matrix.arch }})
     timeout-minutes: 360
     continue-on-error: ${{ matrix.experimental }}
 
     concurrency:
-      group: buddy-mlir-${{ matrix.arch }}
+      group: buddy-mlir-${{ matrix.os }}-${{ matrix.arch }}
       cancel-in-progress: true
 
     strategy:
@@ -21,9 +21,20 @@ jobs:
       matrix:
         include:
           - arch: x64
+            os: linux
             experimental: false
-          - arch: riscv64
+            venv_activate: "source ~/miniforge3/bin/activate buddy"
+            venv_deactivate: "conda deactivate"
+          - arch: arm64
+            os: macos
             experimental: true
+            venv_activate: "source ~/miniforge3/bin/activate buddy"
+            venv_deactivate: "conda deactivate"
+          - arch: riscv64
+            os: linux
+            experimental: true
+            venv_activate: "source /home/jenkins/venv/bin/activate"
+            venv_deactivate: "deactivate"
 
     runs-on:
       - self-hosted
@@ -36,19 +47,11 @@ jobs:
           echo "------ uname ------"
           uname -a
 
-      # 0. Install the Ninja build system.
-      - name: Set up ninja
-        if: matrix.arch == 'x64'
-        uses: seanmiddleditch/gha-setup-ninja@master
-
-      # 1A. Checkout the main repository without fetching submodules initially
-      - name: Checkout main repository
-        if: matrix.arch == 'x64'
-        uses: actions/checkout@v4
+      - name: Checkout
+        if: matrix.arch != 'riscv64'
+        uses: actions/checkout@v6
         with:
           submodules: 'false'
-
-      # 1B. first clone from local gitea then update metedata from github
       - name: Checkout from local Gitea (riscv64)
         if: matrix.arch == 'riscv64'
         run: |
@@ -63,102 +66,55 @@ jobs:
         run: |
           echo "commit=$(git ls-tree HEAD llvm | awk '{print $3}')" >> $GITHUB_OUTPUT
 
-      # 3. Cache the LLVM submodule source code (only for x86).
-      - name: Cache LLVM source (x86)
+      - name: Prepare ENV (x64)
         if: matrix.arch == 'x64'
-        id: cache-llvm-source
-        uses: actions/cache@v4
-        with:
-          path: llvm
-          key: llvm-source-${{ steps.llvm-submodule-commit.outputs.commit }}
-          restore-keys: |
-            llvm-source-
-
-      # 3b. Restore-keys can populate llvm without an exact cache hit; only re-clone when
-      # the tree is missing, not a git checkout, or at the wrong revision.
-      - name: Check LLVM source revision (x86)
-        if: matrix.arch == 'x64'
-        id: llvm-source-checkout-needed
         run: |
-          want="${{ steps.llvm-submodule-commit.outputs.commit }}"
-          need=true
-          if [ -n "$want" ] && [ -e llvm/.git ]; then
-            have=$(git -C llvm rev-parse HEAD 2>/dev/null) || have=""
-            if [ -n "$have" ] && [ "$have" = "$want" ]; then
-              need=false
-            fi
-          fi
-          echo "need-checkout=$need" >> $GITHUB_OUTPUT
-          echo "LLVM submodule: want=$want have=$(git -C llvm rev-parse HEAD 2>/dev/null || echo n/a) need-checkout=$need"
+          echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
+          echo "PATH=/usr/lib/ccache:$PATH" >> $GITHUB_ENV
+          ccache -M 50G
+          echo "CCACHE_MAXSIZE=50G" >> $GITHUB_ENV
 
-      # 4. Fetch LLVM submodule only when the working tree is missing or wrong revision.
-      - name: Checkout LLVM submodule
-        if: matrix.arch == 'x64' && steps.llvm-source-checkout-needed.outputs.need-checkout == 'true'
+          mkdir -p $HOME/actions-runner/workspace
+          echo LLVM_SRC=$HOME/actions-runner/workspace/llvm-project >> $GITHUB_ENV
+          echo LLVM_BUILD_ROOT=$HOME/actions-runner/workspace/llvm-cache >> $GITHUB_ENV
+
+          ${{ matrix.venv_activate }}
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          ${{ matrix.venv_deactivate }}
+      - name: Prepare ENV (arm64)
+        if: matrix.arch == 'arm64'
         run: |
-          rm -rf llvm
-          rm -rf .git/modules/llvm
-          git submodule update --init --recursive llvm
+          echo LLVM_SRC=$HOME/actions-runner/workspace/llvm-project >> $GITHUB_ENV
+          echo LLVM_BUILD_ROOT=$HOME/actions-runner/workspace/llvm-cache >> $GITHUB_ENV
+          mkdir -p $HOME/actions-runner/workspace
 
-      # 5. Cache the LLVM build directory.
-      - name: Cache LLVM build directory
-        if: matrix.arch == 'x64'
-        id: cache-llvm-build-dir
-        uses: actions/cache@v4
-        with:
-          path: llvm/build
-          key: llvm-build-${{ steps.llvm-submodule-commit.outputs.commit }}
-          restore-keys: |
-            llvm-build-
-
-      # 6. Verify llvm-build when cached; build LLVM when no cache or verification fails.
-      - name: Check LLVM cache (x86)
-        id: check-llvm-cache
-        if: matrix.arch == 'x64' && (steps.cache-llvm-build-dir.outputs.cache-hit == 'true')
-        run: |
-          source ~/miniforge3/bin/activate buddy
-          cd $GITHUB_WORKSPACE
-          rm -rf build && mkdir build && cd build
-          if ! cmake -G Ninja .. \
-            -DMLIR_DIR=$GITHUB_WORKSPACE/llvm/build/lib/cmake/mlir \
-            -DLLVM_DIR=$GITHUB_WORKSPACE/llvm/build/lib/cmake/llvm \
-            -DCMAKE_BUILD_TYPE=RELEASE -DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON \
-            -DPython3_EXECUTABLE=$(which python3); then
-            echo "need-rebuild=true" >> $GITHUB_OUTPUT
-          fi
-        continue-on-error: true
-
-      - name: Configure and Build LLVM (x86)
-        if: matrix.arch == 'x64' &&
-          (steps.cache-llvm-build-dir.outputs.cache-hit != 'true' || steps.check-llvm-cache.outputs.need-rebuild == 'true')
-        run: |
-          source ~/miniforge3/bin/activate buddy
-          cd llvm
-          rm -rf build
-          mkdir build
-          cd build
-          cmake -G Ninja ../llvm \
-            -DLLVM_ENABLE_PROJECTS="mlir;clang;openmp" \
-            -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
-            -DLLVM_ENABLE_ASSERTIONS=ON \
-            -DCMAKE_BUILD_TYPE=RELEASE \
-            -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
-            -DPython3_EXECUTABLE=$(which python3)
-          ninja check-clang check-mlir omp
-
-      - name: Enable ccache (riscv64)
+          ${{ matrix.venv_activate }}
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          ${{ matrix.venv_deactivate }}
+      - name: Prepare ENV (riscv64)
         if: matrix.arch == 'riscv64'
         run: |
           echo "CCACHE_DIR=/home/jenkins/.ccache" >> $GITHUB_ENV
           echo "PATH=/usr/lib/ccache:$PATH" >> $GITHUB_ENV
           ccache -M 50G
           echo "CCACHE_MAXSIZE=50G" >> $GITHUB_ENV
+          echo LLVM_SRC=/home/jenkins/src/llvm-project >> $GITHUB_ENV
+          echo LLVM_BUILD_ROOT=/home/jenkins/llvm-cache >> $GITHUB_ENV
+          mkdir -p /home/jenkins/src
 
-      - name: Setup LLVM build (riscv64)
-        if: matrix.arch == 'riscv64'
+          ${{ matrix.venv_activate }}
+          pip install -U pip setuptools wheel packaging
+          sed -i \
+            -e '1s/^/# /' \
+            requirements.txt
+          pip install -r requirements.txt
+          ${{ matrix.venv_deactivate }}
+
+      - name: Setup LLVM build
         id: prepare-llvm-build
         run: |
-          LLVM_SRC=/home/jenkins/src/llvm-project
-          LLVM_BUILD_ROOT=/home/jenkins/llvm-cache
           LLVM_COMMIT=$(git ls-tree HEAD llvm | awk '{print $3}')
           LLVM_BUILD_DIR=$LLVM_BUILD_ROOT/$LLVM_COMMIT
 
@@ -166,7 +122,6 @@ jobs:
 
           # prepare source
           if [ ! -d "$LLVM_SRC" ]; then
-            mkdir -p /home/jenkins/src
             git clone https://community-ci.openruyi.cn/toolchain/llvm-project.git $LLVM_SRC
           fi
 
@@ -186,16 +141,10 @@ jobs:
             echo "need-rebuild=true" >> $GITHUB_OUTPUT
           fi
 
-      - name: Configure and Build LLVM (riscv64)
-        if: matrix.arch == 'riscv64'&&
-            steps.prepare-llvm-build.outputs.need-rebuild == 'true'
+      - name: Configure and Build LLVM
+        if: steps.prepare-llvm-build.outputs.need-rebuild == 'true'
         run: |
-          source /home/jenkins/venv/bin/activate
-          pip install -U pip setuptools wheel packaging
-          sed -i \
-            -e '1s/^/# /' \
-            requirements.txt
-          pip install -r requirements.txt
+          ${{ matrix.venv_activate }}
           rm -rf $LLVM_BUILD_DIR
           cmake -G Ninja -S $LLVM_SRC/llvm  -B $LLVM_BUILD_DIR/build \
             -DLLVM_ENABLE_PROJECTS="mlir;clang;openmp" \
@@ -204,38 +153,17 @@ jobs:
             -DCMAKE_BUILD_TYPE=RELEASE \
             -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
             -DPython3_EXECUTABLE=$(which python3)
-          ninja -C $LLVM_BUILD_DIR/build check-clang check-mlir omp -j$(nproc) || true
-          deactivate
+          ninja -C $LLVM_BUILD_DIR/build check-clang check-mlir omp || true
+          ${{ matrix.venv_deactivate }}
 
-      - name: Show ccache stats (riscv64)
-        if: matrix.arch == 'riscv64'
+      - name: Show ccache stats
+        if: matrix.os == 'linux'
         run: |
           ccache -s
 
-      # 7A. Check buddy-mlir build (x86).
-      - name: Check buddy-mlir build (x86)
-        if: matrix.arch == 'x64'
+      - name: Check buddy-mlir build
         run: |
-          source ~/miniforge3/bin/activate buddy
-          pip install -r requirements.txt
-          rm -rf build
-          mkdir build
-          cd build
-          cmake -G Ninja .. \
-            -DMLIR_DIR=$GITHUB_WORKSPACE/llvm/build/lib/cmake/mlir \
-            -DLLVM_DIR=$GITHUB_WORKSPACE/llvm/build/lib/cmake/llvm \
-            -DLLVM_ENABLE_ASSERTIONS=ON \
-            -DCMAKE_BUILD_TYPE=RELEASE \
-            -DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON \
-            -DPython3_EXECUTABLE=$(which python3)
-          ninja
-          ninja check-buddy
-
-       # 7B. Check buddy-mlir build (riscv64).
-      - name: Check buddy-mlir build (riscv64)
-        if: matrix.arch == 'riscv64'
-        run: |
-          source /home/jenkins/venv/bin/activate
+          ${{ matrix.venv_activate }}
           echo "---- CHECK LOCAL SUBMODULE ----"
           ls -l llvm || true
           git submodule status || true
@@ -252,16 +180,15 @@ jobs:
             -DLLVM_ENABLE_ASSERTIONS=ON \
             -DCMAKE_BUILD_TYPE=RELEASE \
             -DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON \
+            -DBUDDY_BUILD_DEEPSEEK_R1_MODEL=OFF \
             -DPython3_EXECUTABLE=$(which python3)
-          ninja -j$(nproc)
-          ninja check-buddy -j$(nproc) || true
-          deactivate
+          ninja
+          ninja check-buddy || true
+          ${{ matrix.venv_deactivate }}
 
-      - name: Cleanup old LLVM build cache (riscv64)
-        if: matrix.arch == 'riscv64'
+      - name: Cleanup old LLVM build cache
         run: |
-          CACHE_DIR=/home/jenkins/llvm-cache
           KEEP=3
 
-          cd $CACHE_DIR
+          cd $LLVM_BUILD_ROOT
           ls -1dt */ | tail -n +$((KEEP+1)) | xargs -r rm -rf

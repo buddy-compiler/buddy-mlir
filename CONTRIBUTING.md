@@ -1,6 +1,6 @@
 # Contributing to Buddy Compiler
 
-Thank you for your interest in contributing to **Buddy Compiler**!  
+Thank you for your interest in contributing to **Buddy Compiler**!
 We welcome contributions from the community, including bug reports, feature requests,
 documentation improvements, and code contributions.
 
@@ -10,7 +10,7 @@ This document describes how to get involved and how to contribute effectively.
 
 ## 📌 Code of Conduct
 
-Buddy Compiler follows the **Contributor Covenant Code of Conduct**.  
+Buddy Compiler follows the **Contributor Covenant Code of Conduct**.
 By participating in this project, you agree to abide by its terms.
 
 Please be respectful, inclusive, and constructive in all discussions and contributions.

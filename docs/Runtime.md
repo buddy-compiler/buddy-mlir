@@ -52,7 +52,7 @@ python3 tools/buddy-codegen/build_model.py --spec models/deepseek_r1/specs/f32.j
 └───────────────────────────────────────────┘
 ```
 
-**C++ namespaces**: Shared runtime APIs (`InferenceRunner`, `ModelManifest`, `BufferPool`, `ModelSession`, etc.) live in the nested namespace **`buddy::runtime`**, alongside the compiler frontend `buddy::` and the RHAL dialect `buddy::rhal`. Build targets: core runtime **`buddy_runtime_core`**; DeepSeek model library **`buddy_models_deepseek_r1`** (from `buddy_add_model(NAME deepseek_r1 …)` — CMake identifiers only).
+**C++ namespaces**: Shared runtime APIs (`InferenceRunner`, `ModelManifest`, `BufferPool`, `ModelSession`, etc.) live in the nested namespace **`buddy::runtime`**, alongside the compiler frontend `buddy::` and the RHAL dialect `buddy::rhal`. Build targets: core runtime **`buddy_runtime_core`**; DeepSeek model library **`buddy_models_deepseek_r1`** when **`-DBUDDY_BUILD_DEEPSEEK_R1_MODEL=ON`** (from `buddy_add_model(NAME deepseek_r1 …)` — CMake identifiers only).
 
 `buddy-cli` reads the `model_name` field from `.rax` and constructs the matching `InferenceRunner` via `makeRunner()`. To add a model:
 

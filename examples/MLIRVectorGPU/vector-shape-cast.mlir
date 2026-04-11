@@ -1,7 +1,7 @@
 module attributes {gpu.container_module} {
   gpu.module @kernels {
     gpu.func @vector_shape_cast(%result: memref<6xi32>) kernel {
-      %v0 = arith.constant dense<[[1, 2, 3], [4, 5, 6]]> 
+      %v0 = arith.constant dense<[[1, 2, 3], [4, 5, 6]]>
         : vector<2x3xi32>
       %v1 = vector.shape_cast %v0 : vector<2x3xi32> to vector<6xi32>
       %c0 = arith.constant 0 : index

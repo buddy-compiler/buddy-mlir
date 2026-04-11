@@ -91,20 +91,22 @@ $ ninja check-e2e
 
 ### Building and running the model
 
-Build the model, produce the shared library, and pack it into FlatBuffers:
+Use the following to build:
 
 ```bash
+cd buddy-mlir
 python3 tools/buddy-codegen/build_model.py \
-  --spec models/deepseek_r1/specs/f32.json
+  --spec models/deepseek_r1/specs/f32.json \
+  --build-dir build
 ```
 
-After a normal CMake configure, you can build the same artifacts with Ninja
-(`ninja deepseek_r1_model_so`, then `ninja deepseek_r1_rax`) instead of the
-script above; both drive `buddy_add_model` in `models/deepseek_r1/CMakeLists.txt`.
+If CMake is configured with `-DBUDDY_BUILD_DEEPSEEK_R1_MODEL=ON`, you can build the model with:
 
-Run the model:
-
+```bash
+ninja deepseek_r1_model_so deepseek_r1_rax buddy-cli
 ```
+
+```bash
 ./build/bin/buddy-cli \
   --model ./build/models/deepseek_r1/deepseek_r1.rax \
   --prompt "Tell me a joke in 200 words."

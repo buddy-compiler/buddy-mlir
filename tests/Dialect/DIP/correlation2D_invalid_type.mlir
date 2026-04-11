@@ -44,12 +44,12 @@ func.func @main() -> i32 {
   %input_f32 = memref.get_global @global_input_f32 : memref<3x3xf32>
   %identity_f32 = memref.get_global @global_identity_f32 : memref<3x3xf32>
   %output_f32 = memref.get_global @global_output_f32 : memref<3x3xf32>
-  %c_f32 = arith.constant 0. : f32 
+  %c_f32 = arith.constant 0. : f32
 
   %input_i32 = memref.get_global @global_input_i32 : memref<3x3xi32>
   %identity_i32 = memref.get_global @global_identity_i32 : memref<3x3xi32>
   %output_i32 = memref.get_global @global_output_i32 : memref<3x3xi32>
-  %c_i32 = arith.constant 0 : i32 
+  %c_i32 = arith.constant 0 : i32
 
   %input_f128 = memref.get_global @global_input_f128 : memref<3x3xf128>
   %identity_f128 = memref.get_global @global_identity_f128 : memref<3x3xf128>

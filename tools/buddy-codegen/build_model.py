@@ -17,15 +17,24 @@
 # ===----------------------------------------------------------------------===//
 #
 # You maintain **one** JSON file under models/<family>/specs/ (e.g. w8a16.json).
-# This script configures the Buddy build (DeepSeek R1 uses buddy-codegen only)
-# and builds the model + CLI in one shot.
+# This script configures the Buddy build (sets BUDDY_BUILD_DEEPSEEK_R1_MODEL=ON;
+# DeepSeek R1 uses buddy-codegen only) and builds the model + CLI in one shot.
 #
-# Usage (from buddy-mlir repo root):
+# Usage: relative paths (--spec, --build-dir, --hf-config, --source-dir) are
+# resolved from the **current working directory** (where you run the command),
+# not from the source tree root.
 #
+#   cd buddy-mlir
 #   python3 tools/buddy-codegen/build_model.py \\
 #       --spec models/deepseek_r1/specs/w8a16.json \\
 #       --build-dir build \\
 #       --hf-config ~/.cache/huggingface/hub/.../config.json
+#
+#   # From another build directory (e.g. build-review/):
+#   cd build-review
+#   python3 ../tools/buddy-codegen/build_model.py \\
+#       --spec ../models/deepseek_r1/specs/w8a16.json \\
+#       --build-dir .
 #
 #   # optional: skip Python import (use pre-generated MLIR)
 #   python3 tools/buddy-codegen/build_model.py --spec ... \\
@@ -56,13 +65,13 @@ def main() -> int:
         "--spec",
         required=True,
         type=Path,
-        help="Variant spec JSON, e.g. models/deepseek_r1/specs/w8a16.json",
+        help="Variant spec JSON path (relative paths: from current working directory)",
     )
     ap.add_argument(
         "--build-dir",
         type=Path,
         default=Path("build"),
-        help="CMake build directory (default: build)",
+        help="CMake -B build directory (relative paths: from current working directory; default: build)",
     )
     ap.add_argument(
         "--hf-config",
@@ -79,7 +88,7 @@ def main() -> int:
         "--source-dir",
         type=Path,
         default=None,
-        help="Buddy-mlir source root (default: parent of tools/buddy-codegen)",
+        help="Buddy-mlir source root for cmake -S (default: inferred from this script; relative paths: cwd)",
     )
     ap.add_argument(
         "--target",
@@ -107,29 +116,32 @@ def main() -> int:
     )
     args = ap.parse_args()
 
-    root = args.source_dir or _repo_root()
-    spec = (
-        (root / args.spec).resolve()
-        if not args.spec.is_absolute()
-        else args.spec.resolve()
-    )
+    here = Path.cwd()
+
+    def resolve_from_cwd(p: Path) -> Path:
+        return p.resolve() if p.is_absolute() else (here / p).resolve()
+
+    if args.source_dir is not None:
+        root = resolve_from_cwd(args.source_dir)
+    else:
+        root = _repo_root()
+
+    spec = resolve_from_cwd(args.spec)
     if not spec.is_file():
         print(f"error: spec not found: {spec}", file=sys.stderr)
         return 1
 
-    build_dir = args.build_dir
-    if not build_dir.is_absolute():
-        build_dir = (root / build_dir).resolve()
+    build_dir = resolve_from_cwd(args.build_dir)
 
     cmake_args = [
         f"-DBUDDY_DSR1_SPEC={spec}",
+        "-DBUDDY_BUILD_DEEPSEEK_R1_MODEL=ON",
         # Syncs frontend/Python → build/python_packages/buddy/compiler (import_model.py).
         # Without this, buddy_add_model sets PYTHONPATH but the tree is empty → No module named 'buddy'.
         "-DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON",
     ]
     if args.hf_config is not None:
-        hf = args.hf_config
-        hf = (root / hf).resolve() if not hf.is_absolute() else hf.resolve()
+        hf = resolve_from_cwd(args.hf_config)
         cmake_args.append(f"-DBUDDY_DSR1_HF_CONFIG={hf}")
 
     for extra in args.cmake_args:
