@@ -26,18 +26,58 @@
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/SymbolTable.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 
 using namespace mlir;
 
 namespace {
+static bool isZeroAttribute(Attribute attr) {
+  if (auto floatAttr = dyn_cast<FloatAttr>(attr))
+    return floatAttr.getValue().isZero();
+  if (auto intAttr = dyn_cast<IntegerAttr>(attr))
+    return intAttr.getValue().isZero();
+  return false;
+}
+
+static bool isZeroGlobal(Value value, ModuleOp module) {
+  auto getGlobal = value.getDefiningOp<memref::GetGlobalOp>();
+  if (!getGlobal)
+    return false;
+
+  auto global = module.lookupSymbol<memref::GlobalOp>(getGlobal.getNameAttr());
+  if (!global || !global.getInitialValue().has_value())
+    return false;
+
+  auto dense = dyn_cast<DenseElementsAttr>(*global.getInitialValue());
+  if (!dense || !dense.isSplat())
+    return false;
+
+  return isZeroAttribute(dense.getSplatValue<Attribute>());
+}
+
+static memref::CopyOp findZeroInitCopy(Value output, linalg::MatmulOp matmulOp,
+                                       ModuleOp module) {
+  for (Operation *user : output.getUsers()) {
+    auto copyOp = dyn_cast<memref::CopyOp>(user);
+    if (!copyOp || copyOp.getTarget() != output)
+      continue;
+    if (copyOp->getBlock() != matmulOp->getBlock() ||
+        !copyOp->isBeforeInBlock(matmulOp))
+      continue;
+    if (isZeroGlobal(copyOp.getSource(), module))
+      return copyOp;
+  }
+  return nullptr;
+}
+
 class MatMulVectorizationDecodePattern : public ConversionPattern {
 public:
-  MatMulVectorizationDecodePattern(MLIRContext *ctx, int64_t vecSize,
-                                    bool scalableParam)
+  MatMulVectorizationDecodePattern(MLIRContext *ctx, ModuleOp module,
+                                   int64_t vecSize, bool scalableParam)
       : ConversionPattern(linalg::MatmulOp::getOperationName(), 1, ctx),
-        vecSize(vecSize), scalable(scalableParam) {}
+        module(module), vecSize(vecSize), scalable(scalableParam) {}
 
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> /*operands*/,
@@ -74,16 +114,25 @@ public:
 
     Value n = rewriter.create<memref::DimOp>(loc, C, c1);
     Value k = rewriter.create<memref::DimOp>(loc, A, c1);
+    memref::CopyOp zeroInitCopy = findZeroInitCopy(C, matmulOp, module);
+    bool zeroInitialized = zeroInitCopy != nullptr;
 
-    auto parOp = rewriter.create<scf::ParallelOp>(
+    rewriter.create<scf::ParallelOp>(
         loc,
         /*lowerBounds=*/ValueRange{c0},
         /*upperBounds=*/ValueRange{n},
         /*steps=*/ValueRange{step},
         [&](OpBuilder &builder, Location loc, ValueRange ivs) {
           Value nIdx = ivs.front();
-          Value cVec = builder.create<vector::LoadOp>(loc, vectorType, C,
-                                                      ValueRange{c0, nIdx});
+          Value cVec;
+          if (zeroInitialized) {
+            Value zero = builder.create<arith::ConstantOp>(
+                loc, elementType, builder.getZeroAttr(elementType));
+            cVec = builder.create<vector::BroadcastOp>(loc, vectorType, zero);
+          } else {
+            cVec = builder.create<vector::LoadOp>(loc, vectorType, C,
+                                                  ValueRange{c0, nIdx});
+          }
           auto sumIter = builder.create<scf::ForOp>(
               loc, c0, k, c1, ValueRange{cVec},
               [&](OpBuilder &builder, Location loc, Value kIdx,
@@ -104,11 +153,19 @@ public:
         });
 
     rewriter.eraseOp(op);
+    if (zeroInitCopy) {
+      auto getGlobal =
+          zeroInitCopy.getSource().getDefiningOp<memref::GetGlobalOp>();
+      rewriter.eraseOp(zeroInitCopy);
+      if (getGlobal && getGlobal->use_empty())
+        rewriter.eraseOp(getGlobal);
+    }
 
     return success();
   }
 
 private:
+  ModuleOp module;
   int64_t vecSize;
   bool scalable;
 };
@@ -128,7 +185,8 @@ public:
   MatMulVectorizationDecodePass(const MatMulVectorizationDecodePass &) {}
 
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<linalg::LinalgDialect, scf::SCFDialect, vector::VectorDialect>();
+    registry.insert<linalg::LinalgDialect, scf::SCFDialect,
+                    vector::VectorDialect>();
   }
 
   void runOnOperation() override {
@@ -157,7 +215,8 @@ public:
 
     RewritePatternSet patterns(context);
     bool isScalable = (vectorType == "scalable");
-    patterns.add<MatMulVectorizationDecodePattern>(context, vectorSize, isScalable);
+    patterns.add<MatMulVectorizationDecodePattern>(context, module, vectorSize,
+                                                   isScalable);
 
     if (failed(applyPartialConversion(module, target, std::move(patterns))))
       signalPassFailure();
