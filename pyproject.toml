@@ -46,6 +46,10 @@ ignore = [
     # "F841", # Unused variable
 ]
 
+# lit.cfg.py: `config` is injected by lit when loading the file, not defined in-module.
+[tool.ruff.lint]
+per-file-ignores = { "examples/lit.cfg.py" = ["F821"], "tests/lit.cfg.py" = ["F821"] }
+
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
