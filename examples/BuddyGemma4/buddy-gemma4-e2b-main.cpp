@@ -276,7 +276,7 @@ int main() {
 
   std::string exampleDir = GEMMA4_E2B_EXAMPLE_PATH;
   std::string buildDir = GEMMA4_E2B_EXAMPLE_BUILD_PATH;
-  const std::string vocabDir = exampleDir + "vocab.txt";
+  const std::string vocabDir = buildDir + "vocab.txt";
   const std::string paramsDir = buildDir + "arg0_e2b.data";
 
   std::string inputStr;
@@ -433,7 +433,7 @@ int main() {
     tok = inputContainerPrefill.getStr(maxIndex);
     printIterInfo(i, tok, decTime.count() / 1000);
 
-    if (maxIndex == 1) {
+    if (maxIndex == 1 || maxIndex == 106) {
       break;
     }
     inputContainerDecode.getData()[0] = maxIndex;

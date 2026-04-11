@@ -71,7 +71,9 @@ while i < len(lines):
                 )
                 lines[i + 2] = new_line
                 patch_count += 1
-                print(f"  Line {i+3}: {old_line.strip()} -> {new_line.strip()}")
+                print(
+                    f"  Line {i + 3}: {old_line.strip()} -> {new_line.strip()}"
+                )
                 i += 3
                 continue
     i += 1

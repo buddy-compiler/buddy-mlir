@@ -28,6 +28,7 @@ if(NOT IS_RVV_PLATFORM)
            ${CMAKE_CURRENT_BINARY_DIR}/forward_decode_e2b.mlir
            ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode_e2b.mlir
            ${CMAKE_CURRENT_BINARY_DIR}/arg0_e2b.data
+           ${CMAKE_CURRENT_BINARY_DIR}/vocab.txt
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-gemma4.py
             --output-dir ${CMAKE_CURRENT_BINARY_DIR}
             --precision f32

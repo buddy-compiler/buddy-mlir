@@ -26,6 +26,7 @@ import torch._dynamo as dynamo
 from transformers import (
     AutoModelForCausalLM,
     AutoConfig,
+    AutoTokenizer,
     StaticCache,
 )
 from transformers.models.gemma4 import Gemma4ForCausalLM
@@ -239,6 +240,17 @@ with open(
     os.path.join(output_dir, "forward_decode_e2b.mlir"), "w"
 ) as module_file:
     print(driver_decode.construct_main_graph(True), file=module_file)
+
+# Export vocabulary file for the C++ tokenizer.
+print("Exporting vocabulary...")
+tokenizer = AutoTokenizer.from_pretrained(model_path)
+vocab = tokenizer.get_vocab()
+sorted_vocab = sorted(vocab.items(), key=lambda x: x[1])
+vocab_path = os.path.join(output_dir, "vocab.txt")
+with open(vocab_path, "w", encoding="utf-8") as vf:
+    for token, _ in sorted_vocab:
+        vf.write(token.replace("\n", "\\n") + "\n")
+print(f"Exported {len(sorted_vocab)} tokens to {vocab_path}")
 
 print("All files saved to:", output_dir)
 
