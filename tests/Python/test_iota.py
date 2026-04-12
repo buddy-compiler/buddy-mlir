@@ -1,11 +1,9 @@
 # RUN: %PYTHON %s 2>&1 | FileCheck %s
 
 import torch
-import torch._dynamo as dynamo
-from torch._inductor.decomposition import decompositions as inductor_decomp
-
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import tosa
+from torch._inductor.decomposition import decompositions as inductor_decomp
 
 
 class foo(torch.nn.Module):
@@ -29,5 +27,9 @@ graph.lower_to_top_level_ir()
 print(graph._imported_module)
 
 # CHECK-LABEL: func.func @forward
-#       CHECK: %[[iota:.*]] = "tosa.const"
-#       CHECK: return %[[iota]]
+#       CHECK: %[[C0:.*]] = arith.constant 0 : index
+#       CHECK: %[[C1:.*]] = arith.constant 1 : index
+#       CHECK: %[[IOTA:.*]] = tensor.generate
+#       CHECK: arith.index_cast
+#       CHECK: tensor.yield
+#       CHECK: return %[[IOTA]]

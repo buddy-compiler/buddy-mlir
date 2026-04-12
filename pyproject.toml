@@ -8,7 +8,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "buddy"
-description = "An MLIR-based compiler framework bridges DSLs (domain-specific languages) to DSAs (domain-specific architectures)."
+description = "An MLIR-based compiler framework bridging DSLs to DSAs."
 requires-python = ">=3.10"
 dynamic = ["entry-points", "scripts", "version"]
 
@@ -19,7 +19,7 @@ include-package-data = true
 version = {attr = "buddy.__version__"}
 
 [tool.ruff]
-line-length = 120
+line-length = 80
 
 select = [
     "E",   # pycodestyle errors
@@ -46,9 +46,22 @@ ignore = [
     # "F841", # Unused variable
 ]
 
-# lit.cfg.py: `config` is injected by lit when loading the file, not defined in-module.
-[tool.ruff.lint]
-per-file-ignores = { "examples/lit.cfg.py" = ["F821"], "tests/lit.cfg.py" = ["F821"] }
+# lit.cfg.py: `config` is injected by lit when loading the file, not defined
+# in-module.
+# frontend/Python/ops/: star imports + verbose MLIR builders (per-directory
+# ignores below).
+[tool.ruff.lint.per-file-ignores]
+"examples/lit.cfg.py" = ["F821"]
+"tests/lit.cfg.py" = ["F821"]
+"frontend/Python/ops/**" = [
+    "B007", "B011", "B905",
+    "C416",
+    "E501",
+    "E711", "E712", "E741",
+    "F403", "F405", "F841",
+    "SIM101", "SIM102", "SIM105", "SIM108",
+    "UP031",
+]
 
 [tool.ruff.format]
 quote-style = "double"
