@@ -28,6 +28,42 @@ config.test_exec_root = os.path.join(config.buddy_obj_root, "examples")
 config.substitutions.append(("%PATH%", config.environment["PATH"]))
 config.substitutions.append(("%shlibext", config.llvm_shlib_ext))
 
+
+def _find_libomp_path(shlibext, llvm_shlib_dir):
+    """OpenMP runtime for mlir-runner (LLVM install tree often has no libomp)."""
+    names = ["libomp" + shlibext]
+    if shlibext == ".dylib":
+        names.append("libomp.dylib")
+    candidates = []
+    for n in names:
+        candidates.append(os.path.join(llvm_shlib_dir, n))
+    if shlibext == ".so":
+        candidates.extend(
+            [
+                "/usr/lib/x86_64-linux-gnu/libomp.so",
+                "/usr/lib/llvm-20/lib/libomp.so",
+                "/usr/lib/llvm-19/lib/libomp.so",
+                "/usr/lib/llvm-18/lib/libomp.so",
+                "/usr/lib64/libomp.so",
+            ]
+        )
+    elif shlibext == ".dylib":
+        candidates.extend(
+            [
+                "/opt/homebrew/opt/libomp/lib/libomp.dylib",
+                "/usr/local/opt/libomp/lib/libomp.dylib",
+            ]
+        )
+    for p in candidates:
+        if p and os.path.isfile(p):
+            return p
+    return os.path.join(llvm_shlib_dir, "libomp" + shlibext)
+
+
+config.substitutions.append(
+    ("%libomp", _find_libomp_path(config.llvm_shlib_ext, config.llvm_shlib_dir))
+)
+
 # excludes: A list of directories to exclude from the testsuite. The 'Inputs'
 # subdirectories contain auxiliary inputs for various tests in their parent
 # directories.

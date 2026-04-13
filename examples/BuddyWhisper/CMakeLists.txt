@@ -94,7 +94,7 @@ target_compile_definitions(buddy-whisper-run PRIVATE
   WHISPER_EXAMPLE_BUILD_PATH="${WHISPER_EXAMPLE_BUILD_PATH}"
 )
 
-target_link_directories(buddy-whisper-run PRIVATE ${LLVM_LIBRARY_DIR})
+target_link_directories(buddy-whisper-run PRIVATE ${BUDDY_LLVM_WITH_OPENMP_LINK_DIRS})
 
 set(BUDDY_WHISPER_LIBS
   WHISPER

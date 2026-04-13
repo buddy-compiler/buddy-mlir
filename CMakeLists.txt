@@ -150,6 +150,27 @@ include(AddMLIR)
 include(HandleLLVMOptions)
 
 #-------------------------------------------------------------------------------
+# LLVM OpenMP (libomp) — runtimes build output directory
+#-------------------------------------------------------------------------------
+# When OpenMP is built as an LLVM runtime, use:
+#   ninja -C runtimes/runtimes-bins omp
+# (from the LLVM build tree, e.g. llvm/build). The shared library is placed
+# under openmp/runtime/src, not in LLVM_LIBRARY_DIR. Buddy examples link with
+# `-lomp`; prepend this directory so the linker finds libomp without a system
+# libomp package.
+if(DEFINED LLVM_BINARY_DIR)
+  set(BUDDY_LLVM_OPENMP_RUNTIME_LIBDIR
+      "${LLVM_BINARY_DIR}/runtimes/runtimes-bins/openmp/runtime/src"
+      CACHE PATH
+      "Directory containing libomp from LLVM runtimes (ninja -C runtimes/runtimes-bins omp)")
+  set(BUDDY_LLVM_WITH_OPENMP_LINK_DIRS
+      "${BUDDY_LLVM_OPENMP_RUNTIME_LIBDIR}"
+      ${LLVM_LIBRARY_DIR})
+else()
+  set(BUDDY_LLVM_WITH_OPENMP_LINK_DIRS ${LLVM_LIBRARY_DIR})
+endif()
+
+#-------------------------------------------------------------------------------
 # DIP lib configuration
 #-------------------------------------------------------------------------------
 

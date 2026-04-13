@@ -47,7 +47,7 @@ def testConv2DVectorize():
         # CHECK:        %[[CST:.+]] = arith.constant 0.000000e+00 : f32
 
         # Check the pass-through vector for masked loads and stores
-        # CHECK:        %[[PASS_THRU:.+]] = vector.splat %[[CST]] : vector<32xf32>
+        # CHECK:        %[[PASS_THRU:.+]] = vector.broadcast %[[CST]] : f32 to vector<32xf32>
 
         # Check the dims
         # CHECK:        %[[KERNEL_DIM0:.+]] = memref.dim %[[KERNEL]], %[[ZERO]] : memref<?x?xf32>

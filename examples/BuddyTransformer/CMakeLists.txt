@@ -309,7 +309,7 @@ target_compile_definitions(transformer-runner-staged PRIVATE
 )
 
 # Set up library directories and linking
-target_link_directories(transformer-runner-staged PRIVATE ${LLVM_LIBRARY_DIR})
+target_link_directories(transformer-runner-staged PRIVATE ${BUDDY_LLVM_WITH_OPENMP_LINK_DIRS})
 
 # Define libraries to link
 set(BUDDY_TRANSFORMER_LIBS
@@ -382,7 +382,7 @@ target_compile_definitions(transformer-runner PRIVATE
 )
 
 # Set up library directories and linking for one-step executable
-target_link_directories(transformer-runner PRIVATE ${LLVM_LIBRARY_DIR})
+target_link_directories(transformer-runner PRIVATE ${BUDDY_LLVM_WITH_OPENMP_LINK_DIRS})
 
 # Link with required libraries for one-step executable
 target_link_libraries(transformer-runner ${BUDDY_TRANSFORMER_LIBS})
@@ -431,7 +431,7 @@ target_compile_definitions(transformer-runner-timed PRIVATE
 )
 
 # Set up library directories and linking for timed executable
-target_link_directories(transformer-runner-timed PRIVATE ${LLVM_LIBRARY_DIR})
+target_link_directories(transformer-runner-timed PRIVATE ${BUDDY_LLVM_WITH_OPENMP_LINK_DIRS})
 
 # Link with required libraries for timed executable
 target_link_libraries(transformer-runner-timed ${BUDDY_TRANSFORMER_LIBS})

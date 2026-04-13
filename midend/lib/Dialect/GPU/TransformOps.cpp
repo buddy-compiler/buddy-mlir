@@ -174,7 +174,7 @@ DiagnosedSilenceableFailure buddy::gpu::VectorToMMAConversionOp::applyToOne(
   RewritePatternSet patterns(ctx);
   mlir::vector::populateCastAwayVectorLeadingOneDimPatterns(patterns);
   populatePrepareVectorToMMAPatterns(patterns, getUseMmaSync());
-  if (failed(applyPatternsAndFoldGreedily(
+  if (failed(applyPatternsGreedily(
           target, std::move(patterns),
           GreedyRewriteConfig().setListener(&listener)))) {
     target->emitOpError("vector to mma preparation patterns failed to apply");
@@ -198,7 +198,7 @@ DiagnosedSilenceableFailure buddy::gpu::VectorToMMAConversionOp::applyToOne(
   nvgpu::populateMmaSyncF32ToTF32Patterns(f32ToTF32patterns,
                                           nvgpu::MmaSyncF32Lowering::TF32);
 
-  if (failed(applyPatternsAndFoldGreedily(
+  if (failed(applyPatternsGreedily(
           funcOp, std::move(f32ToTF32patterns),
           GreedyRewriteConfig().setListener(&listener))))
 

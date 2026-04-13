@@ -526,14 +526,19 @@ let Predicates = [HasBuddyExt] in {
             (IME_VFMADOT3 VRM4:$vd, VRM8:$vs1, VRM4:$vs2)>;
 }
 
-class RVInstIMEN<bits<7> funct7, bits<3> funct3, dag outs, dag ins,
-                 string opcodestr, string argstr>
-    : RVInst<outs, ins, opcodestr, argstr, [], InstFormatR> {
+// Four-register IME "dot-n" ops: InstFormatR4 (vs1 @ 31-27, vs2 @ 24-20, rs1,
+// vd). funct2 is the low 2 bits of the prior 7-bit funct7 constant
+// (0b1111001 -> 0b01 for integer, 0b1111010 -> 0b10 for fp).
+class RVInstIMEN4<bits<2> funct2, bits<3> funct3, dag outs, dag ins,
+                  string opcodestr, string argstr>
+    : RVInst<outs, ins, opcodestr, argstr, [], InstFormatR4> {
+  bits<5> vs1;
   bits<5> vs2;
-  bits<5> rs1;  // GPR for dynamic slide value
+  bits<5> rs1;
   bits<5> vd;
 
-  let Inst{31-25} = funct7;
+  let Inst{31-27} = vs1;
+  let Inst{26-25} = funct2;
   let Inst{24-20} = vs2;
   let Inst{19-15} = rs1;
   let Inst{14-12} = funct3;
@@ -544,42 +549,42 @@ class RVInstIMEN<bits<7> funct7, bits<3> funct3, dag outs, dag ins,
 }
 
 let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-def IME_VMADOTN : RVInstIMEN<0b1111001, 0b000,
-                             (outs VRM4:$vd),
-                             (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2, GPR:$rs1),
-                             "vmadotn", "$vd, $vs1, $vs2, $rs1"> {
-  let Constraints = "$vd = $vd_in";
-}
-
-let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-def IME_VMADOTNU : RVInstIMEN<0b1111001, 0b011,
+def IME_VMADOTN : RVInstIMEN4<0b01, 0b000,
                               (outs VRM4:$vd),
                               (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2, GPR:$rs1),
-                              "vmadotnu", "$vd, $vs1, $vs2, $rs1"> {
+                              "vmadotn", "$vd, $vs1, $vs2, $rs1"> {
   let Constraints = "$vd = $vd_in";
 }
 
 let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-def IME_VMADOTNSU : RVInstIMEN<0b1111001, 0b001,
+def IME_VMADOTNU : RVInstIMEN4<0b01, 0b011,
                                (outs VRM4:$vd),
                                (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2, GPR:$rs1),
-                               "vmadotnsu", "$vd, $vs1, $vs2, $rs1"> {
+                               "vmadotnu", "$vd, $vs1, $vs2, $rs1"> {
   let Constraints = "$vd = $vd_in";
 }
 
 let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-def IME_VMADOTNUS : RVInstIMEN<0b1111001, 0b010,
+def IME_VMADOTNSU : RVInstIMEN4<0b01, 0b001,
+                                (outs VRM4:$vd),
+                                (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2, GPR:$rs1),
+                                "vmadotnsu", "$vd, $vs1, $vs2, $rs1"> {
+  let Constraints = "$vd = $vd_in";
+}
+
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def IME_VMADOTNUS : RVInstIMEN4<0b01, 0b010,
+                                (outs VRM4:$vd),
+                                (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2, GPR:$rs1),
+                                "vmadotnus", "$vd, $vs1, $vs2, $rs1"> {
+  let Constraints = "$vd = $vd_in";
+}
+
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def IME_VFMADOTN : RVInstIMEN4<0b10, 0b000,
                                (outs VRM4:$vd),
                                (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2, GPR:$rs1),
-                               "vmadotnus", "$vd, $vs1, $vs2, $rs1"> {
-  let Constraints = "$vd = $vd_in";
-}
-
-let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-def IME_VFMADOTN : RVInstIMEN<0b1111010, 0b000,
-                              (outs VRM4:$vd),
-                              (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2, GPR:$rs1),
-                              "vfmadotn", "$vd, $vs1, $vs2, $rs1"> {
+                               "vfmadotn", "$vd, $vs1, $vs2, $rs1"> {
   let Constraints = "$vd = $vd_in";
 }
 

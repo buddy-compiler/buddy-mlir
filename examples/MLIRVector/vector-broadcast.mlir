@@ -79,11 +79,9 @@ func.func @broadcast_scalar_to_vector(%src: f32) -> vector<3x1xf32> {
   // broadcast a scalar to vector
   %result = vector.broadcast %src : f32 to vector<3x1xf32>
 
-  // equals to splat it, like "std::fill" in C++.
-  // %w will be [[%src], [%src], [%src]]
-  %w = vector.splat %src : vector<3x1xf32>
+  // Same scalar broadcast twice (equivalent to legacy vector.splat).
+  %w = vector.broadcast %src : f32 to vector<3x1xf32>
 
-  // %w == %result
   vector.print %result : vector<3x1xf32>
   vector.print %w : vector<3x1xf32>
 

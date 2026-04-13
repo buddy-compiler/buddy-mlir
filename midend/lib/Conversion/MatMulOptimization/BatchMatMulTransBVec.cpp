@@ -94,7 +94,7 @@ public:
         loc, rewriter.getZeroAttr(elementType));
 
     // Create initial zero vector for accumulation.
-    Value zeroVec = rewriter.create<SplatOp>(loc, vectorTy, zero);
+    Value zeroVec = rewriter.create<vector::BroadcastOp>(loc, vectorTy, zero);
 
     // Get dimensions of input tensors.
     Value batch = rewriter.create<memref::DimOp>(loc, A, c0);

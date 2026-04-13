@@ -18,10 +18,14 @@
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
 // RUN: | FileCheck %s
 
+#map_mmtb0 = affine_map<(d0, d1, d2) -> (d0, d2)>
+#map_mmtb1 = affine_map<(d0, d1, d2) -> (d1, d2)>
+#map_mmtb2 = affine_map<(d0, d1, d2) -> (d0, d1)>
+
 func.func private @printMemrefF32(memref<*xf32>)
 
 func.func @test(%a : memref<?x?xf32>, %b : memref<?x?xf32>, %c : memref<?x?xf32>) {
-    linalg.matmul_transpose_b
+    linalg.matmul indexing_maps = [#map_mmtb0, #map_mmtb1, #map_mmtb2]
       ins(%a, %b: memref<?x?xf32>, memref<?x?xf32>)
       outs(%c: memref<?x?xf32>)
     return

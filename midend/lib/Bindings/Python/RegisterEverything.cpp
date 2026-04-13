@@ -15,9 +15,10 @@
 //===----------------------------------------------------------------------===//
 
 #include "buddy-mlir-c/RegisterEverything.h"
-#include "mlir/Bindings/Python/PybindAdaptors.h"
+#include "mlir/Bindings/Python/Nanobind.h"
+#include "mlir/Bindings/Python/NanobindAdaptors.h"
 
-PYBIND11_MODULE(_mlirRegisterEverything, m) {
+NB_MODULE(_mlirRegisterEverything, m) {
   m.doc() = "Buddy MLIR All Dialects, Translations and Passes Registration";
 
   m.def("register_dialects", [](MlirDialectRegistry registry) {

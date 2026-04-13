@@ -5,7 +5,11 @@
 func.func @batch_matmul_transpose_b_f32(%A: memref<4x8x16xf32>,
                                          %B: memref<4x32x16xf32>,
                                          %C: memref<4x8x32xf32>) {
-  linalg.batch_matmul_transpose_b
+  linalg.batch_matmul indexing_maps = [
+      affine_map<(d0, d1, d2, d3) -> (d0, d1, d3)>,
+      affine_map<(d0, d1, d2, d3) -> (d0, d2, d3)>,
+      affine_map<(d0, d1, d2, d3) -> (d0, d1, d2)>
+    ]
     ins(%A, %B: memref<4x8x16xf32>, memref<4x32x16xf32>)
     outs(%C: memref<4x8x32xf32>)
   return
@@ -19,4 +23,4 @@ func.func @batch_matmul_transpose_b_f32(%A: memref<4x8x16xf32>,
 // CHECK:       vector.fma
 // CHECK:       vector.reduction
 // CHECK:       return
-// CHECK-NOT:   linalg.batch_matmul_transpose_b
+// CHECK-NOT:   linalg.batch_matmul

@@ -31,4 +31,19 @@ add_mlir_public_c_api_library(BuddyMLIRCAPI
   VectorExp
   BuddyMLIRInitAll
   BuddyToLLVMIRTranslationRegistration
+  MLIRRegisterAllDialects
+  MLIRRegisterAllExtensions
+  MLIRRegisterAllPasses
 )
+
+# CMake 3.31+ may drop MLIRRegisterAll* from aggregate deps; force the archives
+# at the front of MLIR_AGGREGATE_DEPS so RegisterAll*.o precedes dialect libs.
+if(TARGET MLIRRegisterAllDialects)
+  get_target_property(_buddy_capi_agg_deps BuddyMLIRCAPI MLIR_AGGREGATE_DEPS)
+  set_property(TARGET BuddyMLIRCAPI PROPERTY MLIR_AGGREGATE_DEPS
+    "$<TARGET_FILE:MLIRRegisterAllDialects>"
+    "$<TARGET_FILE:MLIRRegisterAllExtensions>"
+    "$<TARGET_FILE:MLIRRegisterAllPasses>"
+    ${_buddy_capi_agg_deps}
+  )
+endif()

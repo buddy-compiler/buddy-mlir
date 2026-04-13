@@ -10,4 +10,15 @@ target_link_libraries(buddy-lsp-server
   ${dialect_libs}
   ${conversion_libs}
   MLIRLspServerLib
+  MLIRRegisterAllDialects
+  MLIRRegisterAllExtensions
+  MLIRRegisterAllPasses
 )
+
+if(TARGET MLIRRegisterAllDialects)
+  target_link_libraries(buddy-lsp-server PRIVATE
+    "$<TARGET_FILE:MLIRRegisterAllDialects>"
+    "$<TARGET_FILE:MLIRRegisterAllExtensions>"
+    "$<TARGET_FILE:MLIRRegisterAllPasses>"
+  )
+endif()

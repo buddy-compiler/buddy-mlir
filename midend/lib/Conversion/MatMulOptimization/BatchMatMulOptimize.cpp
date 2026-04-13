@@ -65,6 +65,18 @@ public:
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> /*operands*/,
                   ConversionPatternRewriter &rewriter) const override {
+    auto batchMatmulOp = dyn_cast<linalg::BatchMatmulOp>(op);
+    if (!batchMatmulOp)
+      return failure();
+
+    // This vectorization path assumes contiguous access along the last
+    // dimension of B/C for vector load/store. Skip rewrite for transposed or
+    // non-unit-stride layouts.
+    if (!hasCanonicalBatchMatmulIndexing(batchMatmulOp) ||
+        !hasUnitStrideOnLastDim(batchMatmulOp.getInputs()[1]) ||
+        !hasUnitStrideOnLastDim(batchMatmulOp.getOutputs()[0]))
+      return failure();
+
     auto loc = op->getLoc();
     auto ctx = op->getContext();
 
@@ -161,7 +173,7 @@ public:
                             Value mulVec =
                                 builder.create<arith::MulIOp>(loc, aVec, bVec);
                             Value resSumVec = builder.create<arith::AddIOp>(
-                                loc, mulVec, iterArgs1[0]);
+                                loc, mulVec, iterArgs1[i]);
                             resSumVecs.push_back(resSumVec);
                           }
                         } else {
@@ -193,7 +205,7 @@ public:
             Value idx = iter_idx.getResult(0);
             rewriter.create<scf::ForOp>(
                 loc, idx, bCol,
-                /*Step=*/constantVals[1], std::nullopt,
+                /*Step=*/constantVals[1], ValueRange{},
                 [&](OpBuilder &builder, Location loc, Value iv0,
                     ValueRange itrArgs0) {
                   SmallVector<Value> cEles;
@@ -252,6 +264,42 @@ public:
   }
 
 private:
+  static bool hasCanonicalBatchMatmulIndexing(linalg::BatchMatmulOp op) {
+    auto indexingMaps = op.getIndexingMapsArray();
+    if (indexingMaps.size() != 3)
+      return false;
+    auto hasExpectedDims = [](AffineMap map, ArrayRef<unsigned> dims) {
+      if (map.getNumResults() != dims.size())
+        return false;
+      for (auto [index, expr] : llvm::enumerate(map.getResults())) {
+        auto dimExpr = dyn_cast<AffineDimExpr>(expr);
+        if (!dimExpr || dimExpr.getPosition() != dims[index])
+          return false;
+      }
+      return true;
+    };
+
+    // Canonical batch_matmul indexing:
+    // A: (b, m, k), B: (b, k, n), C: (b, m, n).
+    return hasExpectedDims(indexingMaps[0], {0, 1, 3}) &&
+           hasExpectedDims(indexingMaps[1], {0, 3, 2}) &&
+           hasExpectedDims(indexingMaps[2], {0, 1, 2});
+  }
+
+  static bool hasUnitStrideOnLastDim(Value value) {
+    auto memrefType = dyn_cast<MemRefType>(value.getType());
+    if (!memrefType || memrefType.getRank() == 0)
+      return false;
+
+    SmallVector<int64_t, 4> strides;
+    int64_t offset = 0;
+    if (failed(memrefType.getStridesAndOffset(strides, offset)))
+      return false;
+    if (strides.empty())
+      return false;
+    return strides.back() == 1;
+  }
+
   int64_t vecSize;
 };
 } // end anonymous namespace

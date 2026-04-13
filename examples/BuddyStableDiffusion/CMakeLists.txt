@@ -305,7 +305,7 @@ target_compile_definitions(buddy-stable-diffusion-run PRIVATE
   STABLE_DIFFUSION_EXAMPLE_BUILD_PATH="${STABLE_DIFFUSION_EXAMPLE_BUILD_PATH}"
 )
 
-target_link_directories(buddy-stable-diffusion-run PRIVATE ${LLVM_LIBRARY_DIR})
+target_link_directories(buddy-stable-diffusion-run PRIVATE ${BUDDY_LLVM_WITH_OPENMP_LINK_DIRS})
 
 set(BUDDY_STABLE_DIFFUSION_LIBS TEXTENCODER UNET VAE mlir_c_runner_utils omp)
 

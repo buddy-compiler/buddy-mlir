@@ -27,7 +27,7 @@ func.func @test(%arg0 : memref<?x?x?xf32>, %arg1 : memref<?x?x?xf32>, %arg2 : me
   %c2 = arith.constant 2 : index
   %vl_step = arith.constant 32 : index
   %c0_f32 = arith.constant 0.000000e+00 : f32
-  %v0 = vector.splat %c0_f32 : vector<32xf32>
+  %v0 = vector.broadcast %c0_f32 : f32 to vector<32xf32>
   %dim = memref.dim %arg0, %c0 : memref<?x?x?xf32>
   %dim_0 = memref.dim %arg0, %c1 : memref<?x?x?xf32>
   %dim_1 = memref.dim %arg0, %c2 : memref<?x?x?xf32>

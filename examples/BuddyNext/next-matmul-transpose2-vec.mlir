@@ -27,7 +27,7 @@ func.func @test(%a : memref<?x?x?xf32>, %b : memref<?x?x?xf32>, %c : memref<?x?x
   %c2 = arith.constant 2 : index
   %vl_step = arith.constant 32 : index
   %c0_f32 = arith.constant 0.000000e+00 : f32
-  %v0 = vector.splat %c0_f32 : vector<32xf32>
+  %v0 = vector.broadcast %c0_f32 : f32 to vector<32xf32>
   %dim = memref.dim %a, %c0 : memref<?x?x?xf32>        //
   %dim_0 = memref.dim %a, %c1 : memref<?x?x?xf32>
   %dim_1 = memref.dim %a, %c2 : memref<?x?x?xf32>
@@ -47,7 +47,7 @@ func.func @test(%a : memref<?x?x?xf32>, %b : memref<?x?x?xf32>, %c : memref<?x?x
         %0 = vector.load %c[%arg4, %arg3, %arg5] : memref<?x?x?xf32>, vector<32xf32>
         %iter_value = scf.for %arg6 = %c0 to %dim_1 step %c1 iter_args(%value_init = %0) -> (vector<32xf32>){
           %1 = memref.load %a[%arg3, %arg4, %arg6] : memref<?x?x?xf32>
-          %2 = vector.splat %1 : vector<32xf32>
+          %2 = vector.broadcast %1 : f32 to vector<32xf32>
           %3 = vector.load %b[%arg6, %arg3, %arg5] : memref<?x?x?xf32>, vector<32xf32>
           %4 = vector.fma %2, %3, %value_init : vector<32xf32>
           scf.yield %4 : vector<32xf32>
@@ -64,7 +64,7 @@ func.func @test(%a : memref<?x?x?xf32>, %b : memref<?x?x?xf32>, %c : memref<?x?x
       %0 = vector.maskedload %c[%arg4, %arg3, %iter_idx], %mask, %v0 : memref<?x?x?xf32>, vector<32xi1>, vector<32xf32> into vector<32xf32>
       %iter_value = scf.for %arg6 = %c0 to %dim_1 step %c1 iter_args(%value_init = %0) -> (vector<32xf32>){
         %1 = memref.load %a[%arg3, %arg4, %arg6] : memref<?x?x?xf32>
-        %2 = vector.splat %1 : vector<32xf32>
+        %2 = vector.broadcast %1 : f32 to vector<32xf32>
         %3 = vector.maskedload %b[%arg6, %arg3, %iter_idx], %mask, %v0 : memref<?x?x?xf32>, vector<32xi1>, vector<32xf32> into vector<32xf32>
         %4 = vector.fma %2, %3, %value_init : vector<32xf32>
         scf.yield %4 : vector<32xf32>

@@ -18,302 +18,259 @@
 #
 # ===---------------------------------------------------------------------------
 
-import array
-from collections.abc import Sequence
+import array, copy
+from typing import Dict, List, Sequence, Tuple, Union
+import numpy
+import sys
 
 import buddy_mlir.ir as ir
-import numpy
+from buddy_mlir.ir import IndexType, F32Type
+
+from ..ir_type_utils import (
+    is_complex_mlir_type,
+    is_float_mlir_type,
+    is_integer_mlir_type,
+)
 from buddy_mlir.dialects import (
-    affine,
-    arith,
-    bufferization,
-    linalg,
-    math,
-    memref,
-    scf,
     tensor,
     tosa,
+    arith,
+    linalg,
+    math,
+    affine,
     vector,
-)
-from buddy_mlir.dialects import (
+    bufferization,
+    memref,
+    scf,
     complex as complex_dialect,
 )
-from buddy_mlir.ir import F32Type, IndexType
 
+from ..graph import TensorDType
 from ..graph import (
-    AbsOp,
-    AdaptiveAvgPool1dOp,
-    # Backward Operations
-    AdaptiveAvgPool2dBackwardOp,
-    AdaptiveAvgPool2dOp,
-    AdaptiveAvgPool3dOp,
-    # MaxPool3dOp moved to linalg.py
-    # AvgPool3dOp moved to linalg.py
-    AdaptiveMaxPool1dOp,
-    AdaptiveMaxPool2dOp,
-    AddbmmOp,
-    AddMMOp,
     AddOp,
-    AddScalarOp,
-    AliasOp,
-    AllDimsOp,
-    AllOp,
-    AmaxOp,
-    AminOp,
-    AnyDimsOp,
-    AnyOp,
-    # IndexSelectOp moved to linalg.py
-    ArangeStartStepOp,
-    ArgMaxOp,
-    ArgMinOp,
-    AvgPool1dOp,
-    AvgPool2dBackwardOp,
-    AvgPool2dOp,
-    BaddbmmOp,
+    PermuteOp,
+    AddMMOp,
     BatchMatmulOp,
-    # Bitwise Scalar Operations
-    BitwiseAndScalarOp,
+    SubOp,
+    MulOp,
+    DivOp,
+    TanhOp,
+    ExpOp,
+    RsqrtOp,
+    AmaxOp,
+    ReshapeOp,
+    UnsqueezeOp,
+    ViewDtypeOp,
+    SelectOp,
+    SliceOp,
+    ConvertElementTypeOp,
+    CloneOp,
+    VarMeanOp,
+    EmbeddingOp,
+    ExpandOp,
+    SumDimOp,
+    TOp,
+    TransposeOp,
+    MaxPool2dOp,
+    Conv2dOp,
+    ReluOp,
+    IotaOp,
+    SigmoidOp,
+    GluOp,
+    ReciprocalOp,
+    MeanOp,
+    ClampMinOp,
+    ClampMaxOp,
+    RandIntLowOp,
+    ArgMaxOp,
+    ScaledDotProductFlashAttentionForCpuOp,
+    FlashAttentionForCpuPrefillOp,
+    MatmulOp,
+    LeOp,
     BitwiseAndTensorOp,
     BitwiseLeftShiftOp,
+    AbsOp,
+    LogOp,
+    CeilOp,
+    FloorOp,
+    MaximumOp,
+    MinimumOp,
     BitwiseNotOp,
+    LogicalNotOp,
+    ClampOp,
+    LogicalAndOp,
+    LogicalOrOp,
     BitwiseOrOp,
-    BitwiseOrScalarOp,
     BitwiseRightShiftOp,
     BitwiseXorOp,
-    BitwiseXorScalarOp,
-    CauchyOp,
-    CdistForwardOp,
-    CeilOp,
-    ClampMaxOp,
-    ClampMaxTensorOp,
-    ClampMinOp,
-    ClampMinTensorOp,
-    ClampOp,
-    ClampTensorOp,
-    CloneOp,
-    ConstantPadNdOp,
-    Conv2dOp,
-    ConvertElementTypeOp,
-    ConvolutionBackwardOp,
-    CopysignOp,
-    CummaxOp,
-    CumminOp,
-    DiagonalOp,
-    DigammaOp,
-    DivOp,
-    DivScalarModeOp,
-    DivScalarOp,
-    DivTensorModeOp,
-    # Core Aten Remaining Operations
-    EmbeddingBagOp,
-    EmbeddingOp,
-    # Other Operations
-    EmptyStridedOp,
+    AminOp,
+    AvgPool2dOp,
+    LogicalXorOp,
+    ProdOp,
+    NegOp,
+    WhereOp,
     EqTensorOp,
-    ErfcOp,
-    ErfinvOp,
-    ErfOp,
-    ExpandOp,
-    ExpOp,
-    FillScalarOp,
-    FlashAttentionForCpuPrefillOp,
-    FlipOp,
-    FloorDivideOp,
-    FloorOp,
-    FmodOp,
-    FrexpOp,
-    FullLikeOp,
-    GeTensorOp,
-    GluOp,
-    GQAAttentionFusedOp,
-    GtOp,
+    NeTensorOp,
     GtTensorOp,
-    HardswishOp,
-    HypotOp,
-    I0Op,
-    IgammacOp,
-    IgammaOp,
-    Int4UnpackOp,
-    IotaOp,
+    GeTensorOp,
+    LtTensorOp,
+    LeTensorOp,
+    ConstantPadNdOp,
+    MaskedFillOp,
+    RepeatOp,
+    ZerosOp,
+    ZerosLikeOp,
+    OnesLikeOp,
+    FullLikeOp,
+    AllOp,
+    AnyOp,
     IsInfOp,
     IsNanOp,
-    LeOp,
+    FloorDivideOp,
+    FmodOp,
+    RemainderOp,
+    PowTensorTensorOp,
+    SoftplusOp,
+    HardswishOp,
+    TileOp,
+    StackOp,
     LerpOp,
-    LeScalarOp,
-    LeTensorOp,
-    LgammaOp,
-    LocalScalarDenseOp,
-    LogicalAndOp,
-    LogicalNotOp,
-    LogicalOrOp,
-    LogicalXorOp,
-    LogOp,
-    LtScalarOp,
-    LtTensorOp,
-    MaskedFillOp,
-    MaskedScatterOp,
-    MaxDimOp,
-    MaximumOp,
-    MaxPool1dOp,
-    MaxPool2dOp,
-    MeanDefaultOp,
-    MeanOp,
-    MinDimOp,
-    MinimumOp,
-    MulOp,
-    NativeDropoutOp,
-    NativeGroupNormBackwardOp,
-    NativeGroupNormOp,
-    NativeLayerNormBackwardOp,
-    NegOp,
+    ClampTensorOp,
+    FlipOp,
+    GtOp,
+    DivTensorModeOp,
+    ErfOp,
+    ErfinvOp,
     NeScalarOp,
-    NeTensorOp,
-    NextafterOp,
+    LeScalarOp,
+    LtScalarOp,
+    # IndexSelectOp moved to linalg.py
+    ArangeStartStepOp,
+    ArgMinOp,
+    MinDimOp,
+    # ScatterAddOp moved to linalg.py
+    SqueezeOp,
+    SqueezeDimOp,
+    # TopkOp moved to linalg.py
+    UnbindOp,
+    AddScalarOp,
+    SubScalarOp,
+    DivScalarOp,
+    DivScalarModeOp,
+    PowScalarOp,
+    MeanDefaultOp,
+    VarCorrectionOp,
+    VarDimOp,
+    AnyDimsOp,
+    FillScalarOp,
+    AliasOp,
+    DiagonalOp,
+    MaxDimOp,
+    StdDefaultOp,
+    StdDimOp,
+    StdCorrectionOp,
+    SumDefaultOp,
+    AllDimsOp,
     NormScalarOp,
     NormScalarOptDimOp,
-    OnesLikeOp,
-    PermuteOp,
-    PowScalarOp,
-    PowTensorTensorOp,
-    ProdOp,
-    RandIntLowOp,
-    RandpermOp,
-    ReciprocalOp,
-    # Padding Operations
-    ReflectionPad1dOp,
-    ReflectionPad2dOp,
-    ReflectionPad3dOp,
-    ReluOp,
-    RemainderOp,
-    RepeatOp,
-    ReplicationPad2dOp,
-    ReplicationPad3dOp,
-    ReshapeOp,
-    ResizeOp,
-    RevOp,
-    RsqrtOp,
-    ScaledDotProductFlashAttentionForCpuOp,
-    SelectOp,
-    SigmoidOp,
-    SignbitOp,
-    SignOp,
-    SliceOp,
-    SoftplusOp,
+    VarDefaultOp,
+    NativeGroupNormOp,
+    NativeDropoutOp,
+    UnfoldOp,
+    SqueezeDimsOp,
+    BaddbmmOp,
+    AddbmmOp,
+    LgammaOp,
+    DigammaOp,
+    IgammaOp,
+    IgammacOp,
+    I0Op,
+    ErfcOp,
+    SpecialEntrOp,
+    SpecialI0eOp,
+    SpecialI1Op,
+    SpecialI1eOp,
+    SpecialErfcxOp,
+    SpecialNdtrOp,
+    SpecialLogNdtrOp,
+    SpecialNdtriOp,
+    SpecialSphericalBesselJ0Op,
+    SpecialShiftedChebyshevPolynomialTOp,
+    SpecialShiftedChebyshevPolynomialUOp,
+    SpecialShiftedChebyshevPolynomialVOp,
+    SpecialShiftedChebyshevPolynomialWOp,
+    SpecialModifiedBesselK0Op,
+    SpecialModifiedBesselK1Op,
+    SpecialScaledModifiedBesselK0Op,
+    SpecialScaledModifiedBesselK1Op,
+    SpecialZetaOp,
+    SpecialLegendrePolynomialPOp,
+    SpecialChebyshevPolynomialTOp,
+    SpecialChebyshevPolynomialUOp,
+    SpecialChebyshevPolynomialVOp,
+    SpecialChebyshevPolynomialWOp,
+    SpecialHermitePolynomialHOp,
+    SpecialHermitePolynomialHeOp,
+    SpecialLaguerrePolynomialLOp,
     SpecialAiryAiOp,
     SpecialBesselJ0Op,
     SpecialBesselJ1Op,
     SpecialBesselY0Op,
     SpecialBesselY1Op,
-    SpecialChebyshevPolynomialTOp,
-    SpecialChebyshevPolynomialUOp,
-    SpecialChebyshevPolynomialVOp,
-    SpecialChebyshevPolynomialWOp,
-    SpecialEntrOp,
-    SpecialErfcxOp,
-    SpecialHermitePolynomialHeOp,
-    SpecialHermitePolynomialHOp,
-    SpecialI0eOp,
-    SpecialI1eOp,
-    SpecialI1Op,
-    SpecialLaguerrePolynomialLOp,
-    SpecialLegendrePolynomialPOp,
-    SpecialLogNdtrOp,
-    SpecialModifiedBesselK0Op,
-    SpecialModifiedBesselK1Op,
-    SpecialNdtriOp,
-    SpecialNdtrOp,
-    SpecialScaledModifiedBesselK0Op,
-    SpecialScaledModifiedBesselK1Op,
-    SpecialShiftedChebyshevPolynomialTOp,
-    SpecialShiftedChebyshevPolynomialUOp,
-    SpecialShiftedChebyshevPolynomialVOp,
-    SpecialShiftedChebyshevPolynomialWOp,
-    SpecialSphericalBesselJ0Op,
-    SpecialZetaOp,
-    SplitWithSizesOp,
-    SqueezeDimOp,
-    SqueezeDimsOp,
-    # ScatterAddOp moved to linalg.py
-    SqueezeOp,
-    StackOp,
-    StdCorrectionOp,
-    StdDefaultOp,
-    StdDimOp,
-    SubOp,
-    SubScalarOp,
-    SumDefaultOp,
-    SumDimOp,
-    TanhOp,
-    TensorDType,
-    TileOp,
-    TOp,
-    TransposeOp,
-    # TopkOp moved to linalg.py
-    UnbindOp,
-    UnfoldOp,
+    FrexpOp,
+    CummaxOp,
+    CumminOp,
+    ClampMinTensorOp,
+    ClampMaxTensorOp,
+    HypotOp,
+    CopysignOp,
+    SignOp,
+    SignbitOp,
+    NextafterOp,
+    MaskedScatterOp,
+    RevOp,
+    MaxPool1dOp,
+    # MaxPool3dOp moved to linalg.py
+    # AvgPool3dOp moved to linalg.py
+    AdaptiveMaxPool1dOp,
+    AdaptiveMaxPool2dOp,
+    AdaptiveAvgPool1dOp,
+    AdaptiveAvgPool2dOp,
+    AdaptiveAvgPool3dOp,
+    AvgPool1dOp,
+    # Backward Operations
+    AdaptiveAvgPool2dBackwardOp,
+    AvgPool2dBackwardOp,
+    ConvolutionBackwardOp,
+    NativeGroupNormBackwardOp,
+    NativeLayerNormBackwardOp,
+    # Bitwise Scalar Operations
+    BitwiseAndScalarOp,
+    BitwiseOrScalarOp,
+    BitwiseXorScalarOp,
+    # Padding Operations
+    ReflectionPad1dOp,
+    ReflectionPad2dOp,
+    ReflectionPad3dOp,
+    ReplicationPad2dOp,
+    ReplicationPad3dOp,
+    # Other Operations
+    EmptyStridedOp,
+    RandpermOp,
     UniformOp,
-    UnsqueezeOp,
-    VarCorrectionOp,
-    VarDefaultOp,
-    VarDimOp,
-    VarMeanOp,
-    ViewDtypeOp,
-    WhereOp,
-    ZerosLikeOp,
-    ZerosOp,
+    CauchyOp,
+    # Core Aten Remaining Operations
+    EmbeddingBagOp,
+    CdistForwardOp,
+    PdistForwardOp,
+    FftR2cOp,
+    LocalScalarDenseOp,
+    ResizeOp,
+    SplitWithSizesOp,
+    GQAAttentionFusedOp,
+    Int4UnpackOp,
 )
 from .utils import *
-
-
-def _build_range_tensor(
-    output_shape: list[int],
-    dtype,
-    start: int,
-    step: int,
-):
-    mlir_dtype = mlir_element_type_get(dtype)
-    tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
-    if len(output_shape) != 1:
-        numpy_dtype = {
-            TensorDType.Float16: numpy.float16,
-            TensorDType.BFloat16: numpy.uint16,
-            TensorDType.Float32: numpy.float32,
-            TensorDType.Float64: numpy.float64,
-            TensorDType.Int8: numpy.int8,
-            TensorDType.Int32: numpy.int32,
-            TensorDType.Int64: numpy.int64,
-            TensorDType.Bool: numpy.bool_,
-        }.get(dtype)
-        if numpy_dtype is None:
-            raise NotImplementedError(
-                f"Unsupported dtype for range tensor: {dtype}"
-            )
-        values = start + numpy.arange(output_shape[0], dtype=numpy_dtype) * step
-        return tosa.ConstOp(
-            ir.DenseElementsAttr.get(values, type=tensor_type)
-        ).result
-
-    index_type = ir.IndexType.get()
-    i64_type = ir.IntegerType.get_signless(64)
-    start_index = arith.ConstantOp(index_type, int(start)).result
-    step_index = arith.ConstantOp(index_type, int(step)).result
-
-    @tensor.generate(tensor_type, dynamic_extents=[])
-    def generated(i: index_type):
-        value_index = i
-        if int(step) != 1:
-            value_index = arith.MulIOp(i, step_index).result
-        if int(start) != 0:
-            value_index = arith.AddIOp(value_index, start_index).result
-
-        if ir.FloatType.isinstance(mlir_dtype) or ir.BF16Type.isinstance(
-            mlir_dtype
-        ):
-            value_i64 = arith.IndexCastOp(i64_type, value_index).result
-            return arith.SIToFPOp(mlir_dtype, value_i64).result
-        return arith.IndexCastOp(mlir_dtype, value_index).result
-
-    return generated
 
 
 def _normalize_binary_operator_shape(shp1, shp2):
@@ -368,11 +325,11 @@ def _gen_arith_binary_op(input1, input2, op_func):
 
 
 def _scalar_to_tensor(
-    scalar: float | int, element_type: ir.Type, shape: list[int]
+    scalar: Union[float, int], element_type: ir.Type, shape: List[int]
 ):
     """Convert scalers to cooresponding tensors since MLIR
     doesn't support operation between scalers and tensors."""
-    if ir.FloatType.isinstance(element_type):
+    if is_float_mlir_type(element_type):
         element = ir.FloatAttr.get(element_type, float(scalar))
     else:
         element = ir.IntegerAttr.get(element_type, int(scalar))
@@ -409,13 +366,13 @@ def _normalize_binary_operator_args(arg1, arg2):
         t2 = ir.RankedTensorType(arg2.type)
         et1 = t1.element_type
         et2 = t2.element_type
-        is_float1 = ir.FloatType.isinstance(et1) or ir.BF16Type.isinstance(et1)
-        is_float2 = ir.FloatType.isinstance(et2) or ir.BF16Type.isinstance(et2)
+        is_float1 = is_float_mlir_type(et1)
+        is_float2 = is_float_mlir_type(et2)
         if et1 != et2:
-            if is_float1 and ir.IntegerType.isinstance(et2):
+            if is_float1 and is_integer_mlir_type(et2):
                 cast_type = ir.RankedTensorType.get(list(t2.shape), et1)
                 arg2 = tosa.CastOp(cast_type, arg2).result
-            elif is_float2 and ir.IntegerType.isinstance(et1):
+            elif is_float2 and is_integer_mlir_type(et1):
                 cast_type = ir.RankedTensorType.get(list(t1.shape), et2)
                 arg1 = tosa.CastOp(cast_type, arg1).result
         return arg1, arg2
@@ -437,7 +394,7 @@ def _normalize_binary_operator_args(arg1, arg2):
 
 def _require_integer_tensor(value: ir.Value, op_name: str) -> ir.Type:
     element_type = ir.RankedTensorType(value.type).element_type
-    if not ir.IntegerType.isinstance(element_type):
+    if not is_integer_mlir_type(element_type):
         raise ValueError(
             f"{op_name} requires integer tensor inputs, got {element_type}"
         )
@@ -462,7 +419,7 @@ def _create_shape_operand(shape: Sequence[int]) -> ir.Value:
     return tosa.ConstShapeOp(shape_type, shape_attr).result
 
 
-def _normalize_reduce_dims(dim_arg, rank: int) -> list[int]:
+def _normalize_reduce_dims(dim_arg, rank: int) -> List[int]:
     if dim_arg is None:
         dims = list(range(rank))
     elif isinstance(dim_arg, (list, tuple)):
@@ -478,9 +435,7 @@ def _create_zero_point_tensor(value: ir.Value) -> ir.Value:
     """Create a zero-point tensor (tensor<1xT>) matching the value element type."""
     element_type = ir.RankedTensorType(value.type).element_type
     tensor_type = ir.RankedTensorType.get([1], element_type)
-    if ir.FloatType.isinstance(element_type) or ir.BF16Type.isinstance(
-        element_type
-    ):
+    if is_float_mlir_type(element_type):
         zero_attr = ir.FloatAttr.get(element_type, 0.0)
     else:
         zero_attr = ir.IntegerAttr.get(element_type, 0)
@@ -521,7 +476,7 @@ def _create_permutation_attr(perm: Sequence[int]) -> ir.Attribute:
 
 
 def addmm_op(
-    node: AddMMOp, symbol_table: dict[tuple[str, int], ir.Operation]
+    node: AddMMOp, symbol_table: Dict[Tuple[str, int], ir.Operation]
 ) -> ir.Operation:
     """
     Import matrix multiplication operation.
@@ -802,7 +757,7 @@ def div_op(node: DivOp, symbol_table):
         if not isinstance(value, ir.Value):
             return False
         element_type = ir.RankedTensorType(value.type).element_type
-        return ir.IntegerType.isinstance(element_type)
+        return is_integer_mlir_type(element_type)
 
     if _is_int_tensor(input1) or _is_int_tensor(input2):
         f32 = ir.F32Type.get()
@@ -953,9 +908,7 @@ def logical_not_op(node: LogicalNotOp, symbol_table):
     # torch.logical_not: for numeric tensors, it's equivalent to (x == 0).
     if input_dtype != bool_type:
         zero_type = ir.RankedTensorType.get(input_shape, input_dtype)
-        if ir.FloatType.isinstance(input_dtype) or ir.BF16Type.isinstance(
-            input_dtype
-        ):
+        if is_float_mlir_type(input_dtype):
             zero_attr = ir.DenseElementsAttr.get_splat(
                 zero_type, ir.FloatAttr.get(input_dtype, 0.0)
             )
@@ -1395,7 +1348,7 @@ def max_pool1d_op(node: MaxPool1dOp, symbol_table):
                     ).result
                     in_bounds = arith.AndIOp(iw_ge_0, iw_lt_w).result
 
-                    if_op = scf.IfOp(in_bounds, hasElse=False)
+                    if_op = scf.IfOp(in_bounds, has_else=False)
                     with ir.InsertionPoint(if_op.then_block):
                         input_val = memref.LoadOp(
                             input_memref, [n, c, iw]
@@ -1419,7 +1372,7 @@ def max_pool1d_op(node: MaxPool1dOp, symbol_table):
                                 pred, input_val, current_max
                             ).result
 
-                        inner_if = scf.IfOp(is_greater, hasElse=False)
+                        inner_if = scf.IfOp(is_greater, has_else=False)
                         with ir.InsertionPoint(inner_if.then_block):
                             memref.StoreOp(
                                 input_val,
@@ -1553,7 +1506,7 @@ def adaptive_max_pool1d_op(node: AdaptiveMaxPool1dOp, symbol_table):
                             pred, input_val, current_max
                         ).result
 
-                    inner_if = scf.IfOp(is_greater, hasElse=False)
+                    inner_if = scf.IfOp(is_greater, has_else=False)
                     with ir.InsertionPoint(inner_if.then_block):
                         memref.StoreOp(
                             input_val,
@@ -1715,7 +1668,7 @@ def adaptive_max_pool2d_op(node: AdaptiveMaxPool2dOp, symbol_table):
                                     pred, input_val, current_max
                                 ).result
 
-                            inner_if = scf.IfOp(is_greater, hasElse=False)
+                            inner_if = scf.IfOp(is_greater, has_else=False)
                             with ir.InsertionPoint(inner_if.then_block):
                                 memref.StoreOp(
                                     input_val,
@@ -2709,7 +2662,7 @@ def convert_element_type_op(node: ConvertElementTypeOp, symbol_table):
     input_type = ir.RankedTensorType(input_tensor.type).element_type
     output_shape = list(node.tensor_meta["shape"])
 
-    if ir.ComplexType.isinstance(to_cast_type):
+    if is_complex_mlir_type(to_cast_type):
         complex_elem_type = ir.ComplexType(to_cast_type).element_type
         if str(input_type) != str(complex_elem_type):
             raise NotImplementedError(
@@ -2889,7 +2842,7 @@ def var_mean_op(node: VarMeanOp, symbol_table):
           first calculate (\bar{x} - x_i), where \bar{x} is the mean value we
           calculated in the first step. By applying tosa's `mul` operation, we
           get (\bar{x} - x_i) ^ 2. Then we reduce the multiplication result to
-          get \\sum_{i=0}^{N}(\bar{x} - x_i) ^ 2. Finally, we divide the
+          get \sum_{i=0}^{N}(\bar{x} - x_i) ^ 2. Finally, we divide the
           reduction sum result by the total size of the reduced dimension(s)
           minus the correction.
 
@@ -3128,11 +3081,11 @@ def expand_op(node: ExpandOp, symbol_table) -> ir.Operation:
         ir.IntegerType.get_signless(64),
     ):
         element = ir.IntegerAttr.get(result_element_type, 0)
-    elif (
-        result_element_type == ir.F32Type.get()
-        or result_element_type == ir.F16Type.get()
-        or result_element_type == ir.BF16Type.get()
-    ):
+    elif result_element_type == ir.F32Type.get():
+        element = ir.FloatAttr.get(result_element_type, 0.0)
+    elif result_element_type == ir.F16Type.get():
+        element = ir.FloatAttr.get(result_element_type, 0.0)
+    elif result_element_type == ir.BF16Type.get():
         element = ir.FloatAttr.get(result_element_type, 0.0)
     else:
         raise NotImplementedError("Unsupported element type!")
@@ -3151,7 +3104,7 @@ def expand_op(node: ExpandOp, symbol_table) -> ir.Operation:
             f"expand_op: invalid target rank {len(new_size)} for input rank {len(original_size)}"
         )
 
-    expanded_size: list[int] = []
+    expanded_size: List[int] = []
     for dim, size in zip(original_size, new_size):
         expanded_size.append(dim if size == -1 else int(size))
 
@@ -3188,7 +3141,7 @@ def sum_op(node: SumDimOp, symbol_table):
     if isinstance(target_dtype, TensorDType):
         target_element_type = mlir_element_type_get(target_dtype)
     else:
-        if ir.IntegerType.isinstance(input_dtype):
+        if is_integer_mlir_type(input_dtype):
             target_element_type = ir.IntegerType.get_signless(64)
 
     if target_element_type != input_dtype:
@@ -3733,9 +3686,28 @@ def iota_op(node: IotaOp, symbol_table):
     start = node.kwargs["start"]
     count = node.args[0]
     step = node.kwargs["step"]
+    mlir_dtype = mlir_element_type_get(dtype)
+    tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
     if not isinstance(count, int):
         count = int(count)
-    return _build_range_tensor(output_shape, dtype, start, step)
+    numpy_dtype = {
+        TensorDType.Float16: numpy.float16,
+        TensorDType.BFloat16: numpy.uint16,
+        TensorDType.Float32: numpy.float32,
+        TensorDType.Float64: numpy.float64,
+        TensorDType.Int8: numpy.int8,
+        TensorDType.Int32: numpy.int32,
+        TensorDType.Int64: numpy.int64,
+        TensorDType.Bool: numpy.bool_,
+    }.get(dtype)
+    if numpy_dtype is None:
+        raise NotImplementedError(f"Unsupported dtype for iota: {dtype}")
+    base = numpy.arange(count, dtype=numpy_dtype)
+    values = start + base * step
+    attr = ir.DenseElementsAttr.get(values, type=tensor_type)
+    op = tosa.ConstOp(attr)
+
+    return op
 
 
 def sigmoid_op(node: SigmoidOp, symbol_table):
@@ -3910,9 +3882,7 @@ def clamp_min_op(node: ClampMinOp, symbol_table):
     min_value = symbol_table.get((str(node.args[1]), 0), node.args[1])
     tensor_type = input1.type
     element_type = ir.RankedTensorType(tensor_type).element_type
-    if ir.FloatType.isinstance(element_type) or ir.BF16Type.isinstance(
-        element_type
-    ):
+    if is_float_mlir_type(element_type):
         min_attr = ir.FloatAttr.get(element_type, float(min_value))
         max_attr = ir.FloatAttr.get(element_type, float("inf"))
     else:
@@ -3945,9 +3915,7 @@ def clamp_max_op(node: ClampMaxOp, symbol_table):
     max_value = symbol_table.get((str(node.args[1]), 0), node.args[1])
     tensor_type = input1.type
     element_type = ir.RankedTensorType(tensor_type).element_type
-    if ir.FloatType.isinstance(element_type) or ir.BF16Type.isinstance(
-        element_type
-    ):
+    if is_float_mlir_type(element_type):
         min_attr = ir.FloatAttr.get(element_type, -float("inf"))
         max_attr = ir.FloatAttr.get(element_type, float(max_value))
     else:
@@ -4136,11 +4104,19 @@ def scaled_dot_product_flash_attention_for_cpu_op(
     element = mlir_element_attr_get(dtype, 0.0)
     attr = ir.DenseElementsAttr.get_splat(matmul_result_type, element)
     matmul_result_buffer = arith.ConstantOp(matmul_result_type, attr).result
-    matmul_op = linalg.batch_matmul_transpose_b(
-        query_reshape_op.result,
-        key_reshape_op.result,
-        outs=[matmul_result_buffer],
+    generic_map = ir.AffineMap.get_permutation([0, 1, 2, 3])
+    matmul_op = linalg.BatchMatmulOp(
+        result_tensors=[matmul_result_type],
+        inputs=[query_reshape_op.result, key_reshape_op.result],
+        outputs=[matmul_result_buffer],
+        indexing_maps=[
+            generic_map.get_submap([0, 1, 3]),
+            generic_map.get_submap([0, 2, 3]),
+            generic_map.get_submap([0, 1, 2]),
+        ],
+        cast="cast_signed",
     )
+    linalg.fill_builtin_region(matmul_op.operation)
     if mlir_dtype == ir.F16Type.get():
         f16_max_val = 65504.0
         f16_min_val = -65504.0
@@ -4267,7 +4243,7 @@ def flash_attention_for_cpu_prefill_op(
 
     zero = arith.ConstantOp(dtype, 0.0, loc=loc).result
     neg_inf = arith.ConstantOp(dtype, -1.0e30, loc=loc).result
-    zero_vec = vector.SplatOp(v16, zero, loc=loc)
+    zero_vec = vector.BroadcastOp(v16, zero, loc=loc).result
     step_1 = arith.ConstantOp(index, 1, loc=loc)
 
     # === bufferization ===
@@ -4451,7 +4427,7 @@ def flash_attention_for_cpu_prefill_op(
                                 c0.result,
                                 head_dim.result,
                                 vec_len,
-                                [zero_vec.result],
+                                [zero_vec],
                             )
                             with ir.InsertionPoint(loop_k.body):
                                 k = loop_k.induction_variable
@@ -4568,7 +4544,7 @@ def flash_attention_for_cpu_prefill_op(
                             p = math.ExpOp(
                                 score_tile_sub_m_block, loc=loc
                             ).result
-                            exp_score_tile_vec = vector.SplatOp(
+                            exp_score_tile_vec = vector.BroadcastOp(
                                 v16, p, loc=loc
                             ).result
                             l_block_new = arith.AddFOp(
@@ -4612,10 +4588,10 @@ def flash_attention_for_cpu_prefill_op(
                         ).result
                         sub_max = arith.SubFOp(m_i_iter, m_new, loc=loc).result
                         alpha = math.ExpOp(sub_max, loc=loc).result
-                        alpha_vec = vector.SplatOp(v16, alpha, loc=loc).result
+                        alpha_vec = vector.BroadcastOp(v16, alpha, loc=loc).result
                         sub_block = arith.SubFOp(m_block, m_new, loc=loc).result
                         beta = math.ExpOp(sub_block, loc=loc).result
-                        beta_vec = vector.SplatOp(v16, beta, loc=loc).result
+                        beta_vec = vector.BroadcastOp(v16, beta, loc=loc).result
                         loop_k = scf.ForOp(c0.result, head_dim.result, vec_len)
                         with ir.InsertionPoint(loop_k.body):
                             k = loop_k.induction_variable
@@ -4653,7 +4629,7 @@ def flash_attention_for_cpu_prefill_op(
                     qi = loop_qi.induction_variable
                     idx_q = arith.AddIOp(q_block_start, qi, loc=loc).result
                     sum = memref.LoadOp(l_i_memref, [qi]).result
-                    sum_vec = vector.SplatOp(v16, sum, loc=loc).result
+                    sum_vec = vector.BroadcastOp(v16, sum, loc=loc).result
                     # Truncate sum to dtype_qkv for out_scores_memref
                     if need_cast:
                         sum_qkv = arith.TruncFOp(dtype_qkv, sum, loc=loc).result
@@ -4696,7 +4672,7 @@ def flash_attention_for_cpu_prefill_op(
 
 def le_op(
     node: LeOp,
-    symbol_table: dict[tuple[str, int], ir.Operation],
+    symbol_table: Dict[Tuple[str, int], ir.Operation],
 ):
     """
     Import the tensor less-than-or-equal (<=) operation from the graph to MLIR.
@@ -4885,9 +4861,7 @@ def all_op(node: AllOp, symbol_table):
     bool_tensor_type = ir.RankedTensorType.get(input_shape, bool_type)
     if input_dtype != bool_type:
         zero_type = ir.RankedTensorType.get(input_shape, input_dtype)
-        if ir.FloatType.isinstance(input_dtype) or ir.BF16Type.isinstance(
-            input_dtype
-        ):
+        if is_float_mlir_type(input_dtype):
             zero_attr = ir.DenseElementsAttr.get_splat(
                 zero_type, ir.FloatAttr.get(input_dtype, 0.0)
             )
@@ -4929,9 +4903,7 @@ def any_op(node: AnyOp, symbol_table):
     bool_tensor_type = ir.RankedTensorType.get(input_shape, bool_type)
     if input_dtype != bool_type:
         zero_type = ir.RankedTensorType.get(input_shape, input_dtype)
-        if ir.FloatType.isinstance(input_dtype) or ir.BF16Type.isinstance(
-            input_dtype
-        ):
+        if is_float_mlir_type(input_dtype):
             zero_attr = ir.DenseElementsAttr.get_splat(
                 zero_type, ir.FloatAttr.get(input_dtype, 0.0)
             )
@@ -4963,6 +4935,7 @@ def isinf_op(node: IsInfOp, symbol_table):
     From buddy graph ir's `IsInfOp` operator to MLIR TOSA operations.
     isinf(x) = (x == inf) or (x == -inf)
     """
+    import math
 
     input1 = symbol_table.get((str(node.args[0]), 0))
     input_shape = list(ir.RankedTensorType(input1.type).shape)
@@ -5020,7 +4993,7 @@ def floor_divide_op(node: FloorDivideOp, symbol_table):
     input_dtype = ir.RankedTensorType(input1.type).element_type
     result_type = ir.RankedTensorType.get(input_shape, input_dtype)
 
-    if ir.IntegerType.isinstance(input_dtype):
+    if is_integer_mlir_type(input_dtype):
         return _create_integer_division(input1, input2)
 
     # Compute x / y
@@ -5134,7 +5107,7 @@ def remainder_op(node: RemainderOp, symbol_table):
     input_dtype = ir.RankedTensorType(input1.type).element_type
     result_type = ir.RankedTensorType.get(input_shape, input_dtype)
 
-    if ir.IntegerType.isinstance(input_dtype):
+    if is_integer_mlir_type(input_dtype):
         output = tensor.EmptyOp(input_shape, input_dtype)
         generic_map = ir.AffineMap.get_permutation(
             [i for i in range(len(input_shape))]
@@ -5288,7 +5261,7 @@ def div_tensor_mode_op(node: DivTensorModeOp, symbol_table):
     # Get rounding mode from kwargs
     rounding_mode = node.kwargs.get("rounding_mode", None)
 
-    if ir.IntegerType.isinstance(input_dtype) and rounding_mode in (
+    if is_integer_mlir_type(input_dtype) and rounding_mode in (
         "floor",
         "trunc",
     ):
@@ -5770,14 +5743,39 @@ def arange_start_step_op(node: ArangeStartStepOp, symbol_table):
     output_shape = list(node.tensor_meta["shape"])
     output_dtype_str = str(node.tensor_meta["dtype"])
 
-    if "int64" in output_dtype_str:
-        output_dtype = TensorDType.Int64
-    elif "int32" in output_dtype_str:
-        output_dtype = TensorDType.Int32
-    else:
-        output_dtype = TensorDType.Float32
+    if "int64" in output_dtype_str or "int32" in output_dtype_str:
+        if "int64" in output_dtype_str:
+            output_dtype = ir.IntegerType.get_signless(64)
+        else:
+            output_dtype = ir.IntegerType.get_signless(32)
 
-    return _build_range_tensor(output_shape, output_dtype, start, step)
+        # Generate integer values
+        num_elements = output_shape[0]
+        values = [int(start + i * step) for i in range(num_elements)]
+
+        result_type = ir.RankedTensorType.get(output_shape, output_dtype)
+        values_attr = ir.DenseElementsAttr.get(
+            numpy.array(
+                values,
+                dtype=(
+                    numpy.int64 if "int64" in output_dtype_str else numpy.int32
+                ),
+            ),
+            type=result_type,
+        )
+    else:
+        output_dtype = ir.F32Type.get()
+
+        # Generate float values
+        num_elements = output_shape[0]
+        values = [float(start + i * step) for i in range(num_elements)]
+
+        result_type = ir.RankedTensorType.get(output_shape, output_dtype)
+        values_attr = ir.DenseElementsAttr.get(
+            numpy.array(values, dtype=numpy.float32), type=result_type
+        )
+
+    return tosa.ConstOp(values_attr).result
 
 
 def argmin_op(node: ArgMinOp, symbol_table):
@@ -6105,9 +6103,7 @@ def add_scalar_op(node: AddScalarOp, symbol_table):
             ir.RankedTensorType.get(input_shape, input_dtype), input1
         ).result
 
-    if ir.FloatType.isinstance(input_dtype) or ir.BF16Type.isinstance(
-        input_dtype
-    ):
+    if is_float_mlir_type(input_dtype):
         effective_scalar = float(scalar) * float(alpha)
     else:
         effective_scalar = int(round(float(scalar) * float(alpha)))
@@ -6140,9 +6136,7 @@ def sub_scalar_op(node: SubScalarOp, symbol_table):
             ir.RankedTensorType.get(input_shape, input_dtype), input1
         ).result
 
-    if ir.FloatType.isinstance(input_dtype) or ir.BF16Type.isinstance(
-        input_dtype
-    ):
+    if is_float_mlir_type(input_dtype):
         effective_scalar = float(scalar) * float(alpha)
     else:
         effective_scalar = int(round(float(scalar) * float(alpha)))
@@ -6524,9 +6518,7 @@ def any_dims_op(node: AnyDimsOp, symbol_table):
     bool_tensor_type = ir.RankedTensorType.get(input_shape, bool_type)
     if input_dtype != bool_type:
         zero_type = ir.RankedTensorType.get(input_shape, input_dtype)
-        if ir.FloatType.isinstance(input_dtype) or ir.BF16Type.isinstance(
-            input_dtype
-        ):
+        if is_float_mlir_type(input_dtype):
             zero_attr = ir.DenseElementsAttr.get_splat(
                 zero_type, ir.FloatAttr.get(input_dtype, 0.0)
             )
@@ -7001,7 +6993,7 @@ def sum_default_op(node: SumDefaultOp, symbol_table):
     if isinstance(target_dtype, TensorDType):
         target_element_type = mlir_element_type_get(target_dtype)
     else:
-        if ir.IntegerType.isinstance(input_dtype):
+        if is_integer_mlir_type(input_dtype):
             # Promote all integer/bool sums to i64 by default.
             target_element_type = ir.IntegerType.get_signless(64)
 
@@ -7042,9 +7034,7 @@ def all_dims_op(node: AllDimsOp, symbol_table):
     bool_tensor_type = ir.RankedTensorType.get(input_shape, bool_type)
     if input_dtype != bool_type:
         zero_type = ir.RankedTensorType.get(input_shape, input_dtype)
-        if ir.FloatType.isinstance(input_dtype) or ir.BF16Type.isinstance(
-            input_dtype
-        ):
+        if is_float_mlir_type(input_dtype):
             zero_attr = ir.DenseElementsAttr.get_splat(
                 zero_type, ir.FloatAttr.get(input_dtype, 0.0)
             )
@@ -8472,7 +8462,7 @@ def grid_sampler_2d_op(node, symbol_table):
         ok = arith.AndIOp(
             _in_bounds(yi64, h_in_i64), _in_bounds(xi64, w_in_i64)
         ).result
-        if_op = scf.IfOp(ok, [f_ty], hasElse=True)
+        if_op = scf.IfOp(ok, [f_ty], has_else=True)
         with ir.InsertionPoint(if_op.then_block):
             y = arith.IndexCastOp(index_ty, yi64).result
             x = arith.IndexCastOp(index_ty, xi64).result
@@ -9603,7 +9593,7 @@ def _ndtri_approx(
     input_tensor: ir.Value,
     result_type: ir.RankedTensorType,
     input_dtype: ir.Type,
-    input_shape: list[int],
+    input_shape: List[int],
 ):
     shift = _create_mul_shift_operand()
 
@@ -10750,7 +10740,7 @@ def _cummaxmin_op(node, symbol_table, is_max: bool):
 
     input_dtype = input_type.element_type
     if not (
-        _is_float_type(input_dtype) or ir.IntegerType.isinstance(input_dtype)
+        _is_float_type(input_dtype) or is_integer_mlir_type(input_dtype)
     ):
         raise NotImplementedError("cummax/cummin requires numeric tensor")
 
@@ -11174,7 +11164,7 @@ def masked_scatter_op(node: MaskedScatterOp, symbol_table):
         raise NotImplementedError(
             "masked_scatter requires source dtype to match input"
         )
-    if not ir.IntegerType.isinstance(mask_dtype):
+    if not is_integer_mlir_type(mask_dtype):
         raise NotImplementedError("masked_scatter requires integer mask")
 
     total_source_elems = 1
@@ -11233,7 +11223,7 @@ def masked_scatter_op(node: MaskedScatterOp, symbol_table):
         ).result
         do_update = arith.AndIOp(mask_bool, has_source).result
 
-        if_op = scf.IfOp(do_update, hasElse=False)
+        if_op = scf.IfOp(do_update, has_else=False)
         with ir.InsertionPoint(if_op.then_block):
             src_val = memref.LoadOp(source_memref, [src_index]).result
             memref.StoreOp(src_val, output_memref.result, indices)
@@ -11408,25 +11398,22 @@ def avg_pool2d_backward_op(node: AvgPool2dBackwardOp, symbol_table):
     if isinstance(kernel_size, int):
         kernel_h, kernel_w = kernel_size, kernel_size
     else:
-        kernel_h, kernel_w = (
-            kernel_size[0],
-            (kernel_size[1] if len(kernel_size) > 1 else kernel_size[0]),
+        kernel_h, kernel_w = kernel_size[0], (
+            kernel_size[1] if len(kernel_size) > 1 else kernel_size[0]
         )
 
     if isinstance(stride, int):
         stride_h, stride_w = stride, stride
     else:
-        stride_h, stride_w = (
-            stride[0],
-            (stride[1] if len(stride) > 1 else stride[0]),
+        stride_h, stride_w = stride[0], (
+            stride[1] if len(stride) > 1 else stride[0]
         )
 
     if isinstance(padding, int):
         pad_h, pad_w = padding, padding
     else:
-        pad_h, pad_w = (
-            padding[0],
-            (padding[1] if len(padding) > 1 else padding[0]),
+        pad_h, pad_w = padding[0], (
+            padding[1] if len(padding) > 1 else padding[0]
         )
 
     # Calculate divisor
@@ -11575,25 +11562,22 @@ def convolution_backward_op(node: ConvolutionBackwardOp, symbol_table):
     if isinstance(stride, int):
         stride_h, stride_w = stride, stride
     else:
-        stride_h, stride_w = (
-            stride[0],
-            (stride[1] if len(stride) > 1 else stride[0]),
+        stride_h, stride_w = stride[0], (
+            stride[1] if len(stride) > 1 else stride[0]
         )
 
     if isinstance(padding, int):
         pad_h, pad_w = padding, padding
     else:
-        pad_h, pad_w = (
-            padding[0],
-            (padding[1] if len(padding) > 1 else padding[0]),
+        pad_h, pad_w = padding[0], (
+            padding[1] if len(padding) > 1 else padding[0]
         )
 
     if isinstance(dilation, int):
         dil_h, dil_w = dilation, dilation
     else:
-        dil_h, dil_w = (
-            dilation[0],
-            (dilation[1] if len(dilation) > 1 else dilation[0]),
+        dil_h, dil_w = dilation[0], (
+            dilation[1] if len(dilation) > 1 else dilation[0]
         )
 
     results = []
@@ -12958,7 +12942,7 @@ def empty_strided_op(node: EmptyStridedOp, symbol_table):
     # runs (aten.empty_strided returns uninitialized memory).
     i1_type = ir.IntegerType.get_signless(1)
     guard = arith.ConstantOp(i1_type, 0).result
-    const_if = scf.IfOp(guard, hasElse=False)
+    const_if = scf.IfOp(guard, has_else=False)
     with ir.InsertionPoint(const_if.then_block):
         zero = _get_zero_scalar(element_type)
         zero_attr = ir.DenseElementsAttr.get_splat(output_type, zero)
@@ -13025,13 +13009,13 @@ def cauchy_op(node: CauchyOp, symbol_table):
 
 
 def _is_float_type(dtype: ir.Type) -> bool:
-    return ir.FloatType.isinstance(dtype) or ir.BF16Type.isinstance(dtype)
+    return is_float_mlir_type(dtype)
 
 
 def _get_min_value_attr(dtype: ir.Type) -> ir.Attribute:
     if _is_float_type(dtype):
         return ir.FloatAttr.get(dtype, float("-inf"))
-    if ir.IntegerType.isinstance(dtype):
+    if is_integer_mlir_type(dtype):
         width = ir.IntegerType(dtype).width
         if width == 1 or _is_unsigned_integer_type(dtype):
             return ir.IntegerAttr.get(dtype, 0)
@@ -13041,12 +13025,13 @@ def _get_min_value_attr(dtype: ir.Type) -> ir.Attribute:
 
 def _get_zero_scalar(dtype):
     """Helper to get zero value for a given dtype."""
-    if (
-        dtype == ir.F32Type.get()
-        or dtype == ir.F64Type.get()
-        or dtype == ir.F16Type.get()
-        or dtype == ir.BF16Type.get()
-    ):
+    if dtype == ir.F32Type.get():
+        return ir.FloatAttr.get(dtype, 0.0)
+    elif dtype == ir.F64Type.get():
+        return ir.FloatAttr.get(dtype, 0.0)
+    elif dtype == ir.F16Type.get():
+        return ir.FloatAttr.get(dtype, 0.0)
+    elif dtype == ir.BF16Type.get():
         return ir.FloatAttr.get(dtype, 0.0)
     else:
         return ir.IntegerAttr.get(dtype, 0)
@@ -13054,12 +13039,13 @@ def _get_zero_scalar(dtype):
 
 def _get_scalar_attr(dtype, value):
     """Helper to get a scalar attribute with a given value for a dtype."""
-    if (
-        dtype == ir.F32Type.get()
-        or dtype == ir.F64Type.get()
-        or dtype == ir.F16Type.get()
-        or dtype == ir.BF16Type.get()
-    ):
+    if dtype == ir.F32Type.get():
+        return ir.FloatAttr.get(dtype, float(value))
+    elif dtype == ir.F64Type.get():
+        return ir.FloatAttr.get(dtype, float(value))
+    elif dtype == ir.F16Type.get():
+        return ir.FloatAttr.get(dtype, float(value))
+    elif dtype == ir.BF16Type.get():
         return ir.FloatAttr.get(dtype, float(value))
     else:
         return ir.IntegerAttr.get(dtype, int(value))
@@ -13110,9 +13096,9 @@ def embedding_bag_op(node: EmbeddingBagOp, symbol_table):
         raise NotImplementedError("embedding_bag requires 1D offsets")
     if any(dim < 0 for dim in weight_shape + indices_shape + offsets_shape):
         raise NotImplementedError("embedding_bag requires static shapes")
-    if not ir.IntegerType.isinstance(indices_type.element_type):
+    if not is_integer_mlir_type(indices_type.element_type):
         raise NotImplementedError("embedding_bag requires integer indices")
-    if not ir.IntegerType.isinstance(offsets_type.element_type):
+    if not is_integer_mlir_type(offsets_type.element_type):
         raise NotImplementedError("embedding_bag requires integer offsets")
 
     if padding_idx >= 0 and padding_idx >= weight_shape[0]:
@@ -13142,7 +13128,7 @@ def embedding_bag_op(node: EmbeddingBagOp, symbol_table):
     # constant-false branch so it does not execute in numeric runs.
     i1_type = ir.IntegerType.get_signless(1)
     gather_guard = arith.ConstantOp(i1_type, 0).result
-    gather_if = scf.IfOp(gather_guard, hasElse=False)
+    gather_if = scf.IfOp(gather_guard, has_else=False)
     with ir.InsertionPoint(gather_if.then_block):
         indices_shape_operand = _create_shape_operand([1, total_indices])
         indices_reshape = tosa.ReshapeOp(indices, indices_shape_operand)
@@ -13292,7 +13278,7 @@ def embedding_bag_op(node: EmbeddingBagOp, symbol_table):
                 bag_plus_one,
                 num_bags_const.result,
             ).result
-            if_op = scf.IfOp(is_last, hasElse=True)
+            if_op = scf.IfOp(is_last, has_else=True)
             with ir.InsertionPoint(if_op.then_block):
                 memref.StoreOp(
                     total_indices_const.result,
@@ -13360,7 +13346,7 @@ def embedding_bag_op(node: EmbeddingBagOp, symbol_table):
                 is_pad = arith.CmpIOp(
                     arith.CmpIPredicate.eq, idx_val, pad_const
                 ).result
-                pad_if = scf.IfOp(is_pad, hasElse=True)
+                pad_if = scf.IfOp(is_pad, has_else=True)
                 with ir.InsertionPoint(pad_if.then_block):
                     scf.YieldOp([])
                 with ir.InsertionPoint(pad_if.else_block):
@@ -13385,7 +13371,7 @@ def embedding_bag_op(node: EmbeddingBagOp, symbol_table):
             is_empty = arith.CmpIOp(
                 arith.CmpIPredicate.eq, bag_count, zero.result
             ).result
-            mean_if = scf.IfOp(is_empty, hasElse=True)
+            mean_if = scf.IfOp(is_empty, has_else=True)
             with ir.InsertionPoint(mean_if.then_block):
                 scf.YieldOp([])
             with ir.InsertionPoint(mean_if.else_block):
@@ -13649,8 +13635,7 @@ def resize_op(node: ResizeOp, symbol_table):
 
         # Concatenate input with padding (input_list, axis)
         padded = tosa.ConcatOp(
-            [flattened.result, padding_tensor.result],
-            0,  # axis
+            [flattened.result, padding_tensor.result], 0  # axis
         )
 
         # Reshape to target shape
@@ -13832,7 +13817,7 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
     neg_inf = arith.ConstantOp(compute_dtype, -1.0e30, loc=loc).result
     zero_compute = arith.ConstantOp(compute_dtype, 0.0, loc=loc).result
     one = arith.ConstantOp(compute_dtype, 1.0, loc=loc).result
-    zero_vec = vector.SplatOp(v16_compute, zero_compute, loc=loc).result
+    zero_vec = vector.BroadcastOp(v16_compute, zero_compute, loc=loc).result
 
     # Padding value for TransferReadOp must match tensor element type
     if need_cast:
@@ -14041,7 +14026,7 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
                             softmax_result, [b, h, q, k], loc=loc
                         ).result
 
-                        pv = vector.SplatOp(v16_compute, p, loc=loc).result
+                        pv = vector.BroadcastOp(v16_compute, p, loc=loc).result
                         perm_map = ir.AffineMap.get(
                             4, 0, [ir.AffineDimExpr.get(3)]
                         )
@@ -14100,6 +14085,7 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
 
 
 # Import func ops registry for CallOp support
+from . import func as func_ops
 
 ops_registry = {
     "AddOp": add_op,

@@ -27,7 +27,6 @@ target_link_libraries(buddy-opt
   BatchMatMulOptimization
   MatMulParallelVectorization
   TransposeOptimization
-  GraphRedundancyElimination
   ConvOptimization
   DepthwiseConvOptimization
   VectorExp
@@ -36,8 +35,6 @@ target_link_libraries(buddy-opt
   LowerGemminiPass
   LowerLinalgToGemminiPass
   LowerLinalgToIMEPass
-  BuddyIME
-  BuddyIMETransforms
   LowerIMEPass
   BuddyAME
   BuddyAMETransforms
@@ -52,8 +49,23 @@ target_link_libraries(buddy-opt
   MatMulTransposeBVec
   LinalgToVIRPass
   VIRToVectorPass
-  TosaElementwiseFusion
   AssumeTightMemRefLayoutPass
   StaticizeMemRefLayoutPass
+  GraphRedundancyElimination
   EliminateMemRefCopyPass
+  TosaElementwiseFusion
+  MLIRRegisterAllDialects
+  MLIRRegisterAllExtensions
+  MLIRRegisterAllPasses
   )
+
+# CMake 3.31+ may omit imported MLIRRegisterAll* static libs when their
+# INTERFACE_LINK_LIBRARIES duplicate dialect_libs; force the archives so
+# registerAllDialects/registerAllPasses symbols resolve.
+if(TARGET MLIRRegisterAllDialects)
+  target_link_libraries(buddy-opt PRIVATE
+    "$<TARGET_FILE:MLIRRegisterAllDialects>"
+    "$<TARGET_FILE:MLIRRegisterAllExtensions>"
+    "$<TARGET_FILE:MLIRRegisterAllPasses>"
+  )
+endif()

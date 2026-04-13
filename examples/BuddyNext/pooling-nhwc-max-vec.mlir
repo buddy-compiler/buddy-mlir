@@ -27,7 +27,7 @@ module {
     %c3 = arith.constant 3 : index
     %vl_step = arith.constant 32 : index
     %c0_f32 = arith.constant 0.000000e+00 : f32
-    %0 = vector.splat %c0_f32 : vector<32xf32>
+    %0 = vector.broadcast %c0_f32 : f32 to vector<32xf32>
     %dim = memref.dim %arg1, %c0 : memref<?x?xf32>
     %dim_0 = memref.dim %arg1, %c1 : memref<?x?xf32>
     %dim_1 = memref.dim %arg2, %c0 : memref<?x?x?x?xf32>

@@ -1,4 +1,6 @@
 # RUN: %PYTHON %s | FileCheck %s
+# UNSUPPORTED: true
+# Torch + Buddy + MLIR in one process double-registers LLVM CLI (e.g. print-inst-addrs).
 import time
 
 import torch

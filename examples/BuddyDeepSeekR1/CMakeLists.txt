@@ -1567,6 +1567,9 @@ add_executable(buddy-deepseek-r1-w8a8-run buddy-deepseek-r1-w8a8-main.cpp)
 add_executable(buddy-deepseek-r1-w4a16-run buddy-deepseek-r1-w4a16-main.cpp)
 add_executable(buddy-deepseek-r1-w8a16-run buddy-deepseek-r1-w8a16-main.cpp)
 add_executable(buddy-deepseek-r1-cli buddy-deepseek-r1-cli.cpp)
+# buddy/runtime/llm/Sampler.h and related headers live under runtime/include
+target_include_directories(buddy-deepseek-r1-cli PRIVATE
+  ${CMAKE_SOURCE_DIR}/runtime/include)
 
 set(DEEPSEEKR1_EXAMPLE_PATH ${CMAKE_CURRENT_SOURCE_DIR})
 set(DEEPSEEKR1_EXAMPLE_BUILD_PATH ${CMAKE_CURRENT_BINARY_DIR})
@@ -1611,14 +1614,14 @@ if(IS_RVV_PLATFORM)
   target_link_options(buddy-deepseek-r1-run PRIVATE ${RISCV_LINK_OPTS})
 endif()
 
-target_link_directories(buddy-deepseek-r1-run PRIVATE ${LLVM_LIBRARY_DIR})
-target_link_directories(buddy-deepseek-r1-f16-run PRIVATE ${LLVM_LIBRARY_DIR})
-target_link_directories(buddy-deepseek-r1-bf16-run PRIVATE ${LLVM_LIBRARY_DIR})
-target_link_directories(buddy-deepseek-r1-w8a32-run PRIVATE ${LLVM_LIBRARY_DIR})
-target_link_directories(buddy-deepseek-r1-w8a8-run PRIVATE ${LLVM_LIBRARY_DIR})
-target_link_directories(buddy-deepseek-r1-w4a16-run PRIVATE ${LLVM_LIBRARY_DIR})
-target_link_directories(buddy-deepseek-r1-w8a16-run PRIVATE ${LLVM_LIBRARY_DIR})
-target_link_directories(buddy-deepseek-r1-cli PRIVATE ${LLVM_LIBRARY_DIR})
+target_link_directories(buddy-deepseek-r1-run PRIVATE ${BUDDY_LLVM_WITH_OPENMP_LINK_DIRS})
+target_link_directories(buddy-deepseek-r1-f16-run PRIVATE ${BUDDY_LLVM_WITH_OPENMP_LINK_DIRS})
+target_link_directories(buddy-deepseek-r1-bf16-run PRIVATE ${BUDDY_LLVM_WITH_OPENMP_LINK_DIRS})
+target_link_directories(buddy-deepseek-r1-w8a32-run PRIVATE ${BUDDY_LLVM_WITH_OPENMP_LINK_DIRS})
+target_link_directories(buddy-deepseek-r1-w8a8-run PRIVATE ${BUDDY_LLVM_WITH_OPENMP_LINK_DIRS})
+target_link_directories(buddy-deepseek-r1-w4a16-run PRIVATE ${BUDDY_LLVM_WITH_OPENMP_LINK_DIRS})
+target_link_directories(buddy-deepseek-r1-w8a16-run PRIVATE ${BUDDY_LLVM_WITH_OPENMP_LINK_DIRS})
+target_link_directories(buddy-deepseek-r1-cli PRIVATE ${BUDDY_LLVM_WITH_OPENMP_LINK_DIRS})
 
 set(BUDDY_DEEPSEEKR1_LIBS
   DEEPSEEKR1
@@ -1969,7 +1972,7 @@ if(IS_RVV_PLATFORM)
   target_link_options(buddy-deepseek-r1-tiered-kv-cache-run PRIVATE ${RISCV_LINK_OPTS})
 endif()
 
-target_link_directories(buddy-deepseek-r1-tiered-kv-cache-run PRIVATE ${LLVM_LIBRARY_DIR})
+target_link_directories(buddy-deepseek-r1-tiered-kv-cache-run PRIVATE ${BUDDY_LLVM_WITH_OPENMP_LINK_DIRS})
 
 # Each decode subgraph object contains a copy of dealloc_helper from MLIR
 # bufferization-lower-deallocations; allow multiple definitions when linking.

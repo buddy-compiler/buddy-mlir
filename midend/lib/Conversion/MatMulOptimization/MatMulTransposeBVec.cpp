@@ -84,7 +84,7 @@ public:
     }
 
     const Value c0Ele = buddy::insertZeroConstantOp(ctx, rewriter, loc, eleTy);
-    Value passthruVec = rewriter.create<SplatOp>(loc, vectorTy, c0Ele);
+    Value passthruVec = rewriter.create<vector::BroadcastOp>(loc, vectorTy, c0Ele);
 
     const Value aRow = rewriter.create<memref::DimOp>(loc, A, c0);
     const Value bRow = rewriter.create<memref::DimOp>(loc, B, c0);

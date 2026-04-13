@@ -14,7 +14,6 @@ add_llvm_component_library(LLVMBuddyCodeGen
   ${LLVM_CodeGen_DIR}/BasicBlockPathCloning.cpp
   ${LLVM_CodeGen_DIR}/BasicBlockSectionsProfileReader.cpp
   ${LLVM_CodeGen_DIR}/CalcSpillWeights.cpp
-  ${LLVM_CodeGen_DIR}/CallBrPrepare.cpp
   ${LLVM_CodeGen_DIR}/CallingConvLower.cpp
   ${LLVM_CodeGen_DIR}/CFGuardLongjmp.cpp
   ${LLVM_CodeGen_DIR}/CFIFixup.cpp
@@ -34,9 +33,6 @@ add_llvm_component_library(LLVMBuddyCodeGen
   ${LLVM_CodeGen_DIR}/EdgeBundles.cpp
   ${LLVM_CodeGen_DIR}/EHContGuardTargets.cpp
   ${LLVM_CodeGen_DIR}/ExecutionDomainFix.cpp
-  ${LLVM_CodeGen_DIR}/ExpandLargeDivRem.cpp
-  ${LLVM_CodeGen_DIR}/ExpandFp.cpp
-  ${LLVM_CodeGen_DIR}/ExpandMemCmp.cpp
   ${LLVM_CodeGen_DIR}/ExpandPostRAPseudos.cpp
   ${LLVM_CodeGen_DIR}/ExpandReductions.cpp
   ${LLVM_CodeGen_DIR}/ExpandVectorPredication.cpp

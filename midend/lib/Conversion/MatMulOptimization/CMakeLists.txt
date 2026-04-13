@@ -19,6 +19,7 @@ add_mlir_library(MatMulOptimization
   MatmulAMX.cpp
   LINK_LIBS PUBLIC
   BuddyUtils
+  MLIRX86Dialect
 )
 
 add_mlir_library(BatchMatMulOptimization

@@ -259,7 +259,7 @@ target_compile_definitions(buddy-qwen3-0.6b-run PRIVATE
 )
 
 
-target_link_directories(buddy-qwen3-0.6b-run PRIVATE ${LLVM_LIBRARY_DIR})
+target_link_directories(buddy-qwen3-0.6b-run PRIVATE ${BUDDY_LLVM_WITH_OPENMP_LINK_DIRS})
 
 set(BUDDY_QWEN3_0_6B_LIBS
   QWEN3_0_6B

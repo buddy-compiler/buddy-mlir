@@ -127,7 +127,7 @@ public:
                   tVec = builder.create<vector::BroadcastOp>(loc, vecTy,
                                                              zeroElementType);
                 } else {
-                  tVec = builder.create<vector::SplatOp>(loc, vecTy,
+                  tVec = builder.create<vector::BroadcastOp>(loc, vecTy,
                                                          zeroElementType);
                 }
 

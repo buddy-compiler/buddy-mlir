@@ -48,11 +48,11 @@ SmallVector<Value, 5> generateSOSParams(OpBuilder &rewriter, Location loc,
                                         Value c0, Value c1, Value c2, Value c4,
                                         Value c5, Value filterSize,
                                         Value kernel) {
-  Value initB0 = rewriter.create<vector::SplatOp>(loc, vectorTy, f1);
-  Value initB1 = rewriter.create<vector::SplatOp>(loc, vectorTy, f0);
-  Value initB2 = rewriter.create<vector::SplatOp>(loc, vectorTy, f0);
-  Value initA1 = rewriter.create<vector::SplatOp>(loc, vectorTy, f0);
-  Value initA2 = rewriter.create<vector::SplatOp>(loc, vectorTy, f0);
+  Value initB0 = rewriter.create<vector::BroadcastOp>(loc, vectorTy, f1);
+  Value initB1 = rewriter.create<vector::BroadcastOp>(loc, vectorTy, f0);
+  Value initB2 = rewriter.create<vector::BroadcastOp>(loc, vectorTy, f0);
+  Value initA1 = rewriter.create<vector::BroadcastOp>(loc, vectorTy, f0);
+  Value initA2 = rewriter.create<vector::BroadcastOp>(loc, vectorTy, f0);
 
   // Distribute all params into 5 param vectors
   auto vecDistribute = rewriter.create<scf::ForOp>(
@@ -95,9 +95,9 @@ void biquadProcess(OpBuilder &rewriter, Location loc, VectorType vectorTy,
   Value vecA1 = SOSParams[3];
   Value vecA2 = SOSParams[4];
 
-  Value vecOut = rewriter.create<vector::SplatOp>(loc, vectorTy, f0);
-  Value vecS1 = rewriter.create<vector::SplatOp>(loc, vectorTy, f0);
-  Value vecS2 = rewriter.create<vector::SplatOp>(loc, vectorTy, f0);
+  Value vecOut = rewriter.create<vector::BroadcastOp>(loc, vectorTy, f0);
+  Value vecS1 = rewriter.create<vector::BroadcastOp>(loc, vectorTy, f0);
+  Value vecS2 = rewriter.create<vector::BroadcastOp>(loc, vectorTy, f0);
 
   // Injection stage for iir operation, no output produced
   auto injectionResult = rewriter.create<scf::ForOp>(

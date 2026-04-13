@@ -1,5 +1,8 @@
 include(AddMLIRPython)
 
+# Avoid nanobind symbol collisions with other MLIR Python consumers (LLVM #171775).
+set(MLIR_BINDINGS_PYTHON_NB_DOMAIN "buddy_mlir")
+
 # Specifies that all MLIR packages are co-located under the `mlir_standalone`
 # top level package (the API has been embedded in a relocatable way).
 # TODO: Add an upstream cmake param for this vs having a global here.
@@ -126,8 +129,10 @@ add_mlir_python_modules(BuddyMLIRPythonModules
     BuddyMLIRPythonSources
     MLIRPythonSources
     MLIRPythonExtension.Core
+  # Link only BuddyMLIRPythonCAPI: it already aggregates MLIRPythonSources +
+  # MLIRPythonExtension.Core (see add_mlir_python_common_capi_library above).
+  # Also linking MLIRPythonCAPI loads a second full LLVM into the process and
+  # triggers fatal "Option ... registered more than once" when used with PyTorch.
   COMMON_CAPI_LINK_LIBS
     BuddyMLIRPythonCAPI
   )
-
-add_custom_target(python-package-buddy-mlir DEPENDS BuddyMLIRPythonModules)

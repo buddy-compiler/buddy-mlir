@@ -21,14 +21,16 @@ Secondly, build the llvm with LLVM, MLIR and OpenMP.
 cd buddy-mlir
 mkdir llvm/build
 cmake -G Ninja ../llvm \
-  -DLLVM_ENABLE_PROJECTS="mlir;clang;openmp" \
+  -DLLVM_ENABLE_PROJECTS="mlir;clang" \
   -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
+  -DLLVM_ENABLE_RUNTIMES="openmp" \
   -DLLVM_ENABLE_ASSERTIONS=ON \
   -DOPENMP_ENABLE_LIBOMPTARGET=OFF \
   -DCMAKE_BUILD_TYPE=RELEASE \
   -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
   -DPython3_EXECUTABLE=$(which python3)
-ninja check-clang check-mlir omp
+ninja check-clang check-mlir
+ninja -C runtimes/runtimes-bins omp
 ```
 
 Then build the buddy mlir with the python binding.

@@ -517,6 +517,9 @@ public:
   using OpRewritePattern<linalg::BatchMatmulOp>::OpRewritePattern;
   LogicalResult matchAndRewrite(linalg::BatchMatmulOp batchMatMulOp,
                                 PatternRewriter &rewriter) const override {
+    if (isa<linalg::BatchMatmulTransposeBOp, linalg::BatchMatmulTransposeAOp>(
+            batchMatMulOp.getOperation()))
+      return failure();
     Location loc = batchMatMulOp.getLoc();
     auto inputs = batchMatMulOp.getInputs();
     Value input0 = inputs[0];
@@ -571,16 +574,19 @@ public:
   }
 };
 
-class BatchMatMulTransposeBLowering
-    : public OpRewritePattern<linalg::BatchMatmulTransposeBOp> {
+class BatchMatMulTransposeBLowering : public OpRewritePattern<linalg::BatchMatmulOp> {
 public:
   explicit BatchMatMulTransposeBLowering(MLIRContext *context,
                                          std::string accType)
-      : OpRewritePattern(context), accType(accType) {}
-  using OpRewritePattern<linalg::BatchMatmulTransposeBOp>::OpRewritePattern;
+      : OpRewritePattern(context, PatternBenefit(2)), accType(accType) {}
+  using OpRewritePattern<linalg::BatchMatmulOp>::OpRewritePattern;
   LogicalResult
-  matchAndRewrite(linalg::BatchMatmulTransposeBOp batchMatMulTransBOp,
+  matchAndRewrite(linalg::BatchMatmulOp batchMatMulOp,
                   PatternRewriter &rewriter) const override {
+    auto batchMatMulTransBOp =
+        dyn_cast<linalg::BatchMatmulTransposeBOp>(batchMatMulOp.getOperation());
+    if (!batchMatMulTransBOp)
+      return failure();
     Location loc = batchMatMulTransBOp.getLoc();
     auto inputs = batchMatMulTransBOp.getInputs();
     Value input0 = inputs[0];

@@ -3,4 +3,5 @@ add_mlir_library(LowerGemminiPass
 
   LINK_LIBS PUBLIC
   BuddyGemminiTransforms
+  MLIRSCFToControlFlow
   )

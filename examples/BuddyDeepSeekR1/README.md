@@ -23,15 +23,19 @@ $ cd buddy-mlir
 $ mkdir llvm/build
 $ cd llvm/build
 $ cmake -G Ninja ../llvm \
-    -DLLVM_ENABLE_PROJECTS="mlir;clang;openmp" \
+    -DLLVM_ENABLE_PROJECTS="mlir;clang" \
+    -DLLVM_ENABLE_RUNTIMES="openmp" \
     -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
     -DLLVM_ENABLE_ASSERTIONS=ON \
     -DOPENMP_ENABLE_LIBOMPTARGET=OFF \
     -DCMAKE_BUILD_TYPE=RELEASE \
     -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
     -DPython3_EXECUTABLE=$(which python3)
-$ ninja check-clang check-mlir omp
+$ ninja check-clang check-mlir
+$ ninja -C runtimes/runtimes-bins omp
 ```
+
+Buddy links `-lomp` against the library produced under `runtimes-bins/openmp/runtime/src`, not only `${LLVM_LIBRARY_DIR}`. **Alternative (older layout):** enable `openmp` in `LLVM_ENABLE_PROJECTS` and run `ninja omp` from the LLVM build root; the link line still searches `${LLVM_LIBRARY_DIR}` after the runtimes path.
 
 2. Build and check buddy-mlir
 
@@ -146,11 +150,13 @@ We can't utilize the ecosystem of Python on RISC-V 'cause some critical packages
 cd buddy-mlir/llvm
 mkdir build && cd build
 cmake -G Ninja ../llvm \
-  -DLLVM_ENABLE_PROJECTS="mlir;clang;openmp" \
+  -DLLVM_ENABLE_PROJECTS="mlir;clang" \
+  -DLLVM_ENABLE_RUNTIMES="openmp" \
   -DLLVM_TARGETS_TO_BUILD="host" \
   -DLLVM_ENABLE_ASSERTIONS=ON \
   -DCMAKE_BUILD_TYPE=RELEASE
-ninja check-clang check-mlir omp
+ninja check-clang check-mlir
+ninja -C runtimes/runtimes-bins omp
 ```
 
 Some test errors may occur when running check-mlir on RISC-V platforms, please ignore them.

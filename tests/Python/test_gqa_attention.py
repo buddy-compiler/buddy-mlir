@@ -1,6 +1,5 @@
 # RUN: %PYTHON %s 2>&1 | FileCheck %s
 
-from tabnanny import verbose
 import torch
 import torch.nn.functional as F
 import torch._dynamo as dynamo
@@ -72,7 +71,7 @@ print(graph._imported_module)
 # CHECK: math.exp
 # CHECK: scf.for
 # CHECK:   tensor.extract
-# CHECK:   vector.splat
+# CHECK:   vector.broadcast
 # CHECK:   vector.transfer_read
 # CHECK:   vector.fma
 # CHECK:   vector.transfer_write

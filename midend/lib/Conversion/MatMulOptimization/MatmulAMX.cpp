@@ -18,7 +18,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <mlir/Dialect/AMX/AMXDialect.h>
+#include <mlir/Dialect/X86/X86Dialect.h>
 #include <mlir/Dialect/Affine/IR/AffineOps.h>
 #include <mlir/Dialect/Arith/IR/Arith.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
@@ -37,7 +37,7 @@
 #include <mlir/Transforms/GreedyPatternRewriteDriver.h>
 
 using namespace mlir;
-using namespace mlir::amx;
+using namespace mlir::x86;
 
 //===----------------------------------------------------------------------===//
 // Helper Functions
@@ -257,8 +257,8 @@ public:
     // Create AMX tile types
     auto bf16Type = rewriter.getBF16Type();
     auto f32Type = rewriter.getF32Type();
-    auto tileTypeBF16 = TileType::get({16, 32}, bf16Type);
-    auto tileTypeF32 = TileType::get({16, 16}, f32Type);
+    auto tileTypeBF16 = amx::TileType::get({16, 32}, bf16Type);
+    auto tileTypeF32 = amx::TileType::get({16, 16}, f32Type);
 
     // Generate AMX tile computation loops
     // Outer loops: iterate over M and N dimensions in 16x16 tiles
@@ -269,32 +269,35 @@ public:
               loc, c0, cN, c16, ValueRange{},
               [&](OpBuilder &builder, Location loc, Value n, ValueRange) {
                 // Initialize accumulator tile to zero
-                Value zeroTile = builder.create<TileZeroOp>(loc, tileTypeF32);
-                builder.create<TileStoreOp>(loc, C, ValueRange{m, n}, zeroTile);
+                Value zeroTile =
+                    amx::TileZeroOp::create(builder, loc, tileTypeF32);
+                amx::TileStoreOp::create(builder, loc, C, ValueRange{m, n},
+                                           zeroTile);
 
                 // Inner loop: iterate over K dimension in chunks of 32
                 builder.create<scf::ForOp>(
                     loc, c0, cK, c32, ValueRange{},
                     [&](OpBuilder &builder, Location loc, Value k, ValueRange) {
                       // Load A tile: 16x32xbf16 from [%m, %k]
-                      Value tA = builder.create<TileLoadOp>(
-                          loc, tileTypeBF16, A, ValueRange{m, k});
+                      Value tA = amx::TileLoadOp::create(
+                          builder, loc, tileTypeBF16, A, ValueRange{m, k});
 
                       // Load B tile (pre-packed): 16x32xbf16 from [%k, %n]
-                      Value tB = builder.create<TileLoadOp>(
-                          loc, tileTypeBF16, Bpack, ValueRange{k, n});
+                      Value tB = amx::TileLoadOp::create(
+                          builder, loc, tileTypeBF16, Bpack,
+                          ValueRange{k, n});
 
                       // Load current accumulator from C
-                      Value tAcc = builder.create<TileLoadOp>(
-                          loc, tileTypeF32, C, ValueRange{m, n});
+                      Value tAcc = amx::TileLoadOp::create(
+                          builder, loc, tileTypeF32, C, ValueRange{m, n});
 
                       // Perform tile multiplication with accumulation
-                      Value tAcc2 = builder.create<TileMulFOp>(loc, tileTypeF32,
-                                                               tA, tB, tAcc);
+                      Value tAcc2 = amx::TileMulFOp::create(
+                          builder, loc, tileTypeF32, tA, tB, tAcc);
 
                       // Store result back to C
-                      builder.create<TileStoreOp>(loc, C, ValueRange{m, n},
-                                                  tAcc2);
+                      amx::TileStoreOp::create(builder, loc, C,
+                                               ValueRange{m, n}, tAcc2);
 
                       builder.create<scf::YieldOp>(loc);
                     });
@@ -332,7 +335,7 @@ public:
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<linalg::LinalgDialect, scf::SCFDialect, arith::ArithDialect,
                     memref::MemRefDialect, vector::VectorDialect,
-                    amx::AMXDialect>();
+                    x86::X86Dialect>();
   }
 };
 } // end anonymous namespace

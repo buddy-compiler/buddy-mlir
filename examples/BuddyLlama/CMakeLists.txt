@@ -120,7 +120,7 @@ target_compile_definitions(buddy-llama-run PRIVATE
   LLAMA_EXAMPLE_BUILD_PATH="${LLAMA_EXAMPLE_BUILD_PATH}"
 )
 
-target_link_directories(buddy-llama-run PRIVATE ${LLVM_LIBRARY_DIR})
+target_link_directories(buddy-llama-run PRIVATE ${BUDDY_LLVM_WITH_OPENMP_LINK_DIRS})
 
 set(BUDDY_LLAMA_LIBS
   LLAMA

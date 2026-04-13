@@ -18,12 +18,16 @@
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
 // RUN: | FileCheck %s
 
+#map_bmmtb0 = affine_map<(d0, d1, d2, d3) -> (d0, d1, d3)>
+#map_bmmtb1 = affine_map<(d0, d1, d2, d3) -> (d0, d2, d3)>
+#map_bmmtb2 = affine_map<(d0, d1, d2, d3) -> (d0, d1, d2)>
+
 func.func private @rtclock() -> f64
 func.func private @printMemrefF32(memref<*xf32>)
 
 func.func @test(%a : memref<?x?x?xf32>, %b : memref<?x?x?xf32>, %c : memref<?x?x?xf32>) {
     %t_start = call @rtclock() : () -> f64
-    linalg.batch_matmul_transpose_b
+    linalg.batch_matmul indexing_maps = [#map_bmmtb0, #map_bmmtb1, #map_bmmtb2]
       ins(%a, %b: memref<?x?x?xf32>, memref<?x?x?xf32>)
       outs(%c: memref<?x?x?xf32>)
     %t_end = call @rtclock() : () -> f64
