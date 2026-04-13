@@ -52,8 +52,9 @@ using namespace buddy;
 
 namespace {
 
-/// Helper function to check leading static dims then return vector shape with
-/// trailing dynamic dim (if any).
+/// Helper function to check leading static dims, build a VIR vector type shape
+/// whose last dimension is always dynamic, and preserve the concrete logical
+/// iteration extents in `ofrCommon` for downstream VL derivation.
 static LogicalResult
 buildVIRVectorShape(linalg::LinalgOp op, SmallVectorImpl<int64_t> &shapeOut,
                     SmallVectorImpl<OpFoldResult> &ofrCommon, OpBuilder &b) {
@@ -88,16 +89,17 @@ buildVIRVectorShape(linalg::LinalgOp op, SmallVectorImpl<int64_t> &shapeOut,
     }
   }
 
-  // Build VIR vector shape: copy loop sizes, but convert the last to dynamic
-  // if it is dynamic, otherwise keep static.
+  // Keep leading dimensions unchanged, but always model the vectorized last
+  // dimension as dynamic in `shapeOut`. The concrete last extent is preserved
+  // separately in `commonShape`/`ofrCommon`, so callers must use
+  // `ofrCommon.back()` rather than `shapeOut.back()` when deriving VL.
   shapeOut.clear();
   shapeOut.reserve(staticLoopSizes.size());
   for (int64_t i = 0, e = op.getNumLoops(); i < e; ++i) {
-    int64_t sz = staticLoopSizes[i];
-    if (i == e - 1 && ShapedType::isDynamic(sz)) {
+    if (i == e - 1) {
       shapeOut.push_back(ShapedType::kDynamic);
     } else {
-      shapeOut.push_back(sz);
+      shapeOut.push_back(staticLoopSizes[i]);
     }
   }
 

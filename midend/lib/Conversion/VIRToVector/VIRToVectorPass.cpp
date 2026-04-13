@@ -70,6 +70,22 @@ namespace {
 static constexpr int DEFAULT_VECTOR_WIDTH = 4;
 static constexpr bool DEFAULT_USE_SCALABLE = false;
 
+// This pass vectorizes along the memref's most-minor dimension, so the
+// vector.load/vector.store fast path is only valid when that specific stride is
+// statically known to be 1.
+static bool hasStaticallyUnitStrideInVectorizedDim(Value base) {
+  auto memrefTy = dyn_cast<MemRefType>(base.getType());
+  if (!memrefTy || memrefTy.getRank() == 0)
+    return false;
+
+  SmallVector<int64_t> strides;
+  int64_t offset;
+  if (failed(memrefTy.getStridesAndOffset(strides, offset)) || strides.empty())
+    return false;
+
+  return strides.back() == 1;
+}
+
 VectorType vectorTypeHelper(Region &srcRegion, Type anchorType,
                             bool useScalable, bool verbose) {
 #define VERBOSE_ANALYSIS_INFO(info)                                            \
@@ -383,9 +399,17 @@ private:
                 op.emitError("failed to derive vector type for vir.load");
                 return;
               }
-              auto vectorLoadOp = builder.create<vector::LoadOp>(
-                  loc, *vecTyOr, base, destIndices);
-              virSymbolTable[op.getResult()] = vectorLoadOp.getResult();
+              if (hasStaticallyUnitStrideInVectorizedDim(base)) {
+                auto vectorLoadOp = builder.create<vector::LoadOp>(
+                    loc, *vecTyOr, base, destIndices);
+                virSymbolTable[op.getResult()] = vectorLoadOp.getResult();
+              } else {
+                auto padding = builder.create<arith::ConstantOp>(
+                    loc, builder.getZeroAttr((*vecTyOr).getElementType()));
+                auto transferReadOp = builder.create<vector::TransferReadOp>(
+                    loc, *vecTyOr, base, destIndices, padding);
+                virSymbolTable[op.getResult()] = transferReadOp.getResult();
+              }
             }
           })
           .Case<vir::StoreOp>([&](vir::StoreOp op) {
@@ -430,8 +454,13 @@ private:
               builder.create<memref::StoreOp>(loc, valueToStore, base,
                                               destIndices);
             } else {
-              builder.create<vector::StoreOp>(loc, valueToStore, base,
-                                              destIndices);
+              if (hasStaticallyUnitStrideInVectorizedDim(base)) {
+                builder.create<vector::StoreOp>(loc, valueToStore, base,
+                                                destIndices);
+              } else {
+                builder.create<vector::TransferWriteOp>(loc, valueToStore, base,
+                                                        destIndices);
+              }
             }
           })
           .Case<vir::ConstantOp>([&](vir::ConstantOp op) {
