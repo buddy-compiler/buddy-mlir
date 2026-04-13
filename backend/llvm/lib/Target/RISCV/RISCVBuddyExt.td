@@ -130,4 +130,30 @@ def AccReg : RegisterClass<"RISCV", [untyped], 1024,
   let Size = 1024;  // Placeholder: actual MLEN×AMUL is hardware-defined
 }
 
+//===----------------------------------------------------------------------===//
+// XTAME (RISC-V Matrix Extension) Register Definitions
+//===----------------------------------------------------------------------===//
+
+let Namespace = "RISCV" in {
+
+class MatrixReg<bits<3> Enc, string n> : Register<n> {
+  let HWEncoding{2-0} = Enc;
+}
+
+def M0 : MatrixReg<0, "m0">;
+def M1 : MatrixReg<1, "m1">;
+def M2 : MatrixReg<2, "m2">;
+def M3 : MatrixReg<3, "m3">;
+def M4 : MatrixReg<4, "m4">;
+def M5 : MatrixReg<5, "m5">;
+def M6 : MatrixReg<6, "m6">;
+def M7 : MatrixReg<7, "m7">;
+
+} // End Namespace = "RISCV"
+
+def MatrixReg : RegisterClass<"RISCV", [untyped], 1024,
+                            (add M0, M1, M2, M3, M4, M5, M6, M7)> {
+  let Size = 1024;  // Placeholder: actual MLEN is hardware-defined
+}
+
 include "RISCVInstrInfoBuddyExt.td"

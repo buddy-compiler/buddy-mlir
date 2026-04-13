@@ -31,6 +31,7 @@
 #include "Target/LLVMIR/Dialect/Gemmini/GemminiToLLVMIRTranslation.h"
 #include "Target/LLVMIR/Dialect/IME/IMEToLLVMIRTranslation.h"
 #include "Target/LLVMIR/Dialect/RVV/RVVToLLVMIRTranslation.h"
+#include "Target/LLVMIR/Dialect/XTAME/XTAMEToLLVMIRTranslation.h"
 
 using namespace buddy;
 using namespace mlir;
@@ -57,6 +58,7 @@ void registerBuddyToLLVMIRTranslation() {
         registerGemminiDialectTranslation(registry);
         registerIMEDialectTranslation(registry);
         registerAMEDialectTranslation(registry);
+        registerXTAMEDialectTranslation(registry);
       });
 }
 } // namespace buddy

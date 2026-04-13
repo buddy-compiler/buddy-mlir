@@ -29,6 +29,7 @@
 #include "Dialect/RHAL/RHALDialect.h"
 #include "Dialect/RVV/RVVDialect.h"
 #include "Dialect/VectorExp/VectorExpDialect.h"
+#include "Dialect/XTAME/XTAMEDialect.h"
 
 namespace mlir {
 namespace buddy {
@@ -64,6 +65,7 @@ void registerEliminateMemRefCopyPass();
 } // namespace mlir
 
 void mlir::buddy::registerAllDialects(mlir::DialectRegistry &registry) {
+  registry.insert<::buddy::xtame::XTAMEDialect>();
   registry.insert<::buddy::ame::AMEDialect>();
   registry.insert<::buddy::bud::BudDialect>();
   registry.insert<::buddy::dap::DAPDialect>();
