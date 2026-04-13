@@ -326,7 +326,8 @@ private:
       auto fallbackVecTy = dyn_cast<VectorType>(targetVectorType);
       if (!fallbackVecTy)
         return failure();
-      return VectorType::get(fallbackVecTy.getShape(), dynVecTy.getElementType(),
+      return VectorType::get(fallbackVecTy.getShape(),
+                             dynVecTy.getElementType(),
                              fallbackVecTy.getScalableDims());
     };
 
@@ -345,7 +346,8 @@ private:
             if (sourceIndices.empty()) {
               auto memrefTy = dyn_cast<MemRefType>(base.getType());
               if (!memrefTy || memrefTy.getRank() == 0) {
-                op.emitError("expected ranked memref base for implicit indices");
+                op.emitError(
+                    "expected ranked memref base for implicit indices");
                 return;
               }
               int64_t rank = memrefTy.getRank();
@@ -398,7 +400,8 @@ private:
             if (sourceIndices.empty()) {
               auto memrefTy = dyn_cast<MemRefType>(base.getType());
               if (!memrefTy || memrefTy.getRank() == 0) {
-                op.emitError("expected ranked memref base for implicit indices");
+                op.emitError(
+                    "expected ranked memref base for implicit indices");
                 return;
               }
               int64_t rank = memrefTy.getRank();
@@ -506,7 +509,8 @@ private:
               } else if (kind == "maxnum") {
                 out = builder.create<arith::MaxNumFOp>(loc, input, acc);
               } else {
-                op.emitError("unsupported vir.reduce kind (expected add/maxnum)");
+                op.emitError(
+                    "unsupported vir.reduce kind (expected add/maxnum)");
                 return;
               }
               virSymbolTable[op.getResult()] = out;
@@ -529,8 +533,8 @@ private:
               return;
             }
 
-            auto reduced =
-                builder.create<vector::ReductionOp>(loc, combineKind, input, acc);
+            auto reduced = builder.create<vector::ReductionOp>(loc, combineKind,
+                                                               input, acc);
             virSymbolTable[op.getResult()] = reduced.getResult();
           })
           .Case<vir::SelectOp>([&](vir::SelectOp op) {
@@ -542,11 +546,12 @@ private:
               return;
             }
             if (isTailLoop) {
-              auto newOp = builder.create<arith::SelectOp>(loc, cond, tVal, fVal);
+              auto newOp =
+                  builder.create<arith::SelectOp>(loc, cond, tVal, fVal);
               virSymbolTable[op.getResult()] = newOp.getResult();
             } else {
-              auto newOp = builder.create<LLVM::SelectOp>(
-                  loc, tVal.getType(), cond, tVal, fVal);
+              auto newOp = builder.create<LLVM::SelectOp>(loc, tVal.getType(),
+                                                          cond, tVal, fVal);
               virSymbolTable[op.getResult()] = newOp.getResult();
             }
           })
@@ -697,9 +702,11 @@ private:
               return out;
             };
 
-            SmallVector<OpFoldResult> offsets = remapMixed(op.getMixedOffsets());
+            SmallVector<OpFoldResult> offsets =
+                remapMixed(op.getMixedOffsets());
             SmallVector<OpFoldResult> sizes = remapMixed(op.getMixedSizes());
-            SmallVector<OpFoldResult> strides = remapMixed(op.getMixedStrides());
+            SmallVector<OpFoldResult> strides =
+                remapMixed(op.getMixedStrides());
 
             auto newOp = builder.create<memref::SubViewOp>(
                 loc, cast<MemRefType>(op.getResult().getType()), src, offsets,
@@ -815,8 +822,8 @@ private:
           .Case<arith::ShLIOp>([&](arith::ShLIOp op) {
             Value lhs = findValue(op.getLhs());
             Value rhs = findValue(op.getRhs());
-            auto newOp =
-                builder.create<arith::ShLIOp>(loc, lhs, rhs, op.getOverflowFlags());
+            auto newOp = builder.create<arith::ShLIOp>(loc, lhs, rhs,
+                                                       op.getOverflowFlags());
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<arith::ShRUIOp>([&](arith::ShRUIOp op) {
@@ -1110,10 +1117,10 @@ private:
     // Step 2: Construct the target vector type.
     //===------------------------------------------------------------------===//
 
-    // If the anchor dynamic vector has leading static dims (e.g. !vir.vec<4x?xf32>),
-    // we materialize explicit outer loops for those dims and lower the region
-    // body per-slice. This matches the current codegen strategy that only
-    // vectorizes along the last (dynamic) dimension.
+    // If the anchor dynamic vector has leading static dims (e.g.
+    // !vir.vec<4x?xf32>), we materialize explicit outer loops for those dims
+    // and lower the region body per-slice. This matches the current codegen
+    // strategy that only vectorizes along the last (dynamic) dimension.
     SmallVector<int64_t> leadingStaticDims;
     for (Block &blk : region) {
       for (Operation &inner : blk) {
@@ -1203,17 +1210,18 @@ private:
       Value tailStart = b.create<arith::SubIOp>(loc, vlValue, vlRem);
 
       b.create<affine::AffineForOp>(
-          loc, /*lowerBound=*/ValueRange{tailStart}, rewriter.getDimIdentityMap(),
+          loc, /*lowerBound=*/ValueRange{tailStart},
+          rewriter.getDimIdentityMap(),
           /*upperBound=*/ValueRange{vlValue}, rewriter.getDimIdentityMap(),
           /*step=*/1,
           /*iterArgs=*/std::nullopt,
-	          [&](OpBuilder &bb, Location bodyLoc, Value iv, ValueRange) {
-	            DenseMap<Value, Value> virSymbolTable;
-	            lowerBlock(bb, bodyLoc, &region.front(), virSymbolTable, iv,
-	                       leadingIVs, /*targetVectorType=*/Type{},
-	                       /*isTailLoop=*/true);
-	            bb.create<affine::AffineYieldOp>(bodyLoc);
-	          });
+          [&](OpBuilder &bb, Location bodyLoc, Value iv, ValueRange) {
+            DenseMap<Value, Value> virSymbolTable;
+            lowerBlock(bb, bodyLoc, &region.front(), virSymbolTable, iv,
+                       leadingIVs, /*targetVectorType=*/Type{},
+                       /*isTailLoop=*/true);
+            bb.create<affine::AffineYieldOp>(bodyLoc);
+          });
     };
 
     if (leadingStaticDims.empty()) {
@@ -1221,26 +1229,26 @@ private:
     } else {
       // Build nested loops over the leading static dims.
       SmallVector<Value> ivs;
-      std::function<void(unsigned, OpBuilder &)> emitOuter =
-          [&](unsigned dim, OpBuilder &b) {
-            if (dim == leadingStaticDims.size()) {
-              emitVectorAndTail(b, ivs);
-              return;
-            }
-            int64_t ub = leadingStaticDims[dim];
-            Value c0 = b.create<arith::ConstantIndexOp>(loc, 0);
-            Value cub = b.create<arith::ConstantIndexOp>(loc, ub);
-            b.create<affine::AffineForOp>(
-                loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
-                ValueRange{cub}, rewriter.getDimIdentityMap(), /*step=*/1,
-                /*iterArgs=*/std::nullopt,
-                [&](OpBuilder &bb, Location bodyLoc, Value iv, ValueRange) {
-                  ivs.push_back(iv);
-                  emitOuter(dim + 1, bb);
-                  ivs.pop_back();
-                  bb.create<affine::AffineYieldOp>(bodyLoc);
-                });
-          };
+      std::function<void(unsigned, OpBuilder &)> emitOuter = [&](unsigned dim,
+                                                                 OpBuilder &b) {
+        if (dim == leadingStaticDims.size()) {
+          emitVectorAndTail(b, ivs);
+          return;
+        }
+        int64_t ub = leadingStaticDims[dim];
+        Value c0 = b.create<arith::ConstantIndexOp>(loc, 0);
+        Value cub = b.create<arith::ConstantIndexOp>(loc, ub);
+        b.create<affine::AffineForOp>(
+            loc, ValueRange{c0}, rewriter.getDimIdentityMap(), ValueRange{cub},
+            rewriter.getDimIdentityMap(), /*step=*/1,
+            /*iterArgs=*/std::nullopt,
+            [&](OpBuilder &bb, Location bodyLoc, Value iv, ValueRange) {
+              ivs.push_back(iv);
+              emitOuter(dim + 1, bb);
+              ivs.pop_back();
+              bb.create<affine::AffineYieldOp>(bodyLoc);
+            });
+      };
       emitOuter(/*dim=*/0, rewriter);
     }
 
