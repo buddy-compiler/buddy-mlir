@@ -74,7 +74,6 @@ config.excludes = [
     "ScheDialect",
     "SIMDExperiment",
     "ToyDSL",
-    "Triton2Linalg",
     "VectorExpDialect",
     "log.mlir",
     "lit.cfg.py",
