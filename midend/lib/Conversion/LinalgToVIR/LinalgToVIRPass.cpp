@@ -253,15 +253,13 @@ static Operation *createGenericElementwiseVIR(Operation *op,
   // arith.extf/truncf cannot directly produce !vir.vec types. Represent them as
   // dedicated VIR ops and lower later in VIRToVector.
   if (auto extf = dyn_cast<arith::ExtFOp>(op)) {
-    auto outTy =
-        buddy::vir::DynamicVectorType::get(virShape, extf.getType());
+    auto outTy = buddy::vir::DynamicVectorType::get(virShape, extf.getType());
     auto created =
         rewriter.create<buddy::vir::ExtFOp>(loc, outTy, vecOperands[0]);
     return created.getOperation();
   }
   if (auto truncf = dyn_cast<arith::TruncFOp>(op)) {
-    auto outTy =
-        buddy::vir::DynamicVectorType::get(virShape, truncf.getType());
+    auto outTy = buddy::vir::DynamicVectorType::get(virShape, truncf.getType());
     auto created =
         rewriter.create<buddy::vir::TruncFOp>(loc, outTy, vecOperands[0]);
     return created.getOperation();
@@ -344,8 +342,8 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
     return rewriter.notifyMatchFailure(reduceOp,
                                        "expected pure buffer semantics");
   if (reduceOp.getInputs().size() != 1 || reduceOp.getInits().size() != 1)
-    return rewriter.notifyMatchFailure(reduceOp,
-                                       "only single-input single-output reduce supported");
+    return rewriter.notifyMatchFailure(
+        reduceOp, "only single-input single-output reduce supported");
 
   Value input = *reduceOp.getInputs().begin();
   Value init = *reduceOp.getInits().begin();
@@ -399,17 +397,15 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
     auto vecTy =
         buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, elemTy);
     Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
-    Value loaded = rewriter
-                       .create<buddy::vir::LoadOp>(loc, vecTy, input,
-                                                   ValueRange{c0})
-                       .getResult();
-    Value acc = rewriter.create<memref::LoadOp>(loc, accBuf, ValueRange{});
-    Value reduced =
-        rewriter
-            .create<buddy::vir::ReduceOp>(
-                loc, elemTy, loaded, acc,
-                rewriter.getStringAttr(kindToString(*combinerKind)))
+    Value loaded =
+        rewriter.create<buddy::vir::LoadOp>(loc, vecTy, input, ValueRange{c0})
             .getResult();
+    Value acc = rewriter.create<memref::LoadOp>(loc, accBuf, ValueRange{});
+    Value reduced = rewriter
+                        .create<buddy::vir::ReduceOp>(
+                            loc, elemTy, loaded, acc,
+                            rewriter.getStringAttr(kindToString(*combinerKind)))
+                        .getResult();
     rewriter.create<memref::StoreOp>(loc, reduced, accBuf, ValueRange{});
     rewriter.create<vector::YieldOp>(loc);
 
@@ -450,7 +446,8 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
         Value i = outerLoop.getInductionVar();
         auto accBufTy = MemRefType::get({}, elemTy);
         Value accBuf = rewriter.create<memref::AllocaOp>(loc, accBufTy);
-        Value initVal = rewriter.create<memref::LoadOp>(loc, init, ValueRange{i});
+        Value initVal =
+            rewriter.create<memref::LoadOp>(loc, init, ValueRange{i});
         rewriter.create<memref::StoreOp>(loc, initVal, accBuf, ValueRange{});
 
         auto setVl = rewriter.create<buddy::vir::SetVLOp>(
@@ -494,7 +491,8 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
     // innermost dimension would not be unit-stride.
     if (dims[0] == 0) {
       int64_t outStaticN = outTy.getShape()[0];
-      if (ShapedType::isDynamic(inStaticM) || ShapedType::isDynamic(inStaticN) ||
+      if (ShapedType::isDynamic(inStaticM) ||
+          ShapedType::isDynamic(inStaticN) ||
           ShapedType::isDynamic(outStaticN)) {
         return rewriter.notifyMatchFailure(
             reduceOp, "rank-2 -> rank-1 dimensions=[0] requires static M/N");
@@ -521,7 +519,8 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
         Value j = outerLoop.getInductionVar();
         auto accBufTy = MemRefType::get({}, elemTy);
         Value accBuf = rewriter.create<memref::AllocaOp>(loc, accBufTy);
-        Value initVal = rewriter.create<memref::LoadOp>(loc, init, ValueRange{j});
+        Value initVal =
+            rewriter.create<memref::LoadOp>(loc, init, ValueRange{j});
         rewriter.create<memref::StoreOp>(loc, initVal, accBuf, ValueRange{});
 
         auto setVl = rewriter.create<buddy::vir::SetVLOp>(
@@ -532,10 +531,10 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
 
         auto vecTy =
             buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, elemTy);
-        Value col =
-            rewriter
-                .create<buddy::vir::LoadOp>(loc, vecTy, scratch, ValueRange{j, c0})
-                .getResult();
+        Value col = rewriter
+                        .create<buddy::vir::LoadOp>(loc, vecTy, scratch,
+                                                    ValueRange{j, c0})
+                        .getResult();
         Value acc = rewriter.create<memref::LoadOp>(loc, accBuf, ValueRange{});
         Value reduced =
             rewriter
@@ -628,11 +627,10 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
 
         auto vecTy =
             buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, elemTy);
-        Value slice =
-            rewriter
-                .create<buddy::vir::LoadOp>(loc, vecTy, scratch,
-                                            ValueRange{j, k, c0})
-                .getResult();
+        Value slice = rewriter
+                          .create<buddy::vir::LoadOp>(loc, vecTy, scratch,
+                                                      ValueRange{j, k, c0})
+                          .getResult();
         Value acc = rewriter.create<memref::LoadOp>(loc, accBuf, ValueRange{});
         Value reduced =
             rewriter
@@ -662,12 +660,13 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
       "rank-3 -> rank-2 (dimensions=[0]) reductions are supported");
 }
 
-static LogicalResult lowerIndexOnlyGenericToScalarLoop(linalg::LinalgOp linalgOp,
-                                                       PatternRewriter &rewriter) {
+static LogicalResult
+lowerIndexOnlyGenericToScalarLoop(linalg::LinalgOp linalgOp,
+                                  PatternRewriter &rewriter) {
   auto genericOp = dyn_cast<linalg::GenericOp>(linalgOp.getOperation());
   if (!genericOp)
-    return rewriter.notifyMatchFailure(linalgOp,
-                                       "index-only fallback expects linalg.generic");
+    return rewriter.notifyMatchFailure(
+        linalgOp, "index-only fallback expects linalg.generic");
   if (genericOp.getNumLoops() != 1)
     return rewriter.notifyMatchFailure(genericOp,
                                        "only 1D index-only generic supported");
@@ -676,8 +675,8 @@ static LogicalResult lowerIndexOnlyGenericToScalarLoop(linalg::LinalgOp linalgOp
     return rewriter.notifyMatchFailure(genericOp,
                                        "only parallel iterator supported");
   if (genericOp.getNumDpsInputs() != 0 || genericOp.getNumDpsInits() != 1)
-    return rewriter.notifyMatchFailure(genericOp,
-                                       "only outs-only single-output generic supported");
+    return rewriter.notifyMatchFailure(
+        genericOp, "only outs-only single-output generic supported");
 
   OpOperand *initOpd = genericOp.getDpsInitOperand(0);
   auto outTy = dyn_cast<MemRefType>(initOpd->get().getType());
@@ -747,9 +746,9 @@ static LogicalResult lowerIndexOnlyGenericToScalarLoop(linalg::LinalgOp linalgOp
 
 static bool isScalarCastOp(Operation &op) {
   return isa<arith::ExtSIOp, arith::ExtUIOp, arith::TruncIOp, arith::ExtFOp,
-             arith::TruncFOp, arith::SIToFPOp, arith::UIToFPOp,
-             arith::FPToSIOp, arith::FPToUIOp, arith::BitcastOp,
-             arith::IndexCastOp, arith::IndexCastUIOp>(op);
+             arith::TruncFOp, arith::SIToFPOp, arith::UIToFPOp, arith::FPToSIOp,
+             arith::FPToUIOp, arith::BitcastOp, arith::IndexCastOp,
+             arith::IndexCastUIOp>(op);
 }
 
 static bool isVectorizableFloatCastOp(Operation &op) {
@@ -828,8 +827,8 @@ lowerSimpleCastGenericToScalarLoop(linalg::LinalgOp linalgOp,
     newOperands.reserve(castOp->getNumOperands());
     for (Value operand : castOp->getOperands()) {
       if (!bbArgMap.contains(operand))
-        return rewriter.notifyMatchFailure(genericOp,
-                                           "unsupported operand in cast fallback");
+        return rewriter.notifyMatchFailure(
+            genericOp, "unsupported operand in cast fallback");
       newOperands.push_back(bbArgMap.lookup(operand));
     }
     OperationState state(loc, castOp->getName().getStringRef());
@@ -851,9 +850,9 @@ static bool isSupportedGenericBodyOp(Operation &inner) {
              arith::NegFOp, arith::CmpFOp, arith::CmpIOp, arith::SelectOp,
              arith::AndIOp, arith::OrIOp, arith::XOrIOp, arith::ShLIOp,
              arith::ShRUIOp, arith::ShRSIOp, arith::MaximumFOp,
-             arith::MinimumFOp, arith::MaxSIOp, arith::MinSIOp,
-             arith::MaxUIOp, arith::MinUIOp, arith::MaxNumFOp, math::ExpOp,
-             math::SqrtOp>(inner);
+             arith::MinimumFOp, arith::MaxSIOp, arith::MinSIOp, arith::MaxUIOp,
+             arith::MinUIOp, arith::MaxNumFOp, math::ExpOp, math::SqrtOp>(
+      inner);
 }
 
 static buddy::vir::SetVLOp createSetVLRegion(PatternRewriter &rewriter,
@@ -867,7 +866,7 @@ static buddy::vir::SetVLOp createSetVLRegion(PatternRewriter &rewriter,
 }
 
 static LogicalResult lowerMatmulToVIR(linalg::MatmulOp matmulOp,
-                                     PatternRewriter &rewriter) {
+                                      PatternRewriter &rewriter) {
   if (!matmulOp.hasPureBufferSemantics())
     return rewriter.notifyMatchFailure(matmulOp,
                                        "expected pure buffer semantics");
@@ -901,24 +900,24 @@ static LogicalResult lowerMatmulToVIR(linalg::MatmulOp matmulOp,
   // Constants used inside the region.
   Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
 
-  // Determine M/K. Prefer static when available, otherwise take dim from memref.
+  // Determine M/K. Prefer static when available, otherwise take dim from
+  // memref.
   Value mVal;
   if (!ShapedType::isDynamic(cTy.getShape()[0])) {
-    mVal =
-        rewriter.create<arith::ConstantIndexOp>(loc, cTy.getShape()[0]);
+    mVal = rewriter.create<arith::ConstantIndexOp>(loc, cTy.getShape()[0]);
   } else {
     mVal = rewriter.create<memref::DimOp>(loc, c, 0);
   }
 
   Value kVal;
   if (!ShapedType::isDynamic(aTy.getShape()[1])) {
-    kVal =
-        rewriter.create<arith::ConstantIndexOp>(loc, aTy.getShape()[1]);
+    kVal = rewriter.create<arith::ConstantIndexOp>(loc, aTy.getShape()[1]);
   } else {
     kVal = rewriter.create<memref::DimOp>(loc, a, 1);
   }
 
-  auto vecTy = buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, elemTy);
+  auto vecTy =
+      buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, elemTy);
 
   auto loopM = rewriter.create<affine::AffineForOp>(
       loc, ValueRange{c0}, rewriter.getDimIdentityMap(), ValueRange{mVal},
@@ -944,15 +943,13 @@ static LogicalResult lowerMatmulToVIR(linalg::MatmulOp matmulOp,
                   builderK.create<memref::LoadOp>(kLoc, a, ValueRange{i, k});
               // aVec = broadcast(aScalar)
               Value aVec =
-                  builderK
-                      .create<buddy::vir::BroadcastOp>(kLoc, vecTy, aScalar)
+                  builderK.create<buddy::vir::BroadcastOp>(kLoc, vecTy, aScalar)
                       .getResult();
               // bVec = load(B[k, 0:]) as a vector along N.
-              Value bVec =
-                  builderK
-                      .create<buddy::vir::LoadOp>(kLoc, vecTy, b,
-                                                  ValueRange{k, c0})
-                      .getResult();
+              Value bVec = builderK
+                               .create<buddy::vir::LoadOp>(kLoc, vecTy, b,
+                                                           ValueRange{k, c0})
+                               .getResult();
               // accOut = fma(aVec, bVec, accIn)
               Value accOut =
                   builderK
@@ -1177,7 +1174,8 @@ struct LinalgTransposeToVectorPattern : public RewritePattern {
       return rewriter.notifyMatchFailure(op, "expected pure buffer semantics");
     }
     if (transposeOp.getNumDpsInputs() != 1 || transposeOp.getNumDpsInits() != 1)
-      return rewriter.notifyMatchFailure(op, "expected one input and one output");
+      return rewriter.notifyMatchFailure(op,
+                                         "expected one input and one output");
 
     auto inputType = dyn_cast<MemRefType>(transposeOp.getInput().getType());
     if (!inputType)
@@ -1186,10 +1184,12 @@ struct LinalgTransposeToVectorPattern : public RewritePattern {
     if (!outputType)
       return rewriter.notifyMatchFailure(op, "expected memref output");
     if (!inputType.hasStaticShape() || !outputType.hasStaticShape()) {
-      return rewriter.notifyMatchFailure(op, "expected fully static memref shapes");
+      return rewriter.notifyMatchFailure(op,
+                                         "expected fully static memref shapes");
     }
     if (inputType.getRank() != outputType.getRank()) {
-      return rewriter.notifyMatchFailure(op, "expected input/output ranks to match");
+      return rewriter.notifyMatchFailure(
+          op, "expected input/output ranks to match");
     }
     if (inputType.getElementType() != outputType.getElementType()) {
       return rewriter.notifyMatchFailure(
@@ -1222,16 +1222,16 @@ struct LinalgTransposeToVectorPattern : public RewritePattern {
     if (failed(padding))
       return rewriter.notifyMatchFailure(op, "failed to create zero padding");
 
-    AffineMap identityMap = rewriter.getMultiDimIdentityMap(inputType.getRank());
+    AffineMap identityMap =
+        rewriter.getMultiDimIdentityMap(inputType.getRank());
     SmallVector<bool> inBounds(inputType.getRank(), true);
     Value read = rewriter.create<vector::TransferReadOp>(
         loc, vectorType, transposeOp.getInput(), indices, *padding, identityMap,
         inBounds);
-    Value transposed =
-        rewriter.create<vector::TransposeOp>(loc, read, transposeOp.getPermutation());
-    rewriter.create<vector::TransferWriteOp>(loc, transposed,
-                                             transposeOp.getInit(), indices,
-                                             identityMap);
+    Value transposed = rewriter.create<vector::TransposeOp>(
+        loc, read, transposeOp.getPermutation());
+    rewriter.create<vector::TransferWriteOp>(
+        loc, transposed, transposeOp.getInit(), indices, identityMap);
     rewriter.eraseOp(transposeOp);
     return success();
   }
@@ -1255,7 +1255,8 @@ struct LinalgGenericToVIRPattern : public RewritePattern {
     for (auto itTy : linalgOp.getIteratorTypesArray()) {
       if (linalg::isReductionIterator(itTy)) {
         return rewriter.notifyMatchFailure(
-            linalgOp, "reduction iterators not supported in generic VIR lowering");
+            linalgOp,
+            "reduction iterators not supported in generic VIR lowering");
       }
     }
     for (unsigned i = 0, e = linalgOp.getNumDpsInits(); i < e; ++i) {
@@ -1263,7 +1264,8 @@ struct LinalgGenericToVIRPattern : public RewritePattern {
       auto ty = dyn_cast<MemRefType>(init->get().getType());
       if (ty && ty.getRank() == 0) {
         return rewriter.notifyMatchFailure(
-            linalgOp, "rank-0 output memref not supported in generic VIR lowering");
+            linalgOp,
+            "rank-0 output memref not supported in generic VIR lowering");
       }
     }
     bool hasIndexSemantics = false;
@@ -1420,9 +1422,8 @@ public:
 
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<arith::ArithDialect, linalg::LinalgDialect,
-                    math::MathDialect, memref::MemRefDialect,
-                    scf::SCFDialect, buddy::vir::VIRDialect,
-                    vector::VectorDialect>();
+                    math::MathDialect, memref::MemRefDialect, scf::SCFDialect,
+                    buddy::vir::VIRDialect, vector::VectorDialect>();
   }
 };
 
