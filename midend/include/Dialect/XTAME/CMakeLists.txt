@@ -1,4 +1,4 @@
-add_mlir_dialect(XTAME xtame)
+add_mlir_dialect(XTAME xt_ame)
 add_mlir_doc(XTAME XTAME Dialects/ -gen-dialect-doc)
 
 set(LLVM_TARGET_DEFINITIONS XTAME.td)

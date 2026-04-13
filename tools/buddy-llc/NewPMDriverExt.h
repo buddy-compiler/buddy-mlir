@@ -1,4 +1,4 @@
-//===- NewPMDriver.h - Function to drive llc with the new PM ----*- C++ -*-===//
+//===- NewPMDriverExt.h - Function to drive buddy-llc-ext with the new PM -===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,13 +7,10 @@
 //===----------------------------------------------------------------------===//
 /// \file
 ///
-/// A single function which is called to drive the llc behavior for the new
-/// PassManager.
+/// A single function which is called to drive the buddy-llc-ext
+/// behavior for the new PassManager.
 ///
-/// This is only in a separate TU with a header to avoid including all of the
-/// old pass manager headers and the new pass manager headers into the same
-/// file. Eventually all of the routines here will get folded back into
-/// llc.cpp.
+/// Temporary packaging, will be replaced once maintained by LLVM in the future.
 ///
 //===----------------------------------------------------------------------===//
 #ifndef LLVM_TOOLS_LLC_NEWPMDRIVER_H

@@ -1,4 +1,4 @@
-//====------ XTAME.td - XTAME dialect operation definitions --- tablegen ------===//
+//====--------- XTAME.td - XTAME dialect operation definitions ------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,18 +27,20 @@ include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Dialect/LLVMIR/LLVMOpBase.td"
 
-
 //===----------------------------------------------------------------------===//
 // XTAME Dialect Definition
 //===----------------------------------------------------------------------===//
 
 def XTAME_Dialect : Dialect {
-  let name = "xtame";
+  let name = "xt_ame";
   let cppNamespace = "::buddy::xtame";
   let description = [{
-    The XTAME dialect provides operations for the RISC-V Matrix Extension (RVA23 profile).
-    XTAME provides matrix multiply-accumulate instructions with tile-based computation,
-    supporting various data types and widening modes for AI/ML workloads.
+    The XTAME dialect provides operations for the RISC-V Matrix Extension
+     (RVA23 profile).
+    XTAME provides matrix multiply-accumulate instructions with
+    tile-based computation,
+    supporting various data types and widening modes for
+     AI/ML workloads.
 
     Key features:
     - Tile-based matrix registers with configurable dimensions
@@ -131,7 +133,8 @@ def ThMcfgniOp : XTAME_Op<"th.mcfgni"> {
 def ThMcfgkiOp : XTAME_Op<"th.mcfgki"> {
   let summary = "Set tile K size with immediate";
   let description = [{
-    Sets the tile K size (inner dimension for matrix multiply) from an immediate value.
+    Sets the tile K size (inner dimension for matrix multiply) from
+     an immediate value.
     mtilek = min(tilek, TKMAX)
   }];
   let arguments = (ins I64Attr:$tilek);
@@ -428,7 +431,7 @@ def ThMste32Op : XTAME_Op<"th.mste32"> {
   let arguments = (ins
     I64Attr:$ms3,
     I64:$stride,
-    AnyMemRef:$base 
+    AnyMemRef:$base
   );
   let assemblyFormat = "$ms3 `,` $stride `,` $base attr-dict `:` type($base)";
 }
@@ -444,7 +447,7 @@ def ThMste64Op : XTAME_Op<"th.mste64"> {
   let arguments = (ins
     I64Attr:$ms3,
     I64:$stride,
-    AnyMemRef:$base 
+    AnyMemRef:$base
   );
   let assemblyFormat = "$ms3 `,` $stride `,` $base attr-dict `:` type($base)";
 }
@@ -453,6 +456,7 @@ def ThMste64Op : XTAME_Op<"th.mste64"> {
 // Integer Matrix Multiplication Operations (Tile Register Version)
 // These operate on tile registers, not memory
 //===----------------------------------------------------------------------===//
+
 def ThMmaccWBOp : XTAME_Op<"th.mmacc.w.b"> {
   let summary = "signed 8bit tile matrix multiply-accumulate";
   let description = [{
@@ -478,7 +482,7 @@ def ThMmaccuWBOp : XTAME_Op<"th.mmaccu.w.b"> {
     Performs unsigned 8bit matrix multiply-accumulate on tile registers:
       md = md + ms1 × ms2
     output quad-widen
-    
+
     - md: accumulation register index (0-7)
     - ms1: left tile register index (0-7)
     - ms2: right tile register index (0-7)
@@ -507,10 +511,10 @@ def ThMmaccusWBOp : XTAME_Op<"th.mmaccus.w.b"> {
 }
 
 def ThMmaccsuWBOp : XTAME_Op<"th.mmaccsu.w.b"> {
-  let summary = "signed-unsigned 8bit tile matrix multiply-accumulate with double-widen output";
+  let summary = "signed-unsigned 8bit tile matrix multiply-accumulate";
   let description = [{
     Performs signed-unsigned 8bit matrix multiply-accumulate on tile registers:
-      md = md + ms1 × ms2     
+      md = md + ms1 × ms2
     output quad-widen
   }];
   let arguments = (ins
@@ -526,13 +530,14 @@ def ThMmaccsuWBOp : XTAME_Op<"th.mmaccsu.w.b"> {
 // These operate on tile registers, not memory
 //===----------------------------------------------------------------------===//
 
-// h: 16-bit float point (fp16) ; bf16: 16-bit float point(bf16); s: 32-bit float point; d: 64-bit float point
-// e4m3 && e5m2: 8-bit float point with different exponent/mantissa configurations
+// h: 16-bit float point (fp16) ; bf16: 16-bit float point(bf16);
+// s: 32-bit float point; d: 64-bit float point
+// e4m3 && e5m2: 8-bit float point with different configurations
 
 def ThMfmaccHOp : XTAME_Op<"th.mfmacc.h"> {
-  let summary = "16-bit float point(fp16) matrix multiply-accumulate on tile registers";
+  let summary = "16-bit float point matrix multiply-accumulate on tile registers";
   let description = [{
-    Performs  16-bit float point(fp16) matrix multiply-accumulate on tile registers:
+    Performs  16-bit float point matrix multiply-accumulate on tile registers:
       md = md + ms1 × ms2
 
     - md: accumulation register index (0-7)
@@ -548,9 +553,9 @@ def ThMfmaccHOp : XTAME_Op<"th.mfmacc.h"> {
 }
 
 def ThMfmaccBf16Op : XTAME_Op<"th.mfmacc.bf16"> {
-  let summary = "16-bit float point(bf16) matrix multiply-accumulate on tile registers";
+  let summary = "16-bit float point matrix multiply-accumulate on tile registers";
   let description = [{
-    Performs 16-bit float point(bf16) matrix multiply-accumulate on tile registers:
+    Performs 16-bit float point matrix multiply-accumulate on tile registers:
       md = md + ms1 × ms2
 
     - md: wide accumulation register index (0-7)
@@ -587,7 +592,7 @@ def ThMfmaccDOp : XTAME_Op<"th.mfmacc.d"> {
   let summary = "64-bit float point matrix multiply-accumulate on tile registers";
   let description = [{
     Performs 64-bit floating-point matrix multiply-accumulate on tile registers:
-      md = md + ms1 × ms2      
+      md = md + ms1 × ms2
 
     - md: wide accumulation register index (0-7)
     - ms1: left tile register index (0-7)
@@ -602,10 +607,10 @@ def ThMfmaccDOp : XTAME_Op<"th.mfmacc.d"> {
 }
 
 def ThMfmaccHE4m3Op : XTAME_Op<"th.mfmacc.h.e4m3"> {
-  let summary = "8-bit float point matrix multiply-accumulate with double-widen on tile registers";
+  let summary = "8-bit float point matrix multiply-accumulate with double-widen output";
   let description = [{
-    Performs 8-bit float point matrix multiply-accumulate with double-widen output on tile registers:
-      md = md + ms1 × ms2      
+    Performs 8-bit float point matrix multiply-accumulate with double-widen output:
+      md = md + ms1 × ms2
 
     - md: wide accumulation register index (0-7)
     - ms1: left tile register index (0-7)
@@ -620,11 +625,11 @@ def ThMfmaccHE4m3Op : XTAME_Op<"th.mfmacc.h.e4m3"> {
 }
 
 def ThMfmaccHE5m2Op : XTAME_Op<"th.mfmacc.h.e5m2"> {
-  let summary = "8-bit float point matrix multiply-accumulate with double-widen on tile registers";
+  let summary = "8-bit float point matrix multiply-accumulate with double-widen output";
   let description = [{
-    Performs 8-bit float point matrix multiply-accumulate with double-widen output on tile registers:
-      md = md + ms1 × ms2     
-    
+    Performs 8-bit float point matrix multiply-accumulate with double-widen output:
+      md = md + ms1 × ms2
+
     - md: wide accumulation register index (0-7)
     - ms1: left tile register index (0-7)
     - ms2: right tile register index (0-7)
@@ -638,10 +643,10 @@ def ThMfmaccHE5m2Op : XTAME_Op<"th.mfmacc.h.e5m2"> {
 }
 
 def ThMfmaccBf16E4m3Op : XTAME_Op<"th.mfmacc.bf16.e4m3"> {
-  let summary = "8bit Floating-point matrix multiply-accumulate with double-widen on tile registers";
+  let summary = "8bit Floating-point matrix multiply-accumulate with double-widen output";
   let description = [{
-    Performs 8bit floating-point matrix multiply-accumulate with double-widen output on tile registers:
-      md = md + ms1 × ms2   
+    Performs 8bit floating-point matrix multiply-accumulate with double-widen output:
+      md = md + ms1 × ms2
 
     - md: wide accumulation register index (0-7)
     - ms1: left tile register index (0-7)
@@ -656,10 +661,10 @@ def ThMfmaccBf16E4m3Op : XTAME_Op<"th.mfmacc.bf16.e4m3"> {
 }
 
 def ThMfmaccBf16E5m2Op : XTAME_Op<"th.mfmacc.bf16.e5m2"> {
-  let summary = "8bit Floating-point matrix multiply-accumulate with double-widen on tile registers";
+  let summary = "8bit Floating-point matrix multiply-accumulate with double-widen output";
   let description = [{
-    Performs 8bit floating-point matrix multiply-accumulate with double-widen output on tile registers:
-      md = md + ms1 × ms2   
+    Performs 8bit floating-point matrix multiply-accumulate with double-widen output:
+      md = md + ms1 × ms2
 
     - md: wide accumulation register index (0-7)
     - ms1: left tile register index (0-7)
@@ -674,10 +679,10 @@ def ThMfmaccBf16E5m2Op : XTAME_Op<"th.mfmacc.bf16.e5m2"> {
 }
 
 def ThMfmaccSHOp : XTAME_Op<"th.mfmacc.s.h"> {
-  let summary = "16-bit float point matrix multiply-accumulate with double-widen on tile registers";
+  let summary = "16-bit float point matrix multiply-accumulate with double-widen output";
   let description = [{
-    Performs 16-bit float point matrix multiply-accumulate with double-widen output on tile registers:
-      md = md + ms1 × ms2   
+    Performs 16-bit float point matrix multiply-accumulate with double-widen output:
+      md = md + ms1 × ms2
 
     - md: wide accumulation register index (0-7)
     - ms1: left tile register index (0-7)
@@ -692,10 +697,10 @@ def ThMfmaccSHOp : XTAME_Op<"th.mfmacc.s.h"> {
 }
 
 def ThMfmaccSBf16Op : XTAME_Op<"th.mfmacc.s.bf16"> {
-  let summary = "16-bit float point matrix multiply-accumulate with double-widen on tile registers";
+  let summary = "16-bit float point matrix multiply-accumulate with double-widen output";
   let description = [{
-    Performs 16-bit float point matrix multiply-accumulate with double-widen output on tile registers:
-      md = md + ms1 × ms2   
+    Performs 16-bit float point matrix multiply-accumulate with double-widen output:
+      md = md + ms1 × ms2
 
     - md: wide accumulation register index (0-7)
     - ms1: left tile register index (0-7)
@@ -710,10 +715,10 @@ def ThMfmaccSBf16Op : XTAME_Op<"th.mfmacc.s.bf16"> {
 }
 
 def ThMfmaccDSOp : XTAME_Op<"th.mfmacc.d.s"> {
-  let summary = "32-bit float point matrix multiply-accumulate with double-widen on tile registers";
+  let summary = "32-bit float point matrix multiply-accumulate with double-widen output";
   let description = [{
-    Performs 32-bit float point matrix multiply-accumulate with double-widen output on tile registers:
-      md = md + ms1 × ms2   
+    Performs 32-bit float point matrix multiply-accumulate with double-widen output:
+      md = md + ms1 × ms2
 
     - md: wide accumulation register index (0-7)
     - ms1: left tile register index (0-7)
@@ -728,10 +733,10 @@ def ThMfmaccDSOp : XTAME_Op<"th.mfmacc.d.s"> {
 }
 
 def ThMfmaccSE4m3Op : XTAME_Op<"th.mfmacc.s.e4m3"> {
-  let summary = "8-bit float point matrix multiply-accumulate with quad-widen on tile registers";
+  let summary = "8-bit float point matrix multiply-accumulate with quad-widen output";
   let description = [{
-    Performs 8-bit float point matrix multiply-accumulate with quad-widen output on tile registers:
-      md = md + ms1 × ms2   
+    Performs 8-bit float point matrix multiply-accumulate with quad-widen output:
+      md = md + ms1 × ms2
 
     - md: wide accumulation register index (0-7)
     - ms1: left tile register index (0-7)
@@ -746,10 +751,10 @@ def ThMfmaccSE4m3Op : XTAME_Op<"th.mfmacc.s.e4m3"> {
 }
 
 def ThMfmaccSE5m2Op : XTAME_Op<"th.mfmacc.s.e5m2"> {
-  let summary = "8-bit float point matrix multiply-accumulate with quad-widen on tile registers";
+  let summary = "8-bit float point matrix multiply-accumulate with quad-widen output";
   let description = [{
-    Performs 8-bit float point matrix multiply-accumulate with quad-widen output on tile registers:
-      md = md + ms1 × ms2   
+    Performs 8-bit float point matrix multiply-accumulate with quad-widen output:
+      md = md + ms1 × ms2
 
     - md: wide accumulation register index (0-7)
     - ms1: left tile register index (0-7)

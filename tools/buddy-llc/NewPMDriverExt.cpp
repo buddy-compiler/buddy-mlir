@@ -1,4 +1,4 @@
-//===- NewPMDriver.cpp - Driver for llc using new PM ----------------------===//
+//===- NewPMDriverExt.cpp - Driver for buddy-llc-ext using new PM ---------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,8 +7,7 @@
 //===----------------------------------------------------------------------===//
 /// \file
 ///
-/// This file is just a split of the code that logically belongs in llc.cpp but
-/// that includes the new pass manager headers.
+/// Temporary packaging, will be replaced once maintained by LLVM in the future.
 ///
 //===----------------------------------------------------------------------===//
 

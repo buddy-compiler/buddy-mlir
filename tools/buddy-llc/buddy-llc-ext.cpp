@@ -1,14 +1,11 @@
-//===-- llc.cpp - Implement the LLVM Native Code Generator ----------------===//
+//===-- buddy-llc-ext.cpp - Implement the LLVM Native Code Generator ------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
-// This is the llc code generator driver. It provides a convenient
-// command-line interface for generating an assembly file or a relocatable file,
-// given LLVM bitcode.
+// Temporary packaging, will be replaced once maintained by LLVM in the future.
 //
 //===----------------------------------------------------------------------===//
 
@@ -42,16 +39,16 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/FileSystem.h"
-#include "llvm/Support/MemoryBuffer.h"
-#include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/FormattedStream.h"
 #include "llvm/Support/InitLLVM.h"
+#include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/PluginLoader.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/TimeProfiler.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/WithColor.h"
+#include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetLoweringObjectFile.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/TargetParser/Host.h"
@@ -69,26 +66,25 @@ static codegen::RegisterCodeGenFlags CGF;
 // and back-end code generation options are specified with the target machine.
 //
 static cl::opt<std::string>
-InputFilename(cl::Positional, cl::desc("<input bitcode>"), cl::init("-"));
+    InputFilename(cl::Positional, cl::desc("<input bitcode>"), cl::init("-"));
 
 static cl::list<std::string>
     InstPrinterOptions("M", cl::desc("InstPrinter options"));
 
 static cl::opt<std::string>
-InputLanguage("x", cl::desc("Input language ('ir' or 'mir')"));
+    InputLanguage("x", cl::desc("Input language ('ir' or 'mir')"));
+
+static cl::opt<std::string> OutputFilename("o", cl::desc("Output filename"),
+                                           cl::value_desc("filename"));
 
 static cl::opt<std::string>
-OutputFilename("o", cl::desc("Output filename"), cl::value_desc("filename"));
-
-static cl::opt<std::string>
-    SplitDwarfOutputFile("split-dwarf-output",
-                         cl::desc(".dwo output filename"),
+    SplitDwarfOutputFile("split-dwarf-output", cl::desc(".dwo output filename"),
                          cl::value_desc("filename"));
 
 static cl::opt<unsigned>
-TimeCompilations("time-compilations", cl::Hidden, cl::init(1u),
-                 cl::value_desc("N"),
-                 cl::desc("Repeat compilation N times for timing"));
+    TimeCompilations("time-compilations", cl::Hidden, cl::init(1u),
+                     cl::value_desc("N"),
+                     cl::desc("Repeat compilation N times for timing"));
 
 static cl::opt<bool> TimeTrace("time-trace", cl::desc("Record time trace"));
 
@@ -125,7 +121,7 @@ static cl::opt<char>
              cl::Prefix, cl::init('2'));
 
 static cl::opt<std::string>
-TargetTriple("mtriple", cl::desc("Override target triple for module"));
+    TargetTriple("mtriple", cl::desc("Override target triple for module"));
 
 static cl::opt<std::string> SplitDwarfFile(
     "split-dwarf-file",
@@ -320,47 +316,62 @@ static std::unique_ptr<ToolOutputFile> GetOutputStream(const char *TargetName,
   return FDOut;
 }
 
-// 自定义函数：后处理玄铁 AME 架构属性
+// Custom function: Post-process Xuan Iron AME architecture attributes
 static void postProcessXuanTieAttributes(llvm::StringRef OutputFilename) {
-    if (OutputFilename == "-" || OutputFilename.empty()) return;
+  if (OutputFilename == "-" || OutputFilename.empty())
+    return;
 
-    auto BufferOrErr = llvm::MemoryBuffer::getFile(OutputFilename);
-    if (!BufferOrErr) return;
+  auto BufferOrErr = llvm::MemoryBuffer::getFile(OutputFilename);
+  if (!BufferOrErr)
+    return;
 
-    llvm::StringRef Content = BufferOrErr.get()->getBuffer();
+  llvm::StringRef Content = BufferOrErr.get()->getBuffer();
 
-    // 仅定义纯粹的架构字符串（不带 .attribute 和引号，方便后续拼接）
-    std::string XuanTieArchStr = "rv64i2p1_m2p0_a2p1_f2p2_d2p2_c2p0_zicsr2p0_zmmul1p0_zaamo1p0_zalrsc1p0_zca1p0_zcd1p0_xtheadmatrix3p0_xtheadmatrixmin0p5_xtheadmdma0p5_xtheadmew16b0p5_xtheadmew32b0p5_xtheadmew4b0p5_xtheadmew64b0p5_xtheadmew8b0p5_xtheadmfew0p5_xtheadmfic0p5_xtheadmhp0p5_xtheadmiew0p5_xtheadmmbf16bbf16b0p5_xtheadmmbf16bf32b0p5_xtheadmmbf20bf32b0p5_xtheadmmf16bf16b0p5_xtheadmmf16bf32b0p5_xtheadmmf32bf32b0p5_xtheadmmf32bf64b0p5_xtheadmmf4bbf16b0p5_xtheadmmf4bf16b0p5_xtheadmmf4bf32b0p5_xtheadmmf64bf64b0p5_xtheadmmf8bbf16b0p5_xtheadmmf8bf16b0p5_xtheadmmf8bf32b0p5_xtheadmmi4bi32b0p5_xtheadmmi8bi32b0p5_xtheadmmmxf4b0p5_xtheadmmmxf8b0p5_xtheadmmmxf8bmxf4b0p5_xtheadmred0p5";
+  // Only define the pure architecture string
+  // (without .attribute and quotes, for easier subsequent concatenation)
+  std::string XuanTieArchStr =
+      "rv64i2p1_m2p0_a2p1_f2p2_d2p2_c2p0_zicsr2p0_zmmul1p0_zaamo1p0_zalrsc1p0_"
+      "zca1p0_zcd1p0_xtheadmatrix3p0_xtheadmatrixmin0p5_xtheadmdma0p5_"
+      "xtheadmew16b0p5_xtheadmew32b0p5_xtheadmew4b0p5_xtheadmew64b0p5_"
+      "xtheadmew8b0p5_xtheadmfew0p5_xtheadmfic0p5_xtheadmhp0p5_xtheadmiew0p5_"
+      "xtheadmmbf16bbf16b0p5_xtheadmmbf16bf32b0p5_xtheadmmbf20bf32b0p5_"
+      "xtheadmmf16bf16b0p5_xtheadmmf16bf32b0p5_xtheadmmf32bf32b0p5_"
+      "xtheadmmf32bf64b0p5_xtheadmmf4bbf16b0p5_xtheadmmf4bf16b0p5_"
+      "xtheadmmf4bf32b0p5_xtheadmmf64bf64b0p5_xtheadmmf8bbf16b0p5_"
+      "xtheadmmf8bf16b0p5_xtheadmmf8bf32b0p5_xtheadmmi4bi32b0p5_"
+      "xtheadmmi8bi32b0p5_xtheadmmmxf4b0p5_xtheadmmmxf8b0p5_"
+      "xtheadmmmxf8bmxf4b0p5_xtheadmred0p5";
 
-    std::string NewContent;
-    llvm::raw_string_ostream OS(NewContent);
+  std::string NewContent;
+  llvm::raw_string_ostream OS(NewContent);
 
-    llvm::SmallVector<llvm::StringRef, 16> Lines;
-    Content.split(Lines, '\n');
+  llvm::SmallVector<llvm::StringRef, 16> Lines;
+  Content.split(Lines, '\n');
 
-    for (auto Line : Lines) {
-        // 去除行首行尾的空格和 Tab
-        llvm::StringRef TrimmedLine = Line.trim();
+  for (auto Line : Lines) {
 
-        // 精准拦截：以 .attribute 开头，包含 5 或 arch，且包含 "rv64
-        if (TrimmedLine.starts_with(".attribute") && 
-           (TrimmedLine.contains("5,") || TrimmedLine.contains("arch,")) &&
-           TrimmedLine.contains("\"rv64")) {
-            
-            // 写入带正确 Tab 缩进的玄铁扩展属性
-            OS << "\t.attribute\t5, \"" << XuanTieArchStr << "\"\n";
-        } else {
-            if (!Line.empty() || &Line != &Lines.back()) {
-                OS << Line << "\n";
-            }
-        }
+    llvm::StringRef TrimmedLine = Line.trim();
+
+    // Precise interception: starts with .attribute, contains 5 or arch, and
+    // also contains rv64
+    if (TrimmedLine.starts_with(".attribute") &&
+        (TrimmedLine.contains("5,") || TrimmedLine.contains("arch,")) &&
+        TrimmedLine.contains("\"rv64")) {
+
+      // Write the Xuansteel extension attributes with correct Tab indentation
+      OS << "\t.attribute\t5, \"" << XuanTieArchStr << "\"\n";
+    } else {
+      if (!Line.empty() || &Line != &Lines.back()) {
+        OS << Line << "\n";
+      }
     }
+  }
 
-    std::error_code EC;
-    llvm::raw_fd_ostream OutFile(OutputFilename, EC, llvm::sys::fs::OF_Text);
-    if (!EC) {
-        OutFile << OS.str();
-    }
+  std::error_code EC;
+  llvm::raw_fd_ostream OutFile(OutputFilename, EC, llvm::sys::fs::OF_Text);
+  if (!EC) {
+    OutFile << OS.str();
+  }
 }
 
 // main - Entry point for the llc compiler.
@@ -454,14 +465,14 @@ int main(int argc, char **argv) {
 
   std::string outName = OutputFilename;
   if (outName.length() >= 2 && outName.substr(outName.length() - 2) == ".s") {
-      postProcessXuanTieAttributes(OutputFilename);
+    postProcessXuanTieAttributes(OutputFilename);
   }
 
   return 0;
 }
 
-static bool addPass(PassManagerBase &PM, const char *argv0,
-                    StringRef PassName, TargetPassConfig &TPC) {
+static bool addPass(PassManagerBase &PM, const char *argv0, StringRef PassName,
+                    TargetPassConfig &TPC) {
   if (PassName == "none")
     return false;
 
@@ -661,7 +672,8 @@ static int compileModule(char **argv, LLVMContext &Context) {
   // Figure out where we are going to send the output.
   std::unique_ptr<ToolOutputFile> Out =
       GetOutputStream(TheTarget->getName(), TheTriple.getOS(), argv[0]);
-  if (!Out) return 1;
+  if (!Out)
+    return 1;
 
   // Ensure the filename is passed down to CodeViewDebug.
   Target->Options.ObjectFilenameForDebug = Out->outputFilename();
@@ -674,7 +686,7 @@ static int compileModule(char **argv, LLVMContext &Context) {
   if (!SplitDwarfOutputFile.empty()) {
     std::error_code EC;
     DwoOut = std::make_unique<ToolOutputFile>(SplitDwarfOutputFile, EC,
-                                               sys::fs::OF_None);
+                                              sys::fs::OF_None);
     if (EC)
       reportError(EC.message(), SplitDwarfOutputFile);
   }
