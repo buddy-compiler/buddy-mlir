@@ -90,6 +90,126 @@ func.func @reduce_2d_to_1d_maxnumf(%arg0: memref<4x8xf32>, %arg1: memref<4xf32>)
 // CHECK-VEC-REDUCE: arith.maxnumf
 
 // -----
+// CASE: linalg-reduce-to-vir-2d-dim0-addf-f32.mlir
+func.func @reduce_2d_dim0_addf(%arg0: memref<4x8xf32>, %arg1: memref<8xf32>) {
+  linalg.reduce ins(%arg0 : memref<4x8xf32>) outs(%arg1 : memref<8xf32>) dimensions = [0]
+    (%in: f32, %init: f32) {
+      %sum = arith.addf %in, %init : f32
+      linalg.yield %sum : f32
+    }
+  return
+}
+
+// CHECK-LABEL: func.func @reduce_2d_dim0_addf
+// CHECK-NOT: linalg.reduce
+// CHECK-NOT: memref.alloca_scope
+// CHECK: memref.transpose %arg0 {{.*}} : memref<4x8xf32> to memref<8x4xf32, {{.*}}>
+// CHECK: %[[SCRATCH:.+]] = memref.alloc() : memref<8x4xf32>
+// CHECK-NEXT: memref.copy %transpose, %[[SCRATCH]] : memref<8x4xf32, {{.*}}> to memref<8x4xf32>
+// CHECK: scf.for %[[J:[^ ]+]] =
+// CHECK: %[[INIT:.+]] = memref.load %arg1[%[[J]]]
+// CHECK: vir.set_vl
+// CHECK: vir.load {{.*}}[%[[J]], {{[^]]+}}]
+// CHECK: vir.reduce
+// CHECK: memref.store
+// CHECK: %[[FINAL:.+]] = memref.load %alloca[] : memref<f32>
+// CHECK-NEXT: memref.store %[[FINAL]], %arg1[%[[J]]]
+// CHECK-NEXT: }
+// CHECK-NEXT: memref.dealloc %[[SCRATCH]] : memref<8x4xf32>
+// CHECK-VEC-REDUCE-LABEL: func.func @reduce_2d_dim0_addf
+// CHECK-VEC-REDUCE: memref.transpose %arg0 {{.*}} : memref<4x8xf32> to memref<8x4xf32, {{.*}}>
+// CHECK-VEC-REDUCE: vector.reduction <add>
+// CHECK-VEC-REDUCE: arith.addf
+
+// -----
+// CASE: linalg-reduce-to-vir-2d-dim0-maxnumf-f32.mlir
+func.func @reduce_2d_dim0_maxnumf(%arg0: memref<4x8xf32>, %arg1: memref<8xf32>) {
+  linalg.reduce ins(%arg0 : memref<4x8xf32>) outs(%arg1 : memref<8xf32>) dimensions = [0]
+    (%in: f32, %init: f32) {
+      %max = arith.maxnumf %in, %init : f32
+      linalg.yield %max : f32
+    }
+  return
+}
+
+// CHECK-LABEL: func.func @reduce_2d_dim0_maxnumf
+// CHECK-NOT: linalg.reduce
+// CHECK-NOT: memref.alloca_scope
+// CHECK: memref.transpose %arg0 {{.*}} : memref<4x8xf32> to memref<8x4xf32, {{.*}}>
+// CHECK: %[[SCRATCH:.+]] = memref.alloc() : memref<8x4xf32>
+// CHECK-NEXT: memref.copy %transpose, %[[SCRATCH]] : memref<8x4xf32, {{.*}}> to memref<8x4xf32>
+// CHECK: scf.for %[[J:[^ ]+]] =
+// CHECK: %[[INIT:.+]] = memref.load %arg1[%[[J]]]
+// CHECK: vir.set_vl
+// CHECK: vir.load {{.*}}[%[[J]], {{[^]]+}}]
+// CHECK: vir.reduce
+// CHECK: memref.store
+// CHECK: %[[FINAL:.+]] = memref.load %alloca[] : memref<f32>
+// CHECK-NEXT: memref.store %[[FINAL]], %arg1[%[[J]]]
+// CHECK-NEXT: }
+// CHECK-NEXT: memref.dealloc %[[SCRATCH]] : memref<8x4xf32>
+// CHECK-VEC-REDUCE-LABEL: func.func @reduce_2d_dim0_maxnumf
+// CHECK-VEC-REDUCE: memref.transpose %arg0 {{.*}} : memref<4x8xf32> to memref<8x4xf32, {{.*}}>
+// CHECK-VEC-REDUCE: vector.reduction <maxnumf>
+// CHECK-VEC-REDUCE: arith.maxnumf
+
+// -----
+// CASE: linalg-reduce-to-vir-3d-dim0-addf-f32.mlir
+func.func @reduce_3d_dim0_addf(%arg0: memref<8x4x8xf32>, %arg1: memref<4x8xf32>) {
+  linalg.reduce ins(%arg0 : memref<8x4x8xf32>) outs(%arg1 : memref<4x8xf32>) dimensions = [0]
+    (%in: f32, %init: f32) {
+      %sum = arith.addf %in, %init : f32
+      linalg.yield %sum : f32
+    }
+  return
+}
+
+// CHECK-LABEL: func.func @reduce_3d_dim0_addf
+// CHECK-NOT: linalg.reduce
+// CHECK: memref.transpose %arg0 {{.*}} : memref<8x4x8xf32> to memref<4x8x8xf32, {{.*}}>
+// CHECK: memref.alloc{{.*}} : memref<4x8x8xf32>
+// CHECK: scf.for %[[J:[^ ]+]] =
+// CHECK: scf.for %[[K:[^ ]+]] =
+// CHECK: %[[INIT:.+]] = memref.load %arg1[%[[J]], %[[K]]]
+// CHECK: vir.set_vl
+// CHECK: vir.load {{.*}}[%[[J]], %[[K]], {{[^]]+}}]
+// CHECK: vir.reduce
+// CHECK: memref.store
+// CHECK: memref.dealloc
+// CHECK-VEC-REDUCE-LABEL: func.func @reduce_3d_dim0_addf
+// CHECK-VEC-REDUCE: memref.transpose %arg0 {{.*}} : memref<8x4x8xf32> to memref<4x8x8xf32, {{.*}}>
+// CHECK-VEC-REDUCE: vector.reduction <add>
+// CHECK-VEC-REDUCE: arith.addf
+
+// -----
+// CASE: linalg-reduce-to-vir-3d-dim0-maxnumf-f32.mlir
+func.func @reduce_3d_dim0_maxnumf(%arg0: memref<8x4x8xf32>, %arg1: memref<4x8xf32>) {
+  linalg.reduce ins(%arg0 : memref<8x4x8xf32>) outs(%arg1 : memref<4x8xf32>) dimensions = [0]
+    (%in: f32, %init: f32) {
+      %max = arith.maxnumf %in, %init : f32
+      linalg.yield %max : f32
+    }
+  return
+}
+
+// CHECK-LABEL: func.func @reduce_3d_dim0_maxnumf
+// CHECK-NOT: linalg.reduce
+// CHECK: memref.transpose %arg0 {{.*}} : memref<8x4x8xf32> to memref<4x8x8xf32, {{.*}}>
+// CHECK: memref.alloc{{.*}} : memref<4x8x8xf32>
+// CHECK: scf.for %[[J:[^ ]+]] =
+// CHECK: scf.for %[[K:[^ ]+]] =
+// CHECK: %[[INIT:.+]] = memref.load %arg1[%[[J]], %[[K]]]
+// CHECK: vir.set_vl
+// CHECK: vir.load {{.*}}[%[[J]], %[[K]], {{[^]]+}}]
+// CHECK: vir.reduce
+// CHECK: memref.store
+// CHECK: memref.dealloc
+// CHECK-VEC-REDUCE-LABEL: func.func @reduce_3d_dim0_maxnumf
+// CHECK-VEC-REDUCE: memref.transpose %arg0 {{.*}} : memref<8x4x8xf32> to memref<4x8x8xf32, {{.*}}>
+// CHECK-VEC-REDUCE: vector.reduction <maxnumf>
+// CHECK-VEC-REDUCE: arith.maxnumf
+
+// -----
 // CASE: linalg-index-generic-to-scf-fallback.mlir
 func.func @index_init(%out: memref<16xi32>) {
   linalg.generic {indexing_maps = [affine_map<(i)->(i)>], iterator_types = ["parallel"]}
