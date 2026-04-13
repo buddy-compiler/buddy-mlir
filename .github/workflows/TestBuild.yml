@@ -5,6 +5,7 @@ on:
     branches: [ main, ci, ci-test ]
   pull_request:
     branches: [ main, ci, ci-test ]
+  workflow_dispatch:
 
 jobs:
   test:
@@ -68,7 +69,15 @@ jobs:
           venv_deactivate: ${{ matrix.venv_deactivate }}
 
       - name: Run check-buddy
+        if: matrix.arch == 'x64'
         run: |
           ${{ matrix.venv_activate }}
-          ninja -C build check-buddy || true
+          ninja -C build check-buddy
+          ${{ matrix.venv_deactivate }}
+
+      - name: Run check-buddy
+        if: matrix.arch != 'x64'
+        run: |
+          ${{ matrix.venv_activate }}
+          ninja -C build check-buddy | true
           ${{ matrix.venv_deactivate }}

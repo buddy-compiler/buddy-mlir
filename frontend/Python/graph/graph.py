@@ -27,8 +27,7 @@ import buddy_mlir.dialects.func as func
 import buddy_mlir.ir as ir
 import numpy as np
 from buddy_mlir import runtime as rt
-from buddy_mlir.execution_engine import *
-from buddy_mlir.passmanager import *
+from buddy_mlir.passmanager import PassManager
 
 from .operation import *
 from .type import *
@@ -39,9 +38,9 @@ def make_output_memref_descriptor(ranks, dtypes):
     Make an output memref descriptor for the given memref ranks and dtypes.
 
     Parameters:
-    - ranks: List[int]
+    - ranks: list[int]
         A list of integers representing the ranks of each memref.
-    - dtypes: List[str]
+    - dtypes: list[str]
         A list of strings representing the data types of each memref.
 
     Returns:
@@ -81,11 +80,11 @@ class Graph:
     MLIR module.
 
     Attributes:
-    - _body: List[Op]
+    - _body: list[Op]
         The sequence of operation nodes in the graph.
-    - _inputs: List[TensorMeta]
+    - _inputs: list[TensorMeta]
         The model inputs represented as TensorMeta objects.
-    - _fake_params: List[TensorMeta]
+    - _fake_params: list[TensorMeta]
         The fake parameters represented as TensorMeta objects.
     - device: str
         The hardware for graph runtime.
@@ -117,9 +116,9 @@ class Graph:
         Initializes the Graph.
 
         Args:
-            inputs: List[TensorMeta]
+            inputs: list[TensorMeta]
                 The model inputs represented as TensorMeta objects.
-            fake_params: List[TensorMeta]
+            fake_params: list[TensorMeta]
                 The fake parameters represented as TensorMeta objects.
             ops_registry: dict
                 The ops lower strategy for the graph.
@@ -254,7 +253,7 @@ class Graph:
 
         Args:
             node (Op): The operation node to be deleted from the graph.
-            parents (List[Op]): A list of parent operation nodes that reference the node to be deleted.
+            parents (list[Op]): A list of parent operation nodes that reference the node to be deleted.
 
         Returns:
             None
@@ -435,7 +434,7 @@ class Graph:
         Fuse operations in the graph based on provided fusion patterns.
 
         Args:
-        - pattern_list (List[FunctionType]): A list of functions representing
+        - pattern_list (list[FunctionType]): A list of functions representing
         fusion patterns.
 
         Returns:
@@ -455,7 +454,7 @@ class Graph:
         of functions.
 
         Args:
-        - func_list (List[FunctionType]): A list of functions representing
+        - func_list (list[FunctionType]): A list of functions representing
         transformations to be applied to the graph.
 
         Returns:
@@ -608,9 +607,9 @@ class GraphImporter:
 
     Attributes:
         _symbol_table (dict): A dictionary to keep track of the symbols.
-        _body (List[Op]): The FX graph module to be imported.
+        _body (list[Op]): The FX graph module to be imported.
         _func_name (str): Name of the generated MLIR function.
-        _inputs (List[TensorMeta]): Input tensor(s) of the FX graph.
+        _inputs (list[TensorMeta]): Input tensor(s) of the FX graph.
         _num_input_visited (int): Number of input nodes that have been visited.
         _module (buddy_mlir.ir.Module): The generated MLIR module.
         _ops_registry (dict): Registry for the candidate operations.
@@ -633,7 +632,7 @@ class GraphImporter:
 
         Args:
             gm (Graph): The buddy graph that will be imported.
-            inputs (List[TensorMeta]): Input tensor(s) of the buddy graph.
+            inputs (list[TensorMeta]): Input tensor(s) of the buddy graph.
             func_name (str): Name of the generated MLIR function.
             ops_registry (dict): Registry for the candidate operations.
             enable_external_calls (bool): Enable external function call support (for oneDNN, etc.)
@@ -860,7 +859,7 @@ class GraphImporter:
         Parameters:
         - node (PlaceholderOp): The PlaceholderOp node representing the
         placeholder.
-        - args_list (List[buddy_mlir.ir.BlockArgument]): List of input memrefs.
+        - args_list (list[buddy_mlir.ir.BlockArgument]): list of input memrefs.
 
         Returns:
         None
@@ -916,7 +915,7 @@ class GraphImporter:
 
         # Build argument types from CallOp's arguments
         arg_types = []
-        for i, arg in enumerate(call_node.args):
+        for _, arg in enumerate(call_node.args):
             # Get the node that produces this argument
             arg_node = None
             for node in self._body:

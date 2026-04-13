@@ -71,7 +71,9 @@ runs:
       shell: bash
       run: |
         LLVM_COMMIT=$(git ls-tree HEAD llvm | awk '{print $3}')
-        LLVM_BUILD_DIR=$LLVM_BUILD_ROOT/$LLVM_COMMIT
+        PATCH_HASH=$(shasum ./riscv-jitlink.patch | cut -d' ' -f1)
+
+        LLVM_BUILD_DIR=$LLVM_BUILD_ROOT/$LLVM_COMMIT-${PATCH_HASH:0:12}
 
         mkdir -p $LLVM_BUILD_ROOT
 
@@ -83,6 +85,8 @@ runs:
         git -C $LLVM_SRC reset --hard
         git -C $LLVM_SRC clean -fdx
         git -C $LLVM_SRC checkout $LLVM_COMMIT
+
+        git -C $LLVM_SRC apply $GITHUB_WORKSPACE/riscv-jitlink.patch
 
         echo "LLVM_SRC=$LLVM_SRC" >> $GITHUB_ENV
         echo "LLVM_COMMIT=$LLVM_COMMIT" >> $GITHUB_ENV
