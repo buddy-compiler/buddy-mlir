@@ -119,7 +119,7 @@ func.func @main() -> i32 {
   %res_udiv_mask_driven = "llvm.intr.vp.udiv" (%load_vec2_i32, %load_vec1_i32, %mask_scalable6, %vl8_i32) :
       (vector<[4]xi32>, vector<[4]xi32>, vector<[4]xi1>, i32) -> vector<[4]xi32>
   call @print_scalable_vector_i32(%res_udiv_mask_driven) : (vector<[4]xi32>) -> ()
-  
+
 
   // EVL-Driven
   %res_udiv_evl_driven = "llvm.intr.vp.udiv" (%load_vec2_i32, %load_vec1_i32, %mask_scalable8, %vl6_i32) :

@@ -30,6 +30,6 @@ module attributes {gpu.container_module} {
     %c1 = arith.constant 1 : index
     gpu.launch_func @kernels::@vector_reduction blocks in (%c1, %c1, %c1) threads in (%c1, %c1, %c1) args()
 
-    func.return 
+    func.return
   }
 }

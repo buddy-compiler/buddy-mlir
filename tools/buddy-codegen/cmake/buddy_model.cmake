@@ -1,4 +1,4 @@
-# ===- buddy_model.cmake - Config-driven model build ──────────────────────===
+# ===- buddy_model.cmake - Config-driven model build ------------------------===
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# ===----------------------------------------------------------------------===
+# ===------------------------------------------------------------------------===
 #
 # Thin CMake layer that delegates heavy lifting to the buddy-codegen Python
 # scripts.  A model's CMakeLists.txt simply calls:
@@ -42,6 +42,8 @@ set(BUDDY_CODEGEN_DIR "${CMAKE_SOURCE_DIR}/tools/buddy-codegen"
 #   SPEC          <variant_spec.json>       full path to variant spec
 #   RUNNER_SRC    <file.cpp>                model-specific runner source
 #   [HF_CONFIG    <config.json>]            optional HuggingFace config path
+#   [LOCAL_MODEL  <dir>]                    optional: HF snapshot dir for import
+#                                           (sets DEEPSEEKR1_MODEL_PATH)
 #   [BUILD_DIR    <dir>]                    mode A: use pre-built .o files
 #   [MLIR_DIR     <dir>]                    mode B: use pre-generated MLIR files
 #   [NUM_THREADS  <N>]                      OpenMP threads (default from spec)
@@ -53,7 +55,7 @@ function(buddy_add_model)
   cmake_parse_arguments(
     MDL                                      # prefix
     ""                                       # flags
-    "NAME;SPEC;RUNNER_SRC;HF_CONFIG;BUILD_DIR;MLIR_DIR;NUM_THREADS;LLC_ATTRS;COMPILE_JOBS"
+    "NAME;SPEC;RUNNER_SRC;HF_CONFIG;LOCAL_MODEL;BUILD_DIR;MLIR_DIR;NUM_THREADS;LLC_ATTRS;COMPILE_JOBS"
     ""                                       # multi-value
     ${ARGN}
   )
@@ -218,9 +220,16 @@ function(buddy_add_model)
       if(TARGET python-package-buddy)
         list(APPEND IMPORT_DEPS python-package-buddy)
       endif()
+      if(MDL_LOCAL_MODEL)
+        set(_IMPORT_ENV ${CMAKE_COMMAND} -E env
+          "PYTHONPATH=${BUDDY_PY_PKG_ROOT}"
+          "DEEPSEEKR1_MODEL_PATH=${MDL_LOCAL_MODEL}")
+      else()
+        set(_IMPORT_ENV ${CMAKE_COMMAND} -E env "PYTHONPATH=${BUDDY_PY_PKG_ROOT}")
+      endif()
       add_custom_command(
         OUTPUT "${IMPORT_STAMP}"
-        COMMAND ${CMAKE_COMMAND} -E env "PYTHONPATH=${BUDDY_PY_PKG_ROOT}"
+        COMMAND ${_IMPORT_ENV}
                 "${Python3_EXECUTABLE}" "${BUDDY_CODEGEN_DIR}/import_model.py"
                 --config "${GEN_CONFIG}" --output-dir "${BIN}"
         COMMAND "${CMAKE_COMMAND}" -E touch "${IMPORT_STAMP}"

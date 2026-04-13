@@ -5,7 +5,7 @@
   - exec: ${BUDDY_OPT}
     args: --convert-scf-to-cf --convert-math-to-llvm --lower-rvv --convert-vector-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
     workingdir:
-    env: 
+    env:
     input: FILE
     output: STDOUT
   - exec: ${BUDDY_TRANSLATE}
@@ -28,7 +28,7 @@
   - exec: ${BUDDY_OPT}
     args: --convert-scf-to-cf --convert-math-to-llvm --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
     workingdir:
-    env: 
+    env:
     input: FILE
     output: STDOUT
   - exec: ${BUDDY_TRANSLATE}
@@ -63,7 +63,7 @@
   - exec: ${BUDDY_OPT}
     args: --convert-scf-to-cf --convert-math-to-llvm --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
     workingdir:
-    env: 
+    env:
     input: FILE
     output: STDOUT
   - exec: ${BUDDY_TRANSLATE}
@@ -86,7 +86,7 @@
   - exec: ${BUDDY_OPT}
     args: --convert-scf-to-cf --convert-math-to-llvm --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
     workingdir:
-    env: 
+    env:
     input: FILE
     output: STDOUT
   - exec: ${BUDDY_TRANSLATE}

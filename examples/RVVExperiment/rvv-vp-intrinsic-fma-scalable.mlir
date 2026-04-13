@@ -50,7 +50,7 @@ func.func @main() -> i32 {
   // Mask-Driven
   %res_fma_mask_driven = "llvm.intr.vp.fma" (%load_vec1, %load_vec2, %load_vec2, %mask_scalable6, %vl8_i32) :
       (vector<[4]xf32>, vector<[4]xf32>, vector<[4]xf32>, vector<[4]xi1>, i32) -> vector<[4]xf32>
-  
+
   %res_mask_driven = call @alloc_mem() : () -> memref<20xf32>
   rvv.store %res_fma_mask_driven, %res_mask_driven[%c0], %vl8 : vector<[4]xf32>, memref<20xf32>, index
   %print_res_mask_driven = memref.cast %res_mask_driven : memref<20xf32> to memref<*xf32>
@@ -59,7 +59,7 @@ func.func @main() -> i32 {
   // EVL-Driven
   %res_fma_evl_driven = "llvm.intr.vp.fma" (%load_vec1, %load_vec2, %load_vec2, %mask_scalable8, %vl6_i32) :
       (vector<[4]xf32>, vector<[4]xf32>, vector<[4]xf32>, vector<[4]xi1>, i32) -> vector<[4]xf32>
-  
+
   %res_evl_driven = call @alloc_mem() : () -> memref<20xf32>
   rvv.store %res_fma_evl_driven, %res_evl_driven[%c0], %vl8 : vector<[4]xf32>, memref<20xf32>, index
   %print_res_evl_driven = memref.cast %res_evl_driven : memref<20xf32> to memref<*xf32>

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# ===- build_model.py - One entry: variant spec → full CMake build ------------===//
+# ===- build_model.py - One entry: variant spec → full CMake build --------===//
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,7 +20,8 @@
 # This script configures the Buddy build (sets BUDDY_BUILD_DEEPSEEK_R1_MODEL=ON;
 # DeepSeek R1 uses buddy-codegen only) and builds the model + CLI in one shot.
 #
-# Usage: relative paths (--spec, --build-dir, --hf-config, --source-dir) are
+# Usage: relative paths
+# (--spec, --build-dir, --hf-config, --local-model, --source-dir) are
 # resolved from the **current working directory** (where you run the command),
 # not from the source tree root.
 #
@@ -29,6 +30,12 @@
 #       --spec models/deepseek_r1/specs/w8a16.json \\
 #       --build-dir build \\
 #       --hf-config ~/.cache/huggingface/hub/.../config.json
+#
+#   # Local HF snapshot (offline import): directory with config.json + weights
+#   python3 tools/buddy-codegen/build_model.py \\
+#       --spec models/deepseek_r1/specs/f32.json \\
+#       --build-dir build \\
+#       --local-model /path/to/DeepSeek-R1-Distill-Qwen-1.5B
 #
 #   # From another build directory (e.g. build-review/):
 #   cd build-review
@@ -40,8 +47,9 @@
 #   python3 tools/buddy-codegen/build_model.py --spec ... \\
 #       --cmake-args=-DDEEPSEEKR1_MLIR_DIR=/path/to/mlir
 #
-# Full import (Mode C, no DEEPSEEKR1_MLIR_DIR) needs torch + transformers +
-# Buddy Python frontend. Use --cmake-args=-DDEEPSEEKR1_MLIR_DIR=... to skip import.
+# Full import (Mode C, no DEEPSEEKR1_MLIR_DIR) needs
+# torch + transformers + Buddy Python frontend.
+# Use --cmake-args=-DDEEPSEEKR1_MLIR_DIR=... to skip import.
 #
 # ===----------------------------------------------------------------------===//
 
@@ -58,9 +66,7 @@ def _repo_root() -> Path:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(
-        description="One-command build: single variant spec JSON → codegen + buddy-cli + .rax"
-    )
+    ap = argparse.ArgumentParser(description="One-command build: single variant spec JSON → codegen + buddy-cli + .rax")
     ap.add_argument(
         "--spec",
         required=True,
@@ -78,6 +84,14 @@ def main() -> int:
         type=Path,
         default=None,
         help="HuggingFace config.json (passed to gen_config via CMake)",
+    )
+    ap.add_argument(
+        "--local-model",
+        type=Path,
+        default=None,
+        help="Local HuggingFace-format model directory for PyTorch import (sets "
+        "BUDDY_DSR1_LOCAL_MODEL). If --hf-config is omitted and <dir>/config.json "
+        "exists, it is used for gen_config.",
     )
     ap.add_argument(
         "--no-configure",
@@ -121,10 +135,7 @@ def main() -> int:
     def resolve_from_cwd(p: Path) -> Path:
         return p.resolve() if p.is_absolute() else (here / p).resolve()
 
-    if args.source_dir is not None:
-        root = resolve_from_cwd(args.source_dir)
-    else:
-        root = _repo_root()
+    root = resolve_from_cwd(args.source_dir) if args.source_dir is not None else _repo_root()
 
     spec = resolve_from_cwd(args.spec)
     if not spec.is_file():
@@ -133,6 +144,16 @@ def main() -> int:
 
     build_dir = resolve_from_cwd(args.build_dir)
 
+    local_model: Path | None = None
+    if args.local_model is not None:
+        local_model = resolve_from_cwd(args.local_model)
+        if not local_model.is_dir():
+            print(
+                f"error: --local-model is not a directory: {local_model}",
+                file=sys.stderr,
+            )
+            return 1
+
     cmake_args = [
         f"-DBUDDY_DSR1_SPEC={spec}",
         "-DBUDDY_BUILD_DEEPSEEK_R1_MODEL=ON",
@@ -140,9 +161,16 @@ def main() -> int:
         # Without this, buddy_add_model sets PYTHONPATH but the tree is empty → No module named 'buddy'.
         "-DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON",
     ]
+    if local_model is not None:
+        cmake_args.append(f"-DBUDDY_DSR1_LOCAL_MODEL={local_model}")
+
     if args.hf_config is not None:
         hf = resolve_from_cwd(args.hf_config)
         cmake_args.append(f"-DBUDDY_DSR1_HF_CONFIG={hf}")
+    elif local_model is not None:
+        auto_cfg = local_model / "config.json"
+        if auto_cfg.is_file():
+            cmake_args.append(f"-DBUDDY_DSR1_HF_CONFIG={auto_cfg}")
 
     for extra in args.cmake_args:
         if extra.startswith("-D"):

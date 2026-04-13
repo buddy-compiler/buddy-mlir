@@ -73,7 +73,7 @@ public:
     // Acquire the element type of input tensors.
     Type elementType =
     mlir::cast<mlir::MemRefType>(A.getType()).getElementType();
-    
+
     // Define constants.
     const Value c0 =
         rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0));

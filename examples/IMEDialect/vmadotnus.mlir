@@ -35,21 +35,21 @@ func.func @main() -> i32 {
   // Get input matrices
   %a = memref.get_global @matA : memref<8x8xui8>
   %b = memref.get_global @matB : memref<8x4xi8>
-  
+
   // Allocate output matrix (accumulator)
   %c = memref.alloc() : memref<4x4xi32>
-  
+
   // Initialize accumulator to zero
   %zero = arith.constant 0 : i32
   linalg.fill ins(%zero : i32) outs(%c : memref<4x4xi32>)
-  
+
   // Slide parameter (0-3)
   %slide = arith.constant 3 : i64
-  
+
   // Perform unsigned × signed matrix multiply-accumulate with dynamic slide
   // CHECK: ime.vmadotnus
   ime.vmadotnus %c, %a, %b, %slide : memref<4x4xi32>, memref<8x8xui8>, memref<8x4xi8>
-  
+
   // Return success
   %ret = arith.constant 0 : i32
   return %ret : i32

@@ -54,7 +54,7 @@ module {
         %pc_actual_end = arith.select %pc_bound, %pc_end, %k : index
         %kc_actual = arith.subi %pc_actual_end, %pc : index
 
-        // Pack B 
+        // Pack B
         %B_packed = memref.alloc(%kc_actual, %nc_actual) : memref<?x?xf32>
 
         scf.for %kp = %c0 to %kc_actual step %c1 {
@@ -74,10 +74,10 @@ module {
 
           // Pack A
           %A_packed = memref.alloc(%mc_actual, %kc_actual) : memref<?x?xf32>
-          
+
           scf.for %i = %c0 to %mc_actual step %c1 {
             scf.for %kp = %c0 to %kc_actual step %c1 {
-              %a_row_idx = arith.addi %ic, %i : index 
+              %a_row_idx = arith.addi %ic, %i : index
               %a_col_idx = arith.addi %pc, %kp : index
               %a_val = memref.load %a[%a_row_idx, %a_col_idx] : memref<?x?xf32>
               memref.store %a_val, %A_packed[%i, %kp] : memref<?x?xf32>
@@ -95,7 +95,7 @@ module {
               %n_idx_bound = arith.cmpi slt, %n_idx_end, %nr_actual : index
               %n_idx_actual_end = arith.select %n_idx_bound, %n_idx_end, %nr_actual : index
               %cols_to_process = arith.subi %n_idx_actual_end, %n_idx : index
-              
+
               // if 32 columns?
               %can_vectorize = arith.cmpi sge, %cols_to_process, %nr : index
               scf.if %can_vectorize {
@@ -105,7 +105,7 @@ module {
                   %ir_bound = arith.cmpi slt, %ir_end, %mc_actual : index
                   %ir_actual_end = arith.select %ir_bound, %ir_end, %mc_actual : index
                   %mr_actual = arith.subi %ir_actual_end, %ir : index
-                  
+
                   // if 8 rows?
                   %has_full_rows = arith.cmpi sge, %mr_actual, %c8 : index
                   scf.if %has_full_rows {
@@ -254,7 +254,7 @@ module {
                         %new_sum = arith.addf %sum, %prod : f32
                         scf.yield %new_sum : f32
                       }
-                      
+
                       %c_row_idx = arith.addi %ic, %ii : index
                       %c_col_idx = arith.addi %jc, %jr : index
                       %c_col_actual = arith.addi %c_col_idx, %n_idx_tail : index
@@ -278,11 +278,11 @@ module {
    func.func @main(){
     %c0 = arith.constant 0 : index
     %c1 = arith.constant 1 : index
-    
+
     // little martix test data(for correct)
     %cM = arith.constant 37 : index  //37%8=5
     %cN = arith.constant 43 : index  //43%16=11
-    %cK = arith.constant 1123 : index  
+    %cK = arith.constant 1123 : index
 
     %cf1 = arith.constant 1.0 : f32
     %cf2 = arith.constant 2.0 : f32
@@ -337,8 +337,8 @@ module {
     %B_large = memref.alloc(%cK_large, %cN_large) : memref<?x?xf32>
     %C_vec_large = memref.alloc(%cM_large, %cN_large) : memref<?x?xf32>
     %C_ref_large = memref.alloc(%cM_large, %cN_large) : memref<?x?xf32>
-    
-    
+
+
     linalg.fill ins(%cf1 : f32) outs(%A_large:memref<?x?xf32>)
     linalg.fill ins(%cf2 : f32) outs(%B_large:memref<?x?xf32>)
     linalg.fill ins(%c0_f32 : f32) outs(%C_vec_large:memref<?x?xf32>)

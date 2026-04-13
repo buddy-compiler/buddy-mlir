@@ -37,7 +37,7 @@ module attributes { transform.with_named_sequence } {
     // Fuse the fill operation into the scf.all op.
     %fused_op, %new_containing_op = transform.structured.fuse_into_containing_op %fill into %forall_op : (!transform.any_op, !transform.any_op) -> (!transform.any_op, !transform.any_op)
 
-    // Further tile the tiled matmul 
+    // Further tile the tiled matmul
     // Tile the third dimension in matmul.
     // [128, 2048] @ [2048, 256] matmul is further tiled into [128, 16] @ [16, 256] matmul.
     %tiled_linalg_op, %loops = transform.structured.tile_using_for %tiled_op [0, 0, 16] : (!transform.any_op) -> (!transform.any_op, !transform.any_op)

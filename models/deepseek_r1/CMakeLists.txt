@@ -26,6 +26,8 @@ set(BUDDY_DSR1_SPEC
   CACHE FILEPATH "Variant spec JSON, e.g. specs/w8a16.json")
 set(BUDDY_DSR1_HF_CONFIG ""
   CACHE FILEPATH "Optional: HuggingFace config.json for gen_config.py (auto-detect if empty)")
+set(BUDDY_DSR1_LOCAL_MODEL ""
+  CACHE PATH "Optional: local HF model directory (weights import; sets DEEPSEEKR1_MODEL_PATH)")
 set(BUDDY_DSR1_COMPILE_JOBS "1"
   CACHE STRING "Parallel MLIR→.o jobs when using compile_pipeline.py")
 
@@ -40,6 +42,7 @@ buddy_add_model(
   SPEC "${BUDDY_DSR1_SPEC}"
   RUNNER_SRC DeepSeekR1Runner.cpp
   HF_CONFIG "${BUDDY_DSR1_HF_CONFIG}"
+  LOCAL_MODEL "${BUDDY_DSR1_LOCAL_MODEL}"
   BUILD_DIR "${DEEPSEEKR1_BUILD_DIR}"
   MLIR_DIR "${DEEPSEEKR1_MLIR_DIR}"
   COMPILE_JOBS "${BUDDY_DSR1_COMPILE_JOBS}"

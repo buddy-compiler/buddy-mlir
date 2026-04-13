@@ -18,7 +18,7 @@ with torch.no_grad():
     graphs = dynamo_compiler.importer(model, **encoded_text)
 
 graph = graphs[0]
-params = dynamo_compiler.imported_params[graph]    
+params = dynamo_compiler.imported_params[graph]
 graph.lower_to_top_level_ir(do_params_pack=True)
 print(graph._imported_module)
 print(params)

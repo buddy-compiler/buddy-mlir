@@ -6,7 +6,7 @@
 // This instruction is useful for high-precision computations.
 
 module {
-  func.func @mma_dw_mm_demo(%md: memref<4x4xi64>, 
+  func.func @mma_dw_mm_demo(%md: memref<4x4xi64>,
                             %ms1: memref<4x8xi64>,
                             %ms2: memref<8x4xi64>) {
     // int64 matrix multiply: C[4x4] += A[4x8] × B[8x4]
