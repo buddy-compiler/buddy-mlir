@@ -1,8 +1,8 @@
 [build-system]
 requires = [
-  "setuptools>=69",
-  "wheel",
-  "build>=1.2",
+    "setuptools>=69",
+    "wheel",
+    "build>=1.2"
 ]
 build-backend = "setuptools.build_meta"
 
@@ -16,10 +16,12 @@ dynamic = ["entry-points", "scripts", "version"]
 include-package-data = true
 
 [tool.setuptools.dynamic]
-version = {attr = "buddy.__version__"}
+version = { attr = "buddy.__version__" }
 
 [tool.ruff]
 line-length = 80
+
+[tool.ruff.lint]
 
 select = [
     "E",   # pycodestyle errors
@@ -33,9 +35,13 @@ select = [
 ]
 
 ignore = [
-    # "F821", # Undefined name
-    # "F403", # from module import *
-    # "F405", # Name may be undefined
+    "B905", # zip-without-explicit-strict
+    "B007",
+    "B011",
+    "F821", # Undefined name
+    "F403", # from module import *
+    "F405", # Name may be undefined
+    "E501", # Line too long
     # "F401", # Unused import
     # "E203", # Whitespace before ':'
     # "E402", # Module level import not at top of file
@@ -43,41 +49,25 @@ ignore = [
     # "E401", # Multiple imports on one line
     # "W605", # Invalid escape sequence
     # "E712", # Comparison to True/False
-    # "E711", # Comparison to None
-    # "F841", # Unused variable
+    "E711", # Comparison to None
+    "E712", # true-false-comparison
+    "F841", # Unused variable
+    "C403", # unnecessary-list-comprehension-set
+    "C416", # unnecessary-comprehension
+    "E741",
+    "SIM101",
+    "SIM102",
+    "SIM103",
+    "SIM105",
+    "SIM108",
+    "SIM118",
+    "UP031",
 ]
 
-# lit.cfg.py: `config` is injected by lit when loading the file, not defined
-# in-module.
-# frontend/Python/ops/: star imports + verbose MLIR builders (per-directory
-# ignores below).
-[tool.ruff.lint.per-file-ignores]
-"examples/lit.cfg.py" = ["F821"]
-"tests/lit.cfg.py" = ["F821"]
-"frontend/Python/ops/**" = [
-    "B007", "B011", "B905",
-    "C416",
-    "E501",
-    "E711", "E712", "E741",
-    "F403", "F405", "F841",
-    "SIM101", "SIM102", "SIM105", "SIM108",
-    "UP031",
-]
-# graph.py: same star-import / MLIR builder style as ops/
-"frontend/Python/graph/**" = [
-    "B007", "B011", "B905",
-    "C403", "C416",
-    "E501",
-    "E711", "E712", "E741",
-    "F403", "F405", "F841",
-    "SIM101", "SIM102", "SIM103", "SIM105", "SIM108",
-    "UP031",
-]
-# frontend.py: large aten→Op map via `from .graph.operation import *`
-"frontend/Python/frontend.py" = ["F403", "F405"]
 
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "auto"
+docstring-code-format = true

@@ -81,6 +81,9 @@ config.buddy_tools_dir = os.path.join(config.buddy_obj_root, "bin")
 # Tweak the PATH to include the tools dir.
 llvm_config.with_environment("PATH", config.llvm_tools_dir, append_path=True)
 
+# So The execution engine in frontend can find out-of-tree llvm librarys
+config.environment["LLVM_LIBS_DIR"] = config.mlir_runner_utils_dir
+
 # Add the python path for both upstream MLIR and Buddy Compiler python packages.
 if config.buddy_mlir_enable_python_packages:
     llvm_config.with_environment(

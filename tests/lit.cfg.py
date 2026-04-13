@@ -38,7 +38,6 @@ llvm_config.use_default_substitutions()
 config.excludes = [
     "Inputs",
     "Examples",
-    "Models",
     "CMakeLists.txt",
     "README.txt",
     "LICENSE.txt",
@@ -56,6 +55,9 @@ config.test_exec_root = os.path.join(config.buddy_obj_root, "tests")
 # Tweak the PATH to include the tools dir.
 llvm_config.with_environment("PATH", config.llvm_tools_dir, append_path=True)
 
+# So The execution engine in frontend can find out-of-tree llvm librarys
+config.environment["LLVM_LIBS_DIR"] = config.mlir_runner_utils_dir
+
 tool_dirs = [config.buddy_tools_dir, config.llvm_tools_dir]
 tools = [
     "buddy-opt",
@@ -64,8 +66,8 @@ tools = [
     "buddy-audio-container-test",
     "buddy-text-container-test",
     "mlir-runner",
-    "buddy-lenet-run-test-cpu",
 ]
+
 tools.extend(
     [
         ToolSubst(
@@ -122,5 +124,10 @@ if config.buddy_mlir_enable_dip_lib == "ON":
     tools.append("buddy-new-image-container-test-bmp")
     if config.buddy_enable_png == "ON":
         tools.append("buddy-new-image-container-test-png")
+# Ignore Models if e2e not enabled
+if config.buddy_enable_e2e_test == "ON":
+    tools.append("buddy-lenet-run-test-cpu")
+else:
+    config.excludes.append("Models")
 
 llvm_config.add_tool_substitutions(tools, tool_dirs)

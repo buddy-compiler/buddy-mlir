@@ -35,7 +35,6 @@ import torch
 import torch._dynamo as dynamo
 from buddy_mlir import runtime as rt
 from buddy_mlir.execution_engine import ExecutionEngine
-from buddy_mlir.passmanager import *
 from torch._functorch.aot_autograd import aot_module_simplified
 from torch.fx.experimental.proxy_tensor import make_fx
 
@@ -45,7 +44,6 @@ from .graph.transform import (
     RUNTIME_RNG_TRANSFORMS,
     maxpool2d_simplify,
 )
-from .graph.type import *
 from .ops.func import ops_registry as func_ops_registry
 from .ops.linalg import ops_registry as linalg_ops_registry
 from .ops.math import ops_registry as math_ops_registry
@@ -838,7 +836,8 @@ class DynamoCompiler:
             elif isinstance(arg, torch.dtype):
                 buddy_node.add_argument(self._torch_dtype_translate(str(arg)))
             elif isinstance(arg, (list, tuple)):
-                # Traverse elements to collect parent nodes but keep the container as a single argument
+                # Traverse elements to collect parent nodes
+                # but keep the container as a single argument
                 for item in arg:
                     if isinstance(item, torch.fx.Node):
                         buddy_node.add_parent(str(item))
@@ -869,7 +868,7 @@ class DynamoCompiler:
 
         Args:
             gm (torch.fx.GraphModule): The GraphModule to be compiled.
-            inputs (List[torch.Tensor]): The input tensors.
+            inputs (list[torch.Tensor]): The input tensors.
             return_type (str): Controls the compiled callable that AOTAutograd
                 receives from the Buddy compiler.
                 - "eager": return the FX graph forward (legacy behavior).
@@ -1119,7 +1118,7 @@ class DynamoCompiler:
 
         Args:
             gm (torch.fx.GraphModule): The GraphModule to be compiled.
-            inputs (List[torch.Tensor]): The input tensors.
+            inputs (list[torch.Tensor]): The input tensors.
 
         Returns:
             dynamo_run: The function of the ahead-of-time compiled module,
@@ -1257,12 +1256,23 @@ class DynamoCompiler:
             return os.path.join(lib_base_path, "libomp" + lib_extension)
 
         graph.compile()
+
         # Collect dependency libraries.
         lib_extension = get_lib_extension()
         lib_names = ["libmlir_runner_utils", "libmlir_c_runner_utils"]
         path_prefix = os.path.dirname(os.path.abspath(__file__))
-        lib_base_path = os.path.join(path_prefix, "../../../../llvm/build/lib/")
-        lib_base_path = os.path.abspath(lib_base_path)
+
+        LLVM_LIBS_DIR = os.getenv("LLVM_LIBS_DIR")
+        if LLVM_LIBS_DIR:
+            # Out-of-Tree LLVM
+            lib_base_path = LLVM_LIBS_DIR
+        else:
+            # Local LLVM
+            lib_base_path = os.path.join(
+                path_prefix, "../../../../llvm/build/lib/"
+            )
+            lib_base_path = os.path.abspath(lib_base_path)
+
         shared_libs = [
             os.path.join(lib_base_path, lib_name + lib_extension)
             for lib_name in lib_names
@@ -1280,6 +1290,7 @@ class DynamoCompiler:
                 shared_libs.append(
                     os.path.join(buddy_lib_base_path, lib_name + lib_extension)
                 )
+
         # Define execution engine.
         ee = ExecutionEngine(
             graph._imported_module, opt_level=3, shared_libs=shared_libs
@@ -1290,11 +1301,11 @@ class DynamoCompiler:
             Execute a graph using TorchDynamo with the provided input tensors.
 
             Args:
-                *args: List[torch.Tensor]
+                *args: list[torch.Tensor]
                 Input tensors to be passed to the graph's function.
 
             Returns:
-            List[torch.Tensor]
+            list[torch.Tensor]
                 The result of executing the graph, represented as a list of
                 output tensors.
             """

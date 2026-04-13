@@ -42,6 +42,9 @@ config.mlir_runner_utils_dir = "@LLVM_LIBS_DIR@"
 config.have_amx = "@HAVE_AMX@"
 config.have_scalable_vector = "@HAVE_SCALABLE_VECTOR@"
 
+# E2E test binary are not available when BUDDY_ENABLE_E2E_TESTS=OFF
+config.buddy_enable_e2e_test = "@BUDDY_ENABLE_E2E_TESTS@"
+
 if str(config.have_amx).lower() in ("1", "on", "true", "yes"):
     config.available_features.add("has_amx")
 
