@@ -508,14 +508,10 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
       SmallVector<int64_t> permutation = {1, 0};
       auto permutationMap =
           AffineMap::getPermutationMap(permutation, rewriter.getContext());
-      auto scope = rewriter.create<memref::AllocaScopeOp>(loc, TypeRange{});
-      Block *scopeBlock = rewriter.createBlock(&scope.getBodyRegion());
-      rewriter.setInsertionPointToStart(scopeBlock);
-
       Value transposed = rewriter.create<memref::TransposeOp>(
           loc, input, AffineMapAttr::get(permutationMap));
       auto scratchTy = MemRefType::get({inStaticN, inStaticM}, elemTy);
-      Value scratch = rewriter.create<memref::AllocaOp>(loc, scratchTy);
+      Value scratch = rewriter.create<memref::AllocOp>(loc, scratchTy);
       rewriter.create<memref::CopyOp>(loc, transposed, scratch);
       auto outerLoop = rewriter.create<scf::ForOp>(loc, lower, upperN, step);
 
@@ -555,8 +551,7 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
             rewriter.create<memref::LoadOp>(loc, accBuf, ValueRange{});
         rewriter.create<memref::StoreOp>(loc, finalVal, init, ValueRange{j});
       }
-      rewriter.setInsertionPointToEnd(scopeBlock);
-      rewriter.create<memref::AllocaScopeReturnOp>(loc, ValueRange{});
+      rewriter.create<memref::DeallocOp>(loc, scratch);
 
       rewriter.eraseOp(reduceOp);
       return success();

@@ -102,14 +102,20 @@ func.func @reduce_2d_dim0_addf(%arg0: memref<4x8xf32>, %arg1: memref<8xf32>) {
 
 // CHECK-LABEL: func.func @reduce_2d_dim0_addf
 // CHECK-NOT: linalg.reduce
-// CHECK: memref.alloca_scope
+// CHECK-NOT: memref.alloca_scope
 // CHECK: memref.transpose %arg0 {{.*}} : memref<4x8xf32> to memref<8x4xf32, {{.*}}>
-// CHECK-COUNT-1: scf.for %[[J:[^ ]+]] =
+// CHECK: %[[SCRATCH:.+]] = memref.alloc() : memref<8x4xf32>
+// CHECK-NEXT: memref.copy %transpose, %[[SCRATCH]] : memref<8x4xf32, {{.*}}> to memref<8x4xf32>
+// CHECK: scf.for %[[J:[^ ]+]] =
 // CHECK: %[[INIT:.+]] = memref.load %arg1[%[[J]]]
 // CHECK: vir.set_vl
 // CHECK: vir.load {{.*}}[%[[J]], {{[^]]+}}]
 // CHECK: vir.reduce
 // CHECK: memref.store
+// CHECK: %[[FINAL:.+]] = memref.load %alloca[] : memref<f32>
+// CHECK-NEXT: memref.store %[[FINAL]], %arg1[%[[J]]]
+// CHECK-NEXT: }
+// CHECK-NEXT: memref.dealloc %[[SCRATCH]] : memref<8x4xf32>
 // CHECK-VEC-REDUCE-LABEL: func.func @reduce_2d_dim0_addf
 // CHECK-VEC-REDUCE: memref.transpose %arg0 {{.*}} : memref<4x8xf32> to memref<8x4xf32, {{.*}}>
 // CHECK-VEC-REDUCE: vector.reduction <add>
@@ -128,14 +134,20 @@ func.func @reduce_2d_dim0_maxnumf(%arg0: memref<4x8xf32>, %arg1: memref<8xf32>) 
 
 // CHECK-LABEL: func.func @reduce_2d_dim0_maxnumf
 // CHECK-NOT: linalg.reduce
-// CHECK: memref.alloca_scope
+// CHECK-NOT: memref.alloca_scope
 // CHECK: memref.transpose %arg0 {{.*}} : memref<4x8xf32> to memref<8x4xf32, {{.*}}>
-// CHECK-COUNT-1: scf.for %[[J:[^ ]+]] =
+// CHECK: %[[SCRATCH:.+]] = memref.alloc() : memref<8x4xf32>
+// CHECK-NEXT: memref.copy %transpose, %[[SCRATCH]] : memref<8x4xf32, {{.*}}> to memref<8x4xf32>
+// CHECK: scf.for %[[J:[^ ]+]] =
 // CHECK: %[[INIT:.+]] = memref.load %arg1[%[[J]]]
 // CHECK: vir.set_vl
 // CHECK: vir.load {{.*}}[%[[J]], {{[^]]+}}]
 // CHECK: vir.reduce
 // CHECK: memref.store
+// CHECK: %[[FINAL:.+]] = memref.load %alloca[] : memref<f32>
+// CHECK-NEXT: memref.store %[[FINAL]], %arg1[%[[J]]]
+// CHECK-NEXT: }
+// CHECK-NEXT: memref.dealloc %[[SCRATCH]] : memref<8x4xf32>
 // CHECK-VEC-REDUCE-LABEL: func.func @reduce_2d_dim0_maxnumf
 // CHECK-VEC-REDUCE: memref.transpose %arg0 {{.*}} : memref<4x8xf32> to memref<8x4xf32, {{.*}}>
 // CHECK-VEC-REDUCE: vector.reduction <maxnumf>
