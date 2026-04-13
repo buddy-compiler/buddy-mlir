@@ -25,11 +25,11 @@
 #include "Dialect/DAP/DAPDialect.h"
 #include "Dialect/DIP/DIPDialect.h"
 #include "Dialect/Gemmini/GemminiDialect.h"
-#include "Dialect/XTAME/XTAMEDialect.h"
 #include "Dialect/IME/IMEDialect.h"
 #include "Dialect/RHAL/RHALDialect.h"
 #include "Dialect/RVV/RVVDialect.h"
 #include "Dialect/VectorExp/VectorExpDialect.h"
+#include "Dialect/XTAME/XTAMEDialect.h"
 
 namespace mlir {
 namespace buddy {

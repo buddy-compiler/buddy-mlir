@@ -46,9 +46,6 @@
 #include "GPU/TransformOps.h"
 #include "Gemmini/GemminiDialect.h"
 #include "Gemmini/GemminiOps.h"
-#include "XTAME/XTAMEDialect.h"
-#include "XTAME/XTAMEOps.h"
-#include "XTAME/Transform.h"
 #include "IME/IMEDialect.h"
 #include "IME/IMEOps.h"
 #include "RVV/RVVDialect.h"
@@ -58,6 +55,9 @@
 #include "VIR/VIRTypes.h"
 #include "VectorExp/VectorExpDialect.h"
 #include "VectorExp/VectorExpOps.h"
+#include "XTAME/Transform.h"
+#include "XTAME/XTAMEDialect.h"
+#include "XTAME/XTAMEOps.h"
 
 namespace mlir {
 namespace buddy {

@@ -24,9 +24,9 @@
 #include "backend/include/llvm/IR/IntrinsicsRISCV.h"
 #include "llvm/IR/IRBuilder.h"
 
+#include "Target/LLVMIR/Dialect/XTAME/XTAMEToLLVMIRTranslation.h"
 #include "XTAME/XTAMEDialect.h"
 #include "XTAME/XTAMEOps.h"
-#include "Target/LLVMIR/Dialect/XTAME/XTAMEToLLVMIRTranslation.h"
 
 using namespace mlir;
 using namespace mlir::LLVM;
