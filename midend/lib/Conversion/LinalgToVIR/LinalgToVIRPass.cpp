@@ -811,7 +811,7 @@ static LogicalResult transformProjectedPermutationOperands(
       continue;
     }
     auto indexingMap = linalgOp.getMatchingIndexingMap(opOperand);
-    if (!indexingMap.isProjectedPermutation()) {
+    if (!indexingMap.isProjectedPermutation(/*allowZeroInResults=*/true)) {
       return rewriter.notifyMatchFailure(
           linalgOp, "non-projected permutation operands not supported yet");
     }
@@ -842,7 +842,7 @@ static LogicalResult mapInputsToVIRVectors(linalg::LinalgOp linalgOp,
       continue;
     }
     auto indexingMap = linalgOp.getMatchingIndexingMap(opOperand);
-    if (!indexingMap.isProjectedPermutation()) {
+    if (!indexingMap.isProjectedPermutation(/*allowZeroInResults=*/true)) {
       // TODO: Support non-projected-permutation with gather.
       return rewriter.notifyMatchFailure(
           linalgOp, "non-projected permutation operands not supported yet");
@@ -889,8 +889,8 @@ static LogicalResult convertBodyToVIR(linalg::LinalgOp linalgOp,
       // variables. This should be lowered with vid (RVV) or stepvector (LLVM),
       // or just broadcasting normal induction variables. This requires both the
       // higher construction of VIR and backend supports.
-      return rewriter.notifyMatchFailure(linalgOp,
-                                         "linalg.index not supported");
+      inner.emitError("not supported for --lower-linalg-to-vir");
+      return failure();
     }
     if (OpTrait::hasElementwiseMappableTraits(&inner)) {
       // General conversion
@@ -946,7 +946,7 @@ static LogicalResult storeYieldValues(linalg::LinalgOp linalgOp,
       mapped = rewriter.create<buddy::vir::BroadcastOp>(loc, outVecTy, scalar);
     }
     auto indexingMap = linalgOp.getMatchingIndexingMap(initOpd);
-    if (!indexingMap.isProjectedPermutation()) {
+    if (!indexingMap.isProjectedPermutation(/*allowZeroInResults=*/true)) {
       // TODO: Support non-projected-permutation with scatter.
       return rewriter.notifyMatchFailure(
           linalgOp, "non-projected permutation outputs not supported yet");
