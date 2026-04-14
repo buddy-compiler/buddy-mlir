@@ -1001,6 +1001,23 @@ static LogicalResult transformProjectedPermutationOperands(
       transformedMemRefs[opOperand->get()] = tr;
     }
   }
+
+  // Some named ops such as `linalg.map` only expose DPS inputs as region block
+  // arguments, but `storeYieldValues(...)` still needs every init buffer to be
+  // transformed before creating the final `vir.store`.
+  for (OpOperand &initOpd : linalgOp.getDpsInitsMutable()) {
+    if (transformedMemRefs.count(initOpd.get()))
+      continue;
+    auto indexingMap = linalgOp.getMatchingIndexingMap(&initOpd);
+    if (!indexingMap.isProjectedPermutation(/*allowZeroInResults=*/true)) {
+      return rewriter.notifyMatchFailure(
+          linalgOp, "non-projected permutation outputs not supported yet");
+    }
+    Value tr =
+        transformOutputMemrefForProjectedPermutation(rewriter, loc, &initOpd,
+                                                     indexingMap);
+    transformedMemRefs[initOpd.get()] = tr;
+  }
   return success();
 }
 
