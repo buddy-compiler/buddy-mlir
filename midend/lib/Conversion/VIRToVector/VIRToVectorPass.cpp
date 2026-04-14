@@ -965,6 +965,18 @@ private:
             auto newOp = builder.create<arith::MinimumFOp>(loc, lhs, rhs);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
+          .Case<arith::MaxNumFOp>([&](arith::MaxNumFOp op) {
+            Value lhs = findValue(op.getLhs());
+            Value rhs = findValue(op.getRhs());
+            auto newOp = builder.create<arith::MaxNumFOp>(loc, lhs, rhs);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<arith::MinNumFOp>([&](arith::MinNumFOp op) {
+            Value lhs = findValue(op.getLhs());
+            Value rhs = findValue(op.getRhs());
+            auto newOp = builder.create<arith::MinNumFOp>(loc, lhs, rhs);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
           .Case<arith::MaxSIOp>([&](arith::MaxSIOp op) {
             Value lhs = findValue(op.getLhs());
             Value rhs = findValue(op.getRhs());
