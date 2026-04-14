@@ -37,6 +37,9 @@
 #include "AME/AMEDialect.h"
 #include "AME/AMEOps.h"
 #include "AME/Transform.h"
+#include "BOSCAME/BOSCAMEDialect.h"
+#include "BOSCAME/BOSCAMEOps.h"
+#include "BOSCAME/Transform.h"
 #include "Bud/BudDialect.h"
 #include "Bud/BudOps.h"
 #include "DAP/DAPDialect.h"
@@ -97,6 +100,7 @@ void registerLowerLinalgToIMEPass();
 void registerLowerIMEPass();
 void registerLowerAMEPass();
 void registerLowerXTAMEPass();
+void registerLowerBOSCAMEPass();
 void registerAssumeTightMemRefLayoutPass();
 void registerStaticizeMemRefLayoutPass();
 void registerConvertMemcpyToGPUPass();
@@ -137,6 +141,7 @@ int main(int argc, char **argv) {
   mlir::buddy::registerLowerIMEPass();
   mlir::buddy::registerLowerAMEPass();
   mlir::buddy::registerLowerXTAMEPass();
+  mlir::buddy::registerLowerBOSCAMEPass();
 
   // Register Several Optimize Pass.
   mlir::buddy::registerMatMulVectorizationBLISPass();
@@ -187,6 +192,7 @@ int main(int argc, char **argv) {
                   buddy::vector_exp::VectorExpDialect,
                   buddy::vir::VIRDialect,
                   buddy::gemmini::GemminiDialect,
+                  buddy::boscame::BOSCAMEDialect,
                   buddy::xtame::XTAMEDialect,
                   buddy::ame::AMEDialect,
                   buddy::ime::IMEDialect>();

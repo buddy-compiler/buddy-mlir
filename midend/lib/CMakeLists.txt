@@ -12,6 +12,8 @@ set(LinkedLibs
   MLIRSupport
   ${extension_libs}
 
+  BuddyBOSCAME
+  BuddyBOSCAMETransforms
   BuddyXTAME
   BuddyXTAMETransforms
   BuddyAME
