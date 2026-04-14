@@ -86,6 +86,50 @@ static bool hasStaticallyUnitStrideInVectorizedDim(Value base) {
   return strides.back() == 1;
 }
 
+// Downstream LLVM lowering may pack vector<...xi1> memory operations, which
+// breaks round-tripping through scalar i1 loads/stores. Keep i1 memref accesses
+// scalarized even inside the vectorized loop.
+static bool shouldScalarizeI1VectorMemoryOp(VectorType vecTy) {
+  return vecTy && !vecTy.isScalable() && vecTy.getRank() == 1 &&
+         vecTy.getElementType().isInteger(1);
+}
+
+static Value buildScalarizedI1VectorLoad(OpBuilder &builder, Location loc,
+                                         VectorType vecTy, Value base,
+                                         ArrayRef<Value> baseIndices) {
+  assert(!baseIndices.empty() && "expected at least one memref index");
+  auto zero = builder.create<arith::ConstantOp>(
+      loc, vecTy,
+      DenseElementsAttr::get(vecTy, builder.getZeroAttr(vecTy.getElementType())));
+  Value result = zero.getResult();
+  for (int64_t lane = 0, e = vecTy.getNumElements(); lane < e; ++lane) {
+    auto laneIdx = builder.create<arith::ConstantIndexOp>(loc, lane);
+    SmallVector<Value> laneIndices(baseIndices.begin(), baseIndices.end());
+    laneIndices.back() =
+        builder.create<arith::AddIOp>(loc, laneIndices.back(), laneIdx);
+    Value scalar = builder.create<memref::LoadOp>(loc, base, laneIndices);
+    result =
+        builder.create<vector::InsertElementOp>(loc, scalar, result, laneIdx);
+  }
+  return result;
+}
+
+static void buildScalarizedI1VectorStore(OpBuilder &builder, Location loc,
+                                         Value vectorValue, Value base,
+                                         ArrayRef<Value> baseIndices) {
+  assert(!baseIndices.empty() && "expected at least one memref index");
+  auto vecTy = cast<VectorType>(vectorValue.getType());
+  for (int64_t lane = 0, e = vecTy.getNumElements(); lane < e; ++lane) {
+    auto laneIdx = builder.create<arith::ConstantIndexOp>(loc, lane);
+    SmallVector<Value> laneIndices(baseIndices.begin(), baseIndices.end());
+    laneIndices.back() =
+        builder.create<arith::AddIOp>(loc, laneIndices.back(), laneIdx);
+    Value scalar =
+        builder.create<vector::ExtractElementOp>(loc, vectorValue, laneIdx);
+    builder.create<memref::StoreOp>(loc, scalar, base, laneIndices);
+  }
+}
+
 VectorType vectorTypeHelper(Region &srcRegion, Type anchorType,
                             bool useScalable, bool verbose) {
 #define VERBOSE_ANALYSIS_INFO(info)                                            \
@@ -399,6 +443,12 @@ private:
                 op.emitError("failed to derive vector type for vir.load");
                 return;
               }
+              if (shouldScalarizeI1VectorMemoryOp(*vecTyOr)) {
+                virSymbolTable[op.getResult()] =
+                    buildScalarizedI1VectorLoad(builder, loc, *vecTyOr, base,
+                                                destIndices);
+                return;
+              }
               if (hasStaticallyUnitStrideInVectorizedDim(base)) {
                 auto vectorLoadOp = builder.create<vector::LoadOp>(
                     loc, *vecTyOr, base, destIndices);
@@ -454,6 +504,12 @@ private:
               builder.create<memref::StoreOp>(loc, valueToStore, base,
                                               destIndices);
             } else {
+              if (auto vecTy = dyn_cast<VectorType>(valueToStore.getType());
+                  shouldScalarizeI1VectorMemoryOp(vecTy)) {
+                buildScalarizedI1VectorStore(builder, loc, valueToStore, base,
+                                             destIndices);
+                return;
+              }
               if (hasStaticallyUnitStrideInVectorizedDim(base)) {
                 builder.create<vector::StoreOp>(loc, valueToStore, base,
                                                 destIndices);
