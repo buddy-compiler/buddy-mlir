@@ -147,7 +147,8 @@ func.func @permute_input(%A: memref<8x4xf32>, %B: memref<4x8xf32>) {
 // CHECK: vir.set_vl %[[C8_P]] : index {
 // CHECK:   %[[TA:.*]] = memref.transpose %arg0 (d0, d1) -> (d1, d0) : memref<8x4xf32> to memref<4x8xf32, strided<[1, 4]>>
 // CHECK:   %[[TB:.*]] = memref.transpose %arg1 (d0, d1) -> (d0, d1) : memref<4x8xf32> to memref<4x8xf32, strided<[8, 1]>>
-// CHECK:   %[[VA:.*]] = vir.load %[[TA]][] : memref<4x8xf32, strided<[1, 4]>> -> !vir.vec<4x8xf32>
+// CHECK:   %[[VA:.*]] = vir.load %[[TA]][] : memref<4x8xf32, strided<[1, 4]>> -> !vir.vec<4x?xf32>
+// CHECK-NOT: !vir.vec<4x8xf32>
 // CHECK:   vir.store %[[VA]], %[[TB]]
 
 // -----

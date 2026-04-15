@@ -33,5 +33,6 @@ func.func @index_and_zero_broadcast_regression(%src: memref<2xf32>, %out: memref
 // CHECK:   %[[TEXP:.*]] = memref.transpose %[[EXP]] (d0, d1) -> (d0, d1) : memref<2x1xf32> to memref<2x1xf32, strided<[1, 1]>>
 // CHECK:   %[[SV:.*]] = memref.subview %[[TEXP]][0, 0] [2, 2] [1, 0] : memref<2x1xf32, strided<[1, 1]>> to memref<2x2xf32, strided<[1, 0]>>
 // CHECK:   %[[TOUT:.*]] = memref.transpose %{{.*}} (d0, d1) -> (d0, d1) : memref<2x2xf32> to memref<2x2xf32, strided<[2, 1]>>
-// CHECK:   %[[V:.*]] = vir.load %[[SV]][] : memref<2x2xf32, strided<[1, 0]>> -> !vir.vec<2x2xf32>
+// CHECK:   %[[V:.*]] = vir.load %[[SV]][] : memref<2x2xf32, strided<[1, 0]>> -> !vir.vec<2x?xf32>
+// CHECK-NOT: !vir.vec<2x2xf32>
 // CHECK:   vir.store %[[V]], %[[TOUT]][]

@@ -70,6 +70,67 @@ namespace {
 static constexpr int DEFAULT_VECTOR_WIDTH = 4;
 static constexpr bool DEFAULT_USE_SCALABLE = false;
 
+// This pass vectorizes along the memref's most-minor dimension, so the
+// vector.load/vector.store fast path is only valid when that specific stride is
+// statically known to be 1.
+static bool hasStaticallyUnitStrideInVectorizedDim(Value base) {
+  auto memrefTy = dyn_cast<MemRefType>(base.getType());
+  if (!memrefTy || memrefTy.getRank() == 0)
+    return false;
+
+  SmallVector<int64_t> strides;
+  int64_t offset;
+  if (failed(memrefTy.getStridesAndOffset(strides, offset)) || strides.empty())
+    return false;
+
+  return strides.back() == 1;
+}
+
+// Downstream LLVM lowering may pack vector<...xi1> memory operations, which
+// breaks round-tripping through scalar i1 loads/stores. Keep i1 memref accesses
+// scalarized even inside the vectorized loop.
+static bool shouldScalarizeI1VectorMemoryOp(VectorType vecTy) {
+  return vecTy && !vecTy.isScalable() && vecTy.getRank() == 1 &&
+         vecTy.getElementType().isInteger(1);
+}
+
+static Value buildScalarizedI1VectorLoad(OpBuilder &builder, Location loc,
+                                         VectorType vecTy, Value base,
+                                         ArrayRef<Value> baseIndices) {
+  assert(!baseIndices.empty() && "expected at least one memref index");
+  auto zero = builder.create<arith::ConstantOp>(
+      loc, vecTy,
+      DenseElementsAttr::get(vecTy,
+                             builder.getZeroAttr(vecTy.getElementType())));
+  Value result = zero.getResult();
+  for (int64_t lane = 0, e = vecTy.getNumElements(); lane < e; ++lane) {
+    auto laneIdx = builder.create<arith::ConstantIndexOp>(loc, lane);
+    SmallVector<Value> laneIndices(baseIndices.begin(), baseIndices.end());
+    laneIndices.back() =
+        builder.create<arith::AddIOp>(loc, laneIndices.back(), laneIdx);
+    Value scalar = builder.create<memref::LoadOp>(loc, base, laneIndices);
+    result =
+        builder.create<vector::InsertElementOp>(loc, scalar, result, laneIdx);
+  }
+  return result;
+}
+
+static void buildScalarizedI1VectorStore(OpBuilder &builder, Location loc,
+                                         Value vectorValue, Value base,
+                                         ArrayRef<Value> baseIndices) {
+  assert(!baseIndices.empty() && "expected at least one memref index");
+  auto vecTy = cast<VectorType>(vectorValue.getType());
+  for (int64_t lane = 0, e = vecTy.getNumElements(); lane < e; ++lane) {
+    auto laneIdx = builder.create<arith::ConstantIndexOp>(loc, lane);
+    SmallVector<Value> laneIndices(baseIndices.begin(), baseIndices.end());
+    laneIndices.back() =
+        builder.create<arith::AddIOp>(loc, laneIndices.back(), laneIdx);
+    Value scalar =
+        builder.create<vector::ExtractElementOp>(loc, vectorValue, laneIdx);
+    builder.create<memref::StoreOp>(loc, scalar, base, laneIndices);
+  }
+}
+
 VectorType vectorTypeHelper(Region &srcRegion, Type anchorType,
                             bool useScalable, bool verbose) {
 #define VERBOSE_ANALYSIS_INFO(info)                                            \
@@ -383,9 +444,22 @@ private:
                 op.emitError("failed to derive vector type for vir.load");
                 return;
               }
-              auto vectorLoadOp = builder.create<vector::LoadOp>(
-                  loc, *vecTyOr, base, destIndices);
-              virSymbolTable[op.getResult()] = vectorLoadOp.getResult();
+              if (shouldScalarizeI1VectorMemoryOp(*vecTyOr)) {
+                virSymbolTable[op.getResult()] = buildScalarizedI1VectorLoad(
+                    builder, loc, *vecTyOr, base, destIndices);
+                return;
+              }
+              if (hasStaticallyUnitStrideInVectorizedDim(base)) {
+                auto vectorLoadOp = builder.create<vector::LoadOp>(
+                    loc, *vecTyOr, base, destIndices);
+                virSymbolTable[op.getResult()] = vectorLoadOp.getResult();
+              } else {
+                auto padding = builder.create<arith::ConstantOp>(
+                    loc, builder.getZeroAttr((*vecTyOr).getElementType()));
+                auto transferReadOp = builder.create<vector::TransferReadOp>(
+                    loc, *vecTyOr, base, destIndices, padding);
+                virSymbolTable[op.getResult()] = transferReadOp.getResult();
+              }
             }
           })
           .Case<vir::StoreOp>([&](vir::StoreOp op) {
@@ -430,8 +504,19 @@ private:
               builder.create<memref::StoreOp>(loc, valueToStore, base,
                                               destIndices);
             } else {
-              builder.create<vector::StoreOp>(loc, valueToStore, base,
-                                              destIndices);
+              if (auto vecTy = dyn_cast<VectorType>(valueToStore.getType());
+                  shouldScalarizeI1VectorMemoryOp(vecTy)) {
+                buildScalarizedI1VectorStore(builder, loc, valueToStore, base,
+                                             destIndices);
+                return;
+              }
+              if (hasStaticallyUnitStrideInVectorizedDim(base)) {
+                builder.create<vector::StoreOp>(loc, valueToStore, base,
+                                                destIndices);
+              } else {
+                builder.create<vector::TransferWriteOp>(loc, valueToStore, base,
+                                                        destIndices);
+              }
             }
           })
           .Case<vir::ConstantOp>([&](vir::ConstantOp op) {
@@ -878,6 +963,18 @@ private:
             Value lhs = findValue(op.getLhs());
             Value rhs = findValue(op.getRhs());
             auto newOp = builder.create<arith::MinimumFOp>(loc, lhs, rhs);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<arith::MaxNumFOp>([&](arith::MaxNumFOp op) {
+            Value lhs = findValue(op.getLhs());
+            Value rhs = findValue(op.getRhs());
+            auto newOp = builder.create<arith::MaxNumFOp>(loc, lhs, rhs);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<arith::MinNumFOp>([&](arith::MinNumFOp op) {
+            Value lhs = findValue(op.getLhs());
+            Value rhs = findValue(op.getRhs());
+            auto newOp = builder.create<arith::MinNumFOp>(loc, lhs, rhs);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<arith::MaxSIOp>([&](arith::MaxSIOp op) {
