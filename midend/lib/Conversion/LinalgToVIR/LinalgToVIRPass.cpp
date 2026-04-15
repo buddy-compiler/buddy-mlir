@@ -854,8 +854,7 @@ static bool isSupportedGenericBodyOp(Operation &inner) {
              arith::ShRUIOp, arith::ShRSIOp, arith::MaximumFOp,
              arith::MinimumFOp, arith::MaxSIOp, arith::MinSIOp, arith::MaxUIOp,
              arith::MinUIOp, arith::MaxNumFOp, arith::MinNumFOp, math::ExpOp,
-             math::SqrtOp>(
-      inner);
+             math::SqrtOp>(inner);
 }
 
 static buddy::vir::SetVLOp createSetVLRegion(PatternRewriter &rewriter,
@@ -1014,9 +1013,8 @@ static LogicalResult transformProjectedPermutationOperands(
       return rewriter.notifyMatchFailure(
           linalgOp, "non-projected permutation outputs not supported yet");
     }
-    Value tr =
-        transformOutputMemrefForProjectedPermutation(rewriter, loc, &initOpd,
-                                                     indexingMap);
+    Value tr = transformOutputMemrefForProjectedPermutation(
+        rewriter, loc, &initOpd, indexingMap);
     transformedMemRefs[initOpd.get()] = tr;
   }
   return success();

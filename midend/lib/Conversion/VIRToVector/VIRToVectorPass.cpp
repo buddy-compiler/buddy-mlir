@@ -100,7 +100,8 @@ static Value buildScalarizedI1VectorLoad(OpBuilder &builder, Location loc,
   assert(!baseIndices.empty() && "expected at least one memref index");
   auto zero = builder.create<arith::ConstantOp>(
       loc, vecTy,
-      DenseElementsAttr::get(vecTy, builder.getZeroAttr(vecTy.getElementType())));
+      DenseElementsAttr::get(vecTy,
+                             builder.getZeroAttr(vecTy.getElementType())));
   Value result = zero.getResult();
   for (int64_t lane = 0, e = vecTy.getNumElements(); lane < e; ++lane) {
     auto laneIdx = builder.create<arith::ConstantIndexOp>(loc, lane);
@@ -444,9 +445,8 @@ private:
                 return;
               }
               if (shouldScalarizeI1VectorMemoryOp(*vecTyOr)) {
-                virSymbolTable[op.getResult()] =
-                    buildScalarizedI1VectorLoad(builder, loc, *vecTyOr, base,
-                                                destIndices);
+                virSymbolTable[op.getResult()] = buildScalarizedI1VectorLoad(
+                    builder, loc, *vecTyOr, base, destIndices);
                 return;
               }
               if (hasStaticallyUnitStrideInVectorizedDim(base)) {
