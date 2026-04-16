@@ -19,32 +19,32 @@
 #
 # ===---------------------------------------------------------------------------
 
-import os
 import argparse
+import os
 from pathlib import Path
+
+# Then import torch and transformers
+import torch
 
 # Import buddy/MLIR first to avoid LLVM option conflicts
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.graph import GraphDriver
 from buddy.compiler.graph.transform import (
-    simply_fuse,
     apply_classic_fusion,
     eliminate_transpose,
+    simply_fuse,
 )
 from buddy.compiler.ops import tosa
-
-# Then import torch and transformers
-import torch
-from transformers import AutoConfig, AutoModel
 from torch._inductor.decomposition import decompositions as inductor_decomp
+from transformers import AutoConfig, AutoModel
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="ChatGLM3-6B graph coverage test")
 parser.add_argument(
     "--output-dir",
     type=str,
-    default=None,
-    help="Directory to save output MLIR files (default: build/tests/Models/BuddyLLMGraphImport/chatglm3_6b)",
+    default="/build/tests/Models/BuddyLLMGraphImport/chatglm3_6b",
+    help="Directory to save output files (default: %(default)s)",
 )
 args = parser.parse_args()
 
@@ -79,6 +79,12 @@ config.use_cache = False
 
 print(f"Model config loaded: {config.num_layers} layers")
 
+# After upgrading Transformers to version 5.5.0,
+# the inconsistency between the ChatGLM3 model code and
+# the Transformers library has been fixed.
+if not hasattr(config, "max_length") and hasattr(config, "seq_length"):
+    config.max_length = config.seq_length
+
 # Create model from config (random weights)
 # ChatGLM3 requires trust_remote_code for custom modeling code
 model = AutoModel.from_config(config, trust_remote_code=True).eval()
@@ -106,9 +112,9 @@ with torch.no_grad():
 print(f"Graph import completed: {len(graphs)} graph(s) generated")
 
 # 1. Verify no graph break
-assert (
-    len(graphs) == 1
-), f"Expected 1 graph (no graph break), but got {len(graphs)}"
+assert len(graphs) == 1, (
+    f"Expected 1 graph (no graph break), but got {len(graphs)}"
+)
 
 print("✓ No graph break detected")
 
