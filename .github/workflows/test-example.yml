@@ -113,6 +113,7 @@ jobs:
           venv_deactivate: ${{ matrix.venv_deactivate }}
 
       - name: Build examples
+        if: matrix.arch != 'riscv64'
         run: |
           ${{ matrix.venv_activate }}
 
@@ -128,6 +129,7 @@ jobs:
             -DBUDDY_TRANSFORMER_EXAMPLES=ON \
             -DBUDDY_ENABLE_PNG=ON
 
+          ccache -z
           ninja -C build -j1 \
             buddy-deepseek-r1-cli \
             buddy-qwen3-0.6b-run \
@@ -136,6 +138,27 @@ jobs:
             buddy-lenet-run \
             buddy-mobilenetv3-run \
             buddy-resnet-run
+          ccache -s
+
+          ${{ matrix.venv_deactivate }}
+
+      - name: Build examples (riscv64)
+        if: matrix.arch == 'riscv64'
+        run: |
+          ${{ matrix.venv_activate }}
+
+          export PYTHONPATH=$PWD/build/python_packages:${PYTHONPATH}
+
+          # need build from source
+          pip uninstall torchvision -y
+
+          cmake -S . -B build \
+            -DBUDDY_DEEPSEEKR1_EXAMPLES=ON
+
+          ccache -z
+          ninja -C build -j1 \
+            buddy-deepseek-r1-cli
+          ccache -s
 
           ${{ matrix.venv_deactivate }}
 

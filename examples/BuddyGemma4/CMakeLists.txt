@@ -20,21 +20,18 @@ else()
   set(LLC_RISCV_ATTRS "")
 endif()
 
-# Skip import commands on RVV platform
-if(NOT IS_RVV_PLATFORM)
-  add_custom_command(
-    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill_e2b.mlir
-           ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill_e2b.mlir
-           ${CMAKE_CURRENT_BINARY_DIR}/forward_decode_e2b.mlir
-           ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode_e2b.mlir
-           ${CMAKE_CURRENT_BINARY_DIR}/arg0_e2b.data
-           ${CMAKE_CURRENT_BINARY_DIR}/vocab.txt
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-gemma4.py
-            --output-dir ${CMAKE_CURRENT_BINARY_DIR}
-            --precision f32
-    COMMENT "Generating Gemma4-E2B MLIR and data files..."
-  )
-endif()
+add_custom_command(
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill_e2b.mlir
+          ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill_e2b.mlir
+          ${CMAKE_CURRENT_BINARY_DIR}/forward_decode_e2b.mlir
+          ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode_e2b.mlir
+          ${CMAKE_CURRENT_BINARY_DIR}/arg0_e2b.data
+          ${CMAKE_CURRENT_BINARY_DIR}/vocab.txt
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-gemma4.py
+          --output-dir ${CMAKE_CURRENT_BINARY_DIR}
+          --precision f32
+  COMMENT "Generating Gemma4-E2B MLIR and data files..."
+)
 
 add_custom_command(
   OUTPUT forward_prefill_e2b.o
