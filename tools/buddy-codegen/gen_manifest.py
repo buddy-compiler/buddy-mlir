@@ -31,7 +31,16 @@ import sys
 from io import StringIO
 
 
-def gen_manifest(config: dict) -> str:
+def _normalize_dep_uri(raw: str) -> str:
+    s = raw.strip()
+    if not s:
+        raise ValueError("empty dependency URI")
+    if ":" in s:
+        return s
+    return f"file:{s}"
+
+
+def gen_manifest(config: dict, dep_shared_libs: list[str] | None = None) -> str:
     """Generate the complete RHAL .mlir manifest text."""
     out = StringIO()
 
@@ -59,14 +68,18 @@ def gen_manifest(config: dict) -> str:
     so_name = compilation["so_name"]
     vocab_file = tokens["vocab_file"]
 
-    # ── Module header ────────────────────────────────────────────────────────
+    dep_uris: list[str] = []
+    for item in dep_shared_libs or []:
+        dep_uris.append(_normalize_dep_uri(item))
+
+    # -- Module header ---------------------------------------------------------
     p(f"rhal.module @{model_family} attributes {{")
     p('    version = "0.1.0",')
     p(f'    model_name = "{model_id}",')
     p(f'    vocab_uri = "file:{vocab_file}"}} {{')
     p()
 
-    # ── External constants (weight blobs) ────────────────────────────────────
+    # -- External constants (weight blobs) -------------------------------------
     for w in weights:
         tag = w["tag"]
         mlir_t = w["mlir_type"]
@@ -77,13 +90,22 @@ def gen_manifest(config: dict) -> str:
         p(f'                         uri = "file:{fname}"}}')
     p()
 
-    # ── Code object ──────────────────────────────────────────────────────────
+    # -- Code object -----------------------------------------------------------
     p('  rhal.codeobj @model_kernels {id = 1 : i32, kind = "host_shared_lib",')
     p('                                backend = "cpu",')
     p(f'                                uri = "file:{so_name}"}}')
+
+    # Additional runtime dependencies (kept as host_shared_lib entries).
+    for idx, dep_uri in enumerate(dep_uris, start=2):
+        dep_sym = f"runtime_dep_{idx - 1}"
+        p(
+            f'  rhal.codeobj @{dep_sym} {{id = {idx} : i32, kind = "host_shared_lib",'
+        )
+        p('                                backend = "cpu",')
+        p(f'                                uri = "{dep_uri}"}}')
     p()
 
-    # ── Buffer descriptors ───────────────────────────────────────────────────
+    # -- Buffer descriptors ----------------------------------------------------
     p(
         f'  rhal.buffer @prefill_tokens {{space = "host", type = tensor<1x{max_token_len}xi64>}}'
     )
@@ -103,7 +125,7 @@ def gen_manifest(config: dict) -> str:
     p(f'  rhal.buffer @logits_decode  {{space = "host", type = {logits_dec}}}')
     p()
 
-    # ── Helper: build argument list ──────────────────────────────────────────
+    # -- Helper: build argument list -------------------------------------------
     def _kv_names():
         return [f'"kv{i}"' for i in range(kv_layers)]
 
@@ -125,7 +147,7 @@ def gen_manifest(config: dict) -> str:
     # rhal.func args only reference rhal.buffer names (not rhal.constant).
     # Weights are bound via rhal.constant and resolved separately by rax-pack.
 
-    # ── forward_prefill ──────────────────────────────────────────────────────
+    # -- forward_prefill -------------------------------------------------------
     prefill_args = ['"prefill_tokens"'] + _kv_names() + ['"logits_prefill"']
     p("  rhal.func @forward_prefill {")
     p('    inputs   = ["prefill_tokens"],')
@@ -134,7 +156,7 @@ def gen_manifest(config: dict) -> str:
     p(f"    args     = [{_format_args(prefill_args)}]}}")
     p()
 
-    # ── forward_decode ───────────────────────────────────────────────────────
+    # -- forward_decode --------------------------------------------------------
     decode_args = (
         ['"decode_token"', '"cache_position"']
         + _kv_names()
@@ -161,12 +183,26 @@ def main():
     parser.add_argument(
         "-o", "--output", default="-", help="Output path (- for stdout)"
     )
+    parser.add_argument(
+        "--dep-shared-lib",
+        action="append",
+        default=[],
+        metavar="URI_OR_NAME",
+        help=(
+            "Additional host shared library dependency URI/name to place into "
+            "rhal.codeobj (repeatable). If no scheme is given, file: is assumed."
+        ),
+    )
     args = parser.parse_args()
 
     with open(args.config) as f:
         config = json.load(f)
 
-    mlir_text = gen_manifest(config)
+    try:
+        mlir_text = gen_manifest(config, dep_shared_libs=args.dep_shared_lib)
+    except ValueError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
 
     if args.output == "-":
         sys.stdout.write(mlir_text)
@@ -178,6 +214,8 @@ def main():
             f.write(mlir_text)
         print(f"[gen_manifest] Written: {args.output}", file=sys.stderr)
 
+    return 0
+
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

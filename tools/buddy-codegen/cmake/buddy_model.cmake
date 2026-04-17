@@ -36,6 +36,29 @@
 set(BUDDY_CODEGEN_DIR "${CMAKE_SOURCE_DIR}/tools/buddy-codegen"
     CACHE PATH "Path to buddy-codegen scripts")
 
+option(BUDDY_RAX_EMBED_PAYLOAD
+  "Embed model .so / weights / vocab into .rax payload segment"
+  ON)
+
+option(IS_RVV_CROSSCOMPILE
+  "Enable RVV cross-compilation for model.so (riscv64 target)"
+  OFF)
+set(RISCV_GNU_TOOLCHAIN "" CACHE PATH
+  "Path to RISCV GNU toolchain root (expects <root>/sysroot)")
+set(RISCV_OMP_SHARED "" CACHE FILEPATH
+  "Path to target OpenMP shared library for RVV link (e.g. libomp.so)")
+set(RISCV_MLIR_C_RUNNER_UTILS "" CACHE FILEPATH
+  "Path to target mlir_c_runner_utils shared library for RVV link")
+if(NOT DEFINED BUDDY_MLIR_BUILD_DIR)
+  if(DEFINED BUDDY_BUILD_DIR)
+    set(_BUDDY_MLIR_BUILD_DIR_DEFAULT "${BUDDY_BUILD_DIR}")
+  else()
+    set(_BUDDY_MLIR_BUILD_DIR_DEFAULT "${CMAKE_BINARY_DIR}")
+  endif()
+  set(BUDDY_MLIR_BUILD_DIR "${_BUDDY_MLIR_BUILD_DIR_DEFAULT}" CACHE PATH
+    "buddy-mlir build dir used to derive ../llvm/build/bin/clang(++)")
+endif()
+
 # ──────────────────────────────────────────────────────────────────────────────
 # buddy_add_model(
 #   NAME          <model_family>            e.g. deepseek_r1
@@ -75,7 +98,9 @@ function(buddy_add_model)
   set(GEN_DIR  "${BIN}/generated")
 
   # Platform detection for LLC
-  if(NOT MDL_LLC_ATTRS)
+  if(IS_RVV_CROSSCOMPILE)
+    set(MDL_LLC_ATTRS "-march=riscv64 -mattr=+m,+d,+v -mtriple=riscv64-unknown-linux-gnu")
+  elseif(NOT MDL_LLC_ATTRS)
     if(HAVE_LOCAL_RVV)
       set(MDL_LLC_ATTRS "-mcpu=native -mattr=+m,+d,+v")
     else()
@@ -85,6 +110,54 @@ function(buddy_add_model)
 
   if(NOT MDL_COMPILE_JOBS)
     set(MDL_COMPILE_JOBS 1)
+  endif()
+
+  set(MDL_GEN_MANIFEST_ARGS)
+  set(MDL_EXTRA_STAGE4_DEPS)
+
+  if(IS_RVV_CROSSCOMPILE)
+    if(NOT RISCV_GNU_TOOLCHAIN)
+      message(FATAL_ERROR
+        "IS_RVV_CROSSCOMPILE=ON requires RISCV_GNU_TOOLCHAIN (toolchain root with sysroot).")
+    endif()
+    if(NOT RISCV_OMP_SHARED)
+      message(FATAL_ERROR
+        "IS_RVV_CROSSCOMPILE=ON requires RISCV_OMP_SHARED (target OpenMP shared library path).")
+    endif()
+    if(NOT RISCV_MLIR_C_RUNNER_UTILS)
+      message(FATAL_ERROR
+        "IS_RVV_CROSSCOMPILE=ON requires RISCV_MLIR_C_RUNNER_UTILS (target mlir_c_runner_utils path).")
+    endif()
+
+    get_filename_component(RISCV_OMP_BASENAME "${RISCV_OMP_SHARED}" NAME)
+    get_filename_component(RISCV_MLIR_RUNNER_BASENAME "${RISCV_MLIR_C_RUNNER_UTILS}" NAME)
+    if(RISCV_OMP_BASENAME STREQUAL "")
+      message(FATAL_ERROR "RISCV_OMP_SHARED has no basename: ${RISCV_OMP_SHARED}")
+    endif()
+    if(RISCV_MLIR_RUNNER_BASENAME STREQUAL "")
+      message(FATAL_ERROR
+        "RISCV_MLIR_C_RUNNER_UTILS has no basename: ${RISCV_MLIR_C_RUNNER_UTILS}")
+    endif()
+
+    set(RISCV_OMP_LOCAL "${BIN}/${RISCV_OMP_BASENAME}")
+    set(RISCV_MLIR_RUNNER_LOCAL "${BIN}/${RISCV_MLIR_RUNNER_BASENAME}")
+
+    add_custom_command(
+      OUTPUT "${RISCV_OMP_LOCAL}" "${RISCV_MLIR_RUNNER_LOCAL}"
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different "${RISCV_OMP_SHARED}" "${RISCV_OMP_LOCAL}"
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different "${RISCV_MLIR_C_RUNNER_UTILS}" "${RISCV_MLIR_RUNNER_LOCAL}"
+      DEPENDS "${RISCV_OMP_SHARED}" "${RISCV_MLIR_C_RUNNER_UTILS}"
+      COMMENT "[${MDL_NAME}] Copying RVV runtime deps (omp/mlir_c_runner_utils)"
+      VERBATIM
+    )
+
+    list(APPEND MDL_GEN_MANIFEST_ARGS
+      --dep-shared-lib "file:${RISCV_OMP_BASENAME}"
+      --dep-shared-lib "file:${RISCV_MLIR_RUNNER_BASENAME}")
+
+    list(APPEND MDL_EXTRA_STAGE4_DEPS
+      "${RISCV_OMP_LOCAL}"
+      "${RISCV_MLIR_RUNNER_LOCAL}")
   endif()
 
   # ════════════════════════════════════════════════════════════════════════════
@@ -130,7 +203,7 @@ function(buddy_add_model)
   add_custom_command(
     OUTPUT  "${GEN_RHAL}"
     COMMAND "${Python3_EXECUTABLE}" "${BUDDY_CODEGEN_DIR}/gen_manifest.py"
-            --config "${GEN_CONFIG}" -o "${GEN_RHAL}"
+            --config "${GEN_CONFIG}" -o "${GEN_RHAL}" ${MDL_GEN_MANIFEST_ARGS}
     DEPENDS "${GEN_CONFIG}" "${BUDDY_CODEGEN_DIR}/gen_manifest.py"
     COMMENT "[${MDL_NAME}] Generating ${MDL_NAME}.mlir (RHAL manifest)"
     VERBATIM
@@ -272,9 +345,32 @@ function(buddy_add_model)
   endif()
 
   # ── Stage 3: link .o → .so ─────────────────────────────────────────────
+  set(MDL_STAGE3_LINKER "${CMAKE_CXX_COMPILER}")
+  set(MDL_STAGE3_LINK_OPTS)
+  set(MDL_STAGE3_LIBS -lomp -lmlir_c_runner_utils -lm)
+
+  if(IS_RVV_CROSSCOMPILE)
+    set(CMAKE_C_COMPILER "${BUDDY_MLIR_BUILD_DIR}/../llvm/build/bin/clang")
+    set(CMAKE_CXX_COMPILER "${BUDDY_MLIR_BUILD_DIR}/../llvm/build/bin/clang++")
+    set(MDL_STAGE3_LINKER "${CMAKE_CXX_COMPILER}")
+
+    set(RISCV_LINK_OPTS
+      --target=riscv64-unknown-linux-gnu
+      "--sysroot=${RISCV_GNU_TOOLCHAIN}/sysroot"
+      "--gcc-toolchain=${RISCV_GNU_TOOLCHAIN}")
+    set(MDL_STAGE3_LINK_OPTS
+      ${RISCV_LINK_OPTS}
+      "-Wl,-rpath,\$ORIGIN")
+    set(MDL_STAGE3_LIBS
+      "${RISCV_OMP_SHARED}"
+      "${RISCV_MLIR_C_RUNNER_UTILS}"
+      -lm)
+  endif()
+
   add_custom_command(
     OUTPUT "${MODEL_SO}"
-    COMMAND ${CMAKE_CXX_COMPILER}
+    COMMAND ${MDL_STAGE3_LINKER}
+              ${MDL_STAGE3_LINK_OPTS}
               -shared -fPIC
               "-Wl,-soname,${MDL_NAME}_model.so"
               -Wl,--allow-multiple-definition
@@ -282,7 +378,7 @@ function(buddy_add_model)
               "${OBJ_FP}" "${OBJ_SP}" "${OBJ_FD}" "${OBJ_SD}"
               "-L${LLVM_LIBRARY_DIR}"
               "-Wl,-rpath,${LLVM_LIBRARY_DIR}"
-              -lomp -lmlir_c_runner_utils -lm
+              ${MDL_STAGE3_LIBS}
     DEPENDS "${OBJ_FP}" "${OBJ_SP}" "${OBJ_FD}" "${OBJ_SD}"
     COMMENT "[${MDL_NAME}] Stage 3: linking ${MDL_NAME}_model.so"
     VERBATIM
@@ -297,18 +393,8 @@ function(buddy_add_model)
   # Part 3: rax-pack → .rax
   # ════════════════════════════════════════════════════════════════════════════
 
-  set(MODEL_RAX "${BIN}/${MDL_NAME}.rax")
-
-  add_custom_command(
-    OUTPUT "${MODEL_RAX}"
-    COMMAND "${CMAKE_BINARY_DIR}/bin/rax-pack"
-            "${GEN_RHAL}" -o "${MODEL_RAX}"
-    DEPENDS rax-pack "${GEN_RHAL}" "${MODEL_SO}"
-    COMMENT "[${MDL_NAME}] Stage 4: packing ${MDL_NAME}.rax"
-    VERBATIM
-  )
-
-  # Copy vocab.txt alongside the .rax
+  # Copy vocab.txt alongside the .rax (and make it visible to rax-pack payload
+  # embedding via file:vocab.txt URI).
   set(VOCAB_SRC "${CMAKE_SOURCE_DIR}/examples/BuddyDeepSeekR1/vocab.txt")
   set(VOCAB_DST "${BIN}/vocab.txt")
 
@@ -317,6 +403,28 @@ function(buddy_add_model)
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${VOCAB_SRC}" "${VOCAB_DST}"
     DEPENDS "${VOCAB_SRC}"
     COMMENT "[${MDL_NAME}] Copying vocab.txt"
+    VERBATIM
+  )
+
+  set(MODEL_RAX "${BIN}/${MDL_NAME}.rax")
+  set(RAX_PACK_ARGS)
+  if(BUDDY_RAX_EMBED_PAYLOAD)
+    list(APPEND RAX_PACK_ARGS --embed-payload)
+  endif()
+
+  set(MDL_STAGE4_DEPS
+    rax-pack
+    "${GEN_RHAL}"
+    "${MODEL_SO}"
+    "${VOCAB_DST}")
+  list(APPEND MDL_STAGE4_DEPS ${MDL_EXTRA_STAGE4_DEPS})
+
+  add_custom_command(
+    OUTPUT "${MODEL_RAX}"
+    COMMAND "${CMAKE_BINARY_DIR}/bin/rax-pack"
+            "${GEN_RHAL}" -o "${MODEL_RAX}" ${RAX_PACK_ARGS}
+    DEPENDS ${MDL_STAGE4_DEPS}
+    COMMENT "[${MDL_NAME}] Stage 4: packing ${MDL_NAME}.rax"
     VERBATIM
   )
 
