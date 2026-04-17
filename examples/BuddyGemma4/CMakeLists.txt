@@ -207,6 +207,7 @@ add_custom_command(
             -matmul-vectorization-decode=vector-size=128
             -batch-matmul-vectorization-decode=vector-size=128
             -batchmatmul-transpose-b-vectorization=vector-size=16
+            -matmul-transpose-b-vectorization=unroll=4
             -convert-linalg-to-affine-loops
             -convert-vector-to-scf
             -lower-affine
@@ -273,3 +274,33 @@ if(BUDDY_MLIR_USE_MIMALLOC)
 endif()
 
 target_link_libraries(buddy-gemma4-e2b-run ${BUDDY_GEMMA4_E2B_LIBS})
+
+# Create a distributable package
+set(DIST_PACKAGE_NAME "buddy-gemma4-e2b")
+set(DIST_PACKAGE_DIR ${CMAKE_CURRENT_BINARY_DIR}/${DIST_PACKAGE_NAME})
+set(DIST_PACKAGE_ARCHIVE ${CMAKE_CURRENT_BINARY_DIR}/${DIST_PACKAGE_NAME}.tar.zst)
+
+add_custom_target(buddy-gemma4-e2b-package
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${DIST_PACKAGE_DIR}
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill_e2b.mlir
+    ${CMAKE_CURRENT_BINARY_DIR}/forward_decode_e2b.mlir
+    ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill_e2b.mlir
+    ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode_e2b.mlir
+    ${CMAKE_CURRENT_BINARY_DIR}/arg0_e2b.data
+    ${CMAKE_CURRENT_BINARY_DIR}/vocab.txt
+    ${DIST_PACKAGE_DIR}/
+  COMMAND sh -c "tar -I 'zstd -T0 -10' -cvf ${DIST_PACKAGE_ARCHIVE} ${DIST_PACKAGE_NAME}"
+  COMMAND ${CMAKE_COMMAND} -E remove_directory ${DIST_PACKAGE_DIR}
+  COMMENT "Creating distributable package: ${DIST_PACKAGE_ARCHIVE}"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS
+    ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill_e2b.mlir
+    ${CMAKE_CURRENT_BINARY_DIR}/forward_decode_e2b.mlir
+    ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill_e2b.mlir
+    ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode_e2b.mlir
+    ${CMAKE_CURRENT_BINARY_DIR}/arg0_e2b.data
+    ${CMAKE_CURRENT_BINARY_DIR}/vocab.txt
+  USES_TERMINAL
+  VERBATIM
+)
