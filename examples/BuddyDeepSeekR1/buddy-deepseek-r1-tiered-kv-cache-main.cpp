@@ -135,82 +135,56 @@ template <size_t CacheLen> struct DecodeReturnsT {
   // First return value: updated cache_position
   MemRef<long long, 1> cache_position_out;
 
-  // Group 1
   MemRef<float, 4> kv0, kv1;
   MemRef<long long, 1> ret_dummy0;
-  // Group 2
   MemRef<float, 4> kv2, kv3;
   MemRef<long long, 1> ret_dummy1;
-  // Group 3
   MemRef<float, 4> kv4, kv5;
   MemRef<long long, 1> ret_dummy2;
-  // Group 4
   MemRef<float, 4> kv6, kv7;
   MemRef<long long, 1> ret_dummy3;
-  // Group 5
   MemRef<float, 4> kv8, kv9;
   MemRef<long long, 1> ret_dummy4;
-  // Group 6
   MemRef<float, 4> kv10, kv11;
   MemRef<long long, 1> ret_dummy5;
-  // Group 7
   MemRef<float, 4> kv12, kv13;
   MemRef<long long, 1> ret_dummy6;
-  // Group 8
   MemRef<float, 4> kv14, kv15;
   MemRef<long long, 1> ret_dummy7;
-  // Group 9
   MemRef<float, 4> kv16, kv17;
   MemRef<long long, 1> ret_dummy8;
-  // Group 10
   MemRef<float, 4> kv18, kv19;
   MemRef<long long, 1> ret_dummy9;
-  // Group 11
   MemRef<float, 4> kv20, kv21;
   MemRef<long long, 1> ret_dummy10;
-  // Group 12
   MemRef<float, 4> kv22, kv23;
   MemRef<long long, 1> ret_dummy11;
-  // Group 13
   MemRef<float, 4> kv24, kv25;
   MemRef<long long, 1> ret_dummy12;
-  // Group 14
   MemRef<float, 4> kv26, kv27;
   MemRef<long long, 1> ret_dummy13;
-  // Group 15
   MemRef<float, 4> kv28, kv29;
   MemRef<long long, 1> ret_dummy14;
-  // Group 16
   MemRef<float, 4> kv30, kv31;
   MemRef<long long, 1> ret_dummy15;
-  // Group 17
   MemRef<float, 4> kv32, kv33;
   MemRef<long long, 1> ret_dummy16;
-  // Group 18
   MemRef<float, 4> kv34, kv35;
   MemRef<long long, 1> ret_dummy17;
-  // Group 19
   MemRef<float, 4> kv36, kv37;
   MemRef<long long, 1> ret_dummy18;
-  // Group 20
   MemRef<float, 4> kv38, kv39;
   MemRef<long long, 1> ret_dummy19;
-  // Group 21
   MemRef<float, 4> kv40, kv41;
   MemRef<long long, 1> ret_dummy20;
-  // Group 22
   MemRef<float, 4> kv42, kv43;
   MemRef<long long, 1> ret_dummy21;
-  // Group 23
   MemRef<float, 4> kv44, kv45;
   MemRef<long long, 1> ret_dummy22;
-  // Group 24
   MemRef<float, 4> kv46, kv47;
   MemRef<long long, 1> ret_dummy23;
-  // Group 25
   MemRef<float, 4> kv48, kv49;
   MemRef<long long, 1> ret_dummy24;
-  // Group 26
   MemRef<float, 4> kv50, kv51;
   MemRef<long long, 1> ret_dummy25;
   MemRef<float, 4> kv52, kv53;
@@ -221,88 +195,60 @@ template <size_t CacheLen> struct DecodeReturnsT {
 
   DecodeReturnsT()
       : cache_position_out({1}, 0LL),
-        // Group 1
         kv0({1, HeadNum, CacheLen, HiddenSize}, 0),
         kv1({1, HeadNum, CacheLen, HiddenSize}, 0), ret_dummy0({1}, 0LL),
-        // Group 2
         kv2({1, HeadNum, CacheLen, HiddenSize}, 0),
         kv3({1, HeadNum, CacheLen, HiddenSize}, 0), ret_dummy1({1}, 0LL),
-        // Group 3
         kv4({1, HeadNum, CacheLen, HiddenSize}, 0),
         kv5({1, HeadNum, CacheLen, HiddenSize}, 0), ret_dummy2({1}, 0LL),
-        // Group 4
         kv6({1, HeadNum, CacheLen, HiddenSize}, 0),
         kv7({1, HeadNum, CacheLen, HiddenSize}, 0), ret_dummy3({1}, 0LL),
-        // Group 5
         kv8({1, HeadNum, CacheLen, HiddenSize}, 0),
         kv9({1, HeadNum, CacheLen, HiddenSize}, 0), ret_dummy4({1}, 0LL),
-        // Group 6
         kv10({1, HeadNum, CacheLen, HiddenSize}, 0),
         kv11({1, HeadNum, CacheLen, HiddenSize}, 0), ret_dummy5({1}, 0LL),
-        // Group 7
         kv12({1, HeadNum, CacheLen, HiddenSize}, 0),
         kv13({1, HeadNum, CacheLen, HiddenSize}, 0), ret_dummy6({1}, 0LL),
-        // Group 8
         kv14({1, HeadNum, CacheLen, HiddenSize}, 0),
         kv15({1, HeadNum, CacheLen, HiddenSize}, 0), ret_dummy7({1}, 0LL),
-        // Group 9
         kv16({1, HeadNum, CacheLen, HiddenSize}, 0),
         kv17({1, HeadNum, CacheLen, HiddenSize}, 0), ret_dummy8({1}, 0LL),
-        // Group 10
         kv18({1, HeadNum, CacheLen, HiddenSize}, 0),
         kv19({1, HeadNum, CacheLen, HiddenSize}, 0), ret_dummy9({1}, 0LL),
-        // Group 11
         kv20({1, HeadNum, CacheLen, HiddenSize}, 0),
         kv21({1, HeadNum, CacheLen, HiddenSize}, 0), ret_dummy10({1}, 0LL),
-        // Group 12
         kv22({1, HeadNum, CacheLen, HiddenSize}, 0),
         kv23({1, HeadNum, CacheLen, HiddenSize}, 0), ret_dummy11({1}, 0LL),
-        // Group 13
         kv24({1, HeadNum, CacheLen, HiddenSize}, 0),
         kv25({1, HeadNum, CacheLen, HiddenSize}, 0), ret_dummy12({1}, 0LL),
-        // Group 14
         kv26({1, HeadNum, CacheLen, HiddenSize}, 0),
         kv27({1, HeadNum, CacheLen, HiddenSize}, 0), ret_dummy13({1}, 0LL),
-        // Group 15
         kv28({1, HeadNum, CacheLen, HiddenSize}, 0),
         kv29({1, HeadNum, CacheLen, HiddenSize}, 0), ret_dummy14({1}, 0LL),
-        // Group 16
         kv30({1, HeadNum, CacheLen, HiddenSize}, 0),
         kv31({1, HeadNum, CacheLen, HiddenSize}, 0), ret_dummy15({1}, 0LL),
-        // Group 17
         kv32({1, HeadNum, CacheLen, HiddenSize}, 0),
         kv33({1, HeadNum, CacheLen, HiddenSize}, 0), ret_dummy16({1}, 0LL),
-        // Group 18
         kv34({1, HeadNum, CacheLen, HiddenSize}, 0),
         kv35({1, HeadNum, CacheLen, HiddenSize}, 0), ret_dummy17({1}, 0LL),
-        // Group 19
         kv36({1, HeadNum, CacheLen, HiddenSize}, 0),
         kv37({1, HeadNum, CacheLen, HiddenSize}, 0), ret_dummy18({1}, 0LL),
-        // Group 20
         kv38({1, HeadNum, CacheLen, HiddenSize}, 0),
         kv39({1, HeadNum, CacheLen, HiddenSize}, 0), ret_dummy19({1}, 0LL),
-        // Group 21
         kv40({1, HeadNum, CacheLen, HiddenSize}, 0),
         kv41({1, HeadNum, CacheLen, HiddenSize}, 0), ret_dummy20({1}, 0LL),
-        // Group 22
         kv42({1, HeadNum, CacheLen, HiddenSize}, 0),
         kv43({1, HeadNum, CacheLen, HiddenSize}, 0), ret_dummy21({1}, 0LL),
-        // Group 23
         kv44({1, HeadNum, CacheLen, HiddenSize}, 0),
         kv45({1, HeadNum, CacheLen, HiddenSize}, 0), ret_dummy22({1}, 0LL),
-        // Group 24
         kv46({1, HeadNum, CacheLen, HiddenSize}, 0),
         kv47({1, HeadNum, CacheLen, HiddenSize}, 0), ret_dummy23({1}, 0LL),
-        // Group 25
         kv48({1, HeadNum, CacheLen, HiddenSize}, 0),
         kv49({1, HeadNum, CacheLen, HiddenSize}, 0), ret_dummy24({1}, 0LL),
-        // Group 26
         kv50({1, HeadNum, CacheLen, HiddenSize}, 0),
         kv51({1, HeadNum, CacheLen, HiddenSize}, 0), ret_dummy25({1}, 0LL),
-        // Group 27
         kv52({1, HeadNum, CacheLen, HiddenSize}, 0),
         kv53({1, HeadNum, CacheLen, HiddenSize}, 0), ret_dummy26({1}, 0LL),
-        // Group 28 (no dummy)
         kv54({1, HeadNum, CacheLen, HiddenSize}, 0),
         kv55({1, HeadNum, CacheLen, HiddenSize}, 0),
         logits({1, 1, MaxVocabSize}) {}
@@ -379,62 +325,49 @@ DECLARE_PREFILL_FUNC(1024);
 #define DECLARE_DECODE_FUNC(SIZE)                                              \
   extern "C" void _mlir_ciface_forward_decode_##SIZE(                          \
       DecodeContainer##SIZE *result, MemRef<float, 1> *arg0,                   \
-      MemRef<long long, 2> *arg1, MemRef<long long, 1> *arg2, /* Group 1 */    \
+      MemRef<long long, 2> *arg1, MemRef<long long, 1> *arg2,                  \
       MemRef<float, 4> *kv0, MemRef<float, 4> *kv1,                            \
-      MemRef<long long, 1> *dummy0, /* Group 2 */                              \
-      MemRef<float, 4> *kv2, MemRef<float, 4> *kv3,                            \
-      MemRef<long long, 1> *dummy1, /* Group 3 */                              \
+      MemRef<long long, 1> *dummy0, MemRef<float, 4> *kv2,                     \
+      MemRef<float, 4> *kv3, MemRef<long long, 1> *dummy1,                     \
       MemRef<float, 4> *kv4, MemRef<float, 4> *kv5,                            \
-      MemRef<long long, 1> *dummy2, /* Group 4 */                              \
-      MemRef<float, 4> *kv6, MemRef<float, 4> *kv7,                            \
-      MemRef<long long, 1> *dummy3, /* Group 5 */                              \
+      MemRef<long long, 1> *dummy2, MemRef<float, 4> *kv6,                     \
+      MemRef<float, 4> *kv7, MemRef<long long, 1> *dummy3,                     \
       MemRef<float, 4> *kv8, MemRef<float, 4> *kv9,                            \
-      MemRef<long long, 1> *dummy4, /* Group 6 */                              \
-      MemRef<float, 4> *kv10, MemRef<float, 4> *kv11,                          \
-      MemRef<long long, 1> *dummy5, /* Group 7 */                              \
+      MemRef<long long, 1> *dummy4, MemRef<float, 4> *kv10,                    \
+      MemRef<float, 4> *kv11, MemRef<long long, 1> *dummy5,                    \
       MemRef<float, 4> *kv12, MemRef<float, 4> *kv13,                          \
-      MemRef<long long, 1> *dummy6, /* Group 8 */                              \
-      MemRef<float, 4> *kv14, MemRef<float, 4> *kv15,                          \
-      MemRef<long long, 1> *dummy7, /* Group 9 */                              \
+      MemRef<long long, 1> *dummy6, MemRef<float, 4> *kv14,                    \
+      MemRef<float, 4> *kv15, MemRef<long long, 1> *dummy7,                    \
       MemRef<float, 4> *kv16, MemRef<float, 4> *kv17,                          \
-      MemRef<long long, 1> *dummy8, /* Group 10 */                             \
-      MemRef<float, 4> *kv18, MemRef<float, 4> *kv19,                          \
-      MemRef<long long, 1> *dummy9, /* Group 11 */                             \
+      MemRef<long long, 1> *dummy8, MemRef<float, 4> *kv18,                    \
+      MemRef<float, 4> *kv19, MemRef<long long, 1> *dummy9,                    \
       MemRef<float, 4> *kv20, MemRef<float, 4> *kv21,                          \
-      MemRef<long long, 1> *dummy10, /* Group 12 */                            \
-      MemRef<float, 4> *kv22, MemRef<float, 4> *kv23,                          \
-      MemRef<long long, 1> *dummy11, /* Group 13 */                            \
+      MemRef<long long, 1> *dummy10, MemRef<float, 4> *kv22,                   \
+      MemRef<float, 4> *kv23, MemRef<long long, 1> *dummy11,                   \
       MemRef<float, 4> *kv24, MemRef<float, 4> *kv25,                          \
-      MemRef<long long, 1> *dummy12, /* Group 14 */                            \
-      MemRef<float, 4> *kv26, MemRef<float, 4> *kv27,                          \
-      MemRef<long long, 1> *dummy13, /* Group 15 */                            \
+      MemRef<long long, 1> *dummy12, MemRef<float, 4> *kv26,                   \
+      MemRef<float, 4> *kv27, MemRef<long long, 1> *dummy13,                   \
       MemRef<float, 4> *kv28, MemRef<float, 4> *kv29,                          \
-      MemRef<long long, 1> *dummy14, /* Group 16 */                            \
-      MemRef<float, 4> *kv30, MemRef<float, 4> *kv31,                          \
-      MemRef<long long, 1> *dummy15, /* Group 17 */                            \
+      MemRef<long long, 1> *dummy14, MemRef<float, 4> *kv30,                   \
+      MemRef<float, 4> *kv31, MemRef<long long, 1> *dummy15,                   \
       MemRef<float, 4> *kv32, MemRef<float, 4> *kv33,                          \
-      MemRef<long long, 1> *dummy16, /* Group 18 */                            \
-      MemRef<float, 4> *kv34, MemRef<float, 4> *kv35,                          \
-      MemRef<long long, 1> *dummy17, /* Group 19 */                            \
+      MemRef<long long, 1> *dummy16, MemRef<float, 4> *kv34,                   \
+      MemRef<float, 4> *kv35, MemRef<long long, 1> *dummy17,                   \
       MemRef<float, 4> *kv36, MemRef<float, 4> *kv37,                          \
-      MemRef<long long, 1> *dummy18, /* Group 20 */                            \
-      MemRef<float, 4> *kv38, MemRef<float, 4> *kv39,                          \
-      MemRef<long long, 1> *dummy19, /* Group 21 */                            \
+      MemRef<long long, 1> *dummy18, MemRef<float, 4> *kv38,                   \
+      MemRef<float, 4> *kv39, MemRef<long long, 1> *dummy19,                   \
       MemRef<float, 4> *kv40, MemRef<float, 4> *kv41,                          \
-      MemRef<long long, 1> *dummy20, /* Group 22 */                            \
-      MemRef<float, 4> *kv42, MemRef<float, 4> *kv43,                          \
-      MemRef<long long, 1> *dummy21, /* Group 23 */                            \
+      MemRef<long long, 1> *dummy20, MemRef<float, 4> *kv42,                   \
+      MemRef<float, 4> *kv43, MemRef<long long, 1> *dummy21,                   \
       MemRef<float, 4> *kv44, MemRef<float, 4> *kv45,                          \
-      MemRef<long long, 1> *dummy22, /* Group 24 */                            \
-      MemRef<float, 4> *kv46, MemRef<float, 4> *kv47,                          \
-      MemRef<long long, 1> *dummy23, /* Group 25 */                            \
+      MemRef<long long, 1> *dummy22, MemRef<float, 4> *kv46,                   \
+      MemRef<float, 4> *kv47, MemRef<long long, 1> *dummy23,                   \
       MemRef<float, 4> *kv48, MemRef<float, 4> *kv49,                          \
-      MemRef<long long, 1> *dummy24, /* Group 26 */                            \
-      MemRef<float, 4> *kv50, MemRef<float, 4> *kv51,                          \
-      MemRef<long long, 1> *dummy25, /* Group 27 */                            \
+      MemRef<long long, 1> *dummy24, MemRef<float, 4> *kv50,                   \
+      MemRef<float, 4> *kv51, MemRef<long long, 1> *dummy25,                   \
       MemRef<float, 4> *kv52, MemRef<float, 4> *kv53,                          \
-      MemRef<long long, 1> *dummy26, /* Group 28 (no dummy) */                 \
-      MemRef<float, 4> *kv54, MemRef<float, 4> *kv55)
+      MemRef<long long, 1> *dummy26, MemRef<float, 4> *kv54,                   \
+      MemRef<float, 4> *kv55)
 
 DECLARE_DECODE_FUNC(32);
 DECLARE_DECODE_FUNC(64);
@@ -556,36 +489,34 @@ void copyKVCache(const KVPtrArray &srcPtrs, const KVPtrArray &dstPtrs,
 
 #define CALL_DECODE(SIZE, container, paramsPtr, inputPtr, cachePtr)            \
   _mlir_ciface_forward_decode_##SIZE(                                          \
-      &container, paramsPtr, inputPtr, cachePtr,                /* Group 1 */  \
-      &container.kv0, &container.kv1, &container.ret_dummy0,    /* Group 2 */  \
-      &container.kv2, &container.kv3, &container.ret_dummy1,    /* Group 3 */  \
-      &container.kv4, &container.kv5, &container.ret_dummy2,    /* Group 4 */  \
-      &container.kv6, &container.kv7, &container.ret_dummy3,    /* Group 5 */  \
-      &container.kv8, &container.kv9, &container.ret_dummy4,    /* Group 6 */  \
-      &container.kv10, &container.kv11, &container.ret_dummy5,  /* Group 7 */  \
-      &container.kv12, &container.kv13, &container.ret_dummy6,  /* Group 8 */  \
-      &container.kv14, &container.kv15, &container.ret_dummy7,  /* Group 9 */  \
-      &container.kv16, &container.kv17, &container.ret_dummy8,  /* Group 10 */ \
-      &container.kv18, &container.kv19, &container.ret_dummy9,  /* Group 11 */ \
-      &container.kv20, &container.kv21, &container.ret_dummy10, /* Group 12 */ \
-      &container.kv22, &container.kv23, &container.ret_dummy11, /* Group 13 */ \
-      &container.kv24, &container.kv25, &container.ret_dummy12, /* Group 14 */ \
-      &container.kv26, &container.kv27, &container.ret_dummy13, /* Group 15 */ \
-      &container.kv28, &container.kv29, &container.ret_dummy14, /* Group 16 */ \
-      &container.kv30, &container.kv31, &container.ret_dummy15, /* Group 17 */ \
-      &container.kv32, &container.kv33, &container.ret_dummy16, /* Group 18 */ \
-      &container.kv34, &container.kv35, &container.ret_dummy17, /* Group 19 */ \
-      &container.kv36, &container.kv37, &container.ret_dummy18, /* Group 20 */ \
-      &container.kv38, &container.kv39, &container.ret_dummy19, /* Group 21 */ \
-      &container.kv40, &container.kv41, &container.ret_dummy20, /* Group 22 */ \
-      &container.kv42, &container.kv43, &container.ret_dummy21, /* Group 23 */ \
-      &container.kv44, &container.kv45, &container.ret_dummy22, /* Group 24 */ \
-      &container.kv46, &container.kv47, &container.ret_dummy23, /* Group 25 */ \
-      &container.kv48, &container.kv49, &container.ret_dummy24, /* Group 26 */ \
-      &container.kv50, &container.kv51, &container.ret_dummy25, /* Group 27 */ \
-      &container.kv52, &container.kv53,                                        \
-      &container.ret_dummy26, /* Group 28 (no dummy) */                        \
-      &container.kv54, &container.kv55)
+      &container, paramsPtr, inputPtr, cachePtr, &container.kv0,               \
+      &container.kv1, &container.ret_dummy0, &container.kv2, &container.kv3,   \
+      &container.ret_dummy1, &container.kv4, &container.kv5,                   \
+      &container.ret_dummy2, &container.kv6, &container.kv7,                   \
+      &container.ret_dummy3, &container.kv8, &container.kv9,                   \
+      &container.ret_dummy4, &container.kv10, &container.kv11,                 \
+      &container.ret_dummy5, &container.kv12, &container.kv13,                 \
+      &container.ret_dummy6, &container.kv14, &container.kv15,                 \
+      &container.ret_dummy7, &container.kv16, &container.kv17,                 \
+      &container.ret_dummy8, &container.kv18, &container.kv19,                 \
+      &container.ret_dummy9, &container.kv20, &container.kv21,                 \
+      &container.ret_dummy10, &container.kv22, &container.kv23,                \
+      &container.ret_dummy11, &container.kv24, &container.kv25,                \
+      &container.ret_dummy12, &container.kv26, &container.kv27,                \
+      &container.ret_dummy13, &container.kv28, &container.kv29,                \
+      &container.ret_dummy14, &container.kv30, &container.kv31,                \
+      &container.ret_dummy15, &container.kv32, &container.kv33,                \
+      &container.ret_dummy16, &container.kv34, &container.kv35,                \
+      &container.ret_dummy17, &container.kv36, &container.kv37,                \
+      &container.ret_dummy18, &container.kv38, &container.kv39,                \
+      &container.ret_dummy19, &container.kv40, &container.kv41,                \
+      &container.ret_dummy20, &container.kv42, &container.kv43,                \
+      &container.ret_dummy21, &container.kv44, &container.kv45,                \
+      &container.ret_dummy22, &container.kv46, &container.kv47,                \
+      &container.ret_dummy23, &container.kv48, &container.kv49,                \
+      &container.ret_dummy24, &container.kv50, &container.kv51,                \
+      &container.ret_dummy25, &container.kv52, &container.kv53,                \
+      &container.ret_dummy26, &container.kv54, &container.kv55)
 
 // -----------------------------------------------------------------------------
 // DeepSeekR1 Tiered KV Cache Inference Main Entry
