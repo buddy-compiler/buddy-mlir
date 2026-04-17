@@ -108,118 +108,89 @@ struct DecodeReturns {
   // First return value: updated cache_position (memref<1xi64>)
   MemRef<long long, 1> cache_position_out;
 
-  // Group 1
   MemRef<uint16_t, 4> kv0;
   MemRef<uint16_t, 4> kv1;
   MemRef<long long, 1> ret_dummy0;
-  // Group 2
   MemRef<uint16_t, 4> kv2;
   MemRef<uint16_t, 4> kv3;
   MemRef<long long, 1> ret_dummy1;
-  // Group 3
   MemRef<uint16_t, 4> kv4;
   MemRef<uint16_t, 4> kv5;
   MemRef<long long, 1> ret_dummy2;
-  // Group 4
   MemRef<uint16_t, 4> kv6;
   MemRef<uint16_t, 4> kv7;
   MemRef<long long, 1> ret_dummy3;
-  // Group 5
   MemRef<uint16_t, 4> kv8;
   MemRef<uint16_t, 4> kv9;
   MemRef<long long, 1> ret_dummy4;
-  // Group 6
   MemRef<uint16_t, 4> kv10;
   MemRef<uint16_t, 4> kv11;
   MemRef<long long, 1> ret_dummy5;
-  // Group 7
   MemRef<uint16_t, 4> kv12;
   MemRef<uint16_t, 4> kv13;
   MemRef<long long, 1> ret_dummy6;
-  // Group 8
   MemRef<uint16_t, 4> kv14;
   MemRef<uint16_t, 4> kv15;
   MemRef<long long, 1> ret_dummy7;
-  // Group 9
   MemRef<uint16_t, 4> kv16;
   MemRef<uint16_t, 4> kv17;
   MemRef<long long, 1> ret_dummy8;
-  // Group 10
   MemRef<uint16_t, 4> kv18;
   MemRef<uint16_t, 4> kv19;
   MemRef<long long, 1> ret_dummy9;
-  // Group 11
   MemRef<uint16_t, 4> kv20;
   MemRef<uint16_t, 4> kv21;
   MemRef<long long, 1> ret_dummy10;
-  // Group 12
   MemRef<uint16_t, 4> kv22;
   MemRef<uint16_t, 4> kv23;
   MemRef<long long, 1> ret_dummy11;
-  // Group 13
   MemRef<uint16_t, 4> kv24;
   MemRef<uint16_t, 4> kv25;
   MemRef<long long, 1> ret_dummy12;
-  // Group 14
   MemRef<uint16_t, 4> kv26;
   MemRef<uint16_t, 4> kv27;
   MemRef<long long, 1> ret_dummy13;
-  // Group 15
   MemRef<uint16_t, 4> kv28;
   MemRef<uint16_t, 4> kv29;
   MemRef<long long, 1> ret_dummy14;
-  // Group 16
   MemRef<uint16_t, 4> kv30;
   MemRef<uint16_t, 4> kv31;
   MemRef<long long, 1> ret_dummy15;
-  // Group 17
   MemRef<uint16_t, 4> kv32;
   MemRef<uint16_t, 4> kv33;
   MemRef<long long, 1> ret_dummy16;
-  // Group 18
   MemRef<uint16_t, 4> kv34;
   MemRef<uint16_t, 4> kv35;
   MemRef<long long, 1> ret_dummy17;
-  // Group 19
   MemRef<uint16_t, 4> kv36;
   MemRef<uint16_t, 4> kv37;
   MemRef<long long, 1> ret_dummy18;
-  // Group 20
   MemRef<uint16_t, 4> kv38;
   MemRef<uint16_t, 4> kv39;
   MemRef<long long, 1> ret_dummy19;
-  // Group 21
   MemRef<uint16_t, 4> kv40;
   MemRef<uint16_t, 4> kv41;
   MemRef<long long, 1> ret_dummy20;
-  // Group 22
   MemRef<uint16_t, 4> kv42;
   MemRef<uint16_t, 4> kv43;
   MemRef<long long, 1> ret_dummy21;
-  // Group 23
   MemRef<uint16_t, 4> kv44;
   MemRef<uint16_t, 4> kv45;
   MemRef<long long, 1> ret_dummy22;
-  // Group 24
   MemRef<uint16_t, 4> kv46;
   MemRef<uint16_t, 4> kv47;
   MemRef<long long, 1> ret_dummy23;
-  // Group 25
   MemRef<uint16_t, 4> kv48;
   MemRef<uint16_t, 4> kv49;
   MemRef<long long, 1> ret_dummy24;
-  // Group 26
   MemRef<uint16_t, 4> kv50;
   MemRef<uint16_t, 4> kv51;
   MemRef<long long, 1> ret_dummy25;
-  // Group 27
   MemRef<uint16_t, 4> kv52;
   MemRef<uint16_t, 4> kv53;
   MemRef<long long, 1> ret_dummy26;
-  // Group 28 (no dummy)
   MemRef<uint16_t, 4> kv54;
   MemRef<uint16_t, 4> kv55;
-  // Logits
   MemRef<uint16_t, 3> logits;
 };
 
@@ -265,89 +236,48 @@ extern "C" void _mlir_ciface_forward_prefill(PrefillReturns *result,
 extern "C" void _mlir_ciface_forward_decode(
     DecodeReturns *result, MemRef<uint16_t, 1> *arg0,
     MemRef<long long, 2> *arg1, MemRef<long long, 1> *arg2,
-    // Group 1
     MemRef<uint16_t, 4> *kv0, MemRef<uint16_t, 4> *kv1,
-    MemRef<long long, 1> *dummy0,
-    // Group 2
-    MemRef<uint16_t, 4> *kv2, MemRef<uint16_t, 4> *kv3,
-    MemRef<long long, 1> *dummy1,
-    // Group 3
+    MemRef<long long, 1> *dummy0, MemRef<uint16_t, 4> *kv2,
+    MemRef<uint16_t, 4> *kv3, MemRef<long long, 1> *dummy1,
     MemRef<uint16_t, 4> *kv4, MemRef<uint16_t, 4> *kv5,
-    MemRef<long long, 1> *dummy2,
-    // Group 4
-    MemRef<uint16_t, 4> *kv6, MemRef<uint16_t, 4> *kv7,
-    MemRef<long long, 1> *dummy3,
-    // Group 5
+    MemRef<long long, 1> *dummy2, MemRef<uint16_t, 4> *kv6,
+    MemRef<uint16_t, 4> *kv7, MemRef<long long, 1> *dummy3,
     MemRef<uint16_t, 4> *kv8, MemRef<uint16_t, 4> *kv9,
-    MemRef<long long, 1> *dummy4,
-    // Group 6
-    MemRef<uint16_t, 4> *kv10, MemRef<uint16_t, 4> *kv11,
-    MemRef<long long, 1> *dummy5,
-    // Group 7
+    MemRef<long long, 1> *dummy4, MemRef<uint16_t, 4> *kv10,
+    MemRef<uint16_t, 4> *kv11, MemRef<long long, 1> *dummy5,
     MemRef<uint16_t, 4> *kv12, MemRef<uint16_t, 4> *kv13,
-    MemRef<long long, 1> *dummy6,
-    // Group 8
-    MemRef<uint16_t, 4> *kv14, MemRef<uint16_t, 4> *kv15,
-    MemRef<long long, 1> *dummy7,
-    // Group 9
+    MemRef<long long, 1> *dummy6, MemRef<uint16_t, 4> *kv14,
+    MemRef<uint16_t, 4> *kv15, MemRef<long long, 1> *dummy7,
     MemRef<uint16_t, 4> *kv16, MemRef<uint16_t, 4> *kv17,
-    MemRef<long long, 1> *dummy8,
-    // Group 10
-    MemRef<uint16_t, 4> *kv18, MemRef<uint16_t, 4> *kv19,
-    MemRef<long long, 1> *dummy9,
-    // Group 11
+    MemRef<long long, 1> *dummy8, MemRef<uint16_t, 4> *kv18,
+    MemRef<uint16_t, 4> *kv19, MemRef<long long, 1> *dummy9,
     MemRef<uint16_t, 4> *kv20, MemRef<uint16_t, 4> *kv21,
-    MemRef<long long, 1> *dummy10,
-    // Group 12
-    MemRef<uint16_t, 4> *kv22, MemRef<uint16_t, 4> *kv23,
-    MemRef<long long, 1> *dummy11,
-    // Group 13
+    MemRef<long long, 1> *dummy10, MemRef<uint16_t, 4> *kv22,
+    MemRef<uint16_t, 4> *kv23, MemRef<long long, 1> *dummy11,
     MemRef<uint16_t, 4> *kv24, MemRef<uint16_t, 4> *kv25,
-    MemRef<long long, 1> *dummy12,
-    // Group 14
-    MemRef<uint16_t, 4> *kv26, MemRef<uint16_t, 4> *kv27,
-    MemRef<long long, 1> *dummy13,
-    // Group 15
+    MemRef<long long, 1> *dummy12, MemRef<uint16_t, 4> *kv26,
+    MemRef<uint16_t, 4> *kv27, MemRef<long long, 1> *dummy13,
     MemRef<uint16_t, 4> *kv28, MemRef<uint16_t, 4> *kv29,
-    MemRef<long long, 1> *dummy14,
-    // Group 16
-    MemRef<uint16_t, 4> *kv30, MemRef<uint16_t, 4> *kv31,
-    MemRef<long long, 1> *dummy15,
-    // Group 17
+    MemRef<long long, 1> *dummy14, MemRef<uint16_t, 4> *kv30,
+    MemRef<uint16_t, 4> *kv31, MemRef<long long, 1> *dummy15,
     MemRef<uint16_t, 4> *kv32, MemRef<uint16_t, 4> *kv33,
-    MemRef<long long, 1> *dummy16,
-    // Group 18
-    MemRef<uint16_t, 4> *kv34, MemRef<uint16_t, 4> *kv35,
-    MemRef<long long, 1> *dummy17,
-    // Group 19
+    MemRef<long long, 1> *dummy16, MemRef<uint16_t, 4> *kv34,
+    MemRef<uint16_t, 4> *kv35, MemRef<long long, 1> *dummy17,
     MemRef<uint16_t, 4> *kv36, MemRef<uint16_t, 4> *kv37,
-    MemRef<long long, 1> *dummy18,
-    // Group 20
-    MemRef<uint16_t, 4> *kv38, MemRef<uint16_t, 4> *kv39,
-    MemRef<long long, 1> *dummy19,
-    // Group 21
+    MemRef<long long, 1> *dummy18, MemRef<uint16_t, 4> *kv38,
+    MemRef<uint16_t, 4> *kv39, MemRef<long long, 1> *dummy19,
     MemRef<uint16_t, 4> *kv40, MemRef<uint16_t, 4> *kv41,
-    MemRef<long long, 1> *dummy20,
-    // Group 22
-    MemRef<uint16_t, 4> *kv42, MemRef<uint16_t, 4> *kv43,
-    MemRef<long long, 1> *dummy21,
-    // Group 23
+    MemRef<long long, 1> *dummy20, MemRef<uint16_t, 4> *kv42,
+    MemRef<uint16_t, 4> *kv43, MemRef<long long, 1> *dummy21,
     MemRef<uint16_t, 4> *kv44, MemRef<uint16_t, 4> *kv45,
-    MemRef<long long, 1> *dummy22,
-    // Group 24
-    MemRef<uint16_t, 4> *kv46, MemRef<uint16_t, 4> *kv47,
-    MemRef<long long, 1> *dummy23,
-    // Group 25
+    MemRef<long long, 1> *dummy22, MemRef<uint16_t, 4> *kv46,
+    MemRef<uint16_t, 4> *kv47, MemRef<long long, 1> *dummy23,
     MemRef<uint16_t, 4> *kv48, MemRef<uint16_t, 4> *kv49,
-    MemRef<long long, 1> *dummy24,
-    // Group 26
-    MemRef<uint16_t, 4> *kv50, MemRef<uint16_t, 4> *kv51,
-    MemRef<long long, 1> *dummy25,
-    // Group 27
+    MemRef<long long, 1> *dummy24, MemRef<uint16_t, 4> *kv50,
+    MemRef<uint16_t, 4> *kv51, MemRef<long long, 1> *dummy25,
     MemRef<uint16_t, 4> *kv52, MemRef<uint16_t, 4> *kv53,
-    MemRef<long long, 1> *dummy26,
-    // Group 28 (no dummy)
-    MemRef<uint16_t, 4> *kv54, MemRef<uint16_t, 4> *kv55);
+    MemRef<long long, 1> *dummy26, MemRef<uint16_t, 4> *kv54,
+    MemRef<uint16_t, 4> *kv55);
 
 // -----------------------------------------------------------------------------
 // Helper Functions
@@ -595,87 +525,87 @@ int main() {
       MemRef<long long, 1>({1}, 0LL), // cache_position_out
       kv0,
       kv1,
-      MemRef<long long, 1>({1}, 0LL), // Group 1
+      MemRef<long long, 1>({1}, 0LL),
       kv2,
       kv3,
-      MemRef<long long, 1>({1}, 0LL), // Group 2
+      MemRef<long long, 1>({1}, 0LL),
       kv4,
       kv5,
-      MemRef<long long, 1>({1}, 0LL), // Group 3
+      MemRef<long long, 1>({1}, 0LL),
       kv6,
       kv7,
-      MemRef<long long, 1>({1}, 0LL), // Group 4
+      MemRef<long long, 1>({1}, 0LL),
       kv8,
       kv9,
-      MemRef<long long, 1>({1}, 0LL), // Group 5
+      MemRef<long long, 1>({1}, 0LL),
       kv10,
       kv11,
-      MemRef<long long, 1>({1}, 0LL), // Group 6
+      MemRef<long long, 1>({1}, 0LL),
       kv12,
       kv13,
-      MemRef<long long, 1>({1}, 0LL), // Group 7
+      MemRef<long long, 1>({1}, 0LL),
       kv14,
       kv15,
-      MemRef<long long, 1>({1}, 0LL), // Group 8
+      MemRef<long long, 1>({1}, 0LL),
       kv16,
       kv17,
-      MemRef<long long, 1>({1}, 0LL), // Group 9
+      MemRef<long long, 1>({1}, 0LL),
       kv18,
       kv19,
-      MemRef<long long, 1>({1}, 0LL), // Group 10
+      MemRef<long long, 1>({1}, 0LL),
       kv20,
       kv21,
-      MemRef<long long, 1>({1}, 0LL), // Group 11
+      MemRef<long long, 1>({1}, 0LL),
       kv22,
       kv23,
-      MemRef<long long, 1>({1}, 0LL), // Group 12
+      MemRef<long long, 1>({1}, 0LL),
       kv24,
       kv25,
-      MemRef<long long, 1>({1}, 0LL), // Group 13
+      MemRef<long long, 1>({1}, 0LL),
       kv26,
       kv27,
-      MemRef<long long, 1>({1}, 0LL), // Group 14
+      MemRef<long long, 1>({1}, 0LL),
       kv28,
       kv29,
-      MemRef<long long, 1>({1}, 0LL), // Group 15
+      MemRef<long long, 1>({1}, 0LL),
       kv30,
       kv31,
-      MemRef<long long, 1>({1}, 0LL), // Group 16
+      MemRef<long long, 1>({1}, 0LL),
       kv32,
       kv33,
-      MemRef<long long, 1>({1}, 0LL), // Group 17
+      MemRef<long long, 1>({1}, 0LL),
       kv34,
       kv35,
-      MemRef<long long, 1>({1}, 0LL), // Group 18
+      MemRef<long long, 1>({1}, 0LL),
       kv36,
       kv37,
-      MemRef<long long, 1>({1}, 0LL), // Group 19
+      MemRef<long long, 1>({1}, 0LL),
       kv38,
       kv39,
-      MemRef<long long, 1>({1}, 0LL), // Group 20
+      MemRef<long long, 1>({1}, 0LL),
       kv40,
       kv41,
-      MemRef<long long, 1>({1}, 0LL), // Group 21
+      MemRef<long long, 1>({1}, 0LL),
       kv42,
       kv43,
-      MemRef<long long, 1>({1}, 0LL), // Group 22
+      MemRef<long long, 1>({1}, 0LL),
       kv44,
       kv45,
-      MemRef<long long, 1>({1}, 0LL), // Group 23
+      MemRef<long long, 1>({1}, 0LL),
       kv46,
       kv47,
-      MemRef<long long, 1>({1}, 0LL), // Group 24
+      MemRef<long long, 1>({1}, 0LL),
       kv48,
       kv49,
-      MemRef<long long, 1>({1}, 0LL), // Group 25
+      MemRef<long long, 1>({1}, 0LL),
       kv50,
       kv51,
-      MemRef<long long, 1>({1}, 0LL), // Group 26
+      MemRef<long long, 1>({1}, 0LL),
       kv52,
       kv53,
-      MemRef<long long, 1>({1}, 0LL), // Group 27
+      MemRef<long long, 1>({1}, 0LL),
       kv54,
-      kv55, // Group 28 (no dummy)
+      kv55,
       logits_decode};
 
   KVPtrArray decodePtrs = buildDecodeKVPtrs(decodeRet);
@@ -725,62 +655,33 @@ int main() {
 
     _mlir_ciface_forward_decode(
         &decodeRet, &ParamsContainer, &inputContainerDecode, &cachePosition,
-        // Group 1
-        &decodeRet.kv0, &decodeRet.kv1, &decodeRet.ret_dummy0,
-        // Group 2
-        &decodeRet.kv2, &decodeRet.kv3, &decodeRet.ret_dummy1,
-        // Group 3
-        &decodeRet.kv4, &decodeRet.kv5, &decodeRet.ret_dummy2,
-        // Group 4
-        &decodeRet.kv6, &decodeRet.kv7, &decodeRet.ret_dummy3,
-        // Group 5
-        &decodeRet.kv8, &decodeRet.kv9, &decodeRet.ret_dummy4,
-        // Group 6
-        &decodeRet.kv10, &decodeRet.kv11, &decodeRet.ret_dummy5,
-        // Group 7
-        &decodeRet.kv12, &decodeRet.kv13, &decodeRet.ret_dummy6,
-        // Group 8
-        &decodeRet.kv14, &decodeRet.kv15, &decodeRet.ret_dummy7,
-        // Group 9
-        &decodeRet.kv16, &decodeRet.kv17, &decodeRet.ret_dummy8,
-        // Group 10
-        &decodeRet.kv18, &decodeRet.kv19, &decodeRet.ret_dummy9,
-        // Group 11
-        &decodeRet.kv20, &decodeRet.kv21, &decodeRet.ret_dummy10,
-        // Group 12
-        &decodeRet.kv22, &decodeRet.kv23, &decodeRet.ret_dummy11,
-        // Group 13
-        &decodeRet.kv24, &decodeRet.kv25, &decodeRet.ret_dummy12,
-        // Group 14
-        &decodeRet.kv26, &decodeRet.kv27, &decodeRet.ret_dummy13,
-        // Group 15
-        &decodeRet.kv28, &decodeRet.kv29, &decodeRet.ret_dummy14,
-        // Group 16
-        &decodeRet.kv30, &decodeRet.kv31, &decodeRet.ret_dummy15,
-        // Group 17
-        &decodeRet.kv32, &decodeRet.kv33, &decodeRet.ret_dummy16,
-        // Group 18
-        &decodeRet.kv34, &decodeRet.kv35, &decodeRet.ret_dummy17,
-        // Group 19
-        &decodeRet.kv36, &decodeRet.kv37, &decodeRet.ret_dummy18,
-        // Group 20
-        &decodeRet.kv38, &decodeRet.kv39, &decodeRet.ret_dummy19,
-        // Group 21
-        &decodeRet.kv40, &decodeRet.kv41, &decodeRet.ret_dummy20,
-        // Group 22
-        &decodeRet.kv42, &decodeRet.kv43, &decodeRet.ret_dummy21,
-        // Group 23
-        &decodeRet.kv44, &decodeRet.kv45, &decodeRet.ret_dummy22,
-        // Group 24
-        &decodeRet.kv46, &decodeRet.kv47, &decodeRet.ret_dummy23,
-        // Group 25
-        &decodeRet.kv48, &decodeRet.kv49, &decodeRet.ret_dummy24,
-        // Group 26
-        &decodeRet.kv50, &decodeRet.kv51, &decodeRet.ret_dummy25,
-        // Group 27
-        &decodeRet.kv52, &decodeRet.kv53, &decodeRet.ret_dummy26,
-        // Group 28 (no dummy)
-        &decodeRet.kv54, &decodeRet.kv55);
+        &decodeRet.kv0, &decodeRet.kv1, &decodeRet.ret_dummy0, &decodeRet.kv2,
+        &decodeRet.kv3, &decodeRet.ret_dummy1, &decodeRet.kv4, &decodeRet.kv5,
+        &decodeRet.ret_dummy2, &decodeRet.kv6, &decodeRet.kv7,
+        &decodeRet.ret_dummy3, &decodeRet.kv8, &decodeRet.kv9,
+        &decodeRet.ret_dummy4, &decodeRet.kv10, &decodeRet.kv11,
+        &decodeRet.ret_dummy5, &decodeRet.kv12, &decodeRet.kv13,
+        &decodeRet.ret_dummy6, &decodeRet.kv14, &decodeRet.kv15,
+        &decodeRet.ret_dummy7, &decodeRet.kv16, &decodeRet.kv17,
+        &decodeRet.ret_dummy8, &decodeRet.kv18, &decodeRet.kv19,
+        &decodeRet.ret_dummy9, &decodeRet.kv20, &decodeRet.kv21,
+        &decodeRet.ret_dummy10, &decodeRet.kv22, &decodeRet.kv23,
+        &decodeRet.ret_dummy11, &decodeRet.kv24, &decodeRet.kv25,
+        &decodeRet.ret_dummy12, &decodeRet.kv26, &decodeRet.kv27,
+        &decodeRet.ret_dummy13, &decodeRet.kv28, &decodeRet.kv29,
+        &decodeRet.ret_dummy14, &decodeRet.kv30, &decodeRet.kv31,
+        &decodeRet.ret_dummy15, &decodeRet.kv32, &decodeRet.kv33,
+        &decodeRet.ret_dummy16, &decodeRet.kv34, &decodeRet.kv35,
+        &decodeRet.ret_dummy17, &decodeRet.kv36, &decodeRet.kv37,
+        &decodeRet.ret_dummy18, &decodeRet.kv38, &decodeRet.kv39,
+        &decodeRet.ret_dummy19, &decodeRet.kv40, &decodeRet.kv41,
+        &decodeRet.ret_dummy20, &decodeRet.kv42, &decodeRet.kv43,
+        &decodeRet.ret_dummy21, &decodeRet.kv44, &decodeRet.kv45,
+        &decodeRet.ret_dummy22, &decodeRet.kv46, &decodeRet.kv47,
+        &decodeRet.ret_dummy23, &decodeRet.kv48, &decodeRet.kv49,
+        &decodeRet.ret_dummy24, &decodeRet.kv50, &decodeRet.kv51,
+        &decodeRet.ret_dummy25, &decodeRet.kv52, &decodeRet.kv53,
+        &decodeRet.ret_dummy26, &decodeRet.kv54, &decodeRet.kv55);
 
     const auto inferenceEnd = std::chrono::high_resolution_clock::now();
     const std::chrono::duration<double, std::milli> inferenceTime =

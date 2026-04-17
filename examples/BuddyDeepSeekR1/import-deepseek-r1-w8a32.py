@@ -15,35 +15,34 @@
 #
 # ===---------------------------------------------------------------------------
 #
-# This is the W8A32 weight-only int8 quantization (f32 activations) version of the
-# DeepSeekR1 model importer. It applies graph-level quantization to convert
-# MatmulOp weights to int8 with per-channel scaling factors, then generates
-# MLIR files and parameter data for the quantized model.
+# This is the W8A32 weight-only int8 quantization (f32 activations) version
+# of the DeepSeekR1 model importer. It applies graph-level quantization to
+# convert MatmulOp weights to int8 with per-channel scaling factors, then
+# generates MLIR files and parameter data for the quantized model.
 #
 # ===---------------------------------------------------------------------------
 
-import os
 import argparse
-import torch
-import torch._dynamo as dynamo
-from transformers import AutoModelForCausalLM, StaticCache
-from torch._inductor.decomposition import decompositions as inductor_decomp
-import numpy
+import os
 
+import numpy
+import torch
 from buddy.compiler.frontend import DynamoCompiler
-from buddy.compiler.ops import tosa
 from buddy.compiler.graph import GraphDriver
+from buddy.compiler.graph.operation import *  # noqa: F403
 from buddy.compiler.graph.transform import (
-    simply_fuse,
     apply_classic_fusion,
-    eliminate_transpose,
     eliminate_matmul_transpose_reshape,
+    eliminate_transpose,
     flash_attention_prefill,
     gqa_attention_fusion,
+    simply_fuse,
 )
-from buddy.compiler.graph.type import DeviceType, TensorDType
-from buddy.compiler.graph.operation import *
 from buddy.compiler.graph.transform.quantization import weight_only_channel_wise
+from buddy.compiler.graph.type import DeviceType, TensorDType
+from buddy.compiler.ops import tosa
+from torch._inductor.decomposition import decompositions as inductor_decomp
+from transformers import AutoModelForCausalLM, StaticCache
 
 parser = argparse.ArgumentParser(description="W8A32 AOT Importer")
 parser.add_argument("--output-dir", type=str, default="./")
@@ -57,7 +56,7 @@ if model_path is None:
     model_path = "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
 
 model = AutoModelForCausalLM.from_pretrained(
-    model_path, torchscript=True
+    model_path, dtype=torch.float32
 ).eval()
 model.config.use_cache = False
 
@@ -136,9 +135,9 @@ for i, param_node in enumerate(graph_prefill.params):
         if param_node.tensor_meta.get("dtype") == TensorDType.Int8:
             scaler_name = "scaler_" + param_node.name
             scaler_node = graph_prefill.node_table.get(scaler_name)
-            assert (
-                scaler_node is not None
-            ), f"Missing scaler for {param_node.name}"
+            assert scaler_node is not None, (
+                f"Missing scaler for {param_node.name}"
+            )
 
             scaler_shape = list(scaler_node.tensor_meta["shape"])
             quant_axis = next(i for i, s in enumerate(scaler_shape) if s != 1)
@@ -158,9 +157,9 @@ for i, param_node in enumerate(graph_prefill.params):
         else:
             all_param_tensors.append(("f32", original_tensor, param_node.name))
     else:
-        assert param_node.name.startswith(
-            "scaler_"
-        ), f"Expected scaler, got {param_node.name}"
+        assert param_node.name.startswith("scaler_"), (
+            f"Expected scaler, got {param_node.name}"
+        )
         weight_name = param_node.name[len("scaler_") :]
         weight_idx = next(
             j
@@ -185,7 +184,7 @@ for i, param_node in enumerate(graph_prefill.params):
 # str(TensorDType.Float32) < str(TensorDType.Int8))
 f32_params_data = []
 i8_params_data = []
-for dtype_tag, tensor, name in all_param_tensors:
+for dtype_tag, tensor, _name in all_param_tensors:
     if dtype_tag == "f32":
         f32_params_data.append(tensor.detach().float().numpy().reshape([-1]))
     else:
