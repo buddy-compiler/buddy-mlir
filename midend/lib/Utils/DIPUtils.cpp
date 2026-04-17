@@ -211,10 +211,10 @@ Value insertFMAOp(OpBuilder &builder, Location loc, VectorType type,
   auto elemTy = type.getElementType();
   auto bitWidth = elemTy.getIntOrFloatBitWidth();
   if (elemTy.isF32() || elemTy.isF64()) {
-    res = builder.create<vector::FMAOp>(loc, inputVec, kernelVec, outputVec);
+    res = vector::FMAOp::create(builder, loc, inputVec, kernelVec, outputVec);
   } else if (elemTy.isInteger(bitWidth)) {
-    Value mul = builder.create<arith::MulIOp>(loc, inputVec, kernelVec);
-    res = builder.create<arith::AddIOp>(loc, mul, outputVec);
+    Value mul = arith::MulIOp::create(builder, loc, inputVec, kernelVec);
+    res = arith::AddIOp::create(builder, loc, mul, outputVec);
   }
 
   return res;
@@ -226,11 +226,11 @@ void calcAndStoreFMAwoTailProcessing(OpBuilder &builder, Location loc,
                                      VectorType vecType, Value inputVec,
                                      Value kernelVec, Value output,
                                      Value beginIdx, Value endIdx) {
-  Value outputVec = builder.create<vector::LoadOp>(
+  Value outputVec = vector::LoadOp::create(builder, 
       loc, vecType, output, ValueRange{beginIdx, endIdx});
   Value resVec =
       insertFMAOp(builder, loc, vecType, inputVec, kernelVec, outputVec);
-  builder.create<vector::StoreOp>(loc, resVec, output,
+  vector::StoreOp::create(builder, loc, resVec, output,
                                   ValueRange{beginIdx, endIdx});
 }
 
@@ -239,11 +239,11 @@ void calcAndStoreFMAwoTailProcessing(OpBuilder &builder, Location loc,
 Value tailChecker(OpBuilder &builder, Location loc, AffineMap calcHelper,
                   Value strideVal, Value kernelSize, Value c1, Value pseudoCol,
                   Value colPivot) {
-  Value tailChecker = builder.create<affine::AffineApplyOp>(
+  Value tailChecker = affine::AffineApplyOp::create(builder, 
       loc, calcHelper, ValueRange{strideVal, kernelSize, c1});
   Value colEndDistance =
-      builder.create<arith::SubIOp>(loc, pseudoCol, colPivot);
-  Value tailCond = builder.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sge,
+      arith::SubIOp::create(builder, loc, pseudoCol, colPivot);
+  Value tailCond = arith::CmpIOp::create(builder, loc, arith::CmpIPredicate::sge,
                                                  colEndDistance, tailChecker);
   return tailCond;
 }
@@ -251,9 +251,9 @@ Value tailChecker(OpBuilder &builder, Location loc, AffineMap calcHelper,
 // Creates the required mask which is to be used for tail processing.
 Value tailMaskCreator(OpBuilder &builder, Location loc, Value inputCol,
                       Value colPivot, VectorType vectorMaskTy) {
-  Value extraElemCount = builder.create<arith::SubIOp>(loc, inputCol, colPivot);
+  Value extraElemCount = arith::SubIOp::create(builder, loc, inputCol, colPivot);
   Value tailMask =
-      builder.create<vector::CreateMaskOp>(loc, vectorMaskTy, extraElemCount);
+      vector::CreateMaskOp::create(builder, loc, vectorMaskTy, extraElemCount);
   return tailMask;
 }
 
@@ -265,30 +265,30 @@ void calcAndStoreFMAwTailProcessing(OpBuilder &builder, Location loc,
                                     Value beginIdx, Value endIdx,
                                     Value tailCond, Value zeroPadding,
                                     Value inputCol, VectorType vectorMaskTy) {
-  builder.create<scf::IfOp>(
+  scf::IfOp::create(builder, 
       loc, tailCond,
       [&](OpBuilder &builder, Location loc) {
-        Value outputVec = builder.create<vector::LoadOp>(
+        Value outputVec = vector::LoadOp::create(builder, 
             loc, vecType, output, ValueRange{beginIdx, endIdx});
         Value resVec =
             insertFMAOp(builder, loc, vecType, inputVec, kernelVec, outputVec);
-        builder.create<vector::StoreOp>(loc, resVec, output,
+        vector::StoreOp::create(builder, loc, resVec, output,
                                         ValueRange{beginIdx, endIdx});
 
-        builder.create<scf::YieldOp>(loc);
+        scf::YieldOp::create(builder, loc);
       },
       [&](OpBuilder &builder, Location loc) {
         Value extraElemMask =
             tailMaskCreator(builder, loc, inputCol, endIdx, vectorMaskTy);
-        Value outputVec = builder.create<vector::MaskedLoadOp>(
+        Value outputVec = vector::MaskedLoadOp::create(builder, 
             loc, vecType, output, ValueRange{beginIdx, endIdx}, extraElemMask,
             zeroPadding);
         Value resVec =
             insertFMAOp(builder, loc, vecType, inputVec, kernelVec, outputVec);
-        builder.create<vector::MaskedStoreOp>(
+        vector::MaskedStoreOp::create(builder, 
             loc, output, ValueRange{beginIdx, endIdx}, extraElemMask, resVec);
 
-        builder.create<scf::YieldOp>(loc);
+        scf::YieldOp::create(builder, loc);
       });
 }
 
@@ -296,16 +296,16 @@ void calcAndStoreFMAwTailProcessing(OpBuilder &builder, Location loc,
 std::vector<Value> shearTransform(OpBuilder &builder, Location loc,
                                   Value originalX, Value originalY,
                                   Value sinVec, Value tanVec) {
-  Value yTan1 = builder.create<arith::MulFOp>(loc, tanVec, originalY);
-  Value xIntermediate1 = builder.create<arith::SubFOp>(loc, originalX, yTan1);
+  Value yTan1 = arith::MulFOp::create(builder, loc, tanVec, originalY);
+  Value xIntermediate1 = arith::SubFOp::create(builder, loc, originalX, yTan1);
   Value xIntermediate = roundOff(builder, loc, xIntermediate1);
 
-  Value xSin = builder.create<arith::MulFOp>(loc, xIntermediate, sinVec);
-  Value newY1 = builder.create<arith::AddFOp>(loc, xSin, originalY);
+  Value xSin = arith::MulFOp::create(builder, loc, xIntermediate, sinVec);
+  Value newY1 = arith::AddFOp::create(builder, loc, xSin, originalY);
   Value newY = roundOff(builder, loc, newY1);
 
-  Value yTan2 = builder.create<arith::MulFOp>(loc, newY, tanVec);
-  Value newX1 = builder.create<arith::SubFOp>(loc, xIntermediate, yTan2);
+  Value yTan2 = arith::MulFOp::create(builder, loc, newY, tanVec);
+  Value newX1 = arith::SubFOp::create(builder, loc, xIntermediate, yTan2);
   Value newX = roundOff(builder, loc, newX1);
 
   return {newY, newX};
@@ -315,14 +315,14 @@ std::vector<Value> shearTransform(OpBuilder &builder, Location loc,
 std::vector<Value> standardRotate(OpBuilder &builder, Location loc,
                                   Value originalX, Value originalY,
                                   Value sinVec, Value cosVec) {
-  Value ySin = builder.create<arith::MulFOp>(loc, originalY, sinVec);
-  Value yCos = builder.create<arith::MulFOp>(loc, originalY, cosVec);
+  Value ySin = arith::MulFOp::create(builder, loc, originalY, sinVec);
+  Value yCos = arith::MulFOp::create(builder, loc, originalY, cosVec);
 
-  Value xSin = builder.create<arith::MulFOp>(loc, originalX, sinVec);
-  Value xCos = builder.create<arith::MulFOp>(loc, originalX, cosVec);
+  Value xSin = arith::MulFOp::create(builder, loc, originalX, sinVec);
+  Value xCos = arith::MulFOp::create(builder, loc, originalX, cosVec);
 
-  Value newY1 = builder.create<arith::SubFOp>(loc, yCos, xSin);
-  Value newX1 = builder.create<arith::AddFOp>(loc, ySin, xCos);
+  Value newY1 = arith::SubFOp::create(builder, loc, yCos, xSin);
+  Value newX1 = arith::AddFOp::create(builder, loc, ySin, xCos);
 
   return {roundOff(builder, loc, newY1), roundOff(builder, loc, newX1)};
 }
@@ -330,14 +330,14 @@ std::vector<Value> standardRotate(OpBuilder &builder, Location loc,
 // Get center co-ordinates w.r.t given dimension.
 Value getCenter(OpBuilder &builder, Location loc, MLIRContext *ctx, Value dim) {
   Value dimF32 = indexToF32(builder, loc, dim);
-  Value c1f = builder.create<arith::ConstantFloatOp>(loc, builder.getF32Type(),
+  Value c1f = arith::ConstantFloatOp::create(builder, loc, builder.getF32Type(),
                                                      (llvm::APFloat)1.0f);
-  Value c2f = builder.create<arith::ConstantFloatOp>(loc, builder.getF32Type(),
+  Value c2f = arith::ConstantFloatOp::create(builder, loc, builder.getF32Type(),
                                                      (llvm::APFloat)2.0f);
 
-  Value temp1 = builder.create<arith::AddFOp>(loc, dimF32, c1f);
-  Value temp2 = builder.create<arith::DivFOp>(loc, temp1, c2f);
-  Value center = builder.create<arith::SubFOp>(loc, temp2, c1f);
+  Value temp1 = arith::AddFOp::create(builder, loc, dimF32, c1f);
+  Value temp2 = arith::DivFOp::create(builder, loc, temp1, c2f);
+  Value center = arith::SubFOp::create(builder, loc, temp2, c1f);
   Value centerRound = roundOff(builder, loc, center);
 
   return F32ToIndex(builder, loc, centerRound);
@@ -347,11 +347,11 @@ Value getCenter(OpBuilder &builder, Location loc, MLIRContext *ctx, Value dim) {
 // position(s).
 Value pixelScaling(OpBuilder &builder, Location loc, Value imageDImF32Vec,
                    Value coordVec, Value imageCenterF32Vec, Value c1F32Vec) {
-  Value interm1 = builder.create<arith::SubFOp>(loc, imageDImF32Vec, coordVec);
+  Value interm1 = arith::SubFOp::create(builder, loc, imageDImF32Vec, coordVec);
   Value interm2 =
-      builder.create<arith::SubFOp>(loc, interm1, imageCenterF32Vec);
+      arith::SubFOp::create(builder, loc, interm1, imageCenterF32Vec);
 
-  return builder.create<arith::SubFOp>(loc, interm2, c1F32Vec);
+  return arith::SubFOp::create(builder, loc, interm2, c1F32Vec);
 }
 
 // Extract values present at a particular index in two vectors for using
@@ -376,7 +376,7 @@ void fillPixels(OpBuilder &builder, Location loc, Value resXVec, Value resYVec,
                 Value strideVal, Value outputRowLastElemF32,
                 Value outputColLastElemF32, Value inputRowLastElemF32,
                 Value inputColLastElemF32, Value c0F32) {
-  builder.create<affine::AffineForOp>(
+  affine::AffineForOp::create(builder, 
       loc, ValueRange{c0}, builder.getDimIdentityMap(), ValueRange{strideVal},
       builder.getDimIdentityMap(), /*step*/ 1, ValueRange{},
       [&](OpBuilder &builder, Location loc, ValueRange ivs,
@@ -388,13 +388,13 @@ void fillPixels(OpBuilder &builder, Location loc, Value resXVec, Value resYVec,
             extractIndices(builder, loc, resXVec, resYVec, ivs[0],
                            outputColLastElemF32, outputRowLastElemF32, c0F32);
 
-        Value pixelVal = builder.create<memref::LoadOp>(
+        Value pixelVal = memref::LoadOp::create(builder, 
             loc, builder.getF32Type(), input,
             ValueRange{origIndices[1], origIndices[0]});
-        builder.create<memref::StoreOp>(
+        memref::StoreOp::create(builder, 
             loc, pixelVal, output, ValueRange{resIndices[1], resIndices[0]});
 
-        builder.create<affine::AffineYieldOp>(loc);
+        affine::AffineYieldOp::create(builder, loc);
       });
 }
 
@@ -406,7 +406,7 @@ void fillPixelsNearestNeighbour4D(
     Value strideVal, Value outputRowLastElemF32, Value outputColLastElemF32,
     Value inputRowLastElemF32, Value inputColLastElemF32, Value c0F32,
     Value dataCondition) {
-  builder.create<affine::AffineForOp>(
+  affine::AffineForOp::create(builder, 
       loc, ValueRange{c0}, builder.getDimIdentityMap(), ValueRange{strideVal},
       builder.getDimIdentityMap(), /*step*/ 1, ValueRange{},
       [&](OpBuilder &builder, Location loc, ValueRange ivs,
@@ -418,51 +418,51 @@ void fillPixelsNearestNeighbour4D(
             extractIndices(builder, loc, resXVec, resYVec, ivs[0],
                            outputColLastElemF32, outputRowLastElemF32, c0F32);
 
-        auto ifop = builder.create<scf::IfOp>(
+        auto ifop = scf::IfOp::create(builder, 
             loc, dataCondition,
             [&](OpBuilder &builder, Location loc) {
-              Value pixelVal = builder.create<memref::LoadOp>(
+              Value pixelVal = memref::LoadOp::create(builder, 
                   loc, builder.getF32Type(), input,
                   ValueRange{ivs0, origIndices[1], origIndices[0], ivs1});
-              builder.create<scf::YieldOp>(loc, pixelVal);
+              scf::YieldOp::create(builder, loc, pixelVal);
             },
             [&](OpBuilder &builder, Location loc) {
-              Value pixelVal = builder.create<memref::LoadOp>(
+              Value pixelVal = memref::LoadOp::create(builder, 
                   loc, builder.getF32Type(), input,
                   ValueRange{ivs0, ivs1, origIndices[1], origIndices[0]});
-              builder.create<scf::YieldOp>(loc, pixelVal);
+              scf::YieldOp::create(builder, loc, pixelVal);
             });
         Value pixelVal = ifop.getResult(0);
 
-        builder.create<scf::IfOp>(
+        scf::IfOp::create(builder, 
             loc, dataCondition,
             [&](OpBuilder &builder, Location loc) {
-              builder.create<memref::StoreOp>(
+              memref::StoreOp::create(builder, 
                   loc, pixelVal, output,
                   ValueRange{ivs0, resIndices[1], resIndices[0], ivs1});
-              builder.create<scf::YieldOp>(loc);
+              scf::YieldOp::create(builder, loc);
             },
             [&](OpBuilder &builder, Location loc) {
-              builder.create<memref::StoreOp>(
+              memref::StoreOp::create(builder, 
                   loc, pixelVal, output,
                   ValueRange{ivs0, ivs1, resIndices[1], resIndices[0]});
-              builder.create<scf::YieldOp>(loc);
+              scf::YieldOp::create(builder, loc);
             });
 
-        builder.create<affine::AffineYieldOp>(loc);
+        affine::AffineYieldOp::create(builder, loc);
       });
 }
 
 // Calculate tan(angle / 2) where angle is a function parameter.
 Value customTanVal(OpBuilder &builder, Location loc, Value angleVal) {
-  Value c2F32 = builder.create<arith::ConstantFloatOp>(
+  Value c2F32 = arith::ConstantFloatOp::create(builder, 
       loc, builder.getF32Type(), (llvm::APFloat)2.0f);
-  Value angleVal_2 = builder.create<arith::DivFOp>(loc, angleVal, c2F32);
+  Value angleVal_2 = arith::DivFOp::create(builder, loc, angleVal, c2F32);
 
-  Value sinVal = builder.create<math::SinOp>(loc, angleVal_2);
-  Value cosVal = builder.create<math::CosOp>(loc, angleVal_2);
+  Value sinVal = math::SinOp::create(builder, loc, angleVal_2);
+  Value cosVal = math::CosOp::create(builder, loc, angleVal_2);
 
-  return builder.create<arith::DivFOp>(loc, sinVal, cosVal);
+  return arith::DivFOp::create(builder, loc, sinVal, cosVal);
 }
 
 // Calculate the real affine matrix for rotation by
@@ -472,14 +472,14 @@ SmallVector<Value, 6> calculateRotationMatrix(OpBuilder &builder, Location loc,
                                               Value inputCol, Value inputRow,
                                               Value outputCol, Value outputRow,
                                               Value angleVal) {
-  Value c1 = builder.create<arith::ConstantIndexOp>(loc, 1);
+  Value c1 = arith::ConstantIndexOp::create(builder, loc, 1);
 
   // let alpha = scale * cos(angle), beta = scale * sin(angle)
   // the affine matrix would be as follow:
   // [[alpha, beta, (1 - alpha) * centerx - beta * centery],
   //  [-beta, alpha, beta * centerx + (1 - alpha) * centery]]
-  Value centerX = builder.create<arith::ShRSIOp>(loc, inputCol, c1);
-  Value centerY = builder.create<arith::ShRSIOp>(loc, inputRow, c1);
+  Value centerX = arith::ShRSIOp::create(builder, loc, inputCol, c1);
+  Value centerY = arith::ShRSIOp::create(builder, loc, inputRow, c1);
   Value centerXF32 = indexToF32(builder, loc, centerX);
   Value centerYF32 = indexToF32(builder, loc, centerY);
 
@@ -491,17 +491,17 @@ SmallVector<Value, 6> calculateRotationMatrix(OpBuilder &builder, Location loc,
 
   //  modify the affine matrix to preserve the full original
   //  image after rotation
-  Value deltaXI = builder.create<arith::SubIOp>(loc, outputCol, inputCol);
-  Value deltaYI = builder.create<arith::SubIOp>(loc, outputRow, inputRow);
-  Value deltaXIDiv2 = builder.create<arith::ShRSIOp>(loc, deltaXI, c1);
-  Value deltaYIDiv2 = builder.create<arith::ShRSIOp>(loc, deltaYI, c1);
+  Value deltaXI = arith::SubIOp::create(builder, loc, outputCol, inputCol);
+  Value deltaYI = arith::SubIOp::create(builder, loc, outputRow, inputRow);
+  Value deltaXIDiv2 = arith::ShRSIOp::create(builder, loc, deltaXI, c1);
+  Value deltaYIDiv2 = arith::ShRSIOp::create(builder, loc, deltaYI, c1);
   Value deltaXFDiv2 = indexToF32(builder, loc, deltaXIDiv2);
   Value deltaYFDiv2 = indexToF32(builder, loc, deltaYIDiv2);
 
   affineMatrix[2] =
-      builder.create<arith::AddFOp>(loc, affineMatrix[2], deltaXFDiv2);
+      arith::AddFOp::create(builder, loc, affineMatrix[2], deltaXFDiv2);
   affineMatrix[5] =
-      builder.create<arith::AddFOp>(loc, affineMatrix[5], deltaYFDiv2);
+      arith::AddFOp::create(builder, loc, affineMatrix[5], deltaYFDiv2);
 
   return affineMatrix;
 }
@@ -516,25 +516,25 @@ SmallVector<Value, 6> getRotationMatrix(OpBuilder &builder, Location loc,
   // and the rotation will be calculated as
   // x = m0 * x_new + m1 * y_new + m2
   // y_new = m3 * x_new + m4 * y_new + m
-  Value alpha0 = builder.create<math::CosOp>(loc, angle);
-  Value alpha = builder.create<arith::MulFOp>(loc, alpha0, scale);
-  Value beta0 = builder.create<math::SinOp>(loc, angle);
-  Value beta = builder.create<arith::MulFOp>(loc, beta0, scale);
-  Value oneMinusAlpha = builder.create<arith::SubFOp>(
+  Value alpha0 = math::CosOp::create(builder, loc, angle);
+  Value alpha = arith::MulFOp::create(builder, loc, alpha0, scale);
+  Value beta0 = math::SinOp::create(builder, loc, angle);
+  Value beta = arith::MulFOp::create(builder, loc, beta0, scale);
+  Value oneMinusAlpha = arith::SubFOp::create(builder, 
       loc,
-      builder.create<arith::ConstantOp>(loc,
+      arith::ConstantOp::create(builder, loc,
                                         builder.getF32FloatAttr((float)1.)),
       alpha);
-  Value m20 = builder.create<arith::MulFOp>(loc, oneMinusAlpha, centerX);
-  Value m21 = builder.create<arith::MulFOp>(loc, beta, centerY);
-  Value m50 = builder.create<arith::MulFOp>(loc, beta, centerX);
-  Value m51 = builder.create<arith::MulFOp>(loc, oneMinusAlpha, centerY);
+  Value m20 = arith::MulFOp::create(builder, loc, oneMinusAlpha, centerX);
+  Value m21 = arith::MulFOp::create(builder, loc, beta, centerY);
+  Value m50 = arith::MulFOp::create(builder, loc, beta, centerX);
+  Value m51 = arith::MulFOp::create(builder, loc, oneMinusAlpha, centerY);
   Value m0 = alpha;
   Value m1 = beta;
-  Value m2 = builder.create<arith::SubFOp>(loc, m20, m21);
-  Value m3 = builder.create<arith::NegFOp>(loc, beta);
+  Value m2 = arith::SubFOp::create(builder, loc, m20, m21);
+  Value m3 = arith::NegFOp::create(builder, loc, beta);
   Value m4 = alpha;
-  Value m5 = builder.create<arith::AddFOp>(loc, m50, m51);
+  Value m5 = arith::AddFOp::create(builder, loc, m50, m51);
 
   return SmallVector<Value, 6>{m0, m1, m2, m3, m4, m5};
 }
@@ -545,46 +545,46 @@ SmallVector<Value, 6> getRotationMatrix(OpBuilder &builder, Location loc,
 // m5
 inline void inverseAffineMatrix(OpBuilder &builder, Location loc,
                                 SmallVector<Value, 6> &affineMatrix) {
-  Value c0F32 = builder.create<arith::ConstantOp>(
+  Value c0F32 = arith::ConstantOp::create(builder, 
       loc, builder.getF32FloatAttr((float).0));
   Value m0pm4 =
-      builder.create<arith::MulFOp>(loc, affineMatrix[0], affineMatrix[4]);
+      arith::MulFOp::create(builder, loc, affineMatrix[0], affineMatrix[4]);
   Value m1pm3 =
-      builder.create<arith::MulFOp>(loc, affineMatrix[1], affineMatrix[3]);
-  Value D = builder.create<arith::SubFOp>(loc, m0pm4, m1pm3);
+      arith::MulFOp::create(builder, loc, affineMatrix[1], affineMatrix[3]);
+  Value D = arith::SubFOp::create(builder, loc, m0pm4, m1pm3);
   Value dEq0 =
-      builder.create<arith::CmpFOp>(loc, arith::CmpFPredicate::OEQ, D, c0F32);
-  auto scfRes = builder.create<scf::IfOp>(
+      arith::CmpFOp::create(builder, loc, arith::CmpFPredicate::OEQ, D, c0F32);
+  auto scfRes = scf::IfOp::create(builder, 
       loc, dEq0,
       [&](OpBuilder &thenBuilder, Location thenLoc) {
-        thenBuilder.create<scf::YieldOp>(thenLoc, ValueRange{c0F32});
+        scf::YieldOp::create(thenBuilder, thenLoc, ValueRange{c0F32});
       },
       [&](OpBuilder &elseBuilder, Location elseLoc) {
-        Value c1F32 = elseBuilder.create<arith::ConstantOp>(
+        Value c1F32 = arith::ConstantOp::create(elseBuilder, 
             elseLoc, builder.getF32FloatAttr((float)1.));
-        Value res = elseBuilder.create<arith::DivFOp>(elseLoc, c1F32, D);
-        elseBuilder.create<scf::YieldOp>(elseLoc, ValueRange{res});
+        Value res = arith::DivFOp::create(elseBuilder, elseLoc, c1F32, D);
+        scf::YieldOp::create(elseBuilder, elseLoc, ValueRange{res});
       });
   D = scfRes.getResult(0);
-  Value negD = builder.create<arith::NegFOp>(loc, D);
-  Value a0 = builder.create<arith::MulFOp>(loc, affineMatrix[4], D);
-  Value a4 = builder.create<arith::MulFOp>(loc, affineMatrix[0], D);
+  Value negD = arith::NegFOp::create(builder, loc, D);
+  Value a0 = arith::MulFOp::create(builder, loc, affineMatrix[4], D);
+  Value a4 = arith::MulFOp::create(builder, loc, affineMatrix[0], D);
   affineMatrix[0] = a0;
-  affineMatrix[1] = builder.create<arith::MulFOp>(loc, affineMatrix[1], negD);
-  affineMatrix[3] = builder.create<arith::MulFOp>(loc, affineMatrix[3], negD);
+  affineMatrix[1] = arith::MulFOp::create(builder, loc, affineMatrix[1], negD);
+  affineMatrix[3] = arith::MulFOp::create(builder, loc, affineMatrix[3], negD);
   affineMatrix[4] = a4;
   Value m0pm2 =
-      builder.create<arith::MulFOp>(loc, affineMatrix[0], affineMatrix[2]);
+      arith::MulFOp::create(builder, loc, affineMatrix[0], affineMatrix[2]);
   Value m1pm5 =
-      builder.create<arith::MulFOp>(loc, affineMatrix[1], affineMatrix[5]);
-  Value negB1 = builder.create<arith::AddFOp>(loc, m0pm2, m1pm5);
+      arith::MulFOp::create(builder, loc, affineMatrix[1], affineMatrix[5]);
+  Value negB1 = arith::AddFOp::create(builder, loc, m0pm2, m1pm5);
   Value m2pm3 =
-      builder.create<arith::MulFOp>(loc, affineMatrix[2], affineMatrix[3]);
+      arith::MulFOp::create(builder, loc, affineMatrix[2], affineMatrix[3]);
   Value m4pm5 =
-      builder.create<arith::MulFOp>(loc, affineMatrix[4], affineMatrix[5]);
-  Value negB2 = builder.create<arith::AddFOp>(loc, m2pm3, m4pm5);
-  affineMatrix[2] = builder.create<arith::NegFOp>(loc, negB1);
-  affineMatrix[5] = builder.create<arith::NegFOp>(loc, negB2);
+      arith::MulFOp::create(builder, loc, affineMatrix[4], affineMatrix[5]);
+  Value negB2 = arith::AddFOp::create(builder, loc, m2pm3, m4pm5);
+  affineMatrix[2] = arith::NegFOp::create(builder, loc, negB1);
+  affineMatrix[5] = arith::NegFOp::create(builder, loc, negB2);
 }
 
 // Controls affine transform application.
@@ -595,19 +595,19 @@ void affineTransformController(OpBuilder &builder, Location loc,
   VectorType vectorTyF32 = VectorType::get({stride}, Float32Type::get(ctx));
   VectorType vectorTyI32 = VectorType::get({stride}, IntegerType::get(ctx, 32));
 
-  Value c0Index = builder.create<arith::ConstantIndexOp>(loc, 0);
-  Value c1Index = builder.create<arith::ConstantIndexOp>(loc, 1);
+  Value c0Index = arith::ConstantIndexOp::create(builder, loc, 0);
+  Value c1Index = arith::ConstantIndexOp::create(builder, loc, 1);
 
   inverseAffineMatrix(builder, loc, affineMatrix);
 
   Value m0Vec =
-      builder.create<vector::BroadcastOp>(loc, vectorTyF32, affineMatrix[0]);
+      vector::BroadcastOp::create(builder, loc, vectorTyF32, affineMatrix[0]);
   Value m2Vec =
-      builder.create<vector::BroadcastOp>(loc, vectorTyF32, affineMatrix[2]);
+      vector::BroadcastOp::create(builder, loc, vectorTyF32, affineMatrix[2]);
   Value m3Vec =
-      builder.create<vector::BroadcastOp>(loc, vectorTyF32, affineMatrix[3]);
+      vector::BroadcastOp::create(builder, loc, vectorTyF32, affineMatrix[3]);
   Value m5Vec =
-      builder.create<vector::BroadcastOp>(loc, vectorTyF32, affineMatrix[5]);
+      vector::BroadcastOp::create(builder, loc, vectorTyF32, affineMatrix[5]);
 
   //  get the output image dimensions
   int dimIndex = -1;
@@ -618,16 +618,16 @@ void affineTransformController(OpBuilder &builder, Location loc,
   } else if (format == dip::ImageFormat::NCHW) {
     dimIndex = 2;
   }
-  Value rowIndex = builder.create<arith::ConstantIndexOp>(loc, dimIndex);
-  Value colIndex = builder.create<arith::ConstantIndexOp>(loc, dimIndex + 1);
-  Value outputRow = builder.create<memref::DimOp>(loc, output, rowIndex);
-  Value outputCol = builder.create<memref::DimOp>(loc, output, colIndex);
+  Value rowIndex = arith::ConstantIndexOp::create(builder, loc, dimIndex);
+  Value colIndex = arith::ConstantIndexOp::create(builder, loc, dimIndex + 1);
+  Value outputRow = memref::DimOp::create(builder, loc, output, rowIndex);
+  Value outputCol = memref::DimOp::create(builder, loc, output, colIndex);
 
-  Value strideVal = builder.create<arith::ConstantIndexOp>(loc, stride);
+  Value strideVal = arith::ConstantIndexOp::create(builder, loc, stride);
   Value outputColStrideRatio =
-      builder.create<arith::DivUIOp>(loc, outputCol, strideVal);
-  Value outputColMultiple = builder.create<arith::MulIOp>(
-      loc, builder.create<arith::AddIOp>(loc, outputColStrideRatio, c1Index),
+      arith::DivUIOp::create(builder, loc, outputCol, strideVal);
+  Value outputColMultiple = arith::MulIOp::create(builder, 
+      loc, arith::AddIOp::create(builder, loc, outputColStrideRatio, c1Index),
       strideVal);
 
   Value xVecInitial = iotaVec0F32(builder, loc, stride);
@@ -637,63 +637,63 @@ void affineTransformController(OpBuilder &builder, Location loc,
 
   // compute x*m0+m2 and x*m3+m5 and store the results into xMm0 and xMm3
   Value xMm0 =
-      builder.create<memref::AllocOp>(loc, dynamicTypeI32, outputColMultiple);
+      memref::AllocOp::create(builder, loc, dynamicTypeI32, outputColMultiple);
   Value xMm3 =
-      builder.create<memref::AllocOp>(loc, dynamicTypeI32, outputColMultiple);
+      memref::AllocOp::create(builder, loc, dynamicTypeI32, outputColMultiple);
 
   // RSV_BITS = reserved bits, how many bits should be reserved for fraction
   // part
   // TODO: make reserved bits configurable
   const int RSV_BITS = 5;
-  Value c_rsv = builder.create<arith::ConstantOp>(
+  Value c_rsv = arith::ConstantOp::create(builder, 
       loc, builder.getF32FloatAttr((float)(1 << RSV_BITS)));
-  Value rsv_delta = builder.create<arith::ConstantOp>(
+  Value rsv_delta = arith::ConstantOp::create(builder, 
       loc, builder.getI32IntegerAttr(1 << (RSV_BITS - 1)));
-  Value c_rsvVec = builder.create<vector::BroadcastOp>(loc, vectorTyF32, c_rsv);
+  Value c_rsvVec = vector::BroadcastOp::create(builder, loc, vectorTyF32, c_rsv);
   Value rsv_deltaVec =
-      builder.create<vector::BroadcastOp>(loc, vectorTyI32, rsv_delta);
+      vector::BroadcastOp::create(builder, loc, vectorTyI32, rsv_delta);
 
-  builder.create<affine::AffineForOp>(
+  affine::AffineForOp::create(builder, 
       loc, ValueRange{c0Index}, builder.getDimIdentityMap(),
       ValueRange{outputColMultiple}, builder.getDimIdentityMap(), stride,
       ValueRange{},
       [&](OpBuilder &builderFor, Location locFor, ValueRange ivsFor,
           ValueRange iterArg) {
-        Value delta = builderFor.create<vector::BroadcastOp>(
+        Value delta = vector::BroadcastOp::create(builderFor, 
             locFor, vectorTyF32, indexToF32(builderFor, locFor, ivsFor[0]));
         Value xVec =
-            builderFor.create<arith::AddFOp>(locFor, xVecInitial, delta);
-        Value x0xM0 = builderFor.create<arith::MulFOp>(locFor, xVec, m0Vec);
-        Value x1xM3 = builderFor.create<arith::MulFOp>(locFor, xVec, m3Vec);
+            arith::AddFOp::create(builderFor, locFor, xVecInitial, delta);
+        Value x0xM0 = arith::MulFOp::create(builderFor, locFor, xVec, m0Vec);
+        Value x1xM3 = arith::MulFOp::create(builderFor, locFor, xVec, m3Vec);
         Value x0xM0addM2 =
-            builderFor.create<arith::AddFOp>(locFor, x0xM0, m2Vec);
+            arith::AddFOp::create(builderFor, locFor, x0xM0, m2Vec);
         Value x1xM3addM5 =
-            builderFor.create<arith::AddFOp>(locFor, x1xM3, m5Vec);
+            arith::AddFOp::create(builderFor, locFor, x1xM3, m5Vec);
         Value x0xM0addM2xrsv =
-            builderFor.create<arith::MulFOp>(locFor, x0xM0addM2, c_rsvVec);
+            arith::MulFOp::create(builderFor, locFor, x0xM0addM2, c_rsvVec);
         Value x1xM3addM5xrsv =
-            builderFor.create<arith::MulFOp>(locFor, x1xM3addM5, c_rsvVec);
-        Value x0 = builderFor.create<arith::FPToSIOp>(locFor, vectorTyI32,
+            arith::MulFOp::create(builderFor, locFor, x1xM3addM5, c_rsvVec);
+        Value x0 = arith::FPToSIOp::create(builderFor, locFor, vectorTyI32,
                                                       x0xM0addM2xrsv);
-        Value x1 = builderFor.create<arith::FPToSIOp>(locFor, vectorTyI32,
+        Value x1 = arith::FPToSIOp::create(builderFor, locFor, vectorTyI32,
                                                       x1xM3addM5xrsv);
         Value x0addrsv_delta =
-            builderFor.create<arith::AddIOp>(locFor, x0, rsv_deltaVec);
+            arith::AddIOp::create(builderFor, locFor, x0, rsv_deltaVec);
         Value x1addrsv_delta =
-            builderFor.create<arith::AddIOp>(locFor, x1, rsv_deltaVec);
-        builderFor.create<vector::StoreOp>(locFor, x0addrsv_delta, xMm0,
+            arith::AddIOp::create(builderFor, locFor, x1, rsv_deltaVec);
+        vector::StoreOp::create(builderFor, locFor, x0addrsv_delta, xMm0,
                                            ValueRange{ivsFor[0]});
-        builderFor.create<vector::StoreOp>(locFor, x1addrsv_delta, xMm3,
+        vector::StoreOp::create(builderFor, locFor, x1addrsv_delta, xMm3,
                                            ValueRange{ivsFor[0]});
-        builderFor.create<affine::AffineYieldOp>(locFor);
+        affine::AffineYieldOp::create(builderFor, locFor);
       });
 
   affineTransformCore(builder, loc, ctx, input, output, c0Index, outputRow,
                       c0Index, outputCol, affineMatrix[1], affineMatrix[4],
                       xMm0, xMm3, stride, RSV_BITS, 0, format);
 
-  builder.create<memref::DeallocOp>(loc, xMm0);
-  builder.create<memref::DeallocOp>(loc, xMm3);
+  memref::DeallocOp::create(builder, loc, xMm0);
+  memref::DeallocOp::create(builder, loc, xMm3);
 }
 
 // Controls shear transform application.
@@ -711,7 +711,7 @@ void shearTransformController(
       builder, loc, lowerBounds, upperBounds, steps,
       [&](OpBuilder &builder, Location loc, ValueRange ivs) {
         Value ivs0F32 = indexToF32(builder, loc, ivs[0]);
-        Value yVec = builder.create<vector::BroadcastOp>(loc, vectorTy32, ivs0F32);
+        Value yVec = vector::BroadcastOp::create(builder, loc, vectorTy32, ivs0F32);
         Value xVec = iotaVec(builder, loc, ctx, ivs[1], strideVal, vectorTy32,
                              c0, stride);
 
@@ -722,9 +722,9 @@ void shearTransformController(
 
         std::vector<Value> resIndices = shearTransform(
             builder, loc, xVecModified, yVecModified, sinVec, tanVec);
-        Value resYVec = builder.create<arith::SubFOp>(loc, outputCenterYF32Vec,
+        Value resYVec = arith::SubFOp::create(builder, loc, outputCenterYF32Vec,
                                                       resIndices[0]);
-        Value resXVec = builder.create<arith::SubFOp>(loc, outputCenterXF32Vec,
+        Value resXVec = arith::SubFOp::create(builder, loc, outputCenterXF32Vec,
                                                       resIndices[1]);
 
         fillPixels(builder, loc, resXVec, resYVec, xVec, yVec, input, output,
@@ -744,14 +744,14 @@ void standardRotateController(
     Value outputRowLastElemF32, Value outputColLastElemF32,
     Value inputRowLastElemF32, Value inputColLastElemF32, Value c0, Value c0F32,
     Value c1F32Vec, VectorType vectorTy32, int64_t stride, FloatType f32) {
-  Value cosVal = builder.create<math::CosOp>(loc, angleVal);
-  Value cosVec = builder.create<vector::BroadcastOp>(loc, vectorTy32, cosVal);
+  Value cosVal = math::CosOp::create(builder, loc, angleVal);
+  Value cosVec = vector::BroadcastOp::create(builder, loc, vectorTy32, cosVal);
 
   affine::buildAffineLoopNest(
       builder, loc, lowerBounds, upperBounds, steps,
       [&](OpBuilder &builder, Location loc, ValueRange ivs) {
         Value ivs0F32 = indexToF32(builder, loc, ivs[0]);
-        Value yVec = builder.create<vector::BroadcastOp>(loc, vectorTy32, ivs0F32);
+        Value yVec = vector::BroadcastOp::create(builder, loc, vectorTy32, ivs0F32);
         Value xVec = iotaVec(builder, loc, ctx, ivs[1], strideVal, vectorTy32,
                              c0, stride);
 
@@ -762,9 +762,9 @@ void standardRotateController(
 
         std::vector<Value> resIndices = standardRotate(
             builder, loc, xVecModified, yVecModified, sinVec, cosVec);
-        Value resYVec = builder.create<arith::SubFOp>(loc, outputCenterYF32Vec,
+        Value resYVec = arith::SubFOp::create(builder, loc, outputCenterYF32Vec,
                                                       resIndices[0]);
-        Value resXVec = builder.create<arith::SubFOp>(loc, outputCenterXF32Vec,
+        Value resXVec = arith::SubFOp::create(builder, loc, outputCenterXF32Vec,
                                                       resIndices[1]);
 
         fillPixels(builder, loc, resXVec, resYVec, xVec, yVec, input, output,
@@ -781,7 +781,7 @@ void fillPixelsBilinearInterpolate(
     Value outputRowLastElemF32, Value outputColLastElemF32,
     Value inputRowLastElemF32, Value inputColLastElemF32, Value c0F32,
     Value c1F32) {
-  builder.create<affine::AffineForOp>(
+  affine::AffineForOp::create(builder, 
       loc, ValueRange{c0}, builder.getDimIdentityMap(), ValueRange{strideVal},
       builder.getDimIdentityMap(), /*step*/ 1, ValueRange{},
       [&](OpBuilder &builder, Location loc, ValueRange ivs,
@@ -809,54 +809,54 @@ void fillPixelsBilinearInterpolate(
             valBound(builder, loc, yPos_temp, inputRowLastElemF32, c0F32));
 
         std::vector<Value> indexWeights_UnitComplements = {
-            builder.create<arith::SubFOp>(loc, c1F32, indexWeights[0]),
-            builder.create<arith::SubFOp>(loc, c1F32, indexWeights[1])};
+            arith::SubFOp::create(builder, loc, c1F32, indexWeights[0]),
+            arith::SubFOp::create(builder, loc, c1F32, indexWeights[1])};
 
-        Value pixelVal_a = builder.create<memref::LoadOp>(
+        Value pixelVal_a = memref::LoadOp::create(builder, 
             loc, builder.getF32Type(), input,
             ValueRange{inputIndices_L[1], inputIndices_L[0]});
-        Value pixelVal_b = builder.create<memref::LoadOp>(
+        Value pixelVal_b = memref::LoadOp::create(builder, 
             loc, builder.getF32Type(), input,
             ValueRange{inputIndices_H[1], inputIndices_L[0]});
-        Value pixelVal_c = builder.create<memref::LoadOp>(
+        Value pixelVal_c = memref::LoadOp::create(builder, 
             loc, builder.getF32Type(), input,
             ValueRange{inputIndices_L[1], inputIndices_H[0]});
-        Value pixelVal_d = builder.create<memref::LoadOp>(
+        Value pixelVal_d = memref::LoadOp::create(builder, 
             loc, builder.getF32Type(), input,
             ValueRange{inputIndices_H[1], inputIndices_H[0]});
 
         Value weightVal1 =
-            builder.create<arith::MulFOp>(loc, indexWeights_UnitComplements[0],
+            arith::MulFOp::create(builder, loc, indexWeights_UnitComplements[0],
                                           indexWeights_UnitComplements[1]);
-        Value weightVal2 = builder.create<arith::MulFOp>(
+        Value weightVal2 = arith::MulFOp::create(builder, 
             loc, indexWeights[0], indexWeights_UnitComplements[1]);
-        Value weightVal3 = builder.create<arith::MulFOp>(
+        Value weightVal3 = arith::MulFOp::create(builder, 
             loc, indexWeights[1], indexWeights_UnitComplements[0]);
-        Value weightVal4 = builder.create<arith::MulFOp>(loc, indexWeights[0],
+        Value weightVal4 = arith::MulFOp::create(builder, loc, indexWeights[0],
                                                          indexWeights[1]);
 
         Value interm1 =
-            builder.create<arith::MulFOp>(loc, pixelVal_a, weightVal1);
+            arith::MulFOp::create(builder, loc, pixelVal_a, weightVal1);
         Value interm2 =
-            builder.create<arith::MulFOp>(loc, pixelVal_b, weightVal2);
+            arith::MulFOp::create(builder, loc, pixelVal_b, weightVal2);
         Value interm3 =
-            builder.create<arith::MulFOp>(loc, pixelVal_c, weightVal3);
+            arith::MulFOp::create(builder, loc, pixelVal_c, weightVal3);
         Value interm4 =
-            builder.create<arith::MulFOp>(loc, pixelVal_d, weightVal4);
+            arith::MulFOp::create(builder, loc, pixelVal_d, weightVal4);
 
         Value pixel_interm1 =
-            builder.create<arith::AddFOp>(loc, interm1, interm2);
+            arith::AddFOp::create(builder, loc, interm1, interm2);
         Value pixel_interm2 =
-            builder.create<arith::AddFOp>(loc, interm3, interm4);
+            arith::AddFOp::create(builder, loc, interm3, interm4);
         Value pixel_interm3 =
-            builder.create<arith::AddFOp>(loc, pixel_interm1, pixel_interm2);
+            arith::AddFOp::create(builder, loc, pixel_interm1, pixel_interm2);
 
         Value pixelVal = roundOff(builder, loc, pixel_interm3);
 
-        builder.create<memref::StoreOp>(
+        memref::StoreOp::create(builder, 
             loc, pixelVal, output, ValueRange{resIndices[1], resIndices[0]});
 
-        builder.create<affine::AffineYieldOp>(loc);
+        affine::AffineYieldOp::create(builder, loc);
       });
 }
 
@@ -868,7 +868,7 @@ void fillPixelsBilinearInterpolate4D(
     Value yVecWeight, Value outputRowLastElemF32, Value outputColLastElemF32,
     Value inputRowLastElemF32, Value inputColLastElemF32, Value c0F32,
     Value c1F32, Value dataCondition) {
-  builder.create<affine::AffineForOp>(
+  affine::AffineForOp::create(builder, 
       loc, ValueRange{c0}, builder.getDimIdentityMap(), ValueRange{strideVal},
       builder.getDimIdentityMap(), /*step*/ 1, ValueRange{},
       [&](OpBuilder &builder, Location loc, ValueRange ivs,
@@ -896,42 +896,42 @@ void fillPixelsBilinearInterpolate4D(
             valBound(builder, loc, yPos_temp, inputRowLastElemF32, c0F32));
 
         std::vector<Value> indexWeights_UnitComplements = {
-            builder.create<arith::SubFOp>(loc, c1F32, indexWeights[0]),
-            builder.create<arith::SubFOp>(loc, c1F32, indexWeights[1])};
+            arith::SubFOp::create(builder, loc, c1F32, indexWeights[0]),
+            arith::SubFOp::create(builder, loc, c1F32, indexWeights[1])};
 
-        auto ifop = builder.create<scf::IfOp>(
+        auto ifop = scf::IfOp::create(builder, 
             loc, dataCondition,
             [&](OpBuilder &builder, Location loc) {
-              Value pixelVal_a = builder.create<memref::LoadOp>(
+              Value pixelVal_a = memref::LoadOp::create(builder, 
                   loc, builder.getF32Type(), input,
                   ValueRange{ivs0, inputIndices_L[1], inputIndices_L[0], ivs1});
-              Value pixelVal_b = builder.create<memref::LoadOp>(
+              Value pixelVal_b = memref::LoadOp::create(builder, 
                   loc, builder.getF32Type(), input,
                   ValueRange{ivs0, inputIndices_H[1], inputIndices_L[0], ivs1});
-              Value pixelVal_c = builder.create<memref::LoadOp>(
+              Value pixelVal_c = memref::LoadOp::create(builder, 
                   loc, builder.getF32Type(), input,
                   ValueRange{ivs0, inputIndices_L[1], inputIndices_H[0], ivs1});
-              Value pixelVal_d = builder.create<memref::LoadOp>(
+              Value pixelVal_d = memref::LoadOp::create(builder, 
                   loc, builder.getF32Type(), input,
                   ValueRange{ivs0, inputIndices_H[1], inputIndices_H[0], ivs1});
-              builder.create<scf::YieldOp>(
+              scf::YieldOp::create(builder, 
                   loc,
                   ValueRange{pixelVal_a, pixelVal_b, pixelVal_c, pixelVal_d});
             },
             [&](OpBuilder &builder, Location loc) {
-              Value pixelVal_a = builder.create<memref::LoadOp>(
+              Value pixelVal_a = memref::LoadOp::create(builder, 
                   loc, builder.getF32Type(), input,
                   ValueRange{ivs0, ivs1, inputIndices_L[1], inputIndices_L[0]});
-              Value pixelVal_b = builder.create<memref::LoadOp>(
+              Value pixelVal_b = memref::LoadOp::create(builder, 
                   loc, builder.getF32Type(), input,
                   ValueRange{ivs0, ivs1, inputIndices_H[1], inputIndices_L[0]});
-              Value pixelVal_c = builder.create<memref::LoadOp>(
+              Value pixelVal_c = memref::LoadOp::create(builder, 
                   loc, builder.getF32Type(), input,
                   ValueRange{ivs0, ivs1, inputIndices_L[1], inputIndices_H[0]});
-              Value pixelVal_d = builder.create<memref::LoadOp>(
+              Value pixelVal_d = memref::LoadOp::create(builder, 
                   loc, builder.getF32Type(), input,
                   ValueRange{ivs0, ivs1, inputIndices_H[1], inputIndices_H[0]});
-              builder.create<scf::YieldOp>(
+              scf::YieldOp::create(builder, 
                   loc,
                   ValueRange{pixelVal_a, pixelVal_b, pixelVal_c, pixelVal_d});
             });
@@ -941,49 +941,49 @@ void fillPixelsBilinearInterpolate4D(
         Value pixelVal_d = ifop.getResult(3);
 
         Value weightVal1 =
-            builder.create<arith::MulFOp>(loc, indexWeights_UnitComplements[0],
+            arith::MulFOp::create(builder, loc, indexWeights_UnitComplements[0],
                                           indexWeights_UnitComplements[1]);
-        Value weightVal2 = builder.create<arith::MulFOp>(
+        Value weightVal2 = arith::MulFOp::create(builder, 
             loc, indexWeights[0], indexWeights_UnitComplements[1]);
-        Value weightVal3 = builder.create<arith::MulFOp>(
+        Value weightVal3 = arith::MulFOp::create(builder, 
             loc, indexWeights[1], indexWeights_UnitComplements[0]);
-        Value weightVal4 = builder.create<arith::MulFOp>(loc, indexWeights[0],
+        Value weightVal4 = arith::MulFOp::create(builder, loc, indexWeights[0],
                                                          indexWeights[1]);
 
         Value interm1 =
-            builder.create<arith::MulFOp>(loc, pixelVal_a, weightVal1);
+            arith::MulFOp::create(builder, loc, pixelVal_a, weightVal1);
         Value interm2 =
-            builder.create<arith::MulFOp>(loc, pixelVal_b, weightVal2);
+            arith::MulFOp::create(builder, loc, pixelVal_b, weightVal2);
         Value interm3 =
-            builder.create<arith::MulFOp>(loc, pixelVal_c, weightVal3);
+            arith::MulFOp::create(builder, loc, pixelVal_c, weightVal3);
         Value interm4 =
-            builder.create<arith::MulFOp>(loc, pixelVal_d, weightVal4);
+            arith::MulFOp::create(builder, loc, pixelVal_d, weightVal4);
 
         Value pixel_interm1 =
-            builder.create<arith::AddFOp>(loc, interm1, interm2);
+            arith::AddFOp::create(builder, loc, interm1, interm2);
         Value pixel_interm2 =
-            builder.create<arith::AddFOp>(loc, interm3, interm4);
+            arith::AddFOp::create(builder, loc, interm3, interm4);
         Value pixelVal =
-            builder.create<arith::AddFOp>(loc, pixel_interm1, pixel_interm2);
+            arith::AddFOp::create(builder, loc, pixel_interm1, pixel_interm2);
 
         // Value pixelVal = roundOff(builder, loc, pixel_interm3);
 
-        builder.create<scf::IfOp>(
+        scf::IfOp::create(builder, 
             loc, dataCondition,
             [&](OpBuilder &builder, Location loc) {
-              builder.create<memref::StoreOp>(
+              memref::StoreOp::create(builder, 
                   loc, pixelVal, output,
                   ValueRange{ivs0, resIndices[1], resIndices[0], ivs1});
-              builder.create<scf::YieldOp>(loc);
+              scf::YieldOp::create(builder, loc);
             },
             [&](OpBuilder &builder, Location loc) {
-              builder.create<memref::StoreOp>(
+              memref::StoreOp::create(builder, 
                   loc, pixelVal, output,
                   ValueRange{ivs0, ivs1, resIndices[1], resIndices[0]});
-              builder.create<scf::YieldOp>(loc);
+              scf::YieldOp::create(builder, loc);
             });
 
-        builder.create<affine::AffineYieldOp>(loc);
+        affine::AffineYieldOp::create(builder, loc);
       });
 }
 
@@ -1001,14 +1001,14 @@ void NearestNeighbourInterpolationResizing(
       builder, loc, lowerBounds, upperBounds, steps,
       [&](OpBuilder &builder, Location loc, ValueRange ivs) {
         Value ivs0F32 = indexToF32(builder, loc, ivs[0]);
-        Value yVec = builder.create<vector::BroadcastOp>(loc, vectorTy32, ivs0F32);
+        Value yVec = vector::BroadcastOp::create(builder, loc, vectorTy32, ivs0F32);
         Value xVec = iotaVec(builder, loc, ctx, ivs[1], strideVal, vectorTy32,
                              c0, stride);
 
-        Value resXVecInterm = builder.create<arith::MulFOp>(
+        Value resXVecInterm = arith::MulFOp::create(builder, 
             loc, xVec, horizontalScalingFactorVec);
         Value resYVecInterm =
-            builder.create<arith::MulFOp>(loc, yVec, verticalScalingFactorVec);
+            arith::MulFOp::create(builder, loc, yVec, verticalScalingFactorVec);
 
         Value resXVec = roundOff(builder, loc, resXVecInterm);
         Value resYVec = roundOff(builder, loc, resYVecInterm);
@@ -1033,13 +1033,13 @@ void NearestNeighbourInterpolationResizing4D(
       builder, loc, lowerBounds, upperBounds, steps,
       [&](OpBuilder &builder, Location loc, ValueRange ivs) {
         Value ivs2F32 = indexToF32(builder, loc, ivs[2]);
-        Value yVec = builder.create<vector::BroadcastOp>(loc, vectorTy32, ivs2F32);
+        Value yVec = vector::BroadcastOp::create(builder, loc, vectorTy32, ivs2F32);
         Value xVec = iotaVec(builder, loc, ctx, ivs[3], strideVal, vectorTy32,
                              c0, stride);
 
         Value resXVecInterm =
-            builder.create<arith::MulFOp>(loc, xVec, verticalScalingFactorVec);
-        Value resYVecInterm = builder.create<arith::MulFOp>(
+            arith::MulFOp::create(builder, loc, xVec, verticalScalingFactorVec);
+        Value resYVecInterm = arith::MulFOp::create(builder, 
             loc, yVec, horizontalScalingFactorVec);
 
         Value resXVec = roundOff(builder, loc, resXVecInterm);
@@ -1065,25 +1065,25 @@ void BilinearInterpolationResizing(
       builder, loc, lowerBounds, upperBounds, steps,
       [&](OpBuilder &builder, Location loc, ValueRange ivs) {
         Value ivs0F32 = indexToF32(builder, loc, ivs[0]);
-        Value yVec = builder.create<vector::BroadcastOp>(loc, vectorTy32, ivs0F32);
+        Value yVec = vector::BroadcastOp::create(builder, loc, vectorTy32, ivs0F32);
         Value xVec = iotaVec(builder, loc, ctx, ivs[1], strideVal, vectorTy32,
                              c0, stride);
 
-        Value xVecInterm = builder.create<arith::MulFOp>(
+        Value xVecInterm = arith::MulFOp::create(builder, 
             loc, xVec, horizontalScalingFactorVec);
         Value yVecInterm =
-            builder.create<arith::MulFOp>(loc, yVec, verticalScalingFactorVec);
+            arith::MulFOp::create(builder, loc, yVec, verticalScalingFactorVec);
 
-        Value xVecInterm_L = builder.create<math::FloorOp>(loc, xVecInterm);
-        Value xVecInterm_H = builder.create<math::CeilOp>(loc, xVecInterm);
+        Value xVecInterm_L = math::FloorOp::create(builder, loc, xVecInterm);
+        Value xVecInterm_H = math::CeilOp::create(builder, loc, xVecInterm);
 
-        Value yVecInterm_L = builder.create<math::FloorOp>(loc, yVecInterm);
-        Value yVecInterm_H = builder.create<math::CeilOp>(loc, yVecInterm);
+        Value yVecInterm_L = math::FloorOp::create(builder, loc, yVecInterm);
+        Value yVecInterm_H = math::CeilOp::create(builder, loc, yVecInterm);
 
         Value xVecWeight =
-            builder.create<arith::SubFOp>(loc, xVecInterm, xVecInterm_L);
+            arith::SubFOp::create(builder, loc, xVecInterm, xVecInterm_L);
         Value yVecWeight =
-            builder.create<arith::SubFOp>(loc, yVecInterm, yVecInterm_L);
+            arith::SubFOp::create(builder, loc, yVecInterm, yVecInterm_L);
 
         fillPixelsBilinearInterpolate(
             builder, loc, xVec, yVec, xVecInterm_L, yVecInterm_L, xVecInterm_H,
@@ -1107,25 +1107,25 @@ void BilinearInterpolationResizing4D(
       builder, loc, lowerBounds, upperBounds, steps,
       [&](OpBuilder &builder, Location loc, ValueRange ivs) {
         Value ivs0F32 = indexToF32(builder, loc, ivs[2]);
-        Value yVec = builder.create<vector::BroadcastOp>(loc, vectorTy32, ivs0F32);
+        Value yVec = vector::BroadcastOp::create(builder, loc, vectorTy32, ivs0F32);
         Value xVec = iotaVec(builder, loc, ctx, ivs[3], strideVal, vectorTy32,
                              c0, stride);
 
         Value xVecInterm =
-            builder.create<arith::MulFOp>(loc, xVec, verticalScalingFactorVec);
-        Value yVecInterm = builder.create<arith::MulFOp>(
+            arith::MulFOp::create(builder, loc, xVec, verticalScalingFactorVec);
+        Value yVecInterm = arith::MulFOp::create(builder, 
             loc, yVec, horizontalScalingFactorVec);
 
-        Value xVecInterm_L = builder.create<math::FloorOp>(loc, xVecInterm);
-        Value xVecInterm_H = builder.create<math::CeilOp>(loc, xVecInterm);
+        Value xVecInterm_L = math::FloorOp::create(builder, loc, xVecInterm);
+        Value xVecInterm_H = math::CeilOp::create(builder, loc, xVecInterm);
 
-        Value yVecInterm_L = builder.create<math::FloorOp>(loc, yVecInterm);
-        Value yVecInterm_H = builder.create<math::CeilOp>(loc, yVecInterm);
+        Value yVecInterm_L = math::FloorOp::create(builder, loc, yVecInterm);
+        Value yVecInterm_H = math::CeilOp::create(builder, loc, yVecInterm);
 
         Value xVecWeight =
-            builder.create<arith::SubFOp>(loc, xVecInterm, xVecInterm_L);
+            arith::SubFOp::create(builder, loc, xVecInterm, xVecInterm_L);
         Value yVecWeight =
-            builder.create<arith::SubFOp>(loc, yVecInterm, yVecInterm_L);
+            arith::SubFOp::create(builder, loc, yVecInterm, yVecInterm_L);
 
         fillPixelsBilinearInterpolate4D(
             builder, loc, ivs[0], ivs[1], xVec, yVec, xVecInterm_L,
@@ -1142,10 +1142,10 @@ Value zeroCond(OpBuilder &builder, Location loc, Type elemType, Value value,
   Value cond;
   auto bitWidth = elemType.getIntOrFloatBitWidth();
   if (elemType.isF32() || elemType.isF64()) {
-    cond = builder.create<arith::CmpFOp>(loc, arith::CmpFPredicate::ONE, value,
+    cond = arith::CmpFOp::create(builder, loc, arith::CmpFPredicate::ONE, value,
                                          zeroElem);
   } else if (elemType.isInteger(bitWidth)) {
-    cond = builder.create<arith::CmpIOp>(loc, arith::CmpIPredicate::ne, value,
+    cond = arith::CmpIOp::create(builder, loc, arith::CmpIPredicate::ne, value,
                                          zeroElem);
   }
   return cond;
@@ -1160,18 +1160,18 @@ Value createCompVecMorph(OpBuilder &builder, Location loc, VectorType type,
   auto bitWidth = elemTy.getIntOrFloatBitWidth();
   if (elemTy.isF32() || elemTy.isF64()) {
     if (op == DIP_OP::EROSION_2D) {
-      compVec = builder.create<arith::CmpFOp>(loc, arith::CmpFPredicate::OGE,
+      compVec = arith::CmpFOp::create(builder, loc, arith::CmpFPredicate::OGE,
                                               inputVec, outputVec);
     } else if (op == DIP_OP::DILATION_2D) {
-      compVec = builder.create<arith::CmpFOp>(loc, arith::CmpFPredicate::OLE,
+      compVec = arith::CmpFOp::create(builder, loc, arith::CmpFPredicate::OLE,
                                               inputVec, outputVec);
     }
   } else if (elemTy.isInteger(bitWidth)) {
     if (op == DIP_OP::EROSION_2D) {
-      compVec = builder.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sge,
+      compVec = arith::CmpIOp::create(builder, loc, arith::CmpIPredicate::sge,
                                               inputVec, outputVec);
     } else if (op == DIP_OP::DILATION_2D) {
-      compVec = builder.create<arith::CmpIOp>(loc, arith::CmpIPredicate::sle,
+      compVec = arith::CmpIOp::create(builder, loc, arith::CmpIPredicate::sle,
                                               inputVec, outputVec);
     }
   }
@@ -1184,7 +1184,7 @@ void calcAndStorewoTailProcessingMorph(
     Value kernelVec, Value output, Value beginIdx, Value endIdx,
     Value zeroPadding, Value inputCol, VectorType vectorMaskTy, Type elemTy,
     Value kernelValue, Value zeroPaddingElem, DIP_OP op) {
-  Value outputVec = builder.create<vector::LoadOp>(
+  Value outputVec = vector::LoadOp::create(builder, 
       loc, vecType, output, ValueRange{beginIdx, endIdx});
   Value compVec = {};
   if (op == DIP_OP::EROSION_2D) {
@@ -1195,10 +1195,10 @@ void calcAndStorewoTailProcessingMorph(
                                  DIP_OP::DILATION_2D);
   }
 
-  Value resVec = builder.create<vector::MaskedLoadOp>(
+  Value resVec = vector::MaskedLoadOp::create(builder, 
       loc, vecType, output, ValueRange{beginIdx, endIdx}, compVec, inputVec);
 
-  builder.create<vector::StoreOp>(loc, resVec, output,
+  vector::StoreOp::create(builder, loc, resVec, output,
                                   ValueRange{beginIdx, endIdx});
 }
 
@@ -1209,10 +1209,10 @@ void calcAndStorewTailProcessingMorph(
     Value kernelVec, Value output, Value beginIdx, Value endIdx, Value tailCond,
     Value zeroPadding, Value inputCol, VectorType vectorMaskTy, Type elemTy,
     Value kernelValue, Value zeroPaddingElem, DIP_OP op) {
-  builder.create<scf::IfOp>(
+  scf::IfOp::create(builder, 
       loc, tailCond,
       [&](OpBuilder &builder, Location loc) {
-        Value outputVec = builder.create<vector::LoadOp>(
+        Value outputVec = vector::LoadOp::create(builder, 
             loc, vecType, output, ValueRange{beginIdx, endIdx});
 
         Value compVec = {};
@@ -1224,20 +1224,20 @@ void calcAndStorewTailProcessingMorph(
                                        outputVec, DIP_OP::DILATION_2D);
         }
 
-        Value resVec = builder.create<vector::MaskedLoadOp>(
+        Value resVec = vector::MaskedLoadOp::create(builder, 
             loc, vecType, output, ValueRange{beginIdx, endIdx}, compVec,
             inputVec);
 
-        builder.create<vector::StoreOp>(loc, resVec, output,
+        vector::StoreOp::create(builder, loc, resVec, output,
                                         ValueRange{beginIdx, endIdx});
 
-        builder.create<scf::YieldOp>(loc);
+        scf::YieldOp::create(builder, loc);
       },
       [&](OpBuilder &builder, Location loc) {
         Value extraElemMask =
             tailMaskCreator(builder, loc, inputCol, endIdx, vectorMaskTy);
 
-        Value outputVec = builder.create<vector::MaskedLoadOp>(
+        Value outputVec = vector::MaskedLoadOp::create(builder, 
             loc, vecType, output, ValueRange{beginIdx, endIdx}, extraElemMask,
             zeroPadding);
 
@@ -1250,14 +1250,14 @@ void calcAndStorewTailProcessingMorph(
                                        outputVec, DIP_OP::DILATION_2D);
         }
 
-        Value resVec = builder.create<vector::MaskedLoadOp>(
+        Value resVec = vector::MaskedLoadOp::create(builder, 
             loc, vecType, output, ValueRange{beginIdx, endIdx}, compVec,
             inputVec);
 
-        builder.create<vector::MaskedStoreOp>(
+        vector::MaskedStoreOp::create(builder, 
             loc, output, ValueRange{beginIdx, endIdx}, extraElemMask, resVec);
 
-        builder.create<scf::YieldOp>(loc);
+        scf::YieldOp::create(builder, loc);
       });
 }
 
@@ -1267,21 +1267,21 @@ void traverseImagewBoundaryExtrapolation(
     Value constantValue, Value strideVal, Type elemTy,
     buddy::dip::BoundaryOption boundaryOptionAttr, int64_t stride, DIP_OP op) {
   // Create constant indices.
-  Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
-  Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+  Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
+  Value c1 = arith::ConstantIndexOp::create(rewriter, loc, 1);
 
   IntegerType i1 = IntegerType::get(ctx, 1);
 
   // Create DimOp.
-  Value inputRow = rewriter.create<memref::DimOp>(loc, input, c0);
-  Value inputCol = rewriter.create<memref::DimOp>(loc, input, c1);
-  Value kernelRow = rewriter.create<memref::DimOp>(loc, kernel, c0);
-  Value kernelCol = rewriter.create<memref::DimOp>(loc, kernel, c1);
+  Value inputRow = memref::DimOp::create(rewriter, loc, input, c0);
+  Value inputCol = memref::DimOp::create(rewriter, loc, input, c1);
+  Value kernelRow = memref::DimOp::create(rewriter, loc, kernel, c0);
+  Value kernelCol = memref::DimOp::create(rewriter, loc, kernel, c1);
 
   // Variables used for detecting rowMid, rowDown, colMid and colRight
   // regions.
-  Value rowMidHelper = rewriter.create<arith::AddIOp>(loc, inputRow, centerY);
-  Value colMidHelper = rewriter.create<arith::AddIOp>(loc, inputCol, centerX);
+  Value rowMidHelper = arith::AddIOp::create(rewriter, loc, inputRow, centerY);
+  Value colMidHelper = arith::AddIOp::create(rewriter, loc, inputCol, centerX);
 
   SmallVector<Value, 8> lowerBounds(4, c0);
   SmallVector<Value, 8> uperBounds{inputRow, kernelRow, inputCol, kernelCol};
@@ -1292,13 +1292,13 @@ void traverseImagewBoundaryExtrapolation(
 
   Value zeroPaddingElem = insertZeroConstantOp(ctx, rewriter, loc, elemTy);
   Value zeroPadding =
-      rewriter.create<vector::BroadcastOp>(loc, vectorTy32, zeroPaddingElem);
+      vector::BroadcastOp::create(rewriter, loc, vectorTy32, zeroPaddingElem);
 
   AffineExpr a, b, c;
   bindDims(ctx, a, b, c);
   AffineMap calcHelper = AffineMap::get(3, 0, {a + b - c}, ctx);
 
-  Value pseudoCol = rewriter.create<affine::AffineApplyOp>(
+  Value pseudoCol = affine::AffineApplyOp::create(rewriter, 
       loc, calcHelper, ValueRange{inputCol, kernelCol, c1});
 
   affine::buildAffineLoopNest(
@@ -1306,37 +1306,37 @@ void traverseImagewBoundaryExtrapolation(
       [&](OpBuilder &builder, Location loc, ValueRange ivs) {
         // Indices of current pixel with respect to pseudo image containing
         // extrapolated boundaries.
-        Value currRow = builder.create<arith::AddIOp>(loc, ivs[0], ivs[1]);
-        Value currCol = builder.create<arith::AddIOp>(loc, ivs[2], ivs[3]);
+        Value currRow = arith::AddIOp::create(builder, loc, ivs[0], ivs[1]);
+        Value currCol = arith::AddIOp::create(builder, loc, ivs[2], ivs[3]);
 
-        Value kernelValue = builder.create<memref::LoadOp>(
+        Value kernelValue = memref::LoadOp::create(builder, 
             loc, kernel, ValueRange{ivs[1], ivs[3]});
         Value kernelVec =
-            builder.create<vector::BroadcastOp>(loc, vectorTy32, kernelValue);
+            vector::BroadcastOp::create(builder, loc, vectorTy32, kernelValue);
 
         // Pixel indices with respect to the actual image.
-        Value imRow = builder.create<arith::SubIOp>(loc, currRow, centerY);
-        Value imCol = builder.create<arith::SubIOp>(loc, currCol, centerX);
+        Value imRow = arith::SubIOp::create(builder, loc, currRow, centerY);
+        Value imCol = arith::SubIOp::create(builder, loc, currCol, centerX);
 
         // Index of pixel used for determining right region.
         Value colLastElem =
-            builder.create<arith::AddIOp>(loc, currCol, strideVal);
+            arith::AddIOp::create(builder, loc, currCol, strideVal);
 
-        Value rowUpCond = builder.create<arith::CmpIOp>(
+        Value rowUpCond = arith::CmpIOp::create(builder, 
             loc, arith::CmpIPredicate::slt, currRow, centerY);
 
         // Condition to check if the kernel value is a non-zero number.
         Value kernelNonZeroCond =
             zeroCond(builder, loc, elemTy, kernelValue, zeroPaddingElem);
-        builder.create<scf::IfOp>(
+        scf::IfOp::create(builder, 
             loc, kernelNonZeroCond, [&](OpBuilder &builder, Location loc) {
-              builder.create<scf::IfOp>(
+              scf::IfOp::create(builder, 
                   loc, rowUpCond,
                   [&](OpBuilder &builder, Location loc) {
                     // rowUp
                     if (boundaryOptionAttr ==
                         buddy::dip::BoundaryOption::ConstantPadding) {
-                      Value inputVec = builder.create<vector::BroadcastOp>(
+                      Value inputVec = vector::BroadcastOp::create(builder, 
                           loc, vectorTy32, constantValue);
                       if (op == DIP_OP::CORRELATION_2D) {
                         calcAndStoreFMAwoTailProcessing(
@@ -1364,15 +1364,15 @@ void traverseImagewBoundaryExtrapolation(
                             zeroPaddingElem, DIP_OP::EROSION_2D);
                       }
                     } else {
-                      Value colLeftCond = builder.create<arith::CmpIOp>(
+                      Value colLeftCond = arith::CmpIOp::create(builder, 
                           loc, arith::CmpIPredicate::slt, currCol, centerX);
 
-                      builder.create<scf::IfOp>(
+                      scf::IfOp::create(builder, 
                           loc, colLeftCond,
                           [&](OpBuilder &builder, Location loc) {
                             // colLeft & rowUp
                             Value inputVec;
-                            Value leftMaskElem = builder.create<arith::SubIOp>(
+                            Value leftMaskElem = arith::SubIOp::create(builder, 
                                 loc, centerX, currCol);
                             Value leftMask =
                                 createInvertedMask(builder, loc, strideVal,
@@ -1380,16 +1380,16 @@ void traverseImagewBoundaryExtrapolation(
 
                             if (boundaryOptionAttr ==
                                 buddy::dip::BoundaryOption::ReplicatePadding) {
-                              Value paddingVal = builder.create<memref::LoadOp>(
+                              Value paddingVal = memref::LoadOp::create(builder, 
                                   loc, input, ValueRange{c0, c0});
                               Value padding =
-                                  builder.create<vector::BroadcastOp>(
+                                  vector::BroadcastOp::create(builder, 
                                       loc, vectorTy32, paddingVal);
 
                               Value leftPaddingOffset =
-                                  builder.create<arith::SubIOp>(loc, c0,
+                                  arith::SubIOp::create(builder, loc, c0,
                                                                 leftMaskElem);
-                              inputVec = builder.create<vector::MaskedLoadOp>(
+                              inputVec = vector::MaskedLoadOp::create(builder, 
                                   loc, vectorTy32, input,
                                   ValueRange{c0, leftPaddingOffset}, leftMask,
                                   padding);
@@ -1413,15 +1413,15 @@ void traverseImagewBoundaryExtrapolation(
                                   zeroPaddingElem, DIP_OP::DILATION_2D);
                             }
 
-                            builder.create<scf::YieldOp>(loc);
+                            scf::YieldOp::create(builder, loc);
                           },
                           [&](OpBuilder &builder, Location loc) {
                             // (colMid or colRight) & rowUp
-                            Value colMidCond = builder.create<arith::CmpIOp>(
+                            Value colMidCond = arith::CmpIOp::create(builder, 
                                 loc, arith::CmpIPredicate::slt, colLastElem,
                                 colMidHelper);
 
-                            builder.create<scf::IfOp>(
+                            scf::IfOp::create(builder, 
                                 loc, colMidCond,
                                 [&](OpBuilder &builder, Location loc) {
                                   // colMid & rowUp
@@ -1429,7 +1429,7 @@ void traverseImagewBoundaryExtrapolation(
                                   if (boundaryOptionAttr ==
                                       buddy::dip::BoundaryOption::
                                           ReplicatePadding) {
-                                    inputVec = builder.create<vector::LoadOp>(
+                                    inputVec = vector::LoadOp::create(builder, 
                                         loc, vectorTy32, input,
                                         ValueRange{c0, imCol});
                                   }
@@ -1453,37 +1453,37 @@ void traverseImagewBoundaryExtrapolation(
                                         elemTy, kernelValue, zeroPaddingElem,
                                         DIP_OP::DILATION_2D);
                                   }
-                                  builder.create<scf::YieldOp>(loc);
+                                  scf::YieldOp::create(builder, loc);
                                 },
                                 [&](OpBuilder &builder, Location loc) {
                                   // colRight & rowUp
                                   Value inputVec;
                                   Value rightMaskHelper =
-                                      builder.create<arith::SubIOp>(
+                                      arith::SubIOp::create(builder, 
                                           loc, colLastElem, colMidHelper);
                                   Value rightMaskElem =
-                                      builder.create<arith::SubIOp>(
+                                      arith::SubIOp::create(builder, 
                                           loc, strideVal, rightMaskHelper);
                                   Value rightMask =
-                                      builder.create<vector::CreateMaskOp>(
+                                      vector::CreateMaskOp::create(builder, 
                                           loc, vectorMaskTy, rightMaskElem);
 
                                   if (boundaryOptionAttr ==
                                       buddy::dip::BoundaryOption::
                                           ReplicatePadding) {
                                     Value rightRange =
-                                        builder.create<arith::SubIOp>(
+                                        arith::SubIOp::create(builder, 
                                             loc, inputCol, c1);
                                     Value paddingVal =
-                                        builder.create<memref::LoadOp>(
+                                        memref::LoadOp::create(builder, 
                                             loc, input,
                                             ValueRange{c0, rightRange});
                                     Value padding =
-                                        builder.create<vector::BroadcastOp>(
+                                        vector::BroadcastOp::create(builder, 
                                             loc, vectorTy32, paddingVal);
 
                                     inputVec =
-                                        builder.create<vector::MaskedLoadOp>(
+                                        vector::MaskedLoadOp::create(builder, 
                                             loc, vectorTy32, input,
                                             ValueRange{c0, imCol}, rightMask,
                                             padding);
@@ -1514,32 +1514,32 @@ void traverseImagewBoundaryExtrapolation(
                                         zeroPaddingElem, DIP_OP::EROSION_2D);
                                   }
 
-                                  builder.create<scf::YieldOp>(loc);
+                                  scf::YieldOp::create(builder, loc);
                                 });
-                            builder.create<scf::YieldOp>(loc);
+                            scf::YieldOp::create(builder, loc);
                           });
                     }
-                    builder.create<scf::YieldOp>(loc);
+                    scf::YieldOp::create(builder, loc);
                   },
                   [&](OpBuilder &builder, Location loc) {
                     // rowMid or rowDown
-                    Value rowMidCond = builder.create<arith::CmpIOp>(
+                    Value rowMidCond = arith::CmpIOp::create(builder, 
                         loc, arith::CmpIPredicate::slt, currRow, rowMidHelper);
 
-                    builder.create<scf::IfOp>(
+                    scf::IfOp::create(builder, 
                         loc, rowMidCond,
                         [&](OpBuilder &builder, Location loc) {
                           // rowMid
-                          Value colLeftCond = builder.create<arith::CmpIOp>(
+                          Value colLeftCond = arith::CmpIOp::create(builder, 
                               loc, arith::CmpIPredicate::slt, currCol, centerX);
 
-                          builder.create<scf::IfOp>(
+                          scf::IfOp::create(builder, 
                               loc, colLeftCond,
                               [&](OpBuilder &builder, Location loc) {
                                 // colLeft & rowMid
                                 Value inputVec;
                                 Value leftMaskElem =
-                                    builder.create<arith::SubIOp>(loc, centerX,
+                                    arith::SubIOp::create(builder, loc, centerX,
                                                                   currCol);
                                 Value leftMask = createInvertedMask(
                                     builder, loc, strideVal, vectorMaskTy,
@@ -1549,14 +1549,14 @@ void traverseImagewBoundaryExtrapolation(
                                     buddy::dip::BoundaryOption::
                                         ConstantPadding) {
                                   Value padding =
-                                      builder.create<vector::BroadcastOp>(
+                                      vector::BroadcastOp::create(builder, 
                                           loc, vectorTy32, constantValue);
 
                                   Value leftPaddingOffset =
-                                      builder.create<arith::SubIOp>(
+                                      arith::SubIOp::create(builder, 
                                           loc, c0, leftMaskElem);
                                   inputVec =
-                                      builder.create<vector::MaskedLoadOp>(
+                                      vector::MaskedLoadOp::create(builder, 
                                           loc, vectorTy32, input,
                                           ValueRange{imRow, leftPaddingOffset},
                                           leftMask, padding);
@@ -1564,17 +1564,17 @@ void traverseImagewBoundaryExtrapolation(
                                            buddy::dip::BoundaryOption::
                                                ReplicatePadding) {
                                   Value paddingVal =
-                                      builder.create<memref::LoadOp>(
+                                      memref::LoadOp::create(builder, 
                                           loc, input, ValueRange{imRow, c0});
                                   Value padding =
-                                      builder.create<vector::BroadcastOp>(
+                                      vector::BroadcastOp::create(builder, 
                                           loc, vectorTy32, paddingVal);
 
                                   Value leftPaddingOffset =
-                                      builder.create<arith::SubIOp>(
+                                      arith::SubIOp::create(builder, 
                                           loc, c0, leftMaskElem);
                                   inputVec =
-                                      builder.create<vector::MaskedLoadOp>(
+                                      vector::MaskedLoadOp::create(builder, 
                                           loc, vectorTy32, input,
                                           ValueRange{imRow, leftPaddingOffset},
                                           leftMask, padding);
@@ -1600,21 +1600,21 @@ void traverseImagewBoundaryExtrapolation(
                                       DIP_OP::DILATION_2D);
                                 }
 
-                                builder.create<scf::YieldOp>(loc);
+                                scf::YieldOp::create(builder, loc);
                               },
                               [&](OpBuilder &builder, Location loc) {
                                 // (colMid or colRight) & rowMid
                                 Value colMidCond =
-                                    builder.create<arith::CmpIOp>(
+                                    arith::CmpIOp::create(builder, 
                                         loc, arith::CmpIPredicate::slt,
                                         colLastElem, colMidHelper);
 
-                                builder.create<scf::IfOp>(
+                                scf::IfOp::create(builder, 
                                     loc, colMidCond,
                                     [&](OpBuilder &builder, Location loc) {
                                       // colMid & rowMid
                                       Value inputVec =
-                                          builder.create<vector::LoadOp>(
+                                          vector::LoadOp::create(builder, 
                                               loc, vectorTy32, input,
                                               ValueRange{imRow, imCol});
 
@@ -1640,31 +1640,31 @@ void traverseImagewBoundaryExtrapolation(
                                             DIP_OP::DILATION_2D);
                                       }
 
-                                      builder.create<scf::YieldOp>(loc);
+                                      scf::YieldOp::create(builder, loc);
                                     },
                                     [&](OpBuilder &builder, Location loc) {
                                       // colRight & rowMid
                                       Value inputVec;
                                       Value rightMaskHelper =
-                                          builder.create<arith::SubIOp>(
+                                          arith::SubIOp::create(builder, 
                                               loc, colLastElem, colMidHelper);
                                       Value rightMaskElem =
-                                          builder.create<arith::SubIOp>(
+                                          arith::SubIOp::create(builder, 
                                               loc, strideVal, rightMaskHelper);
                                       Value rightMask =
-                                          builder.create<vector::CreateMaskOp>(
+                                          vector::CreateMaskOp::create(builder, 
                                               loc, vectorMaskTy, rightMaskElem);
 
                                       if (boundaryOptionAttr ==
                                           buddy::dip::BoundaryOption::
                                               ConstantPadding) {
                                         Value padding =
-                                            builder.create<vector::BroadcastOp>(
+                                            vector::BroadcastOp::create(builder, 
                                                 loc, vectorTy32, constantValue);
 
                                         inputVec =
-                                            builder
-                                                .create<vector::MaskedLoadOp>(
+                                            vector::MaskedLoadOp::create(
+                                                builder, 
                                                     loc, vectorTy32, input,
                                                     ValueRange{imRow, imCol},
                                                     rightMask, padding);
@@ -1672,19 +1672,19 @@ void traverseImagewBoundaryExtrapolation(
                                                  buddy::dip::BoundaryOption::
                                                      ReplicatePadding) {
                                         Value rightRange =
-                                            builder.create<arith::SubIOp>(
+                                            arith::SubIOp::create(builder, 
                                                 loc, inputCol, c1);
                                         Value paddingVal =
-                                            builder.create<memref::LoadOp>(
+                                            memref::LoadOp::create(builder, 
                                                 loc, input,
                                                 ValueRange{imRow, rightRange});
                                         Value padding =
-                                            builder.create<vector::BroadcastOp>(
+                                            vector::BroadcastOp::create(builder, 
                                                 loc, vectorTy32, paddingVal);
 
                                         inputVec =
-                                            builder
-                                                .create<vector::MaskedLoadOp>(
+                                            vector::MaskedLoadOp::create(
+                                                builder, 
                                                     loc, vectorTy32, input,
                                                     ValueRange{imRow, imCol},
                                                     rightMask, padding);
@@ -1716,18 +1716,18 @@ void traverseImagewBoundaryExtrapolation(
                                             zeroPaddingElem,
                                             DIP_OP::EROSION_2D);
                                       }
-                                      builder.create<scf::YieldOp>(loc);
+                                      scf::YieldOp::create(builder, loc);
                                     });
-                                builder.create<scf::YieldOp>(loc);
+                                scf::YieldOp::create(builder, loc);
                               });
-                          builder.create<scf::YieldOp>(loc);
+                          scf::YieldOp::create(builder, loc);
                         },
                         [&](OpBuilder &builder, Location loc) {
                           // rowDown
                           if (boundaryOptionAttr ==
                               buddy::dip::BoundaryOption::ConstantPadding) {
                             Value inputVec =
-                                builder.create<vector::BroadcastOp>(
+                                vector::BroadcastOp::create(builder, 
                                     loc, vectorTy32, constantValue);
 
                             if (op == DIP_OP::CORRELATION_2D) {
@@ -1748,20 +1748,20 @@ void traverseImagewBoundaryExtrapolation(
                                   zeroPaddingElem, DIP_OP::DILATION_2D);
                             }
                           } else {
-                            Value colLeftCond = builder.create<arith::CmpIOp>(
+                            Value colLeftCond = arith::CmpIOp::create(builder, 
                                 loc, arith::CmpIPredicate::slt, currCol,
                                 centerX);
 
-                            builder.create<scf::IfOp>(
+                            scf::IfOp::create(builder, 
                                 loc, colLeftCond,
                                 [&](OpBuilder &builder, Location loc) {
                                   // colLeft & rowDown
                                   Value inputVec;
                                   Value downRange =
-                                      builder.create<arith::SubIOp>(
+                                      arith::SubIOp::create(builder, 
                                           loc, inputRow, c1);
                                   Value leftMaskElem =
-                                      builder.create<arith::SubIOp>(
+                                      arith::SubIOp::create(builder, 
                                           loc, centerX, currCol);
                                   Value leftMask = createInvertedMask(
                                       builder, loc, strideVal, vectorMaskTy,
@@ -1771,18 +1771,18 @@ void traverseImagewBoundaryExtrapolation(
                                       buddy::dip::BoundaryOption::
                                           ReplicatePadding) {
                                     Value paddingVal =
-                                        builder.create<memref::LoadOp>(
+                                        memref::LoadOp::create(builder, 
                                             loc, input,
                                             ValueRange{downRange, c0});
                                     Value padding =
-                                        builder.create<vector::BroadcastOp>(
+                                        vector::BroadcastOp::create(builder, 
                                             loc, vectorTy32, paddingVal);
 
                                     Value leftPaddingOffset =
-                                        builder.create<arith::SubIOp>(
+                                        arith::SubIOp::create(builder, 
                                             loc, c0, leftMaskElem);
                                     inputVec =
-                                        builder.create<vector::MaskedLoadOp>(
+                                        vector::MaskedLoadOp::create(builder, 
                                             loc, vectorTy32, input,
                                             ValueRange{downRange,
                                                        leftPaddingOffset},
@@ -1809,28 +1809,28 @@ void traverseImagewBoundaryExtrapolation(
                                         DIP_OP::DILATION_2D);
                                   }
 
-                                  builder.create<scf::YieldOp>(loc);
+                                  scf::YieldOp::create(builder, loc);
                                 },
                                 [&](OpBuilder &builder, Location loc) {
                                   // (colMid or colRight) & rowDown
                                   Value colMidCond =
-                                      builder.create<arith::CmpIOp>(
+                                      arith::CmpIOp::create(builder, 
                                           loc, arith::CmpIPredicate::slt,
                                           colLastElem, colMidHelper);
 
-                                  builder.create<scf::IfOp>(
+                                  scf::IfOp::create(builder, 
                                       loc, colMidCond,
                                       [&](OpBuilder &builder, Location loc) {
                                         // colMid & rowDown
                                         Value inputVec;
                                         Value downRange =
-                                            builder.create<arith::SubIOp>(
+                                            arith::SubIOp::create(builder, 
                                                 loc, inputRow, c1);
                                         if (boundaryOptionAttr ==
                                             buddy::dip::BoundaryOption::
                                                 ReplicatePadding) {
                                           inputVec =
-                                              builder.create<vector::LoadOp>(
+                                              vector::LoadOp::create(builder, 
                                                   loc, vectorTy32, input,
                                                   ValueRange{downRange, imCol});
                                         }
@@ -1858,29 +1858,29 @@ void traverseImagewBoundaryExtrapolation(
                                               DIP_OP::DILATION_2D);
                                         }
 
-                                        builder.create<scf::YieldOp>(loc);
+                                        scf::YieldOp::create(builder, loc);
                                       },
                                       [&](OpBuilder &builder, Location loc) {
                                         // colRight & rowDown
                                         Value inputVec;
                                         Value rightMaskHelper =
-                                            builder.create<arith::SubIOp>(
+                                            arith::SubIOp::create(builder, 
                                                 loc, colLastElem, colMidHelper);
                                         Value rightMaskElem =
-                                            builder.create<arith::SubIOp>(
+                                            arith::SubIOp::create(builder, 
                                                 loc, strideVal,
                                                 rightMaskHelper);
                                         Value rightMask =
-                                            builder
-                                                .create<vector::CreateMaskOp>(
+                                            vector::CreateMaskOp::create(
+                                                builder, 
                                                     loc, vectorMaskTy,
                                                     rightMaskElem);
 
                                         Value downRange =
-                                            builder.create<arith::SubIOp>(
+                                            arith::SubIOp::create(builder, 
                                                 loc, inputRow, c1);
                                         Value rightRange =
-                                            builder.create<arith::SubIOp>(
+                                            arith::SubIOp::create(builder, 
                                                 loc, inputCol, c1);
 
                                         if (boundaryOptionAttr ==
@@ -1888,19 +1888,19 @@ void traverseImagewBoundaryExtrapolation(
                                                 ReplicatePadding) {
 
                                           Value paddingVal =
-                                              builder.create<memref::LoadOp>(
+                                              memref::LoadOp::create(builder, 
                                                   loc, input,
                                                   ValueRange{downRange,
                                                              rightRange});
                                           Value padding =
-                                              builder
-                                                  .create<vector::BroadcastOp>(
+                                              vector::BroadcastOp::create(
+                                                  builder, 
                                                       loc, vectorTy32,
                                                       paddingVal);
 
                                           inputVec =
-                                              builder
-                                                  .create<vector::MaskedLoadOp>(
+                                              vector::MaskedLoadOp::create(
+                                                  builder, 
                                                       loc, vectorTy32, input,
                                                       ValueRange{downRange,
                                                                  imCol},
@@ -1936,17 +1936,17 @@ void traverseImagewBoundaryExtrapolation(
                                               zeroPaddingElem,
                                               DIP_OP::EROSION_2D);
                                         }
-                                        builder.create<scf::YieldOp>(loc);
+                                        scf::YieldOp::create(builder, loc);
                                       });
-                                  builder.create<scf::YieldOp>(loc);
+                                  scf::YieldOp::create(builder, loc);
                                 });
                           }
-                          builder.create<scf::YieldOp>(loc);
+                          scf::YieldOp::create(builder, loc);
                         });
-                    builder.create<scf::YieldOp>(loc);
+                    scf::YieldOp::create(builder, loc);
                   });
 
-              builder.create<scf::YieldOp>(loc);
+              scf::YieldOp::create(builder, loc);
             });
       });
 }

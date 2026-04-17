@@ -273,6 +273,55 @@ from ..graph import (
 from .utils import *
 
 
+def _build_range_tensor(
+    output_shape,
+    dtype,
+    start,
+    step,
+):
+    mlir_dtype = mlir_element_type_get(dtype)
+    tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
+    if len(output_shape) != 1:
+        numpy_dtype = {
+            TensorDType.Float16: numpy.float16,
+            TensorDType.BFloat16: numpy.uint16,
+            TensorDType.Float32: numpy.float32,
+            TensorDType.Float64: numpy.float64,
+            TensorDType.Int8: numpy.int8,
+            TensorDType.Int32: numpy.int32,
+            TensorDType.Int64: numpy.int64,
+            TensorDType.Bool: numpy.bool_,
+        }.get(dtype)
+        if numpy_dtype is None:
+            raise NotImplementedError(
+                f"Unsupported dtype for range tensor: {dtype}"
+            )
+        values = start + numpy.arange(output_shape[0], dtype=numpy_dtype) * step
+        return tosa.ConstOp(
+            ir.DenseElementsAttr.get(values, type=tensor_type)
+        ).result
+
+    index_type = ir.IndexType.get()
+    i64_type = ir.IntegerType.get_signless(64)
+    start_index = arith.ConstantOp(index_type, int(start)).result
+    step_index = arith.ConstantOp(index_type, int(step)).result
+
+    @tensor.generate(tensor_type, dynamic_extents=[])
+    def generated(i: index_type):
+        value_index = i
+        if int(step) != 1:
+            value_index = arith.MulIOp(i, step_index).result
+        if int(start) != 0:
+            value_index = arith.AddIOp(value_index, start_index).result
+
+        if isinstance(mlir_dtype, ir.FloatType):
+            value_i64 = arith.IndexCastOp(i64_type, value_index).result
+            return arith.SIToFPOp(mlir_dtype, value_i64).result
+        return arith.IndexCastOp(mlir_dtype, value_index).result
+
+    return generated
+
+
 def _normalize_binary_operator_shape(shp1, shp2):
     """Normalize the shape of two input tensors according to the broadcasting
     rule"""
@@ -3686,28 +3735,9 @@ def iota_op(node: IotaOp, symbol_table):
     start = node.kwargs["start"]
     count = node.args[0]
     step = node.kwargs["step"]
-    mlir_dtype = mlir_element_type_get(dtype)
-    tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
     if not isinstance(count, int):
         count = int(count)
-    numpy_dtype = {
-        TensorDType.Float16: numpy.float16,
-        TensorDType.BFloat16: numpy.uint16,
-        TensorDType.Float32: numpy.float32,
-        TensorDType.Float64: numpy.float64,
-        TensorDType.Int8: numpy.int8,
-        TensorDType.Int32: numpy.int32,
-        TensorDType.Int64: numpy.int64,
-        TensorDType.Bool: numpy.bool_,
-    }.get(dtype)
-    if numpy_dtype is None:
-        raise NotImplementedError(f"Unsupported dtype for iota: {dtype}")
-    base = numpy.arange(count, dtype=numpy_dtype)
-    values = start + base * step
-    attr = ir.DenseElementsAttr.get(values, type=tensor_type)
-    op = tosa.ConstOp(attr)
-
-    return op
+    return _build_range_tensor(output_shape, dtype, start, step)
 
 
 def sigmoid_op(node: SigmoidOp, symbol_table):
@@ -5743,39 +5773,14 @@ def arange_start_step_op(node: ArangeStartStepOp, symbol_table):
     output_shape = list(node.tensor_meta["shape"])
     output_dtype_str = str(node.tensor_meta["dtype"])
 
-    if "int64" in output_dtype_str or "int32" in output_dtype_str:
-        if "int64" in output_dtype_str:
-            output_dtype = ir.IntegerType.get_signless(64)
-        else:
-            output_dtype = ir.IntegerType.get_signless(32)
-
-        # Generate integer values
-        num_elements = output_shape[0]
-        values = [int(start + i * step) for i in range(num_elements)]
-
-        result_type = ir.RankedTensorType.get(output_shape, output_dtype)
-        values_attr = ir.DenseElementsAttr.get(
-            numpy.array(
-                values,
-                dtype=(
-                    numpy.int64 if "int64" in output_dtype_str else numpy.int32
-                ),
-            ),
-            type=result_type,
-        )
+    if "int64" in output_dtype_str:
+        output_dtype = TensorDType.Int64
+    elif "int32" in output_dtype_str:
+        output_dtype = TensorDType.Int32
     else:
-        output_dtype = ir.F32Type.get()
+        output_dtype = TensorDType.Float32
 
-        # Generate float values
-        num_elements = output_shape[0]
-        values = [float(start + i * step) for i in range(num_elements)]
-
-        result_type = ir.RankedTensorType.get(output_shape, output_dtype)
-        values_attr = ir.DenseElementsAttr.get(
-            numpy.array(values, dtype=numpy.float32), type=result_type
-        )
-
-    return tosa.ConstOp(values_attr).result
+    return _build_range_tensor(output_shape, output_dtype, start, step)
 
 
 def argmin_op(node: ArgMinOp, symbol_table):

@@ -107,11 +107,11 @@ void ConvertMemcpyToGPUPass::runOnOperation() {
       // TODO: Move this out of operation, make the copy process async
       auto memrefType = dyn_cast<MemRefType>(arg.getType());
 
-      auto gpuAllocOp = builder.create<gpu::AllocOp>(
+      auto gpuAllocOp = gpu::AllocOp::create(builder, 
           builder.getUnknownLoc(), TypeRange({stripMemRefLayout(memrefType)}),
           ValueRange({}));
       unDeallocatedValue.push_back(gpuAllocOp->getResult(0));
-      auto gpuMemcpyOp = builder.create<gpu::MemcpyOp>(
+      auto gpuMemcpyOp = gpu::MemcpyOp::create(builder, 
           gpuAllocOp.getLoc(), TypeRange(), ValueRange(),
           gpuAllocOp.getResult(0), arg);
       arg.replaceAllUsesExcept(gpuAllocOp->getResult(0), gpuMemcpyOp);
@@ -142,14 +142,14 @@ void ConvertMemcpyToGPUPass::runOnOperation() {
           return WalkResult::advance();
       }
 
-      auto gpuAllocOp = builder.create<gpu::AllocOp>(
+      auto gpuAllocOp = gpu::AllocOp::create(builder, 
           allocOp->getLoc(), TypeRange({stripMemRefLayout(memrefType)}),
           ValueRange({}));
 
       for (auto user : llvm::make_early_inc_range(result.getUsers())) {
         if (auto deallocOp = dyn_cast<memref::DeallocOp>(user)) {
           builder.setInsertionPointAfter(deallocOp);
-          builder.create<gpu::DeallocOp>(deallocOp->getLoc(), TypeRange(),
+          gpu::DeallocOp::create(builder, deallocOp->getLoc(), TypeRange(),
                                          ValueRange(), gpuAllocOp.getResult(0));
           deallocOp->erase();
         } else {
@@ -168,7 +168,7 @@ void ConvertMemcpyToGPUPass::runOnOperation() {
       auto dst = copyOp.getOperand(1);
       // Notice: GPU.memcpy has a different src dst order
       builder.setInsertionPointAfter(copyOp);
-      auto gpuMemcpyOp = builder.create<gpu::MemcpyOp>(
+      auto gpuMemcpyOp = gpu::MemcpyOp::create(builder, 
           copyOp->getLoc(), TypeRange(), ValueRange(), dst, src);
       src.replaceAllUsesWith(gpuMemcpyOp->getResult(1));
       dst.replaceAllUsesWith(gpuMemcpyOp->getResult(0));
@@ -179,14 +179,14 @@ void ConvertMemcpyToGPUPass::runOnOperation() {
       builder.setInsertionPointAfter(getGlobalOp);
       auto result = getGlobalOp->getResult(0);
       auto memrefType = dyn_cast<MemRefType>(result.getType());
-      auto gpuAllocOp = builder.create<gpu::AllocOp>(
+      auto gpuAllocOp = gpu::AllocOp::create(builder, 
           getGlobalOp->getLoc(), TypeRange({stripMemRefLayout(memrefType)}),
           ValueRange({}));
       unDeallocatedValue.push_back(gpuAllocOp->getResult(0));
 
       auto src = result;
       auto dst = gpuAllocOp->getResult(0);
-      auto gpuMemcpyOp = builder.create<gpu::MemcpyOp>(
+      auto gpuMemcpyOp = gpu::MemcpyOp::create(builder, 
           gpuAllocOp->getLoc(), TypeRange(), ValueRange(), dst, src);
       src.replaceAllUsesExcept(dst, gpuMemcpyOp);
     }
@@ -199,20 +199,20 @@ void ConvertMemcpyToGPUPass::runOnOperation() {
         auto val = returnOp->getOperand(i);
         if (auto memrefType = dyn_cast<MemRefType>(val.getType())) {
           auto identityMemrefType = stripMemRefLayout(memrefType);
-          auto allocOp = builder.create<memref::AllocOp>(returnOp->getLoc(),
+          auto allocOp = memref::AllocOp::create(builder, returnOp->getLoc(),
                                                          identityMemrefType);
-          builder.create<gpu::MemcpyOp>(allocOp.getLoc(), TypeRange(),
+          gpu::MemcpyOp::create(builder, allocOp.getLoc(), TypeRange(),
                                         ValueRange(), allocOp->getResult(0),
                                         val);
           // FIXME: may be leak memory
-          // auto gpuDeallocOp = builder.create<gpu::DeallocOp>(
+          // auto gpuDeallocOp = gpu::DeallocOp::create(builder, 
           //     gpuMemcpyOp->getLoc(), TypeRange(), ValueRange(), val);
           outputTypes[i] = identityMemrefType;
           returnOp->setOperand(i, allocOp->getResult(0));
         }
       }
       for (auto value : unDeallocatedValue) {
-        builder.create<gpu::DeallocOp>(returnOp->getLoc(), TypeRange(),
+        gpu::DeallocOp::create(builder, returnOp->getLoc(), TypeRange(),
                                        ValueRange(), value);
       }
       funcOp.setType(

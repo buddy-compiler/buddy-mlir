@@ -140,19 +140,19 @@ class MatrixReg<bits<3> Enc, string n> : Register<n> {
   let HWEncoding{2-0} = Enc;
 }
 
-def M0 : MatrixReg<0, "m0">;
-def M1 : MatrixReg<1, "m1">;
-def M2 : MatrixReg<2, "m2">;
-def M3 : MatrixReg<3, "m3">;
-def M4 : MatrixReg<4, "m4">;
-def M5 : MatrixReg<5, "m5">;
-def M6 : MatrixReg<6, "m6">;
-def M7 : MatrixReg<7, "m7">;
+def XM0 : MatrixReg<0, "xm0">;
+def XM1 : MatrixReg<1, "xm1">;
+def XM2 : MatrixReg<2, "xm2">;
+def XM3 : MatrixReg<3, "xm3">;
+def XM4 : MatrixReg<4, "xm4">;
+def XM5 : MatrixReg<5, "xm5">;
+def XM6 : MatrixReg<6, "xm6">;
+def XM7 : MatrixReg<7, "xm7">;
 
 } // End Namespace = "RISCV"
 
 def MatrixReg : RegisterClass<"RISCV", [untyped], 1024,
-                            (add M0, M1, M2, M3, M4, M5, M6, M7)> {
+                            (add XM0, XM1, XM2, XM3, XM4, XM5, XM6, XM7)> {
   let Size = 1024;  // Placeholder: actual MLEN is hardware-defined
 }
 

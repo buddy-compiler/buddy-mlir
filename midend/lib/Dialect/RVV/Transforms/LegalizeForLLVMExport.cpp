@@ -53,14 +53,14 @@ public:
     Value src1 = op.getOperand(0);
     Value src2 = op.getOperand(1);
     Value vl = op.getOperand(2);
-    Value vlCast = rewriter
-                       .create<UnrealizedConversionCastOp>(
+    Value vlCast = UnrealizedConversionCastOp::create(
+                       rewriter, 
                            op.getLoc(),
                            rewriter.getIntegerType(RVVTargetIndexBitwidth), vl)
                        .getResult(0);
     SmallVector<Value, 6> operandsVector({src1, src2, vlCast});
 
-    Value passthru = rewriter.create<LLVM::UndefOp>(loc, resultType[0]);
+    Value passthru = LLVM::UndefOp::create(rewriter, loc, resultType[0]);
     operandsVector.insert(operandsVector.begin(), passthru);
 
     const LLVMTypeConverter *typeConverter = this->getTypeConverter();
@@ -117,22 +117,22 @@ struct RVVSetVlOpLowering : public ConvertOpToLLVMPattern<RVVSetVlOp> {
     auto resultType = rewriter.getIntegerType(RVVTargetIndexBitwidth);
     Value avl = op.getOperand(0);
     Value avlCast =
-        rewriter
-            .create<UnrealizedConversionCastOp>(
+        UnrealizedConversionCastOp::create(
+            rewriter, 
                 op.getLoc(), rewriter.getIntegerType(RVVTargetIndexBitwidth),
                 avl)
             .getResult(0);
     Value sew = op.getOperand(1);
     Value sewCast =
-        rewriter
-            .create<UnrealizedConversionCastOp>(
+        UnrealizedConversionCastOp::create(
+            rewriter, 
                 op.getLoc(), rewriter.getIntegerType(RVVTargetIndexBitwidth),
                 sew)
             .getResult(0);
     Value lmul = op.getOperand(2);
     Value lmulCast =
-        rewriter
-            .create<UnrealizedConversionCastOp>(
+        UnrealizedConversionCastOp::create(
+            rewriter, 
                 op.getLoc(), rewriter.getIntegerType(RVVTargetIndexBitwidth),
                 lmul)
             .getResult(0);
@@ -157,15 +157,15 @@ struct RVVLoadOpLowering : public ConvertOpToLLVMPattern<RVVLoadOp> {
     auto resultType = loadOp.getResult().getType();
     auto context = loadOp.getContext();
     Value passthru =
-        rewriter.create<LLVM::UndefOp>(loadOp.getLoc(), resultType);
+        LLVM::UndefOp::create(rewriter, loadOp.getLoc(), resultType);
     LLVM::LLVMPointerType llvmDataTypePtr = LLVM::LLVMPointerType::get(context);
     Value dataPtr = getStridedElementPtr(rewriter, loadOp.getLoc(), type,
                                          adaptor.getBase(), adaptor.getIndex());
-    Value bitCastedPtr = rewriter.create<LLVM::BitcastOp>(
+    Value bitCastedPtr = LLVM::BitcastOp::create(rewriter, 
         loadOp.getLoc(), llvmDataTypePtr, dataPtr);
     Value vl = loadOp.getOperand(2);
-    Value vlCast = rewriter
-                       .create<UnrealizedConversionCastOp>(
+    Value vlCast = UnrealizedConversionCastOp::create(
+                       rewriter, 
                            loadOp.getLoc(),
                            rewriter.getIntegerType(RVVTargetIndexBitwidth), vl)
                        .getResult(0);
@@ -192,11 +192,11 @@ struct RVVStoreOpLowering : public ConvertOpToLLVMPattern<RVVStoreOp> {
     LLVM::LLVMPointerType llvmDataTypePtr = LLVM::LLVMPointerType::get(context);
     Value dataPtr = getStridedElementPtr(rewriter, storeOp.getLoc(), type,
                                          adaptor.getBase(), adaptor.getIndex());
-    Value bitCastedPtr = rewriter.create<LLVM::BitcastOp>(
+    Value bitCastedPtr = LLVM::BitcastOp::create(rewriter, 
         storeOp.getLoc(), llvmDataTypePtr, dataPtr);
     Value vl = storeOp.getOperand(3);
-    Value vlCast = rewriter
-                       .create<UnrealizedConversionCastOp>(
+    Value vlCast = UnrealizedConversionCastOp::create(
+                       rewriter, 
                            storeOp.getLoc(),
                            rewriter.getIntegerType(RVVTargetIndexBitwidth), vl)
                        .getResult(0);
@@ -219,11 +219,11 @@ struct RsqrtOpLowering : public ConvertOpToLLVMPattern<RsqrtOp> {
                   ConversionPatternRewriter &rewriter) const override {
 
     auto resultType = op.getResult().getType();
-    Value passthru = rewriter.create<LLVM::UndefOp>(op.getLoc(), resultType);
+    Value passthru = LLVM::UndefOp::create(rewriter, op.getLoc(), resultType);
     Value src = op.getOperand(0);
     Value vl = op.getOperand(1);
-    Value vlCast = rewriter
-                       .create<UnrealizedConversionCastOp>(
+    Value vlCast = UnrealizedConversionCastOp::create(
+                       rewriter, 
                            op.getLoc(),
                            rewriter.getIntegerType(RVVTargetIndexBitwidth), vl)
                        .getResult(0);

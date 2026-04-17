@@ -82,27 +82,27 @@ public:
     VectorType vectorTy = mlir::VectorType::get({vecSize}, elementType);
 
     // Define constants.
-    const Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
-    const Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
-    const Value c2 = rewriter.create<arith::ConstantIndexOp>(loc, 2);
-    const Value c3 = rewriter.create<arith::ConstantIndexOp>(loc, 3);
-    const Value c4 = rewriter.create<arith::ConstantIndexOp>(loc, 4);
-    const Value c5 = rewriter.create<arith::ConstantIndexOp>(loc, 5);
-    const Value c6 = rewriter.create<arith::ConstantIndexOp>(loc, 6);
-    const Value c7 = rewriter.create<arith::ConstantIndexOp>(loc, 7);
-    const Value vlStep = rewriter.create<arith::ConstantIndexOp>(loc, vecSize);
-    const Value initVal = rewriter.create<arith::ConstantOp>(
+    const Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
+    const Value c1 = arith::ConstantIndexOp::create(rewriter, loc, 1);
+    const Value c2 = arith::ConstantIndexOp::create(rewriter, loc, 2);
+    const Value c3 = arith::ConstantIndexOp::create(rewriter, loc, 3);
+    const Value c4 = arith::ConstantIndexOp::create(rewriter, loc, 4);
+    const Value c5 = arith::ConstantIndexOp::create(rewriter, loc, 5);
+    const Value c6 = arith::ConstantIndexOp::create(rewriter, loc, 6);
+    const Value c7 = arith::ConstantIndexOp::create(rewriter, loc, 7);
+    const Value vlStep = arith::ConstantIndexOp::create(rewriter, loc, vecSize);
+    const Value initVal = arith::ConstantOp::create(rewriter, 
         loc, rewriter.getZeroAttr(elementType));
     const Value unroll =
-        rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(8));
-    // const Value initVec = rewriter.create<arith::ConstantOp>(
+        arith::ConstantOp::create(rewriter, loc, rewriter.getIndexAttr(8));
+    // const Value initVec = arith::ConstantOp::create(rewriter, 
     //     loc, vectorTy, DenseElementsAttr::get(vectorTy, APFloat(0.0f)));
-    Value initVec = rewriter.create<vector::BroadcastOp>(loc, vectorTy, initVal);
+    Value initVec = vector::BroadcastOp::create(rewriter, loc, vectorTy, initVal);
 
     // Get dimensions of input tensors.
-    Value aRow = rewriter.create<memref::DimOp>(loc, A, c0);
-    Value aCol = rewriter.create<memref::DimOp>(loc, A, c1);
-    Value bCol = rewriter.create<memref::DimOp>(loc, C, c1);
+    Value aRow = memref::DimOp::create(rewriter, loc, A, c0);
+    Value aCol = memref::DimOp::create(rewriter, loc, A, c1);
+    Value bCol = memref::DimOp::create(rewriter, loc, C, c1);
 
     const AffineExpr d0 = rewriter.getAffineDimExpr(0);
     const AffineExpr d1 = rewriter.getAffineDimExpr(1);
@@ -111,60 +111,60 @@ public:
     AffineMap map2 = AffineMap::get(2, 0, d0 - d1, ctx);
 
     Value upperBound_tmp =
-        rewriter.create<AffineApplyOp>(loc, map2, ValueRange{aCol, vlStep});
-    Value upperBound = rewriter.create<AffineApplyOp>(
+        AffineApplyOp::create(rewriter, loc, map2, ValueRange{aCol, vlStep});
+    Value upperBound = AffineApplyOp::create(rewriter, 
         loc, map1, ValueRange{upperBound_tmp, c1});
 
-    auto parOp = rewriter.create<scf::ParallelOp>(
+    auto parOp = scf::ParallelOp::create(rewriter, 
         loc,
         /*lowerBounds=*/ValueRange{c0},
         /*upperBounds=*/ValueRange{aRow},
         /*steps=*/ValueRange{unroll},
         [&](OpBuilder &builder, Location loc, ValueRange ivs) {
-          auto aRowIdx1 = builder.create<affine::AffineApplyOp>(
+          auto aRowIdx1 = affine::AffineApplyOp::create(builder, 
               loc, map1, ValueRange{ivs[0], c1});
-          auto aRowIdx2 = builder.create<affine::AffineApplyOp>(
+          auto aRowIdx2 = affine::AffineApplyOp::create(builder, 
               loc, map1, ValueRange{ivs[0], c2});
-          auto aRowIdx3 = builder.create<affine::AffineApplyOp>(
+          auto aRowIdx3 = affine::AffineApplyOp::create(builder, 
               loc, map1, ValueRange{ivs[0], c3});
-          auto aRowIdx4 = builder.create<affine::AffineApplyOp>(
+          auto aRowIdx4 = affine::AffineApplyOp::create(builder, 
               loc, map1, ValueRange{ivs[0], c4});
-          auto aRowIdx5 = builder.create<affine::AffineApplyOp>(
+          auto aRowIdx5 = affine::AffineApplyOp::create(builder, 
               loc, map1, ValueRange{ivs[0], c5});
-          auto aRowIdx6 = builder.create<affine::AffineApplyOp>(
+          auto aRowIdx6 = affine::AffineApplyOp::create(builder, 
               loc, map1, ValueRange{ivs[0], c6});
-          auto aRowIdx7 = builder.create<affine::AffineApplyOp>(
+          auto aRowIdx7 = affine::AffineApplyOp::create(builder, 
               loc, map1, ValueRange{ivs[0], c7});
 
-          builder.create<scf::ForOp>(
+          scf::ForOp::create(builder, 
               loc, c0, bCol,
               /*Step=*/c1, ValueRange{},
               [&](OpBuilder &builder, Location loc, Value iv0,
                   ValueRange itrArgs0) {
-                auto iterVals = builder.create<scf::ForOp>(
+                auto iterVals = scf::ForOp::create(builder, 
                     loc, c0, upperBound,
                     /*Step=*/vlStep,
                     ValueRange{initVec, initVec, initVec, initVec, initVec,
                                initVec, initVec, initVec, c0},
                     [&](OpBuilder &builder, Location loc, Value iv1,
                         ValueRange itrArgs) {
-                      Value aVec0 = builder.create<vector::LoadOp>(
+                      Value aVec0 = vector::LoadOp::create(builder, 
                           loc, vectorTy, A, ValueRange{ivs[0], iv1});
-                      Value aVec1 = builder.create<vector::LoadOp>(
+                      Value aVec1 = vector::LoadOp::create(builder, 
                           loc, vectorTy, A, ValueRange{aRowIdx1, iv1});
-                      Value aVec2 = builder.create<vector::LoadOp>(
+                      Value aVec2 = vector::LoadOp::create(builder, 
                           loc, vectorTy, A, ValueRange{aRowIdx2, iv1});
-                      Value aVec3 = builder.create<vector::LoadOp>(
+                      Value aVec3 = vector::LoadOp::create(builder, 
                           loc, vectorTy, A, ValueRange{aRowIdx3, iv1});
-                      Value aVec4 = builder.create<vector::LoadOp>(
+                      Value aVec4 = vector::LoadOp::create(builder, 
                           loc, vectorTy, A, ValueRange{aRowIdx4, iv1});
-                      Value aVec5 = builder.create<vector::LoadOp>(
+                      Value aVec5 = vector::LoadOp::create(builder, 
                           loc, vectorTy, A, ValueRange{aRowIdx5, iv1});
-                      Value aVec6 = builder.create<vector::LoadOp>(
+                      Value aVec6 = vector::LoadOp::create(builder, 
                           loc, vectorTy, A, ValueRange{aRowIdx6, iv1});
-                      Value aVec7 = builder.create<vector::LoadOp>(
+                      Value aVec7 = vector::LoadOp::create(builder, 
                           loc, vectorTy, A, ValueRange{aRowIdx7, iv1});
-                      Value bVec = builder.create<vector::LoadOp>(
+                      Value bVec = vector::LoadOp::create(builder, 
                           loc, vectorTy, B, ValueRange{iv0, iv1});
                       Value computedVec0;
                       Value computedVec1;
@@ -176,172 +176,172 @@ public:
                       Value computedVec7;
                       if (isa<IntegerType>(elementType)) {
                         Value mulVec0 =
-                            builder.create<arith::MulIOp>(loc, aVec0, bVec);
-                        computedVec0 = builder.create<arith::AddIOp>(
+                            arith::MulIOp::create(builder, loc, aVec0, bVec);
+                        computedVec0 = arith::AddIOp::create(builder, 
                             loc, mulVec0, itrArgs[0]);
                         Value mulVec1 =
-                            builder.create<arith::MulIOp>(loc, aVec1, bVec);
-                        computedVec1 = builder.create<arith::AddIOp>(
+                            arith::MulIOp::create(builder, loc, aVec1, bVec);
+                        computedVec1 = arith::AddIOp::create(builder, 
                             loc, mulVec1, itrArgs[1]);
                         Value mulVec2 =
-                            builder.create<arith::MulIOp>(loc, aVec2, bVec);
-                        computedVec2 = builder.create<arith::AddIOp>(
+                            arith::MulIOp::create(builder, loc, aVec2, bVec);
+                        computedVec2 = arith::AddIOp::create(builder, 
                             loc, mulVec2, itrArgs[2]);
                         Value mulVec3 =
-                            builder.create<arith::MulIOp>(loc, aVec3, bVec);
-                        computedVec3 = builder.create<arith::AddIOp>(
+                            arith::MulIOp::create(builder, loc, aVec3, bVec);
+                        computedVec3 = arith::AddIOp::create(builder, 
                             loc, mulVec3, itrArgs[3]);
                         Value mulVec4 =
-                            builder.create<arith::MulIOp>(loc, aVec4, bVec);
-                        computedVec4 = builder.create<arith::AddIOp>(
+                            arith::MulIOp::create(builder, loc, aVec4, bVec);
+                        computedVec4 = arith::AddIOp::create(builder, 
                             loc, mulVec4, itrArgs[4]);
                         Value mulVec5 =
-                            builder.create<arith::MulIOp>(loc, aVec5, bVec);
-                        computedVec5 = builder.create<arith::AddIOp>(
+                            arith::MulIOp::create(builder, loc, aVec5, bVec);
+                        computedVec5 = arith::AddIOp::create(builder, 
                             loc, mulVec5, itrArgs[5]);
                         Value mulVec6 =
-                            builder.create<arith::MulIOp>(loc, aVec6, bVec);
-                        computedVec6 = builder.create<arith::AddIOp>(
+                            arith::MulIOp::create(builder, loc, aVec6, bVec);
+                        computedVec6 = arith::AddIOp::create(builder, 
                             loc, mulVec6, itrArgs[6]);
                         Value mulVec7 =
-                            builder.create<arith::MulIOp>(loc, aVec7, bVec);
-                        computedVec7 = builder.create<arith::AddIOp>(
+                            arith::MulIOp::create(builder, loc, aVec7, bVec);
+                        computedVec7 = arith::AddIOp::create(builder, 
                             loc, mulVec7, itrArgs[7]);
                       } else {
-                        computedVec0 = builder.create<vector::FMAOp>(
+                        computedVec0 = vector::FMAOp::create(builder, 
                             loc, aVec0, bVec, itrArgs[0]);
-                        computedVec1 = builder.create<vector::FMAOp>(
+                        computedVec1 = vector::FMAOp::create(builder, 
                             loc, aVec1, bVec, itrArgs[1]);
-                        computedVec2 = builder.create<vector::FMAOp>(
+                        computedVec2 = vector::FMAOp::create(builder, 
                             loc, aVec2, bVec, itrArgs[2]);
-                        computedVec3 = builder.create<vector::FMAOp>(
+                        computedVec3 = vector::FMAOp::create(builder, 
                             loc, aVec3, bVec, itrArgs[3]);
-                        computedVec4 = builder.create<vector::FMAOp>(
+                        computedVec4 = vector::FMAOp::create(builder, 
                             loc, aVec4, bVec, itrArgs[4]);
-                        computedVec5 = builder.create<vector::FMAOp>(
+                        computedVec5 = vector::FMAOp::create(builder, 
                             loc, aVec5, bVec, itrArgs[5]);
-                        computedVec6 = builder.create<vector::FMAOp>(
+                        computedVec6 = vector::FMAOp::create(builder, 
                             loc, aVec6, bVec, itrArgs[6]);
-                        computedVec7 = builder.create<vector::FMAOp>(
+                        computedVec7 = vector::FMAOp::create(builder, 
                             loc, aVec7, bVec, itrArgs[7]);
                       }
-                      Value idx = builder.create<affine::AffineApplyOp>(
+                      Value idx = affine::AffineApplyOp::create(builder, 
                           loc, map1, ValueRange{iv1, vlStep});
-                      builder.create<scf::YieldOp>(
+                      scf::YieldOp::create(builder, 
                           loc,
                           ValueRange{computedVec0, computedVec1, computedVec2,
                                      computedVec3, computedVec4, computedVec5,
                                      computedVec6, computedVec7, idx});
                     });
                 auto tmpVals = iterVals.getResults();
-                Value reduction0 = builder.create<vector::ReductionOp>(
+                Value reduction0 = vector::ReductionOp::create(builder, 
                     loc, CombiningKind::ADD, tmpVals[0], initVal,
                     arith::FastMathFlags::reassoc);
-                Value reduction1 = builder.create<vector::ReductionOp>(
+                Value reduction1 = vector::ReductionOp::create(builder, 
                     loc, CombiningKind::ADD, tmpVals[1], initVal,
                     arith::FastMathFlags::reassoc);
-                Value reduction2 = builder.create<vector::ReductionOp>(
+                Value reduction2 = vector::ReductionOp::create(builder, 
                     loc, CombiningKind::ADD, tmpVals[2], initVal,
                     arith::FastMathFlags::reassoc);
-                Value reduction3 = builder.create<vector::ReductionOp>(
+                Value reduction3 = vector::ReductionOp::create(builder, 
                     loc, CombiningKind::ADD, tmpVals[3], initVal,
                     arith::FastMathFlags::reassoc);
-                Value reduction4 = builder.create<vector::ReductionOp>(
+                Value reduction4 = vector::ReductionOp::create(builder, 
                     loc, CombiningKind::ADD, tmpVals[4], initVal,
                     arith::FastMathFlags::reassoc);
-                Value reduction5 = builder.create<vector::ReductionOp>(
+                Value reduction5 = vector::ReductionOp::create(builder, 
                     loc, CombiningKind::ADD, tmpVals[5], initVal,
                     arith::FastMathFlags::reassoc);
-                Value reduction6 = builder.create<vector::ReductionOp>(
+                Value reduction6 = vector::ReductionOp::create(builder, 
                     loc, CombiningKind::ADD, tmpVals[6], initVal,
                     arith::FastMathFlags::reassoc);
-                Value reduction7 = builder.create<vector::ReductionOp>(
+                Value reduction7 = vector::ReductionOp::create(builder, 
                     loc, CombiningKind::ADD, tmpVals[7], initVal,
                     arith::FastMathFlags::reassoc);
                 Value idx = tmpVals[8];
-                auto sumIters = builder.create<scf::ForOp>(
+                auto sumIters = scf::ForOp::create(builder, 
                     loc, idx, aCol,
                     /*Step=*/c1,
                     ValueRange{reduction0, reduction1, reduction2, reduction3,
                                reduction4, reduction5, reduction6, reduction7},
                     [&](OpBuilder &builder, Location loc, Value iv1,
                         ValueRange iterArgs) {
-                      auto aEle0 = builder.create<memref::LoadOp>(
+                      auto aEle0 = memref::LoadOp::create(builder, 
                           loc, A, ValueRange{ivs[0], iv1});
-                      auto aEle1 = builder.create<memref::LoadOp>(
+                      auto aEle1 = memref::LoadOp::create(builder, 
                           loc, A, ValueRange{aRowIdx1, iv1});
-                      auto aEle2 = builder.create<memref::LoadOp>(
+                      auto aEle2 = memref::LoadOp::create(builder, 
                           loc, A, ValueRange{aRowIdx2, iv1});
-                      auto aEle3 = builder.create<memref::LoadOp>(
+                      auto aEle3 = memref::LoadOp::create(builder, 
                           loc, A, ValueRange{aRowIdx3, iv1});
-                      auto aEle4 = builder.create<memref::LoadOp>(
+                      auto aEle4 = memref::LoadOp::create(builder, 
                           loc, A, ValueRange{aRowIdx4, iv1});
-                      auto aEle5 = builder.create<memref::LoadOp>(
+                      auto aEle5 = memref::LoadOp::create(builder, 
                           loc, A, ValueRange{aRowIdx5, iv1});
-                      auto aEle6 = builder.create<memref::LoadOp>(
+                      auto aEle6 = memref::LoadOp::create(builder, 
                           loc, A, ValueRange{aRowIdx6, iv1});
-                      auto aEle7 = builder.create<memref::LoadOp>(
+                      auto aEle7 = memref::LoadOp::create(builder, 
                           loc, A, ValueRange{aRowIdx7, iv1});
 
-                      auto bEle = builder.create<memref::LoadOp>(
+                      auto bEle = memref::LoadOp::create(builder, 
                           loc, B, ValueRange{iv0, iv1});
 
                       auto tmpEle0 =
-                          builder.create<arith::MulFOp>(loc, aEle0, bEle);
+                          arith::MulFOp::create(builder, loc, aEle0, bEle);
                       auto tmpEle1 =
-                          builder.create<arith::MulFOp>(loc, aEle1, bEle);
+                          arith::MulFOp::create(builder, loc, aEle1, bEle);
                       auto tmpEle2 =
-                          builder.create<arith::MulFOp>(loc, aEle2, bEle);
+                          arith::MulFOp::create(builder, loc, aEle2, bEle);
                       auto tmpEle3 =
-                          builder.create<arith::MulFOp>(loc, aEle3, bEle);
+                          arith::MulFOp::create(builder, loc, aEle3, bEle);
                       auto tmpEle4 =
-                          builder.create<arith::MulFOp>(loc, aEle4, bEle);
+                          arith::MulFOp::create(builder, loc, aEle4, bEle);
                       auto tmpEle5 =
-                          builder.create<arith::MulFOp>(loc, aEle5, bEle);
+                          arith::MulFOp::create(builder, loc, aEle5, bEle);
                       auto tmpEle6 =
-                          builder.create<arith::MulFOp>(loc, aEle6, bEle);
+                          arith::MulFOp::create(builder, loc, aEle6, bEle);
                       auto tmpEle7 =
-                          builder.create<arith::MulFOp>(loc, aEle7, bEle);
+                          arith::MulFOp::create(builder, loc, aEle7, bEle);
 
-                      auto resSum0 = builder.create<arith::AddFOp>(loc, tmpEle0,
+                      auto resSum0 = arith::AddFOp::create(builder, loc, tmpEle0,
                                                                    iterArgs[0]);
-                      auto resSum1 = builder.create<arith::AddFOp>(loc, tmpEle1,
+                      auto resSum1 = arith::AddFOp::create(builder, loc, tmpEle1,
                                                                    iterArgs[1]);
-                      auto resSum2 = builder.create<arith::AddFOp>(loc, tmpEle2,
+                      auto resSum2 = arith::AddFOp::create(builder, loc, tmpEle2,
                                                                    iterArgs[2]);
-                      auto resSum3 = builder.create<arith::AddFOp>(loc, tmpEle3,
+                      auto resSum3 = arith::AddFOp::create(builder, loc, tmpEle3,
                                                                    iterArgs[3]);
-                      auto resSum4 = builder.create<arith::AddFOp>(loc, tmpEle4,
+                      auto resSum4 = arith::AddFOp::create(builder, loc, tmpEle4,
                                                                    iterArgs[4]);
-                      auto resSum5 = builder.create<arith::AddFOp>(loc, tmpEle5,
+                      auto resSum5 = arith::AddFOp::create(builder, loc, tmpEle5,
                                                                    iterArgs[5]);
-                      auto resSum6 = builder.create<arith::AddFOp>(loc, tmpEle6,
+                      auto resSum6 = arith::AddFOp::create(builder, loc, tmpEle6,
                                                                    iterArgs[6]);
-                      auto resSum7 = builder.create<arith::AddFOp>(loc, tmpEle7,
+                      auto resSum7 = arith::AddFOp::create(builder, loc, tmpEle7,
                                                                    iterArgs[7]);
 
-                      builder.create<scf::YieldOp>(
+                      scf::YieldOp::create(builder, 
                           loc, ValueRange{resSum0, resSum1, resSum2, resSum3,
                                           resSum4, resSum5, resSum6, resSum7});
                     });
-                auto sumIter0 = builder.create<memref::StoreOp>(
+                auto sumIter0 = memref::StoreOp::create(builder, 
                     loc, sumIters.getResult(0), C, ValueRange{ivs[0], iv0});
-                auto sumIter1 = builder.create<memref::StoreOp>(
+                auto sumIter1 = memref::StoreOp::create(builder, 
                     loc, sumIters.getResult(1), C, ValueRange{aRowIdx1, iv0});
-                auto sumIter2 = builder.create<memref::StoreOp>(
+                auto sumIter2 = memref::StoreOp::create(builder, 
                     loc, sumIters.getResult(2), C, ValueRange{aRowIdx2, iv0});
-                auto sumIter3 = builder.create<memref::StoreOp>(
+                auto sumIter3 = memref::StoreOp::create(builder, 
                     loc, sumIters.getResult(3), C, ValueRange{aRowIdx3, iv0});
-                auto sumIter4 = builder.create<memref::StoreOp>(
+                auto sumIter4 = memref::StoreOp::create(builder, 
                     loc, sumIters.getResult(4), C, ValueRange{aRowIdx4, iv0});
-                auto sumIter5 = builder.create<memref::StoreOp>(
+                auto sumIter5 = memref::StoreOp::create(builder, 
                     loc, sumIters.getResult(5), C, ValueRange{aRowIdx5, iv0});
-                auto sumIter6 = builder.create<memref::StoreOp>(
+                auto sumIter6 = memref::StoreOp::create(builder, 
                     loc, sumIters.getResult(6), C, ValueRange{aRowIdx6, iv0});
-                auto sumIter7 = builder.create<memref::StoreOp>(
+                auto sumIter7 = memref::StoreOp::create(builder, 
                     loc, sumIters.getResult(7), C, ValueRange{aRowIdx7, iv0});
 
-                builder.create<scf::YieldOp>(loc);
+                scf::YieldOp::create(builder, loc);
               });
         });
     rewriter.eraseOp(op);

@@ -425,7 +425,7 @@ int main(int argc, char **argv) {
 
   if (TimeTrace)
     timeTraceProfilerInitialize(TimeTraceGranularity, argv[0]);
-  auto TimeTraceScopeExit = make_scope_exit([]() {
+  auto TimeTraceScopeExit = llvm::scope_exit([]() {
     if (TimeTrace) {
       if (auto E = timeTraceProfilerWrite(TimeTraceFile, OutputFilename)) {
         handleAllErrors(std::move(E), [&](const StringError &SE) {
@@ -443,13 +443,13 @@ int main(int argc, char **argv) {
   // Set a diagnostic handler that doesn't exit on the first error
   Context.setDiagnosticHandler(std::make_unique<LLCDiagnosticHandler>());
 
-  Expected<std::unique_ptr<ToolOutputFile>> RemarksFileOrErr =
+  Expected<LLVMRemarkFileHandle> RemarksFileOrErr =
       setupLLVMOptimizationRemarks(Context, RemarksFilename, RemarksPasses,
                                    RemarksFormat, RemarksWithHotness,
                                    RemarksHotnessThreshold);
   if (Error E = RemarksFileOrErr.takeError())
     reportError(std::move(E), RemarksFilename);
-  std::unique_ptr<ToolOutputFile> RemarksFile = std::move(*RemarksFileOrErr);
+  LLVMRemarkFileHandle RemarksFile = std::move(*RemarksFileOrErr);
 
   if (InputLanguage != "" && InputLanguage != "ir" && InputLanguage != "mir")
     reportError("input language must be '', 'IR' or 'MIR'");
@@ -511,7 +511,7 @@ static int compileModule(char **argv, LLVMContext &Context) {
 
   // Set attributes on functions as loaded from MIR from command line arguments.
   auto setMIRFunctionAttributes = [&CPUStr, &FeaturesStr](Function &F) {
-    codegen::setFunctionAttributes(CPUStr, FeaturesStr, F);
+    codegen::setFunctionAttributes(F, CPUStr, FeaturesStr);
   };
 
   auto MAttrs = codegen::getMAttrs();
@@ -705,7 +705,7 @@ static int compileModule(char **argv, LLVMContext &Context) {
 
   // Override function attributes based on CPUStr, FeaturesStr, and command line
   // flags.
-  codegen::setFunctionAttributes(CPUStr, FeaturesStr, *M);
+  codegen::setFunctionAttributes(*M, CPUStr, FeaturesStr);
 
   if (mc::getExplicitRelaxAll() &&
       codegen::getFileType() != CodeGenFileType::ObjectFile)

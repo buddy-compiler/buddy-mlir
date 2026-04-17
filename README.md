@@ -40,14 +40,16 @@ $ cd buddy-mlir
 $ mkdir llvm/build
 $ cd llvm/build
 $ cmake -G Ninja ../llvm \
-    -DLLVM_ENABLE_PROJECTS="mlir;clang;openmp" \
+    -DLLVM_ENABLE_PROJECTS="mlir;clang" \
+    -DLLVM_ENABLE_RUNTIMES="openmp" \
     -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
     -DLLVM_ENABLE_ASSERTIONS=ON \
     -DOPENMP_ENABLE_LIBOMPTARGET=OFF \
     -DCMAKE_BUILD_TYPE=RELEASE \
     -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
     -DPython3_EXECUTABLE=$(which python3)
-$ ninja check-clang check-mlir omp
+$ ninja check-clang check-mlir
+$ ninja -C llvm/build runtimes/runtimes-build && ninja -C llvm/build/runtimes/runtimes-bins omp
 ```
 
 If your target machine includes an NVIDIA GPU, you can add the following configuration:

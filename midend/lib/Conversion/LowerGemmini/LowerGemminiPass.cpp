@@ -73,12 +73,12 @@ public:
         loc, rewriter, "nl", StringRef("\n\0", 2), parentModule);
     SmallVector<Value, 4> loopIvs;
     for (unsigned i = 0, e = memRefShape.size(); i != e; ++i) {
-      auto lowerBound = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+      auto lowerBound = arith::ConstantIndexOp::create(rewriter, loc, 0);
       auto upperBound =
-          rewriter.create<arith::ConstantIndexOp>(loc, memRefShape[i]);
-      auto step = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+          arith::ConstantIndexOp::create(rewriter, loc, memRefShape[i]);
+      auto step = arith::ConstantIndexOp::create(rewriter, loc, 1);
       auto loop =
-          rewriter.create<scf::ForOp>(loc, lowerBound, upperBound, step);
+          scf::ForOp::create(rewriter, loc, lowerBound, upperBound, step);
       for (Operation &nested : *loop.getBody())
         rewriter.eraseOp(&nested);
       loopIvs.push_back(loop.getInductionVar());
@@ -86,22 +86,22 @@ public:
       rewriter.setInsertionPointToEnd(loop.getBody());
 
       if (i != e - 1)
-        rewriter.create<LLVM::CallOp>(loc, getPrintfType(context), printfRef,
+        LLVM::CallOp::create(rewriter, loc, getPrintfType(context), printfRef,
                                       newLineCst);
-      rewriter.create<scf::YieldOp>(loc);
+      scf::YieldOp::create(rewriter, loc);
       rewriter.setInsertionPointToStart(loop.getBody());
     }
 
     auto printOp = cast<gemmini::PrintOp>(op);
     Value elementLoad =
-        rewriter.create<memref::LoadOp>(loc, printOp.getInput(), loopIvs);
+        memref::LoadOp::create(rewriter, loc, printOp.getInput(), loopIvs);
     if (elementLoad.getType() == rewriter.getF32Type())
-      elementLoad = rewriter.create<mlir::LLVM::FPExtOp>(
+      elementLoad = mlir::LLVM::FPExtOp::create(rewriter, 
           loc, rewriter.getF64Type(), elementLoad);
     else if (elementLoad.getType() == rewriter.getI8Type())
-      elementLoad = rewriter.create<mlir::LLVM::SExtOp>(
+      elementLoad = mlir::LLVM::SExtOp::create(rewriter, 
           loc, rewriter.getI32Type(), elementLoad);
-    rewriter.create<LLVM::CallOp>(
+    LLVM::CallOp::create(rewriter, 
         loc, getPrintfType(context), printfRef,
         ArrayRef<Value>({formatSpecifierCst, elementLoad}));
 
@@ -124,7 +124,7 @@ private:
 
     PatternRewriter::InsertionGuard insertGuard(rewriter);
     rewriter.setInsertionPointToStart(module.getBody());
-    rewriter.create<LLVM::LLVMFuncOp>(module.getLoc(), "printf",
+    LLVM::LLVMFuncOp::create(rewriter, module.getLoc(), "printf",
                                       getPrintfType(context));
     return SymbolRefAttr::get(context, "printf");
   }
@@ -138,15 +138,15 @@ private:
       builder.setInsertionPointToStart(module.getBody());
       auto type = LLVM::LLVMArrayType::get(
           IntegerType::get(builder.getContext(), 8), value.size());
-      global = builder.create<LLVM::GlobalOp>(loc, type, true,
+      global = LLVM::GlobalOp::create(builder, loc, type, true,
                                               LLVM::Linkage::Internal, name,
                                               builder.getStringAttr(value), 0);
     }
 
-    Value globalPtr = builder.create<LLVM::AddressOfOp>(loc, global);
-    Value cst0 = builder.create<LLVM::ConstantOp>(loc, builder.getI64Type(),
+    Value globalPtr = LLVM::AddressOfOp::create(builder, loc, global);
+    Value cst0 = LLVM::ConstantOp::create(builder, loc, builder.getI64Type(),
                                                   builder.getIndexAttr(0));
-    return builder.create<LLVM::GEPOp>(
+    return LLVM::GEPOp::create(builder, 
         loc, LLVM::LLVMPointerType::get(builder.getContext()), global.getType(),
         globalPtr, ArrayRef<Value>({cst0, cst0}));
   }

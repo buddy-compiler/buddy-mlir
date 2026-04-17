@@ -26,7 +26,7 @@ set(LLVM_LINK_COMPONENTS
 
 set(LLVM_TARGET_DEFINITIONS ${MLIR_MAIN_SRC_DIR}/examples/toy/Ch7/mlir/ToyCombine.td)
 mlir_tablegen(ToyCombine.inc -gen-rewriters)
-add_public_tablegen_target(ToyCombineIncGen)
+add_mlir_dialect_tablegen_target(ToyCombineIncGen)
 
 # Add DSL -> MLIR frontend.
 add_llvm_executable(buddy-toy-dsl

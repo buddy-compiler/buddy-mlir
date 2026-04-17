@@ -84,19 +84,19 @@ public:
     llvm::SmallVector<Value, 8> constantVals;
     for (int i = 0; i <= 8; ++i) {
       auto val =
-          rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(i));
+          arith::ConstantOp::create(rewriter, loc, rewriter.getIndexAttr(i));
       constantVals.push_back(val);
     }
-    Value vlStep = rewriter.create<arith::ConstantIndexOp>(loc, vecSize);
+    Value vlStep = arith::ConstantIndexOp::create(rewriter, loc, vecSize);
     if (scalable) {
-      Value vscale = rewriter.create<vector::VectorScaleOp>(loc);
-      vlStep = rewriter.create<arith::MulIOp>(loc, vlStep, vscale);
+      Value vscale = vector::VectorScaleOp::create(rewriter, loc);
+      vlStep = arith::MulIOp::create(rewriter, loc, vlStep, vscale);
     }
 
     // Get dimensions of input tensors.
-    Value batch = rewriter.create<memref::DimOp>(loc, A, constantVals[0]);
-    Value aCol = rewriter.create<memref::DimOp>(loc, A, constantVals[2]);
-    Value bCol = rewriter.create<memref::DimOp>(loc, C, constantVals[2]);
+    Value batch = memref::DimOp::create(rewriter, loc, A, constantVals[0]);
+    Value aCol = memref::DimOp::create(rewriter, loc, A, constantVals[2]);
+    Value bCol = memref::DimOp::create(rewriter, loc, C, constantVals[2]);
 
     // Decode-specialized loop structure:
     // scf.parallel (b) = (0) to (batch) step (1) {
@@ -113,7 +113,7 @@ public:
     //     vector.store %sum, C[b, 0, n]
     //   }
     // }
-    auto parOp = rewriter.create<scf::ParallelOp>(
+    auto parOp = scf::ParallelOp::create(rewriter, 
         loc,
         /*lowerBounds=*/ValueRange{constantVals[0]},
         /*upperBounds=*/ValueRange{batch},
@@ -121,40 +121,40 @@ public:
         [&](OpBuilder &builder, Location loc, ValueRange ivs) {
           Value bIdx = ivs[0];
           (void)builder;
-          auto outerFor = rewriter.create<scf::ForOp>(
+          auto outerFor = scf::ForOp::create(rewriter, 
               loc, constantVals[0], bCol, vlStep, ValueRange{},
               [&](OpBuilder &builder, Location loc, Value nIdx,
                   ValueRange /*iterArgs*/) {
                 // Load initial C vector
-                auto cVecInit = rewriter.create<vector::LoadOp>(
+                auto cVecInit = vector::LoadOp::create(rewriter, 
                     loc, vectorTy, C, ValueRange{bIdx, constantVals[0], nIdx});
-                auto kFor = rewriter.create<scf::ForOp>(
+                auto kFor = scf::ForOp::create(rewriter, 
                     loc, constantVals[0], aCol, constantVals[1],
                     ValueRange{cVecInit},
                     [&](OpBuilder &builder, Location loc, Value kIdx,
                         ValueRange accVecs) {
-                      Value aEle = rewriter.create<memref::LoadOp>(
+                      Value aEle = memref::LoadOp::create(rewriter, 
                           loc, A, ValueRange{bIdx, constantVals[0], kIdx});
-                      Value aVec = rewriter.create<vector::BroadcastOp>(
+                      Value aVec = vector::BroadcastOp::create(rewriter, 
                           loc, vectorTy, aEle);
-                      Value bVec = rewriter.create<vector::LoadOp>(
+                      Value bVec = vector::LoadOp::create(rewriter, 
                           loc, vectorTy, B, ValueRange{bIdx, kIdx, nIdx});
                       Value newAcc;
                       if (isa<IntegerType>(elementType)) {
                         Value mulVec =
-                            rewriter.create<arith::MulIOp>(loc, aVec, bVec);
-                        newAcc = rewriter.create<arith::AddIOp>(loc, mulVec,
+                            arith::MulIOp::create(rewriter, loc, aVec, bVec);
+                        newAcc = arith::AddIOp::create(rewriter, loc, mulVec,
                                                                 accVecs[0]);
                       } else {
-                        newAcc = rewriter.create<vector::FMAOp>(loc, aVec, bVec,
+                        newAcc = vector::FMAOp::create(rewriter, loc, aVec, bVec,
                                                                 accVecs[0]);
                       }
-                      builder.create<scf::YieldOp>(loc, ValueRange{newAcc});
+                      scf::YieldOp::create(builder, loc, ValueRange{newAcc});
                     });
-                rewriter.create<vector::StoreOp>(
+                vector::StoreOp::create(rewriter, 
                     loc, kFor.getResult(0), C,
                     ValueRange{bIdx, constantVals[0], nIdx});
-                builder.create<scf::YieldOp>(loc);
+                scf::YieldOp::create(builder, loc);
               });
         });
 

@@ -33,8 +33,10 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/BuiltinAttributes.h"
+#include "mlir/IR/IRMapping.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Value.h"
 #include "mlir/IR/ValueRange.h"
@@ -309,7 +311,8 @@ private:
   /// Recursively lower operations within a given block
   void lowerBlock(OpBuilder &builder, Location loc, Block *block,
                   DenseMap<Value, Value> &virSymbolTable, Value mainLoopIV,
-                  Type targetVectorType, bool isTailLoop) const {
+                  Type targetVectorType, bool isTailLoop,
+                  ArrayRef<Value> outerLoopIVs = {}) const {
     // find mapped local Value from virSymbolTable or global Value
     auto findValue = [&virSymbolTable](Value srcValue) {
       if (virSymbolTable.contains(srcValue)) {
@@ -321,28 +324,58 @@ private:
     for (Operation &innerOp : block->without_terminator()) {
       llvm::TypeSwitch<Operation *>(&innerOp)
           .Case<vir::LoadOp>([&](vir::LoadOp op) {
-            Value base = op.getBase();
-            // the lastest index is dynamic and global
-            Value lastIndex = op.getIndices().back();
-            Value baseOffset =
-                builder.create<arith::AddIOp>(loc, mainLoopIV, lastIndex);
+            Value base = findValue(op.getBase());
             auto sourceIndices = op.getIndices();
             SmallVector<Value> destIndices{};
-            // collect indices for load op
-            for (size_t i = 0, e = sourceIndices.size() - 1; i < e; ++i) {
-              auto srcOp = sourceIndices[i];
-              Value destOp = findValue(srcOp);
-              destIndices.push_back(destOp);
+
+            if (sourceIndices.empty()) {
+              // No explicit indices: the vectorized dimension uses the loop IV
+              // directly.  For multi-rank memrefs we must supply one index per
+              // dimension.
+              auto memrefType = cast<MemRefType>(base.getType());
+              unsigned rank = memrefType.getRank();
+              if (rank > 1) {
+                // Use outerLoopIVs for leading dimensions (populated by
+                // matchAndRewrite when the region contains multi-dim memrefs).
+                for (unsigned d = 0; d < rank - 1; ++d) {
+                  if (d < outerLoopIVs.size())
+                    destIndices.push_back(outerLoopIVs[d]);
+                  else
+                    destIndices.push_back(
+                        arith::ConstantIndexOp::create(builder, loc, 0));
+                }
+              }
+              destIndices.push_back(mainLoopIV);
+            } else {
+              // the last index is dynamic and global
+              Value lastIndex = sourceIndices.back();
+              Value baseOffset =
+                  arith::AddIOp::create(builder, loc, mainLoopIV, lastIndex);
+              // collect indices for load op
+              for (size_t i = 0, e = sourceIndices.size() - 1; i < e; ++i) {
+                auto srcOp = sourceIndices[i];
+                Value destOp = findValue(srcOp);
+                destIndices.push_back(destOp);
+              }
+              destIndices.push_back(baseOffset);
             }
-            destIndices.push_back(baseOffset);
 
             if (isTailLoop) {
               auto memrefLoadOp =
-                  builder.create<memref::LoadOp>(loc, base, destIndices);
+                  memref::LoadOp::create(builder, loc, base, destIndices);
               virSymbolTable[op.getResult()] = memrefLoadOp.getResult();
             } else {
-              auto vectorLoadOp = builder.create<vector::LoadOp>(
-                  loc, targetVectorType, base, destIndices);
+              // Derive the correct vector type from the memref element type,
+              // which may differ from the anchor-based targetVectorType
+              // (e.g. i1 mask vs f32 data).
+              auto memrefType = cast<MemRefType>(base.getType());
+              auto vecType = cast<VectorType>(targetVectorType);
+              auto loadVecType =
+                  VectorType::get(vecType.getShape(),
+                                  memrefType.getElementType(),
+                                  vecType.getScalableDims());
+              auto vectorLoadOp = vector::LoadOp::create(builder, 
+                  loc, loadVecType, base, destIndices);
               virSymbolTable[op.getResult()] = vectorLoadOp.getResult();
             }
           })
@@ -352,26 +385,42 @@ private:
               op.emitError("value to store not found in symbol table");
               return;
             }
-            Value base = op.getBase();
-            // the lastest index is dynamic and global
-            Value lastIndex = op.getIndices().back();
-            Value baseOffset =
-                builder.create<arith::AddIOp>(loc, mainLoopIV, lastIndex);
+            Value base = findValue(op.getBase());
             auto sourceIndices = op.getIndices();
             SmallVector<Value> destIndices{};
-            // collect indices for load op
-            for (size_t i = 0, e = sourceIndices.size() - 1; i < e; ++i) {
-              auto srcOp = sourceIndices[i];
-              Value destOp = findValue(srcOp);
-              destIndices.push_back(destOp);
+
+            if (sourceIndices.empty()) {
+              auto memrefType = cast<MemRefType>(base.getType());
+              unsigned rank = memrefType.getRank();
+              if (rank > 1) {
+                for (unsigned d = 0; d < rank - 1; ++d) {
+                  if (d < outerLoopIVs.size())
+                    destIndices.push_back(outerLoopIVs[d]);
+                  else
+                    destIndices.push_back(
+                        arith::ConstantIndexOp::create(builder, loc, 0));
+                }
+              }
+              destIndices.push_back(mainLoopIV);
+            } else {
+              // the last index is dynamic and global
+              Value lastIndex = sourceIndices.back();
+              Value baseOffset =
+                  arith::AddIOp::create(builder, loc, mainLoopIV, lastIndex);
+              // collect indices for store op
+              for (size_t i = 0, e = sourceIndices.size() - 1; i < e; ++i) {
+                auto srcOp = sourceIndices[i];
+                Value destOp = findValue(srcOp);
+                destIndices.push_back(destOp);
+              }
+              destIndices.push_back(baseOffset);
             }
-            destIndices.push_back(baseOffset);
 
             if (isTailLoop) {
-              builder.create<memref::StoreOp>(loc, valueToStore, base,
+              memref::StoreOp::create(builder, loc, valueToStore, base,
                                               destIndices);
             } else {
-              builder.create<vector::StoreOp>(loc, valueToStore, base,
+              vector::StoreOp::create(builder, loc, valueToStore, base,
                                               destIndices);
             }
           })
@@ -379,12 +428,12 @@ private:
             auto constValue = op.getValue();
             if (isTailLoop) {
               auto arithConstOp =
-                  builder.create<arith::ConstantOp>(loc, constValue);
+                  arith::ConstantOp::create(builder, loc, constValue);
               virSymbolTable[op.getResult()] = arithConstOp.getResult();
             } else {
               auto vectorConstAttr = DenseElementsAttr::get(
                   cast<ShapedType>(targetVectorType), constValue);
-              auto vectorConstOp = builder.create<arith::ConstantOp>(
+              auto vectorConstOp = arith::ConstantOp::create(builder, 
                   loc, targetVectorType, vectorConstAttr);
               virSymbolTable[op.getResult()] = vectorConstOp.getResult();
             }
@@ -394,9 +443,68 @@ private:
             if (isTailLoop) {
               virSymbolTable[op.getResult()] = scalarValue;
             } else {
-              auto vectorBroadcastOp = builder.create<vector::BroadcastOp>(
+              auto vectorBroadcastOp = vector::BroadcastOp::create(builder, 
                   loc, targetVectorType, scalarValue);
               virSymbolTable[op.getResult()] = vectorBroadcastOp.getResult();
+            }
+          })
+          .Case<vir::SelectOp>([&](vir::SelectOp op) {
+            Value cond = findValue(op.getCondition());
+            Value trueVal = findValue(op.getTrueValue());
+            Value falseVal = findValue(op.getFalseValue());
+            if (isTailLoop) {
+              auto selectOp =
+                  arith::SelectOp::create(builder, loc, cond, trueVal, falseVal);
+              virSymbolTable[op.getResult()] = selectOp.getResult();
+            } else {
+              auto selectOp =
+                  arith::SelectOp::create(builder, loc, cond, trueVal, falseVal);
+              virSymbolTable[op.getResult()] = selectOp.getResult();
+            }
+          })
+          .Case<vir::ExtFOp>([&](vir::ExtFOp op) {
+            Value input = findValue(op.getIn());
+            if (isTailLoop) {
+              auto resultType =
+                  cast<vir::DynamicVectorType>(op.getResult().getType())
+                      .getElementType();
+              auto extfOp =
+                  arith::ExtFOp::create(builder, loc, resultType, input);
+              virSymbolTable[op.getResult()] = extfOp.getResult();
+            } else {
+              // Determine the target vector type with the wider element type.
+              auto resultElemType =
+                  cast<vir::DynamicVectorType>(op.getResult().getType())
+                      .getElementType();
+              auto vecType = cast<VectorType>(targetVectorType);
+              auto destVecType =
+                  VectorType::get(vecType.getShape(), resultElemType,
+                                  vecType.getScalableDims());
+              auto extfOp =
+                  arith::ExtFOp::create(builder, loc, destVecType, input);
+              virSymbolTable[op.getResult()] = extfOp.getResult();
+            }
+          })
+          .Case<vir::TruncFOp>([&](vir::TruncFOp op) {
+            Value input = findValue(op.getIn());
+            if (isTailLoop) {
+              auto resultType =
+                  cast<vir::DynamicVectorType>(op.getResult().getType())
+                      .getElementType();
+              auto truncfOp =
+                  arith::TruncFOp::create(builder, loc, resultType, input);
+              virSymbolTable[op.getResult()] = truncfOp.getResult();
+            } else {
+              auto resultElemType =
+                  cast<vir::DynamicVectorType>(op.getResult().getType())
+                      .getElementType();
+              auto vecType = cast<VectorType>(targetVectorType);
+              auto destVecType =
+                  VectorType::get(vecType.getShape(), resultElemType,
+                                  vecType.getScalableDims());
+              auto truncfOp =
+                  arith::TruncFOp::create(builder, loc, destVecType, input);
+              virSymbolTable[op.getResult()] = truncfOp.getResult();
             }
           })
           .Case<vir::FMAOp>([&](vir::FMAOp op) {
@@ -408,14 +516,52 @@ private:
               return;
             }
             if (isTailLoop) {
-              auto mulResult = builder.create<arith::MulFOp>(loc, lhs, rhs);
+              auto mulResult = arith::MulFOp::create(builder, loc, lhs, rhs);
               auto addResult =
-                  builder.create<arith::AddFOp>(loc, mulResult, acc);
+                  arith::AddFOp::create(builder, loc, mulResult, acc);
               virSymbolTable[op.getResult()] = addResult;
             } else {
               auto vectorFMAOp =
-                  builder.create<vector::FMAOp>(loc, lhs, rhs, acc);
+                  vector::FMAOp::create(builder, loc, lhs, rhs, acc);
               virSymbolTable[op.getResult()] = vectorFMAOp.getResult();
+            }
+          })
+          .Case<vir::ReduceOp>([&](vir::ReduceOp op) {
+            Value input = findValue(op.getInput());
+            Value acc = findValue(op.getAcc());
+            if (!input || !acc) {
+              op.emitError("Reduce operands not found in symbol table");
+              return;
+            }
+            StringRef kind = op.getKind();
+            if (isTailLoop) {
+              // Scalar fallback: apply the combiner directly.
+              Value result;
+              if (kind == "add") {
+                result =
+                    arith::AddFOp::create(builder, loc, input, acc).getResult();
+              } else if (kind == "maxnum") {
+                result = arith::MaxNumFOp::create(builder, loc, input, acc)
+                             .getResult();
+              } else {
+                op.emitError("unsupported reduce kind: " + kind);
+                return;
+              }
+              virSymbolTable[op.getResult()] = result;
+            } else {
+              // Vector path: lower to vector.reduction.
+              vector::CombiningKind ck;
+              if (kind == "add") {
+                ck = vector::CombiningKind::ADD;
+              } else if (kind == "maxnum") {
+                ck = vector::CombiningKind::MAXNUMF;
+              } else {
+                op.emitError("unsupported reduce kind: " + kind);
+                return;
+              }
+              auto reductionOp = vector::ReductionOp::create(builder, 
+                  loc, ck, input, acc);
+              virSymbolTable[op.getResult()] = reductionOp.getResult();
             }
           })
           .Case<affine::AffineForOp>([&](affine::AffineForOp op) {
@@ -432,7 +578,7 @@ private:
             }
 
             // create a new affine.for
-            auto newForOp = builder.create<affine::AffineForOp>(
+            auto newForOp = affine::AffineForOp::create(builder, 
                 loc, ValueRange(op.getLowerBoundOperands()),
                 op.getLowerBoundMap(), ValueRange(op.getUpperBoundOperands()),
                 op.getUpperBoundMap(), op.getStep().getLimitedValue(),
@@ -469,7 +615,7 @@ private:
                       }
                       yieldOperands.push_back(mappedOperand);
                     }
-                    b.create<affine::AffineYieldOp>(bodyLoc, yieldOperands);
+                    affine::AffineYieldOp::create(b, bodyLoc, yieldOperands);
                   }
                 });
 
@@ -497,12 +643,51 @@ private:
               indices.push_back(mappedIndex);
             }
 
-            auto newLoadOp = builder.create<memref::LoadOp>(loc, base, indices);
+            auto newLoadOp = memref::LoadOp::create(builder, loc, base, indices);
             virSymbolTable[op.getResult()] = newLoadOp.getResult();
           })
+          .Case<memref::StoreOp>([&](memref::StoreOp op) {
+            Value valueToStore = findValue(op.getValue());
+            Value base = findValue(op.getMemRef());
+            if (!base)
+              base = op.getMemRef();
+
+            SmallVector<Value> indices;
+            for (Value index : op.getIndices()) {
+              Value mappedIndex = findValue(index);
+              indices.push_back(mappedIndex);
+            }
+
+            memref::StoreOp::create(builder, loc, valueToStore, base, indices);
+          })
           .Default([&](Operation *op) {
-            emitWarning(loc, "Unsupported operation during lowering: " +
-                                 op->getName().getStringRef());
+            // Clone the operation outside the VIR region, remapping
+            // operands through the symbol table so that the original ops
+            // inside the SetVLOp have no external uses when it is erased.
+            IRMapping mapping;
+            for (Value operand : op->getOperands()) {
+              mapping.map(operand, findValue(operand));
+            }
+            Operation *cloned = builder.clone(*op, mapping);
+            // For ops whose result types were VIR dynamic vector types,
+            // convert to the appropriate concrete type.
+            for (unsigned i = 0, e = op->getNumResults(); i < e; ++i) {
+              if (auto dynTy = dyn_cast<vir::DynamicVectorType>(
+                      op->getResult(i).getType())) {
+                if (isTailLoop) {
+                  // Scalar fallback: use the element type.
+                  cloned->getResult(i).setType(dynTy.getElementType());
+                } else if (targetVectorType) {
+                  // Vectorized: build vector type with the same element type.
+                  auto vecTy =
+                      VectorType::get(cast<VectorType>(targetVectorType)
+                                          .getShape(),
+                                      dynTy.getElementType());
+                  cloned->getResult(i).setType(vecTy);
+                }
+              }
+              virSymbolTable[op->getResult(i)] = cloned->getResult(i);
+            }
           });
     }
   }
@@ -551,63 +736,125 @@ private:
     }
 
     //===------------------------------------------------------------------===//
+    // Step 2b: Detect multi-dim memrefs and compute outer loop bounds.
+    //===------------------------------------------------------------------===//
+    // Scan for vir.load/store with empty indices on rank>1 memrefs.
+    // We need outer loops for the leading dimensions.
+    SmallVector<int64_t> outerDimSizes;
+    for (Block &block : region) {
+      for (Operation &innerOp : block) {
+        auto getMemrefType = [](Operation *o) -> MemRefType {
+          if (auto ld = dyn_cast<vir::LoadOp>(o)) {
+            if (ld.getIndices().empty())
+              return dyn_cast<MemRefType>(ld.getBase().getType());
+          } else if (auto st = dyn_cast<vir::StoreOp>(o)) {
+            if (st.getIndices().empty())
+              return dyn_cast<MemRefType>(st.getBase().getType());
+          }
+          return MemRefType{};
+        };
+        auto memTy = getMemrefType(&innerOp);
+        if (memTy && memTy.getRank() > 1) {
+          // Use the first multi-dim memref we find to determine outer dims.
+          if (outerDimSizes.empty()) {
+            for (unsigned d = 0; d < memTy.getRank() - 1; ++d)
+              outerDimSizes.push_back(memTy.getDimSize(d));
+          }
+        }
+      }
+    }
+
+    //===------------------------------------------------------------------===//
     // Step 3: Create a main vectorization loop.
     //===------------------------------------------------------------------===//
     Value vlValue = op.getVl();
     // Calculate the upper bound for vectorized loop.
     // vl_upbound = (vl_total - vl_step) + 1
-    Value vlStep = rewriter.create<arith::ConstantIndexOp>(loc, vectorWid);
-    Value vlUpboundPat = rewriter.create<arith::SubIOp>(loc, vlValue, vlStep);
-    Value vlUpbound = rewriter.create<arith::AddIOp>(
-        loc, vlUpboundPat, rewriter.create<arith::ConstantIndexOp>(loc, 1));
+    Value vlStep = arith::ConstantIndexOp::create(rewriter, loc, vectorWid);
+    Value vlUpboundPat = arith::SubIOp::create(rewriter, loc, vlValue, vlStep);
+    Value vlUpbound = arith::AddIOp::create(rewriter, 
+        loc, vlUpboundPat, arith::ConstantIndexOp::create(rewriter, loc, 1));
 
     // To avoid possible overflow calculations such as' (vl-1)/step * step+step
     // ', We directly set the upper bound of the loop to vl, and then process
     // the remainder in the tail loop. The number of iterations in the main loop
     // is vl / step
-    Value zero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+    Value zero = arith::ConstantIndexOp::create(rewriter, loc, 0);
 
     // Create affine for loop with iteration variable.
-    auto mainloop = rewriter.create<affine::AffineForOp>(
-        loc, /*lowerBound=*/ValueRange{zero}, rewriter.getDimIdentityMap(),
-        /*upperBound=*/ValueRange{vlUpbound}, rewriter.getDimIdentityMap(),
-        vectorWid,
-        /*iterArgs=*/ValueRange{},
-        [&](OpBuilder &b, Location bodyLoc, Value iv, ValueRange iterArgs) {
-          //===--------------------------------------------------------------===//
-          // Step 4: Convert operations inside the dynamic vector region.
-          //===--------------------------------------------------------------===//
-          // Symbol table: maps dynamic vector values to fixed / scalable vector
-          // values.
-          DenseMap<Value, Value> virSymbolTable;
-          // Initiate recursive descent process on top-level blocks (vectorized
-          // mode)
-          lowerBlock(b, bodyLoc, &region.front(), virSymbolTable, iv,
-                     targetVectorType, /*isTailLoop=*/false);
-          b.create<affine::AffineYieldOp>(bodyLoc);
-        });
+    // Lambda that emits the main vectorized loop + tail loop.
+    // outerIVs are the induction variables of any enclosing loops for leading
+    // dimensions of multi-dim memrefs.
+    auto emitMainAndTailLoops = [&](OpBuilder &outerBuilder, Location outerLoc,
+                                    ArrayRef<Value> outerIVs) {
+      auto mainloop = affine::AffineForOp::create(outerBuilder, 
+          outerLoc, /*lowerBound=*/ValueRange{zero},
+          outerBuilder.getDimIdentityMap(),
+          /*upperBound=*/ValueRange{vlUpbound},
+          outerBuilder.getDimIdentityMap(), vectorWid,
+          /*iterArgs=*/ValueRange{},
+          [&](OpBuilder &b, Location bodyLoc, Value iv, ValueRange iterArgs) {
+            DenseMap<Value, Value> virSymbolTable;
+            lowerBlock(b, bodyLoc, &region.front(), virSymbolTable, iv,
+                       targetVectorType, /*isTailLoop=*/false, outerIVs);
+            affine::AffineYieldOp::create(b, bodyLoc);
+          });
 
-    //===------------------------------------------------------------------===//
-    // Step 4: Create a tail loop to process the remaining elements.
-    //===------------------------------------------------------------------===//
-    // The starting point of the tail loop is where the main loop ends.
-    // vl - (vl % step)
-    Value vlRem = rewriter.create<arith::RemSIOp>(loc, vlValue, vlStep);
-    Value tailStart = rewriter.create<arith::SubIOp>(loc, vlValue, vlRem);
+      Value vlRem =
+          arith::RemSIOp::create(outerBuilder, outerLoc, vlValue, vlStep);
+      Value tailStart =
+          arith::SubIOp::create(outerBuilder, outerLoc, vlValue, vlRem);
 
-    rewriter.create<affine::AffineForOp>(
-        loc, /*lowerBound=*/ValueRange{tailStart}, rewriter.getDimIdentityMap(),
-        /*upperBound=*/ValueRange{vlValue}, rewriter.getDimIdentityMap(),
-        /*step=*/1,
-        /*iterArgs=*/ValueRange{},
-        [&](OpBuilder &b, Location bodyLoc, Value iv, ValueRange iterArgs) {
-          DenseMap<Value, Value> virSymbolTable;
-          // Initiate recursive descent process on top-level blocks (scalar
-          // mode)
-          lowerBlock(b, bodyLoc, &region.front(), virSymbolTable, iv,
-                     /*targetVectorType=*/nullptr, /*isTailLoop=*/true);
-          b.create<affine::AffineYieldOp>(bodyLoc);
-        });
+      affine::AffineForOp::create(outerBuilder, 
+          outerLoc, /*lowerBound=*/ValueRange{tailStart},
+          outerBuilder.getDimIdentityMap(),
+          /*upperBound=*/ValueRange{vlValue},
+          outerBuilder.getDimIdentityMap(),
+          /*step=*/1,
+          /*iterArgs=*/ValueRange{},
+          [&](OpBuilder &b, Location bodyLoc, Value iv, ValueRange iterArgs) {
+            DenseMap<Value, Value> virSymbolTable;
+            lowerBlock(b, bodyLoc, &region.front(), virSymbolTable, iv,
+                       /*targetVectorType=*/nullptr, /*isTailLoop=*/true,
+                       outerIVs);
+            affine::AffineYieldOp::create(b, bodyLoc);
+          });
+    };
+
+    if (outerDimSizes.empty()) {
+      // 1D case: emit directly.
+      emitMainAndTailLoops(rewriter, loc, {});
+    } else {
+      // Multi-dim case: wrap in nested affine.for loops for leading dims.
+      std::function<void(OpBuilder &, Location, unsigned,
+                         SmallVector<Value> &)>
+          buildOuterLoops = [&](OpBuilder &b, Location l, unsigned dim,
+                                SmallVector<Value> &ivs) {
+            if (dim == outerDimSizes.size()) {
+              emitMainAndTailLoops(b, l, ivs);
+              return;
+            }
+            int64_t dimSize = outerDimSizes[dim];
+            if (dimSize == ShapedType::kDynamic) {
+              // Fallback for dynamic leading dims: use 0
+              Value zeroIdx = arith::ConstantIndexOp::create(b, l, 0);
+              ivs.push_back(zeroIdx);
+              buildOuterLoops(b, l, dim + 1, ivs);
+              ivs.pop_back();
+            } else {
+              affine::AffineForOp::create(b, 
+                  l, 0, dimSize, 1, ValueRange{},
+                  [&](OpBuilder &nb, Location nl, Value iv, ValueRange) {
+                    ivs.push_back(iv);
+                    buildOuterLoops(nb, nl, dim + 1, ivs);
+                    ivs.pop_back();
+                    affine::AffineYieldOp::create(nb, nl);
+                  });
+            }
+          };
+      SmallVector<Value> ivs;
+      buildOuterLoops(rewriter, loc, 0, ivs);
+    }
 
     rewriter.eraseOp(op);
     return success();
@@ -685,7 +932,8 @@ void VIRToVectorPass::runOnOperation() {
       memref::MemRefDialect,
       vector::VectorDialect,
       affine::AffineDialect,
-      LLVM::LLVMDialect
+      LLVM::LLVMDialect,
+      math::MathDialect
     >();
   // clang-format on
   target.addLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>();

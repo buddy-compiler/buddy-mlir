@@ -229,17 +229,17 @@ public:
     auto f32VecType = VectorType::get({vecSize}, f32Type);
     auto i8VecType = VectorType::get({vecSize}, rewriter.getI8Type());
 
-    Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
-    Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
-    Value step = rewriter.create<arith::ConstantIndexOp>(loc, vecSize);
+    Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
+    Value c1 = arith::ConstantIndexOp::create(rewriter, loc, 1);
+    Value step = arith::ConstantIndexOp::create(rewriter, loc, vecSize);
 
-    Value n = rewriter.create<memref::DimOp>(loc, C, c1);
-    Value k = rewriter.create<memref::DimOp>(loc, A, c1);
+    Value n = memref::DimOp::create(rewriter, loc, C, c1);
+    Value k = memref::DimOp::create(rewriter, loc, A, c1);
 
-    Value zeroF32 = rewriter.create<arith::ConstantOp>(
+    Value zeroF32 = arith::ConstantOp::create(rewriter, 
         loc, f32Type, rewriter.getFloatAttr(f32Type, 0.0));
     Value zeroVec =
-        rewriter.create<vector::BroadcastOp>(loc, f32VecType, zeroF32);
+        vector::BroadcastOp::create(rewriter, loc, f32VecType, zeroF32);
 
     // Determine scale load indices. For scale shape [1, N], the non-1 dim
     // is at axis 1, so we load scale[0, j].
@@ -247,7 +247,7 @@ public:
     // For w8a32 matmul, scale should be along the N axis (last dim of weight).
     bool scaleAlongN = (chain->scaleAxis == (int)scaleType.getRank() - 1);
 
-    rewriter.create<scf::ParallelOp>(
+    scf::ParallelOp::create(rewriter, 
         loc,
         /*lowerBounds=*/ValueRange{c0},
         /*upperBounds=*/ValueRange{n},
@@ -256,29 +256,29 @@ public:
           Value nIdx = ivs.front();
 
           // Inner reduction loop over k, accumulating i8-cast-to-f32 * A
-          auto sumIter = builder.create<scf::ForOp>(
+          auto sumIter = scf::ForOp::create(builder, 
               loc, c0, k, c1, ValueRange{zeroVec},
               [&](OpBuilder &builder, Location loc, Value kIdx,
                   ValueRange iterArgs) {
                 // Load activation element A[0, k]
-                Value aElem = builder.create<memref::LoadOp>(
+                Value aElem = memref::LoadOp::create(builder, 
                     loc, A, ValueRange{c0, kIdx});
                 Value aVec =
-                    builder.create<vector::BroadcastOp>(loc, f32VecType, aElem);
+                    vector::BroadcastOp::create(builder, loc, f32VecType, aElem);
 
                 // Load i8 weight vector B_i8[k, j:j+vecSize]
-                Value bI8Vec = builder.create<vector::LoadOp>(
+                Value bI8Vec = vector::LoadOp::create(builder, 
                     loc, i8VecType, chain->i8Weight, ValueRange{kIdx, nIdx});
 
                 // Cast i8 -> f32
                 Value bF32Vec =
-                    builder.create<arith::SIToFPOp>(loc, f32VecType, bI8Vec);
+                    arith::SIToFPOp::create(builder, loc, f32VecType, bI8Vec);
 
                 // FMA: acc += A[0,k] * (float)B_i8[k,j]
-                Value res = builder.create<vector::FMAOp>(loc, aVec, bF32Vec,
+                Value res = vector::FMAOp::create(builder, loc, aVec, bF32Vec,
                                                           iterArgs.front());
 
-                builder.create<scf::YieldOp>(loc, res);
+                scf::YieldOp::create(builder, loc, res);
               });
 
           Value accVec = sumIter.getResult(0);
@@ -295,26 +295,26 @@ public:
               else
                 scaleIndices.push_back(c0);
             }
-            scaleVec = builder.create<vector::LoadOp>(
+            scaleVec = vector::LoadOp::create(builder, 
                 loc, f32VecType, chain->scale, scaleIndices);
           } else {
             // Fallback: load scale as scalar and broadcast
             SmallVector<Value> scaleIndices(scaleType.getRank(), c0);
             Value scaleScalar =
-                builder.create<memref::LoadOp>(loc, chain->scale, scaleIndices);
-            scaleVec = builder.create<vector::BroadcastOp>(loc, f32VecType,
+                memref::LoadOp::create(builder, loc, chain->scale, scaleIndices);
+            scaleVec = vector::BroadcastOp::create(builder, loc, f32VecType,
                                                            scaleScalar);
           }
 
           Value scaledVec =
-              builder.create<arith::MulFOp>(loc, accVec, scaleVec);
+              arith::MulFOp::create(builder, loc, accVec, scaleVec);
 
           // Add to existing C value (for correctness if C is pre-initialized)
-          Value cVec = builder.create<vector::LoadOp>(loc, f32VecType, C,
+          Value cVec = vector::LoadOp::create(builder, loc, f32VecType, C,
                                                       ValueRange{c0, nIdx});
-          Value resultVec = builder.create<arith::AddFOp>(loc, cVec, scaledVec);
+          Value resultVec = arith::AddFOp::create(builder, loc, cVec, scaledVec);
 
-          builder.create<vector::StoreOp>(loc, resultVec, C,
+          vector::StoreOp::create(builder, loc, resultVec, C,
                                           ValueRange{c0, nIdx});
         });
 

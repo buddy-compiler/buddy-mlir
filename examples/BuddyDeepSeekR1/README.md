@@ -32,7 +32,7 @@ $ cmake -G Ninja ../llvm \
     -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
     -DPython3_EXECUTABLE=$(which python3)
 $ ninja check-clang check-mlir
-$ ninja -C runtimes/runtimes-bins omp
+$ ninja -C llvm/build runtimes/runtimes-build && ninja -C llvm/build/runtimes/runtimes-bins omp
 ```
 
 Buddy links `-lomp` against the library produced under `runtimes-bins/openmp/runtime/src`, not only `${LLVM_LIBRARY_DIR}`. **Alternative (older layout):** enable `openmp` in `LLVM_ENABLE_PROJECTS` and run `ninja omp` from the LLVM build root; the link line still searches `${LLVM_LIBRARY_DIR}` after the runtimes path.

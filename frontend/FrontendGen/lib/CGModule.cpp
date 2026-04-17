@@ -344,9 +344,8 @@ void CGModule::emitOp(Op *op, int index) {
     llvm::StringRef cppNameSpace(
         module->getDialect()->getCppNamespace().data() + 1,
         module->getDialect()->getCppNamespace().size() - 2);
-    os << "  "
-       << "builder.create<" << cppNameSpace << "::" << op->getOpName()
-       << ">(location";
+    os << "  " << cppNameSpace << "::" << op->getOpName()
+       << "::create(builder, location";
     if (opArguments.size())
       os << ", ";
     for (size_t index = 0; index < opArguments.size(); index++) {
@@ -387,9 +386,8 @@ void CGModule::emitOp(Op *op, int index) {
     llvm::StringRef cppNameSpace(
         module->getDialect()->getCppNamespace().data() + 1,
         module->getDialect()->getCppNamespace().size() - 2);
-    os << "  "
-       << "builder.create<" << cppNameSpace << "::" << op->getOpName()
-       << ">(location";
+    os << "  " << cppNameSpace << "::" << op->getOpName()
+       << "::create(builder, location";
     if (!operandNames.empty()) {
       os << ", ";
       for (size_t index = 0; index < opArguments.size(); index++) {

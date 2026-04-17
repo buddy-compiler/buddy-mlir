@@ -64,25 +64,25 @@ public:
       //
       if (isa<arith::AddFOp>(innerOp)) {
         Type resultType = cast<arith::AddFOp>(innerOp).getResult().getType();
-        Value result = rewriter.create<LLVM::VPFAddOp>(
+        Value result = LLVM::VPFAddOp::create(rewriter, 
             loc, resultType, cast<arith::AddFOp>(innerOp).getLhs(),
             cast<arith::AddFOp>(innerOp).getRhs(), op.getMask(), op.getVl());
         rewriter.replaceOp(op, result);
       } else if (isa<arith::MulFOp>(innerOp)) {
         Type resultType = cast<arith::MulFOp>(innerOp).getResult().getType();
-        Value result = rewriter.create<LLVM::VPFMulOp>(
+        Value result = LLVM::VPFMulOp::create(rewriter, 
             loc, resultType, cast<arith::MulFOp>(innerOp).getLhs(),
             cast<arith::MulFOp>(innerOp).getRhs(), op.getMask(), op.getVl());
         rewriter.replaceOp(op, result);
       } else if (isa<arith::AddIOp>(innerOp)) {
         Type resultType = cast<arith::AddIOp>(innerOp).getResult().getType();
-        Value result = rewriter.create<LLVM::VPAddOp>(
+        Value result = LLVM::VPAddOp::create(rewriter, 
             loc, resultType, cast<arith::AddIOp>(innerOp).getLhs(),
             cast<arith::AddIOp>(innerOp).getRhs(), op.getMask(), op.getVl());
         rewriter.replaceOp(op, result);
       } else if (isa<arith::MulIOp>(innerOp)) {
         Type resultType = cast<arith::MulIOp>(innerOp).getResult().getType();
-        Value result = rewriter.create<LLVM::VPMulOp>(
+        Value result = LLVM::VPMulOp::create(rewriter, 
             loc, resultType, cast<arith::MulIOp>(innerOp).getLhs(),
             cast<arith::MulIOp>(innerOp).getRhs(), op.getMask(), op.getVl());
         rewriter.replaceOp(op, result);
@@ -94,8 +94,8 @@ public:
         // - Create UnrealizedConversionCastOp to provide the descriptor value.
         MemRefType memRefTy = loadOp.getMemRefType();
         Type structType = this->getTypeConverter()->convertType(memRefTy);
-        Value memDesc = rewriter
-                            .create<UnrealizedConversionCastOp>(
+        Value memDesc = UnrealizedConversionCastOp::create(
+                            rewriter, 
                                 loc, structType, loadOp.getBase())
                             .getResult(0);
         // Prepare the integer indices for the `getStridedElementPtr`.
@@ -107,7 +107,7 @@ public:
           Type idxType = idx.getType();
           Type intType = this->getTypeConverter()->convertType(idxType);
           Value intIdx =
-              rewriter.create<UnrealizedConversionCastOp>(loc, intType, idx)
+              UnrealizedConversionCastOp::create(rewriter, loc, intType, idx)
                   .getResult(0);
           indices.push_back(intIdx);
         }
@@ -121,7 +121,7 @@ public:
         // - Replace original predication operation.
         VectorType resultType =
             mlir::cast<mlir::VectorType>(op.getResult().getType());
-        Value resultValue = rewriter.create<LLVM::VPLoadOp>(
+        Value resultValue = LLVM::VPLoadOp::create(rewriter, 
             loc, resultType, dataPtr, op.getMask(), op.getVl());
         rewriter.replaceOp(op, resultValue);
       } else if (isa<vector::StoreOp>(innerOp)) {
@@ -134,8 +134,8 @@ public:
         Value valueToStore = storeOp.getValueToStore();
         MemRefType memRefTy = storeOp.getMemRefType();
         Type structType = this->getTypeConverter()->convertType(memRefTy);
-        Value memDesc = rewriter
-                            .create<UnrealizedConversionCastOp>(
+        Value memDesc = UnrealizedConversionCastOp::create(
+                            rewriter, 
                                 loc, structType, storeOp.getBase())
                             .getResult(0);
         SmallVector<Value, 4> indices;
@@ -143,13 +143,13 @@ public:
           Type idxType = idx.getType();
           Type intType = this->getTypeConverter()->convertType(idxType);
           Value intIdx =
-              rewriter.create<UnrealizedConversionCastOp>(loc, intType, idx)
+              UnrealizedConversionCastOp::create(rewriter, loc, intType, idx)
                   .getResult(0);
           indices.push_back(intIdx);
         }
         Value dataPtr = this->getStridedElementPtr(rewriter, loc, memRefTy,
                                                    memDesc, indices);
-        rewriter.create<LLVM::VPStoreOp>(loc, valueToStore, dataPtr,
+        LLVM::VPStoreOp::create(rewriter, loc, valueToStore, dataPtr,
                                          op.getMask(), op.getVl());
         rewriter.eraseOp(op);
       } else if (isa<vector::YieldOp>(innerOp)) {
@@ -193,7 +193,7 @@ public:
     /// Max SetVL
     IndexType indexType = IndexType::get(ctx);
     // TODO: Find a more reasonable way to obtain the max VL.
-    auto maxVLVal = rewriter.create<arith::ConstantIndexOp>(loc, 4096);
+    auto maxVLVal = arith::ConstantIndexOp::create(rewriter, loc, 4096);
     // Supported data types: i32, i64, f32, f64.
     // Type mapping relationship:
     // 8 bit - arith.constant 0
@@ -220,7 +220,7 @@ public:
       emitError(loc, "Unsupported data type width");
       return failure();
     }
-    auto sewVal = rewriter.create<arith::ConstantIndexOp>(loc, dtypeConfig);
+    auto sewVal = arith::ConstantIndexOp::create(rewriter, loc, dtypeConfig);
     // Supported LMUL values: 1, 2, 4, 8.
     // LMUL = 1 - arith.constant 0
     // LMUL = 2 - arith.constant 1
@@ -246,8 +246,8 @@ public:
       emitError(loc, "Unsupported LMUL value: " + std::to_string(lmulAttr));
       return failure();
     }
-    auto lmulVal = rewriter.create<arith::ConstantIndexOp>(loc, lmulConfig);
-    auto maxVLOp = rewriter.create<buddy::rvv::RVVSetVlOp>(
+    auto lmulVal = arith::ConstantIndexOp::create(rewriter, loc, lmulConfig);
+    auto maxVLOp = buddy::rvv::RVVSetVlOp::create(rewriter, 
         loc, indexType, maxVLVal, sewVal, lmulVal);
 
     rewriter.replaceOp(op, maxVLOp);
@@ -327,7 +327,7 @@ public:
       emitError(loc, "Unsupported data type width");
       return failure();
     }
-    auto sewVal = rewriter.create<arith::ConstantIndexOp>(loc, dtypeConfig);
+    auto sewVal = arith::ConstantIndexOp::create(rewriter, loc, dtypeConfig);
     // Supported LMUL values: 1, 2, 4, 8.
     // LMUL = 1 - arith.constant 0
     // LMUL = 2 - arith.constant 1
@@ -353,10 +353,10 @@ public:
       emitError(loc, "Unsupported LMUL value: " + std::to_string(lmulAttr));
       return failure();
     }
-    auto lmulVal = rewriter.create<arith::ConstantIndexOp>(loc, lmulConfig);
+    auto lmulVal = arith::ConstantIndexOp::create(rewriter, loc, lmulConfig);
     // Generate RVV SetVL operation.
     IndexType indexType = IndexType::get(ctx);
-    rewriter.create<buddy::rvv::RVVSetVlOp>(loc, indexType, avlValue, sewVal,
+    buddy::rvv::RVVSetVlOp::create(rewriter, loc, indexType, avlValue, sewVal,
                                             lmulVal);
 
     // Access the Region
@@ -382,14 +382,14 @@ public:
         Value lhsVal = symbolTable[lhsOrigVal];
         Value rhsOrigVal = addIOp.getRhs();
         Value rhsVal = symbolTable[rhsOrigVal];
-        Value resultValue = rewriter.create<buddy::rvv::RVVAddOp>(
+        Value resultValue = buddy::rvv::RVVAddOp::create(rewriter, 
             loc, scalableVectorType, lhsVal, rhsVal, avlValue);
         symbolTable[innerOp.getResult(0)] = resultValue;
       } else if (isa<vector::LoadOp>(innerOp)) {
         vector::LoadOp loadOp = cast<vector::LoadOp>(innerOp);
         auto baseOp = loadOp.getBase();
         auto idx = loadOp.getIndices().front();
-        Value resultValue = rewriter.create<buddy::rvv::RVVLoadOp>(
+        Value resultValue = buddy::rvv::RVVLoadOp::create(rewriter, 
             loc, scalableVectorType, baseOp, idx, avlValue);
         symbolTable[innerOp.getResult(0)] = resultValue;
       } else if (isa<vector::StoreOp>(innerOp)) {
@@ -398,7 +398,7 @@ public:
         Value valueToStore = symbolTable[origValueToStore];
         auto baseOp = storeOp.getBase();
         auto idx = storeOp.getIndices().front();
-        rewriter.create<buddy::rvv::RVVStoreOp>(loc, valueToStore, baseOp, idx,
+        buddy::rvv::RVVStoreOp::create(rewriter, loc, valueToStore, baseOp, idx,
                                                 avlValue);
       }
     }

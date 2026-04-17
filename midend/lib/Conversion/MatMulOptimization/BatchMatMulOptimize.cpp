@@ -100,16 +100,16 @@ public:
     llvm::SmallVector<Value, 8> constantVals;
     for (int i = 0; i <= 8; ++i) {
       auto val =
-          rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(i));
+          arith::ConstantOp::create(rewriter, loc, rewriter.getIndexAttr(i));
       constantVals.push_back(val);
     }
-    Value vlStep = rewriter.create<arith::ConstantIndexOp>(loc, vecSize);
+    Value vlStep = arith::ConstantIndexOp::create(rewriter, loc, vecSize);
 
     // Get dimensions of input tensors.
-    Value batch = rewriter.create<memref::DimOp>(loc, A, constantVals[0]);
-    Value aRow = rewriter.create<memref::DimOp>(loc, A, constantVals[1]);
-    Value aCol = rewriter.create<memref::DimOp>(loc, A, constantVals[2]);
-    Value bCol = rewriter.create<memref::DimOp>(loc, C, constantVals[2]);
+    Value batch = memref::DimOp::create(rewriter, loc, A, constantVals[0]);
+    Value aRow = memref::DimOp::create(rewriter, loc, A, constantVals[1]);
+    Value aCol = memref::DimOp::create(rewriter, loc, A, constantVals[2]);
+    Value bCol = memref::DimOp::create(rewriter, loc, C, constantVals[2]);
 
     AffineMap unrollMap = AffineMap::get(
         /*dimCount=*/1,
@@ -122,17 +122,17 @@ public:
         /*symbolCount=*/0, {d0 - d1 + rewriter.getAffineConstantExpr(1)}, ctx);
 
     Value tailSize =
-        rewriter.create<AffineApplyOp>(loc, unrollMap, ValueRange{aRow});
-    Value parallelSize = rewriter.create<AffineApplyOp>(
+        AffineApplyOp::create(rewriter, loc, unrollMap, ValueRange{aRow});
+    Value parallelSize = AffineApplyOp::create(rewriter, 
         loc, tailMap, ValueRange{aRow, tailSize});
 
-    Value nUpperBound = rewriter.create<AffineApplyOp>(
+    Value nUpperBound = AffineApplyOp::create(rewriter, 
         loc, affineMapVec, ValueRange{bCol, vlStep});
 
     auto createUnrollParallel = [&](int unrollSize, Value lowerBound,
                                     Value upperBound) {
       // Create the primary parallel batch level loop.
-      auto parOp = rewriter.create<scf::ParallelOp>(
+      auto parOp = scf::ParallelOp::create(rewriter, 
           loc,
           /*lowerBounds=*/ValueRange{constantVals[0], lowerBound},
           /*upperBounds=*/ValueRange{batch, upperBound},
@@ -141,118 +141,118 @@ public:
             llvm::SmallVector<Value, 8> mIndices;
             for (int i = 0; i < unrollSize; ++i) {
               auto mIndex =
-                  rewriter.create<arith::AddIOp>(loc, ivs[1], constantVals[i]);
+                  arith::AddIOp::create(rewriter, loc, ivs[1], constantVals[i]);
               mIndices.push_back(mIndex);
             }
 
-            auto iter_idx = rewriter.create<scf::ForOp>(
+            auto iter_idx = scf::ForOp::create(rewriter, 
                 loc, constantVals[0], nUpperBound,
                 /*Step=*/vlStep, ValueRange{constantVals[0]},
                 [&](OpBuilder &builder, Location loc, Value iv0,
                     ValueRange iterArgs0) {
                   SmallVector<Value> cVecs;
                   for (auto mIndex : mIndices) {
-                    auto cInitVec = rewriter.create<vector::LoadOp>(
+                    auto cInitVec = vector::LoadOp::create(rewriter, 
                         loc, vectorTy, C, ValueRange{ivs[0], mIndex, iv0});
                     cVecs.push_back(cInitVec);
                   }
-                  auto sumIterVecs = builder.create<scf::ForOp>(
+                  auto sumIterVecs = scf::ForOp::create(builder, 
                       loc, constantVals[0], aCol, /*Step=*/constantVals[1],
                       ValueRange{cVecs},
                       [&](OpBuilder &builder, Location loc, Value iv1,
                           ValueRange iterArgs1) {
-                        auto bVec = rewriter.create<vector::LoadOp>(
+                        auto bVec = vector::LoadOp::create(rewriter, 
                             loc, vectorTy, B, ValueRange{ivs[0], iv1, iv0});
                         SmallVector<Value> resSumVecs;
                         if (isa<IntegerType>(elementType)) {
                           for (int i = 0; i < unrollSize; ++i) {
-                            auto aEle = rewriter.create<memref::LoadOp>(
+                            auto aEle = memref::LoadOp::create(rewriter, 
                                 loc, A, ValueRange{ivs[0], mIndices[i], iv1});
-                            auto aVec = rewriter.create<vector::BroadcastOp>(
+                            auto aVec = vector::BroadcastOp::create(rewriter, 
                                 loc, vectorTy, aEle);
                             Value mulVec =
-                                builder.create<arith::MulIOp>(loc, aVec, bVec);
-                            Value resSumVec = builder.create<arith::AddIOp>(
+                                arith::MulIOp::create(builder, loc, aVec, bVec);
+                            Value resSumVec = arith::AddIOp::create(builder, 
                                 loc, mulVec, iterArgs1[i]);
                             resSumVecs.push_back(resSumVec);
                           }
                         } else {
                           for (int i = 0; i < unrollSize; ++i) {
-                            auto aEle = rewriter.create<memref::LoadOp>(
+                            auto aEle = memref::LoadOp::create(rewriter, 
                                 loc, A, ValueRange{ivs[0], mIndices[i], iv1});
-                            auto aVec = rewriter.create<vector::BroadcastOp>(
+                            auto aVec = vector::BroadcastOp::create(rewriter, 
                                 loc, vectorTy, aEle);
-                            Value resSumVec = rewriter.create<vector::FMAOp>(
+                            Value resSumVec = vector::FMAOp::create(rewriter, 
                                 loc, aVec, bVec, iterArgs1[i]);
                             resSumVecs.push_back(resSumVec);
                           }
                         }
-                        builder.create<scf::YieldOp>(loc,
+                        scf::YieldOp::create(builder, loc,
                                                      ValueRange{resSumVecs});
                       });
                   for (int i = 0; i < unrollSize; ++i) {
-                    rewriter.create<vector::StoreOp>(
+                    vector::StoreOp::create(rewriter, 
                         loc, sumIterVecs.getResult(i), C,
                         ValueRange{ivs[0], mIndices[i], iv0});
                   }
 
                   auto nextIdx =
-                      rewriter.create<arith::AddIOp>(loc, iv0, vlStep);
-                  builder.create<scf::YieldOp>(loc, ValueRange{nextIdx});
+                      arith::AddIOp::create(rewriter, loc, iv0, vlStep);
+                  scf::YieldOp::create(builder, loc, ValueRange{nextIdx});
                 });
             // Compute the tail size and Process the remaining elements
             // using masked vector operations.
             Value idx = iter_idx.getResult(0);
-            rewriter.create<scf::ForOp>(
+            scf::ForOp::create(rewriter, 
                 loc, idx, bCol,
                 /*Step=*/constantVals[1], ValueRange{},
                 [&](OpBuilder &builder, Location loc, Value iv0,
                     ValueRange itrArgs0) {
                   SmallVector<Value> cEles;
                   for (auto mIndex : mIndices) {
-                    auto cInit = rewriter.create<memref::LoadOp>(
+                    auto cInit = memref::LoadOp::create(rewriter, 
                         loc, C, ValueRange{ivs[0], mIndex, iv0});
                     cEles.push_back(cInit);
                   }
-                  auto sumIterVecs = rewriter.create<scf::ForOp>(
+                  auto sumIterVecs = scf::ForOp::create(rewriter, 
                       loc, constantVals[0], aCol, constantVals[1],
                       ValueRange{cEles},
                       [&](OpBuilder &builder, Location loc, Value iv1,
                           ValueRange iterArgs1) {
-                        auto bEle = rewriter.create<memref::LoadOp>(
+                        auto bEle = memref::LoadOp::create(rewriter, 
                             loc, B, ValueRange{ivs[0], iv1, iv0});
                         SmallVector<Value> resSums;
                         if (isa<IntegerType>(elementType)) {
                           for (int i = 0; i < unrollSize; ++i) {
-                            auto aEle = rewriter.create<memref::LoadOp>(
+                            auto aEle = memref::LoadOp::create(rewriter, 
                                 loc, A, ValueRange{ivs[0], mIndices[i], iv1});
                             auto tmpEle =
-                                rewriter.create<arith::MulIOp>(loc, aEle, bEle);
-                            auto resSum = rewriter.create<arith::AddIOp>(
+                                arith::MulIOp::create(rewriter, loc, aEle, bEle);
+                            auto resSum = arith::AddIOp::create(rewriter, 
                                 loc, tmpEle, iterArgs1[i]);
                             resSums.push_back(resSum);
                           }
                         } else {
                           for (int i = 0; i < unrollSize; ++i) {
-                            auto aEle = rewriter.create<memref::LoadOp>(
+                            auto aEle = memref::LoadOp::create(rewriter, 
                                 loc, A, ValueRange{ivs[0], mIndices[i], iv1});
                             auto tmpEle =
-                                rewriter.create<arith::MulFOp>(loc, aEle, bEle);
-                            auto resSum = rewriter.create<arith::AddFOp>(
+                                arith::MulFOp::create(rewriter, loc, aEle, bEle);
+                            auto resSum = arith::AddFOp::create(rewriter, 
                                 loc, tmpEle, iterArgs1[i]);
                             resSums.push_back(resSum);
                           }
                         }
 
-                        builder.create<scf::YieldOp>(loc, ValueRange{resSums});
+                        scf::YieldOp::create(builder, loc, ValueRange{resSums});
                       });
 
                   for (int i = 0; i < unrollSize; i++) {
-                    rewriter.create<memref::StoreOp>(
+                    memref::StoreOp::create(rewriter, 
                         loc, sumIterVecs.getResult(i), C,
                         ValueRange{ivs[0], mIndices[i], iv0});
                   }
-                  builder.create<scf::YieldOp>(loc);
+                  scf::YieldOp::create(builder, loc);
                 });
           });
     };

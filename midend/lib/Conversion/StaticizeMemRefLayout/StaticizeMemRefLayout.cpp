@@ -146,7 +146,7 @@ public:
 
       // Create new reinterpret_cast with static layout
       builder.setInsertionPointAfter(reinterpretOp);
-      auto newReinterpretOp = builder.create<memref::ReinterpretCastOp>(
+      auto newReinterpretOp = memref::ReinterpretCastOp::create(builder, 
           reinterpretOp.getLoc(), staticType, baseBuffer, staticOffsetOfr,
           staticSizes, staticStridesOfr);
 
