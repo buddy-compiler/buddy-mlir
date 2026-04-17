@@ -111,13 +111,13 @@ Value createPackedBMatrix(OpBuilder &builder, Location loc, Value B, int64_t K,
   SmallVector<Value> dynamicSizes;
   SmallVector<int64_t> staticShape;
 
-  Value c0 = builder.create<arith::ConstantIndexOp>(loc, 0);
-  Value c1 = builder.create<arith::ConstantIndexOp>(loc, 1);
+  Value c0 = arith::ConstantIndexOp::create(builder, loc, 0);
+  Value c1 = arith::ConstantIndexOp::create(builder, loc, 1);
 
   // For K dimension
   if (K == ShapedType::kDynamic) {
     staticShape.push_back(ShapedType::kDynamic);
-    dynamicSizes.push_back(builder.create<memref::DimOp>(loc, B, c0));
+    dynamicSizes.push_back(memref::DimOp::create(builder, loc, B, c0));
   } else {
     staticShape.push_back(K);
   }
@@ -125,7 +125,7 @@ Value createPackedBMatrix(OpBuilder &builder, Location loc, Value B, int64_t K,
   // For N dimension
   if (N == ShapedType::kDynamic) {
     staticShape.push_back(ShapedType::kDynamic);
-    dynamicSizes.push_back(builder.create<memref::DimOp>(loc, B, c1));
+    dynamicSizes.push_back(memref::DimOp::create(builder, loc, B, c1));
   } else {
     staticShape.push_back(N);
   }
@@ -135,37 +135,37 @@ Value createPackedBMatrix(OpBuilder &builder, Location loc, Value B, int64_t K,
   // will be handled by later passes
   auto packedBType = MemRefType::get(staticShape, elementType);
   Value packedB =
-      builder.create<memref::AllocOp>(loc, packedBType, dynamicSizes);
+      memref::AllocOp::create(builder, loc, packedBType, dynamicSizes);
 
   // Get actual dimension sizes (handle both static and dynamic cases)
   Value cK, cN;
   if (K == ShapedType::kDynamic) {
-    cK = builder.create<memref::DimOp>(loc, B, c0).getResult();
+    cK = memref::DimOp::create(builder, loc, B, c0).getResult();
   } else {
-    cK = builder.create<arith::ConstantIndexOp>(loc, K).getResult();
+    cK = arith::ConstantIndexOp::create(builder, loc, K).getResult();
   }
 
   if (N == ShapedType::kDynamic) {
-    cN = builder.create<memref::DimOp>(loc, B, c1).getResult();
+    cN = memref::DimOp::create(builder, loc, B, c1).getResult();
   } else {
-    cN = builder.create<arith::ConstantIndexOp>(loc, N).getResult();
+    cN = arith::ConstantIndexOp::create(builder, loc, N).getResult();
   }
 
   // Simple copy for now - in a real implementation, this would be
   // a more sophisticated packing operation
-  builder.create<scf::ForOp>(
+  scf::ForOp::create(builder, 
       loc, c0, cK, c1, ValueRange{},
       [&](OpBuilder &builder, Location loc, Value i, ValueRange) {
-        builder.create<scf::ForOp>(
+        scf::ForOp::create(builder, 
             loc, c0, cN, c1, ValueRange{},
             [&](OpBuilder &builder, Location loc, Value j, ValueRange) {
               Value val =
-                  builder.create<memref::LoadOp>(loc, B, ValueRange{i, j});
-              builder.create<memref::StoreOp>(loc, val, packedB,
+                  memref::LoadOp::create(builder, loc, B, ValueRange{i, j});
+              memref::StoreOp::create(builder, loc, val, packedB,
                                               ValueRange{i, j});
-              builder.create<scf::YieldOp>(loc);
+              scf::YieldOp::create(builder, loc);
             });
-        builder.create<scf::YieldOp>(loc);
+        scf::YieldOp::create(builder, loc);
       });
 
   return packedB;
@@ -226,29 +226,29 @@ public:
     int64_t N = BShape[1];
 
     // Create constants
-    Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
-    Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
-    Value c16 = rewriter.create<arith::ConstantIndexOp>(loc, 16);
-    Value c32 = rewriter.create<arith::ConstantIndexOp>(loc, 32);
+    Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
+    Value c1 = arith::ConstantIndexOp::create(rewriter, loc, 1);
+    Value c16 = arith::ConstantIndexOp::create(rewriter, loc, 16);
+    Value c32 = arith::ConstantIndexOp::create(rewriter, loc, 32);
 
     // Handle dynamic dimensions
     Value cM, cN, cK;
     if (M == ShapedType::kDynamic) {
-      cM = rewriter.create<memref::DimOp>(loc, A, c0);
+      cM = memref::DimOp::create(rewriter, loc, A, c0);
     } else {
-      cM = rewriter.create<arith::ConstantIndexOp>(loc, M);
+      cM = arith::ConstantIndexOp::create(rewriter, loc, M);
     }
 
     if (N == ShapedType::kDynamic) {
-      cN = rewriter.create<memref::DimOp>(loc, B, c1);
+      cN = memref::DimOp::create(rewriter, loc, B, c1);
     } else {
-      cN = rewriter.create<arith::ConstantIndexOp>(loc, N);
+      cN = arith::ConstantIndexOp::create(rewriter, loc, N);
     }
 
     if (K == ShapedType::kDynamic) {
-      cK = rewriter.create<memref::DimOp>(loc, A, c1);
+      cK = memref::DimOp::create(rewriter, loc, A, c1);
     } else {
-      cK = rewriter.create<arith::ConstantIndexOp>(loc, K);
+      cK = arith::ConstantIndexOp::create(rewriter, loc, K);
     }
 
     // Create pre-packed B matrix for AMX-friendly tile loads
@@ -262,10 +262,10 @@ public:
 
     // Generate AMX tile computation loops
     // Outer loops: iterate over M and N dimensions in 16x16 tiles
-    rewriter.create<scf::ForOp>(
+    scf::ForOp::create(rewriter, 
         loc, c0, cM, c16, ValueRange{},
         [&](OpBuilder &builder, Location loc, Value m, ValueRange) {
-          builder.create<scf::ForOp>(
+          scf::ForOp::create(builder, 
               loc, c0, cN, c16, ValueRange{},
               [&](OpBuilder &builder, Location loc, Value n, ValueRange) {
                 // Initialize accumulator tile to zero
@@ -275,7 +275,7 @@ public:
                                            zeroTile);
 
                 // Inner loop: iterate over K dimension in chunks of 32
-                builder.create<scf::ForOp>(
+                scf::ForOp::create(builder, 
                     loc, c0, cK, c32, ValueRange{},
                     [&](OpBuilder &builder, Location loc, Value k, ValueRange) {
                       // Load A tile: 16x32xbf16 from [%m, %k]
@@ -299,11 +299,11 @@ public:
                       amx::TileStoreOp::create(builder, loc, C,
                                                ValueRange{m, n}, tAcc2);
 
-                      builder.create<scf::YieldOp>(loc);
+                      scf::YieldOp::create(builder, loc);
                     });
-                builder.create<scf::YieldOp>(loc);
+                scf::YieldOp::create(builder, loc);
               });
-          builder.create<scf::YieldOp>(loc);
+          scf::YieldOp::create(builder, loc);
         });
 
     // Remove the original linalg.matmul operation

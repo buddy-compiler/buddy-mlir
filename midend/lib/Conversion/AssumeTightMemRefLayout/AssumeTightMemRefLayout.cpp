@@ -109,7 +109,7 @@ public:
         builder.setInsertionPointToStart(value.getParentBlock());
 
       // Extract the current layout metadata so we can rebuild a tighter view.
-      auto metadata = builder.create<memref::ExtractStridedMetadataOp>(
+      auto metadata = memref::ExtractStridedMetadataOp::create(builder, 
           value.getLoc(), value);
 
       SmallVector<OpFoldResult> sizes;
@@ -153,7 +153,7 @@ public:
           MemRefType::get(type.getShape(), type.getElementType(),
                           tightenedLayout, type.getMemorySpace());
 
-      auto reinterpret = builder.create<memref::ReinterpretCastOp>(
+      auto reinterpret = memref::ReinterpretCastOp::create(builder, 
           value.getLoc(), tightenedType, metadata.getBaseBuffer(), offset,
           sizes, stridesOfr);
 

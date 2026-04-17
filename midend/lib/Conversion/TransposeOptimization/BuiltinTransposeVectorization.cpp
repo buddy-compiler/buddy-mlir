@@ -84,48 +84,48 @@ public:
 
     // Define constants.
     const Value index0 =
-        rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0));
-    const Value indexVecSize = rewriter.create<arith::ConstantOp>(
+        arith::ConstantOp::create(rewriter, loc, rewriter.getIndexAttr(0));
+    const Value indexVecSize = arith::ConstantOp::create(rewriter, 
         loc, rewriter.getIndexAttr(affineVectorSize));
     const AffineExpr d0 = rewriter.getAffineDimExpr(0);
     const AffineExpr d1 = rewriter.getAffineDimExpr(1);
     const AffineExpr s0 = rewriter.getAffineSymbolExpr(0);
     const AffineExpr zeroAffine = rewriter.getAffineConstantExpr(0);
 
-    const Value zeroElementType = rewriter.create<arith::ConstantOp>(
+    const Value zeroElementType = arith::ConstantOp::create(rewriter, 
         loc, rewriter.getZeroAttr(elementType));
 
     // Get dimensions of input tensor.
-    Value Row = rewriter.create<memref::DimOp>(loc, A, 0);
-    Value Col = rewriter.create<memref::DimOp>(loc, A, 1);
+    Value Row = memref::DimOp::create(rewriter, loc, A, 0);
+    Value Col = memref::DimOp::create(rewriter, loc, A, 1);
 
     // Calculate the length of the tail, which might not fit in a vector.
-    Value rowUnalignedLength = rewriter.create<affine::AffineApplyOp>(
+    Value rowUnalignedLength = affine::AffineApplyOp::create(rewriter, 
         loc, AffineMap::get(1, 0, d0 % affineVectorSize), ValueRange{Row});
-    Value colUnalignedLength = rewriter.create<affine::AffineApplyOp>(
+    Value colUnalignedLength = affine::AffineApplyOp::create(rewriter, 
         loc, AffineMap::get(1, 0, d0 % affineVectorSize), ValueRange{Col});
-    Value rowUpperBound = rewriter.create<affine::AffineApplyOp>(
+    Value rowUpperBound = affine::AffineApplyOp::create(rewriter, 
         loc,
         AffineMap::get(1, 0, d0.floorDiv(affineVectorSize) * affineVectorSize),
         ValueRange{Row});
 
     // Generate a mask vector based on the tail length.
-    Value rowEndMaskLoad = rewriter.create<vector::CreateMaskOp>(
+    Value rowEndMaskLoad = vector::CreateMaskOp::create(rewriter, 
         loc,
         VectorType::get({affineVectorSize, affineVectorSize},
                         rewriter.getI1Type()),
         ValueRange{rowUnalignedLength, indexVecSize});
-    Value colEndMaskLoad = rewriter.create<vector::CreateMaskOp>(
+    Value colEndMaskLoad = vector::CreateMaskOp::create(rewriter, 
         loc,
         VectorType::get({affineVectorSize, affineVectorSize},
                         rewriter.getI1Type()),
         ValueRange{indexVecSize, colUnalignedLength});
-    Value rowEndMaskStore = rewriter.create<vector::CreateMaskOp>(
+    Value rowEndMaskStore = vector::CreateMaskOp::create(rewriter, 
         loc,
         VectorType::get({affineVectorSize, affineVectorSize},
                         rewriter.getI1Type()),
         ValueRange{indexVecSize, rowUnalignedLength});
-    Value colEndMaskStore = rewriter.create<vector::CreateMaskOp>(
+    Value colEndMaskStore = vector::CreateMaskOp::create(rewriter, 
         loc,
         VectorType::get({affineVectorSize, affineVectorSize},
                         rewriter.getI1Type()),
@@ -137,7 +137,7 @@ public:
 
     // Create the primary parallel loop.
     AffineParallelOp parallelColLoop =
-        rewriter.create<affine::AffineParallelOp>(
+        affine::AffineParallelOp::create(rewriter, 
             loc, ValueRange(reducedValues).getTypes(), ValueRange{Col},
             ArrayRef<NamedAttribute>{
                 rewriter.getNamedAttr("lowerBoundsGroups",
@@ -169,7 +169,7 @@ public:
         [&](OpBuilder &builder, Location loc, ValueRange ivRange) {
           Value rowIdx = ivRange.front();
 
-          auto tiledMatrix = rewriter.create<vector::TransferReadOp>(
+          auto tiledMatrix = vector::TransferReadOp::create(rewriter, 
               loc,
               TypeRange{VectorType::get(
                   ArrayRef<int64_t>{affineVectorSize, affineVectorSize},
@@ -188,7 +188,7 @@ public:
                           2, 0, {d0, d1}, rewriter.getContext()))),
               });
 
-          rewriter.create<vector::TransferWriteOp>(
+          vector::TransferWriteOp::create(rewriter, 
               loc, TypeRange{}, ValueRange{tiledMatrix, B, colIdx, rowIdx},
               ArrayRef<NamedAttribute>{
                   rewriter.getNamedAttr(
@@ -211,7 +211,7 @@ public:
             // Depending on the position, use either full vectors or tail
             // vectors.
             affine::AffineIfOp branchingRowUnaligned =
-                builder.create<affine::AffineIfOp>(
+                affine::AffineIfOp::create(builder, 
                     loc,
                     IntegerSet::get(1, 0, {d0 % affineVectorSize - 1}, {false}),
                     ValueRange{Row}, false);
@@ -221,7 +221,7 @@ public:
                 branchingRowUnaligned.getThenBodyBuilder();
 
             auto rowUnalignedTiledMatrix =
-                trueRowUnalignedBranchBuilder.create<vector::TransferReadOp>(
+                vector::TransferReadOp::create(trueRowUnalignedBranchBuilder, 
                     loc,
                     TypeRange{VectorType::get(
                         ArrayRef<int64_t>{affineVectorSize, affineVectorSize},
@@ -240,7 +240,7 @@ public:
                             AffineMapAttr::get(AffineMap::get(
                                 2, 0, {d0, d1}, rewriter.getContext()))),
                     });
-            trueRowUnalignedBranchBuilder.create<vector::TransferWriteOp>(
+            vector::TransferWriteOp::create(trueRowUnalignedBranchBuilder, 
                 loc, TypeRange{},
                 ValueRange{rowUnalignedTiledMatrix, B, colIdx, rowUpperBound,
                            rowEndMaskStore},
@@ -259,7 +259,7 @@ public:
           }
         });
 
-    rewriter.create<affine::AffineYieldOp>(loc);
+    affine::AffineYieldOp::create(rewriter, loc);
 
     // Finalize the loop.
     parallelColLoop.getRegion().push_back(loopBody);
@@ -271,14 +271,14 @@ public:
             0) {
 
       affine::AffineIfOp branchingColUnaligned =
-          rewriter.create<affine::AffineIfOp>(
+          affine::AffineIfOp::create(rewriter, 
               loc, IntegerSet::get(1, 0, {d0 % affineVectorSize - 1}, {false}),
               ValueRange{Col}, false);
 
       OpBuilder trueColUnalignedBranchBuilder =
           branchingColUnaligned.getThenBodyBuilder();
       Value colUpperBound =
-          trueColUnalignedBranchBuilder.create<affine::AffineApplyOp>(
+          affine::AffineApplyOp::create(trueColUnalignedBranchBuilder, 
               loc,
               AffineMap::get(1, 0,
                              d0.floorDiv(affineVectorSize) * affineVectorSize),
@@ -290,7 +290,7 @@ public:
           [&](OpBuilder &builder, Location loc, ValueRange ivRange) {
             Value rowIdx = ivRange.front();
             auto colUnalignedTiledMatrix =
-                builder.create<vector::TransferReadOp>(
+                vector::TransferReadOp::create(builder, 
                     loc,
                     TypeRange{VectorType::get(
                         ArrayRef<int64_t>{affineVectorSize, affineVectorSize},
@@ -309,7 +309,7 @@ public:
                             AffineMapAttr::get(AffineMap::get(
                                 2, 0, {d0, d1}, builder.getContext()))),
                     });
-            builder.create<vector::TransferWriteOp>(
+            vector::TransferWriteOp::create(builder, 
                 loc, TypeRange{},
                 ValueRange{colUnalignedTiledMatrix, B, colUpperBound, rowIdx,
                            colEndMaskStore},
@@ -332,7 +332,7 @@ public:
                   affineVectorSize !=
               0) {
         affine::AffineIfOp branchingRowColUnaligned =
-            trueColUnalignedBranchBuilder.create<affine::AffineIfOp>(
+            affine::AffineIfOp::create(trueColUnalignedBranchBuilder, 
                 loc,
                 IntegerSet::get(1, 0, {d0 % affineVectorSize - 1}, {false}),
                 ValueRange{Col}, false);
@@ -340,19 +340,19 @@ public:
         OpBuilder trueRowColUnalignedBranchBuilder =
             branchingRowColUnaligned.getThenBodyBuilder();
         Value rowColEndMaskLoad =
-            trueRowColUnalignedBranchBuilder.create<vector::CreateMaskOp>(
+            vector::CreateMaskOp::create(trueRowColUnalignedBranchBuilder, 
                 loc,
                 VectorType::get({affineVectorSize, affineVectorSize},
                                 trueRowColUnalignedBranchBuilder.getI1Type()),
                 ValueRange{rowUnalignedLength, colUnalignedLength});
         Value rowColEndMaskStore =
-            trueRowColUnalignedBranchBuilder.create<vector::CreateMaskOp>(
+            vector::CreateMaskOp::create(trueRowColUnalignedBranchBuilder, 
                 loc,
                 VectorType::get({affineVectorSize, affineVectorSize},
                                 trueRowColUnalignedBranchBuilder.getI1Type()),
                 ValueRange{colUnalignedLength, rowUnalignedLength});
         auto rowColUnalignedTiledMatrix =
-            trueRowColUnalignedBranchBuilder.create<vector::TransferReadOp>(
+            vector::TransferReadOp::create(trueRowColUnalignedBranchBuilder, 
                 loc,
                 TypeRange{VectorType::get(
                     ArrayRef<int64_t>{affineVectorSize, affineVectorSize},
@@ -374,7 +374,7 @@ public:
                             2, 0, {d0, d1},
                             trueRowColUnalignedBranchBuilder.getContext()))),
                 });
-        trueRowColUnalignedBranchBuilder.create<vector::TransferWriteOp>(
+        vector::TransferWriteOp::create(trueRowColUnalignedBranchBuilder, 
             loc, TypeRange{},
             ValueRange{rowColUnalignedTiledMatrix, B, colUpperBound,
                        rowUpperBound, rowColEndMaskStore},

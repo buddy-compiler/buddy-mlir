@@ -60,18 +60,18 @@ public:
     Value kernel = op->getOperand(1);
     Value output = op->getOperand(2);
 
-    Value c0 = rewriter.create<ConstantIndexOp>(loc, 0);
-    Value c1 = rewriter.create<ConstantIndexOp>(loc, 1);
-    Value c2 = rewriter.create<ConstantIndexOp>(loc, 2);
+    Value c0 = ConstantIndexOp::create(rewriter, loc, 0);
+    Value c1 = ConstantIndexOp::create(rewriter, loc, 1);
+    Value c2 = ConstantIndexOp::create(rewriter, loc, 2);
 
     // 1. Get the total length of the workload.
-    Value inputSize = rewriter.create<memref::DimOp>(loc, input, c0);
-    Value kernelSize = rewriter.create<memref::DimOp>(loc, kernel, c0);
+    Value inputSize = memref::DimOp::create(rewriter, loc, input, c0);
+    Value kernelSize = memref::DimOp::create(rewriter, loc, kernel, c0);
 
     // 2. Set the iteration step (tile size and vector size).
-    Value tileStep = rewriter.create<ConstantIndexOp>(loc, 2048);
-    Value vlStep = rewriter.create<ConstantIndexOp>(loc, 16);
-    Value vlStepMinusOne = rewriter.create<arith::SubIOp>(loc, vlStep, c1);
+    Value tileStep = ConstantIndexOp::create(rewriter, loc, 2048);
+    Value vlStep = ConstantIndexOp::create(rewriter, loc, 16);
+    Value vlStepMinusOne = arith::SubIOp::create(rewriter, loc, vlStep, c1);
     FloatType f32 = Float32Type::get(ctx);
     VectorType vecTy = VectorType::get(16, f32);
 
@@ -81,108 +81,108 @@ public:
     // `lastKernelElementUsedInputSize` = `inputSize` - `kernelSize` + 1
     // `inputUpbound` = `lastKernelElementUsedInputSize` - `tileStep` + 1
     Value lastKernelElementUsedInputSize_ =
-        rewriter.create<arith::SubIOp>(loc, inputSize, kernelSize);
-    Value inputUpbound_ = rewriter.create<arith::SubIOp>(
+        arith::SubIOp::create(rewriter, loc, inputSize, kernelSize);
+    Value inputUpbound_ = arith::SubIOp::create(rewriter, 
         loc, lastKernelElementUsedInputSize_, tileStep);
-    Value inputUpbound = rewriter.create<arith::AddIOp>(loc, inputUpbound_, c2);
+    Value inputUpbound = arith::AddIOp::create(rewriter, loc, inputUpbound_, c2);
 
     Value inputOffset =
-        rewriter
-            .create<scf::ForOp>(
+        scf::ForOp::create(
+            rewriter, 
                 loc, c0, inputUpbound, tileStep, ValueRange{c0},
                 [&](OpBuilder &builder, Location loc, Value address,
                     ValueRange iargs) {
                   Value upbound =
-                      builder.create<arith::AddIOp>(loc, address, tileStep);
+                      arith::AddIOp::create(builder, loc, address, tileStep);
                   // 3.2 Broadcast each kernel element to a vector.
-                  builder.create<scf::ForOp>(
+                  scf::ForOp::create(builder, 
                       loc, c0, kernelSize, c1, ValueRange{},
                       [&](OpBuilder &b, Location loc, Value iv_n,
                           ValueRange iargs) {
                         Value kElem =
-                            b.create<memref::LoadOp>(loc, kernel, iv_n);
+                            memref::LoadOp::create(b, loc, kernel, iv_n);
                         Value kVec =
-                            b.create<vector::BroadcastOp>(loc, vecTy, kElem);
+                            vector::BroadcastOp::create(b, loc, vecTy, kElem);
                         // 3.3 Vectorized computation.
-                        b.create<scf::ForOp>(
+                        scf::ForOp::create(b, 
                             loc, address, upbound, vlStep,
                             ValueRange{},
                             [&](OpBuilder &b, Location loc, Value iv_i,
                                 ValueRange iargs) {
-                              Value inVec = b.create<vector::LoadOp>(
+                              Value inVec = vector::LoadOp::create(b, 
                                   loc, vecTy, input, ValueRange{iv_i});
                               Value outOffset =
-                                  b.create<arith::AddIOp>(loc, iv_i, iv_n);
-                              Value outVec = b.create<vector::LoadOp>(
+                                  arith::AddIOp::create(b, loc, iv_i, iv_n);
+                              Value outVec = vector::LoadOp::create(b, 
                                   loc, vecTy, output, ValueRange{outOffset});
-                              Value fmaVec = b.create<vector::FMAOp>(
+                              Value fmaVec = vector::FMAOp::create(b, 
                                   loc, kVec, inVec, outVec);
-                              b.create<vector::StoreOp>(loc, fmaVec, output,
+                              vector::StoreOp::create(b, loc, fmaVec, output,
                                                         ValueRange{outOffset});
-                              b.create<scf::YieldOp>(loc);
+                              scf::YieldOp::create(b, loc);
                             });
 
-                        b.create<scf::YieldOp>(loc);
+                        scf::YieldOp::create(b, loc);
                       });
-                  builder.create<scf::YieldOp>(loc, ValueRange{upbound});
+                  scf::YieldOp::create(builder, loc, ValueRange{upbound});
                 })
             .getResult(0);
 
     // 4. Calculate tail processing part.
     // 4.1 Calculate upbound for tail processing
-    Value tailUpbound_ = rewriter.create<arith::SubIOp>(loc, inputSize, vlStep);
+    Value tailUpbound_ = arith::SubIOp::create(rewriter, loc, inputSize, vlStep);
     Value tailUpboundInit =
-        rewriter.create<arith::AddIOp>(loc, tailUpbound_, c1);
+        arith::AddIOp::create(rewriter, loc, tailUpbound_, c1);
 
     // 4.2 Loop through each kernel element.
-    rewriter.create<scf::ForOp>(
+    scf::ForOp::create(rewriter, 
         loc, c0, kernelSize, c1, ValueRange{tailUpboundInit},
         [&](OpBuilder &builder, Location loc, Value iv_n, ValueRange iargs) {
-          Value kElem = builder.create<memref::LoadOp>(loc, kernel, iv_n);
-          Value kVec = builder.create<vector::BroadcastOp>(loc, vecTy, kElem);
+          Value kElem = memref::LoadOp::create(builder, loc, kernel, iv_n);
+          Value kVec = vector::BroadcastOp::create(builder, loc, vecTy, kElem);
 
           // 4.3 Perform the vectorization body (for tail process).
           Value iterIdx =
-              builder
-                  .create<scf::ForOp>(
+              scf::ForOp::create(
+                  builder, 
                       loc, inputOffset, iargs[0], vlStep,
                       ValueRange{inputOffset},
                       [&](OpBuilder &b, Location loc, Value iv_i,
                           ValueRange iargs) {
-                        Value inVec = b.create<vector::LoadOp>(
+                        Value inVec = vector::LoadOp::create(b, 
                             loc, vecTy, input, ValueRange{iv_i});
                         Value outOffset =
-                            b.create<arith::AddIOp>(loc, iv_i, iv_n);
-                        Value outVec = b.create<vector::LoadOp>(
+                            arith::AddIOp::create(b, loc, iv_i, iv_n);
+                        Value outVec = vector::LoadOp::create(b, 
                             loc, vecTy, output, ValueRange{outOffset});
                         Value fmaVec =
-                            b.create<vector::FMAOp>(loc, kVec, inVec, outVec);
-                        b.create<vector::StoreOp>(loc, fmaVec, output,
+                            vector::FMAOp::create(b, loc, kVec, inVec, outVec);
+                        vector::StoreOp::create(b, loc, fmaVec, output,
                                                   ValueRange{outOffset});
                         Value iNext =
-                            b.create<arith::AddIOp>(loc, iv_i, vlStep);
-                        b.create<scf::YieldOp>(loc, ValueRange{iNext});
+                            arith::AddIOp::create(b, loc, iv_i, vlStep);
+                        scf::YieldOp::create(b, loc, ValueRange{iNext});
                       })
                   .getResult(0);
 
           // 4.4 Process the remainder of tail process with scalar operations.
           Value tailUpboundScalar =
-              builder.create<arith::AddIOp>(loc, iargs[0], vlStepMinusOne);
-          builder.create<scf::ForOp>(
+              arith::AddIOp::create(builder, loc, iargs[0], vlStepMinusOne);
+          scf::ForOp::create(builder, 
               loc, iterIdx, tailUpboundScalar, c1, ValueRange{},
               [&](OpBuilder &b, Location loc, Value iv_i, ValueRange iargs) {
-                Value inElem = b.create<memref::LoadOp>(loc, input, iv_i);
-                Value outOffset = b.create<arith::AddIOp>(loc, iv_i, iv_n);
+                Value inElem = memref::LoadOp::create(b, loc, input, iv_i);
+                Value outOffset = arith::AddIOp::create(b, loc, iv_i, iv_n);
                 Value outElem =
-                    b.create<memref::LoadOp>(loc, output, outOffset);
-                Value mulElem = b.create<arith::MulFOp>(loc, inElem, kElem);
-                Value addElem = b.create<arith::AddFOp>(loc, mulElem, outElem);
-                b.create<memref::StoreOp>(loc, addElem, output, outOffset);
-                b.create<scf::YieldOp>(loc);
+                    memref::LoadOp::create(b, loc, output, outOffset);
+                Value mulElem = arith::MulFOp::create(b, loc, inElem, kElem);
+                Value addElem = arith::AddFOp::create(b, loc, mulElem, outElem);
+                memref::StoreOp::create(b, loc, addElem, output, outOffset);
+                scf::YieldOp::create(b, loc);
               });
           Value tailUpboundNext =
-              builder.create<arith::SubIOp>(loc, iargs[0], c1);
-          builder.create<scf::YieldOp>(loc, ValueRange{tailUpboundNext});
+              arith::SubIOp::create(builder, loc, iargs[0], c1);
+          scf::YieldOp::create(builder, loc, ValueRange{tailUpboundNext});
         });
 
     rewriter.eraseOp(op);
@@ -206,44 +206,44 @@ public:
     Value kernel = op->getOperand(1);
     Value output = op->getOperand(2);
 
-    Value c0 = rewriter.create<ConstantIndexOp>(loc, 0);
-    Value c1 = rewriter.create<ConstantIndexOp>(loc, 1);
-    Value c2 = rewriter.create<ConstantIndexOp>(loc, 2);
-    Value c4 = rewriter.create<ConstantIndexOp>(loc, 4);
-    Value c5 = rewriter.create<ConstantIndexOp>(loc, 5);
-    Value c8 = rewriter.create<ConstantIndexOp>(loc, 8);
-    Value c16 = rewriter.create<ConstantIndexOp>(loc, 16);
-    Value c32 = rewriter.create<ConstantIndexOp>(loc, 32);
+    Value c0 = ConstantIndexOp::create(rewriter, loc, 0);
+    Value c1 = ConstantIndexOp::create(rewriter, loc, 1);
+    Value c2 = ConstantIndexOp::create(rewriter, loc, 2);
+    Value c4 = ConstantIndexOp::create(rewriter, loc, 4);
+    Value c5 = ConstantIndexOp::create(rewriter, loc, 5);
+    Value c8 = ConstantIndexOp::create(rewriter, loc, 8);
+    Value c16 = ConstantIndexOp::create(rewriter, loc, 16);
+    Value c32 = ConstantIndexOp::create(rewriter, loc, 32);
 
-    Value N = rewriter.create<memref::DimOp>(loc, input, c0);
-    Value filterSize = rewriter.create<memref::DimOp>(loc, kernel, c0);
+    Value N = memref::DimOp::create(rewriter, loc, input, c0);
+    Value filterSize = memref::DimOp::create(rewriter, loc, kernel, c0);
 
     FloatType f32 = Float32Type::get(ctx);
-    Value f0 = rewriter.create<ConstantFloatOp>(loc, f32, APFloat(0.0f));
-    Value f1 = rewriter.create<ConstantFloatOp>(loc, f32, APFloat(1.0f));
+    Value f0 = ConstantFloatOp::create(rewriter, loc, f32, APFloat(0.0f));
+    Value f1 = ConstantFloatOp::create(rewriter, loc, f32, APFloat(1.0f));
 
     Value cond4 =
-        rewriter.create<CmpIOp>(loc, CmpIPredicate::ule, filterSize, c4);
+        CmpIOp::create(rewriter, loc, CmpIPredicate::ule, filterSize, c4);
     Value cond8 =
-        rewriter.create<CmpIOp>(loc, CmpIPredicate::ule, filterSize, c8);
+        CmpIOp::create(rewriter, loc, CmpIPredicate::ule, filterSize, c8);
     Value cond16 =
-        rewriter.create<CmpIOp>(loc, CmpIPredicate::ule, filterSize, c16);
+        CmpIOp::create(rewriter, loc, CmpIPredicate::ule, filterSize, c16);
     Value cond32 =
-        rewriter.create<CmpIOp>(loc, CmpIPredicate::ule, filterSize, c32);
+        CmpIOp::create(rewriter, loc, CmpIPredicate::ule, filterSize, c32);
 
     // clang-format off
-    rewriter.create<scf::IfOp>(loc, cond4,
+    scf::IfOp::create(rewriter, loc, cond4,
     /*thenBuilder=*/
     [&](OpBuilder &builder, Location loc) {
         dap::iirVectorizationProcess(builder, loc, 4, f32, f0, f1, c0, c1, c2, c4, c5,
                                      filterSize, kernel, ArrayRef<int64_t>{0, 0, 1, 2},
                                      N, input, output);
 
-        builder.create<scf::YieldOp>(loc);
+        scf::YieldOp::create(builder, loc);
     },
     /*elseBuilder=*/
     [&](OpBuilder &builder, Location loc) {
-        builder.create<scf::IfOp>(loc, cond8,
+        scf::IfOp::create(builder, loc, cond8,
         /*thenBuilder=*/
         [&](OpBuilder &builder, Location loc){
             dap::iirVectorizationProcess(builder, loc, 8, f32, f0, f1, c0, c1, c2, c4, c5,
@@ -251,11 +251,11 @@ public:
                                          ArrayRef<int64_t>{0, 0, 1, 2, 3, 4, 5, 6}, N,
                                          input, output);
 
-            builder.create<scf::YieldOp>(loc);
+            scf::YieldOp::create(builder, loc);
         },
         /*elseBuilder=*/
         [&](OpBuilder &builder, Location loc) {
-            builder.create<scf::IfOp>(loc, cond16,
+            scf::IfOp::create(builder, loc, cond16,
             /*thenBuilder=*/
             [&](OpBuilder &builder, Location loc){
                 dap::iirVectorizationProcess(builder, loc, 16, f32, f0, f1, c0, c1, c2, c4, c5,
@@ -263,11 +263,11 @@ public:
                                              3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14}, N,
                                              input, output);
 
-                builder.create<scf::YieldOp>(loc);
+                scf::YieldOp::create(builder, loc);
             },
             /*elseBuilder=*/
             [&](OpBuilder &builder, Location loc) {
-                builder.create<scf::IfOp>(loc, cond32,
+                scf::IfOp::create(builder, loc, cond32,
                 /*thenBuilder=*/
                 [&](OpBuilder &builder, Location loc){
                     dap::iirVectorizationProcess(builder, loc, 32, f32, f0, f1, c0, c1, c2, c4, c5,
@@ -276,7 +276,7 @@ public:
                                                  17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29,
                                                  30}, N, input, output);
 
-                    builder.create<scf::YieldOp>(loc);
+                    scf::YieldOp::create(builder, loc);
                 },
                 /*elseBuilder=*/
                 [&](OpBuilder &builder, Location loc) {
@@ -288,16 +288,16 @@ public:
                                                  48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61,
                                                  62}, N, input, output);
 
-                    builder.create<scf::YieldOp>(loc);
+                    scf::YieldOp::create(builder, loc);
                 }
                 );
-                builder.create<scf::YieldOp>(loc);
+                scf::YieldOp::create(builder, loc);
             });
 
-            builder.create<scf::YieldOp>(loc);
+            scf::YieldOp::create(builder, loc);
         });
 
-        builder.create<scf::YieldOp>(loc);
+        scf::YieldOp::create(builder, loc);
     });
     // clang-format on
 

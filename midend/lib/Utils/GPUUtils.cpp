@@ -108,7 +108,7 @@ static Value promoteElementToVector(Location loc, OpBuilder &builder,
                                     Value input) {
   VectorType vectorTypeBroadcast = VectorType::get({1}, input.getType());
   Value vectorInput =
-      builder.create<vector::BroadcastOp>(loc, vectorTypeBroadcast, input);
+      vector::BroadcastOp::create(builder, loc, vectorTypeBroadcast, input);
   return vectorInput;
 }
 
@@ -125,8 +125,8 @@ Value packVectorToSupportedWidth(Location loc, OpBuilder &builder,
   });
   VectorType packed32Type = VectorType::get({1}, builder.getI32Type());
   Value packedInputVec =
-      builder.create<vector::BitCastOp>(loc, packed32Type, input);
-  Value packedInput = builder.create<vector::ExtractOp>(loc, packedInputVec, 0);
+      vector::BitCastOp::create(builder, loc, packed32Type, input);
+  Value packedInput = vector::ExtractOp::create(builder, loc, packedInputVec, 0);
   return packedInput;
 }
 
@@ -142,7 +142,7 @@ Value unpackToVector(Location loc, OpBuilder &builder, Value packedInput,
   });
   Value packedVector = promoteElementToVector(loc, builder, packedInput);
   Value unpackedVector =
-      builder.create<vector::BitCastOp>(loc, targetVecType, packedVector);
+      vector::BitCastOp::create(builder, loc, targetVecType, packedVector);
   return unpackedVector;
 }
 
@@ -374,10 +374,10 @@ hoistOneStaticallyBoundAllocation(func::FuncOp funcOp, OpBuilder &builder,
     OpBuilder::InsertionGuard g(builder);
     builder.setInsertionPointToStart(&funcOp.getBody().front());
     Value allocation =
-        builder.create<AllocLikeOpType>(loc, allocLikeType, alignmentAttr);
+        AllocLikeOpType::create(builder, loc, allocLikeType, alignmentAttr);
     if (std::is_same<AllocLikeOpType, memref::AllocOp>::value) {
       builder.setInsertionPoint(funcOp.getBody().front().getTerminator());
-      builder.create<memref::DeallocOp>(loc, allocation);
+      memref::DeallocOp::create(builder, loc, allocation);
     }
     return allocation;
   }
@@ -415,15 +415,15 @@ hoistOneStaticallyBoundAllocation(func::FuncOp funcOp, OpBuilder &builder,
     auto allocationType =
         MemRefType::get(staticShape, allocLikeType.getElementType());
     allocation =
-        builder.create<AllocLikeOpType>(loc, allocationType, alignmentAttr);
+        AllocLikeOpType::create(builder, loc, allocationType, alignmentAttr);
   }
 
-  Value subviewOp = builder.create<memref::SubViewOp>(loc, allocation, offsets,
+  Value subviewOp = memref::SubViewOp::create(builder, loc, allocation, offsets,
                                                       subviewSizes, strides);
 
   if (std::is_same<AllocLikeOpType, memref::AllocOp>::value) {
     builder.setInsertionPoint(funcOp.getBody().front().getTerminator());
-    builder.create<memref::DeallocOp>(loc, allocation);
+    memref::DeallocOp::create(builder, loc, allocation);
   }
   return subviewOp;
 }

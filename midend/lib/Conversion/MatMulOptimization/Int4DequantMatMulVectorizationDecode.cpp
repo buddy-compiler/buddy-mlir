@@ -359,22 +359,22 @@ public:
     Type elemType = cType.getElementType();
     auto floatVecType = VectorType::get({vecSize}, elemType);
     auto halfI8VecType = VectorType::get({vecSize / 2}, rewriter.getI8Type());
-    Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
-    Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
-    Value c2 = rewriter.create<arith::ConstantIndexOp>(loc, 2);
-    Value step = rewriter.create<arith::ConstantIndexOp>(loc, vecSize);
+    Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
+    Value c1 = arith::ConstantIndexOp::create(rewriter, loc, 1);
+    Value c2 = arith::ConstantIndexOp::create(rewriter, loc, 2);
+    Value step = arith::ConstantIndexOp::create(rewriter, loc, vecSize);
 
-    Value N = rewriter.create<memref::DimOp>(loc, C, c1);
-    Value K = rewriter.create<memref::DimOp>(loc, A, c1);
+    Value N = memref::DimOp::create(rewriter, loc, C, c1);
+    Value K = memref::DimOp::create(rewriter, loc, A, c1);
 
-    Value zeroFloat = rewriter.create<arith::ConstantOp>(
+    Value zeroFloat = arith::ConstantOp::create(rewriter, 
         loc, elemType, rewriter.getFloatAttr(elemType, 0.0));
     Value zeroVec =
-        rewriter.create<vector::BroadcastOp>(loc, floatVecType, zeroFloat);
-    Value mask15 = rewriter.create<arith::ConstantOp>(
+        vector::BroadcastOp::create(rewriter, loc, floatVecType, zeroFloat);
+    Value mask15 = arith::ConstantOp::create(rewriter, 
         loc,
         DenseElementsAttr::get(halfI8VecType, rewriter.getI8IntegerAttr(15)));
-    Value shift4 = rewriter.create<arith::ConstantOp>(
+    Value shift4 = arith::ConstantOp::create(rewriter, 
         loc,
         DenseElementsAttr::get(halfI8VecType, rewriter.getI8IntegerAttr(4)));
 
@@ -382,54 +382,54 @@ public:
 
     Value packedWeight = unpackInfo->packedWeight;
 
-    rewriter.create<scf::ParallelOp>(
+    scf::ParallelOp::create(rewriter, 
         loc, ValueRange{c0}, ValueRange{N}, ValueRange{step},
         [&](OpBuilder &builder, Location loc, ValueRange ivs) {
           Value nIdx = ivs.front();
 
           // Packed index = nIdx / 2
-          Value packedIdx = builder.create<arith::DivUIOp>(loc, nIdx, c2);
+          Value packedIdx = arith::DivUIOp::create(builder, loc, nIdx, c2);
 
-          auto forOp = builder.create<scf::ForOp>(
+          auto forOp = scf::ForOp::create(builder, 
               loc, c0, K, c1, ValueRange{zeroVec},
               [&](OpBuilder &builder, Location loc, Value kIdx,
                   ValueRange iterArgs) {
                 // Load activation A[0, k]
-                Value aElem = builder.create<memref::LoadOp>(
+                Value aElem = memref::LoadOp::create(builder, 
                     loc, A, ValueRange{c0, kIdx});
-                Value aVec = builder.create<vector::BroadcastOp>(
+                Value aVec = vector::BroadcastOp::create(builder, 
                     loc, floatVecType, aElem);
 
                 // Load vecSize/2 packed bytes
-                Value packedVec = builder.create<vector::LoadOp>(
+                Value packedVec = vector::LoadOp::create(builder, 
                     loc, halfI8VecType, packedWeight,
                     ValueRange{kIdx, packedIdx});
 
                 // Unpack low nibbles: (byte & 0x0F) << 4 >> 4
                 Value lowMasked =
-                    builder.create<arith::AndIOp>(loc, packedVec, mask15);
+                    arith::AndIOp::create(builder, loc, packedVec, mask15);
                 Value lowShifted =
-                    builder.create<arith::ShLIOp>(loc, lowMasked, shift4);
+                    arith::ShLIOp::create(builder, loc, lowMasked, shift4);
                 Value low =
-                    builder.create<arith::ShRSIOp>(loc, lowShifted, shift4);
+                    arith::ShRSIOp::create(builder, loc, lowShifted, shift4);
 
                 // Unpack high nibbles: byte >> 4
                 Value high =
-                    builder.create<arith::ShRSIOp>(loc, packedVec, shift4);
+                    arith::ShRSIOp::create(builder, loc, packedVec, shift4);
 
                 // Interleave: [low0, high0, low1, high1, ...]
                 Value unpacked =
-                    builder.create<vector::InterleaveOp>(loc, low, high);
+                    vector::InterleaveOp::create(builder, loc, low, high);
 
                 // Cast i8 -> float
-                Value floatVec = builder.create<arith::SIToFPOp>(
+                Value floatVec = arith::SIToFPOp::create(builder, 
                     loc, floatVecType, unpacked);
 
                 // FMA: acc += a * float_weight
-                Value res = builder.create<vector::FMAOp>(loc, aVec, floatVec,
+                Value res = vector::FMAOp::create(builder, loc, aVec, floatVec,
                                                           iterArgs.front());
 
-                builder.create<scf::YieldOp>(loc, res);
+                scf::YieldOp::create(builder, loc, res);
               });
 
           Value accVec = forOp.getResult(0);
@@ -444,25 +444,25 @@ public:
               else
                 scaleIndices.push_back(c0);
             }
-            scaleVec = builder.create<vector::LoadOp>(
+            scaleVec = vector::LoadOp::create(builder, 
                 loc, floatVecType, dchain->scale, scaleIndices);
           } else {
             SmallVector<Value> scaleIndices(scaleType.getRank(), c0);
-            Value scaleScalar = builder.create<memref::LoadOp>(
+            Value scaleScalar = memref::LoadOp::create(builder, 
                 loc, dchain->scale, scaleIndices);
-            scaleVec = builder.create<vector::BroadcastOp>(loc, floatVecType,
+            scaleVec = vector::BroadcastOp::create(builder, loc, floatVecType,
                                                            scaleScalar);
           }
 
           Value scaledVec =
-              builder.create<arith::MulFOp>(loc, accVec, scaleVec);
+              arith::MulFOp::create(builder, loc, accVec, scaleVec);
 
           // Add to existing C
-          Value cVec = builder.create<vector::LoadOp>(loc, floatVecType, C,
+          Value cVec = vector::LoadOp::create(builder, loc, floatVecType, C,
                                                       ValueRange{c0, nIdx});
-          Value resultVec = builder.create<arith::AddFOp>(loc, cVec, scaledVec);
+          Value resultVec = arith::AddFOp::create(builder, loc, cVec, scaledVec);
 
-          builder.create<vector::StoreOp>(loc, resultVec, C,
+          vector::StoreOp::create(builder, loc, resultVec, C,
                                           ValueRange{c0, nIdx});
         });
 

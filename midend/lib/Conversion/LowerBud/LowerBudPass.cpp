@@ -47,7 +47,7 @@ public:
     // Get type from the origin operation.
     Type resultType = op.getResult().getType();
     // Create constant operation.
-    Value c0 = rewriter.create<mlir::arith::ConstantOp>(
+    Value c0 = mlir::arith::ConstantOp::create(rewriter, 
         loc, resultType, rewriter.getZeroAttr(resultType));
 
     rewriter.replaceOp(op, c0);
@@ -65,17 +65,17 @@ public:
     // Get type from the origin operation.
     Type resultType = op.getResult().getType();
     // Create constant operation.
-    Value c0 = rewriter.create<mlir::arith::ConstantOp>(
+    Value c0 = mlir::arith::ConstantOp::create(rewriter, 
         loc, resultType, rewriter.getZeroAttr(resultType));
     // Create print operation for the scalar value.
-    rewriter.create<vector::PrintOp>(loc, c0);
+    vector::PrintOp::create(rewriter, loc, c0);
     VectorType vectorTy4 =
         VectorType::get({4 /*number of elements in the vector*/}, resultType);
     // Broadcast element of the kernel.
     Value broadcastVector =
-        rewriter.create<vector::BroadcastOp>(loc, vectorTy4, c0);
+        vector::BroadcastOp::create(rewriter, loc, vectorTy4, c0);
     // Create print operation for the vector value.
-    rewriter.create<vector::PrintOp>(loc, broadcastVector);
+    vector::PrintOp::create(rewriter, loc, broadcastVector);
 
     rewriter.eraseOp(op);
     return success();
@@ -100,10 +100,10 @@ public:
     // Lowering to different ops according to the attribute.
     if (arithAttr == buddy::bud::TestEnumAttrOperation::ADD)
       // Create addi operation.
-      result = rewriter.create<arith::AddIOp>(loc, resultType, lhs, rhs);
+      result = arith::AddIOp::create(rewriter, loc, resultType, lhs, rhs);
     if (arithAttr == buddy::bud::TestEnumAttrOperation::SUB)
       // Create subi operation.
-      result = rewriter.create<arith::SubIOp>(loc, resultType, lhs, rhs);
+      result = arith::SubIOp::create(rewriter, loc, resultType, lhs, rhs);
     rewriter.replaceOp(op, result);
     return success();
   }
@@ -123,13 +123,13 @@ public:
     // Get the index attribute and constant value.
     IntegerAttr attrX = rewriter.getIntegerAttr(rewriter.getIndexType(), valX);
     IntegerAttr attrY = rewriter.getIntegerAttr(rewriter.getIndexType(), valY);
-    Value idxX = rewriter.create<arith::ConstantOp>(loc, attrX);
-    Value idxY = rewriter.create<arith::ConstantOp>(loc, attrY);
+    Value idxX = arith::ConstantOp::create(rewriter, loc, attrX);
+    Value idxY = arith::ConstantOp::create(rewriter, loc, attrY);
     SmallVector<Value, 2> memrefIdx = {idxX, idxY};
     // Get base memref.
     Value memref = op.getBase();
     // Create memref load operation.
-    Value result = rewriter.create<memref::LoadOp>(loc, memref, memrefIdx);
+    Value result = memref::LoadOp::create(rewriter, loc, memref, memrefIdx);
     rewriter.replaceOp(op, result);
     return success();
   }

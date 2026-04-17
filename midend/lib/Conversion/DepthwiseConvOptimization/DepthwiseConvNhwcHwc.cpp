@@ -51,12 +51,12 @@ public:
 
     // Some constant we need.
     const Value c0 =
-        rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0));
+        arith::ConstantOp::create(rewriter, loc, rewriter.getIndexAttr(0));
     const Value c1 =
-        rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1));
+        arith::ConstantOp::create(rewriter, loc, rewriter.getIndexAttr(1));
 
     const Value vecSizeValue =
-        rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(vecSize));
+        arith::ConstantOp::create(rewriter, loc, rewriter.getIndexAttr(vecSize));
     const AffineExpr d0 = rewriter.getAffineDimExpr(0);
     const AffineExpr d1 = rewriter.getAffineDimExpr(1);
     // TODO: remove s0?
@@ -93,37 +93,37 @@ public:
     VectorType vecTy = VectorType::get(vecSize, elemTy);
 
     const Value zeroElementType =
-        rewriter.create<arith::ConstantOp>(loc, rewriter.getZeroAttr(elemTy));
+        arith::ConstantOp::create(rewriter, loc, rewriter.getZeroAttr(elemTy));
 
     Value zeroElementTypeVec;
     if (isa<IntegerType>(elemTy)) {
       zeroElementTypeVec =
-          rewriter.create<vector::BroadcastOp>(loc, vecTy, zeroElementType);
+          vector::BroadcastOp::create(rewriter, loc, vecTy, zeroElementType);
     } else {
       zeroElementTypeVec =
-          rewriter.create<vector::BroadcastOp>(loc, vecTy, zeroElementType);
+          vector::BroadcastOp::create(rewriter, loc, vecTy, zeroElementType);
     }
     // Dims
-    Value N = rewriter.create<memref::DimOp>(loc, output, 0);  // N
-    Value OH = rewriter.create<memref::DimOp>(loc, output, 1); // OH
-    Value OW = rewriter.create<memref::DimOp>(loc, output, 2); // OW
-    Value OC = rewriter.create<memref::DimOp>(loc, output, 3); // OC/FC/IC
+    Value N = memref::DimOp::create(rewriter, loc, output, 0);  // N
+    Value OH = memref::DimOp::create(rewriter, loc, output, 1); // OH
+    Value OW = memref::DimOp::create(rewriter, loc, output, 2); // OW
+    Value OC = memref::DimOp::create(rewriter, loc, output, 3); // OC/FC/IC
 
-    Value applyOC = rewriter.create<affine::AffineApplyOp>(
+    Value applyOC = affine::AffineApplyOp::create(rewriter, 
         loc, AffineMap::get(1, 0, d0.floorDiv(vecSize) * vecSize), OC);
-    Value tailLength = rewriter.create<affine::AffineApplyOp>(
+    Value tailLength = affine::AffineApplyOp::create(rewriter, 
         loc, AffineMap::get(1, 0, d0 % vecSize), ValueRange{OC});
-    Value maskVector = rewriter.create<vector::CreateMaskOp>(
+    Value maskVector = vector::CreateMaskOp::create(rewriter, 
         loc, VectorType::get({vecSize}, rewriter.getI1Type()),
         ValueRange{tailLength});
 
-    Value FH = rewriter.create<memref::DimOp>(loc, filter, 0); // FH
-    Value FW = rewriter.create<memref::DimOp>(loc, filter, 1); // FW
+    Value FH = memref::DimOp::create(rewriter, loc, filter, 0); // FH
+    Value FW = memref::DimOp::create(rewriter, loc, filter, 1); // FW
 
     // clang format off
     //  Step 1: Create outer most loops.
     // Create the scf::ForallOp operation For N,OH,OW
-    rewriter.create<scf::ForallOp>(
+    scf::ForallOp::create(rewriter, 
         loc, SmallVector<OpFoldResult, 3>({N, OH, OW}), ValueRange{},
         std::nullopt, // No mapping specified in this example
         [&](OpBuilder &nestedBuilder, Location nestedLoc,
@@ -132,131 +132,131 @@ public:
           Value ivOH = loopIndices[1]; // Index for the second dimension OH
           Value ivOW = loopIndices[2]; // Index for the third dimension OW
           // OC
-          nestedBuilder.create<scf::ForOp>(
+          scf::ForOp::create(nestedBuilder, 
               nestedLoc, c0, applyOC, vecSizeValue, ValueRange{},
               [&](OpBuilder &builder, Location loc, Value ivOC,
                   ValueRange iargs) {
-                Value tVec = builder.create<vector::LoadOp>(
+                Value tVec = vector::LoadOp::create(builder, 
                     loc, vecTy, output, ValueRange{ivN, ivOH, ivOW, ivOC});
 
                 // FH
-                auto forOp = builder.create<scf::ForOp>(
+                auto forOp = scf::ForOp::create(builder, 
                     loc, c0, FH, c1, ValueRange{tVec},
                     [&](OpBuilder &builder, Location loc, Value ivFH,
                         ValueRange iargs) {
-                      Value rowInput = builder.create<affine::AffineApplyOp>(
+                      Value rowInput = affine::AffineApplyOp::create(builder, 
                           loc,
                           AffineMap::get(2, 0, d0 * strHeight + d1 * dilHeight),
                           ValueRange{ivOH, ivFH});
                       Value rowFilter = ivFH;
                       // FW
-                      auto forOp = builder.create<scf::ForOp>(
+                      auto forOp = scf::ForOp::create(builder, 
                           loc, c0, FW, c1, ValueRange{iargs[0]},
                           [&](OpBuilder &builder, Location loc, Value ivFW,
                               ValueRange iargs) {
                             Value columnInput =
-                                builder.create<affine::AffineApplyOp>(
+                                affine::AffineApplyOp::create(builder, 
                                     loc,
                                     AffineMap::get(
                                         2, 0, d0 * strWidth + d1 * dilWidth),
                                     ValueRange{ivOW, ivFW});
                             Value columnFilter =
-                                builder.create<affine::AffineApplyOp>(
+                                affine::AffineApplyOp::create(builder, 
                                     loc, AffineMap::get(1, 0, d0), ivFW);
-                            Value iVec = builder.create<vector::LoadOp>(
+                            Value iVec = vector::LoadOp::create(builder, 
                                 loc, vecTy, input,
                                 ValueRange{ivN, rowInput, columnInput, ivOC});
-                            Value fVec = builder.create<vector::LoadOp>(
+                            Value fVec = vector::LoadOp::create(builder, 
                                 loc, vecTy, filter,
                                 ValueRange{rowFilter, columnFilter, ivOC});
                             Value tVecNext;
                             if (isa<IntegerType>(elemTy)) {
-                              Value mulVec = builder.create<arith::MulIOp>(
+                              Value mulVec = arith::MulIOp::create(builder, 
                                   loc, iVec, fVec);
-                              tVecNext = builder.create<arith::AddIOp>(
+                              tVecNext = arith::AddIOp::create(builder, 
                                   loc, mulVec, iargs[0]);
                             } else {
-                              tVecNext = builder.create<vector::FMAOp>(
+                              tVecNext = vector::FMAOp::create(builder, 
                                   loc, vecTy, iVec, fVec, iargs[0]);
                             }
 
-                            builder.create<scf::YieldOp>(loc,
+                            scf::YieldOp::create(builder, loc,
                                                          ValueRange{tVecNext});
                           });
-                      builder.create<scf::YieldOp>(
+                      scf::YieldOp::create(builder, 
                           loc, ValueRange{forOp.getResult(0)});
                     });
-                builder.create<vector::StoreOp>(
+                vector::StoreOp::create(builder, 
                     loc, forOp.getResult(0), output,
                     ValueRange{ivN, ivOH, ivOW, ivOC});
 
-                builder.create<scf::YieldOp>(loc, ValueRange{});
+                scf::YieldOp::create(builder, loc, ValueRange{});
               });
 
           // applyOC
-          Value condition = nestedBuilder.create<arith::CmpIOp>(
+          Value condition = arith::CmpIOp::create(nestedBuilder, 
               loc, arith::CmpIPredicate::sgt, tailLength, c0);
-          nestedBuilder.create<scf::IfOp>(
+          scf::IfOp::create(nestedBuilder, 
               loc, condition, [&](OpBuilder &builder, Location loc) {
-                Value tVec = builder.create<vector::MaskedLoadOp>(
+                Value tVec = vector::MaskedLoadOp::create(builder, 
                     loc, vecTy, output, ValueRange{ivN, ivOH, ivOW, applyOC},
                     maskVector, zeroElementTypeVec);
                 // FH
-                auto forOp = builder.create<scf::ForOp>(
+                auto forOp = scf::ForOp::create(builder, 
                     loc, c0, FH, c1, ValueRange{tVec},
                     [&](OpBuilder &builder, Location loc, Value ivFH,
                         ValueRange iargs) {
-                      Value rowInput = builder.create<affine::AffineApplyOp>(
+                      Value rowInput = affine::AffineApplyOp::create(builder, 
                           loc,
                           AffineMap::get(2, 0, d0 * strHeight + d1 * dilHeight),
                           ValueRange{ivOH, ivFH});
                       Value rowFilter = ivFH;
                       // FW
-                      auto forOp = builder.create<scf::ForOp>(
+                      auto forOp = scf::ForOp::create(builder, 
                           loc, c0, FW, c1, ValueRange{iargs[0]},
                           [&](OpBuilder &builder, Location loc, Value ivFW,
                               ValueRange iargs) {
                             Value columnInput =
-                                builder.create<affine::AffineApplyOp>(
+                                affine::AffineApplyOp::create(builder, 
                                     loc,
                                     AffineMap::get(
                                         2, 0, d0 * strWidth + d1 * dilWidth),
                                     ValueRange{ivOW, ivFW});
                             Value columnFilter =
-                                builder.create<affine::AffineApplyOp>(
+                                affine::AffineApplyOp::create(builder, 
                                     loc, AffineMap::get(1, 0, d0), ivFW);
-                            Value iVec = builder.create<vector::MaskedLoadOp>(
+                            Value iVec = vector::MaskedLoadOp::create(builder, 
                                 loc, vecTy, input,
                                 ValueRange{ivN, rowInput, columnInput, applyOC},
                                 maskVector, zeroElementTypeVec);
-                            Value fVec = builder.create<vector::MaskedLoadOp>(
+                            Value fVec = vector::MaskedLoadOp::create(builder, 
                                 loc, vecTy, filter,
                                 ValueRange{rowFilter, columnFilter, applyOC},
                                 maskVector, zeroElementTypeVec);
                             Value tVecNext;
                             if (isa<IntegerType>(elemTy)) {
-                              Value mulVec = builder.create<arith::MulIOp>(
+                              Value mulVec = arith::MulIOp::create(builder, 
                                   loc, iVec, fVec);
-                              tVecNext = builder.create<arith::AddIOp>(
+                              tVecNext = arith::AddIOp::create(builder, 
                                   loc, mulVec, iargs[0]);
                             } else {
-                              tVecNext = builder.create<vector::FMAOp>(
+                              tVecNext = vector::FMAOp::create(builder, 
                                   loc, vecTy, iVec, fVec, iargs[0]);
                             }
 
-                            builder.create<scf::YieldOp>(loc,
+                            scf::YieldOp::create(builder, loc,
                                                          ValueRange{tVecNext});
                           });
-                      builder.create<scf::YieldOp>(
+                      scf::YieldOp::create(builder, 
                           loc, ValueRange{forOp.getResult(0)});
                     });
-                builder.create<vector::MaskedStoreOp>(
+                vector::MaskedStoreOp::create(builder, 
                     loc, output, ValueRange{ivN, ivOH, ivOW, applyOC},
                     maskVector, forOp.getResult(0));
-                builder.create<scf::YieldOp>(loc, ValueRange{});
+                scf::YieldOp::create(builder, loc, ValueRange{});
               });
 
-          nestedBuilder.create<scf::InParallelOp>(nestedLoc);
+          scf::InParallelOp::create(nestedBuilder, nestedLoc);
         });
     // clang format on
 

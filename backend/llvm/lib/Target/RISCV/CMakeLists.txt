@@ -60,7 +60,7 @@ tablegen(LLVM RISCVGenPreLegalizeGICombiner.inc -gen-global-isel-combiner
 tablegen(LLVM RISCVGenPostLegalizeGICombiner.inc -gen-global-isel-combiner
               -combiners="RISCVPostLegalizerCombiner")
 
-add_public_tablegen_target(RISCVBuddyCommonTableGen)
+add_mlir_dialect_tablegen_target(RISCVBuddyCommonTableGen)
 
 # ------------------------------------------------------------------------------
 # Build RISC-V Buddy Extension CodeGen.

@@ -92,19 +92,19 @@ public:
         RankedTensorType::get({outputShape[1] * outputShape[2], outputShape[3]},
                               outputShapeType.getElementType());
 
-    Value reshapedInput = rewriter.create<tensor::CollapseShapeOp>(
+    Value reshapedInput = tensor::CollapseShapeOp::create(rewriter, 
         loc, reshapedInputType, input, reassociationIndices);
-    Value reshapedFilter = rewriter.create<tensor::CollapseShapeOp>(
+    Value reshapedFilter = tensor::CollapseShapeOp::create(rewriter, 
         loc, reshapedFilterType, kernel, reassociationIndices);
-    Value reshapedOutput = rewriter.create<tensor::CollapseShapeOp>(
+    Value reshapedOutput = tensor::CollapseShapeOp::create(rewriter, 
         loc, reshapedOutputType, output, reassociationIndices);
 
     // Create MutmulOp
-    auto matmulResult = rewriter.create<linalg::MatmulOp>(
+    auto matmulResult = linalg::MatmulOp::create(rewriter, 
         loc, reshapedOutputType, ArrayRef<Value>{reshapedInput, reshapedFilter},
         ArrayRef<Value>{reshapedOutput});
 
-    auto reshapedResult = rewriter.create<tensor::ExpandShapeOp>(
+    auto reshapedResult = tensor::ExpandShapeOp::create(rewriter, 
         loc, outputShapeType, matmulResult.getResults()[0],
         reassociationIndices);
 

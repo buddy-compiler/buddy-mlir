@@ -74,10 +74,10 @@ public:
     }
     llvm::APFloat scale1((float)1.0);
     llvm::APFloat scale0((float)0.0);
-    Value bias = rewriter.create<memref::AllocOp>(loc, biasType);
+    Value bias = memref::AllocOp::create(rewriter, loc, biasType);
     Value fillOpInputValue =
-        rewriter.create<arith::ConstantOp>(loc, fillOpInsType, fillOpInputAttr);
-    rewriter.create<linalg::FillOp>(loc, fillOpInputValue, bias);
+        arith::ConstantOp::create(rewriter, loc, fillOpInsType, fillOpInputAttr);
+    linalg::FillOp::create(rewriter, loc, fillOpInputValue, bias);
     // Collapse 3D (1xMxK, 1xKxN, 1xMxN) -> 2D (MxK, KxN, MxN)
     Value aVal = input0;
     Value bVal = input1;
@@ -85,17 +85,17 @@ public:
     Value biasVal = bias;
     if (needCollapse) {
       SmallVector<SmallVector<int64_t, 2>, 2> reassoc = {{0, 1}, {2}};
-      aVal = rewriter.create<memref::CollapseShapeOp>(loc, input0, reassoc);
-      bVal = rewriter.create<memref::CollapseShapeOp>(loc, input1, reassoc);
-      oVal = rewriter.create<memref::CollapseShapeOp>(loc, output0, reassoc);
-      biasVal = rewriter.create<memref::CollapseShapeOp>(loc, bias, reassoc);
+      aVal = memref::CollapseShapeOp::create(rewriter, loc, input0, reassoc);
+      bVal = memref::CollapseShapeOp::create(rewriter, loc, input1, reassoc);
+      oVal = memref::CollapseShapeOp::create(rewriter, loc, output0, reassoc);
+      biasVal = memref::CollapseShapeOp::create(rewriter, loc, bias, reassoc);
     }
 
     rewriter.replaceOpWithNewOp<gemmini::TileMatMulOp>(
         matMulOp, aVal, bVal, oVal, biasVal, /*aScaleFactor = */ scale1,
         /*bScaleFactor = */ scale1, /*dScaleFactor = */ scale1, /*act = */ 0,
         /*accScale = */ scale1, /*bertScale = */ scale0);
-    rewriter.create<memref::DeallocOp>(loc, bias);
+    memref::DeallocOp::create(rewriter, loc, bias);
     return success();
   }
 
@@ -139,59 +139,59 @@ public:
     SmallVector<int64_t> kernelMatShape = {
         kernelShape[1] * kernelShape[2] * kernelShape[3], kernelShape[0]};
     MemRefType kernelMatType = MemRefType::get(kernelMatShape, kernelElemType);
-    Value kernelMat = rewriter.create<memref::AllocOp>(loc, kernelMatType);
+    Value kernelMat = memref::AllocOp::create(rewriter, loc, kernelMatType);
     SmallVector<int64_t> outputMatShape = {
         outputShape[0] * outputShape[1] * outputShape[2], outputShape[3]};
     MemRefType outputMatType = MemRefType::get(outputMatShape, outputElemType);
-    Value outputMat = rewriter.create<memref::AllocOp>(loc, outputMatType);
+    Value outputMat = memref::AllocOp::create(rewriter, loc, outputMatType);
     MemRefType biasType =
         MemRefType::get(outputShape[3], rewriter.getI32Type());
     if (accType == "f32")
       biasType = MemRefType::get(outputShape[3], rewriter.getF32Type());
-    Value bias = rewriter.create<memref::AllocOp>(loc, biasType);
+    Value bias = memref::AllocOp::create(rewriter, loc, biasType);
     TypedAttr attr = rewriter.getI32IntegerAttr(0);
     if (accType == "f32")
       attr = rewriter.getF32FloatAttr(0);
-    Value constant0 = rewriter.create<arith::ConstantOp>(loc, attr);
+    Value constant0 = arith::ConstantOp::create(rewriter, loc, attr);
     SmallVector<Value, 1> inputs = {constant0};
     SmallVector<Value, 1> outputs = {bias};
-    rewriter.create<linalg::FillOp>(loc, inputs, outputs);
+    linalg::FillOp::create(rewriter, loc, inputs, outputs);
     Operation *loopOp = nullptr;
     SmallVector<Value, 4> loopIvs;
     for (size_t i = 0; i != kernelShape.size(); i++) {
-      Value lowerBound = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+      Value lowerBound = arith::ConstantIndexOp::create(rewriter, loc, 0);
       Value upperBound =
-          rewriter.create<arith::ConstantIndexOp>(loc, kernelShape[i]);
-      Value step = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+          arith::ConstantIndexOp::create(rewriter, loc, kernelShape[i]);
+      Value step = arith::ConstantIndexOp::create(rewriter, loc, 1);
       auto loop =
-          rewriter.create<scf::ForOp>(loc, lowerBound, upperBound, step);
+          scf::ForOp::create(rewriter, loc, lowerBound, upperBound, step);
       loopIvs.push_back(loop.getInductionVar());
       if (i == 0)
         loopOp = loop.getOperation();
       rewriter.setInsertionPointToStart(loop.getBody());
     }
     Value kernelWidth =
-        rewriter.create<arith::ConstantIndexOp>(loc, kernelShape[2]);
+        arith::ConstantIndexOp::create(rewriter, loc, kernelShape[2]);
     Value inChannels =
-        rewriter.create<arith::ConstantIndexOp>(loc, kernelShape[3]);
+        arith::ConstantIndexOp::create(rewriter, loc, kernelShape[3]);
     // Conv kernel mapping (f,h,w,c) -> (h*w*c, f)
     // Calculate: h * (W*C) + w * C + c
-    Value tmp0 = rewriter.create<arith::MulIOp>(loc, loopIvs[1], kernelWidth);
-    tmp0 = rewriter.create<arith::MulIOp>(loc, tmp0, inChannels);
-    Value tmp1 = rewriter.create<arith::MulIOp>(loc, loopIvs[2], inChannels);
-    tmp0 = rewriter.create<arith::AddIOp>(loc, tmp0, tmp1);
-    tmp0 = rewriter.create<arith::AddIOp>(loc, tmp0, loopIvs[3]);
-    Value element = rewriter.create<memref::LoadOp>(loc, kernel, loopIvs);
+    Value tmp0 = arith::MulIOp::create(rewriter, loc, loopIvs[1], kernelWidth);
+    tmp0 = arith::MulIOp::create(rewriter, loc, tmp0, inChannels);
+    Value tmp1 = arith::MulIOp::create(rewriter, loc, loopIvs[2], inChannels);
+    tmp0 = arith::AddIOp::create(rewriter, loc, tmp0, tmp1);
+    tmp0 = arith::AddIOp::create(rewriter, loc, tmp0, loopIvs[3]);
+    Value element = memref::LoadOp::create(rewriter, loc, kernel, loopIvs);
     SmallVector<Value, 2> indices = {tmp0, loopIvs[0]};
-    rewriter.create<memref::StoreOp>(loc, element, kernelMat, indices);
+    memref::StoreOp::create(rewriter, loc, element, kernelMat, indices);
     rewriter.setInsertionPointAfter(loopOp);
     attr = rewriter.getI64IntegerAttr(outputShape[1]);
-    Value outRowDim = rewriter.create<arith::ConstantOp>(loc, attr);
+    Value outRowDim = arith::ConstantOp::create(rewriter, loc, attr);
     attr = rewriter.getI64IntegerAttr(outputShape[2]);
-    Value outColDim = rewriter.create<arith::ConstantOp>(loc, attr);
-    Value kernelDim = rewriter.create<arith::ConstantOp>(
+    Value outColDim = arith::ConstantOp::create(rewriter, loc, attr);
+    Value kernelDim = arith::ConstantOp::create(rewriter, 
         loc, rewriter.getI64Type(), rewriter.getI64IntegerAttr(kernelShape[1]));
-    rewriter.create<gemmini::TileConvOp>(
+    gemmini::TileConvOp::create(rewriter, 
         loc, input, kernelMat, bias, outputMat, outRowDim, outColDim, kernelDim,
         llvm::APFloat(float(1.0)), strides, /*inputDilation=*/1,
         /*kernelDilation=*/dilations);
@@ -200,34 +200,34 @@ public:
     loopIvs.clear();
     indices.clear();
     for (size_t i = 0; i < outputShape.size(); i++) {
-      Value lowerBound = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+      Value lowerBound = arith::ConstantIndexOp::create(rewriter, loc, 0);
       Value upperBound =
-          rewriter.create<arith::ConstantIndexOp>(loc, outputShape[i]);
-      Value step = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+          arith::ConstantIndexOp::create(rewriter, loc, outputShape[i]);
+      Value step = arith::ConstantIndexOp::create(rewriter, loc, 1);
       auto loop =
-          rewriter.create<scf::ForOp>(loc, lowerBound, upperBound, step);
+          scf::ForOp::create(rewriter, loc, lowerBound, upperBound, step);
       loopIvs.push_back(loop.getInductionVar());
       if (i == 0)
         loopOp = loop.getOperation();
       rewriter.setInsertionPointToStart(loop.getBody());
     }
     // Map output from 2D (N*H*W, C) back to NHWC (n,h,w,c)
-    Value outH = rewriter.create<arith::ConstantIndexOp>(loc, outputShape[1]);
-    Value outW = rewriter.create<arith::ConstantIndexOp>(loc, outputShape[2]);
+    Value outH = arith::ConstantIndexOp::create(rewriter, loc, outputShape[1]);
+    Value outW = arith::ConstantIndexOp::create(rewriter, loc, outputShape[2]);
     // Calculate the row index in the 2D matrix: n * (H*W) + h * W + w
-    tmp0 = rewriter.create<arith::MulIOp>(loc, loopIvs[0], outH);
-    tmp0 = rewriter.create<arith::MulIOp>(loc, tmp0, outW);
-    tmp1 = rewriter.create<arith::MulIOp>(loc, loopIvs[1], outW);
-    tmp0 = rewriter.create<arith::AddIOp>(loc, tmp0, tmp1);
-    tmp0 = rewriter.create<arith::AddIOp>(loc, tmp0, loopIvs[2]);
+    tmp0 = arith::MulIOp::create(rewriter, loc, loopIvs[0], outH);
+    tmp0 = arith::MulIOp::create(rewriter, loc, tmp0, outW);
+    tmp1 = arith::MulIOp::create(rewriter, loc, loopIvs[1], outW);
+    tmp0 = arith::AddIOp::create(rewriter, loc, tmp0, tmp1);
+    tmp0 = arith::AddIOp::create(rewriter, loc, tmp0, loopIvs[2]);
     // The index in the 2D matrix is [n*H*W + h*W + w, c]
     indices.assign({tmp0, loopIvs[3]});
-    tmp0 = rewriter.create<memref::LoadOp>(loc, outputMat, indices);
-    rewriter.create<memref::StoreOp>(loc, tmp0, output, loopIvs);
+    tmp0 = memref::LoadOp::create(rewriter, loc, outputMat, indices);
+    memref::StoreOp::create(rewriter, loc, tmp0, output, loopIvs);
     rewriter.setInsertionPointAfter(loopOp);
-    rewriter.create<memref::DeallocOp>(loc, kernelMat);
-    rewriter.create<memref::DeallocOp>(loc, outputMat);
-    rewriter.create<memref::DeallocOp>(loc, bias);
+    memref::DeallocOp::create(rewriter, loc, kernelMat);
+    memref::DeallocOp::create(rewriter, loc, outputMat);
+    memref::DeallocOp::create(rewriter, loc, bias);
     rewriter.eraseOp(convOp);
     return success();
   }
@@ -274,8 +274,8 @@ public:
     MemRefType inputMatType = MemRefType::get(inputMatShape, inputElemType);
     MemRefType weightsMatType =
         MemRefType::get(weightsMatShape, weightsElemType);
-    Value inputMat = rewriter.create<memref::AllocOp>(loc, inputMatType);
-    Value weightsMat = rewriter.create<memref::AllocOp>(loc, weightsMatType);
+    Value inputMat = memref::AllocOp::create(rewriter, loc, inputMatType);
+    Value weightsMat = memref::AllocOp::create(rewriter, loc, weightsMatType);
     MemRefType biasType =
         MemRefType::get(weightsShape[0], rewriter.getI32Type());
     if (accType == "f32")
@@ -283,25 +283,25 @@ public:
     SmallVector<int64_t, 2> outputMatShape = {
         inputShape[0] * outputShape[2] * outputShape[3], outputShape[1]};
     MemRefType outputMatType = MemRefType::get(outputMatShape, outputElemType);
-    Value bias = rewriter.create<memref::AllocOp>(loc, biasType);
-    Value outputMat = rewriter.create<memref::AllocOp>(loc, outputMatType);
+    Value bias = memref::AllocOp::create(rewriter, loc, biasType);
+    Value outputMat = memref::AllocOp::create(rewriter, loc, outputMatType);
     TypedAttr outDimAttr = rewriter.getI64IntegerAttr(outputShape[2]);
-    Value outDim = rewriter.create<arith::ConstantOp>(
+    Value outDim = arith::ConstantOp::create(rewriter, 
         loc, rewriter.getI64Type(), outDimAttr);
     Value kernelDim =
-        rewriter.create<arith::ConstantIndexOp>(loc, weightsShape[2]);
+        arith::ConstantIndexOp::create(rewriter, loc, weightsShape[2]);
     Value inChannels =
-        rewriter.create<arith::ConstantIndexOp>(loc, inputShape[1]);
+        arith::ConstantIndexOp::create(rewriter, loc, inputShape[1]);
     SmallVector<Value, 4> loopIvs0;
     SmallVector<Value, 4> loopIvs1;
     Operation *loopOp = nullptr;
     for (unsigned i = 0, e = inputShape.size(); i != e; i++) {
-      Value lowerBound = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+      Value lowerBound = arith::ConstantIndexOp::create(rewriter, loc, 0);
       Value upperBound =
-          rewriter.create<arith::ConstantIndexOp>(loc, inputShape[i]);
-      Value step = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+          arith::ConstantIndexOp::create(rewriter, loc, inputShape[i]);
+      Value step = arith::ConstantIndexOp::create(rewriter, loc, 1);
       auto loop =
-          rewriter.create<scf::ForOp>(loc, lowerBound, upperBound, step);
+          scf::ForOp::create(rewriter, loc, lowerBound, upperBound, step);
       loopIvs0.push_back(loop.getInductionVar());
       rewriter.setInsertionPointToStart(loop.getBody());
       if (i == 0)
@@ -311,38 +311,38 @@ public:
     loopIvs1.push_back(loopIvs0[2]);
     loopIvs1.push_back(loopIvs0[3]);
     loopIvs1.push_back(loopIvs0[1]);
-    Value element = rewriter.create<memref::LoadOp>(loc, input0, loopIvs0);
-    rewriter.create<memref::StoreOp>(loc, element, inputMat, loopIvs1);
+    Value element = memref::LoadOp::create(rewriter, loc, input0, loopIvs0);
+    memref::StoreOp::create(rewriter, loc, element, inputMat, loopIvs1);
     rewriter.setInsertionPointAfter(loopOp);
     loopIvs0.clear();
     loopIvs1.clear();
     for (unsigned i = 0, e = weightsShape.size(); i != e; i++) {
-      Value lowerBound = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+      Value lowerBound = arith::ConstantIndexOp::create(rewriter, loc, 0);
       Value upperBound =
-          rewriter.create<arith::ConstantIndexOp>(loc, weightsShape[i]);
-      Value step = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+          arith::ConstantIndexOp::create(rewriter, loc, weightsShape[i]);
+      Value step = arith::ConstantIndexOp::create(rewriter, loc, 1);
       auto loop =
-          rewriter.create<scf::ForOp>(loc, lowerBound, upperBound, step);
+          scf::ForOp::create(rewriter, loc, lowerBound, upperBound, step);
       loopIvs0.push_back(loop.getInductionVar());
       rewriter.setInsertionPointToStart(loop.getBody());
       if (i == 0)
         loopOp = loop.getOperation();
     }
     Value tmp0 =
-        rewriter.create<arith::MulIOp>(loc, /*krow*/ loopIvs0[2], kernelDim);
-    tmp0 = rewriter.create<arith::MulIOp>(loc, tmp0, inChannels);
+        arith::MulIOp::create(rewriter, loc, /*krow*/ loopIvs0[2], kernelDim);
+    tmp0 = arith::MulIOp::create(rewriter, loc, tmp0, inChannels);
     Value tmp1 =
-        rewriter.create<arith::MulIOp>(loc, /*kcol*/ loopIvs0[3], inChannels);
-    tmp0 = rewriter.create<arith::AddIOp>(loc, tmp0, tmp1);
-    tmp0 = rewriter.create<arith::AddIOp>(loc, tmp0, /*inchannel*/ loopIvs0[1]);
-    tmp1 = rewriter.create<memref::LoadOp>(loc, input1, loopIvs0);
+        arith::MulIOp::create(rewriter, loc, /*kcol*/ loopIvs0[3], inChannels);
+    tmp0 = arith::AddIOp::create(rewriter, loc, tmp0, tmp1);
+    tmp0 = arith::AddIOp::create(rewriter, loc, tmp0, /*inchannel*/ loopIvs0[1]);
+    tmp1 = memref::LoadOp::create(rewriter, loc, input1, loopIvs0);
     SmallVector<Value, 2> valueRange = {tmp0, loopIvs0[0]};
-    rewriter.create<memref::StoreOp>(loc, tmp1, weightsMat, valueRange);
+    memref::StoreOp::create(rewriter, loc, tmp1, weightsMat, valueRange);
     rewriter.setInsertionPointAfter(loopOp);
-    kernelDim = rewriter.create<arith::ConstantOp>(
+    kernelDim = arith::ConstantOp::create(rewriter, 
         loc, rewriter.getI64Type(),
         rewriter.getI64IntegerAttr(weightsShape[2]));
-    rewriter.create<gemmini::TileConvOp>(
+    gemmini::TileConvOp::create(rewriter, 
         loc, inputMat, weightsMat, bias, outputMat, outDim, outDim, kernelDim,
         llvm::APFloat(float(1.0)), strides, /*inputDilation=*/1,
         /*kernelDilation=*/dilations);
@@ -350,32 +350,32 @@ public:
     loopIvs0.clear();
     loopIvs1.clear();
     for (unsigned i = 0, e = outputShape.size(); i != e; i++) {
-      Value lowerBound = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+      Value lowerBound = arith::ConstantIndexOp::create(rewriter, loc, 0);
       Value upperBound =
-          rewriter.create<arith::ConstantIndexOp>(loc, outputShape[i]);
-      Value step = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+          arith::ConstantIndexOp::create(rewriter, loc, outputShape[i]);
+      Value step = arith::ConstantIndexOp::create(rewriter, loc, 1);
       auto loop =
-          rewriter.create<scf::ForOp>(loc, lowerBound, upperBound, step);
+          scf::ForOp::create(rewriter, loc, lowerBound, upperBound, step);
       loopIvs0.push_back(loop.getInductionVar());
       rewriter.setInsertionPointToStart(loop.getBody());
       if (i == 0)
         loopOp = loop.getOperation();
     }
-    outDim = rewriter.create<arith::ConstantIndexOp>(loc, outputShape[2]);
-    tmp0 = rewriter.create<arith::MulIOp>(loc, loopIvs0[0], outDim);
-    tmp0 = rewriter.create<arith::MulIOp>(loc, tmp0, outDim);
-    tmp1 = rewriter.create<arith::MulIOp>(loc, loopIvs0[2], outDim);
-    tmp0 = rewriter.create<arith::AddIOp>(loc, tmp0, tmp1);
-    tmp0 = rewriter.create<arith::AddIOp>(loc, tmp0, loopIvs0[3]);
+    outDim = arith::ConstantIndexOp::create(rewriter, loc, outputShape[2]);
+    tmp0 = arith::MulIOp::create(rewriter, loc, loopIvs0[0], outDim);
+    tmp0 = arith::MulIOp::create(rewriter, loc, tmp0, outDim);
+    tmp1 = arith::MulIOp::create(rewriter, loc, loopIvs0[2], outDim);
+    tmp0 = arith::AddIOp::create(rewriter, loc, tmp0, tmp1);
+    tmp0 = arith::AddIOp::create(rewriter, loc, tmp0, loopIvs0[3]);
     loopIvs1.push_back(tmp0);
     loopIvs1.push_back(loopIvs0[1]);
-    tmp1 = rewriter.create<memref::LoadOp>(loc, outputMat, loopIvs1);
-    rewriter.create<memref::StoreOp>(loc, tmp1, output, loopIvs0);
+    tmp1 = memref::LoadOp::create(rewriter, loc, outputMat, loopIvs1);
+    memref::StoreOp::create(rewriter, loc, tmp1, output, loopIvs0);
     rewriter.setInsertionPointAfter(loopOp);
-    rewriter.create<memref::DeallocOp>(loc, inputMat);
-    rewriter.create<memref::DeallocOp>(loc, weightsMat);
-    rewriter.create<memref::DeallocOp>(loc, outputMat);
-    rewriter.create<memref::DeallocOp>(loc, bias);
+    memref::DeallocOp::create(rewriter, loc, inputMat);
+    memref::DeallocOp::create(rewriter, loc, weightsMat);
+    memref::DeallocOp::create(rewriter, loc, outputMat);
+    memref::DeallocOp::create(rewriter, loc, bias);
     return success();
   }
 
@@ -421,56 +421,56 @@ public:
     SmallVector<int64_t> memRefShape = {
         kernelShape[0] * kernelShape[1] * kernelShape[2], kernelShape[3]};
     MemRefType kernelMatType = MemRefType::get(memRefShape, kernelElemType);
-    Value kernelMat = rewriter.create<memref::AllocOp>(loc, kernelMatType);
+    Value kernelMat = memref::AllocOp::create(rewriter, loc, kernelMatType);
     memRefShape.assign(
         {outputShape[0] * outputShape[1] * outputShape[2], outputShape[3]});
     MemRefType outputMatType = MemRefType::get(memRefShape, outputElemType);
-    Value outputMat = rewriter.create<memref::AllocOp>(loc, outputMatType);
+    Value outputMat = memref::AllocOp::create(rewriter, loc, outputMatType);
     memRefShape.assign({outputShape[3]});
     MemRefType biasType = MemRefType::get(memRefShape, rewriter.getI32Type());
     if (accType == "f32")
       biasType = MemRefType::get(memRefShape, rewriter.getF32Type());
-    Value bias = rewriter.create<memref::AllocOp>(loc, biasType);
+    Value bias = memref::AllocOp::create(rewriter, loc, biasType);
     TypedAttr attr = rewriter.getI32IntegerAttr(0);
     if (accType == "f32")
       attr = rewriter.getF32FloatAttr(0);
-    Value constant0 = rewriter.create<arith::ConstantOp>(loc, attr);
+    Value constant0 = arith::ConstantOp::create(rewriter, loc, attr);
     SmallVector<Value, 1> inputs = {constant0};
     SmallVector<Value, 1> outputs = {bias};
-    rewriter.create<linalg::FillOp>(loc, inputs, outputs);
+    linalg::FillOp::create(rewriter, loc, inputs, outputs);
     // Transferring kernel data to kernelMat.
-    Value lowerBound = rewriter.create<arith::ConstantIndexOp>(loc, 0);
-    Value step = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+    Value lowerBound = arith::ConstantIndexOp::create(rewriter, loc, 0);
+    Value step = arith::ConstantIndexOp::create(rewriter, loc, 1);
     Operation *loopOp = nullptr;
     SmallVector<Value, 4> loopIvs;
     for (size_t i = 0; i != kernelShape.size(); i++) {
       Value upperBound =
-          rewriter.create<arith::ConstantIndexOp>(loc, kernelShape[i]);
+          arith::ConstantIndexOp::create(rewriter, loc, kernelShape[i]);
       auto loop =
-          rewriter.create<scf::ForOp>(loc, lowerBound, upperBound, step);
+          scf::ForOp::create(rewriter, loc, lowerBound, upperBound, step);
       loopIvs.push_back(loop.getInductionVar());
       if (i == 0)
         loopOp = loop.getOperation();
       rewriter.setInsertionPointToStart(loop.getBody());
     }
     Value kernelDim =
-        rewriter.create<arith::ConstantIndexOp>(loc, kernelShape[1]);
+        arith::ConstantIndexOp::create(rewriter, loc, kernelShape[1]);
     Value inChannels =
-        rewriter.create<arith::ConstantIndexOp>(loc, kernelShape[2]);
-    Value tmp0 = rewriter.create<arith::MulIOp>(loc, loopIvs[0], kernelDim);
-    tmp0 = rewriter.create<arith::MulIOp>(loc, tmp0, inChannels);
-    Value tmp1 = rewriter.create<arith::MulIOp>(loc, loopIvs[1], inChannels);
-    tmp0 = rewriter.create<arith::AddIOp>(loc, tmp0, tmp1);
-    tmp0 = rewriter.create<arith::AddIOp>(loc, tmp0, loopIvs[2]);
-    tmp1 = rewriter.create<memref::LoadOp>(loc, kernel, loopIvs);
+        arith::ConstantIndexOp::create(rewriter, loc, kernelShape[2]);
+    Value tmp0 = arith::MulIOp::create(rewriter, loc, loopIvs[0], kernelDim);
+    tmp0 = arith::MulIOp::create(rewriter, loc, tmp0, inChannels);
+    Value tmp1 = arith::MulIOp::create(rewriter, loc, loopIvs[1], inChannels);
+    tmp0 = arith::AddIOp::create(rewriter, loc, tmp0, tmp1);
+    tmp0 = arith::AddIOp::create(rewriter, loc, tmp0, loopIvs[2]);
+    tmp1 = memref::LoadOp::create(rewriter, loc, kernel, loopIvs);
     SmallVector<Value, 2> indices = {tmp0, loopIvs[3]};
-    rewriter.create<memref::StoreOp>(loc, tmp1, kernelMat, indices);
+    memref::StoreOp::create(rewriter, loc, tmp1, kernelMat, indices);
     rewriter.setInsertionPointAfter(loopOp);
     attr = rewriter.getI64IntegerAttr(outputShape[1]);
-    Value outDim = rewriter.create<arith::ConstantOp>(loc, attr);
+    Value outDim = arith::ConstantOp::create(rewriter, loc, attr);
     attr = rewriter.getI64IntegerAttr(kernelShape[1]);
-    kernelDim = rewriter.create<arith::ConstantOp>(loc, attr);
-    rewriter.create<gemmini::TileConvOp>(
+    kernelDim = arith::ConstantOp::create(rewriter, loc, attr);
+    gemmini::TileConvOp::create(rewriter, 
         loc, input, kernelMat, bias, outputMat, outDim, outDim, kernelDim,
         llvm::APFloat(float(1.0)), strides, /*inputDilation=*/1,
         /*kernelDilation=*/dilations);
@@ -480,9 +480,9 @@ public:
     indices.clear();
     for (size_t i = 0; i < outputShape.size(); i++) {
       Value upperBound =
-          rewriter.create<arith::ConstantIndexOp>(loc, outputShape[i]);
+          arith::ConstantIndexOp::create(rewriter, loc, outputShape[i]);
       auto loop =
-          rewriter.create<scf::ForOp>(loc, lowerBound, upperBound, step);
+          scf::ForOp::create(rewriter, loc, lowerBound, upperBound, step);
       loopIvs.push_back(loop.getInductionVar());
       if (i == 0)
         loopOp = loop.getOperation();
@@ -491,19 +491,19 @@ public:
 
     // Because outputRow is equal to outputCol,here you only need to use
     // outputRow.
-    Value row = rewriter.create<arith::ConstantIndexOp>(loc, outputShape[1]);
-    tmp0 = rewriter.create<arith::MulIOp>(loc, loopIvs[0], row);
-    tmp0 = rewriter.create<arith::MulIOp>(loc, tmp0, row);
-    tmp1 = rewriter.create<arith::MulIOp>(loc, row, loopIvs[1]);
-    tmp0 = rewriter.create<arith::AddIOp>(loc, tmp0, tmp1);
-    tmp0 = rewriter.create<arith::AddIOp>(loc, tmp0, loopIvs[2]);
+    Value row = arith::ConstantIndexOp::create(rewriter, loc, outputShape[1]);
+    tmp0 = arith::MulIOp::create(rewriter, loc, loopIvs[0], row);
+    tmp0 = arith::MulIOp::create(rewriter, loc, tmp0, row);
+    tmp1 = arith::MulIOp::create(rewriter, loc, row, loopIvs[1]);
+    tmp0 = arith::AddIOp::create(rewriter, loc, tmp0, tmp1);
+    tmp0 = arith::AddIOp::create(rewriter, loc, tmp0, loopIvs[2]);
     indices.assign({tmp0, loopIvs[3]});
-    tmp0 = rewriter.create<memref::LoadOp>(loc, outputMat, indices);
-    rewriter.create<memref::StoreOp>(loc, tmp0, output, loopIvs);
+    tmp0 = memref::LoadOp::create(rewriter, loc, outputMat, indices);
+    memref::StoreOp::create(rewriter, loc, tmp0, output, loopIvs);
     rewriter.setInsertionPointAfter(loopOp);
-    rewriter.create<memref::DeallocOp>(loc, kernelMat);
-    rewriter.create<memref::DeallocOp>(loc, outputMat);
-    rewriter.create<memref::DeallocOp>(loc, bias);
+    memref::DeallocOp::create(rewriter, loc, kernelMat);
+    memref::DeallocOp::create(rewriter, loc, outputMat);
+    memref::DeallocOp::create(rewriter, loc, bias);
     rewriter.eraseOp(convOp);
     return success();
   }
@@ -538,36 +538,36 @@ public:
       SmallVector<int64_t> staticOffsets = {i, 0, 0};
       SmallVector<int64_t> staticSizes = {1, input0Shape[1], input0Shape[2]};
       SmallVector<int64_t> staticStrides = {1, 1, 1};
-      Value subInput0 = rewriter.create<memref::SubViewOp>(
+      Value subInput0 = memref::SubViewOp::create(rewriter, 
           loc, input0, staticOffsets, staticSizes, staticStrides);
       // If rank is 3 with leading 1, collapse to 2D [M,K]
       if (dyn_cast<MemRefType>(subInput0.getType()).getRank() == 3 &&
           dyn_cast<MemRefType>(subInput0.getType()).getShape()[0] == 1) {
         SmallVector<SmallVector<int64_t, 2>, 2> reassoc = {{0, 1}, {2}};
         subInput0 =
-            rewriter.create<memref::CollapseShapeOp>(loc, subInput0, reassoc);
+            memref::CollapseShapeOp::create(rewriter, loc, subInput0, reassoc);
       }
       staticSizes.assign({1, input1Shape[1], input1Shape[2]});
-      Value subInput1 = rewriter.create<memref::SubViewOp>(
+      Value subInput1 = memref::SubViewOp::create(rewriter, 
           loc, input1, staticOffsets, staticSizes, staticStrides);
       if (dyn_cast<MemRefType>(subInput1.getType()).getRank() == 3 &&
           dyn_cast<MemRefType>(subInput1.getType()).getShape()[0] == 1) {
         SmallVector<SmallVector<int64_t, 2>, 2> reassoc = {{0, 1}, {2}};
         subInput1 =
-            rewriter.create<memref::CollapseShapeOp>(loc, subInput1, reassoc);
+            memref::CollapseShapeOp::create(rewriter, loc, subInput1, reassoc);
       }
       staticSizes.assign({1, outputShape[1], outputShape[2]});
-      Value subOutput = rewriter.create<memref::SubViewOp>(
+      Value subOutput = memref::SubViewOp::create(rewriter, 
           loc, output, staticOffsets, staticSizes, staticStrides);
       if (dyn_cast<MemRefType>(subOutput.getType()).getRank() == 3 &&
           dyn_cast<MemRefType>(subOutput.getType()).getShape()[0] == 1) {
         SmallVector<SmallVector<int64_t, 2>, 2> reassoc = {{0, 1}, {2}};
         subOutput =
-            rewriter.create<memref::CollapseShapeOp>(loc, subOutput, reassoc);
+            memref::CollapseShapeOp::create(rewriter, loc, subOutput, reassoc);
       }
       SmallVector<Value> inputs = {subInput0, subInput1};
       SmallVector<Value> output = {subOutput};
-      rewriter.create<linalg::MatmulOp>(batchMatMulOp.getLoc(), inputs, output);
+      linalg::MatmulOp::create(rewriter, batchMatMulOp.getLoc(), inputs, output);
     }
     rewriter.eraseOp(batchMatMulOp.getOperation());
     return success();
@@ -607,34 +607,34 @@ public:
       SmallVector<int64_t> staticOffsets = {i, 0, 0};
       SmallVector<int64_t> staticSizes = {1, input0Shape[1], input0Shape[2]};
       SmallVector<int64_t> staticStrides = {1, 1, 1};
-      Value subInput0 = rewriter.create<memref::SubViewOp>(
+      Value subInput0 = memref::SubViewOp::create(rewriter, 
           loc, input0, staticOffsets, staticSizes, staticStrides);
       // If rank is 3 with leading 1, collapse to 2D [M,K]
       if (dyn_cast<MemRefType>(subInput0.getType()).getRank() == 3 &&
           dyn_cast<MemRefType>(subInput0.getType()).getShape()[0] == 1) {
         SmallVector<SmallVector<int64_t, 2>, 2> reassoc = {{0, 1}, {2}};
         subInput0 =
-            rewriter.create<memref::CollapseShapeOp>(loc, subInput0, reassoc);
+            memref::CollapseShapeOp::create(rewriter, loc, subInput0, reassoc);
       }
       // For BatchMatmulTransposeBOp, input1 has shape [batch, N, K]
       // where batch dimension index is 0, N is at index 1, K is at index 2
       staticSizes.assign({1, input1Shape[1], input1Shape[2]});
-      Value subInput1 = rewriter.create<memref::SubViewOp>(
+      Value subInput1 = memref::SubViewOp::create(rewriter, 
           loc, input1, staticOffsets, staticSizes, staticStrides);
       if (dyn_cast<MemRefType>(subInput1.getType()).getRank() == 3 &&
           dyn_cast<MemRefType>(subInput1.getType()).getShape()[0] == 1) {
         SmallVector<SmallVector<int64_t, 2>, 2> reassoc = {{0, 1}, {2}};
         subInput1 =
-            rewriter.create<memref::CollapseShapeOp>(loc, subInput1, reassoc);
+            memref::CollapseShapeOp::create(rewriter, loc, subInput1, reassoc);
       }
       staticSizes.assign({1, outputShape[1], outputShape[2]});
-      Value subOutput = rewriter.create<memref::SubViewOp>(
+      Value subOutput = memref::SubViewOp::create(rewriter, 
           loc, output, staticOffsets, staticSizes, staticStrides);
       if (dyn_cast<MemRefType>(subOutput.getType()).getRank() == 3 &&
           dyn_cast<MemRefType>(subOutput.getType()).getShape()[0] == 1) {
         SmallVector<SmallVector<int64_t, 2>, 2> reassoc = {{0, 1}, {2}};
         subOutput =
-            rewriter.create<memref::CollapseShapeOp>(loc, subOutput, reassoc);
+            memref::CollapseShapeOp::create(rewriter, loc, subOutput, reassoc);
       }
 
       // Create bias memref
@@ -651,13 +651,13 @@ public:
       }
       llvm::APFloat scale1((float)1.0);
       llvm::APFloat scale0((float)0.0);
-      Value bias = rewriter.create<memref::AllocOp>(loc, biasType);
-      Value fillOpInputValue = rewriter.create<arith::ConstantOp>(
+      Value bias = memref::AllocOp::create(rewriter, loc, biasType);
+      Value fillOpInputValue = arith::ConstantOp::create(rewriter, 
           loc, fillOpInsType, fillOpInputAttr);
-      rewriter.create<linalg::FillOp>(loc, fillOpInputValue, bias);
+      linalg::FillOp::create(rewriter, loc, fillOpInputValue, bias);
 
       // Create TileMatMulOp with bTranspose=true
-      rewriter.create<gemmini::TileMatMulOp>(
+      gemmini::TileMatMulOp::create(rewriter, 
           loc, subInput0, subInput1, subOutput, bias,
           /*aScaleFactor = */ scale1,
           /*bScaleFactor = */ scale1, /*dScaleFactor = */ scale1,
@@ -666,7 +666,7 @@ public:
           /*bTranspose = */ true, /*fullC = */ false, /*lowD = */ false,
           /*weightA = */ 0, /*dataflow = */ 1);
 
-      rewriter.create<memref::DeallocOp>(loc, bias);
+      memref::DeallocOp::create(rewriter, loc, bias);
     }
     rewriter.eraseOp(batchMatMulTransBOp.getOperation());
     return success();

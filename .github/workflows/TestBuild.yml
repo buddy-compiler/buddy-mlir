@@ -155,7 +155,8 @@ jobs:
             -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
             -DPython3_EXECUTABLE=$(which python3)
           ninja -C $LLVM_BUILD_DIR/build check-clang check-mlir || true
-          ninja -C $LLVM_BUILD_DIR/build runtimes/runtimes-bins omp || true
+          ninja -C $LLVM_BUILD_DIR/build runtimes/runtimes-build &&
+          ninja -C $LLVM_BUILD_DIR/build/runtimes/runtimes-bins omp || true
           ${{ matrix.venv_deactivate }}
 
       - name: Show ccache stats

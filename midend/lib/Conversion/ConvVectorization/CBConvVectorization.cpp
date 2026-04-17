@@ -50,22 +50,22 @@ void populateCBSplitingPattern(Operation *op, int64_t stride,
   VectorType vectorTy32 = mlir::VectorType::get({stride}, f32);
   VectorType vectorMaskTy = VectorType::get({stride}, i1);
   // Create constant index.
-  Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
-  Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
-  Value cStride = rewriter.create<arith::ConstantIndexOp>(loc, stride);
-  Value f0 = rewriter.create<arith::ConstantFloatOp>(
+  Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
+  Value c1 = arith::ConstantIndexOp::create(rewriter, loc, 1);
+  Value cStride = arith::ConstantIndexOp::create(rewriter, loc, stride);
+  Value f0 = arith::ConstantFloatOp::create(rewriter, 
       loc, f32, APFloat::getZero(f32.getFloatSemantics()));
   // Create pass through vector.
-  Value passThroughVec = rewriter.create<vector::BroadcastOp>(loc, vectorTy32, f0);
+  Value passThroughVec = vector::BroadcastOp::create(rewriter, loc, vectorTy32, f0);
   // Get input, kernel and output.
   Value input = op->getOperand(0);
   Value kernel = op->getOperand(1);
   Value output = op->getOperand(2);
   // Create DimOp.
-  Value kernelRow = rewriter.create<memref::DimOp>(loc, kernel, c0);
-  Value kernelCol = rewriter.create<memref::DimOp>(loc, kernel, c1);
-  Value outputRow = rewriter.create<memref::DimOp>(loc, output, c0);
-  Value outputCol = rewriter.create<memref::DimOp>(loc, output, c1);
+  Value kernelRow = memref::DimOp::create(rewriter, loc, kernel, c0);
+  Value kernelCol = memref::DimOp::create(rewriter, loc, kernel, c1);
+  Value outputRow = memref::DimOp::create(rewriter, loc, output, c0);
+  Value outputCol = memref::DimOp::create(rewriter, loc, output, c1);
   // Size of strip mining.
   AffineExpr d0;
   bindDims(ctx, d0);
@@ -77,22 +77,22 @@ void populateCBSplitingPattern(Operation *op, int64_t stride,
       rewriter, loc, lowerBounds, uperBounds, steps,
       [&](OpBuilder &builder, Location loc, ValueRange ivs) {
         // Create strip mining loop.
-        builder.create<affine::AffineForOp>(
+        affine::AffineForOp::create(builder, 
             loc, ValueRange{c0}, builder.getDimIdentityMap(),
             ValueRange{outputCol}, stripMap, /*Step=*/1, ValueRange{},
             [&](OpBuilder &nestedBuilder, Location nestedLoc, Value iv,
                 ValueRange itrArgs) {
               // Vectorize the kernel.
               // Broadcast element of the kernel.
-              Value kernelValue = builder.create<memref::LoadOp>(
+              Value kernelValue = memref::LoadOp::create(builder, 
                   loc, kernel, ValueRange{ivs[1], ivs[2]});
               Value kernelNonZeroCond =
                   buddy::zeroCond(builder, loc, f32, kernelValue,
                                   buddy::indexToF32(builder, loc, c0));
-              builder.create<scf::IfOp>(
+              scf::IfOp::create(builder, 
                   loc, kernelNonZeroCond,
                   [&](OpBuilder &builder, Location loc) {
-                    Value kernelVector = builder.create<vector::BroadcastOp>(
+                    Value kernelVector = vector::BroadcastOp::create(builder, 
                         loc, vectorTy32, kernelValue);
                     // Load input vector from memref.
                     AffineExpr m, n, k, j;
@@ -102,17 +102,17 @@ void populateCBSplitingPattern(Operation *op, int64_t stride,
                         {m + n, k + j * stride}, ctx);
                     // Calculate the tail.
                     Value currCol =
-                        nestedBuilder.create<arith::MulIOp>(loc, iv, cStride);
-                    Value tail = nestedBuilder.create<arith::SubIOp>(
+                        arith::MulIOp::create(nestedBuilder, loc, iv, cStride);
+                    Value tail = arith::SubIOp::create(nestedBuilder, 
                         loc, outputCol, currCol);
-                    Value tailCond = rewriter.create<arith::CmpIOp>(
+                    Value tailCond = arith::CmpIOp::create(rewriter, 
                         loc, arith::CmpIPredicate::sge, tail, cStride);
                     // If the current column does not reach the tail.
-                    builder.create<scf::IfOp>(
+                    scf::IfOp::create(builder, 
                         loc, tailCond,
                         [&](OpBuilder &builder, Location loc) {
                           Value inputVector =
-                              nestedBuilder.create<affine::AffineVectorLoadOp>(
+                              affine::AffineVectorLoadOp::create(nestedBuilder, 
                                   loc, vectorTy32, input, inputVectorMap,
                                   ValueRange{ivs[0], ivs[1], ivs[2], iv});
                           // Define AffineMap.
@@ -124,52 +124,52 @@ void populateCBSplitingPattern(Operation *op, int64_t stride,
                               /*dimCount=*/2, /*symbolCount=*/0,
                               {x, y * stride}, ctx);
                           Value outputVector =
-                              nestedBuilder.create<affine::AffineVectorLoadOp>(
+                              affine::AffineVectorLoadOp::create(nestedBuilder, 
                                   loc, vectorTy32, output, outputVectorMap,
                                   ValueRange{ivs[0], iv});
                           // FMA = Fused Multiply + Add
-                          Value resultVector = nestedBuilder.create<FMAOp>(
+                          Value resultVector = FMAOp::create(nestedBuilder, 
                               loc, inputVector, kernelVector, outputVector);
-                          nestedBuilder.create<affine::AffineVectorStoreOp>(
+                          affine::AffineVectorStoreOp::create(nestedBuilder, 
                               loc, resultVector, output, outputVectorMap,
                               ValueRange{ivs[0], iv});
-                          builder.create<scf::YieldOp>(loc);
+                          scf::YieldOp::create(builder, loc);
                         },
                         // The else branch (the current column reaches the
                         // tail).
                         [&](OpBuilder &builder, Location loc) {
                           // Create mask according to the tail.
-                          Value tailMask = builder.create<CreateMaskOp>(
+                          Value tailMask = CreateMaskOp::create(builder, 
                               loc, vectorMaskTy, tail);
                           // Calculate the index of the input and output.
-                          Value inputRow = nestedBuilder.create<arith::AddIOp>(
+                          Value inputRow = arith::AddIOp::create(nestedBuilder, 
                               loc, ivs[0], ivs[1]);
-                          Value outputCol = nestedBuilder.create<arith::MulIOp>(
+                          Value outputCol = arith::MulIOp::create(nestedBuilder, 
                               loc, iv, cStride);
-                          Value inputCol = nestedBuilder.create<arith::AddIOp>(
+                          Value inputCol = arith::AddIOp::create(nestedBuilder, 
                               loc, ivs[2], outputCol);
                           // Masked load input and output.
-                          Value maskedInputVec = builder.create<MaskedLoadOp>(
+                          Value maskedInputVec = MaskedLoadOp::create(builder, 
                               loc, vectorTy32, input,
                               ValueRange{inputRow, inputCol}, tailMask,
                               passThroughVec);
-                          Value maskedOutputVec = builder.create<MaskedLoadOp>(
+                          Value maskedOutputVec = MaskedLoadOp::create(builder, 
                               loc, vectorTy32, output,
                               ValueRange{ivs[0], outputCol}, tailMask,
                               passThroughVec);
                           // FMA.
-                          Value resultVec = builder.create<FMAOp>(
+                          Value resultVec = FMAOp::create(builder, 
                               loc, maskedInputVec, kernelVector,
                               maskedOutputVec);
                           // Masked store the result to output.
-                          builder.create<MaskedStoreOp>(
+                          MaskedStoreOp::create(builder, 
                               loc, output, ValueRange{ivs[0], outputCol},
                               tailMask, resultVec);
-                          builder.create<scf::YieldOp>(loc);
+                          scf::YieldOp::create(builder, loc);
                         });
-                    builder.create<scf::YieldOp>(loc);
+                    scf::YieldOp::create(builder, loc);
                   });
-              nestedBuilder.create<affine::AffineYieldOp>(nestedLoc);
+              affine::AffineYieldOp::create(nestedBuilder, nestedLoc);
             });
       });
   // Remove the origin convolution operation.
@@ -188,17 +188,17 @@ void populateCBTilingPattern(Operation *op, ArrayRef<int64_t> tileSizes,
   // 2D vector type.
   VectorType vectorTy32 = mlir::VectorType::get(tileSizes, f32);
   // Create constant index.
-  Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
-  Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+  Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
+  Value c1 = arith::ConstantIndexOp::create(rewriter, loc, 1);
   // Get input, kernel and output.
   Value input = op->getOperand(0);
   Value kernel = op->getOperand(1);
   Value output = op->getOperand(2);
   // Create DimOp.
-  Value kernelRow = rewriter.create<memref::DimOp>(loc, kernel, c0);
-  Value kernelCol = rewriter.create<memref::DimOp>(loc, kernel, c1);
+  Value kernelRow = memref::DimOp::create(rewriter, loc, kernel, c0);
+  Value kernelCol = memref::DimOp::create(rewriter, loc, kernel, c1);
   // Define padding value.
-  Value f0 = rewriter.create<arith::ConstantFloatOp>(
+  Value f0 = arith::ConstantFloatOp::create(rewriter, 
       loc, f32, APFloat::getZero(f32.getFloatSemantics()));
   // Size of strip mining.
   AffineExpr d0;
@@ -211,20 +211,20 @@ void populateCBTilingPattern(Operation *op, ArrayRef<int64_t> tileSizes,
       [&](OpBuilder &builder, Location loc, ValueRange ivs) {
         // Vectorize the kernel.
         // Broadcast element of the kernel into 2D vector.
-        Value kernelValue = builder.create<affine::AffineVectorLoadOp>(
+        Value kernelValue = affine::AffineVectorLoadOp::create(builder, 
             loc, vectorTy1, kernel, ValueRange{ivs[0], ivs[1]});
         Value kernelVector =
-            builder.create<vector::BroadcastOp>(loc, vectorTy32, kernelValue);
+            vector::BroadcastOp::create(builder, loc, vectorTy32, kernelValue);
         // Load input and output as 2D vector.
-        Value inputVector = builder.create<TransferReadOp>(
+        Value inputVector = TransferReadOp::create(builder, 
             loc, vectorTy32, input, ValueRange{ivs[0], ivs[1]}, f0);
-        Value outputVector = builder.create<TransferReadOp>(
+        Value outputVector = TransferReadOp::create(builder, 
             loc, vectorTy32, output, ValueRange{c0, c0}, f0);
         // FMA.
         Value resultVector =
-            builder.create<FMAOp>(loc, inputVector, kernelVector, outputVector);
+            FMAOp::create(builder, loc, inputVector, kernelVector, outputVector);
         // 2D vector write back to memory.
-        builder.create<TransferWriteOp>(loc, resultVector, output,
+        TransferWriteOp::create(builder, loc, resultVector, output,
                                         ValueRange{c0, c0});
       });
   // Remove the origin convolution operation.

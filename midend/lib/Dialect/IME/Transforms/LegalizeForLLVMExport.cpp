@@ -141,7 +141,7 @@ getOrInsertIntrinsic(ConversionPatternRewriter &rewriter, ModuleOp module,
 
   auto savedInsertionPoint = rewriter.saveInsertionPoint();
   rewriter.setInsertionPointToEnd(module.getBody());
-  rewriter.create<LLVM::LLVMFuncOp>(module.getLoc(), intrinsicName, funcType,
+  LLVM::LLVMFuncOp::create(rewriter, module.getLoc(), intrinsicName, funcType,
                                     LLVM::Linkage::External, false,
                                     LLVM::CConv::C);
   rewriter.restoreInsertionPoint(savedInsertionPoint);
@@ -163,14 +163,14 @@ static Value createVsetvli(ConversionPatternRewriter &rewriter, Location loc,
   auto funcRef =
       getOrInsertIntrinsic(rewriter, module, "llvm.riscv.vsetvli.i64", funcType);
 
-  auto avlVal = rewriter.create<LLVM::ConstantOp>(
+  auto avlVal = LLVM::ConstantOp::create(rewriter, 
       loc, i64Type, rewriter.getI64IntegerAttr(avl));
-  auto sewVal = rewriter.create<LLVM::ConstantOp>(
+  auto sewVal = LLVM::ConstantOp::create(rewriter, 
       loc, i64Type, rewriter.getI64IntegerAttr(sew));
-  auto lmulVal = rewriter.create<LLVM::ConstantOp>(
+  auto lmulVal = LLVM::ConstantOp::create(rewriter, 
       loc, i64Type, rewriter.getI64IntegerAttr(lmul));
 
-  auto call = rewriter.create<LLVM::CallOp>(loc, TypeRange{i64Type}, funcRef,
+  auto call = LLVM::CallOp::create(rewriter, loc, TypeRange{i64Type}, funcRef,
                                             ValueRange{avlVal, sewVal, lmulVal});
   return call.getResult();
 }
@@ -186,9 +186,9 @@ static Value createRVVVectorLoad(ConversionPatternRewriter &rewriter,
   auto funcType = LLVM::LLVMFunctionType::get(
       vectorType, {vectorType, ptrType, i64Type}, false);
   auto funcRef = getOrInsertIntrinsic(rewriter, module, mangledName, funcType);
-  auto undefPassthru = rewriter.create<LLVM::UndefOp>(loc, vectorType);
+  auto undefPassthru = LLVM::UndefOp::create(rewriter, loc, vectorType);
   auto call =
-      rewriter.create<LLVM::CallOp>(loc, TypeRange{vectorType}, funcRef,
+      LLVM::CallOp::create(rewriter, loc, TypeRange{vectorType}, funcRef,
                                     ValueRange{undefPassthru, pointer, vl});
   return call.getResult();
 }
@@ -206,7 +206,7 @@ static void createRVVVectorStore(ConversionPatternRewriter &rewriter,
   auto funcType = LLVM::LLVMFunctionType::get(
       voidType, {vectorType, ptrType, i64Type}, false);
   auto funcRef = getOrInsertIntrinsic(rewriter, module, mangledName, funcType);
-  rewriter.create<LLVM::CallOp>(loc, TypeRange{}, funcRef,
+  LLVM::CallOp::create(rewriter, loc, TypeRange{}, funcRef,
                                 ValueRange{vector, pointer, vl});
 }
 
@@ -224,7 +224,7 @@ static Value createIMEVmadotIntrinsic(ConversionPatternRewriter &rewriter,
       LLVM::LLVMFunctionType::get(vdType, {vdType, vs1Type, vs2Type}, false);
   auto funcRef = getOrInsertIntrinsic(rewriter, module, mangledName, funcType);
   auto call =
-      rewriter.create<LLVM::CallOp>(loc, TypeRange{vdType}, funcRef,
+      LLVM::CallOp::create(rewriter, loc, TypeRange{vdType}, funcRef,
                                     ValueRange{vdVector, vs1Vector, vs2Vector});
   return call.getResult();
 }
@@ -244,7 +244,7 @@ static Value createIMEVmadotnIntrinsic(ConversionPatternRewriter &rewriter,
   auto funcType = LLVM::LLVMFunctionType::get(
       vdType, {vdType, vs1Type, vs2Type, i64Type}, false);
   auto funcRef = getOrInsertIntrinsic(rewriter, module, mangledName, funcType);
-  auto call = rewriter.create<LLVM::CallOp>(
+  auto call = LLVM::CallOp::create(rewriter, 
       loc, TypeRange{vdType}, funcRef,
       ValueRange{vdVector, vs1Vector, vs2Vector, slideVal});
   return call.getResult();
@@ -256,9 +256,9 @@ static Value extractPointerFromMemref(ConversionPatternRewriter &rewriter,
   auto ptrType = LLVM::LLVMPointerType::get(ctx);
   auto i64Type = IntegerType::get(ctx, 64);
   Value idx =
-      rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(loc, memref);
-  Value i64Val = rewriter.create<arith::IndexCastOp>(loc, i64Type, idx);
-  Value ptr = rewriter.create<LLVM::IntToPtrOp>(loc, ptrType, i64Val);
+      memref::ExtractAlignedPointerAsIndexOp::create(rewriter, loc, memref);
+  Value i64Val = arith::IndexCastOp::create(rewriter, loc, i64Type, idx);
+  Value ptr = LLVM::IntToPtrOp::create(rewriter, loc, ptrType, i64Val);
   return ptr;
 }
 
@@ -284,7 +284,7 @@ struct IMEVmadotLowering : public ConvertOpToLLVMPattern<VmadotOp> {
 
     // Configure vtype based on element type
     createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
-    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+    Value vlValue = LLVM::ConstantOp::create(rewriter, 
         loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
 
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());
@@ -335,7 +335,7 @@ struct IMEVmadotuLowering : public ConvertOpToLLVMPattern<VmadotuOp> {
 
     // Configure vtype based on element type
     createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
-    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+    Value vlValue = LLVM::ConstantOp::create(rewriter, 
         loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
 
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());
@@ -386,7 +386,7 @@ struct IMEVmadotsuLowering : public ConvertOpToLLVMPattern<VmadotsuOp> {
 
     // Configure vtype based on element type
     createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
-    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+    Value vlValue = LLVM::ConstantOp::create(rewriter, 
         loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
 
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());
@@ -437,7 +437,7 @@ struct IMEVmadotusLowering : public ConvertOpToLLVMPattern<VmadotusOp> {
 
     // Configure vtype based on element type
     createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
-    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+    Value vlValue = LLVM::ConstantOp::create(rewriter, 
         loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
 
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());
@@ -488,7 +488,7 @@ struct IMEVfmadotLowering : public ConvertOpToLLVMPattern<VfmadotOp> {
 
     // Configure vtype based on element type (fp16: vl=16, SEW=e16, LMUL=m1)
     createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
-    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+    Value vlValue = LLVM::ConstantOp::create(rewriter, 
         loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
 
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());
@@ -539,10 +539,10 @@ struct IMEVmadot1Lowering : public ConvertOpToLLVMPattern<Vmadot1Op> {
 
     // Configure vtype based on element type
     createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
-    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+    Value vlValue = LLVM::ConstantOp::create(rewriter, 
         loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
     // For extended loads (2x elements for vs1)
-    Value vlValueExtended = rewriter.create<LLVM::ConstantOp>(
+    Value vlValueExtended = LLVM::ConstantOp::create(rewriter, 
         loc, i64Type, rewriter.getI64IntegerAttr(config.extendedVL));
 
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());
@@ -595,9 +595,9 @@ struct IMEVmadot1uLowering : public ConvertOpToLLVMPattern<Vmadot1uOp> {
 
     // Configure vtype based on element type
     createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
-    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+    Value vlValue = LLVM::ConstantOp::create(rewriter, 
         loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
-    Value vlValueExtended = rewriter.create<LLVM::ConstantOp>(
+    Value vlValueExtended = LLVM::ConstantOp::create(rewriter, 
         loc, i64Type, rewriter.getI64IntegerAttr(config.extendedVL));
 
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());
@@ -649,9 +649,9 @@ struct IMEVmadot1suLowering : public ConvertOpToLLVMPattern<Vmadot1suOp> {
 
     // Configure vtype based on element type
     createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
-    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+    Value vlValue = LLVM::ConstantOp::create(rewriter, 
         loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
-    Value vlValueExtended = rewriter.create<LLVM::ConstantOp>(
+    Value vlValueExtended = LLVM::ConstantOp::create(rewriter, 
         loc, i64Type, rewriter.getI64IntegerAttr(config.extendedVL));
 
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());
@@ -703,9 +703,9 @@ struct IMEVmadot1usLowering : public ConvertOpToLLVMPattern<Vmadot1usOp> {
 
     // Configure vtype based on element type
     createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
-    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+    Value vlValue = LLVM::ConstantOp::create(rewriter, 
         loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
-    Value vlValueExtended = rewriter.create<LLVM::ConstantOp>(
+    Value vlValueExtended = LLVM::ConstantOp::create(rewriter, 
         loc, i64Type, rewriter.getI64IntegerAttr(config.extendedVL));
 
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());
@@ -757,9 +757,9 @@ struct IMEVmadot2Lowering : public ConvertOpToLLVMPattern<Vmadot2Op> {
 
     // Configure vtype based on element type
     createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
-    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+    Value vlValue = LLVM::ConstantOp::create(rewriter, 
         loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
-    Value vlValueExtended = rewriter.create<LLVM::ConstantOp>(
+    Value vlValueExtended = LLVM::ConstantOp::create(rewriter, 
         loc, i64Type, rewriter.getI64IntegerAttr(config.extendedVL));
 
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());
@@ -811,9 +811,9 @@ struct IMEVmadot2uLowering : public ConvertOpToLLVMPattern<Vmadot2uOp> {
 
     // Configure vtype based on element type
     createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
-    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+    Value vlValue = LLVM::ConstantOp::create(rewriter, 
         loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
-    Value vlValueExtended = rewriter.create<LLVM::ConstantOp>(
+    Value vlValueExtended = LLVM::ConstantOp::create(rewriter, 
         loc, i64Type, rewriter.getI64IntegerAttr(config.extendedVL));
 
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());
@@ -865,9 +865,9 @@ struct IMEVmadot2suLowering : public ConvertOpToLLVMPattern<Vmadot2suOp> {
 
     // Configure vtype based on element type
     createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
-    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+    Value vlValue = LLVM::ConstantOp::create(rewriter, 
         loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
-    Value vlValueExtended = rewriter.create<LLVM::ConstantOp>(
+    Value vlValueExtended = LLVM::ConstantOp::create(rewriter, 
         loc, i64Type, rewriter.getI64IntegerAttr(config.extendedVL));
 
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());
@@ -919,9 +919,9 @@ struct IMEVmadot2usLowering : public ConvertOpToLLVMPattern<Vmadot2usOp> {
 
     // Configure vtype based on element type
     createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
-    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+    Value vlValue = LLVM::ConstantOp::create(rewriter, 
         loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
-    Value vlValueExtended = rewriter.create<LLVM::ConstantOp>(
+    Value vlValueExtended = LLVM::ConstantOp::create(rewriter, 
         loc, i64Type, rewriter.getI64IntegerAttr(config.extendedVL));
 
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());
@@ -973,9 +973,9 @@ struct IMEVmadot3Lowering : public ConvertOpToLLVMPattern<Vmadot3Op> {
 
     // Configure vtype based on element type
     createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
-    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+    Value vlValue = LLVM::ConstantOp::create(rewriter, 
         loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
-    Value vlValueExtended = rewriter.create<LLVM::ConstantOp>(
+    Value vlValueExtended = LLVM::ConstantOp::create(rewriter, 
         loc, i64Type, rewriter.getI64IntegerAttr(config.extendedVL));
 
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());
@@ -1027,9 +1027,9 @@ struct IMEVmadot3uLowering : public ConvertOpToLLVMPattern<Vmadot3uOp> {
 
     // Configure vtype based on element type
     createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
-    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+    Value vlValue = LLVM::ConstantOp::create(rewriter, 
         loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
-    Value vlValueExtended = rewriter.create<LLVM::ConstantOp>(
+    Value vlValueExtended = LLVM::ConstantOp::create(rewriter, 
         loc, i64Type, rewriter.getI64IntegerAttr(config.extendedVL));
 
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());
@@ -1081,9 +1081,9 @@ struct IMEVmadot3suLowering : public ConvertOpToLLVMPattern<Vmadot3suOp> {
 
     // Configure vtype based on element type
     createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
-    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+    Value vlValue = LLVM::ConstantOp::create(rewriter, 
         loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
-    Value vlValueExtended = rewriter.create<LLVM::ConstantOp>(
+    Value vlValueExtended = LLVM::ConstantOp::create(rewriter, 
         loc, i64Type, rewriter.getI64IntegerAttr(config.extendedVL));
 
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());
@@ -1135,9 +1135,9 @@ struct IMEVmadot3usLowering : public ConvertOpToLLVMPattern<Vmadot3usOp> {
 
     // Configure vtype based on element type
     createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
-    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+    Value vlValue = LLVM::ConstantOp::create(rewriter, 
         loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
-    Value vlValueExtended = rewriter.create<LLVM::ConstantOp>(
+    Value vlValueExtended = LLVM::ConstantOp::create(rewriter, 
         loc, i64Type, rewriter.getI64IntegerAttr(config.extendedVL));
 
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());
@@ -1189,9 +1189,9 @@ struct IMEVfmadot1Lowering : public ConvertOpToLLVMPattern<Vfmadot1Op> {
 
     // Configure vtype based on element type (fp16: vl=16, SEW=e16, LMUL=m1)
     createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
-    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+    Value vlValue = LLVM::ConstantOp::create(rewriter, 
         loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
-    Value vlValueExtended = rewriter.create<LLVM::ConstantOp>(
+    Value vlValueExtended = LLVM::ConstantOp::create(rewriter, 
         loc, i64Type, rewriter.getI64IntegerAttr(config.extendedVL));
 
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());
@@ -1243,9 +1243,9 @@ struct IMEVfmadot2Lowering : public ConvertOpToLLVMPattern<Vfmadot2Op> {
 
     // Configure vtype based on element type (fp16: vl=16, SEW=e16, LMUL=m1)
     createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
-    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+    Value vlValue = LLVM::ConstantOp::create(rewriter, 
         loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
-    Value vlValueExtended = rewriter.create<LLVM::ConstantOp>(
+    Value vlValueExtended = LLVM::ConstantOp::create(rewriter, 
         loc, i64Type, rewriter.getI64IntegerAttr(config.extendedVL));
 
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());
@@ -1297,9 +1297,9 @@ struct IMEVfmadot3Lowering : public ConvertOpToLLVMPattern<Vfmadot3Op> {
 
     // Configure vtype based on element type (fp16: vl=16, SEW=e16, LMUL=m1)
     createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
-    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+    Value vlValue = LLVM::ConstantOp::create(rewriter, 
         loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
-    Value vlValueExtended = rewriter.create<LLVM::ConstantOp>(
+    Value vlValueExtended = LLVM::ConstantOp::create(rewriter, 
         loc, i64Type, rewriter.getI64IntegerAttr(config.extendedVL));
 
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());
@@ -1351,9 +1351,9 @@ struct IMEVmadotnLowering : public ConvertOpToLLVMPattern<VmadotnOp> {
 
     // Configure vtype based on element type
     createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
-    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+    Value vlValue = LLVM::ConstantOp::create(rewriter, 
         loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
-    Value vlValueExtended = rewriter.create<LLVM::ConstantOp>(
+    Value vlValueExtended = LLVM::ConstantOp::create(rewriter, 
         loc, i64Type, rewriter.getI64IntegerAttr(config.extendedVL));
 
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());
@@ -1406,9 +1406,9 @@ struct IMEVmadotnuLowering : public ConvertOpToLLVMPattern<VmadotnuOp> {
 
     // Configure vtype based on element type
     createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
-    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+    Value vlValue = LLVM::ConstantOp::create(rewriter, 
         loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
-    Value vlValueExtended = rewriter.create<LLVM::ConstantOp>(
+    Value vlValueExtended = LLVM::ConstantOp::create(rewriter, 
         loc, i64Type, rewriter.getI64IntegerAttr(config.extendedVL));
 
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());
@@ -1461,9 +1461,9 @@ struct IMEVmadotnsuLowering : public ConvertOpToLLVMPattern<VmadotnsuOp> {
 
     // Configure vtype based on element type
     createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
-    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+    Value vlValue = LLVM::ConstantOp::create(rewriter, 
         loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
-    Value vlValueExtended = rewriter.create<LLVM::ConstantOp>(
+    Value vlValueExtended = LLVM::ConstantOp::create(rewriter, 
         loc, i64Type, rewriter.getI64IntegerAttr(config.extendedVL));
 
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());
@@ -1516,9 +1516,9 @@ struct IMEVmadotnusLowering : public ConvertOpToLLVMPattern<VmadotnusOp> {
 
     // Configure vtype based on element type
     createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
-    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+    Value vlValue = LLVM::ConstantOp::create(rewriter, 
         loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
-    Value vlValueExtended = rewriter.create<LLVM::ConstantOp>(
+    Value vlValueExtended = LLVM::ConstantOp::create(rewriter, 
         loc, i64Type, rewriter.getI64IntegerAttr(config.extendedVL));
 
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());
@@ -1571,9 +1571,9 @@ struct IMEVfmadotnLowering : public ConvertOpToLLVMPattern<VfmadotnOp> {
 
     // Configure vtype based on element type
     createVsetvli(rewriter, loc, module, config.targetVL, config.sew, config.lmul);
-    Value vlValue = rewriter.create<LLVM::ConstantOp>(
+    Value vlValue = LLVM::ConstantOp::create(rewriter, 
         loc, i64Type, rewriter.getI64IntegerAttr(config.targetVL));
-    Value vlValueExtended = rewriter.create<LLVM::ConstantOp>(
+    Value vlValueExtended = LLVM::ConstantOp::create(rewriter, 
         loc, i64Type, rewriter.getI64IntegerAttr(config.extendedVL));
 
     Value vdPtr = extractPointerFromMemref(rewriter, loc, op.getVd());

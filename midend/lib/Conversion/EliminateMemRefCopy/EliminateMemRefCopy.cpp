@@ -112,7 +112,7 @@ struct EliminateMemRefCopyPattern : public OpRewritePattern<memref::CopyOp> {
 
           // Extract metadata to get actual stride values
           auto metadata =
-              builder.create<memref::ExtractStridedMetadataOp>(loc, source);
+              memref::ExtractStridedMetadataOp::create(builder, loc, source);
 
           // Get the rank
           int64_t rank = sourceType.getRank();
@@ -163,7 +163,7 @@ struct EliminateMemRefCopyPattern : public OpRewritePattern<memref::CopyOp> {
               tightenedLayout, sourceType.getMemorySpace());
 
           // Create reinterpret_cast with tightened layout
-          Value tightened = builder.create<memref::ReinterpretCastOp>(
+          Value tightened = memref::ReinterpretCastOp::create(builder, 
               loc, tightenedType, metadata.getBaseBuffer(), offset, sizes,
               stridesOfr);
 
@@ -175,7 +175,7 @@ struct EliminateMemRefCopyPattern : public OpRewritePattern<memref::CopyOp> {
               sourceType.getMemorySpace());
 
           replacementValue =
-              builder.create<memref::CastOp>(loc, finalType, tightened);
+              memref::CastOp::create(builder, loc, finalType, tightened);
         }
       }
     }

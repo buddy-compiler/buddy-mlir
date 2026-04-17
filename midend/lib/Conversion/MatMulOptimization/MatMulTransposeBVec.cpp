@@ -74,21 +74,21 @@ public:
     VectorType vectorMaskTy = VectorType::get({vf}, i1, {scalable});
 
     const Value c0 =
-        rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0));
+        arith::ConstantOp::create(rewriter, loc, rewriter.getIndexAttr(0));
     const Value c1 =
-        rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1));
-    Value step = rewriter.create<arith::ConstantIndexOp>(loc, vf);
+        arith::ConstantOp::create(rewriter, loc, rewriter.getIndexAttr(1));
+    Value step = arith::ConstantIndexOp::create(rewriter, loc, vf);
     if (scalable) {
-      Value vscale = rewriter.create<vector::VectorScaleOp>(loc);
-      step = rewriter.create<arith::MulIOp>(loc, step, vscale);
+      Value vscale = vector::VectorScaleOp::create(rewriter, loc);
+      step = arith::MulIOp::create(rewriter, loc, step, vscale);
     }
 
     const Value c0Ele = buddy::insertZeroConstantOp(ctx, rewriter, loc, eleTy);
-    Value passthruVec = rewriter.create<vector::BroadcastOp>(loc, vectorTy, c0Ele);
+    Value passthruVec = vector::BroadcastOp::create(rewriter, loc, vectorTy, c0Ele);
 
-    const Value aRow = rewriter.create<memref::DimOp>(loc, A, c0);
-    const Value bRow = rewriter.create<memref::DimOp>(loc, B, c0);
-    const Value bCol = rewriter.create<memref::DimOp>(loc, B, c1);
+    const Value aRow = memref::DimOp::create(rewriter, loc, A, c0);
+    const Value bRow = memref::DimOp::create(rewriter, loc, B, c0);
+    const Value bCol = memref::DimOp::create(rewriter, loc, B, c1);
 
     // Create permutation map for transfer_read: (d0, d1) -> (d1)
     AffineExpr d0, d1;
@@ -98,7 +98,7 @@ public:
     ArrayAttr inBoundsAttr = rewriter.getBoolArrayAttr({true});
 
     // Create outer parallel loop for row dimension using scf.parallel
-    auto outerParallelLoop = rewriter.create<scf::ParallelOp>(
+    auto outerParallelLoop = scf::ParallelOp::create(rewriter, 
         loc,
         /*lowerBounds=*/ValueRange{c0},
         /*upperBounds=*/ValueRange{aRow},
@@ -107,7 +107,7 @@ public:
           Value rowIdx = ivs[0];
 
           // Create inner parallel loop for column dimension
-          auto innerParallelLoop = builder.create<scf::ParallelOp>(
+          auto innerParallelLoop = scf::ParallelOp::create(builder, 
               loc,
               /*lowerBounds=*/ValueRange{c0},
               /*upperBounds=*/ValueRange{bRow},
@@ -119,31 +119,31 @@ public:
                 // accumulation
                 Value stepValueForScf =
                     scalable ? step
-                             : builder.create<arith::ConstantIndexOp>(loc, vf);
+                             : arith::ConstantIndexOp::create(builder, loc, vf);
 
-                auto innerLoop = builder.create<scf::ForOp>(
+                auto innerLoop = scf::ForOp::create(builder, 
                     loc, c0, bCol, stepValueForScf, ValueRange{passthruVec},
                     [&](OpBuilder &nestedBuilder, Location nestedLoc, Value iv,
                         ValueRange itrArgs) {
                       Value acc = itrArgs[0];
-                      auto aVec = nestedBuilder.create<vector::TransferReadOp>(
+                      auto aVec = vector::TransferReadOp::create(nestedBuilder, 
                           nestedLoc, vectorTy, A, ValueRange{rowIdx, iv},
                           std::nullopt, permMapAttr, inBoundsAttr);
-                      auto bVec = nestedBuilder.create<vector::TransferReadOp>(
+                      auto bVec = vector::TransferReadOp::create(nestedBuilder, 
                           nestedLoc, vectorTy, B, ValueRange{colIdx, iv},
                           std::nullopt, permMapAttr, inBoundsAttr);
-                      Value newAcc = nestedBuilder.create<vector::FMAOp>(
+                      Value newAcc = vector::FMAOp::create(nestedBuilder, 
                           nestedLoc, aVec, bVec, acc);
-                      nestedBuilder.create<scf::YieldOp>(nestedLoc, newAcc);
+                      scf::YieldOp::create(nestedBuilder, nestedLoc, newAcc);
                     });
-                Value load = builder.create<memref::LoadOp>(
+                Value load = memref::LoadOp::create(builder, 
                     loc, C, ValueRange{rowIdx, colIdx});
                 // Reduction directly uses load as accumulator, no need to add
                 // again
-                Value result = builder.create<vector::ReductionOp>(
+                Value result = vector::ReductionOp::create(builder, 
                     loc, CombiningKind::ADD, innerLoop->getResult(0), load,
                     arith::FastMathFlags::reassoc);
-                builder.create<memref::StoreOp>(loc, result, C,
+                memref::StoreOp::create(builder, loc, result, C,
                                                 ValueRange{rowIdx, colIdx});
               });
         });

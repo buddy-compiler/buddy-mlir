@@ -135,14 +135,33 @@ def arange_op(
     shape = list(node.tensor_meta["shape"])
     dtype = mlir_element_type_get(dtype)
     tensor_type = ir.RankedTensorType.get(shape, dtype)
-    attr = ir.DenseElementsAttr.get(
-        numpy.array([i for i in range(start, end, stride)]),
-        signless=True,
-        type=tensor_type,
-    )
-    op = arith.ConstantOp(tensor_type, attr)
+    if len(shape) != 1:
+        attr = ir.DenseElementsAttr.get(
+            numpy.array([i for i in range(start, end, stride)]),
+            signless=True,
+            type=tensor_type,
+        )
+        return arith.ConstantOp(tensor_type, attr)
 
-    return op
+    index_type = ir.IndexType.get()
+    i64_type = ir.IntegerType.get_signless(64)
+    start_index = arith.ConstantOp(index_type, start).result
+    stride_index = arith.ConstantOp(index_type, stride).result
+
+    @tensor.generate(tensor_type, dynamic_extents=[])
+    def generated(i: index_type):
+        value_index = i
+        if stride != 1:
+            value_index = arith.MulIOp(i, stride_index).result
+        if start != 0:
+            value_index = arith.AddIOp(value_index, start_index).result
+
+        if isinstance(dtype, ir.FloatType):
+            value_i64 = arith.IndexCastOp(i64_type, value_index).result
+            return arith.SIToFPOp(dtype, value_i64).result
+        return arith.IndexCastOp(dtype, value_index).result
+
+    return generated
 
 
 def unsqueeze_op(

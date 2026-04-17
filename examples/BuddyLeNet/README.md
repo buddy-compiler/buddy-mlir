@@ -49,7 +49,7 @@ $ cmake -G Ninja ../llvm \
     -DPython3_EXECUTABLE=$(which python3)
 
 $ ninja check-clang check-mlir
-$ ninja -C runtimes/runtimes-bins omp
+$ ninja -C llvm/build runtimes/runtimes-build && ninja -C llvm/build/runtimes/runtimes-bins omp
 ```
 
 ### Build buddy-mlir
