@@ -18,7 +18,7 @@
 //
 // Optimizations applied:
 //   - K-accumulator unrolling (--unroll=N): use N independent FMA accumulator
-//     vectors per output element to hide FMA latency (default 1).
+//     vectors per output element to hide FMA latency (default 4).
 //   - N-column tiling (--n-tile=N): process N output columns per parallel task,
 //     sharing A loads across columns to improve register reuse (default 1).
 //
@@ -73,6 +73,32 @@ public:
     Value A = op->getOperand(0);
     Value B = op->getOperand(1);
     Value C = op->getOperand(2);
+
+    // Safety gate: only vectorize when shapes are static and tile sizes divide
+    // dimensions exactly. This avoids incorrect tail handling on small/dynamic
+    // shapes and leaves those cases to the generic lowering path.
+    auto AMemRefTy = mlir::dyn_cast<MemRefType>(A.getType());
+    auto BMemRefTy = mlir::dyn_cast<MemRefType>(B.getType());
+    auto CMemRefTy = mlir::dyn_cast<MemRefType>(C.getType());
+    if (!AMemRefTy || !BMemRefTy || !CMemRefTy || !AMemRefTy.hasStaticShape() ||
+        !BMemRefTy.hasStaticShape() || !CMemRefTy.hasStaticShape())
+      return failure();
+    if (!AMemRefTy.hasRank() || !BMemRefTy.hasRank() || !CMemRefTy.hasRank() ||
+        AMemRefTy.getRank() != 2 || BMemRefTy.getRank() != 2 ||
+        CMemRefTy.getRank() != 2)
+      return failure();
+    int64_t mStatic = AMemRefTy.getShape()[0];
+    int64_t nStatic = BMemRefTy.getShape()[0];
+    int64_t kStatic = BMemRefTy.getShape()[1];
+    if (mStatic <= 0 || nStatic <= 0 || kStatic <= 0)
+      return failure();
+    if (scalable)
+      return failure();
+    int64_t kStepStatic = vf * unroll;
+    if (kStepStatic <= 0 || nTile <= 0)
+      return failure();
+    if ((kStatic % kStepStatic) != 0 || (nStatic % nTile) != 0)
+      return failure();
 
     // Get shape of input and output.
     ShapedType ATy = mlir::cast<mlir::ShapedType>(A.getType());
@@ -180,8 +206,8 @@ public:
                       llvm::SmallVector<Value> aVecs(unroll);
                       for (int i = 0; i < unroll; ++i) {
                         aVecs[i] = nb.create<vector::TransferReadOp>(
-                            nl, vectorTy, A, ValueRange{rowIdx, ki[i]},
-                            std::nullopt, permMapAttr, inBoundsAttr);
+                            nl, vectorTy, A, ValueRange{rowIdx, ki[i]}, c0Ele,
+                            permMapAttr, inBoundsAttr);
                       }
 
                       // For each column: load B chunks and FMA independently
@@ -190,7 +216,7 @@ public:
                         for (int i = 0; i < unroll; ++i) {
                           auto bVec = nb.create<vector::TransferReadOp>(
                               nl, vectorTy, B, ValueRange{colIdxs[j], ki[i]},
-                              std::nullopt, permMapAttr, inBoundsAttr);
+                              c0Ele, permMapAttr, inBoundsAttr);
                           newAccs[j * unroll + i] = nb.create<vector::FMAOp>(
                               nl, aVecs[i], bVec, itrArgs[j * unroll + i]);
                         }
@@ -198,24 +224,19 @@ public:
                       nb.create<scf::YieldOp>(nl, ValueRange(newAccs));
                     });
 
-                // For each column: horizontal-reduce each unroll chain, sum
-                // those scalars (chains cover disjoint K stripes), then add C.
+                // For each column: sum unroll accumulators, reduce, store
                 for (int j = 0; j < nTile; ++j) {
-                  Value scalarSum = builder.create<vector::ReductionOp>(
-                      loc, CombiningKind::ADD, kLoop->getResult(j * unroll),
-                      arith::FastMathFlags::reassoc);
+                  // Tree-reduce the unroll accumulator vectors
+                  Value sumVec = kLoop->getResult(j * unroll);
                   for (int i = 1; i < unroll; ++i) {
-                    Value partial = builder.create<vector::ReductionOp>(
-                        loc, CombiningKind::ADD,
-                        kLoop->getResult(j * unroll + i),
-                        arith::FastMathFlags::reassoc);
-                    scalarSum =
-                        builder.create<arith::AddFOp>(loc, scalarSum, partial);
+                    sumVec = builder.create<arith::AddFOp>(
+                        loc, sumVec, kLoop->getResult(j * unroll + i));
                   }
                   Value load = builder.create<memref::LoadOp>(
                       loc, C, ValueRange{rowIdx, colIdxs[j]});
-                  Value result =
-                      builder.create<arith::AddFOp>(loc, scalarSum, load);
+                  Value result = builder.create<vector::ReductionOp>(
+                      loc, CombiningKind::ADD, sumVec, load,
+                      arith::FastMathFlags::reassoc);
                   builder.create<memref::StoreOp>(
                       loc, result, C, ValueRange{rowIdx, colIdxs[j]});
                 }
