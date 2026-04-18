@@ -18,7 +18,7 @@
 //
 // Optimizations applied:
 //   - K-accumulator unrolling (--unroll=N): use N independent FMA accumulator
-//     vectors per output element to hide FMA latency (default 4).
+//     vectors per output element to hide FMA latency (default 1).
 //   - N-column tiling (--n-tile=N): process N output columns per parallel task,
 //     sharing A loads across columns to improve register reuse (default 1).
 //
@@ -180,8 +180,8 @@ public:
                       llvm::SmallVector<Value> aVecs(unroll);
                       for (int i = 0; i < unroll; ++i) {
                         aVecs[i] = nb.create<vector::TransferReadOp>(
-                            nl, vectorTy, A, ValueRange{rowIdx, ki[i]}, c0Ele,
-                            permMapAttr, inBoundsAttr);
+                            nl, vectorTy, A, ValueRange{rowIdx, ki[i]},
+                            std::nullopt, permMapAttr, inBoundsAttr);
                       }
 
                       // For each column: load B chunks and FMA independently
@@ -190,7 +190,7 @@ public:
                         for (int i = 0; i < unroll; ++i) {
                           auto bVec = nb.create<vector::TransferReadOp>(
                               nl, vectorTy, B, ValueRange{colIdxs[j], ki[i]},
-                              c0Ele, permMapAttr, inBoundsAttr);
+                              std::nullopt, permMapAttr, inBoundsAttr);
                           newAccs[j * unroll + i] = nb.create<vector::FMAOp>(
                               nl, aVecs[i], bVec, itrArgs[j * unroll + i]);
                         }
@@ -198,19 +198,24 @@ public:
                       nb.create<scf::YieldOp>(nl, ValueRange(newAccs));
                     });
 
-                // For each column: sum unroll accumulators, reduce, store
+                // For each column: horizontal-reduce each unroll chain, sum
+                // those scalars (chains cover disjoint K stripes), then add C.
                 for (int j = 0; j < nTile; ++j) {
-                  // Tree-reduce the unroll accumulator vectors
-                  Value sumVec = kLoop->getResult(j * unroll);
+                  Value scalarSum = builder.create<vector::ReductionOp>(
+                      loc, CombiningKind::ADD, kLoop->getResult(j * unroll),
+                      arith::FastMathFlags::reassoc);
                   for (int i = 1; i < unroll; ++i) {
-                    sumVec = builder.create<arith::AddFOp>(
-                        loc, sumVec, kLoop->getResult(j * unroll + i));
+                    Value partial = builder.create<vector::ReductionOp>(
+                        loc, CombiningKind::ADD,
+                        kLoop->getResult(j * unroll + i),
+                        arith::FastMathFlags::reassoc);
+                    scalarSum =
+                        builder.create<arith::AddFOp>(loc, scalarSum, partial);
                   }
                   Value load = builder.create<memref::LoadOp>(
                       loc, C, ValueRange{rowIdx, colIdxs[j]});
-                  Value result = builder.create<vector::ReductionOp>(
-                      loc, CombiningKind::ADD, sumVec, load,
-                      arith::FastMathFlags::reassoc);
+                  Value result =
+                      builder.create<arith::AddFOp>(loc, scalarSum, load);
                   builder.create<memref::StoreOp>(
                       loc, result, C, ValueRange{rowIdx, colIdxs[j]});
                 }
