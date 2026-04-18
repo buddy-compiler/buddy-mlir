@@ -89,3 +89,88 @@ numactl --cpunodebind=0,1,2,3 --interleave=0,1,2,3 taskset -c 0-47 ./bin/buddy-g
 ```
 
 5. Enjoy it!
+
+## How to run on RISC-V machine
+
+1. Build LLVM on RISC-V:
+
+```sh
+cd buddy-mlir/llvm
+mkdir build && cd build
+cmake -G Ninja ../llvm \
+  -DLLVM_ENABLE_PROJECTS="mlir;clang;openmp" \
+  -DLLVM_TARGETS_TO_BUILD="host" \
+  -DLLVM_ENABLE_ASSERTIONS=ON \
+  -DCMAKE_BUILD_TYPE=RELEASE
+ninja check-clang check-mlir omp
+```
+
+Some test errors may occur when running check-mlir on RISC-V platforms, please ignore them.
+
+2. Build Buddy-mlir on RISC-V:
+
+```sh
+cd buddy-mlir
+mkdir build && cd build
+cmake -G Ninja .. \
+  -DMLIR_DIR=$PWD/../llvm/build/lib/cmake/mlir \
+  -DLLVM_DIR=$PWD/../llvm/build/lib/cmake/llvm \
+  -DLLVM_ENABLE_ASSERTIONS=ON \
+  -DCMAKE_BUILD_TYPE=RELEASE
+ninja
+```
+
+3. Generate the required files by following the instructions in the previous section *on X86 or ARM device*. This will create the necessary files for building the Gemma4 executable:
+
+```text
+Files generated in `buddy-mlir/build/examples/BuddyGemma4/`:
+forward_prefill_e2b.mlir
+forward_decode_e2b.mlir
+subgraph0_prefill_e2b.mlir
+subgraph0_decode_e2b.mlir
+arg0_e2b.data
+vocab.txt
+```
+
+**Recommended approach**: Create a compressed package for easy transfer:
+
+```sh
+# In buddy-mlir/build
+ninja buddy-gemma4-e2b-package
+```
+
+This creates `buddy-gemma4-e2b.tar.zst` containing all necessary files for cross-platform deployment.
+
+**Alternative approach**: Transfer the individual files listed above directly to your RISC-V device if you prefer not to use the compressed package.
+
+4. Transfer the files to your RISC-V device and prepare for building:
+
+```sh
+# On RISC-V device
+cd buddy-mlir/build
+cmake -G Ninja .. -DBUDDY_GEMMA4_EXAMPLES=ON
+```
+
+**If using the compressed package (recommended)**:
+
+```sh
+# Transfer the package
+rsync -avP --progress /path/to/buddy-gemma4-e2b.tar.zst user@risc-v-host:buddy-mlir/build/examples/BuddyGemma4
+```
+
+Then extract on the RISC-V device:
+
+```sh
+# On RISC-V device
+cd buddy-mlir/build/examples/BuddyGemma4
+tar -I zstd -xvf buddy-gemma4-e2b.tar.zst --strip-components=1
+```
+
+5. Build and run the model:
+
+```sh
+# In buddy-mlir/build
+cd buddy-mlir/build
+ninja buddy-gemma4-e2b-run
+./bin/buddy-gemma4-e2b-run
+```

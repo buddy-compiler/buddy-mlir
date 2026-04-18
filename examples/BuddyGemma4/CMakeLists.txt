@@ -228,7 +228,7 @@ add_custom_command(
             -reconcile-unrealized-casts |
           ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
           ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
-          ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
+          ${LLVM_TOOLS_BINARY_DIR}/llc ${LLC_RISCV_ATTRS} -filetype=obj -relocation-model=pic -O3
             -o ${CMAKE_CURRENT_BINARY_DIR}/subgraph_decode_e2b.o
     DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode_e2b.mlir
     COMMENT "Building subgraph_decode_e2b.o"
@@ -248,6 +248,36 @@ SET_TARGET_PROPERTIES(
   PROPERTIES
   LINKER_LANGUAGE C)
 
+# Create a distributable package.
+set(DIST_PACKAGE_NAME "buddy-gemma4-e2b")
+set(DIST_PACKAGE_DIR ${CMAKE_CURRENT_BINARY_DIR}/${DIST_PACKAGE_NAME})
+set(DIST_PACKAGE_ARCHIVE ${CMAKE_CURRENT_BINARY_DIR}/${DIST_PACKAGE_NAME}.tar.zst)
+
+add_custom_target(buddy-gemma4-e2b-package
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${DIST_PACKAGE_DIR}
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill_e2b.mlir
+    ${CMAKE_CURRENT_BINARY_DIR}/forward_decode_e2b.mlir
+    ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill_e2b.mlir
+    ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode_e2b.mlir
+    ${CMAKE_CURRENT_BINARY_DIR}/arg0_e2b.data
+    ${CMAKE_CURRENT_BINARY_DIR}/vocab.txt
+    ${DIST_PACKAGE_DIR}/
+  COMMAND sh -c "tar -I 'zstd -T0 -10' -cvf ${DIST_PACKAGE_ARCHIVE} ${DIST_PACKAGE_NAME}"
+  COMMAND ${CMAKE_COMMAND} -E remove_directory ${DIST_PACKAGE_DIR}
+  COMMENT "Creating distributable package: ${DIST_PACKAGE_ARCHIVE}"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS
+    ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill_e2b.mlir
+    ${CMAKE_CURRENT_BINARY_DIR}/forward_decode_e2b.mlir
+    ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill_e2b.mlir
+    ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode_e2b.mlir
+    ${CMAKE_CURRENT_BINARY_DIR}/arg0_e2b.data
+    ${CMAKE_CURRENT_BINARY_DIR}/vocab.txt
+  USES_TERMINAL
+  VERBATIM
+)
+
 
 add_executable(buddy-gemma4-e2b-run buddy-gemma4-e2b-main.cpp)
 
@@ -258,6 +288,11 @@ target_compile_definitions(buddy-gemma4-e2b-run PRIVATE
   GEMMA4_E2B_EXAMPLE_PATH="${GEMMA4_E2B_EXAMPLE_PATH}/"
   GEMMA4_E2B_EXAMPLE_BUILD_PATH="${GEMMA4_E2B_EXAMPLE_BUILD_PATH}/"
 )
+
+if(IS_RVV_PLATFORM)
+  target_compile_options(buddy-gemma4-e2b-run PRIVATE ${RISCV_COMPILE_OPTS})
+  target_link_options(buddy-gemma4-e2b-run PRIVATE ${RISCV_LINK_OPTS})
+endif()
 
 
 target_link_directories(buddy-gemma4-e2b-run PRIVATE ${LLVM_LIBRARY_DIR})
