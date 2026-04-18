@@ -62,6 +62,16 @@ ignore = [
     "SIM101", "SIM102", "SIM105", "SIM108",
     "UP031",
 ]
+# graph.py: same star-import / MLIR builder style as ops/
+"frontend/Python/graph/**" = [
+    "B007", "B011", "B905",
+    "C403", "C416",
+    "E501",
+    "E711", "E712", "E741",
+    "F403", "F405", "F841",
+    "SIM101", "SIM102", "SIM103", "SIM105", "SIM108",
+    "UP031",
+]
 
 [tool.ruff.format]
 quote-style = "double"
