@@ -272,12 +272,22 @@ function(buddy_add_model)
   endif()
 
   # ── Stage 3: link .o → .so ─────────────────────────────────────────────
+  if(APPLE)
+    set(_BUDDY_MODEL_LINK_FLAGS
+      "-Wl,-install_name,@rpath/${MDL_NAME}_model.so"
+    )
+  else()
+    set(_BUDDY_MODEL_LINK_FLAGS
+      "-Wl,-soname,${MDL_NAME}_model.so"
+      "-Wl,--allow-multiple-definition"
+    )
+  endif()
+
   add_custom_command(
     OUTPUT "${MODEL_SO}"
     COMMAND ${CMAKE_CXX_COMPILER}
               -shared -fPIC
-              "-Wl,-soname,${MDL_NAME}_model.so"
-              -Wl,--allow-multiple-definition
+              ${_BUDDY_MODEL_LINK_FLAGS}
               -o "${MODEL_SO}"
               "${OBJ_FP}" "${OBJ_SP}" "${OBJ_FD}" "${OBJ_SD}"
               "-L${LLVM_LIBRARY_DIR}"

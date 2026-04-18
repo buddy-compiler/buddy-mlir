@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: E402, F403, E501
 # ===- import_model.py - Unified model import (PyTorch → MLIR + weights) --===//
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -45,7 +46,6 @@ if _BUDDY_PY_PKG not in sys.path:
 
 import numpy
 import torch
-import torch._dynamo as dynamo
 from torch._inductor.decomposition import decompositions as inductor_decomp
 from transformers import AutoModelForCausalLM, StaticCache
 
@@ -87,20 +87,14 @@ def load_model(config: dict):
     activation = config["precision"]["activation_type"]
 
     if activation == "f16":
-        model = (
-            AutoModelForCausalLM.from_pretrained(model_path, torchscript=True)
-            .eval()
-            .half()
-        )
+        model = AutoModelForCausalLM.from_pretrained(model_path).eval().half()
     elif activation == "bf16":
         model = (
-            AutoModelForCausalLM.from_pretrained(model_path, torchscript=True)
-            .eval()
-            .bfloat16()
+            AutoModelForCausalLM.from_pretrained(model_path).eval().bfloat16()
         )
     else:
         model = AutoModelForCausalLM.from_pretrained(
-            model_path, torchscript=True
+            model_path, dtype=torch.float32
         ).eval()
 
     model.config.use_cache = False
@@ -321,9 +315,9 @@ def extract_quantized_weights(
             if param_node.tensor_meta.get("dtype") == TensorDType.Int8:
                 scaler_name = "scaler_" + param_node.name
                 scaler_node = graph_prefill.node_table.get(scaler_name)
-                assert (
-                    scaler_node is not None
-                ), f"Missing scaler for {param_node.name}"
+                assert scaler_node is not None, (
+                    f"Missing scaler for {param_node.name}"
+                )
 
                 scaler_shape = list(scaler_node.tensor_meta["shape"])
                 quant_axis = next(
@@ -356,9 +350,9 @@ def extract_quantized_weights(
                 else:
                     float_parts.append(tensor.detach().numpy().reshape([-1]))
         else:
-            assert param_node.name.startswith(
-                "scaler_"
-            ), f"Expected scaler param, got {param_node.name}"
+            assert param_node.name.startswith("scaler_"), (
+                f"Expected scaler param, got {param_node.name}"
+            )
             weight_name = param_node.name[len("scaler_") :]
             weight_idx = next(
                 j
