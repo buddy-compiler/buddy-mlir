@@ -333,7 +333,6 @@ else:
         print(driver_prefill.construct_main_graph(True), file=module_file)
     all_param = numpy.concatenate(
         [param.detach().numpy().reshape([-1]) for param in params]
-        # [param.detach().float().reshape([-1]) for param in params]
     )
     all_param.tofile(os.path.join(output_dir, "arg0.data"))
 

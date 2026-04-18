@@ -346,8 +346,8 @@ void loadParameters(const std::string &paramFilePath,
             << std::endl;
 }
 
-// bf16 to f32 conversion function (Brain floating point -> single precision)
-float decode_bf16(uint16_t h) {
+// f16 to f32 conversion function (Brain floating point -> single precision)
+float decode_f16(uint16_t h) {
   uint32_t f32_bits = static_cast<uint32_t>(h) << 16;
   float out;
   std::memcpy(&out, &f32_bits, sizeof(out));
@@ -356,9 +356,9 @@ float decode_bf16(uint16_t h) {
 
 int findMaxIndex(const uint16_t *start, size_t length) {
   int maxIdx = 0;
-  float maxVal = decode_bf16(start[0]);
+  float maxVal = decode_f16(start[0]);
   for (int i = 1; i < (int)length; ++i) {
-    float val = decode_bf16(start[i]);
+    float val = decode_f16(start[i]);
     if (val > maxVal) {
       maxVal = val;
       maxIdx = i;
@@ -403,7 +403,7 @@ int main() {
   std::string deepSeekR1Dir = DEEPSEEKR1_EXAMPLE_PATH;
   std::string deepSeekR1BuildDir = DEEPSEEKR1_EXAMPLE_BUILD_PATH;
   const std::string vocabDir = deepSeekR1Dir + "vocab.txt";
-  const std::string paramsDir = deepSeekR1BuildDir + "arg0-bf16.data";
+  const std::string paramsDir = deepSeekR1BuildDir + "arg0-f16.data";
 
   /// Get user message.
   std::string inputStr;

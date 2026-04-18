@@ -103,95 +103,102 @@ struct PrefillReturns {
   MemRef<uint16_t, 3> logits;
 };
 
-/// Decode returns: updated cache_position, then 27 groups of (kv, kv, dummy),
-/// followed by the final two kvs and logits. Total 85 fields.
+/// Decode returns: updated cache_position, first KV pair, 27 dummy memrefs,
+/// remaining KV caches, and logits. Total 85 fields.
 struct DecodeReturns {
-  // First return value: updated cache_position (memref<1xi64>)
+  // %0#0: updated cache_position
   MemRef<long long, 1> cache_position_out;
 
+  // %0#1 - %0#2: first KV pair
   MemRef<uint16_t, 4> kv0;
   MemRef<uint16_t, 4> kv1;
+
+  // %0#3 - %0#29: 27 consecutive dummy memrefs
   MemRef<long long, 1> ret_dummy0;
+  MemRef<long long, 1> ret_dummy1;
+  MemRef<long long, 1> ret_dummy2;
+  MemRef<long long, 1> ret_dummy3;
+  MemRef<long long, 1> ret_dummy4;
+  MemRef<long long, 1> ret_dummy5;
+  MemRef<long long, 1> ret_dummy6;
+  MemRef<long long, 1> ret_dummy7;
+  MemRef<long long, 1> ret_dummy8;
+  MemRef<long long, 1> ret_dummy9;
+  MemRef<long long, 1> ret_dummy10;
+  MemRef<long long, 1> ret_dummy11;
+  MemRef<long long, 1> ret_dummy12;
+  MemRef<long long, 1> ret_dummy13;
+  MemRef<long long, 1> ret_dummy14;
+  MemRef<long long, 1> ret_dummy15;
+  MemRef<long long, 1> ret_dummy16;
+  MemRef<long long, 1> ret_dummy17;
+  MemRef<long long, 1> ret_dummy18;
+  MemRef<long long, 1> ret_dummy19;
+  MemRef<long long, 1> ret_dummy20;
+  MemRef<long long, 1> ret_dummy21;
+  MemRef<long long, 1> ret_dummy22;
+  MemRef<long long, 1> ret_dummy23;
+  MemRef<long long, 1> ret_dummy24;
+  MemRef<long long, 1> ret_dummy25;
+  MemRef<long long, 1> ret_dummy26;
+
+  // %0#30 - %0#83: remaining 54 KV caches
   MemRef<uint16_t, 4> kv2;
   MemRef<uint16_t, 4> kv3;
-  MemRef<long long, 1> ret_dummy1;
   MemRef<uint16_t, 4> kv4;
   MemRef<uint16_t, 4> kv5;
-  MemRef<long long, 1> ret_dummy2;
   MemRef<uint16_t, 4> kv6;
   MemRef<uint16_t, 4> kv7;
-  MemRef<long long, 1> ret_dummy3;
   MemRef<uint16_t, 4> kv8;
   MemRef<uint16_t, 4> kv9;
-  MemRef<long long, 1> ret_dummy4;
   MemRef<uint16_t, 4> kv10;
   MemRef<uint16_t, 4> kv11;
-  MemRef<long long, 1> ret_dummy5;
   MemRef<uint16_t, 4> kv12;
   MemRef<uint16_t, 4> kv13;
-  MemRef<long long, 1> ret_dummy6;
   MemRef<uint16_t, 4> kv14;
   MemRef<uint16_t, 4> kv15;
-  MemRef<long long, 1> ret_dummy7;
   MemRef<uint16_t, 4> kv16;
   MemRef<uint16_t, 4> kv17;
-  MemRef<long long, 1> ret_dummy8;
   MemRef<uint16_t, 4> kv18;
   MemRef<uint16_t, 4> kv19;
-  MemRef<long long, 1> ret_dummy9;
   MemRef<uint16_t, 4> kv20;
   MemRef<uint16_t, 4> kv21;
-  MemRef<long long, 1> ret_dummy10;
   MemRef<uint16_t, 4> kv22;
   MemRef<uint16_t, 4> kv23;
-  MemRef<long long, 1> ret_dummy11;
   MemRef<uint16_t, 4> kv24;
   MemRef<uint16_t, 4> kv25;
-  MemRef<long long, 1> ret_dummy12;
   MemRef<uint16_t, 4> kv26;
   MemRef<uint16_t, 4> kv27;
-  MemRef<long long, 1> ret_dummy13;
   MemRef<uint16_t, 4> kv28;
   MemRef<uint16_t, 4> kv29;
-  MemRef<long long, 1> ret_dummy14;
   MemRef<uint16_t, 4> kv30;
   MemRef<uint16_t, 4> kv31;
-  MemRef<long long, 1> ret_dummy15;
   MemRef<uint16_t, 4> kv32;
   MemRef<uint16_t, 4> kv33;
-  MemRef<long long, 1> ret_dummy16;
   MemRef<uint16_t, 4> kv34;
   MemRef<uint16_t, 4> kv35;
-  MemRef<long long, 1> ret_dummy17;
   MemRef<uint16_t, 4> kv36;
   MemRef<uint16_t, 4> kv37;
-  MemRef<long long, 1> ret_dummy18;
   MemRef<uint16_t, 4> kv38;
   MemRef<uint16_t, 4> kv39;
-  MemRef<long long, 1> ret_dummy19;
   MemRef<uint16_t, 4> kv40;
   MemRef<uint16_t, 4> kv41;
-  MemRef<long long, 1> ret_dummy20;
   MemRef<uint16_t, 4> kv42;
   MemRef<uint16_t, 4> kv43;
-  MemRef<long long, 1> ret_dummy21;
   MemRef<uint16_t, 4> kv44;
   MemRef<uint16_t, 4> kv45;
-  MemRef<long long, 1> ret_dummy22;
   MemRef<uint16_t, 4> kv46;
   MemRef<uint16_t, 4> kv47;
-  MemRef<long long, 1> ret_dummy23;
   MemRef<uint16_t, 4> kv48;
   MemRef<uint16_t, 4> kv49;
-  MemRef<long long, 1> ret_dummy24;
   MemRef<uint16_t, 4> kv50;
   MemRef<uint16_t, 4> kv51;
-  MemRef<long long, 1> ret_dummy25;
   MemRef<uint16_t, 4> kv52;
   MemRef<uint16_t, 4> kv53;
-  MemRef<long long, 1> ret_dummy26;
   MemRef<uint16_t, 4> kv54;
   MemRef<uint16_t, 4> kv55;
+
+  // %0#84: logits
   MemRef<uint16_t, 3> logits;
 };
 
@@ -233,7 +240,7 @@ KVPtrArray buildDecodeKVPtrs(DecodeReturns &ret) {
 extern "C" void _mlir_ciface_forward_prefill(PrefillReturns *result,
                                              MemRef<uint16_t, 1> *arg0,
                                              MemRef<int8_t, 1> *arg1,
-                                             Text<size_t, 2> *arg2);
+                                             MemRef<long long, 2> *arg2);
 
 extern "C" void _mlir_ciface_forward_decode(
     DecodeReturns *result, MemRef<uint16_t, 1> *arg0, MemRef<int8_t, 1> *arg1,
@@ -376,18 +383,16 @@ void loadParameters(const std::string &paramFilePath,
             << std::endl;
 }
 
-// f16 to f32 conversion function (IEEE 754 half precision -> single precision)
+// f16 to f32 conversion function
 float decode_f16(uint16_t h) {
   uint16_t h_exp = (h & 0x7C00) >> 10;
   uint16_t h_sig = h & 0x03FF;
   uint16_t h_sign = h >> 15;
 
   if (h_exp == 0) {
-    // subnormal
     float f = std::ldexp((float)h_sig, -24);
     return h_sign ? -f : f;
   } else if (h_exp == 0x1F) {
-    // Inf/NaN
     return h_sig ? std::numeric_limits<float>::quiet_NaN()
                  : (h_sign ? -INFINITY : INFINITY);
   } else {
@@ -436,25 +441,22 @@ void copy_kv_by_cache_position_block(const KVPtrArray &prefillPtrs,
 // -----------------------------------------------------------------------------
 
 int main() {
-  /// Print the title of this example.
   const std::string title =
       "DeepSeekR1 W8A16 Quantized Inference Powered by Buddy Compiler";
   std::cout << "\033[33;1m" << title << "\033[0m" << std::endl;
 
-  /// Define directories of vocabulary and parameter file.
   std::string deepSeekR1Dir = DEEPSEEKR1_EXAMPLE_PATH;
   std::string deepSeekR1BuildDir = DEEPSEEKR1_EXAMPLE_BUILD_PATH;
   const std::string vocabDir = deepSeekR1Dir + "vocab.txt";
   const std::string f16ParamsDir = deepSeekR1BuildDir + "arg0-w8a16-f16.data";
   const std::string i8ParamsDir = deepSeekR1BuildDir + "arg0-w8a16-i8.data";
 
-  /// Get user message.
   std::string inputStr;
   getUserInput(inputStr);
 
-  /// Initialize data containers
   Text<size_t, 2> outputContainer;
-  Text<size_t, 2> inputContainerPrefill(inputStr);
+  Text<size_t, 2> tokenizedText(inputStr);
+  MemRef<long long, 2> inputContainerPrefill({1, MaxTokenLength}, 0LL);
   MemRef<long long, 2> inputContainerDecode({1, 1}, 0LL);
   MemRef<uint16_t, 1> F16ParamsContainer({F16ParamsSize});
   MemRef<int8_t, 1> I8ParamsContainer({I8ParamsSize});
@@ -462,7 +464,6 @@ int main() {
 
   MemRef<uint16_t, 3> logits_prefill({1, MaxTokenLength, MaxVocabSize});
 
-  // Helper lambda to create a zero-initialized KV MemRef.
   auto makeKV = []() {
     return MemRef<uint16_t, 4>({1, HeadNum, MaxTokenLength, HiddenSize}, 0);
   };
@@ -524,7 +525,6 @@ int main() {
   MemRef<uint16_t, 4> kv54 = makeKV();
   MemRef<uint16_t, 4> kv55 = makeKV();
 
-  // Initialize Prefill returns (aggregate initialization).
   PrefillReturns prefillRet = {
       kv0,  kv1,  kv2,  kv3,  kv4,  kv5,  kv6,           kv7,  kv8,  kv9,
       kv10, kv11, kv12, kv13, kv14, kv15, kv16,          kv17, kv18, kv19,
@@ -533,13 +533,17 @@ int main() {
       kv40, kv41, kv42, kv43, kv44, kv45, kv46,          kv47, kv48, kv49,
       kv50, kv51, kv52, kv53, kv54, kv55, logits_prefill};
 
-  /// Fill data into containers
-  tokenizeInput(vocabDir, inputContainerPrefill);
+  tokenizeInput(vocabDir, tokenizedText);
+  {
+    size_t *src = tokenizedText.getData();
+    long long *dst = inputContainerPrefill.getData();
+    for (size_t i = 0; i < MaxTokenLength; ++i)
+      dst[i] = static_cast<long long>(src[i]);
+  }
   outputContainer.loadVocab(vocabDir);
   loadParameters(f16ParamsDir, F16ParamsContainer);
   loadParameters(i8ParamsDir, I8ParamsContainer);
 
-  /// Run DeepSeekR1 Inference - Prefill phase
   double prefillTokensPerSec = 0.0;
   const auto inferenceStart = std::chrono::high_resolution_clock::now();
   _mlir_ciface_forward_prefill(&prefillRet, &F16ParamsContainer,
@@ -548,11 +552,11 @@ int main() {
   const std::chrono::duration<double, std::milli> inferenceTime =
       inferenceEnd - inferenceStart;
 
-  int tokenIndex = inputContainerPrefill.getTokenCnt() - 1;
+  int tokenIndex = tokenizedText.getTokenCnt() - 1;
   const uint16_t *startPtr =
       prefillRet.logits.getData() + tokenIndex * MaxVocabSize;
   int maxIndex = findMaxIndex(startPtr, MaxVocabSize);
-  std::string tok = inputContainerPrefill.getStr(maxIndex);
+  std::string tok = tokenizedText.getStr(maxIndex);
   printIterInfo(0, tok, inferenceTime.count() / 1000);
   const double prefillSeconds = inferenceTime.count() / 1000.0;
   if (prefillSeconds > 0.0) {
@@ -561,115 +565,109 @@ int main() {
   inputContainerDecode.getData()[0] = (long long)maxIndex;
   outputContainer.appendTokenIdx(maxIndex);
 
-  // Build Prefill KV pointer array for copying.
   KVPtrArray prefillPtrs = buildPrefillKVPtrs(prefillRet);
 
-  // Initialize Decode returns.
   MemRef<uint16_t, 3> logits_decode({1, 1, MaxVocabSize});
   DecodeReturns decodeRet = {
       MemRef<long long, 1>({1}, 0LL), // cache_position_out
       kv0,
       kv1,
-      MemRef<long long, 1>({1}, 0LL),
+      MemRef<long long, 1>({1}, 0LL), // dummy0
+      MemRef<long long, 1>({1}, 0LL), // dummy1
+      MemRef<long long, 1>({1}, 0LL), // dummy2
+      MemRef<long long, 1>({1}, 0LL), // dummy3
+      MemRef<long long, 1>({1}, 0LL), // dummy4
+      MemRef<long long, 1>({1}, 0LL), // dummy5
+      MemRef<long long, 1>({1}, 0LL), // dummy6
+      MemRef<long long, 1>({1}, 0LL), // dummy7
+      MemRef<long long, 1>({1}, 0LL), // dummy8
+      MemRef<long long, 1>({1}, 0LL), // dummy9
+      MemRef<long long, 1>({1}, 0LL), // dummy10
+      MemRef<long long, 1>({1}, 0LL), // dummy11
+      MemRef<long long, 1>({1}, 0LL), // dummy12
+      MemRef<long long, 1>({1}, 0LL), // dummy13
+      MemRef<long long, 1>({1}, 0LL), // dummy14
+      MemRef<long long, 1>({1}, 0LL), // dummy15
+      MemRef<long long, 1>({1}, 0LL), // dummy16
+      MemRef<long long, 1>({1}, 0LL), // dummy17
+      MemRef<long long, 1>({1}, 0LL), // dummy18
+      MemRef<long long, 1>({1}, 0LL), // dummy19
+      MemRef<long long, 1>({1}, 0LL), // dummy20
+      MemRef<long long, 1>({1}, 0LL), // dummy21
+      MemRef<long long, 1>({1}, 0LL), // dummy22
+      MemRef<long long, 1>({1}, 0LL), // dummy23
+      MemRef<long long, 1>({1}, 0LL), // dummy24
+      MemRef<long long, 1>({1}, 0LL), // dummy25
+      MemRef<long long, 1>({1}, 0LL), // dummy26
       kv2,
       kv3,
-      MemRef<long long, 1>({1}, 0LL),
       kv4,
       kv5,
-      MemRef<long long, 1>({1}, 0LL),
       kv6,
       kv7,
-      MemRef<long long, 1>({1}, 0LL),
       kv8,
       kv9,
-      MemRef<long long, 1>({1}, 0LL),
       kv10,
       kv11,
-      MemRef<long long, 1>({1}, 0LL),
       kv12,
       kv13,
-      MemRef<long long, 1>({1}, 0LL),
       kv14,
       kv15,
-      MemRef<long long, 1>({1}, 0LL),
       kv16,
       kv17,
-      MemRef<long long, 1>({1}, 0LL),
       kv18,
       kv19,
-      MemRef<long long, 1>({1}, 0LL),
       kv20,
       kv21,
-      MemRef<long long, 1>({1}, 0LL),
       kv22,
       kv23,
-      MemRef<long long, 1>({1}, 0LL),
       kv24,
       kv25,
-      MemRef<long long, 1>({1}, 0LL),
       kv26,
       kv27,
-      MemRef<long long, 1>({1}, 0LL),
       kv28,
       kv29,
-      MemRef<long long, 1>({1}, 0LL),
       kv30,
       kv31,
-      MemRef<long long, 1>({1}, 0LL),
       kv32,
       kv33,
-      MemRef<long long, 1>({1}, 0LL),
       kv34,
       kv35,
-      MemRef<long long, 1>({1}, 0LL),
       kv36,
       kv37,
-      MemRef<long long, 1>({1}, 0LL),
       kv38,
       kv39,
-      MemRef<long long, 1>({1}, 0LL),
       kv40,
       kv41,
-      MemRef<long long, 1>({1}, 0LL),
       kv42,
       kv43,
-      MemRef<long long, 1>({1}, 0LL),
       kv44,
       kv45,
-      MemRef<long long, 1>({1}, 0LL),
       kv46,
       kv47,
-      MemRef<long long, 1>({1}, 0LL),
       kv48,
       kv49,
-      MemRef<long long, 1>({1}, 0LL),
       kv50,
       kv51,
-      MemRef<long long, 1>({1}, 0LL),
       kv52,
       kv53,
-      MemRef<long long, 1>({1}, 0LL),
       kv54,
       kv55,
       logits_decode};
 
   KVPtrArray decodePtrs = buildDecodeKVPtrs(decodeRet);
 
-  // Copy KV cache from prefill to decode.
   copy_kv_by_cache_position_block(
-      prefillPtrs, decodePtrs,
-      static_cast<int>(inputContainerPrefill.getTokenCnt()));
+      prefillPtrs, decodePtrs, static_cast<int>(tokenizedText.getTokenCnt()));
 
-  cachePosition.getData()[0] = inputContainerPrefill.getTokenCnt();
-  int generateLen = MaxTokenLength - inputContainerPrefill.getTokenCnt();
+  cachePosition.getData()[0] = tokenizedText.getTokenCnt();
+  int generateLen = MaxTokenLength - tokenizedText.getTokenCnt();
   double decodeTimeAccumMs = 0.0;
   size_t decodeTokens = 0;
 
-  /// Decode loop.
   for (int i = 1; i <= generateLen; i++) {
     const auto inferenceStart = std::chrono::high_resolution_clock::now();
 
-    // Update dummy fields with current cache position.
     decodeRet.ret_dummy0.getData()[0] = cachePosition.getData()[0];
     decodeRet.ret_dummy1.getData()[0] = cachePosition.getData()[0];
     decodeRet.ret_dummy2.getData()[0] = cachePosition.getData()[0];
@@ -735,18 +733,14 @@ int main() {
     decodeTimeAccumMs += inferenceTime.count();
     decodeTokens += 1;
 
-    // Determine the generated token.
     const uint16_t *startPtr = decodeRet.logits.getData();
     maxIndex = findMaxIndex(startPtr, MaxVocabSize);
-    std::string tok = inputContainerPrefill.getStr(maxIndex);
-    // Print the generated token and inference time.
+    std::string tok = tokenizedText.getStr(maxIndex);
     printIterInfo(i, tok, inferenceTime.count() / 1000);
 
-    // Stop if a <|end▁of▁sentence|> token is generated.
     if (maxIndex == 151643) {
       break;
     }
-    // Append the generated token into the input and output container.
     inputContainerDecode.getData()[0] = maxIndex;
     outputContainer.appendTokenIdx(maxIndex);
     cachePosition.getData()[0] += 1;
@@ -757,7 +751,6 @@ int main() {
       decodeSeconds > 0.0 ? static_cast<double>(decodeTokens) / decodeSeconds
                           : 0.0;
 
-  /// Print the final result
   std::cout << "\n\033[33;1m[Total time]\033[0m " << total_time << std::endl;
   std::cout << "\033[33;1m[Prefilling]\033[0m " << prefillTokensPerSec
             << " tokens/s" << std::endl;
