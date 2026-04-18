@@ -96,6 +96,11 @@ if config.buddy_mlir_enable_python_packages:
         ],
         append_path=True,
     )
+    # PyTorch pulls in one OpenMP runtime; Buddy's ExecutionEngine also loads
+    # libomp from the LLVM build (see frontend.py shared_libs). Two libomp
+    # copies in one process trigger OMP Error #15; LLVM OpenMP allows continuing
+    # when this is set (common when mixing PyTorch with MLIR JIT on e.g. RISC-V)
+    llvm_config.with_environment("KMP_DUPLICATE_LIB_OK", "TRUE")
 
 tool_dirs = [config.buddy_tools_dir, config.llvm_tools_dir]
 tools = [
