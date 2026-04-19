@@ -26,6 +26,7 @@ from typing import Any, List, Optional
 import operator
 import os
 import ctypes
+import ctypes.util
 import platform
 import numpy as np
 
@@ -1226,10 +1227,31 @@ class DynamoCompiler:
             else:
                 raise RuntimeError("Unsupported platform")
 
+        def get_openmp_runtime_path(lib_base_path, lib_extension):
+            # Reuse an already loaded OpenMP runtime to avoid double-loading
+            # a second libomp when PyTorch has initialized one in-process.
+            if platform.system() == "Linux":
+                try:
+                    with open("/proc/self/maps", "r", encoding="utf-8") as maps:
+                        for line in maps:
+                            path = line.strip().split()[-1]
+                            if os.path.isabs(path) and os.path.basename(path).startswith(
+                                "libomp."
+                            ):
+                                return os.path.realpath(path)
+                except OSError:
+                    pass
+
+            resolved = ctypes.util.find_library("omp")
+            if resolved:
+                return resolved
+
+            return os.path.join(lib_base_path, "libomp" + lib_extension)
+
         graph.compile()
         # Collect dependency libraries.
         lib_extension = get_lib_extension()
-        lib_names = ["libmlir_runner_utils", "libmlir_c_runner_utils", "libomp"]
+        lib_names = ["libmlir_runner_utils", "libmlir_c_runner_utils"]
         path_prefix = os.path.dirname(os.path.abspath(__file__))
         lib_base_path = os.path.join(path_prefix, "../../../../llvm/build/lib/")
         lib_base_path = os.path.abspath(lib_base_path)
@@ -1237,6 +1259,7 @@ class DynamoCompiler:
             os.path.join(lib_base_path, lib_name + lib_extension)
             for lib_name in lib_names
         ]
+        shared_libs.append(get_openmp_runtime_path(lib_base_path, lib_extension))
         buddy_lib_base_path = os.path.abspath(
             os.path.join(path_prefix, "../../../lib")
         )
