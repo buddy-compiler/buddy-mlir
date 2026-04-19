@@ -94,7 +94,93 @@ numactl --cpunodebind=0,1,2,3 --interleave=0,1,2,3 taskset -c 0-47 ./bin/buddy-g
 
 5. Enjoy it!
 
-## How to run on RISC-V machine
+## How to cross-compile for RISC-V (on x86 host)
+
+This method builds RISC-V executables entirely on x86, using the SpacemiT cross-compilation toolchain. No RISC-V device needed for building.
+
+### Prerequisites
+
+- SpacemiT cross-compilation toolchain (e.g., `spacemit-toolchain-linux-glibc-x86_64-v1.2.2`)
+- Download toolchain from: [SpacemiT Cross-compilation Toolchain](https://www.spacemit.com/community/resources-download/Tools/Cross-compilation%20toolchain)
+- LLVM/MLIR and buddy-mlir already built on x86 (follow the non-RISC-V build instructions above)
+- Python virtual environment with requirements installed
+
+### Steps
+
+1. Cross-compile LLVM libomp for RISC-V (one-time setup):
+
+```sh
+cd buddy-mlir/llvm/openmp
+mkdir build-rv64 && cd build-rv64
+cmake -G Ninja .. \
+  -DCMAKE_C_COMPILER=/path/to/spacemit-toolchain/bin/riscv64-unknown-linux-gnu-gcc \
+  -DCMAKE_CXX_COMPILER=/path/to/spacemit-toolchain/bin/riscv64-unknown-linux-gnu-g++ \
+  -DCMAKE_ASM_COMPILER=/path/to/spacemit-toolchain/bin/riscv64-unknown-linux-gnu-gcc \
+  -DCMAKE_C_FLAGS="-march=rv64gcv -mabi=lp64d" \
+  -DCMAKE_CXX_FLAGS="-march=rv64gcv -mabi=lp64d" \
+  -DCMAKE_ASM_FLAGS="-march=rv64gcv -mabi=lp64d" \
+  -DCMAKE_SYSTEM_NAME=Linux \
+  -DCMAKE_SYSTEM_PROCESSOR=riscv64 \
+  -DLIBOMP_ARCH=riscv64 \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DLIBOMP_ENABLE_SHARED=OFF \
+  -DLIBOMP_OMPT_SUPPORT=OFF \
+  -DLIBOMP_USE_HWLOC=OFF \
+  -DLIBOMP_OMPD_GDB_SUPPORT=OFF \
+  -DOPENMP_ENABLE_LIBOMPTARGET=OFF
+ninja
+```
+
+This creates `libomp.a` at `llvm/openmp/build-rv64/runtime/src/libomp.a`.
+
+2. Configure buddy-mlir with cross-compilation enabled:
+
+```sh
+cd buddy-mlir/build
+cmake -G Ninja .. \
+  -DBUDDY_GEMMA4_EXAMPLES=ON \
+  -DSPACEMIT_TOOLCHAIN_ROOT=/path/to/spacemit-toolchain-linux-glibc-x86_64-v1.2.2
+```
+
+3. Build cross-compiled RISC-V executables:
+
+```sh
+# f32
+ninja buddy-gemma4-e2b-run
+
+# f16
+ninja buddy-gemma4-e2b-f16-run
+```
+
+The executables will be in `build/bin/` as RISC-V ELF binaries.
+
+4. Deploy to RISC-V device:
+
+```sh
+# Create deployment package (optional)
+ninja buddy-gemma4-e2b-cross-package
+# This creates build/examples/BuddyGemma4/deploy/ with all needed files
+
+# Or manually transfer:
+rsync -avP build/bin/buddy-gemma4-e2b-run \
+           build/examples/BuddyGemma4/arg0_e2b.data \
+           build/examples/BuddyGemma4/vocab.txt \
+           user@riscv-host:~/gemma4/
+```
+
+5. Run on RISC-V device:
+
+```sh
+cd ~/gemma4/  # directory with executable + data files
+./buddy-gemma4-e2b-run
+
+# f16
+./buddy-gemma4-e2b-f16-run
+```
+
+**Note**: The cross-compiled binary looks for `arg0_e2b.data` (or `arg0_e2b-f16.data`) and `vocab.txt` in the current working directory (`./`).
+
+## How to run on RISC-V machine (native build)
 
 1. Build LLVM on RISC-V:
 
