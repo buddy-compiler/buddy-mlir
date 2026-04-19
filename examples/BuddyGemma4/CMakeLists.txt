@@ -47,6 +47,23 @@ else()
   set(OBJ_SUFFIX "")
 endif()
 
+# Vectorization parameters tuned per platform
+if(CROSS_COMPILE_RVV OR IS_RVV_PLATFORM)
+  # SpacemiT A100 VLEN=1024: optimize for wider vector registers
+  # LMUL=4 is the sweet spot (good throughput without excessive register pressure)
+  set(DECODE_VEC_SIZE 128)          # f32: 128 elems × 32bit = 4096bit = LMUL=4
+  set(DECODE_VEC_SIZE_F16 256)      # f16: 256 elems × 16bit = 4096bit = LMUL=4
+  set(TRANSPOSE_B_VEC_SIZE 32)      # f32: 32 elems × 32bit = 1024bit = LMUL=1
+  set(TRANSPOSE_B_VEC_SIZE_F16 64)  # f16: 64 elems × 16bit = 1024bit = LMUL=1
+  message(STATUS "RVV vectorization: f32 decode=${DECODE_VEC_SIZE}, f16 decode=${DECODE_VEC_SIZE_F16}, f32 transB=${TRANSPOSE_B_VEC_SIZE}, f16 transB=${TRANSPOSE_B_VEC_SIZE_F16}")
+else()
+  # x86: keep existing proven defaults
+  set(DECODE_VEC_SIZE 128)
+  set(DECODE_VEC_SIZE_F16 128)
+  set(TRANSPOSE_B_VEC_SIZE 16)
+  set(TRANSPOSE_B_VEC_SIZE_F16 16)
+endif()
+
 # Skip import commands on RVV platform
 if(NOT IS_RVV_PLATFORM)
   add_custom_command(
@@ -152,7 +169,7 @@ add_custom_command(
             -optimize-allocation-liveness
             -matmul-vectorization-blis
             -batchmatmul-optimize
-            -batchmatmul-transpose-b-vectorization
+            -batchmatmul-transpose-b-vectorization=vector-size=${TRANSPOSE_B_VEC_SIZE}
             -convert-linalg-to-affine-loops
             -affine-parallelize
             -convert-vector-to-scf
@@ -251,9 +268,9 @@ add_custom_command(
             -eliminate-memref-copy
             -assume-tight-memref-layout
             -staticize-memref-layout
-            -matmul-vectorization-decode=vector-size=128
-            -batch-matmul-vectorization-decode=vector-size=128
-            -batchmatmul-transpose-b-vectorization=vector-size=16
+            -matmul-vectorization-decode=vector-size=${DECODE_VEC_SIZE}
+            -batch-matmul-vectorization-decode=vector-size=${DECODE_VEC_SIZE}
+            -batchmatmul-transpose-b-vectorization=vector-size=${TRANSPOSE_B_VEC_SIZE}
             -convert-linalg-to-affine-loops
             -convert-vector-to-scf
             -lower-affine
@@ -350,7 +367,7 @@ add_custom_command(
             -optimize-allocation-liveness
             -matmul-vectorization-blis
             -batchmatmul-optimize
-            -batchmatmul-transpose-b-vectorization
+            -batchmatmul-transpose-b-vectorization=vector-size=${TRANSPOSE_B_VEC_SIZE_F16}
             -convert-linalg-to-affine-loops
             -affine-parallelize
             -convert-vector-to-scf
@@ -449,9 +466,9 @@ add_custom_command(
             -eliminate-memref-copy
             -assume-tight-memref-layout
             -staticize-memref-layout
-            -matmul-vectorization-decode=vector-size=128
-            -batch-matmul-vectorization-decode=vector-size=128
-            -batchmatmul-transpose-b-vectorization=vector-size=16
+            -matmul-vectorization-decode=vector-size=${DECODE_VEC_SIZE_F16}
+            -batch-matmul-vectorization-decode=vector-size=${DECODE_VEC_SIZE_F16}
+            -batchmatmul-transpose-b-vectorization=vector-size=${TRANSPOSE_B_VEC_SIZE_F16}
             -convert-linalg-to-affine-loops
             -convert-vector-to-scf
             -lower-affine
