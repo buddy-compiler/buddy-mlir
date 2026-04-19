@@ -84,6 +84,10 @@ $ cmake -G Ninja .. -DBUDDY_GEMMA4_EXAMPLES=ON
 $ ninja buddy-gemma4-e2b-run
 $ ./bin/buddy-gemma4-e2b-run
 
+// f16
+$ ninja buddy-gemma4-e2b-f16-run
+$ ./bin/buddy-gemma4-e2b-f16-run
+
 // NUMA node binding
 numactl --cpunodebind=0,1,2,3 --interleave=0,1,2,3 taskset -c 0-47 ./bin/buddy-gemma4-e2b-run
 ```
@@ -130,6 +134,13 @@ subgraph0_prefill_e2b.mlir
 subgraph0_decode_e2b.mlir
 arg0_e2b.data
 vocab.txt
+
+For f16:
+forward_prefill_e2b-f16.mlir
+forward_decode_e2b-f16.mlir
+subgraph0_prefill_e2b-f16.mlir
+subgraph0_decode_e2b-f16.mlir
+arg0_e2b-f16.data
 ```
 
 **Recommended approach**: Create a compressed package for easy transfer:
@@ -173,4 +184,8 @@ tar -I zstd -xvf buddy-gemma4-e2b.tar.zst --strip-components=1
 cd buddy-mlir/build
 ninja buddy-gemma4-e2b-run
 ./bin/buddy-gemma4-e2b-run
+
+# f16
+ninja buddy-gemma4-e2b-f16-run
+./bin/buddy-gemma4-e2b-f16-run
 ```

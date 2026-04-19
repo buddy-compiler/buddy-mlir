@@ -18,6 +18,7 @@ if(IS_RVV_PLATFORM)
 else()
   set(OPENMP_NUM_THREADS "num-threads=48")
   set(LLC_RISCV_ATTRS "")
+  set(LLC_X86_ATTRS "-mcpu=native")
 endif()
 
 # Skip import commands on RVV platform
@@ -32,7 +33,27 @@ if(NOT IS_RVV_PLATFORM)
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-gemma4.py
             --output-dir ${CMAKE_CURRENT_BINARY_DIR}
             --precision f32
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/patch_decode_mlir.py
+            ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode_e2b.mlir
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/import-gemma4.py
+            ${CMAKE_CURRENT_SOURCE_DIR}/patch_decode_mlir.py
     COMMENT "Generating Gemma4-E2B MLIR and data files..."
+  )
+
+  add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill_e2b-f16.mlir
+           ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill_e2b-f16.mlir
+           ${CMAKE_CURRENT_BINARY_DIR}/forward_decode_e2b-f16.mlir
+           ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode_e2b-f16.mlir
+           ${CMAKE_CURRENT_BINARY_DIR}/arg0_e2b-f16.data
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-gemma4.py
+            --output-dir ${CMAKE_CURRENT_BINARY_DIR}
+            --precision f16
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/patch_decode_mlir.py
+            ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode_e2b-f16.mlir
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/import-gemma4.py
+            ${CMAKE_CURRENT_SOURCE_DIR}/patch_decode_mlir.py
+    COMMENT "Generating Gemma4-E2B F16 MLIR and data files..."
   )
 endif()
 
@@ -77,7 +98,7 @@ add_custom_command(
             -reconcile-unrealized-casts |
         ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
         ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
-        ${LLVM_TOOLS_BINARY_DIR}/llc ${LLC_RISCV_ATTRS} -filetype=obj -relocation-model=pic -O3
+        ${LLVM_TOOLS_BINARY_DIR}/llc ${LLC_RISCV_ATTRS} ${LLC_X86_ATTRS} -filetype=obj -relocation-model=pic -O3
           -o ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill_e2b.o
   DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill_e2b.mlir
   COMMENT "Building forward_prefill_e2b.o"
@@ -110,7 +131,7 @@ add_custom_command(
             -affine-parallelize
             -convert-vector-to-scf
             -lower-affine
-            -convert-scf-to-openmp=num-threads=48
+            -convert-scf-to-openmp=${OPENMP_NUM_THREADS}
             -cse
             -memref-expand
             -arith-expand
@@ -128,7 +149,7 @@ add_custom_command(
             -reconcile-unrealized-casts |
           ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
           ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
-          ${LLVM_TOOLS_BINARY_DIR}/llc ${LLC_RISCV_ATTRS} -filetype=obj -relocation-model=pic -O3
+          ${LLVM_TOOLS_BINARY_DIR}/llc ${LLC_RISCV_ATTRS} ${LLC_X86_ATTRS} -filetype=obj -relocation-model=pic -O3
             -o ${CMAKE_CURRENT_BINARY_DIR}/subgraph_prefill_e2b.o
     DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill_e2b.mlir
     COMMENT "Building subgraph_prefill_e2b.o"
@@ -175,7 +196,7 @@ add_custom_command(
             -reconcile-unrealized-casts |
         ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
         ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
-        ${LLVM_TOOLS_BINARY_DIR}/llc ${LLC_RISCV_ATTRS} -filetype=obj -relocation-model=pic -O3
+        ${LLVM_TOOLS_BINARY_DIR}/llc ${LLC_RISCV_ATTRS} ${LLC_X86_ATTRS} -filetype=obj -relocation-model=pic -O3
           -o ${CMAKE_CURRENT_BINARY_DIR}/forward_decode_e2b.o
   DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/forward_decode_e2b.mlir
   COMMENT "Building forward_decode_e2b.o"
@@ -228,14 +249,214 @@ add_custom_command(
             -reconcile-unrealized-casts |
           ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
           ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
-          ${LLVM_TOOLS_BINARY_DIR}/llc ${LLC_RISCV_ATTRS} -filetype=obj -relocation-model=pic -O3
+          ${LLVM_TOOLS_BINARY_DIR}/llc ${LLC_RISCV_ATTRS} ${LLC_X86_ATTRS} -filetype=obj -relocation-model=pic -O3
             -o ${CMAKE_CURRENT_BINARY_DIR}/subgraph_decode_e2b.o
     DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode_e2b.mlir
     COMMENT "Building subgraph_decode_e2b.o"
     VERBATIM)
 
 
+add_custom_command(
+  OUTPUT forward_prefill_e2b-f16.o
+  COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill_e2b-f16.mlir
+            -simplify-tosa-reshape |
+          ${LLVM_TOOLS_BINARY_DIR}/mlir-opt
+            -pass-pipeline ${TOSA_PIPELINE} |
+          ${BUDDY_BINARY_DIR}/buddy-opt
+            -eliminate-empty-tensors
+            -empty-tensor-to-alloc-tensor
+            -one-shot-bufferize=${BUFFERIZE_SIMPLE_OPTS}
+            -expand-strided-metadata
+            -ownership-based-buffer-deallocation
+            -canonicalize
+            -buffer-deallocation-simplification
+            -bufferization-lower-deallocations
+            -cse
+            -canonicalize
+            -optimize-allocation-liveness
+            -matmul-vectorization-blis
+            -batchmatmul-optimize
+            -convert-linalg-to-affine-loops
+            -affine-parallelize
+            -convert-vector-to-scf
+            -lower-affine
+            -convert-scf-to-openmp=${OPENMP_NUM_THREADS}
+            -memref-expand
+            -arith-expand
+            -convert-vector-to-llvm
+            -convert-arith-to-llvm
+            -finalize-memref-to-llvm
+            -convert-scf-to-cf
+            -convert-cf-to-llvm
+            -llvm-request-c-wrappers
+            -convert-openmp-to-llvm
+            -convert-arith-to-llvm
+            -convert-math-to-llvm
+            -convert-math-to-libm
+            -convert-func-to-llvm
+            -reconcile-unrealized-casts |
+        ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
+        ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
+        ${LLVM_TOOLS_BINARY_DIR}/llc ${LLC_RISCV_ATTRS} ${LLC_X86_ATTRS} -filetype=obj -relocation-model=pic -O3
+          -o ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill_e2b-f16.o
+  DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill_e2b-f16.mlir
+  COMMENT "Building forward_prefill_e2b-f16.o"
+  VERBATIM)
+
+add_custom_command(
+    OUTPUT subgraph_prefill_e2b-f16.o
+    COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill_e2b-f16.mlir
+              -simplify-tosa-reshape |
+            ${LLVM_TOOLS_BINARY_DIR}/mlir-opt
+              -pass-pipeline ${TOSA_PIPELINE} |
+            ${BUDDY_BINARY_DIR}/buddy-opt
+            -eliminate-empty-tensors
+            -empty-tensor-to-alloc-tensor
+            -convert-elementwise-to-linalg
+            -one-shot-bufferize=${BUFFERIZE_SIMPLE_OPTS}
+            -expand-strided-metadata
+            -ownership-based-buffer-deallocation
+            -canonicalize
+            -buffer-deallocation-simplification
+            -bufferization-lower-deallocations
+            -cse
+            -canonicalize
+            -optimize-allocation-liveness
+            -matmul-vectorization-blis
+            -batchmatmul-optimize
+            -batchmatmul-transpose-b-vectorization
+            -convert-linalg-to-affine-loops
+            -affine-parallelize
+            -convert-vector-to-scf
+            -lower-affine
+            -convert-scf-to-openmp=${OPENMP_NUM_THREADS}
+            -cse
+            -memref-expand
+            -arith-expand
+            -convert-vector-to-llvm
+            -convert-arith-to-llvm
+            -finalize-memref-to-llvm
+            -convert-scf-to-cf
+            -convert-cf-to-llvm
+            -llvm-request-c-wrappers
+            -convert-openmp-to-llvm
+            -convert-arith-to-llvm
+            -convert-math-to-llvm
+            -convert-math-to-libm
+            -convert-func-to-llvm
+            -reconcile-unrealized-casts |
+          ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
+          ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
+          ${LLVM_TOOLS_BINARY_DIR}/llc ${LLC_RISCV_ATTRS} ${LLC_X86_ATTRS} -filetype=obj -relocation-model=pic -O3
+            -o ${CMAKE_CURRENT_BINARY_DIR}/subgraph_prefill_e2b-f16.o
+    DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill_e2b-f16.mlir
+    COMMENT "Building subgraph_prefill_e2b-f16.o"
+    VERBATIM)
+
+add_custom_command(
+  OUTPUT forward_decode_e2b-f16.o
+  COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/forward_decode_e2b-f16.mlir
+            -simplify-tosa-reshape |
+          ${LLVM_TOOLS_BINARY_DIR}/mlir-opt
+            -pass-pipeline ${TOSA_PIPELINE} |
+          ${BUDDY_BINARY_DIR}/buddy-opt
+            -eliminate-empty-tensors
+            -empty-tensor-to-alloc-tensor
+            -one-shot-bufferize=${BUFFERIZE_SIMPLE_OPTS}
+            -expand-strided-metadata
+            -ownership-based-buffer-deallocation
+            -canonicalize
+            -buffer-deallocation-simplification
+            -bufferization-lower-deallocations
+            -cse
+            -canonicalize
+            -optimize-allocation-liveness
+            -matmul-vectorization-blis
+            -batchmatmul-optimize
+            -convert-linalg-to-affine-loops
+            -affine-parallelize
+            -convert-vector-to-scf
+            -lower-affine
+            -convert-scf-to-openmp=${OPENMP_NUM_THREADS}
+            -memref-expand
+            -arith-expand
+            -convert-vector-to-llvm
+            -convert-arith-to-llvm
+            -finalize-memref-to-llvm
+            -convert-scf-to-cf
+            -convert-cf-to-llvm
+            -llvm-request-c-wrappers
+            -convert-openmp-to-llvm
+            -convert-arith-to-llvm
+            -convert-math-to-llvm
+            -convert-math-to-libm
+            -convert-func-to-llvm
+            -reconcile-unrealized-casts |
+        ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
+        ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
+        ${LLVM_TOOLS_BINARY_DIR}/llc ${LLC_RISCV_ATTRS} ${LLC_X86_ATTRS} -filetype=obj -relocation-model=pic -O3
+          -o ${CMAKE_CURRENT_BINARY_DIR}/forward_decode_e2b-f16.o
+  DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/forward_decode_e2b-f16.mlir
+  COMMENT "Building forward_decode_e2b-f16.o"
+  VERBATIM)
+
+add_custom_command(
+    OUTPUT subgraph_decode_e2b-f16.o
+    COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode_e2b-f16.mlir
+              -simplify-tosa-reshape
+              -simplify-tosa-matmul-scalar |
+            ${LLVM_TOOLS_BINARY_DIR}/mlir-opt
+              -pass-pipeline ${TOSA_PIPELINE} |
+            ${BUDDY_BINARY_DIR}/buddy-opt
+            -eliminate-empty-tensors
+            -empty-tensor-to-alloc-tensor
+            -convert-elementwise-to-linalg
+            -one-shot-bufferize=${BUFFERIZE_SIMPLE_OPTS}
+            -expand-strided-metadata
+            -ownership-based-buffer-deallocation
+            -canonicalize
+            -buffer-deallocation-simplification
+            -bufferization-lower-deallocations
+            -cse
+            -canonicalize
+            -optimize-allocation-liveness
+            -eliminate-memref-copy
+            -assume-tight-memref-layout
+            -staticize-memref-layout
+            -matmul-vectorization-decode=vector-size=128
+            -batch-matmul-vectorization-decode=vector-size=128
+            -batchmatmul-transpose-b-vectorization=vector-size=16
+            -convert-linalg-to-affine-loops
+            -convert-vector-to-scf
+            -lower-affine
+            -convert-scf-to-openmp=${OPENMP_NUM_THREADS}
+            -cse
+            -memref-expand
+            -arith-expand
+            -convert-vector-to-llvm
+            -convert-arith-to-llvm
+            -finalize-memref-to-llvm
+            -convert-scf-to-cf
+            -convert-cf-to-llvm
+            -llvm-request-c-wrappers
+            -convert-openmp-to-llvm
+            -convert-arith-to-llvm
+            -convert-math-to-llvm
+            -convert-math-to-libm
+            -convert-func-to-llvm
+            -reconcile-unrealized-casts |
+          ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
+          ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
+          ${LLVM_TOOLS_BINARY_DIR}/llc ${LLC_RISCV_ATTRS} ${LLC_X86_ATTRS} -filetype=obj -relocation-model=pic -O3
+            -o ${CMAKE_CURRENT_BINARY_DIR}/subgraph_decode_e2b-f16.o
+    DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode_e2b-f16.mlir
+    COMMENT "Building subgraph_decode_e2b-f16.o"
+    VERBATIM)
+
+
 add_library(GEMMA4_E2B STATIC forward_prefill_e2b.o subgraph_prefill_e2b.o forward_decode_e2b.o subgraph_decode_e2b.o)
+
+add_library(GEMMA4_E2B_F16 STATIC forward_prefill_e2b-f16.o subgraph_prefill_e2b-f16.o forward_decode_e2b-f16.o subgraph_decode_e2b-f16.o)
 
 SET_SOURCE_FILES_PROPERTIES(
   template.o
@@ -245,6 +466,17 @@ SET_SOURCE_FILES_PROPERTIES(
 
 SET_TARGET_PROPERTIES(
   GEMMA4_E2B
+  PROPERTIES
+  LINKER_LANGUAGE C)
+
+SET_SOURCE_FILES_PROPERTIES(
+  template-f16.o
+  PROPERTIES
+  EXTERNAL_OBJECT true
+  GENERATED true)
+
+SET_TARGET_PROPERTIES(
+  GEMMA4_E2B_F16
   PROPERTIES
   LINKER_LANGUAGE C)
 
@@ -308,3 +540,30 @@ if(BUDDY_MLIR_USE_MIMALLOC)
 endif()
 
 target_link_libraries(buddy-gemma4-e2b-run ${BUDDY_GEMMA4_E2B_LIBS})
+
+# ---- F16 Executable ----
+add_executable(buddy-gemma4-e2b-f16-run buddy-gemma4-e2b-f16-main.cpp)
+
+target_compile_definitions(buddy-gemma4-e2b-f16-run PRIVATE
+  GEMMA4_E2B_EXAMPLE_PATH="${GEMMA4_E2B_EXAMPLE_PATH}/"
+  GEMMA4_E2B_EXAMPLE_BUILD_PATH="${GEMMA4_E2B_EXAMPLE_BUILD_PATH}/"
+)
+
+if(IS_RVV_PLATFORM)
+  target_compile_options(buddy-gemma4-e2b-f16-run PRIVATE ${RISCV_COMPILE_OPTS})
+  target_link_options(buddy-gemma4-e2b-f16-run PRIVATE ${RISCV_LINK_OPTS})
+endif()
+
+target_link_directories(buddy-gemma4-e2b-f16-run PRIVATE ${LLVM_LIBRARY_DIR})
+
+set(BUDDY_GEMMA4_E2B_F16_LIBS
+  GEMMA4_E2B_F16
+  mlir_c_runner_utils
+  omp
+)
+
+if(BUDDY_MLIR_USE_MIMALLOC)
+  list(APPEND BUDDY_GEMMA4_E2B_F16_LIBS mimalloc)
+endif()
+
+target_link_libraries(buddy-gemma4-e2b-f16-run ${BUDDY_GEMMA4_E2B_F16_LIBS})
