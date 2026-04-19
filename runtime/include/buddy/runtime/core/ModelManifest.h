@@ -37,6 +37,7 @@
 
 #include <array>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -52,6 +53,24 @@
 
 namespace buddy {
 namespace runtime {
+
+namespace detail {
+/// Directory root for extracted RAX payload blobs (per-user cache).
+/// Default: $HOME/.buddy/rax_payload. Override with BUDDY_RAX_PAYLOAD_DIR.
+/// If HOME is unset, falls back to temp_directory_path()/buddy_rax_payload.
+inline std::filesystem::path buddyRaxPayloadBaseDir() {
+  namespace fs = std::filesystem;
+  if (const char *env = std::getenv("BUDDY_RAX_PAYLOAD_DIR")) {
+    if (env[0] != '\0')
+      return fs::path(env);
+  }
+  if (const char *home = std::getenv("HOME")) {
+    if (home[0] != '\0')
+      return fs::path(home) / ".buddy" / "rax_payload";
+  }
+  return fs::temp_directory_path() / "buddy_rax_payload";
+}
+} // namespace detail
 
 struct ModelManifest {
   // from module_attrs["model_name"] (e.g. "deepseek_r1_fp32")
@@ -299,8 +318,7 @@ struct ModelManifest {
       const std::string key = raxFs.string() + ":" + std::to_string(fileSize) +
                               ":" + std::to_string(mtimeEpoch);
       const size_t keyHash = std::hash<std::string>{}(key);
-      extractRoot = fs::temp_directory_path() / "buddy_rax_payload" /
-                    std::to_string(keyHash);
+      extractRoot = detail::buddyRaxPayloadBaseDir() / std::to_string(keyHash);
       fs::create_directories(extractRoot);
     }
 
