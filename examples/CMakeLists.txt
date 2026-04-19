@@ -79,7 +79,7 @@ set(BUDDY_EXAMPLES_DEPENDS
   )
 
 if(BUDDY_MLIR_ENABLE_PYTHON_PACKAGES AND MLIR_ENABLE_BINDINGS_PYTHON)
-  list(APPEND BUDDY_TEST_DEPENDS python-package-buddy-mlir)
+  list(APPEND BUDDY_EXAMPLES_DEPENDS python-package-buddy-mlir)
 endif()
 
 add_lit_testsuite(check-examples "Checking the buddy-mlir examples..."
