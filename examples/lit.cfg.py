@@ -46,6 +46,7 @@ config.excludes = [
     "BuddyResNet18",
     "BuddyGPU",
     "BuddyOneDNN",
+    "BuddyTorq",
     "BuddyGraph",
     "ConvOpt",
     "DAPDialect",

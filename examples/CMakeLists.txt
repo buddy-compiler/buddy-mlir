@@ -56,6 +56,10 @@ if (BUDDY_ONEDNN_EXAMPLES)
   add_subdirectory(BuddyOneDNN)
 endif()
 
+if(BUDDY_TORQ_EXAMPLES)
+  add_subdirectory(BuddyTorq)
+endif()
+
 if(BUDDY_DSL_EXAMPLES)
   add_subdirectory(ToyDSL)
 endif()
