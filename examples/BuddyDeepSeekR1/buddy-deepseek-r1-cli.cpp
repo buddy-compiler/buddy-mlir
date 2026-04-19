@@ -720,11 +720,9 @@ GenerationResult runGeneration(const std::string &prompt,
   }
   stats.promptTokens = MaxTokenLength;
 
-  getInfoStream() << "[Debug] Starting prefill execution...\n";
   const auto prefillStart = std::chrono::high_resolution_clock::now();
   _mlir_ciface_forward_prefill(&prefillRet, &paramsContainer,
                                &inputContainerPrefill);
-  getInfoStream() << "[Debug] Prefill execution finished.\n";
   const auto prefillEnd = std::chrono::high_resolution_clock::now();
   const std::chrono::duration<double, std::milli> prefillMs =
       prefillEnd - prefillStart;
@@ -839,11 +837,9 @@ GenerationResult runGeneration(const std::string &prompt,
   KVPtrArray decodePtrs = buildDecodeKVPtrs(decodeRet);
 
   // Copy KV cache from prefill to decode.
-  getInfoStream() << "[Debug] Copying KV cache...\n";
   copyKVByCachePositionBlock(
       prefillPtrs, decodePtrs,
       static_cast<int>(inputContainerPrefill.getTokenCnt()));
-  getInfoStream() << "[Debug] KV cache copy finished.\n";
 
   cachePosition.getData()[0] = inputContainerPrefill.getTokenCnt();
   inputContainerDecode.getData()[0] = static_cast<long long>(maxIndex);
@@ -861,11 +857,6 @@ GenerationResult runGeneration(const std::string &prompt,
       std::clamp(static_cast<int>(KeepTokenNumOpt.getValue()), 0,
                  static_cast<int>(MaxTokenLength));
 
-  getInfoStream() << "Prefill tokens: " << inputContainerPrefill.getTokenCnt()
-                  << "\n";
-  getInfoStream() << "Initial cachePosition: " << cachePosition.getData()[0]
-                  << "\n";
-
   // Decode loop.
   while (InteractiveOpt || cachePosition.getData()[0] < maxNewTokens) {
     // Discard tokens if max context length reached.
@@ -874,36 +865,15 @@ GenerationResult runGeneration(const std::string &prompt,
           std::min(static_cast<int>(cachePosition.getData()[0]),
                    static_cast<int>(MaxTokenLength));
       int discardTokenNum = std::max(1, (currentTokens - keepTokenNum) / 2);
-      getInfoStream() << "Discarding " << discardTokenNum << " tokens.\n";
-
-      const auto discardStart = std::chrono::high_resolution_clock::now();
       discardKVByCachePositionBlock(decodePtrs, keepTokenNum, discardTokenNum,
                                     currentTokens);
-      const auto discardMid = std::chrono::high_resolution_clock::now();
       adjustKeyCacheRope(decodePtrs, keepTokenNum, discardTokenNum,
                          currentTokens, ropeInverseFreqs);
-      const auto discardEnd = std::chrono::high_resolution_clock::now();
-      const std::chrono::duration<double, std::milli> discardOnlyTime =
-          discardMid - discardStart;
-      const std::chrono::duration<double, std::milli> ropeTime =
-          discardEnd - discardMid;
-      const std::chrono::duration<double, std::milli> totalDiscardTime =
-          discardEnd - discardStart;
-      getInfoStream() << "\n discardKVByCachePositionBlock time: "
-                      << llvm::formatv("{0:F2}", discardOnlyTime.count())
-                      << " ms \n";
-      getInfoStream() << " adjustKeyCacheRope time: "
-                      << llvm::formatv("{0:F2}", ropeTime.count()) << " ms \n";
-      getInfoStream() << " Total discard time: "
-                      << llvm::formatv("{0:F2}", totalDiscardTime.count())
-                      << " ms \n";
       const long long newLength = currentTokens - discardTokenNum;
       cachePosition.getData()[0] =
           std::clamp(newLength, 0LL, static_cast<long long>(MaxTokenLength));
     }
 
-    getInfoStream() << "Current cachePosition: " << cachePosition.getData()[0]
-                    << "\n";
     if (g_receivedSigInt) {
       llvm::errs() << "\n[Generation interrupted by user]\n";
       g_receivedSigInt = false;
@@ -972,9 +942,6 @@ GenerationResult runGeneration(const std::string &prompt,
     const auto decodeEnd = std::chrono::high_resolution_clock::now();
     const std::chrono::duration<double, std::milli> decodeTime =
         decodeEnd - decodeStart;
-    getInfoStream() << "decode time: "
-                    << llvm::formatv("{0:F2}", decodeTime.count() / 1000)
-                    << " s \n";
     decodeTimeAccumMs += decodeTime.count();
     ++decodeTokens;
 

@@ -298,12 +298,14 @@ def gen_impl(config: dict) -> str:
     mp = _macro_prefix(config)
     shape = config["shape"]
     weights = config["weights"]
+    variant = config["variant"]
     kv_cpp = config["cpp_types"]["kv"]
     logits_cpp = config["cpp_types"]["logits"]
     kv_layers = shape["kv_layers"]
     kv_memref = config["cpp_types"]["kv_memref"]
     logits_memref = config["cpp_types"]["logits_memref"]
     need_logits_conv = logits_cpp != "float"
+    is_quantized = variant.startswith("w")
 
     p(_CPP_FILE_PROLOGUE)
     p('#include "buddy/runtime/models/ModelSession.h"')
@@ -366,10 +368,16 @@ def gen_impl(config: dict) -> str:
     p("//")
     p("// _mlir_ciface_forward_decode writes:")
     p("//   [cache_position_out : MemRef<long long, 1>]")
-    p(
-        f"//   [kv0][kv1][dummy0][kv2][kv3][dummy1] ... "
-        f"[kv{kv_layers - 2}][kv{kv_layers - 1}][logits]"
-    )
+    if is_quantized:
+        p(
+            f"//   [kv0][kv1][dummy0..dummy{dummy_groups - 1}]"
+            f"[kv2..kv{kv_layers - 1}][logits]"
+        )
+    else:
+        p(
+            f"//   [kv0][kv1][dummy0][kv2][kv3][dummy1] ... "
+            f"[kv{kv_layers - 2}][kv{kv_layers - 1}][logits]"
+        )
     p("//")
     p(
         "// Because MemRef<T,N>() is protected, we store these objects in char arrays"
@@ -386,22 +394,23 @@ def gen_impl(config: dict) -> str:
     p(f"using KV4Ref = {kv_memref};")
     p(f"using Logits3Ref = {logits_memref};")
     p()
-    p("struct DecodeKVGroup {")
-    p("  alignas(Dummy1Ref) char dummy_[sizeof(Dummy1Ref)];")
-    p("  alignas(KV4Ref) char kv0_[sizeof(KV4Ref)];")
-    p("  alignas(KV4Ref) char kv1_[sizeof(KV4Ref)];")
-    p()
-    p("  Dummy1Ref &dummy() {")
-    p("    return *std::launder(reinterpret_cast<Dummy1Ref *>(dummy_));")
-    p("  }")
-    p("  KV4Ref &kv0() {")
-    p("    return *std::launder(reinterpret_cast<KV4Ref *>(kv0_));")
-    p("  }")
-    p("  KV4Ref &kv1() {")
-    p("    return *std::launder(reinterpret_cast<KV4Ref *>(kv1_));")
-    p("  }")
-    p("};")
-    p()
+    if not is_quantized:
+        p("struct DecodeKVGroup {")
+        p("  alignas(Dummy1Ref) char dummy_[sizeof(Dummy1Ref)];")
+        p("  alignas(KV4Ref) char kv0_[sizeof(KV4Ref)];")
+        p("  alignas(KV4Ref) char kv1_[sizeof(KV4Ref)];")
+        p()
+        p("  Dummy1Ref &dummy() {")
+        p("    return *std::launder(reinterpret_cast<Dummy1Ref *>(dummy_));")
+        p("  }")
+        p("  KV4Ref &kv0() {")
+        p("    return *std::launder(reinterpret_cast<KV4Ref *>(kv0_));")
+        p("  }")
+        p("  KV4Ref &kv1() {")
+        p("    return *std::launder(reinterpret_cast<KV4Ref *>(kv1_));")
+        p("  }")
+        p("};")
+        p()
     p("struct PrefillABI {")
     p(f"  alignas({kv_memref}) char kv_[sizeof({kv_memref}) *")
     p(f"                                     {mp}_KV_LAYERS];")
@@ -422,7 +431,15 @@ def gen_impl(config: dict) -> str:
     p("  alignas(Dummy1Ref) char cache_position_out_[sizeof(Dummy1Ref)];")
     p("  alignas(KV4Ref) char kv0_[sizeof(KV4Ref)];")
     p("  alignas(KV4Ref) char kv1_[sizeof(KV4Ref)];")
-    p(f"  DecodeKVGroup groups_[{dummy_groups}];")
+    if is_quantized:
+        p(
+            f"  alignas(Dummy1Ref) char dummy_[sizeof(Dummy1Ref) * {dummy_groups}];"
+        )
+        p(
+            f"  alignas(KV4Ref) char remaining_kv_[sizeof(KV4Ref) * ({mp}_KV_LAYERS - 2)];"
+        )
+    else:
+        p(f"  DecodeKVGroup groups_[{dummy_groups}];")
     p("  alignas(Logits3Ref) char logits_[sizeof(Logits3Ref)];")
     p()
     p("  Dummy1Ref &cachePositionOut() {")
@@ -431,16 +448,26 @@ def gen_impl(config: dict) -> str:
         "reinterpret_cast<Dummy1Ref *>(cache_position_out_));"
     )
     p("  }")
-    p("  Dummy1Ref &dummy(int i) { return groups_[i].dummy(); }")
+    if is_quantized:
+        p("  Dummy1Ref &dummy(int i) {")
+        p("    return *std::launder(reinterpret_cast<Dummy1Ref *>(")
+        p("        dummy_ + i * sizeof(Dummy1Ref)));")
+        p("  }")
+    else:
+        p("  Dummy1Ref &dummy(int i) { return groups_[i].dummy(); }")
     p("  KV4Ref &kv(int i) {")
     p("    if (i == 0)")
     p("      return *std::launder(reinterpret_cast<KV4Ref *>(kv0_));")
     p("    if (i == 1)")
     p("      return *std::launder(reinterpret_cast<KV4Ref *>(kv1_));")
-    p("    int group = (i - 2) / 2;")
-    p(
-        "    return ((i - 2) % 2 == 0) ? groups_[group].kv0() : groups_[group].kv1();"
-    )
+    if is_quantized:
+        p("    return *std::launder(reinterpret_cast<KV4Ref *>(")
+        p("        remaining_kv_ + (i - 2) * sizeof(KV4Ref)));")
+    else:
+        p("    int group = (i - 2) / 2;")
+        p(
+            "    return ((i - 2) % 2 == 0) ? groups_[group].kv0() : groups_[group].kv1();"
+        )
     p("  }")
     p("  Logits3Ref &logits() {")
     p("    return *std::launder(reinterpret_cast<Logits3Ref *>(logits_));")
@@ -635,9 +662,7 @@ def gen_impl(config: dict) -> str:
     p("    desc.bytes = sizeof(long long);")
     p("    desc.id = 250;")
     p()
-    p("    auto &bv = pool_.allocate(desc);")
-    p("    new (&impl_->decodeAbi.cachePositionOut())")
-    p("        Dummy1Ref(reinterpret_cast<long long *>(bv.data), pshape);")
+    p("    new (&impl_->decodeAbi.cachePositionOut()) Dummy1Ref(pshape, 0LL);")
     p("    impl_->decodeAbi.cachePositionOut().getData()[0] = 0LL;")
     p("  }")
     p()
@@ -660,16 +685,7 @@ def gen_impl(config: dict) -> str:
     p("  }")
     p()
     p(f"  for (int i = 0; i < {dummy_groups}; ++i) {{")
-    p("    BufferDesc desc;")
-    p('    desc.name = "decode_dummy" + std::to_string(i);')
-    p("    desc.role = BufferRole::State;")
-    p("    desc.lifetime = BufferLifetime::Session;")
-    p("    desc.bytes = sizeof(long long);")
-    p("    desc.id = (uint32_t)(300 + i);")
-    p()
-    p("    auto &bv = pool_.allocate(desc);")
-    p("    new (&impl_->decodeAbi.dummy(i))")
-    p("        Dummy1Ref(reinterpret_cast<long long *>(bv.data), pshape);")
+    p("    new (&impl_->decodeAbi.dummy(i)) Dummy1Ref(pshape, 0LL);")
     p("    impl_->decodeAbi.dummy(i).getData()[0] = 0LL;")
     p("  }")
     p()

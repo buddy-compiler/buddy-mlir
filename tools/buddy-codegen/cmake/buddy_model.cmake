@@ -345,6 +345,29 @@ function(buddy_add_model)
   endif()
 
   # ── Stage 3: link .o → .so ─────────────────────────────────────────────
+  set(MDL_STAGE3_LINKER "${CMAKE_CXX_COMPILER}")
+  set(MDL_STAGE3_LINK_OPTS)
+  set(MDL_STAGE3_LIBS -lomp -lmlir_c_runner_utils -lm)
+
+  if(IS_RVV_CROSSCOMPILE)
+    set(CMAKE_C_COMPILER "${BUDDY_MLIR_BUILD_DIR}/../llvm/build/bin/clang")
+    set(CMAKE_CXX_COMPILER
+        "${BUDDY_MLIR_BUILD_DIR}/../llvm/build/bin/clang++")
+    set(MDL_STAGE3_LINKER "${CMAKE_CXX_COMPILER}")
+
+    set(RISCV_LINK_OPTS
+      --target=riscv64-unknown-linux-gnu
+      "--sysroot=${RISCV_GNU_TOOLCHAIN}/sysroot"
+      "--gcc-toolchain=${RISCV_GNU_TOOLCHAIN}")
+    set(MDL_STAGE3_LINK_OPTS
+      ${RISCV_LINK_OPTS}
+      "-Wl,-rpath,\$ORIGIN")
+    set(MDL_STAGE3_LIBS
+      "${RISCV_OMP_SHARED}"
+      "${RISCV_MLIR_C_RUNNER_UTILS}"
+      -lm)
+  endif()
+
   if(APPLE)
     set(_BUDDY_MODEL_LINK_FLAGS
       "-Wl,-install_name,@rpath/${MDL_NAME}_model.so"
