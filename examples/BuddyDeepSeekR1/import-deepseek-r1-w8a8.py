@@ -56,7 +56,9 @@ model_path = os.environ.get("DEEPSEEKR1_MODEL_PATH")
 if model_path is None:
     model_path = "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
 
-model = AutoModelForCausalLM.from_pretrained(model_path).eval()
+model = AutoModelForCausalLM.from_pretrained(
+    model_path, dtype=torch.float32
+).eval()
 
 model.config.use_cache = False
 
