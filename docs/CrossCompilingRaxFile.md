@@ -11,8 +11,7 @@
 
 3. Build Cross-Compiled MLIR
   Refer to steps 4. Build Cross-Compiled MLIR in the [docs/RVVEnvironment.md](https://github.com/buddy-compiler/buddy-mlir/blob/main/docs/RVVEnvironment.md).
-  Note: Add the `-DMLIR_IRDL_TO_CPP_EXE=${BUILD_LOCAL_LLVM_DIR}/bin/mlir-irdl-to-cpp` parameter at the end of cmake.
-       Add `export BUDDY_DEEPSEEKR1_LLVMOPT=${BUILD_CROSS_MLIR_DIR}/lib/libLLVMSupport.a` `export RISCV_MLIR_C_RUNNER_UTILS=${BUILD_CROSS_MLIR_DIR}/lib/libmlir_c_runner_utils.so.22.0git` parameter after execution.
+  Note: Add `export BUDDY_DEEPSEEKR1_LLVMOPT=${BUILD_CROSS_MLIR_DIR}/lib/libLLVMSupport.a` `export RISCV_MLIR_C_RUNNER_UTILS=${BUILD_CROSS_MLIR_DIR}/lib/libmlir_c_runner_utils.so.22.0git` parameter after execution.
 
 4. Pull the OpenMP shared library of RISC-V
    Since the repository depends on OpenMP shared libraries, follow the steps below to set up the OpenMP dependency:
