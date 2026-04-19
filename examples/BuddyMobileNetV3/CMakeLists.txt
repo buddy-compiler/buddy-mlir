@@ -62,7 +62,7 @@ add_custom_command(
   COMMENT "Building subgraph0.o"
   VERBATIM)
 
-add_library(MOBILENETV3 STATIC subgraph0.o forward.o)
+add_library(MOBILENETV3 STATIC forward.o subgraph0.o)
 
 SET_TARGET_PROPERTIES(MOBILENETV3 PROPERTIES LINKER_LANGUAGE C)
 

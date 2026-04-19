@@ -137,8 +137,11 @@ VectorType vectorTypeHelper(Region &srcRegion, Type anchorType,
   if (verbose) {                                                               \
     llvm::outs() << info;                                                      \
   }
-  int vectorRegBitWidth = 1;
-  int totalVectorRegs = 1;
+  // Defaults when no target-specific features are detected (e.g. RISC-V or
+  // hosts not enumerated below). A width of 1 made sizeVec zero for f32
+  // (VectorType::get asserts); 128-bit is a reasonable generic SIMD nominal.
+  int vectorRegBitWidth = 128;
+  int totalVectorRegs = 16;
   llvm::StringMap<bool> Features = llvm::sys::getHostCPUFeatures();
 
   VERBOSE_ANALYSIS_INFO("--- Checking x86/x64 Features ---\n");
@@ -305,6 +308,13 @@ VectorType vectorTypeHelper(Region &srcRegion, Type anchorType,
   VERBOSE_ANALYSIS_INFO("Calculated Size_vec = ("
                         << sizeGroup << " * " << vectorRegBitWidth << ") / "
                         << elementBitWidth << " = " << sizeVec << "\n");
+
+  if (sizeVec < 1) {
+    emitWarning(srcRegion.getLoc(),
+                "Calculated vector lane count is zero; clamping to 1. "
+                "Consider passing -lower-vir-to-vector=vector-width=N.");
+    sizeVec = 1;
+  }
 
   return VectorType::get({sizeVec}, anchorType);
 #undef VERBOSE_ANALYSIS_INFO

@@ -193,6 +193,10 @@ def gen_header(config: dict) -> str:
     p("  struct Config {")
     p("    /// Path to the runtime-loadable model shared library (dlopen).")
     p("    std::string modelSoPath;")
+    p(
+        "    /// Optional dependent shared libraries to preload before modelSoPath."
+    )
+    p("    std::vector<std::string> dependentSoPaths;")
     p(f"    int headNum = {mp}_HEAD_NUM;")
     p(f"    int maxTokenLen = {mp}_MAX_TOKEN_LEN;")
     p(f"    int hiddenSize = {mp}_HIDDEN_SIZE;")
@@ -505,6 +509,7 @@ def gen_impl(config: dict) -> str:
     p("  DecodeABI decodeAbi;")
     p("  bool abiInitialized = false;  // placement-new has been called")
     p("  void *soHandle = nullptr;")
+    p("  std::vector<void *> depSoHandles;")
     p("  PrefillFn prefillFn = nullptr;")
     p("  DecodeFn decodeFn = nullptr;")
     p("  bool lastLogitsAreDecode = false;")
@@ -528,10 +533,32 @@ def gen_impl(config: dict) -> str:
     p("      dlclose(soHandle);")
     p("      soHandle = nullptr;")
     p("    }")
+    p(
+        "    for (auto it = depSoHandles.rbegin(); it != depSoHandles.rend(); ++it) {"
+    )
+    p("      if (*it)")
+    p("        dlclose(*it);")
+    p("    }")
+    p("    depSoHandles.clear();")
     p("  }")
     p()
-    p("  /// dlopen the model shared library and resolve both entry symbols.")
-    p("  void loadSo(const std::string &soPath) {")
+    p(
+        "  /// Preload dependent shared libs, then dlopen model and resolve symbols."
+    )
+    p("  void loadSo(const std::string &soPath,")
+    p("              const std::vector<std::string> &dependentSoPaths) {")
+    p("    for (const auto &depPath : dependentSoPaths) {")
+    p(
+        "      void *depHandle = dlopen(depPath.c_str(), RTLD_NOW | RTLD_GLOBAL);"
+    )
+    p("      if (!depHandle)")
+    p(
+        '        throw std::runtime_error("[BuddyRuntime] dependent dlopen failed: " + depPath +'
+    )
+    p('                                 "\\n  " + dlerror());')
+    p("      depSoHandles.push_back(depHandle);")
+    p("    }")
+    p()
     p("    soHandle = dlopen(soPath.c_str(), RTLD_NOW | RTLD_LOCAL);")
     p("    if (!soHandle)")
     p(
@@ -574,7 +601,7 @@ def gen_impl(config: dict) -> str:
     p("    throw std::runtime_error(")
     p('        "[BuddyRuntime] Config.modelSoPath must not be empty.");')
     p("  allocateKVCache();")
-    p("  impl_->loadSo(cfg_.modelSoPath);")
+    p("  impl_->loadSo(cfg_.modelSoPath, cfg_.dependentSoPaths);")
     p("}")
     p()
     p("ModelSession::~ModelSession() = default;")
@@ -910,7 +937,9 @@ def gen_impl(config: dict) -> str:
         "//===----------------------------------------------------------------------===//"
     )
     p("// Shape constants remain at compile-time defaults from macros;")
-    p("// createFromRax() only sets cfg.modelSoPath from the manifest.")
+    p(
+        "// createFromRax() sets cfg.modelSoPath and cfg.dependentSoPaths from manifest."
+    )
     p()
 
     # ── createFromRax ────────────────────────────────────────────────────────
@@ -920,6 +949,7 @@ def gen_impl(config: dict) -> str:
     p("  resolvedManifest = ModelManifest::loadFromRax(raxPath);")
     p("  Config cfg;")
     p("  cfg.modelSoPath = resolvedManifest.soPath;")
+    p("  cfg.dependentSoPaths = resolvedManifest.dependentSoPaths;")
     p("  return create(cfg);")
     p("}")
     p()

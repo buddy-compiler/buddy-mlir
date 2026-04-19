@@ -86,9 +86,8 @@ SmallVector<Value, 5> generateSOSParams(OpBuilder &rewriter, Location loc,
 // Processing iir operation, result are stored in output MemRef
 void biquadProcess(OpBuilder &rewriter, Location loc, VectorType vectorTy,
                    Value f0, Value c0, Value c1, Value cUpperBound,
-                   Value iUpperBound, SmallVector<Value, 5> SOSParams,
-                   ArrayRef<int64_t> arrayRef, Value N, Value input,
-                   Value output) {
+                   SmallVector<Value, 5> SOSParams, ArrayRef<int64_t> arrayRef,
+                   Value N, Value input, Value output) {
   Value vecB0 = SOSParams[0];
   Value vecB1 = SOSParams[1];
   Value vecB2 = SOSParams[2];
@@ -141,7 +140,7 @@ void biquadProcess(OpBuilder &rewriter, Location loc, VectorType vectorTy,
         Value vecOutNext =
             builder.create<vector::FMAOp>(loc, vecB0, vecInNext, iargs[1]);
         Value outElem =
-            vector::ExtractOp::create(builder, loc, vecOutNext, iUpperBound);
+            vector::ExtractOp::create(builder, loc, vecOutNext, cUpperBound);
         builder.create<memref::StoreOp>(loc, outElem, output, iv);
 
         Value vecS1Lhs =
@@ -170,7 +169,7 @@ void biquadProcess(OpBuilder &rewriter, Location loc, VectorType vectorTy,
         Value vecOutNext =
             builder.create<vector::FMAOp>(loc, vecB0, vecInNext, iargs[1]);
         Value outElem =
-            vector::ExtractOp::create(builder, loc, vecOutNext, iUpperBound);
+            vector::ExtractOp::create(builder, loc, vecOutNext, cUpperBound);
         builder.create<memref::StoreOp>(loc, outElem, output, iv);
 
         Value vecS1Lhs =
@@ -200,14 +199,11 @@ void iirVectorizationProcess(OpBuilder &rewriter, Location loc, uint64_t vecLen,
   uint64_t vecLenMinusOne = vecLen - 1;
   Value cUpperBound =
       rewriter.create<arith::ConstantIndexOp>(loc, vecLenMinusOne);
-  Value iUpperBound = rewriter.create<arith::ConstantIntOp>(
-      loc,
-      /*value=*/vecLenMinusOne, /*width=*/64);
 
   auto SOSParams = dap::generateSOSParams(rewriter, loc, vectorTy, f0, f1, c0,
                                           c1, c2, c4, c5, filterSize, kernel);
   dap::biquadProcess(rewriter, loc, vectorTy, f0, c0, c1, cUpperBound,
-                     iUpperBound, SOSParams, arrayRef, N, input, output);
+                     SOSParams, arrayRef, N, input, output);
 }
 
 } // namespace dap

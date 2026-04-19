@@ -66,7 +66,9 @@ def _repo_root() -> Path:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="One-command build: single variant spec JSON → codegen + buddy-cli + .rax")
+    ap = argparse.ArgumentParser(
+        description="One-command build: single variant spec JSON → codegen + buddy-cli + .rax"
+    )
     ap.add_argument(
         "--spec",
         required=True,
@@ -124,6 +126,35 @@ def main() -> int:
         help="Extra CMake -D options, e.g. --cmake-args=-DDEEPSEEKR1_MLIR_DIR=/tmp/mlir",
     )
     ap.add_argument(
+        "--is-rvv-crosscompile",
+        action="store_true",
+        help="Enable RVV cross-compilation for model.so (sets IS_RVV_CROSSCOMPILE=ON)",
+    )
+    ap.add_argument(
+        "--riscv-gnu-toolchain",
+        type=Path,
+        default=None,
+        help="Path to RISCV GNU toolchain root (used for --sysroot/--gcc-toolchain)",
+    )
+    ap.add_argument(
+        "--riscv-omp-shared",
+        type=Path,
+        default=None,
+        help="Path to target OpenMP shared library used for RVV Stage 3 linking",
+    )
+    ap.add_argument(
+        "--riscv-mlir-c-runner-utils",
+        type=Path,
+        default=None,
+        help="Path to target mlir_c_runner_utils shared library used for RVV Stage 3 linking",
+    )
+    ap.add_argument(
+        "--buddy-mlir-build-dir",
+        type=Path,
+        default=None,
+        help="Path used as BUDDY_MLIR_BUILD_DIR to derive ../llvm/build/bin/clang(++)",
+    )
+    ap.add_argument(
         "--dry-run",
         action="store_true",
         help="Print commands only",
@@ -135,7 +166,11 @@ def main() -> int:
     def resolve_from_cwd(p: Path) -> Path:
         return p.resolve() if p.is_absolute() else (here / p).resolve()
 
-    root = resolve_from_cwd(args.source_dir) if args.source_dir is not None else _repo_root()
+    root = (
+        resolve_from_cwd(args.source_dir)
+        if args.source_dir is not None
+        else _repo_root()
+    )
 
     spec = resolve_from_cwd(args.spec)
     if not spec.is_file():
@@ -143,6 +178,60 @@ def main() -> int:
         return 1
 
     build_dir = resolve_from_cwd(args.build_dir)
+
+    rvv_toolchain: Path | None = None
+    rvv_omp_shared: Path | None = None
+    rvv_mlir_runner_utils: Path | None = None
+    rvv_build_dir: Path | None = None
+    if args.is_rvv_crosscompile:
+        if args.riscv_gnu_toolchain is None:
+            print(
+                "error: --is-rvv-crosscompile requires --riscv-gnu-toolchain",
+                file=sys.stderr,
+            )
+            return 1
+        if args.riscv_omp_shared is None:
+            print(
+                "error: --is-rvv-crosscompile requires --riscv-omp-shared",
+                file=sys.stderr,
+            )
+            return 1
+        if args.riscv_mlir_c_runner_utils is None:
+            print(
+                "error: --is-rvv-crosscompile requires --riscv-mlir-c-runner-utils",
+                file=sys.stderr,
+            )
+            return 1
+
+        rvv_toolchain = resolve_from_cwd(args.riscv_gnu_toolchain)
+        if not rvv_toolchain.is_dir():
+            print(
+                f"error: --riscv-gnu-toolchain is not a directory: {rvv_toolchain}",
+                file=sys.stderr,
+            )
+            return 1
+
+        rvv_omp_shared = resolve_from_cwd(args.riscv_omp_shared)
+        if not rvv_omp_shared.is_file():
+            print(
+                f"error: --riscv-omp-shared is not a file: {rvv_omp_shared}",
+                file=sys.stderr,
+            )
+            return 1
+
+        rvv_mlir_runner_utils = resolve_from_cwd(args.riscv_mlir_c_runner_utils)
+        if not rvv_mlir_runner_utils.is_file():
+            print(
+                f"error: --riscv-mlir-c-runner-utils is not a file: {rvv_mlir_runner_utils}",
+                file=sys.stderr,
+            )
+            return 1
+
+        rvv_build_dir = (
+            resolve_from_cwd(args.buddy_mlir_build_dir)
+            if args.buddy_mlir_build_dir
+            else build_dir
+        )
 
     local_model: Path | None = None
     if args.local_model is not None:
@@ -171,6 +260,17 @@ def main() -> int:
         auto_cfg = local_model / "config.json"
         if auto_cfg.is_file():
             cmake_args.append(f"-DBUDDY_DSR1_HF_CONFIG={auto_cfg}")
+
+    if args.is_rvv_crosscompile:
+        cmake_args.extend(
+            [
+                "-DIS_RVV_CROSSCOMPILE=ON",
+                f"-DRISCV_GNU_TOOLCHAIN={rvv_toolchain}",
+                f"-DRISCV_OMP_SHARED={rvv_omp_shared}",
+                f"-DRISCV_MLIR_C_RUNNER_UTILS={rvv_mlir_runner_utils}",
+                f"-DBUDDY_MLIR_BUILD_DIR={rvv_build_dir}",
+            ]
+        )
 
     for extra in args.cmake_args:
         if extra.startswith("-D"):

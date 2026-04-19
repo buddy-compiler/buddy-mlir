@@ -39,6 +39,7 @@ ignore = [
     # "F401", # Unused import
     # "E203", # Whitespace before ':'
     # "E402", # Module level import not at top of file
+    "E501", # Line too long
     # "E401", # Multiple imports on one line
     # "W605", # Invalid escape sequence
     # "E712", # Comparison to True/False
@@ -60,6 +61,16 @@ ignore = [
     "E711", "E712", "E741",
     "F403", "F405", "F841",
     "SIM101", "SIM102", "SIM105", "SIM108",
+    "UP031",
+]
+# graph.py: same star-import / MLIR builder style as ops/
+"frontend/Python/graph/**" = [
+    "B007", "B011", "B905",
+    "C403", "C416",
+    "E501",
+    "E711", "E712", "E741",
+    "F403", "F405", "F841",
+    "SIM101", "SIM102", "SIM103", "SIM105", "SIM108",
     "UP031",
 ]
 

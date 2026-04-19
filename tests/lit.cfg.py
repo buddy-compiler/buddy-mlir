@@ -1,17 +1,11 @@
 # -*- Python -*-
 
 import os
-import platform
-import re
-import subprocess
-import tempfile
 
 import lit.formats
 import lit.util
-
 from lit.llvm import llvm_config
 from lit.llvm.subst import ToolSubst
-from lit.llvm.subst import FindTool
 
 # Configuration file for the 'lit' test runner.
 
@@ -105,6 +99,9 @@ if config.buddy_mlir_enable_python_packages:
         ],
         append_path=True,
     )
+    # Same as examples/lit.cfg.py: PyTorch + Buddy ExecutionEngine can load two
+    # libomp copies (OMP Error #15); LLVM OpenMP documents this workaround.
+    llvm_config.with_environment("KMP_DUPLICATE_LIB_OK", "TRUE")
 
     buddy_init = os.path.join(
         config.buddy_python_packages_dir, "buddy_mlir", "__init__.py"
