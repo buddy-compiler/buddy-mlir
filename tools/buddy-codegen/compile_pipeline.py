@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ruff: noqa: E501
 # ===- compile_pipeline.py - MLIR → .o compilation pipeline ---------------===//
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -80,7 +81,6 @@ def build_stages(
       - "subgraph":        subgraph_prefill
       - "subgraph_decode": subgraph_decode
     """
-    is_quantized = variant.startswith("w")
     stages = []
 
     # ── Stage 1: buddy-opt (initial simplification) ──────────────────────────
@@ -364,11 +364,15 @@ def link_shared_lib(
         cxx,
         "-shared",
         "-fPIC",
-        f"-Wl,-soname,{os.path.basename(output_so)}",
-        "-Wl,--allow-multiple-definition",
         "-o",
         output_so,
     ] + obj_files
+
+    if sys.platform == "darwin":
+        cmd.insert(3, f"-Wl,-install_name,@rpath/{os.path.basename(output_so)}")
+    else:
+        cmd.insert(3, f"-Wl,-soname,{os.path.basename(output_so)}")
+        cmd.insert(4, "-Wl,--allow-multiple-definition")
 
     if llvm_lib_dir:
         cmd.extend(

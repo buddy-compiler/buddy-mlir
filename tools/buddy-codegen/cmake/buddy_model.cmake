@@ -351,7 +351,8 @@ function(buddy_add_model)
 
   if(IS_RVV_CROSSCOMPILE)
     set(CMAKE_C_COMPILER "${BUDDY_MLIR_BUILD_DIR}/../llvm/build/bin/clang")
-    set(CMAKE_CXX_COMPILER "${BUDDY_MLIR_BUILD_DIR}/../llvm/build/bin/clang++")
+    set(CMAKE_CXX_COMPILER
+        "${BUDDY_MLIR_BUILD_DIR}/../llvm/build/bin/clang++")
     set(MDL_STAGE3_LINKER "${CMAKE_CXX_COMPILER}")
 
     set(RISCV_LINK_OPTS
@@ -367,13 +368,23 @@ function(buddy_add_model)
       -lm)
   endif()
 
+  if(APPLE)
+    set(_BUDDY_MODEL_LINK_FLAGS
+      "-Wl,-install_name,@rpath/${MDL_NAME}_model.so"
+    )
+  else()
+    set(_BUDDY_MODEL_LINK_FLAGS
+      "-Wl,-soname,${MDL_NAME}_model.so"
+      "-Wl,--allow-multiple-definition"
+    )
+  endif()
+
   add_custom_command(
     OUTPUT "${MODEL_SO}"
     COMMAND ${MDL_STAGE3_LINKER}
               ${MDL_STAGE3_LINK_OPTS}
               -shared -fPIC
-              "-Wl,-soname,${MDL_NAME}_model.so"
-              -Wl,--allow-multiple-definition
+              ${_BUDDY_MODEL_LINK_FLAGS}
               -o "${MODEL_SO}"
               "${OBJ_FP}" "${OBJ_SP}" "${OBJ_FD}" "${OBJ_SD}"
               "-L${LLVM_LIBRARY_DIR}"

@@ -1,5 +1,5 @@
 # RUN: %PYTHON %s
-# ===- test_import_phi3_mini_4k.py -------------------------------------------
+# ===- test_import_phi3_mini_4k_static.py ------------------------------------
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,24 +19,24 @@
 #
 # ===---------------------------------------------------------------------------
 
-import os
 import argparse
+import os
 from pathlib import Path
+
+# Then import torch and transformers
+import torch
 
 # Import buddy/MLIR first to avoid LLVM option conflicts
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.graph import GraphDriver
 from buddy.compiler.graph.transform import (
-    simply_fuse,
     apply_classic_fusion,
     eliminate_transpose,
+    simply_fuse,
 )
 from buddy.compiler.ops import tosa
-
-# Then import torch and transformers
-import torch
-from transformers import AutoConfig, AutoModelForCausalLM
 from torch._inductor.decomposition import decompositions as inductor_decomp
+from transformers import AutoConfig, AutoModelForCausalLM, StaticCache
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(
@@ -45,8 +45,8 @@ parser = argparse.ArgumentParser(
 parser.add_argument(
     "--output-dir",
     type=str,
-    default=None,
-    help="Directory to save output MLIR files (default: build/tests/Models/BuddyLLMGraphImport/phi3_mini_4k)",
+    default="/build/tests/Models/BuddyLLMGraphImport/phi3_mini_4k",
+    help="Directory to save output files (default: %(default)s)",
 )
 args = parser.parse_args()
 
@@ -73,45 +73,63 @@ model_path = os.environ.get("PHI3_MINI_4K_MODEL_PATH")
 if model_path is None:
     model_path = "microsoft/Phi-3-mini-4k-instruct"
 
-print(f"Loading Phi-3-mini-4k model from: {model_path}")
+print(f"Loading Phi-3-mini-4k model config from: {model_path}")
 
-# Load config (full layers, only downloads config.json if not local)
+MaxTokenLength = 128
+input_seq_len = 32
+
 config = AutoConfig.from_pretrained(model_path)
 config.use_cache = False
-
 print(f"Model config loaded: {config.num_hidden_layers} layers")
 
-# Create model from config (random weights)
 model = AutoModelForCausalLM.from_config(config).eval()
-
 print("Model created with random weights")
 
-# Initialize compiler
+# Pre-initialize StaticCache to avoid Dynamo graph breaks.
+print("Pre-initializing StaticCache...")
+
+cache = StaticCache(
+    config=config,
+    max_cache_len=MaxTokenLength,
+    batch_size=1,
+)
+
+# 进行一次 dummy 前向，触发缓存内部所有懒加载分配
+with torch.no_grad():
+    dummy_ids = torch.zeros((1, 1), dtype=torch.int64)
+    model(
+        input_ids=dummy_ids,
+        past_key_values=cache,
+        use_cache=True,
+        cache_implementation="static",
+    )
+
+cache.reset()
+
+# Init DynamoCompiler
 dynamo_compiler = DynamoCompiler(
     primary_registry=tosa.ops_registry,
     aot_autograd_decomposition=inductor_decomp,
 )
-
 print("DynamoCompiler initialized")
 
-# Import model with StaticCache enabled
 with torch.no_grad():
-    input_ids = torch.zeros((1, 32), dtype=torch.int64)
+    input_ids = torch.zeros((1, input_seq_len), dtype=torch.int64)
     print("Importing model graph (use_cache=True, StaticCache)...")
     graphs = dynamo_compiler.importer(
         model,
         input_ids=input_ids,
         use_cache=True,
         cache_implementation="static",
+        past_key_values=cache,
     )
 
 print(f"Graph import completed: {len(graphs)} graph(s) generated")
 
 # 1. Verify no graph break
-assert (
-    len(graphs) == 1
-), f"Expected 1 graph (no graph break), but got {len(graphs)}"
-
+assert len(graphs) == 1, (
+    f"Expected 1 graph (no graph break), but got {len(graphs)}"
+)
 print("✓ No graph break detected")
 
 graph = graphs[0]
@@ -131,7 +149,6 @@ print("MLIR generation completed")
 mlir_str = str(driver.subgraphs[0]._imported_module)
 assert "func.func @subgraph0" in mlir_str, "Missing func.func @subgraph0"
 assert "return" in mlir_str, "Missing return in generated MLIR"
-
 print("✓ MLIR structure verified")
 
 # 3. Save MLIR output files
@@ -145,4 +162,4 @@ with open(forward_path, "w") as f:
     print(driver.construct_main_graph(True), file=f)
 print(f"  Saved forward MLIR to: {forward_path}")
 
-print("✓ Phi-3-mini-4k-instruct graph construction test PASSED")
+print("✓ Phi-3-mini-4k-instruct fully static graph construction test PASSED")
