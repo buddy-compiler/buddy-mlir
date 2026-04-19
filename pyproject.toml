@@ -73,6 +73,8 @@ ignore = [
     "SIM101", "SIM102", "SIM103", "SIM105", "SIM108",
     "UP031",
 ]
+# frontend.py: large aten→Op map via `from .graph.operation import *`
+"frontend/Python/frontend.py" = ["F403", "F405"]
 
 [tool.ruff.format]
 quote-style = "double"

@@ -22,36 +22,34 @@
 #
 # ===---------------------------------------------------------------------------
 
-from typing import Any, List, Optional
-import operator
-import os
+import contextlib
 import ctypes
 import ctypes.util
+import operator
+import os
 import platform
-import numpy as np
+from typing import Any
 
-import buddy_mlir.ir as ir
-import buddy_mlir.dialects.func as func
-from buddy_mlir.passmanager import *
-from buddy_mlir.execution_engine import *
-from buddy_mlir import runtime as rt
+import numpy as np
 import torch
 import torch._dynamo as dynamo
+from buddy_mlir import runtime as rt
+from buddy_mlir.execution_engine import ExecutionEngine
+from buddy_mlir.passmanager import *
 from torch._functorch.aot_autograd import aot_module_simplified
 from torch.fx.experimental.proxy_tensor import make_fx
-import torch.utils._pytree as pytree
 
-from .ops.linalg import ops_registry as linalg_ops_registry
-from .ops.tosa import ops_registry as tosa_ops_registry
-from .ops.math import ops_registry as math_ops_registry
-from .ops.func import ops_registry as func_ops_registry
-from .graph import Graph, TensorDType, TensorMeta, NodeType
+from .graph import DeviceType, Graph, NodeType, TensorDType
 from .graph.operation import *
 from .graph.transform import (
     RUNTIME_RNG_TRANSFORMS,
     maxpool2d_simplify,
 )
 from .graph.type import *
+from .ops.func import ops_registry as func_ops_registry
+from .ops.linalg import ops_registry as linalg_ops_registry
+from .ops.math import ops_registry as math_ops_registry
+from .ops.tosa import ops_registry as tosa_ops_registry
 
 EXTERNAL_CALL_TRANSFORM_GROUPS = {
     "rng": tuple(RUNTIME_RNG_TRANSFORMS),
@@ -76,8 +74,8 @@ class DynamoCompiler:
     def __init__(
         self,
         func_name: str = "forward",
-        primary_registry: Optional[dict] = None,
-        aot_autograd_decomposition: Optional[dict] = None,
+        primary_registry: dict | None = None,
+        aot_autograd_decomposition: dict | None = None,
         verbose=False,
         enable_external_calls: bool = False,
         capture_scalar_outputs: bool = False,
@@ -787,8 +785,8 @@ class DynamoCompiler:
             raise RuntimeError(f"Missing tensor_meta for {gm_node.target}")
         return inferred
 
-    def _extract_tensor_out_kwarg_names(self, target) -> List[str]:
-        out_kwarg_names: List[str] = []
+    def _extract_tensor_out_kwarg_names(self, target) -> list[str]:
+        out_kwarg_names: list[str] = []
         schema = getattr(target, "_schema", None)
         if schema is None:
             return out_kwarg_names
@@ -803,11 +801,11 @@ class DynamoCompiler:
         self,
         gm_node_name: str,
         node_name: str,
-        node_input: Tuple,
-        node_users: List[str],
-        node_output_shape: list = [],
+        node_input: tuple,
+        node_users: list[str],
+        node_output_shape: list | None = None,
         node_output_dtype: TensorDType = None,
-        node_kwargs: Optional[Dict] = None,
+        node_kwargs: dict | None = None,
     ):
         """
         Create buddy op node from torch aten op.
@@ -821,6 +819,8 @@ class DynamoCompiler:
             data type.
             node_kwargs: The restful attributes for op node.
         """
+        if node_output_shape is None:
+            node_output_shape = []
         op_class = self._ops_map[gm_node_name]
         buddy_node = op_class()
         buddy_node._name = node_name
@@ -861,7 +861,7 @@ class DynamoCompiler:
     def _compile_fx(
         self,
         gm: torch.fx.GraphModule,
-        inputs: List[torch.Tensor],
+        inputs: list[torch.Tensor],
         return_type: str = "eager",
     ) -> Any:
         """
@@ -905,7 +905,7 @@ class DynamoCompiler:
             print("Graph in tabular form:")
             gm.graph.print_tabular()
 
-        def _compiler(_gm: torch.fx.GraphModule, _inputs: List[torch.Tensor]):
+        def _compiler(_gm: torch.fx.GraphModule, _inputs: list[torch.Tensor]):
             """Compile a FX graph in Aten/Prims IR to MLIR."""
             graph = Graph(
                 self._ops_registry,
@@ -939,7 +939,7 @@ class DynamoCompiler:
             for node_type, gm_nodes_sublist in gm_nodes:
                 for gm_node in gm_nodes_sublist:
                     node_users = []
-                    for user in gm_node.users.keys():
+                    for user in gm_node.users:
                         node_users.append(str(user))
 
                     if gm_node.op == "call_function":
@@ -1112,7 +1112,7 @@ class DynamoCompiler:
         )
 
     def __call__(
-        self, gm: torch.fx.GraphModule, inputs: List[torch.Tensor]
+        self, gm: torch.fx.GraphModule, inputs: list[torch.Tensor]
     ) -> Any:
         """
         A callable method that wraps around the `_compile_fx` method.
@@ -1127,7 +1127,7 @@ class DynamoCompiler:
         """
         return self._compile_fx(gm, inputs)
 
-    def importer(self, model, *args, **kwargs) -> List[Graph]:
+    def importer(self, model, *args, **kwargs) -> list[Graph]:
         """
         Imports the provided model as MLIR module and flat parameters.
 
@@ -1193,7 +1193,7 @@ class DynamoCompiler:
 
     def importer_by_export(
         self, module: torch.nn.Module, *args, **kwargs
-    ) -> List[Graph]:
+    ) -> list[Graph]:
         """
         Imports the provided model as MLIR module and flat parameters by `torch.export.export`.
         The previous `importer` method use the dynamo API, which may cause the imported FX graph
@@ -1232,18 +1232,26 @@ class DynamoCompiler:
             # a second libomp when PyTorch has initialized one in-process.
             if platform.system() == "Linux":
                 try:
-                    with open("/proc/self/maps", "r", encoding="utf-8") as maps:
+                    with open("/proc/self/maps", encoding="utf-8") as maps:
                         for line in maps:
                             path = line.strip().split()[-1]
-                            if os.path.isabs(path) and os.path.basename(path).startswith(
-                                "libomp."
-                            ):
+                            if os.path.isabs(path) and os.path.basename(
+                                path
+                            ).startswith("libomp."):
                                 return os.path.realpath(path)
                 except OSError:
                     pass
 
             resolved = ctypes.util.find_library("omp")
-            if resolved:
+            # On Linux, find_library often returns only a soname.
+            # MLIR's JIT must load by path; a bare soname is resolved relative
+            # to cwd and breaks under llvm-lit.
+            # (e.g. examples/BuddyJIT/libomp.so.5 missing)
+            if (
+                resolved
+                and os.path.isabs(resolved)
+                and os.path.isfile(resolved)
+            ):
                 return resolved
 
             return os.path.join(lib_base_path, "libomp" + lib_extension)
@@ -1259,7 +1267,9 @@ class DynamoCompiler:
             os.path.join(lib_base_path, lib_name + lib_extension)
             for lib_name in lib_names
         ]
-        shared_libs.append(get_openmp_runtime_path(lib_base_path, lib_extension))
+        shared_libs.append(
+            get_openmp_runtime_path(lib_base_path, lib_extension)
+        )
         buddy_lib_base_path = os.path.abspath(
             os.path.join(path_prefix, "../../../lib")
         )
@@ -1374,7 +1384,7 @@ class TorchCompileBackend:
         self._compiler = compiler
 
     def __call__(
-        self, gm: torch.fx.GraphModule, example_inputs: List[torch.Tensor]
+        self, gm: torch.fx.GraphModule, example_inputs: list[torch.Tensor]
     ):
         # Keep per-compile state bounded; torch.compile caches the returned
         # callable per-graph, so this is safe for common use.
@@ -1386,14 +1396,12 @@ class TorchCompileBackend:
 
 
 def make_default_torch_backend() -> TorchCompileBackend:
-    try:
-        import torch._inductor.lowering  # noqa: F401
-    except Exception:
+    with contextlib.suppress(Exception):
         # Some builds do not eagerly expose `torch._inductor.lowering` as an
         # attribute. Inductor decompositions may access it via
         # `torch._inductor.lowering`, so import the submodule explicitly to
         # avoid runtime AttributeError.
-        pass
+        import torch._inductor.lowering  # noqa: F401
 
     from torch._inductor.decomposition import decompositions as inductor_decomp
 
