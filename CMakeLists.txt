@@ -40,43 +40,34 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 option(LLVM_INCLUDE_TOOLS "Generate build targets for the LLVM tools." ON)
 option(LLVM_BUILD_TOOLS "Build the LLVM tools. If OFF, just generate build targets." ON)
-option(BUDDY_MLIR_OUT_OF_TREE_BUILD "Specifies an out of tree build" OFF)
+message(STATUS "buddy-mlir install-tree build.")
 
-if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR OR BUDDY_MLIR_OUT_OF_TREE_BUILD)
-    message(STATUS "buddy-mlir two-step build.")
-    # Two-step build
-    #-------------------------------------------------------------------------------
-    # MLIR/LLVM Configuration
-    #-------------------------------------------------------------------------------
-    find_package(MLIR REQUIRED CONFIG)
-    message(STATUS "Using MLIRConfig.cmake in: ${MLIR_DIR}")
-    message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
+#-------------------------------------------------------------------------------
+# MLIR/LLVM Configuration
+#-------------------------------------------------------------------------------
 
-    # LLVM_MAIN_SRC_DIR is a private variable for the LLVM in-tree build.
-    # To provide compatibility for unifying the one-step and two-step build,
-    # we set LLVM_MAIN_SRC_DIR ourselves here.
-    # This could benefit users who want to specify a custom LLVM source directory,
-    # but also not interfere with normal users who just want to use the buddy-mlir provided LLVM sources.
-    if(NOT DEFINED LLVM_MAIN_SRC_DIR)
-      get_filename_component(LLVM_MAIN_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/llvm/llvm ABSOLUTE)
-    endif()
-    set(MLIR_MAIN_SRC_DIR ${LLVM_MAIN_SRC_DIR}/../mlir)
+find_package(LLVM REQUIRED CONFIG)
+find_package(MLIR REQUIRED CONFIG)
+message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
+message(STATUS "Using MLIRConfig.cmake in: ${MLIR_DIR}")
 
-    list(APPEND CMAKE_MODULE_PATH "${MLIR_CMAKE_DIR}")
-    list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}")
+list(APPEND CMAKE_MODULE_PATH "${MLIR_CMAKE_DIR}")
+list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}")
 
-    find_program(LLVM_TABLEGEN_EXE "llvm-tblgen" ${LLVM_TOOLS_BINARY_DIR}
-            NO_DEFAULT_PATH)
-else()
-    message(STATUS "buddy-mlir one-step build.")
-    # one-step build with LLVM_EXTERNAL_PROJECTS=buddy-mlir
-    #-------------------------------------------------------------------------------
-    # MLIR/LLVM Configuration
-    #-------------------------------------------------------------------------------
-    set(MLIR_MAIN_SRC_DIR ${LLVM_MAIN_SRC_DIR}/../mlir)
-    set(MLIR_INCLUDE_DIR ${MLIR_MAIN_SRC_DIR}/include)
-    set(MLIR_GENERATED_INCLUDE_DIR ${LLVM_BINARY_DIR}/tools/mlir/include)
+set(LLVM_TOOLS_DIR "${LLVM_TOOLS_BINARY_DIR}")
+foreach(_buddy_lit_tool IN ITEMS FileCheck count not)
+  if(NOT TARGET ${_buddy_lit_tool})
+    add_custom_target(${_buddy_lit_tool})
+  endif()
+endforeach()
+
+if(NOT LLVM_EXTERNAL_LIT)
+  set(LLVM_EXTERNAL_LIT lit)
 endif()
+
+list(GET LLVM_LIBRARY_DIRS 0 BUDDY_LLVM_LIBRARY_DIR)
+set(BUDDY_OPENMP_RUNTIME_LIBRARY
+  "${BUDDY_LLVM_LIBRARY_DIR}/${LLVM_HOST_TRIPLE}/libomp${CMAKE_SHARED_LIBRARY_SUFFIX}")
 
 #-------------------------------------------------------------------------------
 # BUDDY configuration
@@ -86,7 +77,6 @@ endif()
 set(BUDDY_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(BUDDY_BUILD_DIR ${CMAKE_BINARY_DIR})
 set(BUDDY_BINARY_DIR ${CMAKE_BINARY_DIR}/bin)
-set(BUDDY_LIBRARY_DIR ${CMAKE_BINARY_DIR}/lib)
 
 set(BUDDY_EXAMPLES_DIR ${BUDDY_SOURCE_DIR}/examples)
 set(BUDDY_MLIR_INTERFACE_DIR ${BUDDY_SOURCE_DIR}/frontend/Interfaces)
@@ -109,31 +99,44 @@ option(BUDDY_BUILD_DEEPSEEK_R1_MODEL
   "Build models/deepseek_r1 (buddy_models_deepseek_r1, .so, .rax) and link into buddy-cli"
   OFF)
 
+set(_buddy_require_jpeg OFF)
+set(_buddy_require_png OFF)
+
 if(BUDDY_ENABLE_OPENCV)
   add_definitions(-DBUDDY_ENABLE_OPENCV)
-  find_package(JPEG REQUIRED)
-  find_package(PNG REQUIRED)
-  find_package(OpenCV REQUIRED CONFIG)
-  include_directories(${OpenCV_INCLUDE_DIRS})
+  set(_buddy_require_jpeg ON)
+  set(_buddy_require_png ON)
 endif()
 
 if(BUDDY_MLIR_ENABLE_DIP_LIB)
   add_definitions(-DBUDDY_MLIR_ENABLE_DIP_LIB)
-  find_package(PNG REQUIRED)
+  set(_buddy_require_jpeg ON)
+  set(_buddy_require_png ON)
 endif()
 
 if(BUDDY_ENABLE_PNG)
   add_definitions(-DBUDDY_ENABLE_PNG)
+  set(_buddy_require_png ON)
+endif()
+
+if(_buddy_require_jpeg)
+  find_package(JPEG REQUIRED)
+endif()
+
+if(_buddy_require_png)
   find_package(PNG REQUIRED)
 endif()
 
+if(BUDDY_ENABLE_OPENCV)
+  find_package(OpenCV REQUIRED CONFIG)
+  include_directories(${OpenCV_INCLUDE_DIRS})
+endif()
+
 # Add BUDDY files to the include path
-include_directories(${BUDDY_MAIN_INCLUDE_DIR})
 include_directories(${BUDDY_MIDEND_INCLUDE_DIR})
 include_directories(${BUDDY_MIDEND_INCLUDE_DIR}/Interface)
 include_directories(${BUDDY_MIDEND_INCLUDE_DIR}/Dialect)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/midend/include/Dialect)
-include_directories(BEFORE ${CMAKE_CURRENT_BINARY_DIR}/backend/include)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 include_directories(${BUDDY_SOURCE_DIR}/lib)
 include_directories(${BUDDY_THIRDPARTY_INCLUDE_DIR})
@@ -143,10 +146,6 @@ include_directories(${BUDDY_SOURCE_DIR}/frontend/Interfaces)
 include_directories(${LLVM_INCLUDE_DIRS})
 include_directories(${MLIR_INCLUDE_DIRS})
 
-# Configure CMake.
-list(APPEND CMAKE_MODULE_PATH ${MLIR_MAIN_SRC_DIR}/cmake/modules)
-list(APPEND CMAKE_MODULE_PATH ${LLVM_MAIN_SRC_DIR}/cmake)
-
 find_program(LLVM_TABLEGEN_EXE "llvm-tblgen" ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH)
 
 include(TableGen)
@@ -154,13 +153,9 @@ include(AddLLVM)
 include(AddMLIR)
 include(HandleLLVMOptions)
 
-#-------------------------------------------------------------------------------
-# DIP lib configuration
-#-------------------------------------------------------------------------------
-
-if(BUDDY_MLIR_ENABLE_DIP_LIB)
-  find_package(JPEG REQUIRED)
-  find_package(PNG REQUIRED)
+if((DEFINED LLVM_ENABLE_ASSERTIONS AND NOT LLVM_ENABLE_ASSERTIONS) OR
+   (DEFINED ENABLE_ASSERTIONS AND NOT ENABLE_ASSERTIONS))
+  add_compile_definitions(NDEBUG)
 endif()
 
 #-------------------------------------------------------------------------------
@@ -175,26 +170,12 @@ check_toolchain()
 #-------------------------------------------------------------------------------
 # Antlr Configuration
 #-------------------------------------------------------------------------------
-# NB: currently, ANTLR is used in dsl examples only,
-# however, there is a plan to use in the frontend,
-# so it is kept in the top-level cmake
 if(BUDDY_DSL_EXAMPLES)
-    list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake/Antlr)
-
-    # required if linking to static library
-    add_definitions(-DANTLR4CPP_STATIC)
-
-    # add external build for antlrcpp
-    include(ExternalAntlr4Cpp)
-    # add antrl4cpp artifacts to project environment
-    include_directories(${ANTLR4_INCLUDE_DIRS})
-
-    # set variable pointing to the antlr tool that supports C++
-    # this is not required if the jar file can be found under PATH environment
-    set(ANTLR_EXECUTABLE ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/antlr/antlr-4.10.1-complete.jar)
-    # add macros to generate ANTLR Cpp code from grammar
-    find_package(ANTLR REQUIRED)
+  message(WARNING
+    "BUDDY_DSL_EXAMPLES depends on MLIR Toy example sources and is no longer "
+    "maintained by buddy-mlir. ToyDSL examples will be disabled.")
 endif()
+set(BUDDY_DSL_EXAMPLES OFF CACHE BOOL "Build DSL examples" FORCE)
 
 #-------------------------------------------------------------------------------
 # The `mimalloc` Configuration
@@ -253,7 +234,6 @@ add_subdirectory(runtime)
 add_subdirectory(frontend)
 add_subdirectory(models)
 add_subdirectory(midend)
-add_subdirectory(backend)
 add_subdirectory(tools)
 add_subdirectory(examples)
 add_subdirectory(tests)

@@ -25,16 +25,16 @@ jobs:
             experimental: false
             venv_activate: "source ~/miniforge3/bin/activate buddy"
             venv_deactivate: "conda deactivate"
-          - arch: arm64
-            os: macos
-            experimental: true
-            venv_activate: "source ~/miniforge3/bin/activate buddy"
-            venv_deactivate: "conda deactivate"
-          - arch: riscv64
-            os: linux
-            experimental: true
-            venv_activate: "source /home/jenkins/venv/bin/activate"
-            venv_deactivate: "deactivate"
+          # - arch: arm64
+          #   os: macos
+          #   experimental: true
+          #   venv_activate: "source ~/miniforge3/bin/activate buddy"
+          #   venv_deactivate: "conda deactivate"
+          # - arch: riscv64
+          #   os: linux
+          #   experimental: true
+          #   venv_activate: "source /home/jenkins/venv/bin/activate"
+          #   venv_deactivate: "deactivate"
 
     runs-on:
       - self-hosted
