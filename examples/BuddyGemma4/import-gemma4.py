@@ -59,8 +59,11 @@ parser.add_argument(
     "--precision",
     type=str,
     default="f32",
-    choices=["f32"],
-    help="Precision mode for generated MLIR and input data.",
+    choices=["f32", "f16"],
+    help=(
+        "Precision mode for generated MLIR and input data. "
+        "Choose from 'f32' or 'f16'."
+    ),
 )
 args = parser.parse_args()
 
@@ -75,7 +78,9 @@ MaxTokenLength = 512
 
 # Load the full multimodal model and extract language model weights.
 print("Loading full model from:", model_path)
-full_model = AutoModelForCausalLM.from_pretrained(model_path, dtype=torch.float32, low_cpu_mem_usage=True)
+full_model = AutoModelForCausalLM.from_pretrained(
+    model_path, dtype=torch.float32, low_cpu_mem_usage=True
+)
 full_sd = full_model.state_dict()
 
 causal_sd = {}
@@ -85,7 +90,10 @@ for k, v in full_sd.items():
     elif k.startswith("lm_head."):
         causal_sd[k] = v
 
-if "lm_head.weight" not in causal_sd and "model.embed_tokens.weight" in causal_sd:
+if (
+    "lm_head.weight" not in causal_sd
+    and "model.embed_tokens.weight" in causal_sd
+):
     causal_sd["lm_head.weight"] = causal_sd["model.embed_tokens.weight"]
 
 full_config = AutoConfig.from_pretrained(model_path)
@@ -93,12 +101,62 @@ tc = full_config.text_config
 model = Gemma4ForCausalLM(tc)
 model.load_state_dict(causal_sd, strict=True)
 model.eval()
+if args.precision == "f16":
+    model = model.half()
 model.config.use_cache = False
 del full_model, full_sd, causal_sd
 
+# Patch f32 upcasts to keep computation in f16.
+# Gemma4RMSNorm and Gemma4TextRotaryEmbedding both explicitly cast to float32
+# for numerical stability, producing a graph dominated by f32 ops even when the
+# model weights are f16. Patching them here forces all computation to stay in
+# the input dtype so that the traced graph is genuinely f16.
+if args.precision == "f16":
+    from transformers.models.gemma4.modeling_gemma4 import (
+        Gemma4RMSNorm,
+        Gemma4TextRotaryEmbedding,
+    )
+
+    def _rms_norm_forward_f16(
+        self, hidden_states: torch.Tensor
+    ) -> torch.Tensor:
+        # mean() promotes f16→f32 on CPU, so hidden_states * f32_norm_factor
+        # would produce a mixed-type tosa.mul that fails MLIR validation.
+        # Explicitly upcast, compute, downcast to keep types consistent.
+        input_dtype = hidden_states.dtype
+        hidden_f32 = hidden_states.float()
+        mean_sq = hidden_f32.pow(2).mean(-1, keepdim=True) + self.eps
+        normed_output = (hidden_f32 * torch.pow(mean_sq, -0.5)).to(input_dtype)
+        if self.with_scale:
+            normed_output = normed_output * self.weight.to(input_dtype)
+        return normed_output
+
+    @torch.no_grad()
+    def _rope_forward_f16(self, x, position_ids, layer_type=None):
+        inv_freq = getattr(self, f"{layer_type}_inv_freq")
+        attention_scaling = getattr(self, f"{layer_type}_attention_scaling")
+        dtype = x.dtype
+        inv_freq_expanded = (
+            inv_freq[None, :, None]
+            .to(dtype)
+            .expand(position_ids.shape[0], -1, 1)
+            .to(x.device)
+        )
+        position_ids_expanded = position_ids[:, None, :].to(dtype)
+        freqs = (inv_freq_expanded @ position_ids_expanded).transpose(1, 2)
+        emb = torch.cat((freqs, freqs), dim=-1)
+        cos = emb.cos() * attention_scaling
+        sin = emb.sin() * attention_scaling
+        return cos, sin
+
+    Gemma4RMSNorm.forward = _rms_norm_forward_f16
+    Gemma4TextRotaryEmbedding.forward = _rope_forward_f16
+
 # Pre-initialize StaticCache to avoid Dynamo graph breaks.
 print("Pre-initializing StaticCache for prefill...")
-cache_prefill = StaticCache(config=tc, max_cache_len=MaxTokenLength, batch_size=1)
+cache_prefill = StaticCache(
+    config=tc, max_cache_len=MaxTokenLength, batch_size=1
+)
 with torch.no_grad():
     model(
         input_ids=torch.zeros((1, 1), dtype=torch.int64),
@@ -136,7 +194,9 @@ with torch.no_grad():
     )
 
     print("Pre-initializing StaticCache for decode...")
-    cache_decode = StaticCache(config=tc, max_cache_len=MaxTokenLength, batch_size=1)
+    cache_decode = StaticCache(
+        config=tc, max_cache_len=MaxTokenLength, batch_size=1
+    )
     model(
         input_ids=torch.zeros((1, 1), dtype=torch.int64),
         past_key_values=cache_decode,
@@ -164,15 +224,23 @@ with torch.no_grad():
         past_key_values=cache_decode,
     )
 
-assert len(graphs_prefill) == 1, f"Expected 1 prefill graph, got {len(graphs_prefill)}"
-assert len(graphs_decode) == 1, f"Expected 1 decode graph, got {len(graphs_decode)}"
+assert len(graphs_prefill) == 1, (
+    f"Expected 1 prefill graph, got {len(graphs_prefill)}"
+)
+assert len(graphs_decode) == 1, (
+    f"Expected 1 decode graph, got {len(graphs_decode)}"
+)
 graph_prefill = graphs_prefill[0]
 graph_decode = graphs_decode[0]
 
 params = dynamo_compiler_prefill.imported_params[graph_prefill]
 
-graphs_prefill[0].perform([eliminate_transpose, eliminate_matmul_transpose_reshape])
-graphs_decode[0].perform([eliminate_transpose, eliminate_matmul_transpose_reshape])
+graphs_prefill[0].perform(
+    [eliminate_transpose, eliminate_matmul_transpose_reshape]
+)
+graphs_decode[0].perform(
+    [eliminate_transpose, eliminate_matmul_transpose_reshape]
+)
 pattern_list_prefill = [
     simply_fuse,
     apply_classic_fusion,
@@ -188,10 +256,14 @@ pattern_list_decode = [
 graphs_prefill[0].fuse_ops(pattern_list_prefill)
 graphs_decode[0].fuse_ops(pattern_list_decode)
 
-graph_prefill.op_groups["subgraph0_prefill"] = graph_prefill.op_groups.pop("subgraph0")
+graph_prefill.op_groups["subgraph0_prefill"] = graph_prefill.op_groups.pop(
+    "subgraph0"
+)
 graph_prefill.group_map_device["subgraph0_prefill"] = DeviceType.CPU
 
-graph_decode.op_groups["subgraph0_decode"] = graph_decode.op_groups.pop("subgraph0")
+graph_decode.op_groups["subgraph0_decode"] = graph_decode.op_groups.pop(
+    "subgraph0"
+)
 graph_decode.group_map_device["subgraph0_decode"] = DeviceType.CPU
 
 driver_prefill = GraphDriver(graphs_prefill[0])
@@ -200,16 +272,28 @@ driver_prefill.subgraphs[0].lower_to_top_level_ir()
 driver_decode = GraphDriver(graphs_decode[0])
 driver_decode.subgraphs[0].lower_to_top_level_ir()
 
-with open(os.path.join(output_dir, "subgraph0_prefill_e2b.mlir"), "w") as module_file:
-    print(driver_prefill.subgraphs[0]._imported_module, file=module_file)
-with open(os.path.join(output_dir, "forward_prefill_e2b.mlir"), "w") as module_file:
-    print(driver_prefill.construct_main_graph(True), file=module_file)
-all_param = numpy.concatenate([param.detach().numpy().reshape([-1]) for param in params])
-all_param.tofile(os.path.join(output_dir, "arg0_e2b.data"))
+suffix = "-f16" if args.precision == "f16" else ""
 
-with open(os.path.join(output_dir, "subgraph0_decode_e2b.mlir"), "w") as module_file:
+with open(
+    os.path.join(output_dir, f"subgraph0_prefill_e2b{suffix}.mlir"), "w"
+) as module_file:
+    print(driver_prefill.subgraphs[0]._imported_module, file=module_file)
+with open(
+    os.path.join(output_dir, f"forward_prefill_e2b{suffix}.mlir"), "w"
+) as module_file:
+    print(driver_prefill.construct_main_graph(True), file=module_file)
+all_param = numpy.concatenate(
+    [param.detach().numpy().reshape([-1]) for param in params]
+)
+all_param.tofile(os.path.join(output_dir, f"arg0_e2b{suffix}.data"))
+
+with open(
+    os.path.join(output_dir, f"subgraph0_decode_e2b{suffix}.mlir"), "w"
+) as module_file:
     print(driver_decode.subgraphs[0]._imported_module, file=module_file)
-with open(os.path.join(output_dir, "forward_decode_e2b.mlir"), "w") as module_file:
+with open(
+    os.path.join(output_dir, f"forward_decode_e2b{suffix}.mlir"), "w"
+) as module_file:
     print(driver_decode.construct_main_graph(True), file=module_file)
 
 # Export vocabulary file for the C++ tokenizer.
@@ -228,7 +312,7 @@ print("All files saved to:", output_dir)
 # torch._dynamo bakes cumulative_length as a compile-time constant, but it must
 # be dynamic for correct attention masking across different cache positions.
 patch_script = os.path.join(os.path.dirname(__file__), "patch_decode_mlir.py")
-decode_mlir = os.path.join(output_dir, "subgraph0_decode_e2b.mlir")
+decode_mlir = os.path.join(output_dir, f"subgraph0_decode_e2b{suffix}.mlir")
 if os.path.exists(patch_script) and os.path.exists(decode_mlir):
     print("Patching constant-folded cumulative_length in decode subgraph...")
     subprocess.run(["python3", patch_script, decode_mlir], check=True)
