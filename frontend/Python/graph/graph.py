@@ -578,6 +578,7 @@ class Graph:
             pm.add("cse")
             pm.add("memref-expand")
             pm.add("arith-expand")
+            pm.add("convert-bufferization-to-memref")
             pm.add("convert-vector-to-llvm")
             pm.add("convert-complex-to-llvm")
             pm.add("convert-arith-to-llvm")
