@@ -1,0 +1,77 @@
+name: pr comment commands
+
+on:
+  issue_comment:
+    types: [ created ]
+
+permissions:
+  actions: write
+  contents: read
+  pull-requests: read
+  statuses: write
+
+jobs:
+  dispatch:
+    if: >
+      github.event.issue.pull_request &&
+      github.event.issue.state == 'open' &&
+      startsWith(github.event.comment.body, '/run-example') &&
+      contains(fromJson('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve PR head
+        id: pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api repos/${{ github.repository }}/pulls/${{ github.event.issue.number }} \
+            --jq '"head_repository=\(.head.repo.full_name)\nhead_ref=\(.head.ref)\nhead_sha=\(.head.sha)\nstatuses_path=\(.statuses_url | ltrimstr("https://api.github.com/"))"' >> "$GITHUB_OUTPUT"
+
+      - name: Mark example tests queued
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for context in \
+            'test-examples (linux-x64)' \
+            'test-examples (macos-arm64)'
+          do
+            gh api --method POST "${{ steps.pr.outputs.statuses_path }}" \
+              -f state='pending' \
+              -f context="$context" \
+              -f description='Example tests queued' \
+              -f target_url="https://github.com/${{ github.repository }}/actions/workflows/test-example.yml"
+          done
+
+      - name: Dispatch example workflow
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          dispatch_ref="${{ github.event.repository.default_branch }}"
+          if [ "${{ steps.pr.outputs.head_repository }}" = "${{ github.repository }}" ]; then
+            dispatch_ref="${{ steps.pr.outputs.head_ref }}"
+          fi
+
+          gh workflow run test-example.yml \
+            -R "${{ github.repository }}" \
+            --ref "$dispatch_ref" \
+            -f source_repository="${{ steps.pr.outputs.head_repository }}" \
+            -f source_ref="${{ steps.pr.outputs.head_ref }}" \
+            -f source_sha="${{ steps.pr.outputs.head_sha }}" \
+            -f status_api_path="${{ steps.pr.outputs.statuses_path }}" \
+            -f status_context='test-examples'
+
+      - name: Mark dispatch failure
+        if: ${{ failure() }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for context in \
+            'test-examples (linux-x64)' \
+            'test-examples (macos-arm64)'
+          do
+            gh api --method POST "${{ steps.pr.outputs.statuses_path }}" \
+              -f state='failure' \
+              -f context="$context" \
+              -f description='Failed to dispatch example tests' \
+              -f target_url="https://github.com/${{ github.repository }}/actions/workflows/test-example.yml"
+          done

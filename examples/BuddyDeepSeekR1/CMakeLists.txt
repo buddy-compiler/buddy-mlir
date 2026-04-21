@@ -1672,7 +1672,7 @@ target_link_libraries(buddy-deepseek-r1-w8a32-run ${BUDDY_DEEPSEEKR1_W8A32_LIBS}
 target_link_libraries(buddy-deepseek-r1-w8a8-run ${BUDDY_DEEPSEEKR1_W8A8_LIBS})
 target_link_libraries(buddy-deepseek-r1-w4a16-run ${BUDDY_DEEPSEEKR1_W4A16_LIBS})
 target_link_libraries(buddy-deepseek-r1-w8a16-run ${BUDDY_DEEPSEEKR1_W8A16_LIBS})
-target_link_libraries(buddy-deepseek-r1-cli ${BUDDY_DEEPSEEKR1_LIBS} LLVMOption)
+target_link_libraries(buddy-deepseek-r1-cli ${BUDDY_DEEPSEEKR1_LIBS} LLVMOption buddy_runtime_core)
 
 # Create a distributable package
 set(DIST_PACKAGE_NAME "buddy-deepseek-r1")
@@ -1989,6 +1989,19 @@ target_link_libraries(buddy-deepseek-r1-tiered-kv-cache-run ${BUDDY_DEEPSEEKR1_T
 add_custom_target(deepseekr1-tiered-kv-cache
   DEPENDS buddy-deepseek-r1-tiered-kv-cache-run
   COMMENT "Building DeepSeekR1 tiered-kv-cache inference"
+)
+
+add_test(
+  NAME example.buddy-deepseek-r1-cli
+  COMMAND $<TARGET_FILE:buddy-deepseek-r1-cli> --prompt Hi --max-tokens=128
+  WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+)
+set_tests_properties(
+  example.buddy-deepseek-r1-cli
+  PROPERTIES
+    LABELS "example"
+    PASS_REGULAR_EXPRESSION "Total time"
+    TIMEOUT 3600
 )
 
 message(STATUS "DeepSeekR1 Multi-Cache: Building prefill and decode subgraphs for cache sizes: ${KV_CACHE_SIZES}")

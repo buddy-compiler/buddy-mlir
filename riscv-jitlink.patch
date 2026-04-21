@@ -1,0 +1,277 @@
+diff --git a/llvm/lib/ExecutionEngine/JITLink/ELF_riscv.cpp b/llvm/lib/ExecutionEngine/JITLink/ELF_riscv.cpp
+index 71a0f14368ac..73d5b6cfec15 100644
+--- a/llvm/lib/ExecutionEngine/JITLink/ELF_riscv.cpp
++++ b/llvm/lib/ExecutionEngine/JITLink/ELF_riscv.cpp
+@@ -300,30 +300,79 @@ private:
+       break;
+     }
+     case R_RISCV_HI20: {
+-      int64_t Value = (E.getTarget().getAddress() + E.getAddend()).getValue();
+-      int64_t Hi = Value + 0x800;
++      // R_RISCV_HI20 is used with either LUI (absolute addresses in the low
++      // 2GiB of the sign-extended 32-bit range) or AUIPC (PC-relative). LLVM
++      // may emit AUIPC with R_RISCV_HI20 in some cases; those must use the same
++      // PC-relative math as R_RISCV_PCREL_HI20. Using absolute 64-bit symbol
++      // addresses here breaks RV64 JIT for symbols like __dso_handle in the
++      // high user address range.
++      //
++      // When LLVM emits LUI (0x37) with R_RISCV_HI20 for a 64-bit address that
++      // does not fit the medlow absolute window, rewrite the instruction to
++      // AUIPC (0x17) and apply a PC-relative fixup (same width as PCREL_HI20).
++      uint32_t RawInstr = *(little32_t *)FixupPtr;
++      const unsigned Opc = RawInstr & 0x7F;
++      const int64_t S = (E.getTarget().getAddress() + E.getAddend()).getValue();
++      const int64_t P = FixupAddress.getValue();
++      int64_t Value;
++
++      if (Opc == 0x17) {
++        Value = S - P;
++      } else if (Opc == 0x37) {
++        const int64_t HiAbs = S + 0x800;
++        if (isInRangeForImm(HiAbs, 32))
++          Value = S;
++        else {
++          Value = S - P;
++          const int64_t HiRel = Value + 0x800;
++          if (LLVM_UNLIKELY(!isInRangeForImm(HiRel, 32)))
++            return makeTargetOutOfRangeError(G, B, E);
++          RawInstr = (RawInstr & ~0x7Fu) | 0x17;
++        }
++      } else {
++        Value = S;
++      }
++
++      const int64_t Hi = Value + 0x800;
+       if (LLVM_UNLIKELY(!isInRangeForImm(Hi, 32)))
+         return makeTargetOutOfRangeError(G, B, E);
+-      uint32_t RawInstr = *(little32_t *)FixupPtr;
+       *(little32_t *)FixupPtr =
+           (RawInstr & 0xFFF) | (static_cast<uint32_t>(Hi & 0xFFFFF000));
+       break;
+     }
+     case R_RISCV_LO12_I: {
+-      // FIXME: We assume that R_RISCV_HI20 is present in object code and pairs
+-      // with current relocation R_RISCV_LO12_I. So here may need a check.
++      // Match lld's R_RISCV_LO12_I handling: low 12 bits are not simply
++      // (S+A) & 0xfff; they must subtract the scaled high bits. When paired
++      // with AUIPC + misplaced R_RISCV_HI20, use a PC-relative offset from the
++      // AUIPC (the instruction at FixupAddress - 4).
+       int64_t Value = (E.getTarget().getAddress() + E.getAddend()).getValue();
+-      int32_t Lo = Value & 0xFFF;
++      int64_t Lo;
++      if (E.getOffset() >= 4 &&
++          (*(little32_t *)(FixupPtr - 4) & 0x7F) == 0x17) {
++        Value -= (FixupAddress - 4).getValue();
++        int64_t Hi = (Value + 0x800) >> 12;
++        Lo = Value - (Hi << 12);
++      } else {
++        int64_t Hi = (Value + 0x800) >> 12;
++        Lo = Value - (Hi << 12);
++      }
+       uint32_t RawInstr = *(little32_t *)FixupPtr;
+       *(little32_t *)FixupPtr =
+           (RawInstr & 0xFFFFF) | (static_cast<uint32_t>(Lo & 0xFFF) << 20);
+       break;
+     }
+     case R_RISCV_LO12_S: {
+-      // FIXME: We assume that R_RISCV_HI20 is present in object code and pairs
+-      // with current relocation R_RISCV_LO12_S. So here may need a check.
+       int64_t Value = (E.getTarget().getAddress() + E.getAddend()).getValue();
+-      int64_t Lo = Value & 0xFFF;
++      int64_t Lo;
++      if (E.getOffset() >= 4 &&
++          (*(little32_t *)(FixupPtr - 4) & 0x7F) == 0x17) {
++        Value -= (FixupAddress - 4).getValue();
++        int64_t Hi = (Value + 0x800) >> 12;
++        Lo = Value - (Hi << 12);
++      } else {
++        int64_t Hi = (Value + 0x800) >> 12;
++        Lo = Value - (Hi << 12);
++      }
+       uint32_t Imm11_5 = extractBits(Lo, 5, 7) << 25;
+       uint32_t Imm4_0 = extractBits(Lo, 0, 5) << 7;
+       uint32_t RawInstr = *(little32_t *)FixupPtr;
+diff --git a/mlir/lib/ExecutionEngine/ExecutionEngine.cpp b/mlir/lib/ExecutionEngine/ExecutionEngine.cpp
+index f704fbfbe8ff..346c0ba75610 100644
+--- a/mlir/lib/ExecutionEngine/ExecutionEngine.cpp
++++ b/mlir/lib/ExecutionEngine/ExecutionEngine.cpp
+@@ -23,6 +23,7 @@
+ #include "llvm/ExecutionEngine/Orc/IRCompileLayer.h"
+ #include "llvm/ExecutionEngine/Orc/IRTransformLayer.h"
+ #include "llvm/ExecutionEngine/Orc/JITTargetMachineBuilder.h"
++#include "llvm/ExecutionEngine/Orc/ObjectLinkingLayer.h"
+ #include "llvm/ExecutionEngine/Orc/RTDyldObjectLinkingLayer.h"
+ #include "llvm/IR/IRBuilder.h"
+ #include "llvm/MC/TargetRegistry.h"
+@@ -51,11 +52,40 @@ using llvm::orc::ExecutionSession;
+ using llvm::orc::IRCompileLayer;
+ using llvm::orc::JITTargetMachineBuilder;
+ using llvm::orc::MangleAndInterner;
++using llvm::orc::ObjectLinkingLayer;
++using llvm::orc::ObjectLayer;
+ using llvm::orc::RTDyldObjectLinkingLayer;
+ using llvm::orc::SymbolMap;
+ using llvm::orc::ThreadSafeModule;
+ using llvm::orc::TMOwningSimpleCompiler;
+
++namespace {
++/// Match LLJIT's default ObjectLinkingLayer selection
++/// (llvm/lib/ExecutionEngine/Orc/LLJIT.cpp).
++bool shouldUseJITLink(const Triple &TT) {
++  switch (TT.getArch()) {
++  case Triple::riscv64:
++  case Triple::loongarch64:
++    return true;
++  case Triple::aarch64:
++    return !TT.isOSBinFormatCOFF();
++  case Triple::arm:
++  case Triple::armeb:
++  case Triple::thumb:
++  case Triple::thumbeb:
++    return TT.isOSBinFormatELF();
++  case Triple::x86_64:
++    return !TT.isOSBinFormatCOFF();
++  case Triple::ppc64:
++    return TT.isPPC64ELFv2ABI();
++  case Triple::ppc64le:
++    return TT.isOSBinFormatELF();
++  default:
++    return false;
++  }
++}
++} // namespace
++
+ /// Wrap a string into an llvm::StringError.
+ static Error makeStringError(const Twine &message) {
+   return llvm::make_error<StringError>(message.str(),
+@@ -314,25 +344,37 @@ ExecutionEngine::create(Operation *m, const ExecutionEngineOptions &options,
+   // Callback to create the object layer with symbol resolution to current
+   // process and dynamically linked libraries.
+   auto objectLinkingLayerCreator = [&](ExecutionSession &session) {
+-    auto objectLayer = std::make_unique<RTDyldObjectLinkingLayer>(
+-        session, [sectionMemoryMapper =
+-                      options.sectionMemoryMapper](const MemoryBuffer &) {
+-          return std::make_unique<SectionMemoryManager>(sectionMemoryMapper);
+-        });
+-
+-    // Register JIT event listeners if they are enabled.
+-    if (engine->gdbListener)
+-      objectLayer->registerJITEventListener(*engine->gdbListener);
+-    if (engine->perfListener)
+-      objectLayer->registerJITEventListener(*engine->perfListener);
+-
+-    // COFF format binaries (Windows) need special handling to deal with
+-    // exported symbol visibility.
+-    // cf llvm/lib/ExecutionEngine/Orc/LLJIT.cpp LLJIT::createObjectLinkingLayer
+     const llvm::Triple &targetTriple = llvmModule->getTargetTriple();
+-    if (targetTriple.isOSBinFormatCOFF()) {
+-      objectLayer->setOverrideObjectFlagsWithResponsibilityFlags(true);
+-      objectLayer->setAutoClaimResponsibilityForObjectSymbols(true);
++    const bool useJITLink = shouldUseJITLink(targetTriple);
++
++    std::unique_ptr<ObjectLayer> objectLayer;
++    if (useJITLink) {
++      objectLayer = std::make_unique<ObjectLinkingLayer>(session);
++      LLVM_DEBUG(dbgs() << "ExecutionEngine: using JITLink ObjectLinkingLayer "
++                           "for triple "
++                        << targetTriple.str() << "\n");
++    } else {
++      auto rtdyldLayer = std::make_unique<RTDyldObjectLinkingLayer>(
++          session, [sectionMemoryMapper =
++                        options.sectionMemoryMapper](const MemoryBuffer &) {
++            return std::make_unique<SectionMemoryManager>(sectionMemoryMapper);
++          });
++
++      // Register JIT event listeners if they are enabled.
++      if (engine->gdbListener)
++        rtdyldLayer->registerJITEventListener(*engine->gdbListener);
++      if (engine->perfListener)
++        rtdyldLayer->registerJITEventListener(*engine->perfListener);
++
++      // COFF format binaries (Windows) need special handling to deal with
++      // exported symbol visibility.
++      // cf llvm/lib/ExecutionEngine/Orc/LLJIT.cpp LLJIT::createObjectLinkingLayer
++      if (targetTriple.isOSBinFormatCOFF()) {
++        rtdyldLayer->setOverrideObjectFlagsWithResponsibilityFlags(true);
++        rtdyldLayer->setAutoClaimResponsibilityForObjectSymbols(true);
++      }
++
++      objectLayer = std::move(rtdyldLayer);
+     }
+
+     // Resolve symbols from shared libraries.
+diff --git a/mlir/lib/ExecutionEngine/JitRunner.cpp b/mlir/lib/ExecutionEngine/JitRunner.cpp
+index 2107df37d199..113237bf9b8f 100644
+--- a/mlir/lib/ExecutionEngine/JitRunner.cpp
++++ b/mlir/lib/ExecutionEngine/JitRunner.cpp
+@@ -31,6 +31,7 @@
+ #include "llvm/IR/IRBuilder.h"
+ #include "llvm/IR/LLVMContext.h"
+ #include "llvm/IR/LegacyPassNameParser.h"
++#include "llvm/Support/CodeGen.h"
+ #include "llvm/Support/CommandLine.h"
+ #include "llvm/Support/Debug.h"
+ #include "llvm/Support/FileUtilities.h"
+@@ -113,6 +114,30 @@ struct Options {
+       llvm::cl::init(false)};
+ };
+
++/// Match LLJIT's default ObjectLinkingLayer selection (LLJIT.cpp).
++bool shouldUseJITLink(const llvm::Triple &TT) {
++  switch (TT.getArch()) {
++  case llvm::Triple::riscv64:
++  case llvm::Triple::loongarch64:
++    return true;
++  case llvm::Triple::aarch64:
++    return !TT.isOSBinFormatCOFF();
++  case llvm::Triple::arm:
++  case llvm::Triple::armeb:
++  case llvm::Triple::thumb:
++  case llvm::Triple::thumbeb:
++    return TT.isOSBinFormatELF();
++  case llvm::Triple::x86_64:
++    return !TT.isOSBinFormatCOFF();
++  case llvm::Triple::ppc64:
++    return TT.isPPC64ELFv2ABI();
++  case llvm::Triple::ppc64le:
++    return TT.isOSBinFormatELF();
++  default:
++    return false;
++  }
++}
++
+ struct CompileAndExecuteConfig {
+   /// LLVM module transformer that is passed to ExecutionEngine.
+   std::function<llvm::Error(llvm::Module *)> transformer;
+@@ -359,6 +384,12 @@ int mlir::JitRunnerMain(int argc, char **argv, const DialectRegistry &registry,
+     tmBuilderOrError->getTargetTriple().setArchName(options.mArch);
+   }
+
++  if (shouldUseJITLink(tmBuilderOrError->getTargetTriple())) {
++    tmBuilderOrError->setRelocationModel(llvm::Reloc::PIC_);
++    if (!tmBuilderOrError->getCodeModel())
++      tmBuilderOrError->setCodeModel(llvm::CodeModel::Small);
++  }
++
+   // Build TargetMachine
+   auto tmOrError = tmBuilderOrError->createTargetMachine();
+
+diff --git a/mlir/test/mlir-runner/test-expand-math-approx.mlir b/mlir/test/mlir-runner/test-expand-math-approx.mlir
+index b599c9d8435d..295089a355ae 100644
+--- a/mlir/test/mlir-runner/test-expand-math-approx.mlir
++++ b/mlir/test/mlir-runner/test-expand-math-approx.mlir
+@@ -232,12 +232,12 @@ func.func @powf() {
+   %g_p = arith.constant 23598.0 : f64
+   call @func_powff64(%g, %g_p) : (f64, f64) -> ()
+
+-  // CHECK-NEXT: -nan
++  // CHECK-NEXT: {{(-)?nan}}
+   %h = arith.constant 1.0 : f64
+   %h_p = arith.constant 0xfff0000001000000 : f64
+   call @func_powff64(%h, %h_p) : (f64, f64) -> ()
+
+-  // CHECK-NEXT: -nan
++  // CHECK-NEXT: {{(-)?nan}}
+   %i = arith.constant 1.0 : f32
+   %i_p = arith.constant 0xffffffff : f32
+   call @func_powff32(%i, %i_p) : (f32, f32) -> ()

@@ -31,7 +31,6 @@ def test_conv2d_relu():
     expect = model(x, w)
 
     # CHECK: Is MLIR equal to Torch? True
-    print(
-        f"Is MLIR equal to Torch? {torch.allclose(actual, expect, atol=1e-05, rtol=1e-05)}"
-    )
-    assert torch.allclose(actual, expect, atol=1e-05, rtol=1e-05)
+    equal = torch.allclose(actual, expect, atol=1e-05, rtol=1e-05)
+    print(f"Is MLIR equal to Torch? {equal}")
+    assert equal

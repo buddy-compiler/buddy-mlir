@@ -19,31 +19,29 @@
 #
 # ===---------------------------------------------------------------------------
 
-import os
 import argparse
-import time
+import os
+
+import numpy
 import torch
-import torch._dynamo as dynamo
+from buddy.compiler.frontend import DynamoCompiler
+from buddy.compiler.graph import GraphDriver
+from buddy.compiler.graph.operation import *  # noqa: F403
+from buddy.compiler.graph.transform import (
+    apply_classic_fusion,
+    eliminate_matmul_transpose_reshape,
+    eliminate_transpose,
+    flash_attention_prefill,
+    gqa_attention_fusion,
+    simply_fuse,
+)
+from buddy.compiler.graph.type import DeviceType
+from buddy.compiler.ops import tosa
+from torch._inductor.decomposition import decompositions as inductor_decomp
 from transformers import (
     AutoModelForCausalLM,
     StaticCache,
 )
-from torch._inductor.decomposition import decompositions as inductor_decomp
-import numpy
-
-from buddy.compiler.frontend import DynamoCompiler
-from buddy.compiler.ops import tosa
-from buddy.compiler.graph import GraphDriver
-from buddy.compiler.graph.transform import (
-    simply_fuse,
-    apply_classic_fusion,
-    eliminate_transpose,
-    eliminate_matmul_transpose_reshape,
-    flash_attention_prefill,
-    gqa_attention_fusion,
-)
-from buddy.compiler.graph.type import DeviceType
-from buddy.compiler.graph.operation import *
 
 # Add argument parser to allow custom output directory.
 parser = argparse.ArgumentParser(description="DeepSeekR1 Model AOT Importer")
@@ -58,7 +56,7 @@ parser.add_argument(
     type=str,
     default="f32",
     choices=["f32", "f16", "bf16"],
-    help="Precision mode for generated MLIR and input data. Choose from 'f32', 'f16', or 'bf16'.",
+    help="Precision mode for MLIR/input data. Choose from %(choices)s.",
 )
 args = parser.parse_args()
 
@@ -74,19 +72,19 @@ if model_path is None:
 # Initialize the model from the specified model path.
 if args.precision == "f16":
     model = (
-        AutoModelForCausalLM.from_pretrained(model_path, torchscript=True)
+        AutoModelForCausalLM.from_pretrained(model_path, dtype=torch.float16)
         .eval()
         .half()
     )
 elif args.precision == "bf16":
     model = (
-        AutoModelForCausalLM.from_pretrained(model_path, torchscript=True)
+        AutoModelForCausalLM.from_pretrained(model_path, dtype=torch.bfloat16)
         .eval()
         .bfloat16()
     )
 else:
     model = AutoModelForCausalLM.from_pretrained(
-        model_path, torchscript=True
+        model_path, dtype=torch.float32
     ).eval()
 model.config.use_cache = False
 

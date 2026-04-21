@@ -28,6 +28,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED YES)
 include(ExternalProject)
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
+include(CTest)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
@@ -94,6 +95,10 @@ set(BUDDY_THIRDPARTY_INCLUDE_DIR ${BUDDY_SOURCE_DIR}/thirdparty/include)
 set(BUDDY_MLIR_PYTHON_PACKAGES_DIR ${BUDDY_BUILD_DIR}/python_packages)
 
 set(BUDDY_EXAMPLES OFF CACHE BOOL "Build examples")
+set(BUDDY_TORQ_EXAMPLES OFF CACHE BOOL
+    "Build BuddyTorq example (PyTorch->MLIR + TORQ-Tile RVV GEMM); requires RISC-V RVV toolchain")
+set(BUDDY_RUNTIME_MATMUL_TORQ OFF CACHE BOOL
+    "Build buddy_matmul_torq (runtime buddy_matmul_f32 via TORQ-Tile RVV); requires RISC-V RVV and find_package(TorqTile)")
 set(BUDDY_TRANSFORMER_EXAMPLES OFF CACHE BOOL "Build transformer examples")
 set(BUDDY_ENABLE_OPENCV OFF CACHE BOOL "Enable OpenCV support.")
 

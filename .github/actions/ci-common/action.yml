@@ -1,0 +1,156 @@
+name: buddy-mlir build
+description: Prepare the environment and build buddy-mlir.
+
+inputs:
+  arch:
+    description: Target runner architecture.
+    required: true
+  venv_activate:
+    description: Command used to activate the Python environment.
+    required: true
+  venv_deactivate:
+    description: Command used to deactivate the Python environment.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Prepare ENV (x64)
+      if: ${{ inputs.arch == 'x64' }}
+      shell: bash
+      run: |
+        echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
+        echo "PATH=/usr/lib/ccache:$PATH" >> $GITHUB_ENV
+        ccache -M 50G
+        echo "CCACHE_MAXSIZE=50G" >> $GITHUB_ENV
+
+        mkdir -p $HOME/actions-runner/workspace
+        echo LLVM_SRC=$HOME/actions-runner/workspace/llvm-project >> $GITHUB_ENV
+        echo LLVM_BUILD_ROOT=$HOME/actions-runner/workspace/llvm-cache >> $GITHUB_ENV
+
+        ${{ inputs.venv_activate }}
+        pip install --upgrade pip
+        pip install -r requirements.txt
+        ${{ inputs.venv_deactivate }}
+
+    - name: Prepare ENV (arm64)
+      if: ${{ inputs.arch == 'arm64' }}
+      shell: bash
+      run: |
+        echo LLVM_SRC=$HOME/actions-runner/workspace/llvm-project >> $GITHUB_ENV
+        echo LLVM_BUILD_ROOT=$HOME/actions-runner/workspace/llvm-cache >> $GITHUB_ENV
+        mkdir -p $HOME/actions-runner/workspace
+
+        ${{ inputs.venv_activate }}
+        pip install --upgrade pip
+        pip install -r requirements.txt
+        ${{ inputs.venv_deactivate }}
+
+    - name: Prepare ENV (riscv64)
+      if: ${{ inputs.arch == 'riscv64' }}
+      shell: bash
+      run: |
+        echo "CCACHE_DIR=/home/jenkins/.ccache" >> $GITHUB_ENV
+        echo "PATH=/usr/lib/ccache:$PATH" >> $GITHUB_ENV
+        ccache -M 50G
+        echo "CCACHE_MAXSIZE=50G" >> $GITHUB_ENV
+        echo LLVM_SRC=/home/jenkins/src/llvm-project >> $GITHUB_ENV
+        echo LLVM_BUILD_ROOT=/home/jenkins/llvm-cache >> $GITHUB_ENV
+        mkdir -p /home/jenkins/src
+
+        ${{ inputs.venv_activate }}
+        pip install -U pip setuptools wheel packaging
+        sed -i \
+          -e '1s/^/# /' \
+          requirements.txt
+        pip install -r requirements.txt
+        ${{ inputs.venv_deactivate }}
+
+    - name: Setup LLVM build
+      id: prepare-llvm-build
+      shell: bash
+      run: |
+        LLVM_COMMIT=$(git ls-tree HEAD llvm | awk '{print $3}')
+        PATCH_HASH=$(shasum ./riscv-jitlink.patch | cut -d' ' -f1)
+
+        LLVM_BUILD_DIR=$LLVM_BUILD_ROOT/$LLVM_COMMIT-${PATCH_HASH:0:12}
+
+        mkdir -p $LLVM_BUILD_ROOT
+
+        if [ ! -d "$LLVM_SRC" ]; then
+          git clone https://community-ci.openruyi.cn/toolchain/llvm-project.git $LLVM_SRC
+        fi
+
+        git -C $LLVM_SRC fetch --all
+        git -C $LLVM_SRC reset --hard
+        git -C $LLVM_SRC clean -fdx
+        git -C $LLVM_SRC checkout $LLVM_COMMIT
+
+        git -C $LLVM_SRC apply $GITHUB_WORKSPACE/riscv-jitlink.patch
+
+        echo "LLVM_SRC=$LLVM_SRC" >> $GITHUB_ENV
+        echo "LLVM_COMMIT=$LLVM_COMMIT" >> $GITHUB_ENV
+        echo "LLVM_BUILD_DIR=$LLVM_BUILD_DIR" >> $GITHUB_ENV
+
+        if [ -f "$LLVM_BUILD_DIR/build/CMakeCache.txt" ] &&
+          grep -q "$LLVM_SRC" "$LLVM_BUILD_DIR/build/CMakeCache.txt"; then
+          echo "need-rebuild=false" >> $GITHUB_OUTPUT
+        else
+          echo "need-rebuild=true" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Configure and Build LLVM
+      if: ${{ steps.prepare-llvm-build.outputs.need-rebuild == 'true' }}
+      shell: bash
+      run: |
+        ${{ inputs.venv_activate }}
+        rm -rf $LLVM_BUILD_DIR
+        cmake -G Ninja -S $LLVM_SRC/llvm -B $LLVM_BUILD_DIR/build \
+          -DLLVM_ENABLE_PROJECTS="mlir;clang;openmp" \
+          -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
+          -DLLVM_ENABLE_ASSERTIONS=ON \
+          -DCMAKE_BUILD_TYPE=RELEASE \
+          -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
+          -DPython3_EXECUTABLE=$(which python3)
+        ninja -C $LLVM_BUILD_DIR/build check-clang check-mlir omp || true
+        ${{ inputs.venv_deactivate }}
+
+    - name: Show ccache stats
+      if: ${{ runner.os == 'Linux' }}
+      shell: bash
+      run: |
+        ccache -s
+
+    - name: Configure and Build buddy-mlir
+      shell: bash
+      run: |
+        ${{ inputs.venv_activate }}
+        echo "---- CHECK LOCAL SUBMODULE ----"
+        ls -l llvm || true
+        git submodule status || true
+        rm -rf build
+        mkdir build
+        cd build
+
+        cmake -G Ninja .. \
+          -DMLIR_DIR=$LLVM_BUILD_DIR/build/lib/cmake/mlir \
+          -DLLVM_DIR=$LLVM_BUILD_DIR/build/lib/cmake/llvm \
+          -DLLVM_MAIN_SRC_DIR=$LLVM_SRC/llvm \
+          -DMLIR_MAIN_SRC_DIR=$LLVM_SRC/mlir \
+          -DLLVM_ENABLE_ASSERTIONS=ON \
+          -DCMAKE_BUILD_TYPE=RELEASE \
+          -DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON \
+          -DBUDDY_BUILD_DEEPSEEK_R1_MODEL=OFF \
+          -DPython3_EXECUTABLE=$(which python3)
+        ninja
+
+        ${{ inputs.venv_deactivate }}
+
+    - name: Cleanup old LLVM build cache
+      if: ${{ always() }}
+      shell: bash
+      run: |
+        KEEP=3
+
+        cd $LLVM_BUILD_ROOT
+        ls -1dt */ | tail -n +$((KEEP+1)) | xargs -r rm -rf

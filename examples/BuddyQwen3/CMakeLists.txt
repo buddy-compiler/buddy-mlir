@@ -272,3 +272,16 @@ if(BUDDY_MLIR_USE_MIMALLOC)
 endif()
 
 target_link_libraries(buddy-qwen3-0.6b-run ${BUDDY_QWEN3_0_6B_LIBS})
+
+add_test(
+  NAME example.buddy-qwen3-0.6b-run
+  COMMAND sh -c "printf '%s\n' 'Hi' | \"$<TARGET_FILE:buddy-qwen3-0.6b-run>\""
+  WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+)
+set_tests_properties(
+  example.buddy-qwen3-0.6b-run
+  PROPERTIES
+    LABELS "example"
+    PASS_REGULAR_EXPRESSION "Hello! How can I assist you today?"
+    TIMEOUT 3600
+)
