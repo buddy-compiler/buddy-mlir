@@ -102,13 +102,15 @@ runs:
         ${{ inputs.venv_activate }}
         rm -rf $LLVM_BUILD_DIR
         cmake -G Ninja -S $LLVM_SRC/llvm -B $LLVM_BUILD_DIR/build \
-          -DLLVM_ENABLE_PROJECTS="mlir;clang;openmp" \
+          -DLLVM_ENABLE_PROJECTS="mlir;clang" \
+          -DLLVM_ENABLE_RUNTIMES="openmp" \
           -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
           -DLLVM_ENABLE_ASSERTIONS=ON \
           -DCMAKE_BUILD_TYPE=RELEASE \
           -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
           -DPython3_EXECUTABLE=$(which python3)
-        ninja -C $LLVM_BUILD_DIR/build check-clang check-mlir omp || true
+        ninja -C $LLVM_BUILD_DIR/build check-clang check-mlir || true
+        ninja -C $LLVM_BUILD_DIR/build check-openmp || true
         ${{ inputs.venv_deactivate }}
 
     - name: Show ccache stats
@@ -131,8 +133,6 @@ runs:
         cmake -G Ninja .. \
           -DMLIR_DIR=$LLVM_BUILD_DIR/build/lib/cmake/mlir \
           -DLLVM_DIR=$LLVM_BUILD_DIR/build/lib/cmake/llvm \
-          -DLLVM_MAIN_SRC_DIR=$LLVM_SRC/llvm \
-          -DMLIR_MAIN_SRC_DIR=$LLVM_SRC/mlir \
           -DLLVM_ENABLE_ASSERTIONS=ON \
           -DCMAKE_BUILD_TYPE=RELEASE \
           -DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON \

@@ -60,10 +60,6 @@ if(BUDDY_TORQ_EXAMPLES)
   add_subdirectory(BuddyTorq)
 endif()
 
-if(BUDDY_DSL_EXAMPLES)
-  add_subdirectory(ToyDSL)
-endif()
-
 configure_lit_site_cfg(
   ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
   ${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py
@@ -79,7 +75,12 @@ set(BUDDY_EXAMPLES_DEPENDS
   )
 
 if(BUDDY_MLIR_ENABLE_PYTHON_PACKAGES AND MLIR_ENABLE_BINDINGS_PYTHON)
-  list(APPEND BUDDY_EXAMPLES_DEPENDS python-package-buddy-mlir)
+  if(TARGET python-package-buddy)
+    list(APPEND BUDDY_EXAMPLES_DEPENDS python-package-buddy)
+  endif()
+  if(TARGET python-package-buddy-mlir)
+    list(APPEND BUDDY_EXAMPLES_DEPENDS python-package-buddy-mlir)
+  endif()
 endif()
 
 add_lit_testsuite(check-examples "Checking the buddy-mlir examples..."
