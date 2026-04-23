@@ -1,0 +1,46 @@
+name: checkout_llvm
+description: Prepare the LLVM submodule
+
+inputs:
+  llvm-src:
+    description: Path to the llvm-project checkout.
+    required: true
+
+outputs:
+  llvm_src:
+    description: Path to the llvm-project checkout.
+    value: ${{ steps.checkout-llvm.outputs.llvm_src }}
+  llvm_commit:
+    description: LLVM commit pinned by the repository submodule entry.
+    value: ${{ steps.checkout-llvm.outputs.llvm_commit }}
+  cache_hash:
+    description: LLVM source hash derived from the llvm submodule commit and applied patch.
+    value: ${{ steps.checkout-llvm.outputs.cache_hash }}
+
+runs:
+  using: composite
+  steps:
+    - name: Checkout LLVM
+      id: checkout-llvm
+      shell: bash
+      run: |
+        LLVM_SRC="${{ inputs.llvm-src }}"
+
+        LLVM_COMMIT=$(git ls-tree HEAD llvm | awk '{print $3}')
+        PATCH_HASH=$(shasum -a 256 "$GITHUB_WORKSPACE/riscv-jitlink.patch" | awk '{print $1}')
+        LLVM_HASH="${LLVM_COMMIT}-${PATCH_HASH:0:12}"
+
+        if [ ! -d "$LLVM_SRC" ]; then
+          git clone https://community-ci.openruyi.cn/toolchain/llvm-project.git $LLVM_SRC
+        fi
+
+        git -C $LLVM_SRC fetch --all
+        git -C $LLVM_SRC reset --hard
+        git -C $LLVM_SRC clean -fdx
+        git -C $LLVM_SRC checkout $LLVM_COMMIT
+
+        git -C $LLVM_SRC apply $GITHUB_WORKSPACE/riscv-jitlink.patch
+
+        echo "llvm_src=$LLVM_SRC" >> "$GITHUB_OUTPUT"
+        echo "llvm_commit=$LLVM_COMMIT" >> "$GITHUB_OUTPUT"
+        echo "cache_hash=$LLVM_HASH" >> "$GITHUB_OUTPUT"

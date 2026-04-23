@@ -12,10 +12,24 @@ permissions:
   contents: write
 
 jobs:
+  prepare_release:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Create draft release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: release/v${{ inputs.version }}
+          name: Buddy Compiler ${{ inputs.version }}
+          draft: true
+          overwrite_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   wheel:
+    needs: prepare_release
     name: Build (${{ matrix.arch }}, py${{ matrix.python }})
     timeout-minutes: 360
-    continue-on-error: ${{ matrix.experimental }}
+    continue-on-error: false
 
     concurrency:
       group: buddy-mlir-manylinux-${{ matrix.arch }}-py${{ matrix.python }}
@@ -25,24 +39,27 @@ jobs:
       fail-fast: false
       matrix:
         arch: [x64, riscv64]
-        python: ["3.10", "3.11", "3.12", "3.13"]
+        python: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+        exclude:
+          - arch: riscv64
+            python: "3.10"
+          - arch: riscv64
+            python: "3.11"
         include:
           - arch: x64
             target_arch: x86_64
-            experimental: false
           - arch: riscv64
             target_arch: riscv64
-            experimental: true
 
     runs-on:
-      - self-hosted
+      - self-hosted-docker
       - ${{ matrix.arch }}
 
     steps:
-      - name: Checkout repository (x64)
+      - name: Checkout
         uses: actions/checkout@v6
         with:
-          submodules: false
+          submodules: 'false'
 
       - name: Prepare variables
         id: vars
@@ -51,69 +68,40 @@ jobs:
           PY_VER="${{ matrix.python }}"
           PY_NODOT="${PY_VER//./}"
           PY_TAG="cp${PY_NODOT}-cp${PY_NODOT}"
+          BUDDY_HASH="$(git rev-parse HEAD)"
           echo "py_tag=${PY_TAG}" >> "$GITHUB_OUTPUT"
-          echo "llvm_sha=$(git rev-parse HEAD:llvm)" >> "$GITHUB_OUTPUT"
+          echo "buddy_hash=${BUDDY_HASH}" >> "$GITHUB_OUTPUT"
+          echo "host_build_dir=$HOME/actions-runner/workspace/buddy-mlir-release" >> "$GITHUB_OUTPUT"
+          echo "llvm_src=$HOME/actions-runner/workspace/llvm-project" >> "$GITHUB_OUTPUT"
 
-      - name: Cache LLVM build tree
-        id: cache-llvm-build
-        uses: actions/cache@v4
+      - name: Checkout LLVM source
+        id: setup-llvm
+        uses: ./.github/actions/checkout_llvm
         with:
-          path: llvm/build-docker/${{ matrix.target_arch }}/${{ steps.vars.outputs.py_tag }}
-          key: llvm-${{ runner.os }}-${{ matrix.target_arch }}-${{ matrix.python }}-${{ steps.vars.outputs.llvm_sha }}
-
-      - name: Prepare LLVM source
-        id: llvm
-        run: |
-          set -euo pipefail
-          LLVM_BUILD_DIR="llvm/build-docker/${{ matrix.target_arch }}/${{ steps.vars.outputs.py_tag }}"
-          if [ "${{ steps.cache-llvm-build.outputs.cache-hit }}" = "true" ] && \
-             [ -f "${LLVM_BUILD_DIR}/.manylinux-llvm-ready" ]; then
-            echo "cache_hit=true" >> "$GITHUB_OUTPUT"
-          else
-            rm -rf "${LLVM_BUILD_DIR}"
-            git submodule update --init --recursive llvm
-            echo "cache_hit=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Clean package output
-        run: |
-          set -euo pipefail
-          # Keep the cached LLVM install tree; only clear the previous buddy outputs.
-          rm -rf "build-docker/${{ matrix.target_arch }}/${{ steps.vars.outputs.py_tag }}/dist"
-          rm -rf "build-docker/${{ matrix.target_arch }}/${{ steps.vars.outputs.py_tag }}/target"
+          llvm-src: ${{ steps.vars.outputs.llvm_src }}
 
       - name: Build manylinux wheel in container
         run: |
           set -euo pipefail
-          export LLVM_CACHE_HIT="${{ steps.llvm.outputs.cache_hit }}"
+          LLVM_BUILD_DIR="${{ steps.vars.outputs.host_build_dir }}/${{ matrix.target_arch }}/llvm/${{ steps.vars.outputs.py_tag }}/${{ steps.setup-llvm.outputs.cache_hash }}"
+          if [ -f "${LLVM_BUILD_DIR}/.manylinux-llvm-ready" ]; then
+            export LLVM_CACHE_HIT=true
+          else
+            # Will remove old dir in container
+            export LLVM_CACHE_HIT=false
+          fi
+          export LLVM_HASH="${{ steps.setup-llvm.outputs.cache_hash }}"
+          export HOST_LLVM_SRC="${{ steps.setup-llvm.outputs.llvm_src }}"
+          export HOST_BUILD_DIR="${{ steps.vars.outputs.host_build_dir }}"
           ./scripts/release_wheel_manylinux.sh "${{ steps.vars.outputs.py_tag }}" ${{ inputs.version }} "${{ matrix.target_arch }}"
 
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: wheels-${{ matrix.target_arch }}-py${{ matrix.python }}
-          path: |
-            build-docker/${{ matrix.target_arch }}/${{ steps.vars.outputs.py_tag }}/target/*manylinux*.whl
-            build-docker/${{ matrix.target_arch }}/${{ steps.vars.outputs.py_tag }}/target/*.tar.gz
-
-  release:
-    needs: wheel
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Download wheels
-        uses: actions/download-artifact@v4
-        with:
-          pattern: wheels-*
-          path: dist/wheels
-          merge-multiple: true
-
-      - name: Upload assets
+      - name: Upload release assets
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ inputs.version }}
+          tag_name: release/v${{ inputs.version }}
+          draft: true
           overwrite_files: true
           files: |
-            dist/wheels/*manylinux*.whl
-            dist/wheels/*.tar.gz
+            ${{ steps.vars.outputs.host_build_dir }}/${{ matrix.target_arch }}/buddy/${{ steps.vars.outputs.py_tag }}/${{ steps.vars.outputs.buddy_hash }}/target/buddy-${{ inputs.version }}-${{ steps.vars.outputs.py_tag }}-manylinux*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
