@@ -50,16 +50,9 @@ if not PYTHON_PACKAGES_DIR.exists():
         "before building the wheel (default build dir: ./build)."
     )
 
-REL_PYTHON_PACKAGES_DIR = os.path.relpath(PYTHON_PACKAGES_DIR, ROOT)
-if REL_PYTHON_PACKAGES_DIR.startswith(".."):
-    raise SystemExit(
-        f"BUDDY_BUILD_DIR must reside inside the project root ({ROOT}) "
-        f"so packaging can use relative paths. Current: {PYTHON_PACKAGES_DIR}"
-    )
-
-# Stage python packages into the build tree so setuptools
-# never sees absolute paths.
-STAGING_ROOT = CMAKE_BUILD / "py-stage"
+# Stage into the repository because setuptools rejects absolute package_dir
+# paths here, so .py-stage cannot live in an arbitrary external build path.
+STAGING_ROOT = ROOT / ".py-stage"
 if STAGING_ROOT.exists():
     shutil.rmtree(STAGING_ROOT)
 STAGING_ROOT.mkdir(parents=True, exist_ok=True)
@@ -81,6 +74,7 @@ packages = sorted(set(buddy_pkgs + mlir_pkgs + wrapper_pkgs))
 
 package_dir = {
     "": SRC_DIR,
+    # TODO: Move buddy_tools staging into the CMake packaging flow too.
     "buddy_tools": "tools/buddy_tools",
 }
 
@@ -92,14 +86,16 @@ class build_py(_build_py):
         self._extra_outputs = []
         super().run()
 
+        mlir_libs_dir = Path(self.build_lib) / "buddy_mlir" / "_mlir_libs"
+        tools_root = Path(self.build_lib) / "buddy_tools"
+
         self._copy_tree(
-            STAGING_SRC / "buddy_mlir" / "_mlir_libs",
-            Path(self.build_lib) / "buddy_mlir" / "_mlir_libs",
+            STAGING_SRC / "buddy_mlir" / "_mlir_libs", mlir_libs_dir
         )
 
-        tools_root = Path(self.build_lib) / "buddy_tools"
         self._copy_tree(BIN_DIR, tools_root / "bin", allow_missing=True)
         self._copy_tree(LIB_DIR, tools_root / "lib", allow_missing=True)
+        # self._copy_tree(LIB_DIR, mlir_libs_dir, allow_missing=True)
 
     def get_outputs(self, include_bytecode: bool = True):
         outputs = super().get_outputs(include_bytecode)
@@ -144,6 +140,9 @@ ENTRY_POINTS = {
         "buddy-llc=buddy_tools.cli:buddy_llc",
         "buddy-lsp-server=buddy_tools.cli:buddy_lsp_server",
         "buddy-frontendgen=buddy_tools.cli:buddy_frontendgen",
+        "buddy-cli=buddy_tools.cli:buddy_cli",
+        "rax-inspect=buddy_tools.cli:rax_inspect",
+        "rax-pack=buddy_tools.cli:rax_pack",
     ]
 }
 

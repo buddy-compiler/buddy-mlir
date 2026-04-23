@@ -71,37 +71,23 @@ runs:
         pip install -r requirements.txt
         ${{ inputs.venv_deactivate }}
 
-    - name: Setup LLVM build
+    - name: Checkout LLVM source
+      id: setup-llvm
+      uses: ./.github/actions/checkout_llvm
+      with:
+        llvm-src: ${{ env.LLVM_SRC }}
+
+    - name: Check LLVM build cache
       id: prepare-llvm-build
       shell: bash
       run: |
-        LLVM_COMMIT=$(git ls-tree HEAD llvm | awk '{print $3}')
-        PATCH_HASH=$(shasum ./riscv-jitlink.patch | cut -d' ' -f1)
-
-        LLVM_BUILD_DIR=$LLVM_BUILD_ROOT/$LLVM_COMMIT-${PATCH_HASH:0:12}
-
-        mkdir -p $LLVM_BUILD_ROOT
-
-        if [ ! -d "$LLVM_SRC" ]; then
-          git clone https://community-ci.openruyi.cn/toolchain/llvm-project.git $LLVM_SRC
-        fi
-
-        git -C $LLVM_SRC fetch --all
-        git -C $LLVM_SRC reset --hard
-        git -C $LLVM_SRC clean -fdx
-        git -C $LLVM_SRC checkout $LLVM_COMMIT
-
-        git -C $LLVM_SRC apply $GITHUB_WORKSPACE/riscv-jitlink.patch
-
-        echo "LLVM_SRC=$LLVM_SRC" >> $GITHUB_ENV
-        echo "LLVM_COMMIT=$LLVM_COMMIT" >> $GITHUB_ENV
-        echo "LLVM_BUILD_DIR=$LLVM_BUILD_DIR" >> $GITHUB_ENV
-
-        if [ -f "$LLVM_BUILD_DIR/build/CMakeCache.txt" ] &&
-          grep -q "$LLVM_SRC" "$LLVM_BUILD_DIR/build/CMakeCache.txt"; then
-          echo "need-rebuild=false" >> $GITHUB_OUTPUT
+        echo "LLVM_SRC=${{ steps.setup-llvm.outputs.llvm_src }}" >> $GITHUB_ENV
+        echo "LLVM_BUILD_DIR=${{ env.LLVM_BUILD_ROOT }}/${{ steps.setup-llvm.outputs.cache_hash }}" >> $GITHUB_ENV
+        if [ -f "${LLVM_BUILD_DIR}/build/CMakeCache.txt" ] &&
+          grep -q "${{ steps.setup-llvm.outputs.llvm_src }}" "${LLVM_BUILD_DIR}/build/CMakeCache.txt"; then
+          echo "need-rebuild=false" >> "$GITHUB_OUTPUT"
         else
-          echo "need-rebuild=true" >> $GITHUB_OUTPUT
+          echo "need-rebuild=true" >> "$GITHUB_OUTPUT"
         fi
 
     - name: Configure and Build LLVM
