@@ -83,6 +83,10 @@ public:
   // Qwen3 Tokenizer
   // This function is designed for tokenizing input text for Qwen3 models.
   void tokenizeQwen3(const std::string &vocab, size_t length);
+  // Gemma4 Tokenizer
+  // This function is designed for tokenizing input text for Gemma4 models.
+  // Uses SentencePiece-style BPE with '▁' as the space replacement character.
+  void tokenizeGemma4(const std::string &vocab, size_t length);
 
   // Revert the ids into tokens.
   // This function initializes the conversion from Text memref to a string.
@@ -92,6 +96,7 @@ public:
   std::string revertWhisper();
   std::string revertDeepSeekR1();
   std::string revertQwen3();
+  std::string revertGemma4();
 
   // Get sequence length
   size_t getTokenCnt() { return this->tokenCnt; }
@@ -721,39 +726,19 @@ template <typename T, size_t N> std::string Text<T, N>::revertWhisper() {
 }
 
 template <typename T, size_t N> std::string Text<T, N>::revertDeepSeekR1() {
-  std::string dst;
-
-  const int EOS_ID = 151643;
-
-  for (size_t i = 0; i < this->tokenCnt; i++) {
-    int id = this->aligned[i];
-    if (id == EOS_ID)
-      break;
-    // Replace each "Ġ" with a space.
-    std::string token = this->idToTokenVec[id];
-    size_t pos = token.find("Ġ");
-    while (pos != std::string::npos) {
-      token.replace(pos, 2, " ");
-      pos = token.find("Ġ", pos + 1);
-    }
-    // Replace each "Ċ" with \n.
-    pos = token.find("Ċ");
-    while (pos != std::string::npos) {
-      token.replace(pos, 2, "\n");
-      pos = token.find("Ċ", pos + 1);
-    }
-
-    dst.append(token);
-  }
-  if (dst[0] == ' ') {
-    dst.erase(0, 1);
-  }
-  return dst;
+  // DeepSeek R1 Distill uses Qwen's byte-level BPE tokenizer.
+  // Reuse the same BPE-to-byte decoding logic as revertQwen3().
+  return revertQwen3();
 }
 
 template <typename T, size_t N> std::string Text<T, N>::revertQwen3() {
   std::vector<unsigned char> byte_buffer;
   const int EOS_ID = 151643;
+
+  // Maximum code point used by the GPT-2/Qwen BPE byte mapping.
+  // Direct: 33-126, 161-172, 174-255 (188 bytes).
+  // Remapped: 0-32, 127-160, 173 (68 bytes) → code points 256-323.
+  constexpr unsigned int kMaxBpeCodePoint = 323;
 
   for (size_t i = 0; i < this->tokenCnt; i++) {
     int id = this->aligned[i];
@@ -787,9 +772,16 @@ template <typename T, size_t N> std::string Text<T, N>::revertQwen3() {
         continue;
       }
 
+      if (code <= kMaxBpeCodePoint) {
+        // BPE-encoded character: reverse the byte mapping.
+        byte_buffer.push_back(this->revert_single_bpe_char(code));
+      } else {
+        // Raw UTF-8 character (e.g. CJK): copy original bytes directly.
+        for (int k = 0; k < len; ++k)
+          byte_buffer.push_back((unsigned char)token[j + k]);
+      }
+
       j += len;
-      // Directly call the class member function
-      byte_buffer.push_back(this->revert_single_bpe_char(code));
     }
   }
 
@@ -824,6 +816,146 @@ unsigned char Text<T, N>::revert_single_bpe_char(unsigned int code) {
 
   auto it = extra_map.find(code);
   return (it != extra_map.end()) ? it->second : (unsigned char)code;
+}
+
+template <typename T, size_t N>
+void Text<T, N>::tokenizeGemma4(const std::string &vocab, size_t length) {
+  this->offset = 0;
+  this->sizes[0] = 1;
+  this->sizes[1] = length;
+  this->setStrides();
+  size_t size = this->product(this->sizes);
+  this->allocated = (T *)malloc(sizeof(T) * size);
+  this->aligned = this->allocated;
+
+  this->bos = 2;
+  this->eos = 1;
+  this->pad = 0;
+
+  const int turnToken = 105;
+  const int userToken = 2364;
+  const int newlineToken = 107;
+  const int modelToken = 4368;
+
+  loadVocab(vocab);
+
+  // Unescape newline tokens: vocab.txt stores actual newlines as literal \n
+  for (size_t i = 0; i < idToTokenVec.size(); i++) {
+    std::string &tok = idToTokenVec[i];
+    std::string unescaped;
+    bool changed = false;
+    for (size_t j = 0; j < tok.size(); j++) {
+      if (j + 1 < tok.size() && tok[j] == '\\' && tok[j + 1] == 'n') {
+        unescaped.push_back('\n');
+        j++;
+        changed = true;
+      } else {
+        unescaped.push_back(tok[j]);
+      }
+    }
+    if (changed) {
+      tokenToIdMap.erase(tok);
+      tokenToIdMap[unescaped] = i;
+      tok = unescaped;
+    }
+  }
+
+  // Chat template: <bos><|turn>user\n{message}<|turn>model\n
+  tokenCnt = 0;
+  this->aligned[tokenCnt++] = bos;
+  this->aligned[tokenCnt++] = turnToken;
+  this->aligned[tokenCnt++] = userToken;
+  this->aligned[tokenCnt++] = newlineToken;
+
+  // Tokenize user message using DP longest match.
+  // Replace internal spaces with '▁' but do NOT prepend '▁' at the start,
+  // because the message follows a newline token, not a space.
+  std::string processed;
+  std::string spaceReplace = "\xe2\x96\x81"; // UTF-8 for '▁'
+  for (size_t ci = 0; ci < str.length(); ci++) {
+    if (str[ci] == ' ') {
+      processed.append(spaceReplace);
+    } else {
+      processed.push_back(str[ci]);
+    }
+  }
+
+  int len = processed.length();
+  std::vector<float> score(len + 1, -1e10);
+  std::vector<size_t> prev_token_id(len + 1, 0);
+  std::vector<int> prev_pos(len + 1, 0);
+  score[0] = 0;
+
+  for (int i = 0; i < len; i++) {
+    if (score[i] < -1e9)
+      continue;
+    for (int sub_len = 1; sub_len <= std::min(64, len - i); sub_len++) {
+      std::string sub = processed.substr(i, sub_len);
+      auto it = tokenToIdMap.find(sub);
+      if (it != tokenToIdMap.end()) {
+        float token_score = (float)sub_len * sub_len;
+        float current_score = score[i] + token_score;
+        int next_idx = i + sub_len;
+        if (current_score > score[next_idx]) {
+          score[next_idx] = current_score;
+          prev_token_id[next_idx] = it->second;
+          prev_pos[next_idx] = i;
+        }
+      }
+    }
+  }
+
+  std::vector<size_t> res;
+  int curr = len;
+  while (curr > 0) {
+    if (score[curr] < -1e9) {
+      curr--;
+      continue;
+    }
+    res.push_back(prev_token_id[curr]);
+    curr = prev_pos[curr];
+  }
+
+  for (auto it = res.rbegin(); it != res.rend(); ++it) {
+    if (tokenCnt < length - 3) {
+      this->aligned[tokenCnt++] = *it;
+    }
+  }
+
+  // Append assistant prompt: <|turn>model\n
+  this->aligned[tokenCnt++] = turnToken;
+  this->aligned[tokenCnt++] = modelToken;
+  this->aligned[tokenCnt++] = newlineToken;
+
+  for (size_t i = tokenCnt; i < length; i++) {
+    this->aligned[i] = pad;
+  }
+}
+
+template <typename T, size_t N> std::string Text<T, N>::revertGemma4() {
+  std::string dst;
+  const int EOS_ID = 1;
+  const int BOS_ID = 2;
+  const int PAD_ID = 0;
+
+  for (size_t i = 0; i < this->tokenCnt; i++) {
+    int id = this->aligned[i];
+    if (id == PAD_ID || id == BOS_ID)
+      continue;
+    if (id == EOS_ID)
+      break;
+    std::string token = this->idToTokenVec[id];
+    size_t pos = token.find("\xe2\x96\x81"); // UTF-8 for '▁'
+    while (pos != std::string::npos) {
+      token.replace(pos, 3, " ");
+      pos = token.find("\xe2\x96\x81", pos + 1);
+    }
+    dst.append(token);
+  }
+  if (!dst.empty() && dst[0] == ' ') {
+    dst.erase(0, 1);
+  }
+  return dst;
 }
 
 template <typename T, size_t N>

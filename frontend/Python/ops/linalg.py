@@ -18,37 +18,38 @@
 #
 # ===---------------------------------------------------------------------------
 
-from typing import Dict, Tuple, List
+import array
+import copy
 
 import buddy_mlir.ir as ir
+import numpy
 from buddy_mlir.dialects import (
-    tosa,
-    linalg,
     arith,
-    tensor,
-    math,
     bufferization,
+    linalg,
+    math,
     memref,
     scf,
+    tensor,
+    tosa,
     vector,
+)
+from buddy_mlir.dialects import (
     complex as complex_dialect,
 )
-import copy, array, sys
-import numpy
-import functools
 
 from ..graph import *
 from ..graph.graph import TensorDType
 from .utils import *
 
 
-def _safe_get_permutation(perm: List[int]) -> ir.AffineMap:
+def _safe_get_permutation(perm: list[int]) -> ir.AffineMap:
     if not perm:
         return ir.AffineMap.get_empty()
     return ir.AffineMap.get_permutation(perm)
 
 
-def _const_shape_operand(dims: List[int]) -> ir.Value:
+def _const_shape_operand(dims: list[int]) -> ir.Value:
     dims = [int(d) for d in dims]
     rank = len(dims)
     shape_type = ir.Type.parse(f"!tosa.shape<{rank}>")
@@ -59,7 +60,7 @@ def _const_shape_operand(dims: List[int]) -> ir.Value:
     return tosa.ConstShapeOp(shape_type, shape_attr).result
 
 
-def add_op(node: AddOp, symbol_table: Dict[Tuple[str, int], ir.Operation]):
+def add_op(node: AddOp, symbol_table: dict[tuple[str, int], ir.Operation]):
     """
     Import tensor add operation.
     From buddy AddOp to MLIR arith `constant` operation.
@@ -101,7 +102,7 @@ def add_op(node: AddOp, symbol_table: Dict[Tuple[str, int], ir.Operation]):
 
 def arange_op(
     node: ArangeOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Import tensor arange operation.
@@ -129,19 +130,38 @@ def arange_op(
     shape = list(node.tensor_meta["shape"])
     dtype = mlir_element_type_get(dtype)
     tensor_type = ir.RankedTensorType.get(shape, dtype)
-    attr = ir.DenseElementsAttr.get(
-        numpy.array([i for i in range(start, end, stride)]),
-        signless=True,
-        type=tensor_type,
-    )
-    op = arith.ConstantOp(tensor_type, attr)
+    if len(shape) != 1:
+        attr = ir.DenseElementsAttr.get(
+            numpy.array([i for i in range(start, end, stride)]),
+            signless=True,
+            type=tensor_type,
+        )
+        return arith.ConstantOp(tensor_type, attr)
 
-    return op
+    index_type = ir.IndexType.get()
+    i64_type = ir.IntegerType.get_signless(64)
+    start_index = arith.ConstantOp(index_type, start).result
+    stride_index = arith.ConstantOp(index_type, stride).result
+
+    @tensor.generate(tensor_type, dynamic_extents=[])
+    def generated(i: index_type):
+        value_index = i
+        if stride != 1:
+            value_index = arith.MulIOp(i, stride_index).result
+        if start != 0:
+            value_index = arith.AddIOp(value_index, start_index).result
+
+        if ir.FloatType.isinstance(dtype) or ir.BF16Type.isinstance(dtype):
+            value_i64 = arith.IndexCastOp(i64_type, value_index).result
+            return arith.SIToFPOp(dtype, value_i64).result
+        return arith.IndexCastOp(dtype, value_index).result
+
+    return generated
 
 
 def unsqueeze_op(
     node: UnsqueezeOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Import the unsqueeze operation.
@@ -179,7 +199,7 @@ def unsqueeze_op(
 
 def view_op(
     node: ViewOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Import the tensor view operation.
@@ -228,7 +248,7 @@ def view_op(
 
 def embedding_op(
     node: EmbeddingOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Import the embedding operation.
@@ -286,7 +306,7 @@ def embedding_op(
 
 def ones_op(
     node: OnesOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Import the tensor ones operation.
@@ -314,7 +334,7 @@ def ones_op(
 
 def full_op(
     node: FullOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Import the tensor full operation.
@@ -343,7 +363,7 @@ def full_op(
 
 def lt_op(
     node: LessThanOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Import the tensor less than operation.
@@ -436,7 +456,7 @@ def lt_op(
 
 def masked_fill_op(
     node: MaskedFillOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Import the tensor masked fill operation.
@@ -510,7 +530,7 @@ def masked_fill_op(
 
 def slice_op(
     node: SliceOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Import the tensor slice operation.
@@ -559,7 +579,7 @@ def slice_op(
 
 def expand_op(
     node: ExpandOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Import the tensor expand operation.
@@ -645,7 +665,7 @@ def expand_op(
 
 def to_copy_op(
     node: ToCopyOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Import the tensor copy operation.
@@ -776,7 +796,7 @@ def to_copy_op(
 
 def rsub_op(
     node: RsubOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Import the tensor rsub operation.
@@ -849,7 +869,7 @@ def rsub_op(
 
 def pow_op(
     node: PowOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Import the tensor copy operation.
@@ -1007,7 +1027,7 @@ def pow_op(
 
 def mean_op(
     node: MeanOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Import the tensor copy operation.
@@ -1105,7 +1125,7 @@ def mean_op(
 
 def rsqrt_op(
     node: RsqrtOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Import the tensor rsqrt operation.
@@ -1170,7 +1190,7 @@ def rsqrt_op(
 
 def mul_op(
     node: MulOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Import the tensor mul operation.
@@ -1239,7 +1259,7 @@ def mul_op(
 
 def t_op(
     node: TOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Import the tensor tanspose operation.
@@ -1271,7 +1291,7 @@ def t_op(
 
 def matmul_op(
     node: MatmulOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Import the tensor matmul operation.
@@ -1319,7 +1339,7 @@ def matmul_op(
 
 def matmul_transpose_b_op(
     node: TransposeMatmulFusedOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     input1 = symbol_table.get((str(node.args[0]), 0))
     input2 = symbol_table.get((str(node.args[1]), 0))
@@ -1339,7 +1359,7 @@ def matmul_transpose_b_op(
 
 def transpose_op(
     node: TransposeOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Import the tensor transpose operation.
@@ -1375,7 +1395,7 @@ def transpose_op(
 
 def index_op(
     node: IndexOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Import the tensor index operation.
@@ -1443,7 +1463,7 @@ def _index_op_all_tensors(
     output_shape,
     input_shape,
     mlir_dtype,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Handle index operation when all indices are tensors (no None values).
@@ -1632,7 +1652,7 @@ def _index_op_with_none_indices(
     output_shape,
     input_shape,
     mlir_dtype,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Handle index operation when some indices are None (meaning use all elements
@@ -1841,7 +1861,7 @@ def _index_op_with_none_indices(
 
 def neg_op(
     node: NegOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Import the tensor neg operation.
@@ -1872,7 +1892,7 @@ def neg_op(
 
 def cat_op(
     node: CatOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Import the tensor concate operation.
@@ -1945,7 +1965,7 @@ def cat_op(
 
 def cat_op_legacy(
     node: CatOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Legacy cat_op for backward compatibility with 2 inputs only.
@@ -1998,7 +2018,7 @@ def cat_op_legacy(
 
 def squeeze_op(
     node: SqueezeOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Import the tensor squeeze operation.
@@ -2086,7 +2106,7 @@ def squeeze_op(
 
 def batch_matmul_op(
     node: BatchMatmulOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Import the tensor batch matmul operation.
@@ -2122,7 +2142,7 @@ def batch_matmul_op(
 
 def div_op(
     node: DivOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Import the tensor divsion operation.
@@ -2171,7 +2191,7 @@ def div_op(
 
 def softmax_op(
     node: SoftmaxOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Import the tensor softmax operation.
@@ -2293,7 +2313,7 @@ def softmax_op(
 
 def log_softmax_op(
     node: LogSoftmaxOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Import the tensor log_softmax operation.
@@ -2419,7 +2439,7 @@ def log_softmax_op(
 
 def clone_op(
     node: CloneOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Import the tensor clone operation.
@@ -2458,7 +2478,7 @@ def clone_op(
 
 def silu_op(
     node: SiluOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Import the tensor silu activation operation.
@@ -2531,7 +2551,7 @@ def silu_op(
 
 def where_op(
     node: WhereOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Import the tensor where operation.
@@ -2563,9 +2583,7 @@ def where_op(
         in_rank = len(input_shape)
         if in_rank > out_rank:
             raise NotImplementedError(
-                "where broadcast for {} with rank {} to {} is not supported".format(
-                    name, in_rank, out_rank
-                )
+                f"where broadcast for {name} with rank {in_rank} to {out_rank} is not supported"
             )
         exprs = []
         for i in range(in_rank):
@@ -2578,9 +2596,7 @@ def where_op(
                 exprs.append(ir.AffineConstantExpr.get(0))
             else:
                 raise NotImplementedError(
-                    "where broadcast for {} with shape {} to {} is not supported".format(
-                        name, input_shape, output_shape
-                    )
+                    f"where broadcast for {name} with shape {input_shape} to {output_shape} is not supported"
                 )
         return ir.AffineMap.get(out_rank, 0, exprs)
 
@@ -2819,7 +2835,7 @@ def gt_op(node: GtOp, symbol_table):
 
 def ge_op(
     node: GeOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Import the tensor greater equal operation.
@@ -2858,7 +2874,7 @@ def ge_op(
 
 def greater_than_op(
     node: GreaterThanOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Import the tensor greater than operation.
@@ -2945,7 +2961,7 @@ def greater_than_op(
 
 def unsafe_index_op(
     node: UnsafeIndexOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Import the tensor _unsafe_index operation.
@@ -3153,7 +3169,7 @@ def unsafe_index_op(
 
 def equal_op(
     node: EqualOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Converts a Buddy EqualOp operation to an MLIR comparison operation (CmpIOp or CmpFOp).
@@ -3611,7 +3627,7 @@ def _generate_vectorized_index_put(
 
 def index_put_op(
     node: IndexPutOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Converts a Buddy IndexPutOp operation to an MLIR operation using scf.ForOp loops.
@@ -3639,7 +3655,7 @@ def index_put_op(
     accumulate = node.args[3] if len(node.args) > 3 else False
 
     if len(input3_shape) == 0:
-        idx_shapes: List[List[int]] = []
+        idx_shapes: list[list[int]] = []
         for idx in input2:
             if idx is None:
                 continue
@@ -3650,7 +3666,7 @@ def index_put_op(
             if idx_shape:
                 idx_shapes.append(idx_shape)
 
-        broadcast_shape: List[int] = []
+        broadcast_shape: list[int] = []
         if idx_shapes:
             max_rank = max(len(s) for s in idx_shapes)
             padded = []
@@ -3950,7 +3966,7 @@ def index_put_op(
 
 def ne_scalar_op(
     node: NeScalarOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Converts a Buddy NeScalarOp operation to an MLIR comparison operation (CmpIOp or CmpFOp).
@@ -3992,7 +4008,7 @@ def ne_scalar_op(
 
 def _cumulative_tensor(
     input_tensor: ir.Value,
-    output_shape: List[int],
+    output_shape: list[int],
     dim: int,
     mlir_dtype: ir.Type,
     op_kind: str,
@@ -4088,7 +4104,7 @@ def _cumulative_tensor(
 
 def _cumulative_op(
     node,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
     op_kind: str,
 ):
     output_shape = list(node.tensor_meta["shape"])
@@ -4104,7 +4120,7 @@ def _cumulative_op(
 
 def cumsum_op(
     node: CumsumOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Converts a Buddy CumsumOp operation to an MLIR operation using scf.ForOp loops.
@@ -4117,7 +4133,7 @@ def cumsum_op(
 
 def cumprod_op(
     node: CumProdOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Converts a Buddy CumprodOp operation to an MLIR operation using scf.ForOp loops.
@@ -4130,7 +4146,7 @@ def cumprod_op(
 
 def logcumsumexp_op(
     node: LogCumsumExpOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Import the logcumsumexp operation.
@@ -4166,7 +4182,7 @@ def logcumsumexp_op(
 
 def diagonal_scatter_op(
     node: DiagonalScatterOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Scatter values from src into the diagonal of input.
@@ -4314,7 +4330,7 @@ def diagonal_scatter_op(
 
 def empty_op(
     node: EmptyOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Create an empty tensor with the requested shape and dtype.
@@ -4342,7 +4358,7 @@ def empty_op(
 
 
 def _random_constant_tensor(
-    shape: List[int],
+    shape: list[int],
     element_type: ir.Type,
     *,
     normal: bool,
@@ -4381,7 +4397,7 @@ def _random_constant_tensor(
 
 def rand_op(
     node: RandOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     output_shape = list(node.tensor_meta.get("shape", []))
     dtype = node.tensor_meta.get("dtype", TensorDType.Float32)
@@ -4391,7 +4407,7 @@ def rand_op(
 
 def randn_op(
     node: RandnOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     output_shape = list(node.tensor_meta.get("shape", []))
     dtype = node.tensor_meta.get("dtype", TensorDType.Float32)
@@ -4401,7 +4417,7 @@ def randn_op(
 
 def sym_size_op(
     node: SymSizeOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """Lower aten.sym_size.int to a rank-0 i64 tensor.
 
@@ -4438,7 +4454,7 @@ def sym_size_op(
 
 def gcd_op(
     node: GcdOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Compute elementwise greatest common divisor for integer tensors.
@@ -4571,7 +4587,7 @@ def gcd_op(
 
 def sort_op(
     node,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Converts a Buddy SortOp operation to MLIR operations.
@@ -4756,7 +4772,7 @@ def sort_op(
 
 def tensor_constant_op(
     node: TensorConstantOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Converts a Buddy Constant0Op operation to an MLIR arith.ConstantOp.
@@ -4785,7 +4801,7 @@ def tensor_constant_op(
 
 def lift_fresh_copy_op(
     node: LiftFreshCopyOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Converts a Buddy LiftFreshCopyOp operation to an MLIR tosa.IdentityOp.
@@ -4811,7 +4827,7 @@ def lift_fresh_copy_op(
 
 def repeat_op(
     node: LiftFreshCopyOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Converts a Buddy RepeatOp operation to an MLIR operation.
@@ -4843,7 +4859,7 @@ def repeat_op(
 
 def repeat_interleave_op(
     node: RepeatInterleaveOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Lower repeat_interleave for 1D tensors with static shapes.
@@ -5045,7 +5061,7 @@ def repeat_interleave_op(
 
 def as_strided_op(
     node: AsStridedOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Converts a Buddy AsStridedOp operation to an MLIR operation.
@@ -5180,7 +5196,7 @@ def as_strided_op(
 
 def as_strided_scatter_op(
     node: AsStridedScatterOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Implements aten.as_strided_scatter by writing src into a strided view of self.
@@ -5228,7 +5244,7 @@ def as_strided_scatter_op(
     src_memref = bufferization.ToBufferOp(src_memref_type, src_tensor)
 
     # Row-major strides for computing base indices from linear offsets.
-    row_strides: List[int] = []
+    row_strides: list[int] = []
     for i in range(len(input_shape)):
         stride_val = 1
         for s in input_shape[i + 1 :]:
@@ -5286,7 +5302,7 @@ def as_strided_scatter_op(
 
 def scatter_src_op(
     node: ScatterSrcOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Converts a Buddy ScatterSrcOp operation to an MLIR operation.
@@ -5394,7 +5410,7 @@ def scatter_src_op(
 
 def scatter_value_op(
     node: ScatterValueOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Converts a Buddy ScatterValueOp operation to an MLIR operation.
@@ -5498,7 +5514,7 @@ def scatter_value_op(
 
 def select_scatter_op(
     node: SelectScatterOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Scatter src values into input tensor along a dimension at a single index.
@@ -5568,7 +5584,7 @@ def select_scatter_op(
 
     bounds = [arith.ConstantOp(index_type, s) for s in src_shape]
     idx_values = [None] * rank
-    src_indices: List[ir.Value] = []
+    src_indices: list[ir.Value] = []
 
     def create_loops(depth: int):
         if depth == len(src_shape):
@@ -5595,7 +5611,7 @@ def select_scatter_op(
 
 def scatter_reduce_op(
     node: ScatterReduceOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Converts a Buddy ScatterReduceOp operation to an MLIR operation.
@@ -5851,11 +5867,11 @@ def _as_value(op_or_value):
 
 def _max_pool_indices_to_offsets_2d(
     indices_tensor: ir.Value,
-    input_hw: List[int],
-    kernel_size: List[int],
-    stride: List[int],
-    padding: List[int],
-    dilation: List[int],
+    input_hw: list[int],
+    kernel_size: list[int],
+    stride: list[int],
+    padding: list[int],
+    dilation: list[int],
 ):
     indices_tensor = _as_value(indices_tensor)
     shape = list(ir.RankedTensorType(indices_tensor.type).shape)
@@ -5962,11 +5978,11 @@ def _max_pool_indices_to_offsets_2d(
 
 def _max_pool_indices_to_offsets_3d(
     indices_tensor: ir.Value,
-    input_dhw: List[int],
-    kernel_size: List[int],
-    stride: List[int],
-    padding: List[int],
-    dilation: List[int],
+    input_dhw: list[int],
+    kernel_size: list[int],
+    stride: list[int],
+    padding: list[int],
+    dilation: list[int],
 ):
     indices_tensor = _as_value(indices_tensor)
     shape = list(ir.RankedTensorType(indices_tensor.type).shape)
@@ -6116,11 +6132,11 @@ def _max_pool_indices_to_offsets_3d(
 
 def _max_pool_offsets_to_indices_2d(
     offsets_tensor: ir.Value,
-    input_hw: List[int],
-    kernel_size: List[int],
-    stride: List[int],
-    padding: List[int],
-    dilation: List[int],
+    input_hw: list[int],
+    kernel_size: list[int],
+    stride: list[int],
+    padding: list[int],
+    dilation: list[int],
 ):
     offsets_tensor = _as_value(offsets_tensor)
     shape = list(ir.RankedTensorType(offsets_tensor.type).shape)
@@ -6229,11 +6245,11 @@ def _max_pool_offsets_to_indices_2d(
 
 def _max_pool_offsets_to_indices_3d(
     offsets_tensor: ir.Value,
-    input_dhw: List[int],
-    kernel_size: List[int],
-    stride: List[int],
-    padding: List[int],
-    dilation: List[int],
+    input_dhw: list[int],
+    kernel_size: list[int],
+    stride: list[int],
+    padding: list[int],
+    dilation: list[int],
 ):
     offsets_tensor = _as_value(offsets_tensor)
     shape = list(ir.RankedTensorType(offsets_tensor.type).shape)
@@ -6379,7 +6395,7 @@ def _max_pool_offsets_to_indices_3d(
 
 def low_memory_max_pool_with_offsets_op(
     node: LowMemoryMaxPoolWithOffsetsOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     input_tensor = symbol_table.get((str(node.args[0]), 0))
     if input_tensor is None:
@@ -6444,7 +6460,7 @@ def low_memory_max_pool_with_offsets_op(
 
 def low_memory_max_pool_offsets_to_indices_op(
     node: LowMemoryMaxPoolOffsetsToIndicesOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     offsets_tensor = symbol_table.get((str(node.args[0]), 0))
     if offsets_tensor is None:
@@ -6484,7 +6500,7 @@ def low_memory_max_pool_offsets_to_indices_op(
 
 def max_pool2d_with_indices_op(
     node: MaxPool2dWithIndicesOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Import the max_pool2d_with_indices operation.
@@ -6773,7 +6789,7 @@ def max_pool2d_with_indices_op(
 
 def fractional_max_pool2d_op(
     node: FractionalMaxPool2dOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Import the fractional_max_pool2d operation.
@@ -7021,7 +7037,7 @@ def fractional_max_pool2d_op(
 
 def max_pool3d_op(
     node: MaxPool3dOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Import the max_pool3d operation.
@@ -7395,7 +7411,7 @@ def max_pool3d_op(
 
 def scatter_add_op(
     node: ScatterAddOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Import the scatter_add operation.
@@ -7564,7 +7580,7 @@ def scatter_add_op(
 
 def index_select_op(
     node: IndexSelectOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Import the index_select operation.
@@ -7672,7 +7688,7 @@ def index_select_op(
 
 def avg_pool3d_op(
     node: AvgPool3dOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Import the avg_pool3d operation.
@@ -7944,7 +7960,7 @@ def avg_pool3d_op(
 
 def topk_op(
     node: TopkOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Import the topk operation.
@@ -8010,7 +8026,7 @@ def topk_op(
             "topk only supports integer or floating types"
         )
 
-    def _integer_bounds(dtype: ir.Type) -> Tuple[int, int]:
+    def _integer_bounds(dtype: ir.Type) -> tuple[int, int]:
         bitwidth = ir.IntegerType(dtype).width
         if bitwidth == 1:
             return 0, 1
@@ -8269,7 +8285,7 @@ def topk_op(
 
 def kthvalue_op(
     node: KthValueOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Import the kthvalue operation.
@@ -8427,7 +8443,7 @@ def kthvalue_op(
 
 def embedding_dense_backward_op(
     node: EmbeddingDenseBackwardOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Import the embedding_dense_backward operation.
@@ -8554,7 +8570,7 @@ def embedding_dense_backward_op(
 
 def max_pool2d_with_indices_backward_op(
     node: MaxPool2dWithIndicesBackwardOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Import the max_pool2d_with_indices_backward operation.
@@ -8659,7 +8675,7 @@ def max_pool2d_with_indices_backward_op(
 
 def gather_op(
     node: GatherOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Converts a Buddy GatherOp operation to an MLIR operation.
@@ -8765,7 +8781,7 @@ def gather_op(
 
 def searchsorted_op(
     node: SearchSortedOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Implements aten.searchsorted for 1D sorted_sequence and arbitrary-shaped values.
@@ -8939,7 +8955,7 @@ def searchsorted_op(
 
 def bucketize_op(
     node: BucketizeOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     class _SearchsortedProxy:
         pass
@@ -8953,7 +8969,7 @@ def bucketize_op(
 
 def pdist_forward_op(
     node: PdistForwardOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Compute pairwise distance within a set of vectors using linalg/scf loops.
@@ -9098,7 +9114,7 @@ def pdist_forward_op(
 
 def fft_r2c_op(
     node: FftR2cOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Real-to-complex FFT transform using DFT matrix multiplication.
@@ -9181,7 +9197,7 @@ def fft_r2c_op(
 
     matmul_map = _safe_get_permutation([0, 1, 2])
 
-    def _matmul(lhs, rhs, out_shape_2d: List[int]):
+    def _matmul(lhs, rhs, out_shape_2d: list[int]):
         tensor_type = ir.RankedTensorType.get(out_shape_2d, element_type)
         zero_attr = ir.DenseElementsAttr.get_splat(
             tensor_type, ir.FloatAttr.get(element_type, 0.0)
@@ -9201,7 +9217,7 @@ def fft_r2c_op(
         linalg.fill_builtin_region(op.operation)
         return op.results[0]
 
-    def _const_shape(dims: List[int]) -> ir.Value:
+    def _const_shape(dims: list[int]) -> ir.Value:
         dims = [int(d) for d in dims]
         rank = len(dims)
         shape_type = ir.Type.parse(f"!tosa.shape<{rank}>")
@@ -9260,8 +9276,8 @@ def fft_r2c_op(
         return op.results[0]
 
     def _move_dim_last(
-        value: ir.Value, *, dim_index: int, in_shape: List[int]
-    ) -> tuple[ir.Value, List[int], List[int], List[int]]:
+        value: ir.Value, *, dim_index: int, in_shape: list[int]
+    ) -> tuple[ir.Value, list[int], list[int], list[int]]:
         """Return (value_perm, perm, inv_perm, perm_shape)."""
         if rank == 1 or dim_index == rank - 1:
             identity = list(range(rank))
@@ -9282,7 +9298,7 @@ def fft_r2c_op(
         return op.result[0], perm, inv_perm, perm_shape
 
     def _restore_dim(
-        value_perm: ir.Value, *, inv_perm: List[int], out_shape: List[int]
+        value_perm: ir.Value, *, inv_perm: list[int], out_shape: list[int]
     ) -> ir.Value:
         if rank == 1 or inv_perm == list(range(rank)):
             return value_perm
@@ -9295,7 +9311,7 @@ def fft_r2c_op(
         return op.result[0]
 
     def _extract_complex_component(
-        value_complex: ir.Value, *, out_shape: List[int], which: str
+        value_complex: ir.Value, *, out_shape: list[int], which: str
     ) -> ir.Value:
         elem_ty = element_type
         out_init = tensor.EmptyOp(out_shape, elem_ty)
@@ -9337,10 +9353,10 @@ def fft_r2c_op(
         value_real: ir.Value,
         *,
         dim_index: int,
-        in_shape: List[int],
+        in_shape: list[int],
         onesided_flag: bool,
         scale_factor: float,
-    ) -> tuple[ir.Value, List[int]]:
+    ) -> tuple[ir.Value, list[int]]:
         value_perm, _perm, inv_perm, perm_shape = _move_dim_last(
             value_real, dim_index=dim_index, in_shape=in_shape
         )
@@ -9400,7 +9416,7 @@ def fft_r2c_op(
         value_complex: ir.Value,
         *,
         dim_index: int,
-        in_shape: List[int],
+        in_shape: list[int],
         forward_flag: bool,
         scale_factor: float,
     ) -> ir.Value:
@@ -9476,10 +9492,10 @@ def fft_r2c_op(
         value_complex: ir.Value,
         *,
         dim_index: int,
-        in_shape: List[int],
+        in_shape: list[int],
         out_n: int,
         scale_factor: float,
-    ) -> tuple[ir.Value, List[int]]:
+    ) -> tuple[ir.Value, list[int]]:
         value_perm, _perm, inv_perm, perm_shape = _move_dim_last(
             value_complex, dim_index=dim_index, in_shape=in_shape
         )
@@ -9547,7 +9563,7 @@ def fft_r2c_op(
     if not dims:
         raise NotImplementedError("_fft_r2c requires at least one dim")
 
-    norm_dims: List[int] = []
+    norm_dims: list[int] = []
     for d in dims:
         if d < 0:
             d = rank + d
@@ -9635,7 +9651,7 @@ def fft_r2c_op(
 
 def complex_op(
     node: ComplexOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """Lower aten.complex to elementwise complex::Create."""
     real_tensor = symbol_table.get((str(node.args[0]), 0), node.args[0])
@@ -9690,7 +9706,7 @@ def complex_op(
 
 def imag_op(
     node: ImagOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """Lower aten.imag to elementwise complex::Im."""
     input_tensor = symbol_table.get((str(node.args[0]), 0), node.args[0])
@@ -9733,7 +9749,7 @@ def imag_op(
 
 def conj_op(
     node: ConjOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """Lower aten._conj / aten._conj_physical with re/im/create."""
     input_tensor = symbol_table.get((str(node.args[0]), 0), node.args[0])
@@ -9782,7 +9798,7 @@ def conj_op(
 
 def polar_op(
     node: PolarOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """Lower aten.polar(abs, angle) to complex tensor."""
     abs_tensor = symbol_table.get((str(node.args[0]), 0), node.args[0])
@@ -9843,7 +9859,7 @@ def polar_op(
 
 def view_as_real_op(
     node: ViewAsRealOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """Lower aten.view_as_real by extracting real/imag and concatenating."""
     input_tensor = symbol_table.get((str(node.args[0]), 0), node.args[0])
@@ -9903,7 +9919,7 @@ def view_as_real_op(
 
 def view_as_complex_op(
     node: ViewAsComplexOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """Lower aten.view_as_complex by slicing trailing size-2 real/imag lanes."""
     input_tensor = symbol_table.get((str(node.args[0]), 0), node.args[0])
@@ -9995,7 +10011,7 @@ def view_as_complex_op(
 
 def histc_op(
     node: HistcOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Import the histc operation.
@@ -10059,7 +10075,7 @@ def histc_op(
         lb = arith.ConstantOp(index_ty, 0).result
         step = arith.ConstantOp(index_ty, 1).result
         ubs = [arith.ConstantOp(index_ty, s).result for s in input_shape]
-        idx_values: List[ir.Value | None] = [None] * len(input_shape)
+        idx_values: list[ir.Value | None] = [None] * len(input_shape)
 
         def _update_minmax(depth: int):
             if depth == len(input_shape):
@@ -10418,7 +10434,7 @@ def _bubble_sort_2d_dim1_with_indices(
 
 def median_op(
     node: MedianOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     input_tensor = symbol_table.get((str(node.args[0]), 0))
     input_type = ir.RankedTensorType(input_tensor.type)
@@ -10608,7 +10624,7 @@ def median_op(
 
 def nanmedian_op(
     node: NanMedianOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     input_tensor = symbol_table.get((str(node.args[0]), 0))
     input_type = ir.RankedTensorType(input_tensor.type)
@@ -10932,7 +10948,7 @@ def nanmedian_op(
 
 def mode_op(
     node: ModeOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     input_tensor = symbol_table.get((str(node.args[0]), 0))
     input_type = ir.RankedTensorType(input_tensor.type)
@@ -11128,7 +11144,7 @@ def mode_op(
 
 def new_empty_strided_op(
     node: NewEmptyStridedOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     output_shape = list(node.tensor_meta.get("shape", []))
     size_arg = node.args[1] if len(node.args) > 1 else None
@@ -11173,7 +11189,7 @@ def new_empty_strided_op(
 
 def nonzero_static_op(
     node: NonzeroStaticOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     input_tensor = symbol_table.get((str(node.args[0]), 0))
     input_type = ir.RankedTensorType(input_tensor.type)
@@ -11284,7 +11300,7 @@ def nonzero_static_op(
 
 def nonzero_op(
     node: NonzeroOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """Lower aten.nonzero.default to a dynamic-first-dim 2D tensor of indices.
 
@@ -11410,7 +11426,7 @@ def nonzero_op(
 
 def masked_select_op(
     node: MaskedSelectOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """Lower aten.masked_select to a dynamic 1D tensor of selected values."""
     input_tensor = symbol_table.get((str(node.args[0]), 0))
@@ -11514,7 +11530,7 @@ def masked_select_op(
 
 def grid_sampler_3d_op(
     node: GridSampler3dOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Import the grid_sampler_3d operation.
@@ -11776,7 +11792,7 @@ def grid_sampler_3d_op(
 
 def gru_op(
     node: GruOp,
-    symbol_table: Dict[Tuple[str, int], ir.Operation],
+    symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
     Import the gru.input operation.

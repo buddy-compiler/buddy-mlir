@@ -19,5 +19,5 @@ module {
     } : vector<8xf32>
     vector.print %result_mul : vector<8xf32>
     return
-  } 
+  }
 }

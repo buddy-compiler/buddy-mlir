@@ -21,30 +21,29 @@
 #
 # ===---------------------------------------------------------------------------
 
-import os
 import argparse
+import os
+
+import numpy
 import torch
-import torch._dynamo as dynamo
+from buddy.compiler.frontend import DynamoCompiler
+from buddy.compiler.graph import GraphDriver
+from buddy.compiler.graph.operation import *  # noqa: F403
+from buddy.compiler.graph.transform import (
+    apply_classic_fusion,
+    eliminate_matmul_transpose_reshape,
+    eliminate_transpose,
+    flash_attention_prefill,
+    gqa_attention_fusion,
+    simply_fuse,
+)
+from buddy.compiler.graph.type import DeviceType
+from buddy.compiler.ops import tosa
+from torch._inductor.decomposition import decompositions as inductor_decomp
 from transformers import (
     AutoModelForCausalLM,
     StaticCache,
 )
-from torch._inductor.decomposition import decompositions as inductor_decomp
-import numpy
-
-from buddy.compiler.frontend import DynamoCompiler
-from buddy.compiler.ops import tosa
-from buddy.compiler.graph import GraphDriver
-from buddy.compiler.graph.transform import (
-    simply_fuse,
-    apply_classic_fusion,
-    eliminate_transpose,
-    eliminate_matmul_transpose_reshape,
-    flash_attention_prefill,
-    gqa_attention_fusion,
-)
-from buddy.compiler.graph.type import DeviceType
-from buddy.compiler.graph.operation import *
 
 # Add argument parser
 parser = argparse.ArgumentParser(
@@ -66,7 +65,7 @@ parser.add_argument(
     "--cache-sizes",
     type=str,
     default="32,64,128,256,512,1024",
-    help="Comma-separated list of cache sizes for prefill and decode subgraphs.",
+    help="Comma-separated cache sizes for prefill and decode subgraphs.",
 )
 args = parser.parse_args()
 
@@ -89,19 +88,21 @@ print(f"Max cache length: {max_cache_len}")
 
 # Initialize the model (F32 only)
 model = AutoModelForCausalLM.from_pretrained(
-    model_path, torchscript=True
+    model_path, dtype=torch.float32
 ).eval()
 model.config.use_cache = False
 
 # Pattern lists for graph optimization
-# For prefill_size >= 64, use flash attention (block_size_kv=64 requires seq_len >= 64)
+# For prefill_size >= 64, use flash attention
+# (block_size_kv=64 requires seq_len >= 64)
 pattern_list_prefill_with_flash = [
     simply_fuse,
     apply_classic_fusion,
     flash_attention_prefill,
 ]
 
-# For prefill_size < 64, use standard attention (flash attention has block_size_kv=64 constraint)
+# For prefill_size < 64, use standard attention
+# (flash attention has block_size_kv=64 constraint)
 pattern_list_prefill_no_flash = [
     simply_fuse,
     apply_classic_fusion,
@@ -217,7 +218,8 @@ for cache_size in cache_sizes:
             config=model.config, max_cache_len=cache_size
         )
 
-        # Use a cache_position value similar to original (200 for 1024, scaled for smaller)
+        # Use a cache_position value similar to original
+        # (200 for 1024, scaled for smaller sizes)
         cache_position = torch.tensor(
             [min(200 * cache_size // 1024, cache_size - 1)], dtype=torch.int64
         )

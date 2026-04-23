@@ -284,9 +284,9 @@ add_custom_command(
     VERBATIM)
 
 
-add_library(TEXTENCODER STATIC subgraph0_text_encoder.o forward_text_encoder.o)
-add_library(UNET STATIC subgraph0_unet.o forward_unet.o)
-add_library(VAE STATIC subgraph0_vae.o forward_vae.o)
+add_library(TEXTENCODER STATIC forward_text_encoder.o subgraph0_text_encoder.o)
+add_library(UNET STATIC forward_unet.o subgraph0_unet.o)
+add_library(VAE STATIC forward_vae.o subgraph0_vae.o)
 
 SET_TARGET_PROPERTIES(TEXTENCODER PROPERTIES LINKER_LANGUAGE C)
 SET_TARGET_PROPERTIES(UNET PROPERTIES LINKER_LANGUAGE C)
@@ -314,3 +314,16 @@ if(BUDDY_MLIR_USE_MIMALLOC)
 endif()
 
 target_link_libraries(buddy-stable-diffusion-run ${BUDDY_STABLE_DIFFUSION_LIBS})
+
+add_test(
+  NAME example.buddy-stable-diffusion-run
+  COMMAND sh -c "printf '%s\n' 'Hi' '1' 'Hi' | \"$<TARGET_FILE:buddy-stable-diffusion-run>\""
+  WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+)
+set_tests_properties(
+  example.buddy-stable-diffusion-run
+  PROPERTIES
+    LABELS "example"
+    PASS_REGULAR_EXPRESSION "Image saved successfully to"
+    TIMEOUT 3600
+)

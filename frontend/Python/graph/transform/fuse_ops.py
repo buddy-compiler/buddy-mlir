@@ -18,10 +18,24 @@
 #
 # ===---------------------------------------------------------------------------
 
-from .. import Graph
-from ..operation import *
-from .. import DeviceType
 from torch.fx.immutable_collections import immutable_list
+
+from .. import DeviceType, Graph
+from ..operation import (
+    CloneOp,
+    ExpandOp,
+    FlashAttentionForCpuPrefillOp,
+    GQAAttentionFusedOp,
+    IndexPutOp,
+    MatmulOp,
+    Op,
+    PermuteOp,
+    PlaceholderOp,
+    ScaledDotProductFlashAttentionForCpuOp,
+    TransposeMatmulFusedOp,
+    UnsqueezeOp,
+    ViewOp,
+)
 
 classicfuse_register = {
     "transpose_matmul_fusion": TransposeMatmulFusedOp,
@@ -30,7 +44,9 @@ classicfuse_register = {
 }
 
 # TODO: classify op type for op fusion
-# OP_TYPE_FUSABLE = [OpType.BroadcastType, OpType.ElementwiseType, OpType.ReshapeType]
+# OP_TYPE_FUSABLE = [
+#     OpType.BroadcastType, OpType.ElementwiseType, OpType.ReshapeType
+# ]
 # OP_TYPE_UNFUSABLE = [OpType.Unfusable, OpType.ConcatType]
 # OP_TYPE_FUSABLE_BY_SPECIFIC_PASS = []
 # ANCHOR_OP_TYPE = []
@@ -63,7 +79,7 @@ def classic_fuse_check(graph: Graph):
 
 
 def transpose_matmul_fusion(
-    graph: Graph, node, target: Op, parents: List[Op], pattern: str
+    graph: Graph, node, target: Op, parents: list[Op], pattern: str
 ):
     """
     Function to fuse some typical operations into one operation.
@@ -142,7 +158,8 @@ def simply_fuse(graph: Graph):
 
 def flash_attention_prefill(graph: Graph):
     """
-    Replace ScaledDotProductFlashAttentionForCpuOp with FlashAttentionForCpuPrefillOp.
+    Replace ScaledDotProductFlashAttentionForCpuOp with
+    FlashAttentionForCpuPrefillOp.
     """
     new_op_group = []
     device = DeviceType.CPU
@@ -159,7 +176,8 @@ def flash_attention_prefill(graph: Graph):
 
 def replace_attention_op(graph: Graph):
     """
-    replace ScaledDotProductFlashAttentionForCpuOp with FlashAttentionForCpuPrefillOp.
+    Replace ScaledDotProductFlashAttentionForCpuOp with
+    FlashAttentionForCpuPrefillOp.
     """
     cnt = 1
     for op in list(graph.body):
@@ -200,7 +218,6 @@ def gqa_attention_fusion_check(graph: Graph):
     for op in graph.body:
         # === GQA Attention pattern ===
         if isinstance(op, ScaledDotProductFlashAttentionForCpuOp):
-
             # get KV and View nodes
             k_view_node = graph.node_table.get(op._parents[1], None)
             v_view_node = graph.node_table.get(op._parents[2], None)
@@ -251,10 +268,12 @@ def gqa_attention_fusion_check(graph: Graph):
                 k_clone,
                 k_expand,
                 k_cache_unsqueeze,
+                k_index_put,
                 v_view_node,
                 v_clone,
                 v_expand,
                 v_cache_unsqueeze,
+                v_index_put,
                 "gqa_attention_fusion",
                 unique_index=cnt,
             )
@@ -268,10 +287,12 @@ def replace_gqa_attention_with_fused_op(
     k_clone: Op,
     k_expand: Op,
     k_cache_unsqueeze: Op,
+    k_index_put: Op,
     v_view: Op,
     v_clone: Op,
     v_expand: Op,
     v_cache_unsqueeze: Op,
+    v_index_put: Op,
     pattern: str,
     unique_index: int = 1,
 ):
@@ -297,9 +318,21 @@ def replace_gqa_attention_with_fused_op(
     for k_parent in k_cache_unsqueeze._parents:
         fused_op._parents.append(k_parent)
         fused_op.args.append(k_parent)
+        k_parent_node = graph.node_table.get(k_parent)
+        if (
+            k_parent_node is not None
+            and fused_op.name not in k_parent_node._children
+        ):
+            k_parent_node.add_children(fused_op.name)
     for v_parent in v_cache_unsqueeze._parents:
         fused_op._parents.append(v_parent)
         fused_op.args.append(v_parent)
+        v_parent_node = graph.node_table.get(v_parent)
+        if (
+            v_parent_node is not None
+            and fused_op.name not in v_parent_node._children
+        ):
+            v_parent_node.add_children(fused_op.name)
 
     k_view._children.clear()
     if graph.check_delete_node(k_view):
@@ -309,10 +342,14 @@ def replace_gqa_attention_with_fused_op(
     if graph.check_delete_node(k_expand):
         graph.delete_node(k_expand, [k_cache_unsqueeze])
     if graph.check_delete_node(k_cache_unsqueeze):
-        k_orig_parents = [
+        k_unsqueeze_parents = [
             graph.node_table.get(p, None) for p in k_cache_unsqueeze._parents
         ]
-        graph.delete_node(k_cache_unsqueeze, k_orig_parents)
+        graph.delete_node(k_cache_unsqueeze, k_unsqueeze_parents)
+
+    # Note: We don't delete IndexPut operations here. They will be handled
+    # by the OutputOp filtering in gqa_attention_fusion() which removes
+    # index_put outputs from the graph output.
 
     v_view._children.clear()
     if graph.check_delete_node(v_view):
@@ -322,7 +359,10 @@ def replace_gqa_attention_with_fused_op(
     if graph.check_delete_node(v_expand):
         graph.delete_node(v_expand, [v_cache_unsqueeze])
     if graph.check_delete_node(v_cache_unsqueeze):
-        v_orig_parents = [
+        v_unsqueeze_parents = [
             graph.node_table.get(p, None) for p in v_cache_unsqueeze._parents
         ]
-        graph.delete_node(v_cache_unsqueeze, v_orig_parents)
+        graph.delete_node(v_cache_unsqueeze, v_unsqueeze_parents)
+
+    # Keep both IndexPut ops alive. GQAAttentionFusedOp now uses them as direct
+    # parents and deleting either one here can leave dangling parent names.

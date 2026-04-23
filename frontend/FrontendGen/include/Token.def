@@ -1,5 +1,5 @@
 #ifndef TOK
-#define TOK(ID) 
+#define TOK(ID)
 #endif
 #ifndef PUNCTUATOR
 #define PUNCTUATOR(ID, SP) TOK(ID)

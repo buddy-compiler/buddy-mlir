@@ -78,7 +78,7 @@ public:
     ShapedType ATy = mlir::cast<mlir::ShapedType>(A.getType());
     Type eleTy = ATy.getElementType();
     VectorType vectorTy = VectorType::get({vecSize}, eleTy, {scalable});
-    
+
     // Define step.
     Value step = rewriter.create<arith::ConstantIndexOp>(loc, vecSize);
     if (scalable) {

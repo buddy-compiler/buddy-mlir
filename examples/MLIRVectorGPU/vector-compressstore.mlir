@@ -22,7 +22,7 @@ module attributes {gpu.container_module} {
 
       gpu.return
     }
-  } 
+  }
 
   memref.global "private" @gv0 : memref<8xi32> = dense<[0, 1, 2, 3, 4, 5, 6, 7]>
 

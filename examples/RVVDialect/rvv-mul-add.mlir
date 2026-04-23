@@ -33,7 +33,7 @@ func.func @main() -> i32 {
   %vec_c0_i32 = rvv.load %mem_i32[%c0], %vl8 : memref<20xi32>, vector<[8]xi32>, index
   %vec_c10_i32 = rvv.load %mem_i32[%c10], %vl8 : memref<20xi32>, vector<[8]xi32>, index
   %res_mem = call @alloc_mem_i32() : () -> memref<20xi32>
-  
+
   %res_mul = rvv.mul %vec_c0_i32, %vec_c10_i32, %vl8 : vector<[8]xi32>, vector<[8]xi32>, index
   %res_add = rvv.add %res_mul, %vec_c0_i32, %vl8 : vector<[8]xi32>, vector<[8]xi32>, index
 

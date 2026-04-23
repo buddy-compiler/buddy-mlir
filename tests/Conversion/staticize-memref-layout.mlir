@@ -25,5 +25,3 @@ module {
 // CHECK: memref.reinterpret_cast {{.*}} : memref<32xf32> to memref<4x8xf32, strided<[8, 1]{{(, offset: 0)?}}>>
 // CHECK: memref.copy {{.*}} : memref<4x8xf32, strided<[8, 1]{{(, offset: 0)?}}>> to memref<4x8xf32>
 // CHECK-NOT: memref<4x8xf32, strided<[?, 1], offset: ?>>
-
-

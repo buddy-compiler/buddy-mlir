@@ -62,7 +62,7 @@ struct IMETypeConfig {
 static IMETypeConfig getIMETypeConfig(MLIRContext *ctx, Type elementType) {
   IMETypeConfig config;
   config.lmul = 0; // Always m1 for IME operations
-  
+
   if (elementType.isInteger(8)) {
     // int8: SEW=e8, VL=32, MAC unit 4x4x8
     config.targetVL = 32;
@@ -116,7 +116,7 @@ static IMETypeConfig getIMETypeConfig(MLIRContext *ctx, Type elementType) {
     config.outputVecSuffix = "nxv8i32";
     config.extendedInputVecSuffix = "nxv64i8";
   }
-  
+
   return config;
 }
 
@@ -278,7 +278,7 @@ struct IMEVmadotLowering : public ConvertOpToLLVMPattern<VmadotOp> {
     Type elemType = getMemRefElementType(op.getVs1());
     if (!elemType)
       return failure();
-    
+
     IMETypeConfig config = getIMETypeConfig(ctx, elemType);
     auto i64Type = IntegerType::get(ctx, 64);
 
@@ -294,14 +294,14 @@ struct IMEVmadotLowering : public ConvertOpToLLVMPattern<VmadotOp> {
     std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
     std::string outputLoadIntrinsic = "llvm.riscv.vle." + config.outputVecSuffix;
     std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
-    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+    std::string typeSuffix = "." + config.outputVecSuffix + "." +
                              config.inputVecSuffix + "." + config.inputVecSuffix;
 
-    Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr, 
+    Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr,
                                        config.inputVecType, loadIntrinsic, vlValue);
-    Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr, 
+    Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr,
                                        config.inputVecType, loadIntrinsic, vlValue);
-    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, 
+    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr,
                                       config.outputVecType, outputLoadIntrinsic, vlValue);
     Value result = createIMEVmadotIntrinsic(
         rewriter, loc, module, vdVec, vs1Vec, vs2Vec, "llvm.riscv.ime.vmadot",
@@ -329,7 +329,7 @@ struct IMEVmadotuLowering : public ConvertOpToLLVMPattern<VmadotuOp> {
     Type elemType = getMemRefElementType(op.getVs1());
     if (!elemType)
       return failure();
-    
+
     IMETypeConfig config = getIMETypeConfig(ctx, elemType);
     auto i64Type = IntegerType::get(ctx, 64);
 
@@ -345,14 +345,14 @@ struct IMEVmadotuLowering : public ConvertOpToLLVMPattern<VmadotuOp> {
     std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
     std::string outputLoadIntrinsic = "llvm.riscv.vle." + config.outputVecSuffix;
     std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
-    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+    std::string typeSuffix = "." + config.outputVecSuffix + "." +
                              config.inputVecSuffix + "." + config.inputVecSuffix;
 
-    Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr, 
+    Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr,
                                        config.inputVecType, loadIntrinsic, vlValue);
-    Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr, 
+    Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr,
                                        config.inputVecType, loadIntrinsic, vlValue);
-    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, 
+    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr,
                                       config.outputVecType, outputLoadIntrinsic, vlValue);
     Value result = createIMEVmadotIntrinsic(
         rewriter, loc, module, vdVec, vs1Vec, vs2Vec, "llvm.riscv.ime.vmadotu",
@@ -380,7 +380,7 @@ struct IMEVmadotsuLowering : public ConvertOpToLLVMPattern<VmadotsuOp> {
     Type elemType = getMemRefElementType(op.getVs1());
     if (!elemType)
       return failure();
-    
+
     IMETypeConfig config = getIMETypeConfig(ctx, elemType);
     auto i64Type = IntegerType::get(ctx, 64);
 
@@ -396,14 +396,14 @@ struct IMEVmadotsuLowering : public ConvertOpToLLVMPattern<VmadotsuOp> {
     std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
     std::string outputLoadIntrinsic = "llvm.riscv.vle." + config.outputVecSuffix;
     std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
-    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+    std::string typeSuffix = "." + config.outputVecSuffix + "." +
                              config.inputVecSuffix + "." + config.inputVecSuffix;
 
-    Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr, 
+    Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr,
                                        config.inputVecType, loadIntrinsic, vlValue);
-    Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr, 
+    Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr,
                                        config.inputVecType, loadIntrinsic, vlValue);
-    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, 
+    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr,
                                       config.outputVecType, outputLoadIntrinsic, vlValue);
     Value result = createIMEVmadotIntrinsic(
         rewriter, loc, module, vdVec, vs1Vec, vs2Vec, "llvm.riscv.ime.vmadotsu",
@@ -431,7 +431,7 @@ struct IMEVmadotusLowering : public ConvertOpToLLVMPattern<VmadotusOp> {
     Type elemType = getMemRefElementType(op.getVs1());
     if (!elemType)
       return failure();
-    
+
     IMETypeConfig config = getIMETypeConfig(ctx, elemType);
     auto i64Type = IntegerType::get(ctx, 64);
 
@@ -447,14 +447,14 @@ struct IMEVmadotusLowering : public ConvertOpToLLVMPattern<VmadotusOp> {
     std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
     std::string outputLoadIntrinsic = "llvm.riscv.vle." + config.outputVecSuffix;
     std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
-    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+    std::string typeSuffix = "." + config.outputVecSuffix + "." +
                              config.inputVecSuffix + "." + config.inputVecSuffix;
 
-    Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr, 
+    Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr,
                                        config.inputVecType, loadIntrinsic, vlValue);
-    Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr, 
+    Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr,
                                        config.inputVecType, loadIntrinsic, vlValue);
-    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, 
+    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr,
                                       config.outputVecType, outputLoadIntrinsic, vlValue);
     Value result = createIMEVmadotIntrinsic(
         rewriter, loc, module, vdVec, vs1Vec, vs2Vec, "llvm.riscv.ime.vmadotus",
@@ -482,7 +482,7 @@ struct IMEVfmadotLowering : public ConvertOpToLLVMPattern<VfmadotOp> {
     Type elemType = getMemRefElementType(op.getVs1());
     if (!elemType)
       return failure();
-    
+
     IMETypeConfig config = getIMETypeConfig(ctx, elemType);
     auto i64Type = IntegerType::get(ctx, 64);
 
@@ -498,14 +498,14 @@ struct IMEVfmadotLowering : public ConvertOpToLLVMPattern<VfmadotOp> {
     std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
     std::string outputLoadIntrinsic = "llvm.riscv.vle." + config.outputVecSuffix;
     std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
-    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+    std::string typeSuffix = "." + config.outputVecSuffix + "." +
                              config.inputVecSuffix + "." + config.inputVecSuffix;
 
     Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr,
                                        config.inputVecType, loadIntrinsic, vlValue);
     Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr,
                                        config.inputVecType, loadIntrinsic, vlValue);
-    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, 
+    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr,
                                       config.outputVecType, outputLoadIntrinsic, vlValue);
     Value result = createIMEVmadotIntrinsic(
         rewriter, loc, module, vdVec, vs1Vec, vs2Vec, "llvm.riscv.ime.vfmadot",
@@ -533,7 +533,7 @@ struct IMEVmadot1Lowering : public ConvertOpToLLVMPattern<Vmadot1Op> {
     Type elemType = getMemRefElementType(op.getVs2());
     if (!elemType)
       return failure();
-    
+
     IMETypeConfig config = getIMETypeConfig(ctx, elemType);
     auto i64Type = IntegerType::get(ctx, 64);
 
@@ -553,7 +553,7 @@ struct IMEVmadot1Lowering : public ConvertOpToLLVMPattern<Vmadot1Op> {
     std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
     std::string outputLoadIntrinsic = "llvm.riscv.vle." + config.outputVecSuffix;
     std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
-    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+    std::string typeSuffix = "." + config.outputVecSuffix + "." +
                              config.extendedInputVecSuffix + "." + config.inputVecSuffix;
 
     // Load extended elements for VS1 (two consecutive vector registers)
@@ -561,7 +561,7 @@ struct IMEVmadot1Lowering : public ConvertOpToLLVMPattern<Vmadot1Op> {
                                        config.extendedInputVecType, extLoadIntrinsic, vlValueExtended);
     Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr,
                                        config.inputVecType, loadIntrinsic, vlValue);
-    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, 
+    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr,
                                       config.outputVecType, outputLoadIntrinsic, vlValue);
     Value result = createIMEVmadotIntrinsic(
         rewriter, loc, module, vdVec, vs1Vec, vs2Vec, "llvm.riscv.ime.vmadot1",
@@ -589,7 +589,7 @@ struct IMEVmadot1uLowering : public ConvertOpToLLVMPattern<Vmadot1uOp> {
     Type elemType = getMemRefElementType(op.getVs2());
     if (!elemType)
       return failure();
-    
+
     IMETypeConfig config = getIMETypeConfig(ctx, elemType);
     auto i64Type = IntegerType::get(ctx, 64);
 
@@ -608,14 +608,14 @@ struct IMEVmadot1uLowering : public ConvertOpToLLVMPattern<Vmadot1uOp> {
     std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
     std::string outputLoadIntrinsic = "llvm.riscv.vle." + config.outputVecSuffix;
     std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
-    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+    std::string typeSuffix = "." + config.outputVecSuffix + "." +
                              config.extendedInputVecSuffix + "." + config.inputVecSuffix;
 
     Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr,
                                        config.extendedInputVecType, extLoadIntrinsic, vlValueExtended);
     Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr,
                                        config.inputVecType, loadIntrinsic, vlValue);
-    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, 
+    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr,
                                       config.outputVecType, outputLoadIntrinsic, vlValue);
     Value result = createIMEVmadotIntrinsic(
         rewriter, loc, module, vdVec, vs1Vec, vs2Vec, "llvm.riscv.ime.vmadot1u",
@@ -643,7 +643,7 @@ struct IMEVmadot1suLowering : public ConvertOpToLLVMPattern<Vmadot1suOp> {
     Type elemType = getMemRefElementType(op.getVs2());
     if (!elemType)
       return failure();
-    
+
     IMETypeConfig config = getIMETypeConfig(ctx, elemType);
     auto i64Type = IntegerType::get(ctx, 64);
 
@@ -662,14 +662,14 @@ struct IMEVmadot1suLowering : public ConvertOpToLLVMPattern<Vmadot1suOp> {
     std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
     std::string outputLoadIntrinsic = "llvm.riscv.vle." + config.outputVecSuffix;
     std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
-    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+    std::string typeSuffix = "." + config.outputVecSuffix + "." +
                              config.extendedInputVecSuffix + "." + config.inputVecSuffix;
 
     Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr,
                                        config.extendedInputVecType, extLoadIntrinsic, vlValueExtended);
     Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr,
                                        config.inputVecType, loadIntrinsic, vlValue);
-    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, 
+    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr,
                                       config.outputVecType, outputLoadIntrinsic, vlValue);
     Value result = createIMEVmadotIntrinsic(
         rewriter, loc, module, vdVec, vs1Vec, vs2Vec,
@@ -697,7 +697,7 @@ struct IMEVmadot1usLowering : public ConvertOpToLLVMPattern<Vmadot1usOp> {
     Type elemType = getMemRefElementType(op.getVs2());
     if (!elemType)
       return failure();
-    
+
     IMETypeConfig config = getIMETypeConfig(ctx, elemType);
     auto i64Type = IntegerType::get(ctx, 64);
 
@@ -716,14 +716,14 @@ struct IMEVmadot1usLowering : public ConvertOpToLLVMPattern<Vmadot1usOp> {
     std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
     std::string outputLoadIntrinsic = "llvm.riscv.vle." + config.outputVecSuffix;
     std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
-    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+    std::string typeSuffix = "." + config.outputVecSuffix + "." +
                              config.extendedInputVecSuffix + "." + config.inputVecSuffix;
 
     Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr,
                                        config.extendedInputVecType, extLoadIntrinsic, vlValueExtended);
     Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr,
                                        config.inputVecType, loadIntrinsic, vlValue);
-    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, 
+    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr,
                                       config.outputVecType, outputLoadIntrinsic, vlValue);
     Value result = createIMEVmadotIntrinsic(
         rewriter, loc, module, vdVec, vs1Vec, vs2Vec,
@@ -751,7 +751,7 @@ struct IMEVmadot2Lowering : public ConvertOpToLLVMPattern<Vmadot2Op> {
     Type elemType = getMemRefElementType(op.getVs2());
     if (!elemType)
       return failure();
-    
+
     IMETypeConfig config = getIMETypeConfig(ctx, elemType);
     auto i64Type = IntegerType::get(ctx, 64);
 
@@ -770,14 +770,14 @@ struct IMEVmadot2Lowering : public ConvertOpToLLVMPattern<Vmadot2Op> {
     std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
     std::string outputLoadIntrinsic = "llvm.riscv.vle." + config.outputVecSuffix;
     std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
-    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+    std::string typeSuffix = "." + config.outputVecSuffix + "." +
                              config.extendedInputVecSuffix + "." + config.inputVecSuffix;
 
     Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr,
                                        config.extendedInputVecType, extLoadIntrinsic, vlValueExtended);
     Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr,
                                        config.inputVecType, loadIntrinsic, vlValue);
-    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, 
+    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr,
                                       config.outputVecType, outputLoadIntrinsic, vlValue);
     Value result = createIMEVmadotIntrinsic(
         rewriter, loc, module, vdVec, vs1Vec, vs2Vec, "llvm.riscv.ime.vmadot2",
@@ -805,7 +805,7 @@ struct IMEVmadot2uLowering : public ConvertOpToLLVMPattern<Vmadot2uOp> {
     Type elemType = getMemRefElementType(op.getVs2());
     if (!elemType)
       return failure();
-    
+
     IMETypeConfig config = getIMETypeConfig(ctx, elemType);
     auto i64Type = IntegerType::get(ctx, 64);
 
@@ -824,14 +824,14 @@ struct IMEVmadot2uLowering : public ConvertOpToLLVMPattern<Vmadot2uOp> {
     std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
     std::string outputLoadIntrinsic = "llvm.riscv.vle." + config.outputVecSuffix;
     std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
-    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+    std::string typeSuffix = "." + config.outputVecSuffix + "." +
                              config.extendedInputVecSuffix + "." + config.inputVecSuffix;
 
     Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr,
                                        config.extendedInputVecType, extLoadIntrinsic, vlValueExtended);
     Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr,
                                        config.inputVecType, loadIntrinsic, vlValue);
-    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, 
+    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr,
                                       config.outputVecType, outputLoadIntrinsic, vlValue);
     Value result = createIMEVmadotIntrinsic(
         rewriter, loc, module, vdVec, vs1Vec, vs2Vec, "llvm.riscv.ime.vmadot2u",
@@ -859,7 +859,7 @@ struct IMEVmadot2suLowering : public ConvertOpToLLVMPattern<Vmadot2suOp> {
     Type elemType = getMemRefElementType(op.getVs2());
     if (!elemType)
       return failure();
-    
+
     IMETypeConfig config = getIMETypeConfig(ctx, elemType);
     auto i64Type = IntegerType::get(ctx, 64);
 
@@ -878,14 +878,14 @@ struct IMEVmadot2suLowering : public ConvertOpToLLVMPattern<Vmadot2suOp> {
     std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
     std::string outputLoadIntrinsic = "llvm.riscv.vle." + config.outputVecSuffix;
     std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
-    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+    std::string typeSuffix = "." + config.outputVecSuffix + "." +
                              config.extendedInputVecSuffix + "." + config.inputVecSuffix;
 
     Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr,
                                        config.extendedInputVecType, extLoadIntrinsic, vlValueExtended);
     Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr,
                                        config.inputVecType, loadIntrinsic, vlValue);
-    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, 
+    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr,
                                       config.outputVecType, outputLoadIntrinsic, vlValue);
     Value result = createIMEVmadotIntrinsic(
         rewriter, loc, module, vdVec, vs1Vec, vs2Vec,
@@ -913,7 +913,7 @@ struct IMEVmadot2usLowering : public ConvertOpToLLVMPattern<Vmadot2usOp> {
     Type elemType = getMemRefElementType(op.getVs2());
     if (!elemType)
       return failure();
-    
+
     IMETypeConfig config = getIMETypeConfig(ctx, elemType);
     auto i64Type = IntegerType::get(ctx, 64);
 
@@ -932,14 +932,14 @@ struct IMEVmadot2usLowering : public ConvertOpToLLVMPattern<Vmadot2usOp> {
     std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
     std::string outputLoadIntrinsic = "llvm.riscv.vle." + config.outputVecSuffix;
     std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
-    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+    std::string typeSuffix = "." + config.outputVecSuffix + "." +
                              config.extendedInputVecSuffix + "." + config.inputVecSuffix;
 
     Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr,
                                        config.extendedInputVecType, extLoadIntrinsic, vlValueExtended);
     Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr,
                                        config.inputVecType, loadIntrinsic, vlValue);
-    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, 
+    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr,
                                       config.outputVecType, outputLoadIntrinsic, vlValue);
     Value result = createIMEVmadotIntrinsic(
         rewriter, loc, module, vdVec, vs1Vec, vs2Vec,
@@ -967,7 +967,7 @@ struct IMEVmadot3Lowering : public ConvertOpToLLVMPattern<Vmadot3Op> {
     Type elemType = getMemRefElementType(op.getVs2());
     if (!elemType)
       return failure();
-    
+
     IMETypeConfig config = getIMETypeConfig(ctx, elemType);
     auto i64Type = IntegerType::get(ctx, 64);
 
@@ -986,14 +986,14 @@ struct IMEVmadot3Lowering : public ConvertOpToLLVMPattern<Vmadot3Op> {
     std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
     std::string outputLoadIntrinsic = "llvm.riscv.vle." + config.outputVecSuffix;
     std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
-    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+    std::string typeSuffix = "." + config.outputVecSuffix + "." +
                              config.extendedInputVecSuffix + "." + config.inputVecSuffix;
 
     Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr,
                                        config.extendedInputVecType, extLoadIntrinsic, vlValueExtended);
     Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr,
                                        config.inputVecType, loadIntrinsic, vlValue);
-    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, 
+    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr,
                                       config.outputVecType, outputLoadIntrinsic, vlValue);
     Value result = createIMEVmadotIntrinsic(
         rewriter, loc, module, vdVec, vs1Vec, vs2Vec, "llvm.riscv.ime.vmadot3",
@@ -1021,7 +1021,7 @@ struct IMEVmadot3uLowering : public ConvertOpToLLVMPattern<Vmadot3uOp> {
     Type elemType = getMemRefElementType(op.getVs2());
     if (!elemType)
       return failure();
-    
+
     IMETypeConfig config = getIMETypeConfig(ctx, elemType);
     auto i64Type = IntegerType::get(ctx, 64);
 
@@ -1040,14 +1040,14 @@ struct IMEVmadot3uLowering : public ConvertOpToLLVMPattern<Vmadot3uOp> {
     std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
     std::string outputLoadIntrinsic = "llvm.riscv.vle." + config.outputVecSuffix;
     std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
-    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+    std::string typeSuffix = "." + config.outputVecSuffix + "." +
                              config.extendedInputVecSuffix + "." + config.inputVecSuffix;
 
     Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr,
                                        config.extendedInputVecType, extLoadIntrinsic, vlValueExtended);
     Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr,
                                        config.inputVecType, loadIntrinsic, vlValue);
-    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, 
+    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr,
                                       config.outputVecType, outputLoadIntrinsic, vlValue);
     Value result = createIMEVmadotIntrinsic(
         rewriter, loc, module, vdVec, vs1Vec, vs2Vec, "llvm.riscv.ime.vmadot3u",
@@ -1075,7 +1075,7 @@ struct IMEVmadot3suLowering : public ConvertOpToLLVMPattern<Vmadot3suOp> {
     Type elemType = getMemRefElementType(op.getVs2());
     if (!elemType)
       return failure();
-    
+
     IMETypeConfig config = getIMETypeConfig(ctx, elemType);
     auto i64Type = IntegerType::get(ctx, 64);
 
@@ -1094,14 +1094,14 @@ struct IMEVmadot3suLowering : public ConvertOpToLLVMPattern<Vmadot3suOp> {
     std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
     std::string outputLoadIntrinsic = "llvm.riscv.vle." + config.outputVecSuffix;
     std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
-    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+    std::string typeSuffix = "." + config.outputVecSuffix + "." +
                              config.extendedInputVecSuffix + "." + config.inputVecSuffix;
 
     Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr,
                                        config.extendedInputVecType, extLoadIntrinsic, vlValueExtended);
     Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr,
                                        config.inputVecType, loadIntrinsic, vlValue);
-    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, 
+    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr,
                                       config.outputVecType, outputLoadIntrinsic, vlValue);
     Value result = createIMEVmadotIntrinsic(
         rewriter, loc, module, vdVec, vs1Vec, vs2Vec,
@@ -1129,7 +1129,7 @@ struct IMEVmadot3usLowering : public ConvertOpToLLVMPattern<Vmadot3usOp> {
     Type elemType = getMemRefElementType(op.getVs2());
     if (!elemType)
       return failure();
-    
+
     IMETypeConfig config = getIMETypeConfig(ctx, elemType);
     auto i64Type = IntegerType::get(ctx, 64);
 
@@ -1148,14 +1148,14 @@ struct IMEVmadot3usLowering : public ConvertOpToLLVMPattern<Vmadot3usOp> {
     std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
     std::string outputLoadIntrinsic = "llvm.riscv.vle." + config.outputVecSuffix;
     std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
-    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+    std::string typeSuffix = "." + config.outputVecSuffix + "." +
                              config.extendedInputVecSuffix + "." + config.inputVecSuffix;
 
     Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr,
                                        config.extendedInputVecType, extLoadIntrinsic, vlValueExtended);
     Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr,
                                        config.inputVecType, loadIntrinsic, vlValue);
-    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, 
+    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr,
                                       config.outputVecType, outputLoadIntrinsic, vlValue);
     Value result = createIMEVmadotIntrinsic(
         rewriter, loc, module, vdVec, vs1Vec, vs2Vec,
@@ -1183,7 +1183,7 @@ struct IMEVfmadot1Lowering : public ConvertOpToLLVMPattern<Vfmadot1Op> {
     Type elemType = getMemRefElementType(op.getVs2());
     if (!elemType)
       return failure();
-    
+
     IMETypeConfig config = getIMETypeConfig(ctx, elemType);
     auto i64Type = IntegerType::get(ctx, 64);
 
@@ -1202,7 +1202,7 @@ struct IMEVfmadot1Lowering : public ConvertOpToLLVMPattern<Vfmadot1Op> {
     std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
     std::string outputLoadIntrinsic = "llvm.riscv.vle." + config.outputVecSuffix;
     std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
-    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+    std::string typeSuffix = "." + config.outputVecSuffix + "." +
                              config.extendedInputVecSuffix + "." + config.inputVecSuffix;
 
     Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr,
@@ -1237,7 +1237,7 @@ struct IMEVfmadot2Lowering : public ConvertOpToLLVMPattern<Vfmadot2Op> {
     Type elemType = getMemRefElementType(op.getVs2());
     if (!elemType)
       return failure();
-    
+
     IMETypeConfig config = getIMETypeConfig(ctx, elemType);
     auto i64Type = IntegerType::get(ctx, 64);
 
@@ -1256,7 +1256,7 @@ struct IMEVfmadot2Lowering : public ConvertOpToLLVMPattern<Vfmadot2Op> {
     std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
     std::string outputLoadIntrinsic = "llvm.riscv.vle." + config.outputVecSuffix;
     std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
-    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+    std::string typeSuffix = "." + config.outputVecSuffix + "." +
                              config.extendedInputVecSuffix + "." + config.inputVecSuffix;
 
     Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr,
@@ -1291,7 +1291,7 @@ struct IMEVfmadot3Lowering : public ConvertOpToLLVMPattern<Vfmadot3Op> {
     Type elemType = getMemRefElementType(op.getVs2());
     if (!elemType)
       return failure();
-    
+
     IMETypeConfig config = getIMETypeConfig(ctx, elemType);
     auto i64Type = IntegerType::get(ctx, 64);
 
@@ -1310,7 +1310,7 @@ struct IMEVfmadot3Lowering : public ConvertOpToLLVMPattern<Vfmadot3Op> {
     std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
     std::string outputLoadIntrinsic = "llvm.riscv.vle." + config.outputVecSuffix;
     std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
-    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+    std::string typeSuffix = "." + config.outputVecSuffix + "." +
                              config.extendedInputVecSuffix + "." + config.inputVecSuffix;
 
     Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr,
@@ -1345,7 +1345,7 @@ struct IMEVmadotnLowering : public ConvertOpToLLVMPattern<VmadotnOp> {
     Type elemType = getMemRefElementType(op.getVs2());
     if (!elemType)
       return failure();
-    
+
     IMETypeConfig config = getIMETypeConfig(ctx, elemType);
     auto i64Type = IntegerType::get(ctx, 64);
 
@@ -1365,14 +1365,14 @@ struct IMEVmadotnLowering : public ConvertOpToLLVMPattern<VmadotnOp> {
     std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
     std::string outputLoadIntrinsic = "llvm.riscv.vle." + config.outputVecSuffix;
     std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
-    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+    std::string typeSuffix = "." + config.outputVecSuffix + "." +
                              config.extendedInputVecSuffix + "." + config.inputVecSuffix;
 
     Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr,
                                        config.extendedInputVecType, extLoadIntrinsic, vlValueExtended);
     Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr,
                                        config.inputVecType, loadIntrinsic, vlValue);
-    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, 
+    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr,
                                       config.outputVecType, outputLoadIntrinsic, vlValue);
     Value result = createIMEVmadotnIntrinsic(
         rewriter, loc, module, vdVec, vs1Vec, vs2Vec, slideVal,
@@ -1400,7 +1400,7 @@ struct IMEVmadotnuLowering : public ConvertOpToLLVMPattern<VmadotnuOp> {
     Type elemType = getMemRefElementType(op.getVs2());
     if (!elemType)
       return failure();
-    
+
     IMETypeConfig config = getIMETypeConfig(ctx, elemType);
     auto i64Type = IntegerType::get(ctx, 64);
 
@@ -1420,14 +1420,14 @@ struct IMEVmadotnuLowering : public ConvertOpToLLVMPattern<VmadotnuOp> {
     std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
     std::string outputLoadIntrinsic = "llvm.riscv.vle." + config.outputVecSuffix;
     std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
-    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+    std::string typeSuffix = "." + config.outputVecSuffix + "." +
                              config.extendedInputVecSuffix + "." + config.inputVecSuffix;
 
     Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr,
                                        config.extendedInputVecType, extLoadIntrinsic, vlValueExtended);
     Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr,
                                        config.inputVecType, loadIntrinsic, vlValue);
-    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, 
+    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr,
                                       config.outputVecType, outputLoadIntrinsic, vlValue);
     Value result = createIMEVmadotnIntrinsic(
         rewriter, loc, module, vdVec, vs1Vec, vs2Vec, slideVal,
@@ -1455,7 +1455,7 @@ struct IMEVmadotnsuLowering : public ConvertOpToLLVMPattern<VmadotnsuOp> {
     Type elemType = getMemRefElementType(op.getVs2());
     if (!elemType)
       return failure();
-    
+
     IMETypeConfig config = getIMETypeConfig(ctx, elemType);
     auto i64Type = IntegerType::get(ctx, 64);
 
@@ -1475,14 +1475,14 @@ struct IMEVmadotnsuLowering : public ConvertOpToLLVMPattern<VmadotnsuOp> {
     std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
     std::string outputLoadIntrinsic = "llvm.riscv.vle." + config.outputVecSuffix;
     std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
-    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+    std::string typeSuffix = "." + config.outputVecSuffix + "." +
                              config.extendedInputVecSuffix + "." + config.inputVecSuffix;
 
     Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr,
                                        config.extendedInputVecType, extLoadIntrinsic, vlValueExtended);
     Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr,
                                        config.inputVecType, loadIntrinsic, vlValue);
-    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, 
+    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr,
                                       config.outputVecType, outputLoadIntrinsic, vlValue);
     Value result = createIMEVmadotnIntrinsic(
         rewriter, loc, module, vdVec, vs1Vec, vs2Vec, slideVal,
@@ -1510,7 +1510,7 @@ struct IMEVmadotnusLowering : public ConvertOpToLLVMPattern<VmadotnusOp> {
     Type elemType = getMemRefElementType(op.getVs2());
     if (!elemType)
       return failure();
-    
+
     IMETypeConfig config = getIMETypeConfig(ctx, elemType);
     auto i64Type = IntegerType::get(ctx, 64);
 
@@ -1530,14 +1530,14 @@ struct IMEVmadotnusLowering : public ConvertOpToLLVMPattern<VmadotnusOp> {
     std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
     std::string outputLoadIntrinsic = "llvm.riscv.vle." + config.outputVecSuffix;
     std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
-    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+    std::string typeSuffix = "." + config.outputVecSuffix + "." +
                              config.extendedInputVecSuffix + "." + config.inputVecSuffix;
 
     Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr,
                                        config.extendedInputVecType, extLoadIntrinsic, vlValueExtended);
     Value vs2Vec = createRVVVectorLoad(rewriter, loc, module, vs2Ptr,
                                        config.inputVecType, loadIntrinsic, vlValue);
-    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr, 
+    Value vdVec = createRVVVectorLoad(rewriter, loc, module, vdPtr,
                                       config.outputVecType, outputLoadIntrinsic, vlValue);
     Value result = createIMEVmadotnIntrinsic(
         rewriter, loc, module, vdVec, vs1Vec, vs2Vec, slideVal,
@@ -1565,7 +1565,7 @@ struct IMEVfmadotnLowering : public ConvertOpToLLVMPattern<VfmadotnOp> {
     Type elemType = getMemRefElementType(op.getVs2());
     if (!elemType)
       return failure();
-    
+
     IMETypeConfig config = getIMETypeConfig(ctx, elemType);
     auto i64Type = IntegerType::get(ctx, 64);
 
@@ -1584,7 +1584,7 @@ struct IMEVfmadotnLowering : public ConvertOpToLLVMPattern<VfmadotnOp> {
     std::string extLoadIntrinsic = "llvm.riscv.vle." + config.extendedInputVecSuffix;
     std::string loadIntrinsic = "llvm.riscv.vle." + config.inputVecSuffix;
     std::string storeIntrinsic = "llvm.riscv.vse." + config.outputVecSuffix;
-    std::string typeSuffix = "." + config.outputVecSuffix + "." + 
+    std::string typeSuffix = "." + config.outputVecSuffix + "." +
                              config.extendedInputVecSuffix + "." + config.inputVecSuffix;
 
     Value vs1Vec = createRVVVectorLoad(rewriter, loc, module, vs1Ptr,

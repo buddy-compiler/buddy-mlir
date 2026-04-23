@@ -10,7 +10,7 @@ module attributes {gpu.container_module} {
       %v0 = vector.insert %src0, %base[0, 0] : i32 into vector<3x3xi32>
       %v0_shape_casted = vector.shape_cast %v0 : vector<3x3xi32> to vector<9xi32>
       vector.store %v0_shape_casted, %result0[%c0] : memref<9xi32>, vector<9xi32>
-      
+
       // insert a vector
       %src1 = arith.constant dense<[101, 102, 103]> : vector<3xi32>
       %v1 = vector.insert %src1, %base[1] : vector<3xi32> into vector<3x3xi32>

@@ -1,0 +1,286 @@
+// rax.fbs
+namespace rhal.rax;
+
+// -----------------------------
+// Versioning
+// -----------------------------
+table Version {
+  major:uint16;
+  minor:uint16;
+  patch:uint16;
+}
+
+enum Endianness : byte { Little = 0, Big = 1 }
+
+// -----------------------------
+// Basic types
+// -----------------------------
+enum DType : byte {
+  Invalid = 0,
+  I8, I16, I32, I64,
+  U8, U16, U32, U64,
+  F16, BF16, F32, F64
+}
+
+enum Layout : byte {
+  Any = 0,
+  RowMajor,
+  ColMajor,
+  Tiled,        // Generic tiled layout
+  Opaque        // Backend-defined
+}
+
+// Memory placement is a hint. MVP can ignore it.
+enum MemorySpace : byte {
+  Any = 0,
+  Host,
+  DRAM,
+  SRAM,
+  DeviceLocal
+}
+
+// Generic key-value attributes for forward compatibility.
+// Keep values as string in MVP to simplify tooling.
+// Later you can add typed attrs without breaking ABI.
+table KV {
+  key:string;
+  value:string;
+}
+
+// Shape supports static dims; dynamic dims can be represented by -1
+// plus symbolic bindings in KV (e.g., "N=...").
+table Shape {
+  dims:[int64];
+}
+
+table TensorType {
+  dtype:DType;
+  shape:Shape;
+  layout:Layout = Any;
+  // Strides in elements; optional.
+  strides:[int64];
+}
+
+// -----------------------------
+// Resources: buffers & constants
+// -----------------------------
+table BufferBinding {
+  // Global binding id in this module (like a slot).
+  id:uint32;
+  name:string;
+
+  type:TensorType;
+
+  // Where the buffer is expected/preferred to live.
+  space:MemorySpace = Any;
+
+  // Flags encoded as KV for MVP:
+  // e.g., "readonly=true", "persistent=true", "alias_of=3"
+  attrs:[KV];
+}
+
+enum ConstantStorage : byte {
+  Inline = 0,      // bytes stored in this file
+  External = 1     // stored in external file, referenced by uri
+}
+
+table Constant {
+  id:uint32;
+  name:string;
+  type:TensorType;
+
+  storage:ConstantStorage = Inline;
+
+  // Inline bytes (raw tensor payload). Optional when External.
+  data:[ubyte];
+
+  // External reference (e.g., "file:weights.bin#offset=...").
+  uri:string;
+
+  // Optional checksum (hex string) for validation.
+  checksum:string;
+
+  attrs:[KV];
+}
+
+// -----------------------------
+// Executable blobs (kernel code objects)
+// -----------------------------
+enum CodeObjectKind : byte {
+  Unknown = 0,
+  HostSharedLib,   // e.g., .so on host, symbol points to entry
+  HostELF,         // host-executable object (rare)
+  DeviceELF,       // device-loadable ELF (for RVV/NPU firmware-like loaders)
+  RawBytes,        // opaque bytes interpreted by backend
+  Bytecode         // backend VM bytecode (future)
+}
+
+table CodeObject {
+  id:uint32;
+  name:string;
+
+  kind:CodeObjectKind = Unknown;
+
+  // Inline bytes of code object, optional if external.
+  data:[ubyte];
+
+  // External reference (uri) if not inline.
+  uri:string;
+
+  // Entry symbol inside the code object, if applicable.
+  entry_symbol:string;
+
+  // Backend selector hint, e.g., "rvv", "gemmini", "tt", "cpu".
+  backend:string;
+
+  // For caching/compat: toolchain id, target triple, features.
+  attrs:[KV];
+}
+
+// -----------------------------
+// Dispatch program
+// -----------------------------
+enum OpKind : byte {
+  Invalid = 0,
+
+  // Launch a kernel with bound buffers and scalars.
+  Dispatch = 1,
+
+  // Memory operations
+  Memcpy = 2,      // buffer-to-buffer copy
+  Fill = 3,        // fill a buffer with a scalar pattern (optional)
+  Barrier = 4      // synchronization point
+}
+
+enum MemcpyKind : byte {
+  Unknown = 0,
+  H2D,
+  D2H,
+  D2D,
+  H2H
+}
+
+table Scalar {
+  // Only one of these should be set. MVP can use i64/f64.
+  i64:int64;
+  f64:double;
+  // Also allow string for special values (e.g., "nan", "inf").
+  s:string;
+}
+
+table LaunchDims {
+  // MVP: use 3D grid/block style; backends can reinterpret.
+  grid:[uint32];    // len 0..3
+  block:[uint32];   // len 0..3
+  // Alternative: "tiles=..." in attrs.
+  attrs:[KV];
+}
+
+table Arg {
+  // Exactly one of: buffer_id or constant_id or scalar.
+  buffer_id:uint32;
+  constant_id:uint32;
+  scalar:Scalar;
+
+  // Additional per-arg attrs: e.g., "access=readwrite", "alignment=..."
+  attrs:[KV];
+}
+
+table DispatchOp {
+  // Which code object to run.
+  code_object_id:uint32;
+
+  // Arguments in call order (buffers/constants/scalars).
+  args:[Arg];
+
+  dims:LaunchDims;
+
+  // Extra attrs for tuning/layout/tiling/vector_len etc.
+  attrs:[KV];
+}
+
+table MemcpyOp {
+  kind:MemcpyKind = Unknown;
+  src_buffer_id:uint32;
+  dst_buffer_id:uint32;
+
+  // Bytes to copy; if 0, runtime infers from dst type/shape.
+  bytes:uint64;
+
+  attrs:[KV];
+}
+
+table FillOp {
+  dst_buffer_id:uint32;
+  value:Scalar;
+  bytes:uint64;
+  attrs:[KV];
+}
+
+table BarrierOp {
+  // MVP: global barrier. Future: fence scope or event ids in attrs.
+  attrs:[KV];
+}
+
+table Op {
+  kind:OpKind = Invalid;
+
+  dispatch:DispatchOp;
+  memcpy:MemcpyOp;
+  fill:FillOp;
+  barrier:BarrierOp;
+
+  // Useful for debugging/profiling.
+  name:string;
+  attrs:[KV];
+}
+
+// -----------------------------
+// Functions & module
+// -----------------------------
+table Function {
+  name:string;
+
+  // Buffers are referenced by global buffer binding id.
+  inputs:[uint32];
+  outputs:[uint32];
+
+  // Optional: temporary buffers used by this function (ids).
+  temps:[uint32];
+
+  // Linear op list for MVP.
+  ops:[Op];
+
+  attrs:[KV];
+}
+
+table TargetRequirement {
+  // e.g., "rvv", "vlen>=256", "zve64d", "gemmini", "dma"
+  key:string;
+  value:string;
+}
+
+table Module {
+  // Magic/versioning for sanity checks.
+  magic:string;              // must be "RAX"
+  version:Version;
+
+  endianness:Endianness = Little;
+
+  // Freeform: model name, build id, commit, timestamp...
+  attrs:[KV];
+
+  // Required target features.
+  requires:[TargetRequirement];
+
+  // Global resource tables.
+  buffers:[BufferBinding];
+  constants:[Constant];
+  code_objects:[CodeObject];
+
+  // Entry functions.
+  functions:[Function];
+}
+
+root_type Module;
+file_identifier "RAX0";

@@ -1,7 +1,8 @@
 // RUN: buddy-opt %s \
 // RUN:     -convert-vector-to-scf -convert-scf-to-cf \
 // RUN:     -convert-cf-to-llvm \
-// RUN:     -convert-vector-to-llvm -finalize-memref-to-llvm -convert-func-to-llvm \
+// RUN:     -convert-vector-to-llvm -expand-strided-metadata -finalize-memref-to-llvm \
+// RUN:     -convert-func-to-llvm \
 // RUN:     -convert-arith-to-llvm \
 // RUN:     -reconcile-unrealized-casts \
 // RUN: | mlir-runner -e main -entry-point-result=i32 \
@@ -11,11 +12,12 @@
 
 memref.global "private" @gv0 : memref<8xi32> = dense<[0, 1, 2, 3, 4, 5, 6, 7]>
 
-memref.global "private" @gv1 : memref<4x4xi32> = dense<[[0, 1, 2, 3],
-                                                        [4, 5, 6, 7],
-                                                        [8, 9, 10, 11],
-                                                        [12, 13, 14, 15]]>
-memref.global "private" @gv2 : memref<8xi32> = dense<[0, 1, 2, 3, 4, 5, 6, 7]>
+// 4x4 data + tail in one allocation so OOB expandloads at flat indices 16–17 read 0,1
+// without relying on linker order of separate globals (portable on RISC-V / x86).
+memref.global "private" @gv1_gv2 : memref<24xi32> = dense<[
+  0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+  0, 1, 2, 3, 4, 5, 6, 7
+]>
 
 func.func private @printMemrefI32(memref<*xi32>)
 
@@ -33,12 +35,12 @@ func.func @main() -> i32 {
   // preparation for examples
   %c0 = arith.constant 0 : index
   %c1 = arith.constant 1 : index
-  %c2 = arith.constant 2 : index
   %c3 = arith.constant 3 : index
 
   %base0 = memref.get_global @gv0 : memref<8xi32>
-  %base1 = memref.get_global @gv1 : memref<4x4xi32>
-  %base2 = memref.get_global @gv2 : memref<8xi32>
+  %whole1 = memref.get_global @gv1_gv2 : memref<24xi32>
+  %base1 = memref.reinterpret_cast %whole1 to offset: [0], sizes: [4, 4], strides: [4, 1]
+    : memref<24xi32> to memref<4x4xi32, strided<[4, 1], offset: 0>>
 
   %pass_thru_4 = arith.constant dense<[2330, 2331, 2332, 2333]> : vector<4xi32>
   %pass_thru_8 = arith.constant dense<[2330, 2331, 2332, 2333, 2334, 2335, 2336, 2337]> : vector<8xi32>
@@ -62,7 +64,7 @@ func.func @main() -> i32 {
   %mask1 = arith.constant dense<[1, 0, 0, 1]> : vector<4xi1>
 
   %v1 = vector.expandload %base1[%c0, %c0], %mask1, %pass_thru_4
-    : memref<4x4xi32>, vector<4xi1>, vector<4xi32> into vector<4xi32>
+    : memref<4x4xi32, strided<[4, 1], offset: 0>>, vector<4xi1>, vector<4xi32> into vector<4xi32>
   // CHECK: ( 0, 2331, 2332, 1 )
   vector.print %v1 : vector<4xi32>
 
@@ -73,7 +75,7 @@ func.func @main() -> i32 {
   %mask2 = arith.constant dense<[1, 0, 1, 1, 1, 1, 0, 0]> : vector<8xi1>
 
   %v2 = vector.expandload %base1[%c0, %c0], %mask2, %pass_thru_8
-    : memref<4x4xi32>, vector<8xi1>, vector<8xi32> into vector<8xi32>
+    : memref<4x4xi32, strided<[4, 1], offset: 0>>, vector<8xi1>, vector<8xi32> into vector<8xi32>
   // CHECK: ( 0, 2331, 1, 2, 3, 4, 2336, 2337 )
   vector.print %v2 : vector<8xi32>
 
@@ -85,7 +87,7 @@ func.func @main() -> i32 {
 
   // expandload with dynamic memref
   //    case 1: in-bound
-  %base4 = memref.cast %base1 : memref<4x4xi32> to memref<?x?xi32>
+  %base4 = memref.cast %base1 : memref<4x4xi32, strided<[4, 1], offset: 0>> to memref<?x?xi32>
   %mask4 = arith.constant dense<[1, 0, 1, 1, 1, 1, 0, 0]> : vector<8xi1>
 
   %v4 = vector.expandload %base4[%c1, %c1], %mask4, %pass_thru_8
@@ -96,9 +98,8 @@ func.func @main() -> i32 {
 
   // expandload with dynamic memref
   //    case 2: out-of-bound
-  // its behavior likes vector.load -- it's a platform-specific operation
-  // On some platforms, it will just load data in @gv2 when access is out-of-bound
-  %base5 = memref.cast %base1 : memref<4x4xi32> to memref<?x?xi32>
+  // OOB lanes read the next i32s in the underlying buffer; with @gv1_gv2 that is the tail [0,1,...].
+  %base5 = memref.cast %base1 : memref<4x4xi32, strided<[4, 1], offset: 0>> to memref<?x?xi32>
   %mask5 = arith.constant dense<[1, 0, 1, 1, 1, 1, 0, 0]> : vector<8xi1>
 
   %v5 = vector.expandload %base5[%c3, %c1], %mask5, %pass_thru_8
@@ -108,7 +109,7 @@ func.func @main() -> i32 {
 
 
   // expandload with unranked memref is not allowed
-  // %base6 = memref.cast %base1 : memref<4x4xi32> to memref<*xi32>
+  // %base6 = memref.cast %base1 : memref<4x4xi32, strided<[4, 1], offset: 0>> to memref<*xi32>
   // %mask6 = arith.constant dense<[1, 0, 0, 1]> : vector<4xi1>
 
   // %v6 = vector.expandload %base6[%c0, %c0], %mask6, %pass_thru_4

@@ -6,7 +6,7 @@
 // Output: [1, 10, 10, 8] - batch=1, OH=10, OW=10, OC=8
 
 // CHECK-LABEL: func.func @conv2d_nhwc_hwcf
-func.func @conv2d_nhwc_hwcf(%input: memref<1x12x12x16xi8>, 
+func.func @conv2d_nhwc_hwcf(%input: memref<1x12x12x16xi8>,
                             %filter: memref<3x3x16x8xi8>,
                             %output: memref<1x10x10x8xi32>) {
   // CHECK: scf.for
@@ -24,7 +24,7 @@ func.func @conv2d_nhwc_hwcf(%input: memref<1x12x12x16xi8>,
 // Output: [1, 4, 4, 4] - batch=1, OH=4, OW=4, OC=4
 
 // CHECK-LABEL: func.func @conv2d_nhwc_hwcf_small
-func.func @conv2d_nhwc_hwcf_small(%input: memref<1x6x6x8xi8>, 
+func.func @conv2d_nhwc_hwcf_small(%input: memref<1x6x6x8xi8>,
                                   %filter: memref<3x3x8x4xi8>,
                                   %output: memref<1x4x4x4xi32>) {
   // CHECK: scf.for
@@ -40,7 +40,7 @@ func.func @conv2d_nhwc_hwcf_small(%input: memref<1x6x6x8xi8>,
 // Output: [1, 8, 10, 10] - batch=1, OC=8, OH=10, OW=10
 
 // CHECK-LABEL: func.func @conv2d_nchw_fchw
-func.func @conv2d_nchw_fchw(%input: memref<1x16x12x12xi8>, 
+func.func @conv2d_nchw_fchw(%input: memref<1x16x12x12xi8>,
                             %filter: memref<8x16x3x3xi8>,
                             %output: memref<1x8x10x10xi32>) {
   // CHECK: scf.for
@@ -57,7 +57,7 @@ func.func @conv2d_nchw_fchw(%input: memref<1x16x12x12xi8>,
 // Output: [1, 6, 6, 8]   - with stride=2: OH=(14-3)/2+1=6
 
 // CHECK-LABEL: func.func @conv2d_nhwc_hwcf_stride2
-func.func @conv2d_nhwc_hwcf_stride2(%input: memref<1x14x14x16xi8>, 
+func.func @conv2d_nhwc_hwcf_stride2(%input: memref<1x14x14x16xi8>,
                                     %filter: memref<3x3x16x8xi8>,
                                     %output: memref<1x6x6x8xi32>) {
   // CHECK: scf.for
@@ -74,7 +74,7 @@ func.func @conv2d_nhwc_hwcf_stride2(%input: memref<1x14x14x16xi8>,
 // Output: [1, 5, 5, 4]   - with stride=3: OH=(16-3)/3+1=5
 
 // CHECK-LABEL: func.func @conv2d_nhwc_hwcf_stride3
-func.func @conv2d_nhwc_hwcf_stride3(%input: memref<1x16x16x8xi8>, 
+func.func @conv2d_nhwc_hwcf_stride3(%input: memref<1x16x16x8xi8>,
                                     %filter: memref<3x3x8x4xi8>,
                                     %output: memref<1x5x5x4xi32>) {
   // CHECK: scf.for
@@ -91,7 +91,7 @@ func.func @conv2d_nhwc_hwcf_stride3(%input: memref<1x16x16x8xi8>,
 // Output: [1, 5, 5, 4]   - with stride=4: OH=(20-3)/4+1=5
 
 // CHECK-LABEL: func.func @conv2d_nhwc_hwcf_stride4
-func.func @conv2d_nhwc_hwcf_stride4(%input: memref<1x20x20x8xi8>, 
+func.func @conv2d_nhwc_hwcf_stride4(%input: memref<1x20x20x8xi8>,
                                     %filter: memref<3x3x8x4xi8>,
                                     %output: memref<1x5x5x4xi32>) {
   // CHECK: scf.for

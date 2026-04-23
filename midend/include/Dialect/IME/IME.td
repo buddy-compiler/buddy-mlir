@@ -45,7 +45,7 @@ def VmadotOp : IME_Op<"vmadot"> {
   let description = [{
     Performs matrix multiply-accumulate: vd += vs1 × vs2
     where vs1 and vs2 are int8 or int16 matrices, and vd is int32 accumulator.
-    
+
     For int8 (SEW=e8): MAC unit 4x4x8, matrices A(4x8), B(8x4), C(4x4)
     For int16 (SEW=e16): MAC unit 4x4x4, matrices A(4x4), B(4x4), C(4x4)
   }];
