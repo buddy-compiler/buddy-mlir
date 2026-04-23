@@ -409,7 +409,7 @@ set(SUBGRAPH_PASSES_VEC_UNROLL_OMP
   -canonicalize
   -optimize-allocation-liveness
   -assume-tight-memref-layout
-  -staticize-memref-layout  
+  -staticize-memref-layout
   -matmul-vectorization
   -batchmatmul-optimize
   -batchmatmul-transpose-b-vectorization

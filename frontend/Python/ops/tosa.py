@@ -2437,9 +2437,7 @@ def reshape_op(node: ReshapeOp, symbol_table):
         if isinstance(shape_arg, (list, tuple)):
             new_shape = list(shape_arg)
         else:
-
             try:
-
                 new_shape = list(shape_arg)
             except TypeError:
                 new_shape = [shape_arg]

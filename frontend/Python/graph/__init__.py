@@ -18,8 +18,22 @@
 #
 # ===---------------------------------------------------------------------------
 
-from .graph import Graph, NodeType
-from .graph_driver import GraphDriver
-from .partitioned_graph_driver import SplitStrategy, PartitionedGraphDriver
+from .graph import Graph as Graph
+from .graph import NodeType as NodeType
+from .graph_driver import GraphDriver as GraphDriver
 from .operation import *
-from .type import TensorDType, TensorMeta, DeviceType
+from .partitioned_graph_driver import (
+    PartitionedGraphDriver as PartitionedGraphDriver,
+)
+from .partitioned_graph_driver import (
+    SplitStrategy as SplitStrategy,
+)
+from .type import (
+    DeviceType as DeviceType,
+)
+from .type import (
+    TensorDType as TensorDType,
+)
+from .type import (
+    TensorMeta as TensorMeta,
+)

@@ -19,9 +19,6 @@
 # ===---------------------------------------------------------------------------
 
 from enum import Enum
-from typing import Dict, Optional, List, Tuple
-
-from .type import TensorDType, TensorMeta
 
 
 class OpType(Enum):
@@ -83,10 +80,10 @@ class Op:
         self._name = None
         self._arguments = []
         self._keyword_arguments = {}
-        self._tensor_meta: Dict = {}
+        self._tensor_meta: dict = {}
         self._op_type: OpType = None
-        self._children: List[str] = []
-        self._parents: List[str] = []
+        self._children: list[str] = []
+        self._parents: list[str] = []
         self._args_index = []
 
     def add_argument(self, arg, arg_index=0):
@@ -709,8 +706,8 @@ class CallExternalOp(Op):
     def __init__(
         self,
         call_func_name: str,
-        args: List[str],
-        args_index: List[int],
+        args: list[str],
+        args_index: list[int],
         tensor_meta: dict,
         name: str = None,
     ) -> None:

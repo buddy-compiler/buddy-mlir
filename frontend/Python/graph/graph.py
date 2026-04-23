@@ -20,14 +20,13 @@
 
 import ctypes
 import functools
-import numpy as np
-import torch
 from enum import Enum, auto
 from types import FunctionType
 
 import buddy_mlir.dialects.func as func
 import buddy_mlir.ir as ir
 import numpy as np
+import torch
 from buddy_mlir import runtime as rt
 from buddy_mlir.passmanager import PassManager
 
@@ -132,7 +131,7 @@ class Graph:
         self._body = []
         self._outputs = None
         self._inputs = []
-        self.node_table: Dict[str, Op] = {}
+        self.node_table: dict[str, Op] = {}
         self._fake_params = []
         self.device = device
         self._imported_module = None
@@ -144,8 +143,8 @@ class Graph:
         self._output_memref = None
         self._output_descriptor = None
         self.execution_engine = None
-        self.op_groups: Dict[str, list[Op]] = {}
-        self.group_map_device: Dict[str, DeviceType] = {}
+        self.op_groups: dict[str, list[Op]] = {}
+        self.group_map_device: dict[str, DeviceType] = {}
         self._enable_external_calls = enable_external_calls
 
     @property
@@ -432,7 +431,7 @@ class Graph:
             self.group_map_device[subgraph_name] = DeviceType.CPU
             self.op_groups[subgraph_name] = group
 
-    def infer_graph_inputs(self, op_group: List[Op]) -> List[Op]:
+    def infer_graph_inputs(self, op_group: list[Op]) -> list[Op]:
         """
         Infer the input operations of a subgraph.
 
@@ -442,7 +441,7 @@ class Graph:
         Returns:
         - List[Op]: External input operations of the subgraph.
         """
-        inputs: List[Op] = []
+        inputs: list[Op] = []
         op_group_set = set(op_group)
 
         for op in op_group:
@@ -455,11 +454,11 @@ class Graph:
 
     def infer_subgraph_outputs(
         self,
-        op_group: List[Op],
-        subgraphs_inputs: Dict[int, List[Op]],
-        output_nodes: List[Op],
+        op_group: list[Op],
+        subgraphs_inputs: dict[int, list[Op]],
+        output_nodes: list[Op],
         dependencies: set,
-    ) -> List[Op]:
+    ) -> list[Op]:
         """
         Identify the output operations of a subgraph and update its dependencies
         on other subgraphs.
@@ -475,7 +474,7 @@ class Graph:
         Returns:
         - List[Op]: List of operations that are outputs of the subgraph.
         """
-        outputs: List[Op] = []
+        outputs: list[Op] = []
 
         for op in op_group:
             for subgraph_id, subgraph_inputs in subgraphs_inputs.items():
@@ -489,7 +488,7 @@ class Graph:
 
         return outputs
 
-    def fuse_ops(self, pattern_list: List[FunctionType]):
+    def fuse_ops(self, pattern_list: list[FunctionType]):
         """
         Fuse operations in the graph based on provided fusion patterns.
 

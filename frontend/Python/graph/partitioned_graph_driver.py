@@ -20,52 +20,50 @@
 #
 # ===---------------------------------------------------------------------------
 
-import os
 import functools
+import os
+from collections import defaultdict, deque
+from dataclasses import dataclass, field
+from typing import Any
+
 import numpy as np
+import torch
 from buddy_mlir import ir
 
-from .graph import Graph, GraphImporter, TensorMeta, NodeType
-import torch
-from collections import deque, defaultdict
-
+from .graph import Graph, GraphImporter, NodeType, TensorMeta
 from .operation import (
-    PlaceholderOp,
-    MatmulOp,
-    PermuteOp,
     AddMMOp,
     AddOp,
-    SubOp,
-    MulOp,
-    DivOp,
-    ViewOp,
+    CallOp,
     CatOp,
-    IndexPutOp,
-    ReshapeOp,
+    DivOp,
     ExpandOp,
     FuncOp,
-    CallOp,
     GetItemOp,
+    IndexPutOp,
+    MatmulOp,
+    MulOp,
     OutputOp,
+    PermuteOp,
+    PlaceholderOp,
+    ReshapeOp,
+    SubOp,
+    ViewOp,
 )
 from .type import DeviceType
-from dataclasses import dataclass, field
-from typing import Dict, List, Any, Union, Type, Optional
 
 
 @dataclass
 class SplitStrategy:
     name: str = "default_no_split"
     parallel_num: int = 1
-    ops_count: List[int] = field(default_factory=list)
-    stage_boundary_op: Optional[Type] = None
+    ops_count: list[int] = field(default_factory=list)
+    stage_boundary_op: type | None = None
     stage_boundary_op_num: int = 0
 
-    paral_input_positions: Dict[Union[int, str], Any] = field(
-        default_factory=dict
-    )
+    paral_input_positions: dict[int | str, Any] = field(default_factory=dict)
 
-    def get_paral_pos(self, subgraph_idx: int) -> List[int]:
+    def get_paral_pos(self, subgraph_idx: int) -> list[int]:
         if self.parallel_num <= 1:
             return []
 
@@ -96,7 +94,7 @@ class PartitionedGraphDriver:
     """
 
     def __init__(
-        self, graph: Graph, strategy: Optional[SplitStrategy] = None
+        self, graph: Graph, strategy: SplitStrategy | None = None
     ) -> None:
         """
         Initialize the GraphDriver object with a given computational graph.
@@ -113,7 +111,7 @@ class PartitionedGraphDriver:
         self._parallelism = self.strategy.parallel_num
         self._subgraph_dependencies = {}
         self._subgraph_input_shape = defaultdict(dict)
-        self._paral_op_shape: Dict[str, List[int]] = {}
+        self._paral_op_shape: dict[str, list[int]] = {}
         self.op_groups = self._graph.op_groups
         (
             self._subgraphs_inputs,
@@ -221,25 +219,24 @@ class PartitionedGraphDriver:
         for i, subgraph_name in enumerate(self.op_groups.keys()):
             paral_pos = self.strategy.get_paral_pos(i)
 
-            input_count = 0
-            for node in self._subgraphs_inputs[subgraph_name]:
-
+            for input_count, node in enumerate(
+                self._subgraphs_inputs[subgraph_name]
+            ):
                 original_shape = list(node.tensor_meta["shape"])
 
                 if input_count >= len(paral_pos):
                     break
 
                 split_dim = paral_pos[input_count]
-                input_count += 1
 
                 if split_dim != -1 and split_dim < len(original_shape):
                     original_shape[split_dim] = (
                         original_shape[split_dim] // self._parallelism
                     )
                     self._add_paral_op_shape(node.name, original_shape)
-                self._subgraph_input_shape[subgraph_name][
-                    node.name
-                ] = original_shape
+                self._subgraph_input_shape[subgraph_name][node.name] = (
+                    original_shape
+                )
 
         for subgraph_name in self.op_groups.keys():
             current_ops = self.op_groups[subgraph_name]
@@ -257,13 +254,13 @@ class PartitionedGraphDriver:
                             ]
                             self._add_paral_op_shape(node.name, new_shape)
                         except IndexError:
-                            print(f"\n[ERROR] PermuteOp Shape Mismatch!")
+                            print("\n[ERROR] PermuteOp Shape Mismatch!")
                             print(f"  Node: {node.name}")
                             print(f"  Input Node: {node.args[0]}")
                             print(f"  Input Shape (old_shape): {old_shape}")
                             print(f"  Permute Indices: {permute_indices}")
                             print(
-                                f"  Reason: Indices require rank {max(permute_indices)+1}, but input has rank {len(old_shape)}."
+                                f"  Reason: Indices require rank {max(permute_indices) + 1}, but input has rank {len(old_shape)}."
                             )
                             raise
 
@@ -450,7 +447,6 @@ class PartitionedGraphDriver:
                             len(non1_slots) == len(old_non1_vals)
                             and len(non1_slots) > 0
                         ):
-
                             locked = {}
                             remaining_old = old_non1_vals.copy()
 
@@ -690,7 +686,7 @@ class PartitionedGraphDriver:
                 key=lambda node: node_to_index.get(node, -1)
             )
 
-    def _get_op_all_dependencies(self, op) -> List[str]:
+    def _get_op_all_dependencies(self, op) -> list[str]:
         deps = []
         for p in op._parents:
             if isinstance(p, str):
@@ -816,9 +812,7 @@ class PartitionedGraphDriver:
         - list: A list of subgraph names in topological order if the graph is acyclic; otherwise, None.
         """
         # Calculate in degree of each subgraph
-        in_degree = {
-            subgraph_name: 0 for subgraph_name in list(self._subgraphs.keys())
-        }
+        in_degree = dict.fromkeys(list(self._subgraphs.keys()), 0)
         for src, dests in self._subgraph_dependencies.items():
             for dest in dests:
                 in_degree[dest] += 1
