@@ -19,9 +19,6 @@
 # ===---------------------------------------------------------------------------
 
 from enum import Enum
-from typing import Dict, Optional, List, Tuple
-
-from .type import TensorDType, TensorMeta
 
 
 class OpType(Enum):
@@ -83,10 +80,10 @@ class Op:
         self._name = None
         self._arguments = []
         self._keyword_arguments = {}
-        self._tensor_meta: Dict = {}
+        self._tensor_meta: dict = {}
         self._op_type: OpType = None
-        self._children: List[str] = []
-        self._parents: List[str] = []
+        self._children: list[str] = []
+        self._parents: list[str] = []
         self._args_index = []
 
     def add_argument(self, arg, arg_index=0):
@@ -120,9 +117,29 @@ class Op:
         """
         self._children.append(child)
 
+    def split_node(self, dim: int, parallel: int):
+        """
+        Split the node into two nodes.
+        """
+        shape = self._tensor_meta["shape"]
+        # shape[dim] = shape[dim] / parallel
+        original_dim = shape[dim]
+        if parallel <= 0:
+            raise ValueError("parallel must be positive when splitting a node.")
+        if original_dim % parallel != 0:
+            raise ValueError(
+                f"Cannot split dim={dim} size={original_dim} into {parallel} parts."
+            )
+        shape[dim] = original_dim // parallel
+        self._tensor_meta["shape"] = shape
+
     @property
     def args(self):
         return self._arguments
+
+    @property
+    def parents(self):
+        return self._parents
 
     @property
     def kwargs(self):
@@ -142,19 +159,21 @@ class Op:
 
     @tensor_meta.setter
     def tensor_meta(self, new_tensor_meta):
-        self._tensor_meta = new_tensor_meta
+        self._tensor_meta.update(new_tensor_meta)
 
 
 class PlaceholderOp(Op):
     def __init__(self) -> None:
         super().__init__()
         self._op_type = OpType.PlaceholderType
+        self._newshape: list = None
 
 
 class MatmulOp(Op):
     def __init__(self) -> None:
         super().__init__()
         self._op_type = OpType.ReduceType
+        self._newshape: list = None
 
 
 class TransposeMatmulFusedOp(Op):
@@ -197,6 +216,7 @@ class ViewOp(Op):
     def __init__(self) -> None:
         super().__init__()
         self._op_type = OpType.ReshapeType
+        self._newshape: list = None
 
 
 class ViewDtypeOp(Op):
@@ -209,6 +229,7 @@ class EmbeddingOp(Op):
     def __init__(self) -> None:
         super().__init__()
         self._op_type = OpType.ReshapeType
+        self._newshape: list = None
 
 
 class OnesOp(Op):
@@ -481,6 +502,7 @@ class ReshapeOp(Op):
     def __init__(self) -> None:
         super().__init__()
         self._op_type = OpType.ReshapeType
+        self._newshape: list = None
 
 
 class SelectOp(Op):
@@ -684,8 +706,8 @@ class CallExternalOp(Op):
     def __init__(
         self,
         call_func_name: str,
-        args: List[str],
-        args_index: List[int],
+        args: list[str],
+        args_index: list[int],
         tensor_meta: dict,
         name: str = None,
     ) -> None:

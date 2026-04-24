@@ -82,6 +82,7 @@ void registerMatMulVectorizationPass();
 void registerMatMulVectorizationDecodePass();
 void registerDequantMatMulVectorizationDecodePass();
 void registerInt4DequantMatMulVectorizationDecodePass();
+void registerMatMulParallelVectorizationTilingPass();
 void registerMatMulParallelVectorizationPass();
 void registerMatMulTransposeBUnrollVecPass();
 void registerMatmulAMXPass();
@@ -146,6 +147,7 @@ int main(int argc, char **argv) {
   mlir::buddy::registerBatchMatMuSCFOptimize();
   mlir::buddy::registerBatchMatMulTransVecPass();
   mlir::buddy::registerBatchMatMulVectorizationDecodePass();
+  mlir::buddy::registerMatMulParallelVectorizationTilingPass();
   mlir::buddy::registerMatMulVectorizationPass();
   mlir::buddy::registerMatMulVectorizationDecodePass();
   mlir::buddy::registerDequantMatMulVectorizationDecodePass();

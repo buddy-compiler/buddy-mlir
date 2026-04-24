@@ -179,12 +179,14 @@ def replace_attention_op(graph: Graph):
     Replace ScaledDotProductFlashAttentionForCpuOp with
     FlashAttentionForCpuPrefillOp.
     """
+    cnt = 1
     for op in list(graph.body):
         if isinstance(op, ScaledDotProductFlashAttentionForCpuOp):
             new_op = classicfuse_register.get(
                 "flash_attention_prefill_fusion"
             )()
-            new_op.name = "FlashAttentionForCpuPrefillOp"
+            new_op.name = f"FlashAttentionForCpuPrefillOp_{cnt}"
+            cnt += 1
             graph.displace_node(op, new_op)
 
 
@@ -212,6 +214,7 @@ def gqa_attention_fusion(graph: Graph):
 
 
 def gqa_attention_fusion_check(graph: Graph):
+    cnt = 1
     for op in graph.body:
         # === GQA Attention pattern ===
         if isinstance(op, ScaledDotProductFlashAttentionForCpuOp):
@@ -272,7 +275,9 @@ def gqa_attention_fusion_check(graph: Graph):
                 v_cache_unsqueeze,
                 v_index_put,
                 "gqa_attention_fusion",
+                unique_index=cnt,
             )
+            cnt += 1
 
 
 def replace_gqa_attention_with_fused_op(
@@ -289,6 +294,7 @@ def replace_gqa_attention_with_fused_op(
     v_cache_unsqueeze: Op,
     v_index_put: Op,
     pattern: str,
+    unique_index: int = 1,
 ):
     """
     Fuse GQA subgraph
@@ -296,7 +302,7 @@ def replace_gqa_attention_with_fused_op(
     """
     fused_cls = classicfuse_register.get(pattern)
     fused_op = fused_cls()
-    fused_op.name = "GQAAttentionFusedOp"
+    fused_op.name = f"GQAAttentionFusedOp_{unique_index}"
 
     # replace SDPA node with GQAAttentionFusedOp
     graph.displace_node(sdpa_node, fused_op)
