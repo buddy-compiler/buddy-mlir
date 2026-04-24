@@ -14029,7 +14029,8 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
     # Cast log_sumexp back to output dtype if needed
     if need_cast:
         log_sumexp_cast_type = ir.RankedTensorType.get(
-            list(output_shape[1]), mlir_dtype
+            [query_shape[0], query_shape[1], query_shape[2]],
+            mlir_dtype,
         )
         log_sumexp = tosa.CastOp(log_sumexp_cast_type, log_sumexp).result
 
@@ -14130,7 +14131,8 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
     # Cast output from f32 back to mlir_dtype (f16) if needed
     if need_cast:
         out_cast_type = ir.RankedTensorType.get(
-            list(output_shape[0]), mlir_dtype
+            [query_shape[0], query_shape[1], query_shape[2], query_shape[3]],
+            mlir_dtype,
         )
         out_tensor = tosa.CastOp(out_cast_type, out_tensor).result
 

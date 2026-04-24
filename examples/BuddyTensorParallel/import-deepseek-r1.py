@@ -70,10 +70,9 @@ if model_path is None:
 
 
 model = AutoModelForCausalLM.from_pretrained(
-    model_path, torchscript=True
+    model_path, dtype=torch.float32
 ).eval()
 model.config.use_cache = False
-
 
 dynamo_compiler_prefill = DynamoCompiler(
     primary_registry=tosa.ops_registry,
@@ -171,7 +170,7 @@ graph_decode.group_map_device["subgraph0_decode"] = DeviceType.CPU
 DECODE_STRATEGY = SplitStrategy(
     name="decode",
     parallel_num=2,
-    ops_count=[6, 42, 2, 6, 11, 2],
+    ops_count=[6, 44, 2, 6, 11, 2],
     # ops_count=[6, 14, 28, 2, 6, 11, 2],
     stage_boundary_op=PowOp,
     stage_boundary_op_num=57,
@@ -194,7 +193,7 @@ DECODE_STRATEGY = SplitStrategy(
 PREFILL_STRATEGY = SplitStrategy(
     name="prefill",
     parallel_num=2,
-    ops_count=[6, 51, 2, 6, 11, 2],
+    ops_count=[6, 50, 2, 6, 11, 2],
     # ops_count=[6, 15, 36, 2, 6, 11, 2],
     stage_boundary_op=PowOp,
     stage_boundary_op_num=57,
@@ -231,6 +230,7 @@ for entry in driver_prefill._subgraph_param_info.items():
     driver_prefill.construct_sub_params(params, entry, output_dir)
 
 
+# driver_decode = PartitionedGraphDriver(graphs_decode[0])
 driver_decode = PartitionedGraphDriver(graphs_decode[0], DECODE_STRATEGY)
 for i in range(len(driver_decode.subgraphs)):
     driver_decode.subgraphs[i].lower_to_top_level_ir()

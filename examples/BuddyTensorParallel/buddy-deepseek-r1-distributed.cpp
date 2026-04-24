@@ -66,6 +66,17 @@ struct MemRefContainer2 {
       : kcache(m1), vcache(m2), data(m3) {}
 };
 
+struct MemRefContainerDecode2 {
+  MemRef<long long, 1> cache_position_out;
+  MemRef<float, 4> kcache;
+  MemRef<float, 4> vcache;
+  MemRef<float, 2> data;
+
+  MemRefContainerDecode2(MemRef<long long, 1> m0, MemRef<float, 4> m1,
+                         MemRef<float, 4> m2, MemRef<float, 2> m3)
+      : cache_position_out(m0), kcache(m1), vcache(m2), data(m3) {}
+};
+
 /// Declare DeepSeekR1 forward function.
 extern "C" {
 void _mlir_ciface_forward_prefill0(MemRefContainer0 *, MemRef<float, 1> *,
@@ -87,7 +98,7 @@ void _mlir_ciface_forward_decode0(MemRefContainer0 *, MemRef<float, 1> *,
                                   MemRef<long long, 1> *);
 void _mlir_ciface_forward_decode1(MemRef<float, 3> *, MemRef<float, 1> *,
                                   MemRef<float, 3> *);
-void _mlir_ciface_forward_decode2(MemRefContainer2 *, MemRef<float, 1> *,
+void _mlir_ciface_forward_decode2(MemRefContainerDecode2 *, MemRef<float, 1> *,
                                   MemRef<long long, 1> *, MemRef<float, 4> *,
                                   MemRef<float, 4> *, MemRef<int8_t, 4> *,
                                   MemRef<float, 3> *, MemRef<float, 3> *,
@@ -278,8 +289,10 @@ int main(int argc, char *argv[]) {
     MemRef<float, 2> tmp2DContainerDecode({1, HiddenSize0});
     MemRef<float, 2> sub2DContainerDecode({1, HiddenSize0});
     float *mhaOutputPtrDecode = tmp2DContainerDecode.getData();
-    MemRefContainer2 kvDecodeContainer0(kv0[0], kv0[1], tmp2DContainerDecode);
-    MemRefContainer2 *kvDecodeContainerPtr0 = &kvDecodeContainer0;
+    MemRef<long long, 1> cachePositionOutDecode({1}, 0LL);
+    MemRefContainerDecode2 kvDecodeContainer0(cachePositionOutDecode, kv0[0],
+                                              kv0[1], tmp2DContainerDecode);
+    MemRefContainerDecode2 *kvDecodeContainerPtr0 = &kvDecodeContainer0;
 
     // -----------------------------------------------------------------------
     // Load frontend and local-shard params.
@@ -817,8 +830,10 @@ int main(int argc, char *argv[]) {
     float *mhaMemRef3D1PtrDecode = mhaMemRef3D1Decode.getData();
     float *mhaMemRef3D2PtrDecode = mhaMemRef3D2Decode.getData();
     float *mhaOutputPtrDecode = tmp2DContainerDecode.getData();
-    MemRefContainer2 kvDecodeContainer0(kv0[0], kv0[1], tmp2DContainerDecode);
-    MemRefContainer2 *kvDecodeContainerPtr0 = &kvDecodeContainer0;
+    MemRef<long long, 1> cachePositionOutDecode({1}, 0LL);
+    MemRefContainerDecode2 kvDecodeContainer0(cachePositionOutDecode, kv0[0],
+                                              kv0[1], tmp2DContainerDecode);
+    MemRefContainerDecode2 *kvDecodeContainerPtr0 = &kvDecodeContainer0;
 
     MPI_Request recv_req_decode[5];
     int ctrl = 0;
