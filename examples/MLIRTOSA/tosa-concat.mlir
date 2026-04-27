@@ -5,7 +5,7 @@ func.func @main() {
 
   %output = "tosa.concat"(%0,%1) {axis=0 : i32} : (tensor<2x2xf32>,tensor<3x2xf32>) -> tensor<5x2xf32>
   %tensor_unranked = tensor.cast %output : tensor<5x2xf32> to tensor<*xf32>
-  
+
   call @printMemrefF32(%tensor_unranked) : (tensor<*xf32>) -> ()
   return
 }

@@ -1,7 +1,7 @@
 module attributes {gpu.container_module} {
   gpu.module @kernels {
     gpu.func @vector_extract() kernel {
-      
+
       %base = arith.constant dense<[[0, 1, 2],
                                     [10, 11, 12],
                                     [20, 21, 22]]> : vector<3x3xi32>

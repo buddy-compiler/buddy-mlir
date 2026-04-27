@@ -1,6 +1,6 @@
 # Algorithm Explanation
 
-This document shows the details of the algorithms used in DAPVectorization pass. 
+This document shows the details of the algorithms used in DAPVectorization pass.
 
 ## IIR Vectorization Implementation
 
@@ -29,8 +29,8 @@ This section shows the implementation of IIR Vectorization algorithm. The exampl
     IIR equation were segmented into 3 parts, each part were calculated in different time moment. When $S2$ was calculated at time $t_i$, it will be used to calculate $S1$ at time $t_{i+1}$, then produce the final result at time $t_{i+2}$.
 
    ![Generate SOS params in vector form](./Images/IIRVectorParams.png)
-    In the above image, vector $B0$ were the collection of all $b_0$ params, other vectors $B1, B2, A1, A2$ each collect there corresponding params. 
-    
+    In the above image, vector $B0$ were the collection of all $b_0$ params, other vectors $B1, B2, A1, A2$ each collect there corresponding params.
+
 2. **Computing One Set of Params**
    ![Computing step 1](./Images/IIRComputing1.png)
     The first step in computation, calculate $y_0^0$ with the following equation:

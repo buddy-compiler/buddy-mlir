@@ -8,7 +8,7 @@ func.func @main() -> i32 {
   %c0 = arith.constant 0 : index
   %mask = arith.constant dense<[1, 1, 1, 1, 1, 1, 0, 0]> : vector<8xi1>
   %vl = arith.constant 4 : i32
-  
+
   %test = vector_exp.predication %mask, %vl : vector<8xi1>, i32 {
     %ele = vector.load %mem_i32[%c0, %c0] : memref<2x10xi32>, vector<8xi32>
     vector.yield %ele : vector<8xi32>

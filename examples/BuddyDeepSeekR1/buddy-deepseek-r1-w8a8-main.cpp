@@ -158,34 +158,160 @@ struct MemRefContainer {
                 &kv48, &kv49, &kv50, &kv51, &kv52, &kv53, &kv54, &kv55} {}
 };
 
-/// W8A8 quantized forward functions take two param memrefs: f32 and i8.
+/// Decode returns layout for quantized variants:
+/// cache_position_out, kv0, kv1, dummy0..dummy26, kv2..kv55, logits.
+struct DecodeReturns {
+  MemRef<long long, 1> cache_position_out;
+  MemRef<float, 4> kv0;
+  MemRef<float, 4> kv1;
+  MemRef<long long, 1> ret_dummy0;
+  MemRef<long long, 1> ret_dummy1;
+  MemRef<long long, 1> ret_dummy2;
+  MemRef<long long, 1> ret_dummy3;
+  MemRef<long long, 1> ret_dummy4;
+  MemRef<long long, 1> ret_dummy5;
+  MemRef<long long, 1> ret_dummy6;
+  MemRef<long long, 1> ret_dummy7;
+  MemRef<long long, 1> ret_dummy8;
+  MemRef<long long, 1> ret_dummy9;
+  MemRef<long long, 1> ret_dummy10;
+  MemRef<long long, 1> ret_dummy11;
+  MemRef<long long, 1> ret_dummy12;
+  MemRef<long long, 1> ret_dummy13;
+  MemRef<long long, 1> ret_dummy14;
+  MemRef<long long, 1> ret_dummy15;
+  MemRef<long long, 1> ret_dummy16;
+  MemRef<long long, 1> ret_dummy17;
+  MemRef<long long, 1> ret_dummy18;
+  MemRef<long long, 1> ret_dummy19;
+  MemRef<long long, 1> ret_dummy20;
+  MemRef<long long, 1> ret_dummy21;
+  MemRef<long long, 1> ret_dummy22;
+  MemRef<long long, 1> ret_dummy23;
+  MemRef<long long, 1> ret_dummy24;
+  MemRef<long long, 1> ret_dummy25;
+  MemRef<long long, 1> ret_dummy26;
+  MemRef<float, 4> kv2;
+  MemRef<float, 4> kv3;
+  MemRef<float, 4> kv4;
+  MemRef<float, 4> kv5;
+  MemRef<float, 4> kv6;
+  MemRef<float, 4> kv7;
+  MemRef<float, 4> kv8;
+  MemRef<float, 4> kv9;
+  MemRef<float, 4> kv10;
+  MemRef<float, 4> kv11;
+  MemRef<float, 4> kv12;
+  MemRef<float, 4> kv13;
+  MemRef<float, 4> kv14;
+  MemRef<float, 4> kv15;
+  MemRef<float, 4> kv16;
+  MemRef<float, 4> kv17;
+  MemRef<float, 4> kv18;
+  MemRef<float, 4> kv19;
+  MemRef<float, 4> kv20;
+  MemRef<float, 4> kv21;
+  MemRef<float, 4> kv22;
+  MemRef<float, 4> kv23;
+  MemRef<float, 4> kv24;
+  MemRef<float, 4> kv25;
+  MemRef<float, 4> kv26;
+  MemRef<float, 4> kv27;
+  MemRef<float, 4> kv28;
+  MemRef<float, 4> kv29;
+  MemRef<float, 4> kv30;
+  MemRef<float, 4> kv31;
+  MemRef<float, 4> kv32;
+  MemRef<float, 4> kv33;
+  MemRef<float, 4> kv34;
+  MemRef<float, 4> kv35;
+  MemRef<float, 4> kv36;
+  MemRef<float, 4> kv37;
+  MemRef<float, 4> kv38;
+  MemRef<float, 4> kv39;
+  MemRef<float, 4> kv40;
+  MemRef<float, 4> kv41;
+  MemRef<float, 4> kv42;
+  MemRef<float, 4> kv43;
+  MemRef<float, 4> kv44;
+  MemRef<float, 4> kv45;
+  MemRef<float, 4> kv46;
+  MemRef<float, 4> kv47;
+  MemRef<float, 4> kv48;
+  MemRef<float, 4> kv49;
+  MemRef<float, 4> kv50;
+  MemRef<float, 4> kv51;
+  MemRef<float, 4> kv52;
+  MemRef<float, 4> kv53;
+  MemRef<float, 4> kv54;
+  MemRef<float, 4> kv55;
+  MemRef<float, 3> logits;
+};
+
+using KVPtrArray = std::array<MemRef<float, 4> *, 56>;
+
+KVPtrArray buildDecodeKVPtrs(DecodeReturns &ret) {
+  return {&ret.kv0,  &ret.kv1,  &ret.kv2,  &ret.kv3,  &ret.kv4,  &ret.kv5,
+          &ret.kv6,  &ret.kv7,  &ret.kv8,  &ret.kv9,  &ret.kv10, &ret.kv11,
+          &ret.kv12, &ret.kv13, &ret.kv14, &ret.kv15, &ret.kv16, &ret.kv17,
+          &ret.kv18, &ret.kv19, &ret.kv20, &ret.kv21, &ret.kv22, &ret.kv23,
+          &ret.kv24, &ret.kv25, &ret.kv26, &ret.kv27, &ret.kv28, &ret.kv29,
+          &ret.kv30, &ret.kv31, &ret.kv32, &ret.kv33, &ret.kv34, &ret.kv35,
+          &ret.kv36, &ret.kv37, &ret.kv38, &ret.kv39, &ret.kv40, &ret.kv41,
+          &ret.kv42, &ret.kv43, &ret.kv44, &ret.kv45, &ret.kv46, &ret.kv47,
+          &ret.kv48, &ret.kv49, &ret.kv50, &ret.kv51, &ret.kv52, &ret.kv53,
+          &ret.kv54, &ret.kv55};
+}
+
+/// W8A8 quantization (int8 weights + int8 activation path) with f32 host-side
+/// buffers. Forward functions take two param memrefs: f32 and i8.
 extern "C" void _mlir_ciface_forward_prefill(MemRefContainer *result,
                                              MemRef<float, 1> *f32_params,
                                              MemRef<int8_t, 1> *i8_params,
-                                             Text<size_t, 2> *input);
+                                             MemRef<long long, 2> *input);
 
 extern "C" void _mlir_ciface_forward_decode(
-    MemRefContainer *result, MemRef<float, 1> *f32_params,
+    DecodeReturns *result, MemRef<float, 1> *f32_params,
     MemRef<int8_t, 1> *i8_params, MemRef<long long, 2> *input,
     MemRef<long long, 1> *cache_pos, MemRef<float, 4> *kv0,
-    MemRef<float, 4> *kv1, MemRef<float, 4> *kv2, MemRef<float, 4> *kv3,
-    MemRef<float, 4> *kv4, MemRef<float, 4> *kv5, MemRef<float, 4> *kv6,
-    MemRef<float, 4> *kv7, MemRef<float, 4> *kv8, MemRef<float, 4> *kv9,
-    MemRef<float, 4> *kv10, MemRef<float, 4> *kv11, MemRef<float, 4> *kv12,
-    MemRef<float, 4> *kv13, MemRef<float, 4> *kv14, MemRef<float, 4> *kv15,
-    MemRef<float, 4> *kv16, MemRef<float, 4> *kv17, MemRef<float, 4> *kv18,
-    MemRef<float, 4> *kv19, MemRef<float, 4> *kv20, MemRef<float, 4> *kv21,
-    MemRef<float, 4> *kv22, MemRef<float, 4> *kv23, MemRef<float, 4> *kv24,
-    MemRef<float, 4> *kv25, MemRef<float, 4> *kv26, MemRef<float, 4> *kv27,
-    MemRef<float, 4> *kv28, MemRef<float, 4> *kv29, MemRef<float, 4> *kv30,
-    MemRef<float, 4> *kv31, MemRef<float, 4> *kv32, MemRef<float, 4> *kv33,
-    MemRef<float, 4> *kv34, MemRef<float, 4> *kv35, MemRef<float, 4> *kv36,
-    MemRef<float, 4> *kv37, MemRef<float, 4> *kv38, MemRef<float, 4> *kv39,
-    MemRef<float, 4> *kv40, MemRef<float, 4> *kv41, MemRef<float, 4> *kv42,
-    MemRef<float, 4> *kv43, MemRef<float, 4> *kv44, MemRef<float, 4> *kv45,
-    MemRef<float, 4> *kv46, MemRef<float, 4> *kv47, MemRef<float, 4> *kv48,
-    MemRef<float, 4> *kv49, MemRef<float, 4> *kv50, MemRef<float, 4> *kv51,
-    MemRef<float, 4> *kv52, MemRef<float, 4> *kv53, MemRef<float, 4> *kv54,
+    MemRef<float, 4> *kv1, MemRef<long long, 1> *dummy0, MemRef<float, 4> *kv2,
+    MemRef<float, 4> *kv3, MemRef<long long, 1> *dummy1, MemRef<float, 4> *kv4,
+    MemRef<float, 4> *kv5, MemRef<long long, 1> *dummy2, MemRef<float, 4> *kv6,
+    MemRef<float, 4> *kv7, MemRef<long long, 1> *dummy3, MemRef<float, 4> *kv8,
+    MemRef<float, 4> *kv9, MemRef<long long, 1> *dummy4, MemRef<float, 4> *kv10,
+    MemRef<float, 4> *kv11, MemRef<long long, 1> *dummy5,
+    MemRef<float, 4> *kv12, MemRef<float, 4> *kv13,
+    MemRef<long long, 1> *dummy6, MemRef<float, 4> *kv14,
+    MemRef<float, 4> *kv15, MemRef<long long, 1> *dummy7,
+    MemRef<float, 4> *kv16, MemRef<float, 4> *kv17,
+    MemRef<long long, 1> *dummy8, MemRef<float, 4> *kv18,
+    MemRef<float, 4> *kv19, MemRef<long long, 1> *dummy9,
+    MemRef<float, 4> *kv20, MemRef<float, 4> *kv21,
+    MemRef<long long, 1> *dummy10, MemRef<float, 4> *kv22,
+    MemRef<float, 4> *kv23, MemRef<long long, 1> *dummy11,
+    MemRef<float, 4> *kv24, MemRef<float, 4> *kv25,
+    MemRef<long long, 1> *dummy12, MemRef<float, 4> *kv26,
+    MemRef<float, 4> *kv27, MemRef<long long, 1> *dummy13,
+    MemRef<float, 4> *kv28, MemRef<float, 4> *kv29,
+    MemRef<long long, 1> *dummy14, MemRef<float, 4> *kv30,
+    MemRef<float, 4> *kv31, MemRef<long long, 1> *dummy15,
+    MemRef<float, 4> *kv32, MemRef<float, 4> *kv33,
+    MemRef<long long, 1> *dummy16, MemRef<float, 4> *kv34,
+    MemRef<float, 4> *kv35, MemRef<long long, 1> *dummy17,
+    MemRef<float, 4> *kv36, MemRef<float, 4> *kv37,
+    MemRef<long long, 1> *dummy18, MemRef<float, 4> *kv38,
+    MemRef<float, 4> *kv39, MemRef<long long, 1> *dummy19,
+    MemRef<float, 4> *kv40, MemRef<float, 4> *kv41,
+    MemRef<long long, 1> *dummy20, MemRef<float, 4> *kv42,
+    MemRef<float, 4> *kv43, MemRef<long long, 1> *dummy21,
+    MemRef<float, 4> *kv44, MemRef<float, 4> *kv45,
+    MemRef<long long, 1> *dummy22, MemRef<float, 4> *kv46,
+    MemRef<float, 4> *kv47, MemRef<long long, 1> *dummy23,
+    MemRef<float, 4> *kv48, MemRef<float, 4> *kv49,
+    MemRef<long long, 1> *dummy24, MemRef<float, 4> *kv50,
+    MemRef<float, 4> *kv51, MemRef<long long, 1> *dummy25,
+    MemRef<float, 4> *kv52, MemRef<float, 4> *kv53,
+    MemRef<long long, 1> *dummy26, MemRef<float, 4> *kv54,
     MemRef<float, 4> *kv55);
 
 // -----------------------------------------------------------------------------
@@ -254,14 +380,14 @@ int findMaxIndex(const float *start, const float *end) {
 }
 
 void copy_kv_by_cache_position_block(const MemRefContainer &prefill,
-                                     MemRefContainer &decode,
+                                     const KVPtrArray &decodePtrs,
                                      int cache_position) {
   constexpr int num_kv = 56;
   int copy_len = std::min(cache_position, (int)MaxTokenLength);
 
   for (int k = 0; k < num_kv; ++k) {
     auto &src = *prefill.kv_ptrs[k];
-    auto &dst = *decode.kv_ptrs[k];
+    auto &dst = *decodePtrs[k];
 
     for (int h = 0; h < (int)HeadNum; ++h) {
       size_t bytes_to_copy =
@@ -294,7 +420,8 @@ int main() {
   getUserInput(inputStr);
 
   Text<size_t, 2> outputContainer;
-  Text<size_t, 2> inputContainerPrefill(inputStr);
+  Text<size_t, 2> tokenizedText(inputStr);
+  MemRef<long long, 2> inputContainerPrefill({1, MaxTokenLength}, 0LL);
   MemRef<long long, 2> inputContainerDecode({1, 1}, 0LL);
   MemRef<float, 1> F32ParamsContainer({F32ParamsSize});
   MemRef<int8_t, 1> I8ParamsContainer({I8ParamsSize});
@@ -367,7 +494,13 @@ int main() {
       kv50, kv51, kv52, kv53, kv54, kv55, logits_prefill);
   MemRefContainer *ptrPrefillResultContainer = &prefillResultContainer;
 
-  tokenizeInput(vocabDir, inputContainerPrefill);
+  tokenizeInput(vocabDir, tokenizedText);
+  {
+    size_t *src = tokenizedText.getData();
+    long long *dst = inputContainerPrefill.getData();
+    for (size_t i = 0; i < MaxTokenLength; ++i)
+      dst[i] = static_cast<long long>(src[i]);
+  }
   outputContainer.loadVocab(vocabDir);
   loadParameters(f32ParamsDir, F32ParamsContainer);
   loadParameters(i8ParamsDir, I8ParamsContainer);
@@ -380,12 +513,12 @@ int main() {
   const std::chrono::duration<double, std::milli> inferenceTime =
       inferenceEnd - inferenceStart;
 
-  int tokenIndex = inputContainerPrefill.getTokenCnt() - 1;
+  int tokenIndex = tokenizedText.getTokenCnt() - 1;
   const float *startPtr =
       ptrPrefillResultContainer->logits.getData() + tokenIndex * MaxVocabSize;
   const float *endPtr = startPtr + MaxVocabSize;
   int maxIndex = findMaxIndex(startPtr, endPtr);
-  std::string tok = inputContainerPrefill.getStr(maxIndex);
+  std::string tok = tokenizedText.getStr(maxIndex);
   printIterInfo(0, tok, inferenceTime.count() / 1000);
   const double prefillSeconds = inferenceTime.count() / 1000.0;
   if (prefillSeconds > 0.0) {
@@ -395,56 +528,179 @@ int main() {
   outputContainer.appendTokenIdx(maxIndex);
 
   MemRef<float, 3> logits_decode({1, 1, MaxVocabSize});
+  DecodeReturns decodeResultContainer = {
+      MemRef<long long, 1>({1}, 0LL), // cache_position_out
+      kv0,
+      kv1,
+      MemRef<long long, 1>({1}, 0LL),
+      MemRef<long long, 1>({1}, 0LL),
+      MemRef<long long, 1>({1}, 0LL),
+      MemRef<long long, 1>({1}, 0LL),
+      MemRef<long long, 1>({1}, 0LL),
+      MemRef<long long, 1>({1}, 0LL),
+      MemRef<long long, 1>({1}, 0LL),
+      MemRef<long long, 1>({1}, 0LL),
+      MemRef<long long, 1>({1}, 0LL),
+      MemRef<long long, 1>({1}, 0LL),
+      MemRef<long long, 1>({1}, 0LL),
+      MemRef<long long, 1>({1}, 0LL),
+      MemRef<long long, 1>({1}, 0LL),
+      MemRef<long long, 1>({1}, 0LL),
+      MemRef<long long, 1>({1}, 0LL),
+      MemRef<long long, 1>({1}, 0LL),
+      MemRef<long long, 1>({1}, 0LL),
+      MemRef<long long, 1>({1}, 0LL),
+      MemRef<long long, 1>({1}, 0LL),
+      MemRef<long long, 1>({1}, 0LL),
+      MemRef<long long, 1>({1}, 0LL),
+      MemRef<long long, 1>({1}, 0LL),
+      MemRef<long long, 1>({1}, 0LL),
+      MemRef<long long, 1>({1}, 0LL),
+      MemRef<long long, 1>({1}, 0LL),
+      MemRef<long long, 1>({1}, 0LL),
+      MemRef<long long, 1>({1}, 0LL),
+      kv2,
+      kv3,
+      kv4,
+      kv5,
+      kv6,
+      kv7,
+      kv8,
+      kv9,
+      kv10,
+      kv11,
+      kv12,
+      kv13,
+      kv14,
+      kv15,
+      kv16,
+      kv17,
+      kv18,
+      kv19,
+      kv20,
+      kv21,
+      kv22,
+      kv23,
+      kv24,
+      kv25,
+      kv26,
+      kv27,
+      kv28,
+      kv29,
+      kv30,
+      kv31,
+      kv32,
+      kv33,
+      kv34,
+      kv35,
+      kv36,
+      kv37,
+      kv38,
+      kv39,
+      kv40,
+      kv41,
+      kv42,
+      kv43,
+      kv44,
+      kv45,
+      kv46,
+      kv47,
+      kv48,
+      kv49,
+      kv50,
+      kv51,
+      kv52,
+      kv53,
+      kv54,
+      kv55,
+      logits_decode};
 
-  MemRefContainer decodeResultContainer(
-      kv0, kv1, kv2, kv3, kv4, kv5, kv6, kv7, kv8, kv9, kv10, kv11, kv12, kv13,
-      kv14, kv15, kv16, kv17, kv18, kv19, kv20, kv21, kv22, kv23, kv24, kv25,
-      kv26, kv27, kv28, kv29, kv30, kv31, kv32, kv33, kv34, kv35, kv36, kv37,
-      kv38, kv39, kv40, kv41, kv42, kv43, kv44, kv45, kv46, kv47, kv48, kv49,
-      kv50, kv51, kv52, kv53, kv54, kv55, logits_decode);
+  KVPtrArray decodePtrs = buildDecodeKVPtrs(decodeResultContainer);
 
-  MemRefContainer *ptrDecodeResultContainer = &decodeResultContainer;
+  copy_kv_by_cache_position_block(
+      prefillResultContainer, decodePtrs,
+      static_cast<int>(tokenizedText.getTokenCnt()));
 
-  copy_kv_by_cache_position_block(prefillResultContainer, decodeResultContainer,
-                                  inputContainerPrefill.getTokenCnt());
-
-  cachePosition.getData()[0] = inputContainerPrefill.getTokenCnt();
-  int generateLen = MaxTokenLength - inputContainerPrefill.getTokenCnt();
+  cachePosition.getData()[0] = tokenizedText.getTokenCnt();
+  int generateLen = MaxTokenLength - tokenizedText.getTokenCnt();
   double decodeTimeAccumMs = 0.0;
   size_t decodeTokens = 0;
   for (int i = 1; i <= generateLen; i++) {
     const auto inferenceStart = std::chrono::high_resolution_clock::now();
+
+    long long curPos = cachePosition.getData()[0];
+    decodeResultContainer.ret_dummy0.getData()[0] = curPos;
+    decodeResultContainer.ret_dummy1.getData()[0] = curPos;
+    decodeResultContainer.ret_dummy2.getData()[0] = curPos;
+    decodeResultContainer.ret_dummy3.getData()[0] = curPos;
+    decodeResultContainer.ret_dummy4.getData()[0] = curPos;
+    decodeResultContainer.ret_dummy5.getData()[0] = curPos;
+    decodeResultContainer.ret_dummy6.getData()[0] = curPos;
+    decodeResultContainer.ret_dummy7.getData()[0] = curPos;
+    decodeResultContainer.ret_dummy8.getData()[0] = curPos;
+    decodeResultContainer.ret_dummy9.getData()[0] = curPos;
+    decodeResultContainer.ret_dummy10.getData()[0] = curPos;
+    decodeResultContainer.ret_dummy11.getData()[0] = curPos;
+    decodeResultContainer.ret_dummy12.getData()[0] = curPos;
+    decodeResultContainer.ret_dummy13.getData()[0] = curPos;
+    decodeResultContainer.ret_dummy14.getData()[0] = curPos;
+    decodeResultContainer.ret_dummy15.getData()[0] = curPos;
+    decodeResultContainer.ret_dummy16.getData()[0] = curPos;
+    decodeResultContainer.ret_dummy17.getData()[0] = curPos;
+    decodeResultContainer.ret_dummy18.getData()[0] = curPos;
+    decodeResultContainer.ret_dummy19.getData()[0] = curPos;
+    decodeResultContainer.ret_dummy20.getData()[0] = curPos;
+    decodeResultContainer.ret_dummy21.getData()[0] = curPos;
+    decodeResultContainer.ret_dummy22.getData()[0] = curPos;
+    decodeResultContainer.ret_dummy23.getData()[0] = curPos;
+    decodeResultContainer.ret_dummy24.getData()[0] = curPos;
+    decodeResultContainer.ret_dummy25.getData()[0] = curPos;
+    decodeResultContainer.ret_dummy26.getData()[0] = curPos;
+
     _mlir_ciface_forward_decode(
-        ptrDecodeResultContainer, &F32ParamsContainer, &I8ParamsContainer,
-        &inputContainerDecode, &cachePosition, &ptrDecodeResultContainer->kv0,
-        &ptrDecodeResultContainer->kv1, &ptrDecodeResultContainer->kv2,
-        &ptrDecodeResultContainer->kv3, &ptrDecodeResultContainer->kv4,
-        &ptrDecodeResultContainer->kv5, &ptrDecodeResultContainer->kv6,
-        &ptrDecodeResultContainer->kv7, &ptrDecodeResultContainer->kv8,
-        &ptrDecodeResultContainer->kv9, &ptrDecodeResultContainer->kv10,
-        &ptrDecodeResultContainer->kv11, &ptrDecodeResultContainer->kv12,
-        &ptrDecodeResultContainer->kv13, &ptrDecodeResultContainer->kv14,
-        &ptrDecodeResultContainer->kv15, &ptrDecodeResultContainer->kv16,
-        &ptrDecodeResultContainer->kv17, &ptrDecodeResultContainer->kv18,
-        &ptrDecodeResultContainer->kv19, &ptrDecodeResultContainer->kv20,
-        &ptrDecodeResultContainer->kv21, &ptrDecodeResultContainer->kv22,
-        &ptrDecodeResultContainer->kv23, &ptrDecodeResultContainer->kv24,
-        &ptrDecodeResultContainer->kv25, &ptrDecodeResultContainer->kv26,
-        &ptrDecodeResultContainer->kv27, &ptrDecodeResultContainer->kv28,
-        &ptrDecodeResultContainer->kv29, &ptrDecodeResultContainer->kv30,
-        &ptrDecodeResultContainer->kv31, &ptrDecodeResultContainer->kv32,
-        &ptrDecodeResultContainer->kv33, &ptrDecodeResultContainer->kv34,
-        &ptrDecodeResultContainer->kv35, &ptrDecodeResultContainer->kv36,
-        &ptrDecodeResultContainer->kv37, &ptrDecodeResultContainer->kv38,
-        &ptrDecodeResultContainer->kv39, &ptrDecodeResultContainer->kv40,
-        &ptrDecodeResultContainer->kv41, &ptrDecodeResultContainer->kv42,
-        &ptrDecodeResultContainer->kv43, &ptrDecodeResultContainer->kv44,
-        &ptrDecodeResultContainer->kv45, &ptrDecodeResultContainer->kv46,
-        &ptrDecodeResultContainer->kv47, &ptrDecodeResultContainer->kv48,
-        &ptrDecodeResultContainer->kv49, &ptrDecodeResultContainer->kv50,
-        &ptrDecodeResultContainer->kv51, &ptrDecodeResultContainer->kv52,
-        &ptrDecodeResultContainer->kv53, &ptrDecodeResultContainer->kv54,
-        &ptrDecodeResultContainer->kv55);
+        &decodeResultContainer, &F32ParamsContainer, &I8ParamsContainer,
+        &inputContainerDecode, &cachePosition, &decodeResultContainer.kv0,
+        &decodeResultContainer.kv1, &decodeResultContainer.ret_dummy0,
+        &decodeResultContainer.kv2, &decodeResultContainer.kv3,
+        &decodeResultContainer.ret_dummy1, &decodeResultContainer.kv4,
+        &decodeResultContainer.kv5, &decodeResultContainer.ret_dummy2,
+        &decodeResultContainer.kv6, &decodeResultContainer.kv7,
+        &decodeResultContainer.ret_dummy3, &decodeResultContainer.kv8,
+        &decodeResultContainer.kv9, &decodeResultContainer.ret_dummy4,
+        &decodeResultContainer.kv10, &decodeResultContainer.kv11,
+        &decodeResultContainer.ret_dummy5, &decodeResultContainer.kv12,
+        &decodeResultContainer.kv13, &decodeResultContainer.ret_dummy6,
+        &decodeResultContainer.kv14, &decodeResultContainer.kv15,
+        &decodeResultContainer.ret_dummy7, &decodeResultContainer.kv16,
+        &decodeResultContainer.kv17, &decodeResultContainer.ret_dummy8,
+        &decodeResultContainer.kv18, &decodeResultContainer.kv19,
+        &decodeResultContainer.ret_dummy9, &decodeResultContainer.kv20,
+        &decodeResultContainer.kv21, &decodeResultContainer.ret_dummy10,
+        &decodeResultContainer.kv22, &decodeResultContainer.kv23,
+        &decodeResultContainer.ret_dummy11, &decodeResultContainer.kv24,
+        &decodeResultContainer.kv25, &decodeResultContainer.ret_dummy12,
+        &decodeResultContainer.kv26, &decodeResultContainer.kv27,
+        &decodeResultContainer.ret_dummy13, &decodeResultContainer.kv28,
+        &decodeResultContainer.kv29, &decodeResultContainer.ret_dummy14,
+        &decodeResultContainer.kv30, &decodeResultContainer.kv31,
+        &decodeResultContainer.ret_dummy15, &decodeResultContainer.kv32,
+        &decodeResultContainer.kv33, &decodeResultContainer.ret_dummy16,
+        &decodeResultContainer.kv34, &decodeResultContainer.kv35,
+        &decodeResultContainer.ret_dummy17, &decodeResultContainer.kv36,
+        &decodeResultContainer.kv37, &decodeResultContainer.ret_dummy18,
+        &decodeResultContainer.kv38, &decodeResultContainer.kv39,
+        &decodeResultContainer.ret_dummy19, &decodeResultContainer.kv40,
+        &decodeResultContainer.kv41, &decodeResultContainer.ret_dummy20,
+        &decodeResultContainer.kv42, &decodeResultContainer.kv43,
+        &decodeResultContainer.ret_dummy21, &decodeResultContainer.kv44,
+        &decodeResultContainer.kv45, &decodeResultContainer.ret_dummy22,
+        &decodeResultContainer.kv46, &decodeResultContainer.kv47,
+        &decodeResultContainer.ret_dummy23, &decodeResultContainer.kv48,
+        &decodeResultContainer.kv49, &decodeResultContainer.ret_dummy24,
+        &decodeResultContainer.kv50, &decodeResultContainer.kv51,
+        &decodeResultContainer.ret_dummy25, &decodeResultContainer.kv52,
+        &decodeResultContainer.kv53, &decodeResultContainer.ret_dummy26,
+        &decodeResultContainer.kv54, &decodeResultContainer.kv55);
 
     const auto inferenceEnd = std::chrono::high_resolution_clock::now();
     const std::chrono::duration<double, std::milli> inferenceTime =
@@ -452,10 +708,10 @@ int main() {
     decodeTimeAccumMs += inferenceTime.count();
     decodeTokens += 1;
 
-    const float *startPtr = ptrDecodeResultContainer->logits.getData();
+    const float *startPtr = decodeResultContainer.logits.getData();
     const float *endPtr = startPtr + MaxVocabSize;
     maxIndex = findMaxIndex(startPtr, endPtr);
-    std::string tok = inputContainerPrefill.getStr(maxIndex);
+    std::string tok = tokenizedText.getStr(maxIndex);
     printIterInfo(i, tok, inferenceTime.count() / 1000);
 
     if (maxIndex == 151643) {

@@ -25,7 +25,9 @@ def test_arange_start_step():
 
 # CHECK: module
 # CHECK: func.func @forward
-# CHECK: tosa.const
+# CHECK: tensor.generate
+# CHECK: arith.index_cast
+# CHECK: arith.sitofp
 # CHECK: return
 
 test_arange_start_step()

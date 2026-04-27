@@ -52,7 +52,7 @@ module {
       %m_idx_7 = arith.addi %m_idx, %c7 : index
 
       scf.for %n_idx = %c0 to %n step %c1 {
-        %tmp_iter_0, %tmp_iter_1, %tmp_iter_2, %tmp_iter_3, 
+        %tmp_iter_0, %tmp_iter_1, %tmp_iter_2, %tmp_iter_3,
         %tmp_iter_4, %tmp_iter_5, %tmp_iter_6, %tmp_iter_7, %k_idx_iter
             = scf.for %k_idx = %c0 to %k_body_bound step %step
             iter_args(%sum_vec_0 = %sum_init,
@@ -62,7 +62,7 @@ module {
                         %sum_vec_4 = %sum_init,
                         %sum_vec_5 = %sum_init,
                         %sum_vec_6 = %sum_init,
-                        %sum_vec_7 = %sum_init, 
+                        %sum_vec_7 = %sum_init,
                         %idx = %c0
                         )
             -> (vector<32xf32>, vector<32xf32>, vector<32xf32>, vector<32xf32>,
@@ -87,8 +87,8 @@ module {
 
             %k_next = arith.addi %k_idx, %step : index
             scf.yield %res_sum_vec_0, %res_sum_vec_1, %res_sum_vec_2, %res_sum_vec_3,
-                      %res_sum_vec_4, %res_sum_vec_5, %res_sum_vec_6, %res_sum_vec_7, %k_next 
-                : vector<32xf32>, vector<32xf32>, vector<32xf32>, vector<32xf32>, 
+                      %res_sum_vec_4, %res_sum_vec_5, %res_sum_vec_6, %res_sum_vec_7, %k_next
+                : vector<32xf32>, vector<32xf32>, vector<32xf32>, vector<32xf32>,
                 vector<32xf32>, vector<32xf32>, vector<32xf32>, vector<32xf32>, index
         }
 

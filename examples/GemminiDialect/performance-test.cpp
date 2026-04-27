@@ -26,13 +26,13 @@ using namespace std;
 
 #elif MATMUL == 5
 #define I 512
-#define J 512 
-#define K 512 
+#define J 512
+#define K 512
 
 #elif MATMUL == 6
 #define I 1024
-#define J 1024 
-#define K 1024 
+#define J 1024
+#define K 1024
 #endif
 #endif
 
@@ -87,7 +87,7 @@ using namespace std;
 #endif
 
 // If DIALECT is 1,we use linalg dialect,otherwise we use gemmini.
-#ifndef DIALECT 
+#ifndef DIALECT
 #define DIALECT 0
 #endif
 
@@ -168,31 +168,31 @@ void _mlir_ciface_linalg_conv6(MemRef<int8_t, 4> *input,
 
 void _mlir_ciface_gemmini_conv1(MemRef<int8_t, 4>* input,
                                 MemRef<int8_t, 2>* weights,
-                                MemRef<int32_t, 1>* bias, 
+                                MemRef<int32_t, 1>* bias,
                                 MemRef<int8_t, 2> *output);
 
 void _mlir_ciface_gemmini_conv2(MemRef<int8_t, 4>* input,
                                 MemRef<int8_t, 2>* weights,
-                                MemRef<int32_t, 1>* bias, 
+                                MemRef<int32_t, 1>* bias,
                                 MemRef<int8_t, 2> *output);
 
 void _mlir_ciface_gemmini_conv3(MemRef<int8_t, 4>* input,
                                 MemRef<int8_t, 2>* weights,
-                                MemRef<int32_t, 1>* bias, 
+                                MemRef<int32_t, 1>* bias,
                                 MemRef<int8_t, 2> *output);
 
 void _mlir_ciface_gemmini_conv4(MemRef<int8_t, 4>* input,
                                 MemRef<int8_t, 2>* weights,
-                                MemRef<int32_t, 1>* bias, 
+                                MemRef<int32_t, 1>* bias,
                                 MemRef<int8_t, 2> *output);
 
 void _mlir_ciface_gemmini_conv5(MemRef<int8_t, 4>* input,
                                 MemRef<int8_t, 2>* weights,
-                                MemRef<int32_t, 1>* bias, 
+                                MemRef<int32_t, 1>* bias,
                                 MemRef<int8_t, 2> *output);
 void _mlir_ciface_gemmini_conv6(MemRef<int8_t, 4>* input,
                                 MemRef<int8_t, 2>* weights,
-                                MemRef<int32_t, 1>* bias, 
+                                MemRef<int32_t, 1>* bias,
                                 MemRef<int8_t, 2> *output);
 
 static uint64_t readCycles() {
@@ -249,10 +249,10 @@ int main() {
       }
       printf("The linalg.matmul test case is %d\n", MATMUL);
       printf("I = %d K = %d J = %d\n", I, K, J);
-      printf("Cycles taken %lld\n", end - start); 
+      printf("Cycles taken %lld\n", end - start);
       return 0;
     } else if (DIALECT == 2) {
-      vector<size_t> sizes = {I, K}; 
+      vector<size_t> sizes = {I, K};
       MemRef<int8_t, 2> input0(sizes, 1);
       MemRef<int8_t, 2> input1(sizes, 2);
       MemRef<int8_t, 2> output(sizes, 0);
@@ -352,11 +352,11 @@ int main() {
       return 0;
     } else if(DIALECT == 2) {
       vector<size_t> sizes = {BATCH_SIZE, IN_DIM, IN_DIM, IN_CHANNELS};
-      MemRef<int8_t, 4> input(sizes, 1); 
-      sizes.assign({KERNEL_DIM * KERNEL_DIM, 1}); 
-      MemRef<int8_t, 2> weights(sizes, 1); 
-      sizes.assign({OUT_CHANNELS}); 
-      MemRef<int32_t, 1>  bias(sizes, 0); 
+      MemRef<int8_t, 4> input(sizes, 1);
+      sizes.assign({KERNEL_DIM * KERNEL_DIM, 1});
+      MemRef<int8_t, 2> weights(sizes, 1);
+      sizes.assign({OUT_CHANNELS});
+      MemRef<int32_t, 1>  bias(sizes, 0);
       sizes.assign({OUT_DIM * OUT_DIM, 1});
       MemRef<int8_t, 2> output(sizes, 0);
       uint64_t start, end;

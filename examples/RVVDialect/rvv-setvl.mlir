@@ -7,7 +7,7 @@ func.func @main() -> i32 {
   // AVL = 16
   %avl = arith.constant 16 : index
   %vl = rvv.setvl %avl, %sew, %lmul : index
-  
+
   vector.print %vl : index
 
   %ret = arith.constant 0 : i32

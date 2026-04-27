@@ -1,6 +1,6 @@
 import os
 
-config.excludes = getattr(config, "excludes", []) + ["set_model_env.sh"]
+config.excludes = list(getattr(config, "excludes", [])) + ["set_model_env.sh"]
 
 config.excludes.extend(
     name

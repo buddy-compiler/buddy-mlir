@@ -8,7 +8,7 @@ module attributes {gpu.container_module} {
       %mask0_vec = vector.constant_mask [3, 2] : vector<4x3xi1>
 
       %mask0_shape_casted = vector.shape_cast %mask0_vec : vector<4x3xi1> to vector<12xi1>
-      
+
       vector.store %mask0_shape_casted, %result[%c0] : memref<12xi1>, vector<12xi1>
       gpu.return
     }

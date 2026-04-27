@@ -35,18 +35,18 @@ func.func @main() -> i32 {
   // Get input matrices
   %a = memref.get_global @matA : memref<8x8xi8>
   %b = memref.get_global @matB : memref<8x4xui8>
-  
+
   // Allocate output matrix (accumulator)
   %c = memref.alloc() : memref<4x4xi32>
-  
+
   // Initialize accumulator to zero
   %zero = arith.constant 0 : i32
   linalg.fill ins(%zero : i32) outs(%c : memref<4x4xi32>)
-  
+
   // Perform signed × unsigned matrix multiply-accumulate with slide=2
   // CHECK: ime.vmadot2su
   ime.vmadot2su %c, %a, %b : memref<4x4xi32>, memref<8x8xi8>, memref<8x4xui8>
-  
+
   // Return success
   %ret = arith.constant 0 : i32
   return %ret : i32

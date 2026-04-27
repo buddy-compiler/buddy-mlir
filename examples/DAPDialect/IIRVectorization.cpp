@@ -76,7 +76,7 @@ int main() {
   std::cout << "Audio processing time: " << (double)(loadTime.count()) / 1000
             << "s\n"
             << std::endl;
-  
+
   // Convert a MemRef object to an Audio object and set the metadata.
   Audio<float, 1> outputContainer(std::move(outputMemRef));
   outputContainer.setBitDepth(inputContainer.getBitDepth());

@@ -31,4 +31,3 @@ print(graph._imported_module)
 # CHECK-LABEL: func.func @forward
 #       CHECK: %[[sigmoid:.*]] = tosa.sigmoid
 #       CHECK: return %[[sigmoid]]
-

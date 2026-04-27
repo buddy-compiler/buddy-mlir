@@ -4,8 +4,8 @@
 //
 // To test manually, use: make amx-bf16-matmul-aot
 //
-// RUN: 
-// 
+// RUN:
+//
 // AMX BF16 MatMul (No-Transpose Interface)
 // Requirements:
 // - M, N are multiples of 16; K is a multiple of 32.
@@ -118,4 +118,3 @@ module {
     return
   }
 }
-

@@ -16,6 +16,12 @@
 //
 // This file implements the Matmul_TransposeB vectorization.
 //
+// Optimizations applied:
+//   - K-accumulator unrolling (--unroll=N): use N independent FMA accumulator
+//     vectors per output element to hide FMA latency (default 4).
+//   - N-column tiling (--n-tile=N): process N output columns per parallel task,
+//     sharing A loads across columns to improve register reuse (default 1).
+//
 //===----------------------------------------------------------------------===//
 
 #include <mlir/Dialect/Affine/IR/AffineOps.h>
@@ -34,6 +40,7 @@
 #include <optional>
 
 #include "Utils/Utils.h"
+#include "llvm/ADT/SmallVector.h"
 
 using namespace mlir;
 using namespace vector;
@@ -46,11 +53,14 @@ namespace {
 class MatMulTransposeBVecPattern : public ConversionPattern {
 public:
   explicit MatMulTransposeBVecPattern(MLIRContext *context, int64_t vfParam,
-                                      bool scalableParam)
+                                      bool scalableParam, int64_t unrollParam,
+                                      int64_t nTileParam)
       : ConversionPattern(linalg::MatmulTransposeBOp::getOperationName(), 1,
                           context) {
     vf = vfParam;
     scalable = scalableParam;
+    unroll = unrollParam;
+    nTile = nTileParam;
   }
 
   LogicalResult
@@ -58,16 +68,43 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
     auto loc = op->getLoc();
     auto ctx = op->getContext();
+
     // Get input A, B, C.
     Value A = op->getOperand(0);
     Value B = op->getOperand(1);
     Value C = op->getOperand(2);
 
+    // Safety gate: only vectorize when shapes are static and tile sizes divide
+    // dimensions exactly. This avoids incorrect tail handling on small/dynamic
+    // shapes and leaves those cases to the generic lowering path.
+    auto AMemRefTy = mlir::dyn_cast<MemRefType>(A.getType());
+    auto BMemRefTy = mlir::dyn_cast<MemRefType>(B.getType());
+    auto CMemRefTy = mlir::dyn_cast<MemRefType>(C.getType());
+    if (!AMemRefTy || !BMemRefTy || !CMemRefTy || !AMemRefTy.hasStaticShape() ||
+        !BMemRefTy.hasStaticShape() || !CMemRefTy.hasStaticShape())
+      return failure();
+    if (!AMemRefTy.hasRank() || !BMemRefTy.hasRank() || !CMemRefTy.hasRank() ||
+        AMemRefTy.getRank() != 2 || BMemRefTy.getRank() != 2 ||
+        CMemRefTy.getRank() != 2)
+      return failure();
+    int64_t mStatic = AMemRefTy.getShape()[0];
+    int64_t nStatic = BMemRefTy.getShape()[0];
+    int64_t kStatic = BMemRefTy.getShape()[1];
+    if (mStatic <= 0 || nStatic <= 0 || kStatic <= 0)
+      return failure();
+    if (scalable)
+      return failure();
+    int64_t kStepStatic = vf * unroll;
+    if (kStepStatic <= 0 || nTile <= 0)
+      return failure();
+    if ((kStatic % kStepStatic) != 0 || (nStatic % nTile) != 0)
+      return failure();
+
     // Get shape of input and output.
     ShapedType ATy = mlir::cast<mlir::ShapedType>(A.getType());
     Type eleTy = ATy.getElementType();
 
-    // the element type for mask vector.
+    // The element type for mask vector.
     IntegerType i1 = IntegerType::get(ctx, 1);
 
     VectorType vectorTy = mlir::VectorType::get({vf}, eleTy, {scalable});
@@ -77,6 +114,7 @@ public:
         rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0));
     const Value c1 =
         rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1));
+    // Single-vf step used for scalable offset computation inside the loop.
     Value step = rewriter.create<arith::ConstantIndexOp>(loc, vf);
     if (scalable) {
       Value vscale = rewriter.create<vector::VectorScaleOp>(loc);
@@ -90,14 +128,29 @@ public:
     const Value bRow = rewriter.create<memref::DimOp>(loc, B, c0);
     const Value bCol = rewriter.create<memref::DimOp>(loc, B, c1);
 
-    // Create permutation map for transfer_read: (d0, d1) -> (d1)
+    // Permutation map for transfer_read: (d0, d1) -> (d1)
     AffineExpr d0, d1;
     bindDims(ctx, d0, d1);
     AffineMap permMap1D = AffineMap::get(2, 0, {d1}, ctx);
     AffineMapAttr permMapAttr = AffineMapAttr::get(permMap1D);
     ArrayAttr inBoundsAttr = rewriter.getBoolArrayAttr({true});
 
-    // Create outer parallel loop for row dimension using scf.parallel
+    // ── K-loop step = vf * unroll ─────────────────────────────────────────
+    Value kStep;
+    if (scalable) {
+      Value ufVal = rewriter.create<arith::ConstantIndexOp>(loc, unroll);
+      kStep = rewriter.create<arith::MulIOp>(loc, step, ufVal);
+    } else {
+      kStep = rewriter.create<arith::ConstantIndexOp>(loc, vf * unroll);
+    }
+
+    // ── N-column parallel step ────────────────────────────────────────────
+    Value nStep = rewriter.create<arith::ConstantIndexOp>(loc, nTile);
+
+    // nTile * unroll initial accumulator vectors (all zero).
+    llvm::SmallVector<Value> initAccs(nTile * unroll, passthruVec);
+
+    // ── Outer parallel loop: rows of A ────────────────────────────────────
     auto outerParallelLoop = rewriter.create<scf::ParallelOp>(
         loc,
         /*lowerBounds=*/ValueRange{c0},
@@ -106,49 +159,89 @@ public:
         [&](OpBuilder &builder, Location loc, ValueRange ivs) {
           Value rowIdx = ivs[0];
 
-          // Create inner parallel loop for column dimension
+          // ── Inner parallel loop: columns of B (step = nTile) ───────────
           auto innerParallelLoop = builder.create<scf::ParallelOp>(
               loc,
               /*lowerBounds=*/ValueRange{c0},
               /*upperBounds=*/ValueRange{bRow},
-              /*steps=*/ValueRange{c1},
+              /*steps=*/ValueRange{nStep},
               [&](OpBuilder &builder, Location loc, ValueRange ivs) {
-                Value colIdx = ivs[0];
+                Value colBase = ivs[0];
 
-                // Create inner vectorization loop with iter_args for
-                // accumulation
-                Value stepValueForScf =
-                    scalable ? step
-                             : builder.create<arith::ConstantIndexOp>(loc, vf);
+                // Column indices: colBase, colBase+1, ..., colBase+(nTile-1)
+                llvm::SmallVector<Value> colIdxs(nTile);
+                colIdxs[0] = colBase;
+                for (int j = 1; j < nTile; ++j) {
+                  Value jConst = builder.create<arith::ConstantIndexOp>(loc, j);
+                  colIdxs[j] =
+                      builder.create<arith::AddIOp>(loc, colBase, jConst);
+                }
 
-                auto innerLoop = builder.create<scf::ForOp>(
-                    loc, c0, bCol, stepValueForScf, ValueRange{passthruVec},
-                    [&](OpBuilder &nestedBuilder, Location nestedLoc, Value iv,
+                // ── K reduction loop with nTile * unroll accumulators ────
+                // Opt1 (K-unroll): unroll independent accumulator chains to
+                //   hide FMA latency (4–5 cycles on modern x86).
+                // Opt2 (N-tile):   share A loads across nTile columns.
+                auto kLoop = builder.create<scf::ForOp>(
+                    loc, c0, bCol, kStep, ValueRange(initAccs),
+                    [&](OpBuilder &nb, Location nl, Value iv,
                         ValueRange itrArgs) {
-                      Value acc = itrArgs[0];
-                      auto aVec = nestedBuilder.create<vector::TransferReadOp>(
-                          nestedLoc, vectorTy, A, ValueRange{rowIdx, iv},
-                          std::nullopt, permMapAttr, inBoundsAttr);
-                      auto bVec = nestedBuilder.create<vector::TransferReadOp>(
-                          nestedLoc, vectorTy, B, ValueRange{colIdx, iv},
-                          std::nullopt, permMapAttr, inBoundsAttr);
-                      Value newAcc = nestedBuilder.create<vector::FMAOp>(
-                          nestedLoc, aVec, bVec, acc);
-                      nestedBuilder.create<scf::YieldOp>(nestedLoc, newAcc);
+                      // K offsets within the unrolled body
+                      llvm::SmallVector<Value> ki(unroll);
+                      ki[0] = iv;
+                      for (int i = 1; i < unroll; ++i) {
+                        Value offset;
+                        if (scalable) {
+                          // offset = i * (vscale * vf)  [runtime]
+                          Value iConst =
+                              nb.create<arith::ConstantIndexOp>(nl, i);
+                          offset = nb.create<arith::MulIOp>(nl, iConst, step);
+                        } else {
+                          offset =
+                              nb.create<arith::ConstantIndexOp>(nl, i * vf);
+                        }
+                        ki[i] = nb.create<arith::AddIOp>(nl, iv, offset);
+                      }
+
+                      // Load A vectors – shared across all nTile columns
+                      llvm::SmallVector<Value> aVecs(unroll);
+                      for (int i = 0; i < unroll; ++i) {
+                        aVecs[i] = nb.create<vector::TransferReadOp>(
+                            nl, vectorTy, A, ValueRange{rowIdx, ki[i]}, c0Ele,
+                            permMapAttr, inBoundsAttr);
+                      }
+
+                      // For each column: load B chunks and FMA independently
+                      llvm::SmallVector<Value> newAccs(nTile * unroll);
+                      for (int j = 0; j < nTile; ++j) {
+                        for (int i = 0; i < unroll; ++i) {
+                          auto bVec = nb.create<vector::TransferReadOp>(
+                              nl, vectorTy, B, ValueRange{colIdxs[j], ki[i]},
+                              c0Ele, permMapAttr, inBoundsAttr);
+                          newAccs[j * unroll + i] = nb.create<vector::FMAOp>(
+                              nl, aVecs[i], bVec, itrArgs[j * unroll + i]);
+                        }
+                      }
+                      nb.create<scf::YieldOp>(nl, ValueRange(newAccs));
                     });
-                Value load = builder.create<memref::LoadOp>(
-                    loc, C, ValueRange{rowIdx, colIdx});
-                // Reduction directly uses load as accumulator, no need to add
-                // again
-                Value result = builder.create<vector::ReductionOp>(
-                    loc, CombiningKind::ADD, innerLoop->getResult(0), load,
-                    arith::FastMathFlags::reassoc);
-                builder.create<memref::StoreOp>(loc, result, C,
-                                                ValueRange{rowIdx, colIdx});
+
+                // For each column: sum unroll accumulators, reduce, store
+                for (int j = 0; j < nTile; ++j) {
+                  // Tree-reduce the unroll accumulator vectors
+                  Value sumVec = kLoop->getResult(j * unroll);
+                  for (int i = 1; i < unroll; ++i) {
+                    sumVec = builder.create<arith::AddFOp>(
+                        loc, sumVec, kLoop->getResult(j * unroll + i));
+                  }
+                  Value load = builder.create<memref::LoadOp>(
+                      loc, C, ValueRange{rowIdx, colIdxs[j]});
+                  Value result = builder.create<vector::ReductionOp>(
+                      loc, CombiningKind::ADD, sumVec, load,
+                      arith::FastMathFlags::reassoc);
+                  builder.create<memref::StoreOp>(
+                      loc, result, C, ValueRange{rowIdx, colIdxs[j]});
+                }
               });
         });
-
-    // TODO: Add tile processing for the inner loop.
 
     rewriter.eraseOp(op);
     return success();
@@ -160,6 +253,12 @@ private:
   int64_t vf;
   /// If use scalable vector.
   bool scalable;
+  /// Number of independent K-accumulator chains per output element.
+  /// Hides FMA latency by allowing out-of-order execution.
+  int64_t unroll;
+  /// Number of output columns processed per parallel task.
+  /// Shares A loads across nTile columns, reducing A bandwidth usage.
+  int64_t nTile;
 };
 } // end anonymous namespace
 
@@ -192,6 +291,16 @@ public:
       *this, "scalable",
       llvm::cl::desc("Specify whether the vectorization factor is scalable."),
       llvm::cl::init(false)};
+  Option<int64_t> unroll{
+      *this, "unroll",
+      llvm::cl::desc("Number of independent K-accumulator chains per output "
+                     "element (hides FMA latency)."),
+      llvm::cl::init(1)};
+  Option<int64_t> nTile{
+      *this, "n-tile",
+      llvm::cl::desc("Number of output columns processed per parallel task "
+                     "(shares A loads across columns)."),
+      llvm::cl::init(1)};
 };
 } // namespace
 
@@ -207,7 +316,8 @@ void MatMulTransposeBVecPass::runOnOperation() {
   target.addLegalOp<linalg::FillOp>();
 
   RewritePatternSet patterns(context);
-  patterns.add<MatMulTransposeBVecPattern>(context, vf, scalable);
+  patterns.add<MatMulTransposeBVecPattern>(context, vf, scalable, unroll,
+                                           nTile);
 
   if (failed(applyPartialConversion(module, target, std::move(patterns))))
     signalPassFailure();

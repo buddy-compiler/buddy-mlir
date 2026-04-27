@@ -40,7 +40,7 @@ template <typename T, size_t N> class Audio : public MemRef<T, N> {
 public:
   // Constructor to initialize the Audio MemRef object with a file name.
   Audio(std::string filename);
-  // Constructor to convert MemRef object to Audio MemRef object. Member 
+  // Constructor to convert MemRef object to Audio MemRef object. Member
   // variables are initialized with default values.
   Audio(MemRef<T, N> &&memref) noexcept;
 
@@ -186,7 +186,7 @@ template <typename T, std::size_t N> Audio<T, N>::Audio(std::string filePath) {
   }
 }
 
-// Constructs an audio container object from a MemRef object. Initializes 
+// Constructs an audio container object from a MemRef object. Initializes
 // metadata with default values.
 template <typename T, std::size_t N>
 Audio<T, N>::Audio(MemRef<T, N> &&memref) noexcept

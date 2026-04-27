@@ -1,7 +1,8 @@
 // RUN: buddy-opt %s \
 // RUN:     -convert-vector-to-scf -lower-affine -convert-scf-to-cf \
 // RUN:     -convert-cf-to-llvm \
-// RUN:     -convert-vector-to-llvm -finalize-memref-to-llvm -convert-func-to-llvm \
+// RUN:     -convert-vector-to-llvm -expand-strided-metadata -finalize-memref-to-llvm \
+// RUN:     -convert-func-to-llvm \
 // RUN:     -convert-arith-to-llvm \
 // RUN:     -reconcile-unrealized-casts \
 // RUN: | mlir-runner -e main -entry-point-result=i32 \
@@ -16,12 +17,12 @@ memref.global "private" @gv1 : memref<4x4xi32> = dense<[[0, 1, 2, 3],
                                                         [8, 9, 10, 11],
                                                         [12, 13, 14, 15]]>
 
-memref.global "private" @gv2 : memref<4x4xi32> = dense<[[0, 1, 2, 3],
-                                                        [4, 5, 6, 7],
-                                                        [8, 9, 10, 11],
-                                                        [12, 13, 14, 15]]>
-
-memref.global "private" @gv3 : memref<8xi32> = dense<[0, 1, 2, 3, 4, 5, 6, 7]>
+// Single allocation so OOB vector stores that spill past the 4x4 hit the tail
+// without relying on linker ordering of separate globals (portable across RISC-V / x86).
+memref.global "private" @gv2_gv3 : memref<24xi32> = dense<[
+  0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+  0, 1, 2, 3, 4, 5, 6, 7
+]>
 
 func.func private @printMemrefI32(memref<*xi32>)
 
@@ -37,13 +38,17 @@ func.func @main() -> i32 {
 
   %base0 = memref.get_global @gv0 : memref<8xi32>
   %base1 = memref.get_global @gv1 : memref<4x4xi32>
-  %base2 = memref.get_global @gv2 : memref<4x4xi32>
-  %base3 = memref.get_global @gv3 : memref<8xi32>
+  %whole2 = memref.get_global @gv2_gv3 : memref<24xi32>
+  // Static strides so vector.store still verifies after memref.cast (inner dim unit stride).
+  %base2 = memref.reinterpret_cast %whole2 to offset: [0], sizes: [4, 4], strides: [4, 1]
+    : memref<24xi32> to memref<4x4xi32, strided<[4, 1], offset: 0>>
+  %base3 = memref.subview %whole2[16] [8] [1]
+    : memref<24xi32> to memref<8xi32, strided<[1], offset: 16>>
 
   %gv0_for_print = memref.cast %base0 : memref<8xi32> to memref<*xi32>
   %gv1_for_print = memref.cast %base1 : memref<4x4xi32> to memref<*xi32>
-  %gv2_for_print = memref.cast %base2 : memref<4x4xi32> to memref<*xi32>
-  %gv3_for_print = memref.cast %base3 : memref<8xi32> to memref<*xi32>
+  %gv2_for_print = memref.cast %base2 : memref<4x4xi32, strided<[4, 1], offset: 0>> to memref<*xi32>
+  %gv3_for_print = memref.cast %base3 : memref<8xi32, strided<[1], offset: 16>> to memref<*xi32>
 
   // store normal usage
   %value0 = arith.constant dense<[100, 101, 102]> : vector<3xi32>
@@ -124,7 +129,7 @@ func.func @main() -> i32 {
 
   // store with dynamic memref
   //    case 1: in-bound
-  %base6 = memref.cast %base2 : memref<4x4xi32> to memref<?x?xi32>
+  %base6 = memref.cast %base2 : memref<4x4xi32, strided<[4, 1], offset: 0>> to memref<?x?xi32>
   %mask6 = arith.constant dense<[1, 0, 1, 1, 1, 1, 0, 0]> : vector<8xi1>
   %value6 = arith.constant dense<[600, 601, 602, 603, 604, 605, 606, 607]> : vector<8xi32>
 
@@ -148,7 +153,7 @@ func.func @main() -> i32 {
   //    Support and implementation of out-of-bounds vector stores are target-specific.
   //    No assumptions should be made on the memory written out of bounds.
   //    Not all targets may support out-of-bounds vector stores.
-  %base7 = memref.cast %base2 : memref<4x4xi32> to memref<?x?xi32>
+  %base7 = memref.cast %base2 : memref<4x4xi32, strided<[4, 1], offset: 0>> to memref<?x?xi32>
   %value7 = arith.constant dense<[700, 701, 702, 703, 704, 705, 706, 707]> : vector<8xi32>
 
   vector.store %value7, %base7[%c3, %c1] : memref<?x?xi32>, vector<8xi32>
@@ -160,15 +165,16 @@ func.func @main() -> i32 {
   // CHECK-NEXT: [603,   604,   605,   606],
   // CHECK-NEXT: [607,   700,   701,   702]
   // CHECK-SAME: ]
-  // if you are lucky, you will see that gv3 is changed by out-of-bound writing
+  // With gv2/gv3 merged, the tail after the 4x4 picks up the OOB lanes (703..707).
   func.call @printMemrefI32(%gv2_for_print) : (memref<*xi32>) -> ()
-  // CHECK: Unranked Memref base@ = {{.*}} rank = 1 offset = 0 sizes = [8] strides = [1] data =
+  // Tail subview starts at i32 index 16, so print shows offset = 16.
+  // CHECK: Unranked Memref base@ = {{.*}} rank = 1 offset = 16 sizes = [8] strides = [1] data =
   // CHECK-NEXT: [703,  704,  705,  706,  707,  5,  6,  7]
   func.call @printMemrefI32(%gv3_for_print) : (memref<*xi32>) -> ()
 
 
   // store with unranked memref is not allowed
-  %base8 = memref.cast %base2 : memref<4x4xi32> to memref<*xi32>
+  %base8 = memref.cast %base2 : memref<4x4xi32, strided<[4, 1], offset: 0>> to memref<*xi32>
   %mask8 = arith.constant dense<[1, 0, 0, 1]> : vector<4xi1>
   %value8 = arith.constant dense<[800, 801, 802, 803]> : vector<4xi32>
 

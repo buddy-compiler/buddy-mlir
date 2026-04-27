@@ -28,7 +28,7 @@ func.func @main() -> i32 {
   // AVL = 8
   %avl8 = arith.constant 8 : index
   // Load vl elements.
-  %vl8 = rvv.setvl %avl8, %sew, %lmul : index  
+  %vl8 = rvv.setvl %avl8, %sew, %lmul : index
 
   %load_vec_f32 = rvv.load %mem_f32[%c0], %vl8 : memref<20xf32>, vector<[8]xf32>, index
   %res_rsqrt_mem = call @alloc_mem_f32() : () -> memref<20xf32>

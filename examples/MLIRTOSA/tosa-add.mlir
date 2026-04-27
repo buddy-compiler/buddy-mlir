@@ -1,5 +1,5 @@
 func.func @main() {
-    
+
   %0 = arith.constant dense<[[11.,12.],[30.,40.]]> : tensor<2x2xf32>
   %1 = arith.constant dense <[[1.],[23.]]> : tensor<2x1xf32>
 

@@ -40,9 +40,8 @@ SmallVector<Value, 5> generateSOSParams(OpBuilder &rewriter, Location loc,
 // Processing iir operation, result are stored in output MemRef
 void biquadProcess(OpBuilder &rewriter, Location loc, VectorType vectorTy,
                    Value f0, Value c0, Value c1, Value cUpperBound,
-                   Value iUpperBound, SmallVector<Value, 5> SOSParams,
-                   ArrayRef<int64_t> arrayRef, Value N, Value input,
-                   Value output);
+                   SmallVector<Value, 5> SOSParams, ArrayRef<int64_t> arrayRef,
+                   Value N, Value input, Value output);
 
 // Total process for a specific vector length iir vectorization process
 void iirVectorizationProcess(OpBuilder &rewriter, Location loc, uint64_t vecLen,

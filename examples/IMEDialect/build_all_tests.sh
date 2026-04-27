@@ -2,7 +2,7 @@
 # Build script for IME print tests
 #
 # Usage: ./build_all_tests.sh
-# 
+#
 # Prerequisites:
 # - buddy-mlir built in ../../build
 # - RISCV toolchain with riscv64-unknown-linux-gnu-gcc in PATH
@@ -19,34 +19,34 @@ build_test() {
     local name=$1
     local mlir_file=$2
     local runtime_file=$3
-    
+
     echo "Building $name..."
-    
+
     # Generate assembly
     $BUDDY_OPT $mlir_file $PASSES | \
     $BUDDY_TRANSLATE -buddy-to-llvmir | \
     $BUDDY_LLC -filetype=asm -mtriple=riscv64 -mattr=+m,+v,+buddyext -o ${name}.s
-    
+
     if [ $? -ne 0 ]; then
         echo "Failed to generate assembly for $name"
         return 1
     fi
-    
+
     # Compile to executable
     $SPACEMIT_GCC -march=rv64gcv -static ${name}.s $runtime_file -o ${name}_test
-    
+
     if [ $? -ne 0 ]; then
         echo "Failed to compile $name"
         return 1
     fi
-    
+
     echo "$name built successfully: ${name}_test"
 }
 
 # Build vmadot (signed x signed)
 build_test "vmadot" "vmadot_print_test.mlir" "runtime_vmadot.c"
 
-# Build vmadotu (unsigned x unsigned)  
+# Build vmadotu (unsigned x unsigned)
 build_test "vmadotu" "vmadotu_print_test.mlir" "runtime_vmadotu.c"
 
 # Build vmadotsu (signed x unsigned)

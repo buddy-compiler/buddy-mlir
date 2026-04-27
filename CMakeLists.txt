@@ -28,6 +28,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED YES)
 include(ExternalProject)
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
+include(CTest)
+
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 #-------------------------------------------------------------------------------
 # Options and settings
@@ -62,11 +67,6 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR OR BUDDY_MLIR_OUT_OF_TREE_
 
     find_program(LLVM_TABLEGEN_EXE "llvm-tblgen" ${LLVM_TOOLS_BINARY_DIR}
             NO_DEFAULT_PATH)
-
-    include(TableGen)
-    include(AddLLVM)
-    include(AddMLIR)
-    include(HandleLLVMOptions)
 else()
     message(STATUS "buddy-mlir one-step build.")
     # one-step build with LLVM_EXTERNAL_PROJECTS=buddy-mlir
@@ -84,29 +84,38 @@ endif()
 
 # BUDDY project.
 set(BUDDY_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
-set(BUDDY_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR})
-set(BUDDY_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/bin)
-set(BUDDY_LIBRARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/lib)
+set(BUDDY_BUILD_DIR ${CMAKE_BINARY_DIR})
+set(BUDDY_BINARY_DIR ${CMAKE_BINARY_DIR}/bin)
+set(BUDDY_LIBRARY_DIR ${CMAKE_BINARY_DIR}/lib)
+
 set(BUDDY_EXAMPLES_DIR ${BUDDY_SOURCE_DIR}/examples)
 set(BUDDY_MLIR_INTERFACE_DIR ${BUDDY_SOURCE_DIR}/frontend/Interfaces)
 set(BUDDY_MIDEND_INCLUDE_DIR ${BUDDY_SOURCE_DIR}/midend/include)
 set(BUDDY_THIRDPARTY_INCLUDE_DIR ${BUDDY_SOURCE_DIR}/thirdparty/include)
 set(BUDDY_MLIR_PYTHON_PACKAGES_DIR ${BUDDY_BUILD_DIR}/python_packages)
 
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${BUDDY_BINARY_DIR})
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${BUDDY_LIBRARY_DIR})
-
 set(BUDDY_EXAMPLES OFF CACHE BOOL "Build examples")
+set(BUDDY_TORQ_EXAMPLES OFF CACHE BOOL
+    "Build BuddyTorq example (PyTorch->MLIR + TORQ-Tile RVV GEMM); requires RISC-V RVV toolchain")
+set(BUDDY_RUNTIME_MATMUL_TORQ OFF CACHE BOOL
+    "Build buddy_matmul_torq (runtime buddy_matmul_f32 via TORQ-Tile RVV); requires RISC-V RVV and find_package(TorqTile)")
 set(BUDDY_TRANSFORMER_EXAMPLES OFF CACHE BOOL "Build transformer examples")
 set(BUDDY_ENABLE_OPENCV OFF CACHE BOOL "Enable OpenCV support.")
 
- if(BUDDY_ENABLE_OPENCV)
-   add_definitions(-DBUDDY_ENABLE_OPENCV)
-   find_package(JPEG REQUIRED)
-   find_package(PNG REQUIRED)
-   find_package(OpenCV REQUIRED CONFIG)
-   include_directories(${OpenCV_INCLUDE_DIRS})
- endif()
+# DeepSeek R1 (buddy-codegen): heavy codegen, MLIR import, .so / .rax. Off by default
+# so plain `ninja` does not build model artifacts; enable when using
+# tools/buddy-codegen/build_model.py or -DBUDDY_BUILD_DEEPSEEK_R1_MODEL=ON.
+option(BUDDY_BUILD_DEEPSEEK_R1_MODEL
+  "Build models/deepseek_r1 (buddy_models_deepseek_r1, .so, .rax) and link into buddy-cli"
+  OFF)
+
+if(BUDDY_ENABLE_OPENCV)
+  add_definitions(-DBUDDY_ENABLE_OPENCV)
+  find_package(JPEG REQUIRED)
+  find_package(PNG REQUIRED)
+  find_package(OpenCV REQUIRED CONFIG)
+  include_directories(${OpenCV_INCLUDE_DIRS})
+endif()
 
 if(BUDDY_MLIR_ENABLE_DIP_LIB)
   add_definitions(-DBUDDY_MLIR_ENABLE_DIP_LIB)
@@ -117,9 +126,6 @@ if(BUDDY_ENABLE_PNG)
   add_definitions(-DBUDDY_ENABLE_PNG)
   find_package(PNG REQUIRED)
 endif()
-
-# Generate libraries into `lib` of build directory.
-set(LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib)
 
 # Add BUDDY files to the include path
 include_directories(${BUDDY_MAIN_INCLUDE_DIR})
@@ -202,6 +208,23 @@ if(BUDDY_MLIR_USE_MIMALLOC)
 endif()
 
 #-------------------------------------------------------------------------------
+# flatc — FlatBuffers schema compiler
+# Required for generating buddy/runtime/rax/RAX.h from runtime/rax/rax.fbs.
+#-------------------------------------------------------------------------------
+
+find_program(FLATC_EXECUTABLE flatc
+  HINTS /usr/bin /usr/local/bin
+  DOC "FlatBuffers schema compiler (flatc)"
+)
+if(NOT FLATC_EXECUTABLE)
+  message(FATAL_ERROR
+    "flatc not found. Install it with:\n"
+    "  sudo apt install flatbuffers-compiler\n"
+    "or set -DFLATC_EXECUTABLE=/path/to/flatc")
+endif()
+message(STATUS "Found flatc: ${FLATC_EXECUTABLE}")
+
+#-------------------------------------------------------------------------------
 # The RISC-V toolchain
 #-------------------------------------------------------------------------------
 
@@ -225,7 +248,10 @@ endif()
 
 add_subdirectory(cmake)
 add_subdirectory(runtime)
+# Before models/: codegen (buddy_add_model) needs target python-package-buddy and
+# ${CMAKE_BINARY_DIR}/python_packages for import_model.py (buddy.compiler.*).
 add_subdirectory(frontend)
+add_subdirectory(models)
 add_subdirectory(midend)
 add_subdirectory(backend)
 add_subdirectory(tools)
@@ -243,15 +269,6 @@ add_custom_target(check-buddy
 # Target install
 #-------------------------------------------------------------------------------
 
-# Install frontend interfaces into include directory, so that the downstream
-# project can use them in distribution.
-install(DIRECTORY frontend/Interfaces/buddy
-  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/buddy-mlir
-  COMPONENT buddy-mlir-interfaces-headers
-  FILES_MATCHING
-  PATTERN "*.h"
-  )
-
 set(BUDDY_MLIR_INSTALL_CMAKE_DIR "${CMAKE_INSTALL_LIBDIR}/cmake/BuddyMLIR")
 
 configure_package_config_file(
@@ -260,9 +277,10 @@ configure_package_config_file(
   INSTALL_DESTINATION ${BUDDY_MLIR_INSTALL_CMAKE_DIR}
 )
 
+option(BUDDY_PACKAGE_VERSION "Release VERSION" "0.0.0")
 write_basic_package_version_file(
   ${CMAKE_CURRENT_BINARY_DIR}/BuddyMLIRConfigVersion.cmake
-  VERSION 0.0.1
+  VERSION ${BUDDY_PACKAGE_VERSION}
   COMPATIBILITY AnyNewerVersion
 )
 

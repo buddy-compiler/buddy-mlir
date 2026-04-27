@@ -48,7 +48,7 @@ module attributes {gpu.container_module} {
       %index3 = arith.constant dense<[[-1, -8], [5, 13]]> : vector<2x2xi32>
       %v3 = vector.gather %base1[%c1, %c1][%index3], %mask3, %pass_thru_2x2
         : memref<4x4xi32>, vector<2x2xi32>, vector<2x2xi1>, vector<2x2xi32> into vector<2x2xi32>
-      
+
       // ( ( 4, 0), ( 10, 0 ) ).
       // On GPU, if indices are out-of-bound, the elements will be 0, which is different
       // from the CPU case.
@@ -72,12 +72,12 @@ module attributes {gpu.container_module} {
     %result1_cast = memref.cast %result1 : memref<4xi32> to memref<*xi32>
     %result2_cast = memref.cast %result2 : memref<4xi32> to memref<*xi32>
     %result3_cast = memref.cast %result3 : memref<4xi32> to memref<*xi32>
-    
+
     gpu.host_register %result0_cast : memref<*xi32>
     gpu.host_register %result1_cast : memref<*xi32>
     gpu.host_register %result2_cast : memref<*xi32>
     gpu.host_register %result3_cast : memref<*xi32>
-    
+
     gpu.launch_func @kernels::@vector_gather blocks in (%c1, %c1, %c1) threads in (%c1, %c1, %c1) args(%result0 : memref<4xi32>, %result1 : memref<4xi32>, %result2 : memref<4xi32>, %result3 : memref<4xi32>)
 
     %result0_v = vector.load %result0[%c0] : memref<4xi32>, vector<4xi32>

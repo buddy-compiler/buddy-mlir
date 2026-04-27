@@ -4,13 +4,13 @@ grammar Toy;
   std::vector<double> tensorDataBuffer;
 }
 
-module 
+module
     : structDefine* funDefine+
     ;
 
 expression
     : Number
-    | tensorLiteral 
+    | tensorLiteral
       {
         tensorDataBuffer.clear();
       }
@@ -19,20 +19,20 @@ expression
     | expression Add expression
     | expression Dot expression
     | structLiteral
-    ; 
+    ;
 
 identifierExpr
     : Identifier
-    | Identifier ParentheseOpen (expression(Comma expression)*)? ParentheseClose 
+    | Identifier ParentheseOpen (expression(Comma expression)*)? ParentheseClose
     ;
 
 returnExpr
-    : Return 
-    | Return expression 
-    ; 
+    : Return
+    | Return expression
+    ;
 
 tensorLiteral returns [std::vector<double> data]
-    : SbracketOpen (tensorLiteral (Comma tensorLiteral)*)? SbracketClose 
+    : SbracketOpen (tensorLiteral (Comma tensorLiteral)*)? SbracketClose
       {
         // When the `]` is detected, copy the elements of `tensorDataBuffer` to `data` member.
         // Suppose we are handling the `[[1, 2], [3, 4]]` layout.
@@ -40,13 +40,13 @@ tensorLiteral returns [std::vector<double> data]
         // - The elements of `tensorDataBuffer` will be assign to `data` member (1, 2).
         // - The `[3, 4]` will be insert to `tensorDataBuffer` (1, 2, 3, 4).
         // - The elements of `tensorDataBuffer` will be assign to `data` member (1, 2, 3, 4).
-        if ($SbracketClose) 
+        if ($SbracketClose)
           $data.assign(tensorDataBuffer.begin(), tensorDataBuffer.end());
       }
-    | Number 
+    | Number
       {
         // Insert current data into `tensorDataBuffer`.
-        tensorDataBuffer.push_back((double)$Number.int); 
+        tensorDataBuffer.push_back((double)$Number.int);
       }
     ;
 
@@ -63,7 +63,7 @@ varDecl returns [std::string idName]
       {
         $idName = $Identifier.text;
       }
-    | Identifier 
+    | Identifier
       {
         $idName = $Identifier.text;
       }
@@ -84,7 +84,7 @@ prototype returns [std::string idName]
       }
     ;
 
-declList 
+declList
     : varDecl
     | varDecl Comma declList
     ;
@@ -94,67 +94,67 @@ block
     ;
 
 blockExpr
-    : varDecl | returnExpr | expression 
+    : varDecl | returnExpr | expression
     ;
 
 literalList
     : tensorLiteral
       {
         tensorDataBuffer.clear();
-      } 
+      }
     | tensorLiteral Comma literalList
     ;
 
-structLiteral 
-    :  
-    | BracketOpen (structLiteral | literalList) (Comma (structLiteral| literalList))* BracketClose    
+structLiteral
+    :
+    | BracketOpen (structLiteral | literalList) (Comma (structLiteral| literalList))* BracketClose
     ;
 
 structDefine
-    : Struct Identifier BracketOpen (varDecl Semicolon)* BracketClose 
+    : Struct Identifier BracketOpen (varDecl Semicolon)* BracketClose
     ;
 
-ParentheseOpen 
+ParentheseOpen
     : '('
     ;
 
-ParentheseClose 
+ParentheseClose
     : ')'
     ;
 
-BracketOpen 
+BracketOpen
     : '{'
     ;
 
-BracketClose 
+BracketClose
     : '}'
     ;
 
-SbracketOpen 
+SbracketOpen
     : '['
     ;
 
-SbracketClose 
+SbracketClose
     : ']'
     ;
 
 Return
     : 'return'
     ;
-    
+
 Semicolon
     : ';'
     ;
 
-Var 
+Var
     : 'var'
     ;
 
-Def 
+Def
     : 'def'
     ;
 
-Struct 
+Struct
     : 'struct'
     ;
 
@@ -170,34 +170,34 @@ Equal
     : '='
     ;
 
-AngleBracketsOpen 
+AngleBracketsOpen
     : '<'
     ;
 
 AngleBracketsClose
-    : '>' 
+    : '>'
     ;
 
 Comma
     : ','
     ;
 
-Add  
+Add
     : '+'
     ;
 
-Mul 
+Mul
     : '*'
     ;
 
-Dot 
+Dot
     : '.'
     ;
 
 WS
     : [ \r\n\t] -> skip
     ;
-    
-Comment 
+
+Comment
     : '#' .*? '\n' ->skip
     ;

@@ -4,10 +4,18 @@ An MLIR-based compiler framework designed for a co-design ecosystem from DSL (do
 
 ## Getting Started
 
-### LLVM/MLIR Dependencies
+### Dependencies
+
+- **LLVM/MLIR dependencies**
 
 Please make sure [the dependencies](https://llvm.org/docs/GettingStarted.html#requirements) are available
 on your machine.
+
+- **Other dependencies**
+
+```
+sudo apt install flatbuffers-compiler libflatbuffers-dev libnuma-dev
+```
 
 ### Clone and Initialize
 
@@ -79,6 +87,45 @@ If you want to test your model end-to-end conversion and inference, you can add 
 ```
 $ cmake -G Ninja .. -DBUDDY_ENABLE_E2E_TESTS=ON
 $ ninja check-e2e
+```
+
+### Building and running the model
+
+Use the following to build:
+
+```bash
+cd buddy-mlir
+python3 tools/buddy-codegen/build_model.py \
+  --spec models/deepseek_r1/specs/f32.json \
+  --build-dir build
+```
+
+To import weights from a **local** HuggingFace style directory (offline or a custom path), pass `--local-model` to that directory (it must contain `config.json` and the weight files). If you omit `--hf-config`, `build_model.py` uses `<local-model>/config.json` for codegen when present:
+
+```bash
+python3 tools/buddy-codegen/build_model.py \
+  --spec models/deepseek_r1/specs/f32.json \
+  --build-dir build \
+  --local-model /path/to/DeepSeek-R1-Distill-Qwen-1.5B
+```
+
+If CMake is configured with `-DBUDDY_BUILD_DEEPSEEK_R1_MODEL=ON`, you can build the model with:
+
+```bash
+ninja deepseek_r1_model_so deepseek_r1_rax buddy-cli
+```
+
+```bash
+./build/bin/buddy-cli \
+  --model ./build/models/deepseek_r1/deepseek_r1.rax \
+  --prompt "Tell me a joke in 200 words."
+
+# Equivalent to: numactl --cpunodebind=0,1,2,3 --interleave=0,1,2,3 taskset -c 0-47
+./build/bin/buddy-cli \
+  --numa 0,1,2,3 \
+  --cpus 0-47 \
+  --model ./build/models/deepseek_r1/deepseek_r1.rax \
+  --prompt "Tell me a joke in 200 words."
 ```
 
 ## Build Python Package

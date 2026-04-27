@@ -110,7 +110,7 @@ anchor point positioning) for two dimensional correlation between a 5x5 image
 and a 3x3 kernel
 ![](./Images/AnchorPointAndBoundaryExtrapolation.png)
 
-### 2 Morphological Operations 
+### 2 Morphological Operations
 
 All the Morphological Tranformations perform boundary extrapolation for making the size of output image
 equal to the size of input image and then uses coefficient broadcasting and
@@ -128,7 +128,7 @@ The Algorithm used is similar to that of correlation_2d.
 
 The approach is similar to 2d correlation except the minimum or maximum element(for erosion and dilation respectively) in the input image in the rectangular region of the kernel is filled.
 
-#### 1 . 2D Erosion(erosion_2d) 
+#### 1 . 2D Erosion(erosion_2d)
 
 erosion_2d follows an approach similar to correlation_2d except the minimum element in the input image present in the rectangular region of the kernel is filled in the output image.
 
@@ -147,7 +147,7 @@ An example depicting the syntax of created API is :
   - copymemref : Intermidiate memref to reinitialize the output container after every iteration.
   - boundaryOption : Specifies desired type of boundary extrapolation. Permissible values are `CONSTANT_PADDING` and `REPLICATE_PADDING`.
 
-#### 2 . 2D Dilation(dilation_2d) 
+#### 2 . 2D Dilation(dilation_2d)
 
 dilation_2d follows an approach similar to correlation_2d except the maximum element in the input image present in the rectangular region of the kernel is filled in the output image.
 
@@ -193,7 +193,7 @@ An example depicting the syntax of created API is :
   Closing transformation is defined as performing dilation followed by erosion on an input image.
   closing(image) = erosion(dilation(image))
 
-  
+
 An example depicting the syntax of created API is :
  ```mlir
    dip.closing_2d boundaryOption %input, %kernel, %output, %output1, %centerX, %centerY, %constantValue, %copymemref, %copymemref1 :
@@ -235,7 +235,7 @@ An example depicting the syntax of created API is :
   - copymemref1 : INtermidiate memref to reinitialize the output container after every iteration.(used in dilation sub-part)
   - boundaryOption : Specifies desired type of boundary extrapolation. Permissible values are `CONSTANT_PADDING` and `REPLICATE_PADDING`.
 
-  #### 6 . 2D BottomHat(bottomhat_2d) 
+  #### 6 . 2D BottomHat(bottomhat_2d)
 
   BottomHat transformation is defined as subtracting the input image from the closing of the image.
   bottomhat(image) = closing(image) - image

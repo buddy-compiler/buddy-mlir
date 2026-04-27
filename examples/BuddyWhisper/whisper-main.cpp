@@ -14,7 +14,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file implements an example for Whisper Model Inference. 
+// This file implements an example for Whisper Model Inference.
 //
 // ------------------------------------------------------------------------===//
 

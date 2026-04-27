@@ -40,11 +40,10 @@ module attributes {gpu.container_module} {
     gpu.host_register %C_cast : memref<*xf32>
 
     gpu.launch_func @kernels::@matmul blocks in (%c1, %c1, %c1) threads in (%c32,%c1,%c1) args(%A:memref<16x16xf16>, %B:memref<16x16xf16>, %C:memref<16x16xf32>)
-    
+
     call @printMemrefF32(%C_cast) : (memref<*xf32>) -> ()
     func.return
 
   }
-  func.func private @printMemrefF32(%ptr : memref<*xf32>) 
+  func.func private @printMemrefF32(%ptr : memref<*xf32>)
 }
-

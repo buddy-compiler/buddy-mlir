@@ -50,5 +50,3 @@ module {
 
 // Runtime output check (memref print should show static stride [8, 1]).
 // RUNTIME: Unranked Memref base@ = {{.*}} rank = 2 offset = 0 sizes = [4, 8] strides = [8, 1] data =
-
-

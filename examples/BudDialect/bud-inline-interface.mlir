@@ -15,6 +15,6 @@ func.func @main() {
   %mem = memref.get_global @gv : memref<4x4xf32>
   // CHECK: %{{.*}} = bud.test_array_attr {{.*}}
   %1 = func.call @example(%mem) : (memref<4x4xf32>) -> (f32)
-  vector.print %1 : f32 
+  vector.print %1 : f32
   return
 }

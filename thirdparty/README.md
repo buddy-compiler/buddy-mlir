@@ -32,6 +32,6 @@ $ cmake -G Ninja .. \
 In the `CMakeLists.txt` file, link shared or static library by using:
 
 ```
-target_link_libraries(myapp PUBLIC mimalloc) 
+target_link_libraries(myapp PUBLIC mimalloc)
 target_link_libraries(myapp PUBLIC mimalloc-static)
 ```

@@ -32,6 +32,7 @@
 #include "mlir/Dialect/Bufferization/Transforms/Bufferize.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
+#include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/BuiltinAttributes.h"
@@ -69,14 +70,78 @@ namespace {
 static constexpr int DEFAULT_VECTOR_WIDTH = 4;
 static constexpr bool DEFAULT_USE_SCALABLE = false;
 
+// This pass vectorizes along the memref's most-minor dimension, so the
+// vector.load/vector.store fast path is only valid when that specific stride is
+// statically known to be 1.
+static bool hasStaticallyUnitStrideInVectorizedDim(Value base) {
+  auto memrefTy = dyn_cast<MemRefType>(base.getType());
+  if (!memrefTy || memrefTy.getRank() == 0)
+    return false;
+
+  SmallVector<int64_t> strides;
+  int64_t offset;
+  if (failed(memrefTy.getStridesAndOffset(strides, offset)) || strides.empty())
+    return false;
+
+  return strides.back() == 1;
+}
+
+// Downstream LLVM lowering may pack vector<...xi1> memory operations, which
+// breaks round-tripping through scalar i1 loads/stores. Keep i1 memref accesses
+// scalarized even inside the vectorized loop.
+static bool shouldScalarizeI1VectorMemoryOp(VectorType vecTy) {
+  return vecTy && !vecTy.isScalable() && vecTy.getRank() == 1 &&
+         vecTy.getElementType().isInteger(1);
+}
+
+static Value buildScalarizedI1VectorLoad(OpBuilder &builder, Location loc,
+                                         VectorType vecTy, Value base,
+                                         ArrayRef<Value> baseIndices) {
+  assert(!baseIndices.empty() && "expected at least one memref index");
+  auto zero = builder.create<arith::ConstantOp>(
+      loc, vecTy,
+      DenseElementsAttr::get(vecTy,
+                             builder.getZeroAttr(vecTy.getElementType())));
+  Value result = zero.getResult();
+  for (int64_t lane = 0, e = vecTy.getNumElements(); lane < e; ++lane) {
+    auto laneIdx = builder.create<arith::ConstantIndexOp>(loc, lane);
+    SmallVector<Value> laneIndices(baseIndices.begin(), baseIndices.end());
+    laneIndices.back() =
+        builder.create<arith::AddIOp>(loc, laneIndices.back(), laneIdx);
+    Value scalar = builder.create<memref::LoadOp>(loc, base, laneIndices);
+    result =
+        builder.create<vector::InsertElementOp>(loc, scalar, result, laneIdx);
+  }
+  return result;
+}
+
+static void buildScalarizedI1VectorStore(OpBuilder &builder, Location loc,
+                                         Value vectorValue, Value base,
+                                         ArrayRef<Value> baseIndices) {
+  assert(!baseIndices.empty() && "expected at least one memref index");
+  auto vecTy = cast<VectorType>(vectorValue.getType());
+  for (int64_t lane = 0, e = vecTy.getNumElements(); lane < e; ++lane) {
+    auto laneIdx = builder.create<arith::ConstantIndexOp>(loc, lane);
+    SmallVector<Value> laneIndices(baseIndices.begin(), baseIndices.end());
+    laneIndices.back() =
+        builder.create<arith::AddIOp>(loc, laneIndices.back(), laneIdx);
+    Value scalar =
+        builder.create<vector::ExtractElementOp>(loc, vectorValue, laneIdx);
+    builder.create<memref::StoreOp>(loc, scalar, base, laneIndices);
+  }
+}
+
 VectorType vectorTypeHelper(Region &srcRegion, Type anchorType,
                             bool useScalable, bool verbose) {
 #define VERBOSE_ANALYSIS_INFO(info)                                            \
   if (verbose) {                                                               \
     llvm::outs() << info;                                                      \
   }
-  int vectorRegBitWidth = 1;
-  int totalVectorRegs = 1;
+  // Defaults when no target-specific features are detected (e.g. RISC-V or
+  // hosts not enumerated below). A width of 1 made sizeVec zero for f32
+  // (VectorType::get asserts); 128-bit is a reasonable generic SIMD nominal.
+  int vectorRegBitWidth = 128;
+  int totalVectorRegs = 16;
   llvm::StringMap<bool> Features = llvm::sys::getHostCPUFeatures();
 
   VERBOSE_ANALYSIS_INFO("--- Checking x86/x64 Features ---\n");
@@ -244,6 +309,13 @@ VectorType vectorTypeHelper(Region &srcRegion, Type anchorType,
                         << sizeGroup << " * " << vectorRegBitWidth << ") / "
                         << elementBitWidth << " = " << sizeVec << "\n");
 
+  if (sizeVec < 1) {
+    emitWarning(srcRegion.getLoc(),
+                "Calculated vector lane count is zero; clamping to 1. "
+                "Consider passing -lower-vir-to-vector=vector-width=N.");
+    sizeVec = 1;
+  }
+
   return VectorType::get({sizeVec}, anchorType);
 #undef VERBOSE_ANALYSIS_INFO
 } // namespace
@@ -309,7 +381,8 @@ private:
   /// Recursively lower operations within a given block
   void lowerBlock(OpBuilder &builder, Location loc, Block *block,
                   DenseMap<Value, Value> &virSymbolTable, Value mainLoopIV,
-                  Type targetVectorType, bool isTailLoop) const {
+                  ArrayRef<Value> leadingIVs, Type targetVectorType,
+                  bool isTailLoop) const {
     // find mapped local Value from virSymbolTable or global Value
     auto findValue = [&virSymbolTable](Value srcValue) {
       if (virSymbolTable.contains(srcValue)) {
@@ -317,33 +390,86 @@ private:
       }
       return srcValue;
     };
+    auto deriveVectorTypeFor = [&](Type virTy) -> FailureOr<VectorType> {
+      auto dynVecTy = dyn_cast<vir::DynamicVectorType>(virTy);
+      if (!dynVecTy)
+        return failure();
+      auto fallbackVecTy = dyn_cast<VectorType>(targetVectorType);
+      if (!fallbackVecTy)
+        return failure();
+      return VectorType::get(fallbackVecTy.getShape(),
+                             dynVecTy.getElementType(),
+                             fallbackVecTy.getScalableDims());
+    };
 
     for (Operation &innerOp : block->without_terminator()) {
       llvm::TypeSwitch<Operation *>(&innerOp)
           .Case<vir::LoadOp>([&](vir::LoadOp op) {
-            Value base = op.getBase();
-            // the lastest index is dynamic and global
-            Value lastIndex = op.getIndices().back();
-            Value baseOffset =
-                builder.create<arith::AddIOp>(loc, mainLoopIV, lastIndex);
-            auto sourceIndices = op.getIndices();
+            Value base = findValue(op.getBase());
             SmallVector<Value> destIndices{};
-            // collect indices for load op
-            for (size_t i = 0, e = sourceIndices.size() - 1; i < e; ++i) {
-              auto srcOp = sourceIndices[i];
-              Value destOp = findValue(srcOp);
-              destIndices.push_back(destOp);
+            auto sourceIndices = op.getIndices();
+
+            // Indices convention:
+            // - If indices are provided, treat the last index as the dynamic
+            //   "vectorized" dimension offset and add mainLoopIV.
+            // - If indices are empty, assume all leading indices are 0 and the
+            //   last index is implicitly 0 (i.e. base of the vectorized dim).
+            if (sourceIndices.empty()) {
+              auto memrefTy = dyn_cast<MemRefType>(base.getType());
+              if (!memrefTy || memrefTy.getRank() == 0) {
+                op.emitError(
+                    "expected ranked memref base for implicit indices");
+                return;
+              }
+              int64_t rank = memrefTy.getRank();
+              for (int64_t i = 0; i < rank - 1; ++i) {
+                if (static_cast<size_t>(i) < leadingIVs.size()) {
+                  destIndices.push_back(leadingIVs[i]);
+                } else {
+                  destIndices.push_back(
+                      builder.create<arith::ConstantIndexOp>(loc, 0));
+                }
+              }
+              destIndices.push_back(mainLoopIV);
+            } else {
+              // the last index is dynamic and global
+              Value lastIndex = sourceIndices.back();
+              Value baseOffset =
+                  builder.create<arith::AddIOp>(loc, mainLoopIV, lastIndex);
+              // collect indices for load op
+              for (size_t i = 0, e = sourceIndices.size() - 1; i < e; ++i) {
+                Value destOp = findValue(sourceIndices[i]);
+                destIndices.push_back(destOp);
+              }
+              destIndices.push_back(baseOffset);
             }
-            destIndices.push_back(baseOffset);
 
             if (isTailLoop) {
               auto memrefLoadOp =
                   builder.create<memref::LoadOp>(loc, base, destIndices);
               virSymbolTable[op.getResult()] = memrefLoadOp.getResult();
             } else {
-              auto vectorLoadOp = builder.create<vector::LoadOp>(
-                  loc, targetVectorType, base, destIndices);
-              virSymbolTable[op.getResult()] = vectorLoadOp.getResult();
+              auto vecTyOr = deriveVectorTypeFor(op.getResult().getType());
+              if (failed(vecTyOr)) {
+                op.emitError("failed to derive vector type for vir.load");
+                return;
+              }
+              if (shouldScalarizeI1VectorMemoryOp(*vecTyOr)) {
+                virSymbolTable[op.getResult()] = buildScalarizedI1VectorLoad(
+                    builder, loc, *vecTyOr, base, destIndices);
+                return;
+              }
+              if (hasStaticallyUnitStrideInVectorizedDim(base)) {
+                auto vectorLoadOp = builder.create<vector::LoadOp>(
+                    loc, *vecTyOr, base, destIndices);
+                virSymbolTable[op.getResult()] = vectorLoadOp.getResult();
+              } else {
+                auto padding = builder.create<arith::ConstantOp>(
+                    loc, builder.getZeroAttr((*vecTyOr).getElementType()));
+                auto transferReadOp = builder.create<vector::TransferReadOp>(
+                    loc, *vecTyOr, base, destIndices, padding);
+                virSymbolTable[op.getResult()] = transferReadOp.getResult();
+              }
             }
           })
           .Case<vir::StoreOp>([&](vir::StoreOp op) {
@@ -352,27 +478,55 @@ private:
               op.emitError("value to store not found in symbol table");
               return;
             }
-            Value base = op.getBase();
-            // the lastest index is dynamic and global
-            Value lastIndex = op.getIndices().back();
-            Value baseOffset =
-                builder.create<arith::AddIOp>(loc, mainLoopIV, lastIndex);
-            auto sourceIndices = op.getIndices();
+            Value base = findValue(op.getBase());
             SmallVector<Value> destIndices{};
-            // collect indices for load op
-            for (size_t i = 0, e = sourceIndices.size() - 1; i < e; ++i) {
-              auto srcOp = sourceIndices[i];
-              Value destOp = findValue(srcOp);
-              destIndices.push_back(destOp);
+            auto sourceIndices = op.getIndices();
+            if (sourceIndices.empty()) {
+              auto memrefTy = dyn_cast<MemRefType>(base.getType());
+              if (!memrefTy || memrefTy.getRank() == 0) {
+                op.emitError(
+                    "expected ranked memref base for implicit indices");
+                return;
+              }
+              int64_t rank = memrefTy.getRank();
+              for (int64_t i = 0; i < rank - 1; ++i) {
+                if (static_cast<size_t>(i) < leadingIVs.size()) {
+                  destIndices.push_back(leadingIVs[i]);
+                } else {
+                  destIndices.push_back(
+                      builder.create<arith::ConstantIndexOp>(loc, 0));
+                }
+              }
+              destIndices.push_back(mainLoopIV);
+            } else {
+              Value lastIndex = sourceIndices.back();
+              Value baseOffset =
+                  builder.create<arith::AddIOp>(loc, mainLoopIV, lastIndex);
+              // collect indices for store op
+              for (size_t i = 0, e = sourceIndices.size() - 1; i < e; ++i) {
+                Value destOp = findValue(sourceIndices[i]);
+                destIndices.push_back(destOp);
+              }
+              destIndices.push_back(baseOffset);
             }
-            destIndices.push_back(baseOffset);
 
             if (isTailLoop) {
               builder.create<memref::StoreOp>(loc, valueToStore, base,
                                               destIndices);
             } else {
-              builder.create<vector::StoreOp>(loc, valueToStore, base,
-                                              destIndices);
+              if (auto vecTy = dyn_cast<VectorType>(valueToStore.getType());
+                  shouldScalarizeI1VectorMemoryOp(vecTy)) {
+                buildScalarizedI1VectorStore(builder, loc, valueToStore, base,
+                                             destIndices);
+                return;
+              }
+              if (hasStaticallyUnitStrideInVectorizedDim(base)) {
+                builder.create<vector::StoreOp>(loc, valueToStore, base,
+                                                destIndices);
+              } else {
+                builder.create<vector::TransferWriteOp>(loc, valueToStore, base,
+                                                        destIndices);
+              }
             }
           })
           .Case<vir::ConstantOp>([&](vir::ConstantOp op) {
@@ -382,10 +536,15 @@ private:
                   builder.create<arith::ConstantOp>(loc, constValue);
               virSymbolTable[op.getResult()] = arithConstOp.getResult();
             } else {
+              auto vecTyOr = deriveVectorTypeFor(op.getResult().getType());
+              if (failed(vecTyOr)) {
+                op.emitError("failed to derive vector type for vir.constant");
+                return;
+              }
               auto vectorConstAttr = DenseElementsAttr::get(
-                  cast<ShapedType>(targetVectorType), constValue);
+                  cast<ShapedType>(*vecTyOr), constValue);
               auto vectorConstOp = builder.create<arith::ConstantOp>(
-                  loc, targetVectorType, vectorConstAttr);
+                  loc, *vecTyOr, vectorConstAttr);
               virSymbolTable[op.getResult()] = vectorConstOp.getResult();
             }
           })
@@ -394,8 +553,13 @@ private:
             if (isTailLoop) {
               virSymbolTable[op.getResult()] = scalarValue;
             } else {
+              auto vecTyOr = deriveVectorTypeFor(op.getResult().getType());
+              if (failed(vecTyOr)) {
+                op.emitError("failed to derive vector type for vir.broadcast");
+                return;
+              }
               auto vectorBroadcastOp = builder.create<vector::BroadcastOp>(
-                  loc, targetVectorType, scalarValue);
+                  loc, *vecTyOr, scalarValue);
               virSymbolTable[op.getResult()] = vectorBroadcastOp.getResult();
             }
           })
@@ -417,6 +581,104 @@ private:
                   builder.create<vector::FMAOp>(loc, lhs, rhs, acc);
               virSymbolTable[op.getResult()] = vectorFMAOp.getResult();
             }
+          })
+          .Case<vir::ReduceOp>([&](vir::ReduceOp op) {
+            Value input = findValue(op.getInput());
+            Value acc = findValue(op.getAcc());
+            if (!input || !acc) {
+              op.emitError("reduce operands not found in symbol table");
+              return;
+            }
+
+            auto kindAttr = op->getAttrOfType<StringAttr>("kind");
+            if (!kindAttr) {
+              op.emitError("missing 'kind' attribute on vir.reduce");
+              return;
+            }
+            StringRef kind = kindAttr.getValue();
+
+            if (isTailLoop) {
+              Value out;
+              if (kind == "add") {
+                out = builder.create<arith::AddFOp>(loc, input, acc);
+              } else if (kind == "maxnum") {
+                out = builder.create<arith::MaxNumFOp>(loc, input, acc);
+              } else {
+                op.emitError(
+                    "unsupported vir.reduce kind (expected add/maxnum)");
+                return;
+              }
+              virSymbolTable[op.getResult()] = out;
+              return;
+            }
+
+            auto vecTy = dyn_cast<VectorType>(input.getType());
+            if (!vecTy) {
+              op.emitError("expected vector input for non-tail vir.reduce");
+              return;
+            }
+
+            vector::CombiningKind combineKind;
+            if (kind == "add") {
+              combineKind = vector::CombiningKind::ADD;
+            } else if (kind == "maxnum") {
+              combineKind = vector::CombiningKind::MAXNUMF;
+            } else {
+              op.emitError("unsupported vir.reduce kind (expected add/maxnum)");
+              return;
+            }
+
+            auto reduced = builder.create<vector::ReductionOp>(loc, combineKind,
+                                                               input, acc);
+            virSymbolTable[op.getResult()] = reduced.getResult();
+          })
+          .Case<vir::SelectOp>([&](vir::SelectOp op) {
+            Value cond = findValue(op.getCondition());
+            Value tVal = findValue(op.getTrueValue());
+            Value fVal = findValue(op.getFalseValue());
+            if (!cond || !tVal || !fVal) {
+              op.emitError("select operands not found in symbol table");
+              return;
+            }
+            if (isTailLoop) {
+              auto newOp =
+                  builder.create<arith::SelectOp>(loc, cond, tVal, fVal);
+              virSymbolTable[op.getResult()] = newOp.getResult();
+            } else {
+              auto newOp = builder.create<LLVM::SelectOp>(loc, tVal.getType(),
+                                                          cond, tVal, fVal);
+              virSymbolTable[op.getResult()] = newOp.getResult();
+            }
+          })
+          .Case<vir::ExtFOp>([&](vir::ExtFOp op) {
+            Value in = findValue(op.getIn());
+            Type outTy = op.getType();
+            if (auto dyn = dyn_cast<vir::DynamicVectorType>(outTy)) {
+              Type elem = dyn.getElementType();
+              if (auto vecTy = dyn_cast<VectorType>(in.getType())) {
+                outTy = VectorType::get(vecTy.getShape(), elem,
+                                        vecTy.getScalableDims());
+              } else {
+                outTy = elem;
+              }
+            }
+            auto newOp = builder.create<arith::ExtFOp>(loc, outTy, in);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<vir::TruncFOp>([&](vir::TruncFOp op) {
+            Value in = findValue(op.getIn());
+            Type outTy = op.getType();
+            if (auto dyn = dyn_cast<vir::DynamicVectorType>(outTy)) {
+              Type elem = dyn.getElementType();
+              if (auto vecTy = dyn_cast<VectorType>(in.getType())) {
+                outTy = VectorType::get(vecTy.getShape(), elem,
+                                        vecTy.getScalableDims());
+              } else {
+                outTy = elem;
+              }
+            }
+            auto newOp = builder.create<arith::TruncFOp>(loc, outTy, in);
+            virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<affine::AffineForOp>([&](affine::AffineForOp op) {
             // Find the corresponding values of the initial iteration parameters
@@ -452,7 +714,8 @@ private:
 
                   // Recursive reduction of blocks inside the loop body
                   lowerBlock(b, bodyLoc, op.getBody(), innerSymbolTable,
-                             mainLoopIV, targetVectorType, isTailLoop);
+                             mainLoopIV, leadingIVs, targetVectorType,
+                             isTailLoop);
 
                   // Process the termination symbol (affine. field) of the loop
                   // body
@@ -484,6 +747,67 @@ private:
             // parent operations (such as affine. for). We will ignore them
             // directly here.
           })
+          .Case<arith::ConstantOp>([&](arith::ConstantOp op) {
+            auto newConst =
+                builder.create<arith::ConstantOp>(loc, op.getValue());
+            virSymbolTable[op.getResult()] = newConst.getResult();
+          })
+          .Case<memref::DimOp>([&](memref::DimOp op) {
+            Value src = findValue(op.getSource());
+            Value idx = findValue(op.getIndex());
+            auto newDim = builder.create<memref::DimOp>(loc, src, idx);
+            virSymbolTable[op.getResult()] = newDim.getResult();
+          })
+          .Case<memref::TransposeOp>([&](memref::TransposeOp op) {
+            Value src = findValue(op.getIn());
+            auto newOp = builder.create<memref::TransposeOp>(
+                loc, op.getResult().getType(), src,
+                AffineMapAttr::get(op.getPermutation()));
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<memref::ExpandShapeOp>([&](memref::ExpandShapeOp op) {
+            Value src = findValue(op.getSrc());
+            SmallVector<OpFoldResult> remappedOutputShape;
+            remappedOutputShape.reserve(op.getOutputShape().size());
+            for (OpFoldResult ofr : op.getOutputShape()) {
+              if (auto v = dyn_cast<Value>(ofr)) {
+                remappedOutputShape.push_back(findValue(v));
+              } else {
+                remappedOutputShape.push_back(cast<Attribute>(ofr));
+              }
+            }
+            auto newOp = builder.create<memref::ExpandShapeOp>(
+                loc, op.getResultType(), src, op.getReassociationIndices(),
+                remappedOutputShape);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<memref::SubViewOp>([&](memref::SubViewOp op) {
+            Value src = findValue(op.getSource());
+
+            auto remapMixed = [&](ArrayRef<OpFoldResult> in) {
+              SmallVector<OpFoldResult> out;
+              out.reserve(in.size());
+              for (OpFoldResult ofr : in) {
+                if (auto v = dyn_cast<Value>(ofr)) {
+                  out.push_back(findValue(v));
+                } else {
+                  out.push_back(cast<Attribute>(ofr));
+                }
+              }
+              return out;
+            };
+
+            SmallVector<OpFoldResult> offsets =
+                remapMixed(op.getMixedOffsets());
+            SmallVector<OpFoldResult> sizes = remapMixed(op.getMixedSizes());
+            SmallVector<OpFoldResult> strides =
+                remapMixed(op.getMixedStrides());
+
+            auto newOp = builder.create<memref::SubViewOp>(
+                loc, cast<MemRefType>(op.getResult().getType()), src, offsets,
+                sizes, strides);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
           .Case<memref::LoadOp>([&](memref::LoadOp op) {
             // This operation is scalar loading and should be copied as is, but
             // its operands may need to be remapped from the symbol table.
@@ -499,6 +823,378 @@ private:
 
             auto newLoadOp = builder.create<memref::LoadOp>(loc, base, indices);
             virSymbolTable[op.getResult()] = newLoadOp.getResult();
+          })
+          .Case<memref::StoreOp>([&](memref::StoreOp op) {
+            Value base = findValue(op.getMemRef());
+            if (!base)
+              base = op.getMemRef();
+            Value value = findValue(op.getValue());
+            if (!value)
+              value = op.getValue();
+
+            SmallVector<Value> indices;
+            for (Value index : op.getIndices()) {
+              Value mappedIndex = findValue(index);
+              indices.push_back(mappedIndex);
+            }
+            builder.create<memref::StoreOp>(loc, value, base, indices);
+          })
+          .Case<arith::AddFOp>([&](arith::AddFOp op) {
+            Value lhs = findValue(op.getLhs());
+            Value rhs = findValue(op.getRhs());
+            auto newOp = builder.create<arith::AddFOp>(loc, lhs, rhs);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<arith::CmpFOp>([&](arith::CmpFOp op) {
+            Value lhs = findValue(op.getLhs());
+            Value rhs = findValue(op.getRhs());
+            auto newOp =
+                builder.create<arith::CmpFOp>(loc, op.getPredicate(), lhs, rhs);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<arith::CmpIOp>([&](arith::CmpIOp op) {
+            Value lhs = findValue(op.getLhs());
+            Value rhs = findValue(op.getRhs());
+            auto newOp =
+                builder.create<arith::CmpIOp>(loc, op.getPredicate(), lhs, rhs);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<arith::SelectOp>([&](arith::SelectOp op) {
+            Value cond = findValue(op.getCondition());
+            Value tVal = findValue(op.getTrueValue());
+            Value fVal = findValue(op.getFalseValue());
+            auto newOp = builder.create<arith::SelectOp>(loc, cond, tVal, fVal);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<arith::AddIOp>([&](arith::AddIOp op) {
+            Value lhs = findValue(op.getLhs());
+            Value rhs = findValue(op.getRhs());
+            auto newOp = builder.create<arith::AddIOp>(loc, lhs, rhs);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<arith::SubFOp>([&](arith::SubFOp op) {
+            Value lhs = findValue(op.getLhs());
+            Value rhs = findValue(op.getRhs());
+            auto newOp = builder.create<arith::SubFOp>(loc, lhs, rhs);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<arith::SubIOp>([&](arith::SubIOp op) {
+            Value lhs = findValue(op.getLhs());
+            Value rhs = findValue(op.getRhs());
+            auto newOp = builder.create<arith::SubIOp>(loc, lhs, rhs);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<arith::MulFOp>([&](arith::MulFOp op) {
+            Value lhs = findValue(op.getLhs());
+            Value rhs = findValue(op.getRhs());
+            auto newOp = builder.create<arith::MulFOp>(loc, lhs, rhs);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<arith::MulIOp>([&](arith::MulIOp op) {
+            Value lhs = findValue(op.getLhs());
+            Value rhs = findValue(op.getRhs());
+            auto newOp = builder.create<arith::MulIOp>(loc, lhs, rhs);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<arith::AndIOp>([&](arith::AndIOp op) {
+            Value lhs = findValue(op.getLhs());
+            Value rhs = findValue(op.getRhs());
+            auto newOp = builder.create<arith::AndIOp>(loc, lhs, rhs);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<arith::OrIOp>([&](arith::OrIOp op) {
+            Value lhs = findValue(op.getLhs());
+            Value rhs = findValue(op.getRhs());
+            auto newOp = builder.create<arith::OrIOp>(loc, lhs, rhs);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<arith::XOrIOp>([&](arith::XOrIOp op) {
+            Value lhs = findValue(op.getLhs());
+            Value rhs = findValue(op.getRhs());
+            auto newOp = builder.create<arith::XOrIOp>(loc, lhs, rhs);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<arith::ShLIOp>([&](arith::ShLIOp op) {
+            Value lhs = findValue(op.getLhs());
+            Value rhs = findValue(op.getRhs());
+            auto newOp = builder.create<arith::ShLIOp>(loc, lhs, rhs,
+                                                       op.getOverflowFlags());
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<arith::ShRUIOp>([&](arith::ShRUIOp op) {
+            Value lhs = findValue(op.getLhs());
+            Value rhs = findValue(op.getRhs());
+            auto newOp = builder.create<arith::ShRUIOp>(loc, lhs, rhs);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<arith::ShRSIOp>([&](arith::ShRSIOp op) {
+            Value lhs = findValue(op.getLhs());
+            Value rhs = findValue(op.getRhs());
+            auto newOp = builder.create<arith::ShRSIOp>(loc, lhs, rhs);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<arith::DivFOp>([&](arith::DivFOp op) {
+            Value lhs = findValue(op.getLhs());
+            Value rhs = findValue(op.getRhs());
+            auto newOp = builder.create<arith::DivFOp>(loc, lhs, rhs);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<arith::DivSIOp>([&](arith::DivSIOp op) {
+            Value lhs = findValue(op.getLhs());
+            Value rhs = findValue(op.getRhs());
+            auto newOp = builder.create<arith::DivSIOp>(loc, lhs, rhs);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<arith::DivUIOp>([&](arith::DivUIOp op) {
+            Value lhs = findValue(op.getLhs());
+            Value rhs = findValue(op.getRhs());
+            auto newOp = builder.create<arith::DivUIOp>(loc, lhs, rhs);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<arith::RemSIOp>([&](arith::RemSIOp op) {
+            Value lhs = findValue(op.getLhs());
+            Value rhs = findValue(op.getRhs());
+            auto newOp = builder.create<arith::RemSIOp>(loc, lhs, rhs);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<arith::RemUIOp>([&](arith::RemUIOp op) {
+            Value lhs = findValue(op.getLhs());
+            Value rhs = findValue(op.getRhs());
+            auto newOp = builder.create<arith::RemUIOp>(loc, lhs, rhs);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<arith::MaximumFOp>([&](arith::MaximumFOp op) {
+            Value lhs = findValue(op.getLhs());
+            Value rhs = findValue(op.getRhs());
+            auto newOp = builder.create<arith::MaximumFOp>(loc, lhs, rhs);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<arith::MinimumFOp>([&](arith::MinimumFOp op) {
+            Value lhs = findValue(op.getLhs());
+            Value rhs = findValue(op.getRhs());
+            auto newOp = builder.create<arith::MinimumFOp>(loc, lhs, rhs);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<arith::MaxNumFOp>([&](arith::MaxNumFOp op) {
+            Value lhs = findValue(op.getLhs());
+            Value rhs = findValue(op.getRhs());
+            auto newOp = builder.create<arith::MaxNumFOp>(loc, lhs, rhs);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<arith::MinNumFOp>([&](arith::MinNumFOp op) {
+            Value lhs = findValue(op.getLhs());
+            Value rhs = findValue(op.getRhs());
+            auto newOp = builder.create<arith::MinNumFOp>(loc, lhs, rhs);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<arith::MaxSIOp>([&](arith::MaxSIOp op) {
+            Value lhs = findValue(op.getLhs());
+            Value rhs = findValue(op.getRhs());
+            auto newOp = builder.create<arith::MaxSIOp>(loc, lhs, rhs);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<arith::MinSIOp>([&](arith::MinSIOp op) {
+            Value lhs = findValue(op.getLhs());
+            Value rhs = findValue(op.getRhs());
+            auto newOp = builder.create<arith::MinSIOp>(loc, lhs, rhs);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<arith::MaxUIOp>([&](arith::MaxUIOp op) {
+            Value lhs = findValue(op.getLhs());
+            Value rhs = findValue(op.getRhs());
+            auto newOp = builder.create<arith::MaxUIOp>(loc, lhs, rhs);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<arith::MinUIOp>([&](arith::MinUIOp op) {
+            Value lhs = findValue(op.getLhs());
+            Value rhs = findValue(op.getRhs());
+            auto newOp = builder.create<arith::MinUIOp>(loc, lhs, rhs);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<arith::NegFOp>([&](arith::NegFOp op) {
+            Value operand = findValue(op.getOperand());
+            auto newOp = builder.create<arith::NegFOp>(loc, operand);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<arith::ExtSIOp>([&](arith::ExtSIOp op) {
+            Value in = findValue(op.getIn());
+            Type outTy = op.getType();
+            if (auto dyn = dyn_cast<vir::DynamicVectorType>(outTy)) {
+              Type elem = dyn.getElementType();
+              if (auto vecTy = dyn_cast<VectorType>(in.getType())) {
+                outTy = VectorType::get(vecTy.getShape(), elem,
+                                        vecTy.getScalableDims());
+              } else {
+                outTy = elem;
+              }
+            }
+            auto newOp = builder.create<arith::ExtSIOp>(loc, outTy, in);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<arith::ExtUIOp>([&](arith::ExtUIOp op) {
+            Value in = findValue(op.getIn());
+            Type outTy = op.getType();
+            if (auto dyn = dyn_cast<vir::DynamicVectorType>(outTy)) {
+              Type elem = dyn.getElementType();
+              if (auto vecTy = dyn_cast<VectorType>(in.getType())) {
+                outTy = VectorType::get(vecTy.getShape(), elem,
+                                        vecTy.getScalableDims());
+              } else {
+                outTy = elem;
+              }
+            }
+            auto newOp = builder.create<arith::ExtUIOp>(loc, outTy, in);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<arith::TruncIOp>([&](arith::TruncIOp op) {
+            Value in = findValue(op.getIn());
+            Type outTy = op.getType();
+            if (auto dyn = dyn_cast<vir::DynamicVectorType>(outTy)) {
+              Type elem = dyn.getElementType();
+              if (auto vecTy = dyn_cast<VectorType>(in.getType())) {
+                outTy = VectorType::get(vecTy.getShape(), elem,
+                                        vecTy.getScalableDims());
+              } else {
+                outTy = elem;
+              }
+            }
+            auto newOp = builder.create<arith::TruncIOp>(loc, outTy, in);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<arith::ExtFOp>([&](arith::ExtFOp op) {
+            Value in = findValue(op.getIn());
+            Type outTy = op.getType();
+            if (auto dyn = dyn_cast<vir::DynamicVectorType>(outTy)) {
+              Type elem = dyn.getElementType();
+              if (auto vecTy = dyn_cast<VectorType>(in.getType())) {
+                outTy = VectorType::get(vecTy.getShape(), elem,
+                                        vecTy.getScalableDims());
+              } else {
+                outTy = elem;
+              }
+            }
+            auto newOp = builder.create<arith::ExtFOp>(loc, outTy, in);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<arith::TruncFOp>([&](arith::TruncFOp op) {
+            Value in = findValue(op.getIn());
+            Type outTy = op.getType();
+            if (auto dyn = dyn_cast<vir::DynamicVectorType>(outTy)) {
+              Type elem = dyn.getElementType();
+              if (auto vecTy = dyn_cast<VectorType>(in.getType())) {
+                outTy = VectorType::get(vecTy.getShape(), elem,
+                                        vecTy.getScalableDims());
+              } else {
+                outTy = elem;
+              }
+            }
+            auto newOp = builder.create<arith::TruncFOp>(loc, outTy, in);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<arith::SIToFPOp>([&](arith::SIToFPOp op) {
+            Value in = findValue(op.getIn());
+            Type outTy = op.getType();
+            if (auto dyn = dyn_cast<vir::DynamicVectorType>(outTy)) {
+              Type elem = dyn.getElementType();
+              if (auto vecTy = dyn_cast<VectorType>(in.getType())) {
+                outTy = VectorType::get(vecTy.getShape(), elem,
+                                        vecTy.getScalableDims());
+              } else {
+                outTy = elem;
+              }
+            }
+            auto newOp = builder.create<arith::SIToFPOp>(loc, outTy, in);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<arith::UIToFPOp>([&](arith::UIToFPOp op) {
+            Value in = findValue(op.getIn());
+            Type outTy = op.getType();
+            if (auto dyn = dyn_cast<vir::DynamicVectorType>(outTy)) {
+              Type elem = dyn.getElementType();
+              if (auto vecTy = dyn_cast<VectorType>(in.getType())) {
+                outTy = VectorType::get(vecTy.getShape(), elem,
+                                        vecTy.getScalableDims());
+              } else {
+                outTy = elem;
+              }
+            }
+            auto newOp = builder.create<arith::UIToFPOp>(loc, outTy, in);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<arith::FPToSIOp>([&](arith::FPToSIOp op) {
+            Value in = findValue(op.getIn());
+            Type outTy = op.getType();
+            if (auto dyn = dyn_cast<vir::DynamicVectorType>(outTy)) {
+              Type elem = dyn.getElementType();
+              if (auto vecTy = dyn_cast<VectorType>(in.getType())) {
+                outTy = VectorType::get(vecTy.getShape(), elem,
+                                        vecTy.getScalableDims());
+              } else {
+                outTy = elem;
+              }
+            }
+            auto newOp = builder.create<arith::FPToSIOp>(loc, outTy, in);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<arith::FPToUIOp>([&](arith::FPToUIOp op) {
+            Value in = findValue(op.getIn());
+            Type outTy = op.getType();
+            if (auto dyn = dyn_cast<vir::DynamicVectorType>(outTy)) {
+              Type elem = dyn.getElementType();
+              if (auto vecTy = dyn_cast<VectorType>(in.getType())) {
+                outTy = VectorType::get(vecTy.getShape(), elem,
+                                        vecTy.getScalableDims());
+              } else {
+                outTy = elem;
+              }
+            }
+            auto newOp = builder.create<arith::FPToUIOp>(loc, outTy, in);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<arith::BitcastOp>([&](arith::BitcastOp op) {
+            Value in = findValue(op.getIn());
+            Type outTy = op.getType();
+            if (auto dyn = dyn_cast<vir::DynamicVectorType>(outTy)) {
+              Type elem = dyn.getElementType();
+              if (auto vecTy = dyn_cast<VectorType>(in.getType())) {
+                outTy = VectorType::get(vecTy.getShape(), elem,
+                                        vecTy.getScalableDims());
+              } else {
+                outTy = elem;
+              }
+            }
+            auto newOp = builder.create<arith::BitcastOp>(loc, outTy, in);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<math::ExpOp>([&](math::ExpOp op) {
+            Value in = findValue(op.getOperand());
+            Type outTy = op.getType();
+            if (auto dyn = dyn_cast<vir::DynamicVectorType>(outTy)) {
+              Type elem = dyn.getElementType();
+              if (auto vecTy = dyn_cast<VectorType>(in.getType())) {
+                outTy = VectorType::get(vecTy.getShape(), elem,
+                                        vecTy.getScalableDims());
+              } else {
+                outTy = elem;
+              }
+            }
+            auto newOp = builder.create<math::ExpOp>(loc, outTy, in);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<math::SqrtOp>([&](math::SqrtOp op) {
+            Value in = findValue(op.getOperand());
+            Type outTy = op.getType();
+            if (auto dyn = dyn_cast<vir::DynamicVectorType>(outTy)) {
+              Type elem = dyn.getElementType();
+              if (auto vecTy = dyn_cast<VectorType>(in.getType())) {
+                outTy = VectorType::get(vecTy.getShape(), elem,
+                                        vecTy.getScalableDims());
+              } else {
+                outTy = elem;
+              }
+            }
+            auto newOp = builder.create<math::SqrtOp>(loc, outTy, in);
+            virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Default([&](Operation *op) {
             emitWarning(loc, "Unsupported operation during lowering: " +
@@ -528,6 +1224,40 @@ private:
     // Step 2: Construct the target vector type.
     //===------------------------------------------------------------------===//
 
+    // If the anchor dynamic vector has leading static dims (e.g.
+    // !vir.vec<4x?xf32>), we materialize explicit outer loops for those dims
+    // and lower the region body per-slice. This matches the current codegen
+    // strategy that only vectorizes along the last (dynamic) dimension.
+    SmallVector<int64_t> leadingStaticDims;
+    for (Block &blk : region) {
+      for (Operation &inner : blk) {
+        for (Value result : inner.getResults()) {
+          auto dynVecTy = dyn_cast<vir::DynamicVectorType>(result.getType());
+          if (!dynVecTy)
+            continue;
+          ArrayRef<int64_t> shape = dynVecTy.getShape();
+          if (shape.size() < 2)
+            continue;
+          // Only support static leading dims for now.
+          bool ok = true;
+          for (int64_t d : shape.drop_back()) {
+            if (ShapedType::isDynamic(d)) {
+              ok = false;
+              break;
+            }
+          }
+          if (!ok)
+            continue;
+          leadingStaticDims.assign(shape.begin(), shape.end() - 1);
+          break;
+        }
+        if (!leadingStaticDims.empty())
+          break;
+      }
+      if (!leadingStaticDims.empty())
+        break;
+    }
+
     int vectorWid = vectorWidth; // Dynamic defined vector width
     VectorType targetVectorType;
     if (useCustomVecWid) {
@@ -553,61 +1283,81 @@ private:
     //===------------------------------------------------------------------===//
     // Step 3: Create a main vectorization loop.
     //===------------------------------------------------------------------===//
-    Value vlValue = op.getVl();
-    // Calculate the upper bound for vectorized loop.
-    // vl_upbound = (vl_total - vl_step) + 1
-    Value vlStep = rewriter.create<arith::ConstantIndexOp>(loc, vectorWid);
-    Value vlUpboundPat = rewriter.create<arith::SubIOp>(loc, vlValue, vlStep);
-    Value vlUpbound = rewriter.create<arith::AddIOp>(
-        loc, vlUpboundPat, rewriter.create<arith::ConstantIndexOp>(loc, 1));
+    // If the anchor dynamic vector has leading static dims (e.g.
+    // !vir.vec<4x?xf32>), we materialize explicit outer loops for those dims
+    // and lower the region body per-slice. The innermost loop still
+    // vectorizes along the last (dynamic) dimension.
+    auto emitVectorAndTail = [&](OpBuilder &b, ArrayRef<Value> leadingIVs) {
+      Value vlValue = op.getVl();
+      Value vlStep = b.create<arith::ConstantIndexOp>(loc, vectorWid);
+      Value vlUpboundPat = b.create<arith::SubIOp>(loc, vlValue, vlStep);
+      Value vlUpbound = b.create<arith::AddIOp>(
+          loc, vlUpboundPat, b.create<arith::ConstantIndexOp>(loc, 1));
+      Value zero = b.create<arith::ConstantIndexOp>(loc, 0);
 
-    // To avoid possible overflow calculations such as' (vl-1)/step * step+step
-    // ', We directly set the upper bound of the loop to vl, and then process
-    // the remainder in the tail loop. The number of iterations in the main loop
-    // is vl / step
-    Value zero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+      b.create<affine::AffineForOp>(
+          loc, /*lowerBound=*/ValueRange{zero}, rewriter.getDimIdentityMap(),
+          /*upperBound=*/ValueRange{vlUpbound}, rewriter.getDimIdentityMap(),
+          vectorWid,
+          /*iterArgs=*/std::nullopt,
+          [&](OpBuilder &bb, Location bodyLoc, Value iv, ValueRange) {
+            //===------------------------------------------------------------===//
+            // Step 4: Convert operations inside the dynamic vector region.
+            //===------------------------------------------------------------===//
+            DenseMap<Value, Value> virSymbolTable;
+            lowerBlock(bb, bodyLoc, &region.front(), virSymbolTable, iv,
+                       leadingIVs, targetVectorType, /*isTailLoop=*/false);
+            bb.create<affine::AffineYieldOp>(bodyLoc);
+          });
 
-    // Create affine for loop with iteration variable.
-    auto mainloop = rewriter.create<affine::AffineForOp>(
-        loc, /*lowerBound=*/ValueRange{zero}, rewriter.getDimIdentityMap(),
-        /*upperBound=*/ValueRange{vlUpbound}, rewriter.getDimIdentityMap(),
-        vectorWid,
-        /*iterArgs=*/std::nullopt,
-        [&](OpBuilder &b, Location bodyLoc, Value iv, ValueRange iterArgs) {
-          //===--------------------------------------------------------------===//
-          // Step 4: Convert operations inside the dynamic vector region.
-          //===--------------------------------------------------------------===//
-          // Symbol table: maps dynamic vector values to fixed / scalable vector
-          // values.
-          DenseMap<Value, Value> virSymbolTable;
-          // Initiate recursive descent process on top-level blocks (vectorized
-          // mode)
-          lowerBlock(b, bodyLoc, &region.front(), virSymbolTable, iv,
-                     targetVectorType, /*isTailLoop=*/false);
-          b.create<affine::AffineYieldOp>(bodyLoc);
-        });
+      //===----------------------------------------------------------------===//
+      // Step 5: Create a tail loop to process the remaining elements.
+      //===----------------------------------------------------------------===//
+      Value vlRem = b.create<arith::RemSIOp>(loc, vlValue, vlStep);
+      Value tailStart = b.create<arith::SubIOp>(loc, vlValue, vlRem);
 
-    //===------------------------------------------------------------------===//
-    // Step 4: Create a tail loop to process the remaining elements.
-    //===------------------------------------------------------------------===//
-    // The starting point of the tail loop is where the main loop ends.
-    // vl - (vl % step)
-    Value vlRem = rewriter.create<arith::RemSIOp>(loc, vlValue, vlStep);
-    Value tailStart = rewriter.create<arith::SubIOp>(loc, vlValue, vlRem);
+      b.create<affine::AffineForOp>(
+          loc, /*lowerBound=*/ValueRange{tailStart},
+          rewriter.getDimIdentityMap(),
+          /*upperBound=*/ValueRange{vlValue}, rewriter.getDimIdentityMap(),
+          /*step=*/1,
+          /*iterArgs=*/std::nullopt,
+          [&](OpBuilder &bb, Location bodyLoc, Value iv, ValueRange) {
+            DenseMap<Value, Value> virSymbolTable;
+            lowerBlock(bb, bodyLoc, &region.front(), virSymbolTable, iv,
+                       leadingIVs, /*targetVectorType=*/Type{},
+                       /*isTailLoop=*/true);
+            bb.create<affine::AffineYieldOp>(bodyLoc);
+          });
+    };
 
-    rewriter.create<affine::AffineForOp>(
-        loc, /*lowerBound=*/ValueRange{tailStart}, rewriter.getDimIdentityMap(),
-        /*upperBound=*/ValueRange{vlValue}, rewriter.getDimIdentityMap(),
-        /*step=*/1,
-        /*iterArgs=*/std::nullopt,
-        [&](OpBuilder &b, Location bodyLoc, Value iv, ValueRange iterArgs) {
-          DenseMap<Value, Value> virSymbolTable;
-          // Initiate recursive descent process on top-level blocks (scalar
-          // mode)
-          lowerBlock(b, bodyLoc, &region.front(), virSymbolTable, iv,
-                     /*targetVectorType=*/nullptr, /*isTailLoop=*/true);
-          b.create<affine::AffineYieldOp>(bodyLoc);
-        });
+    if (leadingStaticDims.empty()) {
+      emitVectorAndTail(rewriter, /*leadingIVs=*/{});
+    } else {
+      // Build nested loops over the leading static dims.
+      SmallVector<Value> ivs;
+      std::function<void(unsigned, OpBuilder &)> emitOuter = [&](unsigned dim,
+                                                                 OpBuilder &b) {
+        if (dim == leadingStaticDims.size()) {
+          emitVectorAndTail(b, ivs);
+          return;
+        }
+        int64_t ub = leadingStaticDims[dim];
+        Value c0 = b.create<arith::ConstantIndexOp>(loc, 0);
+        Value cub = b.create<arith::ConstantIndexOp>(loc, ub);
+        b.create<affine::AffineForOp>(
+            loc, ValueRange{c0}, rewriter.getDimIdentityMap(), ValueRange{cub},
+            rewriter.getDimIdentityMap(), /*step=*/1,
+            /*iterArgs=*/std::nullopt,
+            [&](OpBuilder &bb, Location bodyLoc, Value iv, ValueRange) {
+              ivs.push_back(iv);
+              emitOuter(dim + 1, bb);
+              ivs.pop_back();
+              bb.create<affine::AffineYieldOp>(bodyLoc);
+            });
+      };
+      emitOuter(/*dim=*/0, rewriter);
+    }
 
     rewriter.eraseOp(op);
     return success();
@@ -650,6 +1400,7 @@ public:
         arith::ArithDialect,
         buddy::vir::VIRDialect,
         func::FuncDialect,
+        math::MathDialect,
         memref::MemRefDialect,
         affine::AffineDialect,
         vector::VectorDialect,
@@ -682,6 +1433,7 @@ void VIRToVectorPass::runOnOperation() {
   target.addLegalDialect<
       arith::ArithDialect,
       func::FuncDialect,
+      math::MathDialect,
       memref::MemRefDialect,
       vector::VectorDialect,
       affine::AffineDialect,

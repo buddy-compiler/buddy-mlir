@@ -2,14 +2,14 @@
 // RUN:     --lower-gemmini | \
 // RUN: FileCheck %s
 
-// batchSize = 1 inputDim = 5 inChannels = 1 
+// batchSize = 1 inputDim = 5 inChannels = 1
 memref.global "private" @input : memref<1x5x5x1xi8> = dense<[[[[1], [0], [-1], [0], [1]],
                                                               [[1], [0], [-1], [0], [1]],
                                                               [[1], [0], [-1], [0], [1]],
                                                               [[1], [0], [-1], [0], [1]],
                                                               [[1], [0], [-1], [0], [1]]]]>
 
-// outChannels = 2 kernelDim = 3 inChannels = 1 
+// outChannels = 2 kernelDim = 3 inChannels = 1
 memref.global "private" @weight : memref<9x2xi8> = dense<[[1, 2], [1, 2], [1, 2],
                                                           [1, 2], [1, 2], [1, 2],
                                                           [1, 2], [1, 2], [1, 2]]>

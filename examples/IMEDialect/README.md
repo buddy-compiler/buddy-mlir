@@ -27,7 +27,7 @@ The IMEDialect example folder contains the following key files:
 
 ## Introduction
 
-The IME dialect provides MLIR operations that map to SpacemiT's Intelligent Matrix Extension for RISC-V. 
+The IME dialect provides MLIR operations that map to SpacemiT's Intelligent Matrix Extension for RISC-V.
 
 ### Matrix Operations
 

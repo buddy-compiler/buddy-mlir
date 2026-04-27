@@ -33,9 +33,22 @@ add_llvm_tool(buddy-llc
   ${LLVM_MAIN_SRC_DIR}/tools/llc/llc.cpp
   ${LLVM_MAIN_SRC_DIR}/tools/llc/NewPMDriver.cpp
 
+  PARTIAL_SOURCES_INTENDED
   DEPENDS
   buddy_intrinsics_gen
   SUPPORT_PLUGINS
   )
 
 export_executable_symbols_for_plugins(buddy-llc)
+
+add_llvm_tool(buddy-llc-ext
+  buddy-llc-ext.cpp
+  NewPMDriverExt.cpp
+
+  PARTIAL_SOURCES_INTENDED
+  DEPENDS
+  buddy_intrinsics_gen
+  SUPPORT_PLUGINS
+  )
+
+export_executable_symbols_for_plugins(buddy-llc-ext)

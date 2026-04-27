@@ -20,30 +20,29 @@
 #
 # ===---------------------------------------------------------------------------
 
-import os
 import argparse
-import torch
-import torch._dynamo as dynamo
-from transformers import AutoModelForCausalLM, StaticCache
-from torch._inductor.decomposition import decompositions as inductor_decomp
-import numpy
+import os
 
+import numpy
+import torch
 from buddy.compiler.frontend import DynamoCompiler
-from buddy.compiler.ops import tosa
 from buddy.compiler.graph import GraphDriver
+from buddy.compiler.graph.operation import *  # noqa: F403
 from buddy.compiler.graph.transform import (
-    simply_fuse,
     apply_classic_fusion,
-    eliminate_transpose,
     eliminate_matmul_transpose_reshape,
+    eliminate_transpose,
     flash_attention_prefill,
     gqa_attention_fusion,
+    simply_fuse,
 )
-from buddy.compiler.graph.type import DeviceType, TensorDType
-from buddy.compiler.graph.operation import *
 from buddy.compiler.graph.transform.quantization import (
     weight_only_int4_f16_channel_wise,
 )
+from buddy.compiler.graph.type import DeviceType, TensorDType
+from buddy.compiler.ops import tosa
+from torch._inductor.decomposition import decompositions as inductor_decomp
+from transformers import AutoModelForCausalLM, StaticCache
 
 parser = argparse.ArgumentParser(description="W4A16 AOT Importer")
 parser.add_argument("--output-dir", type=str, default="./")
@@ -57,7 +56,7 @@ if model_path is None:
     model_path = "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
 
 model = (
-    AutoModelForCausalLM.from_pretrained(model_path, torchscript=True)
+    AutoModelForCausalLM.from_pretrained(model_path, dtype=torch.float16)
     .eval()
     .half()
 )
@@ -138,9 +137,9 @@ for i, param_node in enumerate(graph_prefill.params):
         if param_node.tensor_meta.get("dtype") == TensorDType.Int8:
             scaler_name = "scaler_" + param_node.name
             scaler_node = graph_prefill.node_table.get(scaler_name)
-            assert (
-                scaler_node is not None
-            ), f"Missing scaler for {param_node.name}"
+            assert scaler_node is not None, (
+                f"Missing scaler for {param_node.name}"
+            )
 
             scaler_shape = list(scaler_node.tensor_meta["shape"])
             quant_axis = next(i for i, s in enumerate(scaler_shape) if s != 1)
@@ -162,9 +161,9 @@ for i, param_node in enumerate(graph_prefill.params):
                 ("f16", original_tensor.half(), param_node.name)
             )
     else:
-        assert param_node.name.startswith(
-            "scaler_"
-        ), f"Expected scaler, got {param_node.name}"
+        assert param_node.name.startswith("scaler_"), (
+            f"Expected scaler, got {param_node.name}"
+        )
         weight_name = param_node.name[len("scaler_") :]
         weight_idx = next(
             j
@@ -192,9 +191,9 @@ for dtype_tag, tensor, name in all_param_tensors:
         f16_params_data.append(tensor.detach().half().numpy().reshape([-1]))
     else:
         flat = tensor.detach().numpy().reshape([-1])
-        assert (
-            flat.shape[0] % 2 == 0
-        ), f"Param {name}: odd element count {flat.shape[0]}"
+        assert flat.shape[0] % 2 == 0, (
+            f"Param {name}: odd element count {flat.shape[0]}"
+        )
         low = flat[0::2].astype(numpy.uint8) & 0x0F
         high = (flat[1::2].astype(numpy.uint8) & 0x0F) << 4
         packed = (low | high).astype(numpy.int8)

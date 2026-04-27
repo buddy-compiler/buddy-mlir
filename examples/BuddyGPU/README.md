@@ -2,7 +2,7 @@
 This example demonstrates how to use the Buddy GPU to run a simple single-kernel program.
 
 ## Matmul
-The example program is a simple matrix multiplication kernel. The linalg definition is in the `matmul.mlir` file. 
+The example program is a simple matrix multiplication kernel. The linalg definition is in the `matmul.mlir` file.
 A transform sequence is in `transform.mlir` to optimize this kernel and prepare it for execution on the GPU.
 The `matmul-cubin.mlir` provides a lowered file, in case the pipeline is not working.
 
@@ -31,7 +31,7 @@ The result should be:
 MLIR equal to NumPy? True
 ```
 
-As the tensorcore doesn't support fp32 computation, the operands are converted to tf32, hence the result is not exactly the same as the PyTorch result. 
+As the tensorcore doesn't support fp32 computation, the operands are converted to tf32, hence the result is not exactly the same as the PyTorch result.
 
 ### Profiling
 You need to install nsight compute first.

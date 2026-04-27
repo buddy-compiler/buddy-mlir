@@ -8,7 +8,7 @@ macro(CHECK_TOOLCHAIN)
 #-------------------------------------------------------------------------------
 # Check Attribute
 #-------------------------------------------------------------------------------
-  set(BUDDY_OPT_ATTR "" CACHE STRING "Target attribute of the host machine")  
+  set(BUDDY_OPT_ATTR "" CACHE STRING "Target attribute of the host machine")
   if ("${BUDDY_OPT_ATTR}" STREQUAL "")
     if (HAVE_AVX512)
       # TODO: Figure out the difference of sse/sse2/sse4.1

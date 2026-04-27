@@ -26,7 +26,7 @@ func.func @alloc_mem_i32() -> memref<10x10xi32> {
 }
 
 func.func @matmul(%a : memref<10x10xi32>, %b : memref<10x10xi32>, %c : memref<10x10xi32>) {
-  linalg.matmul 
+  linalg.matmul
     ins(%a, %b: memref<10x10xi32>, memref<10x10xi32>)
     outs(%c:memref<10x10xi32>)
   return

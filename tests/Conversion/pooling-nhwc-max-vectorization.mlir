@@ -25,8 +25,8 @@
 // CHECK-NEXT:       }
 
 func.func @pooling_nhwc_max(%a : memref<?x?x?x?xf32>, %b : memref<?x?xf32>, %c : memref<?x?x?x?xf32>) {
-  linalg.pooling_nhwc_max {dilations = dense<1> : vector<2xi64>, strides = dense<2> : vector<2xi64>} 
-    ins(%a, %b : memref<?x?x?x?xf32>, memref<?x?xf32>) 
+  linalg.pooling_nhwc_max {dilations = dense<1> : vector<2xi64>, strides = dense<2> : vector<2xi64>}
+    ins(%a, %b : memref<?x?x?x?xf32>, memref<?x?xf32>)
     outs(%c : memref<?x?x?x?xf32>)
   return
 }

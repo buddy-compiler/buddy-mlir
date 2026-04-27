@@ -23,12 +23,11 @@ foo_mlir = torch.compile(foo, backend=dynamo_compiler)
 assert torch.allclose(foo_mlir(x), foo(x), atol=1e-6, rtol=1e-6)
 
 graphs = dynamo_compiler._imported_graphs
-assert len(graphs) == 1 
+assert len(graphs) == 1
 graph = graphs[0]
 graph.lower_to_top_level_ir()
 print(graph._imported_module)
 
 # CHECK-LABEL: func.func @forward
-#       CHECK: %[[erf:.*]] = math.erf 
+#       CHECK: %[[erf:.*]] = math.erf
 #       CHECK: return %[[erf]]
-

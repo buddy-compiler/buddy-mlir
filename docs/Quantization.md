@@ -9,7 +9,7 @@ The main focus of our proposal is to implement support for large model quantizat
 
 ## Motivation/Context
 
-On the one hand,large models based on transformers have shown excellent performance on various benchmarks. However, the large model size leads to the high serving costs. 
+On the one hand,large models based on transformers have shown excellent performance on various benchmarks. However, the large model size leads to the high serving costs.
 
 On the other hand, the size of large models makes it difficult to run the models on small machines that users often use.
 
@@ -96,9 +96,9 @@ We focus on the powerful role that outlier quantification plays in the quantific
 
 #### Quantization Calculation
 
-Mixed-precision calculations appear during the quantization process. 
+Mixed-precision calculations appear during the quantization process.
 
-For example, the processing of outlier quantization introduces a part of mixed-precision calculations, and we are also concerned about this part. 
+For example, the processing of outlier quantization introduces a part of mixed-precision calculations, and we are also concerned about this part.
 
 How to transfer mixed-precision calculations to mlir for processing and convert them into special operator calculations is also one of our topics.
 
@@ -106,10 +106,10 @@ In addition, the calculation optimization of conventional quantification is also
 
 ### Test Cases
 
-In order to verify the correctness of each operator we implement, we need to add a series of test cases. 
+In order to verify the correctness of each operator we implement, we need to add a series of test cases.
 
-First, we need to verify that we can generate the mlir code correctly. 
+First, we need to verify that we can generate the mlir code correctly.
 
-Second, we need to verify that the mlir code we generated can be executed correctly. 
+Second, we need to verify that the mlir code we generated can be executed correctly.
 
 Third, we need to verify that our end-to-end model program can output a correct result.

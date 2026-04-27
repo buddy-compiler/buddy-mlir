@@ -33,6 +33,54 @@ endif
 # ==============================================================================
 # Evaluation of Modules in DeepSeek-R1 Distill Qwen 1.5B
 # ==============================================================================
+next-lm-head-run:
+	@${BUDDY_OPT} ./next-lm-head.mlir \
+		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
+		${BUDDY_OPT} \
+			-eliminate-empty-tensors \
+			-empty-tensor-to-alloc-tensor \
+			-convert-elementwise-to-linalg \
+			-one-shot-bufferize="bufferize-function-boundaries" \
+			-expand-strided-metadata \
+			-ownership-based-buffer-deallocation \
+			-canonicalize \
+			-buffer-deallocation-simplification \
+			-bufferization-lower-deallocations \
+			-cse \
+			-canonicalize \
+			-optimize-allocation-liveness \
+			-eliminate-memref-copy \
+			-assume-tight-memref-layout \
+			-staticize-memref-layout \
+			-matmul-vectorization-decode=vector-size=128 \
+			-batch-matmul-vectorization-decode=vector-size=128 \
+			-batchmatmul-transpose-b-vectorization=vector-size=16 \
+			-matmul-transpose-b-vectorization="unroll=4 n-tile=1" \
+			-convert-linalg-to-affine-loops \
+			-convert-vector-to-scf \
+			-lower-affine \
+			-convert-scf-to-openmp="num-threads=48" \
+			-cse \
+			-memref-expand \
+			-arith-expand \
+			-convert-vector-to-llvm \
+			-convert-arith-to-llvm \
+			-finalize-memref-to-llvm \
+			-convert-scf-to-cf \
+			-convert-cf-to-llvm \
+			-convert-openmp-to-llvm \
+			-convert-arith-to-llvm \
+			-convert-math-to-llvm \
+			-convert-math-to-libm \
+			-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_TRANSLATE} -mlir-to-llvmir | \
+	${CLANG} -x ir - \
+		${MARCH_FLAG} -O3 \
+		-L${MLIR_LIB} -lmlir_runner_utils -lmlir_c_runner_utils -lomp -lm \
+		-Wl,-rpath,${MLIR_LIB} \
+		-o next-lm-head.out
+	./next-lm-head.out || true
 
 next-gqa-attention-fusion-run:
 	@${BUDDY_OPT} ./next-gqa-attention-fusion.mlir \

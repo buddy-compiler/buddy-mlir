@@ -48,7 +48,7 @@
     env:
     input: STDIN
     output: STDOUT
-    
+
 - filename: rvv-vp-intrinsic.mlir
   type: aot
   arch: rv
@@ -125,13 +125,13 @@
   - exec: ${BUDDY_OPT}
     args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
     workingdir:
-    env: 
+    env:
     input: FILE
     output: STDOUT
   - exec: ${BUDDY_TRANSLATE}
     args:  --buddy-to-llvmir
     workingdir:
-    env: 
+    env:
     input: STDIN
     output: STDOUT
   - exec: ${LLC}
@@ -148,13 +148,13 @@
   - exec: ${BUDDY_OPT}
     args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
     workingdir:
-    env: 
+    env:
     input: FILE
     output: STDOUT
   - exec: ${BUDDY_TRANSLATE}
     args:  --buddy-to-llvmir
     workingdir:
-    env: 
+    env:
     input: STDIN
     output: STDOUT
   - exec: ${LLC}
@@ -171,13 +171,13 @@
   - exec: ${BUDDY_OPT}
     args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
     workingdir:
-    env: 
+    env:
     input: FILE
     output: STDOUT
   - exec: ${BUDDY_TRANSLATE}
     args:  --buddy-to-llvmir
     workingdir:
-    env: 
+    env:
     input: STDIN
     output: STDOUT
   - exec: ${LLC}
@@ -194,7 +194,7 @@
   - exec: ${BUDDY_OPT}
     args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
     workingdir:
-    env: 
+    env:
     input: FILE
     output: STDOUT
   - exec: ${BUDDY_TRANSLATE}
@@ -229,7 +229,7 @@
   - exec: ${BUDDY_OPT}
     args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
     workingdir:
-    env: 
+    env:
     input: FILE
     output: STDOUT
   - exec: ${BUDDY_TRANSLATE}
@@ -264,7 +264,7 @@
   - exec: ${BUDDY_OPT}
     args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
     workingdir:
-    env: 
+    env:
     input: FILE
     output: STDOUT
   - exec: ${BUDDY_TRANSLATE}
@@ -473,7 +473,7 @@
   - exec: ${BUDDY_OPT}
     args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
     workingdir:
-    env: 
+    env:
     input: FILE
     output: STDOUT
   - exec: ${BUDDY_TRANSLATE}
@@ -496,7 +496,7 @@
   - exec: ${BUDDY_OPT}
     args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
     workingdir:
-    env: 
+    env:
     input: FILE
     output: STDOUT
   - exec: ${BUDDY_TRANSLATE}
@@ -519,7 +519,7 @@
   - exec: ${BUDDY_OPT}
     args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
     workingdir:
-    env: 
+    env:
     input: FILE
     output: STDOUT
   - exec: ${BUDDY_TRANSLATE}
@@ -679,7 +679,7 @@
   - exec: ${BUDDY_OPT}
     args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
     workingdir:
-    env: 
+    env:
     input: FILE
     output: STDOUT
   - exec: ${BUDDY_TRANSLATE}
@@ -702,7 +702,7 @@
   - exec: ${BUDDY_OPT}
     args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
     workingdir:
-    env: 
+    env:
     input: FILE
     output: STDOUT
   - exec: ${BUDDY_TRANSLATE}
@@ -725,7 +725,7 @@
   - exec: ${BUDDY_OPT}
     args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
     workingdir:
-    env: 
+    env:
     input: FILE
     output: STDOUT
   - exec: ${BUDDY_TRANSLATE}
@@ -748,7 +748,7 @@
   - exec: ${BUDDY_OPT}
     args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
     workingdir:
-    env: 
+    env:
     input: FILE
     output: STDOUT
   - exec: ${BUDDY_TRANSLATE}
@@ -783,7 +783,7 @@
   - exec: ${BUDDY_OPT}
     args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
     workingdir:
-    env: 
+    env:
     input: FILE
     output: STDOUT
   - exec: ${BUDDY_TRANSLATE}
@@ -818,7 +818,7 @@
   - exec: ${BUDDY_OPT}
     args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
     workingdir:
-    env: 
+    env:
     input: FILE
     output: STDOUT
   - exec: ${BUDDY_TRANSLATE}
@@ -904,7 +904,7 @@
   - exec: ${BUDDY_OPT}
     args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
     workingdir:
-    env: 
+    env:
     input: FILE
     output: STDOUT
   - exec: ${BUDDY_TRANSLATE}
@@ -921,7 +921,7 @@
   - exec: ${BUDDY_OPT}
     args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
     workingdir:
-    env: 
+    env:
     input: FILE
     output: STDOUT
   - exec: ${BUDDY_TRANSLATE}
@@ -938,7 +938,7 @@
   - exec: ${BUDDY_OPT}
     args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
     workingdir:
-    env: 
+    env:
     input: FILE
     output: STDOUT
   - exec: ${BUDDY_TRANSLATE}
@@ -955,7 +955,7 @@
   - exec: ${BUDDY_OPT}
     args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
     workingdir:
-    env: 
+    env:
     input: FILE
     output: STDOUT
   - exec: ${BUDDY_TRANSLATE}
@@ -978,7 +978,7 @@
   - exec: ${BUDDY_OPT}
     args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
     workingdir:
-    env: 
+    env:
     input: FILE
     output: STDOUT
   - exec: ${BUDDY_TRANSLATE}
@@ -1001,7 +1001,7 @@
   - exec: ${BUDDY_OPT}
     args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
     workingdir:
-    env: 
+    env:
     input: FILE
     output: STDOUT
   - exec: ${BUDDY_TRANSLATE}
@@ -1023,13 +1023,13 @@
   commands:
   - exec: ${BUDDY_OPT}
     args: --convert-scf-to-cf --lower-rvv --convert-vector-to-llvm --convert-memref-to-llvm --convert-arith-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts
-    workingdir: 
-    env: 
+    workingdir:
+    env:
     input: FILE
     output: STDOUT
   - exec: ${BUDDY_TRANSLATE}
     args: --buddy-to-llvmir
-    workingdir: 
-    env: 
+    workingdir:
+    env:
     input: STDIN
     output: FILE

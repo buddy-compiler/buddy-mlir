@@ -75,7 +75,7 @@ add_custom_command(
   VERBATIM
 )
 
-add_library(YOLO26N STATIC subgraph0.o forward.o)
+add_library(YOLO26N STATIC forward.o subgraph0.o)
 set_target_properties(YOLO26N PROPERTIES LINKER_LANGUAGE C)
 
 add_executable(buddy-yolo26n-run buddy-yolo26n-main.cpp)

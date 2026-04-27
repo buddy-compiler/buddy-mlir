@@ -53,6 +53,3 @@ echo "Running timed transformer executable..."
 echo "========================================="
 echo ""
 "$BUILD_DIR/bin/transformer-runner-timed"
-
-
-

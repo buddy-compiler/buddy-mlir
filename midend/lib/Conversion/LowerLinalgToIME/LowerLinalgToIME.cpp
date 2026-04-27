@@ -46,6 +46,11 @@ static void getTileSizes(Type elemType, int64_t &tileM, int64_t &tileK,
     tileM = 4;
     tileK = 4;
     tileN = 4;
+  } else if (elemType.isF16()) {
+    // FP16: MAC unit 4x4x4
+    tileM = 4;
+    tileK = 4;
+    tileN = 4;
   } else {
     // Default to int8 tile sizes
     tileM = 4;
@@ -55,176 +60,16 @@ static void getTileSizes(Type elemType, int64_t &tileM, int64_t &tileK,
 }
 
 static bool isSupportedElementType(Type elemType) {
-  return elemType.isInteger(8) || elemType.isInteger(16);
+  return elemType.isInteger(8) || elemType.isInteger(16) || elemType.isF16();
 }
 
 namespace {
 
-class MatmulToIMELowering : public OpRewritePattern<linalg::MatmulOp> {
-public:
-  using OpRewritePattern<linalg::MatmulOp>::OpRewritePattern;
-
-  LogicalResult matchAndRewrite(linalg::MatmulOp matmulOp,
-                                PatternRewriter &rewriter) const override {
-    Location loc = matmulOp.getLoc();
-
-    Value A = matmulOp.getInputs()[0];  // M x K
-    Value B = matmulOp.getInputs()[1];  // K x N
-    Value C = matmulOp.getOutputs()[0]; // M x N
-
-    auto AType = dyn_cast<MemRefType>(A.getType());
-    auto BType = dyn_cast<MemRefType>(B.getType());
-    auto CType = dyn_cast<MemRefType>(C.getType());
-
-    if (!AType || !BType || !CType) {
-      return rewriter.notifyMatchFailure(matmulOp,
-                                         "operands must be memref types");
-    }
-
-    Type AElemType = AType.getElementType();
-    Type BElemType = BType.getElementType();
-    Type CElemType = CType.getElementType();
-
-    if (!isSupportedElementType(AElemType) ||
-        !isSupportedElementType(BElemType)) {
-      return rewriter.notifyMatchFailure(
-          matmulOp, "only int8 and int16 element types are supported");
-    }
-
-    if (AElemType != BElemType) {
-      return rewriter.notifyMatchFailure(
-          matmulOp, "A and B must have the same element type");
-    }
-
-    if (!CElemType.isInteger(32)) {
-      return rewriter.notifyMatchFailure(
-          matmulOp, "output C must be int32 for accumulation");
-    }
-
-    ArrayRef<int64_t> AShape = AType.getShape();
-    ArrayRef<int64_t> BShape = BType.getShape();
-
-    if (AShape.size() != 2 || BShape.size() != 2) {
-      return rewriter.notifyMatchFailure(matmulOp,
-                                         "only 2D matrices are supported");
-    }
-
-    int64_t M = AShape[0];
-    int64_t K = AShape[1];
-    int64_t N = BShape[1];
-
-    bool isDynamic = ShapedType::isDynamic(M) || ShapedType::isDynamic(K) ||
-                     ShapedType::isDynamic(N);
-
-    int64_t tileM, tileK, tileN;
-    getTileSizes(AElemType, tileM, tileK, tileN);
-
-    // This pattern only handles aligned dimensions.
-    // Non-aligned dimensions are handled by MatmulWithBoundaryToIMELowering.
-    if (!isDynamic) {
-      bool isAligned = (M % tileM == 0) && (K % tileK == 0) && (N % tileN == 0);
-      if (!isAligned) {
-        return rewriter.notifyMatchFailure(
-            matmulOp, "non-aligned dimensions - use boundary handling pattern");
-      }
-    }
-    getTileSizes(AElemType, tileM, tileK, tileN);
-
-    Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
-    Value stepM = rewriter.create<arith::ConstantIndexOp>(loc, tileM);
-    Value stepK = rewriter.create<arith::ConstantIndexOp>(loc, tileK);
-    Value stepN = rewriter.create<arith::ConstantIndexOp>(loc, tileN);
-
-    Value boundM, boundK, boundN;
-    if (isDynamic) {
-      boundM = rewriter.create<memref::DimOp>(loc, A, 0);
-      boundK = rewriter.create<memref::DimOp>(loc, A, 1);
-      boundN = rewriter.create<memref::DimOp>(loc, B, 1);
-    } else {
-      boundM = rewriter.create<arith::ConstantIndexOp>(loc, M);
-      boundK = rewriter.create<arith::ConstantIndexOp>(loc, K);
-      boundN = rewriter.create<arith::ConstantIndexOp>(loc, N);
-    }
-
-    Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
-    Value tileKVal = rewriter.create<arith::ConstantIndexOp>(loc, tileK);
-    Value tileNVal = rewriter.create<arith::ConstantIndexOp>(loc, tileN);
-
-    // Allocate contiguous buffer for B tile in column-major pack format
-    // BTile[N][K] for column-major packing (IME expects B transposed)
-    auto BTileType = MemRefType::get({tileN, tileK}, AElemType);
-    Value BTileBuffer = rewriter.create<memref::AllocaOp>(loc, BTileType);
-
-    auto loopI = rewriter.create<scf::ForOp>(loc, c0, boundM, stepM);
-    rewriter.setInsertionPointToStart(loopI.getBody());
-    Value ivI = loopI.getInductionVar();
-
-    auto loopJ = rewriter.create<scf::ForOp>(loc, c0, boundN, stepN);
-    rewriter.setInsertionPointToStart(loopJ.getBody());
-    Value ivJ = loopJ.getInductionVar();
-
-    auto loopK = rewriter.create<scf::ForOp>(loc, c0, boundK, stepK);
-    rewriter.setInsertionPointToStart(loopK.getBody());
-    Value ivK = loopK.getInductionVar();
-
-    // A tile: use SubView (no transpose needed)
-    SmallVector<OpFoldResult> aOffsets = {ivI, ivK};
-    SmallVector<OpFoldResult> aSizes = {rewriter.getIndexAttr(tileM),
-                                        rewriter.getIndexAttr(tileK)};
-    SmallVector<OpFoldResult> aStrides = {rewriter.getIndexAttr(1),
-                                          rewriter.getIndexAttr(1)};
-
-    Value ATile =
-        rewriter.create<memref::SubViewOp>(loc, A, aOffsets, aSizes, aStrides);
-
-    // B tile: copy with transpose (B[k][n] -> BTile[n][k])
-    // IME requires B to be in column-major pack format
-    auto copyBLoopN = rewriter.create<scf::ForOp>(loc, c0, tileNVal, c1);
-    rewriter.setInsertionPointToStart(copyBLoopN.getBody());
-    Value bn = copyBLoopN.getInductionVar();
-
-    auto copyBLoopK = rewriter.create<scf::ForOp>(loc, c0, tileKVal, c1);
-    rewriter.setInsertionPointToStart(copyBLoopK.getBody());
-    Value bk = copyBLoopK.getInductionVar();
-
-    // Global indices in B matrix
-    Value globalBk = rewriter.create<arith::AddIOp>(loc, ivK, bk);
-    Value globalBn = rewriter.create<arith::AddIOp>(loc, ivJ, bn);
-
-    // Load B[globalBk][globalBn] and store to BTile[bn][bk] (transposed)
-    Value bVal = rewriter.create<memref::LoadOp>(loc, B, ValueRange{globalBk, globalBn});
-    rewriter.create<memref::StoreOp>(loc, bVal, BTileBuffer, ValueRange{bn, bk});
-
-    rewriter.setInsertionPointAfter(copyBLoopN);
-
-    // C tile: use SubView
-    SmallVector<OpFoldResult> cOffsets = {ivI, ivJ};
-    SmallVector<OpFoldResult> cSizes = {rewriter.getIndexAttr(tileM),
-                                        rewriter.getIndexAttr(tileN)};
-    SmallVector<OpFoldResult> cStrides = {rewriter.getIndexAttr(1),
-                                          rewriter.getIndexAttr(1)};
-
-    Value CTile =
-        rewriter.create<memref::SubViewOp>(loc, C, cOffsets, cSizes, cStrides);
-
-    rewriter.create<VmadotOp>(loc, CTile, ATile, BTileBuffer);
-
-    rewriter.setInsertionPointAfter(loopI);
-
-    rewriter.eraseOp(matmulOp);
-
-    return success();
-  }
-};
-
-class MatmulWithBoundaryToIMELowering
+class MatmulToIMELowering
     : public OpRewritePattern<linalg::MatmulOp> {
 public:
   using OpRewritePattern<linalg::MatmulOp>::OpRewritePattern;
 
-  MatmulWithBoundaryToIMELowering(MLIRContext *context)
-      : OpRewritePattern<linalg::MatmulOp>(context, /*benefit=*/1) {}
-
   LogicalResult matchAndRewrite(linalg::MatmulOp matmulOp,
                                 PatternRewriter &rewriter) const override {
     Location loc = matmulOp.getLoc();
@@ -249,7 +94,7 @@ public:
     if (!isSupportedElementType(AElemType) ||
         !isSupportedElementType(BElemType)) {
       return rewriter.notifyMatchFailure(
-          matmulOp, "only int8 and int16 element types are supported");
+          matmulOp, "only int8, int16, and f16 element types are supported");
     }
 
     if (AElemType != BElemType) {
@@ -257,9 +102,17 @@ public:
           matmulOp, "A and B must have the same element type");
     }
 
-    if (!CElemType.isInteger(32)) {
-      return rewriter.notifyMatchFailure(
-          matmulOp, "output C must be int32 for accumulation");
+    bool isFloatMatmul = AElemType.isF16();
+    if (isFloatMatmul) {
+      if (!CElemType.isF16()) {
+        return rewriter.notifyMatchFailure(
+            matmulOp, "output C must be f16 for fp16 accumulation");
+      }
+    } else {
+      if (!CElemType.isInteger(32)) {
+        return rewriter.notifyMatchFailure(
+            matmulOp, "output C must be int32 for integer accumulation");
+      }
     }
 
     ArrayRef<int64_t> AShape = AType.getShape();
@@ -287,14 +140,6 @@ public:
           matmulOp, "dynamic dimensions not supported in boundary pattern");
     }
 
-    // For static dimensions, check if they are aligned
-    bool isAligned = (M % tileM == 0) && (K % tileK == 0) && (N % tileN == 0);
-    if (isAligned) {
-      // Let the simpler MatmulToIMELowering handle aligned cases
-      return rewriter.notifyMatchFailure(
-          matmulOp, "aligned dimensions - use simple lowering");
-    }
-
     // Calculate number of tiles (ceiling division)
     int64_t numTilesM = (M + tileM - 1) / tileM;
     int64_t numTilesK = (K + tileK - 1) / tileK;
@@ -316,8 +161,9 @@ public:
     // Create zero constants for padding
     Value zeroElem = rewriter.create<arith::ConstantOp>(
         loc, AElemType, rewriter.getZeroAttr(AElemType));
-    Value zeroI32 = rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getI32Type(), rewriter.getI32IntegerAttr(0));
+    // Zero constant for C tile (type depends on element type: f16 or i32)
+    Value zeroC = rewriter.create<arith::ConstantOp>(
+        loc, CElemType, rewriter.getZeroAttr(CElemType));
 
     auto ATileType = MemRefType::get({tileM, tileK}, AElemType);
     auto BTileType = MemRefType::get({tileN, tileK}, AElemType);  // [N, K] for column-major pack
@@ -365,7 +211,7 @@ public:
     Value cLoadVal = rewriter.create<memref::LoadOp>(loc, C, ValueRange{globalCi, globalCj});
     rewriter.create<scf::YieldOp>(loc, cLoadVal);
     rewriter.setInsertionPointToStart(&selectC.getElseRegion().front());
-    rewriter.create<scf::YieldOp>(loc, zeroI32);
+    rewriter.create<scf::YieldOp>(loc, zeroC);
     rewriter.setInsertionPointAfter(selectC);
 
     rewriter.create<memref::StoreOp>(loc, selectC.getResult(0), CTile, ValueRange{initCi, initCj});
@@ -437,8 +283,12 @@ public:
     rewriter.create<memref::StoreOp>(loc, selectB.getResult(0), BTile, ValueRange{copyBn, copyBk});
     rewriter.setInsertionPointAfter(copyBLoop1);
 
-    // IME vmadot on contiguous tile buffers
-    rewriter.create<VmadotOp>(loc, CTile, ATile, BTile);
+    // IME vmadot/vfmadot on contiguous tile buffers
+    if (AElemType.isF16()) {
+      rewriter.create<VfmadotOp>(loc, CTile, ATile, BTile);
+    } else {
+      rewriter.create<VmadotOp>(loc, CTile, ATile, BTile);
+    }
 
     // End of K tile loop
     rewriter.setInsertionPointAfter(loopTileK);
@@ -546,6 +396,7 @@ public:
     if (!isSupportedElementType(AElemType))
       return failure();
 
+    bool isFloatGeneric = AElemType.isF16();
     int64_t tileM, tileK, tileN;
     getTileSizes(AElemType, tileM, tileK, tileN);
 
@@ -607,7 +458,11 @@ public:
     Value CTile =
         rewriter.create<memref::SubViewOp>(loc, C, cOffsets, cSizes, strides);
 
-    rewriter.create<VmadotOp>(loc, CTile, ATile, BTile);
+    if (isFloatGeneric) {
+      rewriter.create<VfmadotOp>(loc, CTile, ATile, BTile);
+    } else {
+      rewriter.create<VmadotOp>(loc, CTile, ATile, BTile);
+    }
 
     rewriter.setInsertionPointAfter(loopI);
     rewriter.eraseOp(genericOp);
@@ -1048,6 +903,7 @@ public:
   }
 };
 
+
 } // namespace
 
 //===----------------------------------------------------------------------===//
@@ -1086,12 +942,8 @@ void LowerLinalgToIMEPass::runOnOperation() {
 
   RewritePatternSet patterns(context);
 
-  // Add patterns with higher benefit first (aligned dimensions)
   patterns.add<MatmulToIMELowering>(context);
   patterns.add<GenericMatmulToIMELowering>(context);
-
-  // Add boundary handling pattern with lower benefit (tried after aligned cases fail)
-  patterns.add<MatmulWithBoundaryToIMELowering>(context);
 
   patterns.add<Conv2DNhwcHwcfToIMELowering>(context);
   patterns.add<Conv2DNchwFchwToIMELowering>(context);

@@ -94,7 +94,7 @@ def CoordinateArrayAttr : ConfinedAttr<I64ArrayAttr, [ArrayCount<2>]>;
 def Bud_TestArrayAttrOp : Bud_Op<"test_array_attr"> {
   let summary = "Test Array Attribute.";
 
-  let arguments = (ins 
+  let arguments = (ins
         Arg<AnyMemRef, "the reference to load from", [MemRead]>:$base,
         CoordinateArrayAttr:$coordinate);
   let results = (outs AnyType:$result);

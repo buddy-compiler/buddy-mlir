@@ -21,92 +21,88 @@ else()
   set(LLC_RISCV_ATTRS "-mcpu=native")
 endif()
 
-# Skip import commands on RVV platform
-if(NOT IS_RVV_PLATFORM)
-  add_custom_command(
-    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill.mlir
-           ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill.mlir
-           ${CMAKE_CURRENT_BINARY_DIR}/forward_decode.mlir
-           ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode.mlir
-           ${CMAKE_CURRENT_BINARY_DIR}/arg0.data
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-deepseek-r1.py
-            --output-dir ${CMAKE_CURRENT_BINARY_DIR}
-    COMMENT "Generating forward.mlir, subgraph0.mlir and arg0.data..."
-  )
+add_custom_command(
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill.mlir
+          ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill.mlir
+          ${CMAKE_CURRENT_BINARY_DIR}/forward_decode.mlir
+          ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode.mlir
+          ${CMAKE_CURRENT_BINARY_DIR}/arg0.data
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-deepseek-r1.py
+          --output-dir ${CMAKE_CURRENT_BINARY_DIR}
+  COMMENT "Generating forward.mlir, subgraph0.mlir and arg0.data..."
+)
 
-  add_custom_command(
-    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill-f16.mlir
-           ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill-f16.mlir
-           ${CMAKE_CURRENT_BINARY_DIR}/forward_decode-f16.mlir
-           ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode-f16.mlir
-           ${CMAKE_CURRENT_BINARY_DIR}/arg0-f16.data
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-deepseek-r1.py
-            --output-dir ${CMAKE_CURRENT_BINARY_DIR}
-            --precision f16
-    COMMENT "Generating forward.mlir, subgraph0.mlir and arg0.data..."
-  )
+add_custom_command(
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill-f16.mlir
+          ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill-f16.mlir
+          ${CMAKE_CURRENT_BINARY_DIR}/forward_decode-f16.mlir
+          ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode-f16.mlir
+          ${CMAKE_CURRENT_BINARY_DIR}/arg0-f16.data
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-deepseek-r1.py
+          --output-dir ${CMAKE_CURRENT_BINARY_DIR}
+          --precision f16
+  COMMENT "Generating forward.mlir, subgraph0.mlir and arg0.data..."
+)
 
-  add_custom_command(
-    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill-bf16.mlir
-           ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill-bf16.mlir
-           ${CMAKE_CURRENT_BINARY_DIR}/forward_decode-bf16.mlir
-           ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode-bf16.mlir
-           ${CMAKE_CURRENT_BINARY_DIR}/arg0-bf16.data
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-deepseek-r1.py
-            --output-dir ${CMAKE_CURRENT_BINARY_DIR}
-            --precision bf16
-    COMMENT "Generating forward.mlir, subgraph0.mlir and arg0.data..."
-  )
+add_custom_command(
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill-bf16.mlir
+          ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill-bf16.mlir
+          ${CMAKE_CURRENT_BINARY_DIR}/forward_decode-bf16.mlir
+          ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode-bf16.mlir
+          ${CMAKE_CURRENT_BINARY_DIR}/arg0-bf16.data
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-deepseek-r1.py
+          --output-dir ${CMAKE_CURRENT_BINARY_DIR}
+          --precision bf16
+  COMMENT "Generating forward.mlir, subgraph0.mlir and arg0.data..."
+)
 
-  add_custom_command(
-    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill-w8a32.mlir
-           ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill-w8a32.mlir
-           ${CMAKE_CURRENT_BINARY_DIR}/forward_decode-w8a32.mlir
-           ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode-w8a32.mlir
-           ${CMAKE_CURRENT_BINARY_DIR}/arg0-w8a32-f32.data
-           ${CMAKE_CURRENT_BINARY_DIR}/arg0-w8a32-i8.data
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-deepseek-r1-w8a32.py
-            --output-dir ${CMAKE_CURRENT_BINARY_DIR}
-    COMMENT "Generating w8a32 quantized forward.mlir, subgraph0.mlir and param data..."
-  )
+add_custom_command(
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill-w8a32.mlir
+          ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill-w8a32.mlir
+          ${CMAKE_CURRENT_BINARY_DIR}/forward_decode-w8a32.mlir
+          ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode-w8a32.mlir
+          ${CMAKE_CURRENT_BINARY_DIR}/arg0-w8a32-f32.data
+          ${CMAKE_CURRENT_BINARY_DIR}/arg0-w8a32-i8.data
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-deepseek-r1-w8a32.py
+          --output-dir ${CMAKE_CURRENT_BINARY_DIR}
+  COMMENT "Generating w8a32 quantized forward.mlir, subgraph0.mlir and param data..."
+)
 
-  add_custom_command(
-    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill-w8a8.mlir
-           ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill-w8a8.mlir
-           ${CMAKE_CURRENT_BINARY_DIR}/forward_decode-w8a8.mlir
-           ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode-w8a8.mlir
-           ${CMAKE_CURRENT_BINARY_DIR}/arg0-w8a8-f32.data
-           ${CMAKE_CURRENT_BINARY_DIR}/arg0-w8a8-i8.data
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-deepseek-r1-w8a8.py
-            --output-dir ${CMAKE_CURRENT_BINARY_DIR}
-    COMMENT "Generating w8a8 quantized forward.mlir, subgraph0.mlir and param data..."
-  )
+add_custom_command(
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill-w8a8.mlir
+          ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill-w8a8.mlir
+          ${CMAKE_CURRENT_BINARY_DIR}/forward_decode-w8a8.mlir
+          ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode-w8a8.mlir
+          ${CMAKE_CURRENT_BINARY_DIR}/arg0-w8a8-f32.data
+          ${CMAKE_CURRENT_BINARY_DIR}/arg0-w8a8-i8.data
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-deepseek-r1-w8a8.py
+          --output-dir ${CMAKE_CURRENT_BINARY_DIR}
+  COMMENT "Generating w8a8 quantized forward.mlir, subgraph0.mlir and param data..."
+)
 
-  add_custom_command(
-    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill-w4a16.mlir
-           ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill-w4a16.mlir
-           ${CMAKE_CURRENT_BINARY_DIR}/forward_decode-w4a16.mlir
-           ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode-w4a16.mlir
-           ${CMAKE_CURRENT_BINARY_DIR}/arg0-w4a16-f16.data
-           ${CMAKE_CURRENT_BINARY_DIR}/arg0-w4a16-i4packed.data
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-deepseek-r1-w4a16.py
-            --output-dir ${CMAKE_CURRENT_BINARY_DIR}
-    COMMENT "Generating w4a16 quantized forward.mlir, subgraph0.mlir and param data..."
-  )
+add_custom_command(
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill-w4a16.mlir
+          ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill-w4a16.mlir
+          ${CMAKE_CURRENT_BINARY_DIR}/forward_decode-w4a16.mlir
+          ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode-w4a16.mlir
+          ${CMAKE_CURRENT_BINARY_DIR}/arg0-w4a16-f16.data
+          ${CMAKE_CURRENT_BINARY_DIR}/arg0-w4a16-i4packed.data
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-deepseek-r1-w4a16.py
+          --output-dir ${CMAKE_CURRENT_BINARY_DIR}
+  COMMENT "Generating w4a16 quantized forward.mlir, subgraph0.mlir and param data..."
+)
 
-  add_custom_command(
-    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill-w8a16.mlir
-           ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill-w8a16.mlir
-           ${CMAKE_CURRENT_BINARY_DIR}/forward_decode-w8a16.mlir
-           ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode-w8a16.mlir
-           ${CMAKE_CURRENT_BINARY_DIR}/arg0-w8a16-f16.data
-           ${CMAKE_CURRENT_BINARY_DIR}/arg0-w8a16-i8.data
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-deepseek-r1-w8a16.py
-            --output-dir ${CMAKE_CURRENT_BINARY_DIR}
-    COMMENT "Generating w8a16 quantized forward.mlir, subgraph0.mlir and param data..."
-  )
-
-endif()
+add_custom_command(
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill-w8a16.mlir
+          ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill-w8a16.mlir
+          ${CMAKE_CURRENT_BINARY_DIR}/forward_decode-w8a16.mlir
+          ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode-w8a16.mlir
+          ${CMAKE_CURRENT_BINARY_DIR}/arg0-w8a16-f16.data
+          ${CMAKE_CURRENT_BINARY_DIR}/arg0-w8a16-i8.data
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-deepseek-r1-w8a16.py
+          --output-dir ${CMAKE_CURRENT_BINARY_DIR}
+  COMMENT "Generating w8a16 quantized forward.mlir, subgraph0.mlir and param data..."
+)
 
 add_custom_command(
   OUTPUT forward_prefill.o
@@ -1672,7 +1668,7 @@ target_link_libraries(buddy-deepseek-r1-w8a32-run ${BUDDY_DEEPSEEKR1_W8A32_LIBS}
 target_link_libraries(buddy-deepseek-r1-w8a8-run ${BUDDY_DEEPSEEKR1_W8A8_LIBS})
 target_link_libraries(buddy-deepseek-r1-w4a16-run ${BUDDY_DEEPSEEKR1_W4A16_LIBS})
 target_link_libraries(buddy-deepseek-r1-w8a16-run ${BUDDY_DEEPSEEKR1_W8A16_LIBS})
-target_link_libraries(buddy-deepseek-r1-cli ${BUDDY_DEEPSEEKR1_LIBS} LLVMOption)
+target_link_libraries(buddy-deepseek-r1-cli ${BUDDY_DEEPSEEKR1_LIBS} LLVMOption buddy_runtime_core)
 
 # Create a distributable package
 set(DIST_PACKAGE_NAME "buddy-deepseek-r1")
@@ -1707,37 +1703,35 @@ add_custom_target(buddy-deepseek-r1-package
 
 set(KV_CACHE_SIZES 32 64 128 256 512 1024)
 
-if(NOT IS_RVV_PLATFORM)
-  set(TIERED_KV_CACHE_OUTPUTS "")
-  foreach(CACHE_SIZE ${KV_CACHE_SIZES})
-    list(APPEND TIERED_KV_CACHE_OUTPUTS
-      ${CMAKE_CURRENT_BINARY_DIR}/forward_decode_${CACHE_SIZE}.mlir
-      ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode_${CACHE_SIZE}.mlir
-    )
-  endforeach()
-  foreach(CACHE_SIZE ${KV_CACHE_SIZES})
-    list(APPEND TIERED_KV_CACHE_OUTPUTS
-      ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill_${CACHE_SIZE}.mlir
-      ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill_${CACHE_SIZE}.mlir
-    )
-  endforeach()
-
-  add_custom_command(
-    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/arg0_mc.data
-           ${TIERED_KV_CACHE_OUTPUTS}
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-deepseek-r1-tiered-kv-cache.py
-            --output-dir ${CMAKE_CURRENT_BINARY_DIR}
-            --cache-sizes "32,64,128,256,512,1024"
-            --max-cache-len 1024
-    COMMENT "Generating tiered-kv-cache MLIR files (prefill_32/64/128/256/512/1024 + decode_32/64/128/256/512/1024)..."
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+set(TIERED_KV_CACHE_OUTPUTS "")
+foreach(CACHE_SIZE ${KV_CACHE_SIZES})
+  list(APPEND TIERED_KV_CACHE_OUTPUTS
+    ${CMAKE_CURRENT_BINARY_DIR}/forward_decode_${CACHE_SIZE}.mlir
+    ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode_${CACHE_SIZE}.mlir
   )
-
-  add_custom_target(deepseekr1-tiered-kv-cache-import
-    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/arg0_mc.data
-            ${TIERED_KV_CACHE_OUTPUTS}
+endforeach()
+foreach(CACHE_SIZE ${KV_CACHE_SIZES})
+  list(APPEND TIERED_KV_CACHE_OUTPUTS
+    ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill_${CACHE_SIZE}.mlir
+    ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill_${CACHE_SIZE}.mlir
   )
-endif()
+endforeach()
+
+add_custom_command(
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/arg0_mc.data
+          ${TIERED_KV_CACHE_OUTPUTS}
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-deepseek-r1-tiered-kv-cache.py
+          --output-dir ${CMAKE_CURRENT_BINARY_DIR}
+          --cache-sizes "32,64,128,256,512,1024"
+          --max-cache-len 1024
+  COMMENT "Generating tiered-kv-cache MLIR files (prefill_32/64/128/256/512/1024 + decode_32/64/128/256/512/1024)..."
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+add_custom_target(deepseekr1-tiered-kv-cache-import
+  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/arg0_mc.data
+          ${TIERED_KV_CACHE_OUTPUTS}
+)
 
 foreach(CACHE_SIZE ${KV_CACHE_SIZES})
   add_custom_command(
@@ -1989,6 +1983,19 @@ target_link_libraries(buddy-deepseek-r1-tiered-kv-cache-run ${BUDDY_DEEPSEEKR1_T
 add_custom_target(deepseekr1-tiered-kv-cache
   DEPENDS buddy-deepseek-r1-tiered-kv-cache-run
   COMMENT "Building DeepSeekR1 tiered-kv-cache inference"
+)
+
+add_test(
+  NAME example.buddy-deepseek-r1-cli
+  COMMAND $<TARGET_FILE:buddy-deepseek-r1-cli> --prompt Hi --max-tokens=128
+  WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+)
+set_tests_properties(
+  example.buddy-deepseek-r1-cli
+  PROPERTIES
+    LABELS "example"
+    PASS_REGULAR_EXPRESSION "Total time"
+    TIMEOUT 3600
 )
 
 message(STATUS "DeepSeekR1 Multi-Cache: Building prefill and decode subgraphs for cache sizes: ${KV_CACHE_SIZES}")

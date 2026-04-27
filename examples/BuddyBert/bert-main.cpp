@@ -66,7 +66,7 @@ int main() {
   /// Print the title of this example.
   const std::string title = "BERT Inference Powered by Buddy Compiler";
   std::cout << "\033[33;1m" << title << "\033[0m" << std::endl;
-  
+
   /// Load weights to MemRef container.
   std::string bertDir = BERT_EXAMPLE_PATH;
   std::string bertBuildDir = BERT_EXAMPLE_BUILD_PATH;
@@ -82,7 +82,7 @@ int main() {
   std::getline(std::cin, pureStr);
   Text<long long, 2> pureStrContainer(pureStr);
 
-  /// Define vacabulary and tokenize the 
+  /// Define vacabulary and tokenize the
   std::string vocabDir = bertDir + "/vocab.txt";
   pureStrContainer.tokenizeBert(vocabDir, 5);
 
@@ -97,7 +97,7 @@ int main() {
   /// Execute forward inference of the model.
   _mlir_ciface_forward(&result, &arg0, &arg1, &pureStrContainer,
                        &token_type_ids, &attention_mask);
-  
+
   const auto inferenceEnd = std::chrono::high_resolution_clock::now();
   const std::chrono::duration<double, std::milli> inferenceTime =
         inferenceEnd - inferenceStart;

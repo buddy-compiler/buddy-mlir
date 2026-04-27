@@ -18,22 +18,40 @@
 #
 # ===---------------------------------------------------------------------------
 
+from .eliminate_matmul_transpose_reshape import (
+    eliminate_matmul_transpose_reshape,
+)
+from .eliminate_weight_transpose import eliminate_transpose
 from .fuse_ops import (
-    simply_fuse,
     apply_classic_fusion,
     flash_attention_prefill,
     gqa_attention_fusion,
-)
-from .useless_op_eliminate import maxpool2d_simplify
-from .eliminate_weight_transpose import eliminate_transpose
-from .eliminate_matmul_transpose_reshape import (
-    eliminate_matmul_transpose_reshape,
+    simply_fuse,
 )
 from .onednn_replace import (
     replace_matmul_with_onednn,
     replace_matmul_with_onednn_selective,
 )
-from .rand_replace import RUNTIME_RNG_TRANSFORMS
 from .quantization import (
     weight_only_channel_wise,
 )
+from .rand_replace import RUNTIME_RNG_TRANSFORMS
+from .runtime_matmul_replace import (
+    replace_matmul_with_buddy_runtime,
+)
+from .useless_op_eliminate import maxpool2d_simplify
+
+__all__ = [
+    "apply_classic_fusion",
+    "eliminate_matmul_transpose_reshape",
+    "eliminate_transpose",
+    "flash_attention_prefill",
+    "gqa_attention_fusion",
+    "maxpool2d_simplify",
+    "replace_matmul_with_buddy_runtime",
+    "replace_matmul_with_onednn",
+    "replace_matmul_with_onednn_selective",
+    "RUNTIME_RNG_TRANSFORMS",
+    "simply_fuse",
+    "weight_only_channel_wise",
+]

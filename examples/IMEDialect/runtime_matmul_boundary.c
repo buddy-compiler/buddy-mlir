@@ -1,13 +1,13 @@
 /**
  * Runtime test for matmul with boundary handling
- * 
+ *
  * This test verifies the correctness of linalg.matmul -> IME lowering
  * for matrices with dimensions not aligned to IME tile sizes.
- * 
+ *
  * Test case: C[7x5] = A[7x10] * B[10x5]
  * For int8: TILE_M=4, TILE_K=8, TILE_N=4
  * - M=7: 1 full tile (4) + 3 remaining
- * - N=5: 1 full tile (4) + 1 remaining  
+ * - N=5: 1 full tile (4) + 1 remaining
  * - K=10: 1 full tile (8) + 2 remaining
  */
 
@@ -112,7 +112,7 @@ int main() {
 
     // Compute reference result
     reference_matmul();
-    
+
     // Call MLIR-generated function with unpacked memref arguments
     // Each memref: (allocated, aligned, offset, size0, size1, stride0, stride1)
     matmul_boundary(

@@ -32,4 +32,3 @@ print(graph._imported_module)
 #       CHECK: %[[const:.*]] = "tosa.const"
 #       CHECK: %[[maximum:.*]] = tosa.maximum
 #       CHECK: return %[[maximum]]
-

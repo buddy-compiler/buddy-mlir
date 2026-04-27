@@ -51,9 +51,9 @@
 
 - `vector.reduction` with `vector.mask` supports masked reduction instructions:
   - `vector.reduction`  -> `llvm.vector.reduce`
-  
+
   - `vector.reduction` + `vector.mask`  ->  `llvm.vp.reduce`
-  
+
 - By setting the attribute `fastmath<reassoc>`, `vector.reduction` can generate `vfredusum` and `vfredosum` instructions.
 
 
@@ -289,7 +289,7 @@
 
 - `vector.broadcast` supports broadcasting from scalar or lower-dimensional vectors to higher-dimensional vectors. `vector.splat` extends a scalar value to all elements of a result vector. Both share overlapping functionality, as they map to `vmv.v.x` and `vfmv.v.f` instructions.
 
-  
+
 
 ### Unsupported Instructions
 

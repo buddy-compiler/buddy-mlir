@@ -387,6 +387,19 @@ target_link_directories(transformer-runner PRIVATE ${LLVM_LIBRARY_DIR})
 # Link with required libraries for one-step executable
 target_link_libraries(transformer-runner ${BUDDY_TRANSFORMER_LIBS})
 
+add_test(
+  NAME example.transformer-runner
+  COMMAND $<TARGET_FILE:transformer-runner>
+  WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+)
+set_tests_properties(
+  example.transformer-runner
+  PROPERTIES
+    LABELS "example"
+    PASS_REGULAR_EXPRESSION "First few output values:"
+    TIMEOUT 1200
+)
+
 # One-step compilation targets
 add_custom_target(buddy-transformer-onestep-codegen
     DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/forward-onestep.o

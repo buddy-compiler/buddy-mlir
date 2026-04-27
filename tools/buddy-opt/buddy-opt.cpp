@@ -59,6 +59,9 @@
 #include "VIR/VIRTypes.h"
 #include "VectorExp/VectorExpDialect.h"
 #include "VectorExp/VectorExpOps.h"
+#include "XTAME/Transform.h"
+#include "XTAME/XTAMEDialect.h"
+#include "XTAME/XTAMEOps.h"
 
 namespace mlir {
 namespace buddy {
@@ -83,6 +86,7 @@ void registerMatMulVectorizationPass();
 void registerMatMulVectorizationDecodePass();
 void registerDequantMatMulVectorizationDecodePass();
 void registerInt4DequantMatMulVectorizationDecodePass();
+void registerMatMulParallelVectorizationTilingPass();
 void registerMatMulParallelVectorizationPass();
 void registerMatMulTransposeBUnrollVecPass();
 void registerMatmulAMXPass();
@@ -104,6 +108,7 @@ void registerLowerLinalgToGemminiPass();
 void registerLowerLinalgToIMEPass();
 void registerLowerIMEPass();
 void registerLowerAMEPass();
+void registerLowerXTAMEPass();
 void registerAssumeTightMemRefLayoutPass();
 void registerStaticizeMemRefLayoutPass();
 void registerConvertMemcpyToGPUPass();
@@ -150,6 +155,7 @@ int main(int argc, char **argv) {
   mlir::buddy::registerLowerLinalgToIMEPass();
   mlir::buddy::registerLowerIMEPass();
   mlir::buddy::registerLowerAMEPass();
+  mlir::buddy::registerLowerXTAMEPass();
 
   // Register Several Optimize Pass.
   mlir::buddy::registerMatMulVectorizationBLISPass();
@@ -159,6 +165,7 @@ int main(int argc, char **argv) {
   mlir::buddy::registerBatchMatMuSCFOptimize();
   mlir::buddy::registerBatchMatMulTransVecPass();
   mlir::buddy::registerBatchMatMulVectorizationDecodePass();
+  mlir::buddy::registerMatMulParallelVectorizationTilingPass();
   mlir::buddy::registerMatMulVectorizationPass();
   mlir::buddy::registerMatMulVectorizationDecodePass();
   mlir::buddy::registerDequantMatMulVectorizationDecodePass();
@@ -200,6 +207,7 @@ int main(int argc, char **argv) {
                   buddy::vector_exp::VectorExpDialect,
                   buddy::vir::VIRDialect,
                   buddy::gemmini::GemminiDialect,
+                  buddy::xtame::XTAMEDialect,
                   buddy::ame::AMEDialect,
                   buddy::tile::TileDialect,
                   buddy::buckyball::BuckyballDialect,

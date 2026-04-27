@@ -82,7 +82,7 @@
     env:
     input: STDIN
     output: STDOUT
-    
+
 - filename: memref-reinterpret-cast.mlir
   type: jit
   arch: general

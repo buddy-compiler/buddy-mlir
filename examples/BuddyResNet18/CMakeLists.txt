@@ -62,7 +62,7 @@ add_custom_command(
   COMMENT "Building subgraph0.o"
   VERBATIM)
 
-add_library(RESNET STATIC subgraph0.o forward.o)
+add_library(RESNET STATIC forward.o subgraph0.o)
 
 SET_TARGET_PROPERTIES(RESNET PROPERTIES LINKER_LANGUAGE C)
 
@@ -80,3 +80,16 @@ target_link_directories(buddy-resnet-run PRIVATE ${LLVM_LIBRARY_DIR})
 
 set(BUDDY_RESNET_LIBS RESNET mlir_c_runner_utils BuddyLibDIP ${PNG_LIBRARIES})
 target_link_libraries(buddy-resnet-run ${BUDDY_RESNET_LIBS})
+
+add_test(
+  NAME example.buddy-resnet-run
+  COMMAND $<TARGET_FILE:buddy-resnet-run>
+  WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+)
+set_tests_properties(
+  example.buddy-resnet-run
+  PROPERTIES
+    LABELS "example"
+    PASS_REGULAR_EXPRESSION "Classification: Samoyed[\r\n\t ]*Probability: 0.894467"
+    TIMEOUT 1200
+)

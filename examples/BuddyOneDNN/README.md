@@ -6,9 +6,14 @@ This example demonstrates how to integrate external operator libraries (oneDNN) 
 
 ### Prerequisites
 
-- **oneDNN:** 3.9.1+ (install via conda: `conda install -c conda-forge onednn`)
+- **oneDNN:**
+
+```
+sudo apt update
+sudo apt install libdnnl-dev
+```
+
 - **buddy-mlir:** Built from source
-- **PyTorch:** 2.0+
 
 ### Build and Run
 
@@ -16,8 +21,9 @@ This example demonstrates how to integrate external operator libraries (oneDNN) 
 # In buddy-mlir root directory
 cd build
 
-# Build (automatically executes all compilation stages)
-cmake --build . --target buddy-onednn-run
+# Build
+cmake .. -DBUDDY_ONEDNN_EXAMPLES=ON
+ninja buddy-onednn-run
 
 # Run
 ./bin/buddy-onednn-run

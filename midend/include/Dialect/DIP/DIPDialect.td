@@ -32,7 +32,7 @@ def DIP_Dialect : Dialect {
   let summary = "The DIP Dialect.";
   let description = [{
     Digital image processing dialect(`DIP`) dialect is created for the purpose
-    of developing a MLIR backend for performing image processing operations 
+    of developing a MLIR backend for performing image processing operations
     such as 2D Correlation, Morphological processing, etc.
   }];
   let useDefaultAttributePrinterParser = 1;

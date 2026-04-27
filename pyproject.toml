@@ -1,20 +1,73 @@
-[tool.black]
-line-length = 80
-
 [build-system]
 requires = [
-  "setuptools>=69",
-  "wheel",
-  "build>=1.2",
+    "setuptools>=69",
+    "wheel",
+    "build>=1.2"
 ]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "buddy"
-version = "0.0.1"
-description = "An MLIR-based compiler framework bridges DSLs (domain-specific languages) to DSAs (domain-specific architectures)."
+description = "An MLIR-based compiler framework bridging DSLs to DSAs."
 requires-python = ">=3.10"
-dynamic = ["entry-points", "scripts"]
+dynamic = ["entry-points", "scripts", "version"]
 
 [tool.setuptools]
 include-package-data = true
+
+[tool.setuptools.dynamic]
+version = { attr = "buddy.__version__" }
+
+[tool.ruff]
+line-length = 80
+
+[tool.ruff.lint]
+
+select = [
+    "E",   # pycodestyle errors
+    "F",   # Pyflakes
+    "UP",  # pyupgrade
+    "W",   # pycodestyle warnings
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "SIM", # flake8-simplify
+]
+
+ignore = [
+    "B905", # zip-without-explicit-strict
+    "B007",
+    "B011",
+    "F821", # Undefined name
+    "F403", # from module import *
+    "F405", # Name may be undefined
+    "E501", # Line too long
+    # "F401", # Unused import
+    # "E203", # Whitespace before ':'
+    # "E402", # Module level import not at top of file
+    "E501", # Line too long
+    # "E401", # Multiple imports on one line
+    # "W605", # Invalid escape sequence
+    # "E712", # Comparison to True/False
+    "E711", # Comparison to None
+    "E712", # true-false-comparison
+    "F841", # Unused variable
+    "C403", # unnecessary-list-comprehension-set
+    "C416", # unnecessary-comprehension
+    "E741",
+    "SIM101",
+    "SIM102",
+    "SIM103",
+    "SIM105",
+    "SIM108",
+    "SIM118",
+    "UP031",
+]
+
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = true

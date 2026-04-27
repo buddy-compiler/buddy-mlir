@@ -6,7 +6,7 @@ Python.
 
 To leverage these resources and deliver high-performance eager execution, the PyTorch developers announced the PyTorch
 2.0 shipped with `TorchDynamo` and `TorchInductor`, which improves the performance of the same
-model [about 60%](https://github.com/pytorch/pytorch/issues/93794#issuecomment-1233828468) with just 
+model [about 60%](https://github.com/pytorch/pytorch/issues/93794#issuecomment-1233828468) with just
 one line code change.
 
 ### Eager Execution vs. Graph Execution

@@ -34,7 +34,7 @@ module attributes {gpu.container_module} {
     vector.print %result0_v_reshape : vector<3x3xi32>
 
     %result1_v = vector.load %result1[%c0] : memref<3xi32>, vector<3xi32>
-    vector.print %result1_v : vector<3xi32> 
+    vector.print %result1_v : vector<3xi32>
 
     func.return
   }

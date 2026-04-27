@@ -18,49 +18,20 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <buddy/Core/Container.h>
 #include <cmath>
 #include <iomanip>
 #include <iostream>
 #include <vector>
 
-// MLIR MemRef structure definition
-template <typename T, int N> struct MemRefDescriptor {
-  T *allocated;
-  T *aligned;
-  int64_t offset;
-  int64_t sizes[N];
-  int64_t strides[N];
-};
-
 // MLIR-generated function declaration
 extern "C" {
-void _mlir_ciface_subgraph0(
-    MemRefDescriptor<float, 3> *result, // Output [2, 4, 6]
-    MemRefDescriptor<float, 3> *arg0,   // Input [2, 4, 8]
-    MemRefDescriptor<float, 2> *arg1,   // Weight1 [8, 6] (unused)
-    MemRefDescriptor<float, 2> *arg2,   // Weight2 [8, 6]
-    MemRefDescriptor<float, 3> *arg3    // Bias [1, 1, 6]
+void _mlir_ciface_subgraph0(MemRef<float, 3> *result, // Output [2, 4, 6]
+                            MemRef<float, 3> *arg0,   // Input [2, 4, 8]
+                            MemRef<float, 2> *arg1,   // Weight1 [8, 6] (unused)
+                            MemRef<float, 2> *arg2,   // Weight2 [8, 6]
+                            MemRef<float, 3> *arg3    // Bias [1, 1, 6]
 );
-}
-
-// Helper function: Create MemRef
-template <typename T, int N>
-MemRefDescriptor<T, N> create_memref(std::vector<T> &data,
-                                     const int64_t *sizes) {
-  MemRefDescriptor<T, N> desc;
-  desc.allocated = data.data();
-  desc.aligned = data.data();
-  desc.offset = 0;
-
-  // Calculate strides (row-major)
-  int64_t stride = 1;
-  for (int i = N - 1; i >= 0; i--) {
-    desc.sizes[i] = sizes[i];
-    desc.strides[i] = stride;
-    stride *= sizes[i];
-  }
-
-  return desc;
 }
 
 // Helper function: Print 3D tensor
@@ -91,34 +62,33 @@ int main() {
   for (size_t i = 0; i < arg0_data.size(); i++) {
     arg0_data[i] = 1.0f; // All ones
   }
-  int64_t arg0_sizes[] = {2, 4, 8};
-  auto arg0_desc = create_memref<float, 3>(arg0_data, arg0_sizes);
+  intptr_t arg0_sizes[] = {2, 4, 8};
+  MemRef<float, 3> arg0_desc(arg0_data.data(), arg0_sizes);
 
   // arg1: [8, 6] - weight1 (unused, but needs to be passed)
   std::vector<float> arg1_data(8 * 6, 0.0f);
-  int64_t arg1_sizes[] = {8, 6};
-  auto arg1_desc = create_memref<float, 2>(arg1_data, arg1_sizes);
+  intptr_t arg1_sizes[] = {8, 6};
+  MemRef<float, 2> arg1_desc(arg1_data.data(), arg1_sizes);
 
   // arg2: [8, 6] - weight2 (for matmul)
   std::vector<float> arg2_data(8 * 6);
   for (size_t i = 0; i < arg2_data.size(); i++) {
     arg2_data[i] = 2.0f; // All twos
   }
-  int64_t arg2_sizes[] = {8, 6};
-  auto arg2_desc = create_memref<float, 2>(arg2_data, arg2_sizes);
+  intptr_t arg2_sizes[] = {8, 6};
+  MemRef<float, 2> arg2_desc(arg2_data.data(), arg2_sizes);
 
   // arg3: [1, 1, 6] - bias
   std::vector<float> arg3_data(1 * 1 * 6);
   for (size_t i = 0; i < arg3_data.size(); i++) {
     arg3_data[i] = 0.5f; // All 0.5
   }
-  int64_t arg3_sizes[] = {1, 1, 6};
-  auto arg3_desc = create_memref<float, 3>(arg3_data, arg3_sizes);
+  intptr_t arg3_sizes[] = {1, 1, 6};
+  MemRef<float, 3> arg3_desc(arg3_data.data(), arg3_sizes);
 
   // 2. Prepare output buffer
-  std::vector<float> result_data(2 * 4 * 6, 0.0f);
-  int64_t result_sizes[] = {2, 4, 6};
-  auto result_desc = create_memref<float, 3>(result_data, result_sizes);
+  intptr_t result_sizes[] = {2, 4, 6};
+  MemRef<float, 3> result_desc(result_sizes, 0.0f);
 
   // 3. Call MLIR-generated function
   std::cout << "Running MLIR-generated subgraph0...\n";
@@ -127,7 +97,7 @@ int main() {
   std::cout << "Done!\n\n";
 
   // 4. Read actual data from result_desc
-  float *actual_result = result_desc.aligned;
+  float *actual_result = result_desc.getData();
   std::vector<float> actual_result_data(actual_result,
                                         actual_result + 2 * 4 * 6);
 

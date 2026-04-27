@@ -33,7 +33,10 @@ BUDDY_LLC := ../../build/bin/buddy-llc
         linalg-matmul-lower linalg-matmul-translate linalg-matmul-asm \
         linalg-conv-lower linalg-conv-translate linalg-conv-asm \
         linalg-matmul-boundary-lower linalg-matmul-boundary-translate \
-        linalg-matmul-boundary-asm linalg-matmul-boundary-run
+        linalg-matmul-boundary-asm linalg-matmul-boundary-run \
+        linalg-matmul-fp16-lower linalg-matmul-fp16-translate linalg-matmul-fp16-asm \
+        linalg-matmul-fp16-boundary-lower linalg-matmul-fp16-boundary-translate \
+        linalg-matmul-fp16-boundary-asm linalg-matmul-fp16-boundary-run
 
 all: vmadot vmadotu vmadotsu vmadotus vfmadot vmadotn vmadotnu vmadotnsu vmadotnus vfmadotn
 
@@ -1658,3 +1661,111 @@ linalg-matmul-boundary-run:
 	riscv64-unknown-linux-gnu-gcc -march=rv64gcv -static \
 		matmul_boundary.s runtime_matmul_boundary.c \
 		-o matmul_boundary_test
+
+# ===========================================================================
+# FP16 matmul targets (require -mattr=+zvfh for half-precision float support)
+# ===========================================================================
+
+linalg-matmul-fp16-lower:
+	@${BUDDY_OPT} ./linalg-to-ime-matmul-fp16.mlir \
+		-lower-linalg-to-ime \
+		-o log.mlir
+
+linalg-matmul-fp16-translate:
+	@${BUDDY_OPT} ./linalg-to-ime-matmul-fp16.mlir \
+		-lower-linalg-to-ime \
+		-lower-ime \
+		-convert-linalg-to-loops \
+		-lower-affine \
+		-expand-strided-metadata \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-math-to-llvm \
+		-convert-func-to-llvm \
+		-finalize-memref-to-llvm \
+		-reconcile-unrealized-casts | \
+	${BUDDY_TRANSLATE} -buddy-to-llvmir \
+		-o log.ll
+
+linalg-matmul-fp16-asm:
+	@${BUDDY_OPT} ./linalg-to-ime-matmul-fp16.mlir \
+		-lower-linalg-to-ime \
+		-lower-ime \
+		-convert-linalg-to-loops \
+		-lower-affine \
+		-expand-strided-metadata \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-math-to-llvm \
+		-convert-func-to-llvm \
+		-finalize-memref-to-llvm \
+		-reconcile-unrealized-casts | \
+	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
+	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
+		-mattr=+m,+v,+zvfh,+buddyext \
+		-o log.s
+
+linalg-matmul-fp16-boundary-lower:
+	@${BUDDY_OPT} ./linalg-to-ime-matmul-fp16-boundary.mlir \
+		-lower-linalg-to-ime \
+		-o log.mlir
+
+linalg-matmul-fp16-boundary-translate:
+	@${BUDDY_OPT} ./linalg-to-ime-matmul-fp16-boundary.mlir \
+		-lower-linalg-to-ime \
+		-lower-ime \
+		-convert-linalg-to-loops \
+		-lower-affine \
+		-expand-strided-metadata \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-math-to-llvm \
+		-convert-func-to-llvm \
+		-finalize-memref-to-llvm \
+		-reconcile-unrealized-casts | \
+	${BUDDY_TRANSLATE} -buddy-to-llvmir \
+		-o log.ll
+
+linalg-matmul-fp16-boundary-asm:
+	@${BUDDY_OPT} ./linalg-to-ime-matmul-fp16-boundary.mlir \
+		-lower-linalg-to-ime \
+		-lower-ime \
+		-convert-linalg-to-loops \
+		-lower-affine \
+		-expand-strided-metadata \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-math-to-llvm \
+		-convert-func-to-llvm \
+		-finalize-memref-to-llvm \
+		-reconcile-unrealized-casts | \
+	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
+	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
+		-mattr=+m,+v,+zvfh,+buddyext \
+		-o log.s
+
+linalg-matmul-fp16-boundary-run:
+	@${BUDDY_OPT} ./linalg-to-ime-matmul-fp16-boundary-func.mlir \
+		-lower-linalg-to-ime \
+		-lower-ime \
+		-convert-linalg-to-loops \
+		-lower-affine \
+		-expand-strided-metadata \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-math-to-llvm \
+		-convert-func-to-llvm \
+		-finalize-memref-to-llvm \
+		-reconcile-unrealized-casts | \
+	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
+	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
+		-mattr=+m,+v,+zvfh,+buddyext \
+		-o matmul_fp16_boundary.s
+	riscv64-unknown-linux-gnu-gcc -march=rv64gcv_zvfh -static \
+		matmul_fp16_boundary.s runtime_matmul_fp16_boundary.c \
+		-o matmul_fp16_boundary_test

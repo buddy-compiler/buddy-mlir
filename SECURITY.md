@@ -24,7 +24,7 @@ please report it via email:
 Please include as much detail as possible, such as a description of the issue,
 steps to reproduce, affected versions, and potential impact.
 
-After receiving a vulnerability report, we will acknowledge the report and 
+After receiving a vulnerability report, we will acknowledge the report and
 work to address the issue as soon as possible.
 
 

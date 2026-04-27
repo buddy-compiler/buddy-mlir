@@ -59,13 +59,13 @@ def buddy_frontendgen() -> int:
     return _run("buddy-frontendgen")
 
 
-def buddy_audio_container_test() -> int:
-    return _run("buddy-audio-container-test")
+def buddy_cli() -> int:
+    return _run("buddy-cli")
 
 
-def buddy_text_container_test() -> int:
-    return _run("buddy-text-container-test")
+def rax_inspect() -> int:
+    return _run("rax-inspect")
 
 
-def buddy_container_test() -> int:
-    return _run("buddy-container-test")
+def rax_pack() -> int:
+    return _run("rax-pack")

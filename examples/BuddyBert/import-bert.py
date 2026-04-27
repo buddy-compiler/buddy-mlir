@@ -34,9 +34,9 @@ from transformers import BertForSequenceClassification, BertTokenizer
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description="BERT model AOT importer")
 parser.add_argument(
-    "--output-dir", 
-    type=str, 
-    default="./", 
+    "--output-dir",
+    type=str,
+    default="./",
     help="Directory to save output files"
 )
 args = parser.parse_args()

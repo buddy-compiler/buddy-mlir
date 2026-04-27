@@ -8,12 +8,12 @@ This document uses `BatchMatMul` as an example to demonstrate the complete proce
 
    ```mlir
    // linalg-batchmatmul-f32.mlir
-   
+
    func.func private @printMemrefF32(memref<*xf32>)
-   
+
    func.func @kernel(%arg0: memref<?x?x?xf32>, %arg1: memref<?x?x?xf32>, %arg2: memref<?x?x?xf32>) {
-     linalg.batch_matmul 
-       ins(%arg0, %arg1 : memref<?x?x?xf32>, memref<?x?x?xf32>) 
+     linalg.batch_matmul
+       ins(%arg0, %arg1 : memref<?x?x?xf32>, memref<?x?x?xf32>)
        outs(%arg2 : memref<?x?x?xf32>)
      %printed_output = memref.cast %arg2 : memref<?x?x?xf32> to memref<*xf32>
      call @printMemrefF32(%printed_output) : (memref<*xf32>) -> ()
@@ -27,7 +27,7 @@ This document uses `BatchMatMul` as an example to demonstrate the complete proce
 
    ```mlir
    // linalg-batchmatmul-f32.mlir
-   
+
    func.func @main(){
      %c0 = arith.constant 0 : index
      %c1 = arith.constant 1 : index
@@ -37,13 +37,13 @@ This document uses `BatchMatMul` as an example to demonstrate the complete proce
      %f0 = arith.constant 0.0 : f32
      %f2 = arith.constant 2.0 : f32
      %f3 = arith.constant 3.0 : f32
-   
+
      %m0 = call @alloc_f32(%c1, %c1, %c576, %f2) : (index, index, index, f32) -> memref<?x?x?xf32>
      %m1 = call @alloc_f32(%c1, %c576, %c1024, %f3) : (index, index, index, f32) -> memref<?x?x?xf32>
      %m2 = call @alloc_f32(%c1, %c1, %c1024, %f0) : (index, index, index, f32) -> memref<?x?x?xf32>
-   
+
      call @batch_matmul(%m0, %m1, %m2) : (memref<?x?x?xf32>, memref<?x?x?xf32>, memref<?x?x?xf32>) -> ()
-   
+
      return
    }
    ```
@@ -52,7 +52,7 @@ This document uses `BatchMatMul` as an example to demonstrate the complete proce
 
    ```mlir
    // linalg-batchmatmul-f32.mlir
-   
+
    // RUN: buddy-opt %s \
    // RUN:     -batchmatmul-optimize \
    // RUN:     -convert-linalg-to-affine-loops \
@@ -71,14 +71,14 @@ This document uses `BatchMatMul` as an example to demonstrate the complete proce
    // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
    // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
    // RUN: | FileCheck %s
-   
+
    func.func private @printMemrefF32(memref<*xf32>)
-   
+
    func.func @kernel(%arg0: memref<?x?x?xf32>, %arg1: memref<?x?x?xf32>, %arg2: memref<?x?x?xf32>) {
    ...
        %m2 = call @alloc_f32(%c1, %c1, %c1024, %f0) : (index, index, index, f32) -> memref<?x?x?xf32>
-   
-       // CHECK: Unranked Memref base@ = {{.*}} rank = 3 offset = 0 sizes = [1, 1, 1024] strides = [1024, 1024, 1] data = 
+
+       // CHECK: Unranked Memref base@ = {{.*}} rank = 3 offset = 0 sizes = [1, 1, 1024] strides = [1024, 1024, 1] data =
        // CHECK-NEXT: [
        // CHECK: [
        // CHECK: [3456{{(, 3456)*}}]
@@ -89,7 +89,7 @@ This document uses `BatchMatMul` as an example to demonstrate the complete proce
 4. Add build rules to makefile for building source mlir files(linalg-batchmatmul-f32.mlir).
 
    ```makefile
-   
+
    linalg-batchmatmul-f32-lower:
    	@${BUDDY_OPT} ./linalg-batchmatmul-f32.mlir \
    		-convert-linalg-to-affine-loops \
@@ -110,7 +110,7 @@ This document uses `BatchMatMul` as an example to demonstrate the complete proce
    		-convert-func-to-llvm \
    		-reconcile-unrealized-casts  \
    		-o log.mlir
-   
+
    linalg-batchmatmul-f32-run:
    	@${BUDDY_OPT} ./linalg-batchmatmul-f32.mlir \
    		-convert-linalg-to-affine-loops \
@@ -133,7 +133,7 @@ This document uses `BatchMatMul` as an example to demonstrate the complete proce
    	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
    		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS} \
    		-shared-libs=${LIB_OMP}
-   
+
    linalg-batchmatmul-f32-aot:
    	@${BUDDY_OPT} ./linalg-batchmatmul-f32.mlir \
    		-convert-linalg-to-affine-loops \
@@ -172,7 +172,7 @@ For the full source code, please check [batchmatmul-f32.mlir](../examples/BuddyM
 
    ```mlir
    // batchmatmul-vectorization.mlir
-   
+
    // CMK * CKN -> CMN
    func.func @kernel(%arg0: memref<?x?x?xf32>, %arg1: memref<?x?x?xf32>, %arg2: memref<?x?x?xf32>) {
      %c0 = arith.constant 0 : index
@@ -185,23 +185,23 @@ For the full source code, please check [batchmatmul-f32.mlir](../examples/BuddyM
      %dim_1 = memref.dim %arg0, %c1 : memref<?x?x?xf32>
      %dim_2 = memref.dim %arg1, %c1 : memref<?x?x?xf32>
      %dim_3 = memref.dim %arg1, %c2 : memref<?x?x?xf32>
-   
+
      // Calculate the upper bound for vectorized processing
      // - Subtract `vl_step` is to avoid overflow at the vectorization tail.
-     // - Add 1 to ensure the final loop runs when the workload length 
+     // - Add 1 to ensure the final loop runs when the workload length
      //   is divisible by the vector size.
      %dim_3_upbound_tmp = arith.subi %dim_3, %vl_step : index
      %dim_3_upbound = arith.addi %dim_3_upbound_tmp, %c1 : index
-   
+
      affine.for %arg3 = %c0 to %dim {                                      // C
        affine.prefetch %arg0[%arg3, %dim_1, %dim_2], read, locality<3>, data : memref<?x?x?xf32>
        affine.for %arg4 = %c0 to %dim_1 {                                  // M
          // Perform the vectorization body.
-         %iter_idx = scf.for %arg5 = %c0 to %dim_3_upbound 
+         %iter_idx = scf.for %arg5 = %c0 to %dim_3_upbound
                step %vl_step iter_args(%iter_init = %c0) -> (index) {      // N
            %1 = vector.load %arg2[%arg3, %arg4, %arg5] : memref<?x?x?xf32>, vector<32xf32>
            %iter_vec = scf.for %arg6 = %c0 to %dim_2 step %c1
-               iter_args(%iter_vec0 = %1) -> (vector<32xf32>) {            // K 
+               iter_args(%iter_vec0 = %1) -> (vector<32xf32>) {            // K
              %5 = memref.load %arg0[%arg3, %arg4, %arg6] : memref<?x?x?xf32>
              %6 = vector.broadcast %5 : f32 to vector<32xf32>
              %4 = vector.load %arg1[%arg3, %arg6, %arg5] : memref<?x?x?xf32>, vector<32xf32>
@@ -212,7 +212,7 @@ For the full source code, please check [batchmatmul-f32.mlir](../examples/BuddyM
            %arg5_next = arith.addi %arg5, %vl_step : index
            scf.yield %arg5_next : index
          }
-         // Compute the tail size and Process the remaining elements 
+         // Compute the tail size and Process the remaining elements
          // using masked vector operations.
          ...
        }
@@ -235,9 +235,9 @@ For the full source code, please check [batchmatmul-vectorization.mlir](../examp
 
    ```Cpp
    // BatchMatMulOptimize.cpp
-   
+
    namespace {
-   
+
    class BatchMatMulOptimizePattern : public ConversionPattern {
    public:
      explicit BatchMatMulOptimizePattern(MLIRContext *context,
@@ -246,18 +246,18 @@ For the full source code, please check [batchmatmul-vectorization.mlir](../examp
                              context) {
        vecSize = vecSizeParam;
      }
-   
+
      LogicalResult
      matchAndRewrite(Operation *op, ArrayRef<Value> /*operands*/,
                      ConversionPatternRewriter &rewriter) const override {
        ... // Optimized Implementation Code
      }
-   
+
    private:
      int64_t vecSize;
    };
    } // end anonymous namespace
-   
+
    //===----------------------------------------------------------------------===//
    // BatchMatMulOptimizePass
    //===----------------------------------------------------------------------===//
@@ -273,38 +273,38 @@ For the full source code, please check [batchmatmul-vectorization.mlir](../examp
      explicit BatchMatMulOptimizePass(int64_t vecSizeParam) {
        vecSize = vecSizeParam;
      }
-   
+
      void runOnOperation() override;
-   
+
      void getDependentDialects(DialectRegistry &registry) const override {
        registry.insert<linalg::LinalgDialect, scf::SCFDialect,
                        affine::AffineDialect, VectorDialect>();
      }
-   
+
      Option<int64_t> vecSize{*this, "vector-size",
                              llvm::cl::desc("Affine Vector size."),
                              llvm::cl::init(64)};
    };
    } // end anonymous namespace.
-   
+
    void BatchMatMulOptimizePass::runOnOperation() {
      MLIRContext *context = &getContext();
      ModuleOp module = getOperation();
-   
+
      ConversionTarget target(*context);
      target
          .addLegalDialect<arith::ArithDialect, affine::AffineDialect,
                           scf::SCFDialect, memref::MemRefDialect, VectorDialect>();
      target.addLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>();
      target.addLegalOp<linalg::FillOp>();
-   
+
      RewritePatternSet patterns(context);
      patterns.add<BatchMatMulOptimizePattern>(context, vecSize);
-   
+
      if (failed(applyPartialConversion(module, target, std::move(patterns))))
        signalPassFailure();
    }
-   
+
    namespace mlir {
    namespace buddy {
    void registerBatchMatMulOptimizePass() {
@@ -318,7 +318,7 @@ For the full source code, please check [batchmatmul-vectorization.mlir](../examp
 
    ```cmake
    // CMakeLists.txt
-   
+
    add_mlir_library(MatMulOptimization
    ...
      BatchMatMulOptimize.cpp
@@ -332,7 +332,7 @@ For the full source code, please check [batchmatmul-vectorization.mlir](../examp
 
    ```cpp
    // buddy-opt.cpp
-   
+
    namespace mlir {
    namespace buddy {
    ...
@@ -340,12 +340,12 @@ For the full source code, please check [batchmatmul-vectorization.mlir](../examp
    ...
    } // namespace buddy
    } // namespace mlir
-   
+
    int main(int argc, char **argv) {
      ...
      mlir::buddy::registerBatchMatMulOptimizePass();
      ...
-   
+
      return mlir::failed(
          mlir::MlirOptMain(argc, argv, "buddy-mlir optimizer driver", registry));
    }
@@ -391,7 +391,7 @@ linalg-batchmatmul-f32-run:
 
    ```cmake
    // CMakeLists.txt
-   
+
    add_custom_command(OUTPUT batch_matmul_vectorization.o
      COMMAND cat ${BUDDY_SOURCE_DIR}/benchmarks/DeepLearning/Ops/BatchMatMulOp/BatchMatMul.mlir |
              sed 's/@batch_matmul/@batch_matmul_vectorization/' |
@@ -399,13 +399,13 @@ linalg-batchmatmul-f32-run:
              -batchmatmul-optimize
              -convert-linalg-to-loops
              -expand-strided-metadata
-             -lower-affine 
-             -convert-scf-to-cf 
-             -convert-math-to-llvm 
-             -convert-vector-to-llvm 
-             -finalize-memref-to-llvm 
+             -lower-affine
+             -convert-scf-to-cf
+             -convert-math-to-llvm
+             -convert-vector-to-llvm
+             -finalize-memref-to-llvm
              -llvm-request-c-wrappers
-             -convert-func-to-llvm 
+             -convert-func-to-llvm
              -reconcile-unrealized-casts|
              ${BUDDY_MLIR_BUILD_DIR}/bin/buddy-translate --buddy-to-llvmir -o batch_matmul_vectorization.ll
      COMMAND ${LLVM_MLIR_BINARY_DIR}/clang -O3 ${CLANG_FLAGS_LIST} batch_matmul_vectorization.ll
@@ -416,20 +416,20 @@ linalg-batchmatmul-f32-run:
    target_link_libraries(dl-op-linalg-batch-matmul-benchmark
      batch_matmul_vectorization
    )
-   
+
    add_custom_command(OUTPUT batch_matmul_vectorization0.o
      COMMAND cat ${BUDDY_SOURCE_DIR}/benchmarks/DeepLearning/Ops/BatchMatMulOp/BatchMatMulVec.mlir |
              sed 's/@batch_matmul/@batch_matmul_vectorization0/' |
              ${BUDDY_MLIR_BUILD_DIR}/bin/buddy-opt
              -convert-linalg-to-loops
              -expand-strided-metadata
-             -lower-affine 
-             -convert-scf-to-cf 
-             -convert-math-to-llvm 
-             -convert-vector-to-llvm 
-             -finalize-memref-to-llvm 
+             -lower-affine
+             -convert-scf-to-cf
+             -convert-math-to-llvm
+             -convert-vector-to-llvm
+             -finalize-memref-to-llvm
              -llvm-request-c-wrappers
-             -convert-func-to-llvm 
+             -convert-func-to-llvm
              -reconcile-unrealized-casts|
              ${BUDDY_MLIR_BUILD_DIR}/bin/buddy-translate --buddy-to-llvmir -o batch_matmul_vectorization0.ll
      COMMAND ${LLVM_MLIR_BINARY_DIR}/clang -O3 ${CLANG_FLAGS_LIST} batch_matmul_vectorization0.ll
@@ -448,13 +448,13 @@ linalg-batchmatmul-f32-run:
 
    ```cpp
    // main.cpp
-   
+
    ...
-   
+
    // -----------------------------------------------------------------------------
    // MLIR Benchmark. You can compare your new method with other methods here.
    // -----------------------------------------------------------------------------
-   
+
    extern "C" {
    ...
    void _mlir_ciface_batch_matmul_auto_vectorization(MemRef<float, 3> *A,
@@ -466,7 +466,7 @@ linalg-batchmatmul-f32-run:
    ...
    /// [Step 1] Add function of your new method.
    }
-   
+
    ...
    BENCHMARK_CAPTURE(DL_OPS_BATCH_MATMUL, AutoVectorization,
                      _mlir_ciface_batch_matmul_auto_vectorization)
@@ -478,11 +478,11 @@ linalg-batchmatmul-f32-run:
        ->Iterations(_NUM_ITER);
    ...
    /// [Step 2] Call GoogleBenchmark function to run your new method.
-   
+
    // -----------------------------------------------------------------------------
    // Main Function. You can verify the correctness of your new method here.
    // -----------------------------------------------------------------------------
-   
+
    int main(int argc, char **argv) {
      ...
      std::cout << "\033[34m---------- Verification ----------\033[0m" << std::endl;
@@ -491,11 +491,11 @@ linalg-batchmatmul-f32-run:
      _mlir_ciface_batch_matmul_auto_vectorization(&input1MemRef, &input2MemRef,
                                       &outputMemrefScalar);
      float *outputExpected = outputMemrefAutoVectorization.getData();
-   
+
      MLIRVerification(outputExpected, _mlir_ciface_batch_matmul_vectorization, "Vectorization");
      ...
      /// [Step 3] Add your new method for verification.
-   
+
      delete[] input1;
      delete[] input2;
      return 0;
@@ -508,9 +508,9 @@ linalg-batchmatmul-f32-run:
 
    ```mlir
    // BatchMatMul.mlir
-   
+
    // RUN: mlir-opt %s --convert-linalg-to-loops --convert-scf-to-cf --lower-affine --finalize-memref-to-llvm --llvm-request-c-wrappers --convert-func-to-llvm --reconcile-unrealized-casts | mlir-translate --mlir-to-llvmir | llc -O3 -filetype=obj -o %t.o
-   
+
    func.func @batch_matmul(%arg0: memref<?x?x?xf32>, %arg1: memref<?x?x?xf32>, %arg2: memref<?x?x?xf32>) {
      linalg.batch_matmul
        ins(%arg0, %arg1: memref<?x?x?xf32>, memref<?x?x?xf32>)
@@ -525,18 +525,18 @@ linalg-batchmatmul-f32-run:
 
    ```hpp
    // Utils.hpp
-   
+
    #ifndef BATCH_MATMUL_UTILS_HPP
    #define BATCH_MATMUL_UTILS_HPP
-   
+
    #include <benchmark/benchmark.h>
    #include <cmath>
    #include <cstdlib>
    #include <ctime>
    #include <iostream>
-   
+
    namespace batch_matmul {
-   
+
    // Allocates a 1D array with dimensions `rows * cols` and fills it with random
    // values between 0 and 99.
    template <typename DATA_TYPE> DATA_TYPE *allocArray(int rows, int cols) {
@@ -552,7 +552,7 @@ linalg-batchmatmul-f32-run:
      }
      return array;
    }
-   
+
    // Verifies two arrays for equality within a specified tolerance.
    template <typename DATA_TYPE>
    void verify(DATA_TYPE *A, DATA_TYPE *B, int batch, int size,
@@ -560,13 +560,13 @@ linalg-batchmatmul-f32-run:
      const std::string PASS = "\033[32mPASS\033[0m";
      const std::string FAIL = "\033[31mFAIL\033[0m";
      const double epsilon = 1e-6; // Tolerance for floating point comparison
-   
+
      std::cout << name << " ";
      if (!A || !B) {
        std::cout << FAIL << " (Null pointer detected)" << std::endl;
        return;
      }
-   
+
      bool isPass = true;
      for (int i = 0; i < batch; ++i) {
        for (int j = 0; j < size; ++j) {
@@ -587,9 +587,9 @@ linalg-batchmatmul-f32-run:
        std::cout << PASS << std::endl;
      }
    }
-   
+
    } // namespace batch_matmul
-   
+
    #endif // BATCH_MATMUL_UTILS_HPP
    ```
 
@@ -597,7 +597,7 @@ linalg-batchmatmul-f32-run:
 
    ```cmake
    // CMakeLists.txt
-   
+
    ...
    add_subdirectory(BatchMatMulOp)
    ...
@@ -605,12 +605,12 @@ linalg-batchmatmul-f32-run:
 
    ```markdown
    // README.md
-   
+
    ...
    ### Operation Level Benchmark
-   
+
    The table below lists the benchmark cases at the operation level.
-   
+
    | Name  | Build Target | Introduction |
    | -------------- | ------------- | ------------- |
    ...
