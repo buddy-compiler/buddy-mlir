@@ -32,7 +32,9 @@
 #include "RVV/RVVDialect.h"
 #include "VectorExp/VectorExpDialect.h"
 #include "VectorExp/VectorExpOps.h"
-#include "Buckyball/BuckyballDialect.h"
+#ifdef BUDDY_EXTERNAL_DIALECTS
+#include "Dialect/Buckyball/BuckyballDialect.h"
+#endif
 #include "Gemmini/GemminiDialect.h"
 
 using namespace mlir;

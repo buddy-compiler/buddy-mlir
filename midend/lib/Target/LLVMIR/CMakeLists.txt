@@ -9,7 +9,6 @@ add_mlir_translation_library(BuddyToLLVMIRTranslationRegistration
 
   LINK_LIBS PUBLIC
   BuddyRVVToLLVMIRTranslation
-  BuddyBuckyballToLLVMIRTranslation
   BuddyGemminiToLLVMIRTranslation
   MLIRIMEToLLVMIRTranslation
   MLIRAMEToLLVMIRTranslation

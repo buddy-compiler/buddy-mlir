@@ -25,7 +25,10 @@
 #include "Dialect/DAP/DAPDialect.h"
 #include "Dialect/DIP/DIPDialect.h"
 #include "Dialect/Tile/TileDialect.h"
+// Buckyball dialect is now external
+#ifdef BUDDY_EXTERNAL_DIALECTS
 #include "Dialect/Buckyball/BuckyballDialect.h"
+#endif
 #include "Dialect/Gemmini/GemminiDialect.h"
 #include "Dialect/IME/IMEDialect.h"
 #include "Dialect/RHAL/RHALDialect.h"
@@ -80,7 +83,9 @@ void mlir::buddy::registerAllDialects(mlir::DialectRegistry &registry) {
   registry.insert<::buddy::dap::DAPDialect>();
   registry.insert<::buddy::dip::DIPDialect>();
   registry.insert<::buddy::tile::TileDialect>();
+#ifdef BUDDY_EXTERNAL_DIALECTS
   registry.insert<::buddy::buckyball::BuckyballDialect>();
+#endif
   registry.insert<::buddy::gemmini::GemminiDialect>();
   registry.insert<::buddy::ime::IMEDialect>();
   registry.insert<::buddy::rhal::RHALDialect>();

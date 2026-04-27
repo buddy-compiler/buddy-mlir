@@ -33,6 +33,12 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${BUDDY_SOURCE_DIR}/backend/include/)
 include_directories(${LLVM_TARGET_RISCV_DIR})
 
+# Add Buckyball intrinsics include path
+get_filename_component(BUCKYBALL_INTRINSICS_DIR
+  "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../../../src/Backend/include"
+  ABSOLUTE)
+include_directories(${BUCKYBALL_INTRINSICS_DIR})
+
 set(LLVM_TARGET_DEFINITIONS RISCVBuddyExt.td)
 
 tablegen(LLVM RISCVGenAsmMatcher.inc -gen-asm-matcher)

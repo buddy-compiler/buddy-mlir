@@ -24,6 +24,7 @@ set(LinkedLibs
   LowerDAPPass
   LowerDIPPass
   LowerLinalgToTilePass
+  # Buckyball passes moved to external dialects
   LowerTileToBuckyballPass
   LowerBuckyballPass
   LowerGemminiPass

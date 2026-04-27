@@ -45,8 +45,11 @@
 #include "DIP/DIPOps.h"
 #include "Tile/TileDialect.h"
 #include "Tile/TileOps.h"
-#include "Buckyball/BuckyballDialect.h"
-#include "Buckyball/BuckyballOps.h"
+// Buckyball dialect moved to external dialects
+#ifdef BUDDY_EXTERNAL_DIALECTS
+#include "Dialect/Buckyball/BuckyballDialect.h"
+#include "Dialect/Buckyball/BuckyballOps.h"
+#endif
 #include "GPU/TransformOps.h"
 #include "Gemmini/GemminiDialect.h"
 #include "Gemmini/GemminiOps.h"
