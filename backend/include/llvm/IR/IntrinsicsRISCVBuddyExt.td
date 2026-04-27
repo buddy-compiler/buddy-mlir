@@ -675,3 +675,38 @@ let TargetPrefix = "riscv" in {
                                                   [IntrHasSideEffects, ImmArg<ArgIndex<0>>,
                                                    ImmArg<ArgIndex<1>>, ImmArg<ArgIndex<2>>]>;
 }
+//===----------------------------------------------------------------------===//
+// BB intrinsics
+//===----------------------------------------------------------------------===//
+let TargetPrefix = "riscv" in 
+def int_riscv_bb_mvin : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
+
+let TargetPrefix = "riscv" in 
+def int_riscv_bb_mvout : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
+
+let TargetPrefix = "riscv" in 
+def int_riscv_bb_bbfp_mul : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
+
+let TargetPrefix = "riscv" in 
+def int_riscv_bb_fence : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
+
+let TargetPrefix = "riscv" in 
+def int_riscv_bb_mul_warp16 : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
+
+let TargetPrefix = "riscv" in 
+def int_riscv_bb_im2col : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
+
+let TargetPrefix = "riscv" in
+def int_riscv_bb_transpose : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
+
+let TargetPrefix = "riscv" in
+def int_riscv_bb_relu : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
+
+let TargetPrefix = "riscv" in
+def int_riscv_bb_quant : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
+
+let TargetPrefix = "riscv" in
+def int_riscv_bb_dequant : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;
+
+let TargetPrefix = "riscv" in
+def int_riscv_bb_mset : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty], []>;

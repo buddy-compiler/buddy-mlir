@@ -17,11 +17,15 @@ set(LinkedLibs
   BuddyAME
   BuddyAMETransforms
   BuddyRHAL
+  BuddyTile
   ConvOptimization
   CBConvVectorization
   LowerBudPass
   LowerDAPPass
   LowerDIPPass
+  LowerLinalgToTilePass
+  LowerTileToBuckyballPass
+  LowerBuckyballPass
   LowerGemminiPass
   LowerLinalgToGemminiPass
   LowerLinalgToIMEPass

@@ -202,6 +202,7 @@ class DynamoCompiler:
             "adaptive_avg_pool1d.default": AdaptiveAvgPool1dOp,
             "_adaptive_avg_pool2d.default": AdaptiveAvgPool2dOp,
             "_adaptive_avg_pool3d.default": AdaptiveAvgPool3dOp,
+            "_low_memory_max_pool2d_with_offsets.default": MaxPool2dWithIndicesOp,
             "relu.default": ReluOp,
             "iota.default": IotaOp,
             "sigmoid.default": SigmoidOp,
