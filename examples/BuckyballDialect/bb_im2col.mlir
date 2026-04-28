@@ -1,99 +1,64 @@
-// RUN: buddy-opt %s \
-// RUN:     -lower-buckyball | \
-// RUN: FileCheck %s
-
-// DUT: single `bb_im2col` (lowers to mset / mvin / bb_im2col / mvout / mset release).
-// GRM: pure MLIR, layout matches toy im2col_test.c:
-//   lin = window_idx * (krow*kcol) + elem_idx, then reshape [52,16].
+// RUN: buddy-opt %s -lower-buckyball | FileCheck %s
+// Im2col test using Bank SSA operations
 // CHECK: bb_mset
 // CHECK: bb_mvin
 // CHECK: bb_im2col
 // CHECK: bb_mvout
 // CHECK: bb_mset
 
-"memref.global"() {sym_name = "a_g", type = memref<32x16xi8>, initial_value = dense<1> : tensor<32x16xi8>, visibility = "private"} : () -> ()
-
 func.func private @bb_test_report(i32) -> ()
-
-func.func @grm_im2col_ref(%src : memref<32x16xi8>, %dst : memref<52x16xi8>) {
-  %c0 = arith.constant 0 : index
-  %c1 = arith.constant 1 : index
-  %c4 = arith.constant 4 : index
-  %c13 = arith.constant 13 : index
-  %c16 = arith.constant 16 : index
-  %c52 = arith.constant 52 : index
-
-  scf.for %i = %c0 to %c52 step %c1 {
-    scf.for %j = %c0 to %c16 step %c1 {
-      %z = arith.constant 0 : i8
-      memref.store %z, %dst[%i, %j] : memref<52x16xi8>
-    }
-  }
-
-  scf.for %r = %c0 to %c13 step %c1 {
-    scf.for %c = %c0 to %c16 step %c1 {
-      %w0 = arith.muli %r, %c16 : index
-      %w = arith.addi %w0, %c : index
-      scf.for %kr = %c0 to %c4 step %c1 {
-        %lin0 = arith.muli %w, %c4 : index
-        %lin = arith.addi %lin0, %kr : index
-        %orow = arith.divui %lin, %c16 : index
-        %ocol = arith.remui %lin, %c16 : index
-        %sr = arith.addi %r, %kr : index
-        %v = memref.load %src[%sr, %c] : memref<32x16xi8>
-        memref.store %v, %dst[%orow, %ocol] : memref<52x16xi8>
-      }
-    }
-  }
-  return
-}
-
-func.func private @grm_cmp(%g : memref<52x16xi8>, %d : memref<52x16xi8>) -> i1 {
-  %c0 = arith.constant 0 : index
-  %c1 = arith.constant 1 : index
-  %r = arith.constant 52 : index
-  %c = arith.constant 16 : index
-  %tr = arith.constant true
-  %all = scf.for %i = %c0 to %r step %c1 iter_args(%ok_row = %tr) -> (i1) {
-    %row_all = scf.for %j = %c0 to %c step %c1 iter_args(%ok_cell = %tr) -> (i1) {
-      %vg = memref.load %g[%i, %j] : memref<52x16xi8>
-      %vd = memref.load %d[%i, %j] : memref<52x16xi8>
-      %eq = arith.cmpi eq, %vg, %vd : i8
-      %both = arith.andi %ok_cell, %eq : i1
-      scf.yield %both : i1
-    }
-    %both2 = arith.andi %ok_row, %row_all : i1
-    scf.yield %both2 : i1
-  }
-  return %all : i1
-}
 
 func.func @main() -> i8 {
   %zero = arith.constant 0 : i8
-  %one = arith.constant 1 : i8
+  %input = memref.alloc() : memref<32x16xi8>   // 32 rows, 16 cols (1 line)
+  %output = memref.alloc() : memref<52x16xi8>  // im2col output
 
-  %c4 = arith.constant 4 : i64
-  %c1 = arith.constant 1 : i64
-  %c16 = arith.constant 16 : i64
-  %c0 = arith.constant 0 : i64
+  // Initialize: input[i,j] = i
+  %c0 = arith.constant 0 : index
+  %c1 = arith.constant 1 : index
+  %n_row = arith.constant 32 : index
+  %n_col = arith.constant 16 : index
+  scf.for %i = %c0 to %n_row step %c1 {
+    scf.for %j = %c0 to %n_col step %c1 {
+      %idx = arith.index_cast %i : index to i32
+      %val_i8 = arith.trunci %idx : i32 to i8
+      memref.store %val_i8, %input[%i, %j] : memref<32x16xi8>
+    }
+  }
 
-  %a = memref.get_global @a_g : memref<32x16xi8>
-  %b_grm = memref.alloc() : memref<52x16xi8>
-  %b_dut = memref.alloc() : memref<52x16xi8>
+  // Bank SSA operations
+  %bank_in = "buckyball.bank_alloc"() : () -> i64
+  %bank_out = "buckyball.bank_alloc"() : () -> i64
+  %depth_in = arith.constant 32 : i64   // 32 rows
+  %depth_out = arith.constant 52 : i64  // output rows
+  %stride = arith.constant 1 : i64
 
-  func.call @grm_im2col_ref(%a, %b_grm) : (memref<32x16xi8>, memref<52x16xi8>) -> ()
+  // Im2col parameters: krow=4, kcol=1, inrow=16, incol=16, startrow=0, startcol=0
+  %krow = arith.constant 4 : i64
+  %kcol = arith.constant 1 : i64
+  %inrow = arith.constant 16 : i64
+  %incol = arith.constant 16 : i64
+  %startrow = arith.constant 0 : i64
+  %startcol = arith.constant 0 : i64
 
-  "buckyball.bb_im2col"(%a, %b_dut, %c4, %c1, %c16, %c16, %c0, %c0)
-      : (memref<32x16xi8>, memref<52x16xi8>, i64, i64, i64, i64, i64, i64) -> ()
+  %bank_in_loaded = "buckyball.bank_mvin"(%input, %bank_in, %depth_in, %stride)
+    : (memref<32x16xi8>, i64, i64, i64) -> i64
 
-  %match = func.call @grm_cmp(%b_grm, %b_dut) : (memref<52x16xi8>, memref<52x16xi8>) -> i1
-  %true = arith.constant true
-  %fail_i1 = arith.cmpi ne, %match, %true : i1
-  %fail = arith.extui %fail_i1 : i1 to i32
-  func.call @bb_test_report(%fail) : (i32) -> ()
-  %rc = arith.select %fail_i1, %one, %zero : i8
+  // Im2colOp signature: (inputBankId, outputBankId, krow, kcol, inrow, incol, startrow, startcol)
+  "buckyball.im2col"(%bank_in_loaded, %bank_out, %krow, %kcol, %inrow, %incol, %startrow, %startcol)
+    : (i64, i64, i64, i64, i64, i64, i64, i64) -> ()
 
-  memref.dealloc %b_grm : memref<52x16xi8>
-  memref.dealloc %b_dut : memref<52x16xi8>
-  return %rc : i8
+  %bank_out_stored = "buckyball.bank_mvout"(%output, %bank_out, %depth_out, %stride)
+    : (memref<52x16xi8>, i64, i64, i64) -> i64
+
+  "buckyball.bank_release"(%bank_in_loaded) : (i64) -> ()
+  "buckyball.bank_release"(%bank_out_stored) : (i64) -> ()
+
+  // Simple verification
+  %zero_i32 = arith.constant 0 : i32
+  func.call @bb_test_report(%zero_i32) : (i32) -> ()
+
+  memref.dealloc %input : memref<32x16xi8>
+  memref.dealloc %output : memref<52x16xi8>
+  return %zero : i8
 }

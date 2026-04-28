@@ -1,3 +1,5 @@
+cmake_minimum_required(VERSION 3.10)
+
 set(BUDDY_OPT ../../build/bin/buddy-opt)
 set(BUDDY_TRANSLATE ../../build/bin/buddy-translate)
 set(BUDDY_LLC ../../build/bin/buddy-llc)
@@ -36,18 +38,22 @@ function(add_buckyball_linux_mlir_c STEM)
   add_custom_target(buckyball_${STEM}_linux DEPENDS ${_exe})
 endfunction()
 
-add_buckyball_linux_mlir_c(bb_mvin_mvout)
+add_buckyball_linux_mlir_c(bb_relu)
+add_buckyball_linux_mlir_c(bb_quant)
+add_buckyball_linux_mlir_c(bb_dequant)
+add_buckyball_linux_mlir_c(bb_systolic)
 add_buckyball_linux_mlir_c(bb_mul_warp16)
-add_buckyball_linux_mlir_c(bb_matmul)
 add_buckyball_linux_mlir_c(bb_transpose)
 add_buckyball_linux_mlir_c(bb_im2col)
 add_buckyball_linux_mlir_c(bb_tile_matmul)
 
 add_custom_target(buckyball-dialect-examples ALL)
 add_dependencies(buckyball-dialect-examples
-  buckyball_bb_mvin_mvout_linux
+  buckyball_bb_relu_linux
+  buckyball_bb_quant_linux
+  buckyball_bb_dequant_linux
+  buckyball_bb_systolic_linux
   buckyball_bb_mul_warp16_linux
-  buckyball_bb_matmul_linux
   buckyball_bb_transpose_linux
   buckyball_bb_im2col_linux
   buckyball_bb_tile_matmul_linux

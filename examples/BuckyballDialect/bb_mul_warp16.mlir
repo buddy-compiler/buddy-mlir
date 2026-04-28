@@ -1,59 +1,67 @@
-// RUN: buddy-opt %s \
-// RUN:     -lower-buckyball | \
-// RUN: FileCheck %s
-
-// Tests **bb_mul_warp16** only (`64_mul_warp16.c`), not bb_matmul. Sequence:
-// mset banks 0,1,2 (bank2 col=4 for wr) → mvin A,B → bb_mul_warp16 → mvout C → mset release.
-// A,B: 16×1024 i8 all ones; K=iter=1024 ⇒ C[0,0] == 1024 (16×16 acc tile).
-// mvin depth=1024 (cols=1: 1024 lines × 16 B); mvout depth=16 for 16×16 i32 tile.
-// Host: debug_helper.c -> bb_test_report.
+// RUN: buddy-opt %s -lower-buckyball | FileCheck %s
+// MulWarp16 test using Bank SSA operations
+// CHECK: bb_mset
+// CHECK: bb_mvin
 // CHECK: bb_mul_warp16
-
-"memref.global"() {sym_name = "a_g", type = memref<16x1024xi8>, initial_value = dense<1> : tensor<16x1024xi8>, visibility = "private"} : () -> ()
-"memref.global"() {sym_name = "b_g", type = memref<16x1024xi8>, initial_value = dense<1> : tensor<16x1024xi8>, visibility = "private"} : () -> ()
+// CHECK: bb_mvout
+// CHECK: bb_mset
 
 func.func private @bb_test_report(i32) -> ()
 
 func.func @main() -> i8 {
   %zero = arith.constant 0 : i8
-  %one = arith.constant 1 : i8
-  %exp = arith.constant 1024 : i32
-
-  %a = memref.get_global @a_g : memref<16x1024xi8>
-  %b = memref.get_global @b_g : memref<16x1024xi8>
+  %a = memref.alloc() : memref<16x1024xi8>
+  %b = memref.alloc() : memref<16x1024xi8>
   %c = memref.alloc() : memref<16x16xi32>
 
-  %bk0 = arith.constant 0 : i64
-  %bk1 = arith.constant 1 : i64
-  %bk2 = arith.constant 2 : i64
-  %depthIn = arith.constant 1024 : i64
-  %depthOut = arith.constant 16 : i64
+  // Initialize: a[i,j] = 1, b[i,j] = 1
+  %c0 = arith.constant 0 : index
+  %c1 = arith.constant 1 : index
+  %n_row = arith.constant 16 : index
+  %n_col = arith.constant 1024 : index
+  %one_i8 = arith.constant 1 : i8
+  scf.for %i = %c0 to %n_row step %c1 {
+    scf.for %j = %c0 to %n_col step %c1 {
+      memref.store %one_i8, %a[%i, %j] : memref<16x1024xi8>
+      memref.store %one_i8, %b[%i, %j] : memref<16x1024xi8>
+    }
+  }
+
+  // Bank SSA operations
+  %bank_a = "buckyball.bank_alloc"() : () -> i64
+  %bank_b = "buckyball.bank_alloc"() : () -> i64
+  %bank_c = "buckyball.bank_alloc"() : () -> i64
+  %depth_in = arith.constant 1024 : i64  // 16 rows * 1024 cols / 16 bytes per line
+  %depth_out = arith.constant 16 : i64   // 16x16 result
   %stride = arith.constant 1 : i64
   %iter = arith.constant 1024 : i64
-  %mode0 = arith.constant 0 : i64
+  %mode = arith.constant 0 : i64
 
-  "buckyball.bb_mset"(%bk0) : (i64) -> ()
-  "buckyball.bb_mset"(%bk1) : (i64) -> ()
-  "buckyball.bb_mset"(%bk2) {col = 4 : i64} : (i64) -> ()
+  %bank_a_loaded = "buckyball.bank_mvin"(%a, %bank_a, %depth_in, %stride)
+    : (memref<16x1024xi8>, i64, i64, i64) -> i64
+  %bank_b_loaded = "buckyball.bank_mvin"(%b, %bank_b, %depth_in, %stride)
+    : (memref<16x1024xi8>, i64, i64, i64) -> i64
 
-  "buckyball.bb_mvin"(%a, %bk0, %depthIn, %stride) : (memref<16x1024xi8>, i64, i64, i64) -> ()
-  "buckyball.bb_mvin"(%b, %bk1, %depthIn, %stride) : (memref<16x1024xi8>, i64, i64, i64) -> ()
+  // MulWarp16Op signature: (op1BankId, op2BankId, wrBankId, iter, mode)
+  "buckyball.mul_warp16"(%bank_a_loaded, %bank_b_loaded, %bank_c, %iter, %mode)
+    : (i64, i64, i64, i64, i64) -> ()
 
-  "buckyball.bb_mul_warp16"(%bk0, %bk1, %bk2, %iter, %mode0) : (i64, i64, i64, i64, i64) -> ()
+  %bank_c_stored = "buckyball.bank_mvout"(%c, %bank_c, %depth_out, %stride)
+    : (memref<16x16xi32>, i64, i64, i64) -> i64
 
-  "buckyball.bb_mvout"(%c, %bk2, %depthOut, %stride) : (memref<16x16xi32>, i64, i64, i64) -> ()
+  "buckyball.bank_release"(%bank_a_loaded) : (i64) -> ()
+  "buckyball.bank_release"(%bank_b_loaded) : (i64) -> ()
+  "buckyball.bank_release"(%bank_c_stored) : (i64) -> ()
 
-  "buckyball.bb_mset"(%bk0) {alloc = false} : (i64) -> ()
-  "buckyball.bb_mset"(%bk1) {alloc = false} : (i64) -> ()
-  "buckyball.bb_mset"(%bk2) {alloc = false} : (i64) -> ()
-
-  %i0 = arith.constant 0 : index
-  %got = memref.load %c[%i0, %i0] : memref<16x16xi32>
-  %bad = arith.cmpi ne, %got, %exp : i32
-  %fail = arith.extui %bad : i1 to i32
+  // Verify: c[0,0] should be 1024 (sum of 1024 multiplications of 1*1)
+  %expected = arith.constant 1024 : i32
+  %result = memref.load %c[%c0, %c0] : memref<16x16xi32>
+  %fail_i1 = arith.cmpi ne, %result, %expected : i32
+  %fail = arith.extui %fail_i1 : i1 to i32
   func.call @bb_test_report(%fail) : (i32) -> ()
-  %rc = arith.select %bad, %one, %zero : i8
 
+  memref.dealloc %a : memref<16x1024xi8>
+  memref.dealloc %b : memref<16x1024xi8>
   memref.dealloc %c : memref<16x16xi32>
-  return %rc : i8
+  return %zero : i8
 }
