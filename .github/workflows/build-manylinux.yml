@@ -19,7 +19,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: release/v${{ inputs.version }}
-          name: Buddy Compiler ${{ inputs.version }}
+          name: BUDDY MLIR ${{ inputs.version }}
           draft: true
           overwrite_files: true
         env:
@@ -96,12 +96,10 @@ jobs:
           ./scripts/release_wheel_manylinux.sh "${{ steps.vars.outputs.py_tag }}" ${{ inputs.version }} "${{ matrix.target_arch }}"
 
       - name: Upload release assets
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: release/v${{ inputs.version }}
-          draft: true
-          overwrite_files: true
-          files: |
-            ${{ steps.vars.outputs.host_build_dir }}/${{ matrix.target_arch }}/buddy/${{ steps.vars.outputs.py_tag }}/${{ steps.vars.outputs.buddy_hash }}/target/buddy-${{ inputs.version }}-${{ steps.vars.outputs.py_tag }}-manylinux*
+        shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "release/v${{ inputs.version }}" \
+            ${{ steps.vars.outputs.host_build_dir }}/${{ matrix.target_arch }}/buddy/${{ steps.vars.outputs.py_tag }}/${{ steps.vars.outputs.buddy_hash }}/target/buddy-${{ inputs.version }}-${{ steps.vars.outputs.py_tag }}-manylinux* \
+            --clobber
