@@ -56,7 +56,8 @@ jobs:
       - name: Checkout from local Gitea (riscv64)
         if: matrix.arch == 'riscv64'
         run: |
-          git clone --no-checkout https://community-ci.openruyi.cn/RuyiAI-Stack/buddy-mlir .
+          git clone --no-checkout https://community-ci.openruyi.cn/RuyiAI-Stack/buddy-mlir
+          cd buddy-mlir
           git remote add github https://github.com/buddy-compiler/buddy-mlir.git
           git fetch github ${{ github.sha }}
           git checkout ${{ github.sha }}
@@ -69,15 +70,15 @@ jobs:
           venv_deactivate: ${{ matrix.venv_deactivate }}
 
       - name: Run check-buddy
-        if: matrix.arch == 'x64'
+        if: matrix.arch != 'arm64'
         run: |
           ${{ matrix.venv_activate }}
           ninja -C build check-buddy
           ${{ matrix.venv_deactivate }}
 
       - name: Run check-buddy
-        if: matrix.arch != 'x64'
+        if: matrix.arch == 'arm64'
         run: |
           ${{ matrix.venv_activate }}
-          ninja -C build check-buddy | true
+          ninja -C build check-buddy || true
           ${{ matrix.venv_deactivate }}
