@@ -103,3 +103,15 @@ jobs:
           gh release upload "release/v${{ inputs.version }}" \
             ${{ steps.vars.outputs.host_build_dir }}/${{ matrix.target_arch }}/buddy/${{ steps.vars.outputs.py_tag }}/${{ steps.vars.outputs.buddy_hash }}/target/buddy-${{ inputs.version }}-${{ steps.vars.outputs.py_tag }}-manylinux* \
             --clobber
+
+      - name: Upload buddy-cli
+        if: ${{ (matrix.target_arch == 'x86_64' && matrix.python == '3.10') || (matrix.target_arch == 'riscv64' && matrix.python == '3.12') }}
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BUDDY_BUILD_DIR=${{ steps.vars.outputs.host_build_dir }}/${{ matrix.target_arch }}/buddy/${{ steps.vars.outputs.py_tag }}/${{ steps.vars.outputs.buddy_hash }}
+          cp -a "${BUDDY_BUILD_DIR}/dist/bin/buddy-cli" "${BUDDY_BUILD_DIR}/target/buddy-cli-${{ inputs.version }}.${{ matrix.target_arch }}"
+          gh release upload "release/v${{ inputs.version }}" \
+            "${BUDDY_BUILD_DIR}/target/buddy-cli-${{ inputs.version }}.${{ matrix.target_arch }}" \
+            --clobber
