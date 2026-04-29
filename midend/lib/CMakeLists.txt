@@ -67,23 +67,49 @@ target_compile_definitions(static_mlir_async_runtime
   MLIR_ASYNCRUNTIME_DEFINE_FUNCTIONS
   )
 
+# Build static library for MLIR float16 utils runtime.
+add_mlir_library(StaticMLIRFloat16Utils
+  STATIC
+  ${MLIR_MAIN_SRC_DIR}/lib/ExecutionEngine/Float16bits.cpp
+
+  EXCLUDE_FROM_LIBMLIR
+)
+set_property(TARGET StaticMLIRFloat16Utils PROPERTY CXX_STANDARD 17)
+
+# Build static library for MLIR sparse tensor runtime.
+add_mlir_library(StaticMLIRSparseTensorRuntime
+  STATIC
+  ${MLIR_MAIN_SRC_DIR}/lib/ExecutionEngine/SparseTensor/File.cpp
+  ${MLIR_MAIN_SRC_DIR}/lib/ExecutionEngine/SparseTensor/MapRef.cpp
+  ${MLIR_MAIN_SRC_DIR}/lib/ExecutionEngine/SparseTensor/Storage.cpp
+
+  EXCLUDE_FROM_LIBMLIR
+
+  LINK_LIBS PUBLIC
+  MLIRSparseTensorEnums
+  StaticMLIRFloat16Utils
+)
+set_property(TARGET StaticMLIRSparseTensorRuntime PROPERTY CXX_STANDARD 17)
+
 # Build static library for MLIR C runner utils runtime.
 add_mlir_library(StaticMLIRCRunnerUtils
+  STATIC
   ${MLIR_MAIN_SRC_DIR}/lib/ExecutionEngine/CRunnerUtils.cpp
   ${MLIR_MAIN_SRC_DIR}/lib/ExecutionEngine/SparseTensorRuntime.cpp
 
   EXCLUDE_FROM_LIBMLIR
 
   LINK_LIBS PUBLIC
-  mlir_float16_utils
+  StaticMLIRFloat16Utils
   MLIRSparseTensorEnums
-  MLIRSparseTensorRuntime
+  StaticMLIRSparseTensorRuntime
   )
 set_property(TARGET StaticMLIRCRunnerUtils PROPERTY CXX_STANDARD 17)
 target_compile_definitions(StaticMLIRCRunnerUtils PRIVATE StaticMLIRCRunnerUtils_EXPORTS)
 
 # Build static library for MLIR runner utils runtime.
 add_mlir_library(StaticMLIRRunnerUtils
+  STATIC
   ${MLIR_MAIN_SRC_DIR}/lib/ExecutionEngine/RunnerUtils.cpp
 
   EXCLUDE_FROM_LIBMLIR
