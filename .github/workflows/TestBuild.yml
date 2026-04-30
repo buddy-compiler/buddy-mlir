@@ -49,18 +49,10 @@ jobs:
           uname -a
 
       - name: Checkout
-        if: matrix.arch != 'riscv64'
         uses: actions/checkout@v6
         with:
           submodules: 'false'
-      - name: Checkout from local Gitea (riscv64)
-        if: matrix.arch == 'riscv64'
-        run: |
-          git clone --no-checkout https://community-ci.openruyi.cn/RuyiAI-Stack/buddy-mlir
-          cd buddy-mlir
-          git remote add github https://github.com/buddy-compiler/buddy-mlir.git
-          git fetch github ${{ github.sha }}
-          git checkout ${{ github.sha }}
+          fetch-depth: 300
 
       - name: Build buddy-mlir
         uses: ./.github/actions/ci-common

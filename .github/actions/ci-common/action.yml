@@ -81,10 +81,13 @@ runs:
       id: prepare-llvm-build
       shell: bash
       run: |
+        LLVM_SRC="${{ steps.setup-llvm.outputs.llvm_src }}"
+        LLVM_BUILD_DIR="${{ env.LLVM_BUILD_ROOT }}/${{ steps.setup-llvm.outputs.cache_hash }}"
+
         echo "LLVM_SRC=${{ steps.setup-llvm.outputs.llvm_src }}" >> $GITHUB_ENV
         echo "LLVM_BUILD_DIR=${{ env.LLVM_BUILD_ROOT }}/${{ steps.setup-llvm.outputs.cache_hash }}" >> $GITHUB_ENV
         if [ -f "${LLVM_BUILD_DIR}/build/CMakeCache.txt" ] &&
-          grep -q "${{ steps.setup-llvm.outputs.llvm_src }}" "${LLVM_BUILD_DIR}/build/CMakeCache.txt"; then
+          grep -q "${LLVM_SRC}" "${LLVM_BUILD_DIR}/build/CMakeCache.txt"; then
           echo "need-rebuild=false" >> "$GITHUB_OUTPUT"
         else
           echo "need-rebuild=true" >> "$GITHUB_OUTPUT"
