@@ -1,4 +1,4 @@
-//===- IntrinsicsBuddyExt.td ----------------------------------------------===//
+//====- BOSCAMEDialect.cpp - MLIR BOSCAME dialect implementation ----------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,14 +13,25 @@
 // limitations under the License.
 //
 //===----------------------------------------------------------------------===//
-//
-// This is the top file for intrinsic definition of RISC-V buddy extension.
-//
-//===----------------------------------------------------------------------===//
 
-// Include upstream intrinsic tablegen file.
-include "Intrinsics.td"
-// Include buddy extension intrinsic tablegen file.
-include "IntrinsicsRISCVBuddyExt.td"
-// Include BOSC AME extension intrinsic tablegen file.
-include "IntrinsicsRISCVBuddyBOSCExt.td"
+#include "mlir/IR/Builders.h"
+#include "mlir/IR/DialectImplementation.h"
+#include "mlir/IR/OpImplementation.h"
+
+#include "Dialect/BOSCAME/BOSCAMEDialect.h"
+#include "Dialect/BOSCAME/BOSCAMEOps.h"
+
+using namespace mlir;
+using namespace buddy::boscame;
+
+#include "BOSCAME/BOSCAMEDialect.cpp.inc"
+
+#define GET_OP_CLASSES
+#include "BOSCAME/BOSCAME.cpp.inc"
+
+void BOSCAMEDialect::initialize() {
+  addOperations<
+#define GET_OP_LIST
+#include "BOSCAME/BOSCAME.cpp.inc"
+      >();
+}
