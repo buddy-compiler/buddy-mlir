@@ -1561,6 +1561,34 @@ class TH_MMACC<bits<3> type_val, string opcodestr>
 // th.mmacc.w.b - int8 × int8 → int32 accumulate
 let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
 def TH_MMACC_W_B : TH_MMACC<0b000, "th.mmacc.w.b">;
+// th.mmaccu.w.b - uint8 × uint8 → uint32 accumulate
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def TH_MMACCU_W_B : TH_MMACC<0b001, "th.mmaccu.w.b">;
+
+//===----------------------------------------------------------------------===//
+// AME Matrix Multiplication Instructions (float)
+//===----------------------------------------------------------------------===//
+class TH_MFMACC<bit size_val, bits<2> size_w_val, bits<3> type_val, string opcodestr>
+    : RVInstXTAME32<(outs MatrixReg:$md),
+                  (ins MatrixReg:$md_in, MatrixReg:$ms2, MatrixReg:$ms1),
+                  opcodestr, "$md, $ms2, $ms1"> {
+  let Constraints = "$md = $md_in";
+  let func4   = 0b0001;
+  let uop     = 0b000;
+  let size    = size_val;
+  let func3   = 0b000;
+  let size_w  = size_w_val;
+  let type    = type_val;
+  let opcode  = 0b0101011;
+}
+
+// th.mfmacc.s - float32 × float32 → float32 accumulate
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def TH_MFMACC_S : TH_MFMACC<0b0, 0b10, 0b000, "th.mfmacc.s">;
+
+// th.mfmacc.d.s - float32 × float32 → float64 accumulate
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def TH_MFMACC_D_S : TH_MFMACC<0b1, 0b10, 0b000, "th.mfmacc.d.s">;
 
 //===----------------------------------------------------------------------===//
 // AME 32-bit Configuration Instructions (Register Type)
@@ -1826,16 +1854,43 @@ let Predicates = [HasBuddyExt], hasSideEffects = 1, mayLoad = 1, mayStore = 0,
   def TH_MLDE8_PSEUDO : Pseudo<(outs), (ins MatrixIndex:$md, GPR:$rs2, GPR:$rs1), []> {
     let AsmString = "th.mlde8\tm$md, $rs2, ($rs1)";
   }
+  def TH_MLDE16_PSEUDO : Pseudo<(outs), (ins MatrixIndex:$md, GPR:$rs2, GPR:$rs1), []> {
+    let AsmString = "th.mlde16\tm$md, $rs2, ($rs1)";
+  }
+  def TH_MLDE32_PSEUDO : Pseudo<(outs), (ins MatrixIndex:$md, GPR:$rs2, GPR:$rs1), []> {
+    let AsmString = "th.mlde32\tm$md, $rs2, ($rs1)";
+  }
+  def TH_MLDE64_PSEUDO : Pseudo<(outs), (ins MatrixIndex:$md, GPR:$rs2, GPR:$rs1), []> {
+    let AsmString = "th.mlde64\tm$md, $rs2, ($rs1)";
+  }
   def TH_MLDTE8_PSEUDO : Pseudo<(outs), (ins MatrixIndex:$md, GPR:$rs2, GPR:$rs1), []> {
     let AsmString = "th.mldte8\tm$md, $rs2, ($rs1)";
+  }
+  def TH_MLDTE16_PSEUDO : Pseudo<(outs), (ins MatrixIndex:$md, GPR:$rs2, GPR:$rs1), []> {
+    let AsmString = "th.mldte16\tm$md, $rs2, ($rs1)";
+  }
+  def TH_MLDTE32_PSEUDO : Pseudo<(outs), (ins MatrixIndex:$md, GPR:$rs2, GPR:$rs1), []> {
+    let AsmString = "th.mldte32\tm$md, $rs2, ($rs1)";
+  }
+  def TH_MLDTE64_PSEUDO : Pseudo<(outs), (ins MatrixIndex:$md, GPR:$rs2, GPR:$rs1), []> {
+    let AsmString = "th.mldte64\tm$md, $rs2, ($rs1)";
   }
 }
 
 // Store instruction
 let Predicates = [HasBuddyExt], hasSideEffects = 1, mayLoad = 0, mayStore = 1,
     isCodeGenOnly = 1 in {
+  def TH_MSTE8_PSEUDO : Pseudo<(outs), (ins MatrixIndex:$ms3, GPR:$rs2, GPR:$rs1), []> {
+    let AsmString = "th.mste8\tm$ms3, $rs2, ($rs1)";
+  }
+  def TH_MSTE16_PSEUDO : Pseudo<(outs), (ins MatrixIndex:$ms3, GPR:$rs2, GPR:$rs1), []> {
+    let AsmString = "th.mste16\tm$ms3, $rs2, ($rs1)";
+  }
   def TH_MSTE32_PSEUDO : Pseudo<(outs), (ins MatrixIndex:$ms3, GPR:$rs2, GPR:$rs1), []> {
     let AsmString = "th.mste32\tm$ms3, $rs2, ($rs1)";
+  }
+  def TH_MSTE64_PSEUDO : Pseudo<(outs), (ins MatrixIndex:$ms3, GPR:$rs2, GPR:$rs1), []> {
+    let AsmString = "th.mste64\tm$ms3, $rs2, ($rs1)";
   }
 }
 
@@ -1845,6 +1900,19 @@ let Predicates = [HasBuddyExt], hasSideEffects = 1,
   def TH_MMACC_W_B_PSEUDO : Pseudo<(outs),
       (ins MatrixIndex:$md, MatrixIndex:$ms2, MatrixIndex:$ms1), []> {
     let AsmString = "th.mmacc.w.b\tm$md, m$ms2, m$ms1";
+  }
+  def TH_MMACCU_W_B_PSEUDO : Pseudo<(outs),
+      (ins MatrixIndex:$md, MatrixIndex:$ms2, MatrixIndex:$ms1), []> {
+    let AsmString = "th.mmaccu.w.b\tm$md, m$ms2, m$ms1";
+  }
+  def TH_MFMACC_S_PSEUDO : Pseudo<(outs),
+      (ins MatrixIndex:$md, MatrixIndex:$ms2, MatrixIndex:$ms1), []> {
+    let AsmString = "th.mfmacc.s\tm$md, m$ms2, m$ms1";
+  }
+
+  def TH_MFMACC_D_S_PSEUDO : Pseudo<(outs),
+      (ins MatrixIndex:$md, MatrixIndex:$ms2, MatrixIndex:$ms1), []> {
+    let AsmString = "th.mfmacc.d.s\tm$md, m$ms2, m$ms1";
   }
 }
 
@@ -1869,14 +1937,38 @@ let Predicates = [HasBuddyExt] in {
   // Load instructions
   def : Pat<(int_riscv_buddy_th_mlde8 timm:$md, i64:$rs2, iPTR:$rs1),
             (TH_MLDE8_PSEUDO timm:$md, GPR:$rs2, GPR:$rs1)>;
+  def : Pat<(int_riscv_buddy_th_mlde16 timm:$md, i64:$rs2, iPTR:$rs1),
+            (TH_MLDE16_PSEUDO timm:$md, GPR:$rs2, GPR:$rs1)>;
+  def : Pat<(int_riscv_buddy_th_mlde32 timm:$md, i64:$rs2, iPTR:$rs1),
+            (TH_MLDE32_PSEUDO timm:$md, GPR:$rs2, GPR:$rs1)>;
+  def : Pat<(int_riscv_buddy_th_mlde64 timm:$md, i64:$rs2, iPTR:$rs1),
+            (TH_MLDE64_PSEUDO timm:$md, GPR:$rs2, GPR:$rs1)>;
   def : Pat<(int_riscv_buddy_th_mldte8 timm:$md, i64:$rs2, iPTR:$rs1),
             (TH_MLDTE8_PSEUDO timm:$md, GPR:$rs2, GPR:$rs1)>;
+  def : Pat<(int_riscv_buddy_th_mldte16 timm:$md, i64:$rs2, iPTR:$rs1),
+            (TH_MLDTE16_PSEUDO timm:$md, GPR:$rs2, GPR:$rs1)>;
+  def : Pat<(int_riscv_buddy_th_mldte32 timm:$md, i64:$rs2, iPTR:$rs1),
+            (TH_MLDTE32_PSEUDO timm:$md, GPR:$rs2, GPR:$rs1)>;
+  def : Pat<(int_riscv_buddy_th_mldte64 timm:$md, i64:$rs2, iPTR:$rs1),
+            (TH_MLDTE64_PSEUDO timm:$md, GPR:$rs2, GPR:$rs1)>;
 
   // Store instruction
+  def : Pat<(int_riscv_buddy_th_mste8 timm:$ms3, i64:$rs2, iPTR:$rs1),
+            (TH_MSTE8_PSEUDO timm:$ms3, GPR:$rs2, GPR:$rs1)>;
+  def : Pat<(int_riscv_buddy_th_mste16 timm:$ms3, i64:$rs2, iPTR:$rs1),
+            (TH_MSTE16_PSEUDO timm:$ms3, GPR:$rs2, GPR:$rs1)>;
   def : Pat<(int_riscv_buddy_th_mste32 timm:$ms3, i64:$rs2, iPTR:$rs1),
             (TH_MSTE32_PSEUDO timm:$ms3, GPR:$rs2, GPR:$rs1)>;
+  def : Pat<(int_riscv_buddy_th_mste64 timm:$ms3, i64:$rs2, iPTR:$rs1),
+            (TH_MSTE64_PSEUDO timm:$ms3, GPR:$rs2, GPR:$rs1)>;
 
   // Matrix multiply instruction
   def : Pat<(int_riscv_buddy_th_mmacc_w_b timm:$md, timm:$ms2, timm:$ms1),
             (TH_MMACC_W_B_PSEUDO timm:$md, timm:$ms2, timm:$ms1)>;
+  def : Pat<(int_riscv_buddy_th_mmaccu_w_b timm:$md, timm:$ms2, timm:$ms1),
+            (TH_MMACCU_W_B_PSEUDO timm:$md, timm:$ms2, timm:$ms1)>;
+  def : Pat<(int_riscv_buddy_th_mfmacc_s timm:$md, timm:$ms2, timm:$ms1),
+            (TH_MFMACC_S_PSEUDO timm:$md, timm:$ms2, timm:$ms1)>;
+  def : Pat<(int_riscv_buddy_th_mfmacc_d_s timm:$md, timm:$ms2, timm:$ms1),
+            (TH_MFMACC_D_S_PSEUDO timm:$md, timm:$ms2, timm:$ms1)>;
 }
