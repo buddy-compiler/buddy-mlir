@@ -157,3 +157,4 @@ def MatrixReg : RegisterClass<"RISCV", [untyped], 1024,
 }
 
 include "RISCVInstrInfoBuddyExt.td"
+include "RISCVInstrInfoBuddyBOSCExt.td"
