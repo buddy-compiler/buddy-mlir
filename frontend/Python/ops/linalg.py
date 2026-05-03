@@ -23,6 +23,7 @@ import copy
 
 import buddy_mlir.ir as ir
 import numpy
+import torch
 from buddy_mlir.dialects import (
     arith,
     bufferization,
@@ -2572,7 +2573,18 @@ def where_op(
     input3 = symbol_table.get((str(node.args[2]), 0))
     if input1 is None or input2 is None or input3 is None:
         return
-    output_shape = list(node.tensor_meta["shape"])
+    # FX metadata may carry SymInt-like dimensions here.  Keep already-lowered
+    # MLIR values, convert concrete dimensions to int, and mark anything still
+    # unresolved as dynamic so ranked tensor construction remains explicit.
+    output_shape = []
+    for dim in list(node.tensor_meta["shape"]):
+        if isinstance(dim, ir.Value):
+            output_shape.append(dim)
+        else:
+            try:
+                output_shape.append(int(dim))
+            except Exception:
+                output_shape.append(ir.ShapedType.get_dynamic_size())
     dtype = node.tensor_meta["dtype"]
     mlir_dtype = mlir_element_type_get(dtype)
     tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
@@ -4775,26 +4787,110 @@ def tensor_constant_op(
     symbol_table: dict[tuple[str, int], ir.Operation],
 ):
     """
-    Converts a Buddy Constant0Op operation to an MLIR arith.ConstantOp.
+    Convert a Buddy TensorConstantOp to an MLIR arith.ConstantOp.
 
-    This operation creates a constant tensor filled with zeros. It constructs a ranked tensor
-    of the specified shape and data type, generates a zero-valued element attribute, and
-    initializes the entire tensor with this value using a splat attribute.
+    The frontend inserts the literal Python value as node.args[0] for lifted
+    FX `_tensor_constant` nodes. Scalar values lower to splat attributes;
+    list/array values lower to dense attributes with the exact traced shape.
+    Symbolic elements must resolve to concrete Python values before this point.
+    This lowering deliberately raises on unresolved SymInt/SymFloat instead of
+    inventing a default value, because changing a constant silently would alter
+    model semantics.
 
     Parameters:
-        node (Constant0Op): The Buddy Constant0Op node containing the tensor shape and data type metadata.
+        node (TensorConstantOp): The Buddy node containing tensor metadata and
+            a concrete constant value in node.args[0].
         symbol_table (dict): A dictionary mapping tensor names to their corresponding MLIR operations.
 
     Returns:
-        op: An MLIR arith.ConstantOp representing a tensor filled with zeros.
+        op: An MLIR arith.ConstantOp representing the constant tensor.
     """
     dtype = node.tensor_meta["dtype"]
     mlir_dtype = mlir_element_type_get(dtype)
     output_shape = list(node.tensor_meta["shape"])
     tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
     value = node.args[0]
-    element = mlir_element_attr_get(dtype, value)
-    attr = ir.DenseElementsAttr.get_splat(tensor_type, element)
+
+    dtype_str = str(dtype).lower()
+    if "." in dtype_str:
+        dtype_str = dtype_str.split(".")[-1]
+
+    _DTYPE_MAP = {
+        "float32": numpy.float32,
+        "float64": numpy.float64,
+        "float16": numpy.float16,
+        "bfloat16": numpy.float32,
+        "complex64": numpy.complex64,
+        "complex128": numpy.complex128,
+        "int8": numpy.int8,
+        "int16": numpy.int16,
+        "int32": numpy.int32,
+        "int64": numpy.int64,
+        "uint8": numpy.uint8,
+        "bool": numpy.bool_,
+    }
+    np_dtype = _DTYPE_MAP.get(dtype_str, numpy.float32)
+
+    def _resolve_symints(v):
+        """Recursively convert resolvable symbolic scalar elements."""
+        if isinstance(v, (list, tuple)):
+            return [_resolve_symints(x) for x in v]
+        if isinstance(v, torch.SymFloat):
+            try:
+                return float(v)
+            except Exception as exc:
+                raise RuntimeError(
+                    f"Unresolved SymFloat in linalg.tensor_constant_op: {v}"
+                ) from exc
+        if isinstance(v, torch.SymInt):
+            try:
+                return int(v)
+            except Exception as exc:
+                raise RuntimeError(
+                    f"Unresolved SymInt in linalg.tensor_constant_op: {v}"
+                ) from exc
+        return v
+
+    value = _resolve_symints(value)
+
+    if dtype in (TensorDType.Complex64, TensorDType.Complex128):
+        # Complex splats require a dense array path because the generic scalar
+        # attribute helper only covers real numeric attributes.
+        np_dtype = (
+            numpy.complex64
+            if dtype == TensorDType.Complex64
+            else numpy.complex128
+        )
+        np_array = numpy.full(
+            tuple(output_shape),
+            complex(value),
+            dtype=np_dtype,
+        )
+        attr = ir.DenseElementsAttr.get(np_array, type=tensor_type)
+    elif isinstance(value, (int, float)):
+        element = mlir_element_attr_get(dtype, value)
+        attr = ir.DenseElementsAttr.get_splat(tensor_type, element)
+    else:
+        # Non-scalar constants must match the traced tensor type exactly. A
+        # reshape is allowed only when it preserves the explicit element list.
+        np_array = numpy.array(value, dtype=np_dtype)
+        expected_shape = tuple(output_shape)
+        if np_array.shape != expected_shape:
+            try:
+                np_array = np_array.reshape(expected_shape)
+            except ValueError as exc:
+                raise RuntimeError(
+                    f"Cannot reshape tensor constant with shape {np_array.shape} to expected "
+                    f"shape {expected_shape} in linalg.tensor_constant_op."
+                ) from exc
+        np_array = numpy.ascontiguousarray(np_array, dtype=np_dtype)
+
+        if dtype_str == "bfloat16":
+            raw = numpy.ascontiguousarray(np_array.astype(numpy.float32))
+            attr = ir.DenseElementsAttr.get(raw.tobytes(), type=tensor_type)
+        else:
+            attr = ir.DenseElementsAttr.get(np_array, type=tensor_type)
+
     op = arith.ConstantOp(tensor_type, attr)
     return op
 

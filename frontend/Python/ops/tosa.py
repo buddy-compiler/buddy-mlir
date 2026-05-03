@@ -382,23 +382,155 @@ def _scalar_to_tensor(
     return tosa.ConstOp(attr).results[0]
 
 
+def _is_complex_scalar(value) -> bool:
+    """Return True for Python or NumPy scalar complex values."""
+    return isinstance(value, complex) or isinstance(
+        value, numpy.complexfloating
+    )
+
+
+def _complex_scalar_to_tensor(
+    scalar: complex, complex_type: ir.Type, shape: List[int]
+):
+    """Create a splat tensor for a scalar complex value."""
+    scalar = complex(scalar)
+    complex_elem = ir.ComplexType(complex_type).element_type
+    real = arith.ConstantOp(
+        complex_elem, ir.FloatAttr.get(complex_elem, float(scalar.real))
+    ).result
+    imag = arith.ConstantOp(
+        complex_elem, ir.FloatAttr.get(complex_elem, float(scalar.imag))
+    ).result
+    cval = complex_dialect.CreateOp(complex_type, real, imag).result
+    return tensor.SplatOp(
+        ir.RankedTensorType.get(list(shape), complex_type), cval, []
+    ).result
+
+
+def _promote_real_tensor_to_complex(value: ir.Value, complex_type: ir.Type):
+    """Promote a real tensor to a complex tensor with zero imaginary part."""
+    value_ty = ir.RankedTensorType(value.type)
+    complex_elem = ir.ComplexType(complex_type).element_type
+    shape = list(value_ty.shape)
+    if str(value_ty.element_type) != str(complex_elem):
+        cast_ty = ir.RankedTensorType.get(shape, complex_elem)
+        value = tosa.CastOp(cast_ty, value).result
+    zero = arith.ConstantOp(
+        complex_elem, ir.FloatAttr.get(complex_elem, 0.0)
+    ).result
+    output = tensor.EmptyOp(shape, complex_type)
+    generic_map = ir.AffineMap.get_permutation([i for i in range(len(shape))])
+    op = linalg.GenericOp(
+        [ir.RankedTensorType.get(shape, complex_type)],
+        [value],
+        [output],
+        ir.ArrayAttr.get(
+            [
+                ir.AffineMapAttr.get(generic_map),
+                ir.AffineMapAttr.get(generic_map),
+            ]
+        ),
+        ir.ArrayAttr.get(
+            [ir.Attribute.parse("#linalg.iterator_type<parallel>")] * len(shape)
+        ),
+    )
+    block = ir.Block.create_at_start(op.region, [complex_elem, complex_type])
+    cval = complex_dialect.CreateOp(complex_type, block.arguments[0], zero)
+    block.append(cval)
+    block.append(linalg.YieldOp([cval.result]))
+    return op.result
+
+
+def _resolve_dense_scalar_op_result(value):
+    """Read a scalar integer from a constant-like MLIR op result if present."""
+    owner = getattr(value, "owner", None)
+    opview = getattr(owner, "opview", None) if owner is not None else None
+    attrs = getattr(opview, "attributes", None) if opview is not None else None
+    if attrs is None:
+        return None
+    for attr_name in ("values", "value"):
+        try:
+            dense_attr = attrs[attr_name]
+            if len(dense_attr) > 0:
+                return int(dense_attr[0])
+        except Exception:
+            pass
+    return None
+
+
+def _resolve_static_shape_dim(dim, symbol_table):
+    """Resolve one shape dimension when it is represented by a static scalar."""
+    if isinstance(dim, (int, numpy.integer)):
+        return int(dim)
+
+    resolved = symbol_table.get((str(dim), 0), dim)
+    if isinstance(resolved, (int, numpy.integer)):
+        return int(resolved)
+    if isinstance(resolved, ir.OpResult):
+        const_value = _resolve_dense_scalar_op_result(resolved)
+        if const_value is not None:
+            return const_value
+    return int(resolved)
+
+
+def _resolve_static_shape(shape_values, symbol_table):
+    """Resolve a shape list; return None when any dimension is still dynamic."""
+    try:
+        return [
+            _resolve_static_shape_dim(dim, symbol_table)
+            for dim in list(shape_values)
+        ]
+    except Exception:
+        return None
+
+
 def _normalize_binary_operator_args(arg1, arg2):
     """Normalize the types of binary operator arguments."""
     if isinstance(arg1, ir.Value) and (
-        isinstance(arg2, float) or isinstance(arg2, int)
+        isinstance(arg2, float)
+        or isinstance(arg2, int)
+        or _is_complex_scalar(arg2)
     ):
+        elem_ty = ir.RankedTensorType(arg1.type).element_type
+        if _is_complex_scalar(arg2):
+            arg2 = complex(arg2)
+            if ir.ComplexType.isinstance(elem_ty):
+                arg2 = _complex_scalar_to_tensor(
+                    arg2, elem_ty, ir.RankedTensorType(arg1.type).shape
+                )
+                return arg1, arg2
+            if abs(arg2.imag) > 0:
+                raise ValueError(
+                    f"Cannot apply complex scalar {arg2} to non-complex tensor type {elem_ty}"
+                )
+            arg2 = float(arg2.real)
         arg2 = _scalar_to_tensor(
             arg2,
-            ir.RankedTensorType(arg1.type).element_type,
+            elem_ty,
             ir.RankedTensorType(arg1.type).shape,
         )
         return arg1, arg2
     elif isinstance(arg2, ir.Value) and (
-        isinstance(arg1, float) or isinstance(arg1, int)
+        isinstance(arg1, float)
+        or isinstance(arg1, int)
+        or _is_complex_scalar(arg1)
     ):
+        elem_ty = ir.RankedTensorType(arg2.type).element_type
+        if _is_complex_scalar(arg1):
+            arg1 = complex(arg1)
+            if ir.ComplexType.isinstance(elem_ty):
+                arg1 = _complex_scalar_to_tensor(
+                    arg1, elem_ty, ir.RankedTensorType(arg2.type).shape
+                )
+                return arg1, arg2
+            if abs(arg1.imag) > 0:
+                raise ValueError(
+                    f"Cannot apply complex scalar {arg1} to non-complex tensor type {elem_ty}"
+                )
+            arg1 = float(arg1.real)
         arg1 = _scalar_to_tensor(
             arg1,
-            ir.RankedTensorType(arg2.type).element_type,
+            elem_ty,
             ir.RankedTensorType(arg2.type).shape,
         )
         return arg1, arg2
@@ -738,6 +870,40 @@ def mul_op(node: MulOp, symbol_table):
     output_shape = list(node.tensor_meta["shape"])
     dtype = node.tensor_meta["dtype"]
     mlir_dtype = mlir_element_type_get(dtype)
+
+    if isinstance(mlir_dtype, ir.ComplexType):
+        input1_raw = symbol_table.get((str(node.args[0]), 0), node.args[0])
+        input2_raw = symbol_table.get((str(node.args[1]), 0), node.args[1])
+
+        shape1 = (
+            list(ir.RankedTensorType(input1_raw.type).shape)
+            if isinstance(input1_raw, ir.Value)
+            else None
+        )
+        shape2 = (
+            list(ir.RankedTensorType(input2_raw.type).shape)
+            if isinstance(input2_raw, ir.Value)
+            else None
+        )
+        ref_shape = shape1 or shape2 or [1]
+
+        def _to_complex_operand(opnd, fallback_shape):
+            if isinstance(opnd, ir.Value):
+                elem_ty = ir.RankedTensorType(opnd.type).element_type
+                if ir.ComplexType.isinstance(elem_ty):
+                    return opnd
+                return _promote_real_tensor_to_complex(opnd, mlir_dtype)
+            if isinstance(opnd, (int, float)) or _is_complex_scalar(opnd):
+                return _complex_scalar_to_tensor(
+                    opnd, mlir_dtype, fallback_shape
+                )
+            raise ValueError(
+                f"Unsupported mul operand type in complex path: {type(opnd)}"
+            )
+
+        input1 = _to_complex_operand(input1_raw, shape2 or ref_shape)
+        input2 = _to_complex_operand(input2_raw, shape1 or ref_shape)
+        return _gen_arith_binary_op(input1, input2, _inner_op)
 
     if isinstance(node.args[0], str):
         input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
@@ -2444,6 +2610,15 @@ def reshape_op(node: ReshapeOp, symbol_table):
     else:
         new_shape = list(node._newshape)
 
+    resolved_shape = _resolve_static_shape(new_shape, symbol_table)
+    if resolved_shape is None:
+        # Some captured reshape shapes are represented as scalar MLIR values
+        # even when the result type is already static.  Use tensor_meta only as
+        # a static shape source; dynamic dimensions will still fail below.
+        new_shape = [int(dim) for dim in list(node.tensor_meta["shape"])]
+    else:
+        new_shape = resolved_shape
+
     now_shape = ir.RankedTensorType(input1.type).shape
     total_size = 1
     for dim_siz in now_shape:
@@ -3132,10 +3307,7 @@ def expand_op(node: ExpandOp, symbol_table) -> ir.Operation:
         to_expand_tensor.type
     ).element_type
 
-    if result_element_type in (
-        ir.IntegerType.get_signless(1),
-        ir.IntegerType.get_signless(64),
-    ):
+    if ir.IntegerType.isinstance(result_element_type):
         element = ir.IntegerAttr.get(result_element_type, 0)
     elif (
         result_element_type == ir.F32Type.get()
@@ -3660,59 +3832,147 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
             pad_zp = tosa.ConstOp(
                 ir.DenseElementsAttr.get_splat(ty, ir.FloatAttr.get_f32(0.0))
             ).result
-            input_val = tosa.PadOp(padded_type, input_val, pad_constant, pad_zp)
+            input_val = tosa.PadOp(
+                padded_type, input_val, pad_constant, pad_zp
+            ).result
+
         output_type = ir.RankedTensorType.get(out_shape, result_element_type)
-        output_conv = tensor.EmptyOp(list(out_shape), result_element_type)
-        assert groups == 1, "only support one group"
-        # Con1D Operation Without Bias
-        conv_op = linalg.conv_1d_ncw_fcw(
-            input_val,
-            weight_val,
-            outs=[output_conv],
-            strides=stride_attr,
-            dilations=dilation_attr,
-        )
-        output = tensor.EmptyOp(list(out_shape), result_element_type)
-        generic_map = ir.AffineMap.get_permutation(
-            [i for i in range(len(list(out_shape)))]
-        )
-        loop_type = [
-            ir.Attribute.parse("#linalg.iterator_type<parallel>")
-        ] * len(list(out_shape))
-        loop_type[1] = ir.Attribute.parse("#linalg.iterator_type<reduction>")
-        # Add Bias To Conv2d.
-        op = linalg.GenericOp(
-            [output_type],
-            [conv_op, bias_tensor],
-            [output],
-            ir.ArrayAttr.get(
+
+        cin_per_group = int(weight_shape[1])
+        cout_per_group = int(out_channels) // groups
+
+        def _slice_1d(tensor, dim, start, size):
+            """Slice an NCW/FCW/bias tensor while preserving other dimensions."""
+            inp_shape = list(ir.RankedTensorType(tensor.type).shape)
+            new_shape = inp_shape[:dim] + [size] + inp_shape[dim + 1 :]
+            start_list = [0] * len(inp_shape)
+            start_list[dim] = int(start)
+            size_list = list(inp_shape)
+            size_list[dim] = size
+            start_operand = _create_shape_operand(start_list)
+            size_operand = _create_shape_operand(size_list)
+            return tosa.SliceOp(
+                ir.RankedTensorType.get(new_shape, result_element_type),
+                tensor,
+                start_operand,
+                size_operand,
+            ).result
+
+        def _add_bias(conv_result, bias_slice):
+            """Broadcast channel bias over NCW Conv1D output."""
+            out_shape_list = list(ir.RankedTensorType(conv_result.type).shape)
+
+            output = tensor.EmptyOp(out_shape_list, result_element_type)
+            generic_map = ir.AffineMap.get_permutation(
+                [i for i in range(len(out_shape_list))]
+            )
+            loop_type = [
+                ir.Attribute.parse("#linalg.iterator_type<parallel>")
+            ] * len(out_shape_list)
+            loop_type[1] = ir.Attribute.parse(
+                "#linalg.iterator_type<reduction>"
+            )
+
+            op = linalg.GenericOp(
+                [ir.RankedTensorType.get(out_shape_list, result_element_type)],
+                [conv_result, bias_slice],
+                [output],
+                ir.ArrayAttr.get(
+                    [
+                        ir.AffineMapAttr.get(
+                            generic_map.get_submap(
+                                [i for i in range(len(out_shape_list))]
+                            )
+                        ),
+                        ir.AffineMapAttr.get(generic_map.get_submap([1])),
+                        ir.AffineMapAttr.get(
+                            generic_map.get_submap(
+                                [i for i in range(len(out_shape_list))]
+                            )
+                        ),
+                    ]
+                ),
+                ir.ArrayAttr.get(loop_type),
+            )
+            block = ir.Block.create_at_start(
+                op.region,
                 [
-                    ir.AffineMapAttr.get(
-                        generic_map.get_submap(
-                            [i for i in range(len(list(out_shape)))]
+                    result_element_type,
+                    ir.RankedTensorType(bias_slice.type).element_type,
+                    result_element_type,
+                ],
+            )
+            add_op = arith.AddFOp(block.arguments[1], block.arguments[0])
+            block.append(add_op)
+            block.append(linalg.YieldOp([add_op.result]))
+            return op.result
+
+        def _sanitize_shape_for_empty(shape_vals):
+            sanitized = []
+            for dim in list(shape_vals):
+                if isinstance(dim, ir.Value):
+                    sanitized.append(dim)
+                else:
+                    try:
+                        dim_i = int(dim)
+                        sanitized.append(
+                            dim_i
+                            if dim_i >= 0
+                            else ir.ShapedType.get_dynamic_size()
                         )
-                    ),
-                    ir.AffineMapAttr.get(generic_map.get_submap([1])),
-                    ir.AffineMapAttr.get(
-                        generic_map.get_submap(
-                            [i for i in range(len(list(out_shape)))]
-                        )
-                    ),
-                ]
-            ),
-            ir.ArrayAttr.get(loop_type),
-        )
-        block = ir.Block.create_at_start(
-            op.region,
-            [
-                result_element_type,
-                ir.RankedTensorType(bias_tensor.type).element_type,
-                result_element_type,
-            ],
-        )
-        add_op = arith.AddFOp(block.arguments[1], block.arguments[0])
-        block.append(add_op)
-        block.append(linalg.YieldOp([add_op.result]))
+                    except Exception:
+                        sanitized.append(ir.ShapedType.get_dynamic_size())
+            return sanitized
+
+        if groups == 1:
+            output_conv = tensor.EmptyOp(
+                _sanitize_shape_for_empty(out_shape), result_element_type
+            )
+            conv_op = linalg.conv_1d_ncw_fcw(
+                input_val,
+                weight_val,
+                outs=[output_conv],
+                strides=stride_attr,
+                dilations=dilation_attr,
+            )
+            op = _add_bias(conv_op, bias_tensor)
+
+        else:
+            # linalg.conv_1d_ncw_fcw has no groups attribute.  Lower grouped
+            # Conv1D as independent single-group convolutions and concatenate
+            # their channel slices, matching PyTorch's grouped conv semantics.
+            group_outputs = []
+            for g in range(groups):
+                g_in_start = g * cin_per_group
+                g_out_start = g * cout_per_group
+
+                sliced_input = _slice_1d(
+                    input_val, 1, g_in_start, cin_per_group
+                )
+                sliced_weight = _slice_1d(
+                    weight_val, 0, g_out_start, cout_per_group
+                )
+                sliced_weight = _slice_1d(sliced_weight, 1, 0, cin_per_group)
+                sliced_bias = _slice_1d(
+                    bias_tensor, 0, g_out_start, cout_per_group
+                )
+
+                group_out_shape = list(out_shape)
+                group_out_shape[1] = cout_per_group
+                group_output_conv = tensor.EmptyOp(
+                    _sanitize_shape_for_empty(group_out_shape),
+                    result_element_type,
+                )
+                conv_op = linalg.conv_1d_ncw_fcw(
+                    sliced_input,
+                    sliced_weight,
+                    outs=[group_output_conv],
+                    strides=stride_attr,
+                    dilations=dilation_attr,
+                )
+                group_outputs.append(_add_bias(conv_op, sliced_bias))
+
+            op = tosa.ConcatOp(group_outputs, 1)
 
     return op
 
@@ -3750,7 +4010,21 @@ def iota_op(node: IotaOp, symbol_table):
     count = node.args[0]
     step = node.kwargs["step"]
     if not isinstance(count, int):
-        count = int(count)
+        resolved_count = symbol_table.get((str(count), 0), count)
+        if isinstance(resolved_count, ir.OpResult):
+            const_count = _resolve_dense_scalar_op_result(resolved_count)
+            if const_count is not None:
+                resolved_count = const_count
+            if isinstance(resolved_count, ir.OpResult):
+                # Iota materializes a dense constant here.  If the count comes
+                # from a scalar shape computation but the output vector length
+                # is already static, the output type is the reliable source.
+                if len(output_shape) == 1:
+                    try:
+                        resolved_count = int(output_shape[0])
+                    except Exception:
+                        pass
+        count = int(resolved_count)
     return _build_range_tensor(output_shape, dtype, start, step)
 
 

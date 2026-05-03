@@ -28,6 +28,7 @@ import ctypes.util
 import operator
 import os
 import platform
+import re
 from typing import Any
 
 import numpy as np
@@ -131,6 +132,7 @@ class DynamoCompiler:
             "unsqueeze.default": UnsqueezeOp,
             "view.default": ViewOp,
             "view.dtype": ViewDtypeOp,
+            "_unsafe_view.default": ViewOp,
             "ones.default": OnesOp,
             "full.default": FullOp,
             "embedding.default": EmbeddingOp,
@@ -366,6 +368,7 @@ class DynamoCompiler:
             "isinf.default": IsInfOp,
             "isnan.default": IsNanOp,
             "floor_divide.default": FloorDivideOp,
+            "floordiv": FloorDivideOp,
             "fmod.Tensor": FmodOp,
             "fmod.Scalar": FmodOp,
             "remainder.Tensor": RemainderOp,
@@ -721,6 +724,8 @@ class DynamoCompiler:
         if isinstance(value, torch.Tensor):
             node_dtype = self._torch_dtype_translate(str(value.dtype))
             return value.shape, node_dtype
+        if isinstance(value, (list, tuple)) and len(value) == 1:
+            return self._infer_meta_from_value(value[0])
         if isinstance(value, np.generic):
             value = value.item()
         if isinstance(value, (torch.SymInt, int)):
@@ -730,6 +735,203 @@ class DynamoCompiler:
         if isinstance(value, (torch.SymBool, bool)):
             return [], TensorDType.Bool
         return None
+
+    @staticmethod
+    def _parse_numeric_literal_from_stack_trace(stack_trace):
+        """
+        Extract a numeric literal that is visible in the traced Python source.
+
+        AOTAutograd may lift source-level constants such as `torch.tensor(2)`
+        or `some_tensor[...] = 0` into `_tensor_constant` nodes.  If the source
+        line carries an explicit numeric literal, preserve that value instead
+        of trusting a symbolic FakeTensor scalar.  Return None when the stack
+        trace does not contain a literal this importer can prove.
+
+        This is intentionally source-pattern based: it only accepts literals
+        that are written directly in the Python line recorded by FX.  Values
+        computed from inputs, tensor sizes, or module state must not be guessed
+        here because that would hide a real dynamic dependency.
+        """
+        if not stack_trace:
+            return None
+
+        number = r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)"
+        tensor_match = re.search(
+            rf"torch\.tensor\(\s*({number})(?![\w.])",
+            stack_trace,
+        )
+        if tensor_match:
+            literal = tensor_match.group(1)
+            return float(literal) if "." in literal else int(literal)
+
+        stack_lines = [
+            line.strip() for line in stack_trace.splitlines() if line.strip()
+        ]
+        if not stack_lines:
+            return None
+
+        assignment_match = re.search(
+            rf"=\s*({number})\s*$",
+            stack_lines[-1],
+        )
+        if assignment_match:
+            literal = assignment_match.group(1)
+            return float(literal) if "." in literal else int(literal)
+
+        return None
+
+    @staticmethod
+    def _parse_numeric_range_from_stack_trace(stack_trace, shape):
+        """
+        Recover a small integer range constant from a lifted tensor constant.
+
+        Some model code builds tensor constants from Python `range(...)`.  During
+        tracing, individual elements may appear as symbolic scalar values even
+        though the tensor length is fixed.  This helper only handles the explicit
+        `range(1, self.<field> + 2)` pattern and uses the traced tensor shape to
+        materialize `[1, 2, ..., N]`.  Return None for anything less explicit so
+        later lowering can reject unresolved symbolic elements.
+
+        The helper does not read `self.<field>` from the original module.  The
+        traced shape is the authority for N, and the source pattern is only a
+        proof that the tensor contents are the simple integer sequence
+        `[1, 2, ..., N]`.
+        """
+        if not stack_trace or not shape:
+            return None
+
+        range_match = re.search(
+            r"range\(\s*1\s*,\s*self\.\w+\s*\+\s*2\s*\)", stack_trace
+        )
+        if range_match is None:
+            return None
+
+        try:
+            length = int(shape[-1])
+        except Exception:
+            return None
+
+        values = list(range(1, length + 1))
+        for dim in reversed(list(shape)[:-1]):
+            try:
+                dim = int(dim)
+            except Exception:
+                return None
+            if dim != 1:
+                return None
+            values = [values]
+        return values
+
+    @staticmethod
+    def _try_resolve_symbolic_scalar(value):
+        """
+        Resolve a PyTorch SymInt/SymFloat scalar when PyTorch has a static hint.
+
+        Returns a Python int/float if PyTorch can provide a hint, otherwise
+        None.  Callers decide whether unresolved symbolic values are legal.
+
+        This method is the only place where symbolic scalar metadata is
+        converted to a Python value.  If PyTorch has not attached a concrete
+        hint, the importer treats the value as genuinely dynamic.
+        """
+        try:
+            from torch.fx.experimental import symbolic_shapes as _sym
+
+            if "Float" in str(type(value)):
+                hint = getattr(value.node, "hint", None)
+                if hint is not None:
+                    return float(hint)
+                return float(_sym.size_hint(value))
+
+            try:
+                return int(_sym.hint_int(value))
+            except Exception:
+                hint = getattr(value.node, "hint", None)
+                if hint is not None:
+                    return int(hint)
+                raise
+        except Exception:
+            return None
+
+    def _resolve_tensor_constant_value(self, gm_node):
+        """
+        Resolve the Python value carried by an FX `_tensor_constant` node.
+
+        Resolution order:
+        1. explicit numeric literal in the traced source line;
+        2. scalar tensor value, including SymInt/SymFloat with static hints;
+        3. explicit Python range tensor rebuilt from source + traced shape;
+        4. concrete non-scalar tensor/list value.
+
+        The method deliberately does not invent fallback values.  If a symbolic
+        scalar cannot be proven static, it raises so the unsupported dynamic
+        value remains visible to the caller.
+
+        `_tensor_constant` is a special FX `get_attr` produced for constants
+        lifted out of Python code.  Buddy's tensor constant lowering expects the
+        literal value in the node arguments, so this method centralizes the
+        small set of legal ways to recover that value.
+        """
+        val = gm_node.meta.get("val")
+        stack_trace = gm_node.meta.get("stack_trace") or ""
+
+        # Some libraries write constants as torch.tensor(...) or assignment
+        # literals inside forward.  AOTAutograd can lift those into
+        # _tensor_constant nodes whose runtime value is symbolic, even though
+        # the source literal is static.  Prefer that explicit source literal.
+        value = self._parse_numeric_literal_from_stack_trace(stack_trace)
+        if value is not None:
+            return value
+
+        if isinstance(val, torch.Tensor):
+            if val.numel() == 1:
+                value = val.item()
+                if hasattr(value, "node") and hasattr(value.node, "expr"):
+                    resolved = self._try_resolve_symbolic_scalar(value)
+                    if resolved is None:
+                        raise RuntimeError(
+                            f"Symbolic _tensor_constant '{gm_node.name}' cannot be "
+                            f"resolved statically (value={value})."
+                        )
+                    return resolved
+                return value
+
+            # Recover explicit Python range constants when the traced shape
+            # fixes their size; otherwise keep the real tensor/list value and
+            # let lowering reject unresolved symbolic elements.
+            value = self._parse_numeric_range_from_stack_trace(
+                stack_trace, list(val.shape)
+            )
+            if value is not None:
+                return value
+            return val.detach().cpu().tolist()
+
+        if isinstance(val, (int, float)):
+            return val
+
+        raise NotImplementedError("Unsupported _tensor_constant format")
+
+    def _resolve_tensor_constant_meta(self, gm_node):
+        """
+        Return Buddy tensor metadata for an FX `_tensor_constant` node.
+
+        Prefer the actual tensor value metadata when present; otherwise use FX
+        `tensor_meta`.  Missing metadata is an importer error because lowering
+        needs a ranked tensor type for constants.
+        """
+        val = gm_node.meta.get("val")
+        if isinstance(val, torch.Tensor):
+            return list(val.shape), self._torch_dtype_translate(str(val.dtype))
+
+        tensor_meta = gm_node.meta.get("tensor_meta")
+        if tensor_meta is None:
+            raise RuntimeError(
+                f"Missing tensor metadata for _tensor_constant '{gm_node.name}'"
+            )
+        return (
+            list(tensor_meta.shape),
+            self._torch_dtype_translate(str(tensor_meta.dtype)),
+        )
 
     def _resolve_call_function_node_name(self, target):
         """Map Python call_function targets to Buddy op names."""
@@ -949,15 +1151,18 @@ class DynamoCompiler:
                         ):
                             continue
                     if gm_node.op == "placeholder":
-                        node_dtype = self._torch_dtype_translate(
-                            str(gm_node.meta["tensor_meta"].dtype)
+                        tensor_meta = gm_node.meta.get("tensor_meta")
+                        shape, node_dtype = self._resolve_single_output_meta(
+                            gm_node,
+                            tensor_meta,
+                            schema=None,
                         )
                         buddy_node = self._create_node(
                             gm_node.op,
                             gm_node.name,
                             gm_node.args,
                             node_users,
-                            gm_node.meta["tensor_meta"].shape,
+                            shape,
                             node_dtype,
                         )
 
@@ -980,36 +1185,15 @@ class DynamoCompiler:
                         )
                     elif gm_node.op == "get_attr":
                         if "_tensor_constant" in gm_node.name:
-                            import re
-
-                            stack_trace = gm_node.meta.get("stack_trace") or ""
-                            match = re.search(
-                                r"torch\.tensor\(([-+]?\d+(\.\d+)?), dtype=[a-zA-Z]+\)",
-                                stack_trace,
-                            )
-                            value = None
-                            if match:
-                                value = float(match.group(1))
-                            if value is None:
-                                val = gm_node.meta.get("val")
-                                if isinstance(val, torch.Tensor):
-                                    if val.numel() != 1:
-                                        raise NotImplementedError(
-                                            "_tensor_constant only supports scalar tensors"
-                                        )
-                                    value = val.item()
-                                elif isinstance(val, (int, float)):
-                                    value = val
-                            if value is None:
-                                raise NotImplementedError(
-                                    "Unsupported _tensor_constant format"
-                                )
-
+                            # AOTAutograd exposes lifted Python constants as
+                            # get_attr nodes named `_tensor_constantN`.  They
+                            # are not parameters or buffers, so convert them to
+                            # Buddy TensorConstantOp nodes and insert the
+                            # resolved literal as an explicit argument.
+                            value = self._resolve_tensor_constant_value(gm_node)
                             gm_node.insert_arg(len(gm_node.args), value)
-                            val = gm_node.meta.get("val")
-                            node_shape = val.shape
-                            node_dtype = self._torch_dtype_translate(
-                                str(val.dtype)
+                            node_shape, node_dtype = (
+                                self._resolve_tensor_constant_meta(gm_node)
                             )
                             buddy_node = self._create_node(
                                 "_tensor_constant",
