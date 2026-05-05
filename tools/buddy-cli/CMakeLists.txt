@@ -16,7 +16,7 @@ else()
   )
 endif()
 target_link_libraries(buddy-cli PRIVATE
-  mlir_c_runner_utils
+  StaticMLIRCRunnerUtils
   LLVMSupport
 )
 target_link_directories(buddy-cli PRIVATE ${LLVM_LIBRARY_DIR})

@@ -68,28 +68,30 @@ if(BUDDY_DSL_EXAMPLES)
   add_subdirectory(ToyDSL)
 endif()
 
-configure_lit_site_cfg(
-  ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
-  ${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py
-  MAIN_CONFIG
-  ${CMAKE_CURRENT_SOURCE_DIR}/lit.cfg.py
-)
-
-set(BUDDY_EXAMPLES_DEPENDS
-  FileCheck count not
-  buddy-opt
-  buddy-translate
-  mlir-runner
+if(BUDDY_ENABLE_TESTS)
+  configure_lit_site_cfg(
+    ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
+    ${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py
+    MAIN_CONFIG
+    ${CMAKE_CURRENT_SOURCE_DIR}/lit.cfg.py
   )
 
-if(BUDDY_MLIR_ENABLE_PYTHON_PACKAGES AND MLIR_ENABLE_BINDINGS_PYTHON)
-  list(APPEND BUDDY_EXAMPLES_DEPENDS python-package-buddy-mlir)
+  set(BUDDY_EXAMPLES_DEPENDS
+    FileCheck count not
+    buddy-opt
+    buddy-translate
+    mlir-runner
+    )
+
+  if(BUDDY_MLIR_ENABLE_PYTHON_PACKAGES AND MLIR_ENABLE_BINDINGS_PYTHON)
+    list(APPEND BUDDY_EXAMPLES_DEPENDS python-package-buddy-mlir)
+  endif()
+
+  add_lit_testsuite(check-examples "Checking the buddy-mlir examples..."
+    ${CMAKE_CURRENT_BINARY_DIR}
+    DEPENDS ${BUDDY_EXAMPLES_DEPENDS}
+    )
+  set_target_properties(check-examples PROPERTIES FOLDER "Examples")
+
+  add_lit_testsuites(BUDDY-EXAMPLES ${CMAKE_CURRENT_SOURCE_DIR} DEPENDS ${BUDDY_EXAMPLES_DEPENDS})
 endif()
-
-add_lit_testsuite(check-examples "Checking the buddy-mlir examples..."
-  ${CMAKE_CURRENT_BINARY_DIR}
-  DEPENDS ${BUDDY_EXAMPLES_DEPENDS}
-  )
-set_target_properties(check-examples PROPERTIES FOLDER "Examples")
-
-add_lit_testsuites(BUDDY-EXAMPLES ${CMAKE_CURRENT_SOURCE_DIR} DEPENDS ${BUDDY_EXAMPLES_DEPENDS})
