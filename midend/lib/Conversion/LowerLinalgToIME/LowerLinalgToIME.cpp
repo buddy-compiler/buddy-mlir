@@ -475,6 +475,273 @@ public:
 // Conv2D to IME Lowering Pattern (with Sliding-Window Instructions)
 //===----------------------------------------------------------------------===//
 
+/// Pattern to lower linalg.batch_matmul_transpose_b to IME operations.
+/// Handles batched matmul where B is transposed: C[b,m,n] += A[b,m,k] * B[b,n,k]
+/// B is already in [N,K] layout per batch, which is IME's expected column-major
+/// pack format — no repack needed.
+
+class BatchMatmulTransposeBToIMELowering
+    : public OpRewritePattern<linalg::BatchMatmulTransposeBOp> {
+public:
+  using OpRewritePattern<linalg::BatchMatmulTransposeBOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(linalg::BatchMatmulTransposeBOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+
+    Value A = op.getInputs()[0];   // [Batch, M, K]
+    Value B = op.getInputs()[1];   // [Batch, N, K] (transposed)
+    Value C = op.getOutputs()[0];  // [Batch, M, N]
+
+    auto AType = dyn_cast<MemRefType>(A.getType());
+    auto BType = dyn_cast<MemRefType>(B.getType());
+    auto CType = dyn_cast<MemRefType>(C.getType());
+
+    if (!AType || !BType || !CType)
+      return rewriter.notifyMatchFailure(op, "operands must be memref types");
+
+    Type AElemType = AType.getElementType();
+    Type BElemType = BType.getElementType();
+    Type CElemType = CType.getElementType();
+
+    if (!isSupportedElementType(AElemType) ||
+        !isSupportedElementType(BElemType))
+      return rewriter.notifyMatchFailure(
+          op, "only int8, int16, and f16 element types are supported");
+
+    if (AElemType != BElemType)
+      return rewriter.notifyMatchFailure(op,
+                                         "A and B must have the same element type");
+
+    bool isFloat = AElemType.isF16();
+    if (isFloat) {
+      if (!CElemType.isF16())
+        return rewriter.notifyMatchFailure(op,
+                                           "output C must be f16 for fp16 accumulation");
+    } else {
+      if (!CElemType.isInteger(32))
+        return rewriter.notifyMatchFailure(op,
+                                           "output C must be int32 for integer accumulation");
+    }
+
+    ArrayRef<int64_t> AShape = AType.getShape(); // [Batch, M, K]
+    ArrayRef<int64_t> BShape = BType.getShape(); // [Batch, N, K]
+
+    if (AShape.size() != 3 || BShape.size() != 3)
+      return rewriter.notifyMatchFailure(op, "only 3D tensors are supported");
+
+    int64_t Batch = AShape[0];
+    int64_t M = AShape[1];
+    int64_t K = AShape[2];
+    int64_t N = BShape[1];
+
+    if (ShapedType::isDynamic(Batch) || ShapedType::isDynamic(M) ||
+        ShapedType::isDynamic(K) || ShapedType::isDynamic(N))
+      return rewriter.notifyMatchFailure(op,
+                                         "dynamic dimensions not supported");
+
+    int64_t tileM, tileK, tileN;
+    getTileSizes(AElemType, tileM, tileK, tileN);
+
+    int64_t numTilesM = (M + tileM - 1) / tileM;
+    int64_t numTilesK = (K + tileK - 1) / tileK;
+    int64_t numTilesN = (N + tileN - 1) / tileN;
+
+    // Constants
+    Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+    Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+    Value tileMVal = rewriter.create<arith::ConstantIndexOp>(loc, tileM);
+    Value tileKVal = rewriter.create<arith::ConstantIndexOp>(loc, tileK);
+    Value tileNVal = rewriter.create<arith::ConstantIndexOp>(loc, tileN);
+    Value boundM = rewriter.create<arith::ConstantIndexOp>(loc, M);
+    Value boundK = rewriter.create<arith::ConstantIndexOp>(loc, K);
+    Value boundN = rewriter.create<arith::ConstantIndexOp>(loc, N);
+    Value numTilesMVal = rewriter.create<arith::ConstantIndexOp>(loc, numTilesM);
+    Value numTilesKVal = rewriter.create<arith::ConstantIndexOp>(loc, numTilesK);
+    Value numTilesNVal = rewriter.create<arith::ConstantIndexOp>(loc, numTilesN);
+    Value batchBound = rewriter.create<arith::ConstantIndexOp>(loc, Batch);
+
+    Value zeroElem = rewriter.create<arith::ConstantOp>(
+        loc, AElemType, rewriter.getZeroAttr(AElemType));
+    Value zeroC = rewriter.create<arith::ConstantOp>(
+        loc, CElemType, rewriter.getZeroAttr(CElemType));
+
+    auto ATileType = MemRefType::get({tileM, tileK}, AElemType);
+    // B is [N,K] per batch — already column-major pack for IME
+    auto BTileType = MemRefType::get({tileN, tileK}, AElemType);
+    auto CTileType = MemRefType::get({tileM, tileN}, CElemType);
+
+    Value ATile = rewriter.create<memref::AllocaOp>(loc, ATileType);
+    Value BTile = rewriter.create<memref::AllocaOp>(loc, BTileType);
+    Value CTile = rewriter.create<memref::AllocaOp>(loc, CTileType);
+
+    // Batch loop
+    auto loopBatch = rewriter.create<scf::ForOp>(loc, c0, batchBound, c1);
+    rewriter.setInsertionPointToStart(loopBatch.getBody());
+    Value batchIdx = loopBatch.getInductionVar();
+
+    // Loop over M tiles
+    auto loopTileM = rewriter.create<scf::ForOp>(loc, c0, numTilesMVal, c1);
+    rewriter.setInsertionPointToStart(loopTileM.getBody());
+    Value tileIdxM = loopTileM.getInductionVar();
+    Value baseM = rewriter.create<arith::MulIOp>(loc, tileIdxM, tileMVal);
+
+    // Loop over N tiles
+    auto loopTileN = rewriter.create<scf::ForOp>(loc, c0, numTilesNVal, c1);
+    rewriter.setInsertionPointToStart(loopTileN.getBody());
+    Value tileIdxN = loopTileN.getInductionVar();
+    Value baseN = rewriter.create<arith::MulIOp>(loc, tileIdxN, tileNVal);
+
+    // Initialize CTile from C[batch, m, n]
+    auto initCLoop1 = rewriter.create<scf::ForOp>(loc, c0, tileMVal, c1);
+    rewriter.setInsertionPointToStart(initCLoop1.getBody());
+    Value initCi = initCLoop1.getInductionVar();
+    auto initCLoop2 = rewriter.create<scf::ForOp>(loc, c0, tileNVal, c1);
+    rewriter.setInsertionPointToStart(initCLoop2.getBody());
+    Value initCj = initCLoop2.getInductionVar();
+
+    Value globalCi = rewriter.create<arith::AddIOp>(loc, baseM, initCi);
+    Value globalCj = rewriter.create<arith::AddIOp>(loc, baseN, initCj);
+
+    Value inBoundM = rewriter.create<arith::CmpIOp>(
+        loc, arith::CmpIPredicate::ult, globalCi, boundM);
+    Value inBoundN = rewriter.create<arith::CmpIOp>(
+        loc, arith::CmpIPredicate::ult, globalCj, boundN);
+    Value inBound = rewriter.create<arith::AndIOp>(loc, inBoundM, inBoundN);
+
+    auto selectC = rewriter.create<scf::IfOp>(
+        loc, CElemType, inBound, /*withElseRegion=*/true);
+    rewriter.setInsertionPointToStart(&selectC.getThenRegion().front());
+    Value cLoadVal = rewriter.create<memref::LoadOp>(
+        loc, C, ValueRange{batchIdx, globalCi, globalCj});
+    rewriter.create<scf::YieldOp>(loc, cLoadVal);
+    rewriter.setInsertionPointToStart(&selectC.getElseRegion().front());
+    rewriter.create<scf::YieldOp>(loc, zeroC);
+    rewriter.setInsertionPointAfter(selectC);
+
+    rewriter.create<memref::StoreOp>(loc, selectC.getResult(0), CTile,
+                                     ValueRange{initCi, initCj});
+    rewriter.setInsertionPointAfter(initCLoop1);
+
+    // K tile loop
+    auto loopTileK = rewriter.create<scf::ForOp>(loc, c0, numTilesKVal, c1);
+    rewriter.setInsertionPointToStart(loopTileK.getBody());
+    Value tileIdxK = loopTileK.getInductionVar();
+    Value baseK = rewriter.create<arith::MulIOp>(loc, tileIdxK, tileKVal);
+
+    // Copy A tile: A[batch, m, k] → ATile[tileM, tileK]
+    auto copyALoop1 = rewriter.create<scf::ForOp>(loc, c0, tileMVal, c1);
+    rewriter.setInsertionPointToStart(copyALoop1.getBody());
+    Value copyAi = copyALoop1.getInductionVar();
+    auto copyALoop2 = rewriter.create<scf::ForOp>(loc, c0, tileKVal, c1);
+    rewriter.setInsertionPointToStart(copyALoop2.getBody());
+    Value copyAk = copyALoop2.getInductionVar();
+
+    Value globalAi = rewriter.create<arith::AddIOp>(loc, baseM, copyAi);
+    Value globalAk = rewriter.create<arith::AddIOp>(loc, baseK, copyAk);
+    Value inBoundAM = rewriter.create<arith::CmpIOp>(
+        loc, arith::CmpIPredicate::ult, globalAi, boundM);
+    Value inBoundAK = rewriter.create<arith::CmpIOp>(
+        loc, arith::CmpIPredicate::ult, globalAk, boundK);
+    Value inBoundA = rewriter.create<arith::AndIOp>(loc, inBoundAM, inBoundAK);
+
+    auto selectA = rewriter.create<scf::IfOp>(
+        loc, AElemType, inBoundA, /*withElseRegion=*/true);
+    rewriter.setInsertionPointToStart(&selectA.getThenRegion().front());
+    Value aLoadVal = rewriter.create<memref::LoadOp>(
+        loc, A, ValueRange{batchIdx, globalAi, globalAk});
+    rewriter.create<scf::YieldOp>(loc, aLoadVal);
+    rewriter.setInsertionPointToStart(&selectA.getElseRegion().front());
+    rewriter.create<scf::YieldOp>(loc, zeroElem);
+    rewriter.setInsertionPointAfter(selectA);
+
+    rewriter.create<memref::StoreOp>(loc, selectA.getResult(0), ATile,
+                                     ValueRange{copyAi, copyAk});
+    rewriter.setInsertionPointAfter(copyALoop1);
+
+    // Copy B tile: B[batch, n, k] → BTile[tileN, tileK]
+    // B is already [N,K] per batch — same as IME's expected format!
+    // No transpose/repack needed.
+    auto copyBLoop1 = rewriter.create<scf::ForOp>(loc, c0, tileNVal, c1);
+    rewriter.setInsertionPointToStart(copyBLoop1.getBody());
+    Value copyBn = copyBLoop1.getInductionVar();
+    auto copyBLoop2 = rewriter.create<scf::ForOp>(loc, c0, tileKVal, c1);
+    rewriter.setInsertionPointToStart(copyBLoop2.getBody());
+    Value copyBk = copyBLoop2.getInductionVar();
+
+    Value globalBn = rewriter.create<arith::AddIOp>(loc, baseN, copyBn);
+    Value globalBk = rewriter.create<arith::AddIOp>(loc, baseK, copyBk);
+    Value inBoundBN = rewriter.create<arith::CmpIOp>(
+        loc, arith::CmpIPredicate::ult, globalBn, boundN);
+    Value inBoundBK = rewriter.create<arith::CmpIOp>(
+        loc, arith::CmpIPredicate::ult, globalBk, boundK);
+    Value inBoundB = rewriter.create<arith::AndIOp>(loc, inBoundBN, inBoundBK);
+
+    auto selectB = rewriter.create<scf::IfOp>(
+        loc, AElemType, inBoundB, /*withElseRegion=*/true);
+    rewriter.setInsertionPointToStart(&selectB.getThenRegion().front());
+    // B[batch, n, k] — already column-major
+    Value bLoadVal = rewriter.create<memref::LoadOp>(
+        loc, B, ValueRange{batchIdx, globalBn, globalBk});
+    rewriter.create<scf::YieldOp>(loc, bLoadVal);
+    rewriter.setInsertionPointToStart(&selectB.getElseRegion().front());
+    rewriter.create<scf::YieldOp>(loc, zeroElem);
+    rewriter.setInsertionPointAfter(selectB);
+
+    // BTile[n,k] — direct copy, no repack
+    rewriter.create<memref::StoreOp>(loc, selectB.getResult(0), BTile,
+                                     ValueRange{copyBn, copyBk});
+    rewriter.setInsertionPointAfter(copyBLoop1);
+
+    // IME compute
+    if (isFloat) {
+      rewriter.create<VfmadotOp>(loc, CTile, ATile, BTile);
+    } else {
+      rewriter.create<VmadotOp>(loc, CTile, ATile, BTile);
+    }
+
+    // End K tile loop
+    rewriter.setInsertionPointAfter(loopTileK);
+
+    // Store CTile back to C[batch, m, n]
+    auto storeCLoop1 = rewriter.create<scf::ForOp>(loc, c0, tileMVal, c1);
+    rewriter.setInsertionPointToStart(storeCLoop1.getBody());
+    Value storeCi = storeCLoop1.getInductionVar();
+    auto storeCLoop2 = rewriter.create<scf::ForOp>(loc, c0, tileNVal, c1);
+    rewriter.setInsertionPointToStart(storeCLoop2.getBody());
+    Value storeCj = storeCLoop2.getInductionVar();
+
+    Value globalStoreCi = rewriter.create<arith::AddIOp>(loc, baseM, storeCi);
+    Value globalStoreCj = rewriter.create<arith::AddIOp>(loc, baseN, storeCj);
+    Value inBoundStoreM = rewriter.create<arith::CmpIOp>(
+        loc, arith::CmpIPredicate::ult, globalStoreCi, boundM);
+    Value inBoundStoreN = rewriter.create<arith::CmpIOp>(
+        loc, arith::CmpIPredicate::ult, globalStoreCj, boundN);
+    Value inBoundStore =
+        rewriter.create<arith::AndIOp>(loc, inBoundStoreM, inBoundStoreN);
+
+    auto storeIf = rewriter.create<scf::IfOp>(loc, inBoundStore,
+                                               /*withElseRegion=*/false);
+    rewriter.setInsertionPointToStart(&storeIf.getThenRegion().front());
+    Value cResult = rewriter.create<memref::LoadOp>(loc, CTile,
+                                                    ValueRange{storeCi, storeCj});
+    rewriter.create<memref::StoreOp>(loc, cResult, C,
+                                     ValueRange{batchIdx, globalStoreCi, globalStoreCj});
+
+    rewriter.setInsertionPointAfter(storeCLoop1);
+
+    // End N, M, Batch loops
+    rewriter.setInsertionPointAfter(loopBatch);
+
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+//===----------------------------------------------------------------------===//
+// Conv2D to IME Lowering Patterns (with Sliding-Window Instructions)
+//===----------------------------------------------------------------------===//
+
 /// Pattern to lower linalg.conv_2d_nhwc_hwcf to IME sliding-window operations.
 
 class Conv2DNhwcHwcfToIMELowering
@@ -944,6 +1211,7 @@ void LowerLinalgToIMEPass::runOnOperation() {
 
   patterns.add<MatmulToIMELowering>(context);
   patterns.add<GenericMatmulToIMELowering>(context);
+  patterns.add<BatchMatmulTransposeBToIMELowering>(context);
 
   patterns.add<Conv2DNhwcHwcfToIMELowering>(context);
   patterns.add<Conv2DNchwFchwToIMELowering>(context);
