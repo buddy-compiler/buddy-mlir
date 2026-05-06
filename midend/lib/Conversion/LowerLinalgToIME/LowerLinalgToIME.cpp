@@ -35,7 +35,6 @@
 using namespace mlir;
 using namespace buddy::ime;
 
-
 static void getTileSizes(Type elemType, int64_t &tileM, int64_t &tileK,
                          int64_t &tileN) {
   if (elemType.isInteger(8)) {
@@ -65,8 +64,7 @@ static bool isSupportedElementType(Type elemType) {
 
 namespace {
 
-class MatmulToIMELowering
-    : public OpRewritePattern<linalg::MatmulOp> {
+class MatmulToIMELowering : public OpRewritePattern<linalg::MatmulOp> {
 public:
   using OpRewritePattern<linalg::MatmulOp>::OpRewritePattern;
 
@@ -154,9 +152,12 @@ public:
     Value boundM = rewriter.create<arith::ConstantIndexOp>(loc, M);
     Value boundK = rewriter.create<arith::ConstantIndexOp>(loc, K);
     Value boundN = rewriter.create<arith::ConstantIndexOp>(loc, N);
-    Value numTilesMVal = rewriter.create<arith::ConstantIndexOp>(loc, numTilesM);
-    Value numTilesKVal = rewriter.create<arith::ConstantIndexOp>(loc, numTilesK);
-    Value numTilesNVal = rewriter.create<arith::ConstantIndexOp>(loc, numTilesN);
+    Value numTilesMVal =
+        rewriter.create<arith::ConstantIndexOp>(loc, numTilesM);
+    Value numTilesKVal =
+        rewriter.create<arith::ConstantIndexOp>(loc, numTilesK);
+    Value numTilesNVal =
+        rewriter.create<arith::ConstantIndexOp>(loc, numTilesN);
 
     // Create zero constants for padding
     Value zeroElem = rewriter.create<arith::ConstantOp>(
@@ -166,7 +167,8 @@ public:
         loc, CElemType, rewriter.getZeroAttr(CElemType));
 
     auto ATileType = MemRefType::get({tileM, tileK}, AElemType);
-    auto BTileType = MemRefType::get({tileN, tileK}, AElemType);  // [N, K] for column-major pack
+    auto BTileType = MemRefType::get({tileN, tileK},
+                                     AElemType); // [N, K] for column-major pack
     auto CTileType = MemRefType::get({tileM, tileN}, CElemType);
 
     Value ATile = rewriter.create<memref::AllocaOp>(loc, ATileType);
@@ -205,16 +207,18 @@ public:
     Value inBound = rewriter.create<arith::AndIOp>(loc, inBoundM, inBoundN);
 
     // Load from C if in bounds, else use zero
-    auto selectC = rewriter.create<scf::IfOp>(
-        loc, CElemType, inBound, /*withElseRegion=*/true);
+    auto selectC = rewriter.create<scf::IfOp>(loc, CElemType, inBound,
+                                              /*withElseRegion=*/true);
     rewriter.setInsertionPointToStart(&selectC.getThenRegion().front());
-    Value cLoadVal = rewriter.create<memref::LoadOp>(loc, C, ValueRange{globalCi, globalCj});
+    Value cLoadVal =
+        rewriter.create<memref::LoadOp>(loc, C, ValueRange{globalCi, globalCj});
     rewriter.create<scf::YieldOp>(loc, cLoadVal);
     rewriter.setInsertionPointToStart(&selectC.getElseRegion().front());
     rewriter.create<scf::YieldOp>(loc, zeroC);
     rewriter.setInsertionPointAfter(selectC);
 
-    rewriter.create<memref::StoreOp>(loc, selectC.getResult(0), CTile, ValueRange{initCi, initCj});
+    rewriter.create<memref::StoreOp>(loc, selectC.getResult(0), CTile,
+                                     ValueRange{initCi, initCj});
     rewriter.setInsertionPointAfter(initCLoop1);
 
     // Loop over K tiles
@@ -239,16 +243,18 @@ public:
         loc, arith::CmpIPredicate::ult, globalAk, boundK);
     Value inBoundA = rewriter.create<arith::AndIOp>(loc, inBoundAM, inBoundAK);
 
-    auto selectA = rewriter.create<scf::IfOp>(
-        loc, AElemType, inBoundA, /*withElseRegion=*/true);
+    auto selectA = rewriter.create<scf::IfOp>(loc, AElemType, inBoundA,
+                                              /*withElseRegion=*/true);
     rewriter.setInsertionPointToStart(&selectA.getThenRegion().front());
-    Value aLoadVal = rewriter.create<memref::LoadOp>(loc, A, ValueRange{globalAi, globalAk});
+    Value aLoadVal =
+        rewriter.create<memref::LoadOp>(loc, A, ValueRange{globalAi, globalAk});
     rewriter.create<scf::YieldOp>(loc, aLoadVal);
     rewriter.setInsertionPointToStart(&selectA.getElseRegion().front());
     rewriter.create<scf::YieldOp>(loc, zeroElem);
     rewriter.setInsertionPointAfter(selectA);
 
-    rewriter.create<memref::StoreOp>(loc, selectA.getResult(0), ATile, ValueRange{copyAi, copyAk});
+    rewriter.create<memref::StoreOp>(loc, selectA.getResult(0), ATile,
+                                     ValueRange{copyAi, copyAk});
     rewriter.setInsertionPointAfter(copyALoop1);
 
     // Copy B tile with boundary handling
@@ -269,18 +275,20 @@ public:
         loc, arith::CmpIPredicate::ult, globalBn, boundN);
     Value inBoundB = rewriter.create<arith::AndIOp>(loc, inBoundBK, inBoundBN);
 
-    auto selectB = rewriter.create<scf::IfOp>(
-        loc, AElemType, inBoundB, /*withElseRegion=*/true);
+    auto selectB = rewriter.create<scf::IfOp>(loc, AElemType, inBoundB,
+                                              /*withElseRegion=*/true);
     rewriter.setInsertionPointToStart(&selectB.getThenRegion().front());
     // Load from B[k][n] in row-major
-    Value bLoadVal = rewriter.create<memref::LoadOp>(loc, B, ValueRange{globalBk, globalBn});
+    Value bLoadVal =
+        rewriter.create<memref::LoadOp>(loc, B, ValueRange{globalBk, globalBn});
     rewriter.create<scf::YieldOp>(loc, bLoadVal);
     rewriter.setInsertionPointToStart(&selectB.getElseRegion().front());
     rewriter.create<scf::YieldOp>(loc, zeroElem);
     rewriter.setInsertionPointAfter(selectB);
 
     // Store to BTile[n][k] in column-major pack format
-    rewriter.create<memref::StoreOp>(loc, selectB.getResult(0), BTile, ValueRange{copyBn, copyBk});
+    rewriter.create<memref::StoreOp>(loc, selectB.getResult(0), BTile,
+                                     ValueRange{copyBn, copyBk});
     rewriter.setInsertionPointAfter(copyBLoop1);
 
     // IME vmadot/vfmadot on contiguous tile buffers
@@ -307,12 +315,16 @@ public:
         loc, arith::CmpIPredicate::ult, globalStoreCi, boundM);
     Value inBoundStoreN = rewriter.create<arith::CmpIOp>(
         loc, arith::CmpIPredicate::ult, globalStoreCj, boundN);
-    Value inBoundStore = rewriter.create<arith::AndIOp>(loc, inBoundStoreM, inBoundStoreN);
+    Value inBoundStore =
+        rewriter.create<arith::AndIOp>(loc, inBoundStoreM, inBoundStoreN);
 
-    auto storeIf = rewriter.create<scf::IfOp>(loc, inBoundStore, /*withElseRegion=*/false);
+    auto storeIf =
+        rewriter.create<scf::IfOp>(loc, inBoundStore, /*withElseRegion=*/false);
     rewriter.setInsertionPointToStart(&storeIf.getThenRegion().front());
-    Value cResult = rewriter.create<memref::LoadOp>(loc, CTile, ValueRange{storeCi, storeCj});
-    rewriter.create<memref::StoreOp>(loc, cResult, C, ValueRange{globalStoreCi, globalStoreCj});
+    Value cResult = rewriter.create<memref::LoadOp>(
+        loc, CTile, ValueRange{storeCi, storeCj});
+    rewriter.create<memref::StoreOp>(loc, cResult, C,
+                                     ValueRange{globalStoreCi, globalStoreCj});
 
     rewriter.setInsertionPointAfter(storeCLoop1);
 
@@ -476,9 +488,9 @@ public:
 //===----------------------------------------------------------------------===//
 
 /// Pattern to lower linalg.batch_matmul_transpose_b to IME operations.
-/// Handles batched matmul where B is transposed: C[b,m,n] += A[b,m,k] * B[b,n,k]
-/// B is already in [N,K] layout per batch, which is IME's expected column-major
-/// pack format — no repack needed.
+/// Handles batched matmul where B is transposed: C[b,m,n] += A[b,m,k] *
+/// B[b,n,k] B is already in [N,K] layout per batch, which is IME's expected
+/// column-major pack format — no repack needed.
 
 class BatchMatmulTransposeBToIMELowering
     : public OpRewritePattern<linalg::BatchMatmulTransposeBOp> {
@@ -489,9 +501,9 @@ public:
                                 PatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
 
-    Value A = op.getInputs()[0];   // [Batch, M, K]
-    Value B = op.getInputs()[1];   // [Batch, N, K] (transposed)
-    Value C = op.getOutputs()[0];  // [Batch, M, N]
+    Value A = op.getInputs()[0];  // [Batch, M, K]
+    Value B = op.getInputs()[1];  // [Batch, N, K] (transposed)
+    Value C = op.getOutputs()[0]; // [Batch, M, N]
 
     auto AType = dyn_cast<MemRefType>(A.getType());
     auto BType = dyn_cast<MemRefType>(B.getType());
@@ -510,18 +522,18 @@ public:
           op, "only int8, int16, and f16 element types are supported");
 
     if (AElemType != BElemType)
-      return rewriter.notifyMatchFailure(op,
-                                         "A and B must have the same element type");
+      return rewriter.notifyMatchFailure(
+          op, "A and B must have the same element type");
 
     bool isFloat = AElemType.isF16();
     if (isFloat) {
       if (!CElemType.isF16())
-        return rewriter.notifyMatchFailure(op,
-                                           "output C must be f16 for fp16 accumulation");
+        return rewriter.notifyMatchFailure(
+            op, "output C must be f16 for fp16 accumulation");
     } else {
       if (!CElemType.isInteger(32))
-        return rewriter.notifyMatchFailure(op,
-                                           "output C must be int32 for integer accumulation");
+        return rewriter.notifyMatchFailure(
+            op, "output C must be int32 for integer accumulation");
     }
 
     ArrayRef<int64_t> AShape = AType.getShape(); // [Batch, M, K]
@@ -556,9 +568,12 @@ public:
     Value boundM = rewriter.create<arith::ConstantIndexOp>(loc, M);
     Value boundK = rewriter.create<arith::ConstantIndexOp>(loc, K);
     Value boundN = rewriter.create<arith::ConstantIndexOp>(loc, N);
-    Value numTilesMVal = rewriter.create<arith::ConstantIndexOp>(loc, numTilesM);
-    Value numTilesKVal = rewriter.create<arith::ConstantIndexOp>(loc, numTilesK);
-    Value numTilesNVal = rewriter.create<arith::ConstantIndexOp>(loc, numTilesN);
+    Value numTilesMVal =
+        rewriter.create<arith::ConstantIndexOp>(loc, numTilesM);
+    Value numTilesKVal =
+        rewriter.create<arith::ConstantIndexOp>(loc, numTilesK);
+    Value numTilesNVal =
+        rewriter.create<arith::ConstantIndexOp>(loc, numTilesN);
     Value batchBound = rewriter.create<arith::ConstantIndexOp>(loc, Batch);
 
     Value zeroElem = rewriter.create<arith::ConstantOp>(
@@ -609,8 +624,8 @@ public:
         loc, arith::CmpIPredicate::ult, globalCj, boundN);
     Value inBound = rewriter.create<arith::AndIOp>(loc, inBoundM, inBoundN);
 
-    auto selectC = rewriter.create<scf::IfOp>(
-        loc, CElemType, inBound, /*withElseRegion=*/true);
+    auto selectC = rewriter.create<scf::IfOp>(loc, CElemType, inBound,
+                                              /*withElseRegion=*/true);
     rewriter.setInsertionPointToStart(&selectC.getThenRegion().front());
     Value cLoadVal = rewriter.create<memref::LoadOp>(
         loc, C, ValueRange{batchIdx, globalCi, globalCj});
@@ -645,8 +660,8 @@ public:
         loc, arith::CmpIPredicate::ult, globalAk, boundK);
     Value inBoundA = rewriter.create<arith::AndIOp>(loc, inBoundAM, inBoundAK);
 
-    auto selectA = rewriter.create<scf::IfOp>(
-        loc, AElemType, inBoundA, /*withElseRegion=*/true);
+    auto selectA = rewriter.create<scf::IfOp>(loc, AElemType, inBoundA,
+                                              /*withElseRegion=*/true);
     rewriter.setInsertionPointToStart(&selectA.getThenRegion().front());
     Value aLoadVal = rewriter.create<memref::LoadOp>(
         loc, A, ValueRange{batchIdx, globalAi, globalAk});
@@ -677,8 +692,8 @@ public:
         loc, arith::CmpIPredicate::ult, globalBk, boundK);
     Value inBoundB = rewriter.create<arith::AndIOp>(loc, inBoundBN, inBoundBK);
 
-    auto selectB = rewriter.create<scf::IfOp>(
-        loc, AElemType, inBoundB, /*withElseRegion=*/true);
+    auto selectB = rewriter.create<scf::IfOp>(loc, AElemType, inBoundB,
+                                              /*withElseRegion=*/true);
     rewriter.setInsertionPointToStart(&selectB.getThenRegion().front());
     // B[batch, n, k] — already column-major
     Value bLoadVal = rewriter.create<memref::LoadOp>(
@@ -721,12 +736,12 @@ public:
         rewriter.create<arith::AndIOp>(loc, inBoundStoreM, inBoundStoreN);
 
     auto storeIf = rewriter.create<scf::IfOp>(loc, inBoundStore,
-                                               /*withElseRegion=*/false);
+                                              /*withElseRegion=*/false);
     rewriter.setInsertionPointToStart(&storeIf.getThenRegion().front());
-    Value cResult = rewriter.create<memref::LoadOp>(loc, CTile,
-                                                    ValueRange{storeCi, storeCj});
-    rewriter.create<memref::StoreOp>(loc, cResult, C,
-                                     ValueRange{batchIdx, globalStoreCi, globalStoreCj});
+    Value cResult = rewriter.create<memref::LoadOp>(
+        loc, CTile, ValueRange{storeCi, storeCj});
+    rewriter.create<memref::StoreOp>(
+        loc, cResult, C, ValueRange{batchIdx, globalStoreCi, globalStoreCj});
 
     rewriter.setInsertionPointAfter(storeCLoop1);
 
@@ -1169,7 +1184,6 @@ public:
     return success();
   }
 };
-
 
 } // namespace
 
