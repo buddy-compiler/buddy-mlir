@@ -56,4 +56,5 @@ target_link_libraries(buddy-opt
   AssumeTightMemRefLayoutPass
   StaticizeMemRefLayoutPass
   EliminateMemRefCopyPass
+  FlattenNestedOMPParallelPass
   )
