@@ -811,7 +811,11 @@ class GraphImporter:
                 for node in self._body:
                     if node in extern_func:
                         continue
-                    old_ops = [op for op in func_op.body.blocks[0].operations]
+                    old_ops = (
+                        [op for op in func_op.body.blocks[0].operations]
+                        if self._verbose
+                        else None
+                    )
                     if isinstance(node, OutputOp):
                         output_node_args = node.args
                         returns = [
@@ -829,8 +833,10 @@ class GraphImporter:
                         )
                     else:
                         self._import_op(node)
-                    new_ops = [op for op in func_op.body.blocks[0].operations]
                     if self._verbose:
+                        new_ops = [
+                            op for op in func_op.body.blocks[0].operations
+                        ]
                         print("=" * 20 + "Graph Node" + "=" * 20)
                         print("Node: " + node.name)
                         print("Type: " + str(node._op_type))
