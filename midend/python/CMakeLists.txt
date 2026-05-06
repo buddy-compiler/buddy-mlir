@@ -119,6 +119,7 @@ link_directories(${LLVM_BINARY_DIR}/tools/mlir/python_packages/mlir_core/mlir/_m
 
 add_mlir_python_modules(BuddyMLIRPythonModules
   ROOT_PREFIX "${BUDDY_BUILD_DIR}/python_packages/buddy_mlir"
+  INSTALL_PREFIX "python_packages/buddy_mlir"
   DECLARED_SOURCES
     BuddyMLIRPythonSources
     MLIRPythonSources
