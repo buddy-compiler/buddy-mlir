@@ -17,6 +17,9 @@ target_link_libraries(buddy-opt
   LowerBudPass
   BuddyDIP
   LowerDIPPass
+  BuddyRVProf
+  RVProfInstrumentationPass
+  LowerRVProfPass
   BuddyDAP
   LowerDAPPass
   ExtendDAPPass

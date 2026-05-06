@@ -68,6 +68,8 @@ void registerPoolingVectorizationPass();
 void registerPoolingNhwcMaxVectorizationPass();
 void registerLowerBudPass();
 void registerLowerDIPPass();
+void registerRVProfInstrumentationPass();
+void registerLowerRVProfPass();
 void registerBatchMatMulOptimizePass();
 void registerBatchMatMulTileOptimizePass();
 void registerBatchMatMuSCFOptimize();
@@ -126,6 +128,8 @@ int main(int argc, char **argv) {
   mlir::buddy::registerPoolingNhwcMaxVectorizationPass();
   mlir::buddy::registerLowerBudPass();
   mlir::buddy::registerLowerDIPPass();
+  mlir::buddy::registerRVProfInstrumentationPass();
+  mlir::buddy::registerLowerRVProfPass();
   mlir::buddy::registerLowerDAPPass();
   mlir::buddy::registerExtendDAPPass();
   // Register Vectorization of DAP Dialect.
@@ -185,6 +189,7 @@ int main(int argc, char **argv) {
   registry.insert<buddy::bud::BudDialect,
                   buddy::dip::DIPDialect,
                   buddy::dap::DAPDialect,
+                  buddy::rvprof::RVProfDialect,
                   buddy::rvv::RVVDialect,
                   buddy::vector_exp::VectorExpDialect,
                   buddy::vir::VIRDialect,
