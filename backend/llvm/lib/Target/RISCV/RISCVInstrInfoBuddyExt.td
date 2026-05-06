@@ -176,14 +176,15 @@ class RVInstIME<bits<7> funct7, bits<3> funct3, dag outs, dag ins,
   let Inst{24-20} = vs2;
   let Inst{19-15} = vs1;
   let Inst{14-12} = funct3;
-  let Inst{11-7} = vd;
+  let Inst{11-8} = vd{4-1};
+  let Inst{7} = 0b0;
   let Inst{6-0} = OPC_CUSTOM_1.Value;
 
   let Uses = [VTYPE, VL];
 }
 
 let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-def IME_VMADOT : RVInstIME<0b1110001, 0b000,
+def IME_VMADOT : RVInstIME<0b1110001, 0b011,
                            (outs VRM4:$vd),
                            (ins VRM4:$vd_in, VRM4:$vs1, VRM4:$vs2),
                            "vmadot", "$vd, $vs1, $vs2"> {
@@ -191,7 +192,7 @@ def IME_VMADOT : RVInstIME<0b1110001, 0b000,
 }
 
 let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-def IME_VMADOTU : RVInstIME<0b1110001, 0b011,
+def IME_VMADOTU : RVInstIME<0b1110001, 0b000,
                             (outs VRM4:$vd),
                             (ins VRM4:$vd_in, VRM4:$vs1, VRM4:$vs2),
                             "vmadotu", "$vd, $vs1, $vs2"> {
@@ -199,7 +200,7 @@ def IME_VMADOTU : RVInstIME<0b1110001, 0b011,
 }
 
 let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-def IME_VMADOTSU : RVInstIME<0b1110001, 0b001,
+def IME_VMADOTSU : RVInstIME<0b1110001, 0b010,
                              (outs VRM4:$vd),
                              (ins VRM4:$vd_in, VRM4:$vs1, VRM4:$vs2),
                              "vmadotsu", "$vd, $vs1, $vs2"> {
@@ -207,7 +208,7 @@ def IME_VMADOTSU : RVInstIME<0b1110001, 0b001,
 }
 
 let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-def IME_VMADOTUS : RVInstIME<0b1110001, 0b010,
+def IME_VMADOTUS : RVInstIME<0b1110001, 0b001,
                              (outs VRM4:$vd),
                              (ins VRM4:$vd_in, VRM4:$vs1, VRM4:$vs2),
                              "vmadotus", "$vd, $vs1, $vs2"> {
@@ -215,138 +216,189 @@ def IME_VMADOTUS : RVInstIME<0b1110001, 0b010,
 }
 
 let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-def IME_VFMADOT : RVInstIME<0b1110101, 0b000,
+def IME_VFMADOT : RVInstIME<0b1001111, 0b100,
                             (outs VRM4:$vd),
                             (ins VRM4:$vd_in, VRM4:$vs1, VRM4:$vs2),
-                            "vfmadot", "$vd, $vs1, $vs2"> {
+                            "vfwmadot", "$vd, $vs1, $vs2"> {
   let Constraints = "$vd = $vd_in";
 }
 
 //===----------------------------------------------------------------------===//
-// IME Sliding-Window Instructions
+// Signedness and Slide mode encoding definitions
 //===----------------------------------------------------------------------===//
+// Signedness encoding for funct2[13:12]:
+//   00: UU (Unsigned × Unsigned)
+//   01: US (Unsigned × Signed)
+//   10: SU (Signed × Unsigned)
+//   11: SS (Signed × Signed)
+class SMTVEncoding2<bits<2> val> {
+  bits<2> Value = val;
+}
+def SMT_VDot_UU  : SMTVEncoding2<0b00>;
+def SMT_VDot_US  : SMTVEncoding2<0b01>;
+def SMT_VDot_SU  : SMTVEncoding2<0b10>;
+def SMT_VDot_SS  : SMTVEncoding2<0b11>;
 
-// Integer slide-1 instructions
+// Slide mode encoding for funct2[15:14]:
+//   00: Slide1 (vmadot1*)
+//   01: Slide2 (vmadot2*)
+//   10: Slide3 (vmadot3*)
+//   11: Reserved
+def SMT_VDot_Slide1 : SMTVEncoding2<0b00>;
+def SMT_VDot_Slide2 : SMTVEncoding2<0b01>;
+def SMT_VDot_Slide3 : SMTVEncoding2<0b10>;
+
+//===----------------------------------------------------------------------===//
+// Integer Sliding-Window Instruction Format
+//===----------------------------------------------------------------------===//
+// Encoding (per new spec Section 8.2):
+//   funct7[31:25] = 1_11_001_1 = 0b1110011 (for Int8)
+//   [24:20] = vs2
+//   [19:16] = vs1{4-1}
+//   [15:14] = slide mode
+//   [13:12] = signedness
+//   [11:8]  = vd{4-1}
+//   [7]     = 0b0
+//   [6:0]   = OPC_CUSTOM_1
+class RVInstIMESlide<SMTVEncoding2 slide, SMTVEncoding2 sign, string opcodestr, string argstr>
+    : RVInst<(outs VRM4:$vd), (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2), opcodestr, argstr, [], InstFormatR> {
+  bits<5> vd;
+  bits<5> vs1;
+  bits<5> vs2;
+
+  let Inst{31-25} = 0b1110011;  // funct7 for slide (Int8)
+  let Inst{24-20} = vs2;
+  let Inst{19-16} = vs1{4-1};
+  let Inst{15-14} = slide.Value;
+  let Inst{13-12} = sign.Value;
+  let Inst{11-8} = vd{4-1};
+  let Inst{7} = 0b0;
+  let Inst{6-0} = OPC_CUSTOM_1.Value;
+
+  let Uses = [VTYPE, VL];
+}
+
+//===----------------------------------------------------------------------===//
+// Floating-point Sliding-Window Instruction Format
+//===----------------------------------------------------------------------===//
+// Encoding (per new spec Section 8.5.2):
+//   funct7[31:25] = 1001111 (for vfwmadot1/2/3)
+//   [24:20] = vs2
+//   [19:15] = {vs1[4:1], 0}  (vs1 must be even)
+//   [14:12] = funct3 (101=slide1, 110=slide2, 111=slide3)
+//   [11:8]  = vd{4-1}
+//   [7]     = 0b0
+//   [6:0]   = OPC_CUSTOM_1
+class RVInstIMEFloatSlide<bits<3> funct3, string opcodestr, string argstr>
+    : RVInst<(outs VRM4:$vd), (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2), opcodestr, argstr, [], InstFormatR> {
+  bits<5> vd;
+  bits<5> vs1;
+  bits<5> vs2;
+
+  let Inst{31-25} = 0b1001111;  // funct7 for vfwmadot variants
+  let Inst{24-20} = vs2;
+  let Inst{19-16} = vs1{4-1};
+  let Inst{15} = 0b0;
+  let Inst{14-12} = funct3;
+  let Inst{11-8} = vd{4-1};
+  let Inst{7} = 0b0;
+  let Inst{6-0} = OPC_CUSTOM_1.Value;
+
+  let Uses = [VTYPE, VL];
+}
+
+//===----------------------------------------------------------------------===//
+// IME Integer Sliding-Window Instructions (vmadot1/2/3*)
+//===----------------------------------------------------------------------===//
+// All variants share funct7=0b1110011.
+// Signedness encoding [13:12]: 00=UU, 01=US, 10=SU, 11=SS
+// Slide encoding [15:14]: 00=slide1, 01=slide2, 10=slide3
+
+// slide-1 instructions
 let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-def IME_VMADOT1 : RVInstIME<0b1110010, 0b000,
-                            (outs VRM4:$vd),
-                            (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2),
-                            "vmadot1", "$vd, $vs1, $vs2"> {
+def IME_VMADOT1   : RVInstIMESlide<SMT_VDot_Slide1, SMT_VDot_SS, "vmadot1",   "$vd, $vs1, $vs2"> {
   let Constraints = "$vd = $vd_in";
 }
 
 let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-def IME_VMADOT1U : RVInstIME<0b1110010, 0b011,
-                             (outs VRM4:$vd),
-                             (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2),
-                             "vmadot1u", "$vd, $vs1, $vs2"> {
+def IME_VMADOT1U  : RVInstIMESlide<SMT_VDot_Slide1, SMT_VDot_UU, "vmadot1u",  "$vd, $vs1, $vs2"> {
   let Constraints = "$vd = $vd_in";
 }
 
 let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-def IME_VMADOT1SU : RVInstIME<0b1110010, 0b001,
-                              (outs VRM4:$vd),
-                              (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2),
-                              "vmadot1su", "$vd, $vs1, $vs2"> {
+def IME_VMADOT1SU : RVInstIMESlide<SMT_VDot_Slide1, SMT_VDot_SU, "vmadot1su", "$vd, $vs1, $vs2"> {
   let Constraints = "$vd = $vd_in";
 }
 
 let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-def IME_VMADOT1US : RVInstIME<0b1110010, 0b010,
-                              (outs VRM4:$vd),
-                              (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2),
-                              "vmadot1us", "$vd, $vs1, $vs2"> {
+def IME_VMADOT1US : RVInstIMESlide<SMT_VDot_Slide1, SMT_VDot_US, "vmadot1us", "$vd, $vs1, $vs2"> {
   let Constraints = "$vd = $vd_in";
 }
 
-// Integer slide-2 instructions
+// slide-2 instructions
 let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-def IME_VMADOT2 : RVInstIME<0b1110011, 0b000,
-                            (outs VRM4:$vd),
-                            (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2),
-                            "vmadot2", "$vd, $vs1, $vs2"> {
+def IME_VMADOT2   : RVInstIMESlide<SMT_VDot_Slide2, SMT_VDot_SS, "vmadot2",   "$vd, $vs1, $vs2"> {
   let Constraints = "$vd = $vd_in";
 }
 
 let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-def IME_VMADOT2U : RVInstIME<0b1110011, 0b011,
-                             (outs VRM4:$vd),
-                             (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2),
-                             "vmadot2u", "$vd, $vs1, $vs2"> {
+def IME_VMADOT2U  : RVInstIMESlide<SMT_VDot_Slide2, SMT_VDot_UU, "vmadot2u",  "$vd, $vs1, $vs2"> {
   let Constraints = "$vd = $vd_in";
 }
 
 let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-def IME_VMADOT2SU : RVInstIME<0b1110011, 0b001,
-                              (outs VRM4:$vd),
-                              (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2),
-                              "vmadot2su", "$vd, $vs1, $vs2"> {
+def IME_VMADOT2SU : RVInstIMESlide<SMT_VDot_Slide2, SMT_VDot_SU, "vmadot2su", "$vd, $vs1, $vs2"> {
   let Constraints = "$vd = $vd_in";
 }
 
 let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-def IME_VMADOT2US : RVInstIME<0b1110011, 0b010,
-                              (outs VRM4:$vd),
-                              (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2),
-                              "vmadot2us", "$vd, $vs1, $vs2"> {
+def IME_VMADOT2US : RVInstIMESlide<SMT_VDot_Slide2, SMT_VDot_US, "vmadot2us", "$vd, $vs1, $vs2"> {
   let Constraints = "$vd = $vd_in";
 }
 
-// Integer slide-3 instructions
+// slide-3 instructions
 let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-def IME_VMADOT3 : RVInstIME<0b1110100, 0b000,
-                            (outs VRM4:$vd),
-                            (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2),
-                            "vmadot3", "$vd, $vs1, $vs2"> {
+def IME_VMADOT3   : RVInstIMESlide<SMT_VDot_Slide3, SMT_VDot_SS, "vmadot3",   "$vd, $vs1, $vs2"> {
   let Constraints = "$vd = $vd_in";
 }
 
 let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-def IME_VMADOT3U : RVInstIME<0b1110100, 0b011,
-                             (outs VRM4:$vd),
-                             (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2),
-                             "vmadot3u", "$vd, $vs1, $vs2"> {
+def IME_VMADOT3U  : RVInstIMESlide<SMT_VDot_Slide3, SMT_VDot_UU, "vmadot3u",  "$vd, $vs1, $vs2"> {
   let Constraints = "$vd = $vd_in";
 }
 
 let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-def IME_VMADOT3SU : RVInstIME<0b1110100, 0b001,
-                              (outs VRM4:$vd),
-                              (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2),
-                              "vmadot3su", "$vd, $vs1, $vs2"> {
+def IME_VMADOT3SU : RVInstIMESlide<SMT_VDot_Slide3, SMT_VDot_SU, "vmadot3su", "$vd, $vs1, $vs2"> {
   let Constraints = "$vd = $vd_in";
 }
 
 let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-def IME_VMADOT3US : RVInstIME<0b1110100, 0b010,
-                              (outs VRM4:$vd),
-                              (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2),
-                              "vmadot3us", "$vd, $vs1, $vs2"> {
+def IME_VMADOT3US : RVInstIMESlide<SMT_VDot_Slide3, SMT_VDot_US, "vmadot3us", "$vd, $vs1, $vs2"> {
   let Constraints = "$vd = $vd_in";
 }
 
-// Floating-point slide instructions
-let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-def IME_VFMADOT1 : RVInstIME<0b1110110, 0b000,
-                             (outs VRM4:$vd),
-                             (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2),
-                             "vfmadot1", "$vd, $vs1, $vs2"> {
-  let Constraints = "$vd = $vd_in";
-}
+//===----------------------------------------------------------------------===//
+// IME Floating-point Sliding-Window Instructions (vfwmadot1/2/3)
+//===----------------------------------------------------------------------===//
+// All variants share funct7=0b1001111.
+// funct3[14:12]: 101=slide1, 110=slide2, 111=slide3
+// vs1 must be even ({vs1[4:1], 0}), vd must be even ({vd[4:1], 0})
 
 let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-def IME_VFMADOT2 : RVInstIME<0b1110111, 0b000,
-                             (outs VRM4:$vd),
-                             (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2),
-                             "vfmadot2", "$vd, $vs1, $vs2"> {
+def IME_VFMADOT1 : RVInstIMEFloatSlide<0b101,
+                                       "vfwmadot1", "$vd, $vs1, $vs2"> {
   let Constraints = "$vd = $vd_in";
 }
 
 let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-def IME_VFMADOT3 : RVInstIME<0b1111000, 0b000,
-                             (outs VRM4:$vd),
-                             (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2),
-                             "vfmadot3", "$vd, $vs1, $vs2"> {
+def IME_VFMADOT2 : RVInstIMEFloatSlide<0b110,
+                                       "vfwmadot2", "$vd, $vs1, $vs2"> {
+  let Constraints = "$vd = $vd_in";
+}
+
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def IME_VFMADOT3 : RVInstIMEFloatSlide<0b111,
+                                       "vfwmadot3", "$vd, $vs1, $vs2"> {
   let Constraints = "$vd = $vd_in";
 }
 
@@ -544,7 +596,9 @@ class RVInstIMEN<bits<7> funct7, bits<3> funct3, dag outs, dag ins,
 }
 
 let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-def IME_VMADOTN : RVInstIMEN<0b1111001, 0b000,
+// Dynamic slide-n instructions (signedness per new spec: 000=UU, 001=US, 010=SU, 011=SS)
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+def IME_VMADOTN : RVInstIMEN<0b1111001, 0b011,
                              (outs VRM4:$vd),
                              (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2, GPR:$rs1),
                              "vmadotn", "$vd, $vs1, $vs2, $rs1"> {
@@ -552,7 +606,7 @@ def IME_VMADOTN : RVInstIMEN<0b1111001, 0b000,
 }
 
 let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-def IME_VMADOTNU : RVInstIMEN<0b1111001, 0b011,
+def IME_VMADOTNU : RVInstIMEN<0b1111001, 0b000,
                               (outs VRM4:$vd),
                               (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2, GPR:$rs1),
                               "vmadotnu", "$vd, $vs1, $vs2, $rs1"> {
@@ -560,7 +614,7 @@ def IME_VMADOTNU : RVInstIMEN<0b1111001, 0b011,
 }
 
 let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-def IME_VMADOTNSU : RVInstIMEN<0b1111001, 0b001,
+def IME_VMADOTNSU : RVInstIMEN<0b1111001, 0b010,
                                (outs VRM4:$vd),
                                (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2, GPR:$rs1),
                                "vmadotnsu", "$vd, $vs1, $vs2, $rs1"> {
@@ -568,7 +622,7 @@ def IME_VMADOTNSU : RVInstIMEN<0b1111001, 0b001,
 }
 
 let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
-def IME_VMADOTNUS : RVInstIMEN<0b1111001, 0b010,
+def IME_VMADOTNUS : RVInstIMEN<0b1111001, 0b001,
                                (outs VRM4:$vd),
                                (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2, GPR:$rs1),
                                "vmadotnus", "$vd, $vs1, $vs2, $rs1"> {
