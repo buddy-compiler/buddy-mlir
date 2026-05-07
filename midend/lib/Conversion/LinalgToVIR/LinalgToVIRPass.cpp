@@ -309,7 +309,7 @@ static LogicalResult computeShapeAndVL(linalg::LinalgOp linalgOp,
 static buddy::vir::SetVLOp createSetVLRegion(PatternRewriter &rewriter,
                                              Location loc, Value vlVal);
 
-enum class SupportedReduceCombinerKind { AddF, MaxNumF };
+enum class SupportedReduceCombinerKind { AddF, MaxNumF, MaxSI };
 
 static FailureOr<SupportedReduceCombinerKind>
 getSupportedReduceCombinerKind(linalg::ReduceOp reduceOp,
@@ -335,6 +335,8 @@ getSupportedReduceCombinerKind(linalg::ReduceOp reduceOp,
     return SupportedReduceCombinerKind::AddF;
   if (isa<arith::MaxNumFOp>(combiner))
     return SupportedReduceCombinerKind::MaxNumF;
+  if (isa<arith::MaxSIOp>(combiner))
+    return SupportedReduceCombinerKind::MaxSI;
   return failure();
 }
 
@@ -353,16 +355,33 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
   auto outTy = dyn_cast<MemRefType>(init.getType());
   if (!inTy || !outTy)
     return rewriter.notifyMatchFailure(reduceOp, "expected memref operands");
-  if (!inTy.getElementType().isF32() || !outTy.getElementType().isF32())
+  Type inElemTy = inTy.getElementType();
+  Type outElemTy = outTy.getElementType();
+  if (inElemTy != outElemTy)
     return rewriter.notifyMatchFailure(reduceOp,
-                                       "only f32 reduction supported");
+                                       "input/output element types must match");
 
   auto combinerKind = getSupportedReduceCombinerKind(reduceOp, rewriter);
   if (failed(combinerKind))
     return rewriter.notifyMatchFailure(
         reduceOp,
-        "unsupported reduce combiner (expected single-op addf/maxnumf with "
-        "linalg.yield)");
+        "unsupported reduce combiner (expected single-op addf/maxnumf/maxsi "
+        "with linalg.yield)");
+
+  switch (*combinerKind) {
+  case SupportedReduceCombinerKind::AddF:
+  case SupportedReduceCombinerKind::MaxNumF:
+    if (!isa<FloatType>(inElemTy))
+      return rewriter.notifyMatchFailure(
+          reduceOp,
+          "floating-point reduce combiner requires float element type");
+    break;
+  case SupportedReduceCombinerKind::MaxSI:
+    if (!isa<IntegerType>(inElemTy))
+      return rewriter.notifyMatchFailure(
+          reduceOp, "arith.maxsi reduction requires integer element type");
+    break;
+  }
 
   ArrayRef<int64_t> dims = reduceOp.getDimensions();
 
@@ -377,6 +396,8 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
       return "add";
     case SupportedReduceCombinerKind::MaxNumF:
       return "maxnum";
+    case SupportedReduceCombinerKind::MaxSI:
+      return "maxsi";
     }
     llvm_unreachable("unknown reduce combiner");
   };

@@ -639,9 +639,11 @@ private:
                 out = builder.create<arith::AddFOp>(loc, input, acc);
               } else if (kind == "maxnum") {
                 out = builder.create<arith::MaxNumFOp>(loc, input, acc);
+              } else if (kind == "maxsi") {
+                out = builder.create<arith::MaxSIOp>(loc, input, acc);
               } else {
                 op.emitError(
-                    "unsupported vir.reduce kind (expected add/maxnum)");
+                    "unsupported vir.reduce kind (expected add/maxnum/maxsi)");
                 return;
               }
               virSymbolTable[op.getResult()] = out;
@@ -659,8 +661,11 @@ private:
               combineKind = vector::CombiningKind::ADD;
             } else if (kind == "maxnum") {
               combineKind = vector::CombiningKind::MAXNUMF;
+            } else if (kind == "maxsi") {
+              combineKind = vector::CombiningKind::MAXSI;
             } else {
-              op.emitError("unsupported vir.reduce kind (expected add/maxnum)");
+              op.emitError(
+                  "unsupported vir.reduce kind (expected add/maxnum/maxsi)");
               return;
             }
 

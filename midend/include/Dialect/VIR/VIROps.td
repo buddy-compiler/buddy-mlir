@@ -140,7 +140,26 @@ def VIR_FMAOp : VIR_Op<"fma", [AllTypesMatch<["lhs", "rhs", "acc", "result"]>]> 
   let assemblyFormat = "$lhs `,` $rhs `,` $acc attr-dict `:` qualified(type($lhs))";
 }
 
-def VIR_ReduceOp : VIR_Op<"reduce"> {
+def VIR_ReduceOp : VIR_Op<"reduce", [
+    AllTypesMatch<["acc", "result"]>,
+    TypesMatchWith<"accumulator/result type matches input element type",
+                   "input", "acc",
+                   "::llvm::cast<::buddy::vir::DynamicVectorType>($_self)"
+                   ".getElementType()">,
+    PredOpTrait<"reduce kind matches the input element type family", CPred<[{
+      [](::mlir::Operation &op) {
+        auto reduceOp = ::llvm::cast<::buddy::vir::ReduceOp>(&op);
+        ::mlir::Type elementType =
+            reduceOp.getInput().getType().getElementType();
+        ::llvm::StringRef kind = reduceOp.getKind();
+        if (kind == "add" || kind == "maxnum")
+          return ::llvm::isa<::mlir::FloatType>(elementType);
+        if (kind == "maxsi")
+          return ::llvm::isa<::mlir::IntegerType>(elementType);
+        return false;
+      }($_op)
+    }]>>
+  ]> {
   let summary = "Horizontal reduction for dynamic vector IR.";
   let description = [{
     The `reduce` operation reduces a dynamic vector into a scalar using a
@@ -149,13 +168,14 @@ def VIR_ReduceOp : VIR_Op<"reduce"> {
     v1 semantics:
     - `kind = \"add\"`    : floating-point sum reduction
     - `kind = \"maxnum\"` : floating-point maxnum reduction
+    - `kind = \"maxsi\"`  : signed integer max reduction
   }];
   let arguments = (ins
     VIR_DynamicVectorType:$input,
-    AnyFloat:$acc,
+    AnyTypeOf<[AnyInteger, AnyFloat]>:$acc,
     StrAttr:$kind
   );
-  let results = (outs AnyFloat:$result);
+  let results = (outs AnyTypeOf<[AnyInteger, AnyFloat]>:$result);
 
   let assemblyFormat = "$input `,` $acc attr-dict `:` qualified(type($input))"
                        " `,` type($acc) `->` type($result)";
