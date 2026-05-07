@@ -11,7 +11,6 @@
 // so the rewrite preserves runtime semantics while drastically reducing
 // the number of regions handed to OpenMPIRBuilder during translation.
 //
-// See docs/superpowers/specs/2026-04-21-flatten-nested-omp-parallel-design.md
 //
 //===----------------------------------------------------------------------===//
 
