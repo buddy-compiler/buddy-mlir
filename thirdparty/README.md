@@ -44,8 +44,13 @@ P150A flow. It is not required for normal Buddy builds.
 Initialize it only when working on Tenstorrent support:
 
 ```
-$ git submodule update --init --depth 1 thirdparty/tt-mlir
+$ git submodule sync thirdparty/tt-mlir
+$ git submodule update --init thirdparty/tt-mlir
+$ git -C thirdparty/tt-mlir fetch --tags --force
 ```
+
+Do not use a shallow checkout for `thirdparty/tt-mlir`; its CMake version
+logic uses `git describe` and needs tag history.
 
 Build and runtime setup are documented in:
 
