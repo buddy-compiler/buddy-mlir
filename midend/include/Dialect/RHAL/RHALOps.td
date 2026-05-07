@@ -33,7 +33,8 @@ class RHAL_Op<string mnemonic, list<Trait> traits = []> :
 //
 // Syntax:
 //   rhal.module @name attributes {version = "...", model_name = "...",
-//                                  vocab_uri = "..."} {
+//                                  vocab_uri = "...",
+//                                  runner_uri = "..."} {
 //     ... rhal.constant, rhal.codeobj, rhal.buffer, rhal.func ops ...
 //   }
 //===----------------------------------------------------------------------===//
@@ -51,7 +52,16 @@ def RHAL_ModuleOp : RHAL_Op<"module", [
     SymbolNameAttr:$sym_name,
     OptionalAttr<StrAttr>:$version,
     OptionalAttr<StrAttr>:$model_name,
-    OptionalAttr<StrAttr>:$vocab_uri
+    OptionalAttr<StrAttr>:$vocab_uri,
+    OptionalAttr<StrAttr>:$runner_uri,
+    OptionalAttr<StrAttr>:$artifacts_uri,
+    OptionalAttr<StrAttr>:$tokenizer_uri,
+    OptionalAttr<StrAttr>:$official_reference_uri,
+    OptionalAttr<StrAttr>:$official_trace_uri,
+    OptionalAttr<StrAttr>:$max_cache_len,
+    OptionalAttr<StrAttr>:$ignore_system_desc,
+    OptionalAttr<StrAttr>:$ignore_eos,
+    OptionalAttr<StrAttr>:$device_token_loop
   );
   let regions = (region SizedRegion<1>:$body);
 

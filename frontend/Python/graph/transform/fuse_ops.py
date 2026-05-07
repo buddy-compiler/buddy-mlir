@@ -214,70 +214,77 @@ def gqa_attention_fusion(graph: Graph):
 
 
 def gqa_attention_fusion_check(graph: Graph):
+    """Detect GQA SDPA + KV-cache-update subgraph and fuse it.
+
+    Two equivalent KV-write patterns are relevant for LLMs:
+
+    1. ``View <- Clone <- Expand <- Unsqueeze <- IndexPut`` from the native
+       static-cache lowering.
+    2. ``View <- Clone <- Expand <- Unsqueeze <- Where`` from the transformer
+       StaticCache monkey-patch used while aten index-copy support catches up.
+
+    Only the IndexPut path is enabled here. The Where path is graph-equivalent,
+    but on P150A it currently lowers to a TTNN decode kernel that can hit an
+    SFPI compiler issue. Re-enable it once the backend side is fixed.
+    """
     cnt = 1
     for op in graph.body:
         # === GQA Attention pattern ===
-        if isinstance(op, ScaledDotProductFlashAttentionForCpuOp):
-            # get KV and View nodes
-            k_view_node = graph.node_table.get(op._parents[1], None)
-            v_view_node = graph.node_table.get(op._parents[2], None)
+        if not isinstance(op, ScaledDotProductFlashAttentionForCpuOp):
+            continue
 
-            if not (
-                isinstance(k_view_node, ViewOp)
-                and isinstance(v_view_node, ViewOp)
-            ):
-                continue
+        k_view_node = graph.node_table.get(op._parents[1], None)
+        v_view_node = graph.node_table.get(op._parents[2], None)
+        if not (
+            isinstance(k_view_node, ViewOp)
+            and isinstance(v_view_node, ViewOp)
+        ):
+            continue
 
-            # trace Key branch for torch2.10:
-            # View <- Clone <- Expand <- Unsqueeze <- IndexPut
-            k_clone = graph.node_table.get(k_view_node._parents[0], None)
-            if not isinstance(k_clone, CloneOp):
-                continue
-            k_expand = graph.node_table.get(k_clone._parents[0], None)
-            if not isinstance(k_expand, ExpandOp):
-                continue
-            k_cache_unsqueeze = graph.node_table.get(k_expand._parents[0], None)
-            if not isinstance(k_cache_unsqueeze, UnsqueezeOp):
-                continue
-            k_index_put = graph.node_table.get(
-                k_cache_unsqueeze._parents[0], None
-            )
-            if not isinstance(k_index_put, IndexPutOp):
-                continue
+        # Key branch: View <- Clone <- Expand <- Unsqueeze <- IndexPut
+        k_clone = graph.node_table.get(k_view_node._parents[0], None)
+        if not isinstance(k_clone, CloneOp):
+            continue
+        k_expand = graph.node_table.get(k_clone._parents[0], None)
+        if not isinstance(k_expand, ExpandOp):
+            continue
+        k_cache_unsqueeze = graph.node_table.get(k_expand._parents[0], None)
+        if not isinstance(k_cache_unsqueeze, UnsqueezeOp):
+            continue
+        k_index_put = graph.node_table.get(k_cache_unsqueeze._parents[0], None)
+        if not isinstance(k_index_put, IndexPutOp):
+            continue
 
-            # trace Value branch for torch2.10:
-            # View <- Clone <- Expand <- Unsqueeze <- IndexPut
-            v_clone = graph.node_table.get(v_view_node._parents[0], None)
-            if not isinstance(v_clone, CloneOp):
-                continue
-            v_expand = graph.node_table.get(v_clone._parents[0], None)
-            if not isinstance(v_expand, ExpandOp):
-                continue
-            v_cache_unsqueeze = graph.node_table.get(v_expand._parents[0], None)
-            if not isinstance(v_cache_unsqueeze, UnsqueezeOp):
-                continue
-            v_index_put = graph.node_table.get(
-                v_cache_unsqueeze._parents[0], None
-            )
-            if not isinstance(v_index_put, IndexPutOp):
-                continue
-            replace_gqa_attention_with_fused_op(
-                graph,
-                op,
-                k_view_node,
-                k_clone,
-                k_expand,
-                k_cache_unsqueeze,
-                k_index_put,
-                v_view_node,
-                v_clone,
-                v_expand,
-                v_cache_unsqueeze,
-                v_index_put,
-                "gqa_attention_fusion",
-                unique_index=cnt,
-            )
-            cnt += 1
+        # Value branch: View <- Clone <- Expand <- Unsqueeze <- IndexPut
+        v_clone = graph.node_table.get(v_view_node._parents[0], None)
+        if not isinstance(v_clone, CloneOp):
+            continue
+        v_expand = graph.node_table.get(v_clone._parents[0], None)
+        if not isinstance(v_expand, ExpandOp):
+            continue
+        v_cache_unsqueeze = graph.node_table.get(v_expand._parents[0], None)
+        if not isinstance(v_cache_unsqueeze, UnsqueezeOp):
+            continue
+        v_index_put = graph.node_table.get(v_cache_unsqueeze._parents[0], None)
+        if not isinstance(v_index_put, IndexPutOp):
+            continue
+        replace_gqa_attention_with_fused_op(
+            graph,
+            op,
+            k_view_node,
+            k_clone,
+            k_expand,
+            k_cache_unsqueeze,
+            k_index_put,
+            v_view_node,
+            v_clone,
+            v_expand,
+            v_cache_unsqueeze,
+            v_index_put,
+            "gqa_attention_fusion",
+            unique_index=cnt,
+        )
+        cnt += 1
 
 
 def replace_gqa_attention_with_fused_op(

@@ -135,6 +135,8 @@ class Graph:
         self._fake_params = []
         self.device = device
         self._imported_module = None
+        self._ttir_module = None
+        self._tt_ctx = None
         self._params_ref = None
         self._verbose = verbose
         self._ops_registry = ops_registry
@@ -146,6 +148,11 @@ class Graph:
         self.op_groups: dict[str, list[Op]] = {}
         self.group_map_device: dict[str, DeviceType] = {}
         self._enable_external_calls = enable_external_calls
+
+    @property
+    def ttir_module(self):
+        """TTIR ``ttmlir.ir.Module`` after ``lower_to_ttir()``; else ``None``."""
+        return self._ttir_module
 
     @property
     def body(self):
@@ -597,6 +604,37 @@ class Graph:
             output_dtypes.append(rt.as_ctype(np_type))
         self._output_descriptor = make_output_memref_descriptor(
             output_ranks, output_dtypes
+        )
+
+    def lower_to_ttir(
+        self,
+        ops_registry=None,
+        *,
+        element_dtype: str = "bf16",
+    ):
+        """
+        Lower the graph to a TTIR MLIR module using the ``ttmlir`` Python bindings.
+
+        Does not populate ``self._imported_module`` (Buddy/TOSA/etc.); the result
+        is stored in ``self._ttir_module``. Requires ``ttmlir`` on ``PYTHONPATH``.
+
+        Args:
+            ops_registry: Like ``tosa.ops_registry``; defaults to
+                ``buddy.compiler.ops.ttir.ops_registry``.
+            element_dtype: ``"bf16"`` (default) or ``"f32"`` for tensor types.
+        """
+        from ..ops.ttir import ops_registry as default_ttir_registry
+        from .ttir_import import build_ttir_module_for_graph
+
+        reg = ops_registry if ops_registry is not None else default_ttir_registry
+        self._ttir_module, self._tt_ctx = build_ttir_module_for_graph(
+            self._body,
+            self.params_shapes,
+            self.inputs_shapes,
+            self._func_name,
+            reg,
+            verbose=self._verbose,
+            element_dtype=element_dtype,
         )
 
     def lower_to_llvm_ir(self):

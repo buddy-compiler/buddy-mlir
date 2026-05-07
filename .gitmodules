@@ -11,3 +11,8 @@
 	path = thirdparty/riscv-gnu-toolchain
 	url = https://github.com/riscv-collab/riscv-gnu-toolchain.git
 	shallow = false
+[submodule "thirdparty/tt-mlir"]
+	path = thirdparty/tt-mlir
+	url = https://github.com/tenstorrent/tt-mlir.git
+	branch = main
+	shallow = true

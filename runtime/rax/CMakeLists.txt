@@ -1,7 +1,8 @@
-# Locate flatbuffers headers from system package (libflatbuffers-dev).
+# Locate FlatBuffers headers. Prefer the same prefix as flatc, or the active
+# tt-mlir toolchain, so generated RAX headers match the headers used by C++.
 find_path(FLATBUFFERS_INCLUDE_DIR flatbuffers/flatbuffers.h
-  HINTS /usr/include /usr/local/include
-  DOC "FlatBuffers include directory (from libflatbuffers-dev)"
+  HINTS ${BUDDY_FLATBUFFERS_INCLUDE_HINTS} /usr/include /usr/local/include
+  DOC "FlatBuffers include directory"
 )
 if(NOT FLATBUFFERS_INCLUDE_DIR)
   message(FATAL_ERROR

@@ -31,6 +31,9 @@
 #ifdef BUDDY_CLI_HAVE_DEEPSEEK_R1_MODEL
 #include "buddy/runtime/models/DeepSeekR1Runner.h"
 #endif
+#ifdef BUDDY_CLI_HAVE_LLAMA31_TT_MODEL
+#include "buddy/runtime/models/Llama31TTRunner.h"
+#endif
 
 #include <cerrno>
 #include <cstring>
@@ -152,10 +155,23 @@ makeRunner(const std::string &modelName) {
   if (modelName.rfind("deepseek_r1", 0) == 0)
     return std::make_unique<buddy::runtime::DeepSeekR1Runner>();
 #endif
+#ifdef BUDDY_CLI_HAVE_LLAMA31_TT_MODEL
+  if (modelName.rfind("llama31_tt", 0) == 0 ||
+      modelName.rfind("llama3.1_tt", 0) == 0)
+    return std::make_unique<buddy::runtime::Llama31TTRunner>();
+#endif
 
-#ifdef BUDDY_CLI_HAVE_DEEPSEEK_R1_MODEL
+#if defined(BUDDY_CLI_HAVE_DEEPSEEK_R1_MODEL) ||                               \
+    defined(BUDDY_CLI_HAVE_LLAMA31_TT_MODEL)
   const char *unknownHint =
-      "  Supported models: deepseek_r1\n"
+      "  Supported models: "
+#ifdef BUDDY_CLI_HAVE_DEEPSEEK_R1_MODEL
+      "deepseek_r1 "
+#endif
+#ifdef BUDDY_CLI_HAVE_LLAMA31_TT_MODEL
+      "llama31_tt "
+#endif
+      "\n"
       "  To add a new model, implement InferenceRunner and register it here.";
 #else
   const char *unknownHint =

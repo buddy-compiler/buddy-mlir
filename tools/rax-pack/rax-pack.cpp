@@ -380,10 +380,21 @@ int main(int argc, char **argv) {
     const std::string moduleName = rhalMod.getSymName().str();
     std::string modelNameAttr;
     std::string vocabUriAttr;
+    std::vector<std::pair<std::string, std::string>> extraModuleAttrs;
     if (auto v = rhalMod.getModelName())
       modelNameAttr = v->str();
     if (auto v = rhalMod.getVocabUri())
       vocabUriAttr = v->str();
+
+    for (auto namedAttr : rhalMod->getAttrs()) {
+      const std::string key = namedAttr.getName().str();
+      if (key == "sym_name" || key == "version" || key == "model_name" ||
+          key == "vocab_uri")
+        continue;
+      if (auto stringAttr =
+              mlir::dyn_cast<mlir::StringAttr>(namedAttr.getValue()))
+        extraModuleAttrs.emplace_back(key, stringAttr.getValue().str());
+    }
 
     // Version
     uint16_t verMaj = 0, verMin = 1, verPat = 0;
@@ -546,6 +557,9 @@ int main(int argc, char **argv) {
     if (!vocabUriAttr.empty())
       modAttrs.push_back(CreateKV(b, b.CreateString("vocab_uri"),
                                   b.CreateString(vocabUriAttr)));
+    for (const auto &attr : extraModuleAttrs)
+      modAttrs.push_back(
+          CreateKV(b, b.CreateString(attr.first), b.CreateString(attr.second)));
 
     // Buffers
     std::vector<flatbuffers::Offset<BufferBinding>> fbBufs;
