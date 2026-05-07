@@ -133,7 +133,7 @@ export BUDDY_TT_CONDA_ENV=buddy-ttmlir-p150a
 export BUDDY_BUILD=/tmp/buddy-build-tt-p150a
 export TTMLIR_SOURCE=$PWD/thirdparty/tt-mlir
 export TTMLIR_BUILD=/tmp/buddy-ttmlir-build
-source examples/BuddyLlama31-8B/_env.sh
+source models/llama31_tt/_env.sh
 ```
 
 `BUDDY_ENABLE_TENSTORRENT=ON` checks that:
@@ -156,10 +156,10 @@ Given prebuilt Llama 3.1 TTNN flatbuffers and chat artifacts:
 
 ```bash
 python3 tools/buddy-codegen/gen_tenstorrent_manifest.py \
-  --prefill-ttnn examples/BuddyLlama31-8B/ttir_out_static/llama31_prefill_static_argattrs.ttnn \
-  --decode-ttnn examples/BuddyLlama31-8B/ttir_out_static/llama31_decode_static_argattrs.ttnn \
-  --artifacts examples/BuddyLlama31-8B/chat_artifacts \
-  --runner examples/BuddyLlama31-8B/llama31_chat_run.py \
+  --prefill-ttnn models/llama31_tt/ttir_out_static/llama31_prefill_static_argattrs.ttnn \
+  --decode-ttnn models/llama31_tt/ttir_out_static/llama31_decode_static_argattrs.ttnn \
+  --artifacts models/llama31_tt/chat_artifacts \
+  --runner models/llama31_tt/llama31_chat_run.py \
   --max-cache-len 1024 \
   -o build/models/llama31_tt/llama31_tt.rhal.mlir
 
@@ -172,10 +172,10 @@ integer token id, add the manifest flags consumed by `buddy-cli`:
 
 ```bash
 python3 tools/buddy-codegen/gen_tenstorrent_manifest.py \
-  --prefill-ttnn examples/BuddyLlama31-8B/ttir_out_static/llama31_prefill_static_argattrs_argmax.ttnn \
-  --decode-ttnn examples/BuddyLlama31-8B/ttir_out_static/llama31_decode_static_argattrs_argmax.ttnn \
-  --artifacts examples/BuddyLlama31-8B/chat_artifacts_argmax \
-  --runner examples/BuddyLlama31-8B/llama31_chat_run.py \
+  --prefill-ttnn models/llama31_tt/ttir_out_static/llama31_prefill_static_argattrs_argmax.ttnn \
+  --decode-ttnn models/llama31_tt/ttir_out_static/llama31_decode_static_argattrs_argmax.ttnn \
+  --artifacts models/llama31_tt/chat_artifacts_argmax \
+  --runner models/llama31_tt/llama31_chat_run.py \
   --max-cache-len 1024 \
   --device-token-loop \
   --ignore-eos \
@@ -207,7 +207,7 @@ TRANSFORMERS_OFFLINE=1 \
 MAX_CACHE_LEN=1024 \
 MAX_NEW_TOKENS=4 \
 RUN_WITH_BUDDY_CLI=1 \
-examples/BuddyLlama31-8B/run_llama31_p150_chat.sh
+models/llama31_tt/run_llama31_p150_chat.sh
 ```
 
 ## Notes

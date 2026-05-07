@@ -236,8 +236,7 @@ def gqa_attention_fusion_check(graph: Graph):
         k_view_node = graph.node_table.get(op._parents[1], None)
         v_view_node = graph.node_table.get(op._parents[2], None)
         if not (
-            isinstance(k_view_node, ViewOp)
-            and isinstance(v_view_node, ViewOp)
+            isinstance(k_view_node, ViewOp) and isinstance(v_view_node, ViewOp)
         ):
             continue
 

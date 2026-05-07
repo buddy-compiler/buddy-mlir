@@ -1,26 +1,37 @@
 # ===- ttir_llm.py ------------------------------------------------------------
 #
-# Buddy Graph → TTIR lowering for LLM-style ops (transformer / attention / KV).
-# Merged into ``buddy.compiler.ops.ttir.ops_registry`` with CNN entries taking
-# precedence on name collisions (see ``ttir.py``).
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# ===---------------------------------------------------------------------------
+#
+# Lowers LLM-style Buddy Graph ops to TTIR dialect ops.
 #
 # ===---------------------------------------------------------------------------
 
 from __future__ import annotations
 
 import os
-from typing import List
 
+from ..graph.type import TensorDType
 from .ttir import (
     TTIRSandbox,
     _bool_attr,
     _cast_to_sandbox_elt,
     _i32_attr,
+    _ranked_type,
     _reshape_to,
     _tensor_meta_shape_dtype,
-    _ranked_type,
 )
-from ..graph.type import TensorDType
 
 
 def _mlir_element_type_for_tensor_dtype(ctx, td, default_float_elt):
@@ -58,22 +69,18 @@ def _scalar_promote(arg, peer, sb: TTIRSandbox):
     from ttmlir.ir import (
         DenseElementsAttr,
         FloatAttr,
+        IntegerAttr,
         IntegerType,
         RankedTensorType,
-        IntegerAttr,
     )
 
     sh = list(peer.type.shape)
     elt = peer.type.element_type
     rt_s = RankedTensorType.get(sh, elt)
     if isinstance(elt, IntegerType):
-        attr = DenseElementsAttr.get_splat(
-            rt_s, IntegerAttr.get(elt, int(arg))
-        )
+        attr = DenseElementsAttr.get_splat(rt_s, IntegerAttr.get(elt, int(arg)))
     else:
-        attr = DenseElementsAttr.get_splat(
-            rt_s, FloatAttr.get(elt, float(arg))
-        )
+        attr = DenseElementsAttr.get_splat(rt_s, FloatAttr.get(elt, float(arg)))
     return ttir.constant(rt_s, attr, loc=sb.loc)
 
 
@@ -137,7 +144,9 @@ def _broadcast_to_result_shape(value, result_type, sb: TTIRSandbox):
                 if dim != len(out_shape) - 1:
                     break
                 cur_shape[dim] = outs
-                step_type = RankedTensorType.get(cur_shape, value.type.element_type)
+                step_type = RankedTensorType.get(
+                    cur_shape, value.type.element_type
+                )
                 value = ttir.repeat_interleave(
                     step_type, value, int(outs), int(dim), loc=sb.loc
                 )
@@ -163,16 +172,24 @@ def _compare_operands(symbol_table, a0, a1, sb: TTIRSandbox):
         b_elt = b.type.element_type
         if str(a_elt) == str(b_elt):
             return a, b
-        if isinstance(a_elt, IntegerType) and not isinstance(b_elt, IntegerType):
-            b_rt = RankedTensorType.get([int(size) for size in b.type.shape], a_elt)
+        if isinstance(a_elt, IntegerType) and not isinstance(
+            b_elt, IntegerType
+        ):
+            b_rt = RankedTensorType.get(
+                [int(size) for size in b.type.shape], a_elt
+            )
             return a, ttir.typecast(
                 b_rt,
                 b,
                 conservative_folding=False,
                 loc=sb.loc,
             )
-        if isinstance(b_elt, IntegerType) and not isinstance(a_elt, IntegerType):
-            a_rt = RankedTensorType.get([int(size) for size in a.type.shape], b_elt)
+        if isinstance(b_elt, IntegerType) and not isinstance(
+            a_elt, IntegerType
+        ):
+            a_rt = RankedTensorType.get(
+                [int(size) for size in a.type.shape], b_elt
+            )
             return ttir.typecast(
                 a_rt,
                 a,
@@ -231,7 +248,11 @@ def flash_attention_for_cpu_prefill_op(node, symbol_table, sb: TTIRSandbox):
     if isinstance(tm, dict):
         out_sh = list(tm["shape"][0])
         lse_sh = list(tm["shape"][1]) if len(tm["shape"]) > 1 else [1]
-        lse_dt = tm["dtype"][1] if isinstance(tm["dtype"], (list, tuple)) else "float32"
+        lse_dt = (
+            tm["dtype"][1]
+            if isinstance(tm["dtype"], (list, tuple))
+            else "float32"
+        )
     else:
         out_sh = list(tm.shape)
         lse_sh = [1]
@@ -259,9 +280,7 @@ def flash_attention_for_cpu_prefill_op(node, symbol_table, sb: TTIRSandbox):
     TILE = 32
     q_shape = list(q.type.shape)
     use_decode_workaround = (
-        len(q_shape) == 4
-        and int(q_shape[-2]) == 1
-        and mask_v is not None
+        len(q_shape) == 4 and int(q_shape[-2]) == 1 and mask_v is not None
     )
 
     if use_decode_workaround:
@@ -345,10 +364,7 @@ def gqa_attention_fused_op(node, symbol_table, sb: TTIRSandbox):
     tm = node.tensor_meta
     if isinstance(tm, dict):
         sh = tm["shape"]
-        if (
-            len(sh) > 0
-            and isinstance(sh[0], (list, tuple))
-        ):
+        if len(sh) > 0 and isinstance(sh[0], (list, tuple)):
             out_shape = list(sh[0])
         else:
             out_shape = list(sh)
@@ -373,16 +389,14 @@ def gqa_attention_fused_op(node, symbol_table, sb: TTIRSandbox):
     else:
         new_q_shape = q_shape
 
-    if (
-        mask_v is not None
-        and len(out_shape) == 4
-        and out_shape[2] == 1
-    ):
+    if mask_v is not None and len(out_shape) == 4 and out_shape[2] == 1:
         m_shape = list(mask_v.type.shape)
         if len(m_shape) == 4 and m_shape[2] != out_shape[1]:
             new_m_shape = [m_shape[0], m_shape[1], out_shape[1], m_shape[3]]
             if new_m_shape != m_shape:
-                m_ty = RankedTensorType.get(new_m_shape, mask_v.type.element_type)
+                m_ty = RankedTensorType.get(
+                    new_m_shape, mask_v.type.element_type
+                )
                 bcast = [1] * 4
                 if m_shape[2] == 1 and new_m_shape[2] != 1:
                     bcast[2] = new_m_shape[2]
@@ -418,7 +432,9 @@ def index_put_op(node, symbol_table, sb: TTIRSandbox):
     from ttmlir.dialects import ttir
 
     if len(node.args) < 3:
-        raise NotImplementedError(f"IndexPutOp TTIR: expected >=3 args, got {node.args!r}")
+        raise NotImplementedError(
+            f"IndexPutOp TTIR: expected >=3 args, got {node.args!r}"
+        )
     cache = _v(symbol_table, node.args[0])
     val = _v(symbol_table, node.args[2])
     spec = node.args[1]
@@ -431,7 +447,9 @@ def index_put_op(node, symbol_table, sb: TTIRSandbox):
     update_index = _maybe_i32_index(_v(symbol_table, idx_names[0]), sb)
     out_ty = cache.type
     bo = _i32_attr(0, sb)
-    return ttir.update_cache(out_ty, cache, val, update_index, batch_offset=bo, loc=sb.loc)
+    return ttir.update_cache(
+        out_ty, cache, val, update_index, batch_offset=bo, loc=sb.loc
+    )
 
 
 def fill_cache_op(node, symbol_table, sb: TTIRSandbox):
@@ -491,16 +509,32 @@ def embedding_op(node, symbol_table, sb: TTIRSandbox):
             flat_indices *= size
 
         weight_3d_shape = [1] + weight_shape
-        weight_3d_rt = RankedTensorType.get(weight_3d_shape, weight.type.element_type)
-        weight_3d = ttir.reshape(weight_3d_rt, weight, weight_3d_shape, loc=sb.loc)
-        weight_2d_rt = RankedTensorType.get(weight_shape, weight.type.element_type)
-        weight_2d = ttir.reshape(weight_2d_rt, weight_3d, weight_shape, loc=sb.loc)
+        weight_3d_rt = RankedTensorType.get(
+            weight_3d_shape, weight.type.element_type
+        )
+        weight_3d = ttir.reshape(
+            weight_3d_rt, weight, weight_3d_shape, loc=sb.loc
+        )
+        weight_2d_rt = RankedTensorType.get(
+            weight_shape, weight.type.element_type
+        )
+        weight_2d = ttir.reshape(
+            weight_2d_rt, weight_3d, weight_shape, loc=sb.loc
+        )
 
         index_3d_shape = [1] + index_shape
-        index_3d_rt = RankedTensorType.get(index_3d_shape, indices.type.element_type)
-        index_3d = ttir.reshape(index_3d_rt, indices, index_3d_shape, loc=sb.loc)
-        index_flat_rt = RankedTensorType.get([flat_indices], indices.type.element_type)
-        index_flat = ttir.reshape(index_flat_rt, index_3d, [flat_indices], loc=sb.loc)
+        index_3d_rt = RankedTensorType.get(
+            index_3d_shape, indices.type.element_type
+        )
+        index_3d = ttir.reshape(
+            index_3d_rt, indices, index_3d_shape, loc=sb.loc
+        )
+        index_flat_rt = RankedTensorType.get(
+            [flat_indices], indices.type.element_type
+        )
+        index_flat = ttir.reshape(
+            index_flat_rt, index_3d, [flat_indices], loc=sb.loc
+        )
         ui32 = IntegerType.get_unsigned(32, sb.ctx)
         index_ui32_rt = RankedTensorType.get([flat_indices], ui32)
         index_ui32 = ttir.typecast(
@@ -697,7 +731,7 @@ def mean_op(node, symbol_table, sb: TTIRSandbox):
     keepdim = bool(node.args[2]) if len(node.args) > 2 else False
     if not isinstance(dims, (list, tuple)):
         dims = [dims]
-    dim_list: List[int] = []
+    dim_list: list[int] = []
     rank = len(x.type.shape)
     for d in dims:
         di = int(d)
@@ -708,7 +742,9 @@ def mean_op(node, symbol_table, sb: TTIRSandbox):
     if os.environ.get("BUDDY_TTIR_MEAN_AS_SUM") == "1":
         dim_set = set(dim_list)
         reduced_shape = [
-            int(size) for idx, size in enumerate(x.type.shape) if idx not in dim_set
+            int(size)
+            for idx, size in enumerate(x.type.shape)
+            if idx not in dim_set
         ]
         reduce_elems = 1
         for idx in dim_set:
@@ -764,7 +800,7 @@ def argmax_op(node, symbol_table, sb: TTIRSandbox):
         dim_arg = [di]
 
     if dim_arg is None:
-        out_shape: List[int] = [1] * rank if keepdim else []
+        out_shape: list[int] = [1] * rank if keepdim else []
     else:
         d = dim_arg[0]
         if keepdim:
@@ -789,7 +825,9 @@ def argmax_op(node, symbol_table, sb: TTIRSandbox):
 
     if isinstance(expected_elt, IntegerType) and expected_elt.width != 32:
         cast_rt = RankedTensorType.get(out_shape, expected_elt)
-        res = ttir.typecast(cast_rt, res, conservative_folding=False, loc=sb.loc)
+        res = ttir.typecast(
+            cast_rt, res, conservative_folding=False, loc=sb.loc
+        )
 
     if expected_shape != out_shape:
         res = _reshape_to(res, expected_shape, node, sb)
@@ -930,7 +968,9 @@ def concat_op(node, symbol_table, sb: TTIRSandbox):
     if dim < 0:
         dim += len(out_shape)
     if not non_empty:
-        raise NotImplementedError("concat TTIR: all operands are empty tensors.")
+        raise NotImplementedError(
+            "concat TTIR: all operands are empty tensors."
+        )
     if len(non_empty) == 1:
         only = non_empty[0]
         if [int(d) for d in only.type.shape] == out_shape:
@@ -1025,7 +1065,9 @@ def expand_op(node, symbol_table, sb: TTIRSandbox):
 
     x = _v(symbol_table, node.args[0])
     preserve_bool = _should_preserve_bool_tensor(x)
-    preserve_shape_types = os.environ.get("BUDDY_TTIR_PRESERVE_SHAPE_TYPES") == "1"
+    preserve_shape_types = (
+        os.environ.get("BUDDY_TTIR_PRESERVE_SHAPE_TYPES") == "1"
+    )
     if not preserve_bool and not preserve_shape_types:
         x = _cast_to_sandbox_elt(x, sb)
     out_shape, _ = _tensor_meta_shape_dtype(node)
@@ -1127,11 +1169,10 @@ def to_copy_op(node, symbol_table, sb: TTIRSandbox):
 
 
 def tensor_constant_op(node, symbol_table, sb: TTIRSandbox):
-    from ttmlir.dialects import ttir
-    from ttmlir.ir import BF16Type, DenseElementsAttr
-
     import numpy as np
     import torch
+    from ttmlir.dialects import ttir
+    from ttmlir.ir import BF16Type, DenseElementsAttr
 
     rt = _ranked_from_meta(node, sb)
     raw = node.args[0]
@@ -1139,7 +1180,9 @@ def tensor_constant_op(node, symbol_table, sb: TTIRSandbox):
     elt = rt.element_type
     if isinstance(elt, BF16Type) and arr.dtype != np.uint16:
         # Frontend may supply float32 NumPy after folding bfloat16 tensors.
-        t = torch.from_numpy(arr.astype(np.float32, copy=False)).to(torch.bfloat16)
+        t = torch.from_numpy(arr.astype(np.float32, copy=False)).to(
+            torch.bfloat16
+        )
         arr = t.view(torch.uint16).numpy()
     try:
         attr = DenseElementsAttr.get(arr, type=rt)

@@ -1,4 +1,24 @@
 #!/usr/bin/env python3
+# ===- llama31_official_demo_align.py -----------------------------------------
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# ===---------------------------------------------------------------------------
+#
+# Helpers for aligning Buddy Llama runs with the official tt_transformers demo.
+#
+# ===---------------------------------------------------------------------------
+
 """Helpers for aligning Buddy Llama runs with the official tt_transformers demo.
 
 This file deliberately does not run HF as a golden model. It reads the same
@@ -19,18 +39,18 @@ from typing import Any
 import numpy as np
 import torch
 
-
 _THIS_DIR = Path(__file__).resolve().parent
 _REPO_ROOT = _THIS_DIR.parents[1]
 TT_METAL_HOME = Path(
     os.environ.get(
         "TT_METAL_HOME",
-        _REPO_ROOT
-        / "thirdparty/tt-mlir/third_party/tt-metal/src/tt-metal",
+        _REPO_ROOT / "thirdparty/tt-mlir/third_party/tt-metal/src/tt-metal",
     )
 )
 OFFICIAL_BASELINE_DIR = Path(
-    os.environ.get("TT_OFFICIAL_DEMO_LOG_DIR", _THIS_DIR / "official_demo_artifacts")
+    os.environ.get(
+        "TT_OFFICIAL_DEMO_LOG_DIR", _THIS_DIR / "official_demo_artifacts"
+    )
 )
 DEFAULT_MODEL_NAME = "Llama-3.1-8B-Instruct"
 DEFAULT_REFPT = (
@@ -103,7 +123,8 @@ def cmd_baseline(args: argparse.Namespace) -> None:
             "perf_md": str(args.perf_md),
             "summary_csv": str(args.summary_csv),
             "official_demo": str(
-                TT_METAL_HOME / "models/tt_transformers/demo/simple_text_demo.py"
+                TT_METAL_HOME
+                / "models/tt_transformers/demo/simple_text_demo.py"
             ),
         },
     }
@@ -116,7 +137,9 @@ def _load_refpt(refpt: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     split_point = reference_tokens.shape[-1] // 2
     prompt_tokens = reference_tokens[:split_point]
     forced_reference_tokens = reference_tokens[split_point:]
-    top5_tokens = data["top5_tokens"][split_point - 1 :, :].to(torch.int64).cpu()
+    top5_tokens = (
+        data["top5_tokens"][split_point - 1 :, :].to(torch.int64).cpu()
+    )
     if top5_tokens.shape[0] != forced_reference_tokens.shape[0]:
         raise RuntimeError(
             "official reference split mismatch: "
@@ -171,9 +194,12 @@ def _accuracy_from_predictions(
 def cmd_summarize_trace(args: argparse.Namespace) -> None:
     trace = json.loads(args.trace.read_text())
     prompt_tokens, forced_tokens, top5_tokens = _load_refpt(args.refpt)
-    predicted_tokens = np.asarray(trace["accuracy_predicted_tokens"], dtype=np.int64)
+    predicted_tokens = np.asarray(
+        trace["accuracy_predicted_tokens"], dtype=np.int64
+    )
     decoded_input_tokens = np.asarray(
-        [step["input_tokens"][0] for step in trace["decode_steps"]], dtype=np.int64
+        [step["input_tokens"][0] for step in trace["decode_steps"]],
+        dtype=np.int64,
     )
     recomputed_top1, recomputed_top5 = _accuracy_from_predictions(
         predicted_tokens, top5_tokens
@@ -217,7 +243,9 @@ def parse_args() -> argparse.Namespace:
     )
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    p_base = sub.add_parser("baseline", help="Print official PERF.md and local run summary.")
+    p_base = sub.add_parser(
+        "baseline", help="Print official PERF.md and local run summary."
+    )
     p_base.add_argument("--perf-md", type=Path, default=DEFAULT_PERF_MD)
     p_base.add_argument("--summary-csv", type=Path, default=DEFAULT_SUMMARY_CSV)
     p_base.set_defaults(func=cmd_baseline)

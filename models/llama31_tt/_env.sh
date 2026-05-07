@@ -1,11 +1,29 @@
 #!/usr/bin/env bash
-# Shared environment for the Llama-3.1-8B TTIR/Tenstorrent example.
+# ===- _env.sh ------------------------------------------------------------===//
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# ===----------------------------------------------------------------------===//
+#
+# Shared environment for the Llama-3.1-8B TTIR/Tenstorrent model path.
 # Source this file from the repo root or this directory:
 #
-#   source examples/BuddyLlama31-8B/_env.sh
+#   source models/llama31_tt/_env.sh
 #
 # It does not build tt-mlir. See docs/TenstorrentEnvironment.md for the
 # optional tt-mlir/tt-metal setup.
+#
+# ===----------------------------------------------------------------------===//
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"

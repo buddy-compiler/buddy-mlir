@@ -5,7 +5,7 @@ This directory wires prebuilt Llama 3.1 TTNN flatbuffers into the generic
 
 The current integration is intentionally thin: the `.rax` manifest describes
 the Tenstorrent artifacts, and `buddy-cli` dispatches to the Python
-`ttrt.runtime` runner from the Llama TTIR example. That gives RuyiAI Serving a
+`ttrt.runtime` runner in this directory. That gives RuyiAI Serving a
 stable buddy-cli contract first while keeping tt-metal runtime linkage optional.
 
 ## Build
@@ -31,17 +31,17 @@ cmake -S . -B build \
 
 See [TenstorrentEnvironment.md](../../docs/TenstorrentEnvironment.md).
 
-The full compile/package/run wrapper lives in
-[`examples/BuddyLlama31-8B`](../../examples/BuddyLlama31-8B).
+The full capture, lower, package, and run wrapper is
+[`run_llama31_p150_chat.sh`](run_llama31_p150_chat.sh).
 
 ## Package Existing TTNN Artifacts
 
 ```bash
 python3 tools/buddy-codegen/gen_tenstorrent_manifest.py \
-  --prefill-ttnn examples/BuddyLlama31-8B/ttir_out_static/llama31_prefill_static_argattrs.ttnn \
-  --decode-ttnn examples/BuddyLlama31-8B/ttir_out_static/llama31_decode_static_argattrs.ttnn \
-  --artifacts examples/BuddyLlama31-8B/chat_artifacts \
-  --runner examples/BuddyLlama31-8B/llama31_chat_run.py \
+  --prefill-ttnn models/llama31_tt/ttir_out_static/llama31_prefill_static_argattrs.ttnn \
+  --decode-ttnn models/llama31_tt/ttir_out_static/llama31_decode_static_argattrs.ttnn \
+  --artifacts models/llama31_tt/chat_artifacts \
+  --runner models/llama31_tt/llama31_chat_run.py \
   --max-cache-len 1024 \
   -o build/models/llama31_tt/llama31_tt.rhal.mlir
 

@@ -1,6 +1,20 @@
 # ===- buddy-llama31-lower-ttir.py ---------------------------------------------
 #
-# Llama-3.1-8B-Instruct (or any Llama3-shaped model) → Buddy Graph →
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# ===---------------------------------------------------------------------------
+#
+# Llama-3.1-8B-Instruct (or any Llama3-shaped model) to Buddy Graph to
 # ``lower_to_ttir()`` (bf16 TTIR). Mirrors ``buddy-deepseek-r1-lower-ttir.py``
 # so the downstream ``ttmlir-opt`` / ``ttmlir-translate`` / ``ttrt`` pipeline
 # stays identical. Requires ``ttmlir`` on ``PYTHONPATH`` and a HuggingFace
@@ -40,21 +54,19 @@ import sys
 from pathlib import Path
 
 import torch
-from transformers.models.llama import modeling_llama
-
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.graph import GraphDriver
 from buddy.compiler.graph.operation import GQAAttentionFusedOp, PlaceholderOp
+from buddy.compiler.graph.transform import (
+    flash_attention_prefill,
+    gqa_attention_fusion,
+    simply_fuse,
+)
 from buddy.compiler.graph.ttir_import import (
     append_ttir_forward_bf16_f32_packed_i64_runtime,
 )
-from buddy.compiler.graph.transform import (
-    simply_fuse,
-    flash_attention_prefill,
-    gqa_attention_fusion,
-)
 from buddy.compiler.ops import tosa
-
+from transformers.models.llama import modeling_llama
 
 _DEFAULT_MODEL = "meta-llama/Llama-3.1-8B-Instruct"
 _TTIR_CACHE_OPS_LIB = None
@@ -413,12 +425,16 @@ def _register_ttir_cache_ops() -> None:
     global _TTIR_CACHE_OPS_LIB, _TTIR_CACHE_OPS_REGISTERED
     if _TTIR_CACHE_OPS_REGISTERED:
         return
-    if hasattr(torch.ops, "buddy_ttir") and hasattr(torch.ops.buddy_ttir, "fill_cache"):
+    if hasattr(torch.ops, "buddy_ttir") and hasattr(
+        torch.ops.buddy_ttir, "fill_cache"
+    ):
         _TTIR_CACHE_OPS_REGISTERED = True
         return
 
     lib = torch.library.Library("buddy_ttir", "DEF")
-    lib.define("fill_cache(Tensor cache, Tensor input, int batch_offset) -> Tensor")
+    lib.define(
+        "fill_cache(Tensor cache, Tensor input, int batch_offset) -> Tensor"
+    )
     lib.define(
         "update_cache(Tensor cache, Tensor input, Tensor update_index, int batch_offset) -> Tensor"
     )
@@ -488,9 +504,10 @@ def _patch_static_cache_for_buddy(exact_cache_ops: bool = False) -> None:
         _register_ttir_cache_ops()
 
     def update(self, key_states, value_states, *args, **kwargs):
-        if not getattr(self, "is_initialized", False) and getattr(
-            self, "keys", None
-        ) is None:
+        if (
+            not getattr(self, "is_initialized", False)
+            and getattr(self, "keys", None) is None
+        ):
             try:
                 self.lazy_initialization(key_states, value_states)
             except TypeError:
@@ -528,7 +545,9 @@ def _patch_static_cache_for_buddy(exact_cache_ops: bool = False) -> None:
                     idx = idx.view(1)
                 k_update = key_states.permute(2, 1, 0, 3)
                 v_update = value_states.permute(2, 1, 0, 3)
-                self.keys = torch.ops.buddy_ttir.update_cache(self.keys, k_update, idx, 0)
+                self.keys = torch.ops.buddy_ttir.update_cache(
+                    self.keys, k_update, idx, 0
+                )
                 self.values = torch.ops.buddy_ttir.update_cache(
                     self.values, v_update, idx, 0
                 )
@@ -628,11 +647,17 @@ def _early_initialize_static_cache(past_kv, config, batch: int, device) -> None:
     )
 
 
-def _position_ids_for(inputs_embeds: torch.Tensor, cache_position: torch.Tensor | None):
+def _position_ids_for(
+    inputs_embeds: torch.Tensor, cache_position: torch.Tensor | None
+):
     if cache_position is not None:
         return cache_position.view(1, -1)
     bsz, seq_len = inputs_embeds.shape[:2]
-    return torch.arange(seq_len, dtype=torch.long, device=inputs_embeds.device).view(1, -1).expand(bsz, -1)
+    return (
+        torch.arange(seq_len, dtype=torch.long, device=inputs_embeds.device)
+        .view(1, -1)
+        .expand(bsz, -1)
+    )
 
 
 def _manual_static_causal_mask(
@@ -645,7 +670,9 @@ def _manual_static_causal_mask(
     bsz, seq_len = inputs_embeds.shape[:2]
     kv_len = int(past_key_values.get_max_cache_shape())
     position_ids_i64 = position_ids.to(torch.long)
-    key_pos = torch.arange(kv_len, dtype=torch.long, device=inputs_embeds.device).view(1, 1, kv_len)
+    key_pos = torch.arange(
+        kv_len, dtype=torch.long, device=inputs_embeds.device
+    ).view(1, 1, kv_len)
     query_pos = position_ids_i64.view(position_ids_i64.shape[0], seq_len, 1)
     allowed = key_pos <= query_pos
     allowed = allowed.unsqueeze(1)
@@ -674,6 +701,7 @@ def _patch_llama_official_attention_f32() -> None:
     """Patch HF eager Llama attention to mirror official TTIR f32 semantics."""
 
     import math
+
     import torch.nn as nn
     from transformers.models.llama import modeling_llama
 
@@ -690,7 +718,9 @@ def _patch_llama_official_attention_f32() -> None:
         del kwargs
         scale = math.sqrt(float(scaling))
         key_states = modeling_llama.repeat_kv(key, module.num_key_value_groups)
-        value_states = modeling_llama.repeat_kv(value, module.num_key_value_groups)
+        value_states = modeling_llama.repeat_kv(
+            value, module.num_key_value_groups
+        )
 
         query_f32 = query.to(torch.float32) * scale
         key_f32 = key_states.to(torch.float32).transpose(2, 3) * scale
@@ -698,7 +728,9 @@ def _patch_llama_official_attention_f32() -> None:
         if attention_mask is not None:
             attn_weights = attn_weights + attention_mask.to(torch.float32)
 
-        attn_weights = nn.functional.softmax(attn_weights, dim=-1, dtype=torch.float32)
+        attn_weights = nn.functional.softmax(
+            attn_weights, dim=-1, dtype=torch.float32
+        )
         if dropout and module.training:
             attn_weights = nn.functional.dropout(
                 attn_weights, p=dropout, training=module.training
@@ -740,7 +772,9 @@ class _OneLayerLMWrapper(torch.nn.Module):
         causal_mask = _manual_static_causal_mask(
             hidden_states, past_key_values, mask_position_ids
         )
-        position_embeddings = model.rotary_emb(hidden_states, position_ids=position_ids)
+        position_embeddings = model.rotary_emb(
+            hidden_states, position_ids=position_ids
+        )
         hidden_states = model.layers[0](
             hidden_states,
             attention_mask=causal_mask,
@@ -787,7 +821,9 @@ class _Layer0StageProbeWrapper(torch.nn.Module):
         causal_mask = _manual_static_causal_mask(
             hidden_states, past_key_values, mask_position_ids
         )
-        position_embeddings = model.rotary_emb(hidden_states, position_ids=position_ids)
+        position_embeddings = model.rotary_emb(
+            hidden_states, position_ids=position_ids
+        )
 
         for layer_id in range(self.layer_index):
             hidden_states = model.layers[layer_id](
@@ -847,7 +883,9 @@ class _AttentionSplitProbeWrapper(torch.nn.Module):
         causal_mask = _manual_static_causal_mask(
             hidden_states, past_key_values, mask_position_ids
         )
-        position_embeddings = model.rotary_emb(hidden_states, position_ids=position_ids)
+        position_embeddings = model.rotary_emb(
+            hidden_states, position_ids=position_ids
+        )
 
         for layer_id in range(self.layer_index):
             hidden_states = model.layers[layer_id](
@@ -874,16 +912,24 @@ class _AttentionSplitProbeWrapper(torch.nn.Module):
         query_states, key_states = modeling_llama.apply_rotary_pos_emb(
             query_states, key_states, cos, sin
         )
-        query_rope = query_states.transpose(1, 2).reshape(*input_shape, -1).contiguous()
+        query_rope = (
+            query_states.transpose(1, 2).reshape(*input_shape, -1).contiguous()
+        )
 
         if past_key_values is not None:
             key_states, value_states = past_key_values.update(
                 key_states, value_states, attn.layer_idx
             )
-        key_rope = key_states.transpose(1, 2).reshape(*input_shape, -1).contiguous()
-        value_cache = value_states.transpose(1, 2).reshape(*input_shape, -1).contiguous()
+        key_rope = (
+            key_states.transpose(1, 2).reshape(*input_shape, -1).contiguous()
+        )
+        value_cache = (
+            value_states.transpose(1, 2).reshape(*input_shape, -1).contiguous()
+        )
 
-        key_repeated = modeling_llama.repeat_kv(key_states, attn.num_key_value_groups)
+        key_repeated = modeling_llama.repeat_kv(
+            key_states, attn.num_key_value_groups
+        )
         value_repeated = modeling_llama.repeat_kv(
             value_states, attn.num_key_value_groups
         )
@@ -917,7 +963,9 @@ class _AttentionSplitProbeWrapper(torch.nn.Module):
 class _OneBlockWrapper(torch.nn.Module):
     """Trace only decoder layer0 from hidden states."""
 
-    def __init__(self, inner: torch.nn.Module, zero_position_ids: bool = False) -> None:
+    def __init__(
+        self, inner: torch.nn.Module, zero_position_ids: bool = False
+    ) -> None:
         super().__init__()
         self.inner = inner
         self.config = _one_layer_config(inner.config)
@@ -928,7 +976,9 @@ class _OneBlockWrapper(torch.nn.Module):
         bsz, seq_len = hidden_states.shape[:2]
         inv_freq = model.rotary_emb.inv_freq
         inv_freq_expanded = inv_freq.reshape(1, inv_freq.shape[0], 1)
-        inv_freq_expanded = inv_freq_expanded.to(torch.float32).expand(bsz, -1, 1)
+        inv_freq_expanded = inv_freq_expanded.to(torch.float32).expand(
+            bsz, -1, 1
+        )
         position = torch.full(
             (bsz, 1, seq_len),
             0.0,
@@ -1042,8 +1092,12 @@ class _RoPEInputProbeWrapper(torch.nn.Module):
         query_states, key_states = modeling_llama.apply_rotary_pos_emb(
             query_states, key_states, cos, sin
         )
-        query_out = query_states.transpose(1, 2).reshape(bsz, seq_len, -1).contiguous()
-        key_out = key_states.transpose(1, 2).reshape(bsz, seq_len, -1).contiguous()
+        query_out = (
+            query_states.transpose(1, 2).reshape(bsz, seq_len, -1).contiguous()
+        )
+        key_out = (
+            key_states.transpose(1, 2).reshape(bsz, seq_len, -1).contiguous()
+        )
         return query_out, key_out
 
 
@@ -1092,7 +1146,9 @@ class _MLPDownInputProbeWrapper(torch.nn.Module):
 
     def forward(self, product_states: torch.Tensor, **kwargs):
         del kwargs
-        return self.inner.model.layers[self.layer_index].mlp.down_proj(product_states)
+        return self.inner.model.layers[self.layer_index].mlp.down_proj(
+            product_states
+        )
 
 
 class _PostAttnNormInputProbeWrapper(torch.nn.Module):
@@ -1105,7 +1161,9 @@ class _PostAttnNormInputProbeWrapper(torch.nn.Module):
 
     def forward(self, hidden_states: torch.Tensor, **kwargs):
         del kwargs
-        return self.inner.model.layers[0].post_attention_layernorm(hidden_states)
+        return self.inner.model.layers[0].post_attention_layernorm(
+            hidden_states
+        )
 
 
 class _SDPAInputProbeWrapper(torch.nn.Module):
@@ -1116,7 +1174,9 @@ class _SDPAInputProbeWrapper(torch.nn.Module):
         self.inner = inner
         self.config = _one_layer_config(inner.config)
         mask = torch.zeros((1, 1, 1024, 1024), dtype=torch.bfloat16)
-        upper = torch.triu(torch.ones((1024, 1024), dtype=torch.bool), diagonal=1)
+        upper = torch.triu(
+            torch.ones((1024, 1024), dtype=torch.bool), diagonal=1
+        )
         mask = mask.masked_fill(
             upper.reshape(1, 1, 1024, 1024), torch.finfo(torch.bfloat16).min
         )
@@ -1142,7 +1202,9 @@ class _SDPAInputProbeWrapper(torch.nn.Module):
             is_causal=False,
         )
         attn_heads = attn_heads.transpose(1, 2).contiguous()
-        return attn_heads.reshape(query_states.shape[0], query_states.shape[2], -1)
+        return attn_heads.reshape(
+            query_states.shape[0], query_states.shape[2], -1
+        )
 
 
 class _SDPAPackedInputProbeWrapper(torch.nn.Module):
@@ -1153,7 +1215,9 @@ class _SDPAPackedInputProbeWrapper(torch.nn.Module):
         self.inner = inner
         self.config = _one_layer_config(inner.config)
         mask = torch.zeros((1, 1, 1024, 1024), dtype=torch.bfloat16)
-        upper = torch.triu(torch.ones((1024, 1024), dtype=torch.bool), diagonal=1)
+        upper = torch.triu(
+            torch.ones((1024, 1024), dtype=torch.bool), diagonal=1
+        )
         mask = mask.masked_fill(
             upper.reshape(1, 1, 1024, 1024), torch.finfo(torch.bfloat16).min
         )
@@ -1262,7 +1326,9 @@ class _RMSScaleProbeWrapper(torch.nn.Module):
         hidden_states = model.embed_tokens(input_ids)
         hidden_f32 = hidden_states.to(torch.float32)
         var = hidden_f32.pow(2).mean(-1)
-        scale = torch.rsqrt(var + model.layers[0].input_layernorm.variance_epsilon)
+        scale = torch.rsqrt(
+            var + model.layers[0].input_layernorm.variance_epsilon
+        )
         return scale.to(hidden_states.dtype)
 
 
@@ -1280,7 +1346,9 @@ class _RMSUnweightedProbeWrapper(torch.nn.Module):
         hidden_states = model.embed_tokens(input_ids)
         hidden_f32 = hidden_states.to(torch.float32)
         var = hidden_f32.pow(2).mean(-1, keepdim=True)
-        scale = torch.rsqrt(var + model.layers[0].input_layernorm.variance_epsilon)
+        scale = torch.rsqrt(
+            var + model.layers[0].input_layernorm.variance_epsilon
+        )
         return (hidden_f32 * scale).to(hidden_states.dtype)
 
 
@@ -1325,7 +1393,9 @@ class _FullLMAlignedWrapper(torch.nn.Module):
         causal_mask = _manual_static_causal_mask(
             hidden_states, past_key_values, position_ids
         )
-        position_embeddings = model.rotary_emb(hidden_states, position_ids=position_ids)
+        position_embeddings = model.rotary_emb(
+            hidden_states, position_ids=position_ids
+        )
         for decoder_layer in model.layers:
             hidden_states = decoder_layer(
                 hidden_states,
@@ -1430,7 +1500,11 @@ def _prune_unused_ttir_args(mlir_text: str) -> str:
             return match.group(0)
         return f"%arg{remap[old]}"
 
-    prefix = mlir_text[: m.start("args")] + new_args + mlir_text[m.end("args") : body_start]
+    prefix = (
+        mlir_text[: m.start("args")]
+        + new_args
+        + mlir_text[m.end("args") : body_start]
+    )
     body = re.sub(r"%arg(\d+)(?!\d)", repl, mlir_text[body_start:])
     return prefix + body
 
@@ -1484,7 +1558,10 @@ def _full_arg_attrs(mode: str, arg_count: int) -> list[tuple[str, str]]:
                         ("input", f"args_key_cache_{layer_idx}"),
                         ("input", f"args_value_cache_{layer_idx}"),
                         ("parameter", prefix + "self_attn_o_proj_weight"),
-                        ("parameter", prefix + "post_attention_layernorm_weight"),
+                        (
+                            "parameter",
+                            prefix + "post_attention_layernorm_weight",
+                        ),
                         ("parameter", prefix + "mlp_gate_proj_weight"),
                         ("parameter", prefix + "mlp_up_proj_weight"),
                         ("parameter", prefix + "mlp_down_proj_weight"),
@@ -1535,7 +1612,10 @@ def _full_arg_attrs(mode: str, arg_count: int) -> list[tuple[str, str]]:
                         ("input", f"args_value_cache_{layer_idx}"),
                         ("input", f"args_value_cache_position_{layer_idx}"),
                         ("parameter", prefix + "self_attn_o_proj_weight"),
-                        ("parameter", prefix + "post_attention_layernorm_weight"),
+                        (
+                            "parameter",
+                            prefix + "post_attention_layernorm_weight",
+                        ),
                         ("parameter", prefix + "mlp_gate_proj_weight"),
                         ("parameter", prefix + "mlp_up_proj_weight"),
                         ("parameter", prefix + "mlp_down_proj_weight"),
@@ -1574,7 +1654,10 @@ def _full_arg_attrs(mode: str, arg_count: int) -> list[tuple[str, str]]:
                         ("input", f"args_key_cache_{layer_idx}"),
                         ("input", f"args_value_cache_{layer_idx}"),
                         ("parameter", prefix + "self_attn_o_proj_weight"),
-                        ("parameter", prefix + "post_attention_layernorm_weight"),
+                        (
+                            "parameter",
+                            prefix + "post_attention_layernorm_weight",
+                        ),
                         ("parameter", prefix + "mlp_gate_proj_weight"),
                         ("parameter", prefix + "mlp_up_proj_weight"),
                         ("parameter", prefix + "mlp_down_proj_weight"),
@@ -1686,18 +1769,45 @@ def _official_arg_attrs(
             ("parameter", "l__self___model_embed_tokens_weight"),
             ("input", "args_0"),
             ("constant", "l__self___model_rotary_emb_inv_freq"),
-            ("parameter", "l__self___model_layers__modules__0___input_layernorm_weight"),
-            ("parameter", "l__self___model_layers__modules__0___self_attn_q_proj_weight"),
-            ("parameter", "l__self___model_layers__modules__0___self_attn_k_proj_weight"),
-            ("parameter", "l__self___model_layers__modules__0___self_attn_v_proj_weight"),
+            (
+                "parameter",
+                "l__self___model_layers__modules__0___input_layernorm_weight",
+            ),
+            (
+                "parameter",
+                "l__self___model_layers__modules__0___self_attn_q_proj_weight",
+            ),
+            (
+                "parameter",
+                "l__self___model_layers__modules__0___self_attn_k_proj_weight",
+            ),
+            (
+                "parameter",
+                "l__self___model_layers__modules__0___self_attn_v_proj_weight",
+            ),
             ("input", "args_2"),
             ("input", "args_3"),
             ("input", "args_1"),
-            ("parameter", "l__self___model_layers__modules__0___self_attn_o_proj_weight"),
-            ("parameter", "l__self___model_layers__modules__0___post_attention_layernorm_weight"),
-            ("parameter", "l__self___model_layers__modules__0___mlp_gate_proj_weight"),
-            ("parameter", "l__self___model_layers__modules__0___mlp_up_proj_weight"),
-            ("parameter", "l__self___model_layers__modules__0___mlp_down_proj_weight"),
+            (
+                "parameter",
+                "l__self___model_layers__modules__0___self_attn_o_proj_weight",
+            ),
+            (
+                "parameter",
+                "l__self___model_layers__modules__0___post_attention_layernorm_weight",
+            ),
+            (
+                "parameter",
+                "l__self___model_layers__modules__0___mlp_gate_proj_weight",
+            ),
+            (
+                "parameter",
+                "l__self___model_layers__modules__0___mlp_up_proj_weight",
+            ),
+            (
+                "parameter",
+                "l__self___model_layers__modules__0___mlp_down_proj_weight",
+            ),
             ("parameter", "l__self___model_norm_weight"),
             ("parameter", "l__self___lm_head_weight"),
         ]
@@ -1707,17 +1817,44 @@ def _official_arg_attrs(
             ("input", "args_0"),
             ("input", "args_1"),
             ("constant", "l__self___model_rotary_emb_inv_freq"),
-            ("parameter", "l__self___model_layers__modules__0___input_layernorm_weight"),
-            ("parameter", "l__self___model_layers__modules__0___self_attn_q_proj_weight"),
-            ("parameter", "l__self___model_layers__modules__0___self_attn_k_proj_weight"),
-            ("parameter", "l__self___model_layers__modules__0___self_attn_v_proj_weight"),
+            (
+                "parameter",
+                "l__self___model_layers__modules__0___input_layernorm_weight",
+            ),
+            (
+                "parameter",
+                "l__self___model_layers__modules__0___self_attn_q_proj_weight",
+            ),
+            (
+                "parameter",
+                "l__self___model_layers__modules__0___self_attn_k_proj_weight",
+            ),
+            (
+                "parameter",
+                "l__self___model_layers__modules__0___self_attn_v_proj_weight",
+            ),
             ("input", "args_2"),
             ("input", "args_3"),
-            ("parameter", "l__self___model_layers__modules__0___self_attn_o_proj_weight"),
-            ("parameter", "l__self___model_layers__modules__0___post_attention_layernorm_weight"),
-            ("parameter", "l__self___model_layers__modules__0___mlp_gate_proj_weight"),
-            ("parameter", "l__self___model_layers__modules__0___mlp_up_proj_weight"),
-            ("parameter", "l__self___model_layers__modules__0___mlp_down_proj_weight"),
+            (
+                "parameter",
+                "l__self___model_layers__modules__0___self_attn_o_proj_weight",
+            ),
+            (
+                "parameter",
+                "l__self___model_layers__modules__0___post_attention_layernorm_weight",
+            ),
+            (
+                "parameter",
+                "l__self___model_layers__modules__0___mlp_gate_proj_weight",
+            ),
+            (
+                "parameter",
+                "l__self___model_layers__modules__0___mlp_up_proj_weight",
+            ),
+            (
+                "parameter",
+                "l__self___model_layers__modules__0___mlp_down_proj_weight",
+            ),
             ("parameter", "l__self___model_norm_weight"),
             ("parameter", "l__self___lm_head_weight"),
         ]
@@ -1727,7 +1864,9 @@ def _official_arg_attrs(
 def _annotate_result(result: str) -> str:
     rm = re.match(r"(tensor<[^>]+>)(?:\s+\{.*\})?$", result, re.S)
     if rm is None:
-        raise ValueError(f"cannot parse function result for annotation: {result}")
+        raise ValueError(
+            f"cannot parse function result for annotation: {result}"
+        )
     return f"{rm.group(1)} {{ttcore.shard_status = #ttcore.shard_status<unsharded>}}"
 
 
@@ -1760,7 +1899,9 @@ def _annotate_official_arg_attrs(mlir_text: str, scope: str, mode: str) -> str:
     for arg, (argument_type, ttir_name) in zip(sig_args, arg_attrs):
         am = re.match(r"(%arg\d+:\s*tensor<[^>]+>)(?:\s+\{.*\})?$", arg, re.S)
         if am is None:
-            raise ValueError(f"cannot parse function argument for annotation: {arg}")
+            raise ValueError(
+                f"cannot parse function argument for annotation: {arg}"
+            )
         annotated_args.append(
             f"{am.group(1)} "
             "{"
@@ -1770,7 +1911,11 @@ def _annotate_official_arg_attrs(mlir_text: str, scope: str, mode: str) -> str:
             "}"
         )
 
-    results = _split_mlir_args(m.group("results")) if tuple_results else [m.group("results")]
+    results = (
+        _split_mlir_args(m.group("results"))
+        if tuple_results
+        else [m.group("results")]
+    )
     annotated_results = [_annotate_result(result) for result in results]
 
     result_text = ", ".join(annotated_results)
@@ -1838,16 +1983,32 @@ def main() -> int:
         "sdpa_packed_input",
     )
     if args.scope in probe_scopes and args.static_cache:
-        print(f"error: --scope {args.scope} does not use --static-cache.", file=sys.stderr)
+        print(
+            f"error: --scope {args.scope} does not use --static-cache.",
+            file=sys.stderr,
+        )
         return 1
-    if args.scope == "layer" and args.mode == "decode" and not args.static_cache:
-        print("error: --scope layer --mode decode currently requires --static-cache.", file=sys.stderr)
+    if (
+        args.scope == "layer"
+        and args.mode == "decode"
+        and not args.static_cache
+    ):
+        print(
+            "error: --scope layer --mode decode currently requires --static-cache.",
+            file=sys.stderr,
+        )
         return 1
     if args.device_argmax and args.scope != "full":
-        print("error: --device-argmax is only supported for --scope full.", file=sys.stderr)
+        print(
+            "error: --device-argmax is only supported for --scope full.",
+            file=sys.stderr,
+        )
         return 1
     if args.full_align_wrapper and args.scope != "full":
-        print("error: --full-align-wrapper is only supported for --scope full.", file=sys.stderr)
+        print(
+            "error: --full-align-wrapper is only supported for --scope full.",
+            file=sys.stderr,
+        )
         return 1
     if args.use_proxy:
         u = "http://192.168.15.159:7890"
@@ -1892,8 +2053,12 @@ def main() -> int:
             if args.scope == "attn_split":
                 synthetic_layers = int(args.layer_index) + 1
             else:
-                synthetic_layers = 1 if args.scope in ("layer", *probe_scopes) else None
-            model, tokenizer = _load_synthetic_model(args.model, synthetic_layers)
+                synthetic_layers = (
+                    1 if args.scope in ("layer", *probe_scopes) else None
+                )
+            model, tokenizer = _load_synthetic_model(
+                args.model, synthetic_layers
+            )
         else:
             model, tokenizer = _load_model_and_tokenizer(args.model)
     except Exception as e:
@@ -1906,13 +2071,13 @@ def main() -> int:
 
     cfg = getattr(model, "config", None)
     if args.attn_implementation != "default" and cfg is not None:
-        setattr(cfg, "_attn_implementation", args.attn_implementation)
-        setattr(cfg, "attn_implementation", args.attn_implementation)
+        cfg._attn_implementation = args.attn_implementation
+        cfg.attn_implementation = args.attn_implementation
     if args.official_attention_f32:
         _patch_llama_official_attention_f32()
         if cfg is not None:
-            setattr(cfg, "_attn_implementation", "eager")
-            setattr(cfg, "attn_implementation", "eager")
+            cfg._attn_implementation = "eager"
+            cfg.attn_implementation = "eager"
     if cfg is not None:
         print(
             f"loaded model: {args.model} "
@@ -1981,7 +2146,9 @@ def main() -> int:
         L = int(args.max_cache_len)
         if args.mode == "prefill":
             trace_seq = L if args.scope == "full" else int(args.seq)
-            input_ids = torch.zeros(args.batch, trace_seq, dtype=torch.long, device=device)
+            input_ids = torch.zeros(
+                args.batch, trace_seq, dtype=torch.long, device=device
+            )
             with torch.no_grad():
                 if (
                     args.scope in ("layer", "layer_stages", "attn_split")
@@ -2012,7 +2179,9 @@ def main() -> int:
                     )
         else:
             past_kv = StaticCache(config=model.config, max_cache_len=L)
-            decode_ids = torch.zeros(args.batch, 1, dtype=torch.long, device=device)
+            decode_ids = torch.zeros(
+                args.batch, 1, dtype=torch.long, device=device
+            )
             pos_value = args.cache_position
             if pos_value is None:
                 pos_value = min(200, max(0, L - 1))
@@ -2053,7 +2222,9 @@ def main() -> int:
                 )
     elif args.mode == "prefill":
         if args.scope == "rope_input":
-            head_dim = model.config.hidden_size // model.config.num_attention_heads
+            head_dim = (
+                model.config.hidden_size // model.config.num_attention_heads
+            )
             query_packed = torch.ones(
                 args.batch,
                 args.seq,
@@ -2081,7 +2252,9 @@ def main() -> int:
                     model, query_packed, key_packed, cos, sin
                 )
         elif args.scope == "sdpa_input":
-            head_dim = model.config.hidden_size // model.config.num_attention_heads
+            head_dim = (
+                model.config.hidden_size // model.config.num_attention_heads
+            )
             query_states = torch.ones(
                 args.batch,
                 model.config.num_attention_heads,
@@ -2137,7 +2310,9 @@ def main() -> int:
             with torch.no_grad():
                 graphs = dynamo_compiler.importer(model, hidden_states)
         else:
-            input_ids = torch.ones(args.batch, args.seq, dtype=torch.long, device=device)
+            input_ids = torch.ones(
+                args.batch, args.seq, dtype=torch.long, device=device
+            )
             with torch.no_grad():
                 if args.prefill_use_cache:
                     graphs = dynamo_compiler.importer(
@@ -2168,9 +2343,7 @@ def main() -> int:
             graphs = dynamo_compiler.importer(model, decode_ids, **dec_kw)
 
     if len(graphs) != 1:
-        print(
-            f"error: expected one graph, got {len(graphs)}.", file=sys.stderr
-        )
+        print(f"error: expected one graph, got {len(graphs)}.", file=sys.stderr)
         return 1
 
     g = graphs[0]

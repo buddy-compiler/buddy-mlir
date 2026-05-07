@@ -1,12 +1,23 @@
-# ===- deepseek_chat_prepare.py -----------------------------------------------
+# ===- llama31_chat_prepare.py ------------------------------------------------
 #
-# Prepare the host-side artifacts required by ``deepseek_chat_run.py`` (the
-# interactive 1024-token-context chat runner that drives P150A with both
-# ``deepseek_prefill_static.ttnn`` and ``deepseek_decode_static.ttnn``
-# flatbuffers).
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# We re-run the Buddy ``DynamoCompiler`` for prefill and decode under the same
-# configuration as ``buddy-deepseek-r1-lower-ttir.py --static-cache
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# ===---------------------------------------------------------------------------
+#
+# Prepare the host-side artifacts required by ``llama31_chat_run.py``.
+#
+# We re-run the Buddy ``DynamoCompiler`` for prefill and decode under the
+# same configuration as ``buddy-llama31-lower-ttir.py --static-cache
 # --max-cache-len 1024``, then snapshot for each phase:
 #
 #   - ``slot_roles.json``: per-``@subgraph0``-input role tag.  Roles include
@@ -21,7 +32,7 @@
 #
 # Usage::
 #
-#   python deepseek_chat_prepare.py -o chat_artifacts --max-cache-len 1024
+#   python llama31_chat_prepare.py -o chat_artifacts --max-cache-len 1024
 #
 # ===---------------------------------------------------------------------------
 
@@ -36,14 +47,12 @@ from pathlib import Path
 
 import numpy as np
 import torch
-
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.graph import GraphDriver
-from buddy.compiler.graph.operation import PlaceholderOp
 from buddy.compiler.graph.transform import (
-    simply_fuse,
     flash_attention_prefill,
     gqa_attention_fusion,
+    simply_fuse,
 )
 from buddy.compiler.ops import tosa
 
@@ -119,12 +128,16 @@ def _register_ttir_cache_ops() -> None:
     global _TTIR_CACHE_OPS_LIB, _TTIR_CACHE_OPS_REGISTERED
     if _TTIR_CACHE_OPS_REGISTERED:
         return
-    if hasattr(torch.ops, "buddy_ttir") and hasattr(torch.ops.buddy_ttir, "fill_cache"):
+    if hasattr(torch.ops, "buddy_ttir") and hasattr(
+        torch.ops.buddy_ttir, "fill_cache"
+    ):
         _TTIR_CACHE_OPS_REGISTERED = True
         return
 
     lib = torch.library.Library("buddy_ttir", "DEF")
-    lib.define("fill_cache(Tensor cache, Tensor input, int batch_offset) -> Tensor")
+    lib.define(
+        "fill_cache(Tensor cache, Tensor input, int batch_offset) -> Tensor"
+    )
     lib.define(
         "update_cache(Tensor cache, Tensor input, Tensor update_index, int batch_offset) -> Tensor"
     )
@@ -183,9 +196,10 @@ def _patch_static_cache_for_buddy(exact_cache_ops: bool = False) -> None:
         _register_ttir_cache_ops()
 
     def update(self, key_states, value_states, *args, **kwargs):
-        if not getattr(self, "is_initialized", False) and getattr(
-            self, "keys", None
-        ) is None:
+        if (
+            not getattr(self, "is_initialized", False)
+            and getattr(self, "keys", None) is None
+        ):
             try:
                 self.lazy_initialization(key_states, value_states)
             except TypeError:
@@ -220,7 +234,9 @@ def _patch_static_cache_for_buddy(exact_cache_ops: bool = False) -> None:
                     idx = idx.view(1)
                 k_update = key_states.permute(2, 1, 0, 3)
                 v_update = value_states.permute(2, 1, 0, 3)
-                self.keys = torch.ops.buddy_ttir.update_cache(self.keys, k_update, idx, 0)
+                self.keys = torch.ops.buddy_ttir.update_cache(
+                    self.keys, k_update, idx, 0
+                )
                 self.values = torch.ops.buddy_ttir.update_cache(
                     self.values, v_update, idx, 0
                 )
@@ -306,11 +322,17 @@ def _fuse_list():
     return [simply_fuse, gqa_attention_fusion, flash_attention_prefill]
 
 
-def _position_ids_for(inputs_embeds: torch.Tensor, cache_position: torch.Tensor | None):
+def _position_ids_for(
+    inputs_embeds: torch.Tensor, cache_position: torch.Tensor | None
+):
     if cache_position is not None:
         return cache_position.view(1, -1)
     bsz, seq_len = inputs_embeds.shape[:2]
-    return torch.arange(seq_len, dtype=torch.long, device=inputs_embeds.device).view(1, -1).expand(bsz, -1)
+    return (
+        torch.arange(seq_len, dtype=torch.long, device=inputs_embeds.device)
+        .view(1, -1)
+        .expand(bsz, -1)
+    )
 
 
 def _manual_static_causal_mask(
@@ -322,8 +344,12 @@ def _manual_static_causal_mask(
         return None
     bsz, seq_len = inputs_embeds.shape[:2]
     kv_len = int(past_key_values.get_max_cache_shape())
-    key_pos = torch.arange(kv_len, dtype=torch.long, device=inputs_embeds.device).view(1, 1, kv_len)
-    query_pos = position_ids.to(torch.long).view(position_ids.shape[0], seq_len, 1)
+    key_pos = torch.arange(
+        kv_len, dtype=torch.long, device=inputs_embeds.device
+    ).view(1, 1, kv_len)
+    query_pos = position_ids.to(torch.long).view(
+        position_ids.shape[0], seq_len, 1
+    )
     allowed = (key_pos <= query_pos).unsqueeze(1)
     if allowed.shape[0] != bsz:
         allowed = allowed.expand(bsz, 1, seq_len, kv_len)
@@ -360,7 +386,9 @@ def _patch_llama_official_attention_f32() -> None:
         del kwargs
         scale = math.sqrt(float(scaling))
         key_states = modeling_llama.repeat_kv(key, module.num_key_value_groups)
-        value_states = modeling_llama.repeat_kv(value, module.num_key_value_groups)
+        value_states = modeling_llama.repeat_kv(
+            value, module.num_key_value_groups
+        )
 
         query_f32 = query.to(torch.float32) * scale
         key_f32 = key_states.to(torch.float32).transpose(2, 3) * scale
@@ -368,7 +396,9 @@ def _patch_llama_official_attention_f32() -> None:
         if attention_mask is not None:
             attn_weights = attn_weights + attention_mask.to(torch.float32)
 
-        attn_weights = nn.functional.softmax(attn_weights, dim=-1, dtype=torch.float32)
+        attn_weights = nn.functional.softmax(
+            attn_weights, dim=-1, dtype=torch.float32
+        )
         if dropout and module.training:
             attn_weights = nn.functional.dropout(
                 attn_weights, p=dropout, training=module.training
@@ -425,7 +455,9 @@ class _FullLMAlignedWrapper(torch.nn.Module):
         causal_mask = _manual_static_causal_mask(
             hidden_states, past_key_values, position_ids
         )
-        position_embeddings = model.rotary_emb(hidden_states, position_ids=position_ids)
+        position_embeddings = model.rotary_emb(
+            hidden_states, position_ids=position_ids
+        )
         for decoder_layer in model.layers:
             hidden_states = decoder_layer(
                 hidden_states,
@@ -498,7 +530,9 @@ def _prepare_phase(
             if full_align_wrapper:
                 past_kv = StaticCache(config=model.config, max_cache_len=L)
                 _early_initialize_static_cache(past_kv, model.config, 1, device)
-                cache_position = torch.arange(L, dtype=torch.long, device=device)
+                cache_position = torch.arange(
+                    L, dtype=torch.long, device=device
+                )
                 graphs = dynamo_compiler.importer(
                     model,
                     input_ids=input_ids,
@@ -554,7 +588,9 @@ def _prepare_phase(
     if params_ref is None:
         raise RuntimeError("graph missing _params_ref (Buddy import)")
     if runtime_ref is None:
-        raise RuntimeError("graph missing _runtime_inputs_ref (update Buddy frontend)")
+        raise RuntimeError(
+            "graph missing _runtime_inputs_ref (update Buddy frontend)"
+        )
 
     g.fuse_ops(_fuse_list())
     driver = GraphDriver(g)
@@ -567,8 +603,8 @@ def _prepare_phase(
 
     fake_ix_list = list(g._fake_params)
     inp_ix_list = list(g._inputs)
-    fake_ix_set = set(int(x) for x in fake_ix_list)
-    inp_ix_set = set(int(x) for x in inp_ix_list)
+    fake_ix_set = {int(x) for x in fake_ix_list}
+    inp_ix_set = {int(x) for x in inp_ix_list}
 
     name_to_tensor: dict[str, torch.Tensor] = {}
     name_to_is_input: dict[str, bool] = {}
@@ -610,13 +646,14 @@ def _prepare_phase(
                 arr, _ = _tensor_to_numpy_and_dtype(t)
                 weights[f"w_{slot:04d}"] = arr
         else:
-            if dt == "int64" and shp == [1, L]:
+            if (
+                dt == "int64"
+                and shp == [1, L]
+                or dt == "int64"
+                and shp == [1, 1]
+            ):
                 role = "input_ids"
-            elif dt == "int64" and shp == [1, 1]:
-                role = "input_ids"
-            elif dt == "int64" and shp == [L]:
-                role = "cache_position"
-            elif dt == "int64" and shp == [1]:
+            elif dt == "int64" and shp == [L] or dt == "int64" and shp == [1]:
                 role = "cache_position"
             elif dt == "bfloat16" and shp == kv_shape:
                 if kv_seen % 2 == 0:
@@ -716,7 +753,9 @@ def _prepare_phase(
         "max_cache_len": L,
         "num_slots": len(slot_roles),
         "num_weight_slots": sum(1 for r in slot_roles if r["role"] == "weight"),
-        "num_runtime_slots": sum(1 for r in slot_roles if r["role"] != "weight"),
+        "num_runtime_slots": sum(
+            1 for r in slot_roles if r["role"] != "weight"
+        ),
         "kv_seen": kv_seen,
         "has_inv_freq": inv_freq_arr is not None,
     }
@@ -729,7 +768,10 @@ def _prepare_phase(
 def main() -> int:
     args = _parse_args()
     if args.full_align_wrapper and args.device_argmax:
-        print("error: --full-align-wrapper is not compatible with --device-argmax yet", file=sys.stderr)
+        print(
+            "error: --full-align-wrapper is not compatible with --device-argmax yet",
+            file=sys.stderr,
+        )
         return 1
     if args.use_proxy:
         _proxy_env()
@@ -759,8 +801,8 @@ def main() -> int:
     if args.full_align_wrapper:
         cfg = getattr(model, "config", None)
         if cfg is not None:
-            setattr(cfg, "_attn_implementation", "eager")
-            setattr(cfg, "attn_implementation", "eager")
+            cfg._attn_implementation = "eager"
+            cfg.attn_implementation = "eager"
         _patch_llama_official_attention_f32()
         model = _FullLMAlignedWrapper(model)
 

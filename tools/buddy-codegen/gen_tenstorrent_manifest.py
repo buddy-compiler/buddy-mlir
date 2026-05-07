@@ -1,9 +1,21 @@
 #!/usr/bin/env python3
 # ===- gen_tenstorrent_manifest.py ------------------------------------------
 #
-# Generate a small RHAL manifest for Tenstorrent TTNN flatbuffer artifacts.
-# The manifest can be packed with rax-pack and dispatched by buddy-cli when
-# the llama31_tt runner is linked in.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# ===------------------------------------------------------------------------
+#
+# Generate an RHAL manifest for Tenstorrent TTNN flatbuffer artifacts.
 #
 # ===------------------------------------------------------------------------
 
@@ -42,8 +54,14 @@ def main() -> int:
     parser.add_argument("--max-cache-len", type=int, default=1024)
     parser.add_argument("--official-reference-npz", default="")
     parser.add_argument("--official-trace-out", default="")
-    parser.add_argument("--ignore-system-desc", action="store_true", default=True)
-    parser.add_argument("--no-ignore-system-desc", dest="ignore_system_desc", action="store_false")
+    parser.add_argument(
+        "--ignore-system-desc", action="store_true", default=True
+    )
+    parser.add_argument(
+        "--no-ignore-system-desc",
+        dest="ignore_system_desc",
+        action="store_false",
+    )
     parser.add_argument("--ignore-eos", action="store_true")
     parser.add_argument("--device-token-loop", action="store_true")
     args = parser.parse_args()

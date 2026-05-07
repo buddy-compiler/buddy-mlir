@@ -24,8 +24,5 @@ __pycache__/
 
 # Tenstorrent runtime artifacts
 ttrt-artifacts/
-read_results.json
-read_sections.json
-/generated/
 /query_results.json
 /ttrt_report.xml

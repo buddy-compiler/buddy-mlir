@@ -626,7 +626,9 @@ class Graph:
         from ..ops.ttir import ops_registry as default_ttir_registry
         from .ttir_import import build_ttir_module_for_graph
 
-        reg = ops_registry if ops_registry is not None else default_ttir_registry
+        reg = (
+            ops_registry if ops_registry is not None else default_ttir_registry
+        )
         self._ttir_module, self._tt_ctx = build_ttir_module_for_graph(
             self._body,
             self.params_shapes,

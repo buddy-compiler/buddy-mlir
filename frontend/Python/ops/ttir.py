@@ -1,17 +1,28 @@
 # ===- ttir.py ----------------------------------------------------------------
 #
-# Lower Buddy Graph ops to TTIR dialect ops via the ttmlir Python API.
-# Used by ``Graph.lower_to_ttir()`` (see ``graph/ttir_import.py``).
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# Element type is fixed per import (BF16 or F32) via ``TTIRSandbox.elt_type``.
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# ===---------------------------------------------------------------------------
+#
+# Lowers Buddy Graph ops to TTIR dialect ops via the ttmlir Python API.
 #
 # ===---------------------------------------------------------------------------
 
 from __future__ import annotations
 
 import os
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Sequence
 
 
 @dataclass
@@ -105,7 +116,10 @@ def _shape_op_type(shape: Sequence[int], node, sb: TTIRSandbox):
     from ttmlir.ir import RankedTensorType
 
     element_type = sb.elt_type
-    if node is not None and os.environ.get("BUDDY_TTIR_PRESERVE_SHAPE_TYPES") == "1":
+    if (
+        node is not None
+        and os.environ.get("BUDDY_TTIR_PRESERVE_SHAPE_TYPES") == "1"
+    ):
         _, dtype = _tensor_meta_shape_dtype(node)
         element_type = _mlir_element_type_for_tensor_dtype(
             sb.ctx, dtype, sb.elt_type
@@ -145,12 +159,19 @@ def _dense_i64_perm(ctx, perm: Sequence[int]):
     return DenseI64ArrayAttr.get(list(perm), context=ctx)
 
 
-def _permute_val(inp, perm: Sequence[int], out_shape: Sequence[int], node, sb: TTIRSandbox):
+def _permute_val(
+    inp, perm: Sequence[int], out_shape: Sequence[int], node, sb: TTIRSandbox
+):
     from ttmlir.dialects import ttir
     from ttmlir.ir import RankedTensorType
 
-    if node is None and os.environ.get("BUDDY_TTIR_PRESERVE_SHAPE_TYPES") == "1":
-        rt = RankedTensorType.get([int(x) for x in out_shape], inp.type.element_type)
+    if (
+        node is None
+        and os.environ.get("BUDDY_TTIR_PRESERVE_SHAPE_TYPES") == "1"
+    ):
+        rt = RankedTensorType.get(
+            [int(x) for x in out_shape], inp.type.element_type
+        )
     else:
         rt = _shape_op_type(out_shape, node, sb)
     inp = _cast_for_shape_op(inp, rt, sb)
@@ -270,9 +291,9 @@ def add_op(node, symbol_table, sb: TTIRSandbox):
     from ttmlir.ir import (
         DenseElementsAttr,
         FloatAttr,
+        IntegerAttr,
         IntegerType,
         RankedTensorType,
-        IntegerAttr,
     )
 
     def _as_value(arg, peer):
@@ -305,7 +326,9 @@ def add_op(node, symbol_table, sb: TTIRSandbox):
     elif not hasattr(input2, "type") and hasattr(input1, "type"):
         input2 = _as_value(a1, input1)
     elif not hasattr(input1, "type") and not hasattr(input2, "type"):
-        raise NotImplementedError("TTIR add: expected at least one tensor SSA operand.")
+        raise NotImplementedError(
+            "TTIR add: expected at least one tensor SSA operand."
+        )
     out_shape, _ = _tensor_meta_shape_dtype(node)
     preserve_f32 = False
     if os.environ.get("BUDDY_TTIR_PRESERVE_F32_ADD") == "1":
@@ -380,7 +403,9 @@ def conv2d_op(node, symbol_table, sb: TTIRSandbox):
     groups = int(node.args[8])
 
     if _transposed:
-        raise NotImplementedError("TTIR conv2d: transposed conv not implemented.")
+        raise NotImplementedError(
+            "TTIR conv2d: transposed conv not implemented."
+        )
 
     input_val = symbol_table[(str(_input), 0)]
     weight_val = symbol_table[(str(weight), 0)]
@@ -473,7 +498,9 @@ def maxpool2d_op(node, symbol_table, sb: TTIRSandbox):
     from ttmlir.dialects import ttir
 
     if len(node.args) == 5:
-        raise NotImplementedError("TTIR max_pool2d: 5-arg form not implemented.")
+        raise NotImplementedError(
+            "TTIR max_pool2d: 5-arg form not implemented."
+        )
     input1 = symbol_table[(str(node.args[0]), 0)]
     kernel = node.args[1]
     stride = node.args[2]
@@ -507,20 +534,22 @@ def maxpool2d_op(node, symbol_table, sb: TTIRSandbox):
         n, in_h, in_w, c = original_shape
 
     tm = node.tensor_meta
-    out_shape_meta = list(tm["shape"]) if isinstance(tm, dict) else list(tm.shape)
+    out_shape_meta = (
+        list(tm["shape"]) if isinstance(tm, dict) else list(tm.shape)
+    )
     if node._layout.find("NCHW") != -1:
         out_h, out_w = int(out_shape_meta[2]), int(out_shape_meta[3])
     else:
         out_h, out_w = int(out_shape_meta[1]), int(out_shape_meta[2])
 
-    if not ((in_h + pt + pb - k_h) % s_h == 0):
+    if (in_h + pt + pb - k_h) % s_h != 0:
         pad_total_h = max(
             ((out_h - 1) * s_h + k_h - in_h),
             0,
         )
         pt = pad_total_h // 2
         pb = pad_total_h - pt
-    if not ((in_w + pl + pr - k_w) % s_w == 0):
+    if (in_w + pl + pr - k_w) % s_w != 0:
         pad_total_w = max(
             ((out_w - 1) * s_w + k_w - in_w),
             0,
@@ -531,7 +560,9 @@ def maxpool2d_op(node, symbol_table, sb: TTIRSandbox):
     pad_tt = [pt, pl, pb, pr]
     out_nhwc = [n, out_h, out_w, c]
     output = _ranked_type(out_nhwc, sb)
-    ceil_mode = bool(node.kwargs.get("ceil_mode", False)) if node.kwargs else False
+    ceil_mode = (
+        bool(node.kwargs.get("ceil_mode", False)) if node.kwargs else False
+    )
 
     mp = ttir.max_pool2d(
         output,
@@ -549,7 +580,7 @@ def maxpool2d_op(node, symbol_table, sb: TTIRSandbox):
     return out
 
 
-from . import ttir_llm
+from . import ttir_llm  # noqa: E402
 
 # LLM entries first; CNN / LeNet entries below override on duplicate keys (e.g. ``AddOp``).
 ops_registry = {

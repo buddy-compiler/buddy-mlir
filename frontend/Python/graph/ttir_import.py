@@ -1,7 +1,20 @@
 # ===- ttir_import.py ---------------------------------------------------------
 #
-# Part of the Buddy Compiler frontends. Lowers a Buddy Graph to a TTIR MLIR
-# module using the ttmlir Python bindings (tt-mlir build output).
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# ===---------------------------------------------------------------------------
+#
+# Lowers a Buddy Graph to a TTIR MLIR module using the ttmlir Python bindings.
 #
 # ===---------------------------------------------------------------------------
 
@@ -9,11 +22,10 @@ from __future__ import annotations
 
 import functools
 import operator
-from typing import List, Sequence
+from collections.abc import Sequence
 
 from ..ops.ttir import TTIRSandbox
-from .operation import FuncOp, GetItemOp, OutputOp, PlaceholderOp
-from .operation import Op
+from .operation import FuncOp, GetItemOp, Op, OutputOp, PlaceholderOp
 from .type import TensorDType, TensorMeta
 
 
@@ -60,7 +72,7 @@ def _mlir_element_type_for_tensor_dtype(ctx, td, default_float_elt):
 
 
 def _infer_func_result_types(
-    body: List[Op],
+    body: list[Op],
     elt_type: object,
     ranked_tensor_type,
     ctx,
@@ -79,9 +91,7 @@ def _infer_func_result_types(
     for arg_name in out_node.args:
         prod = next((n for n in body if str(n.name) == str(arg_name)), None)
         if prod is None:
-            raise RuntimeError(
-                f"Output refers to unknown node {arg_name!r}."
-            )
+            raise RuntimeError(f"Output refers to unknown node {arg_name!r}.")
         shape, dt = _shape_dtype_from_op_tensor_meta(prod)
         mel = _mlir_element_type_for_tensor_dtype(ctx, dt, elt_type)
         types.append(ranked_tensor_type.get(shape, mel))
@@ -89,9 +99,9 @@ def _infer_func_result_types(
 
 
 def build_ttir_module_for_graph(
-    body: List[Op],
-    params_shapes: List[TensorMeta],
-    inputs_shapes: List[TensorMeta],
+    body: list[Op],
+    params_shapes: list[TensorMeta],
+    inputs_shapes: list[TensorMeta],
     func_name: str,
     ops_registry: dict,
     *,
@@ -118,6 +128,7 @@ def build_ttir_module_for_graph(
         KeyError: If an operation has no entry in ``ops_registry``.
     """
     try:
+        from ttmlir.dialects import func as tt_func
         from ttmlir.ir import (
             BF16Type,
             Context,
@@ -128,7 +139,6 @@ def build_ttir_module_for_graph(
             Module,
             RankedTensorType,
         )
-        from ttmlir.dialects import func as tt_func
     except ImportError as e:
         raise ImportError(
             "ttmlir is required for TTIR lowering. Add tt-mlir's python "
@@ -150,7 +160,7 @@ def build_ttir_module_for_graph(
     loc = Location.unknown(ctx)
 
     symbol_table: dict = {}
-    extern_func: List[Op] = []
+    extern_func: list[Op] = []
     for node in body:
         if isinstance(node, FuncOp):
             extern_func.append(node)
@@ -173,7 +183,7 @@ def build_ttir_module_for_graph(
             mel = _mlir_element_type_for_tensor_dtype(ctx, dt, elt_type)
             return RankedTensorType.get(shape, mel)
 
-        arguments: List = []
+        arguments: list = []
         for arg in params_shapes + inputs_shapes:
             arguments.append(_tensor_type_from_meta(arg))
         if not arguments:
@@ -461,10 +471,10 @@ def append_ttir_forward_bf16_f32_packed_i64_runtime(
             F32Type,
             FunctionType,
             InsertionPoint,
+            IntegerType,
             Location,
             RankedTensorType,
             TypeAttr,
-            IntegerType,
         )
     except ImportError as e:
         raise ImportError(
@@ -534,9 +544,9 @@ def append_ttir_forward_bf16_f32_packed_i64_runtime(
     result_types = list(fty.results)
     callee_input_types = list(fty.inputs)
 
-    bf16_ts: List[RankedTensorType] = []
-    f32_ts: List[RankedTensorType] = []
-    int_ts: List[RankedTensorType] = []
+    bf16_ts: list[RankedTensorType] = []
+    f32_ts: list[RankedTensorType] = []
+    int_ts: list[RankedTensorType] = []
     for i, rt in enumerate(callee_input_types):
         et = rt.element_type
         if BF16Type.isinstance(et):
@@ -558,9 +568,7 @@ def append_ttir_forward_bf16_f32_packed_i64_runtime(
         )
 
     def _numel(rt: RankedTensorType) -> int:
-        return functools.reduce(
-            operator.mul, (int(d) for d in rt.shape), 1
-        )
+        return functools.reduce(operator.mul, (int(d) for d in rt.shape), 1)
 
     n_bf16 = sum(_numel(t) for t in bf16_ts)
     n_f32 = sum(_numel(t) for t in f32_ts)
@@ -577,7 +585,7 @@ def append_ttir_forward_bf16_f32_packed_i64_runtime(
     # simply 2-D slice the block and reshape to the callee's tensor shape with
     # no global 1-D reshape in sight.
     slab_rows = 32
-    per_weight_nb: List[int] = []
+    per_weight_nb: list[int] = []
     for t in bf16_ts:
         n = _numel(t)
         if n % slab_rows != 0:
@@ -633,9 +641,7 @@ def append_ttir_forward_bf16_f32_packed_i64_runtime(
                     nb = per_weight_nb[bi]
                     bi += 1
                     sh = [int(d) for d in wit.shape]
-                    block_ty = RankedTensorType.get(
-                        [slab_rows, nb], elt_bf16
-                    )
+                    block_ty = RankedTensorType.get([slab_rows, nb], elt_bf16)
                     sliced = ttir.slice_static(
                         block_ty,
                         packed_bf16_arg,

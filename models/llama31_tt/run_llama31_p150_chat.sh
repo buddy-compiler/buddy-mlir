@@ -1,5 +1,20 @@
 #!/usr/bin/env bash
 # ===- run_llama31_p150_chat.sh -----------------------------------------------
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# ===---------------------------------------------------------------------------
+#
 # Full Llama-3.1-8B-Instruct chat on P150A with 1024-token static cache.
 # Pipeline:
 #   1) lower prefill TTIR (--static-cache --max-cache-len 1024) -> TTNN -> FB
@@ -16,6 +31,7 @@
 # Memory note: Llama-3.1-8B's bf16 weights are ~16 GB; the chat artifacts
 # are loaded twice (prefill + decode contexts), so the script raises the
 # virtual-memory soft limit to 95 GB before running anything.
+#
 # ===---------------------------------------------------------------------------
 
 set -euo pipefail
