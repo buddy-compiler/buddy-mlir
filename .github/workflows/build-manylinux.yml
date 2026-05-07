@@ -7,6 +7,15 @@ on:
         description: "Release version tag (e.g., 0.1.0)"
         required: true
         type: string
+      llvm_cache_mode:
+        description: "LLVM cache mode: cache reuses a ready install, incremental keeps the build dir, clean deletes it first."
+        required: false
+        default: cache
+        type: choice
+        options:
+          - cache
+          - incremental
+          - clean
 
 permissions:
   contents: write
@@ -40,11 +49,6 @@ jobs:
       matrix:
         arch: [x64, riscv64]
         python: ["3.10", "3.11", "3.12", "3.13", "3.14"]
-        exclude:
-          - arch: riscv64
-            python: "3.10"
-          - arch: riscv64
-            python: "3.11"
         include:
           - arch: x64
             target_arch: x86_64
@@ -83,13 +87,7 @@ jobs:
       - name: Build manylinux wheel in container
         run: |
           set -euo pipefail
-          LLVM_BUILD_DIR="${{ steps.vars.outputs.host_build_dir }}/${{ matrix.target_arch }}/llvm/${{ steps.vars.outputs.py_tag }}/${{ steps.setup-llvm.outputs.cache_hash }}"
-          if [ -f "${LLVM_BUILD_DIR}/.manylinux-llvm-ready" ]; then
-            export LLVM_CACHE_HIT=true
-          else
-            # Will remove old dir in container
-            export LLVM_CACHE_HIT=false
-          fi
+          export LLVM_CACHE_MODE="${{ inputs.llvm_cache_mode }}"
           export LLVM_HASH="${{ steps.setup-llvm.outputs.cache_hash }}"
           export HOST_LLVM_SRC="${{ steps.setup-llvm.outputs.llvm_src }}"
           export HOST_BUILD_DIR="${{ steps.vars.outputs.host_build_dir }}"
@@ -102,6 +100,7 @@ jobs:
         run: |
           gh release upload "release/v${{ inputs.version }}" \
             ${{ steps.vars.outputs.host_build_dir }}/${{ matrix.target_arch }}/buddy/${{ steps.vars.outputs.py_tag }}/${{ steps.vars.outputs.buddy_hash }}/target/buddy-${{ inputs.version }}-${{ steps.vars.outputs.py_tag }}-manylinux* \
+            ${{ steps.vars.outputs.host_build_dir }}/${{ matrix.target_arch }}/buddy/${{ steps.vars.outputs.py_tag }}/${{ steps.vars.outputs.buddy_hash }}/target/llvm-*-${{ steps.vars.outputs.py_tag }}-manylinux* \
             --clobber
 
       - name: Upload buddy-cli
