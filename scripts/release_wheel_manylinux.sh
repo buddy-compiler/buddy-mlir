@@ -118,7 +118,7 @@ if ! is_in_container; then
     -e PY_TAG="${PY_TAG}" \
     -e BUDDY_PACKAGE_VERSION="${VERSION}" \
     -e BUDDY_HASH="${BUDDY_HASH}" \
-    -e LLVM_CACHE_HIT="${LLVM_CACHE_HIT:-false}" \
+    -e LLVM_CACHE_MODE="${LLVM_CACHE_MODE:-cache}" \
     -e LLVM_HASH="${LLVM_HASH}" \
     -e MANYLINUX_TAG="${MANYLINUX_TAG}" \
     -e HOST_UID="$(id -u)" \
@@ -177,23 +177,20 @@ else
 
   # x86_64 image uses gcc-toolset, riscv64 image uses system GCC under /usr.
   GCC_TOOLCHAIN_ROOT=""
-  GCC_INSTALL_DIR=""
   LLVM_RUNTIMES_CMAKE_ARGS_VALUE=""
   case "${TARGET_ARCH}" in
     x86_64)
       source /opt/rh/gcc-toolset-14/enable
       GCC_TOOLCHAIN_ROOT="/opt/rh/gcc-toolset-14/root/usr"
-      LLVM_RUNTIMES_CMAKE_ARGS_VALUE="-DCMAKE_C_FLAGS=--gcc-toolchain=${GCC_TOOLCHAIN_ROOT};-DCMAKE_CXX_FLAGS=--gcc-toolchain=${GCC_TOOLCHAIN_ROOT}"
       ;;
     riscv64)
-      GCC_INSTALL_DIR="$(dirname "$(g++ -print-libgcc-file-name)")"
-      LLVM_RUNTIMES_CMAKE_ARGS_VALUE="-DCMAKE_C_FLAGS=--gcc-install-dir=${GCC_INSTALL_DIR}"
-      LLVM_RUNTIMES_CMAKE_ARGS_VALUE="${LLVM_RUNTIMES_CMAKE_ARGS_VALUE};-DCMAKE_CXX_FLAGS=--gcc-install-dir=${GCC_INSTALL_DIR}"
-      LLVM_RUNTIMES_CMAKE_ARGS_VALUE="${LLVM_RUNTIMES_CMAKE_ARGS_VALUE};-DCMAKE_HAVE_LIBC_PTHREAD=TRUE"
-      LLVM_RUNTIMES_CMAKE_ARGS_VALUE="${LLVM_RUNTIMES_CMAKE_ARGS_VALUE};-DCMAKE_USE_PTHREADS_INIT=TRUE"
-      LLVM_RUNTIMES_CMAKE_ARGS_VALUE="${LLVM_RUNTIMES_CMAKE_ARGS_VALUE};-DCMAKE_THREAD_LIBS_INIT="
+      GCC_TOOLCHAIN_ROOT="/usr"
       ;;
   esac
+  if [ -n "${GCC_TOOLCHAIN_ROOT}" ]; then
+    LLVM_RUNTIMES_CMAKE_ARGS_VALUE="-DCMAKE_C_FLAGS=--gcc-toolchain=${GCC_TOOLCHAIN_ROOT};-DCMAKE_CXX_FLAGS=--gcc-toolchain=${GCC_TOOLCHAIN_ROOT}"
+    LLVM_RUNTIMES_CMAKE_ARGS_VALUE="${LLVM_RUNTIMES_CMAKE_ARGS_VALUE};-DOPENMP_TEST_FLAGS=--gcc-toolchain=${GCC_TOOLCHAIN_ROOT}"
+  fi
 
   # ---------------------------------------------------------------------------
   # System and Python dependencies inside the manylinux image
@@ -254,17 +251,57 @@ else
   # LLVM configure/build/install
   # ---------------------------------------------------------------------------
 
-  LLVM_CACHE_READY="${LLVM_CACHE_HIT:-false}"
-  if [ "${LLVM_CACHE_READY}" = "true" ] && [ ! -f "${LLVM_STAMP_FILE}" ]; then
-    LLVM_CACHE_READY="false"
-  fi
 
-  if [ "${LLVM_CACHE_READY}" != "true" ]; then
+  install_llvm_lit() {
+    local prefix="$1"
+    local lit_src="${WORKSPACE_LLVM_SRC}/llvm/utils/lit"
+    local lit_build_src="/tmp/llvm-lit-src"
+    local lit_packages="${prefix}/python-packages"
+
+    mkdir -p "${prefix}/bin"
+    test -d "${lit_src}" || {
+      echo "error: LLVM lit source package not found: ${lit_src}" >&2
+      exit 1
+    }
+    rm -rf "${lit_packages}"
+    rm -rf "${lit_build_src}"
+    cp -a "${lit_src}" "${lit_build_src}"
+    "$PYBIN" -m pip install --no-deps --no-compile --target "${lit_packages}" "${lit_build_src}"
+    test -d "${lit_packages}/lit" || {
+      echo "error: installed lit package not found: ${lit_packages}/lit" >&2
+      exit 1
+    }
+    cat > "${prefix}/bin/lit" <<'EOF'
+#!/usr/bin/env python3
+import os
+import sys
+
+prefix = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(prefix, "python-packages"))
+
+from lit.main import main
+
+main()
+EOF
+    chmod +x "${prefix}/bin/lit"
+    cp -a "${prefix}/bin/lit" "${prefix}/bin/llvm-lit"
+  }
+
+  package_llvm_install() {
+    LLVM_VERSION_FILE="$(find "${LLVM_INSTALL_DIR}" -path '*/cmake/llvm/LLVMConfigVersion.cmake' | head -n 1)"
+    LLVM_PACKAGE_VERSION="$(sed -nE 's/^[[:space:]]*set\(PACKAGE_VERSION[[:space:]]+"([^"]+)".*/\1/p' "${LLVM_VERSION_FILE}" | head -n 1)"
+    LLVM_PACKAGE_VERSION="${LLVM_PACKAGE_VERSION:-unknown}"
+    LLVM_TAR_NAME="llvm-${LLVM_PACKAGE_VERSION}-${ARTIFACT_SUFFIX}.tar.gz"
+    LLVM_TAR_TMP="${BUDDY_BUILD_DIR}/${LLVM_TAR_NAME}"
+    tar -C "${LLVM_INSTALL_DIR}" -czf "${LLVM_TAR_TMP}" .
+    mv -f "${LLVM_TAR_TMP}" "${ARTIFACT_DIR}/${LLVM_TAR_NAME}"
+  }
+
+  build_llvm() {
     LLVM_RUNTIMES_CMAKE_ARGS=()
     if [ -n "${LLVM_RUNTIMES_CMAKE_ARGS_VALUE}" ]; then
       LLVM_RUNTIMES_CMAKE_ARGS+=("-DRUNTIMES_CMAKE_ARGS=${LLVM_RUNTIMES_CMAKE_ARGS_VALUE}")
     fi
-    rm -rf "${LLVM_BUILD_DIR}"
     cmake -G Ninja -S "${WORKSPACE_LLVM_SRC}/llvm" -B "${LLVM_BUILD_DIR}" \
       -DLLVM_ENABLE_PROJECTS="mlir;clang" \
       -DLLVM_ENABLE_RUNTIMES="openmp" \
@@ -273,23 +310,42 @@ else
       -DLLVM_ENABLE_ASSERTIONS=OFF \
       -DCMAKE_BUILD_TYPE=RELEASE \
       -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
+      -DLLVM_INSTALL_UTILS=ON \
       -DPython3_EXECUTABLE="$PYBIN" \
       -DCMAKE_INSTALL_PREFIX="${LLVM_INSTALL_DIR}"
     ccache -z || true
     ninja -C "${LLVM_BUILD_DIR}" check-clang check-mlir check-openmp || true
     ccache -s || true
     cmake --build "${LLVM_BUILD_DIR}" --target install -j
-    LLVM_VERSION_FILE="$(find "${LLVM_INSTALL_DIR}" -path '*/cmake/llvm/LLVMConfigVersion.cmake' | head -n 1)"
-    LLVM_PACKAGE_VERSION="$(sed -nE 's/^[[:space:]]*set\(PACKAGE_VERSION[[:space:]]+"([^"]+)".*/\1/p' "${LLVM_VERSION_FILE}" | head -n 1)"
-    LLVM_PACKAGE_VERSION="${LLVM_PACKAGE_VERSION:-unknown}"
-    LLVM_TAR_NAME="llvm-${LLVM_PACKAGE_VERSION}-${ARTIFACT_SUFFIX}.tar.gz"
-    LLVM_TAR_TMP="${BUDDY_BUILD_DIR}/${LLVM_TAR_NAME}"
-    tar -C "${LLVM_INSTALL_DIR}" -czf "${LLVM_TAR_TMP}" .
-    mv -f "${LLVM_TAR_TMP}" "${ARTIFACT_DIR}/${LLVM_TAR_NAME}"
+    install_llvm_lit "${LLVM_INSTALL_DIR}"
+    package_llvm_install
     printf 'ready\n' > "${LLVM_STAMP_FILE}"
-  fi
+  }
 
-  KEEP=3
+  LLVM_CACHE_MODE="${LLVM_CACHE_MODE:-cache}"
+  case "${LLVM_CACHE_MODE}" in
+    cache)
+      if [ -f "${LLVM_STAMP_FILE}" ]; then
+        package_llvm_install
+      else
+        echo "LLVM cache stamp missing, falling back to incremental build: ${LLVM_STAMP_FILE}" >&2
+        build_llvm
+      fi
+      ;;
+    incremental)
+      build_llvm
+      ;;
+    clean)
+      rm -rf "${LLVM_BUILD_DIR}"
+      build_llvm
+      ;;
+    *)
+      echo "error: unsupported LLVM_CACHE_MODE=${LLVM_CACHE_MODE} (expected cache, incremental, or clean)" >&2
+      exit 1
+      ;;
+  esac
+
+  KEEP=2
   LLVM_CACHE_DIR="${LLVM_BUILD_ROOT}/llvm/${PY_TAG}"
   if [ -d "${LLVM_CACHE_DIR}" ]; then
     (
