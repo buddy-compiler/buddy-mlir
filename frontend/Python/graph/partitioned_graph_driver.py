@@ -48,6 +48,7 @@ from .operation import (
     PlaceholderOp,
     ReshapeOp,
     SubOp,
+    TransposeMatmulFusedOp,
     ViewOp,
 )
 from .type import DeviceType
@@ -279,6 +280,47 @@ class PartitionedGraphDriver:
                         new_shape = list(input1_shape)
                         new_shape[-1] = input2_shape[-1]
                         self._add_paral_op_shape(node.name, new_shape)
+
+                # 3. TransposeMatmulFusedOp
+                elif isinstance(node, TransposeMatmulFusedOp):
+                    # args: input, weight
+                    #
+                    # Semantics:
+                    #   input  shape: [..., M, K]
+                    #   weight shape: [N, K]
+                    #   output shape: [..., M, N]
+                    #
+                    # This corresponds to:
+                    #   linalg.matmul_transpose_b(input, weight)
+                    #
+                    # Different from MatmulOp:
+                    #   MatmulOp uses weight [K, N], output N = weight_shape[-1]
+                    #   TransposeMatmulFusedOp uses weight [N, K], output N = weight_shape[-2]
+
+                    if (node.args[0] in self._paral_op_shape) or (
+                        node.args[1] in self._paral_op_shape
+                    ):
+                        input1_shape = self._get_shape_from_cache_or_node(
+                            node.args[0]
+                        )
+                        input2_shape = self._get_shape_from_cache_or_node(
+                            node.args[1]
+                        )
+
+                        if input1_shape and input2_shape:
+                            # Need at least [..., M, K] and [N, K].
+                            if (
+                                len(input1_shape) >= 2
+                                and len(input2_shape) >= 2
+                            ):
+                                new_shape = list(input1_shape)
+
+                                # input2 is original non-transposed weight:
+                                #   [N, K]
+                                # so output last dim is N.
+                                new_shape[-1] = input2_shape[-2]
+
+                                self._add_paral_op_shape(node.name, new_shape)
 
                 # 3. AddMMOp
                 elif isinstance(node, AddMMOp):

@@ -491,7 +491,7 @@ set(SUBGRAPH_DECODE_PASSES
   -optimize-allocation-liveness
   -assume-tight-memref-layout
   -staticize-memref-layout
-  -matmul-vectorization-decode=vector-size=32
+  -matmul-transpose-b-vectorization-decode
   -batch-matmul-vectorization-decode=vector-size=128
   -batchmatmul-transpose-b-vectorization=vector-size=16
   -convert-linalg-to-affine-loops
@@ -530,7 +530,7 @@ set(SUBGRAPH_DECODE_PASSES_RVV_K64
   -optimize-allocation-liveness
   -assume-tight-memref-layout
   -staticize-memref-layout
-  "-matmul-parallel-vectorization-tiling=vector-size=64 k-block-size=64"
+  -matmul-transpose-b-vectorization-decode
   -batch-matmul-vectorization-decode=vector-size=128
   -batchmatmul-transpose-b-vectorization=vector-size=16
   -convert-linalg-to-affine-loops
@@ -569,7 +569,7 @@ set(SUBGRAPH_DECODE_PASSES_RVV_K16
   -optimize-allocation-liveness
   -assume-tight-memref-layout
   -staticize-memref-layout
-  "-matmul-parallel-vectorization-tiling=vector-size=64 k-block-size=16"
+  -matmul-transpose-b-vectorization-decode
   -batch-matmul-vectorization-decode=vector-size=128
   -batchmatmul-transpose-b-vectorization=vector-size=16
   -convert-linalg-to-affine-loops
