@@ -931,12 +931,18 @@ def gen_impl(config: dict) -> str:
     p()
     p("  buddy::kvcache::discardKVCache(rawPtrs, cfg_.kvLayers, cfg_.headNum,")
     p("                                 cfg_.maxTokenLen, cfg_.hiddenSize,")
-    p("                                 keepTokenNum, discardLen, currentTokens);")
+    p(
+        "                                 keepTokenNum, discardLen, currentTokens);"
+    )
     p()
     p("  auto inverseFreqs =")
-    p("      buddy::kvcache::buildInverseRopeFreqs(ropeTheta, cfg_.hiddenSize);")
+    p(
+        "      buddy::kvcache::buildInverseRopeFreqs(ropeTheta, cfg_.hiddenSize);"
+    )
     p("  buddy::kvcache::adjustKeyCacheRope(")
-    p("      rawPtrs, cfg_.kvLayers, cfg_.headNum, cfg_.maxTokenLen, cfg_.hiddenSize,")
+    p(
+        "      rawPtrs, cfg_.kvLayers, cfg_.headNum, cfg_.maxTokenLen, cfg_.hiddenSize,"
+    )
     p("      keepTokenNum, discardLen, currentTokens, inverseFreqs);")
     p()
     p("  position_ = std::clamp(position_ - discardLen, 0, cfg_.maxTokenLen);")

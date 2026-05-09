@@ -170,10 +170,9 @@ void runInteractiveSession(LLMSession &session, const std::string &vocabPath,
     }
 
     const TextCodec &activeCodec = resetKV ? codec : rawCodec;
-    GenerationResult result =
-        runGeneration(prompt, session, vocabPath, cfg.maxNewTokens,
-                      stopTokenIds, sampler, activeCodec, suppress, resetKV,
-                      kThinkTokenId, kEndThinkTokenId);
+    GenerationResult result = runGeneration(
+        prompt, session, vocabPath, cfg.maxNewTokens, stopTokenIds, sampler,
+        activeCodec, suppress, resetKV, kThinkTokenId, kEndThinkTokenId);
 
     conv.addMessage("assistant", result.text);
 
