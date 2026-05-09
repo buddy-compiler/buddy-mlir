@@ -147,17 +147,23 @@ class PhaseCtx:
                 for key in self.weights
                 if key.startswith("w_") and key[2:].isdigit()
             )
-            for slot in weight_slots:
-                direct_key = f"w_{slot:04d}"
-                if direct_key in self.weights:
-                    self.weight_key_by_slot[slot] = direct_key
-            if len(self.weight_key_by_slot) != len(weight_slots) and len(
-                available_slots
-            ) == len(weight_slots):
+            if set(available_slots) == set(weight_slots):
+                self.weight_key_by_slot = {
+                    slot: f"w_{slot:04d}" for slot in weight_slots
+                }
+            elif len(available_slots) == len(weight_slots):
+                # Shared prefill/decode weight archives use the same tensors
+                # but may have phase-specific slot numbers. Zip preserves the
+                # TTIR input order recorded by each phase's slot_roles.json.
                 self.weight_key_by_slot = {
                     slot: f"w_{old_slot:04d}"
                     for slot, old_slot in zip(weight_slots, available_slots)
                 }
+            else:
+                for slot in weight_slots:
+                    direct_key = f"w_{slot:04d}"
+                    if direct_key in self.weights:
+                        self.weight_key_by_slot[slot] = direct_key
         self.inv_freq: np.ndarray | None = None
         ipath = artifacts_dir / phase / "inv_freq.npy"
         if ipath.exists():

@@ -31,6 +31,8 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 export BUDDY_BUILD="${BUDDY_BUILD:-${REPO_ROOT}/build}"
 export TTMLIR_SOURCE="${TTMLIR_SOURCE:-${BUDDY_TT_MLIR_SOURCE_DIR:-${REPO_ROOT}/thirdparty/tt-mlir}}"
 export TTMLIR_BUILD="${TTMLIR_BUILD:-${BUDDY_TT_MLIR_BUILD_DIR:-${TTMLIR_SOURCE}/build}}"
+export TTMLIR_TOOLCHAIN_DIR="${TTMLIR_TOOLCHAIN_DIR:-${REPO_ROOT}/build-ttmlir-toolchain}"
+export TTMLIR_VENV_DIR="${TTMLIR_VENV_DIR:-${TTMLIR_TOOLCHAIN_DIR}/venv}"
 
 if [[ "${BUDDY_TT_SKIP_ACTIVATE:-0}" != "1" && -n "${BUDDY_TT_CONDA_ENV:-}" ]]; then
   if [[ -f "${HOME}/miniconda3/etc/profile.d/conda.sh" ]]; then
@@ -47,6 +49,10 @@ elif [[ "${BUDDY_TT_SKIP_ACTIVATE:-0}" != "1" && -f "${TTMLIR_SOURCE}/env/activa
   # shellcheck disable=SC1091
   source env/activate
   popd >/dev/null
+fi
+
+if [[ -x "${TTMLIR_VENV_DIR}/bin/python" ]]; then
+  export PATH="${TTMLIR_TOOLCHAIN_DIR}/bin:${TTMLIR_VENV_DIR}/bin:${PATH}"
 fi
 
 export TT_METAL_HOME="${TT_METAL_HOME:-${TTMLIR_SOURCE}/third_party/tt-metal/src/tt-metal}"

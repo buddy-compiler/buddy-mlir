@@ -20,13 +20,14 @@
 #   1) lower prefill TTIR (--static-cache --max-cache-len 1024) -> TTNN -> FB
 #   2) lower decode  TTIR (same)                                -> TTNN -> FB
 #   3) prepare chat artifacts (weights + slot roles) for both phases
-#   4) package TTNN artifacts into a llama31_tt .rax manifest
+#   4) package TTNN artifacts + chat artifacts into a self-contained .rax
 #   5) launch buddy-cli --model llama31_tt.rax by default
 #
 # Use MAX_CACHE_LEN (default 1024) to control cache length.
 # Set SKIP_LOWER=1 / SKIP_PREPARE=1 / SKIP_PACKAGE=1 to rerun later stages
 # with existing artifacts. Set RUN_WITH_BUDDY_CLI=0 to call the Python
 # ttrt runner directly. Set MAX_NEW_TOKENS=N to cap generation length.
+# Set EMBED_RAX_PAYLOAD=0 to write a manifest-only .rax for debugging.
 #
 # Memory note: Llama-3.1-8B's bf16 weights are ~16 GB; the chat artifacts
 # are loaded twice (prefill + decode contexts), so the script raises the
@@ -49,6 +50,16 @@ SKIP_PREPARE="${SKIP_PREPARE:-0}"
 SKIP_PACKAGE="${SKIP_PACKAGE:-0}"
 RUN_WITH_BUDDY_CLI="${RUN_WITH_BUDDY_CLI:-1}"
 MAX_NEW_TOKENS="${MAX_NEW_TOKENS:-0}"
+# Generated artifacts default to ${BUDDY_BUILD}/models/llama31_tt. Override
+# BUDDY_LLAMA31_ARTIFACT_ROOT, TTIR_OUT, CHAT_ART, RAX_PACKAGE_DIR, or
+# TTRT_SYS_DIR to place individual outputs elsewhere.
+ARTIFACT_ROOT="${BUDDY_LLAMA31_ARTIFACT_ROOT:-${BUDDY_BUILD}/models/llama31_tt}"
+if [[ "${ARTIFACT_ROOT}" == "${BUDDY_BUILD}/llama31_tt" ]]; then
+  echo "error: BUDDY_LLAMA31_ARTIFACT_ROOT points to the old layout:" >&2
+  echo "  ${ARTIFACT_ROOT}" >&2
+  echo "Use ${BUDDY_BUILD}/models/llama31_tt or leave BUDDY_LLAMA31_ARTIFACT_ROOT unset." >&2
+  exit 1
+fi
 # Set DEVICE_ARGMAX=1 to emit i64 token-id directly from the device graph
 # (saves ~256.5 KB / step on logits.to_host; see TTIR_E2E_OPTIMIZATION_ROADMAP P4).
 DEVICE_ARGMAX="${DEVICE_ARGMAX:-0}"
@@ -74,14 +85,14 @@ if [[ "${FULL_ARG_ATTRS}" == "1" ]]; then
   ARG_ATTR_SUFFIX="_argattrs"
 fi
 ARTIFACT_SUFFIX="${ARG_ATTR_SUFFIX}${ARGMAX_SUFFIX}"
-TTIR_OUT="${SCRIPT_DIR}/ttir_out_static"
-BASE_CHAT_ART="${BASE_CHAT_ART:-${SCRIPT_DIR}/chat_artifacts}"
+TTIR_OUT="${TTIR_OUT:-${ARTIFACT_ROOT}/ttir_out_static}"
+BASE_CHAT_ART="${BASE_CHAT_ART:-${ARTIFACT_ROOT}/chat_artifacts}"
 if [[ "${DEVICE_ARGMAX}" == "1" ]]; then
-  CHAT_ART="${CHAT_ART:-${SCRIPT_DIR}/chat_artifacts_argmax}"
+  CHAT_ART="${CHAT_ART:-${ARTIFACT_ROOT}/chat_artifacts_argmax}"
 else
   CHAT_ART="${CHAT_ART:-${BASE_CHAT_ART}}"
 fi
-RAX_PACKAGE_DIR="${RAX_PACKAGE_DIR:-${SCRIPT_DIR}/tt_package${ARGMAX_SUFFIX}}"
+RAX_PACKAGE_DIR="${RAX_PACKAGE_DIR:-${ARTIFACT_ROOT}/tt_package${ARGMAX_SUFFIX}}"
 mkdir -p "${TTIR_OUT}" "${CHAT_ART}" "${RAX_PACKAGE_DIR}"
 
 have_artifact() {
@@ -111,7 +122,56 @@ reuse_static_payloads() {
   done
 }
 
-SYS_DIR="/tmp/ttrt_sys_llama31"
+have_phase_metadata() {
+  local phase_dir="${CHAT_ART}/$1"
+  [[ -f "${phase_dir}/slot_roles.json" \
+    && -f "${phase_dir}/shapes.json" \
+    && -f "${phase_dir}/dtypes.json" \
+    && -f "${phase_dir}/summary.json" ]]
+}
+
+have_phase_weights() {
+  [[ -s "${CHAT_ART}/$1/weights.npz" ]]
+}
+
+share_phase_weights() {
+  local src="${CHAT_ART}/prefill/weights.npz"
+  local dst="${CHAT_ART}/decode/weights.npz"
+  if [[ ! -s "${src}" ]]; then
+    echo "error: missing shared Llama weights ${src}" >&2
+    exit 1
+  fi
+  if [[ -e "${dst}" ]]; then
+    if [[ "${src}" -ef "${dst}" ]]; then
+      return
+    fi
+    rm -f "${dst}"
+  fi
+  ln -s "../prefill/weights.npz" "${dst}" 2>/dev/null || ln "${src}" "${dst}"
+}
+
+kb_to_gib() {
+  awk -v kb="$1" 'BEGIN { printf "%.1f", kb / 1024 / 1024 }'
+}
+
+check_rax_payload_space() {
+  local payload_kb
+  payload_kb="$(du -sk "${PREFILL_TTNN}" "${DECODE_TTNN}" "${CHAT_ART}" \
+    "${SCRIPT_DIR}/llama31_chat_run.py" | awk '{sum += $1} END {print sum + 0}')"
+  local margin_kb=$((2 * 1024 * 1024))
+  local required_kb=$((payload_kb + margin_kb))
+  local available_kb
+  available_kb="$(df -Pk "${RAX_PACKAGE_DIR}" | awk 'NR == 2 {print $4}')"
+  if (( available_kb < required_kb )); then
+    echo "error: not enough free space to embed the Llama payload into ${RAX_FILE}" >&2
+    echo "  required: $(kb_to_gib "${required_kb}") GiB" >&2
+    echo "  available: $(kb_to_gib "${available_kb}") GiB" >&2
+    echo "Free space on this filesystem or set EMBED_RAX_PAYLOAD=0 for a manifest-only debug package." >&2
+    exit 1
+  fi
+}
+
+SYS_DIR="${TTRT_SYS_DIR:-${ARTIFACT_ROOT}/ttrt_sys}"
 if [[ ! -f "${SYS_DIR}/system_desc.ttsys" ]]; then
   echo "=== query system descriptor ==="
   python -m ttrt query --save-artifacts --artifact-dir "${SYS_DIR}" 2>&1 | tail -3
@@ -171,31 +231,50 @@ else
 fi
 
 if [[ "${SKIP_PREPARE}" != "1" ]]; then
-  if [[ ! -f "${CHAT_ART}/prefill/slot_roles.json" \
-        || ! -f "${CHAT_ART}/decode/slot_roles.json" ]]; then
+  if ! have_phase_metadata prefill || ! have_phase_metadata decode \
+      || ! have_phase_weights prefill || ! have_phase_weights decode; then
     echo "=== [3/4] Prepare chat artifacts (weights + roles) ==="
     if [[ "${DEVICE_ARGMAX}" == "1" && "${BASE_CHAT_ART}" != "${CHAT_ART}" \
           && -f "${BASE_CHAT_ART}/prefill/weights.npz" \
           && -f "${BASE_CHAT_ART}/decode/weights.npz" ]]; then
-      PREPARE_EXTRA+=(--metadata-only)
-    fi
-    python llama31_chat_prepare.py \
-      --max-cache-len "${MAX_CACHE_LEN}" \
-      "${PREPARE_EXTRA[@]}" \
-      -o "${CHAT_ART}"
-    if [[ "${DEVICE_ARGMAX}" == "1" && "${BASE_CHAT_ART}" != "${CHAT_ART}" ]]; then
+      python llama31_chat_prepare.py \
+        --max-cache-len "${MAX_CACHE_LEN}" \
+        --metadata-only \
+        "${PREPARE_EXTRA[@]}" \
+        -o "${CHAT_ART}"
       reuse_static_payloads
+    else
+      if ! have_phase_metadata prefill || ! have_phase_weights prefill; then
+        python llama31_chat_prepare.py \
+          --phases prefill \
+          --max-cache-len "${MAX_CACHE_LEN}" \
+          "${PREPARE_EXTRA[@]}" \
+          -o "${CHAT_ART}"
+      fi
+      if ! have_phase_metadata decode; then
+        python llama31_chat_prepare.py \
+          --phases decode \
+          --max-cache-len "${MAX_CACHE_LEN}" \
+          --metadata-only \
+          "${PREPARE_EXTRA[@]}" \
+          -o "${CHAT_ART}"
+      fi
+      share_phase_weights
     fi
   else
     echo "=== [3/4] chat artifacts already exist: ${CHAT_ART} ==="
     if [[ "${DEVICE_ARGMAX}" == "1" && "${BASE_CHAT_ART}" != "${CHAT_ART}" ]]; then
       reuse_static_payloads
+    else
+      share_phase_weights
     fi
   fi
 else
   echo "=== skipping chat prepare (SKIP_PREPARE=1) ==="
   if [[ "${DEVICE_ARGMAX}" == "1" && "${BASE_CHAT_ART}" != "${CHAT_ART}" ]]; then
     reuse_static_payloads
+  elif [[ -s "${CHAT_ART}/prefill/weights.npz" ]]; then
+    share_phase_weights
   fi
 fi
 
@@ -216,8 +295,11 @@ if [[ "${SKIP_PACKAGE}" != "1" ]]; then
     -o "${RAX_MANIFEST}"
 
   RAX_PACK_ARGS=()
-  if [[ "${EMBED_TTNN_IN_RAX:-0}" == "1" ]]; then
+  EMBED_RAX_PAYLOAD="${EMBED_RAX_PAYLOAD:-${EMBED_TTNN_IN_RAX:-1}}"
+  if [[ "${EMBED_RAX_PAYLOAD}" == "1" ]]; then
     RAX_PACK_ARGS+=(--embed-payload)
+    rm -f "${RAX_FILE}"
+    check_rax_payload_space
   fi
   "${BUDDY_BUILD}/bin/rax-pack" "${RAX_MANIFEST}" -o "${RAX_FILE}" "${RAX_PACK_ARGS[@]}"
 else

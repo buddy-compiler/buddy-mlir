@@ -36,6 +36,45 @@ def _quote(text: str) -> str:
     return text.replace("\\", "\\\\").replace('"', '\\"')
 
 
+def _artifact_constants(artifacts: str | Path) -> list[tuple[str, Path]]:
+    root = Path(artifacts)
+    shared_weights = root / "prefill" / "weights.npz"
+    required = [
+        "slot_roles.json",
+        "shapes.json",
+        "dtypes.json",
+        "summary.json",
+        "weights.npz",
+    ]
+    optional = ["inv_freq.npy"]
+    out: list[tuple[str, Path]] = []
+
+    for phase in ("prefill", "decode"):
+        phase_dir = root / phase
+        for filename in required:
+            # The model weights are identical across prefill and decode. Keep
+            # both phase-local manifest symbols, but point them at one source
+            # file so rax-pack embeds the large weight archive only once.
+            if (
+                phase == "decode"
+                and filename == "weights.npz"
+                and shared_weights.is_file()
+            ):
+                path = shared_weights
+            else:
+                path = phase_dir / filename
+            if not path.is_file():
+                raise FileNotFoundError(f"missing Llama artifact: {path}")
+            sym = f"artifact_{phase}_{filename.replace('.', '_')}"
+            out.append((sym, path))
+        for filename in optional:
+            path = phase_dir / filename
+            if path.is_file():
+                sym = f"artifact_{phase}_{filename.replace('.', '_')}"
+                out.append((sym, path))
+    return out
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Generate an RHAL manifest for Llama 3.1 TTNN artifacts."
@@ -93,8 +132,21 @@ def main() -> int:
   rhal.codeobj @decode_ttnn {{id = 2 : i32, kind = "raw_bytes",
                              backend = "ttnn",
                              uri = "{_quote(_file_uri(args.decode_ttnn))}"}}
-}}
+  rhal.codeobj @runner_py {{id = 3 : i32, kind = "raw_bytes",
+                           backend = "python",
+                           uri = "{_quote(_file_uri(args.runner))}"}}
 """
+
+    for idx, (sym, path) in enumerate(
+        _artifact_constants(args.artifacts), start=1
+    ):
+        text += (
+            f'  rhal.constant @{sym} {{id = {idx} : i32, storage = "external",\n'
+            f"                           type = tensor<1xi8>,\n"
+            f'                           uri = "{_quote(_file_uri(path))}"}}\n'
+        )
+
+    text += "}\n"
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(text)

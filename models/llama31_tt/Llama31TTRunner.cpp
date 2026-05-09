@@ -23,6 +23,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <string>
+#include <system_error>
 
 namespace buddy {
 namespace runtime {
@@ -84,6 +85,20 @@ static std::string findTTNNArtifact(const ModelManifest &manifest,
                            phase + "'");
 }
 
+static std::string defaultRunnerPath(const std::string &raxPath);
+
+static std::string findRunnerArtifact(const ModelManifest &manifest,
+                                      const std::string &raxPath) {
+  for (const auto &codeObject : manifest.codeObjects) {
+    if (codeObject.backend == "python" ||
+        codeObject.name.find("runner") != std::string::npos) {
+      if (!codeObject.path.empty())
+        return codeObject.path;
+    }
+  }
+  return lookupAttr(manifest, "runner_uri", defaultRunnerPath(raxPath));
+}
+
 static std::string defaultRunnerPath(const std::string &raxPath) {
   if (!raxPath.empty()) {
     fs::path besideRax =
@@ -97,6 +112,101 @@ static std::string defaultRunnerPath(const std::string &raxPath) {
   return "llama31_chat_run.py";
 }
 
+static bool parseArtifactConstantName(const std::string &name,
+                                      std::string &phase,
+                                      std::string &filename) {
+  static const std::string prefix = "artifact_";
+  if (name.rfind(prefix, 0) != 0)
+    return false;
+
+  std::string rest = name.substr(prefix.size());
+  if (rest.rfind("prefill_", 0) == 0) {
+    phase = "prefill";
+    rest = rest.substr(std::string("prefill_").size());
+  } else if (rest.rfind("decode_", 0) == 0) {
+    phase = "decode";
+    rest = rest.substr(std::string("decode_").size());
+  } else {
+    return false;
+  }
+
+  if (rest == "weights_npz")
+    filename = "weights.npz";
+  else if (rest == "slot_roles_json")
+    filename = "slot_roles.json";
+  else if (rest == "shapes_json")
+    filename = "shapes.json";
+  else if (rest == "dtypes_json")
+    filename = "dtypes.json";
+  else if (rest == "summary_json")
+    filename = "summary.json";
+  else if (rest == "inv_freq_npy")
+    filename = "inv_freq.npy";
+  else
+    return false;
+  return true;
+}
+
+static void linkOrCopyPayloadFile(const fs::path &src, const fs::path &dst) {
+  std::error_code ec;
+  fs::create_directories(dst.parent_path(), ec);
+  if (ec)
+    throw std::runtime_error("llama31_tt: cannot create artifact directory: " +
+                             dst.parent_path().string() + ": " + ec.message());
+
+  if (fs::exists(dst, ec)) {
+    if (!ec && fs::equivalent(src, dst, ec))
+      return;
+    ec.clear();
+    fs::remove(dst, ec);
+    if (ec)
+      throw std::runtime_error("llama31_tt: cannot replace artifact file: " +
+                               dst.string() + ": " + ec.message());
+  }
+
+  fs::create_symlink(src, dst, ec);
+  if (!ec)
+    return;
+
+  ec.clear();
+  fs::create_hard_link(src, dst, ec);
+  if (!ec)
+    return;
+
+  ec.clear();
+  fs::copy_file(src, dst, fs::copy_options::overwrite_existing, ec);
+  if (ec)
+    throw std::runtime_error("llama31_tt: cannot materialize artifact " +
+                             src.string() + " -> " + dst.string() + ": " +
+                             ec.message());
+}
+
+static std::string materializeEmbeddedArtifacts(const ModelManifest &manifest,
+                                                const fs::path &raxDir) {
+  bool hasArtifactConstants = false;
+  fs::path root;
+
+  for (const auto &constant : manifest.constants) {
+    std::string phase;
+    std::string filename;
+    if (!parseArtifactConstantName(constant.name, phase, filename))
+      continue;
+    if (constant.path.empty())
+      continue;
+
+    if (!hasArtifactConstants) {
+      const fs::path payloadParent = fs::path(constant.path).parent_path();
+      root = payloadParent.empty() ? raxDir / "chat_artifacts"
+                                   : payloadParent / "chat_artifacts";
+      hasArtifactConstants = true;
+    }
+
+    linkOrCopyPayloadFile(fs::path(constant.path), root / phase / filename);
+  }
+
+  return hasArtifactConstants ? fs::absolute(root).string() : "";
+}
+
 } // namespace
 
 void Llama31TTRunner::run(const RunConfig &cfg) {
@@ -108,10 +218,12 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
   const std::string decodeTTNN = findTTNNArtifact(manifest, "decode");
 
   const fs::path raxDir = fs::absolute(fs::path(cfg.raxPath)).parent_path();
-  const std::string runner =
-      lookupAttr(manifest, "runner_uri", defaultRunnerPath(cfg.raxPath));
-  const std::string artifacts = lookupAttr(
-      manifest, "artifacts_uri", (raxDir / "chat_artifacts").string());
+  const std::string runner = findRunnerArtifact(manifest, cfg.raxPath);
+  std::string artifacts = materializeEmbeddedArtifacts(manifest, raxDir);
+  if (artifacts.empty()) {
+    artifacts = lookupAttr(manifest, "artifacts_uri",
+                           (raxDir / "chat_artifacts").string());
+  }
   const std::string tokenizer = lookupAttr(
       manifest, "tokenizer_uri",
       getEnvOr("LLAMA31_MODEL_PATH", "meta-llama/Llama-3.1-8B-Instruct"));
