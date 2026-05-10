@@ -401,9 +401,45 @@ private:
                              dynVecTy.getElementType(),
                              fallbackVecTy.getScalableDims());
     };
+    auto remapResultType = [&](Type ty, ArrayRef<Value> operands) -> Type {
+      auto dyn = dyn_cast<vir::DynamicVectorType>(ty);
+      if (!dyn)
+        return ty;
+      Type elem = dyn.getElementType();
+      for (Value operand : operands) {
+        if (auto vecTy = dyn_cast<VectorType>(operand.getType())) {
+          return VectorType::get(vecTy.getShape(), elem,
+                                 vecTy.getScalableDims());
+        }
+      }
+      return elem;
+    };
+    auto cloneMappedOp = [&](Operation *op) {
+      SmallVector<Value> operands;
+      operands.reserve(op->getNumOperands());
+      for (Value operand : op->getOperands())
+        operands.push_back(findValue(operand));
+
+      SmallVector<Type> resultTypes;
+      resultTypes.reserve(op->getNumResults());
+      for (Type ty : op->getResultTypes())
+        resultTypes.push_back(remapResultType(ty, operands));
+
+      OperationState state(loc, op->getName().getStringRef());
+      state.addOperands(operands);
+      state.addTypes(resultTypes);
+      state.addAttributes(op->getAttrs());
+      state.addSuccessors(op->getSuccessors());
+      Operation *newOp = builder.create(state);
+      for (auto [oldResult, newResult] :
+           llvm::zip(op->getResults(), newOp->getResults()))
+        virSymbolTable[oldResult] = newResult;
+    };
 
     for (Operation &innerOp : block->without_terminator()) {
       llvm::TypeSwitch<Operation *>(&innerOp)
+          .Case<memref::ExpandShapeOp, memref::SubViewOp, memref::TransposeOp>(
+              [&](Operation *op) { cloneMappedOp(op); })
           .Case<vir::LoadOp>([&](vir::LoadOp op) {
             Value base = findValue(op.getBase());
             SmallVector<Value> destIndices{};
@@ -1196,6 +1232,32 @@ private:
             auto newOp = builder.create<math::SqrtOp>(loc, outTy, in);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
+          .Case<math::RsqrtOp>([&](math::RsqrtOp op) {
+            Value in = findValue(op.getOperand());
+            Type outTy = op.getType();
+            if (auto dyn = dyn_cast<vir::DynamicVectorType>(outTy)) {
+              Type elem = dyn.getElementType();
+              if (auto vecTy = dyn_cast<VectorType>(in.getType())) {
+                outTy = VectorType::get(vecTy.getShape(), elem,
+                                        vecTy.getScalableDims());
+              } else {
+                outTy = elem;
+              }
+            }
+            auto sqrt = builder.create<math::SqrtOp>(loc, outTy, in);
+            Type elemTy = outTy;
+            if (auto vecTy = dyn_cast<VectorType>(outTy))
+              elemTy = vecTy.getElementType();
+            auto oneAttr = builder.getFloatAttr(elemTy, 1.0);
+            Value one = builder.create<arith::ConstantOp>(loc, oneAttr);
+            if (isa<VectorType>(outTy))
+              one = builder.create<vector::BroadcastOp>(loc, outTy, one);
+            auto div = builder.create<arith::DivFOp>(loc, one, sqrt);
+            virSymbolTable[op.getResult()] = div.getResult();
+          })
+          .Case<math::LogOp, math::AbsFOp, math::CeilOp, math::FloorOp,
+                math::RoundOp, math::TanhOp, math::ErfOp, math::PowFOp>(
+              [&](Operation *op) { cloneMappedOp(op); })
           .Default([&](Operation *op) {
             emitWarning(loc, "Unsupported operation during lowering: " +
                                  op->getName().getStringRef());
