@@ -21,13 +21,15 @@
 #   2) lower decode  TTIR (same)                                -> TTNN -> FB
 #   3) prepare chat artifacts (weights + slot roles) for both phases
 #   4) package TTNN artifacts + chat artifacts into a self-contained .rax
-#   5) launch buddy-cli --model llama31_tt.rax by default
+#   5) launch buddy-cli --model llama31_tt.rax by default, unless
+#      PACKAGE_ONLY=1 is set.
 #
 # Use MAX_CACHE_LEN (default 1024) to control cache length.
 # Set SKIP_LOWER=1 / SKIP_PREPARE=1 / SKIP_PACKAGE=1 to rerun later stages
 # with existing artifacts. Set RUN_WITH_BUDDY_CLI=0 to call the Python
 # ttrt runner directly. Set MAX_NEW_TOKENS=N to cap generation length.
-# Set EMBED_RAX_PAYLOAD=0 to write a manifest-only .rax for debugging.
+# Set PACKAGE_ONLY=1 to stop after .rax generation. Set EMBED_RAX_PAYLOAD=0
+# to write a manifest-only .rax for debugging.
 #
 # Memory note: Llama-3.1-8B's bf16 weights are ~16 GB; the chat artifacts
 # are loaded twice (prefill + decode contexts), so the script raises the
@@ -50,6 +52,7 @@ SKIP_PREPARE="${SKIP_PREPARE:-0}"
 SKIP_PACKAGE="${SKIP_PACKAGE:-0}"
 RUN_WITH_BUDDY_CLI="${RUN_WITH_BUDDY_CLI:-1}"
 MAX_NEW_TOKENS="${MAX_NEW_TOKENS:-0}"
+PACKAGE_ONLY="${PACKAGE_ONLY:-0}"
 # Generated artifacts default to ${BUDDY_BUILD}/models/llama31_tt. Override
 # BUDDY_LLAMA31_ARTIFACT_ROOT, TTIR_OUT, CHAT_ART, RAX_PACKAGE_DIR, or
 # TTRT_SYS_DIR to place individual outputs elsewhere.
@@ -92,7 +95,8 @@ if [[ "${DEVICE_ARGMAX}" == "1" ]]; then
 else
   CHAT_ART="${CHAT_ART:-${BASE_CHAT_ART}}"
 fi
-RAX_PACKAGE_DIR="${RAX_PACKAGE_DIR:-${ARTIFACT_ROOT}/tt_package${ARGMAX_SUFFIX}}"
+RAX_PACKAGE_DIR="${RAX_PACKAGE_DIR:-${ARTIFACT_ROOT}}"
+RAX_STEM="${RAX_STEM:-llama31_tt${ARGMAX_SUFFIX}}"
 mkdir -p "${TTIR_OUT}" "${CHAT_ART}" "${RAX_PACKAGE_DIR}"
 
 have_artifact() {
@@ -185,8 +189,8 @@ BUDDY_TTNN_PIPELINE_EXTRA="${BUDDY_TTNN_PIPELINE_EXTRA:- enable-fusing-pass=true
 
 PREFILL_TTNN="${TTIR_OUT}/llama31_prefill_static${ARTIFACT_SUFFIX}.ttnn"
 DECODE_TTNN="${TTIR_OUT}/llama31_decode_static${ARTIFACT_SUFFIX}.ttnn"
-RAX_MANIFEST="${RAX_PACKAGE_DIR}/llama31_tt.rhal.mlir"
-RAX_FILE="${RAX_PACKAGE_DIR}/llama31_tt.rax"
+RAX_MANIFEST="${RAX_PACKAGE_DIR}/${RAX_STEM}.rhal.mlir"
+RAX_FILE="${RAX_PACKAGE_DIR}/${RAX_STEM}.rax"
 
 if [[ "${SKIP_LOWER}" != "1" ]]; then
   if ! have_artifact "${PREFILL_TTNN}"; then
@@ -304,6 +308,11 @@ if [[ "${SKIP_PACKAGE}" != "1" ]]; then
   "${BUDDY_BUILD}/bin/rax-pack" "${RAX_MANIFEST}" -o "${RAX_FILE}" "${RAX_PACK_ARGS[@]}"
 else
   echo "=== skipping RAX package (SKIP_PACKAGE=1): ${RAX_FILE} ==="
+fi
+
+if [[ "${PACKAGE_ONLY}" == "1" ]]; then
+  echo "=== package ready: ${RAX_FILE} ==="
+  exit 0
 fi
 
 echo "=== [5/5] Interactive chat on P150A ==="

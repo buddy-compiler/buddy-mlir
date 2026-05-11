@@ -14,5 +14,4 @@
 [submodule "thirdparty/tt-mlir"]
 	path = thirdparty/tt-mlir
 	url = https://github.com/tenstorrent/tt-mlir.git
-	branch = main
 	shallow = false

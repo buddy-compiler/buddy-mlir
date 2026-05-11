@@ -25,6 +25,10 @@
 #include <string>
 #include <system_error>
 
+#if defined(__unix__) || defined(__APPLE__)
+#include <sys/resource.h>
+#endif
+
 namespace buddy {
 namespace runtime {
 namespace {
@@ -68,6 +72,28 @@ static bool lookupBoolAttr(const ModelManifest &manifest,
   if (value.empty())
     return fallback;
   return value == "1" || value == "true" || value == "on" || value == "yes";
+}
+
+static void raiseMemoryLimitForLlama() {
+#if defined(__unix__) || defined(__APPLE__)
+  constexpr rlim_t target = static_cast<rlim_t>(95000000) * 1024;
+  auto raiseOne = [](int resource) {
+    struct rlimit limit{};
+    if (getrlimit(resource, &limit) != 0)
+      return;
+    if (limit.rlim_cur == RLIM_INFINITY || limit.rlim_cur >= target)
+      return;
+    rlim_t requested = target;
+    if (limit.rlim_max != RLIM_INFINITY && requested > limit.rlim_max)
+      requested = limit.rlim_max;
+    if (requested <= limit.rlim_cur)
+      return;
+    limit.rlim_cur = requested;
+    setrlimit(resource, &limit);
+  };
+  raiseOne(RLIMIT_AS);
+  raiseOne(RLIMIT_RSS);
+#endif
 }
 
 static std::string findTTNNArtifact(const ModelManifest &manifest,
@@ -210,6 +236,8 @@ static std::string materializeEmbeddedArtifacts(const ModelManifest &manifest,
 } // namespace
 
 void Llama31TTRunner::run(const RunConfig &cfg) {
+  raiseMemoryLimitForLlama();
+
   if (cfg.raxPath.empty())
     throw std::runtime_error("llama31_tt requires --model <path.rax>");
 

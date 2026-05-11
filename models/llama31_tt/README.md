@@ -13,21 +13,17 @@ tt-metal runtime linkage optional.
 
 ```bash
 cmake -S . -B build \
-  -DBUDDY_BUILD_LLAMA31_TT_MODEL=ON
-cmake --build build --target buddy-cli rax-pack
-```
-
-When compiling TTIR to TTNN or running on P150A, also configure the optional
-Tenstorrent environment checks:
-
-```bash
-git submodule update --init --depth 1 thirdparty/tt-mlir
-source thirdparty/tt-mlir/env/activate
-
-cmake -S . -B build \
   -DBUDDY_BUILD_LLAMA31_TT_MODEL=ON \
   -DBUDDY_ENABLE_TENSTORRENT=ON \
-  -DBUDDY_TT_MLIR_BUILD_DIR=$PWD/thirdparty/tt-mlir/build
+  -DBUDDY_TT_MLIR_BUILD_DIR=$PWD/build-ttmlir
+cmake --build build --target buddy-cli llama31_tt_rax
+```
+
+The `llama31_tt_rax` target captures the graph, lowers TTIR to TTNN, prepares
+`chat_artifacts`, and writes:
+
+```text
+build/models/llama31_tt/llama31_tt.rax
 ```
 
 See [TenstorrentEnvironment.md](../../docs/TenstorrentEnvironment.md).
@@ -35,26 +31,15 @@ See [TenstorrentEnvironment.md](../../docs/TenstorrentEnvironment.md).
 The full capture, lower, package, and run wrapper is
 [`run_llama31_p150_chat.sh`](run_llama31_p150_chat.sh).
 
-## Package Existing TTNN Artifacts
+## Run With buddy-cli
 
 ```bash
-python3 tools/buddy-codegen/gen_tenstorrent_manifest.py \
-  --prefill-ttnn models/llama31_tt/ttir_out_static/llama31_prefill_static_argattrs.ttnn \
-  --decode-ttnn models/llama31_tt/ttir_out_static/llama31_decode_static_argattrs.ttnn \
-  --artifacts models/llama31_tt/chat_artifacts \
-  --runner models/llama31_tt/llama31_chat_run.py \
-  --max-cache-len 1024 \
-  -o build/models/llama31_tt/llama31_tt.rhal.mlir
+ulimit -v 95000000
+ulimit -m 95000000
+export BUDDY_RAX_PAYLOAD_DIR=/tmp/$USER/buddy_rax_payload
+mkdir -p "$BUDDY_RAX_PAYLOAD_DIR"
 
-build/bin/rax-pack build/models/llama31_tt/llama31_tt.rhal.mlir \
-  --embed-payload \
-  -o build/models/llama31_tt/llama31_tt.rax
-```
-
-Then run:
-
-```bash
-BUDDY_TT_PYTHON=python3 \
+BUDDY_TT_PYTHON=/path/to/build-ttmlir-toolchain/venv/bin/python \
 LLAMA31_MODEL_PATH=/path/to/Llama-3.1-8B-Instruct \
 HF_HUB_OFFLINE=1 \
 TRANSFORMERS_OFFLINE=1 \
@@ -67,6 +52,30 @@ build/bin/buddy-cli \
 If `LLAMA31_MODEL_PATH` is not set, the runner uses the default Hugging Face id
 `meta-llama/Llama-3.1-8B-Instruct`. With offline mode enabled, that model and
 tokenizer must already be present in the local Hugging Face cache.
+
+## Package Existing TTNN Artifacts
+
+The supported path is the `llama31_tt_rax` CMake target above. Use the lower
+level manifest command only when both TTNN flatbuffers and `chat_artifacts`
+have already been generated.
+
+```bash
+cd /path/to/buddy-mlir
+export BUDDY_REPO_ROOT=$(pwd)
+export BUDDY_BUILD=${BUDDY_BUILD:-$BUDDY_REPO_ROOT/build}
+
+python3 "$BUDDY_REPO_ROOT/tools/buddy-codegen/gen_tenstorrent_manifest.py" \
+  --prefill-ttnn "$BUDDY_BUILD/models/llama31_tt/ttir_out_static/llama31_prefill_static_argattrs.ttnn" \
+  --decode-ttnn "$BUDDY_BUILD/models/llama31_tt/ttir_out_static/llama31_decode_static_argattrs.ttnn" \
+  --artifacts "$BUDDY_BUILD/models/llama31_tt/chat_artifacts" \
+  --runner "$BUDDY_REPO_ROOT/models/llama31_tt/llama31_chat_run.py" \
+  --max-cache-len 1024 \
+  -o "$BUDDY_BUILD/models/llama31_tt/llama31_tt.rhal.mlir"
+
+"$BUDDY_BUILD/bin/rax-pack" "$BUDDY_BUILD/models/llama31_tt/llama31_tt.rhal.mlir" \
+  --embed-payload \
+  -o "$BUDDY_BUILD/models/llama31_tt/llama31_tt.rax"
+```
 
 The `.rax` manifest uses:
 

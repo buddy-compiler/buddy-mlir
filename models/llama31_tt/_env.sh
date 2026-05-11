@@ -34,20 +34,32 @@ export TTMLIR_BUILD="${TTMLIR_BUILD:-${BUDDY_TT_MLIR_BUILD_DIR:-${TTMLIR_SOURCE}
 export TTMLIR_TOOLCHAIN_DIR="${TTMLIR_TOOLCHAIN_DIR:-${REPO_ROOT}/build-ttmlir-toolchain}"
 export TTMLIR_VENV_DIR="${TTMLIR_VENV_DIR:-${TTMLIR_TOOLCHAIN_DIR}/venv}"
 
+source_with_nounset_disabled() {
+  local had_nounset=0
+  case $- in
+    *u*)
+      had_nounset=1
+      set +u
+      ;;
+  esac
+  # shellcheck disable=SC1090
+  source "$1"
+  if [[ "${had_nounset}" == "1" ]]; then
+    set -u
+  fi
+}
+
 if [[ "${BUDDY_TT_SKIP_ACTIVATE:-0}" != "1" && -n "${BUDDY_TT_CONDA_ENV:-}" ]]; then
   if [[ -f "${HOME}/miniconda3/etc/profile.d/conda.sh" ]]; then
-    # shellcheck disable=SC1091
-    source "${HOME}/miniconda3/etc/profile.d/conda.sh"
+    source_with_nounset_disabled "${HOME}/miniconda3/etc/profile.d/conda.sh"
     conda activate "${BUDDY_TT_CONDA_ENV}"
   elif [[ -f "${HOME}/anaconda3/etc/profile.d/conda.sh" ]]; then
-    # shellcheck disable=SC1091
-    source "${HOME}/anaconda3/etc/profile.d/conda.sh"
+    source_with_nounset_disabled "${HOME}/anaconda3/etc/profile.d/conda.sh"
     conda activate "${BUDDY_TT_CONDA_ENV}"
   fi
 elif [[ "${BUDDY_TT_SKIP_ACTIVATE:-0}" != "1" && -f "${TTMLIR_SOURCE}/env/activate" ]]; then
   pushd "${TTMLIR_SOURCE}" >/dev/null
-  # shellcheck disable=SC1091
-  source env/activate
+  source_with_nounset_disabled env/activate
   popd >/dev/null
 fi
 
