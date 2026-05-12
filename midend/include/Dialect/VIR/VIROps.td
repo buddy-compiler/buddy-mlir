@@ -92,6 +92,30 @@ def VIR_StoreOp : VIR_Op<"store"> {
                        "`:` qualified(type($value)) `->` type($base)";
 }
 
+def VIR_ScatterOp : VIR_Op<"scatter"> {
+  let summary = "Scatter operation for dynamic vector IR.";
+  let description = [{
+    The `scatter` operation stores dynamic vector elements into memory using a
+    dynamic vector of offsets along the most-minor dimension. The optional base
+    indices identify the base element for the scatter, and the index vector
+    provides per-lane offsets from that base.
+  }];
+  let arguments = (ins
+    VIR_DynamicVectorType:$value,
+    Arg<AnyMemRef, "the reference to scatter to", [MemWrite]>:$base,
+    VIR_DynamicVectorType:$indexVec,
+    VIR_DynamicVectorType:$mask,
+    Variadic<Index>:$indices
+  );
+
+  let hasVerifier = 1;
+
+  let assemblyFormat = "$value `,` $base `[` $indices `]` `[` $indexVec `]` "
+                       "`,` $mask attr-dict `:` qualified(type($value)) `,` "
+                       "qualified(type($indexVec)) `,` qualified(type($mask)) "
+                       "`->` type($base)";
+}
+
 //===----------------------------------------------------------------------===//
 // Basic Operations
 //===----------------------------------------------------------------------===//

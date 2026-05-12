@@ -29,3 +29,35 @@
 
 #define GET_OP_CLASSES
 #include "VIR/VIR.cpp.inc"
+
+::mlir::LogicalResult buddy::vir::ScatterOp::verify() {
+  auto valueType = getValue().getType();
+  auto indexVecType = getIndexVec().getType();
+  auto maskType = getMask().getType();
+  ::mlir::Type indexElementType = indexVecType.getElementType();
+
+  if (!::llvm::isa<::mlir::IntegerType, ::mlir::IndexType>(indexElementType))
+    return emitOpError(
+        "scatter index vector element type must be integer or index");
+
+  if (valueType.getShape() != indexVecType.getShape())
+    return emitOpError("scatter value and index vector shapes must match");
+  if (valueType.getShape() != maskType.getShape())
+    return emitOpError("scatter value and mask vector shapes must match");
+
+  if (valueType.getScalingFactor() != indexVecType.getScalingFactor())
+    return emitOpError(
+        "scatter value and index vector scaling factors must match");
+  if (valueType.getScalingFactor() != maskType.getScalingFactor())
+    return emitOpError(
+        "scatter value and mask vector scaling factors must match");
+  if (!maskType.getElementType().isInteger(1))
+    return emitOpError("scatter mask vector element type must be i1");
+
+  auto baseType = ::mlir::cast<::mlir::ShapedType>(getBase().getType());
+  if (valueType.getElementType() != baseType.getElementType())
+    return emitOpError(
+        "scatter value element type must match memref element type");
+
+  return ::mlir::success();
+}

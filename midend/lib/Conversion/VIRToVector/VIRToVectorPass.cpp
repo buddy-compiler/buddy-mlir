@@ -436,6 +436,60 @@ private:
         virSymbolTable[oldResult] = newResult;
     };
 
+    auto remapScatterBaseIndex = [&](Value index) -> FailureOr<Value> {
+      if (virSymbolTable.contains(index))
+        return virSymbolTable.lookup(index);
+
+      if (auto blockArg = dyn_cast<BlockArgument>(index)) {
+        if (blockArg.getOwner() == block)
+          return failure();
+        return index;
+      }
+
+      Operation *defOp = index.getDefiningOp();
+      if (defOp && defOp->getBlock() == block)
+        return failure();
+      return index;
+    };
+
+    auto materializeImplicitMinorBaseIndices =
+        [&](Value base,
+            ValueRange sourceIndices) -> FailureOr<SmallVector<Value>> {
+      SmallVector<Value> destIndices;
+      auto memrefTy = dyn_cast<MemRefType>(base.getType());
+      if (!memrefTy || memrefTy.getRank() == 0)
+        return failure();
+
+      if (!sourceIndices.empty()) {
+        destIndices.reserve(sourceIndices.size());
+        for (Value index : sourceIndices) {
+          FailureOr<Value> mappedIndex = remapScatterBaseIndex(index);
+          if (failed(mappedIndex))
+            return failure();
+          destIndices.push_back(*mappedIndex);
+        }
+        return destIndices;
+      }
+
+      int64_t rank = memrefTy.getRank();
+      destIndices.reserve(rank);
+      for (int64_t i = 0; i < rank - 1; ++i) {
+        if (static_cast<size_t>(i) < leadingIVs.size())
+          destIndices.push_back(leadingIVs[i]);
+        else
+          destIndices.push_back(builder.create<arith::ConstantIndexOp>(loc, 0));
+      }
+      destIndices.push_back(builder.create<arith::ConstantIndexOp>(loc, 0));
+      return destIndices;
+    };
+
+    auto castScalarScatterIndexToIndex = [&](Value idx) -> Value {
+      if (idx.getType().isIndex())
+        return idx;
+      return builder.create<arith::IndexCastOp>(loc, builder.getIndexType(),
+                                                idx);
+    };
+
     for (Operation &innerOp : block->without_terminator()) {
       llvm::TypeSwitch<Operation *>(&innerOp)
           .Case<memref::ExpandShapeOp, memref::SubViewOp, memref::TransposeOp>(
@@ -564,6 +618,49 @@ private:
                                                         destIndices);
               }
             }
+          })
+          .Case<vir::ScatterOp>([&](vir::ScatterOp op) {
+            Value valueToStore = findValue(op.getValue());
+            Value indexVec = findValue(op.getIndexVec());
+            Value mask = findValue(op.getMask());
+            Value base = findValue(op.getBase());
+            if (!valueToStore || !indexVec || !mask || !base) {
+              op.emitError("scatter operands not found in symbol table");
+              return;
+            }
+
+            FailureOr<SmallVector<Value>> baseIndices =
+                materializeImplicitMinorBaseIndices(base, op.getIndices());
+            if (failed(baseIndices)) {
+              op.emitError("failed to materialize base indices for vir.scatter");
+              return;
+            }
+
+            if (isTailLoop) {
+              Value scalarIndex = castScalarScatterIndexToIndex(indexVec);
+              SmallVector<Value> scalarIndices(baseIndices->begin(),
+                                               baseIndices->end());
+              scalarIndices.back() =
+                  builder.create<arith::AddIOp>(loc, scalarIndices.back(),
+                                                scalarIndex);
+              Value oldValue =
+                  builder.create<memref::LoadOp>(loc, base, scalarIndices);
+              Value selected = builder.create<arith::SelectOp>(
+                  loc, mask, valueToStore, oldValue);
+              builder.create<memref::StoreOp>(loc, selected, base,
+                                              scalarIndices);
+              return;
+            }
+
+            auto indexVecTy = dyn_cast<VectorType>(indexVec.getType());
+            auto valueVecTy = dyn_cast<VectorType>(valueToStore.getType());
+            auto maskVecTy = dyn_cast<VectorType>(mask.getType());
+            if (!indexVecTy || !valueVecTy || !maskVecTy) {
+              op.emitError("expected vector operands for non-tail vir.scatter");
+              return;
+            }
+            builder.create<vector::ScatterOp>(loc, base, *baseIndices,
+                                              indexVec, mask, valueToStore);
           })
           .Case<vir::ConstantOp>([&](vir::ConstantOp op) {
             auto constValue = op.getValue();
