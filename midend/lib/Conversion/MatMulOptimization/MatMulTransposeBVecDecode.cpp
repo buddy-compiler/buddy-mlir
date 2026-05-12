@@ -14,7 +14,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file implements the Matmul_TransposeB vectorization for decode phrase.
+// This file implements the Matmul_TransposeB vectorization for decode phase.
 //
 // Optimizations applied:
 //   - K-accumulator unrolling (--unroll=N): use N independent FMA accumulator
