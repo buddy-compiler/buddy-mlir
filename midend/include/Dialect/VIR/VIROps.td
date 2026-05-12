@@ -223,6 +223,32 @@ def VIR_SelectOp : VIR_Op<"select",
                        "`:` qualified(type($condition)) `,` qualified(type($trueValue))";
 }
 
+def VIR_ExtSIOp : VIR_Op<"extsi"> {
+  let summary = "Signed integer extend for dynamic vector IR.";
+  let description = [{
+    The `extsi` operation sign-extends integer element type width elementwise
+    on a dynamic vector.
+  }];
+  let arguments = (ins VIR_DynamicVectorType:$in);
+  let results = (outs VIR_DynamicVectorType:$result);
+  let hasVerifier = 1;
+
+  let assemblyFormat = "$in attr-dict `:` qualified(type($in)) `->` qualified(type($result))";
+}
+
+def VIR_ExtUIOp : VIR_Op<"extui"> {
+  let summary = "Unsigned integer extend for dynamic vector IR.";
+  let description = [{
+    The `extui` operation zero-extends integer element type width elementwise
+    on a dynamic vector.
+  }];
+  let arguments = (ins VIR_DynamicVectorType:$in);
+  let results = (outs VIR_DynamicVectorType:$result);
+  let hasVerifier = 1;
+
+  let assemblyFormat = "$in attr-dict `:` qualified(type($in)) `->` qualified(type($result))";
+}
+
 def VIR_ExtFOp : VIR_Op<"extf"> {
   let summary = "Floating-point extend for dynamic vector IR.";
   let description = [{

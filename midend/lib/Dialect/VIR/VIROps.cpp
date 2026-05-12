@@ -30,6 +30,30 @@
 #define GET_OP_CLASSES
 #include "VIR/VIR.cpp.inc"
 
+static ::mlir::LogicalResult
+verifyIntegerExtOp(::mlir::Operation *op,
+                   buddy::vir::DynamicVectorType inputType,
+                   buddy::vir::DynamicVectorType resultType) {
+  auto inputInt =
+      ::mlir::dyn_cast<::mlir::IntegerType>(inputType.getElementType());
+  auto resultInt =
+      ::mlir::dyn_cast<::mlir::IntegerType>(resultType.getElementType());
+  if (!inputInt)
+    return op->emitOpError("input element type must be integer");
+  if (!resultInt)
+    return op->emitOpError("result element type must be integer");
+
+  if (inputType.getShape() != resultType.getShape())
+    return op->emitOpError("input and result shapes must match");
+  if (inputType.getScalingFactor() != resultType.getScalingFactor())
+    return op->emitOpError("input and result scaling factors must match");
+  if (resultInt.getWidth() <= inputInt.getWidth())
+    return op->emitOpError(
+        "result integer width must be greater than input integer width");
+
+  return ::mlir::success();
+}
+
 ::mlir::LogicalResult buddy::vir::ScatterOp::verify() {
   auto valueType = getValue().getType();
   auto indexVecType = getIndexVec().getType();
@@ -60,4 +84,14 @@
         "scatter value element type must match memref element type");
 
   return ::mlir::success();
+}
+
+::mlir::LogicalResult buddy::vir::ExtSIOp::verify() {
+  return verifyIntegerExtOp(getOperation(), getIn().getType(),
+                            getResult().getType());
+}
+
+::mlir::LogicalResult buddy::vir::ExtUIOp::verify() {
+  return verifyIntegerExtOp(getOperation(), getIn().getType(),
+                            getResult().getType());
 }

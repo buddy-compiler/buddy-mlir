@@ -1,6 +1,7 @@
 // RUN: buddy-opt %s -lower-linalg-to-vir -lower-vir-to-vector="vector-width=4" -cse --convert-vector-to-scf --lower-affine --expand-strided-metadata --convert-scf-to-cf --convert-cf-to-llvm --convert-vector-to-llvm --finalize-memref-to-llvm --convert-arith-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts | mlir-runner -O0 -e main -entry-point-result=i32 -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext,%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext | FileCheck %s
 
 func.func private @printMemrefF32(memref<*xf32>) attributes { llvm.emit_c_interface }
+func.func private @printMemrefI32(memref<*xi32>) attributes { llvm.emit_c_interface }
 
 // Test: f32 matmul basic case.
 func.func @case_linalg_matmul_to_vir_to_vector_f32() -> i32 {
@@ -169,10 +170,106 @@ func.func @case_linalg_matmul_to_vir_to_vector_tail_f32() -> i32 {
   return %ret : i32
 }
 
+// Test: f16 input matmul with f32 accumulation/output.
+func.func @case_linalg_matmul_to_vir_to_vector_f16_f32() -> i32 {
+  %c0 = arith.constant 0 : index
+  %c1 = arith.constant 1 : index
+  %n = arith.constant 5 : index
+
+  %A = memref.alloc() : memref<1x2xf16>
+  %B = memref.alloc(%n) : memref<2x?xf16>
+  %C = memref.alloc(%n) : memref<1x?xf32>
+
+  // A = [1, 2]
+  %a0 = arith.constant 1.0 : f16
+  %a1 = arith.constant 2.0 : f16
+  memref.store %a0, %A[%c0, %c0] : memref<1x2xf16>
+  memref.store %a1, %A[%c0, %c1] : memref<1x2xf16>
+
+  // B[0, j] = j
+  // B[1, j] = 100 + j
+  affine.for %j = 0 to 5 {
+    %jj = arith.index_cast %j : index to i64
+    %b0 = arith.sitofp %jj : i64 to f16
+    %hund = arith.constant 100 : i64
+    %v1 = arith.addi %hund, %jj : i64
+    %b1 = arith.sitofp %v1 : i64 to f16
+    memref.store %b0, %B[%c0, %j] : memref<2x?xf16>
+    memref.store %b1, %B[%c1, %j] : memref<2x?xf16>
+  }
+
+  // Zero-initialize C.
+  affine.for %j = 0 to 5 {
+    %z = arith.constant 0.0 : f32
+    memref.store %z, %C[%c0, %j] : memref<1x?xf32>
+  }
+
+  linalg.matmul ins(%A, %B : memref<1x2xf16>, memref<2x?xf16>)
+      outs(%C : memref<1x?xf32>)
+
+  %printed = memref.cast %C : memref<1x?xf32> to memref<*xf32>
+  call @printMemrefF32(%printed) : (memref<*xf32>) -> ()
+
+  // Expected: C[0,j] = 1*j + 2*(100+j) = 200 + 3*j
+  // CHECK: {{Unranked Memref base@ = 0x[0-9A-Fa-f]{1,} rank = 2 offset = 0 sizes = \[1, 5\] strides = \[5, 1\] data =}}
+  // CHECK{LITERAL}: [[200, 203, 206, 209, 212]]
+
+  %ret = arith.constant 0 : i32
+  return %ret : i32
+}
+
+// Test: i8 input matmul with i32 accumulation/output.
+func.func @case_linalg_matmul_to_vir_to_vector_i8_i32() -> i32 {
+  %c0 = arith.constant 0 : index
+  %c1 = arith.constant 1 : index
+  %n = arith.constant 5 : index
+
+  %A = memref.alloc() : memref<1x2xi8>
+  %B = memref.alloc(%n) : memref<2x?xi8>
+  %C = memref.alloc(%n) : memref<1x?xi32>
+
+  // A = [-2, 3]
+  %a0 = arith.constant -2 : i8
+  %a1 = arith.constant 3 : i8
+  memref.store %a0, %A[%c0, %c0] : memref<1x2xi8>
+  memref.store %a1, %A[%c0, %c1] : memref<1x2xi8>
+
+  // B[0, j] = j
+  // B[1, j] = 10 + j
+  affine.for %j = 0 to 5 {
+    %b0 = arith.index_cast %j : index to i8
+    %ten = arith.constant 10 : i8
+    %b1 = arith.addi %ten, %b0 : i8
+    memref.store %b0, %B[%c0, %j] : memref<2x?xi8>
+    memref.store %b1, %B[%c1, %j] : memref<2x?xi8>
+  }
+
+  // Zero-initialize C.
+  affine.for %j = 0 to 5 {
+    %z = arith.constant 0 : i32
+    memref.store %z, %C[%c0, %j] : memref<1x?xi32>
+  }
+
+  linalg.matmul ins(%A, %B : memref<1x2xi8>, memref<2x?xi8>)
+      outs(%C : memref<1x?xi32>)
+
+  %printed = memref.cast %C : memref<1x?xi32> to memref<*xi32>
+  call @printMemrefI32(%printed) : (memref<*xi32>) -> ()
+
+  // Expected: C[0,j] = -2*j + 3*(10+j) = 30 + j
+  // CHECK: {{Unranked Memref base@ = 0x[0-9A-Fa-f]{1,} rank = 2 offset = 0 sizes = \[1, 5\] strides = \[5, 1\] data =}}
+  // CHECK{LITERAL}: [[30, 31, 32, 33, 34]]
+
+  %ret = arith.constant 0 : i32
+  return %ret : i32
+}
+
 func.func @main() -> i32 {
   %res_case_linalg_matmul_to_vir_to_vector_f32 = call @case_linalg_matmul_to_vir_to_vector_f32() : () -> i32
   %res_case_linalg_matmul_to_vir_to_vector_accumulate_f32 = call @case_linalg_matmul_to_vir_to_vector_accumulate_f32() : () -> i32
   %res_case_linalg_matmul_to_vir_to_vector_tail_f32 = call @case_linalg_matmul_to_vir_to_vector_tail_f32() : () -> i32
+  %res_case_linalg_matmul_to_vir_to_vector_f16_f32 = call @case_linalg_matmul_to_vir_to_vector_f16_f32() : () -> i32
+  %res_case_linalg_matmul_to_vir_to_vector_i8_i32 = call @case_linalg_matmul_to_vir_to_vector_i8_i32() : () -> i32
   %ret = arith.constant 0 : i32
   return %ret : i32
 }

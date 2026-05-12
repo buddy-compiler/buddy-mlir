@@ -788,6 +788,36 @@ private:
               virSymbolTable[op.getResult()] = newOp.getResult();
             }
           })
+          .Case<vir::ExtSIOp>([&](vir::ExtSIOp op) {
+            Value in = findValue(op.getIn());
+            Type outTy = op.getType();
+            if (auto dyn = dyn_cast<vir::DynamicVectorType>(outTy)) {
+              Type elem = dyn.getElementType();
+              if (auto vecTy = dyn_cast<VectorType>(in.getType())) {
+                outTy = VectorType::get(vecTy.getShape(), elem,
+                                        vecTy.getScalableDims());
+              } else {
+                outTy = elem;
+              }
+            }
+            auto newOp = builder.create<arith::ExtSIOp>(loc, outTy, in);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<vir::ExtUIOp>([&](vir::ExtUIOp op) {
+            Value in = findValue(op.getIn());
+            Type outTy = op.getType();
+            if (auto dyn = dyn_cast<vir::DynamicVectorType>(outTy)) {
+              Type elem = dyn.getElementType();
+              if (auto vecTy = dyn_cast<VectorType>(in.getType())) {
+                outTy = VectorType::get(vecTy.getShape(), elem,
+                                        vecTy.getScalableDims());
+              } else {
+                outTy = elem;
+              }
+            }
+            auto newOp = builder.create<arith::ExtUIOp>(loc, outTy, in);
+            virSymbolTable[op.getResult()] = newOp.getResult();
+          })
           .Case<vir::ExtFOp>([&](vir::ExtFOp op) {
             Value in = findValue(op.getIn());
             Type outTy = op.getType();

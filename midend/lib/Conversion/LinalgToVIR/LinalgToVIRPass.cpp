@@ -1067,6 +1067,65 @@ static buddy::vir::SetVLOp createSetVLRegion(PatternRewriter &rewriter,
   return setVl;
 }
 
+static bool isSupportedMatmulElementTypes(Type inputElemTy, Type accElemTy) {
+  if (inputElemTy == accElemTy)
+    return isa<FloatType, IntegerType>(inputElemTy);
+
+  if (auto inputFloat = dyn_cast<FloatType>(inputElemTy)) {
+    auto accFloat = dyn_cast<FloatType>(accElemTy);
+    return accFloat && inputFloat.getWidth() < accFloat.getWidth();
+  }
+
+  if (auto inputInt = dyn_cast<IntegerType>(inputElemTy)) {
+    auto accInt = dyn_cast<IntegerType>(accElemTy);
+    return accInt && inputInt.getWidth() < accInt.getWidth();
+  }
+
+  return false;
+}
+
+static bool isIntegerAccumulator(Type accElemTy) {
+  return isa<IntegerType>(accElemTy);
+}
+
+static Value castVectorToAccumulatorType(
+    OpBuilder &builder, Location loc, Value value,
+    buddy::vir::DynamicVectorType accVecTy, linalg::TypeFn castFn) {
+  auto dynTy = dyn_cast<buddy::vir::DynamicVectorType>(value.getType());
+  if (!dynTy || dynTy.getElementType() == accVecTy.getElementType())
+    return value;
+
+  Type inputElemTy = dynTy.getElementType();
+  Type accElemTy = accVecTy.getElementType();
+  if (isa<FloatType>(inputElemTy) && isa<FloatType>(accElemTy))
+    return builder.create<buddy::vir::ExtFOp>(loc, accVecTy, value)
+        .getResult();
+
+  if (isa<IntegerType>(inputElemTy) && isa<IntegerType>(accElemTy)) {
+    if (castFn == linalg::TypeFn::cast_unsigned)
+      return builder.create<buddy::vir::ExtUIOp>(loc, accVecTy, value)
+          .getResult();
+    return builder.create<buddy::vir::ExtSIOp>(loc, accVecTy, value)
+        .getResult();
+  }
+
+  return Value();
+}
+
+static Value createMatmulAccumulation(
+    OpBuilder &builder, Location loc, Value lhs, Value rhs, Value acc,
+    buddy::vir::DynamicVectorType accVecTy) {
+  Type accElemTy = accVecTy.getElementType();
+  if (isa<FloatType>(accElemTy))
+    return builder.create<buddy::vir::FMAOp>(loc, accVecTy, lhs, rhs, acc)
+        .getResult();
+
+  assert(isIntegerAccumulator(accElemTy) &&
+         "expected integer accumulator for integer matmul");
+  Value product = builder.create<arith::MulIOp>(loc, lhs, rhs).getResult();
+  return builder.create<arith::AddIOp>(loc, product, acc).getResult();
+}
+
 static LogicalResult lowerMatmulToVIR(linalg::MatmulOp matmulOp,
                                       PatternRewriter &rewriter) {
   if (!matmulOp.hasPureBufferSemantics())
@@ -1086,12 +1145,14 @@ static LogicalResult lowerMatmulToVIR(linalg::MatmulOp matmulOp,
   if (aTy.getRank() != 2 || bTy.getRank() != 2 || cTy.getRank() != 2)
     return rewriter.notifyMatchFailure(matmulOp, "expected rank-2 memrefs");
 
-  Type elemTy = aTy.getElementType();
-  if (elemTy != bTy.getElementType() || elemTy != cTy.getElementType())
-    return rewriter.notifyMatchFailure(matmulOp, "element types must match");
-  if (!isa<FloatType>(elemTy))
+  Type inputElemTy = aTy.getElementType();
+  Type accElemTy = cTy.getElementType();
+  if (inputElemTy != bTy.getElementType())
     return rewriter.notifyMatchFailure(matmulOp,
-                                       "only floating-point matmul supported");
+                                       "input element types must match");
+  if (!isSupportedMatmulElementTypes(inputElemTy, accElemTy))
+    return rewriter.notifyMatchFailure(matmulOp,
+                                       "unsupported matmul element types");
 
   // Vectorize along N (the last dimension of B/C).
   Value n = rewriter.create<memref::DimOp>(loc, c, 1);
@@ -1118,8 +1179,11 @@ static LogicalResult lowerMatmulToVIR(linalg::MatmulOp matmulOp,
     kVal = rewriter.create<memref::DimOp>(loc, a, 1);
   }
 
-  auto vecTy =
-      buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, elemTy);
+  auto inputVecTy =
+      buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, inputElemTy);
+  auto accVecTy =
+      buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, accElemTy);
+  linalg::TypeFn castFn = matmulOp.getCast();
 
   auto loopM = rewriter.create<affine::AffineForOp>(
       loc, ValueRange{c0}, rewriter.getDimIdentityMap(), ValueRange{mVal},
@@ -1129,7 +1193,7 @@ static LogicalResult lowerMatmulToVIR(linalg::MatmulOp matmulOp,
         OpBuilder &builder = bld;
         // acc = load(C[i, 0:]) as a vector along N.
         Value acc = builder
-                        .create<buddy::vir::LoadOp>(bodyLoc, vecTy, c,
+                        .create<buddy::vir::LoadOp>(bodyLoc, accVecTy, c,
                                                     ValueRange{i, c0})
                         .getResult();
 
@@ -1144,19 +1208,26 @@ static LogicalResult lowerMatmulToVIR(linalg::MatmulOp matmulOp,
               Value aScalar =
                   builderK.create<memref::LoadOp>(kLoc, a, ValueRange{i, k});
               // aVec = broadcast(aScalar)
-              Value aVec =
-                  builderK.create<buddy::vir::BroadcastOp>(kLoc, vecTy, aScalar)
-                      .getResult();
+              Value aVec = builderK
+                               .create<buddy::vir::BroadcastOp>(kLoc,
+                                                                 inputVecTy,
+                                                                 aScalar)
+                               .getResult();
               // bVec = load(B[k, 0:]) as a vector along N.
               Value bVec = builderK
-                               .create<buddy::vir::LoadOp>(kLoc, vecTy, b,
+                               .create<buddy::vir::LoadOp>(kLoc, inputVecTy, b,
                                                            ValueRange{k, c0})
                                .getResult();
-              // accOut = fma(aVec, bVec, accIn)
-              Value accOut =
-                  builderK
-                      .create<buddy::vir::FMAOp>(kLoc, vecTy, aVec, bVec, accIn)
-                      .getResult();
+              Value aAccVec = castVectorToAccumulatorType(
+                  builderK, kLoc, aVec, accVecTy, castFn);
+              Value bAccVec = castVectorToAccumulatorType(
+                  builderK, kLoc, bVec, accVecTy, castFn);
+              if (!aAccVec || !bAccVec) {
+                matmulOp.emitError("failed to widen matmul inputs");
+                return;
+              }
+              Value accOut = createMatmulAccumulation(
+                  builderK, kLoc, aAccVec, bAccVec, accIn, accVecTy);
               builderK.create<affine::AffineYieldOp>(kLoc, accOut);
             });
         Value finalAcc = loopK.getResult(0);
