@@ -87,8 +87,7 @@ def decompose_addmm_to_mm_add(graph: Graph):
         #   args[1] = lhs
         #   args[2] = rhs
         #
-        # In your graph:
-        #   Arguments: ['arg6_1', 'view_4', 'permute_1']
+        # Expected argument structure: [bias, lhs, rhs]
         if len(node.args) < 3:
             continue
 
