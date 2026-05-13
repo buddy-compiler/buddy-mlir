@@ -18,22 +18,22 @@
 
 #include "buddy/runtime/core/ModelManifest.h"
 
+#include "tt/runtime/runtime.h"
+#include "tt/runtime/types.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/JSON.h"
 #include "llvm/Support/raw_ostream.h"
-#include "tt/runtime/runtime.h"
-#include "tt/runtime/types.h"
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <cerrno>
 #include <chrono>
-#include <cctype>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <cstdio>
 #include <fcntl.h>
 #include <filesystem>
 #include <fstream>
@@ -44,8 +44,8 @@
 #include <map>
 #include <memory>
 #include <optional>
-#include <stdexcept>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <sys/mman.h>
@@ -134,7 +134,7 @@ static void raiseMemoryLimitForLlama() {
 #if defined(__unix__) || defined(__APPLE__)
   constexpr rlim_t target = static_cast<rlim_t>(95000000) * 1024;
   auto raiseOne = [](int resource) {
-    struct rlimit limit {};
+    struct rlimit limit{};
     if (getrlimit(resource, &limit) != 0)
       return;
     if (limit.rlim_cur == RLIM_INFINITY || limit.rlim_cur >= target)
@@ -314,7 +314,7 @@ public:
       throw std::runtime_error("llama31_tt: cannot open " + path.string() +
                                ": " + std::strerror(errno));
 
-    struct stat st {};
+    struct stat st{};
     if (::fstat(fd_, &st) != 0)
       throw std::runtime_error("llama31_tt: cannot stat " + path.string());
     if (st.st_size <= 0)
@@ -327,9 +327,7 @@ public:
     }
   }
 
-  const uint8_t *data() const {
-    return static_cast<const uint8_t *>(data_);
-  }
+  const uint8_t *data() const { return static_cast<const uint8_t *>(data_); }
   size_t size() const { return size_; }
   const fs::path &path() const { return path_; }
 
@@ -423,7 +421,7 @@ static std::vector<uint32_t> extractPythonDictShape(const std::string &header) {
 static NpyView parseNpy(const uint8_t *base, size_t size,
                         const std::string &label) {
   static constexpr std::array<uint8_t, 6> magic = {0x93, 'N', 'U',
-                                                  'M',  'P', 'Y'};
+                                                   'M',  'P', 'Y'};
   if (size < 10 || std::memcmp(base, magic.data(), magic.size()) != 0)
     throw std::runtime_error("llama31_tt: invalid .npy blob: " + label);
   const uint8_t major = base[6];
@@ -536,10 +534,9 @@ static std::vector<RoleEntry> parseRoles(const fs::path &path) {
     }
     roles.push_back(std::move(entry));
   }
-  std::sort(roles.begin(), roles.end(),
-            [](const RoleEntry &a, const RoleEntry &b) {
-              return a.slot < b.slot;
-            });
+  std::sort(
+      roles.begin(), roles.end(),
+      [](const RoleEntry &a, const RoleEntry &b) { return a.slot < b.slot; });
   for (size_t i = 0; i < roles.size(); ++i)
     if (roles[i].slot != i)
       throw std::runtime_error("llama31_tt: non-contiguous slot_roles.json");
@@ -596,7 +593,8 @@ static uint64_t volume(const std::vector<uint32_t> &shape) {
   return result;
 }
 
-static std::vector<uint32_t> contiguousStride(const std::vector<uint32_t> &shape) {
+static std::vector<uint32_t>
+contiguousStride(const std::vector<uint32_t> &shape) {
   std::vector<uint32_t> stride(shape.size(), 1);
   uint64_t running = 1;
   for (size_t i = shape.size(); i > 0; --i) {
@@ -630,8 +628,8 @@ static uint32_t itemSizeFor(TTDataType dtype) {
   }
 }
 
-static std::vector<uint8_t>
-integerBuffer(const std::vector<int64_t> &values, TTDataType dtype) {
+static std::vector<uint8_t> integerBuffer(const std::vector<int64_t> &values,
+                                          TTDataType dtype) {
   std::vector<uint8_t> buffer(values.size() * itemSizeFor(dtype));
   auto write = [&](auto tag) {
     using T = decltype(tag);
@@ -679,9 +677,8 @@ static ::tt::runtime::Tensor
 hostTensorFromBytes(const void *data, const ::tt::runtime::TensorDesc &desc) {
   const std::vector<uint32_t> stride =
       desc.stride.empty() ? contiguousStride(desc.shape) : desc.stride;
-  return ::tt::runtime::createOwnedHostTensor(data, desc.shape, stride,
-                                              desc.elementSize(),
-                                              desc.dataType);
+  return ::tt::runtime::createOwnedHostTensor(
+      data, desc.shape, stride, desc.elementSize(), desc.dataType);
 }
 
 static ::tt::runtime::Tensor
@@ -858,8 +855,7 @@ private:
   static bool isNewline(unsigned char c) { return c == '\n' || c == '\r'; }
   static bool isWord(unsigned char c) { return isAlpha(c) || isDigit(c); }
 
-  static bool matchContraction(std::string_view text, size_t pos,
-                               size_t &len) {
+  static bool matchContraction(std::string_view text, size_t pos, size_t &len) {
     static constexpr std::array<std::string_view, 7> suffixes = {
         "'s", "'t", "'re", "'ve", "'m", "'ll", "'d"};
     for (std::string_view suffix : suffixes) {
@@ -894,8 +890,7 @@ private:
       if (c == ' ' && i + 1 < text.size() &&
           isAlpha(static_cast<unsigned char>(text[i + 1]))) {
         size_t j = i + 2;
-        while (j < text.size() &&
-               isAlpha(static_cast<unsigned char>(text[j])))
+        while (j < text.size() && isAlpha(static_cast<unsigned char>(text[j])))
           ++j;
         pieces.emplace_back(text.substr(i, j - i));
         i = j;
@@ -903,8 +898,7 @@ private:
       }
       if (isAlpha(c)) {
         size_t j = i + 1;
-        while (j < text.size() &&
-               isAlpha(static_cast<unsigned char>(text[j])))
+        while (j < text.size() && isAlpha(static_cast<unsigned char>(text[j])))
           ++j;
         pieces.emplace_back(text.substr(i, j - i));
         i = j;
@@ -954,8 +948,7 @@ private:
       }
 
       size_t j = i + 1;
-      while (j < text.size() &&
-             isSpace(static_cast<unsigned char>(text[j])) &&
+      while (j < text.size() && isSpace(static_cast<unsigned char>(text[j])) &&
              !isNewline(static_cast<unsigned char>(text[j])))
         ++j;
       if (j < text.size() && isNewline(static_cast<unsigned char>(text[j]))) {
@@ -1167,13 +1160,13 @@ static ExtractedOutput extractLogitsAndKV(
     if (slotIt == targetKVInputSlots.end())
       throw std::runtime_error("llama31_tt: missing target KV slot for " +
                                role);
-    auto layout =
-        ::tt::runtime::getLayout(targetBinary, targetProgramIndex, slotIt->second);
-    extracted.kvDevice[role] = ::tt::runtime::toLayout(outputs[i], device, layout);
+    auto layout = ::tt::runtime::getLayout(targetBinary, targetProgramIndex,
+                                           slotIt->second);
+    extracted.kvDevice[role] =
+        ::tt::runtime::toLayout(outputs[i], device, layout);
   }
   t1 = std::chrono::steady_clock::now();
-  extracted.kvRelayoutSeconds =
-      std::chrono::duration<double>(t1 - t0).count();
+  extracted.kvRelayoutSeconds = std::chrono::duration<double>(t1 - t0).count();
 
   for (size_t i = 0; i < outputs.size(); ++i) {
     bool force = static_cast<int>(i) == logitsIndex;
@@ -1183,9 +1176,8 @@ static ExtractedOutput extractLogitsAndKV(
 }
 
 static std::unordered_map<uint32_t, ::tt::runtime::Tensor>
-precacheStaticInputs(::tt::runtime::Device device,
-                     ::tt::runtime::Binary binary, uint32_t programIndex,
-                     const PhaseCtx &ctx,
+precacheStaticInputs(::tt::runtime::Device device, ::tt::runtime::Binary binary,
+                     uint32_t programIndex, const PhaseCtx &ctx,
                      const std::vector<::tt::runtime::TensorDesc> &inputs) {
   std::unordered_map<uint32_t, ::tt::runtime::Tensor> cached;
   for (uint32_t slot = 0; slot < ctx.roles.size(); ++slot) {
@@ -1205,13 +1197,12 @@ precacheStaticInputs(::tt::runtime::Device device,
   return cached;
 }
 
-static std::vector<::tt::runtime::Tensor>
-buildPrefillInputs(::tt::runtime::Device device, ::tt::runtime::Binary binary,
-                   uint32_t programIndex, const PhaseCtx &ctx,
-                   const std::vector<::tt::runtime::TensorDesc> &programInputs,
-                   const std::unordered_map<uint32_t, ::tt::runtime::Tensor>
-                       &cachedInputs,
-                   const std::vector<int> &paddedTokens) {
+static std::vector<::tt::runtime::Tensor> buildPrefillInputs(
+    ::tt::runtime::Device device, ::tt::runtime::Binary binary,
+    uint32_t programIndex, const PhaseCtx &ctx,
+    const std::vector<::tt::runtime::TensorDesc> &programInputs,
+    const std::unordered_map<uint32_t, ::tt::runtime::Tensor> &cachedInputs,
+    const std::vector<int> &paddedTokens) {
   std::vector<::tt::runtime::Tensor> tensors(programInputs.size());
   for (uint32_t slot = 0; slot < ctx.roles.size(); ++slot) {
     auto cached = cachedInputs.find(slot);
@@ -1243,15 +1234,13 @@ buildPrefillInputs(::tt::runtime::Device device, ::tt::runtime::Binary binary,
   return tensors;
 }
 
-static std::vector<::tt::runtime::Tensor>
-buildDecodeInputs(::tt::runtime::Device device, ::tt::runtime::Binary binary,
-                  uint32_t programIndex, const PhaseCtx &ctx,
-                  const std::vector<::tt::runtime::TensorDesc> &programInputs,
-                  const std::unordered_map<uint32_t, ::tt::runtime::Tensor>
-                      &cachedInputs,
-                  int token, int cachePos,
-                  const std::unordered_map<std::string, ::tt::runtime::Tensor>
-                      &pastKV) {
+static std::vector<::tt::runtime::Tensor> buildDecodeInputs(
+    ::tt::runtime::Device device, ::tt::runtime::Binary binary,
+    uint32_t programIndex, const PhaseCtx &ctx,
+    const std::vector<::tt::runtime::TensorDesc> &programInputs,
+    const std::unordered_map<uint32_t, ::tt::runtime::Tensor> &cachedInputs,
+    int token, int cachePos,
+    const std::unordered_map<std::string, ::tt::runtime::Tensor> &pastKV) {
   std::vector<::tt::runtime::Tensor> tensors(programInputs.size());
   for (uint32_t slot = 0; slot < ctx.roles.size(); ++slot) {
     auto cached = cachedInputs.find(slot);
@@ -1393,13 +1382,13 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
     decodeCache = precacheStaticInputs(*device, decodeBinary, programIndex,
                                        decodeCtx, decodeInputs);
     auto cacheEnd = std::chrono::steady_clock::now();
-    printLlamaLog("uploaded & retained " + std::to_string(prefillCache.size()) +
-                  " prefill + " + std::to_string(decodeCache.size()) +
-                  " decode static tensors in " +
-                  formatFixed(std::chrono::duration<double>(cacheEnd -
-                                                            cacheStart)
-                                  .count()) +
-                  "s");
+    printLlamaLog(
+        "uploaded & retained " + std::to_string(prefillCache.size()) +
+        " prefill + " + std::to_string(decodeCache.size()) +
+        " decode static tensors in " +
+        formatFixed(
+            std::chrono::duration<double>(cacheEnd - cacheStart).count()) +
+        "s");
 
     std::vector<int> tokenIds = tokenizer.encodeChat(prompt);
     if (tokenIds.size() >= static_cast<size_t>(maxCacheLen))
@@ -1413,26 +1402,24 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
         buildPrefillInputs(*device, prefillBinary, programIndex, prefillCtx,
                            prefillInputs, prefillCache, padded);
     auto prefillStart = std::chrono::steady_clock::now();
-    auto prefillOutputs =
-        ::tt::runtime::submit(*device, prefillBinary, programIndex,
-                              prefillInputsRT);
+    auto prefillOutputs = ::tt::runtime::submit(*device, prefillBinary,
+                                                programIndex, prefillInputsRT);
     ::tt::runtime::wait(prefillOutputs);
     auto prefillEnd = std::chrono::steady_clock::now();
     const double prefillSeconds =
         std::chrono::duration<double>(prefillEnd - prefillStart).count();
 
     ExtractedOutput prefillExtracted = extractLogitsAndKV(
-        prefillOutputs, -1, static_cast<uint32_t>(tokenIds.size() - 1),
-        *device, decodeBinary, programIndex, decodeKVInputSlots,
-        decodeKVOutputRoles);
+        prefillOutputs, -1, static_cast<uint32_t>(tokenIds.size() - 1), *device,
+        decodeBinary, programIndex, decodeKVInputSlots, decodeKVOutputRoles);
 
     std::vector<int> generated;
     generated.push_back(prefillExtracted.token);
     std::unordered_map<std::string, ::tt::runtime::Tensor> pastKV =
         std::move(prefillExtracted.kvDevice);
 
-    std::cout << colorLabel("[Iteration 0]") << " Token: "
-              << tokenizer.decodeToken(prefillExtracted.token)
+    std::cout << colorLabel("[Iteration 0]")
+              << " Token: " << tokenizer.decodeToken(prefillExtracted.token)
               << " | Time: " << formatFixed(prefillSeconds) << "s\n";
 
     const int maxNewTokens =
@@ -1449,9 +1436,8 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
           *device, decodeBinary, programIndex, decodeCtx, decodeInputs,
           decodeCache, inputToken, cachePos, pastKV);
       auto submitStart = std::chrono::steady_clock::now();
-      auto decodeOutputs =
-          ::tt::runtime::submit(*device, decodeBinary, programIndex,
-                                decodeInputsRT);
+      auto decodeOutputs = ::tt::runtime::submit(*device, decodeBinary,
+                                                 programIndex, decodeInputsRT);
       ::tt::runtime::wait(decodeOutputs);
       auto submitEnd = std::chrono::steady_clock::now();
 
@@ -1477,10 +1463,8 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
       decodeSubmit += submitSeconds;
       decodeWall += iterSeconds;
 
-      std::cout << colorLabel("[Iteration " + std::to_string(decodeCount) +
-                              "]")
-                << " Token: "
-                << tokenizer.decodeToken(decoded.token)
+      std::cout << colorLabel("[Iteration " + std::to_string(decodeCount) + "]")
+                << " Token: " << tokenizer.decodeToken(decoded.token)
                 << " | Time: " << formatFixed(iterSeconds) << "s\n";
       if (decoded.token == eosToken && !ignoreEOS)
         break;
@@ -1494,8 +1478,9 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
     }
 
     const double total = prefillSeconds + decodeWall;
-    std::cout << "\n" << colorLabel("[Total time]") << " "
-              << formatFixed(total) << "s\n";
+    std::cout << "\n"
+              << colorLabel("[Total time]") << " " << formatFixed(total)
+              << "s\n";
     std::cout << colorLabel("[Prefilling]") << " "
               << formatFixed(prefillSeconds > 0.0
                                  ? static_cast<double>(maxCacheLen) /
@@ -1504,13 +1489,12 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
               << " tokens/s (prefill_time=" << formatFixed(prefillSeconds)
               << "s)\n";
     std::cout << colorLabel("[Decoding wall]") << " "
-              << formatFixed(decodeWall > 0.0 ? decodeCount / decodeWall
-                                               : 0.0)
+              << formatFixed(decodeWall > 0.0 ? decodeCount / decodeWall : 0.0)
               << " tokens/s (" << decodeCount << " tokens in "
               << formatFixed(decodeWall) << "s)\n";
     std::cout << colorLabel("[Decoding device-only]") << " "
               << formatFixed(decodeSubmit > 0.0 ? decodeCount / decodeSubmit
-                                                 : 0.0)
+                                                : 0.0)
               << " tokens/s\n";
     std::cout << colorLabel("[Input]") << " " << prompt << "\n";
     std::cout << colorLabel("[Output]") << " "

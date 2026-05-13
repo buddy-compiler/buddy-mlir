@@ -359,7 +359,9 @@ def _write_weights_bin(
         for entry in slot_roles:
             if entry["role"] != "weight":
                 continue
-            nbytes = _shape_volume(entry["shape"]) * _dtype_itemsize(entry["dtype"])
+            nbytes = _shape_volume(entry["shape"]) * _dtype_itemsize(
+                entry["dtype"]
+            )
             entry["weight_offset"] = offset
             entry["weight_nbytes"] = nbytes
             offset += nbytes
