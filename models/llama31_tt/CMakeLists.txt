@@ -16,16 +16,15 @@
 #
 # Llama 3.1 Tenstorrent runner.
 #
-# This target intentionally has no compile-time dependency on tt-metal/ttrt.
-# The first serving integration step launches the Python ttrt runner described
-# by the .rax manifest, so buddy-cli can dispatch Tenstorrent artifacts without
-# forcing every Buddy build to link Tenstorrent runtime libraries.
+# This target links the tt-mlir C++ runtime directly. Python is still used by
+# the package target to capture/lower the model and prepare artifacts, but
+# buddy-cli inference itself stays in-process in native C++.
 
 add_library(buddy_models_llama31_tt
   Llama31TTRunner.cpp
 )
 
-target_compile_features(buddy_models_llama31_tt PRIVATE cxx_std_17)
+target_compile_features(buddy_models_llama31_tt PRIVATE cxx_std_20)
 
 target_include_directories(buddy_models_llama31_tt
   PUBLIC
@@ -36,6 +35,78 @@ target_link_libraries(buddy_models_llama31_tt
   PUBLIC
     buddy_runtime_core
     buddy_runtime_llm
+  PRIVATE
+    LLVMSupport
+)
+
+if(NOT BUDDY_ENABLE_TENSTORRENT)
+  message(FATAL_ERROR
+    "BUDDY_BUILD_LLAMA31_TT_MODEL=ON requires BUDDY_ENABLE_TENSTORRENT=ON")
+endif()
+
+find_library(BUDDY_TTMLIR_RUNTIME_LIB
+  NAMES TTMLIRRuntime libTTMLIRRuntime.so
+  HINTS
+    "${BUDDY_TT_MLIR_BUILD_DIR}/runtime/lib"
+    "${BUDDY_TT_MLIR_BUILD_DIR}/python_packages/ttrt/runtime"
+  NO_DEFAULT_PATH)
+if(NOT BUDDY_TTMLIR_RUNTIME_LIB)
+  message(FATAL_ERROR
+    "Could not find libTTMLIRRuntime.so. Build tt-mlir with "
+    "-DTTMLIR_ENABLE_RUNTIME=ON and set BUDDY_TT_MLIR_BUILD_DIR.")
+endif()
+
+execute_process(
+  COMMAND "${Python3_EXECUTABLE}" -c
+          "import sysconfig; print(sysconfig.get_config_var('LIBDIR') or '')"
+  OUTPUT_VARIABLE _BUDDY_LLAMA31_PYTHON_LIBDIR
+  OUTPUT_STRIP_TRAILING_WHITESPACE)
+execute_process(
+  COMMAND "${Python3_EXECUTABLE}" -c
+          "import sysconfig; print(sysconfig.get_config_var('LDLIBRARY') or '')"
+  OUTPUT_VARIABLE _BUDDY_LLAMA31_PYTHON_LDLIBRARY
+  OUTPUT_STRIP_TRAILING_WHITESPACE)
+find_library(BUDDY_LLAMA31_PYTHON_LIB
+  NAMES "${_BUDDY_LLAMA31_PYTHON_LDLIBRARY}" python3.12 python3
+  HINTS "${_BUDDY_LLAMA31_PYTHON_LIBDIR}"
+  NO_DEFAULT_PATH)
+if(NOT BUDDY_LLAMA31_PYTHON_LIB)
+  message(FATAL_ERROR
+    "Could not find the Python shared library required by libTTMLIRRuntime. "
+    "Python3_EXECUTABLE=${Python3_EXECUTABLE}")
+endif()
+
+target_include_directories(buddy_models_llama31_tt SYSTEM
+  PRIVATE
+    "${BUDDY_TT_MLIR_SOURCE_DIR}/runtime/include"
+    "${BUDDY_TT_MLIR_SOURCE_DIR}/include"
+    "${BUDDY_TT_MLIR_BUILD_DIR}/runtime/include"
+    "${BUDDY_TT_MLIR_BUILD_DIR}/include"
+)
+
+target_link_libraries(buddy_models_llama31_tt
+  PRIVATE
+    "${BUDDY_TTMLIR_RUNTIME_LIB}"
+    "${BUDDY_LLAMA31_PYTHON_LIB}"
+)
+
+get_filename_component(_BUDDY_TTMLIR_RUNTIME_LIB_DIR
+  "${BUDDY_TTMLIR_RUNTIME_LIB}" DIRECTORY)
+get_filename_component(_BUDDY_LLAMA31_PYTHON_LIB_DIR
+  "${BUDDY_LLAMA31_PYTHON_LIB}" DIRECTORY)
+set(_BUDDY_TT_METAL_BUILD_LIB_DIR
+  "${BUDDY_TT_MLIR_SOURCE_DIR}/third_party/tt-metal/src/tt-metal/build_Release/lib")
+set_property(TARGET buddy_models_llama31_tt APPEND PROPERTY BUILD_RPATH
+  "${_BUDDY_TTMLIR_RUNTIME_LIB_DIR}"
+  "${_BUDDY_TT_METAL_BUILD_LIB_DIR}"
+  "${_BUDDY_LLAMA31_PYTHON_LIB_DIR}"
+  "${BUDDY_TT_MLIR_BUILD_DIR}/python_packages/ttrt/runtime"
+)
+target_link_options(buddy_models_llama31_tt INTERFACE
+  "LINKER:-rpath,${_BUDDY_TTMLIR_RUNTIME_LIB_DIR}"
+  "LINKER:-rpath,${_BUDDY_TT_METAL_BUILD_LIB_DIR}"
+  "LINKER:-rpath,${_BUDDY_LLAMA31_PYTHON_LIB_DIR}"
+  "LINKER:-rpath,${BUDDY_TT_MLIR_BUILD_DIR}/python_packages/ttrt/runtime"
 )
 
 set(BUDDY_LLAMA31_MAX_CACHE_LEN "1024" CACHE STRING
@@ -110,7 +181,6 @@ add_custom_command(
     "${CMAKE_CURRENT_SOURCE_DIR}/_env.sh"
     "${CMAKE_CURRENT_SOURCE_DIR}/buddy-llama31-lower-ttir.py"
     "${CMAKE_CURRENT_SOURCE_DIR}/llama31_chat_prepare.py"
-    "${CMAKE_CURRENT_SOURCE_DIR}/llama31_chat_run.py"
     "${CMAKE_CURRENT_SOURCE_DIR}/run_llama31_p150_chat.sh"
     "${CMAKE_SOURCE_DIR}/tools/buddy-codegen/gen_tenstorrent_manifest.py"
   COMMENT "Generating self-contained llama31_tt.rax"

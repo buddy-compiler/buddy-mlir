@@ -38,13 +38,13 @@ def _quote(text: str) -> str:
 
 def _artifact_constants(artifacts: str | Path) -> list[tuple[str, Path]]:
     root = Path(artifacts)
-    shared_weights = root / "prefill" / "weights.npz"
+    shared_weights = root / "prefill" / "weights.bin"
     required = [
         "slot_roles.json",
         "shapes.json",
         "dtypes.json",
         "summary.json",
-        "weights.npz",
+        "weights.bin",
     ]
     optional = ["inv_freq.npy"]
     out: list[tuple[str, Path]] = []
@@ -54,10 +54,10 @@ def _artifact_constants(artifacts: str | Path) -> list[tuple[str, Path]]:
         for filename in required:
             # The model weights are identical across prefill and decode. Keep
             # both phase-local manifest symbols, but point them at one source
-            # file so rax-pack embeds the large weight archive only once.
+            # file so rax-pack embeds the large binary blob only once.
             if (
                 phase == "decode"
-                and filename == "weights.npz"
+                and filename == "weights.bin"
                 and shared_weights.is_file()
             ):
                 path = shared_weights
@@ -84,11 +84,11 @@ def main() -> int:
     parser.add_argument("--prefill-ttnn", required=True)
     parser.add_argument("--decode-ttnn", required=True)
     parser.add_argument("--artifacts", default="chat_artifacts")
-    parser.add_argument("--runner", default="llama31_chat_run.py")
+    parser.add_argument("--runner", default="")
     parser.add_argument(
         "--tokenizer",
         default="meta-llama/Llama-3.1-8B-Instruct",
-        help="HF tokenizer path/id passed through to llama31_chat_run.py.",
+        help="Local tokenizer/model path recorded in the package manifest.",
     )
     parser.add_argument("--max-cache-len", type=int, default=1024)
     parser.add_argument("--official-reference-npz", default="")
@@ -108,7 +108,6 @@ def main() -> int:
     attrs = {
         "version": "0.1.0",
         "model_name": args.model_name,
-        "runner_uri": _file_uri(args.runner),
         "artifacts_uri": _file_uri(args.artifacts),
         "tokenizer_uri": args.tokenizer,
         "max_cache_len": str(args.max_cache_len),
@@ -132,9 +131,6 @@ def main() -> int:
   rhal.codeobj @decode_ttnn {{id = 2 : i32, kind = "raw_bytes",
                              backend = "ttnn",
                              uri = "{_quote(_file_uri(args.decode_ttnn))}"}}
-  rhal.codeobj @runner_py {{id = 3 : i32, kind = "raw_bytes",
-                           backend = "python",
-                           uri = "{_quote(_file_uri(args.runner))}"}}
 """
 
     for idx, (sym, path) in enumerate(

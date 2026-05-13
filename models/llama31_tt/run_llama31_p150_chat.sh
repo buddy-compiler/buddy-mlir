@@ -108,14 +108,14 @@ reuse_static_payloads() {
     local dst_dir="${CHAT_ART}/${phase}"
     local src_dir="${BASE_CHAT_ART}/${phase}"
     mkdir -p "${dst_dir}"
-    for name in weights.npz inv_freq.npy; do
+    for name in weights.bin inv_freq.npy; do
       local src="${src_dir}/${name}"
       local dst="${dst_dir}/${name}"
       if [[ -e "${dst}" ]]; then
         continue
       fi
       if [[ ! -e "${src}" ]]; then
-        if [[ "${name}" == "weights.npz" ]]; then
+        if [[ "${name}" == "weights.bin" ]]; then
           echo "error: missing reusable payload ${src}" >&2
           exit 1
         fi
@@ -135,12 +135,12 @@ have_phase_metadata() {
 }
 
 have_phase_weights() {
-  [[ -s "${CHAT_ART}/$1/weights.npz" ]]
+  [[ -s "${CHAT_ART}/$1/weights.bin" ]]
 }
 
 share_phase_weights() {
-  local src="${CHAT_ART}/prefill/weights.npz"
-  local dst="${CHAT_ART}/decode/weights.npz"
+  local src="${CHAT_ART}/prefill/weights.bin"
+  local dst="${CHAT_ART}/decode/weights.bin"
   if [[ ! -s "${src}" ]]; then
     echo "error: missing shared Llama weights ${src}" >&2
     exit 1
@@ -151,7 +151,7 @@ share_phase_weights() {
     fi
     rm -f "${dst}"
   fi
-  ln -s "../prefill/weights.npz" "${dst}" 2>/dev/null || ln "${src}" "${dst}"
+  ln -s "../prefill/weights.bin" "${dst}" 2>/dev/null || ln "${src}" "${dst}"
 }
 
 kb_to_gib() {
@@ -161,7 +161,7 @@ kb_to_gib() {
 check_rax_payload_space() {
   local payload_kb
   payload_kb="$(du -sk "${PREFILL_TTNN}" "${DECODE_TTNN}" "${CHAT_ART}" \
-    "${SCRIPT_DIR}/llama31_chat_run.py" | awk '{sum += $1} END {print sum + 0}')"
+    | awk '{sum += $1} END {print sum + 0}')"
   local margin_kb=$((2 * 1024 * 1024))
   local required_kb=$((payload_kb + margin_kb))
   local available_kb
@@ -239,8 +239,8 @@ if [[ "${SKIP_PREPARE}" != "1" ]]; then
       || ! have_phase_weights prefill || ! have_phase_weights decode; then
     echo "=== [3/4] Prepare chat artifacts (weights + roles) ==="
     if [[ "${DEVICE_ARGMAX}" == "1" && "${BASE_CHAT_ART}" != "${CHAT_ART}" \
-          && -f "${BASE_CHAT_ART}/prefill/weights.npz" \
-          && -f "${BASE_CHAT_ART}/decode/weights.npz" ]]; then
+          && -f "${BASE_CHAT_ART}/prefill/weights.bin" \
+          && -f "${BASE_CHAT_ART}/decode/weights.bin" ]]; then
       python llama31_chat_prepare.py \
         --max-cache-len "${MAX_CACHE_LEN}" \
         --metadata-only \
@@ -277,7 +277,7 @@ else
   echo "=== skipping chat prepare (SKIP_PREPARE=1) ==="
   if [[ "${DEVICE_ARGMAX}" == "1" && "${BASE_CHAT_ART}" != "${CHAT_ART}" ]]; then
     reuse_static_payloads
-  elif [[ -s "${CHAT_ART}/prefill/weights.npz" ]]; then
+  elif [[ -s "${CHAT_ART}/prefill/weights.bin" ]]; then
     share_phase_weights
   fi
 fi
@@ -292,7 +292,6 @@ if [[ "${SKIP_PACKAGE}" != "1" ]]; then
     --prefill-ttnn "${PREFILL_TTNN}" \
     --decode-ttnn "${DECODE_TTNN}" \
     --artifacts "${CHAT_ART}" \
-    --runner "${SCRIPT_DIR}/llama31_chat_run.py" \
     --tokenizer "${LLAMA31_MODEL_PATH}" \
     --max-cache-len "${MAX_CACHE_LEN}" \
     "${GEN_MANIFEST_EXTRA[@]}" \
@@ -320,17 +319,5 @@ EXTRA_ARGS=()
 if [[ "${MAX_NEW_TOKENS}" != "0" ]]; then
   EXTRA_ARGS+=(--max-new-tokens "${MAX_NEW_TOKENS}")
 fi
-if [[ "${RUN_WITH_BUDDY_CLI}" == "1" ]]; then
-  CLI_ARGS=(--model "${RAX_FILE}" --max-tokens "${MAX_NEW_TOKENS}")
-  BUDDY_TT_PYTHON="${BUDDY_TT_PYTHON:-$(command -v python)}" \
-    "${BUDDY_BUILD}/bin/buddy-cli" "${CLI_ARGS[@]}"
-else
-  python llama31_chat_run.py \
-    --prefill-ttnn "${PREFILL_TTNN}" \
-    --decode-ttnn "${DECODE_TTNN}" \
-    --artifacts "${CHAT_ART}" \
-    --max-cache-len "${MAX_CACHE_LEN}" \
-    --ignore-system-desc \
-    "${RUNNER_EXTRA[@]}" \
-    "${EXTRA_ARGS[@]}"
-fi
+CLI_ARGS=(--model "${RAX_FILE}" --max-tokens "${MAX_NEW_TOKENS}")
+"${BUDDY_BUILD}/bin/buddy-cli" "${CLI_ARGS[@]}"

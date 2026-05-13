@@ -4,10 +4,9 @@ This directory wires prebuilt Llama 3.1 TTNN flatbuffers into the generic
 `buddy-cli --model <file.rax>` entrypoint.
 
 The `.rax` package follows the same payload-embedding path used by the
-config-driven buddy-cli models: it embeds the TTNN flatbuffers, Python runner,
-and chat artifacts, including the shared Llama weight archive. `buddy-cli`
-dispatches the package to the Python `ttrt.runtime` runner while keeping
-tt-metal runtime linkage optional.
+config-driven buddy-cli models: it embeds the TTNN flatbuffers and chat
+artifacts, including the shared Llama weight archive. `buddy-cli` dispatches
+the package to the native C++ Tenstorrent runtime in-process.
 
 ## Build
 
@@ -39,19 +38,16 @@ ulimit -m 95000000
 export BUDDY_RAX_PAYLOAD_DIR=/tmp/$USER/buddy_rax_payload
 mkdir -p "$BUDDY_RAX_PAYLOAD_DIR"
 
-BUDDY_TT_PYTHON=/path/to/build-ttmlir-toolchain/venv/bin/python \
 LLAMA31_MODEL_PATH=/path/to/Llama-3.1-8B-Instruct \
-HF_HUB_OFFLINE=1 \
-TRANSFORMERS_OFFLINE=1 \
 build/bin/buddy-cli \
   --model build/models/llama31_tt/llama31_tt.rax \
   --prompt "Hello" \
   --max-tokens 32
 ```
 
-If `LLAMA31_MODEL_PATH` is not set, the runner uses the default Hugging Face id
-`meta-llama/Llama-3.1-8B-Instruct`. With offline mode enabled, that model and
-tokenizer must already be present in the local Hugging Face cache.
+`LLAMA31_MODEL_PATH` must point at a local Llama-3.1-8B-Instruct checkout that
+contains the tokenizer files. The native C++ runtime does not download models
+or import Python packages.
 
 ## Package Existing TTNN Artifacts
 
@@ -68,7 +64,6 @@ python3 "$BUDDY_REPO_ROOT/tools/buddy-codegen/gen_tenstorrent_manifest.py" \
   --prefill-ttnn "$BUDDY_BUILD/models/llama31_tt/ttir_out_static/llama31_prefill_static_argattrs.ttnn" \
   --decode-ttnn "$BUDDY_BUILD/models/llama31_tt/ttir_out_static/llama31_decode_static_argattrs.ttnn" \
   --artifacts "$BUDDY_BUILD/models/llama31_tt/chat_artifacts" \
-  --runner "$BUDDY_REPO_ROOT/models/llama31_tt/llama31_chat_run.py" \
   --max-cache-len 1024 \
   -o "$BUDDY_BUILD/models/llama31_tt/llama31_tt.rhal.mlir"
 
@@ -81,15 +76,8 @@ The `.rax` manifest uses:
 
 - `model_name = "llama31_tt"` for buddy-cli dispatch.
 - `prefill_ttnn` / `decode_ttnn` code objects with `backend = "ttnn"`.
-- `runner_py` as a Python `raw_bytes` code object.
 - `artifact_prefill_*` / `artifact_decode_*` external constants for embedded
   chat artifacts. The prefill and decode weight constants point at the same
   archive so the self-contained `.rax` embeds the weights once.
-- `runner_uri`, `artifacts_uri`, `tokenizer_uri`, and `max_cache_len` module
-  attributes for the Python Tenstorrent runtime bridge.
-- Optional `device_token_loop` and `ignore_eos` attributes for perf-only decode
-  graphs that emit device-resident token ids instead of host logits.
-
-Next patches should replace the external Python bridge with a native
-Tenstorrent runtime session once the C++ TT runtime dependency boundary is
-settled.
+- `artifacts_uri`, `tokenizer_uri`, and `max_cache_len` module attributes for
+  the native Tenstorrent runtime bridge.

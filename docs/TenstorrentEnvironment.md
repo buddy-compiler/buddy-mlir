@@ -212,16 +212,10 @@ export PYTHONPATH="$TTMLIR_BUILD/python_packages:${PYTHONPATH:-}"
 ## Run Llama 3.1 8B
 
 After `llama31_tt_rax` has completed, serving can call `buddy-cli` directly.
-The package embeds the TTNN flatbuffers, Python runner, and Llama chat artifact
-files including the shared weight archive.
-
-By default the scripts use the Hugging Face model id
-`meta-llama/Llama-3.1-8B-Instruct`. With `HF_HUB_OFFLINE=1` and
-`TRANSFORMERS_OFFLINE=1`, the model and tokenizer must already exist in the
-local Hugging Face cache. To use an explicit local checkout, set
-`LLAMA31_MODEL_PATH` to the model directory. The same variable is also needed
-when running a generated `.rax` directly with `buddy-cli`, because the package
-embeds the model weights but still uses the Hugging Face tokenizer at runtime.
+The package embeds the TTNN flatbuffers and Llama chat artifact files,
+including the shared weight archive. Set `LLAMA31_MODEL_PATH` to a local model
+directory when running `buddy-cli`; the package embeds model weights but the
+native C++ runtime still reads tokenizer files from that directory.
 
 ```bash
 cd "$BUDDY_REPO_ROOT"
@@ -231,22 +225,17 @@ ulimit -m 95000000
 export BUDDY_RAX_PAYLOAD_DIR=/tmp/$USER/buddy_rax_payload
 mkdir -p "$BUDDY_RAX_PAYLOAD_DIR"
 
-BUDDY_TT_PYTHON=$TTMLIR_TOOLCHAIN_DIR/venv/bin/python \
 LLAMA31_MODEL_PATH=/path/to/Llama-3.1-8B-Instruct \
-HF_HOME=$HOME/.cache/huggingface \
-HUGGINGFACE_HUB_CACHE=$HOME/.cache/huggingface/hub \
-HF_HUB_OFFLINE=1 \
-TRANSFORMERS_OFFLINE=1 \
 "$BUDDY_BUILD/bin/buddy-cli" \
   --model "$BUDDY_BUILD/models/llama31_tt/llama31_tt.rax" \
   --prompt "Hello, who are you?" \
   --max-tokens 32
 ```
 
-If `LLAMA31_MODEL_PATH` is omitted, the default Hugging Face id is used. In
-offline mode that succeeds only when the model has already been cached locally;
-without offline mode, Transformers may try to download it from Hugging Face and
-will require access to the gated Llama 3.1 repository.
+`LLAMA31_MODEL_PATH` must point at a local Llama-3.1-8B-Instruct checkout that
+contains `original/tokenizer.model` or `tokenizer.model`. The generated `.rax`
+embeds the TTNN flatbuffers and weights, but the native C++ runtime still needs
+the tokenizer files and does not download from Hugging Face.
 
 For end-to-end development, `models/llama31_tt/run_llama31_p150_chat.sh` still
 supports the full capture, lower, package, and interactive run flow. Set

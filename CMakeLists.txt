@@ -147,10 +147,11 @@ if(BUDDY_ENABLE_TENSTORRENT)
     OUTPUT_QUIET
     ERROR_QUIET)
   if(NOT BUDDY_TTRT_IMPORT_RESULT EQUAL 0)
-    message(FATAL_ERROR
-      "BUDDY_ENABLE_TENSTORRENT=ON requires Python package ttrt in "
-      "Python3_EXECUTABLE=${Python3_EXECUTABLE}. Activate the tt-mlir/"
-      "tt-metal environment or set Python3_EXECUTABLE accordingly.")
+    message(WARNING
+      "Python package ttrt was not found in "
+      "Python3_EXECUTABLE=${Python3_EXECUTABLE}. Native buddy-cli inference "
+      "does not import ttrt, but Tenstorrent package-generation targets still "
+      "require the tt-mlir Python environment.")
   endif()
 
   message(STATUS "Tenstorrent support enabled")

@@ -14,7 +14,7 @@
 #
 # ===---------------------------------------------------------------------------
 #
-# Prepare the host-side artifacts required by ``llama31_chat_run.py``.
+# Prepare the host-side artifacts required by the native C++ TT runtime.
 #
 # We re-run the Buddy ``DynamoCompiler`` for prefill and decode under the
 # same configuration as ``buddy-llama31-lower-ttir.py --static-cache
@@ -23,11 +23,12 @@
 #   - ``slot_roles.json``: per-``@subgraph0``-input role tag.  Roles include
 #     ``"weight"`` (host-side tensor baked into the model), ``"input_ids"``,
 #     ``"cache_position"``, ``"past_K"``/``"past_V"``, ``"inv_freq"``.
-#   - ``weights.npz``: one array per weight slot, keyed ``"w_%04d" % slot``.
+#   - ``weights.bin``: raw, contiguous binary weights in slot order. Each
+#     ``"weight"`` entry in ``slot_roles.json`` records its byte range.
 #   - ``inv_freq.npy``: F32 rotary base (if present).
 #   - ``shapes.json`` / ``dtypes.json``: per-arg metadata for sanity-check.
 #
-# The chat runner only needs to load these ``.npz`` / ``.json`` artifacts and
+# The chat runner only needs to load these binary / JSON artifacts and
 # swap in the runtime tensors (tokens, cache position, past KV) per step.
 #
 # Usage::
@@ -112,7 +113,7 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument(
         "--metadata-only",
         action="store_true",
-        help="Write slot roles/shapes/dtypes/summary but skip the large weights.npz.",
+        help="Write slot roles/shapes/dtypes/summary but skip the large weights.bin.",
     )
     return p.parse_args()
 
@@ -316,6 +317,68 @@ def _tensor_to_numpy_and_dtype(t: torch.Tensor) -> tuple[np.ndarray, str]:
     if tcpu.dtype == torch.bool:
         return tcpu.numpy().astype(np.uint8), "bool"
     raise ValueError(f"unsupported dtype {tcpu.dtype}")
+
+
+def _dtype_itemsize(dtype: str) -> int:
+    return {
+        "bool": 1,
+        "bfloat16": 2,
+        "float16": 2,
+        "float32": 4,
+        "int32": 4,
+        "int64": 8,
+    }[dtype]
+
+
+def _shape_volume(shape: list[int]) -> int:
+    result = 1
+    for dim in shape:
+        result *= int(dim)
+    return result
+
+
+def _write_weights_bin(
+    phase_dir: Path,
+    slot_roles: list[dict],
+    weights: dict[int, np.ndarray],
+    metadata_only: bool,
+) -> int:
+    offset = 0
+    weight_path = phase_dir / "weights.bin"
+    stale_npz = phase_dir / "weights.npz"
+    if stale_npz.exists() or stale_npz.is_symlink():
+        stale_npz.unlink()
+
+    has_weights = any(entry["role"] == "weight" for entry in slot_roles)
+    if not has_weights:
+        if weight_path.exists() or weight_path.is_symlink():
+            weight_path.unlink()
+        return 0
+
+    if metadata_only:
+        for entry in slot_roles:
+            if entry["role"] != "weight":
+                continue
+            nbytes = _shape_volume(entry["shape"]) * _dtype_itemsize(entry["dtype"])
+            entry["weight_offset"] = offset
+            entry["weight_nbytes"] = nbytes
+            offset += nbytes
+        return offset
+
+    with weight_path.open("wb") as output:
+        for entry in slot_roles:
+            if entry["role"] != "weight":
+                continue
+            slot = int(entry["slot"])
+            if slot not in weights:
+                raise RuntimeError(f"missing weight tensor for slot {slot}")
+            arr = np.ascontiguousarray(weights[slot])
+            nbytes = int(arr.nbytes)
+            entry["weight_offset"] = offset
+            entry["weight_nbytes"] = nbytes
+            arr.tofile(output)
+            offset += nbytes
+    return offset
 
 
 def _fuse_list():
@@ -620,7 +683,7 @@ def _prepare_phase(
             name_to_is_input[ph_op.name] = True
 
     slot_roles: list[dict] = []
-    weights: dict[str, np.ndarray] = {}
+    weights: dict[int, np.ndarray] = {}
     shapes: list[list[int]] = []
     dtypes: list[str] = []
 
@@ -644,7 +707,7 @@ def _prepare_phase(
             role = "weight"
             if not metadata_only:
                 arr, _ = _tensor_to_numpy_and_dtype(t)
-                weights[f"w_{slot:04d}"] = arr
+                weights[slot] = arr
         else:
             if (
                 dt == "int64"
@@ -705,7 +768,7 @@ def _prepare_phase(
             shapes.append(old_shapes[old_slot])
             dtypes.append(old_dtypes[old_slot])
             if entry["role"] == "weight" and not metadata_only:
-                weights[f"w_{new_slot:04d}"] = old_weights[f"w_{old_slot:04d}"]
+                weights[new_slot] = old_weights[old_slot]
 
         for old_slot in range(4):
             append_old(old_slot)
@@ -739,13 +802,14 @@ def _prepare_phase(
 
     phase_dir = out_dir / phase
     phase_dir.mkdir(parents=True, exist_ok=True)
+    weight_bytes = _write_weights_bin(
+        phase_dir, slot_roles, weights, metadata_only
+    )
     (phase_dir / "slot_roles.json").write_text(
         json.dumps(slot_roles, indent=2, ensure_ascii=False), encoding="utf-8"
     )
     (phase_dir / "shapes.json").write_text(json.dumps(shapes), encoding="utf-8")
     (phase_dir / "dtypes.json").write_text(json.dumps(dtypes), encoding="utf-8")
-    if weights:
-        np.savez(phase_dir / "weights.npz", **weights)
     if inv_freq_arr is not None:
         np.save(phase_dir / "inv_freq.npy", inv_freq_arr)
     summary = {
@@ -756,6 +820,7 @@ def _prepare_phase(
         "num_runtime_slots": sum(
             1 for r in slot_roles if r["role"] != "weight"
         ),
+        "weight_bytes": weight_bytes,
         "kv_seen": kv_seen,
         "has_inv_freq": inv_freq_arr is not None,
     }
