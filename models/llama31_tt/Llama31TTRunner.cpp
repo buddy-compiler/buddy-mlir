@@ -1154,8 +1154,8 @@ static ExtractedOutput extractLogitsAndKV(
     vocab = data.size() / itemSizeFor(dtype);
     start = 0;
   }
-  extracted.token = sampleTensor(data, dtype, start, vocab, sampler,
-                                 recentTokens);
+  extracted.token =
+      sampleTensor(data, dtype, start, vocab, sampler, recentTokens);
 
   t0 = std::chrono::steady_clock::now();
   size_t kvIter = 0;
