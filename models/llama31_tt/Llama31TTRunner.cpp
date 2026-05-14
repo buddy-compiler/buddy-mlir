@@ -94,7 +94,9 @@ static std::string formatFixed(double value, int precision = 4) {
   return os.str();
 }
 
-static void printLlamaLog(const std::string &msg) {
+static void printLlamaLog(const std::string &msg, bool suppress = false) {
+  if (suppress)
+    return;
   std::cout << colorLabel("[Log]", kAnsiBlueBold) << " " << msg << "\n";
 }
 
@@ -1295,6 +1297,7 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
 
   if (cfg.raxPath.empty())
     throw std::runtime_error("llama31_tt requires --model <path.rax>");
+  const bool suppress = cfg.suppressStats;
 
   const ModelManifest manifest = ModelManifest::loadFromRax(cfg.raxPath);
   const std::string prefillTTNN = findTTNNArtifact(manifest, "prefill");
@@ -1316,20 +1319,23 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
   const fs::path tokenizerPath = resolveTokenizerPath(lookupAttr(
       manifest, "tokenizer_uri", "meta-llama/Llama-3.1-8B-Instruct"));
 
-  std::cout << "[buddy-cli] dispatch llama31_tt via native Tenstorrent C++ "
-               "runtime\n";
-  std::cout << "[buddy-cli] prefill: " << prefillTTNN << "\n";
-  std::cout << "[buddy-cli] decode:  " << decodeTTNN << "\n";
-  std::cout << "[buddy-cli] artifacts: " << artifacts << "\n";
+  if (!suppress) {
+    std::cout << "[buddy-cli] dispatch llama31_tt via native Tenstorrent C++ "
+                 "runtime\n";
+    std::cout << "[buddy-cli] prefill: " << prefillTTNN << "\n";
+    std::cout << "[buddy-cli] decode:  " << decodeTTNN << "\n";
+    std::cout << "[buddy-cli] artifacts: " << artifacts << "\n";
+  }
 
   const auto tokenizerStart = std::chrono::steady_clock::now();
   Llama31Tokenizer tokenizer(tokenizerPath);
   const auto tokenizerEnd = std::chrono::steady_clock::now();
   printLlamaLog("tokenizer ready in " +
-                formatFixed(std::chrono::duration<double, std::milli>(
-                                tokenizerEnd - tokenizerStart)
-                                .count()) +
-                "ms");
+                    formatFixed(std::chrono::duration<double, std::milli>(
+                                    tokenizerEnd - tokenizerStart)
+                                    .count()) +
+                    "ms",
+                suppress);
 
   std::string prompt = cfg.prompt;
   if (prompt.empty()) {
@@ -1371,10 +1377,12 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
 
   try {
     device = ::tt::runtime::openMeshDevice(options);
-    std::cout << kAnsiYellowBold
-              << "Llama-3.1-8B-Instruct Inference Powered by Buddy Compiler "
-                 "(P150A TTIR, native C++)"
-              << kAnsiReset << "\n";
+    if (!suppress) {
+      std::cout << kAnsiYellowBold
+                << "Llama-3.1-8B-Instruct Inference Powered by Buddy Compiler "
+                   "(P150A TTIR, native C++)"
+                << kAnsiReset << "\n";
+    }
 
     auto cacheStart = std::chrono::steady_clock::now();
     prefillCache = precacheStaticInputs(*device, prefillBinary, programIndex,
@@ -1384,16 +1392,18 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
     auto cacheEnd = std::chrono::steady_clock::now();
     printLlamaLog(
         "uploaded & retained " + std::to_string(prefillCache.size()) +
-        " prefill + " + std::to_string(decodeCache.size()) +
-        " decode static tensors in " +
-        formatFixed(
-            std::chrono::duration<double>(cacheEnd - cacheStart).count()) +
-        "s");
+            " prefill + " + std::to_string(decodeCache.size()) +
+            " decode static tensors in " +
+            formatFixed(
+                std::chrono::duration<double>(cacheEnd - cacheStart).count()) +
+            "s",
+        suppress);
 
     std::vector<int> tokenIds = tokenizer.encodeChat(prompt);
     if (tokenIds.size() >= static_cast<size_t>(maxCacheLen))
       throw std::runtime_error("llama31_tt: prompt is longer than max cache");
-    printLlamaLog("prompt tokens = " + std::to_string(tokenIds.size()));
+    printLlamaLog("prompt tokens = " + std::to_string(tokenIds.size()),
+                  suppress);
 
     std::vector<int> padded(maxCacheLen, eosToken);
     std::copy(tokenIds.begin(), tokenIds.end(), padded.begin());
@@ -1418,9 +1428,26 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
     std::unordered_map<std::string, ::tt::runtime::Tensor> pastKV =
         std::move(prefillExtracted.kvDevice);
 
-    std::cout << colorLabel("[Iteration 0]")
-              << " Token: " << tokenizer.decodeToken(prefillExtracted.token)
-              << " | Time: " << formatFixed(prefillSeconds) << "s\n";
+    std::string streamedText;
+    auto streamGeneratedText = [&]() {
+      if (!suppress)
+        return;
+      std::string current = tokenizer.decodeTokens(generated, true);
+      if (current.size() > streamedText.size()) {
+        std::cout.write(current.data() + streamedText.size(),
+                        current.size() - streamedText.size());
+        std::cout.flush();
+      }
+      streamedText = std::move(current);
+    };
+
+    if (!suppress) {
+      std::cout << colorLabel("[Iteration 0]")
+                << " Token: " << tokenizer.decodeToken(prefillExtracted.token)
+                << " | Time: " << formatFixed(prefillSeconds) << "s\n";
+    } else {
+      streamGeneratedText();
+    }
 
     const int maxNewTokens =
         cfg.maxNewTokens > 0 ? cfg.maxNewTokens : maxCacheLen;
@@ -1463,9 +1490,14 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
       decodeSubmit += submitSeconds;
       decodeWall += iterSeconds;
 
-      std::cout << colorLabel("[Iteration " + std::to_string(decodeCount) + "]")
-                << " Token: " << tokenizer.decodeToken(decoded.token)
-                << " | Time: " << formatFixed(iterSeconds) << "s\n";
+      if (!suppress) {
+        std::cout << colorLabel("[Iteration " + std::to_string(decodeCount) +
+                                "]")
+                  << " Token: " << tokenizer.decodeToken(decoded.token)
+                  << " | Time: " << formatFixed(iterSeconds) << "s\n";
+      } else {
+        streamGeneratedText();
+      }
       if (decoded.token == eosToken && !ignoreEOS)
         break;
     }
@@ -1477,28 +1509,33 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
       }
     }
 
-    const double total = prefillSeconds + decodeWall;
-    std::cout << "\n"
-              << colorLabel("[Total time]") << " " << formatFixed(total)
-              << "s\n";
-    std::cout << colorLabel("[Prefilling]") << " "
-              << formatFixed(prefillSeconds > 0.0
-                                 ? static_cast<double>(maxCacheLen) /
-                                       prefillSeconds
-                                 : 0.0)
-              << " tokens/s (prefill_time=" << formatFixed(prefillSeconds)
-              << "s)\n";
-    std::cout << colorLabel("[Decoding wall]") << " "
-              << formatFixed(decodeWall > 0.0 ? decodeCount / decodeWall : 0.0)
-              << " tokens/s (" << decodeCount << " tokens in "
-              << formatFixed(decodeWall) << "s)\n";
-    std::cout << colorLabel("[Decoding device-only]") << " "
-              << formatFixed(decodeSubmit > 0.0 ? decodeCount / decodeSubmit
+    if (suppress) {
+      std::cout << "\n";
+    } else {
+      const double total = prefillSeconds + decodeWall;
+      std::cout << "\n"
+                << colorLabel("[Total time]") << " " << formatFixed(total)
+                << "s\n";
+      std::cout << colorLabel("[Prefilling]") << " "
+                << formatFixed(prefillSeconds > 0.0
+                                   ? static_cast<double>(maxCacheLen) /
+                                         prefillSeconds
+                                   : 0.0)
+                << " tokens/s (prefill_time=" << formatFixed(prefillSeconds)
+                << "s)\n";
+      std::cout << colorLabel("[Decoding wall]") << " "
+                << formatFixed(decodeWall > 0.0 ? decodeCount / decodeWall
                                                 : 0.0)
-              << " tokens/s\n";
-    std::cout << colorLabel("[Input]") << " " << prompt << "\n";
-    std::cout << colorLabel("[Output]") << " "
-              << tokenizer.decodeTokens(generated, true) << "\n";
+                << " tokens/s (" << decodeCount << " tokens in "
+                << formatFixed(decodeWall) << "s)\n";
+      std::cout << colorLabel("[Decoding device-only]") << " "
+                << formatFixed(decodeSubmit > 0.0 ? decodeCount / decodeSubmit
+                                                  : 0.0)
+                << " tokens/s\n";
+      std::cout << colorLabel("[Input]") << " " << prompt << "\n";
+      std::cout << colorLabel("[Output]") << " "
+                << tokenizer.decodeTokens(generated, true) << "\n";
+    }
 
     ::tt::runtime::closeMeshDevice(*device);
   } catch (...) {

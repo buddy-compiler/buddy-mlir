@@ -242,6 +242,15 @@ LLAMA31_MODEL_PATH=/path/to/Llama-3.1-8B-Instruct \
   --max-tokens 32
 ```
 
+To suppress TT-Metal, UMD, and tt-mlir runtime info/debug logs, add these
+before running `buddy-cli`.
+
+```bash
+export TT_LOGGER_LEVEL=FATAL
+export TT_METAL_LOGGER_LEVEL=FATAL
+export TTMLIR_RUNTIME_LOGGER_LEVEL=FATAL
+```
+
 `LLAMA31_MODEL_PATH` must point at a local Llama-3.1-8B-Instruct checkout that
 contains `original/tokenizer.model` or `tokenizer.model`. The generated `.rax`
 embeds the TTNN flatbuffers and weights, but the native C++ runtime still needs
