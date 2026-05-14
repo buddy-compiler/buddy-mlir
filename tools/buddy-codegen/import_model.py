@@ -168,6 +168,157 @@ def compile_graphs(model, config: dict):
     return graphs_prefill, graphs_decode, params
 
 
+def is_tiered_kv_cache(config: dict) -> bool:
+    return bool(config.get("tiered_kv_cache", {}).get("enabled", False))
+
+
+def tiered_cache_sizes(config: dict) -> list[int]:
+    sizes = config.get("tiered_kv_cache", {}).get("cache_sizes", [])
+    return [int(x) for x in sizes]
+
+
+def compile_and_export_tiered_graphs(model, config: dict, output_dir: str):
+    """Generate one prefill/decode pair for every configured KV cache size."""
+    cache_sizes = tiered_cache_sizes(config)
+    if not cache_sizes:
+        raise ValueError("tiered_kv_cache.enabled requires cache_sizes")
+
+    if config["variant"] != "f32":
+        raise ValueError("tiered KV cache import currently supports f32 only")
+
+    pattern_prefill_with_flash = [
+        simply_fuse,
+        apply_classic_fusion,
+        flash_attention_prefill,
+    ]
+    pattern_prefill_no_flash = [
+        simply_fuse,
+        apply_classic_fusion,
+    ]
+    pattern_decode = [simply_fuse, apply_classic_fusion, gqa_attention_fusion]
+
+    params = None
+
+    for prefill_size in cache_sizes:
+        print(
+            f"[import] Tiered prefill graph: seq_len={prefill_size}",
+            file=sys.stderr,
+        )
+        torch._dynamo.reset()
+
+        compiler = DynamoCompiler(
+            primary_registry=tosa.ops_registry,
+            aot_autograd_decomposition=inductor_decomp,
+            func_name=f"forward_prefill_{prefill_size}",
+        )
+
+        with torch.no_grad():
+            input_ids = torch.zeros((1, prefill_size), dtype=torch.int64)
+            graphs = compiler.importer(
+                model,
+                input_ids=input_ids,
+                use_cache=True,
+                cache_implementation="static",
+            )
+            if params is None:
+                params = compiler.imported_params[graphs[0]]
+
+        assert len(graphs) == 1
+        graph = graphs[0]
+        graph.perform([eliminate_transpose, eliminate_matmul_transpose_reshape])
+        if prefill_size >= 64:
+            graph.fuse_ops(pattern_prefill_with_flash)
+        else:
+            graph.fuse_ops(pattern_prefill_no_flash)
+
+        name = f"subgraph0_prefill_{prefill_size}"
+        graph.op_groups[name] = graph.op_groups.pop("subgraph0")
+        graph.group_map_device[name] = DeviceType.CPU
+
+        driver = GraphDriver(graph)
+        driver.subgraphs[0].lower_to_top_level_ir()
+
+        files = {
+            f"subgraph0_prefill_{prefill_size}.mlir": driver.subgraphs[
+                0
+            ]._imported_module,
+            f"forward_prefill_{prefill_size}.mlir": driver.construct_main_graph(
+                True
+            ),
+        }
+        for filename, content in files.items():
+            with open(os.path.join(output_dir, filename), "w") as f:
+                print(content, file=f)
+            print(f"[import] Written: {filename}", file=sys.stderr)
+
+    if params is None:
+        raise RuntimeError("tiered prefill import produced no parameters")
+
+    data_decode = {"input_ids": torch.zeros((1, 1), dtype=torch.int64)}
+    for cache_size in cache_sizes:
+        print(
+            f"[import] Tiered decode graph: cache_len={cache_size}",
+            file=sys.stderr,
+        )
+        torch._dynamo.reset()
+
+        compiler = DynamoCompiler(
+            primary_registry=tosa.ops_registry,
+            aot_autograd_decomposition=inductor_decomp,
+            func_name=f"forward_decode_{cache_size}",
+        )
+
+        with torch.no_grad():
+            past_kv = StaticCache(config=model.config, max_cache_len=cache_size)
+            cache_position = torch.tensor(
+                [min(200 * cache_size // 1024, cache_size - 1)],
+                dtype=torch.int64,
+            )
+
+            model(
+                input_ids=data_decode["input_ids"],
+                past_key_values=past_kv,
+                use_cache=True,
+                cache_implementation="static",
+            )
+
+            graphs = compiler.importer(
+                model,
+                input_ids=data_decode["input_ids"],
+                use_cache=True,
+                cache_position=cache_position,
+                past_key_values=past_kv,
+                cache_implementation="static",
+            )
+
+        assert len(graphs) == 1
+        graph = graphs[0]
+        graph.perform([eliminate_transpose, eliminate_matmul_transpose_reshape])
+        graph.fuse_ops(pattern_decode)
+
+        name = f"subgraph0_decode_{cache_size}"
+        graph.op_groups[name] = graph.op_groups.pop("subgraph0")
+        graph.group_map_device[name] = DeviceType.CPU
+
+        driver = GraphDriver(graph)
+        driver.subgraphs[0].lower_to_top_level_ir()
+
+        files = {
+            f"subgraph0_decode_{cache_size}.mlir": driver.subgraphs[
+                0
+            ]._imported_module,
+            f"forward_decode_{cache_size}.mlir": driver.construct_main_graph(
+                True
+            ),
+        }
+        for filename, content in files.items():
+            with open(os.path.join(output_dir, filename), "w") as f:
+                print(content, file=f)
+            print(f"[import] Written: {filename}", file=sys.stderr)
+
+    return params
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Graph transforms (shared across all variants)
 # ──────────────────────────────────────────────────────────────────────────────
@@ -473,6 +624,20 @@ def import_model(config: dict, output_dir: str):
 
     # 1. Load model
     model = load_model(config)
+
+    if is_tiered_kv_cache(config):
+        if is_quantized:
+            raise ValueError(
+                "tiered KV cache import does not support quantized variants"
+            )
+        original_params = compile_and_export_tiered_graphs(
+            model, config, output_dir
+        )
+        weight_buckets = extract_plain_weights(original_params, config)
+        actual_sizes = export_weights(weight_buckets, config, output_dir)
+        update_config(config, actual_sizes, output_dir)
+        print("[import] Tiered KV cache import complete.", file=sys.stderr)
+        return
 
     # 2. Compile graphs
     graphs_prefill, graphs_decode, original_params = compile_graphs(

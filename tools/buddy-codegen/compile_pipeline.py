@@ -71,7 +71,11 @@ LOWER_TO_LLVM = [
 
 
 def build_stages(
-    pipeline_type: str, num_threads: int, llc_attrs: str, variant: str = "f32"
+    pipeline_type: str,
+    num_threads: int,
+    llc_attrs: str,
+    variant: str = "f32",
+    tiered: bool = False,
 ):
     """
     Build the list of (tool_name, [args]) stages for a given pipeline type.
@@ -131,7 +135,10 @@ def build_stages(
             )
             opts.append("-matmul-vectorization-decode=vector-size=32")
         elif variant != "w8a8":
-            opts.append("-matmul-vectorization-decode=vector-size=32")
+            vector_size = 128 if tiered else 32
+            opts.append(
+                f"-matmul-vectorization-decode=vector-size={vector_size}"
+            )
         opts.extend(
             [
                 "-batch-matmul-vectorization-decode=vector-size=128",
@@ -169,6 +176,8 @@ def build_stages(
                 f"-convert-scf-to-openmp=num-threads={num_threads}",
             ]
         )
+        if tiered:
+            opts.append("-cse")
 
     opts.extend(LOWER_TO_LLVM)
     stages.append(("buddy-opt", opts))
@@ -262,6 +271,71 @@ MLIR_FILE_MAP = {
 }
 
 
+def is_tiered_kv_cache(config: dict) -> bool:
+    return bool(config.get("tiered_kv_cache", {}).get("enabled", False))
+
+
+def tiered_cache_sizes(config: dict) -> list[int]:
+    return [
+        int(x) for x in config.get("tiered_kv_cache", {}).get("cache_sizes", [])
+    ]
+
+
+def compile_entries(config: dict) -> list[tuple[str, str, str]]:
+    """Return (pipeline_key, input_mlir_name, output_obj_name) entries."""
+    pipelines = config["compilation"]["pipelines"]
+    if is_tiered_kv_cache(config):
+        entries = []
+        for cache_size in tiered_cache_sizes(config):
+            for key in pipelines:
+                if key == "forward_prefill":
+                    entries.append(
+                        (
+                            key,
+                            f"forward_prefill_{cache_size}.mlir",
+                            f"forward_prefill_{cache_size}.o",
+                        )
+                    )
+                elif key == "subgraph_prefill":
+                    entries.append(
+                        (
+                            key,
+                            f"subgraph0_prefill_{cache_size}.mlir",
+                            f"subgraph_prefill_{cache_size}.o",
+                        )
+                    )
+                elif key == "forward_decode":
+                    entries.append(
+                        (
+                            key,
+                            f"forward_decode_{cache_size}.mlir",
+                            f"forward_decode_{cache_size}.o",
+                        )
+                    )
+                elif key == "subgraph_decode":
+                    entries.append(
+                        (
+                            key,
+                            f"subgraph0_decode_{cache_size}.mlir",
+                            f"subgraph_decode_{cache_size}.o",
+                        )
+                    )
+                else:
+                    raise KeyError(
+                        f"Unknown pipeline key for tiered build: {key}"
+                    )
+        return entries
+
+    variant = config.get("variant", "")
+    suffix = f"-{variant}" if variant not in ("f32", "") else ""
+    entries = []
+    for key in pipelines:
+        base_mlir, base_obj = MLIR_FILE_MAP[key]
+        mlir_name = base_mlir.replace(".mlir", f"{suffix}.mlir")
+        entries.append((key, mlir_name, base_obj))
+    return entries
+
+
 def _compile_one(task: dict) -> str:
     """Compile a single MLIR file. Returns a status message."""
     name = task["name"]
@@ -270,6 +344,7 @@ def _compile_one(task: dict) -> str:
         task["num_threads"],
         task["llc_attrs"],
         task.get("variant", "f32"),
+        task.get("tiered", False),
     )
     run_pipeline(
         stages,
@@ -297,22 +372,15 @@ def compile_all(
 
     os.makedirs(output_dir, exist_ok=True)
 
-    # Build suffix for variant-specific MLIR files (e.g., "-w8a16")
-    suffix = f"-{variant}" if variant not in ("f32", "") else ""
-
     tasks = []
-    for key, pipeline_type in pipelines.items():
-        base_mlir, base_obj = MLIR_FILE_MAP[key]
-        # MLIR inputs may be variant-suffixed (e.g. forward_prefill-w8a16.mlir).
-        # Object files keep stable names (forward_prefill.o): one build dir = one variant.
-        mlir_name = base_mlir.replace(".mlir", f"{suffix}.mlir")
-        obj_name = base_obj
-
+    for key, mlir_name, obj_name in compile_entries(config):
+        pipeline_type = pipelines[key]
         input_path = os.path.join(mlir_dir, mlir_name)
         output_path = os.path.join(output_dir, obj_name)
 
-        if not os.path.exists(input_path):
+        if not os.path.exists(input_path) and not is_tiered_kv_cache(config):
             # Fall back to name without suffix
+            base_mlir, _ = MLIR_FILE_MAP[key]
             input_path = os.path.join(mlir_dir, base_mlir)
 
         tasks.append(
@@ -322,6 +390,7 @@ def compile_all(
                 "num_threads": num_threads,
                 "llc_attrs": llc_attrs,
                 "variant": variant,
+                "tiered": is_tiered_kv_cache(config),
                 "input": input_path,
                 "output": output_path,
                 "buddy_opt": buddy_opt,
@@ -471,9 +540,8 @@ def main():
             so_name = config["compilation"]["so_name"]
 
             obj_files = []
-            for key in config["compilation"]["pipelines"]:
-                _, base_obj = MLIR_FILE_MAP[key]
-                obj_files.append(os.path.join(args.output_dir, base_obj))
+            for _key, _mlir_name, obj_name in compile_entries(config):
+                obj_files.append(os.path.join(args.output_dir, obj_name))
 
             link_shared_lib(
                 obj_files=obj_files,
@@ -488,7 +556,11 @@ def main():
         num_threads = config["compilation"]["num_threads"]
         variant = config.get("variant", "f32")
         stages = build_stages(
-            args.pipeline, num_threads, args.llc_attrs, variant
+            args.pipeline,
+            num_threads,
+            args.llc_attrs,
+            variant,
+            is_tiered_kv_cache(config),
         )
 
         print(

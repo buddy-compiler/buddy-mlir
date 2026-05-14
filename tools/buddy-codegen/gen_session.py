@@ -105,6 +105,16 @@ def _macro_prefix(config: dict) -> str:
     return f"BUDDY_{short}"
 
 
+def _is_tiered_kv_cache(config: dict) -> bool:
+    return bool(config.get("tiered_kv_cache", {}).get("enabled", False))
+
+
+def _tiered_cache_sizes(config: dict) -> list[int]:
+    return [
+        int(x) for x in config.get("tiered_kv_cache", {}).get("cache_sizes", [])
+    ]
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Header generation
 # ──────────────────────────────────────────────────────────────────────────────
@@ -287,7 +297,512 @@ def gen_header(config: dict) -> str:
 # ──────────────────────────────────────────────────────────────────────────────
 
 
+def gen_impl_tiered(config: dict) -> str:
+    out = StringIO()
+
+    def _p(*a, **kw):
+        print(*a, file=out, **kw)
+
+    p = _p
+
+    mp = _macro_prefix(config)
+    shape = config["shape"]
+    weights = config["weights"]
+    kv_cpp = config["cpp_types"]["kv"]
+    logits_cpp = config["cpp_types"]["logits"]
+    kv_layers = shape["kv_layers"]
+    kv_memref = config["cpp_types"]["kv_memref"]
+    logits_memref = config["cpp_types"]["logits_memref"]
+    cache_sizes = _tiered_cache_sizes(config)
+
+    if kv_cpp != "float" or logits_cpp != "float":
+        raise RuntimeError(
+            "tiered KV cache ModelSession currently supports f32 only"
+        )
+    if not cache_sizes:
+        raise RuntimeError("tiered KV cache ModelSession requires cache_sizes")
+
+    dummy_groups = kv_layers // 2 - 1
+    cache_count = len(cache_sizes)
+    cache_size_list = ", ".join(str(x) for x in cache_sizes)
+    weight_ptr_types = ", ".join(
+        f"MemRef<{w['cpp_type']}, 1> *" for w in weights
+    )
+    weight_addrs_internal = ", ".join(f"{w['tag']}_.get()" for w in weights)
+
+    p(_CPP_FILE_PROLOGUE)
+    p('#include "buddy/runtime/models/ModelSession.h"')
+    p('#include "buddy/runtime/llm/KVCacheManager.h"')
+    p()
+    p("#include <algorithm>")
+    p("#include <array>")
+    p("#include <cstring>")
+    p("#include <dlfcn.h>")
+    p("#include <fstream>")
+    p("#include <stdexcept>")
+    p("#include <string>")
+    p("#include <new> // for std::launder, placement new")
+    p()
+    p("namespace buddy {")
+    p("namespace runtime {")
+    p()
+    p("namespace {")
+    p(f"static constexpr int kTieredCacheCount = {cache_count};")
+    p(
+        "static constexpr std::array<int, kTieredCacheCount> "
+        f"kTieredCacheSizes = {{{cache_size_list}}};"
+    )
+    p()
+    p("int selectPrefillSize(int tokenCount) {")
+    p("  for (int size : kTieredCacheSizes)")
+    p("    if (tokenCount <= size)")
+    p("      return size;")
+    p("  return kTieredCacheSizes.back();")
+    p("}")
+    p()
+    p("int selectDecodeSize(int requiredPosition) {")
+    p("  for (int size : kTieredCacheSizes)")
+    p("    if (requiredPosition < size)")
+    p("      return size;")
+    p("  return kTieredCacheSizes.back();")
+    p("}")
+    p()
+    p("int cacheSizeIndex(int cacheLen) {")
+    p("  for (int i = 0; i < kTieredCacheCount; ++i)")
+    p("    if (kTieredCacheSizes[i] == cacheLen)")
+    p("      return i;")
+    p(
+        '  throw std::runtime_error("[BuddyRuntime] unsupported tiered KV cache size");'
+    )
+    p("}")
+    p("} // namespace")
+    p()
+
+    p("using Dummy1Ref = MemRef<long long, 1>;")
+    p(f"using KV4Ref = {kv_memref};")
+    p(f"using Logits3Ref = {logits_memref};")
+    p()
+    p("struct DecodeKVGroup {")
+    p("  alignas(Dummy1Ref) char dummy_[sizeof(Dummy1Ref)];")
+    p("  alignas(KV4Ref) char kv0_[sizeof(KV4Ref)];")
+    p("  alignas(KV4Ref) char kv1_[sizeof(KV4Ref)];")
+    p("  Dummy1Ref &dummy() {")
+    p("    return *std::launder(reinterpret_cast<Dummy1Ref *>(dummy_));")
+    p("  }")
+    p("  KV4Ref &kv0() {")
+    p("    return *std::launder(reinterpret_cast<KV4Ref *>(kv0_));")
+    p("  }")
+    p("  KV4Ref &kv1() {")
+    p("    return *std::launder(reinterpret_cast<KV4Ref *>(kv1_));")
+    p("  }")
+    p("};")
+    p()
+    p("struct PrefillABI {")
+    p(f"  alignas({kv_memref}) char kv_[sizeof({kv_memref}) *")
+    p(f"                                     {mp}_KV_LAYERS];")
+    p(f"  alignas({logits_memref}) char logits_[sizeof({logits_memref})];")
+    p(f"  {kv_memref} &kv(int i) {{")
+    p(f"    return *std::launder(reinterpret_cast<{kv_memref} *>(")
+    p(f"        kv_ + i * sizeof({kv_memref})));")
+    p("  }")
+    p(f"  {logits_memref} &logits() {{")
+    p(
+        f"    return *std::launder(reinterpret_cast<{logits_memref} *>(logits_));"
+    )
+    p("  }")
+    p("};")
+    p()
+    p("struct DecodeABI {")
+    p("  alignas(Dummy1Ref) char cache_position_out_[sizeof(Dummy1Ref)];")
+    p("  alignas(KV4Ref) char kv0_[sizeof(KV4Ref)];")
+    p("  alignas(KV4Ref) char kv1_[sizeof(KV4Ref)];")
+    p(f"  DecodeKVGroup groups_[{dummy_groups}];")
+    p("  alignas(Logits3Ref) char logits_[sizeof(Logits3Ref)];")
+    p("  Dummy1Ref &cachePositionOut() {")
+    p(
+        "    return *std::launder("
+        "reinterpret_cast<Dummy1Ref *>(cache_position_out_));"
+    )
+    p("  }")
+    p("  Dummy1Ref &dummy(int i) { return groups_[i].dummy(); }")
+    p("  KV4Ref &kv(int i) {")
+    p("    if (i == 0)")
+    p("      return *std::launder(reinterpret_cast<KV4Ref *>(kv0_));")
+    p("    if (i == 1)")
+    p("      return *std::launder(reinterpret_cast<KV4Ref *>(kv1_));")
+    p("    int group = (i - 2) / 2;")
+    p(
+        "    return ((i - 2) % 2 == 0) ? groups_[group].kv0() : groups_[group].kv1();"
+    )
+    p("  }")
+    p("  Logits3Ref &logits() {")
+    p("    return *std::launder(reinterpret_cast<Logits3Ref *>(logits_));")
+    p("  }")
+    p("};")
+    p()
+    p(
+        f"using PrefillFn = void (*)(PrefillABI *, {weight_ptr_types}, Text<size_t, 2> *);"
+    )
+    p("using KV4 = KV4Ref *;")
+    p("using Dummy1 = Dummy1Ref *;")
+    decode_sig_parts = [
+        "DecodeABI *",
+        *[f"MemRef<{w['cpp_type']}, 1> *" for w in weights],
+        "MemRef<long long, 2> *",
+        "MemRef<long long, 1> *",
+        "KV4",
+        "KV4",
+    ]
+    for _i in range(dummy_groups):
+        decode_sig_parts.extend(["Dummy1", "KV4", "KV4"])
+    p("using DecodeFn = void (*)(")
+    line = "    "
+    for idx, part in enumerate(decode_sig_parts):
+        sep = "," if idx < len(decode_sig_parts) - 1 else ");"
+        candidate = line + part + sep + " "
+        if len(candidate) > 78 and line.strip():
+            p(line.rstrip())
+            line = "    " + part + sep + " "
+        else:
+            line = candidate
+    if line.strip():
+        p(line.rstrip())
+    p()
+    p()
+    p("namespace {")
+    p("template <typename SrcABI, typename DstABI>")
+    p("void copyKVCache(SrcABI &src, DstABI &dst, int kvLayers, int headNum,")
+    p("                 int hiddenSize, int srcCacheLen, int dstCacheLen,")
+    p("                 int validTokens) {")
+    p(
+        "  int copyLen = std::min(validTokens, std::min(srcCacheLen, dstCacheLen));"
+    )
+    p("  for (int k = 0; k < kvLayers; ++k) {")
+    p("    for (int h = 0; h < headNum; ++h) {")
+    p("      size_t bytes = (size_t)copyLen * hiddenSize * sizeof(float);")
+    p("      float *srcPtr =")
+    p("          src.kv(k).getData() + (size_t)h * srcCacheLen * hiddenSize;")
+    p("      float *dstPtr =")
+    p("          dst.kv(k).getData() + (size_t)h * dstCacheLen * hiddenSize;")
+    p("      std::memcpy(dstPtr, srcPtr, bytes);")
+    p("    }")
+    p("  }")
+    p("}")
+    p()
+    p("void callDecodeFn(DecodeFn fn, DecodeABI &a,")
+    for idx, w in enumerate(weights):
+        comma = "," if idx < len(weights) - 1 or True else ""
+        p(f"                  MemRef<{w['cpp_type']}, 1> *{w['tag']},")
+    p("                  MemRef<long long, 2> *decodeTokenInput,")
+    p("                  MemRef<long long, 1> *cachePosition) {")
+    call_parts = ["&a"]
+    for w in weights:
+        call_parts.append(w["tag"])
+    call_parts.append("decodeTokenInput")
+    call_parts.append("cachePosition")
+    call_parts.extend(["&a.kv(0)", "&a.kv(1)"])
+    for i in range(dummy_groups):
+        call_parts.extend(
+            [f"&a.dummy({i})", f"&a.kv({2 + i * 2})", f"&a.kv({3 + i * 2})"]
+        )
+    p("  fn(")
+    line = "      "
+    for idx, part in enumerate(call_parts):
+        sep = ", " if idx < len(call_parts) - 1 else ");"
+        candidate = line + part + sep
+        if len(candidate) > 80 and line.strip():
+            p(line.rstrip(", ") + ",")
+            line = "      " + part + sep
+        else:
+            line = candidate
+    if line.strip():
+        p(line)
+    p("}")
+    p("} // namespace")
+    p()
+    p("struct ModelSession::Impl {")
+    p("  std::array<PrefillABI, kTieredCacheCount> prefillAbi;")
+    p("  std::array<DecodeABI, kTieredCacheCount> decodeAbi;")
+    p("  bool abiInitialized = false;")
+    p("  void *soHandle = nullptr;")
+    p("  std::vector<void *> depSoHandles;")
+    p("  std::array<PrefillFn, kTieredCacheCount> prefillFns{};")
+    p("  std::array<DecodeFn, kTieredCacheCount> decodeFns{};")
+    p("  int activeSlot = 0;")
+    p("  bool lastLogitsAreDecode = false;")
+    p()
+    p("  ~Impl() {")
+    p("    if (abiInitialized) {")
+    p("      for (int slot = 0; slot < kTieredCacheCount; ++slot) {")
+    p(f"        for (int i = 0; i < {mp}_KV_LAYERS; ++i)")
+    p("          prefillAbi[slot].kv(i).~KV4Ref();")
+    p("        prefillAbi[slot].logits().~Logits3Ref();")
+    p("        decodeAbi[slot].cachePositionOut().~Dummy1Ref();")
+    p(f"        for (int i = 0; i < {dummy_groups}; ++i)")
+    p("          decodeAbi[slot].dummy(i).~Dummy1Ref();")
+    p(f"        for (int i = 0; i < {mp}_KV_LAYERS; ++i)")
+    p("          decodeAbi[slot].kv(i).~KV4Ref();")
+    p("        decodeAbi[slot].logits().~Logits3Ref();")
+    p("      }")
+    p("    }")
+    p("    if (soHandle) {")
+    p("      dlclose(soHandle);")
+    p("      soHandle = nullptr;")
+    p("    }")
+    p(
+        "    for (auto it = depSoHandles.rbegin(); it != depSoHandles.rend(); ++it)"
+    )
+    p("      if (*it)")
+    p("        dlclose(*it);")
+    p("    depSoHandles.clear();")
+    p("  }")
+    p()
+    p("  void loadSo(const std::string &soPath,")
+    p("              const std::vector<std::string> &dependentSoPaths) {")
+    p("    for (const auto &depPath : dependentSoPaths) {")
+    p(
+        "      void *depHandle = dlopen(depPath.c_str(), RTLD_NOW | RTLD_GLOBAL);"
+    )
+    p("      if (!depHandle)")
+    p(
+        '        throw std::runtime_error("[BuddyRuntime] dependent dlopen failed: " + depPath +'
+    )
+    p('                                 "\\n  " + dlerror());')
+    p("      depSoHandles.push_back(depHandle);")
+    p("    }")
+    p("    soHandle = dlopen(soPath.c_str(), RTLD_NOW | RTLD_LOCAL);")
+    p("    if (!soHandle)")
+    p(
+        '      throw std::runtime_error("[BuddyRuntime] dlopen failed: " + soPath +'
+    )
+    p('                               "\\n  " + dlerror());')
+    p("    for (int i = 0; i < kTieredCacheCount; ++i) {")
+    p("      const std::string suffix = std::to_string(kTieredCacheSizes[i]);")
+    p("      const std::string prefillSym =")
+    p('          "_mlir_ciface_forward_prefill_" + suffix;')
+    p("      const std::string decodeSym =")
+    p('          "_mlir_ciface_forward_decode_" + suffix;')
+    p("      prefillFns[i] =")
+    p(
+        "          reinterpret_cast<PrefillFn>(dlsym(soHandle, prefillSym.c_str()));"
+    )
+    p("      if (!prefillFns[i])")
+    p("        throw std::runtime_error(")
+    p(
+        '            "[BuddyRuntime] symbol not found: " + prefillSym + "\\n  " +'
+    )
+    p("            std::string(dlerror()));")
+    p("      decodeFns[i] =")
+    p(
+        "          reinterpret_cast<DecodeFn>(dlsym(soHandle, decodeSym.c_str()));"
+    )
+    p("      if (!decodeFns[i])")
+    p("        throw std::runtime_error(")
+    p('            "[BuddyRuntime] symbol not found: " + decodeSym + "\\n  " +')
+    p("            std::string(dlerror()));")
+    p("    }")
+    p("  }")
+    p("};")
+    p()
+    p("ModelSession::ModelSession(const Config &cfg) : cfg_(cfg) {")
+    p("  if (cfg_.modelSoPath.empty())")
+    p(
+        '    throw std::runtime_error("[BuddyRuntime] Config.modelSoPath must not be empty.");'
+    )
+    p("  allocateKVCache();")
+    p("  impl_->loadSo(cfg_.modelSoPath, cfg_.dependentSoPaths);")
+    p("}")
+    p()
+    p("ModelSession::~ModelSession() = default;")
+    p()
+    p("std::unique_ptr<ModelSession> ModelSession::create(const Config &cfg) {")
+    p("  return std::unique_ptr<ModelSession>(new ModelSession(cfg));")
+    p("}")
+    p()
+    p("void ModelSession::allocateKVCache() {")
+    p("  impl_ = std::make_unique<Impl>();")
+    p("  intptr_t pshape[1] = {1};")
+    p("  for (int slot = 0; slot < kTieredCacheCount; ++slot) {")
+    p("    int cacheLen = kTieredCacheSizes[slot];")
+    p("    intptr_t kvShape[4] = {1, cfg_.headNum, cacheLen, cfg_.hiddenSize};")
+    p(f"    for (int i = 0; i < {mp}_KV_LAYERS; ++i) {{")
+    p("      new (&impl_->prefillAbi[slot].kv(i)) KV4Ref(kvShape, 0.0f);")
+    p("      new (&impl_->decodeAbi[slot].kv(i)) KV4Ref(kvShape, 0.0f);")
+    p("    }")
+    p("    intptr_t prefillLogitsShape[3] = {1, cacheLen, cfg_.vocabSize};")
+    p("    new (&impl_->prefillAbi[slot].logits())")
+    p("        Logits3Ref(prefillLogitsShape);")
+    p(
+        "    new (&impl_->decodeAbi[slot].cachePositionOut()) Dummy1Ref(pshape, 0LL);"
+    )
+    p(f"    for (int i = 0; i < {dummy_groups}; ++i)")
+    p("      new (&impl_->decodeAbi[slot].dummy(i)) Dummy1Ref(pshape, 0LL);")
+    p("    intptr_t decodeLogitsShape[3] = {1, 1, cfg_.vocabSize};")
+    p(
+        "    new (&impl_->decodeAbi[slot].logits()) Logits3Ref(decodeLogitsShape);"
+    )
+    p("  }")
+    p("  impl_->abiInitialized = true;")
+    p("  intptr_t tshape[2] = {1, 1};")
+    p("  decodeTokenInput_ = std::make_unique<MemRef<long long, 2>>(tshape);")
+    p("  cachePosition_ = std::make_unique<MemRef<long long, 1>>(pshape);")
+    p("}")
+    p()
+    p("void ModelSession::loadWeights(const std::vector<std::string> &paths) {")
+    p(f"  if (paths.size() < {len(weights)}u)")
+    p(
+        f'    throw std::runtime_error("[BuddyRuntime] Expected {len(weights)} weight '
+        f'file(s), got " + std::to_string(paths.size()));'
+    )
+    for idx, w in enumerate(weights):
+        tag = w["tag"]
+        cpp_type = w["cpp_type"]
+        macro_suffix = (
+            "PARAMS_SIZE" if len(weights) == 1 else f"PARAMS_SIZE_{tag.upper()}"
+        )
+        p("  {")
+        p(f"    intptr_t shape[1] = {{{mp}_{macro_suffix}}};")
+        p(f"    {tag}_ = std::make_unique<MemRef<{cpp_type}, 1>>(shape);")
+        p(f"    std::ifstream f(paths[{idx}], std::ios::binary);")
+        p("    if (!f)")
+        p(
+            f'      throw std::runtime_error("[BuddyRuntime] Cannot open weights: " + paths[{idx}]);'
+        )
+        p(f"    f.read(reinterpret_cast<char *>({tag}_->getData()),")
+        p(f"           sizeof({cpp_type}) * {tag}_->getSize());")
+        p("    if (f.fail())")
+        p(
+            f'      throw std::runtime_error("[BuddyRuntime] Read failed: " + paths[{idx}]);'
+        )
+        p("  }")
+    p("}")
+    p()
+    p("void ModelSession::prefill(Text<size_t, 2> &tokens) {")
+    p("  const int tokenCount = (int)tokens.getTokenCnt();")
+    p("  const int cacheLen = selectPrefillSize(tokenCount);")
+    p("  const int slot = cacheSizeIndex(cacheLen);")
+    p("  impl_->activeSlot = slot;")
+    p("  intptr_t *tokenSizes = const_cast<intptr_t *>(tokens.getSizes());")
+    p("  intptr_t *tokenStrides = const_cast<intptr_t *>(tokens.getStrides());")
+    p("  const intptr_t oldLen = tokenSizes[1];")
+    p("  const intptr_t oldStride0 = tokenStrides[0];")
+    p("  const intptr_t oldStride1 = tokenStrides[1];")
+    p("  tokenSizes[1] = cacheLen;")
+    p("  tokenStrides[0] = cacheLen;")
+    p("  tokenStrides[1] = 1;")
+    p(
+        f"  impl_->prefillFns[slot](&impl_->prefillAbi[slot], {weight_addrs_internal}, &tokens);"
+    )
+    p("  tokenSizes[1] = oldLen;")
+    p("  tokenStrides[0] = oldStride0;")
+    p("  tokenStrides[1] = oldStride1;")
+    p("  copyKVCache(impl_->prefillAbi[slot], impl_->decodeAbi[slot],")
+    p("              cfg_.kvLayers, cfg_.headNum, cfg_.hiddenSize,")
+    p("              cacheLen, cacheLen, tokenCount);")
+    p("  impl_->lastLogitsAreDecode = false;")
+    p("  position_ = tokenCount;")
+    p("}")
+    p()
+    p("void ModelSession::decode(int tokenId) {")
+    p("  const int neededCacheLen = selectDecodeSize(position_ + 1);")
+    p("  int neededSlot = cacheSizeIndex(neededCacheLen);")
+    p("  if (neededSlot != impl_->activeSlot) {")
+    p("    int prevCacheLen = kTieredCacheSizes[impl_->activeSlot];")
+    p("    copyKVCache(impl_->decodeAbi[impl_->activeSlot],")
+    p(
+        "                impl_->decodeAbi[neededSlot], cfg_.kvLayers, cfg_.headNum,"
+    )
+    p(
+        "                cfg_.hiddenSize, prevCacheLen, neededCacheLen, position_);"
+    )
+    p("    impl_->activeSlot = neededSlot;")
+    p("  }")
+    p("  decodeTokenInput_->getData()[0] = (long long)tokenId;")
+    p("  cachePosition_->getData()[0] = (long long)position_;")
+    p("  auto &a = impl_->decodeAbi[impl_->activeSlot];")
+    p(f"  for (int i = 0; i < {dummy_groups}; ++i)")
+    p("    a.dummy(i).getData()[0] = (long long)position_;")
+    p(
+        f"  callDecodeFn(impl_->decodeFns[impl_->activeSlot], a, {weight_addrs_internal},"
+    )
+    p("               decodeTokenInput_.get(), cachePosition_.get());")
+    p("  impl_->lastLogitsAreDecode = true;")
+    p("  position_ += 1;")
+    p("}")
+    p()
+    p("void ModelSession::resetPosition() {")
+    p("  position_ = 0;")
+    p("  impl_->activeSlot = 0;")
+    p("  impl_->lastLogitsAreDecode = false;")
+    p("}")
+    p()
+    p(
+        "bool ModelSession::handleKVCacheOverflow(int keepTokenNum, float ropeTheta) {"
+    )
+    p("  if (position_ < cfg_.maxTokenLen)")
+    p("    return false;")
+    p("  const int currentTokens = std::min(position_, cfg_.maxTokenLen);")
+    p("  keepTokenNum = std::clamp(keepTokenNum, 0, currentTokens - 1);")
+    p(
+        "  const int discardLen = std::max(1, (currentTokens - keepTokenNum) / 2);"
+    )
+    p(f"  {kv_cpp} *rawPtrs[{mp}_KV_LAYERS];")
+    p("  auto &a = impl_->decodeAbi[impl_->activeSlot];")
+    p("  for (int i = 0; i < cfg_.kvLayers; ++i)")
+    p("    rawPtrs[i] = a.kv(i).getData();")
+    p("  buddy::kvcache::discardKVCache(rawPtrs, cfg_.kvLayers, cfg_.headNum,")
+    p("                                 cfg_.maxTokenLen, cfg_.hiddenSize,")
+    p(
+        "                                 keepTokenNum, discardLen, currentTokens);"
+    )
+    p("  auto inverseFreqs =")
+    p(
+        "      buddy::kvcache::buildInverseRopeFreqs(ropeTheta, cfg_.hiddenSize);"
+    )
+    p("  buddy::kvcache::adjustKeyCacheRope(")
+    p(
+        "      rawPtrs, cfg_.kvLayers, cfg_.headNum, cfg_.maxTokenLen, cfg_.hiddenSize,"
+    )
+    p("      keepTokenNum, discardLen, currentTokens, inverseFreqs);")
+    p(
+        "  position_ = std::clamp(currentTokens - discardLen, 0, cfg_.maxTokenLen);"
+    )
+    p("  return true;")
+    p("}")
+    p()
+    p("const float *ModelSession::logitsData(int tokenOffset) const {")
+    p("  const int slot = impl_->activeSlot;")
+    p("  if (impl_->lastLogitsAreDecode)")
+    p("    return impl_->decodeAbi[slot].logits().getData();")
+    p("  return impl_->prefillAbi[slot].logits().getData() +")
+    p("         (size_t)tokenOffset * cfg_.vocabSize;")
+    p("}")
+    p()
+    p(
+        "std::string ModelSession::loadedSoPath() const { return cfg_.modelSoPath; }"
+    )
+    p()
+    p("std::unique_ptr<ModelSession>")
+    p("ModelSession::createFromRax(const std::string &raxPath,")
+    p("                            ModelManifest &resolvedManifest) {")
+    p("  resolvedManifest = ModelManifest::loadFromRax(raxPath);")
+    p("  Config cfg;")
+    p("  cfg.modelSoPath = resolvedManifest.soPath;")
+    p("  cfg.dependentSoPaths = resolvedManifest.dependentSoPaths;")
+    p("  return create(cfg);")
+    p("}")
+    p()
+    p("} // namespace runtime")
+    p("} // namespace buddy")
+    p()
+
+    return out.getvalue()
+
+
 def gen_impl(config: dict) -> str:
+    if _is_tiered_kv_cache(config):
+        return gen_impl_tiered(config)
+
     out = StringIO()
 
     def _p(*a, **kw):
