@@ -72,14 +72,16 @@ endif()
 #   [NUM_THREADS  <N>]                      OpenMP threads (default from spec)
 #   [LLC_ATTRS    <string>]                 LLC target attributes
 #   [COMPILE_JOBS <N>]                      parallel MLIR compilation jobs
+#   [TIERED_KV_CACHE ON|OFF]                build multiple cache-sized entrypoints
+#   [TIERED_CACHE_SIZES <list>]             e.g. "32;64;128;256;512;1024"
 # )
 # ──────────────────────────────────────────────────────────────────────────────
 function(buddy_add_model)
   cmake_parse_arguments(
     MDL                                      # prefix
     ""                                       # flags
-    "NAME;SPEC;RUNNER_SRC;HF_CONFIG;LOCAL_MODEL;BUILD_DIR;MLIR_DIR;NUM_THREADS;LLC_ATTRS;COMPILE_JOBS"
-    ""                                       # multi-value
+    "NAME;SPEC;RUNNER_SRC;HF_CONFIG;LOCAL_MODEL;BUILD_DIR;MLIR_DIR;NUM_THREADS;LLC_ATTRS;COMPILE_JOBS;TIERED_KV_CACHE"
+    "TIERED_CACHE_SIZES"                     # multi-value
     ${ARGN}
   )
 
@@ -110,6 +112,15 @@ function(buddy_add_model)
 
   if(NOT MDL_COMPILE_JOBS)
     set(MDL_COMPILE_JOBS 1)
+  endif()
+
+  if(MDL_TIERED_KV_CACHE)
+    set(MDL_TIERED_KV_CACHE ON)
+  else()
+    set(MDL_TIERED_KV_CACHE OFF)
+  endif()
+  if(MDL_TIERED_KV_CACHE AND NOT MDL_TIERED_CACHE_SIZES)
+    set(MDL_TIERED_CACHE_SIZES 32 64 128 256 512 1024)
   endif()
 
   set(MDL_GEN_MANIFEST_ARGS)
@@ -253,17 +264,42 @@ function(buddy_add_model)
 
   set(MODEL_SO "${BIN}/${MDL_NAME}_model.so")
 
-  set(OBJ_FP "${BIN}/forward_prefill.o")
-  set(OBJ_SP "${BIN}/subgraph_prefill.o")
-  set(OBJ_FD "${BIN}/forward_decode.o")
-  set(OBJ_SD "${BIN}/subgraph_decode.o")
+  set(OBJ_FILES)
+  set(MLIR_COMPILE_DEPS)
+  if(MDL_TIERED_KV_CACHE)
+    foreach(CACHE_SIZE ${MDL_TIERED_CACHE_SIZES})
+      list(APPEND OBJ_FILES
+        "${BIN}/forward_prefill_${CACHE_SIZE}.o"
+        "${BIN}/subgraph_prefill_${CACHE_SIZE}.o"
+        "${BIN}/forward_decode_${CACHE_SIZE}.o"
+        "${BIN}/subgraph_decode_${CACHE_SIZE}.o")
+    endforeach()
+  else()
+    list(APPEND OBJ_FILES
+      "${BIN}/forward_prefill.o"
+      "${BIN}/subgraph_prefill.o"
+      "${BIN}/forward_decode.o"
+      "${BIN}/subgraph_decode.o")
+  endif()
 
   if(MDL_BUILD_DIR)
     # ── Mode A: pre-built .o ───────────────────────────────────────────────
-    set(OBJ_FP "${MDL_BUILD_DIR}/forward_prefill.o")
-    set(OBJ_SP "${MDL_BUILD_DIR}/subgraph_prefill.o")
-    set(OBJ_FD "${MDL_BUILD_DIR}/forward_decode.o")
-    set(OBJ_SD "${MDL_BUILD_DIR}/subgraph_decode.o")
+    set(OBJ_FILES)
+    if(MDL_TIERED_KV_CACHE)
+      foreach(CACHE_SIZE ${MDL_TIERED_CACHE_SIZES})
+        list(APPEND OBJ_FILES
+          "${MDL_BUILD_DIR}/forward_prefill_${CACHE_SIZE}.o"
+          "${MDL_BUILD_DIR}/subgraph_prefill_${CACHE_SIZE}.o"
+          "${MDL_BUILD_DIR}/forward_decode_${CACHE_SIZE}.o"
+          "${MDL_BUILD_DIR}/subgraph_decode_${CACHE_SIZE}.o")
+      endforeach()
+    else()
+      list(APPEND OBJ_FILES
+        "${MDL_BUILD_DIR}/forward_prefill.o"
+        "${MDL_BUILD_DIR}/subgraph_prefill.o"
+        "${MDL_BUILD_DIR}/forward_decode.o"
+        "${MDL_BUILD_DIR}/subgraph_decode.o")
+    endif()
 
   else()
     # Determine MLIR source directory
@@ -314,17 +350,28 @@ function(buddy_add_model)
     endif()
 
     if(MDL_MLIR_DIR)
-      set(MLIR_COMPILE_DEPS
-        "${MLIR_SRC}/forward_prefill.mlir"
-        "${MLIR_SRC}/subgraph0_prefill.mlir"
-        "${MLIR_SRC}/forward_decode.mlir"
-        "${MLIR_SRC}/subgraph0_decode.mlir"
-      )
+      if(MDL_TIERED_KV_CACHE)
+        set(MLIR_COMPILE_DEPS)
+        foreach(CACHE_SIZE ${MDL_TIERED_CACHE_SIZES})
+          list(APPEND MLIR_COMPILE_DEPS
+            "${MLIR_SRC}/forward_prefill_${CACHE_SIZE}.mlir"
+            "${MLIR_SRC}/subgraph0_prefill_${CACHE_SIZE}.mlir"
+            "${MLIR_SRC}/forward_decode_${CACHE_SIZE}.mlir"
+            "${MLIR_SRC}/subgraph0_decode_${CACHE_SIZE}.mlir")
+        endforeach()
+      else()
+        set(MLIR_COMPILE_DEPS
+          "${MLIR_SRC}/forward_prefill.mlir"
+          "${MLIR_SRC}/subgraph0_prefill.mlir"
+          "${MLIR_SRC}/forward_decode.mlir"
+          "${MLIR_SRC}/subgraph0_decode.mlir"
+        )
+      endif()
     endif()
 
     # ── Stage 2: MLIR → .o via compile_pipeline.py ─────────────────────────
     add_custom_command(
-      OUTPUT "${OBJ_FP}" "${OBJ_SP}" "${OBJ_FD}" "${OBJ_SD}"
+      OUTPUT ${OBJ_FILES}
       COMMAND "${Python3_EXECUTABLE}" "${BUDDY_CODEGEN_DIR}/compile_pipeline.py"
               --config "${GEN_CONFIG}"
               --compile-all
@@ -386,11 +433,11 @@ function(buddy_add_model)
               -shared -fPIC
               ${_BUDDY_MODEL_LINK_FLAGS}
               -o "${MODEL_SO}"
-              "${OBJ_FP}" "${OBJ_SP}" "${OBJ_FD}" "${OBJ_SD}"
+              ${OBJ_FILES}
               "-L${LLVM_LIBRARY_DIR}"
               "-Wl,-rpath,${LLVM_LIBRARY_DIR}"
               ${MDL_STAGE3_LIBS}
-    DEPENDS "${OBJ_FP}" "${OBJ_SP}" "${OBJ_FD}" "${OBJ_SD}"
+    DEPENDS ${OBJ_FILES}
     COMMENT "[${MDL_NAME}] Stage 3: linking ${MDL_NAME}_model.so"
     VERBATIM
   )
