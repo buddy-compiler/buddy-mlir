@@ -1982,7 +1982,7 @@ target_link_libraries(buddy-deepseek-r1-tiered-kv-cache-run ${BUDDY_DEEPSEEKR1_T
 
 add_custom_target(deepseekr1-tiered-kv-cache
   DEPENDS buddy-deepseek-r1-tiered-kv-cache-run
-  COMMENT "Building DeepSeekR1 tiered-kv-cache inference"
+  COMMENT "Building DeepSeekR1 tiered-kv-cache inference with cache sizes: ${KV_CACHE_SIZES}"
 )
 
 add_test(
@@ -1997,5 +1997,3 @@ set_tests_properties(
     PASS_REGULAR_EXPRESSION "Total time"
     TIMEOUT 3600
 )
-
-message(STATUS "DeepSeekR1 Multi-Cache: Building prefill and decode subgraphs for cache sizes: ${KV_CACHE_SIZES}")
