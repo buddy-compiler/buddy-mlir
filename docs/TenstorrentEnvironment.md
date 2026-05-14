@@ -239,7 +239,9 @@ LLAMA31_MODEL_PATH=/path/to/Llama-3.1-8B-Instruct \
 "$BUDDY_BUILD/bin/buddy-cli" \
   --model "$BUDDY_BUILD/models/llama31_tt/llama31_tt.rax" \
   --prompt "Hello, who are you?" \
-  --max-tokens 32
+  --max-tokens 32 \
+  --repeat-penalty 1.12 \
+  --repeat-last-n 128
 ```
 
 To suppress TT-Metal, UMD, and tt-mlir runtime info/debug logs, add these

@@ -17,6 +17,7 @@
 #include "buddy/runtime/models/Llama31TTRunner.h"
 
 #include "buddy/runtime/core/ModelManifest.h"
+#include "buddy/runtime/llm/Sampler.h"
 
 #include "tt/runtime/runtime.h"
 #include "tt/runtime/types.h"
@@ -1055,38 +1056,42 @@ static float bf16BitsToFloat(uint16_t v) {
   return out;
 }
 
-static int argmaxTensor(const std::vector<std::byte> &bytes, TTDataType dtype,
-                        size_t start, size_t count) {
+static std::vector<float> loadLogits(const std::vector<std::byte> &bytes,
+                                     TTDataType dtype, size_t start,
+                                     size_t count) {
   if (count == 0)
     throw std::runtime_error("llama31_tt: empty logits tensor");
-  int best = 0;
-  float bestValue = -std::numeric_limits<float>::infinity();
-  auto update = [&](size_t i, float value) {
-    if (i == 0 || value > bestValue) {
-      bestValue = value;
-      best = static_cast<int>(i);
-    }
-  };
 
+  std::vector<float> logits(count);
   switch (dtype) {
   case TTDataType::Float32: {
     const float *data = reinterpret_cast<const float *>(bytes.data());
     for (size_t i = 0; i < count; ++i)
-      update(i, data[start + i]);
+      logits[i] = data[start + i];
     break;
   }
   case TTDataType::BFloat16: {
     const uint16_t *data = reinterpret_cast<const uint16_t *>(bytes.data());
     for (size_t i = 0; i < count; ++i)
-      update(i, bf16BitsToFloat(data[start + i]));
+      logits[i] = bf16BitsToFloat(data[start + i]);
     break;
   }
   case TTDataType::Float16: {
     const uint16_t *data = reinterpret_cast<const uint16_t *>(bytes.data());
     for (size_t i = 0; i < count; ++i)
-      update(i, halfBitsToFloat(data[start + i]));
+      logits[i] = halfBitsToFloat(data[start + i]);
     break;
   }
+  default:
+    throw std::runtime_error("llama31_tt: unsupported logits dtype");
+  }
+  return logits;
+}
+
+static int sampleTensor(const std::vector<std::byte> &bytes, TTDataType dtype,
+                        size_t start, size_t count, buddy::Sampler &sampler,
+                        const std::vector<int> &recentTokens) {
+  switch (dtype) {
   case TTDataType::Int32: {
     const int32_t *data = reinterpret_cast<const int32_t *>(bytes.data());
     return static_cast<int>(data[start]);
@@ -1100,9 +1105,9 @@ static int argmaxTensor(const std::vector<std::byte> &bytes, TTDataType dtype,
     return static_cast<int>(data[start]);
   }
   default:
-    throw std::runtime_error("llama31_tt: unsupported logits dtype");
+    std::vector<float> logits = loadLogits(bytes, dtype, start, count);
+    return sampler.sample(logits.data(), logits.size(), recentTokens);
   }
-  return best;
 }
 
 struct ExtractedOutput {
@@ -1117,7 +1122,8 @@ static ExtractedOutput extractLogitsAndKV(
     uint32_t tokenPosition, ::tt::runtime::Device device,
     ::tt::runtime::Binary targetBinary, uint32_t targetProgramIndex,
     const std::unordered_map<std::string, uint32_t> &targetKVInputSlots,
-    const std::vector<std::string> &kvRoleMap) {
+    const std::vector<std::string> &kvRoleMap, buddy::Sampler &sampler,
+    const std::vector<int> &recentTokens) {
   if (logitsIndex < 0)
     logitsIndex = static_cast<int>(outputs.size()) + logitsIndex;
   if (logitsIndex < 0 || logitsIndex >= static_cast<int>(outputs.size()))
@@ -1148,7 +1154,8 @@ static ExtractedOutput extractLogitsAndKV(
     vocab = data.size() / itemSizeFor(dtype);
     start = 0;
   }
-  extracted.token = argmaxTensor(data, dtype, start, vocab);
+  extracted.token = sampleTensor(data, dtype, start, vocab, sampler,
+                                 recentTokens);
 
   t0 = std::chrono::steady_clock::now();
   size_t kvIter = 0;
@@ -1314,6 +1321,12 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
   const int eosToken =
       static_cast<int>(lookupIntAttr(manifest, "eos_token_id", kEot));
   const bool ignoreEOS = lookupBoolAttr(manifest, "ignore_eos", false);
+  auto isStopToken = [&](int token) {
+    if (ignoreEOS)
+      return false;
+    return token == eosToken || token == kEndOfText || token == kEom ||
+           token == kEot;
+  };
   const uint32_t programIndex =
       static_cast<uint32_t>(lookupIntAttr(manifest, "program_index", 0));
   const fs::path tokenizerPath = resolveTokenizerPath(lookupAttr(
@@ -1374,6 +1387,7 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
   std::optional<::tt::runtime::Device> device;
   std::unordered_map<uint32_t, ::tt::runtime::Tensor> prefillCache;
   std::unordered_map<uint32_t, ::tt::runtime::Tensor> decodeCache;
+  buddy::Sampler sampler(cfg.samplerConfig);
 
   try {
     device = ::tt::runtime::openMeshDevice(options);
@@ -1404,6 +1418,7 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
       throw std::runtime_error("llama31_tt: prompt is longer than max cache");
     printLlamaLog("prompt tokens = " + std::to_string(tokenIds.size()),
                   suppress);
+    std::vector<int> recentTokens = tokenIds;
 
     std::vector<int> padded(maxCacheLen, eosToken);
     std::copy(tokenIds.begin(), tokenIds.end(), padded.begin());
@@ -1421,10 +1436,12 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
 
     ExtractedOutput prefillExtracted = extractLogitsAndKV(
         prefillOutputs, -1, static_cast<uint32_t>(tokenIds.size() - 1), *device,
-        decodeBinary, programIndex, decodeKVInputSlots, decodeKVOutputRoles);
+        decodeBinary, programIndex, decodeKVInputSlots, decodeKVOutputRoles,
+        sampler, recentTokens);
 
     std::vector<int> generated;
     generated.push_back(prefillExtracted.token);
+    recentTokens.push_back(prefillExtracted.token);
     std::unordered_map<std::string, ::tt::runtime::Tensor> pastKV =
         std::move(prefillExtracted.kvDevice);
 
@@ -1455,8 +1472,9 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
     double decodeWall = 0.0;
     double decodeSubmit = 0.0;
     int decodeCount = 0;
+    bool stopped = isStopToken(prefillExtracted.token);
     while (static_cast<int>(generated.size()) < maxNewTokens &&
-           cachePos < maxCacheLen) {
+           cachePos < maxCacheLen && !stopped) {
       const int inputToken = generated.back();
       auto iterStart = std::chrono::steady_clock::now();
       auto decodeInputsRT = buildDecodeInputs(
@@ -1470,7 +1488,7 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
 
       ExtractedOutput decoded = extractLogitsAndKV(
           decodeOutputs, -1, 0, *device, decodeBinary, programIndex,
-          decodeKVInputSlots, decodeKVOutputRoles);
+          decodeKVInputSlots, decodeKVOutputRoles, sampler, recentTokens);
       for (auto &kv : pastKV) {
         try {
           ::tt::runtime::deallocateTensor(kv.second, true);
@@ -1480,6 +1498,7 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
       pastKV = std::move(decoded.kvDevice);
 
       generated.push_back(decoded.token);
+      recentTokens.push_back(decoded.token);
       ++cachePos;
       ++decodeCount;
       auto iterEnd = std::chrono::steady_clock::now();
@@ -1498,8 +1517,7 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
       } else {
         streamGeneratedText();
       }
-      if (decoded.token == eosToken && !ignoreEOS)
-        break;
+      stopped = isStopToken(decoded.token);
     }
 
     for (auto &kv : pastKV) {
