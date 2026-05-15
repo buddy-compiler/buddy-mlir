@@ -16,6 +16,7 @@
 
 #include "buddy/runtime/models/Llama31TTRunner.h"
 
+#include "buddy/LLM/ChatTemplate.h"
 #include "buddy/runtime/core/ModelManifest.h"
 #include "buddy/runtime/llm/Sampler.h"
 
@@ -784,6 +785,19 @@ public:
     return ids;
   }
 
+  std::vector<int> encodeChatTemplate(const buddy::ChatTemplate &chatTemplate,
+                                      const std::string &userMessage) const {
+    const std::vector<buddy::Message> messages = {{"user", userMessage}};
+    return encodeTextWithSpecialTokens(chatTemplate.apply(messages));
+  }
+
+  std::optional<int> specialTokenId(std::string_view text) const {
+    auto it = specialTextToId_.find(std::string(text));
+    if (it == specialTextToId_.end())
+      return std::nullopt;
+    return it->second;
+  }
+
   std::string decodeToken(int id) const {
     auto special = specialIdToText_.find(id);
     if (special != specialIdToText_.end())
@@ -843,6 +857,9 @@ private:
     specialIdToText_[kEndHeader] = "<|end_header_id|>";
     specialIdToText_[kEom] = "<|eom_id|>";
     specialIdToText_[kEot] = "<|eot_id|>";
+
+    for (const auto &[id, text] : specialIdToText_)
+      specialTextToId_[text] = id;
   }
 
   void appendHeader(std::vector<int> &ids, const std::string &role) const {
@@ -1017,9 +1034,40 @@ private:
     }
   }
 
+  std::optional<std::pair<int, size_t>> matchSpecialToken(std::string_view text,
+                                                          size_t pos) const {
+    for (const auto &[tokenText, id] : specialTextToId_) {
+      if (pos + tokenText.size() > text.size())
+        continue;
+      if (text.substr(pos, tokenText.size()) == tokenText)
+        return std::make_pair(id, tokenText.size());
+    }
+    return std::nullopt;
+  }
+
+  std::vector<int> encodeTextWithSpecialTokens(std::string_view text) const {
+    std::vector<int> ids;
+    size_t pos = 0;
+    while (pos < text.size()) {
+      if (auto match = matchSpecialToken(text, pos)) {
+        ids.push_back(match->first);
+        pos += match->second;
+        continue;
+      }
+
+      size_t next = pos + 1;
+      while (next < text.size() && !matchSpecialToken(text, next))
+        ++next;
+      appendText(ids, text.substr(pos, next - pos));
+      pos = next;
+    }
+    return ids;
+  }
+
   std::unordered_map<std::string, int> tokenToId_;
   std::unordered_map<int, std::string> idToBytes_;
   std::unordered_map<int, std::string> specialIdToText_;
+  std::unordered_map<std::string, int> specialTextToId_;
 };
 
 static float halfBitsToFloat(uint16_t h) {
@@ -1379,11 +1427,23 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
   const int eosToken =
       static_cast<int>(lookupIntAttr(manifest, "eos_token_id", kEot));
   const bool ignoreEOS = lookupBoolAttr(manifest, "ignore_eos", false);
+  std::vector<int> stopTokenIds;
+  auto addStopToken = [&](int token) {
+    if (std::find(stopTokenIds.begin(), stopTokenIds.end(), token) ==
+        stopTokenIds.end())
+      stopTokenIds.push_back(token);
+  };
+  if (!ignoreEOS) {
+    addStopToken(eosToken);
+    addStopToken(kEndOfText);
+    addStopToken(kEom);
+    addStopToken(kEot);
+  }
   auto isStopToken = [&](int token) {
     if (ignoreEOS)
       return false;
-    return token == eosToken || token == kEndOfText || token == kEom ||
-           token == kEot;
+    return std::find(stopTokenIds.begin(), stopTokenIds.end(), token) !=
+           stopTokenIds.end();
   };
   const uint32_t programIndex =
       static_cast<uint32_t>(lookupIntAttr(manifest, "program_index", 0));
@@ -1472,7 +1532,21 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
             "s",
         suppress);
 
-    std::vector<int> tokenIds = tokenizer.encodeChat(prompt);
+    std::vector<int> tokenIds;
+    if (!cfg.chatTemplatePath.empty()) {
+      buddy::ChatTemplate chatTemplate =
+          buddy::ChatTemplate::fromFile(cfg.chatTemplatePath);
+      for (int token : chatTemplate.stopTokenIds())
+        addStopToken(token);
+      for (const std::string &tokenText : chatTemplate.stopTokens()) {
+        if (auto token = tokenizer.specialTokenId(tokenText))
+          addStopToken(*token);
+      }
+      printLlamaLog("chat template loaded: " + cfg.chatTemplatePath, suppress);
+      tokenIds = tokenizer.encodeChatTemplate(chatTemplate, prompt);
+    } else {
+      tokenIds = tokenizer.encodeChat(prompt);
+    }
     if (tokenIds.size() >= static_cast<size_t>(maxCacheLen))
       throw std::runtime_error("llama31_tt: prompt is longer than max cache");
     printLlamaLog("prompt tokens = " + std::to_string(tokenIds.size()),

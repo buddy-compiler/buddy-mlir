@@ -245,6 +245,22 @@ LLAMA31_MODEL_PATH=/path/to/Llama-3.1-8B-Instruct \
   --repeat-last-n 128
 ```
 
+The Llama runner uses the standard single-turn Llama chat wrapper by default.
+Pass `--chat-template` to override the role prefixes, suffixes, and stop tokens
+with a JSON template. A default template matching the built-in formatting is
+available at `models/llama31_tt/llama31-chat-template.json`.
+
+```bash
+LLAMA31_MODEL_PATH=/path/to/Llama-3.1-8B-Instruct \
+"$BUDDY_BUILD/bin/buddy-cli" \
+  --model "$BUDDY_BUILD/models/llama31_tt/llama31_tt.rax" \
+  --prompt "Hello, who are you?" \
+  --chat-template "$BUDDY_REPO_ROOT/models/llama31_tt/llama31-chat-template.json" \
+  --temperature 0.6 \
+  --top-p 0.9 \
+  --max-tokens 32
+```
+
 To suppress TT-Metal, UMD, and tt-mlir runtime info/debug logs, add these
 before running `buddy-cli`.
 

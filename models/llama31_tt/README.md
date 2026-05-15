@@ -72,6 +72,31 @@ LLAMA31_MODEL_PATH=/path/to/Llama-3.1-8B-Instruct \
   --repeat-last-n 128
 ```
 
+The default Llama chat prompt is:
+
+```text
+<|begin_of_text|><|start_header_id|>user<|end_header_id|>
+
+{prompt}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+
+```
+
+Pass `--chat-template` to override that formatting. The template file is a JSON
+config using the same `ChatTemplate` format as other buddy-cli LLM runners. A
+matching default template is provided at
+[`llama31-chat-template.json`](llama31-chat-template.json):
+
+```bash
+LLAMA31_MODEL_PATH=/path/to/Llama-3.1-8B-Instruct \
+"$BUDDY_BUILD/bin/buddy-cli" \
+  --model "$BUDDY_BUILD/models/llama31_tt/llama31_tt.rax" \
+  --prompt "Hello" \
+  --chat-template "$BUDDY_REPO_ROOT/models/llama31_tt/llama31-chat-template.json" \
+  --temperature 0.6 \
+  --top-p 0.9 \
+  --max-tokens 32
+```
+
 To suppress TT-Metal, UMD, and tt-mlir runtime info/debug logs, add these
 before running `buddy-cli`.
 
