@@ -1,4 +1,4 @@
-# Runtime / intermediate artifacts produced by the TTIR + P150A pipeline.
+# Runtime / intermediate artifacts produced by the TTIR + Tenstorrent pipeline.
 ttir_out/
 ttir_out_static/
 ttir_out_argmax/

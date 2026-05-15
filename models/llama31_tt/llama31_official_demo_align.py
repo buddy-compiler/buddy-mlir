@@ -76,7 +76,7 @@ def _read_perf_row(perf_md: Path) -> dict[str, str] | None:
         if not in_performance or not line.startswith("| Llama-3.1-8B"):
             continue
         cols = [c.strip() for c in line.strip("|").split("|")]
-        if len(cols) >= 6 and cols[1] == "P150":
+        if len(cols) >= 6:
             return {
                 "model": cols[0],
                 "device": cols[1],
@@ -116,7 +116,7 @@ def cmd_baseline(args: argparse.Namespace) -> None:
     latest_passed = _read_latest_rows(args.summary_csv, require_passed=True)
     latest_any = _read_latest_rows(args.summary_csv, require_passed=False)
     payload: dict[str, Any] = {
-        "official_perf_md_p150": perf_row,
+        "official_perf_md_tenstorrent": perf_row,
         "local_reproduced_official_demo_passed": latest_passed,
         "local_reproduced_official_demo_latest": latest_any,
         "paths": {

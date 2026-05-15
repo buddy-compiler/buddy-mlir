@@ -1,4 +1,4 @@
-# Buddy Llama 3.1 8B on Tenstorrent P150A
+# Buddy Llama 3.1 8B on Tenstorrent
 
 This guide sets up the optional Tenstorrent path for running Llama 3.1 8B
 through `buddy-cli`, `tt-mlir`, TTNN flatbuffers, and `ttrt`.
@@ -16,7 +16,7 @@ export BUDDY_LLVM_BUILD="$BUDDY_REPO_ROOT/llvm/build"
 export TTMLIR_TOOLCHAIN_DIR="$BUDDY_REPO_ROOT/build-ttmlir-toolchain"
 export TTMLIR_ENV_BUILD="$BUDDY_REPO_ROOT/build-ttmlir-env"
 export TTMLIR_BUILD="$BUDDY_REPO_ROOT/build-ttmlir"
-export BUDDY_BUILD="$BUDDY_REPO_ROOT/build-tt-p150a"
+export BUDDY_BUILD="$BUDDY_REPO_ROOT/build-tenstorrent"
 ```
 
 ## Initialize tt-mlir
@@ -42,8 +42,8 @@ packages there as well.
 ```bash
 cd "$BUDDY_REPO_ROOT"
 
-conda create -n buddy-ttmlir-p150a python=3.12 -y
-conda activate buddy-ttmlir-p150a
+conda create -n buddy-ttmlir python=3.12 -y
+conda activate buddy-ttmlir
 export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:${LD_LIBRARY_PATH:-}"
 
 python -m pip install --upgrade pip
@@ -224,12 +224,13 @@ directory when running `buddy-cli`; the package embeds model weights but the
 native C++ runtime still reads tokenizer files from that directory.
 
 ```bash
-cd "$BUDDY_REPO_ROOT/thirdparty/tt-mlir"
-source env/activate
+source "$BUDDY_REPO_ROOT/thirdparty/tt-mlir/env/activate"
 cd "$BUDDY_REPO_ROOT"
 
 ulimit -v 95000000
 ulimit -m 95000000
+export TT_METAL_RUNTIME_ROOT="$BUDDY_REPO_ROOT/thirdparty/tt-mlir/third_party/tt-metal/src/tt-metal"
+export TT_METAL_HOME="$TT_METAL_RUNTIME_ROOT"
 export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:${LD_LIBRARY_PATH:-}"
 export PYTHONPATH="$TTMLIR_BUILD/python_packages:${PYTHONPATH:-}"
 export BUDDY_RAX_PAYLOAD_DIR=/tmp/$USER/buddy_rax_payload
@@ -258,6 +259,6 @@ contains `original/tokenizer.model` or `tokenizer.model`. The generated `.rax`
 embeds the TTNN flatbuffers and weights, but the native C++ runtime still needs
 the tokenizer files and does not download from Hugging Face.
 
-For end-to-end development, `models/llama31_tt/run_llama31_p150_chat.sh` still
+For end-to-end development, `models/llama31_tt/run_llama31_tt_chat.sh` still
 supports the full capture, lower, package, and interactive run flow. Set
 `PACKAGE_ONLY=1` when using that script only to generate the `.rax` package.

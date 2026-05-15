@@ -39,7 +39,7 @@ target_link_libraries(myapp PUBLIC mimalloc-static)
 ## Tenstorrent tt-mlir
 
 `thirdparty/tt-mlir` is an optional submodule for Buddy's TTIR -> TTNN ->
-P150A flow. It is not required for normal Buddy builds.
+Tenstorrent flow. It is not required for normal Buddy builds.
 
 Initialize it only when working on Tenstorrent support:
 

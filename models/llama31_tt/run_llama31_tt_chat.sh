@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ===- run_llama31_p150_chat.sh -----------------------------------------------
+# ===- run_llama31_tt_chat.sh --------------------------------------------------
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 #
 # ===---------------------------------------------------------------------------
 #
-# Full Llama-3.1-8B-Instruct chat on P150A with 1024-token static cache.
+# Full Llama-3.1-8B-Instruct chat on Tenstorrent with 1024-token static cache.
 # Pipeline:
 #   1) lower prefill TTIR (--static-cache --max-cache-len 1024) -> TTNN -> FB
 #   2) lower decode  TTIR (same)                                -> TTNN -> FB
@@ -314,7 +314,7 @@ if [[ "${PACKAGE_ONLY}" == "1" ]]; then
   exit 0
 fi
 
-echo "=== [5/5] Interactive chat on P150A ==="
+echo "=== [5/5] Interactive chat on Tenstorrent ==="
 EXTRA_ARGS=()
 if [[ "${MAX_NEW_TOKENS}" != "0" ]]; then
   EXTRA_ARGS+=(--max-new-tokens "${MAX_NEW_TOKENS}")

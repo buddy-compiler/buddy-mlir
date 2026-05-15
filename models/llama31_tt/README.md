@@ -17,7 +17,7 @@ Run this once in a new shell before using the snippets below.
 cd /path/to/buddy-mlir
 
 export BUDDY_REPO_ROOT=$(pwd)
-export BUDDY_BUILD="$BUDDY_REPO_ROOT/build-tt-p150a"
+export BUDDY_BUILD="$BUDDY_REPO_ROOT/build-tenstorrent"
 export TTMLIR_BUILD="$BUDDY_REPO_ROOT/build-ttmlir"
 ```
 
@@ -42,20 +42,22 @@ $BUDDY_BUILD/models/llama31_tt/llama31_tt.rax
 ```
 
 The full capture, lower, package, and run wrapper is
-[`run_llama31_p150_chat.sh`](run_llama31_p150_chat.sh).
+[`run_llama31_tt_chat.sh`](run_llama31_tt_chat.sh).
 
 ## Run With buddy-cli
 
-Activate tt-mlir from inside the tt-mlir checkout. Its activation script uses
-the current directory to set `TT_METAL_RUNTIME_ROOT`.
+Activate tt-mlir and set the TT-Metal runtime root explicitly. This keeps the
+runtime paths correct even when the activation script is sourced from another
+directory by a launcher.
 
 ```bash
-cd "$BUDDY_REPO_ROOT/thirdparty/tt-mlir"
-source env/activate
+source "$BUDDY_REPO_ROOT/thirdparty/tt-mlir/env/activate"
 cd "$BUDDY_REPO_ROOT"
 
 ulimit -v 95000000
 ulimit -m 95000000
+export TT_METAL_RUNTIME_ROOT="$BUDDY_REPO_ROOT/thirdparty/tt-mlir/third_party/tt-metal/src/tt-metal"
+export TT_METAL_HOME="$TT_METAL_RUNTIME_ROOT"
 export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:${LD_LIBRARY_PATH:-}"
 export PYTHONPATH="$TTMLIR_BUILD/python_packages:${PYTHONPATH:-}"
 export BUDDY_RAX_PAYLOAD_DIR=/tmp/$USER/buddy_rax_payload

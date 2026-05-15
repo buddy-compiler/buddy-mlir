@@ -176,12 +176,12 @@ add_custom_command(
   OUTPUT "${BUDDY_LLAMA31_RAX}"
   BYPRODUCTS "${BUDDY_LLAMA31_RHAL}"
   COMMAND ${CMAKE_COMMAND} -E env ${_BUDDY_LLAMA31_PACKAGE_ENV}
-          bash "${CMAKE_CURRENT_SOURCE_DIR}/run_llama31_p150_chat.sh"
+          bash "${CMAKE_CURRENT_SOURCE_DIR}/run_llama31_tt_chat.sh"
   DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/_env.sh"
     "${CMAKE_CURRENT_SOURCE_DIR}/buddy-llama31-lower-ttir.py"
     "${CMAKE_CURRENT_SOURCE_DIR}/llama31_chat_prepare.py"
-    "${CMAKE_CURRENT_SOURCE_DIR}/run_llama31_p150_chat.sh"
+    "${CMAKE_CURRENT_SOURCE_DIR}/run_llama31_tt_chat.sh"
     "${CMAKE_SOURCE_DIR}/tools/buddy-codegen/gen_tenstorrent_manifest.py"
   COMMENT "Generating self-contained llama31_tt.rax"
   USES_TERMINAL

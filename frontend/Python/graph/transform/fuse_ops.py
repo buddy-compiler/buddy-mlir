@@ -224,8 +224,8 @@ def gqa_attention_fusion_check(graph: Graph):
        StaticCache monkey-patch used while aten index-copy support catches up.
 
     Only the IndexPut path is enabled here. The Where path is graph-equivalent,
-    but on P150A it currently lowers to a TTNN decode kernel that can hit an
-    SFPI compiler issue. Re-enable it once the backend side is fixed.
+    but on Tenstorrent it currently lowers to a TTNN decode kernel that can hit
+    an SFPI compiler issue. Re-enable it once the backend side is fixed.
     """
     cnt = 1
     for op in graph.body:

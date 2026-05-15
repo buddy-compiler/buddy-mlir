@@ -1296,6 +1296,64 @@ static fs::path resolveTokenizerPath(const std::string &tokenizerAttr) {
   return fs::absolute(fs::path(value));
 }
 
+static bool isValidTTMetalRuntimeRoot(const fs::path &root) {
+  std::error_code ec;
+  return fs::is_directory(root / "tt_metal" / "soc_descriptors", ec);
+}
+
+static void addTTMetalRootCandidates(std::vector<fs::path> &candidates,
+                                     const fs::path &anchor) {
+  if (anchor.empty())
+    return;
+
+  std::error_code ec;
+  fs::path current = fs::absolute(anchor, ec);
+  if (ec)
+    current = anchor;
+  if (fs::is_regular_file(current, ec))
+    current = current.parent_path();
+
+  while (!current.empty()) {
+    candidates.push_back(current / "thirdparty" / "tt-mlir" / "third_party" /
+                         "tt-metal" / "src" / "tt-metal");
+    candidates.push_back(current / "third_party" / "tt-metal" / "src" /
+                         "tt-metal");
+    if (current == current.root_path())
+      break;
+    current = current.parent_path();
+  }
+}
+
+static void ensureTTMetalRuntimeRoot(const fs::path &raxDir) {
+  if (const char *root = std::getenv("TT_METAL_RUNTIME_ROOT")) {
+    if (root[0] != '\0' && isValidTTMetalRuntimeRoot(root)) {
+      setenv("TT_METAL_HOME", root, 1);
+      return;
+    }
+  }
+
+  std::vector<fs::path> candidates;
+  if (const char *ttmlirSource = std::getenv("TTMLIR_SOURCE"))
+    candidates.push_back(fs::path(ttmlirSource) / "third_party" / "tt-metal" /
+                         "src" / "tt-metal");
+  if (const char *repoRoot = std::getenv("BUDDY_REPO_ROOT"))
+    candidates.push_back(fs::path(repoRoot) / "thirdparty" / "tt-mlir" /
+                         "third_party" / "tt-metal" / "src" / "tt-metal");
+  addTTMetalRootCandidates(candidates, raxDir);
+  addTTMetalRootCandidates(candidates, fs::current_path());
+
+  for (const fs::path &candidate : candidates) {
+    if (!isValidTTMetalRuntimeRoot(candidate))
+      continue;
+    const std::string root = candidate.string();
+    const std::string buildRoot = (candidate / "build").string();
+    setenv("TT_METAL_RUNTIME_ROOT", root.c_str(), 1);
+    setenv("TT_METAL_HOME", root.c_str(), 1);
+    setenv("TT_METAL_BUILD_HOME", buildRoot.c_str(), 1);
+    return;
+  }
+}
+
 } // namespace
 
 void Llama31TTRunner::run(const RunConfig &cfg) {
@@ -1331,6 +1389,7 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
       static_cast<uint32_t>(lookupIntAttr(manifest, "program_index", 0));
   const fs::path tokenizerPath = resolveTokenizerPath(lookupAttr(
       manifest, "tokenizer_uri", "meta-llama/Llama-3.1-8B-Instruct"));
+  ensureTTMetalRuntimeRoot(raxDir);
 
   if (!suppress) {
     std::cout << "[buddy-cli] dispatch llama31_tt via native Tenstorrent C++ "
@@ -1394,7 +1453,7 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
     if (!suppress) {
       std::cout << kAnsiYellowBold
                 << "Llama-3.1-8B-Instruct Inference Powered by Buddy Compiler "
-                   "(P150A TTIR, native C++)"
+                   "(Tenstorrent TTIR, native C++)"
                 << kAnsiReset << "\n";
     }
 
