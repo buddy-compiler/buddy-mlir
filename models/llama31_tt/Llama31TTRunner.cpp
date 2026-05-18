@@ -1207,6 +1207,7 @@ static ExtractedOutput extractLogitsAndKV(
 
   t0 = std::chrono::steady_clock::now();
   size_t kvIter = 0;
+  std::vector<bool> consumed(outputs.size(), false);
   for (size_t i = 0; i < outputs.size(); ++i) {
     if (static_cast<int>(i) == logitsIndex)
       continue;
@@ -1219,13 +1220,20 @@ static ExtractedOutput extractLogitsAndKV(
                                role);
     auto layout = ::tt::runtime::getLayout(targetBinary, targetProgramIndex,
                                            slotIt->second);
-    extracted.kvDevice[role] =
-        ::tt::runtime::toLayout(outputs[i], device, layout);
+    if (::tt::runtime::hasLayout(outputs[i], layout)) {
+      extracted.kvDevice[role] = outputs[i];
+    } else {
+      extracted.kvDevice[role] =
+          ::tt::runtime::toLayout(outputs[i], device, layout);
+    }
+    consumed[i] = true;
   }
   t1 = std::chrono::steady_clock::now();
   extracted.kvRelayoutSeconds = std::chrono::duration<double>(t1 - t0).count();
 
   for (size_t i = 0; i < outputs.size(); ++i) {
+    if (consumed[i])
+      continue;
     bool force = static_cast<int>(i) == logitsIndex;
     ::tt::runtime::deallocateTensor(outputs[i], force);
   }

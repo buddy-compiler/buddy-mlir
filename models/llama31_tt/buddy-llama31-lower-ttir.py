@@ -69,8 +69,6 @@ from buddy.compiler.ops import tosa
 from transformers.models.llama import modeling_llama
 
 _DEFAULT_MODEL = "meta-llama/Llama-3.1-8B-Instruct"
-_TTIR_CACHE_OPS_LIB = None
-_TTIR_CACHE_OPS_REGISTERED = False
 
 
 def _parse_args() -> argparse.Namespace:
@@ -236,15 +234,6 @@ def _parse_args() -> argparse.Namespace:
             "input_ids.shape=[1, max_cache_len] (pad short prompts at host "
             "side), decode traces past_key_values=[1, n_kv_heads, "
             "max_cache_len, head_dim] + cache_position."
-        ),
-    )
-    p.add_argument(
-        "--exact-cache-ops",
-        action="store_true",
-        help=(
-            "With --static-cache, patch StaticCache.update to emit custom "
-            "Buddy ops that lower directly to ttir.update_cache/ttir.fill_cache "
-            "instead of scatter-via-where. This is the official-alignment path."
         ),
     )
     p.add_argument(
@@ -420,67 +409,7 @@ def _parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
-def _register_ttir_cache_ops() -> None:
-    """Register lightweight torch ops used only as TTIR cache-op markers."""
-    global _TTIR_CACHE_OPS_LIB, _TTIR_CACHE_OPS_REGISTERED
-    if _TTIR_CACHE_OPS_REGISTERED:
-        return
-    if hasattr(torch.ops, "buddy_ttir") and hasattr(
-        torch.ops.buddy_ttir, "fill_cache"
-    ):
-        _TTIR_CACHE_OPS_REGISTERED = True
-        return
-
-    lib = torch.library.Library("buddy_ttir", "DEF")
-    lib.define(
-        "fill_cache(Tensor cache, Tensor input, int batch_offset) -> Tensor"
-    )
-    lib.define(
-        "update_cache(Tensor cache, Tensor input, Tensor update_index, int batch_offset) -> Tensor"
-    )
-
-    @torch.library.impl(lib, "fill_cache", "CompositeExplicitAutograd")
-    def _fill_cache(cache, input, batch_offset: int):
-        out = cache.clone()
-        end = batch_offset + input.shape[0]
-        out[batch_offset:end, :, : input.shape[2], :] = input
-        return out
-
-    @torch.library.impl(lib, "fill_cache", "Meta")
-    def _fill_cache_meta(cache, input, batch_offset: int):
-        return torch.empty_strided(
-            tuple(cache.shape),
-            tuple(cache.stride()),
-            dtype=cache.dtype,
-            device="meta",
-        )
-
-    @torch.library.impl(lib, "update_cache", "CompositeExplicitAutograd")
-    def _update_cache(cache, input, update_index, batch_offset: int):
-        out = cache.clone()
-        try:
-            pos = int(update_index.reshape(-1)[0].item())
-            payload = input.permute(2, 1, 0, 3)
-            end = batch_offset + payload.shape[0]
-            out[batch_offset:end, :, pos : pos + payload.shape[2], :] = payload
-        except Exception:
-            pass
-        return out
-
-    @torch.library.impl(lib, "update_cache", "Meta")
-    def _update_cache_meta(cache, input, update_index, batch_offset: int):
-        return torch.empty_strided(
-            tuple(cache.shape),
-            tuple(cache.stride()),
-            dtype=cache.dtype,
-            device="meta",
-        )
-
-    _TTIR_CACHE_OPS_LIB = lib
-    _TTIR_CACHE_OPS_REGISTERED = True
-
-
-def _patch_static_cache_for_buddy(exact_cache_ops: bool = False) -> None:
+def _patch_static_cache_for_buddy() -> None:
     """Replace ``transformers.cache_utils.StaticLayer.update`` so it does not
     emit ``aten.index_copy_`` (which the Buddy TOSA op map does not register).
 
@@ -499,9 +428,6 @@ def _patch_static_cache_for_buddy(exact_cache_ops: bool = False) -> None:
         from the layer instead (kept as a Dynamo placeholder).
     """
     import transformers.cache_utils as cu
-
-    if exact_cache_ops:
-        _register_ttir_cache_ops()
 
     def update(self, key_states, value_states, *args, **kwargs):
         if (
@@ -538,46 +464,21 @@ def _patch_static_cache_for_buddy(exact_cache_ops: bool = False) -> None:
         L = self.keys.shape[-2]
         S = key_states.shape[-2]
 
-        if exact_cache_ops:
-            if S == 1:
-                idx = cache_position
-                if len(idx.shape) == 0:
-                    idx = idx.view(1)
-                k_update = key_states.permute(2, 1, 0, 3)
-                v_update = value_states.permute(2, 1, 0, 3)
-                self.keys = torch.ops.buddy_ttir.update_cache(
-                    self.keys, k_update, idx, 0
-                )
-                self.values = torch.ops.buddy_ttir.update_cache(
-                    self.values, v_update, idx, 0
-                )
-                return self.keys, self.values
-
-            keys = self.keys
-            values = self.values
-            B = key_states.shape[0]
-            for b in range(B):
-                keys = torch.ops.buddy_ttir.fill_cache(
-                    keys, key_states[b : b + 1, :, :, :], int(b)
-                )
-                values = torch.ops.buddy_ttir.fill_cache(
-                    values, value_states[b : b + 1, :, :, :], int(b)
-                )
-            self.keys = keys
-            self.values = values
-            return self.keys, self.values
-
         if S == L:
             self.keys = key_states
             self.values = value_states
             return self.keys, self.values
 
         B, H, _, D = self.keys.shape
-        idx = torch.arange(L, device=self.keys.device).view(1, L)
+        # Keep the cache-position compare in fp32. If this compare is folded
+        # into bf16, long decode positions can alias and corrupt KV updates.
+        idx = torch.arange(
+            L, device=self.keys.device, dtype=torch.float32
+        ).view(1, L)
         keys = self.keys
         values = self.values
         for i in range(S):
-            pos = cache_position[i : i + 1].view(1, 1)
+            pos = cache_position[i : i + 1].to(torch.float32).view(1, 1)
             mask = (idx == pos).view(1, 1, L, 1)
             ks_exp = key_states[:, :, i : i + 1, :].expand(B, H, L, D)
             vs_exp = value_states[:, :, i : i + 1, :].expand(B, H, L, D)
@@ -1509,6 +1410,159 @@ def _prune_unused_ttir_args(mlir_text: str) -> str:
     return prefix + body
 
 
+def _keep_decode_cache_mask_compares_f32(
+    mlir_text: str, max_cache_len: int
+) -> tuple[str, int]:
+    """Keep decode KV-cache position equality masks out of bf16.
+
+    Dynamo lowers the scatter-style static cache update as:
+
+      arange(max_cache_len) == cache_position
+
+    That comparison must stay exact. If both sides are converted to bf16,
+    positions beyond 256 can alias and long decoding corrupts the KV cache.
+    Rewrite the existing where-mask ladder to compare fp32 values before the
+    bool mask is cast for where.
+    """
+
+    typecast_arange_re = re.compile(
+        r'^(?P<indent>\s+)(?P<dst>%\d+) = "ttir\.typecast"'
+        r"\((?P<src>%\d+)\) <\{conservative_folding = false\}> : "
+        r"\(tensor<(?P<len>\d+)xf32>\) -> tensor<(?P=len)xbf16>$"
+    )
+    reshape_arange_re = re.compile(
+        r'^(?P<indent>\s+)(?P<dst>%\d+) = "ttir\.reshape"'
+        r"\((?P<src>%\d+)\) <\{shape = \[1 : i32, (?P<len>\d+) : i32\]\}> : "
+        r"\(tensor<(?P=len)xbf16>\) -> tensor<1x(?P=len)xbf16>$"
+    )
+    typecast_pos0_re = re.compile(
+        r'^(?P<indent>\s+)(?P<dst>%\d+) = "ttir\.typecast"'
+        r"\((?P<src>%arg\d+)\) <\{conservative_folding = false\}> : "
+        r"\(tensor<1xi64>\) -> tensor<1xbf16>$"
+    )
+    slice_pos_re = re.compile(
+        r'^(?P<indent>\s+)(?P<dst>%\d+) = "ttir\.slice_static"'
+        r"\((?P<src>%\d+)\) <\{begins = \[0 : i32\], "
+        r"ends = \[1 : i32\], step = \[1 : i32\]\}> : "
+        r"\(tensor<1xbf16>\) -> tensor<1xbf16>$"
+    )
+    typecast_pos1_re = re.compile(
+        r'^(?P<indent>\s+)(?P<dst>%\d+) = "ttir\.typecast"'
+        r"\((?P<src>%\d+)\) <\{conservative_folding = false\}> : "
+        r"\(tensor<1xbf16>\) -> tensor<1xf32>$"
+    )
+    typecast_pos2_re = re.compile(
+        r'^(?P<indent>\s+)(?P<dst>%\d+) = "ttir\.typecast"'
+        r"\((?P<src>%\d+)\) <\{conservative_folding = false\}> : "
+        r"\(tensor<1xf32>\) -> tensor<1xbf16>$"
+    )
+    reshape_pos_re = re.compile(
+        r'^(?P<indent>\s+)(?P<dst>%\d+) = "ttir\.reshape"'
+        r"\((?P<src>%\d+)\) <\{shape = \[1 : i32, 1 : i32\]\}> : "
+        r"\(tensor<1xbf16>\) -> tensor<1x1xbf16>$"
+    )
+    eq_re = re.compile(
+        r'^(?P<indent>\s+)(?P<dst>%\d+) = "ttir\.eq"'
+        r"\((?P<lhs>%\d+), (?P<rhs>%\d+)\) : "
+        r"\(tensor<1x(?P<len>\d+)xbf16>, tensor<1x1xbf16>\) "
+        r"-> tensor<1x(?P=len)xi1>$"
+    )
+
+    lines = mlir_text.splitlines()
+    patched = 0
+    i = 0
+    while i + 7 < len(lines):
+        m0 = typecast_arange_re.match(lines[i])
+        if m0 is None or int(m0.group("len")) != max_cache_len:
+            i += 1
+            continue
+        m1 = reshape_arange_re.match(lines[i + 1])
+        m2 = typecast_pos0_re.match(lines[i + 2])
+        m3 = slice_pos_re.match(lines[i + 3])
+        m4 = typecast_pos1_re.match(lines[i + 4])
+        m5 = typecast_pos2_re.match(lines[i + 5])
+        m6 = reshape_pos_re.match(lines[i + 6])
+        m7 = eq_re.match(lines[i + 7])
+        if not all((m1, m2, m3, m4, m5, m6, m7)):
+            i += 1
+            continue
+        if (
+            int(m1.group("len")) != max_cache_len
+            or int(m7.group("len")) != max_cache_len
+        ):
+            i += 1
+            continue
+        if (
+            m1.group("src") != m0.group("dst")
+            or m3.group("src") != m2.group("dst")
+            or m4.group("src") != m3.group("dst")
+            or m5.group("src") != m4.group("dst")
+            or m6.group("src") != m5.group("dst")
+            or m7.group("lhs") != m1.group("dst")
+            or m7.group("rhs") != m6.group("dst")
+        ):
+            i += 1
+            continue
+
+        indent = m0.group("indent")
+        arange = m0.group("src")
+        tc_arange = m0.group("dst")
+        reshape_arange = m1.group("dst")
+        pos_arg = m2.group("src")
+        tc_pos0 = m2.group("dst")
+        slice_pos = m3.group("dst")
+        tc_pos1 = m4.group("dst")
+        tc_pos2 = m5.group("dst")
+        reshape_pos = m6.group("dst")
+        eq = m7.group("dst")
+        dim = str(max_cache_len)
+
+        lines[i] = (
+            f'{indent}{tc_arange} = "ttir.typecast"({arange}) '
+            f"<{{conservative_folding = false}}> : (tensor<{dim}xf32>) "
+            f"-> tensor<{dim}xbf16>"
+        )
+        lines[i + 1] = (
+            f'{indent}{reshape_arange} = "ttir.reshape"({arange}) '
+            f"<{{shape = [1 : i32, {dim} : i32]}}> : "
+            f"(tensor<{dim}xf32>) -> tensor<1x{dim}xf32>"
+        )
+        lines[i + 2] = (
+            f'{indent}{tc_pos0} = "ttir.typecast"({pos_arg}) '
+            "<{conservative_folding = false}> : (tensor<1xi64>) "
+            "-> tensor<1xf32>"
+        )
+        lines[i + 3] = (
+            f'{indent}{slice_pos} = "ttir.slice_static"({tc_pos0}) '
+            "<{begins = [0 : i32], ends = [1 : i32], "
+            "step = [1 : i32]}> : (tensor<1xf32>) -> tensor<1xf32>"
+        )
+        lines[i + 4] = (
+            f'{indent}{tc_pos1} = "ttir.typecast"({slice_pos}) '
+            "<{conservative_folding = false}> : (tensor<1xf32>) "
+            "-> tensor<1xf32>"
+        )
+        lines[i + 5] = (
+            f'{indent}{tc_pos2} = "ttir.typecast"({tc_pos1}) '
+            "<{conservative_folding = false}> : (tensor<1xf32>) "
+            "-> tensor<1xf32>"
+        )
+        lines[i + 6] = (
+            f'{indent}{reshape_pos} = "ttir.reshape"({tc_pos2}) '
+            "<{shape = [1 : i32, 1 : i32]}> : (tensor<1xf32>) "
+            "-> tensor<1x1xf32>"
+        )
+        lines[i + 7] = (
+            f'{indent}{eq} = "ttir.eq"({reshape_arange}, {reshape_pos}) : '
+            f"(tensor<1x{dim}xf32>, tensor<1x1xf32>) "
+            f"-> tensor<1x{dim}xi1>"
+        )
+        patched += 1
+        i += 8
+
+    return "\n".join(lines), patched
+
+
 def _full_layer_param_attrs(layer_idx: int) -> list[tuple[str, str]]:
     prefix = f"l__self___model_layers__modules__{layer_idx}___"
     return [
@@ -2140,7 +2194,7 @@ def main() -> int:
         model = _ArgmaxHeadWrapper(model)
 
     if args.static_cache:
-        _patch_static_cache_for_buddy(exact_cache_ops=args.exact_cache_ops)
+        _patch_static_cache_for_buddy()
         from transformers import StaticCache
 
         L = int(args.max_cache_len)
@@ -2155,7 +2209,7 @@ def main() -> int:
                     or args.full_align_wrapper
                 ):
                     past_kv = StaticCache(config=model.config, max_cache_len=L)
-                    if args.exact_cache_ops or args.full_align_wrapper:
+                    if args.full_align_wrapper:
                         _early_initialize_static_cache(
                             past_kv, model.config, args.batch, device
                         )
@@ -2447,6 +2501,15 @@ def main() -> int:
         except ValueError as e:
             print(f"error: {e}", file=sys.stderr)
             return 1
+    if args.mode == "decode":
+        mlir_text, mask_count = _keep_decode_cache_mask_compares_f32(
+            mlir_text, args.max_cache_len
+        )
+        if mask_count:
+            print(
+                "Patched "
+                f"{mask_count} decode cache-position masks to compare in fp32"
+            )
     out.write_text(mlir_text + "\n", encoding="utf-8")
     print(f"Wrote {out.resolve()}")
 

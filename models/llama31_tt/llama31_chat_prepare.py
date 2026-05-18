@@ -57,9 +57,6 @@ from buddy.compiler.graph.transform import (
 )
 from buddy.compiler.ops import tosa
 
-_TTIR_CACHE_OPS_LIB = None
-_TTIR_CACHE_OPS_REGISTERED = False
-
 
 def _parse_args() -> argparse.Namespace:
     here = Path(__file__).resolve().parent
@@ -124,67 +121,7 @@ def _proxy_env():
         os.environ.setdefault(k, u)
 
 
-def _register_ttir_cache_ops() -> None:
-    """Register the same cache marker ops used by the lowering script."""
-    global _TTIR_CACHE_OPS_LIB, _TTIR_CACHE_OPS_REGISTERED
-    if _TTIR_CACHE_OPS_REGISTERED:
-        return
-    if hasattr(torch.ops, "buddy_ttir") and hasattr(
-        torch.ops.buddy_ttir, "fill_cache"
-    ):
-        _TTIR_CACHE_OPS_REGISTERED = True
-        return
-
-    lib = torch.library.Library("buddy_ttir", "DEF")
-    lib.define(
-        "fill_cache(Tensor cache, Tensor input, int batch_offset) -> Tensor"
-    )
-    lib.define(
-        "update_cache(Tensor cache, Tensor input, Tensor update_index, int batch_offset) -> Tensor"
-    )
-
-    @torch.library.impl(lib, "fill_cache", "CompositeExplicitAutograd")
-    def _fill_cache(cache, input, batch_offset: int):
-        out = cache.clone()
-        end = batch_offset + input.shape[0]
-        out[batch_offset:end, :, : input.shape[2], :] = input
-        return out
-
-    @torch.library.impl(lib, "fill_cache", "Meta")
-    def _fill_cache_meta(cache, input, batch_offset: int):
-        return torch.empty_strided(
-            tuple(cache.shape),
-            tuple(cache.stride()),
-            dtype=cache.dtype,
-            device="meta",
-        )
-
-    @torch.library.impl(lib, "update_cache", "CompositeExplicitAutograd")
-    def _update_cache(cache, input, update_index, batch_offset: int):
-        out = cache.clone()
-        try:
-            pos = int(update_index.reshape(-1)[0].item())
-            payload = input.permute(2, 1, 0, 3)
-            end = batch_offset + payload.shape[0]
-            out[batch_offset:end, :, pos : pos + payload.shape[2], :] = payload
-        except Exception:
-            pass
-        return out
-
-    @torch.library.impl(lib, "update_cache", "Meta")
-    def _update_cache_meta(cache, input, update_index, batch_offset: int):
-        return torch.empty_strided(
-            tuple(cache.shape),
-            tuple(cache.stride()),
-            dtype=cache.dtype,
-            device="meta",
-        )
-
-    _TTIR_CACHE_OPS_LIB = lib
-    _TTIR_CACHE_OPS_REGISTERED = True
-
-
-def _patch_static_cache_for_buddy(exact_cache_ops: bool = False) -> None:
+def _patch_static_cache_for_buddy() -> None:
     """Same monkey-patch as the lowering script.
 
     Replaces ``StaticLayer.update`` with a ``where``-based scatter so we do not
@@ -192,9 +129,6 @@ def _patch_static_cache_for_buddy(exact_cache_ops: bool = False) -> None:
     Compatible with both Transformers 4.x and 5.5+.
     """
     import transformers.cache_utils as cu
-
-    if exact_cache_ops:
-        _register_ttir_cache_ops()
 
     def update(self, key_states, value_states, *args, **kwargs):
         if (
@@ -228,42 +162,17 @@ def _patch_static_cache_for_buddy(exact_cache_ops: bool = False) -> None:
         L = self.keys.shape[-2]
         S = key_states.shape[-2]
 
-        if exact_cache_ops:
-            if S == 1:
-                idx = cache_position
-                if len(idx.shape) == 0:
-                    idx = idx.view(1)
-                k_update = key_states.permute(2, 1, 0, 3)
-                v_update = value_states.permute(2, 1, 0, 3)
-                self.keys = torch.ops.buddy_ttir.update_cache(
-                    self.keys, k_update, idx, 0
-                )
-                self.values = torch.ops.buddy_ttir.update_cache(
-                    self.values, v_update, idx, 0
-                )
-                return self.keys, self.values
-
-            keys = self.keys
-            values = self.values
-            B = key_states.shape[0]
-            for b in range(B):
-                keys = torch.ops.buddy_ttir.fill_cache(
-                    keys, key_states[b : b + 1, :, :, :], int(b)
-                )
-                values = torch.ops.buddy_ttir.fill_cache(
-                    values, value_states[b : b + 1, :, :, :], int(b)
-                )
-            self.keys = keys
-            self.values = values
-            return self.keys, self.values
-
         if S == L:
             self.keys = key_states
             self.values = value_states
             return self.keys, self.values
 
-        idx = torch.arange(L, device=self.keys.device).view(1, L)
-        pos2d = cache_position.view(-1, 1)
+        # Match lowering: keep cache-position comparison in fp32 so long decode
+        # positions do not alias through bf16 before the where mask is formed.
+        idx = torch.arange(
+            L, device=self.keys.device, dtype=torch.float32
+        ).view(1, L)
+        pos2d = cache_position.to(torch.float32).view(-1, 1)
         mask = idx == pos2d
         mask = mask.view(1, 1, L, 1)
         B, H, _, D = self.keys.shape
@@ -777,9 +686,8 @@ def _prepare_phase(
 
         old = 4
         for _layer_idx in range(num_layers):
-            # GraphDriver has one cache_position before K/V. TTIR update_cache
-            # consumes the index once for K and once for V, so the flatbuffer
-            # signature needs K, index, V, index in that order.
+            # GraphDriver has one cache_position before K/V. The flatbuffer
+            # signature keeps one position input next to each KV cache input.
             order = [
                 old + 0,
                 old + 1,
@@ -858,7 +766,7 @@ def main() -> int:
         os.environ["BUDDY_TTIR_SILU_AS_SIGMOID_MUL"] = "1"
         os.environ["BUDDY_TTIR_EMBEDDING_AS_GATHER"] = "1"
 
-    _patch_static_cache_for_buddy(exact_cache_ops=args.full_align_wrapper)
+    _patch_static_cache_for_buddy()
     try:
         model = _load_model(args.model)
     except Exception as e:

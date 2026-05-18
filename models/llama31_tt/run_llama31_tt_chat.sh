@@ -87,7 +87,7 @@ if [[ "${FULL_ARG_ATTRS}" == "1" ]]; then
   LOWER_EXTRA+=(--annotate-official-arg-attrs)
   ARG_ATTR_SUFFIX="_argattrs"
 fi
-ARTIFACT_SUFFIX="${ARG_ATTR_SUFFIX}${ARGMAX_SUFFIX}"
+ARTIFACT_SUFFIX="${ARG_ATTR_SUFFIX}_cachefp32${ARGMAX_SUFFIX}"
 TTIR_OUT="${TTIR_OUT:-${ARTIFACT_ROOT}/ttir_out_static}"
 BASE_CHAT_ART="${BASE_CHAT_ART:-${ARTIFACT_ROOT}/chat_artifacts}"
 if [[ "${DEVICE_ARGMAX}" == "1" ]]; then
