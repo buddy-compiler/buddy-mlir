@@ -34,6 +34,8 @@ import importlib
 import json
 import os
 import sys
+import time
+from contextlib import contextmanager
 
 # buddy.compiler.* is synced to build/python_packages by target python-package-buddy
 # (needs -DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON). CMake also sets PYTHONPATH; this
@@ -78,6 +80,21 @@ except ImportError as err:
         file=sys.stderr,
     )
     raise err
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Timing
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+@contextmanager
+def timed_import_step(name: str):
+    started = time.perf_counter()
+    try:
+        yield
+    finally:
+        elapsed = time.perf_counter() - started
+        print(f"[import][time] {name}: {elapsed:.2f}s", file=sys.stderr)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -403,7 +420,11 @@ def layer_split_strategy(config: dict, kind: str):
 
 
 def export_layer_partitioned_mlir(
-    graph_prefill, graph_decode, config: dict, output_dir: str
+    graph_prefill,
+    graph_decode,
+    config: dict,
+    output_dir: str,
+    export_debug_wrappers: bool = False,
 ) -> dict[str, int]:
     """Export per-layer subgraph/main MLIR files for compile-time experiments."""
     driver_prefill = PartitionedGraphDriver(
@@ -428,11 +449,14 @@ def export_layer_partitioned_mlir(
         with open(os.path.join(partition_dir, name), "w") as f:
             print(module._imported_module, file=f)
         print(f"[import] Written: layer_partitioned/{name}", file=sys.stderr)
-    for i, module in enumerate(driver_prefill.modules):
-        name = f"forward_prefill{i}.mlir"
-        with open(os.path.join(partition_dir, name), "w") as f:
-            print(module, file=f)
-        print(f"[import] Written: layer_partitioned/{name}", file=sys.stderr)
+    if export_debug_wrappers:
+        for i, module in enumerate(driver_prefill.modules):
+            name = f"forward_prefill{i}.mlir"
+            with open(os.path.join(partition_dir, name), "w") as f:
+                print(module, file=f)
+            print(
+                f"[import] Written: layer_partitioned/{name}", file=sys.stderr
+            )
     prefill_output_count = len(graph_prefill.body[-1].args)
     prefill_output_remap = list(range(prefill_output_count))
     if prefill_output_count >= 3 and (prefill_output_count - 1) % 2 == 0:
@@ -455,11 +479,14 @@ def export_layer_partitioned_mlir(
         with open(os.path.join(partition_dir, name), "w") as f:
             print(module._imported_module, file=f)
         print(f"[import] Written: layer_partitioned/{name}", file=sys.stderr)
-    for i, module in enumerate(driver_decode.modules):
-        name = f"forward_decode{i}.mlir"
-        with open(os.path.join(partition_dir, name), "w") as f:
-            print(module, file=f)
-        print(f"[import] Written: layer_partitioned/{name}", file=sys.stderr)
+    if export_debug_wrappers:
+        for i, module in enumerate(driver_decode.modules):
+            name = f"forward_decode{i}.mlir"
+            with open(os.path.join(partition_dir, name), "w") as f:
+                print(module, file=f)
+            print(
+                f"[import] Written: layer_partitioned/{name}", file=sys.stderr
+            )
     combined_decode = driver_decode.construct_combined_main_graph(True)
     with open(os.path.join(partition_dir, "forward_decode.mlir"), "w") as f:
         print(combined_decode, file=f)
@@ -470,9 +497,14 @@ def export_layer_partitioned_mlir(
 
     manifest = {
         "prefill_subgraphs": len(driver_prefill.subgraphs),
-        "prefill_main_graphs": len(driver_prefill.modules),
+        "prefill_main_graphs": (
+            len(driver_prefill.modules) if export_debug_wrappers else 0
+        ),
         "decode_subgraphs": len(driver_decode.subgraphs),
-        "decode_main_graphs": len(driver_decode.modules),
+        "decode_main_graphs": (
+            len(driver_decode.modules) if export_debug_wrappers else 0
+        ),
+        "debug_wrappers": export_debug_wrappers,
     }
     with open(os.path.join(partition_dir, "partition_manifest.json"), "w") as f:
         json.dump(manifest, f, indent=2)
@@ -549,6 +581,66 @@ def extract_plain_weights(
             [p.detach().numpy().reshape([-1]) for p in params]
         )
         return {"params": all_param}
+
+
+def plain_weight_dtype(config: dict):
+    activation = config["precision"]["activation_type"]
+    if activation == "bf16":
+        return numpy.uint16
+    if activation == "f16":
+        return numpy.float16
+    return numpy.float32
+
+
+def export_plain_weights_direct(
+    params: list, config: dict, output_dir: str
+) -> dict:
+    """Write non-quantized weights directly without a giant concatenate."""
+    if len(config["weights"]) != 1:
+        raise ValueError("plain direct weight export expects one weight bucket")
+
+    weight = config["weights"][0]
+    if weight["tag"] != "params":
+        raise ValueError("plain direct weight export expects the params bucket")
+
+    dtype = plain_weight_dtype(config)
+    total_elements = sum(p.numel() for p in params)
+    if int(weight["num_elements"]) != total_elements:
+        print(
+            f"[import] Updated {weight['tag']}: "
+            f"{weight['num_elements']} → {total_elements}",
+            file=sys.stderr,
+        )
+        weight["num_elements"] = total_elements
+
+    path = os.path.join(output_dir, weight["file"])
+    mm = numpy.memmap(path, dtype=dtype, mode="w+", shape=(total_elements,))
+    offset = 0
+    activation = config["precision"]["activation_type"]
+    for p in params:
+        count = p.numel()
+        tensor = p.detach()
+        if activation == "bf16":
+            param_f32 = tensor.float().numpy().reshape([-1])
+            part = numpy.frombuffer(
+                param_f32.astype(numpy.float32).tobytes(), dtype=numpy.uint16
+            )[1::2]
+            mm[offset : offset + count] = part
+        elif activation == "f16":
+            mm[offset : offset + count] = tensor.numpy().reshape([-1])
+        else:
+            mm[offset : offset + count] = tensor.numpy().reshape([-1])
+        offset += count
+    mm.flush()
+    del mm
+
+    size_mb = os.path.getsize(path) / (1024 * 1024)
+    print(
+        f"[import] Written: {weight['file']} ({size_mb:.1f} MB, "
+        f"{total_elements:,} elements)",
+        file=sys.stderr,
+    )
+    return {"params": total_elements}
 
 
 def extract_quantized_weights(
@@ -684,7 +776,9 @@ def export_mlir(driver_prefill, driver_decode, config: dict, output_dir: str):
 
 
 def export_weights(
-    weight_buckets: dict[str, numpy.ndarray], config: dict, output_dir: str
+    weight_buckets: dict[str, numpy.ndarray],
+    config: dict,
+    output_dir: str,
 ):
     """Write weight data files."""
     weights_config = config["weights"]
@@ -698,11 +792,90 @@ def export_weights(
         size_mb = data.nbytes / (1024 * 1024)
         actual_sizes[tag] = len(data)
         print(
-            f"[import] Written: {fname} ({size_mb:.1f} MB, {len(data):,} elements)",
+            f"[import] Written: {fname} ({size_mb:.1f} MB, "
+            f"{actual_sizes[tag]:,} elements)",
             file=sys.stderr,
         )
 
     return actual_sizes
+
+
+def weights_manifest_path(output_dir: str) -> str:
+    return os.path.join(output_dir, ".buddy_weights_manifest.json")
+
+
+def expected_weight_entries(config: dict, output_dir: str) -> list[dict]:
+    entries = []
+    for weight in config["weights"]:
+        entries.append(
+            {
+                "tag": weight["tag"],
+                "file": weight["file"],
+                "bytes_per_element": int(weight["bytes_per_element"]),
+                "num_elements": int(weight["num_elements"]),
+                "path": os.path.join(output_dir, weight["file"]),
+            }
+        )
+    return entries
+
+
+def weights_manifest_payload(config: dict, output_dir: str) -> dict:
+    model_path = (
+        os.environ.get("DEEPSEEKR1_MODEL_PATH") or config["hf_model_path"]
+    )
+    return {
+        "model_path": model_path,
+        "model_id": config.get("model_id"),
+        "model_family": config.get("model_family"),
+        "variant": config.get("variant"),
+        "precision": config.get("precision", {}),
+        "weights": [
+            {
+                "tag": entry["tag"],
+                "file": entry["file"],
+                "bytes_per_element": entry["bytes_per_element"],
+                "num_elements": entry["num_elements"],
+                "size_bytes": entry["bytes_per_element"]
+                * entry["num_elements"],
+            }
+            for entry in expected_weight_entries(config, output_dir)
+        ],
+    }
+
+
+def write_weights_manifest(config: dict, output_dir: str) -> None:
+    path = weights_manifest_path(output_dir)
+    with open(path, "w") as f:
+        json.dump(weights_manifest_payload(config, output_dir), f, indent=2)
+        f.write("\n")
+    print(f"[import] Written: {os.path.basename(path)}", file=sys.stderr)
+
+
+def can_reuse_existing_weights(config: dict, output_dir: str) -> bool:
+    manifest_file = weights_manifest_path(output_dir)
+    if not os.path.exists(manifest_file):
+        return False
+
+    try:
+        with open(manifest_file) as f:
+            existing_manifest = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return False
+
+    expected_manifest = weights_manifest_payload(config, output_dir)
+    if existing_manifest != expected_manifest:
+        return False
+
+    for entry in expected_weight_entries(config, output_dir):
+        expected_size = entry["bytes_per_element"] * entry["num_elements"]
+        try:
+            actual_size = os.path.getsize(entry["path"])
+        except OSError:
+            return False
+        if actual_size != expected_size:
+            return False
+
+    return True
 
 
 def update_config(config: dict, actual_sizes: dict, output_dir: str):
@@ -738,6 +911,10 @@ def import_model(
     config: dict,
     output_dir: str,
     export_layer_partitioned: bool = False,
+    export_layer_partition_debug_wrappers: bool = False,
+    export_full_mlir: bool = True,
+    direct_plain_weight_export: bool = True,
+    reuse_existing_weights: bool = False,
     skip_weights: bool = False,
 ):
     """Full import pipeline: load → compile → transform → export."""
@@ -746,7 +923,8 @@ def import_model(
     is_quantized = variant.startswith("w")
 
     # 1. Load model
-    model = load_model(config)
+    with timed_import_step("load_model"):
+        model = load_model(config)
 
     if is_tiered_kv_cache(config):
         if is_quantized:
@@ -763,49 +941,86 @@ def import_model(
         return
 
     # 2. Compile graphs
-    graphs_prefill, graphs_decode, original_params = compile_graphs(
-        model, config
-    )
+    with timed_import_step("compile_graphs"):
+        graphs_prefill, graphs_decode, original_params = compile_graphs(
+            model, config
+        )
 
     # 3. Pre-fusion transforms
-    apply_pre_transforms(graphs_prefill[0], graphs_decode[0])
+    with timed_import_step("pre_transforms"):
+        apply_pre_transforms(graphs_prefill[0], graphs_decode[0])
 
     # 4. Quantization (if applicable)
     if is_quantized:
-        apply_quantization(graphs_prefill[0], graphs_decode[0], variant)
+        with timed_import_step("quantization"):
+            apply_quantization(graphs_prefill[0], graphs_decode[0], variant)
 
     # 5. Extract weights (before fusion changes the graph)
-    if skip_weights:
-        if is_quantized:
-            raise ValueError(
-                "--skip-weights is only supported for f32/f16/bf16"
+    reused_weights = False
+    direct_weight_export = False
+    with timed_import_step("extract_weights"):
+        if reuse_existing_weights and can_reuse_existing_weights(
+            config, output_dir
+        ):
+            weight_buckets = {}
+            reused_weights = True
+            print("[import] Reusing existing weight data.", file=sys.stderr)
+        elif skip_weights:
+            if is_quantized:
+                raise ValueError(
+                    "--skip-weights is only supported for f32/f16/bf16"
+                )
+            weight_buckets = {}
+        elif is_quantized:
+            weight_buckets = extract_quantized_weights(
+                graphs_prefill[0], original_params, config
             )
-        weight_buckets = {}
-    elif is_quantized:
-        weight_buckets = extract_quantized_weights(
-            graphs_prefill[0], original_params, config
-        )
-    else:
-        weight_buckets = extract_plain_weights(original_params, config)
+        elif direct_plain_weight_export:
+            weight_buckets = {}
+            direct_weight_export = True
+        else:
+            weight_buckets = extract_plain_weights(original_params, config)
 
     # 6. Fusion + subgraph rename
-    apply_fusion(graphs_prefill[0], graphs_decode[0])
+    with timed_import_step("fusion"):
+        apply_fusion(graphs_prefill[0], graphs_decode[0])
 
     if export_layer_partitioned:
-        export_layer_partitioned_mlir(
-            graphs_prefill[0], graphs_decode[0], config, output_dir
-        )
+        with timed_import_step("export_layer_partitioned_mlir"):
+            export_layer_partitioned_mlir(
+                graphs_prefill[0],
+                graphs_decode[0],
+                config,
+                output_dir,
+                export_debug_wrappers=export_layer_partition_debug_wrappers,
+            )
 
-    # 7. Lower to top-level IR
-    driver_prefill, driver_decode = create_drivers(
-        graphs_prefill[0], graphs_decode[0]
-    )
+    # 7. Export whole-graph MLIR when requested. Partitioned runtime builds
+    # consume layer_partitioned/forward_*.mlir instead, so this is optional.
+    if export_full_mlir:
+        with timed_import_step("export_full_mlir"):
+            driver_prefill, driver_decode = create_drivers(
+                graphs_prefill[0], graphs_decode[0]
+            )
+            export_mlir(driver_prefill, driver_decode, config, output_dir)
+    else:
+        print("[import] Skipped whole-graph MLIR export.", file=sys.stderr)
 
-    # 8. Export MLIR + weights
-    export_mlir(driver_prefill, driver_decode, config, output_dir)
-    if weight_buckets:
-        actual_sizes = export_weights(weight_buckets, config, output_dir)
-        update_config(config, actual_sizes, output_dir)
+    # 8. Export weights.
+    if direct_weight_export:
+        with timed_import_step("export_weights_direct"):
+            actual_sizes = export_plain_weights_direct(
+                original_params, config, output_dir
+            )
+            update_config(config, actual_sizes, output_dir)
+            write_weights_manifest(config, output_dir)
+    elif weight_buckets:
+        with timed_import_step("export_weights"):
+            actual_sizes = export_weights(weight_buckets, config, output_dir)
+            update_config(config, actual_sizes, output_dir)
+            write_weights_manifest(config, output_dir)
+    elif reused_weights:
+        print("[import] Reused existing weight data.", file=sys.stderr)
     else:
         print("[import] Skipped weight export.", file=sys.stderr)
 
@@ -826,9 +1041,43 @@ def main():
         help="Also export per-layer MLIR under output-dir/layer_partitioned.",
     )
     parser.add_argument(
+        "--layer-partition-debug-wrappers",
+        action="store_true",
+        help=(
+            "With --experimental-layer-partitioned, also export per-partition "
+            "forward_* debug wrapper MLIR files."
+        ),
+    )
+    parser.add_argument(
+        "--skip-full-mlir",
+        action="store_true",
+        help=(
+            "Skip standard whole-graph forward/subgraph MLIR export. This is "
+            "intended for partitioned runtime builds that only need "
+            "layer_partitioned/*.mlir plus weights."
+        ),
+    )
+    parser.add_argument(
         "--skip-weights",
         action="store_true",
         help="Skip weight data export for compile-time MLIR experiments.",
+    )
+    parser.add_argument(
+        "--reuse-existing-weights",
+        action="store_true",
+        help=(
+            "If output-dir already contains matching weight files and a "
+            "matching .buddy_weights_manifest.json, skip weight extraction and "
+            "export."
+        ),
+    )
+    parser.add_argument(
+        "--no-direct-plain-weight-export",
+        action="store_true",
+        help=(
+            "For non-quantized weights, use the legacy concatenate-then-write "
+            "path instead of direct memmap export."
+        ),
     )
     args = parser.parse_args()
 
@@ -839,6 +1088,12 @@ def main():
         config,
         args.output_dir,
         export_layer_partitioned=args.experimental_layer_partitioned,
+        export_layer_partition_debug_wrappers=(
+            args.layer_partition_debug_wrappers
+        ),
+        export_full_mlir=not args.skip_full_mlir,
+        direct_plain_weight_export=not args.no_direct_plain_weight_export,
+        reuse_existing_weights=args.reuse_existing_weights,
         skip_weights=args.skip_weights,
     )
 

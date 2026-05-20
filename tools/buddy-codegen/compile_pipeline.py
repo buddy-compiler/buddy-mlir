@@ -18,8 +18,9 @@
 #
 # Replaces the CMake macros dsr1_mlir_to_obj / dsr1_subgraph_to_obj /
 # dsr1_subgraph_decode_to_obj with a single config-driven Python script.
-# Subgraph vs forward passes and decode-specific vectorization are selected here
-# (mirroring the old macro differences: extra TOSA / linalg / vector passes).
+# Subgraph, whole-graph, and partitioned forward dispatcher passes are selected
+# here. Partitioned forward dispatchers contain calls and memref view plumbing,
+# so they use a lighter lowering pipeline than compute-heavy subgraphs.
 #
 # Single file:
 #   python compile_pipeline.py --config config.json \
@@ -85,10 +86,38 @@ def build_stages(
 
     Pipeline types mirror the three CMake macros:
       - "standard":        forward_prefill / forward_decode
+      - "forward":         partitioned forward dispatcher wrappers
       - "subgraph":        subgraph_prefill
       - "subgraph_decode": subgraph_decode
     """
     stages = []
+
+    if pipeline_type == "forward":
+        stages.append(
+            (
+                "buddy-opt",
+                [
+                    "-expand-strided-metadata",
+                    "-canonicalize",
+                    "-cse",
+                ]
+                + LOWER_TO_LLVM,
+            )
+        )
+        stages.append(("mlir-translate", ["-mlir-to-llvmir"]))
+        stages.append(("llvm-as", []))
+        stages.append(
+            (
+                "llc",
+                llc_attrs.split()
+                + [
+                    "-filetype=obj",
+                    "-relocation-model=pic",
+                    "-O3",
+                ],
+            )
+        )
+        return stages
 
     # ── Stage 1: buddy-opt (initial simplification) ──────────────────────────
     init_opts = ["-simplify-tosa-reshape"]
@@ -507,12 +536,12 @@ def partitioned_compile_entries(
         (
             re.compile(r"^forward_prefill\.mlir$"),
             "forward_prefill",
-            "standard",
+            "forward",
         ),
         (
             re.compile(r"^forward_decode\.mlir$"),
             "forward_decode",
-            "standard",
+            "forward",
         ),
         (
             re.compile(r"^subgraph0_prefill(\d+)\.mlir$"),
@@ -749,7 +778,7 @@ def main():
     parser.add_argument("--output", help="Output .o file (single-file mode)")
     parser.add_argument(
         "--pipeline",
-        choices=["standard", "subgraph", "subgraph_decode"],
+        choices=["standard", "forward", "subgraph", "subgraph_decode"],
         help="Pipeline type (single-file mode)",
     )
     parser.add_argument(

@@ -50,6 +50,26 @@ The layer-partitioned path is automatically disabled for tiered KV cache builds,
 RVV cross-compilation, and pre-generated MLIR directories that do not contain a
 `layer_partitioned/partition_manifest.json` file.
 
+By default, partitioned builds only emit the MLIR needed by the runtime:
+partition kernels plus the combined `forward_prefill.mlir` and
+`forward_decode.mlir` entry points. The standard whole-graph MLIR files are not
+generated on this path because they are not consumed by the partitioned compile.
+Per-partition debug wrappers can be enabled with
+`-DBUDDY_MODEL_LAYER_PARTITION_DEBUG_WRAPPERS=ON`.
+
+Model builds also default to `BUDDY_MODEL_REUSE_WEIGHTS=ON`. After the first
+successful import writes the weight data and `.buddy_weights_manifest.json`,
+later imports with the same model path, variant, precision, and expected weight
+sizes reuse the existing weight files. This avoids repeating the multi-GB
+weight extraction step during codegen or compiler iteration. Disable it with
+`-DBUDDY_MODEL_REUSE_WEIGHTS=OFF` when intentionally replacing weights in the
+same build directory.
+
+For non-quantized weights, the importer writes weight data directly into the
+runtime binary layout instead of first concatenating all tensors into one large
+temporary NumPy array. The legacy concatenate-then-write path is still available
+for debugging with `--no-direct-plain-weight-export`.
+
 ## DeepSeek R1 Example
 
 The commands below use the f32 DeepSeek R1 Distill Qwen 1.5B configuration as a
@@ -70,6 +90,7 @@ python3 tools/buddy-codegen/import_model.py \
   --config /tmp/deepseek_r1_f32_config.json \
   --output-dir /tmp/deepseek_r1_codegen_exp \
   --experimental-layer-partitioned \
+  --skip-full-mlir \
   --skip-weights
 ```
 
@@ -80,10 +101,12 @@ The partitioned directory contains:
   partitions.
 - `forward_prefill.mlir` and `forward_decode.mlir`: combined public entry
   points with the same runtime ABI as the original model.
-- `forward_prefill<N>.mlir` and `forward_decode<N>.mlir`: debug wrappers for
-  individual partitions.
 - `partition_manifest.json`: a summary of partition counts and generated
   files.
+
+Add `--layer-partition-debug-wrappers` to the import command if you need
+`forward_prefill<N>.mlir` and `forward_decode<N>.mlir` wrappers for individual
+partition debugging.
 
 ### Compile Baseline And Partitioned MLIR
 
@@ -180,9 +203,20 @@ On the f32 DeepSeek R1 Distill Qwen 1.5B experiment:
 - Baseline MLIR compile time: about 157 seconds total on the test machine
   (`subgraph_prefill.o` about 134 seconds, `subgraph_decode.o` about 20
   seconds).
-- Validated full partitioned compile time with 48 jobs: about 16 seconds total.
+- Validated full partitioned compile time with 48 jobs: about 2 seconds total
+  after using the lightweight `forward` lowering path for the combined
+  partition dispatcher MLIR. The previous partitioned path spent about 16
+  seconds because `forward_prefill.mlir` used the full standard optimization
+  pipeline even though it only contains subgraph calls and memref view plumbing.
 - Validated partition counts: 212 prefill partitions and 58 coarse decode
   partitions.
+- Reusing existing DeepSeek f32 weights reduced a forced Stage 1 re-import from
+  the weight-extraction dominated path to about 25 seconds for import/export
+  work; the end-to-end forced rebuild including CMake checks, MLIR compile,
+  link, and `.rax` packing was about 46 seconds on the test machine.
+- Direct non-quantized weight export reduced first-time DeepSeek f32 weight
+  generation from about 115 seconds (`extract_weights` plus `export_weights`)
+  to about 19 seconds, while producing a byte-identical `arg0.data`.
 - Partition verifier result: no missing operations, no duplicate operations,
   and no dependency-order violations.
 - Runtime validation: exact prefill logits and exact decode logits for 16

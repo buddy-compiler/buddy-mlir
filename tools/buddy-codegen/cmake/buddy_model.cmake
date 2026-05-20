@@ -46,6 +46,12 @@ option(IS_RVV_CROSSCOMPILE
 option(BUDDY_MODEL_LAYER_PARTITION
   "Build supported models with validated layer-partitioned prefill compilation"
   ON)
+option(BUDDY_MODEL_LAYER_PARTITION_DEBUG_WRAPPERS
+  "Emit per-partition forward_* debug wrapper MLIR files for layer partitioning"
+  OFF)
+option(BUDDY_MODEL_REUSE_WEIGHTS
+  "Reuse existing model weight data when a matching weight manifest is present"
+  ON)
 set(RISCV_GNU_TOOLCHAIN "" CACHE PATH
   "Path to RISCV GNU toolchain root (expects <root>/sysroot)")
 set(RISCV_OMP_SHARED "" CACHE FILEPATH
@@ -377,7 +383,16 @@ function(buddy_add_model)
       endif()
       set(_IMPORT_MODEL_EXTRA_ARGS)
       if(MDL_LAYER_PARTITION)
-        list(APPEND _IMPORT_MODEL_EXTRA_ARGS --experimental-layer-partitioned)
+        list(APPEND _IMPORT_MODEL_EXTRA_ARGS
+          --experimental-layer-partitioned
+          --skip-full-mlir)
+        if(BUDDY_MODEL_LAYER_PARTITION_DEBUG_WRAPPERS)
+          list(APPEND _IMPORT_MODEL_EXTRA_ARGS
+            --layer-partition-debug-wrappers)
+        endif()
+      endif()
+      if(BUDDY_MODEL_REUSE_WEIGHTS)
+        list(APPEND _IMPORT_MODEL_EXTRA_ARGS --reuse-existing-weights)
       endif()
       add_custom_command(
         OUTPUT "${IMPORT_STAMP}"
