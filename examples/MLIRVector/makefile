@@ -16,12 +16,30 @@ RISCV_GNU_TOOLCHAIN_SYSROOT := ${RISCV_GNU_TOOLCHAIN}/sysroot
 ifeq ($(shell uname),Linux)
 MLIR_RUNNER_UTILS := ../../llvm/build/lib/libmlir_runner_utils.so
 MLIR_C_RUNNER_UTILS := ../../llvm/build/lib/libmlir_c_runner_utils.so
+OMP_LIB := ../../llvm/build/lib/libomp.so
 MTRIPLE := x86_64-unknown-linux-gnu
 else ifeq ($(shell uname),Darwin)
 MLIR_RUNNER_UTILS := ../../llvm/build/lib/libmlir_runner_utils.dylib
 MLIR_C_RUNNER_UTILS := ../../llvm/build/lib/libmlir_c_runner_utils.dylib
+OMP_LIB := ../../llvm/build/lib/libomp.dylib
 MTRIPLE := x86_64-apple-darwin
 endif
+
+VECTOR_PARALLEL_PASS := \
+	--convert-vector-to-scf \
+	--lower-affine \
+	--convert-scf-to-openmp \
+	--cse \
+	--memref-expand \
+	--arith-expand \
+	--convert-vector-to-llvm \
+	--convert-arith-to-llvm \
+	--finalize-memref-to-llvm \
+	--convert-scf-to-cf \
+	--convert-cf-to-llvm \
+	--convert-openmp-to-llvm \
+	--convert-func-to-llvm \
+	--reconcile-unrealized-casts
 
 .SECONDEXPANSION:
 all-run: $$(run-targets)
@@ -1132,3 +1150,20 @@ vector-index-cast-run:
 		--reconcile-unrealized-casts | \
 	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=i32 \
 		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
+vector-parallel-lower:
+	@${MLIR_OPT} ./vector-parallel.mlir \
+		${VECTOR_PARALLEL_PASS} -o ./log.mlir
+
+vector-parallel-translate:
+	@${MLIR_OPT} ./vector-parallel.mlir \
+		${VECTOR_PARALLEL_PASS} | \
+	${MLIR_TRANSLATE} --mlir-to-llvmir -o log.ll
+
+run-targets += vector-parallel-run
+vector-parallel-run:
+	@${MLIR_OPT} ./vector-parallel.mlir \
+		${VECTOR_PARALLEL_PASS} | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS} \
+		-shared-libs=${OMP_LIB}
