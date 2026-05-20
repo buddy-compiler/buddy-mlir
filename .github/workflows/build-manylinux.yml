@@ -75,8 +75,13 @@ jobs:
           BUDDY_HASH="$(git rev-parse HEAD)"
           echo "py_tag=${PY_TAG}" >> "$GITHUB_OUTPUT"
           echo "buddy_hash=${BUDDY_HASH}" >> "$GITHUB_OUTPUT"
-          echo "host_build_dir=$HOME/actions-runner/workspace/buddy-mlir-release" >> "$GITHUB_OUTPUT"
-          echo "llvm_src=$HOME/actions-runner/workspace/llvm-project" >> "$GITHUB_OUTPUT"
+          if [[ "${{ matrix.target_arch }}" == "riscv64" ]]; then
+            echo "host_build_dir=/data/runner/workspace/buddy-mlir-release" >> "$GITHUB_OUTPUT"
+            echo "llvm_src=/data/runner/workspace/llvm-project" >> "$GITHUB_OUTPUT"
+          else
+            echo "host_build_dir=$HOME/actions-runner/workspace/buddy-mlir-release" >> "$GITHUB_OUTPUT"
+            echo "llvm_src=$HOME/actions-runner/workspace/llvm-project" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Checkout LLVM source
         id: setup-llvm
@@ -89,7 +94,7 @@ jobs:
           set -euo pipefail
           export LLVM_CACHE_MODE="${{ inputs.llvm_cache_mode }}"
           export LLVM_HASH="${{ steps.setup-llvm.outputs.cache_hash }}"
-          export HOST_LLVM_SRC="${{ steps.setup-llvm.outputs.llvm_src }}"
+          export HOST_LLVM_SRC="${{ steps.vars.outputs.llvm_src }}"
           export HOST_BUILD_DIR="${{ steps.vars.outputs.host_build_dir }}"
           ./scripts/release_wheel_manylinux.sh "${{ steps.vars.outputs.py_tag }}" ${{ inputs.version }} "${{ matrix.target_arch }}"
 
