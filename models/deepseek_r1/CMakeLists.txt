@@ -20,6 +20,12 @@
 # ══════════════════════════════════════════════════════════════════════════════
 
 include(${CMAKE_SOURCE_DIR}/tools/buddy-codegen/cmake/buddy_model.cmake)
+include(ProcessorCount)
+
+ProcessorCount(_BUDDY_DSR1_DEFAULT_COMPILE_JOBS)
+if(_BUDDY_DSR1_DEFAULT_COMPILE_JOBS EQUAL 0)
+  set(_BUDDY_DSR1_DEFAULT_COMPILE_JOBS 1)
+endif()
 
 set(BUDDY_DSR1_SPEC
   "${CMAKE_CURRENT_SOURCE_DIR}/specs/f32.json"
@@ -28,7 +34,7 @@ set(BUDDY_DSR1_HF_CONFIG ""
   CACHE FILEPATH "Optional: HuggingFace config.json for gen_config.py (auto-detect if empty)")
 set(BUDDY_DSR1_LOCAL_MODEL ""
   CACHE PATH "Optional: local HF model directory (weights import; sets DEEPSEEKR1_MODEL_PATH)")
-set(BUDDY_DSR1_COMPILE_JOBS "1"
+set(BUDDY_DSR1_COMPILE_JOBS "${_BUDDY_DSR1_DEFAULT_COMPILE_JOBS}"
   CACHE STRING "Parallel MLIR→.o jobs when using compile_pipeline.py")
 set(BUDDY_DSR1_TIERED_KV_CACHE ""
   CACHE STRING "Auto/ON/OFF: build DeepSeek R1 with tiered KV cache entrypoints")

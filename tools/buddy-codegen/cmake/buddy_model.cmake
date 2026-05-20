@@ -43,6 +43,9 @@ option(BUDDY_RAX_EMBED_PAYLOAD
 option(IS_RVV_CROSSCOMPILE
   "Enable RVV cross-compilation for model.so (riscv64 target)"
   OFF)
+option(BUDDY_MODEL_LAYER_PARTITION
+  "Build supported models with validated layer-partitioned prefill compilation"
+  ON)
 set(RISCV_GNU_TOOLCHAIN "" CACHE PATH
   "Path to RISCV GNU toolchain root (expects <root>/sysroot)")
 set(RISCV_OMP_SHARED "" CACHE FILEPATH
@@ -121,6 +124,22 @@ function(buddy_add_model)
   endif()
   if(MDL_TIERED_KV_CACHE AND NOT MDL_TIERED_CACHE_SIZES)
     set(MDL_TIERED_CACHE_SIZES 32 64 128 256 512 1024)
+  endif()
+
+  set(MDL_LAYER_PARTITION OFF)
+  if(BUDDY_MODEL_LAYER_PARTITION AND NOT MDL_BUILD_DIR)
+    if(MDL_TIERED_KV_CACHE)
+      message(STATUS
+        "[${MDL_NAME}] Layer partitioning is disabled for tiered KV cache builds.")
+    elseif(IS_RVV_CROSSCOMPILE)
+      message(STATUS
+        "[${MDL_NAME}] Layer partitioning is disabled for RVV cross-compilation.")
+    elseif(MDL_MLIR_DIR AND NOT EXISTS "${MDL_MLIR_DIR}/layer_partitioned/partition_manifest.json")
+      message(STATUS
+        "[${MDL_NAME}] Layer partitioning is disabled because MLIR_DIR has no layer_partitioned manifest.")
+    else()
+      set(MDL_LAYER_PARTITION ON)
+    endif()
   endif()
 
   set(MDL_GEN_MANIFEST_ARGS)
@@ -336,11 +355,16 @@ function(buddy_add_model)
       else()
         set(_IMPORT_ENV ${CMAKE_COMMAND} -E env "PYTHONPATH=${BUDDY_PY_PKG_ROOT}")
       endif()
+      set(_IMPORT_MODEL_EXTRA_ARGS)
+      if(MDL_LAYER_PARTITION)
+        list(APPEND _IMPORT_MODEL_EXTRA_ARGS --experimental-layer-partitioned)
+      endif()
       add_custom_command(
         OUTPUT "${IMPORT_STAMP}"
         COMMAND ${_IMPORT_ENV}
                 "${Python3_EXECUTABLE}" "${BUDDY_CODEGEN_DIR}/import_model.py"
                 --config "${GEN_CONFIG}" --output-dir "${BIN}"
+                ${_IMPORT_MODEL_EXTRA_ARGS}
         COMMAND "${CMAKE_COMMAND}" -E touch "${IMPORT_STAMP}"
         DEPENDS ${IMPORT_DEPS}
         COMMENT "[${MDL_NAME}] Stage 1: importing model → MLIR + weights"
@@ -350,7 +374,12 @@ function(buddy_add_model)
     endif()
 
     if(MDL_MLIR_DIR)
-      if(MDL_TIERED_KV_CACHE)
+      if(MDL_LAYER_PARTITION)
+        set(MLIR_COMPILE_DEPS
+          "${MLIR_SRC}/layer_partitioned/partition_manifest.json"
+          "${MLIR_SRC}/layer_partitioned/forward_prefill.mlir"
+          "${MLIR_SRC}/layer_partitioned/forward_decode.mlir")
+      elseif(MDL_TIERED_KV_CACHE)
         set(MLIR_COMPILE_DEPS)
         foreach(CACHE_SIZE ${MDL_TIERED_CACHE_SIZES})
           list(APPEND MLIR_COMPILE_DEPS
@@ -369,26 +398,56 @@ function(buddy_add_model)
       endif()
     endif()
 
-    # ── Stage 2: MLIR → .o via compile_pipeline.py ─────────────────────────
-    add_custom_command(
-      OUTPUT ${OBJ_FILES}
-      COMMAND "${Python3_EXECUTABLE}" "${BUDDY_CODEGEN_DIR}/compile_pipeline.py"
-              --config "${GEN_CONFIG}"
-              --compile-all
-              --mlir-dir "${MLIR_SRC}"
-              --output-dir "${BIN}"
-              --buddy-opt "${BUDDY_BINARY_DIR}/buddy-opt"
-              --llvm-tools-dir "${LLVM_TOOLS_BINARY_DIR}"
-              "--llc-attrs=${MDL_LLC_ATTRS}"
-              -j "${MDL_COMPILE_JOBS}"
-      DEPENDS
-        buddy-opt
-        "${GEN_CONFIG}"
-        "${BUDDY_CODEGEN_DIR}/compile_pipeline.py"
-        ${MLIR_COMPILE_DEPS}
-      COMMENT "[${MDL_NAME}] Stage 2: MLIR → .o (compile_pipeline.py)"
-      VERBATIM
-    )
+    if(MDL_LAYER_PARTITION)
+      # ── Stage 2/3: partitioned MLIR → .o → .so via compile_pipeline.py ───
+      set(PARTITIONED_MLIR_SRC "${MLIR_SRC}/layer_partitioned")
+      set(PARTITIONED_OBJ_DIR "${BIN}/obj_partitioned")
+      add_custom_command(
+        OUTPUT "${MODEL_SO}"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "${PARTITIONED_OBJ_DIR}"
+        COMMAND "${Python3_EXECUTABLE}" "${BUDDY_CODEGEN_DIR}/compile_pipeline.py"
+                --config "${GEN_CONFIG}"
+                --compile-partitioned
+                --link
+                --mlir-dir "${PARTITIONED_MLIR_SRC}"
+                --output-dir "${PARTITIONED_OBJ_DIR}"
+                --output-so "${MODEL_SO}"
+                --buddy-opt "${BUDDY_BINARY_DIR}/buddy-opt"
+                --llvm-tools-dir "${LLVM_TOOLS_BINARY_DIR}"
+                "--llc-attrs=${MDL_LLC_ATTRS}"
+                --cxx "${CMAKE_CXX_COMPILER}"
+                --llvm-lib-dir "${LLVM_LIBRARY_DIR}"
+                -j "${MDL_COMPILE_JOBS}"
+        DEPENDS
+          buddy-opt
+          "${GEN_CONFIG}"
+          "${BUDDY_CODEGEN_DIR}/compile_pipeline.py"
+          ${MLIR_COMPILE_DEPS}
+        COMMENT "[${MDL_NAME}] Stage 2/3: partitioned MLIR → ${MDL_NAME}_model.so"
+        VERBATIM
+      )
+    else()
+      # ── Stage 2: MLIR → .o via compile_pipeline.py ───────────────────────
+      add_custom_command(
+        OUTPUT ${OBJ_FILES}
+        COMMAND "${Python3_EXECUTABLE}" "${BUDDY_CODEGEN_DIR}/compile_pipeline.py"
+                --config "${GEN_CONFIG}"
+                --compile-all
+                --mlir-dir "${MLIR_SRC}"
+                --output-dir "${BIN}"
+                --buddy-opt "${BUDDY_BINARY_DIR}/buddy-opt"
+                --llvm-tools-dir "${LLVM_TOOLS_BINARY_DIR}"
+                "--llc-attrs=${MDL_LLC_ATTRS}"
+                -j "${MDL_COMPILE_JOBS}"
+        DEPENDS
+          buddy-opt
+          "${GEN_CONFIG}"
+          "${BUDDY_CODEGEN_DIR}/compile_pipeline.py"
+          ${MLIR_COMPILE_DEPS}
+        COMMENT "[${MDL_NAME}] Stage 2: MLIR → .o (compile_pipeline.py)"
+        VERBATIM
+      )
+    endif()
   endif()
 
   # ── Stage 3: link .o → .so ─────────────────────────────────────────────
@@ -426,21 +485,23 @@ function(buddy_add_model)
     )
   endif()
 
-  add_custom_command(
-    OUTPUT "${MODEL_SO}"
-    COMMAND ${MDL_STAGE3_LINKER}
-              ${MDL_STAGE3_LINK_OPTS}
-              -shared -fPIC
-              ${_BUDDY_MODEL_LINK_FLAGS}
-              -o "${MODEL_SO}"
-              ${OBJ_FILES}
-              "-L${LLVM_LIBRARY_DIR}"
-              "-Wl,-rpath,${LLVM_LIBRARY_DIR}"
-              ${MDL_STAGE3_LIBS}
-    DEPENDS ${OBJ_FILES}
-    COMMENT "[${MDL_NAME}] Stage 3: linking ${MDL_NAME}_model.so"
-    VERBATIM
-  )
+  if(NOT MDL_LAYER_PARTITION)
+    add_custom_command(
+      OUTPUT "${MODEL_SO}"
+      COMMAND ${MDL_STAGE3_LINKER}
+                ${MDL_STAGE3_LINK_OPTS}
+                -shared -fPIC
+                ${_BUDDY_MODEL_LINK_FLAGS}
+                -o "${MODEL_SO}"
+                ${OBJ_FILES}
+                "-L${LLVM_LIBRARY_DIR}"
+                "-Wl,-rpath,${LLVM_LIBRARY_DIR}"
+                ${MDL_STAGE3_LIBS}
+      DEPENDS ${OBJ_FILES}
+      COMMENT "[${MDL_NAME}] Stage 3: linking ${MDL_NAME}_model.so"
+      VERBATIM
+    )
+  endif()
 
   add_custom_target(${MDL_NAME}_model_so
     DEPENDS "${MODEL_SO}"

@@ -100,6 +100,12 @@ python3 tools/buddy-codegen/build_model.py \
   --build-dir build
 ```
 
+For supported models, the default build uses layer-partitioned model
+compilation to parallelize the slowest MLIR compile stages while preserving
+validated runtime correctness. See
+[Layer Partitioning](docs/LayerPartitioning.md) for details and validation
+steps.
+
 To import weights from a **local** HuggingFace style directory (offline or a custom path), pass `--local-model` to that directory (it must contain `config.json` and the weight files). If you omit `--hf-config`, `build_model.py` uses `<local-model>/config.json` for codegen when present:
 
 ```bash

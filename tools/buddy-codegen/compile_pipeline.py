@@ -37,8 +37,11 @@
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
+import tempfile
+import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -112,6 +115,7 @@ def build_stages(
             "-canonicalize",
             "-buffer-deallocation-simplification",
             "-bufferization-lower-deallocations",
+            "-convert-bufferization-to-memref",
             "-cse",
             "-canonicalize",
             "-optimize-allocation-liveness",
@@ -205,6 +209,72 @@ def _resolve_tool(name: str, buddy_opt: str, llvm_dir: str) -> str:
     if name == "buddy-opt":
         return buddy_opt
     return os.path.join(llvm_dir, name)
+
+
+_ZERO_F32_TENSOR_CONST_RE = re.compile(
+    r"^(?P<indent>\s*)(?P<result>%[\w\d_]+) = "
+    r"arith\.constant dense<0\.000000e\+00> : "
+    r"(?P<type>tensor<(?P<shape>[^>]+)xf32>)$"
+)
+
+
+def _static_element_count(shape_text: str) -> int | None:
+    dims = shape_text.split("x")
+    if not dims or any(not dim.isdigit() for dim in dims):
+        return None
+    count = 1
+    for dim in dims:
+        count *= int(dim)
+    return count
+
+
+def materialize_large_zero_tensors(
+    input_file: str, element_threshold: int = 1_000_000
+) -> str | None:
+    """Replace very large dense zero tensors with tensor.empty + linalg.fill."""
+    with open(input_file, encoding="utf-8") as f:
+        lines = f.readlines()
+
+    changed = False
+    rewritten = []
+    for line in lines:
+        match = _ZERO_F32_TENSOR_CONST_RE.match(line.rstrip("\n"))
+        if not match:
+            rewritten.append(line)
+            continue
+
+        elem_count = _static_element_count(match.group("shape"))
+        if elem_count is None or elem_count < element_threshold:
+            rewritten.append(line)
+            continue
+
+        changed = True
+        indent = match.group("indent")
+        result = match.group("result")
+        tensor_type = match.group("type")
+        base_name = result[1:]
+        rewritten.extend(
+            [
+                f"{indent}%{base_name}_zero = arith.constant 0.000000e+00 : f32\n",
+                f"{indent}%{base_name}_empty = tensor.empty() : {tensor_type}\n",
+                f"{indent}{result} = linalg.fill "
+                f"ins(%{base_name}_zero : f32) "
+                f"outs(%{base_name}_empty : {tensor_type}) -> {tensor_type}\n",
+            ]
+        )
+
+    if not changed:
+        return None
+
+    with tempfile.NamedTemporaryFile(
+        "w",
+        encoding="utf-8",
+        suffix=".mlir",
+        prefix="buddy-zero-fill-",
+        delete=False,
+    ) as temp:
+        temp.writelines(rewritten)
+        return temp.name
 
 
 def run_pipeline(
@@ -339,6 +409,11 @@ def compile_entries(config: dict) -> list[tuple[str, str, str]]:
 def _compile_one(task: dict) -> str:
     """Compile a single MLIR file. Returns a status message."""
     name = task["name"]
+    started = time.perf_counter()
+    input_file = task["input"]
+    temp_input = materialize_large_zero_tensors(input_file)
+    if temp_input is not None:
+        input_file = temp_input
     stages = build_stages(
         task["pipeline_type"],
         task["num_threads"],
@@ -346,14 +421,19 @@ def _compile_one(task: dict) -> str:
         task.get("variant", "f32"),
         task.get("tiered", False),
     )
-    run_pipeline(
-        stages,
-        task["input"],
-        task["output"],
-        task["buddy_opt"],
-        task["llvm_dir"],
-    )
-    return f"  {name}: {os.path.basename(task['output'])}"
+    try:
+        run_pipeline(
+            stages,
+            input_file,
+            task["output"],
+            task["buddy_opt"],
+            task["llvm_dir"],
+        )
+    finally:
+        if temp_input is not None:
+            os.unlink(temp_input)
+    elapsed = time.perf_counter() - started
+    return f"  {name}: {os.path.basename(task['output'])} ({elapsed:.2f}s)"
 
 
 def compile_all(
@@ -417,6 +497,162 @@ def compile_all(
     print("[compile] All done.", file=sys.stderr)
 
 
+def partitioned_compile_entries(
+    mlir_dir: str,
+    prefill_only: bool = False,
+    full_mlir_dir: str | None = None,
+) -> list[tuple[str, str, str, str]]:
+    """Discover per-layer MLIR files emitted by import_model.py."""
+    patterns = [
+        (
+            re.compile(r"^forward_prefill\.mlir$"),
+            "forward_prefill",
+            "standard",
+        ),
+        (
+            re.compile(r"^forward_decode\.mlir$"),
+            "forward_decode",
+            "standard",
+        ),
+        (
+            re.compile(r"^subgraph0_prefill(\d+)\.mlir$"),
+            "subgraph_prefill",
+            "subgraph",
+        ),
+        (
+            re.compile(r"^subgraph0_decode(\d+)\.mlir$"),
+            "subgraph_decode",
+            "subgraph_decode",
+        ),
+        (
+            re.compile(r"^forward_prefill(\d+)\.mlir$"),
+            "forward_prefill",
+            "standard",
+        ),
+        (
+            re.compile(r"^forward_decode(\d+)\.mlir$"),
+            "forward_decode",
+            "standard",
+        ),
+    ]
+
+    entries = []
+    for filename in os.listdir(mlir_dir):
+        if prefill_only and (
+            filename == "forward_decode.mlir"
+            or re.match(r"^forward_decode\d+\.mlir$", filename)
+            or re.match(r"^subgraph0_decode\d+\.mlir$", filename)
+        ):
+            continue
+        for regex, key_prefix, pipeline_type in patterns:
+            match = regex.match(filename)
+            if not match:
+                continue
+            index = int(match.group(1)) if match.groups() else -1
+            stem = filename.removesuffix(".mlir")
+            entries.append(
+                (
+                    f"{key_prefix}_{index}",
+                    filename,
+                    f"{stem}.o",
+                    pipeline_type,
+                    index,
+                )
+            )
+            break
+
+    if prefill_only:
+        if not full_mlir_dir:
+            raise RuntimeError(
+                "--partitioned-prefill-only requires --full-mlir-dir"
+            )
+        entries.extend(
+            [
+                (
+                    "forward_decode_-1",
+                    os.path.join(full_mlir_dir, "forward_decode.mlir"),
+                    "forward_decode.o",
+                    "standard",
+                    -1,
+                ),
+                (
+                    "subgraph_decode_-1",
+                    os.path.join(full_mlir_dir, "subgraph0_decode.mlir"),
+                    "subgraph_decode.o",
+                    "subgraph_decode",
+                    -1,
+                ),
+            ]
+        )
+
+    entries.sort(key=lambda item: (item[3], item[4], item[0]))
+    return [
+        (name, mlir_name, obj_name, pipeline)
+        for name, mlir_name, obj_name, pipeline, _ in entries
+    ]
+
+
+def compile_partitioned(
+    config: dict,
+    mlir_dir: str,
+    output_dir: str,
+    buddy_opt: str,
+    llvm_dir: str,
+    llc_attrs: str,
+    jobs: int = 1,
+    prefill_only: bool = False,
+    full_mlir_dir: str | None = None,
+) -> None:
+    """Compile all per-layer MLIR files from a layer_partitioned directory."""
+    entries = partitioned_compile_entries(
+        mlir_dir, prefill_only=prefill_only, full_mlir_dir=full_mlir_dir
+    )
+    if not entries:
+        raise RuntimeError(f"No partitioned MLIR files found in {mlir_dir}")
+
+    num_threads = config["compilation"]["num_threads"]
+    variant = config.get("variant", "")
+    os.makedirs(output_dir, exist_ok=True)
+
+    tasks = []
+    for key, mlir_name, obj_name, pipeline_type in entries:
+        tasks.append(
+            {
+                "name": key,
+                "pipeline_type": pipeline_type,
+                "num_threads": num_threads,
+                "llc_attrs": llc_attrs,
+                "variant": variant,
+                "tiered": False,
+                "input": mlir_name
+                if os.path.isabs(mlir_name)
+                else os.path.join(mlir_dir, mlir_name),
+                "output": os.path.join(output_dir, obj_name),
+                "buddy_opt": buddy_opt,
+                "llvm_dir": llvm_dir,
+            }
+        )
+
+    started = time.perf_counter()
+    print(
+        f"[compile] Compiling {len(tasks)} partitioned MLIR files "
+        f"(jobs={jobs})...",
+        file=sys.stderr,
+    )
+
+    if jobs <= 1:
+        for task in tasks:
+            print(_compile_one(task), file=sys.stderr)
+    else:
+        with ProcessPoolExecutor(max_workers=jobs) as pool:
+            futures = {pool.submit(_compile_one, t): t["name"] for t in tasks}
+            for fut in as_completed(futures):
+                print(fut.result(), file=sys.stderr)
+
+    elapsed = time.perf_counter() - started
+    print(f"[compile] All done in {elapsed:.2f}s.", file=sys.stderr)
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Link .o files → shared library
 # ──────────────────────────────────────────────────────────────────────────────
@@ -456,6 +692,34 @@ def link_shared_lib(
     subprocess.check_call(cmd)
 
 
+def partitioned_runtime_objects(
+    output_dir: str, prefill_only: bool = False
+) -> list[str]:
+    """Return the object files needed by the runtime partitioned .so."""
+    obj_files = []
+    for name in os.listdir(output_dir):
+        if not (name.startswith("subgraph") and name.endswith(".o")):
+            continue
+        if prefill_only:
+            keep = re.match(r"^subgraph0_prefill\d+\.o$", name) or name == (
+                "subgraph_decode.o"
+            )
+            if not keep:
+                continue
+        obj_files.append(os.path.join(output_dir, name))
+    obj_files.sort()
+
+    for name in ("forward_decode.o", "forward_prefill.o"):
+        path = os.path.join(output_dir, name)
+        if not os.path.exists(path):
+            raise FileNotFoundError(
+                f"Missing partitioned runtime object: {path}"
+            )
+        obj_files.append(path)
+
+    return obj_files
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # CLI
 # ──────────────────────────────────────────────────────────────────────────────
@@ -474,6 +738,11 @@ def main():
         "--compile-all",
         action="store_true",
         help="Compile all 4 MLIR files from config",
+    )
+    mode.add_argument(
+        "--compile-partitioned",
+        action="store_true",
+        help="Compile per-layer MLIR files emitted under layer_partitioned",
     )
     mode.add_argument("--input", help="Single MLIR file to compile")
 
@@ -510,11 +779,27 @@ def main():
     parser.add_argument(
         "--link",
         action="store_true",
-        help="Also link .o → .so after compilation (compile-all mode)",
+        help="Also link .o → .so after compilation",
     )
     parser.add_argument("--cxx", default="c++", help="C++ compiler for linking")
     parser.add_argument(
         "--llvm-lib-dir", default="", help="LLVM library directory"
+    )
+    parser.add_argument(
+        "--output-so",
+        help="Output shared library path when --link is used",
+    )
+    parser.add_argument(
+        "--partitioned-prefill-only",
+        action="store_true",
+        help=(
+            "With --compile-partitioned, compile partitioned prefill but keep "
+            "decode from --full-mlir-dir."
+        ),
+    )
+    parser.add_argument(
+        "--full-mlir-dir",
+        help="Directory containing whole-graph MLIR files for mixed partitioning",
     )
 
     args = parser.parse_args()
@@ -537,7 +822,9 @@ def main():
         )
 
         if args.link:
-            so_name = config["compilation"]["so_name"]
+            output_so = args.output_so or os.path.join(
+                args.output_dir, config["compilation"]["so_name"]
+            )
 
             obj_files = []
             for _key, _mlir_name, obj_name in compile_entries(config):
@@ -545,7 +832,37 @@ def main():
 
             link_shared_lib(
                 obj_files=obj_files,
-                output_so=os.path.join(args.output_dir, so_name),
+                output_so=output_so,
+                cxx=args.cxx,
+                llvm_lib_dir=args.llvm_lib_dir,
+            )
+    elif args.compile_partitioned:
+        if not args.mlir_dir or not args.output_dir:
+            parser.error(
+                "--compile-partitioned requires --mlir-dir and --output-dir"
+            )
+
+        compile_partitioned(
+            config=config,
+            mlir_dir=args.mlir_dir,
+            output_dir=args.output_dir,
+            buddy_opt=args.buddy_opt,
+            llvm_dir=args.llvm_tools_dir,
+            llc_attrs=args.llc_attrs,
+            jobs=args.jobs,
+            prefill_only=args.partitioned_prefill_only,
+            full_mlir_dir=args.full_mlir_dir,
+        )
+        if args.link:
+            output_so = args.output_so or os.path.join(
+                args.output_dir, config["compilation"]["so_name"]
+            )
+            link_shared_lib(
+                obj_files=partitioned_runtime_objects(
+                    args.output_dir,
+                    prefill_only=args.partitioned_prefill_only,
+                ),
+                output_so=output_so,
                 cxx=args.cxx,
                 llvm_lib_dir=args.llvm_lib_dir,
             )

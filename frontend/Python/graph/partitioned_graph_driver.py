@@ -183,6 +183,40 @@ class PartitionedGraphDriver:
             )
         return param_total_size
 
+    def _get_output_dtype(self, output, output_idx: int):
+        dtype = self._graph.node_table[output.name].tensor_meta["dtype"]
+        if isinstance(dtype, (list, tuple)):
+            if len(dtype) == 1:
+                return dtype[0]
+            return dtype[output_idx]
+        return dtype
+
+    def _get_output_shape(self, output, output_idx: int):
+        shape = self._graph.node_table[output.name].tensor_meta["shape"]
+        if (
+            isinstance(shape, (list, tuple))
+            and len(shape) > 0
+            and isinstance(shape[0], (list, tuple, torch.Size))
+        ):
+            return torch.Size(shape[output_idx])
+        return shape
+
+    def _normalize_node_shape(self, node):
+        shape = node.tensor_meta["shape"]
+        if (
+            isinstance(shape, (list, tuple))
+            and len(shape) > 0
+            and isinstance(shape[0], (list, tuple, torch.Size))
+        ):
+            return list(shape[0])
+        return shape
+
+    def _normalize_node_dtype(self, node):
+        dtype = node.tensor_meta["dtype"]
+        if isinstance(dtype, (list, tuple)):
+            return dtype[0]
+        return dtype
+
     def get_split_strategy(self):
         """
         Group ops based on the computational graph in terms of subgraphs.
@@ -650,6 +684,11 @@ class PartitionedGraphDriver:
             if isinstance(node, OutputOp):
                 total_graph_outputs.extend([arg for arg in node.args])
 
+        graph_output_order = {}
+        for idx, output in enumerate(total_graph_outputs):
+            output_name = output if isinstance(output, str) else output.name
+            graph_output_order[output_name] = idx
+
         for name, ops in self.op_groups.items():
             self._subgraphs_inputs[name] = []
             self._subgraphs_outputs[name] = []
@@ -684,6 +723,14 @@ class PartitionedGraphDriver:
         for name in self._subgraphs_inputs:
             self._subgraphs_inputs[name].sort(
                 key=lambda node: node_to_index.get(node, -1)
+            )
+            self._subgraphs_outputs[name].sort(
+                key=lambda node: (
+                    0 if node.name in graph_output_order else 1,
+                    graph_output_order.get(
+                        node.name, node_to_index.get(node, -1)
+                    ),
+                )
             )
 
     def _get_op_all_dependencies(self, op) -> list[str]:
@@ -746,18 +793,14 @@ class PartitionedGraphDriver:
                 elif node.name in self._paral_op_shape.keys():
                     node_shape = self._paral_op_shape[node.name]
                 else:
-                    node_shape = node.tensor_meta["shape"]
+                    node_shape = self._normalize_node_shape(node)
 
                 if node_shape and isinstance(node_shape[0], (list, tuple)):
                     node_shape = list(node_shape[0])
                 else:
                     node_shape = list(node_shape)
 
-                raw_dtype = node.tensor_meta["dtype"]
-                if isinstance(raw_dtype, (list, tuple)):
-                    node_dtype = raw_dtype[0]
-                else:
-                    node_dtype = raw_dtype
+                node_dtype = self._normalize_node_dtype(node)
 
                 input_tensor_meta = TensorMeta(node_shape, node_dtype)
                 subgraph_input.append(input_tensor_meta)
@@ -881,14 +924,18 @@ class PartitionedGraphDriver:
                         torch.Size(output_shape)
                     )
             else:
-                for output in self._subgraphs_outputs[subgraph_name]:
+                for output_idx, output in enumerate(
+                    self._subgraphs_outputs[subgraph_name]
+                ):
                     func_node.tensor_meta["shape"].append(
-                        self._graph.node_table[output.name].tensor_meta["shape"]
+                        self._get_output_shape(output, output_idx)
                     )
 
-            for output in self._subgraphs_outputs[subgraph_name]:
+            for output_idx, output in enumerate(
+                self._subgraphs_outputs[subgraph_name]
+            ):
                 func_node.tensor_meta["dtype"].append(
-                    self._graph.node_table[output.name].tensor_meta["dtype"]
+                    self._get_output_dtype(output, output_idx)
                 )
 
             main_graph.add_node(func_node)
@@ -939,9 +986,9 @@ class PartitionedGraphDriver:
                             if node.name in self._paral_op_shape:
                                 node_shape = self._paral_op_shape[node.name]
                             else:
-                                node_shape = node.tensor_meta["shape"]
+                                node_shape = self._normalize_node_shape(node)
 
-                            node_dtype = node.tensor_meta["dtype"]
+                            node_dtype = self._normalize_node_dtype(node)
                             input_tensor_meta = TensorMeta(
                                 node_shape, node_dtype
                             )
@@ -980,9 +1027,9 @@ class PartitionedGraphDriver:
                             node.name
                         ]
                     else:
-                        node_shape = node.tensor_meta["shape"]
+                        node_shape = self._normalize_node_shape(node)
 
-                    node_dtype = node.tensor_meta["dtype"]
+                    node_dtype = self._normalize_node_dtype(node)
                     input_tensor_meta = TensorMeta(node_shape, node_dtype)
                     maingraph_input.append(input_tensor_meta)
 
@@ -1021,14 +1068,18 @@ class PartitionedGraphDriver:
                         torch.Size(output_shape)
                     )
             else:
-                for output in self._subgraphs_outputs[subgraph_name]:
+                for output_idx, output in enumerate(
+                    self._subgraphs_outputs[subgraph_name]
+                ):
                     call_node.tensor_meta["shape"].append(
-                        self._graph.node_table[output.name].tensor_meta["shape"]
+                        self._get_output_shape(output, output_idx)
                     )
 
-            for output in self._subgraphs_outputs[subgraph_name]:
+            for output_idx, output in enumerate(
+                self._subgraphs_outputs[subgraph_name]
+            ):
                 call_node.tensor_meta["dtype"].append(
-                    self._graph.node_table[output.name].tensor_meta["dtype"]
+                    self._get_output_dtype(output, output_idx)
                 )
 
             self._call_table[subgraph_name] = call_node
@@ -1072,6 +1123,138 @@ class PartitionedGraphDriver:
             first_module_name = list(self._modules.keys())[0]
             return self._modules[first_module_name]
         return None
+
+    def construct_combined_main_graph(
+        self, do_param_pack=False, output_index_remap=None
+    ):
+        """Construct one public main graph that calls all split subgraphs.
+
+        The generated function keeps the original graph ABI and emits calls to
+        every partition in topological order. This is the runtime-facing wrapper
+        used when partitions are compiled as separate objects.
+        """
+        topo_order = self.topological_sort_subgraph()
+        if topo_order is None:
+            print("Error : Graph Partitioning is illegal!")
+            return None
+
+        main_graph = Graph(
+            ops_registry=self._graph._ops_registry,
+            func_name=self._graph._func_name,
+            verbose=self._graph._verbose,
+        )
+
+        for op in self._graph.params:
+            main_graph.add_node(op, node_type=NodeType.FakeNode)
+        for op in self._graph.inputs:
+            main_graph.add_node(op, node_type=NodeType.InputNode)
+
+        for subgraph_name in topo_order:
+            func_node = FuncOp()
+            func_node.name = subgraph_name
+            func_node.tensor_meta = {"shape": [], "dtype": []}
+
+            for inp in self._subgraphs[subgraph_name].inputs_shapes:
+                func_node.add_argument(inp)
+
+            for output_idx, output in enumerate(
+                self._subgraphs_outputs[subgraph_name]
+            ):
+                func_node.tensor_meta["shape"].append(
+                    self._get_output_shape(output, output_idx)
+                )
+                func_node.tensor_meta["dtype"].append(
+                    self._get_output_dtype(output, output_idx)
+                )
+            main_graph.add_node(func_node)
+
+        produced = {}
+        self._call_table = {}
+        for i, subgraph_name in enumerate(topo_order):
+            call_node = CallOp()
+            call_node.name = f"call{i}"
+            call_node.call_func_name = subgraph_name
+            call_node.tensor_meta = {"shape": [], "dtype": []}
+
+            for node in self._subgraphs_inputs[subgraph_name]:
+                if node.name in main_graph.node_table:
+                    call_node.add_argument(node.name)
+                    continue
+                if node.name not in produced:
+                    raise KeyError(
+                        f"Missing producer for input {node.name} of {subgraph_name}"
+                    )
+                producer_name, producer_idx = produced[node.name]
+                call_node.add_argument(
+                    arg=producer_name, arg_index=producer_idx
+                )
+
+            for output_idx, output in enumerate(
+                self._subgraphs_outputs[subgraph_name]
+            ):
+                call_node.tensor_meta["shape"].append(
+                    self._get_output_shape(output, output_idx)
+                )
+                call_node.tensor_meta["dtype"].append(
+                    self._get_output_dtype(output, output_idx)
+                )
+                produced[output.name] = (call_node.name, output_idx)
+
+            self._call_table[subgraph_name] = call_node
+            main_graph.add_node(call_node)
+
+        output_args = []
+        for op in self._graph.body:
+            if isinstance(op, OutputOp):
+                output_args = list(op.args)
+                break
+
+        flattened_output_names = []
+        for arg in output_args:
+            if isinstance(arg, (list, tuple)):
+                names = list(arg)
+            else:
+                names = [arg]
+            for name in names:
+                if not isinstance(name, str):
+                    name = getattr(name, "name", name)
+                flattened_output_names.append(name)
+
+        if output_index_remap is not None:
+            flattened_output_names = [
+                flattened_output_names[i] for i in output_index_remap
+            ]
+
+        output_node = OutputOp()
+        getitem_count = 0
+        for name in flattened_output_names:
+            if name in main_graph.node_table:
+                output_node.add_argument(name)
+                continue
+            if name not in produced:
+                raise KeyError(f"Missing producer for graph output {name}")
+            producer_name, producer_idx = produced[name]
+            getitem_node = GetItemOp()
+            getitem_node.name = f"getitem{getitem_count}"
+            getitem_count += 1
+            getitem_node.add_argument(producer_name)
+            getitem_node.add_argument(producer_idx)
+            output_node.add_argument(getitem_node.name)
+            main_graph.add_node(getitem_node)
+
+        output_node.name = "output"
+        main_graph.add_node(output_node)
+
+        with ir.Location.unknown(ir.Context()):
+            main_importer = GraphImporter(
+                main_graph.body,
+                main_graph.params_shapes,
+                main_graph.inputs_shapes,
+                main_graph._func_name,
+                main_graph._ops_registry,
+                do_param_pack,
+            )
+            return main_importer.import_main_graph()
 
     def construct_sub_params(self, params, subgraph_entry, output_dir):
         """

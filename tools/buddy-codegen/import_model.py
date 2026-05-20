@@ -30,6 +30,7 @@
 # ===----------------------------------------------------------------------===//
 
 import argparse
+import importlib
 import json
 import os
 import sys
@@ -41,6 +42,8 @@ _REPO_ROOT = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "..")
 )
 _BUDDY_PY_PKG = os.path.join(_REPO_ROOT, "build", "python_packages")
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
 if _BUDDY_PY_PKG not in sys.path:
     sys.path.insert(0, _BUDDY_PY_PKG)
 
@@ -51,7 +54,10 @@ from transformers import AutoModelForCausalLM, StaticCache
 
 try:
     from buddy.compiler.frontend import DynamoCompiler
-    from buddy.compiler.graph import GraphDriver
+    from buddy.compiler.graph import (
+        GraphDriver,
+        PartitionedGraphDriver,
+    )
     from buddy.compiler.graph.operation import *
     from buddy.compiler.graph.transform import (
         apply_classic_fusion,
@@ -368,6 +374,118 @@ def create_drivers(graph_prefill, graph_decode):
     return driver_prefill, driver_decode
 
 
+def layer_split_strategy(config: dict, kind: str):
+    """Load the model-specific layer split strategy."""
+    model_family = config.get("model_family")
+    if not model_family:
+        raise ValueError("layer partitioning requires config.model_family")
+
+    module_name = f"models.{model_family}.codegen.partition_strategy"
+    try:
+        module = importlib.import_module(module_name)
+    except ModuleNotFoundError as err:
+        if err.name and (
+            err.name == module_name or module_name.startswith(err.name + ".")
+        ):
+            raise ValueError(
+                f"layer partitioning is not supported for {model_family}: "
+                f"missing {module_name}"
+            ) from err
+        raise
+
+    try:
+        strategy_factory = module.layer_split_strategy
+    except AttributeError as err:
+        raise ValueError(
+            f"{module_name} must define layer_split_strategy(kind)"
+        ) from err
+    return strategy_factory(kind)
+
+
+def export_layer_partitioned_mlir(
+    graph_prefill, graph_decode, config: dict, output_dir: str
+) -> dict[str, int]:
+    """Export per-layer subgraph/main MLIR files for compile-time experiments."""
+    driver_prefill = PartitionedGraphDriver(
+        graph_prefill, layer_split_strategy(config, "prefill")
+    )
+    for subgraph in driver_prefill.subgraphs:
+        subgraph.lower_to_top_level_ir()
+    driver_prefill.construct_main_graph(True)
+
+    driver_decode = PartitionedGraphDriver(
+        graph_decode, layer_split_strategy(config, "decode")
+    )
+    for subgraph in driver_decode.subgraphs:
+        subgraph.lower_to_top_level_ir()
+    driver_decode.construct_main_graph(True)
+
+    partition_dir = os.path.join(output_dir, "layer_partitioned")
+    os.makedirs(partition_dir, exist_ok=True)
+
+    for i, module in enumerate(driver_prefill.subgraphs):
+        name = f"subgraph0_prefill{i}.mlir"
+        with open(os.path.join(partition_dir, name), "w") as f:
+            print(module._imported_module, file=f)
+        print(f"[import] Written: layer_partitioned/{name}", file=sys.stderr)
+    for i, module in enumerate(driver_prefill.modules):
+        name = f"forward_prefill{i}.mlir"
+        with open(os.path.join(partition_dir, name), "w") as f:
+            print(module, file=f)
+        print(f"[import] Written: layer_partitioned/{name}", file=sys.stderr)
+    prefill_output_count = len(graph_prefill.body[-1].args)
+    prefill_output_remap = list(range(prefill_output_count))
+    if prefill_output_count >= 3 and (prefill_output_count - 1) % 2 == 0:
+        kv_count = prefill_output_count - 1
+        prefill_output_remap = [
+            i ^ 1 if i < kv_count else i for i in range(prefill_output_count)
+        ]
+    combined_prefill = driver_prefill.construct_combined_main_graph(
+        True, prefill_output_remap
+    )
+    with open(os.path.join(partition_dir, "forward_prefill.mlir"), "w") as f:
+        print(combined_prefill, file=f)
+    print(
+        "[import] Written: layer_partitioned/forward_prefill.mlir",
+        file=sys.stderr,
+    )
+
+    for i, module in enumerate(driver_decode.subgraphs):
+        name = f"subgraph0_decode{i}.mlir"
+        with open(os.path.join(partition_dir, name), "w") as f:
+            print(module._imported_module, file=f)
+        print(f"[import] Written: layer_partitioned/{name}", file=sys.stderr)
+    for i, module in enumerate(driver_decode.modules):
+        name = f"forward_decode{i}.mlir"
+        with open(os.path.join(partition_dir, name), "w") as f:
+            print(module, file=f)
+        print(f"[import] Written: layer_partitioned/{name}", file=sys.stderr)
+    combined_decode = driver_decode.construct_combined_main_graph(True)
+    with open(os.path.join(partition_dir, "forward_decode.mlir"), "w") as f:
+        print(combined_decode, file=f)
+    print(
+        "[import] Written: layer_partitioned/forward_decode.mlir",
+        file=sys.stderr,
+    )
+
+    manifest = {
+        "prefill_subgraphs": len(driver_prefill.subgraphs),
+        "prefill_main_graphs": len(driver_prefill.modules),
+        "decode_subgraphs": len(driver_decode.subgraphs),
+        "decode_main_graphs": len(driver_decode.modules),
+    }
+    with open(os.path.join(partition_dir, "partition_manifest.json"), "w") as f:
+        json.dump(manifest, f, indent=2)
+        f.write("\n")
+    print(
+        "[import] Layer partitioned export complete: "
+        f"{manifest['prefill_subgraphs']} prefill + "
+        f"{manifest['decode_subgraphs']} decode subgraphs",
+        file=sys.stderr,
+    )
+    return manifest
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Quantization (variant-specific)
 # ──────────────────────────────────────────────────────────────────────────────
@@ -616,7 +734,12 @@ def update_config(config: dict, actual_sizes: dict, output_dir: str):
 # ──────────────────────────────────────────────────────────────────────────────
 
 
-def import_model(config: dict, output_dir: str):
+def import_model(
+    config: dict,
+    output_dir: str,
+    export_layer_partitioned: bool = False,
+    skip_weights: bool = False,
+):
     """Full import pipeline: load → compile → transform → export."""
     os.makedirs(output_dir, exist_ok=True)
     variant = config["variant"]
@@ -652,7 +775,13 @@ def import_model(config: dict, output_dir: str):
         apply_quantization(graphs_prefill[0], graphs_decode[0], variant)
 
     # 5. Extract weights (before fusion changes the graph)
-    if is_quantized:
+    if skip_weights:
+        if is_quantized:
+            raise ValueError(
+                "--skip-weights is only supported for f32/f16/bf16"
+            )
+        weight_buckets = {}
+    elif is_quantized:
         weight_buckets = extract_quantized_weights(
             graphs_prefill[0], original_params, config
         )
@@ -662,6 +791,11 @@ def import_model(config: dict, output_dir: str):
     # 6. Fusion + subgraph rename
     apply_fusion(graphs_prefill[0], graphs_decode[0])
 
+    if export_layer_partitioned:
+        export_layer_partitioned_mlir(
+            graphs_prefill[0], graphs_decode[0], config, output_dir
+        )
+
     # 7. Lower to top-level IR
     driver_prefill, driver_decode = create_drivers(
         graphs_prefill[0], graphs_decode[0]
@@ -669,8 +803,11 @@ def import_model(config: dict, output_dir: str):
 
     # 8. Export MLIR + weights
     export_mlir(driver_prefill, driver_decode, config, output_dir)
-    actual_sizes = export_weights(weight_buckets, config, output_dir)
-    update_config(config, actual_sizes, output_dir)
+    if weight_buckets:
+        actual_sizes = export_weights(weight_buckets, config, output_dir)
+        update_config(config, actual_sizes, output_dir)
+    else:
+        print("[import] Skipped weight export.", file=sys.stderr)
 
     print("[import] Import complete.", file=sys.stderr)
 
@@ -683,12 +820,27 @@ def main():
         "--config", required=True, help="Full model config JSON"
     )
     parser.add_argument("--output-dir", required=True, help="Output directory")
+    parser.add_argument(
+        "--experimental-layer-partitioned",
+        action="store_true",
+        help="Also export per-layer MLIR under output-dir/layer_partitioned.",
+    )
+    parser.add_argument(
+        "--skip-weights",
+        action="store_true",
+        help="Skip weight data export for compile-time MLIR experiments.",
+    )
     args = parser.parse_args()
 
     with open(args.config) as f:
         config = json.load(f)
 
-    import_model(config, args.output_dir)
+    import_model(
+        config,
+        args.output_dir,
+        export_layer_partitioned=args.experimental_layer_partitioned,
+        skip_weights=args.skip_weights,
+    )
 
 
 if __name__ == "__main__":
