@@ -177,6 +177,8 @@ else
 
   # x86_64 image uses gcc-toolset, riscv64 image uses system GCC under /usr.
   GCC_TOOLCHAIN_ROOT=""
+  GCC_TRIPLE=""
+  GCC_TOOLCHAIN_FLAGS=""
   LLVM_RUNTIMES_CMAKE_ARGS_VALUE=""
   case "${TARGET_ARCH}" in
     x86_64)
@@ -188,8 +190,10 @@ else
       ;;
   esac
   if [ -n "${GCC_TOOLCHAIN_ROOT}" ]; then
-    LLVM_RUNTIMES_CMAKE_ARGS_VALUE="-DCMAKE_C_FLAGS=--gcc-toolchain=${GCC_TOOLCHAIN_ROOT};-DCMAKE_CXX_FLAGS=--gcc-toolchain=${GCC_TOOLCHAIN_ROOT}"
-    LLVM_RUNTIMES_CMAKE_ARGS_VALUE="${LLVM_RUNTIMES_CMAKE_ARGS_VALUE};-DOPENMP_TEST_FLAGS=--gcc-toolchain=${GCC_TOOLCHAIN_ROOT}"
+    GCC_TRIPLE="$(gcc -dumpmachine)"
+    GCC_TOOLCHAIN_FLAGS="--gcc-toolchain=${GCC_TOOLCHAIN_ROOT} --gcc-triple=${GCC_TRIPLE}"
+    LLVM_RUNTIMES_CMAKE_ARGS_VALUE="-DCMAKE_C_FLAGS=${GCC_TOOLCHAIN_FLAGS};-DCMAKE_CXX_FLAGS=${GCC_TOOLCHAIN_FLAGS}"
+    LLVM_RUNTIMES_CMAKE_ARGS_VALUE="${LLVM_RUNTIMES_CMAKE_ARGS_VALUE};-DOPENMP_TEST_FLAGS=${GCC_TOOLCHAIN_FLAGS}"
   fi
 
   # ---------------------------------------------------------------------------
@@ -197,9 +201,18 @@ else
   # ---------------------------------------------------------------------------
 
   # Install image deps via dnf.
-  dnf install -y cmake libpng-devel libjpeg-turbo-devel zlib-devel
+  DNF_INSTALL_ARGS=(install -y)
+  if [ "${TARGET_ARCH}" = "riscv64" ]; then
+    # Rocky 10 riscv64 metadata can briefly prefer a libpng-devel build before
+    # every mirror has the matching libpng runtime package. --nobest lets dnf
+    # resolve to an installable package set instead of failing the release build.
+    DNF_INSTALL_ARGS+=(--nobest)
+  fi
 
-  # Prepare ccache if support
+  # Prepare serval necessary package for buddy-mlir
+  dnf "${DNF_INSTALL_ARGS[@]}" cmake libpng-devel libjpeg-turbo-devel zlib-devel
+
+  # Prepare ccache if support, riscv doesn't support
   if dnf install -y ccache; then
     export CCACHE_BIN="/usr/bin/ccache"
     CCACHE_LINK_DIR="/usr/lib64/ccache"
@@ -221,6 +234,7 @@ else
     ccache -M 50G
   fi
 
+  # Flatbuffer doesn't exist in riscv image.
   FLATBUFFERS_VERSION="25.12.19"
   git clone --depth 1 --branch "v${FLATBUFFERS_VERSION}" https://github.com/google/flatbuffers.git /tmp/flatbuffers
   pushd /tmp/flatbuffers
@@ -234,10 +248,17 @@ else
     make install
   popd
 
-  "$PYBIN" -m pip install --upgrade pip build auditwheel ninja numpy pybind11==2.10.* nanobind==2.4.* PyYAML
+  # This is necessary, old pip versions fail to resolve the torch package correctly.
+  "$PYBIN" -m pip install --upgrade pip
+  "$PYBIN" -m pip --version
+  "$PYBIN" -m pip install build auditwheel ninja numpy pybind11==2.10.* nanobind==2.4.* PyYAML
   if [ "${TARGET_ARCH}" = "riscv64" ]; then
+    # build transformers need rust toolchain.
     dnf install -y rust cargo
-    "$PYBIN" -m pip install -i https://ruyirepo.ruyicommunity.cn/pypi/simple/ torch
+    # build transformers from source need torch
+    "$PYBIN" -m pip install -i https://ruyirepo.ruyicommunity.cn/pypi/simple/ numpy torch
+  else
+    "$PYBIN" -m pip install numpy
   fi
   "$PYBIN" -m pip install transformers==4.56.2
 
@@ -252,6 +273,7 @@ else
   # ---------------------------------------------------------------------------
 
 
+  # necessary for triton-riscv
   install_llvm_lit() {
     local prefix="$1"
     local lit_src="${WORKSPACE_LLVM_SRC}/llvm/utils/lit"
