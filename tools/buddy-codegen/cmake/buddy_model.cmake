@@ -67,6 +67,7 @@ endif()
 #   NAME          <model_family>            e.g. deepseek_r1
 #   SPEC          <variant_spec.json>       full path to variant spec
 #   RUNNER_SRC    <file.cpp>                model-specific runner source
+#   [RUNNER_PLUGIN_SRC <file.cpp>]          C ABI plugin wrapper source
 #   [HF_CONFIG    <config.json>]            optional HuggingFace config path
 #   [LOCAL_MODEL  <dir>]                    optional: HF snapshot dir for import
 #                                           (sets DEEPSEEKR1_MODEL_PATH)
@@ -83,7 +84,7 @@ function(buddy_add_model)
   cmake_parse_arguments(
     MDL                                      # prefix
     ""                                       # flags
-    "NAME;SPEC;RUNNER_SRC;HF_CONFIG;LOCAL_MODEL;BUILD_DIR;MLIR_DIR;NUM_THREADS;LLC_ATTRS;COMPILE_JOBS;TIERED_KV_CACHE"
+    "NAME;SPEC;RUNNER_SRC;RUNNER_PLUGIN_SRC;HF_CONFIG;LOCAL_MODEL;BUILD_DIR;MLIR_DIR;NUM_THREADS;LLC_ATTRS;COMPILE_JOBS;TIERED_KV_CACHE"
     "TIERED_CACHE_SIZES"                     # multi-value
     ${ARGN}
   )
@@ -115,6 +116,9 @@ function(buddy_add_model)
 
   if(NOT MDL_COMPILE_JOBS)
     set(MDL_COMPILE_JOBS 1)
+  endif()
+  if(NOT MDL_RUNNER_PLUGIN_SRC)
+    set(MDL_RUNNER_PLUGIN_SRC "${MDL_RUNNER_SRC}")
   endif()
 
   if(MDL_TIERED_KV_CACHE)
@@ -200,6 +204,7 @@ function(buddy_add_model)
   set(GEN_SESS_H  "${GEN_DIR}/buddy/runtime/models/ModelSession.h")
   set(GEN_SESS_CC "${GEN_DIR}/ModelSession.cpp")
   set(GEN_RHAL    "${GEN_DIR}/${MDL_NAME}.mlir")
+  set(RUNNER_PLUGIN_NAME "${MDL_NAME}_runner.so")
 
   # ── gen_config.py ─────────────────────────────────────────────────────────
   set(GEN_CONFIG_CMD
@@ -233,7 +238,9 @@ function(buddy_add_model)
   add_custom_command(
     OUTPUT  "${GEN_RHAL}"
     COMMAND "${Python3_EXECUTABLE}" "${BUDDY_CODEGEN_DIR}/gen_manifest.py"
-            --config "${GEN_CONFIG}" -o "${GEN_RHAL}" ${MDL_GEN_MANIFEST_ARGS}
+            --config "${GEN_CONFIG}" -o "${GEN_RHAL}"
+            --runner-library "${RUNNER_PLUGIN_NAME}"
+            ${MDL_GEN_MANIFEST_ARGS}
     DEPENDS "${GEN_CONFIG}" "${BUDDY_CODEGEN_DIR}/gen_manifest.py"
     COMMENT "[${MDL_NAME}] Generating ${MDL_NAME}.mlir (RHAL manifest)"
     VERBATIM
@@ -272,6 +279,19 @@ function(buddy_add_model)
     EXPORT BuddyMLIRTargets
     COMPONENT buddy_runtime
   )
+
+  set(RUNNER_PLUGIN_TARGET "buddy_models_${MDL_NAME}_runner")
+  add_library(${RUNNER_PLUGIN_TARGET} SHARED
+    "${CMAKE_CURRENT_SOURCE_DIR}/${MDL_RUNNER_PLUGIN_SRC}"
+  )
+  set_target_properties(${RUNNER_PLUGIN_TARGET} PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${BIN}"
+    RUNTIME_OUTPUT_DIRECTORY "${BIN}"
+    OUTPUT_NAME "${MDL_NAME}_runner"
+    PREFIX ""
+  )
+  target_link_libraries(${RUNNER_PLUGIN_TARGET} PRIVATE ${LIB_TARGET})
+  target_compile_features(${RUNNER_PLUGIN_TARGET} PRIVATE cxx_std_17)
 
   # ════════════════════════════════════════════════════════════════════════════
   # Part 2: Model compilation pipeline (MLIR → .o → .so)
@@ -535,6 +555,7 @@ function(buddy_add_model)
     rax-pack
     "${GEN_RHAL}"
     "${MODEL_SO}"
+    ${RUNNER_PLUGIN_TARGET}
     "${VOCAB_DST}")
   list(APPEND MDL_STAGE4_DEPS ${MDL_EXTRA_STAGE4_DEPS})
 

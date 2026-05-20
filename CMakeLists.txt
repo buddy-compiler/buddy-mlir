@@ -107,7 +107,7 @@ set(BUDDY_ENABLE_OPENCV OFF CACHE BOOL "Enable OpenCV support.")
 # so plain `ninja` does not build model artifacts; enable when using
 # tools/buddy-codegen/build_model.py or -DBUDDY_BUILD_DEEPSEEK_R1_MODEL=ON.
 option(BUDDY_BUILD_DEEPSEEK_R1_MODEL
-  "Build models/deepseek_r1 (buddy_models_deepseek_r1, .so, .rax) and link into buddy-cli"
+  "Build models/deepseek_r1 (buddy_models_deepseek_r1, .so, .rax)"
   OFF)
 
 if(BUDDY_ENABLE_OPENCV)

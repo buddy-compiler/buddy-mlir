@@ -380,10 +380,13 @@ int main(int argc, char **argv) {
     const std::string moduleName = rhalMod.getSymName().str();
     std::string modelNameAttr;
     std::string vocabUriAttr;
+    std::string runnerLibraryAttr;
     if (auto v = rhalMod.getModelName())
       modelNameAttr = v->str();
     if (auto v = rhalMod.getVocabUri())
       vocabUriAttr = v->str();
+    if (auto v = rhalMod.getRunnerLibrary())
+      runnerLibraryAttr = v->str();
 
     // Version
     uint16_t verMaj = 0, verMin = 1, verPat = 0;
@@ -532,6 +535,9 @@ int main(int argc, char **argv) {
     if (!vocabUriAttr.empty())
       registerPayload(PayloadKind::Vocab, vocabUriAttr,
                       "module attr vocab_uri");
+    if (!runnerLibraryAttr.empty())
+      registerPayload(PayloadKind::CodeObject, runnerLibraryAttr,
+                      "module attr runner_library");
 
     // ── Build FlatBuffer ──────────────────────────────────────────────────
 
@@ -546,6 +552,9 @@ int main(int argc, char **argv) {
     if (!vocabUriAttr.empty())
       modAttrs.push_back(CreateKV(b, b.CreateString("vocab_uri"),
                                   b.CreateString(vocabUriAttr)));
+    if (!runnerLibraryAttr.empty())
+      modAttrs.push_back(CreateKV(b, b.CreateString("runner_library"),
+                                  b.CreateString(runnerLibraryAttr)));
 
     // Buffers
     std::vector<flatbuffers::Offset<BufferBinding>> fbBufs;

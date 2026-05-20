@@ -118,11 +118,11 @@ python3 tools/buddy-codegen/build_model.py \
 If CMake is configured with `-DBUDDY_BUILD_DEEPSEEK_R1_MODEL=ON`, you can build the model with:
 
 ```bash
-ninja deepseek_r1_model_so deepseek_r1_rax buddy-cli
+ninja deepseek_r1_model_so deepseek_r1_rax
 ```
 
-To build the DeepSeek R1 f32 tiered KV cache variant for `buddy-cli`, use the
-dedicated spec:
+To build the DeepSeek R1 f32 tiered KV cache variant for use with `buddy-cli`,
+use the dedicated spec:
 
 ```bash
 python3 tools/buddy-codegen/build_model.py \
