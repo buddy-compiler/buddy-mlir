@@ -322,7 +322,6 @@ def gen_impl_tiered(config: dict) -> str:
     if not cache_sizes:
         raise RuntimeError("tiered KV cache ModelSession requires cache_sizes")
 
-    dummy_groups = kv_layers // 2 - 1
     cache_count = len(cache_sizes)
     cache_size_list = ", ".join(str(x) for x in cache_sizes)
     weight_ptr_types = ", ".join(
@@ -378,24 +377,8 @@ def gen_impl_tiered(config: dict) -> str:
     p("} // namespace")
     p()
 
-    p("using Dummy1Ref = MemRef<long long, 1>;")
     p(f"using KV4Ref = {kv_memref};")
     p(f"using Logits3Ref = {logits_memref};")
-    p()
-    p("struct DecodeKVGroup {")
-    p("  alignas(Dummy1Ref) char dummy_[sizeof(Dummy1Ref)];")
-    p("  alignas(KV4Ref) char kv0_[sizeof(KV4Ref)];")
-    p("  alignas(KV4Ref) char kv1_[sizeof(KV4Ref)];")
-    p("  Dummy1Ref &dummy() {")
-    p("    return *std::launder(reinterpret_cast<Dummy1Ref *>(dummy_));")
-    p("  }")
-    p("  KV4Ref &kv0() {")
-    p("    return *std::launder(reinterpret_cast<KV4Ref *>(kv0_));")
-    p("  }")
-    p("  KV4Ref &kv1() {")
-    p("    return *std::launder(reinterpret_cast<KV4Ref *>(kv1_));")
-    p("  }")
-    p("};")
     p()
     p("struct PrefillABI {")
     p(f"  alignas({kv_memref}) char kv_[sizeof({kv_memref}) *")
@@ -413,27 +396,12 @@ def gen_impl_tiered(config: dict) -> str:
     p("};")
     p()
     p("struct DecodeABI {")
-    p("  alignas(Dummy1Ref) char cache_position_out_[sizeof(Dummy1Ref)];")
-    p("  alignas(KV4Ref) char kv0_[sizeof(KV4Ref)];")
-    p("  alignas(KV4Ref) char kv1_[sizeof(KV4Ref)];")
-    p(f"  DecodeKVGroup groups_[{dummy_groups}];")
+    p(f"  alignas(KV4Ref) char kv_[sizeof(KV4Ref) * {mp}_KV_LAYERS];")
     p("  alignas(Logits3Ref) char logits_[sizeof(Logits3Ref)];")
-    p("  Dummy1Ref &cachePositionOut() {")
-    p(
-        "    return *std::launder("
-        "reinterpret_cast<Dummy1Ref *>(cache_position_out_));"
-    )
-    p("  }")
-    p("  Dummy1Ref &dummy(int i) { return groups_[i].dummy(); }")
+    p()
     p("  KV4Ref &kv(int i) {")
-    p("    if (i == 0)")
-    p("      return *std::launder(reinterpret_cast<KV4Ref *>(kv0_));")
-    p("    if (i == 1)")
-    p("      return *std::launder(reinterpret_cast<KV4Ref *>(kv1_));")
-    p("    int group = (i - 2) / 2;")
-    p(
-        "    return ((i - 2) % 2 == 0) ? groups_[group].kv0() : groups_[group].kv1();"
-    )
+    p("    return *std::launder(reinterpret_cast<KV4Ref *>(")
+    p("        kv_ + i * sizeof(KV4Ref)));")
     p("  }")
     p("  Logits3Ref &logits() {")
     p("    return *std::launder(reinterpret_cast<Logits3Ref *>(logits_));")
@@ -444,17 +412,13 @@ def gen_impl_tiered(config: dict) -> str:
         f"using PrefillFn = void (*)(PrefillABI *, {weight_ptr_types}, Text<size_t, 2> *);"
     )
     p("using KV4 = KV4Ref *;")
-    p("using Dummy1 = Dummy1Ref *;")
     decode_sig_parts = [
         "DecodeABI *",
         *[f"MemRef<{w['cpp_type']}, 1> *" for w in weights],
         "MemRef<long long, 2> *",
         "MemRef<long long, 1> *",
-        "KV4",
-        "KV4",
     ]
-    for _i in range(dummy_groups):
-        decode_sig_parts.extend(["Dummy1", "KV4", "KV4"])
+    decode_sig_parts.extend(["KV4" for _i in range(kv_layers)])
     p("using DecodeFn = void (*)(")
     line = "    "
     for idx, part in enumerate(decode_sig_parts):
@@ -500,11 +464,7 @@ def gen_impl_tiered(config: dict) -> str:
         call_parts.append(w["tag"])
     call_parts.append("decodeTokenInput")
     call_parts.append("cachePosition")
-    call_parts.extend(["&a.kv(0)", "&a.kv(1)"])
-    for i in range(dummy_groups):
-        call_parts.extend(
-            [f"&a.dummy({i})", f"&a.kv({2 + i * 2})", f"&a.kv({3 + i * 2})"]
-        )
+    call_parts.extend(f"&a.kv({i})" for i in range(kv_layers))
     p("  fn(")
     line = "      "
     for idx, part in enumerate(call_parts):
@@ -537,9 +497,6 @@ def gen_impl_tiered(config: dict) -> str:
     p(f"        for (int i = 0; i < {mp}_KV_LAYERS; ++i)")
     p("          prefillAbi[slot].kv(i).~KV4Ref();")
     p("        prefillAbi[slot].logits().~Logits3Ref();")
-    p("        decodeAbi[slot].cachePositionOut().~Dummy1Ref();")
-    p(f"        for (int i = 0; i < {dummy_groups}; ++i)")
-    p("          decodeAbi[slot].dummy(i).~Dummy1Ref();")
     p(f"        for (int i = 0; i < {mp}_KV_LAYERS; ++i)")
     p("          decodeAbi[slot].kv(i).~KV4Ref();")
     p("        decodeAbi[slot].logits().~Logits3Ref();")
@@ -632,11 +589,6 @@ def gen_impl_tiered(config: dict) -> str:
     p("    intptr_t prefillLogitsShape[3] = {1, cacheLen, cfg_.vocabSize};")
     p("    new (&impl_->prefillAbi[slot].logits())")
     p("        Logits3Ref(prefillLogitsShape);")
-    p(
-        "    new (&impl_->decodeAbi[slot].cachePositionOut()) Dummy1Ref(pshape, 0LL);"
-    )
-    p(f"    for (int i = 0; i < {dummy_groups}; ++i)")
-    p("      new (&impl_->decodeAbi[slot].dummy(i)) Dummy1Ref(pshape, 0LL);")
     p("    intptr_t decodeLogitsShape[3] = {1, 1, cfg_.vocabSize};")
     p(
         "    new (&impl_->decodeAbi[slot].logits()) Logits3Ref(decodeLogitsShape);"
@@ -720,8 +672,6 @@ def gen_impl_tiered(config: dict) -> str:
     p("  decodeTokenInput_->getData()[0] = (long long)tokenId;")
     p("  cachePosition_->getData()[0] = (long long)position_;")
     p("  auto &a = impl_->decodeAbi[impl_->activeSlot];")
-    p(f"  for (int i = 0; i < {dummy_groups}; ++i)")
-    p("    a.dummy(i).getData()[0] = (long long)position_;")
     p(
         f"  callDecodeFn(impl_->decodeFns[impl_->activeSlot], a, {weight_addrs_internal},"
     )
