@@ -95,6 +95,7 @@ void registerLowerVectorExpPass();
 void registerLowerGemminiPass();
 void registerLowerLinalgToGemminiPass();
 void registerLowerLinalgToIMEPass();
+void registerLowerLinalgToXTAMEPass();
 void registerLowerIMEPass();
 void registerLowerAMEPass();
 void registerLowerXTAMEPass();
@@ -135,6 +136,7 @@ int main(int argc, char **argv) {
   mlir::buddy::registerLowerGemminiPass();
   mlir::buddy::registerLowerLinalgToGemminiPass();
   mlir::buddy::registerLowerLinalgToIMEPass();
+  mlir::buddy::registerLowerLinalgToXTAMEPass();
   mlir::buddy::registerLowerIMEPass();
   mlir::buddy::registerLowerAMEPass();
   mlir::buddy::registerLowerXTAMEPass();

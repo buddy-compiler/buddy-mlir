@@ -36,6 +36,7 @@ target_link_libraries(buddy-opt
   LowerGemminiPass
   LowerLinalgToGemminiPass
   LowerLinalgToIMEPass
+  LowerLinalgToXTAMEPass
   BuddyIME
   BuddyIMETransforms
   LowerIMEPass

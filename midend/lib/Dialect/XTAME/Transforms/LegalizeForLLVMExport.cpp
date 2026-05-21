@@ -70,6 +70,122 @@ static Value extractPointerFromMemref(ConversionPatternRewriter &rewriter,
 // Configuration Operations Lowering
 //===----------------------------------------------------------------------===//
 
+/// Lowering pattern for th.mcfg
+struct XTAMEThMcfgLowering : public ConvertOpToLLVMPattern<ThMcfgOp> {
+  using ConvertOpToLLVMPattern<ThMcfgOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMcfgOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto funcType =
+        LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx), {i64Type});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.mcfg", funcType);
+
+    Value mtypeVal = adaptor.getMtype();
+
+    rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicName,
+                                  ValueRange{mtypeVal});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+/// Lowering pattern for th.mcfgm
+struct XTAMEThMcfgmLowering : public ConvertOpToLLVMPattern<ThMcfgmOp> {
+  using ConvertOpToLLVMPattern<ThMcfgmOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMcfgmOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto funcType =
+        LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx), {i64Type});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.mcfgm", funcType);
+
+    Value tilemVal = adaptor.getTilem();
+
+    rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicName,
+                                  ValueRange{tilemVal});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+/// Lowering pattern for th.mcfgn
+struct XTAMEThMcfgnLowering : public ConvertOpToLLVMPattern<ThMcfgnOp> {
+  using ConvertOpToLLVMPattern<ThMcfgnOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMcfgnOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto funcType =
+        LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx), {i64Type});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.mcfgn", funcType);
+
+    Value tilenVal = adaptor.getTilen();
+
+    rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicName,
+                                  ValueRange{tilenVal});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+/// Lowering pattern for th.mcfgk
+struct XTAMEThMcfgkLowering : public ConvertOpToLLVMPattern<ThMcfgkOp> {
+  using ConvertOpToLLVMPattern<ThMcfgkOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMcfgkOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto funcType =
+        LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx), {i64Type});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.mcfgk", funcType);
+
+    Value tilekVal = adaptor.getTilek();
+
+    rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicName,
+                                  ValueRange{tilekVal});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
 /// Lowering pattern for th.mcfgmi (set tile M dimension with immediate)
 struct XTAMEThMcfgmiLowering : public ConvertOpToLLVMPattern<ThMcfgmiOp> {
   using ConvertOpToLLVMPattern<ThMcfgmiOp>::ConvertOpToLLVMPattern;
@@ -185,6 +301,742 @@ struct XTAMEThMzeroLowering : public ConvertOpToLLVMPattern<ThMzeroOp> {
 
     rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicName,
                                   ValueRange{mdVal});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+struct XTAMEThMzero2rLowering : public ConvertOpToLLVMPattern<ThMzero2rOp> {
+  using ConvertOpToLLVMPattern<ThMzero2rOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMzero2rOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto funcType =
+        LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx), {i64Type});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.mzero2r", funcType);
+
+    Value mdVal = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
+
+    rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicName,
+                                  ValueRange{mdVal});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+struct XTAMEThMzero4rLowering : public ConvertOpToLLVMPattern<ThMzero4rOp> {
+  using ConvertOpToLLVMPattern<ThMzero4rOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMzero4rOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto funcType =
+        LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx), {i64Type});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.mzero4r", funcType);
+
+    Value mdVal = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
+
+    rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicName,
+                                  ValueRange{mdVal});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+struct XTAMEThMzero8rLowering : public ConvertOpToLLVMPattern<ThMzero8rOp> {
+  using ConvertOpToLLVMPattern<ThMzero8rOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMzero8rOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto funcType =
+        LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx), {i64Type});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.mzero8r", funcType);
+
+    Value mdVal = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
+
+    rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicName,
+                                  ValueRange{mdVal});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+/// Data Move Instructions between Matrix Registers
+struct XTAMEThMmovMmLowering : public ConvertOpToLLVMPattern<ThMmovMmOp> {
+  using ConvertOpToLLVMPattern<ThMmovMmOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMmovMmOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
+                                                {i64Type, i64Type});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.mmov.mm", funcType);
+
+    Value mdVal = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
+    Value ms1Val = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMs1()));
+
+    rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicName,
+                                  ValueRange{mdVal, ms1Val});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+/// Data Move Instructions between Integer and Matrix (Duplicate)
+struct XTAMEThMdupbMXLowering : public ConvertOpToLLVMPattern<ThMdupbMXOp> {
+  using ConvertOpToLLVMPattern<ThMdupbMXOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMdupbMXOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
+                                                {i64Type, i64Type});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.mdupb.m.x", funcType);
+
+    Value mdVal = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
+
+    rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicName,
+                                  ValueRange{mdVal, adaptor.getRs2()});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+struct XTAMEThMduphMXLowering : public ConvertOpToLLVMPattern<ThMduphMXOp> {
+  using ConvertOpToLLVMPattern<ThMduphMXOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMduphMXOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
+                                                {i64Type, i64Type});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.mduph.m.x", funcType);
+
+    Value mdVal = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
+
+    rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicName,
+                                  ValueRange{mdVal, adaptor.getRs2()});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+struct XTAMEThMdupwMXLowering : public ConvertOpToLLVMPattern<ThMdupwMXOp> {
+  using ConvertOpToLLVMPattern<ThMdupwMXOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMdupwMXOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
+                                                {i64Type, i64Type});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.mdupw.m.x", funcType);
+
+    Value mdVal = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
+
+    rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicName,
+                                  ValueRange{mdVal, adaptor.getRs2()});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+struct XTAMEThMdupdMXLowering : public ConvertOpToLLVMPattern<ThMdupdMXOp> {
+  using ConvertOpToLLVMPattern<ThMdupdMXOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMdupdMXOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
+                                                {i64Type, i64Type});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.mdupd.m.x", funcType);
+
+    Value mdVal = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
+
+    rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicName,
+                                  ValueRange{mdVal, adaptor.getRs2()});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+/// Data Move Instructions between Integer and Matrix (Scalar to Matrix)
+struct XTAMEThMmovbMXLowering : public ConvertOpToLLVMPattern<ThMmovbMXOp> {
+  using ConvertOpToLLVMPattern<ThMmovbMXOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMmovbMXOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
+                                                {i64Type, i64Type, i64Type});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.mmovb.m.x", funcType);
+
+    Value mdVal = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
+
+    rewriter.create<LLVM::CallOp>(
+        loc, TypeRange{}, intrinsicName,
+        ValueRange{mdVal, adaptor.getRs2(), adaptor.getRs1()});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+struct XTAMEThMmovhMXLowering : public ConvertOpToLLVMPattern<ThMmovhMXOp> {
+  using ConvertOpToLLVMPattern<ThMmovhMXOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMmovhMXOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
+                                                {i64Type, i64Type, i64Type});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.mmovh.m.x", funcType);
+
+    Value mdVal = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
+
+    rewriter.create<LLVM::CallOp>(
+        loc, TypeRange{}, intrinsicName,
+        ValueRange{mdVal, adaptor.getRs2(), adaptor.getRs1()});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+struct XTAMEThMmovwMXLowering : public ConvertOpToLLVMPattern<ThMmovwMXOp> {
+  using ConvertOpToLLVMPattern<ThMmovwMXOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMmovwMXOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
+                                                {i64Type, i64Type, i64Type});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.mmovw.m.x", funcType);
+
+    Value mdVal = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
+
+    rewriter.create<LLVM::CallOp>(
+        loc, TypeRange{}, intrinsicName,
+        ValueRange{mdVal, adaptor.getRs2(), adaptor.getRs1()});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+struct XTAMEThMmovdMXLowering : public ConvertOpToLLVMPattern<ThMmovdMXOp> {
+  using ConvertOpToLLVMPattern<ThMmovdMXOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMmovdMXOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
+                                                {i64Type, i64Type, i64Type});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.mmovd.m.x", funcType);
+
+    Value mdVal = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
+
+    rewriter.create<LLVM::CallOp>(
+        loc, TypeRange{}, intrinsicName,
+        ValueRange{mdVal, adaptor.getRs2(), adaptor.getRs1()});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+/// Data Move Instructions between Integer and Matrix (Matrix to Scalar)
+struct XTAMEThMmovbXMLowering : public ConvertOpToLLVMPattern<ThMmovbXMOp> {
+  using ConvertOpToLLVMPattern<ThMmovbXMOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMmovbXMOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto funcType = LLVM::LLVMFunctionType::get(i64Type, {i64Type, i64Type});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.mmovb.x.m", funcType);
+
+    Value ms2Val = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMs2()));
+
+    auto callOp = rewriter.create<LLVM::CallOp>(
+        loc, i64Type, intrinsicName, ValueRange{ms2Val, adaptor.getRs1()});
+    rewriter.replaceOp(op, callOp.getResults());
+    return success();
+  }
+};
+
+struct XTAMEThMmovhXMLowering : public ConvertOpToLLVMPattern<ThMmovhXMOp> {
+  using ConvertOpToLLVMPattern<ThMmovhXMOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMmovhXMOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto funcType = LLVM::LLVMFunctionType::get(i64Type, {i64Type, i64Type});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.mmovh.x.m", funcType);
+
+    Value ms2Val = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMs2()));
+
+    auto callOp = rewriter.create<LLVM::CallOp>(
+        loc, i64Type, intrinsicName, ValueRange{ms2Val, adaptor.getRs1()});
+    rewriter.replaceOp(op, callOp.getResults());
+    return success();
+  }
+};
+
+struct XTAMEThMmovwXMLowering : public ConvertOpToLLVMPattern<ThMmovwXMOp> {
+  using ConvertOpToLLVMPattern<ThMmovwXMOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMmovwXMOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto funcType = LLVM::LLVMFunctionType::get(i64Type, {i64Type, i64Type});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.mmovw.x.m", funcType);
+
+    Value ms2Val = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMs2()));
+
+    auto callOp = rewriter.create<LLVM::CallOp>(
+        loc, i64Type, intrinsicName, ValueRange{ms2Val, adaptor.getRs1()});
+    rewriter.replaceOp(op, callOp.getResults());
+    return success();
+  }
+};
+
+struct XTAMEThMmovdXMLowering : public ConvertOpToLLVMPattern<ThMmovdXMOp> {
+  using ConvertOpToLLVMPattern<ThMmovdXMOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMmovdXMOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto funcType = LLVM::LLVMFunctionType::get(i64Type, {i64Type, i64Type});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.mmovd.x.m", funcType);
+
+    Value ms2Val = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMs2()));
+
+    auto callOp = rewriter.create<LLVM::CallOp>(
+        loc, i64Type, intrinsicName, ValueRange{ms2Val, adaptor.getRs1()});
+    rewriter.replaceOp(op, callOp.getResults());
+    return success();
+  }
+};
+
+/// Data Broadcast Instructions
+struct XTAMEThMmovMvILowering : public ConvertOpToLLVMPattern<ThMmovMvIOp> {
+  using ConvertOpToLLVMPattern<ThMmovMvIOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMmovMvIOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
+                                                {i64Type, i64Type, i64Type});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.mmov.mv.i", funcType);
+
+    Value mdVal = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
+    Value ms1Val = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMs1()));
+    Value uimm3Val = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getUimm3()));
+
+    rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicName,
+                                  ValueRange{mdVal, ms1Val, uimm3Val});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+struct XTAMEThMcmovbMvILowering : public ConvertOpToLLVMPattern<ThMcmovbMvIOp> {
+  using ConvertOpToLLVMPattern<ThMcmovbMvIOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMcmovbMvIOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
+                                                {i64Type, i64Type, i64Type});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.mcmovb.mv.i", funcType);
+
+    Value mdVal = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
+    Value ms1Val = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMs1()));
+    Value uimm3Val = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getUimm3()));
+
+    rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicName,
+                                  ValueRange{mdVal, ms1Val, uimm3Val});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+struct XTAMEThMcmovhMvILowering : public ConvertOpToLLVMPattern<ThMcmovhMvIOp> {
+  using ConvertOpToLLVMPattern<ThMcmovhMvIOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMcmovhMvIOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
+                                                {i64Type, i64Type, i64Type});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.mcmovh.mv.i", funcType);
+
+    Value mdVal = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
+    Value ms1Val = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMs1()));
+    Value uimm3Val = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getUimm3()));
+
+    rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicName,
+                                  ValueRange{mdVal, ms1Val, uimm3Val});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+struct XTAMEThMcmovwMvILowering : public ConvertOpToLLVMPattern<ThMcmovwMvIOp> {
+  using ConvertOpToLLVMPattern<ThMcmovwMvIOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMcmovwMvIOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
+                                                {i64Type, i64Type, i64Type});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.mcmovw.mv.i", funcType);
+
+    Value mdVal = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
+    Value ms1Val = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMs1()));
+    Value uimm3Val = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getUimm3()));
+
+    rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicName,
+                                  ValueRange{mdVal, ms1Val, uimm3Val});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+struct XTAMEThMcmovdMvILowering : public ConvertOpToLLVMPattern<ThMcmovdMvIOp> {
+  using ConvertOpToLLVMPattern<ThMcmovdMvIOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMcmovdMvIOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
+                                                {i64Type, i64Type, i64Type});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.mcmovd.mv.i", funcType);
+
+    Value mdVal = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
+    Value ms1Val = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMs1()));
+    Value uimm3Val = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getUimm3()));
+
+    rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicName,
+                                  ValueRange{mdVal, ms1Val, uimm3Val});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+/// Matrix Pack Instructions
+struct XTAMEThMpackMmLowering : public ConvertOpToLLVMPattern<ThMpackMmOp> {
+  using ConvertOpToLLVMPattern<ThMpackMmOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMpackMmOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
+                                                {i64Type, i64Type, i64Type});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.mpack.mm", funcType);
+
+    Value mdVal = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
+    Value ms2Val = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMs2()));
+    Value ms1Val = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMs1()));
+
+    rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicName,
+                                  ValueRange{mdVal, ms2Val, ms1Val});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+struct XTAMEThMpackhlMmLowering : public ConvertOpToLLVMPattern<ThMpackhlMmOp> {
+  using ConvertOpToLLVMPattern<ThMpackhlMmOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMpackhlMmOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
+                                                {i64Type, i64Type, i64Type});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.mpackhl.mm", funcType);
+
+    Value mdVal = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
+    Value ms2Val = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMs2()));
+    Value ms1Val = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMs1()));
+
+    rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicName,
+                                  ValueRange{mdVal, ms2Val, ms1Val});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+struct XTAMEThMpackhhMmLowering : public ConvertOpToLLVMPattern<ThMpackhhMmOp> {
+  using ConvertOpToLLVMPattern<ThMpackhhMmOp>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMpackhhMmOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
+                                                {i64Type, i64Type, i64Type});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.mpackhh.mm", funcType);
+
+    Value mdVal = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
+    Value ms2Val = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMs2()));
+    Value ms1Val = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMs1()));
+
+    rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicName,
+                                  ValueRange{mdVal, ms2Val, ms1Val});
     rewriter.eraseOp(op);
     return success();
   }
@@ -470,6 +1322,514 @@ struct XTAMEThMldte64Lowering : public ConvertOpToLLVMPattern<ThMldte64Op> {
   }
 };
 
+/// Lowering pattern for th.mslde8 (Stream load 8-bit matrix tile)
+struct XTAMEThMslde8Lowering : public ConvertOpToLLVMPattern<ThMslde8Op> {
+  using ConvertOpToLLVMPattern<ThMslde8Op>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMslde8Op op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto ptrType = LLVM::LLVMPointerType::get(ctx);
+
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
+                                                {i64Type, i64Type, ptrType});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.mslde8", funcType);
+
+    Value mdVal = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
+    Value basePtr = extractPointerFromMemref(rewriter, loc, op.getBase());
+
+    rewriter.create<LLVM::CallOp>(
+        loc, TypeRange{}, intrinsicName,
+        ValueRange{mdVal, adaptor.getStride(), basePtr});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+struct XTAMEThMslde16Lowering : public ConvertOpToLLVMPattern<ThMslde16Op> {
+  using ConvertOpToLLVMPattern<ThMslde16Op>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMslde16Op op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto ptrType = LLVM::LLVMPointerType::get(ctx);
+
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
+                                                {i64Type, i64Type, ptrType});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.mslde16", funcType);
+
+    Value mdVal = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
+    Value basePtr = extractPointerFromMemref(rewriter, loc, op.getBase());
+
+    rewriter.create<LLVM::CallOp>(
+        loc, TypeRange{}, intrinsicName,
+        ValueRange{mdVal, adaptor.getStride(), basePtr});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+struct XTAMEThMslde32Lowering : public ConvertOpToLLVMPattern<ThMslde32Op> {
+  using ConvertOpToLLVMPattern<ThMslde32Op>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMslde32Op op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto ptrType = LLVM::LLVMPointerType::get(ctx);
+
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
+                                                {i64Type, i64Type, ptrType});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.mslde32", funcType);
+
+    Value mdVal = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
+    Value basePtr = extractPointerFromMemref(rewriter, loc, op.getBase());
+
+    rewriter.create<LLVM::CallOp>(
+        loc, TypeRange{}, intrinsicName,
+        ValueRange{mdVal, adaptor.getStride(), basePtr});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+struct XTAMEThMslde64Lowering : public ConvertOpToLLVMPattern<ThMslde64Op> {
+  using ConvertOpToLLVMPattern<ThMslde64Op>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMslde64Op op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto ptrType = LLVM::LLVMPointerType::get(ctx);
+
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
+                                                {i64Type, i64Type, ptrType});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.mslde64", funcType);
+
+    Value mdVal = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
+    Value basePtr = extractPointerFromMemref(rewriter, loc, op.getBase());
+
+    rewriter.create<LLVM::CallOp>(
+        loc, TypeRange{}, intrinsicName,
+        ValueRange{mdVal, adaptor.getStride(), basePtr});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+/// Lowering pattern for th.msldte8 (Transposed stream load 8-bit matrix tile)
+struct XTAMEThMsldte8Lowering : public ConvertOpToLLVMPattern<ThMsldte8Op> {
+  using ConvertOpToLLVMPattern<ThMsldte8Op>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMsldte8Op op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto ptrType = LLVM::LLVMPointerType::get(ctx);
+
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
+                                                {i64Type, i64Type, ptrType});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.msldte8", funcType);
+
+    Value mdVal = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
+    Value basePtr = extractPointerFromMemref(rewriter, loc, op.getBase());
+
+    rewriter.create<LLVM::CallOp>(
+        loc, TypeRange{}, intrinsicName,
+        ValueRange{mdVal, adaptor.getStride(), basePtr});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+struct XTAMEThMsldte16Lowering : public ConvertOpToLLVMPattern<ThMsldte16Op> {
+  using ConvertOpToLLVMPattern<ThMsldte16Op>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMsldte16Op op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto ptrType = LLVM::LLVMPointerType::get(ctx);
+
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
+                                                {i64Type, i64Type, ptrType});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.msldte16", funcType);
+
+    Value mdVal = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
+    Value basePtr = extractPointerFromMemref(rewriter, loc, op.getBase());
+
+    rewriter.create<LLVM::CallOp>(
+        loc, TypeRange{}, intrinsicName,
+        ValueRange{mdVal, adaptor.getStride(), basePtr});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+struct XTAMEThMsldte32Lowering : public ConvertOpToLLVMPattern<ThMsldte32Op> {
+  using ConvertOpToLLVMPattern<ThMsldte32Op>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMsldte32Op op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto ptrType = LLVM::LLVMPointerType::get(ctx);
+
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
+                                                {i64Type, i64Type, ptrType});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.msldte32", funcType);
+
+    Value mdVal = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
+    Value basePtr = extractPointerFromMemref(rewriter, loc, op.getBase());
+
+    rewriter.create<LLVM::CallOp>(
+        loc, TypeRange{}, intrinsicName,
+        ValueRange{mdVal, adaptor.getStride(), basePtr});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+struct XTAMEThMsldte64Lowering : public ConvertOpToLLVMPattern<ThMsldte64Op> {
+  using ConvertOpToLLVMPattern<ThMsldte64Op>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMsldte64Op op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto ptrType = LLVM::LLVMPointerType::get(ctx);
+
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
+                                                {i64Type, i64Type, ptrType});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.msldte64", funcType);
+
+    Value mdVal = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
+    Value basePtr = extractPointerFromMemref(rewriter, loc, op.getBase());
+
+    rewriter.create<LLVM::CallOp>(
+        loc, TypeRange{}, intrinsicName,
+        ValueRange{mdVal, adaptor.getStride(), basePtr});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+/// Lowering pattern for th.mplde8 (Prefetch 8-bit matrix tile)
+struct XTAMEThMplde8Lowering : public ConvertOpToLLVMPattern<ThMplde8Op> {
+  using ConvertOpToLLVMPattern<ThMplde8Op>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMplde8Op op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto ptrType = LLVM::LLVMPointerType::get(ctx);
+
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
+                                                {i64Type, ptrType});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.mplde8", funcType);
+
+    Value basePtr = extractPointerFromMemref(rewriter, loc, op.getBase());
+
+    rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicName,
+                                  ValueRange{adaptor.getStride(), basePtr});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+struct XTAMEThMplde16Lowering : public ConvertOpToLLVMPattern<ThMplde16Op> {
+  using ConvertOpToLLVMPattern<ThMplde16Op>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMplde16Op op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto ptrType = LLVM::LLVMPointerType::get(ctx);
+
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
+                                                {i64Type, ptrType});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.mplde16", funcType);
+
+    Value basePtr = extractPointerFromMemref(rewriter, loc, op.getBase());
+
+    rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicName,
+                                  ValueRange{adaptor.getStride(), basePtr});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+struct XTAMEThMplde32Lowering : public ConvertOpToLLVMPattern<ThMplde32Op> {
+  using ConvertOpToLLVMPattern<ThMplde32Op>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMplde32Op op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto ptrType = LLVM::LLVMPointerType::get(ctx);
+
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
+                                                {i64Type, ptrType});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.mplde32", funcType);
+
+    Value basePtr = extractPointerFromMemref(rewriter, loc, op.getBase());
+
+    rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicName,
+                                  ValueRange{adaptor.getStride(), basePtr});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+struct XTAMEThMplde64Lowering : public ConvertOpToLLVMPattern<ThMplde64Op> {
+  using ConvertOpToLLVMPattern<ThMplde64Op>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMplde64Op op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto ptrType = LLVM::LLVMPointerType::get(ctx);
+
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
+                                                {i64Type, ptrType});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.mplde64", funcType);
+
+    Value basePtr = extractPointerFromMemref(rewriter, loc, op.getBase());
+
+    rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicName,
+                                  ValueRange{adaptor.getStride(), basePtr});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+/// Lowering pattern for th.mpldte8 (Transposed prefetch 8-bit matrix tile)
+struct XTAMEThMpldte8Lowering : public ConvertOpToLLVMPattern<ThMpldte8Op> {
+  using ConvertOpToLLVMPattern<ThMpldte8Op>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMpldte8Op op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto ptrType = LLVM::LLVMPointerType::get(ctx);
+
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
+                                                {i64Type, ptrType});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.mpldte8", funcType);
+
+    Value basePtr = extractPointerFromMemref(rewriter, loc, op.getBase());
+
+    rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicName,
+                                  ValueRange{adaptor.getStride(), basePtr});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+struct XTAMEThMpldte16Lowering : public ConvertOpToLLVMPattern<ThMpldte16Op> {
+  using ConvertOpToLLVMPattern<ThMpldte16Op>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMpldte16Op op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto ptrType = LLVM::LLVMPointerType::get(ctx);
+
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
+                                                {i64Type, ptrType});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.mpldte16", funcType);
+
+    Value basePtr = extractPointerFromMemref(rewriter, loc, op.getBase());
+
+    rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicName,
+                                  ValueRange{adaptor.getStride(), basePtr});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+struct XTAMEThMpldte32Lowering : public ConvertOpToLLVMPattern<ThMpldte32Op> {
+  using ConvertOpToLLVMPattern<ThMpldte32Op>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMpldte32Op op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto ptrType = LLVM::LLVMPointerType::get(ctx);
+
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
+                                                {i64Type, ptrType});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.mpldte32", funcType);
+
+    Value basePtr = extractPointerFromMemref(rewriter, loc, op.getBase());
+
+    rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicName,
+                                  ValueRange{adaptor.getStride(), basePtr});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+struct XTAMEThMpldte64Lowering : public ConvertOpToLLVMPattern<ThMpldte64Op> {
+  using ConvertOpToLLVMPattern<ThMpldte64Op>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMpldte64Op op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto ptrType = LLVM::LLVMPointerType::get(ctx);
+
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
+                                                {i64Type, ptrType});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.mpldte64", funcType);
+
+    Value basePtr = extractPointerFromMemref(rewriter, loc, op.getBase());
+
+    rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicName,
+                                  ValueRange{adaptor.getStride(), basePtr});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
 //===----------------------------------------------------------------------===//
 // Store Operations Lowering
 //===----------------------------------------------------------------------===//
@@ -597,6 +1957,408 @@ struct XTAMEThMste64Lowering : public ConvertOpToLLVMPattern<ThMste64Op> {
 
     auto intrinsicName = getOrInsertIntrinsic(
         rewriter, module, "llvm.riscv.buddy.th.mste64", funcType);
+
+    Value ms3Val = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMs3()));
+    Value basePtr = extractPointerFromMemref(rewriter, loc, op.getBase());
+
+    rewriter.create<LLVM::CallOp>(
+        loc, TypeRange{}, intrinsicName,
+        ValueRange{ms3Val, adaptor.getStride(), basePtr});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+/// Lowering pattern for th.mstte8 (store transposed output matrix with 8-bit
+/// elements)
+struct XTAMEThMstte8Lowering : public ConvertOpToLLVMPattern<ThMstte8Op> {
+  using ConvertOpToLLVMPattern<ThMstte8Op>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMstte8Op op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto ptrType = LLVM::LLVMPointerType::get(ctx);
+
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
+                                                {i64Type, i64Type, ptrType});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.mstte8", funcType);
+
+    Value ms3Val = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMs3()));
+    Value basePtr = extractPointerFromMemref(rewriter, loc, op.getBase());
+
+    rewriter.create<LLVM::CallOp>(
+        loc, TypeRange{}, intrinsicName,
+        ValueRange{ms3Val, adaptor.getStride(), basePtr});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+struct XTAMEThMstte16Lowering : public ConvertOpToLLVMPattern<ThMstte16Op> {
+  using ConvertOpToLLVMPattern<ThMstte16Op>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMstte16Op op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto ptrType = LLVM::LLVMPointerType::get(ctx);
+
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
+                                                {i64Type, i64Type, ptrType});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.mstte16", funcType);
+
+    Value ms3Val = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMs3()));
+    Value basePtr = extractPointerFromMemref(rewriter, loc, op.getBase());
+
+    rewriter.create<LLVM::CallOp>(
+        loc, TypeRange{}, intrinsicName,
+        ValueRange{ms3Val, adaptor.getStride(), basePtr});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+struct XTAMEThMstte32Lowering : public ConvertOpToLLVMPattern<ThMstte32Op> {
+  using ConvertOpToLLVMPattern<ThMstte32Op>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMstte32Op op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto ptrType = LLVM::LLVMPointerType::get(ctx);
+
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
+                                                {i64Type, i64Type, ptrType});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.mstte32", funcType);
+
+    Value ms3Val = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMs3()));
+    Value basePtr = extractPointerFromMemref(rewriter, loc, op.getBase());
+
+    rewriter.create<LLVM::CallOp>(
+        loc, TypeRange{}, intrinsicName,
+        ValueRange{ms3Val, adaptor.getStride(), basePtr});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+struct XTAMEThMstte64Lowering : public ConvertOpToLLVMPattern<ThMstte64Op> {
+  using ConvertOpToLLVMPattern<ThMstte64Op>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMstte64Op op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto ptrType = LLVM::LLVMPointerType::get(ctx);
+
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
+                                                {i64Type, i64Type, ptrType});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.mstte64", funcType);
+
+    Value ms3Val = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMs3()));
+    Value basePtr = extractPointerFromMemref(rewriter, loc, op.getBase());
+
+    rewriter.create<LLVM::CallOp>(
+        loc, TypeRange{}, intrinsicName,
+        ValueRange{ms3Val, adaptor.getStride(), basePtr});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+/// Lowering pattern for th.msste8 (store stream output matrix with 8-bit
+/// elements)
+struct XTAMEThMsste8Lowering : public ConvertOpToLLVMPattern<ThMsste8Op> {
+  using ConvertOpToLLVMPattern<ThMsste8Op>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMsste8Op op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto ptrType = LLVM::LLVMPointerType::get(ctx);
+
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
+                                                {i64Type, i64Type, ptrType});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.msste8", funcType);
+
+    Value ms3Val = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMs3()));
+    Value basePtr = extractPointerFromMemref(rewriter, loc, op.getBase());
+
+    rewriter.create<LLVM::CallOp>(
+        loc, TypeRange{}, intrinsicName,
+        ValueRange{ms3Val, adaptor.getStride(), basePtr});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+struct XTAMEThMsste16Lowering : public ConvertOpToLLVMPattern<ThMsste16Op> {
+  using ConvertOpToLLVMPattern<ThMsste16Op>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMsste16Op op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto ptrType = LLVM::LLVMPointerType::get(ctx);
+
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
+                                                {i64Type, i64Type, ptrType});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.msste16", funcType);
+
+    Value ms3Val = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMs3()));
+    Value basePtr = extractPointerFromMemref(rewriter, loc, op.getBase());
+
+    rewriter.create<LLVM::CallOp>(
+        loc, TypeRange{}, intrinsicName,
+        ValueRange{ms3Val, adaptor.getStride(), basePtr});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+struct XTAMEThMsste32Lowering : public ConvertOpToLLVMPattern<ThMsste32Op> {
+  using ConvertOpToLLVMPattern<ThMsste32Op>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMsste32Op op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto ptrType = LLVM::LLVMPointerType::get(ctx);
+
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
+                                                {i64Type, i64Type, ptrType});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.msste32", funcType);
+
+    Value ms3Val = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMs3()));
+    Value basePtr = extractPointerFromMemref(rewriter, loc, op.getBase());
+
+    rewriter.create<LLVM::CallOp>(
+        loc, TypeRange{}, intrinsicName,
+        ValueRange{ms3Val, adaptor.getStride(), basePtr});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+struct XTAMEThMsste64Lowering : public ConvertOpToLLVMPattern<ThMsste64Op> {
+  using ConvertOpToLLVMPattern<ThMsste64Op>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMsste64Op op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto ptrType = LLVM::LLVMPointerType::get(ctx);
+
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
+                                                {i64Type, i64Type, ptrType});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.msste64", funcType);
+
+    Value ms3Val = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMs3()));
+    Value basePtr = extractPointerFromMemref(rewriter, loc, op.getBase());
+
+    rewriter.create<LLVM::CallOp>(
+        loc, TypeRange{}, intrinsicName,
+        ValueRange{ms3Val, adaptor.getStride(), basePtr});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+/// Lowering pattern for th.msstte8 (store transposed stream output matrix with
+/// 8-bit elements)
+struct XTAMEThMsstte8Lowering : public ConvertOpToLLVMPattern<ThMsstte8Op> {
+  using ConvertOpToLLVMPattern<ThMsstte8Op>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMsstte8Op op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto ptrType = LLVM::LLVMPointerType::get(ctx);
+
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
+                                                {i64Type, i64Type, ptrType});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.msstte8", funcType);
+
+    Value ms3Val = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMs3()));
+    Value basePtr = extractPointerFromMemref(rewriter, loc, op.getBase());
+
+    rewriter.create<LLVM::CallOp>(
+        loc, TypeRange{}, intrinsicName,
+        ValueRange{ms3Val, adaptor.getStride(), basePtr});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+struct XTAMEThMsstte16Lowering : public ConvertOpToLLVMPattern<ThMsstte16Op> {
+  using ConvertOpToLLVMPattern<ThMsstte16Op>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMsstte16Op op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto ptrType = LLVM::LLVMPointerType::get(ctx);
+
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
+                                                {i64Type, i64Type, ptrType});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.msstte16", funcType);
+
+    Value ms3Val = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMs3()));
+    Value basePtr = extractPointerFromMemref(rewriter, loc, op.getBase());
+
+    rewriter.create<LLVM::CallOp>(
+        loc, TypeRange{}, intrinsicName,
+        ValueRange{ms3Val, adaptor.getStride(), basePtr});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+struct XTAMEThMsstte32Lowering : public ConvertOpToLLVMPattern<ThMsstte32Op> {
+  using ConvertOpToLLVMPattern<ThMsstte32Op>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMsstte32Op op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto ptrType = LLVM::LLVMPointerType::get(ctx);
+
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
+                                                {i64Type, i64Type, ptrType});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.msstte32", funcType);
+
+    Value ms3Val = rewriter.create<LLVM::ConstantOp>(
+        loc, i64Type, rewriter.getI64IntegerAttr(op.getMs3()));
+    Value basePtr = extractPointerFromMemref(rewriter, loc, op.getBase());
+
+    rewriter.create<LLVM::CallOp>(
+        loc, TypeRange{}, intrinsicName,
+        ValueRange{ms3Val, adaptor.getStride(), basePtr});
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+struct XTAMEThMsstte64Lowering : public ConvertOpToLLVMPattern<ThMsstte64Op> {
+  using ConvertOpToLLVMPattern<ThMsstte64Op>::ConvertOpToLLVMPattern;
+
+  LogicalResult
+  matchAndRewrite(ThMsstte64Op op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto loc = op.getLoc();
+    auto *ctx = rewriter.getContext();
+    auto module = op->getParentOfType<ModuleOp>();
+    if (!module)
+      return failure();
+
+    auto i64Type = IntegerType::get(ctx, 64);
+    auto ptrType = LLVM::LLVMPointerType::get(ctx);
+
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
+                                                {i64Type, i64Type, ptrType});
+
+    auto intrinsicName = getOrInsertIntrinsic(
+        rewriter, module, "llvm.riscv.buddy.th.msstte64", funcType);
 
     Value ms3Val = rewriter.create<LLVM::ConstantOp>(
         loc, i64Type, rewriter.getI64IntegerAttr(op.getMs3()));
@@ -1249,10 +3011,40 @@ struct LegalizeXTAMEForLLVMExport
     target.addLegalDialect<memref::MemRefDialect>();
 
     // Configuration operations
+    target.addIllegalOp<ThMcfgOp>();
+    target.addIllegalOp<ThMcfgmOp>();
+    target.addIllegalOp<ThMcfgnOp>();
+    target.addIllegalOp<ThMcfgkOp>();
     target.addIllegalOp<ThMcfgmiOp>();
     target.addIllegalOp<ThMcfgniOp>();
     target.addIllegalOp<ThMcfgkiOp>();
+
+    // MISC operations
     target.addIllegalOp<ThMzeroOp>();
+    target.addIllegalOp<ThMzero2rOp>();
+    target.addIllegalOp<ThMzero4rOp>();
+    target.addIllegalOp<ThMzero8rOp>();
+    target.addIllegalOp<ThMmovMmOp>();
+    target.addIllegalOp<ThMdupbMXOp>();
+    target.addIllegalOp<ThMduphMXOp>();
+    target.addIllegalOp<ThMdupwMXOp>();
+    target.addIllegalOp<ThMdupdMXOp>();
+    target.addIllegalOp<ThMmovbMXOp>();
+    target.addIllegalOp<ThMmovhMXOp>();
+    target.addIllegalOp<ThMmovwMXOp>();
+    target.addIllegalOp<ThMmovdMXOp>();
+    target.addIllegalOp<ThMmovbXMOp>();
+    target.addIllegalOp<ThMmovhXMOp>();
+    target.addIllegalOp<ThMmovwXMOp>();
+    target.addIllegalOp<ThMmovdXMOp>();
+    target.addIllegalOp<ThMmovMvIOp>();
+    target.addIllegalOp<ThMcmovbMvIOp>();
+    target.addIllegalOp<ThMcmovhMvIOp>();
+    target.addIllegalOp<ThMcmovwMvIOp>();
+    target.addIllegalOp<ThMcmovdMvIOp>();
+    target.addIllegalOp<ThMpackMmOp>();
+    target.addIllegalOp<ThMpackhlMmOp>();
+    target.addIllegalOp<ThMpackhhMmOp>();
 
     // Load/Store operations
     target.addIllegalOp<ThMlde8Op>();
@@ -1263,10 +3055,38 @@ struct LegalizeXTAMEForLLVMExport
     target.addIllegalOp<ThMldte16Op>();
     target.addIllegalOp<ThMldte32Op>();
     target.addIllegalOp<ThMldte64Op>();
+    target.addIllegalOp<ThMslde8Op>();
+    target.addIllegalOp<ThMslde16Op>();
+    target.addIllegalOp<ThMslde32Op>();
+    target.addIllegalOp<ThMslde64Op>();
+    target.addIllegalOp<ThMsldte8Op>();
+    target.addIllegalOp<ThMsldte16Op>();
+    target.addIllegalOp<ThMsldte32Op>();
+    target.addIllegalOp<ThMsldte64Op>();
     target.addIllegalOp<ThMste8Op>();
     target.addIllegalOp<ThMste16Op>();
     target.addIllegalOp<ThMste32Op>();
     target.addIllegalOp<ThMste64Op>();
+    target.addIllegalOp<ThMstte8Op>();
+    target.addIllegalOp<ThMstte16Op>();
+    target.addIllegalOp<ThMstte32Op>();
+    target.addIllegalOp<ThMstte64Op>();
+    target.addIllegalOp<ThMsste8Op>();
+    target.addIllegalOp<ThMsste16Op>();
+    target.addIllegalOp<ThMsste32Op>();
+    target.addIllegalOp<ThMsste64Op>();
+    target.addIllegalOp<ThMsstte8Op>();
+    target.addIllegalOp<ThMsstte16Op>();
+    target.addIllegalOp<ThMsstte32Op>();
+    target.addIllegalOp<ThMsstte64Op>();
+    target.addIllegalOp<ThMplde8Op>();
+    target.addIllegalOp<ThMplde16Op>();
+    target.addIllegalOp<ThMplde32Op>();
+    target.addIllegalOp<ThMplde64Op>();
+    target.addIllegalOp<ThMpldte8Op>();
+    target.addIllegalOp<ThMpldte16Op>();
+    target.addIllegalOp<ThMpldte32Op>();
+    target.addIllegalOp<ThMpldte64Op>();
 
     // Tile register matrix multiply
     target.addIllegalOp<ThMmaccWBOp>();
@@ -1294,10 +3114,40 @@ struct LegalizeXTAMEForLLVMExport
     RewritePatternSet patterns(&context);
 
     // Configuration patterns
+    patterns.add<XTAMEThMcfgLowering>(typeConverter);
+    patterns.add<XTAMEThMcfgmLowering>(typeConverter);
+    patterns.add<XTAMEThMcfgnLowering>(typeConverter);
+    patterns.add<XTAMEThMcfgkLowering>(typeConverter);
     patterns.add<XTAMEThMcfgmiLowering>(typeConverter);
     patterns.add<XTAMEThMcfgniLowering>(typeConverter);
     patterns.add<XTAMEThMcfgkiLowering>(typeConverter);
+
+    // MISC patterns
     patterns.add<XTAMEThMzeroLowering>(typeConverter);
+    patterns.add<XTAMEThMzero2rLowering>(typeConverter);
+    patterns.add<XTAMEThMzero4rLowering>(typeConverter);
+    patterns.add<XTAMEThMzero8rLowering>(typeConverter);
+    patterns.add<XTAMEThMmovMmLowering>(typeConverter);
+    patterns.add<XTAMEThMdupbMXLowering>(typeConverter);
+    patterns.add<XTAMEThMduphMXLowering>(typeConverter);
+    patterns.add<XTAMEThMdupwMXLowering>(typeConverter);
+    patterns.add<XTAMEThMdupdMXLowering>(typeConverter);
+    patterns.add<XTAMEThMmovbMXLowering>(typeConverter);
+    patterns.add<XTAMEThMmovhMXLowering>(typeConverter);
+    patterns.add<XTAMEThMmovwMXLowering>(typeConverter);
+    patterns.add<XTAMEThMmovdMXLowering>(typeConverter);
+    patterns.add<XTAMEThMmovbXMLowering>(typeConverter);
+    patterns.add<XTAMEThMmovhXMLowering>(typeConverter);
+    patterns.add<XTAMEThMmovwXMLowering>(typeConverter);
+    patterns.add<XTAMEThMmovdXMLowering>(typeConverter);
+    patterns.add<XTAMEThMmovMvILowering>(typeConverter);
+    patterns.add<XTAMEThMcmovbMvILowering>(typeConverter);
+    patterns.add<XTAMEThMcmovhMvILowering>(typeConverter);
+    patterns.add<XTAMEThMcmovwMvILowering>(typeConverter);
+    patterns.add<XTAMEThMcmovdMvILowering>(typeConverter);
+    patterns.add<XTAMEThMpackMmLowering>(typeConverter);
+    patterns.add<XTAMEThMpackhlMmLowering>(typeConverter);
+    patterns.add<XTAMEThMpackhhMmLowering>(typeConverter);
 
     // Load/Store patterns
     patterns.add<XTAMEThMlde8Lowering>(typeConverter);
@@ -1308,10 +3158,40 @@ struct LegalizeXTAMEForLLVMExport
     patterns.add<XTAMEThMldte16Lowering>(typeConverter);
     patterns.add<XTAMEThMldte32Lowering>(typeConverter);
     patterns.add<XTAMEThMldte64Lowering>(typeConverter);
+    patterns.add<XTAMEThMslde8Lowering>(typeConverter);
+    patterns.add<XTAMEThMslde16Lowering>(typeConverter);
+    patterns.add<XTAMEThMslde32Lowering>(typeConverter);
+    patterns.add<XTAMEThMslde64Lowering>(typeConverter);
+    patterns.add<XTAMEThMsldte8Lowering>(typeConverter);
+    patterns.add<XTAMEThMsldte16Lowering>(typeConverter);
+    patterns.add<XTAMEThMsldte32Lowering>(typeConverter);
+    patterns.add<XTAMEThMsldte64Lowering>(typeConverter);
+
+    patterns.add<XTAMEThMplde8Lowering>(typeConverter);
+    patterns.add<XTAMEThMplde16Lowering>(typeConverter);
+    patterns.add<XTAMEThMplde32Lowering>(typeConverter);
+    patterns.add<XTAMEThMplde64Lowering>(typeConverter);
+    patterns.add<XTAMEThMpldte8Lowering>(typeConverter);
+    patterns.add<XTAMEThMpldte16Lowering>(typeConverter);
+    patterns.add<XTAMEThMpldte32Lowering>(typeConverter);
+    patterns.add<XTAMEThMpldte64Lowering>(typeConverter);
+
     patterns.add<XTAMEThMste8Lowering>(typeConverter);
     patterns.add<XTAMEThMste16Lowering>(typeConverter);
     patterns.add<XTAMEThMste32Lowering>(typeConverter);
     patterns.add<XTAMEThMste64Lowering>(typeConverter);
+    patterns.add<XTAMEThMstte8Lowering>(typeConverter);
+    patterns.add<XTAMEThMstte16Lowering>(typeConverter);
+    patterns.add<XTAMEThMstte32Lowering>(typeConverter);
+    patterns.add<XTAMEThMstte64Lowering>(typeConverter);
+    patterns.add<XTAMEThMsste8Lowering>(typeConverter);
+    patterns.add<XTAMEThMsste16Lowering>(typeConverter);
+    patterns.add<XTAMEThMsste32Lowering>(typeConverter);
+    patterns.add<XTAMEThMsste64Lowering>(typeConverter);
+    patterns.add<XTAMEThMsstte8Lowering>(typeConverter);
+    patterns.add<XTAMEThMsstte16Lowering>(typeConverter);
+    patterns.add<XTAMEThMsstte32Lowering>(typeConverter);
+    patterns.add<XTAMEThMsstte64Lowering>(typeConverter);
 
     // Tile register matrix multiply patterns
     patterns.add<XTAMEThMmaccWBLowering>(typeConverter);
@@ -1343,10 +3223,40 @@ struct LegalizeXTAMEForLLVMExport
 void mlir::populateXTAMELegalizeForLLVMExportPatterns(
     LLVMTypeConverter &converter, RewritePatternSet &patterns) {
   // Configuration patterns
+  patterns.add<XTAMEThMcfgLowering>(converter);
+  patterns.add<XTAMEThMcfgmLowering>(converter);
+  patterns.add<XTAMEThMcfgnLowering>(converter);
+  patterns.add<XTAMEThMcfgkLowering>(converter);
   patterns.add<XTAMEThMcfgmiLowering>(converter);
   patterns.add<XTAMEThMcfgniLowering>(converter);
   patterns.add<XTAMEThMcfgkiLowering>(converter);
+
+  // MISC patterns
   patterns.add<XTAMEThMzeroLowering>(converter);
+  patterns.add<XTAMEThMzero2rLowering>(converter);
+  patterns.add<XTAMEThMzero4rLowering>(converter);
+  patterns.add<XTAMEThMzero8rLowering>(converter);
+  patterns.add<XTAMEThMmovMmLowering>(converter);
+  patterns.add<XTAMEThMdupbMXLowering>(converter);
+  patterns.add<XTAMEThMduphMXLowering>(converter);
+  patterns.add<XTAMEThMdupwMXLowering>(converter);
+  patterns.add<XTAMEThMdupdMXLowering>(converter);
+  patterns.add<XTAMEThMmovbMXLowering>(converter);
+  patterns.add<XTAMEThMmovhMXLowering>(converter);
+  patterns.add<XTAMEThMmovwMXLowering>(converter);
+  patterns.add<XTAMEThMmovdMXLowering>(converter);
+  patterns.add<XTAMEThMmovbXMLowering>(converter);
+  patterns.add<XTAMEThMmovhXMLowering>(converter);
+  patterns.add<XTAMEThMmovwXMLowering>(converter);
+  patterns.add<XTAMEThMmovdXMLowering>(converter);
+  patterns.add<XTAMEThMmovMvILowering>(converter);
+  patterns.add<XTAMEThMcmovbMvILowering>(converter);
+  patterns.add<XTAMEThMcmovhMvILowering>(converter);
+  patterns.add<XTAMEThMcmovwMvILowering>(converter);
+  patterns.add<XTAMEThMcmovdMvILowering>(converter);
+  patterns.add<XTAMEThMpackMmLowering>(converter);
+  patterns.add<XTAMEThMpackhlMmLowering>(converter);
+  patterns.add<XTAMEThMpackhhMmLowering>(converter);
 
   // Load/Store patterns
   patterns.add<XTAMEThMlde8Lowering>(converter);
@@ -1357,10 +3267,40 @@ void mlir::populateXTAMELegalizeForLLVMExportPatterns(
   patterns.add<XTAMEThMldte16Lowering>(converter);
   patterns.add<XTAMEThMldte32Lowering>(converter);
   patterns.add<XTAMEThMldte64Lowering>(converter);
+  patterns.add<XTAMEThMslde8Lowering>(converter);
+  patterns.add<XTAMEThMslde16Lowering>(converter);
+  patterns.add<XTAMEThMslde32Lowering>(converter);
+  patterns.add<XTAMEThMslde64Lowering>(converter);
+  patterns.add<XTAMEThMsldte8Lowering>(converter);
+  patterns.add<XTAMEThMsldte16Lowering>(converter);
+  patterns.add<XTAMEThMsldte32Lowering>(converter);
+  patterns.add<XTAMEThMsldte64Lowering>(converter);
+
+  patterns.add<XTAMEThMplde8Lowering>(converter);
+  patterns.add<XTAMEThMplde16Lowering>(converter);
+  patterns.add<XTAMEThMplde32Lowering>(converter);
+  patterns.add<XTAMEThMplde64Lowering>(converter);
+  patterns.add<XTAMEThMpldte8Lowering>(converter);
+  patterns.add<XTAMEThMpldte16Lowering>(converter);
+  patterns.add<XTAMEThMpldte32Lowering>(converter);
+  patterns.add<XTAMEThMpldte64Lowering>(converter);
+
   patterns.add<XTAMEThMste8Lowering>(converter);
   patterns.add<XTAMEThMste16Lowering>(converter);
   patterns.add<XTAMEThMste32Lowering>(converter);
   patterns.add<XTAMEThMste64Lowering>(converter);
+  patterns.add<XTAMEThMstte8Lowering>(converter);
+  patterns.add<XTAMEThMstte16Lowering>(converter);
+  patterns.add<XTAMEThMstte32Lowering>(converter);
+  patterns.add<XTAMEThMstte64Lowering>(converter);
+  patterns.add<XTAMEThMsste8Lowering>(converter);
+  patterns.add<XTAMEThMsste16Lowering>(converter);
+  patterns.add<XTAMEThMsste32Lowering>(converter);
+  patterns.add<XTAMEThMsste64Lowering>(converter);
+  patterns.add<XTAMEThMsstte8Lowering>(converter);
+  patterns.add<XTAMEThMsstte16Lowering>(converter);
+  patterns.add<XTAMEThMsstte32Lowering>(converter);
+  patterns.add<XTAMEThMsstte64Lowering>(converter);
 
   // Tile register matrix multiply patterns
   patterns.add<XTAMEThMmaccWBLowering>(converter);
@@ -1389,10 +3329,40 @@ void mlir::configureXTAMELegalizeForExportTarget(LLVMConversionTarget &target) {
   target.addLegalDialect<memref::MemRefDialect>();
 
   // Configuration operations
+  target.addIllegalOp<ThMcfgOp>();
+  target.addIllegalOp<ThMcfgmOp>();
+  target.addIllegalOp<ThMcfgnOp>();
+  target.addIllegalOp<ThMcfgkOp>();
   target.addIllegalOp<ThMcfgmiOp>();
   target.addIllegalOp<ThMcfgniOp>();
   target.addIllegalOp<ThMcfgkiOp>();
+
+  // MISC operations
   target.addIllegalOp<ThMzeroOp>();
+  target.addIllegalOp<ThMzero2rOp>();
+  target.addIllegalOp<ThMzero4rOp>();
+  target.addIllegalOp<ThMzero8rOp>();
+  target.addIllegalOp<ThMmovMmOp>();
+  target.addIllegalOp<ThMdupbMXOp>();
+  target.addIllegalOp<ThMduphMXOp>();
+  target.addIllegalOp<ThMdupwMXOp>();
+  target.addIllegalOp<ThMdupdMXOp>();
+  target.addIllegalOp<ThMmovbMXOp>();
+  target.addIllegalOp<ThMmovhMXOp>();
+  target.addIllegalOp<ThMmovwMXOp>();
+  target.addIllegalOp<ThMmovdMXOp>();
+  target.addIllegalOp<ThMmovbXMOp>();
+  target.addIllegalOp<ThMmovhXMOp>();
+  target.addIllegalOp<ThMmovwXMOp>();
+  target.addIllegalOp<ThMmovdXMOp>();
+  target.addIllegalOp<ThMmovMvIOp>();
+  target.addIllegalOp<ThMcmovbMvIOp>();
+  target.addIllegalOp<ThMcmovhMvIOp>();
+  target.addIllegalOp<ThMcmovwMvIOp>();
+  target.addIllegalOp<ThMcmovdMvIOp>();
+  target.addIllegalOp<ThMpackMmOp>();
+  target.addIllegalOp<ThMpackhlMmOp>();
+  target.addIllegalOp<ThMpackhhMmOp>();
 
   // Load/Store operations
   target.addIllegalOp<ThMlde8Op>();
@@ -1403,10 +3373,39 @@ void mlir::configureXTAMELegalizeForExportTarget(LLVMConversionTarget &target) {
   target.addIllegalOp<ThMldte16Op>();
   target.addIllegalOp<ThMldte32Op>();
   target.addIllegalOp<ThMldte64Op>();
+  target.addIllegalOp<ThMslde8Op>();
+  target.addIllegalOp<ThMslde16Op>();
+  target.addIllegalOp<ThMslde32Op>();
+  target.addIllegalOp<ThMslde64Op>();
+  target.addIllegalOp<ThMsldte8Op>();
+  target.addIllegalOp<ThMsldte16Op>();
+  target.addIllegalOp<ThMsldte32Op>();
+  target.addIllegalOp<ThMsldte64Op>();
+  target.addIllegalOp<ThMplde8Op>();
+  target.addIllegalOp<ThMplde16Op>();
+  target.addIllegalOp<ThMplde32Op>();
+  target.addIllegalOp<ThMplde64Op>();
+  target.addIllegalOp<ThMpldte8Op>();
+  target.addIllegalOp<ThMpldte16Op>();
+  target.addIllegalOp<ThMpldte32Op>();
+  target.addIllegalOp<ThMpldte64Op>();
+
   target.addIllegalOp<ThMste8Op>();
   target.addIllegalOp<ThMste16Op>();
   target.addIllegalOp<ThMste32Op>();
   target.addIllegalOp<ThMste64Op>();
+  target.addIllegalOp<ThMstte8Op>();
+  target.addIllegalOp<ThMstte16Op>();
+  target.addIllegalOp<ThMstte32Op>();
+  target.addIllegalOp<ThMstte64Op>();
+  target.addIllegalOp<ThMsste8Op>();
+  target.addIllegalOp<ThMsste16Op>();
+  target.addIllegalOp<ThMsste32Op>();
+  target.addIllegalOp<ThMsste64Op>();
+  target.addIllegalOp<ThMsstte8Op>();
+  target.addIllegalOp<ThMsstte16Op>();
+  target.addIllegalOp<ThMsstte32Op>();
+  target.addIllegalOp<ThMsstte64Op>();
 
   // Tile register matrix multiply
   target.addIllegalOp<ThMmaccWBOp>();
