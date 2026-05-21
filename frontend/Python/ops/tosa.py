@@ -614,17 +614,14 @@ def addmm_op(
         return matmul_op.result
     else:
         # Shape doesn't match: use zero buffer for matmul, then add with broadcasting
-        zero_attr = ir.DenseElementsAttr.get_splat(
-            matmul_result_type,
-            (
-                ir.FloatAttr.get(result_element_type, 0.0)
-                if _is_float_type(result_element_type)
-                else ir.IntegerAttr.get(result_element_type, 0)
-            ),
+        zero_attr = (
+            ir.FloatAttr.get(result_element_type, 0.0)
+            if _is_float_type(result_element_type)
+            else ir.IntegerAttr.get(result_element_type, 0)
         )
-        matmul_output_buffer = arith.ConstantOp(
-            matmul_result_type, zero_attr
-        ).result
+        matmul_output_buffer = zero_tensor_value(
+            matmul_result_shp, result_element_type, zero_attr
+        )
 
         matmul_op = linalg.MatmulOp(
             result_tensors=[matmul_result_type],
@@ -13903,8 +13900,11 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
         compute_dtype,
     )
     element = ir.FloatAttr.get(compute_dtype, 0.0)
-    attr = ir.DenseElementsAttr.get_splat(score_init_tensor_type, element)
-    score_init = arith.ConstantOp(score_init_tensor_type, attr).result
+    score_init = zero_tensor_value(
+        [query_shape[0], query_shape[1], query_shape[2], key_shape[2]],
+        compute_dtype,
+        element,
+    )
 
     score = scf.ForOp(c0, batch_dim, c1, iter_args=[score_init])
     with ir.InsertionPoint(score.body):
@@ -14041,8 +14041,11 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
         compute_dtype,
     )
     element = ir.FloatAttr.get(compute_dtype, 0.0)
-    attr = ir.DenseElementsAttr.get_splat(out_init_tensor_type, element)
-    out_init = arith.ConstantOp(out_init_tensor_type, attr).result
+    out_init = zero_tensor_value(
+        [query_shape[0], query_shape[1], query_shape[2], query_shape[3]],
+        compute_dtype,
+        element,
+    )
 
     out = scf.ForOp(c0, batch_dim, c1, iter_args=[out_init], loc=loc)
     with ir.InsertionPoint(out.body):

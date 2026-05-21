@@ -728,7 +728,7 @@ def to_copy_op(
                 op.region,
                 [
                     ir.RankedTensorType(input1.type).element_type,
-                    ir.RankedTensorType(output.result.type).element_type,
+                    ir.RankedTensorType(output.type).element_type,
                 ],
             )
             fptosi_op = arith.FPToSIOp(
@@ -1052,8 +1052,7 @@ def mean_op(
     mlir_dtype = mlir_element_type_get(dtype)
     tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
     element = mlir_element_attr_get(dtype, 0.0)
-    attr = ir.DenseElementsAttr.get_splat(tensor_type, element)
-    output = arith.ConstantOp(tensor_type, attr)
+    output = zero_tensor_value(output_shape, mlir_dtype, element)
     assert len(dims) == 1
     for dim in dims:
         if dim < 0:
@@ -1062,7 +1061,6 @@ def mean_op(
             generic_map = _safe_get_permutation(
                 [i for i in range(len(output_shape) + 1)]
             )
-            tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
             output_map = [i for i in range(len(output_shape))]
             output_map[dim] = len(output_shape)
             loop_type = [
@@ -1317,11 +1315,10 @@ def matmul_op(
     output_shape = [input1_shape[0], input2_shape[1]]
     dtype = node.tensor_meta["dtype"]
     mlir_dtype = mlir_element_type_get(dtype)
-    tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
     generic_map = _safe_get_permutation([0, 1, 2])
     element = mlir_element_attr_get(dtype, 0.0)
-    attr = ir.DenseElementsAttr.get_splat(tensor_type, element)
-    matmul_result_buffer = arith.ConstantOp(tensor_type, attr).result
+    tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
+    matmul_result_buffer = zero_tensor_value(output_shape, mlir_dtype, element)
     op = linalg.MatmulOp(
         result_tensors=[tensor_type],
         inputs=[input1, input2],
@@ -1349,10 +1346,8 @@ def matmul_transpose_b_op(
     output_shape = list(node.tensor_meta["shape"])
     dtype = node.tensor_meta["dtype"]
     mlir_dtype = mlir_element_type_get(dtype)
-    tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
     element = mlir_element_attr_get(dtype, 0.0)
-    attr = ir.DenseElementsAttr.get_splat(tensor_type, element)
-    result_buffer = arith.ConstantOp(tensor_type, attr).result
+    result_buffer = zero_tensor_value(output_shape, mlir_dtype, element)
     op = linalg.matmul_transpose_b(input1, input2, outs=[result_buffer])
     return op
 
@@ -2131,10 +2126,8 @@ def batch_matmul_op(
     output_shape = list(node.tensor_meta["shape"])
     dtype = node.tensor_meta["dtype"]
     mlir_dtype = mlir_element_type_get(dtype)
-    tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
     element = mlir_element_attr_get(dtype, 0)
-    attr = ir.DenseElementsAttr.get_splat(tensor_type, element)
-    zero_fill = arith.ConstantOp(tensor_type, attr).result
+    zero_fill = zero_tensor_value(output_shape, mlir_dtype, element)
     op = linalg.batch_matmul(input1, input2, outs=[zero_fill])
 
     return op
@@ -2233,8 +2226,7 @@ def softmax_op(
     sum_tensor_shape[dim] = 1
     sum_tensor_type = ir.RankedTensorType.get(sum_tensor_shape, mlir_dtype)
     element = mlir_element_attr_get(dtype, 0)
-    attr = ir.DenseElementsAttr.get_splat(sum_tensor_type, element)
-    sum_tensor = arith.ConstantOp(sum_tensor_type, attr).result
+    sum_tensor = zero_tensor_value(sum_tensor_shape, mlir_dtype, element)
     input1_map = [ir.AffineExpr.get_dim(i) for i in range(len(output_shape))]
     input1_map = ir.AffineMap.get(len(output_shape), 0, input1_map)
     sum_tensor_map = [
@@ -2352,8 +2344,7 @@ def log_softmax_op(
     sum_tensor_shape[dim] = 1
     sum_tensor_type = ir.RankedTensorType.get(sum_tensor_shape, mlir_dtype)
     element = mlir_element_attr_get(dtype, 0)
-    attr = ir.DenseElementsAttr.get_splat(sum_tensor_type, element)
-    sum_tensor = arith.ConstantOp(sum_tensor_type, attr).result
+    sum_tensor = zero_tensor_value(sum_tensor_shape, mlir_dtype, element)
 
     input1_map = [ir.AffineExpr.get_dim(i) for i in range(len(output_shape))]
     input1_map = ir.AffineMap.get(len(output_shape), 0, input1_map)
@@ -9199,10 +9190,9 @@ def fft_r2c_op(
 
     def _matmul(lhs, rhs, out_shape_2d: list[int]):
         tensor_type = ir.RankedTensorType.get(out_shape_2d, element_type)
-        zero_attr = ir.DenseElementsAttr.get_splat(
-            tensor_type, ir.FloatAttr.get(element_type, 0.0)
+        out_init = zero_tensor_value(
+            out_shape_2d, element_type, ir.FloatAttr.get(element_type, 0.0)
         )
-        out_init = arith.ConstantOp(tensor_type, zero_attr).result
         op = linalg.MatmulOp(
             result_tensors=[tensor_type],
             inputs=[lhs, rhs],

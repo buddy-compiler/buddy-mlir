@@ -41,7 +41,6 @@ import os
 import re
 import subprocess
 import sys
-import tempfile
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
@@ -240,72 +239,6 @@ def _resolve_tool(name: str, buddy_opt: str, llvm_dir: str) -> str:
     return os.path.join(llvm_dir, name)
 
 
-_ZERO_F32_TENSOR_CONST_RE = re.compile(
-    r"^(?P<indent>\s*)(?P<result>%[\w\d_]+) = "
-    r"arith\.constant dense<0\.000000e\+00> : "
-    r"(?P<type>tensor<(?P<shape>[^>]+)xf32>)$"
-)
-
-
-def _static_element_count(shape_text: str) -> int | None:
-    dims = shape_text.split("x")
-    if not dims or any(not dim.isdigit() for dim in dims):
-        return None
-    count = 1
-    for dim in dims:
-        count *= int(dim)
-    return count
-
-
-def materialize_large_zero_tensors(
-    input_file: str, element_threshold: int = 1_000_000
-) -> str | None:
-    """Replace very large dense zero tensors with tensor.empty + linalg.fill."""
-    with open(input_file, encoding="utf-8") as f:
-        lines = f.readlines()
-
-    changed = False
-    rewritten = []
-    for line in lines:
-        match = _ZERO_F32_TENSOR_CONST_RE.match(line.rstrip("\n"))
-        if not match:
-            rewritten.append(line)
-            continue
-
-        elem_count = _static_element_count(match.group("shape"))
-        if elem_count is None or elem_count < element_threshold:
-            rewritten.append(line)
-            continue
-
-        changed = True
-        indent = match.group("indent")
-        result = match.group("result")
-        tensor_type = match.group("type")
-        base_name = result[1:]
-        rewritten.extend(
-            [
-                f"{indent}%{base_name}_zero = arith.constant 0.000000e+00 : f32\n",
-                f"{indent}%{base_name}_empty = tensor.empty() : {tensor_type}\n",
-                f"{indent}{result} = linalg.fill "
-                f"ins(%{base_name}_zero : f32) "
-                f"outs(%{base_name}_empty : {tensor_type}) -> {tensor_type}\n",
-            ]
-        )
-
-    if not changed:
-        return None
-
-    with tempfile.NamedTemporaryFile(
-        "w",
-        encoding="utf-8",
-        suffix=".mlir",
-        prefix="buddy-zero-fill-",
-        delete=False,
-    ) as temp:
-        temp.writelines(rewritten)
-        return temp.name
-
-
 def run_pipeline(
     stages: list,
     input_file: str,
@@ -440,9 +373,6 @@ def _compile_one(task: dict) -> str:
     name = task["name"]
     started = time.perf_counter()
     input_file = task["input"]
-    temp_input = materialize_large_zero_tensors(input_file)
-    if temp_input is not None:
-        input_file = temp_input
     stages = build_stages(
         task["pipeline_type"],
         task["num_threads"],
@@ -450,17 +380,13 @@ def _compile_one(task: dict) -> str:
         task.get("variant", "f32"),
         task.get("tiered", False),
     )
-    try:
-        run_pipeline(
-            stages,
-            input_file,
-            task["output"],
-            task["buddy_opt"],
-            task["llvm_dir"],
-        )
-    finally:
-        if temp_input is not None:
-            os.unlink(temp_input)
+    run_pipeline(
+        stages,
+        input_file,
+        task["output"],
+        task["buddy_opt"],
+        task["llvm_dir"],
+    )
     elapsed = time.perf_counter() - started
     return f"  {name}: {os.path.basename(task['output'])} ({elapsed:.2f}s)"
 
