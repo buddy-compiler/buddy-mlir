@@ -200,7 +200,12 @@ def tiered_cache_sizes(config: dict) -> list[int]:
     return [int(x) for x in sizes]
 
 
-def compile_and_export_tiered_graphs(model, config: dict, output_dir: str):
+def compile_and_export_tiered_graphs(
+    model,
+    config: dict,
+    output_dir: str,
+    export_layer_partitioned: bool = False,
+):
     """Generate one prefill/decode pair for every configured KV cache size."""
     cache_sizes = tiered_cache_sizes(config)
     if not cache_sizes:
@@ -221,6 +226,22 @@ def compile_and_export_tiered_graphs(model, config: dict, output_dir: str):
     pattern_decode = [simply_fuse, apply_classic_fusion, gqa_attention_fusion]
 
     params = None
+    mlir_output_dir = output_dir
+    partition_manifest = {
+        "tiered": True,
+        "prefill": {},
+        "decode": {},
+        "decode_partitioned": export_layer_partitioned,
+    }
+    if export_layer_partitioned:
+        mlir_output_dir = os.path.join(output_dir, "layer_partitioned")
+        os.makedirs(mlir_output_dir, exist_ok=True)
+        for filename in os.listdir(mlir_output_dir):
+            if (
+                filename.endswith(".mlir")
+                or filename == "partition_manifest.json"
+            ):
+                os.remove(os.path.join(mlir_output_dir, filename))
 
     for prefill_size in cache_sizes:
         print(
@@ -254,25 +275,59 @@ def compile_and_export_tiered_graphs(model, config: dict, output_dir: str):
         else:
             graph.fuse_ops(pattern_prefill_no_flash)
 
-        name = f"subgraph0_prefill_{prefill_size}"
+        name = (
+            f"subgraph0_prefill_{prefill_size}_"
+            if export_layer_partitioned
+            else f"subgraph0_prefill_{prefill_size}"
+        )
         graph.op_groups[name] = graph.op_groups.pop("subgraph0")
         graph.group_map_device[name] = DeviceType.CPU
 
-        driver = GraphDriver(graph)
-        driver.subgraphs[0].lower_to_top_level_ir()
-
-        files = {
-            f"subgraph0_prefill_{prefill_size}.mlir": driver.subgraphs[
-                0
-            ]._imported_module,
-            f"forward_prefill_{prefill_size}.mlir": driver.construct_main_graph(
-                True
-            ),
-        }
+        files = {}
+        if export_layer_partitioned:
+            driver = PartitionedGraphDriver(
+                graph, layer_split_strategy(config, "prefill")
+            )
+            for subgraph in driver.subgraphs:
+                subgraph.lower_to_top_level_ir()
+            prefill_output_count = len(graph.body[-1].args)
+            prefill_output_remap = list(range(prefill_output_count))
+            if (
+                prefill_output_count >= 3
+                and (prefill_output_count - 1) % 2 == 0
+            ):
+                kv_count = prefill_output_count - 1
+                prefill_output_remap = [
+                    i ^ 1 if i < kv_count else i
+                    for i in range(prefill_output_count)
+                ]
+            for i, subgraph in enumerate(driver.subgraphs):
+                files[f"subgraph0_prefill_{prefill_size}_{i}.mlir"] = (
+                    subgraph._imported_module
+                )
+            files[f"forward_prefill_{prefill_size}.mlir"] = (
+                driver.construct_combined_main_graph(True, prefill_output_remap)
+            )
+            partition_manifest["prefill"][str(prefill_size)] = {
+                "subgraphs": len(driver.subgraphs),
+                "forward": f"forward_prefill_{prefill_size}.mlir",
+            }
+        else:
+            driver = GraphDriver(graph)
+            driver.subgraphs[0].lower_to_top_level_ir()
+            files = {
+                f"subgraph0_prefill_{prefill_size}.mlir": driver.subgraphs[
+                    0
+                ]._imported_module,
+                f"forward_prefill_{prefill_size}.mlir": driver.construct_main_graph(
+                    True
+                ),
+            }
         for filename, content in files.items():
-            with open(os.path.join(output_dir, filename), "w") as f:
+            with open(os.path.join(mlir_output_dir, filename), "w") as f:
                 print(content, file=f)
-            print(f"[import] Written: {filename}", file=sys.stderr)
+            prefix = "layer_partitioned/" if export_layer_partitioned else ""
+            print(f"[import] Written: {prefix}{filename}", file=sys.stderr)
 
     if params is None:
         raise RuntimeError("tiered prefill import produced no parameters")
@@ -319,25 +374,70 @@ def compile_and_export_tiered_graphs(model, config: dict, output_dir: str):
         graph.perform([eliminate_transpose, eliminate_matmul_transpose_reshape])
         graph.fuse_ops(pattern_decode)
 
-        name = f"subgraph0_decode_{cache_size}"
+        name = (
+            f"subgraph0_decode_{cache_size}_"
+            if export_layer_partitioned
+            else f"subgraph0_decode_{cache_size}"
+        )
         graph.op_groups[name] = graph.op_groups.pop("subgraph0")
         graph.group_map_device[name] = DeviceType.CPU
 
-        driver = GraphDriver(graph)
-        driver.subgraphs[0].lower_to_top_level_ir()
-
-        files = {
-            f"subgraph0_decode_{cache_size}.mlir": driver.subgraphs[
-                0
-            ]._imported_module,
-            f"forward_decode_{cache_size}.mlir": driver.construct_main_graph(
-                True
-            ),
-        }
+        files = {}
+        if export_layer_partitioned:
+            driver = PartitionedGraphDriver(
+                graph, layer_split_strategy(config, "decode")
+            )
+            for subgraph in driver.subgraphs:
+                subgraph.lower_to_top_level_ir()
+            for i, subgraph in enumerate(driver.subgraphs):
+                files[f"subgraph0_decode_{cache_size}_{i}.mlir"] = (
+                    subgraph._imported_module
+                )
+            files[f"forward_decode_{cache_size}.mlir"] = (
+                driver.construct_combined_main_graph(True)
+            )
+            partition_manifest["decode"][str(cache_size)] = {
+                "subgraphs": len(driver.subgraphs),
+                "forward": f"forward_decode_{cache_size}.mlir",
+            }
+        else:
+            driver = GraphDriver(graph)
+            driver.subgraphs[0].lower_to_top_level_ir()
+            files = {
+                f"subgraph0_decode_{cache_size}.mlir": driver.subgraphs[
+                    0
+                ]._imported_module,
+                f"forward_decode_{cache_size}.mlir": driver.construct_main_graph(
+                    True
+                ),
+            }
+            partition_manifest["decode"][str(cache_size)] = {
+                "subgraphs": 1,
+                "forward": f"forward_decode_{cache_size}.mlir",
+            }
         for filename, content in files.items():
-            with open(os.path.join(output_dir, filename), "w") as f:
+            with open(os.path.join(mlir_output_dir, filename), "w") as f:
                 print(content, file=f)
-            print(f"[import] Written: {filename}", file=sys.stderr)
+            prefix = "layer_partitioned/" if export_layer_partitioned else ""
+            print(f"[import] Written: {prefix}{filename}", file=sys.stderr)
+
+    if export_layer_partitioned:
+        with open(
+            os.path.join(mlir_output_dir, "partition_manifest.json"), "w"
+        ) as f:
+            json.dump(partition_manifest, f, indent=2)
+            f.write("\n")
+        prefill_total = sum(
+            item["subgraphs"] for item in partition_manifest["prefill"].values()
+        )
+        decode_total = sum(
+            item["subgraphs"] for item in partition_manifest["decode"].values()
+        )
+        print(
+            "[import] Tiered layer partitioned export complete: "
+            f"{prefill_total} prefill + {decode_total} decode subgraphs",
+            file=sys.stderr,
+        )
 
     return params
 
@@ -931,12 +1031,33 @@ def import_model(
             raise ValueError(
                 "tiered KV cache import does not support quantized variants"
             )
-        original_params = compile_and_export_tiered_graphs(
-            model, config, output_dir
-        )
-        weight_buckets = extract_plain_weights(original_params, config)
-        actual_sizes = export_weights(weight_buckets, config, output_dir)
-        update_config(config, actual_sizes, output_dir)
+        with timed_import_step("compile_tiered_graphs"):
+            original_params = compile_and_export_tiered_graphs(
+                model,
+                config,
+                output_dir,
+                export_layer_partitioned=export_layer_partitioned,
+            )
+        with timed_import_step("export_weights"):
+            if reuse_existing_weights and can_reuse_existing_weights(
+                config, output_dir
+            ):
+                print("[import] Reusing existing weight data.", file=sys.stderr)
+            elif skip_weights:
+                print("[import] Skipped weight export.", file=sys.stderr)
+            elif direct_plain_weight_export:
+                actual_sizes = export_plain_weights_direct(
+                    original_params, config, output_dir
+                )
+                update_config(config, actual_sizes, output_dir)
+                write_weights_manifest(config, output_dir)
+            else:
+                weight_buckets = extract_plain_weights(original_params, config)
+                actual_sizes = export_weights(
+                    weight_buckets, config, output_dir
+                )
+                update_config(config, actual_sizes, output_dir)
+                write_weights_manifest(config, output_dir)
         print("[import] Tiered KV cache import complete.", file=sys.stderr)
         return
 

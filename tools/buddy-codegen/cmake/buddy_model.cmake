@@ -138,10 +138,7 @@ function(buddy_add_model)
 
   set(MDL_LAYER_PARTITION OFF)
   if(BUDDY_MODEL_LAYER_PARTITION AND NOT MDL_BUILD_DIR)
-    if(MDL_TIERED_KV_CACHE)
-      message(STATUS
-        "[${MDL_NAME}] Layer partitioning is disabled for tiered KV cache builds.")
-    elseif(IS_RVV_CROSSCOMPILE)
+    if(IS_RVV_CROSSCOMPILE)
       message(STATUS
         "[${MDL_NAME}] Layer partitioning is disabled for RVV cross-compilation.")
     elseif(MDL_MLIR_DIR AND NOT EXISTS "${MDL_MLIR_DIR}/layer_partitioned/partition_manifest.json")

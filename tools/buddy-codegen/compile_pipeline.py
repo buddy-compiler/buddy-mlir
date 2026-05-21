@@ -460,6 +460,31 @@ def partitioned_compile_entries(
     """Discover per-layer MLIR files emitted by import_model.py."""
     patterns = [
         (
+            re.compile(r"^forward_prefill_(\d+)\.mlir$"),
+            "forward_prefill",
+            "forward",
+        ),
+        (
+            re.compile(r"^forward_decode_(\d+)\.mlir$"),
+            "forward_decode",
+            "forward",
+        ),
+        (
+            re.compile(r"^subgraph0_prefill_(\d+)_(\d+)\.mlir$"),
+            "subgraph_prefill",
+            "subgraph",
+        ),
+        (
+            re.compile(r"^subgraph0_decode_(\d+)_(\d+)\.mlir$"),
+            "subgraph_decode",
+            "subgraph_decode",
+        ),
+        (
+            re.compile(r"^subgraph0_decode_(\d+)\.mlir$"),
+            "subgraph_decode",
+            "subgraph_decode",
+        ),
+        (
             re.compile(r"^forward_prefill\.mlir$"),
             "forward_prefill",
             "forward",
@@ -503,7 +528,10 @@ def partitioned_compile_entries(
             match = regex.match(filename)
             if not match:
                 continue
-            index = int(match.group(1)) if match.groups() else -1
+            if len(match.groups()) >= 2:
+                index = int(match.group(1)) * 10000 + int(match.group(2))
+            else:
+                index = int(match.group(1)) if match.groups() else -1
             stem = filename.removesuffix(".mlir")
             entries.append(
                 (
@@ -578,7 +606,7 @@ def compile_partitioned(
                 "num_threads": num_threads,
                 "llc_attrs": llc_attrs,
                 "variant": variant,
-                "tiered": False,
+                "tiered": is_tiered_kv_cache(config),
                 "input": mlir_name
                 if os.path.isabs(mlir_name)
                 else os.path.join(mlir_dir, mlir_name),
@@ -648,9 +676,34 @@ def link_shared_lib(
 
 
 def partitioned_runtime_objects(
-    output_dir: str, prefill_only: bool = False
+    output_dir: str,
+    config: dict,
+    prefill_only: bool = False,
 ) -> list[str]:
     """Return the object files needed by the runtime partitioned .so."""
+    if is_tiered_kv_cache(config):
+        patterns = [
+            r"^subgraph0_prefill_\d+_\d+\.o$",
+            r"^subgraph0_decode_\d+_\d+\.o$",
+            r"^subgraph0_decode_\d+\.o$",
+            r"^forward_prefill_\d+\.o$",
+            r"^forward_decode_\d+\.o$",
+        ]
+        if prefill_only:
+            patterns = [
+                r"^subgraph0_prefill_\d+_\d+\.o$",
+                r"^forward_prefill_\d+\.o$",
+                r"^subgraph_decode\.o$",
+                r"^forward_decode\.o$",
+            ]
+        obj_files = [
+            os.path.join(output_dir, name)
+            for name in os.listdir(output_dir)
+            if any(re.match(pattern, name) for pattern in patterns)
+        ]
+        obj_files.sort()
+        return obj_files
+
     obj_files = []
     for name in os.listdir(output_dir):
         if not (name.startswith("subgraph") and name.endswith(".o")):
@@ -815,6 +868,7 @@ def main():
             link_shared_lib(
                 obj_files=partitioned_runtime_objects(
                     args.output_dir,
+                    config,
                     prefill_only=args.partitioned_prefill_only,
                 ),
                 output_so=output_so,
