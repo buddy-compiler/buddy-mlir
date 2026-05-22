@@ -148,6 +148,11 @@ public:
     Value output = transposeOp.getInit();
     Location loc = transposeOp.getLoc();
 
+    // Only handle 2D transpose; let non-2D cases fall through to generic loops
+    auto inputType = dyn_cast<MemRefType>(input.getType());
+    if (!inputType || inputType.getRank() != 2)
+      return failure();
+
     rewriter.replaceOpWithNewOp<tile::TileTransposeOp>(
         transposeOp, input, output);
     return success();

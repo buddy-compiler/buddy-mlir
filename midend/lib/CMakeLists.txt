@@ -41,6 +41,7 @@ set(LinkedLibs
   AssumeTightMemRefLayoutPass
   StaticizeMemRefLayoutPass
   EliminateMemRefCopyPass
+  EliminateLargeZeroConstants
   GraphRedundancyElimination
 )
 

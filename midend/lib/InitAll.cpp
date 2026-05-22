@@ -73,6 +73,7 @@ void registerStaticizeMemRefLayoutPass();
 void registerSimplifyTosaReshapePass();
 void registerSimplifyTosaMatmulScalarPass();
 void registerEliminateMemRefCopyPass();
+void registerEliminateLargeZeroConstantsPass();
 } // namespace buddy
 } // namespace mlir
 
@@ -129,4 +130,5 @@ void mlir::buddy::registerAllPasses() {
   mlir::buddy::registerSimplifyTosaReshapePass();
   mlir::buddy::registerSimplifyTosaMatmulScalarPass();
   mlir::buddy::registerEliminateMemRefCopyPass();
+  mlir::buddy::registerEliminateLargeZeroConstantsPass();
 }
