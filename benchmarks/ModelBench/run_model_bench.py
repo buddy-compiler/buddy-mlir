@@ -20,12 +20,23 @@ from __future__ import annotations
 import argparse
 import os
 import shlex
-import subprocess
 import sys
-import time
 from pathlib import Path
+from subprocess import CompletedProcess
+
+try:
+    from buddy.utils.terminal import TerminalUI, run_with_status
+except ModuleNotFoundError as err:
+    raise SystemExit(
+        "Cannot import buddy.utils.terminal. From the build directory, export:\n"
+        "  export BUDDY_MLIR_BUILD_DIR=$PWD\n"
+        "  export LLVM_MLIR_BUILD_DIR=$PWD/../llvm/build\n"
+        "  export PYTHONPATH=${BUDDY_MLIR_BUILD_DIR}/python_packages:"
+        "${PYTHONPATH}"
+    ) from err
 
 ROOT = Path(__file__).resolve().parents[2]
+
 MODEL_BENCH = ROOT / "benchmarks" / "ModelBench"
 DEEPSEEK_EXAMPLE = ROOT / "examples" / "BuddyDeepSeekR1"
 DEEPSEEK_BENCH = MODEL_BENCH / "DeepSeekR1"
@@ -45,26 +56,15 @@ def default_tool(path: str, env_name: str) -> str:
     return os.environ.get(env_name, str(ROOT / path))
 
 
-USE_COLOR = sys.stdout.isatty() and os.environ.get("NO_COLOR") is None
-
-
-def color(text: str, code: str) -> str:
-    if not USE_COLOR:
-        return text
-    return f"\033[{code}m{text}\033[0m"
+UI = TerminalUI()
 
 
 def section(title: str) -> None:
-    print()
-    print(color(f"== {title} ==", "1;38;5;214"))
+    UI.section(title)
 
 
 def format_seconds(seconds: float) -> str:
-    if seconds < 1e-3:
-        return f"{seconds * 1e6:.3f} us"
-    if seconds < 1:
-        return f"{seconds * 1e3:.3f} ms"
-    return f"{seconds:.3f} s"
+    return UI.format_seconds(seconds)
 
 
 def run(
@@ -75,35 +75,17 @@ def run(
     phase: str = "build",
     capture_stdout: bool = False,
     verbose: bool = False,
-) -> subprocess.CompletedProcess[bytes]:
-    if label:
-        print(f"[{phase}] {label} ...", flush=True)
-    if verbose:
-        print("+ " + " ".join(cmd))
-    start = time.perf_counter()
-    if stdout:
-        stdout.parent.mkdir(parents=True, exist_ok=True)
-        with stdout.open("wb") as f:
-            result = subprocess.run(
-                cmd, cwd=ROOT, stdout=f, stderr=subprocess.PIPE
-            )
-    else:
-        result = subprocess.run(
-            cmd,
-            cwd=ROOT,
-            stdout=subprocess.PIPE if capture_stdout else None,
-            stderr=subprocess.PIPE,
-        )
-    elapsed = time.perf_counter() - start
-    if result.returncode != 0:
-        stderr = result.stderr.decode(errors="replace")
-        raise RuntimeError(
-            "command failed with exit code "
-            f"{result.returncode}: {' '.join(cmd)}\n{stderr}"
-        )
-    if label:
-        print(f"[{phase}] {label} done in {format_seconds(elapsed)}")
-    return result
+) -> CompletedProcess[bytes]:
+    return run_with_status(
+        cmd,
+        cwd=ROOT,
+        ui=UI,
+        stdout=stdout,
+        label=label,
+        phase=phase,
+        capture_stdout=capture_stdout,
+        verbose=verbose,
+    )
 
 
 def common_pipeline(openmp_threads: int, kind: str) -> list[str]:
@@ -346,7 +328,7 @@ def print_result_table(rows: list[dict[str, str]], csv_path: Path) -> None:
         f"{'model':<16} {'precision':<10} {'prefill':>14} "
         f"{'decode(avg)':>14} {'decode iters':>12}"
     )
-    print(color("-" * 72, "2"))
+    print(UI.rule(72))
     for row in rows:
         prefill = format_seconds(float(row["prefill_s"]))
         decode = format_seconds(float(row["decode_s"]))

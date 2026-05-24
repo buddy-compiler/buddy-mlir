@@ -65,3 +65,4 @@ csv: build/benchmarks/ModelBench/deepseek-r1/results.csv
 ```
 
 Use `--verbose-commands` to print full compiler commands during the build.
+Set `NO_ANIMATION=1` to disable the interactive spinner.
