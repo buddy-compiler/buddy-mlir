@@ -34,3 +34,12 @@ existing `MemRef` container.  It uses `build/bin/buddy-opt`,
 libraries under `llvm/build/lib` by default.  See
 `benchmarks/LinalgBench/README.md` for environment variables, the full lowering
 pipeline, generated files under `build/benchmarks/LinalgBench/`, and CSV output.
+
+## ModelBench
+
+`benchmarks/ModelBench` contains end-to-end model benchmarks.  The initial case
+is an F32 DeepSeek-R1 benchmark that imports the model through
+`examples/BuddyDeepSeekR1`, builds prefill and decode entry points, and times
+one fake-input execution of each phase.
+
+See `benchmarks/ModelBench/README.md` for details.
