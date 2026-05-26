@@ -77,6 +77,7 @@ class DynamoCompiler:
         verbose=False,
         enable_external_calls: bool = False,
         capture_scalar_outputs: bool = False,
+        compile_backward: bool = False,
     ) -> None:
         """
         Initializes the Dynamo Compiler.
@@ -92,6 +93,10 @@ class DynamoCompiler:
             enable_external_calls (bool): Enable external function call support (for oneDNN, etc.)
             capture_scalar_outputs (bool): Enable scalar output capture in
                 TorchDynamo to avoid graph breaks from scalar escapes.
+            compile_backward (bool): When True, the backward pass is also
+                compiled through Buddy MLIR (both forward and backward graphs
+                are captured). When False, only the forward graph is compiled
+                and backward runs through PyTorch's eager autograd.
         Attributes:
             _func_name: The function name to be used.
             _aot_autograd_decomposition (Optional[dict], optional):
@@ -114,6 +119,7 @@ class DynamoCompiler:
         self._aot_autograd_decomposition = aot_autograd_decomposition
         self._verbose = verbose
         self._enable_external_calls = enable_external_calls
+        self._compile_backward = compile_backward
         self._imported_graphs = []
         self._ops_registry = {}
         self._imported_params = {}
@@ -879,33 +885,33 @@ class DynamoCompiler:
             return for torchdynamo's call.
         """
 
-        # params = {
-        #     # **dict(gm.named_parameters(remove_duplicate=False)),
-        #     **dict(gm.named_buffers(remove_duplicate=False)),
-        # }
-        # print(len(params))
-        # params_flat, _ = pytree.tree_flatten(params)
-        inputs_pos = []
-        params_pos = []
-        buffers_pos = []
-        for i, node in enumerate(gm.graph.nodes):
-            if i >= len(inputs):
-                break
-            if not str(node).startswith("l_self"):
-                inputs_pos.append(i)
-            elif "buffer" in str(node):
-                buffers_pos.append(i)
-            else:
-                params_pos.append(i)
-
-        params_flat = [inputs[i] for i in params_pos + buffers_pos]
-
         if self._verbose:
             print("Graph in tabular form:")
             gm.graph.print_tabular()
 
         def _compiler(_gm: torch.fx.GraphModule, _inputs: list[torch.Tensor]):
             """Compile a FX graph in Aten/Prims IR to MLIR."""
+            # Classify each placeholder node in THIS specific graph (not the
+            # outer dynamo graph) so that backward graphs — whose nodes carry
+            # names like "primals_1" / "tangents_1" rather than "l_self*" —
+            # are all treated as runtime InputNodes instead of FakeNode params.
+            local_params_pos = []
+            local_buffers_pos = []
+            local_inputs_pos = []
+            for i, node in enumerate(_gm.graph.nodes):
+                if i >= len(_inputs):
+                    break
+                node_str = str(node)
+                if not node_str.startswith("l_self"):
+                    local_inputs_pos.append(i)
+                elif "buffer" in node_str:
+                    local_buffers_pos.append(i)
+                else:
+                    local_params_pos.append(i)
+            local_params_flat = [
+                _inputs[i] for i in local_params_pos + local_buffers_pos
+            ]
+
             graph = Graph(
                 self._ops_registry,
                 self._func_name,
@@ -913,18 +919,24 @@ class DynamoCompiler:
                 self._verbose,
                 self._enable_external_calls,
             )
-            graph._params_ref = params_flat
+            graph._params_ref = local_params_flat
+            # Store positions so exec_buddy_graph can reorder AOT primals to
+            # match the MLIR function signature (params first, then inputs).
+            graph._fw_param_positions = list(local_params_pos) + list(
+                local_buffers_pos
+            )
+            graph._fw_input_positions = list(local_inputs_pos)
             param_nodes = []
             buffers_nodes = []
             input_nodes = []
             other_nodes = []
             all_nodes = list(_gm.graph.nodes)
             for i, node in enumerate(all_nodes):
-                if i in params_pos:
+                if i in local_params_pos:
                     param_nodes.append(node)
-                elif i in buffers_pos:
+                elif i in local_buffers_pos:
                     buffers_nodes.append(node)
-                elif i in inputs_pos:
+                elif i in local_inputs_pos:
                     input_nodes.append(node)
                 else:
                     other_nodes.append(node)
@@ -965,6 +977,15 @@ class DynamoCompiler:
                         buddy_node = self._create_node(
                             gm_node.op, gm_node.name, gm_node.args, node_users
                         )
+                        # Track None positions so exec_buddy_graph can reconstruct
+                        # the full gradient tuple (e.g. dx=None for non-grad inputs).
+                        raw_outputs = gm_node.args[0] if gm_node.args else []
+                        none_pos = [
+                            i for i, a in enumerate(raw_outputs) if a is None
+                        ]
+                        if none_pos:
+                            graph._output_none_positions = none_pos
+                            graph._total_output_count = len(raw_outputs)
 
                     elif gm_node.target is operator.getitem:
                         node_dtype = self._torch_dtype_translate(
@@ -1086,7 +1107,7 @@ class DynamoCompiler:
             graph._enabled_external_groups = enabled_external_groups
             graph.perform(transform_list)
             self._imported_graphs.append(graph)
-            self._imported_params[graph] = params_flat
+            self._imported_params[graph] = local_params_flat
             if return_type == "eager":
                 return _gm.forward
             if return_type == "buddy":
@@ -1103,10 +1124,18 @@ class DynamoCompiler:
                 f"Unsupported return_type={return_type!r}; expected 'eager' or 'buddy'."
             )
 
+        def _noop_bw_compiler(_gm, _inputs):
+            # When compile_backward=False, backward runs through PyTorch eager
+            # without being captured as a Buddy graph.
+            return _gm.forward
+
+        bw_compiler = _compiler if self._compile_backward else _noop_bw_compiler
+
         return aot_module_simplified(
             gm,
             inputs,
             fw_compiler=_compiler,
+            bw_compiler=bw_compiler,
             decompositions=self._aot_autograd_decomposition,
         )
 
@@ -1334,10 +1363,18 @@ class DynamoCompiler:
             def _tensor_to_numpy(tensor: torch.Tensor) -> np.ndarray:
                 if tensor.device.type != "cpu":
                     tensor = tensor.cpu()
-                tensor = tensor.contiguous()
+                tensor = tensor.detach().contiguous()
                 if tensor.dtype == torch.bfloat16:
                     return _bf16_tensor_to_numpy_uint16(tensor)
                 return tensor.numpy()
+
+            # Reorder AOT primals to match MLIR signature (params first, inputs last).
+            p_pos = getattr(graph, "_fw_param_positions", None)
+            i_pos = getattr(graph, "_fw_input_positions", None)
+            if p_pos is not None and i_pos is not None and (p_pos or i_pos):
+                args = tuple(
+                    [args[j] for j in p_pos] + [args[j] for j in i_pos]
+                )
 
             input_arrays = []
             input_descs = []
@@ -1363,9 +1400,31 @@ class DynamoCompiler:
                 if isinstance(out, np.ndarray) and out.dtype == np.uint16:
                     out = _bf16_uint16_numpy_to_f32(out)
                 if isinstance(out, np.ndarray):
+                    # Copy before output_struct (ctypes local) is GC'd.
+                    # Without this, tensors saved for autograd backward
+                    # reference freed memory and segfault.
+                    out = np.array(out, copy=True)
                     output_tensors.append(torch.from_numpy(out))
                 else:
                     output_tensors.append(torch.tensor(out))
+
+            # Reconstruct full output inserting None at positions where the
+            # graph had None (e.g. gradient w.r.t. non-grad inputs).
+            none_positions = getattr(graph, "_output_none_positions", [])
+            if none_positions:
+                total = getattr(
+                    graph, "_total_output_count", len(output_tensors)
+                )
+                none_set = set(none_positions)
+                full = []
+                mlir_idx = 0
+                for i in range(total):
+                    if i in none_set:
+                        full.append(None)
+                    else:
+                        full.append(output_tensors[mlir_idx])
+                        mlir_idx += 1
+                return full
             return output_tensors
 
         return exec_buddy_graph
