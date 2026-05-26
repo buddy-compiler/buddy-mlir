@@ -1343,7 +1343,19 @@ def matmul_transpose_b_op(
 
     if input1 is None or input2 is None:
         return
-    output_shape = list(node.tensor_meta["shape"])
+
+    input1_shape = ir.RankedTensorType(input1.type).shape
+    input2_shape = ir.RankedTensorType(input2.type).shape
+
+    if input1_shape[1] != input2_shape[1]:
+        raise ValueError(
+            f"Invalid matmul_transpose_b shape for node {node.name}: "
+            f"input1_shape={list(input1_shape)}, "
+            f"input2_shape={list(input2_shape)}"
+        )
+
+    output_shape = [input1_shape[0], input2_shape[0]]
+
     dtype = node.tensor_meta["dtype"]
     mlir_dtype = mlir_element_type_get(dtype)
     element = mlir_element_attr_get(dtype, 0.0)
