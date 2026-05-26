@@ -14,4 +14,4 @@ def BB_DEQUANT : RVInstR<0b0110100, 0b011, OPC_CUSTOM_3, (outs),
 
 // Intrinsic pattern
 let Predicates = [HasBuddyExt] in
-def : Pat<(int_riscv_bb_dequant GPR:$rs1, GPR:$rs2), (BB_DEQUANT GPR:$rs1, GPR:$rs2)>;
+def : Pat<(int_riscv_bb_int2fp GPR:$rs1, GPR:$rs2), (BB_DEQUANT GPR:$rs1, GPR:$rs2)>;
