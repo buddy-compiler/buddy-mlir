@@ -1,6 +1,9 @@
 add_mlir_library(MLIRGPUPasses
   ConvertMemcpyToGPU.cpp
+  ConvertStridedCopyToParallel.cpp
   LegalizeShmemOutlining.cpp
+  MatMulGPUTiling.cpp
+  NestParallelLoops.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/Bufferization

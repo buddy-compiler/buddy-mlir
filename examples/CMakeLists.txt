@@ -10,6 +10,7 @@ endif()
 
 if(BUDDY_DEEPSEEKR1_EXAMPLES)
   add_subdirectory(BuddyDeepSeekR1)
+  add_subdirectory(BuddyDeepSeekR1-GPU)
 endif()
 
 if(BUDDY_QWEN3_EXAMPLES)
