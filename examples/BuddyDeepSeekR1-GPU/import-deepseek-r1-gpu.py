@@ -30,11 +30,8 @@ from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.graph import GraphDriver
 from buddy.compiler.graph.operation import *
 from buddy.compiler.graph.transform import (
-    apply_classic_fusion,
     eliminate_matmul_transpose_reshape,
     eliminate_transpose,
-    flash_attention_prefill,
-    gqa_attention_fusion,
     simply_fuse,
 )
 from buddy.compiler.graph.type import DeviceType

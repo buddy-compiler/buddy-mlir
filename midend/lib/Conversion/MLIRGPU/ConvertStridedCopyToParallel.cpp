@@ -1,4 +1,5 @@
-//===- ConvertStridedCopyToParallel.cpp ------------------------------------===//
+//===- ConvertStridedCopyToParallel.cpp
+//------------------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -43,8 +44,7 @@ class ConvertStridedCopyToParallelPass
     : public PassWrapper<ConvertStridedCopyToParallelPass,
                          OperationPass<func::FuncOp>> {
 public:
-  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(
-      ConvertStridedCopyToParallelPass)
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(ConvertStridedCopyToParallelPass)
   StringRef getArgument() const final {
     return "convert-strided-copy-to-parallel";
   }
@@ -94,13 +94,13 @@ void ConvertStridedCopyToParallelPass::runOnOperation() {
 
     OpBuilder builder(copyOp);
 
-    // Build lower bounds (all zeros), upper bounds (shape of dst), steps (all 1).
+    // Build lower bounds (all zeros), upper bounds (shape of dst), steps (all
+    // 1).
     SmallVector<Value> lowerBounds, upperBounds, steps;
     for (unsigned i = 0; i < rank; ++i) {
       lowerBounds.push_back(builder.create<arith::ConstantIndexOp>(loc, 0));
       if (dstType.isDynamicDim(i)) {
-        upperBounds.push_back(
-            builder.create<memref::DimOp>(loc, dst, i));
+        upperBounds.push_back(builder.create<memref::DimOp>(loc, dst, i));
       } else {
         upperBounds.push_back(
             builder.create<arith::ConstantIndexOp>(loc, dstType.getDimSize(i)));

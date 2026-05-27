@@ -45,7 +45,7 @@
   }(expr)
 
 extern "C" void *mgpuMemAlloc(uint64_t sizeBytes, CUstream /*stream*/,
-                               bool /*isHostShared*/) {
+                              bool /*isHostShared*/) {
   CUdeviceptr ptr = 0;
   if (sizeBytes == 0)
     return reinterpret_cast<void *>(ptr);
@@ -66,17 +66,17 @@ extern "C" void mgpuMemFree(void *ptr, CUstream /*stream*/) {
 }
 
 extern "C" void mgpuMemcpy(void *dst, void *src, size_t sizeBytes,
-                            CUstream stream) {
+                           CUstream stream) {
   unsigned int dstMemType = 0, srcMemType = 0;
   cuPointerGetAttribute(&dstMemType, CU_POINTER_ATTRIBUTE_MEMORY_TYPE,
                         reinterpret_cast<CUdeviceptr>(dst));
   cuPointerGetAttribute(&srcMemType, CU_POINTER_ATTRIBUTE_MEMORY_TYPE,
                         reinterpret_cast<CUdeviceptr>(src));
 
-  const bool dstIsDevice =
-      (dstMemType == CU_MEMORYTYPE_DEVICE || dstMemType == CU_MEMORYTYPE_UNIFIED);
-  const bool srcIsDevice =
-      (srcMemType == CU_MEMORYTYPE_DEVICE || srcMemType == CU_MEMORYTYPE_UNIFIED);
+  const bool dstIsDevice = (dstMemType == CU_MEMORYTYPE_DEVICE ||
+                            dstMemType == CU_MEMORYTYPE_UNIFIED);
+  const bool srcIsDevice = (srcMemType == CU_MEMORYTYPE_DEVICE ||
+                            srcMemType == CU_MEMORYTYPE_UNIFIED);
 
   if (dstIsDevice && srcIsDevice) {
     CUDA_REPORT_IF_ERROR(cuMemcpyAsync(reinterpret_cast<CUdeviceptr>(dst),
@@ -86,9 +86,8 @@ extern "C" void mgpuMemcpy(void *dst, void *src, size_t sizeBytes,
     CUDA_REPORT_IF_ERROR(cuMemcpyHtoDAsync(reinterpret_cast<CUdeviceptr>(dst),
                                            src, sizeBytes, stream));
   } else if (srcIsDevice) {
-    CUDA_REPORT_IF_ERROR(
-        cuMemcpyDtoHAsync(dst, reinterpret_cast<CUdeviceptr>(src), sizeBytes,
-                          stream));
+    CUDA_REPORT_IF_ERROR(cuMemcpyDtoHAsync(
+        dst, reinterpret_cast<CUdeviceptr>(src), sizeBytes, stream));
   } else {
     CUDA_REPORT_IF_ERROR(cuMemcpyAsync(reinterpret_cast<CUdeviceptr>(dst),
                                        reinterpret_cast<CUdeviceptr>(src),
