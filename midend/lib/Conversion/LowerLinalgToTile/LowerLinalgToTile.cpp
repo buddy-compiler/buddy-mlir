@@ -17,6 +17,8 @@
 // This file defines Linalg dialect lowering pass to Tile dialect.
 //
 //===----------------------------------------------------------------------===//
+#include <optional>
+
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
@@ -35,6 +37,20 @@ using namespace buddy;
 //===----------------------------------------------------------------------===//
 
 namespace {
+static std::optional<int64_t> getUniformAttr(DenseIntElementsAttr attr) {
+  if (!attr)
+    return 1;
+  if (attr.empty())
+    return std::nullopt;
+
+  int64_t value = (*attr.begin()).getSExtValue();
+  for (llvm::APInt element : attr) {
+    if (element.getSExtValue() != value)
+      return std::nullopt;
+  }
+  return value;
+}
+
 class MatmulLowering : public OpRewritePattern<linalg::MatmulOp> {
 public:
   explicit MatmulLowering(MLIRContext *context) : OpRewritePattern(context) {}
@@ -72,8 +88,7 @@ public:
       bVal = rewriter.create<memref::CollapseShapeOp>(loc, input1, reassoc);
       oVal = rewriter.create<memref::CollapseShapeOp>(loc, output0, reassoc);
     }
-    rewriter.replaceOpWithNewOp<tile::TileMatMulOp>(
-        matMulOp, aVal, bVal, oVal);
+    rewriter.replaceOpWithNewOp<tile::TileMatMulOp>(matMulOp, aVal, bVal, oVal);
     return success();
   }
 
@@ -108,7 +123,8 @@ public:
       if (dyn_cast<MemRefType>(subInput0.getType()).getRank() == 3 &&
           dyn_cast<MemRefType>(subInput0.getType()).getShape()[0] == 1) {
         SmallVector<SmallVector<int64_t, 2>, 2> reassoc = {{0, 1}, {2}};
-        subInput0 = rewriter.create<memref::CollapseShapeOp>(loc, subInput0, reassoc);
+        subInput0 =
+            rewriter.create<memref::CollapseShapeOp>(loc, subInput0, reassoc);
       }
 
       staticSizes.assign({1, input1Shape[1], input1Shape[2]});
@@ -117,7 +133,8 @@ public:
       if (dyn_cast<MemRefType>(subInput1.getType()).getRank() == 3 &&
           dyn_cast<MemRefType>(subInput1.getType()).getShape()[0] == 1) {
         SmallVector<SmallVector<int64_t, 2>, 2> reassoc = {{0, 1}, {2}};
-        subInput1 = rewriter.create<memref::CollapseShapeOp>(loc, subInput1, reassoc);
+        subInput1 =
+            rewriter.create<memref::CollapseShapeOp>(loc, subInput1, reassoc);
       }
 
       staticSizes.assign({1, outputShape[1], outputShape[2]});
@@ -126,11 +143,13 @@ public:
       if (dyn_cast<MemRefType>(subOutput.getType()).getRank() == 3 &&
           dyn_cast<MemRefType>(subOutput.getType()).getShape()[0] == 1) {
         SmallVector<SmallVector<int64_t, 2>, 2> reassoc = {{0, 1}, {2}};
-        subOutput = rewriter.create<memref::CollapseShapeOp>(loc, subOutput, reassoc);
+        subOutput =
+            rewriter.create<memref::CollapseShapeOp>(loc, subOutput, reassoc);
       }
       SmallVector<Value> inputs = {subInput0, subInput1};
       SmallVector<Value> outputs = {subOutput};
-      rewriter.create<linalg::MatmulOp>(batchMatMulOp.getLoc(), inputs, outputs);
+      rewriter.create<linalg::MatmulOp>(batchMatMulOp.getLoc(), inputs,
+                                        outputs);
     }
     rewriter.eraseOp(batchMatMulOp.getOperation());
     return success();
@@ -139,7 +158,8 @@ public:
 
 class TransposeOpLowering : public OpRewritePattern<linalg::TransposeOp> {
 public:
-  explicit TransposeOpLowering(MLIRContext *context) : OpRewritePattern<linalg::TransposeOp>(context) {}
+  explicit TransposeOpLowering(MLIRContext *context)
+      : OpRewritePattern<linalg::TransposeOp>(context) {}
 
   LogicalResult matchAndRewrite(linalg::TransposeOp transposeOp,
                                 PatternRewriter &rewriter) const override {
@@ -153,8 +173,8 @@ public:
     if (!inputType || inputType.getRank() != 2)
       return failure();
 
-    rewriter.replaceOpWithNewOp<tile::TileTransposeOp>(
-        transposeOp, input, output);
+    rewriter.replaceOpWithNewOp<tile::TileTransposeOp>(transposeOp, input,
+                                                       output);
     return success();
   }
 };
@@ -169,6 +189,11 @@ public:
     auto outputs = convOp.getOutputs();
     if (inputs.size() != 2 || outputs.size() != 1)
       return failure();
+    auto stride = getUniformAttr(convOp.getStrides());
+    auto dilation = getUniformAttr(convOp.getDilations());
+    if (!stride || !dilation || *stride != 1 || *dilation != 1)
+      return failure();
+
     Value input = inputs[0];
     Value filter = inputs[1];
     Value output = outputs[0];
@@ -182,6 +207,208 @@ public:
   }
 };
 
+class Conv2dNhwcFhwcLowering
+    : public OpRewritePattern<linalg::Conv2DNhwcFhwcOp> {
+public:
+  using OpRewritePattern<linalg::Conv2DNhwcFhwcOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(linalg::Conv2DNhwcFhwcOp convOp,
+                                PatternRewriter &rewriter) const override {
+    auto inputs = convOp.getInputs();
+    auto outputs = convOp.getOutputs();
+    if (inputs.size() != 2 || outputs.size() != 1)
+      return failure();
+
+    Value input = inputs[0];
+    Value filter = inputs[1];
+    Value output = outputs[0];
+    auto inputType = dyn_cast<MemRefType>(input.getType());
+    auto filterType = dyn_cast<MemRefType>(filter.getType());
+    auto outputType = dyn_cast<MemRefType>(output.getType());
+    if (!inputType || !filterType || !outputType)
+      return failure();
+    if (inputType.getRank() != 4 || filterType.getRank() != 4 ||
+        outputType.getRank() != 4)
+      return failure();
+
+    auto stride = getUniformAttr(convOp.getStrides());
+    auto dilation = getUniformAttr(convOp.getDilations());
+    if (!stride || !dilation || *stride != 1 || *dilation != 1)
+      return failure();
+
+    Location loc = convOp.getLoc();
+    ArrayRef<int64_t> filterShape = filterType.getShape();
+    int64_t oc = filterShape[0];
+    int64_t kh = filterShape[1];
+    int64_t kw = filterShape[2];
+    int64_t c = filterShape[3];
+
+    auto hwcfType =
+        MemRefType::get({kh, kw, c, oc}, filterType.getElementType());
+    Value hwcf = rewriter.create<memref::AllocOp>(loc, hwcfType);
+
+    Value zero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+    Value one = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+    Value ocUb = rewriter.create<arith::ConstantIndexOp>(loc, oc);
+    Value khUb = rewriter.create<arith::ConstantIndexOp>(loc, kh);
+    Value kwUb = rewriter.create<arith::ConstantIndexOp>(loc, kw);
+    Value cUb = rewriter.create<arith::ConstantIndexOp>(loc, c);
+
+    auto ocLoop = rewriter.create<scf::ForOp>(loc, zero, ocUb, one);
+    rewriter.setInsertionPointToStart(ocLoop.getBody());
+    Value ocIv = ocLoop.getInductionVar();
+
+    auto khLoop = rewriter.create<scf::ForOp>(loc, zero, khUb, one);
+    rewriter.setInsertionPointToStart(khLoop.getBody());
+    Value khIv = khLoop.getInductionVar();
+
+    auto kwLoop = rewriter.create<scf::ForOp>(loc, zero, kwUb, one);
+    rewriter.setInsertionPointToStart(kwLoop.getBody());
+    Value kwIv = kwLoop.getInductionVar();
+
+    auto cLoop = rewriter.create<scf::ForOp>(loc, zero, cUb, one);
+    rewriter.setInsertionPointToStart(cLoop.getBody());
+    Value cIv = cLoop.getInductionVar();
+
+    Value value = rewriter.create<memref::LoadOp>(
+        loc, filter, ValueRange{ocIv, khIv, kwIv, cIv});
+    rewriter.create<memref::StoreOp>(loc, value, hwcf,
+                                     ValueRange{khIv, kwIv, cIv, ocIv});
+
+    rewriter.setInsertionPointAfter(ocLoop);
+    rewriter.create<tile::TileConv2dOp>(loc, input, hwcf, output);
+    rewriter.create<memref::DeallocOp>(loc, hwcf);
+    rewriter.eraseOp(convOp);
+    return success();
+  }
+};
+
+class Conv2dNchwFchwLowering
+    : public OpRewritePattern<linalg::Conv2DNchwFchwOp> {
+public:
+  using OpRewritePattern<linalg::Conv2DNchwFchwOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(linalg::Conv2DNchwFchwOp convOp,
+                                PatternRewriter &rewriter) const override {
+    auto inputs = convOp.getInputs();
+    auto outputs = convOp.getOutputs();
+    if (inputs.size() != 2 || outputs.size() != 1)
+      return failure();
+
+    Value input = inputs[0];
+    Value filter = inputs[1];
+    Value output = outputs[0];
+    auto inputType = dyn_cast<MemRefType>(input.getType());
+    auto filterType = dyn_cast<MemRefType>(filter.getType());
+    auto outputType = dyn_cast<MemRefType>(output.getType());
+    if (!inputType || !filterType || !outputType)
+      return failure();
+    if (inputType.getRank() != 4 || filterType.getRank() != 4 ||
+        outputType.getRank() != 4)
+      return failure();
+
+    auto stride = getUniformAttr(convOp.getStrides());
+    auto dilation = getUniformAttr(convOp.getDilations());
+    if (!stride || !dilation || *stride != 1 || *dilation != 1)
+      return failure();
+
+    Location loc = convOp.getLoc();
+    ArrayRef<int64_t> inputShape = inputType.getShape();
+    ArrayRef<int64_t> filterShape = filterType.getShape();
+    ArrayRef<int64_t> outputShape = outputType.getShape();
+    int64_t n = inputShape[0];
+    int64_t c = inputShape[1];
+    int64_t h = inputShape[2];
+    int64_t w = inputShape[3];
+    int64_t f = filterShape[0];
+    int64_t kh = filterShape[2];
+    int64_t kw = filterShape[3];
+    int64_t oh = outputShape[2];
+    int64_t ow = outputShape[3];
+
+    auto nhwcType = MemRefType::get({n, h, w, c}, inputType.getElementType());
+    auto hwcfType =
+        MemRefType::get({kh, kw, c, f}, filterType.getElementType());
+    auto outNhwcType =
+        MemRefType::get({n, oh, ow, f}, outputType.getElementType());
+    Value nhwc = rewriter.create<memref::AllocOp>(loc, nhwcType);
+    Value hwcf = rewriter.create<memref::AllocOp>(loc, hwcfType);
+    Value outNhwc = rewriter.create<memref::AllocOp>(loc, outNhwcType);
+
+    Value zero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+    Value one = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+    Value nUb = rewriter.create<arith::ConstantIndexOp>(loc, n);
+    Value cUb = rewriter.create<arith::ConstantIndexOp>(loc, c);
+    Value hUb = rewriter.create<arith::ConstantIndexOp>(loc, h);
+    Value wUb = rewriter.create<arith::ConstantIndexOp>(loc, w);
+    Value fUb = rewriter.create<arith::ConstantIndexOp>(loc, f);
+    Value khUb = rewriter.create<arith::ConstantIndexOp>(loc, kh);
+    Value kwUb = rewriter.create<arith::ConstantIndexOp>(loc, kw);
+    Value ohUb = rewriter.create<arith::ConstantIndexOp>(loc, oh);
+    Value owUb = rewriter.create<arith::ConstantIndexOp>(loc, ow);
+
+    auto nLoop = rewriter.create<scf::ForOp>(loc, zero, nUb, one);
+    rewriter.setInsertionPointToStart(nLoop.getBody());
+    Value nIv = nLoop.getInductionVar();
+    auto cLoop = rewriter.create<scf::ForOp>(loc, zero, cUb, one);
+    rewriter.setInsertionPointToStart(cLoop.getBody());
+    Value cIv = cLoop.getInductionVar();
+    auto hLoop = rewriter.create<scf::ForOp>(loc, zero, hUb, one);
+    rewriter.setInsertionPointToStart(hLoop.getBody());
+    Value hIv = hLoop.getInductionVar();
+    auto wLoop = rewriter.create<scf::ForOp>(loc, zero, wUb, one);
+    rewriter.setInsertionPointToStart(wLoop.getBody());
+    Value wIv = wLoop.getInductionVar();
+    Value inputValue = rewriter.create<memref::LoadOp>(
+        loc, input, ValueRange{nIv, cIv, hIv, wIv});
+    rewriter.create<memref::StoreOp>(loc, inputValue, nhwc,
+                                     ValueRange{nIv, hIv, wIv, cIv});
+
+    rewriter.setInsertionPointAfter(nLoop);
+    auto fLoop = rewriter.create<scf::ForOp>(loc, zero, fUb, one);
+    rewriter.setInsertionPointToStart(fLoop.getBody());
+    Value fIv = fLoop.getInductionVar();
+    auto fcLoop = rewriter.create<scf::ForOp>(loc, zero, cUb, one);
+    rewriter.setInsertionPointToStart(fcLoop.getBody());
+    Value fcIv = fcLoop.getInductionVar();
+    auto khLoop = rewriter.create<scf::ForOp>(loc, zero, khUb, one);
+    rewriter.setInsertionPointToStart(khLoop.getBody());
+    Value khIv = khLoop.getInductionVar();
+    auto kwLoop = rewriter.create<scf::ForOp>(loc, zero, kwUb, one);
+    rewriter.setInsertionPointToStart(kwLoop.getBody());
+    Value kwIv = kwLoop.getInductionVar();
+    Value filterValue = rewriter.create<memref::LoadOp>(
+        loc, filter, ValueRange{fIv, fcIv, khIv, kwIv});
+    rewriter.create<memref::StoreOp>(loc, filterValue, hwcf,
+                                     ValueRange{khIv, kwIv, fcIv, fIv});
+
+    rewriter.setInsertionPointAfter(fLoop);
+    rewriter.create<tile::TileConv2dOp>(loc, nhwc, hwcf, outNhwc);
+
+    auto onLoop = rewriter.create<scf::ForOp>(loc, zero, nUb, one);
+    rewriter.setInsertionPointToStart(onLoop.getBody());
+    Value onIv = onLoop.getInductionVar();
+    auto ofLoop = rewriter.create<scf::ForOp>(loc, zero, fUb, one);
+    rewriter.setInsertionPointToStart(ofLoop.getBody());
+    Value ofIv = ofLoop.getInductionVar();
+    auto ohLoop = rewriter.create<scf::ForOp>(loc, zero, ohUb, one);
+    rewriter.setInsertionPointToStart(ohLoop.getBody());
+    Value ohIv = ohLoop.getInductionVar();
+    auto owLoop = rewriter.create<scf::ForOp>(loc, zero, owUb, one);
+    rewriter.setInsertionPointToStart(owLoop.getBody());
+    Value owIv = owLoop.getInductionVar();
+    Value outputValue = rewriter.create<memref::LoadOp>(
+        loc, outNhwc, ValueRange{onIv, ohIv, owIv, ofIv});
+    rewriter.create<memref::StoreOp>(loc, outputValue, output,
+                                     ValueRange{onIv, ofIv, ohIv, owIv});
+
+    rewriter.setInsertionPointAfter(onLoop);
+    rewriter.create<memref::DeallocOp>(loc, nhwc);
+    rewriter.create<memref::DeallocOp>(loc, hwcf);
+    rewriter.create<memref::DeallocOp>(loc, outNhwc);
+    rewriter.eraseOp(convOp);
+    return success();
+  }
+};
+
 } // namespace
 
 void populateLowerLinalgToTileConversionPatterns(RewritePatternSet &patterns) {
@@ -189,6 +416,8 @@ void populateLowerLinalgToTileConversionPatterns(RewritePatternSet &patterns) {
   patterns.add<BatchMatMulOpLowering>(patterns.getContext());
   patterns.add<TransposeOpLowering>(patterns.getContext());
   patterns.add<Conv2dNhwcHwcfLowering>(patterns.getContext());
+  patterns.add<Conv2dNhwcFhwcLowering>(patterns.getContext());
+  patterns.add<Conv2dNchwFchwLowering>(patterns.getContext());
 }
 
 //===----------------------------------------------------------------------===//
@@ -208,9 +437,9 @@ public:
   }
   void runOnOperation() override;
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<tile::TileDialect, func::FuncDialect,
-                    memref::MemRefDialect, linalg::LinalgDialect,
-                    arith::ArithDialect, scf::SCFDialect>();
+    registry
+        .insert<tile::TileDialect, func::FuncDialect, memref::MemRefDialect,
+                linalg::LinalgDialect, arith::ArithDialect, scf::SCFDialect>();
   }
 };
 } // namespace
@@ -219,10 +448,8 @@ void LowerLinalgToTilePass::runOnOperation() {
   MLIRContext *context = &getContext();
   ModuleOp module = getOperation();
   ConversionTarget target(*context);
-  target.addLegalDialect<memref::MemRefDialect, 
-                         tile::TileDialect,
-                         arith::ArithDialect, 
-                         scf::SCFDialect>();
+  target.addLegalDialect<memref::MemRefDialect, tile::TileDialect,
+                         arith::ArithDialect, scf::SCFDialect>();
   target.addLegalOp<linalg::FillOp, linalg::YieldOp>();
   RewritePatternSet patterns(context);
   populateLowerLinalgToTileConversionPatterns(patterns);
@@ -237,4 +464,3 @@ void registerLowerLinalgToTilePass() {
 }
 } // namespace buddy
 } // namespace mlir
-
