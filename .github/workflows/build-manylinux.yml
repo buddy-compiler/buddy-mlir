@@ -10,12 +10,14 @@ on:
       llvm_cache_mode:
         description: "LLVM cache mode: cache reuses a ready install, incremental keeps the build dir, clean deletes it first."
         required: false
-        default: cache
+        default: incremental
         type: choice
         options:
           - cache
           - incremental
           - clean
+  schedule:
+    - cron: '30 18 * * 0'
 
 permissions:
   contents: write
@@ -23,14 +25,57 @@ permissions:
 jobs:
   prepare_release:
     runs-on: ubuntu-22.04
+    outputs:
+      tag_name: ${{ steps.vars.outputs.tag_name }}
+      name: ${{ steps.vars.outputs.name }}
+      version: ${{ steps.vars.outputs.version }}
+      llvm_cache_mode: ${{ steps.vars.outputs.llvm_cache_mode }}
     steps:
-      - name: Create draft release
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Prepare variables
+        id: vars
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            # trigger by hand
+            VERSION="${{ inputs.version }}"
+            NAME="BUDDY MLIR ${VERSION}"
+            TAG_NAME="release/v${VERSION}"
+            CACHE_MODE="${{ inputs.llvm_cache_mode }}"
+          else
+            # trigger by schedule
+            DATE=$(date +'%Y-%m-%d')
+            SHA=$(git rev-parse --short=7 HEAD)
+            NAME="Nightly ${DATE}-${SHA}"
+            TAG_NAME="nightly"
+            CACHE_MODE="incremental"
+            if RAW_DESCRIBE=$(git describe --tags --long --match "release/v*" 2>/dev/null); then
+              echo "Found last release tag: ${RAW_DESCRIBE}"
+              VERSION=$(echo "$RAW_DESCRIBE" | sed -E 's/^release\/v//; s/-([0-9]+)-g/.dev\1+/')
+            else
+              TOTAL_COMMITS=$(git rev-list --count HEAD)
+              VERSION="0.0.0.dev${TOTAL_COMMITS}+${SHA}"
+            fi
+          fi
+          echo "tag_name=$TAG_NAME" >> "$GITHUB_OUTPUT"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "llvm_cache_mode=$CACHE_MODE" >> "$GITHUB_OUTPUT"
+
+      - name: Create or Update release page
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: release/v${{ inputs.version }}
-          name: BUDDY MLIR ${{ inputs.version }}
-          draft: true
+          tag_name: ${{ steps.vars.outputs.tag_name }}
+          name: ${{ steps.vars.outputs.name }}
+          draft: ${{ steps.vars.outputs.tag_name != 'nightly' }}
+          append_body: false
           overwrite_files: true
+          prerelease: ${{ steps.vars.outputs.tag_name == 'nightly' }}
+          make_latest: ${{ steps.vars.outputs.tag_name != 'nightly' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -41,7 +86,7 @@ jobs:
     continue-on-error: false
 
     concurrency:
-      group: buddy-mlir-manylinux-${{ matrix.arch }}-py${{ matrix.python }}
+      group: buddy-mlir-manylinux-${{ matrix.arch }}-py${{ matrix.python }}-${{ needs.prepare_release.outputs.tag_name }}
       cancel-in-progress: true
 
     strategy:
@@ -92,19 +137,19 @@ jobs:
       - name: Build manylinux wheel in container
         run: |
           set -euo pipefail
-          export LLVM_CACHE_MODE="${{ inputs.llvm_cache_mode }}"
-          export LLVM_HASH="${{ steps.setup-llvm.outputs.cache_hash }}"
+          export LLVM_CACHE_MODE="${{ needs.prepare_release.outputs.llvm_cache_mode }}"
           export HOST_LLVM_SRC="${{ steps.vars.outputs.llvm_src }}"
           export HOST_BUILD_DIR="${{ steps.vars.outputs.host_build_dir }}"
-          ./scripts/release_wheel_manylinux.sh "${{ steps.vars.outputs.py_tag }}" ${{ inputs.version }} "${{ matrix.target_arch }}"
+          ./scripts/release_wheel_manylinux.sh "${{ steps.vars.outputs.py_tag }}" "${{ needs.prepare_release.outputs.version }}" "${{ matrix.target_arch }}"
 
       - name: Upload release assets
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release upload "release/v${{ inputs.version }}" \
-            ${{ steps.vars.outputs.host_build_dir }}/${{ matrix.target_arch }}/buddy/${{ steps.vars.outputs.py_tag }}/${{ steps.vars.outputs.buddy_hash }}/target/buddy-${{ inputs.version }}-${{ steps.vars.outputs.py_tag }}-manylinux* \
+          set -euo pipefail
+          gh release upload "${{ needs.prepare_release.outputs.tag_name }}" \
+            ${{ steps.vars.outputs.host_build_dir }}/${{ matrix.target_arch }}/buddy/${{ steps.vars.outputs.py_tag }}/${{ steps.vars.outputs.buddy_hash }}/target/buddy-${{ needs.prepare_release.outputs.version }}-${{ steps.vars.outputs.py_tag }}-manylinux* \
             ${{ steps.vars.outputs.host_build_dir }}/${{ matrix.target_arch }}/buddy/${{ steps.vars.outputs.py_tag }}/${{ steps.vars.outputs.buddy_hash }}/target/llvm-*-${{ steps.vars.outputs.py_tag }}-manylinux* \
             --clobber
 
@@ -114,8 +159,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -euo pipefail
           BUDDY_BUILD_DIR=${{ steps.vars.outputs.host_build_dir }}/${{ matrix.target_arch }}/buddy/${{ steps.vars.outputs.py_tag }}/${{ steps.vars.outputs.buddy_hash }}
-          cp -a "${BUDDY_BUILD_DIR}/dist/bin/buddy-cli" "${BUDDY_BUILD_DIR}/target/buddy-cli-${{ inputs.version }}.${{ matrix.target_arch }}"
-          gh release upload "release/v${{ inputs.version }}" \
-            "${BUDDY_BUILD_DIR}/target/buddy-cli-${{ inputs.version }}.${{ matrix.target_arch }}" \
+          cp -a "${BUDDY_BUILD_DIR}/dist/bin/buddy-cli" "${BUDDY_BUILD_DIR}/target/buddy-cli-${{ needs.prepare_release.outputs.version }}.${{ matrix.target_arch }}"
+          gh release upload "${{ needs.prepare_release.outputs.tag_name }}" \
+            "${BUDDY_BUILD_DIR}/target/buddy-cli-${{ needs.prepare_release.outputs.version }}.${{ matrix.target_arch }}" \
             --clobber

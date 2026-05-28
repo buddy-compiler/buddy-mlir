@@ -6,17 +6,6 @@ inputs:
     description: Path to the llvm-project checkout.
     required: true
 
-outputs:
-  llvm_src:
-    description: Path to the llvm-project checkout.
-    value: ${{ steps.checkout-llvm.outputs.llvm_src }}
-  llvm_commit:
-    description: LLVM commit pinned by the repository submodule entry.
-    value: ${{ steps.checkout-llvm.outputs.llvm_commit }}
-  cache_hash:
-    description: LLVM source hash derived from the llvm submodule commit and applied patch.
-    value: ${{ steps.checkout-llvm.outputs.cache_hash }}
-
 runs:
   using: composite
   steps:
@@ -34,13 +23,10 @@ runs:
           git clone https://community-ci.openruyi.cn/toolchain/llvm-project.git $LLVM_SRC
         fi
 
+        git submodule sync --recursive
         git -C $LLVM_SRC fetch --all
-        git -C $LLVM_SRC reset --hard
+        git -C $LLVM_SRC checkout -f $LLVM_COMMIT
+        git -C $LLVM_SRC reset --hard HEAD
         git -C $LLVM_SRC clean -fdx
-        git -C $LLVM_SRC checkout $LLVM_COMMIT
 
         git -C $LLVM_SRC apply $GITHUB_WORKSPACE/riscv-jitlink.patch
-
-        echo "llvm_src=$LLVM_SRC" >> "$GITHUB_OUTPUT"
-        echo "llvm_commit=$LLVM_COMMIT" >> "$GITHUB_OUTPUT"
-        echo "cache_hash=$LLVM_HASH" >> "$GITHUB_OUTPUT"

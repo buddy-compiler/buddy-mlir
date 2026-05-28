@@ -59,6 +59,7 @@ runs:
         echo "PATH=/usr/lib/ccache:$PATH" >> $GITHUB_ENV
         ccache -M 50G
         echo "CCACHE_MAXSIZE=50G" >> $GITHUB_ENV
+
         echo LLVM_SRC=/home/jenkins/src/llvm-project >> $GITHUB_ENV
         echo LLVM_BUILD_ROOT=/home/jenkins/llvm-cache >> $GITHUB_ENV
         mkdir -p /home/jenkins/src
@@ -81,25 +82,17 @@ runs:
       id: prepare-llvm-build
       shell: bash
       run: |
-        LLVM_SRC="${{ steps.setup-llvm.outputs.llvm_src }}"
-        LLVM_BUILD_DIR="${{ env.LLVM_BUILD_ROOT }}/${{ steps.setup-llvm.outputs.cache_hash }}"
-
-        echo "LLVM_SRC=${{ steps.setup-llvm.outputs.llvm_src }}" >> $GITHUB_ENV
-        echo "LLVM_BUILD_DIR=${{ env.LLVM_BUILD_ROOT }}/${{ steps.setup-llvm.outputs.cache_hash }}" >> $GITHUB_ENV
-        if [ -f "${LLVM_BUILD_DIR}/build/CMakeCache.txt" ] &&
-          grep -q "${LLVM_SRC}" "${LLVM_BUILD_DIR}/build/CMakeCache.txt"; then
-          echo "need-rebuild=false" >> "$GITHUB_OUTPUT"
-        else
-          echo "need-rebuild=true" >> "$GITHUB_OUTPUT"
-        fi
+        echo "LLVM_SRC=${{ env.LLVM_SRC }}" >> $GITHUB_ENV
+        echo "LLVM_BUILD_DIR=${{ env.LLVM_BUILD_ROOT }}" >> $GITHUB_ENV
 
     - name: Configure and Build LLVM
-      if: ${{ steps.prepare-llvm-build.outputs.need-rebuild == 'true' }}
       shell: bash
       run: |
         ${{ inputs.venv_activate }}
         rm -rf $LLVM_BUILD_DIR
         cmake -G Ninja -S $LLVM_SRC/llvm -B $LLVM_BUILD_DIR/build \
+          -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+          -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           -DLLVM_ENABLE_PROJECTS="mlir;clang;openmp" \
           -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
           -DLLVM_ENABLE_ASSERTIONS=ON \
@@ -125,6 +118,8 @@ runs:
         cd build
 
         cmake -G Ninja .. \
+          -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+          -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           -DMLIR_DIR=$LLVM_BUILD_DIR/build/lib/cmake/mlir \
           -DLLVM_DIR=$LLVM_BUILD_DIR/build/lib/cmake/llvm \
           -DLLVM_MAIN_SRC_DIR=$LLVM_SRC/llvm \
@@ -140,12 +135,3 @@ runs:
         ccache -s
 
         ${{ inputs.venv_deactivate }}
-
-    - name: Cleanup old LLVM build cache
-      if: ${{ always() }}
-      shell: bash
-      run: |
-        KEEP=3
-
-        cd $LLVM_BUILD_ROOT
-        ls -1dt */ | tail -n +$((KEEP+1)) | xargs -r rm -rf

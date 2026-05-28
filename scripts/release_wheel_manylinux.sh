@@ -8,7 +8,7 @@
 set -euo pipefail
 
 # -----------------------------------------------------------------------------
-# Inputs
+# Cli Inputs
 # -----------------------------------------------------------------------------
 
 PY_TAG="${1:?Error: Python ABI (parameter 1, format \"cp310-cp310\") is required but not set.}"
@@ -16,17 +16,14 @@ VERSION="${2:?Error: VERSION (parameter 2, format \"0.0.0\") is required but not
 TARGET_ARCH="${3:?Error: TARGET_ARCH (parameter 3, format \"x86_64|riscv64\") is required but not set.}"
 
 # -----------------------------------------------------------------------------
-# Host paths and cache keys
+# Env Inputs
 # -----------------------------------------------------------------------------
+
+LLVM_CACHE_MODE="${LLVM_CACHE_MODE:-incremental}"
 
 REPO_ROOT=$(cd "$(dirname "$0")/.." && pwd)
 HOST_BUILD_DIR="${HOST_BUILD_DIR:-$REPO_ROOT/build-docker}"
 HOST_LLVM_SRC="${HOST_LLVM_SRC:-$REPO_ROOT/llvm}"
-if [ -z "${LLVM_HASH:-}" ]; then
-  LLVM_COMMIT="$(git -C "${REPO_ROOT}" ls-tree HEAD llvm | awk '{print $3}')"
-  PATCH_HASH="$(sha256sum "${REPO_ROOT}/riscv-jitlink.patch" | awk '{print $1}')"
-  LLVM_HASH="${LLVM_COMMIT}-${PATCH_HASH:0:12}"
-fi
 
 # -----------------------------------------------------------------------------
 # Container paths
@@ -55,49 +52,64 @@ case "${TARGET_ARCH}" in
     ;;
   *)
     echo "Unsupported target arch: ${TARGET_ARCH}" >&2
-    echo "Supported: x86_64, riscv64" >&2
     exit 1
     ;;
 esac
 
 MANYLINUX_IMAGE="${MANYLINUX_IMAGE:-${DEFAULT_MANYLINUX_IMAGE}}"
 
-# Native same-arch host does not need --platform and some daemons reject it.
-HOST_ARCH_RAW="$(uname -m)"
-case "${HOST_ARCH_RAW}" in
-  x86_64|amd64)
-    HOST_ARCH="x86_64"
-    ;;
-  riscv64)
-    HOST_ARCH="riscv64"
-    ;;
-  *)
-    HOST_ARCH="${HOST_ARCH_RAW}"
-    ;;
-esac
-
 MANYLINUX_TAG="${MANYLINUX_TAG:-${DEFAULT_MANYLINUX_TAG}}"
 
-is_in_container() {
-    [ -f /.dockerenv ] || grep -q 'docker' /proc/1/cgroup 2>/dev/null
-}
-
-if ! is_in_container; then
+if [ -z "${IN_DOCKER:-}" ]; then
   # ---------------------------------------------------------------------------
   # Host side: validate mounts and re-enter inside the manylinux container
   # ---------------------------------------------------------------------------
 
+  # Hash = commit + patch
   BUDDY_HASH="${BUDDY_HASH:-$(git -C "${REPO_ROOT}" rev-parse HEAD)}"
+  LLVM_COMMIT="$(git -C "${REPO_ROOT}" ls-tree HEAD llvm | awk '{print $3}')"
+  PATCH_HASH="$(sha256sum "${REPO_ROOT}/riscv-jitlink.patch" | awk '{print $1}')"
+  LLVM_HASH="${LLVM_COMMIT}-${PATCH_HASH:0:12}"
+
+  # Sync git remote and latest commit
+  git submodule sync --recursive
+  git -C $HOST_LLVM_SRC fetch --all
+  # Reset to specific commit
+  git -C $HOST_LLVM_SRC checkout -f $LLVM_COMMIT
+  git -C $HOST_LLVM_SRC reset --hard HEAD
+  git -C $HOST_LLVM_SRC clean -fdx
+  # Apply llvm patch
+  git -C $HOST_LLVM_SRC apply $REPO_ROOT/riscv-jitlink.patch
+
   DOCKER_RUN_ARGS=(run --rm -i)
+
+  # Prepare proxy
   DOCKER_ENV_ARGS=()
   for proxy_var in http_proxy https_proxy ftp_proxy no_proxy HTTP_PROXY HTTPS_PROXY FTP_PROXY NO_PROXY ALL_PROXY all_proxy; do
     if [ -n "${!proxy_var:-}" ]; then
       DOCKER_ENV_ARGS+=(-e "${proxy_var}=${!proxy_var}")
     fi
   done
+
+  # Prepare stdout
   if [ -t 0 ] && [ -t 1 ]; then
     DOCKER_RUN_ARGS+=(-t)
   fi
+
+  # Prepare cross compile
+  HOST_ARCH_RAW="$(uname -m)"
+  case "${HOST_ARCH_RAW}" in
+    x86_64|amd64)
+      HOST_ARCH="x86_64"
+      ;;
+    riscv64)
+      HOST_ARCH="riscv64"
+      ;;
+    *)
+      HOST_ARCH="${HOST_ARCH_RAW}"
+      ;;
+  esac
+
   if [ "${HOST_ARCH}" = "${TARGET_ARCH}" ] && [ -z "${DOCKER_PLATFORM+x}" ]; then
     DOCKER_PLATFORM=""
   else
@@ -106,28 +118,37 @@ if ! is_in_container; then
   if [ -n "${DOCKER_PLATFORM}" ]; then
     DOCKER_RUN_ARGS+=(--platform "${DOCKER_PLATFORM}")
   fi
+
+  # Check llvm exist
   if [ ! -f "${HOST_LLVM_SRC}/llvm/CMakeLists.txt" ]; then
     echo "HOST_LLVM_SRC is invalid: ${HOST_LLVM_SRC}" >&2
     ls -ld "${HOST_LLVM_SRC}" "${HOST_LLVM_SRC}/llvm" 2>/dev/null || true
     exit 1
   fi
+
   docker "${DOCKER_RUN_ARGS[@]}" \
     "${DOCKER_ENV_ARGS[@]}" \
+    -e IN_DOCKER=1 \
+    \
     -e WORKSPACE="${WORKSPACE}" \
     -e TARGET_ARCH="${TARGET_ARCH}" \
     -e PY_TAG="${PY_TAG}" \
     -e BUDDY_PACKAGE_VERSION="${VERSION}" \
+    -e LLVM_CACHE_MODE="${LLVM_CACHE_MODE}" \
     -e BUDDY_HASH="${BUDDY_HASH}" \
-    -e LLVM_CACHE_MODE="${LLVM_CACHE_MODE:-cache}" \
     -e LLVM_HASH="${LLVM_HASH}" \
     -e MANYLINUX_TAG="${MANYLINUX_TAG}" \
+    \
+    -v "${REPO_ROOT}:${WORKSPACE}" \
+    -v "${HOST_LLVM_SRC}:${WORKSPACE_LLVM_SRC}:ro" \
+    -v "${HOST_BUILD_DIR}:${WORKSPACE_BUILD_DIR}" \
+    -v /tmp/buddy_mlir_docker_dnf_cache:/var/cache/dnf \
+    -v /tmp/buddy_mlir_docker_pip_cache:/workspace/.cache/pip \
+    \
     -e HOST_UID="$(id -u)" \
     -e HOST_GID="$(id -g)" \
     -e HOME=/workspace \
-    -v "${REPO_ROOT}:${WORKSPACE}" \
     -w "${WORKSPACE}" \
-    -v "${HOST_LLVM_SRC}:${WORKSPACE_LLVM_SRC}:ro" \
-    -v "${HOST_BUILD_DIR}:${WORKSPACE_BUILD_DIR}" \
     "${MANYLINUX_IMAGE}" \
     /bin/bash $0 $@
 else
@@ -138,7 +159,8 @@ else
   ARTIFACT_SUFFIX="${PY_TAG}-${MANYLINUX_TAG}"
 
   cleanup_workspace_staging() {
-    [ -e "${WORKSPACE}" ] && chown -R "$HOST_UID":"$HOST_GID" "${WORKSPACE}"
+    # TODO: move .py-stage to other place so that we can make ${WORKSPACE} read-only
+    [ -e "${WORKSPACE}/.py-stage" ] && chown -R "$HOST_UID":"$HOST_GID" "${WORKSPACE}"
     [ -e "${BUDDY_BUILD_ROOT}" ] && chown -R "$HOST_UID":"$HOST_GID" "${BUDDY_BUILD_ROOT}"
     [ -e "${LLVM_BUILD_ROOT}" ] && chown -R "$HOST_UID":"$HOST_GID" "${LLVM_BUILD_ROOT}"
   }
@@ -217,6 +239,12 @@ else
     export CCACHE_BIN="/usr/bin/ccache"
     CCACHE_LINK_DIR="/usr/lib64/ccache"
     mkdir -p "$CCACHE_LINK_DIR"
+    # To help CMake use ccache, there are two methods:
+    # - One is to explicitly specify `-DCMAKE_CXX_COMPILER_LAUNCHER=ccache`
+    # - the other is to place the symbolic links `cc` and `c++` created by
+    #   ccache at the beginning of the path.
+    # Since the RISC-V image does not provide ccache, we now temporarily choose
+    # the second method.
     CCACHE_COMPILERS=(gcc g++ cc c++)
     case "${TARGET_ARCH}" in
       x86_64)
@@ -251,7 +279,7 @@ else
   # This is necessary, old pip versions fail to resolve the torch package correctly.
   "$PYBIN" -m pip install --upgrade pip
   "$PYBIN" -m pip --version
-  "$PYBIN" -m pip install build auditwheel ninja numpy pybind11==2.10.* nanobind==2.4.* PyYAML
+  "$PYBIN" -m pip install build auditwheel ninja pybind11==2.10.* nanobind==2.4.* PyYAML
   if [ "${TARGET_ARCH}" = "riscv64" ]; then
     # build transformers need rust toolchain.
     dnf install -y rust cargo
@@ -344,7 +372,6 @@ EOF
     printf 'ready\n' > "${LLVM_STAMP_FILE}"
   }
 
-  LLVM_CACHE_MODE="${LLVM_CACHE_MODE:-cache}"
   case "${LLVM_CACHE_MODE}" in
     cache)
       if [ -f "${LLVM_STAMP_FILE}" ]; then
