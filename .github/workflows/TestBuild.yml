@@ -14,7 +14,7 @@ jobs:
     continue-on-error: ${{ matrix.experimental }}
 
     concurrency:
-      group: buddy-mlir-${{ matrix.os }}-${{ matrix.arch }}
+      group: ${{ github.workflow }}-${{ github.event.number || github.ref }}-${{ matrix.os }}-${{ matrix.arch }}
       cancel-in-progress: true
 
     strategy:
@@ -62,15 +62,8 @@ jobs:
           venv_deactivate: ${{ matrix.venv_deactivate }}
 
       - name: Run check-buddy
-        if: matrix.arch != 'arm64'
+        continue-on-error: ${{ matrix.arch == 'arm64' }}
         run: |
           ${{ matrix.venv_activate }}
           ninja -C build check-buddy
-          ${{ matrix.venv_deactivate }}
-
-      - name: Run check-buddy
-        if: matrix.arch == 'arm64'
-        run: |
-          ${{ matrix.venv_activate }}
-          ninja -C build check-buddy || true
           ${{ matrix.venv_deactivate }}
