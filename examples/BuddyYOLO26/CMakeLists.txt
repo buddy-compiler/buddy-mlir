@@ -1,5 +1,5 @@
 set(YOLO26N_IMPORT_PYTHONPATH
-  "${LLVM_BINARY_DIR}/tools/mlir/python_packages/mlir_core:${BUDDY_MLIR_PYTHON_PACKAGES_DIR}:$ENV{PYTHONPATH}"
+  "${LLVM_BINARY_DIR}/tools/mlir/python_packages/mlir_core:${BUDDY_BINARY_DIR}/python_packages"
 )
 
 set(YOLO26N_IMPORT_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/import-yolo26n.py)
