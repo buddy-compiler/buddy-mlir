@@ -77,8 +77,9 @@ public:
 
     // Acquire the element type of input tensors.
     Type elementType =
-    mlir::cast<mlir::MemRefType>(A.getType()).getElementType();
-    VectorType vectorTy = mlir::VectorType::get({vecSize}, elementType, {scalable});
+        mlir::cast<mlir::MemRefType>(A.getType()).getElementType();
+    VectorType vectorTy =
+        mlir::VectorType::get({vecSize}, elementType, {scalable});
 
     // Define constants.
     llvm::SmallVector<Value, 8> constantVals;
@@ -122,7 +123,7 @@ public:
           Value bIdx = ivs[0];
           (void)builder;
           auto outerFor = rewriter.create<scf::ForOp>(
-              loc, constantVals[0], bCol, vlStep, std::nullopt,
+              loc, constantVals[0], bCol, vlStep, ValueRange{},
               [&](OpBuilder &builder, Location loc, Value nIdx,
                   ValueRange /*iterArgs*/) {
                 // Load initial C vector
@@ -224,7 +225,8 @@ void BatchMatMulVectorizationDecodePass::runOnOperation() {
 
   RewritePatternSet patterns(context);
   bool isScalable = (vectorType == "scalable");
-  patterns.add<BatchMatMulVectorizationDecodePattern>(context, vecSize, isScalable);
+  patterns.add<BatchMatMulVectorizationDecodePattern>(context, vecSize,
+                                                      isScalable);
 
   if (failed(applyPartialConversion(module, target, std::move(patterns))))
     signalPassFailure();

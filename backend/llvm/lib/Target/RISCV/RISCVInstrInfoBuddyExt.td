@@ -530,6 +530,7 @@ class RVInstIMEN<bits<7> funct7, bits<3> funct3, dag outs, dag ins,
                  string opcodestr, string argstr>
     : RVInst<outs, ins, opcodestr, argstr, [], InstFormatR> {
   bits<5> vs2;
+  bits<5> vs1;
   bits<5> rs1;  // GPR for dynamic slide value
   bits<5> vd;
 
@@ -543,7 +544,8 @@ class RVInstIMEN<bits<7> funct7, bits<3> funct3, dag outs, dag ins,
   let Uses = [VTYPE, VL];
 }
 
-let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0,
+    isCodeGenOnly = 1 in
 def IME_VMADOTN : RVInstIMEN<0b1111001, 0b000,
                              (outs VRM4:$vd),
                              (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2, GPR:$rs1),
@@ -551,7 +553,8 @@ def IME_VMADOTN : RVInstIMEN<0b1111001, 0b000,
   let Constraints = "$vd = $vd_in";
 }
 
-let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0,
+    isCodeGenOnly = 1 in
 def IME_VMADOTNU : RVInstIMEN<0b1111001, 0b011,
                               (outs VRM4:$vd),
                               (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2, GPR:$rs1),
@@ -559,7 +562,8 @@ def IME_VMADOTNU : RVInstIMEN<0b1111001, 0b011,
   let Constraints = "$vd = $vd_in";
 }
 
-let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0,
+    isCodeGenOnly = 1 in
 def IME_VMADOTNSU : RVInstIMEN<0b1111001, 0b001,
                                (outs VRM4:$vd),
                                (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2, GPR:$rs1),
@@ -567,7 +571,8 @@ def IME_VMADOTNSU : RVInstIMEN<0b1111001, 0b001,
   let Constraints = "$vd = $vd_in";
 }
 
-let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0,
+    isCodeGenOnly = 1 in
 def IME_VMADOTNUS : RVInstIMEN<0b1111001, 0b010,
                                (outs VRM4:$vd),
                                (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2, GPR:$rs1),
@@ -575,7 +580,8 @@ def IME_VMADOTNUS : RVInstIMEN<0b1111001, 0b010,
   let Constraints = "$vd = $vd_in";
 }
 
-let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0 in
+let Predicates = [HasBuddyExt], hasSideEffects = 0, mayLoad = 0, mayStore = 0,
+    isCodeGenOnly = 1 in
 def IME_VFMADOTN : RVInstIMEN<0b1111010, 0b000,
                               (outs VRM4:$vd),
                               (ins VRM4:$vd_in, VRM8:$vs1, VRM4:$vs2, GPR:$rs1),

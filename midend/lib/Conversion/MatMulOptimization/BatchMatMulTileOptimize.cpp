@@ -76,7 +76,7 @@ public:
 
     // Acquire the element type of input tensors.
     Type elementType =
-    mlir::cast<mlir::MemRefType>(A.getType()).getElementType();
+        mlir::cast<mlir::MemRefType>(A.getType()).getElementType();
     ShapedType ATy = mlir::cast<mlir::ShapedType>(A.getType());
 
     // Define constants.
@@ -228,7 +228,7 @@ public:
                                 loc, vTy, vecMul, vecC);
                           } else {
                             Value vecA =
-                                mTrueBranchBuilder.create<vector::SplatOp>(
+                                mTrueBranchBuilder.create<vector::BroadcastOp>(
                                     loc, vTy, ksubAElement);
                             vecC = mTrueBranchBuilder.create<vector::FMAOp>(
                                 loc, vTy, vecA, bs[j], vecC);

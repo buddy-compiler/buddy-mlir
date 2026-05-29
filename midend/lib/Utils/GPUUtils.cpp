@@ -399,7 +399,7 @@ hoistOneStaticallyBoundAllocation(func::FuncOp funcOp, OpBuilder &builder,
     Value dynamicSize = dynamicSizes[index++];
     auto ub = ValueBoundsConstraintSet::computeConstantBound(
         presburger::BoundType::UB, dynamicSize,
-        /*stopCondition=*/nullptr, /*closedUB=*/true);
+        /*stopCondition=*/nullptr, ValueBoundsOptions{/*closedUB=*/true});
     staticShape.push_back(ub.value());
     subviewSizes.push_back(dynamicSize);
   }
