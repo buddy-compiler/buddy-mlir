@@ -65,21 +65,18 @@ if [ -z "${IN_DOCKER:-}" ]; then
   # Host side: validate mounts and re-enter inside the manylinux container
   # ---------------------------------------------------------------------------
 
-  # Hash = commit + patch
+  # Hash = pinned LLVM submodule commit.
   BUDDY_HASH="${BUDDY_HASH:-$(git -C "${REPO_ROOT}" rev-parse HEAD)}"
   LLVM_COMMIT="$(git -C "${REPO_ROOT}" ls-tree HEAD llvm | awk '{print $3}')"
-  PATCH_HASH="$(sha256sum "${REPO_ROOT}/riscv-jitlink.patch" | awk '{print $1}')"
-  LLVM_HASH="${LLVM_COMMIT}-${PATCH_HASH:0:12}"
+  LLVM_HASH="${LLVM_COMMIT}"
 
   # Sync git remote and latest commit
   git submodule sync --recursive
-  git -C $HOST_LLVM_SRC fetch --all
+  git -C "${HOST_LLVM_SRC}" fetch origin "${LLVM_COMMIT}"
   # Reset to specific commit
-  git -C $HOST_LLVM_SRC checkout -f $LLVM_COMMIT
-  git -C $HOST_LLVM_SRC reset --hard HEAD
-  git -C $HOST_LLVM_SRC clean -fdx
-  # Apply llvm patch
-  git -C $HOST_LLVM_SRC apply $REPO_ROOT/riscv-jitlink.patch
+  git -C "${HOST_LLVM_SRC}" checkout -f "${LLVM_COMMIT}"
+  git -C "${HOST_LLVM_SRC}" reset --hard HEAD
+  git -C "${HOST_LLVM_SRC}" clean -fdx
 
   DOCKER_RUN_ARGS=(run --rm -i)
 
@@ -279,7 +276,7 @@ else
   # This is necessary, old pip versions fail to resolve the torch package correctly.
   "$PYBIN" -m pip install --upgrade pip
   "$PYBIN" -m pip --version
-  "$PYBIN" -m pip install build auditwheel ninja pybind11==2.10.* nanobind==2.4.* PyYAML
+  "$PYBIN" -m pip install build auditwheel ninja pybind11==2.10.* nanobind==2.9.* PyYAML
   if [ "${TARGET_ARCH}" = "riscv64" ]; then
     # build transformers need rust toolchain.
     dnf install -y rust cargo

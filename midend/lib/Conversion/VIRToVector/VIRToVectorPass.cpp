@@ -109,8 +109,8 @@ static Value buildScalarizedI1VectorLoad(OpBuilder &builder, Location loc,
     laneIndices.back() =
         builder.create<arith::AddIOp>(loc, laneIndices.back(), laneIdx);
     Value scalar = builder.create<memref::LoadOp>(loc, base, laneIndices);
-    result =
-        builder.create<vector::InsertElementOp>(loc, scalar, result, laneIdx);
+    result = builder.create<vector::InsertOp>(loc, scalar, result,
+                                              OpFoldResult(laneIdx));
   }
   return result;
 }
@@ -125,8 +125,8 @@ static void buildScalarizedI1VectorStore(OpBuilder &builder, Location loc,
     SmallVector<Value> laneIndices(baseIndices.begin(), baseIndices.end());
     laneIndices.back() =
         builder.create<arith::AddIOp>(loc, laneIndices.back(), laneIdx);
-    Value scalar =
-        builder.create<vector::ExtractElementOp>(loc, vectorValue, laneIdx);
+    Value scalar = builder.create<vector::ExtractOp>(loc, vectorValue,
+                                                     OpFoldResult(laneIdx));
     builder.create<memref::StoreOp>(loc, scalar, base, laneIndices);
   }
 }
@@ -1361,7 +1361,7 @@ private:
           loc, /*lowerBound=*/ValueRange{zero}, rewriter.getDimIdentityMap(),
           /*upperBound=*/ValueRange{vlUpbound}, rewriter.getDimIdentityMap(),
           vectorWid,
-          /*iterArgs=*/std::nullopt,
+          /*iterArgs=*/ValueRange{},
           [&](OpBuilder &bb, Location bodyLoc, Value iv, ValueRange) {
             //===------------------------------------------------------------===//
             // Step 4: Convert operations inside the dynamic vector region.
@@ -1383,7 +1383,7 @@ private:
           rewriter.getDimIdentityMap(),
           /*upperBound=*/ValueRange{vlValue}, rewriter.getDimIdentityMap(),
           /*step=*/1,
-          /*iterArgs=*/std::nullopt,
+          /*iterArgs=*/ValueRange{},
           [&](OpBuilder &bb, Location bodyLoc, Value iv, ValueRange) {
             DenseMap<Value, Value> virSymbolTable;
             lowerBlock(bb, bodyLoc, &region.front(), virSymbolTable, iv,
@@ -1410,7 +1410,7 @@ private:
         b.create<affine::AffineForOp>(
             loc, ValueRange{c0}, rewriter.getDimIdentityMap(), ValueRange{cub},
             rewriter.getDimIdentityMap(), /*step=*/1,
-            /*iterArgs=*/std::nullopt,
+            /*iterArgs=*/ValueRange{},
             [&](OpBuilder &bb, Location bodyLoc, Value iv, ValueRange) {
               ivs.push_back(iv);
               emitOuter(dim + 1, bb);

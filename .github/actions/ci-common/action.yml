@@ -90,10 +90,26 @@ runs:
       run: |
         ${{ inputs.venv_activate }}
         rm -rf $LLVM_BUILD_DIR
+
+        LLVM_RUNTIMES_CMAKE_ARGS=()
+        if [ "${{ inputs.arch }}" = "riscv64" ]; then
+          GCC_INSTALL_DIR="$(dirname "$(g++ -print-libgcc-file-name)")"
+
+          LLVM_RUNTIMES_CMAKE_ARGS_VALUE=""
+          LLVM_RUNTIMES_CMAKE_ARGS_VALUE="-DCMAKE_C_FLAGS=--gcc-install-dir=${GCC_INSTALL_DIR}"
+          LLVM_RUNTIMES_CMAKE_ARGS_VALUE="${LLVM_RUNTIMES_CMAKE_ARGS_VALUE};-DCMAKE_CXX_FLAGS=--gcc-install-dir=${GCC_INSTALL_DIR}"
+          LLVM_RUNTIMES_CMAKE_ARGS_VALUE="${LLVM_RUNTIMES_CMAKE_ARGS_VALUE};-DCMAKE_HAVE_LIBC_PTHREAD=TRUE"
+          LLVM_RUNTIMES_CMAKE_ARGS_VALUE="${LLVM_RUNTIMES_CMAKE_ARGS_VALUE};-DCMAKE_USE_PTHREADS_INIT=TRUE"
+          LLVM_RUNTIMES_CMAKE_ARGS_VALUE="${LLVM_RUNTIMES_CMAKE_ARGS_VALUE};-DCMAKE_THREAD_LIBS_INIT="
+          LLVM_RUNTIMES_CMAKE_ARGS=(-DLLVM_RUNTIMES_CMAKE_ARGS="${LLVM_RUNTIMES_CMAKE_ARGS_VALUE}")
+        fi
+
         cmake -G Ninja -S $LLVM_SRC/llvm -B $LLVM_BUILD_DIR/build \
           -DCMAKE_C_COMPILER_LAUNCHER=ccache \
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-          -DLLVM_ENABLE_PROJECTS="mlir;clang;openmp" \
+          "${LLVM_RUNTIMES_CMAKE_ARGS[@]}" \
+          -DLLVM_ENABLE_PROJECTS="mlir;clang" \
+          -DLLVM_ENABLE_RUNTIMES="openmp" \
           -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
           -DLLVM_ENABLE_ASSERTIONS=ON \
           -DCMAKE_BUILD_TYPE=RELEASE \
@@ -101,7 +117,7 @@ runs:
           -DPython3_EXECUTABLE=$(which python3)
 
         ccache -z
-        ninja -C $LLVM_BUILD_DIR/build check-clang check-mlir omp || true
+        ninja -C $LLVM_BUILD_DIR/build check-clang check-mlir check-openmp || true
         ccache -s
 
         ${{ inputs.venv_deactivate }}

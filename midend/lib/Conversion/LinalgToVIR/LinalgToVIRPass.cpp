@@ -926,7 +926,7 @@ static LogicalResult lowerMatmulToVIR(linalg::MatmulOp matmulOp,
   auto loopM = rewriter.create<affine::AffineForOp>(
       loc, ValueRange{c0}, rewriter.getDimIdentityMap(), ValueRange{mVal},
       rewriter.getDimIdentityMap(), /*step=*/1,
-      /*iterArgs=*/std::nullopt,
+      /*iterArgs=*/ValueRange{},
       [&](OpBuilder &bld, Location bodyLoc, Value i, ValueRange) {
         OpBuilder &builder = bld;
         // acc = load(C[i, 0:]) as a vector along N.
@@ -1176,7 +1176,7 @@ lowerRank2MatmulLikeToVIR(Operation *op, PatternRewriter &rewriter, Value a,
       buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, elemTy);
   rewriter.create<affine::AffineForOp>(
       loc, ValueRange{c0}, rewriter.getDimIdentityMap(), ValueRange{mVal},
-      rewriter.getDimIdentityMap(), /*step=*/1, /*iterArgs=*/std::nullopt,
+      rewriter.getDimIdentityMap(), /*step=*/1, /*iterArgs=*/ValueRange{},
       [&](OpBuilder &bld, Location bodyLoc, Value i, ValueRange) {
         Value acc =
             bld.create<buddy::vir::LoadOp>(bodyLoc, vecTy, c, ValueRange{i, c0})
@@ -1247,12 +1247,12 @@ lowerBatchMatmulLikeToVIR(Operation *op, PatternRewriter &rewriter, Value a,
       buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, elemTy);
   rewriter.create<affine::AffineForOp>(
       loc, ValueRange{c0}, rewriter.getDimIdentityMap(), ValueRange{batchVal},
-      rewriter.getDimIdentityMap(), /*step=*/1, /*iterArgs=*/std::nullopt,
+      rewriter.getDimIdentityMap(), /*step=*/1, /*iterArgs=*/ValueRange{},
       [&](OpBuilder &bb, Location bLoc, Value batch, ValueRange) {
         bb.create<affine::AffineForOp>(
             bLoc, ValueRange{c0}, rewriter.getDimIdentityMap(),
             ValueRange{mVal}, rewriter.getDimIdentityMap(), /*step=*/1,
-            /*iterArgs=*/std::nullopt,
+            /*iterArgs=*/ValueRange{},
             [&](OpBuilder &mb, Location mLoc, Value i, ValueRange) {
               Value acc = mb.create<buddy::vir::LoadOp>(
                                 mLoc, vecTy, c, ValueRange{batch, i, c0})
@@ -1453,7 +1453,7 @@ static LogicalResult lowerBatchMatvecToVIR(linalg::BatchMatvecOp op,
       buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, elemTy);
   rewriter.create<affine::AffineForOp>(
       loc, ValueRange{c0}, rewriter.getDimIdentityMap(), ValueRange{batchVal},
-      rewriter.getDimIdentityMap(), /*step=*/1, /*iterArgs=*/std::nullopt,
+      rewriter.getDimIdentityMap(), /*step=*/1, /*iterArgs=*/ValueRange{},
       [&](OpBuilder &bb, Location bLoc, Value batch, ValueRange) {
         Value acc =
             bb.create<buddy::vir::LoadOp>(bLoc, vecTy, y, ValueRange{batch, c0})
@@ -1514,7 +1514,7 @@ static LogicalResult lowerBatchVecmatToVIR(linalg::BatchVecmatOp op,
       buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, elemTy);
   rewriter.create<affine::AffineForOp>(
       loc, ValueRange{c0}, rewriter.getDimIdentityMap(), ValueRange{batchVal},
-      rewriter.getDimIdentityMap(), /*step=*/1, /*iterArgs=*/std::nullopt,
+      rewriter.getDimIdentityMap(), /*step=*/1, /*iterArgs=*/ValueRange{},
       [&](OpBuilder &bb, Location bLoc, Value batch, ValueRange) {
         Value acc =
             bb.create<buddy::vir::LoadOp>(bLoc, vecTy, y, ValueRange{batch, c0})
@@ -1577,7 +1577,7 @@ static LogicalResult lowerBatchReduceMatmulToVIR(linalg::BatchReduceMatmulOp op,
       buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, elemTy);
   rewriter.create<affine::AffineForOp>(
       loc, ValueRange{c0}, rewriter.getDimIdentityMap(), ValueRange{mVal},
-      rewriter.getDimIdentityMap(), /*step=*/1, /*iterArgs=*/std::nullopt,
+      rewriter.getDimIdentityMap(), /*step=*/1, /*iterArgs=*/ValueRange{},
       [&](OpBuilder &mb, Location mLoc, Value i, ValueRange) {
         Value acc =
             mb.create<buddy::vir::LoadOp>(mLoc, vecTy, c, ValueRange{i, c0})
@@ -1656,17 +1656,17 @@ static LogicalResult lowerMmt4DToVIR(linalg::Mmt4DOp op,
       buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, elemTy);
   rewriter.create<affine::AffineForOp>(
       loc, ValueRange{c0}, rewriter.getDimIdentityMap(), ValueRange{m0Val},
-      rewriter.getDimIdentityMap(), /*step=*/1, /*iterArgs=*/std::nullopt,
+      rewriter.getDimIdentityMap(), /*step=*/1, /*iterArgs=*/ValueRange{},
       [&](OpBuilder &m0b, Location m0Loc, Value m0, ValueRange) {
         m0b.create<affine::AffineForOp>(
             m0Loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
             ValueRange{n0Val}, rewriter.getDimIdentityMap(), /*step=*/1,
-            /*iterArgs=*/std::nullopt,
+            /*iterArgs=*/ValueRange{},
             [&](OpBuilder &n0b, Location n0Loc, Value n0, ValueRange) {
               n0b.create<affine::AffineForOp>(
                   n0Loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
                   ValueRange{m1Val}, rewriter.getDimIdentityMap(), /*step=*/1,
-                  /*iterArgs=*/std::nullopt,
+                  /*iterArgs=*/ValueRange{},
                   [&](OpBuilder &m1b, Location m1Loc, Value m1, ValueRange) {
                     Value acc =
                         m1b.create<buddy::vir::LoadOp>(
@@ -1758,22 +1758,22 @@ static LogicalResult lowerBatchMmt4DToVIR(linalg::BatchMmt4DOp op,
       buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, elemTy);
   rewriter.create<affine::AffineForOp>(
       loc, ValueRange{c0}, rewriter.getDimIdentityMap(), ValueRange{batchVal},
-      rewriter.getDimIdentityMap(), /*step=*/1, /*iterArgs=*/std::nullopt,
+      rewriter.getDimIdentityMap(), /*step=*/1, /*iterArgs=*/ValueRange{},
       [&](OpBuilder &bb, Location bLoc, Value batch, ValueRange) {
         bb.create<affine::AffineForOp>(
             bLoc, ValueRange{c0}, rewriter.getDimIdentityMap(),
             ValueRange{m0Val}, rewriter.getDimIdentityMap(), /*step=*/1,
-            /*iterArgs=*/std::nullopt,
+            /*iterArgs=*/ValueRange{},
             [&](OpBuilder &m0b, Location m0Loc, Value m0, ValueRange) {
               m0b.create<affine::AffineForOp>(
                   m0Loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
                   ValueRange{n0Val}, rewriter.getDimIdentityMap(), /*step=*/1,
-                  /*iterArgs=*/std::nullopt,
+                  /*iterArgs=*/ValueRange{},
                   [&](OpBuilder &n0b, Location n0Loc, Value n0, ValueRange) {
                     n0b.create<affine::AffineForOp>(
                         n0Loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
                         ValueRange{m1Val}, rewriter.getDimIdentityMap(),
-                        /*step=*/1, /*iterArgs=*/std::nullopt,
+                        /*step=*/1, /*iterArgs=*/ValueRange{},
                         [&](OpBuilder &m1b, Location m1Loc, Value m1,
                             ValueRange) {
                           Value acc = m1b.create<buddy::vir::LoadOp>(

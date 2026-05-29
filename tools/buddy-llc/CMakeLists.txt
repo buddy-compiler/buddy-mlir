@@ -20,6 +20,7 @@ set(LLVM_LINK_COMPONENTS
   BuddyRemarks
   BuddyScalarOpts
   BuddySelectionDAG
+  Plugins
   Support
   BuddyTarget
   BuddyIPO

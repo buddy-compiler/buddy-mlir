@@ -57,8 +57,7 @@ namespace {
 class BatchMatMulTransVecPattern : public ConversionPattern {
 public:
   explicit BatchMatMulTransVecPattern(MLIRContext *context,
-                                      int64_t vecSizeParam,
-                                      bool scalableParam)
+                                      int64_t vecSizeParam, bool scalableParam)
       : ConversionPattern(linalg::BatchMatmulTransposeBOp::getOperationName(),
                           1, context) {
     vecSize = vecSizeParam;
@@ -78,8 +77,9 @@ public:
 
     // Acquire the element type of input tensors.
     Type elementType =
-    mlir::cast<mlir::MemRefType>(A.getType()).getElementType();
-    VectorType vectorTy = mlir::VectorType::get({vecSize}, elementType, {scalable});
+        mlir::cast<mlir::MemRefType>(A.getType()).getElementType();
+    VectorType vectorTy =
+        mlir::VectorType::get({vecSize}, elementType, {scalable});
 
     // Define constants.
     const Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
@@ -94,7 +94,7 @@ public:
         loc, rewriter.getZeroAttr(elementType));
 
     // Create initial zero vector for accumulation.
-    Value zeroVec = rewriter.create<SplatOp>(loc, vectorTy, zero);
+    Value zeroVec = rewriter.create<vector::BroadcastOp>(loc, vectorTy, zero);
 
     // Get dimensions of input tensors.
     Value batch = rewriter.create<memref::DimOp>(loc, A, c0);

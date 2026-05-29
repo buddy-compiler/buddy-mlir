@@ -125,7 +125,7 @@ public:
 
     auto vecTy = VectorType::get({vf}, rewriter.getF32Type());
     auto maskTy = VectorType::get({vf}, rewriter.getI1Type());
-    Value vzero = rewriter.create<vector::SplatOp>(loc, vecTy, f0);
+    Value vzero = rewriter.create<vector::BroadcastOp>(loc, vecTy, f0);
 
     // Runtime dimensions.
     Value M = rewriter.create<memref::DimOp>(loc, A, c0);
