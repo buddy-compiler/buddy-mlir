@@ -4300,7 +4300,7 @@ def flash_attention_for_cpu_prefill_op(
 
     zero = arith.ConstantOp(dtype, 0.0, loc=loc).result
     neg_inf = arith.ConstantOp(dtype, -1.0e30, loc=loc).result
-    zero_vec = vector.SplatOp(v16, zero, loc=loc)
+    zero_vec = vector.BroadcastOp(v16, zero, loc=loc)
     step_1 = arith.ConstantOp(index, 1, loc=loc)
 
     # === bufferization ===
@@ -4601,7 +4601,7 @@ def flash_attention_for_cpu_prefill_op(
                             p = math.ExpOp(
                                 score_tile_sub_m_block, loc=loc
                             ).result
-                            exp_score_tile_vec = vector.SplatOp(
+                            exp_score_tile_vec = vector.BroadcastOp(
                                 v16, p, loc=loc
                             ).result
                             l_block_new = arith.AddFOp(
@@ -4645,10 +4645,14 @@ def flash_attention_for_cpu_prefill_op(
                         ).result
                         sub_max = arith.SubFOp(m_i_iter, m_new, loc=loc).result
                         alpha = math.ExpOp(sub_max, loc=loc).result
-                        alpha_vec = vector.SplatOp(v16, alpha, loc=loc).result
+                        alpha_vec = vector.BroadcastOp(
+                            v16, alpha, loc=loc
+                        ).result
                         sub_block = arith.SubFOp(m_block, m_new, loc=loc).result
                         beta = math.ExpOp(sub_block, loc=loc).result
-                        beta_vec = vector.SplatOp(v16, beta, loc=loc).result
+                        beta_vec = vector.BroadcastOp(
+                            v16, beta, loc=loc
+                        ).result
                         loop_k = scf.ForOp(c0.result, head_dim.result, vec_len)
                         with ir.InsertionPoint(loop_k.body):
                             k = loop_k.induction_variable
@@ -4686,7 +4690,7 @@ def flash_attention_for_cpu_prefill_op(
                     qi = loop_qi.induction_variable
                     idx_q = arith.AddIOp(q_block_start, qi, loc=loc).result
                     sum = memref.LoadOp(l_i_memref, [qi]).result
-                    sum_vec = vector.SplatOp(v16, sum, loc=loc).result
+                    sum_vec = vector.BroadcastOp(v16, sum, loc=loc).result
                     # Truncate sum to dtype_qkv for out_scores_memref
                     if need_cast:
                         sum_qkv = arith.TruncFOp(dtype_qkv, sum, loc=loc).result
@@ -13864,7 +13868,9 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
     neg_inf = arith.ConstantOp(compute_dtype, -1.0e30, loc=loc).result
     zero_compute = arith.ConstantOp(compute_dtype, 0.0, loc=loc).result
     one = arith.ConstantOp(compute_dtype, 1.0, loc=loc).result
-    zero_vec = vector.SplatOp(v16_compute, zero_compute, loc=loc).result
+    zero_vec = vector.BroadcastOp(
+        v16_compute, zero_compute, loc=loc
+    ).result
 
     # Padding value for TransferReadOp must match tensor element type
     if need_cast:
@@ -14083,7 +14089,7 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
                             softmax_result, [b, h, q, k], loc=loc
                         ).result
 
-                        pv = vector.SplatOp(v16_compute, p, loc=loc).result
+                        pv = vector.BroadcastOp(v16_compute, p, loc=loc).result
                         perm_map = ir.AffineMap.get(
                             4, 0, [ir.AffineDimExpr.get(3)]
                         )
