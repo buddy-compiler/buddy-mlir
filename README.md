@@ -45,7 +45,8 @@ $ cmake -G Ninja -S llvm/llvm -B llvm/build \
     -DOPENMP_ENABLE_LIBOMPTARGET=OFF \
     -DCMAKE_BUILD_TYPE=RELEASE \
     -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
-    -DPython3_EXECUTABLE=$(which python3)
+    -DPython3_EXECUTABLE="$(which python)" \
+    -DPython_EXECUTABLE="$(which python)"
 $ ninja -C llvm/build check-clang check-mlir check-openmp
 ```
 
@@ -66,7 +67,8 @@ $ cmake -G Ninja -S . -B build \
     -DLLVM_ENABLE_ASSERTIONS=ON \
     -DCMAKE_BUILD_TYPE=RELEASE \
     -DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON \
-    -DPython3_EXECUTABLE=$(which python3)
+    -DPython3_EXECUTABLE="$(which python)" \
+    -DPython_EXECUTABLE="$(which python)"
 $ ninja -C build
 $ ninja -C build check-buddy
 ```
