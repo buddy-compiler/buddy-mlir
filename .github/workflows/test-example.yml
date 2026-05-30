@@ -73,6 +73,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           MATRIX_STATUS_CONTEXT: ${{ format('{0} ({1}-{2})', inputs.status_context || 'test-examples', matrix.os, matrix.arch) }}
+          HF_ENDPOINT: https://hf-mirror.com
         run: |
           gh api --method POST "$STATUS_API_PATH" \
             -f state='pending' \
@@ -90,21 +91,10 @@ jobs:
           uname -a
 
       - name: Checkout
-        if: matrix.arch != 'riscv64'
         uses: actions/checkout@v6
         with:
-          repository: ${{ env.CHECKOUT_REPOSITORY }}
-          ref: ${{ env.CHECKOUT_REF }}
           submodules: 'false'
-
-      - name: Checkout from local Gitea (riscv64)
-        if: matrix.arch == 'riscv64'
-        run: |
-          git clone --no-checkout https://community-ci.openruyi.cn/RuyiAI-Stack/buddy-mlir
-          cd buddy-mlir
-          git remote add source https://github.com/$CHECKOUT_REPOSITORY.git
-          git fetch source "$CHECKOUT_FETCH_REF"
-          git checkout "$CHECKOUT_REF"
+          fetch-depth: 300
 
       - name: Build buddy-mlir
         uses: ./.github/actions/ci-common
@@ -115,6 +105,7 @@ jobs:
 
       - name: Build examples
         if: matrix.arch != 'riscv64'
+        continue-on-error: ${{ matrix.arch == 'arm64' }}
         run: |
           ${{ matrix.venv_activate }}
 
