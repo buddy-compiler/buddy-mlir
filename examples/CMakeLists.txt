@@ -1,3 +1,9 @@
+get_filename_component(BUDDY_LLVM_BUILD_DIR "${LLVM_LIBRARY_DIR}" DIRECTORY)
+link_directories(
+  "${LLVM_BINARY_DIR}/runtimes/runtimes-bins/openmp/runtime/src"
+  "${BUDDY_LLVM_BUILD_DIR}/runtimes/runtimes-bins/openmp/runtime/src"
+)
+
 if(BUDDY_EXAMPLES)
   add_subdirectory(ConvOpt)
   add_subdirectory(DIPDialect)
