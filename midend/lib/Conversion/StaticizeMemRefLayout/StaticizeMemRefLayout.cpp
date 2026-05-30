@@ -25,45 +25,35 @@
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "llvm/ADT/STLExtras.h"
 
 using namespace mlir;
 
 namespace {
+struct ReinterpretCastFolder
+    : public OpRewritePattern<memref::ReinterpretCastOp> {
+  using OpRewritePattern<memref::ReinterpretCastOp>::OpRewritePattern;
 
-/// Returns true if the memref type has dynamic strides or offset
-static bool hasDynamicLayout(MemRefType type) {
-  auto layout = dyn_cast<StridedLayoutAttr>(type.getLayout());
-  if (!layout)
-    return false;
-
-  // Check offset
-  if (ShapedType::isDynamic(layout.getOffset()))
-    return true;
-
-  // Check strides
-  ArrayRef<int64_t> strides = layout.getStrides();
-  for (int64_t stride : strides) {
-    if (ShapedType::isDynamic(stride))
-      return true;
-  }
-
-  return false;
-}
-
-/// Computes row-major strides from shape
-static SmallVector<int64_t> computeRowMajorStrides(ArrayRef<int64_t> shape) {
-  SmallVector<int64_t> strides;
-  strides.reserve(shape.size());
-  for (unsigned i = 0; i < shape.size(); ++i) {
-    int64_t stride = 1;
-    for (unsigned j = i + 1; j < shape.size(); ++j) {
-      stride *= shape[j];
+  LogicalResult matchAndRewrite(memref::ReinterpretCastOp op,
+                                PatternRewriter &rewriter) const override {
+    if (!op.getType().hasStaticShape()) {
+      return failure();
     }
-    strides.push_back(stride);
+    SmallVector<OpFoldResult> mixedOffsets(op.getMixedOffsets());
+    SmallVector<OpFoldResult> mixedStrides(op.getMixedStrides());
+
+    // No constant operands were folded, just return.
+    if (failed(foldDynamicIndexList(mixedOffsets, /*onlyNonNegative=*/true)) ||
+        failed(foldDynamicIndexList(mixedStrides))) {
+      return failure();
+    }
+    rewriter.replaceOpWithNewOp<memref::ReinterpretCastOp>(
+        op, op.getSource(), mixedOffsets[0], op.getMixedSizes(), mixedStrides);
+
+    return success();
   }
-  return strides;
-}
+};
 
 class StaticizeMemRefLayoutPass
     : public PassWrapper<StaticizeMemRefLayoutPass,
@@ -79,86 +69,15 @@ public:
   }
 
   void runOnOperation() override {
-    func::FuncOp func = getOperation();
-    OpBuilder builder(func.getContext());
+    MLIRContext *context = &getContext();
     bool changed = false;
 
-    // Collect all memref.copy operations
-    func.walk([&](memref::CopyOp copyOp) {
-      Value source = copyOp.getSource();
-      auto sourceType = dyn_cast<MemRefType>(source.getType());
-      if (!sourceType || !hasDynamicLayout(sourceType))
-        return;
-
-      // Check if source comes from a reinterpret_cast
-      Operation *defOp = source.getDefiningOp();
-      auto reinterpretOp = dyn_cast<memref::ReinterpretCastOp>(defOp);
-      if (!reinterpretOp)
-        return;
-
-      // Check if shape is fully static
-      ArrayRef<int64_t> shape = sourceType.getShape();
-      bool allDimensionsStatic = true;
-      for (int64_t dim : shape) {
-        if (ShapedType::isDynamic(dim)) {
-          allDimensionsStatic = false;
-          break;
-        }
-      }
-
-      if (!allDimensionsStatic)
-        return;
-
-      // Compute static strides
-      SmallVector<int64_t> staticStrides = computeRowMajorStrides(shape);
-      // Ensure last stride is 1
-      staticStrides.back() = 1;
-
-      // Create static offset (assume 0)
-      int64_t staticOffset = 0;
-
-      // Get the base buffer from the original reinterpret_cast (first operand)
-      Value baseBuffer = reinterpretOp.getOperand(0);
-
-      // Create static sizes from shape
-      SmallVector<OpFoldResult> staticSizes;
-      staticSizes.reserve(shape.size());
-      for (int64_t dim : shape) {
-        staticSizes.push_back(builder.getIndexAttr(dim));
-      }
-
-      // Create static strides as OpFoldResult
-      SmallVector<OpFoldResult> staticStridesOfr;
-      staticStridesOfr.reserve(staticStrides.size());
-      for (int64_t stride : staticStrides) {
-        staticStridesOfr.push_back(builder.getIndexAttr(stride));
-      }
-
-      // Create static offset as OpFoldResult
-      OpFoldResult staticOffsetOfr = builder.getIndexAttr(staticOffset);
-
-      // Create new static layout
-      auto staticLayout = StridedLayoutAttr::get(func.getContext(),
-                                                 staticOffset, staticStrides);
-      auto staticType =
-          MemRefType::get(sourceType.getShape(), sourceType.getElementType(),
-                          staticLayout, sourceType.getMemorySpace());
-
-      // Create new reinterpret_cast with static layout
-      builder.setInsertionPointAfter(reinterpretOp);
-      auto newReinterpretOp = builder.create<memref::ReinterpretCastOp>(
-          reinterpretOp.getLoc(), staticType, baseBuffer, staticOffsetOfr,
-          staticSizes, staticStridesOfr);
-
-      // Replace all uses of the old reinterpret_cast result with the new one
-      Value oldResult = reinterpretOp.getResult();
-      Value newResult = newReinterpretOp.getResult();
-      oldResult.replaceAllUsesWith(newResult);
-
-      // Erase the old operation
-      reinterpretOp.erase();
-      changed = true;
-    });
+    RewritePatternSet patterns(context);
+    patterns.add<ReinterpretCastFolder>(context);
+    if (failed(applyPatternsGreedily(getOperation(), std::move(patterns),
+                                     GreedyRewriteConfig(), &changed))) {
+      return signalPassFailure();
+    }
 
     if (!changed)
       markAllAnalysesPreserved();
