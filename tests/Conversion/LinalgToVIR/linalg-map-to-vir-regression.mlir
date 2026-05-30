@@ -2,7 +2,7 @@
 
 func.func @map_scalar_defined_above(%out: memref<4xi32>, %seed: i32) {
   linalg.map outs(%out : memref<4xi32>)
-    () {
+    (%init: i32) {
       linalg.yield %seed : i32
     }
   return
