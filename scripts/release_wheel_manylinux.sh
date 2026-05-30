@@ -135,6 +135,7 @@ if [ -z "${IN_DOCKER:-}" ]; then
     -e BUDDY_HASH="${BUDDY_HASH}" \
     -e LLVM_HASH="${LLVM_HASH}" \
     -e MANYLINUX_TAG="${MANYLINUX_TAG}" \
+    -e BUDDY_TORCH_SPEC="${BUDDY_TORCH_SPEC:-torch}" \
     \
     -v "${REPO_ROOT}:${WORKSPACE}" \
     -v "${HOST_LLVM_SRC}:${WORKSPACE_LLVM_SRC}:ro" \
@@ -276,16 +277,19 @@ else
   # This is necessary, old pip versions fail to resolve the torch package correctly.
   "$PYBIN" -m pip install --upgrade pip
   "$PYBIN" -m pip --version
-  "$PYBIN" -m pip install build auditwheel ninja pybind11==2.10.* nanobind==2.9.* PyYAML
+  "$PYBIN" -m pip install build auditwheel ninja pybind11==2.10.* nanobind==2.9.* PyYAML tabulate
+  BUDDY_TORCH_SPEC="${BUDDY_TORCH_SPEC:-torch}"
   if [ "${TARGET_ARCH}" = "riscv64" ]; then
     # build transformers need rust toolchain.
     dnf install -y rust cargo
     # build transformers from source need torch
-    "$PYBIN" -m pip install -i https://ruyirepo.ruyicommunity.cn/pypi/simple/ numpy torch
+    "$PYBIN" -m pip install -i https://ruyirepo.ruyicommunity.cn/pypi/simple/ numpy "${BUDDY_TORCH_SPEC}"
   else
     "$PYBIN" -m pip install numpy
+    "$PYBIN" -m pip install --index-url https://download.pytorch.org/whl/cpu --extra-index-url https://pypi.org/simple "${BUDDY_TORCH_SPEC}"
   fi
   "$PYBIN" -m pip install transformers==4.56.2
+  PYTHON_SOABI="$("$PYBIN" -c 'import sysconfig; print(sysconfig.get_config_var("SOABI") or "")')"
 
   LLVM_STAMP_FILE="${LLVM_BUILD_DIR}/.manylinux-llvm-ready"
   LLVM_INSTALL_DIR="${LLVM_BUILD_DIR}/dist"
@@ -344,6 +348,11 @@ EOF
     mv -f "${LLVM_TAR_TMP}" "${ARTIFACT_DIR}/${LLVM_TAR_NAME}"
   }
 
+  stage_llvm_runtime_libs_for_tests() {
+    mkdir -p "${LLVM_BUILD_DIR}/lib"
+    cp -a "${LLVM_INSTALL_DIR}/lib/${LLVM_RUNTIME_LIBDIR}"/libomp*.so* "${LLVM_BUILD_DIR}/lib/"
+  }
+
   build_llvm() {
     LLVM_RUNTIMES_CMAKE_ARGS=()
     if [ -n "${LLVM_RUNTIMES_CMAKE_ARGS_VALUE}" ]; then
@@ -359,6 +368,7 @@ EOF
       -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
       -DLLVM_INSTALL_UTILS=ON \
       -DPython3_EXECUTABLE="$PYBIN" \
+      -DPython_EXECUTABLE="$PYBIN" \
       -DCMAKE_INSTALL_PREFIX="${LLVM_INSTALL_DIR}"
     ccache -z || true
     ninja -C "${LLVM_BUILD_DIR}" check-clang check-mlir check-openmp || true
@@ -372,7 +382,7 @@ EOF
   case "${LLVM_CACHE_MODE}" in
     cache)
       if [ -f "${LLVM_STAMP_FILE}" ]; then
-        package_llvm_install
+        echo "Using cached LLVM install: ${LLVM_INSTALL_DIR}"
       else
         echo "LLVM cache stamp missing, falling back to incremental build: ${LLVM_STAMP_FILE}" >&2
         build_llvm
@@ -391,6 +401,8 @@ EOF
       ;;
   esac
 
+  stage_llvm_runtime_libs_for_tests
+
   KEEP=2
   LLVM_CACHE_DIR="${LLVM_BUILD_ROOT}/llvm/${PY_TAG}"
   if [ -d "${LLVM_CACHE_DIR}" ]; then
@@ -404,6 +416,13 @@ EOF
   # buddy-mlir configure/build/install/package
   # ---------------------------------------------------------------------------
 
+  if [ -f "${BUDDY_BUILD_DIR}/CMakeCache.txt" ] && [ -n "${PYTHON_SOABI}" ] &&
+      grep -q '^NB_SUFFIX:INTERNAL=' "${BUDDY_BUILD_DIR}/CMakeCache.txt" &&
+      ! grep -q "^NB_SUFFIX:INTERNAL=.*${PYTHON_SOABI}" "${BUDDY_BUILD_DIR}/CMakeCache.txt"; then
+    echo "Buddy build Python SOABI mismatch, clearing stale build: ${BUDDY_BUILD_DIR}" >&2
+    rm -rf "${BUDDY_BUILD_DIR}"
+  fi
+
   # Build buddy-mlir with Python packages enabled.
   # DeepSeek R1 stays OFF: gen_config.py needs HF config/transformers; wheel images do not provide them.
   cmake -G Ninja -S "${WORKSPACE}" -B "${BUDDY_BUILD_DIR}" \
@@ -413,16 +432,18 @@ EOF
     -DMLIR_MAIN_SRC_DIR="${WORKSPACE_LLVM_SRC}/mlir" \
     -DLLVM_ENABLE_ASSERTIONS=ON \
     -DCMAKE_BUILD_TYPE=Release \
-    -DBUDDY_ENABLE_TESTS=OFF \
+    -DBUDDY_ENABLE_TESTS=ON \
     -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
     -DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON \
     -DBUDDY_MLIR_ENABLE_DIP_LIB=ON \
     -DBUDDY_BUILD_DEEPSEEK_R1_MODEL=OFF \
     -DPython3_EXECUTABLE="${PYBIN}" \
+    -DPython_EXECUTABLE="${PYBIN}" \
     -DBUDDY_PACKAGE_VERSION="${BUDDY_PACKAGE_VERSION}" \
     -DCMAKE_INSTALL_PREFIX="${BUDDY_INSTALL_DIR}"
   ccache -z || true
   ninja -C "${BUDDY_BUILD_DIR}"
+  ninja -C "${BUDDY_BUILD_DIR}" check-buddy
   ccache -s || true
   cmake --build "${BUDDY_BUILD_DIR}" --target install -j
 

@@ -28,6 +28,27 @@ config.test_exec_root = os.path.join(config.buddy_obj_root, "tests")
 config.substitutions.append(("%PATH%", config.environment["PATH"]))
 config.substitutions.append(("%shlibext", config.llvm_shlib_ext))
 
+openmp_runtime_dir = config.mlir_runner_utils_dir
+openmp_runtime_candidates = [
+    os.path.join(config.llvm_build_dir, "lib"),
+    os.path.join(
+        config.llvm_build_dir,
+        "runtimes",
+        "runtimes-bins",
+        "openmp",
+        "runtime",
+        "src",
+    ),
+]
+for candidate in openmp_runtime_candidates:
+    if os.path.exists(
+        os.path.join(candidate, "libomp" + config.llvm_shlib_ext)
+    ):
+        openmp_runtime_dir = candidate
+        break
+config.openmp_runtime_dir = openmp_runtime_dir
+config.substitutions.append(("%openmp_runtime_dir", config.openmp_runtime_dir))
+
 llvm_config.with_system_environment(["HOME", "INCLUDE", "LIB", "TMP", "TEMP"])
 
 llvm_config.use_default_substitutions()
