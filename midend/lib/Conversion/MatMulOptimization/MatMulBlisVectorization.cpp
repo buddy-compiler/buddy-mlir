@@ -47,6 +47,25 @@ namespace {
 // Helpers: detect dequant chain and (optional) int4 unpack chain.
 //===----------------------------------------------------------------------===//
 
+static bool hasDefaultMatmulIndexingMaps(linalg::MatmulOp op) {
+  SmallVector<AffineMap, 3> maps = op.getIndexingMapsArray();
+  if (maps.size() != 3)
+    return false;
+
+  MLIRContext *context = op.getContext();
+  AffineExpr m = getAffineDimExpr(0, context);
+  AffineExpr n = getAffineDimExpr(1, context);
+  AffineExpr k = getAffineDimExpr(2, context);
+  SmallVector<AffineMap, 3> expected = {
+      AffineMap::get(3, 0, {m, k}, context),
+      AffineMap::get(3, 0, {k, n}, context),
+      AffineMap::get(3, 0, {m, n}, context),
+  };
+
+  return maps[0] == expected[0] && maps[1] == expected[1] &&
+         maps[2] == expected[2];
+}
+
 struct DequantChain {
   Value i8Weight;   // i8 weight after unpack (for int4) or original i8 weight
   Value scale;      // scale memref
@@ -304,6 +323,10 @@ public:
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> /*operands*/,
                   ConversionPatternRewriter &rewriter) const override {
+    auto matmulOp = cast<linalg::MatmulOp>(op);
+    if (!hasDefaultMatmulIndexingMaps(matmulOp))
+      return failure();
+
     auto loc = op->getLoc();
 
     // Create constant indices
@@ -1035,6 +1058,8 @@ void MatMulVectorizationBLISPass::runOnOperation() {
                        scf::SCFDialect, memref::MemRefDialect, VectorDialect>();
   target.addLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>();
   target.addLegalOp<linalg::FillOp>();
+  target.addDynamicallyLegalOp<linalg::MatmulOp>(
+      [](linalg::MatmulOp op) { return !hasDefaultMatmulIndexingMaps(op); });
 
   RewritePatternSet patterns(context);
   patterns.add<MatMulVectorizationBLISPattern>(context);

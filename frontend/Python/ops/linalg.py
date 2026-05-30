@@ -1359,8 +1359,21 @@ def matmul_transpose_b_op(
     dtype = node.tensor_meta["dtype"]
     mlir_dtype = mlir_element_type_get(dtype)
     element = mlir_element_attr_get(dtype, 0.0)
+    tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
     result_buffer = zero_tensor_value(output_shape, mlir_dtype, element)
-    op = linalg.matmul_transpose_b(input1, input2, outs=[result_buffer])
+    generic_map = _safe_get_permutation([0, 1, 2])
+    op = linalg.MatmulOp(
+        result_tensors=[tensor_type],
+        inputs=[input1, input2],
+        outputs=[result_buffer],
+        indexing_maps=[
+            generic_map.get_submap([0, 2]),  # lhs: (m, k)
+            generic_map.get_submap([1, 2]),  # rhs: (n, k)
+            generic_map.get_submap([0, 1]),  # out: (m, n)
+        ],
+        cast="cast_signed",
+    )
+    linalg.fill_builtin_region(op.operation)
     return op
 
 
