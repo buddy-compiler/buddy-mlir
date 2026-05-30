@@ -4140,11 +4140,19 @@ def scaled_dot_product_flash_attention_for_cpu_op(
     element = mlir_element_attr_get(dtype, 0.0)
     attr = ir.DenseElementsAttr.get_splat(matmul_result_type, element)
     matmul_result_buffer = arith.ConstantOp(matmul_result_type, attr).result
-    matmul_op = linalg.batch_matmul_transpose_b(
-        query_reshape_op.result,
-        key_reshape_op.result,
-        outs=[matmul_result_buffer],
+    generic_map = ir.AffineMap.get_permutation([0, 1, 2, 3])
+    matmul_op = linalg.BatchMatmulOp(
+        result_tensors=[matmul_result_type],
+        inputs=[query_reshape_op.result, key_reshape_op.result],
+        outputs=[matmul_result_buffer],
+        indexing_maps=[
+            generic_map.get_submap([0, 1, 3]),
+            generic_map.get_submap([0, 2, 3]),
+            generic_map.get_submap([0, 1, 2]),
+        ],
+        cast="cast_signed",
     )
+    linalg.fill_builtin_region(matmul_op.operation)
     if mlir_dtype == ir.F16Type.get():
         f16_max_val = 65504.0
         f16_min_val = -65504.0

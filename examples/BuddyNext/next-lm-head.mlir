@@ -38,7 +38,7 @@ func.func @kernel(
     // ===== LM Head Timing Start =====
     %t_lm_head_start = call @rtclock() : () -> f64
     %cst_1441 = arith.constant dense<0.000000e+00> : tensor<1x262144xf32>
-    %10831 = linalg.matmul_transpose_b {cast = #linalg.type_fn<cast_signed>} ins(%10830, %arg606 : tensor<1x1536xf32>, tensor<262144x1536xf32>) outs(%cst_1441 : tensor<1x262144xf32>) -> tensor<1x262144xf32>
+    %10831 = linalg.matmul indexing_maps = [affine_map<(m, n, k) -> (m, k)>, affine_map<(m, n, k) -> (n, k)>, affine_map<(m, n, k) -> (m, n)>] {cast = #linalg.type_fn<cast_signed>} ins(%10830, %arg606 : tensor<1x1536xf32>, tensor<262144x1536xf32>) outs(%cst_1441 : tensor<1x262144xf32>) -> tensor<1x262144xf32>
 
 
     %10832 = tosa.const_shape  {values = dense<[1, 1, 262144]> : tensor<3xindex>} : () -> !tosa.shape<3>
