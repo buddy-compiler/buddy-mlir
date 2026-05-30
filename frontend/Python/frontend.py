@@ -1315,7 +1315,10 @@ class DynamoCompiler:
 
         # Define execution engine.
         ee = ExecutionEngine(
-            graph._imported_module, opt_level=3, shared_libs=shared_libs
+            graph._imported_module,
+            opt_level=3,
+            shared_libs=shared_libs,
+            enable_pic=platform.machine().startswith("riscv"),
         )
 
         def exec_buddy_graph(*args):
