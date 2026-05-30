@@ -37,17 +37,16 @@ $ pip install -r requirements.txt
 
 ```
 $ cd buddy-mlir
-$ mkdir llvm/build
-$ cd llvm/build
-$ cmake -G Ninja ../llvm \
-    -DLLVM_ENABLE_PROJECTS="mlir;clang;openmp" \
+$ cmake -G Ninja -S llvm/llvm -B llvm/build \
+    -DLLVM_ENABLE_PROJECTS="mlir;clang" \
+    -DLLVM_ENABLE_RUNTIMES="openmp" \
     -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
     -DLLVM_ENABLE_ASSERTIONS=ON \
     -DOPENMP_ENABLE_LIBOMPTARGET=OFF \
     -DCMAKE_BUILD_TYPE=RELEASE \
     -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
     -DPython3_EXECUTABLE=$(which python3)
-$ ninja check-clang check-mlir omp
+$ ninja -C llvm/build check-clang check-mlir check-openmp
 ```
 
 If your target machine includes an NVIDIA GPU, you can add the following configuration:
@@ -61,32 +60,30 @@ If your target machine includes an NVIDIA GPU, you can add the following configu
 
 ```
 $ cd buddy-mlir
-$ mkdir build
-$ cd build
-$ cmake -G Ninja .. \
-    -DMLIR_DIR=$PWD/../llvm/build/lib/cmake/mlir \
-    -DLLVM_DIR=$PWD/../llvm/build/lib/cmake/llvm \
+$ cmake -G Ninja -S . -B build \
+    -DMLIR_DIR=$PWD/llvm/build/lib/cmake/mlir \
+    -DLLVM_DIR=$PWD/llvm/build/lib/cmake/llvm \
     -DLLVM_ENABLE_ASSERTIONS=ON \
     -DCMAKE_BUILD_TYPE=RELEASE \
     -DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON \
     -DPython3_EXECUTABLE=$(which python3)
-$ ninja
-$ ninja check-buddy
+$ ninja -C build
+$ ninja -C build check-buddy
 ```
 
 Set the `PYTHONPATH` environment variable to include both the LLVM/MLIR Python bindings and `buddy-mlir` Python packages:
 
 ```
-$ export BUDDY_MLIR_BUILD_DIR=$PWD
-$ export LLVM_MLIR_BUILD_DIR=$PWD/../llvm/build
+$ export BUDDY_MLIR_BUILD_DIR=$PWD/build
+$ export LLVM_MLIR_BUILD_DIR=$PWD/llvm/build
 $ export PYTHONPATH=${BUDDY_MLIR_BUILD_DIR}/python_packages:${PYTHONPATH}
 ```
 
 If you want to test your model end-to-end conversion and inference, you can add the following configuration
 
 ```
-$ cmake -G Ninja .. -DBUDDY_ENABLE_E2E_TESTS=ON
-$ ninja check-e2e
+$ cmake -G Ninja -S . -B build -DBUDDY_ENABLE_E2E_TESTS=ON
+$ ninja -C build check-e2e
 ```
 
 ### Building and running the model
@@ -151,13 +148,13 @@ We use `setuptools` to bundle CMake outputs (Python packages, `bin/`, and
 Build x86_64 artifacts:
 
 ```bash
-./scripts/release_wheel_manylinux.sh cp310-cp310 x86_64
+./scripts/release_wheel_manylinux.sh cp310-cp310 0.0.0 x86_64
 ```
 
 Build riscv64 artifacts:
 
 ```bash
-./scripts/release_wheel_manylinux.sh cp310-cp310 riscv64
+./scripts/release_wheel_manylinux.sh cp310-cp310 0.0.0 riscv64
 ```
 
 This script calls `docker run` internally to enter the offical manylinux container,
