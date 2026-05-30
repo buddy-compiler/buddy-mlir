@@ -53,7 +53,7 @@ def zero_tensor_value(
     if (
         element_count is not None
         and element_count >= element_threshold
-        and ir.F32Type.isinstance(element_type)
+        and isinstance(element_type, ir.F32Type)
     ):
         zero = arith.ConstantOp(element_type, zero_attr).result
         empty = tensor.EmptyOp(shape, element_type).result

@@ -57,6 +57,7 @@ llvm_config.with_environment("PATH", config.llvm_tools_dir, append_path=True)
 
 # So The execution engine in frontend can find out-of-tree llvm librarys
 config.environment["LLVM_LIBS_DIR"] = config.mlir_runner_utils_dir
+config.environment["BUDDY_SRC_ROOT"] = config.buddy_src_root
 
 tool_dirs = [config.buddy_tools_dir, config.llvm_tools_dir]
 tools = [

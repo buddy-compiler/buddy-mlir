@@ -679,7 +679,6 @@ void populateLowerLinalgToGemminiConversionPatterns(RewritePatternSet &patterns,
   patterns.add<Conv2DNchwFchwLowering>(patterns.getContext(), accType);
   patterns.add<Conv2DNhwcHwcfLowering>(patterns.getContext(), accType);
   patterns.add<BatchMatMulOpLowering>(patterns.getContext());
-  patterns.add<BatchMatMulTransposeBLowering>(patterns.getContext(), accType);
 }
 
 //===----------------------------------------------------------------------===//
