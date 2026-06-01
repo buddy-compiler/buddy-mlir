@@ -150,13 +150,13 @@ We use `setuptools` to bundle CMake outputs (Python packages, `bin/`, and
 Build x86_64 artifacts:
 
 ```bash
-./scripts/release_wheel_manylinux.sh cp310-cp310 0.0.0 x86_64
+./scripts/release.sh cp310-cp310 0.0.0 x86_64
 ```
 
 Build riscv64 artifacts:
 
 ```bash
-./scripts/release_wheel_manylinux.sh cp310-cp310 0.0.0 riscv64
+./scripts/release.sh cp310-cp310 0.0.0 riscv64
 ```
 
 This script calls `docker run` internally to enter the offical manylinux container,

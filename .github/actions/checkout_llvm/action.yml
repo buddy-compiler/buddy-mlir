@@ -29,3 +29,5 @@ runs:
         git -C "$LLVM_SRC" checkout -f "$LLVM_COMMIT"
         git -C "$LLVM_SRC" reset --hard HEAD
         git -C "$LLVM_SRC" clean -fdx
+
+        "$GITHUB_WORKSPACE/scripts/apply_llvm_patches.sh" "$LLVM_SRC"
