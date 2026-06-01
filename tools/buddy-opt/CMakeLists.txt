@@ -43,6 +43,8 @@ target_link_libraries(buddy-opt
   BuddyAMETransforms
   BuddyXTAME
   BuddyXTAMETransforms
+  BuddyBOSCAME
+  BuddyBOSCAMETransforms
   MLIRGPUPasses
   BuddyGPUTransformOPs
   MLIRTestTransforms
