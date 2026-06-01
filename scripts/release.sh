@@ -3,7 +3,7 @@
 # This script must be run on a host with Docker available.
 #
 # Usage:
-#   ./scripts/release_wheel_manylinux.sh [cp_tag] [version] [target_arch]
+#   ./scripts/release.sh [cp_tag] [version] [target_arch]
 
 set -euo pipefail
 
@@ -68,7 +68,18 @@ if [ -z "${IN_DOCKER:-}" ]; then
   # Hash = pinned LLVM submodule commit.
   BUDDY_HASH="${BUDDY_HASH:-$(git -C "${REPO_ROOT}" rev-parse HEAD)}"
   LLVM_COMMIT="$(git -C "${REPO_ROOT}" ls-tree HEAD llvm | awk '{print $3}')"
-  LLVM_HASH="${LLVM_COMMIT}"
+  LLVM_PATCH_HASH=""
+  if [ -d "${REPO_ROOT}/patches/llvm" ] &&
+     find "${REPO_ROOT}/patches/llvm" -name '*.patch' -type f | grep -q .; then
+    LLVM_PATCH_HASH="$(
+      find "${REPO_ROOT}/patches/llvm" -name '*.patch' -type f -print |
+        sort |
+        xargs sha256sum |
+        sha256sum |
+        awk '{print substr($1, 1, 12)}'
+    )"
+  fi
+  LLVM_HASH="${LLVM_COMMIT}${LLVM_PATCH_HASH:+-${LLVM_PATCH_HASH}}"
 
   # Sync git remote and latest commit
   git submodule sync --recursive
@@ -77,6 +88,7 @@ if [ -z "${IN_DOCKER:-}" ]; then
   git -C "${HOST_LLVM_SRC}" checkout -f "${LLVM_COMMIT}"
   git -C "${HOST_LLVM_SRC}" reset --hard HEAD
   git -C "${HOST_LLVM_SRC}" clean -fdx
+  "${REPO_ROOT}/scripts/apply_llvm_patches.sh" "${HOST_LLVM_SRC}"
 
   DOCKER_RUN_ARGS=(run --rm -i)
 
