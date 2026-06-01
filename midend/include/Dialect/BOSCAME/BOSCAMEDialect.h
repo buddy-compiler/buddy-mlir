@@ -1,4 +1,4 @@
-//===- IntrinsicsBuddyExt.td ----------------------------------------------===//
+//====- BOSCAMEDialect.h - MLIR Dialect for RISC-V BOSC AME extension -----===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,14 +13,12 @@
 // limitations under the License.
 //
 //===----------------------------------------------------------------------===//
-//
-// This is the top file for intrinsic definition of RISC-V buddy extension.
-//
-//===----------------------------------------------------------------------===//
 
-// Include upstream intrinsic tablegen file.
-include "Intrinsics.td"
-// Include buddy extension intrinsic tablegen file.
-include "IntrinsicsRISCVBuddyExt.td"
-// Include BOSC AME extension intrinsic tablegen file.
-include "IntrinsicsRISCVBuddyBOSCExt.td"
+#ifndef BOSCAME_BOSCAMEDIALECT_H
+#define BOSCAME_BOSCAMEDIALECT_H
+
+#include "mlir/IR/Dialect.h"
+
+#include "BOSCAME/BOSCAMEDialect.h.inc"
+
+#endif // BOSCAME_BOSCAMEDIALECT_H

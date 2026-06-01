@@ -1,4 +1,4 @@
-//===- IntrinsicsBuddyExt.td ----------------------------------------------===//
+//===- BOSCAMEToLLVMIRTranslation.h - BOSCAME to LLVM IR --------*- C++ -*-===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,13 +14,19 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This is the top file for intrinsic definition of RISC-V buddy extension.
+// This provides registration calls for BOSCAME dialect to LLVM IR translation.
 //
 //===----------------------------------------------------------------------===//
 
-// Include upstream intrinsic tablegen file.
-include "Intrinsics.td"
-// Include buddy extension intrinsic tablegen file.
-include "IntrinsicsRISCVBuddyExt.td"
-// Include BOSC AME extension intrinsic tablegen file.
-include "IntrinsicsRISCVBuddyBOSCExt.td"
+#ifndef TARGET_LLVMIR_DIALECT_BOSCAME_BOSCAMETOLLVMIRTRANSLATION_H
+#define TARGET_LLVMIR_DIALECT_BOSCAME_BOSCAMETOLLVMIRTRANSLATION_H
+
+#include "mlir/IR/DialectRegistry.h"
+#include "mlir/IR/MLIRContext.h"
+
+namespace buddy {
+void registerBOSCAMEDialectTranslation(mlir::DialectRegistry &registry);
+void registerBOSCAMEDialectTranslation(mlir::MLIRContext &context);
+} // namespace buddy
+
+#endif // TARGET_LLVMIR_DIALECT_BOSCAME_BOSCAMETOLLVMIRTRANSLATION_H
