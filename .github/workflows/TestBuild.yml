@@ -24,6 +24,7 @@ jobs:
           - arch: x64
             os: linux
             experimental: false
+            pytorch_versions: "2.10 2.11 2.12"
             venv_activate: "source ~/miniforge3/bin/activate buddy"
             venv_deactivate: "conda deactivate"
             llvm_src: "$HOME/actions-runner/workspace/llvm-project"
@@ -31,6 +32,7 @@ jobs:
           - arch: arm64
             os: macos
             experimental: true
+            pytorch_versions: "2.10 2.11 2.12"
             venv_activate: "source ~/miniforge3/bin/activate buddy"
             venv_deactivate: "conda deactivate"
             llvm_src: "$HOME/actions-runner/workspace/llvm-project"
@@ -38,6 +40,7 @@ jobs:
           - arch: riscv64
             os: linux
             experimental: true
+            pytorch_versions: "2.10"
             venv_activate: "source /home/jenkins/venv/bin/activate"
             venv_deactivate: "deactivate"
             llvm_src: "/home/jenkins/src/llvm-project"
@@ -51,6 +54,7 @@ jobs:
       - name: Print target
         run: |
           echo "Building on ${{ matrix.arch }}"
+          echo "PyTorch versions: ${{ matrix.pytorch_versions }}"
           echo "------ uname ------"
           uname -a
 
@@ -78,5 +82,22 @@ jobs:
         continue-on-error: ${{ matrix.arch == 'arm64' }}
         run: |
           ${{ matrix.venv_activate }}
-          ninja -C build check-buddy
+
+          for torch_version in ${{ matrix.pytorch_versions }}; do
+            echo "============================================================"
+            echo "Testing PyTorch ${torch_version}"
+            pip install --pre --extra-index-url https://download.pytorch.org/whl/cpu \
+              --upgrade --force-reinstall \
+              "torch==${torch_version}" \
+              torchvision
+            python -c 'import textwrap; exec(textwrap.dedent("""
+              import torch
+              import torchvision
+
+              print("torch:", torch.__version__)
+              print("torchvision:", torchvision.__version__)
+            """))'
+            ninja -C build check-buddy
+          done
+
           ${{ matrix.venv_deactivate }}
