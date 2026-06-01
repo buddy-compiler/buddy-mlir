@@ -8,11 +8,19 @@
 , libpng
 , zlib-ng
 , ccls
+, flatbuffers
+, numactl
+, python3
 }:
 let
+  pythonEnv = python3.withPackages (ps: [
+    ps.numpy
+    ps.pybind11
+    ps.pyyaml
+  ]);
   self = stdenv.mkDerivation {
     pname = "buddy-mlir";
-    version = "unstable-2024-07-18";
+    version = "unstable-2026-05-05";
 
     src = with lib.fileset; toSource {
       root = ./..;
@@ -22,6 +30,8 @@ let
         ./../examples
         ./../frontend
         ./../midend
+        ./../models
+        ./../runtime
         ./../tests
         ./../tools
         ./../thirdparty
@@ -39,14 +49,19 @@ let
 
     buildInputs = [
       buddy-llvm
+      flatbuffers
+      numactl
+      pythonEnv
     ];
 
     cmakeFlags = [
       "-DMLIR_DIR=${buddy-llvm.dev}/lib/cmake/mlir"
       "-DLLVM_DIR=${buddy-llvm.dev}/lib/cmake/llvm"
       "-DLLVM_MAIN_SRC_DIR=${buddy-llvm.src}/llvm"
+      "-DLLVM_ENABLE_ASSERTIONS=ON"
       "-DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON"
       "-DCMAKE_BUILD_TYPE=Release"
+      "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
     ];
 
     passthru = {

@@ -3,10 +3,12 @@ BUDDY_TRANSLATE := ../../build/bin/buddy-translate
 BUDDY_LLC := ../../build/bin/buddy-llc-ext
 
 .PHONY: all clean help \
-    ame-th-mmacc-w-b ame-th-mmacc-w-b-lower ame-th-mmacc-w-b-translate ame-th-mmacc-w-b-asm
+    ame-th-mmacc-w-b ame-th-mmacc-w-b-lower ame-th-mmacc-w-b-translate ame-th-mmacc-w-b-asm \
+	ame-th-mmaccu-w-b ame-th-mmaccu-w-b-lower ame-th-mmaccu-w-b-translate ame-th-mmaccu-w-b-asm \
+	ame-th-mfmacc-d-s ame-th-mfmacc-d-s-lower ame-th-mfmacc-d-s-translate ame-th-mfmacc-d-s-asm \
+	ame-th-mfmacc-s ame-th-mfmacc-s-lower ame-th-mfmacc-s-translate ame-th-mfmacc-s-asm
 
-
-all: ame-th-mmacc-w-b
+all: ame-th-mmacc-w-b ame-th-mmaccu-w-b ame-th-mfmacc-d-s ame-th-mfmacc-s
 
 
 ame-th-mmacc-w-b: ame-th-mmacc-w-b-lower

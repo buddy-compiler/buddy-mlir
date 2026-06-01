@@ -2272,6 +2272,15 @@ let Predicates = [HasBuddyExt], hasSideEffects = 1, mayLoad = 1, mayStore = 0,
   def TH_MLDE8_PSEUDO : Pseudo<(outs), (ins MatrixIndex:$md, GPR:$rs2, GPR:$rs1), []> {
     let AsmString = "th.mlde8\tm$md, $rs2, ($rs1)";
   }
+  def TH_MLDE16_PSEUDO : Pseudo<(outs), (ins MatrixIndex:$md, GPR:$rs2, GPR:$rs1), []> {
+    let AsmString = "th.mlde16\tm$md, $rs2, ($rs1)";
+  }
+  def TH_MLDE32_PSEUDO : Pseudo<(outs), (ins MatrixIndex:$md, GPR:$rs2, GPR:$rs1), []> {
+    let AsmString = "th.mlde32\tm$md, $rs2, ($rs1)";
+  }
+  def TH_MLDE64_PSEUDO : Pseudo<(outs), (ins MatrixIndex:$md, GPR:$rs2, GPR:$rs1), []> {
+    let AsmString = "th.mlde64\tm$md, $rs2, ($rs1)";
+  }
   def TH_MLDTE8_PSEUDO : Pseudo<(outs), (ins MatrixIndex:$md, GPR:$rs2, GPR:$rs1), []> {
     let AsmString = "th.mldte8\tm$md, $rs2, ($rs1)";
   }
@@ -2342,6 +2351,12 @@ let Predicates = [HasBuddyExt], hasSideEffects = 1, mayLoad = 1, mayStore = 0,
 // Store instruction
 let Predicates = [HasBuddyExt], hasSideEffects = 1, mayLoad = 0, mayStore = 1,
     isCodeGenOnly = 1 in {
+  def TH_MSTE8_PSEUDO : Pseudo<(outs), (ins MatrixIndex:$ms3, GPR:$rs2, GPR:$rs1), []> {
+    let AsmString = "th.mste8\tm$ms3, $rs2, ($rs1)";
+  }
+  def TH_MSTE16_PSEUDO : Pseudo<(outs), (ins MatrixIndex:$ms3, GPR:$rs2, GPR:$rs1), []> {
+    let AsmString = "th.mste16\tm$ms3, $rs2, ($rs1)";
+  }
   def TH_MSTE32_PSEUDO : Pseudo<(outs), (ins MatrixIndex:$ms3, GPR:$rs2, GPR:$rs1), []> {
     let AsmString = "th.mste32\tm$ms3, $rs2, ($rs1)";
   }
@@ -2554,8 +2569,20 @@ let Predicates = [HasBuddyExt] in {
   // Load instructions
   def : Pat<(int_riscv_buddy_th_mlde8 timm:$md, i64:$rs2, iPTR:$rs1),
             (TH_MLDE8_PSEUDO timm:$md, GPR:$rs2, GPR:$rs1)>;
+  def : Pat<(int_riscv_buddy_th_mlde16 timm:$md, i64:$rs2, iPTR:$rs1),
+            (TH_MLDE16_PSEUDO timm:$md, GPR:$rs2, GPR:$rs1)>;
+  def : Pat<(int_riscv_buddy_th_mlde32 timm:$md, i64:$rs2, iPTR:$rs1),
+            (TH_MLDE32_PSEUDO timm:$md, GPR:$rs2, GPR:$rs1)>;
+  def : Pat<(int_riscv_buddy_th_mlde64 timm:$md, i64:$rs2, iPTR:$rs1),
+            (TH_MLDE64_PSEUDO timm:$md, GPR:$rs2, GPR:$rs1)>;
   def : Pat<(int_riscv_buddy_th_mldte8 timm:$md, i64:$rs2, iPTR:$rs1),
             (TH_MLDTE8_PSEUDO timm:$md, GPR:$rs2, GPR:$rs1)>;
+  def : Pat<(int_riscv_buddy_th_mldte16 timm:$md, i64:$rs2, iPTR:$rs1),
+            (TH_MLDTE16_PSEUDO timm:$md, GPR:$rs2, GPR:$rs1)>;
+  def : Pat<(int_riscv_buddy_th_mldte32 timm:$md, i64:$rs2, iPTR:$rs1),
+            (TH_MLDTE32_PSEUDO timm:$md, GPR:$rs2, GPR:$rs1)>;
+  def : Pat<(int_riscv_buddy_th_mldte64 timm:$md, i64:$rs2, iPTR:$rs1),
+            (TH_MLDTE64_PSEUDO timm:$md, GPR:$rs2, GPR:$rs1)>;
 
   def : Pat<(int_riscv_buddy_th_mldte16 timm:$md, i64:$rs2, iPTR:$rs1),
             (TH_MLDTE16_PSEUDO timm:$md, GPR:$rs2, GPR:$rs1)>;
@@ -2599,6 +2626,10 @@ let Predicates = [HasBuddyExt] in {
             (TH_MPLDTE64_PSEUDO GPR:$rs2, GPR:$rs1)>;
 
   // Store instruction
+  def : Pat<(int_riscv_buddy_th_mste8 timm:$ms3, i64:$rs2, iPTR:$rs1),
+            (TH_MSTE8_PSEUDO timm:$ms3, GPR:$rs2, GPR:$rs1)>;
+  def : Pat<(int_riscv_buddy_th_mste16 timm:$ms3, i64:$rs2, iPTR:$rs1),
+            (TH_MSTE16_PSEUDO timm:$ms3, GPR:$rs2, GPR:$rs1)>;
   def : Pat<(int_riscv_buddy_th_mste32 timm:$ms3, i64:$rs2, iPTR:$rs1),
             (TH_MSTE32_PSEUDO timm:$ms3, GPR:$rs2, GPR:$rs1)>;
   def : Pat<(int_riscv_buddy_th_mste64 timm:$ms3, i64:$rs2, iPTR:$rs1),

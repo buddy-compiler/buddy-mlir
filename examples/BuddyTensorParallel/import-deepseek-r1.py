@@ -29,7 +29,6 @@ from buddy.compiler.graph.operation import *
 from buddy.compiler.graph.transform import (
     apply_classic_fusion,
     eliminate_matmul_transpose_reshape,
-    eliminate_transpose,
     flash_attention_prefill,
     gqa_attention_fusion,
     simply_fuse,
@@ -136,15 +135,10 @@ graph_decode = graphs_decode[0]
 
 params = dynamo_compiler_prefill.imported_params[graph_prefill]
 # Enable verbose mode for debugging eliminate_matmul_transpose_reshape
-graphs_prefill[0].perform(
-    [eliminate_transpose, eliminate_matmul_transpose_reshape]
-)
-graphs_decode[0].perform(
-    [eliminate_transpose, eliminate_matmul_transpose_reshape]
-)
+graphs_prefill[0].perform([eliminate_matmul_transpose_reshape])
+graphs_decode[0].perform([eliminate_matmul_transpose_reshape])
 pattern_list_prefill = [
     simply_fuse,
-    apply_classic_fusion,
     flash_attention_prefill,
 ]
 pattern_list_decode = [
@@ -170,21 +164,22 @@ graph_decode.group_map_device["subgraph0_decode"] = DeviceType.CPU
 DECODE_STRATEGY = SplitStrategy(
     name="decode",
     parallel_num=2,
-    ops_count=[6, 44, 2, 6, 11, 2],
+    ops_count=[6, 47, 2, 6, 11, 2],
     # ops_count=[6, 14, 28, 2, 6, 11, 2],
     stage_boundary_op=PowOp,
     stage_boundary_op_num=57,
     paral_input_positions={
         0: [-1, -1, -1, -1],
-        169: [-1, 1, -1],
+        169: [-1, 0, -1],
         "default": [
             [-1, -1],
-            [1, 0, 1, 0, 1, 0, 0, -1, 1, 1, -1, -1, -1, -1],
+            # [1, 0, 1, 0, 1, 0, 0, -1, 1, 1, -1, -1, -1, -1],
+            [0, 0, 0, 0, 0, 0, 1, -1, 1, 1, -1, -1, -1, -1],
             # [1,0,1,0,1,0,-1,],
             # [0,-1,1,1,-1,-1,-1,1,1,2],
             [-1, -1],
             [-1, -1],
-            [1, 1, 0, -1],
+            [0, 0, 1, -1],
             [-1, -1],
         ],
     },
@@ -193,7 +188,7 @@ DECODE_STRATEGY = SplitStrategy(
 PREFILL_STRATEGY = SplitStrategy(
     name="prefill",
     parallel_num=2,
-    ops_count=[6, 50, 2, 6, 11, 2],
+    ops_count=[6, 54, 2, 6, 14, 2],
     # ops_count=[6, 15, 36, 2, 6, 11, 2],
     stage_boundary_op=PowOp,
     stage_boundary_op_num=57,
@@ -202,17 +197,19 @@ PREFILL_STRATEGY = SplitStrategy(
         169: [-1, -1, -1],
         "default": [
             [-1, 1],
-            [1, 0, 1, 0, 1, 0, 0, -1, -1, -1, -1],
+            # [1, 0, 1, 0, 1, 0, 0, -1, -1, -1, -1],
+            [0, 0, 0, 0, 0, 0, 1, -1, -1, -1, -1],
             # [1,0,1,0,1,0,-1],
             # [0,-1,-1,-1,1,1,1],
             [1, 0],
             [-1, 1],
-            [1, 1, 0, -1],
+            [0, 0, 1, -1],
             [1, 0],
         ],
     },
 )
 
+# driver_prefill = PartitionedGraphDriver(graphs_prefill[0])
 driver_prefill = PartitionedGraphDriver(graphs_prefill[0], PREFILL_STRATEGY)
 for i in range(len(driver_prefill.subgraphs)):
     driver_prefill.subgraphs[i].lower_to_top_level_ir()

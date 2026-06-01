@@ -1,0 +1,17 @@
+{
+  "hf_model_path": "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",
+  "model_family": "deepseek_r1",
+  "variant": "f32",
+  "max_token_len": 1024,
+  "num_threads": 48,
+  "tiered_kv_cache": {
+    "enabled": true,
+    "cache_sizes": [32, 64, 128, 256, 512, 1024]
+  },
+  "weights_override": {
+    "total": 1777088064,
+    "linear_elements": 0,
+    "linear_output_channels": 0,
+    "other_elements": 0
+  }
+}

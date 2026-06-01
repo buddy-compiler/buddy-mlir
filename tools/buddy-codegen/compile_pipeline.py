@@ -18,8 +18,9 @@
 #
 # Replaces the CMake macros dsr1_mlir_to_obj / dsr1_subgraph_to_obj /
 # dsr1_subgraph_decode_to_obj with a single config-driven Python script.
-# Subgraph vs forward passes and decode-specific vectorization are selected here
-# (mirroring the old macro differences: extra TOSA / linalg / vector passes).
+# Subgraph, whole-graph, and partitioned forward dispatcher passes are selected
+# here. Partitioned forward dispatchers contain calls and memref view plumbing,
+# so they use a lighter lowering pipeline than compute-heavy subgraphs.
 #
 # Single file:
 #   python compile_pipeline.py --config config.json \
@@ -37,8 +38,10 @@
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
+import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -71,17 +74,49 @@ LOWER_TO_LLVM = [
 
 
 def build_stages(
-    pipeline_type: str, num_threads: int, llc_attrs: str, variant: str = "f32"
+    pipeline_type: str,
+    num_threads: int,
+    llc_attrs: str,
+    variant: str = "f32",
+    tiered: bool = False,
 ):
     """
     Build the list of (tool_name, [args]) stages for a given pipeline type.
 
     Pipeline types mirror the three CMake macros:
       - "standard":        forward_prefill / forward_decode
+      - "forward":         partitioned forward dispatcher wrappers
       - "subgraph":        subgraph_prefill
       - "subgraph_decode": subgraph_decode
     """
     stages = []
+
+    if pipeline_type == "forward":
+        stages.append(
+            (
+                "buddy-opt",
+                [
+                    "-expand-strided-metadata",
+                    "-canonicalize",
+                    "-cse",
+                ]
+                + LOWER_TO_LLVM,
+            )
+        )
+        stages.append(("mlir-translate", ["-mlir-to-llvmir"]))
+        stages.append(("llvm-as", []))
+        stages.append(
+            (
+                "llc",
+                llc_attrs.split()
+                + [
+                    "-filetype=obj",
+                    "-relocation-model=pic",
+                    "-O3",
+                ],
+            )
+        )
+        return stages
 
     # ── Stage 1: buddy-opt (initial simplification) ──────────────────────────
     init_opts = ["-simplify-tosa-reshape"]
@@ -108,6 +143,7 @@ def build_stages(
             "-canonicalize",
             "-buffer-deallocation-simplification",
             "-bufferization-lower-deallocations",
+            "-convert-bufferization-to-memref",
             "-cse",
             "-canonicalize",
             "-optimize-allocation-liveness",
@@ -131,7 +167,10 @@ def build_stages(
             )
             opts.append("-matmul-vectorization-decode=vector-size=32")
         elif variant != "w8a8":
-            opts.append("-matmul-vectorization-decode=vector-size=32")
+            vector_size = 128 if tiered else 32
+            opts.append(
+                f"-matmul-vectorization-decode=vector-size={vector_size}"
+            )
         opts.extend(
             [
                 "-batch-matmul-vectorization-decode=vector-size=128",
@@ -169,6 +208,8 @@ def build_stages(
                 f"-convert-scf-to-openmp=num-threads={num_threads}",
             ]
         )
+        if tiered:
+            opts.append("-cse")
 
     opts.extend(LOWER_TO_LLVM)
     stages.append(("buddy-opt", opts))
@@ -262,23 +303,92 @@ MLIR_FILE_MAP = {
 }
 
 
+def is_tiered_kv_cache(config: dict) -> bool:
+    return bool(config.get("tiered_kv_cache", {}).get("enabled", False))
+
+
+def tiered_cache_sizes(config: dict) -> list[int]:
+    return [
+        int(x) for x in config.get("tiered_kv_cache", {}).get("cache_sizes", [])
+    ]
+
+
+def compile_entries(config: dict) -> list[tuple[str, str, str]]:
+    """Return (pipeline_key, input_mlir_name, output_obj_name) entries."""
+    pipelines = config["compilation"]["pipelines"]
+    if is_tiered_kv_cache(config):
+        entries = []
+        for cache_size in tiered_cache_sizes(config):
+            for key in pipelines:
+                if key == "forward_prefill":
+                    entries.append(
+                        (
+                            key,
+                            f"forward_prefill_{cache_size}.mlir",
+                            f"forward_prefill_{cache_size}.o",
+                        )
+                    )
+                elif key == "subgraph_prefill":
+                    entries.append(
+                        (
+                            key,
+                            f"subgraph0_prefill_{cache_size}.mlir",
+                            f"subgraph_prefill_{cache_size}.o",
+                        )
+                    )
+                elif key == "forward_decode":
+                    entries.append(
+                        (
+                            key,
+                            f"forward_decode_{cache_size}.mlir",
+                            f"forward_decode_{cache_size}.o",
+                        )
+                    )
+                elif key == "subgraph_decode":
+                    entries.append(
+                        (
+                            key,
+                            f"subgraph0_decode_{cache_size}.mlir",
+                            f"subgraph_decode_{cache_size}.o",
+                        )
+                    )
+                else:
+                    raise KeyError(
+                        f"Unknown pipeline key for tiered build: {key}"
+                    )
+        return entries
+
+    variant = config.get("variant", "")
+    suffix = f"-{variant}" if variant not in ("f32", "") else ""
+    entries = []
+    for key in pipelines:
+        base_mlir, base_obj = MLIR_FILE_MAP[key]
+        mlir_name = base_mlir.replace(".mlir", f"{suffix}.mlir")
+        entries.append((key, mlir_name, base_obj))
+    return entries
+
+
 def _compile_one(task: dict) -> str:
     """Compile a single MLIR file. Returns a status message."""
     name = task["name"]
+    started = time.perf_counter()
+    input_file = task["input"]
     stages = build_stages(
         task["pipeline_type"],
         task["num_threads"],
         task["llc_attrs"],
         task.get("variant", "f32"),
+        task.get("tiered", False),
     )
     run_pipeline(
         stages,
-        task["input"],
+        input_file,
         task["output"],
         task["buddy_opt"],
         task["llvm_dir"],
     )
-    return f"  {name}: {os.path.basename(task['output'])}"
+    elapsed = time.perf_counter() - started
+    return f"  {name}: {os.path.basename(task['output'])} ({elapsed:.2f}s)"
 
 
 def compile_all(
@@ -297,22 +407,15 @@ def compile_all(
 
     os.makedirs(output_dir, exist_ok=True)
 
-    # Build suffix for variant-specific MLIR files (e.g., "-w8a16")
-    suffix = f"-{variant}" if variant not in ("f32", "") else ""
-
     tasks = []
-    for key, pipeline_type in pipelines.items():
-        base_mlir, base_obj = MLIR_FILE_MAP[key]
-        # MLIR inputs may be variant-suffixed (e.g. forward_prefill-w8a16.mlir).
-        # Object files keep stable names (forward_prefill.o): one build dir = one variant.
-        mlir_name = base_mlir.replace(".mlir", f"{suffix}.mlir")
-        obj_name = base_obj
-
+    for key, mlir_name, obj_name in compile_entries(config):
+        pipeline_type = pipelines[key]
         input_path = os.path.join(mlir_dir, mlir_name)
         output_path = os.path.join(output_dir, obj_name)
 
-        if not os.path.exists(input_path):
+        if not os.path.exists(input_path) and not is_tiered_kv_cache(config):
             # Fall back to name without suffix
+            base_mlir, _ = MLIR_FILE_MAP[key]
             input_path = os.path.join(mlir_dir, base_mlir)
 
         tasks.append(
@@ -322,6 +425,7 @@ def compile_all(
                 "num_threads": num_threads,
                 "llc_attrs": llc_attrs,
                 "variant": variant,
+                "tiered": is_tiered_kv_cache(config),
                 "input": input_path,
                 "output": output_path,
                 "buddy_opt": buddy_opt,
@@ -346,6 +450,190 @@ def compile_all(
                 print(msg, file=sys.stderr)
 
     print("[compile] All done.", file=sys.stderr)
+
+
+def partitioned_compile_entries(
+    mlir_dir: str,
+    prefill_only: bool = False,
+    full_mlir_dir: str | None = None,
+) -> list[tuple[str, str, str, str]]:
+    """Discover per-layer MLIR files emitted by import_model.py."""
+    patterns = [
+        (
+            re.compile(r"^forward_prefill_(\d+)\.mlir$"),
+            "forward_prefill",
+            "forward",
+        ),
+        (
+            re.compile(r"^forward_decode_(\d+)\.mlir$"),
+            "forward_decode",
+            "forward",
+        ),
+        (
+            re.compile(r"^subgraph0_prefill_(\d+)_(\d+)\.mlir$"),
+            "subgraph_prefill",
+            "subgraph",
+        ),
+        (
+            re.compile(r"^subgraph0_decode_(\d+)_(\d+)\.mlir$"),
+            "subgraph_decode",
+            "subgraph_decode",
+        ),
+        (
+            re.compile(r"^subgraph0_decode_(\d+)\.mlir$"),
+            "subgraph_decode",
+            "subgraph_decode",
+        ),
+        (
+            re.compile(r"^forward_prefill\.mlir$"),
+            "forward_prefill",
+            "forward",
+        ),
+        (
+            re.compile(r"^forward_decode\.mlir$"),
+            "forward_decode",
+            "forward",
+        ),
+        (
+            re.compile(r"^subgraph0_prefill(\d+)\.mlir$"),
+            "subgraph_prefill",
+            "subgraph",
+        ),
+        (
+            re.compile(r"^subgraph0_decode(\d+)\.mlir$"),
+            "subgraph_decode",
+            "subgraph_decode",
+        ),
+        (
+            re.compile(r"^forward_prefill(\d+)\.mlir$"),
+            "forward_prefill",
+            "standard",
+        ),
+        (
+            re.compile(r"^forward_decode(\d+)\.mlir$"),
+            "forward_decode",
+            "standard",
+        ),
+    ]
+
+    entries = []
+    for filename in os.listdir(mlir_dir):
+        if prefill_only and (
+            filename == "forward_decode.mlir"
+            or re.match(r"^forward_decode\d+\.mlir$", filename)
+            or re.match(r"^subgraph0_decode\d+\.mlir$", filename)
+        ):
+            continue
+        for regex, key_prefix, pipeline_type in patterns:
+            match = regex.match(filename)
+            if not match:
+                continue
+            if len(match.groups()) >= 2:
+                index = int(match.group(1)) * 10000 + int(match.group(2))
+            else:
+                index = int(match.group(1)) if match.groups() else -1
+            stem = filename.removesuffix(".mlir")
+            entries.append(
+                (
+                    f"{key_prefix}_{index}",
+                    filename,
+                    f"{stem}.o",
+                    pipeline_type,
+                    index,
+                )
+            )
+            break
+
+    if prefill_only:
+        if not full_mlir_dir:
+            raise RuntimeError(
+                "--partitioned-prefill-only requires --full-mlir-dir"
+            )
+        entries.extend(
+            [
+                (
+                    "forward_decode_-1",
+                    os.path.join(full_mlir_dir, "forward_decode.mlir"),
+                    "forward_decode.o",
+                    "standard",
+                    -1,
+                ),
+                (
+                    "subgraph_decode_-1",
+                    os.path.join(full_mlir_dir, "subgraph0_decode.mlir"),
+                    "subgraph_decode.o",
+                    "subgraph_decode",
+                    -1,
+                ),
+            ]
+        )
+
+    entries.sort(key=lambda item: (item[3], item[4], item[0]))
+    return [
+        (name, mlir_name, obj_name, pipeline)
+        for name, mlir_name, obj_name, pipeline, _ in entries
+    ]
+
+
+def compile_partitioned(
+    config: dict,
+    mlir_dir: str,
+    output_dir: str,
+    buddy_opt: str,
+    llvm_dir: str,
+    llc_attrs: str,
+    jobs: int = 1,
+    prefill_only: bool = False,
+    full_mlir_dir: str | None = None,
+) -> None:
+    """Compile all per-layer MLIR files from a layer_partitioned directory."""
+    entries = partitioned_compile_entries(
+        mlir_dir, prefill_only=prefill_only, full_mlir_dir=full_mlir_dir
+    )
+    if not entries:
+        raise RuntimeError(f"No partitioned MLIR files found in {mlir_dir}")
+
+    num_threads = config["compilation"]["num_threads"]
+    variant = config.get("variant", "")
+    os.makedirs(output_dir, exist_ok=True)
+
+    tasks = []
+    for key, mlir_name, obj_name, pipeline_type in entries:
+        tasks.append(
+            {
+                "name": key,
+                "pipeline_type": pipeline_type,
+                "num_threads": num_threads,
+                "llc_attrs": llc_attrs,
+                "variant": variant,
+                "tiered": is_tiered_kv_cache(config),
+                "input": mlir_name
+                if os.path.isabs(mlir_name)
+                else os.path.join(mlir_dir, mlir_name),
+                "output": os.path.join(output_dir, obj_name),
+                "buddy_opt": buddy_opt,
+                "llvm_dir": llvm_dir,
+            }
+        )
+
+    started = time.perf_counter()
+    print(
+        f"[compile] Compiling {len(tasks)} partitioned MLIR files "
+        f"(jobs={jobs})...",
+        file=sys.stderr,
+    )
+
+    if jobs <= 1:
+        for task in tasks:
+            print(_compile_one(task), file=sys.stderr)
+    else:
+        with ProcessPoolExecutor(max_workers=jobs) as pool:
+            futures = {pool.submit(_compile_one, t): t["name"] for t in tasks}
+            for fut in as_completed(futures):
+                print(fut.result(), file=sys.stderr)
+
+    elapsed = time.perf_counter() - started
+    print(f"[compile] All done in {elapsed:.2f}s.", file=sys.stderr)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -387,6 +675,59 @@ def link_shared_lib(
     subprocess.check_call(cmd)
 
 
+def partitioned_runtime_objects(
+    output_dir: str,
+    config: dict,
+    prefill_only: bool = False,
+) -> list[str]:
+    """Return the object files needed by the runtime partitioned .so."""
+    if is_tiered_kv_cache(config):
+        patterns = [
+            r"^subgraph0_prefill_\d+_\d+\.o$",
+            r"^subgraph0_decode_\d+_\d+\.o$",
+            r"^subgraph0_decode_\d+\.o$",
+            r"^forward_prefill_\d+\.o$",
+            r"^forward_decode_\d+\.o$",
+        ]
+        if prefill_only:
+            patterns = [
+                r"^subgraph0_prefill_\d+_\d+\.o$",
+                r"^forward_prefill_\d+\.o$",
+                r"^subgraph_decode\.o$",
+                r"^forward_decode\.o$",
+            ]
+        obj_files = [
+            os.path.join(output_dir, name)
+            for name in os.listdir(output_dir)
+            if any(re.match(pattern, name) for pattern in patterns)
+        ]
+        obj_files.sort()
+        return obj_files
+
+    obj_files = []
+    for name in os.listdir(output_dir):
+        if not (name.startswith("subgraph") and name.endswith(".o")):
+            continue
+        if prefill_only:
+            keep = re.match(r"^subgraph0_prefill\d+\.o$", name) or name == (
+                "subgraph_decode.o"
+            )
+            if not keep:
+                continue
+        obj_files.append(os.path.join(output_dir, name))
+    obj_files.sort()
+
+    for name in ("forward_decode.o", "forward_prefill.o"):
+        path = os.path.join(output_dir, name)
+        if not os.path.exists(path):
+            raise FileNotFoundError(
+                f"Missing partitioned runtime object: {path}"
+            )
+        obj_files.append(path)
+
+    return obj_files
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # CLI
 # ──────────────────────────────────────────────────────────────────────────────
@@ -406,12 +747,17 @@ def main():
         action="store_true",
         help="Compile all 4 MLIR files from config",
     )
+    mode.add_argument(
+        "--compile-partitioned",
+        action="store_true",
+        help="Compile per-layer MLIR files emitted under layer_partitioned",
+    )
     mode.add_argument("--input", help="Single MLIR file to compile")
 
     parser.add_argument("--output", help="Output .o file (single-file mode)")
     parser.add_argument(
         "--pipeline",
-        choices=["standard", "subgraph", "subgraph_decode"],
+        choices=["standard", "forward", "subgraph", "subgraph_decode"],
         help="Pipeline type (single-file mode)",
     )
     parser.add_argument(
@@ -441,11 +787,27 @@ def main():
     parser.add_argument(
         "--link",
         action="store_true",
-        help="Also link .o → .so after compilation (compile-all mode)",
+        help="Also link .o → .so after compilation",
     )
     parser.add_argument("--cxx", default="c++", help="C++ compiler for linking")
     parser.add_argument(
         "--llvm-lib-dir", default="", help="LLVM library directory"
+    )
+    parser.add_argument(
+        "--output-so",
+        help="Output shared library path when --link is used",
+    )
+    parser.add_argument(
+        "--partitioned-prefill-only",
+        action="store_true",
+        help=(
+            "With --compile-partitioned, compile partitioned prefill but keep "
+            "decode from --full-mlir-dir."
+        ),
+    )
+    parser.add_argument(
+        "--full-mlir-dir",
+        help="Directory containing whole-graph MLIR files for mixed partitioning",
     )
 
     args = parser.parse_args()
@@ -468,16 +830,48 @@ def main():
         )
 
         if args.link:
-            so_name = config["compilation"]["so_name"]
+            output_so = args.output_so or os.path.join(
+                args.output_dir, config["compilation"]["so_name"]
+            )
 
             obj_files = []
-            for key in config["compilation"]["pipelines"]:
-                _, base_obj = MLIR_FILE_MAP[key]
-                obj_files.append(os.path.join(args.output_dir, base_obj))
+            for _key, _mlir_name, obj_name in compile_entries(config):
+                obj_files.append(os.path.join(args.output_dir, obj_name))
 
             link_shared_lib(
                 obj_files=obj_files,
-                output_so=os.path.join(args.output_dir, so_name),
+                output_so=output_so,
+                cxx=args.cxx,
+                llvm_lib_dir=args.llvm_lib_dir,
+            )
+    elif args.compile_partitioned:
+        if not args.mlir_dir or not args.output_dir:
+            parser.error(
+                "--compile-partitioned requires --mlir-dir and --output-dir"
+            )
+
+        compile_partitioned(
+            config=config,
+            mlir_dir=args.mlir_dir,
+            output_dir=args.output_dir,
+            buddy_opt=args.buddy_opt,
+            llvm_dir=args.llvm_tools_dir,
+            llc_attrs=args.llc_attrs,
+            jobs=args.jobs,
+            prefill_only=args.partitioned_prefill_only,
+            full_mlir_dir=args.full_mlir_dir,
+        )
+        if args.link:
+            output_so = args.output_so or os.path.join(
+                args.output_dir, config["compilation"]["so_name"]
+            )
+            link_shared_lib(
+                obj_files=partitioned_runtime_objects(
+                    args.output_dir,
+                    config,
+                    prefill_only=args.partitioned_prefill_only,
+                ),
+                output_so=output_so,
                 cxx=args.cxx,
                 llvm_lib_dir=args.llvm_lib_dir,
             )
@@ -488,7 +882,11 @@ def main():
         num_threads = config["compilation"]["num_threads"]
         variant = config.get("variant", "f32")
         stages = build_stages(
-            args.pipeline, num_threads, args.llc_attrs, variant
+            args.pipeline,
+            num_threads,
+            args.llc_attrs,
+            variant,
+            is_tiered_kv_cache(config),
         )
 
         print(
