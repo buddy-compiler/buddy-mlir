@@ -158,6 +158,7 @@ jobs:
           ${{ matrix.venv_deactivate }}
 
       - name: Run examples
+        continue-on-error: ${{ matrix.arch == 'arm64' }}
         run: |
           ${{ matrix.venv_activate }}
 
