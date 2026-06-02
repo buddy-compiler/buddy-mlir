@@ -49,6 +49,8 @@ target_link_libraries(buddy-opt
   BuddyBOSCAME
   BuddyBOSCAMETransforms
   MLIRGPUPasses
+  MLIRTransformDialect
+  MLIRTransformDialectUtils
   BuddyGPUTransformOPs
   MLIRTestTransforms
   MLIRTestTransformDialect
