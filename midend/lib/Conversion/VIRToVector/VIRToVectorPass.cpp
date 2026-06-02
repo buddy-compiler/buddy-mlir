@@ -35,10 +35,12 @@
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
+#include "mlir/IR/Block.h"
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Value.h"
 #include "mlir/IR/ValueRange.h"
+#include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Target/LLVMIR/TypeToLLVM.h"
 #include "llvm/ADT/DenseMap.h"
@@ -345,6 +347,184 @@ private:
   bool verbose;
   bool useCustomVecWid;
 
+  struct CapturedRootAccessSummary {
+    bool hasWrite = false;
+    bool sawOtherRead = false;
+    bool sawOtherWrite = false;
+    bool sawDifferentVectorBase = false;
+    Value vectorBase;
+
+    void recordVectorAccess(Value base, bool isWrite) {
+      if (!vectorBase)
+        vectorBase = base;
+      else if (vectorBase != base)
+        sawDifferentVectorBase = true;
+      if (isWrite)
+        hasWrite = true;
+    }
+
+    void recordOtherAccess(bool isWrite) {
+      if (isWrite) {
+        hasWrite = true;
+        sawOtherWrite = true;
+        return;
+      }
+      sawOtherRead = true;
+    }
+
+    bool isParallelSafe() const {
+      if (!hasWrite)
+        return !sawOtherWrite;
+      return !sawOtherRead && !sawOtherWrite && !sawDifferentVectorBase;
+    }
+  };
+
+  Value getRootMemref(Value value) const {
+    while (Operation *defOp = value.getDefiningOp()) {
+      if (auto transposeOp = dyn_cast<memref::TransposeOp>(defOp)) {
+        value = transposeOp.getIn();
+        continue;
+      }
+      if (auto subViewOp = dyn_cast<memref::SubViewOp>(defOp)) {
+        value = subViewOp.getSource();
+        continue;
+      }
+      if (auto expandShapeOp = dyn_cast<memref::ExpandShapeOp>(defOp)) {
+        value = expandShapeOp.getSrc();
+        continue;
+      }
+      break;
+    }
+    return value;
+  }
+
+  bool isPrivateToSetVLIteration(Value memref, Region &setVLRegion) const {
+    Value root = getRootMemref(memref);
+    if (!isa<BaseMemRefType>(root.getType()))
+      return false;
+
+    Operation *defOp = root.getDefiningOp();
+    if (!defOp || !isa<memref::AllocOp, memref::AllocaOp>(defOp))
+      return false;
+
+    Region *defRegion = defOp->getParentRegion();
+    return defRegion &&
+           (defRegion == &setVLRegion || setVLRegion.isAncestor(defRegion));
+  }
+
+  bool
+  recordCapturedAccess(DenseMap<Value, CapturedRootAccessSummary> &summaries,
+                       Region &setVLRegion, Value base, bool isVectorAccess,
+                       bool isWrite) const {
+    Value root = getRootMemref(base);
+    if (!isa<BaseMemRefType>(root.getType()))
+      return false;
+    if (isPrivateToSetVLIteration(root, setVLRegion))
+      return true;
+
+    auto &summary = summaries[root];
+    if (isVectorAccess) {
+      summary.recordVectorAccess(base, isWrite);
+      return true;
+    }
+
+    summary.recordOtherAccess(isWrite);
+    return true;
+  }
+
+  bool analyzeBlockParallelSafety(
+      Block *block, Region &setVLRegion,
+      DenseMap<Value, CapturedRootAccessSummary> &summaries) const {
+    for (Operation &innerOp : block->without_terminator()) {
+      if (auto forOp = dyn_cast<affine::AffineForOp>(innerOp)) {
+        if (!analyzeBlockParallelSafety(forOp.getBody(), setVLRegion,
+                                        summaries))
+          return false;
+        continue;
+      }
+
+      if (auto loadOp = dyn_cast<vir::LoadOp>(innerOp)) {
+        if (!recordCapturedAccess(summaries, setVLRegion, loadOp.getBase(),
+                                  /*isVectorAccess=*/true,
+                                  /*isWrite=*/false))
+          return false;
+        continue;
+      }
+
+      if (auto storeOp = dyn_cast<vir::StoreOp>(innerOp)) {
+        if (!recordCapturedAccess(summaries, setVLRegion, storeOp.getBase(),
+                                  /*isVectorAccess=*/true,
+                                  /*isWrite=*/true))
+          return false;
+        continue;
+      }
+
+      if (auto scatterOp = dyn_cast<vir::ScatterOp>(innerOp)) {
+        if (!recordCapturedAccess(summaries, setVLRegion, scatterOp.getBase(),
+                                  /*isVectorAccess=*/false,
+                                  /*isWrite=*/true))
+          return false;
+        continue;
+      }
+
+      if (isMemoryEffectFree(&innerOp))
+        continue;
+
+      auto effectOp = dyn_cast<MemoryEffectOpInterface>(&innerOp);
+      if (!effectOp)
+        return false;
+
+      SmallVector<MemoryEffects::EffectInstance, 4> effects;
+      effectOp.getEffects(effects);
+      for (const MemoryEffects::EffectInstance &effect : effects) {
+        Value value = effect.getValue();
+        if (!value)
+          return false;
+
+        auto *effectKind = effect.getEffect();
+        if (isa<MemoryEffects::Allocate, MemoryEffects::Free>(effectKind)) {
+          if (!isPrivateToSetVLIteration(value, setVLRegion))
+            return false;
+          continue;
+        }
+
+        if (isa<MemoryEffects::Read>(effectKind)) {
+          if (!recordCapturedAccess(summaries, setVLRegion, value,
+                                    /*isVectorAccess=*/false,
+                                    /*isWrite=*/false))
+            return false;
+          continue;
+        }
+
+        if (isa<MemoryEffects::Write>(effectKind)) {
+          if (!recordCapturedAccess(summaries, setVLRegion, value,
+                                    /*isVectorAccess=*/false,
+                                    /*isWrite=*/true))
+            return false;
+          continue;
+        }
+
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  bool canParallelizeSetVLRegion(Region &region) const {
+    DenseMap<Value, CapturedRootAccessSummary> summaries;
+    for (Block &block : region) {
+      if (!analyzeBlockParallelSafety(&block, region, summaries))
+        return false;
+    }
+
+    for (const auto &it : summaries) {
+      if (!it.second.isParallelSafe())
+        return false;
+    }
+    return true;
+  }
+
   /// Recursively search for anchor type within a given Region and its nested
   Type findAnchorTypeRecursive(Region &region) const {
     // Check operands and results to find dynamic vector types
@@ -632,7 +812,8 @@ private:
             FailureOr<SmallVector<Value>> baseIndices =
                 materializeImplicitMinorBaseIndices(base, op.getIndices());
             if (failed(baseIndices)) {
-              op.emitError("failed to materialize base indices for vir.scatter");
+              op.emitError(
+                  "failed to materialize base indices for vir.scatter");
               return;
             }
 
@@ -640,9 +821,8 @@ private:
               Value scalarIndex = castScalarScatterIndexToIndex(indexVec);
               SmallVector<Value> scalarIndices(baseIndices->begin(),
                                                baseIndices->end());
-              scalarIndices.back() =
-                  builder.create<arith::AddIOp>(loc, scalarIndices.back(),
-                                                scalarIndex);
+              scalarIndices.back() = builder.create<arith::AddIOp>(
+                  loc, scalarIndices.back(), scalarIndex);
               Value oldValue =
                   builder.create<memref::LoadOp>(loc, base, scalarIndices);
               Value selected = builder.create<arith::SelectOp>(
@@ -659,8 +839,8 @@ private:
               op.emitError("expected vector operands for non-tail vir.scatter");
               return;
             }
-            builder.create<vector::ScatterOp>(loc, base, *baseIndices,
-                                              indexVec, mask, valueToStore);
+            builder.create<vector::ScatterOp>(loc, base, *baseIndices, indexVec,
+                                              mask, valueToStore);
           })
           .Case<vir::ConstantOp>([&](vir::ConstantOp op) {
             auto constValue = op.getValue();
@@ -1422,6 +1602,7 @@ private:
     // !vir.vec<4x?xf32>), we materialize explicit outer loops for those dims
     // and lower the region body per-slice. This matches the current codegen
     // strategy that only vectorizes along the last (dynamic) dimension.
+    bool useParallelMainLoop = canParallelizeSetVLRegion(region);
     SmallVector<int64_t> leadingStaticDims;
     for (Block &blk : region) {
       for (Operation &inner : blk) {
@@ -1489,20 +1670,31 @@ private:
           loc, vlUpboundPat, b.create<arith::ConstantIndexOp>(loc, 1));
       Value zero = b.create<arith::ConstantIndexOp>(loc, 0);
 
-      b.create<affine::AffineForOp>(
-          loc, /*lowerBound=*/ValueRange{zero}, rewriter.getDimIdentityMap(),
-          /*upperBound=*/ValueRange{vlUpbound}, rewriter.getDimIdentityMap(),
-          vectorWid,
-          /*iterArgs=*/ValueRange{},
-          [&](OpBuilder &bb, Location bodyLoc, Value iv, ValueRange) {
-            //===------------------------------------------------------------===//
-            // Step 4: Convert operations inside the dynamic vector region.
-            //===------------------------------------------------------------===//
-            DenseMap<Value, Value> virSymbolTable;
-            lowerBlock(bb, bodyLoc, &region.front(), virSymbolTable, iv,
-                       leadingIVs, targetVectorType, /*isTailLoop=*/false);
-            bb.create<affine::AffineYieldOp>(bodyLoc);
-          });
+      if (useParallelMainLoop) {
+        auto affineParallel = b.create<affine::AffineParallelOp>(
+            loc, TypeRange{}, ArrayRef<arith::AtomicRMWKind>{},
+            ArrayRef<AffineMap>{rewriter.getDimIdentityMap()}, ValueRange{zero},
+            ArrayRef<AffineMap>{rewriter.getDimIdentityMap()},
+            ValueRange{vlUpbound}, ArrayRef<int64_t>{vectorWid});
+        OpBuilder bb = affineParallel.getBodyBuilder();
+        Value iv = affineParallel.getIVs().front();
+
+        DenseMap<Value, Value> virSymbolTable;
+        lowerBlock(bb, loc, &region.front(), virSymbolTable, iv, leadingIVs,
+                   targetVectorType, /*isTailLoop=*/false);
+      } else {
+        b.create<affine::AffineForOp>(
+            loc, /*lowerBound=*/ValueRange{zero}, rewriter.getDimIdentityMap(),
+            /*upperBound=*/ValueRange{vlUpbound}, rewriter.getDimIdentityMap(),
+            vectorWid,
+            /*iterArgs=*/std::nullopt,
+            [&](OpBuilder &bb, Location bodyLoc, Value iv, ValueRange) {
+              DenseMap<Value, Value> virSymbolTable;
+              lowerBlock(bb, bodyLoc, &region.front(), virSymbolTable, iv,
+                         leadingIVs, targetVectorType, /*isTailLoop=*/false);
+              bb.create<affine::AffineYieldOp>(bodyLoc);
+            });
+      }
 
       //===----------------------------------------------------------------===//
       // Step 5: Create a tail loop to process the remaining elements.
