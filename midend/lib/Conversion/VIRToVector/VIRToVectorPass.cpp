@@ -636,12 +636,39 @@ private:
             if (isTailLoop) {
               Value out;
               if (kind == "add") {
-                out = builder.create<arith::AddFOp>(loc, input, acc);
+                if (input.getType().isIntOrIndex())
+                  out = builder.create<arith::AddIOp>(loc, input, acc);
+                else
+                  out = builder.create<arith::AddFOp>(loc, input, acc);
+              } else if (kind == "mul") {
+                if (input.getType().isIntOrIndex())
+                  out = builder.create<arith::MulIOp>(loc, input, acc);
+                else
+                  out = builder.create<arith::MulFOp>(loc, input, acc);
+              } else if (kind == "and") {
+                out = builder.create<arith::AndIOp>(loc, input, acc);
+              } else if (kind == "or") {
+                out = builder.create<arith::OrIOp>(loc, input, acc);
+              } else if (kind == "xor") {
+                out = builder.create<arith::XOrIOp>(loc, input, acc);
+              } else if (kind == "minui") {
+                out = builder.create<arith::MinUIOp>(loc, input, acc);
+              } else if (kind == "minsi") {
+                out = builder.create<arith::MinSIOp>(loc, input, acc);
+              } else if (kind == "maxui") {
+                out = builder.create<arith::MaxUIOp>(loc, input, acc);
+              } else if (kind == "maxsi") {
+                out = builder.create<arith::MaxSIOp>(loc, input, acc);
+              } else if (kind == "minnum") {
+                out = builder.create<arith::MinNumFOp>(loc, input, acc);
               } else if (kind == "maxnum") {
                 out = builder.create<arith::MaxNumFOp>(loc, input, acc);
+              } else if (kind == "minimum") {
+                out = builder.create<arith::MinimumFOp>(loc, input, acc);
+              } else if (kind == "maximum") {
+                out = builder.create<arith::MaximumFOp>(loc, input, acc);
               } else {
-                op.emitError(
-                    "unsupported vir.reduce kind (expected add/maxnum)");
+                op.emitError("unsupported vir.reduce kind");
                 return;
               }
               virSymbolTable[op.getResult()] = out;
@@ -657,10 +684,32 @@ private:
             vector::CombiningKind combineKind;
             if (kind == "add") {
               combineKind = vector::CombiningKind::ADD;
+            } else if (kind == "mul") {
+              combineKind = vector::CombiningKind::MUL;
+            } else if (kind == "and") {
+              combineKind = vector::CombiningKind::AND;
+            } else if (kind == "or") {
+              combineKind = vector::CombiningKind::OR;
+            } else if (kind == "xor") {
+              combineKind = vector::CombiningKind::XOR;
+            } else if (kind == "minui") {
+              combineKind = vector::CombiningKind::MINUI;
+            } else if (kind == "minsi") {
+              combineKind = vector::CombiningKind::MINSI;
+            } else if (kind == "maxui") {
+              combineKind = vector::CombiningKind::MAXUI;
+            } else if (kind == "maxsi") {
+              combineKind = vector::CombiningKind::MAXSI;
+            } else if (kind == "minnum") {
+              combineKind = vector::CombiningKind::MINNUMF;
             } else if (kind == "maxnum") {
               combineKind = vector::CombiningKind::MAXNUMF;
+            } else if (kind == "minimum") {
+              combineKind = vector::CombiningKind::MINIMUMF;
+            } else if (kind == "maximum") {
+              combineKind = vector::CombiningKind::MAXIMUMF;
             } else {
-              op.emitError("unsupported vir.reduce kind (expected add/maxnum)");
+              op.emitError("unsupported vir.reduce kind");
               return;
             }
 
