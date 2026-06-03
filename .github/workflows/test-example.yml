@@ -124,7 +124,71 @@ jobs:
         continue-on-error: ${{ matrix.arch == 'arm64' }}
         run: |
           ${{ matrix.venv_activate }}
-          bash .github/scripts/test_examples.sh "${{ matrix.arch }}"
+
+          export PYTHONPATH=$PWD/build/python_packages:$PWD/llvm/build/tools/mlir/python_packages/mlir_core:${PYTHONPATH}
+
+          cmake -S . -B build \
+            -DBUDDY_BERT_EXAMPLES=ON \
+            -DBUDDY_DEEPSEEKR1_EXAMPLES=ON \
+            -DBUDDY_LENET_EXAMPLES=ON \
+            -DBUDDY_MOBILENETV3_EXAMPLES=ON \
+            -DBUDDY_QWEN3_EXAMPLES=ON \
+            -DBUDDY_RESNET_EXAMPLES=ON \
+            -DBUDDY_TRANSFORMER_EXAMPLES=ON \
+            -DBUDDY_YOLO26_EXAMPLES=ON \
+            -DBUDDY_ENABLE_PNG=ON
+
+          ccache -z
+          ninja -C build -j1 \
+            buddy-deepseek-r1-cli \
+            buddy-qwen3-0.6b-run \
+            transformer-runner \
+            buddy-bert-run \
+            buddy-lenet-run \
+            buddy-mobilenetv3-run \
+            buddy-resnet-run \
+            buddy-yolo26n-run
+          ccache -s
+
+          ${{ matrix.venv_deactivate }}
+
+      - name: Build and run YOLO26 example
+        run: |
+          ${{ matrix.venv_activate }}
+          export PYTHONPATH=$PWD/build/python_packages:$PWD/build/../llvm/build/tools/mlir/python_packages/mlir_core
+          ninja -C build buddy-yolo26n-run
+          ./build/bin/buddy-yolo26n-run examples/BuddyYOLO26/images/bus_16bit.bmp
+          ${{ matrix.venv_deactivate }}
+
+      - name: Build examples (riscv64)
+        if: matrix.arch == 'riscv64'
+        run: |
+          ${{ matrix.venv_activate }}
+
+          export PYTHONPATH=$PWD/build/python_packages:${PYTHONPATH}
+
+          # need build from source
+          pip uninstall torchvision -y
+
+          cmake -S . -B build \
+            -DBUDDY_DEEPSEEKR1_EXAMPLES=ON
+
+          ccache -z
+          ninja -C build -j1 \
+            buddy-deepseek-r1-cli
+          ccache -s
+
+          ${{ matrix.venv_deactivate }}
+
+      - name: Run examples
+        run: |
+          ${{ matrix.venv_activate }}
+
+          ctest --test-dir "$PWD/build" \
+            -L example \
+            --output-on-failure \
+            --no-tests=error
+
           ${{ matrix.venv_deactivate }}
 
       - name: Report matrix status
