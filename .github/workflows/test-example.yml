@@ -118,7 +118,7 @@ jobs:
         run: |
           ${{ matrix.venv_activate }}
 
-          export PYTHONPATH=$PWD/build/python_packages:${PYTHONPATH}
+          export PYTHONPATH=$PWD/build/python_packages:$PWD/llvm/build/tools/mlir/python_packages/mlir_core:${PYTHONPATH}
 
           cmake -S . -B build \
             -DBUDDY_BERT_EXAMPLES=ON \
@@ -128,6 +128,7 @@ jobs:
             -DBUDDY_QWEN3_EXAMPLES=ON \
             -DBUDDY_RESNET_EXAMPLES=ON \
             -DBUDDY_TRANSFORMER_EXAMPLES=ON \
+            -DBUDDY_YOLO26_EXAMPLES=ON \
             -DBUDDY_ENABLE_PNG=ON
 
           ccache -z
@@ -138,9 +139,18 @@ jobs:
             buddy-bert-run \
             buddy-lenet-run \
             buddy-mobilenetv3-run \
-            buddy-resnet-run
+            buddy-resnet-run \
+            buddy-yolo26n-run
           ccache -s
 
+          ${{ matrix.venv_deactivate }}
+
+      - name: Build and run YOLO26 example
+        run: |
+          ${{ matrix.venv_activate }}
+          export PYTHONPATH=$PWD/build/python_packages:$PWD/build/../llvm/build/tools/mlir/python_packages/mlir_core
+          ninja -C build buddy-yolo26n-run
+          ./build/bin/buddy-yolo26n-run examples/BuddyYOLO26/images/bus_16bit.bmp
           ${{ matrix.venv_deactivate }}
 
       - name: Build examples (riscv64)
