@@ -54,16 +54,22 @@ jobs:
             experimental: false
             venv_activate: "source ~/miniforge3/bin/activate buddy"
             venv_deactivate: "conda deactivate"
+            llvm_src: "$HOME/actions-runner/workspace/llvm-project"
+            llvm_build_root: "$HOME/actions-runner/workspace/llvm-cache"
           - arch: arm64
             os: macos
             experimental: true
             venv_activate: "source ~/miniforge3/bin/activate buddy"
             venv_deactivate: "conda deactivate"
+            llvm_src: "$HOME/actions-runner/workspace/llvm-project"
+            llvm_build_root: "$HOME/actions-runner/workspace/llvm-cache"
           - arch: riscv64
             os: linux
             experimental: true
             venv_activate: "source /home/jenkins/venv/bin/activate"
             venv_deactivate: "deactivate"
+            llvm_src: "/home/jenkins/src/llvm-project"
+            llvm_build_root: "/home/jenkins/llvm-cache"
 
     runs-on:
       - self-hosted
@@ -99,12 +105,19 @@ jobs:
           submodules: 'false'
           fetch-depth: 300
 
+      - name: Checkout LLVM submodule
+        uses: ./.github/actions/checkout_llvm
+        with:
+          llvm-src: ${{ matrix.llvm_src }}
+
       - name: Build buddy-mlir
         uses: ./.github/actions/ci-common
         with:
           arch: ${{ matrix.arch }}
           venv_activate: ${{ matrix.venv_activate }}
           venv_deactivate: ${{ matrix.venv_deactivate }}
+          llvm-src: ${{ matrix.llvm_src }}
+          llvm-build-root: ${{ matrix.llvm_build_root }}
 
       - name: Build examples
         if: matrix.arch != 'riscv64'
@@ -144,7 +157,8 @@ jobs:
 
           export PYTHONPATH=$PWD/build/python_packages:${PYTHONPATH}
 
-          # need build from source
+          # The installed torchvision on riscv64 is outdated and causes
+          # compatibility issues with other modules.
           pip uninstall torchvision -y
 
           cmake -S . -B build \
