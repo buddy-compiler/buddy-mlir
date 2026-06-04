@@ -12,8 +12,8 @@ func.func @memref_add_offset(%arg0 : memref<?x?xf32>, %arg1 : f32) {
   %f0 = arith.constant 0.0 : f32
   %row = memref.dim %arg0, %c0 : memref<?x?xf32>
   %col = memref.dim %arg0, %c1 : memref<?x?xf32>
-  %passthr_vec = vector.splat %f0 : vector<4xf32>
-  %offset_vec = vector.splat %arg1 : vector<4xf32>
+  %passthr_vec = vector.broadcast %f0 : f32 to vector<4xf32>
+  %offset_vec = vector.broadcast %arg1 : f32 to vector<4xf32>
   scf.for %arg2 = %c0 to %row step %c1 {
     scf.for %arg3 = %c0 to %col step %c4 {
       %tail_cond = arith.subi %col, %arg3 : index

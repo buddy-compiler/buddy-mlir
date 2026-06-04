@@ -38,9 +38,11 @@ jobs:
       CHECKOUT_FETCH_REF: ${{ inputs.source_ref || github.ref_name }}
       CHECKOUT_REF: ${{ inputs.source_sha || github.sha }}
       STATUS_API_PATH: ${{ inputs.status_api_path }}
+      # Speedup hf download
+      HF_ENDPOINT: https://hf-mirror.com
 
     concurrency:
-      group: buddy-mlir-example-${{ matrix.os }}-${{ matrix.arch }}
+      group: ${{ github.workflow }}-${{ github.event.number || github.ref }}-${{ matrix.os }}-${{ matrix.arch }}
       cancel-in-progress: true
 
     strategy:
@@ -52,16 +54,22 @@ jobs:
             experimental: false
             venv_activate: "source ~/miniforge3/bin/activate buddy"
             venv_deactivate: "conda deactivate"
+            llvm_src: "$HOME/actions-runner/workspace/llvm-project"
+            llvm_build_root: "$HOME/actions-runner/workspace/llvm-cache"
           - arch: arm64
             os: macos
             experimental: true
             venv_activate: "source ~/miniforge3/bin/activate buddy"
             venv_deactivate: "conda deactivate"
-          # - arch: riscv64
-          #   os: linux
-          #   experimental: true
-          #   venv_activate: "source /home/jenkins/venv/bin/activate"
-          #   venv_deactivate: "deactivate"
+            llvm_src: "$HOME/actions-runner/workspace/llvm-project"
+            llvm_build_root: "$HOME/actions-runner/workspace/llvm-cache"
+          - arch: riscv64
+            os: linux
+            experimental: true
+            venv_activate: "source /home/jenkins/venv/bin/activate"
+            venv_deactivate: "deactivate"
+            llvm_src: "/home/jenkins/src/llvm-project"
+            llvm_build_root: "/home/jenkins/llvm-cache"
 
     runs-on:
       - self-hosted
@@ -90,20 +98,17 @@ jobs:
           uname -a
 
       - name: Checkout
-        if: matrix.arch != 'riscv64'
         uses: actions/checkout@v6
         with:
           repository: ${{ env.CHECKOUT_REPOSITORY }}
           ref: ${{ env.CHECKOUT_REF }}
           submodules: 'false'
+          fetch-depth: 300
 
-      - name: Checkout from local Gitea (riscv64)
-        if: matrix.arch == 'riscv64'
-        run: |
-          git clone --no-checkout https://community-ci.openruyi.cn/RuyiAI-Stack/buddy-mlir .
-          git remote add source https://github.com/$CHECKOUT_REPOSITORY.git
-          git fetch source "$CHECKOUT_FETCH_REF"
-          git checkout "$CHECKOUT_REF"
+      - name: Checkout LLVM submodule
+        uses: ./.github/actions/checkout_llvm
+        with:
+          llvm-src: ${{ matrix.llvm_src }}
 
       - name: Build buddy-mlir
         uses: ./.github/actions/ci-common
@@ -111,8 +116,12 @@ jobs:
           arch: ${{ matrix.arch }}
           venv_activate: ${{ matrix.venv_activate }}
           venv_deactivate: ${{ matrix.venv_deactivate }}
+          llvm-src: ${{ matrix.llvm_src }}
+          llvm-build-root: ${{ matrix.llvm_build_root }}
 
       - name: Build examples
+        if: matrix.arch != 'riscv64'
+        continue-on-error: ${{ matrix.arch == 'arm64' }}
         run: |
           ${{ matrix.venv_activate }}
 
@@ -128,6 +137,7 @@ jobs:
             -DBUDDY_TRANSFORMER_EXAMPLES=ON \
             -DBUDDY_ENABLE_PNG=ON
 
+          ccache -z
           ninja -C build -j1 \
             buddy-deepseek-r1-cli \
             buddy-qwen3-0.6b-run \
@@ -136,10 +146,33 @@ jobs:
             buddy-lenet-run \
             buddy-mobilenetv3-run \
             buddy-resnet-run
+          ccache -s
+
+          ${{ matrix.venv_deactivate }}
+
+      - name: Build examples (riscv64)
+        if: matrix.arch == 'riscv64'
+        run: |
+          ${{ matrix.venv_activate }}
+
+          export PYTHONPATH=$PWD/build/python_packages:${PYTHONPATH}
+
+          # The installed torchvision on riscv64 is outdated and causes
+          # compatibility issues with other modules.
+          pip uninstall torchvision -y
+
+          cmake -S . -B build \
+            -DBUDDY_DEEPSEEKR1_EXAMPLES=ON
+
+          ccache -z
+          ninja -C build -j1 \
+            buddy-deepseek-r1-cli
+          ccache -s
 
           ${{ matrix.venv_deactivate }}
 
       - name: Run examples
+        continue-on-error: ${{ matrix.arch == 'arm64' }}
         run: |
           ${{ matrix.venv_activate }}
 

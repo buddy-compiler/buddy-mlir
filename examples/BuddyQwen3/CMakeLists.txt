@@ -21,20 +21,17 @@ else()
   set(LLC_RISCV_ATTRS "")
 endif()
 
-# Skip import commands on RVV platform
-if(NOT IS_RVV_PLATFORM)
-  add_custom_command(
-    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill_0_6b.mlir
-           ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill_0_6b.mlir
-           ${CMAKE_CURRENT_BINARY_DIR}/forward_decode_0_6b.mlir
-           ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode_0_6b.mlir
-           ${CMAKE_CURRENT_BINARY_DIR}/arg0_0_6b.data
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-qwen3.py
-            --output-dir ${CMAKE_CURRENT_BINARY_DIR}
-            --precision f32
-    COMMENT "Generating forward_prefill.mlir, subgraph0_prefill.mlir and arg0.data..."
-  )
-endif()
+add_custom_command(
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/forward_prefill_0_6b.mlir
+          ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_prefill_0_6b.mlir
+          ${CMAKE_CURRENT_BINARY_DIR}/forward_decode_0_6b.mlir
+          ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode_0_6b.mlir
+          ${CMAKE_CURRENT_BINARY_DIR}/arg0_0_6b.data
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-qwen3.py
+          --output-dir ${CMAKE_CURRENT_BINARY_DIR}
+          --precision f32
+  COMMENT "Generating forward_prefill.mlir, subgraph0_prefill.mlir and arg0.data..."
+)
 
 add_custom_command(
   OUTPUT forward_prefill_0_6b.o

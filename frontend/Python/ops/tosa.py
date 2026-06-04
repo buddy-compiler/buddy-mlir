@@ -52,6 +52,7 @@ from ..graph import (
     AdaptiveMaxPool1dOp,
     AdaptiveMaxPool2dOp,
     AddbmmOp,
+    AddCMulOp,
     AddMMOp,
     AddOp,
     AddScalarOp,
@@ -306,9 +307,7 @@ def _build_range_tensor(
         if int(start) != 0:
             value_index = arith.AddIOp(value_index, start_index).result
 
-        if ir.FloatType.isinstance(mlir_dtype) or ir.BF16Type.isinstance(
-            mlir_dtype
-        ):
+        if isinstance(mlir_dtype, (ir.FloatType, ir.BF16Type)):
             value_i64 = arith.IndexCastOp(i64_type, value_index).result
             return arith.SIToFPOp(mlir_dtype, value_i64).result
         return arith.IndexCastOp(mlir_dtype, value_index).result
@@ -372,7 +371,7 @@ def _scalar_to_tensor(
 ):
     """Convert scalers to cooresponding tensors since MLIR
     doesn't support operation between scalers and tensors."""
-    if ir.FloatType.isinstance(element_type):
+    if isinstance(element_type, ir.FloatType):
         element = ir.FloatAttr.get(element_type, float(scalar))
     else:
         element = ir.IntegerAttr.get(element_type, int(scalar))
@@ -409,13 +408,13 @@ def _normalize_binary_operator_args(arg1, arg2):
         t2 = ir.RankedTensorType(arg2.type)
         et1 = t1.element_type
         et2 = t2.element_type
-        is_float1 = ir.FloatType.isinstance(et1) or ir.BF16Type.isinstance(et1)
-        is_float2 = ir.FloatType.isinstance(et2) or ir.BF16Type.isinstance(et2)
+        is_float1 = isinstance(et1, (ir.FloatType, ir.BF16Type))
+        is_float2 = isinstance(et2, (ir.FloatType, ir.BF16Type))
         if et1 != et2:
-            if is_float1 and ir.IntegerType.isinstance(et2):
+            if is_float1 and isinstance(et2, ir.IntegerType):
                 cast_type = ir.RankedTensorType.get(list(t2.shape), et1)
                 arg2 = tosa.CastOp(cast_type, arg2).result
-            elif is_float2 and ir.IntegerType.isinstance(et1):
+            elif is_float2 and isinstance(et1, ir.IntegerType):
                 cast_type = ir.RankedTensorType.get(list(t1.shape), et2)
                 arg1 = tosa.CastOp(cast_type, arg1).result
         return arg1, arg2
@@ -437,7 +436,7 @@ def _normalize_binary_operator_args(arg1, arg2):
 
 def _require_integer_tensor(value: ir.Value, op_name: str) -> ir.Type:
     element_type = ir.RankedTensorType(value.type).element_type
-    if not ir.IntegerType.isinstance(element_type):
+    if not isinstance(element_type, ir.IntegerType):
         raise ValueError(
             f"{op_name} requires integer tensor inputs, got {element_type}"
         )
@@ -478,9 +477,7 @@ def _create_zero_point_tensor(value: ir.Value) -> ir.Value:
     """Create a zero-point tensor (tensor<1xT>) matching the value element type."""
     element_type = ir.RankedTensorType(value.type).element_type
     tensor_type = ir.RankedTensorType.get([1], element_type)
-    if ir.FloatType.isinstance(element_type) or ir.BF16Type.isinstance(
-        element_type
-    ):
+    if isinstance(element_type, (ir.FloatType, ir.BF16Type)):
         zero_attr = ir.FloatAttr.get(element_type, 0.0)
     else:
         zero_attr = ir.IntegerAttr.get(element_type, 0)
@@ -614,17 +611,14 @@ def addmm_op(
         return matmul_op.result
     else:
         # Shape doesn't match: use zero buffer for matmul, then add with broadcasting
-        zero_attr = ir.DenseElementsAttr.get_splat(
-            matmul_result_type,
-            (
-                ir.FloatAttr.get(result_element_type, 0.0)
-                if _is_float_type(result_element_type)
-                else ir.IntegerAttr.get(result_element_type, 0)
-            ),
+        zero_attr = (
+            ir.FloatAttr.get(result_element_type, 0.0)
+            if _is_float_type(result_element_type)
+            else ir.IntegerAttr.get(result_element_type, 0)
         )
-        matmul_output_buffer = arith.ConstantOp(
-            matmul_result_type, zero_attr
-        ).result
+        matmul_output_buffer = zero_tensor_value(
+            matmul_result_shp, result_element_type, zero_attr
+        )
 
         matmul_op = linalg.MatmulOp(
             result_tensors=[matmul_result_type],
@@ -692,6 +686,22 @@ def add_op(node: AddOp, symbol_table):
                 input2,
             ).result
     return _gen_arith_binary_op(input1, input2, tosa.AddOp)
+
+
+def addcmul_op(node: AddCMulOp, symbol_table):
+    """
+    Import tensor addcmul operation.
+    addcmul(input, tensor1, tensor2, value=1) = input + value * tensor1 * tensor2
+    """
+    input_ = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    tensor1 = symbol_table.get((str(node.args[1]), 0), node.args[1])
+    tensor2 = symbol_table.get((str(node.args[2]), 0), node.args[2])
+    value = node.kwargs.get("value", 1) if node.kwargs else 1
+
+    product = _gen_arith_binary_op(tensor1, tensor2, tosa.MulOp).result
+    if value != 1:
+        product = _gen_arith_binary_op(product, value, tosa.MulOp).result
+    return _gen_arith_binary_op(input_, product, tosa.AddOp)
 
 
 def sub_op(node: SubOp, symbol_table):
@@ -802,7 +812,7 @@ def div_op(node: DivOp, symbol_table):
         if not isinstance(value, ir.Value):
             return False
         element_type = ir.RankedTensorType(value.type).element_type
-        return ir.IntegerType.isinstance(element_type)
+        return isinstance(element_type, ir.IntegerType)
 
     if _is_int_tensor(input1) or _is_int_tensor(input2):
         f32 = ir.F32Type.get()
@@ -953,9 +963,7 @@ def logical_not_op(node: LogicalNotOp, symbol_table):
     # torch.logical_not: for numeric tensors, it's equivalent to (x == 0).
     if input_dtype != bool_type:
         zero_type = ir.RankedTensorType.get(input_shape, input_dtype)
-        if ir.FloatType.isinstance(input_dtype) or ir.BF16Type.isinstance(
-            input_dtype
-        ):
+        if isinstance(input_dtype, (ir.FloatType, ir.BF16Type)):
             zero_attr = ir.DenseElementsAttr.get_splat(
                 zero_type, ir.FloatAttr.get(input_dtype, 0.0)
             )
@@ -1395,7 +1403,7 @@ def max_pool1d_op(node: MaxPool1dOp, symbol_table):
                     ).result
                     in_bounds = arith.AndIOp(iw_ge_0, iw_lt_w).result
 
-                    if_op = scf.IfOp(in_bounds, hasElse=False)
+                    if_op = scf.IfOp(in_bounds, has_else=False)
                     with ir.InsertionPoint(if_op.then_block):
                         input_val = memref.LoadOp(
                             input_memref, [n, c, iw]
@@ -1419,7 +1427,7 @@ def max_pool1d_op(node: MaxPool1dOp, symbol_table):
                                 pred, input_val, current_max
                             ).result
 
-                        inner_if = scf.IfOp(is_greater, hasElse=False)
+                        inner_if = scf.IfOp(is_greater, has_else=False)
                         with ir.InsertionPoint(inner_if.then_block):
                             memref.StoreOp(
                                 input_val,
@@ -1553,7 +1561,7 @@ def adaptive_max_pool1d_op(node: AdaptiveMaxPool1dOp, symbol_table):
                             pred, input_val, current_max
                         ).result
 
-                    inner_if = scf.IfOp(is_greater, hasElse=False)
+                    inner_if = scf.IfOp(is_greater, has_else=False)
                     with ir.InsertionPoint(inner_if.then_block):
                         memref.StoreOp(
                             input_val,
@@ -1715,7 +1723,7 @@ def adaptive_max_pool2d_op(node: AdaptiveMaxPool2dOp, symbol_table):
                                     pred, input_val, current_max
                                 ).result
 
-                            inner_if = scf.IfOp(is_greater, hasElse=False)
+                            inner_if = scf.IfOp(is_greater, has_else=False)
                             with ir.InsertionPoint(inner_if.then_block):
                                 memref.StoreOp(
                                     input_val,
@@ -2430,14 +2438,22 @@ def reshape_op(node: ReshapeOp, symbol_table):
     shape will be inferred automatically.
     """
     input1 = symbol_table.get((str(node.args[0]), 0))
-    # Support both single int or list/tuple for new_shape
-    shape_arg = node.args[1]
-    if isinstance(shape_arg, (list, tuple)):
-        new_shape = list(shape_arg)
+    new_shape = []
+    if node._newshape is None:
+        shape_arg = node.args[1]
+
+        if isinstance(shape_arg, (list, tuple)):
+            new_shape = list(shape_arg)
+        else:
+            try:
+                new_shape = list(shape_arg)
+            except TypeError:
+                new_shape = [shape_arg]
     else:
-        new_shape = [shape_arg]
-    total_size = 1
+        new_shape = list(node._newshape)
+
     now_shape = ir.RankedTensorType(input1.type).shape
+    total_size = 1
     for dim_siz in now_shape:
         total_size *= dim_siz
 
@@ -2457,7 +2473,6 @@ def reshape_op(node: ReshapeOp, symbol_table):
             if new_shape[i] == -1:
                 new_shape[i] = infer_dim_size
 
-    # Optimize: if the new shape is the same as the current shape, skip the reshape
     if len(new_shape) == len(now_shape) and all(
         int(new_dim) == int(old_dim)
         for new_dim, old_dim in zip(new_shape, now_shape)
@@ -2709,7 +2724,7 @@ def convert_element_type_op(node: ConvertElementTypeOp, symbol_table):
     input_type = ir.RankedTensorType(input_tensor.type).element_type
     output_shape = list(node.tensor_meta["shape"])
 
-    if ir.ComplexType.isinstance(to_cast_type):
+    if isinstance(to_cast_type, ir.ComplexType):
         complex_elem_type = ir.ComplexType(to_cast_type).element_type
         if str(input_type) != str(complex_elem_type):
             raise NotImplementedError(
@@ -3118,11 +3133,13 @@ def expand_op(node: ExpandOp, symbol_table) -> ir.Operation:
     to_expand_tensor = symbol_table.get((str(node.args[0]), 0))
     if to_expand_tensor is None:
         return
-    original_size = list(to_expand_tensor.type.shape)
+
+    original_size = list(ir.RankedTensorType(to_expand_tensor.type).shape)
     new_size = list(node.args[1])
     result_element_type = ir.RankedTensorType(
         to_expand_tensor.type
     ).element_type
+
     if result_element_type in (
         ir.IntegerType.get_signless(1),
         ir.IntegerType.get_signless(64),
@@ -3136,27 +3153,34 @@ def expand_op(node: ExpandOp, symbol_table) -> ir.Operation:
         element = ir.FloatAttr.get(result_element_type, 0.0)
     else:
         raise NotImplementedError("Unsupported element type!")
+
     # `aten.expand` aligns shapes from the right and may add leading dimensions.
-    # Ensure the input tensor rank matches the requested rank by prepending 1s.
     if len(original_size) < len(new_size):
-        reshape_shape = [1] * (
+        padded_original_size = [1] * (
             len(new_size) - len(original_size)
         ) + original_size
-        to_expand_tensor = tosa.ReshapeOp(
-            to_expand_tensor, _create_shape_operand(reshape_shape)
-        ).result
-        original_size = reshape_shape
     elif len(original_size) > len(new_size):
         raise ValueError(
-            f"expand_op: invalid target rank {len(new_size)} for input rank {len(original_size)}"
+            f"expand_op: invalid target rank {len(new_size)} "
+            f"for input rank {len(original_size)}"
         )
+    else:
+        padded_original_size = original_size
+
+    input_for_add = to_expand_tensor
+    if original_size != padded_original_size:
+        input_for_add = tosa.ReshapeOp(
+            to_expand_tensor,
+            _create_shape_operand(padded_original_size),
+        ).result
 
     expanded_size: list[int] = []
-    for dim, size in zip(original_size, new_size):
+    for dim, size in zip(padded_original_size, new_size):
         expanded_size.append(dim if size == -1 else int(size))
 
-    if original_size == expanded_size:
-        return to_expand_tensor
+    if padded_original_size == expanded_size:
+        return input_for_add
+
     new_size_tensor_type = ir.RankedTensorType.get(
         expanded_size, result_element_type
     )
@@ -3164,7 +3188,7 @@ def expand_op(node: ExpandOp, symbol_table) -> ir.Operation:
         new_size_tensor_type, element
     )
     new_size_tensor = tosa.ConstOp(new_size_attr).results[0]
-    op = _gen_arith_binary_op(to_expand_tensor, new_size_tensor, tosa.AddOp)
+    op = _gen_arith_binary_op(input_for_add, new_size_tensor, tosa.AddOp)
     return op
 
 
@@ -3188,7 +3212,7 @@ def sum_op(node: SumDimOp, symbol_table):
     if isinstance(target_dtype, TensorDType):
         target_element_type = mlir_element_type_get(target_dtype)
     else:
-        if ir.IntegerType.isinstance(input_dtype):
+        if isinstance(input_dtype, ir.IntegerType):
             target_element_type = ir.IntegerType.get_signless(64)
 
     if target_element_type != input_dtype:
@@ -3747,7 +3771,8 @@ def sigmoid_op(node: SigmoidOp, symbol_table):
     input1 = symbol_table.get((str(node.args[0]), 0))
     if input1 is None:
         return
-    output_shape = list(node.tensor_meta["shape"])
+    input_shape = ir.RankedTensorType(input1.type).shape
+    output_shape = list(input_shape)
     dtype = node.tensor_meta["dtype"]
     mlir_dtype = mlir_element_type_get(dtype)
     tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
@@ -3910,9 +3935,7 @@ def clamp_min_op(node: ClampMinOp, symbol_table):
     min_value = symbol_table.get((str(node.args[1]), 0), node.args[1])
     tensor_type = input1.type
     element_type = ir.RankedTensorType(tensor_type).element_type
-    if ir.FloatType.isinstance(element_type) or ir.BF16Type.isinstance(
-        element_type
-    ):
+    if isinstance(element_type, (ir.FloatType, ir.BF16Type)):
         min_attr = ir.FloatAttr.get(element_type, float(min_value))
         max_attr = ir.FloatAttr.get(element_type, float("inf"))
     else:
@@ -3945,9 +3968,7 @@ def clamp_max_op(node: ClampMaxOp, symbol_table):
     max_value = symbol_table.get((str(node.args[1]), 0), node.args[1])
     tensor_type = input1.type
     element_type = ir.RankedTensorType(tensor_type).element_type
-    if ir.FloatType.isinstance(element_type) or ir.BF16Type.isinstance(
-        element_type
-    ):
+    if isinstance(element_type, (ir.FloatType, ir.BF16Type)):
         min_attr = ir.FloatAttr.get(element_type, -float("inf"))
         max_attr = ir.FloatAttr.get(element_type, float(max_value))
     else:
@@ -4136,11 +4157,19 @@ def scaled_dot_product_flash_attention_for_cpu_op(
     element = mlir_element_attr_get(dtype, 0.0)
     attr = ir.DenseElementsAttr.get_splat(matmul_result_type, element)
     matmul_result_buffer = arith.ConstantOp(matmul_result_type, attr).result
-    matmul_op = linalg.batch_matmul_transpose_b(
-        query_reshape_op.result,
-        key_reshape_op.result,
-        outs=[matmul_result_buffer],
+    generic_map = ir.AffineMap.get_permutation([0, 1, 2, 3])
+    matmul_op = linalg.BatchMatmulOp(
+        result_tensors=[matmul_result_type],
+        inputs=[query_reshape_op.result, key_reshape_op.result],
+        outputs=[matmul_result_buffer],
+        indexing_maps=[
+            generic_map.get_submap([0, 1, 3]),
+            generic_map.get_submap([0, 2, 3]),
+            generic_map.get_submap([0, 1, 2]),
+        ],
+        cast="cast_signed",
     )
+    linalg.fill_builtin_region(matmul_op.operation)
     if mlir_dtype == ir.F16Type.get():
         f16_max_val = 65504.0
         f16_min_val = -65504.0
@@ -4189,7 +4218,12 @@ def scaled_dot_product_flash_attention_for_cpu_op(
     log_sumexp = tosa.AddOp(max_vals.result.type, max_vals, log_op)
     log_weights = tosa.SubOp(add_op.result.type, add_op, log_sumexp)
     softmax_result = math.ExpOp(log_weights.result)
-    log_sumexp_operand = _create_shape_operand(list(output_shape[1]))
+    new_shape = [
+        int(query_shape[0]),
+        int(query_shape[1]),
+        int(query_shape[2]),
+    ]
+    log_sumexp_operand = _create_shape_operand(new_shape)
     log_sumexp = tosa.ReshapeOp(log_sumexp, log_sumexp_operand)
 
     # This step includes dropout during training.
@@ -4249,9 +4283,23 @@ def flash_attention_for_cpu_prefill_op(
     vec_len = arith.ConstantOp(index, vector_width, loc=loc)
 
     # === input parse ===
-    query = symbol_table.get((str(node.args[0]), 0), node.args[0])
-    key = symbol_table.get((str(node.args[1]), 0), node.args[1])
-    value = symbol_table.get((str(node.args[2]), 0), node.args[2])
+    def lookup_input(name):
+        if name in symbol_table:
+            return symbol_table[name]
+        elif (str(name), 0) in symbol_table:
+            return symbol_table[(str(name), 0)]
+        else:
+            raise KeyError(
+                f"FlashAttention input '{name}' not found in symbol_table."
+            )
+
+    # query = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    # key = symbol_table.get((str(node.args[1]), 0), node.args[1])
+    # value = symbol_table.get((str(node.args[2]), 0), node.args[2])
+    query = lookup_input(node.args[0])
+    key = lookup_input(node.args[1])
+    value = lookup_input(node.args[2])
+
     attn_mask = node.kwargs.get("attn_mask", None)
     scale = node.kwargs.get("scale", None)
 
@@ -4259,7 +4307,7 @@ def flash_attention_for_cpu_prefill_op(
     query_shape = query.type.shape
     key_shape = key.type.shape
     value_shape = value.type.shape
-    output_shape = list(node.tensor_meta["shape"])
+    output_shape = list(query_shape)
 
     # scale = 1/sqrt(H)
     scale_val = 1 / numpy.sqrt(query.type.shape[-1]) if scale is None else scale
@@ -4267,7 +4315,7 @@ def flash_attention_for_cpu_prefill_op(
 
     zero = arith.ConstantOp(dtype, 0.0, loc=loc).result
     neg_inf = arith.ConstantOp(dtype, -1.0e30, loc=loc).result
-    zero_vec = vector.SplatOp(v16, zero, loc=loc)
+    zero_vec = vector.BroadcastOp(v16, zero, loc=loc)
     step_1 = arith.ConstantOp(index, 1, loc=loc)
 
     # === bufferization ===
@@ -4302,7 +4350,7 @@ def flash_attention_for_cpu_prefill_op(
     block_size_kv = arith.ConstantOp(index, block_size_kv_num, loc=loc)
 
     out_memref = memref.AllocOp(
-        memref.MemRefType.get(list(output_shape[0]), dtype_qkv), [], [], loc=loc
+        memref.MemRefType.get(output_shape, dtype_qkv), [], [], loc=loc
     )
     out_scores_memref = memref.AllocOp(
         memref.MemRefType.get(
@@ -4568,7 +4616,7 @@ def flash_attention_for_cpu_prefill_op(
                             p = math.ExpOp(
                                 score_tile_sub_m_block, loc=loc
                             ).result
-                            exp_score_tile_vec = vector.SplatOp(
+                            exp_score_tile_vec = vector.BroadcastOp(
                                 v16, p, loc=loc
                             ).result
                             l_block_new = arith.AddFOp(
@@ -4612,10 +4660,12 @@ def flash_attention_for_cpu_prefill_op(
                         ).result
                         sub_max = arith.SubFOp(m_i_iter, m_new, loc=loc).result
                         alpha = math.ExpOp(sub_max, loc=loc).result
-                        alpha_vec = vector.SplatOp(v16, alpha, loc=loc).result
+                        alpha_vec = vector.BroadcastOp(
+                            v16, alpha, loc=loc
+                        ).result
                         sub_block = arith.SubFOp(m_block, m_new, loc=loc).result
                         beta = math.ExpOp(sub_block, loc=loc).result
-                        beta_vec = vector.SplatOp(v16, beta, loc=loc).result
+                        beta_vec = vector.BroadcastOp(v16, beta, loc=loc).result
                         loop_k = scf.ForOp(c0.result, head_dim.result, vec_len)
                         with ir.InsertionPoint(loop_k.body):
                             k = loop_k.induction_variable
@@ -4653,7 +4703,7 @@ def flash_attention_for_cpu_prefill_op(
                     qi = loop_qi.induction_variable
                     idx_q = arith.AddIOp(q_block_start, qi, loc=loc).result
                     sum = memref.LoadOp(l_i_memref, [qi]).result
-                    sum_vec = vector.SplatOp(v16, sum, loc=loc).result
+                    sum_vec = vector.BroadcastOp(v16, sum, loc=loc).result
                     # Truncate sum to dtype_qkv for out_scores_memref
                     if need_cast:
                         sum_qkv = arith.TruncFOp(dtype_qkv, sum, loc=loc).result
@@ -4680,7 +4730,7 @@ def flash_attention_for_cpu_prefill_op(
             affine.yield_([])
         affine.yield_([])
     out_tensor = bufferization.ToTensorOp(
-        ir.RankedTensorType.get(list(output_shape[0]), dtype_qkv),
+        ir.RankedTensorType.get(output_shape, dtype_qkv),
         out_memref,
         restrict=ir.BoolAttr.get(True),
     )
@@ -4885,9 +4935,7 @@ def all_op(node: AllOp, symbol_table):
     bool_tensor_type = ir.RankedTensorType.get(input_shape, bool_type)
     if input_dtype != bool_type:
         zero_type = ir.RankedTensorType.get(input_shape, input_dtype)
-        if ir.FloatType.isinstance(input_dtype) or ir.BF16Type.isinstance(
-            input_dtype
-        ):
+        if isinstance(input_dtype, (ir.FloatType, ir.BF16Type)):
             zero_attr = ir.DenseElementsAttr.get_splat(
                 zero_type, ir.FloatAttr.get(input_dtype, 0.0)
             )
@@ -4929,9 +4977,7 @@ def any_op(node: AnyOp, symbol_table):
     bool_tensor_type = ir.RankedTensorType.get(input_shape, bool_type)
     if input_dtype != bool_type:
         zero_type = ir.RankedTensorType.get(input_shape, input_dtype)
-        if ir.FloatType.isinstance(input_dtype) or ir.BF16Type.isinstance(
-            input_dtype
-        ):
+        if isinstance(input_dtype, (ir.FloatType, ir.BF16Type)):
             zero_attr = ir.DenseElementsAttr.get_splat(
                 zero_type, ir.FloatAttr.get(input_dtype, 0.0)
             )
@@ -5020,7 +5066,7 @@ def floor_divide_op(node: FloorDivideOp, symbol_table):
     input_dtype = ir.RankedTensorType(input1.type).element_type
     result_type = ir.RankedTensorType.get(input_shape, input_dtype)
 
-    if ir.IntegerType.isinstance(input_dtype):
+    if isinstance(input_dtype, ir.IntegerType):
         return _create_integer_division(input1, input2)
 
     # Compute x / y
@@ -5134,7 +5180,7 @@ def remainder_op(node: RemainderOp, symbol_table):
     input_dtype = ir.RankedTensorType(input1.type).element_type
     result_type = ir.RankedTensorType.get(input_shape, input_dtype)
 
-    if ir.IntegerType.isinstance(input_dtype):
+    if isinstance(input_dtype, ir.IntegerType):
         output = tensor.EmptyOp(input_shape, input_dtype)
         generic_map = ir.AffineMap.get_permutation(
             [i for i in range(len(input_shape))]
@@ -5288,7 +5334,7 @@ def div_tensor_mode_op(node: DivTensorModeOp, symbol_table):
     # Get rounding mode from kwargs
     rounding_mode = node.kwargs.get("rounding_mode", None)
 
-    if ir.IntegerType.isinstance(input_dtype) and rounding_mode in (
+    if isinstance(input_dtype, ir.IntegerType) and rounding_mode in (
         "floor",
         "trunc",
     ):
@@ -6105,9 +6151,7 @@ def add_scalar_op(node: AddScalarOp, symbol_table):
             ir.RankedTensorType.get(input_shape, input_dtype), input1
         ).result
 
-    if ir.FloatType.isinstance(input_dtype) or ir.BF16Type.isinstance(
-        input_dtype
-    ):
+    if isinstance(input_dtype, (ir.FloatType, ir.BF16Type)):
         effective_scalar = float(scalar) * float(alpha)
     else:
         effective_scalar = int(round(float(scalar) * float(alpha)))
@@ -6140,9 +6184,7 @@ def sub_scalar_op(node: SubScalarOp, symbol_table):
             ir.RankedTensorType.get(input_shape, input_dtype), input1
         ).result
 
-    if ir.FloatType.isinstance(input_dtype) or ir.BF16Type.isinstance(
-        input_dtype
-    ):
+    if isinstance(input_dtype, (ir.FloatType, ir.BF16Type)):
         effective_scalar = float(scalar) * float(alpha)
     else:
         effective_scalar = int(round(float(scalar) * float(alpha)))
@@ -6524,9 +6566,7 @@ def any_dims_op(node: AnyDimsOp, symbol_table):
     bool_tensor_type = ir.RankedTensorType.get(input_shape, bool_type)
     if input_dtype != bool_type:
         zero_type = ir.RankedTensorType.get(input_shape, input_dtype)
-        if ir.FloatType.isinstance(input_dtype) or ir.BF16Type.isinstance(
-            input_dtype
-        ):
+        if isinstance(input_dtype, (ir.FloatType, ir.BF16Type)):
             zero_attr = ir.DenseElementsAttr.get_splat(
                 zero_type, ir.FloatAttr.get(input_dtype, 0.0)
             )
@@ -7001,7 +7041,7 @@ def sum_default_op(node: SumDefaultOp, symbol_table):
     if isinstance(target_dtype, TensorDType):
         target_element_type = mlir_element_type_get(target_dtype)
     else:
-        if ir.IntegerType.isinstance(input_dtype):
+        if isinstance(input_dtype, ir.IntegerType):
             # Promote all integer/bool sums to i64 by default.
             target_element_type = ir.IntegerType.get_signless(64)
 
@@ -7042,9 +7082,7 @@ def all_dims_op(node: AllDimsOp, symbol_table):
     bool_tensor_type = ir.RankedTensorType.get(input_shape, bool_type)
     if input_dtype != bool_type:
         zero_type = ir.RankedTensorType.get(input_shape, input_dtype)
-        if ir.FloatType.isinstance(input_dtype) or ir.BF16Type.isinstance(
-            input_dtype
-        ):
+        if isinstance(input_dtype, (ir.FloatType, ir.BF16Type)):
             zero_attr = ir.DenseElementsAttr.get_splat(
                 zero_type, ir.FloatAttr.get(input_dtype, 0.0)
             )
@@ -8472,7 +8510,7 @@ def grid_sampler_2d_op(node, symbol_table):
         ok = arith.AndIOp(
             _in_bounds(yi64, h_in_i64), _in_bounds(xi64, w_in_i64)
         ).result
-        if_op = scf.IfOp(ok, [f_ty], hasElse=True)
+        if_op = scf.IfOp(ok, [f_ty], has_else=True)
         with ir.InsertionPoint(if_op.then_block):
             y = arith.IndexCastOp(index_ty, yi64).result
             x = arith.IndexCastOp(index_ty, xi64).result
@@ -10750,7 +10788,7 @@ def _cummaxmin_op(node, symbol_table, is_max: bool):
 
     input_dtype = input_type.element_type
     if not (
-        _is_float_type(input_dtype) or ir.IntegerType.isinstance(input_dtype)
+        _is_float_type(input_dtype) or isinstance(input_dtype, ir.IntegerType)
     ):
         raise NotImplementedError("cummax/cummin requires numeric tensor")
 
@@ -11174,7 +11212,7 @@ def masked_scatter_op(node: MaskedScatterOp, symbol_table):
         raise NotImplementedError(
             "masked_scatter requires source dtype to match input"
         )
-    if not ir.IntegerType.isinstance(mask_dtype):
+    if not isinstance(mask_dtype, ir.IntegerType):
         raise NotImplementedError("masked_scatter requires integer mask")
 
     total_source_elems = 1
@@ -11233,7 +11271,7 @@ def masked_scatter_op(node: MaskedScatterOp, symbol_table):
         ).result
         do_update = arith.AndIOp(mask_bool, has_source).result
 
-        if_op = scf.IfOp(do_update, hasElse=False)
+        if_op = scf.IfOp(do_update, has_else=False)
         with ir.InsertionPoint(if_op.then_block):
             src_val = memref.LoadOp(source_memref, [src_index]).result
             memref.StoreOp(src_val, output_memref.result, indices)
@@ -12958,7 +12996,7 @@ def empty_strided_op(node: EmptyStridedOp, symbol_table):
     # runs (aten.empty_strided returns uninitialized memory).
     i1_type = ir.IntegerType.get_signless(1)
     guard = arith.ConstantOp(i1_type, 0).result
-    const_if = scf.IfOp(guard, hasElse=False)
+    const_if = scf.IfOp(guard, has_else=False)
     with ir.InsertionPoint(const_if.then_block):
         zero = _get_zero_scalar(element_type)
         zero_attr = ir.DenseElementsAttr.get_splat(output_type, zero)
@@ -13025,13 +13063,13 @@ def cauchy_op(node: CauchyOp, symbol_table):
 
 
 def _is_float_type(dtype: ir.Type) -> bool:
-    return ir.FloatType.isinstance(dtype) or ir.BF16Type.isinstance(dtype)
+    return isinstance(dtype, (ir.FloatType, ir.BF16Type))
 
 
 def _get_min_value_attr(dtype: ir.Type) -> ir.Attribute:
     if _is_float_type(dtype):
         return ir.FloatAttr.get(dtype, float("-inf"))
-    if ir.IntegerType.isinstance(dtype):
+    if isinstance(dtype, ir.IntegerType):
         width = ir.IntegerType(dtype).width
         if width == 1 or _is_unsigned_integer_type(dtype):
             return ir.IntegerAttr.get(dtype, 0)
@@ -13110,9 +13148,9 @@ def embedding_bag_op(node: EmbeddingBagOp, symbol_table):
         raise NotImplementedError("embedding_bag requires 1D offsets")
     if any(dim < 0 for dim in weight_shape + indices_shape + offsets_shape):
         raise NotImplementedError("embedding_bag requires static shapes")
-    if not ir.IntegerType.isinstance(indices_type.element_type):
+    if not isinstance(indices_type.element_type, ir.IntegerType):
         raise NotImplementedError("embedding_bag requires integer indices")
-    if not ir.IntegerType.isinstance(offsets_type.element_type):
+    if not isinstance(offsets_type.element_type, ir.IntegerType):
         raise NotImplementedError("embedding_bag requires integer offsets")
 
     if padding_idx >= 0 and padding_idx >= weight_shape[0]:
@@ -13142,7 +13180,7 @@ def embedding_bag_op(node: EmbeddingBagOp, symbol_table):
     # constant-false branch so it does not execute in numeric runs.
     i1_type = ir.IntegerType.get_signless(1)
     gather_guard = arith.ConstantOp(i1_type, 0).result
-    gather_if = scf.IfOp(gather_guard, hasElse=False)
+    gather_if = scf.IfOp(gather_guard, has_else=False)
     with ir.InsertionPoint(gather_if.then_block):
         indices_shape_operand = _create_shape_operand([1, total_indices])
         indices_reshape = tosa.ReshapeOp(indices, indices_shape_operand)
@@ -13292,7 +13330,7 @@ def embedding_bag_op(node: EmbeddingBagOp, symbol_table):
                 bag_plus_one,
                 num_bags_const.result,
             ).result
-            if_op = scf.IfOp(is_last, hasElse=True)
+            if_op = scf.IfOp(is_last, has_else=True)
             with ir.InsertionPoint(if_op.then_block):
                 memref.StoreOp(
                     total_indices_const.result,
@@ -13360,7 +13398,7 @@ def embedding_bag_op(node: EmbeddingBagOp, symbol_table):
                 is_pad = arith.CmpIOp(
                     arith.CmpIPredicate.eq, idx_val, pad_const
                 ).result
-                pad_if = scf.IfOp(is_pad, hasElse=True)
+                pad_if = scf.IfOp(is_pad, has_else=True)
                 with ir.InsertionPoint(pad_if.then_block):
                     scf.YieldOp([])
                 with ir.InsertionPoint(pad_if.else_block):
@@ -13385,7 +13423,7 @@ def embedding_bag_op(node: EmbeddingBagOp, symbol_table):
             is_empty = arith.CmpIOp(
                 arith.CmpIPredicate.eq, bag_count, zero.result
             ).result
-            mean_if = scf.IfOp(is_empty, hasElse=True)
+            mean_if = scf.IfOp(is_empty, has_else=True)
             with ir.InsertionPoint(mean_if.then_block):
                 scf.YieldOp([])
             with ir.InsertionPoint(mean_if.else_block):
@@ -13823,7 +13861,6 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
     query_shape = query.type.shape
     key_shape = k_cache.type.shape
     value_shape = v_cache.type.shape
-    output_shape = list(node.tensor_meta["shape"])
 
     # All intermediate constants use compute_dtype (f32)
     scale_val = 1 / numpy.sqrt(query.type.shape[-1]) if scale is None else scale
@@ -13832,7 +13869,7 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
     neg_inf = arith.ConstantOp(compute_dtype, -1.0e30, loc=loc).result
     zero_compute = arith.ConstantOp(compute_dtype, 0.0, loc=loc).result
     one = arith.ConstantOp(compute_dtype, 1.0, loc=loc).result
-    zero_vec = vector.SplatOp(v16_compute, zero_compute, loc=loc).result
+    zero_vec = vector.BroadcastOp(v16_compute, zero_compute, loc=loc).result
 
     # Padding value for TransferReadOp must match tensor element type
     if need_cast:
@@ -13868,8 +13905,11 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
         compute_dtype,
     )
     element = ir.FloatAttr.get(compute_dtype, 0.0)
-    attr = ir.DenseElementsAttr.get_splat(score_init_tensor_type, element)
-    score_init = arith.ConstantOp(score_init_tensor_type, attr).result
+    score_init = zero_tensor_value(
+        [query_shape[0], query_shape[1], query_shape[2], key_shape[2]],
+        compute_dtype,
+        element,
+    )
 
     score = scf.ForOp(c0, batch_dim, c1, iter_args=[score_init])
     with ir.InsertionPoint(score.body):
@@ -13985,13 +14025,17 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
     log_sumexp = tosa.AddOp(max_vals.result.type, max_vals, log_op)
     log_weights = tosa.SubOp(add_op.result.type, add_op, log_sumexp)
     softmax_result = math.ExpOp(log_weights.result)
-    log_sumexp_operand = _create_shape_operand(list(output_shape[1]))
+    # log_sumexp_operand = _create_shape_operand(list(output_shape[1]))
+    log_sumexp_operand = _create_shape_operand(
+        [query_shape[0], query_shape[1], query_shape[2]]
+    )
     log_sumexp = tosa.ReshapeOp(log_sumexp, log_sumexp_operand)
 
     # Cast log_sumexp back to output dtype if needed
     if need_cast:
         log_sumexp_cast_type = ir.RankedTensorType.get(
-            list(output_shape[1]), mlir_dtype
+            [query_shape[0], query_shape[1], query_shape[2]],
+            mlir_dtype,
         )
         log_sumexp = tosa.CastOp(log_sumexp_cast_type, log_sumexp).result
 
@@ -14002,8 +14046,11 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
         compute_dtype,
     )
     element = ir.FloatAttr.get(compute_dtype, 0.0)
-    attr = ir.DenseElementsAttr.get_splat(out_init_tensor_type, element)
-    out_init = arith.ConstantOp(out_init_tensor_type, attr).result
+    out_init = zero_tensor_value(
+        [query_shape[0], query_shape[1], query_shape[2], query_shape[3]],
+        compute_dtype,
+        element,
+    )
 
     out = scf.ForOp(c0, batch_dim, c1, iter_args=[out_init], loc=loc)
     with ir.InsertionPoint(out.body):
@@ -14041,7 +14088,7 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
                             softmax_result, [b, h, q, k], loc=loc
                         ).result
 
-                        pv = vector.SplatOp(v16_compute, p, loc=loc).result
+                        pv = vector.BroadcastOp(v16_compute, p, loc=loc).result
                         perm_map = ir.AffineMap.get(
                             4, 0, [ir.AffineDimExpr.get(3)]
                         )
@@ -14092,7 +14139,8 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
     # Cast output from f32 back to mlir_dtype (f16) if needed
     if need_cast:
         out_cast_type = ir.RankedTensorType.get(
-            list(output_shape[0]), mlir_dtype
+            [query_shape[0], query_shape[1], query_shape[2], query_shape[3]],
+            mlir_dtype,
         )
         out_tensor = tosa.CastOp(out_cast_type, out_tensor).result
 
@@ -14103,6 +14151,7 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
 
 ops_registry = {
     "AddOp": add_op,
+    "AddCMulOp": addcmul_op,
     "MulOp": mul_op,
     "SubOp": sub_op,
     "SumDimOp": sum_op,

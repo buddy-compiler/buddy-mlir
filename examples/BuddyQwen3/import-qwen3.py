@@ -19,31 +19,29 @@
 #
 # ===---------------------------------------------------------------------------
 
-import os
 import argparse
-import time
+import os
+
+import numpy
 import torch
-import torch._dynamo as dynamo
+from buddy.compiler.frontend import DynamoCompiler
+from buddy.compiler.graph import GraphDriver
+from buddy.compiler.graph.operation import *  # noqa: F403
+from buddy.compiler.graph.transform import (
+    apply_classic_fusion,
+    eliminate_matmul_transpose_reshape,
+    eliminate_transpose,
+    flash_attention_prefill,
+    gqa_attention_fusion,
+    simply_fuse,
+)
+from buddy.compiler.graph.type import DeviceType
+from buddy.compiler.ops import tosa
+from torch._inductor.decomposition import decompositions as inductor_decomp
 from transformers import (
     AutoModelForCausalLM,
     StaticCache,
 )
-from torch._inductor.decomposition import decompositions as inductor_decomp
-import numpy
-
-from buddy.compiler.frontend import DynamoCompiler
-from buddy.compiler.ops import tosa
-from buddy.compiler.graph import GraphDriver
-from buddy.compiler.graph.transform import (
-    simply_fuse,
-    apply_classic_fusion,
-    eliminate_transpose,
-    eliminate_matmul_transpose_reshape,
-    flash_attention_prefill,
-    gqa_attention_fusion,
-)
-from buddy.compiler.graph.type import DeviceType
-from buddy.compiler.graph.operation import *
 
 # Add argument parser to allow custom output directory.
 parser = argparse.ArgumentParser(description="Qwen3-0.6B Model AOT Importer")
@@ -73,7 +71,8 @@ if model_path is None:
 
 # Initialize the model from the specified model path.
 model = AutoModelForCausalLM.from_pretrained(
-    model_path, torchscript=True
+    model_path,
+    dtype=torch.float32,
 ).eval()
 model.config.use_cache = False
 

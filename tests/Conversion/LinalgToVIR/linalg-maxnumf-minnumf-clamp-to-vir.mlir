@@ -17,12 +17,12 @@ func.func @clamp_with_maxnumf_minnumf(%arg0: memref<?xf32>, %arg1: memref<?xf32>
 }
 
 // CHECK-LABEL: func.func @clamp_with_maxnumf_minnumf
-// CHECK: %[[VL:.*]] = memref.dim %arg1, %{{.*}} : memref<?xf32>
+// CHECK: %[[VL:.*]] = memref.dim %arg0, %{{.*}} : memref<?xf32>
 // CHECK: vir.set_vl %[[VL]] : index {
 // CHECK:   %[[A:.*]] = vir.load %{{.*}}[] : memref<?xf32, strided<[1]>> -> !vir.vec<?xf32>
 // CHECK:   %[[LO:.*]] = vir.broadcast %{{.*}} : f32 -> !vir.vec<?xf32>
-// CHECK:   %[[HI:.*]] = vir.broadcast %{{.*}} : f32 -> !vir.vec<?xf32>
 // CHECK:   %[[M0:.*]] = arith.maxnumf %[[A]], %[[LO]] : !vir.vec<?xf32>
+// CHECK:   %[[HI:.*]] = vir.broadcast %{{.*}} : f32 -> !vir.vec<?xf32>
 // CHECK:   %[[M1:.*]] = arith.minnumf %[[M0]], %[[HI]] : !vir.vec<?xf32>
 // CHECK:   vir.store %[[M1]], %{{.*}}[] : !vir.vec<?xf32> -> memref<?xf32, strided<[1]>>
 // CHECK: }

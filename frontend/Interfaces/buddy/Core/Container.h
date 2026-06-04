@@ -23,13 +23,37 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cerrno>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <iostream>
 #include <memory>
+#include <mutex>
 #include <numeric>
 #include <stdexcept>
+#include <string>
+#include <unordered_map>
 #include <vector>
+
+#if defined(__unix__) || defined(__APPLE__)
+#include <sys/mman.h>
+#ifndef MAP_NORESERVE
+#define MAP_NORESERVE 0
+#endif
+#endif
+
+enum class MemRefAllocationKind { Malloc, MMap };
+
+inline std::unordered_map<void *, size_t> &mmapMemRefAllocations() {
+  static std::unordered_map<void *, size_t> allocations;
+  return allocations;
+}
+
+inline std::mutex &mmapMemRefAllocationsMutex() {
+  static std::mutex mutex;
+  return mutex;
+}
 
 // MemRef descriptor.
 // - T represents the type of the elements.
@@ -40,12 +64,14 @@ public:
   // Constructor from shape.
   MemRef(intptr_t sizes[N]);
   MemRef(std::vector<size_t> sizes);
+  MemRef(std::vector<size_t> sizes, MemRefAllocationKind allocationKind);
   MemRef(intptr_t sizes[N], T init);
   MemRef(intptr_t sizes[N], bool needMalloc, intptr_t offset);
   MemRef(std::vector<size_t> sizes, T init);
   MemRef(std::vector<size_t> sizes, bool needMalloc, intptr_t offset);
   // Constructor from data.
   MemRef(const T *data, intptr_t sizes[N], intptr_t offset = 0);
+  MemRef(const T *data, std::vector<size_t> sizes, intptr_t offset = 0);
   // Constructor from a unique_ptr, taking over.
   MemRef(std::unique_ptr<T> &uptr, intptr_t sizes[N], intptr_t offset = 0);
   // Copy constructor.
@@ -58,8 +84,18 @@ public:
   MemRef<T, N> &operator=(MemRef<T, N> &&other) noexcept;
   // Desctrutor.
   ~MemRef();
+  // Concat two MemRefs into a MemRef.
+  void concatenateMemRefs(MemRef<T, N> &other0, MemRef<T, N> &other1,
+                          MemRef<T, N> &other2, size_t concatDim);
+  // Split a MemRef into two MemRefs.
+  void splitMemRef(MemRef<T, N> &&other0, MemRef<T, N> &other1,
+                   MemRef<T, N> &other2, size_t splitDim, size_t splitIndex);
+  // Add two MemRef
+  void addMemRef(MemRef<T, N> &a, MemRef<T, N> &b);
   // Get the data pointer.
   T *getData();
+  // Get the data.
+  std::vector<T> getDataVector();
   // Get the sizes (shape).
   const intptr_t *getSizes() { return sizes; }
   // Get the strides.
@@ -77,12 +113,15 @@ public:
 protected:
   // Default constructor.
   // This constructor is designed for derived domain-specific constructor.
-  MemRef(){};
+  MemRef() {};
   // Set the strides.
   // Computes the strides of the transposed tensor for transpose=true.
   void setStrides();
   // Compute the product of array elements.
   size_t product(const intptr_t sizes[N]) const;
+  // Allocate and release owned storage.
+  void allocateStorage(size_t size, MemRefAllocationKind allocationKind);
+  void releaseAllocatedStorage();
 
   // Data.
   // The `aligned` and `allocated` members point to the same address, `aligned`
@@ -122,6 +161,19 @@ MemRef<T, N>::MemRef(std::vector<size_t> sizes) {
   size_t size = product(this->sizes);
   allocated = (T *)malloc(sizeof(T) * size);
   aligned = allocated;
+}
+
+template <typename T, std::size_t N>
+MemRef<T, N>::MemRef(std::vector<size_t> sizes,
+                     MemRefAllocationKind allocationKind) {
+  if (sizes.size() != N) {
+    throw std::runtime_error("Invalid number of dimensions.");
+  }
+  for (size_t i = 0; i < N; i++) {
+    this->sizes[i] = sizes[i];
+  }
+  setStrides();
+  allocateStorage(product(this->sizes), allocationKind);
 }
 
 template <typename T, std::size_t N>
@@ -184,6 +236,25 @@ MemRef<T, N>::MemRef(const T *data, intptr_t sizes[N], intptr_t offset) {
   }
 }
 
+template <typename T, std::size_t N>
+MemRef<T, N>::MemRef(const T *data, std::vector<size_t> sizes,
+                     intptr_t offset) {
+  if (sizes.size() != N) {
+    throw std::runtime_error("Invalid number of dimensions.");
+  }
+  this->offset = offset;
+  for (size_t i = 0; i < N; i++) {
+    this->sizes[i] = sizes[i];
+  }
+  setStrides();
+  size_t size = product(this->sizes);
+  allocated = (T *)malloc(sizeof(T) * size);
+  aligned = allocated;
+  for (size_t i = 0; i < size; i++) {
+    aligned[i] = data[i];
+  }
+}
+
 // Copy Constructor.
 // This constructor is used to initialize a MemRef object with another MemRef
 // object.
@@ -222,7 +293,7 @@ MemRef<T, N> &MemRef<T, N>::operator=(const MemRef<T, N> &other) {
     }
     setStrides();
     // Free the original aligned and allocated space.
-    free(allocated);
+    releaseAllocatedStorage();
     // Allocate new space and deep copy.
     size_t size = product(this->sizes);
     T *ptr = (T *)malloc(sizeof(T) * size);
@@ -263,7 +334,7 @@ template <typename T, std::size_t N>
 MemRef<T, N> &MemRef<T, N>::operator=(MemRef<T, N> &&other) noexcept {
   if (this != &other) {
     // Free the original aligned and allocated space.
-    free(allocated);
+    releaseAllocatedStorage();
     // Steal members of the original object.
     std::swap(strides, other.strides);
     std::swap(offset, other.offset);
@@ -277,12 +348,64 @@ MemRef<T, N> &MemRef<T, N>::operator=(MemRef<T, N> &&other) noexcept {
   return *this;
 }
 
+template <typename T, std::size_t N>
+void MemRef<T, N>::allocateStorage(size_t size,
+                                   MemRefAllocationKind allocationKind) {
+  if (allocationKind == MemRefAllocationKind::MMap) {
+#if defined(__unix__) || defined(__APPLE__)
+    size_t allocatedBytes = sizeof(T) * size;
+    void *ptr = mmap(nullptr, allocatedBytes, PROT_READ | PROT_WRITE,
+                     MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
+    if (ptr == MAP_FAILED) {
+      throw std::runtime_error("mmap failed: " + std::to_string(errno));
+    }
+    allocated = static_cast<T *>(ptr);
+    aligned = allocated;
+    {
+      std::lock_guard<std::mutex> lock(mmapMemRefAllocationsMutex());
+      mmapMemRefAllocations()[allocated] = allocatedBytes;
+    }
+    return;
+#else
+    throw std::runtime_error("mmap-backed MemRef is not supported");
+#endif
+  }
+  allocated = (T *)malloc(sizeof(T) * size);
+  aligned = allocated;
+}
+
+template <typename T, std::size_t N>
+void MemRef<T, N>::releaseAllocatedStorage() {
+  if (!allocated)
+    return;
+  size_t mmapBytes = 0;
+  {
+    std::lock_guard<std::mutex> lock(mmapMemRefAllocationsMutex());
+    auto &allocations = mmapMemRefAllocations();
+    auto it = allocations.find(allocated);
+    if (it != allocations.end()) {
+      mmapBytes = it->second;
+      allocations.erase(it);
+    }
+  }
+  if (mmapBytes) {
+#if defined(__unix__) || defined(__APPLE__)
+    munmap(allocated, mmapBytes);
+#else
+    assert(0 && "mmap-backed MemRef is not supported");
+#endif
+  } else {
+    free(allocated);
+  }
+  allocated = nullptr;
+  aligned = nullptr;
+}
+
 // MemRef Destructor.
 // Note that the `allocated` and `aligned` point to the same address, so it is
 // enough to release the space of the `allocated` pointer in the destructor.
 template <typename T, std::size_t N> MemRef<T, N>::~MemRef() {
-  if (allocated)
-    free(allocated);
+  releaseAllocatedStorage();
 }
 
 // Get the data pointer.
@@ -333,6 +456,7 @@ size_t MemRef<T, N>::product(const intptr_t sizes[N]) const {
     size *= sizes[i];
   return size;
 }
+
 template <typename T, size_t N>
 MemRef<T, N>::MemRef(std::unique_ptr<T> &uptr, intptr_t *sizes,
                      intptr_t offset) {
@@ -347,11 +471,136 @@ MemRef<T, N>::MemRef(std::unique_ptr<T> &uptr, intptr_t *sizes,
   }
   setStrides();
 }
+
 template <typename T, size_t N> T *MemRef<T, N>::release() {
+  {
+    std::lock_guard<std::mutex> lock(mmapMemRefAllocationsMutex());
+    if (mmapMemRefAllocations().count(allocated))
+      throw std::runtime_error("Cannot release mmap-backed MemRef storage.");
+  }
   T *temp = allocated;
   aligned = nullptr;
   allocated = nullptr;
   return temp;
+}
+
+template <typename T, std::size_t N>
+void MemRef<T, N>::concatenateMemRefs(MemRef<T, N> &other0,
+                                      MemRef<T, N> &other1,
+                                      MemRef<T, N> &other2, size_t concatDim) {
+  if (concatDim >= N) {
+    throw std::runtime_error("Invalid concatenation dimension.");
+  }
+
+  for (size_t i = 0; i < N; i++) {
+    if (i != concatDim && other0.getSizes()[i] != other1.getSizes()[i]) {
+      throw std::runtime_error("Shapes are not compatible for concatenation.");
+    }
+  }
+
+  intptr_t *sizes2 = const_cast<intptr_t *>(other2.getSizes());
+  for (size_t i = 0; i < N; i++) {
+    if (i == concatDim) {
+      sizes2[i] = other0.getSizes()[i] + other1.getSizes()[i];
+    } else {
+      sizes2[i] = other0.getSizes()[i];
+    }
+  }
+
+  other2.setStrides();
+
+  intptr_t concatOffset0 =
+      other0.getStrides()[concatDim] * other0.getSizes()[concatDim];
+  intptr_t concatOffset1 =
+      other1.getStrides()[concatDim] * other1.getSizes()[concatDim];
+
+  size_t offset0 = 0;
+  size_t offset1 = 0;
+  size_t offset2 = 0;
+  while (offset2 < other2.getSize()) {
+    size_t tmp = 0;
+    while (tmp < concatOffset0) {
+      other2[offset2 + tmp] = other0[offset0 + tmp];
+      tmp++;
+    }
+    offset0 += concatOffset0;
+    offset2 += concatOffset0;
+    tmp = 0;
+    while (tmp < concatOffset1) {
+      other2[offset2 + tmp] = other1[offset1 + tmp];
+      tmp++;
+    }
+    offset1 += concatOffset1;
+    offset2 += concatOffset1;
+  }
+}
+
+template <typename T, std::size_t N>
+void MemRef<T, N>::splitMemRef(MemRef<T, N> &&other0, MemRef<T, N> &other1,
+                               MemRef<T, N> &other2, size_t splitDim,
+                               size_t splitIndex) {
+  if (splitDim >= N) {
+    throw std::runtime_error("Invalid split dimension.");
+  }
+
+  if (splitIndex > static_cast<size_t>(other0.getSizes()[splitDim])) {
+    throw std::runtime_error("Split index out of bounds.");
+  }
+
+  intptr_t *sizes1 = const_cast<intptr_t *>(other1.getSizes());
+  const intptr_t *sizes0 = other0.getSizes();
+  for (size_t i = 0; i < N; i++) {
+    sizes1[i] = sizes0[i];
+  }
+  sizes1[splitDim] = splitIndex;
+
+  intptr_t *sizes2 = const_cast<intptr_t *>(other2.getSizes());
+  for (size_t i = 0; i < N; i++) {
+    sizes2[i] = sizes0[i];
+  }
+  sizes2[splitDim] = sizes0[splitDim] - splitIndex;
+
+  other1.setStrides();
+  other2.setStrides();
+
+  other1.allocated = other0.allocated;
+  other1.aligned = other0.aligned;
+  other1.offset = other0.offset;
+
+  other2.allocated = nullptr;
+  other2.aligned = other0.aligned + other1.getSize();
+  other2.offset = other0.offset;
+
+  other0.allocated = nullptr;
+  other0.aligned = nullptr;
+}
+
+/// Add two MemRef
+template <typename T, size_t N>
+void MemRef<T, N>::addMemRef(MemRef<T, N> &a, MemRef<T, N> &b) {
+  const intptr_t *aSizes = a.getSizes();
+  const intptr_t *bSizes = b.getSizes();
+  for (size_t i = 0; i < N; i++) {
+    if (aSizes[i] != bSizes[i]) {
+      throw std::runtime_error("Shapes are not compatible for concatenation.");
+    }
+  }
+
+  for (size_t i = 0; i < a.getSize(); i++) {
+    a[i] += b[i];
+  }
+}
+
+/// Get the data.
+template <typename T, std::size_t N>
+std::vector<T> MemRef<T, N>::getDataVector() {
+  size_t size = product(this->sizes);
+  assert((size > 0) && "Invalid container data size.");
+  std::vector<T> dataVector(size);
+  for (size_t i = 0; i < size; i++) {
+    dataVector[i] = aligned[i + offset];
+  }
+  return dataVector;
 }
 
 #endif // FRONTEND_INTERFACES_BUDDY_CORE_CONTAINER

@@ -169,8 +169,8 @@ public:
                         tVec = builder.create<vector::BroadcastOp>(
                             loc, vecTy, zeroElementType);
                       } else {
-                        tVec = builder.create<vector::SplatOp>(loc, vecTy,
-                                                               zeroElementType);
+                        tVec = builder.create<vector::BroadcastOp>(
+                            loc, vecTy, zeroElementType);
                       }
 
                       Value remainLen = builder.create<affine::AffineMinOp>(

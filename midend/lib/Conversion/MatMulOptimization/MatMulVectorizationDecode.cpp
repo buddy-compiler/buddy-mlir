@@ -33,6 +33,25 @@
 using namespace mlir;
 
 namespace {
+static bool hasDefaultMatmulIndexingMaps(linalg::MatmulOp op) {
+  SmallVector<AffineMap, 3> maps = op.getIndexingMapsArray();
+  if (maps.size() != 3)
+    return false;
+
+  MLIRContext *context = op.getContext();
+  AffineExpr m = getAffineDimExpr(0, context);
+  AffineExpr n = getAffineDimExpr(1, context);
+  AffineExpr k = getAffineDimExpr(2, context);
+  SmallVector<AffineMap, 3> expected = {
+      AffineMap::get(3, 0, {m, k}, context),
+      AffineMap::get(3, 0, {k, n}, context),
+      AffineMap::get(3, 0, {m, n}, context),
+  };
+
+  return maps[0] == expected[0] && maps[1] == expected[1] &&
+         maps[2] == expected[2];
+}
+
 static bool isZeroAttribute(Attribute attr) {
   if (auto floatAttr = dyn_cast<FloatAttr>(attr))
     return floatAttr.getValue().isZero();
@@ -83,6 +102,9 @@ public:
   matchAndRewrite(Operation *op, ArrayRef<Value> /*operands*/,
                   ConversionPatternRewriter &rewriter) const override {
     auto matmulOp = cast<linalg::MatmulOp>(op);
+    if (!hasDefaultMatmulIndexingMaps(matmulOp))
+      return failure();
+
     auto loc = matmulOp.getLoc();
 
     Value A = matmulOp.getInputs()[0];
@@ -200,6 +222,8 @@ public:
     target.addLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>();
     target.addDynamicallyLegalOp<linalg::MatmulOp>(
         [&](linalg::MatmulOp op) -> bool {
+          if (!hasDefaultMatmulIndexingMaps(op))
+            return true;
           auto aType = dyn_cast<MemRefType>(op.getInputs()[0].getType());
           auto cType = dyn_cast<MemRefType>(op.getOutputs()[0].getType());
           if (!aType || !cType)

@@ -18,18 +18,17 @@
 #
 # ===---------------------------------------------------------------------------
 
-from typing import Any, List, Optional
-from types import FunctionType
-from enum import Enum, auto
 import ctypes
 import functools
-import numpy as np
+from enum import Enum, auto
+from types import FunctionType
 
-import buddy_mlir.ir as ir
 import buddy_mlir.dialects.func as func
-from buddy_mlir.passmanager import *
-from buddy_mlir.execution_engine import *
+import buddy_mlir.ir as ir
+import numpy as np
+import torch
 from buddy_mlir import runtime as rt
+from buddy_mlir.passmanager import PassManager
 
 from .operation import *
 from .type import *
@@ -40,9 +39,9 @@ def make_output_memref_descriptor(ranks, dtypes):
     Make an output memref descriptor for the given memref ranks and dtypes.
 
     Parameters:
-    - ranks: List[int]
+    - ranks: list[int]
         A list of integers representing the ranks of each memref.
-    - dtypes: List[str]
+    - dtypes: list[str]
         A list of strings representing the data types of each memref.
 
     Returns:
@@ -82,11 +81,11 @@ class Graph:
     MLIR module.
 
     Attributes:
-    - _body: List[Op]
+    - _body: list[Op]
         The sequence of operation nodes in the graph.
-    - _inputs: List[TensorMeta]
+    - _inputs: list[TensorMeta]
         The model inputs represented as TensorMeta objects.
-    - _fake_params: List[TensorMeta]
+    - _fake_params: list[TensorMeta]
         The fake parameters represented as TensorMeta objects.
     - device: str
         The hardware for graph runtime.
@@ -118,9 +117,9 @@ class Graph:
         Initializes the Graph.
 
         Args:
-            inputs: List[TensorMeta]
+            inputs: list[TensorMeta]
                 The model inputs represented as TensorMeta objects.
-            fake_params: List[TensorMeta]
+            fake_params: list[TensorMeta]
                 The fake parameters represented as TensorMeta objects.
             ops_registry: dict
                 The ops lower strategy for the graph.
@@ -130,8 +129,9 @@ class Graph:
                 Enable external function call support (for oneDNN, etc.)
         """
         self._body = []
+        self._outputs = None
         self._inputs = []
-        self.node_table: Dict[str, Op] = {}
+        self.node_table: dict[str, Op] = {}
         self._fake_params = []
         self.device = device
         self._imported_module = None
@@ -143,8 +143,8 @@ class Graph:
         self._output_memref = None
         self._output_descriptor = None
         self.execution_engine = None
-        self.op_groups: Dict[str, List[Op]] = {}
-        self.group_map_device: Dict[str, DeviceType] = {}
+        self.op_groups: dict[str, list[Op]] = {}
+        self.group_map_device: dict[str, DeviceType] = {}
         self._enable_external_calls = enable_external_calls
 
     @property
@@ -242,20 +242,20 @@ class Graph:
         Returns:
             bool: True if the node exists in the graph and has no children.
         """
-        if not (node.name in self.node_table):
-            raise KeyError("node{0} not in graph".format(node.name))
+        if node.name not in self.node_table:
+            raise KeyError(f"node{node.name} not in graph")
 
         if len(node._children) == 0:
             return True
         return False
 
-    def delete_node(self, node: Op, parents: List[Op]):
+    def delete_node(self, node: Op, parents: list[Op]):
         """
         Removes a node from the graph and updates its parent nodes accordingly.
 
         Args:
             node (Op): The operation node to be deleted from the graph.
-            parents (List[Op]): A list of parent operation nodes that reference the node to be deleted.
+            parents (list[Op]): A list of parent operation nodes that reference the node to be deleted.
 
         Returns:
             None
@@ -427,16 +427,73 @@ class Graph:
             if isinstance(op, PlaceholderOp) or isinstance(op, OutputOp):
                 continue
             group = [op]
-            subgraph_name = "subgraph{}".format(i)
+            subgraph_name = f"subgraph{i}"
             self.group_map_device[subgraph_name] = DeviceType.CPU
             self.op_groups[subgraph_name] = group
 
-    def fuse_ops(self, pattern_list: List[FunctionType]):
+    def infer_graph_inputs(self, op_group: list[Op]) -> list[Op]:
+        """
+        Infer the input operations of a subgraph.
+
+        Args:
+        - op_group (List[Op]): Operations forming a subgraph.
+
+        Returns:
+        - List[Op]: External input operations of the subgraph.
+        """
+        inputs: list[Op] = []
+        op_group_set = set(op_group)
+
+        for op in op_group:
+            for parent_id in op._parents:
+                parent_op = self.node_table[parent_id]
+                if parent_op not in op_group_set and parent_op not in inputs:
+                    inputs.append(parent_op)
+
+        return inputs
+
+    def infer_subgraph_outputs(
+        self,
+        op_group: list[Op],
+        subgraphs_inputs: dict[int, list[Op]],
+        output_nodes: list[Op],
+        dependencies: set,
+    ) -> list[Op]:
+        """
+        Identify the output operations of a subgraph and update its dependencies
+        on other subgraphs.
+
+        Args:
+        - op_group (List[Op]): List of operations forming the subgraph.
+        - subgraphs_inputs (Dict[int, List[Op]]): Mapping from subgraph ID to
+        its input operations.
+        - output_nodes (List[Op]): Operations explicitly marked as output nodes.
+        - dependencies (set): A set to record IDs of subgraphs that consume this
+        subgraph's outputs.
+
+        Returns:
+        - List[Op]: List of operations that are outputs of the subgraph.
+        """
+        outputs: list[Op] = []
+
+        for op in op_group:
+            for subgraph_id, subgraph_inputs in subgraphs_inputs.items():
+                if op in subgraph_inputs:
+                    if op not in outputs:
+                        outputs.append(op)
+                    dependencies.add(subgraph_id)
+
+            if op in output_nodes and op not in outputs:
+                outputs.append(op)
+
+        return outputs
+
+    def fuse_ops(self, pattern_list: list[FunctionType]):
         """
         Fuse operations in the graph based on provided fusion patterns.
 
         Args:
-        - pattern_list (List[FunctionType]): A list of functions representing
+        - pattern_list (list[FunctionType]): A list of functions representing
         fusion patterns.
 
         Returns:
@@ -450,13 +507,13 @@ class Graph:
         for pattern_func in pattern_list:
             pattern_func(self)
 
-    def perform(self, func_list: List[FunctionType]):
+    def perform(self, func_list: list[FunctionType]):
         """
         Perform a series of transformations on the graph using the provided list
         of functions.
 
         Args:
-        - func_list (List[FunctionType]): A list of functions representing
+        - func_list (list[FunctionType]): A list of functions representing
         transformations to be applied to the graph.
 
         Returns:
@@ -495,6 +552,7 @@ class Graph:
             )
             self._imported_module = fx_importer.import_graph()
             outputs = fx_importer.get_output_nodes()
+            self._outputs = outputs
         self._output_memref = []
         output_ranks = []
         output_dtypes = []
@@ -555,21 +613,32 @@ class Graph:
             pm.add("func.func(tosa-to-tensor)")
             pm.add("func.func(tosa-to-arith)")
             pm.run(self._imported_module.operation)
-            pm.add("arith-expand")
+            pm = PassManager("builtin.module")
             pm.add("eliminate-empty-tensors")
             pm.add("empty-tensor-to-alloc-tensor")
             pm.add("convert-elementwise-to-linalg")
             pm.add("one-shot-bufferize{bufferize-function-boundaries}")
-            pm.add("func.func(linalg-generalize-named-ops)")
-            pm.add("func.func(convert-linalg-to-loops)")
-            pm.add("affine-loop-fusion")
-            pm.add("func.func(affine-parallelize)")
-            pm.add("convert-scf-to-openmp")
             pm.add("expand-strided-metadata")
+            pm.add("ownership-based-buffer-deallocation")
+            pm.add("canonicalize")
+            pm.add("buffer-deallocation-simplification")
+            pm.add("bufferization-lower-deallocations")
+            pm.add("cse")
+            pm.add("canonicalize")
+            pm.add("func.func(optimize-allocation-liveness)")
+            pm.add("func.func(eliminate-memref-copy)")
+            pm.add("func.func(assume-tight-memref-layout)")
+            pm.add("func.func(staticize-memref-layout)")
+            pm.add("matmul-vectorization")
+            pm.add("convert-linalg-to-affine-loops")
+            pm.add("convert-vector-to-scf")
             pm.add("lower-affine")
-            pm.add("convert-vector-to-llvm")
+            pm.add("convert-scf-to-openmp")
+            pm.add("cse")
             pm.add("memref-expand")
             pm.add("arith-expand")
+            pm.add("convert-bufferization-to-memref")
+            pm.add("convert-vector-to-llvm")
             pm.add("convert-complex-to-llvm")
             pm.add("convert-arith-to-llvm")
             pm.add("finalize-memref-to-llvm")
@@ -577,6 +646,7 @@ class Graph:
             pm.add("convert-cf-to-llvm")
             pm.add("func.func(llvm-request-c-wrappers)")
             pm.add("convert-openmp-to-llvm")
+            pm.add("convert-arith-to-llvm")
             pm.add("convert-math-to-llvm")
             pm.add("convert-math-to-libm")
             pm.add("convert-func-to-llvm")
@@ -597,9 +667,9 @@ class GraphImporter:
 
     Attributes:
         _symbol_table (dict): A dictionary to keep track of the symbols.
-        _body (List[Op]): The FX graph module to be imported.
+        _body (list[Op]): The FX graph module to be imported.
         _func_name (str): Name of the generated MLIR function.
-        _inputs (List[TensorMeta]): Input tensor(s) of the FX graph.
+        _inputs (list[TensorMeta]): Input tensor(s) of the FX graph.
         _num_input_visited (int): Number of input nodes that have been visited.
         _module (buddy_mlir.ir.Module): The generated MLIR module.
         _ops_registry (dict): Registry for the candidate operations.
@@ -607,9 +677,9 @@ class GraphImporter:
 
     def __init__(
         self,
-        body: List[Op],
-        params_shapes: List[TensorMeta],
-        inputs_shapes: List[TensorMeta],
+        body: list[Op],
+        params_shapes: list[TensorMeta],
+        inputs_shapes: list[TensorMeta],
         func_name: str,
         ops_registry: dict,
         do_param_pack: bool = False,
@@ -622,7 +692,7 @@ class GraphImporter:
 
         Args:
             gm (Graph): The buddy graph that will be imported.
-            inputs (List[TensorMeta]): Input tensor(s) of the buddy graph.
+            inputs (list[TensorMeta]): Input tensor(s) of the buddy graph.
             func_name (str): Name of the generated MLIR function.
             ops_registry (dict): Registry for the candidate operations.
             enable_external_calls (bool): Enable external function call support (for oneDNN, etc.)
@@ -630,6 +700,7 @@ class GraphImporter:
         if ops_registry is None:
             ops_registry = {}
         self._symbol_table = {}
+        self._symbol_table_output = {}
         self._body = body
         self._device = device
         self._func_name = func_name
@@ -695,7 +766,7 @@ class GraphImporter:
         """
         dtypes = list(set([param.dtype for param in self._params_shapes]))
         dtypes.sort(key=str)
-        self._current_param_pack_offset = {dtype: 0 for dtype in dtypes}
+        self._current_param_pack_offset = dict.fromkeys(dtypes, 0)
         for dtype in dtypes:
             params_of_dtype = [
                 param for param in self._params_shapes if param.dtype == dtype
@@ -826,6 +897,10 @@ class GraphImporter:
                         ]
                         self._symbol_table[("output", 0)] = returns
                     elif isinstance(node, PlaceholderOp):
+                        if node._newshape is not None:
+                            node.tensor_meta["shape"] = torch.Size(
+                                list(node._newshape)
+                            )
                         self._import_placeholder(node, args_list)
                     elif isinstance(node, GetItemOp):
                         self._symbol_table[(str(node.name), 0)] = (
@@ -841,7 +916,7 @@ class GraphImporter:
         return self._module
 
     def _import_placeholder(
-        self, node: PlaceholderOp, args_list: List[ir.BlockArgument]
+        self, node: PlaceholderOp, args_list: list[ir.BlockArgument]
     ):
         """
         Imports a placeholder node from the Buddy graph.
@@ -849,7 +924,7 @@ class GraphImporter:
         Parameters:
         - node (PlaceholderOp): The PlaceholderOp node representing the
         placeholder.
-        - args_list (List[buddy_mlir.ir.BlockArgument]): List of input memrefs.
+        - args_list (list[buddy_mlir.ir.BlockArgument]): list of input memrefs.
 
         Returns:
         None
@@ -894,8 +969,8 @@ class GraphImporter:
         Args:
             call_node: CallExternalOp node that calls an external function
         """
-        from .operation import CallExternalOp
         from ..ops.utils import mlir_element_type_get
+        from .operation import CallExternalOp
 
         if not isinstance(call_node, CallExternalOp):
             return
@@ -905,7 +980,7 @@ class GraphImporter:
 
         # Build argument types from CallOp's arguments
         arg_types = []
-        for i, arg in enumerate(call_node.args):
+        for _, arg in enumerate(call_node.args):
             # Get the node that produces this argument
             arg_node = None
             for node in self._body:
@@ -973,26 +1048,32 @@ class GraphImporter:
 
         """
         op_name = node.__class__.__name__
-        op_ret: ir.Operation | ir.Value | tuple | List | ir.OpResult = (
+        op_ret: ir.Operation | ir.Value | tuple | list | ir.OpResult = (
             self._ops_registry[op_name](node, self._symbol_table)
         )
-        if isinstance(op_ret, tuple | List | ir.OpResultList):
+        if isinstance(op_ret, tuple | list | ir.OpResultList):
             for i, operation in enumerate(op_ret):
                 if isinstance(operation, ir.Operation) or isinstance(
                     operation, ir.OpView
                 ):
                     self._symbol_table[(str(node.name), i)] = operation.result
+                    self._symbol_table_output[(str(node.name), i)] = (
+                        operation.result
+                    )
                 elif isinstance(operation, ir.OpResult):
                     self._symbol_table[(str(node.name), i)] = operation
+                    self._symbol_table_output[(str(node.name), i)] = operation
                 else:
                     raise NotImplementedError
         elif isinstance(op_ret, ir.OpResult):
             self._symbol_table[(str(node.name), 0)] = op_ret
+            self._symbol_table_output[(str(node.name), 0)] = op_ret
         elif isinstance(op_ret, ir.BlockArgument):
             self._symbol_table[(str(node.name), 0)] = op_ret
         else:
             for i, result in enumerate(op_ret.results):
                 self._symbol_table[(str(node.name), i)] = result
+                self._symbol_table_output[(str(node.name), i)] = result
 
     def get_output_nodes(self):
         """

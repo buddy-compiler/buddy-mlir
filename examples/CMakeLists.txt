@@ -1,3 +1,9 @@
+get_filename_component(BUDDY_LLVM_BUILD_DIR "${LLVM_LIBRARY_DIR}" DIRECTORY)
+link_directories(
+  "${LLVM_BINARY_DIR}/runtimes/runtimes-bins/openmp/runtime/src"
+  "${BUDDY_LLVM_BUILD_DIR}/runtimes/runtimes-bins/openmp/runtime/src"
+)
+
 if(BUDDY_EXAMPLES)
   add_subdirectory(ConvOpt)
   add_subdirectory(DIPDialect)
@@ -14,6 +20,10 @@ endif()
 
 if(BUDDY_QWEN3_EXAMPLES)
   add_subdirectory(BuddyQwen3)
+endif()
+
+if(BUDDY_TENSORPARALLEL_EXAMPLES)
+  add_subdirectory(BuddyTensorParallel)
 endif()
 
 if(BUDDY_GEMMA4_EXAMPLES)
@@ -56,32 +66,40 @@ if (BUDDY_ONEDNN_EXAMPLES)
   add_subdirectory(BuddyOneDNN)
 endif()
 
+if(BUDDY_TORQ_EXAMPLES)
+  add_subdirectory(BuddyTorq)
+endif()
+
 if(BUDDY_DSL_EXAMPLES)
-  add_subdirectory(ToyDSL)
+  message(WARNING
+    "BUDDY_DSL_EXAMPLES depends on MLIR Toy example sources and is disabled.")
+  set(BUDDY_DSL_EXAMPLES OFF CACHE BOOL "Build DSL examples" FORCE)
 endif()
 
-configure_lit_site_cfg(
-  ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
-  ${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py
-  MAIN_CONFIG
-  ${CMAKE_CURRENT_SOURCE_DIR}/lit.cfg.py
-)
-
-set(BUDDY_EXAMPLES_DEPENDS
-  FileCheck count not
-  buddy-opt
-  buddy-translate
-  mlir-runner
+if(BUDDY_ENABLE_TESTS)
+  configure_lit_site_cfg(
+    ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
+    ${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py
+    MAIN_CONFIG
+    ${CMAKE_CURRENT_SOURCE_DIR}/lit.cfg.py
   )
 
-if(BUDDY_MLIR_ENABLE_PYTHON_PACKAGES AND MLIR_ENABLE_BINDINGS_PYTHON)
-  list(APPEND BUDDY_TEST_DEPENDS python-package-buddy-mlir)
+  set(BUDDY_EXAMPLES_DEPENDS
+    FileCheck count not
+    buddy-opt
+    buddy-translate
+    mlir-runner
+    )
+
+  if(BUDDY_MLIR_ENABLE_PYTHON_PACKAGES AND MLIR_ENABLE_BINDINGS_PYTHON)
+    list(APPEND BUDDY_EXAMPLES_DEPENDS python-package-buddy-mlir)
+  endif()
+
+  add_lit_testsuite(check-examples "Checking the buddy-mlir examples..."
+    ${CMAKE_CURRENT_BINARY_DIR}
+    DEPENDS ${BUDDY_EXAMPLES_DEPENDS}
+    )
+  set_target_properties(check-examples PROPERTIES FOLDER "Examples")
+
+  add_lit_testsuites(BUDDY-EXAMPLES ${CMAKE_CURRENT_SOURCE_DIR} DEPENDS ${BUDDY_EXAMPLES_DEPENDS})
 endif()
-
-add_lit_testsuite(check-examples "Checking the buddy-mlir examples..."
-  ${CMAKE_CURRENT_BINARY_DIR}
-  DEPENDS ${BUDDY_EXAMPLES_DEPENDS}
-  )
-set_target_properties(check-examples PROPERTIES FOLDER "Examples")
-
-add_lit_testsuites(BUDDY-EXAMPLES ${CMAKE_CURRENT_SOURCE_DIR} DEPENDS ${BUDDY_EXAMPLES_DEPENDS})

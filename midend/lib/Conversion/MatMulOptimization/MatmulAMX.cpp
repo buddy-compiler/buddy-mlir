@@ -18,7 +18,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <mlir/Dialect/AMX/AMXDialect.h>
 #include <mlir/Dialect/Affine/IR/AffineOps.h>
 #include <mlir/Dialect/Arith/IR/Arith.h>
 #include <mlir/Dialect/Func/IR/FuncOps.h>
@@ -26,6 +25,7 @@
 #include <mlir/Dialect/MemRef/IR/MemRef.h>
 #include <mlir/Dialect/SCF/IR/SCF.h>
 #include <mlir/Dialect/Vector/IR/VectorOps.h>
+#include <mlir/Dialect/X86/X86Dialect.h>
 #include <mlir/IR/Builders.h>
 #include <mlir/IR/BuiltinTypes.h>
 #include <mlir/IR/Dialect.h>
@@ -37,7 +37,7 @@
 #include <mlir/Transforms/GreedyPatternRewriteDriver.h>
 
 using namespace mlir;
-using namespace mlir::amx;
+using namespace mlir::x86::amx;
 
 //===----------------------------------------------------------------------===//
 // Helper Functions
@@ -332,7 +332,7 @@ public:
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<linalg::LinalgDialect, scf::SCFDialect, arith::ArithDialect,
                     memref::MemRefDialect, vector::VectorDialect,
-                    amx::AMXDialect>();
+                    x86::X86Dialect>();
   }
 };
 } // end anonymous namespace

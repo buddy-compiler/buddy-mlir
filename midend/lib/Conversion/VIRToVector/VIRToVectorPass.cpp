@@ -109,8 +109,8 @@ static Value buildScalarizedI1VectorLoad(OpBuilder &builder, Location loc,
     laneIndices.back() =
         builder.create<arith::AddIOp>(loc, laneIndices.back(), laneIdx);
     Value scalar = builder.create<memref::LoadOp>(loc, base, laneIndices);
-    result =
-        builder.create<vector::InsertElementOp>(loc, scalar, result, laneIdx);
+    result = builder.create<vector::InsertOp>(loc, scalar, result,
+                                              OpFoldResult(laneIdx));
   }
   return result;
 }
@@ -125,8 +125,8 @@ static void buildScalarizedI1VectorStore(OpBuilder &builder, Location loc,
     SmallVector<Value> laneIndices(baseIndices.begin(), baseIndices.end());
     laneIndices.back() =
         builder.create<arith::AddIOp>(loc, laneIndices.back(), laneIdx);
-    Value scalar =
-        builder.create<vector::ExtractElementOp>(loc, vectorValue, laneIdx);
+    Value scalar = builder.create<vector::ExtractOp>(loc, vectorValue,
+                                                     OpFoldResult(laneIdx));
     builder.create<memref::StoreOp>(loc, scalar, base, laneIndices);
   }
 }
@@ -137,8 +137,11 @@ VectorType vectorTypeHelper(Region &srcRegion, Type anchorType,
   if (verbose) {                                                               \
     llvm::outs() << info;                                                      \
   }
-  int vectorRegBitWidth = 1;
-  int totalVectorRegs = 1;
+  // Defaults when no target-specific features are detected (e.g. RISC-V or
+  // hosts not enumerated below). A width of 1 made sizeVec zero for f32
+  // (VectorType::get asserts); 128-bit is a reasonable generic SIMD nominal.
+  int vectorRegBitWidth = 128;
+  int totalVectorRegs = 16;
   llvm::StringMap<bool> Features = llvm::sys::getHostCPUFeatures();
 
   VERBOSE_ANALYSIS_INFO("--- Checking x86/x64 Features ---\n");
@@ -306,6 +309,13 @@ VectorType vectorTypeHelper(Region &srcRegion, Type anchorType,
                         << sizeGroup << " * " << vectorRegBitWidth << ") / "
                         << elementBitWidth << " = " << sizeVec << "\n");
 
+  if (sizeVec < 1) {
+    emitWarning(srcRegion.getLoc(),
+                "Calculated vector lane count is zero; clamping to 1. "
+                "Consider passing -lower-vir-to-vector=vector-width=N.");
+    sizeVec = 1;
+  }
+
   return VectorType::get({sizeVec}, anchorType);
 #undef VERBOSE_ANALYSIS_INFO
 } // namespace
@@ -391,9 +401,45 @@ private:
                              dynVecTy.getElementType(),
                              fallbackVecTy.getScalableDims());
     };
+    auto remapResultType = [&](Type ty, ArrayRef<Value> operands) -> Type {
+      auto dyn = dyn_cast<vir::DynamicVectorType>(ty);
+      if (!dyn)
+        return ty;
+      Type elem = dyn.getElementType();
+      for (Value operand : operands) {
+        if (auto vecTy = dyn_cast<VectorType>(operand.getType())) {
+          return VectorType::get(vecTy.getShape(), elem,
+                                 vecTy.getScalableDims());
+        }
+      }
+      return elem;
+    };
+    auto cloneMappedOp = [&](Operation *op) {
+      SmallVector<Value> operands;
+      operands.reserve(op->getNumOperands());
+      for (Value operand : op->getOperands())
+        operands.push_back(findValue(operand));
+
+      SmallVector<Type> resultTypes;
+      resultTypes.reserve(op->getNumResults());
+      for (Type ty : op->getResultTypes())
+        resultTypes.push_back(remapResultType(ty, operands));
+
+      OperationState state(loc, op->getName().getStringRef());
+      state.addOperands(operands);
+      state.addTypes(resultTypes);
+      state.addAttributes(op->getAttrs());
+      state.addSuccessors(op->getSuccessors());
+      Operation *newOp = builder.create(state);
+      for (auto [oldResult, newResult] :
+           llvm::zip(op->getResults(), newOp->getResults()))
+        virSymbolTable[oldResult] = newResult;
+    };
 
     for (Operation &innerOp : block->without_terminator()) {
       llvm::TypeSwitch<Operation *>(&innerOp)
+          .Case<memref::ExpandShapeOp, memref::SubViewOp, memref::TransposeOp>(
+              [&](Operation *op) { cloneMappedOp(op); })
           .Case<vir::LoadOp>([&](vir::LoadOp op) {
             Value base = findValue(op.getBase());
             SmallVector<Value> destIndices{};
@@ -1186,6 +1232,32 @@ private:
             auto newOp = builder.create<math::SqrtOp>(loc, outTy, in);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
+          .Case<math::RsqrtOp>([&](math::RsqrtOp op) {
+            Value in = findValue(op.getOperand());
+            Type outTy = op.getType();
+            if (auto dyn = dyn_cast<vir::DynamicVectorType>(outTy)) {
+              Type elem = dyn.getElementType();
+              if (auto vecTy = dyn_cast<VectorType>(in.getType())) {
+                outTy = VectorType::get(vecTy.getShape(), elem,
+                                        vecTy.getScalableDims());
+              } else {
+                outTy = elem;
+              }
+            }
+            auto sqrt = builder.create<math::SqrtOp>(loc, outTy, in);
+            Type elemTy = outTy;
+            if (auto vecTy = dyn_cast<VectorType>(outTy))
+              elemTy = vecTy.getElementType();
+            auto oneAttr = builder.getFloatAttr(elemTy, 1.0);
+            Value one = builder.create<arith::ConstantOp>(loc, oneAttr);
+            if (isa<VectorType>(outTy))
+              one = builder.create<vector::BroadcastOp>(loc, outTy, one);
+            auto div = builder.create<arith::DivFOp>(loc, one, sqrt);
+            virSymbolTable[op.getResult()] = div.getResult();
+          })
+          .Case<math::LogOp, math::AbsFOp, math::CeilOp, math::FloorOp,
+                math::RoundOp, math::TanhOp, math::ErfOp, math::PowFOp>(
+              [&](Operation *op) { cloneMappedOp(op); })
           .Default([&](Operation *op) {
             emitWarning(loc, "Unsupported operation during lowering: " +
                                  op->getName().getStringRef());
@@ -1289,7 +1361,7 @@ private:
           loc, /*lowerBound=*/ValueRange{zero}, rewriter.getDimIdentityMap(),
           /*upperBound=*/ValueRange{vlUpbound}, rewriter.getDimIdentityMap(),
           vectorWid,
-          /*iterArgs=*/std::nullopt,
+          /*iterArgs=*/ValueRange{},
           [&](OpBuilder &bb, Location bodyLoc, Value iv, ValueRange) {
             //===------------------------------------------------------------===//
             // Step 4: Convert operations inside the dynamic vector region.
@@ -1311,7 +1383,7 @@ private:
           rewriter.getDimIdentityMap(),
           /*upperBound=*/ValueRange{vlValue}, rewriter.getDimIdentityMap(),
           /*step=*/1,
-          /*iterArgs=*/std::nullopt,
+          /*iterArgs=*/ValueRange{},
           [&](OpBuilder &bb, Location bodyLoc, Value iv, ValueRange) {
             DenseMap<Value, Value> virSymbolTable;
             lowerBlock(bb, bodyLoc, &region.front(), virSymbolTable, iv,
@@ -1338,7 +1410,7 @@ private:
         b.create<affine::AffineForOp>(
             loc, ValueRange{c0}, rewriter.getDimIdentityMap(), ValueRange{cub},
             rewriter.getDimIdentityMap(), /*step=*/1,
-            /*iterArgs=*/std::nullopt,
+            /*iterArgs=*/ValueRange{},
             [&](OpBuilder &bb, Location bodyLoc, Value iv, ValueRange) {
               ivs.push_back(iv);
               emitOuter(dim + 1, bb);

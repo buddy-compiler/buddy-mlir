@@ -1,0 +1,33 @@
+name: checkout_llvm
+description: Prepare the LLVM submodule
+
+inputs:
+  llvm-src:
+    description: Path to the llvm-project checkout.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Checkout LLVM
+      id: checkout-llvm
+      shell: bash
+      run: |
+        LLVM_SRC="${{ inputs.llvm-src }}"
+
+        LLVM_COMMIT="$(git -C "$GITHUB_WORKSPACE" ls-tree HEAD llvm | awk '{print $3}')"
+        LLVM_URL="$(git config -f "$GITHUB_WORKSPACE/.gitmodules" submodule.llvm.url)"
+
+        if [ ! -d "$LLVM_SRC" ]; then
+          git clone "$LLVM_URL" "$LLVM_SRC"
+        else
+          git -C "$LLVM_SRC" remote set-url origin "$LLVM_URL"
+        fi
+
+        git submodule sync --recursive
+        git -C "$LLVM_SRC" fetch origin "$LLVM_COMMIT"
+        git -C "$LLVM_SRC" checkout -f "$LLVM_COMMIT"
+        git -C "$LLVM_SRC" reset --hard HEAD
+        git -C "$LLVM_SRC" clean -fdx
+
+        "$GITHUB_WORKSPACE/scripts/apply_llvm_patches.sh" "$LLVM_SRC"

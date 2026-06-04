@@ -146,23 +146,21 @@ static gpu::GPUFuncOp outlineKernelFuncImpl(gpu::LaunchOp launchOp,
   }
   FunctionType type =
       FunctionType::get(launchOp.getContext(), kernelOperandTypes, {});
-  auto outlinedFunc = builder.create<gpu::GPUFuncOp>(
-      loc, kernelFnName, type,
-      TypeRange(ValueRange(launchOp.getWorkgroupAttributions())),
+  auto outlinedFunc = gpu::GPUFuncOp::create(
+      builder, loc, kernelFnName, type,
+      TypeRange(ValueRange(launchOp.getWorkgroupAttributionBBArgs())),
       TypeRange(ValueRange(launchOp.getPrivateAttributions())));
-  outlinedFunc->setAttr(gpu::GPUDialect::getKernelFuncAttrName(),
-                        builder.getUnitAttr());
+  outlinedFunc.setKernel(true);
 
   // If we can infer bounds on the grid and/or block sizes from the arguments
   // to the launch op, propagate them to the generated kernel. This is safe
   // because multiple launches with the same body are not deduplicated.
   if (auto blockBounds =
           maybeConstantDimsAttr(launchOp.getBlockSizeOperandValues()))
-    outlinedFunc->setAttr(outlinedFunc.getKnownBlockSizeAttrName(),
-                          blockBounds);
+    outlinedFunc.setKnownBlockSizeAttr(blockBounds);
   if (auto gridBounds =
           maybeConstantDimsAttr(launchOp.getGridSizeOperandValues()))
-    outlinedFunc->setAttr(outlinedFunc.getKnownGridSizeAttrName(), gridBounds);
+    outlinedFunc.setKnownGridSizeAttr(gridBounds);
 
   IRMapping map;
 
@@ -173,8 +171,8 @@ static gpu::GPUFuncOp outlineKernelFuncImpl(gpu::LaunchOp launchOp,
 
   // Map memory attributions from the LaunOp op to the GPUFuncOp attributions.
   for (const auto &[launchArg, funcArg] :
-       llvm::zip(launchOp.getWorkgroupAttributions(),
-                 outlinedFunc.getWorkgroupAttributions()))
+       llvm::zip(launchOp.getWorkgroupAttributionBBArgs(),
+                 outlinedFunc.getWorkgroupAttributionBBArgs()))
     map.map(launchArg, funcArg);
   for (const auto &[launchArg, funcArg] :
        llvm::zip(launchOp.getPrivateAttributions(),

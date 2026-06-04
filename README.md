@@ -37,17 +37,17 @@ $ pip install -r requirements.txt
 
 ```
 $ cd buddy-mlir
-$ mkdir llvm/build
-$ cd llvm/build
-$ cmake -G Ninja ../llvm \
-    -DLLVM_ENABLE_PROJECTS="mlir;clang;openmp" \
+$ cmake -G Ninja -S llvm/llvm -B llvm/build \
+    -DLLVM_ENABLE_PROJECTS="mlir;clang" \
+    -DLLVM_ENABLE_RUNTIMES="openmp" \
     -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
     -DLLVM_ENABLE_ASSERTIONS=ON \
     -DOPENMP_ENABLE_LIBOMPTARGET=OFF \
     -DCMAKE_BUILD_TYPE=RELEASE \
     -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
-    -DPython3_EXECUTABLE=$(which python3)
-$ ninja check-clang check-mlir omp
+    -DPython3_EXECUTABLE="$(which python)" \
+    -DPython_EXECUTABLE="$(which python)"
+$ ninja -C llvm/build check-clang check-mlir check-openmp
 ```
 
 If your target machine includes an NVIDIA GPU, you can add the following configuration:
@@ -61,32 +61,31 @@ If your target machine includes an NVIDIA GPU, you can add the following configu
 
 ```
 $ cd buddy-mlir
-$ mkdir build
-$ cd build
-$ cmake -G Ninja .. \
-    -DMLIR_DIR=$PWD/../llvm/build/lib/cmake/mlir \
-    -DLLVM_DIR=$PWD/../llvm/build/lib/cmake/llvm \
+$ cmake -G Ninja -S . -B build \
+    -DMLIR_DIR=$PWD/llvm/build/lib/cmake/mlir \
+    -DLLVM_DIR=$PWD/llvm/build/lib/cmake/llvm \
     -DLLVM_ENABLE_ASSERTIONS=ON \
     -DCMAKE_BUILD_TYPE=RELEASE \
     -DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON \
-    -DPython3_EXECUTABLE=$(which python3)
-$ ninja
-$ ninja check-buddy
+    -DPython3_EXECUTABLE="$(which python)" \
+    -DPython_EXECUTABLE="$(which python)"
+$ ninja -C build
+$ ninja -C build check-buddy
 ```
 
 Set the `PYTHONPATH` environment variable to include both the LLVM/MLIR Python bindings and `buddy-mlir` Python packages:
 
 ```
-$ export BUDDY_MLIR_BUILD_DIR=$PWD
-$ export LLVM_MLIR_BUILD_DIR=$PWD/../llvm/build
+$ export BUDDY_MLIR_BUILD_DIR=$PWD/build
+$ export LLVM_MLIR_BUILD_DIR=$PWD/llvm/build
 $ export PYTHONPATH=${BUDDY_MLIR_BUILD_DIR}/python_packages:${PYTHONPATH}
 ```
 
 If you want to test your model end-to-end conversion and inference, you can add the following configuration
 
 ```
-$ cmake -G Ninja .. -DBUDDY_ENABLE_E2E_TESTS=ON
-$ ninja check-e2e
+$ cmake -G Ninja -S . -B build -DBUDDY_ENABLE_E2E_TESTS=ON
+$ ninja -C build check-e2e
 ```
 
 ### Building and running the model
@@ -100,6 +99,12 @@ python3 tools/buddy-codegen/build_model.py \
   --build-dir build
 ```
 
+For supported models, the default build uses layer-partitioned model
+compilation to parallelize the slowest MLIR compile stages while preserving
+validated runtime correctness. See
+[Layer Partitioning](docs/LayerPartitioning.md) for details and validation
+steps.
+
 To import weights from a **local** HuggingFace style directory (offline or a custom path), pass `--local-model` to that directory (it must contain `config.json` and the weight files). If you omit `--hf-config`, `build_model.py` uses `<local-model>/config.json` for codegen when present:
 
 ```bash
@@ -112,7 +117,16 @@ python3 tools/buddy-codegen/build_model.py \
 If CMake is configured with `-DBUDDY_BUILD_DEEPSEEK_R1_MODEL=ON`, you can build the model with:
 
 ```bash
-ninja deepseek_r1_model_so deepseek_r1_rax buddy-cli
+ninja deepseek_r1_model_so deepseek_r1_rax
+```
+
+To build the DeepSeek R1 f32 tiered KV cache variant for use with `buddy-cli`,
+use the dedicated spec:
+
+```bash
+python3 tools/buddy-codegen/build_model.py \
+  --spec models/deepseek_r1/specs/f32_tiered_kv_cache.json \
+  --build-dir build
 ```
 
 ```bash
@@ -136,13 +150,13 @@ We use `setuptools` to bundle CMake outputs (Python packages, `bin/`, and
 Build x86_64 artifacts:
 
 ```bash
-./scripts/release_wheel_manylinux.sh cp310-cp310 x86_64
+./scripts/release.sh cp310-cp310 0.0.0 x86_64
 ```
 
 Build riscv64 artifacts:
 
 ```bash
-./scripts/release_wheel_manylinux.sh cp310-cp310 riscv64
+./scripts/release.sh cp310-cp310 0.0.0 riscv64
 ```
 
 This script calls `docker run` internally to enter the offical manylinux container,

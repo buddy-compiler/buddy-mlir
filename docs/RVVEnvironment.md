@@ -60,6 +60,7 @@ $ ninja
 $ ninja check-buddy
 $ export BUILD_RISCV_GNU_TOOLCHAIN_DIR=$PWD/thirdparty/riscv-gnu-toolchain/
 $ export RISCV_GNU_TOOLCHAIN_SYSROOT_DIR=${BUILD_RISCV_GNU_TOOLCHAIN_DIR}/sysroot/
+$ export QEMU_LD_PREFIX=${RISCV_GNU_TOOLCHAIN_SYSROOT_DIR}
 ```
 
 3. Build Cross-Compiled Clang
@@ -111,6 +112,7 @@ $ cmake -G Ninja ../../llvm/llvm \
     -DMLIR_SRC_SHARDER_TABLEGEN_EXE=${BUILD_LOCAL_LLVM_DIR}/bin/mlir-src-sharder \
     -DMLIR_LINALG_ODS_YAML_GEN=${BUILD_LOCAL_LLVM_DIR}/bin/mlir-linalg-ods-yaml-gen \
     -DMLIR_PDLL_TABLEGEN=${BUILD_LOCAL_LLVM_DIR}/bin/mlir-pdll \
+    -DMLIR_IRDL_TO_CPP_EXE=${BUILD_LOCAL_LLVM_DIR}/bin/mlir-irdl-to-cpp \
     -DLLVM_ENABLE_ZSTD=Off
 $ ninja
 $ export BUILD_CROSS_MLIR_DIR=$PWD

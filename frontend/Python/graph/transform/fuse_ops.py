@@ -18,10 +18,26 @@
 #
 # ===---------------------------------------------------------------------------
 
-from .. import Graph
-from ..operation import *
-from .. import DeviceType
 from torch.fx.immutable_collections import immutable_list
+
+from .. import DeviceType, Graph
+from ..operation import (
+    AddMMOp,
+    AddOp,
+    CloneOp,
+    ExpandOp,
+    FlashAttentionForCpuPrefillOp,
+    GQAAttentionFusedOp,
+    IndexPutOp,
+    MatmulOp,
+    Op,
+    PermuteOp,
+    PlaceholderOp,
+    ScaledDotProductFlashAttentionForCpuOp,
+    TransposeMatmulFusedOp,
+    UnsqueezeOp,
+    ViewOp,
+)
 
 classicfuse_register = {
     "transpose_matmul_fusion": TransposeMatmulFusedOp,
@@ -30,10 +46,142 @@ classicfuse_register = {
 }
 
 # TODO: classify op type for op fusion
-# OP_TYPE_FUSABLE = [OpType.BroadcastType, OpType.ElementwiseType, OpType.ReshapeType]
+# OP_TYPE_FUSABLE = [
+#     OpType.BroadcastType, OpType.ElementwiseType, OpType.ReshapeType
+# ]
 # OP_TYPE_UNFUSABLE = [OpType.Unfusable, OpType.ConcatType]
 # OP_TYPE_FUSABLE_BY_SPECIFIC_PASS = []
 # ANCHOR_OP_TYPE = []
+
+
+def decompose_addmm_to_mm_add(graph: Graph):
+    """
+    Decompose:
+
+        addmm(bias, lhs, rhs)
+
+    into:
+
+        mm(lhs, rhs)
+        add(bias, mm)
+
+    This enables the existing classic_fuse_check() to further fuse:
+
+        mm(lhs, permute(weight))
+
+    into:
+
+        fusedmm(lhs, weight)
+
+    Finally the lowered MLIR becomes:
+
+        linalg.matmul_transpose_b + tosa.add
+    """
+
+    for node in list(graph.body):
+        if not isinstance(node, AddMMOp):
+            continue
+
+        # AddMMOp arguments should be:
+        #   args[0] = bias
+        #   args[1] = lhs
+        #   args[2] = rhs
+        #
+        # Expected argument structure: [bias, lhs, rhs]
+        if len(node.args) < 3:
+            continue
+
+        bias_name = str(node.args[0])
+        lhs_name = str(node.args[1])
+        rhs_name = str(node.args[2])
+
+        if bias_name not in graph.node_table:
+            continue
+        if lhs_name not in graph.node_table:
+            continue
+        if rhs_name not in graph.node_table:
+            continue
+
+        bias_node = graph.node_table[bias_name]
+        lhs_node = graph.node_table[lhs_name]
+        rhs_node = graph.node_table[rhs_name]
+
+        # Be conservative: only decompose addmm whose rhs is permute(weight, [1, 0]).
+        # This targets the MHA Q/K/V pattern:
+        #   addmm(bias, x, permute(W))
+        if not isinstance(rhs_node, PermuteOp):
+            continue
+        if len(rhs_node.args) < 2:
+            continue
+        if rhs_node.args[1] != immutable_list([1, 0]):
+            continue
+
+        # Create:
+        #   mm(lhs, rhs)
+        mm_node = MatmulOp()
+        mm_node.name = node.name + "_decomposed_mm"
+        mm_node._arguments = [lhs_name, rhs_name]
+        mm_node._parents = [lhs_name, rhs_name]
+        mm_node._children = [node.name]
+        mm_node.tensor_meta = node.tensor_meta.copy()
+
+        # Create:
+        #   add(bias, mm)
+        #
+        # Reuse the original addmm name for the AddOp.
+        # This avoids changing downstream users such as view_5.
+        add_node = AddOp()
+        add_node.name = node.name
+        add_node._arguments = [bias_name, mm_node.name]
+        add_node._parents = [bias_name, mm_node.name]
+        add_node._children = list(node._children)
+        add_node.tensor_meta = node.tensor_meta.copy()
+
+        # Replace original AddMMOp in graph.body with:
+        #   mm_node
+        #   add_node
+        idx = graph.body.index(node)
+        graph.body[idx] = mm_node
+        graph.body.insert(idx + 1, add_node)
+
+        # Update node_table.
+        graph.node_table[mm_node.name] = mm_node
+        graph.node_table[add_node.name] = add_node
+
+        # Update lhs children:
+        #   lhs: addmm -> addmm_decomposed_mm
+        if node.name in lhs_node._children:
+            lhs_node._children.remove(node.name)
+        if mm_node.name not in lhs_node._children:
+            lhs_node._children.append(mm_node.name)
+
+        # Update rhs children:
+        #   permute: addmm -> addmm_decomposed_mm
+        if node.name in rhs_node._children:
+            rhs_node._children.remove(node.name)
+        if mm_node.name not in rhs_node._children:
+            rhs_node._children.append(mm_node.name)
+
+        # Bias still feeds the node named "addmm", but that node is now AddOp.
+        if node.name not in bias_node._children:
+            bias_node._children.append(node.name)
+
+        # Downstream children still reference "addmm".
+        # Since add_node reuses node.name, usually no change is needed.
+        # Keep this normalization for safety.
+        for child_name in add_node._children:
+            if child_name not in graph.node_table:
+                continue
+
+            child_node = graph.node_table[child_name]
+
+            for i, arg in enumerate(child_node.args):
+                if str(arg) == node.name:
+                    child_node.args[i] = add_node.name
+
+            for i, parent_name in enumerate(child_node._parents):
+                if parent_name == node.name:
+                    child_node._parents[i] = add_node.name
 
 
 def classic_fuse_check(graph: Graph):
@@ -63,7 +211,7 @@ def classic_fuse_check(graph: Graph):
 
 
 def transpose_matmul_fusion(
-    graph: Graph, node, target: Op, parents: List[Op], pattern: str
+    graph: Graph, node, target: Op, parents: list[Op], pattern: str
 ):
     """
     Function to fuse some typical operations into one operation.
@@ -109,6 +257,7 @@ def apply_classic_fusion(graph: Graph):
     new_op_group = []
     device = DeviceType.CPU
     # Run the first round of op fusion
+    decompose_addmm_to_mm_add(graph)
     classic_fuse_check(graph)
     for op in graph.body:
         if isinstance(op, PlaceholderOp):
@@ -142,7 +291,8 @@ def simply_fuse(graph: Graph):
 
 def flash_attention_prefill(graph: Graph):
     """
-    Replace ScaledDotProductFlashAttentionForCpuOp with FlashAttentionForCpuPrefillOp.
+    Replace ScaledDotProductFlashAttentionForCpuOp with
+    FlashAttentionForCpuPrefillOp.
     """
     new_op_group = []
     device = DeviceType.CPU
@@ -159,14 +309,17 @@ def flash_attention_prefill(graph: Graph):
 
 def replace_attention_op(graph: Graph):
     """
-    replace ScaledDotProductFlashAttentionForCpuOp with FlashAttentionForCpuPrefillOp.
+    Replace ScaledDotProductFlashAttentionForCpuOp with
+    FlashAttentionForCpuPrefillOp.
     """
+    cnt = 1
     for op in list(graph.body):
         if isinstance(op, ScaledDotProductFlashAttentionForCpuOp):
             new_op = classicfuse_register.get(
                 "flash_attention_prefill_fusion"
             )()
-            new_op.name = "FlashAttentionForCpuPrefillOp"
+            new_op.name = f"FlashAttentionForCpuPrefillOp_{cnt}"
+            cnt += 1
             graph.displace_node(op, new_op)
 
 
@@ -194,10 +347,10 @@ def gqa_attention_fusion(graph: Graph):
 
 
 def gqa_attention_fusion_check(graph: Graph):
+    cnt = 1
     for op in graph.body:
         # === GQA Attention pattern ===
         if isinstance(op, ScaledDotProductFlashAttentionForCpuOp):
-
             # get KV and View nodes
             k_view_node = graph.node_table.get(op._parents[1], None)
             v_view_node = graph.node_table.get(op._parents[2], None)
@@ -248,12 +401,16 @@ def gqa_attention_fusion_check(graph: Graph):
                 k_clone,
                 k_expand,
                 k_cache_unsqueeze,
+                k_index_put,
                 v_view_node,
                 v_clone,
                 v_expand,
                 v_cache_unsqueeze,
+                v_index_put,
                 "gqa_attention_fusion",
+                unique_index=cnt,
             )
+            cnt += 1
 
 
 def replace_gqa_attention_with_fused_op(
@@ -263,11 +420,14 @@ def replace_gqa_attention_with_fused_op(
     k_clone: Op,
     k_expand: Op,
     k_cache_unsqueeze: Op,
+    k_index_put: Op,
     v_view: Op,
     v_clone: Op,
     v_expand: Op,
     v_cache_unsqueeze: Op,
+    v_index_put: Op,
     pattern: str,
+    unique_index: int = 1,
 ):
     """
     Fuse GQA subgraph
@@ -275,7 +435,7 @@ def replace_gqa_attention_with_fused_op(
     """
     fused_cls = classicfuse_register.get(pattern)
     fused_op = fused_cls()
-    fused_op.name = "GQAAttentionFusedOp"
+    fused_op.name = f"GQAAttentionFusedOp_{unique_index}"
 
     # replace SDPA node with GQAAttentionFusedOp
     graph.displace_node(sdpa_node, fused_op)
@@ -291,9 +451,21 @@ def replace_gqa_attention_with_fused_op(
     for k_parent in k_cache_unsqueeze._parents:
         fused_op._parents.append(k_parent)
         fused_op.args.append(k_parent)
+        k_parent_node = graph.node_table.get(k_parent)
+        if (
+            k_parent_node is not None
+            and fused_op.name not in k_parent_node._children
+        ):
+            k_parent_node.add_children(fused_op.name)
     for v_parent in v_cache_unsqueeze._parents:
         fused_op._parents.append(v_parent)
         fused_op.args.append(v_parent)
+        v_parent_node = graph.node_table.get(v_parent)
+        if (
+            v_parent_node is not None
+            and fused_op.name not in v_parent_node._children
+        ):
+            v_parent_node.add_children(fused_op.name)
 
     k_view._children.clear()
     if graph.check_delete_node(k_view):
@@ -303,10 +475,14 @@ def replace_gqa_attention_with_fused_op(
     if graph.check_delete_node(k_expand):
         graph.delete_node(k_expand, [k_cache_unsqueeze])
     if graph.check_delete_node(k_cache_unsqueeze):
-        k_orig_parents = [
+        k_unsqueeze_parents = [
             graph.node_table.get(p, None) for p in k_cache_unsqueeze._parents
         ]
-        graph.delete_node(k_cache_unsqueeze, k_orig_parents)
+        graph.delete_node(k_cache_unsqueeze, k_unsqueeze_parents)
+
+    # Note: We don't delete IndexPut operations here. They will be handled
+    # by the OutputOp filtering in gqa_attention_fusion() which removes
+    # index_put outputs from the graph output.
 
     v_view._children.clear()
     if graph.check_delete_node(v_view):
@@ -316,7 +492,10 @@ def replace_gqa_attention_with_fused_op(
     if graph.check_delete_node(v_expand):
         graph.delete_node(v_expand, [v_cache_unsqueeze])
     if graph.check_delete_node(v_cache_unsqueeze):
-        v_orig_parents = [
+        v_unsqueeze_parents = [
             graph.node_table.get(p, None) for p in v_cache_unsqueeze._parents
         ]
-        graph.delete_node(v_cache_unsqueeze, v_orig_parents)
+        graph.delete_node(v_cache_unsqueeze, v_unsqueeze_parents)
+
+    # Keep both IndexPut ops alive. GQAAttentionFusedOp now uses them as direct
+    # parents and deleting either one here can leave dangling parent names.

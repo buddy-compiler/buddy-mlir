@@ -1,0 +1,14 @@
+# Build outputs
+*.o
+*.elf
+*.s
+*.ll
+
+# Lowered intermediate files
+*-lowered.mlir
+
+qemu-test/
+runtime_*.c
+runtime_*.h
+ame_matmul_demo.c
+build_and_run.sh

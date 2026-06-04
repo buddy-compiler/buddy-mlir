@@ -85,27 +85,28 @@ public:
     affine::buildAffineLoopNest(
         rewriter, loc, c0, a, 1,
         [&](OpBuilder &, Location loc, ValueRange ivRange) {
-      Value ivA = ivRange.front();
+          Value ivA = ivRange.front();
           affine::buildAffineLoopNest(
               rewriter, loc, c0, b, 1,
               [&](OpBuilder &, Location loc, ValueRange ivRange) {
-        Value ivB = ivRange.front();
+                Value ivB = ivRange.front();
                 affine::buildAffineLoopNest(
                     rewriter, loc, c0, d, 1,
                     [&](OpBuilder &, Location loc, ValueRange ivRange) {
-          Value ivD = ivRange.front();
+                      Value ivD = ivRange.front();
                       affine::buildAffineLoopNest(
                           rewriter, loc, c0, c, 1,
                           [&](OpBuilder &builder, Location loc,
                               ValueRange ivRange) {
-            Value ivC = ivRange.front();
-            Value t = builder.create<SplatOp>(loc, vecTy, cf0);
-            builder.create<memref::StoreOp>(loc, t, buffer, c0);
+                            Value ivC = ivRange.front();
+                            Value t = builder.create<vector::BroadcastOp>(
+                                loc, vecTy, cf0);
+                            builder.create<memref::StoreOp>(loc, t, buffer, c0);
                             affine::buildAffineLoopNest(
                                 rewriter, loc, c0, e, 1,
                                 [&](OpBuilder &builder, Location loc,
                                     ValueRange ivRange) {
-              Value ivE = ivRange.front();
+                                  Value ivE = ivRange.front();
 
                                   Value fixed =
                                       builder.create<affine::AffineApplyOp>(
@@ -119,17 +120,17 @@ public:
                                       rewriter, loc, c0, fixed, kernelM,
                                       [&]([[maybe_unused]] OpBuilder &builder,
                                           Location loc, ValueRange ivRange) {
-                Value ivF = ivRange.front();
+                                        Value ivF = ivRange.front();
                                         affine::buildAffineLoopNest(
                                             rewriter, loc, c0, g,
                                             kernelN * vecSize,
                                             [&](OpBuilder &builder,
                                                 Location loc,
                                                 ValueRange ivRange) {
-                  Value ivG = ivRange.front();
+                                              Value ivG = ivRange.front();
 
-                  SmallVector<Value> iList;
-                  SmallVector<Value> fList;
+                                              SmallVector<Value> iList;
+                                              SmallVector<Value> fList;
                                               for (int i = 0; i < kernelM;
                                                    ++i) {
                                                 Value rowInput = builder.create<
@@ -177,7 +178,7 @@ public:
                                                       /*inBounds=*/nullptr,
                                                       /*mask=*/nullptr);
 
-                      auto protectedF =
+                                                  auto protectedF =
                                                       builder.create<
                                                           affine::AffineIfOp>(
                                                           loc, vecTy,
@@ -215,19 +216,19 @@ public:
                                                       protectedF
                                                           .getElseBodyBuilder();
                                                   Value emptyVec =
-                                                      elseBuilder
-                                                          .create<SplatOp>(
-                                                              loc, vecTy, cf0);
+                                                      elseBuilder.create<
+                                                          vector::BroadcastOp>(
+                                                          loc, vecTy, cf0);
                                                   elseBuilder.create<
                                                       affine::AffineYieldOp>(
                                                       loc, emptyVec);
 
-                      iList.push_back(i);
+                                                  iList.push_back(i);
                                                   fList.push_back(
                                                       protectedF->getOpResult(
                                                           0));
-                    }
-                  }
+                                                }
+                                              }
                                               Value lastResult =
                                                   builder
                                                       .create<memref::LoadOp>(
@@ -242,14 +243,14 @@ public:
                                                       iList[i * kernelN + j],
                                                       fList[i * kernelN + j],
                                                       lastResult);
-                    }
-                  }
+                                                }
+                                              }
 
                                               builder.create<memref::StoreOp>(
                                                   loc, lastResult, buffer, c0);
-                });
-              });
-            });
+                                            });
+                                      });
+                                });
 
                             Value reduceVec =
                                 builder.create<memref::LoadOp>(loc, buffer, c0);
@@ -263,10 +264,10 @@ public:
                             builder.create<memref::StoreOp>(
                                 loc, addRes, output,
                                 ValueRange{ivA, ivB, ivC, ivD});
-          });
+                          });
+                    });
+              });
         });
-      });
-    });
 
     rewriter.create<memref::DeallocOp>(loc, buffer);
 

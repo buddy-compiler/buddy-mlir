@@ -1,17 +1,11 @@
 # -*- Python -*-
 
 import os
-import platform
-import re
-import subprocess
-import tempfile
 
 import lit.formats
 import lit.util
-
 from lit.llvm import llvm_config
 from lit.llvm.subst import ToolSubst
-from lit.llvm.subst import FindTool
 
 # Configuration file for the 'lit' test runner.
 
@@ -34,6 +28,27 @@ config.test_exec_root = os.path.join(config.buddy_obj_root, "tests")
 config.substitutions.append(("%PATH%", config.environment["PATH"]))
 config.substitutions.append(("%shlibext", config.llvm_shlib_ext))
 
+openmp_runtime_dir = config.mlir_runner_utils_dir
+openmp_runtime_candidates = [
+    os.path.join(config.llvm_build_dir, "lib"),
+    os.path.join(
+        config.llvm_build_dir,
+        "runtimes",
+        "runtimes-bins",
+        "openmp",
+        "runtime",
+        "src",
+    ),
+]
+for candidate in openmp_runtime_candidates:
+    if os.path.exists(
+        os.path.join(candidate, "libomp" + config.llvm_shlib_ext)
+    ):
+        openmp_runtime_dir = candidate
+        break
+config.openmp_runtime_dir = openmp_runtime_dir
+config.substitutions.append(("%openmp_runtime_dir", config.openmp_runtime_dir))
+
 llvm_config.with_system_environment(["HOME", "INCLUDE", "LIB", "TMP", "TEMP"])
 
 llvm_config.use_default_substitutions()
@@ -44,7 +59,6 @@ llvm_config.use_default_substitutions()
 config.excludes = [
     "Inputs",
     "Examples",
-    "Models",
     "CMakeLists.txt",
     "README.txt",
     "LICENSE.txt",
@@ -62,6 +76,10 @@ config.test_exec_root = os.path.join(config.buddy_obj_root, "tests")
 # Tweak the PATH to include the tools dir.
 llvm_config.with_environment("PATH", config.llvm_tools_dir, append_path=True)
 
+# So The execution engine in frontend can find out-of-tree llvm librarys
+config.environment["LLVM_LIBS_DIR"] = config.mlir_runner_utils_dir
+config.environment["BUDDY_SRC_ROOT"] = config.buddy_src_root
+
 tool_dirs = [config.buddy_tools_dir, config.llvm_tools_dir]
 tools = [
     "buddy-opt",
@@ -70,8 +88,8 @@ tools = [
     "buddy-audio-container-test",
     "buddy-text-container-test",
     "mlir-runner",
-    "buddy-lenet-run-test-cpu",
 ]
+
 tools.extend(
     [
         ToolSubst(
@@ -105,6 +123,9 @@ if config.buddy_mlir_enable_python_packages:
         ],
         append_path=True,
     )
+    # Same as examples/lit.cfg.py: PyTorch + Buddy ExecutionEngine can load two
+    # libomp copies (OMP Error #15); LLVM OpenMP documents this workaround.
+    llvm_config.with_environment("KMP_DUPLICATE_LIB_OK", "TRUE")
 
     buddy_init = os.path.join(
         config.buddy_python_packages_dir, "buddy_mlir", "__init__.py"
@@ -125,5 +146,10 @@ if config.buddy_mlir_enable_dip_lib == "ON":
     tools.append("buddy-new-image-container-test-bmp")
     if config.buddy_enable_png == "ON":
         tools.append("buddy-new-image-container-test-png")
+# Ignore Models if e2e not enabled
+if config.buddy_enable_e2e_test == "ON":
+    tools.append("buddy-lenet-run-test-cpu")
+else:
+    config.excludes.append("Models")
 
 llvm_config.add_tool_substitutions(tools, tool_dirs)

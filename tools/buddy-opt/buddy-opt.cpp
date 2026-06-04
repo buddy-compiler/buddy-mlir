@@ -37,6 +37,9 @@
 #include "AME/AMEDialect.h"
 #include "AME/AMEOps.h"
 #include "AME/Transform.h"
+#include "BOSCAME/BOSCAMEDialect.h"
+#include "BOSCAME/BOSCAMEOps.h"
+#include "BOSCAME/Transform.h"
 #include "Bud/BudDialect.h"
 #include "Bud/BudOps.h"
 #include "DAP/DAPDialect.h"
@@ -82,6 +85,7 @@ void registerMatMulVectorizationPass();
 void registerMatMulVectorizationDecodePass();
 void registerDequantMatMulVectorizationDecodePass();
 void registerInt4DequantMatMulVectorizationDecodePass();
+void registerMatMulParallelVectorizationTilingPass();
 void registerMatMulParallelVectorizationPass();
 void registerMatMulTransposeBUnrollVecPass();
 void registerMatmulAMXPass();
@@ -97,11 +101,13 @@ void registerLowerLinalgToIMEPass();
 void registerLowerIMEPass();
 void registerLowerAMEPass();
 void registerLowerXTAMEPass();
+void registerLowerBOSCAMEPass();
 void registerAssumeTightMemRefLayoutPass();
 void registerStaticizeMemRefLayoutPass();
 void registerConvertMemcpyToGPUPass();
 void registerLegalizeShmemOutliningPass();
 void registerMatMulTransposeBVecPass();
+void registerMatMulTransposeBVecDecodePass();
 void registerLegalizeShmemOutliningPass();
 void registerVIRToVectorPass();
 void registerLinalgToVIRPass();
@@ -137,6 +143,7 @@ int main(int argc, char **argv) {
   mlir::buddy::registerLowerIMEPass();
   mlir::buddy::registerLowerAMEPass();
   mlir::buddy::registerLowerXTAMEPass();
+  mlir::buddy::registerLowerBOSCAMEPass();
 
   // Register Several Optimize Pass.
   mlir::buddy::registerMatMulVectorizationBLISPass();
@@ -146,6 +153,7 @@ int main(int argc, char **argv) {
   mlir::buddy::registerBatchMatMuSCFOptimize();
   mlir::buddy::registerBatchMatMulTransVecPass();
   mlir::buddy::registerBatchMatMulVectorizationDecodePass();
+  mlir::buddy::registerMatMulParallelVectorizationTilingPass();
   mlir::buddy::registerMatMulVectorizationPass();
   mlir::buddy::registerMatMulVectorizationDecodePass();
   mlir::buddy::registerDequantMatMulVectorizationDecodePass();
@@ -161,6 +169,7 @@ int main(int argc, char **argv) {
   mlir::buddy::registerAssumeTightMemRefLayoutPass();
   mlir::buddy::registerStaticizeMemRefLayoutPass();
   mlir::buddy::registerMatMulTransposeBVecPass();
+  mlir::buddy::registerMatMulTransposeBVecDecodePass();
   mlir::buddy::registerVIRToVectorPass();
   mlir::buddy::registerLinalgToVIRPass();
   // Register minimal TOSA reshape simplification pass.
@@ -187,6 +196,7 @@ int main(int argc, char **argv) {
                   buddy::vector_exp::VectorExpDialect,
                   buddy::vir::VIRDialect,
                   buddy::gemmini::GemminiDialect,
+                  buddy::boscame::BOSCAMEDialect,
                   buddy::xtame::XTAMEDialect,
                   buddy::ame::AMEDialect,
                   buddy::ime::IMEDialect>();
