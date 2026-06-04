@@ -52,6 +52,7 @@ from ..graph import (
     AdaptiveMaxPool1dOp,
     AdaptiveMaxPool2dOp,
     AddbmmOp,
+    AddCMulOp,
     AddMMOp,
     AddOp,
     AddScalarOp,
@@ -685,6 +686,22 @@ def add_op(node: AddOp, symbol_table):
                 input2,
             ).result
     return _gen_arith_binary_op(input1, input2, tosa.AddOp)
+
+
+def addcmul_op(node: AddCMulOp, symbol_table):
+    """
+    Import tensor addcmul operation.
+    addcmul(input, tensor1, tensor2, value=1) = input + value * tensor1 * tensor2
+    """
+    input_ = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    tensor1 = symbol_table.get((str(node.args[1]), 0), node.args[1])
+    tensor2 = symbol_table.get((str(node.args[2]), 0), node.args[2])
+    value = node.kwargs.get("value", 1) if node.kwargs else 1
+
+    product = _gen_arith_binary_op(tensor1, tensor2, tosa.MulOp).result
+    if value != 1:
+        product = _gen_arith_binary_op(product, value, tosa.MulOp).result
+    return _gen_arith_binary_op(input_, product, tosa.AddOp)
 
 
 def sub_op(node: SubOp, symbol_table):
@@ -14134,6 +14151,7 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
 
 ops_registry = {
     "AddOp": add_op,
+    "AddCMulOp": addcmul_op,
     "MulOp": mul_op,
     "SubOp": sub_op,
     "SumDimOp": sum_op,
