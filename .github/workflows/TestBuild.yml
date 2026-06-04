@@ -2,9 +2,9 @@ name: test build process
 
 on:
   push:
-    branches: [ main, ci, ci-test ]
+    branches: [ main ]
   pull_request:
-    branches: [ main, ci, ci-test ]
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
