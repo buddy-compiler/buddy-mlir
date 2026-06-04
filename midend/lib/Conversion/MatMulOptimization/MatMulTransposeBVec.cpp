@@ -111,23 +111,23 @@ public:
     VectorType vectorMaskTy = VectorType::get({vf}, i1, {scalable});
 
     const Value c0 =
-        rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0));
+        arith::ConstantOp::create(rewriter, loc, rewriter.getIndexAttr(0));
     const Value c1 =
-        rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1));
+        arith::ConstantOp::create(rewriter, loc, rewriter.getIndexAttr(1));
     // Single-vf step used for scalable offset computation inside the loop.
-    Value step = rewriter.create<arith::ConstantIndexOp>(loc, vf);
+    Value step = arith::ConstantIndexOp::create(rewriter, loc, vf);
     if (scalable) {
-      Value vscale = rewriter.create<vector::VectorScaleOp>(loc);
-      step = rewriter.create<arith::MulIOp>(loc, step, vscale);
+      Value vscale = vector::VectorScaleOp::create(rewriter, loc);
+      step = arith::MulIOp::create(rewriter, loc, step, vscale);
     }
 
     const Value c0Ele = buddy::insertZeroConstantOp(ctx, rewriter, loc, eleTy);
     Value passthruVec =
-        rewriter.create<vector::BroadcastOp>(loc, vectorTy, c0Ele);
+        vector::BroadcastOp::create(rewriter, loc, vectorTy, c0Ele);
 
-    const Value aRow = rewriter.create<memref::DimOp>(loc, A, c0);
-    const Value bRow = rewriter.create<memref::DimOp>(loc, B, c0);
-    const Value bCol = rewriter.create<memref::DimOp>(loc, B, c1);
+    const Value aRow = memref::DimOp::create(rewriter, loc, A, c0);
+    const Value bRow = memref::DimOp::create(rewriter, loc, B, c0);
+    const Value bCol = memref::DimOp::create(rewriter, loc, B, c1);
 
     // Permutation map for transfer_read: (d0, d1) -> (d1)
     AffineExpr d0, d1;
@@ -139,21 +139,21 @@ public:
     // ── K-loop step = vf * unroll ─────────────────────────────────────────
     Value kStep;
     if (scalable) {
-      Value ufVal = rewriter.create<arith::ConstantIndexOp>(loc, unroll);
-      kStep = rewriter.create<arith::MulIOp>(loc, step, ufVal);
+      Value ufVal = arith::ConstantIndexOp::create(rewriter, loc, unroll);
+      kStep = arith::MulIOp::create(rewriter, loc, step, ufVal);
     } else {
-      kStep = rewriter.create<arith::ConstantIndexOp>(loc, vf * unroll);
+      kStep = arith::ConstantIndexOp::create(rewriter, loc, vf * unroll);
     }
 
     // ── N-column parallel step ────────────────────────────────────────────
-    Value nStep = rewriter.create<arith::ConstantIndexOp>(loc, nTile);
+    Value nStep = arith::ConstantIndexOp::create(rewriter, loc, nTile);
 
     // nTile * unroll initial accumulator vectors (all zero).
     llvm::SmallVector<Value> initAccs(nTile * unroll, passthruVec);
 
     // ── Outer parallel loop: rows of A ────────────────────────────────────
-    auto outerParallelLoop = rewriter.create<scf::ParallelOp>(
-        loc,
+    auto outerParallelLoop = scf::ParallelOp::create(
+        rewriter, loc,
         /*lowerBounds=*/ValueRange{c0},
         /*upperBounds=*/ValueRange{aRow},
         /*steps=*/ValueRange{c1},
@@ -161,8 +161,8 @@ public:
           Value rowIdx = ivs[0];
 
           // ── Inner parallel loop: columns of B (step = nTile) ───────────
-          auto innerParallelLoop = builder.create<scf::ParallelOp>(
-              loc,
+          auto innerParallelLoop = scf::ParallelOp::create(
+              builder, loc,
               /*lowerBounds=*/ValueRange{c0},
               /*upperBounds=*/ValueRange{bRow},
               /*steps=*/ValueRange{nStep},
@@ -173,17 +173,18 @@ public:
                 llvm::SmallVector<Value> colIdxs(nTile);
                 colIdxs[0] = colBase;
                 for (int j = 1; j < nTile; ++j) {
-                  Value jConst = builder.create<arith::ConstantIndexOp>(loc, j);
+                  Value jConst =
+                      arith::ConstantIndexOp::create(builder, loc, j);
                   colIdxs[j] =
-                      builder.create<arith::AddIOp>(loc, colBase, jConst);
+                      arith::AddIOp::create(builder, loc, colBase, jConst);
                 }
 
                 // ── K reduction loop with nTile * unroll accumulators ────
                 // Opt1 (K-unroll): unroll independent accumulator chains to
                 //   hide FMA latency (4–5 cycles on modern x86).
                 // Opt2 (N-tile):   share A loads across nTile columns.
-                auto kLoop = builder.create<scf::ForOp>(
-                    loc, c0, bCol, kStep, ValueRange(initAccs),
+                auto kLoop = scf::ForOp::create(
+                    builder, loc, c0, bCol, kStep, ValueRange(initAccs),
                     [&](OpBuilder &nb, Location nl, Value iv,
                         ValueRange itrArgs) {
                       // K offsets within the unrolled body
@@ -194,35 +195,36 @@ public:
                         if (scalable) {
                           // offset = i * (vscale * vf)  [runtime]
                           Value iConst =
-                              nb.create<arith::ConstantIndexOp>(nl, i);
-                          offset = nb.create<arith::MulIOp>(nl, iConst, step);
+                              arith::ConstantIndexOp::create(nb, nl, i);
+                          offset = arith::MulIOp::create(nb, nl, iConst, step);
                         } else {
                           offset =
-                              nb.create<arith::ConstantIndexOp>(nl, i * vf);
+                              arith::ConstantIndexOp::create(nb, nl, i * vf);
                         }
-                        ki[i] = nb.create<arith::AddIOp>(nl, iv, offset);
+                        ki[i] = arith::AddIOp::create(nb, nl, iv, offset);
                       }
 
                       // Load A vectors – shared across all nTile columns
                       llvm::SmallVector<Value> aVecs(unroll);
                       for (int i = 0; i < unroll; ++i) {
-                        aVecs[i] = nb.create<vector::TransferReadOp>(
-                            nl, vectorTy, A, ValueRange{rowIdx, ki[i]}, c0Ele,
-                            permMapAttr, inBoundsAttr);
+                        aVecs[i] = vector::TransferReadOp::create(
+                            nb, nl, vectorTy, A, ValueRange{rowIdx, ki[i]},
+                            c0Ele, permMapAttr, inBoundsAttr);
                       }
 
                       // For each column: load B chunks and FMA independently
                       llvm::SmallVector<Value> newAccs(nTile * unroll);
                       for (int j = 0; j < nTile; ++j) {
                         for (int i = 0; i < unroll; ++i) {
-                          auto bVec = nb.create<vector::TransferReadOp>(
-                              nl, vectorTy, B, ValueRange{colIdxs[j], ki[i]},
-                              c0Ele, permMapAttr, inBoundsAttr);
-                          newAccs[j * unroll + i] = nb.create<vector::FMAOp>(
-                              nl, aVecs[i], bVec, itrArgs[j * unroll + i]);
+                          auto bVec = vector::TransferReadOp::create(
+                              nb, nl, vectorTy, B,
+                              ValueRange{colIdxs[j], ki[i]}, c0Ele, permMapAttr,
+                              inBoundsAttr);
+                          newAccs[j * unroll + i] = vector::FMAOp::create(
+                              nb, nl, aVecs[i], bVec, itrArgs[j * unroll + i]);
                         }
                       }
-                      nb.create<scf::YieldOp>(nl, ValueRange(newAccs));
+                      scf::YieldOp::create(nb, nl, ValueRange(newAccs));
                     });
 
                 // For each column: sum unroll accumulators, reduce, store
@@ -230,16 +232,16 @@ public:
                   // Tree-reduce the unroll accumulator vectors
                   Value sumVec = kLoop->getResult(j * unroll);
                   for (int i = 1; i < unroll; ++i) {
-                    sumVec = builder.create<arith::AddFOp>(
-                        loc, sumVec, kLoop->getResult(j * unroll + i));
+                    sumVec = arith::AddFOp::create(
+                        builder, loc, sumVec, kLoop->getResult(j * unroll + i));
                   }
-                  Value load = builder.create<memref::LoadOp>(
-                      loc, C, ValueRange{rowIdx, colIdxs[j]});
-                  Value result = builder.create<vector::ReductionOp>(
-                      loc, CombiningKind::ADD, sumVec, load,
+                  Value load = memref::LoadOp::create(
+                      builder, loc, C, ValueRange{rowIdx, colIdxs[j]});
+                  Value result = vector::ReductionOp::create(
+                      builder, loc, CombiningKind::ADD, sumVec, load,
                       arith::FastMathFlags::reassoc);
-                  builder.create<memref::StoreOp>(
-                      loc, result, C, ValueRange{rowIdx, colIdxs[j]});
+                  memref::StoreOp::create(builder, loc, result, C,
+                                          ValueRange{rowIdx, colIdxs[j]});
                 }
               });
         });
