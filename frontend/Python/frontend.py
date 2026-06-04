@@ -170,6 +170,7 @@ class DynamoCompiler:
             "clone.default": CloneOp,
             "silu.default": SiluOp,
             "add.Tensor": AddOp,
+            "addcmul.default": AddCMulOp,
             "addmm.default": AddMMOp,
             "addbmm.default": AddbmmOp,
             "addbmm_.default": AddbmmOp,
