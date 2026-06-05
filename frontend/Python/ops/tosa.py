@@ -13850,8 +13850,10 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
     value_shape = v_cache.type.shape
 
     # All intermediate constants use compute_dtype (f32)
-    scale_val = 1 / numpy.sqrt(query.type.shape[-1]) if scale is None else scale
-    scale_val = arith.ConstantOp(compute_dtype, float(scale_val)).result
+    scale_factor = (
+        1 / numpy.sqrt(query.type.shape[-1]) if scale is None else scale
+    )
+    scale_val = arith.ConstantOp(compute_dtype, float(scale_factor)).result
 
     neg_inf = arith.ConstantOp(compute_dtype, -1.0e30, loc=loc).result
     zero_compute = arith.ConstantOp(compute_dtype, 0.0, loc=loc).result
