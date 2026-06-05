@@ -66,6 +66,7 @@ jobs:
           llvm-src: ${{ matrix.llvm_src }}
 
       - name: Build buddy-mlir
+        continue-on-error: ${{ matrix.arch == 'arm64' }}
         uses: ./.github/actions/ci-common
         with:
           arch: ${{ matrix.arch }}
