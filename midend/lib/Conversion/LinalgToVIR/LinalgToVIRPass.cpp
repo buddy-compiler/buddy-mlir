@@ -309,7 +309,7 @@ static LogicalResult computeShapeAndVL(linalg::LinalgOp linalgOp,
 static buddy::vir::SetVLOp createSetVLRegion(PatternRewriter &rewriter,
                                              Location loc, Value vlVal);
 
-enum class SupportedReduceCombinerKind { AddF, MaxNumF };
+enum class SupportedReduceCombinerKind { AddF, MaxNumF, MaxSI };
 
 static FailureOr<SupportedReduceCombinerKind>
 getSupportedReduceCombinerKind(linalg::ReduceOp reduceOp,
@@ -335,6 +335,8 @@ getSupportedReduceCombinerKind(linalg::ReduceOp reduceOp,
     return SupportedReduceCombinerKind::AddF;
   if (isa<arith::MaxNumFOp>(combiner))
     return SupportedReduceCombinerKind::MaxNumF;
+  if (isa<arith::MaxSIOp>(combiner))
+    return SupportedReduceCombinerKind::MaxSI;
   return failure();
 }
 
@@ -353,16 +355,33 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
   auto outTy = dyn_cast<MemRefType>(init.getType());
   if (!inTy || !outTy)
     return rewriter.notifyMatchFailure(reduceOp, "expected memref operands");
-  if (!inTy.getElementType().isF32() || !outTy.getElementType().isF32())
+  Type inElemTy = inTy.getElementType();
+  Type outElemTy = outTy.getElementType();
+  if (inElemTy != outElemTy)
     return rewriter.notifyMatchFailure(reduceOp,
-                                       "only f32 reduction supported");
+                                       "input/output element types must match");
 
   auto combinerKind = getSupportedReduceCombinerKind(reduceOp, rewriter);
   if (failed(combinerKind))
     return rewriter.notifyMatchFailure(
         reduceOp,
-        "unsupported reduce combiner (expected single-op addf/maxnumf with "
-        "linalg.yield)");
+        "unsupported reduce combiner (expected single-op addf/maxnumf/maxsi "
+        "with linalg.yield)");
+
+  switch (*combinerKind) {
+  case SupportedReduceCombinerKind::AddF:
+  case SupportedReduceCombinerKind::MaxNumF:
+    if (!isa<FloatType>(inElemTy))
+      return rewriter.notifyMatchFailure(
+          reduceOp,
+          "floating-point reduce combiner requires float element type");
+    break;
+  case SupportedReduceCombinerKind::MaxSI:
+    if (!isa<IntegerType>(inElemTy))
+      return rewriter.notifyMatchFailure(
+          reduceOp, "arith.maxsi reduction requires integer element type");
+    break;
+  }
 
   ArrayRef<int64_t> dims = reduceOp.getDimensions();
 
@@ -377,6 +396,8 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
       return "add";
     case SupportedReduceCombinerKind::MaxNumF:
       return "maxnum";
+    case SupportedReduceCombinerKind::MaxSI:
+      return "maxsi";
     }
     llvm_unreachable("unknown reduce combiner");
   };
@@ -859,6 +880,183 @@ static bool isSupportedGenericBodyOp(Operation &inner) {
              math::ErfOp, math::PowFOp>(inner);
 }
 
+struct StoreOnlyGenericInfo {
+  memref::StoreOp storeOp;
+  Value storedValue;
+  Value storedValueSource;
+  Value scatterIndexSource;
+  Value maskValue;
+  bool isContinuous = false;
+  bool isScatter = false;
+  bool hasMask = false;
+};
+
+static Value stripSupportedIndexCast(Value value) {
+  while (Operation *def = value.getDefiningOp()) {
+    if (auto castOp = dyn_cast<arith::IndexCastOp>(def)) {
+      value = castOp.getIn();
+      continue;
+    }
+    if (auto castOp = dyn_cast<arith::IndexCastUIOp>(def)) {
+      value = castOp.getIn();
+      continue;
+    }
+    break;
+  }
+  return value;
+}
+
+static OpOperand *findOperandForBlockArgument(linalg::GenericOp genericOp,
+                                              Value value) {
+  auto blockArg = dyn_cast<BlockArgument>(value);
+  if (!blockArg || blockArg.getOwner() != genericOp.getBlock())
+    return nullptr;
+  for (OpOperand *opOperand : genericOp.getOpOperandsMatchingBBargs()) {
+    if (genericOp.getMatchingBlockArgument(opOperand) == blockArg)
+      return opOperand;
+  }
+  return nullptr;
+}
+
+static bool isIntegerOrIndexElement(Type type) {
+  return type.isIndex() || isa<IntegerType>(type);
+}
+
+static bool isSupportedStoreOnlyIndexOp(Operation &op) {
+  return isa<linalg::IndexOp, arith::IndexCastOp, arith::IndexCastUIOp>(op);
+}
+
+static FailureOr<StoreOnlyGenericInfo>
+matchVectorizableStoreOnlyGeneric(linalg::GenericOp genericOp) {
+  if (!genericOp.hasPureBufferSemantics())
+    return failure();
+  if (genericOp.getNumDpsInits() != 0)
+    return failure();
+  if (!llvm::all_of(genericOp.getIteratorTypesArray(),
+                    [](utils::IteratorType itTy) {
+                      return linalg::isParallelIterator(itTy);
+                    }))
+    return failure();
+
+  Block &body = genericOp.getRegion().front();
+  auto yield = dyn_cast<linalg::YieldOp>(body.getTerminator());
+  if (!yield || yield.getNumOperands() != 0)
+    return failure();
+
+  memref::StoreOp storeOp;
+  memref::LoadOp oldValueLoadOp;
+  arith::SelectOp maskSelectOp;
+  SmallVector<Operation *> storedValueCastCandidates;
+  for (Operation &inner : body.without_terminator()) {
+    if (auto candidate = dyn_cast<memref::StoreOp>(inner)) {
+      if (storeOp)
+        return failure();
+      storeOp = candidate;
+      continue;
+    }
+    if (auto candidate = dyn_cast<memref::LoadOp>(inner)) {
+      if (oldValueLoadOp)
+        return failure();
+      oldValueLoadOp = candidate;
+      continue;
+    }
+    if (auto candidate = dyn_cast<arith::SelectOp>(inner)) {
+      if (maskSelectOp)
+        return failure();
+      maskSelectOp = candidate;
+      continue;
+    }
+    if (isSupportedStoreOnlyIndexOp(inner))
+      continue;
+    if (isVectorizableFloatCastOp(inner)) {
+      storedValueCastCandidates.push_back(&inner);
+      continue;
+    }
+    return failure();
+  }
+  if (!storeOp)
+    return failure();
+
+  auto storeType = dyn_cast<MemRefType>(storeOp.getMemRef().getType());
+  if (!storeType || storeType.getRank() !=
+                        static_cast<int64_t>(storeOp.getIndices().size()))
+    return failure();
+  if (storeOp.getValueToStore().getType() != storeType.getElementType())
+    return failure();
+
+  StoreOnlyGenericInfo info;
+  info.storeOp = storeOp;
+  info.storedValue = storeOp.getValueToStore();
+  if (auto selectOp = info.storedValue.getDefiningOp<arith::SelectOp>()) {
+    if (selectOp != maskSelectOp || !oldValueLoadOp)
+      return failure();
+    if (selectOp.getFalseValue() != oldValueLoadOp.getResult())
+      return failure();
+    if (oldValueLoadOp.getMemRef() != storeOp.getMemRef())
+      return failure();
+    if (oldValueLoadOp.getIndices().size() != storeOp.getIndices().size())
+      return failure();
+    for (auto [loadIdx, storeIdx] :
+         llvm::zip(oldValueLoadOp.getIndices(), storeOp.getIndices())) {
+      if (loadIdx != storeIdx)
+        return failure();
+    }
+    if (!selectOp.getCondition().getType().isInteger(1))
+      return failure();
+    info.storedValue = selectOp.getTrueValue();
+    info.maskValue = selectOp.getCondition();
+    info.hasMask = true;
+  } else if (maskSelectOp || oldValueLoadOp) {
+    return failure();
+  }
+  info.storedValueSource = info.storedValue;
+  Operation *storedValueDef = info.storedValue.getDefiningOp();
+  if (storedValueDef && isVectorizableFloatCastOp(*storedValueDef) &&
+      storedValueDef->getNumOperands() == 1) {
+    info.storedValueSource = storedValueDef->getOperand(0);
+  }
+  for (Operation *candidate : storedValueCastCandidates) {
+    if (candidate != storedValueDef)
+      return failure();
+  }
+  OpOperand *storedValueOperand =
+      findOperandForBlockArgument(genericOp, info.storedValueSource);
+  if (!storedValueOperand)
+    return failure();
+  if (info.hasMask && !findOperandForBlockArgument(genericOp, info.maskValue))
+    return failure();
+
+  bool continuous = storeOp.getIndices().size() == genericOp.getNumLoops();
+  if (continuous) {
+    for (auto [dim, index] : llvm::enumerate(storeOp.getIndices())) {
+      auto indexOp = index.getDefiningOp<linalg::IndexOp>();
+      if (!indexOp || indexOp.getDim() != dim) {
+        continuous = false;
+        break;
+      }
+    }
+  }
+  if (continuous) {
+    info.isContinuous = true;
+    return info;
+  }
+
+  if (storeOp.getIndices().size() == 1) {
+    Value indexSource = stripSupportedIndexCast(storeOp.getIndices().front());
+    OpOperand *indexOperand =
+        findOperandForBlockArgument(genericOp, indexSource);
+    if (!indexOperand || genericOp.isScalar(indexOperand))
+      return failure();
+    if (!isIntegerOrIndexElement(indexSource.getType()))
+      return failure();
+    info.scatterIndexSource = indexSource;
+    info.isScatter = true;
+    return info;
+  }
+
+  return failure();
+}
+
 static buddy::vir::SetVLOp createSetVLRegion(PatternRewriter &rewriter,
                                              Location loc, Value vlVal) {
   auto setVl = rewriter.create<buddy::vir::SetVLOp>(
@@ -867,6 +1065,65 @@ static buddy::vir::SetVLOp createSetVLRegion(PatternRewriter &rewriter,
   Block &block = region.emplaceBlock();
   rewriter.setInsertionPointToStart(&block);
   return setVl;
+}
+
+static bool isSupportedMatmulElementTypes(Type inputElemTy, Type accElemTy) {
+  if (inputElemTy == accElemTy)
+    return isa<FloatType, IntegerType>(inputElemTy);
+
+  if (auto inputFloat = dyn_cast<FloatType>(inputElemTy)) {
+    auto accFloat = dyn_cast<FloatType>(accElemTy);
+    return accFloat && inputFloat.getWidth() < accFloat.getWidth();
+  }
+
+  if (auto inputInt = dyn_cast<IntegerType>(inputElemTy)) {
+    auto accInt = dyn_cast<IntegerType>(accElemTy);
+    return accInt && inputInt.getWidth() < accInt.getWidth();
+  }
+
+  return false;
+}
+
+static bool isIntegerAccumulator(Type accElemTy) {
+  return isa<IntegerType>(accElemTy);
+}
+
+static Value castVectorToAccumulatorType(
+    OpBuilder &builder, Location loc, Value value,
+    buddy::vir::DynamicVectorType accVecTy, linalg::TypeFn castFn) {
+  auto dynTy = dyn_cast<buddy::vir::DynamicVectorType>(value.getType());
+  if (!dynTy || dynTy.getElementType() == accVecTy.getElementType())
+    return value;
+
+  Type inputElemTy = dynTy.getElementType();
+  Type accElemTy = accVecTy.getElementType();
+  if (isa<FloatType>(inputElemTy) && isa<FloatType>(accElemTy))
+    return builder.create<buddy::vir::ExtFOp>(loc, accVecTy, value)
+        .getResult();
+
+  if (isa<IntegerType>(inputElemTy) && isa<IntegerType>(accElemTy)) {
+    if (castFn == linalg::TypeFn::cast_unsigned)
+      return builder.create<buddy::vir::ExtUIOp>(loc, accVecTy, value)
+          .getResult();
+    return builder.create<buddy::vir::ExtSIOp>(loc, accVecTy, value)
+        .getResult();
+  }
+
+  return Value();
+}
+
+static Value createMatmulAccumulation(
+    OpBuilder &builder, Location loc, Value lhs, Value rhs, Value acc,
+    buddy::vir::DynamicVectorType accVecTy) {
+  Type accElemTy = accVecTy.getElementType();
+  if (isa<FloatType>(accElemTy))
+    return builder.create<buddy::vir::FMAOp>(loc, accVecTy, lhs, rhs, acc)
+        .getResult();
+
+  assert(isIntegerAccumulator(accElemTy) &&
+         "expected integer accumulator for integer matmul");
+  Value product = builder.create<arith::MulIOp>(loc, lhs, rhs).getResult();
+  return builder.create<arith::AddIOp>(loc, product, acc).getResult();
 }
 
 static LogicalResult lowerMatmulToVIR(linalg::MatmulOp matmulOp,
@@ -888,12 +1145,14 @@ static LogicalResult lowerMatmulToVIR(linalg::MatmulOp matmulOp,
   if (aTy.getRank() != 2 || bTy.getRank() != 2 || cTy.getRank() != 2)
     return rewriter.notifyMatchFailure(matmulOp, "expected rank-2 memrefs");
 
-  Type elemTy = aTy.getElementType();
-  if (elemTy != bTy.getElementType() || elemTy != cTy.getElementType())
-    return rewriter.notifyMatchFailure(matmulOp, "element types must match");
-  if (!isa<FloatType>(elemTy))
+  Type inputElemTy = aTy.getElementType();
+  Type accElemTy = cTy.getElementType();
+  if (inputElemTy != bTy.getElementType())
     return rewriter.notifyMatchFailure(matmulOp,
-                                       "only floating-point matmul supported");
+                                       "input element types must match");
+  if (!isSupportedMatmulElementTypes(inputElemTy, accElemTy))
+    return rewriter.notifyMatchFailure(matmulOp,
+                                       "unsupported matmul element types");
 
   // Vectorize along N (the last dimension of B/C).
   Value n = rewriter.create<memref::DimOp>(loc, c, 1);
@@ -920,8 +1179,11 @@ static LogicalResult lowerMatmulToVIR(linalg::MatmulOp matmulOp,
     kVal = rewriter.create<memref::DimOp>(loc, a, 1);
   }
 
-  auto vecTy =
-      buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, elemTy);
+  auto inputVecTy =
+      buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, inputElemTy);
+  auto accVecTy =
+      buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, accElemTy);
+  linalg::TypeFn castFn = matmulOp.getCast();
 
   auto loopM = rewriter.create<affine::AffineForOp>(
       loc, ValueRange{c0}, rewriter.getDimIdentityMap(), ValueRange{mVal},
@@ -931,7 +1193,7 @@ static LogicalResult lowerMatmulToVIR(linalg::MatmulOp matmulOp,
         OpBuilder &builder = bld;
         // acc = load(C[i, 0:]) as a vector along N.
         Value acc = builder
-                        .create<buddy::vir::LoadOp>(bodyLoc, vecTy, c,
+                        .create<buddy::vir::LoadOp>(bodyLoc, accVecTy, c,
                                                     ValueRange{i, c0})
                         .getResult();
 
@@ -946,19 +1208,26 @@ static LogicalResult lowerMatmulToVIR(linalg::MatmulOp matmulOp,
               Value aScalar =
                   builderK.create<memref::LoadOp>(kLoc, a, ValueRange{i, k});
               // aVec = broadcast(aScalar)
-              Value aVec =
-                  builderK.create<buddy::vir::BroadcastOp>(kLoc, vecTy, aScalar)
-                      .getResult();
+              Value aVec = builderK
+                               .create<buddy::vir::BroadcastOp>(kLoc,
+                                                                 inputVecTy,
+                                                                 aScalar)
+                               .getResult();
               // bVec = load(B[k, 0:]) as a vector along N.
               Value bVec = builderK
-                               .create<buddy::vir::LoadOp>(kLoc, vecTy, b,
+                               .create<buddy::vir::LoadOp>(kLoc, inputVecTy, b,
                                                            ValueRange{k, c0})
                                .getResult();
-              // accOut = fma(aVec, bVec, accIn)
-              Value accOut =
-                  builderK
-                      .create<buddy::vir::FMAOp>(kLoc, vecTy, aVec, bVec, accIn)
-                      .getResult();
+              Value aAccVec = castVectorToAccumulatorType(
+                  builderK, kLoc, aVec, accVecTy, castFn);
+              Value bAccVec = castVectorToAccumulatorType(
+                  builderK, kLoc, bVec, accVecTy, castFn);
+              if (!aAccVec || !bAccVec) {
+                matmulOp.emitError("failed to widen matmul inputs");
+                return;
+              }
+              Value accOut = createMatmulAccumulation(
+                  builderK, kLoc, aAccVec, bAccVec, accIn, accVecTy);
               builderK.create<affine::AffineYieldOp>(kLoc, accOut);
             });
         Value finalAcc = loopK.getResult(0);
@@ -2118,6 +2387,154 @@ static LogicalResult storeYieldValues(linalg::LinalgOp linalgOp,
   return success();
 }
 
+static FailureOr<Value>
+getVectorizedStoreOnlyValue(StoreOnlyGenericInfo info,
+                            PatternRewriter &rewriter,
+                            ArrayRef<int64_t> virShape, IRMapping &valueMap,
+                            DenseMap<Value, Value> &vm) {
+  Location loc = info.storeOp.getLoc();
+  Value mapped;
+  if (auto it = vm.find(info.storedValue); it != vm.end()) {
+    mapped = it->second;
+  } else if (valueMap.contains(info.storedValue)) {
+    mapped = valueMap.lookup(info.storedValue);
+    vm[info.storedValue] = mapped;
+  } else if (Operation *def = info.storedValue.getDefiningOp()) {
+    if (!isVectorizableFloatCastOp(*def) ||
+        !valueMap.contains(def->getOperand(0)))
+      return failure();
+    vm[def->getOperand(0)] = valueMap.lookup(def->getOperand(0));
+    Operation *newOp =
+        createGenericElementwiseVIR(def, rewriter, virShape, vm);
+    if (!newOp || newOp->getNumResults() != 1)
+      return failure();
+    mapped = newOp->getResult(0);
+    vm[info.storedValue] = mapped;
+  }
+
+  if (!mapped)
+    return failure();
+  if (isa<buddy::vir::DynamicVectorType>(mapped.getType()))
+    return mapped;
+
+  auto storeType = cast<MemRefType>(info.storeOp.getMemRef().getType());
+  auto vecTy = buddy::vir::DynamicVectorType::get(virShape,
+                                                  storeType.getElementType());
+  return rewriter.create<buddy::vir::BroadcastOp>(loc, vecTy, mapped)
+      .getResult();
+}
+
+static FailureOr<Value>
+getVectorizedStoreOnlyMask(StoreOnlyGenericInfo info, PatternRewriter &rewriter,
+                           ArrayRef<int64_t> virShape, IRMapping &valueMap,
+                           DenseMap<Value, Value> &vm) {
+  Location loc = info.storeOp.getLoc();
+  auto maskTy = buddy::vir::DynamicVectorType::get(virShape,
+                                                   rewriter.getI1Type());
+  if (!info.hasMask) {
+    Value trueValue = rewriter.create<arith::ConstantIntOp>(loc, 1, 1);
+    return rewriter.create<buddy::vir::BroadcastOp>(loc, maskTy, trueValue)
+        .getResult();
+  }
+
+  Value mapped;
+  if (auto it = vm.find(info.maskValue); it != vm.end()) {
+    mapped = it->second;
+  } else if (valueMap.contains(info.maskValue)) {
+    mapped = valueMap.lookup(info.maskValue);
+    vm[info.maskValue] = mapped;
+  }
+
+  if (!mapped)
+    return failure();
+  if (isa<buddy::vir::DynamicVectorType>(mapped.getType()))
+    return mapped;
+  if (!mapped.getType().isInteger(1))
+    return failure();
+  return rewriter.create<buddy::vir::BroadcastOp>(loc, maskTy, mapped)
+      .getResult();
+}
+
+static LogicalResult
+lowerStoreOnlyGenericToVIR(linalg::GenericOp genericOp,
+                           StoreOnlyGenericInfo info,
+                           PatternRewriter &rewriter) {
+  SmallVector<int64_t> virShape;
+  SmallVector<OpFoldResult> commonShape;
+  Value vlVal;
+  {
+    OpBuilder::InsertionGuard g(rewriter);
+    rewriter.setInsertionPoint(genericOp);
+    if (failed(computeShapeAndVL(genericOp, rewriter, virShape, commonShape,
+                                 vlVal)))
+      return failure();
+  }
+
+  Location loc = genericOp.getLoc();
+  OpBuilder::InsertionGuard guard(rewriter);
+  rewriter.setInsertionPoint(genericOp);
+  createSetVLRegion(rewriter, loc, vlVal);
+
+  DenseMap<Value, Value> transformedMemRefs;
+  IRMapping valueMap;
+  llvm::SetVector<Value> valuesDefinedAbove;
+  mlir::getUsedValuesDefinedAbove(genericOp->getRegion(0), valuesDefinedAbove);
+  valueMap.map(valuesDefinedAbove.getArrayRef(),
+               valuesDefinedAbove.getArrayRef());
+
+  if (failed(transformProjectedPermutationOperands(
+          genericOp, rewriter, commonShape, transformedMemRefs)))
+    return failure();
+  if (failed(mapInputsToVIRVectors(genericOp, rewriter, virShape,
+                                   transformedMemRefs, valueMap)))
+    return failure();
+
+  DenseMap<Value, Value> vm;
+  for (auto it : valueMap.getValueMap())
+    vm[it.first] = it.second;
+
+  FailureOr<Value> mappedStoreValue =
+      getVectorizedStoreOnlyValue(info, rewriter, virShape, valueMap, vm);
+  if (failed(mappedStoreValue))
+    return rewriter.notifyMatchFailure(genericOp,
+                                       "failed to vectorize stored value");
+  FailureOr<Value> mappedMask =
+      getVectorizedStoreOnlyMask(info, rewriter, virShape, valueMap, vm);
+  if (failed(mappedMask))
+    return rewriter.notifyMatchFailure(genericOp, "failed to vectorize mask");
+
+  Value storeBase = info.storeOp.getMemRef();
+  if (valueMap.contains(storeBase))
+    storeBase = valueMap.lookup(storeBase);
+  SmallVector<Value> emptyIdx;
+  if (info.isScatter) {
+    Value indexVec = valueMap.lookup(info.scatterIndexSource);
+    if (!isa<buddy::vir::DynamicVectorType>(indexVec.getType()))
+      return rewriter.notifyMatchFailure(
+          genericOp, "scatter index source must vectorize to VIR vector");
+    rewriter.create<buddy::vir::ScatterOp>(loc, *mappedStoreValue, storeBase,
+                                           indexVec, *mappedMask, emptyIdx);
+  } else if (info.isContinuous) {
+    Value valueToStore = *mappedStoreValue;
+    if (info.hasMask) {
+      auto oldValue = rewriter.create<buddy::vir::LoadOp>(
+          loc, valueToStore.getType(), storeBase, emptyIdx);
+      valueToStore =
+          rewriter
+              .create<buddy::vir::SelectOp>(loc, *mappedMask, valueToStore,
+                                            oldValue.getResult())
+              .getResult();
+    }
+    rewriter.create<buddy::vir::StoreOp>(loc, valueToStore, storeBase, emptyIdx);
+  } else {
+    return failure();
+  }
+
+  rewriter.create<vector::YieldOp>(loc);
+  rewriter.eraseOp(genericOp);
+  return success();
+}
+
 static FailureOr<SmallVector<int64_t>>
 computeTransposedMemRefShape(MemRefType inputType,
                              ArrayRef<int64_t> permutation) {
@@ -2251,6 +2668,13 @@ struct LinalgGenericToVIRPattern : public RewritePattern {
         return rewriter.notifyMatchFailure(
             linalgOp,
             "rank-0 output memref not supported in generic VIR lowering");
+      }
+    }
+    if (auto genericOp = dyn_cast<linalg::GenericOp>(op)) {
+      if (FailureOr<StoreOnlyGenericInfo> storeOnlyInfo =
+              matchVectorizableStoreOnlyGeneric(genericOp);
+          succeeded(storeOnlyInfo)) {
+        return lowerStoreOnlyGenericToVIR(genericOp, *storeOnlyInfo, rewriter);
       }
     }
     bool hasIndexSemantics = false;

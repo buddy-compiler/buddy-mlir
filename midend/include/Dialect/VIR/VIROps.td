@@ -92,6 +92,30 @@ def VIR_StoreOp : VIR_Op<"store"> {
                        "`:` qualified(type($value)) `->` type($base)";
 }
 
+def VIR_ScatterOp : VIR_Op<"scatter"> {
+  let summary = "Scatter operation for dynamic vector IR.";
+  let description = [{
+    The `scatter` operation stores dynamic vector elements into memory using a
+    dynamic vector of offsets along the most-minor dimension. The optional base
+    indices identify the base element for the scatter, and the index vector
+    provides per-lane offsets from that base.
+  }];
+  let arguments = (ins
+    VIR_DynamicVectorType:$value,
+    Arg<AnyMemRef, "the reference to scatter to", [MemWrite]>:$base,
+    VIR_DynamicVectorType:$indexVec,
+    VIR_DynamicVectorType:$mask,
+    Variadic<Index>:$indices
+  );
+
+  let hasVerifier = 1;
+
+  let assemblyFormat = "$value `,` $base `[` $indices `]` `[` $indexVec `]` "
+                       "`,` $mask attr-dict `:` qualified(type($value)) `,` "
+                       "qualified(type($indexVec)) `,` qualified(type($mask)) "
+                       "`->` type($base)";
+}
+
 //===----------------------------------------------------------------------===//
 // Basic Operations
 //===----------------------------------------------------------------------===//
@@ -140,7 +164,26 @@ def VIR_FMAOp : VIR_Op<"fma", [AllTypesMatch<["lhs", "rhs", "acc", "result"]>]> 
   let assemblyFormat = "$lhs `,` $rhs `,` $acc attr-dict `:` qualified(type($lhs))";
 }
 
-def VIR_ReduceOp : VIR_Op<"reduce"> {
+def VIR_ReduceOp : VIR_Op<"reduce", [
+    AllTypesMatch<["acc", "result"]>,
+    TypesMatchWith<"accumulator/result type matches input element type",
+                   "input", "acc",
+                   "::llvm::cast<::buddy::vir::DynamicVectorType>($_self)"
+                   ".getElementType()">,
+    PredOpTrait<"reduce kind matches the input element type family", CPred<[{
+      [](::mlir::Operation &op) {
+        auto reduceOp = ::llvm::cast<::buddy::vir::ReduceOp>(&op);
+        ::mlir::Type elementType =
+            reduceOp.getInput().getType().getElementType();
+        ::llvm::StringRef kind = reduceOp.getKind();
+        if (kind == "add" || kind == "maxnum")
+          return ::llvm::isa<::mlir::FloatType>(elementType);
+        if (kind == "maxsi")
+          return ::llvm::isa<::mlir::IntegerType>(elementType);
+        return false;
+      }($_op)
+    }]>>
+  ]> {
   let summary = "Horizontal reduction for dynamic vector IR.";
   let description = [{
     The `reduce` operation reduces a dynamic vector into a scalar using a
@@ -149,13 +192,14 @@ def VIR_ReduceOp : VIR_Op<"reduce"> {
     v1 semantics:
     - `kind = \"add\"`    : floating-point sum reduction
     - `kind = \"maxnum\"` : floating-point maxnum reduction
+    - `kind = \"maxsi\"`  : signed integer max reduction
   }];
   let arguments = (ins
     VIR_DynamicVectorType:$input,
-    AnyFloat:$acc,
+    AnyTypeOf<[AnyInteger, AnyFloat]>:$acc,
     StrAttr:$kind
   );
-  let results = (outs AnyFloat:$result);
+  let results = (outs AnyTypeOf<[AnyInteger, AnyFloat]>:$result);
 
   let assemblyFormat = "$input `,` $acc attr-dict `:` qualified(type($input))"
                        " `,` type($acc) `->` type($result)";
@@ -177,6 +221,32 @@ def VIR_SelectOp : VIR_Op<"select",
 
   let assemblyFormat = "$condition `,` $trueValue `,` $falseValue attr-dict "
                        "`:` qualified(type($condition)) `,` qualified(type($trueValue))";
+}
+
+def VIR_ExtSIOp : VIR_Op<"extsi"> {
+  let summary = "Signed integer extend for dynamic vector IR.";
+  let description = [{
+    The `extsi` operation sign-extends integer element type width elementwise
+    on a dynamic vector.
+  }];
+  let arguments = (ins VIR_DynamicVectorType:$in);
+  let results = (outs VIR_DynamicVectorType:$result);
+  let hasVerifier = 1;
+
+  let assemblyFormat = "$in attr-dict `:` qualified(type($in)) `->` qualified(type($result))";
+}
+
+def VIR_ExtUIOp : VIR_Op<"extui"> {
+  let summary = "Unsigned integer extend for dynamic vector IR.";
+  let description = [{
+    The `extui` operation zero-extends integer element type width elementwise
+    on a dynamic vector.
+  }];
+  let arguments = (ins VIR_DynamicVectorType:$in);
+  let results = (outs VIR_DynamicVectorType:$result);
+  let hasVerifier = 1;
+
+  let assemblyFormat = "$in attr-dict `:` qualified(type($in)) `->` qualified(type($result))";
 }
 
 def VIR_ExtFOp : VIR_Op<"extf"> {

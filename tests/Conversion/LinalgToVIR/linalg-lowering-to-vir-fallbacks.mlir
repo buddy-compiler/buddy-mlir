@@ -44,6 +44,27 @@ func.func @reduce_maxnumf(%arg0: memref<16xf32>, %arg1: memref<f32>) {
 // CHECK-VEC-REDUCE: arith.maxnumf
 
 // -----
+// CASE: linalg-reduce-to-vir-scalar-maxsi-i32.mlir
+func.func @reduce_maxsi(%arg0: memref<16xi32>, %arg1: memref<i32>) {
+  linalg.reduce ins(%arg0 : memref<16xi32>) outs(%arg1 : memref<i32>) dimensions = [0]
+    (%in: i32, %init: i32) {
+      %max = arith.maxsi %in, %init : i32
+      linalg.yield %max : i32
+    }
+  return
+}
+
+// CHECK-LABEL: func.func @reduce_maxsi
+// CHECK-NOT: linalg.reduce
+// CHECK: vir.set_vl
+// CHECK: vir.load %arg0
+// CHECK: vir.reduce
+// CHECK: memref.store
+// CHECK-VEC-REDUCE-LABEL: func.func @reduce_maxsi
+// CHECK-VEC-REDUCE: vector.reduction <maxsi>
+// CHECK-VEC-REDUCE: arith.maxsi
+
+// -----
 // CASE: linalg-reduce-to-vir-2d-to-1d-addf-f32.mlir
 func.func @reduce_2d_to_1d_addf(%arg0: memref<4x8xf32>, %arg1: memref<4xf32>) {
   linalg.reduce ins(%arg0 : memref<4x8xf32>) outs(%arg1 : memref<4xf32>) dimensions = [1]
