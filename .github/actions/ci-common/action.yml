@@ -109,10 +109,7 @@ runs:
           -DPython_EXECUTABLE="$(which python)"
 
         ccache -z
-        ninja -C "$LLVM_BUILD_DIR" check-clang || true
-        ninja -C "$LLVM_BUILD_DIR" check-mlir || true
-        ninja -C "$LLVM_BUILD_DIR" check-openmp || true
-        ninja -C "$LLVM_BUILD_DIR" mlir-libraries
+        ninja -C "$LLVM_BUILD_DIR" check-clang check-mlir check-openmp mlir-libraries
         ccache -s
 
         ${{ inputs.venv_deactivate }}
