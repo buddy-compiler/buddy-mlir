@@ -192,5 +192,44 @@ ame-th-mfmacc-s-asm:
 	        -o ame-th-mfmacc-s.s
 	@echo "Assembly saved to ame-th-mfmacc-s.s"
 
+linalg-matmul-lower:
+	@${BUDDY_OPT} ./linalg-to-xtame-matmul.mlir \
+		-lower-linalg-to-xtame \
+		-o log.mlir
+
+linalg-matmul-translate:
+	@${BUDDY_OPT} ./linalg-to-xtame-matmul.mlir \
+		-lower-linalg-to-xtame \
+		-lower-xt-ame \
+		-convert-linalg-to-loops \
+		-lower-affine \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-math-to-llvm \
+		-convert-func-to-llvm \
+		-finalize-memref-to-llvm \
+		-reconcile-unrealized-casts | \
+	${BUDDY_TRANSLATE} -buddy-to-llvmir \
+		-o log.ll
+
+linalg-matmul-asm:
+	@${BUDDY_OPT} ./linalg-to-xtame-matmul.mlir \
+		-lower-linalg-to-xtame \
+		-lower-xt-ame \
+		-convert-linalg-to-loops \
+		-lower-affine \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-math-to-llvm \
+		-convert-func-to-llvm \
+		-finalize-memref-to-llvm \
+		-reconcile-unrealized-casts | \
+	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
+	${BUDDY_LLC} -filetype=asm -mtriple=riscv64-unknown-linux-gnu \
+		-mattr=+m,+a,+c,+d,+buddyext \
+		-o log.s
+
 clean:
 	rm -f *.ll *.s *-lowered.mlir

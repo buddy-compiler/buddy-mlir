@@ -413,20 +413,20 @@ let TargetPrefix = "riscv" in {
 // Matrix configuration intrinsics (with register rs1)
 let TargetPrefix = "riscv" in {
   // th.mcfg - Set entire tile from register
-  def int_riscv_buddy_th_mcfg : Intrinsic<[llvm_i64_ty], [llvm_i64_ty],
-                                           [IntrNoMem]>;
+  def int_riscv_buddy_th_mcfg : Intrinsic<[], [llvm_i64_ty],
+                                          [IntrNoMem, IntrHasSideEffects]>;
 
   // th.mcfgm - Set tile M dimension from register
-  def int_riscv_buddy_th_mcfgm : Intrinsic<[llvm_i64_ty], [llvm_i64_ty],
-                                           [IntrNoMem]>;
+  def int_riscv_buddy_th_mcfgm : Intrinsic<[], [llvm_i64_ty],
+                                           [IntrNoMem, IntrHasSideEffects]>;
 
   // th.mcfgn - Set tile N dimension from register
-  def int_riscv_buddy_th_mcfgn : Intrinsic<[llvm_i64_ty], [llvm_i64_ty],
-                                            [IntrNoMem]>;
+  def int_riscv_buddy_th_mcfgn : Intrinsic<[], [llvm_i64_ty],
+                                           [IntrNoMem, IntrHasSideEffects]>;
 
   // th.mcfgk - Set tile K dimension from register
-  def int_riscv_buddy_th_mcfgk : Intrinsic<[llvm_i64_ty], [llvm_i64_ty],
-                                            [IntrNoMem]>;
+  def int_riscv_buddy_th_mcfgk : Intrinsic<[], [llvm_i64_ty],
+                                           [IntrNoMem, IntrHasSideEffects]>;
 }
 
 // Matrix configuration intrinsics (with immediate)
@@ -468,6 +468,100 @@ let TargetPrefix = "riscv" in {
   def int_riscv_buddy_th_mzero8r : Intrinsic<[], [llvm_i64_ty],
                                         [IntrNoMem, IntrHasSideEffects,
                                          ImmArg<ArgIndex<0>>]>;
+}
+
+// MISC Instructions
+let TargetPrefix = "riscv" in {
+  // Data Move Instructions between Matrix Registers
+  def int_riscv_buddy_th_mmov_mm : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty],
+                                      [IntrNoMem, IntrHasSideEffects,
+                                       ImmArg<ArgIndex<0>>, ImmArg<ArgIndex<1>>]>;
+
+  // Data Move Instructions between Integer and Matrix (Duplicate)
+  def int_riscv_buddy_th_mdupb_m_x : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty],
+                                      [IntrNoMem, IntrHasSideEffects,
+                                       ImmArg<ArgIndex<0>>]>;
+  def int_riscv_buddy_th_mduph_m_x : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty],
+                                      [IntrNoMem, IntrHasSideEffects,
+                                       ImmArg<ArgIndex<0>>]>;
+  def int_riscv_buddy_th_mdupw_m_x : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty],
+                                      [IntrNoMem, IntrHasSideEffects,
+                                       ImmArg<ArgIndex<0>>]>;
+  def int_riscv_buddy_th_mdupd_m_x : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty],
+                                      [IntrNoMem, IntrHasSideEffects,
+                                       ImmArg<ArgIndex<0>>]>;
+
+  // Data Move Instructions between Integer and Matrix (Scalar to Matrix)
+  def int_riscv_buddy_th_mmovb_m_x : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty, llvm_i64_ty],
+                                               [IntrNoMem, IntrHasSideEffects,
+                                                ImmArg<ArgIndex<0>>]>;
+  def int_riscv_buddy_th_mmovh_m_x : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty, llvm_i64_ty],
+                                               [IntrNoMem, IntrHasSideEffects,
+                                                ImmArg<ArgIndex<0>>]>;
+  def int_riscv_buddy_th_mmovw_m_x : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty, llvm_i64_ty],
+                                               [IntrNoMem, IntrHasSideEffects,
+                                                ImmArg<ArgIndex<0>>]>;
+  def int_riscv_buddy_th_mmovd_m_x : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty, llvm_i64_ty],
+                                               [IntrNoMem, IntrHasSideEffects,
+                                                ImmArg<ArgIndex<0>>]>;
+
+  // Data Move Instructions between Integer and Matrix (Matrix to Scalar)
+  def int_riscv_buddy_th_mmovb_x_m : Intrinsic<[llvm_i64_ty], [llvm_i64_ty, llvm_i64_ty],
+                                               [IntrNoMem, IntrHasSideEffects,
+                                                ImmArg<ArgIndex<0>>]>;
+  def int_riscv_buddy_th_mmovh_x_m : Intrinsic<[llvm_i64_ty], [llvm_i64_ty, llvm_i64_ty],
+                                               [IntrNoMem, IntrHasSideEffects,
+                                                ImmArg<ArgIndex<0>>]>;
+  def int_riscv_buddy_th_mmovw_x_m : Intrinsic<[llvm_i64_ty], [llvm_i64_ty, llvm_i64_ty],
+                                               [IntrNoMem, IntrHasSideEffects,
+                                                ImmArg<ArgIndex<0>>]>;
+  def int_riscv_buddy_th_mmovd_x_m : Intrinsic<[llvm_i64_ty], [llvm_i64_ty, llvm_i64_ty],
+                                               [IntrNoMem, IntrHasSideEffects,
+                                                ImmArg<ArgIndex<0>>]>;
+
+  // Data Broadcast Instructions
+  def int_riscv_buddy_th_mmov_mv_i : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty, llvm_i64_ty],
+                                      [IntrNoMem, IntrHasSideEffects,
+                                       ImmArg<ArgIndex<0>>,
+                                       ImmArg<ArgIndex<1>>,
+                                       ImmArg<ArgIndex<2>>]>;
+  def int_riscv_buddy_th_mcmovb_mv_i : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty, llvm_i64_ty],
+                                      [IntrNoMem, IntrHasSideEffects,
+                                       ImmArg<ArgIndex<0>>,
+                                       ImmArg<ArgIndex<1>>,
+                                       ImmArg<ArgIndex<2>>]>;
+  def int_riscv_buddy_th_mcmovh_mv_i : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty, llvm_i64_ty],
+                                      [IntrNoMem, IntrHasSideEffects,
+                                       ImmArg<ArgIndex<0>>,
+                                       ImmArg<ArgIndex<1>>,
+                                       ImmArg<ArgIndex<2>>]>;
+  def int_riscv_buddy_th_mcmovw_mv_i : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty, llvm_i64_ty],
+                                      [IntrNoMem, IntrHasSideEffects,
+                                       ImmArg<ArgIndex<0>>,
+                                       ImmArg<ArgIndex<1>>,
+                                       ImmArg<ArgIndex<2>>]>;
+  def int_riscv_buddy_th_mcmovd_mv_i : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty, llvm_i64_ty],
+                                      [IntrNoMem, IntrHasSideEffects,
+                                       ImmArg<ArgIndex<0>>,
+                                       ImmArg<ArgIndex<1>>,
+                                       ImmArg<ArgIndex<2>>]>;
+
+  // Matrix Pack Instructions
+  def int_riscv_buddy_th_mpack_mm : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty, llvm_i64_ty],
+                                      [IntrNoMem, IntrHasSideEffects,
+                                       ImmArg<ArgIndex<0>>,
+                                       ImmArg<ArgIndex<1>>,
+                                       ImmArg<ArgIndex<2>>]>;
+  def int_riscv_buddy_th_mpackhl_mm : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty, llvm_i64_ty],
+                                      [IntrNoMem, IntrHasSideEffects,
+                                       ImmArg<ArgIndex<0>>,
+                                       ImmArg<ArgIndex<1>>,
+                                       ImmArg<ArgIndex<2>>]>;
+  def int_riscv_buddy_th_mpackhh_mm : Intrinsic<[], [llvm_i64_ty, llvm_i64_ty, llvm_i64_ty],
+                                      [IntrNoMem, IntrHasSideEffects,
+                                       ImmArg<ArgIndex<0>>,
+                                       ImmArg<ArgIndex<1>>,
+                                       ImmArg<ArgIndex<2>>]>;
 }
 
 // Matrix load intrinsics (load to tile register)
@@ -514,7 +608,21 @@ let TargetPrefix = "riscv" in {
                                            [llvm_i64_ty, llvm_ptr_ty],
                                            [IntrReadMem, IntrHasSideEffects]>;
 
-  //  Transposed Load Instructions
+  // transposed prefetch load instructions (load from memory to cache)
+  def int_riscv_buddy_th_mpldte8 : Intrinsic<[],
+                                          [llvm_i64_ty, llvm_ptr_ty],
+                                          [IntrReadMem, IntrHasSideEffects]>;
+  def int_riscv_buddy_th_mpldte16 : Intrinsic<[],
+                                           [llvm_i64_ty, llvm_ptr_ty],
+                                           [IntrReadMem, IntrHasSideEffects]>;
+  def int_riscv_buddy_th_mpldte32 : Intrinsic<[],
+                                           [llvm_i64_ty, llvm_ptr_ty],
+                                           [IntrReadMem, IntrHasSideEffects]>;
+  def int_riscv_buddy_th_mpldte64 : Intrinsic<[],
+                                           [llvm_i64_ty, llvm_ptr_ty],
+                                           [IntrReadMem, IntrHasSideEffects]>;
+
+  // Transposed Load Instructions
   // th.mldte8 - Load 8-bit transposed matrix to tile register
   def int_riscv_buddy_th_mldte8 : Intrinsic<[],
                                           [llvm_i64_ty, llvm_i64_ty, llvm_ptr_ty],
@@ -535,6 +643,42 @@ let TargetPrefix = "riscv" in {
 
   // th.mldte64 - Load 64-bit transposed matrix to tile register
   def int_riscv_buddy_th_mldte64 : Intrinsic<[],
+                                           [llvm_i64_ty, llvm_i64_ty, llvm_ptr_ty],
+                                           [IntrReadMem, IntrHasSideEffects,
+                                            ImmArg<ArgIndex<0>>]>;
+
+  // Stream Load Instructions
+  def int_riscv_buddy_th_mslde8 : Intrinsic<[],
+                                          [llvm_i64_ty, llvm_i64_ty, llvm_ptr_ty],
+                                          [IntrReadMem, IntrHasSideEffects,
+                                           ImmArg<ArgIndex<0>>]>;
+  def int_riscv_buddy_th_mslde16 : Intrinsic<[],
+                                           [llvm_i64_ty, llvm_i64_ty, llvm_ptr_ty],
+                                           [IntrReadMem, IntrHasSideEffects,
+                                            ImmArg<ArgIndex<0>>]>;
+  def int_riscv_buddy_th_mslde32 : Intrinsic<[],
+                                           [llvm_i64_ty, llvm_i64_ty, llvm_ptr_ty],
+                                           [IntrReadMem, IntrHasSideEffects,
+                                            ImmArg<ArgIndex<0>>]>;
+  def int_riscv_buddy_th_mslde64 : Intrinsic<[],
+                                           [llvm_i64_ty, llvm_i64_ty, llvm_ptr_ty],
+                                           [IntrReadMem, IntrHasSideEffects,
+                                            ImmArg<ArgIndex<0>>]>;
+
+  // Transposed Stream Load Instructions
+  def int_riscv_buddy_th_msldte8 : Intrinsic<[],
+                                          [llvm_i64_ty, llvm_i64_ty, llvm_ptr_ty],
+                                          [IntrReadMem, IntrHasSideEffects,
+                                           ImmArg<ArgIndex<0>>]>;
+  def int_riscv_buddy_th_msldte16 : Intrinsic<[],
+                                           [llvm_i64_ty, llvm_i64_ty, llvm_ptr_ty],
+                                           [IntrReadMem, IntrHasSideEffects,
+                                            ImmArg<ArgIndex<0>>]>;
+  def int_riscv_buddy_th_msldte32 : Intrinsic<[],
+                                           [llvm_i64_ty, llvm_i64_ty, llvm_ptr_ty],
+                                           [IntrReadMem, IntrHasSideEffects,
+                                            ImmArg<ArgIndex<0>>]>;
+  def int_riscv_buddy_th_msldte64 : Intrinsic<[],
                                            [llvm_i64_ty, llvm_i64_ty, llvm_ptr_ty],
                                            [IntrReadMem, IntrHasSideEffects,
                                             ImmArg<ArgIndex<0>>]>;
@@ -565,6 +709,60 @@ let TargetPrefix = "riscv" in {
                                           [llvm_i64_ty, llvm_i64_ty, llvm_ptr_ty],
                                           [IntrWriteMem, IntrHasSideEffects,
                                            ImmArg<ArgIndex<0>>]>;
+
+  // Transposed Store Instructions
+  def int_riscv_buddy_th_mstte8 : Intrinsic<[],
+                                          [llvm_i64_ty, llvm_i64_ty, llvm_ptr_ty],
+                                          [IntrWriteMem, IntrHasSideEffects,
+                                           ImmArg<ArgIndex<0>>]>;
+  def int_riscv_buddy_th_mstte16 : Intrinsic<[],
+                                           [llvm_i64_ty, llvm_i64_ty, llvm_ptr_ty],
+                                           [IntrWriteMem, IntrHasSideEffects,
+                                            ImmArg<ArgIndex<0>>]>;
+  def int_riscv_buddy_th_mstte32 : Intrinsic<[],
+                                           [llvm_i64_ty, llvm_i64_ty, llvm_ptr_ty],
+                                           [IntrWriteMem, IntrHasSideEffects,
+                                            ImmArg<ArgIndex<0>>]>;
+  def int_riscv_buddy_th_mstte64 : Intrinsic<[],
+                                           [llvm_i64_ty, llvm_i64_ty, llvm_ptr_ty],
+                                           [IntrWriteMem, IntrHasSideEffects,
+                                            ImmArg<ArgIndex<0>>]>;
+
+  // Stream Store Instructions
+  def int_riscv_buddy_th_msste8 : Intrinsic<[],
+                                          [llvm_i64_ty, llvm_i64_ty, llvm_ptr_ty],
+                                          [IntrWriteMem, IntrHasSideEffects,
+                                           ImmArg<ArgIndex<0>>]>;
+  def int_riscv_buddy_th_msste16 : Intrinsic<[],
+                                           [llvm_i64_ty, llvm_i64_ty, llvm_ptr_ty],
+                                           [IntrWriteMem, IntrHasSideEffects,
+                                            ImmArg<ArgIndex<0>>]>;
+  def int_riscv_buddy_th_msste32 : Intrinsic<[],
+                                           [llvm_i64_ty, llvm_i64_ty, llvm_ptr_ty],
+                                           [IntrWriteMem, IntrHasSideEffects,
+                                            ImmArg<ArgIndex<0>>]>;
+  def int_riscv_buddy_th_msste64 : Intrinsic<[],
+                                           [llvm_i64_ty, llvm_i64_ty, llvm_ptr_ty],
+                                           [IntrWriteMem, IntrHasSideEffects,
+                                            ImmArg<ArgIndex<0>>]>;
+
+  // Transposed Stream Store Instructions
+  def int_riscv_buddy_th_msstte8 : Intrinsic<[],
+                                          [llvm_i64_ty, llvm_i64_ty, llvm_ptr_ty],
+                                          [IntrWriteMem, IntrHasSideEffects,
+                                           ImmArg<ArgIndex<0>>]>;
+  def int_riscv_buddy_th_msstte16 : Intrinsic<[],
+                                           [llvm_i64_ty, llvm_i64_ty, llvm_ptr_ty],
+                                           [IntrWriteMem, IntrHasSideEffects,
+                                            ImmArg<ArgIndex<0>>]>;
+  def int_riscv_buddy_th_msstte32 : Intrinsic<[],
+                                           [llvm_i64_ty, llvm_i64_ty, llvm_ptr_ty],
+                                           [IntrWriteMem, IntrHasSideEffects,
+                                            ImmArg<ArgIndex<0>>]>;
+  def int_riscv_buddy_th_msstte64 : Intrinsic<[],
+                                           [llvm_i64_ty, llvm_i64_ty, llvm_ptr_ty],
+                                           [IntrWriteMem, IntrHasSideEffects,
+                                            ImmArg<ArgIndex<0>>]>;
 }
 
 // Tile register matrix multiplication intrinsics (operate on tile registers)
@@ -639,7 +837,7 @@ let TargetPrefix = "riscv" in {
                                                   [IntrHasSideEffects, ImmArg<ArgIndex<0>>,
                                                    ImmArg<ArgIndex<1>>, ImmArg<ArgIndex<2>>]>;
 
-  // th.mfmacc_bf16.e5m2 - 8-bit float point, output double-widen
+  // th.mfmacc.bf16.e5m2 - 8-bit float point, output double-widen
   def int_riscv_buddy_th_mfmacc_bf16_e5m2 : Intrinsic<[],
                                                   [llvm_i64_ty, llvm_i64_ty, llvm_i64_ty],
                                                   [IntrHasSideEffects, ImmArg<ArgIndex<0>>,
