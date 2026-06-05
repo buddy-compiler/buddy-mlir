@@ -18,6 +18,7 @@
 //
 //===----------------------------------------------------------------------===//
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
 #include "mlir/IR/AffineExpr.h"
 #include "mlir/IR/AffineMap.h"
@@ -42,6 +43,7 @@
 #include <mlir/IR/TypeUtilities.h>
 #include <mlir/IR/Value.h>
 #include <mlir/Pass/Pass.h>
+#include <mlir/Transforms/DialectConversion.h>
 
 using namespace mlir;
 using namespace vector;
@@ -52,6 +54,36 @@ using namespace affine;
 //===----------------------------------------------------------------------===//
 
 namespace {
+
+static bool hasDefaultBatchMatmulIndexingMaps(linalg::BatchMatmulOp op) {
+  return linalg::BatchMatmulOp::isDefaultIndexingMaps(
+      op->getAttr("indexing_maps"));
+}
+
+static bool isSupportedBatchMatmulOp(linalg::BatchMatmulOp op) {
+  if (!op.hasPureBufferSemantics())
+    return false;
+  if (!hasDefaultBatchMatmulIndexingMaps(op))
+    return false;
+
+  Value A = op.getInputs()[0];
+  Value B = op.getInputs()[1];
+  Value C = op.getOutputs()[0];
+  auto aType = dyn_cast<MemRefType>(A.getType());
+  auto bType = dyn_cast<MemRefType>(B.getType());
+  auto cType = dyn_cast<MemRefType>(C.getType());
+  if (!aType || !bType || !cType)
+    return false;
+  if (aType.getRank() != 3 || bType.getRank() != 3 || cType.getRank() != 3)
+    return false;
+
+  Type elementType = aType.getElementType();
+  if (bType.getElementType() != elementType ||
+      cType.getElementType() != elementType)
+    return false;
+
+  return isa<IntegerType, FloatType>(elementType);
+}
 
 class BatchMatMulOptimizePattern : public ConversionPattern {
 public:
@@ -65,17 +97,18 @@ public:
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> /*operands*/,
                   ConversionPatternRewriter &rewriter) const override {
+    auto batchMatmulOp = cast<linalg::BatchMatmulOp>(op);
+    if (!isSupportedBatchMatmulOp(batchMatmulOp))
+      return failure();
+
     auto loc = op->getLoc();
     auto ctx = op->getContext();
 
     // Retrieve input tensors A, B, and C.
-    Value A = op->getOperand(0);
-    Value B = op->getOperand(1);
-    Value C = op->getOperand(2);
+    Value A = batchMatmulOp.getInputs()[0];
+    Value B = batchMatmulOp.getInputs()[1];
+    Value C = batchMatmulOp.getOutputs()[0];
 
-    // Get i1 as the element type for mask vector.
-    IntegerType i1 = IntegerType::get(ctx, 1);
-    VectorType vectorMaskTy = mlir::VectorType::get({vecSize}, i1);
     // Acquire the element type of input tensors.
     Type elementType =
         mlir::cast<mlir::MemRefType>(A.getType()).getElementType();
@@ -120,8 +153,8 @@ public:
     auto createUnrollParallel = [&](int unrollSize, Value lowerBound,
                                     Value upperBound) {
       // Create the primary parallel batch level loop.
-      auto parOp = scf::ParallelOp::create(
-          rewriter, loc,
+      rewriter.create<scf::ParallelOp>(
+          loc,
           /*lowerBounds=*/ValueRange{constantVals[0], lowerBound},
           /*upperBounds=*/ValueRange{batch, upperBound},
           /*steps=*/ValueRange{constantVals[1], constantVals[unrollSize]},
@@ -162,9 +195,9 @@ public:
                             auto aVec = vector::BroadcastOp::create(
                                 rewriter, loc, vectorTy, aEle);
                             Value mulVec =
-                                arith::MulIOp::create(builder, loc, aVec, bVec);
-                            Value resSumVec = arith::AddIOp::create(
-                                builder, loc, mulVec, iterArgs1[0]);
+                                builder.create<arith::MulIOp>(loc, aVec, bVec);
+                            Value resSumVec = builder.create<arith::AddIOp>(
+                                loc, mulVec, iterArgs1[i]);
                             resSumVecs.push_back(resSumVec);
                           }
                         } else {
@@ -299,11 +332,12 @@ void BatchMatMulOptimizePass::runOnOperation() {
   ModuleOp module = getOperation();
 
   ConversionTarget target(*context);
-  target
-      .addLegalDialect<arith::ArithDialect, affine::AffineDialect,
-                       scf::SCFDialect, memref::MemRefDialect, VectorDialect>();
+  target.addLegalDialect<arith::ArithDialect, affine::AffineDialect,
+                         scf::SCFDialect, memref::MemRefDialect, VectorDialect,
+                         linalg::LinalgDialect>();
+  target.addDynamicallyLegalOp<linalg::BatchMatmulOp>(
+      [](linalg::BatchMatmulOp op) { return !isSupportedBatchMatmulOp(op); });
   target.addLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>();
-  target.addLegalOp<linalg::FillOp>();
 
   RewritePatternSet patterns(context);
   patterns.add<BatchMatMulOptimizePattern>(context, vecSize);
