@@ -297,13 +297,6 @@ SET_TARGET_PROPERTIES(TEXTENCODER PROPERTIES LINKER_LANGUAGE C)
 SET_TARGET_PROPERTIES(UNET PROPERTIES LINKER_LANGUAGE C)
 SET_TARGET_PROPERTIES(VAE PROPERTIES LINKER_LANGUAGE C)
 
-target_link_directories(TEXTENCODER PRIVATE ${LLVM_LIBRARY_DIR})
-target_link_directories(UNET PRIVATE ${LLVM_LIBRARY_DIR})
-target_link_directories(VAE PRIVATE ${LLVM_LIBRARY_DIR})
-target_link_libraries(TEXTENCODER PRIVATE mlir_c_runner_utils omp)
-target_link_libraries(UNET PRIVATE mlir_c_runner_utils omp)
-target_link_libraries(VAE PRIVATE mlir_c_runner_utils omp)
-
 add_executable(buddy-stable-diffusion-run buddy-stable-diffusion-main.cpp)
 
 target_compile_options(buddy-stable-diffusion-run PRIVATE -mcmodel=large)
