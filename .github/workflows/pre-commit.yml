@@ -27,3 +27,22 @@ jobs:
       - uses: pre-commit/action@v3.0.0
         with:
           extra_args: ${{ env.PRE_COMMIT_ARGS }}
+
+      - name: Check deprecated MLIR op builder API
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          matches="$(
+            find . \
+              -path './llvm' -prune -o \
+              -path './backend' -prune -o \
+              -name '*.cpp' -type f \
+              -exec grep -nE '^[[:space:]]*[^/[:space:]].*(\w+)[[:space:]]*\.[[:space:]]*create<([^>]*)>\(' {} + \
+              || true
+          )"
+          if [ -n "$matches" ]; then
+            echo "$matches"
+            echo "::error::Deprecated MLIR OpBuilder::create<OpTy> API found. Use OpTy::create(builder, ...) instead."
+            exit 1
+          fi

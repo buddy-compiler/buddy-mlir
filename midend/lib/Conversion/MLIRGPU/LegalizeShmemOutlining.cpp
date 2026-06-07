@@ -81,7 +81,7 @@ template <typename OpTy>
 static void createForAllDimensions(OpBuilder &builder, Location loc,
                                    SmallVectorImpl<Value> &values) {
   for (auto dim : {gpu::Dimension::x, gpu::Dimension::y, gpu::Dimension::z})
-    values.push_back(builder.create<OpTy>(loc, builder.getIndexType(), dim));
+    values.push_back(OpTy::create(builder, loc, builder.getIndexType(), dim));
 }
 
 /// Adds operations generating block/thread ids and grid/block dimensions at the
@@ -146,23 +146,21 @@ static gpu::GPUFuncOp outlineKernelFuncImpl(gpu::LaunchOp launchOp,
   }
   FunctionType type =
       FunctionType::get(launchOp.getContext(), kernelOperandTypes, {});
-  auto outlinedFunc = builder.create<gpu::GPUFuncOp>(
-      loc, kernelFnName, type,
-      TypeRange(ValueRange(launchOp.getWorkgroupAttributions())),
+  auto outlinedFunc = gpu::GPUFuncOp::create(
+      builder, loc, kernelFnName, type,
+      TypeRange(ValueRange(launchOp.getWorkgroupAttributionBBArgs())),
       TypeRange(ValueRange(launchOp.getPrivateAttributions())));
-  outlinedFunc->setAttr(gpu::GPUDialect::getKernelFuncAttrName(),
-                        builder.getUnitAttr());
+  outlinedFunc.setKernel(true);
 
   // If we can infer bounds on the grid and/or block sizes from the arguments
   // to the launch op, propagate them to the generated kernel. This is safe
   // because multiple launches with the same body are not deduplicated.
   if (auto blockBounds =
           maybeConstantDimsAttr(launchOp.getBlockSizeOperandValues()))
-    outlinedFunc->setAttr(outlinedFunc.getKnownBlockSizeAttrName(),
-                          blockBounds);
+    outlinedFunc.setKnownBlockSizeAttr(blockBounds);
   if (auto gridBounds =
           maybeConstantDimsAttr(launchOp.getGridSizeOperandValues()))
-    outlinedFunc->setAttr(outlinedFunc.getKnownGridSizeAttrName(), gridBounds);
+    outlinedFunc.setKnownGridSizeAttr(gridBounds);
 
   IRMapping map;
 
@@ -173,8 +171,8 @@ static gpu::GPUFuncOp outlineKernelFuncImpl(gpu::LaunchOp launchOp,
 
   // Map memory attributions from the LaunOp op to the GPUFuncOp attributions.
   for (const auto &[launchArg, funcArg] :
-       llvm::zip(launchOp.getWorkgroupAttributions(),
-                 outlinedFunc.getWorkgroupAttributions()))
+       llvm::zip(launchOp.getWorkgroupAttributionBBArgs(),
+                 outlinedFunc.getWorkgroupAttributionBBArgs()))
     map.map(launchArg, funcArg);
   for (const auto &[launchArg, funcArg] :
        llvm::zip(launchOp.getPrivateAttributions(),
@@ -199,11 +197,11 @@ static gpu::GPUFuncOp outlineKernelFuncImpl(gpu::LaunchOp launchOp,
   Block &launchOpEntry = launchOpBody.front();
   Block *clonedLaunchOpEntry = map.lookup(&launchOpEntry);
   builder.setInsertionPointToEnd(&entryBlock);
-  builder.create<cf::BranchOp>(loc, clonedLaunchOpEntry);
+  cf::BranchOp::create(builder, loc, clonedLaunchOpEntry);
 
   outlinedFunc.walk([](gpu::TerminatorOp op) {
     OpBuilder replacer(op);
-    replacer.create<gpu::ReturnOp>(op.getLoc());
+    gpu::ReturnOp::create(replacer, op.getLoc());
     op.erase();
   });
   return outlinedFunc;
@@ -219,9 +217,9 @@ static void convertToLaunchFuncOp(gpu::LaunchOp launchOp,
   // The launch op has an optional dynamic shared memory size. If it doesn't
   // exist, we use zero.
   Value asyncToken = launchOp.getAsyncToken();
-  auto launchFunc = builder.create<gpu::LaunchFuncOp>(
-      launchOp.getLoc(), kernelFunc, launchOp.getGridSizeOperandValues(),
-      launchOp.getBlockSizeOperandValues(),
+  auto launchFunc = gpu::LaunchFuncOp::create(
+      builder, launchOp.getLoc(), kernelFunc,
+      launchOp.getGridSizeOperandValues(), launchOp.getBlockSizeOperandValues(),
       launchOp.getDynamicSharedMemorySize(), operands,
       asyncToken ? asyncToken.getType() : nullptr,
       launchOp.getAsyncDependencies());
@@ -295,7 +293,7 @@ public:
           builder.setInsertionPointToStart(
               &launchOp.getBody().getBlocks().front());
           auto newAllocOp =
-              builder.create<memref::AllocOp>(launchOp.getLoc(), memrefType);
+              memref::AllocOp::create(builder, launchOp.getLoc(), memrefType);
           allocOp->replaceAllUsesWith(newAllocOp);
           allocOp->erase();
           break;
@@ -346,8 +344,8 @@ public:
 
           auto name = Twine("shmem_", std::to_string(counter++)).str();
 
-          auto globalOp = builder.create<memref::GlobalOp>(
-              kernelModule->getLoc(),
+          auto globalOp = memref::GlobalOp::create(
+              builder, kernelModule->getLoc(),
               /*sym_name=*/name,
               /*sym_visibility=*/builder.getStringAttr("private"),
               /*type=*/memrefType,
@@ -356,8 +354,8 @@ public:
               /*alignment=*/builder.getI64IntegerAttr(64));
           // symbolTable.insert(globalOp);
           builder.setInsertionPointAfter(allocOp);
-          Value getGlobalOp = builder.create<memref::GetGlobalOp>(
-              allocOp->getLoc(), globalOp.getType(), name);
+          Value getGlobalOp = memref::GetGlobalOp::create(
+              builder, allocOp->getLoc(), globalOp.getType(), name);
           allocOp.replaceAllUsesWith(getGlobalOp);
           allocOp->erase();
           return WalkResult::advance();
@@ -389,8 +387,8 @@ private:
     // and then this needs to use the OpBuilder.
     auto *context = getOperation().getContext();
     OpBuilder builder(context);
-    auto kernelModule = builder.create<gpu::GPUModuleOp>(kernelFunc.getLoc(),
-                                                         kernelFunc.getName());
+    auto kernelModule = gpu::GPUModuleOp::create(builder, kernelFunc.getLoc(),
+                                                 kernelFunc.getName());
 
     SymbolTable symbolTable(kernelModule);
     symbolTable.insert(kernelFunc);

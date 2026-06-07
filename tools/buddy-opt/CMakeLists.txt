@@ -11,6 +11,9 @@ target_link_libraries(buddy-opt
   ${dialect_libs}
   ${conversion_libs}
   ${extension_libs}
+  MLIRRegisterAllDialects
+  MLIRRegisterAllExtensions
+  MLIRRegisterAllPasses
   MLIROptLib
   CBConvVectorization
   BuddyBud
@@ -46,6 +49,8 @@ target_link_libraries(buddy-opt
   BuddyBOSCAME
   BuddyBOSCAMETransforms
   MLIRGPUPasses
+  MLIRTransformDialect
+  MLIRTransformDialectUtils
   BuddyGPUTransformOPs
   MLIRTestTransforms
   MLIRTestTransformDialect

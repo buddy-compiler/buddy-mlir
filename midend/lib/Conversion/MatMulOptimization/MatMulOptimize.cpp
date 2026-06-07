@@ -62,9 +62,9 @@ public:
 
     // Some constants.
     const Value c0 =
-        rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0));
+        arith::ConstantOp::create(rewriter, loc, rewriter.getIndexAttr(0));
     const Value c1 =
-        rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1));
+        arith::ConstantOp::create(rewriter, loc, rewriter.getIndexAttr(1));
     const AffineExpr s0 = rewriter.getAffineSymbolExpr(0);
     const AffineExpr s1 = rewriter.getAffineSymbolExpr(1);
     const AffineExpr d0 = rewriter.getAffineDimExpr(0);
@@ -77,9 +77,9 @@ public:
     int64_t kNLen = vecSize * kernelN;
 
     // Dims
-    Value M = rewriter.create<memref::DimOp>(loc, A, 0);
-    Value N = rewriter.create<memref::DimOp>(loc, B, 1);
-    Value K = rewriter.create<memref::DimOp>(loc, A, 1);
+    Value M = memref::DimOp::create(rewriter, loc, A, 0);
+    Value N = memref::DimOp::create(rewriter, loc, B, 1);
+    Value K = memref::DimOp::create(rewriter, loc, A, 1);
 
     // build loop body
     affine::buildAffineLoopNest(
@@ -95,8 +95,8 @@ public:
                 for (int i = 0; i < kernelM; ++i) {
                   Value fixedIV = ivI;
                   if (i != 0) {
-                    fixedIV = builder.create<affine::AffineMinOp>(
-                        loc,
+                    fixedIV = affine::AffineMinOp::create(
+                        builder, loc,
                         AffineMap::get(1, 1, {d0 + i, s0 - 1},
                                        builder.getContext()),
                         SmallVector<Value>{ivI, M});
@@ -104,23 +104,25 @@ public:
                   MemRefType resTy =
                       MemRefType::get(ATy.getShape(), ATy.getElementType(),
                                       AffineMap::get(2, 2, d0 * s1 + s0 + d1));
-                  auto aptr = builder.create<memref::SubViewOp>(
-                      loc, resTy, A, SmallVector<OpFoldResult>{fixedIV, c0},
+                  auto aptr = memref::SubViewOp::create(
+                      builder, loc, resTy, A,
+                      SmallVector<OpFoldResult>{fixedIV, c0},
                       SmallVector<OpFoldResult>{c1, K},
                       SmallVector<OpFoldResult>{c1, c1});
                   aptrs.push_back(aptr);
                 }
                 for (int i = 0; i < kernelM; ++i) {
-                  Value fixedIV = builder.create<affine::AffineMinOp>(
-                      loc,
+                  Value fixedIV = affine::AffineMinOp::create(
+                      builder, loc,
                       AffineMap::get(1, 1, {d0 + i, s0 - 1},
                                      builder.getContext()),
                       SmallVector<Value>{ivI, M});
                   MemRefType resTy =
                       MemRefType::get(ATy.getShape(), ATy.getElementType(),
                                       AffineMap::get(2, 2, d0 * s1 + s0 + d1));
-                  auto cptr = builder.create<memref::SubViewOp>(
-                      loc, resTy, C, SmallVector<OpFoldResult>{fixedIV, c0},
+                  auto cptr = memref::SubViewOp::create(
+                      builder, loc, resTy, C,
+                      SmallVector<OpFoldResult>{fixedIV, c0},
                       SmallVector<OpFoldResult>{c1, N},
                       SmallVector<OpFoldResult>{c1, c1});
                   cptrs.push_back(cptr);
@@ -132,8 +134,8 @@ public:
                       SmallVector<Value> as;
                       SmallVector<Value> bs;
                       for (int i = 0; i < kernelM; ++i) {
-                        Value a = builder.create<TransferReadOp>(
-                            loc, vTy, aptrs[i], ValueRange{c0, ivK},
+                        Value a = TransferReadOp::create(
+                            builder, loc, vTy, aptrs[i], ValueRange{c0, ivK},
                             mapBroadcast, /*padding=*/nullptr,
                             /*inBounds=*/nullptr, /*mask=*/nullptr);
                         as.push_back(a);
@@ -142,42 +144,46 @@ public:
                       for (int i = 0; i < kernelM; ++i) {
                         Value c = cptrs[i];
                         for (int j = 0; j < kernelN; ++j) {
-                          Value fixedIV = builder.create<affine::AffineApplyOp>(
-                              loc, AffineMap::get(1, 0, d0 + j * vecSize), ivJ);
-                          Value d = builder.create<TransferReadOp>(
-                            loc, vTy, c, ValueRange{c0, fixedIV},
-                            /*padding=*/nullptr, /*inBounds=*/nullptr,
-                            /*mask=*/nullptr);
+                          Value fixedIV = affine::AffineApplyOp::create(
+                              builder, loc,
+                              AffineMap::get(1, 0, d0 + j * vecSize), ivJ);
+                          Value d = TransferReadOp::create(
+                              builder, loc, vTy, c, ValueRange{c0, fixedIV},
+                              /*padding=*/nullptr, /*inBounds=*/nullptr,
+                              /*mask=*/nullptr);
                           ds.push_back(d);
                         }
                       }
                       for (int i = 0; i < kernelN; ++i) {
                         Value fixedIV = ivJ;
                         if (i != 0) {
-                          fixedIV = builder.create<affine::AffineApplyOp>(
-                              loc, AffineMap::get(1, 0, d0 + i * vecSize), ivJ);
+                          fixedIV = affine::AffineApplyOp::create(
+                              builder, loc,
+                              AffineMap::get(1, 0, d0 + i * vecSize), ivJ);
                         }
-                        Value b = builder.create<TransferReadOp>(
-                          loc, vTy, B, ValueRange{ivK, fixedIV},
-                          /*padding=*/nullptr, /*inBounds=*/nullptr,
-                          /*mask=*/nullptr);
+                        Value b = TransferReadOp::create(
+                            builder, loc, vTy, B, ValueRange{ivK, fixedIV},
+                            /*padding=*/nullptr, /*inBounds=*/nullptr,
+                            /*mask=*/nullptr);
                         bs.push_back(b);
                       }
 
                       for (int i = 0; i < kernelM; ++i) {
                         for (int j = 0; j < kernelN; ++j) {
-                          ds[i * kernelN + j] = builder.create<vector::FMAOp>(
-                              loc, vTy, as[i], bs[j], ds[i * kernelN + j]);
+                          ds[i * kernelN + j] =
+                              vector::FMAOp::create(builder, loc, vTy, as[i],
+                                                    bs[j], ds[i * kernelN + j]);
                         }
                       }
 
                       for (int i = 0; i < kernelM; ++i) {
                         for (int j = 0; j < kernelN; ++j) {
-                          Value fixedIV = builder.create<affine::AffineApplyOp>(
-                              loc, AffineMap::get(1, 0, d0 + j * vecSize), ivJ);
-                          builder.create<TransferWriteOp>(
-                              loc, ds[i * kernelN + j], cptrs[i],
-                              ValueRange{c0, fixedIV});
+                          Value fixedIV = affine::AffineApplyOp::create(
+                              builder, loc,
+                              AffineMap::get(1, 0, d0 + j * vecSize), ivJ);
+                          TransferWriteOp::create(builder, loc,
+                                                  ds[i * kernelN + j], cptrs[i],
+                                                  ValueRange{c0, fixedIV});
                         }
                       }
                     });
