@@ -22,7 +22,7 @@ module {
   func.func @sgemm_vl_32(%a : memref<?x?xf32>, %b : memref<?x?xf32>, %c : memref<?x?xf32>) {
     %t_start = call @rtclock() : () -> f64
 
-    linalg.matmul_transpose_b
+    linalg.matmul indexing_maps = [affine_map<(m, n, k) -> (m, k)>, affine_map<(m, n, k) -> (n, k)>, affine_map<(m, n, k) -> (m, n)>]
       ins(%a, %b: memref<?x?xf32>, memref<?x?xf32>)
       outs(%c: memref<?x?xf32>)
 

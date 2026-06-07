@@ -1,7 +1,6 @@
 set(LLVM_Vectorize_DIR ${LLVM_MAIN_SRC_DIR}/lib/Transforms/Vectorize)
 
 add_llvm_component_library(LLVMBuddyVectorize
-  ${LLVM_Vectorize_DIR}/EVLIndVarSimplify.cpp
   ${LLVM_Vectorize_DIR}/LoadStoreVectorizer.cpp
   ${LLVM_Vectorize_DIR}/LoopIdiomVectorize.cpp
   ${LLVM_Vectorize_DIR}/LoopVectorizationLegality.cpp
@@ -14,7 +13,6 @@ add_llvm_component_library(LLVMBuddyVectorize
   ${LLVM_Vectorize_DIR}/VPlanConstruction.cpp
   ${LLVM_Vectorize_DIR}/VPlanPredicator.cpp
   ${LLVM_Vectorize_DIR}/VPlanRecipes.cpp
-  ${LLVM_Vectorize_DIR}/VPlanSLP.cpp
   ${LLVM_Vectorize_DIR}/VPlanTransforms.cpp
   ${LLVM_Vectorize_DIR}/VPlanUnroll.cpp
   ${LLVM_Vectorize_DIR}/VPlanVerifier.cpp

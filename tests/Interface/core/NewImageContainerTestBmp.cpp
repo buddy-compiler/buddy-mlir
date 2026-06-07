@@ -21,15 +21,20 @@
 // RUN: buddy-new-image-container-test-bmp 2>&1 | FileCheck %s
 
 #include <buddy/DIP/ImgContainer.h>
+#include <cstdlib>
+#include <string>
 
 int main() {
+  const char *sourceDir = std::getenv("BUDDY_SRC_ROOT");
+  std::string testDir =
+      std::string(sourceDir ? sourceDir : ".") + "/tests/Interface/core/";
+
   //===--------------------------------------------------------------------===//
   // Test new image container - bmp format image.
   //===--------------------------------------------------------------------===//
   // Default Gray Scale
-  dip::Image<float, 4> bmp32bitGrayDefault(
-      "../../../../tests/Interface/core/TestImage-gray.bmp",
-      dip::DIP_GRAYSCALE);
+  dip::Image<float, 4> bmp32bitGrayDefault(testDir + "TestImage-gray.bmp",
+                                           dip::DIP_GRAYSCALE);
   // CHECK: BMP
   fprintf(stderr, "%s\n", bmp32bitGrayDefault.getFormatName().c_str());
   // CHECK: 28
@@ -41,9 +46,8 @@ int main() {
   // CHECK: 7
   fprintf(stderr, "%f\n", bmp32bitGrayDefault.getData()[0]);
   // Gray Scale + Normalization
-  dip::Image<float, 4> bmp32bitGrayNorm(
-      "../../../../tests/Interface/core/TestImage-gray.bmp", dip::DIP_GRAYSCALE,
-      true /* norm */);
+  dip::Image<float, 4> bmp32bitGrayNorm(testDir + "TestImage-gray.bmp",
+                                        dip::DIP_GRAYSCALE, true /* norm */);
   // CHECK: BMP
   fprintf(stderr, "%s\n", bmp32bitGrayNorm.getFormatName().c_str());
   // CHECK: 28
@@ -56,9 +60,8 @@ int main() {
   fprintf(stderr, "%f\n", bmp32bitGrayNorm.getData()[0]);
 
   // BMP 24bit Default Gray Scale
-  dip::Image<float, 4> bmp24bitGrayDefault(
-      "../../../../tests/Interface/core/TestImage-gray-24bit.bmp",
-      dip::DIP_GRAYSCALE);
+  dip::Image<float, 4> bmp24bitGrayDefault(testDir + "TestImage-gray-24bit.bmp",
+                                           dip::DIP_GRAYSCALE);
   // CHECK: BMP
   fprintf(stderr, "%s\n", bmp24bitGrayDefault.getFormatName().c_str());
   // CHECK: 28
@@ -70,9 +73,8 @@ int main() {
   // CHECK: 7
   fprintf(stderr, "%f\n", bmp24bitGrayDefault.getData()[0]);
   // BMP 24bit Gray Scale + Normalization
-  dip::Image<float, 4> bmp24bitGrayNorm(
-      "../../../../tests/Interface/core/TestImage-gray-24bit.bmp",
-      dip::DIP_GRAYSCALE, true /* norm */);
+  dip::Image<float, 4> bmp24bitGrayNorm(testDir + "TestImage-gray-24bit.bmp",
+                                        dip::DIP_GRAYSCALE, true /* norm */);
   // CHECK: BMP
   fprintf(stderr, "%s\n", bmp24bitGrayNorm.getFormatName().c_str());
   // CHECK: 28
@@ -86,8 +88,7 @@ int main() {
 
   // BMP 16bit Default Gray Scale
   dip::Image<float, 4> bmp16bitGrayDefault(
-      "../../../../tests/Interface/core/TestImage-gray-16bit-rgb565.bmp",
-      dip::DIP_GRAYSCALE);
+      testDir + "TestImage-gray-16bit-rgb565.bmp", dip::DIP_GRAYSCALE);
   // CHECK: BMP
   fprintf(stderr, "%s\n", bmp16bitGrayDefault.getFormatName().c_str());
   // CHECK: 28
@@ -99,9 +100,9 @@ int main() {
   // CHECK: 2
   fprintf(stderr, "%f\n", bmp16bitGrayDefault.getData()[0]);
   // BMP 16bit Gray Scale + Normalization
-  dip::Image<float, 4> bmp16bitGrayNorm(
-      "../../../../tests/Interface/core/TestImage-gray-16bit-rgb565.bmp",
-      dip::DIP_GRAYSCALE, true /* norm */);
+  dip::Image<float, 4> bmp16bitGrayNorm(testDir +
+                                            "TestImage-gray-16bit-rgb565.bmp",
+                                        dip::DIP_GRAYSCALE, true /* norm */);
   // CHECK: BMP
   fprintf(stderr, "%s\n", bmp16bitGrayNorm.getFormatName().c_str());
   // CHECK: 28
@@ -113,8 +114,8 @@ int main() {
   // CHECK: 0.007843
   fprintf(stderr, "%f\n", bmp16bitGrayNorm.getData()[0]);
 
-  dip::Image<float, 4> bmp32bitRGBDefault(
-      "../../../../tests/Interface/core/TestImage-RGB-32bit.bmp", dip::DIP_RGB);
+  dip::Image<float, 4> bmp32bitRGBDefault(testDir + "TestImage-RGB-32bit.bmp",
+                                          dip::DIP_RGB);
   // CHECK: BMP
   fprintf(stderr, "%s\n", bmp32bitRGBDefault.getFormatName().c_str());
   // CHECK: 224
@@ -126,9 +127,8 @@ int main() {
   // CHECK: 116
   fprintf(stderr, "%f\n", bmp32bitRGBDefault.getData()[0]);
 
-  dip::Image<float, 4> bmp32bitRGBNorm(
-      "../../../../tests/Interface/core/TestImage-RGB-32bit.bmp", dip::DIP_RGB,
-      true);
+  dip::Image<float, 4> bmp32bitRGBNorm(testDir + "TestImage-RGB-32bit.bmp",
+                                       dip::DIP_RGB, true);
   // CHECK: BMP
   fprintf(stderr, "%s\n", bmp32bitRGBNorm.getFormatName().c_str());
   // CHECK: 224
@@ -140,8 +140,8 @@ int main() {
   // CHECK: 0.45490
   fprintf(stderr, "%f\n", bmp32bitRGBNorm.getData()[0]);
 
-  dip::Image<float, 4> bmp24bitRGBDefault(
-      "../../../../tests/Interface/core/TestImage-RGB-24bit.bmp", dip::DIP_RGB);
+  dip::Image<float, 4> bmp24bitRGBDefault(testDir + "TestImage-RGB-24bit.bmp",
+                                          dip::DIP_RGB);
   // CHECK: BMP
   fprintf(stderr, "%s\n", bmp24bitRGBDefault.getFormatName().c_str());
   // CHECK: 224
@@ -153,9 +153,8 @@ int main() {
   // CHECK: 116
   fprintf(stderr, "%f\n", bmp24bitRGBDefault.getData()[0]);
 
-  dip::Image<float, 4> bmp24bitRGBNorm(
-      "../../../../tests/Interface/core/TestImage-RGB-24bit.bmp", dip::DIP_RGB,
-      true);
+  dip::Image<float, 4> bmp24bitRGBNorm(testDir + "TestImage-RGB-24bit.bmp",
+                                       dip::DIP_RGB, true);
   // CHECK: BMP
   fprintf(stderr, "%s\n", bmp24bitRGBNorm.getFormatName().c_str());
   // CHECK: 224

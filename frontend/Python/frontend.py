@@ -170,6 +170,7 @@ class DynamoCompiler:
             "clone.default": CloneOp,
             "silu.default": SiluOp,
             "add.Tensor": AddOp,
+            "addcmul.default": AddCMulOp,
             "addmm.default": AddMMOp,
             "addbmm.default": AddbmmOp,
             "addbmm_.default": AddbmmOp,
@@ -1253,6 +1254,28 @@ class DynamoCompiler:
             ):
                 return resolved
 
+            llvm_build_dir = os.path.abspath(
+                os.path.join(lib_base_path, os.pardir)
+            )
+            candidate_dirs = [
+                lib_base_path,
+                # LLVM runtimes mode builds libomp here before install.
+                os.path.join(
+                    llvm_build_dir,
+                    "runtimes",
+                    "runtimes-bins",
+                    "openmp",
+                    "runtime",
+                    "src",
+                ),
+            ]
+            for candidate_dir in candidate_dirs:
+                candidate = os.path.join(
+                    candidate_dir, "libomp" + lib_extension
+                )
+                if os.path.isfile(candidate):
+                    return candidate
+
             return os.path.join(lib_base_path, "libomp" + lib_extension)
 
         graph.compile()
@@ -1293,7 +1316,10 @@ class DynamoCompiler:
 
         # Define execution engine.
         ee = ExecutionEngine(
-            graph._imported_module, opt_level=3, shared_libs=shared_libs
+            graph._imported_module,
+            opt_level=3,
+            shared_libs=shared_libs,
+            enable_pic=platform.machine().startswith("riscv"),
         )
 
         def exec_buddy_graph(*args):

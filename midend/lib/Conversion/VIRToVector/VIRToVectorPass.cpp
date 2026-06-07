@@ -98,19 +98,19 @@ static Value buildScalarizedI1VectorLoad(OpBuilder &builder, Location loc,
                                          VectorType vecTy, Value base,
                                          ArrayRef<Value> baseIndices) {
   assert(!baseIndices.empty() && "expected at least one memref index");
-  auto zero = builder.create<arith::ConstantOp>(
-      loc, vecTy,
+  auto zero = arith::ConstantOp::create(
+      builder, loc, vecTy,
       DenseElementsAttr::get(vecTy,
                              builder.getZeroAttr(vecTy.getElementType())));
   Value result = zero.getResult();
   for (int64_t lane = 0, e = vecTy.getNumElements(); lane < e; ++lane) {
-    auto laneIdx = builder.create<arith::ConstantIndexOp>(loc, lane);
+    auto laneIdx = arith::ConstantIndexOp::create(builder, loc, lane);
     SmallVector<Value> laneIndices(baseIndices.begin(), baseIndices.end());
     laneIndices.back() =
-        builder.create<arith::AddIOp>(loc, laneIndices.back(), laneIdx);
-    Value scalar = builder.create<memref::LoadOp>(loc, base, laneIndices);
-    result =
-        builder.create<vector::InsertElementOp>(loc, scalar, result, laneIdx);
+        arith::AddIOp::create(builder, loc, laneIndices.back(), laneIdx);
+    Value scalar = memref::LoadOp::create(builder, loc, base, laneIndices);
+    result = vector::InsertOp::create(builder, loc, scalar, result,
+                                      OpFoldResult(laneIdx));
   }
   return result;
 }
@@ -121,13 +121,13 @@ static void buildScalarizedI1VectorStore(OpBuilder &builder, Location loc,
   assert(!baseIndices.empty() && "expected at least one memref index");
   auto vecTy = cast<VectorType>(vectorValue.getType());
   for (int64_t lane = 0, e = vecTy.getNumElements(); lane < e; ++lane) {
-    auto laneIdx = builder.create<arith::ConstantIndexOp>(loc, lane);
+    auto laneIdx = arith::ConstantIndexOp::create(builder, loc, lane);
     SmallVector<Value> laneIndices(baseIndices.begin(), baseIndices.end());
     laneIndices.back() =
-        builder.create<arith::AddIOp>(loc, laneIndices.back(), laneIdx);
-    Value scalar =
-        builder.create<vector::ExtractElementOp>(loc, vectorValue, laneIdx);
-    builder.create<memref::StoreOp>(loc, scalar, base, laneIndices);
+        arith::AddIOp::create(builder, loc, laneIndices.back(), laneIdx);
+    Value scalar = vector::ExtractOp::create(builder, loc, vectorValue,
+                                             OpFoldResult(laneIdx));
+    memref::StoreOp::create(builder, loc, scalar, base, laneIndices);
   }
 }
 
@@ -463,7 +463,7 @@ private:
                   destIndices.push_back(leadingIVs[i]);
                 } else {
                   destIndices.push_back(
-                      builder.create<arith::ConstantIndexOp>(loc, 0));
+                      arith::ConstantIndexOp::create(builder, loc, 0));
                 }
               }
               destIndices.push_back(mainLoopIV);
@@ -471,7 +471,7 @@ private:
               // the last index is dynamic and global
               Value lastIndex = sourceIndices.back();
               Value baseOffset =
-                  builder.create<arith::AddIOp>(loc, mainLoopIV, lastIndex);
+                  arith::AddIOp::create(builder, loc, mainLoopIV, lastIndex);
               // collect indices for load op
               for (size_t i = 0, e = sourceIndices.size() - 1; i < e; ++i) {
                 Value destOp = findValue(sourceIndices[i]);
@@ -482,7 +482,7 @@ private:
 
             if (isTailLoop) {
               auto memrefLoadOp =
-                  builder.create<memref::LoadOp>(loc, base, destIndices);
+                  memref::LoadOp::create(builder, loc, base, destIndices);
               virSymbolTable[op.getResult()] = memrefLoadOp.getResult();
             } else {
               auto vecTyOr = deriveVectorTypeFor(op.getResult().getType());
@@ -496,14 +496,15 @@ private:
                 return;
               }
               if (hasStaticallyUnitStrideInVectorizedDim(base)) {
-                auto vectorLoadOp = builder.create<vector::LoadOp>(
-                    loc, *vecTyOr, base, destIndices);
+                auto vectorLoadOp = vector::LoadOp::create(
+                    builder, loc, *vecTyOr, base, destIndices);
                 virSymbolTable[op.getResult()] = vectorLoadOp.getResult();
               } else {
-                auto padding = builder.create<arith::ConstantOp>(
-                    loc, builder.getZeroAttr((*vecTyOr).getElementType()));
-                auto transferReadOp = builder.create<vector::TransferReadOp>(
-                    loc, *vecTyOr, base, destIndices, padding);
+                auto padding = arith::ConstantOp::create(
+                    builder, loc,
+                    builder.getZeroAttr((*vecTyOr).getElementType()));
+                auto transferReadOp = vector::TransferReadOp::create(
+                    builder, loc, *vecTyOr, base, destIndices, padding);
                 virSymbolTable[op.getResult()] = transferReadOp.getResult();
               }
             }
@@ -530,14 +531,14 @@ private:
                   destIndices.push_back(leadingIVs[i]);
                 } else {
                   destIndices.push_back(
-                      builder.create<arith::ConstantIndexOp>(loc, 0));
+                      arith::ConstantIndexOp::create(builder, loc, 0));
                 }
               }
               destIndices.push_back(mainLoopIV);
             } else {
               Value lastIndex = sourceIndices.back();
               Value baseOffset =
-                  builder.create<arith::AddIOp>(loc, mainLoopIV, lastIndex);
+                  arith::AddIOp::create(builder, loc, mainLoopIV, lastIndex);
               // collect indices for store op
               for (size_t i = 0, e = sourceIndices.size() - 1; i < e; ++i) {
                 Value destOp = findValue(sourceIndices[i]);
@@ -547,8 +548,8 @@ private:
             }
 
             if (isTailLoop) {
-              builder.create<memref::StoreOp>(loc, valueToStore, base,
-                                              destIndices);
+              memref::StoreOp::create(builder, loc, valueToStore, base,
+                                      destIndices);
             } else {
               if (auto vecTy = dyn_cast<VectorType>(valueToStore.getType());
                   shouldScalarizeI1VectorMemoryOp(vecTy)) {
@@ -557,11 +558,11 @@ private:
                 return;
               }
               if (hasStaticallyUnitStrideInVectorizedDim(base)) {
-                builder.create<vector::StoreOp>(loc, valueToStore, base,
-                                                destIndices);
+                vector::StoreOp::create(builder, loc, valueToStore, base,
+                                        destIndices);
               } else {
-                builder.create<vector::TransferWriteOp>(loc, valueToStore, base,
-                                                        destIndices);
+                vector::TransferWriteOp::create(builder, loc, valueToStore,
+                                                base, destIndices);
               }
             }
           })
@@ -569,7 +570,7 @@ private:
             auto constValue = op.getValue();
             if (isTailLoop) {
               auto arithConstOp =
-                  builder.create<arith::ConstantOp>(loc, constValue);
+                  arith::ConstantOp::create(builder, loc, constValue);
               virSymbolTable[op.getResult()] = arithConstOp.getResult();
             } else {
               auto vecTyOr = deriveVectorTypeFor(op.getResult().getType());
@@ -579,8 +580,8 @@ private:
               }
               auto vectorConstAttr = DenseElementsAttr::get(
                   cast<ShapedType>(*vecTyOr), constValue);
-              auto vectorConstOp = builder.create<arith::ConstantOp>(
-                  loc, *vecTyOr, vectorConstAttr);
+              auto vectorConstOp = arith::ConstantOp::create(
+                  builder, loc, *vecTyOr, vectorConstAttr);
               virSymbolTable[op.getResult()] = vectorConstOp.getResult();
             }
           })
@@ -594,8 +595,8 @@ private:
                 op.emitError("failed to derive vector type for vir.broadcast");
                 return;
               }
-              auto vectorBroadcastOp = builder.create<vector::BroadcastOp>(
-                  loc, *vecTyOr, scalarValue);
+              auto vectorBroadcastOp = vector::BroadcastOp::create(
+                  builder, loc, *vecTyOr, scalarValue);
               virSymbolTable[op.getResult()] = vectorBroadcastOp.getResult();
             }
           })
@@ -608,13 +609,13 @@ private:
               return;
             }
             if (isTailLoop) {
-              auto mulResult = builder.create<arith::MulFOp>(loc, lhs, rhs);
+              auto mulResult = arith::MulFOp::create(builder, loc, lhs, rhs);
               auto addResult =
-                  builder.create<arith::AddFOp>(loc, mulResult, acc);
+                  arith::AddFOp::create(builder, loc, mulResult, acc);
               virSymbolTable[op.getResult()] = addResult;
             } else {
               auto vectorFMAOp =
-                  builder.create<vector::FMAOp>(loc, lhs, rhs, acc);
+                  vector::FMAOp::create(builder, loc, lhs, rhs, acc);
               virSymbolTable[op.getResult()] = vectorFMAOp.getResult();
             }
           })
@@ -713,8 +714,8 @@ private:
               return;
             }
 
-            auto reduced = builder.create<vector::ReductionOp>(loc, combineKind,
-                                                               input, acc);
+            auto reduced = vector::ReductionOp::create(builder, loc,
+                                                       combineKind, input, acc);
             virSymbolTable[op.getResult()] = reduced.getResult();
           })
           .Case<vir::SelectOp>([&](vir::SelectOp op) {
@@ -727,11 +728,11 @@ private:
             }
             if (isTailLoop) {
               auto newOp =
-                  builder.create<arith::SelectOp>(loc, cond, tVal, fVal);
+                  arith::SelectOp::create(builder, loc, cond, tVal, fVal);
               virSymbolTable[op.getResult()] = newOp.getResult();
             } else {
-              auto newOp = builder.create<LLVM::SelectOp>(loc, tVal.getType(),
-                                                          cond, tVal, fVal);
+              auto newOp = LLVM::SelectOp::create(builder, loc, tVal.getType(),
+                                                  cond, tVal, fVal);
               virSymbolTable[op.getResult()] = newOp.getResult();
             }
           })
@@ -747,7 +748,7 @@ private:
                 outTy = elem;
               }
             }
-            auto newOp = builder.create<arith::ExtFOp>(loc, outTy, in);
+            auto newOp = arith::ExtFOp::create(builder, loc, outTy, in);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<vir::TruncFOp>([&](vir::TruncFOp op) {
@@ -762,7 +763,7 @@ private:
                 outTy = elem;
               }
             }
-            auto newOp = builder.create<arith::TruncFOp>(loc, outTy, in);
+            auto newOp = arith::TruncFOp::create(builder, loc, outTy, in);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<affine::AffineForOp>([&](affine::AffineForOp op) {
@@ -779,8 +780,8 @@ private:
             }
 
             // create a new affine.for
-            auto newForOp = builder.create<affine::AffineForOp>(
-                loc, ValueRange(op.getLowerBoundOperands()),
+            auto newForOp = affine::AffineForOp::create(
+                builder, loc, ValueRange(op.getLowerBoundOperands()),
                 op.getLowerBoundMap(), ValueRange(op.getUpperBoundOperands()),
                 op.getUpperBoundMap(), op.getStep().getLimitedValue(),
                 ValueRange(initialIterArgs),
@@ -817,7 +818,7 @@ private:
                       }
                       yieldOperands.push_back(mappedOperand);
                     }
-                    b.create<affine::AffineYieldOp>(bodyLoc, yieldOperands);
+                    affine::AffineYieldOp::create(b, bodyLoc, yieldOperands);
                   }
                 });
 
@@ -834,19 +835,19 @@ private:
           })
           .Case<arith::ConstantOp>([&](arith::ConstantOp op) {
             auto newConst =
-                builder.create<arith::ConstantOp>(loc, op.getValue());
+                arith::ConstantOp::create(builder, loc, op.getValue());
             virSymbolTable[op.getResult()] = newConst.getResult();
           })
           .Case<memref::DimOp>([&](memref::DimOp op) {
             Value src = findValue(op.getSource());
             Value idx = findValue(op.getIndex());
-            auto newDim = builder.create<memref::DimOp>(loc, src, idx);
+            auto newDim = memref::DimOp::create(builder, loc, src, idx);
             virSymbolTable[op.getResult()] = newDim.getResult();
           })
           .Case<memref::TransposeOp>([&](memref::TransposeOp op) {
             Value src = findValue(op.getIn());
-            auto newOp = builder.create<memref::TransposeOp>(
-                loc, op.getResult().getType(), src,
+            auto newOp = memref::TransposeOp::create(
+                builder, loc, op.getResult().getType(), src,
                 AffineMapAttr::get(op.getPermutation()));
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
@@ -861,9 +862,9 @@ private:
                 remappedOutputShape.push_back(cast<Attribute>(ofr));
               }
             }
-            auto newOp = builder.create<memref::ExpandShapeOp>(
-                loc, op.getResultType(), src, op.getReassociationIndices(),
-                remappedOutputShape);
+            auto newOp = memref::ExpandShapeOp::create(
+                builder, loc, op.getResultType(), src,
+                op.getReassociationIndices(), remappedOutputShape);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<memref::SubViewOp>([&](memref::SubViewOp op) {
@@ -888,9 +889,9 @@ private:
             SmallVector<OpFoldResult> strides =
                 remapMixed(op.getMixedStrides());
 
-            auto newOp = builder.create<memref::SubViewOp>(
-                loc, cast<MemRefType>(op.getResult().getType()), src, offsets,
-                sizes, strides);
+            auto newOp = memref::SubViewOp::create(
+                builder, loc, cast<MemRefType>(op.getResult().getType()), src,
+                offsets, sizes, strides);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<memref::LoadOp>([&](memref::LoadOp op) {
@@ -906,7 +907,8 @@ private:
               indices.push_back(mappedIndex);
             }
 
-            auto newLoadOp = builder.create<memref::LoadOp>(loc, base, indices);
+            auto newLoadOp =
+                memref::LoadOp::create(builder, loc, base, indices);
             virSymbolTable[op.getResult()] = newLoadOp.getResult();
           })
           .Case<memref::StoreOp>([&](memref::StoreOp op) {
@@ -922,183 +924,184 @@ private:
               Value mappedIndex = findValue(index);
               indices.push_back(mappedIndex);
             }
-            builder.create<memref::StoreOp>(loc, value, base, indices);
+            memref::StoreOp::create(builder, loc, value, base, indices);
           })
           .Case<arith::AddFOp>([&](arith::AddFOp op) {
             Value lhs = findValue(op.getLhs());
             Value rhs = findValue(op.getRhs());
-            auto newOp = builder.create<arith::AddFOp>(loc, lhs, rhs);
+            auto newOp = arith::AddFOp::create(builder, loc, lhs, rhs);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<arith::CmpFOp>([&](arith::CmpFOp op) {
             Value lhs = findValue(op.getLhs());
             Value rhs = findValue(op.getRhs());
-            auto newOp =
-                builder.create<arith::CmpFOp>(loc, op.getPredicate(), lhs, rhs);
+            auto newOp = arith::CmpFOp::create(builder, loc, op.getPredicate(),
+                                               lhs, rhs);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<arith::CmpIOp>([&](arith::CmpIOp op) {
             Value lhs = findValue(op.getLhs());
             Value rhs = findValue(op.getRhs());
-            auto newOp =
-                builder.create<arith::CmpIOp>(loc, op.getPredicate(), lhs, rhs);
+            auto newOp = arith::CmpIOp::create(builder, loc, op.getPredicate(),
+                                               lhs, rhs);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<arith::SelectOp>([&](arith::SelectOp op) {
             Value cond = findValue(op.getCondition());
             Value tVal = findValue(op.getTrueValue());
             Value fVal = findValue(op.getFalseValue());
-            auto newOp = builder.create<arith::SelectOp>(loc, cond, tVal, fVal);
+            auto newOp =
+                arith::SelectOp::create(builder, loc, cond, tVal, fVal);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<arith::AddIOp>([&](arith::AddIOp op) {
             Value lhs = findValue(op.getLhs());
             Value rhs = findValue(op.getRhs());
-            auto newOp = builder.create<arith::AddIOp>(loc, lhs, rhs);
+            auto newOp = arith::AddIOp::create(builder, loc, lhs, rhs);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<arith::SubFOp>([&](arith::SubFOp op) {
             Value lhs = findValue(op.getLhs());
             Value rhs = findValue(op.getRhs());
-            auto newOp = builder.create<arith::SubFOp>(loc, lhs, rhs);
+            auto newOp = arith::SubFOp::create(builder, loc, lhs, rhs);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<arith::SubIOp>([&](arith::SubIOp op) {
             Value lhs = findValue(op.getLhs());
             Value rhs = findValue(op.getRhs());
-            auto newOp = builder.create<arith::SubIOp>(loc, lhs, rhs);
+            auto newOp = arith::SubIOp::create(builder, loc, lhs, rhs);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<arith::MulFOp>([&](arith::MulFOp op) {
             Value lhs = findValue(op.getLhs());
             Value rhs = findValue(op.getRhs());
-            auto newOp = builder.create<arith::MulFOp>(loc, lhs, rhs);
+            auto newOp = arith::MulFOp::create(builder, loc, lhs, rhs);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<arith::MulIOp>([&](arith::MulIOp op) {
             Value lhs = findValue(op.getLhs());
             Value rhs = findValue(op.getRhs());
-            auto newOp = builder.create<arith::MulIOp>(loc, lhs, rhs);
+            auto newOp = arith::MulIOp::create(builder, loc, lhs, rhs);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<arith::AndIOp>([&](arith::AndIOp op) {
             Value lhs = findValue(op.getLhs());
             Value rhs = findValue(op.getRhs());
-            auto newOp = builder.create<arith::AndIOp>(loc, lhs, rhs);
+            auto newOp = arith::AndIOp::create(builder, loc, lhs, rhs);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<arith::OrIOp>([&](arith::OrIOp op) {
             Value lhs = findValue(op.getLhs());
             Value rhs = findValue(op.getRhs());
-            auto newOp = builder.create<arith::OrIOp>(loc, lhs, rhs);
+            auto newOp = arith::OrIOp::create(builder, loc, lhs, rhs);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<arith::XOrIOp>([&](arith::XOrIOp op) {
             Value lhs = findValue(op.getLhs());
             Value rhs = findValue(op.getRhs());
-            auto newOp = builder.create<arith::XOrIOp>(loc, lhs, rhs);
+            auto newOp = arith::XOrIOp::create(builder, loc, lhs, rhs);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<arith::ShLIOp>([&](arith::ShLIOp op) {
             Value lhs = findValue(op.getLhs());
             Value rhs = findValue(op.getRhs());
-            auto newOp = builder.create<arith::ShLIOp>(loc, lhs, rhs,
-                                                       op.getOverflowFlags());
+            auto newOp = arith::ShLIOp::create(builder, loc, lhs, rhs,
+                                               op.getOverflowFlags());
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<arith::ShRUIOp>([&](arith::ShRUIOp op) {
             Value lhs = findValue(op.getLhs());
             Value rhs = findValue(op.getRhs());
-            auto newOp = builder.create<arith::ShRUIOp>(loc, lhs, rhs);
+            auto newOp = arith::ShRUIOp::create(builder, loc, lhs, rhs);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<arith::ShRSIOp>([&](arith::ShRSIOp op) {
             Value lhs = findValue(op.getLhs());
             Value rhs = findValue(op.getRhs());
-            auto newOp = builder.create<arith::ShRSIOp>(loc, lhs, rhs);
+            auto newOp = arith::ShRSIOp::create(builder, loc, lhs, rhs);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<arith::DivFOp>([&](arith::DivFOp op) {
             Value lhs = findValue(op.getLhs());
             Value rhs = findValue(op.getRhs());
-            auto newOp = builder.create<arith::DivFOp>(loc, lhs, rhs);
+            auto newOp = arith::DivFOp::create(builder, loc, lhs, rhs);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<arith::DivSIOp>([&](arith::DivSIOp op) {
             Value lhs = findValue(op.getLhs());
             Value rhs = findValue(op.getRhs());
-            auto newOp = builder.create<arith::DivSIOp>(loc, lhs, rhs);
+            auto newOp = arith::DivSIOp::create(builder, loc, lhs, rhs);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<arith::DivUIOp>([&](arith::DivUIOp op) {
             Value lhs = findValue(op.getLhs());
             Value rhs = findValue(op.getRhs());
-            auto newOp = builder.create<arith::DivUIOp>(loc, lhs, rhs);
+            auto newOp = arith::DivUIOp::create(builder, loc, lhs, rhs);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<arith::RemSIOp>([&](arith::RemSIOp op) {
             Value lhs = findValue(op.getLhs());
             Value rhs = findValue(op.getRhs());
-            auto newOp = builder.create<arith::RemSIOp>(loc, lhs, rhs);
+            auto newOp = arith::RemSIOp::create(builder, loc, lhs, rhs);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<arith::RemUIOp>([&](arith::RemUIOp op) {
             Value lhs = findValue(op.getLhs());
             Value rhs = findValue(op.getRhs());
-            auto newOp = builder.create<arith::RemUIOp>(loc, lhs, rhs);
+            auto newOp = arith::RemUIOp::create(builder, loc, lhs, rhs);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<arith::MaximumFOp>([&](arith::MaximumFOp op) {
             Value lhs = findValue(op.getLhs());
             Value rhs = findValue(op.getRhs());
-            auto newOp = builder.create<arith::MaximumFOp>(loc, lhs, rhs);
+            auto newOp = arith::MaximumFOp::create(builder, loc, lhs, rhs);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<arith::MinimumFOp>([&](arith::MinimumFOp op) {
             Value lhs = findValue(op.getLhs());
             Value rhs = findValue(op.getRhs());
-            auto newOp = builder.create<arith::MinimumFOp>(loc, lhs, rhs);
+            auto newOp = arith::MinimumFOp::create(builder, loc, lhs, rhs);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<arith::MaxNumFOp>([&](arith::MaxNumFOp op) {
             Value lhs = findValue(op.getLhs());
             Value rhs = findValue(op.getRhs());
-            auto newOp = builder.create<arith::MaxNumFOp>(loc, lhs, rhs);
+            auto newOp = arith::MaxNumFOp::create(builder, loc, lhs, rhs);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<arith::MinNumFOp>([&](arith::MinNumFOp op) {
             Value lhs = findValue(op.getLhs());
             Value rhs = findValue(op.getRhs());
-            auto newOp = builder.create<arith::MinNumFOp>(loc, lhs, rhs);
+            auto newOp = arith::MinNumFOp::create(builder, loc, lhs, rhs);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<arith::MaxSIOp>([&](arith::MaxSIOp op) {
             Value lhs = findValue(op.getLhs());
             Value rhs = findValue(op.getRhs());
-            auto newOp = builder.create<arith::MaxSIOp>(loc, lhs, rhs);
+            auto newOp = arith::MaxSIOp::create(builder, loc, lhs, rhs);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<arith::MinSIOp>([&](arith::MinSIOp op) {
             Value lhs = findValue(op.getLhs());
             Value rhs = findValue(op.getRhs());
-            auto newOp = builder.create<arith::MinSIOp>(loc, lhs, rhs);
+            auto newOp = arith::MinSIOp::create(builder, loc, lhs, rhs);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<arith::MaxUIOp>([&](arith::MaxUIOp op) {
             Value lhs = findValue(op.getLhs());
             Value rhs = findValue(op.getRhs());
-            auto newOp = builder.create<arith::MaxUIOp>(loc, lhs, rhs);
+            auto newOp = arith::MaxUIOp::create(builder, loc, lhs, rhs);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<arith::MinUIOp>([&](arith::MinUIOp op) {
             Value lhs = findValue(op.getLhs());
             Value rhs = findValue(op.getRhs());
-            auto newOp = builder.create<arith::MinUIOp>(loc, lhs, rhs);
+            auto newOp = arith::MinUIOp::create(builder, loc, lhs, rhs);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<arith::NegFOp>([&](arith::NegFOp op) {
             Value operand = findValue(op.getOperand());
-            auto newOp = builder.create<arith::NegFOp>(loc, operand);
+            auto newOp = arith::NegFOp::create(builder, loc, operand);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<arith::ExtSIOp>([&](arith::ExtSIOp op) {
@@ -1113,7 +1116,7 @@ private:
                 outTy = elem;
               }
             }
-            auto newOp = builder.create<arith::ExtSIOp>(loc, outTy, in);
+            auto newOp = arith::ExtSIOp::create(builder, loc, outTy, in);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<arith::ExtUIOp>([&](arith::ExtUIOp op) {
@@ -1128,7 +1131,7 @@ private:
                 outTy = elem;
               }
             }
-            auto newOp = builder.create<arith::ExtUIOp>(loc, outTy, in);
+            auto newOp = arith::ExtUIOp::create(builder, loc, outTy, in);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<arith::TruncIOp>([&](arith::TruncIOp op) {
@@ -1143,7 +1146,7 @@ private:
                 outTy = elem;
               }
             }
-            auto newOp = builder.create<arith::TruncIOp>(loc, outTy, in);
+            auto newOp = arith::TruncIOp::create(builder, loc, outTy, in);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<arith::ExtFOp>([&](arith::ExtFOp op) {
@@ -1158,7 +1161,7 @@ private:
                 outTy = elem;
               }
             }
-            auto newOp = builder.create<arith::ExtFOp>(loc, outTy, in);
+            auto newOp = arith::ExtFOp::create(builder, loc, outTy, in);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<arith::TruncFOp>([&](arith::TruncFOp op) {
@@ -1173,7 +1176,7 @@ private:
                 outTy = elem;
               }
             }
-            auto newOp = builder.create<arith::TruncFOp>(loc, outTy, in);
+            auto newOp = arith::TruncFOp::create(builder, loc, outTy, in);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<arith::SIToFPOp>([&](arith::SIToFPOp op) {
@@ -1188,7 +1191,7 @@ private:
                 outTy = elem;
               }
             }
-            auto newOp = builder.create<arith::SIToFPOp>(loc, outTy, in);
+            auto newOp = arith::SIToFPOp::create(builder, loc, outTy, in);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<arith::UIToFPOp>([&](arith::UIToFPOp op) {
@@ -1203,7 +1206,7 @@ private:
                 outTy = elem;
               }
             }
-            auto newOp = builder.create<arith::UIToFPOp>(loc, outTy, in);
+            auto newOp = arith::UIToFPOp::create(builder, loc, outTy, in);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<arith::FPToSIOp>([&](arith::FPToSIOp op) {
@@ -1218,7 +1221,7 @@ private:
                 outTy = elem;
               }
             }
-            auto newOp = builder.create<arith::FPToSIOp>(loc, outTy, in);
+            auto newOp = arith::FPToSIOp::create(builder, loc, outTy, in);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<arith::FPToUIOp>([&](arith::FPToUIOp op) {
@@ -1233,7 +1236,7 @@ private:
                 outTy = elem;
               }
             }
-            auto newOp = builder.create<arith::FPToUIOp>(loc, outTy, in);
+            auto newOp = arith::FPToUIOp::create(builder, loc, outTy, in);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<arith::BitcastOp>([&](arith::BitcastOp op) {
@@ -1248,7 +1251,7 @@ private:
                 outTy = elem;
               }
             }
-            auto newOp = builder.create<arith::BitcastOp>(loc, outTy, in);
+            auto newOp = arith::BitcastOp::create(builder, loc, outTy, in);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<math::ExpOp>([&](math::ExpOp op) {
@@ -1263,7 +1266,7 @@ private:
                 outTy = elem;
               }
             }
-            auto newOp = builder.create<math::ExpOp>(loc, outTy, in);
+            auto newOp = math::ExpOp::create(builder, loc, outTy, in);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<math::SqrtOp>([&](math::SqrtOp op) {
@@ -1278,7 +1281,7 @@ private:
                 outTy = elem;
               }
             }
-            auto newOp = builder.create<math::SqrtOp>(loc, outTy, in);
+            auto newOp = math::SqrtOp::create(builder, loc, outTy, in);
             virSymbolTable[op.getResult()] = newOp.getResult();
           })
           .Case<math::RsqrtOp>([&](math::RsqrtOp op) {
@@ -1293,15 +1296,15 @@ private:
                 outTy = elem;
               }
             }
-            auto sqrt = builder.create<math::SqrtOp>(loc, outTy, in);
+            auto sqrt = math::SqrtOp::create(builder, loc, outTy, in);
             Type elemTy = outTy;
             if (auto vecTy = dyn_cast<VectorType>(outTy))
               elemTy = vecTy.getElementType();
             auto oneAttr = builder.getFloatAttr(elemTy, 1.0);
-            Value one = builder.create<arith::ConstantOp>(loc, oneAttr);
+            Value one = arith::ConstantOp::create(builder, loc, oneAttr);
             if (isa<VectorType>(outTy))
-              one = builder.create<vector::BroadcastOp>(loc, outTy, one);
-            auto div = builder.create<arith::DivFOp>(loc, one, sqrt);
+              one = vector::BroadcastOp::create(builder, loc, outTy, one);
+            auto div = arith::DivFOp::create(builder, loc, one, sqrt);
             virSymbolTable[op.getResult()] = div.getResult();
           })
           .Case<math::LogOp, math::AbsFOp, math::CeilOp, math::FloorOp,
@@ -1400,17 +1403,17 @@ private:
     // vectorizes along the last (dynamic) dimension.
     auto emitVectorAndTail = [&](OpBuilder &b, ArrayRef<Value> leadingIVs) {
       Value vlValue = op.getVl();
-      Value vlStep = b.create<arith::ConstantIndexOp>(loc, vectorWid);
-      Value vlUpboundPat = b.create<arith::SubIOp>(loc, vlValue, vlStep);
-      Value vlUpbound = b.create<arith::AddIOp>(
-          loc, vlUpboundPat, b.create<arith::ConstantIndexOp>(loc, 1));
-      Value zero = b.create<arith::ConstantIndexOp>(loc, 0);
+      Value vlStep = arith::ConstantIndexOp::create(b, loc, vectorWid);
+      Value vlUpboundPat = arith::SubIOp::create(b, loc, vlValue, vlStep);
+      Value vlUpbound = arith::AddIOp::create(
+          b, loc, vlUpboundPat, arith::ConstantIndexOp::create(b, loc, 1));
+      Value zero = arith::ConstantIndexOp::create(b, loc, 0);
 
-      b.create<affine::AffineForOp>(
-          loc, /*lowerBound=*/ValueRange{zero}, rewriter.getDimIdentityMap(),
+      affine::AffineForOp::create(
+          b, loc, /*lowerBound=*/ValueRange{zero}, rewriter.getDimIdentityMap(),
           /*upperBound=*/ValueRange{vlUpbound}, rewriter.getDimIdentityMap(),
           vectorWid,
-          /*iterArgs=*/std::nullopt,
+          /*iterArgs=*/ValueRange{},
           [&](OpBuilder &bb, Location bodyLoc, Value iv, ValueRange) {
             //===------------------------------------------------------------===//
             // Step 4: Convert operations inside the dynamic vector region.
@@ -1418,27 +1421,27 @@ private:
             DenseMap<Value, Value> virSymbolTable;
             lowerBlock(bb, bodyLoc, &region.front(), virSymbolTable, iv,
                        leadingIVs, targetVectorType, /*isTailLoop=*/false);
-            bb.create<affine::AffineYieldOp>(bodyLoc);
+            affine::AffineYieldOp::create(bb, bodyLoc);
           });
 
       //===----------------------------------------------------------------===//
       // Step 5: Create a tail loop to process the remaining elements.
       //===----------------------------------------------------------------===//
-      Value vlRem = b.create<arith::RemSIOp>(loc, vlValue, vlStep);
-      Value tailStart = b.create<arith::SubIOp>(loc, vlValue, vlRem);
+      Value vlRem = arith::RemSIOp::create(b, loc, vlValue, vlStep);
+      Value tailStart = arith::SubIOp::create(b, loc, vlValue, vlRem);
 
-      b.create<affine::AffineForOp>(
-          loc, /*lowerBound=*/ValueRange{tailStart},
+      affine::AffineForOp::create(
+          b, loc, /*lowerBound=*/ValueRange{tailStart},
           rewriter.getDimIdentityMap(),
           /*upperBound=*/ValueRange{vlValue}, rewriter.getDimIdentityMap(),
           /*step=*/1,
-          /*iterArgs=*/std::nullopt,
+          /*iterArgs=*/ValueRange{},
           [&](OpBuilder &bb, Location bodyLoc, Value iv, ValueRange) {
             DenseMap<Value, Value> virSymbolTable;
             lowerBlock(bb, bodyLoc, &region.front(), virSymbolTable, iv,
                        leadingIVs, /*targetVectorType=*/Type{},
                        /*isTailLoop=*/true);
-            bb.create<affine::AffineYieldOp>(bodyLoc);
+            affine::AffineYieldOp::create(bb, bodyLoc);
           });
     };
 
@@ -1454,17 +1457,17 @@ private:
           return;
         }
         int64_t ub = leadingStaticDims[dim];
-        Value c0 = b.create<arith::ConstantIndexOp>(loc, 0);
-        Value cub = b.create<arith::ConstantIndexOp>(loc, ub);
-        b.create<affine::AffineForOp>(
-            loc, ValueRange{c0}, rewriter.getDimIdentityMap(), ValueRange{cub},
-            rewriter.getDimIdentityMap(), /*step=*/1,
-            /*iterArgs=*/std::nullopt,
+        Value c0 = arith::ConstantIndexOp::create(b, loc, 0);
+        Value cub = arith::ConstantIndexOp::create(b, loc, ub);
+        affine::AffineForOp::create(
+            b, loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
+            ValueRange{cub}, rewriter.getDimIdentityMap(), /*step=*/1,
+            /*iterArgs=*/ValueRange{},
             [&](OpBuilder &bb, Location bodyLoc, Value iv, ValueRange) {
               ivs.push_back(iv);
               emitOuter(dim + 1, bb);
               ivs.pop_back();
-              bb.create<affine::AffineYieldOp>(bodyLoc);
+              affine::AffineYieldOp::create(bb, bodyLoc);
             });
       };
       emitOuter(/*dim=*/0, rewriter);

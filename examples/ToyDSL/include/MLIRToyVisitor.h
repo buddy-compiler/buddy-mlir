@@ -136,7 +136,7 @@ private:
     mlir::Location loaction =
         loc(ctx->start->getLine(), ctx->start->getCharPositionInLine());
     mlir::Value value =
-        builder.create<mlir::toy::ConstantOp>(loaction, type, dataAttribute);
+        mlir::toy::ConstantOp::create(builder, loaction, type, dataAttribute);
     return value;
   }
   // Emit a constant for a literal/constant array.
@@ -281,7 +281,7 @@ private:
     if (!returnOp) {
       mlir::Location location =
           loc(ctx->start->getLine(), ctx->start->getCharPositionInLine());
-      builder.create<mlir::toy::ReturnOp>(location);
+      mlir::toy::ReturnOp::create(builder, location);
     } else if (returnOp.hasOperand()) {
       // Otherwise, if this return operation has an operand then add a result to
       // the function.
@@ -325,8 +325,8 @@ private:
       }
     }
     auto funType = builder.getFunctionType(argTypes, std::nullopt);
-    auto func = builder.create<mlir::toy::FuncOp>(
-        location, ctx->Identifier()->toString(), funType);
+    auto func = mlir::toy::FuncOp::create(
+        builder, location, ctx->Identifier()->toString(), funType);
     return func;
   }
   /// Build a struct value.
@@ -337,8 +337,8 @@ private:
     std::tie(dataAttr, dataType) = getConstantAttr(ctx);
     mlir::Location location =
         loc(ctx->start->getLine(), ctx->start->getCharPositionInLine());
-    mlir::Value value = builder.create<mlir::toy::StructConstantOp>(
-        location, dataType, dataAttr);
+    mlir::Value value = mlir::toy::StructConstantOp::create(builder, location,
+                                                            dataType, dataAttr);
     return value;
   }
 
@@ -401,16 +401,16 @@ private:
       mlir::Location loaction =
           loc(ctx->start->getLine(), ctx->start->getCharPositionInLine());
       if (ctx->Add())
-        value = builder.create<mlir::toy::AddOp>(loaction, lhs, rhs);
+        value = mlir::toy::AddOp::create(builder, loaction, lhs, rhs);
       else
-        value = builder.create<mlir::toy::MulOp>(loaction, lhs, rhs);
+        value = mlir::toy::MulOp::create(builder, loaction, lhs, rhs);
       return value;
     } else if (ctx->Number()) {
       mlir::Location location =
           loc(ctx->Number()->getSymbol()->getLine(),
               ctx->Number()->getSymbol()->getCharPositionInLine());
       double number = std::stod(ctx->Number()->toString());
-      value = builder.create<mlir::toy::ConstantOp>(location, number);
+      value = mlir::toy::ConstantOp::create(builder, location, number);
       return value;
     } else if (ctx->structLiteral()) {
       // Get struct value.
@@ -421,8 +421,8 @@ private:
       mlir::Location location =
           loc(ctx->start->getLine(), ctx->start->getCharPositionInLine());
       std::optional<size_t> accessIndex = getMemberIndex(ctx);
-      value = builder.create<mlir::toy::StructAccessOp>(location, value,
-                                                        *accessIndex);
+      value = mlir::toy::StructAccessOp::create(builder, location, value,
+                                                *accessIndex);
       return value;
     }
     return value;
@@ -447,7 +447,7 @@ private:
           loc(ctx->Identifier(0)->getSymbol()->getLine(),
               ctx->Identifier(0)->getSymbol()->getCharPositionInLine());
       value =
-          builder.create<mlir::toy::ReshapeOp>(location, getType(v0), value);
+          mlir::toy::ReshapeOp::create(builder, location, getType(v0), value);
     }
     // Register the variable into the symbol table.
     mlir::failed(declare(ctx->idName, value, ctx));
@@ -482,7 +482,7 @@ private:
           return nullptr;
         }
         mlir::Value arg = oprands[0];
-        builder.create<mlir::toy::PrintOp>(location, arg);
+        mlir::toy::PrintOp::create(builder, location, arg);
         return 0;
       } else if (ctx->Identifier()->toString() == "transpose") {
         if (argsNumber != 1) {
@@ -491,7 +491,7 @@ private:
           return nullptr;
         }
         mlir::Value arg = oprands[0];
-        value = builder.create<mlir::toy::TransposeOp>(location, arg);
+        value = mlir::toy::TransposeOp::create(builder, location, arg);
         return value;
       }
       // Otherwise this is a call to a user-defined function. Calls to
@@ -512,8 +512,8 @@ private:
       // If the function call cannot be mapped to the built-in operation, create
       // the GenericCallOp.
       mlir::toy::FuncOp calledFunc = callee->second;
-      value = builder.create<mlir::toy::GenericCallOp>(
-          location, calledFunc.getFunctionType().getResult(0),
+      value = mlir::toy::GenericCallOp::create(
+          builder, location, calledFunc.getFunctionType().getResult(0),
           mlir::SymbolRefAttr::get(builder.getContext(),
                                    ctx->Identifier()->toString()),
           oprands);
@@ -536,8 +536,9 @@ private:
     }
     // Generate return operation based on whether the function has the return
     // value.
-    builder.create<mlir::toy::ReturnOp>(
-        location, expr ? llvm::ArrayRef(expr) : llvm::ArrayRef<mlir::Value>());
+    mlir::toy::ReturnOp::create(builder, location,
+                                expr ? llvm::ArrayRef(expr)
+                                     : llvm::ArrayRef<mlir::Value>());
     return 0;
   }
   // Make the struct type store in the map.

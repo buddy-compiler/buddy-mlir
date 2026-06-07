@@ -22,19 +22,24 @@
 
 #include <buddy/Core/Container.h>
 #include <buddy/LLM/TextContainer.h>
+#include <cstdlib>
+#include <string>
 
 using namespace buddy;
 
 int main() {
+  const char *sourceDir = std::getenv("BUDDY_SRC_ROOT");
+  std::string testDir =
+      std::string(sourceDir ? sourceDir : ".") + "/tests/Interface/core/";
+
   // The map of string-to-id used in the test cases:
   // buddy: 8937, compiler: 21624, is: 2003, a: 1037, domain: 5884
   // specific: 3563, ":": 1024, "!": 999 ,",":1989
   // 我:1855, 中:1746, 国:1799, 北:1781, 京:1755, 人:1756
   // it:2009, colour:6120, ##less:3238
   //
-  // The test running directory is in <build dir>/tests/Interface/core, so the
-  // vocabulary directory uses the following relative path.
-  std::string vocabDir = "../../../../tests/Interface/core/vocab_bert.txt";
+  // Lit sets BUDDY_SRC_ROOT to the source tree root.
+  std::string vocabDir = testDir + "vocab_bert.txt";
   //===--------------------------------------------------------------------===//
   // Test text constructor for pure string.
   //===--------------------------------------------------------------------===//
@@ -224,17 +229,15 @@ int main() {
   // bud: 8619, dy:4518, compiler: 6516, is: 338, a: 263, domain: 5354
   // specific: 2702, ":": 29901, "!": 29991
   //
-  // The test running directory is in <build dir>/tests/Interface/core, so the
-  // vocabulary directory uses the following relative path.
-  vocabDir = "../../../../tests/Interface/core/vocab_llama.txt";
+  // Lit sets BUDDY_SRC_ROOT to the source tree root.
+  vocabDir = testDir + "vocab_llama.txt";
   //===--------------------------------------------------------------------===//
   // Test text constructor for pure string using Llama tokenizer.
   //===--------------------------------------------------------------------===//
   std::string pureStrLlama = "buddy compiler is a domain specific compiler";
   Text<size_t, 2> pureStrLlamaContainer(pureStrLlama);
   pureStrLlamaContainer.tokenizeLlama(vocabDir, 12);
-  std::string pureStrLlamaResult =
-      pureStrLlamaContainer.revertLlama();
+  std::string pureStrLlamaResult = pureStrLlamaContainer.revertLlama();
   // CHECK: 1
   fprintf(stderr, "%ld\n", pureStrLlamaContainer.getData()[0]);
   // CHECK: 8619
@@ -267,8 +270,7 @@ int main() {
   std::string puncStrLlama = "buddy compiler: a domain specific compiler!";
   Text<size_t, 2> puncStrLlamaContainer(puncStrLlama);
   puncStrLlamaContainer.tokenizeLlama(vocabDir, 12);
-  std::string puncStrLlamaResult =
-      puncStrLlamaContainer.revertLlama();
+  std::string puncStrLlamaResult = puncStrLlamaContainer.revertLlama();
   // CHECK: 1
   fprintf(stderr, "%ld\n", puncStrLlamaContainer.getData()[0]);
   // CHECK: 8619

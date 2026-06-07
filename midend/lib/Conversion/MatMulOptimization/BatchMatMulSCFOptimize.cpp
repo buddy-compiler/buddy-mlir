@@ -72,15 +72,15 @@ public:
 
     // Acquire the element type of input tensors.
     Type elementType =
-    mlir::cast<mlir::MemRefType>(A.getType()).getElementType();
+        mlir::cast<mlir::MemRefType>(A.getType()).getElementType();
 
     // Define constants.
     const Value c0 =
-        rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0));
+        arith::ConstantOp::create(rewriter, loc, rewriter.getIndexAttr(0));
     const Value c1 =
-        rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(1));
-    const Value cVecSize =
-        rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(vecSize));
+        arith::ConstantOp::create(rewriter, loc, rewriter.getIndexAttr(1));
+    const Value cVecSize = arith::ConstantOp::create(
+        rewriter, loc, rewriter.getIndexAttr(vecSize));
     const AffineExpr d0 = rewriter.getAffineDimExpr(0);
     // TODO: remove the following values?
     // const AffineExpr d1 = rewriter.getAffineDimExpr(1);
@@ -88,102 +88,102 @@ public:
     // const AffineExpr s0 = rewriter.getAffineSymbolExpr(0);
     // const AffineExpr zeroAffine = rewriter.getAffineConstantExpr(0);
 
-    const Value zeroElementType = rewriter.create<arith::ConstantOp>(
-        loc, rewriter.getZeroAttr(elementType));
+    const Value zeroElementType = arith::ConstantOp::create(
+        rewriter, loc, rewriter.getZeroAttr(elementType));
 
     // Get dimensions of input tensors.
-    Value batch = rewriter.create<memref::DimOp>(loc, A, 0);
-    Value aRow = rewriter.create<memref::DimOp>(loc, A, 1);
-    Value bCol = rewriter.create<memref::DimOp>(loc, B, 2);
-    Value bRow = rewriter.create<memref::DimOp>(loc, B, 1);
+    Value batch = memref::DimOp::create(rewriter, loc, A, 0);
+    Value aRow = memref::DimOp::create(rewriter, loc, A, 1);
+    Value bCol = memref::DimOp::create(rewriter, loc, B, 2);
+    Value bRow = memref::DimOp::create(rewriter, loc, B, 1);
 
     VectorType vecTy = VectorType::get({vecSize}, elementType);
     Value zeroElementTypeVec;
     if (isa<IntegerType>(elementType))
       zeroElementTypeVec =
-          rewriter.create<vector::BroadcastOp>(loc, vecTy, zeroElementType);
+          vector::BroadcastOp::create(rewriter, loc, vecTy, zeroElementType);
     else
       zeroElementTypeVec =
-          rewriter.create<vector::SplatOp>(loc, vecTy, zeroElementType);
+          vector::BroadcastOp::create(rewriter, loc, vecTy, zeroElementType);
     // Calculate the length of the tail, which might not fit in a
     // vector.
-    Value tailLength = rewriter.create<affine::AffineApplyOp>(
-        loc, AffineMap::get(1, 0, d0 % vecSize), ValueRange{bCol});
+    Value tailLength = affine::AffineApplyOp::create(
+        rewriter, loc, AffineMap::get(1, 0, d0 % vecSize), ValueRange{bCol});
 
     // Generate a mask vector based on the tail length.
-    Value maskVector = rewriter.create<vector::CreateMaskOp>(
-        loc, VectorType::get({vecSize}, rewriter.getI1Type()),
+    Value maskVector = vector::CreateMaskOp::create(
+        rewriter, loc, VectorType::get({vecSize}, rewriter.getI1Type()),
         ValueRange{tailLength});
 
-    Value ApplyBCol = rewriter.create<affine::AffineApplyOp>(
-        loc, AffineMap::get(1, 0, d0.floorDiv(vecSize) * vecSize), bCol);
+    Value ApplyBCol = affine::AffineApplyOp::create(
+        rewriter, loc, AffineMap::get(1, 0, d0.floorDiv(vecSize) * vecSize),
+        bCol);
 
-    rewriter.create<scf::ForallOp>(
-        loc, SmallVector<OpFoldResult, 1>({c0}),
+    scf::ForallOp::create(
+        rewriter, loc, SmallVector<OpFoldResult, 1>({c0}),
         SmallVector<OpFoldResult, 1>({batch}),
         SmallVector<OpFoldResult, 1>({c1}), ValueRange{},
         std::nullopt, // No mapping specified in this example
         [&](OpBuilder &builder, Location loc, ValueRange loopIndices) {
           Value loopVarBatchIdx = loopIndices[0];
-          builder.create<scf::ForOp>(
-              loc, c0, aRow, c1, ValueRange{std::nullopt},
+          scf::ForOp::create(
+              builder, loc, c0, aRow, c1, ValueRange{},
               [&](OpBuilder &builder, Location loc, Value loopVarRowOfA,
                   ValueRange iargs) {
-                builder.create<scf::ForOp>(
-                    loc, c0, bRow, c1, ValueRange{std::nullopt},
+                scf::ForOp::create(
+                    builder, loc, c0, bRow, c1, ValueRange{},
                     [&](OpBuilder &builder, Location loc, Value loopVarRowOfB,
                         ValueRange iargs) {
-                      Value aElement = builder.create<memref::LoadOp>(
-                          loc, A,
+                      Value aElement = memref::LoadOp::create(
+                          builder, loc, A,
                           ValueRange{loopVarBatchIdx, loopVarRowOfA,
                                      loopVarRowOfB});
-                      Value aVec = builder.create<vector::BroadcastOp>(
-                          loc, vecTy, aElement);
-                      builder.create<scf::ForOp>(
-                          loc, c0, ApplyBCol, cVecSize,
-                          ValueRange{std::nullopt},
+                      Value aVec = vector::BroadcastOp::create(builder, loc,
+                                                               vecTy, aElement);
+                      scf::ForOp::create(
+                          builder, loc, c0, ApplyBCol, cVecSize, ValueRange{},
                           [&](OpBuilder &builder, Location loc,
                               Value loopVarColOfB, ValueRange iargs) {
-                            Value bVec = builder.create<vector::LoadOp>(
-                                loc, vecTy, B,
+                            Value bVec = vector::LoadOp::create(
+                                builder, loc, vecTy, B,
                                 ValueRange{loopVarBatchIdx, loopVarRowOfB,
                                            loopVarColOfB});
 
-                            Value cVec = builder.create<vector::LoadOp>(
-                                loc, vecTy, C,
+                            Value cVec = vector::LoadOp::create(
+                                builder, loc, vecTy, C,
                                 ValueRange{loopVarBatchIdx, loopVarRowOfA,
                                            loopVarColOfB});
                             Value computedVec;
 
                             if (isa<IntegerType>(elementType)) {
-                              Value mulVec = builder.create<arith::MulIOp>(
-                                  loc, aVec, bVec);
-                              computedVec = builder.create<arith::AddIOp>(
-                                  loc, mulVec, cVec);
+                              Value mulVec = arith::MulIOp::create(builder, loc,
+                                                                   aVec, bVec);
+                              computedVec = arith::AddIOp::create(builder, loc,
+                                                                  mulVec, cVec);
                             } else {
-                              computedVec = builder.create<vector::FMAOp>(
-                                  loc, aVec, bVec, cVec);
+                              computedVec = vector::FMAOp::create(
+                                  builder, loc, aVec, bVec, cVec);
                             }
-                            builder.create<vector::StoreOp>(
-                                loc, computedVec, C,
+                            vector::StoreOp::create(
+                                builder, loc, computedVec, C,
                                 ValueRange{loopVarBatchIdx, loopVarRowOfA,
                                            loopVarColOfB});
-                            builder.create<scf::YieldOp>(
-                                loc, ValueRange{std::nullopt});
+                            scf::YieldOp::create(builder, loc, ValueRange{});
                           });
-                      Value condition = builder.create<arith::CmpIOp>(
-                          loc, arith::CmpIPredicate::sgt, tailLength, c0);
-                      builder.create<scf::IfOp>(
-                          loc, condition,
+                      Value condition = arith::CmpIOp::create(
+                          builder, loc, arith::CmpIPredicate::sgt, tailLength,
+                          c0);
+                      scf::IfOp::create(
+                          builder, loc, condition,
                           [&](OpBuilder &builder, Location loc) {
-                            Value bVec = builder.create<vector::MaskedLoadOp>(
-                                loc, vecTy, B,
+                            Value bVec = vector::MaskedLoadOp::create(
+                                builder, loc, vecTy, B,
                                 ValueRange{loopVarBatchIdx, loopVarRowOfB,
                                            ApplyBCol},
                                 maskVector, zeroElementTypeVec);
 
-                            Value cVec = builder.create<vector::MaskedLoadOp>(
-                                loc, vecTy, C,
+                            Value cVec = vector::MaskedLoadOp::create(
+                                builder, loc, vecTy, C,
                                 ValueRange{loopVarBatchIdx, loopVarRowOfA,
                                            ApplyBCol},
                                 maskVector, zeroElementTypeVec);
@@ -191,29 +191,28 @@ public:
                             Value computedVec;
 
                             if (isa<IntegerType>(elementType)) {
-                              Value mulVec = builder.create<arith::MulIOp>(
-                                  loc, aVec, bVec);
-                              computedVec = builder.create<arith::AddIOp>(
-                                  loc, mulVec, cVec);
+                              Value mulVec = arith::MulIOp::create(builder, loc,
+                                                                   aVec, bVec);
+                              computedVec = arith::AddIOp::create(builder, loc,
+                                                                  mulVec, cVec);
                             } else {
-                              computedVec = builder.create<vector::FMAOp>(
-                                  loc, aVec, bVec, cVec);
+                              computedVec = vector::FMAOp::create(
+                                  builder, loc, aVec, bVec, cVec);
                             }
 
-                            builder.create<vector::MaskedStoreOp>(
-                                loc, C,
+                            vector::MaskedStoreOp::create(
+                                builder, loc, C,
                                 ValueRange{loopVarBatchIdx, loopVarRowOfA,
                                            ApplyBCol},
                                 maskVector, computedVec);
-                            builder.create<scf::YieldOp>(loc);
+                            scf::YieldOp::create(builder, loc);
                           });
-                      builder.create<scf::YieldOp>(loc,
-                                                   ValueRange{std::nullopt});
+                      scf::YieldOp::create(builder, loc, ValueRange{});
                     });
-                builder.create<scf::YieldOp>(loc, ValueRange{std::nullopt});
+                scf::YieldOp::create(builder, loc, ValueRange{});
               });
 
-          builder.create<scf::InParallelOp>(loc);
+          scf::InParallelOp::create(builder, loc);
         });
 
     rewriter.eraseOp(op);

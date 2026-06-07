@@ -96,26 +96,26 @@ public:
         rank, utils::IteratorType::parallel);
 
     // Create empty tensor for output
-    tensor::EmptyOp emptyTensor = rewriter.create<tensor::EmptyOp>(
-        loc, outputType.getShape(), elementType);
+    tensor::EmptyOp emptyTensor = tensor::EmptyOp::create(
+        rewriter, loc, outputType.getShape(), elementType);
 
     // Create fused SiLU operation using linalg.generic
-    linalg::GenericOp fusedOp = rewriter.create<linalg::GenericOp>(
-        loc, outputType, ValueRange{inputValue}, ValueRange{emptyTensor},
-        indexingMaps, iteratorTypes,
+    linalg::GenericOp fusedOp = linalg::GenericOp::create(
+        rewriter, loc, outputType, ValueRange{inputValue},
+        ValueRange{emptyTensor}, indexingMaps, iteratorTypes,
         [&](OpBuilder &b, Location loc, ValueRange args) {
           Value input = args[0];
 
           // SiLU: x * sigmoid(x) = x * (1 / (1 + exp(-x)))
-          Value one = b.create<arith::ConstantOp>(
-              loc, b.getFloatAttr(elementType, 1.0));
-          Value negInput = b.create<arith::NegFOp>(loc, input);
-          Value expNegInput = b.create<math::ExpOp>(loc, negInput);
-          Value onePlusExp = b.create<arith::AddFOp>(loc, one, expNegInput);
-          Value sigmoid = b.create<arith::DivFOp>(loc, one, onePlusExp);
-          Value silu = b.create<arith::MulFOp>(loc, input, sigmoid);
+          Value one = arith::ConstantOp::create(
+              b, loc, b.getFloatAttr(elementType, 1.0));
+          Value negInput = arith::NegFOp::create(b, loc, input);
+          Value expNegInput = math::ExpOp::create(b, loc, negInput);
+          Value onePlusExp = arith::AddFOp::create(b, loc, one, expNegInput);
+          Value sigmoid = arith::DivFOp::create(b, loc, one, onePlusExp);
+          Value silu = arith::MulFOp::create(b, loc, input, sigmoid);
 
-          b.create<linalg::YieldOp>(loc, silu);
+          linalg::YieldOp::create(b, loc, silu);
         });
 
     // Replace the original multiply operation
@@ -152,7 +152,7 @@ public:
     RewritePatternSet patterns(context);
     patterns.add<SiLUFusionPattern>(context);
 
-    if (failed(applyPatternsAndFoldGreedily(funcOp, std::move(patterns)))) {
+    if (failed(applyPatternsGreedily(funcOp, std::move(patterns)))) {
       signalPassFailure();
     }
   }

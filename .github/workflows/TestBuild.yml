@@ -2,9 +2,9 @@ name: test build process
 
 on:
   push:
-    branches: [ main, ci, ci-test ]
+    branches: [ main ]
   pull_request:
-    branches: [ main, ci, ci-test ]
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
@@ -26,16 +26,22 @@ jobs:
             experimental: false
             venv_activate: "source ~/miniforge3/bin/activate buddy"
             venv_deactivate: "conda deactivate"
+            llvm_src: "$HOME/actions-runner/workspace/llvm-project"
+            llvm_build_root: "$HOME/actions-runner/workspace/llvm-cache"
           - arch: arm64
             os: macos
             experimental: true
             venv_activate: "source ~/miniforge3/bin/activate buddy"
             venv_deactivate: "conda deactivate"
+            llvm_src: "$HOME/actions-runner/workspace/llvm-project"
+            llvm_build_root: "$HOME/actions-runner/workspace/llvm-cache"
           - arch: riscv64
             os: linux
             experimental: true
             venv_activate: "source /home/jenkins/venv/bin/activate"
             venv_deactivate: "deactivate"
+            llvm_src: "/home/jenkins/src/llvm-project"
+            llvm_build_root: "/home/jenkins/llvm-cache"
 
     runs-on:
       - self-hosted
@@ -54,16 +60,53 @@ jobs:
           submodules: 'false'
           fetch-depth: 300
 
+      - name: Checkout LLVM submodule
+        uses: ./.github/actions/checkout_llvm
+        with:
+          llvm-src: ${{ matrix.llvm_src }}
+
       - name: Build buddy-mlir
+        continue-on-error: ${{ matrix.arch == 'arm64' }}
         uses: ./.github/actions/ci-common
         with:
           arch: ${{ matrix.arch }}
           venv_activate: ${{ matrix.venv_activate }}
           venv_deactivate: ${{ matrix.venv_deactivate }}
+          llvm-src: ${{ matrix.llvm_src }}
+          llvm-build-root: ${{ matrix.llvm_build_root }}
 
       - name: Run check-buddy
         continue-on-error: ${{ matrix.arch == 'arm64' }}
         run: |
           ${{ matrix.venv_activate }}
-          ninja -C build check-buddy
+
+          if [ "${{ matrix.arch }}" = "riscv64" ]; then
+            torch_versions=(2.10)
+          else
+            torch_versions=(2.10 2.11 2.12)
+          fi
+
+          for torch_version in "${torch_versions[@]}"; do
+            echo "============================================================"
+            echo "Testing PyTorch ${torch_version}"
+            torch_packages=("torch==${torch_version}")
+            if [ "${{ matrix.arch }}" = "x64" ]; then
+              torch_packages+=("torchvision")
+            elif [ "${{ matrix.arch }}" = "riscv64" ]; then
+              # The installed torchvision on riscv64 is outdated and causes
+              # compatibility issues with other modules.
+              pip uninstall -y torchvision || true
+            fi
+            pip install --pre \
+              --index-url https://ruyirepo.ruyicommunity.cn/pypi/simple/ \
+              --extra-index-url https://download.pytorch.org/whl/cpu \
+              --upgrade --force-reinstall \
+              "${torch_packages[@]}"
+            python -c 'import textwrap; exec(textwrap.dedent("""
+              import torch
+              print("torch:", torch.__version__)
+            """))'
+            ninja -C build check-buddy
+          done
+
           ${{ matrix.venv_deactivate }}

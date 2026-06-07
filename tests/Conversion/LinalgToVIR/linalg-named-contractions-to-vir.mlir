@@ -1,14 +1,17 @@
 // RUN: buddy-opt %s -split-input-file -lower-linalg-to-vir | FileCheck %s
 
 func.func @matmul_transpose_a(%a: memref<4x8xf32>, %b: memref<4x16xf32>, %c: memref<8x16xf32>) {
-  linalg.matmul_transpose_a
+  linalg.matmul indexing_maps = [
+      affine_map<(m, n, k) -> (k, m)>,
+      affine_map<(m, n, k) -> (k, n)>,
+      affine_map<(m, n, k) -> (m, n)>]
       ins(%a, %b : memref<4x8xf32>, memref<4x16xf32>)
       outs(%c : memref<8x16xf32>)
   return
 }
 
 // CHECK-LABEL: func.func @matmul_transpose_a
-// CHECK-NOT: linalg.matmul_transpose_a
+// CHECK-NOT: linalg.matmul
 // CHECK: vir.set_vl
 // CHECK: vir.load
 // CHECK: vir.broadcast

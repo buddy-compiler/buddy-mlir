@@ -43,9 +43,8 @@ getOrInsertIntrinsic(ConversionPatternRewriter &rewriter, ModuleOp module,
 
   auto savedInsertionPoint = rewriter.saveInsertionPoint();
   rewriter.setInsertionPointToEnd(module.getBody());
-  rewriter.create<LLVM::LLVMFuncOp>(module.getLoc(), intrinsicName, funcType,
-                                    LLVM::Linkage::External, false,
-                                    LLVM::CConv::C);
+  LLVM::LLVMFuncOp::create(rewriter, module.getLoc(), intrinsicName, funcType,
+                           LLVM::Linkage::External, false, LLVM::CConv::C);
   rewriter.restoreInsertionPoint(savedInsertionPoint);
   return FlatSymbolRefAttr::get(ctx, intrinsicName);
 }
@@ -56,9 +55,9 @@ static Value extractPointerFromMemref(ConversionPatternRewriter &rewriter,
   auto ptrType = LLVM::LLVMPointerType::get(ctx);
   auto i64Type = IntegerType::get(ctx, 64);
   Value idx =
-      rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(loc, memref);
-  Value i64Val = rewriter.create<arith::IndexCastOp>(loc, i64Type, idx);
-  Value ptr = rewriter.create<LLVM::IntToPtrOp>(loc, ptrType, i64Val);
+      memref::ExtractAlignedPointerAsIndexOp::create(rewriter, loc, memref);
+  Value i64Val = arith::IndexCastOp::create(rewriter, loc, i64Type, idx);
+  Value ptr = LLVM::IntToPtrOp::create(rewriter, loc, ptrType, i64Val);
   return ptr;
 }
 
@@ -89,11 +88,11 @@ struct BOSCAMEMSettilemiLowering : public ConvertOpToLLVMPattern<MSettilemiOp> {
     auto intrinsicName = getOrInsertIntrinsic(
         rewriter, module, "llvm.riscv.buddy.bosc.msettilemi", funcType);
 
-    Value tilemVal = rewriter.create<LLVM::ConstantOp>(
-        loc, i64Type, rewriter.getI64IntegerAttr(op.getTilem()));
+    Value tilemVal = LLVM::ConstantOp::create(
+        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getTilem()));
 
-    auto callOp = rewriter.create<LLVM::CallOp>(
-        loc, TypeRange{i64Type}, intrinsicName, ValueRange{tilemVal});
+    auto callOp = LLVM::CallOp::create(rewriter, loc, TypeRange{i64Type},
+                                       intrinsicName, ValueRange{tilemVal});
     rewriter.replaceOp(op, callOp.getResults());
     return success();
   }
@@ -118,11 +117,11 @@ struct BOSCAMEMSettileniLowering : public ConvertOpToLLVMPattern<MSettileniOp> {
     auto intrinsicName = getOrInsertIntrinsic(
         rewriter, module, "llvm.riscv.buddy.bosc.msettileni", funcType);
 
-    Value tilenVal = rewriter.create<LLVM::ConstantOp>(
-        loc, i64Type, rewriter.getI64IntegerAttr(op.getTilen()));
+    Value tilenVal = LLVM::ConstantOp::create(
+        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getTilen()));
 
-    auto callOp = rewriter.create<LLVM::CallOp>(
-        loc, TypeRange{i64Type}, intrinsicName, ValueRange{tilenVal});
+    auto callOp = LLVM::CallOp::create(rewriter, loc, TypeRange{i64Type},
+                                       intrinsicName, ValueRange{tilenVal});
     rewriter.replaceOp(op, callOp.getResults());
     return success();
   }
@@ -147,11 +146,11 @@ struct BOSCAMEMSettilekiLowering : public ConvertOpToLLVMPattern<MSettilekiOp> {
     auto intrinsicName = getOrInsertIntrinsic(
         rewriter, module, "llvm.riscv.buddy.bosc.msettileki", funcType);
 
-    Value tilekVal = rewriter.create<LLVM::ConstantOp>(
-        loc, i64Type, rewriter.getI64IntegerAttr(op.getTilek()));
+    Value tilekVal = LLVM::ConstantOp::create(
+        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getTilek()));
 
-    auto callOp = rewriter.create<LLVM::CallOp>(
-        loc, TypeRange{i64Type}, intrinsicName, ValueRange{tilekVal});
+    auto callOp = LLVM::CallOp::create(rewriter, loc, TypeRange{i64Type},
+                                       intrinsicName, ValueRange{tilekVal});
     rewriter.replaceOp(op, callOp.getResults());
     return success();
   }
@@ -177,11 +176,11 @@ struct BOSCAMEMzeroLowering : public ConvertOpToLLVMPattern<MzeroOp> {
     auto intrinsicName = getOrInsertIntrinsic(
         rewriter, module, "llvm.riscv.buddy.bosc.mzero", funcType);
 
-    Value mdVal = rewriter.create<LLVM::ConstantOp>(
-        loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
+    Value mdVal = LLVM::ConstantOp::create(
+        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
 
-    rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicName,
-                                  ValueRange{mdVal});
+    LLVM::CallOp::create(rewriter, loc, TypeRange{}, intrinsicName,
+                         ValueRange{mdVal});
     rewriter.eraseOp(op);
     return success();
   }
@@ -209,13 +208,12 @@ struct BOSCAMEMlae32mLowering : public ConvertOpToLLVMPattern<Mlae32mOp> {
     auto intrinsicName = getOrInsertIntrinsic(
         rewriter, module, "llvm.riscv.buddy.bosc.mlae32.m", funcType);
 
-    Value mdVal = rewriter.create<LLVM::ConstantOp>(
-        loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
+    Value mdVal = LLVM::ConstantOp::create(
+        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
     Value basePtr = extractPointerFromMemref(rewriter, loc, op.getBase());
 
-    rewriter.create<LLVM::CallOp>(
-        loc, TypeRange{}, intrinsicName,
-        ValueRange{mdVal, basePtr, adaptor.getStride()});
+    LLVM::CallOp::create(rewriter, loc, TypeRange{}, intrinsicName,
+                         ValueRange{mdVal, basePtr, adaptor.getStride()});
     rewriter.eraseOp(op);
     return success();
   }
@@ -243,13 +241,12 @@ struct BOSCAMEMlbe32mLowering : public ConvertOpToLLVMPattern<Mlbe32mOp> {
     auto intrinsicName = getOrInsertIntrinsic(
         rewriter, module, "llvm.riscv.buddy.bosc.mlbe32.m", funcType);
 
-    Value mdVal = rewriter.create<LLVM::ConstantOp>(
-        loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
+    Value mdVal = LLVM::ConstantOp::create(
+        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
     Value basePtr = extractPointerFromMemref(rewriter, loc, op.getBase());
 
-    rewriter.create<LLVM::CallOp>(
-        loc, TypeRange{}, intrinsicName,
-        ValueRange{mdVal, basePtr, adaptor.getStride()});
+    LLVM::CallOp::create(rewriter, loc, TypeRange{}, intrinsicName,
+                         ValueRange{mdVal, basePtr, adaptor.getStride()});
     rewriter.eraseOp(op);
     return success();
   }
@@ -281,13 +278,12 @@ struct BOSCAMEMsce32mLowering : public ConvertOpToLLVMPattern<Msce32mOp> {
     auto intrinsicName = getOrInsertIntrinsic(
         rewriter, module, "llvm.riscv.buddy.bosc.msce32.m", funcType);
 
-    Value ms3Val = rewriter.create<LLVM::ConstantOp>(
-        loc, i64Type, rewriter.getI64IntegerAttr(op.getMs3()));
+    Value ms3Val = LLVM::ConstantOp::create(
+        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getMs3()));
     Value basePtr = extractPointerFromMemref(rewriter, loc, op.getBase());
 
-    rewriter.create<LLVM::CallOp>(
-        loc, TypeRange{}, intrinsicName,
-        ValueRange{ms3Val, basePtr, adaptor.getStride()});
+    LLVM::CallOp::create(rewriter, loc, TypeRange{}, intrinsicName,
+                         ValueRange{ms3Val, basePtr, adaptor.getStride()});
     rewriter.eraseOp(op);
     return success();
   }
@@ -317,15 +313,15 @@ struct BOSCAMEMmaWmmLowering : public ConvertOpToLLVMPattern<MmaWmmOp> {
     auto intrinsicName = getOrInsertIntrinsic(
         rewriter, module, "llvm.riscv.buddy.bosc.mma.w.mm", funcType);
 
-    Value mdVal = rewriter.create<LLVM::ConstantOp>(
-        loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
-    Value ms1Val = rewriter.create<LLVM::ConstantOp>(
-        loc, i64Type, rewriter.getI64IntegerAttr(op.getMs1()));
-    Value ms2Val = rewriter.create<LLVM::ConstantOp>(
-        loc, i64Type, rewriter.getI64IntegerAttr(op.getMs2()));
+    Value mdVal = LLVM::ConstantOp::create(
+        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
+    Value ms1Val = LLVM::ConstantOp::create(
+        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getMs1()));
+    Value ms2Val = LLVM::ConstantOp::create(
+        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getMs2()));
 
-    rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicName,
-                                  ValueRange{mdVal, ms1Val, ms2Val});
+    LLVM::CallOp::create(rewriter, loc, TypeRange{}, intrinsicName,
+                         ValueRange{mdVal, ms1Val, ms2Val});
     rewriter.eraseOp(op);
     return success();
   }

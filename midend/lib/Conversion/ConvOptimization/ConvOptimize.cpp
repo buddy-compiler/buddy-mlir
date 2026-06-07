@@ -51,9 +51,9 @@ public:
 
     // Some constant we need.
     const Value c0 =
-        rewriter.create<arith::ConstantOp>(loc, rewriter.getIndexAttr(0));
+        arith::ConstantOp::create(rewriter, loc, rewriter.getIndexAttr(0));
     const Value cf0 =
-        rewriter.create<arith::ConstantOp>(loc, rewriter.getF32FloatAttr(0.));
+        arith::ConstantOp::create(rewriter, loc, rewriter.getF32FloatAttr(0.));
 
     const AffineExpr d0 = rewriter.getAffineDimExpr(0);
     const AffineExpr d1 = rewriter.getAffineDimExpr(1);
@@ -69,118 +69,114 @@ public:
     VectorType vecTy = VectorType::get(vecSize, elemTy);
 
     // Dims
-    Value a = rewriter.create<memref::DimOp>(loc, output, 0);
-    Value b = rewriter.create<memref::DimOp>(loc, output, 1);
-    Value c = rewriter.create<memref::DimOp>(loc, output, 2);
-    Value d = rewriter.create<memref::DimOp>(loc, output, 3);
-    Value e = rewriter.create<memref::DimOp>(loc, input, 1);
-    Value f = rewriter.create<memref::DimOp>(loc, filter, 2);
-    Value g = rewriter.create<memref::DimOp>(loc, filter, 3);
+    Value a = memref::DimOp::create(rewriter, loc, output, 0);
+    Value b = memref::DimOp::create(rewriter, loc, output, 1);
+    Value c = memref::DimOp::create(rewriter, loc, output, 2);
+    Value d = memref::DimOp::create(rewriter, loc, output, 3);
+    Value e = memref::DimOp::create(rewriter, loc, input, 1);
+    Value f = memref::DimOp::create(rewriter, loc, filter, 2);
+    Value g = memref::DimOp::create(rewriter, loc, filter, 3);
 
     // memref<1xvector<vecsize x elemTy>>
     MemRefType bufferTy = MemRefType::get(1, vecTy);
-    Value buffer = rewriter.create<memref::AllocOp>(loc, bufferTy);
+    Value buffer = memref::AllocOp::create(rewriter, loc, bufferTy);
 
     // Step 1: Create outer most loops.
     affine::buildAffineLoopNest(
         rewriter, loc, c0, a, 1,
         [&](OpBuilder &, Location loc, ValueRange ivRange) {
-      Value ivA = ivRange.front();
+          Value ivA = ivRange.front();
           affine::buildAffineLoopNest(
               rewriter, loc, c0, b, 1,
               [&](OpBuilder &, Location loc, ValueRange ivRange) {
-        Value ivB = ivRange.front();
+                Value ivB = ivRange.front();
                 affine::buildAffineLoopNest(
                     rewriter, loc, c0, d, 1,
                     [&](OpBuilder &, Location loc, ValueRange ivRange) {
-          Value ivD = ivRange.front();
+                      Value ivD = ivRange.front();
                       affine::buildAffineLoopNest(
                           rewriter, loc, c0, c, 1,
                           [&](OpBuilder &builder, Location loc,
                               ValueRange ivRange) {
-            Value ivC = ivRange.front();
-            Value t = builder.create<SplatOp>(loc, vecTy, cf0);
-            builder.create<memref::StoreOp>(loc, t, buffer, c0);
+                            Value ivC = ivRange.front();
+                            Value t = vector::BroadcastOp::create(builder, loc,
+                                                                  vecTy, cf0);
+                            memref::StoreOp::create(builder, loc, t, buffer,
+                                                    c0);
                             affine::buildAffineLoopNest(
                                 rewriter, loc, c0, e, 1,
                                 [&](OpBuilder &builder, Location loc,
                                     ValueRange ivRange) {
-              Value ivE = ivRange.front();
+                                  Value ivE = ivRange.front();
 
-                                  Value fixed =
-                                      builder.create<affine::AffineApplyOp>(
-                                          loc,
-                                          AffineMap::get(1, 0,
-                                                         d0.ceilDiv(kernelM) *
-                                                             kernelM),
-                                          ValueRange{f});
+                                  Value fixed = affine::AffineApplyOp::create(
+                                      builder, loc,
+                                      AffineMap::get(
+                                          1, 0, d0.ceilDiv(kernelM) * kernelM),
+                                      ValueRange{f});
 
                                   affine::buildAffineLoopNest(
                                       rewriter, loc, c0, fixed, kernelM,
                                       [&]([[maybe_unused]] OpBuilder &builder,
                                           Location loc, ValueRange ivRange) {
-                Value ivF = ivRange.front();
+                                        Value ivF = ivRange.front();
                                         affine::buildAffineLoopNest(
                                             rewriter, loc, c0, g,
                                             kernelN * vecSize,
                                             [&](OpBuilder &builder,
                                                 Location loc,
                                                 ValueRange ivRange) {
-                  Value ivG = ivRange.front();
+                                              Value ivG = ivRange.front();
 
-                  SmallVector<Value> iList;
-                  SmallVector<Value> fList;
+                                              SmallVector<Value> iList;
+                                              SmallVector<Value> fList;
                                               for (int i = 0; i < kernelM;
                                                    ++i) {
-                                                Value rowInput = builder.create<
-                                                    affine::AffineApplyOp>(
-                                                    loc,
-                                                    AffineMap::get(2, 0,
-                                                                   d0 + i + d1),
-                                                    ValueRange{ivC, ivF});
-                                                Value rowFilter =
-                                                    builder.create<
-                                                        affine::AffineApplyOp>(
-                                                        loc,
+                                                Value rowInput = affine::
+                                                    AffineApplyOp::create(
+                                                        builder, loc,
+                                                        AffineMap::get(
+                                                            2, 0, d0 + i + d1),
+                                                        ValueRange{ivC, ivF});
+                                                Value rowFilter = affine::
+                                                    AffineApplyOp::create(
+                                                        builder, loc,
                                                         AffineMap::get(1, 0,
                                                                        d0 + i),
                                                         ivF);
                                                 for (int j = 0; j < kernelN;
                                                      ++j) {
-                                                  Value columnInput =
-                                                      builder.create<
-                                                          affine::
-                                                              AffineApplyOp>(
-                                                          loc,
+                                                  Value columnInput = affine::
+                                                      AffineApplyOp::create(
+                                                          builder, loc,
                                                           AffineMap::get(
                                                               2, 0,
                                                               d0 + d1 +
                                                                   j * vecSize),
                                                           ValueRange{ivD, ivG});
-                                                  Value columnFilter =
-                                                      builder.create<
-                                                          affine::
-                                                              AffineApplyOp>(
-                                                          loc,
+                                                  Value columnFilter = affine::
+                                                      AffineApplyOp::create(
+                                                          builder, loc,
                                                           AffineMap::get(
                                                               1, 0,
                                                               d0 + j * vecSize),
                                                           ivG);
 
-                                                  Value i = builder.create<
-                                                      TransferReadOp>(
-                                                      loc, vecTy, input,
-                                                      ValueRange{ivA, ivE,
-                                                                 rowInput,
-                                                                 columnInput},
-                                                      /*padding=*/nullptr,
-                                                      /*inBounds=*/nullptr,
-                                                      /*mask=*/nullptr);
+                                                  Value i =
+                                                      TransferReadOp::create(
+                                                          builder, loc, vecTy,
+                                                          input,
+                                                          ValueRange{
+                                                              ivA, ivE,
+                                                              rowInput,
+                                                              columnInput},
+                                                          /*padding=*/nullptr,
+                                                          /*inBounds=*/nullptr,
+                                                          /*mask=*/nullptr);
 
-                      auto protectedF =
-                                                      builder.create<
-                                                          affine::AffineIfOp>(
-                                                          loc, vecTy,
+                                                  auto protectedF = affine::
+                                                      AffineIfOp::create(
+                                                          builder, loc, vecTy,
                                                           IntegerSet::get(
                                                               1, 1,
                                                               {s0 - 1 - d0},
@@ -195,9 +191,9 @@ public:
                                                       protectedF
                                                           .getThenBodyBuilder();
                                                   Value normalReadVec =
-                                                      thenBuilder.create<
-                                                          TransferReadOp>(
-                                                          loc, vecTy, filter,
+                                                      TransferReadOp::create(
+                                                          thenBuilder, loc,
+                                                          vecTy, filter,
                                                           ValueRange{
                                                               ivB, ivE,
                                                               rowFilter,
@@ -205,9 +201,9 @@ public:
                                                           /*padding=*/nullptr,
                                                           /*inBounds=*/nullptr,
                                                           /*mask=*/nullptr);
-                                                  thenBuilder.create<
-                                                      affine::AffineYieldOp>(
-                                                      loc, normalReadVec);
+                                                  affine::AffineYieldOp::create(
+                                                      thenBuilder, loc,
+                                                      normalReadVec);
 
                                                   // if row out of range, give
                                                   // back a empty vector.
@@ -215,60 +211,64 @@ public:
                                                       protectedF
                                                           .getElseBodyBuilder();
                                                   Value emptyVec =
-                                                      elseBuilder
-                                                          .create<SplatOp>(
-                                                              loc, vecTy, cf0);
-                                                  elseBuilder.create<
-                                                      affine::AffineYieldOp>(
-                                                      loc, emptyVec);
+                                                      vector::BroadcastOp::
+                                                          create(elseBuilder,
+                                                                 loc, vecTy,
+                                                                 cf0);
+                                                  affine::AffineYieldOp::create(
+                                                      elseBuilder, loc,
+                                                      emptyVec);
 
-                      iList.push_back(i);
+                                                  iList.push_back(i);
                                                   fList.push_back(
                                                       protectedF->getOpResult(
                                                           0));
-                    }
-                  }
+                                                }
+                                              }
                                               Value lastResult =
-                                                  builder
-                                                      .create<memref::LoadOp>(
-                                                          loc, buffer, c0);
+                                                  memref::LoadOp::create(
+                                                      builder, loc, buffer, c0);
                                               for (int i = 0; i < kernelM;
                                                    ++i) {
                                                 for (int j = 0; j < kernelN;
                                                      ++j) {
-                                                  lastResult = builder.create<
-                                                      vector::FMAOp>(
-                                                      loc, vecTy,
-                                                      iList[i * kernelN + j],
-                                                      fList[i * kernelN + j],
-                                                      lastResult);
-                    }
-                  }
+                                                  lastResult =
+                                                      vector::FMAOp::create(
+                                                          builder, loc, vecTy,
+                                                          iList[i * kernelN +
+                                                                j],
+                                                          fList[i * kernelN +
+                                                                j],
+                                                          lastResult);
+                                                }
+                                              }
 
-                                              builder.create<memref::StoreOp>(
-                                                  loc, lastResult, buffer, c0);
-                });
-              });
-            });
+                                              memref::StoreOp::create(
+                                                  builder, loc, lastResult,
+                                                  buffer, c0);
+                                            });
+                                      });
+                                });
 
-                            Value reduceVec =
-                                builder.create<memref::LoadOp>(loc, buffer, c0);
-                            Value reducedRes =
-                                builder.create<vector::ReductionOp>(
-                                    loc, vector::CombiningKind::ADD, reduceVec);
-                            Value bias = builder.create<memref::LoadOp>(
-                                loc, output, ValueRange{ivA, ivB, ivC, ivD});
-                            Value addRes = builder.create<arith::AddFOp>(
-                                loc, bias, reducedRes);
-                            builder.create<memref::StoreOp>(
-                                loc, addRes, output,
+                            Value reduceVec = memref::LoadOp::create(
+                                builder, loc, buffer, c0);
+                            Value reducedRes = vector::ReductionOp::create(
+                                builder, loc, vector::CombiningKind::ADD,
+                                reduceVec);
+                            Value bias = memref::LoadOp::create(
+                                builder, loc, output,
                                 ValueRange{ivA, ivB, ivC, ivD});
-          });
+                            Value addRes = arith::AddFOp::create(
+                                builder, loc, bias, reducedRes);
+                            memref::StoreOp::create(
+                                builder, loc, addRes, output,
+                                ValueRange{ivA, ivB, ivC, ivD});
+                          });
+                    });
+              });
         });
-      });
-    });
 
-    rewriter.create<memref::DeallocOp>(loc, buffer);
+    memref::DeallocOp::create(rewriter, loc, buffer);
 
     rewriter.eraseOp(op);
     return success();

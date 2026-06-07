@@ -140,7 +140,7 @@ jobs:
           export LLVM_CACHE_MODE="${{ needs.prepare_release.outputs.llvm_cache_mode }}"
           export HOST_LLVM_SRC="${{ steps.vars.outputs.llvm_src }}"
           export HOST_BUILD_DIR="${{ steps.vars.outputs.host_build_dir }}"
-          ./scripts/release_wheel_manylinux.sh "${{ steps.vars.outputs.py_tag }}" "${{ needs.prepare_release.outputs.version }}" "${{ matrix.target_arch }}"
+          ./scripts/release.sh "${{ steps.vars.outputs.py_tag }}" "${{ needs.prepare_release.outputs.version }}" "${{ matrix.target_arch }}"
 
       - name: Upload release assets
         shell: bash
