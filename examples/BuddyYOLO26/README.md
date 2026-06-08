@@ -15,6 +15,12 @@ cd buddy-mlir
 mkdir -p llvm/build
 cd llvm/build
 cmake -G Ninja ../llvm \
+
+```bash
+$ cd buddy-mlir
+$ mkdir -p llvm/build
+$ cd llvm/build
+$ cmake -G Ninja ../llvm \
     -DLLVM_ENABLE_PROJECTS="mlir;clang" \
     -DLLVM_ENABLE_RUNTIMES="openmp" \
     -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
@@ -23,6 +29,8 @@ cmake -G Ninja ../llvm \
     -DCMAKE_BUILD_TYPE=Release \
     -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
     -DPython3_EXECUTABLE=$(which python3)
+$ ninja check-clang check-mlir check-openmp
+```
 
 ninja check-clang check-mlir
 3. Build buddy-mlir

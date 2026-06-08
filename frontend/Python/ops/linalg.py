@@ -151,7 +151,7 @@ def arange_op(
         if start != 0:
             value_index = arith.AddIOp(value_index, start_index).result
 
-        if ir.FloatType.isinstance(dtype) or ir.BF16Type.isinstance(dtype):
+        if isinstance(dtype, (ir.FloatType, ir.BF16Type)):
             value_i64 = arith.IndexCastOp(i64_type, value_index).result
             return arith.SIToFPOp(dtype, value_i64).result
         return arith.IndexCastOp(dtype, value_index).result
@@ -1359,8 +1359,21 @@ def matmul_transpose_b_op(
     dtype = node.tensor_meta["dtype"]
     mlir_dtype = mlir_element_type_get(dtype)
     element = mlir_element_attr_get(dtype, 0.0)
+    tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
     result_buffer = zero_tensor_value(output_shape, mlir_dtype, element)
-    op = linalg.matmul_transpose_b(input1, input2, outs=[result_buffer])
+    generic_map = _safe_get_permutation([0, 1, 2])
+    op = linalg.MatmulOp(
+        result_tensors=[tensor_type],
+        inputs=[input1, input2],
+        outputs=[result_buffer],
+        indexing_maps=[
+            generic_map.get_submap([0, 2]),  # lhs: (m, k)
+            generic_map.get_submap([1, 2]),  # rhs: (n, k)
+            generic_map.get_submap([0, 1]),  # out: (m, n)
+        ],
+        cast="cast_signed",
+    )
+    linalg.fill_builtin_region(op.operation)
     return op
 
 
@@ -3543,9 +3556,7 @@ def _generate_vectorized_index_put(
     vector_type = ir.VectorType.get([vector_length], mlir_dtype)
 
     # Padding value for transfer_read
-    if ir.FloatType.isinstance(mlir_dtype) or ir.BF16Type.isinstance(
-        mlir_dtype
-    ):
+    if isinstance(mlir_dtype, (ir.FloatType, ir.BF16Type)):
         padding = arith.ConstantOp(
             mlir_dtype, ir.FloatAttr.get(mlir_dtype, 0.0)
         )
@@ -4056,9 +4067,7 @@ def _cumulative_tensor(
 
     c0 = arith.ConstantOp(index_type, 0)
     c1 = arith.ConstantOp(index_type, 1)
-    is_float = ir.FloatType.isinstance(mlir_dtype) or ir.BF16Type.isinstance(
-        mlir_dtype
-    )
+    is_float = isinstance(mlir_dtype, (ir.FloatType, ir.BF16Type))
     init_value = 0.0 if op_kind == "cumsum" else 1.0
     if is_float:
         init_val = arith.ConstantOp(mlir_dtype, float(init_value))
@@ -4468,7 +4477,7 @@ def gcd_op(
     output_shape = list(node.tensor_meta["shape"])
     dtype = node.tensor_meta["dtype"]
     mlir_dtype = mlir_element_type_get(dtype)
-    if not ir.IntegerType.isinstance(mlir_dtype):
+    if not isinstance(mlir_dtype, ir.IntegerType):
         raise NotImplementedError("gcd only supports integer types")
 
     output_tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
@@ -4726,7 +4735,7 @@ def sort_op(
                         )
 
                 # Conditional swap using scf.if
-                if_op = scf.IfOp(should_swap, hasElse=False)
+                if_op = scf.IfOp(should_swap, has_else=False)
                 with ir.InsertionPoint(if_op.then_block):
                     # Swap values
                     memref.StoreOp(
@@ -4913,7 +4922,7 @@ def repeat_interleave_op(
     memref.StoreOp(c0.result, counter_memref, [c0.result])
 
     def _repeat_count_to_index(rep_val, rep_type):
-        if not ir.IntegerType.isinstance(rep_type):
+        if not isinstance(rep_type, ir.IntegerType):
             raise NotImplementedError("repeat_interleave expects int repeats")
         zero_int = arith.ConstantOp(
             rep_type, ir.IntegerAttr.get(rep_type, 0)
@@ -4954,9 +4963,9 @@ def repeat_interleave_op(
                 in_range = arith.CmpIOp(
                     arith.CmpIPredicate.slt, out_pos, out_ub
                 ).result
-                if_op = scf.IfOp(in_range, hasElse=False)
+                if_op = scf.IfOp(in_range, has_else=False)
                 with ir.InsertionPoint(if_op.then_block):
-                    if not ir.IntegerType.isinstance(output_dtype):
+                    if not isinstance(output_dtype, ir.IntegerType):
                         raise NotImplementedError(
                             "repeat_interleave.Tensor requires integer output"
                         )
@@ -5017,7 +5026,7 @@ def repeat_interleave_op(
                 in_range = arith.CmpIOp(
                     arith.CmpIPredicate.slt, out_pos, out_ub
                 ).result
-                if_op = scf.IfOp(in_range, hasElse=False)
+                if_op = scf.IfOp(in_range, has_else=False)
                 with ir.InsertionPoint(if_op.then_block):
                     self_val = memref.LoadOp(self_memref, [i]).result
                     memref.StoreOp(self_val, output_memref.result, [out_pos])
@@ -5047,7 +5056,7 @@ def repeat_interleave_op(
                 in_range = arith.CmpIOp(
                     arith.CmpIPredicate.slt, out_pos, out_ub
                 ).result
-                if_op = scf.IfOp(in_range, hasElse=False)
+                if_op = scf.IfOp(in_range, has_else=False)
                 with ir.InsertionPoint(if_op.then_block):
                     self_val = memref.LoadOp(self_memref, [i]).result
                     memref.StoreOp(self_val, output_memref.result, [out_pos])
@@ -5173,7 +5182,7 @@ def as_strided_op(
         flattened = tosa.ReshapeOp(input_tensor, flat_shape)
 
         # Step 2: Create zero padding tensor
-        if ir.IntegerType.isinstance(element_type):
+        if isinstance(element_type, ir.IntegerType):
             zero_attr = ir.IntegerAttr.get(element_type, 0)
         else:
             zero_attr = ir.FloatAttr.get(element_type, 0.0)
@@ -6714,7 +6723,7 @@ def max_pool2d_with_indices_op(
                             in_bounds = arith.AndIOp(h_valid, w_valid).result
 
                             # If in bounds, load and compare
-                            if_op = scf.IfOp(in_bounds, hasElse=False)
+                            if_op = scf.IfOp(in_bounds, has_else=False)
                             with ir.InsertionPoint(if_op.then_block):
                                 # Load input value
                                 input_val = memref.LoadOp(
@@ -6733,7 +6742,7 @@ def max_pool2d_with_indices_op(
                                     current_max,
                                 ).result
 
-                                inner_if = scf.IfOp(is_greater, hasElse=False)
+                                inner_if = scf.IfOp(is_greater, has_else=False)
                                 with ir.InsertionPoint(inner_if.then_block):
                                     # Update max value
                                     memref.StoreOp(
@@ -6969,7 +6978,7 @@ def fractional_max_pool2d_op(
                             w_valid = arith.AndIOp(iw_ge_0, iw_lt_w).result
                             in_bounds = arith.AndIOp(h_valid, w_valid).result
 
-                            if_op = scf.IfOp(in_bounds, hasElse=False)
+                            if_op = scf.IfOp(in_bounds, has_else=False)
                             with ir.InsertionPoint(if_op.then_block):
                                 input_val = memref.LoadOp(
                                     input_memref, [n, c, ih, iw]
@@ -6985,7 +6994,7 @@ def fractional_max_pool2d_op(
                                     current_max,
                                 ).result
 
-                                inner_if = scf.IfOp(is_greater, hasElse=False)
+                                inner_if = scf.IfOp(is_greater, has_else=False)
                                 with ir.InsertionPoint(inner_if.then_block):
                                     memref.StoreOp(
                                         input_val,
@@ -7336,7 +7345,7 @@ def max_pool3d_op(
                                         dh_valid, w_valid
                                     ).result
 
-                                    if_op = scf.IfOp(in_bounds, hasElse=False)
+                                    if_op = scf.IfOp(in_bounds, has_else=False)
                                     with ir.InsertionPoint(if_op.then_block):
                                         input_val = memref.LoadOp(
                                             input_memref,
@@ -7354,7 +7363,7 @@ def max_pool3d_op(
                                         ).result
 
                                         inner_if = scf.IfOp(
-                                            is_greater, hasElse=False
+                                            is_greater, has_else=False
                                         )
                                         with ir.InsertionPoint(
                                             inner_if.then_block
@@ -7920,7 +7929,7 @@ def avg_pool3d_op(
                                     ).result
 
                                     bounds_if = scf.IfOp(
-                                        in_bounds, hasElse=False
+                                        in_bounds, has_else=False
                                     )
                                     with ir.InsertionPoint(
                                         bounds_if.then_block
@@ -8023,7 +8032,7 @@ def topk_op(
         raise NotImplementedError("topk k out of range")
 
     is_float = _is_float_type(input_dtype)
-    is_int = ir.IntegerType.isinstance(input_dtype)
+    is_int = isinstance(input_dtype, ir.IntegerType)
     if not is_float and not is_int:
         raise NotImplementedError(
             "topk only supports integer or floating types"
@@ -8125,14 +8134,14 @@ def topk_op(
                     arith.CmpIPredicate.ne, used_flag, c1_i1
                 ).result
 
-                check_if = scf.IfOp(not_used, hasElse=False)
+                check_if = scf.IfOp(not_used, has_else=False)
                 with ir.InsertionPoint(check_if.then_block):
                     val = memref.LoadOp(input_memref, [j]).result
                     best_val = memref.LoadOp(best_val_memref.result, []).result
 
                     is_better = _is_better(val, best_val)
 
-                    update_if = scf.IfOp(is_better, hasElse=False)
+                    update_if = scf.IfOp(is_better, has_else=False)
                     with ir.InsertionPoint(update_if.then_block):
                         memref.StoreOp(val, best_val_memref.result, [])
                         memref.StoreOp(j, best_idx_memref.result, [])
@@ -8216,7 +8225,7 @@ def topk_op(
                         arith.CmpIPredicate.ne, used_flag, c1_i1
                     ).result
 
-                    check_if = scf.IfOp(not_used, hasElse=False)
+                    check_if = scf.IfOp(not_used, has_else=False)
                     with ir.InsertionPoint(check_if.then_block):
                         if dim == 1:
                             val = memref.LoadOp(
@@ -8232,7 +8241,7 @@ def topk_op(
 
                         is_better = _is_better(val, best_val)
 
-                        update_if = scf.IfOp(is_better, hasElse=False)
+                        update_if = scf.IfOp(is_better, has_else=False)
                         with ir.InsertionPoint(update_if.then_block):
                             memref.StoreOp(val, best_val_memref.result, [])
                             memref.StoreOp(j, best_idx_memref.result, [])
@@ -8399,7 +8408,7 @@ def kthvalue_op(
                     arith.CmpIPredicate.sgt, val_curr, val_next
                 )
 
-            if_op = scf.IfOp(should_swap, hasElse=False)
+            if_op = scf.IfOp(should_swap, has_else=False)
             with ir.InsertionPoint(if_op.then_block):
                 memref.StoreOp(
                     val_next,
@@ -8817,9 +8826,7 @@ def searchsorted_op(
     sorted_elem_type = sorted_seq_type.element_type
     if not hasattr(values, "type"):
         scalar_type = sorted_elem_type
-        if ir.FloatType.isinstance(scalar_type) or ir.BF16Type.isinstance(
-            scalar_type
-        ):
+        if isinstance(scalar_type, (ir.FloatType, ir.BF16Type)):
             scalar_attr = ir.FloatAttr.get(scalar_type, float(values))
         else:
             scalar_attr = ir.IntegerAttr.get(scalar_type, int(values))
@@ -8844,7 +8851,7 @@ def searchsorted_op(
     if out_int32:
         output_dtype = ir.IntegerType.get_signless(32)
     elif not (
-        ir.IntegerType.isinstance(output_dtype)
+        isinstance(output_dtype, ir.IntegerType)
         and ir.IntegerType(output_dtype).width == 64
     ):
         output_dtype = ir.IntegerType.get_signless(64)
@@ -8889,9 +8896,7 @@ def searchsorted_op(
     c1 = arith.ConstantOp(index_type, 1)
     c2 = arith.ConstantOp(index_type, 2)
 
-    is_float = ir.FloatType.isinstance(
-        sorted_elem_type
-    ) or ir.BF16Type.isinstance(sorted_elem_type)
+    is_float = isinstance(sorted_elem_type, (ir.FloatType, ir.BF16Type))
 
     def _searchsorted_value(val):
         while_op = scf.WhileOp([index_type, index_type], [c0.result, seq_len])
@@ -9162,7 +9167,7 @@ def fft_r2c_op(
             )
         element_type = input_element_type
     else:
-        if not ir.ComplexType.isinstance(input_element_type):
+        if not isinstance(input_element_type, ir.ComplexType):
             raise NotImplementedError(
                 f"{mode} requires complex input dtype, got {input_element_type}"
             )
@@ -9664,7 +9669,7 @@ def complex_op(
     out_shape = list(node.tensor_meta["shape"])
     out_dtype = mlir_element_type_get(node.tensor_meta["dtype"])
 
-    if not ir.ComplexType.isinstance(out_dtype):
+    if not isinstance(out_dtype, ir.ComplexType):
         raise NotImplementedError("complex requires complex output dtype")
     if real_type.shape != imag_type.shape:
         raise NotImplementedError("complex requires same-shaped real/imag")
@@ -9713,7 +9718,7 @@ def imag_op(
     """Lower aten.imag to elementwise complex::Im."""
     input_tensor = symbol_table.get((str(node.args[0]), 0), node.args[0])
     input_type = ir.RankedTensorType(input_tensor.type)
-    if not ir.ComplexType.isinstance(input_type.element_type):
+    if not isinstance(input_type.element_type, ir.ComplexType):
         raise NotImplementedError("imag requires complex input")
 
     out_shape = list(node.tensor_meta["shape"])
@@ -9756,7 +9761,7 @@ def conj_op(
     """Lower aten._conj / aten._conj_physical with re/im/create."""
     input_tensor = symbol_table.get((str(node.args[0]), 0), node.args[0])
     input_type = ir.RankedTensorType(input_tensor.type)
-    if not ir.ComplexType.isinstance(input_type.element_type):
+    if not isinstance(input_type.element_type, ir.ComplexType):
         return input_tensor
 
     out_shape = list(node.tensor_meta["shape"])
@@ -9811,7 +9816,7 @@ def polar_op(
     out_shape = list(node.tensor_meta["shape"])
     out_dtype = mlir_element_type_get(node.tensor_meta["dtype"])
 
-    if not ir.ComplexType.isinstance(out_dtype):
+    if not isinstance(out_dtype, ir.ComplexType):
         raise NotImplementedError("polar requires complex output dtype")
     if abs_type.shape != angle_type.shape:
         raise NotImplementedError("polar requires same-shaped inputs")
@@ -9866,7 +9871,7 @@ def view_as_real_op(
     """Lower aten.view_as_real by extracting real/imag and concatenating."""
     input_tensor = symbol_table.get((str(node.args[0]), 0), node.args[0])
     input_type = ir.RankedTensorType(input_tensor.type)
-    if not ir.ComplexType.isinstance(input_type.element_type):
+    if not isinstance(input_type.element_type, ir.ComplexType):
         raise NotImplementedError("view_as_real requires complex input")
 
     input_shape = list(input_type.shape)
@@ -9935,7 +9940,7 @@ def view_as_complex_op(
     if out_shape != base_shape:
         raise NotImplementedError("view_as_complex shape mismatch")
     out_dtype = mlir_element_type_get(node.tensor_meta["dtype"])
-    if not ir.ComplexType.isinstance(out_dtype):
+    if not isinstance(out_dtype, ir.ComplexType):
         raise NotImplementedError("view_as_complex requires complex output")
 
     rank = len(input_shape)
@@ -10037,9 +10042,7 @@ def histc_op(
 
     dtype = node.tensor_meta["dtype"]
     out_dtype = mlir_element_type_get(dtype)
-    if not (
-        ir.FloatType.isinstance(out_dtype) or ir.BF16Type.isinstance(out_dtype)
-    ):
+    if not (isinstance(out_dtype, (ir.FloatType, ir.BF16Type))):
         raise NotImplementedError(
             "histc currently supports floating outputs only"
         )
@@ -10087,11 +10090,11 @@ def histc_op(
                 lt = arith.CmpFOp(arith.CmpFPredicate.OLT, val, cur_min).result
                 gt = arith.CmpFOp(arith.CmpFPredicate.OGT, val, cur_max).result
 
-                if_min = scf.IfOp(lt, [], hasElse=False)
+                if_min = scf.IfOp(lt, [], has_else=False)
                 with ir.InsertionPoint(if_min.then_block):
                     memref.StoreOp(val, min_mem.result, [])
                     scf.YieldOp([])
-                if_max = scf.IfOp(gt, [], hasElse=False)
+                if_max = scf.IfOp(gt, [], has_else=False)
                 with ir.InsertionPoint(if_max.then_block):
                     memref.StoreOp(val, max_mem.result, [])
                     scf.YieldOp([])
@@ -10126,7 +10129,7 @@ def histc_op(
     one = arith.ConstantOp(
         input_dtype, ir.FloatAttr.get(input_dtype, 1.0)
     ).result
-    if_same = scf.IfOp(same_range, [input_dtype, input_dtype], hasElse=True)
+    if_same = scf.IfOp(same_range, [input_dtype, input_dtype], has_else=True)
     with ir.InsertionPoint(if_same.then_block):
         scf.YieldOp(
             [
@@ -10165,7 +10168,7 @@ def histc_op(
             le_max = arith.CmpFOp(arith.CmpFPredicate.OLE, v, range_max).result
             in_range = arith.AndIOp(ge_min, le_max).result
 
-            if_in = scf.IfOp(in_range, [], hasElse=False)
+            if_in = scf.IfOp(in_range, [], has_else=False)
             with ir.InsertionPoint(if_in.then_block):
                 # bin = floor((v - min) / width)
                 t = arith.DivFOp(
@@ -10177,7 +10180,7 @@ def histc_op(
                 is_max = arith.CmpFOp(
                     arith.CmpFPredicate.OEQ, v, range_max
                 ).result
-                if_max = scf.IfOp(is_max, [i64_ty], hasElse=True)
+                if_max = scf.IfOp(is_max, [i64_ty], has_else=True)
                 with ir.InsertionPoint(if_max.then_block):
                     scf.YieldOp([bins_m1_i64])
                 with ir.InsertionPoint(if_max.else_block):
@@ -10191,7 +10194,7 @@ def histc_op(
                     arith.CmpIPredicate.slt, bin_i64, bins_i64
                 ).result
                 ok = arith.AndIOp(ge0, lt_bins).result
-                if_ok = scf.IfOp(ok, [], hasElse=False)
+                if_ok = scf.IfOp(ok, [], has_else=False)
                 with ir.InsertionPoint(if_ok.then_block):
                     bin_idx = arith.IndexCastOp(index_ty, bin_i64).result
                     cur = memref.LoadOp(output_memref.result, [bin_idx]).result
@@ -10216,7 +10219,7 @@ def histc_op(
 
 
 def _is_float_type(dtype: ir.Type) -> bool:
-    return ir.FloatType.isinstance(dtype) or ir.BF16Type.isinstance(dtype)
+    return isinstance(dtype, (ir.FloatType, ir.BF16Type))
 
 
 def _cmp_should_swap(
@@ -10296,7 +10299,7 @@ def _bubble_sort_1d_with_indices(
             should_swap = _cmp_should_swap(
                 val_curr, val_next, input_dtype, nan_last
             )
-            if_op = scf.IfOp(should_swap, hasElse=False)
+            if_op = scf.IfOp(should_swap, has_else=False)
             with ir.InsertionPoint(if_op.then_block):
                 memref.StoreOp(
                     val_next,
@@ -10397,7 +10400,7 @@ def _bubble_sort_2d_dim1_with_indices(
                 should_swap = _cmp_should_swap(
                     val_curr, val_next, input_dtype, nan_last
                 )
-                if_op = scf.IfOp(should_swap, hasElse=False)
+                if_op = scf.IfOp(should_swap, has_else=False)
                 with ir.InsertionPoint(if_op.then_block):
                     memref.StoreOp(
                         val_next,
@@ -10707,7 +10710,7 @@ def nanmedian_op(
             is_empty = arith.CmpIOp(
                 arith.CmpIPredicate.eq, count, c0.result
             ).result
-            if_op = scf.IfOp(is_empty, hasElse=True)
+            if_op = scf.IfOp(is_empty, has_else=True)
             with ir.InsertionPoint(if_op.then_block):
                 if values_shape:
                     memref.StoreOp(
@@ -10815,7 +10818,7 @@ def nanmedian_op(
             is_empty = arith.CmpIOp(
                 arith.CmpIPredicate.eq, count, c0.result
             ).result
-            if_op = scf.IfOp(is_empty, hasElse=True)
+            if_op = scf.IfOp(is_empty, has_else=True)
             with ir.InsertionPoint(if_op.then_block):
                 if keepdim:
                     memref.StoreOp(
@@ -10926,7 +10929,7 @@ def nanmedian_op(
     values_memref = memref.AllocOp(
         ir.MemRefType.get(values_shape, input_dtype), [], []
     )
-    if_op = scf.IfOp(is_empty, hasElse=True)
+    if_op = scf.IfOp(is_empty, has_else=True)
     with ir.InsertionPoint(if_op.then_block):
         if values_shape:
             memref.StoreOp(nan_val.result, values_memref.result, [c0.result])
@@ -11207,7 +11210,7 @@ def nonzero_static_op(
     fill_value = node.args[2] if len(node.args) > 2 else -1
 
     output_dtype = mlir_element_type_get(node.tensor_meta["dtype"])
-    if not ir.IntegerType.isinstance(output_dtype):
+    if not isinstance(output_dtype, ir.IntegerType):
         raise NotImplementedError("nonzero_static requires integer output")
 
     output_tensor_type = ir.RankedTensorType.get(output_shape, output_dtype)
@@ -11264,13 +11267,13 @@ def nonzero_static_op(
                 is_nonzero = arith.CmpIOp(
                     arith.CmpIPredicate.ne, val, zero_const
                 ).result
-            if_op = scf.IfOp(is_nonzero, hasElse=False)
+            if_op = scf.IfOp(is_nonzero, has_else=False)
             with ir.InsertionPoint(if_op.then_block):
                 count = memref.LoadOp(counter_memref, [c0.result]).result
                 in_range = arith.CmpIOp(
                     arith.CmpIPredicate.slt, count, size_idx.result
                 ).result
-                store_if = scf.IfOp(in_range, hasElse=False)
+                store_if = scf.IfOp(in_range, has_else=False)
                 with ir.InsertionPoint(store_if.then_block):
                     for dim_idx, dim_const in enumerate(dim_consts):
                         idx_i64 = arith.IndexCastOp(
@@ -11320,7 +11323,7 @@ def nonzero_op(
     output_dtype = mlir_element_type_get(
         node.tensor_meta.get("dtype", TensorDType.Int64)
     )
-    if not ir.IntegerType.isinstance(output_dtype):
+    if not isinstance(output_dtype, ir.IntegerType):
         raise NotImplementedError("nonzero requires integer output")
 
     index_type = ir.IndexType.get()
@@ -11368,7 +11371,7 @@ def nonzero_op(
     def _count_loops(depth: int):
         if depth == input_rank:
             val = memref.LoadOp(input_memref, idx_values).result
-            if_op = scf.IfOp(_is_nonzero(val), hasElse=False)
+            if_op = scf.IfOp(_is_nonzero(val), has_else=False)
             with ir.InsertionPoint(if_op.then_block):
                 count = memref.LoadOp(counter_memref, [c0.result]).result
                 new_count = arith.AddIOp(count, c1.result).result
@@ -11398,7 +11401,7 @@ def nonzero_op(
     def _fill_loops(depth: int):
         if depth == input_rank:
             val = memref.LoadOp(input_memref, idx_values).result
-            if_op = scf.IfOp(_is_nonzero(val), hasElse=False)
+            if_op = scf.IfOp(_is_nonzero(val), has_else=False)
             with ir.InsertionPoint(if_op.then_block):
                 out_pos = memref.LoadOp(out_counter_memref, [c0.result]).result
                 for dim_idx, dim_const in enumerate(dim_consts):
@@ -11456,7 +11459,7 @@ def masked_select_op(
     ).result
 
     def _mask_pred(v: ir.Value) -> ir.Value:
-        if ir.IntegerType.isinstance(mask_dtype) and str(mask_dtype) == "i1":
+        if isinstance(mask_dtype, ir.IntegerType) and str(mask_dtype) == "i1":
             return v
         zero = arith.ConstantOp(
             mask_dtype, ir.IntegerAttr.get(mask_dtype, 0)
@@ -11476,7 +11479,7 @@ def masked_select_op(
     def _count_loops(depth: int):
         if depth == len(input_shape):
             m = memref.LoadOp(mask_memref, idx_values).result
-            if_op = scf.IfOp(_mask_pred(m), hasElse=False)
+            if_op = scf.IfOp(_mask_pred(m), has_else=False)
             with ir.InsertionPoint(if_op.then_block):
                 count = memref.LoadOp(counter_memref, [c0.result]).result
                 new_count = arith.AddIOp(count, c1.result).result
@@ -11507,7 +11510,7 @@ def masked_select_op(
     def _fill_loops(depth: int):
         if depth == len(input_shape):
             m = memref.LoadOp(mask_memref, idx_values).result
-            if_op = scf.IfOp(_mask_pred(m), hasElse=False)
+            if_op = scf.IfOp(_mask_pred(m), has_else=False)
             with ir.InsertionPoint(if_op.then_block):
                 out_pos = memref.LoadOp(out_counter_memref, [c0.result]).result
                 v = memref.LoadOp(input_memref, idx_values).result
@@ -11571,7 +11574,7 @@ def grid_sampler_3d_op(
     output_memref_type = ir.MemRefType.get(output_shape, input_dtype)
     output_memref = memref.AllocOp(output_memref_type, [], [])
     f_ty = input_dtype
-    if not (ir.FloatType.isinstance(f_ty) or ir.BF16Type.isinstance(f_ty)):
+    if not isinstance(f_ty, (ir.FloatType, ir.BF16Type)):
         raise NotImplementedError(
             "grid_sampler_3d currently supports float only"
         )
@@ -11626,7 +11629,7 @@ def grid_sampler_3d_op(
             ).result,
             _in_bounds(xi64, w_in_i64),
         ).result
-        if_op = scf.IfOp(ok, [f_ty], hasElse=True)
+        if_op = scf.IfOp(ok, [f_ty], has_else=True)
         with ir.InsertionPoint(if_op.then_block):
             z = arith.IndexCastOp(index_ty, zi64).result
             y = arith.IndexCastOp(index_ty, yi64).result
@@ -11881,7 +11884,7 @@ def _triangular_solve_core(
     m = b_shape[1]
 
     elem_type = b_type.element_type
-    if not ir.FloatType.isinstance(elem_type):
+    if not isinstance(elem_type, ir.FloatType):
         raise NotImplementedError("triangular solve currently supports float")
 
     a_mem = bufferization.ToBufferOp(
@@ -12023,7 +12026,7 @@ def _cholesky_core(input_tensor: ir.Value, upper: bool):
     n = shape[0]
 
     elem_type = input_type.element_type
-    if not ir.FloatType.isinstance(elem_type):
+    if not isinstance(elem_type, ir.FloatType):
         raise NotImplementedError("cholesky currently supports float tensors")
 
     input_mem = bufferization.ToBufferOp(
@@ -12234,7 +12237,7 @@ def _lu_factor_core(a_tensor: ir.Value):
 
     n = shape[0]
     elem_type = a_type.element_type
-    if not ir.FloatType.isinstance(elem_type):
+    if not isinstance(elem_type, ir.FloatType):
         raise NotImplementedError("LU currently supports float tensors")
 
     a_mem = bufferization.ToBufferOp(
@@ -12290,7 +12293,7 @@ def _lu_factor_core(a_tensor: ir.Value):
         pivot_idx = i_loop.results[0]
 
         need_swap = arith.CmpIOp(arith.CmpIPredicate.ne, pivot_idx, k).result
-        swap_if = scf.IfOp(need_swap, hasElse=False)
+        swap_if = scf.IfOp(need_swap, has_else=False)
         with ir.InsertionPoint(swap_if.then_block):
             j_swap = scf.ForOp(c0, n_bound, c1)
             with ir.InsertionPoint(j_swap.body):
@@ -12400,7 +12403,7 @@ def linalg_lu_op(node, symbol_table):
         ).result
 
         need_swap = arith.CmpIOp(arith.CmpIPredicate.ne, piv_idx, k).result
-        swap_if = scf.IfOp(need_swap, hasElse=False)
+        swap_if = scf.IfOp(need_swap, has_else=False)
         with ir.InsertionPoint(swap_if.then_block):
             j_loop = scf.ForOp(c0, n_bound, c1)
             with ir.InsertionPoint(j_loop.body):
@@ -12498,7 +12501,7 @@ def linalg_lu_solve_op(node, symbol_table):
             arith.IndexCastOp(ir.IndexType.get(), piv_i).result, c1
         ).result
         need_swap = arith.CmpIOp(arith.CmpIPredicate.ne, piv_idx, i).result
-        swap_if = scf.IfOp(need_swap, hasElse=False)
+        swap_if = scf.IfOp(need_swap, has_else=False)
         with ir.InsertionPoint(swap_if.then_block):
             j_swap = scf.ForOp(c0, m_bound, c1)
             with ir.InsertionPoint(j_swap.body):
@@ -12593,7 +12596,7 @@ def lu_unpack_op(node, symbol_table):
                 arith.IndexCastOp(ir.IndexType.get(), piv_i).result, c1
             ).result
             need_swap = arith.CmpIOp(arith.CmpIPredicate.ne, piv_idx, i).result
-            swap_if = scf.IfOp(need_swap, hasElse=False)
+            swap_if = scf.IfOp(need_swap, has_else=False)
             with ir.InsertionPoint(swap_if.then_block):
                 j_swap = scf.ForOp(c0, n_bound, c1)
                 with ir.InsertionPoint(j_swap.body):
@@ -12666,7 +12669,7 @@ def linalg_inv_ex_op(node, symbol_table):
             arith.IndexCastOp(ir.IndexType.get(), piv_i).result, c1
         ).result
         need_swap = arith.CmpIOp(arith.CmpIPredicate.ne, piv_idx, i).result
-        swap_if = scf.IfOp(need_swap, hasElse=False)
+        swap_if = scf.IfOp(need_swap, has_else=False)
         with ir.InsertionPoint(swap_if.then_block):
             j_swap = scf.ForOp(c0, n_bound, c1)
             with ir.InsertionPoint(j_swap.body):

@@ -92,20 +92,21 @@ public:
         RankedTensorType::get({outputShape[1] * outputShape[2], outputShape[3]},
                               outputShapeType.getElementType());
 
-    Value reshapedInput = rewriter.create<tensor::CollapseShapeOp>(
-        loc, reshapedInputType, input, reassociationIndices);
-    Value reshapedFilter = rewriter.create<tensor::CollapseShapeOp>(
-        loc, reshapedFilterType, kernel, reassociationIndices);
-    Value reshapedOutput = rewriter.create<tensor::CollapseShapeOp>(
-        loc, reshapedOutputType, output, reassociationIndices);
+    Value reshapedInput = tensor::CollapseShapeOp::create(
+        rewriter, loc, reshapedInputType, input, reassociationIndices);
+    Value reshapedFilter = tensor::CollapseShapeOp::create(
+        rewriter, loc, reshapedFilterType, kernel, reassociationIndices);
+    Value reshapedOutput = tensor::CollapseShapeOp::create(
+        rewriter, loc, reshapedOutputType, output, reassociationIndices);
 
     // Create MutmulOp
-    auto matmulResult = rewriter.create<linalg::MatmulOp>(
-        loc, reshapedOutputType, ArrayRef<Value>{reshapedInput, reshapedFilter},
-        ArrayRef<Value>{reshapedOutput});
+    auto matmulResult =
+        linalg::MatmulOp::create(rewriter, loc, reshapedOutputType,
+                                 ArrayRef<Value>{reshapedInput, reshapedFilter},
+                                 ArrayRef<Value>{reshapedOutput});
 
-    auto reshapedResult = rewriter.create<tensor::ExpandShapeOp>(
-        loc, outputShapeType, matmulResult.getResults()[0],
+    auto reshapedResult = tensor::ExpandShapeOp::create(
+        rewriter, loc, outputShapeType, matmulResult.getResults()[0],
         reassociationIndices);
 
     // Remove the origin convolution operation.

@@ -1,3 +1,4 @@
+add_subdirectory(BOSCAME)
 add_subdirectory(XTAME)
 add_subdirectory(AME)
 add_subdirectory(Bud)

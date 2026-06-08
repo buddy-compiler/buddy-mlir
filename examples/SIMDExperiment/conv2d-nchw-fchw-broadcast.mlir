@@ -24,7 +24,7 @@ module {
                                %output: memref<?x?x?x?xf32>) {
     %c0 = arith.constant 0 : index
     %c0_f32 = arith.constant 0.0 : f32
-    %c0_f32_vec = vector.splat %c0_f32 : vector<32xf32>
+    %c0_f32_vec = vector.broadcast %c0_f32 : f32 to vector<32xf32>
     %c1 = arith.constant 1 : index
     %c2 = arith.constant 2 : index
     %c3 = arith.constant 3 : index

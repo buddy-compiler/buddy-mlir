@@ -7,7 +7,7 @@
 // RUN: | mlir-runner -e main -entry-point-result=void \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_runner_utils%shlibext \
 // RUN:     -shared-libs=%mlir_runner_utils_dir/libmlir_c_runner_utils%shlibext \
-// RUN:     -shared-libs=%mlir_runner_utils_dir/libomp%shlibext \
+// RUN:     -shared-libs=%openmp_runtime_dir/libomp%shlibext \
 // RUN: | FileCheck %s
 
 module {

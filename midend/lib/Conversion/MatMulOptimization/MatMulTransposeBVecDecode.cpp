@@ -114,31 +114,31 @@ public:
       return failure();
 
     // Constants.
-    Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
-    Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
-    Value cVf = rewriter.create<arith::ConstantIndexOp>(loc, vf);
-    Value cStep = rewriter.create<arith::ConstantIndexOp>(loc, vf * unroll);
-    Value cNTile = rewriter.create<arith::ConstantIndexOp>(loc, nTile);
+    Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
+    Value c1 = arith::ConstantIndexOp::create(rewriter, loc, 1);
+    Value cVf = arith::ConstantIndexOp::create(rewriter, loc, vf);
+    Value cStep = arith::ConstantIndexOp::create(rewriter, loc, vf * unroll);
+    Value cNTile = arith::ConstantIndexOp::create(rewriter, loc, nTile);
 
-    Value f0 = rewriter.create<arith::ConstantFloatOp>(
-        loc, rewriter.getF32Type(), APFloat(0.0f));
+    Value f0 = arith::ConstantFloatOp::create(
+        rewriter, loc, rewriter.getF32Type(), APFloat(0.0f));
 
     auto vecTy = VectorType::get({vf}, rewriter.getF32Type());
     auto maskTy = VectorType::get({vf}, rewriter.getI1Type());
-    Value vzero = rewriter.create<vector::SplatOp>(loc, vecTy, f0);
+    Value vzero = vector::BroadcastOp::create(rewriter, loc, vecTy, f0);
 
     // Runtime dimensions.
-    Value M = rewriter.create<memref::DimOp>(loc, A, c0);
-    Value K = rewriter.create<memref::DimOp>(loc, A, c1);
-    Value N = rewriter.create<memref::DimOp>(loc, B, c0);
+    Value M = memref::DimOp::create(rewriter, loc, A, c0);
+    Value K = memref::DimOp::create(rewriter, loc, A, c1);
+    Value N = memref::DimOp::create(rewriter, loc, B, c0);
 
     // mainBound = floor(K / (vf * unroll)) * (vf * unroll)
-    Value kDiv = rewriter.create<arith::DivUIOp>(loc, K, cStep);
-    Value mainBound = rewriter.create<arith::MulIOp>(loc, kDiv, cStep);
+    Value kDiv = arith::DivUIOp::create(rewriter, loc, K, cStep);
+    Value mainBound = arith::MulIOp::create(rewriter, loc, kDiv, cStep);
 
     // nMainBound = floor(N / nTile) * nTile
-    Value nDiv = rewriter.create<arith::DivUIOp>(loc, N, cNTile);
-    Value nMainBound = rewriter.create<arith::MulIOp>(loc, nDiv, cNTile);
+    Value nDiv = arith::DivUIOp::create(rewriter, loc, N, cNTile);
+    Value nMainBound = arith::MulIOp::create(rewriter, loc, nDiv, cNTile);
 
     //===------------------------------------------------------------------===//
     // Main loop:
@@ -157,8 +157,8 @@ public:
 
     SmallVector<Value> initTileAccs(nTile * unroll, vzero);
 
-    rewriter.create<scf::ParallelOp>(
-        loc,
+    scf::ParallelOp::create(
+        rewriter, loc,
         /*lowerBounds=*/ValueRange{c0, c0},
         /*upperBounds=*/ValueRange{M, nMainBound},
         /*steps=*/ValueRange{c1, cNTile},
@@ -169,16 +169,16 @@ public:
           SmallVector<Value> colIdxs(nTile);
           colIdxs[0] = nBase;
           for (int64_t j = 1; j < nTile; ++j) {
-            Value cj = pb.create<arith::ConstantIndexOp>(ploc, j);
-            colIdxs[j] = pb.create<arith::AddIOp>(ploc, nBase, cj);
+            Value cj = arith::ConstantIndexOp::create(pb, ploc, j);
+            colIdxs[j] = arith::AddIOp::create(pb, ploc, nBase, cj);
           }
 
           // Main K loop.
           //
           // iterArgs layout:
           //   iterArgs[j * unroll + u]
-          auto mainFor = pb.create<scf::ForOp>(
-              ploc, c0, mainBound, cStep, ValueRange(initTileAccs),
+          auto mainFor = scf::ForOp::create(
+              pb, ploc, c0, mainBound, cStep, ValueRange(initTileAccs),
               [&](OpBuilder &fb, Location forLoc, Value kBase,
                   ValueRange iterArgs) {
                 SmallVector<Value> newAccs;
@@ -195,30 +195,30 @@ public:
                     kOff = kBase;
                   } else {
                     Value cOff =
-                        fb.create<arith::ConstantIndexOp>(forLoc, u * vf);
-                    kOff = fb.create<arith::AddIOp>(forLoc, kBase, cOff);
+                        arith::ConstantIndexOp::create(fb, forLoc, u * vf);
+                    kOff = arith::AddIOp::create(fb, forLoc, kBase, cOff);
                   }
 
                   kOffs[u] = kOff;
 
-                  aVecs[u] = fb.create<vector::LoadOp>(forLoc, vecTy, A,
-                                                       ValueRange{m, kOff});
+                  aVecs[u] = vector::LoadOp::create(fb, forLoc, vecTy, A,
+                                                    ValueRange{m, kOff});
                 }
 
                 // For each tiled N column, load B and FMA with shared A.
                 for (int64_t j = 0; j < nTile; ++j) {
                   for (int64_t u = 0; u < unroll; ++u) {
-                    Value bVec = fb.create<vector::LoadOp>(
-                        forLoc, vecTy, B, ValueRange{colIdxs[j], kOffs[u]});
+                    Value bVec = vector::LoadOp::create(
+                        fb, forLoc, vecTy, B, ValueRange{colIdxs[j], kOffs[u]});
 
-                    Value acc = fb.create<vector::FMAOp>(
-                        forLoc, aVecs[u], bVec, iterArgs[j * unroll + u]);
+                    Value acc = vector::FMAOp::create(
+                        fb, forLoc, aVecs[u], bVec, iterArgs[j * unroll + u]);
 
                     newAccs.push_back(acc);
                   }
                 }
 
-                fb.create<scf::YieldOp>(forLoc, newAccs);
+                scf::YieldOp::create(fb, forLoc, newAccs);
               });
 
           // Sum unroll accumulators for each output column.
@@ -228,8 +228,8 @@ public:
           for (int64_t j = 0; j < nTile; ++j) {
             Value sumVec = mainFor.getResult(j * unroll);
             for (int64_t u = 1; u < unroll; ++u) {
-              sumVec = pb.create<arith::AddFOp>(
-                  ploc, sumVec, mainFor.getResult(j * unroll + u));
+              sumVec = arith::AddFOp::create(pb, ploc, sumVec,
+                                             mainFor.getResult(j * unroll + u));
             }
             sumVecs.push_back(sumVec);
           }
@@ -240,40 +240,40 @@ public:
           //
           // iterArgs layout:
           //   iterArgs[j]
-          auto tailFor = pb.create<scf::ForOp>(
-              ploc, mainBound, K, cVf, ValueRange(sumVecs),
+          auto tailFor = scf::ForOp::create(
+              pb, ploc, mainBound, K, cVf, ValueRange(sumVecs),
               [&](OpBuilder &tb, Location tailLoc, Value kBase,
                   ValueRange iterArgs) {
-                Value remaining = tb.create<arith::SubIOp>(tailLoc, K, kBase);
+                Value remaining = arith::SubIOp::create(tb, tailLoc, K, kBase);
 
-                Value gt = tb.create<arith::CmpIOp>(
-                    tailLoc, arith::CmpIPredicate::ugt, remaining, cVf);
+                Value gt = arith::CmpIOp::create(
+                    tb, tailLoc, arith::CmpIPredicate::ugt, remaining, cVf);
 
                 Value valid =
-                    tb.create<arith::SelectOp>(tailLoc, gt, cVf, remaining);
+                    arith::SelectOp::create(tb, tailLoc, gt, cVf, remaining);
 
-                Value mask = tb.create<vector::CreateMaskOp>(tailLoc, maskTy,
-                                                             ValueRange{valid});
+                Value mask = vector::CreateMaskOp::create(tb, tailLoc, maskTy,
+                                                          ValueRange{valid});
 
                 // A tail vector is shared across nTile output columns.
-                Value aVec = tb.create<vector::MaskedLoadOp>(
-                    tailLoc, vecTy, A, ValueRange{m, kBase}, mask, vzero);
+                Value aVec = vector::MaskedLoadOp::create(
+                    tb, tailLoc, vecTy, A, ValueRange{m, kBase}, mask, vzero);
 
                 SmallVector<Value> newTailAccs;
                 newTailAccs.reserve(nTile);
 
                 for (int64_t j = 0; j < nTile; ++j) {
-                  Value bVec = tb.create<vector::MaskedLoadOp>(
-                      tailLoc, vecTy, B, ValueRange{colIdxs[j], kBase}, mask,
-                      vzero);
+                  Value bVec = vector::MaskedLoadOp::create(
+                      tb, tailLoc, vecTy, B, ValueRange{colIdxs[j], kBase},
+                      mask, vzero);
 
-                  Value acc = tb.create<vector::FMAOp>(tailLoc, aVec, bVec,
-                                                       iterArgs[j]);
+                  Value acc = vector::FMAOp::create(tb, tailLoc, aVec, bVec,
+                                                    iterArgs[j]);
 
                   newTailAccs.push_back(acc);
                 }
 
-                tb.create<scf::YieldOp>(tailLoc, newTailAccs);
+                scf::YieldOp::create(tb, tailLoc, newTailAccs);
               });
 
           // Reduce vector accumulators and store C[m, nBase + j].
@@ -281,14 +281,14 @@ public:
             Value finalVec = tailFor.getResult(j);
 
             Value oldVal =
-                pb.create<memref::LoadOp>(ploc, C, ValueRange{m, colIdxs[j]});
+                memref::LoadOp::create(pb, ploc, C, ValueRange{m, colIdxs[j]});
 
-            Value result = pb.create<vector::ReductionOp>(
-                ploc, vector::CombiningKind::ADD, finalVec, oldVal,
+            Value result = vector::ReductionOp::create(
+                pb, ploc, vector::CombiningKind::ADD, finalVec, oldVal,
                 arith::FastMathFlags::reassoc);
 
-            pb.create<memref::StoreOp>(ploc, result, C,
-                                       ValueRange{m, colIdxs[j]});
+            memref::StoreOp::create(pb, ploc, result, C,
+                                    ValueRange{m, colIdxs[j]});
           }
         });
 
@@ -303,8 +303,8 @@ public:
 
     SmallVector<Value> initAccs(unroll, vzero);
 
-    rewriter.create<scf::ParallelOp>(
-        loc,
+    scf::ParallelOp::create(
+        rewriter, loc,
         /*lowerBounds=*/ValueRange{c0, nMainBound},
         /*upperBounds=*/ValueRange{M, N},
         /*steps=*/ValueRange{c1, c1},
@@ -313,8 +313,8 @@ public:
           Value n = ivs[1];
 
           // Main K loop for one tail output column.
-          auto mainFor = pb.create<scf::ForOp>(
-              ploc, c0, mainBound, cStep, ValueRange(initAccs),
+          auto mainFor = scf::ForOp::create(
+              pb, ploc, c0, mainBound, cStep, ValueRange(initAccs),
               [&](OpBuilder &fb, Location forLoc, Value kBase,
                   ValueRange iterArgs) {
                 SmallVector<Value> newAccs;
@@ -326,69 +326,69 @@ public:
                     kOff = kBase;
                   } else {
                     Value cOff =
-                        fb.create<arith::ConstantIndexOp>(forLoc, u * vf);
-                    kOff = fb.create<arith::AddIOp>(forLoc, kBase, cOff);
+                        arith::ConstantIndexOp::create(fb, forLoc, u * vf);
+                    kOff = arith::AddIOp::create(fb, forLoc, kBase, cOff);
                   }
 
-                  Value aVec = fb.create<vector::LoadOp>(forLoc, vecTy, A,
-                                                         ValueRange{m, kOff});
+                  Value aVec = vector::LoadOp::create(fb, forLoc, vecTy, A,
+                                                      ValueRange{m, kOff});
 
-                  Value bVec = fb.create<vector::LoadOp>(forLoc, vecTy, B,
-                                                         ValueRange{n, kOff});
+                  Value bVec = vector::LoadOp::create(fb, forLoc, vecTy, B,
+                                                      ValueRange{n, kOff});
 
-                  Value acc =
-                      fb.create<vector::FMAOp>(forLoc, aVec, bVec, iterArgs[u]);
+                  Value acc = vector::FMAOp::create(fb, forLoc, aVec, bVec,
+                                                    iterArgs[u]);
 
                   newAccs.push_back(acc);
                 }
 
-                fb.create<scf::YieldOp>(forLoc, newAccs);
+                scf::YieldOp::create(fb, forLoc, newAccs);
               });
 
           // Sum unroll accumulators.
           Value sumVec = mainFor.getResult(0);
           for (int64_t u = 1; u < unroll; ++u) {
             sumVec =
-                pb.create<arith::AddFOp>(ploc, sumVec, mainFor.getResult(u));
+                arith::AddFOp::create(pb, ploc, sumVec, mainFor.getResult(u));
           }
 
           // Tail K loop for one tail output column.
-          auto tailFor = pb.create<scf::ForOp>(
-              ploc, mainBound, K, cVf, ValueRange{sumVec},
+          auto tailFor = scf::ForOp::create(
+              pb, ploc, mainBound, K, cVf, ValueRange{sumVec},
               [&](OpBuilder &tb, Location tailLoc, Value kBase,
                   ValueRange iterArgs) {
-                Value remaining = tb.create<arith::SubIOp>(tailLoc, K, kBase);
+                Value remaining = arith::SubIOp::create(tb, tailLoc, K, kBase);
 
-                Value gt = tb.create<arith::CmpIOp>(
-                    tailLoc, arith::CmpIPredicate::ugt, remaining, cVf);
+                Value gt = arith::CmpIOp::create(
+                    tb, tailLoc, arith::CmpIPredicate::ugt, remaining, cVf);
 
                 Value valid =
-                    tb.create<arith::SelectOp>(tailLoc, gt, cVf, remaining);
+                    arith::SelectOp::create(tb, tailLoc, gt, cVf, remaining);
 
-                Value mask = tb.create<vector::CreateMaskOp>(tailLoc, maskTy,
-                                                             ValueRange{valid});
+                Value mask = vector::CreateMaskOp::create(tb, tailLoc, maskTy,
+                                                          ValueRange{valid});
 
-                Value aVec = tb.create<vector::MaskedLoadOp>(
-                    tailLoc, vecTy, A, ValueRange{m, kBase}, mask, vzero);
+                Value aVec = vector::MaskedLoadOp::create(
+                    tb, tailLoc, vecTy, A, ValueRange{m, kBase}, mask, vzero);
 
-                Value bVec = tb.create<vector::MaskedLoadOp>(
-                    tailLoc, vecTy, B, ValueRange{n, kBase}, mask, vzero);
+                Value bVec = vector::MaskedLoadOp::create(
+                    tb, tailLoc, vecTy, B, ValueRange{n, kBase}, mask, vzero);
 
                 Value acc =
-                    tb.create<vector::FMAOp>(tailLoc, aVec, bVec, iterArgs[0]);
+                    vector::FMAOp::create(tb, tailLoc, aVec, bVec, iterArgs[0]);
 
-                tb.create<scf::YieldOp>(tailLoc, acc);
+                scf::YieldOp::create(tb, tailLoc, acc);
               });
 
           Value finalVec = tailFor.getResult(0);
 
-          Value oldVal = pb.create<memref::LoadOp>(ploc, C, ValueRange{m, n});
+          Value oldVal = memref::LoadOp::create(pb, ploc, C, ValueRange{m, n});
 
-          Value result = pb.create<vector::ReductionOp>(
-              ploc, vector::CombiningKind::ADD, finalVec, oldVal,
+          Value result = vector::ReductionOp::create(
+              pb, ploc, vector::CombiningKind::ADD, finalVec, oldVal,
               arith::FastMathFlags::reassoc);
 
-          pb.create<memref::StoreOp>(ploc, result, C, ValueRange{m, n});
+          memref::StoreOp::create(pb, ploc, result, C, ValueRange{m, n});
         });
 
     rewriter.eraseOp(op);

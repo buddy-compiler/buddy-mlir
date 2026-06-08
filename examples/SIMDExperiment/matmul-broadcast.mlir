@@ -7,7 +7,7 @@ module{
     %c1 = arith.constant 1 : index
     %c32 = arith.constant 32 : index
     %c0_f32 = arith.constant 0.0 : f32
-    %c0_f32_vec = vector.splat %c0_f32 : vector<32xf32>
+    %c0_f32_vec = vector.broadcast %c0_f32 : f32 to vector<32xf32>
 
     %a_row = memref.dim %a, %c0 : memref<?x?xf32>
     %a_col = memref.dim %a, %c1 : memref<?x?xf32>

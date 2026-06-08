@@ -17,4 +17,4 @@ certifi
 idna
 diffusers
 pre-commit
-nanobind
+nanobind>=2.9,<3.0
