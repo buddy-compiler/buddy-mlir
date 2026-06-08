@@ -47,7 +47,7 @@ ninja
 cd buddy-mlir/build
 export BUDDY_MLIR_BUILD_DIR=$PWD
 export LLVM_MLIR_BUILD_DIR=$PWD/../llvm/build
-export PYTHONPATH=${LLVM_MLIR_BUILD_DIR}/tools/mlir/python_packages/mlir_core:${BUDDY_MLIR_BUILD_DIR}/python_packages:${PYTHONPATH}
+export PYTHONPATH=${BUDDY_MLIR_BUILD_DIR}/python_packages:${PYTHONPATH}
 
 # Test Python bindings
 python3 -c "from buddy.compiler.frontend import DynamoCompiler"
