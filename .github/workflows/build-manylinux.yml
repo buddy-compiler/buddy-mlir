@@ -30,6 +30,7 @@ jobs:
       name: ${{ steps.vars.outputs.name }}
       version: ${{ steps.vars.outputs.version }}
       llvm_cache_mode: ${{ steps.vars.outputs.llvm_cache_mode }}
+      is_nightly: ${{ steps.vars.outputs.is_nightly }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -46,13 +47,15 @@ jobs:
             NAME="BUDDY MLIR ${VERSION}"
             TAG_NAME="release/v${VERSION}"
             CACHE_MODE="${{ inputs.llvm_cache_mode }}"
+            IS_NIGHTLY="false"
           else
             # trigger by schedule
             DATE=$(date +'%Y-%m-%d')
             SHA=$(git rev-parse --short=7 HEAD)
             NAME="Nightly ${DATE}-${SHA}"
-            TAG_NAME="nightly"
+            TAG_NAME="nightly/${DATE}-${SHA}"
             CACHE_MODE="incremental"
+            IS_NIGHTLY="true"
             if RAW_DESCRIBE=$(git describe --tags --long --match "release/v*" 2>/dev/null); then
               echo "Found last release tag: ${RAW_DESCRIBE}"
               VERSION=$(echo "$RAW_DESCRIBE" | sed -E 's/^release\/v//; s/-([0-9]+)-g/.dev\1+/')
@@ -65,17 +68,18 @@ jobs:
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "llvm_cache_mode=$CACHE_MODE" >> "$GITHUB_OUTPUT"
+          echo "is_nightly=$IS_NIGHTLY" >> "$GITHUB_OUTPUT"
 
       - name: Create or Update release page
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.vars.outputs.tag_name }}
           name: ${{ steps.vars.outputs.name }}
-          draft: ${{ steps.vars.outputs.tag_name != 'nightly' }}
+          draft: ${{ steps.vars.outputs.is_nightly != 'true' }}
           append_body: false
           overwrite_files: true
-          prerelease: ${{ steps.vars.outputs.tag_name == 'nightly' }}
-          make_latest: ${{ steps.vars.outputs.tag_name != 'nightly' }}
+          prerelease: ${{ steps.vars.outputs.is_nightly == 'true' }}
+          make_latest: ${{ steps.vars.outputs.is_nightly != 'true' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
