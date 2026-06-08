@@ -153,8 +153,8 @@ public:
     auto createUnrollParallel = [&](int unrollSize, Value lowerBound,
                                     Value upperBound) {
       // Create the primary parallel batch level loop.
-      rewriter.create<scf::ParallelOp>(
-          loc,
+      scf::ParallelOp::create(
+          rewriter, loc,
           /*lowerBounds=*/ValueRange{constantVals[0], lowerBound},
           /*upperBounds=*/ValueRange{batch, upperBound},
           /*steps=*/ValueRange{constantVals[1], constantVals[unrollSize]},
@@ -195,9 +195,9 @@ public:
                             auto aVec = vector::BroadcastOp::create(
                                 rewriter, loc, vectorTy, aEle);
                             Value mulVec =
-                                builder.create<arith::MulIOp>(loc, aVec, bVec);
-                            Value resSumVec = builder.create<arith::AddIOp>(
-                                loc, mulVec, iterArgs1[i]);
+                                arith::MulIOp::create(builder, loc, aVec, bVec);
+                            Value resSumVec = arith::AddIOp::create(
+                                builder, loc, mulVec, iterArgs1[i]);
                             resSumVecs.push_back(resSumVec);
                           }
                         } else {
