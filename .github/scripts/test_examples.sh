@@ -25,6 +25,7 @@ else
     -DBUDDY_MOBILENETV3_EXAMPLES=ON \
     -DBUDDY_QWEN3_EXAMPLES=ON \
     -DBUDDY_RESNET_EXAMPLES=ON \
+    -DBUDDY_STABLE_DIFFUSION_EXAMPLES=ON \
     -DBUDDY_TRANSFORMER_EXAMPLES=ON \
     -DBUDDY_ENABLE_PNG=ON
 
@@ -35,6 +36,7 @@ else
     transformer-runner \
     buddy-bert-run \
     buddy-lenet-run \
+    buddy-stable-diffusion-run \
     buddy-mobilenetv3-run \
     buddy-resnet-run
   ccache -s

@@ -375,10 +375,7 @@ def _scalar_to_tensor(
         element = ir.FloatAttr.get(element_type, float(scalar))
     else:
         element = ir.IntegerAttr.get(element_type, int(scalar))
-    attr = ir.DenseElementsAttr.get_splat(
-        ir.RankedTensorType.get(shape, element_type), element
-    )
-    return tosa.ConstOp(attr).results[0]
+    return splat_tensor_value(list(shape), element_type, element)
 
 
 def _normalize_binary_operator_args(arg1, arg2):
@@ -4098,9 +4095,8 @@ def scaled_dot_product_flash_attention_for_cpu_op(
     dtype = node.tensor_meta["dtype"][0]
     attn_bias_shape = [L, S]
     mlir_dtype = mlir_element_type_get(dtype)
-    attn_bias_type = ir.RankedTensorType.get(attn_bias_shape, mlir_dtype)
-    zero_constant = arith.ConstantOp(mlir_dtype, 0.0)
-    attn_bias = tensor.SplatOp(attn_bias_type, zero_constant, [])
+    zero_attr = mlir_element_attr_get(dtype, 0.0)
+    attn_bias = splat_tensor_value(attn_bias_shape, mlir_dtype, zero_attr)
     if attn_mask is not None:
         attn_mask = symbol_table.get((str(attn_mask), 0), attn_mask)
         if attn_mask.type.element_type == ir.IntegerType.get_signless(1):
@@ -4122,14 +4118,16 @@ def scaled_dot_product_flash_attention_for_cpu_op(
                     ir.FloatAttr.get(ir.F32Type.get(), float("-inf")),
                 ),
             )
-            attn_bias = tensor.SelectOp(attn_mask, minus_inf_tensor, attn_bias)
+            attn_bias = tensor.SelectOp(
+                attn_mask, minus_inf_tensor, attn_bias
+            ).result
         else:
-            if attn_mask.type.shape != attn_bias.result.type.shape:
+            if attn_mask.type.shape != attn_bias.type.shape:
                 attn_mask_operand = _create_shape_operand(
-                    list(attn_bias.result.type.shape)
+                    list(attn_bias.type.shape)
                 )
                 attn_mask = tosa.ReshapeOp(attn_mask, attn_mask_operand)
-            attn_bias = tosa.AddOp(attn_bias.result.type, attn_bias, attn_mask)
+            attn_bias = tosa.AddOp(attn_bias.type, attn_bias, attn_mask).result
 
     # Matrix multiplication of query and key
     query_reshape_operand = _create_shape_operand(
@@ -4155,8 +4153,9 @@ def scaled_dot_product_flash_attention_for_cpu_op(
     ]
     matmul_result_type = ir.RankedTensorType.get(matmul_result_shp, mlir_dtype)
     element = mlir_element_attr_get(dtype, 0.0)
-    attr = ir.DenseElementsAttr.get_splat(matmul_result_type, element)
-    matmul_result_buffer = arith.ConstantOp(matmul_result_type, attr).result
+    matmul_result_buffer = splat_tensor_value(
+        matmul_result_shp, mlir_dtype, element
+    )
     generic_map = ir.AffineMap.get_permutation([0, 1, 2, 3])
     matmul_op = linalg.BatchMatmulOp(
         result_tensors=[matmul_result_type],
@@ -4196,13 +4195,15 @@ def scaled_dot_product_flash_attention_for_cpu_op(
             max_fp_attr,
         )
     # Multiply result by scale factor
-    scale_factor_constant = arith.ConstantOp(mlir_dtype, scale_factor)
-    scale_factor = tensor.SplatOp(matmul_result_type, scale_factor_constant, [])
+    scale_factor_attr = mlir_element_attr_get(dtype, scale_factor)
+    scale_factor = splat_tensor_value(
+        matmul_result_shp, mlir_dtype, scale_factor_attr
+    )
     shift = _create_mul_shift_operand()
     mul_op = tosa.MulOp(matmul_result_type, matmul_op, scale_factor, shift)
 
     # Add attention bias to the result
-    add_op = _gen_arith_binary_op(mul_op.result, attn_bias.result, tosa.AddOp)
+    add_op = _gen_arith_binary_op(mul_op.result, attn_bias, tosa.AddOp)
     # add_op = tosa.AddOp(matmul_result_type, mul_op.result, attn_bias)
     # Apply softmax to the result
     softmax_output_shape = list(add_op.result.type.shape)
@@ -4310,8 +4311,10 @@ def flash_attention_for_cpu_prefill_op(
     output_shape = list(query_shape)
 
     # scale = 1/sqrt(H)
-    scale_val = 1 / numpy.sqrt(query.type.shape[-1]) if scale is None else scale
-    scale_val = arith.ConstantOp(dtype, float(scale_val)).result
+    scale_factor = (
+        1 / numpy.sqrt(query.type.shape[-1]) if scale is None else scale
+    )
+    scale_val = arith.ConstantOp(dtype, float(scale_factor)).result
 
     zero = arith.ConstantOp(dtype, 0.0, loc=loc).result
     neg_inf = arith.ConstantOp(dtype, -1.0e30, loc=loc).result
@@ -4841,15 +4844,11 @@ def zeros_op(node: ZerosOp, symbol_table):
     result_type = ir.RankedTensorType.get(output_shape, result_element_type)
 
     if str(result_element_type).find("f") != -1:
-        zero_attr = ir.DenseElementsAttr.get_splat(
-            result_type, ir.FloatAttr.get(result_element_type, 0.0)
-        )
+        zero_attr = ir.FloatAttr.get(result_element_type, 0.0)
     else:
-        zero_attr = ir.DenseElementsAttr.get_splat(
-            result_type, ir.IntegerAttr.get(result_element_type, 0)
-        )
+        zero_attr = ir.IntegerAttr.get(result_element_type, 0)
 
-    return tosa.ConstOp(zero_attr)
+    return splat_tensor_value(output_shape, result_element_type, zero_attr)
 
 
 def zeros_like_op(node: ZerosLikeOp, symbol_table):
@@ -4863,15 +4862,11 @@ def zeros_like_op(node: ZerosLikeOp, symbol_table):
     result_type = ir.RankedTensorType.get(input_shape, input_dtype)
 
     if str(input_dtype).find("f") != -1:
-        zero_attr = ir.DenseElementsAttr.get_splat(
-            result_type, ir.FloatAttr.get(input_dtype, 0.0)
-        )
+        zero_attr = ir.FloatAttr.get(input_dtype, 0.0)
     else:
-        zero_attr = ir.DenseElementsAttr.get_splat(
-            result_type, ir.IntegerAttr.get(input_dtype, 0)
-        )
+        zero_attr = ir.IntegerAttr.get(input_dtype, 0)
 
-    return tosa.ConstOp(zero_attr)
+    return splat_tensor_value(input_shape, input_dtype, zero_attr)
 
 
 def ones_like_op(node: OnesLikeOp, symbol_table):
@@ -4885,15 +4880,11 @@ def ones_like_op(node: OnesLikeOp, symbol_table):
     result_type = ir.RankedTensorType.get(input_shape, input_dtype)
 
     if str(input_dtype).find("f") != -1:
-        one_attr = ir.DenseElementsAttr.get_splat(
-            result_type, ir.FloatAttr.get(input_dtype, 1.0)
-        )
+        one_attr = ir.FloatAttr.get(input_dtype, 1.0)
     else:
-        one_attr = ir.DenseElementsAttr.get_splat(
-            result_type, ir.IntegerAttr.get(input_dtype, 1)
-        )
+        one_attr = ir.IntegerAttr.get(input_dtype, 1)
 
-    return tosa.ConstOp(one_attr)
+    return splat_tensor_value(input_shape, input_dtype, one_attr)
 
 
 def full_like_op(node: FullLikeOp, symbol_table):
@@ -4908,15 +4899,11 @@ def full_like_op(node: FullLikeOp, symbol_table):
     result_type = ir.RankedTensorType.get(input_shape, input_dtype)
 
     if str(input_dtype).find("f") != -1:
-        value_attr = ir.DenseElementsAttr.get_splat(
-            result_type, ir.FloatAttr.get(input_dtype, float(fill_value))
-        )
+        value_attr = ir.FloatAttr.get(input_dtype, float(fill_value))
     else:
-        value_attr = ir.DenseElementsAttr.get_splat(
-            result_type, ir.IntegerAttr.get(input_dtype, int(fill_value))
-        )
+        value_attr = ir.IntegerAttr.get(input_dtype, int(fill_value))
 
-    return tosa.ConstOp(value_attr)
+    return splat_tensor_value(input_shape, input_dtype, value_attr)
 
 
 def all_op(node: AllOp, symbol_table):
@@ -13863,8 +13850,10 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
     value_shape = v_cache.type.shape
 
     # All intermediate constants use compute_dtype (f32)
-    scale_val = 1 / numpy.sqrt(query.type.shape[-1]) if scale is None else scale
-    scale_val = arith.ConstantOp(compute_dtype, float(scale_val)).result
+    scale_factor = (
+        1 / numpy.sqrt(query.type.shape[-1]) if scale is None else scale
+    )
+    scale_val = arith.ConstantOp(compute_dtype, float(scale_factor)).result
 
     neg_inf = arith.ConstantOp(compute_dtype, -1.0e30, loc=loc).result
     zero_compute = arith.ConstantOp(compute_dtype, 0.0, loc=loc).result
@@ -14002,11 +13991,11 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
     )
 
     # ========= scale + mask =========
-    scale_splat = tensor.SplatOp(
-        score_tensor_shape,
-        scale_val,
-        [],
-    ).result
+    scale_splat = splat_tensor_value(
+        [query_shape[0], query_shape[1], query_shape[2], key_shape[2]],
+        compute_dtype,
+        ir.FloatAttr.get(compute_dtype, float(scale_factor)),
+    )
 
     shift = _create_mul_shift_operand()
     scaled = tosa.MulOp(
