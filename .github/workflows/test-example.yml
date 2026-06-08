@@ -125,7 +125,7 @@ jobs:
         run: |
           ${{ matrix.venv_activate }}
 
-          export PYTHONPATH=$PWD/build/python_packages:$PWD/llvm/build/tools/mlir/python_packages/mlir_core:${PYTHONPATH}
+          export PYTHONPATH=$PWD/build/python_packages:${PYTHONPATH}
 
           cmake -S . -B build \
             -DBUDDY_BERT_EXAMPLES=ON \
@@ -152,14 +152,6 @@ jobs:
 
           ${{ matrix.venv_deactivate }}
 
-      - name: Build and run YOLO26 example
-        run: |
-          ${{ matrix.venv_activate }}
-          export PYTHONPATH=$PWD/build/python_packages:$PWD/build/../llvm/build/tools/mlir/python_packages/mlir_core
-          ninja -C build buddy-yolo26n-run
-          ./build/bin/buddy-yolo26n-run examples/BuddyYOLO26/images/bus_16bit.bmp
-          ${{ matrix.venv_deactivate }}
-
       - name: Build examples (riscv64)
         if: matrix.arch == 'riscv64'
         run: |
@@ -171,11 +163,13 @@ jobs:
           pip uninstall torchvision -y
 
           cmake -S . -B build \
-            -DBUDDY_DEEPSEEKR1_EXAMPLES=ON
+            -DBUDDY_DEEPSEEKR1_EXAMPLES=ON \
+            -DBUDDY_YOLO26_EXAMPLES=ON
 
           ccache -z
           ninja -C build -j1 \
-            buddy-deepseek-r1-cli
+            buddy-deepseek-r1-cli \
+            buddy-yolo26n-run
           ccache -s
 
           ${{ matrix.venv_deactivate }}
