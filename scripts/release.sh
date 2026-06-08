@@ -128,6 +128,13 @@ if [ -z "${IN_DOCKER:-}" ]; then
     DOCKER_RUN_ARGS+=(--platform "${DOCKER_PLATFORM}")
   fi
 
+  # Allow riscv_hwprobe in the container so LLVM can detect host CPU features
+  # such as F/D/V. Otherwise MLIR JIT may fall back to rv64i and emit soft-float
+  # libcalls that are unavailable in the manylinux image.
+  if [ "${TARGET_ARCH}" = "riscv64" ]; then
+    DOCKER_RUN_ARGS+=(--security-opt seccomp=unconfined)
+  fi
+
   # Check llvm exist
   if [ ! -f "${HOST_LLVM_SRC}/llvm/CMakeLists.txt" ]; then
     echo "HOST_LLVM_SRC is invalid: ${HOST_LLVM_SRC}" >&2
