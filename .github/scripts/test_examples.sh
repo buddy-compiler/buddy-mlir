@@ -17,7 +17,7 @@ if [ "$arch" = "riscv64" ]; then
     -DBUDDY_ENABLE_PNG=ON
 
   ccache -z
-  ninja -C build -j1 \
+  ninja -C build \
     buddy-qwen3-0.6b-run \
     buddy-gemma4-e2b-run \
     buddy-deepseek-r1-cli
@@ -35,7 +35,7 @@ else
     -DBUDDY_ENABLE_PNG=ON
 
   ccache -z
-  ninja -C build -j1 \
+  ninja -C build \
     buddy-deepseek-r1-cli \
     buddy-qwen3-0.6b-run \
     buddy-gemma4-e2b-run \

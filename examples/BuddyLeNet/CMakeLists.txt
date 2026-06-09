@@ -49,7 +49,7 @@ add_custom_command(
           ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
           ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
           ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj  -relocation-model=pic -O0 -o ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.o
-  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.mlir
+  DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.mlir
   COMMENT "Building subgraph0.o"
   VERBATIM)
 
@@ -102,7 +102,7 @@ add_custom_command(
           ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
           ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
           ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj  -relocation-model=pic -O0 -o ${CMAKE_CURRENT_BINARY_DIR}/forward_gpu.o
-  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/forward.mlir
+  DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/forward.mlir
   COMMENT "Building forward_gpu.o"
   VERBATIM)
 
@@ -128,7 +128,7 @@ add_custom_command(
           ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
           ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
           ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj  -relocation-model=pic -O0 -o ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_gpu.o
-  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.mlir
+  DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.mlir
   COMMENT "Building subgraph0_gpu.o"
   VERBATIM)
 
