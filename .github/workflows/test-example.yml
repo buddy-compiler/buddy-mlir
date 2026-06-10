@@ -124,65 +124,7 @@ jobs:
         continue-on-error: ${{ matrix.arch == 'arm64' }}
         run: |
           ${{ matrix.venv_activate }}
-
-          export PYTHONPATH=$PWD/build/python_packages:${PYTHONPATH}
-
-          cmake -S . -B build \
-            -DBUDDY_BERT_EXAMPLES=ON \
-            -DBUDDY_DEEPSEEKR1_EXAMPLES=ON \
-            -DBUDDY_LENET_EXAMPLES=ON \
-            -DBUDDY_MOBILENETV3_EXAMPLES=ON \
-            -DBUDDY_QWEN3_EXAMPLES=ON \
-            -DBUDDY_RESNET_EXAMPLES=ON \
-            -DBUDDY_TRANSFORMER_EXAMPLES=ON \
-            -DBUDDY_YOLO26_EXAMPLES=ON \
-            -DBUDDY_ENABLE_PNG=ON
-
-          ccache -z
-          ninja -C build -j1 \
-            buddy-deepseek-r1-cli \
-            buddy-qwen3-0.6b-run \
-            transformer-runner \
-            buddy-bert-run \
-            buddy-lenet-run \
-            buddy-mobilenetv3-run \
-            buddy-resnet-run \
-            buddy-yolo26n-run
-          ccache -s
-
-          ${{ matrix.venv_deactivate }}
-
-      - name: Build examples (riscv64)
-        if: matrix.arch == 'riscv64'
-        run: |
-          ${{ matrix.venv_activate }}
-
-          export PYTHONPATH=$PWD/build/python_packages:${PYTHONPATH}
-
-          # need build from source
-          pip uninstall torchvision -y
-
-          cmake -S . -B build \
-            -DBUDDY_DEEPSEEKR1_EXAMPLES=ON \
-            -DBUDDY_YOLO26_EXAMPLES=ON
-
-          ccache -z
-          ninja -C build -j1 \
-            buddy-deepseek-r1-cli \
-            buddy-yolo26n-run
-          ccache -s
-
-          ${{ matrix.venv_deactivate }}
-
-      - name: Run examples
-        run: |
-          ${{ matrix.venv_activate }}
-
-          ctest --test-dir "$PWD/build" \
-            -L example \
-            --output-on-failure \
-            --no-tests=error
-
+          bash .github/scripts/test_examples.sh "${{ matrix.arch }}"
           ${{ matrix.venv_deactivate }}
 
       - name: Report matrix status
