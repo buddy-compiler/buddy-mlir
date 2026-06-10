@@ -2,7 +2,7 @@
 
 1. Enter Python virtual environment
 
-We recommend you to use anaconda3 to create python virtual environment. You should install python packages as `buddy-mlir/requirements.txt`.
+We recommend you to use conda to create python virtual environment.
 
 ```
 $ conda activate <your virtual environment name>
@@ -15,8 +15,6 @@ To run YOLO26 example:
 ```
 $ pip install ultralytics
 ```
-
----
 
 2. Build and check LLVM/MLIR
 
@@ -33,10 +31,8 @@ $ cmake -G Ninja ../llvm \
     -DCMAKE_BUILD_TYPE=RELEASE \
     -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
     -DPython3_EXECUTABLE=$(which python3)
-$ ninja check-clang check-mlir
+$ ninja check-clang check-mlir check-openmp
 ```
-
----
 
 3. Build and check buddy-mlir
 
@@ -50,14 +46,9 @@ $ cmake -G Ninja .. \
     -DLLVM_ENABLE_ASSERTIONS=ON \
     -DCMAKE_BUILD_TYPE=RELEASE \
     -DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON \
-    -DBUDDY_MLIR_ENABLE_DIP_LIB=ON \
-    -DBUDDY_ENABLE_PNG=ON \
-    -DBUDDY_YOLO26_EXAMPLES=ON \
     -DPython3_EXECUTABLE=$(which python3)
 $ ninja
 ```
-
----
 
 4. Set environment variables
 
@@ -74,8 +65,6 @@ Test Python bindings:
 $ python3 -c "from buddy.compiler.frontend import DynamoCompiler"
 ```
 
----
-
 5. Optional: Set YOLO26n model path
 
 ```
@@ -83,8 +72,6 @@ $ export YOLO26N_MODEL_PATH=/path/to/yolo26n.pt
 ```
 
 If not set, the importer will automatically download `yolo26n.pt`.
-
----
 
 6. Build and run YOLO26n example
 
@@ -94,8 +81,6 @@ $ cmake -G Ninja .. -DBUDDY_YOLO26_EXAMPLES=ON
 $ ninja buddy-yolo26n-run
 $ ./bin/buddy-yolo26n-run ../examples/BuddyYOLO26/images/bus_16bit.bmp
 ```
-
----
 
 7. Expected output
 
