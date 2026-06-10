@@ -5,6 +5,9 @@ arch="${1:?usage: .github/scripts/test_examples.sh <arch>}"
 
 export PYTHONPATH="$PWD/build/python_packages:${PYTHONPATH:-}"
 
+pip install -r requirements.txt
+pip install pybind11 nanobind ultralytics
+
 if [ "$arch" = "riscv64" ]; then
   # The installed torchvision on riscv64 is outdated and causes compatibility
   # issues with other modules.
