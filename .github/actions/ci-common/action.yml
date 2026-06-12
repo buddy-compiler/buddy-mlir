@@ -11,10 +11,24 @@ inputs:
   venv_deactivate:
     description: Command used to deactivate the Python environment.
     required: true
+  llvm-src:
+    description: Path to the llvm-project checkout.
+    required: true
+  llvm-build-root:
+    description: Path to the LLVM build cache root.
+    required: true
 
 runs:
   using: composite
   steps:
+    - name: Prepare LLVM variables
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        echo "LLVM_SRC=${{ inputs.llvm-src }}" >> "$GITHUB_ENV"
+        echo "LLVM_BUILD_DIR=${{ inputs.llvm-build-root }}/build" >> "$GITHUB_ENV"
+
     - name: Prepare ENV (x64)
       if: ${{ inputs.arch == 'x64' }}
       shell: bash
@@ -23,10 +37,6 @@ runs:
         echo "PATH=/usr/lib/ccache:$PATH" >> $GITHUB_ENV
         ccache -M 50G
         echo "CCACHE_MAXSIZE=50G" >> $GITHUB_ENV
-
-        mkdir -p $HOME/actions-runner/workspace
-        echo LLVM_SRC=$HOME/actions-runner/workspace/llvm-project >> $GITHUB_ENV
-        echo LLVM_BUILD_ROOT=$HOME/actions-runner/workspace/llvm-cache >> $GITHUB_ENV
 
         ${{ inputs.venv_activate }}
         pip install --upgrade pip
@@ -42,10 +52,6 @@ runs:
         ccache -M 50G
         echo "CCACHE_MAXSIZE=50G" >> $GITHUB_ENV
 
-        echo LLVM_SRC=$HOME/actions-runner/workspace/llvm-project >> $GITHUB_ENV
-        echo LLVM_BUILD_ROOT=$HOME/actions-runner/workspace/llvm-cache >> $GITHUB_ENV
-        mkdir -p $HOME/actions-runner/workspace
-
         ${{ inputs.venv_activate }}
         pip install --upgrade pip
         pip install -r requirements.txt
@@ -59,9 +65,6 @@ runs:
         echo "PATH=/usr/lib/ccache:$PATH" >> $GITHUB_ENV
         ccache -M 50G
         echo "CCACHE_MAXSIZE=50G" >> $GITHUB_ENV
-        echo LLVM_SRC=/home/jenkins/src/llvm-project >> $GITHUB_ENV
-        echo LLVM_BUILD_ROOT=/home/jenkins/llvm-cache >> $GITHUB_ENV
-        mkdir -p /home/jenkins/src
 
         ${{ inputs.venv_activate }}
         pip install -U pip setuptools wheel packaging
@@ -71,44 +74,42 @@ runs:
         pip install -r requirements.txt
         ${{ inputs.venv_deactivate }}
 
-    - name: Checkout LLVM source
-      id: setup-llvm
-      uses: ./.github/actions/checkout_llvm
-      with:
-        llvm-src: ${{ env.LLVM_SRC }}
-
-    - name: Check LLVM build cache
-      id: prepare-llvm-build
-      shell: bash
-      run: |
-        LLVM_SRC="${{ steps.setup-llvm.outputs.llvm_src }}"
-        LLVM_BUILD_DIR="${{ env.LLVM_BUILD_ROOT }}/${{ steps.setup-llvm.outputs.cache_hash }}"
-
-        echo "LLVM_SRC=${{ steps.setup-llvm.outputs.llvm_src }}" >> $GITHUB_ENV
-        echo "LLVM_BUILD_DIR=${{ env.LLVM_BUILD_ROOT }}/${{ steps.setup-llvm.outputs.cache_hash }}" >> $GITHUB_ENV
-        if [ -f "${LLVM_BUILD_DIR}/build/CMakeCache.txt" ] &&
-          grep -q "${LLVM_SRC}" "${LLVM_BUILD_DIR}/build/CMakeCache.txt"; then
-          echo "need-rebuild=false" >> "$GITHUB_OUTPUT"
-        else
-          echo "need-rebuild=true" >> "$GITHUB_OUTPUT"
-        fi
-
     - name: Configure and Build LLVM
-      if: ${{ steps.prepare-llvm-build.outputs.need-rebuild == 'true' }}
       shell: bash
       run: |
         ${{ inputs.venv_activate }}
-        rm -rf $LLVM_BUILD_DIR
-        cmake -G Ninja -S $LLVM_SRC/llvm -B $LLVM_BUILD_DIR/build \
-          -DLLVM_ENABLE_PROJECTS="mlir;clang;openmp" \
+        rm -rf "$LLVM_BUILD_DIR"
+
+        RUNTIMES_CMAKE_ARGS=()
+        RUNTIMES_CMAKE_ARGS_VALUE=""
+        if [ "${{ inputs.arch }}" = "riscv64" ]; then
+          GCC_INSTALL_DIR="$(dirname "$(g++ -print-libgcc-file-name)")"
+
+          RUNTIMES_CMAKE_ARGS_VALUE="-DCMAKE_C_FLAGS=--gcc-install-dir=${GCC_INSTALL_DIR}"
+          RUNTIMES_CMAKE_ARGS_VALUE="${RUNTIMES_CMAKE_ARGS_VALUE};-DCMAKE_CXX_FLAGS=--gcc-install-dir=${GCC_INSTALL_DIR}"
+          RUNTIMES_CMAKE_ARGS_VALUE="${RUNTIMES_CMAKE_ARGS_VALUE};-DCMAKE_HAVE_LIBC_PTHREAD=TRUE"
+          RUNTIMES_CMAKE_ARGS_VALUE="${RUNTIMES_CMAKE_ARGS_VALUE};-DCMAKE_USE_PTHREADS_INIT=TRUE"
+          RUNTIMES_CMAKE_ARGS_VALUE="${RUNTIMES_CMAKE_ARGS_VALUE};-DCMAKE_THREAD_LIBS_INIT="
+        fi
+        if [ -n "${RUNTIMES_CMAKE_ARGS_VALUE}" ]; then
+          RUNTIMES_CMAKE_ARGS=(-DRUNTIMES_CMAKE_ARGS="${RUNTIMES_CMAKE_ARGS_VALUE}")
+        fi
+
+        cmake -G Ninja -S "$LLVM_SRC/llvm" -B "$LLVM_BUILD_DIR" \
+          -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+          -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+          "${RUNTIMES_CMAKE_ARGS[@]}" \
+          -DLLVM_ENABLE_PROJECTS="mlir;clang" \
+          -DLLVM_ENABLE_RUNTIMES="openmp" \
           -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
           -DLLVM_ENABLE_ASSERTIONS=ON \
           -DCMAKE_BUILD_TYPE=RELEASE \
           -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
-          -DPython3_EXECUTABLE=$(which python3)
+          -DPython3_EXECUTABLE="$(which python)" \
+          -DPython_EXECUTABLE="$(which python)"
 
         ccache -z
-        ninja -C $LLVM_BUILD_DIR/build check-clang check-mlir omp || true
+        ninja -C "$LLVM_BUILD_DIR" check-clang check-mlir check-openmp mlir-libraries
         ccache -s
 
         ${{ inputs.venv_deactivate }}
@@ -125,27 +126,19 @@ runs:
         cd build
 
         cmake -G Ninja .. \
-          -DMLIR_DIR=$LLVM_BUILD_DIR/build/lib/cmake/mlir \
-          -DLLVM_DIR=$LLVM_BUILD_DIR/build/lib/cmake/llvm \
-          -DLLVM_MAIN_SRC_DIR=$LLVM_SRC/llvm \
-          -DMLIR_MAIN_SRC_DIR=$LLVM_SRC/mlir \
+          -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+          -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+          -DMLIR_DIR=$LLVM_BUILD_DIR/lib/cmake/mlir \
+          -DLLVM_DIR=$LLVM_BUILD_DIR/lib/cmake/llvm \
           -DLLVM_ENABLE_ASSERTIONS=ON \
           -DCMAKE_BUILD_TYPE=RELEASE \
           -DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON \
           -DBUDDY_BUILD_DEEPSEEK_R1_MODEL=OFF \
-          -DPython3_EXECUTABLE=$(which python3)
+          -DPython3_EXECUTABLE="$(which python)" \
+          -DPython_EXECUTABLE="$(which python)"
 
         ccache -z
         ninja
         ccache -s
 
         ${{ inputs.venv_deactivate }}
-
-    - name: Cleanup old LLVM build cache
-      if: ${{ always() }}
-      shell: bash
-      run: |
-        KEEP=3
-
-        cd $LLVM_BUILD_ROOT
-        ls -1dt */ | tail -n +$((KEEP+1)) | xargs -r rm -rf

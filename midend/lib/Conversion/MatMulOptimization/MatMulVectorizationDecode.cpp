@@ -33,6 +33,25 @@
 using namespace mlir;
 
 namespace {
+static bool hasDefaultMatmulIndexingMaps(linalg::MatmulOp op) {
+  SmallVector<AffineMap, 3> maps = op.getIndexingMapsArray();
+  if (maps.size() != 3)
+    return false;
+
+  MLIRContext *context = op.getContext();
+  AffineExpr m = getAffineDimExpr(0, context);
+  AffineExpr n = getAffineDimExpr(1, context);
+  AffineExpr k = getAffineDimExpr(2, context);
+  SmallVector<AffineMap, 3> expected = {
+      AffineMap::get(3, 0, {m, k}, context),
+      AffineMap::get(3, 0, {k, n}, context),
+      AffineMap::get(3, 0, {m, n}, context),
+  };
+
+  return maps[0] == expected[0] && maps[1] == expected[1] &&
+         maps[2] == expected[2];
+}
+
 static bool isZeroAttribute(Attribute attr) {
   if (auto floatAttr = dyn_cast<FloatAttr>(attr))
     return floatAttr.getValue().isZero();
@@ -83,6 +102,9 @@ public:
   matchAndRewrite(Operation *op, ArrayRef<Value> /*operands*/,
                   ConversionPatternRewriter &rewriter) const override {
     auto matmulOp = cast<linalg::MatmulOp>(op);
+    if (!hasDefaultMatmulIndexingMaps(matmulOp))
+      return failure();
+
     auto loc = matmulOp.getLoc();
 
     Value A = matmulOp.getInputs()[0];
@@ -104,21 +126,21 @@ public:
     Type elementType = cType.getElementType();
     auto vectorType = VectorType::get({vecSize}, elementType, {scalable});
 
-    Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
-    Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
-    Value step = rewriter.create<arith::ConstantIndexOp>(loc, vecSize);
+    Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
+    Value c1 = arith::ConstantIndexOp::create(rewriter, loc, 1);
+    Value step = arith::ConstantIndexOp::create(rewriter, loc, vecSize);
     if (scalable) {
-      Value vscale = rewriter.create<vector::VectorScaleOp>(loc);
-      step = rewriter.create<arith::MulIOp>(loc, step, vscale);
+      Value vscale = vector::VectorScaleOp::create(rewriter, loc);
+      step = arith::MulIOp::create(rewriter, loc, step, vscale);
     }
 
-    Value n = rewriter.create<memref::DimOp>(loc, C, c1);
-    Value k = rewriter.create<memref::DimOp>(loc, A, c1);
+    Value n = memref::DimOp::create(rewriter, loc, C, c1);
+    Value k = memref::DimOp::create(rewriter, loc, A, c1);
     memref::CopyOp zeroInitCopy = findZeroInitCopy(C, matmulOp, module);
     bool zeroInitialized = zeroInitCopy != nullptr;
 
-    rewriter.create<scf::ParallelOp>(
-        loc,
+    scf::ParallelOp::create(
+        rewriter, loc,
         /*lowerBounds=*/ValueRange{c0},
         /*upperBounds=*/ValueRange{n},
         /*steps=*/ValueRange{step},
@@ -126,30 +148,30 @@ public:
           Value nIdx = ivs.front();
           Value cVec;
           if (zeroInitialized) {
-            Value zero = builder.create<arith::ConstantOp>(
-                loc, elementType, builder.getZeroAttr(elementType));
-            cVec = builder.create<vector::BroadcastOp>(loc, vectorType, zero);
+            Value zero = arith::ConstantOp::create(
+                builder, loc, elementType, builder.getZeroAttr(elementType));
+            cVec = vector::BroadcastOp::create(builder, loc, vectorType, zero);
           } else {
-            cVec = builder.create<vector::LoadOp>(loc, vectorType, C,
-                                                  ValueRange{c0, nIdx});
+            cVec = vector::LoadOp::create(builder, loc, vectorType, C,
+                                          ValueRange{c0, nIdx});
           }
-          auto sumIter = builder.create<scf::ForOp>(
-              loc, c0, k, c1, ValueRange{cVec},
+          auto sumIter = scf::ForOp::create(
+              builder, loc, c0, k, c1, ValueRange{cVec},
               [&](OpBuilder &builder, Location loc, Value kIdx,
                   ValueRange iterArgs) {
-                Value aElem = builder.create<memref::LoadOp>(
-                    loc, A, ValueRange{c0, kIdx});
-                Value aVec =
-                    builder.create<vector::BroadcastOp>(loc, vectorType, aElem);
-                Value bVec = builder.create<vector::LoadOp>(
-                    loc, vectorType, B, ValueRange{kIdx, nIdx});
-                Value res = builder.create<vector::FMAOp>(loc, aVec, bVec,
-                                                          iterArgs.front());
-                builder.create<scf::YieldOp>(loc, res);
+                Value aElem = memref::LoadOp::create(builder, loc, A,
+                                                     ValueRange{c0, kIdx});
+                Value aVec = vector::BroadcastOp::create(builder, loc,
+                                                         vectorType, aElem);
+                Value bVec = vector::LoadOp::create(builder, loc, vectorType, B,
+                                                    ValueRange{kIdx, nIdx});
+                Value res = vector::FMAOp::create(builder, loc, aVec, bVec,
+                                                  iterArgs.front());
+                scf::YieldOp::create(builder, loc, res);
               });
 
-          builder.create<vector::StoreOp>(loc, sumIter.getResult(0), C,
-                                          ValueRange{c0, nIdx});
+          vector::StoreOp::create(builder, loc, sumIter.getResult(0), C,
+                                  ValueRange{c0, nIdx});
         });
 
     rewriter.eraseOp(op);
@@ -200,6 +222,8 @@ public:
     target.addLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>();
     target.addDynamicallyLegalOp<linalg::MatmulOp>(
         [&](linalg::MatmulOp op) -> bool {
+          if (!hasDefaultMatmulIndexingMaps(op))
+            return true;
           auto aType = dyn_cast<MemRefType>(op.getInputs()[0].getType());
           auto cType = dyn_cast<MemRefType>(op.getOutputs()[0].getType());
           if (!aType || !cType)

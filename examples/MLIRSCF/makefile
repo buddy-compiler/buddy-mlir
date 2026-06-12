@@ -94,7 +94,7 @@ scf-parallel-aot:
 		-L ${MLIR_LIB} \
 		-L ${BUDDY_LIB} \
 		-lmlir_runner_utils -lmlir_c_runner_utils \
-		-lstatic_mlir_async_runtime \
+		-lStaticMLIRAsyncRuntime \
 		-lLLVMSupport -lLLVMDemangle\
 		-lstdc++ -lpthread -ltinfo -lm \
 		-o a.out

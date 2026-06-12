@@ -23,7 +23,8 @@ from buddy_mlir.dialects import arith, linalg, tensor
 
 from ..graph import TensorDType
 
-LARGE_ZERO_TENSOR_ELEMENT_THRESHOLD = 1_000_000
+LARGE_SPLAT_TENSOR_ELEMENT_THRESHOLD = 10_000
+LARGE_ZERO_TENSOR_ELEMENT_THRESHOLD = LARGE_SPLAT_TENSOR_ELEMENT_THRESHOLD
 
 
 def _static_element_count(shape: list[int]) -> int | None:
@@ -48,18 +49,28 @@ def zero_tensor_value(
     element_threshold: int = LARGE_ZERO_TENSOR_ELEMENT_THRESHOLD,
 ) -> ir.Value:
     """Create a zero tensor value without materializing huge f32 literals."""
+    return splat_tensor_value(shape, element_type, zero_attr, element_threshold)
+
+
+def splat_tensor_value(
+    shape: list[int],
+    element_type: ir.Type,
+    element_attr: ir.Attribute,
+    element_threshold: int = LARGE_SPLAT_TENSOR_ELEMENT_THRESHOLD,
+) -> ir.Value:
+    """Create a splat tensor without materializing huge f32 literals."""
     tensor_type = ir.RankedTensorType.get(shape, element_type)
     element_count = _static_element_count(shape)
     if (
         element_count is not None
         and element_count >= element_threshold
-        and ir.F32Type.isinstance(element_type)
+        and isinstance(element_type, ir.F32Type)
     ):
-        zero = arith.ConstantOp(element_type, zero_attr).result
+        scalar = arith.ConstantOp(element_type, element_attr).result
         empty = tensor.EmptyOp(shape, element_type).result
-        return linalg.fill(zero, outs=[empty])
+        return linalg.fill(scalar, outs=[empty])
 
-    attr = ir.DenseElementsAttr.get_splat(tensor_type, zero_attr)
+    attr = ir.DenseElementsAttr.get_splat(tensor_type, element_attr)
     return arith.ConstantOp(tensor_type, attr).result
 
 

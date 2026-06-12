@@ -436,6 +436,12 @@ class AddOp(Op):
         self._op_type = OpType.BroadcastType
 
 
+class AddCMulOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.BroadcastType
+
+
 class AddMMOp(Op):
     def __init__(self) -> None:
         super().__init__()

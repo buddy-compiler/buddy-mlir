@@ -175,21 +175,22 @@ void ConvertMemcpyToGPUPass::runOnOperation() {
 
       auto contiguousType = stripMemRefLayout(memrefType);
       bool returned = isReturnedByFunction(arg);
-      auto gpuAllocOp = builder.create<gpu::AllocOp>(
-          builder.getUnknownLoc(), TypeRange({contiguousType}), ValueRange({}));
+      auto gpuAllocOp =
+          gpu::AllocOp::create(builder, builder.getUnknownLoc(),
+                               TypeRange({contiguousType}), ValueRange({}));
       if (!returned)
         unDeallocatedValue.push_back(gpuAllocOp->getResult(0));
-      auto gpuMemcpyOp = builder.create<gpu::MemcpyOp>(
-          gpuAllocOp.getLoc(), TypeRange(), ValueRange(),
-          gpuAllocOp.getResult(0), arg);
+      auto gpuMemcpyOp =
+          gpu::MemcpyOp::create(builder, gpuAllocOp.getLoc(), TypeRange(),
+                                ValueRange(), gpuAllocOp.getResult(0), arg);
       // If the arg has a non-identity layout (e.g. dynamic strides), the
       // gpu.alloc has a different type (identity layout). Cast back to the
       // original strided type so that gpu.launch_func and other users keep
       // the same operand type and pass verification.
       Value replacement = gpuAllocOp->getResult(0);
       if (contiguousType != memrefType)
-        replacement = builder.create<memref::CastOp>(gpuAllocOp.getLoc(),
-                                                     memrefType, replacement);
+        replacement = memref::CastOp::create(builder, gpuAllocOp.getLoc(),
+                                             memrefType, replacement);
       arg.replaceAllUsesExcept(replacement, gpuMemcpyOp);
     }
   }
@@ -226,10 +227,10 @@ void ConvertMemcpyToGPUPass::runOnOperation() {
       // even if not directly used by GPU kernels. Allocs that flow through
       // func::CallOp to GPU subgraphs need managed memory too.
 
-      bool returned = isReturnedByFunction(result);
-      auto gpuAllocOp = builder.create<gpu::AllocOp>(
-          allocOp->getLoc(), TypeRange({stripMemRefLayout(memrefType)}),
-          allocOp.getDynamicSizes());
+      auto gpuAllocOp =
+          gpu::AllocOp::create(builder, allocOp->getLoc(),
+                               TypeRange({stripMemRefLayout(memrefType)}),
+                               allocOp.getDynamicSizes());
 
       // Replace all uses with the GPU buffer. Since all gpu.alloc use
       // managed memory (cuMemAllocManaged), CPU code can also read/write
@@ -238,8 +239,8 @@ void ConvertMemcpyToGPUPass::runOnOperation() {
       for (auto user : llvm::make_early_inc_range(result.getUsers())) {
         if (auto deallocOp = dyn_cast<memref::DeallocOp>(user)) {
           builder.setInsertionPointAfter(deallocOp);
-          builder.create<gpu::DeallocOp>(deallocOp->getLoc(), TypeRange(),
-                                         ValueRange(), gpuAllocOp.getResult(0));
+          gpu::DeallocOp::create(builder, deallocOp->getLoc(), TypeRange(),
+                                 ValueRange(), gpuAllocOp.getResult(0));
           deallocOp->erase();
         } else {
           for (auto &opOperand : user->getOpOperands()) {
@@ -270,8 +271,8 @@ void ConvertMemcpyToGPUPass::runOnOperation() {
       }
       if (gpuVal) {
         builder.setInsertionPointAfter(deallocOp);
-        builder.create<gpu::DeallocOp>(deallocOp->getLoc(), TypeRange(),
-                                       ValueRange(), gpuVal);
+        gpu::DeallocOp::create(builder, deallocOp->getLoc(), TypeRange(),
+                               ValueRange(), gpuVal);
         deallocOp->erase();
       }
     }
@@ -290,8 +291,8 @@ void ConvertMemcpyToGPUPass::runOnOperation() {
         return WalkResult::advance();
       // Notice: GPU.memcpy has a different src dst order
       builder.setInsertionPointAfter(copyOp);
-      builder.create<gpu::MemcpyOp>(copyOp->getLoc(), TypeRange(), ValueRange(),
-                                    dst, src);
+      gpu::MemcpyOp::create(builder, copyOp->getLoc(), TypeRange(),
+                            ValueRange(), dst, src);
       copyOp->erase();
     }
     // Allocate/copy globals to GPU only when they are consumed by GPU kernels.
@@ -300,19 +301,18 @@ void ConvertMemcpyToGPUPass::runOnOperation() {
     else if (auto getGlobalOp = dyn_cast<memref::GetGlobalOp>(nestedOp)) {
       auto result = getGlobalOp->getResult(0);
       auto memrefType = dyn_cast<MemRefType>(result.getType());
-
       builder.setInsertionPointAfter(getGlobalOp);
       bool returned = isReturnedByFunction(result);
-      auto gpuAllocOp = builder.create<gpu::AllocOp>(
-          getGlobalOp->getLoc(), TypeRange({stripMemRefLayout(memrefType)}),
-          ValueRange({}));
+      auto gpuAllocOp = gpu::AllocOp::create(
+          builder, getGlobalOp->getLoc(),
+          TypeRange({stripMemRefLayout(memrefType)}), ValueRange({}));
       if (!returned)
         unDeallocatedValue.push_back(gpuAllocOp->getResult(0));
 
       auto src = result;
       auto dst = gpuAllocOp->getResult(0);
-      auto gpuMemcpyOp = builder.create<gpu::MemcpyOp>(
-          gpuAllocOp->getLoc(), TypeRange(), ValueRange(), dst, src);
+      auto gpuMemcpyOp = gpu::MemcpyOp::create(
+          builder, gpuAllocOp->getLoc(), TypeRange(), ValueRange(), dst, src);
       src.replaceAllUsesExcept(dst, gpuMemcpyOp);
     } else if (auto returnOp = dyn_cast<func::ReturnOp>(nestedOp)) {
       builder.setInsertionPoint(returnOp);
@@ -324,8 +324,8 @@ void ConvertMemcpyToGPUPass::runOnOperation() {
           outputTypes[i] = val.getType();
       }
       for (auto value : unDeallocatedValue) {
-        builder.create<gpu::DeallocOp>(returnOp->getLoc(), TypeRange(),
-                                       ValueRange(), value);
+        gpu::DeallocOp::create(builder, returnOp->getLoc(), TypeRange(),
+                               ValueRange(), value);
       }
       funcOp.setType(
           builder.getFunctionType(funcOp.getArgumentTypes(), outputTypes));
