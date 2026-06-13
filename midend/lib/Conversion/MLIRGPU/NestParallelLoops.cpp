@@ -66,7 +66,7 @@ public:
       SmallVector<Value> outerSteps(steps.begin(), steps.begin() + outerDims);
 
       auto outerLoop =
-          builder.create<scf::ParallelOp>(loc, outerLBs, outerUBs, outerSteps);
+          scf::ParallelOp::create(builder, loc, outerLBs, outerUBs, outerSteps);
       builder.setInsertionPointToStart(outerLoop.getBody());
 
       // Create inner scf.parallel with remaining dims.
@@ -75,7 +75,7 @@ public:
       SmallVector<Value> innerSteps(steps.begin() + outerDims, steps.end());
 
       auto innerLoop =
-          builder.create<scf::ParallelOp>(loc, innerLBs, innerUBs, innerSteps);
+          scf::ParallelOp::create(builder, loc, innerLBs, innerUBs, innerSteps);
 
       // Move the original loop body into the inner loop.
       // The original body uses induction vars [0..numLoops-1].

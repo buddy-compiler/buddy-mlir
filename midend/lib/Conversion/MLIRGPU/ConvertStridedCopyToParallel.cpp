@@ -98,22 +98,22 @@ void ConvertStridedCopyToParallelPass::runOnOperation() {
     // 1).
     SmallVector<Value> lowerBounds, upperBounds, steps;
     for (unsigned i = 0; i < rank; ++i) {
-      lowerBounds.push_back(builder.create<arith::ConstantIndexOp>(loc, 0));
+      lowerBounds.push_back(arith::ConstantIndexOp::create(builder, loc, 0));
       if (dstType.isDynamicDim(i)) {
-        upperBounds.push_back(builder.create<memref::DimOp>(loc, dst, i));
+        upperBounds.push_back(memref::DimOp::create(builder, loc, dst, i));
       } else {
-        upperBounds.push_back(
-            builder.create<arith::ConstantIndexOp>(loc, dstType.getDimSize(i)));
+        upperBounds.push_back(arith::ConstantIndexOp::create(
+            builder, loc, dstType.getDimSize(i)));
       }
-      steps.push_back(builder.create<arith::ConstantIndexOp>(loc, 1));
+      steps.push_back(arith::ConstantIndexOp::create(builder, loc, 1));
     }
 
     // Create scf.parallel with element-wise load + store.
-    builder.create<scf::ParallelOp>(
-        loc, lowerBounds, upperBounds, steps,
+    scf::ParallelOp::create(
+        builder, loc, lowerBounds, upperBounds, steps,
         [&](OpBuilder &bodyBuilder, Location bodyLoc, ValueRange ivs) {
-          auto val = bodyBuilder.create<memref::LoadOp>(bodyLoc, src, ivs);
-          bodyBuilder.create<memref::StoreOp>(bodyLoc, val, dst, ivs);
+          auto val = memref::LoadOp::create(bodyBuilder, bodyLoc, src, ivs);
+          memref::StoreOp::create(bodyBuilder, bodyLoc, val, dst, ivs);
         });
 
     copyOp.erase();
