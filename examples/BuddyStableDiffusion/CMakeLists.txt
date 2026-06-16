@@ -72,7 +72,7 @@ add_custom_command(
             -bufferization-lower-deallocations
             -conv-nhwc-fhwc-optimize
             -matmul-parallel-vectorization-optimize
-            # -batchmatmul-optimize
+            -batchmatmul-optimize
             -convert-linalg-to-affine-loops
             -affine-loop-fusion
             -affine-parallelize
@@ -284,9 +284,14 @@ add_custom_command(
     VERBATIM)
 
 
-add_library(TEXTENCODER STATIC forward_text_encoder.o subgraph0_text_encoder.o)
-add_library(UNET STATIC forward_unet.o subgraph0_unet.o)
-add_library(VAE STATIC forward_vae.o subgraph0_vae.o)
+set(BUDDY_STABLE_DIFFUSION_LIBRARY_TYPE STATIC)
+
+add_library(TEXTENCODER ${BUDDY_STABLE_DIFFUSION_LIBRARY_TYPE}
+  forward_text_encoder.o subgraph0_text_encoder.o)
+add_library(UNET ${BUDDY_STABLE_DIFFUSION_LIBRARY_TYPE}
+  forward_unet.o subgraph0_unet.o)
+add_library(VAE ${BUDDY_STABLE_DIFFUSION_LIBRARY_TYPE}
+  forward_vae.o subgraph0_vae.o)
 
 SET_TARGET_PROPERTIES(TEXTENCODER PROPERTIES LINKER_LANGUAGE C)
 SET_TARGET_PROPERTIES(UNET PROPERTIES LINKER_LANGUAGE C)

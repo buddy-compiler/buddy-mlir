@@ -1,7 +1,7 @@
 [submodule "llvm"]
 	path = llvm
-	url = https://github.com/llvm/llvm-project.git
-	branch = main
+	url = https://github.com/RuyiAI-Stack/llvm-project
+	branch = riscv
 	shallow = true
 [submodule "thirdparty/mimalloc"]
 	path = thirdparty/mimalloc

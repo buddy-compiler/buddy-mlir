@@ -37,6 +37,8 @@
 
 #include <cerrno>
 #include <cstring>
+#include <dlfcn.h>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <memory>
@@ -152,7 +154,7 @@ static void applyNumaCpuBind(const std::string &) {
 //===----------------------------------------------------------------------===//
 
 static std::unique_ptr<buddy::runtime::InferenceRunner>
-makeRunner(const std::string &modelName) {
+makeBuiltinRunner(const std::string &modelName) {
 #ifdef BUDDY_CLI_HAVE_DEEPSEEK_R1_MODEL
   if (modelName.rfind("deepseek_r1", 0) == 0)
     return std::make_unique<buddy::runtime::DeepSeekR1Runner>();
@@ -190,6 +192,75 @@ makeRunner(const std::string &modelName) {
                            modelName + "'.\n" + unknownHint);
 }
 
+class RunnerHandle {
+public:
+  RunnerHandle(const std::string &runnerPath, const std::string &modelName) {
+    if (runnerPath.empty())
+      throw std::runtime_error(
+          "buddy-cli: runner plugin not specified. Use a .rax with "
+          "runner_library or pass --runner-so <path>.");
+
+    handle = dlopen(runnerPath.c_str(), RTLD_NOW | RTLD_LOCAL);
+    if (!handle)
+      throw std::runtime_error(
+          "buddy-cli: dlopen runner failed: " + runnerPath + ": " + dlerror());
+
+    dlerror();
+    auto *createSym = dlsym(handle, "buddy_create_inference_runner_v1");
+    const char *createErr = dlerror();
+    if (createErr)
+      throw std::runtime_error("buddy-cli: runner plugin missing "
+                               "buddy_create_inference_runner_v1: " +
+                               std::string(createErr));
+
+    dlerror();
+    auto *destroySym = dlsym(handle, "buddy_destroy_inference_runner_v1");
+    const char *destroyErr = dlerror();
+    if (destroyErr)
+      throw std::runtime_error("buddy-cli: runner plugin missing "
+                               "buddy_destroy_inference_runner_v1: " +
+                               std::string(destroyErr));
+
+    create =
+        reinterpret_cast<buddy::runtime::CreateInferenceRunnerFn>(createSym);
+    destroy =
+        reinterpret_cast<buddy::runtime::DestroyInferenceRunnerFn>(destroySym);
+    runner = create();
+    if (!runner)
+      throw std::runtime_error("buddy-cli: runner plugin returned null for " +
+                               modelName);
+  }
+
+  ~RunnerHandle() {
+    if (runner && destroy)
+      destroy(runner);
+    if (handle)
+      dlclose(handle);
+  }
+
+  RunnerHandle(const RunnerHandle &) = delete;
+  RunnerHandle &operator=(const RunnerHandle &) = delete;
+
+  buddy::runtime::InferenceRunner &get() { return *runner; }
+
+private:
+  void *handle = nullptr;
+  buddy::runtime::CreateInferenceRunnerFn create = nullptr;
+  buddy::runtime::DestroyInferenceRunnerFn destroy = nullptr;
+  buddy::runtime::InferenceRunner *runner = nullptr;
+};
+
+static std::string resolvePathRelativeToRax(const std::string &path,
+                                            const std::string &raxPath) {
+  namespace fs = std::filesystem;
+  if (path.empty())
+    return "";
+  fs::path p(path);
+  if (p.is_absolute() || raxPath.empty())
+    return p.string();
+  return (fs::absolute(fs::path(raxPath)).parent_path() / p).string();
+}
+
 //===----------------------------------------------------------------------===//
 // CLI
 //===----------------------------------------------------------------------===//
@@ -203,6 +274,7 @@ static void usage(const char *prog) {
       << "  --model-so   <path.so>   Model shared library  (legacy mode)\n"
       << "  --weights    <path>      Weights file           (legacy mode)\n"
       << "  --vocab      <path>      Vocabulary file        (legacy mode)\n"
+      << "  --runner-so  <path.so>   Runner plugin          (legacy mode)\n"
       << "\n"
       << "Inference:\n"
       << "  --prompt     <text>      Input prompt (interactive if omitted)\n"
@@ -270,6 +342,7 @@ int main(int argc, char **argv) {
   std::string modelSoPath;
   std::string weightsPath;
   std::string vocabPath;
+  std::string runnerSoPath;
   std::string prompt;
   std::string promptFile;
   int promptLength = 0;
@@ -308,6 +381,8 @@ int main(int argc, char **argv) {
       weightsPath = argv[++i];
     else if (a == "--vocab" && i + 1 < argc)
       vocabPath = argv[++i];
+    else if (a == "--runner-so" && i + 1 < argc)
+      runnerSoPath = argv[++i];
     else if (a == "--prompt" && i + 1 < argc)
       prompt = argv[++i];
     else if (a == "--prompt-file" && i + 1 < argc)
@@ -411,10 +486,12 @@ int main(int argc, char **argv) {
 
   // ── Determine model type ─────────────────────────────────────────────────
   std::string modelName;
+  std::string manifestRunnerSoPath;
   if (!raxPath.empty()) {
     try {
       auto manifest = buddy::runtime::ModelManifest::loadFromRax(raxPath);
       modelName = manifest.modelName;
+      manifestRunnerSoPath = manifest.runnerLibraryPath;
     } catch (const std::exception &e) {
       std::cerr << "\033[31;1m[Error]\033[0m reading manifest: " << e.what()
                 << "\n";
@@ -427,8 +504,11 @@ int main(int argc, char **argv) {
       modelName = "deepseek_r1";
     }
   } else {
-    modelName = "deepseek_r1";
+    modelName = "legacy";
   }
+  if (runnerSoPath.empty())
+    runnerSoPath = manifestRunnerSoPath;
+  runnerSoPath = resolvePathRelativeToRax(runnerSoPath, raxPath);
 
   // ── Run ──────────────────────────────────────────────────────────────────
   buddy::runtime::RunConfig cfg;
@@ -455,8 +535,13 @@ int main(int argc, char **argv) {
   cfg.interactive = interactive;
 
   try {
-    auto runner = makeRunner(modelName);
-    runner->run(cfg);
+    if (!runnerSoPath.empty()) {
+      RunnerHandle runner(runnerSoPath, modelName);
+      runner.get().run(cfg);
+    } else {
+      auto runner = makeBuiltinRunner(modelName);
+      runner->run(cfg);
+    }
   } catch (const std::exception &e) {
     std::cerr << "\033[31;1m[Error]\033[0m " << e.what() << "\n";
     return 1;

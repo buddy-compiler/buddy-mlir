@@ -8,11 +8,13 @@ This guide explains how to integrate new models with the **current buddy-cli + B
 
 | Concept | Role |
 |--------|------|
-| **`buddy-cli`** | Generic entry: reads **`.rax`**, parses **`model_name`**, **`makeRunner(modelName)`** builds the right **`InferenceRunner`**. |
-| **`.rax`** | FlatBuffers-packed RHAL manifest: kernel **`.so`**, weight URIs, vocab, etc.; **`model_name` must match the runner registration** (below). |
+| **`buddy-cli`** | Generic host: reads **`.rax`**, loads **`runner_library`**, and calls the exported **`InferenceRunner`** C ABI. |
+| **`.rax`** | FlatBuffers-packed RHAL manifest: kernel **`.so`**, runner plugin, weight URIs, vocab, etc. |
 | **`buddy_add_model`** (`tools/buddy-codegen/cmake/buddy_model.cmake`) | From **variant spec JSON**: `gen_config` → `gen_session` / `gen_manifest` → (optional) `import_model` → `compile_pipeline` → link **`.so`** → `rax-pack`. Today’s implementation is **shaped for autoregressive LLMs (prefill/decode + KV)**. |
 
-**As of this repo:** `tools/buddy-cli/buddy-cli.cpp` **`makeRunner` only recognizes the prefix `deepseek_r1`** when CMake is configured with **`BUDDY_BUILD_DEEPSEEK_R1_MODEL=ON`** (linking **`buddy_models_deepseek_r1`**). Any other name fails with an error that points to how to extend the CLI.
+`buddy-cli` does not statically link model runners. A model package must provide
+a runner plugin such as `deepseek_r1_runner.so`, and the `.rax` manifest records
+it with `runner_library = "file:deepseek_r1_runner.so"`.
 
 ---
 
@@ -43,11 +45,18 @@ There is **no** universal “change one JSON and everything works” path yet; s
 
 1. Implement a subclass of **`buddy::runtime::InferenceRunner`** (see `DeepSeekR1Runner`):
    - Paths from manifest/CLI, **`dlopen`**, weight load, inputs, inference loop (or single forward), output.
-2. Extend **`makeRunner`** in **`tools/buddy-cli/buddy-cli.cpp`**, e.g.
-   `modelName.rfind("my_llm", 0) == 0` → `std::make_unique<MyModelRunner>()`
-   and update the **Supported models** string in error messages.
-3. In **`tools/buddy-cli/CMakeLists.txt`**, **`target_link_libraries(buddy-cli PRIVATE buddy_models_<name> ...)`** for your static library.
-4. **`.rax` `model_name`** (RHAL `rhal.module` attribute) must match the same prefix convention, or the CLI cannot dispatch.
+2. Export the runner from a plugin shared library:
+   ```cpp
+   extern "C" buddy::runtime::InferenceRunner *
+   buddy_create_inference_runner_v1();
+
+   extern "C" void
+   buddy_destroy_inference_runner_v1(buddy::runtime::InferenceRunner *);
+   ```
+3. Build that plugin from `models/<name>/CMakeLists.txt`; do not link it into
+   `buddy-cli`.
+4. Emit **`.rax` `runner_library`** (RHAL `rhal.module` attribute) pointing to
+   the plugin.
 
 #### (2) Build side: recommended path toward “one JSON + codegen”
 
@@ -76,7 +85,8 @@ Examples such as **BuddyLeNet, BuddyLlama, BuddyStableDiffusion, Whisper** are o
 
 1. Pull tunables into **one JSON spec** (model id, shapes, quantization, weight list, compile flags).
 2. Fold repeated CMake/Python into the **`buddy_model.cmake` pattern** or a **dedicated `compile_pipeline` variant**.
-3. Implement **`InferenceRunner`** and register it in **`makeRunner`** to surface the model in the **unified CLI**.
+3. Implement **`InferenceRunner`** and package it as a runner plugin to surface
+   the model in the **unified CLI**.
 
 Until (2)–(3) are done, those examples build from their own READMEs and are **not** wired to **`buddy-cli --model *.rax`**.
 
@@ -99,8 +109,9 @@ For a **new family**, define a **custom spec schema** and teach **`gen_config`**
 ## 5. Checklist before shipping a new model family
 
 - [ ] **`InferenceRunner` subclass** implemented; **`run()`** paths match the manifest.
-- [ ] **`buddy-cli.cpp`：`makeRunner`** updated; **`.rax` `model_name`** matches.
-- [ ] **`buddy-cli` CMake** links **`buddy_models_<name>`**.
+- [ ] Runner plugin exports **`buddy_create_inference_runner_v1`** and
+  **`buddy_destroy_inference_runner_v1`**.
+- [ ] **`.rax` `runner_library`** points to the plugin.
 - [ ] **`models/CMakeLists.txt`** includes **`add_subdirectory`**.
 - [ ] Build produces **`<name>_model.so`** and **`<name>.rax`** (or your family’s naming).
 - [ ] Smoke test: **`buddy-cli --model build/models/<name>/<name>.rax ...`** (flags depend on model type; LLMs use `--prompt`, etc.).
@@ -111,7 +122,7 @@ For a **new family**, define a **custom spec schema** and teach **`gen_config`**
 
 | Topic | Path |
 |--------|------|
-| CLI dispatch | `tools/buddy-cli/buddy-cli.cpp` (`makeRunner`) |
+| CLI plugin loading | `tools/buddy-cli/buddy-cli.cpp` |
 | Runner API | `runtime/include/buddy/runtime/core/InferenceRunner.h` |
 | DeepSeek reference | `models/deepseek_r1/DeepSeekR1Runner.cpp`, `include/buddy/runtime/models/DeepSeekR1Runner.h` |
 | CMake integration | `models/deepseek_r1/CMakeLists.txt`, `tools/buddy-codegen/cmake/buddy_model.cmake` |
@@ -127,5 +138,7 @@ For a **new family**, define a **custom spec schema** and teach **`gen_config`**
 ## 7. Summary
 
 - **DeepSeek variants only:** add **`specs/<variant>.json`** and extend **`gen_config.py`** tables as needed; **no CLI dispatch change**.
-- **New model family:** implement and register **`InferenceRunner`**, and connect the build to **`buddy_add_model`** or **parallel codegen**; **migrate legacy `examples/`** if you want “single JSON + codegen + buddy-cli”.
+- **New model family:** implement **`InferenceRunner`**, export it from a runner
+  plugin, and connect the build to **`buddy_add_model`** or **parallel codegen**;
+  **migrate legacy `examples/`** if you want “single JSON + codegen + buddy-cli”.
 - **End state:** **minimal JSON** for deltas, **generate** repeated code; **DeepSeek R1** is the first full reference; other architectures follow the same checklist incrementally.

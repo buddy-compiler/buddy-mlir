@@ -3,7 +3,7 @@ module attributes {gpu.container_module} {
     gpu.func @vector_splat(%result: memref<3xf32>) kernel {
       %c0 = arith.constant 0 : index
       %c10 = arith.constant 10.0 : f32
-      %v1 = vector.splat %c10 : vector<3xf32>
+      %v1 = vector.broadcast %c10 : f32 to vector<3xf32>
       vector.store %v1, %result[%c0] : memref<3xf32>, vector<3xf32>
       gpu.return
     }

@@ -380,16 +380,19 @@ int main(int argc, char **argv) {
     const std::string moduleName = rhalMod.getSymName().str();
     std::string modelNameAttr;
     std::string vocabUriAttr;
+    std::string runnerLibraryAttr;
     std::vector<std::pair<std::string, std::string>> extraModuleAttrs;
     if (auto v = rhalMod.getModelName())
       modelNameAttr = v->str();
     if (auto v = rhalMod.getVocabUri())
       vocabUriAttr = v->str();
+    if (auto v = rhalMod.getRunnerLibrary())
+      runnerLibraryAttr = v->str();
 
     for (auto namedAttr : rhalMod->getAttrs()) {
       const std::string key = namedAttr.getName().str();
       if (key == "sym_name" || key == "version" || key == "model_name" ||
-          key == "vocab_uri")
+          key == "vocab_uri" || key == "runner_library")
         continue;
       if (auto stringAttr =
               mlir::dyn_cast<mlir::StringAttr>(namedAttr.getValue()))
@@ -543,6 +546,9 @@ int main(int argc, char **argv) {
     if (!vocabUriAttr.empty())
       registerPayload(PayloadKind::Vocab, vocabUriAttr,
                       "module attr vocab_uri");
+    if (!runnerLibraryAttr.empty())
+      registerPayload(PayloadKind::CodeObject, runnerLibraryAttr,
+                      "module attr runner_library");
 
     // ── Build FlatBuffer ──────────────────────────────────────────────────
 
@@ -557,6 +563,9 @@ int main(int argc, char **argv) {
     if (!vocabUriAttr.empty())
       modAttrs.push_back(CreateKV(b, b.CreateString("vocab_uri"),
                                   b.CreateString(vocabUriAttr)));
+    if (!runnerLibraryAttr.empty())
+      modAttrs.push_back(CreateKV(b, b.CreateString("runner_library"),
+                                  b.CreateString(runnerLibraryAttr)));
     for (const auto &attr : extraModuleAttrs)
       modAttrs.push_back(
           CreateKV(b, b.CreateString(attr.first), b.CreateString(attr.second)));

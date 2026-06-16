@@ -1,3 +1,9 @@
+get_filename_component(BUDDY_LLVM_BUILD_DIR "${LLVM_LIBRARY_DIR}" DIRECTORY)
+link_directories(
+  "${LLVM_BINARY_DIR}/runtimes/runtimes-bins/openmp/runtime/src"
+  "${BUDDY_LLVM_BUILD_DIR}/runtimes/runtimes-bins/openmp/runtime/src"
+)
+
 if(BUDDY_EXAMPLES)
   add_subdirectory(ConvOpt)
   add_subdirectory(DIPDialect)
@@ -65,7 +71,9 @@ if(BUDDY_TORQ_EXAMPLES)
 endif()
 
 if(BUDDY_DSL_EXAMPLES)
-  add_subdirectory(ToyDSL)
+  message(WARNING
+    "BUDDY_DSL_EXAMPLES depends on MLIR Toy example sources and is disabled.")
+  set(BUDDY_DSL_EXAMPLES OFF CACHE BOOL "Build DSL examples" FORCE)
 endif()
 
 if(BUDDY_ENABLE_TESTS)

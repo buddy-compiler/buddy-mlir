@@ -27,7 +27,7 @@ func.func @vector_add(%input1: memref<?xi32>, %input2: memref<?xi32>, %output: m
   %c0 = arith.constant 0 : index
   %c4 = arith.constant 4 : index
   %cst = arith.constant 0 : i32
-  %pass_thr = vector.splat %cst : vector<4xi32>
+  %pass_thr = vector.broadcast %cst : i32 to vector<4xi32>
   %dim = memref.dim %input1, %c0 : memref<?xi32>
   %iter = arith.divui %dim, %c4 : index
   %rem = arith.remui %dim, %c4 : index

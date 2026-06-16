@@ -40,7 +40,11 @@ def _normalize_dep_uri(raw: str) -> str:
     return f"file:{s}"
 
 
-def gen_manifest(config: dict, dep_shared_libs: list[str] | None = None) -> str:
+def gen_manifest(
+    config: dict,
+    dep_shared_libs: list[str] | None = None,
+    runner_library: str | None = None,
+) -> str:
     """Generate the complete RHAL .mlir manifest text."""
     out = StringIO()
 
@@ -67,6 +71,9 @@ def gen_manifest(config: dict, dep_shared_libs: list[str] | None = None) -> str:
 
     so_name = compilation["so_name"]
     vocab_file = tokens["vocab_file"]
+    runner_uri = _normalize_dep_uri(
+        runner_library or f"{model_family}_runner.so"
+    )
 
     dep_uris: list[str] = []
     for item in dep_shared_libs or []:
@@ -76,7 +83,8 @@ def gen_manifest(config: dict, dep_shared_libs: list[str] | None = None) -> str:
     p(f"rhal.module @{model_family} attributes {{")
     p('    version = "0.1.0",')
     p(f'    model_name = "{model_id}",')
-    p(f'    vocab_uri = "file:{vocab_file}"}} {{')
+    p(f'    vocab_uri = "file:{vocab_file}",')
+    p(f'    runner_library = "{runner_uri}"}} {{')
     p()
 
     # -- External constants (weight blobs) -------------------------------------
@@ -193,13 +201,26 @@ def main():
             "rhal.codeobj (repeatable). If no scheme is given, file: is assumed."
         ),
     )
+    parser.add_argument(
+        "--runner-library",
+        default=None,
+        metavar="URI_OR_NAME",
+        help=(
+            "Runner plugin library URI/name to place into module attrs. "
+            "If no scheme is given, file: is assumed."
+        ),
+    )
     args = parser.parse_args()
 
     with open(args.config) as f:
         config = json.load(f)
 
     try:
-        mlir_text = gen_manifest(config, dep_shared_libs=args.dep_shared_lib)
+        mlir_text = gen_manifest(
+            config,
+            dep_shared_libs=args.dep_shared_lib,
+            runner_library=args.runner_library,
+        )
     except ValueError as e:
         print(f"error: {e}", file=sys.stderr)
         return 1

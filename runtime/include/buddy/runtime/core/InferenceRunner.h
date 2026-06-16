@@ -17,13 +17,9 @@
 // Source tree: buddy-mlir/runtime/include/buddy/runtime/core/InferenceRunner.h
 // Include as:  #include "buddy/runtime/core/InferenceRunner.h"
 //
-// InferenceRunner is the single extension point for buddy-cli:
-//   - Each supported model implements a subclass of InferenceRunner
-//   - buddy-cli reads the model_name from the .rax manifest and constructs
-//     the right runner via the model name
-//
-// Current implementations:
-//   deepseek_r1  →  DeepSeekR1Runner  (models/deepseek_r1/)
+// InferenceRunner is the single extension point for buddy-cli. Each supported
+// model implements a subclass and exports it from a runner plugin shared
+// library through the C ABI declared below.
 //
 //===----------------------------------------------------------------------===//
 
@@ -102,6 +98,9 @@ public:
   virtual ~InferenceRunner() = default;
   virtual void run(const RunConfig &cfg) = 0;
 };
+
+using CreateInferenceRunnerFn = InferenceRunner *(*)();
+using DestroyInferenceRunnerFn = void (*)(InferenceRunner *);
 
 } // namespace runtime
 } // namespace buddy

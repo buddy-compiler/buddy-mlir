@@ -103,13 +103,20 @@ declare_mlir_python_extension(BuddyMLIRPythonSources.Extension
 # once ready.
 ################################################################################
 
+# MLIRPythonSources already contains the core _mlir extension through
+# MLIRPythonSources.Core. Do not list MLIRPythonExtension.Core separately here,
+# otherwise the generated buddy_mlir._mlir_libs._mlir module may miss core
+# submodules such as ir on some platforms.
+set(BUDDY_MLIR_PYTHON_DECLARED_SOURCES
+  BuddyMLIRPythonSources
+  MLIRPythonSources
+)
+
 add_mlir_python_common_capi_library(BuddyMLIRPythonCAPI
   OUTPUT_DIRECTORY "${BUDDY_BUILD_DIR}/python_packages/buddy_mlir/_mlir_libs"
   RELATIVE_INSTALL_ROOT "../../.."
   DECLARED_SOURCES
-    BuddyMLIRPythonSources
-    MLIRPythonSources
-    MLIRPythonExtension.Core
+    ${BUDDY_MLIR_PYTHON_DECLARED_SOURCES}
 )
 
 ################################################################################
@@ -119,10 +126,9 @@ link_directories(${LLVM_BINARY_DIR}/tools/mlir/python_packages/mlir_core/mlir/_m
 
 add_mlir_python_modules(BuddyMLIRPythonModules
   ROOT_PREFIX "${BUDDY_BUILD_DIR}/python_packages/buddy_mlir"
+  INSTALL_PREFIX "python_packages/buddy_mlir"
   DECLARED_SOURCES
-    BuddyMLIRPythonSources
-    MLIRPythonSources
-    MLIRPythonExtension.Core
+    ${BUDDY_MLIR_PYTHON_DECLARED_SOURCES}
   COMMON_CAPI_LINK_LIBS
     BuddyMLIRPythonCAPI
   )

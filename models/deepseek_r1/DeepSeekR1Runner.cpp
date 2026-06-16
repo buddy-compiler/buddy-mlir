@@ -49,6 +49,7 @@ namespace runtime {
 
 namespace {
 static constexpr int kEosToken = 151643; // <|end▁of▁sentence|>
+static constexpr int kEotToken = 151647; // <|EOT|>
 } // namespace
 
 //===----------------------------------------------------------------------===//
@@ -65,7 +66,7 @@ void DeepSeekR1Runner::run(const RunConfig &cfgIn) {
         << "\033[33;1mDeepSeekR1 Inference (buddy-cli / BuddyRuntime)\033[0m\n";
 
   // ── Chat template: load if provided ─────────────────────────────────────
-  std::vector<long long> stopTokenIds = {kEosToken};
+  std::vector<long long> stopTokenIds = {kEosToken, kEotToken};
   std::unique_ptr<buddy::ChatTemplate> chatTmpl;
 
   if (!cfg.chatTemplatePath.empty()) {

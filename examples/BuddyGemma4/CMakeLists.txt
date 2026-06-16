@@ -17,7 +17,7 @@ if(IS_RVV_PLATFORM)
   set(RISCV_LINK_OPTS "-march=rv64gcv;-mabi=lp64d")
 else()
   set(OPENMP_NUM_THREADS "num-threads=48")
-  set(LLC_RISCV_ATTRS "")
+  set(LLC_RISCV_ATTRS "-mcpu=native")
 endif()
 
 add_custom_command(
@@ -226,7 +226,7 @@ add_custom_command(
             -reconcile-unrealized-casts |
           ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
           ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
-          ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
+          ${LLVM_TOOLS_BINARY_DIR}/llc ${LLC_RISCV_ATTRS} -filetype=obj -relocation-model=pic -O3
             -o ${CMAKE_CURRENT_BINARY_DIR}/subgraph_decode_e2b.o
     DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode_e2b.mlir
     COMMENT "Building subgraph_decode_e2b.o"
@@ -271,6 +271,19 @@ if(BUDDY_MLIR_USE_MIMALLOC)
 endif()
 
 target_link_libraries(buddy-gemma4-e2b-run ${BUDDY_GEMMA4_E2B_LIBS})
+
+add_test(
+  NAME example.buddy-gemma4-e2b-run
+  COMMAND sh -c "printf '%s\n' 'Hi' | \"$<TARGET_FILE:buddy-gemma4-e2b-run>\""
+  WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+)
+set_tests_properties(
+  example.buddy-gemma4-e2b-run
+  PROPERTIES
+    LABELS "example"
+    PASS_REGULAR_EXPRESSION "Hi! How can I's how can you?"
+    TIMEOUT 3600
+)
 
 # Create a distributable package
 set(DIST_PACKAGE_NAME "buddy-gemma4-e2b")

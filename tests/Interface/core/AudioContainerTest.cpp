@@ -22,17 +22,23 @@
 
 #include "AudioFile.h"
 #include <buddy/DAP/AudioContainer.h>
+#include <cstdlib>
 #include <iostream>
+#include <string>
 
 using namespace std;
 
 int main() {
+  const char *sourceDir = std::getenv("BUDDY_SRC_ROOT");
+  string testDir =
+      string(sourceDir ? sourceDir : ".") + "/tests/Interface/core/";
+
   // ---------------------------------------------------------------------------
   // 1. Print Decoded Reuslts using Buddy Audio Container
   // ---------------------------------------------------------------------------
 
   // Read and decode audio file with Buddy Audio Container.
-  dap::Audio<float, 1> aud("../../../../tests/Interface/core/TestAudio.wav");
+  dap::Audio<float, 1> aud(testDir + "TestAudio.wav");
 
   // CHECK: WAV
   fprintf(stderr, "%s\n", aud.getFormatName().c_str());

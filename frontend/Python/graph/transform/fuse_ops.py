@@ -22,6 +22,8 @@ from torch.fx.immutable_collections import immutable_list
 
 from .. import DeviceType, Graph
 from ..operation import (
+    AddMMOp,
+    AddOp,
     CloneOp,
     ExpandOp,
     FlashAttentionForCpuPrefillOp,
@@ -50,6 +52,136 @@ classicfuse_register = {
 # OP_TYPE_UNFUSABLE = [OpType.Unfusable, OpType.ConcatType]
 # OP_TYPE_FUSABLE_BY_SPECIFIC_PASS = []
 # ANCHOR_OP_TYPE = []
+
+
+def decompose_addmm_to_mm_add(graph: Graph):
+    """
+    Decompose:
+
+        addmm(bias, lhs, rhs)
+
+    into:
+
+        mm(lhs, rhs)
+        add(bias, mm)
+
+    This enables the existing classic_fuse_check() to further fuse:
+
+        mm(lhs, permute(weight))
+
+    into:
+
+        fusedmm(lhs, weight)
+
+    Finally the lowered MLIR becomes:
+
+        linalg.matmul_transpose_b + tosa.add
+    """
+
+    for node in list(graph.body):
+        if not isinstance(node, AddMMOp):
+            continue
+
+        # AddMMOp arguments should be:
+        #   args[0] = bias
+        #   args[1] = lhs
+        #   args[2] = rhs
+        #
+        # Expected argument structure: [bias, lhs, rhs]
+        if len(node.args) < 3:
+            continue
+
+        bias_name = str(node.args[0])
+        lhs_name = str(node.args[1])
+        rhs_name = str(node.args[2])
+
+        if bias_name not in graph.node_table:
+            continue
+        if lhs_name not in graph.node_table:
+            continue
+        if rhs_name not in graph.node_table:
+            continue
+
+        bias_node = graph.node_table[bias_name]
+        lhs_node = graph.node_table[lhs_name]
+        rhs_node = graph.node_table[rhs_name]
+
+        # Be conservative: only decompose addmm whose rhs is permute(weight, [1, 0]).
+        # This targets the MHA Q/K/V pattern:
+        #   addmm(bias, x, permute(W))
+        if not isinstance(rhs_node, PermuteOp):
+            continue
+        if len(rhs_node.args) < 2:
+            continue
+        if rhs_node.args[1] != immutable_list([1, 0]):
+            continue
+
+        # Create:
+        #   mm(lhs, rhs)
+        mm_node = MatmulOp()
+        mm_node.name = node.name + "_decomposed_mm"
+        mm_node._arguments = [lhs_name, rhs_name]
+        mm_node._parents = [lhs_name, rhs_name]
+        mm_node._children = [node.name]
+        mm_node.tensor_meta = node.tensor_meta.copy()
+
+        # Create:
+        #   add(bias, mm)
+        #
+        # Reuse the original addmm name for the AddOp.
+        # This avoids changing downstream users such as view_5.
+        add_node = AddOp()
+        add_node.name = node.name
+        add_node._arguments = [bias_name, mm_node.name]
+        add_node._parents = [bias_name, mm_node.name]
+        add_node._children = list(node._children)
+        add_node.tensor_meta = node.tensor_meta.copy()
+
+        # Replace original AddMMOp in graph.body with:
+        #   mm_node
+        #   add_node
+        idx = graph.body.index(node)
+        graph.body[idx] = mm_node
+        graph.body.insert(idx + 1, add_node)
+
+        # Update node_table.
+        graph.node_table[mm_node.name] = mm_node
+        graph.node_table[add_node.name] = add_node
+
+        # Update lhs children:
+        #   lhs: addmm -> addmm_decomposed_mm
+        if node.name in lhs_node._children:
+            lhs_node._children.remove(node.name)
+        if mm_node.name not in lhs_node._children:
+            lhs_node._children.append(mm_node.name)
+
+        # Update rhs children:
+        #   permute: addmm -> addmm_decomposed_mm
+        if node.name in rhs_node._children:
+            rhs_node._children.remove(node.name)
+        if mm_node.name not in rhs_node._children:
+            rhs_node._children.append(mm_node.name)
+
+        # Bias still feeds the node named "addmm", but that node is now AddOp.
+        if node.name not in bias_node._children:
+            bias_node._children.append(node.name)
+
+        # Downstream children still reference "addmm".
+        # Since add_node reuses node.name, usually no change is needed.
+        # Keep this normalization for safety.
+        for child_name in add_node._children:
+            if child_name not in graph.node_table:
+                continue
+
+            child_node = graph.node_table[child_name]
+
+            for i, arg in enumerate(child_node.args):
+                if str(arg) == node.name:
+                    child_node.args[i] = add_node.name
+
+            for i, parent_name in enumerate(child_node._parents):
+                if parent_name == node.name:
+                    child_node._parents[i] = add_node.name
 
 
 def classic_fuse_check(graph: Graph):
@@ -125,6 +257,7 @@ def apply_classic_fusion(graph: Graph):
     new_op_group = []
     device = DeviceType.CPU
     # Run the first round of op fusion
+    decompose_addmm_to_mm_add(graph)
     classic_fuse_check(graph)
     for op in graph.body:
         if isinstance(op, PlaceholderOp):

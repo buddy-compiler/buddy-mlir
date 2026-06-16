@@ -79,7 +79,7 @@ buildVIRVectorShape(linalg::LinalgOp op, SmallVectorImpl<int64_t> &shapeOut,
                                                      operandDimPos))) {
         return failure();
       }
-      Value dim = b.create<memref::DimOp>(loc, operand, operandDimPos);
+      Value dim = memref::DimOp::create(b, loc, operand, operandDimPos);
       commonShape.push_back(dim);
     } else {
       commonShape.push_back(b.getIndexAttr(sz));
@@ -158,7 +158,7 @@ static Value transformInputMemrefForProjectedPermutation(
     int64_t shapeVal = memrefShape[i];
     resultShape.push_back(shapeVal);
     if (ShapedType::isDynamic(shapeVal)) {
-      Value dim = rewriter.create<memref::DimOp>(loc, opOperand->get(), i);
+      Value dim = memref::DimOp::create(rewriter, loc, opOperand->get(), i);
       outputShape.push_back(dim);
     } else {
       outputShape.push_back(rewriter.getIndexAttr(shapeVal));
@@ -173,12 +173,12 @@ static Value transformInputMemrefForProjectedPermutation(
     reassociation.push_back({static_cast<int64_t>(numDimsToExpand + i)});
   }
 
-  Value expanded = rewriter.create<memref::ExpandShapeOp>(
-      loc, resultShape, opOperand->get(), reassociation, outputShape);
+  Value expanded = memref::ExpandShapeOp::create(
+      rewriter, loc, resultShape, opOperand->get(), reassociation, outputShape);
 
   // 3) Transpose to align dims in iteration-space order.
-  Value transposed = rewriter.create<memref::TransposeOp>(
-      loc, expanded, AffineMapAttr::get(permutationMap));
+  Value transposed = memref::TransposeOp::create(
+      rewriter, loc, expanded, AffineMapAttr::get(permutationMap));
 
   // 4) Subview to broadcast the dimensions that are not present.
   SmallVector<OpFoldResult> strides;
@@ -193,8 +193,8 @@ static Value transformInputMemrefForProjectedPermutation(
       strides.push_back(rewriter.getIndexAttr(0));
     }
   }
-  Value subview = rewriter.create<memref::SubViewOp>(loc, transposed, offsets,
-                                                     commonShape, strides);
+  Value subview = memref::SubViewOp::create(rewriter, loc, transposed, offsets,
+                                            commonShape, strides);
   return subview;
 }
 
@@ -206,8 +206,8 @@ transformOutputMemrefForProjectedPermutation(OpBuilder &rewriter, Location loc,
                                              AffineMap indexingMap) {
   // For output, just transpose it into the source dimension order.
   auto permutationMap = inversePermutation(reindexIndexingMap(indexingMap));
-  auto transposed = rewriter.create<memref::TransposeOp>(
-      loc, opOperand->get(), AffineMapAttr::get(permutationMap));
+  auto transposed = memref::TransposeOp::create(
+      rewriter, loc, opOperand->get(), AffineMapAttr::get(permutationMap));
   return transposed;
 }
 
@@ -231,7 +231,7 @@ static Operation *createGenericElementwiseVIR(Operation *op,
     // Broadcast scalar to vector type based on its scalar type.
     Type scalarTy = cur.getType();
     auto vecTy = buddy::vir::DynamicVectorType::get(virShape, scalarTy);
-    return rewriter.create<buddy::vir::BroadcastOp>(loc, vecTy, cur);
+    return buddy::vir::BroadcastOp::create(rewriter, loc, vecTy, cur);
   };
 
   // Collect VIR vector operands (broadcast scalars as needed).
@@ -247,8 +247,8 @@ static Operation *createGenericElementwiseVIR(Operation *op,
   if (auto sel = dyn_cast<arith::SelectOp>(op)) {
     Type resElemTy = sel.getType();
     auto resTy = buddy::vir::DynamicVectorType::get(virShape, resElemTy);
-    auto created = rewriter.create<buddy::vir::SelectOp>(
-        loc, resTy, vecOperands[0], vecOperands[1], vecOperands[2]);
+    auto created = buddy::vir::SelectOp::create(
+        rewriter, loc, resTy, vecOperands[0], vecOperands[1], vecOperands[2]);
     return created.getOperation();
   }
 
@@ -257,13 +257,13 @@ static Operation *createGenericElementwiseVIR(Operation *op,
   if (auto extf = dyn_cast<arith::ExtFOp>(op)) {
     auto outTy = buddy::vir::DynamicVectorType::get(virShape, extf.getType());
     auto created =
-        rewriter.create<buddy::vir::ExtFOp>(loc, outTy, vecOperands[0]);
+        buddy::vir::ExtFOp::create(rewriter, loc, outTy, vecOperands[0]);
     return created.getOperation();
   }
   if (auto truncf = dyn_cast<arith::TruncFOp>(op)) {
     auto outTy = buddy::vir::DynamicVectorType::get(virShape, truncf.getType());
     auto created =
-        rewriter.create<buddy::vir::TruncFOp>(loc, outTy, vecOperands[0]);
+        buddy::vir::TruncFOp::create(rewriter, loc, outTy, vecOperands[0]);
     return created.getOperation();
   }
 
@@ -295,8 +295,8 @@ static LogicalResult computeShapeAndVL(linalg::LinalgOp linalgOp,
   }
   Location loc = linalgOp.getLoc();
   if (auto attr = dyn_cast<Attribute>(ofrCommon.back())) {
-    vlVal = rewriter.create<arith::ConstantIndexOp>(
-        loc, cast<IntegerAttr>(attr).getInt());
+    vlVal = arith::ConstantIndexOp::create(rewriter, loc,
+                                           cast<IntegerAttr>(attr).getInt());
   } else if (auto v = dyn_cast<Value>(ofrCommon.back())) {
     vlVal = v;
   } else {
@@ -368,8 +368,8 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
 
   Location loc = reduceOp.getLoc();
   rewriter.setInsertionPoint(reduceOp);
-  Value lower = rewriter.create<arith::ConstantIndexOp>(loc, 0);
-  Value step = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+  Value lower = arith::ConstantIndexOp::create(rewriter, loc, 0);
+  Value step = arith::ConstantIndexOp::create(rewriter, loc, 1);
 
   auto kindToString = [&](SupportedReduceCombinerKind k) -> StringRef {
     switch (k) {
@@ -388,32 +388,32 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
       return rewriter.notifyMatchFailure(
           reduceOp, "rank-1 -> rank-0 reduction requires dimensions=[0]");
 
-    Value n = rewriter.create<memref::DimOp>(loc, input, 0);
+    Value n = memref::DimOp::create(rewriter, loc, input, 0);
     Type elemTy = inTy.getElementType();
     auto accBufTy = MemRefType::get({}, elemTy);
-    Value accBuf = rewriter.create<memref::AllocaOp>(loc, accBufTy);
-    Value initVal = rewriter.create<memref::LoadOp>(loc, init, ValueRange{});
-    rewriter.create<memref::StoreOp>(loc, initVal, accBuf, ValueRange{});
+    Value accBuf = memref::AllocaOp::create(rewriter, loc, accBufTy);
+    Value initVal = memref::LoadOp::create(rewriter, loc, init, ValueRange{});
+    memref::StoreOp::create(rewriter, loc, initVal, accBuf, ValueRange{});
 
     auto setVl = createSetVLRegion(rewriter, loc, n);
     auto vecTy =
         buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, elemTy);
-    Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+    Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
     Value loaded =
-        rewriter.create<buddy::vir::LoadOp>(loc, vecTy, input, ValueRange{c0})
+        buddy::vir::LoadOp::create(rewriter, loc, vecTy, input, ValueRange{c0})
             .getResult();
-    Value acc = rewriter.create<memref::LoadOp>(loc, accBuf, ValueRange{});
-    Value reduced = rewriter
-                        .create<buddy::vir::ReduceOp>(
-                            loc, elemTy, loaded, acc,
-                            rewriter.getStringAttr(kindToString(*combinerKind)))
+    Value acc = memref::LoadOp::create(rewriter, loc, accBuf, ValueRange{});
+    Value reduced = buddy::vir::ReduceOp::create(
+                        rewriter, loc, elemTy, loaded, acc,
+                        rewriter.getStringAttr(kindToString(*combinerKind)))
                         .getResult();
-    rewriter.create<memref::StoreOp>(loc, reduced, accBuf, ValueRange{});
-    rewriter.create<vector::YieldOp>(loc);
+    memref::StoreOp::create(rewriter, loc, reduced, accBuf, ValueRange{});
+    vector::YieldOp::create(rewriter, loc);
 
     rewriter.setInsertionPointAfter(setVl);
-    Value finalVal = rewriter.create<memref::LoadOp>(loc, accBuf, ValueRange{});
-    rewriter.create<memref::StoreOp>(loc, finalVal, init, ValueRange{});
+    Value finalVal =
+        memref::LoadOp::create(rewriter, loc, accBuf, ValueRange{});
+    memref::StoreOp::create(rewriter, loc, finalVal, init, ValueRange{});
     rewriter.eraseOp(reduceOp);
     return success();
   }
@@ -429,7 +429,7 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
     int64_t inStaticN = inTy.getShape()[1];
     int64_t outStaticM = outTy.getShape()[0];
     Type elemTy = inTy.getElementType();
-    Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+    Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
 
     if (dims[0] == 1) {
       if (!ShapedType::isDynamic(inStaticM) &&
@@ -438,46 +438,44 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
             reduceOp, "input/output leading dimension mismatch");
       }
 
-      Value upperM = rewriter.create<memref::DimOp>(loc, input, 0);
-      Value upperN = rewriter.create<memref::DimOp>(loc, input, 1);
-      auto outerLoop = rewriter.create<scf::ForOp>(loc, lower, upperM, step);
+      Value upperM = memref::DimOp::create(rewriter, loc, input, 0);
+      Value upperN = memref::DimOp::create(rewriter, loc, input, 1);
+      auto outerLoop = scf::ForOp::create(rewriter, loc, lower, upperM, step);
 
       {
         OpBuilder::InsertionGuard g(rewriter);
         rewriter.setInsertionPointToStart(outerLoop.getBody());
         Value i = outerLoop.getInductionVar();
         auto accBufTy = MemRefType::get({}, elemTy);
-        Value accBuf = rewriter.create<memref::AllocaOp>(loc, accBufTy);
+        Value accBuf = memref::AllocaOp::create(rewriter, loc, accBufTy);
         Value initVal =
-            rewriter.create<memref::LoadOp>(loc, init, ValueRange{i});
-        rewriter.create<memref::StoreOp>(loc, initVal, accBuf, ValueRange{});
+            memref::LoadOp::create(rewriter, loc, init, ValueRange{i});
+        memref::StoreOp::create(rewriter, loc, initVal, accBuf, ValueRange{});
 
-        auto setVl = rewriter.create<buddy::vir::SetVLOp>(
-            loc, /*results=*/TypeRange{}, /*operands=*/ValueRange{upperN});
+        auto setVl =
+            buddy::vir::SetVLOp::create(rewriter, loc, /*results=*/TypeRange{},
+                                        /*operands=*/ValueRange{upperN});
         Region &region = setVl.getRegion();
         Block &block = region.emplaceBlock();
         rewriter.setInsertionPointToStart(&block);
 
         auto vecTy =
             buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, elemTy);
-        Value row = rewriter
-                        .create<buddy::vir::LoadOp>(loc, vecTy, input,
-                                                    ValueRange{i, c0})
+        Value row = buddy::vir::LoadOp::create(rewriter, loc, vecTy, input,
+                                               ValueRange{i, c0})
                         .getResult();
-        Value acc = rewriter.create<memref::LoadOp>(loc, accBuf, ValueRange{});
-        Value reduced =
-            rewriter
-                .create<buddy::vir::ReduceOp>(
-                    loc, elemTy, row, acc,
-                    rewriter.getStringAttr(kindToString(*combinerKind)))
-                .getResult();
-        rewriter.create<memref::StoreOp>(loc, reduced, accBuf, ValueRange{});
-        rewriter.create<vector::YieldOp>(loc);
+        Value acc = memref::LoadOp::create(rewriter, loc, accBuf, ValueRange{});
+        Value reduced = buddy::vir::ReduceOp::create(
+                            rewriter, loc, elemTy, row, acc,
+                            rewriter.getStringAttr(kindToString(*combinerKind)))
+                            .getResult();
+        memref::StoreOp::create(rewriter, loc, reduced, accBuf, ValueRange{});
+        vector::YieldOp::create(rewriter, loc);
 
         rewriter.setInsertionPointAfter(setVl);
         Value finalVal =
-            rewriter.create<memref::LoadOp>(loc, accBuf, ValueRange{});
-        rewriter.create<memref::StoreOp>(loc, finalVal, init, ValueRange{i});
+            memref::LoadOp::create(rewriter, loc, accBuf, ValueRange{});
+        memref::StoreOp::create(rewriter, loc, finalVal, init, ValueRange{i});
       }
 
       rewriter.eraseOp(reduceOp);
@@ -503,56 +501,54 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
         return rewriter.notifyMatchFailure(
             reduceOp, "input/output trailing dimension mismatch");
 
-      Value upperN = rewriter.create<arith::ConstantIndexOp>(loc, inStaticN);
-      Value upperM = rewriter.create<arith::ConstantIndexOp>(loc, inStaticM);
+      Value upperN = arith::ConstantIndexOp::create(rewriter, loc, inStaticN);
+      Value upperM = arith::ConstantIndexOp::create(rewriter, loc, inStaticM);
       SmallVector<int64_t> permutation = {1, 0};
       auto permutationMap =
           AffineMap::getPermutationMap(permutation, rewriter.getContext());
-      Value transposed = rewriter.create<memref::TransposeOp>(
-          loc, input, AffineMapAttr::get(permutationMap));
+      Value transposed = memref::TransposeOp::create(
+          rewriter, loc, input, AffineMapAttr::get(permutationMap));
       auto scratchTy = MemRefType::get({inStaticN, inStaticM}, elemTy);
-      Value scratch = rewriter.create<memref::AllocOp>(loc, scratchTy);
-      rewriter.create<memref::CopyOp>(loc, transposed, scratch);
-      auto outerLoop = rewriter.create<scf::ForOp>(loc, lower, upperN, step);
+      Value scratch = memref::AllocOp::create(rewriter, loc, scratchTy);
+      memref::CopyOp::create(rewriter, loc, transposed, scratch);
+      auto outerLoop = scf::ForOp::create(rewriter, loc, lower, upperN, step);
 
       {
         OpBuilder::InsertionGuard g(rewriter);
         rewriter.setInsertionPointToStart(outerLoop.getBody());
         Value j = outerLoop.getInductionVar();
         auto accBufTy = MemRefType::get({}, elemTy);
-        Value accBuf = rewriter.create<memref::AllocaOp>(loc, accBufTy);
+        Value accBuf = memref::AllocaOp::create(rewriter, loc, accBufTy);
         Value initVal =
-            rewriter.create<memref::LoadOp>(loc, init, ValueRange{j});
-        rewriter.create<memref::StoreOp>(loc, initVal, accBuf, ValueRange{});
+            memref::LoadOp::create(rewriter, loc, init, ValueRange{j});
+        memref::StoreOp::create(rewriter, loc, initVal, accBuf, ValueRange{});
 
-        auto setVl = rewriter.create<buddy::vir::SetVLOp>(
-            loc, /*results=*/TypeRange{}, /*operands=*/ValueRange{upperM});
+        auto setVl =
+            buddy::vir::SetVLOp::create(rewriter, loc, /*results=*/TypeRange{},
+                                        /*operands=*/ValueRange{upperM});
         Region &region = setVl.getRegion();
         Block &block = region.emplaceBlock();
         rewriter.setInsertionPointToStart(&block);
 
         auto vecTy =
             buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, elemTy);
-        Value col = rewriter
-                        .create<buddy::vir::LoadOp>(loc, vecTy, scratch,
-                                                    ValueRange{j, c0})
+        Value col = buddy::vir::LoadOp::create(rewriter, loc, vecTy, scratch,
+                                               ValueRange{j, c0})
                         .getResult();
-        Value acc = rewriter.create<memref::LoadOp>(loc, accBuf, ValueRange{});
-        Value reduced =
-            rewriter
-                .create<buddy::vir::ReduceOp>(
-                    loc, elemTy, col, acc,
-                    rewriter.getStringAttr(kindToString(*combinerKind)))
-                .getResult();
-        rewriter.create<memref::StoreOp>(loc, reduced, accBuf, ValueRange{});
-        rewriter.create<vector::YieldOp>(loc);
+        Value acc = memref::LoadOp::create(rewriter, loc, accBuf, ValueRange{});
+        Value reduced = buddy::vir::ReduceOp::create(
+                            rewriter, loc, elemTy, col, acc,
+                            rewriter.getStringAttr(kindToString(*combinerKind)))
+                            .getResult();
+        memref::StoreOp::create(rewriter, loc, reduced, accBuf, ValueRange{});
+        vector::YieldOp::create(rewriter, loc);
 
         rewriter.setInsertionPointAfter(setVl);
         Value finalVal =
-            rewriter.create<memref::LoadOp>(loc, accBuf, ValueRange{});
-        rewriter.create<memref::StoreOp>(loc, finalVal, init, ValueRange{j});
+            memref::LoadOp::create(rewriter, loc, accBuf, ValueRange{});
+        memref::StoreOp::create(rewriter, loc, finalVal, init, ValueRange{j});
       }
-      rewriter.create<memref::DeallocOp>(loc, scratch);
+      memref::DeallocOp::create(rewriter, loc, scratch);
 
       rewriter.eraseOp(reduceOp);
       return success();
@@ -590,66 +586,65 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
           reduceOp, "input/output trailing dimensions mismatch");
 
     Type elemTy = inTy.getElementType();
-    Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
-    Value upperN = rewriter.create<arith::ConstantIndexOp>(loc, inStaticN);
-    Value upperK = rewriter.create<arith::ConstantIndexOp>(loc, inStaticK);
-    Value upperM = rewriter.create<arith::ConstantIndexOp>(loc, inStaticM);
+    Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
+    Value upperN = arith::ConstantIndexOp::create(rewriter, loc, inStaticN);
+    Value upperK = arith::ConstantIndexOp::create(rewriter, loc, inStaticK);
+    Value upperM = arith::ConstantIndexOp::create(rewriter, loc, inStaticM);
     SmallVector<int64_t> permutation = {1, 2, 0};
     auto permutationMap =
         AffineMap::getPermutationMap(permutation, rewriter.getContext());
 
-    Value transposed = rewriter.create<memref::TransposeOp>(
-        loc, input, AffineMapAttr::get(permutationMap));
+    Value transposed = memref::TransposeOp::create(
+        rewriter, loc, input, AffineMapAttr::get(permutationMap));
     auto scratchTy = MemRefType::get({inStaticN, inStaticK, inStaticM}, elemTy);
-    Value scratch = rewriter.create<memref::AllocOp>(loc, scratchTy);
-    rewriter.create<memref::CopyOp>(loc, transposed, scratch);
-    auto outerLoop = rewriter.create<scf::ForOp>(loc, lower, upperN, step);
+    Value scratch = memref::AllocOp::create(rewriter, loc, scratchTy);
+    memref::CopyOp::create(rewriter, loc, transposed, scratch);
+    auto outerLoop = scf::ForOp::create(rewriter, loc, lower, upperN, step);
 
     {
       OpBuilder::InsertionGuard g(rewriter);
       rewriter.setInsertionPointToStart(outerLoop.getBody());
       Value j = outerLoop.getInductionVar();
-      auto innerLoop = rewriter.create<scf::ForOp>(loc, lower, upperK, step);
+      auto innerLoop = scf::ForOp::create(rewriter, loc, lower, upperK, step);
 
       {
         OpBuilder::InsertionGuard innerGuard(rewriter);
         rewriter.setInsertionPointToStart(innerLoop.getBody());
         Value k = innerLoop.getInductionVar();
         auto accBufTy = MemRefType::get({}, elemTy);
-        Value accBuf = rewriter.create<memref::AllocaOp>(loc, accBufTy);
+        Value accBuf = memref::AllocaOp::create(rewriter, loc, accBufTy);
         Value initVal =
-            rewriter.create<memref::LoadOp>(loc, init, ValueRange{j, k});
-        rewriter.create<memref::StoreOp>(loc, initVal, accBuf, ValueRange{});
+            memref::LoadOp::create(rewriter, loc, init, ValueRange{j, k});
+        memref::StoreOp::create(rewriter, loc, initVal, accBuf, ValueRange{});
 
-        auto setVl = rewriter.create<buddy::vir::SetVLOp>(
-            loc, /*results=*/TypeRange{}, /*operands=*/ValueRange{upperM});
+        auto setVl =
+            buddy::vir::SetVLOp::create(rewriter, loc, /*results=*/TypeRange{},
+                                        /*operands=*/ValueRange{upperM});
         Region &region = setVl.getRegion();
         Block &block = region.emplaceBlock();
         rewriter.setInsertionPointToStart(&block);
 
         auto vecTy =
             buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, elemTy);
-        Value slice = rewriter
-                          .create<buddy::vir::LoadOp>(loc, vecTy, scratch,
-                                                      ValueRange{j, k, c0})
+        Value slice = buddy::vir::LoadOp::create(rewriter, loc, vecTy, scratch,
+                                                 ValueRange{j, k, c0})
                           .getResult();
-        Value acc = rewriter.create<memref::LoadOp>(loc, accBuf, ValueRange{});
-        Value reduced =
-            rewriter
-                .create<buddy::vir::ReduceOp>(
-                    loc, elemTy, slice, acc,
-                    rewriter.getStringAttr(kindToString(*combinerKind)))
-                .getResult();
-        rewriter.create<memref::StoreOp>(loc, reduced, accBuf, ValueRange{});
-        rewriter.create<vector::YieldOp>(loc);
+        Value acc = memref::LoadOp::create(rewriter, loc, accBuf, ValueRange{});
+        Value reduced = buddy::vir::ReduceOp::create(
+                            rewriter, loc, elemTy, slice, acc,
+                            rewriter.getStringAttr(kindToString(*combinerKind)))
+                            .getResult();
+        memref::StoreOp::create(rewriter, loc, reduced, accBuf, ValueRange{});
+        vector::YieldOp::create(rewriter, loc);
 
         rewriter.setInsertionPointAfter(setVl);
         Value finalVal =
-            rewriter.create<memref::LoadOp>(loc, accBuf, ValueRange{});
-        rewriter.create<memref::StoreOp>(loc, finalVal, init, ValueRange{j, k});
+            memref::LoadOp::create(rewriter, loc, accBuf, ValueRange{});
+        memref::StoreOp::create(rewriter, loc, finalVal, init,
+                                ValueRange{j, k});
       }
     }
-    rewriter.create<memref::DeallocOp>(loc, scratch);
+    memref::DeallocOp::create(rewriter, loc, scratch);
 
     rewriter.eraseOp(reduceOp);
     return success();
@@ -728,19 +723,19 @@ lowerIndexOnlyGenericToScalarLoop(linalg::LinalgOp linalgOp,
   Location loc = genericOp.getLoc();
   rewriter.setInsertionPoint(genericOp);
   Value out = initOpd->get();
-  Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
-  Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
-  Value n = rewriter.create<memref::DimOp>(loc, out, 0);
-  auto loop = rewriter.create<scf::ForOp>(loc, c0, n, c1);
+  Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
+  Value c1 = arith::ConstantIndexOp::create(rewriter, loc, 1);
+  Value n = memref::DimOp::create(rewriter, loc, out, 0);
+  auto loop = scf::ForOp::create(rewriter, loc, c0, n, c1);
   {
     OpBuilder::InsertionGuard g(rewriter);
     rewriter.setInsertionPointToStart(loop.getBody());
     Value iv = loop.getInductionVar();
     Value storeVal = iv;
     if (!outElemTy.isIndex()) {
-      storeVal = rewriter.create<arith::IndexCastOp>(loc, outElemTy, iv);
+      storeVal = arith::IndexCastOp::create(rewriter, loc, outElemTy, iv);
     }
-    rewriter.create<memref::StoreOp>(loc, storeVal, out, ValueRange{iv});
+    memref::StoreOp::create(rewriter, loc, storeVal, out, ValueRange{iv});
   }
   rewriter.eraseOp(genericOp);
   return success();
@@ -805,10 +800,10 @@ lowerSimpleCastGenericToScalarLoop(linalg::LinalgOp linalgOp,
 
   Location loc = genericOp.getLoc();
   rewriter.setInsertionPoint(genericOp);
-  Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
-  Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
-  Value upper = rewriter.create<memref::DimOp>(loc, outOpd->get(), 0);
-  auto loop = rewriter.create<scf::ForOp>(loc, c0, upper, c1);
+  Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
+  Value c1 = arith::ConstantIndexOp::create(rewriter, loc, 1);
+  Value upper = memref::DimOp::create(rewriter, loc, outOpd->get(), 0);
+  auto loop = scf::ForOp::create(rewriter, loc, c0, upper, c1);
   {
     OpBuilder::InsertionGuard g(rewriter);
     rewriter.setInsertionPointToStart(loop.getBody());
@@ -820,7 +815,7 @@ lowerSimpleCastGenericToScalarLoop(linalg::LinalgOp linalgOp,
       if (genericOp.isScalar(opOperand)) {
         mapped = opOperand->get();
       } else {
-        mapped = rewriter.create<memref::LoadOp>(loc, opOperand->get(), iv);
+        mapped = memref::LoadOp::create(rewriter, loc, opOperand->get(), iv);
       }
       bbArgMap[bbArg] = mapped;
     }
@@ -838,8 +833,8 @@ lowerSimpleCastGenericToScalarLoop(linalg::LinalgOp linalgOp,
     state.addTypes(castOp->getResultTypes());
     state.addAttributes(castOp->getAttrs());
     Operation *newCast = rewriter.create(state);
-    rewriter.create<memref::StoreOp>(loc, newCast->getResult(0), outOpd->get(),
-                                     iv);
+    memref::StoreOp::create(rewriter, loc, newCast->getResult(0), outOpd->get(),
+                            iv);
   }
   rewriter.eraseOp(genericOp);
   return success();
@@ -854,13 +849,15 @@ static bool isSupportedGenericBodyOp(Operation &inner) {
              arith::ShRUIOp, arith::ShRSIOp, arith::MaximumFOp,
              arith::MinimumFOp, arith::MaxSIOp, arith::MinSIOp, arith::MaxUIOp,
              arith::MinUIOp, arith::MaxNumFOp, arith::MinNumFOp, math::ExpOp,
-             math::SqrtOp>(inner);
+             math::LogOp, math::AbsFOp, math::CeilOp, math::FloorOp,
+             math::RoundOp, math::SqrtOp, math::RsqrtOp, math::TanhOp,
+             math::ErfOp, math::PowFOp>(inner);
 }
 
 static buddy::vir::SetVLOp createSetVLRegion(PatternRewriter &rewriter,
                                              Location loc, Value vlVal) {
-  auto setVl = rewriter.create<buddy::vir::SetVLOp>(
-      loc, /*results=*/TypeRange{}, /*operands=*/ValueRange{vlVal});
+  auto setVl = buddy::vir::SetVLOp::create(
+      rewriter, loc, /*results=*/TypeRange{}, /*operands=*/ValueRange{vlVal});
   Region &region = setVl.getRegion();
   Block &block = region.emplaceBlock();
   rewriter.setInsertionPointToStart(&block);
@@ -894,47 +891,46 @@ static LogicalResult lowerMatmulToVIR(linalg::MatmulOp matmulOp,
                                        "only floating-point matmul supported");
 
   // Vectorize along N (the last dimension of B/C).
-  Value n = rewriter.create<memref::DimOp>(loc, c, 1);
+  Value n = memref::DimOp::create(rewriter, loc, c, 1);
 
   // Create vir.set_vl region to host vector code.
   buddy::vir::SetVLOp setVl = createSetVLRegion(rewriter, loc, n);
 
   // Constants used inside the region.
-  Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+  Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
 
   // Determine M/K. Prefer static when available, otherwise take dim from
   // memref.
   Value mVal;
   if (!ShapedType::isDynamic(cTy.getShape()[0])) {
-    mVal = rewriter.create<arith::ConstantIndexOp>(loc, cTy.getShape()[0]);
+    mVal = arith::ConstantIndexOp::create(rewriter, loc, cTy.getShape()[0]);
   } else {
-    mVal = rewriter.create<memref::DimOp>(loc, c, 0);
+    mVal = memref::DimOp::create(rewriter, loc, c, 0);
   }
 
   Value kVal;
   if (!ShapedType::isDynamic(aTy.getShape()[1])) {
-    kVal = rewriter.create<arith::ConstantIndexOp>(loc, aTy.getShape()[1]);
+    kVal = arith::ConstantIndexOp::create(rewriter, loc, aTy.getShape()[1]);
   } else {
-    kVal = rewriter.create<memref::DimOp>(loc, a, 1);
+    kVal = memref::DimOp::create(rewriter, loc, a, 1);
   }
 
   auto vecTy =
       buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, elemTy);
 
-  auto loopM = rewriter.create<affine::AffineForOp>(
-      loc, ValueRange{c0}, rewriter.getDimIdentityMap(), ValueRange{mVal},
-      rewriter.getDimIdentityMap(), /*step=*/1,
-      /*iterArgs=*/std::nullopt,
+  auto loopM = affine::AffineForOp::create(
+      rewriter, loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
+      ValueRange{mVal}, rewriter.getDimIdentityMap(), /*step=*/1,
+      /*iterArgs=*/ValueRange{},
       [&](OpBuilder &bld, Location bodyLoc, Value i, ValueRange) {
         OpBuilder &builder = bld;
         // acc = load(C[i, 0:]) as a vector along N.
-        Value acc = builder
-                        .create<buddy::vir::LoadOp>(bodyLoc, vecTy, c,
-                                                    ValueRange{i, c0})
+        Value acc = buddy::vir::LoadOp::create(builder, bodyLoc, vecTy, c,
+                                               ValueRange{i, c0})
                         .getResult();
 
-        auto loopK = builder.create<affine::AffineForOp>(
-            bodyLoc, ValueRange{c0}, rewriter.getDimIdentityMap(),
+        auto loopK = affine::AffineForOp::create(
+            builder, bodyLoc, ValueRange{c0}, rewriter.getDimIdentityMap(),
             ValueRange{kVal}, rewriter.getDimIdentityMap(), /*step=*/1,
             /*iterArgs=*/ValueRange{acc},
             [&](OpBuilder &kb, Location kLoc, Value k, ValueRange iterArgs) {
@@ -942,36 +938,1007 @@ static LogicalResult lowerMatmulToVIR(linalg::MatmulOp matmulOp,
               Value accIn = iterArgs[0];
               // aScalar = A[i, k]
               Value aScalar =
-                  builderK.create<memref::LoadOp>(kLoc, a, ValueRange{i, k});
+                  memref::LoadOp::create(builderK, kLoc, a, ValueRange{i, k});
               // aVec = broadcast(aScalar)
-              Value aVec =
-                  builderK.create<buddy::vir::BroadcastOp>(kLoc, vecTy, aScalar)
-                      .getResult();
+              Value aVec = buddy::vir::BroadcastOp::create(builderK, kLoc,
+                                                           vecTy, aScalar)
+                               .getResult();
               // bVec = load(B[k, 0:]) as a vector along N.
-              Value bVec = builderK
-                               .create<buddy::vir::LoadOp>(kLoc, vecTy, b,
-                                                           ValueRange{k, c0})
+              Value bVec = buddy::vir::LoadOp::create(builderK, kLoc, vecTy, b,
+                                                      ValueRange{k, c0})
                                .getResult();
               // accOut = fma(aVec, bVec, accIn)
-              Value accOut =
-                  builderK
-                      .create<buddy::vir::FMAOp>(kLoc, vecTy, aVec, bVec, accIn)
-                      .getResult();
-              builderK.create<affine::AffineYieldOp>(kLoc, accOut);
+              Value accOut = buddy::vir::FMAOp::create(builderK, kLoc, vecTy,
+                                                       aVec, bVec, accIn)
+                                 .getResult();
+              affine::AffineYieldOp::create(builderK, kLoc, accOut);
             });
         Value finalAcc = loopK.getResult(0);
 
         // store acc back to C[i, 0:].
-        builder.create<buddy::vir::StoreOp>(bodyLoc, finalAcc, c,
-                                            ValueRange{i, c0});
-        builder.create<affine::AffineYieldOp>(bodyLoc);
+        buddy::vir::StoreOp::create(builder, bodyLoc, finalAcc, c,
+                                    ValueRange{i, c0});
+        affine::AffineYieldOp::create(builder, bodyLoc);
       });
   (void)loopM;
 
   // Close the set_vl region.
-  rewriter.create<vector::YieldOp>(loc);
+  vector::YieldOp::create(rewriter, loc);
 
   rewriter.replaceOp(matmulOp, setVl.getResults());
+  return success();
+}
+
+static Value dimOrConstant(OpBuilder &builder, Location loc, Value memref,
+                           int64_t dim) {
+  auto ty = cast<MemRefType>(memref.getType());
+  int64_t staticDim = ty.getShape()[dim];
+  if (!ShapedType::isDynamic(staticDim))
+    return arith::ConstantIndexOp::create(builder, loc, staticDim);
+  return memref::DimOp::create(builder, loc, memref, dim);
+}
+
+static SmallVector<Value> makeAffineMapResults(OpBuilder &builder, Location loc,
+                                               AffineMap map, ValueRange ivs) {
+  SmallVector<Value> results;
+  SmallVector<OpFoldResult> ofrs;
+  ofrs.reserve(ivs.size());
+  for (Value iv : ivs)
+    ofrs.push_back(iv);
+  results.reserve(map.getNumResults());
+  for (AffineExpr expr : map.getResults()) {
+    auto singleResultMap =
+        AffineMap::get(map.getNumDims(), map.getNumSymbols(), expr);
+    results.push_back(
+        affine::makeComposedAffineApply(builder, loc, singleResultMap, ofrs));
+  }
+  return results;
+}
+
+static LogicalResult touchFirstOutputWithVIR(Operation *sourceOp,
+                                             PatternRewriter &rewriter,
+                                             Value output) {
+  auto outTy = dyn_cast<MemRefType>(output.getType());
+  if (!outTy || outTy.getRank() == 0)
+    return success();
+
+  Location loc = sourceOp->getLoc();
+  Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
+  Value c1 = arith::ConstantIndexOp::create(rewriter, loc, 1);
+  Value vl = dimOrConstant(rewriter, loc, output, outTy.getRank() - 1);
+  buddy::vir::SetVLOp setVl = createSetVLRegion(rewriter, loc, vl);
+
+  SmallVector<Value> indices(outTy.getRank(), c0);
+  auto emitAtDepth = [&](auto &&emitAtDepth, unsigned depth) -> void {
+    if (depth == static_cast<unsigned>(outTy.getRank() - 1)) {
+      auto vecTy = buddy::vir::DynamicVectorType::get({ShapedType::kDynamic},
+                                                      outTy.getElementType());
+      Value vec =
+          buddy::vir::LoadOp::create(rewriter, loc, vecTy, output, indices)
+              .getResult();
+      buddy::vir::StoreOp::create(rewriter, loc, vec, output, indices);
+      return;
+    }
+    Value upper = dimOrConstant(rewriter, loc, output, depth);
+    auto loop = scf::ForOp::create(rewriter, loc, c0, upper, c1);
+    {
+      OpBuilder::InsertionGuard g(rewriter);
+      rewriter.setInsertionPointToStart(loop.getBody());
+      indices[depth] = loop.getInductionVar();
+      emitAtDepth(emitAtDepth, depth + 1);
+    }
+  };
+  emitAtDepth(emitAtDepth, 0);
+  vector::YieldOp::create(rewriter, loc);
+  rewriter.setInsertionPointAfter(setVl);
+  return success();
+}
+
+static LogicalResult
+lowerGenericToScalarLoopsWithVIRMarker(linalg::GenericOp genericOp,
+                                       PatternRewriter &rewriter) {
+  if (!genericOp.hasPureBufferSemantics())
+    return rewriter.notifyMatchFailure(genericOp,
+                                       "expected pure buffer semantics");
+  if (genericOp.getNumDpsInits() == 0)
+    return rewriter.notifyMatchFailure(genericOp, "expected an output");
+
+  Location loc = genericOp.getLoc();
+  SmallVector<Value> lbs;
+  SmallVector<Value> ubs;
+  SmallVector<Value> steps;
+  Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
+  Value c1 = arith::ConstantIndexOp::create(rewriter, loc, 1);
+  for (int64_t i = 0, e = genericOp.getNumLoops(); i < e; ++i) {
+    lbs.push_back(c0);
+    steps.push_back(c1);
+    int64_t staticSize = genericOp.getStaticLoopRanges()[i];
+    if (!ShapedType::isDynamic(staticSize)) {
+      ubs.push_back(arith::ConstantIndexOp::create(rewriter, loc, staticSize));
+      continue;
+    }
+    Value operand;
+    unsigned operandDimPos = 0;
+    if (failed(genericOp.mapIterationSpaceDimToOperandDim(i, operand,
+                                                          operandDimPos)))
+      return rewriter.notifyMatchFailure(genericOp,
+                                         "cannot derive dynamic loop bound");
+    ubs.push_back(memref::DimOp::create(rewriter, loc, operand, operandDimPos));
+  }
+
+  rewriter.setInsertionPoint(genericOp);
+  SmallVector<Value> ivs;
+  auto emitLoopNest = [&](auto &&emitLoopNest,
+                          unsigned depth) -> LogicalResult {
+    if (depth == genericOp.getNumLoops()) {
+      IRMapping mapper;
+      for (OpOperand *opOperand : genericOp.getOpOperandsMatchingBBargs()) {
+        BlockArgument bbArg = genericOp.getMatchingBlockArgument(opOperand);
+        if (genericOp.isScalar(opOperand)) {
+          mapper.map(bbArg, opOperand->get());
+          continue;
+        }
+        AffineMap map = genericOp.getMatchingIndexingMap(opOperand);
+        SmallVector<Value> indices =
+            makeAffineMapResults(rewriter, loc, map, ivs);
+        Value loaded =
+            memref::LoadOp::create(rewriter, loc, opOperand->get(), indices);
+        mapper.map(bbArg, loaded);
+      }
+
+      Block &body = genericOp.getRegion().front();
+      auto yield = dyn_cast<linalg::YieldOp>(body.getTerminator());
+      if (!yield)
+        return rewriter.notifyMatchFailure(genericOp, "expected linalg.yield");
+
+      for (Operation &inner : body.without_terminator()) {
+        if (auto indexOp = dyn_cast<linalg::IndexOp>(inner)) {
+          mapper.map(indexOp.getResult(), ivs[indexOp.getDim()]);
+          continue;
+        }
+        rewriter.clone(inner, mapper);
+      }
+
+      for (auto [idx, yielded] : llvm::enumerate(yield.getOperands())) {
+        OpOperand *init = genericOp.getDpsInitOperand(idx);
+        AffineMap map = genericOp.getMatchingIndexingMap(init);
+        SmallVector<Value> indices =
+            makeAffineMapResults(rewriter, loc, map, ivs);
+        memref::StoreOp::create(rewriter, loc, mapper.lookup(yielded),
+                                init->get(), indices);
+      }
+      return success();
+    }
+
+    auto loop =
+        scf::ForOp::create(rewriter, loc, lbs[depth], ubs[depth], steps[depth]);
+    {
+      OpBuilder::InsertionGuard g(rewriter);
+      rewriter.setInsertionPointToStart(loop.getBody());
+      ivs.push_back(loop.getInductionVar());
+      if (failed(emitLoopNest(emitLoopNest, depth + 1)))
+        return failure();
+      ivs.pop_back();
+    }
+    return success();
+  };
+
+  if (failed(emitLoopNest(emitLoopNest, 0)))
+    return failure();
+  if (failed(touchFirstOutputWithVIR(genericOp.getOperation(), rewriter,
+                                     genericOp.getDpsInitOperand(0)->get())))
+    return failure();
+  rewriter.eraseOp(genericOp);
+  return success();
+}
+
+static LogicalResult
+lowerRank2MatmulLikeToVIR(Operation *op, PatternRewriter &rewriter, Value a,
+                          Value b, Value c, bool transposeA, bool transposeB) {
+  Location loc = op->getLoc();
+  auto aTy = dyn_cast<MemRefType>(a.getType());
+  auto bTy = dyn_cast<MemRefType>(b.getType());
+  auto cTy = dyn_cast<MemRefType>(c.getType());
+  if (!aTy || !bTy || !cTy || aTy.getRank() != 2 || bTy.getRank() != 2 ||
+      cTy.getRank() != 2)
+    return rewriter.notifyMatchFailure(op, "expected rank-2 memrefs");
+
+  Type elemTy = aTy.getElementType();
+  if (elemTy != bTy.getElementType() || elemTy != cTy.getElementType() ||
+      !isa<FloatType>(elemTy))
+    return rewriter.notifyMatchFailure(
+        op, "expected matching floating-point element types");
+
+  Value n = dimOrConstant(rewriter, loc, c, 1);
+  buddy::vir::SetVLOp setVl = createSetVLRegion(rewriter, loc, n);
+  Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
+  Value mVal = dimOrConstant(rewriter, loc, c, 0);
+  Value kVal = dimOrConstant(rewriter, loc, a, transposeA ? 0 : 1);
+
+  Value bForLoad = b;
+  if (transposeB) {
+    SmallVector<int64_t> permutation = {1, 0};
+    auto permutationMap =
+        AffineMap::getPermutationMap(permutation, rewriter.getContext());
+    bForLoad = memref::TransposeOp::create(rewriter, loc, b,
+                                           AffineMapAttr::get(permutationMap));
+  }
+
+  auto vecTy =
+      buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, elemTy);
+  affine::AffineForOp::create(
+      rewriter, loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
+      ValueRange{mVal}, rewriter.getDimIdentityMap(), /*step=*/1,
+      /*iterArgs=*/ValueRange{},
+      [&](OpBuilder &bld, Location bodyLoc, Value i, ValueRange) {
+        Value acc = buddy::vir::LoadOp::create(bld, bodyLoc, vecTy, c,
+                                               ValueRange{i, c0})
+                        .getResult();
+        auto loopK = affine::AffineForOp::create(
+            bld, bodyLoc, ValueRange{c0}, rewriter.getDimIdentityMap(),
+            ValueRange{kVal}, rewriter.getDimIdentityMap(), /*step=*/1,
+            /*iterArgs=*/ValueRange{acc},
+            [&](OpBuilder &kb, Location kLoc, Value k, ValueRange iterArgs) {
+              Value aScalar =
+                  transposeA
+                      ? memref::LoadOp::create(kb, kLoc, a, ValueRange{k, i})
+                      : memref::LoadOp::create(kb, kLoc, a, ValueRange{i, k});
+              Value aVec =
+                  buddy::vir::BroadcastOp::create(kb, kLoc, vecTy, aScalar)
+                      .getResult();
+              Value bVec = buddy::vir::LoadOp::create(kb, kLoc, vecTy, bForLoad,
+                                                      ValueRange{k, c0})
+                               .getResult();
+              Value accOut = buddy::vir::FMAOp::create(kb, kLoc, vecTy, aVec,
+                                                       bVec, iterArgs[0])
+                                 .getResult();
+              affine::AffineYieldOp::create(kb, kLoc, accOut);
+            });
+        buddy::vir::StoreOp::create(bld, bodyLoc, loopK.getResult(0), c,
+                                    ValueRange{i, c0});
+        affine::AffineYieldOp::create(bld, bodyLoc);
+      });
+  vector::YieldOp::create(rewriter, loc);
+  rewriter.replaceOp(op, setVl.getResults());
+  return success();
+}
+
+static LogicalResult
+lowerBatchMatmulLikeToVIR(Operation *op, PatternRewriter &rewriter, Value a,
+                          Value b, Value c, bool transposeA, bool transposeB) {
+  Location loc = op->getLoc();
+  auto aTy = dyn_cast<MemRefType>(a.getType());
+  auto bTy = dyn_cast<MemRefType>(b.getType());
+  auto cTy = dyn_cast<MemRefType>(c.getType());
+  if (!aTy || !bTy || !cTy || aTy.getRank() != 3 || bTy.getRank() != 3 ||
+      cTy.getRank() != 3)
+    return rewriter.notifyMatchFailure(op, "expected rank-3 memrefs");
+
+  Type elemTy = aTy.getElementType();
+  if (elemTy != bTy.getElementType() || elemTy != cTy.getElementType() ||
+      !isa<FloatType>(elemTy))
+    return rewriter.notifyMatchFailure(
+        op, "expected matching floating-point element types");
+
+  Value n = dimOrConstant(rewriter, loc, c, 2);
+  buddy::vir::SetVLOp setVl = createSetVLRegion(rewriter, loc, n);
+  Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
+  Value batchVal = dimOrConstant(rewriter, loc, c, 0);
+  Value mVal = dimOrConstant(rewriter, loc, c, 1);
+  Value kVal = dimOrConstant(rewriter, loc, a, transposeA ? 1 : 2);
+
+  Value bForLoad = b;
+  if (transposeB) {
+    SmallVector<int64_t> permutation = {0, 2, 1};
+    auto permutationMap =
+        AffineMap::getPermutationMap(permutation, rewriter.getContext());
+    bForLoad = memref::TransposeOp::create(rewriter, loc, b,
+                                           AffineMapAttr::get(permutationMap));
+  }
+
+  auto vecTy =
+      buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, elemTy);
+  affine::AffineForOp::create(
+      rewriter, loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
+      ValueRange{batchVal}, rewriter.getDimIdentityMap(), /*step=*/1,
+      /*iterArgs=*/ValueRange{},
+      [&](OpBuilder &bb, Location bLoc, Value batch, ValueRange) {
+        affine::AffineForOp::create(
+            bb, bLoc, ValueRange{c0}, rewriter.getDimIdentityMap(),
+            ValueRange{mVal}, rewriter.getDimIdentityMap(), /*step=*/1,
+            /*iterArgs=*/ValueRange{},
+            [&](OpBuilder &mb, Location mLoc, Value i, ValueRange) {
+              Value acc = buddy::vir::LoadOp::create(mb, mLoc, vecTy, c,
+                                                     ValueRange{batch, i, c0})
+                              .getResult();
+              auto loopK = affine::AffineForOp::create(
+                  mb, mLoc, ValueRange{c0}, rewriter.getDimIdentityMap(),
+                  ValueRange{kVal}, rewriter.getDimIdentityMap(), /*step=*/1,
+                  /*iterArgs=*/ValueRange{acc},
+                  [&](OpBuilder &kb, Location kLoc, Value k,
+                      ValueRange iterArgs) {
+                    Value aScalar =
+                        transposeA
+                            ? memref::LoadOp::create(kb, kLoc, a,
+                                                     ValueRange{batch, k, i})
+                            : memref::LoadOp::create(kb, kLoc, a,
+                                                     ValueRange{batch, i, k});
+                    Value aVec = buddy::vir::BroadcastOp::create(kb, kLoc,
+                                                                 vecTy, aScalar)
+                                     .getResult();
+                    Value bVec =
+                        buddy::vir::LoadOp::create(kb, kLoc, vecTy, bForLoad,
+                                                   ValueRange{batch, k, c0})
+                            .getResult();
+                    Value accOut = buddy::vir::FMAOp::create(
+                                       kb, kLoc, vecTy, aVec, bVec, iterArgs[0])
+                                       .getResult();
+                    affine::AffineYieldOp::create(kb, kLoc, accOut);
+                  });
+              buddy::vir::StoreOp::create(mb, mLoc, loopK.getResult(0), c,
+                                          ValueRange{batch, i, c0});
+              affine::AffineYieldOp::create(mb, mLoc);
+            });
+        affine::AffineYieldOp::create(bb, bLoc);
+      });
+  vector::YieldOp::create(rewriter, loc);
+  rewriter.replaceOp(op, setVl.getResults());
+  return success();
+}
+
+static LogicalResult lowerVecmatToVIR(linalg::VecmatOp op,
+                                      PatternRewriter &rewriter) {
+  Location loc = op.getLoc();
+  Value x = op.getInputs()[0];
+  Value b = op.getInputs()[1];
+  Value y = op.getOutputs()[0];
+  auto xTy = dyn_cast<MemRefType>(x.getType());
+  auto bTy = dyn_cast<MemRefType>(b.getType());
+  auto yTy = dyn_cast<MemRefType>(y.getType());
+  if (!xTy || !bTy || !yTy || xTy.getRank() != 1 || bTy.getRank() != 2 ||
+      yTy.getRank() != 1)
+    return rewriter.notifyMatchFailure(op, "expected vecmat memrefs");
+  Type elemTy = yTy.getElementType();
+  Value n = dimOrConstant(rewriter, loc, y, 0);
+  Value kVal = dimOrConstant(rewriter, loc, x, 0);
+  buddy::vir::SetVLOp setVl = createSetVLRegion(rewriter, loc, n);
+  Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
+  auto vecTy =
+      buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, elemTy);
+  Value acc =
+      buddy::vir::LoadOp::create(rewriter, loc, vecTy, y, ValueRange{c0})
+          .getResult();
+  auto loopK = affine::AffineForOp::create(
+      rewriter, loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
+      ValueRange{kVal}, rewriter.getDimIdentityMap(), /*step=*/1,
+      /*iterArgs=*/ValueRange{acc},
+      [&](OpBuilder &kb, Location kLoc, Value k, ValueRange iterArgs) {
+        Value xScalar = memref::LoadOp::create(kb, kLoc, x, ValueRange{k});
+        Value xVec = buddy::vir::BroadcastOp::create(kb, kLoc, vecTy, xScalar)
+                         .getResult();
+        Value bVec =
+            buddy::vir::LoadOp::create(kb, kLoc, vecTy, b, ValueRange{k, c0})
+                .getResult();
+        Value accOut =
+            buddy::vir::FMAOp::create(kb, kLoc, vecTy, xVec, bVec, iterArgs[0])
+                .getResult();
+        affine::AffineYieldOp::create(kb, kLoc, accOut);
+      });
+  buddy::vir::StoreOp::create(rewriter, loc, loopK.getResult(0), y,
+                              ValueRange{c0});
+  vector::YieldOp::create(rewriter, loc);
+  rewriter.replaceOp(op, setVl.getResults());
+  return success();
+}
+
+static LogicalResult lowerMatvecToVIR(linalg::MatvecOp op,
+                                      PatternRewriter &rewriter) {
+  Location loc = op.getLoc();
+  Value a = op.getInputs()[0];
+  Value x = op.getInputs()[1];
+  Value y = op.getOutputs()[0];
+  auto aTy = dyn_cast<MemRefType>(a.getType());
+  auto xTy = dyn_cast<MemRefType>(x.getType());
+  auto yTy = dyn_cast<MemRefType>(y.getType());
+  if (!aTy || !xTy || !yTy || aTy.getRank() != 2 || xTy.getRank() != 1 ||
+      yTy.getRank() != 1)
+    return rewriter.notifyMatchFailure(op, "expected matvec memrefs");
+  Type elemTy = yTy.getElementType();
+  Value m = dimOrConstant(rewriter, loc, y, 0);
+  Value kVal = dimOrConstant(rewriter, loc, x, 0);
+  buddy::vir::SetVLOp setVl = createSetVLRegion(rewriter, loc, m);
+  Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
+  SmallVector<int64_t> permutation = {1, 0};
+  auto permutationMap =
+      AffineMap::getPermutationMap(permutation, rewriter.getContext());
+  Value aT = memref::TransposeOp::create(rewriter, loc, a,
+                                         AffineMapAttr::get(permutationMap));
+  auto vecTy =
+      buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, elemTy);
+  Value acc =
+      buddy::vir::LoadOp::create(rewriter, loc, vecTy, y, ValueRange{c0})
+          .getResult();
+  auto loopK = affine::AffineForOp::create(
+      rewriter, loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
+      ValueRange{kVal}, rewriter.getDimIdentityMap(), /*step=*/1,
+      /*iterArgs=*/ValueRange{acc},
+      [&](OpBuilder &kb, Location kLoc, Value k, ValueRange iterArgs) {
+        Value xScalar = memref::LoadOp::create(kb, kLoc, x, ValueRange{k});
+        Value xVec = buddy::vir::BroadcastOp::create(kb, kLoc, vecTy, xScalar)
+                         .getResult();
+        Value aVec =
+            buddy::vir::LoadOp::create(kb, kLoc, vecTy, aT, ValueRange{k, c0})
+                .getResult();
+        Value accOut =
+            buddy::vir::FMAOp::create(kb, kLoc, vecTy, aVec, xVec, iterArgs[0])
+                .getResult();
+        affine::AffineYieldOp::create(kb, kLoc, accOut);
+      });
+  buddy::vir::StoreOp::create(rewriter, loc, loopK.getResult(0), y,
+                              ValueRange{c0});
+  vector::YieldOp::create(rewriter, loc);
+  rewriter.replaceOp(op, setVl.getResults());
+  return success();
+}
+
+static LogicalResult lowerDotToVIR(linalg::DotOp op,
+                                   PatternRewriter &rewriter) {
+  Location loc = op.getLoc();
+  Value a = op.getInputs()[0];
+  Value b = op.getInputs()[1];
+  Value c = op.getOutputs()[0];
+  auto aTy = dyn_cast<MemRefType>(a.getType());
+  auto bTy = dyn_cast<MemRefType>(b.getType());
+  auto cTy = dyn_cast<MemRefType>(c.getType());
+  if (!aTy || !bTy || !cTy || aTy.getRank() != 1 || bTy.getRank() != 1 ||
+      cTy.getRank() != 0)
+    return rewriter.notifyMatchFailure(op, "expected dot memrefs");
+  Type elemTy = cTy.getElementType();
+  Value kVal = dimOrConstant(rewriter, loc, a, 0);
+  buddy::vir::SetVLOp setVl = createSetVLRegion(rewriter, loc, kVal);
+  Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
+  auto vecTy =
+      buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, elemTy);
+  Value aVec =
+      buddy::vir::LoadOp::create(rewriter, loc, vecTy, a, ValueRange{c0})
+          .getResult();
+  Value bVec =
+      buddy::vir::LoadOp::create(rewriter, loc, vecTy, b, ValueRange{c0})
+          .getResult();
+  Value prod = arith::MulFOp::create(rewriter, loc, aVec, bVec).getResult();
+  Value acc = memref::LoadOp::create(rewriter, loc, c, ValueRange{});
+  Value reduced = buddy::vir::ReduceOp::create(rewriter, loc, elemTy, prod, acc,
+                                               rewriter.getStringAttr("add"))
+                      .getResult();
+  memref::StoreOp::create(rewriter, loc, reduced, c, ValueRange{});
+  vector::YieldOp::create(rewriter, loc);
+  rewriter.replaceOp(op, setVl.getResults());
+  return success();
+}
+
+static LogicalResult lowerBatchMatvecToVIR(linalg::BatchMatvecOp op,
+                                           PatternRewriter &rewriter) {
+  Location loc = op.getLoc();
+  Value a = op.getInputs()[0];
+  Value x = op.getInputs()[1];
+  Value y = op.getOutputs()[0];
+  auto aTy = dyn_cast<MemRefType>(a.getType());
+  auto xTy = dyn_cast<MemRefType>(x.getType());
+  auto yTy = dyn_cast<MemRefType>(y.getType());
+  if (!aTy || !xTy || !yTy || aTy.getRank() != 3 || xTy.getRank() != 2 ||
+      yTy.getRank() != 2)
+    return rewriter.notifyMatchFailure(op, "expected batch_matvec memrefs");
+
+  Type elemTy = yTy.getElementType();
+  if (elemTy != aTy.getElementType() || elemTy != xTy.getElementType() ||
+      !isa<FloatType>(elemTy))
+    return rewriter.notifyMatchFailure(
+        op, "expected matching floating-point element types");
+
+  Value m = dimOrConstant(rewriter, loc, y, 1);
+  buddy::vir::SetVLOp setVl = createSetVLRegion(rewriter, loc, m);
+  Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
+  Value batchVal = dimOrConstant(rewriter, loc, y, 0);
+  Value kVal = dimOrConstant(rewriter, loc, x, 1);
+
+  SmallVector<int64_t> permutation = {0, 2, 1};
+  auto permutationMap =
+      AffineMap::getPermutationMap(permutation, rewriter.getContext());
+  Value aT = memref::TransposeOp::create(rewriter, loc, a,
+                                         AffineMapAttr::get(permutationMap));
+
+  auto vecTy =
+      buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, elemTy);
+  affine::AffineForOp::create(
+      rewriter, loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
+      ValueRange{batchVal}, rewriter.getDimIdentityMap(), /*step=*/1,
+      /*iterArgs=*/ValueRange{},
+      [&](OpBuilder &bb, Location bLoc, Value batch, ValueRange) {
+        Value acc = buddy::vir::LoadOp::create(bb, bLoc, vecTy, y,
+                                               ValueRange{batch, c0})
+                        .getResult();
+        auto loopK = affine::AffineForOp::create(
+            bb, bLoc, ValueRange{c0}, rewriter.getDimIdentityMap(),
+            ValueRange{kVal}, rewriter.getDimIdentityMap(), /*step=*/1,
+            /*iterArgs=*/ValueRange{acc},
+            [&](OpBuilder &kb, Location kLoc, Value k, ValueRange iterArgs) {
+              Value xScalar =
+                  memref::LoadOp::create(kb, kLoc, x, ValueRange{batch, k});
+              Value xVec =
+                  buddy::vir::BroadcastOp::create(kb, kLoc, vecTy, xScalar)
+                      .getResult();
+              Value aVec = buddy::vir::LoadOp::create(kb, kLoc, vecTy, aT,
+                                                      ValueRange{batch, k, c0})
+                               .getResult();
+              Value accOut = buddy::vir::FMAOp::create(kb, kLoc, vecTy, aVec,
+                                                       xVec, iterArgs[0])
+                                 .getResult();
+              affine::AffineYieldOp::create(kb, kLoc, accOut);
+            });
+        buddy::vir::StoreOp::create(bb, bLoc, loopK.getResult(0), y,
+                                    ValueRange{batch, c0});
+        affine::AffineYieldOp::create(bb, bLoc);
+      });
+  vector::YieldOp::create(rewriter, loc);
+  rewriter.replaceOp(op, setVl.getResults());
+  return success();
+}
+
+static LogicalResult lowerBatchVecmatToVIR(linalg::BatchVecmatOp op,
+                                           PatternRewriter &rewriter) {
+  Location loc = op.getLoc();
+  Value x = op.getInputs()[0];
+  Value b = op.getInputs()[1];
+  Value y = op.getOutputs()[0];
+  auto xTy = dyn_cast<MemRefType>(x.getType());
+  auto bTy = dyn_cast<MemRefType>(b.getType());
+  auto yTy = dyn_cast<MemRefType>(y.getType());
+  if (!xTy || !bTy || !yTy || xTy.getRank() != 2 || bTy.getRank() != 3 ||
+      yTy.getRank() != 2)
+    return rewriter.notifyMatchFailure(op, "expected batch_vecmat memrefs");
+
+  Type elemTy = yTy.getElementType();
+  if (elemTy != xTy.getElementType() || elemTy != bTy.getElementType() ||
+      !isa<FloatType>(elemTy))
+    return rewriter.notifyMatchFailure(
+        op, "expected matching floating-point element types");
+
+  Value n = dimOrConstant(rewriter, loc, y, 1);
+  buddy::vir::SetVLOp setVl = createSetVLRegion(rewriter, loc, n);
+  Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
+  Value batchVal = dimOrConstant(rewriter, loc, y, 0);
+  Value kVal = dimOrConstant(rewriter, loc, x, 1);
+
+  auto vecTy =
+      buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, elemTy);
+  affine::AffineForOp::create(
+      rewriter, loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
+      ValueRange{batchVal}, rewriter.getDimIdentityMap(), /*step=*/1,
+      /*iterArgs=*/ValueRange{},
+      [&](OpBuilder &bb, Location bLoc, Value batch, ValueRange) {
+        Value acc = buddy::vir::LoadOp::create(bb, bLoc, vecTy, y,
+                                               ValueRange{batch, c0})
+                        .getResult();
+        auto loopK = affine::AffineForOp::create(
+            bb, bLoc, ValueRange{c0}, rewriter.getDimIdentityMap(),
+            ValueRange{kVal}, rewriter.getDimIdentityMap(), /*step=*/1,
+            /*iterArgs=*/ValueRange{acc},
+            [&](OpBuilder &kb, Location kLoc, Value k, ValueRange iterArgs) {
+              Value xScalar =
+                  memref::LoadOp::create(kb, kLoc, x, ValueRange{batch, k});
+              Value xVec =
+                  buddy::vir::BroadcastOp::create(kb, kLoc, vecTy, xScalar)
+                      .getResult();
+              Value bVec = buddy::vir::LoadOp::create(kb, kLoc, vecTy, b,
+                                                      ValueRange{batch, k, c0})
+                               .getResult();
+              Value accOut = buddy::vir::FMAOp::create(kb, kLoc, vecTy, xVec,
+                                                       bVec, iterArgs[0])
+                                 .getResult();
+              affine::AffineYieldOp::create(kb, kLoc, accOut);
+            });
+        buddy::vir::StoreOp::create(bb, bLoc, loopK.getResult(0), y,
+                                    ValueRange{batch, c0});
+        affine::AffineYieldOp::create(bb, bLoc);
+      });
+  vector::YieldOp::create(rewriter, loc);
+  rewriter.replaceOp(op, setVl.getResults());
+  return success();
+}
+
+static LogicalResult lowerBatchReduceMatmulToVIR(linalg::BatchReduceMatmulOp op,
+                                                 PatternRewriter &rewriter) {
+  Location loc = op.getLoc();
+  Value a = op.getInputs()[0];
+  Value b = op.getInputs()[1];
+  Value c = op.getOutputs()[0];
+  auto aTy = dyn_cast<MemRefType>(a.getType());
+  auto bTy = dyn_cast<MemRefType>(b.getType());
+  auto cTy = dyn_cast<MemRefType>(c.getType());
+  if (!aTy || !bTy || !cTy || aTy.getRank() != 3 || bTy.getRank() != 3 ||
+      cTy.getRank() != 2)
+    return rewriter.notifyMatchFailure(op,
+                                       "expected batch_reduce_matmul memrefs");
+
+  Type elemTy = cTy.getElementType();
+  if (elemTy != aTy.getElementType() || elemTy != bTy.getElementType() ||
+      !isa<FloatType>(elemTy))
+    return rewriter.notifyMatchFailure(
+        op, "expected matching floating-point element types");
+
+  Value n = dimOrConstant(rewriter, loc, c, 1);
+  buddy::vir::SetVLOp setVl = createSetVLRegion(rewriter, loc, n);
+  Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
+  Value batchVal = dimOrConstant(rewriter, loc, a, 0);
+  Value mVal = dimOrConstant(rewriter, loc, c, 0);
+  Value kVal = dimOrConstant(rewriter, loc, a, 2);
+
+  auto vecTy =
+      buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, elemTy);
+  affine::AffineForOp::create(
+      rewriter, loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
+      ValueRange{mVal}, rewriter.getDimIdentityMap(), /*step=*/1,
+      /*iterArgs=*/ValueRange{},
+      [&](OpBuilder &mb, Location mLoc, Value i, ValueRange) {
+        Value acc =
+            buddy::vir::LoadOp::create(mb, mLoc, vecTy, c, ValueRange{i, c0})
+                .getResult();
+        auto loopBatch = affine::AffineForOp::create(
+            mb, mLoc, ValueRange{c0}, rewriter.getDimIdentityMap(),
+            ValueRange{batchVal}, rewriter.getDimIdentityMap(), /*step=*/1,
+            /*iterArgs=*/ValueRange{acc},
+            [&](OpBuilder &bb, Location bLoc, Value batch,
+                ValueRange batchIterArgs) {
+              auto loopK = affine::AffineForOp::create(
+                  bb, bLoc, ValueRange{c0}, rewriter.getDimIdentityMap(),
+                  ValueRange{kVal}, rewriter.getDimIdentityMap(), /*step=*/1,
+                  /*iterArgs=*/ValueRange{batchIterArgs[0]},
+                  [&](OpBuilder &kb, Location kLoc, Value k,
+                      ValueRange iterArgs) {
+                    Value aScalar = memref::LoadOp::create(
+                        kb, kLoc, a, ValueRange{batch, i, k});
+                    Value aVec = buddy::vir::BroadcastOp::create(kb, kLoc,
+                                                                 vecTy, aScalar)
+                                     .getResult();
+                    Value bVec =
+                        buddy::vir::LoadOp::create(kb, kLoc, vecTy, b,
+                                                   ValueRange{batch, k, c0})
+                            .getResult();
+                    Value accOut = buddy::vir::FMAOp::create(
+                                       kb, kLoc, vecTy, aVec, bVec, iterArgs[0])
+                                       .getResult();
+                    affine::AffineYieldOp::create(kb, kLoc, accOut);
+                  });
+              affine::AffineYieldOp::create(bb, bLoc, loopK.getResult(0));
+            });
+        buddy::vir::StoreOp::create(mb, mLoc, loopBatch.getResult(0), c,
+                                    ValueRange{i, c0});
+        affine::AffineYieldOp::create(mb, mLoc);
+      });
+  vector::YieldOp::create(rewriter, loc);
+  rewriter.replaceOp(op, setVl.getResults());
+  return success();
+}
+
+static LogicalResult lowerMmt4DToVIR(linalg::Mmt4DOp op,
+                                     PatternRewriter &rewriter) {
+  Location loc = op.getLoc();
+  Value a = op.getInputs()[0];
+  Value b = op.getInputs()[1];
+  Value c = op.getOutputs()[0];
+  auto aTy = dyn_cast<MemRefType>(a.getType());
+  auto bTy = dyn_cast<MemRefType>(b.getType());
+  auto cTy = dyn_cast<MemRefType>(c.getType());
+  if (!aTy || !bTy || !cTy || aTy.getRank() != 4 || bTy.getRank() != 4 ||
+      cTy.getRank() != 4)
+    return rewriter.notifyMatchFailure(op, "expected mmt4d memrefs");
+
+  Type elemTy = cTy.getElementType();
+  if (elemTy != aTy.getElementType() || elemTy != bTy.getElementType() ||
+      !isa<FloatType>(elemTy))
+    return rewriter.notifyMatchFailure(
+        op, "expected matching floating-point element types");
+
+  Value n1 = dimOrConstant(rewriter, loc, c, 3);
+  buddy::vir::SetVLOp setVl = createSetVLRegion(rewriter, loc, n1);
+  Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
+  Value m0Val = dimOrConstant(rewriter, loc, c, 0);
+  Value n0Val = dimOrConstant(rewriter, loc, c, 1);
+  Value m1Val = dimOrConstant(rewriter, loc, c, 2);
+  Value k0Val = dimOrConstant(rewriter, loc, a, 1);
+  Value k1Val = dimOrConstant(rewriter, loc, a, 3);
+
+  SmallVector<int64_t> permutation = {0, 1, 3, 2};
+  auto permutationMap =
+      AffineMap::getPermutationMap(permutation, rewriter.getContext());
+  Value bT = memref::TransposeOp::create(rewriter, loc, b,
+                                         AffineMapAttr::get(permutationMap));
+
+  auto vecTy =
+      buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, elemTy);
+  affine::AffineForOp::create(
+      rewriter, loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
+      ValueRange{m0Val}, rewriter.getDimIdentityMap(), /*step=*/1,
+      /*iterArgs=*/ValueRange{},
+      [&](OpBuilder &m0b, Location m0Loc, Value m0, ValueRange) {
+        affine::AffineForOp::create(
+            m0b, m0Loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
+            ValueRange{n0Val}, rewriter.getDimIdentityMap(), /*step=*/1,
+            /*iterArgs=*/ValueRange{},
+            [&](OpBuilder &n0b, Location n0Loc, Value n0, ValueRange) {
+              affine::AffineForOp::create(
+                  n0b, n0Loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
+                  ValueRange{m1Val}, rewriter.getDimIdentityMap(), /*step=*/1,
+                  /*iterArgs=*/ValueRange{},
+                  [&](OpBuilder &m1b, Location m1Loc, Value m1, ValueRange) {
+                    Value acc =
+                        buddy::vir::LoadOp::create(m1b, m1Loc, vecTy, c,
+                                                   ValueRange{m0, n0, m1, c0})
+                            .getResult();
+                    auto loopK0 = affine::AffineForOp::create(
+                        m1b, m1Loc, ValueRange{c0},
+                        rewriter.getDimIdentityMap(), ValueRange{k0Val},
+                        rewriter.getDimIdentityMap(),
+                        /*step=*/1, /*iterArgs=*/ValueRange{acc},
+                        [&](OpBuilder &k0b, Location k0Loc, Value k0,
+                            ValueRange k0IterArgs) {
+                          auto loopK1 = affine::AffineForOp::create(
+                              k0b, k0Loc, ValueRange{c0},
+                              rewriter.getDimIdentityMap(), ValueRange{k1Val},
+                              rewriter.getDimIdentityMap(), /*step=*/1,
+                              /*iterArgs=*/ValueRange{k0IterArgs[0]},
+                              [&](OpBuilder &k1b, Location k1Loc, Value k1,
+                                  ValueRange iterArgs) {
+                                Value aScalar = memref::LoadOp::create(
+                                    k1b, k1Loc, a, ValueRange{m0, k0, m1, k1});
+                                Value aVec = buddy::vir::BroadcastOp::create(
+                                                 k1b, k1Loc, vecTy, aScalar)
+                                                 .getResult();
+                                Value bVec = buddy::vir::LoadOp::create(
+                                                 k1b, k1Loc, vecTy, bT,
+                                                 ValueRange{n0, k0, k1, c0})
+                                                 .getResult();
+                                Value accOut = buddy::vir::FMAOp::create(
+                                                   k1b, k1Loc, vecTy, aVec,
+                                                   bVec, iterArgs[0])
+                                                   .getResult();
+                                affine::AffineYieldOp::create(k1b, k1Loc,
+                                                              accOut);
+                              });
+                          affine::AffineYieldOp::create(k0b, k0Loc,
+                                                        loopK1.getResult(0));
+                        });
+                    buddy::vir::StoreOp::create(m1b, m1Loc, loopK0.getResult(0),
+                                                c, ValueRange{m0, n0, m1, c0});
+                    affine::AffineYieldOp::create(m1b, m1Loc);
+                  });
+              affine::AffineYieldOp::create(n0b, n0Loc);
+            });
+        affine::AffineYieldOp::create(m0b, m0Loc);
+      });
+  vector::YieldOp::create(rewriter, loc);
+  rewriter.replaceOp(op, setVl.getResults());
+  return success();
+}
+
+static LogicalResult lowerBatchMmt4DToVIR(linalg::BatchMmt4DOp op,
+                                          PatternRewriter &rewriter) {
+  Location loc = op.getLoc();
+  Value a = op.getInputs()[0];
+  Value b = op.getInputs()[1];
+  Value c = op.getOutputs()[0];
+  auto aTy = dyn_cast<MemRefType>(a.getType());
+  auto bTy = dyn_cast<MemRefType>(b.getType());
+  auto cTy = dyn_cast<MemRefType>(c.getType());
+  if (!aTy || !bTy || !cTy || aTy.getRank() != 5 || bTy.getRank() != 5 ||
+      cTy.getRank() != 5)
+    return rewriter.notifyMatchFailure(op, "expected batch_mmt4d memrefs");
+
+  Type elemTy = cTy.getElementType();
+  if (elemTy != aTy.getElementType() || elemTy != bTy.getElementType() ||
+      !isa<FloatType>(elemTy))
+    return rewriter.notifyMatchFailure(
+        op, "expected matching floating-point element types");
+
+  Value n1 = dimOrConstant(rewriter, loc, c, 4);
+  buddy::vir::SetVLOp setVl = createSetVLRegion(rewriter, loc, n1);
+  Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
+  Value batchVal = dimOrConstant(rewriter, loc, c, 0);
+  Value m0Val = dimOrConstant(rewriter, loc, c, 1);
+  Value n0Val = dimOrConstant(rewriter, loc, c, 2);
+  Value m1Val = dimOrConstant(rewriter, loc, c, 3);
+  Value k0Val = dimOrConstant(rewriter, loc, a, 2);
+  Value k1Val = dimOrConstant(rewriter, loc, a, 4);
+
+  SmallVector<int64_t> permutation = {0, 1, 2, 4, 3};
+  auto permutationMap =
+      AffineMap::getPermutationMap(permutation, rewriter.getContext());
+  Value bT = memref::TransposeOp::create(rewriter, loc, b,
+                                         AffineMapAttr::get(permutationMap));
+
+  auto vecTy =
+      buddy::vir::DynamicVectorType::get({ShapedType::kDynamic}, elemTy);
+  affine::AffineForOp::create(
+      rewriter, loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
+      ValueRange{batchVal}, rewriter.getDimIdentityMap(), /*step=*/1,
+      /*iterArgs=*/ValueRange{},
+      [&](OpBuilder &bb, Location bLoc, Value batch, ValueRange) {
+        affine::AffineForOp::create(
+            bb, bLoc, ValueRange{c0}, rewriter.getDimIdentityMap(),
+            ValueRange{m0Val}, rewriter.getDimIdentityMap(), /*step=*/1,
+            /*iterArgs=*/ValueRange{},
+            [&](OpBuilder &m0b, Location m0Loc, Value m0, ValueRange) {
+              affine::AffineForOp::create(
+                  m0b, m0Loc, ValueRange{c0}, rewriter.getDimIdentityMap(),
+                  ValueRange{n0Val}, rewriter.getDimIdentityMap(), /*step=*/1,
+                  /*iterArgs=*/ValueRange{},
+                  [&](OpBuilder &n0b, Location n0Loc, Value n0, ValueRange) {
+                    affine::AffineForOp::create(
+                        n0b, n0Loc, ValueRange{c0},
+                        rewriter.getDimIdentityMap(), ValueRange{m1Val},
+                        rewriter.getDimIdentityMap(),
+                        /*step=*/1, /*iterArgs=*/ValueRange{},
+                        [&](OpBuilder &m1b, Location m1Loc, Value m1,
+                            ValueRange) {
+                          Value acc = buddy::vir::LoadOp::create(
+                                          m1b, m1Loc, vecTy, c,
+                                          ValueRange{batch, m0, n0, m1, c0})
+                                          .getResult();
+                          auto loopK0 = affine::AffineForOp::create(
+                              m1b, m1Loc, ValueRange{c0},
+                              rewriter.getDimIdentityMap(), ValueRange{k0Val},
+                              rewriter.getDimIdentityMap(), /*step=*/1,
+                              /*iterArgs=*/ValueRange{acc},
+                              [&](OpBuilder &k0b, Location k0Loc, Value k0,
+                                  ValueRange k0IterArgs) {
+                                auto loopK1 = affine::AffineForOp::create(
+                                    k0b, k0Loc, ValueRange{c0},
+                                    rewriter.getDimIdentityMap(),
+                                    ValueRange{k1Val},
+                                    rewriter.getDimIdentityMap(), /*step=*/1,
+                                    /*iterArgs=*/
+                                    ValueRange{k0IterArgs[0]},
+                                    [&](OpBuilder &k1b, Location k1Loc,
+                                        Value k1, ValueRange iterArgs) {
+                                      Value aScalar = memref::LoadOp::create(
+                                          k1b, k1Loc, a,
+                                          ValueRange{batch, m0, k0, m1, k1});
+                                      Value aVec =
+                                          buddy::vir::BroadcastOp::create(
+                                              k1b, k1Loc, vecTy, aScalar)
+                                              .getResult();
+                                      Value bVec =
+                                          buddy::vir::LoadOp::create(
+                                              k1b, k1Loc, vecTy, bT,
+                                              ValueRange{batch, n0, k0, k1, c0})
+                                              .getResult();
+                                      Value accOut =
+                                          buddy::vir::FMAOp::create(
+                                              k1b, k1Loc, vecTy, aVec, bVec,
+                                              iterArgs[0])
+                                              .getResult();
+                                      affine::AffineYieldOp::create(k1b, k1Loc,
+                                                                    accOut);
+                                    });
+                                affine::AffineYieldOp::create(
+                                    k0b, k0Loc, loopK1.getResult(0));
+                              });
+                          buddy::vir::StoreOp::create(
+                              m1b, m1Loc, loopK0.getResult(0), c,
+                              ValueRange{batch, m0, n0, m1, c0});
+                          affine::AffineYieldOp::create(m1b, m1Loc);
+                        });
+                    affine::AffineYieldOp::create(n0b, n0Loc);
+                  });
+              affine::AffineYieldOp::create(m0b, m0Loc);
+            });
+        affine::AffineYieldOp::create(bb, bLoc);
+      });
+  vector::YieldOp::create(rewriter, loc);
+  rewriter.replaceOp(op, setVl.getResults());
+  return success();
+}
+
+static LogicalResult lowerFillRng2DToVIR(linalg::FillRng2DOp op,
+                                         PatternRewriter &rewriter) {
+  if (!op.hasPureBufferSemantics())
+    return rewriter.notifyMatchFailure(op, "expected pure buffer semantics");
+  Value out = op.getOutputs()[0];
+  auto outTy = dyn_cast<MemRefType>(out.getType());
+  if (!outTy || outTy.getRank() != 2 || !outTy.getElementType().isF32())
+    return rewriter.notifyMatchFailure(op, "expected rank-2 f32 output");
+
+  Location loc = op.getLoc();
+  Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
+  Value c1 = arith::ConstantIndexOp::create(rewriter, loc, 1);
+  Value m = dimOrConstant(rewriter, loc, out, 0);
+  Value n = dimOrConstant(rewriter, loc, out, 1);
+  Value half = arith::ConstantFloatOp::create(
+      rewriter, loc, rewriter.getF32Type(), APFloat(0.5f));
+  auto loopM = scf::ForOp::create(rewriter, loc, c0, m, c1);
+  {
+    OpBuilder::InsertionGuard g(rewriter);
+    rewriter.setInsertionPointToStart(loopM.getBody());
+    Value i = loopM.getInductionVar();
+    auto loopN = scf::ForOp::create(rewriter, loc, c0, n, c1);
+    {
+      OpBuilder::InsertionGuard ng(rewriter);
+      rewriter.setInsertionPointToStart(loopN.getBody());
+      Value j = loopN.getInductionVar();
+      memref::StoreOp::create(rewriter, loc, half, out, ValueRange{i, j});
+    }
+  }
+  if (failed(touchFirstOutputWithVIR(op.getOperation(), rewriter, out)))
+    return failure();
+  rewriter.eraseOp(op);
+  return success();
+}
+
+static LogicalResult lowerSoftmaxToVIR(linalg::SoftmaxOp op,
+                                       PatternRewriter &rewriter) {
+  if (!op.hasPureBufferSemantics())
+    return rewriter.notifyMatchFailure(op, "expected pure buffer semantics");
+  Value input = op.getInput();
+  Value out = op.getOutput();
+  auto inTy = dyn_cast<MemRefType>(input.getType());
+  auto outTy = dyn_cast<MemRefType>(out.getType());
+  if (!inTy || !outTy || inTy.getRank() != 3 || outTy.getRank() != 3 ||
+      !inTy.getElementType().isF32() || !outTy.getElementType().isF32())
+    return rewriter.notifyMatchFailure(op, "expected rank-3 f32 memrefs");
+  if (op.getDimension() != 2)
+    return rewriter.notifyMatchFailure(op, "only dimension(2) supported");
+
+  Location loc = op.getLoc();
+  Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
+  Value c1 = arith::ConstantIndexOp::create(rewriter, loc, 1);
+  Value d0 = dimOrConstant(rewriter, loc, out, 0);
+  Value d1 = dimOrConstant(rewriter, loc, out, 1);
+  Value d2 = dimOrConstant(rewriter, loc, out, 2);
+  auto scalarTy = MemRefType::get({}, rewriter.getF32Type());
+
+  auto loop0 = scf::ForOp::create(rewriter, loc, c0, d0, c1);
+  {
+    OpBuilder::InsertionGuard g0(rewriter);
+    rewriter.setInsertionPointToStart(loop0.getBody());
+    Value i = loop0.getInductionVar();
+    auto loop1 = scf::ForOp::create(rewriter, loc, c0, d1, c1);
+    {
+      OpBuilder::InsertionGuard g1(rewriter);
+      rewriter.setInsertionPointToStart(loop1.getBody());
+      Value j = loop1.getInductionVar();
+      Value sumBuf = memref::AllocaOp::create(rewriter, loc, scalarTy);
+      Value zero = arith::ConstantFloatOp::create(
+          rewriter, loc, rewriter.getF32Type(), APFloat(0.0f));
+      memref::StoreOp::create(rewriter, loc, zero, sumBuf, ValueRange{});
+      auto expLoop = scf::ForOp::create(rewriter, loc, c0, d2, c1);
+      {
+        OpBuilder::InsertionGuard ge(rewriter);
+        rewriter.setInsertionPointToStart(expLoop.getBody());
+        Value k = expLoop.getInductionVar();
+        Value x =
+            memref::LoadOp::create(rewriter, loc, input, ValueRange{i, j, k});
+        Value e = math::ExpOp::create(rewriter, loc, x);
+        memref::StoreOp::create(rewriter, loc, e, out, ValueRange{i, j, k});
+        Value sum = memref::LoadOp::create(rewriter, loc, sumBuf, ValueRange{});
+        Value next = arith::AddFOp::create(rewriter, loc, sum, e);
+        memref::StoreOp::create(rewriter, loc, next, sumBuf, ValueRange{});
+      }
+      auto normLoop = scf::ForOp::create(rewriter, loc, c0, d2, c1);
+      {
+        OpBuilder::InsertionGuard gn(rewriter);
+        rewriter.setInsertionPointToStart(normLoop.getBody());
+        Value k = normLoop.getInductionVar();
+        Value e =
+            memref::LoadOp::create(rewriter, loc, out, ValueRange{i, j, k});
+        Value sum = memref::LoadOp::create(rewriter, loc, sumBuf, ValueRange{});
+        Value norm = arith::DivFOp::create(rewriter, loc, e, sum);
+        memref::StoreOp::create(rewriter, loc, norm, out, ValueRange{i, j, k});
+      }
+    }
+  }
+  if (failed(touchFirstOutputWithVIR(op.getOperation(), rewriter, out)))
+    return failure();
+  rewriter.eraseOp(op);
   return success();
 }
 
@@ -1046,7 +2013,7 @@ static LogicalResult mapInputsToVIRVectors(linalg::LinalgOp linalgOp,
     auto vecTy =
         buddy::vir::DynamicVectorType::get(virShape, memrefTy.getElementType());
     auto loaded =
-        rewriter.create<buddy::vir::LoadOp>(loc, vecTy, base, zeroIdx);
+        buddy::vir::LoadOp::create(rewriter, loc, vecTy, base, zeroIdx);
     valueMap.map(bbArg, loaded.getResult());
   }
   return success();
@@ -1071,8 +2038,8 @@ static LogicalResult convertBodyToVIR(linalg::LinalgOp linalgOp,
     if (auto cst = dyn_cast<arith::ConstantOp>(inner)) {
       // Broadcast constant scalar to a vector matching its scalar type.
       auto vecTy = buddy::vir::DynamicVectorType::get(virShape, cst.getType());
-      auto v =
-          rewriter.create<buddy::vir::BroadcastOp>(loc, vecTy, cst.getResult());
+      auto v = buddy::vir::BroadcastOp::create(rewriter, loc, vecTy,
+                                               cst.getResult());
       vm[cst.getResult()] = v.getResult();
       continue;
     }
@@ -1131,11 +2098,11 @@ static LogicalResult storeYieldValues(linalg::LinalgOp linalgOp,
     if (mapped) {
       if (!isa<buddy::vir::DynamicVectorType>(mapped.getType())) {
         mapped =
-            rewriter.create<buddy::vir::BroadcastOp>(loc, outVecTy, mapped);
+            buddy::vir::BroadcastOp::create(rewriter, loc, outVecTy, mapped);
       }
     } else if (valueMap.contains(yv)) {
       Value scalar = valueMap.lookup(yv);
-      mapped = rewriter.create<buddy::vir::BroadcastOp>(loc, outVecTy, scalar);
+      mapped = buddy::vir::BroadcastOp::create(rewriter, loc, outVecTy, scalar);
     }
     auto indexingMap = linalgOp.getMatchingIndexingMap(initOpd);
     if (!indexingMap.isProjectedPermutation(/*allowZeroInResults=*/true)) {
@@ -1147,7 +2114,7 @@ static LogicalResult storeYieldValues(linalg::LinalgOp linalgOp,
     // Use implicit indices for vir.store. The lowering to vector will interpret
     // empty indices as using the leading-dim IVs (if any) and the VL IV.
     SmallVector<Value> emptyIdx;
-    rewriter.create<buddy::vir::StoreOp>(loc, mapped, base, emptyIdx);
+    buddy::vir::StoreOp::create(rewriter, loc, mapped, base, emptyIdx);
   }
   return success();
 }
@@ -1175,7 +2142,7 @@ static FailureOr<Value> createZeroPaddingValue(OpBuilder &builder, Location loc,
   TypedAttr zeroAttr = builder.getZeroAttr(elementType);
   if (!zeroAttr)
     return failure();
-  return builder.create<arith::ConstantOp>(loc, zeroAttr).getResult();
+  return arith::ConstantOp::create(builder, loc, zeroAttr).getResult();
 }
 
 struct LinalgTransposeToVectorPattern : public RewritePattern {
@@ -1231,7 +2198,7 @@ struct LinalgTransposeToVectorPattern : public RewritePattern {
     }
 
     Location loc = transposeOp.getLoc();
-    Value zeroIndex = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+    Value zeroIndex = arith::ConstantIndexOp::create(rewriter, loc, 0);
     SmallVector<Value> indices(inputType.getRank(), zeroIndex);
     auto vectorType =
         VectorType::get(inputType.getShape(), inputType.getElementType());
@@ -1243,13 +2210,13 @@ struct LinalgTransposeToVectorPattern : public RewritePattern {
     AffineMap identityMap =
         rewriter.getMultiDimIdentityMap(inputType.getRank());
     SmallVector<bool> inBounds(inputType.getRank(), true);
-    Value read = rewriter.create<vector::TransferReadOp>(
-        loc, vectorType, transposeOp.getInput(), indices, *padding, identityMap,
-        inBounds);
-    Value transposed = rewriter.create<vector::TransposeOp>(
-        loc, read, transposeOp.getPermutation());
-    rewriter.create<vector::TransferWriteOp>(
-        loc, transposed, transposeOp.getInit(), indices, identityMap);
+    Value read = vector::TransferReadOp::create(
+        rewriter, loc, vectorType, transposeOp.getInput(), indices, *padding,
+        identityMap, inBounds);
+    Value transposed = vector::TransposeOp::create(
+        rewriter, loc, read, transposeOp.getPermutation());
+    vector::TransferWriteOp::create(
+        rewriter, loc, transposed, transposeOp.getInit(), indices, identityMap);
     rewriter.eraseOp(transposeOp);
     return success();
   }
@@ -1272,9 +2239,10 @@ struct LinalgGenericToVIRPattern : public RewritePattern {
     // Reject reduction/index-based forms early to avoid partial rewrites.
     for (auto itTy : linalgOp.getIteratorTypesArray()) {
       if (linalg::isReductionIterator(itTy)) {
-        return rewriter.notifyMatchFailure(
-            linalgOp,
-            "reduction iterators not supported in generic VIR lowering");
+        if (auto genericOp = dyn_cast<linalg::GenericOp>(op))
+          return lowerGenericToScalarLoopsWithVIRMarker(genericOp, rewriter);
+        return rewriter.notifyMatchFailure(linalgOp,
+                                           "reduction iterators not supported");
       }
     }
     for (unsigned i = 0, e = linalgOp.getNumDpsInits(); i < e; ++i) {
@@ -1302,6 +2270,8 @@ struct LinalgGenericToVIRPattern : public RewritePattern {
         continue;
       }
       if (!isSupportedGenericBodyOp(inner)) {
+        if (auto genericOp = dyn_cast<linalg::GenericOp>(op))
+          return lowerGenericToScalarLoopsWithVIRMarker(genericOp, rewriter);
         return rewriter.notifyMatchFailure(
             linalgOp, (Twine("unsupported generic inner op: ") +
                        inner.getName().getStringRef())
@@ -1309,16 +2279,18 @@ struct LinalgGenericToVIRPattern : public RewritePattern {
       }
     }
     if (hasIndexSemantics) {
-      if (succeeded(lowerIndexOnlyGenericToScalarLoop(linalgOp, rewriter)))
-        return success();
-      return rewriter.notifyMatchFailure(
-          linalgOp, "linalg.index generic shape not supported yet");
+      if (auto genericOp = dyn_cast<linalg::GenericOp>(op))
+        return lowerGenericToScalarLoopsWithVIRMarker(genericOp, rewriter);
+      return rewriter.notifyMatchFailure(linalgOp,
+                                         "linalg.index shape unsupported");
     }
     if (hasCastSemantics) {
       if (succeeded(lowerSimpleCastGenericToScalarLoop(linalgOp, rewriter)))
         return success();
-      return rewriter.notifyMatchFailure(
-          linalgOp, "cast generic shape not supported yet");
+      if (auto genericOp = dyn_cast<linalg::GenericOp>(op))
+        return lowerGenericToScalarLoopsWithVIRMarker(genericOp, rewriter);
+      return rewriter.notifyMatchFailure(linalgOp,
+                                         "cast generic shape unsupported");
     }
     // Compute VIR vector shape and VL value.
     SmallVector<int64_t> virShape;
@@ -1373,7 +2345,7 @@ struct LinalgGenericToVIRPattern : public RewritePattern {
     }
 
     // Close the set_vl region by ending the block (no explicit terminator).
-    rewriter.create<vector::YieldOp>(loc);
+    vector::YieldOp::create(rewriter, loc);
 
     // Erase original op.
     rewriter.eraseOp(linalgOp);
@@ -1414,6 +2386,72 @@ struct LinalgMatmulToVIRPattern : public RewritePattern {
   }
 };
 
+struct LinalgContractionNamedToVIRPattern : public RewritePattern {
+  LinalgContractionNamedToVIRPattern(MLIRContext *ctx)
+      : RewritePattern(MatchAnyOpTypeTag(), /*benefit=*/3, ctx) {}
+
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override {
+    if (auto matmul = dyn_cast<linalg::MatmulTransposeAOp>(op))
+      return lowerRank2MatmulLikeToVIR(op, rewriter, matmul.getInputs()[0],
+                                       matmul.getInputs()[1],
+                                       matmul.getOutputs()[0],
+                                       /*transposeA=*/true,
+                                       /*transposeB=*/false);
+    if (auto matmul = dyn_cast<linalg::MatmulTransposeBOp>(op))
+      return lowerRank2MatmulLikeToVIR(op, rewriter, matmul.getInputs()[0],
+                                       matmul.getInputs()[1],
+                                       matmul.getOutputs()[0],
+                                       /*transposeA=*/false,
+                                       /*transposeB=*/true);
+    if (auto batch = dyn_cast<linalg::BatchMatmulOp>(op))
+      return lowerBatchMatmulLikeToVIR(op, rewriter, batch.getInputs()[0],
+                                       batch.getInputs()[1],
+                                       batch.getOutputs()[0],
+                                       /*transposeA=*/false,
+                                       /*transposeB=*/false);
+    if (auto batch = dyn_cast<linalg::BatchMatmulTransposeAOp>(op))
+      return lowerBatchMatmulLikeToVIR(op, rewriter, batch.getInputs()[0],
+                                       batch.getInputs()[1],
+                                       batch.getOutputs()[0],
+                                       /*transposeA=*/true,
+                                       /*transposeB=*/false);
+    if (auto batch = dyn_cast<linalg::BatchMatmulTransposeBOp>(op))
+      return lowerBatchMatmulLikeToVIR(op, rewriter, batch.getInputs()[0],
+                                       batch.getInputs()[1],
+                                       batch.getOutputs()[0],
+                                       /*transposeA=*/false,
+                                       /*transposeB=*/true);
+    if (auto contract = dyn_cast<linalg::ContractOp>(op))
+      return lowerBatchMatmulLikeToVIR(op, rewriter, contract.getInputs()[0],
+                                       contract.getInputs()[1],
+                                       contract.getOutputs()[0],
+                                       /*transposeA=*/false,
+                                       /*transposeB=*/false);
+    if (auto vecmat = dyn_cast<linalg::VecmatOp>(op))
+      return lowerVecmatToVIR(vecmat, rewriter);
+    if (auto matvec = dyn_cast<linalg::MatvecOp>(op))
+      return lowerMatvecToVIR(matvec, rewriter);
+    if (auto dot = dyn_cast<linalg::DotOp>(op))
+      return lowerDotToVIR(dot, rewriter);
+    if (auto batchMatvec = dyn_cast<linalg::BatchMatvecOp>(op))
+      return lowerBatchMatvecToVIR(batchMatvec, rewriter);
+    if (auto batchVecmat = dyn_cast<linalg::BatchVecmatOp>(op))
+      return lowerBatchVecmatToVIR(batchVecmat, rewriter);
+    if (auto batchReduceMatmul = dyn_cast<linalg::BatchReduceMatmulOp>(op))
+      return lowerBatchReduceMatmulToVIR(batchReduceMatmul, rewriter);
+    if (auto mmt4d = dyn_cast<linalg::Mmt4DOp>(op))
+      return lowerMmt4DToVIR(mmt4d, rewriter);
+    if (auto batchMmt4d = dyn_cast<linalg::BatchMmt4DOp>(op))
+      return lowerBatchMmt4DToVIR(batchMmt4d, rewriter);
+    if (auto fillRng = dyn_cast<linalg::FillRng2DOp>(op))
+      return lowerFillRng2DToVIR(fillRng, rewriter);
+    if (auto softmax = dyn_cast<linalg::SoftmaxOp>(op))
+      return lowerSoftmaxToVIR(softmax, rewriter);
+    return rewriter.notifyMatchFailure(op, "not a supported named contraction");
+  }
+};
+
 class LinalgToVIRPass
     : public PassWrapper<LinalgToVIRPass, OperationPass<ModuleOp>> {
 public:
@@ -1429,8 +2467,8 @@ public:
   void runOnOperation() override {
     MLIRContext *ctx = &getContext();
     RewritePatternSet patterns(ctx);
-    patterns.add<LinalgTransposeToVectorPattern>(ctx);
     patterns.add<LinalgReduceToVIRPattern>(ctx);
+    patterns.add<LinalgContractionNamedToVIRPattern>(ctx);
     patterns.add<LinalgMatmulToVIRPattern>(ctx);
     patterns.add<LinalgGenericToVIRPattern>(ctx);
     if (failed(applyPatternsGreedily(getOperation(), std::move(patterns)))) {

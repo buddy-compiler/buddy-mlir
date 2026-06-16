@@ -1822,7 +1822,7 @@ foreach(CACHE_SIZE ${KV_CACHE_SIZES})
               -reconcile-unrealized-casts |
             ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
             ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
-            ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3
+            ${LLVM_TOOLS_BINARY_DIR}/llc ${LLC_RISCV_ATTRS} -filetype=obj -relocation-model=pic -O3
               -o ${CMAKE_CURRENT_BINARY_DIR}/subgraph_decode_${CACHE_SIZE}.o
     DEPENDS buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/subgraph0_decode_${CACHE_SIZE}.mlir
     COMMENT "Building subgraph_decode_${CACHE_SIZE}.o"
@@ -1982,7 +1982,7 @@ target_link_libraries(buddy-deepseek-r1-tiered-kv-cache-run ${BUDDY_DEEPSEEKR1_T
 
 add_custom_target(deepseekr1-tiered-kv-cache
   DEPENDS buddy-deepseek-r1-tiered-kv-cache-run
-  COMMENT "Building DeepSeekR1 tiered-kv-cache inference"
+  COMMENT "Building DeepSeekR1 tiered-kv-cache inference with cache sizes: ${KV_CACHE_SIZES}"
 )
 
 add_test(
@@ -1997,5 +1997,3 @@ set_tests_properties(
     PASS_REGULAR_EXPRESSION "Total time"
     TIMEOUT 3600
 )
-
-message(STATUS "DeepSeekR1 Multi-Cache: Building prefill and decode subgraphs for cache sizes: ${KV_CACHE_SIZES}")
