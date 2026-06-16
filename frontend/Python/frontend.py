@@ -133,7 +133,9 @@ class DynamoCompiler:
             "_unsafe_view.default": ViewOp,
             "view.dtype": ViewDtypeOp,
             "ones.default": OnesOp,
+            "new_ones.default": OnesOp,
             "full.default": FullOp,
+            "new_full.default": FullOp,
             "embedding.default": EmbeddingOp,
             "masked_fill.Scalar": MaskedFillOp,
             "slice.Tensor": SliceOp,
@@ -359,6 +361,7 @@ class DynamoCompiler:
             "tan.default": TanOp,
             "exp2.default": Exp2Op,
             "zeros.default": ZerosOp,
+            "new_zeros.default": ZerosOp,
             "zeros_like.default": ZerosLikeOp,
             "ones_like.default": OnesLikeOp,
             "full_like.default": FullLikeOp,
@@ -831,6 +834,12 @@ class DynamoCompiler:
                     continue
                 buddy_node.add_argument(str(input_arg))
             return buddy_node
+        if gm_node_name in ("new_ones.default", "new_zeros.default") and len(
+            node_input
+        ) >= 2:
+            node_input = [node_input[1]]
+        elif gm_node_name == "new_full.default" and len(node_input) >= 3:
+            node_input = [node_input[1], node_input[2]]
 
         def _add_arg_and_parents(arg):
             if isinstance(arg, torch.fx.Node):

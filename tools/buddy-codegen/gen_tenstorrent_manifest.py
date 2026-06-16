@@ -29,7 +29,7 @@ def _file_uri(path: str | Path) -> str:
     text = str(path)
     if text.startswith(("file:", "payload:")):
         return text
-    return f"file:{text}"
+    return f"file:{Path(text).resolve()}"
 
 
 def _quote(text: str) -> str:
@@ -75,6 +75,57 @@ def _artifact_constants(artifacts: str | Path) -> list[tuple[str, Path]]:
     return out
 
 
+def _local_path_from_uri(path: str | Path) -> Path | None:
+    text = str(path)
+    if text.startswith("file:"):
+        return Path(text[5:])
+    if text.startswith("payload:"):
+        return None
+    candidate = Path(text)
+    if candidate.exists():
+        return candidate
+    return None
+
+
+def _tokenizer_constants(tokenizer: str | Path) -> list[tuple[str, Path]]:
+    root = _local_path_from_uri(tokenizer)
+    if root is None:
+        return []
+
+    if root.is_file():
+        if root.name not in ("tokenizer.json", "tokenizer.model"):
+            return []
+        return [(f"tokenizer_{root.name.replace('.', '_')}", root)]
+
+    if not root.is_dir():
+        return []
+
+    files = [
+        ("tokenizer_tokenizer_json", root / "tokenizer.json"),
+        ("tokenizer_tokenizer_model", root / "tokenizer.model"),
+        ("tokenizer_tokenizer_model", root / "original" / "tokenizer.model"),
+        ("tokenizer_tokenizer_config_json", root / "tokenizer_config.json"),
+        ("tokenizer_special_tokens_map_json", root / "special_tokens_map.json"),
+        ("tokenizer_generation_config_json", root / "generation_config.json"),
+    ]
+    out: list[tuple[str, Path]] = []
+    seen_symbols: set[str] = set()
+    for symbol, path in files:
+        if symbol in seen_symbols or not path.is_file():
+            continue
+        seen_symbols.add(symbol)
+        out.append((symbol, path))
+
+    if not any(
+        symbol in ("tokenizer_tokenizer_json", "tokenizer_tokenizer_model")
+        for symbol, _ in out
+    ):
+        raise FileNotFoundError(
+            f"missing tokenizer.json/tokenizer.model under tokenizer path: {root}"
+        )
+    return out
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Generate an RHAL manifest for Llama 3.1 TTNN artifacts."
@@ -91,6 +142,27 @@ def main() -> int:
         help="Local tokenizer/model path recorded in the package manifest.",
     )
     parser.add_argument("--max-cache-len", type=int, default=1024)
+    parser.add_argument("--batch-size", type=int, default=1)
+    parser.add_argument(
+        "--prompt-format",
+        choices=("chat", "completion"),
+        default="chat",
+        help=(
+            "Default prompt formatting used by the native Llama runner when "
+            "--chat-template is not provided."
+        ),
+    )
+    parser.add_argument(
+        "--prefill-kv-output-order",
+        choices=("key_value", "value_key"),
+        default="key_value",
+        help="Order of KV cache tensors returned by the prefill graph.",
+    )
+    parser.add_argument(
+        "--disable-static-reuse",
+        action="store_true",
+        help="Bake BUDDY_LLAMA31_DISABLE_STATIC_REUSE into the package manifest.",
+    )
     parser.add_argument("--official-reference-npz", default="")
     parser.add_argument("--official-trace-out", default="")
     parser.add_argument(
@@ -111,9 +183,15 @@ def main() -> int:
         "artifacts_uri": _file_uri(args.artifacts),
         "tokenizer_uri": args.tokenizer,
         "max_cache_len": str(args.max_cache_len),
+        "batch_size": str(args.batch_size),
         "ignore_system_desc": "true" if args.ignore_system_desc else "false",
         "ignore_eos": "true" if args.ignore_eos else "false",
         "device_token_loop": "true" if args.device_token_loop else "false",
+        "prompt_format": args.prompt_format,
+        "prefill_kv_output_order": args.prefill_kv_output_order,
+        "disable_static_reuse": "true"
+        if args.disable_static_reuse
+        else "false",
     }
     if args.official_reference_npz:
         attrs["official_reference_uri"] = _file_uri(args.official_reference_npz)
@@ -124,7 +202,8 @@ def main() -> int:
         f'{key} = "{_quote(value)}"' for key, value in attrs.items()
     )
 
-    text = f"""rhal.module @llama31_tt attributes {{{attr_items}}} {{
+    module_symbol = args.model_name.replace("-", "_").replace(".", "_")
+    text = f"""rhal.module @{module_symbol} attributes {{{attr_items}}} {{
   rhal.codeobj @prefill_ttnn {{id = 1 : i32, kind = "raw_bytes",
                               backend = "ttnn",
                               uri = "{_quote(_file_uri(args.prefill_ttnn))}"}}
@@ -133,9 +212,10 @@ def main() -> int:
                              uri = "{_quote(_file_uri(args.decode_ttnn))}"}}
 """
 
-    for idx, (sym, path) in enumerate(
-        _artifact_constants(args.artifacts), start=1
-    ):
+    constants = _artifact_constants(args.artifacts)
+    constants.extend(_tokenizer_constants(args.tokenizer))
+
+    for idx, (sym, path) in enumerate(constants, start=1):
         text += (
             f'  rhal.constant @{sym} {{id = {idx} : i32, storage = "external",\n'
             f"                           type = tensor<1xi8>,\n"

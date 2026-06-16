@@ -37,11 +37,13 @@
 
 #include <cerrno>
 #include <cstring>
+#include <fstream>
 #include <iostream>
 #include <memory>
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 #ifdef BUDDY_CLI_HAVE_NUMA
 #include <numa.h>
@@ -157,7 +159,9 @@ makeRunner(const std::string &modelName) {
 #endif
 #ifdef BUDDY_CLI_HAVE_LLAMA31_TT_MODEL
   if (modelName.rfind("llama31_tt", 0) == 0 ||
-      modelName.rfind("llama3.1_tt", 0) == 0)
+      modelName.rfind("llama3.1_tt", 0) == 0 ||
+      modelName.rfind("llama32_tt", 0) == 0 ||
+      modelName.rfind("llama3.2_tt", 0) == 0)
     return std::make_unique<buddy::runtime::Llama31TTRunner>();
 #endif
 
@@ -169,7 +173,7 @@ makeRunner(const std::string &modelName) {
       "deepseek_r1 "
 #endif
 #ifdef BUDDY_CLI_HAVE_LLAMA31_TT_MODEL
-      "llama31_tt "
+      "llama31_tt llama3.1_tt llama32_tt llama3.2_tt "
 #endif
       "\n"
       "  To add a new model, implement InferenceRunner and register it here.";
@@ -202,8 +206,11 @@ static void usage(const char *prog) {
       << "\n"
       << "Inference:\n"
       << "  --prompt     <text>      Input prompt (interactive if omitted)\n"
-      << "  --max-tokens <N>         Max total tokens incl. prompt (default "
+      << "  --prompt-file <path>     One prompt per line for fixed-batch runs\n"
+      << "  --prompt-length <N>      Fixed prompt/prefill length in tokens\n"
+      << "  --max-tokens <N>         Max generated tokens (default "
          "1024)\n"
+      << "  --batch-size <N>         Batch size override for fixed-batch packages\n"
       << "\n"
       << "Sampling:\n"
       << "  --temperature <float>    Sampling temperature (0.0 = greedy, "
@@ -223,6 +230,9 @@ static void usage(const char *prog) {
       << "\n"
       << "Output:\n"
       << "  --no-stats               Suppress performance statistics\n"
+      << "  --defer-decode-token-readback\n"
+      << "                           Defer device token-id readback until after\n"
+      << "                           fixed-step decode when supported\n"
       << "\n"
       << "NUMA / affinity (applied before model load):\n"
       << "  --cpus       <spec>      CPU affinity, e.g. 0-47 or 0-15,32-47\n"
@@ -241,6 +251,9 @@ static void usage(const char *prog) {
       << "Other:\n"
       << "  --help / -h\n"
       << "\n"
+      << "Batch output:\n"
+      << "  --print-all-batch        Print every user in batch runs\n"
+      << "\n"
       << "Examples:\n"
       << "  # Equivalent to: numactl --cpunodebind=0,1,2,3 "
          "--interleave=0,1,2,3 \\\n"
@@ -258,7 +271,10 @@ int main(int argc, char **argv) {
   std::string weightsPath;
   std::string vocabPath;
   std::string prompt;
+  std::string promptFile;
+  int promptLength = 0;
   int maxTokens = 4096;
+  int batchSize = 0;
 
   // Sampling args
   float temperature = 0.0f;
@@ -272,6 +288,8 @@ int main(int argc, char **argv) {
   // Chat template & output
   std::string chatTemplatePath;
   bool suppressStats = false;
+  bool printAllBatchOutputs = false;
+  bool deferDecodeTokenReadback = false;
   bool interactive = false;
 
   // NUMA / affinity args (applied before model load)
@@ -292,8 +310,14 @@ int main(int argc, char **argv) {
       vocabPath = argv[++i];
     else if (a == "--prompt" && i + 1 < argc)
       prompt = argv[++i];
+    else if (a == "--prompt-file" && i + 1 < argc)
+      promptFile = argv[++i];
+    else if (a == "--prompt-length" && i + 1 < argc)
+      promptLength = std::stoi(argv[++i]);
     else if (a == "--max-tokens" && i + 1 < argc)
       maxTokens = std::stoi(argv[++i]);
+    else if (a == "--batch-size" && i + 1 < argc)
+      batchSize = std::stoi(argv[++i]);
     else if (a == "--temperature" && i + 1 < argc)
       temperature = std::stof(argv[++i]);
     else if (a == "--top-k" && i + 1 < argc)
@@ -312,6 +336,10 @@ int main(int argc, char **argv) {
       chatTemplatePath = argv[++i];
     else if (a == "--no-stats")
       suppressStats = true;
+    else if (a == "--defer-decode-token-readback")
+      deferDecodeTokenReadback = true;
+    else if (a == "--print-all-batch")
+      printAllBatchOutputs = true;
     else if (a == "--interactive")
       interactive = true;
     else if (a == "--cpus" && i + 1 < argc)
@@ -354,7 +382,28 @@ int main(int argc, char **argv) {
     return 2;
   }
 
-  if (prompt.empty() && !interactive) {
+  std::vector<std::string> prompts;
+  if (!promptFile.empty()) {
+    std::ifstream input(promptFile);
+    if (!input) {
+      std::cerr << "\033[31;1m[Error]\033[0m cannot read --prompt-file "
+                << promptFile << "\n";
+      return 1;
+    }
+    std::string line;
+    while (std::getline(input, line)) {
+      if (!line.empty() && line.back() == '\r')
+        line.pop_back();
+      prompts.push_back(line);
+    }
+    if (prompts.empty()) {
+      std::cerr << "\033[31;1m[Error]\033[0m --prompt-file is empty: "
+                << promptFile << "\n";
+      return 1;
+    }
+  }
+
+  if (prompt.empty() && prompts.empty() && !interactive) {
     std::cout << "Prompt: ";
     std::getline(std::cin, prompt);
     std::cout << "\n";
@@ -388,7 +437,10 @@ int main(int argc, char **argv) {
   cfg.weightsPath = weightsPath;
   cfg.vocabPath = vocabPath;
   cfg.prompt = prompt;
+  cfg.prompts = std::move(prompts);
+  cfg.promptLength = promptLength;
   cfg.maxNewTokens = maxTokens;
+  cfg.batchSize = batchSize;
   cfg.samplerConfig.temperature = temperature;
   cfg.samplerConfig.topK = topK;
   cfg.samplerConfig.topP = topP;
@@ -398,6 +450,8 @@ int main(int argc, char **argv) {
   cfg.samplerConfig.seed = seed;
   cfg.chatTemplatePath = chatTemplatePath;
   cfg.suppressStats = suppressStats;
+  cfg.printAllBatchOutputs = printAllBatchOutputs;
+  cfg.deferDecodeTokenReadback = deferDecodeTokenReadback;
   cfg.interactive = interactive;
 
   try {

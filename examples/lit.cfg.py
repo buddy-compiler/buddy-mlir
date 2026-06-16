@@ -35,6 +35,7 @@ config.excludes = [
     "BuddyLeNet",
     "BuddyBert",
     "BuddyLlama",
+    "BuddyLlama31-8B",
     "BuddyGemma4",
     "BuddyWhisper",
     "BuddyMobileNetV3",

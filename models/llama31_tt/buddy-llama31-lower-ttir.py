@@ -189,6 +189,15 @@ def _parse_args() -> argparse.Namespace:
         help="Output directory for MLIR.",
     )
     p.add_argument(
+        "--output-stem-prefix",
+        default=os.environ.get("BUDDY_LLAMA_TTIR_STEM", "llama31_ttir"),
+        help=(
+            "Prefix for emitted TTIR files. The default preserves the "
+            "existing llama31_ttir_<phase>.mlir names; llama32 packaging uses "
+            "llama32_ttir."
+        ),
+    )
+    p.add_argument(
         "--element-dtype",
         choices=("bf16", "f32"),
         default="bf16",
@@ -253,6 +262,15 @@ def _parse_args() -> argparse.Namespace:
             "official tt-mlir style ttcore.argument_type/shard_status/ttir.name "
             "metadata. This is metadata-only and lets TTIR->TTNN hoist parameter "
             "const-eval work such as weight transposes."
+        ),
+    )
+    p.add_argument(
+        "--runtime-attention-mask",
+        action="store_true",
+        help=(
+            "Trace attention_mask as a runtime input for left-padded batch "
+            "prompts, matching a reference Llama generation setup "
+            "semantics."
         ),
     )
     p.add_argument(
@@ -429,6 +447,31 @@ def _patch_static_cache_for_buddy() -> None:
     """
     import transformers.cache_utils as cu
 
+    def update_cache_tensors(keys, values, key_states, value_states, cache_position):
+        L = keys.shape[-2]
+        S = key_states.shape[-2]
+
+        if S == L:
+            return key_states, value_states
+
+        out_keys = keys
+        out_values = values
+        for i in range(S):
+            pos = cache_position[i : i + 1]
+            out_keys = torch.ops.aten.index_put.default(
+                out_keys,
+                [None, None, pos, None],
+                key_states[:, :, i : i + 1, :],
+                False,
+            )
+            out_values = torch.ops.aten.index_put.default(
+                out_values,
+                [None, None, pos, None],
+                value_states[:, :, i : i + 1, :],
+                False,
+            )
+        return out_keys, out_values
+
     def update(self, key_states, value_states, *args, **kwargs):
         if (
             not getattr(self, "is_initialized", False)
@@ -461,34 +504,49 @@ def _patch_static_cache_for_buddy() -> None:
             else:
                 cache_position = torch.arange(S_, device=self.device)
 
-        L = self.keys.shape[-2]
-        S = key_states.shape[-2]
-
-        if S == L:
-            self.keys = key_states
-            self.values = value_states
-            return self.keys, self.values
-
-        B, H, _, D = self.keys.shape
-        # Keep the cache-position compare in fp32. If this compare is folded
-        # into bf16, long decode positions can alias and corrupt KV updates.
-        idx = torch.arange(
-            L, device=self.keys.device, dtype=torch.float32
-        ).view(1, L)
-        keys = self.keys
-        values = self.values
-        for i in range(S):
-            pos = cache_position[i : i + 1].to(torch.float32).view(1, 1)
-            mask = (idx == pos).view(1, 1, L, 1)
-            ks_exp = key_states[:, :, i : i + 1, :].expand(B, H, L, D)
-            vs_exp = value_states[:, :, i : i + 1, :].expand(B, H, L, D)
-            keys = torch.where(mask, ks_exp, keys)
-            values = torch.where(mask, vs_exp, values)
+        keys, values = update_cache_tensors(
+            self.keys, self.values, key_states, value_states, cache_position
+        )
         self.keys = keys
         self.values = values
         return self.keys, self.values
 
-    cu.StaticLayer.update = update
+    def static_cache_update(
+        k_cache, v_cache, key_states, value_states, cache_position
+    ):
+        if cache_position is None:
+            S = key_states.shape[-2]
+            cache_position = torch.arange(S, device=key_states.device)
+        return update_cache_tensors(
+            k_cache, v_cache, key_states, value_states, cache_position
+        )
+
+    def static_cache_update_method(
+        self, key_states, value_states, layer_idx, cache_kwargs=None
+    ):
+        if cache_kwargs is None:
+            cache_kwargs = {}
+        key_states = key_states.to(self.key_cache[layer_idx].dtype)
+        value_states = value_states.to(self.value_cache[layer_idx].dtype)
+        keys, values = static_cache_update(
+            self.key_cache[layer_idx],
+            self.value_cache[layer_idx],
+            key_states,
+            value_states,
+            cache_kwargs.get("cache_position"),
+        )
+        self.key_cache[layer_idx] = keys
+        self.value_cache[layer_idx] = values
+        return keys, values
+
+    if hasattr(cu, "StaticLayer"):
+        cu.StaticLayer.update = update
+    elif hasattr(cu, "_static_cache_update"):
+        cu._static_cache_update = static_cache_update
+        if hasattr(cu, "StaticCache"):
+            cu.StaticCache.update = static_cache_update_method
+    else:
+        raise RuntimeError("unsupported transformers StaticCache implementation")
 
 
 def _load_model_and_tokenizer(model_id: str):
@@ -533,7 +591,11 @@ def _one_layer_config(cfg):
 
 
 def _early_initialize_static_cache(past_kv, config, batch: int, device) -> None:
-    head_dim = config.hidden_size // config.num_attention_heads
+    if not hasattr(past_kv, "early_initialization"):
+        return
+    head_dim = getattr(config, "head_dim", None) or (
+        config.hidden_size // config.num_attention_heads
+    )
     num_kv_heads = getattr(
         config,
         "num_key_value_heads",
@@ -546,6 +608,19 @@ def _early_initialize_static_cache(past_kv, config, batch: int, device) -> None:
         torch.bfloat16,
         device,
     )
+
+
+def _make_static_cache(static_cache_cls, config, max_cache_len: int, batch: int, device):
+    try:
+        return static_cache_cls(
+            config=config,
+            max_batch_size=batch,
+            max_cache_len=max_cache_len,
+            device=device,
+            dtype=torch.bfloat16,
+        )
+    except TypeError:
+        return static_cache_cls(config=config, max_cache_len=max_cache_len)
 
 
 def _position_ids_for(
@@ -565,6 +640,7 @@ def _manual_static_causal_mask(
     inputs_embeds: torch.Tensor,
     past_key_values,
     position_ids: torch.Tensor,
+    attention_mask: torch.Tensor | None = None,
 ) -> torch.Tensor | None:
     if past_key_values is None:
         return None
@@ -576,6 +652,9 @@ def _manual_static_causal_mask(
     ).view(1, 1, kv_len)
     query_pos = position_ids_i64.view(position_ids_i64.shape[0], seq_len, 1)
     allowed = key_pos <= query_pos
+    if attention_mask is not None:
+        key_allowed = attention_mask.to(torch.bool).view(bsz, 1, kv_len)
+        allowed = allowed & key_allowed
     allowed = allowed.unsqueeze(1)
     if allowed.shape[0] != bsz:
         allowed = allowed.expand(bsz, 1, seq_len, kv_len)
@@ -658,6 +737,7 @@ class _OneLayerLMWrapper(torch.nn.Module):
         input_ids: torch.Tensor,
         past_key_values=None,
         cache_position: torch.Tensor | None = None,
+        attention_mask: torch.Tensor | None = None,
         use_cache: bool = True,
         **kwargs,
     ):
@@ -667,11 +747,8 @@ class _OneLayerLMWrapper(torch.nn.Module):
         if past_key_values is not None and cache_position is not None:
             for layer in getattr(past_key_values, "layers", []):
                 layer.cumulative_length = cache_position
-        mask_position_ids = position_ids
-        if cache_position is not None:
-            mask_position_ids = cache_position.view(1, -1)
         causal_mask = _manual_static_causal_mask(
-            hidden_states, past_key_values, mask_position_ids
+            hidden_states, past_key_values, position_ids, attention_mask
         )
         position_embeddings = model.rotary_emb(
             hidden_states, position_ids=position_ids
@@ -705,6 +782,7 @@ class _Layer0StageProbeWrapper(torch.nn.Module):
         input_ids: torch.Tensor,
         past_key_values=None,
         cache_position: torch.Tensor | None = None,
+        attention_mask: torch.Tensor | None = None,
         use_cache: bool = True,
         **kwargs,
     ):
@@ -716,11 +794,8 @@ class _Layer0StageProbeWrapper(torch.nn.Module):
         if past_key_values is not None and cache_position is not None:
             for cache_layer in getattr(past_key_values, "layers", []):
                 cache_layer.cumulative_length = cache_position
-        mask_position_ids = position_ids
-        if cache_position is not None:
-            mask_position_ids = cache_position.view(1, -1)
         causal_mask = _manual_static_causal_mask(
-            hidden_states, past_key_values, mask_position_ids
+            hidden_states, past_key_values, position_ids, attention_mask
         )
         position_embeddings = model.rotary_emb(
             hidden_states, position_ids=position_ids
@@ -766,6 +841,7 @@ class _AttentionSplitProbeWrapper(torch.nn.Module):
         input_ids: torch.Tensor,
         past_key_values=None,
         cache_position: torch.Tensor | None = None,
+        attention_mask: torch.Tensor | None = None,
         use_cache: bool = True,
         **kwargs,
     ):
@@ -778,11 +854,8 @@ class _AttentionSplitProbeWrapper(torch.nn.Module):
         if past_key_values is not None and cache_position is not None:
             for cache_layer in getattr(past_key_values, "layers", []):
                 cache_layer.cumulative_length = cache_position
-        mask_position_ids = position_ids
-        if cache_position is not None:
-            mask_position_ids = cache_position.view(1, -1)
         causal_mask = _manual_static_causal_mask(
-            hidden_states, past_key_values, mask_position_ids
+            hidden_states, past_key_values, position_ids, attention_mask
         )
         position_embeddings = model.rotary_emb(
             hidden_states, position_ids=position_ids
@@ -1281,6 +1354,7 @@ class _FullLMAlignedWrapper(torch.nn.Module):
         input_ids: torch.Tensor,
         past_key_values=None,
         cache_position: torch.Tensor | None = None,
+        attention_mask: torch.Tensor | None = None,
         use_cache: bool = True,
         **kwargs,
     ):
@@ -1292,7 +1366,7 @@ class _FullLMAlignedWrapper(torch.nn.Module):
             for layer in getattr(past_key_values, "layers", []):
                 layer.cumulative_length = cache_position
         causal_mask = _manual_static_causal_mask(
-            hidden_states, past_key_values, position_ids
+            hidden_states, past_key_values, position_ids, attention_mask
         )
         position_embeddings = model.rotary_emb(
             hidden_states, position_ids=position_ids
@@ -1413,16 +1487,20 @@ def _prune_unused_ttir_args(mlir_text: str) -> str:
 def _keep_decode_cache_mask_compares_f32(
     mlir_text: str, max_cache_len: int
 ) -> tuple[str, int]:
-    """Keep decode KV-cache position equality masks out of bf16.
+    """Keep decode KV-cache position masks out of bf16.
 
     Dynamo lowers the scatter-style static cache update as:
 
       arange(max_cache_len) == cache_position
 
-    That comparison must stay exact. If both sides are converted to bf16,
-    positions beyond 256 can alias and long decoding corrupts the KV cache.
-    Rewrite the existing where-mask ladder to compare fp32 values before the
-    bool mask is cast for where.
+    and also derives causal attention masks as:
+
+      arange(max_cache_len) <= cache_position
+
+    These comparisons must stay exact. If both sides are converted to bf16,
+    positions beyond 256 can alias and long decoding corrupts the KV cache or
+    attention mask. Rewrite the older where-mask ladder here; the broader
+    position-index pass below handles the current causal-mask shape.
     """
 
     typecast_arange_re = re.compile(
@@ -1563,6 +1641,439 @@ def _keep_decode_cache_mask_compares_f32(
     return "\n".join(lines), patched
 
 
+def _keep_position_index_math_f32(mlir_text: str) -> tuple[str, int]:
+    """Keep positional index math out of bf16.
+
+    The full static-cache graphs derive RoPE positions and causal masks from
+    arange/cache_position tensors. Lowering everything to bf16 makes integer
+    positions beyond 256 lossy, which corrupts RoPE angles and long-context
+    attention masks. This pass keeps only that small index/position subgraph
+    in f32; model activations still lower to bf16.
+    """
+
+    def _bf16_to_f32_types(line: str) -> str:
+        return re.sub(r"tensor<([^>]*)xbf16>", r"tensor<\1xf32>", line)
+
+    def _def_name(line: str) -> str | None:
+        m = re.match(r"^\s+(%\d+) = ", line)
+        return m.group(1) if m else None
+
+    def _operands(line: str) -> list[str]:
+        m = re.search(r'=\s+"ttir\.[^"]+"\(([^)]*)\)', line)
+        if not m:
+            return []
+        return re.findall(r"%arg\d+|%\d+", m.group(1))
+
+    def _op_name(line: str) -> str | None:
+        m = re.search(r'=\s+"ttir\.([^"]+)"', line)
+        return m.group(1) if m else None
+
+    seed_i64_to_bf16_re = re.compile(
+        r"(\(tensor<[^>]+xi64>\) -> tensor<[^>]+)xbf16"
+    )
+    seed_inv_freq_re = re.compile(r"(\(tensor<64xf32>\) -> tensor<64x)bf16")
+
+    f32_values: set[str] = set()
+    patched = 0
+    lines: list[str] = []
+    propagate_ops = {
+        "add",
+        "broadcast",
+        "concat",
+        "matmul",
+        "permute",
+        "reshape",
+        "slice_static",
+        "typecast",
+    }
+    signature_only_ops = {"le", "eq"}
+
+    for raw in mlir_text.splitlines():
+        line = raw
+        dst = _def_name(line)
+        op = _op_name(line)
+        operands = _operands(line)
+        seeded = False
+
+        if dst and ' = "ttir.typecast"' in line:
+            updated = seed_i64_to_bf16_re.sub(r"\1xf32", line)
+            updated = seed_inv_freq_re.sub(r"\1f32", updated)
+            if updated != line:
+                line = updated
+                f32_values.add(dst)
+                patched += 1
+                seeded = True
+
+        if dst and not seeded and any(o in f32_values for o in operands):
+            if op in propagate_ops:
+                updated = _bf16_to_f32_types(line)
+                if updated != line:
+                    line = updated
+                    patched += 1
+                f32_values.add(dst)
+            elif op in signature_only_ops:
+                updated = _bf16_to_f32_types(line)
+                if updated != line:
+                    line = updated
+                    patched += 1
+
+        lines.append(line)
+
+    return "\n".join(lines), patched
+
+
+def _legalize_rank_expanding_broadcasts(mlir_text: str) -> tuple[str, int]:
+    """Insert leading-1 reshapes before rank-expanding ``ttir.broadcast`` ops."""
+
+    def _parse_tensor_type(text: str) -> tuple[list[int], str] | None:
+        parts = text.split("x")
+        if not parts:
+            return None
+        dtype = parts[-1]
+        dims: list[int] = []
+        for part in parts[:-1]:
+            if not part.isdigit():
+                return None
+            dims.append(int(part))
+        return dims, dtype
+
+    def _tensor_type(dims: list[int], dtype: str) -> str:
+        if dims:
+            return "tensor<" + "x".join(str(d) for d in dims) + "x" + dtype + ">"
+        return f"tensor<{dtype}>"
+
+    broadcast_re = re.compile(
+        r'^(?P<indent>\s+)(?P<dst>%[\w$._-]+) = "ttir\.broadcast"'
+        r"\((?P<src>%[\w$._-]+)\) "
+        r"<\{broadcast_dimensions = array<i64: (?P<dims>[^>]*)>\}> : "
+        r"\(tensor<(?P<input>[^>]*)>\) -> tensor<(?P<output>[^>]*)>$"
+    )
+
+    lines: list[str] = []
+    patched = 0
+    for raw in mlir_text.splitlines():
+        m = broadcast_re.match(raw)
+        if m is None:
+            lines.append(raw)
+            continue
+
+        input_parsed = _parse_tensor_type(m.group("input"))
+        output_parsed = _parse_tensor_type(m.group("output"))
+        if input_parsed is None or output_parsed is None:
+            lines.append(raw)
+            continue
+        input_dims, input_dtype = input_parsed
+        output_dims, output_dtype = output_parsed
+        if input_dtype != output_dtype or len(input_dims) >= len(output_dims):
+            lines.append(raw)
+            continue
+
+        padded_input_dims = [1] * (len(output_dims) - len(input_dims)) + input_dims
+        padded_type = _tensor_type(padded_input_dims, input_dtype)
+        input_type = _tensor_type(input_dims, input_dtype)
+        shape_attr = ", ".join(f"{dim} : i32" for dim in padded_input_dims)
+        reshape_name = f"%buddy_broadcast_rank_{patched}"
+        indent = m.group("indent")
+
+        lines.append(
+            f'{indent}{reshape_name} = "ttir.reshape"({m.group("src")}) '
+            f"<{{shape = [{shape_attr}]}}> : ({input_type}) -> {padded_type}"
+        )
+        lines.append(
+            f'{indent}{m.group("dst")} = "ttir.broadcast"({reshape_name}) '
+            f"<{{broadcast_dimensions = array<i64: {m.group('dims')}>}}> : "
+            f"({padded_type}) -> tensor<{m.group('output')}>"
+        )
+        patched += 1
+
+    return "\n".join(lines), patched
+
+
+def _keep_update_cache_indices_i32(mlir_text: str) -> tuple[str, int]:
+    """Keep ``ttir.update_cache`` update indices as integer tensors.
+
+    Full-model decode uses the same cache position value for RoPE/mask math
+    and KV cache updates. The former may be deliberately cast to bf16/f32, but
+    TTNN's ``paged_update_cache`` lowering requires the update index operand to
+    be integer. Rebuild just the update-cache index chain as i32.
+    """
+
+    def _def_name(line: str) -> str | None:
+        m = re.match(r"^\s+(%\d+) = ", line)
+        return m.group(1) if m else None
+
+    def _operands(line: str) -> list[str]:
+        m = re.search(r'=\s+"ttir\.[^"]+"\(([^)]*)\)', line)
+        if not m:
+            return []
+        return re.findall(r"%arg\d+|%\d+", m.group(1))
+
+    update_re = re.compile(
+        r'=\s+"ttir\.update_cache"\([^,]+,\s*[^,]+,\s*(%\d+)\)'
+    )
+    lines = mlir_text.splitlines()
+    needed: set[str] = set()
+    patched = 0
+
+    for line in lines:
+        m = update_re.search(line)
+        if m and (
+            "tensor<1xbf16>) ->" in line or "tensor<1xf32>) ->" in line
+        ):
+            needed.add(m.group(1))
+
+    if not needed:
+        return mlir_text, 0
+
+    for i in range(len(lines) - 1, -1, -1):
+        line = lines[i]
+        dst = _def_name(line)
+        if dst not in needed:
+            continue
+
+        if ' = "ttir.slice_static"' in line:
+            operands = _operands(line)
+            if operands:
+                needed.add(operands[0])
+            updated = re.sub(r"tensor<1x(?:bf16|f32)>", "tensor<1xi32>", line)
+        elif (
+            ' = "ttir.typecast"' in line
+            and (
+                "(tensor<1xi64>) -> tensor<1xbf16>" in line
+                or "(tensor<1xi64>) -> tensor<1xf32>" in line
+            )
+        ):
+            updated = re.sub(
+                r"\(tensor<1xi64>\) -> tensor<1x(?:bf16|f32)>",
+                "(tensor<1xi64>) -> tensor<1xi32>",
+                line,
+            )
+        else:
+            continue
+
+        if updated != line:
+            lines[i] = updated
+            patched += 1
+
+    for i, line in enumerate(lines):
+        if ' = "ttir.update_cache"' not in line:
+            continue
+        m = update_re.search(line)
+        if not m or m.group(1) not in needed:
+            continue
+        updated = re.sub(r"tensor<1x(?:bf16|f32)>\) ->", "tensor<1xi32>) ->", line)
+        if updated != line:
+            lines[i] = updated
+            patched += 1
+
+    return "\n".join(lines), patched
+
+
+def _legalize_batched_update_cache_inputs(mlir_text: str) -> tuple[str, int]:
+    """Adapt batch-major update tensors to TTIR UpdateCacheOp's verifier shape.
+
+    ``ttir.update_cache`` wants the update value in [1, heads, users, dim]
+    form before canonicalization to paged_update_cache. HuggingFace static
+    cache traces naturally produce [users, heads, 1, dim].
+    """
+
+    def _parse_tensor_type(text: str) -> tuple[list[int], str] | None:
+        parts = text.split("x")
+        if not parts:
+            return None
+        dtype = parts[-1]
+        dims: list[int] = []
+        for part in parts[:-1]:
+            if not part.isdigit():
+                return None
+            dims.append(int(part))
+        return dims, dtype
+
+    def _tensor_type(dims: list[int], dtype: str) -> str:
+        return "tensor<" + "x".join(str(d) for d in dims) + "x" + dtype + ">"
+
+    update_re = re.compile(
+        r'^(?P<indent>\s+)(?P<dst>%[\w$._-]+) = "ttir\.update_cache"'
+        r"\((?P<cache>%[\w$._-]+), (?P<input>%[\w$._-]+), "
+        r"(?P<index>%[\w$._-]+)\) (?P<attrs><\{[^}]*\}>) : "
+        r"\(tensor<(?P<cache_ty>[^>]*)>, tensor<(?P<input_ty>[^>]*)>, "
+        r"tensor<(?P<index_ty>[^>]*)>\) -> tensor<(?P<out_ty>[^>]*)>$"
+    )
+
+    lines: list[str] = []
+    patched = 0
+    for raw in mlir_text.splitlines():
+        m = update_re.match(raw)
+        if m is None:
+            lines.append(raw)
+            continue
+
+        cache_parsed = _parse_tensor_type(m.group("cache_ty"))
+        input_parsed = _parse_tensor_type(m.group("input_ty"))
+        if cache_parsed is None or input_parsed is None:
+            lines.append(raw)
+            continue
+        cache_dims, cache_dtype = cache_parsed
+        input_dims, input_dtype = input_parsed
+        input_name = m.group("input")
+        input_type = _tensor_type(input_dims, input_dtype)
+        indent = m.group("indent")
+
+        if (
+            cache_dtype == input_dtype
+            and len(cache_dims) == 4
+            and len(input_dims) == 3
+            and input_dims[0] > 1
+            and cache_dims[0] == input_dims[0]
+            and cache_dims[1] == input_dims[1]
+            and cache_dims[3] == input_dims[2]
+        ):
+            users, heads, head_dim = input_dims
+            expanded_dims = [users, heads, 1, head_dim]
+            expanded_type = _tensor_type(expanded_dims, input_dtype)
+            expanded_name = f"%buddy_update_cache_step_{patched}"
+            lines.append(
+                f'{indent}{expanded_name} = "ttir.reshape"({input_name}) '
+                f"<{{shape = [{users} : i32, {heads} : i32, "
+                f"1 : i32, {head_dim} : i32]}}> : "
+                f"({input_type}) -> {expanded_type}"
+            )
+            input_dims = expanded_dims
+            input_name = expanded_name
+            input_type = expanded_type
+
+        if (
+            cache_dtype != input_dtype
+            or len(cache_dims) != 4
+            or len(input_dims) != 4
+            or input_dims[0] <= 1
+            or input_dims[2] != 1
+            or cache_dims[0] != input_dims[0]
+            or cache_dims[1] != input_dims[1]
+            or cache_dims[3] != input_dims[3]
+        ):
+            lines.append(raw)
+            continue
+
+        users, heads, _, head_dim = input_dims
+        permuted_dims = [1, heads, users, head_dim]
+        permuted_type = _tensor_type(permuted_dims, input_dtype)
+        permuted_name = f"%buddy_update_cache_batch_{patched}"
+
+        lines.append(
+            f'{indent}{permuted_name} = "ttir.permute"({input_name}) '
+            f"<{{permutation = array<i64: 2, 1, 0, 3>}}> : "
+            f"({input_type}) -> {permuted_type}"
+        )
+        lines.append(
+            f'{indent}{m.group("dst")} = "ttir.update_cache"'
+            f'({m.group("cache")}, {permuted_name}, {m.group("index")}) '
+            f"{m.group('attrs')} : "
+            f"(tensor<{m.group('cache_ty')}>, {permuted_type}, "
+            f"tensor<{m.group('index_ty')}>) -> tensor<{m.group('out_ty')}>"
+        )
+        patched += 1
+
+    return "\n".join(lines), patched
+
+
+def _legalize_batched_sdpa_decode_inputs(mlir_text: str) -> tuple[str, int]:
+    """Adapt batch-major decode SDPA tensors to TTIR's decode layout."""
+
+    def _parse_tensor_type(text: str) -> tuple[list[int], str] | None:
+        parts = text.split("x")
+        if not parts:
+            return None
+        dtype = parts[-1]
+        dims: list[int] = []
+        for part in parts[:-1]:
+            if not part.isdigit():
+                return None
+            dims.append(int(part))
+        return dims, dtype
+
+    def _tensor_type(dims: list[int], dtype: str) -> str:
+        return "tensor<" + "x".join(str(d) for d in dims) + "x" + dtype + ">"
+
+    sdpa_re = re.compile(
+        r'^(?P<indent>\s+)(?P<dst>%[\w$._-]+) = '
+        r'"ttir\.scaled_dot_product_attention_decode"'
+        r"\((?P<query>%[\w$._-]+), (?P<key>%[\w$._-]+), "
+        r"(?P<value>%[\w$._-]+), (?P<mask>%[\w$._-]+), "
+        r"(?P<pos>%[\w$._-]+)\) (?P<attrs><\{.*\}>) : "
+        r"\(tensor<(?P<query_ty>[^>]*)>, tensor<(?P<key_ty>[^>]*)>, "
+        r"tensor<(?P<value_ty>[^>]*)>, tensor<(?P<mask_ty>[^>]*)>, "
+        r"tensor<(?P<pos_ty>[^>]*)>\) -> tensor<(?P<out_ty>[^>]*)>$"
+    )
+
+    lines: list[str] = []
+    patched = 0
+    for raw in mlir_text.splitlines():
+        m = sdpa_re.match(raw)
+        if m is None:
+            lines.append(raw)
+            continue
+
+        query_parsed = _parse_tensor_type(m.group("query_ty"))
+        out_parsed = _parse_tensor_type(m.group("out_ty"))
+        pos_parsed = _parse_tensor_type(m.group("pos_ty"))
+        if query_parsed is None or out_parsed is None or pos_parsed is None:
+            lines.append(raw)
+            continue
+
+        query_dims, query_dtype = query_parsed
+        out_dims, out_dtype = out_parsed
+        pos_dims, pos_dtype = pos_parsed
+        if (
+            len(query_dims) != 4
+            or query_dims[0] <= 1
+            or query_dims[2] != 1
+            or query_dims != out_dims
+            or query_dtype != out_dtype
+            or pos_dims != [1]
+        ):
+            lines.append(raw)
+            continue
+
+        batch, heads, _, head_dim = query_dims
+        legal_dims = [1, batch, heads, head_dim]
+        query_type = _tensor_type(query_dims, query_dtype)
+        legal_type = _tensor_type(legal_dims, query_dtype)
+        pos_type = _tensor_type(pos_dims, pos_dtype)
+        batch_pos_type = _tensor_type([batch], pos_dtype)
+        indent = m.group("indent")
+        query_name = f"%buddy_sdpa_decode_query_{patched}"
+        pos_name = f"%buddy_sdpa_decode_pos_{patched}"
+        sdpa_name = f"%buddy_sdpa_decode_out_{patched}"
+
+        lines.append(
+            f'{indent}{query_name} = "ttir.permute"({m.group("query")}) '
+            f"<{{permutation = array<i64: 2, 0, 1, 3>}}> : "
+            f"({query_type}) -> {legal_type}"
+        )
+        lines.append(
+            f'{indent}{pos_name} = "ttir.broadcast"({m.group("pos")}) '
+            f"<{{broadcast_dimensions = array<i64: {batch}>}}> : "
+            f"({pos_type}) -> {batch_pos_type}"
+        )
+        lines.append(
+            f'{indent}{sdpa_name} = "ttir.scaled_dot_product_attention_decode"'
+            f'({query_name}, {m.group("key")}, {m.group("value")}, '
+            f'{m.group("mask")}, {pos_name}) {m.group("attrs")} : '
+            f"({legal_type}, tensor<{m.group('key_ty')}>, "
+            f"tensor<{m.group('value_ty')}>, tensor<{m.group('mask_ty')}>, "
+            f"{batch_pos_type}) -> {legal_type}"
+        )
+        lines.append(
+            f'{indent}{m.group("dst")} = "ttir.permute"({sdpa_name}) '
+            f"<{{permutation = array<i64: 1, 2, 0, 3>}}> : "
+            f"({legal_type}) -> tensor<{m.group('out_ty')}>"
+        )
+        patched += 1
+
+    return "\n".join(lines), patched
+
+
 def _full_layer_param_attrs(layer_idx: int) -> list[tuple[str, str]]:
     prefix = f"l__self___model_layers__modules__{layer_idx}___"
     return [
@@ -1634,11 +2145,31 @@ def _full_arg_attrs(mode: str, arg_count: int) -> list[tuple[str, str]]:
                 )
             return attrs
 
+        layers_num, rem = divmod(arg_count - 6, 9)
+        if rem == 0 and layers_num > 0:
+            attrs.append(("input", "args_1_attention_mask"))
+            attrs.append(("constant", "l__self___model_rotary_emb_inv_freq"))
+            for layer_idx in range(layers_num):
+                attrs.extend(_full_layer_param_attrs(layer_idx))
+            attrs.extend(
+                [
+                    ("parameter", "l__self___model_norm_weight"),
+                    ("parameter", "l__self___lm_head_weight"),
+                ]
+            )
+            if len(attrs) != arg_count:
+                raise ValueError(
+                    f"internal attention-mask prefill arg annotation mismatch: "
+                    f"expected {arg_count}, built {len(attrs)}"
+                )
+            return attrs
+
         layers_num, rem = divmod(arg_count - 5, 9)
         if rem != 0 or layers_num <= 0:
             raise ValueError(
                 f"unsupported full prefill arg count {arg_count}; expected "
-                "3 prefix args + 9 args/layer + 2 suffix args, or "
+                "3 prefix args + 9 args/layer + 2 suffix args, "
+                "4 prefix args with attention_mask + 9 args/layer + 2 suffix args, or "
                 "4 full-align prefix args + 11 args/layer + 2 suffix args"
             )
         attrs.append(("constant", "l__self___model_rotary_emb_inv_freq"))
@@ -1730,11 +2261,53 @@ def _full_arg_attrs(mode: str, arg_count: int) -> list[tuple[str, str]]:
                 )
             return attrs
 
+        layers_num, rem = divmod(arg_count - 8, 12)
+        if rem == 0 and layers_num > 0:
+            attrs.extend(
+                [
+                    ("input", "args_1_attention_mask"),
+                    ("input", "args_2_cache_position"),
+                    ("input", "args_3_cache_position"),
+                    ("constant", "l__self___model_rotary_emb_inv_freq"),
+                ]
+            )
+            for layer_idx in range(layers_num):
+                prefix = f"l__self___model_layers__modules__{layer_idx}___"
+                attrs.extend(
+                    [
+                        ("parameter", prefix + "input_layernorm_weight"),
+                        ("parameter", prefix + "self_attn_q_proj_weight"),
+                        ("parameter", prefix + "self_attn_k_proj_weight"),
+                        ("parameter", prefix + "self_attn_v_proj_weight"),
+                        ("input", f"args_cache_position_{layer_idx}"),
+                        ("input", f"args_key_cache_{layer_idx}"),
+                        ("input", f"args_value_cache_{layer_idx}"),
+                        ("parameter", prefix + "self_attn_o_proj_weight"),
+                        ("parameter", prefix + "post_attention_layernorm_weight"),
+                        ("parameter", prefix + "mlp_gate_proj_weight"),
+                        ("parameter", prefix + "mlp_up_proj_weight"),
+                        ("parameter", prefix + "mlp_down_proj_weight"),
+                    ]
+                )
+            attrs.extend(
+                [
+                    ("parameter", "l__self___model_norm_weight"),
+                    ("parameter", "l__self___lm_head_weight"),
+                ]
+            )
+            if len(attrs) != arg_count:
+                raise ValueError(
+                    f"internal attention-mask decode arg annotation mismatch: "
+                    f"expected {arg_count}, built {len(attrs)}"
+                )
+            return attrs
+
         layers_num, rem = divmod(arg_count - 7, 12)
         if rem != 0 or layers_num <= 0:
             raise ValueError(
                 f"unsupported full decode arg count {arg_count}; expected "
-                "5 prefix args + 12 args/layer + 2 suffix args, or "
+                "5 prefix args + 12 args/layer + 2 suffix args, "
+                "6 prefix args with attention_mask + 12 args/layer + 2 suffix args, or "
                 "4 full-align prefix args + 12/13 args/layer + 2 suffix args"
             )
         attrs.extend(
@@ -2203,12 +2776,19 @@ def main() -> int:
             input_ids = torch.zeros(
                 args.batch, trace_seq, dtype=torch.long, device=device
             )
+            attention_kwargs = {}
+            if args.runtime_attention_mask:
+                attention_kwargs["attention_mask"] = torch.ones(
+                    args.batch, L, dtype=torch.long, device=device
+                )
             with torch.no_grad():
                 if (
                     args.scope in ("layer", "layer_stages", "attn_split")
                     or args.full_align_wrapper
                 ):
-                    past_kv = StaticCache(config=model.config, max_cache_len=L)
+                    past_kv = _make_static_cache(
+                        StaticCache, model.config, L, args.batch, device
+                    )
                     if args.full_align_wrapper:
                         _early_initialize_static_cache(
                             past_kv, model.config, args.batch, device
@@ -2219,6 +2799,7 @@ def main() -> int:
                     graphs = dynamo_compiler.importer(
                         model,
                         input_ids=input_ids,
+                        **attention_kwargs,
                         use_cache=True,
                         cache_position=cache_position,
                         past_key_values=past_kv,
@@ -2228,11 +2809,14 @@ def main() -> int:
                     graphs = dynamo_compiler.importer(
                         model,
                         input_ids=input_ids,
+                        **attention_kwargs,
                         use_cache=True,
                         cache_implementation="static",
                     )
         else:
-            past_kv = StaticCache(config=model.config, max_cache_len=L)
+            past_kv = _make_static_cache(
+                StaticCache, model.config, L, args.batch, device
+            )
             decode_ids = torch.zeros(
                 args.batch, 1, dtype=torch.long, device=device
             )
@@ -2242,6 +2826,11 @@ def main() -> int:
             cache_position = torch.tensor(
                 [pos_value], dtype=torch.long, device=device
             )
+            attention_kwargs = {}
+            if args.runtime_attention_mask:
+                attention_kwargs["attention_mask"] = torch.ones(
+                    args.batch, L, dtype=torch.long, device=device
+                )
             with torch.no_grad():
                 if args.full_align_wrapper:
                     _early_initialize_static_cache(
@@ -2250,6 +2839,7 @@ def main() -> int:
                 else:
                     model(
                         input_ids=decode_ids,
+                        **attention_kwargs,
                         past_key_values=past_kv,
                         use_cache=True,
                         cache_implementation="static",
@@ -2264,11 +2854,12 @@ def main() -> int:
                         base = getattr(layer, "cumulative_length", None)
                         if base is not None:
                             layer.cumulative_length = torch.tensor(
-                                [200], dtype=base.dtype, device=base.device
+                                [pos_value], dtype=base.dtype, device=base.device
                             )
                 graphs = dynamo_compiler.importer(
                     model,
                     input_ids=decode_ids,
+                    **attention_kwargs,
                     use_cache=True,
                     cache_position=cache_position,
                     past_key_values=past_kv,
@@ -2479,7 +3070,7 @@ def main() -> int:
             return 1
 
     out_scope = "" if args.scope == "full" else f"_{args.scope}"
-    out_stem = f"llama31_ttir_{args.mode}{out_scope}"
+    out_stem = f"{args.output_stem_prefix}_{args.mode}{out_scope}"
     out = args.output_dir / (
         f"{out_stem}_module.mlir" if args.packed_forward else f"{out_stem}.mlir"
     )
@@ -2501,6 +3092,14 @@ def main() -> int:
         except ValueError as e:
             print(f"error: {e}", file=sys.stderr)
             return 1
+    mlir_text, rank_broadcast_count = _legalize_rank_expanding_broadcasts(
+        mlir_text
+    )
+    if rank_broadcast_count:
+        print(
+            "Patched "
+            f"{rank_broadcast_count} rank-expanding broadcast ops with reshapes"
+        )
     if args.mode == "decode":
         mlir_text, mask_count = _keep_decode_cache_mask_compares_f32(
             mlir_text, args.max_cache_len
@@ -2509,6 +3108,34 @@ def main() -> int:
             print(
                 "Patched "
                 f"{mask_count} decode cache-position masks to compare in fp32"
+            )
+        mlir_text, index_count = _keep_position_index_math_f32(mlir_text)
+        if index_count:
+            print(
+                "Patched "
+                f"{index_count} decode position-index ops to stay in fp32"
+            )
+        mlir_text, update_index_count = _keep_update_cache_indices_i32(mlir_text)
+        if update_index_count:
+            print(
+                "Patched "
+                f"{update_index_count} decode update-cache index ops to stay in i32"
+            )
+        mlir_text, batched_update_count = _legalize_batched_update_cache_inputs(
+            mlir_text
+        )
+        if batched_update_count:
+            print(
+                "Patched "
+                f"{batched_update_count} batched update-cache inputs"
+            )
+        mlir_text, batched_sdpa_count = _legalize_batched_sdpa_decode_inputs(
+            mlir_text
+        )
+        if batched_sdpa_count:
+            print(
+                "Patched "
+                f"{batched_sdpa_count} batched decode SDPA inputs"
             )
     out.write_text(mlir_text + "\n", encoding="utf-8")
     print(f"Wrote {out.resolve()}")

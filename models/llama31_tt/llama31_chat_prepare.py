@@ -77,6 +77,12 @@ def _parse_args() -> argparse.Namespace:
         help="Static cache length (must match lowering).",
     )
     p.add_argument(
+        "--batch",
+        type=int,
+        default=1,
+        help="Batch size used when tracing runtime inputs (must match lowering).",
+    )
+    p.add_argument(
         "-o",
         "--artifacts",
         type=Path,
@@ -108,6 +114,14 @@ def _parse_args() -> argparse.Namespace:
         ),
     )
     p.add_argument(
+        "--runtime-attention-mask",
+        action="store_true",
+        help=(
+            "Prepare slot metadata for graphs traced with attention_mask as a "
+            "runtime input."
+        ),
+    )
+    p.add_argument(
         "--metadata-only",
         action="store_true",
         help="Write slot roles/shapes/dtypes/summary but skip the large weights.bin.",
@@ -129,6 +143,31 @@ def _patch_static_cache_for_buddy() -> None:
     Compatible with both Transformers 4.x and 5.5+.
     """
     import transformers.cache_utils as cu
+
+    def update_cache_tensors(keys, values, key_states, value_states, cache_position):
+        L = keys.shape[-2]
+        S = key_states.shape[-2]
+
+        if S == L:
+            return key_states, value_states
+
+        out_keys = keys
+        out_values = values
+        for i in range(S):
+            pos = cache_position[i : i + 1]
+            out_keys = torch.ops.aten.index_put.default(
+                out_keys,
+                [None, None, pos, None],
+                key_states[:, :, i : i + 1, :],
+                False,
+            )
+            out_values = torch.ops.aten.index_put.default(
+                out_values,
+                [None, None, pos, None],
+                value_states[:, :, i : i + 1, :],
+                False,
+            )
+        return out_keys, out_values
 
     def update(self, key_states, value_states, *args, **kwargs):
         if (
@@ -159,30 +198,49 @@ def _patch_static_cache_for_buddy() -> None:
             else:
                 cache_position = torch.arange(S_, device=self.device)
 
-        L = self.keys.shape[-2]
-        S = key_states.shape[-2]
-
-        if S == L:
-            self.keys = key_states
-            self.values = value_states
-            return self.keys, self.values
-
-        # Match lowering: keep cache-position comparison in fp32 so long decode
-        # positions do not alias through bf16 before the where mask is formed.
-        idx = torch.arange(
-            L, device=self.keys.device, dtype=torch.float32
-        ).view(1, L)
-        pos2d = cache_position.to(torch.float32).view(-1, 1)
-        mask = idx == pos2d
-        mask = mask.view(1, 1, L, 1)
-        B, H, _, D = self.keys.shape
-        ks_exp = key_states.expand(B, H, L, D)
-        vs_exp = value_states.expand(B, H, L, D)
-        self.keys = torch.where(mask, ks_exp, self.keys)
-        self.values = torch.where(mask, vs_exp, self.values)
+        keys, values = update_cache_tensors(
+            self.keys, self.values, key_states, value_states, cache_position
+        )
+        self.keys = keys
+        self.values = values
         return self.keys, self.values
 
-    cu.StaticLayer.update = update
+    def static_cache_update(
+        k_cache, v_cache, key_states, value_states, cache_position
+    ):
+        if cache_position is None:
+            S = key_states.shape[-2]
+            cache_position = torch.arange(S, device=key_states.device)
+        return update_cache_tensors(
+            k_cache, v_cache, key_states, value_states, cache_position
+        )
+
+    def static_cache_update_method(
+        self, key_states, value_states, layer_idx, cache_kwargs=None
+    ):
+        if cache_kwargs is None:
+            cache_kwargs = {}
+        key_states = key_states.to(self.key_cache[layer_idx].dtype)
+        value_states = value_states.to(self.value_cache[layer_idx].dtype)
+        keys, values = static_cache_update(
+            self.key_cache[layer_idx],
+            self.value_cache[layer_idx],
+            key_states,
+            value_states,
+            cache_kwargs.get("cache_position"),
+        )
+        self.key_cache[layer_idx] = keys
+        self.value_cache[layer_idx] = values
+        return keys, values
+
+    if hasattr(cu, "StaticLayer"):
+        cu.StaticLayer.update = update
+    elif hasattr(cu, "_static_cache_update"):
+        cu._static_cache_update = static_cache_update
+        if hasattr(cu, "StaticCache"):
+            cu.StaticCache.update = static_cache_update_method
+    else:
+        raise RuntimeError("unsupported transformers StaticCache implementation")
 
 
 def _load_model(model_id: str):
@@ -386,6 +444,8 @@ def _patch_llama_official_attention_f32() -> None:
 
 
 def _early_initialize_static_cache(past_kv, config, batch: int, device) -> None:
+    if not hasattr(past_kv, "early_initialization"):
+        return
     head_dim = getattr(config, "head_dim", None) or (
         config.hidden_size // config.num_attention_heads
     )
@@ -401,6 +461,19 @@ def _early_initialize_static_cache(past_kv, config, batch: int, device) -> None:
         torch.bfloat16,
         device,
     )
+
+
+def _make_static_cache(static_cache_cls, config, max_cache_len: int, batch: int, device):
+    try:
+        return static_cache_cls(
+            config=config,
+            max_batch_size=batch,
+            max_cache_len=max_cache_len,
+            device=device,
+            dtype=torch.bfloat16,
+        )
+    except TypeError:
+        return static_cache_cls(config=config, max_cache_len=max_cache_len)
 
 
 class _FullLMAlignedWrapper(torch.nn.Module):
@@ -468,7 +541,7 @@ class _ArgmaxHeadWrapper(torch.nn.Module):
         return token_ids, out.past_key_values
 
 
-def _kv_shape_from_config(model, max_cache_len: int) -> list[int]:
+def _kv_shape_from_config(model, max_cache_len: int, batch: int) -> list[int]:
     """Static past_K / past_V placeholder shape = [1, n_kv, L, head_dim].
 
     DeepSeek-R1-Distill-Qwen-1.5B has n_kv=2 / head_dim=128; Llama-3.1-8B has
@@ -480,7 +553,7 @@ def _kv_shape_from_config(model, max_cache_len: int) -> list[int]:
     head_dim = getattr(cfg, "head_dim", None) or (
         cfg.hidden_size // cfg.num_attention_heads
     )
-    return [1, int(n_kv), int(max_cache_len), int(head_dim)]
+    return [int(batch), int(n_kv), int(max_cache_len), int(head_dim)]
 
 
 def _prepare_phase(
@@ -488,28 +561,39 @@ def _prepare_phase(
     model,
     out_dir: Path,
     max_cache_len: int,
+    batch: int,
     full_align_wrapper: bool = False,
+    runtime_attention_mask: bool = False,
     metadata_only: bool = False,
 ) -> None:
     from transformers import StaticCache
 
     L = int(max_cache_len)
+    B = int(batch)
     device = next(model.parameters()).device
     dynamo_compiler = DynamoCompiler(primary_registry=tosa.ops_registry)
-    kv_shape = _kv_shape_from_config(model, L)
+    kv_shape = _kv_shape_from_config(model, L, B)
+    attention_kwargs: dict[str, torch.Tensor] = {}
+    if runtime_attention_mask:
+        attention_kwargs["attention_mask"] = torch.ones(
+            B, L, dtype=torch.long, device=device
+        )
 
     if phase == "prefill":
-        input_ids = torch.zeros(1, L, dtype=torch.long, device=device)
+        input_ids = torch.zeros(B, L, dtype=torch.long, device=device)
         with torch.no_grad():
             if full_align_wrapper:
-                past_kv = StaticCache(config=model.config, max_cache_len=L)
-                _early_initialize_static_cache(past_kv, model.config, 1, device)
+                past_kv = _make_static_cache(
+                    StaticCache, model.config, L, B, device
+                )
+                _early_initialize_static_cache(past_kv, model.config, B, device)
                 cache_position = torch.arange(
                     L, dtype=torch.long, device=device
                 )
                 graphs = dynamo_compiler.importer(
                     model,
                     input_ids=input_ids,
+                    **attention_kwargs,
                     use_cache=True,
                     cache_position=cache_position,
                     past_key_values=past_kv,
@@ -519,19 +603,22 @@ def _prepare_phase(
                 graphs = dynamo_compiler.importer(
                     model,
                     input_ids=input_ids,
+                    **attention_kwargs,
                     use_cache=True,
                     cache_implementation="static",
                 )
     elif phase == "decode":
-        past_kv = StaticCache(config=model.config, max_cache_len=L)
-        decode_ids = torch.zeros(1, 1, dtype=torch.long, device=device)
-        cache_position = torch.tensor([200], dtype=torch.long, device=device)
+        past_kv = _make_static_cache(StaticCache, model.config, L, B, device)
+        decode_ids = torch.zeros(B, 1, dtype=torch.long, device=device)
+        pos_value = min(200, max(0, L - 1))
+        cache_position = torch.tensor([pos_value], dtype=torch.long, device=device)
         with torch.no_grad():
             if full_align_wrapper:
-                _early_initialize_static_cache(past_kv, model.config, 1, device)
+                _early_initialize_static_cache(past_kv, model.config, B, device)
             else:
                 model(
                     input_ids=decode_ids,
+                    **attention_kwargs,
                     past_key_values=past_kv,
                     use_cache=True,
                     cache_implementation="static",
@@ -540,11 +627,12 @@ def _prepare_phase(
                     base = getattr(layer, "cumulative_length", None)
                     if base is not None:
                         layer.cumulative_length = torch.tensor(
-                            [200], dtype=base.dtype, device=base.device
+                            [pos_value], dtype=base.dtype, device=base.device
                         )
             graphs = dynamo_compiler.importer(
                 model,
                 input_ids=decode_ids,
+                **attention_kwargs,
                 use_cache=True,
                 cache_position=cache_position,
                 past_key_values=past_kv,
@@ -599,6 +687,7 @@ def _prepare_phase(
     dtypes: list[str] = []
 
     kv_seen = 0
+    saw_runtime_input_ids = False
     inv_freq_arr: np.ndarray | None = None
 
     for slot, ph_name in enumerate(sg_input_names):
@@ -621,13 +710,17 @@ def _prepare_phase(
                 weights[slot] = arr
         else:
             if (
-                dt == "int64"
-                and shp == [1, L]
-                or dt == "int64"
-                and shp == [1, 1]
+                runtime_attention_mask
+                and is_input
+                and dt == "int64"
+                and shp == [B, L]
+                and saw_runtime_input_ids
             ):
+                role = "attention_mask"
+            elif dt == "int64" and (shp == [B, L] or shp == [B, 1]):
                 role = "input_ids"
-            elif dt == "int64" and shp == [L] or dt == "int64" and shp == [1]:
+                saw_runtime_input_ids = True
+            elif dt == "int64" and (shp == [L] or shp == [1]):
                 role = "cache_position"
             elif dt == "bfloat16" and shp == kv_shape:
                 if kv_seen % 2 == 0:
@@ -725,6 +818,7 @@ def _prepare_phase(
     summary = {
         "phase": phase,
         "max_cache_len": L,
+        "batch": B,
         "num_slots": len(slot_roles),
         "num_weight_slots": sum(1 for r in slot_roles if r["role"] == "weight"),
         "num_runtime_slots": sum(
@@ -791,7 +885,9 @@ def main() -> int:
             model,
             args.artifacts,
             args.max_cache_len,
+            args.batch,
             full_align_wrapper=args.full_align_wrapper,
+            runtime_attention_mask=args.runtime_attention_mask,
             metadata_only=args.metadata_only,
         )
 

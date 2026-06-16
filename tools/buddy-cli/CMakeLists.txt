@@ -16,7 +16,7 @@ if(BUDDY_BUILD_DEEPSEEK_R1_MODEL)
   target_compile_definitions(buddy-cli PRIVATE BUDDY_CLI_HAVE_DEEPSEEK_R1_MODEL)
 endif()
 
-if(BUDDY_BUILD_LLAMA31_TT_MODEL)
+if(BUDDY_BUILD_LLAMA31_TT_MODEL OR BUDDY_BUILD_LLAMA32_TT_MODEL)
   target_link_libraries(buddy-cli PRIVATE buddy_models_llama31_tt)
   target_compile_definitions(buddy-cli PRIVATE BUDDY_CLI_HAVE_LLAMA31_TT_MODEL)
 endif()

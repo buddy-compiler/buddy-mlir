@@ -95,6 +95,9 @@ set(BUDDY_MIDEND_INCLUDE_DIR ${BUDDY_SOURCE_DIR}/midend/include)
 set(BUDDY_THIRDPARTY_INCLUDE_DIR ${BUDDY_SOURCE_DIR}/thirdparty/include)
 set(BUDDY_MLIR_PYTHON_PACKAGES_DIR ${BUDDY_BUILD_DIR}/python_packages)
 
+option(BUDDY_MLIR_ENABLE_PYTHON_PACKAGES
+  "Build buddy.compiler Python package files used by model lowering scripts"
+  ON)
 set(BUDDY_EXAMPLES OFF CACHE BOOL "Build examples")
 set(BUDDY_TORQ_EXAMPLES OFF CACHE BOOL
     "Build BuddyTorq example (PyTorch->MLIR + TORQ-Tile RVV GEMM); requires RISC-V RVV toolchain")
@@ -111,6 +114,9 @@ option(BUDDY_BUILD_DEEPSEEK_R1_MODEL
   OFF)
 option(BUDDY_BUILD_LLAMA31_TT_MODEL
   "Build models/llama31_tt and link the Tenstorrent Llama 3.1 runner into buddy-cli"
+  OFF)
+option(BUDDY_BUILD_LLAMA32_TT_MODEL
+  "Build the Llama 3.2 TT package target and link the shared Tenstorrent Llama runner into buddy-cli"
   OFF)
 option(BUDDY_ENABLE_TENSTORRENT
   "Enable optional Tenstorrent/tt-mlir configuration checks for TTIR->TTNN flows"
@@ -328,8 +334,23 @@ add_subdirectory(models)
 add_subdirectory(midend)
 add_subdirectory(backend)
 add_subdirectory(tools)
-if(TARGET llama31_tt_rax)
-  add_dependencies(llama31_tt_rax buddy-cli rax-pack)
+get_property(_buddy_llama_tt_rax_targets_set GLOBAL PROPERTY
+             BUDDY_LLAMA_TT_RAX_TARGETS SET)
+if(_buddy_llama_tt_rax_targets_set)
+  get_property(_buddy_llama_tt_rax_targets GLOBAL PROPERTY
+               BUDDY_LLAMA_TT_RAX_TARGETS)
+  list(REMOVE_DUPLICATES _buddy_llama_tt_rax_targets)
+  foreach(_buddy_llama_tt_rax IN LISTS _buddy_llama_tt_rax_targets)
+    if(TARGET ${_buddy_llama_tt_rax})
+      add_dependencies(${_buddy_llama_tt_rax} buddy-cli rax-pack)
+      if(TARGET python-package-buddy)
+        add_dependencies(${_buddy_llama_tt_rax} python-package-buddy)
+      endif()
+      if(TARGET python-package-buddy-mlir)
+        add_dependencies(${_buddy_llama_tt_rax} python-package-buddy-mlir)
+      endif()
+    endif()
+  endforeach()
 endif()
 add_subdirectory(examples)
 if(BUDDY_ENABLE_TESTS)

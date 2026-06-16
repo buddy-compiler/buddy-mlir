@@ -1,9 +1,9 @@
-# Llama 3.1 8B Tenstorrent buddy-cli Path
+# Llama 3.2 3B Tenstorrent buddy-cli Path
 
-This target builds a self-contained `.rax` package for the native
-Tenstorrent `buddy-cli` runtime. The package embeds TTNN flatbuffers, weights,
-chat artifacts, and tokenizer files, so runtime commands only need the `.rax`
-file.
+This target builds self-contained `.rax` packages for `meta-llama/Llama-3.2-3B`
+using the native Tenstorrent `buddy-cli` runtime. It shares the Llama TT runner
+with `models/llama31_tt`, but uses completion-style prompts and a default cache
+length of 128 tokens.
 
 ## Shell Variables
 
@@ -38,36 +38,33 @@ Build the canonical batch-1 package:
 
 ```bash
 cmake -S "$BUDDY_REPO_ROOT" -B "$BUDDY_BUILD" \
-  -DBUDDY_BUILD_LLAMA31_TT_MODEL=ON \
-  -DBUDDY_LLAMA31_MODEL_PATH=/path/to/Llama-3.1-8B-Instruct
-cmake --build "$BUDDY_BUILD" --target buddy-cli llama31_tt_rax
+  -DBUDDY_BUILD_LLAMA32_TT_MODEL=ON \
+  -DBUDDY_LLAMA32_MODEL_PATH=/path/to/Llama-3.2-3B
+cmake --build "$BUDDY_BUILD" --target buddy-cli llama32_tt_rax
 ```
 
 The package is written to:
 
 ```text
-$BUDDY_BUILD/models/llama31_tt/llama31_tt.rax
+$BUDDY_BUILD/models/llama32_tt/llama32_tt.rax
 ```
 
-Build fixed-batch packages by setting `BUDDY_LLAMA31_FIXED_BATCH_SIZES`.
-The default cache length is 1024 tokens.
+Build fixed-batch packages by setting `BUDDY_LLAMA32_FIXED_BATCH_SIZES`.
+The default cache length is 128 tokens.
 
 ```bash
 cmake -S "$BUDDY_REPO_ROOT" -B "$BUDDY_BUILD" \
-  -DBUDDY_BUILD_LLAMA31_TT_MODEL=ON \
-  -DBUDDY_LLAMA31_MODEL_PATH=/path/to/Llama-3.1-8B-Instruct \
-  -DBUDDY_LLAMA31_FIXED_BATCH_SIZES="4"
-cmake --build "$BUDDY_BUILD" --target llama31_tt_b4_rax
+  -DBUDDY_BUILD_LLAMA32_TT_MODEL=ON \
+  -DBUDDY_LLAMA32_MODEL_PATH=/path/to/Llama-3.2-3B \
+  -DBUDDY_LLAMA32_FIXED_BATCH_SIZES="32"
+cmake --build "$BUDDY_BUILD" --target llama32_tt_b32_rax
 ```
 
 This writes:
 
 ```text
-$BUDDY_BUILD/models/llama31_tt_b4/llama31_tt_b4.rax
+$BUDDY_BUILD/models/llama32_tt_b32/llama32_tt_b32.rax
 ```
-
-Use `-DBUDDY_LLAMA31_MAX_CACHE_LEN=512` or `256` when a smaller cache is
-needed for a fixed-batch package.
 
 ## Run
 
@@ -85,41 +82,34 @@ export BUDDY_RAX_PAYLOAD_DIR=/tmp/$USER/buddy_rax_payload
 mkdir -p "$BUDDY_RAX_PAYLOAD_DIR"
 
 "$BUDDY_BUILD/bin/buddy-cli" \
-  --model "$BUDDY_BUILD/models/llama31_tt/llama31_tt.rax" \
-  --prompt "Hello" \
+  --model "$BUDDY_BUILD/models/llama32_tt/llama32_tt.rax" \
+  --prompt "I like taking walks in the" \
   --max-tokens 32 \
-  --repeat-penalty 1.12 \
-  --repeat-last-n 128
+  --temperature 0
 ```
 
 Fixed-batch run:
 
 ```bash
-cat > /tmp/$USER/llama31_b4_prompts.txt <<'EOF'
-Hello
-What is machine learning?
-Write one sentence about compiler optimization.
-I like taking walks in the
-EOF
-
 "$BUDDY_BUILD/bin/buddy-cli" \
-  --model "$BUDDY_BUILD/models/llama31_tt_b4/llama31_tt_b4.rax" \
-  --prompt-file /tmp/$USER/llama31_b4_prompts.txt \
+  --model "$BUDDY_BUILD/models/llama32_tt_b32/llama32_tt_b32.rax" \
+  --prompt-file "$BUDDY_REPO_ROOT/models/llama32_tt/llama32_3b_default_prompts.txt" \
   --prompt-length 32 \
-  --batch-size 4 \
-  --max-tokens 64 \
+  --batch-size 32 \
+  --max-tokens 96 \
   --print-all-batch \
   --temperature 0
 ```
 
 ## Basic Settings
 
-- Llama 3.1 uses the default chat prompt. Pass `--chat-template` to override
-  it with a JSON chat-template file.
+- Llama 3.2 uses plain BOS + prompt tokenization by default. Pass
+  `--chat-template` only when you want chat formatting.
 - `--prompt-file` may contain either one prompt, which is repeated for the
   full batch, or exactly `--batch-size` prompts.
 - Batch output prints user 0 by default. Use `--print-all-batch` or set
   `BUDDY_LLAMA31_PRINT_ALL_BATCH=1` to print every user.
+- `--prompt-length 32` matches the reference Llama 3.2 generation setup.
 - EOS/EOT stopping is enabled by default. Set `BUDDY_LLAMA31_IGNORE_EOS=1`
   before packaging only for fixed-length benchmark packages.
 - Set `TT_LOGGER_LEVEL=FATAL`, `TT_METAL_LOGGER_LEVEL=FATAL`, and

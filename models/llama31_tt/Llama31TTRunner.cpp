@@ -22,8 +22,10 @@
 
 #include "tt/runtime/runtime.h"
 #include "tt/runtime/types.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/JSON.h"
+#include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <algorithm>
@@ -57,6 +59,13 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+
+namespace tt::tt_metal {
+class Tensor {
+public:
+  bool is_allocated() const;
+};
+} // namespace tt::tt_metal
 
 namespace buddy {
 namespace runtime {
@@ -100,6 +109,417 @@ static void printLlamaLog(const std::string &msg, bool suppress = false) {
   if (suppress)
     return;
   std::cout << colorLabel("[Log]", kAnsiBlueBold) << " " << msg << "\n";
+}
+
+static void waitDecodeOutputs(std::vector<::tt::runtime::Tensor> &outputs,
+                              int tokenOutputIndex) {
+  if (std::getenv("BUDDY_LLAMA31_SKIP_DECODE_WAIT") != nullptr)
+    return;
+  if (std::getenv("BUDDY_LLAMA31_WAIT_TOKEN_ONLY") == nullptr) {
+    ::tt::runtime::wait(outputs);
+    return;
+  }
+  if (tokenOutputIndex < 0)
+    tokenOutputIndex = static_cast<int>(outputs.size()) + tokenOutputIndex;
+  if (tokenOutputIndex < 0 ||
+      tokenOutputIndex >= static_cast<int>(outputs.size()))
+    throw std::runtime_error(
+        "llama31_tt: decode token output index out of range");
+  ::tt::runtime::wait(outputs[static_cast<size_t>(tokenOutputIndex)]);
+}
+
+struct OfficialTokenReference {
+  std::string sourcePath;
+  std::vector<int> promptTokens;
+  std::vector<int> forcedTokens;
+  std::vector<std::array<int, 5>> top5Tokens;
+  int maxPredictions = 500;
+  std::string traceOut;
+};
+
+struct DecodeTiming {
+  int count = 0;
+  double wallSeconds = 0.0;
+  double buildInputsSeconds = 0.0;
+  double submitSeconds = 0.0;
+  double outputSeconds = 0.0;
+  double logitsToHostSeconds = 0.0;
+  double kvRelayoutSeconds = 0.0;
+  double bookkeepingSeconds = 0.0;
+  double firstWallSeconds = 0.0;
+  double firstBuildInputsSeconds = 0.0;
+  double firstSubmitSeconds = 0.0;
+  double firstOutputSeconds = 0.0;
+  double firstLogitsToHostSeconds = 0.0;
+  double firstKVRelayoutSeconds = 0.0;
+  double firstBookkeepingSeconds = 0.0;
+
+  void add(double wall, double buildInputs, double submit, double output,
+           double logitsToHost, double kvRelayout, double bookkeeping) {
+    if (count == 0) {
+      firstWallSeconds = wall;
+      firstBuildInputsSeconds = buildInputs;
+      firstSubmitSeconds = submit;
+      firstOutputSeconds = output;
+      firstLogitsToHostSeconds = logitsToHost;
+      firstKVRelayoutSeconds = kvRelayout;
+      firstBookkeepingSeconds = bookkeeping;
+    }
+    ++count;
+    wallSeconds += wall;
+    buildInputsSeconds += buildInputs;
+    submitSeconds += submit;
+    outputSeconds += output;
+    logitsToHostSeconds += logitsToHost;
+    kvRelayoutSeconds += kvRelayout;
+    bookkeepingSeconds += bookkeeping;
+  }
+
+  double steadyWallSeconds() const {
+    return count > 1 ? wallSeconds - firstWallSeconds : 0.0;
+  }
+  double steadySubmitSeconds() const {
+    return count > 1 ? submitSeconds - firstSubmitSeconds : 0.0;
+  }
+  double steadyBuildInputsSeconds() const {
+    return count > 1 ? buildInputsSeconds - firstBuildInputsSeconds : 0.0;
+  }
+  double steadyOutputSeconds() const {
+    return count > 1 ? outputSeconds - firstOutputSeconds : 0.0;
+  }
+  double steadyLogitsToHostSeconds() const {
+    return count > 1 ? logitsToHostSeconds - firstLogitsToHostSeconds : 0.0;
+  }
+  double steadyKVRelayoutSeconds() const {
+    return count > 1 ? kvRelayoutSeconds - firstKVRelayoutSeconds : 0.0;
+  }
+  double steadyBookkeepingSeconds() const {
+    return count > 1 ? bookkeepingSeconds - firstBookkeepingSeconds : 0.0;
+  }
+};
+
+static int getEnvIntOr(const char *name, int fallback) {
+  const char *value = std::getenv(name);
+  if (!value || value[0] == '\0')
+    return fallback;
+  try {
+    return std::stoi(value);
+  } catch (...) {
+    return fallback;
+  }
+}
+
+static std::string readTextFile(const fs::path &path);
+
+static std::vector<int> parseJsonIntArray(const llvm::json::Object &obj,
+                                          llvm::StringRef key) {
+  const llvm::json::Array *arr = obj.getArray(key);
+  if (!arr)
+    throw std::runtime_error("llama31_tt: official reference missing array " +
+                             key.str());
+  std::vector<int> out;
+  out.reserve(arr->size());
+  for (const llvm::json::Value &value : *arr) {
+    std::optional<int64_t> integer = value.getAsInteger();
+    if (!integer)
+      throw std::runtime_error("llama31_tt: official reference array " +
+                               key.str() + " contains a non-integer");
+    out.push_back(static_cast<int>(*integer));
+  }
+  return out;
+}
+
+static std::vector<std::array<int, 5>>
+parseJsonTop5Array(const llvm::json::Object &obj, llvm::StringRef key) {
+  const llvm::json::Array *rows = obj.getArray(key);
+  if (!rows)
+    throw std::runtime_error("llama31_tt: official reference missing array " +
+                             key.str());
+  std::vector<std::array<int, 5>> out;
+  out.reserve(rows->size());
+  for (const llvm::json::Value &rowValue : *rows) {
+    const llvm::json::Array *row = rowValue.getAsArray();
+    if (!row || row->size() < 5)
+      throw std::runtime_error("llama31_tt: official top5 row is malformed");
+    std::array<int, 5> values{};
+    for (size_t i = 0; i < values.size(); ++i) {
+      std::optional<int64_t> integer = (*row)[i].getAsInteger();
+      if (!integer)
+        throw std::runtime_error(
+            "llama31_tt: official top5 row contains a non-integer");
+      values[i] = static_cast<int>(*integer);
+    }
+    out.push_back(values);
+  }
+  return out;
+}
+
+static std::optional<OfficialTokenReference>
+loadOfficialTokenReferenceFromEnv() {
+  const char *pathEnv = std::getenv("BUDDY_LLAMA31_OFFICIAL_REFERENCE_JSON");
+  if (!pathEnv || pathEnv[0] == '\0')
+    return std::nullopt;
+
+  fs::path path(pathEnv);
+  std::string text = readTextFile(path);
+  llvm::Expected<llvm::json::Value> parsed = llvm::json::parse(text);
+  if (!parsed)
+    throw std::runtime_error("llama31_tt: cannot parse official reference " +
+                             path.string() + ": " +
+                             llvm::toString(parsed.takeError()));
+  const llvm::json::Object *obj = parsed->getAsObject();
+  if (!obj)
+    throw std::runtime_error("llama31_tt: official reference root is not JSON "
+                             "object: " +
+                             path.string());
+
+  OfficialTokenReference ref;
+  ref.sourcePath = path.string();
+  ref.promptTokens = parseJsonIntArray(*obj, "prompt_tokens");
+  ref.forcedTokens = parseJsonIntArray(*obj, "forced_reference_tokens");
+  ref.top5Tokens = parseJsonTop5Array(*obj, "official_top5_tokens");
+  ref.maxPredictions =
+      getEnvIntOr("BUDDY_LLAMA31_OFFICIAL_MAX_PREDICTIONS", 500);
+  if (ref.maxPredictions <= 0)
+    ref.maxPredictions = 500;
+  if (const char *trace = std::getenv("BUDDY_LLAMA31_OFFICIAL_TRACE_OUT"))
+    ref.traceOut = trace;
+  if (ref.promptTokens.empty() || ref.forcedTokens.empty() ||
+      ref.top5Tokens.empty())
+    throw std::runtime_error("llama31_tt: official reference is empty");
+  return ref;
+}
+
+static std::pair<double, double>
+computeOfficialAccuracy(const std::vector<int> &predicted,
+                        const std::vector<std::array<int, 5>> &top5Tokens) {
+  const size_t n = std::min(predicted.size(), top5Tokens.size());
+  if (n == 0)
+    return {0.0, 0.0};
+  size_t top1 = 0;
+  size_t top5 = 0;
+  for (size_t i = 0; i < n; ++i) {
+    if (predicted[i] == top5Tokens[i][0])
+      ++top1;
+    if (std::find(top5Tokens[i].begin(), top5Tokens[i].end(), predicted[i]) !=
+        top5Tokens[i].end())
+      ++top5;
+  }
+  return {100.0 * static_cast<double>(top1) / static_cast<double>(n),
+          100.0 * static_cast<double>(top5) / static_cast<double>(n)};
+}
+
+static void writeIntVectorJson(std::ostream &os, const std::vector<int> &xs) {
+  os << "[";
+  for (size_t i = 0; i < xs.size(); ++i) {
+    if (i)
+      os << ",";
+    os << xs[i];
+  }
+  os << "]";
+}
+
+static void writeJsonString(std::ostream &os, std::string_view text) {
+  os << '"';
+  for (unsigned char c : text) {
+    switch (c) {
+    case '\\':
+      os << "\\\\";
+      break;
+    case '"':
+      os << "\\\"";
+      break;
+    case '\b':
+      os << "\\b";
+      break;
+    case '\f':
+      os << "\\f";
+      break;
+    case '\n':
+      os << "\\n";
+      break;
+    case '\r':
+      os << "\\r";
+      break;
+    case '\t':
+      os << "\\t";
+      break;
+    default:
+      if (c < 0x20) {
+        os << "\\u" << std::hex << std::setw(4) << std::setfill('0')
+           << static_cast<int>(c) << std::dec << std::setfill(' ');
+      } else {
+        os << static_cast<char>(c);
+      }
+      break;
+    }
+  }
+  os << '"';
+}
+
+static void writeStringVectorJson(std::ostream &os,
+                                  const std::vector<std::string> &xs) {
+  os << "[";
+  for (size_t i = 0; i < xs.size(); ++i) {
+    if (i)
+      os << ",";
+    writeJsonString(os, xs[i]);
+  }
+  os << "]";
+}
+
+static void
+writeIntVectorVectorJson(std::ostream &os,
+                         const std::vector<std::vector<int>> &xs) {
+  os << "[";
+  for (size_t i = 0; i < xs.size(); ++i) {
+    if (i)
+      os << ",";
+    writeIntVectorJson(os, xs[i]);
+  }
+  os << "]";
+}
+
+static void writeBatchTrace(const std::string &path,
+                            const std::string &modelName,
+                            const std::vector<std::string> &prompts,
+                            const std::vector<std::vector<int>> &promptTokens,
+                            int prefillPromptLen, int maxCacheLen,
+                            bool leftPadPrompts, double prefillSeconds,
+                            const DecodeTiming &timing,
+                            double deferredTokenReadbackSeconds,
+                            const std::vector<std::vector<int>> &generated,
+                            const std::vector<std::string> &generatedText) {
+  if (path.empty())
+    return;
+  fs::path outPath(path);
+  std::error_code ec;
+  if (!outPath.parent_path().empty())
+    fs::create_directories(outPath.parent_path(), ec);
+  std::ofstream os(outPath);
+  if (!os)
+    throw std::runtime_error("llama31_tt: cannot write batch trace " +
+                             outPath.string());
+
+  os << "{\n";
+  os << "  \"model_name\": ";
+  writeJsonString(os, modelName);
+  os << ",\n";
+  os << "  \"batch_size\": " << prompts.size() << ",\n";
+  os << "  \"prefill_prompt_length\": " << prefillPromptLen << ",\n";
+  os << "  \"max_cache_len\": " << maxCacheLen << ",\n";
+  os << "  \"left_pad_prompts\": "
+     << (leftPadPrompts ? "true" : "false") << ",\n";
+  os << "  \"prefill_seconds\": " << formatFixed(prefillSeconds, 6)
+     << ",\n";
+  os << "  \"decode_count\": " << timing.count << ",\n";
+  os << "  \"decode_wall_seconds\": " << formatFixed(timing.wallSeconds, 6)
+     << ",\n";
+  os << "  \"decode_steady_wall_seconds\": "
+     << formatFixed(timing.steadyWallSeconds(), 6) << ",\n";
+  os << "  \"decode_submit_seconds\": "
+     << formatFixed(timing.submitSeconds, 6) << ",\n";
+  os << "  \"decode_steady_submit_seconds\": "
+     << formatFixed(timing.steadySubmitSeconds(), 6) << ",\n";
+  os << "  \"decode_logits_to_host_seconds\": "
+     << formatFixed(timing.logitsToHostSeconds, 6) << ",\n";
+  os << "  \"decode_steady_logits_to_host_seconds\": "
+     << formatFixed(timing.steadyLogitsToHostSeconds(), 6) << ",\n";
+  os << "  \"deferred_token_readback_seconds\": "
+     << formatFixed(deferredTokenReadbackSeconds, 6) << ",\n";
+  os << "  \"decode_wall_plus_deferred_readback_seconds\": "
+     << formatFixed(timing.wallSeconds + deferredTokenReadbackSeconds, 6)
+     << ",\n";
+  os << "  \"decode_steady_wall_plus_deferred_readback_seconds\": "
+     << formatFixed(timing.steadyWallSeconds() + deferredTokenReadbackSeconds,
+                    6)
+     << ",\n";
+  os << "  \"prompts\": ";
+  writeStringVectorJson(os, prompts);
+  os << ",\n";
+  os << "  \"prompt_tokens\": ";
+  writeIntVectorVectorJson(os, promptTokens);
+  os << ",\n";
+  os << "  \"generated_tokens\": ";
+  writeIntVectorVectorJson(os, generated);
+  os << ",\n";
+  os << "  \"generated_text\": ";
+  writeStringVectorJson(os, generatedText);
+  os << "\n";
+  os << "}\n";
+}
+
+static void writeOfficialTrace(const OfficialTokenReference &ref,
+                               const std::vector<int> &predicted,
+                               int promptLength, double prefillSeconds,
+                               const DecodeTiming &timing,
+                               bool decodeExtractsKVOutputs, double top1,
+                               double top5) {
+  if (ref.traceOut.empty())
+    return;
+  fs::path outPath(ref.traceOut);
+  std::error_code ec;
+  if (!outPath.parent_path().empty())
+    fs::create_directories(outPath.parent_path(), ec);
+  std::ofstream os(outPath);
+  if (!os)
+    throw std::runtime_error("llama31_tt: cannot write official trace " +
+                             outPath.string());
+  os << "{\n";
+  os << "  \"reference_json\": \"" << ref.sourcePath << "\",\n";
+  os << "  \"prompt_length\": " << promptLength << ",\n";
+  os << "  \"decode_count\": " << timing.count << ",\n";
+  os << "  \"predicted_tokens\": ";
+  writeIntVectorJson(os, predicted);
+  os << ",\n";
+  os << "  \"top1_pct\": " << formatFixed(top1, 6) << ",\n";
+  os << "  \"top5_pct\": " << formatFixed(top5, 6) << ",\n";
+  os << "  \"prefill_seconds\": " << formatFixed(prefillSeconds, 6) << ",\n";
+  os << "  \"decode_extract_kv_outputs\": "
+     << (decodeExtractsKVOutputs ? "true" : "false") << ",\n";
+  os << "  \"decode_wall_seconds\": " << formatFixed(timing.wallSeconds, 6)
+     << ",\n";
+  os << "  \"decode_steady_wall_seconds\": "
+     << formatFixed(timing.steadyWallSeconds(), 6) << ",\n";
+  os << "  \"first_decode_seconds\": "
+     << formatFixed(timing.firstWallSeconds, 6) << ",\n";
+  os << "  \"decode_build_inputs_seconds\": "
+     << formatFixed(timing.buildInputsSeconds, 6) << ",\n";
+  os << "  \"decode_steady_build_inputs_seconds\": "
+     << formatFixed(timing.steadyBuildInputsSeconds(), 6) << ",\n";
+  os << "  \"first_decode_build_inputs_seconds\": "
+     << formatFixed(timing.firstBuildInputsSeconds, 6) << ",\n";
+  os << "  \"decode_submit_seconds\": "
+     << formatFixed(timing.submitSeconds, 6) << ",\n";
+  os << "  \"decode_steady_submit_seconds\": "
+     << formatFixed(timing.steadySubmitSeconds(), 6) << ",\n";
+  os << "  \"first_decode_submit_seconds\": "
+     << formatFixed(timing.firstSubmitSeconds, 6) << ",\n";
+  os << "  \"decode_output_seconds\": "
+     << formatFixed(timing.outputSeconds, 6) << ",\n";
+  os << "  \"decode_steady_output_seconds\": "
+     << formatFixed(timing.steadyOutputSeconds(), 6) << ",\n";
+  os << "  \"first_decode_output_seconds\": "
+     << formatFixed(timing.firstOutputSeconds, 6) << ",\n";
+  os << "  \"decode_logits_to_host_seconds\": "
+     << formatFixed(timing.logitsToHostSeconds, 6) << ",\n";
+  os << "  \"decode_steady_logits_to_host_seconds\": "
+     << formatFixed(timing.steadyLogitsToHostSeconds(), 6) << ",\n";
+  os << "  \"first_decode_logits_to_host_seconds\": "
+     << formatFixed(timing.firstLogitsToHostSeconds, 6) << ",\n";
+  os << "  \"decode_kv_relayout_seconds\": "
+     << formatFixed(timing.kvRelayoutSeconds, 6) << ",\n";
+  os << "  \"decode_steady_kv_relayout_seconds\": "
+     << formatFixed(timing.steadyKVRelayoutSeconds(), 6) << ",\n";
+  os << "  \"first_decode_kv_relayout_seconds\": "
+     << formatFixed(timing.firstKVRelayoutSeconds, 6) << ",\n";
+  os << "  \"decode_bookkeeping_seconds\": "
+     << formatFixed(timing.bookkeepingSeconds, 6) << ",\n";
+  os << "  \"decode_steady_bookkeeping_seconds\": "
+     << formatFixed(timing.steadyBookkeepingSeconds(), 6) << ",\n";
+  os << "  \"first_decode_bookkeeping_seconds\": "
+     << formatFixed(timing.firstBookkeepingSeconds, 6) << "\n";
+  os << "}\n";
 }
 
 static std::string lookupAttr(const ModelManifest &manifest,
@@ -216,6 +636,28 @@ static bool parseArtifactConstantName(const std::string &name,
   return true;
 }
 
+static bool parseTokenizerConstantName(const std::string &name,
+                                       std::string &filename) {
+  static const std::string prefix = "tokenizer_";
+  if (name.rfind(prefix, 0) != 0)
+    return false;
+
+  const std::string rest = name.substr(prefix.size());
+  if (rest == "tokenizer_json")
+    filename = "tokenizer.json";
+  else if (rest == "tokenizer_model")
+    filename = "tokenizer.model";
+  else if (rest == "tokenizer_config_json")
+    filename = "tokenizer_config.json";
+  else if (rest == "special_tokens_map_json")
+    filename = "special_tokens_map.json";
+  else if (rest == "generation_config_json")
+    filename = "generation_config.json";
+  else
+    return false;
+  return true;
+}
+
 static void linkOrCopyPayloadFile(const fs::path &src, const fs::path &dst) {
   std::error_code ec;
   fs::create_directories(dst.parent_path(), ec);
@@ -262,6 +704,8 @@ static std::string materializeEmbeddedArtifacts(const ModelManifest &manifest,
       continue;
     if (constant.path.empty())
       continue;
+    if (constant.uri.rfind("payload:", 0) != 0)
+      continue;
 
     if (!hasArtifactConstants) {
       const fs::path payloadParent = fs::path(constant.path).parent_path();
@@ -274,6 +718,33 @@ static std::string materializeEmbeddedArtifacts(const ModelManifest &manifest,
   }
 
   return hasArtifactConstants ? fs::absolute(root).string() : "";
+}
+
+static fs::path resolveEmbeddedTokenizerPath(const ModelManifest &manifest) {
+  bool hasTokenizerConstants = false;
+  fs::path root;
+
+  for (const auto &constant : manifest.constants) {
+    std::string filename;
+    if (!parseTokenizerConstantName(constant.name, filename))
+      continue;
+    if (constant.path.empty())
+      continue;
+    if (constant.uri.rfind("payload:", 0) != 0)
+      continue;
+
+    const fs::path payloadPath = fs::path(constant.path);
+    if (!hasTokenizerConstants) {
+      const fs::path payloadParent = payloadPath.parent_path();
+      root = payloadParent.empty() ? fs::path("tokenizer")
+                                   : payloadParent / "tokenizer";
+      hasTokenizerConstants = true;
+    }
+
+    linkOrCopyPayloadFile(payloadPath, root / filename);
+  }
+
+  return hasTokenizerConstants ? fs::absolute(root) : fs::path();
 }
 
 static uint16_t readU16LE(const uint8_t *p) {
@@ -551,16 +1022,18 @@ struct PhaseCtx {
   std::string phase;
   fs::path dir;
   std::vector<RoleEntry> roles;
+  fs::path weightsPath;
+  fs::path invFreqPath;
   std::unique_ptr<MappedFile> weights;
   std::unique_ptr<NpyFile> invFreq;
 
   PhaseCtx(const fs::path &artifactsDir, std::string phaseName)
       : phase(std::move(phaseName)), dir(artifactsDir / phase),
         roles(parseRoles(dir / "slot_roles.json")) {
-    const fs::path weightsPath = dir / "weights.bin";
+    weightsPath = dir / "weights.bin";
     if (fs::exists(weightsPath))
       weights = std::make_unique<MappedFile>(weightsPath);
-    const fs::path invFreqPath = dir / "inv_freq.npy";
+    invFreqPath = dir / "inv_freq.npy";
     if (fs::exists(invFreqPath))
       invFreq = std::make_unique<NpyFile>(invFreqPath);
 
@@ -677,6 +1150,35 @@ static std::vector<uint8_t> zeroBuffer(const ::tt::runtime::TensorDesc &desc) {
   return std::vector<uint8_t>(volume(desc.shape) * desc.elementSize(), 0);
 }
 
+static uint16_t floatToBf16Bits(float value) {
+  uint32_t bits = 0;
+  std::memcpy(&bits, &value, sizeof(value));
+  const uint32_t lsb = (bits >> 16) & 1u;
+  bits += 0x7fffu + lsb;
+  return static_cast<uint16_t>(bits >> 16);
+}
+
+static std::vector<uint8_t>
+floatBuffer(const std::vector<float> &values, TTDataType dtype) {
+  std::vector<uint8_t> buffer(values.size() * itemSizeFor(dtype));
+  switch (dtype) {
+  case TTDataType::Float32: {
+    auto *out = reinterpret_cast<float *>(buffer.data());
+    std::copy(values.begin(), values.end(), out);
+    break;
+  }
+  case TTDataType::BFloat16: {
+    auto *out = reinterpret_cast<uint16_t *>(buffer.data());
+    for (size_t i = 0; i < values.size(); ++i)
+      out[i] = floatToBf16Bits(values[i]);
+    break;
+  }
+  default:
+    throw std::runtime_error("llama31_tt: expected floating-point input dtype");
+  }
+  return buffer;
+}
+
 static ::tt::runtime::Tensor
 hostTensorFromBytes(const void *data, const ::tt::runtime::TensorDesc &desc) {
   const std::vector<uint32_t> stride =
@@ -725,6 +1227,14 @@ static ::tt::runtime::Tensor toDevice(::tt::runtime::Tensor host,
   return deviceTensor;
 }
 
+static bool sameFile(const fs::path &lhs, const fs::path &rhs) {
+  if (lhs.empty() || rhs.empty())
+    return false;
+  std::error_code ec;
+  const bool equivalent = fs::equivalent(lhs, rhs, ec);
+  return !ec && equivalent;
+}
+
 static bool startsWith(std::string_view value, std::string_view prefix) {
   return value.substr(0, prefix.size()) == prefix;
 }
@@ -767,6 +1277,13 @@ static std::vector<uint8_t> decodeBase64(const std::string &text) {
 class Llama31Tokenizer {
 public:
   explicit Llama31Tokenizer(const fs::path &modelDir) { load(modelDir); }
+
+  std::vector<int> encodeCompletion(const std::string &prompt) const {
+    std::vector<int> ids;
+    ids.push_back(kBeginOfText);
+    appendText(ids, prompt);
+    return ids;
+  }
 
   std::vector<int> encodeChat(const std::string &userMessage,
                               const std::string &systemPrompt = "") const {
@@ -824,11 +1341,24 @@ private:
     fs::path tokenizerModel = modelDir / "original" / "tokenizer.model";
     if (!fs::exists(tokenizerModel))
       tokenizerModel = modelDir / "tokenizer.model";
-    if (!fs::exists(tokenizerModel))
+    if (fs::exists(tokenizerModel)) {
+      loadTiktokenModel(tokenizerModel);
+    } else if (fs::exists(modelDir / "tokenizer.json")) {
+      loadTokenizerJson(modelDir / "tokenizer.json");
+    } else {
       throw std::runtime_error(
-          "llama31_tt: tokenizer.model not found. Set LLAMA31_MODEL_PATH to a "
-          "local Llama-3.1-8B-Instruct directory.");
+          "llama_tt: tokenizer.model/tokenizer.json not found in the .rax "
+          "payload or local model directory. Repackage with embedded tokenizer "
+          "files, or set LLAMA_MODEL_PATH, LLAMA31_MODEL_PATH, or "
+          "LLAMA32_MODEL_PATH to a local Llama model directory.");
+    }
 
+    if (tokenToId_.empty())
+      throw std::runtime_error("llama31_tt: empty tokenizer ranks");
+    addDefaultSpecialTokens();
+  }
+
+  void loadTiktokenModel(const fs::path &tokenizerModel) {
     std::ifstream input(tokenizerModel);
     if (!input)
       throw std::runtime_error("llama31_tt: cannot read " +
@@ -848,9 +1378,126 @@ private:
       tokenToId_[token] = rank;
       idToBytes_[rank] = std::move(token);
     }
-    if (tokenToId_.empty())
-      throw std::runtime_error("llama31_tt: empty tokenizer ranks");
+  }
 
+  static std::unordered_map<uint32_t, uint8_t> buildByteDecoder() {
+    std::vector<uint32_t> bs;
+    for (uint32_t c = '!'; c <= '~'; ++c)
+      bs.push_back(c);
+    for (uint32_t c = 0x00a1; c <= 0x00ac; ++c)
+      bs.push_back(c);
+    for (uint32_t c = 0x00ae; c <= 0x00ff; ++c)
+      bs.push_back(c);
+
+    std::unordered_map<uint32_t, uint8_t> out;
+    uint32_t extra = 0;
+    for (uint32_t b = 0; b < 256; ++b) {
+      uint32_t cp = b;
+      if (std::find(bs.begin(), bs.end(), b) == bs.end())
+        cp = 256 + extra++;
+      out[cp] = static_cast<uint8_t>(b);
+    }
+    return out;
+  }
+
+  static bool nextUtf8Codepoint(std::string_view text, size_t &pos,
+                                uint32_t &cp) {
+    if (pos >= text.size())
+      return false;
+    const uint8_t c0 = static_cast<uint8_t>(text[pos]);
+    if (c0 < 0x80) {
+      cp = c0;
+      ++pos;
+      return true;
+    }
+
+    auto continuation = [&](size_t i) -> uint8_t {
+      if (i >= text.size())
+        throw std::runtime_error("llama_tt: truncated UTF-8 in tokenizer");
+      const uint8_t c = static_cast<uint8_t>(text[i]);
+      if ((c & 0xc0) != 0x80)
+        throw std::runtime_error("llama_tt: malformed UTF-8 in tokenizer");
+      return c & 0x3f;
+    };
+
+    if ((c0 & 0xe0) == 0xc0) {
+      cp = ((c0 & 0x1f) << 6) | continuation(pos + 1);
+      pos += 2;
+      return true;
+    }
+    if ((c0 & 0xf0) == 0xe0) {
+      cp = ((c0 & 0x0f) << 12) | (continuation(pos + 1) << 6) |
+           continuation(pos + 2);
+      pos += 3;
+      return true;
+    }
+    if ((c0 & 0xf8) == 0xf0) {
+      cp = ((c0 & 0x07) << 18) | (continuation(pos + 1) << 12) |
+           (continuation(pos + 2) << 6) | continuation(pos + 3);
+      pos += 4;
+      return true;
+    }
+    throw std::runtime_error("llama_tt: malformed UTF-8 in tokenizer");
+  }
+
+  static std::string decodeTokenizerJsonToken(std::string_view token) {
+    static const auto byteDecoder = buildByteDecoder();
+    std::string out;
+    size_t pos = 0;
+    while (pos < token.size()) {
+      const size_t byteStart = pos;
+      uint32_t cp = 0;
+      nextUtf8Codepoint(token, pos, cp);
+      auto it = byteDecoder.find(cp);
+      if (it != byteDecoder.end()) {
+        out.push_back(static_cast<char>(it->second));
+      } else {
+        out.append(token.substr(byteStart, pos - byteStart));
+      }
+    }
+    return out;
+  }
+
+  void loadTokenizerJson(const fs::path &tokenizerJson) {
+    auto bufOrErr = llvm::MemoryBuffer::getFile(tokenizerJson.string());
+    if (!bufOrErr)
+      throw std::runtime_error("llama31_tt: cannot read " +
+                               tokenizerJson.string());
+    auto parsed = llvm::json::parse((*bufOrErr)->getBuffer());
+    if (!parsed)
+      throw std::runtime_error("llama31_tt: cannot parse tokenizer.json: " +
+                               llvm::toString(parsed.takeError()));
+
+    auto *root = parsed->getAsObject();
+    auto *model = root ? root->getObject("model") : nullptr;
+    auto *vocab = model ? model->getObject("vocab") : nullptr;
+    if (!vocab)
+      throw std::runtime_error("llama31_tt: tokenizer.json missing model.vocab");
+    for (const auto &kv : *vocab) {
+      auto id = kv.second.getAsInteger();
+      if (!id)
+        continue;
+      std::string token = decodeTokenizerJsonToken(kv.first.str());
+      tokenToId_[token] = static_cast<int>(*id);
+      idToBytes_[static_cast<int>(*id)] = std::move(token);
+    }
+
+    if (auto *added = root->getArray("added_tokens")) {
+      for (const auto &entry : *added) {
+        auto *obj = entry.getAsObject();
+        if (!obj)
+          continue;
+        auto id = obj->getInteger("id");
+        auto content = obj->getString("content");
+        if (!id || !content)
+          continue;
+        specialIdToText_[static_cast<int>(*id)] = content->str();
+        specialTextToId_[content->str()] = static_cast<int>(*id);
+      }
+    }
+  }
+
+  void addDefaultSpecialTokens() {
     specialIdToText_[kBeginOfText] = "<|begin_of_text|>";
     specialIdToText_[kEndOfText] = "<|end_of_text|>";
     specialIdToText_[kStartHeader] = "<|start_header_id|>";
@@ -1136,9 +1783,21 @@ static std::vector<float> loadLogits(const std::vector<std::byte> &bytes,
   return logits;
 }
 
+static bool isTokenIdDataType(TTDataType dtype) {
+  return dtype == TTDataType::Int32 || dtype == TTDataType::Int64 ||
+         dtype == TTDataType::UInt32;
+}
+
 static int sampleTensor(const std::vector<std::byte> &bytes, TTDataType dtype,
                         size_t start, size_t count, buddy::Sampler &sampler,
                         const std::vector<int> &recentTokens) {
+  const size_t elementSize = itemSizeFor(dtype);
+  const size_t elements = bytes.size() / elementSize;
+  if (start >= elements || count > elements - start)
+    throw std::runtime_error(
+        "llama31_tt: output tensor sample range is out of bounds (start=" +
+        std::to_string(start) + ", count=" + std::to_string(count) +
+        ", elements=" + std::to_string(elements) + ")");
   switch (dtype) {
   case TTDataType::Int32: {
     const int32_t *data = reinterpret_cast<const int32_t *>(bytes.data());
@@ -1158,12 +1817,116 @@ static int sampleTensor(const std::vector<std::byte> &bytes, TTDataType dtype,
   }
 }
 
+static int readTokenIdAt(const std::vector<std::byte> &bytes, TTDataType dtype,
+                         size_t start) {
+  const size_t elementSize = itemSizeFor(dtype);
+  const size_t elements = bytes.size() / elementSize;
+  if (start >= elements)
+    throw std::runtime_error(
+        "llama31_tt: token tensor read range is out of bounds");
+  switch (dtype) {
+  case TTDataType::Int32: {
+    const int32_t *data = reinterpret_cast<const int32_t *>(bytes.data());
+    return static_cast<int>(data[start]);
+  }
+  case TTDataType::Int64: {
+    const int64_t *data = reinterpret_cast<const int64_t *>(bytes.data());
+    return static_cast<int>(data[start]);
+  }
+  case TTDataType::UInt32: {
+    const uint32_t *data = reinterpret_cast<const uint32_t *>(bytes.data());
+    return static_cast<int>(data[start]);
+  }
+  default:
+    throw std::runtime_error("llama31_tt: expected token-id tensor dtype");
+  }
+}
+
+static std::vector<int>
+readTokenTensorToHost(::tt::runtime::Tensor &tensor, uint32_t batchSize) {
+  auto hostShards = ::tt::runtime::toHost(tensor, /*untilize=*/false,
+                                          /*blocking=*/true);
+  if (hostShards.empty())
+    throw std::runtime_error("llama31_tt: token toHost returned no shards");
+  auto host = hostShards.front();
+  const TTDataType dtype = ::tt::runtime::getTensorDataType(host);
+  if (!isTokenIdDataType(dtype))
+    throw std::runtime_error("llama31_tt: deferred readback expected token ids");
+  const auto shape = ::tt::runtime::getTensorShape(host);
+  const auto data = ::tt::runtime::getTensorDataBuffer(host);
+  const size_t elements = data.size() / itemSizeFor(dtype);
+  if (elements == 0)
+    throw std::runtime_error("llama31_tt: empty deferred token tensor");
+
+  size_t seq = 1;
+  if (shape.size() >= 2)
+    seq = shape.back();
+  else if (batchSize > 1 && elements >= batchSize)
+    seq = 1;
+  else
+    seq = elements;
+
+  std::vector<int> tokens;
+  tokens.reserve(batchSize);
+  for (uint32_t b = 0; b < batchSize; ++b) {
+    const size_t start = shape.size() >= 2
+                             ? std::min<size_t>(
+                                   static_cast<size_t>(b) * seq +
+                                       (seq == 0 ? 0 : seq - 1),
+                                   elements - 1)
+                             : std::min<size_t>(b, elements - 1);
+    tokens.push_back(readTokenIdAt(data, dtype, start));
+  }
+  return tokens;
+}
+
 struct ExtractedOutput {
   int token = 0;
+  std::vector<int> tokens;
+  std::optional<::tt::runtime::Tensor> tokenDevice;
   std::unordered_map<std::string, ::tt::runtime::Tensor> kvDevice;
   double logitsToHostSeconds = 0.0;
   double kvRelayoutSeconds = 0.0;
 };
+
+struct StaticInputCacheResult {
+  std::unordered_map<uint32_t, ::tt::runtime::Tensor> tensors;
+  uint32_t uploaded = 0;
+  uint32_t reused = 0;
+};
+
+struct DecodeRuntimeInputCache {
+  std::unordered_map<uint32_t, ::tt::runtime::Tensor> attentionMasks;
+  std::unordered_map<int, std::unordered_map<uint32_t, ::tt::runtime::Tensor>>
+      cachePositions;
+  std::unordered_map<int, std::unordered_map<uint32_t, ::tt::runtime::Tensor>>
+      sdpaMasks;
+  std::unordered_map<int, std::unordered_map<uint32_t, ::tt::runtime::Tensor>>
+      sdpaPositions;
+  std::unordered_map<int, std::unordered_map<uint32_t, ::tt::runtime::Tensor>>
+      ropeCos;
+  std::unordered_map<int, std::unordered_map<uint32_t, ::tt::runtime::Tensor>>
+      ropeSin;
+  uint32_t uploadedAttentionMasks = 0;
+  uint32_t uploadedCachePositions = 0;
+  uint32_t uploadedSdpaMasks = 0;
+  uint32_t uploadedSdpaPositions = 0;
+  uint32_t uploadedRopeCos = 0;
+  uint32_t uploadedRopeSin = 0;
+  double uploadSeconds = 0.0;
+};
+
+static uint64_t getEnvUInt64(const char *name, uint64_t fallback) {
+  const char *value = std::getenv(name);
+  if (!value || value[0] == '\0')
+    return fallback;
+  char *end = nullptr;
+  errno = 0;
+  const unsigned long long parsed = std::strtoull(value, &end, 10);
+  if (errno != 0 || end == value || *end != '\0')
+    return fallback;
+  return static_cast<uint64_t>(parsed);
+}
 
 static ExtractedOutput extractLogitsAndKV(
     std::vector<::tt::runtime::Tensor> &outputs, int logitsIndex,
@@ -1171,15 +1934,60 @@ static ExtractedOutput extractLogitsAndKV(
     ::tt::runtime::Binary targetBinary, uint32_t targetProgramIndex,
     const std::unordered_map<std::string, uint32_t> &targetKVInputSlots,
     const std::vector<std::string> &kvRoleMap, buddy::Sampler &sampler,
-    const std::vector<int> &recentTokens) {
+    const std::vector<int> &recentTokens, bool extractKVOutputs = true,
+    uint32_t batchSize = 1,
+    const std::vector<uint32_t> *tokenPositions = nullptr,
+    const std::vector<std::vector<int>> *recentTokensByBatch = nullptr,
+    bool retainTokenOutput = false, bool deferTokenHostReadback = false) {
   if (logitsIndex < 0)
     logitsIndex = static_cast<int>(outputs.size()) + logitsIndex;
   if (logitsIndex < 0 || logitsIndex >= static_cast<int>(outputs.size()))
     throw std::runtime_error("llama31_tt: logits output index out of range");
 
+  const bool retainDecodeLogits =
+      std::getenv("BUDDY_LLAMA31_RETAIN_DECODE_LOGITS") != nullptr;
+
   ExtractedOutput extracted;
   auto t0 = std::chrono::steady_clock::now();
-  auto hostShards = ::tt::runtime::toHost(outputs[logitsIndex], true, true);
+  const TTDataType outputDtype =
+      ::tt::runtime::getTensorDataType(outputs[logitsIndex]);
+  const bool untilizeOutput = !isTokenIdDataType(outputDtype);
+  if (deferTokenHostReadback) {
+    if (!isTokenIdDataType(outputDtype))
+      throw std::runtime_error(
+          "llama31_tt: deferred decode token readback requires token-id output");
+    if (extractKVOutputs)
+      throw std::runtime_error(
+          "llama31_tt: deferred decode token readback does not support "
+          "extracting decode KV outputs");
+  }
+  if (retainDecodeLogits) {
+    try {
+      ::tt::runtime::setTensorRetain(outputs[logitsIndex], true);
+    } catch (...) {
+    }
+  }
+  if (retainTokenOutput || deferTokenHostReadback) {
+    try {
+      ::tt::runtime::setTensorRetain(outputs[logitsIndex], true);
+      extracted.tokenDevice = outputs[logitsIndex];
+    } catch (...) {
+      extracted.tokenDevice.reset();
+    }
+  }
+  if (deferTokenHostReadback) {
+    for (size_t i = 0; i < outputs.size(); ++i) {
+      if (static_cast<int>(i) == logitsIndex)
+        continue;
+      try {
+        ::tt::runtime::setTensorRetain(outputs[i], true);
+      } catch (...) {
+      }
+    }
+    return extracted;
+  }
+  auto hostShards =
+      ::tt::runtime::toHost(outputs[logitsIndex], untilizeOutput, true);
   if (hostShards.empty())
     throw std::runtime_error("llama31_tt: logits toHost returned no shards");
   auto host = hostShards.front();
@@ -1191,19 +1999,80 @@ static ExtractedOutput extractLogitsAndKV(
       std::chrono::duration<double>(t1 - t0).count();
 
   size_t vocab = 0;
-  size_t start = 0;
-  if (shape.size() >= 3) {
+  size_t seq = 1;
+  auto sampleAt = [&](size_t start, const std::vector<int> &recent) {
+    return sampleTensor(data, dtype, start, vocab, sampler, recent);
+  };
+  auto tokenPosForBatch = [&](uint32_t batch) -> size_t {
+    if (tokenPositions && batch < tokenPositions->size())
+      return (*tokenPositions)[batch];
+    return tokenPosition;
+  };
+  auto recentForBatch = [&](uint32_t batch) -> const std::vector<int> & {
+    if (recentTokensByBatch && batch < recentTokensByBatch->size())
+      return (*recentTokensByBatch)[batch];
+    return recentTokens;
+  };
+  if (isTokenIdDataType(dtype)) {
+    const size_t elements = data.size() / itemSizeFor(dtype);
+    if (elements == 0)
+      throw std::runtime_error("llama31_tt: empty token-id tensor");
+    vocab = 1;
+    if (shape.size() >= 2)
+      seq = shape.back();
+    else if (batchSize > 1 && elements >= batchSize)
+      seq = 1;
+    else
+      seq = elements;
+    extracted.tokens.reserve(batchSize);
+    for (uint32_t b = 0; b < batchSize; ++b) {
+      const size_t start = shape.size() >= 2
+                               ? std::min<size_t>(
+                                     static_cast<size_t>(b) * seq +
+                                         std::min<size_t>(
+                                             tokenPosForBatch(b),
+                                             seq == 0 ? 0 : seq - 1),
+                                     elements - 1)
+                               : std::min<size_t>(b, elements - 1);
+      extracted.tokens.push_back(sampleAt(start, recentForBatch(b)));
+    }
+  } else if (shape.size() >= 3) {
     vocab = shape.back();
-    start = static_cast<size_t>(tokenPosition) * vocab;
+    seq = shape[shape.size() - 2];
+    extracted.tokens.reserve(batchSize);
+    for (uint32_t b = 0; b < batchSize; ++b) {
+      const size_t pos = std::min<size_t>(tokenPosForBatch(b), seq - 1);
+      extracted.tokens.push_back(
+          sampleAt((static_cast<size_t>(b) * seq + pos) * vocab,
+                   recentForBatch(b)));
+    }
   } else if (shape.size() >= 2) {
     vocab = shape.back();
-    start = 0;
+    extracted.tokens.reserve(batchSize);
+    for (uint32_t b = 0; b < batchSize; ++b)
+      extracted.tokens.push_back(
+          sampleAt(static_cast<size_t>(b) * vocab, recentForBatch(b)));
   } else {
     vocab = data.size() / itemSizeFor(dtype);
-    start = 0;
+    extracted.tokens.push_back(sampleAt(0, recentTokens));
   }
-  extracted.token =
-      sampleTensor(data, dtype, start, vocab, sampler, recentTokens);
+  if (extracted.tokens.empty())
+    throw std::runtime_error("llama31_tt: no tokens sampled from output");
+  extracted.token = extracted.tokens.front();
+
+  if (!extractKVOutputs) {
+    for (size_t i = 0; i < outputs.size(); ++i) {
+      if (static_cast<int>(i) == logitsIndex)
+        continue;
+      try {
+        ::tt::runtime::setTensorRetain(outputs[i], true);
+      } catch (...) {
+      }
+    }
+    if (!retainDecodeLogits && !retainTokenOutput)
+      ::tt::runtime::deallocateTensor(outputs[logitsIndex], true);
+    return extracted;
+  }
 
   t0 = std::chrono::steady_clock::now();
   size_t kvIter = 0;
@@ -1220,6 +2089,10 @@ static ExtractedOutput extractLogitsAndKV(
                                role);
     auto layout = ::tt::runtime::getLayout(targetBinary, targetProgramIndex,
                                            slotIt->second);
+    try {
+      ::tt::runtime::setTensorRetain(outputs[i], true);
+    } catch (...) {
+    }
     if (::tt::runtime::hasLayout(outputs[i], layout)) {
       extracted.kvDevice[role] = outputs[i];
     } else {
@@ -1232,6 +2105,8 @@ static ExtractedOutput extractLogitsAndKV(
   extracted.kvRelayoutSeconds = std::chrono::duration<double>(t1 - t0).count();
 
   for (size_t i = 0; i < outputs.size(); ++i) {
+    if (retainTokenOutput && static_cast<int>(i) == logitsIndex)
+      continue;
     if (consumed[i])
       continue;
     bool force = static_cast<int>(i) == logitsIndex;
@@ -1240,15 +2115,119 @@ static ExtractedOutput extractLogitsAndKV(
   return extracted;
 }
 
-static std::unordered_map<uint32_t, ::tt::runtime::Tensor>
+static std::vector<std::string>
+buildPrefillKVOutputRoles(const std::vector<std::string> &decodeKVOutputRoles,
+                          const std::string &order) {
+  if (order == "key_value")
+    return decodeKVOutputRoles;
+  if (order != "value_key")
+    throw std::runtime_error("llama_tt: unsupported prefill_kv_output_order '" +
+                             order + "'");
+
+  if (decodeKVOutputRoles.size() % 2 != 0)
+    throw std::runtime_error(
+        "llama_tt: value_key prefill KV order requires paired KV roles");
+
+  std::vector<std::string> prefillRoles;
+  prefillRoles.reserve(decodeKVOutputRoles.size());
+  for (size_t i = 0; i < decodeKVOutputRoles.size(); i += 2) {
+    const std::string &keyRole = decodeKVOutputRoles[i];
+    const std::string &valueRole = decodeKVOutputRoles[i + 1];
+    if (!startsWith(keyRole, "past_K_") || !startsWith(valueRole, "past_V_") ||
+        keyRole.substr(7) != valueRole.substr(7))
+      throw std::runtime_error(
+          "llama_tt: decode KV roles are not ordered as K,V pairs");
+    prefillRoles.push_back(valueRole);
+    prefillRoles.push_back(keyRole);
+  }
+  return prefillRoles;
+}
+
+static bool sameTensorDesc(const ::tt::runtime::TensorDesc &lhs,
+                           const ::tt::runtime::TensorDesc &rhs) {
+  return lhs.shape == rhs.shape && lhs.dataType == rhs.dataType;
+}
+
+static bool sameStaticPayload(const PhaseCtx &lhsCtx, uint32_t lhsSlot,
+                              const PhaseCtx &rhsCtx, uint32_t rhsSlot) {
+  const RoleEntry &lhs = lhsCtx.roles[lhsSlot];
+  const RoleEntry &rhs = rhsCtx.roles[rhsSlot];
+  if (lhs.role != rhs.role || lhs.shape != rhs.shape || lhs.dtype != rhs.dtype)
+    return false;
+
+  if (lhs.role == "weight") {
+    return lhs.weightOffset == rhs.weightOffset &&
+           lhs.weightBytes == rhs.weightBytes &&
+           sameFile(lhsCtx.weightsPath, rhsCtx.weightsPath);
+  }
+  if (lhs.role == "inv_freq")
+    return sameFile(lhsCtx.invFreqPath, rhsCtx.invFreqPath);
+  return false;
+}
+
+static std::optional<uint32_t> findReusableStaticInputSlot(
+    const PhaseCtx &sourceCtx,
+    const std::vector<::tt::runtime::TensorDesc> &sourceInputs,
+    const PhaseCtx &targetCtx,
+    const std::vector<::tt::runtime::TensorDesc> &targetInputs,
+    uint32_t targetSlot) {
+  for (uint32_t sourceSlot = 0; sourceSlot < sourceCtx.roles.size();
+       ++sourceSlot) {
+    const RoleEntry &sourceRole = sourceCtx.roles[sourceSlot];
+    if (sourceRole.role != "weight" && sourceRole.role != "inv_freq")
+      continue;
+    if (!sameStaticPayload(sourceCtx, sourceSlot, targetCtx, targetSlot))
+      continue;
+    if (!sameTensorDesc(sourceInputs[sourceSlot], targetInputs[targetSlot]))
+      continue;
+    return sourceSlot;
+  }
+  return std::nullopt;
+}
+
+static StaticInputCacheResult
 precacheStaticInputs(::tt::runtime::Device device, ::tt::runtime::Binary binary,
                      uint32_t programIndex, const PhaseCtx &ctx,
-                     const std::vector<::tt::runtime::TensorDesc> &inputs) {
-  std::unordered_map<uint32_t, ::tt::runtime::Tensor> cached;
+                     const std::vector<::tt::runtime::TensorDesc> &inputs,
+                     const PhaseCtx *reuseCtx = nullptr,
+                     const std::vector<::tt::runtime::TensorDesc>
+                         *reuseInputs = nullptr,
+                     const std::unordered_map<uint32_t, ::tt::runtime::Tensor>
+                         *reuseCache = nullptr,
+                     const char *phaseName = "static",
+                     bool suppress = false) {
+  StaticInputCacheResult result;
+  const bool progress =
+      !suppress && std::getenv("BUDDY_LLAMA31_STATIC_UPLOAD_PROGRESS");
+  const bool retainUploadedStatic =
+      phaseName && std::string_view(phaseName) == "decode";
   for (uint32_t slot = 0; slot < ctx.roles.size(); ++slot) {
     const RoleEntry &role = ctx.roles[slot];
     if (role.role != "weight" && role.role != "inv_freq")
       continue;
+
+    if (reuseCtx && reuseInputs && reuseCache) {
+      if (auto sourceSlot =
+              findReusableStaticInputSlot(*reuseCtx, *reuseInputs, ctx, inputs,
+                                          slot)) {
+        auto reusable = reuseCache->find(*sourceSlot);
+        if (reusable != reuseCache->end()) {
+          auto layout = ::tt::runtime::getLayout(binary, programIndex, slot);
+          if (::tt::runtime::hasLayout(reusable->second, layout)) {
+            // Reused static tensors alias the prefill cache; keep the handle
+            // retained so decode submits can reuse it across iterations.
+            try {
+              ::tt::runtime::setTensorRetain(reusable->second, true);
+            } catch (...) {
+            }
+            result.tensors[slot] = reusable->second;
+            ++result.reused;
+            continue;
+          }
+        }
+      }
+    }
+
     ::tt::runtime::Tensor host;
     if (role.role == "weight") {
       host = borrowedHostTensorFromRaw(ctx.weightForSlot(slot), inputs[slot]);
@@ -1257,9 +2236,318 @@ precacheStaticInputs(::tt::runtime::Device device, ::tt::runtime::Binary binary,
         throw std::runtime_error("llama31_tt: missing inv_freq.npy");
       host = borrowedHostTensorFromNpy(ctx.invFreq->view(), inputs[slot]);
     }
-    cached[slot] = toDevice(host, device, binary, programIndex, slot, true);
+    if (progress) {
+      const uint64_t bytes =
+          role.role == "weight" ? role.weightBytes : ctx.invFreq->view().bytes;
+      std::cout << colorLabel("[Static upload]") << " " << phaseName
+                << " slot " << slot << " " << role.role << " "
+                << bytes << " bytes\n";
+      std::cout.flush();
+    }
+    result.tensors[slot] = toDevice(host, device, binary, programIndex, slot,
+                                    retainUploadedStatic);
+    ++result.uploaded;
+    if (progress) {
+      std::cout << colorLabel("[Static upload]") << " " << phaseName
+                << " slot " << slot << " done\n";
+      std::cout.flush();
+    }
   }
-  return cached;
+  return result;
+}
+
+static std::vector<uint8_t> buildAttentionMaskBuffer(
+    const ::tt::runtime::TensorDesc &desc,
+    const std::vector<std::vector<int>> &attentionMaskByBatch,
+    std::string_view errorPrefix) {
+  std::vector<int64_t> values;
+  values.reserve(static_cast<size_t>(volume(desc.shape)));
+  for (const auto &mask : attentionMaskByBatch)
+    values.insert(values.end(), mask.begin(), mask.end());
+  if (values.size() != static_cast<size_t>(volume(desc.shape)))
+    throw std::runtime_error(std::string(errorPrefix) +
+                             " attention_mask shape does not match "
+                             "batch/mask buffer");
+  return integerBuffer(values, desc.dataType);
+}
+
+static std::vector<uint8_t>
+buildCachePositionBuffer(const ::tt::runtime::TensorDesc &desc, int cachePos) {
+  std::vector<int64_t> values(static_cast<size_t>(volume(desc.shape)),
+                              cachePos);
+  return integerBuffer(values, desc.dataType);
+}
+
+static std::vector<uint8_t> buildSdpaMaskBuffer(
+    const ::tt::runtime::TensorDesc &desc,
+    const std::vector<std::vector<int>> &attentionMaskByBatch, int cachePos,
+    std::string_view errorPrefix) {
+  if (desc.shape.size() != 4)
+    throw std::runtime_error(std::string(errorPrefix) +
+                             " sdpa_mask must be rank-4");
+  const uint32_t batch = desc.shape[0];
+  const uint32_t groups = desc.shape[1];
+  const uint32_t heads = desc.shape[2];
+  const uint32_t seq = desc.shape[3];
+  if (attentionMaskByBatch.size() != batch)
+    throw std::runtime_error(std::string(errorPrefix) +
+                             " sdpa_mask batch mismatch");
+
+  const float negInf = -std::numeric_limits<float>::infinity();
+  std::vector<float> values;
+  values.reserve(static_cast<size_t>(volume(desc.shape)));
+  for (uint32_t b = 0; b < batch; ++b) {
+    if (attentionMaskByBatch[b].size() < seq)
+      throw std::runtime_error(std::string(errorPrefix) +
+                               " sdpa_mask sequence mismatch");
+    for (uint32_t g = 0; g < groups; ++g) {
+      (void)g;
+      for (uint32_t h = 0; h < heads; ++h) {
+        (void)h;
+        for (uint32_t i = 0; i < seq; ++i) {
+          const bool visible =
+              attentionMaskByBatch[b][i] != 0 &&
+              static_cast<int>(i) <= cachePos;
+          values.push_back(visible ? 0.0f : negInf);
+        }
+      }
+    }
+  }
+  return floatBuffer(values, desc.dataType);
+}
+
+static std::vector<float> findInvFreqValues(const PhaseCtx &ctx,
+                                            size_t expectedSize) {
+  for (uint32_t slot = 0; slot < ctx.roles.size(); ++slot) {
+    const RoleEntry &role = ctx.roles[slot];
+    if (role.role != "weight" || role.dtype != "float32" ||
+        role.shape.size() != 1 || role.shape[0] != expectedSize)
+      continue;
+    RawTensorView view = ctx.weightForSlot(slot);
+    if (view.bytes != expectedSize * sizeof(float))
+      throw std::runtime_error("llama31_tt: invalid inv_freq byte size");
+    const float *data = reinterpret_cast<const float *>(view.data);
+    return std::vector<float>(data, data + expectedSize);
+  }
+  throw std::runtime_error("llama31_tt: could not find inv_freq weight slot");
+}
+
+static std::vector<uint8_t> buildRopeTrigBuffer(
+    const ::tt::runtime::TensorDesc &desc, const PhaseCtx &ctx, int cachePos,
+    bool cosine, std::string_view errorPrefix) {
+  if (desc.shape.size() != 4 || desc.shape[0] != 1 || desc.shape[1] != 1 ||
+      desc.shape[2] != 1 || desc.shape[3] % 2 != 0)
+    throw std::runtime_error(std::string(errorPrefix) +
+                             " rope tensor must have shape 1x1x1x2N");
+  const size_t width = desc.shape[3];
+  const size_t halfWidth = width / 2;
+  std::vector<float> invFreq = findInvFreqValues(ctx, halfWidth);
+  std::vector<float> values;
+  values.reserve(width);
+  for (size_t i = 0; i < width; ++i) {
+    const float angle = invFreq[i % halfWidth] * static_cast<float>(cachePos);
+    values.push_back(cosine ? std::cos(angle) : std::sin(angle));
+  }
+  return floatBuffer(values, desc.dataType);
+}
+
+static DecodeRuntimeInputCache precacheDecodeRuntimeInputs(
+    ::tt::runtime::Device device, ::tt::runtime::Binary binary,
+    uint32_t programIndex, const PhaseCtx &ctx,
+    const std::vector<::tt::runtime::TensorDesc> &programInputs,
+    const std::unordered_map<uint32_t, ::tt::runtime::Tensor> &cachedInputs,
+    const std::vector<std::vector<int>> &attentionMaskByBatch, int firstCachePos,
+    int maxCacheLen, bool suppress) {
+  DecodeRuntimeInputCache result;
+  if (std::getenv("BUDDY_LLAMA31_DISABLE_DECODE_RUNTIME_CACHE") != nullptr)
+    return result;
+
+  auto uploadStart = std::chrono::steady_clock::now();
+  std::vector<uint32_t> cachePositionSlots;
+  std::vector<uint32_t> sdpaMaskSlots;
+  std::vector<uint32_t> sdpaPositionSlots;
+  std::vector<uint32_t> ropeCosSlots;
+  std::vector<uint32_t> ropeSinSlots;
+  for (uint32_t slot = 0; slot < ctx.roles.size(); ++slot) {
+    if (cachedInputs.find(slot) != cachedInputs.end())
+      continue;
+    const RoleEntry &role = ctx.roles[slot];
+    const auto &desc = programInputs[slot];
+    if (role.role == "attention_mask") {
+      std::vector<uint8_t> buffer = buildAttentionMaskBuffer(
+          desc, attentionMaskByBatch, "llama31_tt: decode");
+      auto host = hostTensorFromBytes(buffer.data(), desc);
+      result.attentionMasks[slot] =
+          toDevice(host, device, binary, programIndex, slot, true);
+      ++result.uploadedAttentionMasks;
+    } else if (role.role == "cache_position") {
+      cachePositionSlots.push_back(slot);
+    } else if (role.role == "sdpa_mask") {
+      sdpaMaskSlots.push_back(slot);
+    } else if (role.role == "sdpa_position") {
+      sdpaPositionSlots.push_back(slot);
+    } else if (role.role == "rope_cos") {
+      ropeCosSlots.push_back(slot);
+    } else if (role.role == "rope_sin") {
+      ropeSinSlots.push_back(slot);
+    }
+  }
+
+  const bool disableCachePositionCache =
+      std::getenv("BUDDY_LLAMA31_DISABLE_CACHE_POSITION_CACHE") != nullptr;
+  const int begin = std::max(0, firstCachePos);
+  const int end = std::max(begin, maxCacheLen);
+  const uint64_t cachePositionUploads =
+      static_cast<uint64_t>(std::max(0, end - begin)) *
+      static_cast<uint64_t>(cachePositionSlots.size());
+  const uint64_t cachePositionUploadLimit = getEnvUInt64(
+      "BUDDY_LLAMA31_CACHE_POSITION_PRECACHE_LIMIT", 8192);
+
+  if (!disableCachePositionCache &&
+      cachePositionUploads <= cachePositionUploadLimit) {
+    for (int pos = begin; pos < end; ++pos) {
+      auto &positionTensors = result.cachePositions[pos];
+      for (uint32_t slot : cachePositionSlots) {
+        const auto &desc = programInputs[slot];
+        std::vector<uint8_t> buffer = buildCachePositionBuffer(desc, pos);
+        auto host = hostTensorFromBytes(buffer.data(), desc);
+        positionTensors[slot] =
+            toDevice(host, device, binary, programIndex, slot, true);
+        ++result.uploadedCachePositions;
+      }
+      auto &sdpaMaskTensors = result.sdpaMasks[pos];
+      for (uint32_t slot : sdpaMaskSlots) {
+        const auto &desc = programInputs[slot];
+        std::vector<uint8_t> buffer = buildSdpaMaskBuffer(
+            desc, attentionMaskByBatch, pos, "llama31_tt: decode");
+        auto host = hostTensorFromBytes(buffer.data(), desc);
+        sdpaMaskTensors[slot] =
+            toDevice(host, device, binary, programIndex, slot, true);
+        ++result.uploadedSdpaMasks;
+      }
+      auto &sdpaPositionTensors = result.sdpaPositions[pos];
+      for (uint32_t slot : sdpaPositionSlots) {
+        const auto &desc = programInputs[slot];
+        std::vector<uint8_t> buffer = buildCachePositionBuffer(desc, pos);
+        auto host = hostTensorFromBytes(buffer.data(), desc);
+        sdpaPositionTensors[slot] =
+            toDevice(host, device, binary, programIndex, slot, true);
+        ++result.uploadedSdpaPositions;
+      }
+      auto &ropeCosTensors = result.ropeCos[pos];
+      for (uint32_t slot : ropeCosSlots) {
+        const auto &desc = programInputs[slot];
+        std::vector<uint8_t> buffer = buildRopeTrigBuffer(
+            desc, ctx, pos, true, "llama31_tt: decode");
+        auto host = hostTensorFromBytes(buffer.data(), desc);
+        ropeCosTensors[slot] =
+            toDevice(host, device, binary, programIndex, slot, true);
+        ++result.uploadedRopeCos;
+      }
+      auto &ropeSinTensors = result.ropeSin[pos];
+      for (uint32_t slot : ropeSinSlots) {
+        const auto &desc = programInputs[slot];
+        std::vector<uint8_t> buffer = buildRopeTrigBuffer(
+            desc, ctx, pos, false, "llama31_tt: decode");
+        auto host = hostTensorFromBytes(buffer.data(), desc);
+        ropeSinTensors[slot] =
+            toDevice(host, device, binary, programIndex, slot, true);
+        ++result.uploadedRopeSin;
+      }
+    }
+  } else if (!suppress &&
+             (!cachePositionSlots.empty() || !sdpaMaskSlots.empty() ||
+              !sdpaPositionSlots.empty() || !ropeCosSlots.empty() ||
+              !ropeSinSlots.empty())) {
+    printLlamaLog("decode cache_position precache skipped: " +
+                      std::to_string(cachePositionUploads) +
+                      " tensors exceeds limit " +
+                      std::to_string(cachePositionUploadLimit),
+                  suppress);
+  }
+
+  auto uploadEnd = std::chrono::steady_clock::now();
+  result.uploadSeconds =
+      std::chrono::duration<double>(uploadEnd - uploadStart).count();
+  if (!suppress && (result.uploadedAttentionMasks ||
+                    result.uploadedCachePositions ||
+                    result.uploadedSdpaMasks ||
+                    result.uploadedSdpaPositions ||
+                    result.uploadedRopeCos ||
+                    result.uploadedRopeSin)) {
+    printLlamaLog("decode runtime tensors ready: uploaded " +
+                      std::to_string(result.uploadedAttentionMasks) +
+                      " attention_mask + " +
+                      std::to_string(result.uploadedCachePositions) +
+                      " cache_position + " +
+                      std::to_string(result.uploadedSdpaMasks) +
+                      " sdpa_mask + " +
+                      std::to_string(result.uploadedSdpaPositions) +
+                      " sdpa_position + " +
+                      std::to_string(result.uploadedRopeCos) +
+                      " rope_cos + " +
+                      std::to_string(result.uploadedRopeSin) +
+                      " rope_sin in " +
+                      formatFixed(result.uploadSeconds) + "s",
+                  suppress);
+  }
+  return result;
+}
+
+static void deallocateDecodeRuntimeInputCache(
+    DecodeRuntimeInputCache &cache) {
+  for (auto &entry : cache.attentionMasks) {
+    try {
+      ::tt::runtime::deallocateTensor(entry.second, true);
+    } catch (...) {
+    }
+  }
+  cache.attentionMasks.clear();
+  for (auto &positionEntry : cache.cachePositions) {
+    for (auto &entry : positionEntry.second) {
+      try {
+        ::tt::runtime::deallocateTensor(entry.second, true);
+      } catch (...) {
+      }
+    }
+  }
+  cache.cachePositions.clear();
+  for (auto &maskEntry : cache.sdpaMasks) {
+    for (auto &entry : maskEntry.second) {
+      try {
+        ::tt::runtime::deallocateTensor(entry.second, true);
+      } catch (...) {
+      }
+    }
+  }
+  cache.sdpaMasks.clear();
+  for (auto &positionEntry : cache.sdpaPositions) {
+    for (auto &entry : positionEntry.second) {
+      try {
+        ::tt::runtime::deallocateTensor(entry.second, true);
+      } catch (...) {
+      }
+    }
+  }
+  cache.sdpaPositions.clear();
+  for (auto &entryByPosition : cache.ropeCos) {
+    for (auto &entry : entryByPosition.second) {
+      try {
+        ::tt::runtime::deallocateTensor(entry.second, true);
+      } catch (...) {
+      }
+    }
+  }
+  cache.ropeCos.clear();
+  for (auto &entryByPosition : cache.ropeSin) {
+    for (auto &entry : entryByPosition.second) {
+      try {
+        ::tt::runtime::deallocateTensor(entry.second, true);
+      } catch (...) {
+      }
+    }
+  }
+  cache.ropeSin.clear();
 }
 
 static std::vector<::tt::runtime::Tensor> buildPrefillInputs(
@@ -1267,7 +2555,8 @@ static std::vector<::tt::runtime::Tensor> buildPrefillInputs(
     uint32_t programIndex, const PhaseCtx &ctx,
     const std::vector<::tt::runtime::TensorDesc> &programInputs,
     const std::unordered_map<uint32_t, ::tt::runtime::Tensor> &cachedInputs,
-    const std::vector<int> &paddedTokens) {
+    const std::vector<std::vector<int>> &paddedTokensByBatch,
+    const std::vector<std::vector<int>> &attentionMaskByBatch) {
   std::vector<::tt::runtime::Tensor> tensors(programInputs.size());
   for (uint32_t slot = 0; slot < ctx.roles.size(); ++slot) {
     auto cached = cachedInputs.find(slot);
@@ -1279,8 +2568,17 @@ static std::vector<::tt::runtime::Tensor> buildPrefillInputs(
     const RoleEntry &role = ctx.roles[slot];
     std::vector<uint8_t> buffer;
     if (role.role == "input_ids") {
-      std::vector<int64_t> values(paddedTokens.begin(), paddedTokens.end());
+      std::vector<int64_t> values;
+      values.reserve(static_cast<size_t>(volume(desc.shape)));
+      for (const auto &paddedTokens : paddedTokensByBatch)
+        values.insert(values.end(), paddedTokens.begin(), paddedTokens.end());
+      if (values.size() != static_cast<size_t>(volume(desc.shape)))
+        throw std::runtime_error("llama31_tt: prefill input_ids shape does not "
+                                 "match batch/token buffer");
       buffer = integerBuffer(values, desc.dataType);
+    } else if (role.role == "attention_mask") {
+      buffer = buildAttentionMaskBuffer(desc, attentionMaskByBatch,
+                                        "llama31_tt: prefill");
     } else if (role.role == "cache_position") {
       std::vector<int64_t> values(volume(desc.shape));
       for (size_t i = 0; i < values.size(); ++i)
@@ -1304,8 +2602,11 @@ static std::vector<::tt::runtime::Tensor> buildDecodeInputs(
     uint32_t programIndex, const PhaseCtx &ctx,
     const std::vector<::tt::runtime::TensorDesc> &programInputs,
     const std::unordered_map<uint32_t, ::tt::runtime::Tensor> &cachedInputs,
-    int token, int cachePos,
-    const std::unordered_map<std::string, ::tt::runtime::Tensor> &pastKV) {
+    const std::vector<int> &tokens, int cachePos,
+    const std::unordered_map<std::string, ::tt::runtime::Tensor> &pastKV,
+    const std::vector<std::vector<int>> &attentionMaskByBatch,
+    const DecodeRuntimeInputCache *runtimeInputCache = nullptr,
+    const ::tt::runtime::Tensor *deviceInputIds = nullptr) {
   std::vector<::tt::runtime::Tensor> tensors(programInputs.size());
   for (uint32_t slot = 0; slot < ctx.roles.size(); ++slot) {
     auto cached = cachedInputs.find(slot);
@@ -1319,15 +2620,107 @@ static std::vector<::tt::runtime::Tensor> buildDecodeInputs(
       auto kv = pastKV.find(role.role);
       if (kv == pastKV.end())
         throw std::runtime_error("llama31_tt: missing KV tensor " + role.role);
+      ::tt::runtime::setTensorRetain(kv->second, true);
       tensors[slot] = kv->second;
       continue;
+    }
+    if (runtimeInputCache && role.role == "attention_mask") {
+      auto cachedMask = runtimeInputCache->attentionMasks.find(slot);
+      if (cachedMask != runtimeInputCache->attentionMasks.end()) {
+        tensors[slot] = cachedMask->second;
+        continue;
+      }
+    }
+    if (runtimeInputCache && role.role == "cache_position") {
+      auto cachedPosition = runtimeInputCache->cachePositions.find(cachePos);
+      if (cachedPosition != runtimeInputCache->cachePositions.end()) {
+        auto cachedSlot = cachedPosition->second.find(slot);
+        if (cachedSlot != cachedPosition->second.end()) {
+          tensors[slot] = cachedSlot->second;
+          continue;
+        }
+      }
+    }
+    if (runtimeInputCache && role.role == "sdpa_mask") {
+      auto cachedMask = runtimeInputCache->sdpaMasks.find(cachePos);
+      if (cachedMask != runtimeInputCache->sdpaMasks.end()) {
+        auto cachedSlot = cachedMask->second.find(slot);
+        if (cachedSlot != cachedMask->second.end()) {
+          tensors[slot] = cachedSlot->second;
+          continue;
+        }
+      }
+    }
+    if (runtimeInputCache && role.role == "sdpa_position") {
+      auto cachedPosition = runtimeInputCache->sdpaPositions.find(cachePos);
+      if (cachedPosition != runtimeInputCache->sdpaPositions.end()) {
+        auto cachedSlot = cachedPosition->second.find(slot);
+        if (cachedSlot != cachedPosition->second.end()) {
+          tensors[slot] = cachedSlot->second;
+          continue;
+        }
+      }
+    }
+    if (runtimeInputCache && role.role == "rope_cos") {
+      auto cachedByPosition = runtimeInputCache->ropeCos.find(cachePos);
+      if (cachedByPosition != runtimeInputCache->ropeCos.end()) {
+        auto cachedSlot = cachedByPosition->second.find(slot);
+        if (cachedSlot != cachedByPosition->second.end()) {
+          tensors[slot] = cachedSlot->second;
+          continue;
+        }
+      }
+    }
+    if (runtimeInputCache && role.role == "rope_sin") {
+      auto cachedByPosition = runtimeInputCache->ropeSin.find(cachePos);
+      if (cachedByPosition != runtimeInputCache->ropeSin.end()) {
+        auto cachedSlot = cachedByPosition->second.find(slot);
+        if (cachedSlot != cachedByPosition->second.end()) {
+          tensors[slot] = cachedSlot->second;
+          continue;
+        }
+      }
     }
 
     std::vector<uint8_t> buffer;
     if (role.role == "input_ids") {
-      buffer = integerBuffer({token}, desc.dataType);
+      if (deviceInputIds) {
+        try {
+          auto layout = ::tt::runtime::getLayout(binary, programIndex, slot);
+          if (::tt::runtime::getTensorShape(*deviceInputIds) == desc.shape &&
+              ::tt::runtime::getTensorDataType(*deviceInputIds) ==
+                  desc.dataType &&
+              ::tt::runtime::hasLayout(*deviceInputIds, layout)) {
+            ::tt::runtime::setTensorRetain(*deviceInputIds, true);
+            tensors[slot] = *deviceInputIds;
+            continue;
+          }
+        } catch (...) {
+        }
+      }
+      std::vector<int64_t> values(tokens.begin(), tokens.end());
+      if (values.size() == 1 && volume(desc.shape) > 1)
+        values.assign(static_cast<size_t>(volume(desc.shape)), values.front());
+      if (values.size() != static_cast<size_t>(volume(desc.shape)))
+        throw std::runtime_error("llama31_tt: decode input_ids shape does not "
+                                 "match batch token buffer");
+      buffer = integerBuffer(values, desc.dataType);
+    } else if (role.role == "attention_mask") {
+      buffer =
+          buildAttentionMaskBuffer(desc, attentionMaskByBatch, "llama31_tt: decode");
     } else if (role.role == "cache_position") {
-      buffer = integerBuffer({cachePos}, desc.dataType);
+      buffer = buildCachePositionBuffer(desc, cachePos);
+    } else if (role.role == "sdpa_mask") {
+      buffer = buildSdpaMaskBuffer(desc, attentionMaskByBatch, cachePos,
+                                   "llama31_tt: decode");
+    } else if (role.role == "sdpa_position") {
+      buffer = buildCachePositionBuffer(desc, cachePos);
+    } else if (role.role == "rope_cos") {
+      buffer = buildRopeTrigBuffer(desc, ctx, cachePos, true,
+                                   "llama31_tt: decode");
+    } else if (role.role == "rope_sin") {
+      buffer = buildRopeTrigBuffer(desc, ctx, cachePos, false,
+                                   "llama31_tt: decode");
     } else {
       throw std::runtime_error("llama31_tt: unexpected decode role " +
                                role.role);
@@ -1338,16 +2731,90 @@ static std::vector<::tt::runtime::Tensor> buildDecodeInputs(
   return tensors;
 }
 
-static fs::path resolveTokenizerPath(const std::string &tokenizerAttr) {
-  std::string value = getEnvOr("LLAMA31_MODEL_PATH", tokenizerAttr);
+static void retainKVCache(
+    std::unordered_map<std::string, ::tt::runtime::Tensor> &pastKV) {
+  for (auto &kv : pastKV) {
+    try {
+      ::tt::runtime::setTensorRetain(kv.second, true);
+    } catch (...) {
+    }
+  }
+}
+
+static void debugKVCacheState(
+    const std::unordered_map<std::string, ::tt::runtime::Tensor> &pastKV,
+    const std::string &label) {
+  if (std::getenv("BUDDY_LLAMA31_DEBUG_ALLOCATIONS") == nullptr)
+    return;
+  std::cout << colorLabel("[KV alloc]", kAnsiBlueBold) << " " << label;
+  for (const auto &kv : pastKV) {
+    std::cout << " " << kv.first << "="
+              << (::tt::runtime::isTensorAllocated(kv.second) ? "1" : "0");
+  }
+  std::cout << "\n";
+}
+
+static void debugTensorVectorState(
+    const std::vector<::tt::runtime::Tensor> &tensors,
+    const std::vector<RoleEntry> &roles, const std::string &label) {
+  if (std::getenv("BUDDY_LLAMA31_DEBUG_ALLOCATIONS") == nullptr)
+    return;
+  std::cout << colorLabel("[Tensor alloc]", kAnsiBlueBold) << " " << label;
+  bool anyMissing = false;
+  for (size_t i = 0; i < tensors.size() && i < roles.size(); ++i) {
+    if (!::tt::runtime::isTensorAllocated(tensors[i])) {
+      if (!anyMissing) {
+        std::cout << " missing:";
+        anyMissing = true;
+      }
+      std::cout << " " << i << ":" << roles[i].role;
+    }
+  }
+  if (!anyMissing)
+    std::cout << " all allocated";
+  std::cout << "\n";
+}
+
+static void debugTensorState(const std::vector<::tt::runtime::Tensor> &tensors,
+                             const std::string &label) {
+  if (std::getenv("BUDDY_LLAMA31_DEBUG_ALLOCATIONS") == nullptr)
+    return;
+  std::cout << colorLabel("[Tensor vec]", kAnsiBlueBold) << " " << label;
+  bool anyMissing = false;
+  for (size_t i = 0; i < tensors.size(); ++i) {
+    if (!::tt::runtime::isTensorAllocated(tensors[i])) {
+      if (!anyMissing) {
+        std::cout << " missing:";
+        anyMissing = true;
+      }
+      std::cout << " " << i;
+    }
+  }
+  if (!anyMissing)
+    std::cout << " all allocated";
+  std::cout << "\n";
+}
+
+static fs::path resolveTokenizerPath(const ModelManifest &manifest,
+                                     const std::string &tokenizerAttr) {
+  const fs::path embeddedTokenizer = resolveEmbeddedTokenizerPath(manifest);
+  if (!embeddedTokenizer.empty())
+    return embeddedTokenizer;
+
+  std::string value = getEnvOr("LLAMA_MODEL_PATH",
+                               getEnvOr("LLAMA32_MODEL_PATH",
+                                        getEnvOr("LLAMA31_MODEL_PATH",
+                                                 tokenizerAttr)));
   if (startsWith(value, "file:"))
     value = value.substr(5);
   if (isRemoteModelId(value))
     throw std::runtime_error(
-        "llama31_tt: tokenizer/model path is a remote Hugging Face id ('" +
+        "llama_tt: tokenizer/model path is a remote Hugging Face id ('" +
         value +
-        "'). Pure C++ buddy-cli runtime does not download models; set "
-        "LLAMA31_MODEL_PATH to a local Llama-3.1-8B-Instruct directory when "
+        "'). Pure C++ buddy-cli runtime does not download models; use a .rax "
+        "package with embedded tokenizer files, or set "
+        "LLAMA_MODEL_PATH, LLAMA31_MODEL_PATH, or LLAMA32_MODEL_PATH to a "
+        "local Llama model directory when "
         "running or packaging.");
   return fs::absolute(fs::path(value));
 }
@@ -1435,6 +2902,23 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
   const int eosToken =
       static_cast<int>(lookupIntAttr(manifest, "eos_token_id", kEot));
   const bool ignoreEOS = lookupBoolAttr(manifest, "ignore_eos", false);
+  const std::string modelName =
+      manifest.modelName.empty() ? "llama_tt" : manifest.modelName;
+  const std::string promptFormat =
+      lookupAttr(manifest, "prompt_format", "chat");
+  if (promptFormat != "chat" && promptFormat != "completion")
+    throw std::runtime_error("llama_tt: unsupported prompt_format '" +
+                             promptFormat + "'");
+  const std::string prefillKVOutputOrder =
+      lookupAttr(manifest, "prefill_kv_output_order", "key_value");
+  const int manifestBatchSize =
+      static_cast<int>(lookupIntAttr(manifest, "batch_size", 1));
+  const int batchSize = cfg.batchSize > 0 ? cfg.batchSize : manifestBatchSize;
+  if (batchSize <= 0)
+    throw std::runtime_error("llama_tt: batch size must be positive");
+  if (cfg.batchSize > 0 && cfg.batchSize != manifestBatchSize)
+    throw std::runtime_error(
+        "llama_tt: --batch-size does not match fixed-batch package");
   std::vector<int> stopTokenIds;
   auto addStopToken = [&](int token) {
     if (std::find(stopTokenIds.begin(), stopTokenIds.end(), token) ==
@@ -1455,13 +2939,13 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
   };
   const uint32_t programIndex =
       static_cast<uint32_t>(lookupIntAttr(manifest, "program_index", 0));
-  const fs::path tokenizerPath = resolveTokenizerPath(lookupAttr(
+  const fs::path tokenizerPath = resolveTokenizerPath(manifest, lookupAttr(
       manifest, "tokenizer_uri", "meta-llama/Llama-3.1-8B-Instruct"));
   ensureTTMetalRuntimeRoot(raxDir);
 
   if (!suppress) {
-    std::cout << "[buddy-cli] dispatch llama31_tt via native Tenstorrent C++ "
-                 "runtime\n";
+    std::cout << "[buddy-cli] dispatch " << modelName
+              << " via native Tenstorrent C++ runtime\n";
     std::cout << "[buddy-cli] prefill: " << prefillTTNN << "\n";
     std::cout << "[buddy-cli] decode:  " << decodeTTNN << "\n";
     std::cout << "[buddy-cli] artifacts: " << artifacts << "\n";
@@ -1478,10 +2962,25 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
                 suppress);
 
   std::string prompt = cfg.prompt;
-  if (prompt.empty()) {
+  if (prompt.empty() && cfg.prompts.empty()) {
     std::cout << "Prompt: ";
     std::getline(std::cin, prompt);
     std::cout << "\n";
+  }
+  const bool officialTokenMatching = prompt == "official-refpt";
+  std::optional<OfficialTokenReference> officialRef;
+  if (officialTokenMatching) {
+    if (batchSize != 1)
+      throw std::runtime_error(
+          "llama31_tt: official-refpt token matching requires batch_size=1");
+    officialRef = loadOfficialTokenReferenceFromEnv();
+    if (!officialRef)
+      throw std::runtime_error(
+          "llama31_tt: --prompt official-refpt requires "
+          "BUDDY_LLAMA31_OFFICIAL_REFERENCE_JSON");
+    printLlamaLog("official token matching reference: " +
+                      officialRef->sourcePath,
+                  suppress);
   }
 
   auto prefillBinary = ::tt::runtime::Binary::loadFromPath(prefillTTNN.c_str());
@@ -1508,6 +3007,8 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
   }
   if (decodeKVOutputRoles.empty())
     throw std::runtime_error("llama31_tt: decode artifacts have no KV slots");
+  const std::vector<std::string> prefillKVOutputRoles =
+      buildPrefillKVOutputRoles(decodeKVOutputRoles, prefillKVOutputOrder);
 
   ::tt::runtime::MeshDeviceOptions options;
   options.meshShape = std::vector<uint32_t>{1, 1};
@@ -1520,53 +3021,148 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
     device = ::tt::runtime::openMeshDevice(options);
     if (!suppress) {
       std::cout << kAnsiYellowBold
-                << "Llama-3.1-8B-Instruct Inference Powered by Buddy Compiler "
-                   "(Tenstorrent TTIR, native C++)"
+                << modelName
+                << " Inference Powered by Buddy Compiler (Tenstorrent TTIR, "
+                   "native C++)"
                 << kAnsiReset << "\n";
     }
 
     auto cacheStart = std::chrono::steady_clock::now();
-    prefillCache = precacheStaticInputs(*device, prefillBinary, programIndex,
-                                        prefillCtx, prefillInputs);
-    decodeCache = precacheStaticInputs(*device, decodeBinary, programIndex,
-                                       decodeCtx, decodeInputs);
+    StaticInputCacheResult prefillStatic = precacheStaticInputs(
+        *device, prefillBinary, programIndex, prefillCtx, prefillInputs,
+        nullptr, nullptr, nullptr, "prefill", suppress);
+    prefillCache = std::move(prefillStatic.tensors);
+    const bool disableStaticReuse =
+        lookupBoolAttr(manifest, "disable_static_reuse", false) ||
+        std::getenv("BUDDY_LLAMA31_DISABLE_STATIC_REUSE") != nullptr;
+    StaticInputCacheResult decodeStatic =
+        disableStaticReuse
+            ? precacheStaticInputs(*device, decodeBinary, programIndex,
+                                   decodeCtx, decodeInputs, nullptr, nullptr,
+                                   nullptr, "decode", suppress)
+            : precacheStaticInputs(*device, decodeBinary, programIndex,
+                                   decodeCtx, decodeInputs, &prefillCtx,
+                                   &prefillInputs, &prefillCache, "decode",
+                                   suppress);
+    decodeCache = std::move(decodeStatic.tensors);
     auto cacheEnd = std::chrono::steady_clock::now();
     printLlamaLog(
-        "uploaded & retained " + std::to_string(prefillCache.size()) +
-            " prefill + " + std::to_string(decodeCache.size()) +
-            " decode static tensors in " +
+        "static tensors ready: uploaded " +
+            std::to_string(prefillStatic.uploaded) + " prefill + " +
+            std::to_string(decodeStatic.uploaded) + " decode, reused " +
+            std::to_string(decodeStatic.reused) + " decode in " +
             formatFixed(
                 std::chrono::duration<double>(cacheEnd - cacheStart).count()) +
             "s",
         suppress);
+    const bool extractDecodeKVOutputs =
+        std::getenv("BUDDY_LLAMA31_EXTRACT_DECODE_KV_OUTPUTS") != nullptr;
+    printLlamaLog(std::string("decode KV output handling: ") +
+                      (extractDecodeKVOutputs
+                           ? "extract returned cache handles"
+                           : "reuse persistent input cache handles"),
+                  suppress);
 
-    std::vector<int> tokenIds;
-    if (!cfg.chatTemplatePath.empty()) {
-      buddy::ChatTemplate chatTemplate =
-          buddy::ChatTemplate::fromFile(cfg.chatTemplatePath);
-      for (int token : chatTemplate.stopTokenIds())
+    std::vector<std::string> promptBatch = cfg.prompts;
+    if (promptBatch.empty())
+      promptBatch.push_back(prompt);
+    if (promptBatch.size() != 1 &&
+        promptBatch.size() != static_cast<size_t>(batchSize))
+      throw std::runtime_error(
+          "llama31_tt: --prompt-file must contain either 1 prompt or exactly "
+          "batch_size prompts");
+    if (promptBatch.size() == 1 && batchSize > 1)
+      promptBatch.assign(static_cast<size_t>(batchSize), promptBatch.front());
+
+    std::unique_ptr<buddy::ChatTemplate> chatTemplate;
+    if (!officialRef && !cfg.chatTemplatePath.empty()) {
+      chatTemplate = std::make_unique<buddy::ChatTemplate>(
+          buddy::ChatTemplate::fromFile(cfg.chatTemplatePath));
+      for (int token : chatTemplate->stopTokenIds())
         addStopToken(token);
-      for (const std::string &tokenText : chatTemplate.stopTokens()) {
+      for (const std::string &tokenText : chatTemplate->stopTokens()) {
         if (auto token = tokenizer.specialTokenId(tokenText))
           addStopToken(*token);
       }
       printLlamaLog("chat template loaded: " + cfg.chatTemplatePath, suppress);
-      tokenIds = tokenizer.encodeChatTemplate(chatTemplate, prompt);
-    } else {
-      tokenIds = tokenizer.encodeChat(prompt);
     }
-    if (tokenIds.size() >= static_cast<size_t>(maxCacheLen))
+
+    auto encodePrompt = [&](const std::string &text) {
+      if (officialRef)
+        return officialRef->promptTokens;
+      if (chatTemplate)
+        return tokenizer.encodeChatTemplate(*chatTemplate, text);
+      if (promptFormat == "completion")
+        return tokenizer.encodeCompletion(text);
+      return tokenizer.encodeChat(text);
+    };
+
+    std::vector<std::vector<int>> tokenIdsBatch;
+    tokenIdsBatch.reserve(static_cast<size_t>(batchSize));
+    size_t minPromptTokens = std::numeric_limits<size_t>::max();
+    size_t maxPromptTokens = 0;
+    for (int b = 0; b < batchSize; ++b) {
+      std::vector<int> ids = encodePrompt(promptBatch[static_cast<size_t>(b)]);
+      minPromptTokens = std::min(minPromptTokens, ids.size());
+      maxPromptTokens = std::max(maxPromptTokens, ids.size());
+      tokenIdsBatch.push_back(std::move(ids));
+    }
+    if (tokenIdsBatch.empty())
+      throw std::runtime_error("llama31_tt: no prompts to run");
+
+    const int prefillPromptLen =
+        cfg.promptLength > 0 ? cfg.promptLength : static_cast<int>(maxPromptTokens);
+    if (prefillPromptLen <= 0)
+      throw std::runtime_error("llama31_tt: prompt length must be positive");
+    if (prefillPromptLen >= maxCacheLen)
       throw std::runtime_error("llama31_tt: prompt is longer than max cache");
-    printLlamaLog("prompt tokens = " + std::to_string(tokenIds.size()),
+    if (maxPromptTokens > static_cast<size_t>(prefillPromptLen))
+      throw std::runtime_error(
+          "llama31_tt: at least one prompt is longer than --prompt-length");
+
+    std::vector<int> tokenIds = tokenIdsBatch.front();
+    printLlamaLog("prompt tokens = " + std::to_string(minPromptTokens) +
+                      (minPromptTokens == maxPromptTokens
+                           ? ""
+                           : ".." + std::to_string(maxPromptTokens)) +
+                      ", prefill length = " +
+                      std::to_string(prefillPromptLen) + ", batch = " +
+                      std::to_string(batchSize),
                   suppress);
     std::vector<int> recentTokens = tokenIds;
+    std::vector<std::vector<int>> recentTokensBatch = tokenIdsBatch;
 
-    std::vector<int> padded(maxCacheLen, eosToken);
-    std::copy(tokenIds.begin(), tokenIds.end(), padded.begin());
+    const int padToken =
+        officialRef ? 0
+                    : (!cfg.prompts.empty() && promptFormat == "completion"
+                           ? kEndOfText
+                           : eosToken);
+    const bool leftPadPrompts = !cfg.prompts.empty();
+    std::vector<std::vector<int>> paddedBatch;
+    std::vector<std::vector<int>> attentionMaskBatch;
+    paddedBatch.reserve(static_cast<size_t>(batchSize));
+    attentionMaskBatch.reserve(static_cast<size_t>(batchSize));
+    for (int b = 0; b < batchSize; ++b) {
+      const std::vector<int> &ids = tokenIdsBatch[static_cast<size_t>(b)];
+      std::vector<int> padded(maxCacheLen, padToken);
+      std::vector<int> attentionMask(maxCacheLen, 1);
+      const size_t start =
+          leftPadPrompts ? static_cast<size_t>(prefillPromptLen) - ids.size()
+                         : 0;
+      if (leftPadPrompts)
+        std::fill(attentionMask.begin(), attentionMask.begin() + start, 0);
+      std::copy(ids.begin(), ids.end(), padded.begin() + start);
+      paddedBatch.push_back(std::move(padded));
+      attentionMaskBatch.push_back(std::move(attentionMask));
+    }
+    std::vector<uint32_t> prefillTokenPositions(
+        static_cast<size_t>(batchSize),
+        static_cast<uint32_t>(prefillPromptLen - 1));
 
     auto prefillInputsRT =
         buildPrefillInputs(*device, prefillBinary, programIndex, prefillCtx,
-                           prefillInputs, prefillCache, padded);
+                           prefillInputs, prefillCache, paddedBatch,
+                           attentionMaskBatch);
     auto prefillStart = std::chrono::steady_clock::now();
     auto prefillOutputs = ::tt::runtime::submit(*device, prefillBinary,
                                                 programIndex, prefillInputsRT);
@@ -1576,15 +3172,196 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
         std::chrono::duration<double>(prefillEnd - prefillStart).count();
 
     ExtractedOutput prefillExtracted = extractLogitsAndKV(
-        prefillOutputs, -1, static_cast<uint32_t>(tokenIds.size() - 1), *device,
-        decodeBinary, programIndex, decodeKVInputSlots, decodeKVOutputRoles,
-        sampler, recentTokens);
+        prefillOutputs, -1, static_cast<uint32_t>(prefillPromptLen - 1), *device,
+        decodeBinary, programIndex, decodeKVInputSlots, prefillKVOutputRoles,
+        sampler, recentTokens, true, static_cast<uint32_t>(batchSize),
+        &prefillTokenPositions, &recentTokensBatch);
 
     std::vector<int> generated;
     generated.push_back(prefillExtracted.token);
     recentTokens.push_back(prefillExtracted.token);
+    std::vector<std::vector<int>> generatedBatch(static_cast<size_t>(batchSize));
+    for (int b = 0; b < batchSize; ++b) {
+      const int token =
+          b < static_cast<int>(prefillExtracted.tokens.size())
+              ? prefillExtracted.tokens[static_cast<size_t>(b)]
+              : prefillExtracted.token;
+      generatedBatch[static_cast<size_t>(b)].push_back(token);
+      recentTokensBatch[static_cast<size_t>(b)].push_back(token);
+    }
     std::unordered_map<std::string, ::tt::runtime::Tensor> pastKV =
         std::move(prefillExtracted.kvDevice);
+    retainKVCache(pastKV);
+    DecodeRuntimeInputCache decodeRuntimeInputCache =
+        precacheDecodeRuntimeInputs(*device, decodeBinary, programIndex,
+                                    decodeCtx, decodeInputs, decodeCache,
+                                    attentionMaskBatch, prefillPromptLen,
+                                    maxCacheLen, suppress);
+
+    if (officialRef) {
+      const int maxPredictions =
+          std::min({officialRef->maxPredictions,
+                    static_cast<int>(officialRef->forcedTokens.size()),
+                    static_cast<int>(officialRef->top5Tokens.size()),
+                    maxCacheLen - prefillPromptLen});
+      if (maxPredictions <= 0)
+        throw std::runtime_error(
+            "llama31_tt: official token matching has no decode budget");
+
+      std::vector<int> predicted;
+      predicted.reserve(static_cast<size_t>(maxPredictions));
+      int currentPrediction = prefillExtracted.token;
+      int cachePos = prefillPromptLen;
+      DecodeTiming decodeTiming;
+      std::vector<::tt::runtime::Tensor> previousDecodeOutputs;
+
+      for (int iter = 0; iter < maxPredictions && cachePos < maxCacheLen;
+           ++iter) {
+        predicted.push_back(currentPrediction);
+        const int inputToken =
+            officialRef->forcedTokens[static_cast<size_t>(std::min(
+                iter, static_cast<int>(officialRef->forcedTokens.size()) - 1))];
+
+      auto iterStart = std::chrono::steady_clock::now();
+      debugKVCacheState(pastKV, "official iter " + std::to_string(iter));
+      debugTensorState(previousDecodeOutputs,
+                       "official prev outputs " + std::to_string(iter));
+      auto decodeInputsRT = buildDecodeInputs(
+          *device, decodeBinary, programIndex, decodeCtx, decodeInputs,
+          decodeCache, std::vector<int>{inputToken}, cachePos, pastKV,
+          attentionMaskBatch, &decodeRuntimeInputCache);
+        debugTensorVectorState(decodeInputsRT, decodeCtx.roles,
+                               "official iter " + std::to_string(iter));
+        auto buildEnd = std::chrono::steady_clock::now();
+        auto submitStart = buildEnd;
+        auto decodeOutputs = ::tt::runtime::submit(
+            *device, decodeBinary, programIndex, decodeInputsRT);
+        waitDecodeOutputs(decodeOutputs, -1);
+        auto submitEnd = std::chrono::steady_clock::now();
+
+        ExtractedOutput decoded = extractLogitsAndKV(
+            decodeOutputs, -1, 0, *device, decodeBinary, programIndex,
+            decodeKVInputSlots, decodeKVOutputRoles, sampler, recentTokens,
+            extractDecodeKVOutputs);
+        previousDecodeOutputs = std::move(decodeOutputs);
+        auto outputEnd = std::chrono::steady_clock::now();
+        if (extractDecodeKVOutputs) {
+          // Decode uses in-place TTNN paged_update_cache. These returned KV
+          // tensors alias the persistent input cache handles; only use them
+          // when explicitly requested for A/B isolation.
+          pastKV = std::move(decoded.kvDevice);
+          retainKVCache(pastKV);
+        }
+
+        currentPrediction = decoded.token;
+        recentTokens.push_back(inputToken);
+        ++cachePos;
+
+        auto iterEnd = std::chrono::steady_clock::now();
+        const double buildSeconds =
+            std::chrono::duration<double>(buildEnd - iterStart).count();
+        const double submitSeconds =
+            std::chrono::duration<double>(submitEnd - submitStart).count();
+        const double outputSeconds =
+            std::chrono::duration<double>(outputEnd - submitEnd).count();
+        const double iterSeconds =
+            std::chrono::duration<double>(iterEnd - iterStart).count();
+        const double bookkeepingSeconds =
+            iterSeconds - buildSeconds - submitSeconds - outputSeconds;
+        decodeTiming.add(iterSeconds, buildSeconds, submitSeconds,
+                         outputSeconds, decoded.logitsToHostSeconds,
+                         decoded.kvRelayoutSeconds, bookkeepingSeconds);
+
+        if (!suppress &&
+            (iter < 8 || (iter + 1) % 50 == 0 || iter + 1 == maxPredictions)) {
+          std::cout << colorLabel("[Official " + std::to_string(iter) + "]")
+                    << " predicted=" << predicted.back()
+                    << " forced_in=" << inputToken
+                    << " | Decode Time: " << formatFixed(iterSeconds) << "s\n";
+        }
+      }
+
+      for (auto &kv : pastKV) {
+        try {
+          ::tt::runtime::deallocateTensor(kv.second, true);
+        } catch (...) {
+        }
+      }
+      previousDecodeOutputs.clear();
+      deallocateDecodeRuntimeInputCache(decodeRuntimeInputCache);
+
+      const auto [top1, top5] =
+          computeOfficialAccuracy(predicted, officialRef->top5Tokens);
+      const double steadyWall = decodeTiming.steadyWallSeconds();
+      const double steadySubmit = decodeTiming.steadySubmitSeconds();
+      const int steadyCount =
+          decodeTiming.count > 1 ? decodeTiming.count - 1 : 0;
+      auto perSteadyTokenMs = [steadyCount](double seconds) {
+        return steadyCount > 0
+                   ? 1000.0 * seconds / static_cast<double>(steadyCount)
+                   : 0.0;
+      };
+
+      if (!suppress) {
+        std::cout << "\n"
+                  << colorLabel("[Official token matching]") << " "
+                  << predicted.size() << " predictions"
+                  << " against " << officialRef->sourcePath << "\n";
+        std::cout << colorLabel("[Top1]") << " " << formatFixed(top1, 2)
+                  << "%\n";
+        std::cout << colorLabel("[Top5]") << " " << formatFixed(top5, 2)
+                  << "%\n";
+        std::cout << colorLabel("[Prefill]") << " "
+                  << formatFixed(prefillSeconds) << "s\n";
+        std::cout << colorLabel("[Decode wall]") << " "
+                  << formatFixed(decodeTiming.wallSeconds > 0.0
+                                     ? decodeTiming.count /
+                                           decodeTiming.wallSeconds
+                                     : 0.0)
+                  << " tokens/s (" << decodeTiming.count << " tokens in "
+                  << formatFixed(decodeTiming.wallSeconds) << "s)\n";
+        std::cout << colorLabel("[Decode steady wall]") << " "
+                  << formatFixed(steadyWall > 0.0
+                                     ? steadyCount / steadyWall
+                                     : 0.0)
+                  << " tokens/s excluding first decode\n";
+        std::cout << colorLabel("[Decode device-only]") << " "
+                  << formatFixed(decodeTiming.submitSeconds > 0.0
+                                     ? decodeTiming.count /
+                                           decodeTiming.submitSeconds
+                                     : 0.0)
+                  << " tokens/s\n";
+        std::cout << colorLabel("[Decode steady device-only]") << " "
+                  << formatFixed(steadySubmit > 0.0
+                                     ? steadyCount / steadySubmit
+                                     : 0.0)
+                  << " tokens/s excluding first decode\n";
+        std::cout << colorLabel("[Decode steady breakdown]") << " "
+                  << "build=" << formatFixed(perSteadyTokenMs(
+                                     decodeTiming.steadyBuildInputsSeconds()))
+                  << "ms, submit+wait="
+                  << formatFixed(perSteadyTokenMs(steadySubmit))
+                  << "ms, output="
+                  << formatFixed(perSteadyTokenMs(
+                         decodeTiming.steadyOutputSeconds()))
+                  << "ms, logits_to_host="
+                  << formatFixed(perSteadyTokenMs(
+                         decodeTiming.steadyLogitsToHostSeconds()))
+                  << "ms, kv_relayout="
+                  << formatFixed(perSteadyTokenMs(
+                         decodeTiming.steadyKVRelayoutSeconds()))
+                  << "ms, bookkeeping="
+                  << formatFixed(perSteadyTokenMs(
+                         decodeTiming.steadyBookkeepingSeconds()))
+                  << "ms\n";
+      }
+
+      writeOfficialTrace(*officialRef, predicted,
+                         prefillPromptLen, prefillSeconds,
+                         decodeTiming, extractDecodeKVOutputs, top1, top5);
+      ::tt::runtime::closeMeshDevice(*device);
+      return;
+    }
 
     std::string streamedText;
     auto streamGeneratedText = [&]() {
@@ -1601,7 +3378,8 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
 
     if (!suppress) {
       std::cout << colorLabel("[Iteration 0]")
-                << " Token: " << tokenizer.decodeToken(prefillExtracted.token)
+                << (batchSize > 1 ? " Token[0]: " : " Token: ")
+                << tokenizer.decodeToken(prefillExtracted.token)
                 << " | Time: " << formatFixed(prefillSeconds) << "s\n";
     } else {
       streamGeneratedText();
@@ -1609,56 +3387,208 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
 
     const int maxNewTokens =
         cfg.maxNewTokens > 0 ? cfg.maxNewTokens : maxCacheLen;
-    int cachePos = static_cast<int>(tokenIds.size());
-    double decodeWall = 0.0;
-    double decodeSubmit = 0.0;
-    int decodeCount = 0;
-    bool stopped = isStopToken(prefillExtracted.token);
-    while (static_cast<int>(generated.size()) < maxNewTokens &&
-           cachePos < maxCacheLen && !stopped) {
-      const int inputToken = generated.back();
+    int cachePos = prefillPromptLen;
+    DecodeTiming decodeTiming;
+    std::vector<bool> stoppedBatch(static_cast<size_t>(batchSize), false);
+    std::vector<::tt::runtime::Tensor> previousDecodeOutputs;
+    std::optional<::tt::runtime::Tensor> deviceInputIdsForNext;
+    const bool useDeviceTokenChain =
+        std::getenv("BUDDY_LLAMA31_DISABLE_DEVICE_TOKEN_CHAIN") == nullptr;
+    const bool requestedDeferredDecodeTokenReadback =
+        cfg.deferDecodeTokenReadback ||
+        std::getenv("BUDDY_LLAMA31_DEFER_DECODE_TOKEN_READBACK") != nullptr;
+    const bool greedySamplerConfig = cfg.samplerConfig.temperature == 0.0f &&
+                                     cfg.samplerConfig.topK == 0 &&
+                                     cfg.samplerConfig.topP == 1.0f &&
+                                     cfg.samplerConfig.minP == 0.0f &&
+                                     cfg.samplerConfig.repeatPenalty == 1.0f;
+    const bool deferDecodeTokenReadback =
+        requestedDeferredDecodeTokenReadback && ignoreEOS &&
+        useDeviceTokenChain && !extractDecodeKVOutputs && greedySamplerConfig;
+    if (requestedDeferredDecodeTokenReadback && !deferDecodeTokenReadback) {
+      printLlamaLog(
+          "deferred decode token readback disabled: requires ignore_eos, "
+          "greedy sampling, device token chain, and persistent decode KV "
+          "cache reuse",
+          suppress);
+    } else if (deferDecodeTokenReadback) {
+      printLlamaLog(
+          "deferred decode token readback enabled: token tensors are read "
+          "after the decode loop",
+          suppress);
+    }
+    std::vector<::tt::runtime::Tensor> deferredDecodeTokenOutputs;
+    for (int b = 0; b < batchSize; ++b)
+      stoppedBatch[static_cast<size_t>(b)] =
+          isStopToken(generatedBatch[static_cast<size_t>(b)].back());
+    auto allStopped = [&]() {
+      return std::all_of(stoppedBatch.begin(), stoppedBatch.end(),
+                         [](bool stopped) { return stopped; });
+    };
+    int generatedTokenCount = static_cast<int>(generatedBatch.front().size());
+    while (generatedTokenCount < maxNewTokens &&
+           cachePos < maxCacheLen && !allStopped()) {
+      std::vector<int> inputTokens(static_cast<size_t>(batchSize), eosToken);
+      for (int b = 0; b < batchSize; ++b) {
+        if (!stoppedBatch[static_cast<size_t>(b)])
+          inputTokens[static_cast<size_t>(b)] =
+              generatedBatch[static_cast<size_t>(b)].back();
+      }
+      const bool anyStopped =
+          std::any_of(stoppedBatch.begin(), stoppedBatch.end(),
+                      [](bool stopped) { return stopped; });
+      if (deviceInputIdsForNext && anyStopped) {
+        try {
+          ::tt::runtime::deallocateTensor(*deviceInputIdsForNext, true);
+        } catch (...) {
+        }
+        deviceInputIdsForNext.reset();
+      }
       auto iterStart = std::chrono::steady_clock::now();
+      debugKVCacheState(pastKV, "decode iter " + std::to_string(cachePos));
+      debugTensorState(previousDecodeOutputs,
+                       "decode prev outputs " + std::to_string(cachePos));
       auto decodeInputsRT = buildDecodeInputs(
           *device, decodeBinary, programIndex, decodeCtx, decodeInputs,
-          decodeCache, inputToken, cachePos, pastKV);
-      auto submitStart = std::chrono::steady_clock::now();
+          decodeCache, inputTokens, cachePos, pastKV, attentionMaskBatch,
+          &decodeRuntimeInputCache,
+          deviceInputIdsForNext ? &*deviceInputIdsForNext : nullptr);
+      debugTensorVectorState(decodeInputsRT, decodeCtx.roles,
+                             "decode iter " + std::to_string(cachePos));
+      auto buildEnd = std::chrono::steady_clock::now();
+      auto submitStart = buildEnd;
       auto decodeOutputs = ::tt::runtime::submit(*device, decodeBinary,
                                                  programIndex, decodeInputsRT);
-      ::tt::runtime::wait(decodeOutputs);
+      waitDecodeOutputs(decodeOutputs, -1);
       auto submitEnd = std::chrono::steady_clock::now();
+      if (deviceInputIdsForNext) {
+        if (!deferDecodeTokenReadback) {
+          try {
+            ::tt::runtime::deallocateTensor(*deviceInputIdsForNext, true);
+          } catch (...) {
+          }
+        }
+        deviceInputIdsForNext.reset();
+      }
 
       ExtractedOutput decoded = extractLogitsAndKV(
           decodeOutputs, -1, 0, *device, decodeBinary, programIndex,
-          decodeKVInputSlots, decodeKVOutputRoles, sampler, recentTokens);
-      for (auto &kv : pastKV) {
+          decodeKVInputSlots, decodeKVOutputRoles, sampler, recentTokens,
+          extractDecodeKVOutputs, static_cast<uint32_t>(batchSize), nullptr,
+          &recentTokensBatch, useDeviceTokenChain, deferDecodeTokenReadback);
+      previousDecodeOutputs = std::move(decodeOutputs);
+      auto outputEnd = std::chrono::steady_clock::now();
+      deviceInputIdsForNext = std::move(decoded.tokenDevice);
+      if (extractDecodeKVOutputs) {
+        // Decode uses in-place TTNN paged_update_cache. These returned KV
+        // tensors alias the persistent input cache handles; only use them when
+        // explicitly requested for A/B isolation.
+        pastKV = std::move(decoded.kvDevice);
+        retainKVCache(pastKV);
+      }
+
+      std::optional<int> user0TokenForIterationLog;
+      if (deferDecodeTokenReadback) {
+        if (!deviceInputIdsForNext)
+          throw std::runtime_error(
+              "llama31_tt: deferred decode token readback lost token tensor");
+        deferredDecodeTokenOutputs.push_back(*deviceInputIdsForNext);
+      } else {
+        const bool user0WasStopped =
+            stoppedBatch.empty() ? false : stoppedBatch.front();
+        const int user0Token = !decoded.tokens.empty() ? decoded.tokens.front()
+                                                       : decoded.token;
+        for (int b = 0; b < batchSize; ++b) {
+          const size_t batchIndex = static_cast<size_t>(b);
+          if (stoppedBatch[batchIndex])
+            continue;
+          const int token =
+              b < static_cast<int>(decoded.tokens.size())
+                  ? decoded.tokens[batchIndex]
+                  : decoded.token;
+          generatedBatch[batchIndex].push_back(token);
+          recentTokensBatch[batchIndex].push_back(token);
+          if (isStopToken(token))
+            stoppedBatch[batchIndex] = true;
+        }
+        if (!user0WasStopped) {
+          generated.push_back(user0Token);
+          recentTokens.push_back(user0Token);
+          user0TokenForIterationLog = user0Token;
+        }
+      }
+      ++generatedTokenCount;
+      ++cachePos;
+      auto iterEnd = std::chrono::steady_clock::now();
+      const double buildSeconds =
+          std::chrono::duration<double>(buildEnd - iterStart).count();
+      const double submitSeconds =
+          std::chrono::duration<double>(submitEnd - submitStart).count();
+      const double outputSeconds =
+          std::chrono::duration<double>(outputEnd - submitEnd).count();
+      const double iterSeconds =
+          std::chrono::duration<double>(iterEnd - iterStart).count();
+      const double bookkeepingSeconds =
+          iterSeconds - buildSeconds - submitSeconds - outputSeconds;
+      decodeTiming.add(iterSeconds, buildSeconds, submitSeconds, outputSeconds,
+                       decoded.logitsToHostSeconds, decoded.kvRelayoutSeconds,
+                       bookkeepingSeconds);
+
+      if (!suppress) {
+        std::cout << colorLabel("[Iteration " +
+                                std::to_string(decodeTiming.count) + "]")
+                  << (batchSize > 1 ? " Token[0]: " : " Token: ")
+                  << (deferDecodeTokenReadback
+                          ? std::string("<deferred>")
+                          : user0TokenForIterationLog
+                                ? tokenizer.decodeToken(
+                                      *user0TokenForIterationLog)
+                                : std::string("<stopped>"))
+                  << " | Time: " << formatFixed(iterSeconds) << "s\n";
+      } else {
+        if (!deferDecodeTokenReadback)
+          streamGeneratedText();
+      }
+    }
+    if (deviceInputIdsForNext) {
+      if (!deferDecodeTokenReadback) {
         try {
-          ::tt::runtime::deallocateTensor(kv.second, true);
+          ::tt::runtime::deallocateTensor(*deviceInputIdsForNext, true);
         } catch (...) {
         }
       }
-      pastKV = std::move(decoded.kvDevice);
+      deviceInputIdsForNext.reset();
+    }
 
-      generated.push_back(decoded.token);
-      recentTokens.push_back(decoded.token);
-      ++cachePos;
-      ++decodeCount;
-      auto iterEnd = std::chrono::steady_clock::now();
-      const double submitSeconds =
-          std::chrono::duration<double>(submitEnd - submitStart).count();
-      const double iterSeconds =
-          std::chrono::duration<double>(iterEnd - iterStart).count();
-      decodeSubmit += submitSeconds;
-      decodeWall += iterSeconds;
-
-      if (!suppress) {
-        std::cout << colorLabel("[Iteration " + std::to_string(decodeCount) +
-                                "]")
-                  << " Token: " << tokenizer.decodeToken(decoded.token)
-                  << " | Time: " << formatFixed(iterSeconds) << "s\n";
-      } else {
-        streamGeneratedText();
+    double deferredTokenReadbackSeconds = 0.0;
+    if (deferDecodeTokenReadback) {
+      auto readbackStart = std::chrono::steady_clock::now();
+      for (auto &tokenTensor : deferredDecodeTokenOutputs) {
+        std::vector<int> tokens =
+            readTokenTensorToHost(tokenTensor, static_cast<uint32_t>(batchSize));
+        for (int b = 0; b < batchSize; ++b) {
+          const int token =
+              b < static_cast<int>(tokens.size()) ? tokens[static_cast<size_t>(b)]
+                                                  : tokens.front();
+          generatedBatch[static_cast<size_t>(b)].push_back(token);
+          recentTokensBatch[static_cast<size_t>(b)].push_back(token);
+        }
+        generated.push_back(tokens.front());
+        recentTokens.push_back(tokens.front());
       }
-      stopped = isStopToken(decoded.token);
+      auto readbackEnd = std::chrono::steady_clock::now();
+      deferredTokenReadbackSeconds =
+          std::chrono::duration<double>(readbackEnd - readbackStart).count();
+      for (auto &tokenTensor : deferredDecodeTokenOutputs) {
+        try {
+          ::tt::runtime::deallocateTensor(tokenTensor, true);
+        } catch (...) {
+        }
+      }
+      deferredDecodeTokenOutputs.clear();
+      printLlamaLog("deferred decode token readback finished in " +
+                        formatFixed(deferredTokenReadbackSeconds) + "s",
+                    suppress);
     }
 
     for (auto &kv : pastKV) {
@@ -1667,33 +3597,169 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
       } catch (...) {
       }
     }
+    previousDecodeOutputs.clear();
+    deallocateDecodeRuntimeInputCache(decodeRuntimeInputCache);
+
+    std::vector<std::string> generatedTextBatch;
+    generatedTextBatch.reserve(static_cast<size_t>(batchSize));
+    for (const auto &tokens : generatedBatch)
+      generatedTextBatch.push_back(tokenizer.decodeTokens(tokens, true));
+    if (const char *traceOut = std::getenv("BUDDY_LLAMA31_BATCH_TRACE_OUT")) {
+      writeBatchTrace(traceOut, modelName, promptBatch, tokenIdsBatch,
+                      prefillPromptLen, maxCacheLen, leftPadPrompts,
+                      prefillSeconds, decodeTiming,
+                      deferredTokenReadbackSeconds, generatedBatch,
+                      generatedTextBatch);
+      printLlamaLog(std::string("batch trace written: ") + traceOut, suppress);
+    }
 
     if (suppress) {
+      if (deferDecodeTokenReadback && !generatedTextBatch.empty()) {
+        std::cout << generatedTextBatch.front();
+      }
       std::cout << "\n";
     } else {
-      const double total = prefillSeconds + decodeWall;
+      const double total = prefillSeconds + decodeTiming.wallSeconds +
+                           deferredTokenReadbackSeconds;
+      const double aggregateDecodeTokens =
+          static_cast<double>(decodeTiming.count) * batchSize;
+      const int steadyCount =
+          decodeTiming.count > 1 ? decodeTiming.count - 1 : 0;
+      const double aggregateSteadyDecodeTokens =
+          static_cast<double>(steadyCount) * batchSize;
+      const double steadyWall = decodeTiming.steadyWallSeconds();
+      const double steadySubmit = decodeTiming.steadySubmitSeconds();
+      auto perSteadyTokenMs = [steadyCount](double seconds) {
+        return steadyCount > 0
+                   ? 1000.0 * seconds / static_cast<double>(steadyCount)
+                   : 0.0;
+      };
       std::cout << "\n"
                 << colorLabel("[Total time]") << " " << formatFixed(total)
                 << "s\n";
+      std::cout << colorLabel("[Batch]") << " " << batchSize << "\n";
       std::cout << colorLabel("[Prefilling]") << " "
                 << formatFixed(prefillSeconds > 0.0
-                                   ? static_cast<double>(maxCacheLen) /
+                                   ? static_cast<double>(prefillPromptLen) *
+                                         batchSize /
                                          prefillSeconds
                                    : 0.0)
-                << " tokens/s (prefill_time=" << formatFixed(prefillSeconds)
+                << " aggregate tokens/s (prefill_time="
+                << formatFixed(prefillSeconds)
                 << "s)\n";
       std::cout << colorLabel("[Decoding wall]") << " "
-                << formatFixed(decodeWall > 0.0 ? decodeCount / decodeWall
+                << formatFixed(decodeTiming.wallSeconds > 0.0
+                                   ? aggregateDecodeTokens /
+                                         decodeTiming.wallSeconds
+                                   : 0.0)
+                << " aggregate tokens/s (" << aggregateDecodeTokens
+                << " tokens in " << formatFixed(decodeTiming.wallSeconds)
+                << "s, "
+                << formatFixed(decodeTiming.wallSeconds > 0.0
+                                   ? decodeTiming.count /
+                                         decodeTiming.wallSeconds
+                                   : 0.0)
+                << " tok/s/user)\n";
+      if (deferDecodeTokenReadback) {
+        const double decodeWallPlusReadback =
+            decodeTiming.wallSeconds + deferredTokenReadbackSeconds;
+        const double steadyWallPlusReadback =
+            steadyWall + deferredTokenReadbackSeconds;
+        std::cout << colorLabel("[Decoding wall incl deferred readback]") << " "
+                  << formatFixed(decodeWallPlusReadback > 0.0
+                                     ? aggregateDecodeTokens /
+                                           decodeWallPlusReadback
+                                     : 0.0)
+                  << " aggregate tokens/s (" << aggregateDecodeTokens
+                  << " tokens in " << formatFixed(decodeWallPlusReadback)
+                  << "s, "
+                  << formatFixed(decodeWallPlusReadback > 0.0
+                                     ? decodeTiming.count /
+                                           decodeWallPlusReadback
+                                     : 0.0)
+                  << " tok/s/user)\n";
+        std::cout
+            << colorLabel("[Decoding steady wall incl deferred readback]")
+            << " "
+            << formatFixed(steadyWallPlusReadback > 0.0
+                               ? aggregateSteadyDecodeTokens /
+                                     steadyWallPlusReadback
+                               : 0.0)
+            << " aggregate tokens/s ("
+            << formatFixed(steadyWallPlusReadback > 0.0
+                               ? steadyCount / steadyWallPlusReadback
+                               : 0.0)
+            << " tok/s/user, excluding first decode)\n";
+      }
+      std::cout << colorLabel("[Decoding steady wall]") << " "
+                << formatFixed(steadyWall > 0.0
+                                   ? aggregateSteadyDecodeTokens / steadyWall
+                                   : 0.0)
+                << " aggregate tokens/s ("
+                << formatFixed(steadyWall > 0.0 ? steadyCount / steadyWall
                                                 : 0.0)
-                << " tokens/s (" << decodeCount << " tokens in "
-                << formatFixed(decodeWall) << "s)\n";
+                << " tok/s/user, excluding first decode)\n";
       std::cout << colorLabel("[Decoding device-only]") << " "
-                << formatFixed(decodeSubmit > 0.0 ? decodeCount / decodeSubmit
-                                                  : 0.0)
-                << " tokens/s\n";
-      std::cout << colorLabel("[Input]") << " " << prompt << "\n";
-      std::cout << colorLabel("[Output]") << " "
-                << tokenizer.decodeTokens(generated, true) << "\n";
+                << formatFixed(decodeTiming.submitSeconds > 0.0
+                                   ? aggregateDecodeTokens /
+                                         decodeTiming.submitSeconds
+                                   : 0.0)
+                << " aggregate tokens/s ("
+                << formatFixed(decodeTiming.submitSeconds > 0.0
+                                   ? decodeTiming.count /
+                                         decodeTiming.submitSeconds
+                                   : 0.0)
+                << " tok/s/user)\n";
+      std::cout << colorLabel("[Decoding steady device-only]") << " "
+                << formatFixed(steadySubmit > 0.0
+                                   ? aggregateSteadyDecodeTokens /
+                                         steadySubmit
+                                   : 0.0)
+                << " aggregate tokens/s ("
+                << formatFixed(steadySubmit > 0.0
+                                   ? steadyCount / steadySubmit
+                                   : 0.0)
+                << " tok/s/user, excluding first decode)\n";
+      std::cout << colorLabel("[Decoding steady breakdown]") << " "
+                << "build="
+                << formatFixed(
+                       perSteadyTokenMs(decodeTiming
+                                            .steadyBuildInputsSeconds()))
+                << "ms, submit+wait="
+                << formatFixed(perSteadyTokenMs(steadySubmit))
+                << "ms, output="
+                << formatFixed(
+                       perSteadyTokenMs(decodeTiming.steadyOutputSeconds()))
+                << "ms, logits_to_host="
+                << formatFixed(perSteadyTokenMs(
+                       decodeTiming.steadyLogitsToHostSeconds()))
+                << "ms, kv_relayout="
+                << formatFixed(perSteadyTokenMs(
+                       decodeTiming.steadyKVRelayoutSeconds()))
+                << "ms, bookkeeping="
+                << formatFixed(perSteadyTokenMs(
+                       decodeTiming.steadyBookkeepingSeconds()))
+                << "ms\n";
+      if (deferDecodeTokenReadback) {
+        std::cout << colorLabel("[Deferred token readback]") << " "
+                  << formatFixed(deferredTokenReadbackSeconds) << "s\n";
+      }
+      const bool printAllBatchOutputs = batchSize > 1 &&
+          (cfg.printAllBatchOutputs ||
+           std::getenv("BUDDY_LLAMA31_PRINT_ALL_BATCH") != nullptr);
+      const int printedBatch =
+          printAllBatchOutputs ? batchSize : std::min(batchSize, 1);
+      for (int b = 0; b < printedBatch; ++b) {
+        const std::string suffix =
+            batchSize > 1 ? " user" + std::to_string(b) : "";
+        std::cout << colorLabel("[Input" + suffix + "]") << " "
+                  << promptBatch[static_cast<size_t>(b)] << "\n";
+        std::cout << colorLabel("[Output" + suffix + "]") << " "
+                  << (b < static_cast<int>(generatedTextBatch.size())
+                          ? generatedTextBatch[static_cast<size_t>(b)]
+                          : "")
+                  << "\n";
+      }
     }
 
     ::tt::runtime::closeMeshDevice(*device);
