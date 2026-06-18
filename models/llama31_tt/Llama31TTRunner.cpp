@@ -380,6 +380,31 @@ writeIntVectorVectorJson(std::ostream &os,
   os << "]";
 }
 
+static void writeStreamJsonTokenEvent(const std::string &modelName,
+                                      const char *phase, int iteration,
+                                      int user, int tokenId,
+                                      std::string_view text, bool stopped) {
+  std::cout << "{\"event\":\"token\",\"model\":";
+  writeJsonString(std::cout, modelName);
+  std::cout << ",\"phase\":";
+  writeJsonString(std::cout, phase);
+  std::cout << ",\"iteration\":" << iteration << ",\"user\":" << user
+            << ",\"token_id\":" << tokenId << ",\"text\":";
+  writeJsonString(std::cout, text);
+  std::cout << ",\"stopped\":" << (stopped ? "true" : "false") << "}\n";
+  std::cout.flush();
+}
+
+static void writeStreamJsonDoneEvent(const std::string &modelName, int user,
+                                     std::string_view text, bool stopped) {
+  std::cout << "{\"event\":\"done\",\"model\":";
+  writeJsonString(std::cout, modelName);
+  std::cout << ",\"user\":" << user << ",\"text\":";
+  writeJsonString(std::cout, text);
+  std::cout << ",\"stopped\":" << (stopped ? "true" : "false") << "}\n";
+  std::cout.flush();
+}
+
 static void writeBatchTrace(const std::string &path,
                             const std::string &modelName,
                             const std::vector<std::string> &prompts,
@@ -2885,7 +2910,12 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
 
   if (cfg.raxPath.empty())
     throw std::runtime_error("llama31_tt requires --model <path.rax>");
-  const bool suppress = cfg.suppressStats;
+  const bool streamJsonl = cfg.streamJsonl;
+  const bool suppress = cfg.suppressStats || streamJsonl;
+  if (streamJsonl && cfg.deferDecodeTokenReadback)
+    throw std::runtime_error(
+        "llama_tt: --stream-jsonl cannot be combined with "
+        "--defer-decode-token-readback");
 
   const ModelManifest manifest = ModelManifest::loadFromRax(cfg.raxPath);
   const std::string prefillTTNN = findTTNNArtifact(manifest, "prefill");
@@ -3376,7 +3406,14 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
       streamedText = std::move(current);
     };
 
-    if (!suppress) {
+    if (streamJsonl) {
+      for (int b = 0; b < batchSize; ++b) {
+        const int token = generatedBatch[static_cast<size_t>(b)].front();
+        writeStreamJsonTokenEvent(modelName, "prefill", 0, b, token,
+                                  tokenizer.decodeToken(token),
+                                  isStopToken(token));
+      }
+    } else if (!suppress) {
       std::cout << colorLabel("[Iteration 0]")
                 << (batchSize > 1 ? " Token[0]: " : " Token: ")
                 << tokenizer.decodeToken(prefillExtracted.token)
@@ -3508,8 +3545,14 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
                   : decoded.token;
           generatedBatch[batchIndex].push_back(token);
           recentTokensBatch[batchIndex].push_back(token);
-          if (isStopToken(token))
+          const bool stopped = isStopToken(token);
+          if (stopped)
             stoppedBatch[batchIndex] = true;
+          if (streamJsonl) {
+            writeStreamJsonTokenEvent(
+                modelName, "decode", decodeTiming.count + 1, b, token,
+                tokenizer.decodeToken(token), stopped);
+          }
         }
         if (!user0WasStopped) {
           generated.push_back(user0Token);
@@ -3534,7 +3577,9 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
                        decoded.logitsToHostSeconds, decoded.kvRelayoutSeconds,
                        bookkeepingSeconds);
 
-      if (!suppress) {
+      if (streamJsonl) {
+        // JSONL token events are emitted per user above.
+      } else if (!suppress) {
         std::cout << colorLabel("[Iteration " +
                                 std::to_string(decodeTiming.count) + "]")
                   << (batchSize > 1 ? " Token[0]: " : " Token: ")
@@ -3613,10 +3658,18 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
       printLlamaLog(std::string("batch trace written: ") + traceOut, suppress);
     }
 
-    if (suppress) {
-      if (deferDecodeTokenReadback && !generatedTextBatch.empty()) {
-        std::cout << generatedTextBatch.front();
+    if (streamJsonl) {
+      for (int b = 0; b < batchSize; ++b) {
+        const bool stopped =
+            b < static_cast<int>(stoppedBatch.size())
+                ? stoppedBatch[static_cast<size_t>(b)]
+                : false;
+        writeStreamJsonDoneEvent(
+            modelName, b, generatedTextBatch[static_cast<size_t>(b)], stopped);
       }
+    } else if (suppress) {
+      if (deferDecodeTokenReadback && !generatedTextBatch.empty())
+        std::cout << generatedTextBatch.front();
       std::cout << "\n";
     } else {
       const double total = prefillSeconds + decodeTiming.wallSeconds +

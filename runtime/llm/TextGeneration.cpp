@@ -18,8 +18,10 @@
 
 #include <algorithm>
 #include <chrono>
+#include <iomanip>
 #include <iostream>
 #include <limits>
+#include <string_view>
 
 namespace buddy {
 
@@ -51,15 +53,77 @@ void interruptHandler(int) { g_interrupted = true; }
 namespace {
 
 /// Stream decoded text incrementally to stdout.
-void streamNewText(Text<size_t, 2> &outputContainer, std::string &lastPrinted,
-                   const TextCodec &codec) {
+void writeJsonString(std::ostream &os, std::string_view text) {
+  os << '"';
+  for (unsigned char c : text) {
+    switch (c) {
+    case '\\':
+      os << "\\\\";
+      break;
+    case '"':
+      os << "\\\"";
+      break;
+    case '\b':
+      os << "\\b";
+      break;
+    case '\f':
+      os << "\\f";
+      break;
+    case '\n':
+      os << "\\n";
+      break;
+    case '\r':
+      os << "\\r";
+      break;
+    case '\t':
+      os << "\\t";
+      break;
+    default:
+      if (c < 0x20) {
+        os << "\\u" << std::hex << std::setw(4) << std::setfill('0')
+           << static_cast<int>(c) << std::dec << std::setfill(' ');
+      } else {
+        os << static_cast<char>(c);
+      }
+      break;
+    }
+  }
+  os << '"';
+}
+
+void writeStreamJsonTokenEvent(const char *phase, int iteration, int tokenId,
+                               std::string_view text, bool stopped) {
+  std::cout << "{\"event\":\"token\",\"phase\":";
+  writeJsonString(std::cout, phase);
+  std::cout << ",\"iteration\":" << iteration << ",\"user\":0"
+            << ",\"token_id\":" << tokenId << ",\"text\":";
+  writeJsonString(std::cout, text);
+  std::cout << ",\"stopped\":" << (stopped ? "true" : "false") << "}\n";
+  std::cout.flush();
+}
+
+void writeStreamJsonDoneEvent(std::string_view text) {
+  std::cout << "{\"event\":\"done\",\"user\":0,\"text\":";
+  writeJsonString(std::cout, text);
+  std::cout << "}\n";
+  std::cout.flush();
+}
+
+std::string streamNewText(Text<size_t, 2> &outputContainer,
+                          std::string &lastPrinted, const TextCodec &codec,
+                          bool writeStdout) {
   std::string current = codec.detokenize(outputContainer);
+  std::string delta;
   if (current.size() > lastPrinted.size()) {
-    std::cout.write(current.data() + lastPrinted.size(),
-                    current.size() - lastPrinted.size());
-    std::cout.flush();
+    delta.assign(current.data() + lastPrinted.size(),
+                 current.size() - lastPrinted.size());
+    if (writeStdout) {
+      std::cout.write(delta.data(), delta.size());
+      std::cout.flush();
+    }
   }
   lastPrinted = std::move(current);
+  return delta;
 }
 
 } // namespace
@@ -94,7 +158,7 @@ GenerationResult runGeneration(const std::string &prompt, LLMSession &session,
                                const std::string &vocabPath, int maxNewTokens,
                                const std::vector<long long> &stopTokenIds,
                                buddy::Sampler &sampler, const TextCodec &codec,
-                               bool suppress) {
+                               bool suppress, bool streamJsonl) {
   GenerationResult result;
 
   const int keepTokenNum = codec.maxTokenLen / 4;
@@ -131,13 +195,21 @@ GenerationResult runGeneration(const std::string &prompt, LLMSession &session,
   recentTokens.push_back(firstToken);
 
   if (isStopToken(firstToken)) {
-    std::cout << std::endl;
+    if (streamJsonl) {
+      writeStreamJsonTokenEvent("prefill", 0, firstToken, "", true);
+      writeStreamJsonDoneEvent("");
+    } else {
+      std::cout << std::endl;
+    }
     return result;
   }
 
   outputTokens.appendTokenIdx(firstToken);
   std::string lastPrinted;
-  streamNewText(outputTokens, lastPrinted, codec);
+  std::string delta =
+      streamNewText(outputTokens, lastPrinted, codec, !streamJsonl);
+  if (streamJsonl)
+    writeStreamJsonTokenEvent("prefill", 0, firstToken, delta, false);
 
   // ── Decode loop ─────────────────────────────────────────────────────────
   int curToken = firstToken;
@@ -180,19 +252,27 @@ GenerationResult runGeneration(const std::string &prompt, LLMSession &session,
       recentTokens.erase(recentTokens.begin(),
                          recentTokens.end() - sampler.config().repeatLastN);
 
-    if (isStopToken(nextToken))
+    if (isStopToken(nextToken)) {
+      if (streamJsonl)
+        writeStreamJsonTokenEvent("decode", step, nextToken, "", true);
       break;
+    }
 
     outputTokens.appendTokenIdx(nextToken);
-    streamNewText(outputTokens, lastPrinted, codec);
+    delta = streamNewText(outputTokens, lastPrinted, codec, !streamJsonl);
+    if (streamJsonl)
+      writeStreamJsonTokenEvent("decode", step, nextToken, delta, false);
     curToken = nextToken;
   }
 
-  std::cout << std::endl;
+  if (!streamJsonl)
+    std::cout << std::endl;
 
   result.generatedTokens = decodeCount;
   result.decodeSecs = decodeAccumMs / 1000.0;
   result.text = codec.detokenize(outputTokens);
+  if (streamJsonl)
+    writeStreamJsonDoneEvent(result.text);
   return result;
 }
 

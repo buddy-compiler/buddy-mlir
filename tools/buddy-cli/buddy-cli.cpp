@@ -305,6 +305,7 @@ static void usage(const char *prog) {
       << "  --defer-decode-token-readback\n"
       << "                           Defer device token-id readback until after\n"
       << "                           fixed-step decode when supported\n"
+      << "  --stream-jsonl           Emit token events as JSON Lines\n"
       << "\n"
       << "NUMA / affinity (applied before model load):\n"
       << "  --cpus       <spec>      CPU affinity, e.g. 0-47 or 0-15,32-47\n"
@@ -363,6 +364,7 @@ int main(int argc, char **argv) {
   bool suppressStats = false;
   bool printAllBatchOutputs = false;
   bool deferDecodeTokenReadback = false;
+  bool streamJsonl = false;
   bool interactive = false;
 
   // NUMA / affinity args (applied before model load)
@@ -413,6 +415,8 @@ int main(int argc, char **argv) {
       suppressStats = true;
     else if (a == "--defer-decode-token-readback")
       deferDecodeTokenReadback = true;
+    else if (a == "--stream-jsonl")
+      streamJsonl = true;
     else if (a == "--print-all-batch")
       printAllBatchOutputs = true;
     else if (a == "--interactive")
@@ -454,6 +458,12 @@ int main(int argc, char **argv) {
     std::cerr << "\033[31;1m[Error]\033[0m "
                  "Provide --model <path.rax> or --model-so <path.so>.\n\n";
     usage(argv[0]);
+    return 2;
+  }
+  if (streamJsonl && deferDecodeTokenReadback) {
+    std::cerr << "\033[31;1m[Error]\033[0m "
+                 "--stream-jsonl requires per-step token readback; do not "
+                 "combine it with --defer-decode-token-readback.\n";
     return 2;
   }
 
@@ -532,6 +542,7 @@ int main(int argc, char **argv) {
   cfg.suppressStats = suppressStats;
   cfg.printAllBatchOutputs = printAllBatchOutputs;
   cfg.deferDecodeTokenReadback = deferDecodeTokenReadback;
+  cfg.streamJsonl = streamJsonl;
   cfg.interactive = interactive;
 
   try {

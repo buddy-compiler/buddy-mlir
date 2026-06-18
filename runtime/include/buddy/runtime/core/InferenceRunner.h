@@ -80,6 +80,9 @@ struct RunConfig {
   /// the runner can feed each decode token tensor directly into the next step.
   bool deferDecodeTokenReadback = false;
 
+  /// Emit machine-readable token events as JSON Lines on stdout.
+  bool streamJsonl = false;
+
   // ── Interactive mode ──
   /// Enable REPL interactive mode for multi-turn conversation.
   bool interactive = false;

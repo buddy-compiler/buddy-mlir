@@ -29,7 +29,7 @@ void runInteractiveSession(LLMSession &session, const std::string &vocabPath,
                            const std::vector<long long> &stopTokenIds,
                            buddy::ConversationManager &conv,
                            const TextCodec &codec, buddy::Sampler &sampler) {
-  const bool suppress = cfg.suppressStats;
+  const bool suppress = cfg.suppressStats || cfg.streamJsonl;
 
   std::cerr << "\033[33;1mInteractive mode\033[0m (type :exit to quit)\n"
             << "  :exit / :quit   Exit\n"
@@ -131,7 +131,8 @@ void runInteractiveSession(LLMSession &session, const std::string &vocabPath,
 
     GenerationResult result =
         runGeneration(fullPrompt, session, vocabPath, cfg.maxNewTokens,
-                      stopTokenIds, sampler, codec, suppress);
+                      stopTokenIds, sampler, codec, suppress,
+                      cfg.streamJsonl);
 
     conv.addMessage("assistant", result.text);
 

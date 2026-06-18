@@ -1,14 +1,11 @@
 # Buddy Tenstorrent Environment
 
-This guide sets up the optional Tenstorrent toolchain used by Buddy:
-Buddy LLVM/MLIR, upstream `tt-mlir`, TTNN flatbuffer tooling, and the `ttrt`
-runtime package. Model-specific package generation and `buddy-cli` commands
-live in the corresponding model README files.
+This guide sets up Buddy with Tenstorrent support. Model-specific package
+generation and `buddy-cli` commands live in the corresponding model README files.
 
 ## Setup Paths
 
-Run all commands from the Buddy repository root. Build directories stay inside
-the checkout and are ignored by Git.
+Set the build paths from the Buddy repository root.
 
 ```bash
 cd /path/to/buddy-mlir
@@ -23,10 +20,7 @@ export BUDDY_BUILD="$BUDDY_REPO_ROOT/build-tenstorrent"
 
 ## Initialize tt-mlir
 
-The `git submodule update --init` command is the step that downloads
-`thirdparty/tt-mlir` when it is not already present. The runtime build below
-also passes an explicit package version so the build does not depend on
-`git describe`.
+Initialize the `tt-mlir` submodule.
 
 ```bash
 cd "$BUDDY_REPO_ROOT"
@@ -37,8 +31,7 @@ git submodule update --init thirdparty/tt-mlir
 
 ## Create Python Environment
 
-Use one conda environment to bootstrap the tt-mlir toolchain and Python
-bindings.
+Create the Python environment used by the Tenstorrent build.
 
 ```bash
 cd "$BUDDY_REPO_ROOT"
@@ -61,11 +54,7 @@ conda install -c conda-forge doxygen graphviz -y
 
 ## Build Buddy LLVM/MLIR
 
-Buddy is built against the LLVM/MLIR submodule in this repository. The
-Tenstorrent toolchain is used later for `ttmlir-opt`, `ttmlir-translate`, and
-`ttrt`, but not as Buddy's `MLIR_DIR` / `LLVM_DIR`. This follows the standard
-Buddy build style and lets CMake use the normal host compiler for the first
-LLVM build.
+Build Buddy LLVM/MLIR.
 
 ```bash
 cd "$BUDDY_REPO_ROOT"
@@ -75,7 +64,8 @@ git submodule update --init llvm
 mkdir -p "$BUDDY_LLVM_BUILD"
 
 cmake -G Ninja -S "$BUDDY_REPO_ROOT/llvm/llvm" -B "$BUDDY_LLVM_BUILD" \
-  -DLLVM_ENABLE_PROJECTS="mlir;clang;openmp" \
+  -DLLVM_ENABLE_PROJECTS="mlir;clang;lld" \
+  -DLLVM_ENABLE_RUNTIMES="openmp" \
   -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
   -DLLVM_ENABLE_ASSERTIONS=ON \
   -DOPENMP_ENABLE_LIBOMPTARGET=OFF \
@@ -84,22 +74,22 @@ cmake -G Ninja -S "$BUDDY_REPO_ROOT/llvm/llvm" -B "$BUDDY_LLVM_BUILD" \
   -DPython3_EXECUTABLE=$(which python3) \
   -Dpybind11_DIR="$(python -m pybind11 --cmakedir)"
 
-cmake --build "$BUDDY_LLVM_BUILD" --target check-clang check-mlir omp
+cmake --build "$BUDDY_LLVM_BUILD"
+cmake --build "$BUDDY_LLVM_BUILD" --target check-clang check-mlir check-openmp
 
 export PATH="$BUDDY_LLVM_BUILD/bin:$PATH"
 ```
 
 ## Build tt-mlir Toolchain
 
-This builds the upstream LLVM/MLIR-based toolchain used by tt-mlir. The
-`CC=clang CXX=clang++` prefix uses the Buddy-built clang from
-`$BUDDY_LLVM_BUILD/bin`, because that directory was added to `PATH` above. No
-system `/usr/bin/clang-20` path is required.
+Build the tt-mlir toolchain.
 
 ```bash
 cd "$BUDDY_REPO_ROOT"
 
-mkdir -p "$TTMLIR_TOOLCHAIN_DIR"
+mkdir -p "$TTMLIR_TOOLCHAIN_DIR/bin"
+
+export CXXFLAGS="${CXXFLAGS:-} -Wno-c2y-extensions"
 
 CC=clang CXX=clang++ \
 cmake -G Ninja -S "$BUDDY_REPO_ROOT/thirdparty/tt-mlir/env" -B "$TTMLIR_ENV_BUILD" \
@@ -110,18 +100,28 @@ cmake --build "$TTMLIR_ENV_BUILD"
 
 ## Build tt-mlir Runtime
 
-This builds `ttmlir-opt`, `ttmlir-translate`, Python modules, and the `ttrt`
-runtime package used to execute TTNN flatbuffers.
+Build the tt-mlir runtime tools and Python packages.
 
 ```bash
 cd "$BUDDY_REPO_ROOT/thirdparty/tt-mlir"
 source env/activate
+export PATH="$BUDDY_LLVM_BUILD/bin:$PATH"
 export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:${LD_LIBRARY_PATH:-}"
 export PYTHONPATH="$TTMLIR_BUILD/python_packages:${PYTHONPATH:-}"
+export LDFLAGS="-fuse-ld=$BUDDY_LLVM_BUILD/bin/ld.lld ${LDFLAGS:-}"
 
-CC=clang CXX=clang++ \
+CC="$BUDDY_LLVM_BUILD/bin/clang" CXX="$BUDDY_LLVM_BUILD/bin/clang++" \
 cmake -G Ninja -S . -B "$TTMLIR_BUILD" \
   -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_PREFIX_PATH="$TTMLIR_TOOLCHAIN_DIR" \
+  -DMLIR_DIR="$TTMLIR_TOOLCHAIN_DIR/lib/cmake/mlir" \
+  -DLLVM_DIR="$TTMLIR_TOOLCHAIN_DIR/lib/cmake/llvm" \
+  -DLLD_DIR="$TTMLIR_TOOLCHAIN_DIR/lib/cmake/lld" \
+  -DCMAKE_LINKER="$BUDDY_LLVM_BUILD/bin/ld.lld" \
+  -DCMAKE_LINKER_TYPE=LLD \
+  -DCMAKE_EXE_LINKER_FLAGS="-fuse-ld=$BUDDY_LLVM_BUILD/bin/ld.lld" \
+  -DCMAKE_SHARED_LINKER_FLAGS="-fuse-ld=$BUDDY_LLVM_BUILD/bin/ld.lld" \
+  -DCMAKE_MODULE_LINKER_FLAGS="-fuse-ld=$BUDDY_LLVM_BUILD/bin/ld.lld" \
   -DTTMLIR_ENABLE_RUNTIME=ON \
   -DTT_RUNTIME_ENABLE_PERF_TRACE=ON \
   -DTTMLIR_ENABLE_TESTS=OFF \
@@ -143,8 +143,7 @@ cmake --build "$TTMLIR_BUILD" \
 
 ## Build Buddy
 
-This configures and builds Buddy with Tenstorrent support enabled. Model-specific
-CMake flags and package targets are documented in each model README.
+Build Buddy with Tenstorrent support.
 
 ```bash
 cd "$BUDDY_REPO_ROOT/thirdparty/tt-mlir"
@@ -153,6 +152,7 @@ cd "$BUDDY_REPO_ROOT"
 
 export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:${LD_LIBRARY_PATH:-}"
 export PYTHONPATH="$TTMLIR_BUILD/python_packages:${PYTHONPATH:-}"
+unset CFLAGS CXXFLAGS LDFLAGS
 
 mkdir -p "$BUDDY_BUILD"
 
@@ -168,13 +168,13 @@ cmake -G Ninja -S "$BUDDY_REPO_ROOT" -B "$BUDDY_BUILD" \
   -DBUDDY_TT_MLIR_BUILD_DIR=$TTMLIR_BUILD
 
 cmake --build "$BUDDY_BUILD"
+cmake --build "$BUDDY_BUILD" --target python-package-buddy
 cmake --build "$BUDDY_BUILD" --target check-buddy
 ```
 
 ## Smoke Test
 
-Run a small import/query check before launching model-specific package targets
-or `buddy-cli`.
+Run a small runtime check.
 
 ```bash
 cd "$BUDDY_REPO_ROOT/thirdparty/tt-mlir"
@@ -188,8 +188,7 @@ export PYTHONPATH="$TTMLIR_BUILD/python_packages:${PYTHONPATH:-}"
 "$TTMLIR_TOOLCHAIN_DIR/venv/bin/python" -m ttrt query
 ```
 
-To suppress TT-Metal, UMD, and tt-mlir runtime info/debug logs, add these
-before running package-generation or runtime commands.
+Optional runtime log settings:
 
 ```bash
 export TT_LOGGER_LEVEL=FATAL

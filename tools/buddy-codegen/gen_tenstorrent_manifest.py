@@ -22,6 +22,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
 
 
@@ -87,18 +88,67 @@ def _local_path_from_uri(path: str | Path) -> Path | None:
     return None
 
 
+def _env_flag(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in {
+        "1",
+        "on",
+        "true",
+        "yes",
+    }
+
+
+def _resolve_hf_snapshot(model_id: str) -> Path | None:
+    if model_id.startswith(("file:", "payload:")):
+        return None
+    if "/" not in model_id:
+        return None
+    if Path(model_id).is_absolute():
+        return None
+
+    try:
+        from huggingface_hub import snapshot_download
+    except ImportError as exc:
+        raise RuntimeError(
+            "huggingface_hub is required to package tokenizer files from "
+            f"remote model id: {model_id}"
+        ) from exc
+
+    local_only = _env_flag("HF_HUB_OFFLINE") or _env_flag("TRANSFORMERS_OFFLINE")
+    patterns = [
+        "tokenizer.json",
+        "tokenizer.model",
+        "original/tokenizer.model",
+        "tokenizer_config.json",
+        "special_tokens_map.json",
+        "generation_config.json",
+    ]
+    snapshot = snapshot_download(
+        repo_id=model_id,
+        allow_patterns=patterns,
+        local_files_only=local_only,
+    )
+    return Path(snapshot)
+
+
 def _tokenizer_constants(tokenizer: str | Path) -> list[tuple[str, Path]]:
     root = _local_path_from_uri(tokenizer)
     if root is None:
-        return []
+        root = _resolve_hf_snapshot(str(tokenizer))
+    if root is None:
+        raise FileNotFoundError(
+            "tokenizer path is not local and could not be resolved from the "
+            f"Hugging Face cache: {tokenizer}"
+        )
 
     if root.is_file():
         if root.name not in ("tokenizer.json", "tokenizer.model"):
-            return []
+            raise FileNotFoundError(
+                f"tokenizer file must be tokenizer.json or tokenizer.model: {root}"
+            )
         return [(f"tokenizer_{root.name.replace('.', '_')}", root)]
 
     if not root.is_dir():
-        return []
+        raise FileNotFoundError(f"tokenizer path is not a directory: {root}")
 
     files = [
         ("tokenizer_tokenizer_json", root / "tokenizer.json"),
