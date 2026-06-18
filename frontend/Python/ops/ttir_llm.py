@@ -1053,9 +1053,10 @@ def bitwise_and_op(node, symbol_table, sb: TTIRSandbox):
     rt = _ranked_from_meta(node, sb)
     a = _broadcast_to_result_shape(a, rt, sb)
     b = _broadcast_to_result_shape(b, rt, sb)
-    if IntegerType.isinstance(rt.element_type) and IntegerType(
-        rt.element_type
-    ).width == 1:
+    if (
+        IntegerType.isinstance(rt.element_type)
+        and IntegerType(rt.element_type).width == 1
+    ):
         return ttir.logical_and(rt, a, b, loc=sb.loc)
     return ttir.bitwise_and(rt, a, b, loc=sb.loc)
 
@@ -1068,9 +1069,10 @@ def bitwise_and_scalar_op(node, symbol_table, sb: TTIRSandbox):
     rt = _ranked_from_meta(node, sb)
     a = _broadcast_to_result_shape(a, rt, sb)
     b = _broadcast_to_result_shape(b, rt, sb)
-    if IntegerType.isinstance(rt.element_type) and IntegerType(
-        rt.element_type
-    ).width == 1:
+    if (
+        IntegerType.isinstance(rt.element_type)
+        and IntegerType(rt.element_type).width == 1
+    ):
         return ttir.logical_and(rt, a, b, loc=sb.loc)
     return ttir.bitwise_and(rt, a, b, loc=sb.loc)
 
@@ -1124,8 +1126,10 @@ def index_op(node, symbol_table, sb: TTIRSandbox):
 
     # Fast path: one tensor index and the rest are full slices. This covers the
     # common Llama cache-position / prompt-mask style advanced indexing pattern.
-    if len(tensor_indices) == 1 and len(tensor_positions) == 1 and any(
-        idx is None for idx in index_spec
+    if (
+        len(tensor_indices) == 1
+        and len(tensor_positions) == 1
+        and any(idx is None for idx in index_spec)
     ):
         indexed_dim = int(tensor_positions[0])
         idx = _index_tensor_to_ui32(tensor_indices[0], sb)
@@ -1160,9 +1164,10 @@ def index_op(node, symbol_table, sb: TTIRSandbox):
             from ttmlir.ir import IntegerType
 
             input_elt = input_val.type.element_type
-            if IntegerType.isinstance(input_elt) and IntegerType(
-                input_elt
-            ).width == 1:
+            if (
+                IntegerType.isinstance(input_elt)
+                and IntegerType(input_elt).width == 1
+            ):
                 return ttir.reshape(out_ty, input_val, out_shape, loc=sb.loc)
 
         indexed_volume = 1
@@ -1185,15 +1190,19 @@ def index_op(node, symbol_table, sb: TTIRSandbox):
                 stride *= int(tail_dim)
             stride_val = _scalar_promote(stride, idx, sb)
             term = ttir.multiply(idx_rt, idx, stride_val, loc=sb.loc)
-            linear = term if linear is None else ttir.add(
-                idx_rt, linear, term, loc=sb.loc
+            linear = (
+                term
+                if linear is None
+                else ttir.add(idx_rt, linear, term, loc=sb.loc)
             )
 
         full_idx_ty = RankedTensorType.get(out_shape, linear.type.element_type)
         linear = _broadcast_to_result_shape(linear, full_idx_ty, sb)
 
         flat_input_shape = (
-            [indexed_volume] + [1] * max(0, broadcast_rank - 1) + remaining_shape
+            [indexed_volume]
+            + [1] * max(0, broadcast_rank - 1)
+            + remaining_shape
         )
         flat_input_ty = RankedTensorType.get(
             flat_input_shape,
@@ -1205,9 +1214,7 @@ def index_op(node, symbol_table, sb: TTIRSandbox):
             flat_input_shape,
             loc=sb.loc,
         )
-        gather_rt = RankedTensorType.get(
-            out_shape, input_val.type.element_type
-        )
+        gather_rt = RankedTensorType.get(out_shape, input_val.type.element_type)
         return ttir.gather(gather_rt, flat_input, linear, 0, loc=sb.loc)
 
     raise NotImplementedError(
@@ -1282,7 +1289,9 @@ def slice_op(node, symbol_table, sb: TTIRSandbox):
     begins[dim] = max(0, min(start_idx, sizes[dim]))
     ends[dim] = max(begins[dim], min(end_idx, sizes[dim]))
     out_shape, out_dtype = _tensor_meta_shape_dtype(node)
-    out_elt = _mlir_element_type_for_tensor_dtype(sb.ctx, out_dtype, sb.elt_type)
+    out_elt = _mlir_element_type_for_tensor_dtype(
+        sb.ctx, out_dtype, sb.elt_type
+    )
     if IntegerType.isinstance(out_elt):
         if str(x.type.element_type) != str(out_elt):
             cast_rt = RankedTensorType.get(list(x.type.shape), out_elt)
@@ -1318,7 +1327,9 @@ def select_op(node, symbol_table, sb: TTIRSandbox):
     ends[dim] = index + 1
 
     out_shape, out_dtype = _tensor_meta_shape_dtype(node)
-    out_elt = _mlir_element_type_for_tensor_dtype(sb.ctx, out_dtype, sb.elt_type)
+    out_elt = _mlir_element_type_for_tensor_dtype(
+        sb.ctx, out_dtype, sb.elt_type
+    )
     slice_shape = list(sizes)
     slice_shape[dim] = 1
     if IntegerType.isinstance(out_elt):

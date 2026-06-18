@@ -131,8 +131,7 @@ void runInteractiveSession(LLMSession &session, const std::string &vocabPath,
 
     GenerationResult result =
         runGeneration(fullPrompt, session, vocabPath, cfg.maxNewTokens,
-                      stopTokenIds, sampler, codec, suppress,
-                      cfg.streamJsonl);
+                      stopTokenIds, sampler, codec, suppress, cfg.streamJsonl);
 
     conv.addMessage("assistant", result.text);
 

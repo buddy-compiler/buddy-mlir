@@ -835,9 +835,10 @@ class DynamoCompiler:
                     continue
                 buddy_node.add_argument(str(input_arg))
             return buddy_node
-        if gm_node_name in ("new_ones.default", "new_zeros.default") and len(
-            node_input
-        ) >= 2:
+        if (
+            gm_node_name in ("new_ones.default", "new_zeros.default")
+            and len(node_input) >= 2
+        ):
             node_input = [node_input[1]]
         elif gm_node_name == "new_full.default" and len(node_input) >= 3:
             node_input = [node_input[1], node_input[2]]

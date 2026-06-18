@@ -113,7 +113,9 @@ def _resolve_hf_snapshot(model_id: str) -> Path | None:
             f"remote model id: {model_id}"
         ) from exc
 
-    local_only = _env_flag("HF_HUB_OFFLINE") or _env_flag("TRANSFORMERS_OFFLINE")
+    local_only = _env_flag("HF_HUB_OFFLINE") or _env_flag(
+        "TRANSFORMERS_OFFLINE"
+    )
     patterns = [
         "tokenizer.json",
         "tokenizer.model",

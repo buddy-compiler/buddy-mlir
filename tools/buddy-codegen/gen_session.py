@@ -947,7 +947,9 @@ def gen_impl(config: dict) -> str:
     p("}")
     p()
     p("void resetDecodeResultABI(DecodeABI &abi, intptr_t kvShape[4],")
-    p("                          intptr_t logitsShape[3], intptr_t pshape[1]) {")
+    p(
+        "                          intptr_t logitsShape[3], intptr_t pshape[1]) {"
+    )
     p("  destroyDecodeABI(abi);")
     p("  new (&abi.cachePositionOut()) Dummy1Ref(pshape, false, 0);")
     p(f"  for (int i = 0; i < {dummy_groups}; ++i)")
@@ -969,7 +971,9 @@ def gen_impl(config: dict) -> str:
     )
     p()
     p("struct ModelSession::Impl {")
-    p("  // Session-owned state read by logitsData() and reused as decode inputs.")
+    p(
+        "  // Session-owned state read by logitsData() and reused as decode inputs."
+    )
     p("  PrefillABI prefillStateAbi;")
     p("  DecodeABI decodeStateAbi;")
     p("  // Temporary result structs populated by _mlir_ciface_forward_*.")

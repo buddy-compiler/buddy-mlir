@@ -368,9 +368,8 @@ static void writeStringVectorJson(std::ostream &os,
   os << "]";
 }
 
-static void
-writeIntVectorVectorJson(std::ostream &os,
-                         const std::vector<std::vector<int>> &xs) {
+static void writeIntVectorVectorJson(std::ostream &os,
+                                     const std::vector<std::vector<int>> &xs) {
   os << "[";
   for (size_t i = 0; i < xs.size(); ++i) {
     if (i)
@@ -433,17 +432,16 @@ static void writeBatchTrace(const std::string &path,
   os << "  \"batch_size\": " << prompts.size() << ",\n";
   os << "  \"prefill_prompt_length\": " << prefillPromptLen << ",\n";
   os << "  \"max_cache_len\": " << maxCacheLen << ",\n";
-  os << "  \"left_pad_prompts\": "
-     << (leftPadPrompts ? "true" : "false") << ",\n";
-  os << "  \"prefill_seconds\": " << formatFixed(prefillSeconds, 6)
+  os << "  \"left_pad_prompts\": " << (leftPadPrompts ? "true" : "false")
      << ",\n";
+  os << "  \"prefill_seconds\": " << formatFixed(prefillSeconds, 6) << ",\n";
   os << "  \"decode_count\": " << timing.count << ",\n";
   os << "  \"decode_wall_seconds\": " << formatFixed(timing.wallSeconds, 6)
      << ",\n";
   os << "  \"decode_steady_wall_seconds\": "
      << formatFixed(timing.steadyWallSeconds(), 6) << ",\n";
-  os << "  \"decode_submit_seconds\": "
-     << formatFixed(timing.submitSeconds, 6) << ",\n";
+  os << "  \"decode_submit_seconds\": " << formatFixed(timing.submitSeconds, 6)
+     << ",\n";
   os << "  \"decode_steady_submit_seconds\": "
      << formatFixed(timing.steadySubmitSeconds(), 6) << ",\n";
   os << "  \"decode_logits_to_host_seconds\": "
@@ -514,14 +512,14 @@ static void writeOfficialTrace(const OfficialTokenReference &ref,
      << formatFixed(timing.steadyBuildInputsSeconds(), 6) << ",\n";
   os << "  \"first_decode_build_inputs_seconds\": "
      << formatFixed(timing.firstBuildInputsSeconds, 6) << ",\n";
-  os << "  \"decode_submit_seconds\": "
-     << formatFixed(timing.submitSeconds, 6) << ",\n";
+  os << "  \"decode_submit_seconds\": " << formatFixed(timing.submitSeconds, 6)
+     << ",\n";
   os << "  \"decode_steady_submit_seconds\": "
      << formatFixed(timing.steadySubmitSeconds(), 6) << ",\n";
   os << "  \"first_decode_submit_seconds\": "
      << formatFixed(timing.firstSubmitSeconds, 6) << ",\n";
-  os << "  \"decode_output_seconds\": "
-     << formatFixed(timing.outputSeconds, 6) << ",\n";
+  os << "  \"decode_output_seconds\": " << formatFixed(timing.outputSeconds, 6)
+     << ",\n";
   os << "  \"decode_steady_output_seconds\": "
      << formatFixed(timing.steadyOutputSeconds(), 6) << ",\n";
   os << "  \"first_decode_output_seconds\": "
@@ -1183,8 +1181,8 @@ static uint16_t floatToBf16Bits(float value) {
   return static_cast<uint16_t>(bits >> 16);
 }
 
-static std::vector<uint8_t>
-floatBuffer(const std::vector<float> &values, TTDataType dtype) {
+static std::vector<uint8_t> floatBuffer(const std::vector<float> &values,
+                                        TTDataType dtype) {
   std::vector<uint8_t> buffer(values.size() * itemSizeFor(dtype));
   switch (dtype) {
   case TTDataType::Float32: {
@@ -1497,7 +1495,8 @@ private:
     auto *model = root ? root->getObject("model") : nullptr;
     auto *vocab = model ? model->getObject("vocab") : nullptr;
     if (!vocab)
-      throw std::runtime_error("llama31_tt: tokenizer.json missing model.vocab");
+      throw std::runtime_error(
+          "llama31_tt: tokenizer.json missing model.vocab");
     for (const auto &kv : *vocab) {
       auto id = kv.second.getAsInteger();
       if (!id)
@@ -1867,8 +1866,8 @@ static int readTokenIdAt(const std::vector<std::byte> &bytes, TTDataType dtype,
   }
 }
 
-static std::vector<int>
-readTokenTensorToHost(::tt::runtime::Tensor &tensor, uint32_t batchSize) {
+static std::vector<int> readTokenTensorToHost(::tt::runtime::Tensor &tensor,
+                                              uint32_t batchSize) {
   auto hostShards = ::tt::runtime::toHost(tensor, /*untilize=*/false,
                                           /*blocking=*/true);
   if (hostShards.empty())
@@ -1876,7 +1875,8 @@ readTokenTensorToHost(::tt::runtime::Tensor &tensor, uint32_t batchSize) {
   auto host = hostShards.front();
   const TTDataType dtype = ::tt::runtime::getTensorDataType(host);
   if (!isTokenIdDataType(dtype))
-    throw std::runtime_error("llama31_tt: deferred readback expected token ids");
+    throw std::runtime_error(
+        "llama31_tt: deferred readback expected token ids");
   const auto shape = ::tt::runtime::getTensorShape(host);
   const auto data = ::tt::runtime::getTensorDataBuffer(host);
   const size_t elements = data.size() / itemSizeFor(dtype);
@@ -1895,10 +1895,9 @@ readTokenTensorToHost(::tt::runtime::Tensor &tensor, uint32_t batchSize) {
   tokens.reserve(batchSize);
   for (uint32_t b = 0; b < batchSize; ++b) {
     const size_t start = shape.size() >= 2
-                             ? std::min<size_t>(
-                                   static_cast<size_t>(b) * seq +
-                                       (seq == 0 ? 0 : seq - 1),
-                                   elements - 1)
+                             ? std::min<size_t>(static_cast<size_t>(b) * seq +
+                                                    (seq == 0 ? 0 : seq - 1),
+                                                elements - 1)
                              : std::min<size_t>(b, elements - 1);
     tokens.push_back(readTokenIdAt(data, dtype, start));
   }
@@ -1979,8 +1978,8 @@ static ExtractedOutput extractLogitsAndKV(
   const bool untilizeOutput = !isTokenIdDataType(outputDtype);
   if (deferTokenHostReadback) {
     if (!isTokenIdDataType(outputDtype))
-      throw std::runtime_error(
-          "llama31_tt: deferred decode token readback requires token-id output");
+      throw std::runtime_error("llama31_tt: deferred decode token readback "
+                               "requires token-id output");
     if (extractKVOutputs)
       throw std::runtime_error(
           "llama31_tt: deferred decode token readback does not support "
@@ -2051,14 +2050,13 @@ static ExtractedOutput extractLogitsAndKV(
       seq = elements;
     extracted.tokens.reserve(batchSize);
     for (uint32_t b = 0; b < batchSize; ++b) {
-      const size_t start = shape.size() >= 2
-                               ? std::min<size_t>(
-                                     static_cast<size_t>(b) * seq +
-                                         std::min<size_t>(
-                                             tokenPosForBatch(b),
-                                             seq == 0 ? 0 : seq - 1),
-                                     elements - 1)
-                               : std::min<size_t>(b, elements - 1);
+      const size_t start =
+          shape.size() >= 2
+              ? std::min<size_t>(static_cast<size_t>(b) * seq +
+                                     std::min<size_t>(tokenPosForBatch(b),
+                                                      seq == 0 ? 0 : seq - 1),
+                                 elements - 1)
+              : std::min<size_t>(b, elements - 1);
       extracted.tokens.push_back(sampleAt(start, recentForBatch(b)));
     }
   } else if (shape.size() >= 3) {
@@ -2067,9 +2065,8 @@ static ExtractedOutput extractLogitsAndKV(
     extracted.tokens.reserve(batchSize);
     for (uint32_t b = 0; b < batchSize; ++b) {
       const size_t pos = std::min<size_t>(tokenPosForBatch(b), seq - 1);
-      extracted.tokens.push_back(
-          sampleAt((static_cast<size_t>(b) * seq + pos) * vocab,
-                   recentForBatch(b)));
+      extracted.tokens.push_back(sampleAt(
+          (static_cast<size_t>(b) * seq + pos) * vocab, recentForBatch(b)));
     }
   } else if (shape.size() >= 2) {
     vocab = shape.back();
@@ -2210,17 +2207,15 @@ static std::optional<uint32_t> findReusableStaticInputSlot(
   return std::nullopt;
 }
 
-static StaticInputCacheResult
-precacheStaticInputs(::tt::runtime::Device device, ::tt::runtime::Binary binary,
-                     uint32_t programIndex, const PhaseCtx &ctx,
-                     const std::vector<::tt::runtime::TensorDesc> &inputs,
-                     const PhaseCtx *reuseCtx = nullptr,
-                     const std::vector<::tt::runtime::TensorDesc>
-                         *reuseInputs = nullptr,
-                     const std::unordered_map<uint32_t, ::tt::runtime::Tensor>
-                         *reuseCache = nullptr,
-                     const char *phaseName = "static",
-                     bool suppress = false) {
+static StaticInputCacheResult precacheStaticInputs(
+    ::tt::runtime::Device device, ::tt::runtime::Binary binary,
+    uint32_t programIndex, const PhaseCtx &ctx,
+    const std::vector<::tt::runtime::TensorDesc> &inputs,
+    const PhaseCtx *reuseCtx = nullptr,
+    const std::vector<::tt::runtime::TensorDesc> *reuseInputs = nullptr,
+    const std::unordered_map<uint32_t, ::tt::runtime::Tensor> *reuseCache =
+        nullptr,
+    const char *phaseName = "static", bool suppress = false) {
   StaticInputCacheResult result;
   const bool progress =
       !suppress && std::getenv("BUDDY_LLAMA31_STATIC_UPLOAD_PROGRESS");
@@ -2232,9 +2227,8 @@ precacheStaticInputs(::tt::runtime::Device device, ::tt::runtime::Binary binary,
       continue;
 
     if (reuseCtx && reuseInputs && reuseCache) {
-      if (auto sourceSlot =
-              findReusableStaticInputSlot(*reuseCtx, *reuseInputs, ctx, inputs,
-                                          slot)) {
+      if (auto sourceSlot = findReusableStaticInputSlot(*reuseCtx, *reuseInputs,
+                                                        ctx, inputs, slot)) {
         auto reusable = reuseCache->find(*sourceSlot);
         if (reusable != reuseCache->end()) {
           auto layout = ::tt::runtime::getLayout(binary, programIndex, slot);
@@ -2264,17 +2258,16 @@ precacheStaticInputs(::tt::runtime::Device device, ::tt::runtime::Binary binary,
     if (progress) {
       const uint64_t bytes =
           role.role == "weight" ? role.weightBytes : ctx.invFreq->view().bytes;
-      std::cout << colorLabel("[Static upload]") << " " << phaseName
-                << " slot " << slot << " " << role.role << " "
-                << bytes << " bytes\n";
+      std::cout << colorLabel("[Static upload]") << " " << phaseName << " slot "
+                << slot << " " << role.role << " " << bytes << " bytes\n";
       std::cout.flush();
     }
     result.tensors[slot] = toDevice(host, device, binary, programIndex, slot,
                                     retainUploadedStatic);
     ++result.uploaded;
     if (progress) {
-      std::cout << colorLabel("[Static upload]") << " " << phaseName
-                << " slot " << slot << " done\n";
+      std::cout << colorLabel("[Static upload]") << " " << phaseName << " slot "
+                << slot << " done\n";
       std::cout.flush();
     }
   }
@@ -2303,10 +2296,10 @@ buildCachePositionBuffer(const ::tt::runtime::TensorDesc &desc, int cachePos) {
   return integerBuffer(values, desc.dataType);
 }
 
-static std::vector<uint8_t> buildSdpaMaskBuffer(
-    const ::tt::runtime::TensorDesc &desc,
-    const std::vector<std::vector<int>> &attentionMaskByBatch, int cachePos,
-    std::string_view errorPrefix) {
+static std::vector<uint8_t>
+buildSdpaMaskBuffer(const ::tt::runtime::TensorDesc &desc,
+                    const std::vector<std::vector<int>> &attentionMaskByBatch,
+                    int cachePos, std::string_view errorPrefix) {
   if (desc.shape.size() != 4)
     throw std::runtime_error(std::string(errorPrefix) +
                              " sdpa_mask must be rank-4");
@@ -2330,9 +2323,8 @@ static std::vector<uint8_t> buildSdpaMaskBuffer(
       for (uint32_t h = 0; h < heads; ++h) {
         (void)h;
         for (uint32_t i = 0; i < seq; ++i) {
-          const bool visible =
-              attentionMaskByBatch[b][i] != 0 &&
-              static_cast<int>(i) <= cachePos;
+          const bool visible = attentionMaskByBatch[b][i] != 0 &&
+                               static_cast<int>(i) <= cachePos;
           values.push_back(visible ? 0.0f : negInf);
         }
       }
@@ -2357,9 +2349,9 @@ static std::vector<float> findInvFreqValues(const PhaseCtx &ctx,
   throw std::runtime_error("llama31_tt: could not find inv_freq weight slot");
 }
 
-static std::vector<uint8_t> buildRopeTrigBuffer(
-    const ::tt::runtime::TensorDesc &desc, const PhaseCtx &ctx, int cachePos,
-    bool cosine, std::string_view errorPrefix) {
+static std::vector<uint8_t>
+buildRopeTrigBuffer(const ::tt::runtime::TensorDesc &desc, const PhaseCtx &ctx,
+                    int cachePos, bool cosine, std::string_view errorPrefix) {
   if (desc.shape.size() != 4 || desc.shape[0] != 1 || desc.shape[1] != 1 ||
       desc.shape[2] != 1 || desc.shape[3] % 2 != 0)
     throw std::runtime_error(std::string(errorPrefix) +
@@ -2381,8 +2373,8 @@ static DecodeRuntimeInputCache precacheDecodeRuntimeInputs(
     uint32_t programIndex, const PhaseCtx &ctx,
     const std::vector<::tt::runtime::TensorDesc> &programInputs,
     const std::unordered_map<uint32_t, ::tt::runtime::Tensor> &cachedInputs,
-    const std::vector<std::vector<int>> &attentionMaskByBatch, int firstCachePos,
-    int maxCacheLen, bool suppress) {
+    const std::vector<std::vector<int>> &attentionMaskByBatch,
+    int firstCachePos, int maxCacheLen, bool suppress) {
   DecodeRuntimeInputCache result;
   if (std::getenv("BUDDY_LLAMA31_DISABLE_DECODE_RUNTIME_CACHE") != nullptr)
     return result;
@@ -2425,8 +2417,8 @@ static DecodeRuntimeInputCache precacheDecodeRuntimeInputs(
   const uint64_t cachePositionUploads =
       static_cast<uint64_t>(std::max(0, end - begin)) *
       static_cast<uint64_t>(cachePositionSlots.size());
-  const uint64_t cachePositionUploadLimit = getEnvUInt64(
-      "BUDDY_LLAMA31_CACHE_POSITION_PRECACHE_LIMIT", 8192);
+  const uint64_t cachePositionUploadLimit =
+      getEnvUInt64("BUDDY_LLAMA31_CACHE_POSITION_PRECACHE_LIMIT", 8192);
 
   if (!disableCachePositionCache &&
       cachePositionUploads <= cachePositionUploadLimit) {
@@ -2462,8 +2454,8 @@ static DecodeRuntimeInputCache precacheDecodeRuntimeInputs(
       auto &ropeCosTensors = result.ropeCos[pos];
       for (uint32_t slot : ropeCosSlots) {
         const auto &desc = programInputs[slot];
-        std::vector<uint8_t> buffer = buildRopeTrigBuffer(
-            desc, ctx, pos, true, "llama31_tt: decode");
+        std::vector<uint8_t> buffer =
+            buildRopeTrigBuffer(desc, ctx, pos, true, "llama31_tt: decode");
         auto host = hostTensorFromBytes(buffer.data(), desc);
         ropeCosTensors[slot] =
             toDevice(host, device, binary, programIndex, slot, true);
@@ -2472,8 +2464,8 @@ static DecodeRuntimeInputCache precacheDecodeRuntimeInputs(
       auto &ropeSinTensors = result.ropeSin[pos];
       for (uint32_t slot : ropeSinSlots) {
         const auto &desc = programInputs[slot];
-        std::vector<uint8_t> buffer = buildRopeTrigBuffer(
-            desc, ctx, pos, false, "llama31_tt: decode");
+        std::vector<uint8_t> buffer =
+            buildRopeTrigBuffer(desc, ctx, pos, false, "llama31_tt: decode");
         auto host = hostTensorFromBytes(buffer.data(), desc);
         ropeSinTensors[slot] =
             toDevice(host, device, binary, programIndex, slot, true);
@@ -2494,33 +2486,26 @@ static DecodeRuntimeInputCache precacheDecodeRuntimeInputs(
   auto uploadEnd = std::chrono::steady_clock::now();
   result.uploadSeconds =
       std::chrono::duration<double>(uploadEnd - uploadStart).count();
-  if (!suppress && (result.uploadedAttentionMasks ||
-                    result.uploadedCachePositions ||
-                    result.uploadedSdpaMasks ||
-                    result.uploadedSdpaPositions ||
-                    result.uploadedRopeCos ||
-                    result.uploadedRopeSin)) {
-    printLlamaLog("decode runtime tensors ready: uploaded " +
-                      std::to_string(result.uploadedAttentionMasks) +
-                      " attention_mask + " +
-                      std::to_string(result.uploadedCachePositions) +
-                      " cache_position + " +
-                      std::to_string(result.uploadedSdpaMasks) +
-                      " sdpa_mask + " +
-                      std::to_string(result.uploadedSdpaPositions) +
-                      " sdpa_position + " +
-                      std::to_string(result.uploadedRopeCos) +
-                      " rope_cos + " +
-                      std::to_string(result.uploadedRopeSin) +
-                      " rope_sin in " +
-                      formatFixed(result.uploadSeconds) + "s",
-                  suppress);
+  if (!suppress &&
+      (result.uploadedAttentionMasks || result.uploadedCachePositions ||
+       result.uploadedSdpaMasks || result.uploadedSdpaPositions ||
+       result.uploadedRopeCos || result.uploadedRopeSin)) {
+    printLlamaLog(
+        "decode runtime tensors ready: uploaded " +
+            std::to_string(result.uploadedAttentionMasks) +
+            " attention_mask + " +
+            std::to_string(result.uploadedCachePositions) +
+            " cache_position + " + std::to_string(result.uploadedSdpaMasks) +
+            " sdpa_mask + " + std::to_string(result.uploadedSdpaPositions) +
+            " sdpa_position + " + std::to_string(result.uploadedRopeCos) +
+            " rope_cos + " + std::to_string(result.uploadedRopeSin) +
+            " rope_sin in " + formatFixed(result.uploadSeconds) + "s",
+        suppress);
   }
   return result;
 }
 
-static void deallocateDecodeRuntimeInputCache(
-    DecodeRuntimeInputCache &cache) {
+static void deallocateDecodeRuntimeInputCache(DecodeRuntimeInputCache &cache) {
   for (auto &entry : cache.attentionMasks) {
     try {
       ::tt::runtime::deallocateTensor(entry.second, true);
@@ -2731,8 +2716,8 @@ static std::vector<::tt::runtime::Tensor> buildDecodeInputs(
                                  "match batch token buffer");
       buffer = integerBuffer(values, desc.dataType);
     } else if (role.role == "attention_mask") {
-      buffer =
-          buildAttentionMaskBuffer(desc, attentionMaskByBatch, "llama31_tt: decode");
+      buffer = buildAttentionMaskBuffer(desc, attentionMaskByBatch,
+                                        "llama31_tt: decode");
     } else if (role.role == "cache_position") {
       buffer = buildCachePositionBuffer(desc, cachePos);
     } else if (role.role == "sdpa_mask") {
@@ -2741,11 +2726,11 @@ static std::vector<::tt::runtime::Tensor> buildDecodeInputs(
     } else if (role.role == "sdpa_position") {
       buffer = buildCachePositionBuffer(desc, cachePos);
     } else if (role.role == "rope_cos") {
-      buffer = buildRopeTrigBuffer(desc, ctx, cachePos, true,
-                                   "llama31_tt: decode");
+      buffer =
+          buildRopeTrigBuffer(desc, ctx, cachePos, true, "llama31_tt: decode");
     } else if (role.role == "rope_sin") {
-      buffer = buildRopeTrigBuffer(desc, ctx, cachePos, false,
-                                   "llama31_tt: decode");
+      buffer =
+          buildRopeTrigBuffer(desc, ctx, cachePos, false, "llama31_tt: decode");
     } else {
       throw std::runtime_error("llama31_tt: unexpected decode role " +
                                role.role);
@@ -2756,8 +2741,8 @@ static std::vector<::tt::runtime::Tensor> buildDecodeInputs(
   return tensors;
 }
 
-static void retainKVCache(
-    std::unordered_map<std::string, ::tt::runtime::Tensor> &pastKV) {
+static void
+retainKVCache(std::unordered_map<std::string, ::tt::runtime::Tensor> &pastKV) {
   for (auto &kv : pastKV) {
     try {
       ::tt::runtime::setTensorRetain(kv.second, true);
@@ -2779,9 +2764,10 @@ static void debugKVCacheState(
   std::cout << "\n";
 }
 
-static void debugTensorVectorState(
-    const std::vector<::tt::runtime::Tensor> &tensors,
-    const std::vector<RoleEntry> &roles, const std::string &label) {
+static void
+debugTensorVectorState(const std::vector<::tt::runtime::Tensor> &tensors,
+                       const std::vector<RoleEntry> &roles,
+                       const std::string &label) {
   if (std::getenv("BUDDY_LLAMA31_DEBUG_ALLOCATIONS") == nullptr)
     return;
   std::cout << colorLabel("[Tensor alloc]", kAnsiBlueBold) << " " << label;
@@ -2826,10 +2812,10 @@ static fs::path resolveTokenizerPath(const ModelManifest &manifest,
   if (!embeddedTokenizer.empty())
     return embeddedTokenizer;
 
-  std::string value = getEnvOr("LLAMA_MODEL_PATH",
-                               getEnvOr("LLAMA32_MODEL_PATH",
-                                        getEnvOr("LLAMA31_MODEL_PATH",
-                                                 tokenizerAttr)));
+  std::string value =
+      getEnvOr("LLAMA_MODEL_PATH",
+               getEnvOr("LLAMA32_MODEL_PATH",
+                        getEnvOr("LLAMA31_MODEL_PATH", tokenizerAttr)));
   if (startsWith(value, "file:"))
     value = value.substr(5);
   if (isRemoteModelId(value))
@@ -2913,9 +2899,8 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
   const bool streamJsonl = cfg.streamJsonl;
   const bool suppress = cfg.suppressStats || streamJsonl;
   if (streamJsonl && cfg.deferDecodeTokenReadback)
-    throw std::runtime_error(
-        "llama_tt: --stream-jsonl cannot be combined with "
-        "--defer-decode-token-readback");
+    throw std::runtime_error("llama_tt: --stream-jsonl cannot be combined with "
+                             "--defer-decode-token-readback");
 
   const ModelManifest manifest = ModelManifest::loadFromRax(cfg.raxPath);
   const std::string prefillTTNN = findTTNNArtifact(manifest, "prefill");
@@ -2969,8 +2954,9 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
   };
   const uint32_t programIndex =
       static_cast<uint32_t>(lookupIntAttr(manifest, "program_index", 0));
-  const fs::path tokenizerPath = resolveTokenizerPath(manifest, lookupAttr(
-      manifest, "tokenizer_uri", "meta-llama/Llama-3.1-8B-Instruct"));
+  const fs::path tokenizerPath = resolveTokenizerPath(
+      manifest, lookupAttr(manifest, "tokenizer_uri",
+                           "meta-llama/Llama-3.1-8B-Instruct"));
   ensureTTMetalRuntimeRoot(raxDir);
 
   if (!suppress) {
@@ -3005,9 +2991,8 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
           "llama31_tt: official-refpt token matching requires batch_size=1");
     officialRef = loadOfficialTokenReferenceFromEnv();
     if (!officialRef)
-      throw std::runtime_error(
-          "llama31_tt: --prompt official-refpt requires "
-          "BUDDY_LLAMA31_OFFICIAL_REFERENCE_JSON");
+      throw std::runtime_error("llama31_tt: --prompt official-refpt requires "
+                               "BUDDY_LLAMA31_OFFICIAL_REFERENCE_JSON");
     printLlamaLog("official token matching reference: " +
                       officialRef->sourcePath,
                   suppress);
@@ -3050,8 +3035,7 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
   try {
     device = ::tt::runtime::openMeshDevice(options);
     if (!suppress) {
-      std::cout << kAnsiYellowBold
-                << modelName
+      std::cout << kAnsiYellowBold << modelName
                 << " Inference Powered by Buddy Compiler (Tenstorrent TTIR, "
                    "native C++)"
                 << kAnsiReset << "\n";
@@ -3140,8 +3124,9 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
     if (tokenIdsBatch.empty())
       throw std::runtime_error("llama31_tt: no prompts to run");
 
-    const int prefillPromptLen =
-        cfg.promptLength > 0 ? cfg.promptLength : static_cast<int>(maxPromptTokens);
+    const int prefillPromptLen = cfg.promptLength > 0
+                                     ? cfg.promptLength
+                                     : static_cast<int>(maxPromptTokens);
     if (prefillPromptLen <= 0)
       throw std::runtime_error("llama31_tt: prompt length must be positive");
     if (prefillPromptLen >= maxCacheLen)
@@ -3155,18 +3140,17 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
                       (minPromptTokens == maxPromptTokens
                            ? ""
                            : ".." + std::to_string(maxPromptTokens)) +
-                      ", prefill length = " +
-                      std::to_string(prefillPromptLen) + ", batch = " +
-                      std::to_string(batchSize),
+                      ", prefill length = " + std::to_string(prefillPromptLen) +
+                      ", batch = " + std::to_string(batchSize),
                   suppress);
     std::vector<int> recentTokens = tokenIds;
     std::vector<std::vector<int>> recentTokensBatch = tokenIdsBatch;
 
     const int padToken =
-        officialRef ? 0
-                    : (!cfg.prompts.empty() && promptFormat == "completion"
-                           ? kEndOfText
-                           : eosToken);
+        officialRef
+            ? 0
+            : (!cfg.prompts.empty() && promptFormat == "completion" ? kEndOfText
+                                                                    : eosToken);
     const bool leftPadPrompts = !cfg.prompts.empty();
     std::vector<std::vector<int>> paddedBatch;
     std::vector<std::vector<int>> attentionMaskBatch;
@@ -3189,10 +3173,9 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
         static_cast<size_t>(batchSize),
         static_cast<uint32_t>(prefillPromptLen - 1));
 
-    auto prefillInputsRT =
-        buildPrefillInputs(*device, prefillBinary, programIndex, prefillCtx,
-                           prefillInputs, prefillCache, paddedBatch,
-                           attentionMaskBatch);
+    auto prefillInputsRT = buildPrefillInputs(
+        *device, prefillBinary, programIndex, prefillCtx, prefillInputs,
+        prefillCache, paddedBatch, attentionMaskBatch);
     auto prefillStart = std::chrono::steady_clock::now();
     auto prefillOutputs = ::tt::runtime::submit(*device, prefillBinary,
                                                 programIndex, prefillInputsRT);
@@ -3202,20 +3185,21 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
         std::chrono::duration<double>(prefillEnd - prefillStart).count();
 
     ExtractedOutput prefillExtracted = extractLogitsAndKV(
-        prefillOutputs, -1, static_cast<uint32_t>(prefillPromptLen - 1), *device,
-        decodeBinary, programIndex, decodeKVInputSlots, prefillKVOutputRoles,
-        sampler, recentTokens, true, static_cast<uint32_t>(batchSize),
-        &prefillTokenPositions, &recentTokensBatch);
+        prefillOutputs, -1, static_cast<uint32_t>(prefillPromptLen - 1),
+        *device, decodeBinary, programIndex, decodeKVInputSlots,
+        prefillKVOutputRoles, sampler, recentTokens, true,
+        static_cast<uint32_t>(batchSize), &prefillTokenPositions,
+        &recentTokensBatch);
 
     std::vector<int> generated;
     generated.push_back(prefillExtracted.token);
     recentTokens.push_back(prefillExtracted.token);
-    std::vector<std::vector<int>> generatedBatch(static_cast<size_t>(batchSize));
+    std::vector<std::vector<int>> generatedBatch(
+        static_cast<size_t>(batchSize));
     for (int b = 0; b < batchSize; ++b) {
-      const int token =
-          b < static_cast<int>(prefillExtracted.tokens.size())
-              ? prefillExtracted.tokens[static_cast<size_t>(b)]
-              : prefillExtracted.token;
+      const int token = b < static_cast<int>(prefillExtracted.tokens.size())
+                            ? prefillExtracted.tokens[static_cast<size_t>(b)]
+                            : prefillExtracted.token;
       generatedBatch[static_cast<size_t>(b)].push_back(token);
       recentTokensBatch[static_cast<size_t>(b)].push_back(token);
     }
@@ -3252,14 +3236,14 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
             officialRef->forcedTokens[static_cast<size_t>(std::min(
                 iter, static_cast<int>(officialRef->forcedTokens.size()) - 1))];
 
-      auto iterStart = std::chrono::steady_clock::now();
-      debugKVCacheState(pastKV, "official iter " + std::to_string(iter));
-      debugTensorState(previousDecodeOutputs,
-                       "official prev outputs " + std::to_string(iter));
-      auto decodeInputsRT = buildDecodeInputs(
-          *device, decodeBinary, programIndex, decodeCtx, decodeInputs,
-          decodeCache, std::vector<int>{inputToken}, cachePos, pastKV,
-          attentionMaskBatch, &decodeRuntimeInputCache);
+        auto iterStart = std::chrono::steady_clock::now();
+        debugKVCacheState(pastKV, "official iter " + std::to_string(iter));
+        debugTensorState(previousDecodeOutputs,
+                         "official prev outputs " + std::to_string(iter));
+        auto decodeInputsRT = buildDecodeInputs(
+            *device, decodeBinary, programIndex, decodeCtx, decodeInputs,
+            decodeCache, std::vector<int>{inputToken}, cachePos, pastKV,
+            attentionMaskBatch, &decodeRuntimeInputCache);
         debugTensorVectorState(decodeInputsRT, decodeCtx.roles,
                                "official iter " + std::to_string(iter));
         auto buildEnd = std::chrono::steady_clock::now();
@@ -3351,9 +3335,8 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
                   << " tokens/s (" << decodeTiming.count << " tokens in "
                   << formatFixed(decodeTiming.wallSeconds) << "s)\n";
         std::cout << colorLabel("[Decode steady wall]") << " "
-                  << formatFixed(steadyWall > 0.0
-                                     ? steadyCount / steadyWall
-                                     : 0.0)
+                  << formatFixed(steadyWall > 0.0 ? steadyCount / steadyWall
+                                                  : 0.0)
                   << " tokens/s excluding first decode\n";
         std::cout << colorLabel("[Decode device-only]") << " "
                   << formatFixed(decodeTiming.submitSeconds > 0.0
@@ -3362,33 +3345,32 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
                                      : 0.0)
                   << " tokens/s\n";
         std::cout << colorLabel("[Decode steady device-only]") << " "
-                  << formatFixed(steadySubmit > 0.0
-                                     ? steadyCount / steadySubmit
-                                     : 0.0)
+                  << formatFixed(steadySubmit > 0.0 ? steadyCount / steadySubmit
+                                                    : 0.0)
                   << " tokens/s excluding first decode\n";
-        std::cout << colorLabel("[Decode steady breakdown]") << " "
-                  << "build=" << formatFixed(perSteadyTokenMs(
-                                     decodeTiming.steadyBuildInputsSeconds()))
-                  << "ms, submit+wait="
-                  << formatFixed(perSteadyTokenMs(steadySubmit))
-                  << "ms, output="
-                  << formatFixed(perSteadyTokenMs(
-                         decodeTiming.steadyOutputSeconds()))
-                  << "ms, logits_to_host="
-                  << formatFixed(perSteadyTokenMs(
-                         decodeTiming.steadyLogitsToHostSeconds()))
-                  << "ms, kv_relayout="
-                  << formatFixed(perSteadyTokenMs(
-                         decodeTiming.steadyKVRelayoutSeconds()))
-                  << "ms, bookkeeping="
-                  << formatFixed(perSteadyTokenMs(
-                         decodeTiming.steadyBookkeepingSeconds()))
-                  << "ms\n";
+        std::cout
+            << colorLabel("[Decode steady breakdown]") << " "
+            << "build="
+            << formatFixed(
+                   perSteadyTokenMs(decodeTiming.steadyBuildInputsSeconds()))
+            << "ms, submit+wait=" << formatFixed(perSteadyTokenMs(steadySubmit))
+            << "ms, output="
+            << formatFixed(perSteadyTokenMs(decodeTiming.steadyOutputSeconds()))
+            << "ms, logits_to_host="
+            << formatFixed(
+                   perSteadyTokenMs(decodeTiming.steadyLogitsToHostSeconds()))
+            << "ms, kv_relayout="
+            << formatFixed(
+                   perSteadyTokenMs(decodeTiming.steadyKVRelayoutSeconds()))
+            << "ms, bookkeeping="
+            << formatFixed(
+                   perSteadyTokenMs(decodeTiming.steadyBookkeepingSeconds()))
+            << "ms\n";
       }
 
-      writeOfficialTrace(*officialRef, predicted,
-                         prefillPromptLen, prefillSeconds,
-                         decodeTiming, extractDecodeKVOutputs, top1, top5);
+      writeOfficialTrace(*officialRef, predicted, prefillPromptLen,
+                         prefillSeconds, decodeTiming, extractDecodeKVOutputs,
+                         top1, top5);
       ::tt::runtime::closeMeshDevice(*device);
       return;
     }
@@ -3434,11 +3416,10 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
     const bool requestedDeferredDecodeTokenReadback =
         cfg.deferDecodeTokenReadback ||
         std::getenv("BUDDY_LLAMA31_DEFER_DECODE_TOKEN_READBACK") != nullptr;
-    const bool greedySamplerConfig = cfg.samplerConfig.temperature == 0.0f &&
-                                     cfg.samplerConfig.topK == 0 &&
-                                     cfg.samplerConfig.topP == 1.0f &&
-                                     cfg.samplerConfig.minP == 0.0f &&
-                                     cfg.samplerConfig.repeatPenalty == 1.0f;
+    const bool greedySamplerConfig =
+        cfg.samplerConfig.temperature == 0.0f && cfg.samplerConfig.topK == 0 &&
+        cfg.samplerConfig.topP == 1.0f && cfg.samplerConfig.minP == 0.0f &&
+        cfg.samplerConfig.repeatPenalty == 1.0f;
     const bool deferDecodeTokenReadback =
         requestedDeferredDecodeTokenReadback && ignoreEOS &&
         useDeviceTokenChain && !extractDecodeKVOutputs && greedySamplerConfig;
@@ -3463,8 +3444,8 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
                          [](bool stopped) { return stopped; });
     };
     int generatedTokenCount = static_cast<int>(generatedBatch.front().size());
-    while (generatedTokenCount < maxNewTokens &&
-           cachePos < maxCacheLen && !allStopped()) {
+    while (generatedTokenCount < maxNewTokens && cachePos < maxCacheLen &&
+           !allStopped()) {
       std::vector<int> inputTokens(static_cast<size_t>(batchSize), eosToken);
       for (int b = 0; b < batchSize; ++b) {
         if (!stoppedBatch[static_cast<size_t>(b)])
@@ -3533,25 +3514,24 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
       } else {
         const bool user0WasStopped =
             stoppedBatch.empty() ? false : stoppedBatch.front();
-        const int user0Token = !decoded.tokens.empty() ? decoded.tokens.front()
-                                                       : decoded.token;
+        const int user0Token =
+            !decoded.tokens.empty() ? decoded.tokens.front() : decoded.token;
         for (int b = 0; b < batchSize; ++b) {
           const size_t batchIndex = static_cast<size_t>(b);
           if (stoppedBatch[batchIndex])
             continue;
-          const int token =
-              b < static_cast<int>(decoded.tokens.size())
-                  ? decoded.tokens[batchIndex]
-                  : decoded.token;
+          const int token = b < static_cast<int>(decoded.tokens.size())
+                                ? decoded.tokens[batchIndex]
+                                : decoded.token;
           generatedBatch[batchIndex].push_back(token);
           recentTokensBatch[batchIndex].push_back(token);
           const bool stopped = isStopToken(token);
           if (stopped)
             stoppedBatch[batchIndex] = true;
           if (streamJsonl) {
-            writeStreamJsonTokenEvent(
-                modelName, "decode", decodeTiming.count + 1, b, token,
-                tokenizer.decodeToken(token), stopped);
+            writeStreamJsonTokenEvent(modelName, "decode",
+                                      decodeTiming.count + 1, b, token,
+                                      tokenizer.decodeToken(token), stopped);
           }
         }
         if (!user0WasStopped) {
@@ -3583,12 +3563,10 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
         std::cout << colorLabel("[Iteration " +
                                 std::to_string(decodeTiming.count) + "]")
                   << (batchSize > 1 ? " Token[0]: " : " Token: ")
-                  << (deferDecodeTokenReadback
-                          ? std::string("<deferred>")
-                          : user0TokenForIterationLog
-                                ? tokenizer.decodeToken(
-                                      *user0TokenForIterationLog)
-                                : std::string("<stopped>"))
+                  << (deferDecodeTokenReadback ? std::string("<deferred>")
+                      : user0TokenForIterationLog
+                          ? tokenizer.decodeToken(*user0TokenForIterationLog)
+                          : std::string("<stopped>"))
                   << " | Time: " << formatFixed(iterSeconds) << "s\n";
       } else {
         if (!deferDecodeTokenReadback)
@@ -3609,12 +3587,12 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
     if (deferDecodeTokenReadback) {
       auto readbackStart = std::chrono::steady_clock::now();
       for (auto &tokenTensor : deferredDecodeTokenOutputs) {
-        std::vector<int> tokens =
-            readTokenTensorToHost(tokenTensor, static_cast<uint32_t>(batchSize));
+        std::vector<int> tokens = readTokenTensorToHost(
+            tokenTensor, static_cast<uint32_t>(batchSize));
         for (int b = 0; b < batchSize; ++b) {
-          const int token =
-              b < static_cast<int>(tokens.size()) ? tokens[static_cast<size_t>(b)]
-                                                  : tokens.front();
+          const int token = b < static_cast<int>(tokens.size())
+                                ? tokens[static_cast<size_t>(b)]
+                                : tokens.front();
           generatedBatch[static_cast<size_t>(b)].push_back(token);
           recentTokensBatch[static_cast<size_t>(b)].push_back(token);
         }
@@ -3650,20 +3628,18 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
     for (const auto &tokens : generatedBatch)
       generatedTextBatch.push_back(tokenizer.decodeTokens(tokens, true));
     if (const char *traceOut = std::getenv("BUDDY_LLAMA31_BATCH_TRACE_OUT")) {
-      writeBatchTrace(traceOut, modelName, promptBatch, tokenIdsBatch,
-                      prefillPromptLen, maxCacheLen, leftPadPrompts,
-                      prefillSeconds, decodeTiming,
-                      deferredTokenReadbackSeconds, generatedBatch,
-                      generatedTextBatch);
+      writeBatchTrace(
+          traceOut, modelName, promptBatch, tokenIdsBatch, prefillPromptLen,
+          maxCacheLen, leftPadPrompts, prefillSeconds, decodeTiming,
+          deferredTokenReadbackSeconds, generatedBatch, generatedTextBatch);
       printLlamaLog(std::string("batch trace written: ") + traceOut, suppress);
     }
 
     if (streamJsonl) {
       for (int b = 0; b < batchSize; ++b) {
-        const bool stopped =
-            b < static_cast<int>(stoppedBatch.size())
-                ? stoppedBatch[static_cast<size_t>(b)]
-                : false;
+        const bool stopped = b < static_cast<int>(stoppedBatch.size())
+                                 ? stoppedBatch[static_cast<size_t>(b)]
+                                 : false;
         writeStreamJsonDoneEvent(
             modelName, b, generatedTextBatch[static_cast<size_t>(b)], stopped);
       }
@@ -3694,55 +3670,48 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
       std::cout << colorLabel("[Prefilling]") << " "
                 << formatFixed(prefillSeconds > 0.0
                                    ? static_cast<double>(prefillPromptLen) *
-                                         batchSize /
-                                         prefillSeconds
+                                         batchSize / prefillSeconds
                                    : 0.0)
                 << " aggregate tokens/s (prefill_time="
-                << formatFixed(prefillSeconds)
-                << "s)\n";
-      std::cout << colorLabel("[Decoding wall]") << " "
-                << formatFixed(decodeTiming.wallSeconds > 0.0
-                                   ? aggregateDecodeTokens /
-                                         decodeTiming.wallSeconds
-                                   : 0.0)
-                << " aggregate tokens/s (" << aggregateDecodeTokens
-                << " tokens in " << formatFixed(decodeTiming.wallSeconds)
-                << "s, "
-                << formatFixed(decodeTiming.wallSeconds > 0.0
-                                   ? decodeTiming.count /
-                                         decodeTiming.wallSeconds
-                                   : 0.0)
-                << " tok/s/user)\n";
+                << formatFixed(prefillSeconds) << "s)\n";
+      std::cout
+          << colorLabel("[Decoding wall]") << " "
+          << formatFixed(decodeTiming.wallSeconds > 0.0
+                             ? aggregateDecodeTokens / decodeTiming.wallSeconds
+                             : 0.0)
+          << " aggregate tokens/s (" << aggregateDecodeTokens << " tokens in "
+          << formatFixed(decodeTiming.wallSeconds) << "s, "
+          << formatFixed(decodeTiming.wallSeconds > 0.0
+                             ? decodeTiming.count / decodeTiming.wallSeconds
+                             : 0.0)
+          << " tok/s/user)\n";
       if (deferDecodeTokenReadback) {
         const double decodeWallPlusReadback =
             decodeTiming.wallSeconds + deferredTokenReadbackSeconds;
         const double steadyWallPlusReadback =
             steadyWall + deferredTokenReadbackSeconds;
-        std::cout << colorLabel("[Decoding wall incl deferred readback]") << " "
-                  << formatFixed(decodeWallPlusReadback > 0.0
-                                     ? aggregateDecodeTokens /
-                                           decodeWallPlusReadback
-                                     : 0.0)
-                  << " aggregate tokens/s (" << aggregateDecodeTokens
-                  << " tokens in " << formatFixed(decodeWallPlusReadback)
-                  << "s, "
-                  << formatFixed(decodeWallPlusReadback > 0.0
-                                     ? decodeTiming.count /
-                                           decodeWallPlusReadback
-                                     : 0.0)
-                  << " tok/s/user)\n";
         std::cout
-            << colorLabel("[Decoding steady wall incl deferred readback]")
-            << " "
-            << formatFixed(steadyWallPlusReadback > 0.0
-                               ? aggregateSteadyDecodeTokens /
-                                     steadyWallPlusReadback
+            << colorLabel("[Decoding wall incl deferred readback]") << " "
+            << formatFixed(decodeWallPlusReadback > 0.0
+                               ? aggregateDecodeTokens / decodeWallPlusReadback
                                : 0.0)
-            << " aggregate tokens/s ("
-            << formatFixed(steadyWallPlusReadback > 0.0
-                               ? steadyCount / steadyWallPlusReadback
+            << " aggregate tokens/s (" << aggregateDecodeTokens << " tokens in "
+            << formatFixed(decodeWallPlusReadback) << "s, "
+            << formatFixed(decodeWallPlusReadback > 0.0
+                               ? decodeTiming.count / decodeWallPlusReadback
                                : 0.0)
-            << " tok/s/user, excluding first decode)\n";
+            << " tok/s/user)\n";
+        std::cout << colorLabel("[Decoding steady wall incl deferred readback]")
+                  << " "
+                  << formatFixed(steadyWallPlusReadback > 0.0
+                                     ? aggregateSteadyDecodeTokens /
+                                           steadyWallPlusReadback
+                                     : 0.0)
+                  << " aggregate tokens/s ("
+                  << formatFixed(steadyWallPlusReadback > 0.0
+                                     ? steadyCount / steadyWallPlusReadback
+                                     : 0.0)
+                  << " tok/s/user, excluding first decode)\n";
       }
       std::cout << colorLabel("[Decoding steady wall]") << " "
                 << formatFixed(steadyWall > 0.0
@@ -3765,39 +3734,36 @@ void Llama31TTRunner::run(const RunConfig &cfg) {
                 << " tok/s/user)\n";
       std::cout << colorLabel("[Decoding steady device-only]") << " "
                 << formatFixed(steadySubmit > 0.0
-                                   ? aggregateSteadyDecodeTokens /
-                                         steadySubmit
+                                   ? aggregateSteadyDecodeTokens / steadySubmit
                                    : 0.0)
                 << " aggregate tokens/s ("
-                << formatFixed(steadySubmit > 0.0
-                                   ? steadyCount / steadySubmit
-                                   : 0.0)
+                << formatFixed(steadySubmit > 0.0 ? steadyCount / steadySubmit
+                                                  : 0.0)
                 << " tok/s/user, excluding first decode)\n";
-      std::cout << colorLabel("[Decoding steady breakdown]") << " "
-                << "build="
-                << formatFixed(
-                       perSteadyTokenMs(decodeTiming
-                                            .steadyBuildInputsSeconds()))
-                << "ms, submit+wait="
-                << formatFixed(perSteadyTokenMs(steadySubmit))
-                << "ms, output="
-                << formatFixed(
-                       perSteadyTokenMs(decodeTiming.steadyOutputSeconds()))
-                << "ms, logits_to_host="
-                << formatFixed(perSteadyTokenMs(
-                       decodeTiming.steadyLogitsToHostSeconds()))
-                << "ms, kv_relayout="
-                << formatFixed(perSteadyTokenMs(
-                       decodeTiming.steadyKVRelayoutSeconds()))
-                << "ms, bookkeeping="
-                << formatFixed(perSteadyTokenMs(
-                       decodeTiming.steadyBookkeepingSeconds()))
-                << "ms\n";
+      std::cout
+          << colorLabel("[Decoding steady breakdown]") << " "
+          << "build="
+          << formatFixed(
+                 perSteadyTokenMs(decodeTiming.steadyBuildInputsSeconds()))
+          << "ms, submit+wait=" << formatFixed(perSteadyTokenMs(steadySubmit))
+          << "ms, output="
+          << formatFixed(perSteadyTokenMs(decodeTiming.steadyOutputSeconds()))
+          << "ms, logits_to_host="
+          << formatFixed(
+                 perSteadyTokenMs(decodeTiming.steadyLogitsToHostSeconds()))
+          << "ms, kv_relayout="
+          << formatFixed(
+                 perSteadyTokenMs(decodeTiming.steadyKVRelayoutSeconds()))
+          << "ms, bookkeeping="
+          << formatFixed(
+                 perSteadyTokenMs(decodeTiming.steadyBookkeepingSeconds()))
+          << "ms\n";
       if (deferDecodeTokenReadback) {
         std::cout << colorLabel("[Deferred token readback]") << " "
                   << formatFixed(deferredTokenReadbackSeconds) << "s\n";
       }
-      const bool printAllBatchOutputs = batchSize > 1 &&
+      const bool printAllBatchOutputs =
+          batchSize > 1 &&
           (cfg.printAllBatchOutputs ||
            std::getenv("BUDDY_LLAMA31_PRINT_ALL_BATCH") != nullptr);
       const int printedBatch =

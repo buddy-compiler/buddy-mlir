@@ -447,7 +447,9 @@ def _patch_static_cache_for_buddy() -> None:
     """
     import transformers.cache_utils as cu
 
-    def update_cache_tensors(keys, values, key_states, value_states, cache_position):
+    def update_cache_tensors(
+        keys, values, key_states, value_states, cache_position
+    ):
         L = keys.shape[-2]
         S = key_states.shape[-2]
 
@@ -546,7 +548,9 @@ def _patch_static_cache_for_buddy() -> None:
         if hasattr(cu, "StaticCache"):
             cu.StaticCache.update = static_cache_update_method
     else:
-        raise RuntimeError("unsupported transformers StaticCache implementation")
+        raise RuntimeError(
+            "unsupported transformers StaticCache implementation"
+        )
 
 
 def _load_model_and_tokenizer(model_id: str):
@@ -610,7 +614,9 @@ def _early_initialize_static_cache(past_kv, config, batch: int, device) -> None:
     )
 
 
-def _make_static_cache(static_cache_cls, config, max_cache_len: int, batch: int, device):
+def _make_static_cache(
+    static_cache_cls, config, max_cache_len: int, batch: int, device
+):
     try:
         return static_cache_cls(
             config=config,
@@ -1739,7 +1745,9 @@ def _legalize_rank_expanding_broadcasts(mlir_text: str) -> tuple[str, int]:
 
     def _tensor_type(dims: list[int], dtype: str) -> str:
         if dims:
-            return "tensor<" + "x".join(str(d) for d in dims) + "x" + dtype + ">"
+            return (
+                "tensor<" + "x".join(str(d) for d in dims) + "x" + dtype + ">"
+            )
         return f"tensor<{dtype}>"
 
     broadcast_re = re.compile(
@@ -1768,7 +1776,9 @@ def _legalize_rank_expanding_broadcasts(mlir_text: str) -> tuple[str, int]:
             lines.append(raw)
             continue
 
-        padded_input_dims = [1] * (len(output_dims) - len(input_dims)) + input_dims
+        padded_input_dims = [1] * (
+            len(output_dims) - len(input_dims)
+        ) + input_dims
         padded_type = _tensor_type(padded_input_dims, input_dtype)
         input_type = _tensor_type(input_dims, input_dtype)
         shape_attr = ", ".join(f"{dim} : i32" for dim in padded_input_dims)
@@ -1817,9 +1827,7 @@ def _keep_update_cache_indices_i32(mlir_text: str) -> tuple[str, int]:
 
     for line in lines:
         m = update_re.search(line)
-        if m and (
-            "tensor<1xbf16>) ->" in line or "tensor<1xf32>) ->" in line
-        ):
+        if m and ("tensor<1xbf16>) ->" in line or "tensor<1xf32>) ->" in line):
             needed.add(m.group(1))
 
     if not needed:
@@ -1836,12 +1844,9 @@ def _keep_update_cache_indices_i32(mlir_text: str) -> tuple[str, int]:
             if operands:
                 needed.add(operands[0])
             updated = re.sub(r"tensor<1x(?:bf16|f32)>", "tensor<1xi32>", line)
-        elif (
-            ' = "ttir.typecast"' in line
-            and (
-                "(tensor<1xi64>) -> tensor<1xbf16>" in line
-                or "(tensor<1xi64>) -> tensor<1xf32>" in line
-            )
+        elif ' = "ttir.typecast"' in line and (
+            "(tensor<1xi64>) -> tensor<1xbf16>" in line
+            or "(tensor<1xi64>) -> tensor<1xf32>" in line
         ):
             updated = re.sub(
                 r"\(tensor<1xi64>\) -> tensor<1x(?:bf16|f32)>",
@@ -1861,7 +1866,9 @@ def _keep_update_cache_indices_i32(mlir_text: str) -> tuple[str, int]:
         m = update_re.search(line)
         if not m or m.group(1) not in needed:
             continue
-        updated = re.sub(r"tensor<1x(?:bf16|f32)>\) ->", "tensor<1xi32>) ->", line)
+        updated = re.sub(
+            r"tensor<1x(?:bf16|f32)>\) ->", "tensor<1xi32>) ->", line
+        )
         if updated != line:
             lines[i] = updated
             patched += 1
@@ -1967,7 +1974,7 @@ def _legalize_batched_update_cache_inputs(mlir_text: str) -> tuple[str, int]:
         )
         lines.append(
             f'{indent}{m.group("dst")} = "ttir.update_cache"'
-            f'({m.group("cache")}, {permuted_name}, {m.group("index")}) '
+            f"({m.group('cache')}, {permuted_name}, {m.group('index')}) "
             f"{m.group('attrs')} : "
             f"(tensor<{m.group('cache_ty')}>, {permuted_type}, "
             f"tensor<{m.group('index_ty')}>) -> tensor<{m.group('out_ty')}>"
@@ -1996,7 +2003,7 @@ def _legalize_batched_sdpa_decode_inputs(mlir_text: str) -> tuple[str, int]:
         return "tensor<" + "x".join(str(d) for d in dims) + "x" + dtype + ">"
 
     sdpa_re = re.compile(
-        r'^(?P<indent>\s+)(?P<dst>%[\w$._-]+) = '
+        r"^(?P<indent>\s+)(?P<dst>%[\w$._-]+) = "
         r'"ttir\.scaled_dot_product_attention_decode"'
         r"\((?P<query>%[\w$._-]+), (?P<key>%[\w$._-]+), "
         r"(?P<value>%[\w$._-]+), (?P<mask>%[\w$._-]+), "
@@ -2058,8 +2065,8 @@ def _legalize_batched_sdpa_decode_inputs(mlir_text: str) -> tuple[str, int]:
         )
         lines.append(
             f'{indent}{sdpa_name} = "ttir.scaled_dot_product_attention_decode"'
-            f'({query_name}, {m.group("key")}, {m.group("value")}, '
-            f'{m.group("mask")}, {pos_name}) {m.group("attrs")} : '
+            f"({query_name}, {m.group('key')}, {m.group('value')}, "
+            f"{m.group('mask')}, {pos_name}) {m.group('attrs')} : "
             f"({legal_type}, tensor<{m.group('key_ty')}>, "
             f"tensor<{m.group('value_ty')}>, tensor<{m.group('mask_ty')}>, "
             f"{batch_pos_type}) -> {legal_type}"
@@ -2283,7 +2290,10 @@ def _full_arg_attrs(mode: str, arg_count: int) -> list[tuple[str, str]]:
                         ("input", f"args_key_cache_{layer_idx}"),
                         ("input", f"args_value_cache_{layer_idx}"),
                         ("parameter", prefix + "self_attn_o_proj_weight"),
-                        ("parameter", prefix + "post_attention_layernorm_weight"),
+                        (
+                            "parameter",
+                            prefix + "post_attention_layernorm_weight",
+                        ),
                         ("parameter", prefix + "mlp_gate_proj_weight"),
                         ("parameter", prefix + "mlp_up_proj_weight"),
                         ("parameter", prefix + "mlp_down_proj_weight"),
@@ -2854,7 +2864,9 @@ def main() -> int:
                         base = getattr(layer, "cumulative_length", None)
                         if base is not None:
                             layer.cumulative_length = torch.tensor(
-                                [pos_value], dtype=base.dtype, device=base.device
+                                [pos_value],
+                                dtype=base.dtype,
+                                device=base.device,
                             )
                 graphs = dynamo_compiler.importer(
                     model,
@@ -3115,7 +3127,9 @@ def main() -> int:
                 "Patched "
                 f"{index_count} decode position-index ops to stay in fp32"
             )
-        mlir_text, update_index_count = _keep_update_cache_indices_i32(mlir_text)
+        mlir_text, update_index_count = _keep_update_cache_indices_i32(
+            mlir_text
+        )
         if update_index_count:
             print(
                 "Patched "
@@ -3125,18 +3139,12 @@ def main() -> int:
             mlir_text
         )
         if batched_update_count:
-            print(
-                "Patched "
-                f"{batched_update_count} batched update-cache inputs"
-            )
+            print(f"Patched {batched_update_count} batched update-cache inputs")
         mlir_text, batched_sdpa_count = _legalize_batched_sdpa_decode_inputs(
             mlir_text
         )
         if batched_sdpa_count:
-            print(
-                "Patched "
-                f"{batched_sdpa_count} batched decode SDPA inputs"
-            )
+            print(f"Patched {batched_sdpa_count} batched decode SDPA inputs")
     out.write_text(mlir_text + "\n", encoding="utf-8")
     print(f"Wrote {out.resolve()}")
 

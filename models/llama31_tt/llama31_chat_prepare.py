@@ -144,7 +144,9 @@ def _patch_static_cache_for_buddy() -> None:
     """
     import transformers.cache_utils as cu
 
-    def update_cache_tensors(keys, values, key_states, value_states, cache_position):
+    def update_cache_tensors(
+        keys, values, key_states, value_states, cache_position
+    ):
         L = keys.shape[-2]
         S = key_states.shape[-2]
 
@@ -240,7 +242,9 @@ def _patch_static_cache_for_buddy() -> None:
         if hasattr(cu, "StaticCache"):
             cu.StaticCache.update = static_cache_update_method
     else:
-        raise RuntimeError("unsupported transformers StaticCache implementation")
+        raise RuntimeError(
+            "unsupported transformers StaticCache implementation"
+        )
 
 
 def _load_model(model_id: str):
@@ -463,7 +467,9 @@ def _early_initialize_static_cache(past_kv, config, batch: int, device) -> None:
     )
 
 
-def _make_static_cache(static_cache_cls, config, max_cache_len: int, batch: int, device):
+def _make_static_cache(
+    static_cache_cls, config, max_cache_len: int, batch: int, device
+):
     try:
         return static_cache_cls(
             config=config,
@@ -611,7 +617,9 @@ def _prepare_phase(
         past_kv = _make_static_cache(StaticCache, model.config, L, B, device)
         decode_ids = torch.zeros(B, 1, dtype=torch.long, device=device)
         pos_value = min(200, max(0, L - 1))
-        cache_position = torch.tensor([pos_value], dtype=torch.long, device=device)
+        cache_position = torch.tensor(
+            [pos_value], dtype=torch.long, device=device
+        )
         with torch.no_grad():
             if full_align_wrapper:
                 _early_initialize_static_cache(past_kv, model.config, B, device)

@@ -172,8 +172,7 @@ void DeepSeekR1Runner::run(const RunConfig &cfgIn) {
 
     GenerationResult result =
         runGeneration(finalPrompt, *session, vocabPath, cfg.maxNewTokens,
-                      stopTokenIds, sampler, codec, suppress,
-                      cfg.streamJsonl);
+                      stopTokenIds, sampler, codec, suppress, cfg.streamJsonl);
 
     if (!suppress)
       printStats(result, /*verbose=*/true);

@@ -124,13 +124,13 @@ class PrecomputedRopeInputs(NamedTuple):
 
 _CONCAT_RE = re.compile(
     r'^(?P<indent>\s*)%(?P<result>\d+) = "ttnn\.concat"'
-    r'\(%arg(?P<q>\d+), %arg(?P<k>\d+), %arg(?P<v>\d+)\) '
-    r'<\{dim = 0 : si32\}> : \((?P<input_types>.*)\) -> '
-    r'(?P<output_type>tensor<(?P<rows>\d+)x(?P<cols>\d+)x'
-    r'(?P<dtype>[a-z0-9]+), #[^>]+>)$'
+    r"\(%arg(?P<q>\d+), %arg(?P<k>\d+), %arg(?P<v>\d+)\) "
+    r"<\{dim = 0 : si32\}> : \((?P<input_types>.*)\) -> "
+    r"(?P<output_type>tensor<(?P<rows>\d+)x(?P<cols>\d+)x"
+    r"(?P<dtype>[a-z0-9]+), #[^>]+>)$"
 )
 _TENSOR_TYPE_RE = re.compile(
-    r'tensor<(?P<rows>\d+)x(?P<cols>\d+)x(?P<dtype>[a-z0-9]+), #[^>]+>'
+    r"tensor<(?P<rows>\d+)x(?P<cols>\d+)x(?P<dtype>[a-z0-9]+), #[^>]+>"
 )
 _RANK2_TENSOR_TYPE_WITH_LAYOUT_RE = re.compile(
     r"^tensor<(?P<rows>\d+)x(?P<cols>\d+)x(?P<dtype>[a-z0-9]+), "
@@ -138,31 +138,31 @@ _RANK2_TENSOR_TYPE_WITH_LAYOUT_RE = re.compile(
 )
 _MATMUL_RE = re.compile(
     r'^(?P<indent>\s*)%(?P<result>\d+) = "ttnn\.matmul"'
-    r'\(%(?P<input>\d+), %arg(?P<weight_arg>\d+)\) '
-    r'<\{(?P<attrs>.*)\}> : '
-    r'\((?P<input_type>tensor<[^>]+>), (?P<weight_type>tensor<[^>]+>)\) '
-    r'-> (?P<output_type>tensor<[^>]+>)$'
+    r"\(%(?P<input>\d+), %arg(?P<weight_arg>\d+)\) "
+    r"<\{(?P<attrs>.*)\}> : "
+    r"\((?P<input_type>tensor<[^>]+>), (?P<weight_type>tensor<[^>]+>)\) "
+    r"-> (?P<output_type>tensor<[^>]+>)$"
 )
 _ARG_RE = re.compile(r"%arg(\d+)\b")
 _ASSIGN_RE = re.compile(r'^\s*%(?P<result>\d+) = "(?P<op>[^"]+)"')
 _LM_HEAD_MATMUL_RE = re.compile(
     r'(?P<prefix>^\s*%\d+ = "ttnn\.matmul"\([^)]*\) <\{)'
-    r'(?P<attrs>.*compute_config = #ttnn\.device_compute_kernel_config<'
-    r'(?P<config>[^>]*)>.*)'
-    r'(?P<suffix>\}> : \(tensor<[^>]+>, '
-    r'tensor<(?P<vocab>\d+)x(?P<hidden>\d+)x(?P<dtype>[a-z0-9]+), #[^>]+>\) '
-    r'-> tensor<[^x>]+x(?P=vocab)x(?P=dtype), #[^>]+>$)'
+    r"(?P<attrs>.*compute_config = #ttnn\.device_compute_kernel_config<"
+    r"(?P<config>[^>]*)>.*)"
+    r"(?P<suffix>\}> : \(tensor<[^>]+>, "
+    r"tensor<(?P<vocab>\d+)x(?P<hidden>\d+)x(?P<dtype>[a-z0-9]+), #[^>]+>\) "
+    r"-> tensor<[^x>]+x(?P=vocab)x(?P=dtype), #[^>]+>$)"
 )
 _LM_HEAD_MATMUL_FULL_RE = re.compile(
     r'^(?P<indent>\s*)%(?P<result>\d+) = "ttnn\.matmul"'
-    r'\(%(?P<input>\d+), %arg(?P<weight_arg>\d+)\) '
-    r'<\{(?P<attrs>.*)\}> : '
-    r'\((?P<input_type>tensor<(?P<batch>\d+)x(?P<hidden>\d+)x'
-    r'(?P<dtype>[a-z0-9]+), (?P<input_layout>#[^>]+)>), '
-    r'(?P<weight_type>tensor<(?P<vocab>\d+)x(?P=hidden)x(?P=dtype), '
-    r'(?P<weight_layout>#[^>]+)>)\) -> '
-    r'(?P<output_type>tensor<(?P=batch)x(?P=vocab)x(?P=dtype), '
-    r'(?P<output_layout>#[^>]+)>)$'
+    r"\(%(?P<input>\d+), %arg(?P<weight_arg>\d+)\) "
+    r"<\{(?P<attrs>.*)\}> : "
+    r"\((?P<input_type>tensor<(?P<batch>\d+)x(?P<hidden>\d+)x"
+    r"(?P<dtype>[a-z0-9]+), (?P<input_layout>#[^>]+)>), "
+    r"(?P<weight_type>tensor<(?P<vocab>\d+)x(?P=hidden)x(?P=dtype), "
+    r"(?P<weight_layout>#[^>]+)>)\) -> "
+    r"(?P<output_type>tensor<(?P=batch)x(?P=vocab)x(?P=dtype), "
+    r"(?P<output_layout>#[^>]+)>)$"
 )
 
 
@@ -448,17 +448,23 @@ def _extract_packs(text: str) -> list[QKVPack]:
     return packs
 
 
-def _rewrite_signature(text: str, packs: list[QKVPack]) -> tuple[str, dict[int, int]]:
+def _rewrite_signature(
+    text: str, packs: list[QKVPack]
+) -> tuple[str, dict[int, int]]:
     args_start, args_end, args = _find_subgraph_args(text)
     pack_by_q = {pack.q_arg: pack for pack in packs}
-    remove_args = {pack.k_arg for pack in packs} | {pack.v_arg for pack in packs}
+    remove_args = {pack.k_arg for pack in packs} | {
+        pack.v_arg for pack in packs
+    }
     kept: list[str] = []
     old_to_new: dict[int, int] = {}
 
     for spec in args:
         match = re.match(r"%arg(\d+):", spec)
         if not match:
-            raise RuntimeError(f"could not parse function argument: {spec[:80]}")
+            raise RuntimeError(
+                f"could not parse function argument: {spec[:80]}"
+            )
         old_idx = int(match.group(1))
         if old_idx in remove_args:
             continue
@@ -536,7 +542,9 @@ def _parse_rank2_tensor_type(
 
 def _next_layout_name(text: str) -> str:
     max_id = 0
-    for match in re.finditer(r"^#ttnn_layout(?P<num>\d*)\s*=", text, re.MULTILINE):
+    for match in re.finditer(
+        r"^#ttnn_layout(?P<num>\d*)\s*=", text, re.MULTILINE
+    ):
         num = match.group("num")
         if num:
             max_id = max(max_id, int(num))
@@ -569,7 +577,9 @@ def _insert_mlp_pack_layouts(
         )
 
     weight_layout = _next_layout_name(text)
-    output_layout = f"#ttnn_layout{int(weight_layout.removeprefix('#ttnn_layout')) + 1}"
+    output_layout = (
+        f"#ttnn_layout{int(weight_layout.removeprefix('#ttnn_layout')) + 1}"
+    )
     weight_decl = (
         f"{weight_layout} = #ttnn.ttnn_layout<(d0, d1) -> (d0, d1), "
         f"<1x1>, memref<{weight_rows // 32}x{weight_cols // 32}x"
@@ -583,7 +593,14 @@ def _insert_mlp_pack_layouts(
     insert_at = text.find("module {")
     if insert_at < 0:
         raise RuntimeError("could not locate module body for layout insertion")
-    text = text[:insert_at] + weight_decl + "\n" + output_decl + "\n" + text[insert_at:]
+    text = (
+        text[:insert_at]
+        + weight_decl
+        + "\n"
+        + output_decl
+        + "\n"
+        + text[insert_at:]
+    )
     return (
         text,
         _replace_tensor_layout(pack.packed_weight_type, weight_layout),
@@ -621,7 +638,8 @@ def _extract_mlp_gate_up_packs(text: str) -> list[MLPGateUpPack]:
         up_index = index + 1
         if (
             up_index < len(lines)
-            and f'"ttnn.deallocate"(%arg{gate.group("weight_arg")}) ' in lines[up_index]
+            and f'"ttnn.deallocate"(%arg{gate.group("weight_arg")}) '
+            in lines[up_index]
         ):
             up_index += 1
         if up_index >= len(lines):
@@ -664,7 +682,7 @@ def _extract_mlp_gate_up_packs(text: str) -> list[MLPGateUpPack]:
             continue
         multiply = re.match(
             rf'\s*%(?P<result>\d+) = "ttnn\.multiply"\('
-            rf'%{gate.group("result")}, %{up.group("result")}\) ',
+            rf"%{gate.group('result')}, %{up.group('result')}\) ",
             lines[multiply_index],
         )
         if not multiply:
@@ -698,7 +716,9 @@ def _extract_mlp_gate_up_packs(text: str) -> list[MLPGateUpPack]:
             )
         )
     if not packs:
-        raise RuntimeError("found no decode MLP gate/up matmul patterns to pack")
+        raise RuntimeError(
+            "found no decode MLP gate/up matmul patterns to pack"
+        )
     return packs
 
 
@@ -714,7 +734,9 @@ def _rewrite_mlp_signature(
     for spec in args:
         match = re.match(r"%arg(\d+):", spec)
         if not match:
-            raise RuntimeError(f"could not parse function argument: {spec[:80]}")
+            raise RuntimeError(
+                f"could not parse function argument: {spec[:80]}"
+            )
         old_idx = int(match.group(1))
         if old_idx in remove_args:
             continue
@@ -736,7 +758,9 @@ def _rewrite_mlp_body(text: str, packs: list[MLPGateUpPack]) -> str:
         return text
     lines = text.splitlines()
     pack_by_gate = {pack.gate_result: pack for pack in packs}
-    remove_args = {pack.gate_arg for pack in packs} | {pack.up_arg for pack in packs}
+    remove_args = {pack.gate_arg for pack in packs} | {
+        pack.up_arg for pack in packs
+    }
     max_result = -1
     for line in lines:
         match = _ASSIGN_RE.match(line)
@@ -754,17 +778,21 @@ def _rewrite_mlp_body(text: str, packs: list[MLPGateUpPack]) -> str:
             up_index = index + 1
             if (
                 up_index < len(lines)
-                and f'"ttnn.deallocate"(%arg{pack.gate_arg}) ' in lines[up_index]
+                and f'"ttnn.deallocate"(%arg{pack.gate_arg}) '
+                in lines[up_index]
             ):
                 up_index += 1
             up = _MATMUL_RE.match(lines[up_index])
             if not up or up.group("result") != pack.up_result:
-                raise RuntimeError("MLP gate/up block shape changed during rewrite")
+                raise RuntimeError(
+                    "MLP gate/up block shape changed during rewrite"
+                )
             dealloc_input = lines[up_index + 1]
             multiply_index = up_index + 2
             if (
                 multiply_index < len(lines)
-                and f'"ttnn.deallocate"(%arg{pack.up_arg}) ' in lines[multiply_index]
+                and f'"ttnn.deallocate"(%arg{pack.up_arg}) '
+                in lines[multiply_index]
             ):
                 multiply_index += 1
             multiply = lines[multiply_index]
@@ -773,7 +801,8 @@ def _rewrite_mlp_body(text: str, packs: list[MLPGateUpPack]) -> str:
             if (
                 f'"ttnn.deallocate"(%{pack.input_value}) ' not in dealloc_input
                 or f'"ttnn.deallocate"(%{pack.up_result}) ' not in dealloc_up
-                or f'"ttnn.deallocate"(%{pack.gate_result}) ' not in dealloc_gate
+                or f'"ttnn.deallocate"(%{pack.gate_result}) '
+                not in dealloc_gate
             ):
                 raise RuntimeError("unexpected MLP gate/up deallocation block")
 
@@ -795,36 +824,38 @@ def _rewrite_mlp_body(text: str, packs: list[MLPGateUpPack]) -> str:
             )
             gate_slice_line = (
                 f'{gate.group("indent")}%{gate_slice} = "ttnn.slice_static"'
-                f'(%{pack.gate_result}) <{{begins = [0 : i32, 0 : i32], '
-                f'ends = [{out_rows} : i32, {out_cols} : i32], '
-                f'step = [1 : i32, 1 : i32]}}> : '
-                f'({pack.packed_output_type}) -> {pack.half_output_type}'
+                f"(%{pack.gate_result}) <{{begins = [0 : i32, 0 : i32], "
+                f"ends = [{out_rows} : i32, {out_cols} : i32], "
+                f"step = [1 : i32, 1 : i32]}}> : "
+                f"({pack.packed_output_type}) -> {pack.half_output_type}"
             )
             up_slice_line = (
                 f'{gate.group("indent")}%{up_slice} = "ttnn.slice_static"'
-                f'(%{pack.gate_result}) <{{begins = [0 : i32, {out_cols} : i32], '
-                f'ends = [{out_rows} : i32, {out_cols * 2} : i32], '
-                f'step = [1 : i32, 1 : i32]}}> : '
-                f'({pack.packed_output_type}) -> {pack.half_output_type}'
+                f"(%{pack.gate_result}) <{{begins = [0 : i32, {out_cols} : i32], "
+                f"ends = [{out_rows} : i32, {out_cols * 2} : i32], "
+                f"step = [1 : i32, 1 : i32]}}> : "
+                f"({pack.packed_output_type}) -> {pack.half_output_type}"
             )
             silu_line = (
                 f'{gate.group("indent")}%{silu_result} = "ttnn.silu"'
-                f'(%{gate_slice}) : ({pack.half_output_type}) -> '
-                f'{pack.half_output_type}'
+                f"(%{gate_slice}) : ({pack.half_output_type}) -> "
+                f"{pack.half_output_type}"
             )
             gate_slice_dealloc = (
                 f'{gate.group("indent")}"ttnn.deallocate"(%{gate_slice}) '
-                f'<{{force = false}}> : ({pack.half_output_type}) -> ()'
+                f"<{{force = false}}> : ({pack.half_output_type}) -> ()"
             )
             packed_dealloc = (
                 f'{gate.group("indent")}"ttnn.deallocate"(%{pack.gate_result}) '
-                f'<{{force = false}}> : ({pack.packed_output_type}) -> ()'
+                f"<{{force = false}}> : ({pack.packed_output_type}) -> ()"
             )
             multiply = re.sub(
                 rf"%{pack.gate_result}\b", f"%{silu_result}", multiply
             )
             multiply = re.sub(rf"%{pack.up_result}\b", f"%{up_slice}", multiply)
-            dealloc_up = re.sub(rf"%{pack.up_result}\b", f"%{up_slice}", dealloc_up)
+            dealloc_up = re.sub(
+                rf"%{pack.up_result}\b", f"%{up_slice}", dealloc_up
+            )
             dealloc_gate = re.sub(
                 rf"%{pack.gate_result}\b", f"%{silu_result}", dealloc_gate
             )
@@ -846,7 +877,9 @@ def _rewrite_mlp_body(text: str, packs: list[MLPGateUpPack]) -> str:
             rewritten += 1
             continue
 
-        dealloc_arg = re.match(r'\s*"ttnn\.deallocate"\(%arg(\d+)\) ', lines[index])
+        dealloc_arg = re.match(
+            r'\s*"ttnn\.deallocate"\(%arg(\d+)\) ', lines[index]
+        )
         if dealloc_arg and int(dealloc_arg.group(1)) in remove_args:
             index += 1
             continue
@@ -854,7 +887,9 @@ def _rewrite_mlp_body(text: str, packs: list[MLPGateUpPack]) -> str:
         index += 1
 
     if rewritten != len(packs):
-        raise RuntimeError(f"rewrote {rewritten} MLP packs, expected {len(packs)}")
+        raise RuntimeError(
+            f"rewrote {rewritten} MLP packs, expected {len(packs)}"
+        )
     return "\n".join(output) + "\n"
 
 
@@ -934,7 +969,9 @@ def _insert_lm_head_split_layouts(
     dtype: str,
 ) -> tuple[str, str, str]:
     if dtype != "bf16":
-        raise RuntimeError("LM-head split currently expects bf16 weights/logits")
+        raise RuntimeError(
+            "LM-head split currently expects bf16 weights/logits"
+        )
     if rows_per_split % 32 or hidden % 32:
         raise RuntimeError(
             "LM-head split expects tile-aligned vocab rows and hidden size"
@@ -957,7 +994,14 @@ def _insert_lm_head_split_layouts(
     insert_at = text.find("module {")
     if insert_at < 0:
         raise RuntimeError("could not locate module body for layout insertion")
-    text = text[:insert_at] + weight_decl + "\n" + output_decl + "\n" + text[insert_at:]
+    text = (
+        text[:insert_at]
+        + weight_decl
+        + "\n"
+        + output_decl
+        + "\n"
+        + text[insert_at:]
+    )
     return text, weight_layout, output_layout
 
 
@@ -967,8 +1011,7 @@ def _drop_unused_function_arg(text: str, arg: int) -> tuple[str, bool]:
     non_dealloc_uses = [
         line
         for line in body.splitlines()
-        if re.search(rf"%arg{arg}\b", line)
-        and '"ttnn.deallocate"' not in line
+        if re.search(rf"%arg{arg}\b", line) and '"ttnn.deallocate"' not in line
     ]
     if non_dealloc_uses:
         return text, False
@@ -977,7 +1020,9 @@ def _drop_unused_function_arg(text: str, arg: int) -> tuple[str, bool]:
     for spec in args:
         match = re.match(r"%arg(\d+):", spec)
         if not match:
-            raise RuntimeError(f"could not parse function argument: {spec[:80]}")
+            raise RuntimeError(
+                f"could not parse function argument: {spec[:80]}"
+            )
         old = int(match.group(1))
         if old == arg:
             continue
@@ -997,7 +1042,9 @@ def _drop_unused_function_arg(text: str, arg: int) -> tuple[str, bool]:
     def replace_arg(match: re.Match[str]) -> str:
         old = int(match.group(1))
         if old == arg:
-            raise RuntimeError(f"removed argument %arg{arg} is still referenced")
+            raise RuntimeError(
+                f"removed argument %arg{arg} is still referenced"
+            )
         if old > arg:
             return f"%arg{old - 1}"
         return f"%arg{old}"
@@ -1061,7 +1108,9 @@ def _rewrite_lm_head_split(
             candidate_index = index
             candidate_match = match
     if candidate_index is None or candidate_match is None:
-        raise RuntimeError("could not find LM-head matmul after signature rewrite")
+        raise RuntimeError(
+            "could not find LM-head matmul after signature rewrite"
+        )
 
     max_ssa = 0
     for match in re.finditer(r"^\s*%(\d+) =", text, re.MULTILINE):
@@ -1132,7 +1181,9 @@ def _rewrite_lm_head_split(
     final_split_weight_type = split_weight_type
     if dropped_source_arg:
         final_split_weight_type = re.sub(
-            rf"%arg{first_split_arg}\b", f"%arg{final_first_split_arg}", split_weight_type
+            rf"%arg{first_split_arg}\b",
+            f"%arg{final_first_split_arg}",
+            split_weight_type,
         )
 
     return (
@@ -1169,7 +1220,9 @@ def _insert_lm_head_dram_program_config(
     )
     insert_at = text.find("module {")
     if insert_at < 0:
-        raise RuntimeError("could not locate module body for program config insertion")
+        raise RuntimeError(
+            "could not locate module body for program config insertion"
+        )
     return text[:insert_at] + attr_decl + text[insert_at:]
 
 
@@ -1212,7 +1265,9 @@ def _insert_lm_head_mcast1d_program_config(
     )
     insert_at = text.find("module {")
     if insert_at < 0:
-        raise RuntimeError("could not locate module body for program config insertion")
+        raise RuntimeError(
+            "could not locate module body for program config insertion"
+        )
     return text[:insert_at] + attr_decl + text[insert_at:]
 
 
@@ -1242,7 +1297,9 @@ def _rewrite_lm_head_mcast1d_program_config(
 
     matches = _collect_lm_head_matmul_matches(text.splitlines())
     if not matches:
-        raise RuntimeError("could not find LM-head matmul(s) without program config")
+        raise RuntimeError(
+            "could not find LM-head matmul(s) without program config"
+        )
 
     configs: dict[tuple[int, int, int, int], str] = {}
     per_core_n_values: list[int] = []
@@ -1300,7 +1357,7 @@ def _rewrite_lm_head_mcast1d_program_config(
         name = configs[(in0_block_w, per_core_m, per_core_n, out_subblock_w)]
         attrs = f"{match.group('attrs')}, matmul_program_config = {name}"
         lines[index] = (
-            f'{match.group("indent")}%{match.group("result")} = '
+            f"{match.group('indent')}%{match.group('result')} = "
             f'"ttnn.matmul"(%{match.group("input")}, '
             f"%arg{match.group('weight_arg')}) <{{{attrs}}}> : "
             f"({match.group('input_type')}, {match.group('weight_type')}) -> "
@@ -1337,7 +1394,9 @@ def _rewrite_lm_head_dram_sharded_program_config(
     lines = text.splitlines()
     matches = _collect_lm_head_matmul_matches(lines)
     if not matches:
-        raise RuntimeError("could not find LM-head matmul(s) without program config")
+        raise RuntimeError(
+            "could not find LM-head matmul(s) without program config"
+        )
 
     configs: dict[tuple[int, int, int], str] = {}
     per_core_n_values: list[int] = []
@@ -1347,7 +1406,9 @@ def _rewrite_lm_head_dram_sharded_program_config(
         vocab = int(match.group("vocab"))
         dtype = match.group("dtype")
         if dtype != "bf16":
-            raise RuntimeError("LM-head DRAM-sharded program config expects bf16")
+            raise RuntimeError(
+                "LM-head DRAM-sharded program config expects bf16"
+            )
         k_tiles_exact = hidden / (32 * num_cores)
         if hidden % (32 * num_cores) != 0:
             raise RuntimeError(
@@ -1396,7 +1457,7 @@ def _rewrite_lm_head_dram_sharded_program_config(
         else:
             attrs = f"matmul_program_config = {name}"
         lines[index] = (
-            f'{match.group("indent")}%{match.group("result")} = '
+            f"{match.group('indent')}%{match.group('result')} = "
             f'"ttnn.matmul"(%{match.group("input")}, '
             f"%arg{match.group('weight_arg')}) <{{{attrs}}}> : "
             f"({match.group('input_type')}, {match.group('weight_type')}) -> "
@@ -1454,7 +1515,7 @@ def _rewrite_split_embedding_weight(
                 else None
             )
             type_match = re.search(
-                r' : \((tensor<[^>]+>)\) -> (tensor<[^>]+>)$', line
+                r" : \((tensor<[^>]+>)\) -> (tensor<[^>]+>)$", line
             )
             if (
                 to_layout_result
@@ -1471,7 +1532,9 @@ def _rewrite_split_embedding_weight(
                     raise RuntimeError(
                         "found more than one embedding weight row-major conversion"
                     )
-                rewrite = SplitEmbeddingWeight(source_arg, split_arg, split_type)
+                rewrite = SplitEmbeddingWeight(
+                    source_arg, split_arg, split_type
+                )
                 output.append(
                     re.sub(
                         rf"%{to_layout_result}\b",
@@ -1517,9 +1580,9 @@ class OpLine(NamedTuple):
 
 _OP_LINE_RE = re.compile(
     r'^(?P<indent>\s*)%(?P<result>\d+) = "(?P<op>ttnn\.[^"]+)"'
-    r'\((?P<operands>[^)]*)\)'
-    r'(?: <\{(?P<attrs>.*)\}>)? : '
-    r'\((?P<input_types>.*)\) -> (?P<result_type>tensor<[^>]+>)$'
+    r"\((?P<operands>[^)]*)\)"
+    r"(?: <\{(?P<attrs>.*)\}>)? : "
+    r"\((?P<input_types>.*)\) -> (?P<result_type>tensor<[^>]+>)$"
 )
 
 
@@ -1528,8 +1591,7 @@ def _parse_op_line(index: int, line: str) -> OpLine | None:
     if not match:
         return None
     operands = [
-        operand[1:]
-        for operand in re.findall(r"%\d+", match.group("operands"))
+        operand[1:] for operand in re.findall(r"%\d+", match.group("operands"))
     ]
     return OpLine(
         index=index,
@@ -1566,7 +1628,9 @@ _GENERAL_TENSOR_TYPE_RE = re.compile(
 )
 
 
-def _parse_rank4_tensor_type(type_text: str) -> tuple[list[int], str, str] | None:
+def _parse_rank4_tensor_type(
+    type_text: str,
+) -> tuple[list[int], str, str] | None:
     match = _RANK4_TENSOR_TYPE_RE.match(type_text)
     if not match:
         return None
@@ -1576,8 +1640,7 @@ def _parse_rank4_tensor_type(type_text: str) -> tuple[list[int], str, str] | Non
 
 def _format_rank4_tensor_type(shape: list[int], dtype: str, layout: str) -> str:
     return (
-        f"tensor<{shape[0]}x{shape[1]}x{shape[2]}x{shape[3]}x"
-        f"{dtype}, {layout}>"
+        f"tensor<{shape[0]}x{shape[1]}x{shape[2]}x{shape[3]}x{dtype}, {layout}>"
     )
 
 
@@ -1602,28 +1665,28 @@ def _shape_dtype_from_tensor_type(type_text: str) -> tuple[list[int], str]:
 
 _CONCAT_HEADS_RESHAPE_RE = re.compile(
     r'^(?P<indent>\s*)%(?P<result>\d+) = "ttnn\.reshape"\(%(?P<input>\d+)\) '
-    r'<\{shape = \[32 : i32, (?P<hidden>\d+) : i32\]\}> : '
-    r'\(tensor<1x32x(?P<heads>\d+)x(?P<head_dim>\d+)x'
-    r'(?P<dtype>bf16), (?P<input_layout>#[^>]+)>\) -> '
-    r'(?P<result_type>tensor<32x(?P=hidden)x(?P=dtype), (?P<result_layout>#[^>]+)>)$',
+    r"<\{shape = \[32 : i32, (?P<hidden>\d+) : i32\]\}> : "
+    r"\(tensor<1x32x(?P<heads>\d+)x(?P<head_dim>\d+)x"
+    r"(?P<dtype>bf16), (?P<input_layout>#[^>]+)>\) -> "
+    r"(?P<result_type>tensor<32x(?P=hidden)x(?P=dtype), (?P<result_layout>#[^>]+)>)$",
     re.MULTILINE,
 )
 
 _QKV_HEAD_SLICE_RE = re.compile(
     r'^(?P<indent>\s*)%(?P<result>\d+) = "ttnn\.slice_static"'
-    r'\(%(?P<input>\d+)\) <\{begins = \[0 : i32, (?P<begin>\d+) : i32\], '
-    r'ends = \[32 : i32, (?P<end>\d+) : i32\], '
-    r'step = \[1 : i32, 1 : i32\]\}> : '
-    r'\((?P<input_type>tensor<32x(?P<input_width>\d+)x(?P<dtype>bf16), '
-    r'(?P<input_layout>#[^>]+)>)\) -> '
-    r'(?P<result_type>tensor<32x(?P<width>\d+)x(?P=dtype), #[^>]+>)$'
+    r"\(%(?P<input>\d+)\) <\{begins = \[0 : i32, (?P<begin>\d+) : i32\], "
+    r"ends = \[32 : i32, (?P<end>\d+) : i32\], "
+    r"step = \[1 : i32, 1 : i32\]\}> : "
+    r"\((?P<input_type>tensor<32x(?P<input_width>\d+)x(?P<dtype>bf16), "
+    r"(?P<input_layout>#[^>]+)>)\) -> "
+    r"(?P<result_type>tensor<32x(?P<width>\d+)x(?P=dtype), #[^>]+>)$"
 )
 
 _RESHAPE_RESULT_RE = re.compile(
     r'^\s*%\d+ = "ttnn\.reshape"\(%(?P<input>\d+)\) '
-    r'<\{shape = \[(?P<shape>[^\]]+)\]\}> : '
-    r'\((?P<input_type>tensor<[^>]+>)\) -> '
-    r'(?P<result_type>tensor<[^>]+>)$'
+    r"<\{shape = \[(?P<shape>[^\]]+)\]\}> : "
+    r"\((?P<input_type>tensor<[^>]+>)\) -> "
+    r"(?P<result_type>tensor<[^>]+>)$"
 )
 
 
@@ -1638,7 +1701,9 @@ def _rewrite_concat_heads_decode(
     hidden = int(first.group("hidden"))
     dtype = first.group("dtype")
     if hidden % 32 != 0:
-        raise RuntimeError("decode concat-heads output hidden size must be tile aligned")
+        raise RuntimeError(
+            "decode concat-heads output hidden size must be tile aligned"
+        )
 
     layout = _next_layout_name(text)
     layout_decl = (
@@ -1661,7 +1726,9 @@ def _rewrite_concat_heads_decode(
             or "-> tensor<1x32x8x128xbf16," not in line
         ):
             continue
-        memory_match = re.search(r"memory_config = (?P<memory_config>.+?)\}> : ", line)
+        memory_match = re.search(
+            r"memory_config = (?P<memory_config>.+?)\}> : ", line
+        )
         layout_match = re.search(
             r"-> tensor<1x32x8x128xbf16, (?P<layout>#[^>]+)>$", line
         )
@@ -1670,7 +1737,9 @@ def _rewrite_concat_heads_decode(
             sharded_layout = layout_match.group("layout")
             break
     if sharded_memory_config is None or sharded_layout is None:
-        raise RuntimeError("could not locate decode L1 height-sharded memory config")
+        raise RuntimeError(
+            "could not locate decode L1 height-sharded memory config"
+        )
 
     max_result = max(
         (int(match.group(1)) for match in re.finditer(r"%(\d+)\b", text)),
@@ -1705,7 +1774,7 @@ def _rewrite_concat_heads_decode(
             return "\n".join(
                 [
                     (
-                        f'{indent}%{concat_result} = '
+                        f"{indent}%{concat_result} = "
                         f'"ttnn.nlp_concat_heads_decode"'
                         f"(%{input_value}) <{{num_heads = {heads} : ui32}}> : "
                         f"({sharded_type}) -> {concat_type}"
@@ -1774,14 +1843,16 @@ def _rewrite_concat_heads_decode(
         rewritten_deallocs = 0
         for line in rewritten.splitlines():
             sdpa_match = re.match(
-                r'(?P<prefix>\s*%(?P<result>\d+) = '
+                r"(?P<prefix>\s*%(?P<result>\d+) = "
                 r'"ttnn\.scaled_dot_product_attention_decode"\([^)]*\) <\{)'
-                r'(?P<attrs>.*)(?P<suffix>\}> : \(.*\) -> )'
-                r'(?P<result_type>tensor<[^>]+>)$',
+                r"(?P<attrs>.*)(?P<suffix>\}> : \(.*\) -> )"
+                r"(?P<result_type>tensor<[^>]+>)$",
                 line,
             )
             if sdpa_match and sdpa_match.group("result") in sdpa_result_types:
-                old_type, new_type = sdpa_result_types[sdpa_match.group("result")]
+                old_type, new_type = sdpa_result_types[
+                    sdpa_match.group("result")
+                ]
                 if sdpa_match.group("result_type") != old_type:
                     raise RuntimeError(
                         "SDPA result type did not match expected concat-heads input"
@@ -1830,9 +1901,7 @@ def _find_reshape_result_type(
             and match.group("shape") == shape_text
         ):
             return match.group("result_type")
-    raise RuntimeError(
-        f"could not find reshape of %{value} to [{shape_text}]"
-    )
+    raise RuntimeError(f"could not find reshape of %{value} to [{shape_text}]")
 
 
 def _rewrite_create_qkv_heads_decode(text: str) -> tuple[str, int]:
@@ -1874,8 +1943,8 @@ def _rewrite_create_qkv_heads_decode(text: str) -> tuple[str, int]:
         matmul_result = q.group("input")
         dealloc = re.match(
             rf'^(?P<indent>\s*)"ttnn\.deallocate"\(%{matmul_result}\) '
-            rf'<\{{force = false\}}> : '
-            rf'\({re.escape(q.group("input_type"))}\) -> \(\)$',
+            rf"<\{{force = false\}}> : "
+            rf"\({re.escape(q.group('input_type'))}\) -> \(\)$",
             lines[i + 3],
         )
         if not dealloc:
@@ -1911,9 +1980,7 @@ def _rewrite_create_qkv_heads_decode(text: str) -> tuple[str, int]:
         dtype = q.group("dtype")
         if hidden % 32 != 0:
             raise RuntimeError("QKV hidden width must be tile aligned")
-        qkv_type = (
-            f"tensor<1x1x32x{hidden}x{dtype}, {layout}>"
-        )
+        qkv_type = f"tensor<1x1x32x{hidden}x{dtype}, {layout}>"
         if not inserted_layout:
             layout_decl = (
                 f"{layout} = #ttnn.ttnn_layout<(d0, d1, d2, d3) -> "
@@ -1944,7 +2011,7 @@ def _rewrite_create_qkv_heads_decode(text: str) -> tuple[str, int]:
                     f"{qkv_type}"
                 ),
                 (
-                    f'{indent}%{q_value}, %{k_value}, %{v_value} = '
+                    f"{indent}%{q_value}, %{k_value}, %{v_value} = "
                     f'"ttnn.nlp_create_qkv_heads_decode"'
                     f"(%{qkv_reshape}) <{{num_heads = 24 : ui32, "
                     f"num_kv_heads = 8 : ui32}}> : ({qkv_type}) -> "
@@ -2022,7 +2089,11 @@ def _rewrite_rope_fusion(text: str) -> tuple[str, int]:
         if reshape is None or len(reshape.operands) != 1:
             return None
         concat = get_op(reshape.operands[0], "ttnn.concat")
-        if concat is None or len(concat.operands) != 2 or "dim = 3 : si32" not in concat.line:
+        if (
+            concat is None
+            or len(concat.operands) != 2
+            or "dim = 3 : si32" not in concat.line
+        ):
             return None
         neg = get_op(concat.operands[0], "ttnn.neg")
         low_slice = get_op(concat.operands[1], "ttnn.slice_static")
@@ -2092,11 +2163,9 @@ def _rewrite_rope_fusion(text: str) -> tuple[str, int]:
         parsed_result_type = _parse_rank4_tensor_type(add.result_type)
         if parsed_result_type is None:
             replacement_lines.append(
-                (
-                    f'{add.indent}%{add.result} = "ttnn.rotary_embedding"'
-                    f"(%{x_value}, %{cos_value}, %{sin_value}) : "
-                    f"({x_type}, {cos_type}, {sin_type}) -> {add.result_type}"
-                )
+                f'{add.indent}%{add.result} = "ttnn.rotary_embedding"'
+                f"(%{x_value}, %{cos_value}, %{sin_value}) : "
+                f"({x_type}, {cos_type}, {sin_type}) -> {add.result_type}"
             )
         else:
             result_shape, result_dtype, result_layout = parsed_result_type
@@ -2108,12 +2177,10 @@ def _rewrite_rope_fusion(text: str) -> tuple[str, int]:
             ) * tile_height
             if padded_seq_len == original_seq_len:
                 replacement_lines.append(
-                    (
-                        f'{add.indent}%{add.result} = "ttnn.rotary_embedding"'
-                        f"(%{x_value}, %{cos_value}, %{sin_value}) : "
-                        f"({x_type}, {cos_type}, {sin_type}) -> "
-                        f"{add.result_type}"
-                    )
+                    f'{add.indent}%{add.result} = "ttnn.rotary_embedding"'
+                    f"(%{x_value}, %{cos_value}, %{sin_value}) : "
+                    f"({x_type}, {cos_type}, {sin_type}) -> "
+                    f"{add.result_type}"
                 )
             else:
                 padded_shape[-2] = padded_seq_len
@@ -2128,14 +2195,14 @@ def _rewrite_rope_fusion(text: str) -> tuple[str, int]:
                 replacement_lines.extend(
                     [
                         (
-                            f'{add.indent}%{padded_value} = '
+                            f"{add.indent}%{padded_value} = "
                             f'"ttnn.rotary_embedding"'
                             f"(%{x_value}, %{cos_value}, %{sin_value}) : "
                             f"({x_type}, {cos_type}, {sin_type}) -> "
                             f"{padded_type}"
                         ),
                         (
-                            f'{add.indent}%{add.result} = '
+                            f"{add.indent}%{add.result} = "
                             f'"ttnn.slice_static"(%{padded_value}) '
                             f"<{{begins = {_i32_array(begins)}, "
                             f"ends = {_i32_array(ends)}, "
@@ -2188,7 +2255,9 @@ def _rewrite_rope_fusion(text: str) -> tuple[str, int]:
     return "\n".join(output) + "\n", rewrite_count
 
 
-def _rewrite_argmax_tile(text: str, *, singlecore: bool = False) -> tuple[str, int]:
+def _rewrite_argmax_tile(
+    text: str, *, singlecore: bool = False
+) -> tuple[str, int]:
     lines = text.splitlines()
     rewrites = 0
     output: list[str] = []
@@ -2206,8 +2275,12 @@ def _rewrite_argmax_tile(text: str, *, singlecore: bool = False) -> tuple[str, i
             source_match = re.search(r'"ttnn\.to_layout"\(%(\d+)\)', line)
             if to_layout_result and source_match:
                 source = source_match.group(1)
-                dealloc_source = re.search(r'"ttnn\.deallocate"\(%(\d+)\)', lines[i + 1])
-                argmax_source = re.search(r'"ttnn\.argmax"\(%(\d+)\)', lines[i + 2])
+                dealloc_source = re.search(
+                    r'"ttnn\.deallocate"\(%(\d+)\)', lines[i + 1]
+                )
+                argmax_source = re.search(
+                    r'"ttnn\.argmax"\(%(\d+)\)', lines[i + 2]
+                )
                 if (
                     dealloc_source
                     and argmax_source
@@ -2216,7 +2289,9 @@ def _rewrite_argmax_tile(text: str, *, singlecore: bool = False) -> tuple[str, i
                 ):
                     source_type = None
                     result_type = None
-                    type_match = re.search(r' : \((tensor<[^>]+>)\) -> (tensor<[^>]+>)$', line)
+                    type_match = re.search(
+                        r" : \((tensor<[^>]+>)\) -> (tensor<[^>]+>)$", line
+                    )
                     if type_match:
                         source_type = type_match.group(1)
                         result_type = type_match.group(2)
@@ -2228,7 +2303,9 @@ def _rewrite_argmax_tile(text: str, *, singlecore: bool = False) -> tuple[str, i
                             argmax_line,
                             count=1,
                         )
-                        argmax_line = argmax_line.replace(result_type, source_type, 1)
+                        argmax_line = argmax_line.replace(
+                            result_type, source_type, 1
+                        )
                         if singlecore:
                             argmax_line = argmax_line.replace(
                                 "use_multicore = true",
@@ -2296,13 +2373,17 @@ def _rewrite_lm_head_topk(text: str) -> tuple[str, int]:
             tiled_indices = _ssa_result(lines[i + 4])
             source_match = re.search(r'"ttnn\.to_layout"\(%(\d+)\)', line)
             source_type_match = re.search(
-                r' : \((tensor<[^>]+>)\) -> (tensor<[^>]+>)$', line
+                r" : \((tensor<[^>]+>)\) -> (tensor<[^>]+>)$", line
             )
-            typecast_match = re.search(
-                rf'"ttnn\.typecast"\(%{tiled_indices}\).*'
-                r' : \((tensor<[^>]+>)\) -> (tensor<[^>]+>)$',
-                lines[i + 6],
-            ) if tiled_indices else None
+            typecast_match = (
+                re.search(
+                    rf'"ttnn\.typecast"\(%{tiled_indices}\).*'
+                    r" : \((tensor<[^>]+>)\) -> (tensor<[^>]+>)$",
+                    lines[i + 6],
+                )
+                if tiled_indices
+                else None
+            )
             if (
                 to_layout_result
                 and argmax_result
@@ -2326,7 +2407,7 @@ def _rewrite_lm_head_topk(text: str) -> tuple[str, int]:
                     )
                 values = fresh_id()
                 output.append(
-                    f'{line[: len(line) - len(line.lstrip())]}%{values}, '
+                    f"{line[: len(line) - len(line.lstrip())]}%{values}, "
                     f'%{tiled_indices} = "ttnn.topk"(%{source}) '
                     f"<{{dim = 1 : i32, k = 1 : i32, largest = true, "
                     f"sorted = false}}> : ({source_type}) -> "
@@ -2338,7 +2419,7 @@ def _rewrite_lm_head_topk(text: str) -> tuple[str, int]:
                     .replace(source_type_match.group(2), source_type)
                 )
                 output.append(
-                    f'{line[: len(line) - len(line.lstrip())]}'
+                    f"{line[: len(line) - len(line.lstrip())]}"
                     f'"ttnn.deallocate"(%{values}) <{{force = false}}> : '
                     f"({value_type}) -> ()"
                 )
@@ -2379,7 +2460,7 @@ def _rewrite_fold_identity_mul(text: str) -> tuple[str, int]:
     one_values: set[str] = set()
     for line in lines[start:end]:
         match = re.match(
-            r'\s*%(\d+) = ttcore\.load_cached\(@subgraph0_const_eval_(1|5), '
+            r"\s*%(\d+) = ttcore\.load_cached\(@subgraph0_const_eval_(1|5), "
             r"\[\]\) : \(\) -> tensor<1x1(?:x1x1)?xbf16, #[^>]+>",
             line,
         )
@@ -2434,7 +2515,9 @@ def _rewrite_fold_identity_mul(text: str) -> tuple[str, int]:
                 continue
             if index in multiply_lines:
                 continue
-            dealloc = re.match(r'(?P<indent>\s*)"ttnn\.deallocate"\(%(\d+)\) ', line)
+            dealloc = re.match(
+                r'(?P<indent>\s*)"ttnn\.deallocate"\(%(\d+)\) ', line
+            )
             if dealloc:
                 value = dealloc.group(2)
                 if value in defer_source_dealloc:
@@ -2453,7 +2536,11 @@ def _rewrite_fold_identity_mul(text: str) -> tuple[str, int]:
                     removed_one_deallocs += 1
                     continue
 
-            for result, (source, _source_type, _result_type) in result_to_source.items():
+            for result, (
+                source,
+                _source_type,
+                _result_type,
+            ) in result_to_source.items():
                 line = re.sub(rf"%{result}\b", f"%{source}", line)
         output.append(line)
 
@@ -2503,7 +2590,9 @@ def _rewrite_decode_artifacts(root: Path, packs: list[QKVPack]) -> None:
     roles_path = decode_dir / "slot_roles.json"
     roles = json.loads(roles_path.read_text(encoding="utf-8"))
     pack_by_q = {pack.q_arg: pack for pack in packs}
-    remove_slots = {pack.k_arg for pack in packs} | {pack.v_arg for pack in packs}
+    remove_slots = {pack.k_arg for pack in packs} | {
+        pack.v_arg for pack in packs
+    }
 
     new_roles: list[dict] = []
     for old_slot, entry in enumerate(roles):
@@ -2519,20 +2608,34 @@ def _rewrite_decode_artifacts(root: Path, packs: list[QKVPack]) -> None:
                 or k_entry.get("role") != "weight"
                 or v_entry.get("role") != "weight"
             ):
-                raise RuntimeError(f"QKV slots at {old_slot} are not all weights")
+                raise RuntimeError(
+                    f"QKV slots at {old_slot} are not all weights"
+                )
             q_end = entry["weight_offset"] + entry["weight_nbytes"]
             k_end = k_entry["weight_offset"] + k_entry["weight_nbytes"]
-            if q_end != k_entry["weight_offset"] or k_end != v_entry["weight_offset"]:
-                raise RuntimeError(f"QKV weight bytes are not contiguous at slot {old_slot}")
-            if entry["dtype"] != k_entry["dtype"] or entry["dtype"] != v_entry["dtype"]:
-                raise RuntimeError(f"QKV dtypes do not match at slot {old_slot}")
+            if (
+                q_end != k_entry["weight_offset"]
+                or k_end != v_entry["weight_offset"]
+            ):
+                raise RuntimeError(
+                    f"QKV weight bytes are not contiguous at slot {old_slot}"
+                )
+            if (
+                entry["dtype"] != k_entry["dtype"]
+                or entry["dtype"] != v_entry["dtype"]
+            ):
+                raise RuntimeError(
+                    f"QKV dtypes do not match at slot {old_slot}"
+                )
             entry["shape"] = pack.packed_shape
             entry["weight_nbytes"] = (
                 entry["weight_nbytes"]
                 + k_entry["weight_nbytes"]
                 + v_entry["weight_nbytes"]
             )
-            entry["placeholder"] = f"{entry.get('placeholder', 'qkv')}_packed_qkv"
+            entry["placeholder"] = (
+                f"{entry.get('placeholder', 'qkv')}_packed_qkv"
+            )
         entry["slot"] = len(new_roles)
         new_roles.append(entry)
 
@@ -2549,8 +2652,12 @@ def _rewrite_decode_artifacts(root: Path, packs: list[QKVPack]) -> None:
     summary_path = decode_dir / "summary.json"
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
     summary["num_slots"] = len(new_roles)
-    summary["num_weight_slots"] = sum(1 for entry in new_roles if entry["role"] == "weight")
-    summary["num_runtime_slots"] = sum(1 for entry in new_roles if entry["role"] != "weight")
+    summary["num_weight_slots"] = sum(
+        1 for entry in new_roles if entry["role"] == "weight"
+    )
+    summary["num_runtime_slots"] = sum(
+        1 for entry in new_roles if entry["role"] != "weight"
+    )
     summary["qkv_packed"] = True
     summary["qkv_packed_layers"] = len(packs)
     summary["weight_bytes"] = sum(
@@ -2578,15 +2685,22 @@ def _rewrite_mlp_gate_up_artifacts(
         if old_slot in pack_by_gate:
             pack = pack_by_gate[old_slot]
             up_entry = roles[pack.up_arg]
-            if entry.get("role") != "weight" or up_entry.get("role") != "weight":
-                raise RuntimeError(f"MLP gate/up slots at {old_slot} are not weights")
+            if (
+                entry.get("role") != "weight"
+                or up_entry.get("role") != "weight"
+            ):
+                raise RuntimeError(
+                    f"MLP gate/up slots at {old_slot} are not weights"
+                )
             gate_end = entry["weight_offset"] + entry["weight_nbytes"]
             if gate_end != up_entry["weight_offset"]:
                 raise RuntimeError(
                     f"MLP gate/up weight bytes are not contiguous at slot {old_slot}"
                 )
             if entry["dtype"] != up_entry["dtype"]:
-                raise RuntimeError(f"MLP gate/up dtypes do not match at slot {old_slot}")
+                raise RuntimeError(
+                    f"MLP gate/up dtypes do not match at slot {old_slot}"
+                )
             entry["shape"] = pack.packed_weight_shape
             entry["weight_nbytes"] += up_entry["weight_nbytes"]
             entry["placeholder"] = (
@@ -2664,8 +2778,12 @@ def _rewrite_split_embedding_artifacts(
     summary_path = decode_dir / "summary.json"
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
     summary["num_slots"] = len(roles)
-    summary["num_weight_slots"] = sum(1 for entry in roles if entry["role"] == "weight")
-    summary["num_runtime_slots"] = sum(1 for entry in roles if entry["role"] != "weight")
+    summary["num_weight_slots"] = sum(
+        1 for entry in roles if entry["role"] == "weight"
+    )
+    summary["num_runtime_slots"] = sum(
+        1 for entry in roles if entry["role"] != "weight"
+    )
     summary["weight_bytes"] = sum(
         int(entry.get("weight_nbytes", 0))
         for entry in roles
@@ -2704,7 +2822,9 @@ def _rewrite_lm_head_split_artifacts(root: Path, split: LmHeadSplit) -> None:
 
     source = dict(roles[split.source_arg])
     if source.get("role") != "weight":
-        raise RuntimeError(f"LM-head source slot {split.source_arg} is not a weight")
+        raise RuntimeError(
+            f"LM-head source slot {split.source_arg} is not a weight"
+        )
     source_shape = source.get("shape")
     if source_shape != [split.rows_per_split * split.splits, split.hidden]:
         raise RuntimeError(
@@ -2734,10 +2854,17 @@ def _rewrite_lm_head_split_artifacts(root: Path, split: LmHeadSplit) -> None:
             old_slot = int(entry["slot"])
             entry["slot"] = new_slot
             if "split_embedding_source_slot" in entry:
-                if int(entry["split_embedding_source_slot"]) == split.source_arg:
-                    entry["split_embedding_source_slot_removed"] = split.source_arg
+                if (
+                    int(entry["split_embedding_source_slot"])
+                    == split.source_arg
+                ):
+                    entry["split_embedding_source_slot_removed"] = (
+                        split.source_arg
+                    )
                     del entry["split_embedding_source_slot"]
-                elif int(entry["split_embedding_source_slot"]) > split.source_arg:
+                elif (
+                    int(entry["split_embedding_source_slot"]) > split.source_arg
+                ):
                     entry["split_embedding_source_slot"] = (
                         int(entry["split_embedding_source_slot"]) - 1
                     )
@@ -2746,7 +2873,10 @@ def _rewrite_lm_head_split_artifacts(root: Path, split: LmHeadSplit) -> None:
                     entry["lm_head_split_source_slot"] = (
                         int(entry["lm_head_split_source_slot"]) - 1
                     )
-            if old_slot > split.source_arg and "merged_cache_position_slots" in entry:
+            if (
+                old_slot > split.source_arg
+                and "merged_cache_position_slots" in entry
+            ):
                 entry["merged_cache_position_slots"] = [
                     slot - 1 if slot > split.source_arg else slot
                     for slot in entry["merged_cache_position_slots"]
@@ -2788,8 +2918,12 @@ def _rewrite_lm_head_split_artifacts(root: Path, split: LmHeadSplit) -> None:
     summary_path = decode_dir / "summary.json"
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
     summary["num_slots"] = len(roles)
-    summary["num_weight_slots"] = sum(1 for entry in roles if entry["role"] == "weight")
-    summary["num_runtime_slots"] = sum(1 for entry in roles if entry["role"] != "weight")
+    summary["num_weight_slots"] = sum(
+        1 for entry in roles if entry["role"] == "weight"
+    )
+    summary["num_runtime_slots"] = sum(
+        1 for entry in roles if entry["role"] != "weight"
+    )
     summary["weight_bytes"] = sum(
         int(entry.get("weight_nbytes", 0))
         for entry in roles
@@ -2804,7 +2938,10 @@ def _rewrite_lm_head_split_artifacts(root: Path, split: LmHeadSplit) -> None:
     summary["lm_head_split_count"] = split.splits
     summary["lm_head_split_rows"] = split.rows_per_split
     if split.dropped_source_arg:
-        if "split_embedding_slot" in summary and summary["split_embedding_slot"] > split.source_arg:
+        if (
+            "split_embedding_slot" in summary
+            and summary["split_embedding_slot"] > split.source_arg
+        ):
             summary["split_embedding_slot"] -= 1
         if (
             "split_embedding_source_slot" in summary
@@ -2815,7 +2952,9 @@ def _rewrite_lm_head_split_artifacts(root: Path, split: LmHeadSplit) -> None:
     summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
 
 
-def _remove_static_weight_input_deallocs(text: str, root: Path) -> tuple[str, int]:
+def _remove_static_weight_input_deallocs(
+    text: str, root: Path
+) -> tuple[str, int]:
     roles_path = root / "decode" / "slot_roles.json"
     roles = json.loads(roles_path.read_text(encoding="utf-8"))
     static_slots = {
@@ -2832,23 +2971,25 @@ def _remove_static_weight_input_deallocs(text: str, root: Path) -> tuple[str, in
             continue
         output.append(line)
     if removed == 0:
-        raise RuntimeError("removed no static weight/inv_freq input dealloc ops")
+        raise RuntimeError(
+            "removed no static weight/inv_freq input dealloc ops"
+        )
     return "\n".join(output) + "\n", removed
 
 
 def _rewrite_native_u32_token_io(text: str, root: Path) -> tuple[str, int]:
     input_pattern = re.compile(
         r'(?P<indent>\s*)%(?P<cast>\d+) = "ttnn\.typecast"\(%arg1\) '
-        r'<\{dtype = #ttcore\.supportedDataTypes<u32>\}> : '
-        r'\((?P<input_type>tensor<[^>]+si32[^>]*>)\) -> '
-        r'(?P<tile_u32_type>tensor<[^>]+ui32[^>]*>)\n'
+        r"<\{dtype = #ttcore\.supportedDataTypes<u32>\}> : "
+        r"\((?P<input_type>tensor<[^>]+si32[^>]*>)\) -> "
+        r"(?P<tile_u32_type>tensor<[^>]+ui32[^>]*>)\n"
         r'(?P=indent)"ttnn\.deallocate"\(%arg1\) <\{force = false\}> : '
-        r'\((?P=input_type)\) -> \(\)\n'
+        r"\((?P=input_type)\) -> \(\)\n"
         r'(?P=indent)%(?P<row>\d+) = "ttnn\.to_layout"\(%(?P=cast)\) '
-        r'<\{layout = #ttnn\.layout<row_major>\}> : '
-        r'\((?P=tile_u32_type)\) -> (?P<row_u32_type>tensor<[^>]+ui32[^>]*>)\n'
+        r"<\{layout = #ttnn\.layout<row_major>\}> : "
+        r"\((?P=tile_u32_type)\) -> (?P<row_u32_type>tensor<[^>]+ui32[^>]*>)\n"
         r'(?P=indent)"ttnn\.deallocate"\(%(?P=cast)\) <\{force = false\}> : '
-        r'\((?P=tile_u32_type)\) -> \(\)\n'
+        r"\((?P=tile_u32_type)\) -> \(\)\n"
     )
     input_match = input_pattern.search(text)
     if not input_match:
@@ -2858,16 +2999,15 @@ def _rewrite_native_u32_token_io(text: str, root: Path) -> tuple[str, int]:
     row_u32_type = input_match.group("row_u32_type")
     row_value = input_match.group("row")
 
-    text = (
-        text[: input_match.start()]
-        + text[input_match.end() :]
-    )
+    text = text[: input_match.start()] + text[input_match.end() :]
     text = text.replace(f"%arg1: {input_type}", f"%arg1: {row_u32_type}", 1)
-    text = text.replace(f'"ttnn.embedding"(%{row_value},', '"ttnn.embedding"(%arg1,', 1)
+    text = text.replace(
+        f'"ttnn.embedding"(%{row_value},', '"ttnn.embedding"(%arg1,', 1
+    )
 
     row_dealloc_pattern = re.compile(
         rf'\n\s*"ttnn\.deallocate"\(%{row_value}\) <\{{force = false\}}> : '
-        rf'\({re.escape(row_u32_type)}\) -> \(\)'
+        rf"\({re.escape(row_u32_type)}\) -> \(\)"
     )
     text, removed_row_deallocs = row_dealloc_pattern.subn("", text, count=1)
     if removed_row_deallocs != 1:
@@ -2876,30 +3016,32 @@ def _rewrite_native_u32_token_io(text: str, root: Path) -> tuple[str, int]:
     # Update the forward function result type. The input type occurs once in the
     # argument list and once as the final token-id result; the argument has
     # already been changed above, so this remaining occurrence is the result.
-    result_suffix = f"{input_type}) attributes {{tt.function_type = \"forward_device\"}}"
+    result_suffix = (
+        f'{input_type}) attributes {{tt.function_type = "forward_device"}}'
+    )
     if result_suffix not in text:
         raise RuntimeError("could not find decode token-id result type")
     text = text.replace(
         result_suffix,
-        f"{row_u32_type}) attributes {{tt.function_type = \"forward_device\"}}",
+        f'{row_u32_type}) attributes {{tt.function_type = "forward_device"}}',
         1,
     )
 
     output_pattern = re.compile(
-        r'(?P<argmax_line>(?P<indent>\s*)%(?P<argmax>\d+) = '
+        r"(?P<argmax_line>(?P<indent>\s*)%(?P<argmax>\d+) = "
         r'"ttnn\.argmax"\([^\n]+\) [^\n]+ -> (?P<argmax_type>tensor<[^>]+ui32[^>]*>)\n)'
         r'(?P<logits_dealloc>(?P=indent)"ttnn\.deallocate"\(%\d+\) '
-        r'<\{force = false\}> : \(tensor<[^>]+bf16[^>]*>\) -> \(\)\n)'
+        r"<\{force = false\}> : \(tensor<[^>]+bf16[^>]*>\) -> \(\)\n)"
         r'(?P=indent)%(?P<tile>\d+) = "ttnn\.to_layout"\(%(?P=argmax)\) '
-        r'<\{layout = #ttnn\.layout<tile>\}> : '
-        r'\((?P=argmax_type)\) -> (?P<tile_type>tensor<[^>]+ui32[^>]*>)\n'
+        r"<\{layout = #ttnn\.layout<tile>\}> : "
+        r"\((?P=argmax_type)\) -> (?P<tile_type>tensor<[^>]+ui32[^>]*>)\n"
         r'(?P=indent)"ttnn\.deallocate"\(%(?P=argmax)\) <\{force = false\}> : '
-        r'\((?P=argmax_type)\) -> \(\)\n'
+        r"\((?P=argmax_type)\) -> \(\)\n"
         r'(?P=indent)%(?P<cast>\d+) = "ttnn\.typecast"\(%(?P=tile)\) '
-        r'<\{dtype = #ttcore\.supportedDataTypes<si32>\}> : '
-        r'\((?P=tile_type)\) -> (?P<cast_type>tensor<[^>]+si32[^>]*>)\n'
+        r"<\{dtype = #ttcore\.supportedDataTypes<si32>\}> : "
+        r"\((?P=tile_type)\) -> (?P<cast_type>tensor<[^>]+si32[^>]*>)\n"
         r'(?P=indent)"ttnn\.deallocate"\(%(?P=tile)\) <\{force = false\}> : '
-        r'\((?P=tile_type)\) -> \(\)\n'
+        r"\((?P=tile_type)\) -> \(\)\n"
     )
     output_match = output_pattern.search(text)
     if not output_match:
@@ -2984,7 +3126,9 @@ def _rewrite_precompute_sdpa_mask(
     subgraph_start = text.find("func.func @subgraph0(")
     if subgraph_start < 0:
         raise RuntimeError("missing func.func @subgraph0")
-    subgraph_end = text.find("\n      func.func private @cpu_hoisted", subgraph_start)
+    subgraph_end = text.find(
+        "\n      func.func private @cpu_hoisted", subgraph_start
+    )
     if subgraph_end < 0:
         subgraph_end = text.find("\n      llvm.func", subgraph_start)
     if subgraph_end < 0:
@@ -3005,16 +3149,23 @@ def _rewrite_precompute_sdpa_mask(
             users.setdefault(operand, set()).add(op.result)
 
     sdpa = next(
-        (op for op in ops.values() if op.op == "ttnn.scaled_dot_product_attention_decode"),
+        (
+            op
+            for op in ops.values()
+            if op.op == "ttnn.scaled_dot_product_attention_decode"
+        ),
         None,
     )
     if sdpa is None:
         raise RuntimeError("could not find decode SDPA op with mask/position")
-    sdpa_operands_match = re.search(r'"ttnn\.scaled_dot_product_attention_decode"\(([^)]*)\)', sdpa.line)
+    sdpa_operands_match = re.search(
+        r'"ttnn\.scaled_dot_product_attention_decode"\(([^)]*)\)', sdpa.line
+    )
     if not sdpa_operands_match:
         raise RuntimeError("could not parse decode SDPA operands")
     sdpa_operands = [
-        operand[1:] for operand in re.findall(r"%(?:arg)?\d+", sdpa_operands_match.group(1))
+        operand[1:]
+        for operand in re.findall(r"%(?:arg)?\d+", sdpa_operands_match.group(1))
     ]
     if len(sdpa_operands) < 5:
         raise RuntimeError("decode SDPA op has too few operands")
@@ -3025,7 +3176,9 @@ def _rewrite_precompute_sdpa_mask(
     mask_op = ops.get(mask_value)
     position_op = ops.get(position_value)
     if mask_op is None or position_op is None:
-        raise RuntimeError("SDPA mask/position values are not produced by TTNN ops")
+        raise RuntimeError(
+            "SDPA mask/position values are not produced by TTNN ops"
+        )
 
     args_start, args_end, args = _find_subgraph_args(subgraph)
     mask_arg = len(args)
@@ -3070,17 +3223,15 @@ def _rewrite_precompute_sdpa_mask(
 
     filtered = "\n".join(kept_lines) + "\n"
     args_start, args_end, _ = _find_subgraph_args(filtered)
-    filtered = (
-        filtered[:args_start] + ", ".join(args) + filtered[args_end:]
-    )
+    filtered = filtered[:args_start] + ", ".join(args) + filtered[args_end:]
     filtered = re.sub(rf"%{mask_value}\b", f"%arg{mask_arg}", filtered)
-    filtered = re.sub(
-        rf"%{position_value}\b", f"%arg{position_arg}", filtered
-    )
+    filtered = re.sub(rf"%{position_value}\b", f"%arg{position_arg}", filtered)
 
     # Remove deallocs for inputs that are now unused because their only
     # consumers were folded into the runtime-provided mask/position inputs.
-    body_start = filtered.find(" attributes {tt.function_type = \"forward_device\"}")
+    body_start = filtered.find(
+        ' attributes {tt.function_type = "forward_device"}'
+    )
     removable_arg_deallocs: set[int] = set()
     for arg in removed_arg_candidates:
         if arg in (mask_arg, position_arg):
@@ -3099,7 +3250,10 @@ def _rewrite_precompute_sdpa_mask(
         output: list[str] = []
         for line in filtered.splitlines():
             dealloc_arg = re.match(r'\s*"ttnn\.deallocate"\(%arg(\d+)\) ', line)
-            if dealloc_arg and int(dealloc_arg.group(1)) in removable_arg_deallocs:
+            if (
+                dealloc_arg
+                and int(dealloc_arg.group(1)) in removable_arg_deallocs
+            ):
                 removed_deallocs += 1
                 continue
             output.append(line)
@@ -3218,16 +3372,22 @@ def _subgraph_slice(text: str) -> tuple[str, str, str]:
     subgraph_start = text.find("func.func @subgraph0(")
     if subgraph_start < 0:
         raise RuntimeError("missing func.func @subgraph0")
-    subgraph_end = text.find("\n      func.func private @cpu_hoisted", subgraph_start)
+    subgraph_end = text.find(
+        "\n      func.func private @cpu_hoisted", subgraph_start
+    )
     if subgraph_end < 0:
         subgraph_end = text.find("\n      llvm.func", subgraph_start)
     if subgraph_end < 0:
         raise RuntimeError("could not locate end of @subgraph0")
-    return text[:subgraph_start], text[subgraph_start:subgraph_end], text[subgraph_end:]
+    return (
+        text[:subgraph_start],
+        text[subgraph_start:subgraph_end],
+        text[subgraph_end:],
+    )
 
 
 def _cleanup_orphan_load_cached(text: str) -> tuple[str, int]:
-    body_start = text.find(" attributes {tt.function_type = \"forward_device\"}")
+    body_start = text.find(' attributes {tt.function_type = "forward_device"}')
     removed = 0
     while True:
         candidate_loads: set[str] = set()
@@ -3264,7 +3424,9 @@ def _cleanup_orphan_load_cached(text: str) -> tuple[str, int]:
     return text, removed
 
 
-def _rewrite_precompute_rope(text: str) -> tuple[str, PrecomputedRopeInputs, int]:
+def _rewrite_precompute_rope(
+    text: str,
+) -> tuple[str, PrecomputedRopeInputs, int]:
     prefix, subgraph, suffix = _subgraph_slice(text)
     lines = subgraph.splitlines()
     ops: dict[str, OpLine] = {}
@@ -3347,8 +3509,7 @@ def _rewrite_precompute_rope(text: str) -> tuple[str, PrecomputedRopeInputs, int
 
     if removed < 12:
         raise RuntimeError(
-            "unexpectedly small RoPE precompute rewrite; "
-            f"removed={removed}"
+            f"unexpectedly small RoPE precompute rewrite; removed={removed}"
         )
 
     return (
@@ -3443,7 +3604,9 @@ def _rewrite_merge_cache_position_inputs(
     for spec in args:
         match = re.match(r"%arg(\d+):", spec)
         if not match:
-            raise RuntimeError(f"could not parse function argument: {spec[:80]}")
+            raise RuntimeError(
+                f"could not parse function argument: {spec[:80]}"
+            )
         old_idx = int(match.group(1))
         if old_idx in remove_slots:
             continue
@@ -3463,7 +3626,9 @@ def _rewrite_merge_cache_position_inputs(
             continue
         filtered_lines.append(line)
     filtered = "\n".join(filtered_lines) + "\n"
-    filtered = filtered[:args_start] + ", ".join(kept_args) + filtered[args_end:]
+    filtered = (
+        filtered[:args_start] + ", ".join(kept_args) + filtered[args_end:]
+    )
 
     def replace_arg(match: re.Match[str]) -> str:
         old = int(match.group(1))
@@ -3593,8 +3758,7 @@ def main() -> int:
         text, split = _rewrite_split_embedding_weight(text)
         if split:
             rewrites.append(
-                "split_embedding_weight="
-                f"{split.source_arg}->{split.split_arg}"
+                f"split_embedding_weight={split.source_arg}->{split.split_arg}"
             )
         else:
             rewrites.append("split_embedding_weight=0")
@@ -3682,7 +3846,9 @@ def main() -> int:
         rewrites.append(f"fuse_concat_heads_decode={count}")
 
     if args.fuse_concat_heads_decode_sdpa_output:
-        text, count = _rewrite_concat_heads_decode(text, direct_sdpa_output=True)
+        text, count = _rewrite_concat_heads_decode(
+            text, direct_sdpa_output=True
+        )
         rewrites.append(f"fuse_concat_heads_decode_sdpa_output={count}")
 
     args.output_ttnn_mlir.parent.mkdir(parents=True, exist_ok=True)
