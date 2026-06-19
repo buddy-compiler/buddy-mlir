@@ -1,5 +1,6 @@
 add_mlir_library(BuddyGPUTransformOPs
   TransformOps.cpp
+  Transforms.cpp
 
   DEPENDS
   TransformOpsIncGen
