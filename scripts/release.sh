@@ -176,12 +176,18 @@ else
   ARTIFACT_SUFFIX="${PY_TAG}-${MANYLINUX_TAG}"
 
   cleanup_workspace_staging() {
+    shopt -s globstar nullglob
+    rm -rf "${WORKSPACE}"/**/__pycache__ "${WORKSPACE}"/**/*.py[co]
+    shopt -u globstar nullglob
     # TODO: move .py-stage to other place so that we can make ${WORKSPACE} read-only
     [ -e "${WORKSPACE}/.py-stage" ] && chown -R "$HOST_UID":"$HOST_GID" "${WORKSPACE}"
     [ -e "${BUDDY_BUILD_ROOT}" ] && chown -R "$HOST_UID":"$HOST_GID" "${BUDDY_BUILD_ROOT}"
     [ -e "${LLVM_BUILD_ROOT}" ] && chown -R "$HOST_UID":"$HOST_GID" "${LLVM_BUILD_ROOT}"
   }
   trap cleanup_workspace_staging EXIT
+
+  # Don't create __pyccache__ in tree
+  export PYTHONDONTWRITEBYTECODE=1
 
   # Note: build trees are split by arch + python tag + source hash to avoid stale CMake cache reuse.
   export BUDDY_BUILD_ROOT="${WORKSPACE_BUILD_DIR}/${TARGET_ARCH}"
@@ -249,7 +255,7 @@ else
   fi
 
   # Prepare serval necessary package for buddy-mlir
-  dnf "${DNF_INSTALL_ARGS[@]}" cmake libpng-devel libjpeg-turbo-devel zlib-devel
+  dnf "${DNF_INSTALL_ARGS[@]}" cmake libpng-devel libjpeg-turbo-devel zlib-devel perl
 
   # Prepare ccache if support, riscv doesn't support
   if dnf install -y ccache; then
