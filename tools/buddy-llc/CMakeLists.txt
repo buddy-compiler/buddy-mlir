@@ -30,7 +30,7 @@ add_custom_command(
   VERBATIM
 )
 
-add_custom_target(buddy-llc DEPENDS "${BUDDY_LLC_BINARY}")
+add_custom_target(buddy-llc ALL DEPENDS "${BUDDY_LLC_BINARY}")
 
 export_executable_symbols_for_plugins(buddy-llc)
 
