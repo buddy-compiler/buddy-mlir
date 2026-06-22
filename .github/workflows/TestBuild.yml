@@ -98,8 +98,8 @@ jobs:
               pip uninstall -y torchvision || true
             fi
             pip install --pre \
-              --index-url https://ruyirepo.ruyicommunity.cn/pypi/simple/ \
               --extra-index-url https://download.pytorch.org/whl/cpu \
+              --extra-index-url https://ruyirepo.ruyicommunity.cn/pypi/simple/ \
               --upgrade --force-reinstall \
               "${torch_packages[@]}"
             python -c 'import textwrap; exec(textwrap.dedent("""

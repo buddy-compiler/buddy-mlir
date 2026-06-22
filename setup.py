@@ -50,9 +50,10 @@ if not PYTHON_PACKAGES_DIR.exists():
         "before building the wheel (default build dir: ./build)."
     )
 
-# Stage into the repository because setuptools rejects absolute package_dir
-# paths here, so .py-stage cannot live in an arbitrary external build path.
-STAGING_ROOT = ROOT / ".py-stage"
+# Stage under the CMake build tree. Docker release builds run as root, so
+# staging inside the checked-out repository can leave root-owned files that the
+# next actions/checkout cannot clean up on self-hosted runners.
+STAGING_ROOT = CMAKE_BUILD / ".py-stage"
 if STAGING_ROOT.exists():
     shutil.rmtree(STAGING_ROOT)
 STAGING_ROOT.mkdir(parents=True, exist_ok=True)
@@ -147,11 +148,6 @@ ENTRY_POINTS = {
 }
 
 
-def _resolve_install_requires() -> list[str]:
-    """No hard pin from build env."""
-    return []
-
-
 class build(_build):
     def initialize_options(self):
         super().initialize_options()
@@ -181,7 +177,6 @@ setup(
     include_package_data=True,
     cmdclass={"build_py": build_py, "build": build, "bdist_wheel": bdist_wheel},
     distclass=BinaryDistribution,
-    install_requires=_resolve_install_requires(),
     entry_points=ENTRY_POINTS,
     zip_safe=False,
 )
