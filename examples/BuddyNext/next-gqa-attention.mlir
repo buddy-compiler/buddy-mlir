@@ -69,7 +69,7 @@ func.func @kernel(%q : tensor<1x12x1x128xf32>, %k_cache : tensor<1x2x1024x128xf3
     // ===== Attention QK^T =====
 
   %cst_23 = arith.constant dense<0.000000e+00> : tensor<12x1x1024xf32>
-  %161 = linalg.batch_matmul_transpose_b ins(%157, %160 : tensor<12x1x128xf32>, tensor<12x1024x128xf32>) outs(%cst_23 : tensor<12x1x1024xf32>) -> tensor<12x1x1024xf32>
+  %161 = linalg.batch_matmul indexing_maps = [affine_map<(batch, m, n, k) -> (batch, m, k)>, affine_map<(batch, m, n, k) -> (batch, n, k)>, affine_map<(batch, m, n, k) -> (batch, m, n)>] ins(%157, %160 : tensor<12x1x128xf32>, tensor<12x1024x128xf32>) outs(%cst_23 : tensor<12x1x1024xf32>) -> tensor<12x1x1024xf32>
   %cst_24 = arith.constant 0.0883883461 : f32
   %splat_25 = tensor.splat %cst_24 : tensor<12x1x1024xf32>
   %162 = "tosa.const"() <{values = dense<0> : tensor<1xi8>}> : () -> tensor<1xi8>

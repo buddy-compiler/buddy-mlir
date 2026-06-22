@@ -85,7 +85,7 @@ module {
     // Step 3: Load matrix A to tile register 0 (shape: mtilem x mtilek = 4x4)
     xt_ame.th.mlde8 1, %stride_a, %a_ptr: memref<4x4xi8>
 
-    // Step 4: Load matrix B to tile register 1 (shape: mtilek x mtilen = 4x4)
+    // Step 4: Load transposed matrix B to tile register 1 (shape: mtilen x mtilek = 4x4)
     xt_ame.th.mldte8 2, %stride_b, %b_ptr: memref<4x4xi8>
 
     // Step 5: Execute matrix multiply: acc0 = acc0 + tile0 x tile1

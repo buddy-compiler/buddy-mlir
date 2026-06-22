@@ -202,7 +202,7 @@ def count_params(spec: dict) -> dict:
             "    1. Install torch: pip install torch\n"
             "    2. Add weights_override to your spec JSON, e.g.:\n"
             '       "weights_override": {"total": 1777088064}'
-        )
+        ) from None
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -223,23 +223,11 @@ def compute_weights(variant: str, param_counts: dict) -> list[dict]:
 
         if variant in ("f32", "f16", "bf16"):
             num_elements = param_counts["total"]
-        elif variant in ("w8a32", "w8a16"):
-            if etype == "i8":
-                num_elements = param_counts["linear_elements"]
-            else:
-                num_elements = (
-                    param_counts["other_elements"]
-                    + param_counts["linear_output_channels"]
-                )
-        elif variant == "w8a8":
-            if etype == "i8":
-                num_elements = param_counts["linear_elements"]
-            else:
-                num_elements = (
-                    param_counts["other_elements"]
-                    + param_counts["linear_output_channels"]
-                )
-        elif variant == "w4a16":
+        elif (
+            variant in ("w8a32", "w8a16")
+            or variant == "w8a8"
+            or variant == "w4a16"
+        ):
             if etype == "i8":
                 num_elements = param_counts["linear_elements"]
             else:
@@ -263,6 +251,33 @@ def compute_weights(variant: str, param_counts: dict) -> list[dict]:
         )
 
     return weights
+
+
+def derive_tiered_kv_cache(spec: dict) -> dict:
+    """Return tiered KV cache settings from the variant spec."""
+    raw = spec.get("tiered_kv_cache", False)
+    if isinstance(raw, dict):
+        enabled = bool(raw.get("enabled", True))
+        cache_sizes = raw.get("cache_sizes", spec.get("cache_sizes", []))
+    else:
+        enabled = bool(raw)
+        cache_sizes = spec.get("cache_sizes", [])
+
+    if not enabled:
+        return {"enabled": False, "cache_sizes": []}
+
+    if isinstance(cache_sizes, str):
+        cache_sizes = [
+            int(x.strip()) for x in cache_sizes.split(",") if x.strip()
+        ]
+    else:
+        cache_sizes = [int(x) for x in cache_sizes]
+
+    if not cache_sizes:
+        cache_sizes = [32, 64, 128, 256, 512, 1024]
+
+    cache_sizes = sorted(dict.fromkeys(cache_sizes))
+    return {"enabled": True, "cache_sizes": cache_sizes}
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -310,13 +325,33 @@ def gen_config(spec: dict, hf_config_path: str | None = None) -> dict:
     precision = VARIANT_PRECISION.get(variant, VARIANT_PRECISION["f32"])
     param_counts = count_params(spec)
     weights = compute_weights(variant, param_counts)
+    tiered_kv_cache = derive_tiered_kv_cache(spec)
+
+    if tiered_kv_cache["enabled"]:
+        if variant != "f32":
+            raise RuntimeError(
+                "tiered_kv_cache is currently implemented for the f32 "
+                "DeepSeek R1 variant only."
+            )
+        if tiered_kv_cache["cache_sizes"][-1] != shape["max_token_len"]:
+            raise RuntimeError(
+                "The largest tiered KV cache size must equal max_token_len "
+                f"({shape['max_token_len']}); got "
+                f"{tiered_kv_cache['cache_sizes'][-1]}."
+            )
+        # Keep compatibility with the legacy tiered example artifact name.
+        if len(weights) == 1:
+            weights[0]["file"] = spec.get("weights_file", "arg0_mc.data")
 
     kv_type = precision["kv_type"]
+    model_id = f"{model_family}_{variant}"
+    if tiered_kv_cache["enabled"]:
+        model_id = f"{model_id}_tiered_kv_cache"
 
     return {
         "model_family": model_family,
         "variant": variant,
-        "model_id": f"{model_family}_{variant}",
+        "model_id": model_id,
         "hf_model_path": spec["hf_model_path"],
         "architecture": (
             hf["architectures"][0]
@@ -327,11 +362,12 @@ def gen_config(spec: dict, hf_config_path: str | None = None) -> dict:
         "precision": precision,
         "weights": weights,
         "tokens": tokens,
+        "tiered_kv_cache": tiered_kv_cache,
         "cpp_types": {
             "kv": ELEMENT_TYPE_CPP[kv_type],
             "logits": ELEMENT_TYPE_CPP[precision["logits_type"]],
             "kv_memref": f"MemRef<{ELEMENT_TYPE_CPP[kv_type]}, 4>",
-            "logits_memref": f'MemRef<{ELEMENT_TYPE_CPP[precision["logits_type"]]}, 3>',
+            "logits_memref": f"MemRef<{ELEMENT_TYPE_CPP[precision['logits_type']]}, 3>",
         },
         "mlir_types": {
             "kv": ELEMENT_TYPE_MLIR[kv_type],

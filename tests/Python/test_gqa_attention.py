@@ -1,16 +1,13 @@
 # RUN: %PYTHON %s 2>&1 | FileCheck %s
 
-from tabnanny import verbose
 import torch
 import torch.nn.functional as F
-import torch._dynamo as dynamo
-from torch._inductor.decomposition import decompositions as inductor_decomp
+from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.graph.transform import (
     gqa_attention_fusion,
 )
-
-from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import tosa
+from torch._inductor.decomposition import decompositions as inductor_decomp
 
 
 def foo(query, k_cache, v_cache, index, mask, scale):
@@ -72,7 +69,7 @@ print(graph._imported_module)
 # CHECK: math.exp
 # CHECK: scf.for
 # CHECK:   tensor.extract
-# CHECK:   vector.splat
+# CHECK:   vector.broadcast
 # CHECK:   vector.transfer_read
 # CHECK:   vector.fma
 # CHECK:   vector.transfer_write

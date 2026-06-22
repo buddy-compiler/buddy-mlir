@@ -1,12 +1,14 @@
 --pre --extra-index-url https://download.pytorch.org/whl/cpu
-torch == 2.10.0
-numpy >= 2
-transformers == 5.5.0
-tokenizers >= 0.20
-sentencepiece == 0.2.0
+torch==2.10.0
+# The meson-python required by numpy==2.5 say:
+# "meson-python: error: The package requires Python version >=3.12, running on 3.11.6"
+# Maybe we should drop python<=3.11 support
+numpy>=2,<2.5
+transformers==5.5.0
+tokenizers>=0.20
+sentencepiece==0.2.0
 accelerate
 protobuf
-pybind11 == 2.11.1
 torchvision
 tabulate
 datasets
@@ -17,4 +19,4 @@ certifi
 idna
 diffusers
 pre-commit
-nanobind
+nanobind>=2.9,<3.0

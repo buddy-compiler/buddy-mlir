@@ -1,3 +1,9 @@
+get_filename_component(BUDDY_LLVM_BUILD_DIR "${LLVM_LIBRARY_DIR}" DIRECTORY)
+link_directories(
+  "${LLVM_BINARY_DIR}/runtimes/runtimes-bins/openmp/runtime/src"
+  "${BUDDY_LLVM_BUILD_DIR}/runtimes/runtimes-bins/openmp/runtime/src"
+)
+
 if(BUDDY_EXAMPLES)
   add_subdirectory(ConvOpt)
   add_subdirectory(DIPDialect)
@@ -65,7 +71,9 @@ if(BUDDY_TORQ_EXAMPLES)
 endif()
 
 if(BUDDY_DSL_EXAMPLES)
-  add_subdirectory(ToyDSL)
+  message(WARNING
+    "BUDDY_DSL_EXAMPLES depends on MLIR Toy example sources and is disabled.")
+  set(BUDDY_DSL_EXAMPLES OFF CACHE BOOL "Build DSL examples" FORCE)
 endif()
 
 if(BUDDY_ENABLE_TESTS)
@@ -83,8 +91,8 @@ if(BUDDY_ENABLE_TESTS)
     mlir-runner
     )
 
-  if(BUDDY_MLIR_ENABLE_PYTHON_PACKAGES AND MLIR_ENABLE_BINDINGS_PYTHON)
-    list(APPEND BUDDY_EXAMPLES_DEPENDS python-package-buddy-mlir)
+  if(BUDDY_MLIR_ENABLE_PYTHON_PACKAGES)
+    list(APPEND BUDDY_EXAMPLES_DEPENDS python-package-buddy-mlir python-package-buddy)
   endif()
 
   add_lit_testsuite(check-examples "Checking the buddy-mlir examples..."

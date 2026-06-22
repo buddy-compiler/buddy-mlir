@@ -27,10 +27,10 @@
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Tosa/IR/TosaOps.h"
-#include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinTypes.h"
+#include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
@@ -101,8 +101,8 @@ struct ReplaceScalarLikeMatmul : public OpRewritePattern<tosa::MatMulOp> {
     auto shiftType = RankedTensorType::get({1}, i8Type);
     auto zeroAttr = IntegerAttr::get(i8Type, 0);
     auto denseAttr = DenseElementsAttr::get(shiftType, zeroAttr);
-    auto shiftOp = rewriter.create<tosa::ConstOp>(op.getLoc(), shiftType,
-                                                   denseAttr);
+    auto shiftOp =
+        tosa::ConstOp::create(rewriter, op.getLoc(), shiftType, denseAttr);
 
     rewriter.replaceOpWithNewOp<tosa::MulOp>(op, outTy, op.getA(), op.getB(),
                                              shiftOp.getResult());

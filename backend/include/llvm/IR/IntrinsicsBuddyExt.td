@@ -22,3 +22,5 @@
 include "Intrinsics.td"
 // Include buddy extension intrinsic tablegen file.
 include "IntrinsicsRISCVBuddyExt.td"
+// Include BOSC AME extension intrinsic tablegen file.
+include "IntrinsicsRISCVBuddyBOSCExt.td"

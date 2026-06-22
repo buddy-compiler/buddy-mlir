@@ -28,6 +28,7 @@
 #include "llvm/IR/Module.h"
 
 #include "Target/LLVMIR/Dialect/AME/AMEToLLVMIRTranslation.h"
+#include "Target/LLVMIR/Dialect/BOSCAME/BOSCAMEToLLVMIRTranslation.h"
 #include "Target/LLVMIR/Dialect/Buckyball/BuckyballToLLVMIRTranslation.h"
 #include "Target/LLVMIR/Dialect/Gemmini/GemminiToLLVMIRTranslation.h"
 #include "Target/LLVMIR/Dialect/IME/IMEToLLVMIRTranslation.h"
@@ -61,6 +62,7 @@ void registerBuddyToLLVMIRTranslation() {
         registerIMEDialectTranslation(registry);
         registerAMEDialectTranslation(registry);
         registerXTAMEDialectTranslation(registry);
+        registerBOSCAMEDialectTranslation(registry);
       });
 }
 } // namespace buddy

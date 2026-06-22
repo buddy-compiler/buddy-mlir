@@ -42,6 +42,32 @@ using namespace mlir;
 
 namespace {
 
+static bool isFunctionArgument(Value value) {
+  auto arg = dyn_cast<BlockArgument>(value);
+  if (!arg)
+    return false;
+  return isa<func::FuncOp>(arg.getOwner()->getParentOp());
+}
+
+static bool isAliasOfFunctionArgument(Value value) {
+  if (isFunctionArgument(value))
+    return true;
+
+  if (auto castOp = value.getDefiningOp<memref::CastOp>())
+    return isAliasOfFunctionArgument(castOp.getSource());
+
+  if (auto reinterpretOp = value.getDefiningOp<memref::ReinterpretCastOp>())
+    return isAliasOfFunctionArgument(reinterpretOp.getSource());
+
+  if (auto result = dyn_cast<OpResult>(value)) {
+    if (auto metadataOp =
+            dyn_cast<memref::ExtractStridedMetadataOp>(result.getOwner()))
+      return isAliasOfFunctionArgument(metadataOp.getSource());
+  }
+
+  return false;
+}
+
 // Pattern to eliminate memref.copy from function arguments to allocations
 struct EliminateMemRefCopyPattern : public OpRewritePattern<memref::CopyOp> {
   using OpRewritePattern<memref::CopyOp>::OpRewritePattern;
@@ -52,15 +78,8 @@ struct EliminateMemRefCopyPattern : public OpRewritePattern<memref::CopyOp> {
     Value source = copyOp.getSource();
     Value dest = copyOp.getTarget();
 
-    // Check if source is a block argument (function argument)
-    BlockArgument sourceArg = dyn_cast<BlockArgument>(source);
-    if (!sourceArg)
-      return failure();
-
-    // Check if the source is a function argument (not a block argument from a
-    // loop)
-    Block *sourceBlock = sourceArg.getOwner();
-    if (!isa<func::FuncOp>(sourceBlock->getParentOp()))
+    // Check if the source is a function argument or an alias rooted at one.
+    if (!isAliasOfFunctionArgument(source))
       return failure();
 
     // Check if destination is an allocation
@@ -84,10 +103,17 @@ struct EliminateMemRefCopyPattern : public OpRewritePattern<memref::CopyOp> {
 
     // Collect all uses of the allocation
     SmallVector<OpOperand *> uses;
+    SmallVector<memref::DeallocOp> deallocs;
     for (OpOperand &use : allocOp->getUses()) {
       // Skip the copy operation itself
       if (use.getOwner() == copyOp.getOperation())
         continue;
+      // The allocation will be removed, so its dealloc should be removed too.
+      // Retargeting it to a function argument alias is invalid.
+      if (auto deallocOp = dyn_cast<memref::DeallocOp>(use.getOwner())) {
+        deallocs.push_back(deallocOp);
+        continue;
+      }
       uses.push_back(&use);
     }
 
@@ -112,7 +138,7 @@ struct EliminateMemRefCopyPattern : public OpRewritePattern<memref::CopyOp> {
 
           // Extract metadata to get actual stride values
           auto metadata =
-              builder.create<memref::ExtractStridedMetadataOp>(loc, source);
+              memref::ExtractStridedMetadataOp::create(builder, loc, source);
 
           // Get the rank
           int64_t rank = sourceType.getRank();
@@ -163,9 +189,9 @@ struct EliminateMemRefCopyPattern : public OpRewritePattern<memref::CopyOp> {
               tightenedLayout, sourceType.getMemorySpace());
 
           // Create reinterpret_cast with tightened layout
-          Value tightened = builder.create<memref::ReinterpretCastOp>(
-              loc, tightenedType, metadata.getBaseBuffer(), offset, sizes,
-              stridesOfr);
+          Value tightened = memref::ReinterpretCastOp::create(
+              builder, loc, tightenedType, metadata.getBaseBuffer(), offset,
+              sizes, stridesOfr);
 
           // Then cast to static layout type (no layout information)
           // This ensures compatibility with function signatures
@@ -175,7 +201,7 @@ struct EliminateMemRefCopyPattern : public OpRewritePattern<memref::CopyOp> {
               sourceType.getMemorySpace());
 
           replacementValue =
-              builder.create<memref::CastOp>(loc, finalType, tightened);
+              memref::CastOp::create(builder, loc, finalType, tightened);
         }
       }
     }
@@ -187,6 +213,9 @@ struct EliminateMemRefCopyPattern : public OpRewritePattern<memref::CopyOp> {
 
     // Erase the copy operation
     rewriter.eraseOp(copyOp);
+
+    for (memref::DeallocOp deallocOp : deallocs)
+      rewriter.eraseOp(deallocOp);
 
     // Erase the allocation if it has no more uses
     if (allocOp->use_empty()) {

@@ -21,6 +21,7 @@
 #include "mlir/IR/Dialect.h"
 
 #include "Dialect/AME/AMEDialect.h"
+#include "Dialect/BOSCAME/BOSCAMEDialect.h"
 #include "Dialect/Bud/BudDialect.h"
 #include "Dialect/DAP/DAPDialect.h"
 #include "Dialect/DIP/DIPDialect.h"
@@ -78,6 +79,7 @@ void registerEliminateLargeZeroConstantsPass();
 } // namespace mlir
 
 void mlir::buddy::registerAllDialects(mlir::DialectRegistry &registry) {
+  registry.insert<::buddy::boscame::BOSCAMEDialect>();
   registry.insert<::buddy::xtame::XTAMEDialect>();
   registry.insert<::buddy::ame::AMEDialect>();
   registry.insert<::buddy::bud::BudDialect>();

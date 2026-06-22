@@ -7,9 +7,11 @@ set(BUDDY_MLIR_PYTHON_PACKAGES_DIR ${CMAKE_BINARY_DIR}/python_packages)
 # Create directories for the BUDDY-MLIR Python packages
 file(MAKE_DIRECTORY ${BUDDY_MLIR_PYTHON_PACKAGES_DIR}/buddy)
 file(MAKE_DIRECTORY ${BUDDY_MLIR_PYTHON_PACKAGES_DIR}/buddy/compiler)
+file(MAKE_DIRECTORY ${BUDDY_MLIR_PYTHON_PACKAGES_DIR}/buddy/utils)
 # Create empty __init__.py files to make these directories Python packages
 file(WRITE ${BUDDY_MLIR_PYTHON_PACKAGES_DIR}/buddy/__init__.py "__version__ = '${BUDDY_PACKAGE_VERSION}'\n")
 file(WRITE ${BUDDY_MLIR_PYTHON_PACKAGES_DIR}/buddy/compiler/__init__.py "")
+file(WRITE ${BUDDY_MLIR_PYTHON_PACKAGES_DIR}/buddy/utils/__init__.py "")
 
 # Recursively retrieve all python files from the current directory.
 file(GLOB_RECURSE ALL_PY_FILES RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "*.py")
@@ -27,6 +29,26 @@ foreach(FILE ${ALL_PY_FILES})
         COMMAND ${CMAKE_COMMAND} -E copy_if_different "${SRC}" "${DEST_FILE}"
         DEPENDS "${SRC}"
         COMMENT "Syncing ${FILE}"
+        VERBATIM
+    )
+
+    list(APPEND PYTHON_OUTPUT_FILES "${DEST_FILE}")
+endforeach()
+
+file(GLOB_RECURSE BUDDY_UTILS_PY_FILES RELATIVE "${BUDDY_SOURCE_DIR}/tools/buddy/utils" "${BUDDY_SOURCE_DIR}/tools/buddy/utils/*.py")
+
+foreach(FILE ${BUDDY_UTILS_PY_FILES})
+    get_filename_component(REL_DIR "${FILE}" DIRECTORY)
+    set(SRC "${BUDDY_SOURCE_DIR}/tools/buddy/utils/${FILE}")
+    set(DEST_DIR "${BUDDY_MLIR_PYTHON_PACKAGES_DIR}/buddy/utils/${REL_DIR}")
+    set(DEST_FILE "${BUDDY_MLIR_PYTHON_PACKAGES_DIR}/buddy/utils/${FILE}")
+
+    add_custom_command(
+        OUTPUT "${DEST_FILE}"
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${DEST_DIR}"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${SRC}" "${DEST_FILE}"
+        DEPENDS "${SRC}"
+        COMMENT "Syncing buddy/utils/${FILE}"
         VERBATIM
     )
 

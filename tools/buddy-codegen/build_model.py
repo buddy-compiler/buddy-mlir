@@ -18,7 +18,7 @@
 #
 # You maintain **one** JSON file under models/<family>/specs/ (e.g. w8a16.json).
 # This script configures the Buddy build (sets BUDDY_BUILD_DEEPSEEK_R1_MODEL=ON;
-# DeepSeek R1 uses buddy-codegen only) and builds the model + CLI in one shot.
+# DeepSeek R1 uses buddy-codegen only) and builds the model artifacts.
 #
 # Usage: relative paths
 # (--spec, --build-dir, --hf-config, --local-model, --source-dir) are
@@ -67,7 +67,7 @@ def _repo_root() -> Path:
 
 def main() -> int:
     ap = argparse.ArgumentParser(
-        description="One-command build: single variant spec JSON → codegen + buddy-cli + .rax"
+        description="One-command build: single variant spec JSON → codegen + model artifacts"
     )
     ap.add_argument(
         "--spec",
@@ -108,8 +108,8 @@ def main() -> int:
     )
     ap.add_argument(
         "--target",
-        default="deepseek_r1_rax;buddy-cli",
-        help="Semicolon-separated CMake targets (default: deepseek_r1_rax;buddy-cli)",
+        default="deepseek_r1_rax",
+        help="Semicolon-separated CMake targets (default: deepseek_r1_rax)",
     )
     ap.add_argument(
         "--jobs",

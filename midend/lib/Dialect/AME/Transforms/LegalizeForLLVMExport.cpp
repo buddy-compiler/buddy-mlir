@@ -44,9 +44,8 @@ getOrInsertIntrinsic(ConversionPatternRewriter &rewriter, ModuleOp module,
 
   auto savedInsertionPoint = rewriter.saveInsertionPoint();
   rewriter.setInsertionPointToEnd(module.getBody());
-  rewriter.create<LLVM::LLVMFuncOp>(module.getLoc(), intrinsicName, funcType,
-                                    LLVM::Linkage::External, false,
-                                    LLVM::CConv::C);
+  LLVM::LLVMFuncOp::create(rewriter, module.getLoc(), intrinsicName, funcType,
+                           LLVM::Linkage::External, false, LLVM::CConv::C);
   rewriter.restoreInsertionPoint(savedInsertionPoint);
   return FlatSymbolRefAttr::get(ctx, intrinsicName);
 }
@@ -57,9 +56,9 @@ static Value extractPointerFromMemref(ConversionPatternRewriter &rewriter,
   auto ptrType = LLVM::LLVMPointerType::get(ctx);
   auto i64Type = IntegerType::get(ctx, 64);
   Value idx =
-      rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(loc, memref);
-  Value i64Val = rewriter.create<arith::IndexCastOp>(loc, i64Type, idx);
-  Value ptr = rewriter.create<LLVM::IntToPtrOp>(loc, ptrType, i64Val);
+      memref::ExtractAlignedPointerAsIndexOp::create(rewriter, loc, memref);
+  Value i64Val = arith::IndexCastOp::create(rewriter, loc, i64Type, idx);
+  Value ptr = LLVM::IntToPtrOp::create(rewriter, loc, ptrType, i64Val);
   return ptr;
 }
 
@@ -81,20 +80,21 @@ struct AMEMSettilemiLowering : public ConvertOpToLLVMPattern<MSettilemiOp> {
     auto loc = op.getLoc();
     auto *ctx = rewriter.getContext();
     auto module = op->getParentOfType<ModuleOp>();
-    if (!module) return failure();
+    if (!module)
+      return failure();
 
     auto i64Type = IntegerType::get(ctx, 64);
-    auto funcType = LLVM::LLVMFunctionType::get(
-        LLVM::LLVMVoidType::get(ctx), {i64Type});
+    auto funcType =
+        LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx), {i64Type});
 
     auto intrinsicName = getOrInsertIntrinsic(
         rewriter, module, "llvm.riscv.buddy.msettilemi", funcType);
 
-    Value tilemVal = rewriter.create<LLVM::ConstantOp>(
-        loc, i64Type, rewriter.getI64IntegerAttr(op.getTilem()));
+    Value tilemVal = LLVM::ConstantOp::create(
+        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getTilem()));
 
-    rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicName,
-                                  ValueRange{tilemVal});
+    LLVM::CallOp::create(rewriter, loc, TypeRange{}, intrinsicName,
+                         ValueRange{tilemVal});
     rewriter.eraseOp(op);
     return success();
   }
@@ -110,20 +110,21 @@ struct AMEMSettileniLowering : public ConvertOpToLLVMPattern<MSettileniOp> {
     auto loc = op.getLoc();
     auto *ctx = rewriter.getContext();
     auto module = op->getParentOfType<ModuleOp>();
-    if (!module) return failure();
+    if (!module)
+      return failure();
 
     auto i64Type = IntegerType::get(ctx, 64);
-    auto funcType = LLVM::LLVMFunctionType::get(
-        LLVM::LLVMVoidType::get(ctx), {i64Type});
+    auto funcType =
+        LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx), {i64Type});
 
     auto intrinsicName = getOrInsertIntrinsic(
         rewriter, module, "llvm.riscv.buddy.msettileni", funcType);
 
-    Value tilenVal = rewriter.create<LLVM::ConstantOp>(
-        loc, i64Type, rewriter.getI64IntegerAttr(op.getTilen()));
+    Value tilenVal = LLVM::ConstantOp::create(
+        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getTilen()));
 
-    rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicName,
-                                  ValueRange{tilenVal});
+    LLVM::CallOp::create(rewriter, loc, TypeRange{}, intrinsicName,
+                         ValueRange{tilenVal});
     rewriter.eraseOp(op);
     return success();
   }
@@ -139,20 +140,21 @@ struct AMEMSettilekiLowering : public ConvertOpToLLVMPattern<MSettilekiOp> {
     auto loc = op.getLoc();
     auto *ctx = rewriter.getContext();
     auto module = op->getParentOfType<ModuleOp>();
-    if (!module) return failure();
+    if (!module)
+      return failure();
 
     auto i64Type = IntegerType::get(ctx, 64);
-    auto funcType = LLVM::LLVMFunctionType::get(
-        LLVM::LLVMVoidType::get(ctx), {i64Type});
+    auto funcType =
+        LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx), {i64Type});
 
     auto intrinsicName = getOrInsertIntrinsic(
         rewriter, module, "llvm.riscv.buddy.msettileki", funcType);
 
-    Value tilekVal = rewriter.create<LLVM::ConstantOp>(
-        loc, i64Type, rewriter.getI64IntegerAttr(op.getTilek()));
+    Value tilekVal = LLVM::ConstantOp::create(
+        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getTilek()));
 
-    rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicName,
-                                  ValueRange{tilekVal});
+    LLVM::CallOp::create(rewriter, loc, TypeRange{}, intrinsicName,
+                         ValueRange{tilekVal});
     rewriter.eraseOp(op);
     return success();
   }
@@ -168,20 +170,21 @@ struct AMEMzeroLowering : public ConvertOpToLLVMPattern<MzeroOp> {
     auto loc = op.getLoc();
     auto *ctx = rewriter.getContext();
     auto module = op->getParentOfType<ModuleOp>();
-    if (!module) return failure();
+    if (!module)
+      return failure();
 
     auto i64Type = IntegerType::get(ctx, 64);
-    auto funcType = LLVM::LLVMFunctionType::get(
-        LLVM::LLVMVoidType::get(ctx), {i64Type});
+    auto funcType =
+        LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx), {i64Type});
 
     auto intrinsicName = getOrInsertIntrinsic(
         rewriter, module, "llvm.riscv.buddy.mzero", funcType);
 
-    Value mdVal = rewriter.create<LLVM::ConstantOp>(
-        loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
+    Value mdVal = LLVM::ConstantOp::create(
+        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
 
-    rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicName,
-                                  ValueRange{mdVal});
+    LLVM::CallOp::create(rewriter, loc, TypeRange{}, intrinsicName,
+                         ValueRange{mdVal});
     rewriter.eraseOp(op);
     return success();
   }
@@ -201,23 +204,24 @@ struct AMEMlae32mLowering : public ConvertOpToLLVMPattern<Mlae32mOp> {
     auto loc = op.getLoc();
     auto *ctx = rewriter.getContext();
     auto module = op->getParentOfType<ModuleOp>();
-    if (!module) return failure();
+    if (!module)
+      return failure();
 
     auto i64Type = IntegerType::get(ctx, 64);
     auto ptrType = LLVM::LLVMPointerType::get(ctx);
 
-    auto funcType = LLVM::LLVMFunctionType::get(
-        LLVM::LLVMVoidType::get(ctx), {i64Type, ptrType, i64Type});
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
+                                                {i64Type, ptrType, i64Type});
 
     auto intrinsicName = getOrInsertIntrinsic(
         rewriter, module, "llvm.riscv.buddy.mlae32.m", funcType);
 
-    Value mdVal = rewriter.create<LLVM::ConstantOp>(
-        loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
+    Value mdVal = LLVM::ConstantOp::create(
+        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
     Value basePtr = extractPointerFromMemref(rewriter, loc, op.getBase());
 
-    rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicName,
-                                  ValueRange{mdVal, basePtr, adaptor.getStride()});
+    LLVM::CallOp::create(rewriter, loc, TypeRange{}, intrinsicName,
+                         ValueRange{mdVal, basePtr, adaptor.getStride()});
     rewriter.eraseOp(op);
     return success();
   }
@@ -233,23 +237,24 @@ struct AMEMlbe32mLowering : public ConvertOpToLLVMPattern<Mlbe32mOp> {
     auto loc = op.getLoc();
     auto *ctx = rewriter.getContext();
     auto module = op->getParentOfType<ModuleOp>();
-    if (!module) return failure();
+    if (!module)
+      return failure();
 
     auto i64Type = IntegerType::get(ctx, 64);
     auto ptrType = LLVM::LLVMPointerType::get(ctx);
 
-    auto funcType = LLVM::LLVMFunctionType::get(
-        LLVM::LLVMVoidType::get(ctx), {i64Type, ptrType, i64Type});
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
+                                                {i64Type, ptrType, i64Type});
 
     auto intrinsicName = getOrInsertIntrinsic(
         rewriter, module, "llvm.riscv.buddy.mlbe32.m", funcType);
 
-    Value mdVal = rewriter.create<LLVM::ConstantOp>(
-        loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
+    Value mdVal = LLVM::ConstantOp::create(
+        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
     Value basePtr = extractPointerFromMemref(rewriter, loc, op.getBase());
 
-    rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicName,
-                                  ValueRange{mdVal, basePtr, adaptor.getStride()});
+    LLVM::CallOp::create(rewriter, loc, TypeRange{}, intrinsicName,
+                         ValueRange{mdVal, basePtr, adaptor.getStride()});
     rewriter.eraseOp(op);
     return success();
   }
@@ -269,23 +274,24 @@ struct AMEMsce32mLowering : public ConvertOpToLLVMPattern<Msce32mOp> {
     auto loc = op.getLoc();
     auto *ctx = rewriter.getContext();
     auto module = op->getParentOfType<ModuleOp>();
-    if (!module) return failure();
+    if (!module)
+      return failure();
 
     auto i64Type = IntegerType::get(ctx, 64);
     auto ptrType = LLVM::LLVMPointerType::get(ctx);
 
-    auto funcType = LLVM::LLVMFunctionType::get(
-        LLVM::LLVMVoidType::get(ctx), {i64Type, ptrType, i64Type});
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
+                                                {i64Type, ptrType, i64Type});
 
     auto intrinsicName = getOrInsertIntrinsic(
         rewriter, module, "llvm.riscv.buddy.msce32.m", funcType);
 
-    Value ms3Val = rewriter.create<LLVM::ConstantOp>(
-        loc, i64Type, rewriter.getI64IntegerAttr(op.getMs3()));
+    Value ms3Val = LLVM::ConstantOp::create(
+        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getMs3()));
     Value basePtr = extractPointerFromMemref(rewriter, loc, op.getBase());
 
-    rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicName,
-                                  ValueRange{ms3Val, basePtr, adaptor.getStride()});
+    LLVM::CallOp::create(rewriter, loc, TypeRange{}, intrinsicName,
+                         ValueRange{ms3Val, basePtr, adaptor.getStride()});
     rewriter.eraseOp(op);
     return success();
   }
@@ -305,24 +311,25 @@ struct AMEMmaWmmTileLowering : public ConvertOpToLLVMPattern<MmaWmmTileOp> {
     auto loc = op.getLoc();
     auto *ctx = rewriter.getContext();
     auto module = op->getParentOfType<ModuleOp>();
-    if (!module) return failure();
+    if (!module)
+      return failure();
 
     auto i64Type = IntegerType::get(ctx, 64);
-    auto funcType = LLVM::LLVMFunctionType::get(
-        LLVM::LLVMVoidType::get(ctx), {i64Type, i64Type, i64Type});
+    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
+                                                {i64Type, i64Type, i64Type});
 
     auto intrinsicName = getOrInsertIntrinsic(
         rewriter, module, "llvm.riscv.buddy.mma.w.mm.tile", funcType);
 
-    Value mdVal = rewriter.create<LLVM::ConstantOp>(
-        loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
-    Value ms1Val = rewriter.create<LLVM::ConstantOp>(
-        loc, i64Type, rewriter.getI64IntegerAttr(op.getMs1()));
-    Value ms2Val = rewriter.create<LLVM::ConstantOp>(
-        loc, i64Type, rewriter.getI64IntegerAttr(op.getMs2()));
+    Value mdVal = LLVM::ConstantOp::create(
+        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
+    Value ms1Val = LLVM::ConstantOp::create(
+        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getMs1()));
+    Value ms2Val = LLVM::ConstantOp::create(
+        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getMs2()));
 
-    rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicName,
-                                  ValueRange{mdVal, ms1Val, ms2Val});
+    LLVM::CallOp::create(rewriter, loc, TypeRange{}, intrinsicName,
+                         ValueRange{mdVal, ms1Val, ms2Val});
     rewriter.eraseOp(op);
     return success();
   }
@@ -366,15 +373,16 @@ struct AMEMqmaBmmLowering : public ConvertOpToLLVMPattern<MqmaBmmOp> {
     Value ms2Base = extractPointerFromMemref(rewriter, loc, op.getMs2());
 
     // Create constants for dimensions
-    Value mVal = rewriter.create<LLVM::ConstantOp>(loc, i64Type,
-                                                    rewriter.getI64IntegerAttr(M));
-    Value nVal = rewriter.create<LLVM::ConstantOp>(loc, i64Type,
-                                                    rewriter.getI64IntegerAttr(N));
-    Value kVal = rewriter.create<LLVM::ConstantOp>(loc, i64Type,
-                                                    rewriter.getI64IntegerAttr(K));
+    Value mVal = LLVM::ConstantOp::create(rewriter, loc, i64Type,
+                                          rewriter.getI64IntegerAttr(M));
+    Value nVal = LLVM::ConstantOp::create(rewriter, loc, i64Type,
+                                          rewriter.getI64IntegerAttr(N));
+    Value kVal = LLVM::ConstantOp::create(rewriter, loc, i64Type,
+                                          rewriter.getI64IntegerAttr(K));
 
     // Create intrinsic function type for mqma.b.mm
-    // void @llvm.riscv.buddy.mqma.b.mm(ptr md, ptr ms1, ptr ms2, i64 M, i64 N, i64 K)
+    // void @llvm.riscv.buddy.mqma.b.mm(ptr md, ptr ms1, ptr ms2, i64 M, i64 N,
+    // i64 K)
     auto funcType = LLVM::LLVMFunctionType::get(
         LLVM::LLVMVoidType::get(ctx),
         {ptrType, ptrType, ptrType, i64Type, i64Type, i64Type});
@@ -383,9 +391,9 @@ struct AMEMqmaBmmLowering : public ConvertOpToLLVMPattern<MqmaBmmOp> {
         rewriter, module, "llvm.riscv.buddy.mqma.b.mm", funcType);
 
     // Call the intrinsic
-    rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicName,
-                                  ValueRange{mdBase, ms1Base, ms2Base,
-                                            mVal, nVal, kVal});
+    LLVM::CallOp::create(
+        rewriter, loc, TypeRange{}, intrinsicName,
+        ValueRange{mdBase, ms1Base, ms2Base, mVal, nVal, kVal});
 
     rewriter.eraseOp(op);
     return success();
@@ -426,12 +434,12 @@ struct AMEMmaWmmLowering : public ConvertOpToLLVMPattern<MmaWmmOp> {
     Value ms2Base = extractPointerFromMemref(rewriter, loc, op.getMs2());
 
     // Create constants for dimensions
-    Value mVal = rewriter.create<LLVM::ConstantOp>(loc, i64Type,
-                                                    rewriter.getI64IntegerAttr(M));
-    Value nVal = rewriter.create<LLVM::ConstantOp>(loc, i64Type,
-                                                    rewriter.getI64IntegerAttr(N));
-    Value kVal = rewriter.create<LLVM::ConstantOp>(loc, i64Type,
-                                                    rewriter.getI64IntegerAttr(K));
+    Value mVal = LLVM::ConstantOp::create(rewriter, loc, i64Type,
+                                          rewriter.getI64IntegerAttr(M));
+    Value nVal = LLVM::ConstantOp::create(rewriter, loc, i64Type,
+                                          rewriter.getI64IntegerAttr(N));
+    Value kVal = LLVM::ConstantOp::create(rewriter, loc, i64Type,
+                                          rewriter.getI64IntegerAttr(K));
 
     // Create intrinsic function type for mma.w.mm
     auto funcType = LLVM::LLVMFunctionType::get(
@@ -441,9 +449,9 @@ struct AMEMmaWmmLowering : public ConvertOpToLLVMPattern<MmaWmmOp> {
     auto intrinsicName = getOrInsertIntrinsic(
         rewriter, module, "llvm.riscv.buddy.mma.w.mm", funcType);
 
-    rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicName,
-                                  ValueRange{mdBase, ms1Base, ms2Base,
-                                            mVal, nVal, kVal});
+    LLVM::CallOp::create(
+        rewriter, loc, TypeRange{}, intrinsicName,
+        ValueRange{mdBase, ms1Base, ms2Base, mVal, nVal, kVal});
 
     rewriter.eraseOp(op);
     return success();
@@ -484,12 +492,12 @@ struct AMEMmaDwmmLowering : public ConvertOpToLLVMPattern<MmaDwmmOp> {
     Value ms2Base = extractPointerFromMemref(rewriter, loc, op.getMs2());
 
     // Create constants for dimensions
-    Value mVal = rewriter.create<LLVM::ConstantOp>(loc, i64Type,
-                                                    rewriter.getI64IntegerAttr(M));
-    Value nVal = rewriter.create<LLVM::ConstantOp>(loc, i64Type,
-                                                    rewriter.getI64IntegerAttr(N));
-    Value kVal = rewriter.create<LLVM::ConstantOp>(loc, i64Type,
-                                                    rewriter.getI64IntegerAttr(K));
+    Value mVal = LLVM::ConstantOp::create(rewriter, loc, i64Type,
+                                          rewriter.getI64IntegerAttr(M));
+    Value nVal = LLVM::ConstantOp::create(rewriter, loc, i64Type,
+                                          rewriter.getI64IntegerAttr(N));
+    Value kVal = LLVM::ConstantOp::create(rewriter, loc, i64Type,
+                                          rewriter.getI64IntegerAttr(K));
 
     // Create intrinsic function type for mma.dw.mm
     auto funcType = LLVM::LLVMFunctionType::get(
@@ -499,9 +507,9 @@ struct AMEMmaDwmmLowering : public ConvertOpToLLVMPattern<MmaDwmmOp> {
     auto intrinsicName = getOrInsertIntrinsic(
         rewriter, module, "llvm.riscv.buddy.mma.dw.mm", funcType);
 
-    rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicName,
-                                  ValueRange{mdBase, ms1Base, ms2Base,
-                                            mVal, nVal, kVal});
+    LLVM::CallOp::create(
+        rewriter, loc, TypeRange{}, intrinsicName,
+        ValueRange{mdBase, ms1Base, ms2Base, mVal, nVal, kVal});
 
     rewriter.eraseOp(op);
     return success();

@@ -11,6 +11,8 @@ let
     ps.pybind11
     ps.nanobind
     ps.pyyaml
+    ps.ml-dtypes
+    ps.nanobind
   ]);
 in
 stdenv.mkDerivation rec {
@@ -42,8 +44,11 @@ stdenv.mkDerivation rec {
     "-DCMAKE_BUILD_TYPE=Release"
     # required for MLIR python binding
     "-DMLIR_ENABLE_BINDINGS_PYTHON=ON"
+    "-DPython3_EXECUTABLE=${pythonEnv}/bin/python3"
     # required for not, FileCheck...
     "-DLLVM_INSTALL_UTILS=ON"
+    # Fix Clang 22 C2y extension warnings in benchmark library
+    "-DCMAKE_CXX_FLAGS=-Wno-c2y-extensions"
   ];
 
   outputs = [ "out" "lib" "dev" ];
@@ -55,6 +60,12 @@ stdenv.mkDerivation rec {
     # so it will not be installed for cmake install.
     # We have to do some hack
     cp -v "include/llvm/Config/config.h" "$dev/include/llvm/Config/config.h"
+
+    # copy MLIR Python extension source files from $out to $dev
+    # this is needed because MLIRTargets.cmake references these sources via _IMPORT_PREFIX
+    # which resolves to $dev, but the sources are installed to $out
+    mkdir -p "$dev/src"
+    cp -rv "$out/src/python" "$dev/src/"
 
     # move llvm-config to $dev to resolve a circular dependency
     moveToOutput "bin/llvm-config*" "$dev"

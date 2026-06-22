@@ -22,7 +22,8 @@
 //   code_objects[0]           → primary HostSharedLib URI (e.g.
 //   "file:model.so") code_objects[1..]         → optional dependent
 //   HostSharedLib URIs module_attrs["vocab_uri"] → vocab file URI         (e.g.
-//   "file:vocab.txt") module_attrs["model_name"]→ model identifier      (e.g.
+//   "file:vocab.txt") module_attrs["runner_library"] → runner plugin URI
+//   module_attrs["model_name"]→ model identifier      (e.g.
 //   "deepseek_r1_fp32")
 //
 // URI schemes:
@@ -85,6 +86,8 @@ struct ModelManifest {
   std::vector<std::string> weightPaths;
   // absolute path to the vocab file   (tokenizer, may be empty)
   std::string vocabPath;
+  // absolute path to the model runner plugin shared library.
+  std::string runnerLibraryPath;
 
   // Load and resolve from a .rax manifest file.
   // Throws std::runtime_error on any parse / missing-field error.
@@ -462,7 +465,7 @@ struct ModelManifest {
       throw std::runtime_error(
           "ModelManifest: no External constant (weights) in " + raxFs.string());
 
-    // --- Module attrs: vocab_uri, model_name (optional) ------------------
+    // --- Module attrs: vocab_uri, runner_library, model_name (optional) ---
     if (mod->attrs()) {
       for (auto kv : *mod->attrs()) {
         if (!kv->key())
@@ -470,6 +473,9 @@ struct ModelManifest {
         std::string key = kv->key()->str();
         if (key == "vocab_uri" && kv->value() && kv->value()->size() > 0)
           out.vocabPath = resolveUri(kv->value(), "vocab_uri");
+        else if (key == "runner_library" && kv->value() &&
+                 kv->value()->size() > 0)
+          out.runnerLibraryPath = resolveUri(kv->value(), "runner_library");
         else if (key == "model_name" && kv->value() && kv->value()->size() > 0)
           out.modelName = kv->value()->str();
       }

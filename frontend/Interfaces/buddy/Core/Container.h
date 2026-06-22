@@ -23,13 +23,37 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cerrno>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <iostream>
 #include <memory>
+#include <mutex>
 #include <numeric>
 #include <stdexcept>
+#include <string>
+#include <unordered_map>
 #include <vector>
+
+#if defined(__unix__) || defined(__APPLE__)
+#include <sys/mman.h>
+#ifndef MAP_NORESERVE
+#define MAP_NORESERVE 0
+#endif
+#endif
+
+enum class MemRefAllocationKind { Malloc, MMap };
+
+inline std::unordered_map<void *, size_t> &mmapMemRefAllocations() {
+  static std::unordered_map<void *, size_t> allocations;
+  return allocations;
+}
+
+inline std::mutex &mmapMemRefAllocationsMutex() {
+  static std::mutex mutex;
+  return mutex;
+}
 
 // MemRef descriptor.
 // - T represents the type of the elements.
@@ -40,6 +64,7 @@ public:
   // Constructor from shape.
   MemRef(intptr_t sizes[N]);
   MemRef(std::vector<size_t> sizes);
+  MemRef(std::vector<size_t> sizes, MemRefAllocationKind allocationKind);
   MemRef(intptr_t sizes[N], T init);
   MemRef(intptr_t sizes[N], bool needMalloc, intptr_t offset);
   MemRef(std::vector<size_t> sizes, T init);
@@ -94,6 +119,9 @@ protected:
   void setStrides();
   // Compute the product of array elements.
   size_t product(const intptr_t sizes[N]) const;
+  // Allocate and release owned storage.
+  void allocateStorage(size_t size, MemRefAllocationKind allocationKind);
+  void releaseAllocatedStorage();
 
   // Data.
   // The `aligned` and `allocated` members point to the same address, `aligned`
@@ -133,6 +161,19 @@ MemRef<T, N>::MemRef(std::vector<size_t> sizes) {
   size_t size = product(this->sizes);
   allocated = (T *)malloc(sizeof(T) * size);
   aligned = allocated;
+}
+
+template <typename T, std::size_t N>
+MemRef<T, N>::MemRef(std::vector<size_t> sizes,
+                     MemRefAllocationKind allocationKind) {
+  if (sizes.size() != N) {
+    throw std::runtime_error("Invalid number of dimensions.");
+  }
+  for (size_t i = 0; i < N; i++) {
+    this->sizes[i] = sizes[i];
+  }
+  setStrides();
+  allocateStorage(product(this->sizes), allocationKind);
 }
 
 template <typename T, std::size_t N>
@@ -252,7 +293,7 @@ MemRef<T, N> &MemRef<T, N>::operator=(const MemRef<T, N> &other) {
     }
     setStrides();
     // Free the original aligned and allocated space.
-    free(allocated);
+    releaseAllocatedStorage();
     // Allocate new space and deep copy.
     size_t size = product(this->sizes);
     T *ptr = (T *)malloc(sizeof(T) * size);
@@ -293,7 +334,7 @@ template <typename T, std::size_t N>
 MemRef<T, N> &MemRef<T, N>::operator=(MemRef<T, N> &&other) noexcept {
   if (this != &other) {
     // Free the original aligned and allocated space.
-    free(allocated);
+    releaseAllocatedStorage();
     // Steal members of the original object.
     std::swap(strides, other.strides);
     std::swap(offset, other.offset);
@@ -307,12 +348,64 @@ MemRef<T, N> &MemRef<T, N>::operator=(MemRef<T, N> &&other) noexcept {
   return *this;
 }
 
+template <typename T, std::size_t N>
+void MemRef<T, N>::allocateStorage(size_t size,
+                                   MemRefAllocationKind allocationKind) {
+  if (allocationKind == MemRefAllocationKind::MMap) {
+#if defined(__unix__) || defined(__APPLE__)
+    size_t allocatedBytes = sizeof(T) * size;
+    void *ptr = mmap(nullptr, allocatedBytes, PROT_READ | PROT_WRITE,
+                     MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
+    if (ptr == MAP_FAILED) {
+      throw std::runtime_error("mmap failed: " + std::to_string(errno));
+    }
+    allocated = static_cast<T *>(ptr);
+    aligned = allocated;
+    {
+      std::lock_guard<std::mutex> lock(mmapMemRefAllocationsMutex());
+      mmapMemRefAllocations()[allocated] = allocatedBytes;
+    }
+    return;
+#else
+    throw std::runtime_error("mmap-backed MemRef is not supported");
+#endif
+  }
+  allocated = (T *)malloc(sizeof(T) * size);
+  aligned = allocated;
+}
+
+template <typename T, std::size_t N>
+void MemRef<T, N>::releaseAllocatedStorage() {
+  if (!allocated)
+    return;
+  size_t mmapBytes = 0;
+  {
+    std::lock_guard<std::mutex> lock(mmapMemRefAllocationsMutex());
+    auto &allocations = mmapMemRefAllocations();
+    auto it = allocations.find(allocated);
+    if (it != allocations.end()) {
+      mmapBytes = it->second;
+      allocations.erase(it);
+    }
+  }
+  if (mmapBytes) {
+#if defined(__unix__) || defined(__APPLE__)
+    munmap(allocated, mmapBytes);
+#else
+    assert(0 && "mmap-backed MemRef is not supported");
+#endif
+  } else {
+    free(allocated);
+  }
+  allocated = nullptr;
+  aligned = nullptr;
+}
+
 // MemRef Destructor.
 // Note that the `allocated` and `aligned` point to the same address, so it is
 // enough to release the space of the `allocated` pointer in the destructor.
 template <typename T, std::size_t N> MemRef<T, N>::~MemRef() {
-  if (allocated)
-    free(allocated);
+  releaseAllocatedStorage();
 }
 
 // Get the data pointer.
@@ -380,6 +473,11 @@ MemRef<T, N>::MemRef(std::unique_ptr<T> &uptr, intptr_t *sizes,
 }
 
 template <typename T, size_t N> T *MemRef<T, N>::release() {
+  {
+    std::lock_guard<std::mutex> lock(mmapMemRefAllocationsMutex());
+    if (mmapMemRefAllocations().count(allocated))
+      throw std::runtime_error("Cannot release mmap-backed MemRef storage.");
+  }
   T *temp = allocated;
   aligned = nullptr;
   allocated = nullptr;

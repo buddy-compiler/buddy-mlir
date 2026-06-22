@@ -3,6 +3,8 @@ name: pr comment commands
 on:
   issue_comment:
     types: [ created ]
+  pull_request_target:
+    types: [ labeled ]
 
 permissions:
   actions: write
@@ -13,18 +15,27 @@ permissions:
 jobs:
   dispatch:
     if: >
-      github.event.issue.pull_request &&
-      github.event.issue.state == 'open' &&
-      startsWith(github.event.comment.body, '/run-example') &&
-      contains(fromJson('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+      (
+        github.event_name == 'issue_comment' &&
+        github.event.issue.pull_request &&
+        github.event.issue.state == 'open' &&
+        startsWith(github.event.comment.body, '/test-example') &&
+        contains(fromJson('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+      ) ||
+      (
+        github.event_name == 'pull_request_target' &&
+        github.event.pull_request.state == 'open' &&
+        github.event.label.name == 'ci:test-example'
+      )
     runs-on: ubuntu-latest
     steps:
       - name: Resolve PR head
         id: pr
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
         run: |
-          gh api repos/${{ github.repository }}/pulls/${{ github.event.issue.number }} \
+          gh api repos/${{ github.repository }}/pulls/${PR_NUMBER} \
             --jq '"head_repository=\(.head.repo.full_name)\nhead_ref=\(.head.ref)\nhead_sha=\(.head.sha)\nstatuses_path=\(.statuses_url | ltrimstr("https://api.github.com/"))"' >> "$GITHUB_OUTPUT"
 
       - name: Mark example tests queued

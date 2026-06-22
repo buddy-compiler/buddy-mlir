@@ -20,7 +20,8 @@ deepseek_r1_model.so
         │
         ▼  Stage 4: gen_manifest → rax-pack → .rax + auto-copy vocab.txt
 deepseek_r1.rax ──────► buddy-cli --model deepseek_r1.rax --prompt "..."
-vocab.txt               (runtime: dlopen + inference)
+deepseek_r1_runner.so    (runtime: dlopen runner plugin + model kernels)
+vocab.txt
 ```
 
 CMake drives this via `models/deepseek_r1/CMakeLists.txt` → `buddy_add_model` (`tools/buddy-codegen/cmake/buddy_model.cmake`).
@@ -40,10 +41,11 @@ python3 tools/buddy-codegen/build_model.py --spec models/deepseek_r1/specs/f32.j
 
 ```
 ┌───────────────────────────────────────────┐
-│  buddy-cli  (tools/buddy-cli/)            │  ← Generic entry: reads model_name from .rax for dispatch
+│  buddy-cli  (tools/buddy-cli/)            │  ← Generic host: loads runner_library from .rax
 ├───────────────────────────────────────────┤
-│  InferenceRunner  (runtime/core/)         │  ← Abstract interface; one subclass per model
+│  InferenceRunner  (runtime/core/)         │  ← Abstract interface exported by runner plugins
 ├───────────────────────────────────────────┤
+│  deepseek_r1_runner.so                    │  ← dlopen; exports buddy_create_inference_runner_v1
 │  DeepSeekR1Runner (models/deepseek_r1/)   │  ← Full loop: tokenize → prefill → decode
 │  ModelSession     (generated under build/.../generated/) │  ← dlopen + KV cache (56 layers) + prefill/decode
 ├───────────────────────────────────────────┤
@@ -52,22 +54,30 @@ python3 tools/buddy-codegen/build_model.py --spec models/deepseek_r1/specs/f32.j
 └───────────────────────────────────────────┘
 ```
 
-**C++ namespaces**: Shared runtime APIs (`InferenceRunner`, `ModelManifest`, `BufferPool`, `ModelSession`, etc.) live in the nested namespace **`buddy::runtime`**, alongside the compiler frontend `buddy::` and the RHAL dialect `buddy::rhal`. Build targets: core runtime **`buddy_runtime_core`**; DeepSeek model library **`buddy_models_deepseek_r1`** when **`-DBUDDY_BUILD_DEEPSEEK_R1_MODEL=ON`** (from `buddy_add_model(NAME deepseek_r1 …)` — CMake identifiers only).
+**C++ namespaces**: Shared runtime APIs (`InferenceRunner`, `ModelManifest`, `BufferPool`, `ModelSession`, etc.) live in the nested namespace **`buddy::runtime`**, alongside the compiler frontend `buddy::` and the RHAL dialect `buddy::rhal`. Build targets: core runtime **`buddy_runtime_core`**; DeepSeek model library **`buddy_models_deepseek_r1`** and runner plugin **`deepseek_r1_runner.so`** when **`-DBUDDY_BUILD_DEEPSEEK_R1_MODEL=ON`** (from `buddy_add_model(NAME deepseek_r1 …)` — CMake identifiers only).
 
-`buddy-cli` reads the `model_name` field from `.rax` and constructs the matching `InferenceRunner` via `makeRunner()`. To add a model:
+`buddy-cli` reads the `runner_library` field from `.rax`, `dlopen`s that plugin, and creates the model runner through the stable C ABI:
 
-1. Implement an `InferenceRunner` subclass under `models/<new_model>/`
-2. Build its static library and wire it in `models/CMakeLists.txt`
-3. Link it from `tools/buddy-cli/CMakeLists.txt`
-4. Add one `if` branch in `makeRunner()` in `tools/buddy-cli/buddy-cli.cpp`
+```cpp
+extern "C" buddy::runtime::InferenceRunner *
+buddy_create_inference_runner_v1();
+
+extern "C" void
+buddy_destroy_inference_runner_v1(buddy::runtime::InferenceRunner *);
+```
+
+To add a model, implement an `InferenceRunner` subclass under
+`models/<new_model>/`, build a runner plugin that exports this ABI, and emit
+`runner_library = "file:<new_model>_runner.so"` in the RHAL manifest.
 
 ### Dynamic loading path
 
 ```
 buddy-cli --model deepseek_r1.rax
   │
-  ├─ ModelManifest::loadFromRax()       Read FlatBuffer → modelName / soPath / weight paths
-  ├─ makeRunner(...)                  Construct DeepSeekR1Runner
+  ├─ ModelManifest::loadFromRax()       Read FlatBuffer → runner / model .so / weights
+  ├─ dlopen(deepseek_r1_runner.so)
+  ├─ dlsym("buddy_create_inference_runner_v1")
   └─ runner->run(cfg)
        ├─ ModelSession::createFromRax()
        │    ├─ allocateKVCache()        56 × KV tensors (owned by session)

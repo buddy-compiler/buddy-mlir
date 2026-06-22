@@ -33,7 +33,8 @@ class RHAL_Op<string mnemonic, list<Trait> traits = []> :
 //
 // Syntax:
 //   rhal.module @name attributes {version = "...", model_name = "...",
-//                                  vocab_uri = "..."} {
+//                                  vocab_uri = "...",
+//                                  runner_library = "..."} {
 //     ... rhal.constant, rhal.codeobj, rhal.buffer, rhal.func ops ...
 //   }
 //===----------------------------------------------------------------------===//
@@ -44,14 +45,16 @@ def RHAL_ModuleOp : RHAL_Op<"module", [
   let summary = "RHAL model manifest module.";
   let description = [{
     Top-level container op that declares all model resources and functions.
-    Attributes carry module-level metadata (version, model_name, vocab_uri).
+    Attributes carry module-level metadata (version, model_name, vocab_uri,
+    runner_library).
   }];
 
   let arguments = (ins
     SymbolNameAttr:$sym_name,
     OptionalAttr<StrAttr>:$version,
     OptionalAttr<StrAttr>:$model_name,
-    OptionalAttr<StrAttr>:$vocab_uri
+    OptionalAttr<StrAttr>:$vocab_uri,
+    OptionalAttr<StrAttr>:$runner_library
   );
   let regions = (region SizedRegion<1>:$body);
 

@@ -21,8 +21,8 @@
 #include "mlir/IR/Operation.h"
 #include "mlir/Target/LLVMIR/ModuleTranslation.h"
 
-#include "backend/include/llvm/IR/IntrinsicsRISCV.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/IntrinsicsRISCV.h"
 
 #include "AME/AMEDialect.h"
 #include "AME/AMEOps.h"
