@@ -85,6 +85,7 @@ class Op:
         self._children: list[str] = []
         self._parents: list[str] = []
         self._args_index = []
+        self._trace_meta = None
 
     def add_argument(self, arg, arg_index=0):
         """

@@ -75,6 +75,7 @@ void registerSimplifyTosaReshapePass();
 void registerSimplifyTosaMatmulScalarPass();
 void registerEliminateMemRefCopyPass();
 void registerEliminateLargeZeroConstantsPass();
+void registerInsertTensorTracePass();
 } // namespace buddy
 } // namespace mlir
 
@@ -133,4 +134,5 @@ void mlir::buddy::registerAllPasses() {
   mlir::buddy::registerSimplifyTosaMatmulScalarPass();
   mlir::buddy::registerEliminateMemRefCopyPass();
   mlir::buddy::registerEliminateLargeZeroConstantsPass();
+  mlir::buddy::registerInsertTensorTracePass();
 }

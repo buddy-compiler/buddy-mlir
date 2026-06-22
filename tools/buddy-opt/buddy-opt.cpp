@@ -131,6 +131,7 @@ void registerSiLUFusionPass();
 void registerSimplifyTosaMatmulScalarPass();
 void registerEliminateMemRefCopyPass();
 void registerEliminateLargeZeroConstantsPass();
+void registerInsertTensorTracePass();
 } // namespace buddy
 } // namespace mlir
 
@@ -202,6 +203,8 @@ int main(int argc, char **argv) {
   mlir::buddy::registerEliminateMemRefCopyPass();
   // Register eliminate large zero constants pass.
   mlir::buddy::registerEliminateLargeZeroConstantsPass();
+  // Register tensor trace instrumentation pass.
+  mlir::buddy::registerInsertTensorTracePass();
   mlir::buddy::registerSiLUFusionPass();
   // Register gpu passes
   mlir::buddy::registerConvertMemcpyToGPUPass();

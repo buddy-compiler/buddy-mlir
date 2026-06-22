@@ -25,9 +25,11 @@
 import contextlib
 import ctypes
 import ctypes.util
+import json
 import operator
 import os
 import platform
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -77,6 +79,9 @@ class DynamoCompiler:
         verbose=False,
         enable_external_calls: bool = False,
         capture_scalar_outputs: bool = False,
+        trace_config: dict | None = None,
+        trace_dump_dir: str | os.PathLike | None = None,
+        trace_output_path: str | os.PathLike | None = None,
     ) -> None:
         """
         Initializes the Dynamo Compiler.
@@ -92,6 +97,13 @@ class DynamoCompiler:
             enable_external_calls (bool): Enable external function call support (for oneDNN, etc.)
             capture_scalar_outputs (bool): Enable scalar output capture in
                 TorchDynamo to avoid graph breaks from scalar escapes.
+            trace_config (dict, optional): Mapping from FX node name to trace
+                metadata. Values may be an integer trace id or a dict with
+                `id`, `tag`, and `layout`.
+            trace_dump_dir (str | os.PathLike, optional): Directory where the
+                frontend writes `trace.fx.txt`.
+            trace_output_path (str | os.PathLike, optional): JSONL file where
+                PyTorch FX reference trace values are written.
         Attributes:
             _func_name: The function name to be used.
             _aot_autograd_decomposition (Optional[dict], optional):
@@ -117,6 +129,13 @@ class DynamoCompiler:
         self._imported_graphs = []
         self._ops_registry = {}
         self._imported_params = {}
+        self._trace_config = trace_config or {}
+        self._used_trace_keys = set()
+        self._trace_dump_dir = Path(trace_dump_dir) if trace_dump_dir else None
+        self._trace_output_path = (
+            Path(trace_output_path) if trace_output_path else None
+        )
+        self._trace_output_initialized = False
         self._model_config = type("Config", (), {"decode_with_cache": False})
         self._ops_registry.update(math_ops_registry)
         self._ops_registry.update(linalg_ops_registry)
@@ -797,6 +816,196 @@ class DynamoCompiler:
                     out_kwarg_names.append(arg.name)
         return out_kwarg_names
 
+    def _normalize_trace_meta(self, key: str, meta):
+        if isinstance(meta, int):
+            return {"id": meta}
+        if not isinstance(meta, dict):
+            raise TypeError(
+                f"trace_config[{key!r}] must be an int or dict, got {type(meta).__name__}"
+            )
+
+        trace_id = meta.get("id", meta.get("trace_id"))
+        if not isinstance(trace_id, int):
+            raise TypeError(f"trace_config[{key!r}] requires integer id")
+
+        result = {"id": trace_id}
+        for name in ("tag", "layout"):
+            if name in meta:
+                value = meta[name]
+                if not isinstance(value, str):
+                    raise TypeError(f"trace_config[{key!r}][{name!r}] must be a string")
+                result[name] = value
+        return result
+
+    def _trace_meta_for_fx_node(self, gm_node):
+        if gm_node.name not in self._trace_config:
+            return None
+        self._used_trace_keys.add(gm_node.name)
+        return self._normalize_trace_meta(
+            gm_node.name, self._trace_config[gm_node.name]
+        )
+
+    def _format_fx_target(self, gm_node) -> str:
+        target = gm_node.target
+        if hasattr(target, "__name__"):
+            return target.__name__
+        return str(target)
+
+    def _format_fx_meta(self, gm_node) -> tuple[str, str]:
+        tensor_meta = gm_node.meta.get("tensor_meta")
+        if tensor_meta is not None:
+            if hasattr(tensor_meta, "shape") and hasattr(tensor_meta, "dtype"):
+                return (
+                    str(list(tensor_meta.shape)),
+                    str(tensor_meta.dtype).removeprefix("torch."),
+                )
+            if isinstance(tensor_meta, (tuple, list)):
+                shapes = [str(list(item.shape)) for item in tensor_meta]
+                dtypes = [str(item.dtype).removeprefix("torch.") for item in tensor_meta]
+                return ";".join(shapes), ";".join(dtypes)
+
+        val = gm_node.meta.get("val")
+        if isinstance(val, torch.Tensor):
+            return str(list(val.shape)), str(val.dtype).removeprefix("torch.")
+        if isinstance(val, (tuple, list)) and all(
+            isinstance(item, torch.Tensor) for item in val
+        ):
+            shapes = [str(list(item.shape)) for item in val]
+            dtypes = [str(item.dtype).removeprefix("torch.") for item in val]
+            return ";".join(shapes), ";".join(dtypes)
+        return "", ""
+
+    def _is_trace_candidate(self, gm_node, kind: str) -> bool:
+        if kind == "param" or gm_node.op == "output":
+            return False
+        _, dtype = self._format_fx_meta(gm_node)
+        return dtype == "float32"
+
+    def _dump_fx_graph(self, gm, node_kinds: dict[str, str]) -> None:
+        if self._trace_dump_dir is None:
+            return
+
+        self._trace_dump_dir.mkdir(parents=True, exist_ok=True)
+        nodes = list(gm.graph.nodes)
+        input_deps = {}
+        for node in nodes:
+            kind = node_kinds.get(node.name, "other")
+            if kind == "input":
+                input_deps[node.name] = True
+                continue
+            if kind == "param":
+                input_deps[node.name] = False
+                continue
+
+            def depends_on_input(arg):
+                if isinstance(arg, torch.fx.Node):
+                    return input_deps.get(arg.name, False)
+                if isinstance(arg, (list, tuple)):
+                    return any(depends_on_input(item) for item in arg)
+                if isinstance(arg, dict):
+                    return any(depends_on_input(item) for item in arg.values())
+                return False
+
+            input_deps[node.name] = depends_on_input(node.args) or depends_on_input(
+                node.kwargs
+            )
+
+        rows = []
+        for node in nodes:
+            shape, dtype = self._format_fx_meta(node)
+            users = ",".join(str(user) for user in node.users)
+            rows.append(
+                [
+                    node.name,
+                    node_kinds.get(node.name, "other"),
+                    node.op,
+                    self._format_fx_target(node),
+                    shape,
+                    dtype,
+                    "yes" if input_deps.get(node.name, False) else "no",
+                    users,
+                ]
+            )
+
+        headers = [
+            "name",
+            "kind",
+            "op",
+            "target",
+            "shape",
+            "dtype",
+            "input_dep",
+            "users",
+        ]
+        widths = [
+            max(len(headers[i]), *(len(row[i]) for row in rows))
+            for i in range(len(headers))
+        ]
+        lines = [
+            "  ".join(headers[i].ljust(widths[i]) for i in range(len(headers))),
+            "  ".join("-" * widths[i] for i in range(len(headers))),
+        ]
+        for row in rows:
+            lines.append(
+                "  ".join(row[i].ljust(widths[i]) for i in range(len(headers)))
+            )
+        (self._trace_dump_dir / "trace.fx.txt").write_text(
+            "\n".join(lines) + "\n", encoding="utf-8"
+        )
+
+    def _write_fx_trace(self, gm, inputs: list[torch.Tensor]) -> None:
+        if self._trace_output_path is None:
+            return
+        if not self._trace_config:
+            raise ValueError("trace_output_path requires trace_config")
+
+        self._trace_output_path.parent.mkdir(parents=True, exist_ok=True)
+        mode = "w" if not self._trace_output_initialized else "a"
+        self._trace_output_initialized = True
+
+        compiler = self
+
+        class TraceInterpreter(torch.fx.Interpreter):
+            def __init__(self, module):
+                super().__init__(module)
+                self.records = []
+
+            def run_node(self, node):
+                result = super().run_node(node)
+                if node.name in compiler._trace_config:
+                    meta = compiler._normalize_trace_meta(
+                        node.name, compiler._trace_config[node.name]
+                    )
+                    if not isinstance(result, torch.Tensor):
+                        raise TypeError(
+                            f"trace node {node.name} did not produce a tensor"
+                        )
+                    array = (
+                        result.detach()
+                        .cpu()
+                        .to(torch.float32)
+                        .contiguous()
+                        .numpy()
+                    )
+                    self.records.append(
+                        {
+                            "id": meta["id"],
+                            "tag": meta.get("tag", node.name),
+                            "layout": meta.get("layout", ""),
+                            "shape": list(array.shape),
+                            "values": array.reshape(-1).tolist(),
+                        }
+                    )
+                return result
+
+        with torch.no_grad():
+            interpreter = TraceInterpreter(gm)
+            interpreter.run(*inputs)
+
+        with self._trace_output_path.open(mode, encoding="utf-8") as f:
+            for record in sorted(interpreter.records, key=lambda item: item["id"]):
+                f.write(json.dumps(record) + "\n")
+
     def _create_node(
         self,
         gm_node_name: str,
@@ -806,6 +1015,7 @@ class DynamoCompiler:
         node_output_shape: list | None = None,
         node_output_dtype: TensorDType = None,
         node_kwargs: dict | None = None,
+        trace_meta: dict | None = None,
     ):
         """
         Create buddy op node from torch aten op.
@@ -818,6 +1028,7 @@ class DynamoCompiler:
             node_output_dtype: The TensorDType enum type of the op node's output
             data type.
             node_kwargs: The restful attributes for op node.
+            trace_meta: Metadata consumed by the trace insertion pass.
         """
         if node_output_shape is None:
             node_output_shape = []
@@ -857,6 +1068,7 @@ class DynamoCompiler:
         buddy_node._keyword_arguments.update(node_kwargs)
         buddy_node._tensor_meta["shape"] = node_output_shape
         buddy_node._tensor_meta["dtype"] = node_output_dtype
+        buddy_node._trace_meta = trace_meta
         return buddy_node
 
     def _compile_fx(
@@ -936,9 +1148,18 @@ class DynamoCompiler:
                 (NodeType.InputNode, input_nodes),
                 (NodeType.OtherNode, other_nodes),
             ]
+            node_kinds = {}
+            for node in param_nodes + buffers_nodes:
+                node_kinds[node.name] = "param"
+            for node in input_nodes:
+                node_kinds[node.name] = "input"
+            for node in other_nodes:
+                node_kinds.setdefault(node.name, "other")
+            self._dump_fx_graph(_gm, node_kinds)
 
             for node_type, gm_nodes_sublist in gm_nodes:
                 for gm_node in gm_nodes_sublist:
+                    trace_meta = self._trace_meta_for_fx_node(gm_node)
                     node_users = []
                     for user in gm_node.users:
                         node_users.append(str(user))
@@ -961,6 +1182,7 @@ class DynamoCompiler:
                             node_users,
                             gm_node.meta["tensor_meta"].shape,
                             node_dtype,
+                            trace_meta=trace_meta,
                         )
 
                     elif gm_node.op == "output":
@@ -979,6 +1201,7 @@ class DynamoCompiler:
                             node_users,
                             gm_node.meta["tensor_meta"].shape,
                             node_dtype,
+                            trace_meta=trace_meta,
                         )
                     elif gm_node.op == "get_attr":
                         if "_tensor_constant" in gm_node.name:
@@ -1021,6 +1244,7 @@ class DynamoCompiler:
                                 node_shape,
                                 node_dtype,
                                 node_kwargs=gm_node.kwargs,
+                                trace_meta=trace_meta,
                             )
                     else:
                         tensor_meta = gm_node.meta.get("tensor_meta")
@@ -1068,6 +1292,7 @@ class DynamoCompiler:
                             node_shape,
                             node_dtype,
                             node_kwargs=gm_node.kwargs,
+                            trace_meta=trace_meta,
                         )
                         buddy_node._torch_op = str(gm_node.target.__name__)
                         buddy_node._torch_out_kwarg_names = (
@@ -1087,10 +1312,21 @@ class DynamoCompiler:
                     enabled_external_groups.append(group_name)
             graph._enabled_external_groups = enabled_external_groups
             graph.perform(transform_list)
+            missing_trace_keys = set(self._trace_config) - self._used_trace_keys
+            if missing_trace_keys:
+                missing = ", ".join(sorted(missing_trace_keys))
+                raise KeyError(f"trace_config keys did not match FX nodes: {missing}")
             self._imported_graphs.append(graph)
             self._imported_params[graph] = params_flat
             if return_type == "eager":
-                return _gm.forward
+                if self._trace_output_path is None:
+                    return _gm.forward
+
+                def _trace_exec(*args):
+                    self._write_fx_trace(_gm, list(args))
+                    return _gm.forward(*args)
+
+                return _trace_exec
             if return_type == "buddy":
                 exec_list = self._dynamo_run_for_graph(graph)
 

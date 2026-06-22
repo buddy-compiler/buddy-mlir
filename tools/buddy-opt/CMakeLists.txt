@@ -69,4 +69,5 @@ target_link_libraries(buddy-opt
   StaticizeMemRefLayoutPass
   EliminateMemRefCopyPass
   EliminateLargeZeroConstants
+  TraceInstrumentation
   )

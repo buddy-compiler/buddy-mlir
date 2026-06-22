@@ -38,7 +38,8 @@ def Tile_Dialect : Dialect {
     memrefs and are lowered by `convert-tile-to-buckyball` into `scf` loops
     plus `memref.subview` tiles and per-tile Buckyball ops (`bb_matmul`, etc.).
     There is no separate MergeTile/MetaTile dialect layer; tiling depth is
-    decided inside that pass (lane/warp/bank limits), not as distinct ops here.
+    decided inside that pass from the 16-byte bank row, 16xK matrix ISA tile,
+    and bank depth limits, not as distinct ops here.
   }];
 }
 
@@ -117,4 +118,3 @@ def TileConv2dOp : Tile_Op<"tile_conv2d"> {
 }
 
 #endif // TILE_OPS
-

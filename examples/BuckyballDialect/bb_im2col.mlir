@@ -45,8 +45,9 @@ func.func @main() -> i8 {
     : (memref<32x16xi8>, i64, i64, i64) -> i64
 
   // Im2colOp signature: (inputBankId, outputBankId, krow, kcol, inrow, incol, startrow, startcol)
-  "buckyball.im2col"(%bank_in_loaded, %bank_out, %krow, %kcol, %inrow, %incol, %startrow, %startcol)
-    : (i64, i64, i64, i64, i64, i64, i64, i64) -> ()
+  %col_step = arith.constant 1 : i64
+  "buckyball.im2col"(%bank_in_loaded, %bank_out, %krow, %kcol, %inrow, %incol, %startrow, %startcol, %col_step)
+    : (i64, i64, i64, i64, i64, i64, i64, i64, i64) -> ()
 
   %bank_out_stored = "buckyball.bank_mvout"(%output, %bank_out, %depth_out, %stride)
     : (memref<52x16xi8>, i64, i64, i64) -> i64

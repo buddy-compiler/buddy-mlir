@@ -24,6 +24,7 @@ from enum import Enum, auto
 from types import FunctionType
 
 import buddy_mlir.dialects.func as func
+import buddy_mlir.dialects.tensor as tensor
 import buddy_mlir.ir as ir
 import numpy as np
 import torch
@@ -715,6 +716,35 @@ class GraphImporter:
         self._current_param_pack_offset = None
         self._enable_external_calls = enable_external_calls
 
+    def _set_trace_attrs(self, node: Op, value) -> None:
+        trace_meta = getattr(node, "_trace_meta", None)
+        if trace_meta is None:
+            return
+
+        owner = None
+        if isinstance(value, ir.OpResult):
+            owner = value.owner
+        elif isinstance(value, ir.Operation):
+            owner = value
+        elif isinstance(value, ir.OpView):
+            owner = value.operation
+
+        if owner is None:
+            raise TypeError(f"Cannot attach trace metadata to node {node.name}")
+
+        i64 = ir.IntegerType.get_signless(64)
+        owner.attributes["buddy.trace_id"] = ir.IntegerAttr.get(
+            i64, trace_meta["id"]
+        )
+        if "tag" in trace_meta:
+            owner.attributes["buddy.trace_tag"] = ir.StringAttr.get(
+                trace_meta["tag"]
+            )
+        if "layout" in trace_meta:
+            owner.attributes["buddy.trace_layout"] = ir.StringAttr.get(
+                trace_meta["layout"]
+            )
+
     def _str_to_mlir_dtype(self, dtype: str) -> ir.Type:
         """
         Converts a str to the corresponding MLIR dtype.
@@ -822,11 +852,13 @@ class GraphImporter:
                     elif isinstance(node, PlaceholderOp):
                         self._import_placeholder(node, args_list)
                     elif isinstance(node, GetItemOp):
-                        self._symbol_table[(str(node.name), 0)] = (
-                            self._symbol_table[
-                                (str(node.args[0]), node.args[1])
-                            ]
-                        )
+                        value = self._symbol_table[
+                            (str(node.args[0]), node.args[1])
+                        ]
+                        if getattr(node, "_trace_meta", None) is not None:
+                            value = tensor.CastOp(value.type, value).result
+                            self._set_trace_attrs(node, value)
+                        self._symbol_table[(str(node.name), 0)] = value
                     else:
                         self._import_op(node)
                     new_ops = [op for op in func_op.body.blocks[0].operations]
@@ -903,11 +935,13 @@ class GraphImporter:
                             )
                         self._import_placeholder(node, args_list)
                     elif isinstance(node, GetItemOp):
-                        self._symbol_table[(str(node.name), 0)] = (
-                            self._symbol_table[
-                                (str(node.args[0]), node.args[1])
-                            ]
-                        )
+                        value = self._symbol_table[
+                            (str(node.args[0]), node.args[1])
+                        ]
+                        if getattr(node, "_trace_meta", None) is not None:
+                            value = tensor.CastOp(value.type, value).result
+                            self._set_trace_attrs(node, value)
+                        self._symbol_table[(str(node.name), 0)] = value
                     else:
                         self._import_op(node)
 
@@ -958,6 +992,14 @@ class GraphImporter:
                 placeholder_name = args_list[self._num_input_visited]
         else:
             placeholder_name = args_list[self._num_input_visited]
+
+        if getattr(node, "_trace_meta", None) is not None and isinstance(
+            placeholder_name.type, ir.RankedTensorType
+        ):
+            placeholder_name = tensor.CastOp(
+                placeholder_name.type, placeholder_name
+            ).result
+            self._set_trace_attrs(node, placeholder_name)
 
         self._symbol_table[(str(node.name), 0)] = placeholder_name
         self._num_input_visited += 1
@@ -1051,6 +1093,16 @@ class GraphImporter:
         op_ret: ir.Operation | ir.Value | tuple | list | ir.OpResult = (
             self._ops_registry[op_name](node, self._symbol_table)
         )
+        if getattr(node, "_trace_meta", None) is not None:
+            if isinstance(op_ret, tuple | list | ir.OpResultList):
+                if len(op_ret) != 1:
+                    raise ValueError(
+                        f"Trace node {node.name} must lower to one result"
+                    )
+                self._set_trace_attrs(node, op_ret[0])
+            else:
+                self._set_trace_attrs(node, op_ret)
+
         if isinstance(op_ret, tuple | list | ir.OpResultList):
             for i, operation in enumerate(op_ret):
                 if isinstance(operation, ir.Operation) or isinstance(

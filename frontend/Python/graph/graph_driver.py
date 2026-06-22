@@ -140,6 +140,7 @@ class GraphDriver:
                 placeholder_node = PlaceholderOp()
                 placeholder_node.name = inp
                 placeholder_node.tensor_meta = input_tensor_meta
+                placeholder_node._trace_meta = getattr(node, "_trace_meta", None)
                 for op in self._graph.op_groups[subgraph_name]:
                     if inp in node._parents:
                         placeholder_node.add_children(op.name)
