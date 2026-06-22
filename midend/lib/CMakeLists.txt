@@ -19,11 +19,16 @@ set(LinkedLibs
   BuddyAME
   BuddyAMETransforms
   BuddyRHAL
+  BuddyTile
   ConvOptimization
   CBConvVectorization
   LowerBudPass
   LowerDAPPass
   LowerDIPPass
+  LowerLinalgToTilePass
+  # Buckyball passes moved to external dialects
+  LowerTileToBuckyballPass
+  LowerBuckyballPass
   LowerGemminiPass
   LowerLinalgToGemminiPass
   LowerLinalgToIMEPass
@@ -38,6 +43,7 @@ set(LinkedLibs
   AssumeTightMemRefLayoutPass
   StaticizeMemRefLayoutPass
   EliminateMemRefCopyPass
+  EliminateLargeZeroConstants
   GraphRedundancyElimination
 )
 

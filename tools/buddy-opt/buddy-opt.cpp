@@ -46,6 +46,13 @@
 #include "DAP/DAPOps.h"
 #include "DIP/DIPDialect.h"
 #include "DIP/DIPOps.h"
+#include "Tile/TileDialect.h"
+#include "Tile/TileOps.h"
+// Buckyball dialect moved to external dialects
+#ifdef BUDDY_EXTERNAL_DIALECTS
+#include "Dialect/Buckyball/BuckyballDialect.h"
+#include "Dialect/Buckyball/BuckyballOps.h"
+#endif
 #include "GPU/TransformOps.h"
 #include "Gemmini/GemminiDialect.h"
 #include "Gemmini/GemminiOps.h"
@@ -95,6 +102,13 @@ void registerConvNhwcFhwcOptimizePass();
 void registerConvNhwcFhwcTileOptimizePass();
 void registerDepthwiseConv2DNhwcHwcOptimizePass();
 void registerLowerVectorExpPass();
+void registerLowerLinalgToTilePass();
+void registerLowerTileToBuckyballPass();
+void registerLowerBuckyballToBankSSAPass();
+void registerAssignPhysicalBanksPass();
+void registerLowerBankSSAToIntrinsicsPass();
+void registerReportBankUsagePass();
+void registerLowerBuckyballPass();
 void registerLowerGemminiPass();
 void registerLowerLinalgToGemminiPass();
 void registerLowerLinalgToIMEPass();
@@ -116,6 +130,7 @@ void registerSimplifyTosaReshapePass();
 void registerSiLUFusionPass();
 void registerSimplifyTosaMatmulScalarPass();
 void registerEliminateMemRefCopyPass();
+void registerEliminateLargeZeroConstantsPass();
 } // namespace buddy
 } // namespace mlir
 
@@ -137,6 +152,13 @@ int main(int argc, char **argv) {
   mlir::buddy::registerDAPVectorizePass();
   mlir::buddy::registerLowerRVVPass();
   mlir::buddy::registerLowerVectorExpPass();
+  mlir::buddy::registerLowerLinalgToTilePass();
+  mlir::buddy::registerLowerTileToBuckyballPass();
+  mlir::buddy::registerLowerBuckyballToBankSSAPass();
+  mlir::buddy::registerAssignPhysicalBanksPass();
+  mlir::buddy::registerLowerBankSSAToIntrinsicsPass();
+  mlir::buddy::registerReportBankUsagePass();
+  mlir::buddy::registerLowerBuckyballPass();
   mlir::buddy::registerLowerGemminiPass();
   mlir::buddy::registerLowerLinalgToGemminiPass();
   mlir::buddy::registerLowerLinalgToIMEPass();
@@ -178,6 +200,8 @@ int main(int argc, char **argv) {
   mlir::buddy::registerSimplifyTosaMatmulScalarPass();
   // Register eliminate redundant memref.copy pass.
   mlir::buddy::registerEliminateMemRefCopyPass();
+  // Register eliminate large zero constants pass.
+  mlir::buddy::registerEliminateLargeZeroConstantsPass();
   mlir::buddy::registerSiLUFusionPass();
   // Register gpu passes
   mlir::buddy::registerConvertMemcpyToGPUPass();
@@ -199,6 +223,8 @@ int main(int argc, char **argv) {
                   buddy::boscame::BOSCAMEDialect,
                   buddy::xtame::XTAMEDialect,
                   buddy::ame::AMEDialect,
+                  buddy::tile::TileDialect,
+                  buddy::buckyball::BuckyballDialect,
                   buddy::ime::IMEDialect>();
   // clang-format on
 

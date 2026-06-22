@@ -26,6 +26,7 @@ def HasBuddyExt : Predicate<"Subtarget->hasBuddyExt()">,
                             AssemblerPredicate<(all_of FeatureBuddyExt),
                             "'BuddyExt' (Buddy RISC-V Extension)">;
 
+
 //===----------------------------------------------------------------------===//
 // AME (RISC-V Matrix Extension) Register Definitions
 //===----------------------------------------------------------------------===//

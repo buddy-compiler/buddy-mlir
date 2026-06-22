@@ -32,6 +32,9 @@
 #include "RVV/RVVDialect.h"
 #include "VectorExp/VectorExpDialect.h"
 #include "VectorExp/VectorExpOps.h"
+#ifdef BUDDY_EXTERNAL_DIALECTS
+#include "Dialect/Buckyball/BuckyballDialect.h"
+#endif
 #include "Gemmini/GemminiDialect.h"
 
 using namespace mlir;
@@ -52,6 +55,7 @@ int main(int argc, char **argv) {
                   buddy::dap::DAPDialect,
                   buddy::rvv::RVVDialect,
                   buddy::vector_exp::VectorExpDialect,
+                  buddy::buckyball::BuckyballDialect,
                   buddy::gemmini::GemminiDialect>();
   // clang-format on
 #ifdef MLIR_INCLUDE_TESTS
