@@ -87,6 +87,7 @@ if(BUDDY_ENABLE_TESTS)
   set(BUDDY_EXAMPLES_DEPENDS
     FileCheck count not
     buddy-opt
+    buddy-llc
     buddy-translate
     mlir-runner
     )
