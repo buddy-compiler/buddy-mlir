@@ -29,6 +29,7 @@ import json
 import operator
 import os
 import platform
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -60,6 +61,19 @@ EXTERNAL_CALL_GROUP_LIBS = {
 }
 
 
+@dataclass
+class TraceConfig:
+    nodes: dict
+    dump_dir: Path | None = None
+    output_path: Path | None = None
+    used_keys: set[str] = field(default_factory=set)
+    output_initialized: bool = False
+
+    def __post_init__(self):
+        self.dump_dir = Path(self.dump_dir) if self.dump_dir else None
+        self.output_path = Path(self.output_path) if self.output_path else None
+
+
 class DynamoCompiler:
     """
     Dynamo Compiler is one of the frontends of Buddy Compiler.
@@ -79,9 +93,7 @@ class DynamoCompiler:
         verbose=False,
         enable_external_calls: bool = False,
         capture_scalar_outputs: bool = False,
-        trace_config: dict | None = None,
-        trace_dump_dir: str | os.PathLike | None = None,
-        trace_output_path: str | os.PathLike | None = None,
+        trace: TraceConfig | None = None,
     ) -> None:
         """
         Initializes the Dynamo Compiler.
@@ -97,13 +109,7 @@ class DynamoCompiler:
             enable_external_calls (bool): Enable external function call support (for oneDNN, etc.)
             capture_scalar_outputs (bool): Enable scalar output capture in
                 TorchDynamo to avoid graph breaks from scalar escapes.
-            trace_config (dict, optional): Mapping from FX node name to trace
-                metadata. Values may be an integer trace id or a dict with
-                `id`, `tag`, and `layout`.
-            trace_dump_dir (str | os.PathLike, optional): Directory where the
-                frontend writes `trace.fx.txt`.
-            trace_output_path (str | os.PathLike, optional): JSONL file where
-                PyTorch FX reference trace values are written.
+            trace (TraceConfig, optional): Trace node metadata and output paths.
         Attributes:
             _func_name: The function name to be used.
             _aot_autograd_decomposition (Optional[dict], optional):
@@ -129,13 +135,7 @@ class DynamoCompiler:
         self._imported_graphs = []
         self._ops_registry = {}
         self._imported_params = {}
-        self._trace_config = trace_config or {}
-        self._used_trace_keys = set()
-        self._trace_dump_dir = Path(trace_dump_dir) if trace_dump_dir else None
-        self._trace_output_path = (
-            Path(trace_output_path) if trace_output_path else None
-        )
-        self._trace_output_initialized = False
+        self._trace = trace
         self._model_config = type("Config", (), {"decode_with_cache": False})
         self._ops_registry.update(math_ops_registry)
         self._ops_registry.update(linalg_ops_registry)
@@ -821,28 +821,28 @@ class DynamoCompiler:
             return {"id": meta}
         if not isinstance(meta, dict):
             raise TypeError(
-                f"trace_config[{key!r}] must be an int or dict, got {type(meta).__name__}"
+                f"trace.nodes[{key!r}] must be an int or dict, got {type(meta).__name__}"
             )
 
-        trace_id = meta.get("id", meta.get("trace_id"))
+        trace_id = meta.get("id")
         if not isinstance(trace_id, int):
-            raise TypeError(f"trace_config[{key!r}] requires integer id")
+            raise TypeError(f"trace.nodes[{key!r}] requires integer id")
 
         result = {"id": trace_id}
         for name in ("tag", "layout"):
             if name in meta:
                 value = meta[name]
                 if not isinstance(value, str):
-                    raise TypeError(f"trace_config[{key!r}][{name!r}] must be a string")
+                    raise TypeError(f"trace.nodes[{key!r}][{name!r}] must be a string")
                 result[name] = value
         return result
 
     def _trace_meta_for_fx_node(self, gm_node):
-        if gm_node.name not in self._trace_config:
+        if self._trace is None or gm_node.name not in self._trace.nodes:
             return None
-        self._used_trace_keys.add(gm_node.name)
+        self._trace.used_keys.add(gm_node.name)
         return self._normalize_trace_meta(
-            gm_node.name, self._trace_config[gm_node.name]
+            gm_node.name, self._trace.nodes[gm_node.name]
         )
 
     def _format_fx_target(self, gm_node) -> str:
@@ -882,10 +882,10 @@ class DynamoCompiler:
         return dtype == "float32"
 
     def _dump_fx_graph(self, gm, node_kinds: dict[str, str]) -> None:
-        if self._trace_dump_dir is None:
+        if self._trace is None or self._trace.dump_dir is None:
             return
 
-        self._trace_dump_dir.mkdir(parents=True, exist_ok=True)
+        self._trace.dump_dir.mkdir(parents=True, exist_ok=True)
         nodes = list(gm.graph.nodes)
         input_deps = {}
         for node in nodes:
@@ -949,19 +949,19 @@ class DynamoCompiler:
             lines.append(
                 "  ".join(row[i].ljust(widths[i]) for i in range(len(headers)))
             )
-        (self._trace_dump_dir / "trace.fx.txt").write_text(
+        (self._trace.dump_dir / "trace.fx.txt").write_text(
             "\n".join(lines) + "\n", encoding="utf-8"
         )
 
     def _write_fx_trace(self, gm, inputs: list[torch.Tensor]) -> None:
-        if self._trace_output_path is None:
+        if self._trace is None or self._trace.output_path is None:
             return
-        if not self._trace_config:
-            raise ValueError("trace_output_path requires trace_config")
+        if not self._trace.nodes:
+            raise ValueError("trace output requires trace nodes")
 
-        self._trace_output_path.parent.mkdir(parents=True, exist_ok=True)
-        mode = "w" if not self._trace_output_initialized else "a"
-        self._trace_output_initialized = True
+        self._trace.output_path.parent.mkdir(parents=True, exist_ok=True)
+        mode = "w" if not self._trace.output_initialized else "a"
+        self._trace.output_initialized = True
 
         compiler = self
 
@@ -972,9 +972,9 @@ class DynamoCompiler:
 
             def run_node(self, node):
                 result = super().run_node(node)
-                if node.name in compiler._trace_config:
+                if node.name in compiler._trace.nodes:
                     meta = compiler._normalize_trace_meta(
-                        node.name, compiler._trace_config[node.name]
+                        node.name, compiler._trace.nodes[node.name]
                     )
                     if not isinstance(result, torch.Tensor):
                         raise TypeError(
@@ -1002,7 +1002,7 @@ class DynamoCompiler:
             interpreter = TraceInterpreter(gm)
             interpreter.run(*inputs)
 
-        with self._trace_output_path.open(mode, encoding="utf-8") as f:
+        with self._trace.output_path.open(mode, encoding="utf-8") as f:
             for record in sorted(interpreter.records, key=lambda item: item["id"]):
                 f.write(json.dumps(record) + "\n")
 
@@ -1312,14 +1312,15 @@ class DynamoCompiler:
                     enabled_external_groups.append(group_name)
             graph._enabled_external_groups = enabled_external_groups
             graph.perform(transform_list)
-            missing_trace_keys = set(self._trace_config) - self._used_trace_keys
-            if missing_trace_keys:
-                missing = ", ".join(sorted(missing_trace_keys))
-                raise KeyError(f"trace_config keys did not match FX nodes: {missing}")
+            if self._trace is not None:
+                missing = set(self._trace.nodes) - self._trace.used_keys
+                if missing:
+                    names = ", ".join(sorted(missing))
+                    raise KeyError(f"trace nodes did not match FX nodes: {names}")
             self._imported_graphs.append(graph)
             self._imported_params[graph] = params_flat
             if return_type == "eager":
-                if self._trace_output_path is None:
+                if self._trace is None or self._trace.output_path is None:
                     return _gm.forward
 
                 def _trace_exec(*args):
