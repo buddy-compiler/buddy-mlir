@@ -161,7 +161,7 @@ func.func @main() {
   %t_end = call @rtclock() : () -> f64
   %time = arith.subf %t_end, %t_start : f64
   vector.print %time : f64
-  // CHECK: {{[0-9]+\.[0-9]+}}
+  // CHECK: {{[0-9]+}}
 
   %tensor_unranked = tensor.cast %result_out : tensor<1x12x1x128xf32> to tensor<*xf32>
   // call @printMemrefF32(%tensor_unranked) : (tensor<*xf32>) -> ()

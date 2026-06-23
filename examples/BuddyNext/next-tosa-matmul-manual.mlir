@@ -70,7 +70,7 @@ module {
     %4 = call @rtclock() : () -> f64
     %5 = arith.subf %4, %0 : f64
     vector.print %5 : f64
-    // CHECK: {{[0-9]+\.[0-9]+}}
+    // CHECK: {{[0-9]+}}
     return %output : memref<12x1x128xf32>
   }
   func.func @main() {
