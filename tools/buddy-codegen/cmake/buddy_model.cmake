@@ -74,6 +74,7 @@ endif()
 #   SPEC          <variant_spec.json>       full path to variant spec
 #   RUNNER_SRC    <file.cpp>                model-specific runner source
 #   [RUNNER_PLUGIN_SRC <file.cpp>]          C ABI plugin wrapper source
+#   [EXTRA_SRCS <file.cpp>...]              optional model runtime sources
 #   [HF_CONFIG    <config.json>]            optional HuggingFace config path
 #   [LOCAL_MODEL  <dir>]                    optional: HF snapshot dir for import
 #                                           (sets DEEPSEEKR1_MODEL_PATH)
@@ -91,7 +92,7 @@ function(buddy_add_model)
     MDL                                      # prefix
     ""                                       # flags
     "NAME;SPEC;RUNNER_SRC;RUNNER_PLUGIN_SRC;HF_CONFIG;LOCAL_MODEL;BUILD_DIR;MLIR_DIR;NUM_THREADS;LLC_ATTRS;COMPILE_JOBS;TIERED_KV_CACHE"
-    "TIERED_CACHE_SIZES"                     # multi-value
+    "EXTRA_SRCS;TIERED_CACHE_SIZES"          # multi-value
     ${ARGN}
   )
 
@@ -258,6 +259,7 @@ function(buddy_add_model)
   add_library(${LIB_TARGET} STATIC
     "${GEN_SESS_CC}"
     "${CMAKE_CURRENT_SOURCE_DIR}/${MDL_RUNNER_SRC}"
+    ${MDL_EXTRA_SRCS}
   )
 
   target_include_directories(${LIB_TARGET} PUBLIC
