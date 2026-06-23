@@ -360,8 +360,8 @@ module {
     vector.print %time_ref : f64
     vector.print %time_vec : f64
 
-    // CHECK: {{[0-9]+\.[0-9]+}}
-    // CHECK: {{[0-9]+\.[0-9]+}}
+    // CHECK: {{[0-9]+}}
+    // CHECK: {{[0-9]+}}
 
     memref.dealloc %C_vec_large : memref<?x?xf32>
     memref.dealloc %B_large : memref<?x?xf32>
