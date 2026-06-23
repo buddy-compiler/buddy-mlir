@@ -11,3 +11,7 @@ add_subdirectory(rax-inspect)
 
 # buddy-cli: generic inference CLI — loads any .rax model and runs it.
 add_subdirectory(buddy-cli)
+
+if(TARGET buddy_models_deepseek_r1)
+  add_subdirectory(buddy-server)
+endif()

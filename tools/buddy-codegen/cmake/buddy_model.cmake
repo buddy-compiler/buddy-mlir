@@ -75,6 +75,7 @@ endif()
 #   RUNNER_SRC    <file.cpp>                model-specific runner source
 #   [RUNNER_PLUGIN_SRC <file.cpp>]          C ABI plugin wrapper source
 #   [RUNNER_HDR   <file.h>]                 model-specific runner header
+#   [EXTRA_SRCS <file.cpp>...]              optional model runtime sources
 #   [HF_CONFIG    <config.json>]            optional HuggingFace config path
 #   [LOCAL_MODEL  <dir>]                    optional: HF snapshot dir for import
 #                                           (sets DEEPSEEKR1_MODEL_PATH)
@@ -101,7 +102,7 @@ function(buddy_add_model)
     MDL                                      # prefix
     ""                                       # flags
     "NAME;SPEC;RUNNER_SRC;RUNNER_PLUGIN_SRC;RUNNER_HDR;HF_CONFIG;LOCAL_MODEL;BUILD_DIR;MLIR_DIR;NUM_THREADS;LLC_ATTRS;COMPILE_JOBS;TIERED_KV_CACHE;MODEL_KIND;IMPORT_SCRIPT;MANIFEST_SCRIPT;LOCAL_MODEL_ENV;MODEL_SO_NAME"
-    "TIERED_CACHE_SIZES;ASSET_FILES;RUNTIME_LINK_LIBS" # multi-value
+    "EXTRA_SRCS;TIERED_CACHE_SIZES;ASSET_FILES;RUNTIME_LINK_LIBS" # multi-value
     ${ARGN}
   )
 
@@ -326,6 +327,7 @@ function(buddy_add_model)
   if(NOT MDL_MODEL_KIND STREQUAL "single_forward" AND NOT MDL_CUSTOM_QWEN3_VL)
     list(PREPEND MDL_RUNTIME_SOURCES "${GEN_SESS_CC}")
   endif()
+  list(APPEND MDL_RUNTIME_SOURCES ${MDL_EXTRA_SRCS})
   add_library(${LIB_TARGET} STATIC ${MDL_RUNTIME_SOURCES})
 
   target_include_directories(${LIB_TARGET} PUBLIC
