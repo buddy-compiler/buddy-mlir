@@ -403,17 +403,17 @@ set(BUDDY_LLAMA32_OFFLINE ON CACHE BOOL
   "Set HF_HUB_OFFLINE and TRANSFORMERS_OFFLINE while packaging Llama 3.2 TT")
 set(BUDDY_LLAMA32_FIXED_BATCH_SIZES "32" CACHE STRING
   "Semicolon-separated additional fixed batch sizes to package for Llama 3.2 TT (batch1 is always emitted as llama32_tt_rax)")
-set(BUDDY_LLAMA32_DECODE_RMSNORM_FUSION OFF CACHE BOOL
+set(BUDDY_LLAMA32_DECODE_RMSNORM_FUSION ON CACHE BOOL
   "Experimental: fuse Llama 3.2 decode RMSNorm into a TTNN op")
 set(BUDDY_LLAMA32_DECODE_ARGMAX_TILE OFF CACHE BOOL
   "Experimental: let Llama 3.2 decode argmax consume tiled LM-head logits directly")
 set(BUDDY_LLAMA32_DECODE_FOLD_IDENTITY_MUL OFF CACHE BOOL
   "Experimental: fold generated Llama 3.2 decode multiply-by-one ops")
-set(BUDDY_LLAMA32_DECODE_PACK_QKV OFF CACHE BOOL
+set(BUDDY_LLAMA32_DECODE_PACK_QKV ON CACHE BOOL
   "Experimental: pre-pack Llama 3.2 decode Q/K/V static weight slots")
 set(BUDDY_LLAMA32_DECODE_PACK_MLP_GATE_UP OFF CACHE BOOL
   "Experimental: pre-pack Llama 3.2 decode MLP gate/up static weight slots")
-set(BUDDY_LLAMA32_DECODE_PRECOMPUTE_ROPE OFF CACHE BOOL
+set(BUDDY_LLAMA32_DECODE_PRECOMPUTE_ROPE ON CACHE BOOL
   "Experimental: replace generated Llama 3.2 decode RoPE trig ops with runtime inputs")
 set(BUDDY_LLAMA32_DECODE_LMHEAD_HIFI2 OFF CACHE BOOL
   "Experimental: use HiFi2/no-fp32 accumulation only for the Llama 3.2 decode LM-head matmul")
@@ -427,7 +427,7 @@ set(BUDDY_LLAMA32_DECODE_LM_HEAD_MCAST1D_PC OFF CACHE BOOL
   "Experimental: attach 1D multicast matmul program config to Llama 3.2 decode LM-head projection matmul(s)")
 set(BUDDY_LLAMA32_DECODE_LM_HEAD_PROGRAM_CORES "48" CACHE STRING
   "Number of cores used by LM-head program-config experiments")
-set(BUDDY_LLAMA32_DECODE_SPLIT_EMBEDDING_WEIGHT OFF CACHE BOOL
+set(BUDDY_LLAMA32_DECODE_SPLIT_EMBEDDING_WEIGHT ON CACHE BOOL
   "Experimental: duplicate the tied Llama 3.2 decode embedding/LM-head weight as separate TTNN layout slots")
 set(BUDDY_LLAMA32_DECODE_KEEP_STATIC_WEIGHT_INPUTS OFF CACHE BOOL
   "Experimental: remove generated Llama 3.2 decode dealloc ops for static weight inputs")
