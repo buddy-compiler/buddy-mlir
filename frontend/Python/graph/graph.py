@@ -740,10 +740,6 @@ class GraphImporter:
             owner.attributes["buddy.trace_tag"] = ir.StringAttr.get(
                 trace_meta["tag"]
             )
-        if "layout" in trace_meta:
-            owner.attributes["buddy.trace_layout"] = ir.StringAttr.get(
-                trace_meta["layout"]
-            )
 
     def _str_to_mlir_dtype(self, dtype: str) -> ir.Type:
         """

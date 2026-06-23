@@ -39,6 +39,7 @@ from .rand_replace import RUNTIME_RNG_TRANSFORMS
 from .runtime_matmul_replace import (
     replace_matmul_with_buddy_runtime,
 )
+from .trace import trace_insertion
 from .useless_op_eliminate import maxpool2d_simplify
 
 __all__ = [
@@ -53,5 +54,6 @@ __all__ = [
     "replace_matmul_with_onednn_selective",
     "RUNTIME_RNG_TRANSFORMS",
     "simply_fuse",
+    "trace_insertion",
     "weight_only_channel_wise",
 ]
