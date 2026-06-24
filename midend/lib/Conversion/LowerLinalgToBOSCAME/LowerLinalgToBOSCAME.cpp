@@ -170,19 +170,18 @@ public:
       auto memrefType = cast<MemRefType>(subview.getType());
       unsigned bytesPerElem = memrefType.getElementTypeBitWidth() / 8;
       Value bytesVal =
-<<<<<<< Updated upstream
           arith::ConstantIndexOp::create(rewriter, loc, bytesPerElem);
 
       Value strideBytes =
+          arith::MulIOp::create(rewriter, loc, strideElem, bytesVal);
 
       return arith::IndexCastOp::create(rewriter, loc, rewriter.getI64Type(),
                                         strideBytes);
-=======
-          rewriter.create<arith::ConstantIndexOp>(loc, bytesPerElem);
+    };
+    Value strideA = getRowStride(subA);
+    Value strideB = getRowStride(subB);
+    Value strideC = getRowStride(subC);
 
-      Value strideBytes =
-
-<<<<<<< Updated upstream
     MSettypeiOp::create(rewriter, loc, rewriter.getI64Type(), msetTypeImm);
     MSettilemOp::create(rewriter, loc, rewriter.getI64Type(), currMI64);
     MSettilenOp::create(rewriter, loc, rewriter.getI64Type(), currNI64);
@@ -225,50 +224,6 @@ public:
       Msce64mOp::create(rewriter, loc, 0, subC, strideC);
     } else if (elemTypeC.isInteger(16) || elemTypeC.isF16()) {
       Msce16mOp::create(rewriter, loc, 0, subC, strideC);
-=======
-    rewriter.create<MSettypeiOp>(loc, rewriter.getI64Type(), msetTypeImm);
-    rewriter.create<MSettilemOp>(loc, rewriter.getI64Type(), currMI64);
-    rewriter.create<MSettilenOp>(loc, rewriter.getI64Type(), currNI64);
-    rewriter.create<MSettilekOp>(loc, rewriter.getI64Type(), currKI64);
-
-    if (elemTypeC.isInteger(32)) {
-      rewriter.create<MsubWMmOp>(loc, 0, 0, 0);
-    } else if (elemTypeC.isInteger(16)) {
-      rewriter.create<MsubHMmOp>(loc, 0, 0, 0);
-    } else if (elemTypeC.isInteger(64)) {
-      rewriter.create<MsubDwMmOp>(loc, 0, 0, 0);
-    }
-
-    if (elemTypeA.isInteger(8)) {
-      rewriter.create<Mlae8mOp>(loc, 0, subA, strideA);
-      rewriter.create<Mlbe8mOp>(loc, 1, subB, strideB);
-    } else if (elemTypeA.isF16() || elemTypeA.isBF16() ||
-               elemTypeA.isInteger(16)) {
-      rewriter.create<Mlae16mOp>(loc, 0, subA, strideA);
-      rewriter.create<Mlbe16mOp>(loc, 1, subB, strideB);
-    } else if (elemTypeA.isInteger(32) || elemTypeA.isF32()) {
-      rewriter.create<Mlae32mOp>(loc, 0, subA, strideA);
-      rewriter.create<Mlbe32mOp>(loc, 1, subB, strideB);
-    } else if (elemTypeA.isInteger(64) || elemTypeA.isF64()) {
-      rewriter.create<Mlae64mOp>(loc, 0, subA, strideA);
-      rewriter.create<Mlbe64mOp>(loc, 1, subB, strideB);
-    }
-
-    if (elemTypeC.isInteger(32) && elemTypeA.isInteger(32)) {
-      rewriter.create<MmaWmmOp>(loc, 0, 0, 1);
-    } else if (elemTypeC.isInteger(16) && elemTypeA.isInteger(16)) {
-      rewriter.create<MmaHmmOp>(loc, 0, 0, 1);
-    } else if (elemTypeC.isInteger(64) && elemTypeA.isInteger(64)) {
-      rewriter.create<MmaDwmmOp>(loc, 0, 0, 1);
-    }
-
-    if (elemTypeC.isInteger(32) || elemTypeC.isF32()) {
-      rewriter.create<Msce32mOp>(loc, 0, subC, strideC);
-    } else if (elemTypeC.isInteger(64) || elemTypeC.isF64()) {
-      rewriter.create<Msce64mOp>(loc, 0, subC, strideC);
-    } else if (elemTypeC.isInteger(16) || elemTypeC.isF16()) {
-      rewriter.create<Msce16mOp>(loc, 0, subC, strideC);
->>>>>>> Stashed changes
     }
 
     rewriter.setInsertionPointAfter(loopM);
