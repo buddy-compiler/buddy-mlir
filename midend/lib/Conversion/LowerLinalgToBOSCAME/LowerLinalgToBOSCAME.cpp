@@ -110,14 +110,14 @@ public:
           op, "Unsupported mixed-precision combination.");
     }
 
-    Value dimM = rewriter.create<memref::DimOp>(loc, A, 0);
-    Value dimK = rewriter.create<memref::DimOp>(loc, A, 1);
-    Value dimN = rewriter.create<memref::DimOp>(loc, B, 1);
+    Value dimM = memref::DimOp::create(rewriter, loc, A, 0);
+    Value dimK = memref::DimOp::create(rewriter, loc, A, 1);
+    Value dimN = memref::DimOp::create(rewriter, loc, B, 1);
 
-    Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
-    Value stepM = rewriter.create<arith::ConstantIndexOp>(loc, tileM);
-    Value stepK = rewriter.create<arith::ConstantIndexOp>(loc, tileK);
-    Value stepN = rewriter.create<arith::ConstantIndexOp>(loc, tileN);
+    Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
+    Value stepM = arith::ConstantIndexOp::create(rewriter, loc, tileM);
+    Value stepK = arith::ConstantIndexOp::create(rewriter, loc, tileK);
+    Value stepN = arith::ConstantIndexOp::create(rewriter, loc, tileN);
 
     auto loopM = scf::ForOp::create(rewriter, loc, c0, dimM, stepM);
     rewriter.setInsertionPointToStart(loopM.getBody());
@@ -132,11 +132,11 @@ public:
     Value ivK = loopK.getInductionVar();
 
     auto calcCurrentSize = [&](Value bound, Value iv, int64_t step) {
-      Value remain = rewriter.create<arith::SubIOp>(loc, bound, iv);
-      Value stepVal = rewriter.create<arith::ConstantIndexOp>(loc, step);
-      Value cmp = rewriter.create<arith::CmpIOp>(loc, arith::CmpIPredicate::slt,
-                                                 remain, stepVal);
-      return rewriter.create<arith::SelectOp>(loc, cmp, remain, stepVal);
+      Value remain = arith::SubIOp::create(rewriter, loc, bound, iv);
+      Value stepVal = arith::ConstantIndexOp::create(rewriter, loc, step);
+      Value cmp = arith::CmpIOp::create(
+          rewriter, loc, arith::CmpIPredicate::slt, remain, stepVal);
+      return arith::SelectOp::create(rewriter, loc, cmp, remain, stepVal);
     };
 
     Value currM = calcCurrentSize(dimM, ivM, tileM);
@@ -144,86 +144,86 @@ public:
     Value currK = calcCurrentSize(dimK, ivK, tileK);
 
     Value currMI64 =
-        rewriter.create<arith::IndexCastOp>(loc, rewriter.getI64Type(), currM);
+        arith::IndexCastOp::create(rewriter, loc, rewriter.getI64Type(), currM);
     Value currNI64 =
-        rewriter.create<arith::IndexCastOp>(loc, rewriter.getI64Type(), currN);
+        arith::IndexCastOp::create(rewriter, loc, rewriter.getI64Type(), currN);
     Value currKI64 =
-        rewriter.create<arith::IndexCastOp>(loc, rewriter.getI64Type(), currK);
+        arith::IndexCastOp::create(rewriter, loc, rewriter.getI64Type(), currK);
 
     SmallVector<OpFoldResult> stridesAttr = {rewriter.getIndexAttr(1),
                                              rewriter.getIndexAttr(1)};
-    Value subA = rewriter.create<memref::SubViewOp>(
-        loc, A, ArrayRef<OpFoldResult>{ivM, ivK},
+    Value subA = memref::SubViewOp::create(
+        rewriter, loc, A, ArrayRef<OpFoldResult>{ivM, ivK},
         ArrayRef<OpFoldResult>{currM, currK}, stridesAttr);
-    Value subB = rewriter.create<memref::SubViewOp>(
-        loc, B, ArrayRef<OpFoldResult>{ivK, ivN},
+    Value subB = memref::SubViewOp::create(
+        rewriter, loc, B, ArrayRef<OpFoldResult>{ivK, ivN},
         ArrayRef<OpFoldResult>{currK, currN}, stridesAttr);
-    Value subC = rewriter.create<memref::SubViewOp>(
-        loc, C, ArrayRef<OpFoldResult>{ivM, ivN},
+    Value subC = memref::SubViewOp::create(
+        rewriter, loc, C, ArrayRef<OpFoldResult>{ivM, ivN},
         ArrayRef<OpFoldResult>{currM, currN}, stridesAttr);
 
     auto getRowStride = [&](Value subview) -> Value {
       auto meta =
-          rewriter.create<memref::ExtractStridedMetadataOp>(loc, subview);
+          memref::ExtractStridedMetadataOp::create(rewriter, loc, subview);
       Value strideElem = meta.getResult(4);
 
       auto memrefType = cast<MemRefType>(subview.getType());
       unsigned bytesPerElem = memrefType.getElementTypeBitWidth() / 8;
       Value bytesVal =
-          rewriter.create<arith::ConstantIndexOp>(loc, bytesPerElem);
+          arith::ConstantIndexOp::create(rewriter, loc, bytesPerElem);
 
       Value strideBytes =
-          rewriter.create<arith::MulIOp>(loc, strideElem, bytesVal);
+          arith::MulIOp::create(rewriter, loc, strideElem, bytesVal);
 
-      return rewriter.create<arith::IndexCastOp>(loc, rewriter.getI64Type(),
-                                                 strideBytes);
+      return arith::IndexCastOp::create(rewriter, loc, rewriter.getI64Type(),
+                                        strideBytes);
     };
     Value strideA = getRowStride(subA);
     Value strideB = getRowStride(subB);
     Value strideC = getRowStride(subC);
 
-    rewriter.create<MSettypeiOp>(loc, rewriter.getI64Type(), msetTypeImm);
-    rewriter.create<MSettilemOp>(loc, rewriter.getI64Type(), currMI64);
-    rewriter.create<MSettilenOp>(loc, rewriter.getI64Type(), currNI64);
-    rewriter.create<MSettilekOp>(loc, rewriter.getI64Type(), currKI64);
+    MSettypeiOp::create(rewriter, loc, rewriter.getI64Type(), msetTypeImm);
+    MSettilemOp::create(rewriter, loc, rewriter.getI64Type(), currMI64);
+    MSettilenOp::create(rewriter, loc, rewriter.getI64Type(), currNI64);
+    MSettilekOp::create(rewriter, loc, rewriter.getI64Type(), currKI64);
 
     if (elemTypeC.isInteger(32)) {
-      rewriter.create<MsubWMmOp>(loc, 0, 0, 0);
+      MsubWMmOp::create(rewriter, loc, 0, 0, 0);
     } else if (elemTypeC.isInteger(16)) {
-      rewriter.create<MsubHMmOp>(loc, 0, 0, 0);
+      MsubHMmOp::create(rewriter, loc, 0, 0, 0);
     } else if (elemTypeC.isInteger(64)) {
-      rewriter.create<MsubDwMmOp>(loc, 0, 0, 0);
+      MsubDwMmOp::create(rewriter, loc, 0, 0, 0);
     }
 
     if (elemTypeA.isInteger(8)) {
-      rewriter.create<Mlae8mOp>(loc, 0, subA, strideA);
-      rewriter.create<Mlbe8mOp>(loc, 1, subB, strideB);
+      Mlae8mOp::create(rewriter, loc, 0, subA, strideA);
+      Mlbe8mOp::create(rewriter, loc, 1, subB, strideB);
     } else if (elemTypeA.isF16() || elemTypeA.isBF16() ||
                elemTypeA.isInteger(16)) {
-      rewriter.create<Mlae16mOp>(loc, 0, subA, strideA);
-      rewriter.create<Mlbe16mOp>(loc, 1, subB, strideB);
+      Mlae16mOp::create(rewriter, loc, 0, subA, strideA);
+      Mlbe16mOp::create(rewriter, loc, 1, subB, strideB);
     } else if (elemTypeA.isInteger(32) || elemTypeA.isF32()) {
-      rewriter.create<Mlae32mOp>(loc, 0, subA, strideA);
-      rewriter.create<Mlbe32mOp>(loc, 1, subB, strideB);
+      Mlae32mOp::create(rewriter, loc, 0, subA, strideA);
+      Mlbe32mOp::create(rewriter, loc, 1, subB, strideB);
     } else if (elemTypeA.isInteger(64) || elemTypeA.isF64()) {
-      rewriter.create<Mlae64mOp>(loc, 0, subA, strideA);
-      rewriter.create<Mlbe64mOp>(loc, 1, subB, strideB);
+      Mlae64mOp::create(rewriter, loc, 0, subA, strideA);
+      Mlbe64mOp::create(rewriter, loc, 1, subB, strideB);
     }
 
     if (elemTypeC.isInteger(32) && elemTypeA.isInteger(32)) {
-      rewriter.create<MmaWmmOp>(loc, 0, 0, 1);
+      MmaWmmOp::create(rewriter, loc, 0, 0, 1);
     } else if (elemTypeC.isInteger(16) && elemTypeA.isInteger(16)) {
-      rewriter.create<MmaHmmOp>(loc, 0, 0, 1);
+      MmaHmmOp::create(rewriter, loc, 0, 0, 1);
     } else if (elemTypeC.isInteger(64) && elemTypeA.isInteger(64)) {
-      rewriter.create<MmaDwmmOp>(loc, 0, 0, 1);
+      MmaDwmmOp::create(rewriter, loc, 0, 0, 1);
     }
 
     if (elemTypeC.isInteger(32) || elemTypeC.isF32()) {
-      rewriter.create<Msce32mOp>(loc, 0, subC, strideC);
+      Msce32mOp::create(rewriter, loc, 0, subC, strideC);
     } else if (elemTypeC.isInteger(64) || elemTypeC.isF64()) {
-      rewriter.create<Msce64mOp>(loc, 0, subC, strideC);
+      Msce64mOp::create(rewriter, loc, 0, subC, strideC);
     } else if (elemTypeC.isInteger(16) || elemTypeC.isF16()) {
-      rewriter.create<Msce16mOp>(loc, 0, subC, strideC);
+      Msce16mOp::create(rewriter, loc, 0, subC, strideC);
     }
 
     rewriter.setInsertionPointAfter(loopM);
