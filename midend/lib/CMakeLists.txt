@@ -44,7 +44,7 @@ set(LinkedLibs
   StaticizeMemRefLayoutPass
   EliminateMemRefCopyPass
   EliminateLargeZeroConstants
-  TraceInstrumentation
+  TraceInsert
   GraphRedundancyElimination
 )
 

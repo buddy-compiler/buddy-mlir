@@ -14,9 +14,10 @@
 #
 # ===---------------------------------------------------------------------------
 
-from .config import TraceConfig, normalize_trace_meta
+from .config import TraceConfig, load_trace_config, normalize_trace_meta
 
 __all__ = [
     "TraceConfig",
+    "load_trace_config",
     "normalize_trace_meta",
 ]

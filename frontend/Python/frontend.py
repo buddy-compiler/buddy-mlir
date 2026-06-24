@@ -28,6 +28,7 @@ import ctypes.util
 import operator
 import os
 import platform
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -77,6 +78,7 @@ class DynamoCompiler:
         primary_registry: dict | None = None,
         aot_autograd_decomposition: dict | None = None,
         verbose=False,
+        verbose_path: str | os.PathLike | None = None,
         enable_external_calls: bool = False,
         capture_scalar_outputs: bool = False,
         trace: _TraceConfig | None = None,
@@ -92,6 +94,8 @@ class DynamoCompiler:
             verbose (bool): Controls whether to print additional information for
                 debugging purposes. The default value is False, indicating that
                 no extra debug information will be printed.
+            verbose_path (str | os.PathLike, optional): Redirect verbose output
+                to this file instead of stdout.
             enable_external_calls (bool): Enable external function call support (for oneDNN, etc.)
             capture_scalar_outputs (bool): Enable scalar output capture in
                 TorchDynamo to avoid graph breaks from scalar escapes.
@@ -117,6 +121,9 @@ class DynamoCompiler:
         self._func_name = func_name
         self._aot_autograd_decomposition = aot_autograd_decomposition
         self._verbose = verbose
+        self._verbose_path = (
+            Path(verbose_path) if verbose_path is not None else None
+        )
         self._enable_external_calls = enable_external_calls
         self._imported_graphs = []
         self._ops_registry = {}
@@ -913,8 +920,17 @@ class DynamoCompiler:
         params_flat = [inputs[i] for i in params_pos + buffers_pos]
 
         if self._verbose:
-            print("Graph in tabular form:")
-            gm.graph.print_tabular()
+            if self._verbose_path is None:
+                print("Graph in tabular form:")
+                gm.graph.print_tabular()
+            else:
+                self._verbose_path.parent.mkdir(parents=True, exist_ok=True)
+                with (
+                    self._verbose_path.open("w") as verbose_file,
+                    contextlib.redirect_stdout(verbose_file),
+                ):
+                    print("Graph in tabular form:")
+                    gm.graph.print_tabular()
 
         def _compiler(_gm: torch.fx.GraphModule, _inputs: list[torch.Tensor]):
             """Compile a FX graph in Aten/Prims IR to MLIR."""
@@ -923,6 +939,7 @@ class DynamoCompiler:
                 self._func_name,
                 DeviceType.CPU,
                 self._verbose,
+                self._verbose_path,
                 self._enable_external_calls,
             )
             graph._params_ref = params_flat

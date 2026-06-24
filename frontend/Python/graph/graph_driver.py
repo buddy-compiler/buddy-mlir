@@ -128,6 +128,7 @@ class GraphDriver:
                 subgraph_name,
                 subgraph_device,
                 verbose=self._graph._verbose,
+                verbose_path=self._graph._verbose_path,
                 enable_external_calls=self._graph._enable_external_calls,
             )
 
@@ -216,6 +217,7 @@ class GraphDriver:
             ops_registry=self._graph._ops_registry,
             func_name=self._graph._func_name,
             verbose=self._graph._verbose,
+            verbose_path=self._graph._verbose_path,
         )
 
         # Adding placeholder operations from the original graph
@@ -292,5 +294,7 @@ class GraphDriver:
                 main_graph._func_name,
                 main_graph._ops_registry,
                 do_param_pack,
+                verbose=main_graph._verbose,
+                verbose_path=main_graph._verbose_path,
             )
             return main_importer.import_main_graph()

@@ -17,6 +17,7 @@
 from .lowering import (
     has_trace,
     trace_op_result,
+    trace_op_start,
 )
 from .passes import TraceInsertionPass, trace_insertion
 
@@ -25,4 +26,5 @@ __all__ = [
     "has_trace",
     "trace_insertion",
     "trace_op_result",
+    "trace_op_start",
 ]

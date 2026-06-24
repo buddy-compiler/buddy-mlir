@@ -21,38 +21,67 @@ def has_trace(node) -> bool:
     return node.trace_meta is not None
 
 
-def _set_trace_attrs(node, value) -> None:
+def _trace_attrs(node) -> dict:
     trace_meta = node.trace_meta
     if trace_meta is None:
-        return
-
-    owner = None
-    if isinstance(value, ir.OpResult):
-        owner = value.owner
-    elif isinstance(value, ir.Operation):
-        owner = value
-    elif isinstance(value, ir.OpView):
-        owner = value.operation
-
-    if owner is None:
-        raise TypeError(f"Cannot attach trace metadata to node {node.name}")
+        return {}
 
     i64 = ir.IntegerType.get_signless(64)
-    owner.attributes["buddy.trace_id"] = ir.IntegerAttr.get(
-        i64, trace_meta["id"]
-    )
+    attrs = {"id": ir.IntegerAttr.get(i64, trace_meta["id"])}
     if "tag" in trace_meta:
-        owner.attributes["buddy.trace_tag"] = ir.StringAttr.get(
-            trace_meta["tag"]
+        attrs["tag"] = ir.StringAttr.get(trace_meta["tag"])
+    return attrs
+
+
+def _insert_op(op: ir.Operation) -> ir.Operation:
+    return op
+
+
+def _as_value(value):
+    if isinstance(value, ir.OpResult):
+        return value
+    elif isinstance(value, ir.Operation):
+        if len(value.results) != 1:
+            raise ValueError("Trace op must lower to one result")
+        return value.result
+    elif isinstance(value, ir.OpView):
+        if len(value.operation.results) != 1:
+            raise ValueError("Trace op must lower to one result")
+        return value.operation.result
+    return value
+
+
+def trace_op_start(node):
+    if not has_trace(node):
+        return
+    _insert_op(
+        ir.Operation.create(
+            "buddy_trace.start",
+            attributes=_trace_attrs(node),
         )
+    )
 
 
 def trace_op_result(node, op_ret):
     if not has_trace(node):
-        return
+        return op_ret
+
     if isinstance(op_ret, tuple | list | ir.OpResultList):
         if len(op_ret) != 1:
             raise ValueError(f"Trace node {node.name} must lower to one result")
-        _set_trace_attrs(node, op_ret[0])
-        return
-    _set_trace_attrs(node, op_ret)
+        value = _as_value(op_ret[0])
+    else:
+        value = _as_value(op_ret)
+
+    if not isinstance(value, (ir.OpResult, ir.BlockArgument)):
+        raise TypeError(f"Cannot trace result of node {node.name}")
+
+    op = _insert_op(
+        ir.Operation.create(
+            "buddy_trace.end",
+            results=[value.type],
+            operands=[value],
+            attributes=_trace_attrs(node),
+        )
+    )
+    return op.result

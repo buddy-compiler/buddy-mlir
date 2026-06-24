@@ -48,6 +48,9 @@
 #include "DIP/DIPOps.h"
 #include "Tile/TileDialect.h"
 #include "Tile/TileOps.h"
+#include "Trace/TraceDialect.h"
+#include "Trace/TraceOps.h"
+#include "Trace/Transforms/BufferizableOpInterfaceImpl.h"
 // Buckyball dialect is a dialect implemented outside of buddy-mlir
 #ifdef BUDDY_EXTERNAL_DIALECTS
 #include "Dialect/Buckyball/BuckyballDialect.h"
@@ -131,7 +134,7 @@ void registerSiLUFusionPass();
 void registerSimplifyTosaMatmulScalarPass();
 void registerEliminateMemRefCopyPass();
 void registerEliminateLargeZeroConstantsPass();
-void registerInsertTensorTracePass();
+void registerConvertTraceToLLVMPass();
 } // namespace buddy
 } // namespace mlir
 
@@ -203,8 +206,8 @@ int main(int argc, char **argv) {
   mlir::buddy::registerEliminateMemRefCopyPass();
   // Register eliminate large zero constants pass.
   mlir::buddy::registerEliminateLargeZeroConstantsPass();
-  // Register tensor trace instrumentation pass.
-  mlir::buddy::registerInsertTensorTracePass();
+  // Register trace conversion pipeline.
+  mlir::buddy::registerConvertTraceToLLVMPass();
   mlir::buddy::registerSiLUFusionPass();
   // Register gpu passes
   mlir::buddy::registerConvertMemcpyToGPUPass();
@@ -214,6 +217,7 @@ int main(int argc, char **argv) {
   // Register all MLIR core dialects.
   registerAllDialects(registry);
   mlir::registerAllExtensions(registry);
+  buddy::trace::registerBufferizableOpInterfaceExternalModels(registry);
   // Register dialects in buddy-mlir project.
   // clang-format off
   registry.insert<buddy::bud::BudDialect,
@@ -227,6 +231,7 @@ int main(int argc, char **argv) {
                   buddy::xtame::XTAMEDialect,
                   buddy::ame::AMEDialect,
                   buddy::tile::TileDialect,
+                  buddy::trace::BuddyTraceDialect,
                   buddy::buckyball::BuckyballDialect,
                   buddy::ime::IMEDialect>();
   // clang-format on

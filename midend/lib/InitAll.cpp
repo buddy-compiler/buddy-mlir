@@ -26,6 +26,7 @@
 #include "Dialect/DAP/DAPDialect.h"
 #include "Dialect/DIP/DIPDialect.h"
 #include "Dialect/Tile/TileDialect.h"
+#include "Dialect/Trace/TraceDialect.h"
 // Buckyball dialect is now external
 #ifdef BUDDY_EXTERNAL_DIALECTS
 #include "Dialect/Buckyball/BuckyballDialect.h"
@@ -75,7 +76,7 @@ void registerSimplifyTosaReshapePass();
 void registerSimplifyTosaMatmulScalarPass();
 void registerEliminateMemRefCopyPass();
 void registerEliminateLargeZeroConstantsPass();
-void registerInsertTensorTracePass();
+void registerConvertTraceToLLVMPass();
 } // namespace buddy
 } // namespace mlir
 
@@ -87,6 +88,7 @@ void mlir::buddy::registerAllDialects(mlir::DialectRegistry &registry) {
   registry.insert<::buddy::dap::DAPDialect>();
   registry.insert<::buddy::dip::DIPDialect>();
   registry.insert<::buddy::tile::TileDialect>();
+  registry.insert<::buddy::trace::BuddyTraceDialect>();
 #ifdef BUDDY_EXTERNAL_DIALECTS
   registry.insert<::buddy::buckyball::BuckyballDialect>();
 #endif
@@ -134,5 +136,5 @@ void mlir::buddy::registerAllPasses() {
   mlir::buddy::registerSimplifyTosaMatmulScalarPass();
   mlir::buddy::registerEliminateMemRefCopyPass();
   mlir::buddy::registerEliminateLargeZeroConstantsPass();
-  mlir::buddy::registerInsertTensorTracePass();
+  mlir::buddy::registerConvertTraceToLLVMPass();
 }

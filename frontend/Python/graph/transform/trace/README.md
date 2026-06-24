@@ -1,17 +1,94 @@
 # Trace framework design
 
-The trace transform follows the same split used by graph quantization:
+This is a unified trace framework for workload profiling and debugging.
 
-- `passes.py` exports the public pass entry points.
-- `lowering.py` contains MLIR lowering hooks used when a traced Buddy graph
-  node must attach attributes to an MLIR operation or value.
+**Execution flow Overview**
+In the frontend, a transform pass traverses the entire buddy graph and, based on a user-supplied `trace.toml`, inserts `TraceStart` and `TraceEnd` nodes around each matching node. In the backend, adding `-convert-trace-to-llvm="tensor-trace,cycle-trace"` to the pipeline lowers all trace nodes into corresponding runtime function calls. `tensor-trace` exports the associated tensor to a log file for debugging, while `cycle-trace` reads the hardware cycle counter twice to measure performance, with the concrete implementation provided by the runtime (e.g., `rdtime` or `rdcycle` on RISC-V).
 
-`TraceInsertionPass` runs before lowering. It matches names from
-`TraceConfig.trace_config` against Buddy graph nodes, normalizes the trace
-metadata, stores it on the matched node, and errors if any configured node is
-missing.
+**Extensibility**
+The aim of this framework is to be designed to be sufficiently extensible, so that different traces can be added in the future.
+- At the frontend, the transform design allows developers to modify `lowering.py` to support additional attributes passed through `trace.toml`.
+- At the middleend, custom trace passes can be added for any dialect.
+- At the backend, the runtime interface is device-agnostic and can in principle target any backend.
 
-The Buddy graph pass marks matched graph nodes and wraps the graph lowering
-registry so trace attributes are attached after each marked node lowers to
-MLIR. Nodes such as `PlaceholderOp` and `GetItemOp` are rejected because they
-do not lower to their own MLIR operation.
+# How to use trace to profile/debug your workload?
+
+### 1. Run in no-trace mode and read generated buddy graph
+
+For [example](https://github.com/buddy-compiler/buddy-examples/blob/main/models/models/LeNet/buddy-lenet-import.py), disable trace and enable verbose lowering:
+
+```python
+dynamo_compiler = DynamoCompiler(
+  primary_registry=tosa.ops_registry,
+  aot_autograd_decomposition=inductor_decomp,
+  verbose=True,
+  verbose_path=model_dir / "output" / "buddy-graph.txt",
+  trace=None,
+)
+```
+You can see generated buddy graph under the `verbose_path`.
+
+### 2. Write `trace.toml` based on this file
+
+Each trace entry contains:
+
+- `node`: Buddy graph node name from `buddy-graph.txt`.
+- `id`: Unique integer trace id.
+- `tag`: Human readable name used by the profiling/debugging script.
+
+Example:
+
+```toml
+[[trace]]
+node = "convolution"
+id = 0
+tag = "conv1_out"
+```
+
+### 3. Implement backend runtime hooks
+
+Implement the runtime functions selected by `-convert-trace-to-llvm="tensor-trace,cycle-trace"`:
+
+```
+# Tensor trace runtime hook.
+extern "C" void _mlir_ciface_buddyTraceTensorF32(int64_t id, StridedMemRefType<float, 1> *tensor)
+
+# Cycle trace runtime hooks.
+extern "C" void _mlir_ciface_buddyTraceCycleStart(int64_t id)
+extern "C" void _mlir_ciface_buddyTraceCycleEnd(int64_t id)
+```
+
+An example runtime is implemented [here](https://github.com/buddy-compiler/buddy-examples/blob/main/models/lib/CRunnerUtils.cpp)
+
+
+The current runtime writes:
+
+```text
+trace/tensor/trace-<id>.txt
+trace/cycle/trace-<id>.txt
+```
+
+The output directories are created by the workload build rule before running the binary.
+
+### 4. Compile and Run
+
+Compile and run the workload as usual. You can see trace log files under `trace` directory (In the same directory as your executable file).
+
+```text
+  cycle/trace-<id>.txt
+  tensor/trace-<id>.txt
+```
+
+Notes: Tensor-trace affects the cycle-trace statistics (due to the addition of extra data movement)
+
+### 5. (Optional) Visualize trace results
+
+An example visualization script is [perfetto.py](https://github.com/buddy-compiler/buddy-examples/blob/main/models/scripts/perfetto.py)
+
+Convert the trace output into Perfetto JSON:
+
+```bash
+python3 perfetto.py /path/to/trace_output_dir /path/to/trace.toml
+```
+
+The default output is `perfetto.json`. You can see it [here](https://www.ui.perfetto.dev)

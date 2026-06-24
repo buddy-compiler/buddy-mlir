@@ -15,17 +15,17 @@
 # ===---------------------------------------------------------------------------
 
 from ....trace.config import TraceConfig, normalize_trace_meta
-from .lowering import trace_op_result
+from .lowering import trace_op_result, trace_op_start
 
 
 def _wrap_registry(ops_registry: dict):
     wrapped = {}
     for op_name, lower in ops_registry.items():
 
-        def traced_lower(node, symbol_table, lower=lower):
-            op_ret = lower(node, symbol_table)
-            trace_op_result(node, op_ret)
-            return op_ret
+        def traced_lower(node, *args, _lower=lower, **kwargs):
+            trace_op_start(node)
+            op_ret = _lower(node, *args, **kwargs)
+            return trace_op_result(node, op_ret)
 
         wrapped[op_name] = traced_lower
     return wrapped

@@ -25,6 +25,7 @@ target_link_libraries(buddy-opt
   BuddyDAP
   LowerDAPPass
   BuddyTile
+  BuddyTrace
   LowerLinalgToTilePass
   LowerTileToBuckyballPass
   ExtendDAPPass
@@ -69,5 +70,5 @@ target_link_libraries(buddy-opt
   StaticizeMemRefLayoutPass
   EliminateMemRefCopyPass
   EliminateLargeZeroConstants
-  TraceInstrumentation
+  TraceInsert
   )

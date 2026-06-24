@@ -821,6 +821,7 @@ class PartitionedGraphDriver:
                 subgraph_name,
                 subgraph_device,
                 verbose=self._graph._verbose,
+                verbose_path=self._graph._verbose_path,
             )
 
             # Construct input placeholder nodes
@@ -947,6 +948,7 @@ class PartitionedGraphDriver:
                 ops_registry=self._graph._ops_registry,
                 func_name=main_graph_name,
                 verbose=self._graph._verbose,
+                verbose_path=self._graph._verbose_path,
             )
 
             # Add FuncOp node for current subgraph
@@ -1151,6 +1153,8 @@ class PartitionedGraphDriver:
                     main_graph._func_name,
                     main_graph._ops_registry,
                     do_param_pack,
+                    verbose=main_graph._verbose,
+                    verbose_path=main_graph._verbose_path,
                 )
                 self._modules[main_graph_name] = (
                     main_importer.import_main_graph()
@@ -1184,6 +1188,7 @@ class PartitionedGraphDriver:
             ops_registry=self._graph._ops_registry,
             func_name=self._graph._func_name,
             verbose=self._graph._verbose,
+            verbose_path=self._graph._verbose_path,
         )
 
         for op in self._graph.params:
@@ -1295,6 +1300,8 @@ class PartitionedGraphDriver:
                 main_graph._func_name,
                 main_graph._ops_registry,
                 do_param_pack,
+                verbose=main_graph._verbose,
+                verbose_path=main_graph._verbose_path,
             )
             return main_importer.import_main_graph()
 
