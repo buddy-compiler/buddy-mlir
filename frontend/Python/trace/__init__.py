@@ -15,11 +15,8 @@
 # ===---------------------------------------------------------------------------
 
 from .config import TraceConfig, normalize_trace_meta
-from .fx import dump_fx_graph, write_fx_trace
 
 __all__ = [
     "TraceConfig",
-    "dump_fx_graph",
     "normalize_trace_meta",
-    "write_fx_trace",
 ]

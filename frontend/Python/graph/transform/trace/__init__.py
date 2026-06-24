@@ -14,29 +14,15 @@
 #
 # ===---------------------------------------------------------------------------
 
-from ....trace.config import TraceConfig, normalize_trace_meta
-from ....trace.fx import write_fx_trace
-from ... import Graph
+from .lowering import (
+    has_trace,
+    trace_op_result,
+)
+from .passes import TraceInsertionPass, trace_insertion
 
-
-def trace_insertion(trace: TraceConfig, gm=None, inputs=None):
-    def _trace_insertion(graph: Graph):
-        matched_nodes = set()
-        for node in graph.body:
-            if node.name not in trace.trace_config:
-                continue
-            node._trace_meta = normalize_trace_meta(
-                node.name, trace.trace_config[node.name]
-            )
-            matched_nodes.add(node.name)
-
-        missing = set(trace.trace_config) - matched_nodes
-        if missing:
-            names = ", ".join(sorted(missing))
-            raise KeyError(f"trace nodes did not match buddy graph nodes: {names}")
-
-        trace.matched_nodes = matched_nodes
-        if gm is not None and inputs is not None:
-            write_fx_trace(trace, gm, list(inputs))
-
-    return _trace_insertion
+__all__ = [
+    "TraceInsertionPass",
+    "has_trace",
+    "trace_insertion",
+    "trace_op_result",
+]

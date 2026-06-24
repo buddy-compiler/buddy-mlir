@@ -1,50 +1,36 @@
 # Tile Dialect
 
-Tile Dialect 将任意尺寸的矩阵运算自动分块（tiling）为硬件可处理的固定尺寸 tile，生成循环 + Buckyball Dialect 调用。
+The Tile Dialect automatically tiles arbitrarily sized matrix operations into fixed-size tiles that the hardware can process, emitting loops plus Buckyball Dialect calls.
 
-## 核心操作
+## Core Operations
 
 ### `tile.tile_matmul`
 ```mlir
 tile.tile_matmul %A %B %C : memref<MxK xi8> memref<KxN xi8> memref<MxN xi32>
 ```
 
-**输入**：任意尺寸 memref（M、K、N 可以不是 16 的倍数）  
-**输出**：无（in-place 写入 %C）  
-**语义**：C = A × B，自动分块为 bank 宽度（16）× bank 深度整数倍的 tile
+**Inputs**: memrefs of arbitrary size (M, K, N need not be multiples of 16)
+**Output**: none (in-place write to %C)
+**Semantics**: C = A × B, automatically tiled into tiles aligned to bank width (16) and integer multiples of bank depth
 
-**Lowering 策略**（`-convert-tile-to-buckyball`）：
-1. **Padding**：如果 K 或 N 不是 16 的倍数，分配 padded buffer 并 zero-fill
-2. **Tiling**：将 M×K×N 分块为 `mTile × kTile × nTile`，每个 tile 满足：
-   - K、N 是 16 的倍数（bank 宽度对齐）
-   - `mTile * kTile + kTile * nTile ≤ bankDepth`（bank 深度约束）
-   - `mTile * (nTile/16) ≤ 256`（accumulator mvout 深度限制）
-   - `mTile * (kTile/16) ≤ 1024` 且 `kTile * (nTile/16) ≤ 1024`（i8 mvin 深度限制）
-3. **循环生成**：生成 3 层 `scf.for` 循环遍历所有 tile
-4. **Subview + Buckyball**：每个 tile 用 `memref.subview` 切片，调用 `buckyball.matmul`
+**Lowering strategy** (`-convert-tile-to-buckyball`):
+1. **Padding**: if K or N is not a multiple of 16, allocate a padded buffer and zero-fill
+2. **Tiling**: split M×K×N into `mTile × kTile × nTile` tiles, each satisfying:
+   - K and N are multiples of 16 (bank width alignment)
+   - `mTile * kTile + kTile * nTile ≤ bankDepth` (bank depth constraint)
+   - `mTile * (nTile/16) ≤ 256` (accumulator mvout depth limit)
+   - `mTile * (kTile/16) ≤ 1024` and `kTile * (nTile/16) ≤ 1024` (i8 mvin depth limits)
+3. **Loop generation**: emit three nested `scf.for` loops over all tiles
+4. **Subview + Buckyball**: slice each tile with `memref.subview`, then call `buckyball.matmul`
 
 ### `tile.tile_transpose`
-矩阵转置，自动分块为 bank 对齐的 tile。
+Matrix transpose, automatically tiled into bank-aligned tiles.
 
 ### `tile.tile_conv2d`
-2D 卷积（NHWC layout），lowering 为 Im2col + MatMul 序列。
+2D convolution (NHWC layout); lowering expands to an Im2col + MatMul sequence.
 
-## 设计要点
+## Design Notes
 
-- **Tile ≠ Bank**：Tile 是 memref 的切片，Bank 是硬件 scratchpad 的物理单元
-- **编译器职责**：Tile Dialect 负责将任意尺寸问题分解为硬件约束内的子问题
-- **硬件无关**：Tile ops 不感知物理 bank 数量（16），只关心 bank 宽度（16）和深度（1024）
-
-## Pass Pipeline
-
-```
-tile.tile_matmul
-  ↓ -convert-tile-to-buckyball
-scf.for + memref.subview + buckyball.matmul
-  ↓ -lower-buckyball-to-bank-ssa
-buckyball.bank_alloc + bank_mvin + bank_mul_warp16 + bank_mvout
-  ↓ -assign-physical-banks
-buckyball.mset + mvin + mul_warp16 + mvout
-  ↓ -lower-buckyball
-LLVM intrinsics (bb_mset / bb_mvin / bb_mul_warp16 / bb_mvout)
-```
+- **Tile ≠ Bank**: a tile is a memref slice; a bank is a physical scratchpad unit on the hardware
+- **Compiler responsibility**: the Tile Dialect decomposes arbitrary-sized problems into subproblems within hardware constraints
+- **Hardware-agnostic**: tile ops do not depend on the physical bank count (16); they only depend on bank width (16) and depth (1024)

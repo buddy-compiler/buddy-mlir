@@ -162,6 +162,14 @@ class Op:
     def tensor_meta(self, new_tensor_meta):
         self._tensor_meta.update(new_tensor_meta)
 
+    @property
+    def trace_meta(self):
+        return self._trace_meta
+
+    @trace_meta.setter
+    def trace_meta(self, new_trace_meta):
+        self._trace_meta = new_trace_meta
+
 
 class PlaceholderOp(Op):
     def __init__(self) -> None:

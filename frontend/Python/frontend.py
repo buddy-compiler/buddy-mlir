@@ -50,7 +50,6 @@ from .ops.linalg import ops_registry as linalg_ops_registry
 from .ops.math import ops_registry as math_ops_registry
 from .ops.tosa import ops_registry as tosa_ops_registry
 from .trace.config import TraceConfig as _TraceConfig
-from .trace.fx import dump_fx_graph as _dump_fx_graph
 
 EXTERNAL_CALL_TRANSFORM_GROUPS = {
     "rng": tuple(RUNTIME_RNG_TRANSFORMS),
@@ -893,11 +892,11 @@ class DynamoCompiler:
         # }
         # print(len(params))
         # params_flat, _ = pytree.tree_flatten(params)
-        #===--------------------------------------------------
-        # 1. First traverse the graph 
+        # ===--------------------------------------------------
+        # 1. First traverse the graph
         # distinguish input, param, and buffer nodes, and assign
         # index to each node.
-        #===--------------------------------------------------
+        # ===--------------------------------------------------
         inputs_pos = []
         params_pos = []
         buffers_pos = []
@@ -932,10 +931,10 @@ class DynamoCompiler:
             input_nodes = []
             other_nodes = []
             all_nodes = list(_gm.graph.nodes)
-            #===--------------------------------------------------
-            # 2. Second traverse the graph 
+            # ===--------------------------------------------------
+            # 2. Second traverse the graph
             # collect each type of nodes into the corresponding list.
-            #===--------------------------------------------------
+            # ===--------------------------------------------------
             for i, node in enumerate(all_nodes):
                 if i in params_pos:
                     param_nodes.append(node)
@@ -951,23 +950,11 @@ class DynamoCompiler:
                 (NodeType.InputNode, input_nodes),
                 (NodeType.OtherNode, other_nodes),
             ]
-            #===--------------------------------------------------
-            # 3. Third traverse the graph 
-            # dump the FX graph to the trace file.
-            #===--------------------------------------------------
-            _dump_fx_graph(
-                self._trace,
-                _gm,
-                param_nodes=param_nodes,
-                buffer_nodes=buffers_nodes,
-                input_nodes=input_nodes,
-                other_nodes=other_nodes,
-            )
-            #===--------------------------------------------------
-            # 4. Fourth traverse the graph 
+            # ===--------------------------------------------------
+            # 3. Third traverse the graph
             # turn FX graph into Buddy graph.
             # turn gm_nodes into buddy_nodes.
-            #===--------------------------------------------------
+            # ===--------------------------------------------------
             for node_type, gm_nodes_sublist in gm_nodes:
                 for gm_node in gm_nodes_sublist:
                     node_users = []
@@ -1105,11 +1092,11 @@ class DynamoCompiler:
                             self._extract_tensor_out_kwarg_names(gm_node.target)
                         )
                     graph.add_node(node=buddy_node, node_type=node_type)
-            #===--------------------------------------------------
-            # 5. Fifth traverse the graph 
+            # ===--------------------------------------------------
+            # 5. Fifth traverse the graph
             # perform the graph transformation. This step is performed
             # by each frontend pass itself.
-            #===--------------------------------------------------
+            # ===--------------------------------------------------
             transform_list = [
                 maxpool2d_simplify,
             ]
@@ -1122,7 +1109,7 @@ class DynamoCompiler:
                     transform_list.extend(group_transforms)
                     enabled_external_groups.append(group_name)
             if self._trace is not None:
-                transform_list.append(trace_insertion(self._trace, _gm, _inputs))
+                transform_list.append(trace_insertion(self._trace))
             graph._enabled_external_groups = enabled_external_groups
             graph.perform(transform_list)
             self._imported_graphs.append(graph)

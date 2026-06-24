@@ -20,11 +20,12 @@
 #
 # ===---------------------------------------------------------------------------
 
-from buddy_mlir import ir
-from collections import deque, defaultdict
+from collections import deque
 
-from .graph import Graph, GraphImporter, TensorMeta, NodeType
-from .operation import FuncOp, CallOp, PlaceholderOp, OutputOp, GetItemOp
+from buddy_mlir import ir
+
+from .graph import Graph, GraphImporter, NodeType, TensorMeta
+from .operation import CallOp, FuncOp, GetItemOp, OutputOp, PlaceholderOp
 
 
 class GraphDriver:
@@ -140,7 +141,7 @@ class GraphDriver:
                 placeholder_node = PlaceholderOp()
                 placeholder_node.name = inp
                 placeholder_node.tensor_meta = input_tensor_meta
-                placeholder_node._trace_meta = getattr(node, "_trace_meta", None)
+                placeholder_node.trace_meta = node.trace_meta
                 for op in self._graph.op_groups[subgraph_name]:
                     if inp in node._parents:
                         placeholder_node.add_children(op.name)
@@ -174,9 +175,7 @@ class GraphDriver:
         - list: A list of subgraph names in topological order if the graph is acyclic; otherwise, None.
         """
         # Calculate in degree of each subgraph
-        in_degree = {
-            subgraph_name: 0 for subgraph_name in list(self._subgraphs.keys())
-        }
+        in_degree = dict.fromkeys(list(self._subgraphs.keys()), 0)
         for src, dests in self._subgraph_dependencies.items():
             for dest in dests:
                 in_degree[dest] += 1
@@ -249,7 +248,7 @@ class GraphDriver:
         # Adding CallOp to invoke the single subgraph
         for i, subgraph_name in enumerate(topo_order):
             call_node = CallOp()
-            call_node.name = "call{}".format(i)
+            call_node.name = f"call{i}"
             call_node.call_func_name = subgraph_name
             call_node.tensor_meta = {"shape": [], "dtype": []}
             for inp in self._subgraphs_inputs[subgraph_name]:
@@ -278,7 +277,7 @@ class GraphDriver:
             getitem_node = GetItemOp()
             getitem_node.add_argument(call_node.name)
             getitem_node.add_argument(i)
-            getitem_node.name = "getitem{}".format(i)
+            getitem_node.name = f"getitem{i}"
             output_node.add_argument(getitem_node.name)
             main_graph.add_node(getitem_node)
         # Marking the final output of the main graph
