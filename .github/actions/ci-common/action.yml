@@ -5,12 +5,6 @@ inputs:
   arch:
     description: Target runner architecture.
     required: true
-  venv_activate:
-    description: Command used to activate the Python environment.
-    required: true
-  venv_deactivate:
-    description: Command used to deactivate the Python environment.
-    required: true
   llvm-src:
     description: Path to the llvm-project checkout.
     required: true
@@ -26,8 +20,7 @@ runs:
       run: |
         set -euo pipefail
 
-        py_tag="py${{ inputs.python-version }}"
-        py_tag="${py_tag//./}"
+        py_tag="$(python -c 'import sys; print(f"py{sys.version_info.major}{sys.version_info.minor}")')"
         llvm_build_dir="${{ inputs.llvm-build-root }}/${{ inputs.arch }}/llvm/${py_tag}/$(git -C "${{ inputs.llvm-src }}" rev-parse HEAD)"
 
         echo "LLVM_BUILD_DIR=${llvm_build_dir}" >> "$GITHUB_ENV"
@@ -47,10 +40,7 @@ runs:
         ccache -M 50G
         echo "CCACHE_MAXSIZE=50G" >> $GITHUB_ENV
 
-        ${{ inputs.venv_activate }}
-        pip install --upgrade pip
-        pip install -r requirements.txt
-        ${{ inputs.venv_deactivate }}
+        uv pip install --torch-backend cpu -r requirements.txt
 
     - name: Prepare ENV (arm64)
       if: ${{ inputs.arch == 'arm64' }}
@@ -62,10 +52,7 @@ runs:
         ccache -M 50G
         echo "CCACHE_MAXSIZE=50G" >> $GITHUB_ENV
 
-        ${{ inputs.venv_activate }}
-        pip install --upgrade pip
-        pip install -r requirements.txt
-        ${{ inputs.venv_deactivate }}
+        uv pip install --torch-backend cpu -r requirements.txt
 
     - name: Prepare ENV (riscv64)
       if: ${{ inputs.arch == 'riscv64' }}
@@ -77,16 +64,13 @@ runs:
         ccache -M 50G
         echo "CCACHE_MAXSIZE=50G" >> $GITHUB_ENV
 
-        ${{ inputs.venv_activate }}
-        pip install -U pip setuptools wheel packaging
-        pip install -r requirements.txt
-        ${{ inputs.venv_deactivate }}
+        uv pip install -U pip setuptools wheel packaging
+        uv pip install --index-strategy unsafe-best-match -r requirements.txt
 
     - name: Configure and Build LLVM
       if: ${{ env.LLVM_CACHE_HIT != 'true' }}
       shell: bash
       run: |
-        ${{ inputs.venv_activate }}
         mkdir -p "$LLVM_BUILD_DIR"
 
         RUNTIMES_CMAKE_ARGS=()
@@ -120,7 +104,6 @@ runs:
         ccache -z
         ninja -C "$LLVM_BUILD_DIR" check-clang check-mlir check-openmp
         ccache -s
-
         printf 'ready\n' > "$LLVM_BUILD_DIR/.ci-llvm-ready"
 
         llvm_cache_dir="$(dirname "$LLVM_BUILD_DIR")"
@@ -134,12 +117,9 @@ runs:
           )
         fi
 
-        ${{ inputs.venv_deactivate }}
-
     - name: Configure and Build buddy-mlir
       shell: bash
       run: |
-        ${{ inputs.venv_activate }}
         echo "---- CHECK LOCAL SUBMODULE ----"
         ls -l llvm || true
         git submodule status || true
@@ -160,5 +140,3 @@ runs:
         ccache -z
         ninja -C build
         ccache -s
-
-        ${{ inputs.venv_deactivate }}

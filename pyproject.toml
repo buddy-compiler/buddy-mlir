@@ -9,7 +9,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "buddy"
 description = "An MLIR-based compiler framework bridging DSLs to DSAs."
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 dynamic = ["entry-points", "scripts", "version"]
 
 [tool.setuptools]
