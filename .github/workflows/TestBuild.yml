@@ -9,37 +9,33 @@ on:
 
 jobs:
   test:
-    name: Build (${{ matrix.os }}-${{ matrix.arch }})
+    name: Build (${{ matrix.os }}-${{ matrix.arch }}-py${{ matrix.python }})
     timeout-minutes: 360
     continue-on-error: ${{ matrix.experimental }}
 
     concurrency:
-      group: ${{ github.workflow }}-${{ github.event.number || github.ref }}-${{ matrix.os }}-${{ matrix.arch }}
+      group: ${{ github.workflow }}-${{ github.event.number || github.ref }}-${{ matrix.os }}-${{ matrix.arch }}-py${{ matrix.python }}
       cancel-in-progress: true
 
     strategy:
       fail-fast: false
       matrix:
+        arch: [x64, arm64, riscv64]
+        python: ["3.12"]
         include:
           - arch: x64
             os: linux
             experimental: false
-            venv_activate: "source ~/miniforge3/bin/activate buddy"
-            venv_deactivate: "conda deactivate"
             llvm_src: "$HOME/actions-runner/workspace/llvm-project"
             llvm_build_root: "$HOME/actions-runner/workspace/llvm-cache"
           - arch: arm64
             os: macos
             experimental: true
-            venv_activate: "source ~/miniforge3/bin/activate buddy"
-            venv_deactivate: "conda deactivate"
             llvm_src: "$HOME/actions-runner/workspace/llvm-project"
             llvm_build_root: "$HOME/actions-runner/workspace/llvm-cache"
           - arch: riscv64
             os: linux
             experimental: true
-            venv_activate: "source /home/jenkins/venv/bin/activate"
-            venv_deactivate: "deactivate"
             llvm_src: "/home/jenkins/src/llvm-project"
             llvm_build_root: "/home/jenkins/llvm-cache"
 
@@ -51,6 +47,7 @@ jobs:
       - name: Print target
         run: |
           echo "Building on ${{ matrix.arch }}"
+          echo "Python: ${{ matrix.python }}"
           echo "------ uname ------"
           uname -a
 
@@ -65,23 +62,28 @@ jobs:
         with:
           llvm-src: ${{ matrix.llvm_src }}
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@f98e06938123ccabd21905ea5d0069192241f9f1
+        with:
+          python-version: ${{ matrix.python }}
+          activate-environment: "true"
+          no-project: "true"
+          enable-cache: "true"
+          cache-dependency-glob: requirements.txt
+
       - name: Build buddy-mlir
         continue-on-error: ${{ matrix.arch == 'arm64' }}
         uses: ./.github/actions/ci-common
         with:
           arch: ${{ matrix.arch }}
-          venv_activate: ${{ matrix.venv_activate }}
-          venv_deactivate: ${{ matrix.venv_deactivate }}
           llvm-src: ${{ matrix.llvm_src }}
           llvm-build-root: ${{ matrix.llvm_build_root }}
 
       - name: Run check-buddy
         continue-on-error: ${{ matrix.arch == 'arm64' }}
         run: |
-          ${{ matrix.venv_activate }}
-
           if [ "${{ matrix.arch }}" = "riscv64" ]; then
-            torch_versions=(2.10)
+            torch_versions=(2.10 2.11 2.12)
           else
             torch_versions=(2.10 2.11 2.12)
           fi
@@ -92,21 +94,22 @@ jobs:
             torch_packages=("torch==${torch_version}")
             if [ "${{ matrix.arch }}" = "x64" ]; then
               torch_packages+=("torchvision")
-            elif [ "${{ matrix.arch }}" = "riscv64" ]; then
-              # The installed torchvision on riscv64 is outdated and causes
-              # compatibility issues with other modules.
-              pip uninstall -y torchvision || true
             fi
-            pip install \
-              --extra-index-url https://download.pytorch.org/whl/cpu \
-              --extra-index-url https://ruyirepo.ruyicommunity.cn/pypi/simple/ \
-              --upgrade --force-reinstall \
+            uv_args=(pip install --force-reinstall)
+            if [ "${{ matrix.arch }}" = "x64" ]; then
+              uv_args+=(--torch-backend cpu)
+            elif [ "${{ matrix.arch }}" = "riscv64" ]; then
+              uv_args+=(--index-strategy unsafe-best-match)
+            fi
+            uv_args+=(
+              --extra-index-url https://download.pytorch.org/whl/cpu
+              --extra-index-url https://ruyirepo.ruyicommunity.cn/pypi/simple/
               "${torch_packages[@]}"
+            )
+            uv "${uv_args[@]}"
             python -c 'import textwrap; exec(textwrap.dedent("""
               import torch
               print("torch:", torch.__version__)
             """))'
             ninja -C build check-buddy
           done
-
-          ${{ matrix.venv_deactivate }}

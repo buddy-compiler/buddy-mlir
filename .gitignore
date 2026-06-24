@@ -27,3 +27,4 @@ ttrt-artifacts/
 /query_results.json
 /ttrt_report.xml
 .py-stage
+.venv/
