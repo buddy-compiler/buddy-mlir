@@ -20,24 +20,42 @@ sudo apt install flatbuffers-compiler libflatbuffers-dev libnuma-dev
 ### Clone and Initialize
 
 ```
-$ git clone git@github.com:buddy-compiler/buddy-mlir.git
-$ cd buddy-mlir
-$ git submodule update --init llvm
+git clone git@github.com:buddy-compiler/buddy-mlir.git
+cd buddy-mlir
+git submodule update --init llvm
 ```
 
 ### Prepare Python Environment
 
+pip
+
 ```
-$ conda activate <your virtual environment name>
-$ cd buddy-mlir
-$ pip install -r requirements.txt
+python -m venv .venv
+pip install -r requirements.txt
+source .venv/bin/activate
+```
+
+uv
+
+```
+uv venv
+uv pip install -r requirements.txt
+source .venv/bin/activate
+```
+
+conda
+
+```
+conda activate <your virtual environment name>
+cd buddy-mlir
+pip install -r requirements.txt
 ```
 
 ### Build and Test LLVM/MLIR/CLANG
 
 ```
-$ cd buddy-mlir
-$ cmake -G Ninja -S llvm/llvm -B llvm/build \
+cd buddy-mlir
+cmake -G Ninja -S llvm/llvm -B llvm/build \
     -DLLVM_ENABLE_PROJECTS="mlir;clang" \
     -DLLVM_ENABLE_RUNTIMES="openmp" \
     -DLLVM_TARGETS_TO_BUILD="host;RISCV" \
@@ -47,7 +65,7 @@ $ cmake -G Ninja -S llvm/llvm -B llvm/build \
     -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
     -DPython3_EXECUTABLE="$(which python)" \
     -DPython_EXECUTABLE="$(which python)"
-$ ninja -C llvm/build check-clang check-mlir check-openmp
+ninja -C llvm/build check-clang check-mlir check-openmp
 ```
 
 If your target machine includes an NVIDIA GPU, you can add the following configuration:
@@ -60,8 +78,8 @@ If your target machine includes an NVIDIA GPU, you can add the following configu
 ### Build buddy-mlir
 
 ```
-$ cd buddy-mlir
-$ cmake -G Ninja -S . -B build \
+cd buddy-mlir
+cmake -G Ninja -S . -B build \
     -DMLIR_DIR=$PWD/llvm/build/lib/cmake/mlir \
     -DLLVM_DIR=$PWD/llvm/build/lib/cmake/llvm \
     -DLLVM_ENABLE_ASSERTIONS=ON \
@@ -69,23 +87,23 @@ $ cmake -G Ninja -S . -B build \
     -DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON \
     -DPython3_EXECUTABLE="$(which python)" \
     -DPython_EXECUTABLE="$(which python)"
-$ ninja -C build
-$ ninja -C build check-buddy
+ninja -C build
+ninja -C build check-buddy
 ```
 
 Set the `PYTHONPATH` environment variable to include both the LLVM/MLIR Python bindings and `buddy-mlir` Python packages:
 
 ```
-$ export BUDDY_MLIR_BUILD_DIR=$PWD/build
-$ export LLVM_MLIR_BUILD_DIR=$PWD/llvm/build
-$ export PYTHONPATH=${BUDDY_MLIR_BUILD_DIR}/python_packages:${PYTHONPATH}
+export BUDDY_MLIR_BUILD_DIR=$PWD/build
+export LLVM_MLIR_BUILD_DIR=$PWD/llvm/build
+export PYTHONPATH=${BUDDY_MLIR_BUILD_DIR}/python_packages:${PYTHONPATH}
 ```
 
 If you want to test your model end-to-end conversion and inference, you can add the following configuration
 
 ```
-$ cmake -G Ninja -S . -B build -DBUDDY_ENABLE_E2E_TESTS=ON
-$ ninja -C build check-e2e
+cmake -G Ninja -S . -B build -DBUDDY_ENABLE_E2E_TESTS=ON
+ninja -C build check-e2e
 ```
 
 ### Building and running the model
@@ -191,7 +209,7 @@ Before contributing, please read the [Contributor Guide](https://buddycompiler.c
 To maintain code quality, this project provides pre-commit checks:
 
 ```
-$ pre-commit install
+pre-commit install
 ```
 
 ## How to Cite
