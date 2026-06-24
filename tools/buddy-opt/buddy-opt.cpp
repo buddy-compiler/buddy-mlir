@@ -48,7 +48,7 @@
 #include "DIP/DIPOps.h"
 #include "Tile/TileDialect.h"
 #include "Tile/TileOps.h"
-// Buckyball dialect moved to external dialects
+// Buckyball dialect is a dialect implemented outside of buddy-mlir
 #ifdef BUDDY_EXTERNAL_DIALECTS
 #include "Dialect/Buckyball/BuckyballDialect.h"
 #include "Dialect/Buckyball/BuckyballOps.h"

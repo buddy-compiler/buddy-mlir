@@ -220,6 +220,7 @@ add_llvm_component_library(LLVMBuddyRISCVDesc
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVMCTargetDesc.h
   ${CMAKE_CURRENT_BINARY_DIR}/RISCVTargetStreamer.h
 
+
   LINK_COMPONENTS
   MC
   BuddyRISCVInfo
