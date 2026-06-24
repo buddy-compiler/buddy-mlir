@@ -68,9 +68,6 @@ runs:
 
         ${{ inputs.venv_activate }}
         pip install -U pip setuptools wheel packaging
-        sed -i \
-          -e '1s/^/# /' \
-          requirements.txt
         pip install -r requirements.txt
         ${{ inputs.venv_deactivate }}
 

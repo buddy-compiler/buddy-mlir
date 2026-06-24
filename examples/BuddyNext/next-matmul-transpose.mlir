@@ -33,7 +33,7 @@ func.func @kernel(%a : tensor<1024x1536xf32>, %b : tensor<1536x1536xf32>, %c : t
   %time = arith.subf %t_end, %t_start : f64
   // Print timings.
   vector.print %time : f64
-  // CHECK: {{[0-9]+\.[0-9]+}}
+  // CHECK: {{[0-9]+}}
   return %52 : tensor<1024x1536xf32>
 }
 

@@ -1,19 +1,19 @@
---pre --extra-index-url https://download.pytorch.org/whl/cpu
+--extra-index-url https://download.pytorch.org/whl/cpu
+--extra-index-url https://ruyirepo.ruyicommunity.cn/pypi/simple/
 torch==2.10.0
-# The meson-python required by numpy==2.5 say:
-# "meson-python: error: The package requires Python version >=3.12, running on 3.11.6"
-# Maybe we should drop python<=3.11 support
-numpy>=2,<2.5
+# NumPy 2.3+ requires Python >=3.11, while release wheels still include cp310.
+numpy>=2,<2.3; python_version<"3.11"
+numpy>=2,<2.5; python_version>="3.11"
 transformers==5.5.0
 tokenizers>=0.20
-sentencepiece==0.2.0
+sentencepiece>=0.2
 accelerate
 protobuf
-torchvision
+torchvision; platform_machine != "riscv64"
 tabulate
-datasets
+datasets; platform_machine != "riscv64"
 soundfile
-librosa
+librosa; platform_machine != "riscv64"
 PyYAML
 certifi
 idna

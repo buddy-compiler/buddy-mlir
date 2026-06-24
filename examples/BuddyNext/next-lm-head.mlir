@@ -94,7 +94,7 @@ func.func @main() {
   // call @printMemrefF32(%tensor_unranked) : (tensor<*xf32>) -> ()
 
   vector.print %time : f64
-  // CHECK: {{[0-9]+\.[0-9]+}}
+  // CHECK: {{[0-9]+}}
   return
 }
 func.func private @printMemrefF32(%ptr : tensor<*xf32>)

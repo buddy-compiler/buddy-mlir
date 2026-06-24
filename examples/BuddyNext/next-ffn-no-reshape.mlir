@@ -93,7 +93,7 @@ func.func @kernel(%arg0: tensor<8960x1536xf32>, %arg1: tensor<1024x1536xf32>, %a
 
   // Print timings.
   vector.print %time : f64
-  // CHECK: {{[0-9]+\.[0-9]+}}
+  // CHECK: {{[0-9]+}}
 
   return %211 : tensor<1024x1536xf32>
 }

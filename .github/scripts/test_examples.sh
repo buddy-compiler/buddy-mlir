@@ -6,10 +6,6 @@ arch="${1:?usage: .github/scripts/test_examples.sh <arch>}"
 export PYTHONPATH="$PWD/build/python_packages:${PYTHONPATH:-}"
 
 if [ "$arch" = "riscv64" ]; then
-  # The installed torchvision on riscv64 is outdated and causes compatibility
-  # issues with other modules.
-  pip uninstall torchvision -y
-
   cmake -S . -B build \
     -DBUDDY_QWEN3_EXAMPLES=ON \
     -DBUDDY_GEMMA4_EXAMPLES=ON \

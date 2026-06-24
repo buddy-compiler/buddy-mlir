@@ -154,7 +154,6 @@ if [ -z "${IN_DOCKER:-}" ]; then
     -e BUDDY_HASH="${BUDDY_HASH}" \
     -e LLVM_HASH="${LLVM_HASH}" \
     -e MANYLINUX_TAG="${MANYLINUX_TAG}" \
-    -e BUDDY_TORCH_SPEC="${BUDDY_TORCH_SPEC:-torch}" \
     \
     -v "${REPO_ROOT}:${WORKSPACE}" \
     -v "${HOST_LLVM_SRC}:${WORKSPACE_LLVM_SRC}:ro" \
@@ -179,8 +178,6 @@ else
     shopt -s globstar nullglob
     rm -rf "${WORKSPACE}"/**/__pycache__ "${WORKSPACE}"/**/*.py[co]
     shopt -u globstar nullglob
-    # TODO: move .py-stage to other place so that we can make ${WORKSPACE} read-only
-    [ -e "${WORKSPACE}/.py-stage" ] && chown -R "$HOST_UID":"$HOST_GID" "${WORKSPACE}"
     [ -e "${BUDDY_BUILD_ROOT}" ] && chown -R "$HOST_UID":"$HOST_GID" "${BUDDY_BUILD_ROOT}"
     [ -e "${LLVM_BUILD_ROOT}" ] && chown -R "$HOST_UID":"$HOST_GID" "${LLVM_BUILD_ROOT}"
   }
@@ -246,7 +243,7 @@ else
   # ---------------------------------------------------------------------------
 
   # Install image deps via dnf.
-  DNF_INSTALL_ARGS=(install -y)
+  DNF_INSTALL_ARGS=(--setopt=keepcache=1 install -y)
   if [ "${TARGET_ARCH}" = "riscv64" ]; then
     # Rocky 10 riscv64 metadata can briefly prefer a libpng-devel build before
     # every mirror has the matching libpng runtime package. --nobest lets dnf
@@ -257,33 +254,39 @@ else
   # Prepare serval necessary package for buddy-mlir
   dnf "${DNF_INSTALL_ARGS[@]}" cmake libpng-devel libjpeg-turbo-devel zlib-devel perl
 
-  # Prepare ccache if support, riscv doesn't support
-  if dnf install -y ccache; then
-    export CCACHE_BIN="/usr/bin/ccache"
-    CCACHE_LINK_DIR="/usr/lib64/ccache"
-    mkdir -p "$CCACHE_LINK_DIR"
-    # To help CMake use ccache, there are two methods:
-    # - One is to explicitly specify `-DCMAKE_CXX_COMPILER_LAUNCHER=ccache`
-    # - the other is to place the symbolic links `cc` and `c++` created by
-    #   ccache at the beginning of the path.
-    # Since the RISC-V image does not provide ccache, we now temporarily choose
-    # the second method.
-    CCACHE_COMPILERS=(gcc g++ cc c++)
-    case "${TARGET_ARCH}" in
-      x86_64)
-        CCACHE_COMPILERS+=(x86_64-redhat-linux-gcc x86_64-redhat-linux-g++)
-        ;;
-      riscv64)
-        CCACHE_COMPILERS+=(riscv64-redhat-linux-gcc riscv64-redhat-linux-g++)
-        ;;
-    esac
-    for cmd in "${CCACHE_COMPILERS[@]}"; do
-      ln -sf "$CCACHE_BIN" "$CCACHE_LINK_DIR/$cmd"
-    done
-    export PATH="$CCACHE_LINK_DIR:$PATH"
-    export CCACHE_DIR="${WORKSPACE_BUILD_DIR}/.ccache"
-    ccache -M 50G
-  fi
+  # Prepare ccache.
+  case "${TARGET_ARCH}" in
+    x86_64)
+      dnf "${DNF_INSTALL_ARGS[@]}" ccache
+      export CCACHE_BIN="/usr/bin/ccache"
+      ;;
+    riscv64)
+      CCACHE_VERSION="4.13.6"
+      CCACHE_ARCHIVE="ccache-${CCACHE_VERSION}-linux-riscv64-musl-static.tar.gz"
+      CCACHE_URL="https://github.com/ccache/ccache/releases/download/v${CCACHE_VERSION}/${CCACHE_ARCHIVE}"
+      curl -L --fail -o "/tmp/${CCACHE_ARCHIVE}" "${CCACHE_URL}"
+      tar -xzf "/tmp/${CCACHE_ARCHIVE}" -C /tmp
+      export CCACHE_BIN="/tmp/ccache-${CCACHE_VERSION}-linux-riscv64-musl-static/ccache"
+      ;;
+  esac
+  CCACHE_LINK_DIR="/usr/lib64/ccache"
+  mkdir -p "$CCACHE_LINK_DIR"
+  CCACHE_COMPILERS=(gcc g++ cc c++)
+  case "${TARGET_ARCH}" in
+    x86_64)
+      CCACHE_COMPILERS+=(x86_64-redhat-linux-gcc x86_64-redhat-linux-g++)
+      ;;
+    riscv64)
+      CCACHE_COMPILERS+=(riscv64-redhat-linux-gcc riscv64-redhat-linux-g++)
+      ;;
+  esac
+  for cmd in "${CCACHE_COMPILERS[@]}"; do
+    ln -sf "$CCACHE_BIN" "$CCACHE_LINK_DIR/$cmd"
+  done
+  ln -sf "$CCACHE_BIN" "$CCACHE_LINK_DIR/ccache"
+  export PATH="$CCACHE_LINK_DIR:$PATH"
+  export CCACHE_DIR="${WORKSPACE_BUILD_DIR}/.ccache"
+  ccache -M 50G
 
   # Flatbuffer doesn't exist in riscv image.
   FLATBUFFERS_VERSION="25.12.19"
@@ -292,6 +295,8 @@ else
     mkdir build && cd build
     cmake .. \
       -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+      -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
       -DFLATBUFFERS_BUILD_TESTS=OFF \
       -DFLATBUFFERS_INSTALL=ON \
       -DCMAKE_POSITION_INDEPENDENT_CODE=ON
@@ -302,18 +307,11 @@ else
   # This is necessary, old pip versions fail to resolve the torch package correctly.
   "$PYBIN" -m pip install --upgrade pip
   "$PYBIN" -m pip --version
-  "$PYBIN" -m pip install build auditwheel ninja pybind11==2.10.* nanobind==2.9.* PyYAML tabulate
-  BUDDY_TORCH_SPEC="${BUDDY_TORCH_SPEC:-torch}"
   if [ "${TARGET_ARCH}" = "riscv64" ]; then
     # build transformers need rust toolchain.
-    dnf install -y rust cargo
-    # build transformers from source need torch
-    "$PYBIN" -m pip install -i https://ruyirepo.ruyicommunity.cn/pypi/simple/ numpy "${BUDDY_TORCH_SPEC}"
-  else
-    "$PYBIN" -m pip install numpy
-    "$PYBIN" -m pip install --index-url https://download.pytorch.org/whl/cpu --extra-index-url https://pypi.org/simple "${BUDDY_TORCH_SPEC}"
+    dnf "${DNF_INSTALL_ARGS[@]}" rust cargo
   fi
-  "$PYBIN" -m pip install transformers==4.56.2
+  "$PYBIN" -m pip install build auditwheel ninja -r requirements.txt
   PYTHON_SOABI="$("$PYBIN" -c 'import sysconfig; print(sysconfig.get_config_var("SOABI") or "")')"
 
   LLVM_STAMP_FILE="${LLVM_BUILD_DIR}/.manylinux-llvm-ready"
