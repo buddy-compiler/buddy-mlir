@@ -2,7 +2,7 @@
 
 BUDDY_OPT := ../../build/bin/buddy-opt
 BUDDY_TRANSLATE := ../../build/bin/buddy-translate
-BUDDY_LLC := ../../llvm/build/bin/llc
+BUDDY_LLC := ../../build/bin/buddy-llc
 
 .PHONY: all clean help \
 	bosc-mma bosc-mma-lower bosc-mma-translate bosc-mma-asm
