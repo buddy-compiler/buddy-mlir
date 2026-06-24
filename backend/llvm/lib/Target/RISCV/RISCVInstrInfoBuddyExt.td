@@ -1978,6 +1978,3 @@ let Predicates = [HasBuddyExt] in {
   def : Pat<(int_riscv_buddy_th_mfmacc_d_s timm:$md, timm:$ms2, timm:$ms1),
             (TH_MFMACC_D_S_PSEUDO timm:$md, timm:$ms2, timm:$ms1)>;
 }
-// Buckyball bb_* — +buddyext-bb (see RISCVInstrInfoBuddyExtBB.td).
-//===----------------------------------------------------------------------===//
-include "RISCVInstrInfoBuddyExtBB.td"

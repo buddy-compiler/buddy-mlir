@@ -675,9 +675,3 @@ let TargetPrefix = "riscv" in {
                                                   [IntrHasSideEffects, ImmArg<ArgIndex<0>>,
                                                    ImmArg<ArgIndex<1>>, ImmArg<ArgIndex<2>>]>;
 }
-
-//===----------------------------------------------------------------------===//
-// Buckyball Extension Intrinsics
-//===----------------------------------------------------------------------===//
-
-include "IntrinsicsRISCVBuckyball.td"
