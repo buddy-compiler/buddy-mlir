@@ -2,7 +2,7 @@
 
 BUDDY_OPT := ../../build/bin/buddy-opt
 BUDDY_TRANSLATE := ../../build/bin/buddy-translate
-BUDDY_LLC := ../../build/bin/buddy-llc
+BUDDY_LLC := ../../llvm/build/bin/llc
 
 .PHONY: all clean help \
 	bosc-mma bosc-mma-lower bosc-mma-translate bosc-mma-asm
@@ -57,6 +57,49 @@ bosc-mma-asm:
 	        -mattr=+m,+v,+buddyext \
 	        -o bosc-mma.s
 	@echo "Assembly saved to bosc-mma.s"
+
+linalg-matmul-lower:
+	@${BUDDY_OPT} ./linalg-to-boscame-matmul.mlir \
+		-lower-linalg-to-boscame \
+		-o log.mlir
+
+linalg-matmul-translate:
+	@${BUDDY_OPT} ./linalg-to-boscame-matmul.mlir \
+		-lower-linalg-to-boscame \
+		-lower-bosc-ame \
+		-convert-linalg-to-loops \
+		-lower-affine \
+		-convert-scf-to-cf \
+		-expand-strided-metadata \
+		-lower-affine \
+		-convert-cf-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-math-to-llvm \
+		-convert-func-to-llvm \
+		-finalize-memref-to-llvm \
+		-reconcile-unrealized-casts | \
+	${BUDDY_TRANSLATE} -buddy-to-llvmir \
+		-o log.ll
+
+linalg-matmul-asm:
+	@${BUDDY_OPT} ./linalg-to-boscame-matmul.mlir \
+		-lower-linalg-to-boscame \
+		-lower-bosc-ame \
+		-convert-linalg-to-loops \
+		-lower-affine \
+		-convert-scf-to-cf \
+		-expand-strided-metadata \
+		-lower-affine \
+		-convert-cf-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-math-to-llvm \
+		-convert-func-to-llvm \
+		-finalize-memref-to-llvm \
+		-reconcile-unrealized-casts | \
+	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
+	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
+		-mattr=+m,+v,+buddyext \
+		-o log.s
 
 clean:
 	rm -f *.mlir.out *.ll *.s *-lowered.mlir

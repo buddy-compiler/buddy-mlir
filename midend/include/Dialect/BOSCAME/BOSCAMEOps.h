@@ -14,8 +14,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef BOSCAME_BOSCAMEDialect_H
-#define BOSCAME_BOSCAMEDialect_H
+#ifndef BOSCAME_BOSCAMEOPS_H
+#define BOSCAME_BOSCAMEOPS_H
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
@@ -27,4 +27,4 @@
 #define GET_OP_CLASSES
 #include "BOSCAME/BOSCAME.h.inc"
 
-#endif // BOSCAME_BOSCAMEDialect_H
+#endif // BOSCAME_BOSCAMEOPS_H
