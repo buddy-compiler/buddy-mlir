@@ -43,9 +43,8 @@ getOrInsertIntrinsic(ConversionPatternRewriter &rewriter, ModuleOp module,
 
   auto savedInsertionPoint = rewriter.saveInsertionPoint();
   rewriter.setInsertionPointToEnd(module.getBody());
-  rewriter.create<LLVM::LLVMFuncOp>(module.getLoc(), intrinsicName, funcType,
-                                    LLVM::Linkage::External, false,
-                                    LLVM::CConv::C);
+  LLVM::LLVMFuncOp::create(rewriter, module.getLoc(), intrinsicName, funcType,
+                           LLVM::Linkage::External, false, LLVM::CConv::C);
   rewriter.restoreInsertionPoint(savedInsertionPoint);
   return FlatSymbolRefAttr::get(ctx, intrinsicName);
 }
@@ -56,9 +55,9 @@ static Value extractPointerFromMemref(ConversionPatternRewriter &rewriter,
   auto ptrType = LLVM::LLVMPointerType::get(ctx);
   auto i64Type = IntegerType::get(ctx, 64);
   Value idx =
-      rewriter.create<memref::ExtractAlignedPointerAsIndexOp>(loc, memref);
-  Value i64Val = rewriter.create<arith::IndexCastOp>(loc, i64Type, idx);
-  Value ptr = rewriter.create<LLVM::IntToPtrOp>(loc, ptrType, i64Val);
+      memref::ExtractAlignedPointerAsIndexOp::create(rewriter, loc, memref);
+  Value i64Val = arith::IndexCastOp::create(rewriter, loc, i64Type, idx);
+  Value ptr = LLVM::IntToPtrOp::create(rewriter, loc, ptrType, i64Val);
   return ptr;
 }
 
@@ -94,8 +93,8 @@ struct XTAMEConfigLowering : public ConvertOpToLLVMPattern<OpTy> {
 
     Value configVal = adaptor.getOperands()[0];
 
-    rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicNameSym,
-                                  ValueRange{configVal});
+    LLVM::CallOp::create(rewriter, loc, TypeRange{}, intrinsicNameSym,
+                         ValueRange{configVal});
     rewriter.eraseOp(op);
     return success();
   }
@@ -125,11 +124,11 @@ struct XTAMEConfigImmLowering : public ConvertOpToLLVMPattern<OpTy> {
         getOrInsertIntrinsic(rewriter, module, intrinsicName, funcType);
 
     uint64_t attrVal = (op.*AttrGetter)();
-    Value val = rewriter.create<LLVM::ConstantOp>(
-        loc, i64Type, rewriter.getI64IntegerAttr(attrVal));
+    Value val = LLVM::ConstantOp::create(rewriter, loc, i64Type,
+                                         rewriter.getI64IntegerAttr(attrVal));
 
-    rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicNameSym,
-                                  ValueRange{val});
+    LLVM::CallOp::create(rewriter, loc, TypeRange{}, intrinsicNameSym,
+                         ValueRange{val});
     rewriter.eraseOp(op);
     return success();
   }
@@ -158,11 +157,11 @@ struct XTAMEZeroLowering : public ConvertOpToLLVMPattern<OpTy> {
     auto intrinsicNameSym =
         getOrInsertIntrinsic(rewriter, module, intrinsicName, funcType);
 
-    Value mdVal = rewriter.create<LLVM::ConstantOp>(
-        loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
+    Value mdVal = LLVM::ConstantOp::create(
+        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
 
-    rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicNameSym,
-                                  ValueRange{mdVal});
+    LLVM::CallOp::create(rewriter, loc, TypeRange{}, intrinsicNameSym,
+                         ValueRange{mdVal});
     rewriter.eraseOp(op);
     return success();
   }
@@ -192,13 +191,13 @@ struct XTAMEDualAttrLowering : public ConvertOpToLLVMPattern<OpTy> {
     auto intrinsicNameSym =
         getOrInsertIntrinsic(rewriter, module, intrinsicName, funcType);
 
-    Value mdVal = rewriter.create<LLVM::ConstantOp>(
-        loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
-    Value ms1Val = rewriter.create<LLVM::ConstantOp>(
-        loc, i64Type, rewriter.getI64IntegerAttr(op.getMs1()));
+    Value mdVal = LLVM::ConstantOp::create(
+        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
+    Value ms1Val = LLVM::ConstantOp::create(
+        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getMs1()));
 
-    rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicNameSym,
-                                  ValueRange{mdVal, ms1Val});
+    LLVM::CallOp::create(rewriter, loc, TypeRange{}, intrinsicNameSym,
+                         ValueRange{mdVal, ms1Val});
     rewriter.eraseOp(op);
     return success();
   }
@@ -227,11 +226,11 @@ struct XTAMEDupLowering : public ConvertOpToLLVMPattern<OpTy> {
     auto intrinsicNameSym =
         getOrInsertIntrinsic(rewriter, module, intrinsicName, funcType);
 
-    Value mdVal = rewriter.create<LLVM::ConstantOp>(
-        loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
+    Value mdVal = LLVM::ConstantOp::create(
+        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
 
-    rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicNameSym,
-                                  ValueRange{mdVal, adaptor.getRs2()});
+    LLVM::CallOp::create(rewriter, loc, TypeRange{}, intrinsicNameSym,
+                         ValueRange{mdVal, adaptor.getRs2()});
     rewriter.eraseOp(op);
     return success();
   }
@@ -260,12 +259,11 @@ struct XTAMEMmovMXLowering : public ConvertOpToLLVMPattern<OpTy> {
     auto intrinsicNameSym =
         getOrInsertIntrinsic(rewriter, module, intrinsicName, funcType);
 
-    Value mdVal = rewriter.create<LLVM::ConstantOp>(
-        loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
+    Value mdVal = LLVM::ConstantOp::create(
+        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
 
-    rewriter.create<LLVM::CallOp>(
-        loc, TypeRange{}, intrinsicNameSym,
-        ValueRange{mdVal, adaptor.getRs2(), adaptor.getRs1()});
+    LLVM::CallOp::create(rewriter, loc, TypeRange{}, intrinsicNameSym,
+                         ValueRange{mdVal, adaptor.getRs2(), adaptor.getRs1()});
     rewriter.eraseOp(op);
     return success();
   }
@@ -293,11 +291,11 @@ struct XTAMEMmovXMLowering : public ConvertOpToLLVMPattern<OpTy> {
     auto intrinsicNameSym =
         getOrInsertIntrinsic(rewriter, module, intrinsicName, funcType);
 
-    Value ms2Val = rewriter.create<LLVM::ConstantOp>(
-        loc, i64Type, rewriter.getI64IntegerAttr(op.getMs2()));
+    Value ms2Val = LLVM::ConstantOp::create(
+        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getMs2()));
 
-    auto callOp = rewriter.create<LLVM::CallOp>(
-        loc, i64Type, intrinsicNameSym, ValueRange{ms2Val, adaptor.getRs1()});
+    auto callOp = LLVM::CallOp::create(rewriter, loc, i64Type, intrinsicNameSym,
+                                       ValueRange{ms2Val, adaptor.getRs1()});
     rewriter.replaceOp(op, callOp.getResults());
     return success();
   }
@@ -327,15 +325,15 @@ struct XTAMECmovMvILowering : public ConvertOpToLLVMPattern<OpTy> {
     auto intrinsicNameSym =
         getOrInsertIntrinsic(rewriter, module, intrinsicName, funcType);
 
-    Value mdVal = rewriter.create<LLVM::ConstantOp>(
-        loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
-    Value ms1Val = rewriter.create<LLVM::ConstantOp>(
-        loc, i64Type, rewriter.getI64IntegerAttr(op.getMs1()));
-    Value uimm3Val = rewriter.create<LLVM::ConstantOp>(
-        loc, i64Type, rewriter.getI64IntegerAttr(op.getUimm3()));
+    Value mdVal = LLVM::ConstantOp::create(
+        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
+    Value ms1Val = LLVM::ConstantOp::create(
+        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getMs1()));
+    Value uimm3Val = LLVM::ConstantOp::create(
+        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getUimm3()));
 
-    rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicNameSym,
-                                  ValueRange{mdVal, ms1Val, uimm3Val});
+    LLVM::CallOp::create(rewriter, loc, TypeRange{}, intrinsicNameSym,
+                         ValueRange{mdVal, ms1Val, uimm3Val});
     rewriter.eraseOp(op);
     return success();
   }
@@ -369,13 +367,12 @@ struct XTAMELoadLowering : public ConvertOpToLLVMPattern<OpTy> {
     auto intrinsicNameSym =
         getOrInsertIntrinsic(rewriter, module, intrinsicName, funcType);
 
-    Value mdVal = rewriter.create<LLVM::ConstantOp>(
-        loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
+    Value mdVal = LLVM::ConstantOp::create(
+        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
     Value basePtr = extractPointerFromMemref(rewriter, loc, op.getBase());
 
-    rewriter.create<LLVM::CallOp>(
-        loc, TypeRange{}, intrinsicNameSym,
-        ValueRange{mdVal, adaptor.getStride(), basePtr});
+    LLVM::CallOp::create(rewriter, loc, TypeRange{}, intrinsicNameSym,
+                         ValueRange{mdVal, adaptor.getStride(), basePtr});
     rewriter.eraseOp(op);
     return success();
   }
@@ -408,8 +405,8 @@ struct XTAMEPrefetchLowering : public ConvertOpToLLVMPattern<OpTy> {
 
     Value basePtr = extractPointerFromMemref(rewriter, loc, op.getBase());
 
-    rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicNameSym,
-                                  ValueRange{adaptor.getStride(), basePtr});
+    LLVM::CallOp::create(rewriter, loc, TypeRange{}, intrinsicNameSym,
+                         ValueRange{adaptor.getStride(), basePtr});
     rewriter.eraseOp(op);
     return success();
   }
@@ -443,13 +440,12 @@ struct XTAMEStoreLowering : public ConvertOpToLLVMPattern<OpTy> {
     auto intrinsicNameSym =
         getOrInsertIntrinsic(rewriter, module, intrinsicName, funcType);
 
-    Value ms3Val = rewriter.create<LLVM::ConstantOp>(
-        loc, i64Type, rewriter.getI64IntegerAttr(op.getMs3()));
+    Value ms3Val = LLVM::ConstantOp::create(
+        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getMs3()));
     Value basePtr = extractPointerFromMemref(rewriter, loc, op.getBase());
 
-    rewriter.create<LLVM::CallOp>(
-        loc, TypeRange{}, intrinsicNameSym,
-        ValueRange{ms3Val, adaptor.getStride(), basePtr});
+    LLVM::CallOp::create(rewriter, loc, TypeRange{}, intrinsicNameSym,
+                         ValueRange{ms3Val, adaptor.getStride(), basePtr});
     rewriter.eraseOp(op);
     return success();
   }
@@ -483,15 +479,15 @@ struct XTAMETernaryOpLowering : public ConvertOpToLLVMPattern<OpTy> {
     auto intrinsicNameSym =
         getOrInsertIntrinsic(rewriter, module, intrinsicName, funcType);
 
-    Value mdVal = rewriter.create<LLVM::ConstantOp>(
-        loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
-    Value ms2Val = rewriter.create<LLVM::ConstantOp>(
-        loc, i64Type, rewriter.getI64IntegerAttr(op.getMs2()));
-    Value ms1Val = rewriter.create<LLVM::ConstantOp>(
-        loc, i64Type, rewriter.getI64IntegerAttr(op.getMs1()));
+    Value mdVal = LLVM::ConstantOp::create(
+        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
+    Value ms2Val = LLVM::ConstantOp::create(
+        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getMs2()));
+    Value ms1Val = LLVM::ConstantOp::create(
+        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getMs1()));
 
-    rewriter.create<LLVM::CallOp>(loc, TypeRange{}, intrinsicNameSym,
-                                  ValueRange{mdVal, ms2Val, ms1Val});
+    LLVM::CallOp::create(rewriter, loc, TypeRange{}, intrinsicNameSym,
+                         ValueRange{mdVal, ms2Val, ms1Val});
     rewriter.eraseOp(op);
     return success();
   }
