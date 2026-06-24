@@ -1,6 +1,6 @@
 BUDDY_OPT := ../../build/bin/buddy-opt
 BUDDY_TRANSLATE := ../../build/bin/buddy-translate
-BUDDY_LLC := ../../build/bin/buddy-llc
+BUDDY_LLC := ../../llvm/build/bin/llc
 
 .PHONY: all clean help \
     ame-th-mmacc-w-b ame-th-mmacc-w-b-lower ame-th-mmacc-w-b-translate ame-th-mmacc-w-b-asm \
