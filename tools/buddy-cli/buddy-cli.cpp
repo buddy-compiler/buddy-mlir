@@ -232,7 +232,7 @@ static void usage(const char *prog) {
       << "Inference:\n"
       << "  --prompt     <text>      Input prompt (interactive if omitted)\n"
       << "  --max-tokens <N>         Max total tokens incl. prompt (default "
-         "1024)\n"
+         "4096)\n"
       << "\n"
       << "Sampling:\n"
       << "  --temperature <float>    Sampling temperature (0.0 = greedy, "

@@ -104,6 +104,27 @@ public:
     return prompt;
   }
 
+  /// Build an incremental prompt for turn N>1 in multi-turn KV reuse mode.
+  /// Returns only the tokens needed since the last decode position:
+  ///   previous turn suffix + user role prefix + message + role/turn suffix
+  ///   + assistant role prefix (generation prompt).
+  /// Does NOT include BOS, system prompt, or conversation history.
+  std::string buildIncrementalPrompt(const std::string &userMessage) const {
+    const auto &tmpl = template_;
+    std::string result;
+    // End marker of previous assistant turn (stop token was sampled but
+    // not decoded, so its text is not in the KV cache).
+    result += tmpl.turnSuffix();
+    // New user turn.
+    result += tmpl.rolePrefix("user");
+    result += userMessage;
+    result += tmpl.roleSuffix();
+    result += tmpl.turnSuffix();
+    // Generation prompt for assistant.
+    result += tmpl.rolePrefix("assistant");
+    return result;
+  }
+
   /// Remove the last assistant message for regeneration.
   /// Returns false if there is no assistant message to remove.
   bool removeLastAssistantMessage() {

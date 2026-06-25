@@ -84,25 +84,34 @@ struct TextCodec {
 // Generation
 //===----------------------------------------------------------------------===//
 
+/// Position range of <think>...</think> tokens in the KV cache.
+struct ThinkingRange {
+  int startPos = -1;
+  int endPos = -1;
+  bool isComplete() const { return startPos >= 0 && endPos > startPos; }
+};
+
 /// Result of a single generation pass.
 struct GenerationResult {
   int generatedTokens = 0;
   double prefillSecs = 0.0;
   double decodeSecs = 0.0;
   std::string text;
+  ThinkingRange thinkingRange;
 };
 
 /// Print prefill / decode throughput to stderr.
 void printStats(const GenerationResult &result, bool verbose = false);
 
 /// Run a single generation pass: tokenize → prefill → decode loop.
-/// Resets session position before prefill (safe for multi-turn reuse).
+/// When resetKV is true, resets session position before prefill.
 /// Weights must already be loaded into the session via loadWeights().
 GenerationResult runGeneration(const std::string &prompt, LLMSession &session,
                                const std::string &vocabPath, int maxNewTokens,
                                const std::vector<long long> &stopTokenIds,
                                buddy::Sampler &sampler, const TextCodec &codec,
-                               bool suppress);
+                               bool suppress, bool resetKV = true,
+                               int thinkTokenId = -1, int endThinkTokenId = -1);
 
 } // namespace runtime
 } // namespace buddy

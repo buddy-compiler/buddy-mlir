@@ -80,6 +80,9 @@ public:
   // DeepSeekR1 Tokenizer
   // This function is designed for tokenizing input text for DeepSeekR1 models.
   void tokenizeDeepSeekR1(const std::string &vocab, size_t length);
+  // Raw BPE tokenizer for DeepSeek R1 (no special token prefix/suffix).
+  // Used for incremental prompts in multi-turn KV reuse mode.
+  void tokenizeDeepSeekR1Raw(const std::string &vocab, size_t length);
   // Qwen3 Tokenizer
   // This function is designed for tokenizing input text for Qwen3 models.
   void tokenizeQwen3(const std::string &vocab, size_t length);
@@ -114,6 +117,7 @@ public:
     }
     this->aligned[tokenCnt++] = idx;
   }
+
   // Load vocab into class
   void loadVocab(const std::string &token);
 
@@ -509,6 +513,82 @@ void Text<T, N>::tokenizeDeepSeekR1(const std::string &vocab, size_t length) {
   this->aligned[tokenCnt++] = assistantToken;
   this->aligned[tokenCnt++] = thinkToken;
   this->aligned[tokenCnt++] = 198;
+
+  for (size_t i = tokenCnt; i < length; i++) {
+    this->aligned[i] = pad;
+  }
+}
+
+// Raw BPE tokenizer for DeepSeek R1 — no BOS/user/assistant/think wrapping.
+// Used for incremental prompts in multi-turn KV reuse mode.
+template <typename T, size_t N>
+void Text<T, N>::tokenizeDeepSeekR1Raw(const std::string &vocab,
+                                       size_t length) {
+  this->offset = 0;
+  this->sizes[0] = 1;
+  this->sizes[1] = length;
+  this->setStrides();
+  size_t size = this->product(this->sizes);
+  this->allocated = (T *)malloc(sizeof(T) * size);
+  this->aligned = this->allocated;
+  this->bos = 151646;
+  this->eos = 151643;
+  this->pad = 151643;
+
+  tokenCnt = 0;
+
+  loadVocab(vocab);
+
+  // Replace space with Ġ (same logic as tokenizeDeepSeekR1).
+  std::string strWithoutSpace;
+  std::string replace = "Ġ";
+  for (int i = 0; i < (int)str.size(); i++) {
+    if (str[i] != ' ')
+      strWithoutSpace.push_back(str[i]);
+    if (str[i] == ' ' && str[i - 1] != ' ')
+      strWithoutSpace.append(replace);
+  }
+
+  int len = strWithoutSpace.length();
+  std::vector<size_t> res;
+  std::vector<float> score(len + 1, 0);
+  std::vector<size_t> prev(len + 1, 0);
+  res.reserve(len);
+
+  // Forward pass: DP-based BPE tokenization.
+  for (int i = 0; i < len; i++) {
+    for (int sub_len = 1; sub_len <= len - i; sub_len++) {
+      auto iter_start = strWithoutSpace.begin() + i;
+      auto iter_end = iter_start + sub_len;
+      auto token = tokenToIdMap.find(std::string(iter_start, iter_end));
+      if (token != tokenToIdMap.end()) {
+        int token_score = sub_len * sub_len;
+        int local_score = score[i] + token_score;
+        int next = i + sub_len;
+        if (score[next] < local_score) {
+          score[next] = local_score;
+          prev[next] = token->second;
+        }
+      }
+    }
+  }
+  // Backward pass.
+  int i = len;
+  while (i > 0) {
+    size_t token_id = prev[i];
+    res.push_back(token_id);
+    i -= idToTokenVec[token_id].length();
+  }
+
+  for (auto it = res.rbegin(); it != res.rend(); ++it) {
+    this->aligned[tokenCnt++] = *it;
+  }
+
+  // Append <think> + newline, matching tokenizeDeepSeekR1() behavior.
+  // The model expects these after the assistant role prefix.
+  const int thinkToken = 151648;
+  this->aligned[tokenCnt++] = thinkToken;
+  this->aligned[tokenCnt++] = 198; // newline
 
   for (size_t i = tokenCnt; i < length; i++) {
     this->aligned[i] = pad;

@@ -30,6 +30,20 @@ void runInteractiveSession(LLMSession &session, const std::string &vocabPath,
                            buddy::ConversationManager &conv,
                            const TextCodec &codec, buddy::Sampler &sampler) {
   const bool suppress = cfg.suppressStats;
+  int turnNumber = 0;
+
+  static constexpr int kThinkTokenId = 151648;
+  static constexpr int kEndThinkTokenId = 151649;
+  static constexpr float kRopeTheta = 10000.0f;
+
+  TextCodec rawCodec;
+  const int maxTokLen = codec.maxTokenLen;
+  rawCodec.tokenize = [maxTokLen](Text<size_t, 2> &t,
+                                  const std::string &vocab) {
+    t.tokenizeDeepSeekR1Raw(vocab, maxTokLen);
+  };
+  rawCodec.detokenize = codec.detokenize;
+  rawCodec.maxTokenLen = codec.maxTokenLen;
 
   std::cerr << "\033[33;1mInteractive mode\033[0m (type :exit to quit)\n"
             << "  :exit / :quit   Exit\n"
@@ -76,6 +90,8 @@ void runInteractiveSession(LLMSession &session, const std::string &vocabPath,
 
       if (line == ":clear") {
         conv.clearHistory();
+        session.resetPosition();
+        turnNumber = 0;
         std::cerr << "Conversation history cleared.\n";
         continue;
       }
@@ -123,17 +139,56 @@ void runInteractiveSession(LLMSession &session, const std::string &vocabPath,
 
     // ── Generate response ──
     conv.addMessage("user", bufferedInput);
-    // Build single-turn prompt (system + current user message only).
-    std::vector<buddy::Message> msgs = {{"user", bufferedInput}};
-    if (!conv.systemPrompt().empty())
-      msgs.insert(msgs.begin(), {"system", conv.systemPrompt()});
-    std::string fullPrompt = conv.chatTemplate().apply(msgs);
+    turnNumber++;
 
-    GenerationResult result =
-        runGeneration(fullPrompt, session, vocabPath, cfg.maxNewTokens,
-                      stopTokenIds, sampler, codec, suppress);
+    std::string prompt;
+    bool resetKV;
+
+    if (turnNumber == 1) {
+      std::vector<buddy::Message> msgs = {{"user", bufferedInput}};
+      if (!conv.systemPrompt().empty())
+        msgs.insert(msgs.begin(), {"system", conv.systemPrompt()});
+      prompt = conv.chatTemplate().apply(msgs);
+      resetKV = true;
+    } else {
+      prompt = conv.buildIncrementalPrompt(bufferedInput);
+      resetKV = false;
+
+      Text<size_t, 2> probe(prompt);
+      rawCodec.tokenize(probe, vocabPath);
+      const int newTokens = static_cast<int>(probe.getTokenCnt());
+      if (session.position() + newTokens >= codec.maxTokenLen) {
+        session.handleKVCacheOverflow(codec.maxTokenLen / 4, kRopeTheta);
+        if (session.position() + newTokens >= codec.maxTokenLen) {
+          std::vector<buddy::Message> msgs = {{"user", bufferedInput}};
+          if (!conv.systemPrompt().empty())
+            msgs.insert(msgs.begin(), {"system", conv.systemPrompt()});
+          prompt = conv.chatTemplate().apply(msgs);
+          resetKV = true;
+        }
+      }
+    }
+
+    const TextCodec &activeCodec = resetKV ? codec : rawCodec;
+    GenerationResult result = runGeneration(
+        prompt, session, vocabPath, cfg.maxNewTokens, stopTokenIds, sampler,
+        activeCodec, suppress, resetKV, kThinkTokenId, kEndThinkTokenId);
 
     conv.addMessage("assistant", result.text);
+
+    if (result.thinkingRange.isComplete()) {
+      const int keepNum = result.thinkingRange.startPos;
+      const int discardLen =
+          result.thinkingRange.endPos - result.thinkingRange.startPos + 1;
+      printLog("Discarding thinking tokens [" +
+                   std::to_string(result.thinkingRange.startPos) + ", " +
+                   std::to_string(result.thinkingRange.endPos) + "] (" +
+                   std::to_string(discardLen) + " tokens)",
+               suppress);
+      session.discardKVRange(keepNum, discardLen, kRopeTheta);
+      printLog("Position after discard: " + std::to_string(session.position()),
+               suppress);
+    }
 
     if (!suppress)
       printStats(result);
