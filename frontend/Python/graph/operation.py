@@ -159,6 +159,16 @@ class Op:
 
     @tensor_meta.setter
     def tensor_meta(self, new_tensor_meta):
+        # GraphDriver passes TensorMeta objects when synthesizing placeholder
+        # nodes for partitioned graphs.  Store metadata in the dict layout used
+        # by existing Op users.
+        if hasattr(new_tensor_meta, "shape") and hasattr(
+            new_tensor_meta, "dtype"
+        ):
+            new_tensor_meta = {
+                "shape": new_tensor_meta.shape,
+                "dtype": new_tensor_meta.dtype,
+            }
         self._tensor_meta.update(new_tensor_meta)
 
 

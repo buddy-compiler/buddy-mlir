@@ -20,11 +20,12 @@
 #
 # ===---------------------------------------------------------------------------
 
-from buddy_mlir import ir
-from collections import deque, defaultdict
+from collections import deque
 
-from .graph import Graph, GraphImporter, TensorMeta, NodeType
-from .operation import FuncOp, CallOp, PlaceholderOp, OutputOp, GetItemOp
+from buddy_mlir import ir
+
+from .graph import Graph, GraphImporter, NodeType, TensorMeta
+from .operation import CallOp, FuncOp, GetItemOp, OutputOp, PlaceholderOp
 
 
 class GraphDriver:
@@ -68,6 +69,44 @@ class GraphDriver:
     @property
     def subgraphs(self):
         return list(self._subgraphs.values())
+
+    @staticmethod
+    def _normalize_subgraph_input_meta(node):
+        """Return TensorMeta for one tensor crossing a subgraph boundary.
+
+        CallOp metadata stores all returned shapes/dtypes as lists.  When a
+        boundary input is a GetItemOp, use the getitem index to recover the
+        concrete tensor metadata.  If multi-result metadata reaches this point
+        without an index, fail explicitly instead of silently selecting the
+        first result.
+        """
+        node_shape = node.tensor_meta["shape"]
+        node_dtype = node.tensor_meta["dtype"]
+
+        if node_shape and isinstance(node_shape[0], (list, tuple)):
+            result_index = None
+            if isinstance(node, GetItemOp) and len(node.args) > 1:
+                result_index = int(node.args[1])
+            elif len(node_shape) == 1:
+                result_index = 0
+
+            if result_index is None:
+                raise ValueError(
+                    "subgraph input has multi-result tensor metadata but no "
+                    "GetItemOp index"
+                )
+            node_shape = node_shape[result_index]
+            if isinstance(node_dtype, (list, tuple)):
+                node_dtype = node_dtype[result_index]
+        elif isinstance(node_dtype, (list, tuple)):
+            if len(node_dtype) != 1:
+                raise ValueError(
+                    "subgraph input has multi-result dtype metadata but "
+                    "single-result shape metadata"
+                )
+            node_dtype = node_dtype[0]
+
+        return TensorMeta(list(node_shape), node_dtype)
 
     def build_subgraph_by_group(self):
         """
@@ -133,9 +172,7 @@ class GraphDriver:
             # Construct input placeholder nodes
             for inp in subgraphs_inputs[subgraph_name]:
                 node = self._graph.node_table[inp]
-                node_shape = node.tensor_meta["shape"]
-                node_dtype = node.tensor_meta["dtype"]
-                input_tensor_meta = TensorMeta(node_shape, node_dtype)
+                input_tensor_meta = self._normalize_subgraph_input_meta(node)
                 subgraph_input.append(input_tensor_meta)
                 placeholder_node = PlaceholderOp()
                 placeholder_node.name = inp
@@ -173,9 +210,7 @@ class GraphDriver:
         - list: A list of subgraph names in topological order if the graph is acyclic; otherwise, None.
         """
         # Calculate in degree of each subgraph
-        in_degree = {
-            subgraph_name: 0 for subgraph_name in list(self._subgraphs.keys())
-        }
+        in_degree = dict.fromkeys(list(self._subgraphs.keys()), 0)
         for src, dests in self._subgraph_dependencies.items():
             for dest in dests:
                 in_degree[dest] += 1
@@ -248,7 +283,7 @@ class GraphDriver:
         # Adding CallOp to invoke the single subgraph
         for i, subgraph_name in enumerate(topo_order):
             call_node = CallOp()
-            call_node.name = "call{}".format(i)
+            call_node.name = f"call{i}"
             call_node.call_func_name = subgraph_name
             call_node.tensor_meta = {"shape": [], "dtype": []}
             for inp in self._subgraphs_inputs[subgraph_name]:
@@ -277,7 +312,7 @@ class GraphDriver:
             getitem_node = GetItemOp()
             getitem_node.add_argument(call_node.name)
             getitem_node.add_argument(i)
-            getitem_node.name = "getitem{}".format(i)
+            getitem_node.name = f"getitem{i}"
             output_node.add_argument(getitem_node.name)
             main_graph.add_node(getitem_node)
         # Marking the final output of the main graph

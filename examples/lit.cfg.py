@@ -62,6 +62,7 @@ config.excludes = [
     "BuddyStableDiffusion",
     "BuddyDeepSeekR1",
     "BuddyQwen3",
+    "BuddyTTSKokoro",
     "BuddyTensorParallel",
     "BuddyTransformer",
     "BuddyYOLO26",

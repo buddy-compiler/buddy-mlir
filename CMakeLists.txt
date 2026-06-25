@@ -96,6 +96,7 @@ set(BUDDY_TORQ_EXAMPLES OFF CACHE BOOL
 set(BUDDY_RUNTIME_MATMUL_TORQ OFF CACHE BOOL
     "Build buddy_matmul_torq (runtime buddy_matmul_f32 via TORQ-Tile RVV); requires RISC-V RVV and find_package(TorqTile)")
 set(BUDDY_TRANSFORMER_EXAMPLES OFF CACHE BOOL "Build transformer examples")
+set(BUDDY_TTS_KOKORO_EXAMPLES OFF CACHE BOOL "Build Kokoro TTS example")
 set(BUDDY_ENABLE_OPENCV OFF CACHE BOOL "Enable OpenCV support.")
 
 # DeepSeek R1 (buddy-codegen): heavy codegen, MLIR import, .so / .rax. Off by default
