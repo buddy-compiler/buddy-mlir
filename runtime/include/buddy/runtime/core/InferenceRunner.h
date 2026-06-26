@@ -50,6 +50,10 @@ struct RunConfig {
   /// element instead of broadcasting `prompt`.
   std::vector<std::string> prompts;
 
+  /// Path to an audio file (e.g. .wav) for speech models such as Whisper.
+  /// Ignored by text-only LLM runners. Empty = let the runner pick a default.
+  std::string audioPath;
+
   /// Optional fixed prompt/prefill length. 0 means use the encoded prompt
   /// length for single-prompt runs, or the longest encoded prompt for batched
   /// prompt-file runs.

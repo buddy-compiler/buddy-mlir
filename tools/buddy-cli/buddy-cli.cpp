@@ -280,6 +280,8 @@ static void usage(const char *prog) {
       << "  --prompt     <text>      Input prompt (interactive if omitted)\n"
       << "  --prompt-file <path>     One prompt per line for fixed-batch runs\n"
       << "  --prompt-length <N>      Fixed prompt/prefill length in tokens\n"
+      << "  --audio      <path>      Audio file for speech models (e.g. "
+         "Whisper)\n"
       << "  --max-tokens <N>         Max generated tokens (default "
          "1024)\n"
       << "  --batch-size <N>         Batch size override for fixed-batch "
@@ -349,6 +351,7 @@ int main(int argc, char **argv) {
   std::string prompt;
   std::string promptFile;
   int promptLength = 0;
+  std::string audioPath;
   int maxTokens = 4096;
   int batchSize = 0;
 
@@ -393,6 +396,8 @@ int main(int argc, char **argv) {
       promptFile = argv[++i];
     else if (a == "--prompt-length" && i + 1 < argc)
       promptLength = std::stoi(argv[++i]);
+    else if (a == "--audio" && i + 1 < argc)
+      audioPath = argv[++i];
     else if (a == "--max-tokens" && i + 1 < argc)
       maxTokens = std::stoi(argv[++i]);
     else if (a == "--batch-size" && i + 1 < argc)
@@ -490,7 +495,8 @@ int main(int argc, char **argv) {
     }
   }
 
-  if (prompt.empty() && prompts.empty() && !interactive) {
+  // Speech models (e.g. Whisper) take --audio instead of a text prompt.
+  if (prompt.empty() && prompts.empty() && audioPath.empty() && !interactive) {
     std::cout << "Prompt: ";
     std::getline(std::cin, prompt);
     std::cout << "\n";
@@ -530,6 +536,7 @@ int main(int argc, char **argv) {
   cfg.vocabPath = vocabPath;
   cfg.prompt = prompt;
   cfg.prompts = std::move(prompts);
+  cfg.audioPath = audioPath;
   cfg.promptLength = promptLength;
   cfg.maxNewTokens = maxTokens;
   cfg.batchSize = batchSize;
