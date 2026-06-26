@@ -52,9 +52,11 @@ struct EndOpInterface
     if (failed(buffer))
       return failure();
 
-    replaceOpWithNewBufferizedOp<EndOp>(rewriter, op, buffer->getType(),
-                                        *buffer, endOp.getIdAttr(),
-                                        endOp.getTagAttr());
+    DictionaryAttr attrs = op->getAttrDictionary();
+    auto newOp = replaceOpWithNewBufferizedOp<EndOp>(
+        rewriter, op, buffer->getType(), *buffer, endOp.getIdAttr(),
+        endOp.getTagAttr());
+    newOp->setAttrs(attrs);
     return success();
   }
 };

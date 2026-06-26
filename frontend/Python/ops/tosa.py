@@ -491,7 +491,9 @@ def _create_mul_shift_operand() -> ir.Value:
     return tosa.ConstOp(dense_attr).results[0]
 
 
-def _create_zero_tensor(tensor_type: ir.RankedTensorType, size_threshold_mb: float = 1.0) -> ir.Value:
+def _create_zero_tensor(
+    tensor_type: ir.RankedTensorType, size_threshold_mb: float = 1.0
+) -> ir.Value:
     """
     Create a zero-initialized tensor, using tensor.empty + linalg.fill for large tensors.
 
@@ -533,7 +535,9 @@ def _create_zero_tensor(tensor_type: ir.RankedTensorType, size_threshold_mb: flo
 
     # For small tensors, use dense constant
     if size_mb < size_threshold_mb:
-        if ir.FloatType.isinstance(element_type) or ir.BF16Type.isinstance(element_type):
+        if ir.FloatType.isinstance(element_type) or ir.BF16Type.isinstance(
+            element_type
+        ):
             zero_attr = ir.FloatAttr.get(element_type, 0.0)
         else:
             zero_attr = ir.IntegerAttr.get(element_type, 0)
@@ -543,10 +547,16 @@ def _create_zero_tensor(tensor_type: ir.RankedTensorType, size_threshold_mb: flo
     # For large tensors, use tensor.empty + linalg.fill
     empty_tensor = tensor.EmptyOp(shape, element_type).result
 
-    if ir.FloatType.isinstance(element_type) or ir.BF16Type.isinstance(element_type):
-        zero_scalar = arith.ConstantOp(element_type, ir.FloatAttr.get(element_type, 0.0)).result
+    if ir.FloatType.isinstance(element_type) or ir.BF16Type.isinstance(
+        element_type
+    ):
+        zero_scalar = arith.ConstantOp(
+            element_type, ir.FloatAttr.get(element_type, 0.0)
+        ).result
     else:
-        zero_scalar = arith.ConstantOp(element_type, ir.IntegerAttr.get(element_type, 0)).result
+        zero_scalar = arith.ConstantOp(
+            element_type, ir.IntegerAttr.get(element_type, 0)
+        ).result
 
     filled_tensor = linalg.fill(zero_scalar, outs=[empty_tensor])
     return filled_tensor
@@ -4237,7 +4247,7 @@ def scaled_dot_product_flash_attention_for_cpu_op(
         max_fp_attr = ir.FloatAttr.get(ir.F16Type.get(), f16_max_val)
 
         matmul_op = tosa.ClampOp(
-            matmul_op.type,
+            matmul_result_type,
             matmul_op,
             min_fp_attr,
             max_fp_attr,
@@ -4250,7 +4260,7 @@ def scaled_dot_product_flash_attention_for_cpu_op(
         max_fp_attr = ir.FloatAttr.get(ir.BF16Type.get(), bf16_max_val)
 
         matmul_op = tosa.ClampOp(
-            matmul_op.type,
+            matmul_result_type,
             matmul_op,
             min_fp_attr,
             max_fp_attr,

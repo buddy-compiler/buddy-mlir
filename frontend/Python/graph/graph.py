@@ -306,6 +306,7 @@ class Graph:
         newnode._keyword_arguments = node.kwargs
         newnode._tensor_meta = node.tensor_meta
         newnode._op_type = node._op_type
+        newnode.trace_meta = node.trace_meta
 
         for i in node._children:
             newnode.add_children(i)
@@ -343,6 +344,7 @@ class Graph:
         # chain[0] is to be head of the chain:
         chain[0]._arguments = node.args
         chain[0]._keyword_arguments = node.kwargs
+        chain[0].trace_meta = node.trace_meta
         # we do not set the op type, because it might have changed.
 
         for i in node._parents:
@@ -734,6 +736,7 @@ class GraphImporter:
         return self._verbose_path.open("a")
 
     def _print_verbose_node(self, node: Op, old_ops: list, new_ops: list):
+        old_op_set = set(old_ops)
         with self._verbose_output() as stream:
             ctx = (
                 contextlib.redirect_stdout(stream)
@@ -749,7 +752,7 @@ class GraphImporter:
                 print("Children: " + str(node._children))
                 print("-" * 20 + "MLIR OPS" + "-" * 20)
                 for op in new_ops:
-                    if op not in old_ops:
+                    if op not in old_op_set:
                         print(op)
                 print("")
 

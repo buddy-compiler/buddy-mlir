@@ -28,8 +28,20 @@ def _trace_attrs(node) -> dict:
 
     i64 = ir.IntegerType.get_signless(64)
     attrs = {"id": ir.IntegerAttr.get(i64, trace_meta["id"])}
+    if "id_path" in trace_meta:
+        attrs["id_path"] = ir.ArrayAttr.get(
+            [ir.IntegerAttr.get(i64, value) for value in trace_meta["id_path"]]
+        )
     if "tag" in trace_meta:
         attrs["tag"] = ir.StringAttr.get(trace_meta["tag"])
+    for extend in trace_meta.get("extend", []):
+        dialect = extend["dialect"]
+        attrs[f"trace_extend_{dialect}"] = ir.BoolAttr.get(True)
+        include = extend.get("include", [])
+        if include:
+            attrs[f"trace_{dialect}_include"] = ir.ArrayAttr.get(
+                [ir.StringAttr.get(name) for name in include]
+            )
     return attrs
 
 

@@ -51,6 +51,38 @@ static std::optional<int64_t> getUniformAttr(DenseIntElementsAttr attr) {
   return value;
 }
 
+static bool supportsTileConv(MemRefType inType, MemRefType filterType,
+                             MemRefType outType) {
+  if (inType.getRank() != 4 || filterType.getRank() != 4 ||
+      outType.getRank() != 4)
+    return false;
+  if (!inType.getElementType().isF32() || !filterType.getElementType().isF32())
+    return false;
+  if (!inType.hasStaticShape() || !filterType.hasStaticShape() ||
+      !outType.hasStaticShape())
+    return false;
+
+  constexpr int64_t bankWidth = 16;
+  constexpr int64_t bankDepth = 4096;
+  auto inShape = inType.getShape();
+  auto fShape = filterType.getShape();
+  auto outShape = outType.getShape();
+  int64_t h = inShape[1], w = inShape[2], c = inShape[3];
+  int64_t kh = fShape[0], kw = fShape[1], oc = fShape[3];
+  int64_t oh = outShape[1], ow = outShape[2];
+  if (inShape[0] <= 0 || h <= 0 || w <= 0 || c <= 0 || kh <= 0 || kw <= 0 ||
+      oc <= 0 || oh <= 0 || ow <= 0)
+    return false;
+
+  int64_t cPad = c;
+  while ((h * w * cPad) % bankWidth != 0)
+    ++cPad;
+  int64_t patchCols = kh * kw * cPad;
+  return patchCols > 0 && patchCols <= bankDepth && kh <= 255 &&
+         kw * cPad <= 255 && h <= 255 && w * cPad <= 255 && oh <= 255 &&
+         ow <= 255 && cPad <= 255;
+}
+
 class MatmulLowering : public OpRewritePattern<linalg::MatmulOp> {
 public:
   explicit MatmulLowering(MLIRContext *context) : OpRewritePattern(context) {}
@@ -68,6 +100,14 @@ public:
     MemRefType outputType = dyn_cast<MemRefType>(output0.getType());
     if (!input0Type || !input1Type || !outputType)
       return failure();
+    Attribute indexingMaps = matMulOp->getAttr("indexing_maps");
+    bool isDefaultMatmul =
+        linalg::MatmulOp::isDefaultIndexingMaps(indexingMaps);
+    bool isTransposeB =
+        linalg::MatmulTransposeBOp::isDefaultIndexingMaps(indexingMaps);
+    if (!isDefaultMatmul && !isTransposeB)
+      return failure();
+
     bool needCollapse = false;
     SmallVector<int64_t, 3> aShape;
     SmallVector<int64_t, 3> bShape;
@@ -88,7 +128,43 @@ public:
       bVal = rewriter.create<memref::CollapseShapeOp>(loc, input1, reassoc);
       oVal = rewriter.create<memref::CollapseShapeOp>(loc, output0, reassoc);
     }
-    rewriter.replaceOpWithNewOp<tile::TileMatMulOp>(matMulOp, aVal, bVal, oVal);
+
+    Value matmulInput1 = bVal;
+    if (isTransposeB) {
+      auto bValType = dyn_cast<MemRefType>(bVal.getType());
+      if (!bValType || bValType.getRank() != 2 || !bValType.hasStaticShape())
+        return failure();
+
+      ArrayRef<int64_t> bValShape = bValType.getShape();
+      int64_t n = bValShape[0];
+      int64_t k = bValShape[1];
+      auto transposedType = MemRefType::get({k, n}, bValType.getElementType());
+      Value transposed = rewriter.create<memref::AllocOp>(loc, transposedType);
+
+      Value zero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+      Value one = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+      Value nUb = rewriter.create<arith::ConstantIndexOp>(loc, n);
+      Value kUb = rewriter.create<arith::ConstantIndexOp>(loc, k);
+
+      auto nLoop = rewriter.create<scf::ForOp>(loc, zero, nUb, one);
+      rewriter.setInsertionPointToStart(nLoop.getBody());
+      Value nIv = nLoop.getInductionVar();
+      auto kLoop = rewriter.create<scf::ForOp>(loc, zero, kUb, one);
+      rewriter.setInsertionPointToStart(kLoop.getBody());
+      Value kIv = kLoop.getInductionVar();
+      Value value =
+          rewriter.create<memref::LoadOp>(loc, bVal, ValueRange{nIv, kIv});
+      rewriter.create<memref::StoreOp>(loc, value, transposed,
+                                       ValueRange{kIv, nIv});
+
+      rewriter.setInsertionPointAfter(nLoop);
+      matmulInput1 = transposed;
+    }
+
+    rewriter.create<tile::TileMatMulOp>(loc, aVal, matmulInput1, oVal);
+    if (isTransposeB)
+      rewriter.create<memref::DeallocOp>(loc, matmulInput1);
+    rewriter.eraseOp(matMulOp);
     return success();
   }
 
@@ -110,6 +186,14 @@ public:
     MemRefType outputType = dyn_cast<MemRefType>(output.getType());
     if (!input0Type || !input1Type || !outputType)
       return failure();
+    Attribute indexingMaps = batchMatMulOp->getAttr("indexing_maps");
+    bool isDefaultBatchMatmul =
+        linalg::BatchMatmulOp::isDefaultIndexingMaps(indexingMaps);
+    bool isTransposeB =
+        linalg::BatchMatmulTransposeBOp::isDefaultIndexingMaps(indexingMaps);
+    if (!isDefaultBatchMatmul && !isTransposeB)
+      return failure();
+
     ArrayRef<int64_t> input0Shape = input0Type.getShape();
     ArrayRef<int64_t> input1Shape = input1Type.getShape();
     ArrayRef<int64_t> outputShape = outputType.getShape();
@@ -136,6 +220,34 @@ public:
         subInput1 =
             rewriter.create<memref::CollapseShapeOp>(loc, subInput1, reassoc);
       }
+      Value matmulInput1 = subInput1;
+      if (isTransposeB) {
+        auto transposedType =
+            MemRefType::get({input1Shape[2], input1Shape[1]}, elemType);
+        Value transposed =
+            rewriter.create<memref::AllocOp>(loc, transposedType);
+
+        Value zero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+        Value one = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+        Value nUb =
+            rewriter.create<arith::ConstantIndexOp>(loc, input1Shape[1]);
+        Value kUb =
+            rewriter.create<arith::ConstantIndexOp>(loc, input1Shape[2]);
+
+        auto nLoop = rewriter.create<scf::ForOp>(loc, zero, nUb, one);
+        rewriter.setInsertionPointToStart(nLoop.getBody());
+        Value nIv = nLoop.getInductionVar();
+        auto kLoop = rewriter.create<scf::ForOp>(loc, zero, kUb, one);
+        rewriter.setInsertionPointToStart(kLoop.getBody());
+        Value kIv = kLoop.getInductionVar();
+        Value value = rewriter.create<memref::LoadOp>(loc, subInput1,
+                                                      ValueRange{nIv, kIv});
+        rewriter.create<memref::StoreOp>(loc, value, transposed,
+                                         ValueRange{kIv, nIv});
+
+        rewriter.setInsertionPointAfter(nLoop);
+        matmulInput1 = transposed;
+      }
 
       staticSizes.assign({1, outputShape[1], outputShape[2]});
       Value subOutput = rewriter.create<memref::SubViewOp>(
@@ -146,10 +258,12 @@ public:
         subOutput =
             rewriter.create<memref::CollapseShapeOp>(loc, subOutput, reassoc);
       }
-      SmallVector<Value> inputs = {subInput0, subInput1};
+      SmallVector<Value> inputs = {subInput0, matmulInput1};
       SmallVector<Value> outputs = {subOutput};
       rewriter.create<linalg::MatmulOp>(batchMatMulOp.getLoc(), inputs,
                                         outputs);
+      if (isTransposeB)
+        rewriter.create<memref::DeallocOp>(loc, matmulInput1);
     }
     rewriter.eraseOp(batchMatMulOp.getOperation());
     return success();
@@ -197,9 +311,12 @@ public:
     Value input = inputs[0];
     Value filter = inputs[1];
     Value output = outputs[0];
-    if (!isa<MemRefType>(input.getType()) ||
-        !isa<MemRefType>(filter.getType()) ||
-        !isa<MemRefType>(output.getType()))
+    auto inputType = dyn_cast<MemRefType>(input.getType());
+    auto filterType = dyn_cast<MemRefType>(filter.getType());
+    auto outputType = dyn_cast<MemRefType>(output.getType());
+    if (!inputType || !filterType || !outputType)
+      return failure();
+    if (!supportsTileConv(inputType, filterType, outputType))
       return failure();
     rewriter.replaceOpWithNewOp<tile::TileConv2dOp>(convOp, input, filter,
                                                     output);
@@ -244,6 +361,8 @@ public:
 
     auto hwcfType =
         MemRefType::get({kh, kw, c, oc}, filterType.getElementType());
+    if (!supportsTileConv(inputType, hwcfType, outputType))
+      return failure();
     Value hwcf = rewriter.create<memref::AllocOp>(loc, hwcfType);
 
     Value zero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
@@ -329,6 +448,8 @@ public:
         MemRefType::get({kh, kw, c, f}, filterType.getElementType());
     auto outNhwcType =
         MemRefType::get({n, oh, ow, f}, outputType.getElementType());
+    if (!supportsTileConv(nhwcType, hwcfType, outNhwcType))
+      return failure();
     Value nhwc = rewriter.create<memref::AllocOp>(loc, nhwcType);
     Value hwcf = rewriter.create<memref::AllocOp>(loc, hwcfType);
     Value outNhwc = rewriter.create<memref::AllocOp>(loc, outNhwcType);
