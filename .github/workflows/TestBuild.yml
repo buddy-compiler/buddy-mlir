@@ -97,7 +97,7 @@ jobs:
               # compatibility issues with other modules.
               pip uninstall -y torchvision || true
             fi
-            pip install --pre \
+            pip install \
               --extra-index-url https://download.pytorch.org/whl/cpu \
               --extra-index-url https://ruyirepo.ruyicommunity.cn/pypi/simple/ \
               --upgrade --force-reinstall \
