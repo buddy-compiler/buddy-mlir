@@ -124,9 +124,9 @@ public:
     Value oVal = output0;
     if (needCollapse) {
       SmallVector<SmallVector<int64_t, 2>, 2> reassoc = {{0, 1}, {2}};
-      aVal = rewriter.create<memref::CollapseShapeOp>(loc, input0, reassoc);
-      bVal = rewriter.create<memref::CollapseShapeOp>(loc, input1, reassoc);
-      oVal = rewriter.create<memref::CollapseShapeOp>(loc, output0, reassoc);
+      aVal = memref::CollapseShapeOp::create(rewriter, loc, input0, reassoc);
+      bVal = memref::CollapseShapeOp::create(rewriter, loc, input1, reassoc);
+      oVal = memref::CollapseShapeOp::create(rewriter, loc, output0, reassoc);
     }
 
     Value matmulInput1 = bVal;
@@ -139,31 +139,31 @@ public:
       int64_t n = bValShape[0];
       int64_t k = bValShape[1];
       auto transposedType = MemRefType::get({k, n}, bValType.getElementType());
-      Value transposed = rewriter.create<memref::AllocOp>(loc, transposedType);
+      Value transposed = memref::AllocOp::create(rewriter, loc, transposedType);
 
-      Value zero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
-      Value one = rewriter.create<arith::ConstantIndexOp>(loc, 1);
-      Value nUb = rewriter.create<arith::ConstantIndexOp>(loc, n);
-      Value kUb = rewriter.create<arith::ConstantIndexOp>(loc, k);
+      Value zero = arith::ConstantIndexOp::create(rewriter, loc, 0);
+      Value one = arith::ConstantIndexOp::create(rewriter, loc, 1);
+      Value nUb = arith::ConstantIndexOp::create(rewriter, loc, n);
+      Value kUb = arith::ConstantIndexOp::create(rewriter, loc, k);
 
-      auto nLoop = rewriter.create<scf::ForOp>(loc, zero, nUb, one);
+      auto nLoop = scf::ForOp::create(rewriter, loc, zero, nUb, one);
       rewriter.setInsertionPointToStart(nLoop.getBody());
       Value nIv = nLoop.getInductionVar();
-      auto kLoop = rewriter.create<scf::ForOp>(loc, zero, kUb, one);
+      auto kLoop = scf::ForOp::create(rewriter, loc, zero, kUb, one);
       rewriter.setInsertionPointToStart(kLoop.getBody());
       Value kIv = kLoop.getInductionVar();
       Value value =
-          rewriter.create<memref::LoadOp>(loc, bVal, ValueRange{nIv, kIv});
-      rewriter.create<memref::StoreOp>(loc, value, transposed,
-                                       ValueRange{kIv, nIv});
+          memref::LoadOp::create(rewriter, loc, bVal, ValueRange{nIv, kIv});
+      memref::StoreOp::create(rewriter, loc, value, transposed,
+                              ValueRange{kIv, nIv});
 
       rewriter.setInsertionPointAfter(nLoop);
       matmulInput1 = transposed;
     }
 
-    rewriter.create<tile::TileMatMulOp>(loc, aVal, matmulInput1, oVal);
+    tile::TileMatMulOp::create(rewriter, loc, aVal, matmulInput1, oVal);
     if (isTransposeB)
-      rewriter.create<memref::DeallocOp>(loc, matmulInput1);
+      memref::DeallocOp::create(rewriter, loc, matmulInput1);
     rewriter.eraseOp(matMulOp);
     return success();
   }
@@ -202,68 +202,68 @@ public:
       SmallVector<int64_t> staticOffsets = {i, 0, 0};
       SmallVector<int64_t> staticSizes = {1, input0Shape[1], input0Shape[2]};
       SmallVector<int64_t> staticStrides = {1, 1, 1};
-      Value subInput0 = rewriter.create<memref::SubViewOp>(
-          loc, input0, staticOffsets, staticSizes, staticStrides);
+      Value subInput0 = memref::SubViewOp::create(
+          rewriter, loc, input0, staticOffsets, staticSizes, staticStrides);
       if (dyn_cast<MemRefType>(subInput0.getType()).getRank() == 3 &&
           dyn_cast<MemRefType>(subInput0.getType()).getShape()[0] == 1) {
         SmallVector<SmallVector<int64_t, 2>, 2> reassoc = {{0, 1}, {2}};
         subInput0 =
-            rewriter.create<memref::CollapseShapeOp>(loc, subInput0, reassoc);
+            memref::CollapseShapeOp::create(rewriter, loc, subInput0, reassoc);
       }
 
       staticSizes.assign({1, input1Shape[1], input1Shape[2]});
-      Value subInput1 = rewriter.create<memref::SubViewOp>(
-          loc, input1, staticOffsets, staticSizes, staticStrides);
+      Value subInput1 = memref::SubViewOp::create(
+          rewriter, loc, input1, staticOffsets, staticSizes, staticStrides);
       if (dyn_cast<MemRefType>(subInput1.getType()).getRank() == 3 &&
           dyn_cast<MemRefType>(subInput1.getType()).getShape()[0] == 1) {
         SmallVector<SmallVector<int64_t, 2>, 2> reassoc = {{0, 1}, {2}};
         subInput1 =
-            rewriter.create<memref::CollapseShapeOp>(loc, subInput1, reassoc);
+            memref::CollapseShapeOp::create(rewriter, loc, subInput1, reassoc);
       }
       Value matmulInput1 = subInput1;
       if (isTransposeB) {
         auto transposedType =
             MemRefType::get({input1Shape[2], input1Shape[1]}, elemType);
         Value transposed =
-            rewriter.create<memref::AllocOp>(loc, transposedType);
+            memref::AllocOp::create(rewriter, loc, transposedType);
 
-        Value zero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
-        Value one = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+        Value zero = arith::ConstantIndexOp::create(rewriter, loc, 0);
+        Value one = arith::ConstantIndexOp::create(rewriter, loc, 1);
         Value nUb =
-            rewriter.create<arith::ConstantIndexOp>(loc, input1Shape[1]);
+            arith::ConstantIndexOp::create(rewriter, loc, input1Shape[1]);
         Value kUb =
-            rewriter.create<arith::ConstantIndexOp>(loc, input1Shape[2]);
+            arith::ConstantIndexOp::create(rewriter, loc, input1Shape[2]);
 
-        auto nLoop = rewriter.create<scf::ForOp>(loc, zero, nUb, one);
+        auto nLoop = scf::ForOp::create(rewriter, loc, zero, nUb, one);
         rewriter.setInsertionPointToStart(nLoop.getBody());
         Value nIv = nLoop.getInductionVar();
-        auto kLoop = rewriter.create<scf::ForOp>(loc, zero, kUb, one);
+        auto kLoop = scf::ForOp::create(rewriter, loc, zero, kUb, one);
         rewriter.setInsertionPointToStart(kLoop.getBody());
         Value kIv = kLoop.getInductionVar();
-        Value value = rewriter.create<memref::LoadOp>(loc, subInput1,
-                                                      ValueRange{nIv, kIv});
-        rewriter.create<memref::StoreOp>(loc, value, transposed,
-                                         ValueRange{kIv, nIv});
+        Value value = memref::LoadOp::create(rewriter, loc, subInput1,
+                                             ValueRange{nIv, kIv});
+        memref::StoreOp::create(rewriter, loc, value, transposed,
+                                ValueRange{kIv, nIv});
 
         rewriter.setInsertionPointAfter(nLoop);
         matmulInput1 = transposed;
       }
 
       staticSizes.assign({1, outputShape[1], outputShape[2]});
-      Value subOutput = rewriter.create<memref::SubViewOp>(
-          loc, output, staticOffsets, staticSizes, staticStrides);
+      Value subOutput = memref::SubViewOp::create(
+          rewriter, loc, output, staticOffsets, staticSizes, staticStrides);
       if (dyn_cast<MemRefType>(subOutput.getType()).getRank() == 3 &&
           dyn_cast<MemRefType>(subOutput.getType()).getShape()[0] == 1) {
         SmallVector<SmallVector<int64_t, 2>, 2> reassoc = {{0, 1}, {2}};
         subOutput =
-            rewriter.create<memref::CollapseShapeOp>(loc, subOutput, reassoc);
+            memref::CollapseShapeOp::create(rewriter, loc, subOutput, reassoc);
       }
       SmallVector<Value> inputs = {subInput0, matmulInput1};
       SmallVector<Value> outputs = {subOutput};
-      rewriter.create<linalg::MatmulOp>(batchMatMulOp.getLoc(), inputs,
-                                        outputs);
+      linalg::MatmulOp::create(rewriter, batchMatMulOp.getLoc(), inputs,
+                               outputs);
       if (isTransposeB)
-        rewriter.create<memref::DeallocOp>(loc, matmulInput1);
+        memref::DeallocOp::create(rewriter, loc, matmulInput1);
     }
     rewriter.eraseOp(batchMatMulOp.getOperation());
     return success();
@@ -363,39 +363,39 @@ public:
         MemRefType::get({kh, kw, c, oc}, filterType.getElementType());
     if (!supportsTileConv(inputType, hwcfType, outputType))
       return failure();
-    Value hwcf = rewriter.create<memref::AllocOp>(loc, hwcfType);
+    Value hwcf = memref::AllocOp::create(rewriter, loc, hwcfType);
 
-    Value zero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
-    Value one = rewriter.create<arith::ConstantIndexOp>(loc, 1);
-    Value ocUb = rewriter.create<arith::ConstantIndexOp>(loc, oc);
-    Value khUb = rewriter.create<arith::ConstantIndexOp>(loc, kh);
-    Value kwUb = rewriter.create<arith::ConstantIndexOp>(loc, kw);
-    Value cUb = rewriter.create<arith::ConstantIndexOp>(loc, c);
+    Value zero = arith::ConstantIndexOp::create(rewriter, loc, 0);
+    Value one = arith::ConstantIndexOp::create(rewriter, loc, 1);
+    Value ocUb = arith::ConstantIndexOp::create(rewriter, loc, oc);
+    Value khUb = arith::ConstantIndexOp::create(rewriter, loc, kh);
+    Value kwUb = arith::ConstantIndexOp::create(rewriter, loc, kw);
+    Value cUb = arith::ConstantIndexOp::create(rewriter, loc, c);
 
-    auto ocLoop = rewriter.create<scf::ForOp>(loc, zero, ocUb, one);
+    auto ocLoop = scf::ForOp::create(rewriter, loc, zero, ocUb, one);
     rewriter.setInsertionPointToStart(ocLoop.getBody());
     Value ocIv = ocLoop.getInductionVar();
 
-    auto khLoop = rewriter.create<scf::ForOp>(loc, zero, khUb, one);
+    auto khLoop = scf::ForOp::create(rewriter, loc, zero, khUb, one);
     rewriter.setInsertionPointToStart(khLoop.getBody());
     Value khIv = khLoop.getInductionVar();
 
-    auto kwLoop = rewriter.create<scf::ForOp>(loc, zero, kwUb, one);
+    auto kwLoop = scf::ForOp::create(rewriter, loc, zero, kwUb, one);
     rewriter.setInsertionPointToStart(kwLoop.getBody());
     Value kwIv = kwLoop.getInductionVar();
 
-    auto cLoop = rewriter.create<scf::ForOp>(loc, zero, cUb, one);
+    auto cLoop = scf::ForOp::create(rewriter, loc, zero, cUb, one);
     rewriter.setInsertionPointToStart(cLoop.getBody());
     Value cIv = cLoop.getInductionVar();
 
-    Value value = rewriter.create<memref::LoadOp>(
-        loc, filter, ValueRange{ocIv, khIv, kwIv, cIv});
-    rewriter.create<memref::StoreOp>(loc, value, hwcf,
-                                     ValueRange{khIv, kwIv, cIv, ocIv});
+    Value value = memref::LoadOp::create(rewriter, loc, filter,
+                                         ValueRange{ocIv, khIv, kwIv, cIv});
+    memref::StoreOp::create(rewriter, loc, value, hwcf,
+                            ValueRange{khIv, kwIv, cIv, ocIv});
 
     rewriter.setInsertionPointAfter(ocLoop);
-    rewriter.create<tile::TileConv2dOp>(loc, input, hwcf, output);
-    rewriter.create<memref::DeallocOp>(loc, hwcf);
+    tile::TileConv2dOp::create(rewriter, loc, input, hwcf, output);
+    memref::DeallocOp::create(rewriter, loc, hwcf);
     rewriter.eraseOp(convOp);
     return success();
   }
@@ -450,81 +450,81 @@ public:
         MemRefType::get({n, oh, ow, f}, outputType.getElementType());
     if (!supportsTileConv(nhwcType, hwcfType, outNhwcType))
       return failure();
-    Value nhwc = rewriter.create<memref::AllocOp>(loc, nhwcType);
-    Value hwcf = rewriter.create<memref::AllocOp>(loc, hwcfType);
-    Value outNhwc = rewriter.create<memref::AllocOp>(loc, outNhwcType);
+    Value nhwc = memref::AllocOp::create(rewriter, loc, nhwcType);
+    Value hwcf = memref::AllocOp::create(rewriter, loc, hwcfType);
+    Value outNhwc = memref::AllocOp::create(rewriter, loc, outNhwcType);
 
-    Value zero = rewriter.create<arith::ConstantIndexOp>(loc, 0);
-    Value one = rewriter.create<arith::ConstantIndexOp>(loc, 1);
-    Value nUb = rewriter.create<arith::ConstantIndexOp>(loc, n);
-    Value cUb = rewriter.create<arith::ConstantIndexOp>(loc, c);
-    Value hUb = rewriter.create<arith::ConstantIndexOp>(loc, h);
-    Value wUb = rewriter.create<arith::ConstantIndexOp>(loc, w);
-    Value fUb = rewriter.create<arith::ConstantIndexOp>(loc, f);
-    Value khUb = rewriter.create<arith::ConstantIndexOp>(loc, kh);
-    Value kwUb = rewriter.create<arith::ConstantIndexOp>(loc, kw);
-    Value ohUb = rewriter.create<arith::ConstantIndexOp>(loc, oh);
-    Value owUb = rewriter.create<arith::ConstantIndexOp>(loc, ow);
+    Value zero = arith::ConstantIndexOp::create(rewriter, loc, 0);
+    Value one = arith::ConstantIndexOp::create(rewriter, loc, 1);
+    Value nUb = arith::ConstantIndexOp::create(rewriter, loc, n);
+    Value cUb = arith::ConstantIndexOp::create(rewriter, loc, c);
+    Value hUb = arith::ConstantIndexOp::create(rewriter, loc, h);
+    Value wUb = arith::ConstantIndexOp::create(rewriter, loc, w);
+    Value fUb = arith::ConstantIndexOp::create(rewriter, loc, f);
+    Value khUb = arith::ConstantIndexOp::create(rewriter, loc, kh);
+    Value kwUb = arith::ConstantIndexOp::create(rewriter, loc, kw);
+    Value ohUb = arith::ConstantIndexOp::create(rewriter, loc, oh);
+    Value owUb = arith::ConstantIndexOp::create(rewriter, loc, ow);
 
-    auto nLoop = rewriter.create<scf::ForOp>(loc, zero, nUb, one);
+    auto nLoop = scf::ForOp::create(rewriter, loc, zero, nUb, one);
     rewriter.setInsertionPointToStart(nLoop.getBody());
     Value nIv = nLoop.getInductionVar();
-    auto cLoop = rewriter.create<scf::ForOp>(loc, zero, cUb, one);
+    auto cLoop = scf::ForOp::create(rewriter, loc, zero, cUb, one);
     rewriter.setInsertionPointToStart(cLoop.getBody());
     Value cIv = cLoop.getInductionVar();
-    auto hLoop = rewriter.create<scf::ForOp>(loc, zero, hUb, one);
+    auto hLoop = scf::ForOp::create(rewriter, loc, zero, hUb, one);
     rewriter.setInsertionPointToStart(hLoop.getBody());
     Value hIv = hLoop.getInductionVar();
-    auto wLoop = rewriter.create<scf::ForOp>(loc, zero, wUb, one);
+    auto wLoop = scf::ForOp::create(rewriter, loc, zero, wUb, one);
     rewriter.setInsertionPointToStart(wLoop.getBody());
     Value wIv = wLoop.getInductionVar();
-    Value inputValue = rewriter.create<memref::LoadOp>(
-        loc, input, ValueRange{nIv, cIv, hIv, wIv});
-    rewriter.create<memref::StoreOp>(loc, inputValue, nhwc,
-                                     ValueRange{nIv, hIv, wIv, cIv});
+    Value inputValue = memref::LoadOp::create(rewriter, loc, input,
+                                              ValueRange{nIv, cIv, hIv, wIv});
+    memref::StoreOp::create(rewriter, loc, inputValue, nhwc,
+                            ValueRange{nIv, hIv, wIv, cIv});
 
     rewriter.setInsertionPointAfter(nLoop);
-    auto fLoop = rewriter.create<scf::ForOp>(loc, zero, fUb, one);
+    auto fLoop = scf::ForOp::create(rewriter, loc, zero, fUb, one);
     rewriter.setInsertionPointToStart(fLoop.getBody());
     Value fIv = fLoop.getInductionVar();
-    auto fcLoop = rewriter.create<scf::ForOp>(loc, zero, cUb, one);
+    auto fcLoop = scf::ForOp::create(rewriter, loc, zero, cUb, one);
     rewriter.setInsertionPointToStart(fcLoop.getBody());
     Value fcIv = fcLoop.getInductionVar();
-    auto khLoop = rewriter.create<scf::ForOp>(loc, zero, khUb, one);
+    auto khLoop = scf::ForOp::create(rewriter, loc, zero, khUb, one);
     rewriter.setInsertionPointToStart(khLoop.getBody());
     Value khIv = khLoop.getInductionVar();
-    auto kwLoop = rewriter.create<scf::ForOp>(loc, zero, kwUb, one);
+    auto kwLoop = scf::ForOp::create(rewriter, loc, zero, kwUb, one);
     rewriter.setInsertionPointToStart(kwLoop.getBody());
     Value kwIv = kwLoop.getInductionVar();
-    Value filterValue = rewriter.create<memref::LoadOp>(
-        loc, filter, ValueRange{fIv, fcIv, khIv, kwIv});
-    rewriter.create<memref::StoreOp>(loc, filterValue, hwcf,
-                                     ValueRange{khIv, kwIv, fcIv, fIv});
+    Value filterValue = memref::LoadOp::create(
+        rewriter, loc, filter, ValueRange{fIv, fcIv, khIv, kwIv});
+    memref::StoreOp::create(rewriter, loc, filterValue, hwcf,
+                            ValueRange{khIv, kwIv, fcIv, fIv});
 
     rewriter.setInsertionPointAfter(fLoop);
-    rewriter.create<tile::TileConv2dOp>(loc, nhwc, hwcf, outNhwc);
+    tile::TileConv2dOp::create(rewriter, loc, nhwc, hwcf, outNhwc);
 
-    auto onLoop = rewriter.create<scf::ForOp>(loc, zero, nUb, one);
+    auto onLoop = scf::ForOp::create(rewriter, loc, zero, nUb, one);
     rewriter.setInsertionPointToStart(onLoop.getBody());
     Value onIv = onLoop.getInductionVar();
-    auto ofLoop = rewriter.create<scf::ForOp>(loc, zero, fUb, one);
+    auto ofLoop = scf::ForOp::create(rewriter, loc, zero, fUb, one);
     rewriter.setInsertionPointToStart(ofLoop.getBody());
     Value ofIv = ofLoop.getInductionVar();
-    auto ohLoop = rewriter.create<scf::ForOp>(loc, zero, ohUb, one);
+    auto ohLoop = scf::ForOp::create(rewriter, loc, zero, ohUb, one);
     rewriter.setInsertionPointToStart(ohLoop.getBody());
     Value ohIv = ohLoop.getInductionVar();
-    auto owLoop = rewriter.create<scf::ForOp>(loc, zero, owUb, one);
+    auto owLoop = scf::ForOp::create(rewriter, loc, zero, owUb, one);
     rewriter.setInsertionPointToStart(owLoop.getBody());
     Value owIv = owLoop.getInductionVar();
-    Value outputValue = rewriter.create<memref::LoadOp>(
-        loc, outNhwc, ValueRange{onIv, ohIv, owIv, ofIv});
-    rewriter.create<memref::StoreOp>(loc, outputValue, output,
-                                     ValueRange{onIv, ofIv, ohIv, owIv});
+    Value outputValue = memref::LoadOp::create(
+        rewriter, loc, outNhwc, ValueRange{onIv, ohIv, owIv, ofIv});
+    memref::StoreOp::create(rewriter, loc, outputValue, output,
+                            ValueRange{onIv, ofIv, ohIv, owIv});
 
     rewriter.setInsertionPointAfter(onLoop);
-    rewriter.create<memref::DeallocOp>(loc, nhwc);
-    rewriter.create<memref::DeallocOp>(loc, hwcf);
-    rewriter.create<memref::DeallocOp>(loc, outNhwc);
+    memref::DeallocOp::create(rewriter, loc, nhwc);
+    memref::DeallocOp::create(rewriter, loc, hwcf);
+    memref::DeallocOp::create(rewriter, loc, outNhwc);
     rewriter.eraseOp(convOp);
     return success();
   }

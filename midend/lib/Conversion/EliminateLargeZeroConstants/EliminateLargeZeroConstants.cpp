@@ -108,8 +108,8 @@ struct ReplaceLargeZeroConstant : public OpRewritePattern<arith::ConstantOp> {
     auto elemType = tensorType.getElementType();
 
     SmallVector<Value> dynamicSizes;
-    Value emptyTensor = rewriter.create<tensor::EmptyOp>(
-        loc, tensorType.getShape(), elemType, dynamicSizes);
+    Value emptyTensor = tensor::EmptyOp::create(
+        rewriter, loc, tensorType.getShape(), elemType, dynamicSizes);
 
     TypedAttr zeroAttr;
     if (isa<FloatType>(elemType) || isa<BFloat16Type>(elemType)) {
@@ -119,10 +119,10 @@ struct ReplaceLargeZeroConstant : public OpRewritePattern<arith::ConstantOp> {
     } else {
       return failure();
     }
-    Value zeroScalar = rewriter.create<arith::ConstantOp>(loc, zeroAttr);
+    Value zeroScalar = arith::ConstantOp::create(rewriter, loc, zeroAttr);
 
     Value filledTensor =
-        rewriter.create<linalg::FillOp>(loc, zeroScalar, emptyTensor)
+        linalg::FillOp::create(rewriter, loc, zeroScalar, emptyTensor)
             .getResult(0);
 
     rewriter.replaceOp(op, filledTensor);

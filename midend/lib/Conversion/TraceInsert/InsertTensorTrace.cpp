@@ -226,8 +226,8 @@ void insertTraceAround(Operation *target, ::buddy::trace::StartOp parent,
   OpBuilder startBuilder(target);
   auto idAttr = startBuilder.getI64IntegerAttr(id);
   auto tagAttr = startBuilder.getStringAttr(tag);
-  auto start = startBuilder.create<::buddy::trace::StartOp>(target->getLoc(),
-                                                            idAttr, tagAttr);
+  auto start = ::buddy::trace::StartOp::create(startBuilder, target->getLoc(),
+                                               idAttr, tagAttr);
   int64_t level = static_cast<int64_t>(idPath.size()) - 1;
   setGeneratedTraceAttrs(start.getOperation(), startBuilder, parent.getId(),
                          idPath, level, traceType, buckyballInclude,
@@ -238,10 +238,10 @@ void insertTraceAround(Operation *target, ::buddy::trace::StartOp parent,
   if (target->getNumResults() == 1)
     input = target->getResult(0);
   else
-    input = endBuilder.create<arith::ConstantIndexOp>(target->getLoc(), 0);
+    input = arith::ConstantIndexOp::create(endBuilder, target->getLoc(), 0);
 
-  auto end = endBuilder.create<::buddy::trace::EndOp>(
-      target->getLoc(), input.getType(), input, idAttr, tagAttr);
+  auto end = ::buddy::trace::EndOp::create(
+      endBuilder, target->getLoc(), input.getType(), input, idAttr, tagAttr);
   setGeneratedTraceAttrs(end.getOperation(), endBuilder, parent.getId(), idPath,
                          level, traceType, buckyballInclude,
                          propagateBuckyball);
@@ -456,7 +456,7 @@ private:
     OpBuilder builder(module.getBodyRegion());
     auto funcType = builder.getFunctionType(argTypes, {});
     auto func =
-        builder.create<func::FuncOp>(module.getLoc(), funcName, funcType);
+        func::FuncOp::create(builder, module.getLoc(), funcName, funcType);
     func.setPrivate();
     func->setAttr("llvm.emit_c_interface", builder.getUnitAttr());
     return func;
@@ -503,13 +503,13 @@ private:
       return op->emitError("trace id_path exceeds runtime depth limit");
 
     Location loc = op->getLoc();
-    values.push_back(builder.create<arith::ConstantIntOp>(loc, id, 64));
-    values.push_back(builder.create<arith::ConstantIntOp>(
-        loc, static_cast<int64_t>(path.size()), 64));
+    values.push_back(arith::ConstantIntOp::create(builder, loc, id, 64));
+    values.push_back(arith::ConstantIntOp::create(
+        builder, loc, static_cast<int64_t>(path.size()), 64));
     for (int64_t i = 0; i < kRuntimeTracePathMaxDepth; ++i) {
       int64_t component = i < static_cast<int64_t>(path.size()) ? path[i] : -1;
       values.push_back(
-          builder.create<arith::ConstantIntOp>(loc, component, 64));
+          arith::ConstantIntOp::create(builder, loc, component, 64));
     }
     return success();
   }
@@ -519,8 +519,8 @@ private:
     SmallVector<Value> args;
     if (failed(buildTracePathValues(op.getOperation(), builder, args)))
       return failure();
-    builder.create<func::CallOp>(op.getLoc(), kCycleTraceStartPathFuncName,
-                                 TypeRange{}, args);
+    func::CallOp::create(builder, op.getLoc(), kCycleTraceStartPathFuncName,
+                         TypeRange{}, args);
     return success();
   }
 
@@ -529,8 +529,8 @@ private:
     SmallVector<Value> args;
     if (failed(buildTracePathValues(op.getOperation(), builder, args)))
       return failure();
-    builder.create<func::CallOp>(op.getLoc(), kCycleTraceEndPathFuncName,
-                                 TypeRange{}, args);
+    func::CallOp::create(builder, op.getLoc(), kCycleTraceEndPathFuncName,
+                         TypeRange{}, args);
     return success();
   }
 
@@ -574,18 +574,18 @@ private:
       for (int64_t i = 0, e = memrefType.getRank(); i < e; ++i)
         reassociation[0].push_back(i);
       auto flatType = MemRefType::get({flatSize}, memrefType.getElementType());
-      flat = builder.create<memref::CollapseShapeOp>(loc, flatType, value,
-                                                     reassociation);
+      flat = memref::CollapseShapeOp::create(builder, loc, flatType, value,
+                                             reassociation);
     }
 
     auto castType =
         MemRefType::get({ShapedType::kDynamic}, memrefType.getElementType());
-    Value cast = builder.create<memref::CastOp>(loc, castType, flat);
+    Value cast = memref::CastOp::create(builder, loc, castType, flat);
     SmallVector<Value> args;
     if (failed(buildTracePathValues(op.getOperation(), builder, args)))
       return failure();
     args.push_back(cast);
-    builder.create<func::CallOp>(loc, funcName, TypeRange{}, args);
+    func::CallOp::create(builder, loc, funcName, TypeRange{}, args);
     return success();
   }
 };
