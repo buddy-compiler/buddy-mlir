@@ -223,15 +223,21 @@ endif()
 # External Dialects Configuration
 #-------------------------------------------------------------------------------
 
-option(BUDDY_EXTERNAL_DIALECTS_DIR "Path to external dialects directory" "")
+set(BUDDY_EXTERNAL_DIALECTS_DIR "" CACHE PATH "Path to external dialects directory")
+set(BUDDY_ENABLE_EXTERNAL_DIALECTS OFF)
 
 if(BUDDY_EXTERNAL_DIALECTS_DIR)
+  if(NOT EXISTS "${BUDDY_EXTERNAL_DIALECTS_DIR}/CMakeLists.txt")
+    message(FATAL_ERROR
+      "BUDDY_EXTERNAL_DIALECTS_DIR is set but "
+      "${BUDDY_EXTERNAL_DIALECTS_DIR}/CMakeLists.txt does not exist")
+  endif()
+
+  set(BUDDY_ENABLE_EXTERNAL_DIALECTS ON)
   message(STATUS "Including external dialects from: ${BUDDY_EXTERNAL_DIALECTS_DIR}")
-  # Include external dialect headers
   include_directories(${BUDDY_EXTERNAL_DIALECTS_DIR})
   include_directories(${CMAKE_BINARY_DIR}/external_dialects)
-  # Define macro to enable external dialect support
-  add_definitions(-DBUDDY_EXTERNAL_DIALECTS)
+  add_compile_definitions(BUDDY_EXTERNAL_DIALECTS)
 endif()
 
 #-------------------------------------------------------------------------------
@@ -246,12 +252,8 @@ add_subdirectory(frontend)
 add_subdirectory(models)
 
 # Add external dialects before midend so they can be referenced
-if(BUDDY_EXTERNAL_DIALECTS_DIR)
-  if(EXISTS ${BUDDY_EXTERNAL_DIALECTS_DIR}/CMakeLists.txt)
-    add_subdirectory(${BUDDY_EXTERNAL_DIALECTS_DIR} ${CMAKE_BINARY_DIR}/external_dialects)
-  else()
-    message(WARNING "BUDDY_EXTERNAL_DIALECTS_DIR is set but ${BUDDY_EXTERNAL_DIALECTS_DIR}/CMakeLists.txt does not exist")
-  endif()
+if(BUDDY_ENABLE_EXTERNAL_DIALECTS)
+  add_subdirectory(${BUDDY_EXTERNAL_DIALECTS_DIR} ${CMAKE_BINARY_DIR}/external_dialects)
 endif()
 
 add_subdirectory(midend)

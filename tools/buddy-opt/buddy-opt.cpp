@@ -51,7 +51,6 @@
 #include "Trace/TraceDialect.h"
 #include "Trace/TraceOps.h"
 #include "Trace/Transforms/BufferizableOpInterfaceImpl.h"
-// Buckyball dialect is a dialect implemented outside of buddy-mlir
 #ifdef BUDDY_EXTERNAL_DIALECTS
 #include "Dialect/Buckyball/BuckyballDialect.h"
 #include "Dialect/Buckyball/BuckyballOps.h"
@@ -106,12 +105,14 @@ void registerConvNhwcFhwcTileOptimizePass();
 void registerDepthwiseConv2DNhwcHwcOptimizePass();
 void registerLowerVectorExpPass();
 void registerLowerLinalgToTilePass();
+#ifdef BUDDY_EXTERNAL_DIALECTS
 void registerLowerTileToBuckyballPass();
 void registerLowerBuckyballToBankSSAPass();
 void registerAssignPhysicalBanksPass();
 void registerLowerBankSSAToIntrinsicsPass();
 void registerReportBankUsagePass();
 void registerLowerBuckyballPass();
+#endif
 void registerLowerGemminiPass();
 void registerLowerLinalgToGemminiPass();
 void registerLowerLinalgToIMEPass();
@@ -157,12 +158,14 @@ int main(int argc, char **argv) {
   mlir::buddy::registerLowerRVVPass();
   mlir::buddy::registerLowerVectorExpPass();
   mlir::buddy::registerLowerLinalgToTilePass();
+#ifdef BUDDY_EXTERNAL_DIALECTS
   mlir::buddy::registerLowerTileToBuckyballPass();
   mlir::buddy::registerLowerBuckyballToBankSSAPass();
   mlir::buddy::registerAssignPhysicalBanksPass();
   mlir::buddy::registerLowerBankSSAToIntrinsicsPass();
   mlir::buddy::registerReportBankUsagePass();
   mlir::buddy::registerLowerBuckyballPass();
+#endif
   mlir::buddy::registerLowerGemminiPass();
   mlir::buddy::registerLowerLinalgToGemminiPass();
   mlir::buddy::registerLowerLinalgToIMEPass();
@@ -232,9 +235,11 @@ int main(int argc, char **argv) {
                   buddy::ame::AMEDialect,
                   buddy::tile::TileDialect,
                   buddy::trace::BuddyTraceDialect,
-                  buddy::buckyball::BuckyballDialect,
                   buddy::ime::IMEDialect>();
   // clang-format on
+#ifdef BUDDY_EXTERNAL_DIALECTS
+  registry.insert<buddy::buckyball::BuckyballDialect>();
+#endif
 
   mlir::buddy::registerBuddyGPUTransformOps(registry);
 

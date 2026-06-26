@@ -1,4 +1,5 @@
-//====- buddy-lsp-server.cpp - The LSP server of buddy-mlir --------------------------===//
+//====- buddy-lsp-server.cpp - The LSP server of buddy-mlir
+//--------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -55,9 +56,11 @@ int main(int argc, char **argv) {
                   buddy::dap::DAPDialect,
                   buddy::rvv::RVVDialect,
                   buddy::vector_exp::VectorExpDialect,
-                  buddy::buckyball::BuckyballDialect,
                   buddy::gemmini::GemminiDialect>();
   // clang-format on
+#ifdef BUDDY_EXTERNAL_DIALECTS
+  registry.insert<buddy::buckyball::BuckyballDialect>();
+#endif
 #ifdef MLIR_INCLUDE_TESTS
   ::test::registerTestDialect(registry);
   ::test::registerTestTransformDialectExtension(registry);

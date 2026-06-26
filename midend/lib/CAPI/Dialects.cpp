@@ -16,8 +16,10 @@
 
 #include "buddy-mlir-c/Dialects.h"
 
+#ifdef BUDDY_EXTERNAL_DIALECTS
 #include "Dialect/Buckyball/BuckyballDialect.h"
 #include "Dialect/Buckyball/BuckyballOps.h"
+#endif
 #include "Dialect/Bud/BudDialect.h"
 #include "Dialect/Bud/BudOps.h"
 #include "Dialect/DAP/DAPDialect.h"
@@ -35,8 +37,10 @@
 MLIR_DEFINE_CAPI_DIALECT_REGISTRATION(Bud, bud, buddy::bud::BudDialect)
 MLIR_DEFINE_CAPI_DIALECT_REGISTRATION(DAP, dap, buddy::dap::DAPDialect)
 MLIR_DEFINE_CAPI_DIALECT_REGISTRATION(DIP, dip, buddy::dip::DIPDialect)
+#ifdef BUDDY_EXTERNAL_DIALECTS
 MLIR_DEFINE_CAPI_DIALECT_REGISTRATION(Buckyball, buckyball,
                                       buddy::buckyball::BuckyballDialect)
+#endif
 MLIR_DEFINE_CAPI_DIALECT_REGISTRATION(Gemmini, gemmini,
                                       buddy::gemmini::GemminiDialect)
 MLIR_DEFINE_CAPI_DIALECT_REGISTRATION(RVV, rvv, buddy::rvv::RVVDialect)

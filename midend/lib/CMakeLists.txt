@@ -26,9 +26,6 @@ set(LinkedLibs
   LowerDAPPass
   LowerDIPPass
   LowerLinalgToTilePass
-  # Buckyball passes moved to external dialects
-  LowerTileToBuckyballPass
-  LowerBuckyballPass
   LowerGemminiPass
   LowerLinalgToGemminiPass
   LowerLinalgToIMEPass
@@ -48,6 +45,12 @@ set(LinkedLibs
   GraphRedundancyElimination
 )
 
+if(BUDDY_ENABLE_EXTERNAL_DIALECTS)
+  list(APPEND LinkedLibs
+    LowerTileToBuckyballPass
+    LowerBuckyballPass
+  )
+endif()
 
 add_mlir_library(BuddyMLIRInitAll
   InitAll.cpp

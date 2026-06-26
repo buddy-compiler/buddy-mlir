@@ -29,7 +29,9 @@
 
 #include "Target/LLVMIR/Dialect/AME/AMEToLLVMIRTranslation.h"
 #include "Target/LLVMIR/Dialect/BOSCAME/BOSCAMEToLLVMIRTranslation.h"
+#ifdef BUDDY_EXTERNAL_DIALECTS
 #include "Target/LLVMIR/Dialect/Buckyball/BuckyballToLLVMIRTranslation.h"
+#endif
 #include "Target/LLVMIR/Dialect/Gemmini/GemminiToLLVMIRTranslation.h"
 #include "Target/LLVMIR/Dialect/IME/IMEToLLVMIRTranslation.h"
 #include "Target/LLVMIR/Dialect/RVV/RVVToLLVMIRTranslation.h"
@@ -57,7 +59,9 @@ void registerBuddyToLLVMIRTranslation() {
         registerAllToLLVMIRTranslations(registry);
         // Register translation in buddy project.
         registerRVVDialectTranslation(registry);
+#ifdef BUDDY_EXTERNAL_DIALECTS
         registerBuckyballDialectTranslation(registry);
+#endif
         registerGemminiDialectTranslation(registry);
         registerIMEDialectTranslation(registry);
         registerAMEDialectTranslation(registry);

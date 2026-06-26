@@ -9,7 +9,6 @@ add_subdirectory(RVV)
 add_subdirectory(VectorExp)
 add_subdirectory(Tile)
 add_subdirectory(Trace)
-# Buckyball dialect is a dialect implemented outside of buddy-mlir
 add_subdirectory(Gemmini)
 add_subdirectory(IME)
 add_subdirectory(GPU)

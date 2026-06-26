@@ -41,8 +41,6 @@ declare_mlir_dialect_python_bindings(
     dialects/dip.py
   DIALECT_NAME dip)
 
-# Buckyball dialect is a dialect implemented outside of buddy-mlir
-
 declare_mlir_dialect_python_bindings(
   ADD_TO_PARENT BuddyMLIRPythonSources.Dialects
   ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/buddy_mlir"
