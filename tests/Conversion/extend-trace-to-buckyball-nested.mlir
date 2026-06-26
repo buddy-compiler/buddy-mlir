@@ -1,4 +1,5 @@
 // RUN: buddy-opt %s -extend-trace-to-buckyball | FileCheck %s
+// REQUIRES: has_buckyball_external_dialects
 
 module {
   func.func @trace_buckyball_nested(%arg0: memref<16x16xf32>, %arg1: memref<16x16xf32>, %arg2: memref<16x16xf32>) -> memref<16x16xf32> {
