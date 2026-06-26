@@ -41,4 +41,3 @@ void TileDialect::initialize() {
 #include "Tile/Tile.cpp.inc"
       >();
 }
-

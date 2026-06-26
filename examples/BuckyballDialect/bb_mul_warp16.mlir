@@ -31,8 +31,10 @@ func.func @main() -> i8 {
   %bank_a = "buckyball.bank_alloc"() : () -> i64
   %bank_b = "buckyball.bank_alloc"() : () -> i64
   %bank_c = "buckyball.bank_alloc"() : () -> i64
-  %depth_in = arith.constant 1024 : i64  // 16 rows * 1024 cols / 16 bytes per line
-  %depth_out = arith.constant 16 : i64   // 16x16 result
+  // 16 rows * 1024 cols / 16 bytes per line
+  %depth_in = arith.constant 1024 : i64
+  // 16x16 result
+  %depth_out = arith.constant 16 : i64
   %stride = arith.constant 1 : i64
   %iter = arith.constant 1024 : i64
   %mode = arith.constant 0 : i64
@@ -53,7 +55,8 @@ func.func @main() -> i8 {
   "buckyball.bank_release"(%bank_b_loaded) : (i64) -> ()
   "buckyball.bank_release"(%bank_c_stored) : (i64) -> ()
 
-  // Verify: c[0,0] should be 1024 (sum of 1024 multiplications of 1*1)
+  // Verify: c[0,0] should be 1024
+  // (sum of 1024 multiplications of 1*1)
   %expected = arith.constant 1024 : i32
   %result = memref.load %c[%c0, %c0] : memref<16x16xi32>
   %fail_i1 = arith.cmpi ne, %result, %expected : i32

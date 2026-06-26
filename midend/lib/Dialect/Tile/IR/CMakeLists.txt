@@ -4,4 +4,3 @@ add_mlir_dialect_library(BuddyTile
   LINK_LIBS PUBLIC
   MLIRIR
   )
-

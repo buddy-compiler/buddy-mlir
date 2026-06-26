@@ -26,4 +26,3 @@
 #include "Tile/Tile.h.inc"
 
 #endif // TILE_TILEOPS_H
-

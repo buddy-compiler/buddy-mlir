@@ -53,7 +53,7 @@ class Tile_Op<string mnemonic, list<Trait> traits = []> :
 /* Tiling Design:
  *  The Tile dialect is responsible for partitioning arbitrary-sized matrices
  *  into fixed-size computation tiles that match the hardware constraints.
- *  
+ *
  *  TileMatMulOp:
  *  - Input: Arbitrary-sized matrices A[M][K], B[K][N], C[M][N]
  *  - Output: Tiled matrix multiplication that fits hardware SPAD/ACC constraints
@@ -64,21 +64,21 @@ def TileMatMulOp : Tile_Op<"tile_matmul"> {
   let summary = "Tiled matrix multiplication";
   let description = [{
     Perform matrix multiplication with automatic tiling to fit hardware constraints.
-    This operation takes arbitrary-sized input matrices and tiles them into 
+    This operation takes arbitrary-sized input matrices and tiles them into
     fixed-size blocks that can be efficiently executed on the accelerator.
-    
+
     The operation handles:
     - Computation of optimal tile sizes based on SPAD and accumulator constraints
     - Padding for cases where matrix dimensions are not perfectly divisible
     - Generation of tiled computation loops
-    
+
     This will be lowered to Buckyball MatMulOp operations with appropriate
     data movement (mvin/mvout) operations.
   }];
   let arguments = (ins MemRefRankOf<[AnyType], [2]>:$aMemArray,
                        MemRefRankOf<[AnyType], [2]>:$bMemArray,
                        MemRefRankOf<[AnyType], [2]>:$cMemArray);
-  let assemblyFormat = [{$aMemArray $bMemArray $cMemArray attr-dict `:` 
+  let assemblyFormat = [{$aMemArray $bMemArray $cMemArray attr-dict `:`
     type($aMemArray) type($bMemArray) type($cMemArray)}];
 }
 
@@ -86,14 +86,14 @@ def TileTransposeOp : Tile_Op<"tile_transpose"> {
   let summary = "Tiled matrix transpose";
   let description = [{
     Transpose a matrix with automatic tiling to fit hardware constraints.
-    This operation takes an arbitrary-sized input matrix and tiles it into 
+    This operation takes an arbitrary-sized input matrix and tiles it into
     fixed-size blocks that can be efficiently executed on the accelerator.
-    
+
     The operation handles:
     - Computation of optimal tile sizes based on SPAD and accumulator constraints
     - Padding for cases where matrix dimensions are not perfectly divisible
     - Generation of tiled computation loops
-    
+
     This will be lowered to Buckyball TransposeOp operations with appropriate
     data movement (mvin/mvout) operations.
   }];

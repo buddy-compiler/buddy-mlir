@@ -10,8 +10,10 @@ func.func private @bb_test_report(i32) -> ()
 
 func.func @main() -> i8 {
   %zero = arith.constant 0 : i8
-  %input = memref.alloc() : memref<32x16xi8>   // 32 rows, 16 cols (1 line)
-  %output = memref.alloc() : memref<52x16xi8>  // im2col output
+  // 32 rows, 16 cols (1 line)
+  %input = memref.alloc() : memref<32x16xi8>
+  // im2col output
+  %output = memref.alloc() : memref<52x16xi8>
 
   // Initialize: input[i,j] = i
   %c0 = arith.constant 0 : index
@@ -29,8 +31,10 @@ func.func @main() -> i8 {
   // Bank SSA operations
   %bank_in = "buckyball.bank_alloc"() : () -> i64
   %bank_out = "buckyball.bank_alloc"() : () -> i64
-  %depth_in = arith.constant 32 : i64   // 32 rows
-  %depth_out = arith.constant 52 : i64  // output rows
+  // 32 rows
+  %depth_in = arith.constant 32 : i64
+  // output rows
+  %depth_out = arith.constant 52 : i64
   %stride = arith.constant 1 : i64
 
   // Im2col parameters: krow=4, kcol=1, inrow=16, incol=16, startrow=0, startcol=0

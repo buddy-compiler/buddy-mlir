@@ -79,11 +79,11 @@ static int64_t calculateTensorSizeBytes(RankedTensorType tensorType) {
 }
 
 // Pattern to replace large zero constants with tensor.empty + linalg.fill
-struct ReplaceLargeZeroConstant
-    : public OpRewritePattern<arith::ConstantOp> {
+struct ReplaceLargeZeroConstant : public OpRewritePattern<arith::ConstantOp> {
   int64_t sizeThresholdBytes;
 
-  ReplaceLargeZeroConstant(MLIRContext *context, int64_t threshold = 1024 * 1024)
+  ReplaceLargeZeroConstant(MLIRContext *context,
+                           int64_t threshold = 1024 * 1024)
       : OpRewritePattern<arith::ConstantOp>(context),
         sizeThresholdBytes(threshold) {}
 
@@ -107,7 +107,7 @@ struct ReplaceLargeZeroConstant
     Location loc = op.getLoc();
     auto elemType = tensorType.getElementType();
 
-    SmallVector<Value> dynamicSizes; 
+    SmallVector<Value> dynamicSizes;
     Value emptyTensor = rewriter.create<tensor::EmptyOp>(
         loc, tensorType.getShape(), elemType, dynamicSizes);
 
@@ -121,8 +121,9 @@ struct ReplaceLargeZeroConstant
     }
     Value zeroScalar = rewriter.create<arith::ConstantOp>(loc, zeroAttr);
 
-    Value filledTensor = rewriter.create<linalg::FillOp>(
-        loc, zeroScalar, emptyTensor).getResult(0);
+    Value filledTensor =
+        rewriter.create<linalg::FillOp>(loc, zeroScalar, emptyTensor)
+            .getResult(0);
 
     rewriter.replaceOp(op, filledTensor);
     return success();

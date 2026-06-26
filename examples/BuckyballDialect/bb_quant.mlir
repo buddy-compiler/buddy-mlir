@@ -35,12 +35,13 @@ func.func @main() -> i8 {
   %depth = arith.constant 16 : i64
   %stride = arith.constant 1 : i64
   %iter = arith.constant 256 : i64
-  %scale = arith.constant 1065353216 : i64  // 1.0f as i64
+  // 1.0f as i64
+  %scale = arith.constant 1065353216 : i64
 
   %bank_in_loaded = "buckyball.bank_mvin"(%input, %bank_in, %depth, %stride)
     : (memref<16x16xf32>, i64, i64, i64) -> i64
 
-  // Quant operation (算子操作，不返回 bank handle)
+  // Quant operation
   "buckyball.quant"(%bank_in_loaded, %bank_out, %iter, %scale)
     : (i64, i64, i64, i64) -> ()
 

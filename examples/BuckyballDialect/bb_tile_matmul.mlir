@@ -46,4 +46,3 @@ func.func @main() -> i8 {
   memref.dealloc %c : memref<32x32xi32>
   return %zero : i8
 }
-
