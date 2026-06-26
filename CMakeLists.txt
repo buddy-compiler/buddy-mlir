@@ -164,6 +164,13 @@ if(BUDDY_ENABLE_TENSTORRENT)
   endif()
 endif()
 
+# Whisper (buddy-codegen, encoder-decoder ASR): import → .so / .rax + runner
+# plugin loaded by buddy-cli. Off by default; enable with
+# -DBUDDY_BUILD_WHISPER_MODEL=ON (requires BUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON).
+option(BUDDY_BUILD_WHISPER_MODEL
+  "Build models/whisper (whisper_model.so, whisper.rax, whisper_runner.so)"
+  OFF)
+
 set(_buddy_require_jpeg OFF)
 set(_buddy_require_png OFF)
 
