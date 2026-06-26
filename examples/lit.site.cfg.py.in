@@ -36,8 +36,12 @@ config.buddy_enable_opencv = "@BUDDY_ENABLE_OPENCV@"
 config.mlir_runner_utils_dir = "@LLVM_LIBS_DIR@"
 config.buddy_mlir_enable_python_packages = "@BUDDY_MLIR_ENABLE_PYTHON_PACKAGES@"
 config.buddy_python_packages_dir = "@BUDDY_MLIR_PYTHON_PACKAGES_DIR@"
+config.buddy_enable_external_dialects = "@BUDDY_ENABLE_EXTERNAL_DIALECTS@"
 config.have_amx = "@HAVE_AMX@"
 config.have_scalable_vector = "@HAVE_SCALABLE_VECTOR@"
+
+if str(config.buddy_enable_external_dialects).lower() in ("1", "on", "true", "yes"):
+    config.available_features.add("has_buckyball_external_dialects")
 
 if str(config.have_amx).lower() in ("1", "on", "true", "yes"):
     config.available_features.add("has_amx")
