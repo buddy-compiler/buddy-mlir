@@ -15,10 +15,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "JsonCodec.h"
+#include "ResidentModelFactory.h"
+#include "ResidentModelPluginHandle.h"
 #include "SimpleHttpServer.h"
 
+#include "buddy/runtime/core/ResidentModel.h"
 #include "buddy/runtime/core/ServingTypes.h"
-#include "buddy/runtime/models/DeepSeekR1ResidentModel.h"
 
 #include <atomic>
 #include <exception>
@@ -29,9 +31,6 @@
 #include <thread>
 #include <vector>
 
-using buddy::runtime::ChatCompletionRequest;
-using buddy::runtime::CompletionRequest;
-using buddy::runtime::DeepSeekR1ResidentModel;
 using buddy::runtime::ModelLoadState;
 using buddy::runtime::ModelStatus;
 using buddy::runtime::ResidentModel;
@@ -50,6 +49,8 @@ enum ServerLoadState {
 };
 
 void usage(const char *prog, std::ostream &os = std::cout) {
+  const auto backends = buddy::server::availableResidentModelTypes();
+
   os << "Usage: " << prog << " [options]\n"
      << "\n"
      << "Model source (one required):\n"
@@ -57,6 +58,9 @@ void usage(const char *prog, std::ostream &os = std::cout) {
      << "  --model-so   <path.so>   Model shared library (legacy mode)\n"
      << "  --weights    <path>      Weights file; repeatable in legacy mode\n"
      << "  --vocab      <path>      Vocabulary file (legacy mode)\n"
+     << "  --model-type <name>      Resident model backend (default "
+        "deepseek_r1)\n"
+     << "  --serving-so <path.so>   Resident model plugin shared library\n"
      << "\n"
      << "Server:\n"
      << "  --host       <addr>      Bind address (default 127.0.0.1)\n"
@@ -67,6 +71,16 @@ void usage(const char *prog, std::ostream &os = std::cout) {
      << "\n"
      << "Other:\n"
      << "  --help / -h\n";
+
+  os << "\n"
+     << "Built-in resident backends:";
+  if (backends.empty()) {
+    os << " none\n";
+  } else {
+    for (const auto &backend : backends)
+      os << " " << backend;
+    os << "\n";
+  }
 }
 
 bool hasSuffix(const std::string &value, const std::string &suffix) {
@@ -171,6 +185,8 @@ void handleTokenize(ResidentModel &model, const std::atomic<int> &loadState,
 
 int main(int argc, char **argv) {
   ResidentModelConfig modelConfig;
+  std::string modelType;
+  std::string servingSoPath;
   std::string host = "127.0.0.1";
   int port = 8080;
 
@@ -184,6 +200,10 @@ int main(int argc, char **argv) {
       modelConfig.weightPaths.push_back(argv[++i]);
     else if (arg == "--vocab" && i + 1 < argc)
       modelConfig.vocabPath = argv[++i];
+    else if (arg == "--model-type" && i + 1 < argc)
+      modelType = argv[++i];
+    else if (arg == "--serving-so" && i + 1 < argc)
+      servingSoPath = argv[++i];
     else if (arg == "--chat-template" && i + 1 < argc)
       modelConfig.chatTemplatePath = argv[++i];
     else if (arg == "--host" && i + 1 < argc)
@@ -219,7 +239,33 @@ int main(int argc, char **argv) {
     return 2;
   }
 
-  DeepSeekR1ResidentModel model;
+  std::unique_ptr<buddy::server::ResidentModelPluginHandle> pluginHandle;
+  buddy::server::ResidentModelPluginHandle::ModelPtr model(
+      nullptr, [](ResidentModel *m) { delete m; });
+  try {
+    if (!servingSoPath.empty()) {
+      pluginHandle = std::make_unique<buddy::server::ResidentModelPluginHandle>(
+          servingSoPath);
+      if (modelType.empty()) {
+        modelType = pluginHandle->modelType().empty()
+                        ? "plugin"
+                        : pluginHandle->modelType();
+      }
+      model = pluginHandle->createModel();
+    } else {
+      if (modelType.empty())
+        modelType = "deepseek_r1";
+      std::unique_ptr<ResidentModel> builtInModel =
+          buddy::server::createResidentModel(modelType);
+      model = buddy::server::ResidentModelPluginHandle::ModelPtr(
+          builtInModel.release(), [](ResidentModel *m) { delete m; });
+    }
+  } catch (const std::exception &ex) {
+    std::cerr << ex.what() << "\n";
+    return 1;
+  }
+  ResidentModel &residentModel = *model;
+
   std::atomic<int> loadState{Loading};
   std::mutex loadErrorMutex;
   std::string loadError;
@@ -229,13 +275,13 @@ int main(int argc, char **argv) {
     const int state = loadState.load(std::memory_order_acquire);
     if (state == Ready) {
       writer.sendResponse(buddy::server::jsonResponse(
-          200, buddy::server::toJson(model.status())));
+          200, buddy::server::toJson(residentModel.status())));
       return;
     }
 
     ModelStatus status;
     status.modelName =
-        modelConfig.modelName.empty() ? "deepseek_r1" : modelConfig.modelName;
+        modelConfig.modelName.empty() ? modelType : modelConfig.modelName;
     if (state == Error) {
       status.state = ModelLoadState::Error;
       std::lock_guard<std::mutex> lock(loadErrorMutex);
@@ -249,21 +295,22 @@ int main(int argc, char **argv) {
   });
   server.post("/completion",
               [&](const HttpRequest &request, ResponseWriter &writer) {
-                handleCompletion(model, loadState, request, writer);
+                handleCompletion(residentModel, loadState, request, writer);
               });
   server.post("/v1/chat/completions",
               [&](const HttpRequest &request, ResponseWriter &writer) {
-                handleChat(model, loadState, request, writer);
+                handleChat(residentModel, loadState, request, writer);
               });
   server.post("/tokenize",
               [&](const HttpRequest &request, ResponseWriter &writer) {
-                handleTokenize(model, loadState, request, writer);
+                handleTokenize(residentModel, loadState, request, writer);
               });
 
-  std::thread([&model, modelConfig, &loadState, &loadError, &loadErrorMutex] {
+  std::thread([&residentModel, modelConfig, &loadState, &loadError,
+               &loadErrorMutex] {
     try {
       std::cerr << "[buddy-server] loading model...\n";
-      model.load(modelConfig);
+      residentModel.load(modelConfig);
       loadState.store(Ready, std::memory_order_release);
       std::cerr << "[buddy-server] model loaded\n";
     } catch (const std::exception &ex) {
