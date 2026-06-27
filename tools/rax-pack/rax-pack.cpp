@@ -65,6 +65,7 @@ enum class PayloadKind : uint16_t {
   Constant = 1,
   CodeObject = 2,
   Vocab = 3,
+  ServingPlugin = 4,
 };
 
 struct PayloadInput {
@@ -381,6 +382,7 @@ int main(int argc, char **argv) {
     std::string modelNameAttr;
     std::string vocabUriAttr;
     std::string runnerLibraryAttr;
+    std::string servingLibraryAttr;
     std::vector<std::pair<std::string, std::string>> extraModuleAttrs;
     if (auto v = rhalMod.getModelName())
       modelNameAttr = v->str();
@@ -388,11 +390,14 @@ int main(int argc, char **argv) {
       vocabUriAttr = v->str();
     if (auto v = rhalMod.getRunnerLibrary())
       runnerLibraryAttr = v->str();
+    if (auto v = rhalMod.getServingLibrary())
+      servingLibraryAttr = v->str();
 
     for (auto namedAttr : rhalMod->getAttrs()) {
       const std::string key = namedAttr.getName().str();
       if (key == "sym_name" || key == "version" || key == "model_name" ||
-          key == "vocab_uri" || key == "runner_library")
+          key == "vocab_uri" || key == "runner_library" ||
+          key == "serving_library")
         continue;
       if (auto stringAttr =
               mlir::dyn_cast<mlir::StringAttr>(namedAttr.getValue()))
@@ -549,6 +554,9 @@ int main(int argc, char **argv) {
     if (!runnerLibraryAttr.empty())
       registerPayload(PayloadKind::CodeObject, runnerLibraryAttr,
                       "module attr runner_library");
+    if (!servingLibraryAttr.empty())
+      registerPayload(PayloadKind::ServingPlugin, servingLibraryAttr,
+                      "module attr serving_library");
 
     // ── Build FlatBuffer ──────────────────────────────────────────────────
 
@@ -566,6 +574,9 @@ int main(int argc, char **argv) {
     if (!runnerLibraryAttr.empty())
       modAttrs.push_back(CreateKV(b, b.CreateString("runner_library"),
                                   b.CreateString(runnerLibraryAttr)));
+    if (!servingLibraryAttr.empty())
+      modAttrs.push_back(CreateKV(b, b.CreateString("serving_library"),
+                                  b.CreateString(servingLibraryAttr)));
     for (const auto &attr : extraModuleAttrs)
       modAttrs.push_back(
           CreateKV(b, b.CreateString(attr.first), b.CreateString(attr.second)));

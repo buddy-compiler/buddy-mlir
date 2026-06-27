@@ -19,6 +19,7 @@
 #include "ResidentModelPluginHandle.h"
 #include "SimpleHttpServer.h"
 
+#include "buddy/runtime/core/ModelManifest.h"
 #include "buddy/runtime/core/ResidentModel.h"
 #include "buddy/runtime/core/ServingTypes.h"
 
@@ -237,6 +238,18 @@ int main(int argc, char **argv) {
                  "<path> argument.\n";
     usage(argv[0], std::cerr);
     return 2;
+  }
+
+  if (!modelConfig.raxPath.empty() && servingSoPath.empty()) {
+    try {
+      auto manifest =
+          buddy::runtime::ModelManifest::loadFromRax(modelConfig.raxPath);
+      servingSoPath = manifest.servingLibraryPath;
+    } catch (const std::exception &ex) {
+      std::cerr << "buddy-server: failed to read model manifest: " << ex.what()
+                << "\n";
+      return 1;
+    }
   }
 
   std::unique_ptr<buddy::server::ResidentModelPluginHandle> pluginHandle;

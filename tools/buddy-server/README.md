@@ -19,7 +19,7 @@ cmake --build build --target check-buddy-server
 ```
 
 If the DeepSeek R1 model target is enabled, it is registered as an optional
-built-in resident backend:
+built-in resident backend and also builds a resident serving plugin:
 
 ```bash
 cmake -G Ninja -S . -B build \
@@ -30,6 +30,15 @@ cmake -G Ninja -S . -B build \
 
 cmake --build build --target buddy-server
 cmake --build build --target check-buddy-server
+```
+
+DeepSeek R1 model builds produce:
+
+```text
+deepseek_r1_model.so      # compiled MLIR model kernels
+deepseek_r1_runner.so     # buddy-cli InferenceRunner plugin
+deepseek_r1_serving.so    # buddy-server ResidentModel plugin
+deepseek_r1.rax           # manifest, with runner_library + serving_library
 ```
 
 The smoke test runs `buddy-server --help` and does not require a real model.
@@ -74,7 +83,9 @@ Resident model boundary
 
 DeepSeek resident model
   models/deepseek_r1/DeepSeekR1ResidentModel.*
+  models/deepseek_r1/DeepSeekR1ResidentModelPlugin.cpp
   - optional built-in backend when buddy_models_deepseek_r1 is available
+  - resident serving plugin entry point for deepseek_r1_serving.so
   - owns one long-lived ModelSession
   - loads weights once
   - serializes generation with an internal mutex
@@ -86,7 +97,27 @@ used by `buddy-server` to emit SSE chunks without coupling generation to HTTP.
 
 ## Start Server
 
-Dynamic resident plugin mode:
+`.rax` manifest resident plugin mode:
+
+```mlir
+rhal.module @deepseek_r1 attributes {
+  model_name = "deepseek_r1_f32",
+  runner_library = "file:deepseek_r1_runner.so",
+  serving_library = "file:deepseek_r1_serving.so"
+} {
+  ...
+}
+```
+
+```bash
+./build/bin/buddy-server \
+  --model ./build/models/deepseek_r1/deepseek_r1.rax \
+  --chat-template examples/BuddyDeepSeekR1/deepseek-r1.json \
+  --host 127.0.0.1 \
+  --port 8080
+```
+
+Explicit resident plugin override:
 
 ```bash
 ./build/bin/buddy-server \
@@ -111,6 +142,14 @@ It may also export:
 
 ```cpp
 extern "C" const char *buddy_resident_model_type_v1();
+```
+
+Resident backend loading priority:
+
+```text
+1. --serving-so
+2. .rax module attr serving_library
+3. compile-time ResidentModelFactory
 ```
 
 Built-in backend `.rax` mode:
@@ -261,9 +300,8 @@ Completion and chat requests support:
 ## Current MVP Limits
 
 - The server binary is model-agnostic. Resident backends can be loaded with
-  `--serving-so`; compile-time registrations remain as a fallback.
-- `.rax` does not yet auto-discover `serving_library`; pass `--serving-so`
-  explicitly in this phase.
+  `--serving-so` or discovered from `.rax` `serving_library`; compile-time
+  registrations remain as a fallback.
 - DeepSeek R1 resident serving is available only when
   `buddy_models_deepseek_r1` is built.
 - One process owns one `ModelSession`; generation is serialized by a mutex.
