@@ -142,6 +142,33 @@ python3 tools/buddy-codegen/build_model.py \
   --prompt "Tell me a joke in 200 words."
 ```
 
+#### Qwen3-VL (vision-language OCR)
+
+`models/qwen3_vl` is a self-contained vision-language model (ViT + DeepStack
+encoder feeding a dense Qwen3 decoder) that runs end-to-end on buddy-compiled
+kernels via `buddy-cli`. Use the same `tools/buddy-codegen/build_model.py` entry
+point with the Qwen3-VL spec:
+
+```bash
+conda activate buddy
+export BUDDY_MLIR_BUILD_DIR=$PWD/build
+export LLVM_MLIR_BUILD_DIR=$PWD/llvm/build
+export PYTHONPATH=${BUDDY_MLIR_BUILD_DIR}/python_packages:${PYTHONPATH}
+
+python3 tools/buddy-codegen/build_model.py \
+  --spec models/qwen3_vl/specs/instruct_2b.json \
+  --build-dir build \
+  --local-model /path/to/Qwen3-VL-2B-Instruct
+
+./build/bin/buddy-cli \
+  --model ./build/models/qwen3_vl/qwen3_vl.rax \
+  --image ./models/qwen3_vl/test_text.png \
+  --prompt "Read all the text in the image."
+```
+
+See [`models/qwen3_vl/README.md`](models/qwen3_vl/README.md) for prerequisites and
+details.
+
 ## Build Python Package
 
 We use `setuptools` to bundle CMake outputs (Python packages, `bin/`, and

@@ -280,6 +280,7 @@ static void usage(const char *prog) {
       << "  --prompt     <text>      Input prompt (interactive if omitted)\n"
       << "  --prompt-file <path>     One prompt per line for fixed-batch runs\n"
       << "  --prompt-length <N>      Fixed prompt/prefill length in tokens\n"
+      << "  --image      <path>      Image file for vision-language models\n"
       << "  --max-tokens <N>         Max generated tokens (default "
          "1024)\n"
       << "  --batch-size <N>         Batch size override for fixed-batch "
@@ -349,6 +350,7 @@ int main(int argc, char **argv) {
   std::string prompt;
   std::string promptFile;
   int promptLength = 0;
+  std::string imagePath;
   int maxTokens = 4096;
   int batchSize = 0;
 
@@ -393,6 +395,8 @@ int main(int argc, char **argv) {
       promptFile = argv[++i];
     else if (a == "--prompt-length" && i + 1 < argc)
       promptLength = std::stoi(argv[++i]);
+    else if (a == "--image" && i + 1 < argc)
+      imagePath = argv[++i];
     else if (a == "--max-tokens" && i + 1 < argc)
       maxTokens = std::stoi(argv[++i]);
     else if (a == "--batch-size" && i + 1 < argc)
@@ -490,7 +494,8 @@ int main(int argc, char **argv) {
     }
   }
 
-  if (prompt.empty() && prompts.empty() && !interactive) {
+  // Vision-language runs are driven by --image; don't block on a prompt.
+  if (prompt.empty() && prompts.empty() && !interactive && imagePath.empty()) {
     std::cout << "Prompt: ";
     std::getline(std::cin, prompt);
     std::cout << "\n";
@@ -531,6 +536,7 @@ int main(int argc, char **argv) {
   cfg.prompt = prompt;
   cfg.prompts = std::move(prompts);
   cfg.promptLength = promptLength;
+  cfg.imagePath = imagePath;
   cfg.maxNewTokens = maxTokens;
   cfg.batchSize = batchSize;
   cfg.samplerConfig.temperature = temperature;
