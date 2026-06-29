@@ -102,7 +102,7 @@ GenerationResult runGeneration(const std::string &prompt, LLMSession &session,
                                const std::string &vocabPath, int maxNewTokens,
                                const std::vector<long long> &stopTokenIds,
                                buddy::Sampler &sampler, const TextCodec &codec,
-                               bool suppress);
+                               bool suppress, bool streamJsonl = false);
 
 } // namespace runtime
 } // namespace buddy

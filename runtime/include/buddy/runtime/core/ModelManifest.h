@@ -74,6 +74,26 @@ inline std::filesystem::path buddyRaxPayloadBaseDir() {
 } // namespace detail
 
 struct ModelManifest {
+  struct ResolvedCodeObject {
+    uint32_t id = 0;
+    std::string name;
+    rhal::rax::CodeObjectKind kind = rhal::rax::CodeObjectKind_Unknown;
+    std::string backend;
+    std::string uri;
+    std::string path;
+    std::string entrySymbol;
+    std::unordered_map<std::string, std::string> attrs;
+  };
+
+  struct ResolvedConstant {
+    uint32_t id = 0;
+    std::string name;
+    rhal::rax::ConstantStorage storage = rhal::rax::ConstantStorage_Inline;
+    std::string uri;
+    std::string path;
+    std::unordered_map<std::string, std::string> attrs;
+  };
+
   // from module_attrs["model_name"] (e.g. "deepseek_r1_fp32")
   std::string modelName;
   // absolute path to the kernel .so  (dlopen)
@@ -88,6 +108,13 @@ struct ModelManifest {
   std::string vocabPath;
   // absolute path to the model runner plugin shared library.
   std::string runnerLibraryPath;
+  // Raw module attrs plus URI-resolved variants for attrs whose value is a URI.
+  std::unordered_map<std::string, std::string> moduleAttrs;
+  std::unordered_map<std::string, std::string> resolvedModuleAttrs;
+  // All manifest resources, including non-CPU backends such as TTNN
+  // flatbuffers.
+  std::vector<ResolvedCodeObject> codeObjects;
+  std::vector<ResolvedConstant> constants;
 
   // Load and resolve from a .rax manifest file.
   // Throws std::runtime_error on any parse / missing-field error.
@@ -117,6 +144,11 @@ struct ModelManifest {
 
     auto hasPrefix = [](const std::string &s, const char *prefix) {
       return s.rfind(prefix, 0) == 0;
+    };
+    auto hasSuffix = [](const std::string &s, const char *suffix) {
+      const std::string suf(suffix);
+      return s.size() >= suf.size() &&
+             s.compare(s.size() - suf.size(), suf.size(), suf) == 0;
     };
 
     auto readU16LE = [](const uint8_t *p) -> uint16_t {
@@ -435,49 +467,90 @@ struct ModelManifest {
 
     ModelManifest out;
 
-    // --- Code objects -> soPath + dependentSoPaths -------------------------
+    auto attrsToMap = [](auto *attrs) {
+      std::unordered_map<std::string, std::string> out;
+      if (!attrs)
+        return out;
+      for (auto kv : *attrs) {
+        if (!kv || !kv->key() || !kv->value())
+          continue;
+        out[kv->key()->str()] = kv->value()->str();
+      }
+      return out;
+    };
+
+    // --- Code objects -> generic list + legacy soPath fields ---------------
     if (!mod->code_objects() || mod->code_objects()->size() == 0)
       throw std::runtime_error("ModelManifest: no code_objects in " +
                                raxFs.string());
     for (auto co : *mod->code_objects()) {
-      if (co->kind() != rhal::rax::CodeObjectKind_HostSharedLib)
+      if (!co)
         continue;
 
-      const std::string resolved = resolveUri(co->uri(), "code_object.uri");
-      if (out.soPath.empty())
-        out.soPath = resolved;
-      else
-        out.dependentSoPaths.push_back(resolved);
-    }
-    if (out.soPath.empty())
-      throw std::runtime_error(
-          "ModelManifest: no HostSharedLib code object in " + raxFs.string());
+      ResolvedCodeObject rec;
+      rec.id = co->id();
+      if (co->name())
+        rec.name = co->name()->str();
+      rec.kind = co->kind();
+      if (co->backend())
+        rec.backend = co->backend()->str();
+      if (co->uri()) {
+        rec.uri = co->uri()->str();
+        rec.path = resolveUri(co->uri(), "code_object.uri");
+      }
+      if (co->entry_symbol())
+        rec.entrySymbol = co->entry_symbol()->str();
+      rec.attrs = attrsToMap(co->attrs());
+      out.codeObjects.push_back(rec);
 
-    // --- Constants → weightPaths (all External constants, in order) ------
-    if (!mod->constants() || mod->constants()->size() == 0)
-      throw std::runtime_error("ModelManifest: no constants in " +
-                               raxFs.string());
-    for (auto c : *mod->constants()) {
-      if (c->storage() == rhal::rax::ConstantStorage_External)
-        out.weightPaths.push_back(resolveUri(c->uri(), "constant.uri"));
+      if (co->kind() == rhal::rax::CodeObjectKind_HostSharedLib) {
+        if (out.soPath.empty())
+          out.soPath = rec.path;
+        else
+          out.dependentSoPaths.push_back(rec.path);
+      }
     }
-    if (out.weightPaths.empty())
-      throw std::runtime_error(
-          "ModelManifest: no External constant (weights) in " + raxFs.string());
 
-    // --- Module attrs: vocab_uri, runner_library, model_name (optional) ---
+    // --- Constants → generic list + legacy weightPaths ---------------------
+    if (mod->constants()) {
+      for (auto c : *mod->constants()) {
+        if (!c)
+          continue;
+        ResolvedConstant rec;
+        rec.id = c->id();
+        if (c->name())
+          rec.name = c->name()->str();
+        rec.storage = c->storage();
+        if (c->uri()) {
+          rec.uri = c->uri()->str();
+          rec.path = resolveUri(c->uri(), "constant.uri");
+        }
+        rec.attrs = attrsToMap(c->attrs());
+        out.constants.push_back(rec);
+
+        if (c->storage() == rhal::rax::ConstantStorage_External)
+          out.weightPaths.push_back(rec.path);
+      }
+    }
+
+    // --- Module attrs: keep all strings; resolve URI-like values -----------
     if (mod->attrs()) {
       for (auto kv : *mod->attrs()) {
-        if (!kv->key())
+        if (!kv->key() || !kv->value())
           continue;
         std::string key = kv->key()->str();
+        std::string value = kv->value()->str();
+        out.moduleAttrs[key] = value;
+        if (hasPrefix(value, "file:") || hasPrefix(value, "payload:") ||
+            hasSuffix(key, "_uri"))
+          out.resolvedModuleAttrs[key] = resolveUri(kv->value(), key.c_str());
         if (key == "vocab_uri" && kv->value() && kv->value()->size() > 0)
-          out.vocabPath = resolveUri(kv->value(), "vocab_uri");
+          out.vocabPath = out.resolvedModuleAttrs[key];
         else if (key == "runner_library" && kv->value() &&
                  kv->value()->size() > 0)
           out.runnerLibraryPath = resolveUri(kv->value(), "runner_library");
         else if (key == "model_name" && kv->value() && kv->value()->size() > 0)
-          out.modelName = kv->value()->str();
+          out.modelName = value;
       }
     }
 

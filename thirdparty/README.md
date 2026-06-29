@@ -35,3 +35,25 @@ In the `CMakeLists.txt` file, link shared or static library by using:
 target_link_libraries(myapp PUBLIC mimalloc)
 target_link_libraries(myapp PUBLIC mimalloc-static)
 ```
+
+## Tenstorrent tt-mlir
+
+`thirdparty/tt-mlir` is an optional submodule for Buddy's TTIR -> TTNN ->
+Tenstorrent flow. It is not required for normal Buddy builds.
+
+Initialize it only when working on Tenstorrent support:
+
+```
+$ git submodule sync thirdparty/tt-mlir
+$ git submodule update --init thirdparty/tt-mlir
+$ git -C thirdparty/tt-mlir fetch --tags --force
+```
+
+Do not use a shallow checkout for `thirdparty/tt-mlir`; its CMake version
+logic uses `git describe` and needs tag history.
+
+Build and runtime setup are documented in:
+
+- `docs/TenstorrentEnvironment.md`
+- `thirdparty/tt-mlir/docs/src/getting-started.md`
+- `thirdparty/tt-mlir/docs/src/ttrt.md`

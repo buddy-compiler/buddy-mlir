@@ -381,12 +381,23 @@ int main(int argc, char **argv) {
     std::string modelNameAttr;
     std::string vocabUriAttr;
     std::string runnerLibraryAttr;
+    std::vector<std::pair<std::string, std::string>> extraModuleAttrs;
     if (auto v = rhalMod.getModelName())
       modelNameAttr = v->str();
     if (auto v = rhalMod.getVocabUri())
       vocabUriAttr = v->str();
     if (auto v = rhalMod.getRunnerLibrary())
       runnerLibraryAttr = v->str();
+
+    for (auto namedAttr : rhalMod->getAttrs()) {
+      const std::string key = namedAttr.getName().str();
+      if (key == "sym_name" || key == "version" || key == "model_name" ||
+          key == "vocab_uri" || key == "runner_library")
+        continue;
+      if (auto stringAttr =
+              mlir::dyn_cast<mlir::StringAttr>(namedAttr.getValue()))
+        extraModuleAttrs.emplace_back(key, stringAttr.getValue().str());
+    }
 
     // Version
     uint16_t verMaj = 0, verMin = 1, verPat = 0;
@@ -555,6 +566,9 @@ int main(int argc, char **argv) {
     if (!runnerLibraryAttr.empty())
       modAttrs.push_back(CreateKV(b, b.CreateString("runner_library"),
                                   b.CreateString(runnerLibraryAttr)));
+    for (const auto &attr : extraModuleAttrs)
+      modAttrs.push_back(
+          CreateKV(b, b.CreateString(attr.first), b.CreateString(attr.second)));
 
     // Buffers
     std::vector<flatbuffers::Offset<BufferBinding>> fbBufs;

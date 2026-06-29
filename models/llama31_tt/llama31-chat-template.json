@@ -1,0 +1,13 @@
+{
+  "bos_token": "<|begin_of_text|>",
+  "roles": {
+    "system": "<|start_header_id|>system<|end_header_id|>\n\n",
+    "user": "<|start_header_id|>user<|end_header_id|>\n\n",
+    "assistant": "<|start_header_id|>assistant<|end_header_id|>\n\n"
+  },
+  "turn_suffix": "<|eot_id|>",
+  "stop_tokens": ["<|eot_id|>"],
+  "stop_token_ids": [128009],
+  "add_bos": true,
+  "add_generation_prompt": true
+}

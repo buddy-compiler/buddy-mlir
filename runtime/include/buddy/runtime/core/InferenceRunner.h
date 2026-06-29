@@ -46,9 +46,21 @@ struct RunConfig {
   std::string vocabPath;
 
   std::string prompt;
-  /// Upper bound on total sequence length (prompt + generated), in tokens.
-  /// 0 = no limit (generate until stop token or interrupt).
+  /// Optional batch prompts. When set, runners may use one prompt per batch
+  /// element instead of broadcasting `prompt`.
+  std::vector<std::string> prompts;
+
+  /// Optional fixed prompt/prefill length. 0 means use the encoded prompt
+  /// length for single-prompt runs, or the longest encoded prompt for batched
+  /// prompt-file runs.
+  int promptLength = 0;
+
+  /// Upper bound on generated tokens. The first generated token comes from
+  /// prefill; subsequent tokens come from decode. 0 = no limit.
   int maxNewTokens = 4096;
+
+  /// Runtime batch size override. 0 means use the packaged model default.
+  int batchSize = 0;
 
   // ── Sampling configuration ──
   buddy::SamplerConfig samplerConfig;
@@ -60,6 +72,16 @@ struct RunConfig {
   // ── Output control ──
   /// Suppress performance statistics output.
   bool suppressStats = false;
+
+  /// Print every batch element's prompt/output instead of only user0.
+  bool printAllBatchOutputs = false;
+
+  /// Defer device-side token-id readback until the end of the decode loop when
+  /// the runner can feed each decode token tensor directly into the next step.
+  bool deferDecodeTokenReadback = false;
+
+  /// Emit machine-readable token events as JSON Lines on stdout.
+  bool streamJsonl = false;
 
   // ── Interactive mode ──
   /// Enable REPL interactive mode for multi-turn conversation.

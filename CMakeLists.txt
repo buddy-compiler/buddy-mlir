@@ -90,6 +90,9 @@ set(BUDDY_MIDEND_INCLUDE_DIR ${BUDDY_SOURCE_DIR}/midend/include)
 set(BUDDY_THIRDPARTY_INCLUDE_DIR ${BUDDY_SOURCE_DIR}/thirdparty/include)
 set(BUDDY_MLIR_PYTHON_PACKAGES_DIR ${BUDDY_BUILD_DIR}/python_packages)
 
+option(BUDDY_MLIR_ENABLE_PYTHON_PACKAGES
+  "Build buddy.compiler Python package files used by model lowering scripts"
+  ON)
 set(BUDDY_EXAMPLES OFF CACHE BOOL "Build examples")
 set(BUDDY_TORQ_EXAMPLES OFF CACHE BOOL
     "Build BuddyTorq example (PyTorch->MLIR + TORQ-Tile RVV GEMM); requires RISC-V RVV toolchain")
@@ -104,6 +107,62 @@ set(BUDDY_ENABLE_OPENCV OFF CACHE BOOL "Enable OpenCV support.")
 option(BUDDY_BUILD_DEEPSEEK_R1_MODEL
   "Build models/deepseek_r1 (buddy_models_deepseek_r1, .so, .rax)"
   OFF)
+option(BUDDY_BUILD_LLAMA31_TT_MODEL
+  "Build models/llama31_tt and link the Tenstorrent Llama 3.1 runner into buddy-cli"
+  OFF)
+option(BUDDY_BUILD_LLAMA32_TT_MODEL
+  "Build the Llama 3.2 TT package target and link the shared Tenstorrent Llama runner into buddy-cli"
+  OFF)
+option(BUDDY_ENABLE_TENSTORRENT
+  "Enable optional Tenstorrent/tt-mlir configuration checks for TTIR->TTNN flows"
+  OFF)
+set(BUDDY_TT_MLIR_SOURCE_DIR "${BUDDY_SOURCE_DIR}/thirdparty/tt-mlir"
+  CACHE PATH "Optional tt-mlir source tree for Tenstorrent flows")
+set(BUDDY_TT_MLIR_BUILD_DIR ""
+  CACHE PATH "Optional tt-mlir build directory containing ttmlir tools")
+set(BUDDY_TT_METAL_HOME ""
+  CACHE PATH "Optional tt-metal source/runtime directory used by ttrt")
+
+if(BUDDY_ENABLE_TENSTORRENT)
+  if(NOT EXISTS "${BUDDY_TT_MLIR_SOURCE_DIR}/CMakeLists.txt")
+    message(FATAL_ERROR
+      "BUDDY_ENABLE_TENSTORRENT=ON requires tt-mlir sources. Run "
+      "`git submodule update --init thirdparty/tt-mlir` or set "
+      "BUDDY_TT_MLIR_SOURCE_DIR.")
+  endif()
+
+  find_program(BUDDY_TTMLIR_OPT ttmlir-opt
+    HINTS "${BUDDY_TT_MLIR_BUILD_DIR}/bin")
+  find_program(BUDDY_TTMLIR_TRANSLATE ttmlir-translate
+    HINTS "${BUDDY_TT_MLIR_BUILD_DIR}/bin")
+  if(NOT BUDDY_TTMLIR_OPT OR NOT BUDDY_TTMLIR_TRANSLATE)
+    message(FATAL_ERROR
+      "BUDDY_ENABLE_TENSTORRENT=ON requires ttmlir-opt and "
+      "ttmlir-translate in PATH or BUDDY_TT_MLIR_BUILD_DIR/bin.")
+  endif()
+
+  find_package(Python3 COMPONENTS Interpreter REQUIRED)
+  execute_process(
+    COMMAND "${Python3_EXECUTABLE}" -c "import ttrt, ttrt.runtime"
+    RESULT_VARIABLE BUDDY_TTRT_IMPORT_RESULT
+    OUTPUT_QUIET
+    ERROR_QUIET)
+  if(NOT BUDDY_TTRT_IMPORT_RESULT EQUAL 0)
+    message(WARNING
+      "Python package ttrt was not found in "
+      "Python3_EXECUTABLE=${Python3_EXECUTABLE}. Native buddy-cli inference "
+      "does not import ttrt, but Tenstorrent package-generation targets still "
+      "require the tt-mlir Python environment.")
+  endif()
+
+  message(STATUS "Tenstorrent support enabled")
+  message(STATUS "  tt-mlir source: ${BUDDY_TT_MLIR_SOURCE_DIR}")
+  message(STATUS "  ttmlir-opt: ${BUDDY_TTMLIR_OPT}")
+  message(STATUS "  ttmlir-translate: ${BUDDY_TTMLIR_TRANSLATE}")
+  if(BUDDY_TT_METAL_HOME)
+    message(STATUS "  tt-metal home: ${BUDDY_TT_METAL_HOME}")
+  endif()
+endif()
 
 set(_buddy_require_jpeg OFF)
 set(_buddy_require_png OFF)
@@ -187,10 +246,22 @@ endif()
 #-------------------------------------------------------------------------------
 # flatc — FlatBuffers schema compiler
 # Required for generating buddy/runtime/rax/RAX.h from runtime/rax/rax.fbs.
+#
+# When Buddy is configured against a tt-mlir toolchain, prefer that toolchain's
+# flatc and FlatBuffers headers. Older system flatc versions can generate C++
+# that is incompatible with the newer FlatBuffers headers pulled in through
+# MLIR/tt-mlir include paths.
 #-------------------------------------------------------------------------------
 
+set(BUDDY_FLATBUFFERS_BIN_HINTS)
+set(BUDDY_FLATBUFFERS_INCLUDE_HINTS)
+if(DEFINED ENV{TTMLIR_TOOLCHAIN_DIR})
+  list(APPEND BUDDY_FLATBUFFERS_BIN_HINTS "$ENV{TTMLIR_TOOLCHAIN_DIR}/bin")
+  list(APPEND BUDDY_FLATBUFFERS_INCLUDE_HINTS "$ENV{TTMLIR_TOOLCHAIN_DIR}/include")
+endif()
+
 find_program(FLATC_EXECUTABLE flatc
-  HINTS /usr/bin /usr/local/bin
+  HINTS ${BUDDY_FLATBUFFERS_BIN_HINTS} /usr/bin /usr/local/bin
   DOC "FlatBuffers schema compiler (flatc)"
 )
 if(NOT FLATC_EXECUTABLE)
@@ -200,6 +271,13 @@ if(NOT FLATC_EXECUTABLE)
     "or set -DFLATC_EXECUTABLE=/path/to/flatc")
 endif()
 message(STATUS "Found flatc: ${FLATC_EXECUTABLE}")
+
+if(FLATC_EXECUTABLE)
+  get_filename_component(BUDDY_FLATC_BIN_DIR "${FLATC_EXECUTABLE}" DIRECTORY)
+  get_filename_component(BUDDY_FLATC_PREFIX_DIR "${BUDDY_FLATC_BIN_DIR}" DIRECTORY)
+  list(APPEND BUDDY_FLATBUFFERS_INCLUDE_HINTS
+    "${BUDDY_FLATC_PREFIX_DIR}/include")
+endif()
 
 #-------------------------------------------------------------------------------
 # The RISC-V toolchain
@@ -231,6 +309,24 @@ add_subdirectory(frontend)
 add_subdirectory(models)
 add_subdirectory(midend)
 add_subdirectory(tools)
+get_property(_buddy_llama_tt_rax_targets_set GLOBAL PROPERTY
+             BUDDY_LLAMA_TT_RAX_TARGETS SET)
+if(_buddy_llama_tt_rax_targets_set)
+  get_property(_buddy_llama_tt_rax_targets GLOBAL PROPERTY
+               BUDDY_LLAMA_TT_RAX_TARGETS)
+  list(REMOVE_DUPLICATES _buddy_llama_tt_rax_targets)
+  foreach(_buddy_llama_tt_rax IN LISTS _buddy_llama_tt_rax_targets)
+    if(TARGET ${_buddy_llama_tt_rax})
+      add_dependencies(${_buddy_llama_tt_rax} buddy-cli rax-pack)
+      if(TARGET python-package-buddy)
+        add_dependencies(${_buddy_llama_tt_rax} python-package-buddy)
+      endif()
+      if(TARGET python-package-buddy-mlir)
+        add_dependencies(${_buddy_llama_tt_rax} python-package-buddy-mlir)
+      endif()
+    endif()
+  endforeach()
+endif()
 add_subdirectory(examples)
 if(BUDDY_ENABLE_TESTS)
   add_subdirectory(tests)

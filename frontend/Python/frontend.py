@@ -130,9 +130,12 @@ class DynamoCompiler:
             "arange.default": ArangeOp,
             "unsqueeze.default": UnsqueezeOp,
             "view.default": ViewOp,
+            "_unsafe_view.default": ViewOp,
             "view.dtype": ViewDtypeOp,
             "ones.default": OnesOp,
+            "new_ones.default": OnesOp,
             "full.default": FullOp,
+            "new_full.default": FullOp,
             "embedding.default": EmbeddingOp,
             "masked_fill.Scalar": MaskedFillOp,
             "slice.Tensor": SliceOp,
@@ -288,6 +291,8 @@ class DynamoCompiler:
             "bitwise_right_shift.Tensor_Scalar_out": BitwiseRightShiftOp,
             "bitwise_right_shift.Scalar_Tensor_out": BitwiseRightShiftOp,
             "index_put.default": IndexPutOp,
+            "fill_cache.default": FillCacheOp,
+            "update_cache.default": UpdateCacheOp,
             "ne.Scalar": NeScalarOp,
             "cumsum.default": CumsumOp,
             "cumprod.default": CumProdOp,
@@ -357,6 +362,7 @@ class DynamoCompiler:
             "tan.default": TanOp,
             "exp2.default": Exp2Op,
             "zeros.default": ZerosOp,
+            "new_zeros.default": ZerosOp,
             "zeros_like.default": ZerosLikeOp,
             "ones_like.default": OnesLikeOp,
             "full_like.default": FullLikeOp,
@@ -829,6 +835,13 @@ class DynamoCompiler:
                     continue
                 buddy_node.add_argument(str(input_arg))
             return buddy_node
+        if (
+            gm_node_name in ("new_ones.default", "new_zeros.default")
+            and len(node_input) >= 2
+        ):
+            node_input = [node_input[1]]
+        elif gm_node_name == "new_full.default" and len(node_input) >= 3:
+            node_input = [node_input[1], node_input[2]]
 
         def _add_arg_and_parents(arg):
             if isinstance(arg, torch.fx.Node):
@@ -900,6 +913,7 @@ class DynamoCompiler:
                 params_pos.append(i)
 
         params_flat = [inputs[i] for i in params_pos + buffers_pos]
+        runtime_inputs_flat = [inputs[i] for i in inputs_pos]
 
         if self._verbose:
             print("Graph in tabular form:")
@@ -915,6 +929,7 @@ class DynamoCompiler:
                 self._enable_external_calls,
             )
             graph._params_ref = params_flat
+            graph._runtime_inputs_ref = runtime_inputs_flat
             param_nodes = []
             buffers_nodes = []
             input_nodes = []
@@ -991,14 +1006,30 @@ class DynamoCompiler:
                             value = None
                             if match:
                                 value = float(match.group(1))
+                            val = gm_node.meta.get("val")
                             if value is None:
-                                val = gm_node.meta.get("val")
                                 if isinstance(val, torch.Tensor):
-                                    if val.numel() != 1:
-                                        raise NotImplementedError(
-                                            "_tensor_constant only supports scalar tensors"
-                                        )
-                                    value = val.item()
+                                    if val.numel() == 1:
+                                        value = val.item()
+                                    else:
+                                        # Dense folded tensor constants appear
+                                        # in LLM masks/positions. Preserve the
+                                        # payload so TTIR lowering can emit a
+                                        # real tensor constant instead of a
+                                        # scalar-only placeholder.
+                                        t = val.detach().cpu().contiguous()
+                                        try:
+                                            if t.dtype == torch.bfloat16:
+                                                value = t.float().numpy()
+                                            else:
+                                                value = t.numpy()
+                                        except (TypeError, RuntimeError):
+                                            if t.dtype == torch.bfloat16:
+                                                value = np.asarray(
+                                                    t.tolist(), dtype=np.float32
+                                                )
+                                            else:
+                                                value = np.asarray(t.tolist())
                                 elif isinstance(val, (int, float)):
                                     value = val
                             if value is None:
@@ -1008,7 +1039,7 @@ class DynamoCompiler:
 
                             gm_node.insert_arg(len(gm_node.args), value)
                             val = gm_node.meta.get("val")
-                            node_shape = val.shape
+                            node_shape = list(val.shape)
                             node_dtype = self._torch_dtype_translate(
                                 str(val.dtype)
                             )

@@ -1087,6 +1087,18 @@ class IndexPutOp(Op):
         self._op_type = OpType.ElementwiseType
 
 
+class FillCacheOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class UpdateCacheOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
 class LiftFreshCopyOp(Op):
     def __init__(self) -> None:
         super().__init__()

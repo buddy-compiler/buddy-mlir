@@ -59,7 +59,7 @@ static constexpr int kEotToken = 151647; // <|EOT|>
 void DeepSeekR1Runner::run(const RunConfig &cfgIn) {
   RunConfig cfg = cfgIn;
 
-  const bool suppress = cfg.suppressStats;
+  const bool suppress = cfg.suppressStats || cfg.streamJsonl;
 
   if (!suppress)
     std::cerr
@@ -172,7 +172,7 @@ void DeepSeekR1Runner::run(const RunConfig &cfgIn) {
 
     GenerationResult result =
         runGeneration(finalPrompt, *session, vocabPath, cfg.maxNewTokens,
-                      stopTokenIds, sampler, codec, suppress);
+                      stopTokenIds, sampler, codec, suppress, cfg.streamJsonl);
 
     if (!suppress)
       printStats(result, /*verbose=*/true);

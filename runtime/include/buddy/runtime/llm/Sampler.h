@@ -64,8 +64,11 @@ public:
     assert(logits && "logits pointer must not be null");
     assert(vocabSize > 0 && "vocabSize must be positive");
 
-    // Greedy path: temperature == 0 or all sampling disabled.
-    if (config_.temperature == 0.0f) {
+    const bool applyPenalty =
+        config_.repeatPenalty != 1.0f && !recentTokens.empty();
+
+    // Fast greedy path when logits do not need mutation.
+    if (config_.temperature == 0.0f && !applyPenalty) {
       return greedySample(logits, vocabSize);
     }
 
@@ -73,8 +76,13 @@ public:
     std::vector<float> work(logits, logits + vocabSize);
 
     // Step 1: Repetition penalty.
-    if (config_.repeatPenalty != 1.0f && !recentTokens.empty()) {
+    if (applyPenalty) {
       applyRepeatPenalty(work, recentTokens);
+    }
+
+    // Greedy path after penalties have been applied.
+    if (config_.temperature == 0.0f) {
+      return greedySample(work.data(), vocabSize);
     }
 
     // Step 2: Temperature scaling.
