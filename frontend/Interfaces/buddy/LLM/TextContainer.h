@@ -855,6 +855,8 @@ template <typename T, size_t N> std::string Text<T, N>::revertQwen3() {
     int id = this->aligned[i];
     if (id == EOS_ID)
       break;
+    if (id < 0 || id >= static_cast<int>(this->idToTokenVec.size()))
+      continue;
 
     const std::string &token = this->idToTokenVec[id];
 
@@ -867,14 +869,14 @@ template <typename T, size_t N> std::string Text<T, N>::revertQwen3() {
       if (c < 0x80) {
         code = c;
         len = 1;
-      } else if ((c & 0xE0) == 0xC0) {
+      } else if ((c & 0xE0) == 0xC0 && j + 1 < token.length()) {
         code = (c & 0x1F) << 6 | (token[j + 1] & 0x3F);
         len = 2;
-      } else if ((c & 0xF0) == 0xE0) {
+      } else if ((c & 0xF0) == 0xE0 && j + 2 < token.length()) {
         code = (c & 0x0F) << 12 | (token[j + 1] & 0x3F) << 6 |
                (token[j + 2] & 0x3F);
         len = 3;
-      } else if ((c & 0xF8) == 0xF0) {
+      } else if ((c & 0xF8) == 0xF0 && j + 3 < token.length()) {
         code = (c & 0x07) << 18 | (token[j + 1] & 0x3F) << 12 |
                (token[j + 2] & 0x3F) << 6 | (token[j + 3] & 0x3F);
         len = 4;

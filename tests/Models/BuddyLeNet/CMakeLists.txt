@@ -58,7 +58,6 @@ add_custom_command(
             -bufferization-lower-deallocations
             -batchmatmul-optimize
             -convert-linalg-to-affine-loops
-            -func-bufferize-dynamic-offset
             -convert-vector-to-scf
             -expand-strided-metadata
             -lower-affine
@@ -81,7 +80,7 @@ add_custom_command(
 set(LENET_TEST_PATH ${CMAKE_CURRENT_SOURCE_DIR})
 set(LENET_TEST_BUILD_PATH ${CMAKE_CURRENT_BINARY_DIR})
 
-add_library(LENET_MODELS_CPU STATIC subgraph0.o forward.o)
+add_library(LENET_MODELS_CPU STATIC forward.o subgraph0.o)
 
 SET_TARGET_PROPERTIES(LENET_MODELS_CPU PROPERTIES LINKER_LANGUAGE C)
 

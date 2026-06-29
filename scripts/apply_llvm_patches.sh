@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 LLVM_SRC="${1:-${LLVM_SRC:-${REPO_ROOT}/llvm}}"
-PATCH_DIR="${LLVM_PATCH_DIR:-${REPO_ROOT}/patches/llvm}"
+PATCH_DIR="${LLVM_PATCH_DIR:-${REPO_ROOT}/../patches/llvm}"
 
 if [[ ! -d "${LLVM_SRC}/llvm" ]]; then
   echo "error: LLVM source tree not found: ${LLVM_SRC}" >&2

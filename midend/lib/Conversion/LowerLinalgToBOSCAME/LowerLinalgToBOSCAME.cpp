@@ -25,6 +25,7 @@
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/PatternMatch.h"
+#include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
@@ -51,6 +52,9 @@ public:
     Value A = op.getDpsInputOperand(0)->get();
     Value B = op.getDpsInputOperand(1)->get();
     Value C = op.getDpsInitOperand(0)->get();
+    Value originalC = C;
+    memref::CopyOp copyToFinalOutput;
+    SmallVector<linalg::FillOp> deadInitFills;
 
     auto AType = dyn_cast<MemRefType>(A.getType());
     auto BType = dyn_cast<MemRefType>(B.getType());
@@ -58,6 +62,53 @@ public:
 
     if (!AType || !BType || !CType)
       return failure();
+
+    auto moveDefsBeforeMatmul = [&](auto &moveDefsBeforeMatmul,
+                                    Value value) -> LogicalResult {
+      Operation *def = value.getDefiningOp();
+      if (!def || def->getBlock() != op->getBlock())
+        return success();
+      if (!op->isBeforeInBlock(def))
+        return success();
+      if (!isMemoryEffectFree(def))
+        return failure();
+
+      for (Value operand : def->getOperands()) {
+        if (operand.getDefiningOp() == op)
+          return failure();
+        if (failed(moveDefsBeforeMatmul(moveDefsBeforeMatmul, operand)))
+          return failure();
+      }
+
+      def->moveBefore(op);
+      return success();
+    };
+
+    for (Operation *user : llvm::make_early_inc_range(C.getUsers())) {
+      auto copyOp = dyn_cast<memref::CopyOp>(user);
+      if (!copyOp || copyOp.getSource() != C)
+        continue;
+
+      auto targetType = dyn_cast<MemRefType>(copyOp.getTarget().getType());
+      if (!targetType || targetType.getElementType() != CType.getElementType())
+        continue;
+      if (targetType.getRank() != CType.getRank() ||
+          targetType.getShape() != CType.getShape())
+        continue;
+      if (failed(moveDefsBeforeMatmul(moveDefsBeforeMatmul,
+                                      copyOp.getTarget())))
+        continue;
+
+      copyToFinalOutput = copyOp;
+      for (Operation *user : originalC.getUsers()) {
+        auto fillOp = dyn_cast<linalg::FillOp>(user);
+        if (fillOp && fillOp.getDpsInitOperand(0)->get() == originalC)
+          deadInitFills.push_back(fillOp);
+      }
+      C = copyOp.getTarget();
+      CType = targetType;
+      break;
+    }
 
     Type elemTypeA = AType.getElementType();
     Type elemTypeB = BType.getElementType();
@@ -69,42 +120,90 @@ public:
     }
 
     int64_t tileM = 4, tileN = 4, tileK = 4;
-    int64_t msetTypeImm = 32;
+    int64_t mmaMtypeImm = 0; // mtype for A/B elements — used during MMA
+    int64_t accMtypeImm = 0; // mtype for C   element  — used for mlce/msce
 
-    // [1] (i8 * i8 -> i32)
-    if (elemTypeA.isInteger(8) && elemTypeC.isInteger(32)) {
+    // Helper: build mtype CSR value for Qwen3 FPGA AME.
+    //
+    // The mtype CSR encodes element type + MMA enable in a single 64-bit
+    // register.  Qwen3's FPGA RTL expects a bitfield-encoded value, NOT a
+    // raw element-width (see kernel/src/backends/ame/core/ame_core.c).
+    //
+    // mtype CSR layout (RISC-V Matrix Extension v0.5 / Qwen3 RTL):
+    //   bit 16: mma   (matrix multiply-accumulate enable — MUST be 1)
+    //   bit 12: mf64,  bit 11: mf32,  bit 10: mbf16, bit 9: mf16
+    //   bit  8: mint4
+    //   bit  7: mint64, bit  6: mint32, bit  5: mint16, bit 4: mint8
+    //   bits 1:0: msew (element width: 0=e8, 1=e16, 2=e32, 3=e64)
+    //
+    // NOTE: float / bf16 / int4 / int16 / int64 encodings are inferred from
+    // the same field layout and have NOT been validated against FPGA RTL.
+    // Qwen3's validated int8 path uses AME_MTYPE_INT8 for mqma and
+    // AME_MTYPE_INT32 for mlce32/msce32, while the C buffer is float.
+    auto mtypeVal = [](unsigned msew, unsigned typeBit) -> int64_t {
+      return (1LL << 16) | (1LL << typeBit) | msew;
+    };
+
+    // Compute the accumulator (C) mtype — the hardware requires switching
+    // mtype to INT32 before mlce32 / msce32, even when the MMA step used
+    // INT8 (see ame_matmul_*_i8_i8_f32 in ame_core.c).
+    bool isQwenI8F32Matmul = elemTypeA.isInteger(8) && elemTypeC.isF32();
+
+    if (elemTypeC.isInteger(32) || isQwenI8F32Matmul)
+      accMtypeImm = mtypeVal(2, 6);  // 0x10042: mma=1, mint32=1, msew=2
+    else if (elemTypeC.isF32())
+      accMtypeImm = mtypeVal(2, 11); // 0x10802: mma=1, mf32=1, msew=2
+    else if (elemTypeC.isInteger(16))
+      accMtypeImm = mtypeVal(1, 5);  // mma=1, mint16=1, msew=1
+    else if (elemTypeC.isInteger(64))
+      accMtypeImm = mtypeVal(3, 7);  // mma=1, mint64=1, msew=3
+    else if (elemTypeC.isF64())
+      accMtypeImm = mtypeVal(3, 12); // mma=1, mf64=1, msew=3
+    else
+      accMtypeImm = mtypeVal(2, 6);  // fallback: INT32
+
+    // [1] Qwen3 FPGA AME int8 path: mqma accumulates i8*i8 and msce32
+    // writes fp32 bits to C.  Reject i32 C for this path because the hardware
+    // behavior observed on FPGA and in Qwen3 kernels is i8*i8->f32.
+    if (isQwenI8F32Matmul) {
       tileK = 16;
-      msetTypeImm = 8;
+      mmaMtypeImm = mtypeVal(0, 4); // 0x10010: mma=1, mint8=1, msew=0
     }
     // [2] (f16/bf16 * f16/bf16 -> f32)
     else if ((elemTypeA.isF16() || elemTypeA.isBF16()) && elemTypeC.isF32()) {
       tileK = 8;
-      msetTypeImm = 16;
+      if (elemTypeA.isF16())
+        mmaMtypeImm = mtypeVal(1, 9);  // mma=1, mf16=1,  msew=1
+      else
+        mmaMtypeImm = mtypeVal(1, 10); // mma=1, mbf16=1, msew=1
     }
     // [3] (i16 * i16 -> i32)
     else if (elemTypeA.isInteger(16) && elemTypeC.isInteger(32)) {
       tileK = 8;
-      msetTypeImm = 16;
+      mmaMtypeImm = mtypeVal(1, 5); // mma=1, mint16=1, msew=1
     }
     // [4] (f32 * f32 -> f32)
     else if (elemTypeA.isF32() && elemTypeC.isF32()) {
       tileK = 4;
-      msetTypeImm = 32;
+      mmaMtypeImm = mtypeVal(2, 11); // mma=1, mf32=1, msew=2
     }
-    // [5] (i32 * i32 -> i32)
+    // [5] (i32 * i32 -> i32) — confirmed against Qwen3 AME_MTYPE_INT32
     else if (elemTypeA.isInteger(32) && elemTypeC.isInteger(32)) {
       tileK = 4;
-      msetTypeImm = 32;
+      mmaMtypeImm = mtypeVal(2, 6); // 0x10042: mma=1, mint32=1, msew=2
     }
     // [6] (f64 * f64 -> f64)
     else if (elemTypeA.isF64() && elemTypeC.isF64()) {
       tileK = 2;
-      msetTypeImm = 64;
+      mmaMtypeImm = mtypeVal(3, 12); // mma=1, mf64=1, msew=3
     }
     // [7] (i4 * i4 -> i32)
     else if (elemTypeA.isInteger(4) && elemTypeC.isInteger(32)) {
       tileK = 32;
-      msetTypeImm = 4;
+      mmaMtypeImm = mtypeVal(0, 8); // mma=1, mint4=1, msew=0
+    } else if (elemTypeA.isInteger(8) && elemTypeC.isInteger(32)) {
+      return rewriter.notifyMatchFailure(
+          op, "Qwen3 FPGA AME i8 matmul stores fp32 bits; use f32 C.");
     } else {
       return rewriter.notifyMatchFailure(
           op, "Unsupported mixed-precision combination.");
@@ -182,12 +281,28 @@ public:
     Value strideB = getRowStride(subB);
     Value strideC = getRowStride(subC);
 
-    MSettypeiOp::create(rewriter, loc, rewriter.getI64Type(), msetTypeImm);
+    //===----------------------------------------------------------------===//
+    // Within each K-iteration the hardware REQUIRES mtype switching:
+    //
+    //   1. msettype(accMtype) + msettilem/n + mlce32  (load C into acc)
+    //   2. msettype(mmaMtype) + msettilek + mlae/mlbte + mqma (MMA)
+    //   3. msettype(accMtype) + msce32                (store acc to C)
+    //
+    // This matches the Qwen3 kernel pattern in ame_matmul_*_i8_i8_f32().
+    //===----------------------------------------------------------------===//
+
+    // --- Step 1: accumulator load (mtype = C element type) ---
+    Value accMtypeVal = arith::ConstantOp::create(
+        rewriter, loc, rewriter.getI64Type(),
+        rewriter.getI64IntegerAttr(accMtypeImm));
+    MSettypeOp::create(rewriter, loc, rewriter.getI64Type(), accMtypeVal);
     MSettilemOp::create(rewriter, loc, rewriter.getI64Type(), currMI64);
     MSettilenOp::create(rewriter, loc, rewriter.getI64Type(), currNI64);
-    MSettilekOp::create(rewriter, loc, rewriter.getI64Type(), currKI64);
 
-    if (elemTypeC.isInteger(32)) {
+    // FPGA RTL only supports mlce32 for accumulator init (not msub.w.mm).
+    if (isQwenI8F32Matmul) {
+      Mlce32mOp::create(rewriter, loc, 0, subC, strideC);
+    } else if (elemTypeC.isInteger(32)) {
       MsubWMmOp::create(rewriter, loc, 0, 0, 0);
     } else if (elemTypeC.isInteger(16)) {
       MsubHMmOp::create(rewriter, loc, 0, 0, 0);
@@ -195,9 +310,16 @@ public:
       MsubDwMmOp::create(rewriter, loc, 0, 0, 0);
     }
 
+    // --- Step 2: MMA (mtype = A/B element type) ---
+    Value mmaMtypeVal = arith::ConstantOp::create(
+        rewriter, loc, rewriter.getI64Type(),
+        rewriter.getI64IntegerAttr(mmaMtypeImm));
+    MSettypeOp::create(rewriter, loc, rewriter.getI64Type(), mmaMtypeVal);
+    MSettilekOp::create(rewriter, loc, rewriter.getI64Type(), currKI64);
+
     if (elemTypeA.isInteger(8)) {
       Mlae8mOp::create(rewriter, loc, 0, subA, strideA);
-      Mlbe8mOp::create(rewriter, loc, 1, subB, strideB);
+      Mlbte8mOp::create(rewriter, loc, 1, subB, strideB);
     } else if (elemTypeA.isF16() || elemTypeA.isBF16() ||
                elemTypeA.isInteger(16)) {
       Mlae16mOp::create(rewriter, loc, 0, subA, strideA);
@@ -210,13 +332,21 @@ public:
       Mlbe64mOp::create(rewriter, loc, 1, subB, strideB);
     }
 
-    if (elemTypeC.isInteger(32) && elemTypeA.isInteger(32)) {
+    if (isQwenI8F32Matmul) {
+      MqmaBmmOp::create(rewriter, loc, 0, 0, 1);
+    } else if (elemTypeC.isInteger(32) && elemTypeA.isInteger(32)) {
       MmaWmmOp::create(rewriter, loc, 0, 0, 1);
     } else if (elemTypeC.isInteger(16) && elemTypeA.isInteger(16)) {
       MmaHmmOp::create(rewriter, loc, 0, 0, 1);
     } else if (elemTypeC.isInteger(64) && elemTypeA.isInteger(64)) {
       MmaDwmmOp::create(rewriter, loc, 0, 0, 1);
     }
+
+    // --- Step 3: accumulator store (mtype = C element type) ---
+    Value accMtypeVal2 = arith::ConstantOp::create(
+        rewriter, loc, rewriter.getI64Type(),
+        rewriter.getI64IntegerAttr(accMtypeImm));
+    MSettypeOp::create(rewriter, loc, rewriter.getI64Type(), accMtypeVal2);
 
     if (elemTypeC.isInteger(32) || elemTypeC.isF32()) {
       Msce32mOp::create(rewriter, loc, 0, subC, strideC);
@@ -228,6 +358,13 @@ public:
 
     rewriter.setInsertionPointAfter(loopM);
     rewriter.eraseOp(op);
+    if (copyToFinalOutput) {
+      rewriter.eraseOp(copyToFinalOutput);
+      for (linalg::FillOp fillOp : deadInitFills)
+        rewriter.eraseOp(fillOp);
+      if (Operation *def = originalC.getDefiningOp(); def && def->use_empty())
+        rewriter.eraseOp(def);
+    }
 
     return success();
   }
@@ -279,6 +416,14 @@ void LowerLinalgToBOSCAMEPass::runOnOperation() {
   if (failed(applyPartialConversion(module, target, std::move(patterns)))) {
     signalPassFailure();
   }
+
+  SmallVector<memref::AllocOp> deadAllocs;
+  module.walk([&](memref::AllocOp allocOp) {
+    if (allocOp->use_empty())
+      deadAllocs.push_back(allocOp);
+  });
+  for (memref::AllocOp allocOp : deadAllocs)
+    allocOp.erase();
 }
 
 //===----------------------------------------------------------------------===//

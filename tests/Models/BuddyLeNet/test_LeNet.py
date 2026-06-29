@@ -80,44 +80,44 @@ float32_param.tofile(output_dir / "arg0.data")
 # CHECK-SAME:     %arg9: tensor<10x84xf32>
 # CHECK-SAME:     %arg10: tensor<10xf32>) -> tensor<1x10xf32>
 
-# CHECK-DAG: %[[PERM0:.*]] = "tosa.const"() <{value = dense<[0, 2, 3, 1]> : tensor<4xi32>}> : () -> tensor<4xi32>
-# CHECK-DAG: %[[INPUT_TRANSPOSE:.*]] = tosa.transpose %arg0, %[[PERM0]] : (tensor<1x1x28x28xf32>, tensor<4xi32>) -> tensor<1x28x28x1xf32>
-# CHECK-DAG: %[[PERM1:.*]] = "tosa.const"() <{value = dense<[0, 2, 3, 1]> : tensor<4xi32>}> : () -> tensor<4xi32>
-# CHECK-DAG: %[[WEIGHT1_TRANSPOSE:.*]] = tosa.transpose %arg1, %[[PERM1]] : (tensor<6x1x5x5xf32>, tensor<4xi32>) -> tensor<6x5x5x1xf32>
+# CHECK: %[[INPUT_TRANSPOSE:.*]] = tosa.transpose %arg0 {perms = array<i32: 0, 2, 3, 1>} : (tensor<1x1x28x28xf32>) -> tensor<1x28x28x1xf32>
+# CHECK: %[[WEIGHT1_TRANSPOSE:.*]] = tosa.transpose %arg1 {perms = array<i32: 0, 2, 3, 1>} : (tensor<6x1x5x5xf32>) -> tensor<6x5x5x1xf32>
 
-# CHECK: %[[CONV1_OUTPUT:.*]] = tosa.conv2d %[[INPUT_TRANSPOSE]], %[[WEIGHT1_TRANSPOSE]], %arg2 {
+# CHECK: %[[CONV1_OUTPUT:.*]] = tosa.conv2d %[[INPUT_TRANSPOSE]], %[[WEIGHT1_TRANSPOSE]], %arg2, {{.*}}, {{.*}} {
 # CHECK-SAME: acc_type = f32,
 # CHECK-SAME: dilation = array<i64: 1, 1>,
 # CHECK-SAME: pad = array<i64: 0, 0, 0, 0>,
 # CHECK-SAME: stride = array<i64: 1, 1>
-# CHECK-SAME: } : (tensor<1x28x28x1xf32>, tensor<6x5x5x1xf32>, tensor<6xf32>) -> tensor<1x24x24x6xf32>
+# CHECK-SAME: } : (tensor<1x28x28x1xf32>, tensor<6x5x5x1xf32>, tensor<6xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<1x24x24x6xf32>
 
-# CHECK-DAG: %[[ZERO1:.*]] = "tosa.const"() <{value = dense<0.000000e+00> : tensor<1x6x24x24xf32>}> : () -> tensor<1x6x24x24xf32>
-# CHECK-DAG: %[[RELU1_INPUT:.*]] = tosa.transpose %[[CONV1_OUTPUT]], {{.*}} : (tensor<1x24x24x6xf32>, tensor<4xi32>) -> tensor<1x6x24x24xf32>
+# CHECK: %[[RELU1_INPUT:.*]] = tosa.transpose %[[CONV1_OUTPUT]] {perms = array<i32: 0, 3, 1, 2>} : (tensor<1x24x24x6xf32>) -> tensor<1x6x24x24xf32>
+# CHECK: %[[ZERO1:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1x6x24x24xf32>}> : () -> tensor<1x6x24x24xf32>
 # CHECK: %[[RELU1_OUTPUT:.*]] = tosa.maximum %[[RELU1_INPUT]], %[[ZERO1]] : (tensor<1x6x24x24xf32>, tensor<1x6x24x24xf32>) -> tensor<1x6x24x24xf32>
 
-# CHECK-DAG: %[[POOL1_INPUT:.*]] = tosa.transpose %[[RELU1_OUTPUT]], {{.*}} : (tensor<1x6x24x24xf32>, tensor<4xi32>) -> tensor<1x24x24x6xf32>
+# CHECK: %[[POOL1_INPUT:.*]] = tosa.transpose %[[RELU1_OUTPUT]] {perms = array<i32: 0, 2, 3, 1>} : (tensor<1x6x24x24xf32>) -> tensor<1x24x24x6xf32>
 # CHECK: %[[POOL1_OUTPUT:.*]] = tosa.max_pool2d %[[POOL1_INPUT]] {
 # CHECK-SAME: kernel = array<i64: 2, 2>,
 # CHECK-SAME: pad = array<i64: 0, 0, 0, 0>,
 # CHECK-SAME: stride = array<i64: 2, 2>
 # CHECK-SAME: } : (tensor<1x24x24x6xf32>) -> tensor<1x12x12x6xf32>
 
-# CHECK-DAG: %[[WEIGHT2_TRANSPOSE:.*]] = tosa.transpose %arg3, {{.*}} : (tensor<16x6x5x5xf32>, tensor<4xi32>) -> tensor<16x5x5x6xf32>
-# CHECK: %[[CONV2_OUTPUT:.*]] = tosa.conv2d {{.*}}, %[[WEIGHT2_TRANSPOSE]], %arg4 {
+# CHECK: %[[WEIGHT2_TRANSPOSE:.*]] = tosa.transpose %arg3 {perms = array<i32: 0, 2, 3, 1>} : (tensor<16x6x5x5xf32>) -> tensor<16x5x5x6xf32>
+# CHECK: %[[CONV2_OUTPUT:.*]] = tosa.conv2d {{.*}}, %[[WEIGHT2_TRANSPOSE]], %arg4, {{.*}}, {{.*}} {
 # CHECK-SAME: acc_type = f32,
 # CHECK-SAME: dilation = array<i64: 1, 1>,
 # CHECK-SAME: pad = array<i64: 0, 0, 0, 0>,
 # CHECK-SAME: stride = array<i64: 1, 1>
-# CHECK-SAME: } : (tensor<1x12x12x6xf32>, tensor<16x5x5x6xf32>, tensor<16xf32>) -> tensor<1x8x8x16xf32>
+# CHECK-SAME: } : (tensor<1x12x12x6xf32>, tensor<16x5x5x6xf32>, tensor<16xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<1x8x8x16xf32>
 
-# CHECK: %[[FLATTEN:.*]] = tosa.reshape {{.*}} {new_shape = array<i64: 1, 256>} : (tensor<1x16x4x4xf32>) -> tensor<1x256xf32>
+# CHECK: %[[FLATTEN_SHAPE:.*]] = tosa.const_shape  {values = dense<[1, 256]> : tensor<2xindex>} : () -> !tosa.shape<2>
+# CHECK: %[[FLATTEN:.*]] = tosa.reshape {{.*}}, %[[FLATTEN_SHAPE]] : (tensor<1x16x4x4xf32>, !tosa.shape<2>) -> tensor<1x256xf32>
 
-# CHECK-DAG: %[[FC1_WEIGHT_TRANSPOSE:.*]] = tosa.transpose %arg5, {{.*}} : (tensor<120x256xf32>, tensor<2xi32>) -> tensor<256x120xf32>
+# CHECK: %[[FC1_WEIGHT_TRANSPOSE:.*]] = tosa.transpose %arg5 {perms = array<i32: 1, 0>} : (tensor<120x256xf32>) -> tensor<256x120xf32>
 # CHECK: %[[FC1_OUTPUT:.*]] = linalg.matmul {cast = #linalg.type_fn<cast_signed>} ins({{.*}}, %[[FC1_WEIGHT_TRANSPOSE]] : tensor<1x256xf32>, tensor<256x120xf32>) outs({{.*}} : tensor<1x120xf32>) -> tensor<1x120xf32>
 
 # CHECK: %[[FC3_OUTPUT:.*]] = linalg.matmul {cast = #linalg.type_fn<cast_signed>} ins({{.*}}, {{.*}} : tensor<1x84xf32>, tensor<84x10xf32>) outs(%cst_1 : tensor<1x10xf32>) -> tensor<1x10xf32>
 
-# CHECK: %[[FINAL_OUTPUT:.*]] = tosa.reshape %arg10 {new_shape = array<i64: 1, 10>} : (tensor<10xf32>) -> tensor<1x10xf32>
+# CHECK: %[[FINAL_SHAPE:.*]] = tosa.const_shape  {values = dense<[1, 10]> : tensor<2xindex>} : () -> !tosa.shape<2>
+# CHECK: %[[FINAL_OUTPUT:.*]] = tosa.reshape %arg10, %[[FINAL_SHAPE]] : (tensor<10xf32>, !tosa.shape<2>) -> tensor<1x10xf32>
 # CHECK: %[[ADD:.*]] = tosa.add %[[FINAL_OUTPUT]], {{.*}} : (tensor<1x10xf32>, tensor<1x10xf32>) -> tensor<1x10xf32>
 # CHECK: return %[[ADD]] : tensor<1x10xf32>

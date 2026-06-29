@@ -69,10 +69,10 @@ if [ -z "${IN_DOCKER:-}" ]; then
   BUDDY_HASH="${BUDDY_HASH:-$(git -C "${REPO_ROOT}" rev-parse HEAD)}"
   LLVM_COMMIT="$(git -C "${REPO_ROOT}" ls-tree HEAD llvm | awk '{print $3}')"
   LLVM_PATCH_HASH=""
-  if [ -d "${REPO_ROOT}/patches/llvm" ] &&
-     find "${REPO_ROOT}/patches/llvm" -name '*.patch' -type f | grep -q .; then
+  if [ -d "${REPO_ROOT}/../patches/llvm" ] &&
+     find "${REPO_ROOT}/../patches/llvm" -name '*.patch' -type f | grep -q .; then
     LLVM_PATCH_HASH="$(
-      find "${REPO_ROOT}/patches/llvm" -name '*.patch' -type f -print |
+      find "${REPO_ROOT}/../patches/llvm" -name '*.patch' -type f -print |
         sort |
         xargs sha256sum |
         sha256sum |
