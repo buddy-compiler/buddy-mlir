@@ -1,0 +1,10 @@
+{
+  "hf_model_path": "Qwen/Qwen3-VL-2B-Instruct",
+  "model_family": "qwen3_vl",
+  "variant": "instruct_2b",
+  "model_id": "qwen3_vl_instruct_2b",
+  "max_seq_len": 160,
+  "image_grid_thw": [1, 14, 28],
+  "image_token_id": 151655,
+  "vocab_size": 151936
+}
