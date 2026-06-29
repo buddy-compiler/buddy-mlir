@@ -3649,18 +3649,9 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
                 result_element_type,
             )
 
-            pad_values = ir.DenseElementsAttr.get(
-                numpy.array(
-                    [0, 0, 0, 0, input_padding[0], input_padding[0]],
-                    dtype=numpy.int64,
-                )
+            pad_constant = _create_shape_operand(
+                [0, 0, 0, 0, input_padding[0], input_padding[0]]
             )
-            pad_tensor_type = ir.RankedTensorType.get([6], ir.IndexType.get())
-            pad_values_attr = ir.DenseElementsAttr.get(
-                pad_values, type=pad_tensor_type
-            )
-            shape_type = ir.Type.parse("!tosa.shape<6>")
-            pad_constant = tosa.const_shape(shape_type, pad_values_attr)
             ty = ir.Type.parse("tensor<1xf32>")
             pad_zp = tosa.ConstOp(
                 ir.DenseElementsAttr.get_splat(ty, ir.FloatAttr.get_f32(0.0))

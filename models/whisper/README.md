@@ -14,19 +14,28 @@ manifest plus an `InferenceRunner` plugin that `buddy-cli` loads at run time.
 
 ## Build
 
-Configure with the Whisper model enabled, then build the `whisper_rax` target:
+Use the same `tools/buddy-codegen/build_model.py` entry point as the other
+packaged models:
 
 ```bash
 cd buddy-mlir
-cmake -G Ninja -S . -B build \
-    -DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON \
-    -DBUDDY_BUILD_WHISPER_MODEL=ON \
-    -DBUDDY_WHISPER_MODEL_PATH=/path/to/whisper-base
-ninja -C build whisper_rax buddy-cli
+python3 tools/buddy-codegen/build_model.py \
+  --spec models/whisper/specs/base.json \
+  --build-dir build
 ```
 
-`BUDDY_WHISPER_MODEL_PATH` is optional; if omitted the importer downloads
-`openai/whisper-base`. The build emits these artifacts under
+To import weights from a local HuggingFace snapshot directory, pass
+`--local-model`:
+
+```bash
+python3 tools/buddy-codegen/build_model.py \
+  --spec models/whisper/specs/base.json \
+  --build-dir build \
+  --local-model /path/to/whisper-base
+```
+
+If `--local-model` is omitted, the importer downloads `openai/whisper-base`.
+The build emits these artifacts under
 `build/models/whisper/`:
 
 | File | Description |
