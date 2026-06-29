@@ -99,6 +99,14 @@ python3 tools/buddy-codegen/build_model.py \
   --build-dir build
 ```
 
+For Whisper, use the same build entry point with the Whisper spec:
+
+```bash
+python3 tools/buddy-codegen/build_model.py \
+  --spec models/whisper/specs/base.json \
+  --build-dir build
+```
+
 For supported models, the default build uses layer-partitioned model
 compilation to parallelize the slowest MLIR compile stages while preserving
 validated runtime correctness. See
@@ -140,6 +148,14 @@ python3 tools/buddy-codegen/build_model.py \
   --cpus 0-47 \
   --model ./build/models/deepseek_r1/deepseek_r1.rax \
   --prompt "Tell me a joke in 200 words."
+```
+
+Whisper uses the same `.rax` / `buddy-cli` deployment path, with an audio input:
+
+```bash
+./build/bin/buddy-cli \
+  --model ./build/models/whisper/whisper.rax \
+  --audio ./build/models/whisper/audio.wav
 ```
 
 ## Build Python Package

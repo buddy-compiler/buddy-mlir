@@ -16,9 +16,13 @@
 
 set(WHISPER_DIR        "${CMAKE_CURRENT_SOURCE_DIR}")
 set(WHISPER_CODEGEN    "${WHISPER_DIR}/codegen")
-set(WHISPER_SPEC       "${WHISPER_DIR}/specs/base.json")
 set(WHISPER_EXAMPLE    "${CMAKE_SOURCE_DIR}/examples/BuddyWhisper")
 set(BIN                "${CMAKE_CURRENT_BINARY_DIR}")
+
+set(BUDDY_WHISPER_SPEC
+  "${WHISPER_DIR}/specs/base.json"
+  CACHE FILEPATH "Whisper variant spec JSON, e.g. specs/base.json")
+set(WHISPER_SPEC "${BUDDY_WHISPER_SPEC}")
 
 # OpenMP runtime (libomp.so) lives under the LLVM runtimes build tree, not in
 # ${LLVM_LIBRARY_DIR}. Mirror examples/CMakeLists.txt so -lomp resolves.
