@@ -156,8 +156,7 @@ def build_stages(
     )
 
     if pipeline_type == "subgraph_decode":
-        if not variant.startswith("w"):
-            opts.append("-eliminate-memref-copy")
+        opts.append("-eliminate-memref-copy")
         opts.extend(
             [
                 "-assume-tight-memref-layout",

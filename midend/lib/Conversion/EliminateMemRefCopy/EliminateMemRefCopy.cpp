@@ -32,6 +32,7 @@
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinTypes.h"
+#include "mlir/IR/Dominance.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Support/LLVM.h"
@@ -115,6 +116,12 @@ struct EliminateMemRefCopyPattern : public OpRewritePattern<memref::CopyOp> {
         continue;
       }
       uses.push_back(&use);
+    }
+
+    DominanceInfo dominance(allocOp->getParentOp());
+    for (OpOperand *use : uses) {
+      if (!dominance.dominates(copyOp.getOperation(), use->getOwner()))
+        return failure();
     }
 
     // Check if source has strided layout and needs conversion

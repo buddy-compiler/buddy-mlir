@@ -63,6 +63,16 @@ module {
     memref.dealloc %alloc : memref<10xf32>
     return
   }
+
+  // Test that copies are preserved when the destination allocation has a use
+  // before the copy. Replacing that earlier use with an alias created at the
+  // copy would violate dominance.
+  func.func @test_use_before_copy(%arg0: memref<10xf32, strided<[?], offset: ?>>) -> memref<10xf32, strided<[?], offset: ?>> {
+    %alloc = memref.alloc() : memref<10xf32>
+    %cast = memref.cast %alloc : memref<10xf32> to memref<10xf32, strided<[?], offset: ?>>
+    memref.copy %arg0, %alloc : memref<10xf32, strided<[?], offset: ?>> to memref<10xf32>
+    return %cast : memref<10xf32, strided<[?], offset: ?>>
+  }
 }
 
 // CHECK-LABEL: func.func @test_basic
@@ -123,4 +133,10 @@ module {
 // CHECK: memref.load
 // CHECK: memref.store
 // CHECK-NOT: memref.dealloc
+// CHECK: return
+
+// CHECK-LABEL: func.func @test_use_before_copy
+// CHECK: memref.alloc
+// CHECK: memref.cast
+// CHECK: memref.copy
 // CHECK: return
