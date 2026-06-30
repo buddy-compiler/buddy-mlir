@@ -54,7 +54,7 @@ bosc-mma-asm:
 	        -reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-	        -mattr=+m,+v,+buddyext \
+	        -mattr=+xboscame \
 	        -o bosc-mma.s
 	@echo "Assembly saved to bosc-mma.s"
 
@@ -98,7 +98,7 @@ linalg-matmul-asm:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v,+buddyext \
+		-mattr=+xboscame \
 		-o log.s
 
 clean:
