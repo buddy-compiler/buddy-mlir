@@ -69,6 +69,15 @@ static bool isAliasOfFunctionArgument(Value value) {
   return false;
 }
 
+static bool areAllUsesDominatedBy(Value value, Operation *dominator,
+                                  DominanceInfo &dominance) {
+  for (OpOperand &use : value.getUses()) {
+    if (!dominance.dominates(dominator, use.getOwner()))
+      return false;
+  }
+  return true;
+}
+
 // Pattern to eliminate memref.copy from function arguments to allocations
 struct EliminateMemRefCopyPattern : public OpRewritePattern<memref::CopyOp> {
   using OpRewritePattern<memref::CopyOp>::OpRewritePattern;
@@ -102,9 +111,14 @@ struct EliminateMemRefCopyPattern : public OpRewritePattern<memref::CopyOp> {
     if (sourceType.getShape() != destType.getShape())
       return failure();
 
-    // Collect all uses of the allocation
-    SmallVector<OpOperand *> uses;
+    // Collect all uses of the allocation. A few bufferization patterns create
+    // a cast of the allocation before the copy and only use that cast after
+    // the copy. Rebuild those casts from the replacement value so the copy can
+    // still be eliminated without violating dominance.
+    SmallVector<OpOperand *> dominatedUses;
+    SmallVector<memref::CastOp> preCopyCasts;
     SmallVector<memref::DeallocOp> deallocs;
+    DominanceInfo dominance(allocOp->getParentOp());
     for (OpOperand &use : allocOp->getUses()) {
       // Skip the copy operation itself
       if (use.getOwner() == copyOp.getOperation())
@@ -115,13 +129,19 @@ struct EliminateMemRefCopyPattern : public OpRewritePattern<memref::CopyOp> {
         deallocs.push_back(deallocOp);
         continue;
       }
-      uses.push_back(&use);
-    }
 
-    DominanceInfo dominance(allocOp->getParentOp());
-    for (OpOperand *use : uses) {
-      if (!dominance.dominates(copyOp.getOperation(), use->getOwner()))
+      if (dominance.dominates(copyOp.getOperation(), use.getOwner())) {
+        dominatedUses.push_back(&use);
+        continue;
+      }
+
+      auto castOp = dyn_cast<memref::CastOp>(use.getOwner());
+      if (!castOp || use.getOperandNumber() != 0 ||
+          !areAllUsesDominatedBy(castOp.getResult(), copyOp.getOperation(),
+                                 dominance))
         return failure();
+
+      preCopyCasts.push_back(castOp);
     }
 
     // Check if source has strided layout and needs conversion
@@ -213,13 +233,31 @@ struct EliminateMemRefCopyPattern : public OpRewritePattern<memref::CopyOp> {
       }
     }
 
+    // Rebuild pre-copy casts at the copy position using the replacement value.
+    rewriter.setInsertionPoint(copyOp);
+    SmallVector<Operation *> aliasOpsToErase;
+    for (memref::CastOp castOp : preCopyCasts) {
+      Value aliasReplacement = replacementValue;
+      Type aliasType = castOp.getResult().getType();
+      if (aliasReplacement.getType() != aliasType)
+        aliasReplacement = memref::CastOp::create(rewriter, castOp.getLoc(),
+                                                  aliasType, aliasReplacement);
+      castOp.getResult().replaceAllUsesWith(aliasReplacement);
+      aliasOpsToErase.push_back(castOp.getOperation());
+    }
+
     // Replace all uses of the allocation with the replacement value
-    for (OpOperand *use : uses) {
+    for (OpOperand *use : dominatedUses) {
       use->set(replacementValue);
     }
 
     // Erase the copy operation
     rewriter.eraseOp(copyOp);
+
+    for (Operation *aliasOp : aliasOpsToErase) {
+      if (aliasOp->use_empty())
+        rewriter.eraseOp(aliasOp);
+    }
 
     for (memref::DeallocOp deallocOp : deallocs)
       rewriter.eraseOp(deallocOp);

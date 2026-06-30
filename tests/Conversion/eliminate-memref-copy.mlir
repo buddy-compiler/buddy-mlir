@@ -64,14 +64,24 @@ module {
     return
   }
 
-  // Test that copies are preserved when the destination allocation has a use
-  // before the copy. Replacing that earlier use with an alias created at the
-  // copy would violate dominance.
+  // Test that a pre-copy cast alias can be rebuilt at the copy point and the
+  // copy can still be eliminated.
   func.func @test_use_before_copy(%arg0: memref<10xf32, strided<[?], offset: ?>>) -> memref<10xf32, strided<[?], offset: ?>> {
     %alloc = memref.alloc() : memref<10xf32>
     %cast = memref.cast %alloc : memref<10xf32> to memref<10xf32, strided<[?], offset: ?>>
     memref.copy %arg0, %alloc : memref<10xf32, strided<[?], offset: ?>> to memref<10xf32>
     return %cast : memref<10xf32, strided<[?], offset: ?>>
+  }
+
+  // Test that the copy is preserved when the pre-copy alias is actually read
+  // before the copy.
+  func.func @test_real_use_before_copy(%arg0: memref<10xf32, strided<[?], offset: ?>>) -> f32 {
+    %alloc = memref.alloc() : memref<10xf32>
+    %cast = memref.cast %alloc : memref<10xf32> to memref<10xf32, strided<[?], offset: ?>>
+    %c0 = arith.constant 0 : index
+    %val = memref.load %cast[%c0] : memref<10xf32, strided<[?], offset: ?>>
+    memref.copy %arg0, %alloc : memref<10xf32, strided<[?], offset: ?>> to memref<10xf32>
+    return %val : f32
   }
 }
 
@@ -136,7 +146,16 @@ module {
 // CHECK: return
 
 // CHECK-LABEL: func.func @test_use_before_copy
-// CHECK: memref.alloc
+// CHECK-NOT: memref.alloc
+// CHECK-NOT: memref.copy
+// CHECK: memref.extract_strided_metadata
+// CHECK: memref.reinterpret_cast
 // CHECK: memref.cast
+// CHECK-NOT: memref.copy
+// CHECK: return
+
+// CHECK-LABEL: func.func @test_real_use_before_copy
+// CHECK: memref.alloc
+// CHECK: memref.load
 // CHECK: memref.copy
 // CHECK: return
