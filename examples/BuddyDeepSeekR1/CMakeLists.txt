@@ -140,6 +140,9 @@ add_custom_command(
             -convert-scf-to-cf
             -convert-cf-to-llvm
             -llvm-request-c-wrappers
+            -flatten-nested-omp-parallel
+            -convert-scf-to-cf
+            -convert-cf-to-llvm
             -convert-openmp-to-llvm
             -convert-arith-to-llvm
             -convert-math-to-llvm
@@ -193,6 +196,9 @@ add_custom_command(
             -convert-scf-to-cf
             -convert-cf-to-llvm
             -llvm-request-c-wrappers
+            -flatten-nested-omp-parallel
+            -convert-scf-to-cf
+            -convert-cf-to-llvm
             -convert-openmp-to-llvm
             -convert-arith-to-llvm
             -convert-math-to-llvm
@@ -243,6 +249,9 @@ add_custom_command(
             -convert-scf-to-cf
             -convert-cf-to-llvm
             -llvm-request-c-wrappers
+            -flatten-nested-omp-parallel
+            -convert-scf-to-cf
+            -convert-cf-to-llvm
             -convert-openmp-to-llvm
             -convert-arith-to-llvm
             -convert-math-to-llvm
@@ -296,6 +305,9 @@ add_custom_command(
             -convert-scf-to-cf
             -convert-cf-to-llvm
             -llvm-request-c-wrappers
+            -flatten-nested-omp-parallel
+            -convert-scf-to-cf
+            -convert-cf-to-llvm
             -convert-openmp-to-llvm
             -convert-arith-to-llvm
             -convert-math-to-llvm
