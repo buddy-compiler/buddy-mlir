@@ -90,6 +90,11 @@ def build_stages(
       - "subgraph_decode": subgraph_decode
     """
     stages = []
+    llc_base_args = llc_attrs.split()
+    if variant.startswith("w") and not any(
+        arg.startswith(("-code-model", "--code-model")) for arg in llc_base_args
+    ):
+        llc_base_args.append("-code-model=large")
 
     if pipeline_type == "forward":
         stages.append(
@@ -108,7 +113,7 @@ def build_stages(
         stages.append(
             (
                 "llc",
-                llc_attrs.split()
+                llc_base_args
                 + [
                     "-filetype=obj",
                     "-relocation-model=pic",
@@ -151,9 +156,10 @@ def build_stages(
     )
 
     if pipeline_type == "subgraph_decode":
+        if not variant.startswith("w"):
+            opts.append("-eliminate-memref-copy")
         opts.extend(
             [
-                "-eliminate-memref-copy",
                 "-assume-tight-memref-layout",
                 "-staticize-memref-layout",
             ]
@@ -218,7 +224,7 @@ def build_stages(
     stages.append(("mlir-translate", ["-mlir-to-llvmir"]))
     stages.append(("llvm-as", []))
 
-    llc_args = llc_attrs.split() + [
+    llc_args = llc_base_args + [
         "-filetype=obj",
         "-relocation-model=pic",
         "-O3",
@@ -456,73 +462,82 @@ def partitioned_compile_entries(
     mlir_dir: str,
     prefill_only: bool = False,
     full_mlir_dir: str | None = None,
+    tiered: bool = False,
 ) -> list[tuple[str, str, str, str]]:
     """Discover per-layer MLIR files emitted by import_model.py."""
-    patterns = [
-        (
-            re.compile(r"^forward_prefill_(\d+)\.mlir$"),
-            "forward_prefill",
-            "forward",
-        ),
-        (
-            re.compile(r"^forward_decode_(\d+)\.mlir$"),
-            "forward_decode",
-            "forward",
-        ),
-        (
-            re.compile(r"^subgraph0_prefill_(\d+)_(\d+)\.mlir$"),
-            "subgraph_prefill",
-            "subgraph",
-        ),
-        (
-            re.compile(r"^subgraph0_decode_(\d+)_(\d+)\.mlir$"),
-            "subgraph_decode",
-            "subgraph_decode",
-        ),
-        (
-            re.compile(r"^subgraph0_decode_(\d+)\.mlir$"),
-            "subgraph_decode",
-            "subgraph_decode",
-        ),
-        (
-            re.compile(r"^forward_prefill\.mlir$"),
-            "forward_prefill",
-            "forward",
-        ),
-        (
-            re.compile(r"^forward_decode\.mlir$"),
-            "forward_decode",
-            "forward",
-        ),
-        (
-            re.compile(r"^subgraph0_prefill(\d+)\.mlir$"),
-            "subgraph_prefill",
-            "subgraph",
-        ),
-        (
-            re.compile(r"^subgraph0_decode(\d+)\.mlir$"),
-            "subgraph_decode",
-            "subgraph_decode",
-        ),
-        (
-            re.compile(r"^forward_prefill(\d+)\.mlir$"),
-            "forward_prefill",
-            "standard",
-        ),
-        (
-            re.compile(r"^forward_decode(\d+)\.mlir$"),
-            "forward_decode",
-            "standard",
-        ),
-    ]
+    if tiered:
+        patterns = [
+            (
+                re.compile(r"^forward_prefill_(\d+)\.mlir$"),
+                "forward_prefill",
+                "forward",
+            ),
+            (
+                re.compile(r"^forward_decode_(\d+)\.mlir$"),
+                "forward_decode",
+                "forward",
+            ),
+            (
+                re.compile(r"^subgraph0_prefill_(\d+)_(\d+)\.mlir$"),
+                "subgraph_prefill",
+                "subgraph",
+            ),
+            (
+                re.compile(r"^subgraph0_decode_(\d+)_(\d+)\.mlir$"),
+                "subgraph_decode",
+                "subgraph_decode",
+            ),
+            (
+                re.compile(r"^subgraph0_decode_(\d+)\.mlir$"),
+                "subgraph_decode",
+                "subgraph_decode",
+            ),
+        ]
+    else:
+        patterns = [
+            (
+                re.compile(r"^forward_prefill\.mlir$"),
+                "forward_prefill",
+                "forward",
+            ),
+            (
+                re.compile(r"^forward_decode\.mlir$"),
+                "forward_decode",
+                "forward",
+            ),
+            (
+                re.compile(r"^subgraph0_prefill(\d+)\.mlir$"),
+                "subgraph_prefill",
+                "subgraph",
+            ),
+            (
+                re.compile(r"^subgraph0_decode(\d+)\.mlir$"),
+                "subgraph_decode",
+                "subgraph_decode",
+            ),
+            (
+                re.compile(r"^forward_prefill(\d+)\.mlir$"),
+                "forward_prefill",
+                "standard",
+            ),
+            (
+                re.compile(r"^forward_decode(\d+)\.mlir$"),
+                "forward_decode",
+                "standard",
+            ),
+        ]
 
     entries = []
     for filename in os.listdir(mlir_dir):
-        if prefill_only and (
+        is_decode_file = (
             filename == "forward_decode.mlir"
             or re.match(r"^forward_decode\d+\.mlir$", filename)
+            or re.match(r"^forward_decode_\d+\.mlir$", filename)
             or re.match(r"^subgraph0_decode\d+\.mlir$", filename)
-        ):
+            or re.match(r"^subgraph0_decode_\d+\.mlir$", filename)
+            or re.match(r"^subgraph0_decode_\d+_\d+\.mlir$", filename)
+        )
+        if prefill_only and is_decode_file:
             continue
         for regex, key_prefix, pipeline_type in patterns:
             match = regex.match(filename)
@@ -588,7 +603,10 @@ def compile_partitioned(
 ) -> None:
     """Compile all per-layer MLIR files from a layer_partitioned directory."""
     entries = partitioned_compile_entries(
-        mlir_dir, prefill_only=prefill_only, full_mlir_dir=full_mlir_dir
+        mlir_dir,
+        prefill_only=prefill_only,
+        full_mlir_dir=full_mlir_dir,
+        tiered=is_tiered_kv_cache(config),
     )
     if not entries:
         raise RuntimeError(f"No partitioned MLIR files found in {mlir_dir}")
@@ -725,17 +743,20 @@ def partitioned_runtime_objects(
         obj_files.sort()
         return obj_files
 
+    patterns = [
+        r"^subgraph0_prefill\d+\.o$",
+        r"^subgraph0_decode\d+\.o$",
+    ]
+    if prefill_only:
+        patterns = [
+            r"^subgraph0_prefill\d+\.o$",
+            r"^subgraph_decode\.o$",
+        ]
+
     obj_files = []
     for name in os.listdir(output_dir):
-        if not (name.startswith("subgraph") and name.endswith(".o")):
-            continue
-        if prefill_only:
-            keep = re.match(r"^subgraph0_prefill\d+\.o$", name) or name == (
-                "subgraph_decode.o"
-            )
-            if not keep:
-                continue
-        obj_files.append(os.path.join(output_dir, name))
+        if any(re.match(pattern, name) for pattern in patterns):
+            obj_files.append(os.path.join(output_dir, name))
     obj_files.sort()
 
     for name in ("forward_decode.o", "forward_prefill.o"):
