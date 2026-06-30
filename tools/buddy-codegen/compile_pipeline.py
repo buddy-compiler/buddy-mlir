@@ -646,8 +646,28 @@ def link_shared_lib(
     output_so: str,
     cxx: str = "c++",
     llvm_lib_dir: str = "",
+    openmp_runtime_lib: str = "",
 ) -> None:
     """Link object files into a shared library."""
+    lib_dirs = []
+    if llvm_lib_dir:
+        llvm_lib_dir = os.path.normpath(llvm_lib_dir)
+        lib_dirs.append(llvm_lib_dir)
+
+    if openmp_runtime_lib:
+        openmp_runtime_lib = os.path.normpath(openmp_runtime_lib)
+        openmp_runtime_dir = os.path.dirname(openmp_runtime_lib)
+        if openmp_runtime_dir:
+            lib_dirs.append(openmp_runtime_dir)
+
+    deduped_lib_dirs = []
+    seen_lib_dirs = set()
+    for lib_dir in lib_dirs:
+        if lib_dir in seen_lib_dirs:
+            continue
+        seen_lib_dirs.add(lib_dir)
+        deduped_lib_dirs.append(lib_dir)
+
     cmd = [
         cxx,
         "-shared",
@@ -662,14 +682,15 @@ def link_shared_lib(
         cmd.insert(3, f"-Wl,-soname,{os.path.basename(output_so)}")
         cmd.insert(4, "-Wl,--allow-multiple-definition")
 
-    if llvm_lib_dir:
+    for lib_dir in deduped_lib_dirs:
         cmd.extend(
             [
-                f"-L{llvm_lib_dir}",
-                f"-Wl,-rpath,{llvm_lib_dir}",
+                f"-L{lib_dir}",
+                f"-Wl,-rpath,{lib_dir}",
             ]
         )
-    cmd.extend(["-lomp", "-lmlir_c_runner_utils", "-lm"])
+    omp_link_arg = openmp_runtime_lib if openmp_runtime_lib else "-lomp"
+    cmd.extend([omp_link_arg, "-lmlir_c_runner_utils", "-lm"])
 
     print(f"[link] {os.path.basename(output_so)}", file=sys.stderr)
     subprocess.check_call(cmd)
@@ -794,6 +815,11 @@ def main():
         "--llvm-lib-dir", default="", help="LLVM library directory"
     )
     parser.add_argument(
+        "--openmp-runtime-lib",
+        default="",
+        help="Full path to the OpenMP runtime library used for linking",
+    )
+    parser.add_argument(
         "--output-so",
         help="Output shared library path when --link is used",
     )
@@ -843,6 +869,7 @@ def main():
                 output_so=output_so,
                 cxx=args.cxx,
                 llvm_lib_dir=args.llvm_lib_dir,
+                openmp_runtime_lib=args.openmp_runtime_lib,
             )
     elif args.compile_partitioned:
         if not args.mlir_dir or not args.output_dir:
@@ -874,6 +901,7 @@ def main():
                 output_so=output_so,
                 cxx=args.cxx,
                 llvm_lib_dir=args.llvm_lib_dir,
+                openmp_runtime_lib=args.openmp_runtime_lib,
             )
     else:
         if not args.output or not args.pipeline:

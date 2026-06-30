@@ -832,7 +832,10 @@ def gen_impl(config: dict) -> str:
     )
     p("//")
     p("// _mlir_ciface_forward_decode writes:")
-    p(f"//   [kv0..kv{kv_layers - 1} : {kv_memref} x {kv_layers}]")
+    p(
+        "//   [cache_position_out : Dummy1Ref]"
+        "[kv0, kv1, dummy0, kv2, kv3, dummy1, ...]"
+    )
     p(f"//   [logits : {logits_memref}]")
     p("//")
     p(
@@ -867,12 +870,39 @@ def gen_impl(config: dict) -> str:
     p("};")
     p()
     p("struct DecodeABI {")
-    p(f"  alignas(KV4Ref) char kv_[sizeof(KV4Ref) * {mp}_KV_LAYERS];")
+    p("  alignas(Dummy1Ref) char cachePositionOut_[sizeof(Dummy1Ref)];")
+    p("  alignas(KV4Ref) char kv0_[sizeof(KV4Ref)];")
+    p("  alignas(KV4Ref) char kv1_[sizeof(KV4Ref)];")
+    for i in range(dummy_groups):
+        p(f"  alignas(Dummy1Ref) char dummy{i}_[sizeof(Dummy1Ref)];")
+        p(f"  alignas(KV4Ref) char kv{2 + i * 2}_[sizeof(KV4Ref)];")
+        p(f"  alignas(KV4Ref) char kv{3 + i * 2}_[sizeof(KV4Ref)];")
     p("  alignas(Logits3Ref) char logits_[sizeof(Logits3Ref)];")
     p()
+    p("  Dummy1Ref &cachePositionOut() {")
+    p(
+        "    return *std::launder(reinterpret_cast<Dummy1Ref *>(cachePositionOut_));"
+    )
+    p("  }")
     p("  KV4Ref &kv(int i) {")
-    p("    return *std::launder(reinterpret_cast<KV4Ref *>(")
-    p("        kv_ + i * sizeof(KV4Ref)));")
+    p("    switch (i) {")
+    for i in range(kv_layers):
+        p(f"    case {i}:")
+        p(f"      return *std::launder(reinterpret_cast<KV4Ref *>(kv{i}_));")
+    p("    default:")
+    p('      throw std::out_of_range("DecodeABI::kv");')
+    p("    }")
+    p("  }")
+    p("  Dummy1Ref &dummy(int i) {")
+    p("    switch (i) {")
+    for i in range(dummy_groups):
+        p(f"    case {i}:")
+        p(
+            f"      return *std::launder(reinterpret_cast<Dummy1Ref *>(dummy{i}_));"
+        )
+    p("    default:")
+    p('      throw std::out_of_range("DecodeABI::dummy");')
+    p("    }")
     p("  }")
     p("  Logits3Ref &logits() {")
     p("    return *std::launder(reinterpret_cast<Logits3Ref *>(logits_));")
@@ -900,6 +930,7 @@ def gen_impl(config: dict) -> str:
 
     kv4 = "KV4Ref *"
     p(f"using KV4 = {kv4};")
+    p("using Dummy1 = Dummy1Ref *;")
     p()
     decode_sig_parts = [
         "DecodeABI *",
@@ -907,7 +938,9 @@ def gen_impl(config: dict) -> str:
         "MemRef<long long, 2> *",
         "MemRef<long long, 1> *",
     ]
-    decode_sig_parts.extend(["KV4" for _i in range(kv_layers)])
+    decode_sig_parts.extend(["KV4", "KV4"])
+    for _i in range(dummy_groups):
+        decode_sig_parts.extend(["Dummy1", "KV4", "KV4"])
     p("using DecodeFn = void (*)(")
     line = "    "
     for idx, part in enumerate(decode_sig_parts):
@@ -957,6 +990,12 @@ def gen_impl(config: dict) -> str:
     p(f"  for (int i = 0; i < {mp}_KV_LAYERS; ++i)")
     p("    new (&abi.kv(i)) KV4Ref(kvShape, false, 0);")
     p("  new (&abi.logits()) Logits3Ref(logitsShape, false, 0);")
+    p("}")
+    p()
+    p("template <typename T, size_t N>")
+    p("void releaseIfAliased(MemRef<T, N> &result, MemRef<T, N> &owner) {")
+    p("  if (result.getData() == owner.getData())")
+    p("    (void)result.release();")
     p("}")
     p("} // namespace")
     p()
@@ -1316,14 +1355,28 @@ def gen_impl(config: dict) -> str:
         p(line)
 
     p()
-    p("  std::memcpy(state.logits().getData(), result.logits().getData(),")
-    p(f"              (uint64_t)cfg_.vocabSize * {logits_sizeof});")
+    p("  if (result.logits().getData() != state.logits().getData())")
+    p("    std::memcpy(state.logits().getData(), result.logits().getData(),")
+    p(f"                (uint64_t)cfg_.vocabSize * {logits_sizeof});")
     p("  const uint64_t elemsPerLayer =")
     p("      (uint64_t)cfg_.headNum * cfg_.maxTokenLen * cfg_.hiddenSize;")
     p("  for (int i = 0; i < cfg_.kvLayers; ++i) {")
-    p("    std::memcpy(state.kv(i).getData(), result.kv(i).getData(),")
-    p(f"                elemsPerLayer * {kv_sizeof});")
+    p("    if (result.kv(i).getData() != state.kv(i).getData())")
+    p("      std::memcpy(state.kv(i).getData(), result.kv(i).getData(),")
+    p(f"                  elemsPerLayer * {kv_sizeof});")
     p("  }")
+    p()
+    p("  // Some lowered decode results alias the input/session memrefs. The")
+    p("  // temporary result ABI must not free those buffers when it is reset.")
+    p("  releaseIfAliased(result.cachePositionOut(), *cachePosition_);")
+    p(
+        "  releaseIfAliased(result.cachePositionOut(), state.cachePositionOut());"
+    )
+    p(f"  for (int i = 0; i < {dummy_groups}; ++i)")
+    p("    releaseIfAliased(result.dummy(i), state.dummy(i));")
+    p("  for (int i = 0; i < cfg_.kvLayers; ++i)")
+    p("    releaseIfAliased(result.kv(i), state.kv(i));")
+    p("  releaseIfAliased(result.logits(), state.logits());")
     p(
         "  intptr_t kvShape[4] = {1, cfg_.headNum, cfg_.maxTokenLen, cfg_.hiddenSize};"
     )
