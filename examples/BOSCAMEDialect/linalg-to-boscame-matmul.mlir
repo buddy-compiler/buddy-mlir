@@ -1,4 +1,21 @@
 // RUN: buddy-opt %s -lower-linalg-to-boscame | FileCheck %s
+// RUN: buddy-opt %s \
+// RUN:   -lower-linalg-to-boscame \
+// RUN:   -lower-bosc-ame \
+// RUN:   -convert-linalg-to-loops \
+// RUN:   -lower-affine \
+// RUN:   -convert-scf-to-cf \
+// RUN:   -expand-strided-metadata \
+// RUN:   -lower-affine \
+// RUN:   -convert-cf-to-llvm \
+// RUN:   -convert-arith-to-llvm \
+// RUN:   -convert-math-to-llvm \
+// RUN:   -convert-func-to-llvm \
+// RUN:   -finalize-memref-to-llvm \
+// RUN:   -reconcile-unrealized-casts | \
+// RUN: buddy-translate -buddy-to-llvmir | \
+// RUN: buddy-llc -filetype=asm -mtriple=riscv64 \
+// RUN:   -mattr=+xboscame -o - | FileCheck %s --check-prefix=ASM
 //
 // This file tests the lowering of linalg.matmul to boscame operations.
 //
@@ -79,3 +96,9 @@ module {
 // CHECK:       bosc_ame.mlbe32.m 1, %[[SUBVIEW_B]]
 // CHECK:       bosc_ame.mma.w.mm 0, 0, 1
 // CHECK:       bosc_ame.msce32.m 0, %[[SUBVIEW_C]]
+
+// ASM: msub.w.mm
+// ASM: mlae32.m
+// ASM: mlbe32.m
+// ASM: mma.w.mm
+// ASM: msce32.m

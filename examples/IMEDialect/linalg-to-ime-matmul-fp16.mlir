@@ -1,4 +1,20 @@
 // RUN: buddy-opt %s -lower-linalg-to-ime | FileCheck %s
+// RUN: buddy-opt %s \
+// RUN:   -lower-linalg-to-ime \
+// RUN:   -lower-ime \
+// RUN:   -convert-linalg-to-loops \
+// RUN:   -lower-affine \
+// RUN:   -expand-strided-metadata \
+// RUN:   -convert-scf-to-cf \
+// RUN:   -convert-cf-to-llvm \
+// RUN:   -convert-arith-to-llvm \
+// RUN:   -convert-math-to-llvm \
+// RUN:   -convert-func-to-llvm \
+// RUN:   -finalize-memref-to-llvm \
+// RUN:   -reconcile-unrealized-casts | \
+// RUN: buddy-translate -buddy-to-llvmir | \
+// RUN: buddy-llc -filetype=asm -mtriple=riscv64 \
+// RUN:   -mattr=+m,+v,+zvfh,+xsmtime -o - | FileCheck %s --check-prefix=ASM
 //
 // This file tests the lowering of linalg.matmul (f16) to ime.vfmadot operations.
 // FP16 tile sizes: TILE_M=4, TILE_K=4, TILE_N=4
@@ -59,3 +75,6 @@ func.func @matmul_f16_4x16x4(%A: memref<4x16xf16>, %B: memref<16x4xf16>,
                 outs(%C : memref<4x4xf16>)
   return
 }
+
+// ASM: .attribute 5, "{{.*zvfh.*xsmtime.*}}"
+// ASM: vfmadot{{[ \t]}}

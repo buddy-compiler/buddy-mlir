@@ -1,6 +1,12 @@
 // RUN: buddy-opt %s \
 // RUN:     --lower-gemmini | \
 // RUN: FileCheck %s
+// RUN: buddy-opt %s \
+// RUN:     --lower-gemmini | \
+// RUN: buddy-translate -buddy-to-llvmir | \
+// RUN: buddy-llc -filetype=asm -mtriple=riscv64 \
+// RUN:     -mattr=+xgemmini,+D -float-abi=hard \
+// RUN:     -o - | FileCheck %s --check-prefix=ASM
 
 // batchSize = 1 inputDim = 5 inChannels = 1
 memref.global "private" @input : memref<1x5x5x1xi8> = dense<[[[[1], [0], [-1], [0], [1]],
@@ -50,3 +56,8 @@ func.func @main() -> i64 {
   gemmini.print %output : memref<9x2xi8>
   return %0 : i64
 }
+
+// ASM: .attribute 5, "{{.*xgemmini.*}}"
+// ASM: loop_conv_ws_config1{{[ \t]}}
+// ASM: loop_conv_ws{{[ \t]}}
+// ASM: flush{{[ \t]}}

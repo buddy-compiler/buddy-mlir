@@ -1465,7 +1465,7 @@ def ThMfmaccSE5m2Op : XTAME_Op<"th.mfmacc.s.e5m2"> {
 
 //===----------------------------------------------------------------------===//
 // AME Intrinsic Operation Definitions (for LLVM IR translation)
-// These map directly to LLVM intrinsics defined in IntrinsicsRISCVBuddyExt.td
+// These map directly to LLVM intrinsics defined in IntrinsicsRISCVExt.td
 //===----------------------------------------------------------------------===//
 
 // Base class for AME intrinsic ops

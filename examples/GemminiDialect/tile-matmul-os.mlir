@@ -1,6 +1,12 @@
 // RUN: buddy-opt %s \
 // RUN:     --lower-gemmini | \
 // RUN: FileCheck %s
+// RUN: buddy-opt %s \
+// RUN:     --lower-gemmini | \
+// RUN: buddy-translate -buddy-to-llvmir | \
+// RUN: buddy-llc -filetype=asm -mtriple=riscv64 \
+// RUN:     -mattr=+xgemmini,+D -float-abi=hard \
+// RUN:     -o - | FileCheck %s --check-prefix=ASM
 
 func.func @main() -> i8 {
   %i0 = arith.constant 0 : i8
@@ -35,3 +41,8 @@ func.func @main() -> i8 {
   gemmini.print %cArray : memref<64x64xi8>
   return %i0 : i8
 }
+
+// ASM: .attribute 5, "{{.*xgemmini.*}}"
+// ASM: compute_accumulated{{[ \t]}}
+// ASM: mvout{{[ \t]}}
+// ASM: flush{{[ \t]}}

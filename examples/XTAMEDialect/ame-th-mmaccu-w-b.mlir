@@ -1,4 +1,19 @@
 // RUN: buddy-opt %s --lower-xt-ame | FileCheck %s
+// RUN: buddy-opt %s \
+// RUN:   --lower-xt-ame \
+// RUN:   -convert-linalg-to-loops \
+// RUN:   -lower-affine \
+// RUN:   -convert-scf-to-cf \
+// RUN:   -convert-cf-to-llvm \
+// RUN:   -expand-strided-metadata \
+// RUN:   -convert-arith-to-llvm \
+// RUN:   -convert-math-to-llvm \
+// RUN:   -convert-func-to-llvm \
+// RUN:   -finalize-memref-to-llvm \
+// RUN:   -reconcile-unrealized-casts | \
+// RUN: buddy-translate -buddy-to-llvmir | \
+// RUN: buddy-llc -filetype=asm -mtriple=riscv64-unknown-linux-gnu \
+// RUN:   -mattr=+m,+a,+c,+d,+xtheadame -o - | FileCheck %s --check-prefix=ASM
 
 module {
   // Print the first 16 results for verification
@@ -148,3 +163,6 @@ module {
 // CHECK: llvm.call @llvm.riscv.th.mldte8
 // CHECK: llvm.call @llvm.riscv.th.mmaccu.w.b
 // CHECK: llvm.call @llvm.riscv.th.mste32
+
+// ASM: .attribute 5, "{{.*xtheadmatrix.*}}"
+// ASM: th.mmaccu.w.b{{[ \t]}}

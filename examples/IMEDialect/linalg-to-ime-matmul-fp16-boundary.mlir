@@ -1,4 +1,20 @@
 // RUN: buddy-opt %s -lower-linalg-to-ime | FileCheck %s
+// RUN: buddy-opt %s \
+// RUN:   -lower-linalg-to-ime \
+// RUN:   -lower-ime \
+// RUN:   -convert-linalg-to-loops \
+// RUN:   -lower-affine \
+// RUN:   -expand-strided-metadata \
+// RUN:   -convert-scf-to-cf \
+// RUN:   -convert-cf-to-llvm \
+// RUN:   -convert-arith-to-llvm \
+// RUN:   -convert-math-to-llvm \
+// RUN:   -convert-func-to-llvm \
+// RUN:   -finalize-memref-to-llvm \
+// RUN:   -reconcile-unrealized-casts | \
+// RUN: buddy-translate -buddy-to-llvmir | \
+// RUN: buddy-llc -filetype=asm -mtriple=riscv64 \
+// RUN:   -mattr=+m,+v,+zvfh,+xsmtime -o - | FileCheck %s --check-prefix=ASM
 //
 // This file tests fp16 linalg.matmul -> ime.vfmadot lowering
 // for matrices with dimensions NOT aligned to TILE_M=4, TILE_K=4, TILE_N=4.
@@ -63,3 +79,6 @@ func.func @matmul_f16_boundary_all(%A: memref<7x6xf16>, %B: memref<6x5xf16>,
                 outs(%C : memref<7x5xf16>)
   return
 }
+
+// ASM: .attribute 5, "{{.*zvfh.*xsmtime.*}}"
+// ASM: vfmadot{{[ \t]}}

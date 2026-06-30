@@ -1,4 +1,19 @@
 // RUN: buddy-opt %s -lower-linalg-to-ime | FileCheck %s
+// RUN: buddy-opt %s \
+// RUN:   -lower-linalg-to-ime \
+// RUN:   -lower-ime \
+// RUN:   -convert-linalg-to-loops \
+// RUN:   -lower-affine \
+// RUN:   -convert-scf-to-cf \
+// RUN:   -convert-cf-to-llvm \
+// RUN:   -convert-arith-to-llvm \
+// RUN:   -convert-math-to-llvm \
+// RUN:   -convert-func-to-llvm \
+// RUN:   -finalize-memref-to-llvm \
+// RUN:   -reconcile-unrealized-casts | \
+// RUN: buddy-translate -buddy-to-llvmir | \
+// RUN: buddy-llc -filetype=asm -mtriple=riscv64 \
+// RUN:   -mattr=+m,+v,+xsmtime -o - | FileCheck %s --check-prefix=ASM
 
 // Test Conv2D NHWC layout to IME lowering
 // Input:  [1, 12, 12, 16] - batch=1, H=12, W=12, IC=16
@@ -101,3 +116,6 @@ func.func @conv2d_nhwc_hwcf_stride4(%input: memref<1x20x20x8xi8>,
                            outs(%output : memref<1x5x5x4xi32>)
   return
 }
+
+// ASM: .attribute 5, "{{.*xsmtime.*}}"
+// ASM: vmadot1{{[ \t]}}

@@ -2,6 +2,15 @@
 // RUN:    --convert-linalg-to-gemmini --convert-linalg-to-loops \
 // RUN:    --convert-func-to-llvm | \
 // RUN: FileCheck %s
+// RUN: buddy-opt %s \
+// RUN:     --llvm-request-c-wrappers \
+// RUN:     --convert-linalg-to-gemmini \
+// RUN:     --convert-linalg-to-loops \
+// RUN:     --lower-gemmini | \
+// RUN: buddy-translate -buddy-to-llvmir | \
+// RUN: buddy-llc -filetype=asm -mtriple=riscv64 \
+// RUN:     -mattr=+xgemmini,+D -float-abi=hard \
+// RUN:     -o - | FileCheck %s --check-prefix=ASM
 
 // CHECK: llvm.func @_mlir_ciface_gemmini_matmul1
 func.func @gemmini_matmul1(%arg0 : memref<32x32xi8>, %arg1 : memref<32x32xi8>, %arg2 : memref<32x32xi8>, %arg3 : memref<32x32xi32>) {
@@ -188,3 +197,8 @@ func.func @gemmini_matmul4(%arg0 : memref<256x256xi8>, %arg1 : memref<256x256xi8
   gemmini.tile_matmul %arg0 %arg1 %arg2 %arg3 : memref<256x256xi8> memref<256x256xi8> memref<256x256xi8> memref<256x256xi32>
   return
 }
+
+// ASM: .attribute 5, "{{.*xgemmini.*}}"
+// ASM: loop_ws_config_bounds{{[ \t]}}
+// ASM: loop_ws{{[ \t]}}
+// ASM: flush{{[ \t]}}

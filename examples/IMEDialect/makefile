@@ -118,7 +118,7 @@ vmadot-asm:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v,+buddyext \
+		-mattr=+m,+v,+xsmtime \
 		-o log.s
 
 vmadot-run:
@@ -135,7 +135,7 @@ vmadot-run:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v,+buddyext \
+		-mattr=+m,+v,+xsmtime \
 		-o vmadot.s
 	riscv64-unknown-linux-gnu-gcc -march=rv64gcv -static vmadot.s runtime_vmadot.c -o vmadot_test
 
@@ -183,7 +183,7 @@ vmadotu-asm:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v,+buddyext \
+		-mattr=+m,+v,+xsmtime \
 		-o log.s
 
 vmadotu-run:
@@ -200,7 +200,7 @@ vmadotu-run:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v,+buddyext \
+		-mattr=+m,+v,+xsmtime \
 		-o vmadotu.s
 	riscv64-unknown-linux-gnu-gcc -march=rv64gcv -static vmadotu.s runtime_vmadotu.c -o vmadotu_test
 
@@ -247,7 +247,7 @@ vmadotsu-asm:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v,+buddyext \
+		-mattr=+m,+v,+xsmtime \
 		-o log.s
 
 vmadotsu-run:
@@ -264,7 +264,7 @@ vmadotsu-run:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v,+buddyext \
+		-mattr=+m,+v,+xsmtime \
 		-o vmadotsu.s
 	riscv64-unknown-linux-gnu-gcc -march=rv64gcv -static vmadotsu.s runtime_vmadotsu.c -o vmadotsu_test
 
@@ -311,7 +311,7 @@ vmadotus-asm:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v,+buddyext \
+		-mattr=+m,+v,+xsmtime \
 		-o log.s
 
 vmadotus-run:
@@ -328,7 +328,7 @@ vmadotus-run:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v,+buddyext \
+		-mattr=+m,+v,+xsmtime \
 		-o vmadotus.s
 	riscv64-unknown-linux-gnu-gcc -march=rv64gcv -static vmadotus.s runtime_vmadotus.c -o vmadotus_test
 
@@ -375,7 +375,7 @@ vfmadot-asm:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v,+zvfh,+buddyext \
+		-mattr=+m,+v,+zvfh,+xsmtime \
 		-o log.s
 
 vfmadot-run:
@@ -392,7 +392,7 @@ vfmadot-run:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v,+zvfh,+buddyext \
+		-mattr=+m,+v,+zvfh,+xsmtime \
 		-o vfmadot.s
 	riscv64-unknown-linux-gnu-gcc -march=rv64gcv -static vfmadot.s runtime_vfmadot.c -o vfmadot_test
 
@@ -440,7 +440,7 @@ vmadot1-asm:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v,+buddyext \
+		-mattr=+m,+v,+xsmtime \
 		-o log.s
 
 vmadot2-lower:
@@ -486,7 +486,7 @@ vmadot2-asm:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v,+buddyext \
+		-mattr=+m,+v,+xsmtime \
 		-o log.s
 
 vmadot3-lower:
@@ -532,7 +532,7 @@ vmadot3-asm:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v,+buddyext \
+		-mattr=+m,+v,+xsmtime \
 		-o log.s
 
 vmadot1-run:
@@ -549,7 +549,7 @@ vmadot1-run:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v,+buddyext \
+		-mattr=+m,+v,+xsmtime \
 		-o vmadot1.s
 	riscv64-unknown-linux-gnu-gcc -march=rv64gcv -static vmadot1.s runtime_vmadot1.c -o vmadot1_test
 
@@ -567,7 +567,7 @@ vmadot2-run:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v,+buddyext \
+		-mattr=+m,+v,+xsmtime \
 		-o vmadot2.s
 	riscv64-unknown-linux-gnu-gcc -march=rv64gcv -static vmadot2.s runtime_vmadot2.c -o vmadot2_test
 
@@ -585,7 +585,7 @@ vmadot3-run:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v,+buddyext \
+		-mattr=+m,+v,+xsmtime \
 		-o vmadot3.s
 	riscv64-unknown-linux-gnu-gcc -march=rv64gcv -static vmadot3.s runtime_vmadot3.c -o vmadot3_test
 
@@ -632,7 +632,7 @@ vmadot1u-asm:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v,+buddyext \
+		-mattr=+m,+v,+xsmtime \
 		-o log.s
 
 vmadot1su-lower:
@@ -678,7 +678,7 @@ vmadot1su-asm:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v,+buddyext \
+		-mattr=+m,+v,+xsmtime \
 		-o log.s
 
 vmadot1us-lower:
@@ -724,7 +724,7 @@ vmadot1us-asm:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v,+buddyext \
+		-mattr=+m,+v,+xsmtime \
 		-o log.s
 
 vmadot2u-lower:
@@ -770,7 +770,7 @@ vmadot2u-asm:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v,+buddyext \
+		-mattr=+m,+v,+xsmtime \
 		-o log.s
 
 vmadot2su-lower:
@@ -816,7 +816,7 @@ vmadot2su-asm:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v,+buddyext \
+		-mattr=+m,+v,+xsmtime \
 		-o log.s
 
 vmadot2us-lower:
@@ -862,7 +862,7 @@ vmadot2us-asm:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v,+buddyext \
+		-mattr=+m,+v,+xsmtime \
 		-o log.s
 
 vmadot3u-lower:
@@ -908,7 +908,7 @@ vmadot3u-asm:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v,+buddyext \
+		-mattr=+m,+v,+xsmtime \
 		-o log.s
 
 vmadot3su-lower:
@@ -954,7 +954,7 @@ vmadot3su-asm:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v,+buddyext \
+		-mattr=+m,+v,+xsmtime \
 		-o log.s
 
 vmadot3us-lower:
@@ -1000,7 +1000,7 @@ vmadot3us-asm:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v,+buddyext \
+		-mattr=+m,+v,+xsmtime \
 		-o log.s
 
 vmadotn-lower:
@@ -1046,7 +1046,7 @@ vmadotn-asm:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v,+buddyext \
+		-mattr=+m,+v,+xsmtime \
 		-o log.s
 
 vmadotn-run:
@@ -1063,7 +1063,7 @@ vmadotn-run:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v,+buddyext \
+		-mattr=+m,+v,+xsmtime \
 		-o vmadotn.s
 	riscv64-unknown-linux-gnu-gcc -march=rv64gcv -static vmadotn.s runtime_vmadotn.c -o vmadotn_test
 
@@ -1111,7 +1111,7 @@ vmadotnu-asm:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v,+buddyext \
+		-mattr=+m,+v,+xsmtime \
 		-o log.s
 
 vmadotnu-run:
@@ -1128,7 +1128,7 @@ vmadotnu-run:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v,+buddyext \
+		-mattr=+m,+v,+xsmtime \
 		-o vmadotnu.s
 	riscv64-unknown-linux-gnu-gcc -march=rv64gcv -static vmadotnu.s runtime_vmadotnu.c -o vmadotnu_test
 
@@ -1176,7 +1176,7 @@ vmadotnsu-asm:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v,+buddyext \
+		-mattr=+m,+v,+xsmtime \
 		-o log.s
 
 vmadotnsu-run:
@@ -1193,7 +1193,7 @@ vmadotnsu-run:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v,+buddyext \
+		-mattr=+m,+v,+xsmtime \
 		-o vmadotnsu.s
 	riscv64-unknown-linux-gnu-gcc -march=rv64gcv -static vmadotnsu.s runtime_vmadotnsu.c -o vmadotnsu_test
 
@@ -1241,7 +1241,7 @@ vmadotnus-asm:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v,+buddyext \
+		-mattr=+m,+v,+xsmtime \
 		-o log.s
 
 vmadotnus-run:
@@ -1258,7 +1258,7 @@ vmadotnus-run:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v,+buddyext \
+		-mattr=+m,+v,+xsmtime \
 		-o vmadotnus.s
 	riscv64-unknown-linux-gnu-gcc -march=rv64gcv -static vmadotnus.s runtime_vmadotnus.c -o vmadotnus_test
 
@@ -1306,7 +1306,7 @@ vfmadot1-asm:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v,+zvfh,+buddyext \
+		-mattr=+m,+v,+zvfh,+xsmtime \
 		-o log.s
 
 vfmadot2-lower:
@@ -1352,7 +1352,7 @@ vfmadot2-asm:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v,+zvfh,+buddyext \
+		-mattr=+m,+v,+zvfh,+xsmtime \
 		-o log.s
 
 vfmadot3-lower:
@@ -1398,7 +1398,7 @@ vfmadot3-asm:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v,+zvfh,+buddyext \
+		-mattr=+m,+v,+zvfh,+xsmtime \
 		-o log.s
 
 vfmadot1-run:
@@ -1415,7 +1415,7 @@ vfmadot1-run:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v,+zvfh,+buddyext \
+		-mattr=+m,+v,+zvfh,+xsmtime \
 		-o vfmadot1.s
 	riscv64-unknown-linux-gnu-gcc -march=rv64gcv -static vfmadot1.s runtime_vfmadot1.c -o vfmadot1_test
 
@@ -1433,7 +1433,7 @@ vfmadot2-run:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v,+zvfh,+buddyext \
+		-mattr=+m,+v,+zvfh,+xsmtime \
 		-o vfmadot2.s
 	riscv64-unknown-linux-gnu-gcc -march=rv64gcv -static vfmadot2.s runtime_vfmadot2.c -o vfmadot2_test
 
@@ -1451,7 +1451,7 @@ vfmadot3-run:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v,+zvfh,+buddyext \
+		-mattr=+m,+v,+zvfh,+xsmtime \
 		-o vfmadot3.s
 	riscv64-unknown-linux-gnu-gcc -march=rv64gcv -static vfmadot3.s runtime_vfmadot3.c -o vfmadot3_test
 
@@ -1498,7 +1498,7 @@ vfmadotn-asm:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v,+zvfh,+buddyext \
+		-mattr=+m,+v,+zvfh,+xsmtime \
 		-o log.s
 
 vfmadotn-run:
@@ -1515,7 +1515,7 @@ vfmadotn-run:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v,+zvfh,+buddyext \
+		-mattr=+m,+v,+zvfh,+xsmtime \
 		-o vfmadotn.s
 	riscv64-unknown-linux-gnu-gcc -march=rv64gcv -static vfmadotn.s runtime_vfmadotn.c -o vfmadotn_test
 
@@ -1556,7 +1556,7 @@ linalg-matmul-asm:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v,+buddyext \
+		-mattr=+m,+v,+xsmtime \
 		-o log.s
 
 
@@ -1596,7 +1596,7 @@ linalg-conv-asm:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v,+buddyext \
+		-mattr=+m,+v,+xsmtime \
 		-o log.s
 
 linalg-matmul-boundary-lower:
@@ -1637,7 +1637,7 @@ linalg-matmul-boundary-asm:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v,+buddyext \
+		-mattr=+m,+v,+xsmtime \
 		-o log.s
 
 linalg-matmul-boundary-run:
@@ -1656,7 +1656,7 @@ linalg-matmul-boundary-run:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v,+buddyext \
+		-mattr=+m,+v,+xsmtime \
 		-o matmul_boundary.s
 	riscv64-unknown-linux-gnu-gcc -march=rv64gcv -static \
 		matmul_boundary.s runtime_matmul_boundary.c \
@@ -1704,7 +1704,7 @@ linalg-matmul-fp16-asm:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v,+zvfh,+buddyext \
+		-mattr=+m,+v,+zvfh,+xsmtime \
 		-o log.s
 
 linalg-matmul-fp16-boundary-lower:
@@ -1745,7 +1745,7 @@ linalg-matmul-fp16-boundary-asm:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v,+zvfh,+buddyext \
+		-mattr=+m,+v,+zvfh,+xsmtime \
 		-o log.s
 
 linalg-matmul-fp16-boundary-run:
@@ -1764,7 +1764,7 @@ linalg-matmul-fp16-boundary-run:
 		-reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+m,+v,+zvfh,+buddyext \
+		-mattr=+m,+v,+zvfh,+xsmtime \
 		-o matmul_fp16_boundary.s
 	riscv64-unknown-linux-gnu-gcc -march=rv64gcv_zvfh -static \
 		matmul_fp16_boundary.s runtime_matmul_fp16_boundary.c \

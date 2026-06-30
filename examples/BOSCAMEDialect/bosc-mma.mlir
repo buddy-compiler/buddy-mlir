@@ -1,4 +1,18 @@
 // RUN: buddy-opt %s --lower-bosc-ame | FileCheck %s
+// RUN: buddy-opt %s \
+// RUN:   --lower-bosc-ame \
+// RUN:   -convert-linalg-to-loops \
+// RUN:   -lower-affine \
+// RUN:   -convert-scf-to-cf \
+// RUN:   -convert-cf-to-llvm \
+// RUN:   -convert-arith-to-llvm \
+// RUN:   -convert-math-to-llvm \
+// RUN:   -convert-func-to-llvm \
+// RUN:   -finalize-memref-to-llvm \
+// RUN:   -reconcile-unrealized-casts | \
+// RUN: buddy-translate --buddy-to-llvmir | \
+// RUN: buddy-llc -filetype=asm -mtriple=riscv64 \
+// RUN:   -mattr=+xboscame -o - | FileCheck %s --check-prefix=ASM
 
 // ===========================================================================
 // Complete Matrix Multiplication Demo using RISC-V Matrix Extension (BOSC AME)
@@ -167,3 +181,13 @@ module {
 // CHECK: llvm.call @llvm.riscv.bosc.mlbe32.m
 // CHECK: llvm.call @llvm.riscv.bosc.mma.w.mm
 // CHECK: llvm.call @llvm.riscv.bosc.msce32.m
+
+// ASM: msettypei
+// ASM: msettilemi
+// ASM: msettileni
+// ASM: msettileki
+// ASM: msub.w.mm
+// ASM: mlae32.m
+// ASM: mlbe32.m
+// ASM: mma.w.mm
+// ASM: msce32.m

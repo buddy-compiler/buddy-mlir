@@ -1,4 +1,19 @@
 // RUN: buddy-opt %s -lower-linalg-to-ime | FileCheck %s
+// RUN: buddy-opt %s \
+// RUN:   -lower-linalg-to-ime \
+// RUN:   -lower-ime \
+// RUN:   -convert-linalg-to-loops \
+// RUN:   -lower-affine \
+// RUN:   -convert-scf-to-cf \
+// RUN:   -convert-cf-to-llvm \
+// RUN:   -convert-arith-to-llvm \
+// RUN:   -convert-math-to-llvm \
+// RUN:   -convert-func-to-llvm \
+// RUN:   -finalize-memref-to-llvm \
+// RUN:   -reconcile-unrealized-casts | \
+// RUN: buddy-translate -buddy-to-llvmir | \
+// RUN: buddy-llc -filetype=asm -mtriple=riscv64 \
+// RUN:   -mattr=+m,+v,+xsmtime -o - | FileCheck %s --check-prefix=ASM
 //
 // This file tests the lowering of linalg.matmul to ime.vmadot operations.
 //
@@ -55,3 +70,6 @@ func.func @matmul_i16_16x16x16(%A: memref<16x16xi16>, %B: memref<16x16xi16>, %C:
                 outs(%C : memref<16x16xi32>)
   return
 }
+
+// ASM: .attribute 5, "{{.*xsmtime.*}}"
+// ASM: vmadot{{[ \t]}}

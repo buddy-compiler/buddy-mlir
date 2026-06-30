@@ -1,4 +1,18 @@
 // RUN: buddy-opt %s | FileCheck %s
+// RUN: buddy-opt %s \
+// RUN:   -lower-ime \
+// RUN:   -convert-linalg-to-loops \
+// RUN:   -lower-affine \
+// RUN:   -convert-scf-to-cf \
+// RUN:   -convert-cf-to-llvm \
+// RUN:   -convert-arith-to-llvm \
+// RUN:   -convert-math-to-llvm \
+// RUN:   -convert-func-to-llvm \
+// RUN:   -finalize-memref-to-llvm \
+// RUN:   -reconcile-unrealized-casts | \
+// RUN: buddy-translate -buddy-to-llvmir | \
+// RUN: buddy-llc -filetype=asm -mtriple=riscv64 \
+// RUN:   -mattr=+m,+v,+zvfh,+xsmtime -o - | FileCheck %s --check-prefix=ASM
 
 // This example demonstrates the IME vfmadot3 operation (slide=3).
 // vfmadot3 performs: C += slide(A, 3) × B where A, B are fp16 matrices.
@@ -47,3 +61,6 @@ func.func @main() -> i32 {
   %ret = arith.constant 0 : i32
   return %ret : i32
 }
+
+// ASM: .attribute 5, "{{.*zvfh.*xsmtime.*}}"
+// ASM: vfmadot3{{[ \t]}}

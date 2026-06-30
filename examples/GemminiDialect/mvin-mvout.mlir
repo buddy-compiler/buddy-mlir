@@ -1,6 +1,12 @@
 // RUN: buddy-opt %s \
 // RUN:     --lower-gemmini | \
 // RUN: FileCheck %s
+// RUN: buddy-opt %s \
+// RUN:     --lower-gemmini | \
+// RUN: buddy-translate -buddy-to-llvmir | \
+// RUN: buddy-llc -filetype=asm -mtriple=riscv64 \
+// RUN:     -mattr=+xgemmini,+D -float-abi=hard \
+// RUN:     -o - | FileCheck %s --check-prefix=ASM
 
 memref.global "private" @gv : memref<2x16xi8> = dense<[[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
                                                        [16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]]>
@@ -34,3 +40,7 @@ func.func @main() -> i64 {
   gemmini.print %arrayC : memref<2x8xi8>
   return %0 : i64
 }
+
+// ASM: .attribute 5, "{{.*xgemmini.*}}"
+// ASM: mvin{{[ \t]}}
+// ASM: mvout{{[ \t]}}
