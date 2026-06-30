@@ -118,7 +118,7 @@ runs:
           -DPython_EXECUTABLE="$(which python)"
 
         ccache -z
-        ninja -C "$LLVM_BUILD_DIR" check-clang check-mlir check-openmp mlir-libraries
+        ninja -C "$LLVM_BUILD_DIR" check-clang check-mlir check-openmp
         ccache -s
 
         printf 'ready\n' > "$LLVM_BUILD_DIR/.ci-llvm-ready"

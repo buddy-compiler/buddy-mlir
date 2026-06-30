@@ -1,6 +1,15 @@
 // RUN: buddy-opt %s \
 // RUN:     --convert-linalg-to-gemmini | \
 // RUN: FileCheck %s
+// RUN: buddy-opt %s \
+// RUN:     --convert-linalg-to-gemmini \
+// RUN:     --expand-strided-metadata \
+// RUN:     --convert-linalg-to-loops \
+// RUN:     --lower-gemmini | \
+// RUN: buddy-translate -buddy-to-llvmir | \
+// RUN: buddy-llc -filetype=asm -mtriple=riscv64 \
+// RUN:     -mattr=+xgemmini,+D -float-abi=hard \
+// RUN:     -o - | FileCheck %s --check-prefix=ASM
 
 func.func @main() -> i8 {
   %0 = arith.constant 0 : i8
@@ -28,3 +37,8 @@ func.func @main() -> i8 {
   memref.dealloc %output : memref<3x3x3xi8>
   return %0 : i8
 }
+
+// ASM: .attribute 5, "{{.*xgemmini.*}}"
+// ASM: loop_ws_config_bounds{{[ \t]}}
+// ASM: loop_ws{{[ \t]}}
+// ASM: flush{{[ \t]}}

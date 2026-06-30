@@ -25,7 +25,7 @@ build_test() {
     # Generate assembly
     $BUDDY_OPT $mlir_file $PASSES | \
     $BUDDY_TRANSLATE -buddy-to-llvmir | \
-    $BUDDY_LLC -filetype=asm -mtriple=riscv64 -mattr=+m,+v,+buddyext -o ${name}.s
+    $BUDDY_LLC -filetype=asm -mtriple=riscv64 -mattr=+m,+v,+xsmtime -o ${name}.s
 
     if [ $? -ne 0 ]; then
         echo "Failed to generate assembly for $name"

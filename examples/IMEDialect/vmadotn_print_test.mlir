@@ -1,4 +1,18 @@
 // RUN: buddy-opt %s | FileCheck %s
+// RUN: buddy-opt %s \
+// RUN:   -lower-ime \
+// RUN:   -convert-linalg-to-loops \
+// RUN:   -lower-affine \
+// RUN:   -convert-scf-to-cf \
+// RUN:   -convert-cf-to-llvm \
+// RUN:   -convert-arith-to-llvm \
+// RUN:   -convert-math-to-llvm \
+// RUN:   -convert-func-to-llvm \
+// RUN:   -finalize-memref-to-llvm \
+// RUN:   -reconcile-unrealized-casts | \
+// RUN: buddy-translate -buddy-to-llvmir | \
+// RUN: buddy-llc -filetype=asm -mtriple=riscv64 \
+// RUN:   -mattr=+m,+v,+xsmtime -o - | FileCheck %s --check-prefix=ASM
 // CHECK: func.func @main
 //
 // vmadotn computes: C[i,j] += sum_k(signed(A[slide+i,k]) * signed(B[j,k]))
@@ -97,3 +111,6 @@ func.func @main() -> i32 {
   %ret = arith.constant 0 : i32
   return %ret : i32
 }
+
+// ASM: .attribute 5, "{{.*xsmtime.*}}"
+// ASM: vmadotn{{[ \t]}}

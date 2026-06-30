@@ -704,11 +704,11 @@ def MsomaHbmmOp : BOSCAME_MMA_Op<"msoma.hb.mm", "Saturated oct-widening signed 4
 
 //===----------------------------------------------------------------------===//
 // BOSCAME Intrinsic Operation Definitions (for LLVM IR translation)
-// These map directly to LLVM intrinsics defined in IntrinsicsRISCVBuddyBOSCExt.td
+// These map directly to LLVM intrinsics defined in IntrinsicsRISCVBOSCExt.td
 //===----------------------------------------------------------------------===//
 
 // Base class for BOSCAME intrinsic ops
-// Note: enumName must match the intrinsic name pattern: riscv_buddy_<name>
+// Note: enumName must match the intrinsic name pattern: riscv_bosc_<name>
 class BOSCAME_IntrOpBase<string mnemonic, int numRes = 0, list<Trait> traits = []> :
   LLVM_IntrOpBase</*Dialect dialect=*/BOSCAME_Dialect,
                   /*string opName=*/"intr." # mnemonic,

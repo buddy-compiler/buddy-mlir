@@ -20,14 +20,14 @@ mvin-mvout-asm:
 		-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 mvin-mvout-run:
 	@${BUDDY_OPT} ./mvin-mvout.mlir -lower-gemmini | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-gcc log.o -O2 -static -o a.out
 	@spike --extension=gemmini pk a.out
@@ -48,14 +48,14 @@ matrix-add-asm:
 		-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 matrix-add-run:
 	@${BUDDY_OPT} ./matrix-add.mlir -lower-gemmini | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-gcc log.o -O2 -static -o a.out
 	@spike --extension=gemmini pk a.out
@@ -76,14 +76,14 @@ matrix-add-scale-asm:
 		-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 matrix-add-scale-run:
 	@${BUDDY_OPT} ./matrix-add-scale.mlir -lower-gemmini | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-gcc log.o -O2 -static -o a.out
 	@spike --extension=gemmini pk a.out
@@ -104,14 +104,14 @@ transpose-asm:
 		-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 transpose-run:
 	@${BUDDY_OPT} ./transpose.mlir -lower-gemmini | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-gcc log.o -O2 -static -o a.out
 	@spike --extension=gemmini pk a.out
@@ -132,14 +132,14 @@ matmul-os-asm:
 		-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 matmul-os-run:
 	@${BUDDY_OPT} ./matmul-os.mlir -lower-gemmini | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-gcc log.o -O2 -static -o a.out
 	@spike --extension=gemmini pk a.out
@@ -160,14 +160,14 @@ compute-accumulated-asm:
 		-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 compute-accumulated-run:
 	@${BUDDY_OPT} ./compute-accumulated.mlir -lower-gemmini | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-gcc log.o -O2 -static -o a.out
 	@spike --extension=gemmini pk a.out
@@ -188,14 +188,14 @@ matmul-ws-asm:
 		-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 matmul-ws-run:
 	@${BUDDY_OPT} ./matmul-ws.mlir -lower-gemmini | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-gcc log.o -O2 -static -o a.out
 	@spike --extension=gemmini pk a.out
@@ -216,14 +216,14 @@ tile-matmul-asm:
 		-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 tile-matmul-run:
 	@${BUDDY_OPT} ./tile-matmul.mlir -lower-gemmini | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-gcc log.o -O2 -static -o a.out
 	@spike --extension=gemmini pk a.out
@@ -244,14 +244,14 @@ tile-matmul-os-asm:
 		-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 tile-matmul-os-run:
 	@${BUDDY_OPT} ./tile-matmul-os.mlir -lower-gemmini | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-gcc log.o -O2 -static -o a.out
 	@spike --extension=gemmini pk a.out
@@ -272,14 +272,14 @@ tile-matmul-ws-igelu-asm:
 		-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 tile-matmul-ws-igelu-run:
 	@${BUDDY_OPT} ./tile-matmul-ws-igelu.mlir -lower-gemmini | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-gcc log.o -O2 -static -o a.out
 	@spike --extension=gemmini pk a.out
@@ -300,14 +300,14 @@ tile-matmul-ws-relu-asm:
 		-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 tile-matmul-ws-relu-run:
 	@${BUDDY_OPT} ./tile-matmul-ws-relu.mlir -lower-gemmini | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-gcc log.o -O2 -static -o a.out
 	@spike --extension=gemmini pk a.out
@@ -328,14 +328,14 @@ tile-matmul-ws-softmax-asm:
 		-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 tile-matmul-ws-softmax-run:
 	@${BUDDY_OPT} ./tile-matmul-ws-softmax.mlir -lower-gemmini | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-gcc log.o -O2 -static -o a.out
 	@spike --extension=gemmini pk a.out
@@ -356,14 +356,14 @@ tile-matmul-ws-layernorm-asm:
 		-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 tile-matmul-ws-layernorm-run:
 	@${BUDDY_OPT} ./tile-matmul-ws-layernorm.mlir -lower-gemmini | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-gcc log.o -O2 -static -o a.out
 	@spike --extension=gemmini pk a.out
@@ -384,14 +384,14 @@ tile-conv-asm:
 		-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 tile-conv-run:
 	@${BUDDY_OPT} ./tile-conv.mlir -lower-gemmini | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-gcc log.o -O2 -static -o a.out
 	@spike --extension=gemmini pk a.out
@@ -412,14 +412,14 @@ tile-conv-igelu-asm:
 		-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 tile-conv-igelu-run:
 	@${BUDDY_OPT} ./tile-conv-igelu.mlir -lower-gemmini | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-gcc log.o -O2 -static -o a.out
 	@spike --extension=gemmini pk a.out
@@ -440,14 +440,14 @@ tile-conv-softmax-asm:
 		-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 tile-conv-softmax-run:
 	@${BUDDY_OPT} ./tile-conv-softmax.mlir -lower-gemmini | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-gcc log.o -O2 -static -o a.out
 	@spike --extension=gemmini pk a.out
@@ -468,14 +468,14 @@ tile-conv-relu-asm:
 		-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 tile-conv-relu-run:
 	@${BUDDY_OPT} ./tile-conv-relu.mlir -lower-gemmini | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-gcc log.o -O2 -static -o a.out
 	@spike --extension=gemmini pk a.out
@@ -496,14 +496,14 @@ tile-conv-layernorm-asm:
 		-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 tile-conv-layernorm-run:
 	@${BUDDY_OPT} ./tile-conv-layernorm.mlir -lower-gemmini | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-gcc log.o -O2 -static -o a.out
 	@spike --extension=gemmini pk a.out
@@ -524,14 +524,14 @@ tile-rect-conv-asm:
 		-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 tile-rect-conv-run:
 	@${BUDDY_OPT} ./tile-rect-conv.mlir -lower-gemmini | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-gcc log.o -O2 -static -o a.out
 	@spike --extension=gemmini pk a.out
@@ -558,7 +558,7 @@ gemmini-linalg-matmul-asm:
 		-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 gemmini-linalg-matmul-run:
@@ -568,7 +568,7 @@ gemmini-linalg-matmul-run:
 		-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-gcc log.o -O2 -static -o a.out
 	@spike --extension=gemmini pk a.out
@@ -595,7 +595,7 @@ gemmini-linalg-conv2d-nchw-fchw-i8-asm:
 		-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 gemmini-linalg-conv2d-nchw-fchw-i8-run:
@@ -605,7 +605,7 @@ gemmini-linalg-conv2d-nchw-fchw-i8-run:
 		-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-gcc log.o -O2 -static -o a.out
 	@spike --extension=gemmini pk a.out
@@ -632,7 +632,7 @@ gemmini-linalg-conv2d-nchw-fchw-f32-asm:
 		-lower-gemmini="dim=4 acc_t=f32 elem_t=f32" | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 gemmini-linalg-conv2d-nchw-fchw-f32-run:
@@ -642,7 +642,7 @@ gemmini-linalg-conv2d-nchw-fchw-f32-run:
 		-lower-gemmini="dim=4 acc_t=f32 elem_t=f32" | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-gcc log.o -O2 -static -o a.out
 	@spike --extension=gemmini pk a.out
@@ -669,7 +669,7 @@ gemmini-linalg-conv2d-nhwc-hwcf-i8-asm:
 		-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 gemmini-linalg-conv2d-nhwc-hwcf-i8-run:
@@ -679,7 +679,7 @@ gemmini-linalg-conv2d-nhwc-hwcf-i8-run:
 		-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-gcc log.o -O2 -static -o a.out
 	@spike --extension=gemmini pk a.out
@@ -706,7 +706,7 @@ gemmini-linalg-conv2d-nhwc-hwcf-f32-asm:
 		-lower-gemmini="dim=4 acc_t=f32 elem_t=f32" | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 gemmini-linalg-conv2d-nhwc-hwcf-f32-run:
@@ -716,7 +716,7 @@ gemmini-linalg-conv2d-nhwc-hwcf-f32-run:
 		-lower-gemmini="dim=4 acc_t=f32 elem_t=f32" | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-gcc log.o -O2 -static -o a.out
 	@spike --extension=gemmini pk a.out
@@ -743,7 +743,7 @@ gemmini-linalg-conv2d-nhwc-fhwc-i8-asm:
 		-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 gemmini-linalg-conv2d-nhwc-fhwc-i8-run:
@@ -753,7 +753,7 @@ gemmini-linalg-conv2d-nhwc-fhwc-i8-run:
 		-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-gcc log.o -O2 -static -o a.out
 	@spike --extension=gemmini pk a.out
@@ -772,7 +772,7 @@ gemmini-linalg-conv2d-nhwc-fhwc-f32-asm:
 		-lower-gemmini="dim=4 acc_t=f32 elem_t=f32" | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 gemmini-linalg-conv2d-nhwc-fhwc-f32-run:
@@ -782,7 +782,7 @@ gemmini-linalg-conv2d-nhwc-fhwc-f32-run:
 		-lower-gemmini="dim=4 acc_t=f32 elem_t=f32" | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-gcc log.o -O2 -static -o a.out
 	@spike --extension=gemmini pk a.out
@@ -812,7 +812,7 @@ gemmini-linalg-batch-matmul-asm:
 		-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 gemmini-linalg-batch-matmul-run:
@@ -823,7 +823,7 @@ gemmini-linalg-batch-matmul-run:
 		-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-gcc log.o -O2 -static -o a.out
 	@spike --extension=gemmini pk a.out
@@ -853,7 +853,7 @@ linalg-matmul-32x32-gemmini-asm:
 		-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 linalg-matmul-32x32-gemmini-run:
@@ -864,7 +864,7 @@ linalg-matmul-32x32-gemmini-run:
 	-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-g++ log.o -DMATMUL=1 -DDIALECT=1 \
 	performance-test.cpp -O2 -static -o a.out -I${INTERFACES}
@@ -911,7 +911,7 @@ linalg-matmul-32x32-cpu-asm:
 	-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 linalg-matmul-32x32-cpu-run:
@@ -925,7 +925,7 @@ linalg-matmul-32x32-cpu-run:
 	-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-g++ log.o -DMATMUL=1 \
 	-DDIALECT=1 performance-test.cpp \
@@ -954,7 +954,7 @@ gemmini-matmul-32x32-gemmini-asm:
 	-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 gemmini-matmul-32x32-gemmini-run:
@@ -964,7 +964,7 @@ gemmini-matmul-32x32-gemmini-run:
 	-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-g++ log.o -DMATMUL=1 \
 	-DDIALECT=2	performance-test.cpp \
@@ -996,7 +996,7 @@ linalg-matmul-64x64-gemmini-asm:
 	-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 linalg-matmul-64x64-gemmini-run:
@@ -1007,7 +1007,7 @@ linalg-matmul-64x64-gemmini-run:
 	-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-g++ log.o -DMATMUL=2 -DDIALECT=1 \
 	performance-test.cpp -O2 -static -o a.out -I${INTERFACES}
@@ -1054,7 +1054,7 @@ linalg-matmul-64x64-cpu-asm:
 	-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 linalg-matmul-64x64-cpu-run:
@@ -1068,7 +1068,7 @@ linalg-matmul-64x64-cpu-run:
 	-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-g++ log.o -DMATMUL=2 \
 	-DDIALECT=1 performance-test.cpp \
@@ -1097,7 +1097,7 @@ gemmini-matmul-64x64-gemmini-asm:
 	-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 gemmini-matmul-64x64-gemmini-run:
@@ -1107,7 +1107,7 @@ gemmini-matmul-64x64-gemmini-run:
 	-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-g++ log.o -DMATMUL=2 \
 	-DDIALECT=2	performance-test.cpp \
@@ -1139,7 +1139,7 @@ linalg-matmul-128x128-gemmini-asm:
 	-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 linalg-matmul-128x128-gemmini-run:
@@ -1150,7 +1150,7 @@ linalg-matmul-128x128-gemmini-run:
 	-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-g++ log.o -DMATMUL=3 -DDIALECT=1 \
 	performance-test.cpp -O2 -static -o a.out -I${INTERFACES}
@@ -1197,7 +1197,7 @@ linalg-matmul-128x128-cpu-asm:
 	-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 linalg-matmul-128x128-cpu-run:
@@ -1211,7 +1211,7 @@ linalg-matmul-128x128-cpu-run:
 	-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-g++ log.o -DMATMUL=3 \
 	-DDIALECT=1 performance-test.cpp \
@@ -1240,7 +1240,7 @@ gemmini-matmul-128x128-gemmini-asm:
 	-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 gemmini-matmul-128x128-gemmini-run:
@@ -1250,7 +1250,7 @@ gemmini-matmul-128x128-gemmini-run:
 	-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-g++ log.o -DMATMUL=3 \
 	-DDIALECT=2	performance-test.cpp \
@@ -1282,7 +1282,7 @@ linalg-matmul-256x256-gemmini-asm:
 	-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 linalg-matmul-256x256-gemmini-run:
@@ -1293,7 +1293,7 @@ linalg-matmul-256x256-gemmini-run:
 	-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-g++ log.o -DMATMUL=4 -DDIALECT=1 \
 	performance-test.cpp -O2 -static -o a.out -I${INTERFACES}
@@ -1340,7 +1340,7 @@ linalg-matmul-256x256-cpu-asm:
 	-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 linalg-matmul-256x256-cpu-run:
@@ -1354,7 +1354,7 @@ linalg-matmul-256x256-cpu-run:
 	-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-g++ log.o -DMATMUL=4 \
 	-DDIALECT=1 performance-test.cpp \
@@ -1383,7 +1383,7 @@ gemmini-matmul-256x256-gemmini-asm:
 	-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 gemmini-matmul-256x256-gemmini-run:
@@ -1393,7 +1393,7 @@ gemmini-matmul-256x256-gemmini-run:
 	-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-g++ log.o -DMATMUL=4 \
 	-DDIALECT=2	performance-test.cpp \
@@ -1425,7 +1425,7 @@ linalg-matmul-512x512-gemmini-asm:
 	-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 linalg-matmul-512x512-gemmini-run:
@@ -1436,7 +1436,7 @@ linalg-matmul-512x512-gemmini-run:
 	-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-g++ log.o -DMATMUL=5 -DDIALECT=1 \
 	performance-test.cpp -O2 -static -o a.out -I${INTERFACES}
@@ -1483,7 +1483,7 @@ linalg-matmul-512x512-cpu-asm:
 	-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 linalg-matmul-512x512-cpu-run:
@@ -1497,7 +1497,7 @@ linalg-matmul-512x512-cpu-run:
 	-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-g++ log.o -DMATMUL=5 \
 	-DDIALECT=1 performance-test.cpp \
@@ -1526,7 +1526,7 @@ gemmini-matmul-512x512-gemmini-asm:
 	-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 gemmini-matmul-512x512-gemmini-run:
@@ -1536,7 +1536,7 @@ gemmini-matmul-512x512-gemmini-run:
 	-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-g++ log.o -DMATMUL=5 \
 	-DDIALECT=2	performance-test.cpp \
@@ -1568,7 +1568,7 @@ linalg-matmul-1024x1024-gemmini-asm:
 	-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 linalg-matmul-1024x1024-gemmini-run:
@@ -1579,7 +1579,7 @@ linalg-matmul-1024x1024-gemmini-run:
 	-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-g++ log.o -DMATMUL=6 -DDIALECT=1 \
 	performance-test.cpp -O2 -static -o a.out -I${INTERFACES}
@@ -1626,7 +1626,7 @@ linalg-matmul-1024x1024-cpu-asm:
 	-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 linalg-matmul-1024x1024-cpu-run:
@@ -1640,7 +1640,7 @@ linalg-matmul-1024x1024-cpu-run:
 	-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-g++ log.o -DMATMUL=6 \
 	-DDIALECT=1 performance-test.cpp \
@@ -1669,7 +1669,7 @@ gemmini-matmul-1024x1024-gemmini-asm:
 	-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 gemmini-matmul-1024x1024-gemmini-run:
@@ -1679,7 +1679,7 @@ gemmini-matmul-1024x1024-gemmini-run:
 	-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-g++ log.o -DMATMUL=6 \
 	-DDIALECT=2	performance-test.cpp \
@@ -1711,7 +1711,7 @@ linalg-conv-3x3-gemmini-asm:
 	-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 linalg-conv-3x3-gemmini-run:
@@ -1722,7 +1722,7 @@ linalg-conv-3x3-gemmini-run:
 	-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-g++ log.o -DCONV=1 -DDIALECT=1 \
 	performance-test.cpp \
@@ -1770,7 +1770,7 @@ linalg-conv-3x3-cpu-asm:
 	-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 linalg-conv-3x3-cpu-run:
@@ -1784,7 +1784,7 @@ linalg-conv-3x3-cpu-run:
 	-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-g++ log.o -DCONV=1 -DDIALECT=1 \
 	performance-test.cpp \
@@ -1813,7 +1813,7 @@ gemmini-conv-3x3-gemmini-asm:
 	-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 gemmini-conv-3x3-gemmini-run:
@@ -1823,7 +1823,7 @@ gemmini-conv-3x3-gemmini-run:
 	-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-g++ log.o -DCONV=1 \
 	-DDIALECT=2	performance-test.cpp \
@@ -1855,7 +1855,7 @@ linalg-conv-5x5-gemmini-asm:
 	-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 linalg-conv-5x5-gemmini-run:
@@ -1866,7 +1866,7 @@ linalg-conv-5x5-gemmini-run:
 	-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-g++ log.o -DCONV=2 -DDIALECT=1 \
 	performance-test.cpp \
@@ -1914,7 +1914,7 @@ linalg-conv-5x5-cpu-asm:
 	-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 linalg-conv-5x5-cpu-run:
@@ -1928,7 +1928,7 @@ linalg-conv-5x5-cpu-run:
 	-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-g++ log.o -DCONV=2 -DDIALECT=1 \
 	performance-test.cpp \
@@ -1957,7 +1957,7 @@ gemmini-conv-5x5-gemmini-asm:
 	-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 gemmini-conv-5x5-gemmini-run:
@@ -1967,7 +1967,7 @@ gemmini-conv-5x5-gemmini-run:
 	-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-g++ log.o -DCONV=2 \
 	-DDIALECT=2	performance-test.cpp \
@@ -1999,7 +1999,7 @@ linalg-conv-7x7-gemmini-asm:
 	-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 linalg-conv-7x7-gemmini-run:
@@ -2010,7 +2010,7 @@ linalg-conv-7x7-gemmini-run:
 	-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-g++ log.o -DCONV=3 -DDIALECT=1 \
 	performance-test.cpp \
@@ -2058,7 +2058,7 @@ linalg-conv-7x7-cpu-asm:
 	-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 linalg-conv-7x7-cpu-run:
@@ -2072,7 +2072,7 @@ linalg-conv-7x7-cpu-run:
 	-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-g++ log.o -DCONV=3 -DDIALECT=1 \
 	performance-test.cpp \
@@ -2101,7 +2101,7 @@ gemmini-conv-7x7-gemmini-asm:
 	-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 gemmini-conv-7x7-gemmini-run:
@@ -2111,7 +2111,7 @@ gemmini-conv-7x7-gemmini-run:
 	-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-g++ log.o -DCONV=3 \
 	-DDIALECT=2	performance-test.cpp \
@@ -2143,7 +2143,7 @@ linalg-conv-9x9-gemmini-asm:
 	-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 linalg-conv-9x9-gemmini-run:
@@ -2154,7 +2154,7 @@ linalg-conv-9x9-gemmini-run:
 	-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-g++ log.o -DCONV=4 -DDIALECT=1 \
 	performance-test.cpp \
@@ -2202,7 +2202,7 @@ linalg-conv-9x9-cpu-asm:
 	-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 linalg-conv-9x9-cpu-run:
@@ -2216,7 +2216,7 @@ linalg-conv-9x9-cpu-run:
 	-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-g++ log.o -DCONV=4 -DDIALECT=1 \
 	performance-test.cpp \
@@ -2245,7 +2245,7 @@ gemmini-conv-9x9-gemmini-asm:
 	-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 gemmini-conv-9x9-gemmini-run:
@@ -2255,7 +2255,7 @@ gemmini-conv-9x9-gemmini-run:
 	-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-g++ log.o -DCONV=4 \
 	-DDIALECT=2	performance-test.cpp \
@@ -2287,7 +2287,7 @@ linalg-conv-11x11-gemmini-asm:
 	-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 linalg-conv-11x11-gemmini-run:
@@ -2298,7 +2298,7 @@ linalg-conv-11x11-gemmini-run:
 	-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-g++ log.o -DCONV=5 -DDIALECT=1 \
 	performance-test.cpp \
@@ -2346,7 +2346,7 @@ linalg-conv-11x11-cpu-asm:
 	-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 linalg-conv-11x11-cpu-run:
@@ -2360,7 +2360,7 @@ linalg-conv-11x11-cpu-run:
 	-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-g++ log.o -DCONV=5 -DDIALECT=1 \
 	performance-test.cpp \
@@ -2389,7 +2389,7 @@ gemmini-conv-11x11-gemmini-asm:
 	-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 gemmini-conv-11x11-gemmini-run:
@@ -2399,7 +2399,7 @@ gemmini-conv-11x11-gemmini-run:
 	-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-g++ log.o -DCONV=5 \
 	-DDIALECT=2	performance-test.cpp \
@@ -2432,7 +2432,7 @@ linalg-conv-13x13-gemmini-asm:
 	-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 linalg-conv-13x13-gemmini-run:
@@ -2443,7 +2443,7 @@ linalg-conv-13x13-gemmini-run:
 	-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-g++ log.o -DCONV=6 -DDIALECT=1 \
 	performance-test.cpp \
@@ -2491,7 +2491,7 @@ linalg-conv-13x13-cpu-asm:
 	-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 linalg-conv-13x13-cpu-run:
@@ -2505,7 +2505,7 @@ linalg-conv-13x13-cpu-run:
 	-convert-func-to-llvm -reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-g++ log.o -DCONV=6 -DDIALECT=1 \
 	performance-test.cpp \
@@ -2534,7 +2534,7 @@ gemmini-conv-13x13-gemmini-asm:
 	-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=asm -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.s
 
 gemmini-conv-13x13-gemmini-run:
@@ -2544,7 +2544,7 @@ gemmini-conv-13x13-gemmini-run:
 	-lower-gemmini | \
 	${BUDDY_TRANSLATE} -buddy-to-llvmir | \
 	${BUDDY_LLC} -filetype=obj -mtriple=riscv64 \
-		-mattr=+buddyext,+D -float-abi=hard \
+		-mattr=+xgemmini,+D -float-abi=hard \
 		-o log.o
 	@riscv64-unknown-linux-gnu-g++ log.o -DCONV=6 \
 	-DDIALECT=2	performance-test.cpp \
