@@ -99,6 +99,9 @@ config.excludes = [
     "BuddyPython",
 ]
 
+if "has_buckyball_external_dialects" not in config.available_features:
+    config.excludes.append("BuckyballDialect")
+
 config.buddy_tools_dir = os.path.join(config.buddy_obj_root, "bin")
 
 # Tweak the PATH to include the tools dir.

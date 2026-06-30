@@ -9,6 +9,7 @@ let
   pythonEnv = python3.withPackages (ps: [
     ps.numpy
     ps.pybind11
+    ps.nanobind
     ps.pyyaml
     ps.ml-dtypes
     ps.nanobind
@@ -72,6 +73,9 @@ stdenv.mkDerivation rec {
     # move all lib files to $lib except lib/cmake
     moveToOutput "lib" "$lib"
     moveToOutput "lib/cmake" "$dev"
+
+    # move python source files to $dev so buddy-mlir can find them via cmake
+    moveToOutput "src/python" "$dev"
 
     # patch configuration files so each path points to the new $lib or $dev paths
     substituteInPlace "$dev/lib/cmake/llvm/LLVMConfig.cmake" \

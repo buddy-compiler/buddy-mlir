@@ -298,6 +298,27 @@ if(BUDDY_MLIR_ENABLE_RISCV_GNU_TOOLCHAIN)
 endif()
 
 #-------------------------------------------------------------------------------
+# External Dialects Configuration
+#-------------------------------------------------------------------------------
+
+set(BUDDY_EXTERNAL_DIALECTS_DIR "" CACHE PATH "Path to external dialects directory")
+set(BUDDY_ENABLE_EXTERNAL_DIALECTS OFF)
+
+if(BUDDY_EXTERNAL_DIALECTS_DIR)
+  if(NOT EXISTS "${BUDDY_EXTERNAL_DIALECTS_DIR}/CMakeLists.txt")
+    message(FATAL_ERROR
+      "BUDDY_EXTERNAL_DIALECTS_DIR is set but "
+      "${BUDDY_EXTERNAL_DIALECTS_DIR}/CMakeLists.txt does not exist")
+  endif()
+
+  set(BUDDY_ENABLE_EXTERNAL_DIALECTS ON)
+  message(STATUS "Including external dialects from: ${BUDDY_EXTERNAL_DIALECTS_DIR}")
+  include_directories(${BUDDY_EXTERNAL_DIALECTS_DIR})
+  include_directories(${CMAKE_BINARY_DIR}/external_dialects)
+  add_compile_definitions(BUDDY_EXTERNAL_DIALECTS)
+endif()
+
+#-------------------------------------------------------------------------------
 # Directory setup
 #-------------------------------------------------------------------------------
 
@@ -307,6 +328,12 @@ add_subdirectory(runtime)
 # ${CMAKE_BINARY_DIR}/python_packages for import_model.py (buddy.compiler.*).
 add_subdirectory(frontend)
 add_subdirectory(models)
+
+# Add external dialects before midend so they can be referenced
+if(BUDDY_ENABLE_EXTERNAL_DIALECTS)
+  add_subdirectory(${BUDDY_EXTERNAL_DIALECTS_DIR} ${CMAKE_BINARY_DIR}/external_dialects)
+endif()
+
 add_subdirectory(midend)
 add_subdirectory(tools)
 get_property(_buddy_llama_tt_rax_targets_set GLOBAL PROPERTY

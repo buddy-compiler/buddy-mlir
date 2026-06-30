@@ -491,6 +491,77 @@ def _create_mul_shift_operand() -> ir.Value:
     return tosa.ConstOp(dense_attr).results[0]
 
 
+def _create_zero_tensor(
+    tensor_type: ir.RankedTensorType, size_threshold_mb: float = 1.0
+) -> ir.Value:
+    """
+    Create a zero-initialized tensor, using tensor.empty + linalg.fill for large tensors.
+
+    For tensors larger than size_threshold_mb, this generates:
+        %empty = tensor.empty() : tensor<...>
+        %zero = arith.constant 0.0 : dtype
+        %result = linalg.fill ins(%zero : dtype) outs(%empty : tensor<...>) -> tensor<...>
+
+    For smaller tensors, this generates:
+        %result = arith.constant dense<0.0> : tensor<...>
+
+    Args:
+        tensor_type: The RankedTensorType for the zero tensor
+        size_threshold_mb: Size threshold in MB (default: 1.0 MB)
+
+    Returns:
+        ir.Value: The zero-initialized tensor
+    """
+    element_type = tensor_type.element_type
+    shape = list(tensor_type.shape)
+
+    # Calculate tensor size in bytes
+    num_elements = 1
+    for dim in shape:
+        num_elements *= dim
+
+    # Determine element size based on type
+    if ir.FloatType.isinstance(element_type):
+        element_size = ir.FloatType(element_type).width // 8
+    elif ir.BF16Type.isinstance(element_type):
+        element_size = 2
+    elif ir.IntegerType.isinstance(element_type):
+        element_size = ir.IntegerType(element_type).width // 8
+    else:
+        element_size = 4  # Default to 4 bytes
+
+    size_bytes = num_elements * element_size
+    size_mb = size_bytes / (1024 * 1024)
+
+    # For small tensors, use dense constant
+    if size_mb < size_threshold_mb:
+        if ir.FloatType.isinstance(element_type) or ir.BF16Type.isinstance(
+            element_type
+        ):
+            zero_attr = ir.FloatAttr.get(element_type, 0.0)
+        else:
+            zero_attr = ir.IntegerAttr.get(element_type, 0)
+        dense_attr = ir.DenseElementsAttr.get_splat(tensor_type, zero_attr)
+        return arith.ConstantOp(tensor_type, dense_attr).result
+
+    # For large tensors, use tensor.empty + linalg.fill
+    empty_tensor = tensor.EmptyOp(shape, element_type).result
+
+    if ir.FloatType.isinstance(element_type) or ir.BF16Type.isinstance(
+        element_type
+    ):
+        zero_scalar = arith.ConstantOp(
+            element_type, ir.FloatAttr.get(element_type, 0.0)
+        ).result
+    else:
+        zero_scalar = arith.ConstantOp(
+            element_type, ir.IntegerAttr.get(element_type, 0)
+        ).result
+
+    filled_tensor = linalg.fill(zero_scalar, outs=[empty_tensor])
+    return filled_tensor
+
+
 def _create_integer_division(lhs: ir.Value, rhs: ir.Value) -> ir.Value:
     """Create integer division with i32 TOSA constraint and cast back if needed."""
     lhs_type = ir.RankedTensorType(lhs.type)
@@ -4176,7 +4247,7 @@ def scaled_dot_product_flash_attention_for_cpu_op(
         max_fp_attr = ir.FloatAttr.get(ir.F16Type.get(), f16_max_val)
 
         matmul_op = tosa.ClampOp(
-            matmul_op.type,
+            matmul_result_type,
             matmul_op,
             min_fp_attr,
             max_fp_attr,
@@ -4189,7 +4260,7 @@ def scaled_dot_product_flash_attention_for_cpu_op(
         max_fp_attr = ir.FloatAttr.get(ir.BF16Type.get(), bf16_max_val)
 
         matmul_op = tosa.ClampOp(
-            matmul_op.type,
+            matmul_result_type,
             matmul_op,
             min_fp_attr,
             max_fp_attr,

@@ -18,6 +18,9 @@
 #include "buddy-mlir-c/InitAll.h"
 #include "mlir-c/RegisterEverything.h"
 
+#ifdef BUDDY_EXTERNAL_DIALECTS
+#include "Target/LLVMIR/Dialect/Buckyball/BuckyballToLLVMIRTranslation.h"
+#endif
 #include "Target/LLVMIR/Dialect/Gemmini/GemminiToLLVMIRTranslation.h"
 #include "Target/LLVMIR/Dialect/RVV/RVVToLLVMIRTranslation.h"
 #include "mlir/CAPI/IR.h"
@@ -57,6 +60,9 @@ void buddyRegisterAllTranslations(MlirContext context) {
   // Register all Translations from BUDDY MLIR
   registerRVVDialectTranslation(registry);
   registerGemminiDialectTranslation(registry);
+#ifdef BUDDY_EXTERNAL_DIALECTS
+  registerBuckyballDialectTranslation(registry);
+#endif
 
   ctx.appendDialectRegistry(registry);
 }
