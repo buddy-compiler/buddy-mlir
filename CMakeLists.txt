@@ -72,8 +72,29 @@ if(NOT LLVM_EXTERNAL_LIT)
 endif()
 
 list(GET LLVM_LIBRARY_DIRS 0 BUDDY_LLVM_LIBRARY_DIR)
-set(BUDDY_OPENMP_RUNTIME_LIBRARY
-  "${BUDDY_LLVM_LIBRARY_DIR}/${LLVM_HOST_TRIPLE}/libomp${CMAKE_SHARED_LIBRARY_SUFFIX}")
+get_filename_component(BUDDY_LLVM_BUILD_DIR "${BUDDY_LLVM_LIBRARY_DIR}" DIRECTORY)
+set(BUDDY_OPENMP_RUNTIME_CANDIDATE_DIRS
+  "${BUDDY_LLVM_LIBRARY_DIR}"
+  "${BUDDY_LLVM_LIBRARY_DIR}/${LLVM_HOST_TRIPLE}"
+  "${LLVM_BINARY_DIR}/runtimes/runtimes-bins/openmp/runtime/src"
+  "${BUDDY_LLVM_BUILD_DIR}/runtimes/runtimes-bins/openmp/runtime/src"
+)
+set(BUDDY_OPENMP_RUNTIME_DIR "")
+set(BUDDY_OPENMP_RUNTIME_LIBRARY "")
+foreach(_buddy_openmp_runtime_dir IN LISTS BUDDY_OPENMP_RUNTIME_CANDIDATE_DIRS)
+  set(_buddy_openmp_runtime_library
+    "${_buddy_openmp_runtime_dir}/libomp${CMAKE_SHARED_LIBRARY_SUFFIX}")
+  if(EXISTS "${_buddy_openmp_runtime_library}")
+    set(BUDDY_OPENMP_RUNTIME_DIR "${_buddy_openmp_runtime_dir}")
+    set(BUDDY_OPENMP_RUNTIME_LIBRARY "${_buddy_openmp_runtime_library}")
+    break()
+  endif()
+endforeach()
+if(BUDDY_OPENMP_RUNTIME_LIBRARY)
+  message(STATUS "Using OpenMP runtime: ${BUDDY_OPENMP_RUNTIME_LIBRARY}")
+else()
+  message(WARNING "OpenMP runtime libomp${CMAKE_SHARED_LIBRARY_SUFFIX} was not found in the LLVM build tree.")
+endif()
 
 #-------------------------------------------------------------------------------
 # BUDDY configuration

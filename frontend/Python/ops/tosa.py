@@ -4406,11 +4406,13 @@ def flash_attention_for_cpu_prefill_op(
     mask_memref = None
     if attn_mask is not None:
         attn_mask = symbol_table.get((str(attn_mask), 0), attn_mask)
-        mask_memref = bufferization.ToBufferOp(
-            memref.MemRefType.get(attn_mask.type.shape, dtype_qkv),
-            attn_mask,
-            loc=loc,
-        )
+        mask_type = getattr(attn_mask, "type", None)
+        if mask_type is not None:
+            mask_memref = bufferization.ToBufferOp(
+                memref.MemRefType.get(mask_type.shape, dtype_qkv),
+                attn_mask,
+                loc=loc,
+            )
 
     batch_size = arith.ConstantOp(index, query_shape[0], loc=loc)
     num_heads = arith.ConstantOp(index, query_shape[1], loc=loc)
@@ -13951,10 +13953,13 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
     # ========= mask preprocess =========
     if attn_mask is not None:
         attn_mask = symbol_table.get((str(attn_mask), 0), attn_mask)
-        # Cast mask to compute_dtype (f32) if input is f16
-        if need_cast:
+        mask_type = getattr(attn_mask, "type", None)
+        if mask_type is None:
+            attn_mask = None
+        # Cast mask to compute_dtype (f32) if input is f16.
+        elif need_cast:
             mask_cast_type = ir.RankedTensorType.get(
-                list(attn_mask.type.shape), compute_dtype
+                list(mask_type.shape), compute_dtype
             )
             attn_mask = tosa.CastOp(mask_cast_type, attn_mask).result
 
@@ -14072,18 +14077,23 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
     scaled = tosa.MulOp(
         score_tensor_shape, score_tensor, scale_splat, shift
     ).result
-    add_op = _gen_arith_binary_op(scaled, attn_mask, tosa.AddOp)
+    if attn_mask is not None:
+        masked_score = _gen_arith_binary_op(
+            scaled, attn_mask, tosa.AddOp
+        ).result
+    else:
+        masked_score = scaled
 
     # ========= softmax (in f32 for stability) =========
-    softmax_output_shape = list(add_op.result.type.shape)
+    softmax_output_shape = list(masked_score.type.shape)
     softmax_dim = len(softmax_output_shape) - 1
-    max_vals = tosa.ReduceMaxOp(add_op.result, softmax_dim)
-    sub_op = tosa.SubOp(add_op.result.type, add_op, max_vals)
+    max_vals = tosa.ReduceMaxOp(masked_score, softmax_dim)
+    sub_op = tosa.SubOp(masked_score.type, masked_score, max_vals)
     exp_op = math.ExpOp(sub_op.result)
     reduce_sum_op = tosa.ReduceSumOp(exp_op, softmax_dim)
     log_op = tosa.LogOp(reduce_sum_op.result.type, reduce_sum_op)
     log_sumexp = tosa.AddOp(max_vals.result.type, max_vals, log_op)
-    log_weights = tosa.SubOp(add_op.result.type, add_op, log_sumexp)
+    log_weights = tosa.SubOp(masked_score.type, masked_score, log_sumexp)
     softmax_result = math.ExpOp(log_weights.result)
     # log_sumexp_operand = _create_shape_operand(list(output_shape[1]))
     log_sumexp_operand = _create_shape_operand(
