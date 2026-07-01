@@ -50,6 +50,7 @@ target_link_libraries(buddy-opt
   LowerVectorExpPass
   BuddyGemmini
   LowerGemminiPass
+  LowerLinalgToBOSCAMEPass
   LowerLinalgToGemminiPass
   LowerLinalgToIMEPass
   BuddyIME

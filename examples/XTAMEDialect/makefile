@@ -52,7 +52,7 @@ ame-th-mmacc-w-b-asm:
 	        -reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${BUDDY_LLC}  -filetype=asm -mtriple=riscv64-unknown-linux-gnu \
-	        -mattr=+m,+a,+c,+d,+buddyext \
+	        -mattr=+xtheadame \
 	        -o ame-th-mmacc-w-b.s
 	@echo "Assembly saved to ame-th-mmacc-w-b.s"
 
@@ -98,7 +98,7 @@ ame-th-mmaccu-w-b-asm:
 	        -reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${BUDDY_LLC}  -filetype=asm -mtriple=riscv64-unknown-linux-gnu \
-	        -mattr=+m,+a,+c,+d,+buddyext \
+	        -mattr=+xtheadame \
 	        -o ame-th-mmaccu-w-b.s
 	@echo "Assembly saved to ame-th-mmaccu-w-b.s"
 
@@ -143,7 +143,7 @@ ame-th-mfmacc-d-s-asm:
 	        -reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${BUDDY_LLC}  -filetype=asm -mtriple=riscv64-unknown-linux-gnu \
-	        -mattr=+m,+a,+c,+d,+buddyext \
+	        -mattr=+xtheadame \
 	        -o ame-th-mfmacc-d-s.s
 	@echo "Assembly saved to ame-th-mfmacc-d-s.s"
 
@@ -188,7 +188,7 @@ ame-th-mfmacc-s-asm:
 	        -reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
 	${BUDDY_LLC}  -filetype=asm -mtriple=riscv64-unknown-linux-gnu \
-	        -mattr=+m,+a,+c,+d,+buddyext \
+	        -mattr=+xtheadame \
 	        -o ame-th-mfmacc-s.s
 	@echo "Assembly saved to ame-th-mfmacc-s.s"
 

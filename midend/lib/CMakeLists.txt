@@ -27,6 +27,7 @@ set(LinkedLibs
   LowerDIPPass
   LowerLinalgToTilePass
   LowerGemminiPass
+  LowerLinalgToBOSCAMEPass
   LowerLinalgToGemminiPass
   LowerLinalgToIMEPass
   LowerIMEPass
