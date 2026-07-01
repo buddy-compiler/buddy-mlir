@@ -12,6 +12,8 @@ add_subdirectory(LowerVectorExp)
 add_subdirectory(LowerLinalgToTile)
 # Buckyball conversion passes moved to external dialects
 add_subdirectory(LowerGemmini)
+add_subdirectory(LowerGemminiToFunc)
+add_subdirectory(LowerGemminiToLLVM)
 add_subdirectory(LowerLinalgToGemmini)
 add_subdirectory(LowerLinalgToIME)
 add_subdirectory(LowerIME)

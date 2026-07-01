@@ -55,6 +55,11 @@ void populateGemminiLegalizeForLLVMExportPatterns(
     size_t sizeOfAccT);
 void configureGemminiLegalizeForExportTarget(LLVMConversionTarget &target);
 
+void populateGemminiLegalizeForFuncExportPatterns(
+    RewritePatternSet &patterns, int64_t dim,
+    int64_t addrLen, int64_t accRows, int64_t bankRows, size_t sizeOfElemT,
+    size_t sizeOfAccT);
+
 } // namespace mlir
 
 #endif // GEMMINI_TRANSLATE_H

@@ -114,6 +114,8 @@ void registerReportBankUsagePass();
 void registerLowerBuckyballPass();
 #endif
 void registerLowerGemminiPass();
+void registerLowerGemminiToFuncPass();
+void registerLowerGemminiToLLVMPass();
 void registerLowerLinalgToGemminiPass();
 void registerLowerLinalgToIMEPass();
 void registerLowerIMEPass();
@@ -167,6 +169,8 @@ int main(int argc, char **argv) {
   mlir::buddy::registerLowerBuckyballPass();
 #endif
   mlir::buddy::registerLowerGemminiPass();
+  mlir::buddy::registerLowerGemminiToFuncPass();
+  mlir::buddy::registerLowerGemminiToLLVMPass();
   mlir::buddy::registerLowerLinalgToGemminiPass();
   mlir::buddy::registerLowerLinalgToIMEPass();
   mlir::buddy::registerLowerIMEPass();
