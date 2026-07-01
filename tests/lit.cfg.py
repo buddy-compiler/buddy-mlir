@@ -9,6 +9,11 @@ from lit.llvm.subst import ToolSubst
 
 # Configuration file for the 'lit' test runner.
 
+# Each PyTorch/Dynamo test imports heavy libraries and uses significant memory.
+# Limit concurrency to avoid InternalTorchDynamoError under high parallelism.
+_core_count = lit.util.usable_core_count()
+lit_config.parallelism_groups["pytorch"] = max(1, min(_core_count // 4, 32))
+
 # name: The name of this test suite.
 config.name = "BUDDY"
 

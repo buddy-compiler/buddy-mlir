@@ -35,3 +35,10 @@ add_mlir_public_c_api_library(BuddyMLIRCAPI
   BuddyMLIRInitAll
   BuddyToLLVMIRTranslationRegistration
 )
+
+if(BUDDY_ENABLE_CUSTOM_BACKEND)
+  target_compile_definitions(BuddyMLIRCAPI PRIVATE BUDDY_ENABLE_CUSTOM_BACKEND)
+  if(TARGET obj.BuddyMLIRCAPI)
+    target_compile_definitions(obj.BuddyMLIRCAPI PRIVATE BUDDY_ENABLE_CUSTOM_BACKEND)
+  endif()
+endif()

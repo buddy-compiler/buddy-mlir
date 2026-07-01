@@ -93,6 +93,9 @@ set(BUDDY_MLIR_PYTHON_PACKAGES_DIR ${BUDDY_BUILD_DIR}/python_packages)
 option(BUDDY_MLIR_ENABLE_PYTHON_PACKAGES
   "Build buddy.compiler Python package files used by model lowering scripts"
   ON)
+option(BUDDY_ENABLE_CUSTOM_BACKEND
+  "Build custom-backend LLVM IR translation libraries (IME, Gemmini, AME, XTAME, BOSCAME). Requires custom LLVM intrinsics."
+  OFF)
 set(BUDDY_EXAMPLES OFF CACHE BOOL "Build examples")
 set(BUDDY_TORQ_EXAMPLES OFF CACHE BOOL
     "Build BuddyTorq example (PyTorch->MLIR + TORQ-Tile RVV GEMM); requires RISC-V RVV toolchain")

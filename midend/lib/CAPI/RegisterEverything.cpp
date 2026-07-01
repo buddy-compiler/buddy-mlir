@@ -18,7 +18,9 @@
 #include "buddy-mlir-c/InitAll.h"
 #include "mlir-c/RegisterEverything.h"
 
+#ifdef BUDDY_ENABLE_CUSTOM_BACKEND
 #include "Target/LLVMIR/Dialect/Gemmini/GemminiToLLVMIRTranslation.h"
+#endif
 #include "Target/LLVMIR/Dialect/RVV/RVVToLLVMIRTranslation.h"
 #include "mlir/CAPI/IR.h"
 #include "mlir/Dialect/DLTI/DLTI.h"
@@ -56,7 +58,9 @@ void buddyRegisterAllTranslations(MlirContext context) {
 
   // Register all Translations from BUDDY MLIR
   registerRVVDialectTranslation(registry);
+#ifdef BUDDY_ENABLE_CUSTOM_BACKEND
   registerGemminiDialectTranslation(registry);
+#endif
 
   ctx.appendDialectRegistry(registry);
 }
