@@ -72,8 +72,29 @@ if(NOT LLVM_EXTERNAL_LIT)
 endif()
 
 list(GET LLVM_LIBRARY_DIRS 0 BUDDY_LLVM_LIBRARY_DIR)
-set(BUDDY_OPENMP_RUNTIME_LIBRARY
-  "${BUDDY_LLVM_LIBRARY_DIR}/${LLVM_HOST_TRIPLE}/libomp${CMAKE_SHARED_LIBRARY_SUFFIX}")
+get_filename_component(BUDDY_LLVM_BUILD_DIR "${BUDDY_LLVM_LIBRARY_DIR}" DIRECTORY)
+set(BUDDY_OPENMP_RUNTIME_CANDIDATE_DIRS
+  "${BUDDY_LLVM_LIBRARY_DIR}"
+  "${BUDDY_LLVM_LIBRARY_DIR}/${LLVM_HOST_TRIPLE}"
+  "${LLVM_BINARY_DIR}/runtimes/runtimes-bins/openmp/runtime/src"
+  "${BUDDY_LLVM_BUILD_DIR}/runtimes/runtimes-bins/openmp/runtime/src"
+)
+set(BUDDY_OPENMP_RUNTIME_DIR "")
+set(BUDDY_OPENMP_RUNTIME_LIBRARY "")
+foreach(_buddy_openmp_runtime_dir IN LISTS BUDDY_OPENMP_RUNTIME_CANDIDATE_DIRS)
+  set(_buddy_openmp_runtime_library
+    "${_buddy_openmp_runtime_dir}/libomp${CMAKE_SHARED_LIBRARY_SUFFIX}")
+  if(EXISTS "${_buddy_openmp_runtime_library}")
+    set(BUDDY_OPENMP_RUNTIME_DIR "${_buddy_openmp_runtime_dir}")
+    set(BUDDY_OPENMP_RUNTIME_LIBRARY "${_buddy_openmp_runtime_library}")
+    break()
+  endif()
+endforeach()
+if(BUDDY_OPENMP_RUNTIME_LIBRARY)
+  message(STATUS "Using OpenMP runtime: ${BUDDY_OPENMP_RUNTIME_LIBRARY}")
+else()
+  message(WARNING "OpenMP runtime libomp${CMAKE_SHARED_LIBRARY_SUFFIX} was not found in the LLVM build tree.")
+endif()
 
 #-------------------------------------------------------------------------------
 # BUDDY configuration
@@ -301,6 +322,27 @@ if(BUDDY_MLIR_ENABLE_RISCV_GNU_TOOLCHAIN)
 endif()
 
 #-------------------------------------------------------------------------------
+# External Dialects Configuration
+#-------------------------------------------------------------------------------
+
+set(BUDDY_EXTERNAL_DIALECTS_DIR "" CACHE PATH "Path to external dialects directory")
+set(BUDDY_ENABLE_EXTERNAL_DIALECTS OFF)
+
+if(BUDDY_EXTERNAL_DIALECTS_DIR)
+  if(NOT EXISTS "${BUDDY_EXTERNAL_DIALECTS_DIR}/CMakeLists.txt")
+    message(FATAL_ERROR
+      "BUDDY_EXTERNAL_DIALECTS_DIR is set but "
+      "${BUDDY_EXTERNAL_DIALECTS_DIR}/CMakeLists.txt does not exist")
+  endif()
+
+  set(BUDDY_ENABLE_EXTERNAL_DIALECTS ON)
+  message(STATUS "Including external dialects from: ${BUDDY_EXTERNAL_DIALECTS_DIR}")
+  include_directories(${BUDDY_EXTERNAL_DIALECTS_DIR})
+  include_directories(${CMAKE_BINARY_DIR}/external_dialects)
+  add_compile_definitions(BUDDY_EXTERNAL_DIALECTS)
+endif()
+
+#-------------------------------------------------------------------------------
 # Directory setup
 #-------------------------------------------------------------------------------
 
@@ -310,6 +352,12 @@ add_subdirectory(runtime)
 # ${CMAKE_BINARY_DIR}/python_packages for import_model.py (buddy.compiler.*).
 add_subdirectory(frontend)
 add_subdirectory(models)
+
+# Add external dialects before midend so they can be referenced
+if(BUDDY_ENABLE_EXTERNAL_DIALECTS)
+  add_subdirectory(${BUDDY_EXTERNAL_DIALECTS_DIR} ${CMAKE_BINARY_DIR}/external_dialects)
+endif()
+
 add_subdirectory(midend)
 add_subdirectory(tools)
 get_property(_buddy_llama_tt_rax_targets_set GLOBAL PROPERTY

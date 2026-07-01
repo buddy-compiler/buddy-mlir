@@ -14,6 +14,11 @@ if(BUDDY_ENABLE_CUSTOM_BACKEND)
     MLIRBOSCAMEToLLVMIRTranslation
   )
 endif()
+if(BUDDY_ENABLE_EXTERNAL_DIALECTS)
+  list(APPEND _buddy_to_llvmir_link_libs
+    BuddyBuckyballToLLVMIRTranslation
+  )
+endif()
 
 add_mlir_translation_library(BuddyToLLVMIRTranslationRegistration
   ConvertBuddyToLLVMIR.cpp

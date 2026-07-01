@@ -19,12 +19,15 @@ set(LinkedLibs
   BuddyAME
   BuddyAMETransforms
   BuddyRHAL
+  BuddyTile
   ConvOptimization
   CBConvVectorization
   LowerBudPass
   LowerDAPPass
   LowerDIPPass
+  LowerLinalgToTilePass
   LowerGemminiPass
+  LowerLinalgToBOSCAMEPass
   LowerLinalgToGemminiPass
   LowerLinalgToIMEPass
   LowerIMEPass
@@ -38,9 +41,17 @@ set(LinkedLibs
   AssumeTightMemRefLayoutPass
   StaticizeMemRefLayoutPass
   EliminateMemRefCopyPass
+  EliminateLargeZeroConstants
+  TraceInsert
   GraphRedundancyElimination
 )
 
+if(BUDDY_ENABLE_EXTERNAL_DIALECTS)
+  list(APPEND LinkedLibs
+    LowerTileToBuckyballPass
+    LowerBuckyballPass
+  )
+endif()
 
 add_mlir_library(BuddyMLIRInitAll
   InitAll.cpp

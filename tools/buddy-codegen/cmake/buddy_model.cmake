@@ -430,6 +430,12 @@ function(buddy_add_model)
       endif()
     endif()
 
+    set(MDL_OPENMP_RUNTIME_ARGS)
+    if(BUDDY_OPENMP_RUNTIME_LIBRARY)
+      set(MDL_OPENMP_RUNTIME_ARGS
+        --openmp-runtime-lib "${BUDDY_OPENMP_RUNTIME_LIBRARY}")
+    endif()
+
     if(MDL_LAYER_PARTITION)
       # ── Stage 2/3: partitioned MLIR → .o → .so via compile_pipeline.py ───
       set(PARTITIONED_MLIR_SRC "${MLIR_SRC}/layer_partitioned")
@@ -449,6 +455,7 @@ function(buddy_add_model)
                 "--llc-attrs=${MDL_LLC_ATTRS}"
                 --cxx "${CMAKE_CXX_COMPILER}"
                 --llvm-lib-dir "${LLVM_LIBRARY_DIR}"
+                ${MDL_OPENMP_RUNTIME_ARGS}
                 -j "${MDL_COMPILE_JOBS}"
         DEPENDS
           buddy-opt
@@ -485,7 +492,20 @@ function(buddy_add_model)
   # ── Stage 3: link .o → .so ─────────────────────────────────────────────
   set(MDL_STAGE3_LINKER "${CMAKE_CXX_COMPILER}")
   set(MDL_STAGE3_LINK_OPTS)
-  set(MDL_STAGE3_LIBS -lomp -lmlir_c_runner_utils -lm)
+  set(MDL_STAGE3_LIB_DIRS
+    "-L${LLVM_LIBRARY_DIR}"
+    "-Wl,-rpath,${LLVM_LIBRARY_DIR}")
+  if(BUDDY_OPENMP_RUNTIME_DIR)
+    list(APPEND MDL_STAGE3_LIB_DIRS
+      "-L${BUDDY_OPENMP_RUNTIME_DIR}"
+      "-Wl,-rpath,${BUDDY_OPENMP_RUNTIME_DIR}")
+  endif()
+  set(MDL_STAGE3_LIBS -lmlir_c_runner_utils -lm)
+  if(BUDDY_OPENMP_RUNTIME_LIBRARY)
+    list(INSERT MDL_STAGE3_LIBS 0 "${BUDDY_OPENMP_RUNTIME_LIBRARY}")
+  else()
+    list(INSERT MDL_STAGE3_LIBS 0 -lomp)
+  endif()
 
   if(IS_RVV_CROSSCOMPILE)
     set(CMAKE_C_COMPILER "${BUDDY_MLIR_BUILD_DIR}/../llvm/build/bin/clang")
@@ -526,8 +546,7 @@ function(buddy_add_model)
                 ${_BUDDY_MODEL_LINK_FLAGS}
                 -o "${MODEL_SO}"
                 ${OBJ_FILES}
-                "-L${LLVM_LIBRARY_DIR}"
-                "-Wl,-rpath,${LLVM_LIBRARY_DIR}"
+                ${MDL_STAGE3_LIB_DIRS}
                 ${MDL_STAGE3_LIBS}
       DEPENDS ${OBJ_FILES}
       COMMENT "[${MDL_NAME}] Stage 3: linking ${MDL_NAME}_model.so"

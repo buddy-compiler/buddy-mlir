@@ -140,11 +140,11 @@ module {
 }
 // Expected lowering for tile-based operations:
 // CHECK-LABEL: func.func @main
-// CHECK: llvm.call @llvm.riscv.buddy.th.mcfgmi
-// CHECK: llvm.call @llvm.riscv.buddy.th.mcfgni
-// CHECK: llvm.call @llvm.riscv.buddy.th.mcfgki
-// CHECK: llvm.call @llvm.riscv.buddy.th.mzero
-// CHECK: llvm.call @llvm.riscv.buddy.th.mlde8
-// CHECK: llvm.call @llvm.riscv.buddy.th.mldte8
-// CHECK: llvm.call @llvm.riscv.buddy.th.mmaccu.w.b
-// CHECK: llvm.call @llvm.riscv.buddy.th.mste32
+// CHECK: llvm.call @llvm.riscv.th.mcfgmi
+// CHECK: llvm.call @llvm.riscv.th.mcfgni
+// CHECK: llvm.call @llvm.riscv.th.mcfgki
+// CHECK: llvm.call @llvm.riscv.th.mzero
+// CHECK: llvm.call @llvm.riscv.th.mlde8
+// CHECK: llvm.call @llvm.riscv.th.mldte8
+// CHECK: llvm.call @llvm.riscv.th.mmaccu.w.b
+// CHECK: llvm.call @llvm.riscv.th.mste32

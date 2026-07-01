@@ -491,6 +491,77 @@ def _create_mul_shift_operand() -> ir.Value:
     return tosa.ConstOp(dense_attr).results[0]
 
 
+def _create_zero_tensor(
+    tensor_type: ir.RankedTensorType, size_threshold_mb: float = 1.0
+) -> ir.Value:
+    """
+    Create a zero-initialized tensor, using tensor.empty + linalg.fill for large tensors.
+
+    For tensors larger than size_threshold_mb, this generates:
+        %empty = tensor.empty() : tensor<...>
+        %zero = arith.constant 0.0 : dtype
+        %result = linalg.fill ins(%zero : dtype) outs(%empty : tensor<...>) -> tensor<...>
+
+    For smaller tensors, this generates:
+        %result = arith.constant dense<0.0> : tensor<...>
+
+    Args:
+        tensor_type: The RankedTensorType for the zero tensor
+        size_threshold_mb: Size threshold in MB (default: 1.0 MB)
+
+    Returns:
+        ir.Value: The zero-initialized tensor
+    """
+    element_type = tensor_type.element_type
+    shape = list(tensor_type.shape)
+
+    # Calculate tensor size in bytes
+    num_elements = 1
+    for dim in shape:
+        num_elements *= dim
+
+    # Determine element size based on type
+    if ir.FloatType.isinstance(element_type):
+        element_size = ir.FloatType(element_type).width // 8
+    elif ir.BF16Type.isinstance(element_type):
+        element_size = 2
+    elif ir.IntegerType.isinstance(element_type):
+        element_size = ir.IntegerType(element_type).width // 8
+    else:
+        element_size = 4  # Default to 4 bytes
+
+    size_bytes = num_elements * element_size
+    size_mb = size_bytes / (1024 * 1024)
+
+    # For small tensors, use dense constant
+    if size_mb < size_threshold_mb:
+        if ir.FloatType.isinstance(element_type) or ir.BF16Type.isinstance(
+            element_type
+        ):
+            zero_attr = ir.FloatAttr.get(element_type, 0.0)
+        else:
+            zero_attr = ir.IntegerAttr.get(element_type, 0)
+        dense_attr = ir.DenseElementsAttr.get_splat(tensor_type, zero_attr)
+        return arith.ConstantOp(tensor_type, dense_attr).result
+
+    # For large tensors, use tensor.empty + linalg.fill
+    empty_tensor = tensor.EmptyOp(shape, element_type).result
+
+    if ir.FloatType.isinstance(element_type) or ir.BF16Type.isinstance(
+        element_type
+    ):
+        zero_scalar = arith.ConstantOp(
+            element_type, ir.FloatAttr.get(element_type, 0.0)
+        ).result
+    else:
+        zero_scalar = arith.ConstantOp(
+            element_type, ir.IntegerAttr.get(element_type, 0)
+        ).result
+
+    filled_tensor = linalg.fill(zero_scalar, outs=[empty_tensor])
+    return filled_tensor
+
+
 def _create_integer_division(lhs: ir.Value, rhs: ir.Value) -> ir.Value:
     """Create integer division with i32 TOSA constraint and cast back if needed."""
     lhs_type = ir.RankedTensorType(lhs.type)
@@ -4176,7 +4247,7 @@ def scaled_dot_product_flash_attention_for_cpu_op(
         max_fp_attr = ir.FloatAttr.get(ir.F16Type.get(), f16_max_val)
 
         matmul_op = tosa.ClampOp(
-            matmul_op.type,
+            matmul_result_type,
             matmul_op,
             min_fp_attr,
             max_fp_attr,
@@ -4189,7 +4260,7 @@ def scaled_dot_product_flash_attention_for_cpu_op(
         max_fp_attr = ir.FloatAttr.get(ir.BF16Type.get(), bf16_max_val)
 
         matmul_op = tosa.ClampOp(
-            matmul_op.type,
+            matmul_result_type,
             matmul_op,
             min_fp_attr,
             max_fp_attr,
@@ -4335,11 +4406,13 @@ def flash_attention_for_cpu_prefill_op(
     mask_memref = None
     if attn_mask is not None:
         attn_mask = symbol_table.get((str(attn_mask), 0), attn_mask)
-        mask_memref = bufferization.ToBufferOp(
-            memref.MemRefType.get(attn_mask.type.shape, dtype_qkv),
-            attn_mask,
-            loc=loc,
-        )
+        mask_type = getattr(attn_mask, "type", None)
+        if mask_type is not None:
+            mask_memref = bufferization.ToBufferOp(
+                memref.MemRefType.get(mask_type.shape, dtype_qkv),
+                attn_mask,
+                loc=loc,
+            )
 
     batch_size = arith.ConstantOp(index, query_shape[0], loc=loc)
     num_heads = arith.ConstantOp(index, query_shape[1], loc=loc)
@@ -13880,10 +13953,13 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
     # ========= mask preprocess =========
     if attn_mask is not None:
         attn_mask = symbol_table.get((str(attn_mask), 0), attn_mask)
-        # Cast mask to compute_dtype (f32) if input is f16
-        if need_cast:
+        mask_type = getattr(attn_mask, "type", None)
+        if mask_type is None:
+            attn_mask = None
+        # Cast mask to compute_dtype (f32) if input is f16.
+        elif need_cast:
             mask_cast_type = ir.RankedTensorType.get(
-                list(attn_mask.type.shape), compute_dtype
+                list(mask_type.shape), compute_dtype
             )
             attn_mask = tosa.CastOp(mask_cast_type, attn_mask).result
 
@@ -14001,18 +14077,23 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
     scaled = tosa.MulOp(
         score_tensor_shape, score_tensor, scale_splat, shift
     ).result
-    add_op = _gen_arith_binary_op(scaled, attn_mask, tosa.AddOp)
+    if attn_mask is not None:
+        masked_score = _gen_arith_binary_op(
+            scaled, attn_mask, tosa.AddOp
+        ).result
+    else:
+        masked_score = scaled
 
     # ========= softmax (in f32 for stability) =========
-    softmax_output_shape = list(add_op.result.type.shape)
+    softmax_output_shape = list(masked_score.type.shape)
     softmax_dim = len(softmax_output_shape) - 1
-    max_vals = tosa.ReduceMaxOp(add_op.result, softmax_dim)
-    sub_op = tosa.SubOp(add_op.result.type, add_op, max_vals)
+    max_vals = tosa.ReduceMaxOp(masked_score, softmax_dim)
+    sub_op = tosa.SubOp(masked_score.type, masked_score, max_vals)
     exp_op = math.ExpOp(sub_op.result)
     reduce_sum_op = tosa.ReduceSumOp(exp_op, softmax_dim)
     log_op = tosa.LogOp(reduce_sum_op.result.type, reduce_sum_op)
     log_sumexp = tosa.AddOp(max_vals.result.type, max_vals, log_op)
-    log_weights = tosa.SubOp(add_op.result.type, add_op, log_sumexp)
+    log_weights = tosa.SubOp(masked_score.type, masked_score, log_sumexp)
     softmax_result = math.ExpOp(log_weights.result)
     # log_sumexp_operand = _create_shape_operand(list(output_shape[1]))
     log_sumexp_operand = _create_shape_operand(

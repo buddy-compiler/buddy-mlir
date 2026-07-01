@@ -35,6 +35,9 @@
 #include "Target/LLVMIR/Dialect/IME/IMEToLLVMIRTranslation.h"
 #include "Target/LLVMIR/Dialect/XTAME/XTAMEToLLVMIRTranslation.h"
 #endif
+#ifdef BUDDY_EXTERNAL_DIALECTS
+#include "Target/LLVMIR/Dialect/Buckyball/BuckyballToLLVMIRTranslation.h"
+#endif
 
 using namespace buddy;
 using namespace mlir;
@@ -58,6 +61,9 @@ void registerBuddyToLLVMIRTranslation() {
         registerAllToLLVMIRTranslations(registry);
         // Register translation in buddy project.
         registerRVVDialectTranslation(registry);
+#ifdef BUDDY_EXTERNAL_DIALECTS
+        registerBuckyballDialectTranslation(registry);
+#endif
 #ifdef BUDDY_ENABLE_CUSTOM_BACKEND
         registerGemminiDialectTranslation(registry);
         registerIMEDialectTranslation(registry);
