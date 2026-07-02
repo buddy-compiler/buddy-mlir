@@ -54,8 +54,20 @@ static Value extractPointerFromMemref(ConversionPatternRewriter &rewriter,
   auto *ctx = rewriter.getContext();
   auto ptrType = LLVM::LLVMPointerType::get(ctx);
   auto i64Type = IntegerType::get(ctx, 64);
-  Value idx =
-      memref::ExtractAlignedPointerAsIndexOp::create(rewriter, loc, memref);
+  auto memrefType = cast<MemRefType>(memref.getType());
+  unsigned bytesPerElem = memrefType.getElementTypeBitWidth() / 8;
+
+  auto metadata =
+      memref::ExtractStridedMetadataOp::create(rewriter, loc, memref);
+  Value baseBuffer = metadata.getBaseBuffer();
+  Value offset = metadata.getOffset();
+  Value baseIdx =
+      memref::ExtractAlignedPointerAsIndexOp::create(rewriter, loc, baseBuffer);
+
+  Value elemBytes =
+      arith::ConstantIndexOp::create(rewriter, loc, bytesPerElem);
+  Value byteOffset = arith::MulIOp::create(rewriter, loc, offset, elemBytes);
+  Value idx = arith::AddIOp::create(rewriter, loc, baseIdx, byteOffset);
   Value i64Val = arith::IndexCastOp::create(rewriter, loc, i64Type, idx);
   Value ptr = LLVM::IntToPtrOp::create(rewriter, loc, ptrType, i64Val);
   return ptr;

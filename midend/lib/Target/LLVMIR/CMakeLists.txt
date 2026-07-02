@@ -9,6 +9,8 @@ set(LinkedLibs
   BuddyGemminiToLLVMIRTranslation
   MLIRIMEToLLVMIRTranslation
   MLIRAMEToLLVMIRTranslation
+  MLIRXTAMEToLLVMIRTranslation
+  MLIRBOSCAMEToLLVMIRTranslation
   )
 
 if(BUDDY_ENABLE_EXTERNAL_DIALECTS)

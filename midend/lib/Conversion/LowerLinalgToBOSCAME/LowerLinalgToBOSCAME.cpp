@@ -284,20 +284,20 @@ public:
     //===----------------------------------------------------------------===//
     // Within each K-iteration the hardware REQUIRES mtype switching:
     //
-    //   1. msettype(accMtype) + msettilem/n + mlce32  (load C into acc)
-    //   2. msettype(mmaMtype) + msettilek + mlae/mlbte + mqma (MMA)
+    //   1. msettilem/n + msettype(accMtype) + mlce32  (load C into acc)
+    //   2. msettilek + msettype(mmaMtype) + mlae/mlbte + mqma (MMA)
     //   3. msettype(accMtype) + msce32                (store acc to C)
     //
     // This matches the Qwen3 kernel pattern in ame_matmul_*_i8_i8_f32().
     //===----------------------------------------------------------------===//
 
     // --- Step 1: accumulator load (mtype = C element type) ---
+    MSettilemOp::create(rewriter, loc, rewriter.getI64Type(), currMI64);
+    MSettilenOp::create(rewriter, loc, rewriter.getI64Type(), currNI64);
     Value accMtypeVal = arith::ConstantOp::create(
         rewriter, loc, rewriter.getI64Type(),
         rewriter.getI64IntegerAttr(accMtypeImm));
     MSettypeOp::create(rewriter, loc, rewriter.getI64Type(), accMtypeVal);
-    MSettilemOp::create(rewriter, loc, rewriter.getI64Type(), currMI64);
-    MSettilenOp::create(rewriter, loc, rewriter.getI64Type(), currNI64);
 
     // FPGA RTL only supports mlce32 for accumulator init (not msub.w.mm).
     if (isQwenI8F32Matmul) {
@@ -311,11 +311,11 @@ public:
     }
 
     // --- Step 2: MMA (mtype = A/B element type) ---
+    MSettilekOp::create(rewriter, loc, rewriter.getI64Type(), currKI64);
     Value mmaMtypeVal = arith::ConstantOp::create(
         rewriter, loc, rewriter.getI64Type(),
         rewriter.getI64IntegerAttr(mmaMtypeImm));
     MSettypeOp::create(rewriter, loc, rewriter.getI64Type(), mmaMtypeVal);
-    MSettilekOp::create(rewriter, loc, rewriter.getI64Type(), currKI64);
 
     if (elemTypeA.isInteger(8)) {
       Mlae8mOp::create(rewriter, loc, 0, subA, strideA);
