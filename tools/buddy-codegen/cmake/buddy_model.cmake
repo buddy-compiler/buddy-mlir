@@ -74,6 +74,9 @@ endif()
 #   SPEC          <variant_spec.json>       full path to variant spec
 #   RUNNER_SRC    <file.cpp>                model-specific runner source
 #   [RUNNER_PLUGIN_SRC <file.cpp>]          C ABI plugin wrapper source
+#   [SERVING_PLUGIN_SRC <file.cpp>]         resident model plugin wrapper source
+#   [SERVING_LIBRARY <URI_OR_NAME>]         optional resident serving plugin URI
+#   [EXTRA_SRCS <file.cpp>...]              optional model runtime sources
 #   [HF_CONFIG    <config.json>]            optional HuggingFace config path
 #   [LOCAL_MODEL  <dir>]                    optional: HF snapshot dir for import
 #                                           (sets DEEPSEEKR1_MODEL_PATH)
@@ -90,8 +93,8 @@ function(buddy_add_model)
   cmake_parse_arguments(
     MDL                                      # prefix
     ""                                       # flags
-    "NAME;SPEC;RUNNER_SRC;RUNNER_PLUGIN_SRC;HF_CONFIG;LOCAL_MODEL;BUILD_DIR;MLIR_DIR;NUM_THREADS;LLC_ATTRS;COMPILE_JOBS;TIERED_KV_CACHE"
-    "TIERED_CACHE_SIZES"                     # multi-value
+    "NAME;SPEC;RUNNER_SRC;RUNNER_PLUGIN_SRC;SERVING_PLUGIN_SRC;SERVING_LIBRARY;HF_CONFIG;LOCAL_MODEL;BUILD_DIR;MLIR_DIR;NUM_THREADS;LLC_ATTRS;COMPILE_JOBS;TIERED_KV_CACHE"
+    "EXTRA_SRCS;TIERED_CACHE_SIZES"          # multi-value
     ${ARGN}
   )
 
@@ -151,6 +154,13 @@ function(buddy_add_model)
 
   set(MDL_GEN_MANIFEST_ARGS)
   set(MDL_EXTRA_STAGE4_DEPS)
+  if(MDL_SERVING_PLUGIN_SRC AND NOT MDL_SERVING_LIBRARY)
+    set(MDL_SERVING_LIBRARY "${MDL_NAME}_serving.so")
+  endif()
+  if(MDL_SERVING_LIBRARY)
+    list(APPEND MDL_GEN_MANIFEST_ARGS
+      --serving-library "${MDL_SERVING_LIBRARY}")
+  endif()
 
   if(IS_RVV_CROSSCOMPILE)
     if(NOT RISCV_GNU_TOOLCHAIN)
@@ -208,6 +218,7 @@ function(buddy_add_model)
   set(GEN_SESS_CC "${GEN_DIR}/ModelSession.cpp")
   set(GEN_RHAL    "${GEN_DIR}/${MDL_NAME}.mlir")
   set(RUNNER_PLUGIN_NAME "${MDL_NAME}_runner.so")
+  set(SERVING_PLUGIN_TARGET "")
 
   # ── gen_config.py ─────────────────────────────────────────────────────────
   set(GEN_CONFIG_CMD
@@ -258,6 +269,7 @@ function(buddy_add_model)
   add_library(${LIB_TARGET} STATIC
     "${GEN_SESS_CC}"
     "${CMAKE_CURRENT_SOURCE_DIR}/${MDL_RUNNER_SRC}"
+    ${MDL_EXTRA_SRCS}
   )
 
   target_include_directories(${LIB_TARGET} PUBLIC
@@ -295,6 +307,21 @@ function(buddy_add_model)
   )
   target_link_libraries(${RUNNER_PLUGIN_TARGET} PRIVATE ${LIB_TARGET})
   target_compile_features(${RUNNER_PLUGIN_TARGET} PRIVATE cxx_std_17)
+
+  if(MDL_SERVING_PLUGIN_SRC)
+    set(SERVING_PLUGIN_TARGET "buddy_models_${MDL_NAME}_serving")
+    add_library(${SERVING_PLUGIN_TARGET} SHARED
+      "${CMAKE_CURRENT_SOURCE_DIR}/${MDL_SERVING_PLUGIN_SRC}"
+    )
+    set_target_properties(${SERVING_PLUGIN_TARGET} PROPERTIES
+      LIBRARY_OUTPUT_DIRECTORY "${BIN}"
+      RUNTIME_OUTPUT_DIRECTORY "${BIN}"
+      OUTPUT_NAME "${MDL_NAME}_serving"
+      PREFIX ""
+    )
+    target_link_libraries(${SERVING_PLUGIN_TARGET} PRIVATE ${LIB_TARGET})
+    target_compile_features(${SERVING_PLUGIN_TARGET} PRIVATE cxx_std_17)
+  endif()
 
   # ════════════════════════════════════════════════════════════════════════════
   # Part 2: Model compilation pipeline (MLIR → .o → .so)
@@ -588,6 +615,9 @@ function(buddy_add_model)
     "${MODEL_SO}"
     ${RUNNER_PLUGIN_TARGET}
     "${VOCAB_DST}")
+  if(SERVING_PLUGIN_TARGET)
+    list(APPEND MDL_STAGE4_DEPS ${SERVING_PLUGIN_TARGET})
+  endif()
   list(APPEND MDL_STAGE4_DEPS ${MDL_EXTRA_STAGE4_DEPS})
 
   add_custom_command(

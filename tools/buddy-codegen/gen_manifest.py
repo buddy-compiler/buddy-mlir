@@ -44,6 +44,7 @@ def gen_manifest(
     config: dict,
     dep_shared_libs: list[str] | None = None,
     runner_library: str | None = None,
+    serving_library: str | None = None,
 ) -> str:
     """Generate the complete RHAL .mlir manifest text."""
     out = StringIO()
@@ -74,6 +75,9 @@ def gen_manifest(
     runner_uri = _normalize_dep_uri(
         runner_library or f"{model_family}_runner.so"
     )
+    serving_uri = (
+        _normalize_dep_uri(serving_library) if serving_library else None
+    )
 
     dep_uris: list[str] = []
     for item in dep_shared_libs or []:
@@ -84,7 +88,12 @@ def gen_manifest(
     p('    version = "0.1.0",')
     p(f'    model_name = "{model_id}",')
     p(f'    vocab_uri = "file:{vocab_file}",')
-    p(f'    runner_library = "{runner_uri}"}} {{')
+    p(f'    runner_library = "{runner_uri}"', end="")
+    if serving_uri:
+        p(",")
+        p(f'    serving_library = "{serving_uri}"}} {{')
+    else:
+        p("} {")
     p()
 
     # -- External constants (weight blobs) -------------------------------------
@@ -210,6 +219,15 @@ def main():
             "If no scheme is given, file: is assumed."
         ),
     )
+    parser.add_argument(
+        "--serving-library",
+        default=None,
+        metavar="URI_OR_NAME",
+        help=(
+            "Resident serving plugin library URI/name to place into module "
+            "attrs. If no scheme is given, file: is assumed."
+        ),
+    )
     args = parser.parse_args()
 
     with open(args.config) as f:
@@ -220,6 +238,7 @@ def main():
             config,
             dep_shared_libs=args.dep_shared_lib,
             runner_library=args.runner_library,
+            serving_library=args.serving_library,
         )
     except ValueError as e:
         print(f"error: {e}", file=sys.stderr)

@@ -90,7 +90,22 @@ struct GenerationResult {
   double prefillSecs = 0.0;
   double decodeSecs = 0.0;
   std::string text;
+  bool cancelled = false;
+  bool hitTokenLimit = false;
 };
+
+/// Incremental output for one generated token.
+struct GenerationChunk {
+  /// Newly decoded text since the previous callback. Some tokens may produce an
+  /// empty string until enough bytes are available to form displayable text.
+  std::string delta;
+  int tokenId = -1;
+};
+
+/// Return false to stop generation early, for example when a streaming client
+/// disconnects.
+using GenerationStreamCallback =
+    std::function<bool(const GenerationChunk &chunk)>;
 
 /// Print prefill / decode throughput to stderr.
 void printStats(const GenerationResult &result, bool verbose = false);
@@ -103,6 +118,16 @@ GenerationResult runGeneration(const std::string &prompt, LLMSession &session,
                                const std::vector<long long> &stopTokenIds,
                                buddy::Sampler &sampler, const TextCodec &codec,
                                bool suppress, bool streamJsonl = false);
+
+/// Run a single generation pass and deliver newly decoded text through
+/// @p callback. Unlike the legacy overload above, this does not write to
+/// stdout; callers own transport formatting such as SSE chunks.
+GenerationResult runGeneration(const std::string &prompt, LLMSession &session,
+                               const std::string &vocabPath, int maxNewTokens,
+                               const std::vector<long long> &stopTokenIds,
+                               buddy::Sampler &sampler, const TextCodec &codec,
+                               bool suppress,
+                               const GenerationStreamCallback &callback);
 
 } // namespace runtime
 } // namespace buddy
