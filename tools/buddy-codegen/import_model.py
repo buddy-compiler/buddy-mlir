@@ -1148,6 +1148,36 @@ def import_model(
     print("[import] Import complete.", file=sys.stderr)
 
 
+def import_qwen3_vl_model(config: dict, output_dir: str) -> None:
+    """Dispatch Qwen3-VL's multimodal importer through the shared entry."""
+    model_path = os.environ.get("QWEN3_VL_MODEL_PATH")
+    if not model_path:
+        raise RuntimeError(
+            "QWEN3_VL_MODEL_PATH is required for model_family=qwen3_vl"
+        )
+
+    os.environ["QWEN3_VL_OUT_DIR"] = os.path.join(output_dir, "artifacts")
+    os.environ["QWEN3_VL_PKG"] = output_dir
+
+    script = os.path.join(
+        _REPO_ROOT, "models", "qwen3_vl", "codegen", "qwen3_vl_codegen.py"
+    )
+    spec = importlib.util.spec_from_file_location(
+        "buddy_qwen3_vl_codegen", script
+    )
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot load Qwen3-VL importer: {script}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    class ImportArgs:
+        no_import = False
+        seq_len = int(config.get("max_seq_len", 160))
+
+    module.cmd_import_vision(ImportArgs())
+    module.cmd_import_decoder_rt(ImportArgs())
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Unified model import: PyTorch → MLIR + weight data."
@@ -1205,19 +1235,28 @@ def main():
     with open(args.config) as f:
         config = json.load(f)
 
-    import_model(
-        config,
-        args.output_dir,
-        export_layer_partitioned=args.experimental_layer_partitioned,
-        export_layer_partition_debug_wrappers=(
-            args.layer_partition_debug_wrappers
-        ),
-        export_full_mlir=not args.skip_full_mlir,
-        direct_plain_weight_export=not args.no_direct_plain_weight_export,
-        reuse_existing_weights=args.reuse_existing_weights,
-        skip_weights=args.skip_weights,
-    )
+    try:
+        if config.get("model_family") == "qwen3_vl":
+            import_qwen3_vl_model(config, args.output_dir)
+        else:
+            import_model(
+                config,
+                args.output_dir,
+                export_layer_partitioned=args.experimental_layer_partitioned,
+                export_layer_partition_debug_wrappers=(
+                    args.layer_partition_debug_wrappers
+                ),
+                export_full_mlir=not args.skip_full_mlir,
+                direct_plain_weight_export=not args.no_direct_plain_weight_export,
+                reuse_existing_weights=args.reuse_existing_weights,
+                skip_weights=args.skip_weights,
+            )
+    except RuntimeError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

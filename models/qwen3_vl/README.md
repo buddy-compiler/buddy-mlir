@@ -4,14 +4,13 @@ served through the `buddy-cli` / `.rax` runtime. The build imports the PyTorch
 model, compiles its vision encoder (ViT + DeepStack) and dense Qwen3 text decoder
 (interleaved MRoPE) to MLIR, links them as shared libraries, and packs a
 `qwen3_vl.rax` manifest plus an `InferenceRunner` plugin that `buddy-cli` loads at
-run time. It is self-contained — it does **not** use
-the dense prefill/decode `buddy_add_model` path used by text-only LLMs.
+run time. It uses the shared `buddy_add_model` entry with a Qwen3-VL-specific
+multimodal build kind because the model emits separate vision and decoder shims.
 
 ## Prerequisites
 
 - A built LLVM/MLIR and `buddy-mlir` (see the top-level [README](../../README.md)),
-  configured with `-DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON` and
-  `-DBUDDY_BUILD_QWEN3_VL_MODEL=ON`.
+  configured through `tools/buddy-codegen/build_model.py`.
 - The Python environment that `buddy-mlir` was built against (the conda `buddy`
   env: Python 3.10, `torch`, `transformers` with native `qwen3_vl` support,
   `pillow`, `numpy`).

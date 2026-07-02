@@ -26,9 +26,7 @@ import torch.nn as nn
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
-MODEL_DIR = os.environ.get(
-    "QWEN3_VL_MODEL_PATH", "/home/gnhuang/models/Qwen3-VL-2B-Instruct"
-)
+MODEL_DIR = os.environ.get("QWEN3_VL_MODEL_PATH")
 ARTIFACT_DIR = os.path.abspath(
     os.environ.get(
         "QWEN3_VL_OUT_DIR",
@@ -68,6 +66,11 @@ def rotate_half(x):
 def load_processor_and_model(dtype=torch.float32, eager_attn=True):
     from transformers import AutoProcessor, Qwen3VLForConditionalGeneration
 
+    if not MODEL_DIR:
+        raise RuntimeError(
+            "QWEN3_VL_MODEL_PATH is required. Build through "
+            "tools/buddy-codegen/build_model.py --local-model /path/to/snapshot."
+        )
     processor = AutoProcessor.from_pretrained(MODEL_DIR)
     kwargs = {"dtype": dtype}
     if eager_attn:

@@ -93,7 +93,8 @@ def main() -> int:
         default=None,
         help="Local HuggingFace-format model directory for PyTorch import. "
         "For deepseek_r1, this sets BUDDY_DSR1_LOCAL_MODEL and may provide "
-        "config.json. For qwen3_vl, this sets BUDDY_QWEN3_VL_MODEL_PATH.",
+        "config.json. For qwen3_vl, this is required and sets "
+        "BUDDY_QWEN3_VL_MODEL_PATH.",
     )
     ap.add_argument(
         "--no-configure",
@@ -292,14 +293,20 @@ def main() -> int:
                 file=sys.stderr,
             )
     elif model_family == "qwen3_vl":
+        if local_model is None:
+            print(
+                "error: model_family=qwen3_vl requires --local-model "
+                "(local HuggingFace-format Qwen3-VL snapshot)",
+                file=sys.stderr,
+            )
+            return 1
         cmake_args.extend(
             [
                 f"-DBUDDY_QWEN3_VL_SPEC={spec}",
                 "-DBUDDY_BUILD_QWEN3_VL_MODEL=ON",
+                f"-DBUDDY_QWEN3_VL_MODEL_PATH={local_model}",
             ]
         )
-        if local_model is not None:
-            cmake_args.append(f"-DBUDDY_QWEN3_VL_MODEL_PATH={local_model}")
         if args.hf_config is not None:
             print(
                 "warning: --hf-config is ignored for qwen3_vl; the Qwen3-VL "
