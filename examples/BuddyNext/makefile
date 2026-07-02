@@ -2495,3 +2495,80 @@ next-tosa-matmul-manual:
 	numactl --cpunodebind=0,1 --membind=0,1 \
 	taskset -c 0-47 \
 	./next-tosa-matmul-manual.out || true
+
+# ==============================================================================
+# TFLA: Tiled Flash Linear Attention
+# Based on NeurIPS 2025 paper "Tiled Flash Linear Attention: More Efficient Linear RNN and xLSTM Kernels"
+# ==============================================================================
+# TFLA-GQA fair comparison (same configuration as GQA attention)
+next-tfla-run:
+	@${BUDDY_OPT} ./next-tfla.mlir \
+		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
+	${BUDDY_OPT} \
+		-arith-expand \
+		-eliminate-empty-tensors \
+		-empty-tensor-to-alloc-tensor \
+		-convert-elementwise-to-linalg \
+		-one-shot-bufferize="bufferize-function-boundaries" \
+		-convert-linalg-to-affine-loops \
+		-affine-loop-fusion \
+		-convert-vector-to-scf \
+		-lower-affine \
+		-expand-strided-metadata \
+		-convert-scf-to-cf \
+		-convert-bufferization-to-memref \
+		-cse \
+		-memref-expand \
+		-arith-expand \
+		-convert-vector-to-llvm \
+		-convert-arith-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-cf-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-math-to-llvm \
+		-convert-math-to-libm  \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
+
+# TFLA-Optimized: with core theoretical optimizations (manual vectorization + OpenMP)
+next-tfla-optimized-run:
+	@${BUDDY_OPT} ./next-tfla-optimized.mlir \
+		-pass-pipeline "builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" | \
+	${BUDDY_OPT} \
+		-eliminate-empty-tensors \
+		-empty-tensor-to-alloc-tensor \
+		-convert-elementwise-to-linalg \
+		-one-shot-bufferize="bufferize-function-boundaries" \
+		-expand-strided-metadata \
+		-ownership-based-buffer-deallocation \
+		-buffer-deallocation-simplification \
+		-bufferization-lower-deallocations \
+		-assume-tight-memref-layout \
+		-staticize-memref-layout \
+		-matmul-vectorization-decode=vector-size=128 \
+		-batch-matmul-vectorization-decode=vector-size=128 \
+		-batchmatmul-transpose-b-vectorization=vector-size=16 \
+		-convert-linalg-to-affine-loops \
+		-affine-loop-fusion \
+		-convert-vector-to-scf \
+		-lower-affine \
+		-convert-scf-to-openmp=num-threads=48 \
+		-convert-bufferization-to-memref \
+		-cse \
+		-memref-expand \
+		-arith-expand \
+		-convert-vector-to-llvm \
+		-convert-arith-to-llvm \
+		-finalize-memref-to-llvm \
+		-convert-scf-to-cf \
+		-convert-cf-to-llvm \
+		-convert-openmp-to-llvm \
+		-convert-arith-to-llvm \
+		-convert-math-to-llvm \
+		-convert-math-to-libm \
+		-convert-func-to-llvm \
+		-reconcile-unrealized-casts | \
+	${MLIR_CPU_RUNNER} ${OPT_FLAG} -e main -entry-point-result=void \
+		-shared-libs=${MLIR_RUNNER_UTILS} -shared-libs=${MLIR_C_RUNNER_UTILS}
