@@ -126,6 +126,11 @@ if config.buddy_mlir_enable_python_packages:
     # Same as examples/lit.cfg.py: PyTorch + Buddy ExecutionEngine can load two
     # libomp copies (OMP Error #15); LLVM OpenMP documents this workaround.
     llvm_config.with_environment("KMP_DUPLICATE_LIB_OK", "TRUE")
+    # Prevent CUDA context initialization in CPU-only Python tests.
+    # When many workers run in parallel, each torch._dynamo import eagerly
+    # initialises a CUDA context; this exhausts GPU memory and causes
+    # spurious AcceleratorError / CUDA OOM failures.
+    llvm_config.with_environment("CUDA_VISIBLE_DEVICES", "")
 
     buddy_init = os.path.join(
         config.buddy_python_packages_dir, "buddy_mlir", "__init__.py"

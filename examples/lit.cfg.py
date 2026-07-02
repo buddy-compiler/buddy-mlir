@@ -131,6 +131,11 @@ if config.buddy_mlir_enable_python_packages:
     # copies in one process trigger OMP Error #15; LLVM OpenMP allows continuing
     # when this is set (common when mixing PyTorch with MLIR JIT on e.g. RISC-V)
     llvm_config.with_environment("KMP_DUPLICATE_LIB_OK", "TRUE")
+    # Prevent CUDA context initialization in CPU-only Python tests.
+    # When many workers run in parallel, each torch._dynamo import eagerly
+    # initialises a CUDA context; this exhausts GPU memory and causes
+    # spurious AcceleratorError / CUDA OOM failures.
+    llvm_config.with_environment("CUDA_VISIBLE_DEVICES", "")
 
 tool_dirs = [config.buddy_tools_dir, config.llvm_tools_dir]
 tools = [
