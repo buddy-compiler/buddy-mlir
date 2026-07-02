@@ -305,12 +305,15 @@ endif()
 #-------------------------------------------------------------------------------
 
 if(BUDDY_MLIR_ENABLE_RISCV_GNU_TOOLCHAIN)
+  find_package(Git REQUIRED)
   set(RISCV_GNU_TOOLCHAIN_DIR "${BUDDY_SOURCE_DIR}/thirdparty/riscv-gnu-toolchain")
   set(RISCV_GNU_TOOLCHAIN_INSTALL_DIR "${CMAKE_BINARY_DIR}/thirdparty/riscv-gnu-toolchain")
   ExternalProject_Add(
     riscv-gnu-toolchain
     SOURCE_DIR        ${RISCV_GNU_TOOLCHAIN_DIR}
     PREFIX            ${RISCV_GNU_TOOLCHAIN_INSTALL_DIR}
+    DOWNLOAD_COMMAND  ${GIT_EXECUTABLE} -C ${BUDDY_SOURCE_DIR}
+                      submodule update --init -- thirdparty/riscv-gnu-toolchain
     CONFIGURE_COMMAND ${RISCV_GNU_TOOLCHAIN_DIR}/configure --prefix=${RISCV_GNU_TOOLCHAIN_INSTALL_DIR}
     BUILD_COMMAND     make clean && make linux build-qemu -j
     BUILD_IN_SOURCE   TRUE
