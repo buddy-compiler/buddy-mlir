@@ -82,16 +82,23 @@ endif()
 #   [NUM_THREADS  <N>]                      OpenMP threads (default from spec)
 #   [LLC_ATTRS    <string>]                 LLC target attributes
 #   [COMPILE_JOBS <N>]                      parallel MLIR compilation jobs
+#   [MODEL_KIND   <kind>]                   llm_prefill_decode (default) or single_forward
+#   [IMPORT_SCRIPT <path>]                  custom importer for single_forward
+#   [MANIFEST_SCRIPT <path>]                custom RHAL manifest generator
+#   [LOCAL_MODEL_ENV <name>]                env var used for LOCAL_MODEL in importer
+#   [MODEL_SO_NAME <name>]                  output model shared library basename
 #   [TIERED_KV_CACHE ON|OFF]                build multiple cache-sized entrypoints
 #   [TIERED_CACHE_SIZES <list>]             e.g. "32;64;128;256;512;1024"
+#   [ASSET_FILES <list>]                    files copied next to the .rax
+#   [RUNTIME_LINK_LIBS <list>]              extra libraries for runner static lib
 # )
 # ──────────────────────────────────────────────────────────────────────────────
 function(buddy_add_model)
   cmake_parse_arguments(
     MDL                                      # prefix
     ""                                       # flags
-    "NAME;SPEC;RUNNER_SRC;RUNNER_PLUGIN_SRC;HF_CONFIG;LOCAL_MODEL;BUILD_DIR;MLIR_DIR;NUM_THREADS;LLC_ATTRS;COMPILE_JOBS;TIERED_KV_CACHE"
-    "TIERED_CACHE_SIZES"                     # multi-value
+    "NAME;SPEC;RUNNER_SRC;RUNNER_PLUGIN_SRC;HF_CONFIG;LOCAL_MODEL;BUILD_DIR;MLIR_DIR;NUM_THREADS;LLC_ATTRS;COMPILE_JOBS;TIERED_KV_CACHE;MODEL_KIND;IMPORT_SCRIPT;MANIFEST_SCRIPT;LOCAL_MODEL_ENV;MODEL_SO_NAME"
+    "TIERED_CACHE_SIZES;ASSET_FILES;RUNTIME_LINK_LIBS" # multi-value
     ${ARGN}
   )
 
@@ -123,8 +130,25 @@ function(buddy_add_model)
   if(NOT MDL_COMPILE_JOBS)
     set(MDL_COMPILE_JOBS 1)
   endif()
+  if(NOT MDL_MODEL_KIND)
+    set(MDL_MODEL_KIND "llm_prefill_decode")
+  endif()
+  if(NOT MDL_MODEL_KIND STREQUAL "llm_prefill_decode" AND
+     NOT MDL_MODEL_KIND STREQUAL "single_forward")
+    message(FATAL_ERROR
+      "buddy_add_model (${MDL_NAME}): unsupported MODEL_KIND=${MDL_MODEL_KIND}")
+  endif()
   if(NOT MDL_RUNNER_PLUGIN_SRC)
     set(MDL_RUNNER_PLUGIN_SRC "${MDL_RUNNER_SRC}")
+  endif()
+  if(NOT MDL_IMPORT_SCRIPT)
+    set(MDL_IMPORT_SCRIPT "${BUDDY_CODEGEN_DIR}/import_model.py")
+  endif()
+  if(NOT MDL_MANIFEST_SCRIPT)
+    set(MDL_MANIFEST_SCRIPT "${BUDDY_CODEGEN_DIR}/gen_manifest.py")
+  endif()
+  if(NOT MDL_LOCAL_MODEL_ENV)
+    set(MDL_LOCAL_MODEL_ENV "DEEPSEEKR1_MODEL_PATH")
   endif()
 
   if(MDL_TIERED_KV_CACHE)
@@ -137,7 +161,9 @@ function(buddy_add_model)
   endif()
 
   set(MDL_LAYER_PARTITION OFF)
-  if(BUDDY_MODEL_LAYER_PARTITION AND NOT MDL_BUILD_DIR)
+  if(MDL_MODEL_KIND STREQUAL "single_forward")
+    set(MDL_LAYER_PARTITION OFF)
+  elseif(BUDDY_MODEL_LAYER_PARTITION AND NOT MDL_BUILD_DIR)
     if(IS_RVV_CROSSCOMPILE)
       message(STATUS
         "[${MDL_NAME}] Layer partitioning is disabled for RVV cross-compilation.")
@@ -208,46 +234,66 @@ function(buddy_add_model)
   set(GEN_SESS_CC "${GEN_DIR}/ModelSession.cpp")
   set(GEN_RHAL    "${GEN_DIR}/${MDL_NAME}.mlir")
   set(RUNNER_PLUGIN_NAME "${MDL_NAME}_runner.so")
+  set(IMPORT_STAMP "${BIN}/.buddy_import_done")
 
   # ── gen_config.py ─────────────────────────────────────────────────────────
-  set(GEN_CONFIG_CMD
-    "${Python3_EXECUTABLE}" "${BUDDY_CODEGEN_DIR}/gen_config.py"
-    --spec "${MDL_SPEC}" -o "${GEN_CONFIG}"
-  )
-  if(MDL_HF_CONFIG)
-    list(APPEND GEN_CONFIG_CMD --hf-config "${MDL_HF_CONFIG}")
+  if(MDL_MODEL_KIND STREQUAL "single_forward")
+    set(GEN_CONFIG "${MDL_SPEC}")
+  else()
+    set(GEN_CONFIG_CMD
+      "${Python3_EXECUTABLE}" "${BUDDY_CODEGEN_DIR}/gen_config.py"
+      --spec "${MDL_SPEC}" -o "${GEN_CONFIG}"
+    )
+    if(MDL_HF_CONFIG)
+      list(APPEND GEN_CONFIG_CMD --hf-config "${MDL_HF_CONFIG}")
+    endif()
+
+    add_custom_command(
+      OUTPUT  "${GEN_CONFIG}"
+      COMMAND ${CMAKE_COMMAND} -E make_directory "${GEN_DIR}"
+      COMMAND ${GEN_CONFIG_CMD}
+      DEPENDS "${MDL_SPEC}" "${BUDDY_CODEGEN_DIR}/gen_config.py"
+      COMMENT "[${MDL_NAME}] Generating config.json from ${MDL_SPEC}"
+      VERBATIM
+    )
   endif()
 
-  add_custom_command(
-    OUTPUT  "${GEN_CONFIG}"
-    COMMAND ${CMAKE_COMMAND} -E make_directory "${GEN_DIR}"
-    COMMAND ${GEN_CONFIG_CMD}
-    DEPENDS "${MDL_SPEC}" "${BUDDY_CODEGEN_DIR}/gen_config.py"
-    COMMENT "[${MDL_NAME}] Generating config.json from ${MDL_SPEC}"
-    VERBATIM
-  )
-
   # ── gen_session.py ────────────────────────────────────────────────────────
-  add_custom_command(
-    OUTPUT  "${GEN_SESS_H}" "${GEN_SESS_CC}"
-    COMMAND "${Python3_EXECUTABLE}" "${BUDDY_CODEGEN_DIR}/gen_session.py"
-            --config "${GEN_CONFIG}" --output-dir "${GEN_DIR}"
-    DEPENDS "${GEN_CONFIG}" "${BUDDY_CODEGEN_DIR}/gen_session.py"
-    COMMENT "[${MDL_NAME}] Generating ModelSession.{h,cpp}"
-    VERBATIM
-  )
+  if(NOT MDL_MODEL_KIND STREQUAL "single_forward")
+    add_custom_command(
+      OUTPUT  "${GEN_SESS_H}" "${GEN_SESS_CC}"
+      COMMAND "${Python3_EXECUTABLE}" "${BUDDY_CODEGEN_DIR}/gen_session.py"
+              --config "${GEN_CONFIG}" --output-dir "${GEN_DIR}"
+      DEPENDS "${GEN_CONFIG}" "${BUDDY_CODEGEN_DIR}/gen_session.py"
+      COMMENT "[${MDL_NAME}] Generating ModelSession.{h,cpp}"
+      VERBATIM
+    )
+  endif()
 
   # ── gen_manifest.py ───────────────────────────────────────────────────────
-  add_custom_command(
-    OUTPUT  "${GEN_RHAL}"
-    COMMAND "${Python3_EXECUTABLE}" "${BUDDY_CODEGEN_DIR}/gen_manifest.py"
-            --config "${GEN_CONFIG}" -o "${GEN_RHAL}"
-            --runner-library "${RUNNER_PLUGIN_NAME}"
-            ${MDL_GEN_MANIFEST_ARGS}
-    DEPENDS "${GEN_CONFIG}" "${BUDDY_CODEGEN_DIR}/gen_manifest.py"
-    COMMENT "[${MDL_NAME}] Generating ${MDL_NAME}.mlir (RHAL manifest)"
-    VERBATIM
-  )
+  if(MDL_MODEL_KIND STREQUAL "single_forward")
+    add_custom_command(
+      OUTPUT  "${GEN_RHAL}"
+      COMMAND "${Python3_EXECUTABLE}" "${MDL_MANIFEST_SCRIPT}"
+              --spec "${GEN_CONFIG}" -o "${GEN_RHAL}"
+              --runner-library "${RUNNER_PLUGIN_NAME}"
+              ${MDL_GEN_MANIFEST_ARGS}
+      DEPENDS "${GEN_CONFIG}" "${MDL_MANIFEST_SCRIPT}"
+      COMMENT "[${MDL_NAME}] Generating ${MDL_NAME}.mlir (RHAL manifest)"
+      VERBATIM
+    )
+  else()
+    add_custom_command(
+      OUTPUT  "${GEN_RHAL}"
+      COMMAND "${Python3_EXECUTABLE}" "${MDL_MANIFEST_SCRIPT}"
+              --config "${GEN_CONFIG}" -o "${GEN_RHAL}"
+              --runner-library "${RUNNER_PLUGIN_NAME}"
+              ${MDL_GEN_MANIFEST_ARGS}
+      DEPENDS "${GEN_CONFIG}" "${MDL_MANIFEST_SCRIPT}"
+      COMMENT "[${MDL_NAME}] Generating ${MDL_NAME}.mlir (RHAL manifest)"
+      VERBATIM
+    )
+  endif()
 
   # ════════════════════════════════════════════════════════════════════════════
   # Part 1: Runtime static library
@@ -255,10 +301,11 @@ function(buddy_add_model)
 
   set(LIB_TARGET "buddy_models_${MDL_NAME}")
 
-  add_library(${LIB_TARGET} STATIC
-    "${GEN_SESS_CC}"
-    "${CMAKE_CURRENT_SOURCE_DIR}/${MDL_RUNNER_SRC}"
-  )
+  set(MDL_RUNTIME_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/${MDL_RUNNER_SRC}")
+  if(NOT MDL_MODEL_KIND STREQUAL "single_forward")
+    list(PREPEND MDL_RUNTIME_SOURCES "${GEN_SESS_CC}")
+  endif()
+  add_library(${LIB_TARGET} STATIC ${MDL_RUNTIME_SOURCES})
 
   target_include_directories(${LIB_TARGET} PUBLIC
     "${GEN_DIR}"
@@ -270,10 +317,13 @@ function(buddy_add_model)
   target_compile_features(${LIB_TARGET} PUBLIC cxx_std_17)
   target_link_libraries(${LIB_TARGET} PUBLIC
     buddy_runtime_core
-    buddy_runtime_llm
     ${CMAKE_DL_LIBS}
     LLVMSupport
+    ${MDL_RUNTIME_LINK_LIBS}
   )
+  if(NOT MDL_MODEL_KIND STREQUAL "single_forward")
+    target_link_libraries(${LIB_TARGET} PUBLIC buddy_runtime_llm)
+  endif()
   install(FILES ${MDL_RUNNER_SRC}
     DESTINATION include/buddy-mlir/buddy/runtime/models/
     COMPONENT buddy_runtime
@@ -304,11 +354,20 @@ function(buddy_add_model)
   # Subgraph / decode file naming and extra flags are handled in compile_pipeline.py.
   # ════════════════════════════════════════════════════════════════════════════
 
-  set(MODEL_SO "${BIN}/${MDL_NAME}_model.so")
+  if(MDL_MODEL_SO_NAME)
+    set(MODEL_SO_BASENAME "${MDL_MODEL_SO_NAME}")
+  else()
+    set(MODEL_SO_BASENAME "${MDL_NAME}_model.so")
+  endif()
+  set(MODEL_SO "${BIN}/${MODEL_SO_BASENAME}")
 
   set(OBJ_FILES)
   set(MLIR_COMPILE_DEPS)
-  if(MDL_TIERED_KV_CACHE)
+  if(MDL_MODEL_KIND STREQUAL "single_forward")
+    list(APPEND OBJ_FILES
+      "${BIN}/forward.o"
+      "${BIN}/subgraph0.o")
+  elseif(MDL_TIERED_KV_CACHE)
     foreach(CACHE_SIZE ${MDL_TIERED_CACHE_SIZES})
       list(APPEND OBJ_FILES
         "${BIN}/forward_prefill_${CACHE_SIZE}.o"
@@ -324,7 +383,103 @@ function(buddy_add_model)
       "${BIN}/subgraph_decode.o")
   endif()
 
-  if(MDL_BUILD_DIR)
+  if(MDL_MODEL_KIND STREQUAL "single_forward")
+    if(NOT BUDDY_MLIR_ENABLE_PYTHON_PACKAGES)
+      message(FATAL_ERROR
+        "buddy_add_model (${MDL_NAME}): PyTorch→MLIR import needs the Buddy Python package under "
+        "build/python_packages. Re-configure with:\n"
+        "  -DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON\n"
+        "tools/buddy-codegen/build_model.py passes this by default.")
+    endif()
+
+    set(BUDDY_PY_PKG_ROOT "${CMAKE_BINARY_DIR}/python_packages")
+    set(IMPORT_DEPS "${GEN_CONFIG}" "${MDL_IMPORT_SCRIPT}")
+    if(TARGET python-package-buddy)
+      list(APPEND IMPORT_DEPS python-package-buddy)
+    endif()
+    if(MDL_LOCAL_MODEL)
+      set(_IMPORT_ENV ${CMAKE_COMMAND} -E env
+        "PYTHONPATH=${BUDDY_PY_PKG_ROOT}"
+        "${MDL_LOCAL_MODEL_ENV}=${MDL_LOCAL_MODEL}")
+    else()
+      set(_IMPORT_ENV ${CMAKE_COMMAND} -E env "PYTHONPATH=${BUDDY_PY_PKG_ROOT}")
+    endif()
+
+    add_custom_command(
+      OUTPUT "${IMPORT_STAMP}"
+      BYPRODUCTS
+        "${BIN}/forward.mlir"
+        "${BIN}/subgraph0.mlir"
+        "${BIN}/arg0.data"
+      COMMAND ${_IMPORT_ENV}
+              "${Python3_EXECUTABLE}" "${MDL_IMPORT_SCRIPT}"
+              --spec "${GEN_CONFIG}" --output-dir "${BIN}"
+      COMMAND "${CMAKE_COMMAND}" -E touch "${IMPORT_STAMP}"
+      DEPENDS ${IMPORT_DEPS}
+      COMMENT "[${MDL_NAME}] Stage 1: importing single-forward model -> MLIR + weights"
+      VERBATIM
+    )
+
+    add_custom_command(
+      OUTPUT "${BIN}/forward.o"
+      COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt "${BIN}/forward.mlir"
+                -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-tensor, tosa-to-arith), empty-tensor-to-alloc-tensor, convert-elementwise-to-linalg)" |
+              ${BUDDY_BINARY_DIR}/buddy-opt
+                -pass-pipeline "builtin.module(func.func(buffer-deallocation-simplification, convert-linalg-to-loops),matmul-parallel-vectorization-optimize, batchmatmul-optimize, eliminate-empty-tensors, func.func(llvm-request-c-wrappers),convert-scf-to-openmp, convert-openmp-to-llvm, convert-math-to-llvm, convert-math-to-libm, convert-scf-to-cf,  convert-arith-to-llvm, expand-strided-metadata, finalize-memref-to-llvm, convert-func-to-llvm, reconcile-unrealized-casts)" |
+              ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
+              ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
+              ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O0 -o "${BIN}/forward.o"
+      DEPENDS "${IMPORT_STAMP}" buddy-opt
+      COMMENT "[${MDL_NAME}] Stage 2: forward.mlir -> forward.o"
+      VERBATIM)
+
+    add_custom_command(
+      OUTPUT "${BIN}/subgraph0.o"
+      COMMAND ${LLVM_TOOLS_BINARY_DIR}/mlir-opt "${BIN}/subgraph0.mlir"
+                -pass-pipeline "builtin.module(func.func(tosa-to-linalg-named, tosa-to-linalg, tosa-to-tensor, tosa-to-arith))" |
+              ${LLVM_TOOLS_BINARY_DIR}/mlir-opt
+                -test-linalg-transform-patterns=test-decompose-pad-tensor |
+              ${BUDDY_BINARY_DIR}/buddy-opt
+                -arith-expand
+                -eliminate-empty-tensors
+                -convert-elementwise-to-linalg
+                -empty-tensor-to-alloc-tensor
+                -one-shot-bufferize=bufferize-function-boundaries
+                -ownership-based-buffer-deallocation
+                -buffer-deallocation-simplification
+                -bufferization-lower-deallocations
+                -matmul-parallel-vectorization-optimize
+                -convert-linalg-to-affine-loops
+                -affine-loop-fusion
+                -affine-parallelize
+                -lower-affine
+                -convert-scf-to-openmp
+                -convert-linalg-to-loops
+                -convert-vector-to-scf
+                -expand-strided-metadata
+                -lower-affine
+                -cse
+                -convert-vector-to-llvm
+                -memref-expand
+                -convert-arith-to-llvm
+                -finalize-memref-to-llvm
+                -convert-scf-to-cf
+                -convert-cf-to-llvm
+                -llvm-request-c-wrappers
+                -convert-openmp-to-llvm
+                -convert-arith-to-llvm
+                -convert-math-to-llvm
+                -convert-math-to-libm
+                -convert-func-to-llvm
+                -reconcile-unrealized-casts |
+              ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
+              ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
+              ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic -O3 -o "${BIN}/subgraph0.o"
+      DEPENDS "${IMPORT_STAMP}" buddy-opt
+      COMMENT "[${MDL_NAME}] Stage 2: subgraph0.mlir -> subgraph0.o"
+      VERBATIM)
+
+  elseif(MDL_BUILD_DIR)
     # ── Mode A: pre-built .o ───────────────────────────────────────────────
     set(OBJ_FILES)
     if(MDL_TIERED_KV_CACHE)
@@ -492,19 +647,27 @@ function(buddy_add_model)
   # ── Stage 3: link .o → .so ─────────────────────────────────────────────
   set(MDL_STAGE3_LINKER "${CMAKE_CXX_COMPILER}")
   set(MDL_STAGE3_LINK_OPTS)
-  set(MDL_STAGE3_LIB_DIRS
-    "-L${LLVM_LIBRARY_DIR}"
-    "-Wl,-rpath,${LLVM_LIBRARY_DIR}")
-  if(BUDDY_OPENMP_RUNTIME_DIR)
-    list(APPEND MDL_STAGE3_LIB_DIRS
-      "-L${BUDDY_OPENMP_RUNTIME_DIR}"
-      "-Wl,-rpath,${BUDDY_OPENMP_RUNTIME_DIR}")
-  endif()
-  set(MDL_STAGE3_LIBS -lmlir_c_runner_utils -lm)
-  if(BUDDY_OPENMP_RUNTIME_LIBRARY)
-    list(INSERT MDL_STAGE3_LIBS 0 "${BUDDY_OPENMP_RUNTIME_LIBRARY}")
+  set(MDL_STAGE3_LIBS -lomp -lmlir_c_runner_utils -lm)
+  set(MDL_STAGE3_LINK_DIRS "${LLVM_LIBRARY_DIR}")
+  set(MDL_STAGE3_RPATH_DIRS "${LLVM_LIBRARY_DIR}")
+
+  if(BUDDY_OPENMP_RUNTIME_LIBRARY AND EXISTS "${BUDDY_OPENMP_RUNTIME_LIBRARY}")
+    get_filename_component(_BUDDY_OPENMP_RUNTIME_DIR
+      "${BUDDY_OPENMP_RUNTIME_LIBRARY}" DIRECTORY)
+    set(MDL_STAGE3_LIBS
+      "${BUDDY_OPENMP_RUNTIME_LIBRARY}"
+      -lmlir_c_runner_utils
+      -lm)
+    list(APPEND MDL_STAGE3_LINK_DIRS "${_BUDDY_OPENMP_RUNTIME_DIR}")
+    list(APPEND MDL_STAGE3_RPATH_DIRS "${_BUDDY_OPENMP_RUNTIME_DIR}")
   else()
-    list(INSERT MDL_STAGE3_LIBS 0 -lomp)
+    get_filename_component(_BUDDY_LLVM_BUILD_DIR "${LLVM_LIBRARY_DIR}" DIRECTORY)
+    set(_BUDDY_OPENMP_RUNTIME_DIR
+      "${_BUDDY_LLVM_BUILD_DIR}/runtimes/runtimes-bins/openmp/runtime/src")
+    if(EXISTS "${_BUDDY_OPENMP_RUNTIME_DIR}/libomp${CMAKE_SHARED_LIBRARY_SUFFIX}")
+      list(APPEND MDL_STAGE3_LINK_DIRS "${_BUDDY_OPENMP_RUNTIME_DIR}")
+      list(APPEND MDL_STAGE3_RPATH_DIRS "${_BUDDY_OPENMP_RUNTIME_DIR}")
+    endif()
   endif()
 
   if(IS_RVV_CROSSCOMPILE)
@@ -528,14 +691,23 @@ function(buddy_add_model)
 
   if(APPLE)
     set(_BUDDY_MODEL_LINK_FLAGS
-      "-Wl,-install_name,@rpath/${MDL_NAME}_model.so"
+      "-Wl,-install_name,@rpath/${MODEL_SO_BASENAME}"
     )
   else()
     set(_BUDDY_MODEL_LINK_FLAGS
-      "-Wl,-soname,${MDL_NAME}_model.so"
+      "-Wl,-soname,${MODEL_SO_BASENAME}"
       "-Wl,--allow-multiple-definition"
     )
   endif()
+
+  set(MDL_STAGE3_LINK_DIR_ARGS)
+  foreach(_link_dir ${MDL_STAGE3_LINK_DIRS})
+    list(APPEND MDL_STAGE3_LINK_DIR_ARGS "-L${_link_dir}")
+  endforeach()
+  set(MDL_STAGE3_RPATH_ARGS)
+  foreach(_rpath_dir ${MDL_STAGE3_RPATH_DIRS})
+    list(APPEND MDL_STAGE3_RPATH_ARGS "-Wl,-rpath,${_rpath_dir}")
+  endforeach()
 
   if(NOT MDL_LAYER_PARTITION)
     add_custom_command(
@@ -546,7 +718,8 @@ function(buddy_add_model)
                 ${_BUDDY_MODEL_LINK_FLAGS}
                 -o "${MODEL_SO}"
                 ${OBJ_FILES}
-                ${MDL_STAGE3_LIB_DIRS}
+                ${MDL_STAGE3_LINK_DIR_ARGS}
+                ${MDL_STAGE3_RPATH_ARGS}
                 ${MDL_STAGE3_LIBS}
       DEPENDS ${OBJ_FILES}
       COMMENT "[${MDL_NAME}] Stage 3: linking ${MDL_NAME}_model.so"
@@ -556,25 +729,40 @@ function(buddy_add_model)
 
   add_custom_target(${MDL_NAME}_model_so
     DEPENDS "${MODEL_SO}"
-    COMMENT "${MDL_NAME}_model.so → ${MODEL_SO}"
+    COMMENT "${MODEL_SO_BASENAME} -> ${MODEL_SO}"
   )
 
   # ════════════════════════════════════════════════════════════════════════════
   # Part 3: rax-pack → .rax
   # ════════════════════════════════════════════════════════════════════════════
 
-  # Copy vocab.txt alongside the .rax (and make it visible to rax-pack payload
-  # embedding via file:vocab.txt URI).
-  set(VOCAB_SRC "${CMAKE_SOURCE_DIR}/examples/BuddyDeepSeekR1/vocab.txt")
-  set(VOCAB_DST "${BIN}/vocab.txt")
-
-  add_custom_command(
-    OUTPUT  "${VOCAB_DST}"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${VOCAB_SRC}" "${VOCAB_DST}"
-    DEPENDS "${VOCAB_SRC}"
-    COMMENT "[${MDL_NAME}] Copying vocab.txt"
-    VERBATIM
-  )
+  if(MDL_ASSET_FILES)
+    set(MDL_ASSET_DSTS)
+    foreach(_asset_src ${MDL_ASSET_FILES})
+      get_filename_component(_asset_name "${_asset_src}" NAME)
+      set(_asset_dst "${BIN}/${_asset_name}")
+      add_custom_command(
+        OUTPUT "${_asset_dst}"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${_asset_src}" "${_asset_dst}"
+        DEPENDS "${_asset_src}"
+        COMMENT "[${MDL_NAME}] Copying ${_asset_name}"
+        VERBATIM
+      )
+      list(APPEND MDL_ASSET_DSTS "${_asset_dst}")
+    endforeach()
+  else()
+    set(VOCAB_SRC "${CMAKE_SOURCE_DIR}/examples/BuddyDeepSeekR1/vocab.txt")
+    set(VOCAB_DST "${BIN}/vocab.txt")
+    add_custom_command(
+      OUTPUT  "${VOCAB_DST}"
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different "${VOCAB_SRC}" "${VOCAB_DST}"
+      DEPENDS "${VOCAB_SRC}"
+      COMMENT "[${MDL_NAME}] Copying vocab.txt"
+      VERBATIM
+    )
+    set(MDL_ASSET_DSTS "${VOCAB_DST}")
+  endif()
 
   set(MODEL_RAX "${BIN}/${MDL_NAME}.rax")
   set(RAX_PACK_ARGS)
@@ -587,7 +775,10 @@ function(buddy_add_model)
     "${GEN_RHAL}"
     "${MODEL_SO}"
     ${RUNNER_PLUGIN_TARGET}
-    "${VOCAB_DST}")
+    ${MDL_ASSET_DSTS})
+  if(MDL_MODEL_KIND STREQUAL "single_forward")
+    list(APPEND MDL_STAGE4_DEPS "${BIN}/arg0.data")
+  endif()
   list(APPEND MDL_STAGE4_DEPS ${MDL_EXTRA_STAGE4_DEPS})
 
   add_custom_command(
@@ -600,8 +791,8 @@ function(buddy_add_model)
   )
 
   add_custom_target(${MDL_NAME}_rax
-    DEPENDS "${MODEL_RAX}" "${VOCAB_DST}"
-    COMMENT "${MDL_NAME}.rax + vocab.txt → ${BIN}"
+    DEPENDS "${MODEL_RAX}" ${MDL_ASSET_DSTS}
+    COMMENT "${MDL_NAME}.rax -> ${BIN}"
   )
 
 endfunction()
