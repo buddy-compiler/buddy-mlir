@@ -62,6 +62,10 @@ struct RunConfig {
   /// Runtime batch size override. 0 means use the packaged model default.
   int batchSize = 0;
 
+  /// Optional image input for vision-language models (ignored by text models).
+  /// May be an image path or a pre-processed pixel_values blob, per the runner.
+  std::string imagePath;
+
   // ── Sampling configuration ──
   buddy::SamplerConfig samplerConfig;
 
