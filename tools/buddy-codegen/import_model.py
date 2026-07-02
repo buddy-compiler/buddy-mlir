@@ -31,10 +31,12 @@
 
 import argparse
 import importlib
+import importlib.util
 import json
 import os
 import sys
 import time
+import types
 from contextlib import contextmanager
 
 # buddy.compiler.* is synced to build/python_packages by target python-package-buddy
@@ -48,6 +50,16 @@ if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 if _BUDDY_PY_PKG not in sys.path:
     sys.path.insert(0, _BUDDY_PY_PKG)
+
+if "tomli" not in sys.modules:
+    tomli_stub = types.ModuleType("tomli")
+
+    def _tomli_unavailable(*_args, **_kwargs):
+        raise RuntimeError("tomli is required only when loading trace configs")
+
+    tomli_stub.load = _tomli_unavailable
+    tomli_stub.loads = _tomli_unavailable
+    sys.modules["tomli"] = tomli_stub
 
 import numpy
 import torch

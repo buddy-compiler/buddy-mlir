@@ -221,7 +221,7 @@ def main():
             dep_shared_libs=args.dep_shared_lib,
             runner_library=args.runner_library,
         )
-    except ValueError as e:
+    except (ValueError, RuntimeError, OSError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
 

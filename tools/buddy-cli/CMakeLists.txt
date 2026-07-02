@@ -20,6 +20,10 @@ if(BUDDY_BUILD_LLAMA31_TT_MODEL OR BUDDY_BUILD_LLAMA32_TT_MODEL)
   target_link_libraries(buddy-cli PRIVATE buddy_models_llama31_tt)
   target_compile_definitions(buddy-cli PRIVATE BUDDY_CLI_HAVE_LLAMA31_TT_MODEL)
 endif()
+
+if(BUDDY_BUILD_BGE_M3_MODEL)
+  target_link_libraries(buddy-cli PRIVATE buddy_models_bge_m3)
+endif()
 target_link_libraries(buddy-cli PRIVATE
   StaticMLIRCRunnerUtils
   LLVMSupport

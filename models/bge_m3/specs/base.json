@@ -1,0 +1,17 @@
+{
+  "hf_model_path": "BAAI/bge-m3",
+  "model_family": "bge_m3",
+  "variant": "base",
+  "model_id": "bge_m3_base",
+  "params_size": 567762946,
+  "max_seq_len": 512,
+  "max_position_embeddings": 8194,
+  "hidden_size": 1024,
+  "vocab_size": 250002,
+  "pooling": "cls",
+  "normalize": true,
+  "weight_file": "arg0.data",
+  "so_name": "bge_m3_model.so",
+  "tokenizer_file": "tokenizer.json",
+  "tokenizer_helper": "bge_m3_tokenize.py"
+}
