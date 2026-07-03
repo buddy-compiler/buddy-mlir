@@ -2,8 +2,7 @@
 
 `buddy-server` is a minimal HTTP serving entry point for resident BuddyRuntime
 models. The server binary is built by default and is decoupled from concrete
-model implementations through resident model plugins and a small compile-time
-fallback factory.
+model implementations through resident model plugins.
 
 ## Build
 
@@ -18,8 +17,9 @@ cmake --build build --target buddy-server
 cmake --build build --target check-buddy-server
 ```
 
-If the DeepSeek R1 model target is enabled, it is registered as an optional
-built-in resident backend and also builds a resident serving plugin:
+If the DeepSeek R1 model target is enabled, it also builds a resident serving
+plugin that can be referenced from the `.rax` manifest or passed explicitly with
+`--serving-so`:
 
 ```bash
 cmake -G Ninja -S . -B build \
@@ -64,11 +64,6 @@ Server entry
   - starts HTTP routes
   - loads the model in a background thread
 
-Resident model factory
-  tools/buddy-server/ResidentModelFactory.*
-  - owns compile-time registration of built-in resident backends
-  - keeps buddy-server.cpp independent from model-specific headers
-
 Resident model plugin loader
   runtime/include/buddy/runtime/core/ResidentModelPlugin.h
   tools/buddy-server/ResidentModelPluginHandle.*
@@ -84,7 +79,6 @@ Resident model boundary
 DeepSeek resident model
   models/deepseek_r1/DeepSeekR1ResidentModel.*
   models/deepseek_r1/DeepSeekR1ResidentModelPlugin.cpp
-  - optional built-in backend when buddy_models_deepseek_r1 is available
   - resident serving plugin entry point for deepseek_r1_serving.so
   - owns one long-lived ModelSession
   - loads weights once
@@ -149,19 +143,10 @@ Resident backend loading priority:
 ```text
 1. --serving-so
 2. .rax module attr serving_library
-3. compile-time ResidentModelFactory
 ```
 
-Built-in backend `.rax` mode:
-
-```bash
-./build/bin/buddy-server \
-  --model ./build/models/deepseek_r1/deepseek_r1.rax \
-  --model-type deepseek_r1 \
-  --chat-template examples/BuddyDeepSeekR1/deepseek-r1.json \
-  --host 127.0.0.1 \
-  --port 8080
-```
+If neither source provides a resident serving plugin, startup fails before the
+HTTP listener is created.
 
 Legacy explicit artifact mode:
 
@@ -170,6 +155,7 @@ Legacy explicit artifact mode:
   --model-so /path/to/deepseek_r1_model.so \
   --weights /path/to/arg0.data \
   --vocab /path/to/vocab.txt \
+  --serving-so /path/to/deepseek_r1_serving.so \
   --model-type deepseek_r1 \
   --chat-template examples/BuddyDeepSeekR1/deepseek-r1.json
 ```
@@ -300,10 +286,9 @@ Completion and chat requests support:
 ## Current MVP Limits
 
 - The server binary is model-agnostic. Resident backends can be loaded with
-  `--serving-so` or discovered from `.rax` `serving_library`; compile-time
-  registrations remain as a fallback.
-- DeepSeek R1 resident serving is available only when
-  `buddy_models_deepseek_r1` is built.
+  `--serving-so` or discovered from `.rax` `serving_library`.
+- DeepSeek R1 resident serving is available through `deepseek_r1_serving.so`
+  when the DeepSeek R1 model target is built.
 - One process owns one `ModelSession`; generation is serialized by a mutex.
 - `stop_token_ids` are supported. `stop` strings are parsed but not yet applied
   by the generation loop.

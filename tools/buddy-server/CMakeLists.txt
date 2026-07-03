@@ -3,7 +3,6 @@
 add_executable(buddy-server
   buddy-server.cpp
   JsonCodec.cpp
-  ResidentModelFactory.cpp
   ResidentModelPluginHandle.cpp
   SimpleHttpServer.cpp
 )
@@ -20,15 +19,6 @@ target_link_libraries(buddy-server PRIVATE
   LLVMSupport
   ${CMAKE_DL_LIBS}
 )
-
-if(TARGET buddy_models_deepseek_r1)
-  target_compile_definitions(buddy-server PRIVATE
-    BUDDY_SERVER_HAVE_DEEPSEEK_R1=1
-  )
-  target_link_libraries(buddy-server PRIVATE
-    buddy_models_deepseek_r1
-  )
-endif()
 
 target_link_directories(buddy-server PRIVATE ${LLVM_LIBRARY_DIR})
 
