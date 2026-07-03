@@ -15,7 +15,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "JsonCodec.h"
-#include "ResidentModelFactory.h"
 #include "ResidentModelPluginHandle.h"
 #include "SimpleHttpServer.h"
 
@@ -50,8 +49,6 @@ enum ServerLoadState {
 };
 
 void usage(const char *prog, std::ostream &os = std::cout) {
-  const auto backends = buddy::server::availableResidentModelTypes();
-
   os << "Usage: " << prog << " [options]\n"
      << "\n"
      << "Model source (one required):\n"
@@ -59,8 +56,7 @@ void usage(const char *prog, std::ostream &os = std::cout) {
      << "  --model-so   <path.so>   Model shared library (legacy mode)\n"
      << "  --weights    <path>      Weights file; repeatable in legacy mode\n"
      << "  --vocab      <path>      Vocabulary file (legacy mode)\n"
-     << "  --model-type <name>      Resident model backend (default "
-        "deepseek_r1)\n"
+     << "  --model-type <name>      Model type/name override for status\n"
      << "  --serving-so <path.so>   Resident model plugin shared library\n"
      << "\n"
      << "Server:\n"
@@ -72,16 +68,6 @@ void usage(const char *prog, std::ostream &os = std::cout) {
      << "\n"
      << "Other:\n"
      << "  --help / -h\n";
-
-  os << "\n"
-     << "Built-in resident backends:";
-  if (backends.empty()) {
-    os << " none\n";
-  } else {
-    for (const auto &backend : backends)
-      os << " " << backend;
-    os << "\n";
-  }
 }
 
 bool hasSuffix(const std::string &value, const std::string &suffix) {
@@ -251,28 +237,29 @@ int main(int argc, char **argv) {
       return 1;
     }
   }
+  if (servingSoPath.empty()) {
+    std::cerr << "buddy-server: no resident serving plugin specified.\n";
+    if (!modelConfig.raxPath.empty()) {
+      std::cerr << "The .rax manifest has no serving_library; pass "
+                   "--serving-so <path.so> or rebuild the .rax with "
+                   "serving_library.\n";
+    } else {
+      std::cerr << "Pass --serving-so <path.so> for legacy --model-so mode.\n";
+    }
+    return 1;
+  }
 
   std::unique_ptr<buddy::server::ResidentModelPluginHandle> pluginHandle;
   buddy::server::ResidentModelPluginHandle::ModelPtr model(
       nullptr, [](ResidentModel *m) { delete m; });
   try {
-    if (!servingSoPath.empty()) {
-      pluginHandle = std::make_unique<buddy::server::ResidentModelPluginHandle>(
-          servingSoPath);
-      if (modelType.empty()) {
-        modelType = pluginHandle->modelType().empty()
-                        ? "plugin"
-                        : pluginHandle->modelType();
-      }
-      model = pluginHandle->createModel();
-    } else {
-      if (modelType.empty())
-        modelType = "deepseek_r1";
-      std::unique_ptr<ResidentModel> builtInModel =
-          buddy::server::createResidentModel(modelType);
-      model = buddy::server::ResidentModelPluginHandle::ModelPtr(
-          builtInModel.release(), [](ResidentModel *m) { delete m; });
+    pluginHandle = std::make_unique<buddy::server::ResidentModelPluginHandle>(
+        servingSoPath);
+    if (modelType.empty()) {
+      const std::string pluginType = pluginHandle->modelType();
+      modelType = pluginType.empty() ? "plugin" : pluginType;
     }
+    model = pluginHandle->createModel();
   } catch (const std::exception &ex) {
     std::cerr << ex.what() << "\n";
     return 1;
