@@ -1,0 +1,13 @@
+{
+  "hf_model_path": "/home/gnhuang/models/proteinglm-1b-mlm",
+  "model_family": "proteinglm",
+  "variant": "base",
+  "model_id": "proteinglm_1b_mlm",
+  "max_seq_len": 1024,
+  "hidden_size": 2048,
+  "vocab_size": 128,
+  "top_k": 5,
+  "weight_file": "arg0.data",
+  "so_name": "proteinglm_model.so",
+  "tokenizer_file": "tokenizer.model"
+}
