@@ -471,6 +471,18 @@ def link(src, dst):
     os.symlink(os.path.realpath(src), dst)
 
 
+def file_bytes(path):
+    return os.path.getsize(path)
+
+
+def rhal_file_constant(idx, name, path):
+    return (
+        f'  rhal.constant @{name} {{id = {idx} : i32, storage = "external",\n'
+        f"                                type = tensor<{file_bytes(path)}xi8>,\n"
+        f'                                uri = "file:{os.path.basename(path)}"}}\n'
+    )
+
+
 def cmd_stage(args):
     os.makedirs(PKG_DIR, exist_ok=True)
     rax_pack = os.environ.get(
@@ -521,28 +533,53 @@ def cmd_stage(args):
     print("[stage] pre-processing bundled test image ...")
     subprocess.run(["bash", sh, TEST_IMAGE, PROMPT, PKG_DIR], check=True)
 
-    vision_weights = 405049344
+    resources = [
+        ("vision_weights", "vision_weights.data"),
+        ("decoder_weights", "decoder_weights.data"),
+        ("embed_table", "embed_table.bin"),
+        ("pixel_values", "pixel_values.bin"),
+        ("input_ids", "input_ids.i64"),
+        ("img_pos", "img_pos.i64"),
+        ("cos", "cos.bin"),
+        ("sin", "sin.bin"),
+        ("cmask", "cmask.bin"),
+        ("meta", "meta.txt"),
+        ("preprocess_script", "preprocess.sh"),
+    ]
+    constants = "".join(
+        rhal_file_constant(idx, name, os.path.join(PKG_DIR, filename))
+        for idx, (name, filename) in enumerate(resources, start=1)
+    )
     manifest = f"""rhal.module @qwen3_vl attributes {{
     version = "0.1.0",
     model_name = "qwen3_vl",
     vocab_uri = "file:vocab.txt",
     runner_library = "file:qwen3_vl_runner.so"}} {{
-  rhal.constant @vision_params {{id = 1 : i32, storage = "external",
-                                type = tensor<{vision_weights}xf32>,
-                                uri = "file:vision_weights.data"}}
-  rhal.codeobj @model_kernels {{id = 1 : i32, kind = "host_shared_lib",
+{constants}  rhal.codeobj @vision_kernels {{id = 1 : i32, kind = "host_shared_lib",
                                 backend = "cpu", uri = "file:vision_shim.so"}}
+  rhal.codeobj @decoder_kernels {{id = 2 : i32, kind = "host_shared_lib",
+                                backend = "cpu", uri = "file:decoder_shim.so"}}
   rhal.buffer @pixel  {{space = "host", type = tensor<392x1536xf32>}}
   rhal.buffer @logits {{space = "host", type = tensor<1x{MAX_SEQ_LEN}x{VOCAB_SIZE}xf32>}}
-  rhal.func @forward {{inputs = ["pixel"], outputs = ["logits"],
-                      dispatch = "model_kernels", args = ["pixel", "logits"]}}
+  rhal.func @forward_vision {{inputs = ["pixel"], outputs = ["logits"],
+                      dispatch = "vision_kernels", args = ["pixel", "logits"]}}
+  rhal.func @forward_decoder {{inputs = ["pixel"], outputs = ["logits"],
+                      dispatch = "decoder_kernels", args = ["pixel", "logits"]}}
 }}
 """
     mpath = os.path.join(PKG_DIR, "qwen3_vl.mlir")
     with open(mpath, "w") as f:
         f.write(manifest)
     rax = os.path.join(PKG_DIR, "qwen3_vl.rax")
-    subprocess.run([rax_pack, mpath, "-o", rax], check=True)
+    cmd = [rax_pack, mpath, "-o", rax]
+    if os.environ.get("BUDDY_RAX_EMBED_PAYLOAD", "ON").upper() not in {
+        "0",
+        "FALSE",
+        "OFF",
+        "NO",
+    }:
+        cmd.append("--embed-payload")
+    subprocess.run(cmd, check=True)
     print(f"[stage] package ready: {PKG_DIR}")
     print(
         f"[run]  {REPO}/build/bin/buddy-cli --model {rax} \\\n"

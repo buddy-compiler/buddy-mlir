@@ -35,6 +35,7 @@
 
 #include "buddy/runtime/models/Qwen3VLRunner.h"
 #include "buddy/LLM/TextContainer.h"
+#include "buddy/runtime/core/ModelManifest.h"
 
 #include <cstdint>
 #include <cstdio>
@@ -48,6 +49,7 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <unordered_map>
 #include <vector>
 
 namespace fs = std::filesystem;
@@ -117,6 +119,31 @@ void *dlopenOrThrow(const std::string &path) {
   return h;
 }
 
+struct Qwen3VLPackage {
+  fs::path workDir;
+  std::unordered_map<std::string, std::string> constants;
+  std::unordered_map<std::string, std::string> codeObjects;
+  std::string vocabPath;
+
+  std::string file(const char *name, const char *fallback) const {
+    auto it = constants.find(name);
+    if (it != constants.end())
+      return it->second;
+    return (workDir / fallback).string();
+  }
+
+  std::string code(const char *name, const char *fallback) const {
+    auto it = codeObjects.find(name);
+    if (it != codeObjects.end())
+      return it->second;
+    return (workDir / fallback).string();
+  }
+
+  std::string vocab() const {
+    return vocabPath.empty() ? (workDir / "vocab.txt").string() : vocabPath;
+  }
+};
+
 } // namespace
 
 namespace buddy {
@@ -124,10 +151,21 @@ namespace runtime {
 
 void Qwen3VLRunner::run(const RunConfig &cfg) {
   // ── Resolve the package directory (where the .rax + artifacts live). ──
-  fs::path dir = cfg.raxPath.empty()
-                     ? fs::current_path()
-                     : fs::absolute(fs::path(cfg.raxPath)).parent_path();
-  auto P = [&](const char *n) { return (dir / n).string(); };
+  Qwen3VLPackage pkg;
+  pkg.workDir = cfg.raxPath.empty()
+                    ? fs::current_path()
+                    : fs::absolute(fs::path(cfg.raxPath)).parent_path();
+  if (!cfg.raxPath.empty()) {
+    auto manifest = ModelManifest::loadFromRax(cfg.raxPath);
+    for (const auto &constant : manifest.constants)
+      pkg.constants[constant.name] = constant.path;
+    for (const auto &codeObject : manifest.codeObjects)
+      pkg.codeObjects[codeObject.name] = codeObject.path;
+    pkg.vocabPath = manifest.vocabPath;
+    auto it = pkg.constants.find("preprocess_script");
+    if (it != pkg.constants.end())
+      pkg.workDir = fs::absolute(fs::path(it->second)).parent_path();
+  }
   const bool quiet = cfg.suppressStats;
   auto log = [&](const std::string &s) {
     if (!quiet)
@@ -140,8 +178,9 @@ void Qwen3VLRunner::run(const RunConfig &cfg) {
   if (!cfg.imagePath.empty() && cfg.imagePath != "bundled") {
     std::string prompt =
         cfg.prompt.empty() ? "Read all the text in the image." : cfg.prompt;
-    std::string cmd = "bash '" + P("preprocess.sh") + "' '" + cfg.imagePath +
-                      "' '" + prompt + "' '" + dir.string() + "'";
+    std::string cmd =
+        "bash '" + pkg.file("preprocess_script", "preprocess.sh") + "' '" +
+        cfg.imagePath + "' '" + prompt + "' '" + pkg.workDir.string() + "'";
     log("preprocessing image: " + cfg.imagePath);
     if (std::system(cmd.c_str()) != 0)
       throw std::runtime_error("preprocess.sh failed");
@@ -151,15 +190,15 @@ void Qwen3VLRunner::run(const RunConfig &cfg) {
   size_t S0 = 116, N = 160, NIMG = 98, HID = 2048, VOCAB = 151936;
   const size_t HEAD_DIM = 128;
   {
-    std::ifstream m(P("meta.txt"));
+    std::ifstream m(pkg.file("meta", "meta.txt"));
     if (m)
       m >> S0 >> N >> NIMG >> HID >> VOCAB;
   }
   const std::vector<int> EOS = {151645, 151643};
 
-  log("loading compiled kernels + weights from " + dir.string());
-  void *visLib = dlopenOrThrow(P("vision_shim.so"));
-  void *decLib = dlopenOrThrow(P("decoder_shim.so"));
+  log("loading compiled kernels + weights from " + pkg.workDir.string());
+  void *visLib = dlopenOrThrow(pkg.code("vision_kernels", "vision_shim.so"));
+  void *decLib = dlopenOrThrow(pkg.code("decoder_kernels", "decoder_shim.so"));
   auto visionRun = reinterpret_cast<VisionFn>(dlsym(visLib, "qwen3vl_vision"));
   auto decoderRun =
       reinterpret_cast<DecoderFn>(dlsym(decLib, "qwen3vl_decoder"));
@@ -167,15 +206,17 @@ void Qwen3VLRunner::run(const RunConfig &cfg) {
     throw std::runtime_error("missing shim entry points");
 
   MappedFloats Wv, Wd, embed;
-  mapFloats(P("vision_weights.data"), Wv);
-  mapFloats(P("decoder_weights.data"), Wd);
-  mapFloats(P("embed_table.bin"), embed); // (VOCAB, HID), tied lm_head
-  std::vector<float> pixel = readFloats(P("pixel_values.bin"));
-  std::vector<int64_t> inputIds = readI64(P("input_ids.i64"));
-  std::vector<int64_t> imgPos = readI64(P("img_pos.i64"));
-  std::vector<float> cosv = readFloats(P("cos.bin")); // (N, HEAD_DIM)
-  std::vector<float> sinv = readFloats(P("sin.bin"));
-  std::vector<float> cmask = readFloats(P("cmask.bin")); // (1,1,N,N)
+  mapFloats(pkg.file("vision_weights", "vision_weights.data"), Wv);
+  mapFloats(pkg.file("decoder_weights", "decoder_weights.data"), Wd);
+  mapFloats(pkg.file("embed_table", "embed_table.bin"), embed);
+  std::vector<float> pixel =
+      readFloats(pkg.file("pixel_values", "pixel_values.bin"));
+  std::vector<int64_t> inputIds =
+      readI64(pkg.file("input_ids", "input_ids.i64"));
+  std::vector<int64_t> imgPos = readI64(pkg.file("img_pos", "img_pos.i64"));
+  std::vector<float> cosv = readFloats(pkg.file("cos", "cos.bin"));
+  std::vector<float> sinv = readFloats(pkg.file("sin", "sin.bin"));
+  std::vector<float> cmask = readFloats(pkg.file("cmask", "cmask.bin"));
   auto embedRow = [&](int64_t tok) { return embed.data + (size_t)tok * HID; };
 
   // ── 1. Compiled vision encoder. ──
@@ -207,7 +248,7 @@ void Qwen3VLRunner::run(const RunConfig &cfg) {
   // ── 3. Greedy decode loop through the compiled decoder. ──
   log("greedy decoding through compiled decoder ...");
   Text<size_t, 2> out;
-  out.loadVocab(P("vocab.txt"));
+  out.loadVocab(pkg.vocab());
   std::vector<float> logits(N * VOCAB);
   for (size_t t = S0 - 1; t + 1 < N; ++t) {
     decoderRun(Wd.data, (long)Wd.count, ie.data(), cosv.data(), sinv.data(),

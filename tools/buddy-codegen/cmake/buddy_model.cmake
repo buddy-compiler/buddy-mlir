@@ -374,6 +374,11 @@ function(buddy_add_model)
     if(DEFINED ENV{PYTHONPATH})
       set(_Q_PYTHONPATH "${_Q_PYTHONPATH}:$ENV{PYTHONPATH}")
     endif()
+    if(BUDDY_RAX_EMBED_PAYLOAD)
+      set(_Q_RAX_EMBED_PAYLOAD ON)
+    else()
+      set(_Q_RAX_EMBED_PAYLOAD OFF)
+    endif()
 
     set(_Q_ENV
       BUDDY_MLIR_BUILD_DIR=${CMAKE_BINARY_DIR}
@@ -383,6 +388,7 @@ function(buddy_add_model)
       QWEN3_VL_OUT_DIR=${_Q_ART}
       QWEN3_VL_PKG=${BIN}
       QWEN3_VL_SPEC=${MDL_SPEC}
+      BUDDY_RAX_EMBED_PAYLOAD=${_Q_RAX_EMBED_PAYLOAD}
       QWEN3_VL_MODEL_PATH=${MDL_LOCAL_MODEL})
 
     add_custom_command(
