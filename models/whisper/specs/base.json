@@ -1,0 +1,18 @@
+{
+  "hf_model_path": "openai/whisper-base",
+  "model_family": "whisper",
+  "variant": "base",
+  "model_id": "whisper_base",
+  "params_size": 72593920,
+  "vocab_size": 51865,
+  "max_token_len": 448,
+  "mel_bins": 80,
+  "audio_frames": 3000,
+  "enc_seq": 1500,
+  "enc_dim": 512,
+  "sot_token": 50258,
+  "eot_token": 50257,
+  "weight_file": "arg0.data",
+  "so_name": "whisper_model.so",
+  "vocab_file": "vocab.txt"
+}
