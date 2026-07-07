@@ -222,10 +222,10 @@ private:
       throw std::runtime_error(
           "BgeM3Tokenizer: precompiled_charsmap XCDA blob out of bounds");
 
-    xcdaArray_ = reinterpret_cast<const uint32_t *>(charsmap_.data() + offset);
+    xcdaArrayOffset_ = offset;
     xcdaArraySize_ = xcdaBlobSize / sizeof(uint32_t);
     offset += xcdaBlobSize;
-    prefixReplacements_ = charsmap_.data() + offset;
+    prefixReplacementsOffset_ = offset;
     prefixReplacementsSize_ = charsmap_.size() - offset;
   }
 
@@ -297,7 +297,11 @@ private:
   uint32_t xcdaNode(size_t index) const {
     if (index >= xcdaArraySize_)
       throw std::runtime_error("BgeM3Tokenizer: XCDA index out of bounds");
-    return xcdaArray_[index];
+    uint32_t value;
+    std::memcpy(&value,
+                charsmap_.data() + xcdaArrayOffset_ + index * sizeof(uint32_t),
+                sizeof(uint32_t));
+    return value;
   }
   uint32_t xcdaBase(size_t index) const {
     uint32_t n = xcdaNode(index);
@@ -372,7 +376,8 @@ private:
       if (longestReplOffset >= prefixReplacementsSize_)
         throw std::runtime_error(
             "BgeM3Tokenizer: charsmap replacement offset out of bounds");
-      const char *repl = prefixReplacements_ + longestReplOffset;
+      const char *repl =
+          charsmap_.data() + prefixReplacementsOffset_ + longestReplOffset;
       return {repl, std::strlen(repl), longestLen};
     }
 
@@ -531,10 +536,15 @@ private:
   TrieNode tokenMatcher_;
   TrieNode specialMatcher_;
 
+  // XCDA array / prefix replacement blob are stored as byte offsets into
+  // charsmap_ (not raw pointers) so this object stays safe to copy/move: a
+  // copied charsmap_ gets its own buffer at a new address, and offsets are
+  // still valid into it, whereas pointers computed from the original buffer
+  // would silently dangle.
   std::vector<char> charsmap_;
-  const uint32_t *xcdaArray_ = nullptr;
+  size_t xcdaArrayOffset_ = 0;
   size_t xcdaArraySize_ = 0;
-  const char *prefixReplacements_ = nullptr;
+  size_t prefixReplacementsOffset_ = 0;
   size_t prefixReplacementsSize_ = 0;
 
   int64_t bosId_ = 0;
