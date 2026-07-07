@@ -88,8 +88,6 @@ def build_stages(
       - "forward":         partitioned forward dispatcher wrappers
       - "subgraph":        subgraph_prefill
       - "subgraph_decode": subgraph_decode
-      - "single_forward":  single-forward dispatcher wrapper
-      - "single_subgraph": single-forward compute subgraph
     """
     stages = []
     llc_base_args = llc_attrs.split()
@@ -108,122 +106,6 @@ def build_stages(
                     "-cse",
                 ]
                 + LOWER_TO_LLVM,
-            )
-        )
-        stages.append(("mlir-translate", ["-mlir-to-llvmir"]))
-        stages.append(("llvm-as", []))
-        stages.append(
-            (
-                "llc",
-                llc_base_args
-                + [
-                    "-filetype=obj",
-                    "-relocation-model=pic",
-                    "-O3",
-                ],
-            )
-        )
-        return stages
-
-    if pipeline_type == "single_forward":
-        stages.append(
-            (
-                "mlir-opt",
-                [
-                    "-pass-pipeline",
-                    "builtin.module(func.func(tosa-to-linalg-named, "
-                    "tosa-to-linalg, tosa-to-tensor, tosa-to-arith), "
-                    "empty-tensor-to-alloc-tensor, "
-                    "convert-elementwise-to-linalg)",
-                ],
-            )
-        )
-        stages.append(
-            (
-                "buddy-opt",
-                [
-                    "-pass-pipeline",
-                    "builtin.module(func.func(buffer-deallocation-simplification, "
-                    "convert-linalg-to-loops),matmul-parallel-vectorization-optimize, "
-                    "batchmatmul-optimize, eliminate-empty-tensors, "
-                    "func.func(llvm-request-c-wrappers),convert-scf-to-openmp, "
-                    "convert-openmp-to-llvm, convert-math-to-llvm, "
-                    "convert-math-to-libm, convert-scf-to-cf, "
-                    "convert-arith-to-llvm, expand-strided-metadata, "
-                    "finalize-memref-to-llvm, convert-func-to-llvm, "
-                    "reconcile-unrealized-casts)",
-                ],
-            )
-        )
-        stages.append(("mlir-translate", ["-mlir-to-llvmir"]))
-        stages.append(("llvm-as", []))
-        stages.append(
-            (
-                "llc",
-                llc_base_args
-                + [
-                    "-filetype=obj",
-                    "-relocation-model=pic",
-                    "-O0",
-                ],
-            )
-        )
-        return stages
-
-    if pipeline_type == "single_subgraph":
-        stages.append(
-            (
-                "mlir-opt",
-                [
-                    "-pass-pipeline",
-                    "builtin.module(func.func(tosa-to-linalg-named, "
-                    "tosa-to-linalg, tosa-to-tensor, tosa-to-arith))",
-                ],
-            )
-        )
-        stages.append(
-            (
-                "mlir-opt",
-                ["-test-linalg-transform-patterns=test-decompose-pad-tensor"],
-            )
-        )
-        stages.append(
-            (
-                "buddy-opt",
-                [
-                    "-arith-expand",
-                    "-eliminate-empty-tensors",
-                    "-convert-elementwise-to-linalg",
-                    "-empty-tensor-to-alloc-tensor",
-                    "-one-shot-bufferize=bufferize-function-boundaries",
-                    "-ownership-based-buffer-deallocation",
-                    "-buffer-deallocation-simplification",
-                    "-bufferization-lower-deallocations",
-                    "-matmul-parallel-vectorization-optimize",
-                    "-convert-linalg-to-affine-loops",
-                    "-affine-loop-fusion",
-                    "-affine-parallelize",
-                    "-lower-affine",
-                    "-convert-scf-to-openmp",
-                    "-convert-linalg-to-loops",
-                    "-convert-vector-to-scf",
-                    "-expand-strided-metadata",
-                    "-lower-affine",
-                    "-cse",
-                    "-convert-vector-to-llvm",
-                    "-memref-expand",
-                    "-convert-arith-to-llvm",
-                    "-finalize-memref-to-llvm",
-                    "-convert-scf-to-cf",
-                    "-convert-cf-to-llvm",
-                    "-llvm-request-c-wrappers",
-                    "-convert-openmp-to-llvm",
-                    "-convert-arith-to-llvm",
-                    "-convert-math-to-llvm",
-                    "-convert-math-to-libm",
-                    "-convert-func-to-llvm",
-                    "-reconcile-unrealized-casts",
-                ],
             )
         )
         stages.append(("mlir-translate", ["-mlir-to-llvmir"]))
@@ -575,53 +457,6 @@ def compile_all(
     print("[compile] All done.", file=sys.stderr)
 
 
-def compile_single_forward(
-    mlir_dir: str,
-    output_dir: str,
-    buddy_opt: str,
-    llvm_dir: str,
-    llc_attrs: str,
-    forward_mlir: str = "forward.mlir",
-    subgraph_mlir: str = "subgraph0.mlir",
-    forward_obj: str = "forward.o",
-    subgraph_obj: str = "subgraph0.o",
-) -> list[str]:
-    """Compile a single-forward graph pair and return produced object files."""
-    os.makedirs(output_dir, exist_ok=True)
-    entries = [
-        (
-            "forward",
-            "single_forward",
-            os.path.join(mlir_dir, forward_mlir),
-            os.path.join(output_dir, forward_obj),
-        ),
-        (
-            "subgraph",
-            "single_subgraph",
-            os.path.join(mlir_dir, subgraph_mlir),
-            os.path.join(output_dir, subgraph_obj),
-        ),
-    ]
-    outputs = []
-    for name, pipeline_type, input_path, output_path in entries:
-        if not os.path.exists(input_path):
-            raise FileNotFoundError(input_path)
-        stages = build_stages(
-            pipeline_type,
-            num_threads=1,
-            llc_attrs=llc_attrs,
-        )
-        print(
-            f"[compile] {os.path.basename(input_path)} → "
-            f"{os.path.basename(output_path)} (pipeline={pipeline_type})",
-            file=sys.stderr,
-        )
-        run_pipeline(stages, input_path, output_path, buddy_opt, llvm_dir)
-        outputs.append(output_path)
-    print("[compile] Single-forward compile done.", file=sys.stderr)
-    return outputs
-
-
 def partitioned_compile_entries(
     mlir_dir: str,
     prefill_only: bool = False,
@@ -958,24 +793,12 @@ def main():
         action="store_true",
         help="Compile per-layer MLIR files emitted under layer_partitioned",
     )
-    mode.add_argument(
-        "--compile-single-forward",
-        action="store_true",
-        help="Compile forward.mlir and subgraph0.mlir for encoder/single-forward models",
-    )
     mode.add_argument("--input", help="Single MLIR file to compile")
 
     parser.add_argument("--output", help="Output .o file (single-file mode)")
     parser.add_argument(
         "--pipeline",
-        choices=[
-            "standard",
-            "forward",
-            "subgraph",
-            "subgraph_decode",
-            "single_forward",
-            "single_subgraph",
-        ],
+        choices=["standard", "forward", "subgraph", "subgraph_decode"],
         help="Pipeline type (single-file mode)",
     )
     parser.add_argument(
@@ -1031,16 +854,6 @@ def main():
     parser.add_argument(
         "--full-mlir-dir",
         help="Directory containing whole-graph MLIR files for mixed partitioning",
-    )
-    parser.add_argument(
-        "--forward-mlir",
-        default="forward.mlir",
-        help="Forward MLIR filename for --compile-single-forward",
-    )
-    parser.add_argument(
-        "--subgraph-mlir",
-        default="subgraph0.mlir",
-        help="Subgraph MLIR filename for --compile-single-forward",
     )
 
     args = parser.parse_args()
@@ -1105,31 +918,6 @@ def main():
                     config,
                     prefill_only=args.partitioned_prefill_only,
                 ),
-                output_so=output_so,
-                cxx=args.cxx,
-                llvm_lib_dir=args.llvm_lib_dir,
-                openmp_runtime_lib=args.openmp_runtime_lib,
-            )
-    elif args.compile_single_forward:
-        if not args.mlir_dir or not args.output_dir:
-            parser.error(
-                "--compile-single-forward requires --mlir-dir and --output-dir"
-            )
-        obj_files = compile_single_forward(
-            mlir_dir=args.mlir_dir,
-            output_dir=args.output_dir,
-            buddy_opt=args.buddy_opt,
-            llvm_dir=args.llvm_tools_dir,
-            llc_attrs=args.llc_attrs,
-            forward_mlir=args.forward_mlir,
-            subgraph_mlir=args.subgraph_mlir,
-        )
-        if args.link:
-            output_so = args.output_so or os.path.join(
-                args.output_dir, config["so_name"]
-            )
-            link_shared_lib(
-                obj_files=obj_files,
                 output_so=output_so,
                 cxx=args.cxx,
                 llvm_lib_dir=args.llvm_lib_dir,
