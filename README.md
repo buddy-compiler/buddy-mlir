@@ -163,14 +163,9 @@ Whisper uses the same `.rax` / `buddy-cli` deployment path, with an audio input:
 `models/qwen3_vl` is a self-contained vision-language model (ViT + DeepStack
 encoder feeding a dense Qwen3 decoder) that runs end-to-end on buddy-compiled
 kernels via `buddy-cli`. Use the same `tools/buddy-codegen/build_model.py` entry
-point with the Qwen3-VL spec:
+point with the Qwen3-VL spec (a local HuggingFace snapshot is required):
 
 ```bash
-conda activate buddy
-export BUDDY_MLIR_BUILD_DIR=$PWD/build
-export LLVM_MLIR_BUILD_DIR=$PWD/llvm/build
-export PYTHONPATH=${BUDDY_MLIR_BUILD_DIR}/python_packages:${PYTHONPATH}
-
 python3 tools/buddy-codegen/build_model.py \
   --spec models/qwen3_vl/specs/instruct_2b.json \
   --build-dir build \

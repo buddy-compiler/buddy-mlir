@@ -19,21 +19,21 @@ multimodal build kind because the model emits separate vision and decoder shims.
 ## Build
 
 Use the same `tools/buddy-codegen/build_model.py` entry point as the other
-packaged models. It configures CMake, imports the model, compiles the kernels,
-builds the runner plugin, and stages `qwen3_vl.rax`:
+packaged models (DeepSeek R1, Whisper). It imports the model, compiles the vision
+and decoder kernels, builds the runner plugin, and stages `qwen3_vl.rax`. Qwen3-VL
+requires a local HuggingFace snapshot, so `--local-model` is mandatory:
 
 ```bash
 cd buddy-mlir
-conda activate buddy
-export BUDDY_MLIR_BUILD_DIR=$PWD/build
-export LLVM_MLIR_BUILD_DIR=$PWD/llvm/build
-export PYTHONPATH=${BUDDY_MLIR_BUILD_DIR}/python_packages:${PYTHONPATH}
-
 python3 tools/buddy-codegen/build_model.py \
   --spec models/qwen3_vl/specs/instruct_2b.json \
   --build-dir build \
   --local-model /path/to/Qwen3-VL-2B-Instruct
 ```
+
+This assumes LLVM/MLIR and `buddy-mlir` are already built per the top-level
+[README](../../README.md) (the `build/` directory configured against the in-tree
+`llvm/build`).
 
 The import and the two MLIR compiles run as part of the target and are the slow
 part (a few minutes each). The build emits these artifacts under
