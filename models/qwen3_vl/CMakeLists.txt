@@ -12,6 +12,10 @@ set(BUDDY_QWEN3_VL_SPEC
   CACHE FILEPATH "Qwen3-VL variant spec JSON")
 set(BUDDY_QWEN3_VL_MODEL_PATH "" CACHE PATH
   "Local HuggingFace Qwen3-VL-2B-Instruct directory")
+set(BUDDY_QWEN3_VL_NUM_THREADS "1" CACHE STRING
+  "OpenMP thread count baked into Qwen3-VL compiled kernels")
+set(BUDDY_QWEN3_VL_LLC_ATTRS "" CACHE STRING
+  "Optional Qwen3-VL LLC target attributes; empty uses buddy_add_model platform defaults")
 
 buddy_add_model(
   NAME qwen3_vl
@@ -20,4 +24,6 @@ buddy_add_model(
   RUNNER_SRC Qwen3VLRunner.cpp
   RUNNER_PLUGIN_SRC Qwen3VLRunnerPlugin.cpp
   LOCAL_MODEL "${BUDDY_QWEN3_VL_MODEL_PATH}"
+  NUM_THREADS "${BUDDY_QWEN3_VL_NUM_THREADS}"
+  LLC_ATTRS "${BUDDY_QWEN3_VL_LLC_ATTRS}"
 )

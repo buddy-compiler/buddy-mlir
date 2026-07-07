@@ -27,9 +27,9 @@
 // the .rax (resolved from cfg.raxPath), mirroring how Whisper bundles
 // audio.wav.
 //
-// NOTE: on-the-fly image preprocessing (PNG decode + Qwen smart-resize +
-// patchify) is not yet implemented; the runner consumes a bundled, pre-computed
-// pixel_values.bin. Everything downstream is the real compiled model.
+// Per-query image preprocessing is delegated to the packaged Python helper so
+// the compiled model still receives the fixed-grid tensors it was imported for.
+// A pure-C++ preprocessing path is future work.
 //
 //===----------------------------------------------------------------------===//
 
@@ -37,17 +37,24 @@
 #include "buddy/LLM/TextContainer.h"
 #include "buddy/runtime/core/ModelManifest.h"
 
+#include <algorithm>
+#include <cerrno>
+#include <chrono>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <dlfcn.h>
 #include <fcntl.h>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <unistd.h>
 #include <unordered_map>
 #include <vector>
@@ -70,7 +77,7 @@ struct MappedFloats {
   void *base = nullptr;
   size_t bytes = 0;
   ~MappedFloats() {
-    if (base)
+    if (base && base != MAP_FAILED)
       munmap(base, bytes);
   }
 };
@@ -80,35 +87,58 @@ void mapFloats(const std::string &path, MappedFloats &out) {
   if (fd < 0)
     throw std::runtime_error("cannot open " + path);
   struct stat st;
-  fstat(fd, &st);
+  if (fstat(fd, &st) != 0) {
+    close(fd);
+    throw std::runtime_error("fstat failed " + path);
+  }
   out.bytes = st.st_size;
+  if (out.bytes == 0 || out.bytes % sizeof(float) != 0) {
+    close(fd);
+    throw std::runtime_error("invalid float file size: " + path);
+  }
   out.base = mmap(nullptr, out.bytes, PROT_READ, MAP_PRIVATE, fd, 0);
   close(fd);
-  if (out.base == MAP_FAILED)
+  if (out.base == MAP_FAILED) {
+    out.base = nullptr;
     throw std::runtime_error("mmap failed " + path);
+  }
   out.data = reinterpret_cast<const float *>(out.base);
   out.count = out.bytes / sizeof(float);
 }
 
-std::vector<float> readFloats(const std::string &path) {
+std::vector<float> readFloats(const std::string &path, size_t expected = 0) {
   std::ifstream f(path, std::ios::binary | std::ios::ate);
   if (!f)
     throw std::runtime_error("cannot open " + path);
-  size_t n = f.tellg() / sizeof(float);
+  size_t bytes = static_cast<size_t>(f.tellg());
+  if (bytes % sizeof(float) != 0)
+    throw std::runtime_error("invalid float file size: " + path);
+  size_t n = bytes / sizeof(float);
+  if (expected && n != expected)
+    throw std::runtime_error("unexpected float count in " + path);
   f.seekg(0);
   std::vector<float> v(n);
   f.read(reinterpret_cast<char *>(v.data()), n * sizeof(float));
+  if (!f)
+    throw std::runtime_error("short read from " + path);
   return v;
 }
 
-std::vector<int64_t> readI64(const std::string &path) {
+std::vector<int64_t> readI64(const std::string &path, size_t expected = 0) {
   std::ifstream f(path, std::ios::binary | std::ios::ate);
   if (!f)
     throw std::runtime_error("cannot open " + path);
-  size_t n = f.tellg() / sizeof(int64_t);
+  size_t bytes = static_cast<size_t>(f.tellg());
+  if (bytes % sizeof(int64_t) != 0)
+    throw std::runtime_error("invalid int64 file size: " + path);
+  size_t n = bytes / sizeof(int64_t);
+  if (expected && n != expected)
+    throw std::runtime_error("unexpected int64 count in " + path);
   f.seekg(0);
   std::vector<int64_t> v(n);
   f.read(reinterpret_cast<char *>(v.data()), n * sizeof(int64_t));
+  if (!f)
+    throw std::runtime_error("short read from " + path);
   return v;
 }
 
@@ -121,11 +151,17 @@ void *dlopenOrThrow(const std::string &path) {
 
 struct Qwen3VLPackage {
   fs::path workDir;
+  fs::path queryDir;
   std::unordered_map<std::string, std::string> constants;
   std::unordered_map<std::string, std::string> codeObjects;
   std::string vocabPath;
 
   std::string file(const char *name, const char *fallback) const {
+    static const std::vector<std::string> dynamicNames = {
+        "pixel_values", "input_ids", "img_pos", "cos", "sin", "cmask", "meta"};
+    if (!queryDir.empty() && std::find(dynamicNames.begin(), dynamicNames.end(),
+                                       name) != dynamicNames.end())
+      return (queryDir / fallback).string();
     auto it = constants.find(name);
     if (it != constants.end())
       return it->second;
@@ -143,6 +179,92 @@ struct Qwen3VLPackage {
     return vocabPath.empty() ? (workDir / "vocab.txt").string() : vocabPath;
   }
 };
+
+struct ScopedDir {
+  fs::path path;
+  ~ScopedDir() {
+    if (!path.empty()) {
+      std::error_code ec;
+      fs::remove_all(path, ec);
+    }
+  }
+};
+
+fs::path makeTempDir() {
+  fs::path base = fs::temp_directory_path() / "buddy-qwen3-vl";
+  fs::create_directories(base);
+  for (int i = 0; i < 100; ++i) {
+    fs::path candidate =
+        base / (std::to_string(getpid()) + "-" + std::to_string(i));
+    std::error_code ec;
+    if (fs::create_directory(candidate, ec))
+      return candidate;
+  }
+  throw std::runtime_error("failed to create qwen3_vl temporary directory");
+}
+
+void runProcess(const std::vector<std::string> &args) {
+  if (args.empty())
+    throw std::runtime_error("runProcess called with no arguments");
+
+  std::vector<char *> argv;
+  argv.reserve(args.size() + 1);
+  for (const auto &arg : args)
+    argv.push_back(const_cast<char *>(arg.c_str()));
+  argv.push_back(nullptr);
+
+  pid_t pid = fork();
+  if (pid < 0)
+    throw std::runtime_error(std::string("fork failed: ") + strerror(errno));
+  if (pid == 0) {
+    execvp(argv[0], argv.data());
+    std::_Exit(127);
+  }
+
+  int status = 0;
+  if (waitpid(pid, &status, 0) < 0)
+    throw std::runtime_error(std::string("waitpid failed: ") + strerror(errno));
+  if (!WIFEXITED(status))
+    throw std::runtime_error("preprocess.sh did not exit normally");
+  if (WEXITSTATUS(status) != 0)
+    throw std::runtime_error("preprocess.sh failed with exit code " +
+                             std::to_string(WEXITSTATUS(status)));
+}
+
+size_t checkedMul(size_t a, size_t b, const char *what) {
+  if (a != 0 && b > std::numeric_limits<size_t>::max() / a)
+    throw std::runtime_error(std::string("size overflow: ") + what);
+  return a * b;
+}
+
+std::vector<std::string> splitUtf8Chars(const std::string &text) {
+  std::vector<std::string> chars;
+  for (size_t i = 0; i < text.size();) {
+    const unsigned char c = static_cast<unsigned char>(text[i]);
+    size_t len = 1;
+    if ((c & 0xE0) == 0xC0)
+      len = 2;
+    else if ((c & 0xF0) == 0xE0)
+      len = 3;
+    else if ((c & 0xF8) == 0xF0)
+      len = 4;
+    if (i + len > text.size())
+      len = 1;
+    chars.emplace_back(text.substr(i, len));
+    i += len;
+  }
+  return chars;
+}
+
+std::string displayChar(const std::string &text) {
+  if (text == "\n")
+    return "\\n";
+  if (text == "\r")
+    return "\\r";
+  if (text == "\t")
+    return "\\t";
+  return text;
+}
 
 } // namespace
 
@@ -175,15 +297,15 @@ void Qwen3VLRunner::run(const RunConfig &cfg) {
   // ── Per-query preprocessing for a real --image (HF processor via Python). ──
   // Produces pixel_values/input_ids/img_pos/cos/sin/cmask/meta in `dir`. With
   // no --image (or --image bundled) the runner uses whatever is already staged.
+  ScopedDir query;
   if (!cfg.imagePath.empty() && cfg.imagePath != "bundled") {
     std::string prompt =
         cfg.prompt.empty() ? "Read all the text in the image." : cfg.prompt;
-    std::string cmd =
-        "bash '" + pkg.file("preprocess_script", "preprocess.sh") + "' '" +
-        cfg.imagePath + "' '" + prompt + "' '" + pkg.workDir.string() + "'";
+    query.path = makeTempDir();
+    pkg.queryDir = query.path;
     log("preprocessing image: " + cfg.imagePath);
-    if (std::system(cmd.c_str()) != 0)
-      throw std::runtime_error("preprocess.sh failed");
+    runProcess({"bash", pkg.file("preprocess_script", "preprocess.sh"),
+                cfg.imagePath, prompt, pkg.queryDir.string()});
   }
 
   // ── Dimensions (per-query seq from meta; rest are model constants). ──
@@ -193,7 +315,11 @@ void Qwen3VLRunner::run(const RunConfig &cfg) {
     std::ifstream m(pkg.file("meta", "meta.txt"));
     if (m)
       m >> S0 >> N >> NIMG >> HID >> VOCAB;
+    if (!m)
+      throw std::runtime_error("cannot read qwen3_vl meta.txt");
   }
+  if (S0 == 0 || S0 > N || N == 0 || NIMG == 0 || HID == 0 || VOCAB == 0)
+    throw std::runtime_error("invalid qwen3_vl dimensions in meta.txt");
   const std::vector<int> EOS = {151645, 151643};
 
   log("loading compiled kernels + weights from " + pkg.workDir.string());
@@ -210,13 +336,26 @@ void Qwen3VLRunner::run(const RunConfig &cfg) {
   mapFloats(pkg.file("decoder_weights", "decoder_weights.data"), Wd);
   mapFloats(pkg.file("embed_table", "embed_table.bin"), embed);
   std::vector<float> pixel =
-      readFloats(pkg.file("pixel_values", "pixel_values.bin"));
+      readFloats(pkg.file("pixel_values", "pixel_values.bin"), 392 * 1536);
   std::vector<int64_t> inputIds =
-      readI64(pkg.file("input_ids", "input_ids.i64"));
-  std::vector<int64_t> imgPos = readI64(pkg.file("img_pos", "img_pos.i64"));
-  std::vector<float> cosv = readFloats(pkg.file("cos", "cos.bin"));
-  std::vector<float> sinv = readFloats(pkg.file("sin", "sin.bin"));
-  std::vector<float> cmask = readFloats(pkg.file("cmask", "cmask.bin"));
+      readI64(pkg.file("input_ids", "input_ids.i64"), S0);
+  std::vector<int64_t> imgPos =
+      readI64(pkg.file("img_pos", "img_pos.i64"), NIMG);
+  std::vector<float> cosv =
+      readFloats(pkg.file("cos", "cos.bin"), checkedMul(N, HEAD_DIM, "cos"));
+  std::vector<float> sinv =
+      readFloats(pkg.file("sin", "sin.bin"), checkedMul(N, HEAD_DIM, "sin"));
+  std::vector<float> cmask =
+      readFloats(pkg.file("cmask", "cmask.bin"),
+                 checkedMul(checkedMul(N, N, "cmask"), 1, "cmask"));
+  if (embed.count < checkedMul(VOCAB, HID, "embed_table"))
+    throw std::runtime_error("embed_table.bin is smaller than meta dimensions");
+  for (int64_t tok : inputIds)
+    if (tok < 0 || static_cast<size_t>(tok) >= VOCAB)
+      throw std::runtime_error("input_ids.i64 contains token out of range");
+  for (int64_t pos : imgPos)
+    if (pos < 0 || static_cast<size_t>(pos) >= N)
+      throw std::runtime_error("img_pos.i64 contains position out of range");
   auto embedRow = [&](int64_t tok) { return embed.data + (size_t)tok * HID; };
 
   // ── 1. Compiled vision encoder. ──
@@ -250,10 +389,19 @@ void Qwen3VLRunner::run(const RunConfig &cfg) {
   Text<size_t, 2> out;
   out.loadVocab(pkg.vocab());
   std::vector<float> logits(N * VOCAB);
-  for (size_t t = S0 - 1; t + 1 < N; ++t) {
+  std::string streamedText;
+  size_t generated = 0;
+  const size_t maxNewTokens =
+      cfg.maxNewTokens > 0 ? static_cast<size_t>(cfg.maxNewTokens) : N;
+  for (size_t t = S0 - 1; t + 1 < N && generated < maxNewTokens; ++t) {
+    const auto stepStart = std::chrono::high_resolution_clock::now();
     decoderRun(Wd.data, (long)Wd.count, ie.data(), cosv.data(), sinv.data(),
                cmask.data(), df0.data(), df1.data(), df2.data(), logits.data(),
                (long)N, (long)VOCAB, (long)HID, (long)HEAD_DIM);
+    const double stepSecs =
+        std::chrono::duration<double>(
+            std::chrono::high_resolution_clock::now() - stepStart)
+            .count();
     const float *row = logits.data() + t * VOCAB;
     int tok = 0;
     for (size_t j = 1; j < VOCAB; ++j)
@@ -264,7 +412,24 @@ void Qwen3VLRunner::run(const RunConfig &cfg) {
       isEos |= (tok == e);
     if (isEos)
       break;
+    if (tok < 0 || static_cast<size_t>(tok) >= VOCAB)
+      throw std::runtime_error("decoder produced token out of range");
     out.appendTokenIdx((size_t)tok);
+    ++generated;
+    const std::string currentText = out.revertQwen3();
+    std::string delta;
+    if (currentText.size() > streamedText.size())
+      delta.assign(currentText.data() + streamedText.size(),
+                   currentText.size() - streamedText.size());
+    streamedText = currentText;
+    if (!quiet) {
+      for (const std::string &ch : splitUtf8Chars(delta)) {
+        std::cout << "\033[32;1m[Iteration " << generated << "]\033[0m "
+                  << "Char: " << displayChar(ch) << " | Token: " << tok
+                  << " | Time: " << stepSecs << "s\n";
+      }
+      std::cout.flush();
+    }
     std::copy(embedRow(tok), embedRow(tok) + HID, ie.begin() + (t + 1) * HID);
   }
 

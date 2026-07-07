@@ -15,10 +15,12 @@ Run in the buddy Python environment:
 """
 
 import argparse
+import itertools
 import os
 import shutil
 import subprocess
 import sys
+import tarfile
 
 import numpy as np
 import torch
@@ -50,6 +52,17 @@ CANON_WH = (
     448,
     224,
 )  # W,H -> grid [1,14,28], matching the compiled vision graph.
+PROCESSOR_ARCHIVE = "qwen3_vl_processor.tar"
+PROCESSOR_DIRNAME = "qwen3_vl_processor"
+PROCESSOR_EXCLUDE_SUFFIXES = (
+    ".bin",
+    ".h5",
+    ".onnx",
+    ".pt",
+    ".pth",
+    ".safetensors",
+    ".tflite",
+)
 
 
 def rmsnorm(x, w, eps=1e-6):
@@ -81,6 +94,20 @@ def load_processor_and_model(dtype=torch.float32, eager_attn=True):
     return processor, model
 
 
+def load_processor_and_config():
+    from transformers import AutoConfig, AutoProcessor
+
+    model_dir = os.environ.get("QWEN3_VL_MODEL_PATH") or MODEL_DIR
+    if not model_dir:
+        raise RuntimeError(
+            "QWEN3_VL_MODEL_PATH is required or a packaged "
+            f"{PROCESSOR_DIRNAME} directory must be present."
+        )
+    processor = AutoProcessor.from_pretrained(model_dir, local_files_only=True)
+    config = AutoConfig.from_pretrained(model_dir, local_files_only=True)
+    return processor, config
+
+
 def encode_image_prompt(processor, image_path, prompt):
     from PIL import Image
 
@@ -101,6 +128,89 @@ def encode_image_prompt(processor, image_path, prompt):
         return_dict=True,
         return_tensors="pt",
     )
+
+
+def vision_position_ids(start_pos, grid_thw, spatial_merge_size):
+    t, h, w = [int(x) for x in grid_thw]
+    llm_t = t
+    llm_h = h // spatial_merge_size
+    llm_w = w // spatial_merge_size
+    image_seq_length = llm_t * llm_h * llm_w
+    position_width = torch.arange(start_pos, start_pos + llm_w).repeat(
+        llm_h * llm_t
+    )
+    position_height = torch.arange(
+        start_pos, start_pos + llm_h
+    ).repeat_interleave(llm_w * llm_t)
+    position_temporal = torch.full(
+        (image_seq_length,), start_pos, dtype=torch.long
+    )
+    return torch.stack(
+        [position_temporal, position_height, position_width], dim=0
+    )
+
+
+def compute_3d_position_ids(
+    config, input_ids, image_grid_thw, mm_token_type_ids
+):
+    spatial_merge_size = config.vision_config.spatial_merge_size
+    position_ids = torch.zeros(
+        3,
+        input_ids.shape[0],
+        input_ids.shape[1],
+        dtype=input_ids.dtype,
+        device=input_ids.device,
+    )
+    image_iter = iter(image_grid_thw)
+
+    for batch_idx, _ in enumerate(input_ids):
+        input_token_type = mm_token_type_ids[batch_idx]
+        groups = []
+        for key, group in itertools.groupby(
+            enumerate(input_token_type.tolist()), lambda x: x[1]
+        ):
+            group = list(group)
+            groups.append((key, group[0][0], group[-1][0] + 1))
+
+        current_pos = 0
+        pos_chunks = []
+        for modality_type, start_idx, end_idx in groups:
+            if modality_type == 0:
+                text_len = end_idx - start_idx
+                pos_chunks.append(
+                    torch.arange(text_len, device=input_ids.device)
+                    .view(1, -1)
+                    .expand(3, -1)
+                    + current_pos
+                )
+                current_pos += text_len
+            elif modality_type == 1:
+                grid_thw = next(image_iter)
+                pos_chunks.append(
+                    vision_position_ids(
+                        current_pos, grid_thw, spatial_merge_size
+                    )
+                )
+                current_pos += (
+                    max(int(grid_thw[1]), int(grid_thw[2]))
+                    // spatial_merge_size
+                )
+            else:
+                raise RuntimeError(
+                    "video inputs are not supported by qwen3_vl OCR"
+                )
+        position_ids[:, batch_idx] = torch.cat(pos_chunks, dim=1).reshape(3, -1)
+    return position_ids
+
+
+def text_rotary(config, seq_len, hidden, rope_pos_n):
+    from transformers.models.qwen3_vl.modeling_qwen3_vl import (
+        Qwen3VLTextRotaryEmbedding,
+    )
+
+    rope = Qwen3VLTextRotaryEmbedding(config.text_config)
+    cos, sin = rope(torch.zeros(1, seq_len, hidden), rope_pos_n)
+    return cos, sin
 
 
 def capture_decoder_golden():
@@ -406,22 +516,22 @@ def cmd_preprocess(args):
     out = args.out_dir
     os.makedirs(out, exist_ok=True)
     torch.set_grad_enabled(False)
-    processor, model = load_processor_and_model(
-        torch.bfloat16, eager_attn=False
-    )
+    processor, config = load_processor_and_config()
     inputs = encode_image_prompt(processor, args.image_path, args.prompt)
 
     input_ids = inputs["input_ids"]
     grid = inputs["image_grid_thw"]
     prompt_len = input_ids.shape[1]
-    assert grid.tolist() == [[1, 14, 28]], f"unexpected grid {grid.tolist()}"
-    assert prompt_len < MAX_SEQ_LEN, (
-        f"prompt too long: S0={prompt_len} >= N={MAX_SEQ_LEN}"
-    )
+    if grid.tolist() != [[1, 14, 28]]:
+        raise RuntimeError(f"unexpected grid {grid.tolist()}")
+    if prompt_len >= MAX_SEQ_LEN:
+        raise RuntimeError(
+            f"prompt too long: S0={prompt_len} >= N={MAX_SEQ_LEN}"
+        )
 
-    pos = model.model.compute_3d_position_ids(
+    pos = compute_3d_position_ids(
+        config,
         input_ids=input_ids,
-        inputs_embeds=None,
         image_grid_thw=grid,
         mm_token_type_ids=inputs.get("mm_token_type_ids"),
     )
@@ -430,10 +540,8 @@ def cmd_preprocess(args):
     tail = torch.arange(max_pos + 1, max_pos + 1 + (MAX_SEQ_LEN - prompt_len))
     tail = tail.view(1, 1, -1).expand(3, 1, MAX_SEQ_LEN - prompt_len)
     rope_pos_n = torch.cat([rope_pos, tail], dim=2)
-    hidden = model.config.text_config.hidden_size
-    cos, sin = model.model.language_model.rotary_emb(
-        torch.zeros(1, MAX_SEQ_LEN, hidden), rope_pos_n
-    )
+    hidden = config.text_config.hidden_size
+    cos, sin = text_rotary(config, MAX_SEQ_LEN, hidden, rope_pos_n)
     cmask = np.triu(np.full((MAX_SEQ_LEN, MAX_SEQ_LEN), -np.inf, np.float32), 1)
     cmask = cmask.reshape(1, 1, MAX_SEQ_LEN, MAX_SEQ_LEN)
     img_pos = (input_ids[0] == IMAGE_TOKEN_ID).nonzero(as_tuple=True)[0].numpy()
@@ -455,7 +563,7 @@ def cmd_preprocess(args):
     with open(os.path.join(out, "meta.txt"), "w") as f:
         f.write(
             f"{prompt_len} {MAX_SEQ_LEN} {len(img_pos)} {hidden} "
-            f"{model.config.text_config.vocab_size}\n"
+            f"{config.text_config.vocab_size}\n"
         )
     print(
         f"[preprocess] S0={prompt_len} N={MAX_SEQ_LEN} "
@@ -463,12 +571,36 @@ def cmd_preprocess(args):
     )
 
 
-def link(src, dst):
-    if os.path.lexists(dst) and os.path.realpath(src) == os.path.realpath(dst):
-        return
+def stage_file(src, dst):
     if os.path.lexists(dst):
+        if not os.path.islink(dst) and os.path.realpath(
+            src
+        ) == os.path.realpath(dst):
+            return
         os.remove(dst)
-    os.symlink(os.path.realpath(src), dst)
+    shutil.copy2(src, dst)
+
+
+def stage_processor_archive(model_dir, dst):
+    if not model_dir or not os.path.isdir(model_dir):
+        raise RuntimeError("QWEN3_VL_MODEL_PATH must point to a model snapshot")
+
+    def include(path):
+        rel = os.path.relpath(path, model_dir)
+        parts = rel.split(os.sep)
+        if any(p in {".git", "__pycache__"} for p in parts):
+            return False
+        if os.path.isdir(path):
+            return True
+        return not path.endswith(PROCESSOR_EXCLUDE_SUFFIXES)
+
+    with tarfile.open(dst, "w") as tar:
+        for root, dirs, files in os.walk(model_dir):
+            dirs[:] = [d for d in dirs if include(os.path.join(root, d))]
+            for filename in files:
+                path = os.path.join(root, filename)
+                if include(path):
+                    tar.add(path, arcname=os.path.relpath(path, model_dir))
 
 
 def file_bytes(path):
@@ -492,46 +624,63 @@ def cmd_stage(args):
         "QWEN3_VL_RUNNER_SO", os.path.join(PKG_DIR, "qwen3_vl_runner.so")
     )
     vocab = os.path.join(REPO, "examples", "BuddyQwen3", "vocab.txt")
-    pybin = os.environ.get("BUDDY_PYTHON", sys.executable)
 
-    link(
+    stage_file(
         os.path.join(VISION_DIR, "vision_shim.so"),
         os.path.join(PKG_DIR, "vision_shim.so"),
     )
-    link(
+    stage_file(
         os.path.join(DECODER_DIR, "decoder_shim.so"),
         os.path.join(PKG_DIR, "decoder_shim.so"),
     )
-    link(
+    stage_file(
         os.path.join(VISION_DIR, "vision_arg0.data"),
         os.path.join(PKG_DIR, "vision_weights.data"),
     )
-    link(
+    stage_file(
         os.path.join(DECODER_DIR, "decoder_arg0.data"),
         os.path.join(PKG_DIR, "decoder_weights.data"),
     )
-    link(
+    stage_file(
         os.path.join(DECODER_DIR, "embed_table.bin"),
         os.path.join(PKG_DIR, "embed_table.bin"),
     )
-    link(runner_so, os.path.join(PKG_DIR, "qwen3_vl_runner.so"))
+    stage_file(runner_so, os.path.join(PKG_DIR, "qwen3_vl_runner.so"))
+    stage_file(__file__, os.path.join(PKG_DIR, "qwen3_vl_codegen.py"))
+    stage_processor_archive(MODEL_DIR, os.path.join(PKG_DIR, PROCESSOR_ARCHIVE))
     shutil.copy(vocab, os.path.join(PKG_DIR, "vocab.txt"))
 
     sh = os.path.join(PKG_DIR, "preprocess.sh")
     with open(sh, "w") as f:
         f.write(
-            "#!/usr/bin/env bash\nset -e\n"
-            f'export BUDDY_MLIR_BUILD_DIR="${{BUDDY_MLIR_BUILD_DIR:-{REPO}/build}}"\n'
-            f'export LLVM_MLIR_BUILD_DIR="${{LLVM_MLIR_BUILD_DIR:-{REPO}/llvm/build}}"\n'
-            'export PYTHONPATH="${BUDDY_MLIR_BUILD_DIR}/python_packages:${PYTHONPATH}"\n'
+            "#!/usr/bin/env bash\n"
+            "set -euo pipefail\n"
+            'SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"\n'
+            'export BUDDY_MLIR_BUILD_DIR="${BUDDY_MLIR_BUILD_DIR:-${SCRIPT_DIR}}"\n'
+            'export LLVM_MLIR_BUILD_DIR="${LLVM_MLIR_BUILD_DIR:-${SCRIPT_DIR}}"\n'
+            'export PYTHONPATH="${SCRIPT_DIR}/python_packages:${BUDDY_MLIR_BUILD_DIR}/python_packages:${PYTHONPATH:-}"\n'
             'export CUDA_VISIBLE_DEVICES=""\n'
-            f'export QWEN3_VL_MODEL_PATH="${{QWEN3_VL_MODEL_PATH:-{MODEL_DIR}}}"\n'
-            f'"{pybin}" "{__file__}" preprocess "$1" "$2" "$3"\n'
+            f'PROCESSOR_DIR="${{QWEN3_VL_PROCESSOR_DIR:-$3/{PROCESSOR_DIRNAME}}}"\n'
+            f'if [[ -z "${{QWEN3_VL_MODEL_PATH:-}}" && ! -d "${{PROCESSOR_DIR}}" && -f "${{SCRIPT_DIR}}/{PROCESSOR_ARCHIVE}" ]]; then\n'
+            f'  mkdir -p "${{PROCESSOR_DIR}}"\n'
+            f'  tar -xf "${{SCRIPT_DIR}}/{PROCESSOR_ARCHIVE}" -C "${{PROCESSOR_DIR}}"\n'
+            "fi\n"
+            'if [[ -z "${QWEN3_VL_MODEL_PATH:-}" && -d "${PROCESSOR_DIR}" ]]; then\n'
+            '  export QWEN3_VL_MODEL_PATH="${PROCESSOR_DIR}"\n'
+            "fi\n"
+            'PREPROCESS_PY="${QWEN3_VL_PREPROCESS_PY:-${SCRIPT_DIR}/qwen3_vl_codegen.py}"\n'
+            'exec "${BUDDY_PYTHON:-python3}" "${PREPROCESS_PY}" preprocess "$1" "$2" "$3"\n'
         )
     os.chmod(sh, 0o755)
 
     print("[stage] pre-processing bundled test image ...")
-    subprocess.run(["bash", sh, TEST_IMAGE, PROMPT, PKG_DIR], check=True)
+    preprocess_env = os.environ.copy()
+    preprocess_env.setdefault("BUDDY_PYTHON", sys.executable)
+    subprocess.run(
+        ["bash", sh, TEST_IMAGE, PROMPT, PKG_DIR],
+        check=True,
+        env=preprocess_env,
+    )
 
     resources = [
         ("vision_weights", "vision_weights.data"),
@@ -545,6 +694,8 @@ def cmd_stage(args):
         ("cmask", "cmask.bin"),
         ("meta", "meta.txt"),
         ("preprocess_script", "preprocess.sh"),
+        ("preprocess_helper", "qwen3_vl_codegen.py"),
+        ("processor_archive", PROCESSOR_ARCHIVE),
     ]
     constants = "".join(
         rhal_file_constant(idx, name, os.path.join(PKG_DIR, filename))

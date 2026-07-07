@@ -132,6 +132,10 @@ function(buddy_add_model)
   if(NOT MDL_COMPILE_JOBS)
     set(MDL_COMPILE_JOBS 1)
   endif()
+  if(NOT MDL_NUM_THREADS)
+    set(MDL_NUM_THREADS 1)
+  endif()
+  separate_arguments(MDL_LLC_ATTRS_LIST UNIX_COMMAND "${MDL_LLC_ATTRS}")
   if(NOT MDL_MODEL_KIND)
     set(MDL_MODEL_KIND "llm_prefill_decode")
   endif()
@@ -410,6 +414,7 @@ function(buddy_add_model)
         COMMAND bash ${_Q_CG}/lower_to_obj.sh
                 $<TARGET_FILE:buddy-opt> ${LLVM_TOOLS_BINARY_DIR}
                 ${dir}/${name}.mlir ${dir}/${name}.o
+                ${MDL_NUM_THREADS} ${MDL_LLC_ATTRS_LIST}
         DEPENDS ${dir}/${name}.mlir ${_Q_CG}/lower_to_obj.sh buddy-opt
         COMMENT "[${MDL_NAME}] Stage 2: compiling ${name}.mlir"
         VERBATIM)
