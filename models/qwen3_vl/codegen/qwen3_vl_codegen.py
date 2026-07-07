@@ -682,20 +682,22 @@ def cmd_stage(args):
         env=preprocess_env,
     )
 
+    # input_ids/img_pos/cos/sin/cmask/meta and pixel_values are all produced
+    # in pure C++ at runtime now (see Qwen3VLRunner.cpp / ImagePreprocess.h),
+    # so nothing here still needs the Python preprocess.sh helper or the HF
+    # processor archive bundled into the .rax; img_pos/cos/sin/cmask/meta are
+    # still baked in as query-independent constants (see cmd_preprocess) and
+    # pixel_values.bin is only the fallback for --image bundled/omitted.
     resources = [
         ("vision_weights", "vision_weights.data"),
         ("decoder_weights", "decoder_weights.data"),
         ("embed_table", "embed_table.bin"),
         ("pixel_values", "pixel_values.bin"),
-        ("input_ids", "input_ids.i64"),
         ("img_pos", "img_pos.i64"),
         ("cos", "cos.bin"),
         ("sin", "sin.bin"),
         ("cmask", "cmask.bin"),
         ("meta", "meta.txt"),
-        ("preprocess_script", "preprocess.sh"),
-        ("preprocess_helper", "qwen3_vl_codegen.py"),
-        ("processor_archive", PROCESSOR_ARCHIVE),
     ]
     constants = "".join(
         rhal_file_constant(idx, name, os.path.join(PKG_DIR, filename))

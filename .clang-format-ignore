@@ -1,0 +1,3 @@
+# Vendored third-party headers keep their upstream formatting so diffs
+# against upstream stay clean; do not run clang-format over them.
+thirdparty/include/*

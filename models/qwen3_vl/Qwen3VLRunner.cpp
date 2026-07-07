@@ -15,6 +15,7 @@
 //===----------------------------------------------------------------------===//
 //
 // Drives the full Qwen3-VL OCR pipeline through the buddy-compiled kernels:
+//   prompt text -> tokenizeQwen3VL (pure C++) -> input_ids
 //   image (pre-processed pixel_values) -> [compiled vision encoder .so]
 //     -> image embeds + 3 deepstack features
 //     -> splice into the tied embedding table at <image> token positions
@@ -27,9 +28,18 @@
 // the .rax (resolved from cfg.raxPath), mirroring how Whisper bundles
 // audio.wav.
 //
-// Per-query image preprocessing is delegated to the packaged Python helper so
-// the compiled model still receives the fixed-grid tensors it was imported for.
-// A pure-C++ preprocessing path is future work.
+// Both the text and image sides are pure C++, with no Python runtime
+// involved at all:
+//   - Text tokenization/detokenization: Text<size_t,2>::tokenizeQwen3VL /
+//     revertQwen3 in buddy/LLM/TextContainer.h.
+//   - Image preprocessing: qwen3vl_image::preprocessImage in
+//     ImagePreprocess.h (stb_image decode + a Pillow-bicubic-matching
+//     resize + the Qwen2VL patch/merge reshape).
+// For the pinned [1,14,28] vision grid, img_pos and the MRoPE
+// cos/sin/causal-mask tables are query-independent model constants bundled
+// at stage time (see cmd_preprocess in codegen/qwen3_vl_codegen.py); only
+// pixel_values genuinely varies per query, and it is now computed in-memory
+// instead of shelling out to preprocess.sh.
 //
 //===----------------------------------------------------------------------===//
 
@@ -37,13 +47,14 @@
 #include "buddy/LLM/TextContainer.h"
 #include "buddy/runtime/core/ModelManifest.h"
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "ImagePreprocess.h"
+
 #include <algorithm>
-#include <cerrno>
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include <cstring>
 #include <dlfcn.h>
 #include <fcntl.h>
 #include <filesystem>
@@ -54,7 +65,6 @@
 #include <string>
 #include <sys/mman.h>
 #include <sys/stat.h>
-#include <sys/wait.h>
 #include <unistd.h>
 #include <unordered_map>
 #include <vector>
@@ -151,17 +161,14 @@ void *dlopenOrThrow(const std::string &path) {
 
 struct Qwen3VLPackage {
   fs::path workDir;
-  fs::path queryDir;
   std::unordered_map<std::string, std::string> constants;
   std::unordered_map<std::string, std::string> codeObjects;
   std::string vocabPath;
 
+  // All remaining resources (pixel_values is now produced in-memory by the
+  // pure-C++ preprocessor, and input_ids by the pure-C++ tokenizer) are
+  // query-independent bundled constants.
   std::string file(const char *name, const char *fallback) const {
-    static const std::vector<std::string> dynamicNames = {
-        "pixel_values", "input_ids", "img_pos", "cos", "sin", "cmask", "meta"};
-    if (!queryDir.empty() && std::find(dynamicNames.begin(), dynamicNames.end(),
-                                       name) != dynamicNames.end())
-      return (queryDir / fallback).string();
     auto it = constants.find(name);
     if (it != constants.end())
       return it->second;
@@ -179,57 +186,6 @@ struct Qwen3VLPackage {
     return vocabPath.empty() ? (workDir / "vocab.txt").string() : vocabPath;
   }
 };
-
-struct ScopedDir {
-  fs::path path;
-  ~ScopedDir() {
-    if (!path.empty()) {
-      std::error_code ec;
-      fs::remove_all(path, ec);
-    }
-  }
-};
-
-fs::path makeTempDir() {
-  fs::path base = fs::temp_directory_path() / "buddy-qwen3-vl";
-  fs::create_directories(base);
-  for (int i = 0; i < 100; ++i) {
-    fs::path candidate =
-        base / (std::to_string(getpid()) + "-" + std::to_string(i));
-    std::error_code ec;
-    if (fs::create_directory(candidate, ec))
-      return candidate;
-  }
-  throw std::runtime_error("failed to create qwen3_vl temporary directory");
-}
-
-void runProcess(const std::vector<std::string> &args) {
-  if (args.empty())
-    throw std::runtime_error("runProcess called with no arguments");
-
-  std::vector<char *> argv;
-  argv.reserve(args.size() + 1);
-  for (const auto &arg : args)
-    argv.push_back(const_cast<char *>(arg.c_str()));
-  argv.push_back(nullptr);
-
-  pid_t pid = fork();
-  if (pid < 0)
-    throw std::runtime_error(std::string("fork failed: ") + strerror(errno));
-  if (pid == 0) {
-    execvp(argv[0], argv.data());
-    std::_Exit(127);
-  }
-
-  int status = 0;
-  if (waitpid(pid, &status, 0) < 0)
-    throw std::runtime_error(std::string("waitpid failed: ") + strerror(errno));
-  if (!WIFEXITED(status))
-    throw std::runtime_error("preprocess.sh did not exit normally");
-  if (WEXITSTATUS(status) != 0)
-    throw std::runtime_error("preprocess.sh failed with exit code " +
-                             std::to_string(WEXITSTATUS(status)));
-}
 
 size_t checkedMul(size_t a, size_t b, const char *what) {
   if (a != 0 && b > std::numeric_limits<size_t>::max() / a)
@@ -284,9 +240,10 @@ void Qwen3VLRunner::run(const RunConfig &cfg) {
     for (const auto &codeObject : manifest.codeObjects)
       pkg.codeObjects[codeObject.name] = codeObject.path;
     pkg.vocabPath = manifest.vocabPath;
-    auto it = pkg.constants.find("preprocess_script");
-    if (it != pkg.constants.end())
-      pkg.workDir = fs::absolute(fs::path(it->second)).parent_path();
+    // All bundled resources (including embed-payload extraction) land in the
+    // same directory; anchor workDir off any one resolved path.
+    if (!manifest.soPath.empty())
+      pkg.workDir = fs::absolute(fs::path(manifest.soPath)).parent_path();
   }
   const bool quiet = cfg.suppressStats;
   auto log = [&](const std::string &s) {
@@ -294,33 +251,45 @@ void Qwen3VLRunner::run(const RunConfig &cfg) {
       std::cerr << "\033[34;1m[qwen3_vl]\033[0m " << s << "\n";
   };
 
-  // ── Per-query preprocessing for a real --image (HF processor via Python). ──
-  // Produces pixel_values/input_ids/img_pos/cos/sin/cmask/meta in `dir`. With
-  // no --image (or --image bundled) the runner uses whatever is already staged.
-  ScopedDir query;
-  if (!cfg.imagePath.empty() && cfg.imagePath != "bundled") {
-    std::string prompt =
-        cfg.prompt.empty() ? "Read all the text in the image." : cfg.prompt;
-    query.path = makeTempDir();
-    pkg.queryDir = query.path;
-    log("preprocessing image: " + cfg.imagePath);
-    runProcess({"bash", pkg.file("preprocess_script", "preprocess.sh"),
-                cfg.imagePath, prompt, pkg.queryDir.string()});
+  std::string prompt =
+      cfg.prompt.empty() ? "Read all the text in the image." : cfg.prompt;
+
+  // ── Image preprocessing, pure C++. For a real --image, decode + resize +
+  // patchify it directly (see ImagePreprocess.h). With no --image (or
+  // --image bundled) fall back to the pixel_values.bin baked in at stage
+  // time for the packaged test image. Either way, no Python is invoked. ──
+  const bool hasCustomImage =
+      !cfg.imagePath.empty() && cfg.imagePath != "bundled";
+  std::vector<float> pixel;
+  if (hasCustomImage) {
+    log("preprocessing image (pure C++): " + cfg.imagePath);
+    qwen3vl_image::preprocessImage(cfg.imagePath, pixel);
   }
 
-  // ── Dimensions (per-query seq from meta; rest are model constants). ──
-  size_t S0 = 116, N = 160, NIMG = 98, HID = 2048, VOCAB = 151936;
+  // ── Dimensions (model constants, bundled and query-independent). ──
+  size_t N = 160, NIMG = 98, HID = 2048, VOCAB = 151936;
   const size_t HEAD_DIM = 128;
   {
     std::ifstream m(pkg.file("meta", "meta.txt"));
+    size_t staleS0 = 0; // legacy first field, no longer used.
     if (m)
-      m >> S0 >> N >> NIMG >> HID >> VOCAB;
+      m >> staleS0 >> N >> NIMG >> HID >> VOCAB;
     if (!m)
       throw std::runtime_error("cannot read qwen3_vl meta.txt");
   }
-  if (S0 == 0 || S0 > N || N == 0 || NIMG == 0 || HID == 0 || VOCAB == 0)
+  if (N == 0 || NIMG == 0 || HID == 0 || VOCAB == 0)
     throw std::runtime_error("invalid qwen3_vl dimensions in meta.txt");
   const std::vector<int> EOS = {151645, 151643};
+
+  // ── Pure-C++ tokenization of the chat-template prompt. No Python or
+  // network access is needed for this step, so a standalone .rax can serve
+  // arbitrary prompts against the bundled image without a Python runtime. ──
+  Text<size_t, 2> promptTok(prompt);
+  promptTok.tokenizeQwen3VL(pkg.vocab(), N, NIMG);
+  const size_t S0 = promptTok.getTokenCnt();
+  if (S0 == 0 || S0 > N)
+    throw std::runtime_error(
+        "qwen3_vl tokenizer produced an invalid sequence length");
 
   log("loading compiled kernels + weights from " + pkg.workDir.string());
   void *visLib = dlopenOrThrow(pkg.code("vision_kernels", "vision_shim.so"));
@@ -335,10 +304,17 @@ void Qwen3VLRunner::run(const RunConfig &cfg) {
   mapFloats(pkg.file("vision_weights", "vision_weights.data"), Wv);
   mapFloats(pkg.file("decoder_weights", "decoder_weights.data"), Wd);
   mapFloats(pkg.file("embed_table", "embed_table.bin"), embed);
-  std::vector<float> pixel =
-      readFloats(pkg.file("pixel_values", "pixel_values.bin"), 392 * 1536);
-  std::vector<int64_t> inputIds =
-      readI64(pkg.file("input_ids", "input_ids.i64"), S0);
+  if (hasCustomImage) {
+    if (pixel.size() != 392 * 1536)
+      throw std::runtime_error("qwen3_vl image preprocessing produced an "
+                               "unexpected pixel_values size");
+  } else {
+    pixel =
+        readFloats(pkg.file("pixel_values", "pixel_values.bin"), 392 * 1536);
+  }
+  std::vector<int64_t> inputIds(S0);
+  for (size_t i = 0; i < S0; ++i)
+    inputIds[i] = static_cast<int64_t>(promptTok[i]);
   std::vector<int64_t> imgPos =
       readI64(pkg.file("img_pos", "img_pos.i64"), NIMG);
   std::vector<float> cosv =
@@ -352,7 +328,7 @@ void Qwen3VLRunner::run(const RunConfig &cfg) {
     throw std::runtime_error("embed_table.bin is smaller than meta dimensions");
   for (int64_t tok : inputIds)
     if (tok < 0 || static_cast<size_t>(tok) >= VOCAB)
-      throw std::runtime_error("input_ids.i64 contains token out of range");
+      throw std::runtime_error("tokenized prompt contains token out of range");
   for (int64_t pos : imgPos)
     if (pos < 0 || static_cast<size_t>(pos) >= N)
       throw std::runtime_error("img_pos.i64 contains position out of range");
