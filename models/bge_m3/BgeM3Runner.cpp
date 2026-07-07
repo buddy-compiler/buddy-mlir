@@ -16,24 +16,21 @@
 
 #include "buddy/runtime/models/BgeM3Runner.h"
 #include "buddy/runtime/core/ModelManifest.h"
+#include "buddy/runtime/models/BgeM3Tokenizer.h"
 
 #include "buddy/Core/Container.h"
 
 #include <algorithm>
-#include <array>
 #include <chrono>
 #include <cmath>
-#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <dlfcn.h>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
-#include <sstream>
 #include <stdexcept>
 #include <string>
-#include <unistd.h>
 #include <vector>
 
 namespace buddy {
@@ -52,84 +49,6 @@ using ForwardFn = void (*)(MemRef<float, 3> *, MemRef<float, 1> *,
 void printLog(const std::string &msg, bool suppress) {
   if (!suppress)
     std::cerr << "\033[34;1m[Log] \033[0m" << msg << "\n";
-}
-
-std::string shellQuote(const std::string &s) {
-  std::string out = "'";
-  for (char c : s) {
-    if (c == '\'')
-      out += "'\\''";
-    else
-      out += c;
-  }
-  out += "'";
-  return out;
-}
-
-std::string readPipe(const std::string &cmd) {
-  std::array<char, 4096> buffer{};
-  std::string output;
-  FILE *pipe = popen(cmd.c_str(), "r");
-  if (!pipe)
-    throw std::runtime_error("BgeM3Runner: failed to run tokenizer helper");
-  while (fgets(buffer.data(), static_cast<int>(buffer.size()), pipe))
-    output += buffer.data();
-  int status = pclose(pipe);
-  if (status != 0)
-    throw std::runtime_error("BgeM3Runner: tokenizer helper failed");
-  return output;
-}
-
-std::vector<int64_t> parseI64Line(const std::string &line, size_t expected,
-                                  const char *name) {
-  std::istringstream iss(line);
-  std::vector<int64_t> values;
-  int64_t value = 0;
-  while (iss >> value)
-    values.push_back(value);
-  if (values.size() != expected)
-    throw std::runtime_error("BgeM3Runner: tokenizer produced " +
-                             std::to_string(values.size()) + " " + name +
-                             " values, expected " + std::to_string(expected));
-  return values;
-}
-
-std::pair<std::vector<int64_t>, std::vector<int64_t>>
-tokenizeWithHelper(const std::string &helperPath, const std::string &modelDir,
-                   const std::string &prompt, size_t maxSeqLen) {
-  namespace fs = std::filesystem;
-  fs::path tmp = fs::temp_directory_path() /
-                 ("buddy_bge_m3_prompt_" + std::to_string(::getpid()) + ".txt");
-  {
-    std::ofstream os(tmp, std::ios::binary);
-    if (!os)
-      throw std::runtime_error("BgeM3Runner: cannot create temp prompt file: " +
-                               tmp.string());
-    os << prompt;
-  }
-
-  const std::string cmd = "python3 " + shellQuote(helperPath) +
-                          " --model-dir " + shellQuote(modelDir) +
-                          " --input-file " + shellQuote(tmp.string()) +
-                          " --max-len " + std::to_string(maxSeqLen);
-  std::string output;
-  try {
-    output = readPipe(cmd);
-  } catch (...) {
-    std::error_code ec;
-    fs::remove(tmp, ec);
-    throw;
-  }
-  std::error_code ec;
-  fs::remove(tmp, ec);
-
-  std::istringstream lines(output);
-  std::string idsLine;
-  std::string maskLine;
-  if (!std::getline(lines, idsLine) || !std::getline(lines, maskLine))
-    throw std::runtime_error("BgeM3Runner: tokenizer helper output is invalid");
-  return {parseI64Line(idsLine, maxSeqLen, "input_id"),
-          parseI64Line(maskLine, maxSeqLen, "attention_mask")};
 }
 
 size_t parseSizeAttr(const ModelManifest &manifest, const char *key,
@@ -176,8 +95,6 @@ void BgeM3Runner::run(const RunConfig &cfg) {
   std::string soPath;
   std::string weightsPath;
   std::string tokenizerPath;
-  std::string tokenizerHelperPath;
-  std::string modelDir;
   size_t maxSeqLen = kDefaultMaxSeqLen;
   size_t maxPositionEmbeddings = kDefaultMaxPositionEmbeddings;
   size_t hiddenSize = kDefaultHiddenSize;
@@ -190,14 +107,11 @@ void BgeM3Runner::run(const RunConfig &cfg) {
       weightsPath = manifest.weightPaths.front();
     if (weightsPath.empty())
       throw std::runtime_error("BgeM3Runner: manifest has no weight file");
-    // Use the payload-resolved paths (manifest.vocabPath / rhal.constant
-    // entries), not the raw "tokenizer_uri"/"tokenizer_helper_uri" module
-    // attrs: those are plain "file:..." strings that rax-pack never rewrites
-    // to "payload:...", so they resolve relative to the .rax's directory and
-    // break once the .rax is shipped on its own without the source tree next
-    // to it.
+    // manifest.vocabPath is payload-resolved (extracted from the embedded
+    // .rax payload if needed), unlike the raw "tokenizer_uri" module attr
+    // which rax-pack never rewrites to payload:* and would break once the
+    // .rax ships without the build tree next to it.
     tokenizerPath = manifest.vocabPath;
-    tokenizerHelperPath = findConstantPath(manifest, "tokenizer_helper");
     maxSeqLen = parseSizeAttr(manifest, "max_seq_len", maxSeqLen);
     maxPositionEmbeddings = parseSizeAttr(manifest, "max_position_embeddings",
                                           maxPositionEmbeddings);
@@ -216,21 +130,17 @@ void BgeM3Runner::run(const RunConfig &cfg) {
 
   if (tokenizerPath.empty())
     throw std::runtime_error("BgeM3Runner: tokenizer path is empty");
-  if (tokenizerHelperPath.empty())
-    tokenizerHelperPath =
-        (fs::path(soPath).parent_path() / "bge_m3_tokenize.py").string();
-  modelDir = fs::path(tokenizerPath).parent_path().string();
 
   const std::string prompt =
       !cfg.prompts.empty() ? cfg.prompts.front() : cfg.prompt;
 
-  printLog("Model .so       : " + soPath, suppress);
-  printLog("Weights         : " + weightsPath, suppress);
-  printLog("Tokenizer dir   : " + modelDir, suppress);
-  printLog("Tokenizer helper: " + tokenizerHelperPath, suppress);
+  printLog("Model .so : " + soPath, suppress);
+  printLog("Weights   : " + weightsPath, suppress);
+  printLog("Tokenizer : " + tokenizerPath, suppress);
 
-  const auto tokenized =
-      tokenizeWithHelper(tokenizerHelperPath, modelDir, prompt, maxSeqLen);
+  BgeM3Tokenizer tokenizer = BgeM3Tokenizer::loadFromFile(tokenizerPath);
+  std::vector<int64_t> inputIdVec, attentionMaskVec;
+  tokenizer.encode(prompt, maxSeqLen, inputIdVec, attentionMaskVec);
   printLog("Tokenization complete", suppress);
 
   printLog("Loading model shared library", suppress);
@@ -260,8 +170,8 @@ void BgeM3Runner::run(const RunConfig &cfg) {
   MemRef<int64_t, 2> inputIds({1, maxSeqLen});
   MemRef<int64_t, 2> attentionMask({1, maxSeqLen});
   MemRef<int64_t, 1> tokenTypeIds({maxPositionEmbeddings});
-  std::copy(tokenized.first.begin(), tokenized.first.end(), inputIds.getData());
-  std::copy(tokenized.second.begin(), tokenized.second.end(),
+  std::copy(inputIdVec.begin(), inputIdVec.end(), inputIds.getData());
+  std::copy(attentionMaskVec.begin(), attentionMaskVec.end(),
             attentionMask.getData());
   std::fill(tokenTypeIds.getData(),
             tokenTypeIds.getData() + tokenTypeIds.getSize(), 0);

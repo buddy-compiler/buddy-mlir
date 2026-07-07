@@ -42,7 +42,6 @@ def gen_manifest(spec: dict, runner_library: str) -> str:
     so_name = spec.get("so_name", "bge_m3_model.so")
     weight_file = spec.get("weight_file", "arg0.data")
     tokenizer_file = spec.get("tokenizer_file", "tokenizer.json")
-    tokenizer_helper = spec.get("tokenizer_helper", "bge_m3_tokenize.py")
 
     lines = []
     p = lines.append
@@ -58,22 +57,6 @@ def gen_manifest(spec: dict, runner_library: str) -> str:
     p('  rhal.constant @params {id = 1 : i32, storage = "external",')
     p(f"                         type = tensor<{params_size}xf32>,")
     p(f'                         uri = "file:{weight_file}"}}')
-    p('  rhal.constant @tokenizer_helper {id = 2 : i32, storage = "external",')
-    p("                                  type = tensor<1xi8>,")
-    p(f'                                  uri = "file:{tokenizer_helper}"}}')
-    p('  rhal.constant @tokenizer_config {id = 3 : i32, storage = "external",')
-    p("                                  type = tensor<1xi8>,")
-    p('                                  uri = "file:tokenizer_config.json"}')
-    p('  rhal.constant @special_tokens {id = 4 : i32, storage = "external",')
-    p("                                type = tensor<1xi8>,")
-    p('                                uri = "file:special_tokens_map.json"}')
-    p(
-        '  rhal.constant @sentencepiece_model {id = 5 : i32, storage = "external",'
-    )
-    p("                                      type = tensor<1xi8>,")
-    p(
-        '                                      uri = "file:sentencepiece.bpe.model"}'
-    )
     p("")
     p('  rhal.codeobj @model_kernels {id = 1 : i32, kind = "host_shared_lib",')
     p('                                backend = "cpu",')

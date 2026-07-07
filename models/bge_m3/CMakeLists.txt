@@ -25,8 +25,4 @@ buddy_add_model(
   MODEL_SO_NAME bge_m3_model.so
   ASSET_FILES
     "${BUDDY_BGE_M3_MODEL_PATH}/tokenizer.json"
-    "${BUDDY_BGE_M3_MODEL_PATH}/tokenizer_config.json"
-    "${BUDDY_BGE_M3_MODEL_PATH}/special_tokens_map.json"
-    "${BUDDY_BGE_M3_MODEL_PATH}/sentencepiece.bpe.model"
-    "${CMAKE_CURRENT_SOURCE_DIR}/codegen/bge_m3_tokenize.py"
 )

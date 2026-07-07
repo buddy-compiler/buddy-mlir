@@ -12,6 +12,5 @@
   "normalize": true,
   "weight_file": "arg0.data",
   "so_name": "bge_m3_model.so",
-  "tokenizer_file": "tokenizer.json",
-  "tokenizer_helper": "bge_m3_tokenize.py"
+  "tokenizer_file": "tokenizer.json"
 }
