@@ -190,16 +190,14 @@ void BgeM3Runner::run(const RunConfig &cfg) {
       weightsPath = manifest.weightPaths.front();
     if (weightsPath.empty())
       throw std::runtime_error("BgeM3Runner: manifest has no weight file");
+    // Use the payload-resolved paths (manifest.vocabPath / rhal.constant
+    // entries), not the raw "tokenizer_uri"/"tokenizer_helper_uri" module
+    // attrs: those are plain "file:..." strings that rax-pack never rewrites
+    // to "payload:...", so they resolve relative to the .rax's directory and
+    // break once the .rax is shipped on its own without the source tree next
+    // to it.
     tokenizerPath = manifest.vocabPath;
-    auto tokIt = manifest.resolvedModuleAttrs.find("tokenizer_uri");
-    if (tokIt != manifest.resolvedModuleAttrs.end())
-      tokenizerPath = tokIt->second;
-    auto helperIt = manifest.resolvedModuleAttrs.find("tokenizer_helper_uri");
-    if (helperIt != manifest.resolvedModuleAttrs.end())
-      tokenizerHelperPath = helperIt->second;
-    std::string helperConstant = findConstantPath(manifest, "tokenizer_helper");
-    if (!helperConstant.empty())
-      tokenizerHelperPath = helperConstant;
+    tokenizerHelperPath = findConstantPath(manifest, "tokenizer_helper");
     maxSeqLen = parseSizeAttr(manifest, "max_seq_len", maxSeqLen);
     maxPositionEmbeddings = parseSizeAttr(manifest, "max_position_embeddings",
                                           maxPositionEmbeddings);
