@@ -93,8 +93,8 @@ def main() -> int:
         default=None,
         help="Local HuggingFace-format model directory for PyTorch import. "
         "For deepseek_r1, this sets BUDDY_DSR1_LOCAL_MODEL and may provide "
-        "config.json. For qwen3_vl, this is required and sets "
-        "BUDDY_QWEN3_VL_MODEL_PATH.",
+        "config.json. For qwen3_vl and bge_m3, this is required and sets "
+        "BUDDY_QWEN3_VL_MODEL_PATH / BUDDY_BGE_M3_MODEL_PATH.",
     )
     ap.add_argument(
         "--no-configure",
@@ -183,10 +183,11 @@ def main() -> int:
         print(f"error: failed to read spec JSON {spec}: {e}", file=sys.stderr)
         return 1
     model_family = spec_data.get("model_family")
-    if model_family not in {"deepseek_r1", "whisper", "qwen3_vl"}:
+    if model_family not in {"deepseek_r1", "whisper", "qwen3_vl", "bge_m3"}:
         print(
             "error: unsupported model_family in spec: "
-            f"{model_family!r} (supported: deepseek_r1, whisper, qwen3_vl)",
+            f"{model_family!r} (supported: deepseek_r1, whisper, qwen3_vl, "
+            "bge_m3)",
             file=sys.stderr,
         )
         return 1
@@ -311,6 +312,26 @@ def main() -> int:
             print(
                 "warning: --hf-config is ignored for qwen3_vl; the Qwen3-VL "
                 "importer uses --spec and optional --local-model.",
+                file=sys.stderr,
+            )
+    elif model_family == "bge_m3":
+        if local_model is None:
+            print(
+                "error: model_family=bge_m3 requires --local-model "
+                "(local HuggingFace-format BGE-M3 snapshot)",
+                file=sys.stderr,
+            )
+            return 1
+        cmake_args.extend(
+            [
+                f"-DBUDDY_BGE_M3_SPEC={spec}",
+                "-DBUDDY_BUILD_BGE_M3_MODEL=ON",
+                f"-DBUDDY_BGE_M3_MODEL_PATH={local_model}",
+            ]
+        )
+        if args.hf_config is not None:
+            print(
+                "warning: --hf-config is ignored for model_family=bge_m3",
                 file=sys.stderr,
             )
 
