@@ -82,7 +82,9 @@ endif()
 #   [NUM_THREADS  <N>]                      OpenMP threads (default from spec)
 #   [LLC_ATTRS    <string>]                 LLC target attributes
 #   [COMPILE_JOBS <N>]                      parallel MLIR compilation jobs
-#   [MODEL_KIND   <kind>]                   llm_prefill_decode (default) or single_forward
+#   [MODEL_KIND   <kind>]                   llm_prefill_decode (default),
+#                                           single_forward, or
+#                                           qwen3_vl_multimodal
 #   [IMPORT_SCRIPT <path>]                  custom importer for single_forward
 #   [MANIFEST_SCRIPT <path>]                custom RHAL manifest generator
 #   [LOCAL_MODEL_ENV <name>]                env var used for LOCAL_MODEL in importer
@@ -130,11 +132,16 @@ function(buddy_add_model)
   if(NOT MDL_COMPILE_JOBS)
     set(MDL_COMPILE_JOBS 1)
   endif()
+  if(NOT MDL_NUM_THREADS)
+    set(MDL_NUM_THREADS 1)
+  endif()
+  separate_arguments(MDL_LLC_ATTRS_LIST UNIX_COMMAND "${MDL_LLC_ATTRS}")
   if(NOT MDL_MODEL_KIND)
     set(MDL_MODEL_KIND "llm_prefill_decode")
   endif()
   if(NOT MDL_MODEL_KIND STREQUAL "llm_prefill_decode" AND
-     NOT MDL_MODEL_KIND STREQUAL "single_forward")
+     NOT MDL_MODEL_KIND STREQUAL "single_forward" AND
+     NOT MDL_MODEL_KIND STREQUAL "qwen3_vl_multimodal")
     message(FATAL_ERROR
       "buddy_add_model (${MDL_NAME}): unsupported MODEL_KIND=${MDL_MODEL_KIND}")
   endif()
@@ -227,6 +234,19 @@ function(buddy_add_model)
   # Part 0: Code generation (variant spec → config → C++ / MLIR manifest)
   # ════════════════════════════════════════════════════════════════════════════
 
+  set(MDL_CUSTOM_QWEN3_VL OFF)
+  if(MDL_MODEL_KIND STREQUAL "qwen3_vl_multimodal")
+    if(NOT MDL_NAME STREQUAL "qwen3_vl")
+      message(FATAL_ERROR
+        "MODEL_KIND=qwen3_vl_multimodal is only valid for NAME=qwen3_vl")
+    endif()
+    if(NOT MDL_LOCAL_MODEL)
+      message(FATAL_ERROR
+        "buddy_add_model (${MDL_NAME}): MODEL_KIND=qwen3_vl_multimodal requires LOCAL_MODEL")
+    endif()
+    set(MDL_CUSTOM_QWEN3_VL ON)
+  endif()
+
   set(GEN_CONFIG  "${GEN_DIR}/config.json")
   # Header under buddy/runtime/models/ so #include "buddy/runtime/models/ModelSession.h"
   # resolves with -I ${GEN_DIR} only (no checked-in copy under models/<name>/include).
@@ -239,7 +259,7 @@ function(buddy_add_model)
   # ── gen_config.py ─────────────────────────────────────────────────────────
   if(MDL_MODEL_KIND STREQUAL "single_forward")
     set(GEN_CONFIG "${MDL_SPEC}")
-  else()
+  elseif(NOT MDL_CUSTOM_QWEN3_VL)
     set(GEN_CONFIG_CMD
       "${Python3_EXECUTABLE}" "${BUDDY_CODEGEN_DIR}/gen_config.py"
       --spec "${MDL_SPEC}" -o "${GEN_CONFIG}"
@@ -259,7 +279,7 @@ function(buddy_add_model)
   endif()
 
   # ── gen_session.py ────────────────────────────────────────────────────────
-  if(NOT MDL_MODEL_KIND STREQUAL "single_forward")
+  if(NOT MDL_MODEL_KIND STREQUAL "single_forward" AND NOT MDL_CUSTOM_QWEN3_VL)
     add_custom_command(
       OUTPUT  "${GEN_SESS_H}" "${GEN_SESS_CC}"
       COMMAND "${Python3_EXECUTABLE}" "${BUDDY_CODEGEN_DIR}/gen_session.py"
@@ -282,7 +302,7 @@ function(buddy_add_model)
       COMMENT "[${MDL_NAME}] Generating ${MDL_NAME}.mlir (RHAL manifest)"
       VERBATIM
     )
-  else()
+  elseif(NOT MDL_CUSTOM_QWEN3_VL)
     add_custom_command(
       OUTPUT  "${GEN_RHAL}"
       COMMAND "${Python3_EXECUTABLE}" "${MDL_MANIFEST_SCRIPT}"
@@ -302,7 +322,7 @@ function(buddy_add_model)
   set(LIB_TARGET "buddy_models_${MDL_NAME}")
 
   set(MDL_RUNTIME_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/${MDL_RUNNER_SRC}")
-  if(NOT MDL_MODEL_KIND STREQUAL "single_forward")
+  if(NOT MDL_MODEL_KIND STREQUAL "single_forward" AND NOT MDL_CUSTOM_QWEN3_VL)
     list(PREPEND MDL_RUNTIME_SOURCES "${GEN_SESS_CC}")
   endif()
   add_library(${LIB_TARGET} STATIC ${MDL_RUNTIME_SOURCES})
@@ -345,6 +365,101 @@ function(buddy_add_model)
   )
   target_link_libraries(${RUNNER_PLUGIN_TARGET} PRIVATE ${LIB_TARGET})
   target_compile_features(${RUNNER_PLUGIN_TARGET} PRIVATE cxx_std_17)
+
+  if(MDL_CUSTOM_QWEN3_VL)
+    set(_Q_CG  "${CMAKE_CURRENT_SOURCE_DIR}/codegen")
+    set(_Q_CODEGEN "${_Q_CG}/qwen3_vl_codegen.py")
+    set(_Q_ART "${BIN}/artifacts")
+    set(_Q_VIS "${_Q_ART}/vision")
+    set(_Q_DEC "${_Q_ART}/decoder_rt")
+    set(_Q_OMP "${LLVM_BINARY_DIR}/runtimes/runtimes-bins/openmp/runtime/src")
+    set(_Q_TEST_IMG "${CMAKE_CURRENT_SOURCE_DIR}/test_text.png")
+    set(_Q_PYTHONPATH "${CMAKE_BINARY_DIR}/python_packages")
+    if(DEFINED ENV{PYTHONPATH})
+      set(_Q_PYTHONPATH "${_Q_PYTHONPATH}:$ENV{PYTHONPATH}")
+    endif()
+    if(BUDDY_RAX_EMBED_PAYLOAD)
+      set(_Q_RAX_EMBED_PAYLOAD ON)
+    else()
+      set(_Q_RAX_EMBED_PAYLOAD OFF)
+    endif()
+
+    set(_Q_ENV
+      BUDDY_MLIR_BUILD_DIR=${CMAKE_BINARY_DIR}
+      LLVM_MLIR_BUILD_DIR=${LLVM_BINARY_DIR}
+      PYTHONPATH=${_Q_PYTHONPATH}
+      CUDA_VISIBLE_DEVICES=
+      QWEN3_VL_OUT_DIR=${_Q_ART}
+      QWEN3_VL_PKG=${BIN}
+      QWEN3_VL_SPEC=${MDL_SPEC}
+      BUDDY_RAX_EMBED_PAYLOAD=${_Q_RAX_EMBED_PAYLOAD}
+      QWEN3_VL_MODEL_PATH=${MDL_LOCAL_MODEL})
+
+    add_custom_command(
+      OUTPUT ${_Q_VIS}/vision_forward.mlir ${_Q_VIS}/vision_subgraph0.mlir
+             ${_Q_VIS}/vision_arg0.data
+             ${_Q_DEC}/decoder_forward.mlir ${_Q_DEC}/decoder_subgraph0.mlir
+             ${_Q_DEC}/decoder_arg0.data ${_Q_DEC}/embed_table.bin
+      COMMAND ${CMAKE_COMMAND} -E make_directory ${_Q_ART}
+      COMMAND ${CMAKE_COMMAND} -E env ${_Q_ENV}
+              ${Python3_EXECUTABLE} ${BUDDY_CODEGEN_DIR}/import_model.py
+              --config ${MDL_SPEC} --output-dir ${BIN}
+      DEPENDS ${_Q_CODEGEN} ${BUDDY_CODEGEN_DIR}/import_model.py ${MDL_SPEC} ${_Q_TEST_IMG}
+      COMMENT "[${MDL_NAME}] Stage 1: importing Qwen3-VL vision/decoder"
+      VERBATIM)
+
+    function(_buddy_qwen3vl_obj dir name)
+      add_custom_command(
+        OUTPUT ${dir}/${name}.o
+        COMMAND bash ${_Q_CG}/lower_to_obj.sh
+                $<TARGET_FILE:buddy-opt> ${LLVM_TOOLS_BINARY_DIR}
+                ${dir}/${name}.mlir ${dir}/${name}.o
+                ${MDL_NUM_THREADS} ${MDL_LLC_ATTRS_LIST}
+        DEPENDS ${dir}/${name}.mlir ${_Q_CG}/lower_to_obj.sh buddy-opt
+        COMMENT "[${MDL_NAME}] Stage 2: compiling ${name}.mlir"
+        VERBATIM)
+    endfunction()
+    _buddy_qwen3vl_obj(${_Q_VIS} vision_subgraph0)
+    _buddy_qwen3vl_obj(${_Q_VIS} vision_forward)
+    _buddy_qwen3vl_obj(${_Q_DEC} decoder_subgraph0)
+    _buddy_qwen3vl_obj(${_Q_DEC} decoder_forward)
+
+    function(_buddy_qwen3vl_shim out src obj1 obj2)
+      add_custom_command(
+        OUTPUT ${out}
+        COMMAND ${CMAKE_CXX_COMPILER} -shared -fPIC -std=c++17 -O2
+                -I${BUDDY_SOURCE_DIR}/frontend/Interfaces
+                ${src} ${obj1} ${obj2}
+                -L${LLVM_LIBRARY_DIR} -lmlir_c_runner_utils -L${_Q_OMP} -lomp
+                -Wl,-rpath,${LLVM_LIBRARY_DIR} -Wl,-rpath,${_Q_OMP} -o ${out}
+        DEPENDS ${src} ${obj1} ${obj2}
+        COMMENT "[${MDL_NAME}] Stage 3: linking ${out}"
+        VERBATIM)
+    endfunction()
+    _buddy_qwen3vl_shim(${_Q_VIS}/vision_shim.so ${_Q_CG}/vision_shim.cpp
+                        ${_Q_VIS}/vision_forward.o ${_Q_VIS}/vision_subgraph0.o)
+    _buddy_qwen3vl_shim(${_Q_DEC}/decoder_shim.so ${_Q_CG}/decoder_shim.cpp
+                        ${_Q_DEC}/decoder_forward.o ${_Q_DEC}/decoder_subgraph0.o)
+
+    set(MODEL_RAX "${BIN}/${MDL_NAME}.rax")
+    add_custom_command(
+      OUTPUT ${MODEL_RAX}
+      COMMAND ${CMAKE_COMMAND} -E env ${_Q_ENV}
+              RAX_PACK=$<TARGET_FILE:rax-pack>
+              QWEN3_VL_RUNNER_SO=$<TARGET_FILE:${RUNNER_PLUGIN_TARGET}>
+              ${Python3_EXECUTABLE} ${_Q_CODEGEN} stage
+      DEPENDS ${_Q_CODEGEN}
+              ${_Q_VIS}/vision_shim.so ${_Q_DEC}/decoder_shim.so
+              ${_Q_VIS}/vision_arg0.data ${_Q_DEC}/decoder_arg0.data
+              ${_Q_DEC}/embed_table.bin ${RUNNER_PLUGIN_TARGET} rax-pack
+      COMMENT "[${MDL_NAME}] Stage 4: packing ${MDL_NAME}.rax"
+      VERBATIM)
+
+    add_custom_target(${MDL_NAME}_rax
+      DEPENDS ${MODEL_RAX}
+      COMMENT "${MDL_NAME}.rax → ${BIN}")
+    return()
+  endif()
 
   # ════════════════════════════════════════════════════════════════════════════
   # Part 2: Model compilation pipeline (MLIR → .o → .so)

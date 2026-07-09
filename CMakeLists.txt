@@ -192,6 +192,13 @@ option(BUDDY_BUILD_WHISPER_MODEL
   "Build models/whisper (whisper_model.so, whisper.rax, whisper_runner.so)"
   OFF)
 
+# Qwen3-VL (self-contained, vision-language). Off by default. Currently builds
+# only the runner stub library/plugin; the MLIR import/compile pipeline is added
+# after the feasibility spikes pass (see models/qwen3_vl/).
+option(BUDDY_BUILD_QWEN3_VL_MODEL
+  "Build models/qwen3_vl (buddy_models_qwen3_vl runner plugin)"
+  OFF)
+
 set(_buddy_require_jpeg OFF)
 set(_buddy_require_png OFF)
 

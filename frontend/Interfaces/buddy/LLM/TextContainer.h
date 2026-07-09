@@ -83,6 +83,13 @@ public:
   // Qwen3 Tokenizer
   // This function is designed for tokenizing input text for Qwen3 models.
   void tokenizeQwen3(const std::string &vocab, size_t length);
+  // Qwen3-VL Tokenizer
+  // Tokenizes the free-form prompt text with the same byte-level BPE encoder
+  // as tokenizeQwen3(), and wraps it in the fixed single-image chat-template
+  // scaffold: <|im_start|>user\n<|vision_start|>{numImageTokens x
+  // <|image_pad|>}<|vision_end|>{prompt}<|im_end|>\n<|im_start|>assistant\n
+  void tokenizeQwen3VL(const std::string &vocab, size_t length,
+                       size_t numImageTokens);
   // Gemma4 Tokenizer
   // This function is designed for tokenizing input text for Gemma4 models.
   // Uses SentencePiece-style BPE with '▁' as the space replacement character.
@@ -610,6 +617,110 @@ void Text<T, N>::tokenizeQwen3(const std::string &vocab, size_t length) {
   this->aligned[tokenCnt++] = newlineToken;
 
   // 8. Padding
+  for (size_t i = tokenCnt; i < length; i++) {
+    this->aligned[i] = pad;
+  }
+}
+
+// Qwen3-VL Tokenizer
+template <typename T, size_t N>
+void Text<T, N>::tokenizeQwen3VL(const std::string &vocab, size_t length,
+                                 size_t numImageTokens) {
+  // 1. Initialize container members.
+  this->offset = 0;
+  this->sizes[0] = 1;
+  this->sizes[1] = length;
+  this->setStrides();
+  size_t size = this->product(this->sizes);
+  this->allocated = (T *)malloc(sizeof(T) * size);
+  this->aligned = this->allocated;
+
+  // Qwen3-VL special token IDs (shared with the Qwen3 text vocabulary).
+  this->bos = 151644; // <|im_start|>
+  this->eos = 151645; // <|im_end|>
+  this->pad = 151643;
+  const int userToken = 872;        // "user"
+  const int assistantToken = 77091; // "assistant"
+  const int newlineToken = 198;     // "\n"
+  const int visionStartToken = 151652;
+  const int visionEndToken = 151653;
+  const int imagePadToken = 151655;
+
+  tokenCnt = 0;
+  // Header: <|im_start|>user\n<|vision_start|>
+  this->aligned[tokenCnt++] = bos;
+  this->aligned[tokenCnt++] = userToken;
+  this->aligned[tokenCnt++] = newlineToken;
+  this->aligned[tokenCnt++] = visionStartToken;
+
+  // Single fixed-grid image block: numImageTokens x <|image_pad|>, followed
+  // by <|vision_end|>. The grid is pinned at compile time, so this count is
+  // a model constant, not something derived from the query.
+  for (size_t i = 0; i < numImageTokens && tokenCnt < length; i++)
+    this->aligned[tokenCnt++] = imagePadToken;
+  if (tokenCnt < length)
+    this->aligned[tokenCnt++] = visionEndToken;
+
+  // 2. Load the vocabulary.
+  loadVocab(vocab);
+
+  // 3. Convert the raw UTF-8 prompt to a BPE-encoded string.
+  std::string bpeEncodedStr = this->bytes_to_bpe_string(this->str);
+
+  // 4. Tokenize the prompt text with the same DP longest-match BPE search
+  // used by tokenizeQwen3().
+  int n = bpeEncodedStr.length();
+  std::vector<float> score(n + 1, -1e10);
+  std::vector<size_t> prev_token_id(n + 1, 0);
+  std::vector<int> prev_pos(n + 1, 0);
+  score[0] = 0;
+
+  for (int i = 0; i < n; i++) {
+    if (score[i] < -1e9)
+      continue;
+    for (int sub_len = 1; sub_len <= std::min(64, n - i); sub_len++) {
+      std::string sub = bpeEncodedStr.substr(i, sub_len);
+      auto it = tokenToIdMap.find(sub);
+      if (it != tokenToIdMap.end()) {
+        float token_score = (float)sub_len * sub_len;
+        float current_score = score[i] + token_score;
+        int next_idx = i + sub_len;
+        if (current_score > score[next_idx]) {
+          score[next_idx] = current_score;
+          prev_token_id[next_idx] = it->second;
+          prev_pos[next_idx] = i;
+        }
+      }
+    }
+  }
+
+  std::vector<size_t> res;
+  int curr = n;
+  while (curr > 0) {
+    if (score[curr] < -1e9) {
+      curr--;
+      continue;
+    }
+    res.push_back(prev_token_id[curr]);
+    curr = prev_pos[curr];
+  }
+
+  // 5. Fill in the prompt tokens (reverse the backward pass), reserving room
+  // for the closing scaffold.
+  for (auto it = res.rbegin(); it != res.rend(); ++it) {
+    if (tokenCnt < length - 5) {
+      this->aligned[tokenCnt++] = *it;
+    }
+  }
+
+  // 6. Tail: <|im_end|>\n<|im_start|>assistant\n
+  this->aligned[tokenCnt++] = eos;
+  this->aligned[tokenCnt++] = newlineToken;
+  this->aligned[tokenCnt++] = bos;
+  this->aligned[tokenCnt++] = assistantToken;
+  this->aligned[tokenCnt++] = newlineToken;
+
+  // 7. Padding.
   for (size_t i = tokenCnt; i < length; i++) {
     this->aligned[i] = pad;
   }

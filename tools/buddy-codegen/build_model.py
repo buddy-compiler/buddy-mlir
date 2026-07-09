@@ -91,9 +91,10 @@ def main() -> int:
         "--local-model",
         type=Path,
         default=None,
-        help="Local HuggingFace-format model directory for PyTorch import (sets "
-        "BUDDY_DSR1_LOCAL_MODEL). If --hf-config is omitted and <dir>/config.json "
-        "exists, it is used for gen_config.",
+        help="Local HuggingFace-format model directory for PyTorch import. "
+        "For deepseek_r1, this sets BUDDY_DSR1_LOCAL_MODEL and may provide "
+        "config.json. For qwen3_vl, this is required and sets "
+        "BUDDY_QWEN3_VL_MODEL_PATH.",
     )
     ap.add_argument(
         "--no-configure",
@@ -182,10 +183,10 @@ def main() -> int:
         print(f"error: failed to read spec JSON {spec}: {e}", file=sys.stderr)
         return 1
     model_family = spec_data.get("model_family")
-    if model_family not in {"deepseek_r1", "whisper"}:
+    if model_family not in {"deepseek_r1", "whisper", "qwen3_vl"}:
         print(
             "error: unsupported model_family in spec: "
-            f"{model_family!r} (supported: deepseek_r1, whisper)",
+            f"{model_family!r} (supported: deepseek_r1, whisper, qwen3_vl)",
             file=sys.stderr,
         )
         return 1
@@ -288,6 +289,27 @@ def main() -> int:
         if args.hf_config is not None:
             print(
                 "warning: --hf-config is ignored for whisper; the Whisper "
+                "importer uses --spec and optional --local-model.",
+                file=sys.stderr,
+            )
+    elif model_family == "qwen3_vl":
+        if local_model is None:
+            print(
+                "error: model_family=qwen3_vl requires --local-model "
+                "(local HuggingFace-format Qwen3-VL snapshot)",
+                file=sys.stderr,
+            )
+            return 1
+        cmake_args.extend(
+            [
+                f"-DBUDDY_QWEN3_VL_SPEC={spec}",
+                "-DBUDDY_BUILD_QWEN3_VL_MODEL=ON",
+                f"-DBUDDY_QWEN3_VL_MODEL_PATH={local_model}",
+            ]
+        )
+        if args.hf_config is not None:
+            print(
+                "warning: --hf-config is ignored for qwen3_vl; the Qwen3-VL "
                 "importer uses --spec and optional --local-model.",
                 file=sys.stderr,
             )

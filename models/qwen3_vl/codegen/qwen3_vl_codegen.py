@@ -1,0 +1,774 @@
+#!/usr/bin/env python3
+"""Qwen3-VL codegen utilities.
+
+Subcommands:
+  import-vision      Import the pinned-grid vision encoder to MLIR.
+  import-decoder-rt  Import the runtime-position decoder to MLIR.
+  preprocess         Emit per-query tensors for the runner.
+  stage              Assemble the runnable package and pack qwen3_vl.rax.
+
+Run in the buddy Python environment:
+  conda activate buddy
+  export BUDDY_MLIR_BUILD_DIR=$PWD/build
+  export LLVM_MLIR_BUILD_DIR=$PWD/llvm/build
+  export PYTHONPATH=${BUDDY_MLIR_BUILD_DIR}/python_packages:${PYTHONPATH}
+"""
+
+import argparse
+import itertools
+import os
+import shutil
+import subprocess
+import sys
+import tarfile
+
+import numpy as np
+import torch
+import torch.nn as nn
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+REPO = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
+MODEL_DIR = os.environ.get("QWEN3_VL_MODEL_PATH")
+ARTIFACT_DIR = os.path.abspath(
+    os.environ.get(
+        "QWEN3_VL_OUT_DIR",
+        os.path.join(REPO, "build", "models", "qwen3_vl", "artifacts"),
+    )
+)
+PKG_DIR = os.path.abspath(
+    os.environ.get(
+        "QWEN3_VL_PKG", os.path.join(REPO, "build", "models", "qwen3_vl")
+    )
+)
+VISION_DIR = os.path.join(ARTIFACT_DIR, "vision")
+DECODER_DIR = os.path.join(ARTIFACT_DIR, "decoder_rt")
+TEST_IMAGE = os.path.join(REPO, "models", "qwen3_vl", "test_text.png")
+PROMPT = "Read all the text in the image."
+
+IMAGE_TOKEN_ID = 151655
+MAX_SEQ_LEN = int(os.environ.get("QWEN3_VL_MAXLEN", "160"))
+VOCAB_SIZE = 151936
+CANON_WH = (
+    448,
+    224,
+)  # W,H -> grid [1,14,28], matching the compiled vision graph.
+PROCESSOR_ARCHIVE = "qwen3_vl_processor.tar"
+PROCESSOR_DIRNAME = "qwen3_vl_processor"
+PROCESSOR_EXCLUDE_SUFFIXES = (
+    ".bin",
+    ".h5",
+    ".onnx",
+    ".pt",
+    ".pth",
+    ".safetensors",
+    ".tflite",
+)
+
+
+def rmsnorm(x, w, eps=1e-6):
+    v = x.pow(2).mean(-1, keepdim=True)
+    return w * (x * torch.rsqrt(v + eps))
+
+
+def rotate_half(x):
+    x1 = x[..., : x.shape[-1] // 2]
+    x2 = x[..., x.shape[-1] // 2 :]
+    return torch.cat((-x2, x1), dim=-1)
+
+
+def load_processor_and_model(dtype=torch.float32, eager_attn=True):
+    from transformers import AutoProcessor, Qwen3VLForConditionalGeneration
+
+    if not MODEL_DIR:
+        raise RuntimeError(
+            "QWEN3_VL_MODEL_PATH is required. Build through "
+            "tools/buddy-codegen/build_model.py --local-model /path/to/snapshot."
+        )
+    processor = AutoProcessor.from_pretrained(MODEL_DIR)
+    kwargs = {"dtype": dtype}
+    if eager_attn:
+        kwargs["attn_implementation"] = "eager"
+    model = Qwen3VLForConditionalGeneration.from_pretrained(
+        MODEL_DIR, **kwargs
+    ).eval()
+    return processor, model
+
+
+def load_processor_and_config():
+    from transformers import AutoConfig, AutoProcessor
+
+    model_dir = os.environ.get("QWEN3_VL_MODEL_PATH") or MODEL_DIR
+    if not model_dir:
+        raise RuntimeError(
+            "QWEN3_VL_MODEL_PATH is required or a packaged "
+            f"{PROCESSOR_DIRNAME} directory must be present."
+        )
+    processor = AutoProcessor.from_pretrained(model_dir, local_files_only=True)
+    config = AutoConfig.from_pretrained(model_dir, local_files_only=True)
+    return processor, config
+
+
+def encode_image_prompt(processor, image_path, prompt):
+    from PIL import Image
+
+    image = Image.open(image_path).convert("RGB").resize(CANON_WH)
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "image", "image": image},
+                {"type": "text", "text": prompt},
+            ],
+        }
+    ]
+    return processor.apply_chat_template(
+        messages,
+        tokenize=True,
+        add_generation_prompt=True,
+        return_dict=True,
+        return_tensors="pt",
+    )
+
+
+def vision_position_ids(start_pos, grid_thw, spatial_merge_size):
+    t, h, w = [int(x) for x in grid_thw]
+    llm_t = t
+    llm_h = h // spatial_merge_size
+    llm_w = w // spatial_merge_size
+    image_seq_length = llm_t * llm_h * llm_w
+    position_width = torch.arange(start_pos, start_pos + llm_w).repeat(
+        llm_h * llm_t
+    )
+    position_height = torch.arange(
+        start_pos, start_pos + llm_h
+    ).repeat_interleave(llm_w * llm_t)
+    position_temporal = torch.full(
+        (image_seq_length,), start_pos, dtype=torch.long
+    )
+    return torch.stack(
+        [position_temporal, position_height, position_width], dim=0
+    )
+
+
+def compute_3d_position_ids(
+    config, input_ids, image_grid_thw, mm_token_type_ids
+):
+    spatial_merge_size = config.vision_config.spatial_merge_size
+    position_ids = torch.zeros(
+        3,
+        input_ids.shape[0],
+        input_ids.shape[1],
+        dtype=input_ids.dtype,
+        device=input_ids.device,
+    )
+    image_iter = iter(image_grid_thw)
+
+    for batch_idx, _ in enumerate(input_ids):
+        input_token_type = mm_token_type_ids[batch_idx]
+        groups = []
+        for key, group in itertools.groupby(
+            enumerate(input_token_type.tolist()), lambda x: x[1]
+        ):
+            group = list(group)
+            groups.append((key, group[0][0], group[-1][0] + 1))
+
+        current_pos = 0
+        pos_chunks = []
+        for modality_type, start_idx, end_idx in groups:
+            if modality_type == 0:
+                text_len = end_idx - start_idx
+                pos_chunks.append(
+                    torch.arange(text_len, device=input_ids.device)
+                    .view(1, -1)
+                    .expand(3, -1)
+                    + current_pos
+                )
+                current_pos += text_len
+            elif modality_type == 1:
+                grid_thw = next(image_iter)
+                pos_chunks.append(
+                    vision_position_ids(
+                        current_pos, grid_thw, spatial_merge_size
+                    )
+                )
+                current_pos += (
+                    max(int(grid_thw[1]), int(grid_thw[2]))
+                    // spatial_merge_size
+                )
+            else:
+                raise RuntimeError(
+                    "video inputs are not supported by qwen3_vl OCR"
+                )
+        position_ids[:, batch_idx] = torch.cat(pos_chunks, dim=1).reshape(3, -1)
+    return position_ids
+
+
+def text_rotary(config, seq_len, hidden, rope_pos_n):
+    from transformers.models.qwen3_vl.modeling_qwen3_vl import (
+        Qwen3VLTextRotaryEmbedding,
+    )
+
+    rope = Qwen3VLTextRotaryEmbedding(config.text_config)
+    cos, sin = rope(torch.zeros(1, seq_len, hidden), rope_pos_n)
+    return cos, sin
+
+
+def capture_decoder_golden():
+    processor, model = load_processor_and_model(torch.float32, eager_attn=True)
+    inputs = encode_image_prompt(processor, TEST_IMAGE, PROMPT)
+
+    grab = {}
+    lm = model.model.language_model
+    orig = lm.forward
+
+    def hook(*a, **kw):
+        grab["inputs_embeds"] = kw["inputs_embeds"].detach()
+        grab["position_ids"] = kw["position_ids"].detach()
+        grab["visual_pos_masks"] = kw["visual_pos_masks"].detach()
+        grab["deepstack"] = [d.detach() for d in kw["deepstack_visual_embeds"]]
+        return orig(*a, **kw)
+
+    lm.forward = hook
+    with torch.no_grad():
+        out = model(**inputs)
+    lm.forward = orig
+    grab["logits"] = out.logits.detach()
+    grab["input_ids"] = inputs["input_ids"].detach()
+    grab["model"] = model
+    grab["lm"] = lm
+    return grab
+
+
+class VisionTrace(nn.Module):
+    """Trace-friendly Qwen3-VL vision encoder for a single, fixed-grid image."""
+
+    def __init__(self, vm, pos_embeds, cos, sin):
+        super().__init__()
+        from transformers.models.qwen3_vl.modeling_qwen3_vl import (
+            apply_rotary_pos_emb_vision,
+        )
+
+        self._apply_rope = apply_rotary_pos_emb_vision
+        self.blocks = vm.blocks
+        self.merger = vm.merger
+        self.deepstack_merger_list = vm.deepstack_merger_list
+        self.deepstack_visual_indexes = list(vm.deepstack_visual_indexes)
+        self.num_heads = vm.blocks[0].attn.num_heads
+        self.scaling = vm.blocks[0].attn.scaling
+        w = vm.patch_embed.proj.weight
+        self.register_buffer("pe_w", w.reshape(w.shape[0], -1).clone())
+        self.register_buffer("pe_b", vm.patch_embed.proj.bias.clone())
+        self.register_buffer("pos_embeds", pos_embeds.clone())
+        self.register_buffer("cos", cos.clone())
+        self.register_buffer("sin", sin.clone())
+
+    def _attn(self, blk, h):
+        seq_len = h.shape[0]
+        attn = blk.attn
+        q, k, v = (
+            attn.qkv(h)
+            .reshape(seq_len, 3, self.num_heads, -1)
+            .permute(1, 0, 2, 3)
+            .unbind(0)
+        )
+        q, k = self._apply_rope(q, k, self.cos, self.sin)
+        q = q.transpose(0, 1).unsqueeze(0)
+        k = k.transpose(0, 1).unsqueeze(0)
+        v = v.transpose(0, 1).unsqueeze(0)
+        aw = torch.matmul(q, k.transpose(2, 3)) * self.scaling
+        aw = torch.softmax(aw, dim=-1)
+        out = torch.matmul(aw, v).transpose(1, 2).reshape(seq_len, -1)
+        return attn.proj(out)
+
+    def forward(self, pixel_values):
+        h = pixel_values @ self.pe_w.t() + self.pe_b
+        h = h + self.pos_embeds
+        deepstack = []
+        for i, blk in enumerate(self.blocks):
+            h = h + self._attn(blk, blk.norm1(h))
+            h = h + blk.mlp(blk.norm2(h))
+            if i in self.deepstack_visual_indexes:
+                j = self.deepstack_visual_indexes.index(i)
+                deepstack.append(self.deepstack_merger_list[j](h))
+        pooled = self.merger(h)
+        return (pooled, *deepstack)
+
+
+class DecoderTraceRT(nn.Module):
+    """Qwen3-VL decoder with cos/sin/cmask as runtime forward inputs."""
+
+    def __init__(self, lm, lm_head_w, deepstack_layers):
+        super().__init__()
+        self.layers = lm.layers
+        self.norm = lm.norm
+        self.n_heads = lm.config.num_attention_heads
+        self.n_kv = lm.config.num_key_value_heads
+        self.head_dim = lm.config.head_dim
+        self.scaling = self.head_dim**-0.5
+        self.eps = lm.config.rms_norm_eps
+        self.deepstack_layers = deepstack_layers
+        self.register_buffer("lm_head_w", lm_head_w.clone())
+
+    def _attn(self, attn, h, cos, sin, cmask):
+        batch, seq_len, _ = h.shape
+        q = rmsnorm(
+            attn.q_proj(h).view(batch, seq_len, self.n_heads, self.head_dim),
+            attn.q_norm.weight,
+            self.eps,
+        ).transpose(1, 2)
+        k = rmsnorm(
+            attn.k_proj(h).view(batch, seq_len, self.n_kv, self.head_dim),
+            attn.k_norm.weight,
+            self.eps,
+        ).transpose(1, 2)
+        v = (
+            attn.v_proj(h)
+            .view(batch, seq_len, self.n_kv, self.head_dim)
+            .transpose(1, 2)
+        )
+        q = q * cos + rotate_half(q) * sin
+        k = k * cos + rotate_half(k) * sin
+        rep = self.n_heads // self.n_kv
+        k = k.repeat_interleave(rep, dim=1)
+        v = v.repeat_interleave(rep, dim=1)
+        aw = torch.matmul(q, k.transpose(2, 3)) * self.scaling + cmask
+        aw = torch.softmax(aw, dim=-1)
+        o = torch.matmul(aw, v).transpose(1, 2).reshape(batch, seq_len, -1)
+        return attn.o_proj(o)
+
+    def forward(self, inputs_embeds, cos, sin, cmask, ds0, ds1, ds2):
+        ds = [ds0, ds1, ds2]
+        c = cos.unsqueeze(0).unsqueeze(0)
+        s = sin.unsqueeze(0).unsqueeze(0)
+        h = inputs_embeds
+        for i, layer in enumerate(self.layers):
+            residual = h
+            h = self._attn(
+                layer.self_attn,
+                rmsnorm(h, layer.input_layernorm.weight, self.eps),
+                c,
+                s,
+                cmask,
+            )
+            h = residual + h
+            residual = h
+            mlp = layer.mlp
+            pn = rmsnorm(h, layer.post_attention_layernorm.weight, self.eps)
+            h = residual + mlp.down_proj(
+                torch.nn.functional.silu(mlp.gate_proj(pn)) * mlp.up_proj(pn)
+            )
+            if i < self.deepstack_layers:
+                h = h + ds[i]
+        h = rmsnorm(h, self.norm.weight, self.eps)
+        return h @ self.lm_head_w.t()
+
+
+def import_graph(module, out_dir, prefix, *example_inputs):
+    import numpy
+    from buddy.compiler.frontend import DynamoCompiler
+    from buddy.compiler.graph import GraphDriver
+    from buddy.compiler.graph.transform import simply_fuse
+    from buddy.compiler.ops import tosa
+    from torch._inductor.decomposition import decompositions as inductor_decomp
+
+    dynamo = DynamoCompiler(
+        primary_registry=tosa.ops_registry,
+        aot_autograd_decomposition=inductor_decomp,
+        func_name="forward",
+    )
+    with torch.no_grad():
+        graphs = dynamo.importer(module, *example_inputs)
+    print(f"[import] graphs={len(graphs)}")
+    graph = graphs[0]
+    params = dynamo.imported_params[graph]
+    graph.fuse_ops([simply_fuse])
+    driver = GraphDriver(graph)
+    driver.subgraphs[0].lower_to_top_level_ir()
+    with open(os.path.join(out_dir, f"{prefix}_subgraph0.mlir"), "w") as f:
+        print(driver.subgraphs[0]._imported_module, file=f)
+    with open(os.path.join(out_dir, f"{prefix}_forward.mlir"), "w") as f:
+        print(driver.construct_main_graph(True), file=f)
+    all_param = numpy.concatenate(
+        [p.detach().numpy().reshape([-1]) for p in params]
+    )
+    all_param.tofile(os.path.join(out_dir, f"{prefix}_arg0.data"))
+    return all_param.size
+
+
+def cmd_import_vision(args):
+    os.makedirs(VISION_DIR, exist_ok=True)
+    torch.set_grad_enabled(False)
+    processor, model = load_processor_and_model(torch.float32, eager_attn=True)
+    enc = encode_image_prompt(processor, TEST_IMAGE, "ocr")
+    pixel_values = enc["pixel_values"].float()
+    grid_thw = enc["image_grid_thw"].long()
+    print(
+        f"[in] pixel_values {tuple(pixel_values.shape)} grid {grid_thw.tolist()}"
+    )
+
+    vm = model.model.visual
+    ref = vm(hidden_states=pixel_values, grid_thw=grid_thw)
+    ref_pooled = ref.pooler_output
+    ref_ds = list(ref.deepstack_features)
+    print(
+        f"[ref] pooled {tuple(ref_pooled.shape)} | "
+        f"deepstack x{len(ref_ds)} each {tuple(ref_ds[0].shape)}"
+    )
+
+    pos_embeds = vm.fast_pos_embed_interpolate(grid_thw)
+    rotary = vm.rot_pos_emb(grid_thw)
+    emb = torch.cat((rotary, rotary), dim=-1)
+    trace = VisionTrace(vm, pos_embeds, emb.cos(), emb.sin()).eval()
+    out = trace(pixel_values)
+    pooled, ds = out[0], list(out[1:])
+    dp = (pooled - ref_pooled).abs().max().item()
+    dd = max((a - b).abs().max().item() for a, b in zip(ds, ref_ds))
+    print(f"[equiv] pooled max|delta|={dp:.3e}  deepstack max|delta|={dd:.3e}")
+    assert dp < 2e-2 and dd < 2e-2, (
+        "trace wrapper diverges from HF vision model"
+    )
+    print("[equiv] OK: trace-friendly wrapper matches HF vision model")
+
+    if args.no_import:
+        return
+    print("[import] running buddy DynamoCompiler on the vision wrapper ...")
+    weight_count = import_graph(trace, VISION_DIR, "vision", pixel_values)
+    print(
+        f"[import] OK -> {VISION_DIR}/vision_forward.mlir weights={weight_count}"
+    )
+
+
+def make_decoder_inputs(seq_len):
+    golden = capture_decoder_golden()
+    lm, model = golden["lm"], golden["model"]
+    inputs_embeds = golden["inputs_embeds"]
+    pos = golden["position_ids"]
+    vmask = golden["visual_pos_masks"]
+    deepstack = golden["deepstack"]
+    _, prompt_len, hidden = inputs_embeds.shape
+
+    rope_pos = pos[1:] if pos.shape[0] == 4 else pos
+    max_pos = int(rope_pos.max())
+    tail = torch.arange(max_pos + 1, max_pos + 1 + (seq_len - prompt_len))
+    tail = tail.view(1, 1, -1).expand(3, 1, seq_len - prompt_len)
+    rope_pos_n = torch.cat([rope_pos, tail], dim=2)
+    cos, sin = lm.rotary_emb(torch.zeros(1, seq_len, hidden), rope_pos_n)
+    cos, sin = cos[0], sin[0]
+    cmask = torch.triu(torch.full((seq_len, seq_len), float("-inf")), 1)
+    cmask = cmask.view(1, 1, seq_len, seq_len)
+    padded_embeds = torch.zeros(1, seq_len, hidden)
+    padded_embeds[:, :prompt_len] = inputs_embeds
+    img_pos = vmask[0].nonzero(as_tuple=True)[0]
+    padded_deepstack = []
+    for d in deepstack:
+        f = torch.zeros(1, seq_len, hidden)
+        f[0, img_pos] = d.float()
+        padded_deepstack.append(f)
+    trace = DecoderTraceRT(
+        lm, model.lm_head.weight, deepstack_layers=len(deepstack)
+    ).eval()
+    return (
+        trace,
+        model,
+        prompt_len,
+        padded_embeds,
+        cos,
+        sin,
+        cmask,
+        padded_deepstack,
+    )
+
+
+def cmd_import_decoder_rt(args):
+    os.makedirs(DECODER_DIR, exist_ok=True)
+    torch.set_grad_enabled(False)
+    trace, model, prompt_len, inputs_embeds, cos, sin, cmask, ds = (
+        make_decoder_inputs(args.seq_len)
+    )
+    logits = trace(inputs_embeds, cos, sin, cmask, ds[0], ds[1], ds[2])
+    tok = int(logits[0, prompt_len - 1].argmax())
+    print(f"[rt] N={args.seq_len} next token at prompt end = {tok} (expect 33)")
+    assert tok == 33
+
+    model.lm_head.weight.detach().float().numpy().tofile(
+        os.path.join(DECODER_DIR, "embed_table.bin")
+    )
+    if args.no_import:
+        return
+    weight_count = import_graph(
+        trace,
+        DECODER_DIR,
+        "decoder",
+        inputs_embeds,
+        cos,
+        sin,
+        cmask,
+        ds[0],
+        ds[1],
+        ds[2],
+    )
+    print(
+        f"[rt] imported -> {DECODER_DIR}/decoder_forward.mlir weights={weight_count}"
+    )
+
+
+def cmd_preprocess(args):
+    out = args.out_dir
+    os.makedirs(out, exist_ok=True)
+    torch.set_grad_enabled(False)
+    processor, config = load_processor_and_config()
+    inputs = encode_image_prompt(processor, args.image_path, args.prompt)
+
+    input_ids = inputs["input_ids"]
+    grid = inputs["image_grid_thw"]
+    prompt_len = input_ids.shape[1]
+    if grid.tolist() != [[1, 14, 28]]:
+        raise RuntimeError(f"unexpected grid {grid.tolist()}")
+    if prompt_len >= MAX_SEQ_LEN:
+        raise RuntimeError(
+            f"prompt too long: S0={prompt_len} >= N={MAX_SEQ_LEN}"
+        )
+
+    pos = compute_3d_position_ids(
+        config,
+        input_ids=input_ids,
+        image_grid_thw=grid,
+        mm_token_type_ids=inputs.get("mm_token_type_ids"),
+    )
+    rope_pos = pos[-3:]
+    max_pos = int(rope_pos.max())
+    tail = torch.arange(max_pos + 1, max_pos + 1 + (MAX_SEQ_LEN - prompt_len))
+    tail = tail.view(1, 1, -1).expand(3, 1, MAX_SEQ_LEN - prompt_len)
+    rope_pos_n = torch.cat([rope_pos, tail], dim=2)
+    hidden = config.text_config.hidden_size
+    cos, sin = text_rotary(config, MAX_SEQ_LEN, hidden, rope_pos_n)
+    cmask = np.triu(np.full((MAX_SEQ_LEN, MAX_SEQ_LEN), -np.inf, np.float32), 1)
+    cmask = cmask.reshape(1, 1, MAX_SEQ_LEN, MAX_SEQ_LEN)
+    img_pos = (input_ids[0] == IMAGE_TOKEN_ID).nonzero(as_tuple=True)[0].numpy()
+
+    inputs["pixel_values"].float().numpy().astype(np.float32).tofile(
+        os.path.join(out, "pixel_values.bin")
+    )
+    input_ids[0].numpy().astype(np.int64).tofile(
+        os.path.join(out, "input_ids.i64")
+    )
+    img_pos.astype(np.int64).tofile(os.path.join(out, "img_pos.i64"))
+    cos[0].float().numpy().astype(np.float32).tofile(
+        os.path.join(out, "cos.bin")
+    )
+    sin[0].float().numpy().astype(np.float32).tofile(
+        os.path.join(out, "sin.bin")
+    )
+    cmask.astype(np.float32).tofile(os.path.join(out, "cmask.bin"))
+    with open(os.path.join(out, "meta.txt"), "w") as f:
+        f.write(
+            f"{prompt_len} {MAX_SEQ_LEN} {len(img_pos)} {hidden} "
+            f"{config.text_config.vocab_size}\n"
+        )
+    print(
+        f"[preprocess] S0={prompt_len} N={MAX_SEQ_LEN} "
+        f"img_tokens={len(img_pos)} -> {out}"
+    )
+
+
+def stage_file(src, dst):
+    if os.path.lexists(dst):
+        if not os.path.islink(dst) and os.path.realpath(
+            src
+        ) == os.path.realpath(dst):
+            return
+        os.remove(dst)
+    shutil.copy2(src, dst)
+
+
+def stage_processor_archive(model_dir, dst):
+    if not model_dir or not os.path.isdir(model_dir):
+        raise RuntimeError("QWEN3_VL_MODEL_PATH must point to a model snapshot")
+
+    def include(path):
+        rel = os.path.relpath(path, model_dir)
+        parts = rel.split(os.sep)
+        if any(p in {".git", "__pycache__"} for p in parts):
+            return False
+        if os.path.isdir(path):
+            return True
+        return not path.endswith(PROCESSOR_EXCLUDE_SUFFIXES)
+
+    with tarfile.open(dst, "w") as tar:
+        for root, dirs, files in os.walk(model_dir):
+            dirs[:] = [d for d in dirs if include(os.path.join(root, d))]
+            for filename in files:
+                path = os.path.join(root, filename)
+                if include(path):
+                    tar.add(path, arcname=os.path.relpath(path, model_dir))
+
+
+def file_bytes(path):
+    return os.path.getsize(path)
+
+
+def rhal_file_constant(idx, name, path):
+    return (
+        f'  rhal.constant @{name} {{id = {idx} : i32, storage = "external",\n'
+        f"                                type = tensor<{file_bytes(path)}xi8>,\n"
+        f'                                uri = "file:{os.path.basename(path)}"}}\n'
+    )
+
+
+def cmd_stage(args):
+    os.makedirs(PKG_DIR, exist_ok=True)
+    rax_pack = os.environ.get(
+        "RAX_PACK", os.path.join(REPO, "build", "bin", "rax-pack")
+    )
+    runner_so = os.environ.get(
+        "QWEN3_VL_RUNNER_SO", os.path.join(PKG_DIR, "qwen3_vl_runner.so")
+    )
+    vocab = os.path.join(REPO, "examples", "BuddyQwen3", "vocab.txt")
+
+    stage_file(
+        os.path.join(VISION_DIR, "vision_shim.so"),
+        os.path.join(PKG_DIR, "vision_shim.so"),
+    )
+    stage_file(
+        os.path.join(DECODER_DIR, "decoder_shim.so"),
+        os.path.join(PKG_DIR, "decoder_shim.so"),
+    )
+    stage_file(
+        os.path.join(VISION_DIR, "vision_arg0.data"),
+        os.path.join(PKG_DIR, "vision_weights.data"),
+    )
+    stage_file(
+        os.path.join(DECODER_DIR, "decoder_arg0.data"),
+        os.path.join(PKG_DIR, "decoder_weights.data"),
+    )
+    stage_file(
+        os.path.join(DECODER_DIR, "embed_table.bin"),
+        os.path.join(PKG_DIR, "embed_table.bin"),
+    )
+    stage_file(runner_so, os.path.join(PKG_DIR, "qwen3_vl_runner.so"))
+    stage_file(__file__, os.path.join(PKG_DIR, "qwen3_vl_codegen.py"))
+    stage_processor_archive(MODEL_DIR, os.path.join(PKG_DIR, PROCESSOR_ARCHIVE))
+    shutil.copy(vocab, os.path.join(PKG_DIR, "vocab.txt"))
+
+    sh = os.path.join(PKG_DIR, "preprocess.sh")
+    with open(sh, "w") as f:
+        f.write(
+            "#!/usr/bin/env bash\n"
+            "set -euo pipefail\n"
+            'SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"\n'
+            'export BUDDY_MLIR_BUILD_DIR="${BUDDY_MLIR_BUILD_DIR:-${SCRIPT_DIR}}"\n'
+            'export LLVM_MLIR_BUILD_DIR="${LLVM_MLIR_BUILD_DIR:-${SCRIPT_DIR}}"\n'
+            'export PYTHONPATH="${SCRIPT_DIR}/python_packages:${BUDDY_MLIR_BUILD_DIR}/python_packages:${PYTHONPATH:-}"\n'
+            'export CUDA_VISIBLE_DEVICES=""\n'
+            f'PROCESSOR_DIR="${{QWEN3_VL_PROCESSOR_DIR:-$3/{PROCESSOR_DIRNAME}}}"\n'
+            f'if [[ -z "${{QWEN3_VL_MODEL_PATH:-}}" && ! -d "${{PROCESSOR_DIR}}" && -f "${{SCRIPT_DIR}}/{PROCESSOR_ARCHIVE}" ]]; then\n'
+            f'  mkdir -p "${{PROCESSOR_DIR}}"\n'
+            f'  tar -xf "${{SCRIPT_DIR}}/{PROCESSOR_ARCHIVE}" -C "${{PROCESSOR_DIR}}"\n'
+            "fi\n"
+            'if [[ -z "${QWEN3_VL_MODEL_PATH:-}" && -d "${PROCESSOR_DIR}" ]]; then\n'
+            '  export QWEN3_VL_MODEL_PATH="${PROCESSOR_DIR}"\n'
+            "fi\n"
+            'PREPROCESS_PY="${QWEN3_VL_PREPROCESS_PY:-${SCRIPT_DIR}/qwen3_vl_codegen.py}"\n'
+            'exec "${BUDDY_PYTHON:-python3}" "${PREPROCESS_PY}" preprocess "$1" "$2" "$3"\n'
+        )
+    os.chmod(sh, 0o755)
+
+    print("[stage] pre-processing bundled test image ...")
+    preprocess_env = os.environ.copy()
+    preprocess_env.setdefault("BUDDY_PYTHON", sys.executable)
+    subprocess.run(
+        ["bash", sh, TEST_IMAGE, PROMPT, PKG_DIR],
+        check=True,
+        env=preprocess_env,
+    )
+
+    # input_ids/img_pos/cos/sin/cmask/meta and pixel_values are all produced
+    # in pure C++ at runtime now (see Qwen3VLRunner.cpp / ImagePreprocess.h),
+    # so nothing here still needs the Python preprocess.sh helper or the HF
+    # processor archive bundled into the .rax; img_pos/cos/sin/cmask/meta are
+    # still baked in as query-independent constants (see cmd_preprocess) and
+    # pixel_values.bin is only the fallback for --image bundled/omitted.
+    resources = [
+        ("vision_weights", "vision_weights.data"),
+        ("decoder_weights", "decoder_weights.data"),
+        ("embed_table", "embed_table.bin"),
+        ("pixel_values", "pixel_values.bin"),
+        ("img_pos", "img_pos.i64"),
+        ("cos", "cos.bin"),
+        ("sin", "sin.bin"),
+        ("cmask", "cmask.bin"),
+        ("meta", "meta.txt"),
+    ]
+    constants = "".join(
+        rhal_file_constant(idx, name, os.path.join(PKG_DIR, filename))
+        for idx, (name, filename) in enumerate(resources, start=1)
+    )
+    manifest = f"""rhal.module @qwen3_vl attributes {{
+    version = "0.1.0",
+    model_name = "qwen3_vl",
+    vocab_uri = "file:vocab.txt",
+    runner_library = "file:qwen3_vl_runner.so"}} {{
+{constants}  rhal.codeobj @vision_kernels {{id = 1 : i32, kind = "host_shared_lib",
+                                backend = "cpu", uri = "file:vision_shim.so"}}
+  rhal.codeobj @decoder_kernels {{id = 2 : i32, kind = "host_shared_lib",
+                                backend = "cpu", uri = "file:decoder_shim.so"}}
+  rhal.buffer @pixel  {{space = "host", type = tensor<392x1536xf32>}}
+  rhal.buffer @logits {{space = "host", type = tensor<1x{MAX_SEQ_LEN}x{VOCAB_SIZE}xf32>}}
+  rhal.func @forward_vision {{inputs = ["pixel"], outputs = ["logits"],
+                      dispatch = "vision_kernels", args = ["pixel", "logits"]}}
+  rhal.func @forward_decoder {{inputs = ["pixel"], outputs = ["logits"],
+                      dispatch = "decoder_kernels", args = ["pixel", "logits"]}}
+}}
+"""
+    mpath = os.path.join(PKG_DIR, "qwen3_vl.mlir")
+    with open(mpath, "w") as f:
+        f.write(manifest)
+    rax = os.path.join(PKG_DIR, "qwen3_vl.rax")
+    cmd = [rax_pack, mpath, "-o", rax]
+    if os.environ.get("BUDDY_RAX_EMBED_PAYLOAD", "ON").upper() not in {
+        "0",
+        "FALSE",
+        "OFF",
+        "NO",
+    }:
+        cmd.append("--embed-payload")
+    subprocess.run(cmd, check=True)
+    print(f"[stage] package ready: {PKG_DIR}")
+    print(
+        f"[run]  {REPO}/build/bin/buddy-cli --model {rax} \\\n"
+        f"         --image {TEST_IMAGE} --prompt '{PROMPT}'"
+    )
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    sub = parser.add_subparsers(dest="cmd", required=True)
+
+    p = sub.add_parser("import-vision")
+    p.add_argument(
+        "--no-import",
+        action="store_true",
+        help="only run the PyTorch equivalence check",
+    )
+    p.set_defaults(func=cmd_import_vision)
+
+    p = sub.add_parser("import-decoder-rt")
+    p.add_argument("--seq-len", type=int, default=MAX_SEQ_LEN)
+    p.add_argument("--no-import", action="store_true")
+    p.set_defaults(func=cmd_import_decoder_rt)
+
+    p = sub.add_parser("preprocess")
+    p.add_argument("image_path")
+    p.add_argument("prompt")
+    p.add_argument("out_dir")
+    p.set_defaults(func=cmd_preprocess)
+
+    p = sub.add_parser("stage")
+    p.set_defaults(func=cmd_stage)
+
+    args = parser.parse_args()
+    args.func(args)
+
+
+if __name__ == "__main__":
+    main()

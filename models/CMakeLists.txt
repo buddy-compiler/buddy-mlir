@@ -9,3 +9,7 @@ endif()
 if(BUDDY_BUILD_WHISPER_MODEL)
   add_subdirectory(whisper)
 endif()
+
+if(BUDDY_BUILD_QWEN3_VL_MODEL)
+  add_subdirectory(qwen3_vl)
+endif()
