@@ -110,7 +110,7 @@ def main() -> int:
     ap.add_argument(
         "--target",
         default=None,
-        help="Semicolon-separated CMake targets (default: <model_family>_rax)",
+        help="Semicolon-separated CMake targets (default: inferred from spec model_family)",
     )
     ap.add_argument(
         "--jobs",
@@ -183,11 +183,17 @@ def main() -> int:
         print(f"error: failed to read spec JSON {spec}: {e}", file=sys.stderr)
         return 1
     model_family = spec_data.get("model_family")
-    if model_family not in {"deepseek_r1", "whisper", "qwen3_vl", "bge_m3"}:
+    if model_family not in {
+        "deepseek_r1",
+        "whisper",
+        "qwen3_vl",
+        "bge_m3",
+        "proteinglm",
+    }:
         print(
             "error: unsupported model_family in spec: "
             f"{model_family!r} (supported: deepseek_r1, whisper, qwen3_vl, "
-            "bge_m3)",
+            "bge_m3, proteinglm)",
             file=sys.stderr,
         )
         return 1
@@ -258,9 +264,11 @@ def main() -> int:
             )
             return 1
 
-    # Syncs frontend/Python → build/python_packages/buddy/compiler for import.
-    # Without this, import scripts see an empty PYTHONPATH tree.
-    cmake_args = ["-DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON"]
+    cmake_args = [
+        # Syncs frontend/Python → build/python_packages/buddy/compiler (import scripts).
+        # Without this, buddy_add_model sets PYTHONPATH but the tree is empty.
+        "-DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON",
+    ]
     if model_family == "deepseek_r1":
         cmake_args.extend(
             [
@@ -332,6 +340,26 @@ def main() -> int:
         if args.hf_config is not None:
             print(
                 "warning: --hf-config is ignored for model_family=bge_m3",
+                file=sys.stderr,
+            )
+    elif model_family == "proteinglm":
+        if local_model is None:
+            print(
+                "error: model_family=proteinglm requires --local-model "
+                "(local ProteinGLM HuggingFace snapshot)",
+                file=sys.stderr,
+            )
+            return 1
+        cmake_args.extend(
+            [
+                f"-DBUDDY_PROTEINGLM_SPEC={spec}",
+                "-DBUDDY_BUILD_PROTEINGLM_MODEL=ON",
+                f"-DBUDDY_PROTEINGLM_MODEL_PATH={local_model}",
+            ]
+        )
+        if args.hf_config is not None:
+            print(
+                "warning: --hf-config is ignored for model_family=proteinglm",
                 file=sys.stderr,
             )
 

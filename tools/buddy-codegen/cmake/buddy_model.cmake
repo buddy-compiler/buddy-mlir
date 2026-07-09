@@ -74,6 +74,7 @@ endif()
 #   SPEC          <variant_spec.json>       full path to variant spec
 #   RUNNER_SRC    <file.cpp>                model-specific runner source
 #   [RUNNER_PLUGIN_SRC <file.cpp>]          C ABI plugin wrapper source
+#   [RUNNER_HDR   <file.h>]                 model-specific runner header
 #   [HF_CONFIG    <config.json>]            optional HuggingFace config path
 #   [LOCAL_MODEL  <dir>]                    optional: HF snapshot dir for import
 #                                           (sets DEEPSEEKR1_MODEL_PATH)
@@ -99,7 +100,7 @@ function(buddy_add_model)
   cmake_parse_arguments(
     MDL                                      # prefix
     ""                                       # flags
-    "NAME;SPEC;RUNNER_SRC;RUNNER_PLUGIN_SRC;HF_CONFIG;LOCAL_MODEL;BUILD_DIR;MLIR_DIR;NUM_THREADS;LLC_ATTRS;COMPILE_JOBS;TIERED_KV_CACHE;MODEL_KIND;IMPORT_SCRIPT;MANIFEST_SCRIPT;LOCAL_MODEL_ENV;MODEL_SO_NAME"
+    "NAME;SPEC;RUNNER_SRC;RUNNER_PLUGIN_SRC;RUNNER_HDR;HF_CONFIG;LOCAL_MODEL;BUILD_DIR;MLIR_DIR;NUM_THREADS;LLC_ATTRS;COMPILE_JOBS;TIERED_KV_CACHE;MODEL_KIND;IMPORT_SCRIPT;MANIFEST_SCRIPT;LOCAL_MODEL_ENV;MODEL_SO_NAME"
     "TIERED_CACHE_SIZES;ASSET_FILES;RUNTIME_LINK_LIBS" # multi-value
     ${ARGN}
   )
@@ -298,7 +299,7 @@ function(buddy_add_model)
               --spec "${GEN_CONFIG}" -o "${GEN_RHAL}"
               --runner-library "${RUNNER_PLUGIN_NAME}"
               ${MDL_GEN_MANIFEST_ARGS}
-      DEPENDS "${GEN_CONFIG}" "${MDL_MANIFEST_SCRIPT}"
+      DEPENDS "${GEN_CONFIG}" "${MDL_MANIFEST_SCRIPT}" "${IMPORT_STAMP}"
       COMMENT "[${MDL_NAME}] Generating ${MDL_NAME}.mlir (RHAL manifest)"
       VERBATIM
     )
@@ -348,6 +349,12 @@ function(buddy_add_model)
     DESTINATION include/buddy-mlir/buddy/runtime/models/
     COMPONENT buddy_runtime
   )
+  if(MDL_RUNNER_HDR)
+    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/${MDL_RUNNER_HDR}"
+      DESTINATION include/buddy-mlir/buddy/runtime/models/
+      COMPONENT buddy_runtime
+    )
+  endif()
   install(TARGETS ${LIB_TARGET}
     EXPORT BuddyMLIRTargets
     COMPONENT buddy_runtime
@@ -867,8 +874,11 @@ function(buddy_add_model)
       list(APPEND MDL_ASSET_DSTS "${_asset_dst}")
     endforeach()
   else()
+    # Copy vocab.txt alongside the .rax (and make it visible to rax-pack payload
+    # embedding via file:vocab.txt URI).
     set(VOCAB_SRC "${CMAKE_SOURCE_DIR}/examples/BuddyDeepSeekR1/vocab.txt")
     set(VOCAB_DST "${BIN}/vocab.txt")
+
     add_custom_command(
       OUTPUT  "${VOCAB_DST}"
       COMMAND ${CMAKE_COMMAND} -E copy_if_different "${VOCAB_SRC}" "${VOCAB_DST}"
