@@ -83,9 +83,12 @@ jobs:
         continue-on-error: ${{ matrix.arch == 'arm64' }}
         run: |
           if [ "${{ matrix.arch }}" = "riscv64" ]; then
-            torch_versions=(2.10 2.11 2.12)
+            # The Ruyi torch 2.12 riscv64 wheel omits the top-level functorch
+            # compatibility package still imported by torch._dynamo.
+            # https://ruyirepo.ruyicommunity.cn/pypi/simple/torch/
+            torch_versions=(2.10 2.11)
           else
-            torch_versions=(2.10 2.11 2.12)
+            torch_versions=(2.10 2.11 2.12 2.13)
           fi
 
           for torch_version in "${torch_versions[@]}"; do

@@ -6,10 +6,11 @@ Since _local_scalar_dense returns a Python scalar which cannot be directly
 captured by torch.compile, this test directly validates the MLIR generation.
 """
 
-from mlir.ir import Context, Location, Module, InsertionPoint
-from mlir.dialects import func, tosa
-from mlir import ir
 import array
+
+from buddy_mlir import ir
+from buddy_mlir.dialects import func, tosa
+from buddy_mlir.ir import Context, InsertionPoint, Location, Module
 
 
 def _create_shape_operand(shape):
