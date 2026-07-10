@@ -192,6 +192,7 @@ from ..graph import (
     ReshapeOp,
     ResizeOp,
     RevOp,
+    RreluWithNoiseOp,
     RsqrtOp,
     ScaledDotProductFlashAttentionForCpuOp,
     SelectOp,
@@ -13095,6 +13096,54 @@ def randperm_op(node: RandpermOp, symbol_table):
     return tosa.ConstOp(values_attr)
 
 
+def rrelu_with_noise_op(node: RreluWithNoiseOp, symbol_table):
+    """
+    Lower inference-mode RReLU.
+
+    torch 2.13 decomposes torch.rrelu(..., training=False) to
+    rrelu_with_noise_functional(self, noise) with default lower/upper bounds.
+    Preserve the noise result for getitem users while generating the
+    deterministic inference result.
+    """
+    input_tensor = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    noise_tensor = None
+    if len(node.args) > 1:
+        noise_tensor = symbol_table.get((str(node.args[1]), 0), node.args[1])
+
+    # Match torch.nn.functional.rrelu's defaults exactly:
+    # https://github.com/pytorch/pytorch/blob/v2.13.0/torch/nn/functional.py#L2004-L2008
+    lower = node.kwargs.get("lower", 1.0 / 8)
+    upper = node.kwargs.get("upper", 1.0 / 3)
+    if len(node.args) > 2 and isinstance(node.args[2], (int, float)):
+        lower = node.args[2]
+    if len(node.args) > 3 and isinstance(node.args[3], (int, float)):
+        upper = node.args[3]
+
+    input_type = ir.RankedTensorType(input_tensor.type)
+    input_shape = list(input_type.shape)
+    element_type = input_type.element_type
+    result_type = ir.RankedTensorType.get(input_shape, element_type)
+
+    zero = _scalar_to_tensor(0.0, element_type, input_shape)
+    # During evaluation, PyTorch uses the mean of lower and upper as the slope:
+    # https://docs.pytorch.org/docs/2.13/generated/torch.nn.RReLU.html
+    slope = (float(lower) + float(upper)) / 2.0
+    scaled_negative = _gen_arith_binary_op(
+        input_tensor, slope, tosa.MulOp
+    ).result
+
+    bool_type = ir.IntegerType.get_signless(1)
+    pred_type = ir.RankedTensorType.get(input_shape, bool_type)
+    non_negative = tosa.GreaterEqualOp(pred_type, input_tensor, zero).result
+    result = tosa.SelectOp(
+        result_type, non_negative, input_tensor, scaled_negative
+    ).result
+
+    if noise_tensor is not None:
+        return result, noise_tensor
+    return result
+
+
 def uniform_op(node: UniformOp, symbol_table):
     """
     Import the uniform operation.
@@ -14454,6 +14503,7 @@ ops_registry = {
     # Other operations
     "EmptyStridedOp": empty_strided_op,
     "RandpermOp": randperm_op,
+    "RreluWithNoiseOp": rrelu_with_noise_op,
     "UniformOp": uniform_op,
     "CauchyOp": cauchy_op,
     # Core Aten remaining operations
