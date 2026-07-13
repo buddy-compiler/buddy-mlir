@@ -1,0 +1,16 @@
+{
+  "model_family": "paddleocr_vl",
+  "kv_layers": 36,
+  "head_num": 2,
+  "max_token_len": 1024,
+  "hidden_size": 128,
+  "hf_model_path": "lvyufeng/PaddleOCR-VL-0.9B",
+  "num_threads": 48,
+  "variant": "f32",
+  "weights_override": {
+    "total": 905601730,
+    "linear_elements": 0,
+    "linear_output_channels": 0,
+    "other_elements": 905601730
+  }
+}
