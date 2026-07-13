@@ -1,0 +1,10 @@
+{
+  "model_family": "weather_llm",
+  "kv_layers": 48,
+  "head_num": 8,
+  "max_token_len": 1024,
+  "hidden_size": 128,
+  "hf_model_path": "AuraWorxAI/weather-llm-sft",
+  "num_threads": 48,
+  "variant": "f32"
+}
