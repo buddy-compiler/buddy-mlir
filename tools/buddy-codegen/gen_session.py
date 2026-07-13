@@ -276,6 +276,9 @@ def gen_header(config: dict) -> str:
     for w in weights:
         memref_t = f"MemRef<{w['cpp_type']}, 1>"
         p(f"  std::unique_ptr<{memref_t}> {w['tag']}_;")
+        if w.get("decode_file"):
+            # Same weights, panel-packed. Only decode reads this one.
+            p(f"  std::unique_ptr<{memref_t}> {w['tag']}_decode_;")
 
     if need_logits_conv:
         p("  // Scratch buffer when logits are not stored as float (e.g. f16).")
@@ -1286,14 +1289,23 @@ def gen_impl(config: dict) -> str:
     p()
 
     # ── loadWeights ──────────────────────────────────────────────────────────
+    # Packed copies come after all the plain ones, matching gen_manifest.
+    load_targets = [(idx, w, f"{w['tag']}_") for idx, w in enumerate(weights)]
+    next_idx = len(weights)
+    for w in weights:
+        if w.get("decode_file"):
+            load_targets.append((next_idx, w, f"{w['tag']}_decode_"))
+            next_idx += 1
+    n_paths = next_idx
+
     p("void ModelSession::loadWeights(const std::vector<std::string> &paths) {")
-    p(f"  if (paths.size() < {len(weights)}u)")
+    p(f"  if (paths.size() < {n_paths}u)")
     p(
-        f'    throw std::runtime_error("[BuddyRuntime] Expected {len(weights)} weight '
+        f'    throw std::runtime_error("[BuddyRuntime] Expected {n_paths} weight '
         f'file(s), got " + std::to_string(paths.size()));'
     )
     p()
-    for idx, w in enumerate(weights):
+    for idx, w, member in load_targets:
         tag = w["tag"]
         cpp_type = w["cpp_type"]
         macro_suffix = (
@@ -1301,15 +1313,15 @@ def gen_impl(config: dict) -> str:
         )
         p("  {")
         p(f"    intptr_t shape[1] = {{{mp}_{macro_suffix}}};")
-        p(f"    {tag}_ = std::make_unique<MemRef<{cpp_type}, 1>>(shape);")
+        p(f"    {member} = std::make_unique<MemRef<{cpp_type}, 1>>(shape);")
         p(f"    std::ifstream f(paths[{idx}], std::ios::binary);")
         p("    if (!f)")
         p(
             f'      throw std::runtime_error("[BuddyRuntime] Cannot open weights: " + '
             f"paths[{idx}]);"
         )
-        p(f"    f.read(reinterpret_cast<char *>({tag}_->getData()),")
-        p(f"           sizeof({cpp_type}) * {tag}_->getSize());")
+        p(f"    f.read(reinterpret_cast<char *>({member}->getData()),")
+        p(f"           sizeof({cpp_type}) * {member}->getSize());")
         p("    if (f.fail())")
         p(
             f'      throw std::runtime_error("[BuddyRuntime] Read failed: " + '
@@ -1377,7 +1389,9 @@ def gen_impl(config: dict) -> str:
 
     call_parts = ["&result"]
     for w in weights:
-        call_parts.append(f"{w['tag']}_.get()")
+        # Decode gets the panel-packed copy where there is one.
+        suffix = "_decode_" if w.get("decode_file") else "_"
+        call_parts.append(f"{w['tag']}{suffix}.get()")
     call_parts.append("decodeTokenInput_.get()")
     call_parts.append("cachePosition_.get()")
     call_parts.extend(["&state.kv(0)", "&state.kv(1)"])

@@ -96,6 +96,20 @@ def gen_manifest(
         p(f'  rhal.constant @{tag} {{id = 1 : i32, storage = "external",')
         p(f"                         type = tensor<{num}x{mlir_t}>,")
         p(f'                         uri = "file:{fname}"}}')
+    # One logical constant, two layouts; it needs its own entry only because
+    # the two have to resolve to two files.
+    for w in weights:
+        if not w.get("decode_file"):
+            continue
+        p(
+            f"  rhal.constant @{w['tag']}_decode {{id = 1 : i32, "
+            'storage = "external",'
+        )
+        p(
+            f"                         type = tensor<{w['num_elements']}x"
+            f"{w['mlir_type']}>,"
+        )
+        p(f'                         uri = "file:{w["decode_file"]}"}}')
     p()
 
     # -- Code object -----------------------------------------------------------

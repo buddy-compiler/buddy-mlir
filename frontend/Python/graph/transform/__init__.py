@@ -32,6 +32,7 @@ from .onednn_replace import (
     replace_matmul_with_onednn,
     replace_matmul_with_onednn_selective,
 )
+from .pack_decode_weights import pack_decode_matmul_weights
 from .quantization import (
     weight_only_channel_wise,
 )
@@ -49,6 +50,7 @@ __all__ = [
     "flash_attention_prefill",
     "gqa_attention_fusion",
     "maxpool2d_simplify",
+    "pack_decode_matmul_weights",
     "replace_matmul_with_buddy_runtime",
     "replace_matmul_with_onednn",
     "replace_matmul_with_onednn_selective",

@@ -79,6 +79,7 @@ def build_stages(
     llc_attrs: str,
     variant: str = "f32",
     tiered: bool = False,
+    decode_pack: dict | None = None,
 ):
     """
     Build the list of (tool_name, [args]) stages for a given pipeline type.
@@ -173,6 +174,22 @@ def build_stages(
             opts.append("-matmul-vectorization-decode=vector-size=32")
         elif variant != "w8a8":
             vector_size = 128 if tiered else 32
+            if decode_pack and decode_pack.get("enabled"):
+                if decode_pack["vector_size"] != vector_size:
+                    raise ValueError(
+                        f"decode_pack vector_size={decode_pack['vector_size']} must "
+                        f"match the decode vector-size={vector_size} in use"
+                    )
+                # No packed-shapes: pack_decode_matmul_weights packed *every*
+                # matmul weight in the decode graph -- and refuses to run at all
+                # if it cannot -- so there is no list of exceptions to keep in
+                # step, and hence no way for one to drift. A drifted list is
+                # silent corruption: the plain kernel would read panel-packed
+                # bytes as row-major and answer fluently and wrongly.
+                opts.append(
+                    "-matmul-vectorization-decode-packed="
+                    f"vector-size={vector_size}"
+                )
             opts.append(
                 f"-matmul-vectorization-decode=vector-size={vector_size}"
             )
@@ -384,6 +401,7 @@ def _compile_one(task: dict) -> str:
         task["llc_attrs"],
         task.get("variant", "f32"),
         task.get("tiered", False),
+        task.get("decode_pack"),
     )
     run_pipeline(
         stages,
@@ -409,6 +427,7 @@ def compile_all(
     pipelines = config["compilation"]["pipelines"]
     num_threads = config["compilation"]["num_threads"]
     variant = config.get("variant", "")
+    decode_pack = config.get("decode_pack", {"enabled": False})
 
     os.makedirs(output_dir, exist_ok=True)
 
@@ -431,6 +450,7 @@ def compile_all(
                 "llc_attrs": llc_attrs,
                 "variant": variant,
                 "tiered": is_tiered_kv_cache(config),
+                "decode_pack": decode_pack,
                 "input": input_path,
                 "output": output_path,
                 "buddy_opt": buddy_opt,
@@ -612,6 +632,7 @@ def compile_partitioned(
 
     num_threads = config["compilation"]["num_threads"]
     variant = config.get("variant", "")
+    decode_pack = config.get("decode_pack", {"enabled": False})
     os.makedirs(output_dir, exist_ok=True)
 
     tasks = []
@@ -623,6 +644,7 @@ def compile_partitioned(
                 "num_threads": num_threads,
                 "llc_attrs": llc_attrs,
                 "variant": variant,
+                "decode_pack": decode_pack,
                 "tiered": is_tiered_kv_cache(config),
                 "input": mlir_name
                 if os.path.isabs(mlir_name)
@@ -935,6 +957,7 @@ def main():
             args.llc_attrs,
             variant,
             is_tiered_kv_cache(config),
+            config.get("decode_pack"),
         )
 
         print(
