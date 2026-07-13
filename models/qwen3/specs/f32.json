@@ -1,0 +1,10 @@
+{
+  "model_family": "qwen3",
+  "kv_layers": 56,
+  "head_num": 8,
+  "max_token_len": 1024,
+  "hidden_size": 128,
+  "hf_model_path": "Qwen/Qwen3-0.6B",
+  "num_threads": 48,
+  "variant": "f32"
+}

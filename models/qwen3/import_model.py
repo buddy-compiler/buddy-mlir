@@ -1,0 +1,216 @@
+#!/usr/bin/env python3
+# ===- import_model.py ---------------------------------------------------
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# ===---------------------------------------------------------------------------
+#
+# Qwen3-0.6B Official Model Importer (Adapted for Buddy-MLIR Pipeline)
+#
+# ===---------------------------------------------------------------------------
+
+import argparse
+import os
+import types
+
+import numpy
+import torch
+from buddy.compiler.frontend import DynamoCompiler
+from buddy.compiler.graph import GraphDriver
+from buddy.compiler.graph.operation import * # noqa: F403
+from buddy.compiler.graph.transform import (
+    apply_classic_fusion,
+    eliminate_matmul_transpose_reshape,
+    eliminate_transpose,
+    flash_attention_prefill,
+    gqa_attention_fusion,
+    simply_fuse,
+)
+from buddy.compiler.graph.type import DeviceType
+from buddy.compiler.ops import tosa
+from torch._inductor.decomposition import decompositions as inductor_decomp
+from transformers import (
+    AutoModelForCausalLM,
+    StaticCache,
+)
+
+# Add argument parser to allow custom output directory.
+parser = argparse.ArgumentParser(description="Qwen3-0.6B Model AOT Importer")
+parser.add_argument(
+    "--output-dir",
+    type=str,
+    default="./",
+    help="Directory to save output files.",
+)
+parser.add_argument(
+    "--precision",
+    type=str,
+    default="f32",
+    choices=["f32"],
+    help="Precision mode for generated MLIR and input data. Choose from 'f32'.",
+)
+args = parser.parse_args()
+
+# Ensure the output directory exists.
+output_dir = args.output_dir
+os.makedirs(output_dir, exist_ok=True)
+
+# Retrieve the Qwen3-0.6B model path from environment variables.
+model_path = os.environ.get("QWEN3_MODEL_PATH")
+if model_path is None:
+    model_path = "Qwen/Qwen3-0.6B"
+
+print("[Qwen3-Import] 📥 加载模型并解除封装...")
+# Initialize the model from the specified model path.
+model = AutoModelForCausalLM.from_pretrained(
+    model_path,
+    dtype=torch.float32,
+).eval()
+model.config.use_cache = False
+
+# === 扒掉 HF 装饰器，暴露出原始 forward 函数给 Dynamo 追踪 ===
+for m in model.modules():
+    if hasattr(m.forward, "__wrapped__"):
+        m.forward = types.MethodType(m.forward.__wrapped__, m)
+# ==============================================================
+
+# Initialize Dynamo Compiler with specific configurations as an importer.
+dynamo_compiler_prefill = DynamoCompiler(
+    primary_registry=tosa.ops_registry,
+    aot_autograd_decomposition=inductor_decomp,
+    func_name="forward_prefill",
+)
+
+dynamo_compiler_decode = DynamoCompiler(
+    primary_registry=tosa.ops_registry,
+    aot_autograd_decomposition=inductor_decomp,
+    func_name="forward_decode",
+)
+
+print("[Qwen3-Import] ⚙️ 开始追踪前向图...")
+# Import the model into MLIR module and parameters.
+with torch.no_grad():
+    past_key_values_prefill = StaticCache(
+        config=model.config, max_cache_len=1024
+    )
+    past_key_values_decode = StaticCache(
+        config=model.config, max_cache_len=1024
+    )
+
+    data_prefill = {
+        "input_ids": torch.zeros((1, 1024), dtype=torch.int64),
+    }
+    data_decode = {
+        "input_ids": torch.zeros((1, 1), dtype=torch.int64),
+    }
+
+    cache_position = torch.tensor([200], dtype=torch.int64)
+    cache_position_prefill = torch.arange(1024, dtype=torch.int64)
+
+    graphs_prefill = dynamo_compiler_prefill.importer(
+        model,
+        input_ids=data_prefill["input_ids"],
+        use_cache=True,
+        past_key_values=past_key_values_prefill,
+        cache_position=cache_position_prefill,
+        cache_implementation="static",
+    )
+    # Initialize past_key_values once during the first forward call
+    model(
+        input_ids=data_decode["input_ids"],
+        past_key_values=past_key_values_decode,
+        use_cache=True,
+        cache_implementation="static",
+    )
+
+    graphs_decode = dynamo_compiler_decode.importer(
+        model,
+        input_ids=data_decode["input_ids"],
+        use_cache=True,
+        cache_position=cache_position,
+        past_key_values=past_key_values_decode,
+        cache_implementation="static",
+    )
+
+assert len(graphs_prefill) == 1
+assert len(graphs_decode) == 1
+graph_prefill = graphs_prefill[0]
+graph_decode = graphs_decode[0]
+
+params = dynamo_compiler_prefill.imported_params[graph_prefill]
+# Enable verbose mode for debugging eliminate_matmul_transpose_reshape
+graphs_prefill[0].perform(
+    [eliminate_transpose, eliminate_matmul_transpose_reshape]
+)
+graphs_decode[0].perform(
+    [eliminate_transpose, eliminate_matmul_transpose_reshape]
+)
+pattern_list_prefill = [
+    simply_fuse,
+    apply_classic_fusion,
+    flash_attention_prefill,
+]
+pattern_list_decode = [
+    simply_fuse,
+    apply_classic_fusion,
+    gqa_attention_fusion,
+]
+
+graphs_prefill[0].fuse_ops(pattern_list_prefill)
+graphs_decode[0].fuse_ops(pattern_list_decode)
+
+graph_prefill.op_groups["subgraph0_prefill"] = graph_prefill.op_groups.pop(
+    "subgraph0"
+)
+graph_prefill.group_map_device["subgraph0_prefill"] = DeviceType.CPU
+
+graph_decode.op_groups["subgraph0_decode"] = graph_decode.op_groups.pop(
+    "subgraph0"
+)
+graph_decode.group_map_device["subgraph0_decode"] = DeviceType.CPU
+
+driver_prefill = GraphDriver(graphs_prefill[0])
+driver_prefill.subgraphs[0].lower_to_top_level_ir()
+
+driver_decode = GraphDriver(graphs_decode[0])
+driver_decode.subgraphs[0].lower_to_top_level_ir()
+
+# =========================================================================
+# === 修改部分：严格遵循 Buddy-MLIR 官方流水线的命名与路径要求 ===
+# =========================================================================
+
+# Ninja 的 compile_pipeline.py 强制要求在 layer_partitioned 目录下找文件
+layer_dir = os.path.join(output_dir, "layer_partitioned")
+os.makedirs(layer_dir, exist_ok=True)
+print(f"\n[Qwen3-Import] 📦 正在向流水线目标目录写入标准 MLIR 文件: {layer_dir}")
+
+# 1. 保存 Prefill 图 (去除 _0_6b 后缀)
+with open(os.path.join(layer_dir, "subgraph0_prefill0.mlir"), "w") as module_file:
+    print(driver_prefill.subgraphs[0]._imported_module, file=module_file)
+with open(os.path.join(layer_dir, "forward_prefill.mlir"), "w") as module_file:
+    print(driver_prefill.construct_main_graph(True), file=module_file)
+
+# 2. 保存 Decode 图 (去除 _0_6b 后缀)
+with open(os.path.join(layer_dir, "subgraph0_decode0.mlir"), "w") as module_file:
+    print(driver_decode.subgraphs[0]._imported_module, file=module_file)
+with open(os.path.join(layer_dir, "forward_decode.mlir"), "w") as module_file:
+    print(driver_decode.construct_main_graph(True), file=module_file)
+
+# 3. 导出权重参数 (保存在外层的 output_dir)
+print(f"[Qwen3-Import] 💾 正在导出模型权重参数...")
+all_param = numpy.concatenate(
+    [param.detach().numpy().reshape([-1]) for param in params]
+)
+all_param.tofile(os.path.join(output_dir, "arg0.data"))
+
+print("[Qwen3-Import] 🎉 官方流水线适配全部完成！")
