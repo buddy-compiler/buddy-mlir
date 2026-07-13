@@ -1,0 +1,51 @@
+# SyncBots LLVM auto-upgrade workflow for buddy-mlir
+#
+# Place this file at: .github/workflows/llvm-upgrade.yml
+#
+# Required repository secrets (Settings > Secrets and variables > Actions):
+#   - LLM_API_KEY: API key for the LLM provider
+#   - LLM_BASE_URL: (optional) Custom API endpoint
+#   - LLM_PROVIDER: (optional) anthropic / openai / openai_compatible
+#   - PAT_TOKEN: GitHub Personal Access Token with repo write access (for PR creation)
+
+name: LLVM Upgrade (SyncBots)
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_llvm:
+        description: "Target LLVM commit hash (blank = main HEAD)"
+        required: false
+        default: ""
+      max_iterations:
+        description: "Max fix iterations"
+        required: false
+        default: "10"
+      strong_model:
+        description: "Strong model (main agent)"
+        required: false
+        default: "claude-sonnet-4-6"
+      weak_model:
+        description: "Weak model (subagents, blank = same as strong)"
+        required: false
+        default: ""
+
+  # Optional scheduled trigger (runs every Monday at 02:00 UTC)
+  # schedule:
+  #   - cron: '0 2 * * 1'
+
+jobs:
+  upgrade:
+    uses: RuyiAI-Stack/SyncBots-DeepAgents/.github/workflows/llvm-upgrade.yml@main
+    with:
+      repo_name: buddy-mlir
+      target_llvm: ${{ github.event.inputs.target_llvm || '' }}
+      max_iterations: ${{ fromJSON(github.event.inputs.max_iterations || '10') }}
+      strong_model: ${{ github.event.inputs.strong_model || 'claude-sonnet-4-6' }}
+      weak_model: ${{ github.event.inputs.weak_model || '' }}
+      auto_pr: true
+    secrets:
+      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+      LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
+      LLM_PROVIDER: ${{ secrets.LLM_PROVIDER }}
+      GITHUB_PAT: ${{ secrets.PAT_TOKEN }}
