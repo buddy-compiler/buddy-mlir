@@ -68,6 +68,7 @@ void registerMatMulOptimizePass();
 void registerMatMulParallelVectorizationPass();
 void registerMatMulVectorizationPass();
 void registerMatMulVectorizationDecodePass();
+void registerMatMulVectorizationDecodePackedPass();
 void registerDequantMatMulVectorizationDecodePass();
 void registerInt4DequantMatMulVectorizationDecodePass();
 void registerBatchMatMulVectorizationDecodePass();
@@ -131,6 +132,7 @@ void mlir::buddy::registerAllPasses() {
   mlir::buddy::registerMatMulParallelVectorizationPass();
   mlir::buddy::registerMatMulVectorizationPass();
   mlir::buddy::registerMatMulVectorizationDecodePass();
+  mlir::buddy::registerMatMulVectorizationDecodePackedPass();
   mlir::buddy::registerDequantMatMulVectorizationDecodePass();
   mlir::buddy::registerInt4DequantMatMulVectorizationDecodePass();
   mlir::buddy::registerBatchMatMulVectorizationDecodePass();
