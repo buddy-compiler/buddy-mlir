@@ -1,0 +1,9 @@
+{
+  "model_family": "embeddinggemma",
+  "hidden_size": 768,
+  "max_token_len": 2048,
+  "hf_model_path": "google/embeddinggemma-300m",
+  "num_threads": 48,
+  "variant": "f32",
+  "embedding_dim": 768
+}
