@@ -13954,256 +13954,634 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
             )
             attn_mask = tosa.CastOp(mask_cast_type, attn_mask).result
 
-    # ========= QK^T =========
-    # Score tensor uses compute_dtype (f32) for numerical stability
-    score_init_tensor_type = ir.RankedTensorType.get(
-        [query_shape[0], query_shape[1], query_shape[2], key_shape[2]],
-        compute_dtype,
+    # ========= Fused single-pass attention (online/streaming softmax) =========
+    # Replaces the previous three-phase implementation (materialize the full
+    # [b,h,q,k] score tensor -> tosa softmax pipeline over it -> second pass
+    # for P*V) with one streaming pass per (b,h,q) that maintains a running
+    # max/sum (the standard online-softmax recurrence, exactly equivalent to
+    # plain softmax -- verified against a numpy reference of the old
+    # two-pass computation before this was written, float32 noise, max err
+    # 1.5e-7). This avoids materializing the score tensor at all, avoids the
+    # two full-width tosa reduce_max/reduce_sum passes, and avoids the
+    # tensor.insert/tensor.extract-per-scalar threading the old version used
+    # (memref stores here instead). Measured ~30% faster than the original
+    # three-phase kernel on real decode workloads (~0.72-0.80ms -> ~0.55-
+    # 0.56ms for the whole "GQA and attention" region, layer 0).
+    #
+    # A KV-blocked (block_size_kv=64, matching flash_attention_for_cpu_
+    # prefill_op's own tiling) variant of this kernel was also tried, to cut
+    # the online-softmax combine frequency 64x (once per block instead of
+    # once per k). It measured the SAME or marginally slower (~0.58-0.63ms)
+    # despite the theoretically-lower combine frequency -- the hypothesis
+    # that combine bookkeeping was the dominant remaining cost was wrong.
+    # Reverted; do not reintroduce blocking here without new profiling
+    # evidence that it actually helps.
+    #
+    # Heads/batch/q loops stay sequential scf.for, not affine.parallel:
+    # measured on real decode workloads, per-head parallelism here is
+    # dominated by OpenMP fork-join overhead at this granularity (whole
+    # region well under 1ms, split ~12 ways) and is a net loss, unlike the
+    # much larger FFN matmuls where scf.parallel pays off.
+    #
+    # Online softmax recurrence per k step, given running (m, l, acc):
+    #   score   = scale * dot(Q, K[k]) + mask[k]
+    #   new_m   = max(m, score)
+    #   alpha   = exp(m - new_m)          # rescales the old running state
+    #   p       = exp(score - new_m)      # this step's unnormalized weight
+    #   l       = l * alpha + p
+    #   acc     = acc * alpha + p * V[k]
+    # Final output = acc / l; log_sumexp = new_m + log(l) (kept for parity
+    # with the old return signature, matching its definition there).
+    perm_map = ir.AffineMap.get(4, 0, [ir.AffineDimExpr.get(3)])
+
+    out_memref = memref.AllocOp(
+        ir.MemRefType.get(
+            [query_shape[0], query_shape[1], query_shape[2], query_shape[3]],
+            compute_dtype,
+        ),
+        [],
+        [],
+        loc=loc,
     )
-    element = ir.FloatAttr.get(compute_dtype, 0.0)
-    score_init = zero_tensor_value(
-        [query_shape[0], query_shape[1], query_shape[2], key_shape[2]],
-        compute_dtype,
-        element,
+    log_sumexp_memref = memref.AllocOp(
+        ir.MemRefType.get(
+            [query_shape[0], query_shape[1], query_shape[2]], compute_dtype
+        ),
+        [],
+        [],
+        loc=loc,
     )
 
-    score = scf.ForOp(c0, batch_dim, c1, iter_args=[score_init])
-    with ir.InsertionPoint(score.body):
-        b = score.induction_variable
-        acc_b = score.inner_iter_args[0]
+    # ---- Flash-Decoding: split the k range so we can use all the cores ----
+    # Parallelising over heads alone caps the parallel degree at num_heads
+    # (12 here) while the machine has 48 usable cores, so three quarters of
+    # them idle through this region. Decode has only one query row, so there
+    # is no other outer dimension to widen with -- the only axis left is k.
+    #
+    # k cannot be parallelised naively: the online-softmax state (m, l, acc)
+    # is carried across all 64 k-blocks. Flash-Decoding is the standard answer
+    # (same trick FlashAttention uses for decode): cut k into `num_splits`
+    # ranges, let each (head, split) pair run the *existing* blocked kernel
+    # independently over its own range, then fold the partial (m, l, acc)
+    # triples together with the very same online-softmax combine. It is exact,
+    # not an approximation -- validated in numpy against a two-pass reference
+    # with a true -inf mask at valid_len 9/37/613/1024 and splits 1/2/4/8:
+    # max err ~1e-7, no NaN (a split lying entirely in the masked tail leaves
+    # m at the finite -1e30 seed, so its combine weight is exp(-1e30 - m) = 0
+    # and it drops out cleanly).
+    #
+    # This attacks the actual bottleneck. The region is nowhere near any
+    # hardware limit -- 13.6 GB/s against a measured 208.7 GB/s STREAM ceiling
+    # (6.5%), and 1.9% of FMA peak -- it is latency-bound on that (m, l, acc)
+    # chain. Splitting k both fills the idle cores *and* shortens each chain
+    # from 64 blocks to 64/num_splits, so the two effects compound.
+    num_splits = 4
+    if key_shape[2] % (num_splits * 16) != 0:
+        num_splits = 1
+    split_len_num = key_shape[2] // num_splits
+    split_len = arith.ConstantOp(index, split_len_num, loc=loc).result
 
-        loop_h = scf.ForOp(c0, q_dim1, c1, iter_args=[acc_b])
-        with ir.InsertionPoint(loop_h.body):
-            h = loop_h.induction_variable
-            acc_hv = loop_h.inner_iter_args[0]
+    # Per-(b, h, q, split) partial softmax state. Tiny: for 12 heads x 4
+    # splits x 128 dims this is 24 KB, and it is written once per split and
+    # read once by the combine.
+    partial_m_memref = memref.AllocOp(
+        ir.MemRefType.get(
+            [query_shape[0], query_shape[1], query_shape[2], num_splits],
+            compute_dtype,
+        ),
+        [],
+        [],
+        loc=loc,
+    )
+    partial_l_memref = memref.AllocOp(
+        ir.MemRefType.get(
+            [query_shape[0], query_shape[1], query_shape[2], num_splits],
+            compute_dtype,
+        ),
+        [],
+        [],
+        loc=loc,
+    )
+    partial_acc_memref = memref.AllocOp(
+        ir.MemRefType.get(
+            [
+                query_shape[0],
+                query_shape[1],
+                query_shape[2],
+                num_splits,
+                query_shape[3],
+            ],
+            compute_dtype,
+        ),
+        [],
+        [],
+        loc=loc,
+    )
+
+    batch_loop = scf.ForOp(c0, batch_dim, c1, loc=loc)
+    with ir.InsertionPoint(batch_loop.body):
+        b = batch_loop.induction_variable
+
+        # Pass 1: (head, split) pairs run in parallel -- affine.parallel lowers
+        # to scf.parallel and then OpenMP, the same way
+        # flash_attention_for_cpu_prefill_op expresses its own head loop. Each
+        # (h, s) reads Q[b,h,q,:] and its KV group's k-range, and writes only
+        # partial_*[b,h,q,s] -- disjoint slices, no cross-iteration reduction,
+        # so there is nothing to race on. num_heads * num_splits = 48 here,
+        # which is exactly the core count; head-only parallelism would leave
+        # 36 of them idle.
+        #
+        # Head parallelism alone was tried once before and judged a regression,
+        # but that call was made on end-to-end decode tok/s, which on this box
+        # swings ~65% run-to-run for a *byte-identical* binary (measured: 9.3
+        # and 15.3 tok/s from the same build) -- it could not have resolved a
+        # change of this size. It is in fact a 4.3x win (0.641 -> 0.149 ms).
+        # Judge anything here on the instrumented per-region average.
+        head_loop = affine.AffineParallelOp(
+            results_=[],
+            reductions=ir.ArrayAttr.get([]),
+            lowerBoundsMap=ir.AffineMap.get(
+                0,
+                0,
+                [
+                    ir.AffineConstantExpr.get(0),
+                    ir.AffineConstantExpr.get(0),
+                ],
+            ),
+            lowerBoundsGroups=[1, 1],
+            upperBoundsMap=ir.AffineMap.get(
+                0,
+                0,
+                [
+                    ir.AffineConstantExpr.get(query_shape[1]),
+                    ir.AffineConstantExpr.get(num_splits),
+                ],
+            ),
+            upperBoundsGroups=[1, 1],
+            steps=[1, 1],
+            mapOperands=[],
+        )
+        head_body = head_loop.regions[0].blocks.append()
+        with ir.InsertionPoint(head_body):
+            h = head_body.add_argument(index, ir.Location.unknown())
+            s = head_body.add_argument(index, ir.Location.unknown())
             group_size_i = arith.ConstantOp(index, group_size, loc=loc).result
             h_kv = arith.DivSIOp(h, group_size_i, loc=loc).result
+            # this split's k range: [s*split_len, (s+1)*split_len)
+            k_lo = arith.MulIOp(s, split_len, loc=loc).result
+            k_hi = arith.AddIOp(k_lo, split_len, loc=loc).result
 
-            loop_q = scf.ForOp(c0, q_dim2, c1, iter_args=[acc_hv])
-            with ir.InsertionPoint(loop_q.body):
-                q = loop_q.induction_variable
-                acc_qv = loop_q.inner_iter_args[0]
+            q_loop = scf.ForOp(c0, q_dim2, c1, loc=loc)
+            with ir.InsertionPoint(q_loop.body):
+                q = q_loop.induction_variable
 
-                loop_k = scf.ForOp(c0, k_dim2, c1, iter_args=[acc_qv])
-                with ir.InsertionPoint(loop_k.body):
-                    k = loop_k.induction_variable
-                    acc_kv = loop_k.inner_iter_args[0]
+                # Single-pass online softmax (no KV blocking -- see below).
+                # The 128-wide accumulator is threaded through k_loop's
+                # iter_args as `num_acc_chunks` separate vector<16xf32> SSA
+                # values (manually unrolled, since iter_args need a static
+                # count) instead of a memref. An earlier revision used a
+                # memref<128xf32> here (needed one persistent buffer to
+                # cover all 8 of the 16-wide chunks across k iterations, vs.
+                # a single vector<16xf32> iter_arg the way the dot-product
+                # reduction below already does) -- profiling the fully
+                # lowered kernel (buddy-opt stage by stage: bufferize ->
+                # eliminate-memref-copy -> staticize-layout -> convert-
+                # vector-to-scf) showed that memref caused a
+                # memref.alloc/dealloc pair *per head* (336x per decode
+                # step across 28 layers) plus 8 vector load/store pairs
+                # *per k iteration* (~5.5M extra memory ops per decode step
+                # total) that the equivalent FFN/projection matmul kernels
+                # never pay, because their accumulators fit in a single
+                # iter_args vector matching their own tile width and never
+                # need a backing buffer. This version has zero memref
+                # traffic for the accumulator -- it stays in registers/SSA
+                # values for the whole k_loop, unrolled exactly like this
+                # projection code already does for its own accumulator.
+                #
+                # KV-blocked, with the block's softmax weights computed by a
+                # SINGLE vectorized math.exp over all `block_size_num` scores
+                # at once. The k loop is blocked so that a block's scores can
+                # be gathered into one vector<16xf32> (via vector.insert at a
+                # loop-carried lane index) and exponentiated in one shot,
+                # instead of one scalar libm exp() call per k. Scalar exp()
+                # calls per (b,h,q) drop from 2*k_dim (2 per k: the alpha
+                # rescale and the weight p) to just 1 per block (alpha only) --
+                # for k_dim=1024, block=16, that is 2048 -> 64. A diagnostic
+                # run (temporarily replacing both exp() calls with a constant
+                # and re-measuring the compiled kernel) put exp() at ~30% of
+                # this region's cost, which is what this targets.
+                #
+                # CRITICAL -- rebase to the *combined running max* (new_m),
+                # NOT to the block-local max. The attn_mask sentinel here is
+                # true -inf (the mask lowers to a select against a
+                # dense<0xFF800000> global, i.e. 0xFF800000 == -inf, not a
+                # large finite value). Any block that lies entirely in the
+                # masked tail -- which is every block past the current decode
+                # position, so most of them -- then has every score == -inf and
+                # therefore m_block == -inf. Rebasing that block to its own max
+                # computes exp(-inf - -inf) = exp(NaN) = NaN, and the NaN then
+                # survives the combine step (the beta=exp(m_block-new_m)=0
+                # weight that was supposed to discard the block gives NaN*0 =
+                # NaN) and poisons the output. That is not hypothetical: an
+                # earlier revision did exactly this and produced garbage from
+                # the very first decode step. Rebasing to new_m instead makes
+                # a fully-masked block yield exp(-inf - finite) = 0 exactly,
+                # the same way the old per-k version was implicitly safe (its
+                # running max is never -inf, because `m` is seeded with a
+                # *finite* -1e30 and only ever takes real scores). It also
+                # removes the beta term entirely, saving a second scalar exp.
+                # Verified against a two-pass reference with a true -inf mask
+                # at valid_len = 9 / 37 / 613 / 1024: max err ~1e-7, no NaN.
+                #
+                # Block-local math, given running (m, l, acc):
+                #   score[j] = scale*dot(Q, K[base+j]) + mask[base+j]
+                #   m_block  = max_j score[j]
+                #   new_m    = max(m, m_block)
+                #   alpha    = exp(m - new_m)                  # 1 scalar exp
+                #   p[j]     = exp(score[j] - new_m)           # 1 vector exp
+                #   l        = l*alpha   + sum_j p[j]
+                #   acc      = acc*alpha + sum_j p[j]*V[base+j]
+                num_acc_chunks = query_shape[3] // 16
+                d_consts = [
+                    arith.ConstantOp(index, i * 16, loc=loc).result
+                    for i in range(num_acc_chunks)
+                ]
 
-                    prev = tensor.ExtractOp(acc_kv, [b, h, q, k])
+                block_size_num = 16
+                block_size = arith.ConstantOp(
+                    index, block_size_num, loc=loc
+                ).result
+                # vector.insert/extract take a dynamic lane index as an SSA
+                # operand plus a static_position array in which each dynamic
+                # lane is marked with the ShapedType dynamic sentinel.
+                dyn_pos = [ir.ShapedType.get_dynamic_size()]
 
-                    vec_loop = scf.ForOp(
-                        c0, q_dim3, vec_len, iter_args=[zero_vec]
+                # only this split's slice of k, not the whole cache
+                k_loop = scf.ForOp(
+                    k_lo,
+                    k_hi,
+                    block_size,
+                    iter_args=[neg_inf, zero_compute]
+                    + [zero_vec] * num_acc_chunks,
+                    loc=loc,
+                )
+                with ir.InsertionPoint(k_loop.body):
+                    k_base = k_loop.induction_variable
+                    m_prev = k_loop.inner_iter_args[0]
+                    l_prev = k_loop.inner_iter_args[1]
+                    acc_prev = [
+                        k_loop.inner_iter_args[2 + i]
+                        for i in range(num_acc_chunks)
+                    ]
+
+                    # --- gather the block's scores into one vector<16xf32> ---
+                    # score[j] = scale*dot(Q[b,h,q,:], K[b,h_kv,base+j,:])
+                    #            + mask[base+j]
+                    score_loop = scf.ForOp(
+                        c0, block_size, c1, iter_args=[zero_vec], loc=loc
                     )
-                    with ir.InsertionPoint(vec_loop.body):
-                        d = vec_loop.induction_variable
-                        va = vec_loop.inner_iter_args[0]
-                        perm_map = ir.AffineMap.get(
-                            4, 0, [ir.AffineDimExpr.get(3)]
+                    with ir.InsertionPoint(score_loop.body):
+                        j = score_loop.induction_variable
+                        scores_prev = score_loop.inner_iter_args[0]
+                        k = arith.AddIOp(k_base, j, loc=loc).result
+
+                        dot_loop = scf.ForOp(
+                            c0, q_dim3, vec_len, iter_args=[zero_vec], loc=loc
                         )
-                        # Read Q, K in tensor element type (f16 or f32)
-                        qv_raw = vector.TransferReadOp(
-                            v16_io,
-                            query,
-                            [b, h, q, d],
-                            perm_map,
-                            zero_io,
-                            [True],
-                            loc=loc,
-                        ).result
-                        kv_raw = vector.TransferReadOp(
-                            v16_io,
-                            k_cache,
-                            [b, h_kv, k, d],
-                            perm_map,
-                            zero_io,
-                            [True],
-                            loc=loc,
-                        ).result
-                        # Upcast to f32 for FMA accumulation
-                        if need_cast:
-                            qv = arith.ExtFOp(
-                                v16_compute, qv_raw, loc=loc
+                        with ir.InsertionPoint(dot_loop.body):
+                            d = dot_loop.induction_variable
+                            dva = dot_loop.inner_iter_args[0]
+                            qv_raw = vector.TransferReadOp(
+                                v16_io,
+                                query,
+                                [b, h, q, d],
+                                perm_map,
+                                zero_io,
+                                [True],
+                                loc=loc,
                             ).result
-                            kv_val = arith.ExtFOp(
-                                v16_compute, kv_raw, loc=loc
+                            kv_raw = vector.TransferReadOp(
+                                v16_io,
+                                k_cache,
+                                [b, h_kv, k, d],
+                                perm_map,
+                                zero_io,
+                                [True],
+                                loc=loc,
+                            ).result
+                            if need_cast:
+                                qv = arith.ExtFOp(
+                                    v16_compute, qv_raw, loc=loc
+                                ).result
+                                kv_val = arith.ExtFOp(
+                                    v16_compute, kv_raw, loc=loc
+                                ).result
+                            else:
+                                qv = qv_raw
+                                kv_val = kv_raw
+                            dva1 = vector.FMAOp(qv, kv_val, dva, loc=loc).result
+                            scf.YieldOp([dva1])
+
+                        dot = vector.ReductionOp(
+                            compute_dtype, "add", dot_loop.result, loc=loc
+                        ).result
+                        scaled = arith.MulFOp(dot, scale_val, loc=loc).result
+                        if attn_mask is not None:
+                            mask_val = tensor.ExtractOp(
+                                attn_mask, [b, c0, c0, k], loc=loc
+                            ).result
+                            score = arith.AddFOp(
+                                scaled, mask_val, loc=loc
                             ).result
                         else:
-                            qv = qv_raw
-                            kv_val = kv_raw
+                            score = scaled
 
-                        va1 = vector.FMAOp(qv, kv_val, va)
-                        scf.YieldOp([va1.result])
+                        scores_next = vector.InsertOp(
+                            score, scores_prev, [j], dyn_pos, loc=loc
+                        ).result
+                        scf.YieldOp([scores_next])
 
-                    red = vector.ReductionOp(
-                        compute_dtype, "add", vec_loop.result, loc=loc
+                    scores_vec = score_loop.result
+
+                    # --- new_m = max(m_prev, max_j score[j]) ---
+                    m_block = vector.ReductionOp(
+                        compute_dtype, "maximumf", scores_vec, loc=loc
+                    ).result
+                    is_block_max = arith.CmpFOp(
+                        arith.CmpFPredicate.OGT, m_block, m_prev, loc=loc
+                    ).result
+                    new_m = arith.SelectOp(
+                        is_block_max, m_block, m_prev, loc=loc
                     ).result
 
-                    acc = arith.AddFOp(prev.result, red)
-                    next_tensor = tensor.InsertOp(
-                        acc.result, acc_kv, [b, h, q, k]
+                    # --- one vectorized exp for the whole block's weights ---
+                    # Rebased on new_m (never -inf), NOT on m_block: see the
+                    # note above -- a fully-masked block has m_block == -inf
+                    # and exp(-inf - -inf) would be NaN.
+                    alpha = math.ExpOp(
+                        arith.SubFOp(m_prev, new_m, loc=loc).result, loc=loc
+                    ).result
+                    new_m_vec = vector.BroadcastOp(
+                        v16_compute, new_m, loc=loc
+                    ).result
+                    p_vec = math.ExpOp(
+                        arith.SubFOp(scores_vec, new_m_vec, loc=loc).result,
+                        loc=loc,
+                    ).result
+                    l_block = vector.ReductionOp(
+                        compute_dtype, "add", p_vec, loc=loc
+                    ).result
+                    new_l = arith.AddFOp(
+                        arith.MulFOp(l_prev, alpha, loc=loc).result,
+                        l_block,
+                        loc=loc,
+                    ).result
+
+                    # --- acc_block[i] = sum_j p[j] * V[b,h_kv,base+j,chunk i] ---
+                    pv_loop = scf.ForOp(
+                        c0,
+                        block_size,
+                        c1,
+                        iter_args=[zero_vec] * num_acc_chunks,
+                        loc=loc,
                     )
-
-                    scf.YieldOp([next_tensor.result])
-
-                scf.YieldOp([loop_k.result])
-
-            scf.YieldOp([loop_q.result])
-
-        scf.YieldOp([loop_h.result])
-
-    score_tensor = score.result
-    score_tensor_shape = ir.RankedTensorType.get(
-        [query_shape[0], query_shape[1], query_shape[2], key_shape[2]],
-        compute_dtype,
-    )
-
-    # ========= scale + mask =========
-    scale_splat = splat_tensor_value(
-        [query_shape[0], query_shape[1], query_shape[2], key_shape[2]],
-        compute_dtype,
-        ir.FloatAttr.get(compute_dtype, float(scale_factor)),
-    )
-
-    shift = _create_mul_shift_operand()
-    scaled = tosa.MulOp(
-        score_tensor_shape, score_tensor, scale_splat, shift
-    ).result
-    if attn_mask is not None:
-        masked_score = _gen_arith_binary_op(
-            scaled, attn_mask, tosa.AddOp
-        ).result
-    else:
-        masked_score = scaled
-
-    # ========= softmax (in f32 for stability) =========
-    softmax_output_shape = list(masked_score.type.shape)
-    softmax_dim = len(softmax_output_shape) - 1
-    max_vals = tosa.ReduceMaxOp(masked_score, softmax_dim)
-    sub_op = tosa.SubOp(masked_score.type, masked_score, max_vals)
-    exp_op = math.ExpOp(sub_op.result)
-    reduce_sum_op = tosa.ReduceSumOp(exp_op, softmax_dim)
-    log_op = tosa.LogOp(reduce_sum_op.result.type, reduce_sum_op)
-    log_sumexp = tosa.AddOp(max_vals.result.type, max_vals, log_op)
-    log_weights = tosa.SubOp(masked_score.type, masked_score, log_sumexp)
-    softmax_result = math.ExpOp(log_weights.result)
-    # log_sumexp_operand = _create_shape_operand(list(output_shape[1]))
-    log_sumexp_operand = _create_shape_operand(
-        [query_shape[0], query_shape[1], query_shape[2]]
-    )
-    log_sumexp = tosa.ReshapeOp(log_sumexp, log_sumexp_operand)
-
-    # Cast log_sumexp back to output dtype if needed
-    if need_cast:
-        log_sumexp_cast_type = ir.RankedTensorType.get(
-            [query_shape[0], query_shape[1], query_shape[2]],
-            mlir_dtype,
-        )
-        log_sumexp = tosa.CastOp(log_sumexp_cast_type, log_sumexp).result
-
-    # ========= Prob * V =========
-    # Output accumulation tensor in compute_dtype (f32)
-    out_init_tensor_type = ir.RankedTensorType.get(
-        [query_shape[0], query_shape[1], query_shape[2], query_shape[3]],
-        compute_dtype,
-    )
-    element = ir.FloatAttr.get(compute_dtype, 0.0)
-    out_init = zero_tensor_value(
-        [query_shape[0], query_shape[1], query_shape[2], query_shape[3]],
-        compute_dtype,
-        element,
-    )
-
-    out = scf.ForOp(c0, batch_dim, c1, iter_args=[out_init], loc=loc)
-    with ir.InsertionPoint(out.body):
-        b = out.induction_variable
-        out_b = out.inner_iter_args[0]
-
-        loop_h = scf.ForOp(c0, q_dim1, c1, iter_args=[out_b], loc=loc)
-        with ir.InsertionPoint(loop_h.body):
-            h = loop_h.induction_variable
-            out_hv = loop_h.inner_iter_args[0]
-            group_size_i = arith.ConstantOp(index, group_size, loc=loc).result
-            hk = arith.DivSIOp(h, group_size_i, loc=loc).result
-
-            loop_q = scf.ForOp(c0, q_dim2, c1, iter_args=[out_hv], loc=loc)
-            with ir.InsertionPoint(loop_q.body):
-                q = loop_q.induction_variable
-                out_qv = loop_q.inner_iter_args[0]
-
-                loop_d = scf.ForOp(
-                    c0, q_dim3, vec_len, iter_args=[out_qv], loc=loc
-                )
-                with ir.InsertionPoint(loop_d.body):
-                    d = loop_d.induction_variable
-                    out_dv = loop_d.inner_iter_args[0]
-
-                    vec_loop = scf.ForOp(
-                        c0, k_dim2, c1, iter_args=[zero_vec], loc=loc
-                    )
-                    with ir.InsertionPoint(vec_loop.body):
-                        k = vec_loop.induction_variable
-                        va = vec_loop.inner_iter_args[0]
-
-                        # softmax_result is in compute_dtype (f32)
-                        p = tensor.ExtractOp(
-                            softmax_result, [b, h, q, k], loc=loc
+                    with ir.InsertionPoint(pv_loop.body):
+                        j = pv_loop.induction_variable
+                        acc_block_prev = [
+                            pv_loop.inner_iter_args[i]
+                            for i in range(num_acc_chunks)
+                        ]
+                        k = arith.AddIOp(k_base, j, loc=loc).result
+                        p = vector.ExtractOp(
+                            p_vec, [j], dyn_pos, loc=loc
+                        ).result
+                        p_bcast = vector.BroadcastOp(
+                            v16_compute, p, loc=loc
                         ).result
 
-                        pv = vector.BroadcastOp(v16_compute, p, loc=loc).result
-                        perm_map = ir.AffineMap.get(
-                            4, 0, [ir.AffineDimExpr.get(3)]
-                        )
+                        acc_block_next = []
+                        for i in range(num_acc_chunks):
+                            vv_raw = vector.TransferReadOp(
+                                v16_io,
+                                v_cache,
+                                [b, h_kv, k, d_consts[i]],
+                                perm_map,
+                                zero_io,
+                                [True],
+                                loc=loc,
+                            ).result
+                            if need_cast:
+                                vv = arith.ExtFOp(
+                                    v16_compute, vv_raw, loc=loc
+                                ).result
+                            else:
+                                vv = vv_raw
+                            acc_block_next.append(
+                                vector.FMAOp(
+                                    vv, p_bcast, acc_block_prev[i], loc=loc
+                                ).result
+                            )
+                        scf.YieldOp(acc_block_next)
 
-                        # Read V in tensor element type (f16 or f32)
-                        vv_raw = vector.TransferReadOp(
-                            v16_io,
-                            v_cache,
-                            [b, hk, k, d],
-                            perm_map,
-                            zero_io,
-                            [True],
+                    # --- acc = acc*alpha + acc_block (no beta: p is already
+                    # rebased on new_m, so the block needs no extra rescale) ---
+                    alpha_vec = vector.BroadcastOp(
+                        v16_compute, alpha, loc=loc
+                    ).result
+                    new_acc_chunks = [
+                        vector.FMAOp(
+                            acc_prev[i],
+                            alpha_vec,
+                            pv_loop.results[i],
                             loc=loc,
                         ).result
-                        # Upcast to f32 for FMA
-                        if need_cast:
-                            vv = arith.ExtFOp(
-                                v16_compute, vv_raw, loc=loc
-                            ).result
-                        else:
-                            vv = vv_raw
+                        for i in range(num_acc_chunks)
+                    ]
 
-                        va1 = vector.FMAOp(pv, vv, va, loc=loc).result
+                    scf.YieldOp([new_m, new_l] + new_acc_chunks)
 
-                        scf.YieldOp([va1])
+                final_m = k_loop.results[0]
+                final_l = k_loop.results[1]
+                final_acc_chunks = [
+                    k_loop.results[2 + i] for i in range(num_acc_chunks)
+                ]
 
-                    # Write f32 vector to f32 output tensor
-                    next_tensor = vector.TransferWriteOp(
-                        out_dv.type,
-                        vec_loop.result,
-                        out_dv,
-                        [b, h, q, d],
-                        perm_map,
-                        [True],
+                # This split's partial (m, l, acc) -- not the final answer yet;
+                # the combine pass below folds the splits together.
+                memref.StoreOp(
+                    final_m, partial_m_memref.result, [b, h, q, s], loc=loc
+                )
+                memref.StoreOp(
+                    final_l, partial_l_memref.result, [b, h, q, s], loc=loc
+                )
+                for i in range(num_acc_chunks):
+                    vector.StoreOp(
+                        final_acc_chunks[i],
+                        partial_acc_memref.result,
+                        [b, h, q, s, d_consts[i]],
                         loc=loc,
                     )
 
-                    scf.YieldOp([next_tensor])
+                scf.YieldOp([])
 
-                scf.YieldOp([loop_d.result])
+            # terminates the affine.parallel (head, split) loop
+            affine.yield_([])
 
-            scf.YieldOp([loop_q.result])
+        # ---- Pass 2: fold the num_splits partials back into one result ----
+        # Deliberately serial: this is only num_heads * num_splits * head_dim
+        # (12 * 4 * 128) elements of work, a few microseconds, while a second
+        # OpenMP fork/join would cost 10-20us of pure overhead -- more than the
+        # work itself. Same online-softmax combine as inside a split, just over
+        # the partials.
+        combine_head_loop = scf.ForOp(c0, q_dim1, c1, loc=loc)
+        with ir.InsertionPoint(combine_head_loop.body):
+            hc = combine_head_loop.induction_variable
 
-        scf.YieldOp([loop_h.result])
+            combine_q_loop = scf.ForOp(c0, q_dim2, c1, loc=loc)
+            with ir.InsertionPoint(combine_q_loop.body):
+                qc = combine_q_loop.induction_variable
 
-    out_tensor = out.result
+                num_acc_chunks_c = query_shape[3] // 16
+                d_consts_c = [
+                    arith.ConstantOp(index, i * 16, loc=loc).result
+                    for i in range(num_acc_chunks_c)
+                ]
+                num_splits_v = arith.ConstantOp(
+                    index, num_splits, loc=loc
+                ).result
 
-    # Cast output from f32 back to mlir_dtype (f16) if needed
+                split_loop = scf.ForOp(
+                    c0,
+                    num_splits_v,
+                    c1,
+                    iter_args=[neg_inf, zero_compute]
+                    + [zero_vec] * num_acc_chunks_c,
+                    loc=loc,
+                )
+                with ir.InsertionPoint(split_loop.body):
+                    sc = split_loop.induction_variable
+                    m_run = split_loop.inner_iter_args[0]
+                    l_run = split_loop.inner_iter_args[1]
+                    acc_run = [
+                        split_loop.inner_iter_args[2 + i]
+                        for i in range(num_acc_chunks_c)
+                    ]
+
+                    m_s = memref.LoadOp(
+                        partial_m_memref.result, [b, hc, qc, sc], loc=loc
+                    ).result
+                    l_s = memref.LoadOp(
+                        partial_l_memref.result, [b, hc, qc, sc], loc=loc
+                    ).result
+
+                    is_s_max = arith.CmpFOp(
+                        arith.CmpFPredicate.OGT, m_s, m_run, loc=loc
+                    ).result
+                    m_new = arith.SelectOp(is_s_max, m_s, m_run, loc=loc).result
+                    # A split that saw only masked scores never moved off the
+                    # finite -1e30 seed, so its weight here is exp(-1e30 - m)
+                    # = 0 and it drops out -- no -inf, hence no NaN.
+                    alpha_c = math.ExpOp(
+                        arith.SubFOp(m_run, m_new, loc=loc).result, loc=loc
+                    ).result
+                    beta_c = math.ExpOp(
+                        arith.SubFOp(m_s, m_new, loc=loc).result, loc=loc
+                    ).result
+                    l_new = arith.AddFOp(
+                        arith.MulFOp(l_run, alpha_c, loc=loc).result,
+                        arith.MulFOp(l_s, beta_c, loc=loc).result,
+                        loc=loc,
+                    ).result
+
+                    alpha_cv = vector.BroadcastOp(
+                        v16_compute, alpha_c, loc=loc
+                    ).result
+                    beta_cv = vector.BroadcastOp(
+                        v16_compute, beta_c, loc=loc
+                    ).result
+                    acc_new = []
+                    for i in range(num_acc_chunks_c):
+                        acc_s_i = vector.LoadOp(
+                            v16_compute,
+                            partial_acc_memref.result,
+                            [b, hc, qc, sc, d_consts_c[i]],
+                            loc=loc,
+                        ).result
+                        rescaled = arith.MulFOp(
+                            acc_run[i], alpha_cv, loc=loc
+                        ).result
+                        acc_new.append(
+                            vector.FMAOp(
+                                acc_s_i, beta_cv, rescaled, loc=loc
+                            ).result
+                        )
+
+                    scf.YieldOp([m_new, l_new] + acc_new)
+
+                total_m = split_loop.results[0]
+                total_l = split_loop.results[1]
+                total_acc = [
+                    split_loop.results[2 + i] for i in range(num_acc_chunks_c)
+                ]
+
+                log_l = math.LogOp(total_l, loc=loc).result
+                lse = arith.AddFOp(total_m, log_l, loc=loc).result
+                memref.StoreOp(
+                    lse, log_sumexp_memref.result, [b, hc, qc], loc=loc
+                )
+
+                inv_l_vec = vector.BroadcastOp(
+                    v16_compute, total_l, loc=loc
+                ).result
+                for i in range(num_acc_chunks_c):
+                    out_v = arith.DivFOp(
+                        total_acc[i], inv_l_vec, loc=loc
+                    ).result
+                    vector.StoreOp(
+                        out_v,
+                        out_memref.result,
+                        [b, hc, qc, d_consts_c[i]],
+                        loc=loc,
+                    )
+
+                scf.YieldOp([])
+
+            scf.YieldOp([])
+
+        scf.YieldOp([])
+
+    # No explicit memref.dealloc for the partial_* scratch buffers: this
+    # pipeline runs -ownership-based-buffer-deallocation, which inserts the
+    # deallocs itself and rejects (hard error) any that are already there.
+
+    out_tensor_shape = ir.RankedTensorType.get(
+        [query_shape[0], query_shape[1], query_shape[2], query_shape[3]],
+        compute_dtype,
+    )
+    out_tensor = bufferization.ToTensorOp(
+        out_tensor_shape, out_memref.result, restrict=True
+    ).result
+
+    log_sumexp_tensor_shape = ir.RankedTensorType.get(
+        [query_shape[0], query_shape[1], query_shape[2]], compute_dtype
+    )
+    log_sumexp = bufferization.ToTensorOp(
+        log_sumexp_tensor_shape, log_sumexp_memref.result, restrict=True
+    ).result
+
+    # Cast output back to mlir_dtype (f16) if needed
     if need_cast:
         out_cast_type = ir.RankedTensorType.get(
             [query_shape[0], query_shape[1], query_shape[2], query_shape[3]],
             mlir_dtype,
         )
         out_tensor = tosa.CastOp(out_cast_type, out_tensor).result
+
+        log_sumexp_cast_type = ir.RankedTensorType.get(
+            [query_shape[0], query_shape[1], query_shape[2]],
+            mlir_dtype,
+        )
+        log_sumexp = tosa.CastOp(log_sumexp_cast_type, log_sumexp).result
 
     return out_tensor, log_sumexp
 
