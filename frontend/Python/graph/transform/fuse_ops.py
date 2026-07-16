@@ -38,6 +38,7 @@ from ..operation import (
     UnsqueezeOp,
     ViewOp,
 )
+from ..source_meta import merge_source_meta
 
 classicfuse_register = {
     "transpose_matmul_fusion": TransposeMatmulFusedOp,
@@ -124,6 +125,7 @@ def decompose_addmm_to_mm_add(graph: Graph):
         mm_node._parents = [lhs_name, rhs_name]
         mm_node._children = [node.name]
         mm_node.tensor_meta = node.tensor_meta.copy()
+        mm_node._source_meta = node._source_meta
 
         # Create:
         #   add(bias, mm)
@@ -136,6 +138,7 @@ def decompose_addmm_to_mm_add(graph: Graph):
         add_node._parents = [bias_name, mm_node.name]
         add_node._children = list(node._children)
         add_node.tensor_meta = node.tensor_meta.copy()
+        add_node._source_meta = node._source_meta
 
         # Replace original AddMMOp in graph.body with:
         #   mm_node
@@ -226,9 +229,17 @@ def transpose_matmul_fusion(
     - None: Modifies the input graph in place.
     """
     fused_op = classicfuse_register.get(pattern)()
+    original_order = {op: index for index, op in enumerate(graph.body)}
+    absorbed = [node]
+    if target._children == [node.name]:
+        absorbed.append(target)
+    fused_source_meta = merge_source_meta(
+        *(op._source_meta for op in sorted(absorbed, key=original_order.get))
+    )
     # matmulop -> fusedmatmulopnode
     fused_op.name = "fused" + node.name
     graph.displace_node(node, fused_op)
+    fused_op._source_meta = fused_source_meta
     fused_op.args.pop(fused_op.args.index(target.name))
     fused_op._parents.pop(fused_op._parents.index(target.name))
     fused_op.args.extend(target.args)
@@ -443,8 +454,28 @@ def replace_gqa_attention_with_fused_op(
     fused_op = fused_cls()
     fused_op.name = f"GQAAttentionFusedOp_{unique_index}"
 
+    original_order = {op: index for index, op in enumerate(graph.body)}
+    absorbed = [sdpa_node]
+    for branch in (
+        (k_view, k_clone, k_expand, k_cache_unsqueeze),
+        (v_view, v_clone, v_expand, v_cache_unsqueeze),
+    ):
+        removed_names = set()
+        for index, branch_node in enumerate(branch):
+            if index == 0 or all(
+                child in removed_names for child in branch_node._children
+            ):
+                absorbed.append(branch_node)
+                removed_names.add(branch_node.name)
+            else:
+                break
+    fused_source_meta = merge_source_meta(
+        *(op._source_meta for op in sorted(absorbed, key=original_order.get))
+    )
+
     # replace SDPA node with GQAAttentionFusedOp
     graph.displace_node(sdpa_node, fused_op)
+    fused_op._source_meta = fused_source_meta
 
     # clear old KV View input inherited by SDPA
     # assume sdpa_node.args[0] is Query, keep unchanged
