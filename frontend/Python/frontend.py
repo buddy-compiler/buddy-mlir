@@ -28,6 +28,7 @@ import ctypes.util
 import operator
 import os
 import platform
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -41,6 +42,7 @@ from torch.fx.experimental.proxy_tensor import make_fx
 
 from .graph import DeviceType, Graph, NodeType, TensorDType
 from .graph.operation import *
+from .graph.source_meta import extract_source_meta
 from .graph.transform import (
     RUNTIME_RNG_TRANSFORMS,
     maxpool2d_simplify,
@@ -59,6 +61,10 @@ EXTERNAL_CALL_TRANSFORM_GROUPS = {
 EXTERNAL_CALL_GROUP_LIBS = {
     "rng": "libbuddy_external_rng",
 }
+
+
+def _is_unsupported_get_attr(gm_node) -> bool:
+    return gm_node.op == "get_attr" and "_tensor_constant" not in gm_node.name
 
 
 class DynamoCompiler:
@@ -989,6 +995,9 @@ class DynamoCompiler:
             # ===--------------------------------------------------
             for node_type, gm_nodes_sublist in gm_nodes:
                 for gm_node in gm_nodes_sublist:
+                    if _is_unsupported_get_attr(gm_node):
+                        continue
+                    source_meta = extract_source_meta(gm_node)
                     node_users = []
                     for user in gm_node.users:
                         node_users.append(str(user))
@@ -1012,11 +1021,13 @@ class DynamoCompiler:
                             gm_node.meta["tensor_meta"].shape,
                             node_dtype,
                         )
+                        buddy_node._source_meta = source_meta
 
                     elif gm_node.op == "output":
                         buddy_node = self._create_node(
                             gm_node.op, gm_node.name, gm_node.args, node_users
                         )
+                        buddy_node._source_meta = source_meta
 
                     elif gm_node.target is operator.getitem:
                         node_dtype = self._torch_dtype_translate(
@@ -1030,6 +1041,7 @@ class DynamoCompiler:
                             gm_node.meta["tensor_meta"].shape,
                             node_dtype,
                         )
+                        buddy_node._source_meta = source_meta
                     elif gm_node.op == "get_attr":
                         if "_tensor_constant" in gm_node.name:
                             import re
@@ -1088,6 +1100,7 @@ class DynamoCompiler:
                                 node_dtype,
                                 node_kwargs=gm_node.kwargs,
                             )
+                            buddy_node._source_meta = source_meta
                     else:
                         tensor_meta = gm_node.meta.get("tensor_meta")
                         val = gm_node.meta.get("val")

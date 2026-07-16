@@ -314,6 +314,7 @@ class Graph:
         newnode._tensor_meta = node.tensor_meta
         newnode._op_type = node._op_type
         newnode.trace_meta = node.trace_meta
+        newnode._source_meta = node._source_meta
 
         for i in node._children:
             newnode.add_children(i)
