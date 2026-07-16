@@ -54,23 +54,77 @@ graphs[0].fuse_ops(pattern_list)
 graph.lower_to_top_level_ir()
 print(graph._imported_module)
 
+# gqa_attention_fused_op emits a fused, single-pass (online-softmax) decode
+# attention kernel. It never materializes the [b, h, q, k] score tensor, so
+# none of the old three-phase spelling (tosa.reduce_max / tosa.reduce_sum /
+# tosa.log over a score tensor) survives -- see the CHECK-NOT below.
+
 # CHECK-LABEL: func.func @forward
-# CHECK: arith.divsi
+
+# Flash-Decoding: the iteration space is (head, k-split), run in parallel.
+# 12 heads x 4 splits = 48 independent units, which is what fills the machine;
+# heads alone would cap the parallel degree at 12. Lowers to OpenMP via
+# -lower-affine + -convert-scf-to-openmp.
+# CHECK: affine.parallel (%{{.*}}, %{{.*}}) = (0, 0) to (12, 4)
+# h_kv = h / group_size, then this split's k range [s*256, s*256 + 256)
+# CHECK:   arith.divsi
+# CHECK:   arith.muli
+# CHECK:   arith.addi
+
+# Per (head, split): the blocked online-softmax loop over its own k range.
+# Its 10 iter_args are the running (m, l) plus the head_dim/16 = 8 accumulator
+# chunks, all kept in registers -- no memref for the accumulator.
+# CHECK:   scf.for
+# CHECK:     scf.for
+
+# Gather this block's 16 scores into one vector<16xf32>: a dot product per k
+# (vectorized over head_dim, then reduced), plus the mask, then inserted at
+# the block-local lane.
+# CHECK:       scf.for
+# CHECK:         vector.transfer_read
+# CHECK:         vector.transfer_read
+# CHECK:         vector.fma
+# CHECK:       vector.reduction <add>
+# CHECK:       tensor.extract
+# CHECK:       vector.insert
+
+# The old implementation reduced over a materialized score tensor here.
+# CHECK-NOT: tosa.reduce_max
+# CHECK-NOT: tosa.reduce_sum
+
+# Block max, then rebase on the *combined* running max (never -inf, so a fully
+# masked block cannot produce exp(-inf - -inf) = NaN), then ONE vectorized exp
+# covering all 16 of the block's weights -- not 16 scalar libm calls.
+# CHECK:     vector.reduction <maximumf>
+# CHECK:     arith.select
+# CHECK:     math.exp %{{.*}} : f32
+# CHECK:     math.exp %{{.*}} : vector<16xf32>
+# CHECK:     vector.reduction <add>
+
+# Weighted V accumulation for the block.
+# CHECK:     scf.for
+# CHECK:       vector.extract
+# CHECK:       vector.broadcast
+# CHECK:       vector.transfer_read
+# CHECK:       vector.fma
+
+# This split's partial (m, l, acc) -- not the final answer yet.
+# CHECK:   memref.store
+# CHECK:   vector.store
+
+# Combine pass: fold the 4 partials back together with the same online-softmax
+# recurrence, then normalize by l and write the output.
 # CHECK: scf.for
-# CHECK:   vector.transfer_read
-# CHECK:   vector.transfer_read
-# CHECK:   vector.fma
-# CHECK: vector.reduction <add>
-# CHECK: tosa.reduce_max
-# CHECK: math.exp
-# CHECK: tosa.reduce_sum
-# CHECK: tosa.log
-# CHECK: tosa.sub
-# CHECK: math.exp
-# CHECK: scf.for
-# CHECK:   tensor.extract
-# CHECK:   vector.broadcast
-# CHECK:   vector.transfer_read
-# CHECK:   vector.fma
-# CHECK:   vector.transfer_write
+# CHECK:   scf.for
+# CHECK:     scf.for
+# CHECK:       memref.load
+# CHECK:       memref.load
+# CHECK:       math.exp
+# CHECK:       math.exp
+# CHECK:       vector.load
+# CHECK:       vector.fma
+# CHECK:     math.log
+# CHECK:     arith.divf
+# CHECK:     vector.store
+
 # CHECK: return %{{.*}} : tensor<1x12x1x128xf32>
