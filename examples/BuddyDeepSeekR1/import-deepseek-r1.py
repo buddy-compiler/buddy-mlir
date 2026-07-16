@@ -33,6 +33,7 @@ from buddy.compiler.graph.transform import (
     eliminate_transpose,
     flash_attention_prefill,
     gqa_attention_fusion,
+    pack_decode_matmul_weights,
     simply_fuse,
 )
 from buddy.compiler.graph.type import DeviceType
@@ -58,7 +59,29 @@ parser.add_argument(
     choices=["f32", "f16", "bf16"],
     help="Precision mode for MLIR/input data. Choose from %(choices)s.",
 )
+parser.add_argument(
+    "--pack-decode-weights",
+    action="store_true",
+    help="Panel-pack every decode matmul weight (q/k/v/o_proj, "
+    "gate/up/down_proj, lm_head) and write decode's parameters to their own "
+    "file, arg0-decode.data, instead of sharing prefill's arg0.data. Decode "
+    "is a GEMV (m == 1) and reads each weight byte once, so it is bound by "
+    "how the weights are laid out; prefill is compute-bound and wants them "
+    "plain, so the two phases genuinely need different layouts and therefore "
+    "different buffers. Compiling decode then requires "
+    "-matmul-vectorization-decode-packed with a matching --pack-vector-size; "
+    "the plain decode kernel would read the packed bytes as row-major and "
+    "silently produce a wrong model. f32 only for now.",
+)
+parser.add_argument(
+    "--pack-vector-size",
+    type=int,
+    default=32,
+    help="Panel width used by --pack-decode-weights. Must match the "
+    "vector-size passed to -matmul-vectorization-decode-packed.",
+)
 args = parser.parse_args()
+
 
 # Ensure the output directory exists.
 output_dir = args.output_dir
@@ -235,6 +258,7 @@ else:
     graph_decode = graphs_decode[0]
 
     params = dynamo_compiler_prefill.imported_params[graph_prefill]
+    params_decode = dynamo_compiler_decode.imported_params[graph_decode]
     # Enable verbose mode for debugging eliminate_matmul_transpose_reshape
     graphs_prefill[0].perform(
         [eliminate_transpose, eliminate_matmul_transpose_reshape]
@@ -242,6 +266,20 @@ else:
     graphs_decode[0].perform(
         [eliminate_transpose, eliminate_matmul_transpose_reshape]
     )
+
+    if args.pack_decode_weights:
+        # Decode only, and after eliminate_transpose so the weights are
+        # already [K, N]. Prefill's copies stay plain -- see
+        # pack_decode_matmul_weights for what makes that hold.
+        packed = pack_decode_matmul_weights(
+            graph_decode, vecsize=args.pack_vector_size
+        )
+        print(
+            f"[import-deepseek-r1] packed {len(packed)} decode matmul weights "
+            f"into panel layout (vector-size={args.pack_vector_size}); "
+            "prefill's weights stay plain."
+        )
+
     pattern_list_prefill = [
         simply_fuse,
         apply_classic_fusion,
@@ -327,20 +365,41 @@ else:
         os.path.join(output_dir, "subgraph0_prefill.mlir"), "w"
     ) as module_file:
         print(driver_prefill.subgraphs[0]._imported_module, file=module_file)
-    with open(
-        os.path.join(output_dir, "forward_prefill.mlir"), "w"
-    ) as module_file:
-        print(driver_prefill.construct_main_graph(True), file=module_file)
-    all_param = numpy.concatenate(
-        [param.detach().numpy().reshape([-1]) for param in params]
-    )
-    all_param.tofile(os.path.join(output_dir, "arg0.data"))
+    forward_prefill_text = str(driver_prefill.construct_main_graph(True))
 
     with open(
         os.path.join(output_dir, "subgraph0_decode.mlir"), "w"
     ) as module_file:
         print(driver_decode.subgraphs[0]._imported_module, file=module_file)
+    forward_decode_text = str(driver_decode.construct_main_graph(True))
+
+    with open(
+        os.path.join(output_dir, "forward_prefill.mlir"), "w"
+    ) as module_file:
+        print(forward_prefill_text, file=module_file)
     with open(
         os.path.join(output_dir, "forward_decode.mlir"), "w"
     ) as module_file:
-        print(driver_decode.construct_main_graph(True), file=module_file)
+        print(forward_decode_text, file=module_file)
+
+    # arg0.data: prefill's parameters, always plain row-major.
+    all_param = numpy.concatenate(
+        [param.detach().numpy().reshape([-1]) for param in params]
+    )
+    all_param.tofile(os.path.join(output_dir, "arg0.data"))
+
+    if args.pack_decode_weights:
+        # The same parameters, with every matmul weight in panel layout.
+        # Identical size and offsets to arg0.data, so the two files are drop-in
+        # interchangeable -- which one a phase is handed is the whole of the
+        # difference, and decode's MLIR needs no rewriting at all.
+        all_param_decode = numpy.concatenate(
+            [param.detach().numpy().reshape([-1]) for param in params_decode]
+        )
+        if all_param_decode.size != all_param.size:
+            raise RuntimeError(
+                "[import-deepseek-r1] decode params have "
+                f"{all_param_decode.size} elements but prefill params have "
+                f"{all_param.size}; packing must not change the layout."
+            )
+        all_param_decode.tofile(os.path.join(output_dir, "arg0-decode.data"))

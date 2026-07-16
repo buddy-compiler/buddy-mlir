@@ -79,6 +79,7 @@ try:
         eliminate_transpose,
         flash_attention_prefill,
         gqa_attention_fusion,
+        pack_decode_matmul_weights,
         simply_fuse,
     )
     from buddy.compiler.graph.type import DeviceType
@@ -459,6 +460,27 @@ def compile_and_export_tiered_graphs(
 # ──────────────────────────────────────────────────────────────────────────────
 
 
+def pack_decode_weights(graph_decode, decode_pack: dict) -> None:
+    """Panel-pack every matmul weight in the decode graph (see the
+    pack_decode_matmul_weights transform).
+
+    Must run before write_weights(), which is what turns the (now packed)
+    decode parameter list into arg0-decode.data. Prefill's parameters are
+    untouched: the two graphs were traced separately and own separate parameter
+    lists, and the transform rebinds entries in decode's rather than mutating
+    the tensors -- which are still shared objects -- in place.
+    """
+    packed = pack_decode_matmul_weights(
+        graph_decode, vecsize=decode_pack["vector_size"]
+    )
+    print(
+        f"[import] packed {len(packed)} decode matmul weights into panel "
+        f"layout (vector_size={decode_pack['vector_size']}); prefill's weights "
+        "stay plain.",
+        file=sys.stderr,
+    )
+
+
 def apply_pre_transforms(graph_prefill, graph_decode):
     """Eliminate transposes and fused matmul reshapes."""
     graph_prefill.perform(
@@ -705,27 +727,37 @@ def plain_weight_dtype(config: dict):
 
 
 def export_plain_weights_direct(
-    params: list, config: dict, output_dir: str
+    params: list, config: dict, output_dir: str, file_key: str = "file"
 ) -> dict:
-    """Write non-quantized weights directly without a giant concatenate."""
-    if len(config["weights"]) != 1:
-        raise ValueError("plain direct weight export expects one weight bucket")
+    """Write non-quantized weights directly without a giant concatenate.
 
-    weight = config["weights"][0]
-    if weight["tag"] != "params":
-        raise ValueError("plain direct weight export expects the params bucket")
+    Only handles the primary "params" bucket. `file_key` selects which of its
+    file names to write: "file" for the plain weights, "decode_file" for the
+    panel-packed copy that decode is handed when decode_pack is on. Both hold the
+    same parameters at the same offsets -- packing only permutes the bytes
+    inside each matmul weight -- so the same writer serves for both.
+    """
+    weight = next((w for w in config["weights"] if w["tag"] == "params"), None)
+    if weight is None:
+        raise ValueError("plain direct weight export expects a params bucket")
 
     dtype = plain_weight_dtype(config)
     total_elements = sum(p.numel() for p in params)
-    if int(weight["num_elements"]) != total_elements:
+    if file_key == "file" and int(weight["num_elements"]) != total_elements:
         print(
             f"[import] Updated {weight['tag']}: "
             f"{weight['num_elements']} → {total_elements}",
             file=sys.stderr,
         )
         weight["num_elements"] = total_elements
+    if int(weight["num_elements"]) != total_elements:
+        raise ValueError(
+            f"{weight[file_key]} has {total_elements} elements but "
+            f"{weight['file']} has {weight['num_elements']}; packing must not "
+            "change the parameter layout."
+        )
 
-    path = os.path.join(output_dir, weight["file"])
+    path = os.path.join(output_dir, weight[file_key])
     mm = numpy.memmap(path, dtype=dtype, mode="w+", shape=(total_elements,))
     offset = 0
     activation = config["precision"]["activation_type"]
@@ -748,7 +780,7 @@ def export_plain_weights_direct(
 
     size_mb = os.path.getsize(path) / (1024 * 1024)
     print(
-        f"[import] Written: {weight['file']} ({size_mb:.1f} MB, "
+        f"[import] Written: {weight[file_key]} ({size_mb:.1f} MB, "
         f"{total_elements:,} elements)",
         file=sys.stderr,
     )
@@ -928,6 +960,19 @@ def expected_weight_entries(config: dict, output_dir: str) -> list[dict]:
                 "path": os.path.join(output_dir, weight["file"]),
             }
         )
+        # Listed so the reuse check sees it. Its size matches the plain file
+        # exactly, so size alone cannot tell them apart -- that is what the
+        # vector_size in the manifest payload is for.
+        if weight.get("decode_file"):
+            entries.append(
+                {
+                    "tag": f"{weight['tag']}_decode",
+                    "file": weight["decode_file"],
+                    "bytes_per_element": int(weight["bytes_per_element"]),
+                    "num_elements": int(weight["num_elements"]),
+                    "path": os.path.join(output_dir, weight["decode_file"]),
+                }
+            )
     return entries
 
 
@@ -941,6 +986,11 @@ def weights_manifest_payload(config: dict, output_dir: str) -> dict:
         "model_family": config.get("model_family"),
         "variant": config.get("variant"),
         "precision": config.get("precision", {}),
+        # Packing changes the bytes of a weight file but not its size, so a
+        # size check cannot see a change of panel width. Record it, so that
+        # changing it invalidates the reuse check instead of silently leaving
+        # decode reading weights packed for a different kernel.
+        "decode_pack": config.get("decode_pack", {"enabled": False}),
         "weights": [
             {
                 "tag": entry["tag"],
@@ -1043,6 +1093,10 @@ def import_model(
             raise ValueError(
                 "tiered KV cache import does not support quantized variants"
             )
+        if config.get("decode_pack", {}).get("enabled"):
+            raise ValueError(
+                "decode_pack is not yet supported with tiered_kv_cache"
+            )
         with timed_import_step("compile_tiered_graphs"):
             original_params = compile_and_export_tiered_graphs(
                 model,
@@ -1082,6 +1136,18 @@ def import_model(
     # 3. Pre-fusion transforms
     with timed_import_step("pre_transforms"):
         apply_pre_transforms(graphs_prefill[0], graphs_decode[0])
+
+    # 3b. Opt-in decode weight panel-packing (see gen_config.derive_decode_pack).
+    # Must come after apply_pre_transforms, so the weights are already [K, N],
+    # and before the decode parameters are written out in step 8.
+    decode_pack = config.get("decode_pack", {"enabled": False})
+    if decode_pack.get("enabled"):
+        if is_quantized:
+            raise ValueError(
+                "decode_pack is only supported for f32/f16/bf16 variants"
+            )
+        with timed_import_step("pack_decode_weights"):
+            pack_decode_weights(graphs_decode[0], decode_pack)
 
     # 4. Quantization (if applicable)
     if is_quantized:
@@ -1145,6 +1211,18 @@ def import_model(
             actual_sizes = export_plain_weights_direct(
                 original_params, config, output_dir
             )
+            if decode_pack.get("enabled"):
+                # The same parameters again, now with every matmul weight in
+                # panel layout -- decode reads this file, prefill the plain one.
+                # graphs_decode[0]._params_ref is decode's own list, which
+                # pack_decode_matmul_weights rebound in step 3b; prefill's is a
+                # separate list and still holds the plain tensors.
+                export_plain_weights_direct(
+                    graphs_decode[0]._params_ref,
+                    config,
+                    output_dir,
+                    file_key="decode_file",
+                )
             update_config(config, actual_sizes, output_dir)
             write_weights_manifest(config, output_dir)
     elif weight_buckets:

@@ -299,6 +299,42 @@ def derive_shapes(hf: dict, spec: dict) -> dict:
     }
 
 
+def derive_decode_pack(hf: dict, spec: dict) -> dict:
+    """Opt-in panel-packing of the decode matmul weights (see the
+    pack_decode_matmul_weights graph transform). Off unless the spec sets
+    `decode_pack_vector_size`, so existing specs are unaffected.
+
+    When on, import_model.py runs the pack_decode_matmul_weights graph
+    transform over the decode graph -- rewriting every matmul weight into
+    N-tile panel layout -- and writes decode's parameters to their own file.
+    compile_pipeline.py then compiles decode with
+    -matmul-vectorization-decode-packed instead of the plain row-major kernel.
+
+    Decode needs its own file because the two phases want opposite layouts:
+    decode is a GEMV that reads each weight byte once (so the layout is what
+    limits it), prefill is compute-bound and its matmul kernel expects plain
+    row-major B. Handing prefill the packed bytes does not fail loudly; it just
+    reads them as row-major and produces fluent, wrong output.
+
+    Packing is a permutation of each weight's bytes: same shape, same offsets,
+    same element count. So this is not an extra weight blob -- it is the same
+    blob with a second file, and the only thing that differs between the phases
+    is which of the two they are handed.
+    """
+    vecsize = spec.get("decode_pack_vector_size")
+    if not vecsize:
+        return {"enabled": False}
+
+    return {
+        "enabled": True,
+        "vector_size": vecsize,
+        # Divisibility of every weight's N by vecsize is checked by the graph
+        # transform, which is the only thing that knows the full weight set --
+        # it covers lm_head and the attention projections, not just the FFN.
+        "decode_file": "arg0-decode.data",
+    }
+
+
 def derive_tokens(hf: dict, spec: dict) -> dict:
     return {
         "eos_id": hf.get("eos_token_id", 0),
@@ -326,6 +362,25 @@ def gen_config(spec: dict, hf_config_path: str | None = None) -> dict:
     param_counts = count_params(spec)
     weights = compute_weights(variant, param_counts)
     tiered_kv_cache = derive_tiered_kv_cache(spec)
+    decode_pack = derive_decode_pack(hf, spec)
+    if decode_pack["enabled"] and variant not in ("f32", "f16", "bf16"):
+        raise RuntimeError(
+            f"decode_pack_vector_size is only supported for f32/f16/bf16 "
+            f"variants (got variant={variant!r})"
+        )
+    if decode_pack["enabled"] and tiered_kv_cache["enabled"]:
+        # Refuse here rather than at import time: only gen_impl was taught to
+        # hand decode a different weight buffer, so gen_impl_tiered would
+        # silently give decode the plain weights and compile it with the packed
+        # kernel -- fluent, wrong output, nothing to catch it.
+        raise RuntimeError(
+            "decode_pack_vector_size is not supported together with "
+            "tiered_kv_cache"
+        )
+    if decode_pack["enabled"]:
+        # Not a second blob: the same blob with a second file. weights[0]
+        # ("file") stays plain for prefill; decode is handed "decode_file".
+        weights[0]["decode_file"] = decode_pack["decode_file"]
 
     if tiered_kv_cache["enabled"]:
         if variant != "f32":
@@ -347,6 +402,8 @@ def gen_config(spec: dict, hf_config_path: str | None = None) -> dict:
     model_id = f"{model_family}_{variant}"
     if tiered_kv_cache["enabled"]:
         model_id = f"{model_id}_tiered_kv_cache"
+    if decode_pack["enabled"]:
+        model_id = f"{model_id}_packed_ffn"
 
     return {
         "model_family": model_family,
@@ -363,6 +420,7 @@ def gen_config(spec: dict, hf_config_path: str | None = None) -> dict:
         "weights": weights,
         "tokens": tokens,
         "tiered_kv_cache": tiered_kv_cache,
+        "decode_pack": decode_pack,
         "cpp_types": {
             "kv": ELEMENT_TYPE_CPP[kv_type],
             "logits": ELEMENT_TYPE_CPP[precision["logits_type"]],

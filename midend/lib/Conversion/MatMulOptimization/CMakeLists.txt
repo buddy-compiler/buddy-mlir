@@ -3,6 +3,7 @@ add_mlir_library(MatMulOptimization
   MatMulOptimize.cpp
   MatMulVectorization.cpp
   MatMulVectorizationDecode.cpp
+  MatMulVectorizationDecodePacked.cpp
   DequantMatMulVectorizationDecode.cpp
   Int4DequantMatMulVectorizationDecode.cpp
   MatMulParallelVectorization.cpp

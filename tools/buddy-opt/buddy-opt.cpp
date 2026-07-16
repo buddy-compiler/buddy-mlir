@@ -92,6 +92,7 @@ void registerLowerRVVPass();
 void registerMatMulOptimizePass();
 void registerMatMulVectorizationPass();
 void registerMatMulVectorizationDecodePass();
+void registerMatMulVectorizationDecodePackedPass();
 void registerDequantMatMulVectorizationDecodePass();
 void registerInt4DequantMatMulVectorizationDecodePass();
 void registerMatMulParallelVectorizationTilingPass();
@@ -187,6 +188,7 @@ int main(int argc, char **argv) {
   mlir::buddy::registerMatMulParallelVectorizationTilingPass();
   mlir::buddy::registerMatMulVectorizationPass();
   mlir::buddy::registerMatMulVectorizationDecodePass();
+  mlir::buddy::registerMatMulVectorizationDecodePackedPass();
   mlir::buddy::registerDequantMatMulVectorizationDecodePass();
   mlir::buddy::registerInt4DequantMatMulVectorizationDecodePass();
   mlir::buddy::registerMatMulParallelVectorizationPass();
