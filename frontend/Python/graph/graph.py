@@ -327,9 +327,16 @@ class Graph:
         # deal with parents+args
         for i in node._parents:
             newnode.add_parent(i)
-        parents = [self.node_table[i] for i in node._parents]
-        for parent in parents:
-            parent._children[parent._children.index(node.name)] = newnode.name
+
+        # A producer can record this node as a user even when the dependency is
+        # carried in kwargs and is therefore absent from node._parents. Update
+        # every actual reverse use so replacing a consumer cannot leave its old
+        # name dangling in a producer's children list.
+        for producer in self._body:
+            producer._children[:] = [
+                newnode.name if child == node.name else child
+                for child in producer._children
+            ]
         node._parents.clear()
         # update node table
         self._body[self._body.index(node)] = newnode
