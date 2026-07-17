@@ -1,8 +1,13 @@
 import re
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from .graph import Graph
 from .operation import Op
+
+if TYPE_CHECKING:
+    from .region_analysis import GraphStructureIndex
+    from .template_analysis import TemplateIndex
 
 
 @dataclass(frozen=True)
@@ -15,6 +20,12 @@ class NodeAnnotation:
 @dataclass
 class StructureAnalysisResult:
     node_annotations: dict[Op, NodeAnnotation]
+
+
+@dataclass(frozen=True)
+class GraphStructureAnalysisResult:
+    structure_index: "GraphStructureIndex"
+    template_index: "TemplateIndex | None"
 
 
 def _consistent(values):
@@ -71,27 +82,29 @@ def _classify_path(path: str | None):
 
 
 class ModuleStructureAnalyzer:
+    def analyze_node(self, op: Op) -> NodeAnnotation:
+        """Classify one node using the same rules as whole-graph analysis."""
+        layers = []
+        components = []
+        subcomponents = []
+        for source in op._source_meta:
+            layer, component, subcomponent = _classify_path(source.module_path)
+            if component is None:
+                component = _class_component(source.module_class)
+            layers.append(layer)
+            components.append(component)
+            subcomponents.append(subcomponent)
+        layer = _consistent(layers)
+        component = _consistent(components)
+        subcomponent = _consistent(subcomponents)
+        if component is None:
+            subcomponent = None
+        return NodeAnnotation(layer, component, subcomponent)
+
     def analyze(self, graph: Graph) -> StructureAnalysisResult:
         annotations = {}
         for op in graph.body:
-            layers = []
-            components = []
-            subcomponents = []
-            for source in op._source_meta:
-                layer, component, subcomponent = _classify_path(
-                    source.module_path
-                )
-                if component is None:
-                    component = _class_component(source.module_class)
-                layers.append(layer)
-                components.append(component)
-                subcomponents.append(subcomponent)
-            layer = _consistent(layers)
-            component = _consistent(components)
-            subcomponent = _consistent(subcomponents)
-            if component is None:
-                subcomponent = None
-            annotation = NodeAnnotation(layer, component, subcomponent)
+            annotation = self.analyze_node(op)
             if (
                 annotation.layer_index is not None
                 or annotation.component is not None

@@ -38,6 +38,8 @@ from .type import *
 
 if TYPE_CHECKING:
     from .region_analysis import GraphStructureIndex
+    from .structure_analysis import GraphStructureAnalysisResult
+    from .template_analysis import TemplateIndex
 
 
 def make_output_memref_descriptor(ranks, dtypes):
@@ -159,11 +161,43 @@ class Graph:
         self.group_map_device: dict[str, DeviceType] = {}
         self._enable_external_calls = enable_external_calls
         self._structure_index: "GraphStructureIndex | None" = None
+        self._template_index: "TemplateIndex | None" = None
 
     @property
     def structure_index(self) -> "GraphStructureIndex | None":
         """The cached structural index, or ``None`` before explicit build."""
         return self._structure_index
+
+    @property
+    def template_index(self) -> "TemplateIndex | None":
+        """The cached layer-template index, or ``None`` before recognition."""
+        return self._template_index
+
+    def analyze_structure(
+        self, enable_template_recognition: bool = False
+    ) -> "GraphStructureAnalysisResult":
+        """Explicitly build and cache structural and optional template indexes."""
+        from .region_analysis import RegionBuilder
+        from .structure_analysis import GraphStructureAnalysisResult
+
+        if self._structure_index is None:
+            recognizer = None
+            if enable_template_recognition:
+                from .template_analysis import TemplateRecognizer
+
+                recognizer = TemplateRecognizer()
+            self._structure_index = RegionBuilder(self).build(recognizer)
+            if recognizer is not None:
+                self._template_index = recognizer.finish()
+        elif enable_template_recognition and self._template_index is None:
+            from .template_analysis import build_template_index
+
+            self._template_index = build_template_index(self, self._structure_index)
+
+        return GraphStructureAnalysisResult(
+            structure_index=self._structure_index,
+            template_index=self._template_index,
+        )
 
     def build_structure_index(self) -> "GraphStructureIndex":
         """Build and cache the graph's non-mutating structural description.
@@ -172,14 +206,7 @@ class Graph:
         planning or lowering. Version one has no automatic invalidation, so the
         graph must not be mutated in place after this method is called.
         """
-        if self._structure_index is not None:
-            return self._structure_index
-
-        # Keep this local to avoid a graph/analysis import cycle at runtime.
-        from .region_analysis import RegionBuilder
-
-        self._structure_index = RegionBuilder(self).build()
-        return self._structure_index
+        return self.analyze_structure().structure_index
 
     @property
     def ttir_module(self):
