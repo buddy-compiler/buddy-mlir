@@ -24,6 +24,7 @@ import functools
 from enum import Enum, auto
 from pathlib import Path
 from types import FunctionType
+from typing import TYPE_CHECKING
 
 import buddy_mlir.dialects.func as func
 import buddy_mlir.ir as ir
@@ -34,6 +35,9 @@ from buddy_mlir.passmanager import PassManager
 
 from .operation import *
 from .type import *
+
+if TYPE_CHECKING:
+    from .region_analysis import GraphStructureIndex
 
 
 def make_output_memref_descriptor(ranks, dtypes):
@@ -154,6 +158,28 @@ class Graph:
         self.op_groups: dict[str, list[Op]] = {}
         self.group_map_device: dict[str, DeviceType] = {}
         self._enable_external_calls = enable_external_calls
+        self._structure_index: "GraphStructureIndex | None" = None
+
+    @property
+    def structure_index(self) -> "GraphStructureIndex | None":
+        """The cached structural index, or ``None`` before explicit build."""
+        return self._structure_index
+
+    def build_structure_index(self) -> "GraphStructureIndex":
+        """Build and cache the graph's non-mutating structural description.
+
+        Call this after all frontend graph transforms and before structural
+        planning or lowering. Version one has no automatic invalidation, so the
+        graph must not be mutated in place after this method is called.
+        """
+        if self._structure_index is not None:
+            return self._structure_index
+
+        # Keep this local to avoid a graph/analysis import cycle at runtime.
+        from .region_analysis import RegionBuilder
+
+        self._structure_index = RegionBuilder(self).build()
+        return self._structure_index
 
     @property
     def ttir_module(self):
