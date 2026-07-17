@@ -84,6 +84,48 @@ graph = graph_of(old)
 graph.displace_node(old, new)
 assert new._source_meta == meta("old")
 
+
+# A producer referenced only through kwargs is absent from the consumer's
+# parent list, but its reverse-use list still records the consumer as a child.
+# Replacing the consumer must update both positional and kwargs-only users.
+positional_parent = node(
+    Op,
+    "positional_parent",
+    children=["kwargs_old"],
+)
+kwargs_only_parent = node(
+    Op,
+    "kwargs_only_parent",
+    children=["kwargs_old"],
+)
+kwargs_old = node(
+    Op,
+    "kwargs_old",
+    args=["positional_parent"],
+    parents=["positional_parent"],
+)
+kwargs_old._keyword_arguments = {"mask": "kwargs_only_parent"}
+kwargs_new = node(Op, "kwargs_new")
+
+graph = graph_of(
+    positional_parent,
+    kwargs_only_parent,
+    kwargs_old,
+)
+graph.displace_node(kwargs_old, kwargs_new)
+
+assert positional_parent._children == ["kwargs_new"]
+assert kwargs_only_parent._children == ["kwargs_new"]
+assert kwargs_new._parents == ["positional_parent"]
+assert kwargs_new._arguments == ["positional_parent"]
+assert kwargs_new._keyword_arguments == {"mask": "kwargs_only_parent"}
+assert "kwargs_old" not in graph.node_table
+assert graph.node_table["kwargs_new"] is kwargs_new
+assert all(
+    "kwargs_old" not in value._children
+    for value in graph.body
+)
+
 bias = node(Op, "bias", children=["addmm"])
 lhs = node(Op, "lhs", children=["addmm"])
 rhs_parent = node(Op, "weight", children=["rhs"])
