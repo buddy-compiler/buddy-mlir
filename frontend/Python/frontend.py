@@ -1021,13 +1021,11 @@ class DynamoCompiler:
                             gm_node.meta["tensor_meta"].shape,
                             node_dtype,
                         )
-                        buddy_node._source_meta = source_meta
 
                     elif gm_node.op == "output":
                         buddy_node = self._create_node(
                             gm_node.op, gm_node.name, gm_node.args, node_users
                         )
-                        buddy_node._source_meta = source_meta
 
                     elif gm_node.target is operator.getitem:
                         node_dtype = self._torch_dtype_translate(
@@ -1041,7 +1039,6 @@ class DynamoCompiler:
                             gm_node.meta["tensor_meta"].shape,
                             node_dtype,
                         )
-                        buddy_node._source_meta = source_meta
                     elif gm_node.op == "get_attr":
                         if "_tensor_constant" in gm_node.name:
                             import re
@@ -1100,7 +1097,6 @@ class DynamoCompiler:
                                 node_dtype,
                                 node_kwargs=gm_node.kwargs,
                             )
-                            buddy_node._source_meta = source_meta
                     else:
                         tensor_meta = gm_node.meta.get("tensor_meta")
                         val = gm_node.meta.get("val")
@@ -1152,6 +1148,7 @@ class DynamoCompiler:
                         buddy_node._torch_out_kwarg_names = (
                             self._extract_tensor_out_kwarg_names(gm_node.target)
                         )
+                    buddy_node._source_meta = source_meta
                     graph.add_node(node=buddy_node, node_type=node_type)
             # ===--------------------------------------------------
             # 5. Fifth traverse the graph
