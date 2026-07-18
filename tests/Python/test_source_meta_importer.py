@@ -119,3 +119,41 @@ assert getitem_source == (
 )
 getitem_graph = import_fx(getitem_gm, value)
 assert getitem_graph.node_table[getitem_fx.name]._source_meta == getitem_source
+
+
+# _create_node lowers nested FX operands and dtypes while parents come from args.
+operand_fx_graph = torch.fx.Graph()
+operand_lhs = operand_fx_graph.placeholder("operand_lhs")
+operand_rhs = operand_fx_graph.placeholder("operand_rhs")
+operand_kwarg = operand_fx_graph.placeholder("operand_kwarg")
+operand_args = (
+    [operand_lhs, (operand_rhs, {"value": operand_lhs})],
+    operand_lhs,
+    torch.float32,
+)
+operand_kwargs = {
+    "nested": {"value": operand_kwarg, "items": (operand_rhs, [operand_lhs])},
+    "dtype": torch.float64,
+}
+operand_compiler = DynamoCompiler()
+operand_node = operand_compiler._create_node(
+    "add.Tensor", "nested_operands", operand_args, [], node_kwargs=operand_kwargs
+)
+assert operand_node.args == [
+    ["operand_lhs", ("operand_rhs", {"value": "operand_lhs"})],
+    "operand_lhs",
+    operand_compiler._torch_dtype_translate(str(torch.float32)),
+]
+assert operand_node.kwargs == {
+    "nested": {
+        "value": "operand_kwarg",
+        "items": ("operand_rhs", ["operand_lhs"]),
+    },
+    "dtype": operand_compiler._torch_dtype_translate(str(torch.float64)),
+}
+assert operand_node.parents == [
+    "operand_lhs",
+    "operand_rhs",
+    "operand_lhs",
+    "operand_lhs",
+]

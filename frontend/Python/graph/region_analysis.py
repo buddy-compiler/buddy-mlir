@@ -241,8 +241,11 @@ class RegionBuilder:
             )
             self._validate_interface(region, body_nodes)
             if fingerprint_builder is not None:
-                canonical, summary = fingerprint_builder.finish(region.interface)
-                template_recognizer.add(region, canonical, summary)
+                fingerprint = fingerprint_builder.finish(region.interface)
+                if fingerprint is None:
+                    template_recognizer._mark_non_reusable(region)
+                else:
+                    template_recognizer.add(region, *fingerprint)
 
         index = GraphStructureIndex(annotations, regions, node_to_region)
         if len(node_to_region) != len(eligible_set):
