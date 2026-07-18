@@ -42,6 +42,31 @@ if TYPE_CHECKING:
     from .template_analysis import TemplateIndex
 
 
+def _replace_node_name(value, old_name, new_name, node_table):
+    if isinstance(value, str):
+        if value == old_name and value in node_table:
+            return new_name
+        return value
+    if isinstance(value, list):
+        return [
+            _replace_node_name(item, old_name, new_name, node_table)
+            for item in value
+        ]
+    if isinstance(value, tuple):
+        return tuple(
+            _replace_node_name(item, old_name, new_name, node_table)
+            for item in value
+        )
+    if isinstance(value, dict):
+        return {
+            _replace_node_name(
+                key, old_name, new_name, node_table
+            ): _replace_node_name(item, old_name, new_name, node_table)
+            for key, item in value.items()
+        }
+    return value
+
+
 def make_output_memref_descriptor(ranks, dtypes):
     """
     Make an output memref descriptor for the given memref ranks and dtypes.
@@ -373,9 +398,16 @@ class Graph:
             newnode.add_children(i)
         users = [self.node_table[i] for i in node._children]
         for user in users:
-            if node.name in user._parents:
-                user._parents[user._parents.index(node.name)] = newnode.name
-            user.args[user.args.index(node.name)] = newnode.name
+            user._arguments = _replace_node_name(
+                user.args, node.name, newnode.name, self.node_table
+            )
+            user._keyword_arguments = _replace_node_name(
+                user.kwargs, node.name, newnode.name, self.node_table
+            )
+            user._parents[:] = [
+                newnode.name if parent == node.name else parent
+                for parent in user._parents
+            ]
         node._children.clear()
         # deal with parents+args
         for i in node._parents:

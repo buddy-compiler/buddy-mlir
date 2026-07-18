@@ -333,6 +333,81 @@ assert all(
 assert len(excluded_result.template_index.region_fingerprints) == 2
 
 
+# An opaque literal makes only its owning Layer non-reusable; supported Layers
+# in the same graph still fingerprint and group normally.
+class OpaqueLiteral:
+    pass
+
+
+def layer_regions(result):
+    return sorted(
+        (r for r in result.structure_index.regions if isinstance(r, LayerRegion)),
+        key=lambda r: r.layer_index,
+    )
+
+
+mixed_graph = Graph({}, "opaque_and_reusable")
+mixed_input = add(mixed_graph, node(PlaceholderOp, "mixed_input"), NodeType.InputNode)
+for layer_index, literal in enumerate((OpaqueLiteral(), 1.0, 1.0)):
+    mixed_node = add(
+        mixed_graph,
+        node(AddOp, f"mixed_{layer_index}", f"model.layers.{layer_index}.mlp"),
+    )
+    bind(mixed_input, mixed_node)
+    mixed_node.add_argument(literal)
+    bind(mixed_node, add(mixed_graph, node(OutputOp, f"mixed_out_{layer_index}")))
+mixed_result = mixed_graph.analyze_structure(True)
+mixed_layers = layer_regions(mixed_result)
+mixed_template = mixed_result.template_index
+assert mixed_template.non_reusable_regions == mixed_layers[:1]
+assert mixed_layers[0] not in mixed_template.region_fingerprints
+assert len(mixed_template.template_groups) == 1
+assert mixed_template.template_groups[0].instances == mixed_layers[1:]
+
+
+# Dict items are ordered before operand slot assignment, and list pairs allow
+# internal _NodeRef values to resolve into JSON-native ["node", local_id].
+dict_graph = Graph({}, "dict_internal_reference")
+dict_input = add(dict_graph, node(PlaceholderOp, "dict_input"), NodeType.InputNode)
+for layer_index in range(2):
+    producer = add(
+        dict_graph,
+        node(
+            MatmulOp,
+            f"dict_p_{layer_index}",
+            f"model.layers.{layer_index}.self_attn.q_proj",
+            "aten.mm.default",
+        ),
+    )
+    consumer = add(
+        dict_graph,
+        node(
+            AddOp,
+            f"dict_c_{layer_index}",
+            f"model.layers.{layer_index}.mlp.down_proj",
+            "aten.add.Tensor",
+        ),
+    )
+    bind(dict_input, producer)
+    bind(producer, consumer, argument=False)
+    pairs = [("external", dict_input.name), ("internal", producer.name)]
+    consumer.kwargs["operands"] = dict(reversed(pairs) if layer_index else pairs)
+    bind(consumer, add(dict_graph, node(OutputOp, f"dict_out_{layer_index}")))
+dict_result = dict_graph.analyze_structure(True)
+dict_layers = layer_regions(dict_result)
+dict_template = dict_result.template_index
+assert (
+    dict_template.region_fingerprints[dict_layers[0]].digest
+    == dict_template.region_fingerprints[dict_layers[1]].digest
+)
+assert len(dict_template.template_groups) == 1
+assert dict_template.template_groups[0].instances == dict_layers
+assert len(dict_template.template_groups[0].instances) == 2
+dict_canonical = json.loads(dict_template.template_groups[0].canonical_form)
+dict_items = dict_canonical["nodes"][1]["kwargs"][1][0][1][1]
+assert [["literal", "internal"], ["node", 0]] in dict_items
+
+
 # Repeated analysis is deterministic and returns exactly the cached objects.
 cached_graph, _ = three_identical_layers()
 first_result = cached_graph.analyze_structure(True)

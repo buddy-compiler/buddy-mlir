@@ -126,6 +126,32 @@ assert all(
     for value in graph.body
 )
 
+
+# Every repeated occurrence is replaced in args, kwargs, and authoritative
+# parents, including nested dict keys and values; unrelated literals survive.
+repeated_old = node(Op, "repeated_old", children=["repeated_user"])
+repeated_user = node(
+    Op,
+    "repeated_user",
+    args=[("repeated_old", ["keep", {"value": "repeated_old"}])],
+    parents=["repeated_old", "repeated_old"],
+)
+repeated_user._keyword_arguments = {
+    "nested": [{"repeated_old": "repeated_old"}, "repeated_old"],
+    "repeated_old": ("keep", "repeated_old"),
+}
+repeated_new = node(Op, "repeated_new")
+graph = graph_of(repeated_old, repeated_user)
+graph.displace_node(repeated_old, repeated_new)
+assert repeated_user.args == [
+    ("repeated_new", ["keep", {"value": "repeated_new"}])
+]
+assert repeated_user.kwargs == {
+    "nested": [{"repeated_new": "repeated_new"}, "repeated_new"],
+    "repeated_new": ("keep", "repeated_new"),
+}
+assert repeated_user.parents == ["repeated_new", "repeated_new"]
+
 bias = node(Op, "bias", children=["addmm"])
 lhs = node(Op, "lhs", children=["addmm"])
 rhs_parent = node(Op, "weight", children=["rhs"])

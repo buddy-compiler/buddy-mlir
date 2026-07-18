@@ -862,30 +862,40 @@ class DynamoCompiler:
         elif gm_node_name == "new_full.default" and len(node_input) >= 3:
             node_input = [node_input[1], node_input[2]]
 
-        def _add_arg_and_parents(arg):
-            if isinstance(arg, torch.fx.Node):
-                buddy_node.add_argument(str(arg))
-                buddy_node.add_parent(str(arg))
-            elif isinstance(arg, torch.dtype):
-                buddy_node.add_argument(self._torch_dtype_translate(str(arg)))
-            elif isinstance(arg, (list, tuple)):
-                # Traverse elements to collect parent nodes
-                # but keep the container as a single argument
-                for item in arg:
-                    if isinstance(item, torch.fx.Node):
-                        buddy_node.add_parent(str(item))
-                buddy_node.add_argument(arg)
-            else:
-                buddy_node.add_argument(arg)
-            return arg
+        def _convert_operand(value, collect_parents):
+            if isinstance(value, torch.fx.Node):
+                name = str(value)
+                if collect_parents:
+                    buddy_node.add_parent(name)
+                return name
+            if isinstance(value, torch.dtype):
+                return self._torch_dtype_translate(str(value))
+            if isinstance(value, list):
+                return [
+                    _convert_operand(item, collect_parents) for item in value
+                ]
+            if isinstance(value, tuple):
+                return tuple(
+                    _convert_operand(item, collect_parents) for item in value
+                )
+            if isinstance(value, dict):
+                return {
+                    _convert_operand(key, collect_parents): _convert_operand(
+                        item, collect_parents
+                    )
+                    for key, item in value.items()
+                }
+            return value
 
         for input_arg in node_input:
-            _add_arg_and_parents(input_arg)
+            buddy_node.add_argument(_convert_operand(input_arg, True))
         for user in node_users:
             buddy_node.add_children(user)
         if node_kwargs is None:
             node_kwargs = {}
-        buddy_node._keyword_arguments.update(node_kwargs)
+        buddy_node._keyword_arguments.update(
+            _convert_operand(node_kwargs, False)
+        )
         buddy_node._tensor_meta["shape"] = node_output_shape
         buddy_node._tensor_meta["dtype"] = node_output_dtype
         return buddy_node

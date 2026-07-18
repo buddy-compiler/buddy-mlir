@@ -77,6 +77,10 @@ class _NodeRef:
     op: Op
 
 
+class _UnsupportedFingerprintValue(Exception):
+    pass
+
+
 _LAYER_TOKEN = re.compile(r"(?<![A-Za-z0-9_])layers\.([0-9]+)(?=\.|$)")
 
 
@@ -169,7 +173,8 @@ def _normalize(value: Any) -> Any:
                 raw = None
         if raw is not None:
             descriptor["content_sha256"] = hashlib.sha256(raw).hexdigest()
-        return {"tensor": descriptor}
+            return {"tensor": descriptor}
+        raise _UnsupportedFingerprintValue
 
     # Symbolic dimensions commonly expose stable node expressions. Never fall
     # back to repr(value), which may contain an address.
@@ -181,7 +186,7 @@ def _normalize(value: Any) -> Any:
             expression = None
         if expression is not None and "0x" not in expression:
             return {"symbolic": expression, "type": qualified_type}
-    return {"opaque_type": qualified_type}
+    raise _UnsupportedFingerprintValue
 
 
 def _json_bytes(value: Any) -> bytes:
@@ -244,8 +249,11 @@ class LayerFingerprintBuilder:
         }
         self._nodes: list[Any] = []
         self._internal_dependencies = 0
+        self._unsupported = False
 
     def consume(self, op: Op) -> None:
+        if self._unsupported:
+            return
         self._local_ids[op] = len(self._nodes)
         annotation = self._annotations.get(op)
         sources = set()
@@ -264,19 +272,28 @@ class LayerFingerprintBuilder:
         original_aten = sorted(
             {item[2] for item in sources if item[2] is not None}
         )
-        self._nodes.append(
-            {
-                "op": _qualified_type(op),
-                "original_aten": original_aten,
-                "source_meta": normalized_sources,
-                "component": annotation.component if annotation else None,
-                "subcomponent": annotation.subcomponent if annotation else None,
-                "result": _shape_dtype(op),
-                "attributes": _semantic_attributes(op),
-                "args": self._operand(op.args),
-                "kwargs": self._operand(op.kwargs),
-            }
-        )
+        try:
+            self._nodes.append(
+                {
+                    "op": _qualified_type(op),
+                    "original_aten": original_aten,
+                    "source_meta": normalized_sources,
+                    "component": annotation.component if annotation else None,
+                    "subcomponent": annotation.subcomponent if annotation else None,
+                    "result": _shape_dtype(op),
+                    "attributes": _semantic_attributes(op),
+                    "args": self._operand(op.args),
+                    "kwargs": self._operand(op.kwargs),
+                }
+            )
+        except _UnsupportedFingerprintValue:
+            self._unsupported = True
+            self._nodes.clear()
+            self._local_ids.clear()
+            for slots in self._slots.values():
+                slots.clear()
+            for descriptors in self._slot_descriptors.values():
+                descriptors.clear()
 
     def _operand(self, value: Any) -> Any:
         referenced = _resolve_operand_node_reference(
@@ -311,7 +328,7 @@ class LayerFingerprintBuilder:
             return ["tuple", [self._operand(item) for item in value]]
         if isinstance(value, dict):
             items = [
-                (self._operand(key), self._operand(item))
+                [self._operand(key), self._operand(item)]
                 for key, item in _operand_dict_items(value)
             ]
             items.sort(key=lambda item: _json_bytes(item[0]))
@@ -329,7 +346,11 @@ class LayerFingerprintBuilder:
             }
         return value
 
-    def finish(self, interface: RegionInterface) -> tuple[bytes, FingerprintSummary]:
+    def finish(
+        self, interface: RegionInterface
+    ) -> tuple[bytes, FingerprintSummary] | None:
+        if self._unsupported:
+            return None
         summary = FingerprintSummary(
             node_count=len(self._region.nodes),
             internal_dependency_count=self._internal_dependencies,
@@ -362,6 +383,10 @@ class TemplateRecognizer:
     def __init__(self) -> None:
         self._by_digest: dict[str, list[_Candidate]] = {}
         self._region_fingerprints: dict[LayerRegion, RegionFingerprint] = {}
+        self._non_reusable_regions: list[LayerRegion] = []
+
+    def _mark_non_reusable(self, region: LayerRegion) -> None:
+        self._non_reusable_regions.append(region)
 
     def make_builder(
         self,
@@ -394,7 +419,7 @@ class TemplateRecognizer:
 
     def finish(self) -> TemplateIndex:
         groups = []
-        non_reusable = []
+        non_reusable = list(self._non_reusable_regions)
         for candidates in self._by_digest.values():
             for candidate in candidates:
                 candidate.instances.sort(key=lambda region: region.layer_index)
@@ -410,7 +435,9 @@ class TemplateRecognizer:
                     )
                 )
         groups.sort(key=lambda group: group.representative.layer_index)
-        non_reusable.sort(key=lambda region: region.layer_index)
+        non_reusable = sorted(
+            set(non_reusable), key=lambda region: region.layer_index
+        )
         return TemplateIndex(self._region_fingerprints, groups, non_reusable)
 
 
@@ -436,6 +463,9 @@ def build_template_index(graph: Graph, structure_index) -> TemplateIndex:
         )
         for op in region.nodes:
             builder.consume(op)
-        canonical, summary = builder.finish(region.interface)
-        recognizer.add(region, canonical, summary)
+        fingerprint = builder.finish(region.interface)
+        if fingerprint is None:
+            recognizer._mark_non_reusable(region)
+        else:
+            recognizer.add(region, *fingerprint)
     return recognizer.finish()
