@@ -82,6 +82,10 @@ class _UnsupportedFingerprintValue(Exception):
 
 
 _LAYER_TOKEN = re.compile(r"(?<![A-Za-z0-9_])layers\.([0-9]+)(?=\.|$)")
+_ENCODER_LAYER_TOKEN = re.compile(
+    r"(?<![A-Za-z0-9_])encoder\.layer\."
+    r"((?:0|[1-9][0-9]*))(?=\.|$)"
+)
 
 
 def _qualified_type(value: Any) -> str:
@@ -263,6 +267,12 @@ class LayerFingerprintBuilder:
                 expected = self._region.layer_index
                 path = _LAYER_TOKEN.sub(
                     lambda match: "layers.{L}"
+                    if int(match.group(1)) == expected
+                    else match.group(0),
+                    path,
+                )
+                path = _ENCODER_LAYER_TOKEN.sub(
+                    lambda match: "encoder.layer.{L}"
                     if int(match.group(1)) == expected
                     else match.group(0),
                     path,

@@ -156,6 +156,62 @@ for path, expected in cases.items():
     value = annotation(SourceMeta(module_path=path))
     assert (value.layer_index, value.component, value.subcomponent) == expected
 
+# BERT-family encoder paths contribute a layer index without adding new
+# component or subcomponent semantics.
+encoder_layer_cases = {
+    "bert.encoder.layer.0.attention.self": 0,
+    "encoder.encoder.layer.11.output": 11,
+    "model.encoder.layer.3.intermediate": 3,
+}
+for path, expected_layer in encoder_layer_cases.items():
+    assert annotation(SourceMeta(module_path=path)).layer_index == expected_layer
+for path in (
+    "bert.encoder.layers.0.attention",
+    "bert.encoder.layer_norm.0",
+    "bert.encoder.layer.foo.attention",
+    "bert.someencoder.layer.0",
+    "bert.encoder.block.layer.0",
+    "bert.encoder.layer.-1",
+    "bert.encoder.layer.+1",
+    "bert.encoder.layer.1a",
+):
+    value = annotation(SourceMeta(module_path=path))
+    assert value is None or value.layer_index is None
+
+plain_encoder_value = annotation(
+    SourceMeta(module_path="bert.encoder.layer.0.output.dense")
+)
+assert (plain_encoder_value.component, plain_encoder_value.subcomponent) == (
+    None,
+    None,
+)
+
+# Multiple candidates keep the simple left-to-right, first-match behavior.
+assert (
+    annotation(
+        SourceMeta(module_path="model.layers.7.encoder.layer.3.output")
+    ).layer_index
+    == 7
+)
+assert (
+    annotation(
+        SourceMeta(module_path="encoder.layer.3.model.layers.7.mlp")
+    ).layer_index
+    == 3
+)
+
+# Structure analysis does not mutate the graph or SourceMeta containers.
+purity_op = Op()
+purity_sources = (
+    SourceMeta(module_path="bert.encoder.layer.0.output.dense"),
+)
+purity_op._source_meta = purity_sources
+purity_body = [purity_op]
+purity_graph = type("GraphStub", (), {"body": purity_body})()
+ModuleStructureAnalyzer().analyze(purity_graph)
+assert purity_graph.body is purity_body and purity_graph.body == [purity_op]
+assert purity_op._source_meta is purity_sources
+
 same = SourceMeta(module_path="model.layers.0.self_attn.q_proj")
 assert annotation(same, same) == annotation(same)
 layer_conflict = annotation(
