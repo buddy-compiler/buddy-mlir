@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from .graph import Graph
-from .operation import Op
+from .operation import AddOp, Op
 
 if TYPE_CHECKING:
     from .region_analysis import GraphStructureIndex
@@ -111,4 +111,55 @@ class ModuleStructureAnalyzer:
                 or annotation.subcomponent is not None
             ):
                 annotations[op] = annotation
+        self._classify_residuals(graph, annotations)
         return StructureAnalysisResult(annotations)
+
+    @staticmethod
+    def _classify_residuals(
+        graph: Graph, annotations: dict[Op, NodeAnnotation]
+    ) -> None:
+        """Refine layer-local residual adds from direct topology evidence."""
+
+        def neighbor_annotations(names, layer_index):
+            result = []
+            for name in names:
+                neighbor = graph.node_table.get(name)
+                annotation = annotations.get(neighbor)
+                if annotation is not None and annotation.layer_index == layer_index:
+                    result.append(annotation)
+            return result
+
+        for op, annotation in list(annotations.items()):
+            if (
+                not isinstance(op, AddOp)
+                or annotation.layer_index is None
+                or annotation.component is not None
+            ):
+                continue
+
+            parents = neighbor_annotations(op.parents, annotation.layer_index)
+            children = neighbor_annotations(op._children, annotation.layer_index)
+
+            mlp_input = any(parent.component == "mlp" for parent in parents)
+            if mlp_input:
+                annotations[op] = NodeAnnotation(
+                    annotation.layer_index,
+                    "residual",
+                    "post_mlp_residual",
+                )
+                continue
+
+            attention_input = any(
+                parent.component == "attention" for parent in parents
+            )
+            post_attention_norm_output = any(
+                child.component == "norm"
+                and child.subcomponent == "post_attention_layernorm"
+                for child in children
+            )
+            if attention_input and post_attention_norm_output:
+                annotations[op] = NodeAnnotation(
+                    annotation.layer_index,
+                    "residual",
+                    "post_attention_residual",
+                )

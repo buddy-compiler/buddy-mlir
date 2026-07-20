@@ -114,7 +114,7 @@ class RegionBuilder:
     ) -> GraphStructureIndex:
         graph = self._graph
         analyzer = ModuleStructureAnalyzer()
-        annotations: dict[Op, NodeAnnotation] = {}
+        annotations = analyzer.analyze(graph).node_annotations
         body_positions: dict[Op, int] = {}
         body_nodes: set[Op] = set()
         eligible: list[Op] = []
@@ -125,18 +125,12 @@ class RegionBuilder:
         params = set(graph.params)
         excluded = set(graph.inputs) | params
 
-        # Pass 1: classify every graph node exactly once and retain enough
-        # ordered buckets to construct regions without another body traversal.
+        # Classifications are already complete, including topology refinements.
+        # Retain enough ordered buckets to construct regions in one traversal.
         for position, op in enumerate(graph.body):
             body_positions[op] = position
             body_nodes.add(op)
-            annotation = analyzer.analyze_node(op)
-            if (
-                annotation.layer_index is not None
-                or annotation.component is not None
-                or annotation.subcomponent is not None
-            ):
-                annotations[op] = annotation
+            annotation = annotations.get(op, NodeAnnotation())
             if op in excluded or isinstance(op, (TensorConstantOp, OutputOp)):
                 continue
             eligible.append(op)
