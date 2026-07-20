@@ -54,9 +54,10 @@ def _classify_path(path: str | None):
     tokens = path.split(".")
     layer = None
     for index in range(len(tokens) - 2):
-        if tokens[index : index + 2] == ["model", "layers"] and re.fullmatch(
-            r"(?:0|[1-9][0-9]*)", tokens[index + 2]
-        ):
+        if tokens[index : index + 2] in (
+            ["model", "layers"],
+            ["encoder", "layer"],
+        ) and re.fullmatch(r"(?:0|[1-9][0-9]*)", tokens[index + 2]):
             layer = int(tokens[index + 2])
             break
 

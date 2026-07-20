@@ -344,6 +344,53 @@ def layer_regions(result):
         (r for r in result.structure_index.regions if isinstance(r, LayerRegion)),
         key=lambda r: r.layer_index,
     )
+    
+    
+# Encoder layer numbers are normalized out of SourceMeta before
+# fingerprinting, just like decoder model.layers.<N> paths.
+encoder_graph = Graph({}, "encoder_layer_source_normalization")
+encoder_input = add(
+    encoder_graph,
+    node(PlaceholderOp, "encoder_input"),
+    NodeType.InputNode,
+)
+
+for layer_index in range(2):
+    encoder_node = add(
+        encoder_graph,
+        node(
+            AddOp,
+            f"encoder_{layer_index}",
+            f"bert.encoder.layer.{layer_index}.output.dense",
+        ),
+    )
+    bind(encoder_input, encoder_node)
+    bind(
+        encoder_node,
+        add(
+            encoder_graph,
+            node(OutputOp, f"encoder_out_{layer_index}"),
+        ),
+    )
+
+encoder_result = encoder_graph.analyze_structure(True)
+encoder_layers = layer_regions(encoder_result)
+encoder_template = encoder_result.template_index
+
+assert [region.layer_index for region in encoder_layers] == [0, 1]
+assert len(encoder_template.region_fingerprints) == 2
+assert (
+    len(
+        {
+            fingerprint.digest
+            for fingerprint in encoder_template.region_fingerprints.values()
+        }
+    )
+    == 1
+)
+assert encoder_template.non_reusable_regions == []
+assert len(encoder_template.template_groups) == 1
+assert encoder_template.template_groups[0].instances == encoder_layers    
 
 
 mixed_graph = Graph({}, "opaque_and_reusable")
