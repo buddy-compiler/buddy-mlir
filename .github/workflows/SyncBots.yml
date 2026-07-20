@@ -22,7 +22,7 @@ on:
 
 jobs:
   upgrade:
-    runs-on: A800
+    runs-on: [self-hosted, X64]
     timeout-minutes: 300
     steps:
       - name: Checkout repository
