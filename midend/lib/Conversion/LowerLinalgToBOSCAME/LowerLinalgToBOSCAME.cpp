@@ -226,10 +226,6 @@ public:
     rewriter.setInsertionPointToStart(loopN.getBody());
     Value ivN = loopN.getInductionVar();
 
-    auto loopK = scf::ForOp::create(rewriter, loc, c0, dimK, stepK);
-    rewriter.setInsertionPointToStart(loopK.getBody());
-    Value ivK = loopK.getInductionVar();
-
     auto calcCurrentSize = [&](Value bound, Value iv, int64_t step) {
       Value remain = arith::SubIOp::create(rewriter, loc, bound, iv);
       Value stepVal = arith::ConstantIndexOp::create(rewriter, loc, step);
@@ -240,23 +236,14 @@ public:
 
     Value currM = calcCurrentSize(dimM, ivM, tileM);
     Value currN = calcCurrentSize(dimN, ivN, tileN);
-    Value currK = calcCurrentSize(dimK, ivK, tileK);
 
     Value currMI64 =
         arith::IndexCastOp::create(rewriter, loc, rewriter.getI64Type(), currM);
     Value currNI64 =
         arith::IndexCastOp::create(rewriter, loc, rewriter.getI64Type(), currN);
-    Value currKI64 =
-        arith::IndexCastOp::create(rewriter, loc, rewriter.getI64Type(), currK);
 
     SmallVector<OpFoldResult> stridesAttr = {rewriter.getIndexAttr(1),
                                              rewriter.getIndexAttr(1)};
-    Value subA = memref::SubViewOp::create(
-        rewriter, loc, A, ArrayRef<OpFoldResult>{ivM, ivK},
-        ArrayRef<OpFoldResult>{currM, currK}, stridesAttr);
-    Value subB = memref::SubViewOp::create(
-        rewriter, loc, B, ArrayRef<OpFoldResult>{ivK, ivN},
-        ArrayRef<OpFoldResult>{currK, currN}, stridesAttr);
     Value subC = memref::SubViewOp::create(
         rewriter, loc, C, ArrayRef<OpFoldResult>{ivM, ivN},
         ArrayRef<OpFoldResult>{currM, currN}, stridesAttr);
@@ -277,18 +264,18 @@ public:
       return arith::IndexCastOp::create(rewriter, loc, rewriter.getI64Type(),
                                         strideBytes);
     };
-    Value strideA = getRowStride(subA);
-    Value strideB = getRowStride(subB);
     Value strideC = getRowStride(subC);
 
     //===----------------------------------------------------------------===//
-    // Within each K-iteration the hardware REQUIRES mtype switching:
+    // The accumulator must remain resident across all K tiles:
     //
-    //   1. msettilem/n + msettype(accMtype) + mlce32  (load C into acc)
-    //   2. msettilek + msettype(mmaMtype) + mlae/mlbte + mqma (MMA)
-    //   3. msettype(accMtype) + msce32                (store acc to C)
+    //   1. msettilem/n + msettype(accMtype) + mlce32  (load C once)
+    //   2. for each K tile: msettilek + msettype(mmaMtype) + MMA
+    //   3. msettype(accMtype) + msce32                (store C once)
     //
-    // This matches the Qwen3 kernel pattern in ame_matmul_*_i8_i8_f32().
+    // On Qwen3 i8->f32 hardware, msce32 converts the integer accumulator to
+    // fp32. Reloading that fp32 value with mlce32 between K tiles instead
+    // treats its IEEE-754 bits as an integer accumulator value.
     //===----------------------------------------------------------------===//
 
     // --- Step 1: accumulator load (mtype = C element type) ---
@@ -310,7 +297,23 @@ public:
       MsubDwMmOp::create(rewriter, loc, 0, 0, 0);
     }
 
-    // --- Step 2: MMA (mtype = A/B element type) ---
+    auto loopK = scf::ForOp::create(rewriter, loc, c0, dimK, stepK);
+    rewriter.setInsertionPointToStart(loopK.getBody());
+    Value ivK = loopK.getInductionVar();
+    Value currK = calcCurrentSize(dimK, ivK, tileK);
+    Value currKI64 =
+        arith::IndexCastOp::create(rewriter, loc, rewriter.getI64Type(), currK);
+
+    Value subA = memref::SubViewOp::create(
+        rewriter, loc, A, ArrayRef<OpFoldResult>{ivM, ivK},
+        ArrayRef<OpFoldResult>{currM, currK}, stridesAttr);
+    Value subB = memref::SubViewOp::create(
+        rewriter, loc, B, ArrayRef<OpFoldResult>{ivK, ivN},
+        ArrayRef<OpFoldResult>{currK, currN}, stridesAttr);
+    Value strideA = getRowStride(subA);
+    Value strideB = getRowStride(subB);
+
+    // --- Step 2: MMA for one K tile (mtype = A/B element type) ---
     MSettilekOp::create(rewriter, loc, rewriter.getI64Type(), currKI64);
     Value mmaMtypeVal = arith::ConstantOp::create(
         rewriter, loc, rewriter.getI64Type(),
@@ -342,7 +345,9 @@ public:
       MmaDwmmOp::create(rewriter, loc, 0, 0, 1);
     }
 
-    // --- Step 3: accumulator store (mtype = C element type) ---
+    rewriter.setInsertionPointAfter(loopK);
+
+    // --- Step 3: accumulator store after all K tiles (mtype = C type) ---
     Value accMtypeVal2 = arith::ConstantOp::create(
         rewriter, loc, rewriter.getI64Type(),
         rewriter.getI64IntegerAttr(accMtypeImm));
