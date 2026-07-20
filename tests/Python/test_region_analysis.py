@@ -18,6 +18,7 @@ from buddy.compiler.graph.region_analysis import (
     RegionKind,
 )
 from buddy.compiler.graph.source_meta import SourceMeta
+from buddy.compiler.graph.structure_analysis import NodeAnnotation
 
 
 def make_node(node_class, name, module_path=None):
@@ -341,3 +342,125 @@ assert_dangling_edge_rejected(
     "parent",
     "missing_producer",
 )
+
+
+# H: layer-local residual adds use topology, not names, order, or layer number.
+residual_graph = Graph({}, "residual_semantics_test")
+residual_input = add(
+    residual_graph,
+    make_node(PlaceholderOp, "residual_input"),
+    NodeType.InputNode,
+)
+attention_output = add(
+    residual_graph,
+    make_node(
+        MatmulOp,
+        "projected_branch",
+        "model.layers.13.self_attn.o_proj",
+    ),
+)
+attention_residual = add(
+    residual_graph,
+    make_node(AddOp, "merge_alpha", "model.layers.13"),
+)
+ordinary_add = add(
+    residual_graph,
+    make_node(AddOp, "mystery_sum", "model.layers.13"),
+)
+post_attention_norm = add(
+    residual_graph,
+    make_node(
+        AddOp,
+        "normalize_after_branch",
+        "model.layers.13.post_attention_layernorm",
+    ),
+)
+mlp_output = add(
+    residual_graph,
+    make_node(MatmulOp, "contracted_branch", "model.layers.13.mlp.down_proj"),
+)
+mlp_residual = add(
+    residual_graph,
+    make_node(AddOp, "merge_omega", "model.layers.13"),
+)
+residual_output = add(
+    residual_graph,
+    make_node(OutputOp, "residual_output"),
+)
+connect(residual_input, attention_output)
+connect(residual_input, attention_residual)
+connect(attention_output, attention_residual)
+connect(residual_input, ordinary_add)
+connect(ordinary_add, residual_output)
+connect(attention_residual, post_attention_norm)
+connect(post_attention_norm, mlp_output)
+connect(attention_residual, mlp_residual)
+connect(mlp_output, mlp_residual)
+connect(mlp_residual, residual_output)
+
+residual_body_ref = residual_graph.body
+residual_body_snapshot = list(residual_graph.body)
+residual_table_ref = residual_graph.node_table
+residual_table_snapshot = list(residual_graph.node_table.items())
+residual_node_snapshot = {
+    node: (
+        node.parents,
+        list(node.parents),
+        node._children,
+        list(node._children),
+        node.args,
+        list(node.args),
+        node.kwargs,
+        dict(node.kwargs),
+    )
+    for node in residual_graph.body
+}
+
+residual_first = residual_graph.analyze_structure()
+residual_second = residual_graph.analyze_structure()
+residual_index = residual_first.structure_index
+assert residual_second.structure_index is residual_index
+assert residual_index.annotations[attention_residual] == NodeAnnotation(
+    layer_index=13,
+    component="residual",
+    subcomponent="post_attention_residual",
+)
+assert residual_index.annotations[mlp_residual] == NodeAnnotation(
+    layer_index=13,
+    component="residual",
+    subcomponent="post_mlp_residual",
+)
+assert residual_index.annotations[ordinary_add] == NodeAnnotation(layer_index=13)
+residual_region = next(
+    region
+    for region in residual_index.regions
+    if isinstance(region, LayerRegion) and region.layer_index == 13
+)
+assert residual_region.component_nodes["residual"] == [
+    attention_residual,
+    mlp_residual,
+]
+assert residual_region.subcomponent_nodes["post_attention_residual"] == [
+    attention_residual
+]
+assert residual_region.subcomponent_nodes["post_mlp_residual"] == [mlp_residual]
+
+assert residual_graph.body is residual_body_ref
+assert residual_graph.body == residual_body_snapshot
+assert residual_graph.node_table is residual_table_ref
+assert list(residual_graph.node_table.items()) == residual_table_snapshot
+for node, snapshot in residual_node_snapshot.items():
+    (
+        parents_ref,
+        parents,
+        children_ref,
+        children,
+        args_ref,
+        args,
+        kwargs_ref,
+        kwargs,
+    ) = snapshot
+    assert node.parents is parents_ref and node.parents == parents
+    assert node._children is children_ref and node._children == children
+    assert node.args is args_ref and node.args == args
+    assert node.kwargs is kwargs_ref and node.kwargs == kwargs
