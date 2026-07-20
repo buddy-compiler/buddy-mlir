@@ -10,32 +10,83 @@ on:
       max_iterations:
         description: "Max fix iterations"
         required: false
-        default: "10"
+        default: "0"
       strong_model:
         description: "Strong model (main agent)"
         required: false
-        default: "claude-sonnet-4-6"
+        default: "claude-opus-4-7"
       weak_model:
         description: "Weak model (subagents, blank = same as strong)"
         required: false
         default: ""
 
-# Optional scheduled trigger (runs every Monday at 02:00 UTC)
-# schedule:
-#   - cron: '0 2 * * 1'
-
 jobs:
   upgrade:
-    uses: RuyiAI-Stack/SyncBots-DeepAgents/.github/workflows/llvm-upgrade.yml@main
-    with:
-      repo_name: buddy-mlir
-      target_llvm: ${{ github.event.inputs.target_llvm || '' }}
-      max_iterations: ${{ fromJSON(github.event.inputs.max_iterations || '10') }}
-      strong_model: ${{ github.event.inputs.strong_model || 'claude-sonnet-4-6' }}
-      weak_model: ${{ github.event.inputs.weak_model || '' }}
-      auto_pr: true
-    secrets:
-      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
-      LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
-      LLM_PROVIDER: ${{ secrets.LLM_PROVIDER }}
-      GITHUB_PAT: ${{ secrets.PAT_TOKEN }}
+    runs-on: A800
+    timeout-minutes: 300
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+          token: ${{ secrets.PAT_TOKEN || github.token }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install git+https://github.com/RuyiAI-Stack/SyncBots-DeepAgents.git
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Generate LLM config
+        run: |
+          cat > llm_config.yaml << 'EOF'
+          default:
+            provider: ${{ secrets.LLM_PROVIDER || 'openai_compatible' }}
+            model: ${{ github.event.inputs.strong_model || 'claude-sonnet-4-6' }}
+            api_key: ${{ secrets.LLM_API_KEY }}
+            base_url: ${{ secrets.LLM_BASE_URL || '' }}
+          strong_model: ${{ github.event.inputs.strong_model || 'claude-sonnet-4-6' }}
+          weak_model: ${{ github.event.inputs.weak_model || '' }}
+          github_token: ${{ secrets.PAT_TOKEN || github.token }}
+          EOF
+
+      - name: Run LLVM upgrade agent
+        run: |
+          syncbots upgrade-single \
+            --repo buddy-mlir \
+            --repo-path . \
+            --target-llvm "${{ github.event.inputs.target_llvm }}" \
+            --max-iterations ${{ github.event.inputs.max_iterations || '10' }} \
+            --llm-config llm_config.yaml \
+            --output-dir ./syncbots-output \
+            --auto-branch --branch-base main
+        env:
+          GITHUB_TOKEN: ${{ secrets.PAT_TOKEN || github.token }}
+
+      - name: Upload agent logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: syncbots-logs
+          path: syncbots-output/
+          retention-days: 30
+
+      - name: Create Pull Request
+        if: success()
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.PAT_TOKEN || github.token }}
+          branch: syncbots/llvm-upgrade-${{ github.run_id }}
+          title: "[LLVM] Automated upgrade by SyncBots"
+          body: |
+            Automated LLVM upgrade by [SyncBots-DeepAgents](https://github.com/RuyiAI-Stack/SyncBots-DeepAgents).
+
+            - Target LLVM: `${{ github.event.inputs.target_llvm || 'main HEAD' }}`
+            - Model: `${{ github.event.inputs.strong_model || 'claude-sonnet-4-6' }}`
+            - Max iterations: ${{ github.event.inputs.max_iterations || '10' }}
+          commit-message: "[LLVM] Automated upgrade to ${{ github.event.inputs.target_llvm || 'latest' }}"
