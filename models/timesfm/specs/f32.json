@@ -1,0 +1,11 @@
+{
+  "model_family": "timesfm",
+  "hidden_size": 1280,
+  "patch_length": 32,
+  "context_length": 16384,
+  "horizon_length": 128,
+  "max_token_len": 16384,
+  "hf_model_path": "google/timesfm-2.5-200m-pytorch",
+  "num_threads": 48,
+  "variant": "f32"
+}
