@@ -28,9 +28,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          submodules: recursive
+          submodules: false
           fetch-depth: 0
           token: ${{ secrets.PAT_TOKEN || github.token }}
+
+      - name: Init required submodules only
+        run: |
+          git submodule update --init llvm
+          git submodule update --init thirdparty/mimalloc
 
       - name: Setup Python
         uses: actions/setup-python@v5
