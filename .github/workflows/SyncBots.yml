@@ -44,7 +44,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install git+https://github.com/RuyiAI-Stack/SyncBots-DeepAgents.git
+          pip install --no-cache-dir --force-reinstall git+https://github.com/RuyiAI-Stack/SyncBots-DeepAgents.git@main
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
       - name: Generate LLM config
