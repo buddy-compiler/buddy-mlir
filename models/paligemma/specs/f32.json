@@ -1,0 +1,1 @@
+{"model_family":"paligemma","hidden_size":2048,"max_token_len":1024,"hf_model_path":"google/paligemma-3b-mix-224","num_threads":48,"variant":"f32","image_token_id":257152,"num_image_tokens":256}
