@@ -27,6 +27,7 @@ from setuptools.dist import Distribution
 from wheel.bdist_wheel import bdist_wheel as _bdist_wheel
 
 ROOT = Path(__file__).parent.resolve()
+PY_LIMITED_API = os.environ.get("BUDDY_PY_LIMITED_API")
 
 
 def _resolve_build_dir() -> Path:
@@ -93,6 +94,7 @@ class build_py(_build_py):
         self._copy_tree(
             STAGING_SRC / "buddy_mlir" / "_mlir_libs", mlir_libs_dir
         )
+        self._check_limited_api_outputs(mlir_libs_dir)
 
         self._copy_tree(BIN_DIR, tools_root / "bin", allow_missing=True)
         self._copy_tree(LIB_DIR, tools_root / "lib", allow_missing=True)
@@ -133,6 +135,29 @@ class build_py(_build_py):
             shutil.copy2(path, target)
             self._extra_outputs.append(str(target))
 
+    def _check_limited_api_outputs(self, mlir_libs_dir: Path):
+        if not PY_LIMITED_API:
+            return
+
+        cpython_extensions = sorted(mlir_libs_dir.glob("*.cpython-*.so"))
+        if cpython_extensions:
+            rel_paths = "\n".join(
+                f"  {path.relative_to(Path(self.build_lib))}"
+                for path in cpython_extensions
+            )
+            raise SystemExit(
+                "BUDDY_PY_LIMITED_API is set, but the build contains "
+                f"CPython-specific extension modules:\n{rel_paths}\n"
+                "Rebuild LLVM/buddy with MLIR_ENABLE_PYTHON_STABLE_ABI=ON."
+            )
+
+        abi3_extensions = sorted(mlir_libs_dir.glob("*.abi3.so"))
+        if not abi3_extensions:
+            raise SystemExit(
+                "BUDDY_PY_LIMITED_API is set, but no abi3 extension modules "
+                f"were found under {mlir_libs_dir}."
+            )
+
 
 ENTRY_POINTS = {
     "console_scripts": [
@@ -162,6 +187,8 @@ class bdist_wheel(_bdist_wheel):
         super().finalize_options()
         # Force platform-specific wheel since we bundle native libs.
         self.root_is_pure = False
+        if PY_LIMITED_API:
+            self.py_limited_api = PY_LIMITED_API
 
 
 class BinaryDistribution(Distribution):
