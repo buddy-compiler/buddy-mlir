@@ -28,3 +28,7 @@ ttrt-artifacts/
 /ttrt_report.xml
 .py-stage
 .venv/
+
+# SyncBots agent output (upgrade logs / iteration summaries)
+syncbots-output/
+llm_config.yaml

@@ -14,7 +14,7 @@ on:
       strong_model:
         description: "Strong model (main agent)"
         required: false
-        default: "claude-opus-4-7"
+        default: "gpt-5.6-sol"
       weak_model:
         description: "Weak model (subagents, blank = same as strong)"
         required: false
@@ -52,10 +52,10 @@ jobs:
           cat > llm_config.yaml << 'EOF'
           default:
             provider: ${{ secrets.LLM_PROVIDER || 'openai_compatible' }}
-            model: ${{ github.event.inputs.strong_model || 'claude-sonnet-4-6' }}
+            model: ${{ github.event.inputs.strong_model || 'gpt-5.6-sol' }}
             api_key: ${{ secrets.LLM_API_KEY }}
             base_url: ${{ secrets.LLM_BASE_URL || '' }}
-          strong_model: ${{ github.event.inputs.strong_model || 'claude-sonnet-4-6' }}
+          strong_model: ${{ github.event.inputs.strong_model || 'gpt-5.6-sol' }}
           weak_model: ${{ github.event.inputs.weak_model || '' }}
           github_token: ${{ secrets.PAT_TOKEN || github.token }}
           EOF
@@ -68,7 +68,7 @@ jobs:
             --target-llvm "${{ github.event.inputs.target_llvm }}" \
             --max-iterations ${{ github.event.inputs.max_iterations || '10' }} \
             --llm-config llm_config.yaml \
-            --output-dir ./syncbots-output \
+            --output-dir "${{ runner.temp }}/syncbots-output" \
             --auto-branch --branch-base main
         env:
           GITHUB_TOKEN: ${{ secrets.PAT_TOKEN || github.token }}
@@ -78,7 +78,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: syncbots-logs
-          path: syncbots-output/
+          path: ${{ runner.temp }}/syncbots-output/
           retention-days: 30
 
       - name: Create Pull Request
@@ -92,6 +92,6 @@ jobs:
             Automated LLVM upgrade by [SyncBots-DeepAgents](https://github.com/RuyiAI-Stack/SyncBots-DeepAgents).
 
             - Target LLVM: `${{ github.event.inputs.target_llvm || 'main HEAD' }}`
-            - Model: `${{ github.event.inputs.strong_model || 'claude-sonnet-4-6' }}`
+            - Model: `${{ github.event.inputs.strong_model || 'gpt-5.6-sol' }}`
             - Max iterations: ${{ github.event.inputs.max_iterations || '10' }}
           commit-message: "[LLVM] Automated upgrade to ${{ github.event.inputs.target_llvm || 'latest' }}"
