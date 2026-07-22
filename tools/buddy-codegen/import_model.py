@@ -34,6 +34,7 @@ import importlib
 import importlib.util
 import json
 import os
+import re
 import sys
 import time
 import types
@@ -71,6 +72,8 @@ try:
     from buddy.compiler.graph import (
         GraphDriver,
         PartitionedGraphDriver,
+        TemplatePartitionedGraphDriver,
+        build_template_materialization_plan,
     )
     from buddy.compiler.graph.operation import *
     from buddy.compiler.graph.transform import (
@@ -218,8 +221,12 @@ def compile_and_export_tiered_graphs(
     config: dict,
     output_dir: str,
     export_layer_partitioned: bool = False,
+    export_template_partitioned: bool = False,
 ):
     """Generate one prefill/decode pair for every configured KV cache size."""
+    export_partitioned = (
+        export_layer_partitioned or export_template_partitioned
+    )
     cache_sizes = tiered_cache_sizes(config)
     if not cache_sizes:
         raise ValueError("tiered_kv_cache.enabled requires cache_sizes")
@@ -244,9 +251,11 @@ def compile_and_export_tiered_graphs(
         "tiered": True,
         "prefill": {},
         "decode": {},
-        "decode_partitioned": export_layer_partitioned,
+        "decode_partitioned": export_partitioned,
     }
-    if export_layer_partitioned:
+    if export_template_partitioned:
+        partition_manifest["template_materialization"] = True
+    if export_partitioned:
         mlir_output_dir = os.path.join(output_dir, "layer_partitioned")
         os.makedirs(mlir_output_dir, exist_ok=True)
         for filename in os.listdir(mlir_output_dir):
@@ -290,36 +299,58 @@ def compile_and_export_tiered_graphs(
 
         name = (
             f"subgraph0_prefill_{prefill_size}_"
-            if export_layer_partitioned
+            if export_partitioned
             else f"subgraph0_prefill_{prefill_size}"
         )
         graph.op_groups[name] = graph.op_groups.pop("subgraph0")
         graph.group_map_device[name] = DeviceType.CPU
 
         files = {}
-        if export_layer_partitioned:
+        if export_template_partitioned:
+            analysis = graph.analyze_structure(True)
+            plan = build_template_materialization_plan(
+                graph,
+                analysis.structure_index,
+                analysis.template_index,
+            )
+            driver = TemplatePartitionedGraphDriver(
+                graph, analysis.structure_index, plan
+            )
+            subgraphs = driver.build_template_subgraphs()
+            for subgraph in subgraphs:
+                subgraph.lower_to_top_level_ir()
+            for unit, subgraph in zip(
+                plan.templates, subgraphs, strict=True
+            ):
+                files[f"{driver.template_symbol(unit.template_id)}.mlir"] = (
+                    subgraph._imported_module
+                )
+            files[f"forward_prefill_{prefill_size}.mlir"] = (
+                driver.construct_template_combined_main_graph(
+                    True,
+                    output_remap=_prefill_output_remap(graph),
+                )
+            )
+            partition_manifest["prefill"][str(prefill_size)] = {
+                "subgraphs": len(subgraphs),
+                "regions": len(analysis.structure_index.regions),
+                "templates": len(plan.templates),
+                "forward": f"forward_prefill_{prefill_size}.mlir",
+            }
+        elif export_layer_partitioned:
             driver = PartitionedGraphDriver(
                 graph, layer_split_strategy(config, "prefill")
             )
             for subgraph in driver.subgraphs:
                 subgraph.lower_to_top_level_ir()
-            prefill_output_count = len(graph.body[-1].args)
-            prefill_output_remap = list(range(prefill_output_count))
-            if (
-                prefill_output_count >= 3
-                and (prefill_output_count - 1) % 2 == 0
-            ):
-                kv_count = prefill_output_count - 1
-                prefill_output_remap = [
-                    i ^ 1 if i < kv_count else i
-                    for i in range(prefill_output_count)
-                ]
             for i, subgraph in enumerate(driver.subgraphs):
                 files[f"subgraph0_prefill_{prefill_size}_{i}.mlir"] = (
                     subgraph._imported_module
                 )
             files[f"forward_prefill_{prefill_size}.mlir"] = (
-                driver.construct_combined_main_graph(True, prefill_output_remap)
+                driver.construct_combined_main_graph(
+                    True, _prefill_output_remap(graph)
+                )
             )
             partition_manifest["prefill"][str(prefill_size)] = {
                 "subgraphs": len(driver.subgraphs),
@@ -339,7 +370,7 @@ def compile_and_export_tiered_graphs(
         for filename, content in files.items():
             with open(os.path.join(mlir_output_dir, filename), "w") as f:
                 print(content, file=f)
-            prefix = "layer_partitioned/" if export_layer_partitioned else ""
+            prefix = "layer_partitioned/" if export_partitioned else ""
             print(f"[import] Written: {prefix}{filename}", file=sys.stderr)
 
     if params is None:
@@ -389,14 +420,42 @@ def compile_and_export_tiered_graphs(
 
         name = (
             f"subgraph0_decode_{cache_size}_"
-            if export_layer_partitioned
+            if export_partitioned
             else f"subgraph0_decode_{cache_size}"
         )
         graph.op_groups[name] = graph.op_groups.pop("subgraph0")
         graph.group_map_device[name] = DeviceType.CPU
 
         files = {}
-        if export_layer_partitioned:
+        if export_template_partitioned:
+            analysis = graph.analyze_structure(True)
+            plan = build_template_materialization_plan(
+                graph,
+                analysis.structure_index,
+                analysis.template_index,
+            )
+            driver = TemplatePartitionedGraphDriver(
+                graph, analysis.structure_index, plan
+            )
+            subgraphs = driver.build_template_subgraphs()
+            for subgraph in subgraphs:
+                subgraph.lower_to_top_level_ir()
+            for unit, subgraph in zip(
+                plan.templates, subgraphs, strict=True
+            ):
+                files[f"{driver.template_symbol(unit.template_id)}.mlir"] = (
+                    subgraph._imported_module
+                )
+            files[f"forward_decode_{cache_size}.mlir"] = (
+                driver.construct_template_combined_main_graph(True)
+            )
+            partition_manifest["decode"][str(cache_size)] = {
+                "subgraphs": len(subgraphs),
+                "regions": len(analysis.structure_index.regions),
+                "templates": len(plan.templates),
+                "forward": f"forward_decode_{cache_size}.mlir",
+            }
+        elif export_layer_partitioned:
             driver = PartitionedGraphDriver(
                 graph, layer_split_strategy(config, "decode")
             )
@@ -431,10 +490,10 @@ def compile_and_export_tiered_graphs(
         for filename, content in files.items():
             with open(os.path.join(mlir_output_dir, filename), "w") as f:
                 print(content, file=f)
-            prefix = "layer_partitioned/" if export_layer_partitioned else ""
+            prefix = "layer_partitioned/" if export_partitioned else ""
             print(f"[import] Written: {prefix}{filename}", file=sys.stderr)
 
-    if export_layer_partitioned:
+    if export_partitioned:
         with open(
             os.path.join(mlir_output_dir, "partition_manifest.json"), "w"
         ) as f:
@@ -447,7 +506,7 @@ def compile_and_export_tiered_graphs(
             item["subgraphs"] for item in partition_manifest["decode"].values()
         )
         print(
-            "[import] Tiered layer partitioned export complete: "
+            "[import] Tiered partitioned export complete: "
             f"{prefill_total} prefill + {decode_total} decode subgraphs",
             file=sys.stderr,
         )
@@ -553,6 +612,16 @@ def layer_split_strategy(config: dict, kind: str):
     return strategy_factory(kind)
 
 
+def _prefill_output_remap(graph_prefill) -> list[int]:
+    """Return the established Layer Partition prefill KV output order."""
+    output_count = len(graph_prefill.body[-1].args)
+    remap = list(range(output_count))
+    if output_count >= 3 and (output_count - 1) % 2 == 0:
+        kv_count = output_count - 1
+        remap = [i ^ 1 if i < kv_count else i for i in range(output_count)]
+    return remap
+
+
 def export_layer_partitioned_mlir(
     graph_prefill,
     graph_decode,
@@ -591,13 +660,7 @@ def export_layer_partitioned_mlir(
             print(
                 f"[import] Written: layer_partitioned/{name}", file=sys.stderr
             )
-    prefill_output_count = len(graph_prefill.body[-1].args)
-    prefill_output_remap = list(range(prefill_output_count))
-    if prefill_output_count >= 3 and (prefill_output_count - 1) % 2 == 0:
-        kv_count = prefill_output_count - 1
-        prefill_output_remap = [
-            i ^ 1 if i < kv_count else i for i in range(prefill_output_count)
-        ]
+    prefill_output_remap = _prefill_output_remap(graph_prefill)
     combined_prefill = driver_prefill.construct_combined_main_graph(
         True, prefill_output_remap
     )
@@ -635,6 +698,8 @@ def export_layer_partitioned_mlir(
             len(driver_prefill.modules) if export_debug_wrappers else 0
         ),
         "decode_subgraphs": len(driver_decode.subgraphs),
+        "decode_regions": len(driver_decode.subgraphs),
+        "decode_templates": len(driver_decode.subgraphs),
         "decode_main_graphs": (
             len(driver_decode.modules) if export_debug_wrappers else 0
         ),
@@ -647,6 +712,116 @@ def export_layer_partitioned_mlir(
         "[import] Layer partitioned export complete: "
         f"{manifest['prefill_subgraphs']} prefill + "
         f"{manifest['decode_subgraphs']} decode subgraphs",
+        file=sys.stderr,
+    )
+    return manifest
+
+
+def export_template_partitioned_mlir(
+    graph_prefill, graph_decode, output_dir: str
+) -> dict[str, int | bool]:
+    """Export unique prefill/decode templates and complete static wrappers."""
+    prefill_analysis = graph_prefill.analyze_structure(True)
+    if prefill_analysis.template_index is None:
+        raise ValueError("prefill template recognition produced no index")
+    prefill_plan = build_template_materialization_plan(
+        graph_prefill,
+        prefill_analysis.structure_index,
+        prefill_analysis.template_index,
+    )
+    prefill_driver = TemplatePartitionedGraphDriver(
+        graph_prefill, prefill_analysis.structure_index, prefill_plan
+    )
+    prefill_subgraphs = prefill_driver.build_template_subgraphs()
+    if len(prefill_plan.templates) != len(prefill_subgraphs):
+        raise ValueError(
+            "prefill template count does not match template subgraph count"
+        )
+    for subgraph in prefill_subgraphs:
+        subgraph.lower_to_top_level_ir()
+
+    decode_analysis = graph_decode.analyze_structure(True)
+    if decode_analysis.template_index is None:
+        raise ValueError("decode template recognition produced no index")
+    decode_plan = build_template_materialization_plan(
+        graph_decode,
+        decode_analysis.structure_index,
+        decode_analysis.template_index,
+    )
+    decode_driver = TemplatePartitionedGraphDriver(
+        graph_decode, decode_analysis.structure_index, decode_plan
+    )
+    decode_subgraphs = decode_driver.build_template_subgraphs()
+    if len(decode_plan.templates) != len(decode_subgraphs):
+        raise ValueError(
+            "decode template count does not match template subgraph count"
+        )
+    for subgraph in decode_subgraphs:
+        subgraph.lower_to_top_level_ir()
+
+    partition_dir = os.path.join(output_dir, "layer_partitioned")
+    os.makedirs(partition_dir, exist_ok=True)
+    for filename in os.listdir(partition_dir):
+        if filename in ("forward_prefill.mlir", "forward_decode.mlir") or (
+            re.fullmatch(r"subgraph0_(?:prefill|decode)\d+\.mlir", filename)
+        ):
+            os.remove(os.path.join(partition_dir, filename))
+
+    for unit, subgraph in zip(
+        prefill_plan.templates, prefill_subgraphs, strict=True
+    ):
+        name = f"subgraph0_prefill{unit.template_id}.mlir"
+        with open(os.path.join(partition_dir, name), "w") as f:
+            print(subgraph._imported_module, file=f)
+        print(f"[import] Written: layer_partitioned/{name}", file=sys.stderr)
+
+    combined_prefill = prefill_driver.construct_template_combined_main_graph(
+        True, output_remap=_prefill_output_remap(graph_prefill)
+    )
+    with open(os.path.join(partition_dir, "forward_prefill.mlir"), "w") as f:
+        print(combined_prefill, file=f)
+    print(
+        "[import] Written: layer_partitioned/forward_prefill.mlir",
+        file=sys.stderr,
+    )
+
+    for unit, subgraph in zip(
+        decode_plan.templates, decode_subgraphs, strict=True
+    ):
+        name = f"subgraph0_decode{unit.template_id}.mlir"
+        with open(os.path.join(partition_dir, name), "w") as f:
+            print(subgraph._imported_module, file=f)
+        print(f"[import] Written: layer_partitioned/{name}", file=sys.stderr)
+
+    combined_decode = decode_driver.construct_template_combined_main_graph(True)
+    with open(os.path.join(partition_dir, "forward_decode.mlir"), "w") as f:
+        print(combined_decode, file=f)
+    print(
+        "[import] Written: layer_partitioned/forward_decode.mlir",
+        file=sys.stderr,
+    )
+
+    manifest = {
+        "prefill_regions": len(prefill_analysis.structure_index.regions),
+        "prefill_templates": len(prefill_plan.templates),
+        "prefill_subgraphs": len(prefill_subgraphs),
+        "prefill_main_graphs": 0,
+        "decode_regions": len(decode_analysis.structure_index.regions),
+        "decode_templates": len(decode_plan.templates),
+        "decode_subgraphs": len(decode_subgraphs),
+        "decode_main_graphs": 0,
+        "debug_wrappers": False,
+        "template_materialization": True,
+    }
+    with open(os.path.join(partition_dir, "partition_manifest.json"), "w") as f:
+        json.dump(manifest, f, indent=2)
+        f.write("\n")
+    print(
+        "[import] Template export complete: "
+        f"{manifest['prefill_regions']} prefill Regions / "
+        f"{manifest['prefill_templates']} templates; "
+        f"{manifest['decode_regions']} Regions, "
+        f"{manifest['decode_templates']} templates",
         file=sys.stderr,
     )
     return manifest
@@ -1073,6 +1248,7 @@ def import_model(
     config: dict,
     output_dir: str,
     export_layer_partitioned: bool = False,
+    export_template_partitioned: bool = False,
     export_layer_partition_debug_wrappers: bool = False,
     export_full_mlir: bool = True,
     direct_plain_weight_export: bool = True,
@@ -1080,6 +1256,10 @@ def import_model(
     skip_weights: bool = False,
 ):
     """Full import pipeline: load → compile → transform → export."""
+    if export_layer_partitioned and export_template_partitioned:
+        raise ValueError(
+            "layer and template partitioned exports are mutually exclusive"
+        )
     os.makedirs(output_dir, exist_ok=True)
     variant = config["variant"]
     is_quantized = variant.startswith("w")
@@ -1103,6 +1283,7 @@ def import_model(
                 config,
                 output_dir,
                 export_layer_partitioned=export_layer_partitioned,
+                export_template_partitioned=export_template_partitioned,
             )
         with timed_import_step("export_weights"):
             if reuse_existing_weights and can_reuse_existing_weights(
@@ -1193,6 +1374,11 @@ def import_model(
                 output_dir,
                 export_debug_wrappers=export_layer_partition_debug_wrappers,
             )
+    if export_template_partitioned:
+        with timed_import_step("export_template_partitioned_mlir"):
+            export_template_partitioned_mlir(
+                graphs_prefill[0], graphs_decode[0], output_dir
+            )
 
     # 7. Export whole-graph MLIR when requested. Partitioned runtime builds
     # consume layer_partitioned/forward_*.mlir instead, so this is optional.
@@ -1282,6 +1468,14 @@ def main():
         help="Also export per-layer MLIR under output-dir/layer_partitioned.",
     )
     parser.add_argument(
+        "--experimental-template-partitioned",
+        action="store_true",
+        help=(
+            "Export unique prefill/decode Region templates and complete "
+            "static forwards under output-dir/layer_partitioned."
+        ),
+    )
+    parser.add_argument(
         "--layer-partition-debug-wrappers",
         action="store_true",
         help=(
@@ -1333,6 +1527,9 @@ def main():
                 config,
                 args.output_dir,
                 export_layer_partitioned=args.experimental_layer_partitioned,
+                export_template_partitioned=(
+                    args.experimental_template_partitioned
+                ),
                 export_layer_partition_debug_wrappers=(
                     args.layer_partition_debug_wrappers
                 ),

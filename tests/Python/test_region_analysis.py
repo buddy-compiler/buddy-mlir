@@ -6,6 +6,7 @@ import buddy.compiler.graph.operation as operation_module
 from buddy.compiler.graph.graph import Graph, NodeType
 from buddy.compiler.graph.operation import (
     AddOp,
+    CallOp,
     MatmulOp,
     Op,
     OutputOp,
@@ -13,8 +14,11 @@ from buddy.compiler.graph.operation import (
     TensorConstantOp,
 )
 from buddy.compiler.graph.region_analysis import (
+    GraphValueRef,
     GraphRegion,
     LayerRegion,
+    RegionInputKind,
+    RegionInputRef,
     RegionKind,
 )
 from buddy.compiler.graph.source_meta import SourceMeta
@@ -125,6 +129,11 @@ assert prelude.interface.data_inputs == [nodes["input"]]
 assert prelude.interface.parameters == [nodes["weight"]]
 assert prelude.interface.constants == [nodes["constant"]]
 assert prelude.interface.data_outputs == [nodes["embedding"]]
+assert prelude.interface.ordered_inputs == [
+    RegionInputRef(RegionInputKind.DATA, GraphValueRef(nodes["input"])),
+    RegionInputRef(RegionInputKind.PARAMETER, GraphValueRef(nodes["weight"])),
+    RegionInputRef(RegionInputKind.CONSTANT, GraphValueRef(nodes["constant"])),
+]
 assert layer0.interface.data_inputs == [nodes["embedding"]]
 assert layer0.interface.data_outputs == [nodes["layer0_down"]]
 assert layer1.interface.data_inputs == [nodes["layer0_down"]]
@@ -140,6 +149,41 @@ for region in index.regions:
     assert len(interface.data_outputs) == len(
         {id(node) for node in interface.data_outputs}
     )
+
+
+# Result indices remain part of Region boundaries.
+multi_graph = Graph({}, "multi_result_interface")
+multi_input = add(
+    multi_graph, make_node(PlaceholderOp, "multi_input"), NodeType.InputNode
+)
+multi_producer = add(
+    multi_graph,
+    make_node(CallOp, "multi_producer", "model.layers.0.self_attn.q_proj"),
+)
+multi_producer.tensor_meta = {
+    "shape": [(2, 4), (2, 5)],
+    "dtype": ["f32", "f16"],
+}
+multi_consumer = add(
+    multi_graph,
+    make_node(AddOp, "multi_consumer", "model.layers.1.mlp.down_proj"),
+)
+multi_output = add(multi_graph, make_node(OutputOp, "multi_output"))
+connect(multi_input, multi_producer)
+multi_producer.add_children(multi_consumer.name)
+multi_consumer.add_parent(multi_producer.name)
+multi_consumer.add_argument(multi_producer.name, 1)
+connect(multi_consumer, multi_output)
+multi_index = multi_graph.build_structure_index()
+multi_layer0, multi_layer1 = multi_index.regions
+assert multi_layer0.interface.ordered_outputs == [
+    GraphValueRef(multi_producer, 1)
+]
+assert multi_layer1.interface.ordered_inputs == [
+    RegionInputRef(
+        RegionInputKind.DATA, GraphValueRef(multi_producer, 1)
+    )
+]
 
 
 # C: unknown nodes remain separate from layers; assigned nodes split runs.

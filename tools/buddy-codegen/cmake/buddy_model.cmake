@@ -44,10 +44,13 @@ option(IS_RVV_CROSSCOMPILE
   "Enable RVV cross-compilation for model.so (riscv64 target)"
   OFF)
 option(BUDDY_MODEL_LAYER_PARTITION
-  "Build supported models with validated layer-partitioned prefill compilation"
+  "Build supported models with template-based layer partitioning"
   ON)
+option(BUDDY_MODEL_LEGACY_LAYER_PARTITION
+  "Use legacy per-region layer partitioning instead of template-based layer partitioning"
+  OFF)
 option(BUDDY_MODEL_LAYER_PARTITION_DEBUG_WRAPPERS
-  "Emit per-partition forward_* debug wrapper MLIR files for layer partitioning"
+  "Emit per-partition forward_* debug wrapper MLIR files for legacy layer partitioning"
   OFF)
 option(BUDDY_MODEL_REUSE_WEIGHTS
   "Reuse existing model weight data when a matching weight manifest is present"
@@ -684,12 +687,30 @@ function(buddy_add_model)
       endif()
       set(_IMPORT_MODEL_EXTRA_ARGS)
       if(MDL_LAYER_PARTITION)
-        list(APPEND _IMPORT_MODEL_EXTRA_ARGS
-          --experimental-layer-partitioned
-          --skip-full-mlir)
-        if(BUDDY_MODEL_LAYER_PARTITION_DEBUG_WRAPPERS)
+        if(BUDDY_MODEL_LEGACY_LAYER_PARTITION)
           list(APPEND _IMPORT_MODEL_EXTRA_ARGS
-            --layer-partition-debug-wrappers)
+            --experimental-layer-partitioned
+            --skip-full-mlir
+          )
+
+          if(BUDDY_MODEL_LAYER_PARTITION_DEBUG_WRAPPERS)
+            list(APPEND _IMPORT_MODEL_EXTRA_ARGS
+              --layer-partition-debug-wrappers
+            )
+          endif()
+        else()
+          list(APPEND _IMPORT_MODEL_EXTRA_ARGS
+            --experimental-template-partitioned
+            --skip-full-mlir
+          )
+
+          if(BUDDY_MODEL_LAYER_PARTITION_DEBUG_WRAPPERS)
+            message(FATAL_ERROR
+              "[${MDL_NAME}] "
+              "BUDDY_MODEL_LAYER_PARTITION_DEBUG_WRAPPERS is supported only by "
+              "BUDDY_MODEL_LEGACY_LAYER_PARTITION=ON"
+            )
+          endif()
         endif()
       endif()
       if(BUDDY_MODEL_REUSE_WEIGHTS)
