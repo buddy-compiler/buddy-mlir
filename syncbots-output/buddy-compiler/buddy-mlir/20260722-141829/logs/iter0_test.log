@@ -1,0 +1,23 @@
+$ ninja -C build check-buddy
+ninja: Entering directory `build'
+[0/2] Checking the buddy-mlir examples...
+-- Testing: 230 tests, 192 workers --
+Testing:  0.. 10.. 20.. 30.. 40.. 50.. 60.. 70.. 80.. 90.. 
+
+Testing Time: 53.46s
+
+Total Discovered Tests: 230
+  Unsupported:   2 (0.87%)
+  Passed     : 228 (99.13%)
+[1/2] Running the buddy regression tests...
+-- Testing: 344 tests, 192 workers --
+Testing:  0.. 10.. 20.. 30.. 40.. 50.. 60.. 70.. 80.. 90.. 
+
+Testing Time: 29.83s
+
+Total Discovered Tests: 344
+  Unsupported:   2 (0.58%)
+  Passed     : 342 (99.42%)
+
+
+--- exit 0 (83.6s) ---
