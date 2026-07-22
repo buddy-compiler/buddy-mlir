@@ -131,6 +131,21 @@ static void buildScalarizedI1VectorStore(OpBuilder &builder, Location loc,
   }
 }
 
+static func::FuncOp getOrInsertErff(OpBuilder &builder, ModuleOp moduleOp) {
+  if (auto existing = moduleOp.lookupSymbol<func::FuncOp>("erff"))
+    return existing;
+
+  OpBuilder::InsertionGuard guard(builder);
+  builder.setInsertionPointToStart(moduleOp.getBody());
+
+  auto f32Ty = builder.getF32Type();
+  auto funcType = builder.getFunctionType({f32Ty}, {f32Ty});
+  auto funcOp =
+      builder.create<func::FuncOp>(builder.getUnknownLoc(), "erff", funcType);
+  funcOp.setPrivate();
+  return funcOp;
+}
+
 VectorType vectorTypeHelper(Region &srcRegion, Type anchorType,
                             bool useScalable, bool verbose) {
 #define VERBOSE_ANALYSIS_INFO(info)                                            \
@@ -1219,6 +1234,65 @@ private:
             }
             auto newOp = math::ExpOp::create(builder, loc, outTy, in);
             virSymbolTable[op.getResult()] = newOp.getResult();
+          })
+          .Case<math::ErfOp>([&](math::ErfOp op) {
+            Value in = findValue(op.getOperand());
+            Type outTy = op.getType();
+
+            if (auto dyn = dyn_cast<vir::DynamicVectorType>(outTy)) {
+              Type elem = dyn.getElementType();
+              if (auto vecTy = dyn_cast<VectorType>(in.getType())) {
+                outTy = VectorType::get(vecTy.getShape(), elem,
+                                        vecTy.getScalableDims());
+              } else {
+                outTy = elem;
+              }
+            }
+
+            auto moduleOp = op->getParentOfType<ModuleOp>();
+            func::FuncOp erfFunc = getOrInsertErff(builder, moduleOp);
+
+            auto isF32Value = [](Value v) {
+              if (auto ft = dyn_cast<FloatType>(v.getType()))
+                return ft.isF32();
+              if (auto vt = dyn_cast<VectorType>(v.getType()))
+                return isa<FloatType>(vt.getElementType()) &&
+                       cast<FloatType>(vt.getElementType()).isF32();
+              return false;
+            };
+            if (!isF32Value(in)) {
+              op.emitError(
+                  "math.erf lowering currently supports f32 inputs only");
+              return;
+            }
+
+            Value result;
+            if (auto vecTy = dyn_cast<VectorType>(outTy)) {
+              if (vecTy.isScalable()) {
+                op.emitError("scalable vector math.erf is not supported");
+                return;
+              }
+
+              int64_t numElems = vecTy.getNumElements();
+              result = builder.create<arith::ConstantOp>(
+                  loc, vecTy, builder.getZeroAttr(vecTy));
+
+              for (int64_t i = 0; i < numElems; ++i) {
+                Value elem = builder.create<vector::ExtractOp>(
+                    loc, in, ArrayRef<int64_t>{i});
+                Value erfVal =
+                    builder.create<func::CallOp>(loc, erfFunc, ValueRange{elem})
+                        .getResult(0);
+                result = builder.create<vector::InsertOp>(loc, erfVal, result,
+                                                          ArrayRef<int64_t>{i});
+              }
+            } else {
+              result =
+                  builder.create<func::CallOp>(loc, erfFunc, ValueRange{in})
+                      .getResult(0);
+            }
+
+            virSymbolTable[op.getResult()] = result;
           })
           .Case<math::SqrtOp>([&](math::SqrtOp op) {
             Value in = findValue(op.getOperand());
