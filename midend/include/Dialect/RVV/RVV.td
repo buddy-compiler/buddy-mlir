@@ -155,21 +155,26 @@ class RVV_VSetVlI_IntrOp<string mnemonic, list<Trait> traits = []> :
                   /*list<Trait> traits=*/traits,
                   /*int numResults=*/1>;
 
+// The `llvm.riscv.vle` intrinsic is overloaded on the result vector type, the
+// pointer operand (`llvm_anyptr_ty`) and the vl operand (`llvm_anyint_ty`), so
+// the operand type list must include the pointer (index 1) in addition to vl.
 class RVV_USLoad_IntrOp<string mnemonic, list<Trait> traits = []> :
   LLVM_IntrOpBase</*Dialect dialect=*/RVV_Dialect,
                   /*string opName=*/"intr." # mnemonic,
                   /*string enumName=*/"riscv_" # !subst(".", "_", mnemonic),
                   /*list<int> overloadedResults=*/[0],
-                  /*list<int> overloadedOperands=*/[2],
+                  /*list<int> overloadedOperands=*/[1, 2],
                   /*list<Trait> traits=*/traits,
                   /*int numResults=*/1>;
 
+// The `llvm.riscv.vse` intrinsic is overloaded on the stored vector type, the
+// pointer operand (`llvm_anyptr_ty`) and the vl operand (`llvm_anyint_ty`).
 class RVV_USStore_IntrOp<string mnemonic, list<Trait> traits = []> :
   LLVM_IntrOpBase</*Dialect dialect=*/RVV_Dialect,
                   /*string opName=*/"intr." # mnemonic,
                   /*string enumName=*/"riscv_" # !subst(".", "_", mnemonic),
                   /*list<int> overloadedResults=*/[],
-                  /*list<int> overloadedOperands=*/[0, 2],
+                  /*list<int> overloadedOperands=*/[0, 1, 2],
                   /*list<Trait> traits=*/traits,
                   /*int numResults=*/0>;
 
