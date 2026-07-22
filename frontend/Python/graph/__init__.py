@@ -28,6 +28,16 @@ from .partitioned_graph_driver import (
 from .partitioned_graph_driver import (
     SplitStrategy as SplitStrategy,
 )
+from .template_materialization import (
+    TemplateMaterializationPlan as TemplateMaterializationPlan,
+)
+from .template_materialization import TemplateUnit as TemplateUnit
+from .template_materialization import (
+    build_template_materialization_plan as build_template_materialization_plan,
+)
+from .template_partitioned_graph_driver import (
+    TemplatePartitionedGraphDriver as TemplatePartitionedGraphDriver,
+)
 from .type import (
     DeviceType as DeviceType,
 )

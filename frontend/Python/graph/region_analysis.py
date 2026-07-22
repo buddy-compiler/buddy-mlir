@@ -40,6 +40,25 @@ class RegionKind(Enum):
     UNKNOWN = auto()
 
 
+@dataclass(frozen=True)
+class GraphValueRef:
+    op: Op
+    result_index: int = 0
+
+
+class RegionInputKind(Enum):
+    DATA = auto()
+    PARAMETER = auto()
+    CONSTANT = auto()
+    STATE = auto()
+
+
+@dataclass(frozen=True)
+class RegionInputRef:
+    kind: RegionInputKind
+    value: GraphValueRef
+
+
 @dataclass
 class RegionInterface:
     data_inputs: list[Op] = field(default_factory=list)
@@ -48,6 +67,8 @@ class RegionInterface:
     constants: list[Op] = field(default_factory=list)
     state_inputs: list[Op] = field(default_factory=list)
     state_outputs: list[Op] = field(default_factory=list)
+    ordered_inputs: list[RegionInputRef] = field(default_factory=list)
+    ordered_outputs: list[GraphValueRef] = field(default_factory=list)
 
 
 @dataclass(eq=False)
@@ -89,18 +110,37 @@ def _resolve_operand_node_reference(value, node_table: dict[str, Op]) -> Op | No
     return None
 
 
-def _iter_operand_node_references(value, node_table: dict[str, Op]):
+def _iter_operand_value_references(
+    value, node_table: dict[str, Op], result_index: int = 0
+):
     referenced = _resolve_operand_node_reference(value, node_table)
     if referenced is not None:
-        yield referenced
+        yield GraphValueRef(referenced, result_index)
         return
     if isinstance(value, (list, tuple)):
         for item in value:
-            yield from _iter_operand_node_references(item, node_table)
+            yield from _iter_operand_value_references(
+                item, node_table, result_index
+            )
     elif isinstance(value, dict):
         for key, item in _operand_dict_items(value):
-            yield from _iter_operand_node_references(key, node_table)
-            yield from _iter_operand_node_references(item, node_table)
+            yield from _iter_operand_value_references(
+                key, node_table, result_index
+            )
+            yield from _iter_operand_value_references(
+                item, node_table, result_index
+            )
+
+
+def iter_op_input_references(op: Op, node_table: dict[str, Op]):
+    for index, value in enumerate(op.args):
+        result_index = op._args_index[index] if index < len(op._args_index) else 0
+        yield from _iter_operand_value_references(
+            value, node_table, result_index
+        )
+    for key, value in _operand_dict_items(op.kwargs):
+        yield from _iter_operand_value_references(key, node_table)
+        yield from _iter_operand_value_references(value, node_table)
 
 
 class RegionBuilder:
@@ -218,19 +258,34 @@ class RegionBuilder:
         finish_unknown_run()
 
         regions.sort(key=lambda region: body_positions[region.nodes[0]])
+        ordered_region_outputs = {region: [] for region in regions}
+        seen_region_outputs = {region: set() for region in regions}
+        for consumer in graph.body:
+            consumer_region = node_to_region.get(consumer)
+            for value in iter_op_input_references(consumer, graph.node_table):
+                producer_region = node_to_region.get(value.op)
+                if (
+                    producer_region is None
+                    or producer_region is consumer_region
+                    or value in seen_region_outputs[producer_region]
+                ):
+                    continue
+                seen_region_outputs[producer_region].add(value)
+                ordered_region_outputs[producer_region].append(value)
         # Pass 2: each Region node is visited once for strict edge validation,
         # interface construction, and optional canonical fingerprint tokens.
         for region in regions:
             fingerprint_builder = None
             if template_recognizer is not None and isinstance(region, LayerRegion):
                 fingerprint_builder = template_recognizer.make_builder(
-                    graph, region, annotations, node_to_region, params
+                    graph, region, annotations, node_to_region
                 )
             region.interface = self._build_interface(
                 region,
                 node_to_region,
                 body_positions,
                 params,
+                ordered_region_outputs[region],
                 fingerprint_builder,
             )
             self._validate_interface(region, body_nodes)
@@ -274,10 +329,11 @@ class RegionBuilder:
         node_to_region: dict[Op, GraphRegion],
         body_positions: dict[Op, int],
         params: set[Op],
+        ordered_outputs: list[GraphValueRef],
         fingerprint_builder=None,
     ) -> RegionInterface:
         interface = RegionInterface()
-        seen_inputs: set[Op] = set()
+        seen_inputs: set[GraphValueRef] = set()
         local_seen: set[Op] = set()
         previous_position = -1
 
@@ -307,45 +363,31 @@ class RegionBuilder:
             # Parent/child names remain the authoritative use-def validation.
             for parent_name in op.parents:
                 self._resolve_edge(op, parent_name, "parent")
-            for dependency in _iter_operand_node_references(
-                op.args, self._graph.node_table
-            ):
+            for value in iter_op_input_references(op, self._graph.node_table):
+                dependency = value.op
                 if (
                     node_to_region.get(dependency) is region
-                    or dependency in seen_inputs
+                    or value in seen_inputs
                 ):
                     continue
-                seen_inputs.add(dependency)
+                seen_inputs.add(value)
                 if dependency in params:
+                    kind = RegionInputKind.PARAMETER
                     interface.parameters.append(dependency)
                 elif isinstance(dependency, TensorConstantOp):
+                    kind = RegionInputKind.CONSTANT
                     interface.constants.append(dependency)
                 else:
+                    kind = RegionInputKind.DATA
                     interface.data_inputs.append(dependency)
-            for dependency in _iter_operand_node_references(
-                op.kwargs, self._graph.node_table
-            ):
-                if (
-                    node_to_region.get(dependency) is region
-                    or dependency in seen_inputs
-                ):
-                    continue
-                seen_inputs.add(dependency)
-                if dependency in params:
-                    interface.parameters.append(dependency)
-                elif isinstance(dependency, TensorConstantOp):
-                    interface.constants.append(dependency)
-                else:
-                    interface.data_inputs.append(dependency)
-            has_external_child = False
+                interface.ordered_inputs.append(RegionInputRef(kind, value))
             for child_name in op._children:
-                child = self._resolve_edge(op, child_name, "child")
-                if node_to_region.get(child) is not region:
-                    has_external_child = True
-            if has_external_child:
-                interface.data_outputs.append(op)
+                self._resolve_edge(op, child_name, "child")
             if fingerprint_builder is not None:
                 fingerprint_builder.consume(op)
+
+        interface.ordered_outputs.extend(ordered_outputs)
+        interface.data_outputs.extend(value.op for value in ordered_outputs)
 
         return interface
 
@@ -361,33 +403,48 @@ class RegionBuilder:
             ("state_outputs", interface.state_outputs),
         )
         for category, nodes in categories:
-            seen: set[Op] = set()
             for op in nodes:
                 if op not in body_nodes:
                     raise ValueError(
                         f"region {region.kind.name} {category} references node "
                         f"{op.name!r} outside the original graph"
                     )
-                if op in seen:
-                    raise ValueError(
-                        f"region {region.kind.name} {category} contains "
-                        f"duplicate node {op.name!r}"
-                    )
-                seen.add(op)
 
-        input_categories = (
-            set(interface.data_inputs),
-            set(interface.parameters),
-            set(interface.constants),
-        )
-        if any(
-            left & right
-            for position, left in enumerate(input_categories)
-            for right in input_categories[position + 1 :]
+        ordered_values = [item.value for item in interface.ordered_inputs]
+        if len(ordered_values) != len(set(ordered_values)):
+            raise ValueError(
+                f"region {region.kind.name} ordered_inputs contains a duplicate "
+                "GraphValueRef"
+            )
+        expected_inputs = {
+            RegionInputKind.DATA: interface.data_inputs,
+            RegionInputKind.PARAMETER: interface.parameters,
+            RegionInputKind.CONSTANT: interface.constants,
+            RegionInputKind.STATE: interface.state_inputs,
+        }
+        for kind, classified in expected_inputs.items():
+            ordered = [
+                item.value.op
+                for item in interface.ordered_inputs
+                if item.kind is kind
+            ]
+            if ordered != classified:
+                raise ValueError(
+                    f"region {region.kind.name} {kind.name.lower()} inputs do "
+                    "not match ordered_inputs"
+                )
+        if len(interface.ordered_outputs) != len(
+            set(interface.ordered_outputs)
         ):
             raise ValueError(
-                f"region {region.kind.name} classifies an external dependency "
-                "in more than one input category"
+                f"region {region.kind.name} ordered_outputs contains a duplicate "
+                "GraphValueRef"
+            )
+        if [value.op for value in interface.ordered_outputs] != (
+            interface.data_outputs + interface.state_outputs
+        ):
+            raise ValueError(
+                f"region {region.kind.name} outputs do not match ordered_outputs"
             )
         for op in interface.data_outputs:
             if op not in region.nodes:
@@ -395,8 +452,3 @@ class RegionBuilder:
                     f"region {region.kind.name} data output {op.name!r} is not "
                     "an internal producer"
                 )
-        if interface.state_inputs or interface.state_outputs:
-            raise ValueError(
-                f"region {region.kind.name} inferred state in a version-one "
-                "structure index"
-            )

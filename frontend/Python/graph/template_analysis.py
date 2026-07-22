@@ -20,9 +20,11 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
-from .operation import Op, TensorConstantOp
+from .operation import Op
 from .region_analysis import (
+    GraphValueRef,
     LayerRegion,
+    RegionInputKind,
     RegionInterface,
     _operand_dict_items,
     _resolve_operand_node_reference,
@@ -75,6 +77,12 @@ class _Candidate:
 @dataclass(frozen=True)
 class _NodeRef:
     op: Op
+    result_index: int = 0
+
+
+@dataclass(frozen=True)
+class _ExternalRef:
+    value: GraphValueRef
 
 
 class _UnsupportedFingerprintValue(Exception):
@@ -211,6 +219,27 @@ def _shape_dtype(op: Op) -> dict[str, Any]:
     return {"shape": _normalize(shape), "dtype": _normalize(dtype)}
 
 
+def _value_shape_dtype(value: GraphValueRef) -> dict[str, Any]:
+    meta = value.op.tensor_meta
+    if isinstance(meta, TensorMeta):
+        shape, dtype = meta.shape, meta.dtype
+    elif isinstance(meta, dict):
+        shape, dtype = meta.get("shape"), meta.get("dtype")
+    else:
+        shape = getattr(meta, "shape", None)
+        dtype = getattr(meta, "dtype", None)
+    is_multi_result = (
+        isinstance(shape, (list, tuple))
+        and bool(shape)
+        and isinstance(shape[0], (list, tuple))
+    )
+    if is_multi_result:
+        shape = shape[value.result_index]
+        if isinstance(dtype, (list, tuple)):
+            dtype = dtype[value.result_index]
+    return {"shape": _normalize(shape), "dtype": _normalize(dtype)}
+
+
 def _semantic_attributes(op: Op) -> dict[str, Any]:
     attributes = {}
     layout = getattr(op, "_layout", None)
@@ -233,24 +262,12 @@ class LayerFingerprintBuilder:
         region: LayerRegion,
         annotations: dict[Op, NodeAnnotation],
         node_to_region: dict[Op, Any],
-        params: set[Op],
     ) -> None:
         self._graph = graph
         self._region = region
         self._annotations = annotations
         self._node_to_region = node_to_region
         self._local_ids: dict[Op, int] = {}
-        self._params = params
-        self._slots: dict[str, dict[Op, int]] = {
-            "input": {},
-            "param": {},
-            "const": {},
-        }
-        self._slot_descriptors: dict[str, list[Any]] = {
-            "input": [],
-            "param": [],
-            "const": [],
-        }
         self._nodes: list[Any] = []
         self._internal_dependencies = 0
         self._unsupported = False
@@ -292,7 +309,15 @@ class LayerFingerprintBuilder:
                     "subcomponent": annotation.subcomponent if annotation else None,
                     "result": _shape_dtype(op),
                     "attributes": _semantic_attributes(op),
-                    "args": self._operand(op.args),
+                    "args": [
+                        self._operand(
+                            value,
+                            op._args_index[index]
+                            if index < len(op._args_index)
+                            else 0,
+                        )
+                        for index, value in enumerate(op.args)
+                    ],
                     "kwargs": self._operand(op.kwargs),
                 }
             )
@@ -300,59 +325,58 @@ class LayerFingerprintBuilder:
             self._unsupported = True
             self._nodes.clear()
             self._local_ids.clear()
-            for slots in self._slots.values():
-                slots.clear()
-            for descriptors in self._slot_descriptors.values():
-                descriptors.clear()
 
-    def _operand(self, value: Any) -> Any:
+    def _operand(self, value: Any, result_index: int = 0) -> Any:
         referenced = _resolve_operand_node_reference(
             value, self._graph.node_table
         )
         if referenced is not None:
             if self._node_to_region.get(referenced) is self._region:
                 self._internal_dependencies += 1
-                return _NodeRef(referenced)
-            if referenced in self._params:
-                kind = "param"
-            elif isinstance(referenced, TensorConstantOp):
-                kind = "const"
-            else:
-                kind = "input"
-            slots = self._slots[kind]
-            slot = slots.get(referenced)
-            if slot is None:
-                slot = len(slots)
-                slots[referenced] = slot
-                descriptor: Any = _shape_dtype(referenced)
-                if kind == "const":
-                    descriptor = {
-                        **descriptor,
-                        "value": _normalize(referenced.args),
-                    }
-                self._slot_descriptors[kind].append(descriptor)
-            return [kind, slot]
+                return _NodeRef(referenced, result_index)
+            return _ExternalRef(GraphValueRef(referenced, result_index))
         if isinstance(value, list):
-            return ["list", [self._operand(item) for item in value]]
+            return [
+                "list",
+                [self._operand(item, result_index) for item in value],
+            ]
         if isinstance(value, tuple):
-            return ["tuple", [self._operand(item) for item in value]]
+            return [
+                "tuple",
+                [self._operand(item, result_index) for item in value],
+            ]
         if isinstance(value, dict):
             items = [
-                [self._operand(key), self._operand(item)]
+                [
+                    self._operand(key, result_index),
+                    self._operand(item, result_index),
+                ]
                 for key, item in _operand_dict_items(value)
             ]
             items.sort(key=lambda item: _json_bytes(item[0]))
             return ["dict", items]
         return ["literal", _normalize(value)]
 
-    def _resolve_node_refs(self, value: Any) -> Any:
+    def _resolve_node_refs(
+        self,
+        value: Any,
+        external_slots: dict[GraphValueRef, tuple[str, int]],
+    ) -> Any:
         if isinstance(value, _NodeRef):
-            return ["node", self._local_ids[value.op]]
+            token = ["node", self._local_ids[value.op]]
+            if value.result_index:
+                token.append(value.result_index)
+            return token
+        if isinstance(value, _ExternalRef):
+            return list(external_slots[value.value])
         if isinstance(value, list):
-            return [self._resolve_node_refs(item) for item in value]
+            return [
+                self._resolve_node_refs(item, external_slots) for item in value
+            ]
         if isinstance(value, dict):
             return {
-                key: self._resolve_node_refs(item) for key, item in value.items()
+                key: self._resolve_node_refs(item, external_slots)
+                for key, item in value.items()
             }
         return value
 
@@ -361,6 +385,27 @@ class LayerFingerprintBuilder:
     ) -> tuple[bytes, FingerprintSummary] | None:
         if self._unsupported:
             return None
+        kind_tokens = {
+            RegionInputKind.DATA: "input",
+            RegionInputKind.PARAMETER: "param",
+            RegionInputKind.CONSTANT: "const",
+            RegionInputKind.STATE: "state",
+        }
+        external_slots: dict[GraphValueRef, tuple[str, int]] = {}
+        slot_descriptors: dict[str, list[Any]] = {
+            token: [] for token in kind_tokens.values()
+        }
+        for input_ref in interface.ordered_inputs:
+            token = kind_tokens[input_ref.kind]
+            slot = len(slot_descriptors[token])
+            external_slots[input_ref.value] = (token, slot)
+            descriptor: Any = _value_shape_dtype(input_ref.value)
+            if input_ref.kind is RegionInputKind.CONSTANT:
+                descriptor = {
+                    **descriptor,
+                    "value": _normalize(input_ref.value.op.args),
+                }
+            slot_descriptors[token].append(descriptor)
         summary = FingerprintSummary(
             node_count=len(self._region.nodes),
             internal_dependency_count=self._internal_dependencies,
@@ -371,15 +416,24 @@ class LayerFingerprintBuilder:
         )
         canonical = _json_bytes(
             {
-                "version": 1,
-                "nodes": self._resolve_node_refs(self._nodes),
-                "external_slots": self._slot_descriptors,
+                "version": 2,
+                "nodes": self._resolve_node_refs(
+                    self._nodes, external_slots
+                ),
+                "external_slots": slot_descriptors,
                 "interface": {
                     "data_inputs": summary.data_input_count,
                     "parameters": summary.parameter_count,
                     "constants": summary.constant_count,
+                    "ordered_inputs": [
+                        kind_tokens[item.kind]
+                        for item in interface.ordered_inputs
+                    ],
                     "data_outputs": [
-                        self._local_ids[op] for op in interface.data_outputs
+                        self._local_ids[value.op]
+                        if value.result_index == 0
+                        else [self._local_ids[value.op], value.result_index]
+                        for value in interface.ordered_outputs
                     ],
                 },
             }
@@ -404,10 +458,9 @@ class TemplateRecognizer:
         region: LayerRegion,
         annotations: dict[Op, NodeAnnotation],
         node_to_region: dict[Op, Any],
-        params: set[Op],
     ) -> LayerFingerprintBuilder:
         return LayerFingerprintBuilder(
-            graph, region, annotations, node_to_region, params
+            graph, region, annotations, node_to_region
         )
 
     def add(
@@ -454,7 +507,6 @@ class TemplateRecognizer:
 def build_template_index(graph: Graph, structure_index) -> TemplateIndex:
     """Supplement an existing structure index without rebuilding any Region."""
     recognizer = TemplateRecognizer()
-    params = set(graph.params)
     layers = sorted(
         (
             region
@@ -469,7 +521,6 @@ def build_template_index(graph: Graph, structure_index) -> TemplateIndex:
             region,
             structure_index.annotations,
             structure_index.node_to_region,
-            params,
         )
         for op in region.nodes:
             builder.consume(op)
