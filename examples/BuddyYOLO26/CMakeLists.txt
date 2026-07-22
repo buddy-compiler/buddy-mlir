@@ -1,7 +1,3 @@
-set(YOLO26N_IMPORT_PYTHONPATH
-  "${LLVM_BINARY_DIR}/tools/mlir/python_packages/mlir_core:${BUDDY_MLIR_PYTHON_PACKAGES_DIR}:$ENV{PYTHONPATH}"
-)
-
 set(YOLO26N_IMPORT_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/import-yolo26n.py)
 if(TARGET BuddyMLIRPythonModules)
   list(APPEND YOLO26N_IMPORT_DEPENDS BuddyMLIRPythonModules)
@@ -11,8 +7,8 @@ add_custom_command(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/arg0.data
          ${CMAKE_CURRENT_BINARY_DIR}/forward.mlir
          ${CMAKE_CURRENT_BINARY_DIR}/subgraph0.mlir
-  COMMAND ${CMAKE_COMMAND} -E env "PYTHONPATH=${YOLO26N_IMPORT_PYTHONPATH}"
-          ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/import-yolo26n.py
+  COMMAND ${Python3_EXECUTABLE}
+          ${CMAKE_CURRENT_SOURCE_DIR}/import-yolo26n.py
           --output-dir ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS ${YOLO26N_IMPORT_DEPENDS}
   COMMENT "Generating forward.mlir, subgraph0.mlir and parameter files for YOLO26n"
@@ -92,3 +88,19 @@ target_link_directories(buddy-yolo26n-run PRIVATE ${LLVM_LIBRARY_DIR})
 
 set(BUDDY_YOLO26_LIBS YOLO26N mlir_c_runner_utils BuddyLibDIP ${PNG_LIBRARIES})
 target_link_libraries(buddy-yolo26n-run ${BUDDY_YOLO26_LIBS})
+
+add_test(
+  NAME example.buddy-yolo26n-run
+  COMMAND
+    $<TARGET_FILE:buddy-yolo26n-run>
+    ${CMAKE_CURRENT_SOURCE_DIR}/images/bus_16bit.bmp
+  WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+)
+
+set_tests_properties(
+  example.buddy-yolo26n-run
+  PROPERTIES
+    LABELS "example"
+    PASS_REGULAR_EXPRESSION "Detections: 5"
+    TIMEOUT 1200
+)
