@@ -68,7 +68,7 @@ jobs:
             --target-llvm "${{ github.event.inputs.target_llvm }}" \
             --max-iterations ${{ github.event.inputs.max_iterations || '10' }} \
             --llm-config llm_config.yaml \
-            --output-dir ./syncbots-output \
+            --output-dir "${{ runner.temp }}/syncbots-output" \
             --auto-branch --branch-base main
         env:
           GITHUB_TOKEN: ${{ secrets.PAT_TOKEN || github.token }}
@@ -78,7 +78,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: syncbots-logs
-          path: syncbots-output/
+          path: ${{ runner.temp }}/syncbots-output/
           retention-days: 30
 
       - name: Create Pull Request
