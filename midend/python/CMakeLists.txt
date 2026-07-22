@@ -5,6 +5,8 @@ include(AddMLIRPython)
 # TODO: Add an upstream cmake param for this vs having a global here.
 add_compile_definitions("MLIR_PYTHON_PACKAGE_PREFIX=buddy_mlir.")
 
+set(MLIR_BINDINGS_PYTHON_NB_DOMAIN "buddy_mlir")
+
 ################################################################################
 # Structural groupings.
 ################################################################################
