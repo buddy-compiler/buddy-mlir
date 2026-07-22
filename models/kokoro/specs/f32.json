@@ -1,0 +1,1 @@
+{"model_family":"kokoro","hidden_size":768,"max_token_len":512,"hf_model_path":"hexgrad/Kokoro-82M","num_threads":48,"variant":"f32"}
