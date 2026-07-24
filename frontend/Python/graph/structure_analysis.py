@@ -6,8 +6,7 @@ from .graph import Graph
 from .operation import AddOp, Op
 
 if TYPE_CHECKING:
-    from .region_analysis import GraphStructureIndex
-    from .template_analysis import TemplateIndex
+    from .transformer_partition import GraphStructureIndex, TemplateIndex
 
 
 @dataclass(frozen=True)

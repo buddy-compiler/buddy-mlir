@@ -73,7 +73,7 @@ try:
         GraphDriver,
         PartitionedGraphDriver,
         TemplatePartitionedGraphDriver,
-        build_template_materialization_plan,
+        build_transformer_partition_plan,
     )
     from buddy.compiler.graph.operation import *
     from buddy.compiler.graph.transform import (
@@ -307,15 +307,8 @@ def compile_and_export_tiered_graphs(
 
         files = {}
         if export_template_partitioned:
-            analysis = graph.analyze_structure(True)
-            plan = build_template_materialization_plan(
-                graph,
-                analysis.structure_index,
-                analysis.template_index,
-            )
-            driver = TemplatePartitionedGraphDriver(
-                graph, analysis.structure_index, plan
-            )
+            plan = build_transformer_partition_plan(graph)
+            driver = TemplatePartitionedGraphDriver(graph, plan)
             subgraphs = driver.build_template_subgraphs()
             for subgraph in subgraphs:
                 subgraph.lower_to_top_level_ir()
@@ -333,7 +326,7 @@ def compile_and_export_tiered_graphs(
             )
             partition_manifest["prefill"][str(prefill_size)] = {
                 "subgraphs": len(subgraphs),
-                "regions": len(analysis.structure_index.regions),
+                "regions": len(plan.partition_sequence),
                 "templates": len(plan.templates),
                 "forward": f"forward_prefill_{prefill_size}.mlir",
             }
@@ -428,15 +421,8 @@ def compile_and_export_tiered_graphs(
 
         files = {}
         if export_template_partitioned:
-            analysis = graph.analyze_structure(True)
-            plan = build_template_materialization_plan(
-                graph,
-                analysis.structure_index,
-                analysis.template_index,
-            )
-            driver = TemplatePartitionedGraphDriver(
-                graph, analysis.structure_index, plan
-            )
+            plan = build_transformer_partition_plan(graph)
+            driver = TemplatePartitionedGraphDriver(graph, plan)
             subgraphs = driver.build_template_subgraphs()
             for subgraph in subgraphs:
                 subgraph.lower_to_top_level_ir()
@@ -451,7 +437,7 @@ def compile_and_export_tiered_graphs(
             )
             partition_manifest["decode"][str(cache_size)] = {
                 "subgraphs": len(subgraphs),
-                "regions": len(analysis.structure_index.regions),
+                "regions": len(plan.partition_sequence),
                 "templates": len(plan.templates),
                 "forward": f"forward_decode_{cache_size}.mlir",
             }
@@ -721,16 +707,9 @@ def export_template_partitioned_mlir(
     graph_prefill, graph_decode, output_dir: str
 ) -> dict[str, int | bool]:
     """Export unique prefill/decode templates and complete static wrappers."""
-    prefill_analysis = graph_prefill.analyze_structure(True)
-    if prefill_analysis.template_index is None:
-        raise ValueError("prefill template recognition produced no index")
-    prefill_plan = build_template_materialization_plan(
-        graph_prefill,
-        prefill_analysis.structure_index,
-        prefill_analysis.template_index,
-    )
+    prefill_plan = build_transformer_partition_plan(graph_prefill)
     prefill_driver = TemplatePartitionedGraphDriver(
-        graph_prefill, prefill_analysis.structure_index, prefill_plan
+        graph_prefill, prefill_plan
     )
     prefill_subgraphs = prefill_driver.build_template_subgraphs()
     if len(prefill_plan.templates) != len(prefill_subgraphs):
@@ -740,17 +719,8 @@ def export_template_partitioned_mlir(
     for subgraph in prefill_subgraphs:
         subgraph.lower_to_top_level_ir()
 
-    decode_analysis = graph_decode.analyze_structure(True)
-    if decode_analysis.template_index is None:
-        raise ValueError("decode template recognition produced no index")
-    decode_plan = build_template_materialization_plan(
-        graph_decode,
-        decode_analysis.structure_index,
-        decode_analysis.template_index,
-    )
-    decode_driver = TemplatePartitionedGraphDriver(
-        graph_decode, decode_analysis.structure_index, decode_plan
-    )
+    decode_plan = build_transformer_partition_plan(graph_decode)
+    decode_driver = TemplatePartitionedGraphDriver(graph_decode, decode_plan)
     decode_subgraphs = decode_driver.build_template_subgraphs()
     if len(decode_plan.templates) != len(decode_subgraphs):
         raise ValueError(
@@ -802,11 +772,11 @@ def export_template_partitioned_mlir(
     )
 
     manifest = {
-        "prefill_regions": len(prefill_analysis.structure_index.regions),
+        "prefill_regions": len(prefill_plan.partition_sequence),
         "prefill_templates": len(prefill_plan.templates),
         "prefill_subgraphs": len(prefill_subgraphs),
         "prefill_main_graphs": 0,
-        "decode_regions": len(decode_analysis.structure_index.regions),
+        "decode_regions": len(decode_plan.partition_sequence),
         "decode_templates": len(decode_plan.templates),
         "decode_subgraphs": len(decode_subgraphs),
         "decode_main_graphs": 0,
