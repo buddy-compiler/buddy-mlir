@@ -1,5 +1,7 @@
 # RUN: %PYTHON %s
 
+# Transformer partition plan and Template Driver integration tests.
+
 import importlib.util
 import json
 import os
@@ -10,7 +12,7 @@ from buddy.compiler.graph import (
     NodeType,
     TemplatePartitionedGraphDriver,
     TensorDType,
-    build_template_materialization_plan,
+    build_transformer_partition_plan,
 )
 from buddy.compiler.graph.operation import (
     AddOp,
@@ -22,7 +24,7 @@ from buddy.compiler.graph.operation import (
     PlaceholderOp,
     TensorConstantOp,
 )
-from buddy.compiler.graph.region_analysis import (
+from buddy.compiler.graph.transformer_partition import (
     LayerRegion,
     RegionInputKind,
     RegionInputRef,
@@ -66,10 +68,8 @@ def expect_value_error(message, callback):
 
 
 def materialization_analysis(graph):
-    analysis = graph.analyze_structure(True)
-    return analysis, build_template_materialization_plan(
-        graph, analysis.structure_index, analysis.template_index
-    )
+    plan = build_transformer_partition_plan(graph)
+    return plan, plan
 
 
 def single_layer_graph_with_constant():
@@ -184,23 +184,16 @@ def five_region_graph(func_name="forward_decode", output_indices=(4,)):
 # External TensorConstant inputs fail while building the plan, before a Driver
 # can construct a combined forward graph.
 constant_graph = single_layer_graph_with_constant()
-constant_analysis = constant_graph.analyze_structure(True)
 expect_value_error(
     "external TensorConstant inputs are not supported by template "
     "materialization V1",
-    lambda: build_template_materialization_plan(
-        constant_graph,
-        constant_analysis.structure_index,
-        constant_analysis.template_index,
-    ),
+    lambda: build_transformer_partition_plan(constant_graph),
 )
 
 # A nested top-level operand cannot safely share one non-zero result index.
 nested_graph = local_multi_result_graph(True)
 nested_analysis, nested_plan = materialization_analysis(nested_graph)
-nested_driver = TemplatePartitionedGraphDriver(
-    nested_graph, nested_analysis.structure_index, nested_plan
-)
+nested_driver = TemplatePartitionedGraphDriver(nested_graph, nested_plan)
 expect_value_error(
     "nested operands with non-zero result indices are not supported by "
     "template materialization V1",
@@ -210,9 +203,7 @@ expect_value_error(
 # The same non-zero result index remains supported for a flat operand.
 flat_graph = local_multi_result_graph(False)
 flat_analysis, flat_plan = materialization_analysis(flat_graph)
-flat_driver = TemplatePartitionedGraphDriver(
-    flat_graph, flat_analysis.structure_index, flat_plan
-)
+flat_driver = TemplatePartitionedGraphDriver(flat_graph, flat_plan)
 flat_subgraph = flat_driver.build_template_subgraphs()[0]
 flat_consumer = next(
     op for op in flat_subgraph.body if op.name == "multi_consumer"
@@ -234,26 +225,24 @@ state_region.interface.state_inputs.append(state_input.value.op)
 expect_value_error(
     "explicit RegionInputKind.STATE and state_inputs/state_outputs are not "
     "supported by template materialization V1",
-    lambda: build_template_materialization_plan(
-        state_graph,
-        state_analysis.structure_index,
-        state_analysis.template_index,
-    ),
+    lambda: build_transformer_partition_plan(state_graph),
 )
 
 
 graph, parameters, region_nodes = five_region_graph()
-analysis = graph.analyze_structure(True)
-structure_index = analysis.structure_index
-template_index = analysis.template_index
+body_ref = graph.body
+body_snapshot = list(graph.body)
+node_table_ref = graph.node_table
+node_table_snapshot = list(graph.node_table.items())
+plan = build_transformer_partition_plan(graph)
+second_plan = build_transformer_partition_plan(graph)
+structure_index = plan.structure_index
+template_index = plan.template_index
 regions = structure_index.regions
 
 # Plan: singleton, three repeated instances, singleton.
 assert len(regions) == 5
 assert all(isinstance(region, LayerRegion) for region in regions)
-plan = build_template_materialization_plan(
-    graph, structure_index, template_index
-)
 assert len(plan.templates) == 3
 assert [unit.template_id for unit in plan.templates] == [0, 1, 2]
 assert [plan.region_to_template_id[region] for region in regions] == [
@@ -268,6 +257,24 @@ assert plan.templates[1].instances == tuple(regions[1:4])
 assert plan.parameter_indices == {
     parameter: index for index, parameter in enumerate(parameters)
 }
+assert plan.partition_sequence == tuple(regions)
+assert [binding.region for binding in plan.instance_bindings] == regions
+assert [binding.template_id for binding in plan.instance_bindings] == [
+    0,
+    1,
+    1,
+    1,
+    2,
+]
+assert [binding.parameter_indices for binding in plan.instance_bindings] == [
+    (index,) for index in range(5)
+]
+assert second_plan == plan
+assert second_plan.structure_index is plan.structure_index
+assert second_plan.template_index is plan.template_index
+assert graph.body is body_ref and graph.body == body_snapshot
+assert graph.node_table is node_table_ref
+assert list(graph.node_table.items()) == node_table_snapshot
 for region in regions:
     assert [item.kind for item in region.interface.ordered_inputs] == [
         RegionInputKind.DATA,
@@ -275,7 +282,7 @@ for region in regions:
     ]
 
 # Three repeated Region instances materialize one subgraph.
-driver = TemplatePartitionedGraphDriver(graph, structure_index, plan)
+driver = TemplatePartitionedGraphDriver(graph, plan)
 subgraphs = driver.build_template_subgraphs()
 assert len(subgraphs) == 3
 assert [subgraph._func_name for subgraph in subgraphs] == [
@@ -321,9 +328,7 @@ prefill_analysis, prefill_plan = materialization_analysis(prefill_graph)
 prefill_regions = prefill_analysis.structure_index.regions
 assert len(prefill_regions) == 5
 assert len(prefill_plan.templates) == 3
-prefill_driver = TemplatePartitionedGraphDriver(
-    prefill_graph, prefill_analysis.structure_index, prefill_plan
-)
+prefill_driver = TemplatePartitionedGraphDriver(prefill_graph, prefill_plan)
 assert not hasattr(prefill_driver, "_phase")
 prefill_subgraphs = prefill_driver.build_template_subgraphs()
 assert len(prefill_subgraphs) == 3
@@ -360,18 +365,14 @@ for func_name, template_id, expected in (
 ):
     symbol_graph, _, _ = five_region_graph(func_name)
     symbol_analysis, symbol_plan = materialization_analysis(symbol_graph)
-    symbol_driver = TemplatePartitionedGraphDriver(
-        symbol_graph, symbol_analysis.structure_index, symbol_plan
-    )
+    symbol_driver = TemplatePartitionedGraphDriver(symbol_graph, symbol_plan)
     assert symbol_driver.template_symbol(template_id) == expected
 
 
 # Tiered graphs retain every Region call while sharing unique template bodies.
 tiered_graph, _, _ = five_region_graph("forward_decode_128")
 tiered_analysis, tiered_plan = materialization_analysis(tiered_graph)
-tiered_driver = TemplatePartitionedGraphDriver(
-    tiered_graph, tiered_analysis.structure_index, tiered_plan
-)
+tiered_driver = TemplatePartitionedGraphDriver(tiered_graph, tiered_plan)
 tiered_subgraphs = tiered_driver.build_template_subgraphs()
 assert len(tiered_analysis.structure_index.regions) == 5
 assert len(tiered_plan.templates) == 3
@@ -403,9 +404,7 @@ ordered_outputs_before = [
     tuple(region.interface.ordered_outputs)
     for region in remap_analysis.structure_index.regions
 ]
-remap_driver = TemplatePartitionedGraphDriver(
-    remap_graph, remap_analysis.structure_index, remap_plan
-)
+remap_driver = TemplatePartitionedGraphDriver(remap_graph, remap_plan)
 remap_driver.build_template_subgraphs()
 remap_driver.construct_template_combined_main_graph()
 default_calls = [
@@ -456,7 +455,7 @@ expect_value_error(
 repo_root = os.environ.get("BUDDY_SRC_ROOT", os.getcwd())
 import_model_path = os.path.join(repo_root, "tools", "buddy-codegen", "import_model.py")
 import_model_spec = importlib.util.spec_from_file_location(
-    "template_materialization_import_model", import_model_path
+    "partitioned_graph_import_model", import_model_path
 )
 assert import_model_spec is not None and import_model_spec.loader is not None
 import_model_module = importlib.util.module_from_spec(import_model_spec)

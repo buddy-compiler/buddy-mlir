@@ -37,9 +37,8 @@ from .operation import *
 from .type import *
 
 if TYPE_CHECKING:
-    from .region_analysis import GraphStructureIndex
     from .structure_analysis import GraphStructureAnalysisResult
-    from .template_analysis import TemplateIndex
+    from .transformer_partition import GraphStructureIndex, TemplateIndex
 
 
 def _replace_node_name(value, old_name, new_name, node_table):
@@ -202,20 +201,20 @@ class Graph:
         self, enable_template_recognition: bool = False
     ) -> "GraphStructureAnalysisResult":
         """Explicitly build and cache structural and optional template indexes."""
-        from .region_analysis import RegionBuilder
         from .structure_analysis import GraphStructureAnalysisResult
+        from .transformer_partition import RegionBuilder
 
         if self._structure_index is None:
             recognizer = None
             if enable_template_recognition:
-                from .template_analysis import TemplateRecognizer
+                from .transformer_partition import TemplateRecognizer
 
                 recognizer = TemplateRecognizer()
             self._structure_index = RegionBuilder(self).build(recognizer)
             if recognizer is not None:
                 self._template_index = recognizer.finish()
         elif enable_template_recognition and self._template_index is None:
-            from .template_analysis import build_template_index
+            from .transformer_partition import build_template_index
 
             self._template_index = build_template_index(self, self._structure_index)
 
