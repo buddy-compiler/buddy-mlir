@@ -86,7 +86,7 @@ jobs:
             # The Ruyi torch 2.12 riscv64 wheel omits the top-level functorch
             # compatibility package still imported by torch._dynamo.
             # https://ruyirepo.ruyicommunity.cn/pypi/simple/torch/
-            torch_versions=(2.10 2.11)
+            torch_versions=(2.10 2.11 2.12 2.13)
           else
             torch_versions=(2.10 2.11 2.12 2.13)
           fi
