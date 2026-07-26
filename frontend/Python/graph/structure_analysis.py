@@ -195,6 +195,7 @@ class ModuleStructureAnalyzer:
                 annotations[op] = annotation
         self._classify_residuals(graph, annotations)
         self._complete_layer_annotations(graph, annotations)
+        self._classify_residuals(graph, annotations, unowned_only=True)
         return StructureAnalysisResult(annotations)
 
     @staticmethod
@@ -226,7 +227,9 @@ class ModuleStructureAnalyzer:
 
     @staticmethod
     def _classify_residuals(
-        graph: Graph, annotations: dict[Op, NodeAnnotation]
+        graph: Graph,
+        annotations: dict[Op, NodeAnnotation],
+        unowned_only: bool = False,
     ) -> None:
         """Refine layer-local residual adds from direct topology evidence."""
 
@@ -239,12 +242,43 @@ class ModuleStructureAnalyzer:
                     result.append(annotation)
             return result
 
-        for op, annotation in list(annotations.items()):
+        for op in graph.body:
+            annotation = annotations.get(op, NodeAnnotation())
             if (
                 not isinstance(op, AddOp)
-                or annotation.layer_index is None
                 or annotation.component is not None
             ):
+                continue
+
+            if annotation.layer_index is None:
+                if not unowned_only:
+                    continue
+                parent_annotations = [
+                    annotations[parent]
+                    for parent in {
+                        graph.node_table.get(name) for name in op.parents
+                    }
+                    if parent in annotations
+                ]
+                mlp_layers = {
+                    parent.layer_index
+                    for parent in parent_annotations
+                    if parent.layer_index is not None
+                    and parent.component == "mlp"
+                }
+                if len(mlp_layers) != 1:
+                    continue
+                layer_index = next(iter(mlp_layers))
+                if (
+                    sum(
+                        parent.layer_index == layer_index
+                        for parent in parent_annotations
+                    )
+                    < 2
+                ):
+                    continue
+                annotation = replace(annotation, layer_index=layer_index)
+            elif unowned_only:
                 continue
 
             parents = neighbor_annotations(op.parents, annotation.layer_index)
