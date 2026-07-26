@@ -664,6 +664,130 @@ for node, snapshot in residual_node_snapshot.items():
     assert node.kwargs is kwargs_ref and node.kwargs == kwargs
 
 
+# Boundary post-MLP residuals close the producing layer without absorbing
+# side-module fan-out or the following epilogue.
+boundary_graph = Graph({}, "boundary_residual_ownership_test")
+boundary_input = add(
+    boundary_graph,
+    make_node(PlaceholderOp, "boundary_input"),
+    NodeType.InputNode,
+)
+layer0_hidden = add(
+    boundary_graph,
+    make_node(
+        AddOp,
+        "layer0_hidden",
+        "blocks.0.attn.proj",
+    ),
+)
+layer0_mlp = add(
+    boundary_graph,
+    make_node(MatmulOp, "layer0_mlp", "blocks.0.mlp.down_proj"),
+)
+internal_residual = add(
+    boundary_graph,
+    make_node(AddOp, "internal_boundary_sum"),
+)
+side_module = add(
+    boundary_graph,
+    make_node(AddOp, "side_module", "deepstack_merger_list.0.norm"),
+)
+layer1_hidden = add(
+    boundary_graph,
+    make_node(
+        AddOp,
+        "layer1_hidden",
+        "blocks.1.attn.proj",
+    ),
+)
+layer1_mlp = add(
+    boundary_graph,
+    make_node(MatmulOp, "layer1_mlp", "blocks.1.mlp.down_proj"),
+)
+final_residual = add(
+    boundary_graph,
+    make_node(AddOp, "tail_boundary_sum"),
+)
+main_merger = add(
+    boundary_graph,
+    make_node(AddOp, "main_merger", "merger.norm"),
+)
+boundary_output = add(
+    boundary_graph,
+    make_node(OutputOp, "boundary_output"),
+)
+connect(boundary_input, layer0_hidden)
+connect(layer0_hidden, internal_residual)
+connect(layer0_mlp, internal_residual)
+connect(internal_residual, side_module)
+connect(internal_residual, layer1_hidden)
+connect(layer1_hidden, layer1_mlp)
+connect(layer1_hidden, final_residual)
+connect(layer1_mlp, final_residual)
+connect(final_residual, main_merger)
+connect(side_module, boundary_output)
+connect(main_merger, boundary_output)
+
+boundary_index = boundary_graph.build_structure_index()
+assert boundary_index.annotations[internal_residual] == NodeAnnotation(
+    layer_index=0,
+    component="residual",
+    subcomponent="post_mlp_residual",
+)
+assert boundary_index.node_to_region[internal_residual] is next(
+    region
+    for region in boundary_index.regions
+    if isinstance(region, LayerRegion) and region.layer_index == 0
+)
+assert boundary_index.annotations.get(
+    side_module, NodeAnnotation()
+).layer_index is None
+assert not isinstance(boundary_index.node_to_region[side_module], LayerRegion)
+assert boundary_index.annotations[final_residual] == NodeAnnotation(
+    layer_index=1,
+    component="residual",
+    subcomponent="post_mlp_residual",
+)
+assert boundary_index.node_to_region[final_residual] is next(
+    region
+    for region in boundary_index.regions
+    if isinstance(region, LayerRegion) and region.layer_index == 1
+)
+assert boundary_index.annotations.get(
+    main_merger, NodeAnnotation()
+).layer_index is None
+assert not isinstance(boundary_index.node_to_region[main_merger], LayerRegion)
+
+# An Add with only an MLP input is not sufficient residual topology.
+non_residual_graph = Graph({}, "non_residual_boundary_add_test")
+non_residual_input = add(
+    non_residual_graph,
+    make_node(PlaceholderOp, "non_residual_input"),
+    NodeType.InputNode,
+)
+non_residual_mlp = add(
+    non_residual_graph,
+    make_node(MatmulOp, "non_residual_mlp", "blocks.7.mlp.down_proj"),
+)
+non_residual_add = add(
+    non_residual_graph,
+    make_node(AddOp, "non_residual_add"),
+)
+non_residual_output = add(
+    non_residual_graph,
+    make_node(OutputOp, "non_residual_output"),
+)
+connect(non_residual_input, non_residual_mlp)
+connect(non_residual_input, non_residual_add)
+connect(non_residual_mlp, non_residual_add)
+connect(non_residual_add, non_residual_output)
+non_residual_index = non_residual_graph.build_structure_index()
+assert non_residual_add not in non_residual_index.annotations
+assert not isinstance(
+    non_residual_index.node_to_region[non_residual_add], LayerRegion
+)
+
+
 # Template fingerprint and grouping analysis tests.
 
 import copy
