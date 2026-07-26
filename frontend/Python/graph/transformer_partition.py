@@ -27,7 +27,6 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-import re
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import TYPE_CHECKING, Any
@@ -524,13 +523,6 @@ _FINGERPRINT_CONVERSION_ERRORS = (
 )
 
 
-_LAYER_TOKEN = re.compile(r"(?<![A-Za-z0-9_])layers\.([0-9]+)(?=\.|$)")
-_ENCODER_LAYER_TOKEN = re.compile(
-    r"(?<![A-Za-z0-9_])encoder\.layer\."
-    r"((?:0|[1-9][0-9]*))(?=\.|$)"
-)
-
-
 def _qualified_type(value: Any) -> str:
     cls = type(value)
     return f"{cls.__module__}.{cls.__qualname__}"
@@ -713,22 +705,20 @@ class LayerFingerprintBuilder:
         self._local_ids[op] = len(self._nodes)
         annotation = self._annotations.get(op)
         sources = set()
-        for source in op._source_meta:
+        layer_resolutions = (
+            annotation.layer_resolutions if annotation is not None else ()
+        )
+        if len(layer_resolutions) != len(op._source_meta):
+            layer_resolutions = (None,) * len(op._source_meta)
+        for source, layer_resolution in zip(
+            op._source_meta, layer_resolutions, strict=True
+        ):
             path = source.module_path
-            if path is not None:
-                expected = self._region.layer_index
-                path = _LAYER_TOKEN.sub(
-                    lambda match: "layers.{L}"
-                    if int(match.group(1)) == expected
-                    else match.group(0),
-                    path,
-                )
-                path = _ENCODER_LAYER_TOKEN.sub(
-                    lambda match: "encoder.layer.{L}"
-                    if int(match.group(1)) == expected
-                    else match.group(0),
-                    path,
-                )
+            if (
+                layer_resolution is not None
+                and layer_resolution.layer_index == self._region.layer_index
+            ):
+                path = layer_resolution.canonical_module_path
             sources.add((path, source.module_class, source.original_aten))
         normalized_sources = [list(item) for item in sorted(sources, key=_json_bytes)]
         original_aten = sorted(
