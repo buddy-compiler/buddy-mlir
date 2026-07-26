@@ -1,5 +1,5 @@
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from .graph import Graph
@@ -14,6 +14,23 @@ class NodeAnnotation:
     layer_index: int | None = None
     component: str | None = None
     subcomponent: str | None = None
+    layer_resolutions: tuple["LayerPathResolution | None", ...] = field(
+        default=(), compare=False, repr=False
+    )
+
+
+@dataclass(frozen=True)
+class IndexedPathOccurrence:
+    index: int
+    index_position: int
+    canonical_module_path: str
+
+
+@dataclass(frozen=True)
+class LayerPathResolution:
+    layer_index: int
+    index_position: int
+    canonical_module_path: str
 
 
 @dataclass
@@ -47,18 +64,70 @@ def _class_component(module_class: str | None) -> str | None:
     return None
 
 
+def parse_canonical_integer(segment: str) -> int | None:
+    """Parse one canonical non-negative decimal segment."""
+    if not re.fullmatch(r"(?:0|[1-9][0-9]*)", segment):
+        return None
+    return int(segment)
+
+
+def parse_indexed_path_occurrences(
+    path: str | None,
+) -> tuple[IndexedPathOccurrence, ...]:
+    """Enumerate canonical non-negative integer segments in a module path."""
+    if not path:
+        return ()
+    tokens = path.split(".")
+    occurrences = []
+    for index_position, token in enumerate(tokens):
+        integer_value = parse_canonical_integer(token)
+        if integer_value is None:
+            continue
+        canonical_tokens = list(tokens)
+        canonical_tokens[index_position] = "{L}"
+        occurrences.append(
+            IndexedPathOccurrence(
+                index=integer_value,
+                index_position=index_position,
+                canonical_module_path=".".join(canonical_tokens),
+            )
+        )
+    return tuple(occurrences)
+
+
+def resolve_transformer_layer_path(
+    path: str | None,
+) -> LayerPathResolution | None:
+    """Select the unique Phase 1 Transformer-layer occurrence, if any."""
+    if not path:
+        return None
+    tokens = path.split(".")
+    matches = []
+    for occurrence in parse_indexed_path_occurrences(path):
+        position = occurrence.index_position
+        known_nested_path = position >= 2 and tokens[position - 2 : position] in (
+            ["model", "layers"],
+            ["encoder", "layer"],
+        )
+        known_root_path = (
+            position == 1 and tokens[0] in ("layers", "blocks")
+        )
+        if known_nested_path or known_root_path:
+            matches.append(
+                LayerPathResolution(
+                    layer_index=occurrence.index,
+                    index_position=occurrence.index_position,
+                    canonical_module_path=occurrence.canonical_module_path,
+                )
+            )
+    return matches[0] if len(matches) == 1 else None
+
+
 def _classify_path(path: str | None):
     if not path:
         return None, None, None
     tokens = path.split(".")
-    layer = None
-    for index in range(len(tokens) - 2):
-        if tokens[index : index + 2] in (
-            ["model", "layers"],
-            ["encoder", "layer"],
-        ) and re.fullmatch(r"(?:0|[1-9][0-9]*)", tokens[index + 2]):
-            layer = int(tokens[index + 2])
-            break
+    layer_resolution = resolve_transformer_layer_path(path)
 
     component = subcomponent = None
     for token in tokens:
@@ -78,7 +147,7 @@ def _classify_path(path: str | None):
             component = "lm_head"
     if tokens == ["model", "norm"]:
         component, subcomponent = "norm", "final_norm"
-    return layer, component, subcomponent
+    return layer_resolution, component, subcomponent
 
 
 class ModuleStructureAnalyzer:
@@ -87,19 +156,32 @@ class ModuleStructureAnalyzer:
         layers = []
         components = []
         subcomponents = []
+        layer_resolutions = []
         for source in op._source_meta:
-            layer, component, subcomponent = _classify_path(source.module_path)
+            layer_resolution, component, subcomponent = _classify_path(
+                source.module_path
+            )
             if component is None:
                 component = _class_component(source.module_class)
-            layers.append(layer)
+            layers.append(
+                layer_resolution.layer_index
+                if layer_resolution is not None
+                else None
+            )
             components.append(component)
             subcomponents.append(subcomponent)
+            layer_resolutions.append(layer_resolution)
         layer = _consistent(layers)
         component = _consistent(components)
         subcomponent = _consistent(subcomponents)
         if component is None:
             subcomponent = None
-        return NodeAnnotation(layer, component, subcomponent)
+        return NodeAnnotation(
+            layer,
+            component,
+            subcomponent,
+            tuple(layer_resolutions),
+        )
 
     def analyze(self, graph: Graph) -> StructureAnalysisResult:
         annotations = {}
@@ -146,6 +228,7 @@ class ModuleStructureAnalyzer:
                     annotation.layer_index,
                     "residual",
                     "post_mlp_residual",
+                    annotation.layer_resolutions,
                 )
                 continue
 
@@ -162,4 +245,5 @@ class ModuleStructureAnalyzer:
                     annotation.layer_index,
                     "residual",
                     "post_attention_residual",
+                    annotation.layer_resolutions,
                 )

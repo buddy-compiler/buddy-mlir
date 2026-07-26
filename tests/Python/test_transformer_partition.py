@@ -24,7 +24,13 @@ from buddy.compiler.graph.transformer_partition import (
     RegionKind,
 )
 from buddy.compiler.graph.source_meta import SourceMeta
-from buddy.compiler.graph.structure_analysis import NodeAnnotation
+from buddy.compiler.graph.structure_analysis import (
+    ModuleStructureAnalyzer,
+    NodeAnnotation,
+    parse_canonical_integer,
+    parse_indexed_path_occurrences,
+    resolve_transformer_layer_path,
+)
 
 
 def make_node(node_class, name, module_path=None):
@@ -44,6 +50,107 @@ def connect(parent, child):
     parent.add_children(child.name)
     child.add_parent(parent.name)
     child.add_argument(parent.name)
+
+
+# Path parsing is syntax-only, enumerates every canonical integer segment, and
+# canonicalizes only the selected occurrence.
+for token, expected in (("0", 0), ("1", 1), ("12", 12)):
+    assert parse_canonical_integer(token) == expected
+    occurrences = parse_indexed_path_occurrences(f"layers.{token}.attn")
+    assert [occurrence.index for occurrence in occurrences] == [expected]
+for token in ("01", "+1", "-1", "1.0"):
+    assert parse_canonical_integer(token) is None
+for token in ("01", "+1", "-1"):
+    assert parse_indexed_path_occurrences(f"layers.{token}.attn") == ()
+assert parse_indexed_path_occurrences("layers.attn") == ()
+multiple_occurrences = parse_indexed_path_occurrences(
+    "foo.layers.1.blocks.2.attn"
+)
+assert [
+    (occurrence.index, occurrence.index_position)
+    for occurrence in multiple_occurrences
+] == [(1, 2), (2, 4)]
+assert [occurrence.canonical_module_path for occurrence in multiple_occurrences] == [
+    "foo.layers.{L}.blocks.2.attn",
+    "foo.layers.1.blocks.{L}.attn",
+]
+
+
+def classify_path(path):
+    return ModuleStructureAnalyzer().analyze_node(
+        make_node(AddOp, f"classify_{path}", path)
+    )
+
+
+# Phase 1 accepts the established nested grammar and Qwen3-VL root grammar.
+for path, expected_index in (
+    ("model.layers.0", 0),
+    ("foo.model.layers.1", 1),
+    ("encoder.layer.0", 0),
+    ("foo.encoder.layer.1", 1),
+    ("layers.0.self_attn.q_proj", 0),
+    ("layers.27.mlp.down_proj", 27),
+    ("blocks.0.attn.qkv", 0),
+    ("blocks.23.norm2", 23),
+):
+    annotation = classify_path(path)
+    assert annotation.layer_index == expected_index, path
+    resolution = resolve_transformer_layer_path(path)
+    assert resolution is not None
+    assert resolution.layer_index == expected_index
+    assert (
+        annotation.layer_resolutions[0].canonical_module_path
+        == resolution.canonical_module_path
+    )
+
+for path in (
+    "foo.layers.0.self_attn",
+    "foo.blocks.0.attn",
+    "deepstack_merger_list.0.norm",
+    "experts.0",
+    "stages.0",
+    "heads.0",
+    "adapters.0",
+    "branches.0",
+    "layer.0.attn",
+):
+    assert classify_path(path).layer_index is None, path
+    assert resolve_transformer_layer_path(path) is None
+
+# Two accepted occurrences are ambiguous and must not use the first match.
+ambiguous_path = "foo.model.layers.1.encoder.layer.2.attention"
+ambiguous_annotation = classify_path(ambiguous_path)
+assert ambiguous_annotation.layer_index is None
+assert ambiguous_annotation.layer_resolutions == (None,)
+assert resolve_transformer_layer_path(ambiguous_path) is None
+
+
+def root_layer_graph(container):
+    graph = Graph({}, f"{container}_region_test")
+    graph_input = add(
+        graph,
+        make_node(PlaceholderOp, f"{container}_input"),
+        NodeType.InputNode,
+    )
+    layer0 = add(
+        graph,
+        make_node(AddOp, f"{container}_0", f"{container}.0.attn.qkv"),
+    )
+    layer1 = add(
+        graph,
+        make_node(AddOp, f"{container}_1", f"{container}.1.attn.qkv"),
+    )
+    output = add(graph, make_node(OutputOp, f"{container}_output"))
+    connect(graph_input, layer0)
+    connect(layer0, layer1)
+    connect(layer1, output)
+    return graph
+
+
+for root_container in ("blocks", "layers"):
+    root_regions = root_layer_graph(root_container).build_structure_index().regions
+    assert all(isinstance(region, LayerRegion) for region in root_regions)
+    assert [region.layer_index for region in root_regions] == [0, 1]
 
 
 def standard_graph():
@@ -945,8 +1052,69 @@ def layer_regions(result):
         (r for r in result.structure_index.regions if isinstance(r, LayerRegion)),
         key=lambda r: r.layer_index,
     )
-    
-    
+
+
+def two_source_normalization_layers(path_format, extra_path_format=None):
+    graph = Graph({}, "source_normalization")
+    graph_input = add(
+        graph, node(PlaceholderOp, "source_input"), NodeType.InputNode
+    )
+    for layer_index in range(2):
+        layer_node = node(
+            AddOp,
+            f"source_{layer_index}",
+            path_format.format(layer_index),
+        )
+        if extra_path_format is not None:
+            layer_node._source_meta = (
+                *layer_node._source_meta,
+                SourceMeta(
+                    module_path=extra_path_format.format(layer_index),
+                    module_class="example.DecoderLayer",
+                ),
+            )
+        layer_node = add(graph, layer_node)
+        bind(graph_input, layer_node)
+        bind(
+            layer_node,
+            add(graph, node(OutputOp, f"source_out_{layer_index}")),
+        )
+    return graph.analyze_structure(True)
+
+
+# All accepted grammar families normalize their selected layer occurrence.
+for normalized_path_format in (
+    "model.layers.{}.mlp.down_proj",
+    "encoder.layer.{}.attention",
+    "layers.{}.self_attn.q_proj",
+    "blocks.{}.attn.qkv",
+):
+    normalized_result = two_source_normalization_layers(normalized_path_format)
+    normalized_layers = layer_regions(normalized_result)
+    assert [region.layer_index for region in normalized_layers] == [0, 1]
+    assert len(
+        {
+            normalized_result.template_index.region_fingerprints[region].digest
+            for region in normalized_layers
+        }
+    ) == 1
+
+# An unaccepted indexed source is preserved even when another SourceMeta puts
+# the Op in a LayerRegion; its differing number remains fingerprint-visible.
+deepstack_result = two_source_normalization_layers(
+    "blocks.{}.attn.qkv",
+    "deepstack_merger_list.{}.norm",
+)
+deepstack_layers = layer_regions(deepstack_result)
+assert len(
+    {
+        deepstack_result.template_index.region_fingerprints[region].digest
+        for region in deepstack_layers
+    }
+) == 2
+assert deepstack_result.template_index.template_groups == []
+
+
 # Encoder layer numbers are normalized out of SourceMeta before
 # fingerprinting, just like decoder model.layers.<N> paths.
 encoder_graph = Graph({}, "encoder_layer_source_normalization")
@@ -1152,5 +1320,3 @@ for op, snapshot in node_snapshot.items():
     assert op._children is children_ref and op._children == children
     assert op.args is args_ref and op.args == args
     assert op.kwargs is kwargs_ref and op.kwargs == kwargs
-
-
