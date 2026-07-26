@@ -295,7 +295,7 @@ assert multi_layer1.interface.ordered_inputs == [
 ]
 
 
-# C: unknown nodes remain separate from layers; assigned nodes split runs.
+# C: matching layer/component anchors complete only the enclosed unowned run.
 unknown_graph = Graph({}, "unknown_test")
 unknown_input = add(
     unknown_graph,
@@ -311,7 +311,7 @@ unknown_sequence = [
     add(unknown_graph, make_node(AddOp, "unknown_b")),
     add(
         unknown_graph,
-        make_node(AddOp, "l0_second", "model.layers.0.mlp.down_proj"),
+        make_node(AddOp, "l0_second", "model.layers.0.self_attn.o_proj"),
     ),
     add(unknown_graph, make_node(AddOp, "unknown_c")),
     add(unknown_graph, make_node(AddOp, "unknown_d")),
@@ -330,20 +330,65 @@ unknown_index = unknown_graph.build_structure_index()
 assert [region.kind for region in unknown_index.regions] == [
     RegionKind.LAYER,
     RegionKind.UNKNOWN,
-    RegionKind.UNKNOWN,
     RegionKind.LAYER,
+]
+layer0_region = next(
+    region
+    for region in unknown_index.regions
+    if isinstance(region, LayerRegion) and region.layer_index == 0
+)
+assert [node.name for node in layer0_region.nodes] == [
+    "l0_first",
+    "unknown_a",
+    "unknown_b",
+    "l0_second",
 ]
 unknown_regions = [
     region for region in unknown_index.regions if region.kind is RegionKind.UNKNOWN
 ]
 assert [[node.name for node in region.nodes] for region in unknown_regions] == [
-    ["unknown_a", "unknown_b"],
     ["unknown_c", "unknown_d"],
 ]
 for region in unknown_regions:
     for node in region.nodes:
         assert unknown_index.annotations.get(node) is None
         assert not isinstance(unknown_index.node_to_region[node], LayerRegion)
+
+# Completion preserves existing annotation fields, does not overwrite ownership,
+# and leaves graph-head/tail runs with only one anchor unowned.
+completion_graph = Graph({}, "layer_completion_test")
+completion_nodes = [
+    add(completion_graph, make_node(AddOp, "head_unknown")),
+    add(
+        completion_graph,
+        make_node(AddOp, "l0_left", "model.layers.0.mlp.gate_proj"),
+    ),
+    add(
+        completion_graph,
+        make_node(AddOp, "annotated_unknown", "mlp.down_proj"),
+    ),
+    add(
+        completion_graph,
+        make_node(AddOp, "l0_right", "model.layers.0.mlp.up_proj"),
+    ),
+    add(
+        completion_graph,
+        make_node(AddOp, "owned_l1", "model.layers.1.mlp.down_proj"),
+    ),
+    add(completion_graph, make_node(AddOp, "tail_unknown")),
+]
+completion_annotations = ModuleStructureAnalyzer().analyze(
+    completion_graph
+).node_annotations
+annotated_unknown = completion_annotations[completion_nodes[2]]
+assert (
+    annotated_unknown.layer_index,
+    annotated_unknown.component,
+    annotated_unknown.subcomponent,
+) == (0, "mlp", "down_proj")
+assert completion_annotations[completion_nodes[4]].layer_index == 1
+assert completion_nodes[0] not in completion_annotations
+assert completion_nodes[5] not in completion_annotations
 
 
 # D: cache identity and purity of all graph-side containers and Buddy nodes.

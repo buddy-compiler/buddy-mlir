@@ -1,5 +1,5 @@
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING
 
 from .graph import Graph
@@ -194,7 +194,35 @@ class ModuleStructureAnalyzer:
             ):
                 annotations[op] = annotation
         self._classify_residuals(graph, annotations)
+        self._complete_layer_annotations(graph, annotations)
         return StructureAnalysisResult(annotations)
+
+    @staticmethod
+    def _complete_layer_annotations(
+        graph: Graph, annotations: dict[Op, NodeAnnotation]
+    ) -> None:
+        """Fill unowned runs bounded by matching layer/component annotations."""
+        run_start = None
+        left_annotation = None
+        for position, op in enumerate(graph.body):
+            annotation = annotations.get(op, NodeAnnotation())
+            if annotation.layer_index is None:
+                if run_start is None:
+                    run_start = position
+                continue
+
+            if (
+                run_start is not None
+                and left_annotation is not None
+                and left_annotation.layer_index == annotation.layer_index
+            ):
+                for unowned in graph.body[run_start:position]:
+                    current = annotations.get(unowned, NodeAnnotation())
+                    annotations[unowned] = replace(
+                        current, layer_index=annotation.layer_index
+                    )
+            run_start = None
+            left_annotation = annotation
 
     @staticmethod
     def _classify_residuals(
