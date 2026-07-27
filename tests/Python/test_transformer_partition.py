@@ -87,30 +87,36 @@ def classify_path(path):
     )
 
 
-# Phase 1 accepts the established nested grammar and Qwen3-VL root grammar.
-for path, expected_index in (
-    ("model.layers.0", 0),
-    ("foo.model.layers.1", 1),
-    ("encoder.layer.0", 0),
-    ("foo.encoder.layer.1", 1),
-    ("layers.0.self_attn.q_proj", 0),
-    ("layers.27.mlp.down_proj", 27),
-    ("blocks.0.attn.qkv", 0),
-    ("blocks.23.norm2", 23),
+# Phase 1 accepts layers/blocks containers under any prefix and the established
+# encoder.layer grammar.
+for path, expected_container, expected_index in (
+    ("model.layers.0", "model.layers", 0),
+    ("foo.model.layers.1", "foo.model.layers", 1),
+    ("encoder.layer.0", "encoder.layer", 0),
+    ("foo.encoder.layer.1", "foo.encoder.layer", 1),
+    ("layers.0.self_attn.q_proj", "layers", 0),
+    ("layers.27.mlp.down_proj", "layers", 27),
+    ("blocks.0.attn.qkv", "blocks", 0),
+    ("blocks.23.norm2", "blocks", 23),
+    ("model.encoder.layers.0", "model.encoder.layers", 0),
+    ("model.decoder.layers.0", "model.decoder.layers", 0),
+    ("vision_model.encoder.layers.0", "vision_model.encoder.layers", 0),
+    ("foo.layers.0.self_attn", "foo.layers", 0),
+    ("foo.blocks.0.attn", "foo.blocks", 0),
 ):
     annotation = classify_path(path)
     assert annotation.layer_index == expected_index, path
+    assert annotation.layer_container == expected_container, path
     resolution = resolve_transformer_layer_path(path)
     assert resolution is not None
     assert resolution.layer_index == expected_index
+    assert resolution.layer_container == expected_container
     assert (
         annotation.layer_resolutions[0].canonical_module_path
         == resolution.canonical_module_path
     )
 
 for path in (
-    "foo.layers.0.self_attn",
-    "foo.blocks.0.attn",
     "deepstack_merger_list.0.norm",
     "experts.0",
     "stages.0",
@@ -128,6 +134,17 @@ ambiguous_annotation = classify_path(ambiguous_path)
 assert ambiguous_annotation.layer_index is None
 assert ambiguous_annotation.layer_resolutions == (None,)
 assert resolve_transformer_layer_path(ambiguous_path) is None
+
+multi_stack_source = make_node(AddOp, "multi_stack_source")
+multi_stack_source._source_meta = (
+    SourceMeta(module_path="model.encoder.layers.0.self_attn.q_proj"),
+    SourceMeta(module_path="model.decoder.layers.0.self_attn.q_proj"),
+)
+multi_stack_annotation = ModuleStructureAnalyzer().analyze_node(
+    multi_stack_source
+)
+assert multi_stack_annotation.layer_index is None
+assert multi_stack_annotation.layer_container is None
 
 
 def root_layer_graph(container):
@@ -156,6 +173,10 @@ for root_container in ("blocks", "layers"):
     root_regions = root_layer_graph(root_container).build_structure_index().regions
     assert all(isinstance(region, LayerRegion) for region in root_regions)
     assert [region.layer_index for region in root_regions] == [0, 1]
+    assert [region.layer_container for region in root_regions] == [
+        root_container,
+        root_container,
+    ]
 
 
 def standard_graph():
@@ -221,6 +242,8 @@ assert type(epilogue) is GraphRegion
 assert prelude.nodes == [nodes["embedding"]]
 assert layer0.layer_index == 0
 assert layer1.layer_index == 1
+assert layer0.layer_container == "model.layers"
+assert layer1.layer_container == "model.layers"
 assert layer0.nodes == [nodes["layer0_q"], nodes["layer0_down"]]
 assert layer1.nodes == [nodes["layer1_q"], nodes["layer1_down"]]
 assert layer0.component_nodes == {
@@ -388,12 +411,192 @@ completion_annotations = ModuleStructureAnalyzer().analyze(
 annotated_unknown = completion_annotations[completion_nodes[2]]
 assert (
     annotated_unknown.layer_index,
+    annotated_unknown.layer_container,
     annotated_unknown.component,
     annotated_unknown.subcomponent,
-) == (0, "mlp", "down_proj")
+) == (0, "model.layers", "mlp", "down_proj")
 assert completion_annotations[completion_nodes[4]].layer_index == 1
+assert (
+    completion_annotations[completion_nodes[4]].layer_container
+    == "model.layers"
+)
 assert completion_nodes[0] not in completion_annotations
 assert completion_nodes[5] not in completion_annotations
+
+
+# Multi-stack layer identity keeps local indices scoped to their full container.
+multi_stack_graph = Graph({}, "multi_stack_layer_identity_test")
+multi_stack_input = add(
+    multi_stack_graph,
+    make_node(PlaceholderOp, "multi_stack_input"),
+    NodeType.InputNode,
+)
+multi_stack_nodes = [
+    add(
+        multi_stack_graph,
+        make_node(
+            MatmulOp,
+            "encoder_0_left",
+            "model.encoder.layers.0.self_attn.q_proj",
+        ),
+    ),
+    add(multi_stack_graph, make_node(UnsqueezeOp, "encoder_0_completed")),
+    add(
+        multi_stack_graph,
+        make_node(
+            MatmulOp,
+            "encoder_0_right",
+            "model.encoder.layers.0.mlp.down_proj",
+        ),
+    ),
+    add(
+        multi_stack_graph,
+        make_node(
+            MatmulOp,
+            "encoder_1",
+            "model.encoder.layers.1.self_attn.q_proj",
+        ),
+    ),
+    add(
+        multi_stack_graph,
+        make_node(
+            MatmulOp,
+            "decoder_0_left",
+            "model.decoder.layers.0.self_attn.q_proj",
+        ),
+    ),
+    add(multi_stack_graph, make_node(UnsqueezeOp, "decoder_0_completed")),
+    add(
+        multi_stack_graph,
+        make_node(
+            MatmulOp,
+            "decoder_0_right",
+            "model.decoder.layers.0.mlp.down_proj",
+        ),
+    ),
+    add(
+        multi_stack_graph,
+        make_node(
+            MatmulOp,
+            "decoder_1",
+            "model.decoder.layers.1.self_attn.q_proj",
+        ),
+    ),
+]
+multi_stack_output = add(
+    multi_stack_graph,
+    make_node(OutputOp, "multi_stack_output"),
+)
+previous = multi_stack_input
+for node in multi_stack_nodes:
+    connect(previous, node)
+    previous = node
+connect(previous, multi_stack_output)
+
+multi_stack_index = multi_stack_graph.build_structure_index()
+multi_stack_regions = [
+    region
+    for region in multi_stack_index.regions
+    if isinstance(region, LayerRegion)
+]
+assert (
+    multi_stack_index.annotations[multi_stack_nodes[0]].layer_container,
+    multi_stack_index.annotations[multi_stack_nodes[0]].layer_index,
+) == ("model.encoder.layers", 0)
+assert (
+    multi_stack_index.annotations[multi_stack_nodes[4]].layer_container,
+    multi_stack_index.annotations[multi_stack_nodes[4]].layer_index,
+) == ("model.decoder.layers", 0)
+assert [
+    (region.layer_container, region.layer_index)
+    for region in multi_stack_regions
+] == [
+    ("model.encoder.layers", 0),
+    ("model.encoder.layers", 1),
+    ("model.decoder.layers", 0),
+    ("model.decoder.layers", 1),
+]
+assert [
+    (region.layer_container, region.layer_index)
+    for region in multi_stack_index.regions
+] == [
+    ("model.encoder.layers", 0),
+    ("model.encoder.layers", 1),
+    ("model.decoder.layers", 0),
+    ("model.decoder.layers", 1),
+]
+assert (
+    multi_stack_index.annotations[multi_stack_nodes[1]].layer_container,
+    multi_stack_index.annotations[multi_stack_nodes[1]].layer_index,
+) == ("model.encoder.layers", 0)
+assert (
+    multi_stack_index.annotations[multi_stack_nodes[5]].layer_container,
+    multi_stack_index.annotations[multi_stack_nodes[5]].layer_index,
+) == ("model.decoder.layers", 0)
+
+# Matching local indices in different containers do not bound completion.
+cross_stack_completion_graph = Graph({}, "cross_stack_completion_test")
+cross_stack_left = add(
+    cross_stack_completion_graph,
+    make_node(
+        MatmulOp,
+        "cross_stack_left",
+        "model.encoder.layers.0.self_attn.q_proj",
+    ),
+)
+cross_stack_unknown = add(
+    cross_stack_completion_graph,
+    make_node(UnsqueezeOp, "cross_stack_unknown"),
+)
+cross_stack_right = add(
+    cross_stack_completion_graph,
+    make_node(
+        MatmulOp,
+        "cross_stack_right",
+        "model.decoder.layers.0.self_attn.q_proj",
+    ),
+)
+cross_stack_completion_index = (
+    cross_stack_completion_graph.build_structure_index()
+)
+assert cross_stack_unknown not in cross_stack_completion_index.annotations
+assert not isinstance(
+    cross_stack_completion_index.node_to_region[cross_stack_unknown],
+    LayerRegion,
+)
+
+# Residual refinement counts same-layer parents by full layer key.
+cross_stack_residual_graph = Graph({}, "cross_stack_residual_test")
+cross_stack_mlp = add(
+    cross_stack_residual_graph,
+    make_node(
+        MatmulOp,
+        "cross_stack_mlp",
+        "model.encoder.layers.0.mlp.down_proj",
+    ),
+)
+cross_stack_attention = add(
+    cross_stack_residual_graph,
+    make_node(
+        MatmulOp,
+        "cross_stack_attention",
+        "model.decoder.layers.0.self_attn.q_proj",
+    ),
+)
+cross_stack_add = add(
+    cross_stack_residual_graph,
+    make_node(AddOp, "cross_stack_add"),
+)
+connect(cross_stack_mlp, cross_stack_add)
+connect(cross_stack_attention, cross_stack_add)
+cross_stack_residual_index = (
+    cross_stack_residual_graph.build_structure_index()
+)
+assert cross_stack_add not in cross_stack_residual_index.annotations
+assert not isinstance(
+    cross_stack_residual_index.node_to_region[cross_stack_add],
+    LayerRegion,
+)
 
 
 # D: cache identity and purity of all graph-side containers and Buddy nodes.
@@ -627,13 +830,18 @@ assert residual_index.annotations[attention_residual] == NodeAnnotation(
     layer_index=13,
     component="residual",
     subcomponent="post_attention_residual",
+    layer_container="model.layers",
 )
 assert residual_index.annotations[mlp_residual] == NodeAnnotation(
     layer_index=13,
     component="residual",
     subcomponent="post_mlp_residual",
+    layer_container="model.layers",
 )
-assert residual_index.annotations[ordinary_add] == NodeAnnotation(layer_index=13)
+assert residual_index.annotations[ordinary_add] == NodeAnnotation(
+    layer_index=13,
+    layer_container="model.layers",
+)
 residual_region = next(
     region
     for region in residual_index.regions
@@ -739,11 +947,15 @@ connect(side_module, boundary_output)
 connect(main_merger, boundary_output)
 
 boundary_index = boundary_graph.build_structure_index()
-assert boundary_index.annotations[completed_skip] == NodeAnnotation(layer_index=0)
+assert boundary_index.annotations[completed_skip] == NodeAnnotation(
+    layer_index=0,
+    layer_container="blocks",
+)
 assert boundary_index.annotations[internal_residual] == NodeAnnotation(
     layer_index=0,
     component="residual",
     subcomponent="post_mlp_residual",
+    layer_container="blocks",
 )
 assert boundary_index.node_to_region[internal_residual] is next(
     region
@@ -758,6 +970,7 @@ assert boundary_index.annotations[final_residual] == NodeAnnotation(
     layer_index=1,
     component="residual",
     subcomponent="post_mlp_residual",
+    layer_container="blocks",
 )
 assert boundary_index.node_to_region[final_residual] is next(
     region
@@ -811,6 +1024,122 @@ def append_layer_exit(graph, prefix, layer_index, hidden):
     connect(attention, residual)
     connect(mlp, residual)
     return attention, residual
+
+
+# Functional RMSNorm adjacency and deepstack mixing do not cross containers.
+cross_stack_norm_graph = Graph({}, "cross_stack_rmsnorm_boundary_test")
+cross_stack_norm_input = add(
+    cross_stack_norm_graph,
+    make_node(PlaceholderOp, "cross_stack_norm_input"),
+    NodeType.InputNode,
+)
+cross_stack_norm_weight = add(
+    cross_stack_norm_graph,
+    make_node(PlaceholderOp, "cross_stack_norm_weight"),
+    NodeType.FakeNode,
+)
+cross_stack_encoder_attention = add(
+    cross_stack_norm_graph,
+    make_node(
+        MatmulOp,
+        "cross_stack_encoder_attention",
+        "model.encoder.layers.0.self_attn.q_proj",
+    ),
+)
+cross_stack_encoder_mlp = add(
+    cross_stack_norm_graph,
+    make_node(
+        MatmulOp,
+        "cross_stack_encoder_mlp",
+        "model.encoder.layers.0.mlp.down_proj",
+    ),
+)
+cross_stack_encoder_residual = add(
+    cross_stack_norm_graph,
+    make_node(AddOp, "cross_stack_encoder_residual"),
+)
+connect(cross_stack_encoder_attention, cross_stack_encoder_residual)
+connect(cross_stack_encoder_mlp, cross_stack_encoder_residual)
+cross_stack_mix = add(
+    cross_stack_norm_graph,
+    make_node(AddOp, "cross_stack_mix"),
+)
+connect(cross_stack_encoder_residual, cross_stack_mix)
+connect(cross_stack_norm_input, cross_stack_mix)
+cross_stack_norm = append_functional_rmsnorm(
+    cross_stack_norm_graph,
+    "cross_stack_norm",
+    cross_stack_mix,
+    cross_stack_norm_weight,
+)
+cross_stack_decoder_consumer = add(
+    cross_stack_norm_graph,
+    make_node(
+        MatmulOp,
+        "cross_stack_decoder_consumer",
+        "model.decoder.layers.1.self_attn.q_proj",
+    ),
+)
+connect(cross_stack_norm[-1], cross_stack_decoder_consumer)
+cross_stack_norm_index = cross_stack_norm_graph.build_structure_index()
+assert cross_stack_norm_index.annotations[
+    cross_stack_encoder_residual
+] == NodeAnnotation(
+    layer_index=0,
+    component="residual",
+    subcomponent="post_mlp_residual",
+    layer_container="model.encoder.layers",
+)
+assert cross_stack_mix not in cross_stack_norm_index.annotations
+assert all(
+    node not in cross_stack_norm_index.annotations
+    for node in cross_stack_norm
+)
+
+# First-layer ownership is computed independently for each container.
+per_stack_first_graph = Graph({}, "per_stack_first_layer_test")
+per_stack_first_input = add(
+    per_stack_first_graph,
+    make_node(PlaceholderOp, "per_stack_first_input"),
+    NodeType.InputNode,
+)
+per_stack_first_weight = add(
+    per_stack_first_graph,
+    make_node(PlaceholderOp, "per_stack_first_weight"),
+    NodeType.FakeNode,
+)
+add(
+    per_stack_first_graph,
+    make_node(
+        MatmulOp,
+        "per_stack_encoder_0",
+        "model.encoder.layers.0.self_attn.q_proj",
+    ),
+)
+per_stack_first_norm = append_functional_rmsnorm(
+    per_stack_first_graph,
+    "per_stack_first_norm",
+    per_stack_first_input,
+    per_stack_first_weight,
+)
+per_stack_decoder_3 = add(
+    per_stack_first_graph,
+    make_node(
+        MatmulOp,
+        "per_stack_decoder_3",
+        "model.decoder.layers.3.self_attn.q_proj",
+    ),
+)
+connect(per_stack_first_norm[-1], per_stack_decoder_3)
+per_stack_first_index = per_stack_first_graph.build_structure_index()
+assert all(
+    (
+        per_stack_first_index.annotations[node].layer_container,
+        per_stack_first_index.annotations[node].layer_index,
+    )
+    == ("model.decoder.layers", 3)
+    for node in per_stack_first_norm
+)
 
 
 # Functional boundary RMSNorm chains split ownership at adjacent layer anchors.
@@ -895,7 +1224,12 @@ connect(head_matmul, decoder_boundary_output)
 decoder_boundary_index = decoder_boundary_graph.build_structure_index()
 assert all(
     decoder_boundary_index.annotations[node]
-    == NodeAnnotation(0, "norm", "input_layernorm")
+    == NodeAnnotation(
+        0,
+        "norm",
+        "input_layernorm",
+        layer_container="layers",
+    )
     for node in layer0_input_norm
 )
 assert all(
@@ -904,10 +1238,14 @@ assert all(
     for node in layer0_input_norm
 )
 assert decoder_boundary_index.annotations[layer0_residual] == NodeAnnotation(
-    0, "residual", "post_mlp_residual"
+    0,
+    "residual",
+    "post_mlp_residual",
+    layer_container="layers",
 )
 assert decoder_boundary_index.annotations[deepstack_mix] == NodeAnnotation(
-    layer_index=0
+    layer_index=0,
+    layer_container="layers",
 )
 
 assert all(
@@ -1004,7 +1342,10 @@ connect(ambiguous_layer6, ambiguous_output)
 
 ambiguous_boundary_index = ambiguous_boundary_graph.build_structure_index()
 assert ambiguous_boundary_index.annotations[ambiguous_residual] == NodeAnnotation(
-    4, "residual", "post_mlp_residual"
+    4,
+    "residual",
+    "post_mlp_residual",
+    layer_container="layers",
 )
 assert ambiguous_mix not in ambiguous_boundary_index.annotations
 assert all(

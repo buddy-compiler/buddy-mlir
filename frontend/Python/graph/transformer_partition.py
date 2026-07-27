@@ -32,7 +32,11 @@ from enum import Enum, auto
 from typing import TYPE_CHECKING, Any
 
 from .operation import Op, OutputOp, TensorConstantOp
-from .structure_analysis import ModuleStructureAnalyzer, NodeAnnotation
+from .structure_analysis import (
+    ModuleStructureAnalyzer,
+    NodeAnnotation,
+    _layer_key,
+)
 from .type import TensorMeta
 
 if TYPE_CHECKING:
@@ -89,6 +93,7 @@ class LayerRegion(GraphRegion):
     layer_index: int = 0
     component_nodes: dict[str, list[Op]] = field(default_factory=dict)
     subcomponent_nodes: dict[str, list[Op]] = field(default_factory=dict)
+    layer_container: str | None = None
 
 
 @dataclass
@@ -164,7 +169,7 @@ class RegionBuilder:
         body_positions: dict[Op, int] = {}
         body_nodes: set[Op] = set()
         eligible: list[Op] = []
-        layer_nodes: dict[int, list[Op]] = {}
+        layer_nodes: dict[tuple[str | None, int], list[Op]] = {}
         prelude_nodes: list[Op] = []
         epilogue_nodes: list[Op] = []
         unassigned: list[tuple[int, Op]] = []
@@ -181,7 +186,7 @@ class RegionBuilder:
                 continue
             eligible.append(op)
             if annotation.layer_index is not None:
-                layer_nodes.setdefault(annotation.layer_index, []).append(op)
+                layer_nodes.setdefault(_layer_key(annotation), []).append(op)
             elif annotation.component == "embedding":
                 prelude_nodes.append(op)
             elif (
@@ -196,7 +201,7 @@ class RegionBuilder:
 
         regions: list[GraphRegion] = []
         node_to_region: dict[Op, GraphRegion] = {}
-        for layer_index, nodes in layer_nodes.items():
+        for (layer_container, layer_index), nodes in layer_nodes.items():
             component_nodes: dict[str, list[Op]] = {}
             subcomponent_nodes: dict[str, list[Op]] = {}
             for op in nodes:
@@ -213,6 +218,7 @@ class RegionBuilder:
                 layer_index=layer_index,
                 component_nodes=component_nodes,
                 subcomponent_nodes=subcomponent_nodes,
+                layer_container=layer_container,
             )
             self._assign(region, node_to_region)
             regions.append(region)
@@ -716,6 +722,8 @@ class LayerFingerprintBuilder:
             path = source.module_path
             if (
                 layer_resolution is not None
+                and layer_resolution.layer_container
+                == self._region.layer_container
                 and layer_resolution.layer_index == self._region.layer_index
             ):
                 path = layer_resolution.canonical_module_path
