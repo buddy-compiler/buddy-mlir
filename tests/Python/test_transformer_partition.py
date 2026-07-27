@@ -10,10 +10,15 @@ from buddy.compiler.graph.operation import (
     AddOp,
     CallOp,
     MatmulOp,
+    MeanOp,
+    MulOp,
     Op,
     OutputOp,
     PlaceholderOp,
+    PowOp,
+    RsqrtOp,
     TensorConstantOp,
+    UnsqueezeOp,
 )
 from buddy.compiler.graph.transformer_partition import (
     GraphValueRef,
@@ -763,6 +768,252 @@ assert boundary_index.annotations.get(
     main_merger, NodeAnnotation()
 ).layer_index is None
 assert not isinstance(boundary_index.node_to_region[main_merger], LayerRegion)
+
+
+def append_functional_rmsnorm(graph, prefix, hidden, weight):
+    power = add(graph, make_node(PowOp, f"{prefix}_power"))
+    mean = add(graph, make_node(MeanOp, f"{prefix}_mean"))
+    epsilon_add = add(graph, make_node(AddOp, f"{prefix}_epsilon"))
+    rsqrt = add(graph, make_node(RsqrtOp, f"{prefix}_rsqrt"))
+    normalized = add(graph, make_node(MulOp, f"{prefix}_normalized"))
+    weighted = add(graph, make_node(MulOp, f"{prefix}_weighted"))
+    connect(hidden, power)
+    connect(power, mean)
+    connect(mean, epsilon_add)
+    connect(epsilon_add, rsqrt)
+    connect(hidden, normalized)
+    connect(rsqrt, normalized)
+    connect(normalized, weighted)
+    connect(weight, weighted)
+    return (power, mean, epsilon_add, rsqrt, normalized, weighted)
+
+
+def append_layer_exit(graph, prefix, layer_index, hidden):
+    attention = add(
+        graph,
+        make_node(
+            MatmulOp,
+            f"{prefix}_attention",
+            f"layers.{layer_index}.self_attn.q_proj",
+        ),
+    )
+    mlp = add(
+        graph,
+        make_node(
+            MatmulOp,
+            f"{prefix}_mlp",
+            f"layers.{layer_index}.mlp.down_proj",
+        ),
+    )
+    residual = add(graph, make_node(AddOp, f"{prefix}_residual"))
+    connect(hidden, attention)
+    connect(attention, mlp)
+    connect(attention, residual)
+    connect(mlp, residual)
+    return attention, residual
+
+
+# Functional boundary RMSNorm chains split ownership at adjacent layer anchors.
+# The same topology closes the first and last layer without absorbing runtime
+# preparation, final norm, or the output head.
+decoder_boundary_graph = Graph({}, "functional_boundary_ownership_test")
+decoder_inputs = [
+    add(
+        decoder_boundary_graph,
+        make_node(PlaceholderOp, name),
+        NodeType.InputNode,
+    )
+    for name in ("decoder_hidden", "runtime_trig", "side_input")
+]
+decoder_weights = [
+    add(
+        decoder_boundary_graph,
+        make_node(PlaceholderOp, name),
+        NodeType.FakeNode,
+    )
+    for name in (
+        "layer0_weight",
+        "layer1_weight",
+        "final_weight",
+        "head_weight",
+    )
+]
+
+(
+    layer0_weight,
+    layer1_weight,
+    final_weight,
+    head_weight,
+) = decoder_weights
+
+decoder_hidden, runtime_trig, side_input = decoder_inputs
+
+runtime_prepare0 = add(
+    decoder_boundary_graph,
+    make_node(UnsqueezeOp, "trig0"),
+)
+runtime_prepare1 = add(
+    decoder_boundary_graph,
+    make_node(UnsqueezeOp, "trig1"),
+)
+connect(runtime_trig, runtime_prepare0)
+connect(runtime_prepare0, runtime_prepare1)
+
+layer0_input_norm = append_functional_rmsnorm(
+    decoder_boundary_graph,
+    "entry_norm",
+    decoder_hidden,
+    layer0_weight,
+)
+
+
+layer0_hidden, layer0_residual = append_layer_exit(
+    decoder_boundary_graph, "first", 0, layer0_input_norm[-1]
+)
+deepstack_mix = add(decoder_boundary_graph, make_node(AddOp, "side_input_mix"))
+connect(layer0_residual, deepstack_mix)
+connect(side_input, deepstack_mix)
+
+layer1_input_norm = append_functional_rmsnorm(
+    decoder_boundary_graph, "internal_norm", deepstack_mix, layer1_weight
+)
+layer1_hidden, last_residual = append_layer_exit(
+    decoder_boundary_graph, "last", 1, layer1_input_norm[-1]
+)
+
+final_norm = append_functional_rmsnorm(
+    decoder_boundary_graph, "output_norm", last_residual, final_weight
+)
+head_matmul = add(decoder_boundary_graph, make_node(MatmulOp, "head_mm", "lm_head"))
+decoder_boundary_output = add(
+    decoder_boundary_graph, make_node(OutputOp, "decoder_output")
+)
+connect(final_norm[-1], head_matmul)
+connect(head_weight, head_matmul)
+connect(head_matmul, decoder_boundary_output)
+
+decoder_boundary_index = decoder_boundary_graph.build_structure_index()
+assert all(
+    decoder_boundary_index.annotations[node]
+    == NodeAnnotation(0, "norm", "input_layernorm")
+    for node in layer0_input_norm
+)
+assert all(
+    decoder_boundary_index.node_to_region[node]
+    is decoder_boundary_index.node_to_region[layer0_hidden]
+    for node in layer0_input_norm
+)
+assert decoder_boundary_index.annotations[layer0_residual] == NodeAnnotation(
+    0, "residual", "post_mlp_residual"
+)
+assert decoder_boundary_index.annotations[deepstack_mix] == NodeAnnotation(
+    layer_index=0
+)
+
+assert all(
+    node not in decoder_boundary_index.annotations
+    for node in final_norm
+)
+
+assert decoder_boundary_index.annotations[head_matmul] == NodeAnnotation(
+    component="lm_head"
+)
+
+assert all(
+    not isinstance(
+        decoder_boundary_index.node_to_region[node],
+        LayerRegion,
+    )
+    for node in final_norm + (head_matmul,)
+)
+
+assert (
+    decoder_boundary_index.node_to_region[final_norm[0]].kind
+    is RegionKind.EPILOGUE
+)
+assert (
+    decoder_boundary_index.node_to_region[head_matmul].kind
+    is RegionKind.EPILOGUE
+)
+
+# assert decoder_boundary_index.annotations[last_residual] == NodeAnnotation(
+#     1, "residual", "post_mlp_residual"
+# )
+# assert all(
+#     decoder_boundary_index.annotations[node]
+#     == NodeAnnotation(None, "norm", "final_norm")
+#     for node in final_norm
+# )
+
+
+# assert all(
+#     decoder_boundary_index.annotations[node]
+#     == NodeAnnotation(component="lm_head")
+#     for node in head_nodes
+# )
+# assert all(
+#     not isinstance(decoder_boundary_index.node_to_region[node], LayerRegion)
+#     for node in final_norm + head_nodes
+# )
+assert decoder_boundary_index.regions[0].kind is RegionKind.PRELUDE
+assert decoder_boundary_index.regions[0].nodes == [
+    runtime_prepare0,
+    runtime_prepare1,
+]
+
+
+# Multiple directly consuming layer anchors do not provide a unique boundary.
+ambiguous_boundary_graph = Graph({}, "ambiguous_functional_boundary_test")
+ambiguous_hidden, ambiguous_side = [
+    add(
+        ambiguous_boundary_graph,
+        make_node(PlaceholderOp, name),
+        NodeType.InputNode,
+    )
+    for name in ("ambiguous_hidden", "ambiguous_side")
+]
+ambiguous_weight = add(
+    ambiguous_boundary_graph,
+    make_node(PlaceholderOp, "ambiguous_weight"),
+    NodeType.FakeNode,
+)
+_, ambiguous_residual = append_layer_exit(
+    ambiguous_boundary_graph, "ambiguous_left", 4, ambiguous_hidden
+)
+ambiguous_mix = add(ambiguous_boundary_graph, make_node(AddOp, "ambiguous_mix"))
+connect(ambiguous_residual, ambiguous_mix)
+connect(ambiguous_side, ambiguous_mix)
+ambiguous_norm = append_functional_rmsnorm(
+    ambiguous_boundary_graph, "ambiguous_norm", ambiguous_mix, ambiguous_weight
+)
+ambiguous_layer5 = add(
+    ambiguous_boundary_graph,
+    make_node(MatmulOp, "ambiguous_layer5", "layers.5.self_attn.q_proj"),
+)
+ambiguous_layer6 = add(
+    ambiguous_boundary_graph,
+    make_node(MatmulOp, "ambiguous_layer6", "layers.6.self_attn.q_proj"),
+)
+ambiguous_output = add(
+    ambiguous_boundary_graph, make_node(OutputOp, "ambiguous_output")
+)
+connect(ambiguous_norm[-1], ambiguous_layer5)
+connect(ambiguous_norm[-1], ambiguous_layer6)
+connect(ambiguous_layer5, ambiguous_output)
+connect(ambiguous_layer6, ambiguous_output)
+
+ambiguous_boundary_index = ambiguous_boundary_graph.build_structure_index()
+assert ambiguous_boundary_index.annotations[ambiguous_residual] == NodeAnnotation(
+    4, "residual", "post_mlp_residual"
+)
+assert ambiguous_mix not in ambiguous_boundary_index.annotations
+assert all(
+    node not in ambiguous_boundary_index.annotations for node in ambiguous_norm
+)
+assert not isinstance(
+    ambiguous_boundary_index.node_to_region[ambiguous_mix], LayerRegion
+)
+
 
 # An Add with only an MLP input is not sufficient residual topology.
 non_residual_graph = Graph({}, "non_residual_boundary_add_test")
