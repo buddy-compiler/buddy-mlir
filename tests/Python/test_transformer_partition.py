@@ -680,6 +680,10 @@ layer0_hidden = add(
         "blocks.0.attn.proj",
     ),
 )
+completed_skip = add(
+    boundary_graph,
+    make_node(AddOp, "completed_skip"),
+)
 layer0_mlp = add(
     boundary_graph,
     make_node(MatmulOp, "layer0_mlp", "blocks.0.mlp.down_proj"),
@@ -717,7 +721,8 @@ boundary_output = add(
     make_node(OutputOp, "boundary_output"),
 )
 connect(boundary_input, layer0_hidden)
-connect(layer0_hidden, internal_residual)
+connect(layer0_hidden, completed_skip)
+connect(completed_skip, internal_residual)
 connect(layer0_mlp, internal_residual)
 connect(internal_residual, side_module)
 connect(internal_residual, layer1_hidden)
@@ -729,6 +734,7 @@ connect(side_module, boundary_output)
 connect(main_merger, boundary_output)
 
 boundary_index = boundary_graph.build_structure_index()
+assert boundary_index.annotations[completed_skip] == NodeAnnotation(layer_index=0)
 assert boundary_index.annotations[internal_residual] == NodeAnnotation(
     layer_index=0,
     component="residual",
