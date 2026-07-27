@@ -193,9 +193,8 @@ class ModuleStructureAnalyzer:
                 or annotation.subcomponent is not None
             ):
                 annotations[op] = annotation
-        self._classify_residuals(graph, annotations)
         self._complete_layer_annotations(graph, annotations)
-        self._classify_residuals(graph, annotations, unowned_only=True)
+        self._classify_residuals(graph, annotations)
         return StructureAnalysisResult(annotations)
 
     @staticmethod
@@ -229,7 +228,6 @@ class ModuleStructureAnalyzer:
     def _classify_residuals(
         graph: Graph,
         annotations: dict[Op, NodeAnnotation],
-        unowned_only: bool = False,
     ) -> None:
         """Refine layer-local residual adds from direct topology evidence."""
 
@@ -251,8 +249,6 @@ class ModuleStructureAnalyzer:
                 continue
 
             if annotation.layer_index is None:
-                if not unowned_only:
-                    continue
                 parent_annotations = [
                     annotations[parent]
                     for parent in {
@@ -278,8 +274,6 @@ class ModuleStructureAnalyzer:
                 ):
                     continue
                 annotation = replace(annotation, layer_index=layer_index)
-            elif unowned_only:
-                continue
 
             parents = neighbor_annotations(op.parents, annotation.layer_index)
             children = neighbor_annotations(op._children, annotation.layer_index)
