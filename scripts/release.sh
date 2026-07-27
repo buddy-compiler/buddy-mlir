@@ -11,9 +11,18 @@ set -euo pipefail
 # Cli Inputs
 # -----------------------------------------------------------------------------
 
-PY_TAG="${1:?Error: Python ABI (parameter 1, format \"cp310-cp310\") is required but not set.}"
+PY_TAG="${1:?Error: Python tag (parameter 1, format \"cp312\") is required but not set.}"
 VERSION="${2:?Error: VERSION (parameter 2, format \"0.0.0\") is required but not set.}"
 TARGET_ARCH="${3:?Error: TARGET_ARCH (parameter 3, format \"x86_64|riscv64\") is required but not set.}"
+
+if [[ ! "${PY_TAG}" =~ ^cp[0-9]+$ ]]; then
+  echo "Error: Python tag must match cp312." >&2
+  exit 1
+fi
+
+PYTHON_BUILD_TAG="${PY_TAG}-${PY_TAG}"
+PYTHON_WHEEL_TAG="${PY_TAG}-abi3"
+PYTHON_CACHE_TAG="${PYTHON_WHEEL_TAG}"
 
 # -----------------------------------------------------------------------------
 # Env Inputs
@@ -172,7 +181,7 @@ else
   # Container side: build layout and exit cleanup
   # ---------------------------------------------------------------------------
 
-  ARTIFACT_SUFFIX="${PY_TAG}-${MANYLINUX_TAG}"
+  ARTIFACT_SUFFIX="${PYTHON_WHEEL_TAG}-${MANYLINUX_TAG}"
 
   cleanup_workspace_staging() {
     shopt -s globstar nullglob
@@ -186,11 +195,11 @@ else
   # Don't create __pyccache__ in tree
   export PYTHONDONTWRITEBYTECODE=1
 
-  # Note: build trees are split by arch + python tag + source hash to avoid stale CMake cache reuse.
+  # Note: build trees are split by arch + Python ABI tag + source hash to avoid stale CMake cache reuse.
   export BUDDY_BUILD_ROOT="${WORKSPACE_BUILD_DIR}/${TARGET_ARCH}"
   export LLVM_BUILD_ROOT="${WORKSPACE_BUILD_DIR}/${TARGET_ARCH}"
-  export BUDDY_BUILD_DIR="${BUDDY_BUILD_ROOT}/buddy/${PY_TAG}/${BUDDY_HASH}"
-  export LLVM_BUILD_DIR="${LLVM_BUILD_ROOT}/llvm/${PY_TAG}/${LLVM_HASH}"
+  export BUDDY_BUILD_DIR="${BUDDY_BUILD_ROOT}/buddy/${PYTHON_CACHE_TAG}/${BUDDY_HASH}"
+  export LLVM_BUILD_DIR="${LLVM_BUILD_ROOT}/llvm/${PYTHON_CACHE_TAG}/${LLVM_HASH}"
   export PYTHONPYCACHEPREFIX="${LLVM_BUILD_DIR}/.pycache"
   mkdir -p "${PYTHONPYCACHEPREFIX}"
 
@@ -204,9 +213,9 @@ else
   # manylinux stores multiple Python versions under /opt/python; PATH does not
   # select a version by default, so we choose explicitly.
   # Docs: https://github.com/pypa/manylinux#docker-images
-  PYBIN=/opt/python/${PY_TAG}/bin/python
+  PYBIN=/opt/python/${PYTHON_BUILD_TAG}/bin/python
   if [ ! -x "$PYBIN" ]; then
-    echo "Python tag ${PY_TAG} not found under /opt/python" >&2
+    echo "Python tag ${PYTHON_BUILD_TAG} not found under /opt/python" >&2
     ls /opt/python >&2
     exit 1
   fi
@@ -215,7 +224,7 @@ else
     ls -ld "${WORKSPACE_LLVM_SRC}" "${WORKSPACE_LLVM_SRC}/llvm" 2>/dev/null || true
     exit 1
   fi
-  export PATH="/opt/python/${PY_TAG}/bin:$PATH"
+  export PATH="/opt/python/${PYTHON_BUILD_TAG}/bin:$PATH"
 
   # x86_64 image uses gcc-toolset, riscv64 image uses system GCC under /usr.
   GCC_TOOLCHAIN_ROOT=""
@@ -389,6 +398,7 @@ EOF
       -DLLVM_ENABLE_ASSERTIONS=OFF \
       -DCMAKE_BUILD_TYPE=RELEASE \
       -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
+      -DMLIR_ENABLE_PYTHON_STABLE_ABI=ON \
       -DLLVM_INSTALL_UTILS=ON \
       -DPython3_EXECUTABLE="$PYBIN" \
       -DPython_EXECUTABLE="$PYBIN" \
@@ -427,7 +437,7 @@ EOF
   stage_llvm_runtime_libs_for_tests
 
   KEEP=2
-  LLVM_CACHE_DIR="${LLVM_BUILD_ROOT}/llvm/${PY_TAG}"
+  LLVM_CACHE_DIR="${LLVM_BUILD_ROOT}/llvm/${PYTHON_CACHE_TAG}"
   if [ -d "${LLVM_CACHE_DIR}" ]; then
     (
       cd "${LLVM_CACHE_DIR}"
@@ -457,6 +467,7 @@ EOF
     -DCMAKE_BUILD_TYPE=Release \
     -DBUDDY_ENABLE_TESTS=ON \
     -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
+    -DMLIR_ENABLE_PYTHON_STABLE_ABI=ON \
     -DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON \
     -DBUDDY_MLIR_ENABLE_DIP_LIB=ON \
     -DBUDDY_BUILD_DEEPSEEK_R1_MODEL=OFF \
@@ -477,8 +488,9 @@ EOF
   ${BUDDY_BUILD_DIR}/bin/buddy-opt --version
 
   export PYTHONPATH="${BUDDY_BUILD_DIR}/python_packages${PYTHONPATH:+:${PYTHONPATH}}"
+  export BUDDY_PY_LIMITED_API="${PY_TAG}"
   "$PYBIN" -m build --wheel --outdir "${ARTIFACT_DIR}" $PWD
-  auditwheel repair "${ARTIFACT_DIR}"/buddy-${BUDDY_PACKAGE_VERSION}-${PY_TAG}-linux_*.whl -w "${ARTIFACT_DIR}"
+  auditwheel repair "${ARTIFACT_DIR}"/buddy-${BUDDY_PACKAGE_VERSION}-${PYTHON_WHEEL_TAG}-linux_*.whl -w "${ARTIFACT_DIR}"
 
   BUDDY_TAR_NAME="buddy-${BUDDY_PACKAGE_VERSION}-${ARTIFACT_SUFFIX}.tar.gz"
   BUDDY_TAR_TMP="${BUDDY_BUILD_DIR}/${BUDDY_TAR_NAME}"
@@ -489,7 +501,7 @@ EOF
   # Cache pruning and final summary
   # ---------------------------------------------------------------------------
 
-  BUDDY_CACHE_DIR="${BUDDY_BUILD_ROOT}/buddy/${PY_TAG}"
+  BUDDY_CACHE_DIR="${BUDDY_BUILD_ROOT}/buddy/${PYTHON_CACHE_TAG}"
   if [ -d "${BUDDY_CACHE_DIR}" ]; then
     (
       cd "${BUDDY_CACHE_DIR}"

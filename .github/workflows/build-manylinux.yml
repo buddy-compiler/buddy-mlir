@@ -97,7 +97,7 @@ jobs:
       fail-fast: false
       matrix:
         arch: [x64, riscv64]
-        python: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+        python: ["3.12"]
         include:
           - arch: x64
             target_arch: x86_64
@@ -120,9 +120,11 @@ jobs:
           set -euo pipefail
           PY_VER="${{ matrix.python }}"
           PY_NODOT="${PY_VER//./}"
-          PY_TAG="cp${PY_NODOT}-cp${PY_NODOT}"
+          PY_TAG="cp${PY_NODOT}"
+          PY_WHEEL_TAG="${PY_TAG}-abi3"
           BUDDY_HASH="$(git rev-parse HEAD)"
           echo "py_tag=${PY_TAG}" >> "$GITHUB_OUTPUT"
+          echo "py_wheel_tag=${PY_WHEEL_TAG}" >> "$GITHUB_OUTPUT"
           echo "buddy_hash=${BUDDY_HASH}" >> "$GITHUB_OUTPUT"
           if [[ "${{ matrix.target_arch }}" == "riscv64" ]]; then
             echo "host_build_dir=/data/runner/workspace/buddy-mlir-release" >> "$GITHUB_OUTPUT"
@@ -153,18 +155,17 @@ jobs:
         run: |
           set -euo pipefail
           gh release upload "${{ needs.prepare_release.outputs.tag_name }}" \
-            ${{ steps.vars.outputs.host_build_dir }}/${{ matrix.target_arch }}/buddy/${{ steps.vars.outputs.py_tag }}/${{ steps.vars.outputs.buddy_hash }}/target/buddy-${{ needs.prepare_release.outputs.version }}-${{ steps.vars.outputs.py_tag }}-manylinux* \
-            ${{ steps.vars.outputs.host_build_dir }}/${{ matrix.target_arch }}/buddy/${{ steps.vars.outputs.py_tag }}/${{ steps.vars.outputs.buddy_hash }}/target/llvm-*-${{ steps.vars.outputs.py_tag }}-manylinux* \
+            ${{ steps.vars.outputs.host_build_dir }}/${{ matrix.target_arch }}/buddy/${{ steps.vars.outputs.py_wheel_tag }}/${{ steps.vars.outputs.buddy_hash }}/target/buddy-${{ needs.prepare_release.outputs.version }}-${{ steps.vars.outputs.py_wheel_tag }}-manylinux* \
+            ${{ steps.vars.outputs.host_build_dir }}/${{ matrix.target_arch }}/buddy/${{ steps.vars.outputs.py_wheel_tag }}/${{ steps.vars.outputs.buddy_hash }}/target/llvm-*-${{ steps.vars.outputs.py_wheel_tag }}-manylinux* \
             --clobber
 
       - name: Upload buddy-cli
-        if: ${{ (matrix.target_arch == 'x86_64' && matrix.python == '3.10') || (matrix.target_arch == 'riscv64' && matrix.python == '3.12') }}
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          BUDDY_BUILD_DIR=${{ steps.vars.outputs.host_build_dir }}/${{ matrix.target_arch }}/buddy/${{ steps.vars.outputs.py_tag }}/${{ steps.vars.outputs.buddy_hash }}
+          BUDDY_BUILD_DIR=${{ steps.vars.outputs.host_build_dir }}/${{ matrix.target_arch }}/buddy/${{ steps.vars.outputs.py_wheel_tag }}/${{ steps.vars.outputs.buddy_hash }}
           cp -a "${BUDDY_BUILD_DIR}/dist/bin/buddy-cli" "${BUDDY_BUILD_DIR}/target/buddy-cli-${{ needs.prepare_release.outputs.version }}.${{ matrix.target_arch }}"
           gh release upload "${{ needs.prepare_release.outputs.tag_name }}" \
             "${BUDDY_BUILD_DIR}/target/buddy-cli-${{ needs.prepare_release.outputs.version }}.${{ matrix.target_arch }}" \
