@@ -522,11 +522,11 @@ def _create_zero_tensor(
         num_elements *= dim
 
     # Determine element size based on type
-    if ir.FloatType.isinstance(element_type):
+    if isinstance(element_type, ir.FloatType):
         element_size = ir.FloatType(element_type).width // 8
-    elif ir.BF16Type.isinstance(element_type):
+    elif isinstance(element_type, ir.BF16Type):
         element_size = 2
-    elif ir.IntegerType.isinstance(element_type):
+    elif isinstance(element_type, ir.IntegerType):
         element_size = ir.IntegerType(element_type).width // 8
     else:
         element_size = 4  # Default to 4 bytes
@@ -536,7 +536,7 @@ def _create_zero_tensor(
 
     # For small tensors, use dense constant
     if size_mb < size_threshold_mb:
-        if ir.FloatType.isinstance(element_type) or ir.BF16Type.isinstance(
+        if isinstance(element_type, ir.FloatType) or ir.BF16Type.isinstance(
             element_type
         ):
             zero_attr = ir.FloatAttr.get(element_type, 0.0)
@@ -548,7 +548,7 @@ def _create_zero_tensor(
     # For large tensors, use tensor.empty + linalg.fill
     empty_tensor = tensor.EmptyOp(shape, element_type).result
 
-    if ir.FloatType.isinstance(element_type) or ir.BF16Type.isinstance(
+    if isinstance(element_type, ir.FloatType) or ir.BF16Type.isinstance(
         element_type
     ):
         zero_scalar = arith.ConstantOp(
@@ -3730,7 +3730,7 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
             ).result
             input_val = tosa.PadOp(padded_type, input_val, pad_constant, pad_zp)
         output_type = ir.RankedTensorType.get(out_shape, result_element_type)
-        output_conv = tensor.EmptyOp(list(out_shape), result_element_type)
+        output_conv = _create_zero_tensor(output_type)
         assert groups == 1, "only support one group"
         # Con1D Operation Without Bias
         conv_op = linalg.conv_1d_ncw_fcw(
