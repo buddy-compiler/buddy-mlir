@@ -536,10 +536,9 @@ def _create_zero_tensor(
 
     # For small tensors, use dense constant
     if size_mb < size_threshold_mb:
-        if isinstance(element_type, ir.FloatType) or ir.BF16Type.isinstance(
-            element_type
+        if isinstance(element_type, ir.FloatType) or isinstance(
+            element_type, ir.BF16Type
         ):
-            zero_attr = ir.FloatAttr.get(element_type, 0.0)
         else:
             zero_attr = ir.IntegerAttr.get(element_type, 0)
         dense_attr = ir.DenseElementsAttr.get_splat(tensor_type, zero_attr)
