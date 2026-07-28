@@ -18,18 +18,18 @@ from buddy.compiler.graph.operation import (
     AddOp,
     CallOp,
     DivOp,
-    GetItemOp,
     MulOp,
     OutputOp,
     PlaceholderOp,
     TensorConstantOp,
 )
+from buddy.compiler.graph.source_meta import SourceMeta
 from buddy.compiler.graph.transformer_partition import (
     LayerRegion,
     RegionInputKind,
     RegionInputRef,
+    RegionKind,
 )
-from buddy.compiler.graph.source_meta import SourceMeta
 from buddy.compiler.ops import func, tosa
 
 
@@ -70,6 +70,68 @@ def expect_value_error(message, callback):
 def materialization_analysis(graph):
     plan = build_transformer_partition_plan(graph)
     return plan, plan
+
+
+# A graph without recognizable Transformer metadata still takes the complete
+# template path: eligible nodes are retained in one UNKNOWN singleton unit.
+no_layer_graph = Graph(
+    {**tosa.ops_registry, **func.ops_registry}, "forward_no_layer"
+)
+no_layer_input = add(
+    no_layer_graph,
+    node(PlaceholderOp, "no_layer_input", (2, 4)),
+    NodeType.InputNode,
+)
+no_layer_first = add(no_layer_graph, node(AddOp, "no_layer_first", (2, 4)))
+no_layer_second = add(no_layer_graph, node(MulOp, "no_layer_second", (2, 4)))
+no_layer_output = add(no_layer_graph, node(OutputOp, "no_layer_output", ()))
+bind(no_layer_input, no_layer_first)
+bind(no_layer_first, no_layer_second)
+bind(no_layer_second, no_layer_output)
+
+no_layer_body_ref = no_layer_graph.body
+no_layer_body_snapshot = list(no_layer_graph.body)
+no_layer_node_table_ref = no_layer_graph.node_table
+no_layer_node_table_snapshot = list(no_layer_graph.node_table.items())
+
+no_layer_plan = build_transformer_partition_plan(no_layer_graph)
+no_layer_regions = no_layer_plan.structure_index.regions
+assert not any(isinstance(region, LayerRegion) for region in no_layer_regions)
+assert len(no_layer_regions) == 1
+no_layer_region = no_layer_regions[0]
+assert no_layer_region.kind is RegionKind.UNKNOWN
+assert no_layer_region.nodes == [no_layer_first, no_layer_second]
+assert no_layer_plan.partition_sequence == (no_layer_region,)
+assert len(no_layer_plan.templates) == 1
+no_layer_unit = no_layer_plan.templates[0]
+assert no_layer_unit.representative is no_layer_region
+assert no_layer_unit.instances == (no_layer_region,)
+assert no_layer_plan.region_to_template_id[no_layer_region] == (
+    no_layer_unit.template_id
+)
+
+no_layer_driver = TemplatePartitionedGraphDriver(no_layer_graph, no_layer_plan)
+no_layer_subgraphs = no_layer_driver.build_template_subgraphs()
+assert len(no_layer_subgraphs) == 1
+assert [
+    op.name
+    for op in no_layer_subgraphs[0].body
+    if isinstance(op, (AddOp, MulOp))
+] == [no_layer_first.name, no_layer_second.name]
+no_layer_combined = no_layer_driver.construct_template_combined_main_graph()
+assert no_layer_combined is not None
+no_layer_calls = [
+    op for op in no_layer_driver.combined_graph.body if isinstance(op, CallOp)
+]
+assert len(no_layer_calls) == 1
+assert no_layer_calls[0].call_func_name == no_layer_driver.template_symbol(
+    no_layer_unit.template_id
+)
+# The generated template call proves there was no automatic GraphDriver fallback.
+assert no_layer_graph.body is no_layer_body_ref
+assert no_layer_graph.body == no_layer_body_snapshot
+assert no_layer_graph.node_table is no_layer_node_table_ref
+assert list(no_layer_graph.node_table.items()) == no_layer_node_table_snapshot
 
 
 def single_layer_graph_with_constant():
@@ -147,9 +209,7 @@ def five_region_graph(func_name="forward_decode", output_indices=(4,)):
         NodeType.InputNode,
     )
     parameters = []
-    for index, shape in enumerate(
-        ((2, 4), (2, 4), (2, 4), (2, 4), (2, 4))
-    ):
+    for index, shape in enumerate(((2, 4), (2, 4), (2, 4), (2, 4), (2, 4))):
         parameters.append(
             add(
                 graph,
@@ -319,6 +379,45 @@ assert combined_output.args == [calls[-1].name]
 combined_text = str(combined)
 assert combined_text.count("call @subgraph0_decode1") == 3
 
+# Diagnostic mode keeps the same Region order and instance bindings while
+# assigning every Region its own function body.
+independent_plan = build_transformer_partition_plan(
+    graph, deduplicate_templates=False
+)
+assert independent_plan.partition_sequence == plan.partition_sequence
+assert len(independent_plan.templates) == len(regions) == 5
+assert [
+    independent_plan.region_to_template_id[region] for region in regions
+] == list(range(5))
+assert all(
+    unit.instances == (region,) and unit.representative is region
+    for unit, region in zip(
+        independent_plan.templates,
+        independent_plan.partition_sequence,
+        strict=True,
+    )
+)
+independent_driver = TemplatePartitionedGraphDriver(graph, independent_plan)
+independent_subgraphs = independent_driver.build_template_subgraphs()
+assert len(independent_subgraphs) == 5
+for subgraph in independent_subgraphs:
+    subgraph.lower_to_top_level_ir()
+independent_combined = (
+    independent_driver.construct_template_combined_main_graph(True)
+)
+independent_calls = [
+    op
+    for op in independent_driver.combined_graph.body
+    if isinstance(op, CallOp)
+]
+assert [call.call_func_name for call in independent_calls] == [
+    f"subgraph0_decode{index}" for index in range(5)
+]
+assert all(
+    str(independent_combined).count(f"call @subgraph0_decode{index}") == 1
+    for index in range(5)
+)
+
 
 # The graph function name is the only phase identity stored by the Driver.
 prefill_graph, prefill_parameters, prefill_region_nodes = five_region_graph(
@@ -418,9 +517,7 @@ assert default_output.args == [
     default_calls[2].name,
     default_calls[4].name,
 ]
-remap_driver.construct_template_combined_main_graph(
-    output_remap=[2, 0, 1]
-)
+remap_driver.construct_template_combined_main_graph(output_remap=[2, 0, 1])
 remapped_calls = [
     op for op in remap_driver.combined_graph.body if isinstance(op, CallOp)
 ]
@@ -453,7 +550,9 @@ expect_value_error(
 # The exporter analyzes and materializes each phase independently, then writes
 # one manifest only after both complete.
 repo_root = os.environ.get("BUDDY_SRC_ROOT", os.getcwd())
-import_model_path = os.path.join(repo_root, "tools", "buddy-codegen", "import_model.py")
+import_model_path = os.path.join(
+    repo_root, "tools", "buddy-codegen", "import_model.py"
+)
 import_model_spec = importlib.util.spec_from_file_location(
     "partitioned_graph_import_model", import_model_path
 )

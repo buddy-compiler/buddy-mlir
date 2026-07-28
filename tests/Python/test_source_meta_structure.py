@@ -47,6 +47,12 @@ class Node:
         self.meta = meta
 
 
+class GraphStub:
+    def __init__(self, body):
+        self.body = body
+        self.inputs = []
+
+
 source = extract_source_meta(
     Node(
         {
@@ -86,7 +92,11 @@ assert bad_aten_source.module_class == "builtins.int"
 assert bad_aten_source.original_aten is None
 assert extract_source_meta(BadMetaNode()) == ()
 
-for aten_name in ("aten.mean.dim", "aten.index_copy.default", "aten.add.Tensor"):
+for aten_name in (
+    "aten.mean.dim",
+    "aten.index_copy.default",
+    "aten.add.Tensor",
+):
     assert extract_source_meta(Node({"original_aten": aten_name})) == (
         SourceMeta(original_aten=aten_name),
     )
@@ -128,7 +138,7 @@ assert tie[0].module_class == f"{__name__}.SomeAttention"
 def annotation(*sources):
     op = Op()
     op._source_meta = sources
-    graph = type("GraphStub", (), {"body": [op]})()
+    graph = GraphStub([op])
     return ModuleStructureAnalyzer().analyze(graph).node_annotations.get(op)
 
 
@@ -162,11 +172,13 @@ encoder_layer_cases = {
     "bert.encoder.layer.0.attention.self": 0,
     "encoder.encoder.layer.11.output": 11,
     "model.encoder.layer.3.intermediate": 3,
+    "bert.encoder.layers.0.attention": 0,
 }
 for path, expected_layer in encoder_layer_cases.items():
-    assert annotation(SourceMeta(module_path=path)).layer_index == expected_layer
+    assert (
+        annotation(SourceMeta(module_path=path)).layer_index == expected_layer
+    )
 for path in (
-    "bert.encoder.layers.0.attention",
     "bert.encoder.layer_norm.0",
     "bert.encoder.layer.foo.attention",
     "bert.someencoder.layer.0",
@@ -186,28 +198,21 @@ assert (plain_encoder_value.component, plain_encoder_value.subcomponent) == (
     None,
 )
 
-# Multiple candidates keep the simple left-to-right, first-match behavior.
-assert (
-    annotation(
-        SourceMeta(module_path="model.layers.7.encoder.layer.3.output")
-    ).layer_index
-    == 7
-)
-assert (
-    annotation(
-        SourceMeta(module_path="encoder.layer.3.model.layers.7.mlp")
-    ).layer_index
-    == 3
-)
+# Paths containing conflicting layer candidates are ambiguous and must not
+# be assigned to either Transformer stack.
+for path in (
+    "model.layers.7.encoder.layer.3.output",
+    "encoder.layer.3.model.layers.7.mlp",
+):
+    value = annotation(SourceMeta(module_path=path))
+    assert value is None or value.layer_index is None
 
 # Structure analysis does not mutate the graph or SourceMeta containers.
 purity_op = Op()
-purity_sources = (
-    SourceMeta(module_path="bert.encoder.layer.0.output.dense"),
-)
+purity_sources = (SourceMeta(module_path="bert.encoder.layer.0.output.dense"),)
 purity_op._source_meta = purity_sources
 purity_body = [purity_op]
-purity_graph = type("GraphStub", (), {"body": purity_body})()
+purity_graph = GraphStub(purity_body)
 ModuleStructureAnalyzer().analyze(purity_graph)
 assert purity_graph.body is purity_body and purity_graph.body == [purity_op]
 assert purity_op._source_meta is purity_sources
@@ -233,7 +238,7 @@ conflict_op._source_meta = (
     SourceMeta(module_path="model.layers.0.self_attn.q_proj"),
     SourceMeta(module_path="model.layers.27.mlp.up_proj"),
 )
-conflict_graph = type("GraphStub", (), {"body": [conflict_op]})()
+conflict_graph = GraphStub([conflict_op])
 result = ModuleStructureAnalyzer().analyze(conflict_graph)
 assert conflict_op not in result.node_annotations
 subcomponent_conflict = annotation(
@@ -272,4 +277,8 @@ value = annotation(
         module_class=f"{__name__}.SomeAttention",
     )
 )
-assert (value.layer_index, value.component, value.subcomponent) == (0, "mlp", None)
+assert (value.layer_index, value.component, value.subcomponent) == (
+    0,
+    "mlp",
+    None,
+)

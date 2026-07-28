@@ -2,9 +2,12 @@
 
 # Region recognition and interface analysis tests.
 
+import copy
 import gc
+import json
 
 import buddy.compiler.graph.operation as operation_module
+import torch
 from buddy.compiler.graph.graph import Graph, NodeType
 from buddy.compiler.graph.operation import (
     AddOp,
@@ -13,6 +16,7 @@ from buddy.compiler.graph.operation import (
     MeanOp,
     MulOp,
     Op,
+    OpType,
     OutputOp,
     PlaceholderOp,
     PowOp,
@@ -20,21 +24,24 @@ from buddy.compiler.graph.operation import (
     TensorConstantOp,
     UnsqueezeOp,
 )
+from buddy.compiler.graph.source_meta import SourceMeta
+from buddy.compiler.graph.structure_analysis import (
+    GraphStructureAnalysisResult,
+    ModuleStructureAnalyzer,
+    NodeAnnotation,
+    StructureAnalysisResult,
+    parse_canonical_integer,
+    parse_indexed_path_occurrences,
+    resolve_transformer_layer_path,
+)
 from buddy.compiler.graph.transformer_partition import (
-    GraphValueRef,
     GraphRegion,
+    GraphValueRef,
     LayerRegion,
     RegionInputKind,
     RegionInputRef,
     RegionKind,
-)
-from buddy.compiler.graph.source_meta import SourceMeta
-from buddy.compiler.graph.structure_analysis import (
-    ModuleStructureAnalyzer,
-    NodeAnnotation,
-    parse_canonical_integer,
-    parse_indexed_path_occurrences,
-    resolve_transformer_layer_path,
+    build_transformer_partition_plan,
 )
 
 
@@ -75,7 +82,9 @@ assert [
     (occurrence.index, occurrence.index_position)
     for occurrence in multiple_occurrences
 ] == [(1, 2), (2, 4)]
-assert [occurrence.canonical_module_path for occurrence in multiple_occurrences] == [
+assert [
+    occurrence.canonical_module_path for occurrence in multiple_occurrences
+] == [
     "foo.layers.{L}.blocks.2.attn",
     "foo.layers.1.blocks.{L}.attn",
 ]
@@ -170,7 +179,9 @@ def root_layer_graph(container):
 
 
 for root_container in ("blocks", "layers"):
-    root_regions = root_layer_graph(root_container).build_structure_index().regions
+    root_regions = (
+        root_layer_graph(root_container).build_structure_index().regions
+    )
     assert all(isinstance(region, LayerRegion) for region in root_regions)
     assert [region.layer_index for region in root_regions] == [0, 1]
     assert [region.layer_container for region in root_regions] == [
@@ -181,8 +192,12 @@ for root_container in ("blocks", "layers"):
 
 def standard_graph():
     graph = Graph({}, "region_test")
-    graph_input = add(graph, make_node(PlaceholderOp, "input"), NodeType.InputNode)
-    parameter = add(graph, make_node(PlaceholderOp, "weight"), NodeType.FakeNode)
+    graph_input = add(
+        graph, make_node(PlaceholderOp, "input"), NodeType.InputNode
+    )
+    parameter = add(
+        graph, make_node(PlaceholderOp, "weight"), NodeType.FakeNode
+    )
     constant = add(graph, make_node(TensorConstantOp, "constant"))
     embedding = add(
         graph,
@@ -281,7 +296,9 @@ for region in index.regions:
     interface = region.interface
     assert interface.state_inputs == []
     assert interface.state_outputs == []
-    all_inputs = interface.data_inputs + interface.parameters + interface.constants
+    all_inputs = (
+        interface.data_inputs + interface.parameters + interface.constants
+    )
     assert len(all_inputs) == len({id(node) for node in all_inputs})
     assert len(interface.data_outputs) == len(
         {id(node) for node in interface.data_outputs}
@@ -317,9 +334,7 @@ assert multi_layer0.interface.ordered_outputs == [
     GraphValueRef(multi_producer, 1)
 ]
 assert multi_layer1.interface.ordered_inputs == [
-    RegionInputRef(
-        RegionInputKind.DATA, GraphValueRef(multi_producer, 1)
-    )
+    RegionInputRef(RegionInputKind.DATA, GraphValueRef(multi_producer, 1))
 ]
 
 
@@ -372,7 +387,9 @@ assert [node.name for node in layer0_region.nodes] == [
     "l0_second",
 ]
 unknown_regions = [
-    region for region in unknown_index.regions if region.kind is RegionKind.UNKNOWN
+    region
+    for region in unknown_index.regions
+    if region.kind is RegionKind.UNKNOWN
 ]
 assert [[node.name for node in region.nodes] for region in unknown_regions] == [
     ["unknown_c", "unknown_d"],
@@ -381,6 +398,159 @@ for region in unknown_regions:
     for node in region.nodes:
         assert unknown_index.annotations.get(node) is None
         assert not isinstance(unknown_index.node_to_region[node], LayerRegion)
+
+
+# Region construction is streaming: finalized boundary/layer identities never
+# reopen, while an UNKNOWN run joins only matching annotations on both sides.
+continuity_graph = Graph({}, "streaming_region_continuity")
+continuity_input = add(
+    continuity_graph,
+    make_node(PlaceholderOp, "continuity_input"),
+    NodeType.InputNode,
+)
+encoder_prepare = add(continuity_graph, make_node(CallOp, "encoder_prepare"))
+encoder_prelude = add(
+    continuity_graph,
+    make_node(AddOp, "encoder_prelude", "model.encoder.embed_tokens"),
+)
+encoder_prepare_after_anchor = add(
+    continuity_graph, make_node(CallOp, "encoder_prepare_after_anchor")
+)
+encoder_l0_first = add(
+    continuity_graph,
+    make_node(
+        MatmulOp,
+        "encoder_l0_first",
+        "model.encoder.layers.0.self_attn.q_proj",
+    ),
+)
+same_layer_unknown = add(
+    continuity_graph, make_node(CallOp, "same_layer_unknown")
+)
+encoder_l0_second = add(
+    continuity_graph,
+    make_node(
+        MatmulOp,
+        "encoder_l0_second",
+        "model.encoder.layers.0.self_attn.o_proj",
+    ),
+)
+different_layer_unknown = add(
+    continuity_graph, make_node(CallOp, "different_layer_unknown")
+)
+encoder_l1 = add(
+    continuity_graph,
+    make_node(
+        MatmulOp,
+        "encoder_l1",
+        "model.encoder.layers.1.self_attn.q_proj",
+    ),
+)
+decoder_l0 = add(
+    continuity_graph,
+    make_node(
+        MatmulOp,
+        "decoder_l0",
+        "model.decoder.layers.0.self_attn.q_proj",
+    ),
+)
+decoder_prelude_first = add(
+    continuity_graph,
+    make_node(AddOp, "decoder_prelude_first", "model.decoder.embed_tokens"),
+)
+decoder_unknown_first = add(
+    continuity_graph, make_node(CallOp, "decoder_unknown_first")
+)
+decoder_unknown_second = add(
+    continuity_graph, make_node(CallOp, "decoder_unknown_second")
+)
+decoder_prelude_second = add(
+    continuity_graph,
+    make_node(AddOp, "decoder_prelude_second", "model.decoder.embedding"),
+)
+continuity_output = add(
+    continuity_graph, make_node(OutputOp, "continuity_output")
+)
+continuity_sequence = [
+    continuity_input,
+    encoder_prepare,
+    encoder_prelude,
+    encoder_prepare_after_anchor,
+    encoder_l0_first,
+    same_layer_unknown,
+    encoder_l0_second,
+    different_layer_unknown,
+    encoder_l1,
+    decoder_l0,
+    decoder_prelude_first,
+    decoder_unknown_first,
+    decoder_unknown_second,
+    decoder_prelude_second,
+    continuity_output,
+]
+for parent, child in zip(
+    continuity_sequence[:-1], continuity_sequence[1:], strict=True
+):
+    connect(parent, child)
+
+continuity_index = continuity_graph.build_structure_index()
+assert [region.kind for region in continuity_index.regions] == [
+    RegionKind.PRELUDE,
+    RegionKind.LAYER,
+    RegionKind.UNKNOWN,
+    RegionKind.LAYER,
+    RegionKind.LAYER,
+    RegionKind.PRELUDE,
+]
+encoder_prelude_region, encoder_l0_region, transition_region = (
+    continuity_index.regions[:3]
+)
+encoder_l1_region, decoder_l0_region, decoder_prelude_region = (
+    continuity_index.regions[3:]
+)
+assert encoder_prelude_region.nodes == [
+    encoder_prepare,
+    encoder_prelude,
+    encoder_prepare_after_anchor,
+]
+assert decoder_prelude_region.nodes == [
+    decoder_prelude_first,
+    decoder_unknown_first,
+    decoder_unknown_second,
+    decoder_prelude_second,
+]
+assert encoder_prelude_region is not decoder_prelude_region
+assert encoder_l0_region.nodes == [
+    encoder_l0_first,
+    same_layer_unknown,
+    encoder_l0_second,
+]
+assert transition_region.nodes == [different_layer_unknown]
+assert encoder_l1_region.nodes == [encoder_l1]
+assert decoder_l0_region.nodes == [decoder_l0]
+assert encoder_l0_region.layer_container == "model.encoder.layers"
+assert decoder_l0_region.layer_container == "model.decoder.layers"
+assert encoder_l0_region is not decoder_l0_region
+
+continuity_positions = {
+    node: position for position, node in enumerate(continuity_graph.body)
+}
+covered_nodes = []
+previous_end = None
+for region in continuity_index.regions:
+    positions = [continuity_positions[node] for node in region.nodes]
+    assert positions == list(range(positions[0], positions[-1] + 1))
+    if previous_end is not None:
+        assert previous_end < positions[0]
+    previous_end = positions[-1]
+    covered_nodes.extend(region.nodes)
+assert covered_nodes == continuity_sequence[1:-1]
+assert len(covered_nodes) == len(set(covered_nodes))
+assert all(
+    continuity_index.node_to_region[node] is region
+    for region in continuity_index.regions
+    for node in region.nodes
+)
 
 # Completion preserves existing annotation fields, does not overwrite ownership,
 # and leaves graph-head/tail runs with only one anchor unowned.
@@ -405,9 +575,9 @@ completion_nodes = [
     ),
     add(completion_graph, make_node(AddOp, "tail_unknown")),
 ]
-completion_annotations = ModuleStructureAnalyzer().analyze(
-    completion_graph
-).node_annotations
+completion_annotations = (
+    ModuleStructureAnalyzer().analyze(completion_graph).node_annotations
+)
 annotated_unknown = completion_annotations[completion_nodes[2]]
 assert (
     annotated_unknown.layer_index,
@@ -589,9 +759,7 @@ cross_stack_add = add(
 )
 connect(cross_stack_mlp, cross_stack_add)
 connect(cross_stack_attention, cross_stack_add)
-cross_stack_residual_index = (
-    cross_stack_residual_graph.build_structure_index()
-)
+cross_stack_residual_index = cross_stack_residual_graph.build_structure_index()
 assert cross_stack_add not in cross_stack_residual_index.annotations
 assert not isinstance(
     cross_stack_residual_index.node_to_region[cross_stack_add],
@@ -621,8 +789,12 @@ op_classes = {
     for value in vars(operation_module).values()
     if isinstance(value, type) and issubclass(value, Op)
 }
-graph_ids_before = {id(value) for value in gc.get_objects() if type(value) is Graph}
-op_ids_before = {id(value) for value in gc.get_objects() if type(value) in op_classes}
+graph_ids_before = {
+    id(value) for value in gc.get_objects() if type(value) is Graph
+}
+op_ids_before = {
+    id(value) for value in gc.get_objects() if type(value) in op_classes
+}
 first_index = pure_graph.build_structure_index()
 second_index = pure_graph.build_structure_index()
 assert {
@@ -657,7 +829,9 @@ assert set(first_index.node_to_region) == {
     )
 }
 assert all(
-    node in body_snapshot for region in first_index.regions for node in region.nodes
+    node in body_snapshot
+    for region in first_index.regions
+    for node in region.nodes
 )
 
 
@@ -673,8 +847,12 @@ no_layer_embedding = add(
     make_node(AddOp, "no_layer_embedding", "model.embed_tokens"),
 )
 no_layer_unknown = add(no_layer_graph, make_node(AddOp, "no_layer_unknown"))
-no_layer_final = add(no_layer_graph, make_node(AddOp, "no_layer_final", "model.norm"))
-no_layer_head = add(no_layer_graph, make_node(MatmulOp, "no_layer_head", "lm_head"))
+no_layer_final = add(
+    no_layer_graph, make_node(AddOp, "no_layer_final", "model.norm")
+)
+no_layer_head = add(
+    no_layer_graph, make_node(MatmulOp, "no_layer_head", "lm_head")
+)
 no_layer_output = add(no_layer_graph, make_node(OutputOp, "no_layer_output"))
 no_layer_sequence = [
     no_layer_input,
@@ -684,7 +862,9 @@ no_layer_sequence = [
     no_layer_head,
     no_layer_output,
 ]
-for parent, child in zip(no_layer_sequence[:-1], no_layer_sequence[1:], strict=True):
+for parent, child in zip(
+    no_layer_sequence[:-1], no_layer_sequence[1:], strict=True
+):
     connect(parent, child)
 no_layer_index = no_layer_graph.build_structure_index()
 assert [region.kind for region in no_layer_index.regions] == [
@@ -962,9 +1142,10 @@ assert boundary_index.node_to_region[internal_residual] is next(
     for region in boundary_index.regions
     if isinstance(region, LayerRegion) and region.layer_index == 0
 )
-assert boundary_index.annotations.get(
-    side_module, NodeAnnotation()
-).layer_index is None
+assert (
+    boundary_index.annotations.get(side_module, NodeAnnotation()).layer_index
+    is None
+)
 assert not isinstance(boundary_index.node_to_region[side_module], LayerRegion)
 assert boundary_index.annotations[final_residual] == NodeAnnotation(
     layer_index=1,
@@ -977,9 +1158,10 @@ assert boundary_index.node_to_region[final_residual] is next(
     for region in boundary_index.regions
     if isinstance(region, LayerRegion) and region.layer_index == 1
 )
-assert boundary_index.annotations.get(
-    main_merger, NodeAnnotation()
-).layer_index is None
+assert (
+    boundary_index.annotations.get(main_merger, NodeAnnotation()).layer_index
+    is None
+)
 assert not isinstance(boundary_index.node_to_region[main_merger], LayerRegion)
 
 
@@ -1092,8 +1274,7 @@ assert cross_stack_norm_index.annotations[
 )
 assert cross_stack_mix not in cross_stack_norm_index.annotations
 assert all(
-    node not in cross_stack_norm_index.annotations
-    for node in cross_stack_norm
+    node not in cross_stack_norm_index.annotations for node in cross_stack_norm
 )
 
 # First-layer ownership is computed independently for each container.
@@ -1213,7 +1394,9 @@ layer1_hidden, last_residual = append_layer_exit(
 final_norm = append_functional_rmsnorm(
     decoder_boundary_graph, "output_norm", last_residual, final_weight
 )
-head_matmul = add(decoder_boundary_graph, make_node(MatmulOp, "head_mm", "lm_head"))
+head_matmul = add(
+    decoder_boundary_graph, make_node(MatmulOp, "head_mm", "lm_head")
+)
 decoder_boundary_output = add(
     decoder_boundary_graph, make_node(OutputOp, "decoder_output")
 )
@@ -1249,8 +1432,7 @@ assert decoder_boundary_index.annotations[deepstack_mix] == NodeAnnotation(
 )
 
 assert all(
-    node not in decoder_boundary_index.annotations
-    for node in final_norm
+    node not in decoder_boundary_index.annotations for node in final_norm
 )
 
 assert decoder_boundary_index.annotations[head_matmul] == NodeAnnotation(
@@ -1267,7 +1449,7 @@ assert all(
 
 assert (
     decoder_boundary_index.node_to_region[final_norm[0]].kind
-    is RegionKind.EPILOGUE
+    is RegionKind.UNKNOWN
 )
 assert (
     decoder_boundary_index.node_to_region[head_matmul].kind
@@ -1293,7 +1475,7 @@ assert (
 #     not isinstance(decoder_boundary_index.node_to_region[node], LayerRegion)
 #     for node in final_norm + head_nodes
 # )
-assert decoder_boundary_index.regions[0].kind is RegionKind.PRELUDE
+assert decoder_boundary_index.regions[0].kind is RegionKind.UNKNOWN
 assert decoder_boundary_index.regions[0].nodes == [
     runtime_prepare0,
     runtime_prepare1,
@@ -1341,7 +1523,9 @@ connect(ambiguous_layer5, ambiguous_output)
 connect(ambiguous_layer6, ambiguous_output)
 
 ambiguous_boundary_index = ambiguous_boundary_graph.build_structure_index()
-assert ambiguous_boundary_index.annotations[ambiguous_residual] == NodeAnnotation(
+assert ambiguous_boundary_index.annotations[
+    ambiguous_residual
+] == NodeAnnotation(
     4,
     "residual",
     "post_mlp_residual",
@@ -1387,35 +1571,6 @@ assert not isinstance(
 
 
 # Template fingerprint and grouping analysis tests.
-
-import copy
-import gc
-import json
-
-import buddy.compiler.graph.operation as operation_module
-import torch
-from buddy.compiler.graph.graph import Graph, NodeType
-from buddy.compiler.graph.operation import (
-    AddOp,
-    CallOp,
-    MatmulOp,
-    Op,
-    OpType,
-    OutputOp,
-    PlaceholderOp,
-)
-from buddy.compiler.graph.transformer_partition import (
-    LayerRegion,
-    RegionInputKind,
-    RegionKind,
-    build_transformer_partition_plan,
-)
-from buddy.compiler.graph.source_meta import SourceMeta
-from buddy.compiler.graph.structure_analysis import (
-    GraphStructureAnalysisResult,
-    ModuleStructureAnalyzer,
-    StructureAnalysisResult,
-)
 
 
 def node(cls, name, path=None, aten=None, shape=(2, 4), dtype=torch.float32):
@@ -1489,7 +1644,9 @@ def three_identical_layers():
 graph, layer_nodes = three_identical_layers()
 result = graph.analyze_structure(True)
 assert isinstance(result, GraphStructureAnalysisResult)
-assert isinstance(ModuleStructureAnalyzer().analyze(graph), StructureAnalysisResult)
+assert isinstance(
+    ModuleStructureAnalyzer().analyze(graph), StructureAnalysisResult
+)
 template_index = result.template_index
 layers = sorted(
     (
@@ -1511,7 +1668,10 @@ assert len({fingerprint.digest for fingerprint in fingerprints}) == 1
 assert all(fingerprint is fingerprints[0] for fingerprint in fingerprints)
 assert group.fingerprint is fingerprints[0]
 assert isinstance(group.canonical_form, bytes) and group.canonical_form
-assert sum(1 for item in template_index.template_groups if item.canonical_form) == 1
+assert (
+    sum(1 for item in template_index.template_groups if item.canonical_form)
+    == 1
+)
 group_canonical = json.loads(group.canonical_form)
 assert all(
     "argument_result_indices" not in item["attributes"]
@@ -1524,7 +1684,9 @@ def deepseek_like_28_layer_graph():
     graph_input = add(graph, node(PlaceholderOp, "tokens"), NodeType.InputNode)
     embedding = add(
         graph,
-        node(AddOp, "embedding", "model.embed_tokens", "aten.embedding.default"),
+        node(
+            AddOp, "embedding", "model.embed_tokens", "aten.embedding.default"
+        ),
     )
     bind(graph_input, embedding)
     previous = embedding
@@ -1588,9 +1750,9 @@ deepseek_group = deepseek_plan.template_index.template_groups[0]
 assert deepseek_group.representative is deepseek_layers[0]
 assert deepseek_group.instances == deepseek_layers
 assert deepseek_plan.template_index.non_reusable_regions == []
-assert [deepseek_plan.region_to_template_id[region] for region in deepseek_layers] == [
-    1
-] * 28
+assert [
+    deepseek_plan.region_to_template_id[region] for region in deepseek_layers
+] == [1] * 28
 assert [
     tuple(input_ref.kind for input_ref in binding.ordered_inputs)
     for binding in deepseek_plan.instance_bindings[1:-1]
@@ -1644,9 +1806,7 @@ assert kwargs_group.fingerprint.summary.data_input_count == 1
 def single_layer(variant=None):
     graph = Graph({}, f"single_{variant}")
     graph_input = add(graph, node(PlaceholderOp, "input"), NodeType.InputNode)
-    parameter0 = add(
-        graph, node(PlaceholderOp, "weight0"), NodeType.FakeNode
-    )
+    parameter0 = add(graph, node(PlaceholderOp, "weight0"), NodeType.FakeNode)
     parameter1 = None
     if variant == "parameter_count":
         parameter1 = add(
@@ -1732,15 +1892,21 @@ for difference in (
     "parameter_count",
     "output_count",
 ):
-    assert fingerprint(single_layer(difference)).digest != base_digest, difference
+    assert fingerprint(single_layer(difference)).digest != base_digest, (
+        difference
+    )
 
 for ignored_field in ("newshape", "op_type_classification"):
-    assert fingerprint(single_layer(ignored_field)).digest == base_digest, ignored_field
+    assert fingerprint(single_layer(ignored_field)).digest == base_digest, (
+        ignored_field
+    )
 
 
 def call_graph(callee, argument_result_index):
     graph = Graph({}, "call_template")
-    graph_input = add(graph, node(PlaceholderOp, "call_input"), NodeType.InputNode)
+    graph_input = add(
+        graph, node(PlaceholderOp, "call_input"), NodeType.InputNode
+    )
     call = add(
         graph,
         node(CallOp, "call", "model.layers.0.mlp", "aten.add.Tensor"),
@@ -1765,7 +1931,9 @@ unique_template = unique_result.template_index
 unique_layer = next(iter(unique_template.region_fingerprints))
 assert unique_template.template_groups == []
 assert unique_template.non_reusable_regions == [unique_layer]
-assert not hasattr(unique_template.region_fingerprints[unique_layer], "canonical_form")
+assert not hasattr(
+    unique_template.region_fingerprints[unique_layer], "canonical_form"
+)
 
 
 # Prelude, epilogue, and unknown regions are structurally indexed but excluded.
@@ -1773,9 +1941,7 @@ excluded_graph = Graph({}, "excluded_regions")
 excluded_input = add(
     excluded_graph, node(PlaceholderOp, "excluded_input"), NodeType.InputNode
 )
-embedding = add(
-    excluded_graph, node(AddOp, "embedding", "model.embed_tokens")
-)
+embedding = add(excluded_graph, node(AddOp, "embedding", "model.embed_tokens"))
 layer_node = add(
     excluded_graph,
     node(MatmulOp, "layer", "model.layers.0.self_attn.q_proj"),
@@ -1789,8 +1955,24 @@ final_norm = add(excluded_graph, node(AddOp, "norm", "model.norm"))
 head = add(excluded_graph, node(MatmulOp, "head", "lm_head"))
 excluded_output = add(excluded_graph, node(OutputOp, "excluded_output"))
 for parent, child in zip(
-    [excluded_input, embedding, layer_node, unknown, layer_node_1, final_norm, head],
-    [embedding, layer_node, unknown, layer_node_1, final_norm, head, excluded_output],
+    [
+        excluded_input,
+        embedding,
+        layer_node,
+        unknown,
+        layer_node_1,
+        final_norm,
+        head,
+    ],
+    [
+        embedding,
+        layer_node,
+        unknown,
+        layer_node_1,
+        final_norm,
+        head,
+        excluded_output,
+    ],
     strict=True,
 ):
     bind(parent, child)
@@ -1816,7 +1998,11 @@ class OpaqueLiteral:
 
 def layer_regions(result):
     return sorted(
-        (r for r in result.structure_index.regions if isinstance(r, LayerRegion)),
+        (
+            r
+            for r in result.structure_index.regions
+            if isinstance(r, LayerRegion)
+        ),
         key=lambda r: r.layer_index,
     )
 
@@ -1859,12 +2045,17 @@ for normalized_path_format in (
     normalized_result = two_source_normalization_layers(normalized_path_format)
     normalized_layers = layer_regions(normalized_result)
     assert [region.layer_index for region in normalized_layers] == [0, 1]
-    assert len(
-        {
-            normalized_result.template_index.region_fingerprints[region].digest
-            for region in normalized_layers
-        }
-    ) == 1
+    assert (
+        len(
+            {
+                normalized_result.template_index.region_fingerprints[
+                    region
+                ].digest
+                for region in normalized_layers
+            }
+        )
+        == 1
+    )
 
 # An unaccepted indexed source is preserved even when another SourceMeta puts
 # the Op in a LayerRegion; its differing number remains fingerprint-visible.
@@ -1873,12 +2064,15 @@ deepstack_result = two_source_normalization_layers(
     "deepstack_merger_list.{}.norm",
 )
 deepstack_layers = layer_regions(deepstack_result)
-assert len(
-    {
-        deepstack_result.template_index.region_fingerprints[region].digest
-        for region in deepstack_layers
-    }
-) == 2
+assert (
+    len(
+        {
+            deepstack_result.template_index.region_fingerprints[region].digest
+            for region in deepstack_layers
+        }
+    )
+    == 2
+)
 assert deepstack_result.template_index.template_groups == []
 
 
@@ -1926,11 +2120,13 @@ assert (
 )
 assert encoder_template.non_reusable_regions == []
 assert len(encoder_template.template_groups) == 1
-assert encoder_template.template_groups[0].instances == encoder_layers    
+assert encoder_template.template_groups[0].instances == encoder_layers
 
 
 mixed_graph = Graph({}, "opaque_and_reusable")
-mixed_input = add(mixed_graph, node(PlaceholderOp, "mixed_input"), NodeType.InputNode)
+mixed_input = add(
+    mixed_graph, node(PlaceholderOp, "mixed_input"), NodeType.InputNode
+)
 for layer_index, literal in enumerate((OpaqueLiteral(), 1.0, 1.0)):
     mixed_node = add(
         mixed_graph,
@@ -1938,7 +2134,9 @@ for layer_index, literal in enumerate((OpaqueLiteral(), 1.0, 1.0)):
     )
     bind(mixed_input, mixed_node)
     mixed_node.add_argument(literal)
-    bind(mixed_node, add(mixed_graph, node(OutputOp, f"mixed_out_{layer_index}")))
+    bind(
+        mixed_node, add(mixed_graph, node(OutputOp, f"mixed_out_{layer_index}"))
+    )
 mixed_result = mixed_graph.analyze_structure(True)
 mixed_layers = layer_regions(mixed_result)
 mixed_template = mixed_result.template_index
@@ -1951,7 +2149,9 @@ assert mixed_template.template_groups[0].instances == mixed_layers[1:]
 # Dict items are ordered before operand slot assignment, and list pairs allow
 # internal _NodeRef values to resolve into JSON-native ["node", local_id].
 dict_graph = Graph({}, "dict_internal_reference")
-dict_input = add(dict_graph, node(PlaceholderOp, "dict_input"), NodeType.InputNode)
+dict_input = add(
+    dict_graph, node(PlaceholderOp, "dict_input"), NodeType.InputNode
+)
 for layer_index in range(2):
     producer = add(
         dict_graph,
@@ -1974,7 +2174,9 @@ for layer_index in range(2):
     bind(dict_input, producer)
     bind(producer, consumer, argument=False)
     pairs = [("external", dict_input.name), ("internal", producer.name)]
-    consumer.kwargs["operands"] = dict(reversed(pairs) if layer_index else pairs)
+    consumer.kwargs["operands"] = dict(
+        reversed(pairs) if layer_index else pairs
+    )
     bind(consumer, add(dict_graph, node(OutputOp, f"dict_out_{layer_index}")))
 dict_result = dict_graph.analyze_structure(True)
 dict_layers = layer_regions(dict_result)
@@ -1999,7 +2201,10 @@ assert first_result.structure_index is second_result.structure_index
 assert first_result.template_index is second_result.template_index
 assert cached_graph.structure_index is first_result.structure_index
 assert cached_graph.template_index is first_result.template_index
-assert cached_graph.analyze_structure(False).template_index is first_result.template_index
+assert (
+    cached_graph.analyze_structure(False).template_index
+    is first_result.template_index
+)
 assert [
     group.fingerprint.digest
     for group in first_result.template_index.template_groups
@@ -2063,8 +2268,12 @@ op_classes = {
 graph_ids = {id(value) for value in gc.get_objects() if type(value) is Graph}
 op_ids = {id(value) for value in gc.get_objects() if type(value) in op_classes}
 pure_graph.analyze_structure(True)
-assert {id(value) for value in gc.get_objects() if type(value) is Graph} == graph_ids
-assert {id(value) for value in gc.get_objects() if type(value) in op_classes} == op_ids
+assert {
+    id(value) for value in gc.get_objects() if type(value) is Graph
+} == graph_ids
+assert {
+    id(value) for value in gc.get_objects() if type(value) in op_classes
+} == op_ids
 assert pure_graph.body is body_ref and pure_graph.body == body_snapshot
 assert all(
     actual is expected

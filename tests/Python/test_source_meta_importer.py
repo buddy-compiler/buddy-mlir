@@ -2,13 +2,12 @@
 
 import operator
 
-import torch
-from torch.fx import symbolic_trace
-from torch.fx.passes.shape_prop import ShapeProp
-
 import buddy.compiler.frontend as frontend
+import torch
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.graph.source_meta import SourceMeta, extract_source_meta
+from torch.fx import symbolic_trace
+from torch.fx.passes.shape_prop import ShapeProp
 
 
 def import_fx(graph_module, *inputs):
@@ -114,9 +113,7 @@ getitem_fx = next(
     if node.op == "call_function" and node.target is operator.getitem
 )
 getitem_source = extract_source_meta(getitem_fx)
-assert getitem_source == (
-    SourceMeta("block", f"{__name__}.GetItemLeaf", None),
-)
+assert getitem_source == (SourceMeta("block", f"{__name__}.GetItemLeaf", None),)
 getitem_graph = import_fx(getitem_gm, value)
 assert getitem_graph.node_table[getitem_fx.name]._source_meta == getitem_source
 
@@ -137,7 +134,11 @@ operand_kwargs = {
 }
 operand_compiler = DynamoCompiler()
 operand_node = operand_compiler._create_node(
-    "add.Tensor", "nested_operands", operand_args, [], node_kwargs=operand_kwargs
+    "add.Tensor",
+    "nested_operands",
+    operand_args,
+    [],
+    node_kwargs=operand_kwargs,
 )
 assert operand_node.args == [
     ["operand_lhs", ("operand_rhs", {"value": "operand_lhs"})],
