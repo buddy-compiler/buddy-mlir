@@ -20,11 +20,11 @@
 #
 # ===---------------------------------------------------------------------------
 
+
 from .. import Graph
 from ..operation import *
-from ..type import TensorDType
 from ..source_meta import merge_source_meta
-import torch
+from ..type import TensorDType
 
 
 def eliminate_matmul_transpose_reshape(graph: Graph):
@@ -294,7 +294,10 @@ def eliminate_matmul_transpose_reshape(graph: Graph):
             absorbed = [transpose_node, *(node for _, node in skipped_nodes)]
             body_order = {op: index for index, op in enumerate(graph.body)}
             new_reshape_node._source_meta = merge_source_meta(
-                *(op._source_meta for op in sorted(absorbed, key=body_order.get))
+                *(
+                    op._source_meta
+                    for op in sorted(absorbed, key=body_order.get)
+                )
             )
             # _op_type is already set to OpType.ReshapeType by ReshapeOp constructor
             new_reshape_node._parents = [input_node_name]
@@ -402,7 +405,10 @@ def eliminate_matmul_transpose_reshape(graph: Graph):
             ]
             body_order = {op: index for index, op in enumerate(graph.body)}
             new_reshape_node._source_meta = merge_source_meta(
-                *(op._source_meta for op in sorted(absorbed, key=body_order.get))
+                *(
+                    op._source_meta
+                    for op in sorted(absorbed, key=body_order.get)
+                )
             )
 
             # Update children to point to new node
@@ -433,7 +439,10 @@ def eliminate_matmul_transpose_reshape(graph: Graph):
             ]
             body_order = {op: index for index, op in enumerate(graph.body)}
             reshape_node._source_meta = merge_source_meta(
-                *(op._source_meta for op in sorted(absorbed, key=body_order.get))
+                *(
+                    op._source_meta
+                    for op in sorted(absorbed, key=body_order.get)
+                )
             )
             # For ReshapeOp/ViewOp, just update the input
             if len(reshape_node.args) > 0:

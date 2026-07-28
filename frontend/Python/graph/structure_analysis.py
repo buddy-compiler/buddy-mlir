@@ -68,7 +68,9 @@ def _class_component(module_class: str | None) -> str | None:
     if not module_class:
         return None
     name = module_class.rsplit(".", 1)[-1]
-    if name in ("RMSNorm", "LayerNorm") or name.endswith(("RMSNorm", "LayerNorm")):
+    if name in ("RMSNorm", "LayerNorm") or name.endswith(
+        ("RMSNorm", "LayerNorm")
+    ):
         return "norm"
     if name == "Attention" or name.endswith("Attention"):
         return "attention"
@@ -124,10 +126,9 @@ def resolve_transformer_layer_path(
             "layers",
             "blocks",
         )
-        known_encoder_path = (
-            position >= 2
-            and tokens[position - 2 : position] == ["encoder", "layer"]
-        )
+        known_encoder_path = position >= 2 and tokens[
+            position - 2 : position
+        ] == ["encoder", "layer"]
         if known_container or known_encoder_path:
             matches.append(
                 LayerPathResolution(
@@ -174,6 +175,7 @@ def _direct_nodes(graph: Graph, names) -> set[Op]:
         if (node := graph.node_table.get(name)) is not None
     }
 
+
 def _single_direct_node(graph: Graph, names, op_type=None):
     names = tuple(names)
     if len(names) != 1:
@@ -200,10 +202,10 @@ def _match_rmsnorm_chain(graph: Graph, power: PowOp):
     if rsqrt is None:
         return None
     inner_mul = _single_direct_node(graph, rsqrt._children, MulOp)
-    if (
-        inner_mul is None
-        or _direct_nodes(graph, inner_mul.parents) != {root, rsqrt}
-    ):
+    if inner_mul is None or _direct_nodes(graph, inner_mul.parents) != {
+        root,
+        rsqrt,
+    }:
         return None
     outer_mul = _single_direct_node(graph, inner_mul._children, MulOp)
     if (
@@ -347,10 +349,7 @@ class ModuleStructureAnalyzer:
         for name in names:
             neighbor = graph.node_table.get(name)
             annotation = annotations.get(neighbor)
-            if (
-                annotation is not None
-                and _layer_key(annotation) == layer_key
-            ):
+            if annotation is not None and _layer_key(annotation) == layer_key:
                 result.append(annotation)
         return result
 
@@ -373,8 +372,7 @@ class ModuleStructureAnalyzer:
             mlp_layer_keys = {
                 _layer_key(parent)
                 for parent in parent_annotations
-                if _layer_key(parent) is not None
-                and parent.component == "mlp"
+                if _layer_key(parent) is not None and parent.component == "mlp"
             }
             if len(mlp_layer_keys) == 1:
                 layer_container, layer_index = next(iter(mlp_layer_keys))
@@ -413,13 +411,10 @@ class ModuleStructureAnalyzer:
                 annotation.layer_resolutions,
                 annotation.layer_container,
             )
-        elif (
-            any(parent.component == "attention" for parent in parents)
-            and any(
-                child.component == "norm"
-                and child.subcomponent == "post_attention_layernorm"
-                for child in children
-            )
+        elif any(parent.component == "attention" for parent in parents) and any(
+            child.component == "norm"
+            and child.subcomponent == "post_attention_layernorm"
+            for child in children
         ):
             annotations[op] = NodeAnnotation(
                 annotation.layer_index,
@@ -451,9 +446,7 @@ class ModuleStructureAnalyzer:
         child_layer_keys = {
             _layer_key(child_annotation)
             for child in _direct_nodes(graph, norm_output._children)
-            if (
-                child_annotation := annotations.get(child)
-            ) is not None
+            if (child_annotation := annotations.get(child)) is not None
             and _layer_key(child_annotation) is not None
         }
         if len(child_layer_keys) != 1:
@@ -470,37 +463,26 @@ class ModuleStructureAnalyzer:
             _layer_key(root_annotation) is not None
             and root_annotation.layer_container == child_container
             and child_layer == root_annotation.layer_index + 1
-        ):
-            target_layer_key = child_layer_key
-        elif (
+        ) or (
             root in graph_inputs
-            and child_layer
-            == first_layer_by_container.get(child_container)
+            and child_layer == first_layer_by_container.get(child_container)
         ):
             target_layer_key = child_layer_key
-        elif (
-            isinstance(root, AddOp)
-            and root_annotation.layer_index is None
-        ):
+        elif isinstance(root, AddOp) and root_annotation.layer_index is None:
             root_parents = _direct_nodes(graph, root.parents)
             residual_parents = [
                 parent
                 for parent in root_parents
-                if (
-                    parent_annotation := annotations.get(parent)
-                ) is not None
+                if (parent_annotation := annotations.get(parent)) is not None
                 and _layer_key(parent_annotation)
                 == (child_container, child_layer - 1)
                 and parent_annotation.component == "residual"
-                and parent_annotation.subcomponent
-                == "post_mlp_residual"
+                and parent_annotation.subcomponent == "post_mlp_residual"
             ]
             if (
                 len(root_parents) == 2
                 and len(residual_parents) == 1
-                and next(
-                    iter(root_parents - {residual_parents[0]})
-                )
+                and next(iter(root_parents - {residual_parents[0]}))
                 in graph_inputs
             ):
                 annotations[root] = replace(

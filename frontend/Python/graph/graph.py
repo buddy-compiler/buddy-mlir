@@ -184,8 +184,8 @@ class Graph:
         self.op_groups: dict[str, list[Op]] = {}
         self.group_map_device: dict[str, DeviceType] = {}
         self._enable_external_calls = enable_external_calls
-        self._structure_index: "GraphStructureIndex | None" = None
-        self._template_index: "TemplateIndex | None" = None
+        self._structure_index: GraphStructureIndex | None = None
+        self._template_index: TemplateIndex | None = None
 
     @property
     def structure_index(self) -> "GraphStructureIndex | None":
@@ -216,7 +216,9 @@ class Graph:
         elif enable_template_recognition and self._template_index is None:
             from .transformer_partition import build_template_index
 
-            self._template_index = build_template_index(self, self._structure_index)
+            self._template_index = build_template_index(
+                self, self._structure_index
+            )
 
         return GraphStructureAnalysisResult(
             structure_index=self._structure_index,

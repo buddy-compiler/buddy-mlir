@@ -28,7 +28,6 @@ import ctypes.util
 import operator
 import os
 import platform
-import sys
 from pathlib import Path
 from typing import Any
 

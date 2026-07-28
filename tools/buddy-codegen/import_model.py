@@ -224,9 +224,7 @@ def compile_and_export_tiered_graphs(
     export_template_partitioned: bool = False,
 ):
     """Generate one prefill/decode pair for every configured KV cache size."""
-    export_partitioned = (
-        export_layer_partitioned or export_template_partitioned
-    )
+    export_partitioned = export_layer_partitioned or export_template_partitioned
     cache_sizes = tiered_cache_sizes(config)
     if not cache_sizes:
         raise ValueError("tiered_kv_cache.enabled requires cache_sizes")
@@ -312,9 +310,7 @@ def compile_and_export_tiered_graphs(
             subgraphs = driver.build_template_subgraphs()
             for subgraph in subgraphs:
                 subgraph.lower_to_top_level_ir()
-            for unit, subgraph in zip(
-                plan.templates, subgraphs, strict=True
-            ):
+            for unit, subgraph in zip(plan.templates, subgraphs, strict=True):
                 files[f"{driver.template_symbol(unit.template_id)}.mlir"] = (
                     subgraph._imported_module
                 )
@@ -426,9 +422,7 @@ def compile_and_export_tiered_graphs(
             subgraphs = driver.build_template_subgraphs()
             for subgraph in subgraphs:
                 subgraph.lower_to_top_level_ir()
-            for unit, subgraph in zip(
-                plan.templates, subgraphs, strict=True
-            ):
+            for unit, subgraph in zip(plan.templates, subgraphs, strict=True):
                 files[f"{driver.template_symbol(unit.template_id)}.mlir"] = (
                     subgraph._imported_module
                 )
@@ -708,9 +702,7 @@ def export_template_partitioned_mlir(
 ) -> dict[str, int | bool]:
     """Export unique prefill/decode templates and complete static wrappers."""
     prefill_plan = build_transformer_partition_plan(graph_prefill)
-    prefill_driver = TemplatePartitionedGraphDriver(
-        graph_prefill, prefill_plan
-    )
+    prefill_driver = TemplatePartitionedGraphDriver(graph_prefill, prefill_plan)
     prefill_subgraphs = prefill_driver.build_template_subgraphs()
     if len(prefill_plan.templates) != len(prefill_subgraphs):
         raise ValueError(

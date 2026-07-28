@@ -1,9 +1,10 @@
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass
-import re
 
-
-_ATEN_NAME = re.compile(r"aten\.[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*\Z")
+_ATEN_NAME = re.compile(
+    r"aten\.[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*\Z"
+)
 
 
 @dataclass(frozen=True)

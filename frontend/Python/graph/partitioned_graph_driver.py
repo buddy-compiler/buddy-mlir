@@ -1457,9 +1457,7 @@ class TemplatePartitionedGraphDriver:
                 ) from error
         if isinstance(value, list):
             rewritten = [
-                self._rewrite_operand(
-                    item, result_index, bindings, local_nodes
-                )
+                self._rewrite_operand(item, result_index, bindings, local_nodes)
                 for item in value
             ]
             return [item for item, _ in rewritten], any(
@@ -1467,9 +1465,7 @@ class TemplatePartitionedGraphDriver:
             )
         if isinstance(value, tuple):
             rewritten = [
-                self._rewrite_operand(
-                    item, result_index, bindings, local_nodes
-                )
+                self._rewrite_operand(item, result_index, bindings, local_nodes)
                 for item in value
             ]
             return tuple(item for item, _ in rewritten), any(
@@ -1691,9 +1687,7 @@ class TemplatePartitionedGraphDriver:
             try:
                 unit = units[binding.template_id]
             except KeyError as error:
-                raise KeyError(
-                    "Region has no materialized template"
-                ) from error
+                raise KeyError("Region has no materialized template") from error
             call = CallOp()
             call.name = f"template_call{call_index}"
             call.call_func_name = self.template_symbol(binding.template_id)
@@ -1739,8 +1733,7 @@ class TemplatePartitionedGraphDriver:
             ]
             if len(call_results) != len(binding.ordered_outputs):
                 raise ValueError(
-                    f"template {binding.template_id} call result count "
-                    "mismatch"
+                    f"template {binding.template_id} call result count mismatch"
                 )
             main_graph.add_node(call)
             self.register_outputs(binding, call_results, value_map)
@@ -1758,9 +1751,7 @@ class TemplatePartitionedGraphDriver:
             body_positions = {
                 op: index for index, op in enumerate(self._graph.body)
             }
-            final_outputs.sort(
-                key=lambda value: body_positions[value.op]
-            )  
+            final_outputs.sort(key=lambda value: body_positions[value.op])
         resolved_outputs = []
         for value in final_outputs:
             if value.op in self._plan.parameter_indices:
@@ -1789,7 +1780,9 @@ class TemplatePartitionedGraphDriver:
                 index < 0 or index >= len(resolved_outputs)
                 for index in output_remap
             ):
-                raise ValueError("output_remap contains an invalid output index")
+                raise ValueError(
+                    "output_remap contains an invalid output index"
+                )
             resolved_outputs = [
                 resolved_outputs[index] for index in output_remap
             ]

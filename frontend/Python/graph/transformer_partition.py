@@ -112,10 +112,14 @@ def _stable_operand_dict_key(value) -> tuple[str, str]:
 
 
 def _operand_dict_items(value: dict):
-    return sorted(value.items(), key=lambda item: _stable_operand_dict_key(item[0]))
+    return sorted(
+        value.items(), key=lambda item: _stable_operand_dict_key(item[0])
+    )
 
 
-def _resolve_operand_node_reference(value, node_table: dict[str, Op]) -> Op | None:
+def _resolve_operand_node_reference(
+    value, node_table: dict[str, Op]
+) -> Op | None:
     if isinstance(value, str):
         return node_table.get(value)
     return None
@@ -145,7 +149,9 @@ def _iter_operand_value_references(
 
 def iter_op_input_references(op: Op, node_table: dict[str, Op]):
     for index, value in enumerate(op.args):
-        result_index = op._args_index[index] if index < len(op._args_index) else 0
+        result_index = (
+            op._args_index[index] if index < len(op._args_index) else 0
+        )
         yield from _iter_operand_value_references(
             value, node_table, result_index
         )
@@ -157,119 +163,133 @@ def iter_op_input_references(op: Op, node_table: dict[str, Op]):
 class RegionBuilder:
     """Build a deterministic structural index without mutating its graph."""
 
-    def __init__(self, graph: "Graph") -> None:
+    def __init__(self, graph: Graph) -> None:
         self._graph = graph
 
     def build(
-        self, template_recognizer: "TemplateRecognizer | None" = None
+        self, template_recognizer: TemplateRecognizer | None = None
     ) -> GraphStructureIndex:
         graph = self._graph
         analyzer = ModuleStructureAnalyzer()
         annotations = analyzer.analyze(graph).node_annotations
         body_positions: dict[Op, int] = {}
         body_nodes: set[Op] = set()
-        eligible: list[Op] = []
-        layer_nodes: dict[tuple[str | None, int], list[Op]] = {}
-        prelude_nodes: list[Op] = []
-        epilogue_nodes: list[Op] = []
-        unassigned: list[tuple[int, Op]] = []
+        eligible_set: set[Op] = set()
         params = set(graph.params)
         excluded = set(graph.inputs) | params
 
+        regions: list[GraphRegion] = []
+        node_to_region: dict[Op, GraphRegion] = {}
+        current_region: GraphRegion | None = None
+        current_identity: tuple[Any, ...] | None = None
+        pending_unknown_ops: list[Op] = []
+        seen_layer = False
+
+        def append_node(region: GraphRegion, op: Op) -> None:
+            region.nodes.append(op)
+            if not isinstance(region, LayerRegion):
+                return
+            annotation = annotations.get(op, NodeAnnotation())
+            if annotation.component is not None:
+                region.component_nodes.setdefault(
+                    annotation.component, []
+                ).append(op)
+            if annotation.subcomponent is not None:
+                region.subcomponent_nodes.setdefault(
+                    annotation.subcomponent, []
+                ).append(op)
+
+        def finish_current_region() -> None:
+            nonlocal current_region, current_identity
+            if current_region is None:
+                return
+            self._assign(current_region, node_to_region)
+            regions.append(current_region)
+            current_region = None
+            current_identity = None
+
+        def finish_pending_unknown() -> None:
+            if not pending_unknown_ops:
+                return
+            region = GraphRegion(RegionKind.UNKNOWN, list(pending_unknown_ops))
+            self._assign(region, node_to_region)
+            regions.append(region)
+            pending_unknown_ops.clear()
+
         # Classifications are already complete, including topology refinements.
-        # Retain enough ordered buckets to construct regions in one traversal.
+        # Build Regions as a forward-only stream so a finalized identity is
+        # never reopened later in graph.body.
         for position, op in enumerate(graph.body):
             body_positions[op] = position
             body_nodes.add(op)
             annotation = annotations.get(op, NodeAnnotation())
             if op in excluded or isinstance(op, (TensorConstantOp, OutputOp)):
                 continue
-            eligible.append(op)
+            eligible_set.add(op)
+
             if annotation.layer_index is not None:
-                layer_nodes.setdefault(_layer_key(annotation), []).append(op)
+                layer_container, layer_index = _layer_key(annotation)
+                identity = (RegionKind.LAYER, layer_container, layer_index)
             elif annotation.component == "embedding":
-                prelude_nodes.append(op)
+                identity = (RegionKind.PRELUDE,)
             elif (
                 annotation.component == "lm_head"
                 or annotation.subcomponent == "final_norm"
             ):
-                epilogue_nodes.append(op)
+                identity = (RegionKind.EPILOGUE,)
             else:
-                unassigned.append((position, op))
+                pending_unknown_ops.append(op)
+                continue
 
-        eligible_set = set(eligible)
+            if (
+                current_region is None
+                and identity == (RegionKind.PRELUDE,)
+                and pending_unknown_ops
+                and not seen_layer
+            ):
+                current_identity = identity
+                current_region = GraphRegion(RegionKind.PRELUDE, [])
+                for pending_op in pending_unknown_ops:
+                    append_node(current_region, pending_op)
+                pending_unknown_ops.clear()
+                append_node(current_region, op)
+                continue
 
-        regions: list[GraphRegion] = []
-        node_to_region: dict[Op, GraphRegion] = {}
-        for (layer_container, layer_index), nodes in layer_nodes.items():
-            component_nodes: dict[str, list[Op]] = {}
-            subcomponent_nodes: dict[str, list[Op]] = {}
-            for op in nodes:
-                annotation = annotations[op]
-                if annotation.component is not None:
-                    component_nodes.setdefault(annotation.component, []).append(op)
-                if annotation.subcomponent is not None:
-                    subcomponent_nodes.setdefault(annotation.subcomponent, []).append(
-                        op
-                    )
-            region = LayerRegion(
-                kind=RegionKind.LAYER,
-                nodes=nodes,
-                layer_index=layer_index,
-                component_nodes=component_nodes,
-                subcomponent_nodes=subcomponent_nodes,
-                layer_container=layer_container,
-            )
-            self._assign(region, node_to_region)
-            regions.append(region)
+            if current_region is not None and identity == current_identity:
+                for pending_op in pending_unknown_ops:
+                    append_node(current_region, pending_op)
+                pending_unknown_ops.clear()
+                append_node(current_region, op)
+                continue
 
-        layer_positions = [
-            body_positions[op] for nodes in layer_nodes.values() for op in nodes
-        ]
-        first_layer = min(layer_positions) if layer_positions else None
-        last_layer = max(layer_positions) if layer_positions else None
+            if (
+                current_region is not None
+                and current_identity == (RegionKind.PRELUDE,)
+                and identity[0] is RegionKind.LAYER
+                and not seen_layer
+            ):
+                for pending_op in pending_unknown_ops:
+                    append_node(current_region, pending_op)
+                pending_unknown_ops.clear()
 
-        if first_layer is not None and last_layer is not None:
-            remaining = []
-            for position, op in unassigned:
-                if position < first_layer:
-                    prelude_nodes.append(op)
-                elif position > last_layer:
-                    epilogue_nodes.append(op)
-                else:
-                    remaining.append((position, op))
-            unassigned = remaining
+            finish_current_region()
+            finish_pending_unknown()
+            current_identity = identity
+            if identity[0] is RegionKind.LAYER:
+                seen_layer = True
+                current_region = LayerRegion(
+                    kind=RegionKind.LAYER,
+                    nodes=[],
+                    layer_index=layer_index,
+                    layer_container=layer_container,
+                )
+            else:
+                current_region = GraphRegion(identity[0], [])
+            append_node(current_region, op)
 
-        if prelude_nodes:
-            prelude_nodes.sort(key=body_positions.__getitem__)
-            region = GraphRegion(RegionKind.PRELUDE, prelude_nodes)
-            self._assign(region, node_to_region)
-            regions.append(region)
-        if epilogue_nodes:
-            epilogue_nodes.sort(key=body_positions.__getitem__)
-            region = GraphRegion(RegionKind.EPILOGUE, epilogue_nodes)
-            self._assign(region, node_to_region)
-            regions.append(region)
+        finish_current_region()
+        finish_pending_unknown()
 
-        unknown_run: list[Op] = []
-        previous_position: int | None = None
-
-        def finish_unknown_run() -> None:
-            if not unknown_run:
-                return
-            region = GraphRegion(RegionKind.UNKNOWN, list(unknown_run))
-            self._assign(region, node_to_region)
-            regions.append(region)
-            unknown_run.clear()
-
-        for position, op in unassigned:
-            if previous_position is not None and position != previous_position + 1:
-                finish_unknown_run()
-            unknown_run.append(op)
-            previous_position = position
-        finish_unknown_run()
-
-        regions.sort(key=lambda region: body_positions[region.nodes[0]])
         ordered_region_outputs = {region: [] for region in regions}
         seen_region_outputs = {region: set() for region in regions}
         for consumer in graph.body:
@@ -288,7 +308,9 @@ class RegionBuilder:
         # interface construction, and optional canonical fingerprint tokens.
         for region in regions:
             fingerprint_builder = None
-            if template_recognizer is not None and isinstance(region, LayerRegion):
+            if template_recognizer is not None and isinstance(
+                region, LayerRegion
+            ):
                 fingerprint_builder = template_recognizer.make_builder(
                     graph, region, annotations, node_to_region
                 )
@@ -316,7 +338,9 @@ class RegionBuilder:
         return index
 
     @staticmethod
-    def _assign(region: GraphRegion, node_to_region: dict[Op, GraphRegion]) -> None:
+    def _assign(
+        region: GraphRegion, node_to_region: dict[Op, GraphRegion]
+    ) -> None:
         for op in region.nodes:
             previous = node_to_region.get(op)
             if previous is not None:
@@ -549,7 +573,10 @@ def _normalize(value: Any) -> Any:
             return {"float": "inf" if value > 0 else "-inf"}
         return value
     if isinstance(value, bytes):
-        return {"bytes_sha256": hashlib.sha256(value).hexdigest(), "size": len(value)}
+        return {
+            "bytes_sha256": hashlib.sha256(value).hexdigest(),
+            "size": len(value),
+        }
     if isinstance(value, complex):
         return {"complex": [_normalize(value.real), _normalize(value.imag)]}
     if isinstance(value, slice):
@@ -573,7 +600,9 @@ def _normalize(value: Any) -> Any:
             "items": [_normalize(item) for item in value],
         }
     if isinstance(value, dict):
-        items = [(_normalize(key), _normalize(item)) for key, item in value.items()]
+        items = [
+            (_normalize(key), _normalize(item)) for key, item in value.items()
+        ]
         items.sort(key=lambda item: _json_bytes(item[0]))
         return {"dict": items}
 
@@ -728,7 +757,9 @@ class LayerFingerprintBuilder:
             ):
                 path = layer_resolution.canonical_module_path
             sources.add((path, source.module_class, source.original_aten))
-        normalized_sources = [list(item) for item in sorted(sources, key=_json_bytes)]
+        normalized_sources = [
+            list(item) for item in sorted(sources, key=_json_bytes)
+        ]
         original_aten = sorted(
             {item[2] for item in sources if item[2] is not None}
         )
@@ -739,7 +770,9 @@ class LayerFingerprintBuilder:
                     "original_aten": original_aten,
                     "source_meta": normalized_sources,
                     "component": annotation.component if annotation else None,
-                    "subcomponent": annotation.subcomponent if annotation else None,
+                    "subcomponent": annotation.subcomponent
+                    if annotation
+                    else None,
                     "result": _shape_dtype(op),
                     "attributes": _semantic_attributes(op),
                     "args": [
@@ -850,9 +883,7 @@ class LayerFingerprintBuilder:
         canonical = _json_bytes(
             {
                 "version": 2,
-                "nodes": self._resolve_node_refs(
-                    self._nodes, external_slots
-                ),
+                "nodes": self._resolve_node_refs(self._nodes, external_slots),
                 "external_slots": slot_descriptors,
                 "interface": {
                     "data_inputs": summary.data_input_count,
@@ -1125,7 +1156,10 @@ def _validate_template_unit(unit: TemplateUnit) -> None:
 
 
 def build_template_materialization_plan(
-    graph, structure_index, template_index
+    graph,
+    structure_index,
+    template_index,
+    deduplicate_templates: bool = True,
 ) -> TemplateMaterializationPlan:
     """Assign stable template ids while retaining original Region instances.
 
@@ -1142,9 +1176,13 @@ def build_template_materialization_plan(
             raise ValueError("template representative is not in instances")
         for region in group.instances:
             if region not in region_set:
-                raise ValueError("template instance is not in structure regions")
+                raise ValueError(
+                    "template instance is not in structure regions"
+                )
             if region in group_for_region:
-                raise ValueError("region belongs to more than one template group")
+                raise ValueError(
+                    "region belongs to more than one template group"
+                )
             group_for_region[region] = group
     for region in template_index.non_reusable_regions:
         if region not in region_set:
@@ -1158,7 +1196,7 @@ def build_template_materialization_plan(
     region_to_template_id = {}
     emitted_groups = set()
     for region in regions:
-        group = group_for_region.get(region)
+        group = group_for_region.get(region) if deduplicate_templates else None
         if group is None:
             instances = (region,)
             representative = region
@@ -1167,7 +1205,10 @@ def build_template_materialization_plan(
             if group_key in emitted_groups:
                 continue
             emitted_groups.add(group_key)
-            instances = tuple(item for item in regions if item in group.instances)
+            group_instances = set(group.instances)
+            instances = tuple(
+                item for item in regions if item in group_instances
+            )
             representative = group.representative
         template_id = len(templates)
         unit = TemplateUnit(template_id, representative, instances)
@@ -1259,67 +1300,89 @@ def _verify_partition_plan(
     eligible = {
         op
         for op in graph.body
-        if op not in excluded and not isinstance(op, (TensorConstantOp, OutputOp))
+        if op not in excluded
+        and not isinstance(op, (TensorConstantOp, OutputOp))
     }
     covered = [op for region in sequence for op in region.nodes]
     if len(covered) != len(set(covered)):
         raise ValueError("partition sequence contains a node more than once")
     if set(covered) != eligible:
-        raise ValueError("partition sequence does not cover every eligible node")
+        raise ValueError(
+            "partition sequence does not cover every eligible node"
+        )
 
     body_positions = {op: index for index, op in enumerate(graph.body)}
+    body_nodes = set(graph.body)
     previous_region_start = -1
     for region in sequence:
         positions = [body_positions[op] for op in region.nodes]
         if positions != sorted(positions):
             raise ValueError("Region nodes do not preserve graph.body order")
         if positions[0] < previous_region_start:
-            raise ValueError("partition sequence does not preserve Region order")
+            raise ValueError(
+                "partition sequence does not preserve Region order"
+            )
         previous_region_start = positions[0]
         _validate_v1_region_interface(region)
-        RegionBuilder._validate_interface(region, set(graph.body))
+        RegionBuilder._validate_interface(region, body_nodes)
 
     if len(plan.instance_bindings) != len(sequence):
         raise ValueError("partition plan does not bind every Region instance")
     for region, binding in zip(sequence, plan.instance_bindings, strict=True):
         if binding.region is not region:
-            raise ValueError("instance binding order does not match partition order")
+            raise ValueError(
+                "instance binding order does not match partition order"
+            )
         if binding.template_id != plan.region_to_template_id[region]:
             raise ValueError("instance binding has an inconsistent template id")
         if binding.ordered_inputs != tuple(region.interface.ordered_inputs):
-            raise ValueError("instance binding does not preserve ordered inputs")
+            raise ValueError(
+                "instance binding does not preserve ordered inputs"
+            )
         if binding.ordered_outputs != tuple(region.interface.ordered_outputs):
-            raise ValueError("instance binding does not preserve ordered outputs")
+            raise ValueError(
+                "instance binding does not preserve ordered outputs"
+            )
         expected_parameter_indices = tuple(
             plan.parameter_indices[input_ref.value.op]
             for input_ref in region.interface.ordered_inputs
             if input_ref.kind is RegionInputKind.PARAMETER
         )
         if binding.parameter_indices != expected_parameter_indices:
-            raise ValueError("instance binding does not preserve parameter order")
+            raise ValueError(
+                "instance binding does not preserve parameter order"
+            )
         expected_data_inputs = tuple(
             input_ref.value
             for input_ref in region.interface.ordered_inputs
             if input_ref.kind is RegionInputKind.DATA
         )
         if binding.data_inputs != expected_data_inputs:
-            raise ValueError("instance binding does not preserve data input order")
+            raise ValueError(
+                "instance binding does not preserve data input order"
+            )
         expected_state_inputs = tuple(
             input_ref.value
             for input_ref in region.interface.ordered_inputs
             if input_ref.kind is RegionInputKind.STATE
         )
         if binding.state_inputs != expected_state_inputs:
-            raise ValueError("instance binding does not preserve state input order")
+            raise ValueError(
+                "instance binding does not preserve state input order"
+            )
 
     region_set = set(sequence)
     grouped_regions = set()
     for group in plan.template_index.template_groups:
         if group.representative is not group.instances[0]:
-            raise ValueError("template representative is not its first instance")
+            raise ValueError(
+                "template representative is not its first instance"
+            )
         for region in group.instances:
             if region not in region_set or region in grouped_regions:
-                raise ValueError("template instances do not form a valid partition")
+                raise ValueError(
+                    "template instances do not form a valid partition"
+                )
             grouped_regions.add(region)
     non_reusable = set(plan.template_index.non_reusable_regions)
     if grouped_regions & non_reusable:
@@ -1328,7 +1391,9 @@ def _verify_partition_plan(
         region for region in sequence if isinstance(region, LayerRegion)
     }
     if grouped_regions | non_reusable != layer_regions:
-        raise ValueError("template analysis does not classify every Layer Region")
+        raise ValueError(
+            "template analysis does not classify every Layer Region"
+        )
 
     if set(plan.region_to_template_id) != region_set:
         raise ValueError("not every Region maps to exactly one Template")
@@ -1336,18 +1401,26 @@ def _verify_partition_plan(
         parameter: index for index, parameter in enumerate(graph.params)
     }
     if plan.parameter_indices != expected_parameter_indices:
-        raise ValueError("partition plan parameter indices do not match Graph order")
+        raise ValueError(
+            "partition plan parameter indices do not match Graph order"
+        )
     for unit in plan.templates:
         _validate_template_unit(unit)
 
 
 def build_transformer_partition_plan(
     graph: Graph,
+    deduplicate_templates: bool = True,
 ) -> TransformerPartitionPlan:
     """Build and verify the complete Transformer partition analysis plan."""
-    structure_index, template_index = _detect_regions_and_build_interfaces(graph)
+    structure_index, template_index = _detect_regions_and_build_interfaces(
+        graph
+    )
     materialization_plan = build_template_materialization_plan(
-        graph, structure_index, template_index
+        graph,
+        structure_index,
+        template_index,
+        deduplicate_templates=deduplicate_templates,
     )
     partition_sequence = _build_partition_sequence(structure_index)
     instance_bindings = _build_instance_bindings(
