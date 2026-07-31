@@ -16,6 +16,7 @@ set(WHISPER_EXAMPLE "${CMAKE_SOURCE_DIR}/examples/BuddyWhisper")
 
 buddy_add_model(
   NAME whisper
+  TEMPLATE_PARTITION_CAPABLE ON
   MODEL_KIND single_forward
   SPEC "${BUDDY_WHISPER_SPEC}"
   RUNNER_SRC WhisperRunner.cpp

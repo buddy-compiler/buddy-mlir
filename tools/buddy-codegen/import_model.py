@@ -1386,7 +1386,11 @@ def import_model(
     print("[import] Import complete.", file=sys.stderr)
 
 
-def import_qwen3_vl_model(config: dict, output_dir: str) -> None:
+def import_qwen3_vl_model(
+    config: dict,
+    output_dir: str,
+    export_template_partitioned: bool = False,
+) -> None:
     """Dispatch Qwen3-VL's multimodal importer through the shared entry."""
     model_path = os.environ.get("QWEN3_VL_MODEL_PATH")
     if not model_path:
@@ -1411,6 +1415,7 @@ def import_qwen3_vl_model(config: dict, output_dir: str) -> None:
     class ImportArgs:
         no_import = False
         seq_len = int(config.get("max_seq_len", 160))
+        experimental_template_partitioned = export_template_partitioned
 
     module.cmd_import_vision(ImportArgs())
     module.cmd_import_decoder_rt(ImportArgs())
@@ -1483,7 +1488,13 @@ def main():
 
     try:
         if config.get("model_family") == "qwen3_vl":
-            import_qwen3_vl_model(config, args.output_dir)
+            import_qwen3_vl_model(
+                config,
+                args.output_dir,
+                export_template_partitioned=(
+                    args.experimental_template_partitioned
+                ),
+            )
         else:
             import_model(
                 config,

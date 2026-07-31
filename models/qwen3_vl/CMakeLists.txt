@@ -19,6 +19,7 @@ set(BUDDY_QWEN3_VL_LLC_ATTRS "" CACHE STRING
 
 buddy_add_model(
   NAME qwen3_vl
+  TEMPLATE_PARTITION_CAPABLE ON
   MODEL_KIND qwen3_vl_multimodal
   SPEC "${BUDDY_QWEN3_VL_SPEC}"
   RUNNER_SRC Qwen3VLRunner.cpp

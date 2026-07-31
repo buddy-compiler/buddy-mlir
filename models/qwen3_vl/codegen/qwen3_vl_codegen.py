@@ -16,6 +16,7 @@ Run in the buddy Python environment:
 
 import argparse
 import itertools
+import json
 import os
 import shutil
 import subprocess
@@ -363,10 +364,20 @@ class DecoderTraceRT(nn.Module):
         return h @ self.lm_head_w.t()
 
 
-def import_graph(module, out_dir, prefix, *example_inputs):
+def import_graph(
+    module,
+    out_dir,
+    prefix,
+    *example_inputs,
+    template_partitioned=False,
+):
     import numpy
     from buddy.compiler.frontend import DynamoCompiler
-    from buddy.compiler.graph import GraphDriver
+    from buddy.compiler.graph import (
+        GraphDriver,
+        TemplatePartitionedGraphDriver,
+        build_transformer_partition_plan,
+    )
     from buddy.compiler.graph.transform import simply_fuse
     from buddy.compiler.ops import tosa
     from torch._inductor.decomposition import decompositions as inductor_decomp
@@ -382,12 +393,94 @@ def import_graph(module, out_dir, prefix, *example_inputs):
     graph = graphs[0]
     params = dynamo.imported_params[graph]
     graph.fuse_ops([simply_fuse])
-    driver = GraphDriver(graph)
-    driver.subgraphs[0].lower_to_top_level_ir()
-    with open(os.path.join(out_dir, f"{prefix}_subgraph0.mlir"), "w") as f:
-        print(driver.subgraphs[0]._imported_module, file=f)
-    with open(os.path.join(out_dir, f"{prefix}_forward.mlir"), "w") as f:
-        print(driver.construct_main_graph(True), file=f)
+
+    if template_partitioned:
+        mlir_dir = os.path.join(out_dir, "layer_partitioned")
+        os.makedirs(mlir_dir, exist_ok=True)
+
+        for filename in os.listdir(mlir_dir):
+            if filename.startswith(
+                f"{prefix}_subgraph0_forward_"
+            ) and filename.endswith(".mlir"):
+                os.remove(os.path.join(mlir_dir, filename))
+
+        plan = build_transformer_partition_plan(graph)
+        driver = TemplatePartitionedGraphDriver(graph, plan)
+        subgraphs = driver.build_template_subgraphs()
+
+        if len(subgraphs) != len(plan.templates):
+            raise ValueError(
+                f"{prefix}: templates={len(plan.templates)}, "
+                f"subgraphs={len(subgraphs)}"
+            )
+
+        template_files = []
+
+        for unit, subgraph in zip(
+            plan.templates,
+            subgraphs,
+            strict=True,
+        ):
+            subgraph.lower_to_top_level_ir()
+
+            filename = (
+                f"{prefix}_{driver.template_symbol(unit.template_id)}.mlir"
+            )
+
+            with open(
+                os.path.join(mlir_dir, filename),
+                "w",
+            ) as module_file:
+                print(subgraph._imported_module, file=module_file)
+
+            template_files.append(filename)
+
+        forward_file = f"{prefix}_forward.mlir"
+
+        with open(
+            os.path.join(mlir_dir, forward_file),
+            "w",
+        ) as module_file:
+            print(
+                driver.construct_template_combined_main_graph(True),
+                file=module_file,
+            )
+
+        manifest = {
+            "graph": prefix,
+            "template_materialization": True,
+            "forward": forward_file,
+            "template_files": template_files,
+        }
+
+        with open(
+            os.path.join(mlir_dir, "partition_manifest.json"),
+            "w",
+        ) as manifest_file:
+            json.dump(manifest, manifest_file, indent=2)
+            manifest_file.write("\n")
+
+    else:
+        driver = GraphDriver(graph)
+        driver.subgraphs[0].lower_to_top_level_ir()
+
+        with open(
+            os.path.join(
+                out_dir,
+                f"{prefix}_subgraph0.mlir",
+            ),
+            "w",
+        ) as module_file:
+            print(driver.subgraphs[0]._imported_module, file=module_file)
+
+        with open(
+            os.path.join(
+                out_dir,
+                f"{prefix}_forward.mlir",
+            ),
+            "w",
+        ) as module_file:
+            print(driver.construct_main_graph(True), file=module_file)
     all_param = numpy.concatenate(
         [p.detach().numpy().reshape([-1]) for p in params]
     )
@@ -432,7 +525,17 @@ def cmd_import_vision(args):
     if args.no_import:
         return
     print("[import] running buddy DynamoCompiler on the vision wrapper ...")
-    weight_count = import_graph(trace, VISION_DIR, "vision", pixel_values)
+    weight_count = import_graph(
+        trace,
+        VISION_DIR,
+        "vision",
+        pixel_values,
+        template_partitioned=getattr(
+            args,
+            "experimental_template_partitioned",
+            False,
+        ),
+    )
     print(
         f"[import] OK -> {VISION_DIR}/vision_forward.mlir weights={weight_count}"
     )
@@ -506,6 +609,11 @@ def cmd_import_decoder_rt(args):
         ds[0],
         ds[1],
         ds[2],
+        template_partitioned=getattr(
+            args,
+            "experimental_template_partitioned",
+            False,
+        ),
     )
     print(
         f"[rt] imported -> {DECODER_DIR}/decoder_forward.mlir weights={weight_count}"
