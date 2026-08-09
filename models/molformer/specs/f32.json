@@ -1,0 +1,1 @@
+{"model_family":"molformer","variant":"f32","hf_model_path":"ibm/MoLFormer-XL-both-10pct","num_threads":48}
