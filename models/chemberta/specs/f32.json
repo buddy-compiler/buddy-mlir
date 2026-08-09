@@ -1,0 +1,1 @@
+{"model_family":"chemberta","variant":"f32","hf_model_path":"DeepChem/ChemBERTa-77M-MLM","num_threads":48}
