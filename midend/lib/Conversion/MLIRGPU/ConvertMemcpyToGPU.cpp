@@ -166,12 +166,25 @@ void ConvertMemcpyToGPUPass::runOnOperation() {
     else if (auto copyOp = dyn_cast<memref::CopyOp>(nestedOp)) {
       auto src = copyOp.getOperand(0);
       auto dst = copyOp.getOperand(1);
+      auto srcType = dyn_cast<MemRefType>(src.getType());
+      auto dstType = dyn_cast<MemRefType>(dst.getType());
+      if (!srcType || !dstType) {
+        copyOp.emitOpError("expected memref operands");
+        signalPassFailure();
+        return WalkResult::interrupt();
+      }
+      if (!srcType.getLayout().isIdentity() ||
+          !dstType.getLayout().isIdentity()) {
+        copyOp.emitOpError("strided memref.copy must be converted by "
+                           "convert-strided-memref-copy-to-linalg before "
+                           "convert-memcpy-to-gpu");
+        signalPassFailure();
+        return WalkResult::interrupt();
+      }
       // Notice: GPU.memcpy has a different src dst order
       builder.setInsertionPointAfter(copyOp);
-      auto gpuMemcpyOp = gpu::MemcpyOp::create(
-          builder, copyOp->getLoc(), TypeRange(), ValueRange(), dst, src);
-      src.replaceAllUsesWith(gpuMemcpyOp->getResult(1));
-      dst.replaceAllUsesWith(gpuMemcpyOp->getResult(0));
+      gpu::MemcpyOp::create(builder, copyOp->getLoc(), TypeRange(),
+                            ValueRange(), dst, src);
       copyOp->erase();
     }
     // Allocate space on GPU and copy global memrefs to GPU, needs deallocation
