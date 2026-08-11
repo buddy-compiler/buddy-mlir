@@ -50,23 +50,27 @@ static bool isFunctionArgument(Value value) {
   return isa<func::FuncOp>(arg.getOwner()->getParentOp());
 }
 
-static bool isAliasOfFunctionArgument(Value value) {
+static Value getFunctionArgumentRoot(Value value) {
   if (isFunctionArgument(value))
-    return true;
+    return value;
 
   if (auto castOp = value.getDefiningOp<memref::CastOp>())
-    return isAliasOfFunctionArgument(castOp.getSource());
+    return getFunctionArgumentRoot(castOp.getSource());
 
   if (auto reinterpretOp = value.getDefiningOp<memref::ReinterpretCastOp>())
-    return isAliasOfFunctionArgument(reinterpretOp.getSource());
+    return getFunctionArgumentRoot(reinterpretOp.getSource());
 
   if (auto result = dyn_cast<OpResult>(value)) {
     if (auto metadataOp =
             dyn_cast<memref::ExtractStridedMetadataOp>(result.getOwner()))
-      return isAliasOfFunctionArgument(metadataOp.getSource());
+      return getFunctionArgumentRoot(metadataOp.getSource());
   }
 
-  return false;
+  return {};
+}
+
+static bool isAliasOfFunctionArgument(Value value) {
+  return static_cast<bool>(getFunctionArgumentRoot(value));
 }
 
 static bool areAllUsesDominatedBy(Value value, Operation *dominator,
@@ -90,6 +94,34 @@ struct EliminateMemRefCopyPattern : public OpRewritePattern<memref::CopyOp> {
 
     // Check if the source is a function argument or an alias rooted at one.
     if (!isAliasOfFunctionArgument(source))
+      return failure();
+
+    // Replacing the snapshot allocation with the source argument is unsafe if
+    // the original source is also modified elsewhere. In particular, a swap
+    // lowers to two argument-to-allocation snapshots followed by copies back
+    // to both arguments. Eliminating the snapshots makes the second copy read
+    // the value written by the first one.
+    Value sourceRoot = getFunctionArgumentRoot(source);
+    func::FuncOp func = copyOp->getParentOfType<func::FuncOp>();
+    bool sourceIsExternallyModified = false;
+    func.walk([&](Operation *operation) {
+      if (operation == copyOp.getOperation())
+        return WalkResult::advance();
+
+      if (auto otherCopy = dyn_cast<memref::CopyOp>(operation)) {
+        if (getFunctionArgumentRoot(otherCopy.getTarget()) == sourceRoot) {
+          sourceIsExternallyModified = true;
+          return WalkResult::interrupt();
+        }
+      } else if (auto store = dyn_cast<memref::StoreOp>(operation)) {
+        if (getFunctionArgumentRoot(store.getMemRef()) == sourceRoot) {
+          sourceIsExternallyModified = true;
+          return WalkResult::interrupt();
+        }
+      }
+      return WalkResult::advance();
+    });
+    if (sourceIsExternallyModified)
       return failure();
 
     // Check if destination is an allocation
