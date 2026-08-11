@@ -76,8 +76,45 @@ public:
 
     // Get element type and create vector type.
     ShapedType ATy = mlir::cast<mlir::ShapedType>(A.getType());
-    Type eleTy = ATy.getElementType();
-    VectorType vectorTy = VectorType::get({vecSize}, eleTy, {scalable});
+    ShapedType BTy = mlir::cast<mlir::ShapedType>(B.getType());
+    ShapedType CTy = mlir::cast<mlir::ShapedType>(C.getType());
+    Type aEleTy = ATy.getElementType();
+    Type bEleTy = BTy.getElementType();
+    Type accEleTy = CTy.getElementType();
+    VectorType bVectorTy = VectorType::get({vecSize}, bEleTy, {scalable});
+    VectorType accVectorTy = VectorType::get({vecSize}, accEleTy, {scalable});
+
+    auto isSupportedCast = [](Type sourceType, Type targetType) {
+      return sourceType == targetType ||
+             (isa<FloatType>(sourceType) && isa<FloatType>(targetType)) ||
+             (isa<IntegerType>(sourceType) && isa<IntegerType>(targetType));
+    };
+    if (!isSupportedCast(aEleTy, accEleTy) ||
+        !isSupportedCast(bEleTy, accEleTy) ||
+        (!isa<FloatType>(accEleTy) && !isa<IntegerType>(accEleTy)))
+      return failure();
+
+    auto castToAccumulatorType = [&](OpBuilder &builder, Location castLoc,
+                                     Value value, Type targetType) -> Value {
+      Type sourceType = value.getType();
+      if (sourceType == targetType)
+        return value;
+
+      Type sourceElementType = getElementTypeOrSelf(sourceType);
+      Type targetElementType = getElementTypeOrSelf(targetType);
+      if (auto sourceFloat = dyn_cast<FloatType>(sourceElementType)) {
+        auto targetFloat = cast<FloatType>(targetElementType);
+        if (sourceFloat.getWidth() < targetFloat.getWidth())
+          return arith::ExtFOp::create(builder, castLoc, targetType, value);
+        return arith::TruncFOp::create(builder, castLoc, targetType, value);
+      }
+
+      auto sourceInteger = cast<IntegerType>(sourceElementType);
+      auto targetInteger = cast<IntegerType>(targetElementType);
+      if (sourceInteger.getWidth() < targetInteger.getWidth())
+        return arith::ExtSIOp::create(builder, castLoc, targetType, value);
+      return arith::TruncIOp::create(builder, castLoc, targetType, value);
+    };
 
     // Define step.
     Value step = arith::ConstantIndexOp::create(rewriter, loc, vecSize);
@@ -85,11 +122,6 @@ public:
       Value vscale = vector::VectorScaleOp::create(rewriter, loc);
       step = arith::MulIOp::create(rewriter, loc, step, vscale);
     }
-    FloatType eleFloatTy =
-        eleTy.isF32()
-            ? static_cast<FloatType>(Float32Type::get(rewriter.getContext()))
-            : static_cast<FloatType>(Float64Type::get(rewriter.getContext()));
-
     auto tail_size = arith::RemUIOp::create(rewriter, loc, m, c8);
     auto parallel_size = arith::SubIOp::create(rewriter, loc, m, tail_size);
 
@@ -127,7 +159,7 @@ public:
                   SmallVector<Value> sumInitVecs;
                   for (auto mIndex : mIndices) {
                     auto sumInitVec = vector::LoadOp::create(
-                        rewriter, loc, vectorTy, C, ValueRange{mIndex, iv});
+                        rewriter, loc, accVectorTy, C, ValueRange{mIndex, iv});
                     sumInitVecs.push_back(sumInitVec);
                   }
 
@@ -140,17 +172,29 @@ public:
                       ValueRange(sumInitVecs),
                       [&](OpBuilder &builder, Location loc, Value kIdx,
                           ValueRange iterArgs) {
-                        auto bVec = vector::LoadOp::create(
-                            rewriter, loc, vectorTy, B, ValueRange{kIdx, iv});
+                        Value bVec = vector::LoadOp::create(
+                            rewriter, loc, bVectorTy, B, ValueRange{kIdx, iv});
+                        bVec = castToAccumulatorType(builder, loc, bVec,
+                                                     accVectorTy);
 
                         SmallVector<Value> resSumVecs;
                         for (int i = 0; i < unroll_size; i++) {
-                          auto aEle = memref::LoadOp::create(
+                          Value aEle = memref::LoadOp::create(
                               rewriter, loc, A, ValueRange{mIndices[i], kIdx});
+                          aEle = castToAccumulatorType(builder, loc, aEle,
+                                                       accEleTy);
                           auto aVec = vector::BroadcastOp::create(
-                              rewriter, loc, vectorTy, aEle);
-                          auto resSumVec = vector::FMAOp::create(
-                              rewriter, loc, aVec, bVec, iterArgs[i]);
+                              rewriter, loc, accVectorTy, aEle);
+                          Value resSumVec;
+                          if (isa<FloatType>(accEleTy)) {
+                            resSumVec = vector::FMAOp::create(
+                                rewriter, loc, aVec, bVec, iterArgs[i]);
+                          } else {
+                            Value product = arith::MulIOp::create(rewriter, loc,
+                                                                  aVec, bVec);
+                            resSumVec = arith::AddIOp::create(
+                                rewriter, loc, product, iterArgs[i]);
+                          }
                           resSumVecs.push_back(resSumVec);
                         }
                         scf::YieldOp::create(builder, loc,
@@ -175,7 +219,7 @@ public:
                   SmallVector<Value> sumInits;
                   for (auto mIndex : mIndices) {
                     auto sumInit = memref::LoadOp::create(
-                        rewriter, loc, eleFloatTy, C, ValueRange{mIndex, iv});
+                        rewriter, loc, C, ValueRange{mIndex, iv});
                     sumInits.push_back(sumInit);
                   }
                   auto sumIterVecs = scf::ForOp::create(
@@ -188,15 +232,28 @@ public:
                       [&](OpBuilder &builder, Location loc, Value kIdx,
                           ValueRange iterArgs) {
                         SmallVector<Value> resSums;
-                        auto bEle = memref::LoadOp::create(
+                        Value bEle = memref::LoadOp::create(
                             rewriter, loc, B, ValueRange{kIdx, iv});
+                        bEle =
+                            castToAccumulatorType(builder, loc, bEle, accEleTy);
                         for (int i = 0; i < unroll_size; i++) {
-                          auto aEle = memref::LoadOp::create(
+                          Value aEle = memref::LoadOp::create(
                               rewriter, loc, A, ValueRange{mIndices[i], kIdx});
-                          auto tmpEle =
-                              arith::MulFOp::create(rewriter, loc, aEle, bEle);
-                          auto resSum = arith::AddFOp::create(
-                              rewriter, loc, tmpEle, iterArgs[i]);
+                          aEle = castToAccumulatorType(builder, loc, aEle,
+                                                       accEleTy);
+                          Value tmpEle;
+                          Value resSum;
+                          if (isa<FloatType>(accEleTy)) {
+                            tmpEle = arith::MulFOp::create(rewriter, loc, aEle,
+                                                           bEle);
+                            resSum = arith::AddFOp::create(rewriter, loc,
+                                                           tmpEle, iterArgs[i]);
+                          } else {
+                            tmpEle = arith::MulIOp::create(rewriter, loc, aEle,
+                                                           bEle);
+                            resSum = arith::AddIOp::create(rewriter, loc,
+                                                           tmpEle, iterArgs[i]);
+                          }
                           resSums.push_back(resSum);
                         }
 

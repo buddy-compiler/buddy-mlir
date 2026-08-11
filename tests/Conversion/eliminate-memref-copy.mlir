@@ -83,6 +83,22 @@ module {
     memref.copy %arg0, %alloc : memref<10xf32, strided<[?], offset: ?>> to memref<10xf32>
     return %val : f32
   }
+
+  // Both allocations are snapshots. Replacing them with the function
+  // arguments would turn the second write into a read of the already modified
+  // first argument and break swap semantics.
+  func.func @test_swap_preserves_snapshots(
+      %arg0: memref<10xf32>, %arg1: memref<10xf32>) {
+    %lhs = memref.alloc() : memref<10xf32>
+    %rhs = memref.alloc() : memref<10xf32>
+    memref.copy %arg0, %lhs : memref<10xf32> to memref<10xf32>
+    memref.copy %arg1, %rhs : memref<10xf32> to memref<10xf32>
+    memref.copy %rhs, %arg0 : memref<10xf32> to memref<10xf32>
+    memref.copy %lhs, %arg1 : memref<10xf32> to memref<10xf32>
+    memref.dealloc %rhs : memref<10xf32>
+    memref.dealloc %lhs : memref<10xf32>
+    return
+  }
 }
 
 // CHECK-LABEL: func.func @test_basic
@@ -158,4 +174,10 @@ module {
 // CHECK: memref.alloc
 // CHECK: memref.load
 // CHECK: memref.copy
+// CHECK: return
+
+// CHECK-LABEL: func.func @test_swap_preserves_snapshots
+// CHECK-COUNT-2: memref.alloc
+// CHECK-COUNT-4: memref.copy
+// CHECK-COUNT-2: memref.dealloc
 // CHECK: return
