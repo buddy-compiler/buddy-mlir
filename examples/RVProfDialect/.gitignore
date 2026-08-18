@@ -1,0 +1,7 @@
+*-prof.mlir
+*-lowered.mlir
+*-llvm.mlir
+
+*.o
+*.elf
+*.ll
