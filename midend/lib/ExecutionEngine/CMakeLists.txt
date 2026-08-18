@@ -1,0 +1,6 @@
+find_package(CUDAToolkit)
+if(CUDAToolkit_FOUND)
+  add_library(BuddyCudaRuntime STATIC BuddyCudaRuntime.cpp)
+  target_include_directories(BuddyCudaRuntime PRIVATE ${CUDAToolkit_INCLUDE_DIRS})
+  target_link_libraries(BuddyCudaRuntime PRIVATE CUDA::cuda_driver)
+endif()

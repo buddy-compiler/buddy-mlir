@@ -48,14 +48,13 @@ module attributes {gpu.container_module} {
     // CHECK: gpu.dealloc  %[[d_alloc0]] : memref<1x10x10xf32>
     memref.dealloc %alloc : memref<1x10x10xf32>
 
-    // CHECK: %[[h_alloc:.*]] = memref.alloc() : memref<1x10x10xf32>
-    // CHECK-NEXT: gpu.memcpy  %[[h_alloc]], %[[d_result]] : memref<1x10x10xf32>, memref<1x10x10xf32>
-
+    // Buffers use managed (unified) memory, so the result is returned directly
+    // without copying it back to a host-side buffer.
     // CHECK: gpu.dealloc  %[[d_arg0]] : memref<1x10x10xf32>
     // CHECK: gpu.dealloc  %[[d_arg1]] : memref<1x10x10xf32>
     // CHECK: gpu.dealloc  %[[d_global_data]] : memref<1x10x10xf32>
 
-    // CHECK: return %[[h_alloc]] : memref<1x10x10xf32>
+    // CHECK: return %[[d_result]] : memref<1x10x10xf32>
     return %alloc_1 : memref<1x10x10xf32>
   }
   gpu.module @kernel {
