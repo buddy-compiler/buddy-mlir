@@ -1,5 +1,5 @@
 #SortedCOO = #sparse_tensor.encoding<{
-  dimLevelType = [ "compressed-nu", "singleton" ]
+  map = (i, j) -> (i : compressed(nonunique), j : singleton)
 }>
 
 //func.func private @printMemrefF64()
@@ -18,7 +18,7 @@ func.func @main() {
   // <https://en.wikipedia.org/wiki/Sparse_matrix#Coordinate_list_(COO)>
   %data = arith.constant dense<[1.1, 2.2, 3.3]> : tensor<3xf64>
   %idxs = arith.constant dense<[[0,2], [1,0], [3,1]]> : tensor<3x2xindex>
-  %sm = sparse_tensor.pack %data, %idxs : tensor<3xf64>, tensor<3x2xindex> to tensor<4x4xf64, #SortedCOO>
+  %sm = sparse_tensor.assemble %data, %idxs : tensor<3xf64>, tensor<3x2xindex> to tensor<4x4xf64, #SortedCOO>
 
   // Iterate all the non-zero entry and print their coordinate and value
   // Expect output:
@@ -32,9 +32,11 @@ func.func @main() {
   }
 
   // Unpack the packed sparse tensor back to values, coordinate tensor, plus the amount of the non-zero.
-  %val, %coords, %count = sparse_tensor.unpack %sm : tensor<4x4xf64, #SortedCOO>
-      to tensor<3xf64>, tensor<3x2xindex>, i32
-
+  // %val, %coords, %count = sparse_tensor.disassemble %sm : tensor<4x4xf64, #SortedCOO>
+  //     to tensor<3xf64>, tensor<3x2xindex>, i32
+  sparse_tensor.disassemble %sm outs(%val, %coords : memref<?xf64>, memref<?x2xindex>)
+      : tensor<4x4xf64, #SortedCOO>
+  
   %c0 = arith.constant 0 : index
   %f0 = arith.constant 0.0 : f64
 
