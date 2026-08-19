@@ -1,0 +1,1 @@
+{"model_family":"mistral","kv_layers":64,"head_num":8,"max_token_len":1024,"hidden_size":128,"hf_model_path":"mistralai/Mistral-7B-Instruct-v0.2","num_threads":48,"variant":"f32"}
