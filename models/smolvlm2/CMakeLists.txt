@@ -1,0 +1,25 @@
+include(${CMAKE_SOURCE_DIR}/tools/buddy-codegen/cmake/buddy_model.cmake)
+include(ProcessorCount)
+ProcessorCount(_BUDDY_SMOLVLM2_DEFAULT_COMPILE_JOBS)
+if(_BUDDY_SMOLVLM2_DEFAULT_COMPILE_JOBS EQUAL 0)
+  set(_BUDDY_SMOLVLM2_DEFAULT_COMPILE_JOBS 1)
+endif()
+set(BUDDY_SMOLVLM2_SPEC "${CMAKE_CURRENT_SOURCE_DIR}/specs/f32.json" CACHE FILEPATH "Variant spec JSON")
+set(BUDDY_SMOLVLM2_HF_CONFIG "" CACHE FILEPATH "Optional: HuggingFace config.json")
+set(BUDDY_SMOLVLM2_LOCAL_MODEL "" CACHE PATH "Optional: local HF model directory")
+set(BUDDY_SMOLVLM2_COMPILE_JOBS "${_BUDDY_SMOLVLM2_DEFAULT_COMPILE_JOBS}" CACHE STRING "Parallel MLIR->.o jobs")
+set(SMOLVLM2_BUILD_DIR "" CACHE PATH "Mode A: pre-built .o files")
+set(SMOLVLM2_MLIR_DIR "" CACHE PATH "Mode B: pre-generated MLIR files")
+if(NOT Python3_EXECUTABLE)
+  find_package(Python3 COMPONENTS Interpreter REQUIRED)
+endif()
+buddy_add_model(
+  NAME smolvlm2
+  SPEC "${BUDDY_SMOLVLM2_SPEC}"
+  RUNNER_SRC SmolVLM2Runner.cpp
+  HF_CONFIG "${BUDDY_SMOLVLM2_HF_CONFIG}"
+  LOCAL_MODEL "${BUDDY_SMOLVLM2_LOCAL_MODEL}"
+  BUILD_DIR "${SMOLVLM2_BUILD_DIR}"
+  MLIR_DIR "${SMOLVLM2_MLIR_DIR}"
+  COMPILE_JOBS "${BUDDY_SMOLVLM2_COMPILE_JOBS}"
+)
