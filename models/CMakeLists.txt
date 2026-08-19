@@ -21,3 +21,7 @@ endif()
 if(BUDDY_BUILD_PROTEINGLM_MODEL)
   add_subdirectory(proteinglm)
 endif()
+
+if(BUDDY_BUILD_CHEMBERTA_MODEL)
+  add_subdirectory(chemberta)
+endif()
