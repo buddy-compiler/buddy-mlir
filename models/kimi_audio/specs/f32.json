@@ -1,0 +1,10 @@
+{
+  "model_family": "kimi_audio",
+  "kv_layers": 68,
+  "head_num": 4,
+  "max_token_len": 1024,
+  "hidden_size": 128,
+  "hf_model_path": "moonshotai/Kimi-Audio-7B-Instruct",
+  "num_threads": 48,
+  "variant": "f32"
+}
