@@ -1,8 +1,21 @@
 //===- ConvertStridedMemrefCopyToLinalg.cpp -------------------------------===//
 //
-// Rewrite non-identity-layout memref.copy to linalg.generic so they lower
-// through parallel-loops → GPU kernels. Contiguous copies stay as memref.copy
-// for convert-memcpy-to-gpu. Identity self-copies are erased.
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+//===----------------------------------------------------------------------===//
+//
+// This file implements the pass that converts strided memref.copy operations
+// to linalg.generic before GPU lowering.
 //
 //===----------------------------------------------------------------------===//
 
@@ -40,20 +53,16 @@ public:
     SmallVector<memref::CopyOp> copies;
     funcOp.walk([&](memref::CopyOp op) { copies.push_back(op); });
 
+    OpBuilder builder(funcOp.getContext());
     for (memref::CopyOp copyOp : copies) {
       Value src = copyOp.getSource();
       Value dst = copyOp.getTarget();
-      if (src == dst) {
-        copyOp.erase();
-        continue;
-      }
 
       auto srcType = dyn_cast<MemRefType>(src.getType());
       auto dstType = dyn_cast<MemRefType>(dst.getType());
       if (!srcType || !dstType) {
         copyOp.emitOpError("expected memref operands");
-        signalPassFailure();
-        return;
+        return signalPassFailure();
       }
 
       if (srcType.getLayout().isIdentity() && dstType.getLayout().isIdentity())
@@ -61,11 +70,10 @@ public:
 
       if (srcType.getRank() != dstType.getRank()) {
         copyOp.emitOpError("rank mismatch between source and target");
-        signalPassFailure();
-        return;
+        return signalPassFailure();
       }
 
-      OpBuilder builder(copyOp);
+      builder.setInsertionPoint(copyOp);
       linalg::makeMemRefCopyOp(builder, copyOp.getLoc(), src, dst);
       copyOp.erase();
     }

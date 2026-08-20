@@ -118,7 +118,7 @@ void ConvertMemcpyToGPUPass::runOnOperation() {
     }
   }
 
-  funcOp->walk<WalkOrder::PreOrder>([&](Operation *nestedOp) {
+  auto walkResult = funcOp->walk<WalkOrder::PreOrder>([&](Operation *nestedOp) {
     // Replace all allocations with GPU.alloc
     if (auto allocOp = dyn_cast<memref::AllocOp>(nestedOp)) {
       // Rewrite this allocOp to gpu.alloc, change for all users
@@ -170,7 +170,6 @@ void ConvertMemcpyToGPUPass::runOnOperation() {
       auto dstType = dyn_cast<MemRefType>(dst.getType());
       if (!srcType || !dstType) {
         copyOp.emitOpError("expected memref operands");
-        signalPassFailure();
         return WalkResult::interrupt();
       }
       if (!srcType.getLayout().isIdentity() ||
@@ -178,7 +177,6 @@ void ConvertMemcpyToGPUPass::runOnOperation() {
         copyOp.emitOpError("strided memref.copy must be converted by "
                            "convert-strided-memref-copy-to-linalg before "
                            "convert-memcpy-to-gpu");
-        signalPassFailure();
         return WalkResult::interrupt();
       }
       // Notice: GPU.memcpy has a different src dst order
@@ -232,6 +230,8 @@ void ConvertMemcpyToGPUPass::runOnOperation() {
     }
     return WalkResult::advance();
   });
+  if (walkResult.wasInterrupted())
+    return signalPassFailure();
 }
 } // end anonymous namespace.
 
