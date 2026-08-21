@@ -1,4 +1,4 @@
-// RUN: buddy-opt -convert-memcpy-to-gpu="process-args=1" %s | FileCheck %s
+// RUN: buddy-opt -pass-pipeline="builtin.module(func.func(convert-memcpy-to-gpu{process-args=1}))" %s | FileCheck %s
 
 #map = affine_map<(d0)[s0, s1] -> (d0 * s0 + s1)>
 module attributes {gpu.container_module} {
