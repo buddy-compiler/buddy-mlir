@@ -19,12 +19,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Linalg/Utils/Utils.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinTypes.h"
+#include "mlir/IR/PatternMatch.h"
+#include "mlir/Interfaces/FunctionInterfaces.h"
 #include "mlir/Pass/Pass.h"
 
 using namespace mlir;
@@ -33,7 +33,7 @@ namespace {
 
 class ConvertStridedMemrefCopyToLinalgPass
     : public PassWrapper<ConvertStridedMemrefCopyToLinalgPass,
-                         OperationPass<func::FuncOp>> {
+                         InterfacePass<FunctionOpInterface>> {
 public:
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(
       ConvertStridedMemrefCopyToLinalgPass)
@@ -49,11 +49,11 @@ public:
   }
 
   void runOnOperation() override {
-    func::FuncOp funcOp = getOperation();
+    FunctionOpInterface funcOp = getOperation();
     SmallVector<memref::CopyOp> copies;
     funcOp.walk([&](memref::CopyOp op) { copies.push_back(op); });
 
-    OpBuilder builder(funcOp.getContext());
+    IRRewriter rewriter(funcOp.getContext());
     for (memref::CopyOp copyOp : copies) {
       Value src = copyOp.getSource();
       Value dst = copyOp.getTarget();
@@ -73,9 +73,9 @@ public:
         return signalPassFailure();
       }
 
-      builder.setInsertionPoint(copyOp);
-      linalg::makeMemRefCopyOp(builder, copyOp.getLoc(), src, dst);
-      copyOp.erase();
+      rewriter.setInsertionPoint(copyOp);
+      linalg::makeMemRefCopyOp(rewriter, copyOp.getLoc(), src, dst);
+      rewriter.eraseOp(copyOp);
     }
   }
 };

@@ -1,4 +1,4 @@
-// RUN: buddy-opt -convert-strided-memref-copy-to-linalg %s | FileCheck %s
+// RUN: buddy-opt -pass-pipeline="builtin.module(func.func(convert-strided-memref-copy-to-linalg))" %s | FileCheck %s
 
 module {
   // CHECK-LABEL: func.func @strided_copy
