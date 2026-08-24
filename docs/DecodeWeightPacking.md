@@ -109,8 +109,16 @@ Two restrictions are enforced at config time:
 ninja buddy-deepseek-r1-packed-run
 ```
 
+The FP16 example uses a separate target and output directory:
+
+```bash
+ninja buddy-deepseek-r1-packed-f16-run
+./bin/buddy-deepseek-r1-packed-f16-run
+```
+
 It imports with `--pack-decode-weights --pack-vector-size 32` and writes its
-artifacts to `packed_decode/` so they do not clobber the plain f32 outputs.
+artifacts to `packed_decode/` (FP32) or `packed_decode_f16/` (FP16), so they do
+not clobber the plain outputs.
 
 ## Adapting To Other Models
 

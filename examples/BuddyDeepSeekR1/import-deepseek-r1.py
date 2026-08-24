@@ -71,7 +71,7 @@ parser.add_argument(
     "different buffers. Compiling decode then requires "
     "-matmul-vectorization-decode-packed with a matching --pack-vector-size; "
     "the plain decode kernel would read the packed bytes as row-major and "
-    "silently produce a wrong model. f32 only for now.",
+    "silently produce a wrong model. Supported for f32, f16, and bf16.",
 )
 parser.add_argument(
     "--pack-vector-size",
@@ -215,6 +215,7 @@ if args.precision == "f16":
     graph_decode = graphs_decode[0]
 
     params = dynamo_compiler_prefill.imported_params[graph_prefill]
+    params_decode = dynamo_compiler_decode.imported_params[graph_decode]
     # Enable verbose mode for debugging eliminate_matmul_transpose_reshape
     graphs_prefill[0].perform(
         [eliminate_transpose, eliminate_matmul_transpose_reshape]
@@ -222,6 +223,15 @@ if args.precision == "f16":
     graphs_decode[0].perform(
         [eliminate_transpose, eliminate_matmul_transpose_reshape]
     )
+    if args.pack_decode_weights:
+        packed = pack_decode_matmul_weights(
+            graph_decode, vecsize=args.pack_vector_size
+        )
+        print(
+            f"[import-deepseek-r1] packed {len(packed)} decode matmul weights "
+            f"into panel layout (vector-size={args.pack_vector_size}); "
+            "prefill's weights stay plain."
+        )
     pattern_list_prefill = [
         simply_fuse,
         apply_classic_fusion,
@@ -324,6 +334,11 @@ if args.precision == "f16":
         [param.detach().numpy().reshape([-1]) for param in params]
     )
     all_param.tofile(os.path.join(output_dir, "arg0-f16.data"))
+    if args.pack_decode_weights:
+        all_param_decode = numpy.concatenate(
+            [param.detach().numpy().reshape([-1]) for param in params_decode]
+        )
+        all_param_decode.tofile(os.path.join(output_dir, "arg0-decode.data"))
 
     with open(
         os.path.join(output_dir, "subgraph0_decode-f16.mlir"), "w"
