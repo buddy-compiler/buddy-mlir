@@ -1,11 +1,28 @@
+# ChemBERTa masked-LM encoder model integration.
+#
+# Uses the shared buddy-codegen model entry point with MODEL_KIND=single_forward.
+# ChemBERTa keeps a custom import and manifest generator (like BGE-M3/ColBERTv2)
+# because the generic DeepSeek path is LLM prefill/decode + KV-cache specific.
+
 include(${CMAKE_SOURCE_DIR}/tools/buddy-codegen/cmake/buddy_model.cmake)
-include(ProcessorCount)
-ProcessorCount(_BUDDY_CHEMBERTA_DEFAULT_COMPILE_JOBS)
-if(_BUDDY_CHEMBERTA_DEFAULT_COMPILE_JOBS EQUAL 0)set(_BUDDY_CHEMBERTA_DEFAULT_COMPILE_JOBS 1)endif()
-set(BUDDY_CHEMBERTA_SPEC "${CMAKE_CURRENT_SOURCE_DIR}/specs/f32.json" CACHE FILEPATH "Variant spec")
-set(BUDDY_CHEMBERTA_HF_CONFIG "" CACHE FILEPATH "Optional HF config.json")
-set(BUDDY_CHEMBERTA_LOCAL_MODEL "" CACHE PATH "Optional local HF model dir")
-set(BUDDY_CHEMBERTA_COMPILE_JOBS "${_BUDDY_CHEMBERTA_DEFAULT_COMPILE_JOBS}" CACHE STRING "Parallel jobs")
-set(CHEMBERTA_BUILD_DIR "" CACHE PATH "Mode A");set(CHEMBERTA_MLIR_DIR "" CACHE PATH "Mode B")
-if(NOT Python3_EXECUTABLE)find_package(Python3 COMPONENTS Interpreter REQUIRED)endif()
-buddy_add_model(NAME chemberta SPEC "${BUDDY_CHEMBERTA_SPEC}" RUNNER_SRC ChemBERTaRunner.cpp HF_CONFIG "${BUDDY_CHEMBERTA_HF_CONFIG}" LOCAL_MODEL "${BUDDY_CHEMBERTA_LOCAL_MODEL}" BUILD_DIR "${CHEMBERTA_BUILD_DIR}" MLIR_DIR "${CHEMBERTA_MLIR_DIR}" COMPILE_JOBS "${BUDDY_CHEMBERTA_COMPILE_JOBS}")
+
+set(BUDDY_CHEMBERTA_SPEC
+  "${CMAKE_CURRENT_SOURCE_DIR}/specs/f32.json"
+  CACHE FILEPATH "ChemBERTa variant spec JSON, e.g. specs/f32.json")
+set(BUDDY_CHEMBERTA_MODEL_PATH "" CACHE PATH
+  "Local HuggingFace DeepChem/ChemBERTa-77M-MLM snapshot dir")
+
+buddy_add_model(
+  NAME chemberta
+  MODEL_KIND single_forward
+  SPEC "${BUDDY_CHEMBERTA_SPEC}"
+  RUNNER_SRC ChembertaRunner.cpp
+  RUNNER_PLUGIN_SRC ChembertaRunnerPlugin.cpp
+  LOCAL_MODEL "${BUDDY_CHEMBERTA_MODEL_PATH}"
+  LOCAL_MODEL_ENV CHEMBERTA_MODEL_PATH
+  IMPORT_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/codegen/import-chemberta.py"
+  MANIFEST_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/codegen/gen_chemberta_manifest.py"
+  MODEL_SO_NAME chemberta_model.so
+  ASSET_FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/vocab.txt"
+)
