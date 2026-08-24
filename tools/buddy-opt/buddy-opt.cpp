@@ -125,6 +125,7 @@ void registerLowerBOSCAMEPass();
 void registerAssumeTightMemRefLayoutPass();
 void registerStaticizeMemRefLayoutPass();
 void registerConvertMemcpyToGPUPass();
+void registerConvertStridedMemrefCopyToLinalgPass();
 void registerLegalizeShmemOutliningPass();
 void registerMatMulTransposeBVecPass();
 void registerMatMulTransposeBVecDecodePass();
@@ -218,6 +219,7 @@ int main(int argc, char **argv) {
   mlir::buddy::registerSiLUFusionPass();
   // Register gpu passes
   mlir::buddy::registerConvertMemcpyToGPUPass();
+  mlir::buddy::registerConvertStridedMemrefCopyToLinalgPass();
   mlir::buddy::registerLegalizeShmemOutliningPass();
 
   mlir::DialectRegistry registry;
