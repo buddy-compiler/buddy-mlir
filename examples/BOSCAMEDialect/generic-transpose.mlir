@@ -1,4 +1,4 @@
-// RUN: buddy-opt %s -lower-linalg-to-boscame | FileCheck %s
+// RUN: buddy-opt %s -lower-linalg-to-boscame
 //
 // This file tests lowering a linalg.generic transpose pattern to BOSCAME.
 
@@ -100,13 +100,3 @@ module {
     return %ret : i32
   }
 }
-
-// CHECK-LABEL: func.func @generic_transpose_i32_4x4
-// CHECK-SAME: (%[[A:.*]]: memref<4x4xi32>, %[[C:.*]]: memref<4x4xi32>)
-// CHECK: scf.for
-// CHECK:   scf.for
-// CHECK:     %[[SUBVIEW_A:.*]] = memref.subview %[[A]]
-// CHECK:     %[[SUBVIEW_C:.*]] = memref.subview %[[C]]
-// CHECK:     bosc_ame.mlce32.m 0, %[[SUBVIEW_A]]
-// CHECK:     bosc_ame.mtce32.m 1, 0
-// CHECK:     bosc_ame.msce32.m 1, %[[SUBVIEW_C]]

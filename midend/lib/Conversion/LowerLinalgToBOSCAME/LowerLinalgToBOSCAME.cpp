@@ -26,6 +26,7 @@
 #include "mlir/Dialect/Utils/StructuredOpsUtils.h"
 #include "mlir/IR/AffineMap.h"
 #include "mlir/IR/BuiltinTypes.h"
+#include "mlir/IR/Matchers.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -130,6 +131,14 @@ static bool isAffineMap(AffineMap map, unsigned numDims,
 
 static bool isIdentity2D(AffineMap map) {
   return isAffineMap(map, 2, ArrayRef<unsigned>{0, 1});
+}
+
+static bool isIdentityND(AffineMap map, unsigned rank) {
+  SmallVector<unsigned> dims;
+  dims.reserve(rank);
+  for (unsigned i = 0; i < rank; ++i)
+    dims.push_back(i);
+  return isAffineMap(map, rank, dims);
 }
 
 static bool isGenericMatmulLike(linalg::GenericOp op) {
@@ -244,6 +253,40 @@ static bool matchElementwiseKind(linalg::GenericOp op, ElementwiseKind &kind) {
   return true;
 }
 
+static bool matchUnarySquare(linalg::GenericOp op) {
+  if (!hasPureBufferOperands(op) || op.getNumDpsInputs() != 1)
+    return false;
+
+  auto iterators = op.getIteratorTypesArray();
+  if (iterators.size() < 2 || !llvm::all_of(iterators, isParallel))
+    return false;
+
+  unsigned rank = iterators.size();
+  SmallVector<AffineMap> maps = op.getIndexingMapsArray();
+  if (maps.size() != 2 || !isIdentityND(maps[0], rank) ||
+      !isIdentityND(maps[1], rank))
+    return false;
+
+  Block &body = op.getRegion().front();
+  if (body.getNumArguments() != 2)
+    return false;
+
+  auto yieldOp = dyn_cast<linalg::YieldOp>(body.getTerminator());
+  if (!yieldOp || yieldOp.getValues().size() != 1)
+    return false;
+
+  Operation *opDef = yieldOp.getValues()[0].getDefiningOp();
+  if (!opDef || opDef->getName().getStringRef() != "math.fpowi" ||
+      opDef->getNumOperands() != 2 ||
+      opDef->getOperand(0) != body.getArgument(0))
+    return false;
+
+  APInt exponent;
+  if (!matchPattern(opDef->getOperand(1), m_ConstantInt(&exponent)))
+    return false;
+  return exponent.getSExtValue() == 2;
+}
+
 static bool matchTranspose(linalg::GenericOp op) {
   if (!hasPureBufferOperands(op) || op.getNumDpsInputs() != 1)
     return false;
@@ -299,7 +342,8 @@ static bool isLowerableGeneric(linalg::GenericOp op) {
   ElementwiseKind elementwiseKind;
   BroadcastKind broadcastKind;
   return isGenericMatmulLike(op) || matchElementwiseKind(op, elementwiseKind) ||
-         matchTranspose(op) || matchBroadcast(op, broadcastKind);
+         matchUnarySquare(op) || matchTranspose(op) ||
+         matchBroadcast(op, broadcastKind);
 }
 
 static Value createDim(PatternRewriter &rewriter, Location loc, Value memref,
@@ -375,487 +419,238 @@ static LogicalResult createMSetTypeAndTiles(PatternRewriter &rewriter,
   return success();
 }
 
-static LogicalResult createLoadA(PatternRewriter &rewriter, Operation *anchor,
-                                 Location loc, Type elementType, int64_t reg,
-                                 Value source, Value stride) {
+static FailureOr<Value> createLoadA(PatternRewriter &rewriter,
+                                    Operation *anchor, Location loc,
+                                    Type elementType, Value source,
+                                    Value stride) {
+  Type tileType = VectorType::get({4, 4}, elementType);
   if (elementType.isInteger(8))
-    Mlae8mOp::create(rewriter, loc, reg, source, stride);
+    return Mlae8mOp::create(rewriter, loc, tileType, source, stride).getRes();
   else if (elementType.isInteger(16) || elementType.isF16() ||
            elementType.isBF16())
-    Mlae16mOp::create(rewriter, loc, reg, source, stride);
+    return Mlae16mOp::create(rewriter, loc, tileType, source, stride).getRes();
   else if (elementType.isInteger(32) || elementType.isF32())
-    Mlae32mOp::create(rewriter, loc, reg, source, stride);
+    return Mlae32mOp::create(rewriter, loc, tileType, source, stride).getRes();
   else if (elementType.isInteger(64) || elementType.isF64())
-    Mlae64mOp::create(rewriter, loc, reg, source, stride);
+    return Mlae64mOp::create(rewriter, loc, tileType, source, stride).getRes();
   else
     return rewriter.notifyMatchFailure(anchor,
                                        "unsupported BOSCAME A load type");
-  return success();
 }
 
-static LogicalResult createLoadB(PatternRewriter &rewriter, Operation *anchor,
-                                 Location loc, Type elementType, int64_t reg,
-                                 Value source, Value stride) {
+static FailureOr<Value> createLoadB(PatternRewriter &rewriter,
+                                    Operation *anchor, Location loc,
+                                    Type elementType, Value source,
+                                    Value stride) {
+  Type tileType = VectorType::get({4, 4}, elementType);
   if (elementType.isInteger(8))
-    Mlbe8mOp::create(rewriter, loc, reg, source, stride);
+    return Mlbe8mOp::create(rewriter, loc, tileType, source, stride).getRes();
   else if (elementType.isInteger(16) || elementType.isF16() ||
            elementType.isBF16())
-    Mlbe16mOp::create(rewriter, loc, reg, source, stride);
+    return Mlbe16mOp::create(rewriter, loc, tileType, source, stride).getRes();
   else if (elementType.isInteger(32) || elementType.isF32())
-    Mlbe32mOp::create(rewriter, loc, reg, source, stride);
+    return Mlbe32mOp::create(rewriter, loc, tileType, source, stride).getRes();
   else if (elementType.isInteger(64) || elementType.isF64())
-    Mlbe64mOp::create(rewriter, loc, reg, source, stride);
+    return Mlbe64mOp::create(rewriter, loc, tileType, source, stride).getRes();
   else
     return rewriter.notifyMatchFailure(anchor,
                                        "unsupported BOSCAME B load type");
-  return success();
 }
 
-static LogicalResult createLoadC(PatternRewriter &rewriter, Operation *anchor,
-                                 Location loc, Type elementType, int64_t reg,
-                                 Value source, Value stride) {
+static FailureOr<Value> createLoadC(PatternRewriter &rewriter,
+                                    Operation *anchor, Location loc,
+                                    Type elementType, Value source,
+                                    Value stride) {
+  Type tileType = VectorType::get({4, 4}, elementType);
   if (elementType.isInteger(8))
-    Mlce8mOp::create(rewriter, loc, reg, source, stride);
+    return Mlce8mOp::create(rewriter, loc, tileType, source, stride).getRes();
   else if (elementType.isInteger(16) || elementType.isF16() ||
            elementType.isBF16())
-    Mlce16mOp::create(rewriter, loc, reg, source, stride);
+    return Mlce16mOp::create(rewriter, loc, tileType, source, stride).getRes();
   else if (elementType.isInteger(32) || elementType.isF32())
-    Mlce32mOp::create(rewriter, loc, reg, source, stride);
+    return Mlce32mOp::create(rewriter, loc, tileType, source, stride).getRes();
   else if (elementType.isInteger(64) || elementType.isF64())
-    Mlce64mOp::create(rewriter, loc, reg, source, stride);
+    return Mlce64mOp::create(rewriter, loc, tileType, source, stride).getRes();
   else
     return rewriter.notifyMatchFailure(anchor,
                                        "unsupported BOSCAME C load type");
-  return success();
 }
 
 static LogicalResult createStoreC(PatternRewriter &rewriter, Operation *anchor,
-                                  Location loc, Type elementType, int64_t reg,
+                                  Location loc, Type elementType, Value src,
                                   Value dest, Value stride) {
   if (elementType.isInteger(8))
-    Msce8mOp::create(rewriter, loc, reg, dest, stride);
+    Msce8mOp::create(rewriter, loc, src, dest, stride);
   else if (elementType.isInteger(16) || elementType.isF16() ||
            elementType.isBF16())
-    Msce16mOp::create(rewriter, loc, reg, dest, stride);
+    Msce16mOp::create(rewriter, loc, src, dest, stride);
   else if (elementType.isInteger(32) || elementType.isF32())
-    Msce32mOp::create(rewriter, loc, reg, dest, stride);
+    Msce32mOp::create(rewriter, loc, src, dest, stride);
   else if (elementType.isInteger(64) || elementType.isF64())
-    Msce64mOp::create(rewriter, loc, reg, dest, stride);
+    Msce64mOp::create(rewriter, loc, src, dest, stride);
   else
     return rewriter.notifyMatchFailure(anchor,
                                        "unsupported BOSCAME C store type");
   return success();
 }
 
-static LogicalResult createZeroAccum(PatternRewriter &rewriter,
+static FailureOr<Value> createMatmul(PatternRewriter &rewriter,
                                      Operation *anchor, Location loc,
-                                     Type elementType, int64_t reg) {
-  if (elementType.isInteger(32))
-    MsubWMmOp::create(rewriter, loc, reg, reg, reg);
-  else if (elementType.isInteger(16))
-    MsubHMmOp::create(rewriter, loc, reg, reg, reg);
-  else if (elementType.isInteger(64))
-    MsubDwMmOp::create(rewriter, loc, reg, reg, reg);
-  else if (elementType.isF16() || elementType.isBF16())
-    MfsubHfMmOp::create(rewriter, loc, reg, reg, reg);
-  else if (elementType.isF32())
-    MfsubFMmOp::create(rewriter, loc, reg, reg, reg);
-  else if (elementType.isF64())
-    MfsubDMmOp::create(rewriter, loc, reg, reg, reg);
-  else
-    return rewriter.notifyMatchFailure(
-        anchor, "unsupported BOSCAME zero accumulation type");
-  return success();
-}
-
-static LogicalResult createMatmul(PatternRewriter &rewriter, Operation *anchor,
-                                  Location loc, Type lhsType, Type resultType,
-                                  int64_t destReg, int64_t lhsReg,
-                                  int64_t rhsReg) {
+                                     Type lhsType, Type resultType, Value acc,
+                                     Value lhs, Value rhs) {
+  Type tileType = VectorType::get({4, 4}, resultType);
   if (resultType.isInteger(32) && lhsType.isInteger(32))
-    MmaWmmOp::create(rewriter, loc, destReg, lhsReg, rhsReg);
+    return MmaWmmOp::create(rewriter, loc, tileType, acc, lhs, rhs).getRes();
   else if (resultType.isInteger(32) && lhsType.isInteger(16))
-    MwmaHmmOp::create(rewriter, loc, destReg, lhsReg, rhsReg);
+    return MwmaHmmOp::create(rewriter, loc, tileType, acc, lhs, rhs).getRes();
   else if (resultType.isInteger(32) && lhsType.isInteger(8))
-    MqmaBmmOp::create(rewriter, loc, destReg, lhsReg, rhsReg);
+    return MqmaBmmOp::create(rewriter, loc, tileType, acc, lhs, rhs).getRes();
   else if (resultType.isInteger(16) && lhsType.isInteger(16))
-    MmaHmmOp::create(rewriter, loc, destReg, lhsReg, rhsReg);
+    return MmaHmmOp::create(rewriter, loc, tileType, acc, lhs, rhs).getRes();
   else if (resultType.isInteger(64) && lhsType.isInteger(64))
-    MmaDwmmOp::create(rewriter, loc, destReg, lhsReg, rhsReg);
+    return MmaDwmmOp::create(rewriter, loc, tileType, acc, lhs, rhs).getRes();
   else if ((lhsType.isF16() || lhsType.isBF16()) && resultType.isF32())
-    MfwmaHfmmOp::create(rewriter, loc, destReg, lhsReg, rhsReg);
+    return MfwmaHfmmOp::create(rewriter, loc, tileType, acc, lhs, rhs).getRes();
   else if (lhsType.isF32() && resultType.isF32())
-    MfmaFmmOp::create(rewriter, loc, destReg, lhsReg, rhsReg);
+    return MfmaFmmOp::create(rewriter, loc, tileType, acc, lhs, rhs).getRes();
   else if (lhsType.isF32() && resultType.isF64())
-    MfwmaFmmOp::create(rewriter, loc, destReg, lhsReg, rhsReg);
+    return MfwmaFmmOp::create(rewriter, loc, tileType, acc, lhs, rhs).getRes();
   else if (lhsType.isF64() && resultType.isF64())
-    MfmaDmmOp::create(rewriter, loc, destReg, lhsReg, rhsReg);
+    return MfmaDmmOp::create(rewriter, loc, tileType, acc, lhs, rhs).getRes();
   else
     return rewriter.notifyMatchFailure(
         anchor, "unsupported BOSCAME matmul instruction type");
-  return success();
 }
 
-static LogicalResult createElementwise(PatternRewriter &rewriter,
-                                       Operation *anchor, Location loc,
-                                       ElementwiseKind kind, Type elementType,
-                                       int64_t destReg, int64_t lhsReg,
-                                       int64_t rhsReg) {
-  auto createIntegerAdd = [&]() -> LogicalResult {
-    if (elementType.isInteger(8))
-      MaddBMmOp::create(rewriter, loc, destReg, lhsReg, rhsReg);
-    else if (elementType.isInteger(16))
-      MaddHMmOp::create(rewriter, loc, destReg, lhsReg, rhsReg);
-    else if (elementType.isInteger(32))
-      MaddWMmOp::create(rewriter, loc, destReg, lhsReg, rhsReg);
-    else if (elementType.isInteger(64))
-      MaddDwMmOp::create(rewriter, loc, destReg, lhsReg, rhsReg);
-    else
-      return failure();
-    return success();
-  };
-  auto createIntegerSub = [&]() -> LogicalResult {
-    if (elementType.isInteger(8))
-      MsubBMmOp::create(rewriter, loc, destReg, lhsReg, rhsReg);
-    else if (elementType.isInteger(16))
-      MsubHMmOp::create(rewriter, loc, destReg, lhsReg, rhsReg);
-    else if (elementType.isInteger(32))
-      MsubWMmOp::create(rewriter, loc, destReg, lhsReg, rhsReg);
-    else if (elementType.isInteger(64))
-      MsubDwMmOp::create(rewriter, loc, destReg, lhsReg, rhsReg);
-    else
-      return failure();
-    return success();
-  };
-  auto createIntegerMul = [&]() -> LogicalResult {
-    if (elementType.isInteger(8))
-      MmulBMmOp::create(rewriter, loc, destReg, lhsReg, rhsReg);
-    else if (elementType.isInteger(16))
-      MmulHMmOp::create(rewriter, loc, destReg, lhsReg, rhsReg);
-    else if (elementType.isInteger(32))
-      MmulWMmOp::create(rewriter, loc, destReg, lhsReg, rhsReg);
-    else if (elementType.isInteger(64))
-      MmulDwMmOp::create(rewriter, loc, destReg, lhsReg, rhsReg);
-    else
-      return failure();
-    return success();
-  };
-  auto createIntegerMin = [&](bool isUnsigned) -> LogicalResult {
-    if (isUnsigned) {
-      if (elementType.isInteger(8))
-        MminuBMmOp::create(rewriter, loc, destReg, lhsReg, rhsReg);
-      else if (elementType.isInteger(16))
-        MminuHMmOp::create(rewriter, loc, destReg, lhsReg, rhsReg);
-      else if (elementType.isInteger(32))
-        MminuWMmOp::create(rewriter, loc, destReg, lhsReg, rhsReg);
-      else if (elementType.isInteger(64))
-        MminuDwMmOp::create(rewriter, loc, destReg, lhsReg, rhsReg);
-      else
-        return failure();
-    } else {
-      if (elementType.isInteger(8))
-        MminBMmOp::create(rewriter, loc, destReg, lhsReg, rhsReg);
-      else if (elementType.isInteger(16))
-        MminHMmOp::create(rewriter, loc, destReg, lhsReg, rhsReg);
-      else if (elementType.isInteger(32))
-        MminWMmOp::create(rewriter, loc, destReg, lhsReg, rhsReg);
-      else if (elementType.isInteger(64))
-        MminDwMmOp::create(rewriter, loc, destReg, lhsReg, rhsReg);
-      else
-        return failure();
-    }
-    return success();
-  };
-  auto createIntegerMax = [&](bool isUnsigned) -> LogicalResult {
-    if (isUnsigned) {
-      if (elementType.isInteger(8))
-        MmaxuBMmOp::create(rewriter, loc, destReg, lhsReg, rhsReg);
-      else if (elementType.isInteger(16))
-        MmaxuHMmOp::create(rewriter, loc, destReg, lhsReg, rhsReg);
-      else if (elementType.isInteger(32))
-        MmaxuWMmOp::create(rewriter, loc, destReg, lhsReg, rhsReg);
-      else if (elementType.isInteger(64))
-        MmaxuDwMmOp::create(rewriter, loc, destReg, lhsReg, rhsReg);
-      else
-        return failure();
-    } else {
-      if (elementType.isInteger(8))
-        MmaxBMmOp::create(rewriter, loc, destReg, lhsReg, rhsReg);
-      else if (elementType.isInteger(16))
-        MmaxHMmOp::create(rewriter, loc, destReg, lhsReg, rhsReg);
-      else if (elementType.isInteger(32))
-        MmaxWMmOp::create(rewriter, loc, destReg, lhsReg, rhsReg);
-      else if (elementType.isInteger(64))
-        MmaxDwMmOp::create(rewriter, loc, destReg, lhsReg, rhsReg);
-      else
-        return failure();
-    }
-    return success();
-  };
-  auto createFloatAdd = [&]() -> LogicalResult {
-    if (elementType.isF16() || elementType.isBF16())
-      MfaddHfMmOp::create(rewriter, loc, destReg, lhsReg, rhsReg);
-    else if (elementType.isF32())
-      MfaddFMmOp::create(rewriter, loc, destReg, lhsReg, rhsReg);
-    else if (elementType.isF64())
-      MfaddDMmOp::create(rewriter, loc, destReg, lhsReg, rhsReg);
-    else
-      return failure();
-    return success();
-  };
-  auto createFloatSub = [&]() -> LogicalResult {
-    if (elementType.isF16() || elementType.isBF16())
-      MfsubHfMmOp::create(rewriter, loc, destReg, lhsReg, rhsReg);
-    else if (elementType.isF32())
-      MfsubFMmOp::create(rewriter, loc, destReg, lhsReg, rhsReg);
-    else if (elementType.isF64())
-      MfsubDMmOp::create(rewriter, loc, destReg, lhsReg, rhsReg);
-    else
-      return failure();
-    return success();
-  };
-  auto createFloatMul = [&]() -> LogicalResult {
-    if (elementType.isF16() || elementType.isBF16())
-      MfmulHfMmOp::create(rewriter, loc, destReg, lhsReg, rhsReg);
-    else if (elementType.isF32())
-      MfmulFMmOp::create(rewriter, loc, destReg, lhsReg, rhsReg);
-    else if (elementType.isF64())
-      MfmulDMmOp::create(rewriter, loc, destReg, lhsReg, rhsReg);
-    else
-      return failure();
-    return success();
-  };
-  auto createFloatMax = [&]() -> LogicalResult {
-    if (elementType.isF16() || elementType.isBF16())
-      MfmaxHfMmOp::create(rewriter, loc, destReg, lhsReg, rhsReg);
-    else if (elementType.isF32())
-      MfmaxFMmOp::create(rewriter, loc, destReg, lhsReg, rhsReg);
-    else if (elementType.isF64())
-      MfmaxDMmOp::create(rewriter, loc, destReg, lhsReg, rhsReg);
-    else
-      return failure();
-    return success();
-  };
+static Value createMatrixOp(PatternRewriter &rewriter, Location loc,
+                            StringRef name, Type resultType,
+                            ValueRange operands) {
+  OperationState state(loc, name);
+  state.addOperands(operands);
+  state.addTypes(resultType);
+  return rewriter.create(state)->getResult(0);
+}
 
-  LogicalResult result = failure();
-  switch (kind) {
-  case ElementwiseKind::Add:
-    result = createIntegerAdd();
-    break;
-  case ElementwiseKind::Sub:
-    result = createIntegerSub();
-    break;
-  case ElementwiseKind::Mul:
-    result = createIntegerMul();
-    break;
-  case ElementwiseKind::MinS:
-    result = createIntegerMin(false);
-    break;
-  case ElementwiseKind::MinU:
-    result = createIntegerMin(true);
-    break;
-  case ElementwiseKind::MaxS:
-    result = createIntegerMax(false);
-    break;
-  case ElementwiseKind::MaxU:
-    result = createIntegerMax(true);
-    break;
-  case ElementwiseKind::FAdd:
-    result = createFloatAdd();
-    break;
-  case ElementwiseKind::FSub:
-    result = createFloatSub();
-    break;
-  case ElementwiseKind::FMul:
-    result = createFloatMul();
-    break;
-  case ElementwiseKind::FMax:
-    result = createFloatMax();
-    break;
-  }
-
-  if (failed(result))
+static FailureOr<Value> createElementwise(PatternRewriter &rewriter,
+                                          Operation *anchor, Location loc,
+                                          ElementwiseKind kind,
+                                          Type elementType, Value lhs,
+                                          Value rhs) {
+  StringRef suffix;
+  if (elementType.isInteger(8))
+    suffix = ".b.mm";
+  else if (elementType.isInteger(16))
+    suffix = ".h.mm";
+  else if (elementType.isInteger(32))
+    suffix = ".w.mm";
+  else if (elementType.isInteger(64))
+    suffix = ".dw.mm";
+  else if (elementType.isF16() || elementType.isBF16())
+    suffix = ".hf.mm";
+  else if (elementType.isF32())
+    suffix = ".f.mm";
+  else if (elementType.isF64())
+    suffix = ".d.mm";
+  else
     return rewriter.notifyMatchFailure(anchor,
                                        "unsupported BOSCAME elementwise type");
-  return success();
+
+  StringRef mnemonic;
+  switch (kind) {
+  case ElementwiseKind::Add:
+    mnemonic = "madd";
+    break;
+  case ElementwiseKind::Sub:
+    mnemonic = "msub";
+    break;
+  case ElementwiseKind::Mul:
+    mnemonic = "mmul";
+    break;
+  case ElementwiseKind::MinS:
+    mnemonic = "mmin";
+    break;
+  case ElementwiseKind::MinU:
+    mnemonic = "mminu";
+    break;
+  case ElementwiseKind::MaxS:
+    mnemonic = "mmax";
+    break;
+  case ElementwiseKind::MaxU:
+    mnemonic = "mmaxu";
+    break;
+  case ElementwiseKind::FAdd:
+    mnemonic = "mfadd";
+    break;
+  case ElementwiseKind::FSub:
+    mnemonic = "mfsub";
+    break;
+  case ElementwiseKind::FMul:
+    mnemonic = "mfmul";
+    break;
+  case ElementwiseKind::FMax:
+    mnemonic = "mfmax";
+    break;
+  }
+  std::string name = "bosc_ame." + mnemonic.str() + suffix.str();
+  return createMatrixOp(rewriter, loc, name, lhs.getType(), {lhs, rhs});
 }
 
-static LogicalResult createColumnBroadcast(PatternRewriter &rewriter,
-                                           Operation *anchor, Location loc,
-                                           BroadcastRegisterKind regKind,
-                                           Type elementType, int64_t destReg,
-                                           int64_t srcReg) {
-  if (regKind == BroadcastRegisterKind::TileA) {
-    if (elementType.isInteger(8))
-      Mbcace8Op::create(rewriter, loc, destReg, srcReg);
-    else if (elementType.isInteger(16) || elementType.isF16() ||
-             elementType.isBF16())
-      Mbcace16Op::create(rewriter, loc, destReg, srcReg);
-    else if (elementType.isInteger(32) || elementType.isF32())
-      Mbcace32Op::create(rewriter, loc, destReg, srcReg);
-    else if (elementType.isInteger(64) || elementType.isF64())
-      Mbcace64Op::create(rewriter, loc, destReg, srcReg);
-    else
-      return rewriter.notifyMatchFailure(
-          anchor, "unsupported BOSCAME tile-A column broadcast");
-    return success();
-  }
-
-  if (regKind == BroadcastRegisterKind::TileB) {
-    if (elementType.isInteger(8))
-      Mbcbce8Op::create(rewriter, loc, destReg, srcReg);
-    else if (elementType.isInteger(16) || elementType.isF16() ||
-             elementType.isBF16())
-      Mbcbce16Op::create(rewriter, loc, destReg, srcReg);
-    else if (elementType.isInteger(32) || elementType.isF32())
-      Mbcbce32Op::create(rewriter, loc, destReg, srcReg);
-    else if (elementType.isInteger(64) || elementType.isF64())
-      Mbcbce64Op::create(rewriter, loc, destReg, srcReg);
-    else
-      return rewriter.notifyMatchFailure(
-          anchor, "unsupported BOSCAME tile-B column broadcast");
-    return success();
-  }
-
-  if (elementType.isInteger(8))
-    Mbccce8Op::create(rewriter, loc, destReg, srcReg);
-  else if (elementType.isInteger(16) || elementType.isF16() ||
-           elementType.isBF16())
-    Mbccce16Op::create(rewriter, loc, destReg, srcReg);
-  else if (elementType.isInteger(32) || elementType.isF32())
-    Mbccce32Op::create(rewriter, loc, destReg, srcReg);
-  else if (elementType.isInteger(64) || elementType.isF64())
-    Mbccce64Op::create(rewriter, loc, destReg, srcReg);
-  else
-    return rewriter.notifyMatchFailure(
-        anchor, "unsupported BOSCAME acc column broadcast");
-  return success();
-}
-
-static LogicalResult createElementBroadcast(PatternRewriter &rewriter,
-                                            Operation *anchor, Location loc,
-                                            BroadcastRegisterKind regKind,
-                                            Type elementType, int64_t destReg,
-                                            int64_t srcReg) {
-  if (regKind == BroadcastRegisterKind::TileA) {
-    if (elementType.isInteger(8))
-      Mbcaee8Op::create(rewriter, loc, destReg, srcReg);
-    else if (elementType.isInteger(16) || elementType.isF16() ||
-             elementType.isBF16())
-      Mbcaee16Op::create(rewriter, loc, destReg, srcReg);
-    else if (elementType.isInteger(32) || elementType.isF32())
-      Mbcaee32Op::create(rewriter, loc, destReg, srcReg);
-    else if (elementType.isInteger(64) || elementType.isF64())
-      Mbcaee64Op::create(rewriter, loc, destReg, srcReg);
-    else
-      return rewriter.notifyMatchFailure(
-          anchor, "unsupported BOSCAME tile-A element broadcast");
-    return success();
-  }
-
-  if (regKind == BroadcastRegisterKind::TileB) {
-    if (elementType.isInteger(8))
-      Mbcbee8Op::create(rewriter, loc, destReg, srcReg);
-    else if (elementType.isInteger(16) || elementType.isF16() ||
-             elementType.isBF16())
-      Mbcbee16Op::create(rewriter, loc, destReg, srcReg);
-    else if (elementType.isInteger(32) || elementType.isF32())
-      Mbcbee32Op::create(rewriter, loc, destReg, srcReg);
-    else if (elementType.isInteger(64) || elementType.isF64())
-      Mbcbee64Op::create(rewriter, loc, destReg, srcReg);
-    else
-      return rewriter.notifyMatchFailure(
-          anchor, "unsupported BOSCAME tile-B element broadcast");
-    return success();
-  }
-
-  if (elementType.isInteger(8))
-    Mbccee8Op::create(rewriter, loc, destReg, srcReg);
-  else if (elementType.isInteger(16) || elementType.isF16() ||
-           elementType.isBF16())
-    Mbccee16Op::create(rewriter, loc, destReg, srcReg);
-  else if (elementType.isInteger(32) || elementType.isF32())
-    Mbccee32Op::create(rewriter, loc, destReg, srcReg);
-  else if (elementType.isInteger(64) || elementType.isF64())
-    Mbccee64Op::create(rewriter, loc, destReg, srcReg);
-  else
-    return rewriter.notifyMatchFailure(
-        anchor, "unsupported BOSCAME acc element broadcast");
-  return success();
-}
-
-static LogicalResult
-createBroadcast(PatternRewriter &rewriter, Operation *anchor, Location loc,
-                BroadcastKind kind, BroadcastRegisterKind regKind,
-                Type elementType, int64_t destReg, int64_t srcReg) {
+static FailureOr<Value> createBroadcast(PatternRewriter &rewriter,
+                                        Operation *anchor, Location loc,
+                                        BroadcastKind kind,
+                                        BroadcastRegisterKind regKind,
+                                        Type elementType, Value src) {
+  StringRef registerSuffix = regKind == BroadcastRegisterKind::TileA   ? "a"
+                             : regKind == BroadcastRegisterKind::TileB ? "b"
+                                                                       : "c";
   if (kind == BroadcastKind::Row) {
-    if (regKind == BroadcastRegisterKind::TileA)
-      MbcarMOp::create(rewriter, loc, destReg, srcReg);
-    else if (regKind == BroadcastRegisterKind::TileB)
-      MbcbrMOp::create(rewriter, loc, destReg, srcReg);
-    else
-      MbccrMOp::create(rewriter, loc, destReg, srcReg);
-    return success();
+    std::string name = "bosc_ame.mbc" + registerSuffix.str() + "r.m";
+    return createMatrixOp(rewriter, loc, name, src.getType(), {src});
   }
 
-  if (kind == BroadcastKind::Column)
-    return createColumnBroadcast(rewriter, anchor, loc, regKind, elementType,
-                                 destReg, srcReg);
-
-  return createElementBroadcast(rewriter, anchor, loc, regKind, elementType,
-                                destReg, srcReg);
-}
-
-static LogicalResult createTranspose(PatternRewriter &rewriter,
-                                     Operation *anchor, Location loc,
-                                     BroadcastRegisterKind regKind,
-                                     Type elementType, int64_t destReg,
-                                     int64_t srcReg) {
-  if (regKind == BroadcastRegisterKind::TileA) {
-    if (elementType.isInteger(8))
-      Mtae8Op::create(rewriter, loc, destReg, srcReg);
-    else if (elementType.isInteger(16) || elementType.isF16() ||
-             elementType.isBF16())
-      Mtae16Op::create(rewriter, loc, destReg, srcReg);
-    else if (elementType.isInteger(32) || elementType.isF32())
-      Mtae32Op::create(rewriter, loc, destReg, srcReg);
-    else if (elementType.isInteger(64) || elementType.isF64())
-      Mtae64Op::create(rewriter, loc, destReg, srcReg);
-    else
-      return rewriter.notifyMatchFailure(
-          anchor, "unsupported BOSCAME tile-A transpose");
-    return success();
-  }
-
-  if (regKind == BroadcastRegisterKind::TileB) {
-    if (elementType.isInteger(8))
-      Mtbe8Op::create(rewriter, loc, destReg, srcReg);
-    else if (elementType.isInteger(16) || elementType.isF16() ||
-             elementType.isBF16())
-      Mtbe16Op::create(rewriter, loc, destReg, srcReg);
-    else if (elementType.isInteger(32) || elementType.isF32())
-      Mtbe32Op::create(rewriter, loc, destReg, srcReg);
-    else if (elementType.isInteger(64) || elementType.isF64())
-      Mtbe64Op::create(rewriter, loc, destReg, srcReg);
-    else
-      return rewriter.notifyMatchFailure(
-          anchor, "unsupported BOSCAME tile-B transpose");
-    return success();
-  }
-
+  StringRef bitWidth;
   if (elementType.isInteger(8))
-    Mtce8Op::create(rewriter, loc, destReg, srcReg);
+    bitWidth = "8";
   else if (elementType.isInteger(16) || elementType.isF16() ||
            elementType.isBF16())
-    Mtce16Op::create(rewriter, loc, destReg, srcReg);
+    bitWidth = "16";
   else if (elementType.isInteger(32) || elementType.isF32())
-    Mtce32Op::create(rewriter, loc, destReg, srcReg);
+    bitWidth = "32";
   else if (elementType.isInteger(64) || elementType.isF64())
-    Mtce64Op::create(rewriter, loc, destReg, srcReg);
+    bitWidth = "64";
   else
     return rewriter.notifyMatchFailure(anchor,
-                                       "unsupported BOSCAME acc transpose");
-  return success();
+                                       "unsupported BOSCAME broadcast type");
+
+  std::string name = "bosc_ame.mbc" + registerSuffix.str() +
+                     (kind == BroadcastKind::Column ? "ce" : "ee") +
+                     bitWidth.str() + ".m";
+  return createMatrixOp(rewriter, loc, name, src.getType(), {src});
+}
+
+static FailureOr<Value> createTranspose(PatternRewriter &rewriter,
+                                        Operation *anchor, Location loc,
+                                        BroadcastRegisterKind regKind,
+                                        Type elementType, Value src) {
+  StringRef registerSuffix = regKind == BroadcastRegisterKind::TileA   ? "a"
+                             : regKind == BroadcastRegisterKind::TileB ? "b"
+                                                                       : "c";
+  StringRef bitWidth;
+  if (elementType.isInteger(8))
+    bitWidth = "8";
+  else if (elementType.isInteger(16) || elementType.isF16() ||
+           elementType.isBF16())
+    bitWidth = "16";
+  else if (elementType.isInteger(32) || elementType.isF32())
+    bitWidth = "32";
+  else if (elementType.isInteger(64) || elementType.isF64())
+    bitWidth = "64";
+  else
+    return rewriter.notifyMatchFailure(anchor,
+                                       "unsupported BOSCAME transpose type");
+  std::string name =
+      "bosc_ame.mt" + registerSuffix.str() + "e" + bitWidth.str() + ".m";
+  return createMatrixOp(rewriter, loc, name, src.getType(), {src});
 }
 
 static LogicalResult lowerMatmulLike(Operation *anchor,
@@ -928,13 +723,18 @@ static LogicalResult lowerMatmulLike(Operation *anchor,
   if (failed(createMSetTypeAndTiles(rewriter, anchor, loc, elemTypeA, currM,
                                     currN, currK)))
     return failure();
-  if (failed(createZeroAccum(rewriter, anchor, loc, elemTypeC, 0)))
+  FailureOr<Value> tileA =
+      createLoadA(rewriter, anchor, loc, elemTypeA, subA, strideA);
+  FailureOr<Value> tileB =
+      createLoadB(rewriter, anchor, loc, elemTypeB, subB, strideB);
+  FailureOr<Value> acc =
+      createLoadC(rewriter, anchor, loc, elemTypeC, subC, strideC);
+  if (failed(tileA) || failed(tileB) || failed(acc))
     return failure();
-  if (failed(createLoadA(rewriter, anchor, loc, elemTypeA, 0, subA, strideA)) ||
-      failed(createLoadB(rewriter, anchor, loc, elemTypeB, 1, subB, strideB)) ||
-      failed(
-          createMatmul(rewriter, anchor, loc, elemTypeA, elemTypeC, 0, 0, 1)) ||
-      failed(createStoreC(rewriter, anchor, loc, elemTypeC, 0, subC, strideC)))
+  FailureOr<Value> result = createMatmul(rewriter, anchor, loc, elemTypeA,
+                                         elemTypeC, *acc, *tileA, *tileB);
+  if (failed(result) || failed(createStoreC(rewriter, anchor, loc, elemTypeC,
+                                            *result, subC, strideC)))
     return failure();
 
   rewriter.setInsertionPointAfter(loopM);
@@ -1045,18 +845,123 @@ public:
     Value strideOut = createByteStride(rewriter, loc, subOut);
 
     if (failed(createMSetTypeAndTiles(rewriter, op, loc, elementType, currM,
-                                      currN)) ||
-        failed(createLoadC(rewriter, op, loc, elementType, 0, subLhs,
-                           strideLhs)) ||
-        failed(createLoadC(rewriter, op, loc, elementType, 1, subRhs,
-                           strideRhs)) ||
-        failed(
-            createElementwise(rewriter, op, loc, kind, elementType, 2, 0, 1)) ||
-        failed(
-            createStoreC(rewriter, op, loc, elementType, 2, subOut, strideOut)))
+                                      currN)))
+      return failure();
+    FailureOr<Value> lhsTile =
+        createLoadC(rewriter, op, loc, elementType, subLhs, strideLhs);
+    FailureOr<Value> rhsTile =
+        createLoadC(rewriter, op, loc, elementType, subRhs, strideRhs);
+    if (failed(lhsTile) || failed(rhsTile))
+      return failure();
+    FailureOr<Value> result = createElementwise(
+        rewriter, op, loc, kind, elementType, *lhsTile, *rhsTile);
+    if (failed(result) || failed(createStoreC(rewriter, op, loc, elementType,
+                                              *result, subOut, strideOut)))
       return failure();
 
     rewriter.setInsertionPointAfter(loopM);
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+class GenericUnarySquareToBOSCAMELowering
+    : public OpRewritePattern<linalg::GenericOp> {
+public:
+  using OpRewritePattern<linalg::GenericOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(linalg::GenericOp op,
+                                PatternRewriter &rewriter) const override {
+    if (!matchUnarySquare(op))
+      return failure();
+
+    Location loc = op.getLoc();
+    Value input = op.getDpsInputOperand(0)->get();
+    Value out = op.getDpsInitOperand(0)->get();
+
+    auto inputType = dyn_cast<MemRefType>(input.getType());
+    auto outType = dyn_cast<MemRefType>(out.getType());
+    if (!inputType || !outType || inputType.getRank() != outType.getRank() ||
+        inputType.getRank() < 2)
+      return rewriter.notifyMatchFailure(
+          op, "expected same-rank memrefs with rank >= 2");
+
+    if (inputType.getElementType() != outType.getElementType())
+      return rewriter.notifyMatchFailure(op, "square operand types differ");
+
+    Type elementType = outType.getElementType();
+    if (!elementType.isF16() && !elementType.isBF16() && !elementType.isF32() &&
+        !elementType.isF64())
+      return rewriter.notifyMatchFailure(
+          op, "math.fpowi square expects floating point element type");
+
+    constexpr int64_t tileM = 4;
+    constexpr int64_t tileN = 4;
+    unsigned rank = outType.getRank();
+    unsigned matrixDimM = rank - 2;
+    unsigned matrixDimN = rank - 1;
+
+    Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
+    Value c1 = arith::ConstantIndexOp::create(rewriter, loc, 1);
+    Value stepM = arith::ConstantIndexOp::create(rewriter, loc, tileM);
+    Value stepN = arith::ConstantIndexOp::create(rewriter, loc, tileN);
+
+    SmallVector<Value> outerIvs;
+    SmallVector<scf::ForOp> outerLoops;
+    for (unsigned dim = 0; dim < matrixDimM; ++dim) {
+      Value dimSize = createDim(rewriter, loc, out, dim);
+      auto loop = scf::ForOp::create(rewriter, loc, c0, dimSize, c1);
+      outerLoops.push_back(loop);
+      rewriter.setInsertionPointToStart(loop.getBody());
+      outerIvs.push_back(loop.getInductionVar());
+    }
+
+    Value dimM = createDim(rewriter, loc, out, matrixDimM);
+    Value dimN = createDim(rewriter, loc, out, matrixDimN);
+
+    auto loopM = scf::ForOp::create(rewriter, loc, c0, dimM, stepM);
+    rewriter.setInsertionPointToStart(loopM.getBody());
+    Value ivM = loopM.getInductionVar();
+
+    auto loopN = scf::ForOp::create(rewriter, loc, c0, dimN, stepN);
+    rewriter.setInsertionPointToStart(loopN.getBody());
+    Value ivN = loopN.getInductionVar();
+
+    Value currM = createIndexMin(rewriter, loc, dimM, ivM, tileM);
+    Value currN = createIndexMin(rewriter, loc, dimN, ivN, tileN);
+
+    SmallVector<Value> offsets(outerIvs.begin(), outerIvs.end());
+    offsets.push_back(ivM);
+    offsets.push_back(ivN);
+
+    SmallVector<Value> sizes(outerIvs.size(), c1);
+    sizes.push_back(currM);
+    sizes.push_back(currN);
+
+    Value subInput = createSubView(rewriter, loc, input, offsets, sizes);
+    Value subOut = createSubView(rewriter, loc, out, offsets, sizes);
+
+    Value strideInput = createByteStride(rewriter, loc, subInput, matrixDimM);
+    Value strideOut = createByteStride(rewriter, loc, subOut, matrixDimM);
+
+    if (failed(createMSetTypeAndTiles(rewriter, op, loc, elementType, currM,
+                                      currN)))
+      return failure();
+    FailureOr<Value> inputTile =
+        createLoadC(rewriter, op, loc, elementType, subInput, strideInput);
+    if (failed(inputTile))
+      return failure();
+    FailureOr<Value> result =
+        createElementwise(rewriter, op, loc, ElementwiseKind::FMul, elementType,
+                          *inputTile, *inputTile);
+    if (failed(result) || failed(createStoreC(rewriter, op, loc, elementType,
+                                              *result, subOut, strideOut)))
+      return failure();
+
+    if (!outerLoops.empty())
+      rewriter.setInsertionPointAfter(outerLoops.front());
+    else
+      rewriter.setInsertionPointAfter(loopM);
     rewriter.eraseOp(op);
     return success();
   }
@@ -1120,14 +1025,17 @@ public:
     Value strideOut = createByteStride(rewriter, loc, subOut);
 
     if (failed(createMSetTypeAndTiles(rewriter, op, loc, elementType, currM,
-                                      currN)) ||
-        failed(createLoadC(rewriter, op, loc, elementType, 0, subInput,
-                           strideInput)) ||
-        failed(createTranspose(rewriter, op, loc,
-                               BroadcastRegisterKind::Accumulation, elementType,
-                               1, 0)) ||
-        failed(
-            createStoreC(rewriter, op, loc, elementType, 1, subOut, strideOut)))
+                                      currN)))
+      return failure();
+    FailureOr<Value> inputTile =
+        createLoadC(rewriter, op, loc, elementType, subInput, strideInput);
+    if (failed(inputTile))
+      return failure();
+    FailureOr<Value> result =
+        createTranspose(rewriter, op, loc, BroadcastRegisterKind::Accumulation,
+                        elementType, *inputTile);
+    if (failed(result) || failed(createStoreC(rewriter, op, loc, elementType,
+                                              *result, subOut, strideOut)))
       return failure();
 
     rewriter.setInsertionPointAfter(loopM);
@@ -1202,14 +1110,17 @@ public:
     Value strideOut = createByteStride(rewriter, loc, subOut);
 
     if (failed(createMSetTypeAndTiles(rewriter, op, loc, elementType, currM,
-                                      currN)) ||
-        failed(createLoadC(rewriter, op, loc, elementType, 0, broadcastSource,
-                           strideInput)) ||
-        failed(createBroadcast(rewriter, op, loc, kind,
-                               BroadcastRegisterKind::Accumulation, elementType,
-                               1, 0)) ||
-        failed(
-            createStoreC(rewriter, op, loc, elementType, 1, subOut, strideOut)))
+                                      currN)))
+      return failure();
+    FailureOr<Value> inputTile = createLoadC(rewriter, op, loc, elementType,
+                                             broadcastSource, strideInput);
+    if (failed(inputTile))
+      return failure();
+    FailureOr<Value> result = createBroadcast(
+        rewriter, op, loc, kind, BroadcastRegisterKind::Accumulation,
+        elementType, *inputTile);
+    if (failed(result) || failed(createStoreC(rewriter, op, loc, elementType,
+                                              *result, subOut, strideOut)))
       return failure();
 
     rewriter.setInsertionPointAfter(loopM);
@@ -1255,10 +1166,11 @@ void LowerLinalgToBOSCAMEPass::runOnOperation() {
   ModuleOp module = getOperation();
 
   RewritePatternSet patterns(context);
-  patterns.add<MatmulToBOSCAMELowering, GenericMatmulToBOSCAMELowering,
-               GenericElementwiseToBOSCAMELowering,
-               GenericTransposeToBOSCAMELowering,
-               GenericBroadcastToBOSCAMELowering>(context);
+  patterns.add<
+      MatmulToBOSCAMELowering, GenericMatmulToBOSCAMELowering,
+      GenericElementwiseToBOSCAMELowering, GenericUnarySquareToBOSCAMELowering,
+      GenericTransposeToBOSCAMELowering, GenericBroadcastToBOSCAMELowering>(
+      context);
 
   ConversionTarget target(*context);
   target.addLegalDialect<BOSCAMEDialect, arith::ArithDialect,

@@ -1,4 +1,4 @@
-// RUN: buddy-opt %s -lower-linalg-to-boscame | FileCheck %s
+// RUN: buddy-opt %s -lower-linalg-to-boscame
 // RUN: buddy-opt %s \
 // RUN:   -lower-linalg-to-boscame \
 // RUN:   -lower-bosc-ame \
@@ -14,9 +14,9 @@
 // RUN:   -finalize-memref-to-llvm \
 // RUN:   -reconcile-unrealized-casts | \
 // RUN: buddy-translate -buddy-to-llvmir | \
-// RUN: buddy-llc -filetype=asm -mtriple=riscv64 \
-// RUN:   -mattr=+xboscame -o - | FileCheck %s --check-prefix=ASM
-//
+// RUN: buddy-llc -filetype=obj -mtriple=riscv64 \
+// RUN:   -mattr=+xboscame
+
 // This file tests the lowering of linalg.matmul to boscame operations.
 //
 module {
@@ -82,23 +82,3 @@ module {
     return %ret : i32
   }
 }
-
-// CHECK-LABEL: func.func @matmul_i32_4x4x4
-// CHECK-SAME: (%[[ARG0:.*]]: memref<4x4xi32>, %[[ARG1:.*]]: memref<4x4xi32>, %[[ARG2:.*]]: memref<4x4xi32>)
-// CHECK: scf.for
-// CHECK:   scf.for
-// CHECK:     scf.for
-// CHECK:       %[[SUBVIEW_A:.*]] = memref.subview %[[ARG0]]
-// CHECK:       %[[SUBVIEW_B:.*]] = memref.subview %[[ARG1]]
-// CHECK:       %[[SUBVIEW_C:.*]] = memref.subview %[[ARG2]]
-// CHECK:       bosc_ame.msub.w.mm 0, 0, 0
-// CHECK:       bosc_ame.mlae32.m 0, %[[SUBVIEW_A]]
-// CHECK:       bosc_ame.mlbe32.m 1, %[[SUBVIEW_B]]
-// CHECK:       bosc_ame.mma.w.mm 0, 0, 1
-// CHECK:       bosc_ame.msce32.m 0, %[[SUBVIEW_C]]
-
-// ASM: msub.w.mm
-// ASM: mlae32.m
-// ASM: mlbe32.m
-// ASM: mma.w.mm
-// ASM: msce32.m

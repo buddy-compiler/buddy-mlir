@@ -1,20 +1,8 @@
 //====-- BOSCAME.td - BOSCAME dialect operation definitions --- tablegen --===//
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-//
-//===----------------------------------------------------------------------===//
-//
-// This file defines the AME dialect for RISC-V Matrix Extension.
+// This SSA-based version models BOSC AME matrix registers as MLIR matrix tile
+// values. Physical TR/ACC register numbers are intentionally absent here; they
+// are selected later by LLVM instruction selection and register allocation.
 //
 //===----------------------------------------------------------------------===//
 
@@ -38,15 +26,14 @@ def BOSCAME_Dialect : Dialect {
     The BOSCAME dialect provides operations for the RISC-V Matrix Extension (RVA23 profile).
     BOSCAME provides matrix multiply-accumulate instructions with tile-based computation,
     supporting various data types and widening modes for AI/ML workloads.
-
-    Key features:
-    - Tile-based matrix registers with configurable dimensions
-    - Support for int4/int8/int16/int32/int64 integer types
-    - Support for fp8/fp16/fp32/fp64 floating-point types
-    - Widening matrix multiplication (2x, 4x, 8x output width)
-    - Saturating arithmetic options
   }];
 }
+
+// High-level BOSC AME tiles are ordinary MLIR vectors.  For example,
+// vector<4x4xi32> is legal at the BOSCAME dialect boundary.
+def BOSCAME_MatrixType : Type<
+    CPred<"::mlir::isa<::mlir::VectorType>($_self)">,
+    "BOSC AME matrix vector type">;
 
 //===----------------------------------------------------------------------===//
 // BOSCAME Operation Base Class
@@ -166,93 +153,67 @@ def MSettilekiOp : BOSCAME_Op<"msettileki"> {
 // Base class for Pure Matrix-to-Matrix Operations (e.g., T-T, A-A, Transpose, Broadcast)
 // Arguments: md (dest index), ms1 (source index)
 class BOSCAME_PureMove_Op<string mnemonic, string summary_desc>
-    : BOSCAME_Op<mnemonic> {
+    : BOSCAME_Op<mnemonic, [AllTypesMatch<["src", "res"]>]> {
   let summary = summary_desc;
-  let description = [{
-    Performs purely matrix-to-matrix register operation.
-    - md: destination register index (0-7)
-    - ms1: source register index (0-7)
-  }];
-  let arguments = (ins
-    I64Attr:$md,
-    I64Attr:$ms1
-  );
-  let assemblyFormat = "$md `,` $ms1 attr-dict";
+  let arguments = (ins BOSCAME_MatrixType:$src);
+  let results = (outs BOSCAME_MatrixType:$res);
+  let assemblyFormat = "$src attr-dict `:` type($src) `->` type($res)";
 }
 
 // Base class for Matrix Move with GPR Index
 // Arguments: md (dest index), ms1 (source index), rs2 (GPR row index)
 class BOSCAME_IndexedMove_Op<string mnemonic, string summary_desc>
-    : BOSCAME_Op<mnemonic> {
+    : BOSCAME_Op<mnemonic, [AllTypesMatch<["src", "res"]>]> {
   let summary = summary_desc;
-  let description = [{
-    Performs matrix register move with a dynamic GPR row index.
-    - md: destination register index (0-7)
-    - ms1: source register index (0-7)
-    - rs2: dynamic GPR row index
-  }];
-  let arguments = (ins
-    I64Attr:$md,
-    I64Attr:$ms1,
-    I64:$rs2
-  );
-  let assemblyFormat = "$md `,` $ms1 `,` $rs2 attr-dict `:` type($rs2)";
+  let arguments = (ins BOSCAME_MatrixType:$src, I64:$rs2);
+  let results = (outs BOSCAME_MatrixType:$res);
+  let assemblyFormat =
+      "$src `,` $rs2 attr-dict `:` type($src) `,` type($rs2) "
+      "`->` type($res)";
 }
 
 // Base class for Matrix Move with Immediate Index
 // Arguments: md (dest index), ms1 (source index), imm (Immediate row index)
 class BOSCAME_ImmIndexedMove_Op<string mnemonic, string summary_desc>
-    : BOSCAME_Op<mnemonic> {
+    : BOSCAME_Op<mnemonic, [AllTypesMatch<["src", "res"]>]> {
   let summary = summary_desc;
-  let description = [{
-    Performs matrix register move with an immediate row index.
-    - md: destination register index (0-7)
-    - ms1: source register index (0-7)
-    - imm: immediate row index
-  }];
-  let arguments = (ins
-    I64Attr:$md,
-    I64Attr:$ms1,
-    I64Attr:$imm
-  );
-  let assemblyFormat = "$md `,` $ms1 `,` $imm attr-dict";
+  let arguments = (ins BOSCAME_MatrixType:$src, I64Attr:$imm);
+  let results = (outs BOSCAME_MatrixType:$res);
+  let assemblyFormat =
+      "$src `,` $imm attr-dict `:` type($src) `->` type($res)";
 }
 
 // Base class for Scalar-to-Matrix Move
-// Arguments: md (dest index), rs1 (GPR data), rs2 (GPR row index)
-class BOSCAME_ScalarToMatrix_Op<string mnemonic, string summary_desc>
-    : BOSCAME_Op<mnemonic> {
+// Arguments: md_in (old matrix value), rs1 (scalar value),
+// rs2 (element/row index). The result is tied to md_in.
+class BOSCAME_ScalarToMatrix_Op<string mnemonic, string summary_desc,
+                                Type scalarType>
+    : BOSCAME_Op<mnemonic, [AllTypesMatch<["md_in", "res"]>]> {
   let summary = summary_desc;
-  let description = [{
-    Moves data from a scalar register into a specific row of a matrix register.
-    - md: destination matrix register index (0-7)
-    - rs1: source scalar register containing data
-    - rs2: dynamic GPR row index
-  }];
-  let arguments = (ins
-    I64Attr:$md,
-    I64:$rs1,
-    I64:$rs2
-  );
-  let assemblyFormat = "$md `,` $rs1 `,` $rs2 attr-dict `:` type($rs1) `,` type($rs2)";
+
+  // md_in 是被更新前的 tile/acc；结果 res 是更新后的新 SSA 值。
+  let arguments = (ins BOSCAME_MatrixType:$md_in,
+                       scalarType:$rs1,
+                       I64:$rs2);
+  let results = (outs BOSCAME_MatrixType:$res);
+
+  let assemblyFormat =
+      "$md_in `,` $rs1 `,` $rs2 attr-dict `:` "
+      "type($md_in) `,` type($rs1) `,` type($rs2) "
+      "`->` type($res)";
 }
 
 // Base class for Matrix-to-Scalar Move
 // Arguments: ms1 (source index), rs2 (GPR row index) -> Returns I64
-class BOSCAME_MatrixToScalar_Op<string mnemonic, string summary_desc>
+class BOSCAME_MatrixToScalar_Op<string mnemonic, string summary_desc,
+                                Type scalarType>
     : BOSCAME_Op<mnemonic> {
   let summary = summary_desc;
-  let description = [{
-    Moves data from a specific row of a matrix register into a scalar register.
-    - ms1: source matrix register index (0-7)
-    - rs2: dynamic GPR row index
-  }];
-  let arguments = (ins
-    I64Attr:$ms1,
-    I64:$rs2
-  );
-  let results = (outs I64:$res);
-  let assemblyFormat = "$ms1 `,` $rs2 attr-dict `:` type($rs2) `->` type($res)";
+  let arguments = (ins BOSCAME_MatrixType:$src, I64:$rs2);
+  let results = (outs scalarType:$res);
+  let assemblyFormat =
+      "$src `,` $rs2 attr-dict `:` type($src) `,` type($rs2) "
+      "`->` type($res)";
 }
 
 //===----------------------------------------------------------------------===//
@@ -279,18 +240,31 @@ multiclass BOSCAME_ImmIndexedMove_Multiclass<string prefix, string suffix, strin
   def "64Op" : BOSCAME_ImmIndexedMove_Op<prefix # "64" # suffix, "64-bit " # op_name>;
 }
 
-multiclass BOSCAME_ScalarToMatrix_Multiclass<string prefix, string suffix, string op_name> {
-  def "8Op"  : BOSCAME_ScalarToMatrix_Op<prefix # "8" # suffix,  "8-bit "  # op_name>;
-  def "16Op" : BOSCAME_ScalarToMatrix_Op<prefix # "16" # suffix, "16-bit " # op_name>;
-  def "32Op" : BOSCAME_ScalarToMatrix_Op<prefix # "32" # suffix, "32-bit " # op_name>;
-  def "64Op" : BOSCAME_ScalarToMatrix_Op<prefix # "64" # suffix, "64-bit " # op_name>;
+multiclass BOSCAME_IntScalarToMatrix_Multiclass<string prefix, string suffix, string op_name> {
+  def "8Op"  : BOSCAME_ScalarToMatrix_Op<prefix # "8" # suffix,  "8-bit "  # op_name, I64>;
+  def "16Op" : BOSCAME_ScalarToMatrix_Op<prefix # "16" # suffix, "16-bit " # op_name, I64>;
+  def "32Op" : BOSCAME_ScalarToMatrix_Op<prefix # "32" # suffix, "32-bit " # op_name, I64>;
+  def "64Op" : BOSCAME_ScalarToMatrix_Op<prefix # "64" # suffix, "64-bit " # op_name, I64>;
 }
 
-multiclass BOSCAME_MatrixToScalar_Multiclass<string prefix, string suffix, string op_name> {
-  def "8Op"  : BOSCAME_MatrixToScalar_Op<prefix # "8" # suffix,  "8-bit "  # op_name>;
-  def "16Op" : BOSCAME_MatrixToScalar_Op<prefix # "16" # suffix, "16-bit " # op_name>;
-  def "32Op" : BOSCAME_MatrixToScalar_Op<prefix # "32" # suffix, "32-bit " # op_name>;
-  def "64Op" : BOSCAME_MatrixToScalar_Op<prefix # "64" # suffix, "64-bit " # op_name>;
+multiclass BOSCAME_IntMatrixToScalar_Multiclass<string prefix, string suffix, string op_name> {
+  def "8Op"  : BOSCAME_MatrixToScalar_Op<prefix # "8" # suffix,  "8-bit "  # op_name, I64>;
+  def "16Op" : BOSCAME_MatrixToScalar_Op<prefix # "16" # suffix, "16-bit " # op_name, I64>;
+  def "32Op" : BOSCAME_MatrixToScalar_Op<prefix # "32" # suffix, "32-bit " # op_name, I64>;
+  def "64Op" : BOSCAME_MatrixToScalar_Op<prefix # "64" # suffix, "64-bit " # op_name, I64>;
+}
+
+multiclass BOSCAME_FloatScalarToMatrix_Multiclass<string prefix, string suffix, string op_name> {
+  def "8Op"  : BOSCAME_ScalarToMatrix_Op<prefix # "8"  # suffix, "8-bit "  # op_name, F32>;
+  def "16Op" : BOSCAME_ScalarToMatrix_Op<prefix # "16" # suffix, "16-bit " # op_name, F16>;
+  def "32Op" : BOSCAME_ScalarToMatrix_Op<prefix # "32" # suffix, "32-bit " # op_name, F32>;
+  def "64Op" : BOSCAME_ScalarToMatrix_Op<prefix # "64" # suffix, "64-bit " # op_name, F64>;
+}
+multiclass BOSCAME_FloatMatrixToScalar_Multiclass<string prefix, string suffix, string op_name> {
+  def "8Op"  : BOSCAME_MatrixToScalar_Op<prefix # "8"  # suffix, "8-bit "  # op_name, F32>;
+  def "16Op" : BOSCAME_MatrixToScalar_Op<prefix # "16" # suffix, "16-bit " # op_name, F16>;
+  def "32Op" : BOSCAME_MatrixToScalar_Op<prefix # "32" # suffix, "32-bit " # op_name, F32>;
+  def "64Op" : BOSCAME_MatrixToScalar_Op<prefix # "64" # suffix, "64-bit " # op_name, F64>;
 }
 
 //===----------------------------------------------------------------------===//
@@ -300,21 +274,21 @@ multiclass BOSCAME_MatrixToScalar_Multiclass<string prefix, string suffix, strin
 defm MmveTt : BOSCAME_PureMove_Multiclass<"mmve", ".t.t", "Tile-to-Tile Move">;
 defm MmveAa : BOSCAME_PureMove_Multiclass<"mmve", ".a.a", "Acc-to-Acc Move">;
 // 2. Matrix-Matrix Move (with GPR Index)
-defm MmveAt : BOSCAME_IndexedMove_Multiclass<"mmve", ".a.t", "Tile-to-Acc Move with GPR Index">;
-defm MmveTa : BOSCAME_IndexedMove_Multiclass<"mmve", ".t.a", "Acc-to-Tile Move with GPR Index">;
+defm MmveAt : BOSCAME_IndexedMove_Multiclass<"mmve", ".a.t", "Tile-to-Acc Move">;
+defm MmveTa : BOSCAME_IndexedMove_Multiclass<"mmve", ".t.a", "Acc-to-Tile Move">;
 // 3. Matrix-Matrix Move (with Immediate Index)
-defm MmvieAt : BOSCAME_ImmIndexedMove_Multiclass<"mmvie", ".a.t", "Tile-to-Acc Move with Immediate Index">;
-defm MmvieTa : BOSCAME_ImmIndexedMove_Multiclass<"mmvie", ".t.a", "Acc-to-Tile Move with Immediate Index">;
+defm MmvieAt : BOSCAME_ImmIndexedMove_Multiclass<"mmvie", ".a.t", "Tile-to-Acc Move">;
+defm MmvieTa : BOSCAME_ImmIndexedMove_Multiclass<"mmvie", ".t.a", "Acc-to-Tile Move">;
 // 4. Matrix to Scalar Move (Returns GPR)
-defm MmveXt  : BOSCAME_MatrixToScalar_Multiclass<"mmve", ".x.t", "Tile-to-GPR Move">;
-defm MmveXa  : BOSCAME_MatrixToScalar_Multiclass<"mmve", ".x.a", "Acc-to-GPR Move">;
-defm MfmveFt : BOSCAME_MatrixToScalar_Multiclass<"mfmve", ".f.t", "Tile-to-FPR Move">;
-defm MfmveFa : BOSCAME_MatrixToScalar_Multiclass<"mfmve", ".f.a", "Acc-to-FPR Move">;
+defm MmveXt  : BOSCAME_IntMatrixToScalar_Multiclass<"mmve", ".x.t", "Tile-to-GPR Move">;
+defm MmveXa  : BOSCAME_IntMatrixToScalar_Multiclass<"mmve", ".x.a", "Acc-to-GPR Move">;
+defm MfmveFt : BOSCAME_FloatMatrixToScalar_Multiclass<"mfmve", ".f.t", "Tile-to-FPR Move">;
+defm MfmveFa : BOSCAME_FloatMatrixToScalar_Multiclass<"mfmve", ".f.a", "Acc-to-FPR Move">;
 // 5. Scalar GPR to Matrix Move
-defm MmveTx  : BOSCAME_ScalarToMatrix_Multiclass<"mmve", ".t.x", "GPR-to-Tile Move">;
-defm MmveAx  : BOSCAME_ScalarToMatrix_Multiclass<"mmve", ".a.x", "GPR-to-Acc Move">;
-defm MfmveTf : BOSCAME_ScalarToMatrix_Multiclass<"mfmve", ".t.f", "FPR-to-Tile Move">;
-defm MfmveAf : BOSCAME_ScalarToMatrix_Multiclass<"mfmve", ".a.f", "FPR-to-Acc Move">;
+defm MmveTx  : BOSCAME_IntScalarToMatrix_Multiclass<"mmve", ".t.x", "GPR-to-Tile Move">;
+defm MmveAx  : BOSCAME_IntScalarToMatrix_Multiclass<"mmve", ".a.x", "GPR-to-Acc Move">;
+defm MfmveTf : BOSCAME_FloatScalarToMatrix_Multiclass<"mfmve", ".t.f", "FPR-to-Tile Move">;
+defm MfmveAf : BOSCAME_FloatScalarToMatrix_Multiclass<"mfmve", ".a.f", "FPR-to-Acc Move">;
 //===----------------------------------------------------------------------===//
 // Broadcast Operations Instantiations
 //===----------------------------------------------------------------------===//
@@ -342,42 +316,33 @@ defm Mtce : BOSCAME_PureMove_Multiclass<"mtce", ".m", "Transpose Acc C">;
 //===----------------------------------------------------------------------===//
 // Base class for 3-operand element-wise operations
 class BOSCAME_EleWise3_Op<string mnemonic, string summary_desc, string symbol>
-    : BOSCAME_Op<mnemonic> {
-  let summary = summary_desc # " tile matrix operation";
-  let description = [{
-    Performs element-wise operation on tile/accumulator registers:
-      md = ms1 }] # symbol # [{ ms2
-    where ms1, ms2 are source registers, and md is the destination register.
-
-    - md: destination register index (0-7)
-    - ms1: first source register index (0-7)
-    - ms2: second source register index (0-7)
-  }];
-  let arguments = (ins
-    I64Attr:$md,
-    I64Attr:$ms1,
-    I64Attr:$ms2
-  );
-  let assemblyFormat = "$md `,` $ms1 `,` $ms2 attr-dict";
+    : BOSCAME_Op<mnemonic, [AllTypesMatch<["src1", "src2", "res"]>]> {
+  let summary = summary_desc # " matrix operation";
+  let arguments = (ins BOSCAME_MatrixType:$src1, BOSCAME_MatrixType:$src2);
+  let results = (outs BOSCAME_MatrixType:$res);
+  let assemblyFormat =
+      "$src1 `,` $src2 attr-dict `:` type($src1) `,` type($src2) "
+      "`->` type($res)";
 }
 
-// Base class for 2-operand element-wise operations (e.g., SQRT)
-class BOSCAME_EleWise2_Op<string mnemonic, string summary_desc, string func_name>
+class BOSCAME_WidenEleWise3_Op<string mnemonic, string summary_desc,
+                               string symbol>
     : BOSCAME_Op<mnemonic> {
-  let summary = summary_desc # " tile matrix operation";
-  let description = [{
-    Performs element-wise unary operation on tile/accumulator registers:
-      md = }] # func_name # [{(ms1)
-    where ms1 is the source register, and md is the destination register.
+  let summary = summary_desc # " widening matrix operation";
+  let arguments = (ins BOSCAME_MatrixType:$src1, BOSCAME_MatrixType:$src2);
+  let results = (outs BOSCAME_MatrixType:$res);
+  let assemblyFormat =
+      "$src1 `,` $src2 attr-dict `:` type($src1) `,` type($src2) "
+      "`->` type($res)";
+}
 
-    - md: destination register index (0-7)
-    - ms1: source register index (0-7)
-  }];
-  let arguments = (ins
-    I64Attr:$md,
-    I64Attr:$ms1
-  );
-  let assemblyFormat = "$md `,` $ms1 attr-dict";
+class BOSCAME_EleWise2_Op<string mnemonic, string summary_desc,
+                          string func_name>
+    : BOSCAME_Op<mnemonic, [AllTypesMatch<["src", "res"]>]> {
+  let summary = summary_desc # " unary matrix operation";
+  let arguments = (ins BOSCAME_MatrixType:$src);
+  let results = (outs BOSCAME_MatrixType:$res);
+  let assemblyFormat = "$src attr-dict `:` type($src) `->` type($res)";
 }
 
 //===----------------------------------------------------------------------===//
@@ -386,7 +351,7 @@ class BOSCAME_EleWise2_Op<string mnemonic, string summary_desc, string func_name
 // Multiclass for standard integer widths (No Widen)
 multiclass BOSCAME_EleWise_Int_NoWiden<string prefix, string op_name, string symbol> {
   def MmOp   : BOSCAME_EleWise3_Op<prefix # ".mm",    op_name # " dynamic-width", symbol>;
-  def HbMmOp : BOSCAME_EleWise3_Op<prefix # ".hb.mm", op_name # " 4-bit", symbol>;
+  //def HbMmOp : BOSCAME_EleWise3_Op<prefix # ".hb.mm", op_name # " 4-bit", symbol>;
   def BMmOp  : BOSCAME_EleWise3_Op<prefix # ".b.mm",  op_name # " 8-bit", symbol>;
   def HMmOp  : BOSCAME_EleWise3_Op<prefix # ".h.mm",  op_name # " 16-bit", symbol>;
   def WMmOp  : BOSCAME_EleWise3_Op<prefix # ".w.mm",  op_name # " 32-bit", symbol>;
@@ -395,30 +360,30 @@ multiclass BOSCAME_EleWise_Int_NoWiden<string prefix, string op_name, string sym
 // Multiclass for floating point widths (No Widen)
 multiclass BOSCAME_EleWise_Float_NoWiden<string prefix, string op_name, string symbol> {
   def MmOp   : BOSCAME_EleWise3_Op<prefix # ".mm",    op_name # " dynamic-width", symbol>;
-  def CfMmOp : BOSCAME_EleWise3_Op<prefix # ".cf.mm", op_name # " 8-bit (cf)", symbol>;
+  //def CfMmOp : BOSCAME_EleWise3_Op<prefix # ".cf.mm", op_name # " 8-bit (cf)", symbol>;
   def HfMmOp : BOSCAME_EleWise3_Op<prefix # ".hf.mm", op_name # " 16-bit (half)", symbol>;
   def FMmOp  : BOSCAME_EleWise3_Op<prefix # ".f.mm",  op_name # " 32-bit (single)", symbol>;
   def DMmOp  : BOSCAME_EleWise3_Op<prefix # ".d.mm",  op_name # " 64-bit (double)", symbol>;
 }
 // Multiclass for integer widths (Double Widen - stops at 32-bit input)
 multiclass BOSCAME_EleWise_Int_DoubleWiden<string prefix, string op_name, string symbol> {
-  def MmOp   : BOSCAME_EleWise3_Op<prefix # ".mm",    op_name # " dynamic-width", symbol>;
-  def HbMmOp : BOSCAME_EleWise3_Op<prefix # ".hb.mm", op_name # " 4-bit", symbol>;
-  def BMmOp  : BOSCAME_EleWise3_Op<prefix # ".b.mm",  op_name # " 8-bit", symbol>;
-  def HMmOp  : BOSCAME_EleWise3_Op<prefix # ".h.mm",  op_name # " 16-bit", symbol>;
-  def WMmOp  : BOSCAME_EleWise3_Op<prefix # ".w.mm",  op_name # " 32-bit", symbol>;
+  def MmOp   : BOSCAME_WidenEleWise3_Op<prefix # ".mm",    op_name # " dynamic-width", symbol>;
+  //def HbMmOp : BOSCAME_WidenEleWise3_Op<prefix # ".hb.mm", op_name # " 4-bit", symbol>;
+  def BMmOp  : BOSCAME_WidenEleWise3_Op<prefix # ".b.mm",  op_name # " 8-bit", symbol>;
+  def HMmOp  : BOSCAME_WidenEleWise3_Op<prefix # ".h.mm",  op_name # " 16-bit", symbol>;
+  def WMmOp  : BOSCAME_WidenEleWise3_Op<prefix # ".w.mm",  op_name # " 32-bit", symbol>;
 }
 // Multiclass for floating point widths (Double Widen - stops at 32-bit input)
 multiclass BOSCAME_EleWise_Float_DoubleWiden<string prefix, string op_name, string symbol> {
-  def MmOp   : BOSCAME_EleWise3_Op<prefix # ".mm",    op_name # " dynamic-width", symbol>;
-  def CfMmOp : BOSCAME_EleWise3_Op<prefix # ".cf.mm", op_name # " 8-bit (cf)", symbol>;
-  def HfMmOp : BOSCAME_EleWise3_Op<prefix # ".hf.mm", op_name # " 16-bit (half)", symbol>;
-  def FMmOp  : BOSCAME_EleWise3_Op<prefix # ".f.mm",  op_name # " 32-bit (single)", symbol>;
+  def MmOp   : BOSCAME_WidenEleWise3_Op<prefix # ".mm",    op_name # " dynamic-width", symbol>;
+  //def CfMmOp : BOSCAME_WidenEleWise3_Op<prefix # ".cf.mm", op_name # " 8-bit (cf)", symbol>;
+  def HfMmOp : BOSCAME_WidenEleWise3_Op<prefix # ".hf.mm", op_name # " 16-bit (half)", symbol>;
+  def FMmOp  : BOSCAME_WidenEleWise3_Op<prefix # ".f.mm",  op_name # " 32-bit (single)", symbol>;
 }
 // Multiclass for Unary Floating Point (SQRT)
 multiclass BOSCAME_EleWise_Unary_Float<string prefix, string op_name, string func> {
   def MOp   : BOSCAME_EleWise2_Op<prefix # ".m",    op_name # " dynamic-width", func>;
-  def CfMOp : BOSCAME_EleWise2_Op<prefix # ".cf.m", op_name # " 8-bit (cf)", func>;
+  //def CfMOp : BOSCAME_EleWise2_Op<prefix # ".cf.m", op_name # " 8-bit (cf)", func>;
   def HfMOp : BOSCAME_EleWise2_Op<prefix # ".hf.m", op_name # " 16-bit (half)", func>;
   def FMOp  : BOSCAME_EleWise2_Op<prefix # ".f.m",  op_name # " 32-bit (single)", func>;
   def DMOp  : BOSCAME_EleWise2_Op<prefix # ".d.m",  op_name # " 64-bit (double)", func>;
@@ -491,38 +456,18 @@ defm Mfsqrt : BOSCAME_EleWise_Unary_Float<"mfsqrt", "Floating-point square root"
 class BOSCAME_Load_Op<string mnemonic, string summary_text, string shape_desc>
     : BOSCAME_Op<mnemonic> {
   let summary = summary_text;
-  let description = [{
-    Load a matrix tile from memory to tile register.
-    Shape: }] # shape_desc # [{
-    - md: destination tile register index
-    - base: base address pointer
-    - stride: row byte stride
-  }];
-  let arguments = (ins
-    I64Attr:$md,
-    AnyMemRef:$base,
-    I64:$stride
-  );
-  let assemblyFormat = "$md `,` $base `,` $stride attr-dict `:` type($base)";
+  let arguments = (ins AnyMemRef:$base, I64:$stride);
+  let results = (outs BOSCAME_MatrixType:$res);
+  let assemblyFormat =
+      "$base `,` $stride attr-dict `:` type($base) `->` type($res)";
 }
 
-// Base class for all Matrix Store Operations
 class BOSCAME_Store_Op<string mnemonic, string summary_text, string shape_desc>
     : BOSCAME_Op<mnemonic> {
   let summary = summary_text;
-  let description = [{
-    Store a matrix tile from tile register to memory.
-    Shape: }] # shape_desc # [{
-    - ms3: source tile register index
-    - base: base address pointer
-    - stride: row byte stride
-  }];
-  let arguments = (ins
-  I64Attr:$ms3,
-  AnyMemRef:$base,
-  I64:$stride
-  );
-  let assemblyFormat = "$ms3 `,` $base `,` $stride attr-dict `:` type($base)";
+  let arguments = (ins BOSCAME_MatrixType:$src, AnyMemRef:$base, I64:$stride);
+  let assemblyFormat =
+      "$src `,` $base `,` $stride attr-dict `:` type($src) `,` type($base)";
 }
 
 //===----------------------------------------------------------------------===//
@@ -579,23 +524,35 @@ defm Msacce : BOSCAME_Store_Multiclass<"msacce", "whole accumulation matrix", "m
 //===----------------------------------------------------------------------===//
 // Matrix Multiply-Accumulate (MMA) Operations Base Class
 //===----------------------------------------------------------------------===//
-class BOSCAME_MMA_Op<string mnemonic, string summary_desc> : BOSCAME_Op<mnemonic> {
-  let summary = summary_desc # " tile matrix multiply-accumulate";
-  let description = [{
-    Performs }] # summary_desc # [{ matrix multiply-accumulate on tile registers:
-      md = md + ms1 x ms2
-    where ms1, ms2 are tile registers, and md is accumulation register.
-
-    - md: accumulation register index (0-7)
-    - ms1: left tile register index (0-7)
-    - ms2: right tile register index (0-7)
-  }];
+class BOSCAME_NoWidenMMA_Op<string mnemonic, string summary_desc>
+    : BOSCAME_Op<mnemonic,
+                 [AllTypesMatch<["acc", "lhs", "rhs", "res"]>]> {
+  let summary = summary_desc # " matrix multiply-accumulate";
   let arguments = (ins
-    I64Attr:$md,
-    I64Attr:$ms1,
-    I64Attr:$ms2
+    BOSCAME_MatrixType:$acc,
+    BOSCAME_MatrixType:$lhs,
+    BOSCAME_MatrixType:$rhs
   );
-  let assemblyFormat = "$md `,` $ms1 `,` $ms2 attr-dict";
+  let results = (outs BOSCAME_MatrixType:$res);
+  let assemblyFormat =
+      "$acc `,` $lhs `,` $rhs attr-dict `:` "
+      "type($acc) `,` type($lhs) `,` type($rhs) `->` type($res)";
+}
+
+class BOSCAME_WidenMMA_Op<string mnemonic, string summary_desc>
+    : BOSCAME_Op<mnemonic,
+                 [AllTypesMatch<["acc", "res"]>,
+                  AllTypesMatch<["lhs", "rhs"]>]> {
+  let summary = summary_desc # " matrix multiply-accumulate";
+  let arguments = (ins
+    BOSCAME_MatrixType:$acc,
+    BOSCAME_MatrixType:$lhs,
+    BOSCAME_MatrixType:$rhs
+  );
+  let results = (outs BOSCAME_MatrixType:$res);
+  let assemblyFormat =
+      "$acc `,` $lhs `,` $rhs attr-dict `:` "
+      "type($acc) `,` type($lhs) `,` type($rhs) `->` type($res)";
 }
 
 //===----------------------------------------------------------------------===//
@@ -605,102 +562,102 @@ class BOSCAME_MMA_Op<string mnemonic, string summary_desc> : BOSCAME_Op<mnemonic
 // 1. No-widen matrix multiply-accumulate
 //===--------------------------------------------------------------------===//
 // int
-def MmaMmOp    : BOSCAME_MMA_Op<"mma.mm",    "Signed dynamic-width">;
-def MmaHmmOp   : BOSCAME_MMA_Op<"mma.h.mm",  "Signed 16-bit">;
-def MmaWmmOp   : BOSCAME_MMA_Op<"mma.w.mm",  "Signed 32-bit">;
-def MmaDwmmOp  : BOSCAME_MMA_Op<"mma.dw.mm", "Signed 64-bit">;
+def MmaMmOp    : BOSCAME_NoWidenMMA_Op<"mma.mm",    "Signed dynamic-width">;
+def MmaHmmOp   : BOSCAME_NoWidenMMA_Op<"mma.h.mm",  "Signed 16-bit">;
+def MmaWmmOp   : BOSCAME_NoWidenMMA_Op<"mma.w.mm",  "Signed 32-bit">;
+def MmaDwmmOp  : BOSCAME_NoWidenMMA_Op<"mma.dw.mm", "Signed 64-bit">;
 
 // int, saturated
-def MsmaMmOp   : BOSCAME_MMA_Op<"msma.mm",    "Saturated signed dynamic-width">;
-def MsmaHmmOp  : BOSCAME_MMA_Op<"msma.h.mm",  "Saturated signed 16-bit">;
-def MsmaWmmOp  : BOSCAME_MMA_Op<"msma.w.mm",  "Saturated signed 32-bit">;
-def MsmaDwmmOp : BOSCAME_MMA_Op<"msma.dw.mm", "Saturated signed 64-bit">;
+def MsmaMmOp   : BOSCAME_NoWidenMMA_Op<"msma.mm",    "Saturated signed dynamic-width">;
+def MsmaHmmOp  : BOSCAME_NoWidenMMA_Op<"msma.h.mm",  "Saturated signed 16-bit">;
+def MsmaWmmOp  : BOSCAME_NoWidenMMA_Op<"msma.w.mm",  "Saturated signed 32-bit">;
+def MsmaDwmmOp : BOSCAME_NoWidenMMA_Op<"msma.dw.mm", "Saturated signed 64-bit">;
 
 // uint
-def MmauMmOp   : BOSCAME_MMA_Op<"mmau.mm",    "Unsigned dynamic-width">;
-def MmauHmmOp  : BOSCAME_MMA_Op<"mmau.h.mm",  "Unsigned 16-bit">;
-def MmauWmmOp  : BOSCAME_MMA_Op<"mmau.w.mm",  "Unsigned 32-bit">;
-def MmauDwmmOp : BOSCAME_MMA_Op<"mmau.dw.mm", "Unsigned 64-bit">;
+def MmauMmOp   : BOSCAME_NoWidenMMA_Op<"mmau.mm",    "Unsigned dynamic-width">;
+def MmauHmmOp  : BOSCAME_NoWidenMMA_Op<"mmau.h.mm",  "Unsigned 16-bit">;
+def MmauWmmOp  : BOSCAME_NoWidenMMA_Op<"mmau.w.mm",  "Unsigned 32-bit">;
+def MmauDwmmOp : BOSCAME_NoWidenMMA_Op<"mmau.dw.mm", "Unsigned 64-bit">;
 
 // uint, saturated
-def MsmauMmOp   : BOSCAME_MMA_Op<"msmau.mm",    "Saturated unsigned dynamic-width">;
-def MsmauHmmOp  : BOSCAME_MMA_Op<"msmau.h.mm",  "Saturated unsigned 16-bit">;
-def MsmauWmmOp  : BOSCAME_MMA_Op<"msmau.w.mm",  "Saturated unsigned 32-bit">;
-def MsmauDwmmOp : BOSCAME_MMA_Op<"msmau.dw.mm", "Saturated unsigned 64-bit">;
+def MsmauMmOp   : BOSCAME_NoWidenMMA_Op<"msmau.mm",    "Saturated unsigned dynamic-width">;
+def MsmauHmmOp  : BOSCAME_NoWidenMMA_Op<"msmau.h.mm",  "Saturated unsigned 16-bit">;
+def MsmauWmmOp  : BOSCAME_NoWidenMMA_Op<"msmau.w.mm",  "Saturated unsigned 32-bit">;
+def MsmauDwmmOp : BOSCAME_NoWidenMMA_Op<"msmau.dw.mm", "Saturated unsigned 64-bit">;
 
 // float point
-def MfmaMmOp   : BOSCAME_MMA_Op<"mfma.mm",    "Floating-point dynamic-width">;
-def MfmaHfmmOp : BOSCAME_MMA_Op<"mfma.hf.mm", "Floating-point 16-bit (half)">;
-def MfmaFmmOp  : BOSCAME_MMA_Op<"mfma.f.mm",  "Floating-point 32-bit (single)">;
-def MfmaDmmOp  : BOSCAME_MMA_Op<"mfma.d.mm",  "Floating-point 64-bit (double)">;
+def MfmaMmOp   : BOSCAME_NoWidenMMA_Op<"mfma.mm",    "Floating-point dynamic-width">;
+def MfmaHfmmOp : BOSCAME_NoWidenMMA_Op<"mfma.hf.mm", "Floating-point 16-bit (half)">;
+def MfmaFmmOp  : BOSCAME_NoWidenMMA_Op<"mfma.f.mm",  "Floating-point 32-bit (single)">;
+def MfmaDmmOp  : BOSCAME_NoWidenMMA_Op<"mfma.d.mm",  "Floating-point 64-bit (double)">;
 //===--------------------------------------------------------------------===//
 // 2. Double-widen matrix multiply-accumulate
 //===--------------------------------------------------------------------===//
 // uint
-def MwmauMmOp  : BOSCAME_MMA_Op<"mwmau.mm",   "Double-widening unsigned dynamic-width">;
-def MwmauHmmOp : BOSCAME_MMA_Op<"mwmau.h.mm", "Double-widening unsigned 16-bit">;
-def MwmauWmmOp : BOSCAME_MMA_Op<"mwmau.w.mm", "Double-widening unsigned 32-bit">;
+def MwmauMmOp  : BOSCAME_WidenMMA_Op<"mwmau.mm",   "Double-widening unsigned dynamic-width">;
+def MwmauHmmOp : BOSCAME_WidenMMA_Op<"mwmau.h.mm", "Double-widening unsigned 16-bit">;
+def MwmauWmmOp : BOSCAME_WidenMMA_Op<"mwmau.w.mm", "Double-widening unsigned 32-bit">;
 
 // uint, saturated
-def MswmauMmOp  : BOSCAME_MMA_Op<"mswmau.mm",   "Saturated double-widening unsigned dynamic-width">;
-def MswmauHmmOp : BOSCAME_MMA_Op<"mswmau.h.mm", "Saturated double-widening unsigned 16-bit">;
-def MswmauWmmOp : BOSCAME_MMA_Op<"mswmau.w.mm", "Saturated double-widening unsigned 32-bit">;
+def MswmauMmOp  : BOSCAME_WidenMMA_Op<"mswmau.mm",   "Saturated double-widening unsigned dynamic-width">;
+def MswmauHmmOp : BOSCAME_WidenMMA_Op<"mswmau.h.mm", "Saturated double-widening unsigned 16-bit">;
+def MswmauWmmOp : BOSCAME_WidenMMA_Op<"mswmau.w.mm", "Saturated double-widening unsigned 32-bit">;
 
 // int
-def MwmaMmOp  : BOSCAME_MMA_Op<"mwma.mm",   "Double-widening signed dynamic-width">;
-def MwmaHmmOp : BOSCAME_MMA_Op<"mwma.h.mm", "Double-widening signed 16-bit">;
-def MwmaWmmOp : BOSCAME_MMA_Op<"mwma.w.mm", "Double-widening signed 32-bit">;
+def MwmaMmOp  : BOSCAME_WidenMMA_Op<"mwma.mm",   "Double-widening signed dynamic-width">;
+def MwmaHmmOp : BOSCAME_WidenMMA_Op<"mwma.h.mm", "Double-widening signed 16-bit">;
+def MwmaWmmOp : BOSCAME_WidenMMA_Op<"mwma.w.mm", "Double-widening signed 32-bit">;
 
 // int, saturated
-def MswmaMmOp  : BOSCAME_MMA_Op<"mswma.mm",   "Saturated double-widening signed dynamic-width">;
-def MswmaHmmOp : BOSCAME_MMA_Op<"mswma.h.mm", "Saturated double-widening signed 16-bit">;
-def MswmaWmmOp : BOSCAME_MMA_Op<"mswma.w.mm", "Saturated double-widening signed 32-bit">;
+def MswmaMmOp  : BOSCAME_WidenMMA_Op<"mswma.mm",   "Saturated double-widening signed dynamic-width">;
+def MswmaHmmOp : BOSCAME_WidenMMA_Op<"mswma.h.mm", "Saturated double-widening signed 16-bit">;
+def MswmaWmmOp : BOSCAME_WidenMMA_Op<"mswma.w.mm", "Saturated double-widening signed 32-bit">;
 
 // float point
-def MfwmaMmOp   : BOSCAME_MMA_Op<"mfwma.mm",    "Double-widening floating-point dynamic-width">;
-def MfwmaCfmmOp : BOSCAME_MMA_Op<"mfwma.cf.mm", "Double-widening floating-point 8-bit (cf)">;
-def MfwmaHfmmOp : BOSCAME_MMA_Op<"mfwma.hf.mm", "Double-widening floating-point 16-bit (half)">;
-def MfwmaFmmOp  : BOSCAME_MMA_Op<"mfwma.f.mm",  "Double-widening floating-point 32-bit (single)">;
+def MfwmaMmOp   : BOSCAME_WidenMMA_Op<"mfwma.mm",    "Double-widening floating-point dynamic-width">;
+//def MfwmaCfmmOp : BOSCAME_WidenMMA_Op<"mfwma.cf.mm", "Double-widening floating-point 8-bit (cf)">;
+def MfwmaHfmmOp : BOSCAME_WidenMMA_Op<"mfwma.hf.mm", "Double-widening floating-point 16-bit (half)">;
+def MfwmaFmmOp  : BOSCAME_WidenMMA_Op<"mfwma.f.mm",  "Double-widening floating-point 32-bit (single)">;
 //===--------------------------------------------------------------------===//
 // 3. Quad-widen matrix multiply-accumulate
 //===--------------------------------------------------------------------===//
 // uint
-def MqmauMmOp  : BOSCAME_MMA_Op<"mqmau.mm",   "Quad-widening unsigned dynamic-width">;
-def MqmauBmmOp : BOSCAME_MMA_Op<"mqmau.b.mm", "Quad-widening unsigned 8-bit">;
+def MqmauMmOp  : BOSCAME_WidenMMA_Op<"mqmau.mm",   "Quad-widening unsigned dynamic-width">;
+def MqmauBmmOp : BOSCAME_WidenMMA_Op<"mqmau.b.mm", "Quad-widening unsigned 8-bit">;
 
 // uint, saturated
-def MsqmauMmOp  : BOSCAME_MMA_Op<"msqmau.mm",   "Saturated quad-widening unsigned dynamic-width">;
-def MsqmauBmmOp : BOSCAME_MMA_Op<"msqmau.b.mm", "Saturated quad-widening unsigned 8-bit">;
+def MsqmauMmOp  : BOSCAME_WidenMMA_Op<"msqmau.mm",   "Saturated quad-widening unsigned dynamic-width">;
+def MsqmauBmmOp : BOSCAME_WidenMMA_Op<"msqmau.b.mm", "Saturated quad-widening unsigned 8-bit">;
 
 // int
-def MqmaMmOp  : BOSCAME_MMA_Op<"mqma.mm",   "Quad-widening signed dynamic-width">;
-def MqmaBmmOp : BOSCAME_MMA_Op<"mqma.b.mm", "Quad-widening signed 8-bit">;
+def MqmaMmOp  : BOSCAME_WidenMMA_Op<"mqma.mm",   "Quad-widening signed dynamic-width">;
+def MqmaBmmOp : BOSCAME_WidenMMA_Op<"mqma.b.mm", "Quad-widening signed 8-bit">;
 
 // int, saturated
-def MsqmaMmOp  : BOSCAME_MMA_Op<"msqma.mm",   "Saturated quad-widening signed dynamic-width">;
-def MsqmaBmmOp : BOSCAME_MMA_Op<"msqma.b.mm", "Saturated quad-widening signed 8-bit">;
+def MsqmaMmOp  : BOSCAME_WidenMMA_Op<"msqma.mm",   "Saturated quad-widening signed dynamic-width">;
+def MsqmaBmmOp : BOSCAME_WidenMMA_Op<"msqma.b.mm", "Saturated quad-widening signed 8-bit">;
 
 // float point
-def MfqmaMmOp   : BOSCAME_MMA_Op<"mfqma.mm",    "Quad-widening floating-point dynamic-width">;
-def MfqmaCfmmOp : BOSCAME_MMA_Op<"mfqma.cf.mm", "Quad-widening floating-point 8-bit (cf)">;
+def MfqmaMmOp   : BOSCAME_WidenMMA_Op<"mfqma.mm",    "Quad-widening floating-point dynamic-width">;
+//def MfqmaCfmmOp : BOSCAME_WidenMMA_Op<"mfqma.cf.mm", "Quad-widening floating-point 8-bit (cf)">;
 //===--------------------------------------------------------------------===//
 // 4. Oct-widen matrix multiply-accumulate
 //===--------------------------------------------------------------------===//
 // uint
-def MomauMmOp   : BOSCAME_MMA_Op<"momau.mm",    "Oct-widening unsigned dynamic-width">;
-def MomauHbmmOp : BOSCAME_MMA_Op<"momau.hb.mm", "Oct-widening unsigned 4-bit (hb)">;
+def MomauMmOp   : BOSCAME_WidenMMA_Op<"momau.mm",    "Oct-widening unsigned dynamic-width">;
+//def MomauHbmmOp : BOSCAME_WidenMMA_Op<"momau.hb.mm", "Oct-widening unsigned 4-bit (hb)">;
 
 // uint, saturated
-def MsomauMmOp   : BOSCAME_MMA_Op<"msomau.mm",    "Saturated oct-widening unsigned dynamic-width">;
-def MsomauHbmmOp : BOSCAME_MMA_Op<"msomau.hb.mm", "Saturated oct-widening unsigned 4-bit (hb)">;
+def MsomauMmOp   : BOSCAME_WidenMMA_Op<"msomau.mm",    "Saturated oct-widening unsigned dynamic-width">;
+//def MsomauHbmmOp : BOSCAME_WidenMMA_Op<"msomau.hb.mm", "Saturated oct-widening unsigned 4-bit (hb)">;
 
 // int
-def MomaMmOp   : BOSCAME_MMA_Op<"moma.mm",    "Oct-widening signed dynamic-width">;
-def MomaHbmmOp : BOSCAME_MMA_Op<"moma.hb.mm", "Oct-widening signed 4-bit (hb)">;
+def MomaMmOp   : BOSCAME_WidenMMA_Op<"moma.mm",    "Oct-widening signed dynamic-width">;
+//def MomaHbmmOp : BOSCAME_WidenMMA_Op<"moma.hb.mm", "Oct-widening signed 4-bit (hb)">;
 
 // int, saturated
-def MsomaMmOp   : BOSCAME_MMA_Op<"msoma.mm",    "Saturated oct-widening signed dynamic-width">;
-def MsomaHbmmOp : BOSCAME_MMA_Op<"msoma.hb.mm", "Saturated oct-widening signed 4-bit (hb)">;
+def MsomaMmOp   : BOSCAME_WidenMMA_Op<"msoma.mm",    "Saturated oct-widening signed dynamic-width">;
+//def MsomaHbmmOp : BOSCAME_WidenMMA_Op<"msoma.hb.mm", "Saturated oct-widening signed 4-bit (hb)">;
 
 //===----------------------------------------------------------------------===//
 // BOSCAME Intrinsic Operation Definitions (for LLVM IR translation)
@@ -709,89 +666,98 @@ def MsomaHbmmOp : BOSCAME_MMA_Op<"msoma.hb.mm", "Saturated oct-widening signed 4
 
 // Base class for BOSCAME intrinsic ops
 // Note: enumName must match the intrinsic name pattern: riscv_bosc_<name>
-class BOSCAME_IntrOpBase<string mnemonic, int numRes = 0, list<Trait> traits = []> :
+class BOSCAME_IntrOpBase<string mnemonic, int numRes = 0,
+                         list<int> overloadedResults = [],
+                         list<int> overloadedOperands = [],
+                         list<Trait> traits = []> :
   LLVM_IntrOpBase</*Dialect dialect=*/BOSCAME_Dialect,
                   /*string opName=*/"intr." # mnemonic,
                   /*string enumName=*/"riscv_bosc_" # !subst(".", "_", mnemonic),
-                  /*list<int> overloadedResults=*/[],
-                  /*list<int> overloadedOperands=*/[],
+                  /*list<int> overloadedResults=*/overloadedResults,
+                  /*list<int> overloadedOperands=*/overloadedOperands,
                   /*list<Trait> traits=*/traits,
                   /*int numResults=*/numRes>;
 
 // Configuration intrinsics (with immediate value)
-def BOSCAME_Msettypei_IntrOp : BOSCAME_IntrOpBase<"msettypei", 1>,
+def BOSCAME_Msettypei_IntrOp : BOSCAME_IntrOpBase<"msettypei", 1, [0]>,
   Arguments<(ins LLVM_Type:$timm)>;
-def BOSCAME_Msettypehi_IntrOp : BOSCAME_IntrOpBase<"msettypehi", 1>,
+def BOSCAME_Msettypehi_IntrOp : BOSCAME_IntrOpBase<"msettypehi", 1, [0]>,
   Arguments<(ins LLVM_Type:$timm)>;
-def BOSCAME_Msettilemi_IntrOp : BOSCAME_IntrOpBase<"msettilemi", 1>,
+def BOSCAME_Msettilemi_IntrOp : BOSCAME_IntrOpBase<"msettilemi", 1, [0]>,
   Arguments<(ins LLVM_Type:$tilem)>;
-def BOSCAME_Msettileni_IntrOp : BOSCAME_IntrOpBase<"msettileni", 1>,
+def BOSCAME_Msettileni_IntrOp : BOSCAME_IntrOpBase<"msettileni", 1, [0]>,
   Arguments<(ins LLVM_Type:$tilen)>;
-def BOSCAME_Msettileki_IntrOp : BOSCAME_IntrOpBase<"msettileki", 1>,
+def BOSCAME_Msettileki_IntrOp : BOSCAME_IntrOpBase<"msettileki", 1, [0]>,
   Arguments<(ins LLVM_Type:$tilek)>;
 
 // Configuration intrinsics (with register value)
-def BOSCAME_Msettype_IntrOp : BOSCAME_IntrOpBase<"msettype", 1>,
+def BOSCAME_Msettype_IntrOp : BOSCAME_IntrOpBase<"msettype", 1, [0]>,
   Arguments<(ins LLVM_Type:$rs1)>;
-def BOSCAME_Msettilem_IntrOp : BOSCAME_IntrOpBase<"msettilem", 1>,
+def BOSCAME_Msettilem_IntrOp : BOSCAME_IntrOpBase<"msettilem", 1, [0]>,
   Arguments<(ins LLVM_Type:$rs1)>;
-def BOSCAME_Msettilen_IntrOp : BOSCAME_IntrOpBase<"msettilen", 1>,
+def BOSCAME_Msettilen_IntrOp : BOSCAME_IntrOpBase<"msettilen", 1, [0]>,
   Arguments<(ins LLVM_Type:$rs1)>;
-def BOSCAME_Msettilek_IntrOp : BOSCAME_IntrOpBase<"msettilek", 1>,
+def BOSCAME_Msettilek_IntrOp : BOSCAME_IntrOpBase<"msettilek", 1, [0]>,
   Arguments<(ins LLVM_Type:$rs1)>;
 
 //===----------------------------------------------------------------------===//
 // Data Move / Broadcast / Transpose Intrinsic Operations (LLVM IR Translation)
 //===----------------------------------------------------------------------===//
-// 1. Matrix to Matrix (Pure Move)
-class BOSCAME_PureMove_IntrOp<string mnemonic> : BOSCAME_IntrOpBase<mnemonic>,
-  Arguments<(ins LLVM_Type:$md, LLVM_Type:$ms1)>;
-// 2. Matrix Move with GPR Index
-class BOSCAME_IndexedMove_IntrOp<string mnemonic> : BOSCAME_IntrOpBase<mnemonic>,
-  Arguments<(ins LLVM_Type:$md, LLVM_Type:$ms1, LLVM_Type:$rs2)>;
-// 3. Matrix Move with Immediate Index
-class BOSCAME_ImmIndexedMove_IntrOp<string mnemonic> : BOSCAME_IntrOpBase<mnemonic>,
-  Arguments<(ins LLVM_Type:$md, LLVM_Type:$ms1, LLVM_Type:$imm)>;
-// 4. Matrix to Scalar Move (Returns GPR I64)
-class BOSCAME_MatrixToScalar_IntrOp<string mnemonic> : BOSCAME_IntrOpBase<mnemonic, 1>,
-  Arguments<(ins LLVM_Type:$ms1, LLVM_Type:$rs2)>;
-// 5. Scalar to Matrix Move
-class BOSCAME_ScalarToMatrix_IntrOp<string mnemonic> : BOSCAME_IntrOpBase<mnemonic>,
-  Arguments<(ins LLVM_Type:$md, LLVM_Type:$rs1, LLVM_Type:$rs2)>;
+class BOSCAME_PureMove_IntrOp<string mnemonic>
+    : BOSCAME_IntrOpBase<mnemonic, 1, [0]>,
+      Arguments<(ins LLVM_Type:$src)>;
+
+class BOSCAME_IndexedMove_IntrOp<string mnemonic>
+    : BOSCAME_IntrOpBase<mnemonic, 1, [0], [0, 1]>,
+      Arguments<(ins LLVM_Type:$src, LLVM_Type:$rs2)>;
+
+class BOSCAME_ImmIndexedMove_IntrOp<string mnemonic>
+    : BOSCAME_IntrOpBase<mnemonic, 1, [0], [0, 1]>,
+      Arguments<(ins LLVM_Type:$src, LLVM_Type:$imm)>;
+
+class BOSCAME_MatrixToScalar_IntrOp<string mnemonic>
+    : BOSCAME_IntrOpBase<mnemonic, 1, [0], [0, 1]>,
+      Arguments<(ins LLVM_Type:$src, LLVM_Type:$rs2)>;
+
+class BOSCAME_ScalarToMatrix_IntrOp<string mnemonic>
+    : BOSCAME_IntrOpBase<mnemonic, 1, [0], [0, 1, 2]>,
+      Arguments<(ins LLVM_Type:$md_in,
+                     LLVM_Type:$value,
+                     LLVM_Type:$rs2)>;
 
 //===----------------------------------------------------------------------===//
 // Multiclasses for IntrOp Bitwidth Auto-Generation
 //===----------------------------------------------------------------------===//
 multiclass BOSCAME_PureMove_IntrOp_Multiclass<string prefix, string suffix> {
-  def "8_IntrOp"  : BOSCAME_PureMove_IntrOp<prefix # "8." # suffix>;
+  def "8_IntrOp"  : BOSCAME_PureMove_IntrOp<prefix # "8."  # suffix>;
   def "16_IntrOp" : BOSCAME_PureMove_IntrOp<prefix # "16." # suffix>;
   def "32_IntrOp" : BOSCAME_PureMove_IntrOp<prefix # "32." # suffix>;
   def "64_IntrOp" : BOSCAME_PureMove_IntrOp<prefix # "64." # suffix>;
 }
 
 multiclass BOSCAME_IndexedMove_IntrOp_Multiclass<string prefix, string suffix> {
-  def "8_IntrOp"  : BOSCAME_IndexedMove_IntrOp<prefix # "8." # suffix>;
+  def "8_IntrOp"  : BOSCAME_IndexedMove_IntrOp<prefix # "8."  # suffix>;
   def "16_IntrOp" : BOSCAME_IndexedMove_IntrOp<prefix # "16." # suffix>;
   def "32_IntrOp" : BOSCAME_IndexedMove_IntrOp<prefix # "32." # suffix>;
   def "64_IntrOp" : BOSCAME_IndexedMove_IntrOp<prefix # "64." # suffix>;
 }
 
 multiclass BOSCAME_ImmIndexedMove_IntrOp_Multiclass<string prefix, string suffix> {
-  def "8_IntrOp"  : BOSCAME_ImmIndexedMove_IntrOp<prefix # "8." # suffix>;
+  def "8_IntrOp"  : BOSCAME_ImmIndexedMove_IntrOp<prefix # "8."  # suffix>;
   def "16_IntrOp" : BOSCAME_ImmIndexedMove_IntrOp<prefix # "16." # suffix>;
   def "32_IntrOp" : BOSCAME_ImmIndexedMove_IntrOp<prefix # "32." # suffix>;
   def "64_IntrOp" : BOSCAME_ImmIndexedMove_IntrOp<prefix # "64." # suffix>;
 }
 
 multiclass BOSCAME_MatrixToScalar_IntrOp_Multiclass<string prefix, string suffix> {
-  def "8_IntrOp"  : BOSCAME_MatrixToScalar_IntrOp<prefix # "8." # suffix>;
+  def "8_IntrOp"  : BOSCAME_MatrixToScalar_IntrOp<prefix # "8."  # suffix>;
   def "16_IntrOp" : BOSCAME_MatrixToScalar_IntrOp<prefix # "16." # suffix>;
   def "32_IntrOp" : BOSCAME_MatrixToScalar_IntrOp<prefix # "32." # suffix>;
   def "64_IntrOp" : BOSCAME_MatrixToScalar_IntrOp<prefix # "64." # suffix>;
 }
 
 multiclass BOSCAME_ScalarToMatrix_IntrOp_Multiclass<string prefix, string suffix> {
-  def "8_IntrOp"  : BOSCAME_ScalarToMatrix_IntrOp<prefix # "8." # suffix>;
+  def "8_IntrOp"  : BOSCAME_ScalarToMatrix_IntrOp<prefix # "8."  # suffix>;
   def "16_IntrOp" : BOSCAME_ScalarToMatrix_IntrOp<prefix # "16." # suffix>;
   def "32_IntrOp" : BOSCAME_ScalarToMatrix_IntrOp<prefix # "32." # suffix>;
   def "64_IntrOp" : BOSCAME_ScalarToMatrix_IntrOp<prefix # "64." # suffix>;
@@ -846,13 +812,17 @@ defm BOSCAME_Mtce : BOSCAME_PureMove_IntrOp_Multiclass<"mtce", "m">;
 //===----------------------------------------------------------------------===//
 // Element-Wise Intrinsic Operation Definitions (LLVM IR Translation)
 //===----------------------------------------------------------------------===//
-// Base class for 3-operand element-wise intrinsic ops
-class BOSCAME_EleWise3_IntrOp<string mnemonic> : BOSCAME_IntrOpBase<mnemonic>,
-  Arguments<(ins LLVM_Type:$md, LLVM_Type:$ms1, LLVM_Type:$ms2)>;
+class BOSCAME_EleWise3_IntrOp<string mnemonic>
+    : BOSCAME_IntrOpBase<mnemonic, 1, [0]>,
+      Arguments<(ins LLVM_Type:$src1, LLVM_Type:$src2)>;
 
-// Base class for 2-operand unary element-wise intrinsic ops (e.g., SQRT)
-class BOSCAME_EleWise2_IntrOp<string mnemonic> : BOSCAME_IntrOpBase<mnemonic>,
-  Arguments<(ins LLVM_Type:$md, LLVM_Type:$ms1)>;
+class BOSCAME_WidenEleWise3_IntrOp<string mnemonic>
+    : BOSCAME_IntrOpBase<mnemonic, 1, [0], [0]>,
+      Arguments<(ins LLVM_Type:$src1, LLVM_Type:$src2)>;
+
+class BOSCAME_EleWise2_IntrOp<string mnemonic>
+    : BOSCAME_IntrOpBase<mnemonic, 1, [0]>,
+      Arguments<(ins LLVM_Type:$src)>;
 
 //===----------------------------------------------------------------------===//
 // Multiclasses for IntrOp Bitwidth Auto-Generation
@@ -873,16 +843,16 @@ multiclass BOSCAME_EleWise_Float_NoWiden_IntrOp<string prefix> {
 }
 
 multiclass BOSCAME_EleWise_Int_DoubleWiden_IntrOp<string prefix> {
-  def "Mm_IntrOp"   : BOSCAME_EleWise3_IntrOp<prefix # ".mm">;
-  def "Bmm_IntrOp"  : BOSCAME_EleWise3_IntrOp<prefix # ".b.mm">;
-  def "Hmm_IntrOp"  : BOSCAME_EleWise3_IntrOp<prefix # ".h.mm">;
-  def "Wmm_IntrOp"  : BOSCAME_EleWise3_IntrOp<prefix # ".w.mm">;
+  def "Mm_IntrOp"   : BOSCAME_WidenEleWise3_IntrOp<prefix # ".mm">;
+  def "Bmm_IntrOp"  : BOSCAME_WidenEleWise3_IntrOp<prefix # ".b.mm">;
+  def "Hmm_IntrOp"  : BOSCAME_WidenEleWise3_IntrOp<prefix # ".h.mm">;
+  def "Wmm_IntrOp"  : BOSCAME_WidenEleWise3_IntrOp<prefix # ".w.mm">;
 }
 
 multiclass BOSCAME_EleWise_Float_DoubleWiden_IntrOp<string prefix> {
-  def "Mm_IntrOp"   : BOSCAME_EleWise3_IntrOp<prefix # ".mm">;
-  def "Hfmm_IntrOp" : BOSCAME_EleWise3_IntrOp<prefix # ".hf.mm">;
-  def "Fmm_IntrOp"  : BOSCAME_EleWise3_IntrOp<prefix # ".f.mm">;
+  def "Mm_IntrOp"   : BOSCAME_WidenEleWise3_IntrOp<prefix # ".mm">;
+  def "Hfmm_IntrOp" : BOSCAME_WidenEleWise3_IntrOp<prefix # ".hf.mm">;
+  def "Fmm_IntrOp"  : BOSCAME_WidenEleWise3_IntrOp<prefix # ".f.mm">;
 }
 
 multiclass BOSCAME_EleWise_Unary_Float_IntrOp<string prefix> {
@@ -946,19 +916,24 @@ defm BOSCAME_Msll : BOSCAME_EleWise_Int_NoWiden_IntrOp<"msll">;
 defm BOSCAME_Msrl : BOSCAME_EleWise_Int_NoWiden_IntrOp<"msrl">;
 defm BOSCAME_Msra : BOSCAME_EleWise_Int_NoWiden_IntrOp<"msra">;
 // 7. SQRT - No Widen (Unary)
-defm BOSCAME_Mfsqrt : BOSCAME_EleWise_Unary_Float_IntrOp<"mfsqrt">;
+// The unary MLIR/LLVM intrinsic and selected hardware instruction use the
+// ``.m`` suffix.
+def BOSCAME_MfsqrtM_IntrOp   : BOSCAME_EleWise2_IntrOp<"mfsqrt.m">;
+def BOSCAME_MfsqrtHfM_IntrOp : BOSCAME_EleWise2_IntrOp<"mfsqrt.hf.m">;
+def BOSCAME_MfsqrtFM_IntrOp  : BOSCAME_EleWise2_IntrOp<"mfsqrt.f.m">;
+def BOSCAME_MfsqrtDM_IntrOp  : BOSCAME_EleWise2_IntrOp<"mfsqrt.d.m">;
 
 //===----------------------------------------------------------------------===//
 // BOSCAME Intrinsic Operation Definitions (LLVM IR Translation)
 // Matrix Load/Store Intrinsics Generators
 //===----------------------------------------------------------------------===//
-// Base class for Matrix load intrinsics (to tile registers)
-class BOSCAME_Load_IntrOp<string mnemonic> : BOSCAME_IntrOpBase<mnemonic>,
-  Arguments<(ins LLVM_Type:$md, LLVM_Type:$base, LLVM_Type:$stride)>;
+class BOSCAME_Load_IntrOp<string mnemonic>
+    : BOSCAME_IntrOpBase<mnemonic, 1, [0], [1]>,
+      Arguments<(ins LLVM_Type:$base, LLVM_Type:$stride)>;
 
-// Base class for Matrix store intrinsics (from tile registers)
-class BOSCAME_Store_IntrOp<string mnemonic> : BOSCAME_IntrOpBase<mnemonic>,
-  Arguments<(ins LLVM_Type:$ms3, LLVM_Type:$base, LLVM_Type:$stride)>;
+class BOSCAME_Store_IntrOp<string mnemonic>
+    : BOSCAME_IntrOpBase<mnemonic, 0, [], [0, 2]>,
+      Arguments<(ins LLVM_Type:$src, LLVM_Type:$base, LLVM_Type:$stride)>;
 
 // Multiclass to auto-generate 8/16/32/64 bit variants for Loads
 multiclass BOSCAME_Load_IntrOp_Multiclass<string prefix> {
@@ -1008,8 +983,13 @@ defm BOSCAME_Msacce : BOSCAME_Store_IntrOp_Multiclass<"msacce">;
 //===----------------------------------------------------------------------===//
 // Tile register matrix multiplication intrinsics (LLVM IR Translation)
 //===----------------------------------------------------------------------===//
-class BOSCAME_MMA_IntrOp<string mnemonic> : BOSCAME_IntrOpBase<mnemonic>,
-  Arguments<(ins LLVM_Type:$md, LLVM_Type:$ms1, LLVM_Type:$ms2)>;
+class BOSCAME_MMA_IntrOp<string mnemonic>
+    : BOSCAME_IntrOpBase<mnemonic, 1, [0]>,
+      Arguments<(ins LLVM_Type:$acc, LLVM_Type:$lhs, LLVM_Type:$rhs)>;
+
+class BOSCAME_WidenMMA_IntrOp<string mnemonic>
+    : BOSCAME_IntrOpBase<mnemonic, 1, [0], [1]>,
+      Arguments<(ins LLVM_Type:$acc, LLVM_Type:$lhs, LLVM_Type:$rhs)>;
 
 //===--------------------------------------------------------------------===//
 // 1. No-widen matrix multiply-accumulate
@@ -1044,54 +1024,54 @@ def BOSCAME_MfmaDmm_IntrOp  : BOSCAME_MMA_IntrOp<"mfma.d.mm">;
 // 2. Double-widen matrix multiply-accumulate
 //===--------------------------------------------------------------------===//
 // uint
-def BOSCAME_MwmauMm_IntrOp   : BOSCAME_MMA_IntrOp<"mwmau.mm">;
-def BOSCAME_MwmauHmm_IntrOp  : BOSCAME_MMA_IntrOp<"mwmau.h.mm">;
-def BOSCAME_MwmauWmm_IntrOp  : BOSCAME_MMA_IntrOp<"mwmau.w.mm">;
+def BOSCAME_MwmauMm_IntrOp   : BOSCAME_WidenMMA_IntrOp<"mwmau.mm">;
+def BOSCAME_MwmauHmm_IntrOp  : BOSCAME_WidenMMA_IntrOp<"mwmau.h.mm">;
+def BOSCAME_MwmauWmm_IntrOp  : BOSCAME_WidenMMA_IntrOp<"mwmau.w.mm">;
 // uint, saturated
-def BOSCAME_MswmauMm_IntrOp  : BOSCAME_MMA_IntrOp<"mswmau.mm">;
-def BOSCAME_MswmauHmm_IntrOp : BOSCAME_MMA_IntrOp<"mswmau.h.mm">;
-def BOSCAME_MswmauWmm_IntrOp : BOSCAME_MMA_IntrOp<"mswmau.w.mm">;
+def BOSCAME_MswmauMm_IntrOp  : BOSCAME_WidenMMA_IntrOp<"mswmau.mm">;
+def BOSCAME_MswmauHmm_IntrOp : BOSCAME_WidenMMA_IntrOp<"mswmau.h.mm">;
+def BOSCAME_MswmauWmm_IntrOp : BOSCAME_WidenMMA_IntrOp<"mswmau.w.mm">;
 // int
-def BOSCAME_MwmaMm_IntrOp   : BOSCAME_MMA_IntrOp<"mwma.mm">;
-def BOSCAME_MwmaHmm_IntrOp  : BOSCAME_MMA_IntrOp<"mwma.h.mm">;
-def BOSCAME_MwmaWmm_IntrOp  : BOSCAME_MMA_IntrOp<"mwma.w.mm">;
+def BOSCAME_MwmaMm_IntrOp   : BOSCAME_WidenMMA_IntrOp<"mwma.mm">;
+def BOSCAME_MwmaHmm_IntrOp  : BOSCAME_WidenMMA_IntrOp<"mwma.h.mm">;
+def BOSCAME_MwmaWmm_IntrOp  : BOSCAME_WidenMMA_IntrOp<"mwma.w.mm">;
 // int, saturated
-def BOSCAME_MswmaMm_IntrOp   : BOSCAME_MMA_IntrOp<"mswma.mm">;
-def BOSCAME_MswmaHmm_IntrOp  : BOSCAME_MMA_IntrOp<"mswma.h.mm">;
-def BOSCAME_MswmaWmm_IntrOp  : BOSCAME_MMA_IntrOp<"mswma.w.mm">;
+def BOSCAME_MswmaMm_IntrOp   : BOSCAME_WidenMMA_IntrOp<"mswma.mm">;
+def BOSCAME_MswmaHmm_IntrOp  : BOSCAME_WidenMMA_IntrOp<"mswma.h.mm">;
+def BOSCAME_MswmaWmm_IntrOp  : BOSCAME_WidenMMA_IntrOp<"mswma.w.mm">;
 // float point
-def BOSCAME_MfwmaMm_IntrOp   : BOSCAME_MMA_IntrOp<"mfwma.mm">;
-def BOSCAME_MfwmaHfmm_IntrOp : BOSCAME_MMA_IntrOp<"mfwma.hf.mm">;
-def BOSCAME_MfwmaFmm_IntrOp  : BOSCAME_MMA_IntrOp<"mfwma.f.mm">;
+def BOSCAME_MfwmaMm_IntrOp   : BOSCAME_WidenMMA_IntrOp<"mfwma.mm">;
+def BOSCAME_MfwmaHfmm_IntrOp : BOSCAME_WidenMMA_IntrOp<"mfwma.hf.mm">;
+def BOSCAME_MfwmaFmm_IntrOp  : BOSCAME_WidenMMA_IntrOp<"mfwma.f.mm">;
 
 //===--------------------------------------------------------------------===//
 // 3. Quad-widen matrix multiply-accumulate
 //===--------------------------------------------------------------------===//
 // uint
-def BOSCAME_MqmauMm_IntrOp  : BOSCAME_MMA_IntrOp<"mqmau.mm">;
-def BOSCAME_MqmauBmm_IntrOp : BOSCAME_MMA_IntrOp<"mqmau.b.mm">;
+def BOSCAME_MqmauMm_IntrOp  : BOSCAME_WidenMMA_IntrOp<"mqmau.mm">;
+def BOSCAME_MqmauBmm_IntrOp : BOSCAME_WidenMMA_IntrOp<"mqmau.b.mm">;
 // uint, saturated
-def BOSCAME_MsqmauMm_IntrOp  : BOSCAME_MMA_IntrOp<"msqmau.mm">;
-def BOSCAME_MsqmauBmm_IntrOp : BOSCAME_MMA_IntrOp<"msqmau.b.mm">;
+def BOSCAME_MsqmauMm_IntrOp  : BOSCAME_WidenMMA_IntrOp<"msqmau.mm">;
+def BOSCAME_MsqmauBmm_IntrOp : BOSCAME_WidenMMA_IntrOp<"msqmau.b.mm">;
 // int
-def BOSCAME_MqmaMm_IntrOp  : BOSCAME_MMA_IntrOp<"mqma.mm">;
-def BOSCAME_MqmaBmm_IntrOp : BOSCAME_MMA_IntrOp<"mqma.b.mm">;
+def BOSCAME_MqmaMm_IntrOp  : BOSCAME_WidenMMA_IntrOp<"mqma.mm">;
+def BOSCAME_MqmaBmm_IntrOp : BOSCAME_WidenMMA_IntrOp<"mqma.b.mm">;
 // int, saturated
-def BOSCAME_MsqmaMm_IntrOp  : BOSCAME_MMA_IntrOp<"msqma.mm">;
-def BOSCAME_MsqmaBmm_IntrOp : BOSCAME_MMA_IntrOp<"msqma.b.mm">;
+def BOSCAME_MsqmaMm_IntrOp  : BOSCAME_WidenMMA_IntrOp<"msqma.mm">;
+def BOSCAME_MsqmaBmm_IntrOp : BOSCAME_WidenMMA_IntrOp<"msqma.b.mm">;
 // float point
-def BOSCAME_MfqmaMm_IntrOp   : BOSCAME_MMA_IntrOp<"mfqma.mm">;
+def BOSCAME_MfqmaMm_IntrOp   : BOSCAME_WidenMMA_IntrOp<"mfqma.mm">;
 
 //===--------------------------------------------------------------------===//
 // 4. Oct-widen matrix multiply-accumulate
 //===--------------------------------------------------------------------===//
 // uint
-def BOSCAME_MomauMm_IntrOp   : BOSCAME_MMA_IntrOp<"momau.mm">;
+def BOSCAME_MomauMm_IntrOp   : BOSCAME_WidenMMA_IntrOp<"momau.mm">;
 // uint, saturated
-def BOSCAME_MsomauMm_IntrOp   : BOSCAME_MMA_IntrOp<"msomau.mm">;
+def BOSCAME_MsomauMm_IntrOp   : BOSCAME_WidenMMA_IntrOp<"msomau.mm">;
 // int
-def BOSCAME_MomaMm_IntrOp   : BOSCAME_MMA_IntrOp<"moma.mm">;
+def BOSCAME_MomaMm_IntrOp   : BOSCAME_WidenMMA_IntrOp<"moma.mm">;
 // int, saturated
-def BOSCAME_MsomaMm_IntrOp   : BOSCAME_MMA_IntrOp<"msoma.mm">;
+def BOSCAME_MsomaMm_IntrOp   : BOSCAME_WidenMMA_IntrOp<"msoma.mm">;
 
 #endif // BOSCAME_DIALECT
