@@ -74,6 +74,11 @@ Packing is off by default. It is enabled per spec, by setting
 }
 ```
 
+Ready-to-use DeepSeek-R1 specs are provided for both precisions:
+`models/deepseek_r1/specs/f32_packed_decode.json` and
+`models/deepseek_r1/specs/f16_packed_decode.json`. The FP16 path keeps the
+weights packed as FP16 values and emits native `vector<32xf16>` loads and FMA.
+
 `models/deepseek_r1/specs/f32_packed_decode.json` is the f32 DeepSeek R1 spec
 with packing enabled. Build it the usual way:
 
