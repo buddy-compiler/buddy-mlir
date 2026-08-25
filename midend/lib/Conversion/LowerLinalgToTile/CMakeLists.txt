@@ -3,4 +3,12 @@ add_mlir_library(LowerLinalgToTilePass
 
   LINK_LIBS PUBLIC
   BuddyTile
+  MLIRTensorDialect
+  MLIRFuncDialect
+  MLIRLinalgDialect
+  MLIRMemRefDialect
+  MLIRArithDialect
+  MLIRSCFDialect
+  MLIRPass
+  MLIRTransformUtils
   )

@@ -60,6 +60,85 @@ def _const_shape_operand(dims: list[int]) -> ir.Value:
     return tosa.ConstShapeOp(shape_type, shape_attr).result
 
 
+def _perm_attr(perm: list[int]) -> ir.Attribute:
+    return ir.DenseI32ArrayAttr.get([int(x) for x in perm])
+
+
+def _nhwc_to_nchw(value: ir.Value) -> ir.Value:
+    shape = [int(x) for x in ir.RankedTensorType(value.type).shape]
+    if len(shape) != 4:
+        raise RuntimeError(f"_nhwc_to_nchw expects rank-4, got {shape}")
+    n, h, w, c = shape
+    elem = ir.RankedTensorType(value.type).element_type
+    out_ty = ir.RankedTensorType.get([n, c, h, w], elem)
+    return tosa.TransposeOp(out_ty, value, _perm_attr([0, 3, 1, 2])).result
+
+
+def _nchw_to_nhwc(value: ir.Value) -> ir.Value:
+    shape = [int(x) for x in ir.RankedTensorType(value.type).shape]
+    if len(shape) != 4:
+        raise RuntimeError(f"_nchw_to_nhwc expects rank-4, got {shape}")
+    n, c, h, w = shape
+    elem = ir.RankedTensorType(value.type).element_type
+    out_ty = ir.RankedTensorType.get([n, h, w, c], elem)
+    return tosa.TransposeOp(out_ty, value, _perm_attr([0, 2, 3, 1])).result
+
+
+def _split_via_tosa_slice(
+    input_tensor: ir.Value,
+    input_shape: list[int],
+    dim: int,
+    split_sizes: list[int],
+) -> list[ir.Value]:
+    rank = len(input_shape)
+    if dim != 1:
+        perm = list(range(rank))
+        perm[1], perm[dim] = perm[dim], perm[1]
+        inv = [0] * rank
+        for i, j in enumerate(perm):
+            inv[j] = i
+        elem = ir.RankedTensorType(input_tensor.type).element_type
+        t_shape = [input_shape[i] for i in perm]
+        t = tosa.TransposeOp(
+            ir.RankedTensorType.get(t_shape, elem),
+            input_tensor,
+            _perm_attr(perm),
+        ).result
+        parts = _split_via_tosa_slice(t, t_shape, 1, split_sizes)
+        out = []
+        for p in parts:
+            ps = [int(x) for x in ir.RankedTensorType(p.type).shape]
+            o_shape = [ps[i] for i in inv]
+            out.append(
+                tosa.TransposeOp(
+                    ir.RankedTensorType.get(o_shape, elem),
+                    p,
+                    _perm_attr(inv),
+                ).result
+            )
+        return out
+
+    elem = ir.RankedTensorType(input_tensor.type).element_type
+    results = []
+    offset = 0
+    for size in split_sizes:
+        start = [0] * rank
+        start[1] = offset
+        out_shape = list(input_shape)
+        out_shape[1] = size
+        out_ty = ir.RankedTensorType.get(out_shape, elem)
+        results.append(
+            tosa.SliceOp(
+                out_ty,
+                input_tensor,
+                _const_shape_operand(start),
+                _const_shape_operand(out_shape),
+            ).result
+        )
+        offset += size
+    return results
+
+
 def add_op(node: AddOp, symbol_table: dict[tuple[str, int], ir.Operation]):
     """
     Import tensor add operation.
@@ -1951,12 +2030,49 @@ def cat_op(
     if dim < 0:
         dim += rank
 
+    # Sticky NHWC: PyTorch cat dim is NCHW; remap when SSA is NHWC.
+    out_meta = [int(x) for x in node.tensor_meta["shape"]]
+    if (
+        rank == 4
+        and len(out_meta) == 4
+        and input_shapes[0][1] == out_meta[2]
+        and input_shapes[0][2] == out_meta[3]
+        and sum(s[3] for s in input_shapes) == out_meta[1]
+    ):
+        dim = {0: 0, 1: 3, 2: 1, 3: 2}[dim]
+
+    for s in input_shapes[1:]:
+        if len(s) != rank:
+            raise RuntimeError(f"cat rank mismatch: {input_shapes[0]} vs {s}")
+        for d in range(rank):
+            if d != dim and s[d] != input_shapes[0][d]:
+                raise RuntimeError(
+                    f"cat non-concat dim{d} mismatch: shapes={input_shapes} "
+                    f"dim={dim} meta={out_meta}"
+                )
+
     output_shape = list(input_shapes[0])
     output_shape[dim] = sum(s[dim] for s in input_shapes)
 
-    # dtype
     dtype = node.tensor_meta["dtype"]
     mlir_dtype = mlir_element_type_get(dtype)
+
+    nhwc_c = (
+        rank == 4
+        and dim == 3
+        and input_shapes[0][1] == input_shapes[0][2]
+        and input_shapes[0][3] < output_shape[3]
+    )
+    if nhwc_c:
+        nchw_inputs = [_nhwc_to_nchw(t) for t in input_tensors]
+        nchw_shape = list(ir.RankedTensorType(nchw_inputs[0].type).shape)
+        out_nchw_shape = list(nchw_shape)
+        out_nchw_shape[1] = sum(
+            list(ir.RankedTensorType(t.type).shape)[1] for t in nchw_inputs
+        )
+        cat_nchw = tosa.ConcatOp(nchw_inputs, 1).result
+        return _nchw_to_nhwc(cat_nchw)
+
     output = tensor.EmptyOp(output_shape, mlir_dtype)
 
     offset = [0] * rank
@@ -2728,51 +2844,57 @@ def split_op(node: SplitOp, symbol_table):
     # Get the input tensor and parameters
     input_tensor = symbol_table.get((str(node.args[0]), 0), node.args[0])
     split_size = node.args[1]  # Size of each split tensor
-    input_shape = input_tensor.type.shape
-    dim = node.args[2]  # Dimension to split along
+    input_shape = [int(x) for x in input_tensor.type.shape]
+    dim = int(node.args[2])  # Dimension to split along (PyTorch NCHW)
     if dim < 0:
         dim += len(input_shape)
 
+    # Sticky NHWC: remap channel/spatial dims from NCHW numbering.
+    meta_shapes = node.tensor_meta["shape"]
+    if (
+        isinstance(meta_shapes, (list, tuple))
+        and len(meta_shapes) > 0
+        and hasattr(meta_shapes[0], "__len__")
+        and len(input_shape) == 4
+        and len(meta_shapes[0]) == 4
+    ):
+        m0 = [int(x) for x in meta_shapes[0]]
+        # Full NCHW concat along dim would match input meta; NHWC has C last.
+        if (
+            input_shape[3] == sum(int(s[1]) for s in meta_shapes)
+            and input_shape[1] == m0[2]
+        ):
+            dim = {0: 0, 1: 3, 2: 1, 3: 2}[dim]
+
     split_count = (input_shape[dim] + split_size - 1) // split_size  # Round up
-    tensor_rank = len(input_shape)
-    default_sizes = list(input_shape)
-    default_strides = [1] * tensor_rank
-    splits = []
-
-    for i in range(split_count):
-        # Calculate the offset along the specified dimension
-        offsets = [0] * tensor_rank
-        offsets[dim] = i * split_size
-        offsets_attr = ir._denseI64ArrayAttr(offsets, None)
-
-        # Set the size along the split dimension;
-        # the last slice may be smaller than split_size
-        sizes = list(default_sizes)
-        sizes[dim] = min(split_size, input_shape[dim] - i * split_size)
-        sizes_attr = ir._denseI64ArrayAttr(sizes, None)
-
-        # The stride for each dimension is set to 1 by default
-        strides = list(default_strides)
-        strides_attr = ir._denseI64ArrayAttr(strides, None)
-
-        output_shape = list(node.tensor_meta["shape"][i])
-        dtype = node.tensor_meta["dtype"][i]
-        mlir_dtype = mlir_element_type_get(dtype)
-        tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
-
-        slice_op = tensor.ExtractSliceOp(
-            tensor_type,
-            input_tensor,
-            [],
-            [],
-            [],
-            offsets_attr,
-            sizes_attr,
-            strides_attr,
+    if (
+        isinstance(meta_shapes, (list, tuple))
+        and len(meta_shapes) > 0
+        and hasattr(meta_shapes[0], "__len__")
+        and split_count != len(meta_shapes)
+    ):
+        raise RuntimeError(
+            f"split count mismatch: ssa_dim={dim} count={split_count} "
+            f"meta_outs={len(meta_shapes)} shape={input_shape}"
         )
-        splits.append(slice_op.result)
 
-    return splits
+    split_sizes = [
+        min(split_size, input_shape[dim] - i * split_size)
+        for i in range(split_count)
+    ]
+    nhwc_c = (
+        len(input_shape) == 4
+        and dim == 3
+        and input_shape[1] == input_shape[2]
+        and input_shape[3] > input_shape[1]
+    )
+    if nhwc_c:
+        nchw = _nhwc_to_nchw(input_tensor)
+        nchw_shape = [int(x) for x in ir.RankedTensorType(nchw.type).shape]
+        nchw_splits = _split_via_tosa_slice(nchw, nchw_shape, 1, split_sizes)
+        return [_nchw_to_nhwc(x) for x in nchw_splits]
+
+    return _split_via_tosa_slice(input_tensor, input_shape, dim, split_sizes)
 
 
 def max_op(node: MaxOp, symbol_table):
@@ -2996,7 +3118,7 @@ def unsafe_index_op(
     if input1 is None:
         return
     input1_shape = ir.RankedTensorType(input1.type).shape
-    input2 = node.args[1]
+    input2 = list(node.args[1])
     have_none = False
     for i in input2:
         if i == None:
@@ -3010,9 +3132,24 @@ def unsafe_index_op(
             else 0
         )
     output_shape = list(node.tensor_meta["shape"])
-    input_shape = input1.type.shape
+    input_shape = list(input1.type.shape)
     dtype = node.tensor_meta["dtype"]
     mlir_dtype = mlir_element_type_get(dtype)
+
+    # Sticky NHWC: PyTorch indices are NCHW; input SSA is NHWC of that tensor.
+    # Remap index slots NCHW→NHWC and keep output NHWC.
+    if (
+        len(input_shape) == 4
+        and len(output_shape) == 4
+        and len(input2) == 4
+        and input_shape[0] == output_shape[0]
+        and input_shape[3] == output_shape[1]
+        and input_shape[1] != output_shape[1]
+    ):
+        n, c, h_out, w_out = [int(x) for x in output_shape]
+        output_shape = [n, h_out, w_out, c]
+        input2 = [input2[0], input2[2], input2[3], input2[1]]
+
     if len(input2) < len(input1_shape):
         tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
         output = tensor.EmptyOp(output_shape, mlir_dtype)
@@ -5877,6 +6014,63 @@ def _as_value(op_or_value):
     return op_or_value.result if hasattr(op_or_value, "result") else op_or_value
 
 
+def _infer_pool2d_nhwc(shape: list[int]) -> bool:
+    if len(shape) != 4:
+        raise RuntimeError(f"expected rank-4 pool tensor, got {shape}")
+    _, a, b, c = shape
+    if a == b and c > a:
+        return True
+    if b == c and a > b:
+        return False
+    raise RuntimeError(f"cannot infer pool layout from shape {shape}")
+
+
+def _pool2d_input_hw(input_shape: list[int]) -> list[int]:
+    if len(input_shape) != 4:
+        raise RuntimeError(f"expected rank-4 pool input, got {input_shape}")
+    _, a, b, c = input_shape
+    if a == b and c > a:
+        return [a, b]
+    if b == c and a > b:
+        return [b, c]
+    raise RuntimeError(f"cannot infer pool input_hw from shape {input_shape}")
+
+
+def _emit_max_pool_offset_store(
+    flat_idx,
+    oh,
+    ow,
+    out_idx,
+    w_const,
+    kw_const,
+    sh_const,
+    sw_const,
+    ph_const,
+    pw_const,
+    dh_const,
+    dw_const,
+    i64,
+    i8,
+    offsets_memref,
+):
+    ih = arith.DivSIOp(flat_idx, w_const).result
+    iw = arith.RemSIOp(flat_idx, w_const).result
+
+    oh_i64 = arith.IndexCastOp(i64, oh).result
+    ow_i64 = arith.IndexCastOp(i64, ow).result
+
+    hbase = arith.SubIOp(arith.MulIOp(oh_i64, sh_const).result, ph_const).result
+    wbase = arith.SubIOp(arith.MulIOp(ow_i64, sw_const).result, pw_const).result
+
+    h_inc = arith.DivSIOp(arith.SubIOp(ih, hbase).result, dh_const).result
+    w_inc = arith.DivSIOp(arith.SubIOp(iw, wbase).result, dw_const).result
+    offset_i64 = arith.AddIOp(
+        arith.MulIOp(h_inc, kw_const).result, w_inc
+    ).result
+    offset_i8 = arith.TruncIOp(i8, offset_i64).result
+    memref.StoreOp(offset_i8, offsets_memref.result, out_idx)
+
+
 def _max_pool_indices_to_offsets_2d(
     indices_tensor: ir.Value,
     input_hw: list[int],
@@ -5886,7 +6080,8 @@ def _max_pool_indices_to_offsets_2d(
     dilation: list[int],
 ):
     indices_tensor = _as_value(indices_tensor)
-    shape = list(ir.RankedTensorType(indices_tensor.type).shape)
+    shape = [int(x) for x in ir.RankedTensorType(indices_tensor.type).shape]
+    nhwc = _infer_pool2d_nhwc(shape)
     i64 = ir.IntegerType.get_signless(64)
     i8 = ir.IntegerType.get_signless(8)
     index_ty = ir.IndexType.get()
@@ -5900,15 +6095,26 @@ def _max_pool_indices_to_offsets_2d(
     n_ub = arith.ConstantOp(
         index_ty, ir.IntegerAttr.get(index_ty, shape[0])
     ).result
-    c_ub = arith.ConstantOp(
-        index_ty, ir.IntegerAttr.get(index_ty, shape[1])
-    ).result
-    oh_ub = arith.ConstantOp(
-        index_ty, ir.IntegerAttr.get(index_ty, shape[2])
-    ).result
-    ow_ub = arith.ConstantOp(
-        index_ty, ir.IntegerAttr.get(index_ty, shape[3])
-    ).result
+    if nhwc:
+        oh_ub = arith.ConstantOp(
+            index_ty, ir.IntegerAttr.get(index_ty, shape[1])
+        ).result
+        ow_ub = arith.ConstantOp(
+            index_ty, ir.IntegerAttr.get(index_ty, shape[2])
+        ).result
+        c_ub = arith.ConstantOp(
+            index_ty, ir.IntegerAttr.get(index_ty, shape[3])
+        ).result
+    else:
+        c_ub = arith.ConstantOp(
+            index_ty, ir.IntegerAttr.get(index_ty, shape[1])
+        ).result
+        oh_ub = arith.ConstantOp(
+            index_ty, ir.IntegerAttr.get(index_ty, shape[2])
+        ).result
+        ow_ub = arith.ConstantOp(
+            index_ty, ir.IntegerAttr.get(index_ty, shape[3])
+        ).result
 
     w_const = arith.ConstantOp(
         i64, ir.IntegerAttr.get(i64, int(input_hw[1]))
@@ -5938,49 +6144,76 @@ def _max_pool_indices_to_offsets_2d(
     n_for = scf.ForOp(lb, n_ub, step)
     with ir.InsertionPoint(n_for.body):
         n = n_for.induction_variable
-        c_for = scf.ForOp(lb, c_ub, step)
-        with ir.InsertionPoint(c_for.body):
-            c = c_for.induction_variable
+        if nhwc:
             oh_for = scf.ForOp(lb, oh_ub, step)
             with ir.InsertionPoint(oh_for.body):
                 oh = oh_for.induction_variable
                 ow_for = scf.ForOp(lb, ow_ub, step)
                 with ir.InsertionPoint(ow_for.body):
                     ow = ow_for.induction_variable
-
-                    flat_idx = tensor.ExtractOp(
-                        indices_tensor, [n, c, oh, ow]
-                    ).result
-                    ih = arith.DivSIOp(flat_idx, w_const).result
-                    iw = arith.RemSIOp(flat_idx, w_const).result
-
-                    oh_i64 = arith.IndexCastOp(i64, oh).result
-                    ow_i64 = arith.IndexCastOp(i64, ow).result
-
-                    hbase = arith.SubIOp(
-                        arith.MulIOp(oh_i64, sh_const).result, ph_const
-                    ).result
-                    wbase = arith.SubIOp(
-                        arith.MulIOp(ow_i64, sw_const).result, pw_const
-                    ).result
-
-                    h_inc = arith.DivSIOp(
-                        arith.SubIOp(ih, hbase).result, dh_const
-                    ).result
-                    w_inc = arith.DivSIOp(
-                        arith.SubIOp(iw, wbase).result, dw_const
-                    ).result
-                    offset_i64 = arith.AddIOp(
-                        arith.MulIOp(h_inc, kw_const).result, w_inc
-                    ).result
-                    offset_i8 = arith.TruncIOp(i8, offset_i64).result
-                    memref.StoreOp(
-                        offset_i8, offsets_memref.result, [n, c, oh, ow]
-                    )
+                    c_for = scf.ForOp(lb, c_ub, step)
+                    with ir.InsertionPoint(c_for.body):
+                        c = c_for.induction_variable
+                        flat_idx = tensor.ExtractOp(
+                            indices_tensor, [n, oh, ow, c]
+                        ).result
+                        out_idx = [n, oh, ow, c]
+                        _emit_max_pool_offset_store(
+                            flat_idx,
+                            oh,
+                            ow,
+                            out_idx,
+                            w_const,
+                            kw_const,
+                            sh_const,
+                            sw_const,
+                            ph_const,
+                            pw_const,
+                            dh_const,
+                            dw_const,
+                            i64,
+                            i8,
+                            offsets_memref,
+                        )
+                        scf.YieldOp([])
                     scf.YieldOp([])
                 scf.YieldOp([])
             scf.YieldOp([])
-        scf.YieldOp([])
+        else:
+            c_for = scf.ForOp(lb, c_ub, step)
+            with ir.InsertionPoint(c_for.body):
+                c = c_for.induction_variable
+                oh_for = scf.ForOp(lb, oh_ub, step)
+                with ir.InsertionPoint(oh_for.body):
+                    oh = oh_for.induction_variable
+                    ow_for = scf.ForOp(lb, ow_ub, step)
+                    with ir.InsertionPoint(ow_for.body):
+                        ow = ow_for.induction_variable
+                        flat_idx = tensor.ExtractOp(
+                            indices_tensor, [n, c, oh, ow]
+                        ).result
+                        out_idx = [n, c, oh, ow]
+                        _emit_max_pool_offset_store(
+                            flat_idx,
+                            oh,
+                            ow,
+                            out_idx,
+                            w_const,
+                            kw_const,
+                            sh_const,
+                            sw_const,
+                            ph_const,
+                            pw_const,
+                            dh_const,
+                            dw_const,
+                            i64,
+                            i8,
+                            offsets_memref,
+                        )
+                        scf.YieldOp([])
+                    scf.YieldOp([])
+                scf.YieldOp([])
+            scf.YieldOp([])
 
     offsets_type = ir.RankedTensorType.get(shape, i8)
     return bufferization.ToTensorOp(
@@ -6151,7 +6384,8 @@ def _max_pool_offsets_to_indices_2d(
     dilation: list[int],
 ):
     offsets_tensor = _as_value(offsets_tensor)
-    shape = list(ir.RankedTensorType(offsets_tensor.type).shape)
+    shape = [int(x) for x in ir.RankedTensorType(offsets_tensor.type).shape]
+    nhwc = _infer_pool2d_nhwc(shape)
     i64 = ir.IntegerType.get_signless(64)
     i8 = ir.IntegerType.get_signless(8)
     index_ty = ir.IndexType.get()
@@ -6165,15 +6399,26 @@ def _max_pool_offsets_to_indices_2d(
     n_ub = arith.ConstantOp(
         index_ty, ir.IntegerAttr.get(index_ty, shape[0])
     ).result
-    c_ub = arith.ConstantOp(
-        index_ty, ir.IntegerAttr.get(index_ty, shape[1])
-    ).result
-    oh_ub = arith.ConstantOp(
-        index_ty, ir.IntegerAttr.get(index_ty, shape[2])
-    ).result
-    ow_ub = arith.ConstantOp(
-        index_ty, ir.IntegerAttr.get(index_ty, shape[3])
-    ).result
+    if nhwc:
+        oh_ub = arith.ConstantOp(
+            index_ty, ir.IntegerAttr.get(index_ty, shape[1])
+        ).result
+        ow_ub = arith.ConstantOp(
+            index_ty, ir.IntegerAttr.get(index_ty, shape[2])
+        ).result
+        c_ub = arith.ConstantOp(
+            index_ty, ir.IntegerAttr.get(index_ty, shape[3])
+        ).result
+    else:
+        c_ub = arith.ConstantOp(
+            index_ty, ir.IntegerAttr.get(index_ty, shape[1])
+        ).result
+        oh_ub = arith.ConstantOp(
+            index_ty, ir.IntegerAttr.get(index_ty, shape[2])
+        ).result
+        ow_ub = arith.ConstantOp(
+            index_ty, ir.IntegerAttr.get(index_ty, shape[3])
+        ).result
 
     in_w_const = arith.ConstantOp(
         i64, ir.IntegerAttr.get(i64, int(input_hw[1]))
@@ -6203,51 +6448,97 @@ def _max_pool_offsets_to_indices_2d(
     n_for = scf.ForOp(lb, n_ub, step)
     with ir.InsertionPoint(n_for.body):
         n = n_for.induction_variable
-        c_for = scf.ForOp(lb, c_ub, step)
-        with ir.InsertionPoint(c_for.body):
-            c = c_for.induction_variable
+        if nhwc:
             oh_for = scf.ForOp(lb, oh_ub, step)
             with ir.InsertionPoint(oh_for.body):
                 oh = oh_for.induction_variable
                 ow_for = scf.ForOp(lb, ow_ub, step)
                 with ir.InsertionPoint(ow_for.body):
                     ow = ow_for.induction_variable
+                    c_for = scf.ForOp(lb, c_ub, step)
+                    with ir.InsertionPoint(c_for.body):
+                        c = c_for.induction_variable
+                        off_i8 = tensor.ExtractOp(
+                            offsets_tensor, [n, oh, ow, c]
+                        ).result
+                        off_i64 = arith.ExtSIOp(i64, off_i8).result
 
-                    off_i8 = tensor.ExtractOp(
-                        offsets_tensor, [n, c, oh, ow]
-                    ).result
-                    off_i64 = arith.ExtSIOp(i64, off_i8).result
+                        h_inc = arith.DivSIOp(off_i64, kw_const).result
+                        w_inc = arith.RemSIOp(off_i64, kw_const).result
 
-                    h_inc = arith.DivSIOp(off_i64, kw_const).result
-                    w_inc = arith.RemSIOp(off_i64, kw_const).result
+                        oh_i64 = arith.IndexCastOp(i64, oh).result
+                        ow_i64 = arith.IndexCastOp(i64, ow).result
 
-                    oh_i64 = arith.IndexCastOp(i64, oh).result
-                    ow_i64 = arith.IndexCastOp(i64, ow).result
+                        hbase = arith.SubIOp(
+                            arith.MulIOp(oh_i64, sh_const).result, ph_const
+                        ).result
+                        wbase = arith.SubIOp(
+                            arith.MulIOp(ow_i64, sw_const).result, pw_const
+                        ).result
 
-                    hbase = arith.SubIOp(
-                        arith.MulIOp(oh_i64, sh_const).result, ph_const
-                    ).result
-                    wbase = arith.SubIOp(
-                        arith.MulIOp(ow_i64, sw_const).result, pw_const
-                    ).result
+                        ih = arith.AddIOp(
+                            hbase, arith.MulIOp(h_inc, dh_const).result
+                        ).result
+                        iw = arith.AddIOp(
+                            wbase, arith.MulIOp(w_inc, dw_const).result
+                        ).result
 
-                    ih = arith.AddIOp(
-                        hbase, arith.MulIOp(h_inc, dh_const).result
-                    ).result
-                    iw = arith.AddIOp(
-                        wbase, arith.MulIOp(w_inc, dw_const).result
-                    ).result
-
-                    flat_idx = arith.AddIOp(
-                        arith.MulIOp(ih, in_w_const).result, iw
-                    ).result
-                    memref.StoreOp(
-                        flat_idx, indices_memref.result, [n, c, oh, ow]
-                    )
+                        flat_idx = arith.AddIOp(
+                            arith.MulIOp(ih, in_w_const).result, iw
+                        ).result
+                        memref.StoreOp(
+                            flat_idx, indices_memref.result, [n, oh, ow, c]
+                        )
+                        scf.YieldOp([])
                     scf.YieldOp([])
                 scf.YieldOp([])
             scf.YieldOp([])
-        scf.YieldOp([])
+        else:
+            c_for = scf.ForOp(lb, c_ub, step)
+            with ir.InsertionPoint(c_for.body):
+                c = c_for.induction_variable
+                oh_for = scf.ForOp(lb, oh_ub, step)
+                with ir.InsertionPoint(oh_for.body):
+                    oh = oh_for.induction_variable
+                    ow_for = scf.ForOp(lb, ow_ub, step)
+                    with ir.InsertionPoint(ow_for.body):
+                        ow = ow_for.induction_variable
+
+                        off_i8 = tensor.ExtractOp(
+                            offsets_tensor, [n, c, oh, ow]
+                        ).result
+                        off_i64 = arith.ExtSIOp(i64, off_i8).result
+
+                        h_inc = arith.DivSIOp(off_i64, kw_const).result
+                        w_inc = arith.RemSIOp(off_i64, kw_const).result
+
+                        oh_i64 = arith.IndexCastOp(i64, oh).result
+                        ow_i64 = arith.IndexCastOp(i64, ow).result
+
+                        hbase = arith.SubIOp(
+                            arith.MulIOp(oh_i64, sh_const).result, ph_const
+                        ).result
+                        wbase = arith.SubIOp(
+                            arith.MulIOp(ow_i64, sw_const).result, pw_const
+                        ).result
+
+                        ih = arith.AddIOp(
+                            hbase, arith.MulIOp(h_inc, dh_const).result
+                        ).result
+                        iw = arith.AddIOp(
+                            wbase, arith.MulIOp(w_inc, dw_const).result
+                        ).result
+
+                        flat_idx = arith.AddIOp(
+                            arith.MulIOp(ih, in_w_const).result, iw
+                        ).result
+                        memref.StoreOp(
+                            flat_idx, indices_memref.result, [n, c, oh, ow]
+                        )
+                        scf.YieldOp([])
+                    scf.YieldOp([])
+                scf.YieldOp([])
+            scf.YieldOp([])
 
     indices_type = ir.RankedTensorType.get(shape, i64)
     return bufferization.ToTensorOp(
@@ -6448,7 +6739,7 @@ def low_memory_max_pool_with_offsets_op(
         values, indices = max_pool2d_with_indices_op(pool_node, symbol_table)
         offsets = _max_pool_indices_to_offsets_2d(
             indices,
-            input_shape[-2:],
+            _pool2d_input_hw(input_shape),
             kernel_size,
             stride,
             padding,
@@ -6532,14 +6823,45 @@ def max_pool2d_with_indices_op(
     dilation = node.args[4] if len(node.args) > 4 else [1, 1]
     ceil_mode = node.args[5] if len(node.args) > 5 else False
 
-    input_shape = list(ir.RankedTensorType(input_tensor.type).shape)
-    input_dtype = ir.RankedTensorType(input_tensor.type).element_type
-    if any(dim < 0 for dim in input_shape):
-        raise NotImplementedError(
-            "fractional_max_pool2d requires static shapes"
-        )
+    ssa_shape = [int(x) for x in ir.RankedTensorType(input_tensor.type).shape]
+    src = node.args[0] if node.args else None
+    meta = None
+    if (
+        src is not None
+        and hasattr(src, "tensor_meta")
+        and src.tensor_meta
+        and "shape" in src.tensor_meta
+    ):
+        meta = [int(x) for x in src.tensor_meta["shape"]]
+    if meta is not None:
+        if len(meta) != 4:
+            raise RuntimeError(
+                f"max_pool2d_with_indices requires 4D input meta: {meta}"
+            )
+        N, C, H, W = meta
+        nhwc = ssa_shape == [N, H, W, C]
+        if not nhwc and ssa_shape != [N, C, H, W]:
+            raise RuntimeError(
+                f"max_pool2d_with_indices layout mismatch: ssa={ssa_shape} meta_nchw={meta}"
+            )
+    else:
+        if len(ssa_shape) != 4:
+            raise RuntimeError(
+                f"max_pool2d_with_indices requires 4D input, got {ssa_shape}"
+            )
+        n, a, b, c = ssa_shape
+        if a == b and c > a:
+            N, H, W, C = n, a, b, c
+            nhwc = True
+        elif b == c and a > b:
+            N, C, H, W = n, a, b, c
+            nhwc = False
+        else:
+            raise RuntimeError(
+                f"max_pool2d_with_indices cannot infer layout from ssa={ssa_shape}"
+            )
 
-    N, C, H, W = input_shape
+    input_dtype = ir.RankedTensorType(input_tensor.type).element_type
 
     # Normalize kernel_size, stride, padding, dilation
     if isinstance(kernel_size, int):
@@ -6574,7 +6896,7 @@ def max_pool2d_with_indices_op(
         out_h = (H + 2 * ph - dh * (kh - 1) - 1) // sh + 1
         out_w = (W + 2 * pw - dw * (kw - 1) - 1) // sw + 1
 
-    output_shape = [N, C, out_h, out_w]
+    output_shape = [N, out_h, out_w, C] if nhwc else [N, C, out_h, out_w]
     output_type = ir.RankedTensorType.get(output_shape, input_dtype)
     indices_dtype = ir.IntegerType.get_signless(64)
     indices_type = ir.RankedTensorType.get(output_shape, indices_dtype)
@@ -6600,7 +6922,7 @@ def max_pool2d_with_indices_op(
 
     # Convert input to memref
     input_memref = bufferization.ToBufferOp(
-        ir.MemRefType.get(input_shape, input_dtype), input_tensor
+        ir.MemRefType.get(ssa_shape, input_dtype), input_tensor
     ).result
 
     # Create constants
@@ -6725,14 +7047,20 @@ def max_pool2d_with_indices_op(
                             # If in bounds, load and compare
                             if_op = scf.IfOp(in_bounds, has_else=False)
                             with ir.InsertionPoint(if_op.then_block):
+                                if nhwc:
+                                    in_idx = [n, ih, iw, c]
+                                    out_idx = [n, oh, ow, c]
+                                else:
+                                    in_idx = [n, c, ih, iw]
+                                    out_idx = [n, c, oh, ow]
                                 # Load input value
                                 input_val = memref.LoadOp(
-                                    input_memref, [n, c, ih, iw]
+                                    input_memref, in_idx
                                 ).result
 
                                 # Load current max
                                 current_max = memref.LoadOp(
-                                    output_memref.result, [n, c, oh, ow]
+                                    output_memref.result, out_idx
                                 ).result
 
                                 # Check if input > current_max
@@ -6748,7 +7076,7 @@ def max_pool2d_with_indices_op(
                                     memref.StoreOp(
                                         input_val,
                                         output_memref.result,
-                                        [n, c, oh, ow],
+                                        out_idx,
                                     )
 
                                     # Calculate flattened index: ih * W + iw
@@ -6769,7 +7097,7 @@ def max_pool2d_with_indices_op(
                                     memref.StoreOp(
                                         flat_idx,
                                         indices_memref.result,
-                                        [n, c, oh, ow],
+                                        out_idx,
                                     )
 
                                     scf.YieldOp([])
@@ -12717,134 +13045,68 @@ def _create_tosa_shape_operand(shape):
     return tosa.ConstShapeOp(shape_type, shape_attr).result
 
 
-def _make_tosa_mul_shift():
-    """Create the shift operand (i8 tensor<1xi8> = 0) required by tosa.MulOp."""
-    i8_type = ir.IntegerType.get_signless(8)
-    t = ir.RankedTensorType.get([1], i8_type)
-    attr = ir.DenseElementsAttr.get_splat(t, ir.IntegerAttr.get(i8_type, 0))
-    return tosa.ConstOp(attr).results[0]
+def _quantized_matmul_generic(activation, weight_i8, node):
+    """Keep W8A8 quantization as a Pebble lowering boundary.
 
-
-def _quantize_activation_i8(activation, symbol_table):
-    """Generate MLIR ops for dynamic per-tensor activation quantization f32→i8.
-    Returns (activation_i8, activation_scale_f32)."""
-    act_type = ir.RankedTensorType(activation.type)
-    act_shape = list(act_type.shape)
+    The generic region is the FP32 reference product.  Pebble consumes the
+    marker and RAX Dw metadata before generic lowering, then emits bank-level
+    FP2INT, SMATMUL, and INT2FP.
+    """
     f32 = ir.F32Type.get()
-    i8 = ir.IntegerType.get_signless(8)
-    i32 = ir.IntegerType.get_signless(32)
-
-    abs_result = tosa.AbsOp(activation.type, activation).result
-
-    for dim in range(len(act_shape)):
-        dim_attr = ir.IntegerAttr.get(ir.IntegerType.get_signless(32), dim)
-        abs_result = tosa.ReduceMaxOp(abs_result, dim_attr).result
-
-    scalar_shape = [1] * len(act_shape)
-    scalar_type = ir.RankedTensorType.get(scalar_shape, f32)
-
-    c127 = arith.ConstantOp(
-        scalar_type,
-        ir.DenseElementsAttr.get_splat(
-            scalar_type, ir.FloatAttr.get(f32, 127.0)
+    act_shape = list(ir.RankedTensorType(activation.type).shape)
+    weight_shape = list(ir.RankedTensorType(weight_i8.type).shape)
+    if len(act_shape) != 2 or len(weight_shape) != 2:
+        raise ValueError(
+            "quantized matmul requires rank-2 activation and weight"
+        )
+    out_shape = [act_shape[0], weight_shape[1]]
+    out_type = ir.RankedTensorType.get(out_shape, f32)
+    output = tensor.EmptyOp(out_shape, f32)
+    generic_map = _safe_get_permutation([0, 1, 2])
+    op = linalg.GenericOp(
+        [out_type],
+        [activation, weight_i8],
+        [output],
+        ir.ArrayAttr.get(
+            [
+                ir.AffineMapAttr.get(generic_map.get_submap([0, 2])),
+                ir.AffineMapAttr.get(generic_map.get_submap([2, 1])),
+                ir.AffineMapAttr.get(generic_map.get_submap([0, 1])),
+            ]
         ),
-    ).result
-    eps_val = arith.ConstantOp(
-        scalar_type,
-        ir.DenseElementsAttr.get_splat(
-            scalar_type, ir.FloatAttr.get(f32, 1e-10)
+        ir.ArrayAttr.get(
+            [
+                ir.Attribute.parse("#linalg.iterator_type<parallel>"),
+                ir.Attribute.parse("#linalg.iterator_type<parallel>"),
+                ir.Attribute.parse("#linalg.iterator_type<reduction>"),
+            ]
         ),
-    ).result
-
-    reciprocal_127 = tosa.ReciprocalOp(scalar_type, c127).result
-    raw_scale = tosa.MulOp(
-        scalar_type, abs_result, reciprocal_127, _make_tosa_mul_shift()
-    ).result
-    scale = tosa.MaximumOp(scalar_type, raw_scale, eps_val).result
-
-    inv_scale = tosa.ReciprocalOp(scalar_type, scale).result
-    x_scaled = tosa.MulOp(
-        activation.type, activation, inv_scale, _make_tosa_mul_shift()
-    ).result
-
-    x_round = tosa.CastOp(
-        ir.RankedTensorType.get(act_shape, i32), x_scaled
-    ).result
-    x_round_f32 = tosa.CastOp(activation.type, x_round).result
-
-    # clamp to [-128, 127] using max/min
-    lo = arith.ConstantOp(
-        activation.type,
-        ir.DenseElementsAttr.get_splat(
-            activation.type, ir.FloatAttr.get(f32, -128.0)
-        ),
-    ).result
-    hi = arith.ConstantOp(
-        activation.type,
-        ir.DenseElementsAttr.get_splat(
-            activation.type, ir.FloatAttr.get(f32, 127.0)
-        ),
-    ).result
-    x_clamped = tosa.MaximumOp(activation.type, x_round_f32, lo).result
-    x_clamped = tosa.MinimumOp(activation.type, x_clamped, hi).result
-
-    i8_type = ir.RankedTensorType.get(act_shape, i8)
-    act_i8 = tosa.CastOp(i8_type, x_clamped).result
-
-    return act_i8, scale
+    )
+    op.operation.attributes["buckyball.quantized"] = ir.BoolAttr.get(True)
+    i64 = ir.IntegerType.get_signless(64)
+    op.operation.attributes["dw_addr"] = ir.IntegerAttr.get(i64, node._dw_addr)
+    op.operation.attributes["dw_bytes"] = ir.IntegerAttr.get(
+        i64, node._dw_bytes
+    )
+    op.operation.attributes["per_channel"] = ir.BoolAttr.get(node._per_channel)
+    block = ir.Block.create_at_start(
+        op.region, [f32, ir.IntegerType.get_signless(8), f32]
+    )
+    weight_f32 = arith.SIToFPOp(f32, block.arguments[1])
+    product = arith.MulFOp(block.arguments[0], weight_f32.result)
+    result = arith.AddFOp(product.result, block.arguments[2])
+    block.append(weight_f32)
+    block.append(product)
+    block.append(result)
+    block.append(linalg.YieldOp([result.result]))
+    return op.result
 
 
 def quantized_matmul_op(node, symbol_table):
-    """W8A8 quantized matmul: args = [activation(f32), weight(i8), weight_scale(f32)]
-    Generates: dynamic_quant(activation) → i8×i8→i32 matmul → rescale → f32"""
+    """W8A8 matmul with FP32 activation and offline INT8 weight."""
     activation = symbol_table.get((str(node.args[0]), 0))
     weight_i8 = symbol_table.get((str(node.args[1]), 0))
-    weight_scale = symbol_table.get((str(node.args[2]), 0))
-
-    f32 = ir.F32Type.get()
-    i32 = ir.IntegerType.get_signless(32)
-
-    act_shape = list(ir.RankedTensorType(activation.type).shape)
-    w_shape = list(ir.RankedTensorType(weight_i8.type).shape)
-    out_shape = [act_shape[0], w_shape[1]]
-
-    # Dynamic quantize activation
-    act_i8, act_scale = _quantize_activation_i8(activation, symbol_table)
-
-    # i8 × i8 → i32 matmul
-    i32_type = ir.RankedTensorType.get(out_shape, i32)
-    zero_i32 = arith.ConstantOp(
-        i32_type,
-        ir.DenseElementsAttr.get_splat(i32_type, ir.IntegerAttr.get(i32, 0)),
-    ).result
-
-    generic_map = _safe_get_permutation([0, 1, 2])
-    matmul = linalg.MatmulOp(
-        result_tensors=[i32_type],
-        inputs=[act_i8, weight_i8],
-        outputs=[zero_i32],
-        indexing_maps=[
-            generic_map.get_submap([0, 2]),
-            generic_map.get_submap([2, 1]),
-            generic_map.get_submap([0, 1]),
-        ],
-        cast="cast_signed",
-    )
-    linalg.fill_builtin_region(matmul.operation)
-
-    # Cast i32 → f32
-    f32_type = ir.RankedTensorType.get(out_shape, f32)
-    result_f32 = tosa.CastOp(f32_type, matmul.result).result
-
-    # Rescale: result * act_scale * weight_scale
-    combined_scale = tosa.MulOp(
-        weight_scale.type, act_scale, weight_scale, _make_tosa_mul_shift()
-    ).result
-    result = tosa.MulOp(
-        f32_type, result_f32, combined_scale, _make_tosa_mul_shift()
-    ).result
-
-    return result
+    return _quantized_matmul_generic(activation, weight_i8, node)
 
 
 def quantized_addmm_op(node, symbol_table):
@@ -12853,46 +13115,9 @@ def quantized_addmm_op(node, symbol_table):
     bias = symbol_table.get((str(node.args[0]), 0))
     activation = symbol_table.get((str(node.args[1]), 0))
     weight_i8 = symbol_table.get((str(node.args[2]), 0))
-    weight_scale = symbol_table.get((str(node.args[3]), 0))
-
-    f32 = ir.F32Type.get()
-    i32 = ir.IntegerType.get_signless(32)
-
-    act_shape = list(ir.RankedTensorType(activation.type).shape)
-    w_shape = list(ir.RankedTensorType(weight_i8.type).shape)
-    out_shape = [act_shape[0], w_shape[1]]
-
-    act_i8, act_scale = _quantize_activation_i8(activation, symbol_table)
-
-    i32_type = ir.RankedTensorType.get(out_shape, i32)
-    zero_i32 = arith.ConstantOp(
-        i32_type,
-        ir.DenseElementsAttr.get_splat(i32_type, ir.IntegerAttr.get(i32, 0)),
-    ).result
-
-    generic_map = _safe_get_permutation([0, 1, 2])
-    matmul = linalg.MatmulOp(
-        result_tensors=[i32_type],
-        inputs=[act_i8, weight_i8],
-        outputs=[zero_i32],
-        indexing_maps=[
-            generic_map.get_submap([0, 2]),
-            generic_map.get_submap([2, 1]),
-            generic_map.get_submap([0, 1]),
-        ],
-        cast="cast_signed",
-    )
-    linalg.fill_builtin_region(matmul.operation)
-
-    f32_type = ir.RankedTensorType.get(out_shape, f32)
-    result_f32 = tosa.CastOp(f32_type, matmul.result).result
-
-    combined_scale = tosa.MulOp(
-        weight_scale.type, act_scale, weight_scale, _make_tosa_mul_shift()
-    ).result
-    result = tosa.MulOp(
-        f32_type, result_f32, combined_scale, _make_tosa_mul_shift()
-    ).result
+    result = _quantized_matmul_generic(activation, weight_i8, node)
+    f32_type = ir.RankedTensorType(result.type)
+    out_shape = list(f32_type.shape)
 
     # Add bias with broadcasting (bias may be 1D, result is 2D)
     bias_shape = list(ir.RankedTensorType(bias.type).shape)

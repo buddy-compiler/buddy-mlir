@@ -59,9 +59,9 @@ void registerLowerLinalgToTilePass();
 void registerLowerTileToBuckyballPass();
 void registerLowerBuckyballToBankSSAPass();
 void registerAssignPhysicalBanksPass();
-void registerLowerBankSSAToIntrinsicsPass();
 void registerReportBankUsagePass();
 void registerLowerBuckyballPass();
+void registerLowerBankSSAToIntrinsicsPass();
 #endif
 void registerBatchMatMulOptimizePass();
 void registerMatMulOptimizePass();
@@ -116,9 +116,9 @@ void mlir::buddy::registerAllPasses() {
   mlir::buddy::registerLowerTileToBuckyballPass();
   mlir::buddy::registerLowerBuckyballToBankSSAPass();
   mlir::buddy::registerAssignPhysicalBanksPass();
-  mlir::buddy::registerLowerBankSSAToIntrinsicsPass();
   mlir::buddy::registerReportBankUsagePass();
   mlir::buddy::registerLowerBuckyballPass();
+  mlir::buddy::registerLowerBankSSAToIntrinsicsPass();
 #endif
   mlir::buddy::registerLowerGemminiPass();
   mlir::buddy::registerLowerLinalgToBOSCAMEPass();

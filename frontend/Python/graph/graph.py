@@ -768,6 +768,10 @@ class GraphImporter:
         self._ops_registry = ops_registry
         self._current_param_pack_offset = None
         self._enable_external_calls = enable_external_calls
+        # name -> Op for sticky-layout lookups (reshape args are often str names)
+        self._symbol_table[("__buddy_ops_by_name__", 0)] = {
+            n.name: n for n in body if getattr(n, "name", None) is not None
+        }
 
     def _verbose_output(self):
         if self._verbose_path is None:
