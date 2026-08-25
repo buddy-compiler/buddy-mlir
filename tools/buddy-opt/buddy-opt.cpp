@@ -110,9 +110,9 @@ void registerLowerLinalgToTilePass();
 void registerLowerTileToBuckyballPass();
 void registerLowerBuckyballToBankSSAPass();
 void registerAssignPhysicalBanksPass();
-void registerLowerBankSSAToIntrinsicsPass();
 void registerReportBankUsagePass();
 void registerLowerBuckyballPass();
+void registerLowerBankSSAToIntrinsicsPass();
 #endif
 void registerLowerGemminiPass();
 void registerLowerLinalgToBOSCAMEPass();
@@ -165,9 +165,9 @@ int main(int argc, char **argv) {
   mlir::buddy::registerLowerTileToBuckyballPass();
   mlir::buddy::registerLowerBuckyballToBankSSAPass();
   mlir::buddy::registerAssignPhysicalBanksPass();
-  mlir::buddy::registerLowerBankSSAToIntrinsicsPass();
   mlir::buddy::registerReportBankUsagePass();
   mlir::buddy::registerLowerBuckyballPass();
+  mlir::buddy::registerLowerBankSSAToIntrinsicsPass();
 #endif
   mlir::buddy::registerLowerGemminiPass();
   mlir::buddy::registerLowerLinalgToBOSCAMEPass();

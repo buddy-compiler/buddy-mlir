@@ -866,6 +866,10 @@ class GraphImporter:
         # self._module, so that each one is declared once.
         self._external_func_types = {}
         self._external_func_written = {}
+        # name -> Op for sticky-layout lookups (reshape args are often str names)
+        self._symbol_table[("__buddy_ops_by_name__", 0)] = {
+            n.name: n for n in body if getattr(n, "name", None) is not None
+        }
 
     def _verbose_output(self):
         if self._verbose_path is None:
