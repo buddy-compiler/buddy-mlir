@@ -3,10 +3,15 @@ name: build-manylinux
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: "Release version tag (e.g., 0.1.0)"
+      bump:
+        description: "Version bump for a manual release"
         required: true
-        type: string
+        default: patch
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
       llvm_cache_mode:
         description: "LLVM cache mode: cache reuses a ready install, incremental keeps the build dir, clean deletes it first."
         required: false
@@ -17,10 +22,16 @@ on:
           - incremental
           - clean
   schedule:
-    - cron: '30 18 * * 0'
+    # Sunday publishes a stable patch; the other days publish a dev prerelease.
+    - cron: '30 2 * * *'
+      timezone: 'Asia/Shanghai'
 
 permissions:
   contents: write
+
+concurrency:
+  group: buddy-mlir-release
+  cancel-in-progress: false
 
 jobs:
   prepare_release:
@@ -30,7 +41,8 @@ jobs:
       name: ${{ steps.vars.outputs.name }}
       version: ${{ steps.vars.outputs.version }}
       llvm_cache_mode: ${{ steps.vars.outputs.llvm_cache_mode }}
-      is_nightly: ${{ steps.vars.outputs.is_nightly }}
+      is_prerelease: ${{ steps.vars.outputs.is_prerelease }}
+      should_release: ${{ steps.vars.outputs.should_release }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -41,50 +53,77 @@ jobs:
         id: vars
         run: |
           set -euo pipefail
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            # trigger by hand
-            VERSION="${{ inputs.version }}"
-            NAME="BUDDY MLIR ${VERSION}"
-            TAG_NAME="release/v${VERSION}"
+          git fetch --tags --force origin
+
+          # Get bump type
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
             CACHE_MODE="${{ inputs.llvm_cache_mode }}"
-            IS_NIGHTLY="false"
+            BUMP="${{ inputs.bump }}"
           else
-            # trigger by schedule
-            DATE=$(date +'%Y-%m-%d')
-            SHA=$(git rev-parse --short=7 HEAD)
-            NAME="Nightly ${DATE}-${SHA}"
-            TAG_NAME="nightly/${DATE}-${SHA}"
             CACHE_MODE="incremental"
-            IS_NIGHTLY="true"
-            if RAW_DESCRIBE=$(git describe --tags --long --match "release/v*" 2>/dev/null); then
-              echo "Found last release tag: ${RAW_DESCRIBE}"
-              VERSION=$(echo "$RAW_DESCRIBE" | sed -E 's/^release\/v//; s/-([0-9]+)-g/.dev\1+/')
+            if [ "$(TZ=Asia/Shanghai date +%u)" = "7" ]; then
+              BUMP="patch"
             else
-              TOTAL_COMMITS=$(git rev-list --count HEAD)
-              VERSION="0.0.0.dev${TOTAL_COMMITS}+${SHA}"
+              BUMP="dev"
             fi
           fi
-          echo "tag_name=$TAG_NAME" >> "$GITHUB_OUTPUT"
-          echo "name=$NAME" >> "$GITHUB_OUTPUT"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "llvm_cache_mode=$CACHE_MODE" >> "$GITHUB_OUTPUT"
-          echo "is_nightly=$IS_NIGHTLY" >> "$GITHUB_OUTPUT"
 
-      - name: Create or Update release page
+          if [ "${BUMP}" = "dev" ] && [ -n "$(git tag --points-at HEAD --list 'release/v*' 'nightly/v*')" ]; then
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            echo "No commits since the latest release; skipping nightly release."
+            exit 0
+          fi
+          echo "should_release=true" >> "$GITHUB_OUTPUT"
+
+          # Get latest release version
+          LATEST_TAG="$(git tag --list 'release/v*' | sort -V | tail -n 1)"
+          LATEST_VERSION="${LATEST_TAG#release/v}"
+          IFS=. read -r MAJOR MINOR PATCH <<< "${LATEST_VERSION}"
+
+          # Get next release version
+          if [ "${BUMP}" = "dev" ]; then
+            PATCH="$((10#${PATCH} + 1))"
+            VERSION="${MAJOR}.${MINOR}.${PATCH}.dev$(TZ=Asia/Shanghai date +%Y%m%d%H%M%S)"
+
+            echo "tag_name=nightly/v${VERSION}" >> "$GITHUB_OUTPUT"
+            echo "name=Nightly ${VERSION}" >> "$GITHUB_OUTPUT"
+            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
+            echo "Preparing nightly release nightly/v${VERSION}."
+          else
+            case "${BUMP}" in
+              patch) PATCH="$((10#${PATCH} + 1))" ;;
+              minor) MINOR="$((10#${MINOR} + 1))"; PATCH=0 ;;
+              major) MAJOR="$((10#${MAJOR} + 1))"; MINOR=0; PATCH=0 ;;
+            esac
+            VERSION="${MAJOR}.${MINOR}.${PATCH}"
+
+            echo "tag_name=release/v${VERSION}" >> "$GITHUB_OUTPUT"
+            echo "name=BUDDY MLIR ${VERSION}" >> "$GITHUB_OUTPUT"
+            echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
+            echo "Preparing ${BUMP} release release/v${VERSION}."
+          fi
+
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "llvm_cache_mode=${CACHE_MODE}" >> "$GITHUB_OUTPUT"
+
+      - name: Create or refresh draft release
         uses: softprops/action-gh-release@v2
+        if: ${{ steps.vars.outputs.should_release == 'true' }}
         with:
           tag_name: ${{ steps.vars.outputs.tag_name }}
           name: ${{ steps.vars.outputs.name }}
-          draft: ${{ steps.vars.outputs.is_nightly != 'true' }}
+          target_commitish: ${{ github.sha }}
+          draft: true
+          prerelease: ${{ steps.vars.outputs.is_prerelease == 'true' }}
+          make_latest: false
           append_body: false
           overwrite_files: true
-          prerelease: ${{ steps.vars.outputs.is_nightly == 'true' }}
-          make_latest: ${{ steps.vars.outputs.is_nightly != 'true' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   wheel:
     needs: prepare_release
+    if: ${{ needs.prepare_release.outputs.should_release == 'true' }}
     name: Build (${{ matrix.arch }}, py${{ matrix.python }})
     timeout-minutes: 360
     continue-on-error: false
@@ -154,19 +193,24 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          gh release upload "${{ needs.prepare_release.outputs.tag_name }}" \
-            ${{ steps.vars.outputs.host_build_dir }}/${{ matrix.target_arch }}/buddy/${{ steps.vars.outputs.py_wheel_tag }}/${{ steps.vars.outputs.buddy_hash }}/target/buddy-${{ needs.prepare_release.outputs.version }}-${{ steps.vars.outputs.py_wheel_tag }}-manylinux* \
-            ${{ steps.vars.outputs.host_build_dir }}/${{ matrix.target_arch }}/buddy/${{ steps.vars.outputs.py_wheel_tag }}/${{ steps.vars.outputs.buddy_hash }}/target/llvm-*-${{ steps.vars.outputs.py_wheel_tag }}-manylinux* \
-            --clobber
-
-      - name: Upload buddy-cli
-        shell: bash
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          BUDDY_BUILD_DIR=${{ steps.vars.outputs.host_build_dir }}/${{ matrix.target_arch }}/buddy/${{ steps.vars.outputs.py_wheel_tag }}/${{ steps.vars.outputs.buddy_hash }}
+          BUDDY_BUILD_DIR="${{ steps.vars.outputs.host_build_dir }}/${{ matrix.target_arch }}/buddy/${{ steps.vars.outputs.py_wheel_tag }}/${{ steps.vars.outputs.buddy_hash }}"
           cp -a "${BUDDY_BUILD_DIR}/dist/bin/buddy-cli" "${BUDDY_BUILD_DIR}/target/buddy-cli-${{ needs.prepare_release.outputs.version }}.${{ matrix.target_arch }}"
           gh release upload "${{ needs.prepare_release.outputs.tag_name }}" \
+            "${BUDDY_BUILD_DIR}/target/buddy-${{ needs.prepare_release.outputs.version }}-${{ steps.vars.outputs.py_wheel_tag }}-manylinux"* \
+            "${BUDDY_BUILD_DIR}/target/llvm-"*"-${{ steps.vars.outputs.py_wheel_tag }}-manylinux"* \
             "${BUDDY_BUILD_DIR}/target/buddy-cli-${{ needs.prepare_release.outputs.version }}.${{ matrix.target_arch }}" \
             --clobber
+
+  publish_release:
+    needs: [prepare_release, wheel]
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Publish complete release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.prepare_release.outputs.tag_name }}
+          draft: false
+          prerelease: ${{ needs.prepare_release.outputs.is_prerelease == 'true' }}
+          make_latest: ${{ needs.prepare_release.outputs.is_prerelease != 'true' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
