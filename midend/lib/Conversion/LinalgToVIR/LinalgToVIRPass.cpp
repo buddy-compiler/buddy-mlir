@@ -309,7 +309,7 @@ static LogicalResult computeShapeAndVL(linalg::LinalgOp linalgOp,
 static buddy::vir::SetVLOp createSetVLRegion(PatternRewriter &rewriter,
                                              Location loc, Value vlVal);
 
-enum class SupportedReduceCombinerKind { AddF, MaxNumF };
+enum class SupportedReduceCombinerKind { AddF, MaximumF, MaxNumF };
 
 static FailureOr<SupportedReduceCombinerKind>
 getSupportedReduceCombinerKind(linalg::ReduceOp reduceOp,
@@ -333,6 +333,8 @@ getSupportedReduceCombinerKind(linalg::ReduceOp reduceOp,
 
   if (isa<arith::AddFOp>(combiner))
     return SupportedReduceCombinerKind::AddF;
+  if (isa<arith::MaximumFOp>(combiner))
+    return SupportedReduceCombinerKind::MaximumF;
   if (isa<arith::MaxNumFOp>(combiner))
     return SupportedReduceCombinerKind::MaxNumF;
   return failure();
@@ -361,7 +363,8 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
   if (failed(combinerKind))
     return rewriter.notifyMatchFailure(
         reduceOp,
-        "unsupported reduce combiner (expected single-op addf/maxnumf with "
+        "unsupported reduce combiner (expected single-op addf/maximumf/"
+        "maxnumf with "
         "linalg.yield)");
 
   ArrayRef<int64_t> dims = reduceOp.getDimensions();
@@ -375,6 +378,8 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
     switch (k) {
     case SupportedReduceCombinerKind::AddF:
       return "add";
+    case SupportedReduceCombinerKind::MaximumF:
+      return "maximum";
     case SupportedReduceCombinerKind::MaxNumF:
       return "maxnum";
     }
@@ -418,7 +423,93 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
     return success();
   }
 
-  // Case B: rank-2 -> rank-1, dimensions = [1].
+  // Case B: rank-N -> rank-(N-1), dimensions = [N-1], N >= 3.
+  // Flatten all leading dimensions into a row dimension and reuse the same
+  // row-wise VIR reduction shape as the rank-2 -> rank-1 case below.  Qwen3
+  // emits this form for RMSNorm and softmax, for example
+  //   1xSx1024 -> 1xS
+  //   1xSxHx128 -> 1xSxH
+  //   1xHxSxS -> 1xHxS.
+  // These tensors have static, contiguous shapes after one-shot bufferization,
+  // so collapse_shape is only a view and does not copy model activations.
+  if (inTy.getRank() >= 3 && outTy.getRank() == inTy.getRank() - 1 &&
+      dims.size() == 1 && dims[0] == inTy.getRank() - 1) {
+    if (!inTy.hasStaticShape() || !outTy.hasStaticShape())
+      return rewriter.notifyMatchFailure(
+          reduceOp, "higher-rank trailing reduction requires static shapes");
+
+    for (int64_t i = 0, e = outTy.getRank(); i < e; ++i) {
+      if (inTy.getShape()[i] != outTy.getShape()[i])
+        return rewriter.notifyMatchFailure(
+            reduceOp, "input/output leading dimensions mismatch");
+    }
+
+    SmallVector<ReassociationIndices> inputReassociation(2);
+    for (int64_t i = 0, e = inTy.getRank() - 1; i < e; ++i)
+      inputReassociation[0].push_back(i);
+    inputReassociation[1].push_back(inTy.getRank() - 1);
+
+    SmallVector<ReassociationIndices> outputReassociation(1);
+    for (int64_t i = 0, e = outTy.getRank(); i < e; ++i)
+      outputReassociation[0].push_back(i);
+
+    Value flatInput = memref::CollapseShapeOp::create(
+        rewriter, loc, input, inputReassociation);
+    Value flatInit = memref::CollapseShapeOp::create(
+        rewriter, loc, init, outputReassociation);
+    auto flatInTy = cast<MemRefType>(flatInput.getType());
+    Type elemTy = flatInTy.getElementType();
+
+    Value rowCount = memref::DimOp::create(rewriter, loc, flatInput, 0);
+    Value rowWidth = memref::DimOp::create(rewriter, loc, flatInput, 1);
+    Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
+    auto outerLoop =
+        scf::ForOp::create(rewriter, loc, lower, rowCount, step);
+
+    {
+      OpBuilder::InsertionGuard g(rewriter);
+      rewriter.setInsertionPointToStart(outerLoop.getBody());
+      Value rowIndex = outerLoop.getInductionVar();
+      auto accBufTy = MemRefType::get({}, elemTy);
+      Value accBuf = memref::AllocaOp::create(rewriter, loc, accBufTy);
+      Value initVal = memref::LoadOp::create(rewriter, loc, flatInit,
+                                             ValueRange{rowIndex});
+      memref::StoreOp::create(rewriter, loc, initVal, accBuf, ValueRange{});
+
+      auto setVl = buddy::vir::SetVLOp::create(
+          rewriter, loc, /*results=*/TypeRange{},
+          /*operands=*/ValueRange{rowWidth});
+      Region &region = setVl.getRegion();
+      Block &block = region.emplaceBlock();
+      rewriter.setInsertionPointToStart(&block);
+
+      auto vecTy = buddy::vir::DynamicVectorType::get(
+          {ShapedType::kDynamic}, elemTy);
+      Value row = buddy::vir::LoadOp::create(
+                      rewriter, loc, vecTy, flatInput,
+                      ValueRange{rowIndex, c0})
+                      .getResult();
+      Value acc = memref::LoadOp::create(rewriter, loc, accBuf, ValueRange{});
+      Value reduced = buddy::vir::ReduceOp::create(
+                          rewriter, loc, elemTy, row, acc,
+                          rewriter.getStringAttr(
+                              kindToString(*combinerKind)))
+                          .getResult();
+      memref::StoreOp::create(rewriter, loc, reduced, accBuf, ValueRange{});
+      vector::YieldOp::create(rewriter, loc);
+
+      rewriter.setInsertionPointAfter(setVl);
+      Value finalVal =
+          memref::LoadOp::create(rewriter, loc, accBuf, ValueRange{});
+      memref::StoreOp::create(rewriter, loc, finalVal, flatInit,
+                              ValueRange{rowIndex});
+    }
+
+    rewriter.eraseOp(reduceOp);
+    return success();
+  }
+
+  // Case C: rank-2 -> rank-1, dimensions = [1].
   // Reduce each row of the MxN input into one output element.
   if (inTy.getRank() == 2 && outTy.getRank() == 1) {
     if (dims.size() != 1)
@@ -482,7 +573,7 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
       return success();
     }
 
-    // Case C: rank-2 -> rank-1, dimensions = [0].
+    // Case D: rank-2 -> rank-1, dimensions = [0].
     // First transpose MxN -> NxM so reducing the original leading dimension
     // becomes a reduction across one transposed row. The transpose view has a
     // non-unit stride on the minor dimension, so we materialize it into a
@@ -558,7 +649,7 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
         reduceOp, "rank-2 -> rank-1 reduction requires dimensions=[0] or [1]");
   }
 
-  // Case D: rank-3 -> rank-2, dimensions = [0].
+  // Case E: rank-3 -> rank-2, dimensions = [0].
   // Transpose MxNxK -> NxKxM so reducing the original leading dimension becomes
   // a reduction across one contiguous length-M slice per (j, k). The transpose
   // view is still strided on the minor dimension, so we materialize it into a
@@ -654,7 +745,8 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
       reduceOp,
       "only rank-1 -> rank-0 (dimensions=[0]) and rank-2 -> rank-1 "
       "(dimensions=[1] or static-shape dimensions=[0]) plus static-shape "
-      "rank-3 -> rank-2 (dimensions=[0]) reductions are supported");
+      "rank-3 -> rank-2 (dimensions=[0]) and static higher-rank trailing "
+      "dimension reductions are supported");
 }
 
 static LogicalResult
@@ -2368,7 +2460,8 @@ struct LinalgReduceToVIRPattern : public RewritePattern {
         "unsupported linalg.reduce for -lower-linalg-to-vir; supported forms "
         "are rank-1->rank-0 dimensions=[0], rank-2->rank-1 dimensions=[1], "
         "static-shape rank-2->rank-1 dimensions=[0], and static-shape "
-        "rank-3->rank-2 dimensions=[0], all with f32 addf/maxnumf combiner");
+        "rank-3->rank-2 dimensions=[0], plus static higher-rank trailing "
+        "dimension reductions, all with f32 addf/maximumf/maxnumf combiner");
     return failure();
   }
 };

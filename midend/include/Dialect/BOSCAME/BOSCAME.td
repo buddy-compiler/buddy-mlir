@@ -24,6 +24,7 @@
 include "mlir/IR/OpBase.td"
 include "mlir/IR/BuiltinTypes.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
+include "mlir/Interfaces/DestinationStyleOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Dialect/LLVMIR/LLVMOpBase.td"
 
@@ -54,6 +55,68 @@ def BOSCAME_Dialect : Dialect {
 
 class BOSCAME_Op<string mnemonic, list<Trait> traits = []> :
   Op<BOSCAME_Dialect, mnemonic, traits> {}
+
+//===----------------------------------------------------------------------===//
+// Qwen3 W8A8 semantic operations
+//===----------------------------------------------------------------------===//
+
+def QuantizePerGroupOp : BOSCAME_Op<"quantize_per_group",
+    [DestinationStyleOpInterface]> {
+  let summary = "Dynamically quantize f32 rows to per-group int8";
+  let description = [{
+    Quantizes a rank-2 `[T, K]` f32 activation independently for every
+    `[group_size]` slice.  `quantized` has shape `[T, K]` and `scales` has
+    shape `[T, K / group_size]`.  Tensor form has two tied results; buffer form
+    has no results and writes the two destination operands.
+  }];
+  let arguments = (ins
+    AnyShaped:$input,
+    AnyShaped:$quantized,
+    AnyShaped:$scales,
+    I64Attr:$group_size
+  );
+  let results = (outs Variadic<AnyRankedTensor>:$results);
+  let hasVerifier = 1;
+  let extraClassDeclaration = [{
+    ::mlir::MutableOperandRange getDpsInitsMutable() {
+      return ::mlir::MutableOperandRange(getOperation(), 1, 2);
+    }
+  }];
+}
+
+def W8A8LinearOp : BOSCAME_Op<"w8a8_linear",
+    [DestinationStyleOpInterface]> {
+  let summary = "Qwen3 per-group W8A8 linear with OUTBLK=64 weights";
+  let description = [{
+    Computes a complete Qwen3 W8A8 linear operation without exposing its
+    groups as independent matmuls.  The required logical layouts are:
+
+      xq     : [T, K] i8
+      xs     : [T, K / group_size] f32
+      wq     : [D / 64, K / group_size, 64, group_size] i8
+      ws     : [K / group_size, D] f32
+      output : [T, D] f32
+
+    `weight_layout` must be `ame_outblk64`.  Tensor form has one tied result;
+    buffer form has no results and writes `output`.
+  }];
+  let arguments = (ins
+    AnyShaped:$xq,
+    AnyShaped:$xs,
+    AnyShaped:$wq,
+    AnyShaped:$ws,
+    AnyShaped:$output,
+    I64Attr:$group_size,
+    StrAttr:$weight_layout
+  );
+  let results = (outs Variadic<AnyRankedTensor>:$results);
+  let hasVerifier = 1;
+  let extraClassDeclaration = [{
+    ::mlir::MutableOperandRange getDpsInitsMutable() {
+      return getOutputMutable();
+    }
+  }];
+}
 
 //===----------------------------------------------------------------------===//
 // Matrix Configuration Operations (with register)

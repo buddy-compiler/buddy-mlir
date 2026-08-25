@@ -241,6 +241,17 @@ class EmbeddingOp(Op):
         self._newshape: list = None
 
 
+class QuantizedGroupEmbeddingOp(Op):
+    """Per-group int8 embedding lookup with f32 dequantization.
+
+    args: [weight(i8), token_ids(i64), weight_scale(f32), group_size]
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReshapeType
+
+
 class OnesOp(Op):
     def __init__(self) -> None:
         super().__init__()
@@ -467,9 +478,38 @@ class QuantizedMatmulOp(Op):
         self._op_type = OpType.ReduceType
 
 
+class QuantizedGroupMatmulOp(Op):
+    """Per-group W8A8 matmul.
+
+    args: [activation(f32), weight(i8), weight_scale(f32), group_size]
+    Weight is laid out as
+    [N / 64, K / group_size, 64, group_size] and weight_scale as
+    [K / group_size, N].
+    Activation quantization is performed independently for every input row and
+    K group.  Each group produces an i32 dot product which is rescaled and
+    accumulated in f32.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReduceType
+
+
 class QuantizedAddMMOp(Op):
     """W8A8 quantized addmm: dynamic activation quant + i8 matmul + rescale + bias.
     args: [bias(f32), activation(f32), weight(i8), weight_scale(f32)]
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReduceType
+
+
+class QuantizedGroupAddMMOp(Op):
+    """Per-group W8A8 addmm with a final f32 bias addition.
+
+    args: [bias(f32), activation(f32), weight(i8), weight_scale(f32),
+    group_size]
     """
 
     def __init__(self) -> None:

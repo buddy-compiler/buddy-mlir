@@ -43,7 +43,9 @@ static bool hasSupported2DLayout(MemRefType type) {
   SmallVector<int64_t> strides;
   int64_t offset;
   return succeeded(type.getStridesAndOffset(strides, offset)) &&
-         strides.size() == 2 && strides.front() > 0 && strides.back() == 1;
+         strides.size() == 2 &&
+         (ShapedType::isDynamic(strides.front()) || strides.front() > 0) &&
+         (ShapedType::isDynamic(strides.back()) || strides.back() == 1);
 }
 
 struct QwenDirectCMatch {
@@ -54,18 +56,18 @@ struct QwenDirectCMatch {
   Value finalOutput;
 };
 
-// Match only the bufferization shape emitted for the Qwen3 Triton matmul:
+// Match the bufferization shapes emitted for Qwen3 matmuls:
 //
 //   %tmp = memref.alloc
 //   linalg.fill 0 -> %tmp
 //   linalg.matmul A, B -> %tmp
 //   <pure address calculation for %final>
-//   memref.copy %tmp, %final
+//   memref.copy %tmp, %final  // optional; Buddy Frontend uses %tmp directly
 //   memref.dealloc %tmp  // optional
 //
 // The strict use and ordering checks are what make it safe to compute directly
-// into %final. Any less constrained matmul remains legal and is handled by the
-// later linalg-to-VIR pipeline.
+// into either %final or the original destination. Any less constrained matmul
+// remains legal and is handled by the later linalg-to-VIR pipeline.
 static FailureOr<QwenDirectCMatch> matchQwenDirectCMatmul(linalg::MatmulOp op) {
   if (!op.hasPureBufferSemantics() || op.getNumDpsInputs() != 2 ||
       op.getNumDpsInits() != 1)
@@ -105,6 +107,9 @@ static FailureOr<QwenDirectCMatch> matchQwenDirectCMatmul(linalg::MatmulOp op) {
   if (op.getCast() != linalg::TypeFn::cast_signed || op.hasUserDefinedMaps())
     return failure();
 
+  // Dynamic strides occur on Buddy Frontend function arguments.  The Qwen3
+  // generated wrapper/bare-metal runner provides tight row-major buffers;
+  // getRowStride below still reads the runtime leading stride.
   if (!hasSupported2DLayout(AType) || !hasSupported2DLayout(BType) ||
       !hasSupported2DLayout(temporaryCType))
     return failure();
@@ -149,19 +154,33 @@ static FailureOr<QwenDirectCMatch> matchQwenDirectCMatmul(linalg::MatmulOp op) {
       continue;
     }
 
-    return failure();
+    // Buddy Frontend keeps the matmul destination as the SSA buffer consumed
+    // by following elementwise operations.  Such uses are safe when they are
+    // in the same block and occur after the matmul.
+    if (user->getBlock() != op->getBlock() || !op->isBeforeInBlock(user))
+      return failure();
   }
 
-  if (!sawMatmul || !zeroFill || !copyToFinal)
+  if (!sawMatmul || !zeroFill)
     return failure();
   if (zeroFill->getBlock() != op->getBlock() ||
-      copyToFinal->getBlock() != op->getBlock() ||
-      zeroFill->getNextNode() != op.getOperation() ||
+      zeroFill->getNextNode() != op.getOperation())
+    return failure();
+
+  if (temporaryDealloc &&
+      (temporaryDealloc->getBlock() != op->getBlock() ||
+       !op->isBeforeInBlock(temporaryDealloc)))
+    return failure();
+
+  if (!copyToFinal)
+    return QwenDirectCMatch{temporaryAlloc, zeroFill, copyToFinal,
+                            temporaryDealloc, temporaryC};
+
+  if (copyToFinal->getBlock() != op->getBlock() ||
       !op->isBeforeInBlock(copyToFinal))
     return failure();
 
-  if (temporaryDealloc && (temporaryDealloc->getBlock() != op->getBlock() ||
-                           !copyToFinal->isBeforeInBlock(temporaryDealloc)))
+  if (temporaryDealloc && !copyToFinal->isBeforeInBlock(temporaryDealloc))
     return failure();
 
   Value finalOutput = copyToFinal.getTarget();
@@ -208,12 +227,20 @@ public:
     Value B = op.getDpsInputOperand(1)->get();
     Value C = directC->finalOutput;
 
-    // Insert the replacement at the old copy point. The final output and its
-    // address calculation already dominate this location, and final C is not
-    // made visible earlier than in the original program.
-    rewriter.setInsertionPoint(directC->copyToFinal);
-    Value zero = directC->zeroFill.getDpsInputOperand(0)->get();
-    linalg::FillOp::create(rewriter, directC->zeroFill.getLoc(), zero, C);
+    const bool copiedDestination = static_cast<bool>(directC->copyToFinal);
+    if (copiedDestination) {
+      // Insert the replacement at the old copy point. The final output and its
+      // address calculation already dominate this location, and final C is not
+      // made visible earlier than in the original program.
+      rewriter.setInsertionPoint(directC->copyToFinal);
+      Value zero = directC->zeroFill.getDpsInputOperand(0)->get();
+      linalg::FillOp::create(rewriter, directC->zeroFill.getLoc(), zero, C);
+    } else {
+      // Buddy Frontend bufferization already exposes the destination buffer to
+      // downstream operations, so replace the matmul in place and retain the
+      // original allocation/fill/lifetime.
+      rewriter.setInsertionPoint(op);
+    }
 
     constexpr int64_t tileM = 4;
     constexpr int64_t tileN = 4;
@@ -359,12 +386,14 @@ public:
     Msce32mOp::create(rewriter, loc, 0, subC, strideC);
 
     rewriter.setInsertionPointAfter(loopM);
-    if (directC->temporaryDealloc)
-      rewriter.eraseOp(directC->temporaryDealloc);
-    rewriter.eraseOp(directC->copyToFinal);
     rewriter.eraseOp(op);
-    rewriter.eraseOp(directC->zeroFill);
-    rewriter.eraseOp(directC->temporaryAlloc);
+    if (copiedDestination) {
+      if (directC->temporaryDealloc)
+        rewriter.eraseOp(directC->temporaryDealloc);
+      rewriter.eraseOp(directC->copyToFinal);
+      rewriter.eraseOp(directC->zeroFill);
+      rewriter.eraseOp(directC->temporaryAlloc);
+    }
 
     return success();
   }

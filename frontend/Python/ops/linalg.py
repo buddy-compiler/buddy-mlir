@@ -304,6 +304,84 @@ def embedding_op(
     return op
 
 
+def quantized_group_embedding_op(
+    node: QuantizedGroupEmbeddingOp,
+    symbol_table: dict[tuple[str, int], ir.Operation],
+):
+    """Lower int8 embedding lookup and per-group dequantization in one loop."""
+    weight = symbol_table.get((str(node.args[0]), 0))
+    token_ids = symbol_table.get((str(node.args[1]), 0))
+    scales = symbol_table.get((str(node.args[2]), 0))
+    group_size = int(node.args[3])
+    if weight is None or token_ids is None or scales is None:
+        return
+
+    output_shape = list(node.tensor_meta["shape"])
+    f32 = ir.F32Type.get()
+    output_type = ir.RankedTensorType.get(output_shape, f32)
+    output = tensor.EmptyOp(output_shape, f32)
+    rank = len(output_shape)
+    if rank != 3:
+        raise ValueError(
+            f"quantized embedding expects rank-3 output, got {output_shape}"
+        )
+
+    identity = _safe_get_permutation([0, 1, 2])
+    token_map = ir.AffineMap.get(
+        3,
+        0,
+        [ir.AffineDimExpr.get(0), ir.AffineDimExpr.get(1)],
+    )
+    op = linalg.GenericOp(
+        [output_type],
+        [token_ids],
+        [output],
+        ir.ArrayAttr.get(
+            [
+                ir.AffineMapAttr.get(token_map),
+                ir.AffineMapAttr.get(identity),
+            ]
+        ),
+        ir.ArrayAttr.get(
+            [ir.Attribute.parse("#linalg.iterator_type<parallel>")] * 3
+        ),
+    )
+    block = ir.Block.create_at_start(
+        op.region,
+        [
+            ir.RankedTensorType(token_ids.type).element_type,
+            f32,
+        ],
+    )
+    token_index = arith.IndexCastOp(ir.IndexType.get(), block.arguments[0])
+    column_index = linalg.IndexOp(ir._i64Attr(2, None))
+    index_type = ir.IndexType.get()
+    group_size_value = arith.ConstantOp(
+        index_type, ir.IntegerAttr.get(index_type, group_size)
+    )
+    group_index = arith.DivUIOp(
+        column_index.result, group_size_value.result
+    )
+    quantized_value = tensor.ExtractOp(
+        weight, [token_index.result, column_index.result]
+    )
+    scale = tensor.ExtractOp(
+        scales, [token_index.result, group_index.result]
+    )
+    value_f32 = arith.SIToFPOp(f32, quantized_value.result)
+    dequantized = arith.MulFOp(value_f32.result, scale.result)
+    block.append(token_index)
+    block.append(column_index)
+    block.append(group_size_value)
+    block.append(group_index)
+    block.append(quantized_value)
+    block.append(scale)
+    block.append(value_f32)
+    block.append(dequantized)
+    block.append(linalg.YieldOp([dequantized.result]))
+    return op
+
+
 def ones_op(
     node: OnesOp,
     symbol_table: dict[tuple[str, int], ir.Operation],
@@ -12908,15 +12986,196 @@ def quantized_addmm_op(node, symbol_table):
     return result
 
 
+def _extract_static_tensor_slice(value, offsets, sizes):
+    """Extract a statically shaped, unit-stride tensor slice."""
+    ranked_type = ir.RankedTensorType(value.type)
+    result_type = ir.RankedTensorType.get(
+        [int(size) for size in sizes], ranked_type.element_type
+    )
+    rank = len(sizes)
+    return tensor.ExtractSliceOp(
+        result_type,
+        value,
+        [],
+        [],
+        [],
+        ir._denseI64ArrayAttr([int(offset) for offset in offsets], None),
+        ir._denseI64ArrayAttr([int(size) for size in sizes], None),
+        ir._denseI64ArrayAttr([1] * rank, None),
+    ).result
+
+
+def _quantize_activation_i8_per_row(activation):
+    """Dynamically quantize each row of a rank-2 f32 activation tensor."""
+    act_type = ir.RankedTensorType(activation.type)
+    act_shape = list(act_type.shape)
+    if len(act_shape) != 2:
+        raise ValueError(
+            f"per-group W8A8 activation must be rank 2, got {act_shape}"
+        )
+
+    rows, width = act_shape
+    f32 = ir.F32Type.get()
+    i8 = ir.IntegerType.get_signless(8)
+    i32 = ir.IntegerType.get_signless(32)
+    scale_type = ir.RankedTensorType.get([rows, 1], f32)
+
+    abs_result = tosa.AbsOp(activation.type, activation).result
+    dim_attr = ir.IntegerAttr.get(i32, 1)
+    absmax = tosa.ReduceMaxOp(abs_result, dim_attr).result
+
+    c127 = arith.ConstantOp(
+        scale_type,
+        ir.DenseElementsAttr.get_splat(
+            scale_type, ir.FloatAttr.get(f32, 127.0)
+        ),
+    ).result
+    eps = arith.ConstantOp(
+        scale_type,
+        ir.DenseElementsAttr.get_splat(
+            scale_type, ir.FloatAttr.get(f32, 1e-10)
+        ),
+    ).result
+    inv127 = tosa.ReciprocalOp(scale_type, c127).result
+    raw_scale = tosa.MulOp(
+        scale_type, absmax, inv127, _make_tosa_mul_shift()
+    ).result
+    scale = tosa.MaximumOp(scale_type, raw_scale, eps).result
+    inv_scale = tosa.ReciprocalOp(scale_type, scale).result
+    scaled = tosa.MulOp(
+        activation.type, activation, inv_scale, _make_tosa_mul_shift()
+    ).result
+
+    rounded_i32_type = ir.RankedTensorType.get([rows, width], i32)
+    rounded = tosa.CastOp(rounded_i32_type, scaled).result
+    rounded_f32 = tosa.CastOp(activation.type, rounded).result
+    lo = arith.ConstantOp(
+        activation.type,
+        ir.DenseElementsAttr.get_splat(
+            activation.type, ir.FloatAttr.get(f32, -127.0)
+        ),
+    ).result
+    hi = arith.ConstantOp(
+        activation.type,
+        ir.DenseElementsAttr.get_splat(
+            activation.type, ir.FloatAttr.get(f32, 127.0)
+        ),
+    ).result
+    clamped = tosa.MaximumOp(activation.type, rounded_f32, lo).result
+    clamped = tosa.MinimumOp(activation.type, clamped, hi).result
+    quantized_type = ir.RankedTensorType.get([rows, width], i8)
+    quantized = tosa.CastOp(quantized_type, clamped).result
+    return quantized, scale
+
+
+def _quantized_group_matmul_impl(
+    activation, weight_i8, weight_scale, group_size, bias=None
+):
+    """Emit native Qwen3 quantize + OUTBLK64 W8A8 semantic operations."""
+    act_shape = list(ir.RankedTensorType(activation.type).shape)
+    weight_shape = list(ir.RankedTensorType(weight_i8.type).shape)
+    scale_shape = list(ir.RankedTensorType(weight_scale.type).shape)
+    if len(act_shape) != 2 or len(weight_shape) != 4:
+        raise ValueError(
+            "Qwen3 W8A8 expects rank-2 activation and rank-4 tiled weight, "
+            f"got {act_shape} and {weight_shape}"
+        )
+    rows, input_width = act_shape
+    group_size = int(group_size)
+    if group_size <= 0 or input_width % group_size != 0:
+        raise ValueError(
+            f"invalid W8A8 group size {group_size} for K={input_width}"
+        )
+    num_groups = input_width // group_size
+    output_blocks, weight_groups, out_block, weight_group_size = weight_shape
+    output_width = output_blocks * out_block
+    if (
+        weight_groups != num_groups
+        or out_block != 64
+        or weight_group_size != group_size
+    ):
+        raise ValueError(
+            "W8A8 weight must be "
+            f"[D/64,{num_groups},64,{group_size}], got {weight_shape}"
+        )
+    if scale_shape != [num_groups, output_width]:
+        raise ValueError(
+            f"W8A8 weight scale must be [{num_groups}, {output_width}], "
+            f"got {scale_shape}"
+        )
+
+    f32 = ir.F32Type.get()
+    i8 = ir.IntegerType.get_signless(8)
+    i64 = ir.IntegerType.get_signless(64)
+    quantized_type = ir.RankedTensorType.get([rows, input_width], i8)
+    activation_scale_type = ir.RankedTensorType.get(
+        [rows, num_groups], f32
+    )
+    output_type = ir.RankedTensorType.get([rows, output_width], f32)
+    group_attr = ir.IntegerAttr.get(i64, group_size)
+
+    quantized_init = tensor.EmptyOp([rows, input_width], i8).result
+    scale_init = tensor.EmptyOp([rows, num_groups], f32).result
+    quantize = ir.Operation.create(
+        "bosc_ame.quantize_per_group",
+        results=[quantized_type, activation_scale_type],
+        operands=[activation, quantized_init, scale_init],
+        attributes={"group_size": group_attr},
+    )
+    output_init = tensor.EmptyOp([rows, output_width], f32).result
+    linear = ir.Operation.create(
+        "bosc_ame.w8a8_linear",
+        results=[output_type],
+        operands=[
+            quantize.results[0],
+            quantize.results[1],
+            weight_i8,
+            weight_scale,
+            output_init,
+        ],
+        attributes={
+            "group_size": group_attr,
+            "weight_layout": ir.StringAttr.get("ame_outblk64"),
+        },
+    )
+    accumulated = linear.results[0]
+
+    if bias is not None:
+        accumulated = tosa.AddOp(output_type, accumulated, bias).result
+    return accumulated
+
+
+def quantized_group_matmul_op(node, symbol_table):
+    activation = symbol_table.get((str(node.args[0]), 0))
+    weight_i8 = symbol_table.get((str(node.args[1]), 0))
+    weight_scale = symbol_table.get((str(node.args[2]), 0))
+    return _quantized_group_matmul_impl(
+        activation, weight_i8, weight_scale, node.args[3]
+    )
+
+
+def quantized_group_addmm_op(node, symbol_table):
+    bias = symbol_table.get((str(node.args[0]), 0))
+    activation = symbol_table.get((str(node.args[1]), 0))
+    weight_i8 = symbol_table.get((str(node.args[2]), 0))
+    weight_scale = symbol_table.get((str(node.args[3]), 0))
+    return _quantized_group_matmul_impl(
+        activation, weight_i8, weight_scale, node.args[4], bias=bias
+    )
+
+
 ops_registry = {
     "MatmulOp": matmul_op,
     "QuantizedMatmulOp": quantized_matmul_op,
     "QuantizedAddMMOp": quantized_addmm_op,
+    "QuantizedGroupMatmulOp": quantized_group_matmul_op,
+    "QuantizedGroupAddMMOp": quantized_group_addmm_op,
     "TransposeMatmulFusedOp": matmul_transpose_b_op,
     "ArangeOp": arange_op,
     "UnsqueezeOp": unsqueeze_op,
     "ViewOp": view_op,
     "EmbeddingOp": embedding_op,
+    "QuantizedGroupEmbeddingOp": quantized_group_embedding_op,
     "OnesOp": ones_op,
     "FullOp": full_op,
     "LessThanOp": lt_op,

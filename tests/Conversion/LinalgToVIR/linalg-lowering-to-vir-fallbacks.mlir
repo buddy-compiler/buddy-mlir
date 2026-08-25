@@ -210,6 +210,49 @@ func.func @reduce_3d_dim0_maxnumf(%arg0: memref<8x4x8xf32>, %arg1: memref<4x8xf3
 // CHECK-VEC-REDUCE: arith.maxnumf
 
 // -----
+// CASE: linalg-reduce-to-vir-higher-rank-trailing-addf-f32.mlir
+func.func @reduce_4d_trailing_addf(%arg0: memref<1x2x4x8xf32>, %arg1: memref<1x2x4xf32>) {
+  linalg.reduce ins(%arg0 : memref<1x2x4x8xf32>) outs(%arg1 : memref<1x2x4xf32>) dimensions = [3]
+    (%in: f32, %init: f32) {
+      %sum = arith.addf %in, %init : f32
+      linalg.yield %sum : f32
+    }
+  return
+}
+
+// CHECK-LABEL: func.func @reduce_4d_trailing_addf
+// CHECK-NOT: linalg.reduce
+// CHECK: %[[FLAT_IN:.+]] = memref.collapse_shape %arg0 {{.*}} : memref<1x2x4x8xf32> into memref<8x8xf32>
+// CHECK: %[[FLAT_OUT:.+]] = memref.collapse_shape %arg1 {{.*}} : memref<1x2x4xf32> into memref<8xf32>
+// CHECK: scf.for %[[I:[^ ]+]] =
+// CHECK: %[[INIT:.+]] = memref.load %[[FLAT_OUT]][%[[I]]]
+// CHECK: vir.set_vl
+// CHECK: vir.load %[[FLAT_IN]][%[[I]],
+// CHECK: vir.reduce
+// CHECK: memref.store
+// CHECK-VEC-REDUCE-LABEL: func.func @reduce_4d_trailing_addf
+// CHECK-VEC-REDUCE: vector.reduction <add>
+// CHECK-VEC-REDUCE: arith.addf
+
+// -----
+// CASE: linalg-reduce-to-vir-higher-rank-trailing-maximumf-f32.mlir
+func.func @reduce_4d_trailing_maximumf(%arg0: memref<1x2x4x8xf32>, %arg1: memref<1x2x4xf32>) {
+  linalg.reduce ins(%arg0 : memref<1x2x4x8xf32>) outs(%arg1 : memref<1x2x4xf32>) dimensions = [3]
+    (%in: f32, %init: f32) {
+      %max = arith.maximumf %in, %init : f32
+      linalg.yield %max : f32
+    }
+  return
+}
+
+// CHECK-LABEL: func.func @reduce_4d_trailing_maximumf
+// CHECK-NOT: linalg.reduce
+// CHECK: vir.reduce {{.*}} {kind = "maximum"}
+// CHECK-VEC-REDUCE-LABEL: func.func @reduce_4d_trailing_maximumf
+// CHECK-VEC-REDUCE: vector.reduction <maximumf>
+// CHECK-VEC-REDUCE: arith.maximumf
+
+// -----
 // CASE: linalg-index-generic-to-scf-fallback.mlir
 func.func @index_init(%out: memref<16xi32>) {
   linalg.generic {indexing_maps = [affine_map<(i)->(i)>], iterator_types = ["parallel"]}

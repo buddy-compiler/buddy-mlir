@@ -28,6 +28,7 @@ set(LinkedLibs
   LowerLinalgToTilePass
   LowerGemminiPass
   LowerLinalgToBOSCAMEPass
+  LowerQwenW8A8ToBOSCAMEPass
   LowerLinalgToGemminiPass
   LowerLinalgToIMEPass
   LowerIMEPass

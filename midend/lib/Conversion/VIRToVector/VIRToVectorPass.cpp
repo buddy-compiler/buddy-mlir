@@ -638,11 +638,14 @@ private:
               Value out;
               if (kind == "add") {
                 out = arith::AddFOp::create(builder, loc, input, acc);
+              } else if (kind == "maximum") {
+                out = arith::MaximumFOp::create(builder, loc, input, acc);
               } else if (kind == "maxnum") {
                 out = arith::MaxNumFOp::create(builder, loc, input, acc);
               } else {
                 op.emitError(
-                    "unsupported vir.reduce kind (expected add/maxnum)");
+                    "unsupported vir.reduce kind (expected add/maximum/"
+                    "maxnum)");
                 return;
               }
               virSymbolTable[op.getResult()] = out;
@@ -658,10 +661,13 @@ private:
             vector::CombiningKind combineKind;
             if (kind == "add") {
               combineKind = vector::CombiningKind::ADD;
+            } else if (kind == "maximum") {
+              combineKind = vector::CombiningKind::MAXIMUMF;
             } else if (kind == "maxnum") {
               combineKind = vector::CombiningKind::MAXNUMF;
             } else {
-              op.emitError("unsupported vir.reduce kind (expected add/maxnum)");
+              op.emitError(
+                  "unsupported vir.reduce kind (expected add/maximum/maxnum)");
               return;
             }
 
