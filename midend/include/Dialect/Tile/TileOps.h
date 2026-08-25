@@ -17,6 +17,7 @@
 #ifndef TILE_TILEOPS_H
 #define TILE_TILEOPS_H
 
+#include "mlir/Bytecode/BytecodeOpInterface.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/OpDefinition.h"

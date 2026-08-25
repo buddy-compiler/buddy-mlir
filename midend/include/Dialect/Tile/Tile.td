@@ -108,11 +108,28 @@ def TileConv2dOp : Tile_Op<"tile_conv2d"> {
   let description = [{
     Perform 2D convolution with automatic tiling.
     Input: [N, H, W, C], Filter: [KH, KW, C, OC], Output: [N, OH, OW, OC].
-    Lowered to Im2col + MatMul sequences on Buckyball hardware.
+    Optional bb_pad_* attrs encode fused tensor.pad (zero).
   }];
   let arguments = (ins MemRefRankOf<[AnyType], [4]>:$input,
                        MemRefRankOf<[AnyType], [4]>:$filter,
-                       MemRefRankOf<[AnyType], [4]>:$output);
+                       MemRefRankOf<[AnyType], [4]>:$output,
+                       DefaultValuedAttr<I64Attr, "0">:$padLow,
+                       DefaultValuedAttr<I64Attr, "0">:$padHigh);
+  let assemblyFormat = [{$input $filter $output attr-dict `:`
+    type($input) type($filter) type($output)}];
+}
+
+def TileDepthwiseConv2dOp : Tile_Op<"tile_depthwise_conv2d"> {
+  let summary = "Tiled depthwise 2D convolution (NHWC, multiplier=1)";
+  let description = [{
+    Input: [N, H, W, C], Filter: [KH, KW, C, 1], Output: [N, OH, OW, C].
+    Lowered to channel-batched im2col + fat GEMM (N=lane), not GEMV.
+  }];
+  let arguments = (ins MemRefRankOf<[AnyType], [4]>:$input,
+                       MemRefRankOf<[AnyType], [4]>:$filter,
+                       MemRefRankOf<[AnyType], [4]>:$output,
+                       DefaultValuedAttr<I64Attr, "0">:$padLow,
+                       DefaultValuedAttr<I64Attr, "0">:$padHigh);
   let assemblyFormat = [{$input $filter $output attr-dict `:`
     type($input) type($filter) type($output)}];
 }

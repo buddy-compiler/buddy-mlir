@@ -24,8 +24,13 @@
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Dialect/Tensor/IR/Tensor.h"
+#include "mlir/IR/BuiltinAttributes.h"
+#include "mlir/IR/Matchers.h"
+#include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
 #include "Tile/TileDialect.h"
 #include "Tile/TileOps.h"
@@ -51,36 +56,76 @@ static std::optional<int64_t> getUniformAttr(DenseIntElementsAttr attr) {
   return value;
 }
 
+// Gate for pebble convert-tile-to-buckyball im2col path (HWCF filter).
+// Large H/W are OK: TileConv2dLowering tiles OH/OW. Stride s>=1 with pad:
+//   oh == (h + padLow + padHigh - kh) / s + 1  (exact).
 static bool supportsTileConv(MemRefType inType, MemRefType filterType,
-                             MemRefType outType) {
+                             MemRefType outType, int64_t stride, int64_t padLow,
+                             int64_t padHigh) {
   if (inType.getRank() != 4 || filterType.getRank() != 4 ||
       outType.getRank() != 4)
     return false;
-  if (!inType.getElementType().isF32() || !filterType.getElementType().isF32())
+  if (!inType.getElementType().isF32() ||
+      !filterType.getElementType().isF32() || !outType.getElementType().isF32())
     return false;
   if (!inType.hasStaticShape() || !filterType.hasStaticShape() ||
       !outType.hasStaticShape())
     return false;
+  if (stride < 1 || padLow < 0 || padHigh < 0)
+    return false;
+  constexpr int64_t kMaxPad = 7;
+  if (padLow > kMaxPad || padHigh > kMaxPad)
+    return false;
 
-  constexpr int64_t bankWidth = 16;
-  constexpr int64_t bankDepth = 4096;
+  constexpr int64_t kMaxK = 7;
+  constexpr int64_t kMaxIter = 34;
+  constexpr int64_t kBankLines = 1024;
+  constexpr int64_t kLane = 16;
+
   auto inShape = inType.getShape();
   auto fShape = filterType.getShape();
   auto outShape = outType.getShape();
-  int64_t h = inShape[1], w = inShape[2], c = inShape[3];
-  int64_t kh = fShape[0], kw = fShape[1], oc = fShape[3];
+  int64_t n = inShape[0], h = inShape[1], w = inShape[2], c = inShape[3];
+  int64_t kh = fShape[0], kw = fShape[1], fc = fShape[2], oc = fShape[3];
   int64_t oh = outShape[1], ow = outShape[2];
-  if (inShape[0] <= 0 || h <= 0 || w <= 0 || c <= 0 || kh <= 0 || kw <= 0 ||
+  if (n <= 0 || h <= 0 || w <= 0 || c <= 0 || kh <= 0 || kw <= 0 || fc <= 0 ||
       oc <= 0 || oh <= 0 || ow <= 0)
     return false;
+  if (n != outShape[0] || fc != c || outShape[3] != oc)
+    return false;
+  if (h != w || oh != ow || kh != kw)
+    return false;
+  if (kh > kMaxK)
+    return false;
+  int64_t padded = h + padLow + padHigh;
+  if (padded < kh)
+    return false;
+  if ((padded - kh) % stride != 0)
+    return false;
+  if ((padded - kh) / stride + 1 != oh)
+    return false;
 
-  int64_t cPad = c;
-  while ((h * w * cPad) % bankWidth != 0)
-    ++cPad;
-  int64_t patchCols = kh * kw * cPad;
-  return patchCols > 0 && patchCols <= bankDepth && kh <= 255 &&
-         kw * cPad <= 255 && h <= 255 && w * cPad <= 255 && oh <= 255 &&
-         ow <= 255 && cPad <= 255;
+  auto cdiv = [](int64_t a, int64_t b) { return (a + b - 1) / b; };
+  for (int64_t t = oh; t >= 1; --t) {
+    if (oh % t != 0)
+      continue;
+    int64_t inSize = (t - 1) * stride + kh;
+    if (inSize > kMaxIter)
+      continue;
+    int64_t rows = cdiv(t * t, kLane) * cdiv(kh * kh, kLane) * kLane;
+    if (rows <= kBankLines)
+      return true;
+  }
+  return false;
+}
+
+static void getConvPads(Operation *op, int64_t &padLow, int64_t &padHigh) {
+  padLow = 0;
+  padHigh = 0;
+  if (auto a = op->getAttrOfType<IntegerAttr>("bb_pad_low"))
+    padLow = a.getInt();
+  if (auto a = op->getAttrOfType<IntegerAttr>("bb_pad_high"))
+    padHigh = a.getInt();
 }
 
 class MatmulLowering : public OpRewritePattern<linalg::MatmulOp> {
@@ -169,6 +214,49 @@ public:
   }
 
 private:
+};
+
+class QuantizedGenericLowering : public OpRewritePattern<linalg::GenericOp> {
+public:
+  using OpRewritePattern<linalg::GenericOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(linalg::GenericOp op,
+                                PatternRewriter &rewriter) const override {
+    auto quantized = op->getAttrOfType<BoolAttr>("buckyball.quantized");
+    if (!quantized || !quantized.getValue())
+      return failure();
+    if (op.getInputs().size() != 2 || op.getOutputs().size() != 1)
+      return op.emitError(
+          "quantized generic requires two inputs and one output");
+
+    Value activation = op.getInputs()[0];
+    Value weight = op.getInputs()[1];
+    Value output = op.getOutputs()[0];
+    auto activationType = dyn_cast<MemRefType>(activation.getType());
+    auto weightType = dyn_cast<MemRefType>(weight.getType());
+    auto outputType = dyn_cast<MemRefType>(output.getType());
+    if (!activationType || !weightType || !outputType ||
+        activationType.getRank() != 2 || weightType.getRank() != 2 ||
+        outputType.getRank() != 2 || !activationType.getElementType().isF32() ||
+        !weightType.getElementType().isInteger(8) ||
+        !outputType.getElementType().isF32())
+      return op.emitError(
+          "quantized generic requires FP32 x INT8 -> FP32 memrefs");
+
+    auto dwAddr = op->getAttrOfType<IntegerAttr>("dw_addr");
+    auto dwBytes = op->getAttrOfType<IntegerAttr>("dw_bytes");
+    auto perChannel = op->getAttrOfType<BoolAttr>("per_channel");
+    if (!dwAddr || !dwBytes || !perChannel)
+      return op.emitError("quantized generic requires RAX Dw metadata");
+
+    auto tileMatmul = tile::TileMatMulOp::create(rewriter, op.getLoc(),
+                                                 activation, weight, output);
+    tileMatmul->setAttr("dw_addr", dwAddr);
+    tileMatmul->setAttr("dw_bytes", dwBytes);
+    tileMatmul->setAttr("per_channel", perChannel);
+    rewriter.eraseOp(op);
+    return success();
+  }
 };
 
 class BatchMatMulOpLowering : public OpRewritePattern<linalg::BatchMatmulOp> {
@@ -277,19 +365,259 @@ public:
 
   LogicalResult matchAndRewrite(linalg::TransposeOp transposeOp,
                                 PatternRewriter &rewriter) const override {
-
     Value input = transposeOp.getInput();
     Value output = transposeOp.getInit();
     Location loc = transposeOp.getLoc();
+    auto inT = dyn_cast<MemRefType>(input.getType());
+    auto outT = dyn_cast<MemRefType>(output.getType());
+    if (!inT || !outT || !inT.hasStaticShape() || !outT.hasStaticShape() ||
+        inT.getElementType() != outT.getElementType())
+      return transposeOp.emitOpError("expected static memref operands");
 
-    // Only handle 2D transpose; let non-2D cases fall through to generic loops
-    auto inputType = dyn_cast<MemRefType>(input.getType());
-    if (!inputType || inputType.getRank() != 2)
-      return failure();
+    ArrayRef<int64_t> perm = transposeOp.getPermutation();
+    ArrayRef<int64_t> is = inT.getShape();
+    ArrayRef<int64_t> os = outT.getShape();
+    Type elem = inT.getElementType();
+    SmallVector<Value> temps;
 
-    rewriter.replaceOpWithNewOp<tile::TileTransposeOp>(transposeOp, input,
-                                                       output);
-    return success();
+    // Copy to identity-layout buffer when needed (collapse/tile require it).
+    auto asContig = [&](Value v) -> Value {
+      auto t = cast<MemRefType>(v.getType());
+      if (t.getLayout().isIdentity())
+        return v;
+      Value b = memref::AllocOp::create(
+          rewriter, loc, MemRefType::get(t.getShape(), t.getElementType()));
+      memref::CopyOp::create(rewriter, loc, v, b);
+      temps.push_back(b);
+      return b;
+    };
+    auto dstContig = [&]() -> Value {
+      if (outT.getLayout().isIdentity())
+        return output;
+      Value b =
+          memref::AllocOp::create(rewriter, loc, MemRefType::get(os, elem));
+      temps.push_back(b);
+      return b;
+    };
+    auto collapse = [&](Value src, ArrayRef<int64_t> shape2,
+                        ArrayRef<ReassociationIndices> reassoc) -> Value {
+      return memref::CollapseShapeOp::create(
+          rewriter, loc, MemRefType::get(shape2, elem), src, reassoc);
+    };
+    auto finish = [&](Value dst) {
+      if (dst != output)
+        memref::CopyOp::create(rewriter, loc, dst, output);
+      for (Value t : llvm::reverse(temps))
+        memref::DeallocOp::create(rewriter, loc, t);
+      rewriter.eraseOp(transposeOp);
+      return success();
+    };
+
+    // Copy subview into a fresh contiguous buffer, then collapse to 2D.
+    auto slice2D = [&](Value src4, ArrayRef<int64_t> off, ArrayRef<int64_t> sz4,
+                       ArrayRef<int64_t> shape2,
+                       ArrayRef<ReassociationIndices> reassoc) -> Value {
+      Value sub = memref::SubViewOp::create(rewriter, loc, src4, off, sz4,
+                                            SmallVector<int64_t>(4, 1));
+      Value buf =
+          memref::AllocOp::create(rewriter, loc, MemRefType::get(sz4, elem));
+      memref::CopyOp::create(rewriter, loc, sub, buf);
+      Value flat = collapse(buf, shape2, reassoc);
+      temps.push_back(buf);
+      return flat;
+    };
+
+    if (inT.getRank() == 2) {
+      if (perm != ArrayRef<int64_t>({1, 0}))
+        return transposeOp.emitOpError("rank-2 requires perm [1,0]");
+      Value dst = dstContig();
+      tile::TileTransposeOp::create(rewriter, loc, asContig(input), dst);
+      return finish(dst);
+    }
+
+    if (inT.getRank() == 3) {
+      if (perm != ArrayRef<int64_t>({0, 2, 1}) || is[0] != 1)
+        return transposeOp.emitOpError("rank-3 only N=1 perm [0,2,1]");
+      Value src = asContig(input), dst = dstContig();
+      tile::TileTransposeOp::create(
+          rewriter, loc, collapse(src, {is[1], is[2]}, {{0, 1}, {2}}),
+          collapse(dst, {os[1], os[2]}, {{0, 1}, {2}}));
+      return finish(dst);
+    }
+
+    if (inT.getRank() != 4)
+      return transposeOp.emitOpError("unsupported transpose rank");
+
+    // 1x1 OIHW->OHWI is layout-identical after collapse to [O,I].
+    if (perm == ArrayRef<int64_t>({0, 2, 3, 1}) && is[2] == 1 && is[3] == 1) {
+      Value src = asContig(input), dst = dstContig();
+      memref::CopyOp::create(rewriter, loc,
+                             collapse(src, {is[0], is[1]}, {{0}, {1, 2, 3}}),
+                             collapse(dst, {os[0], os[3]}, {{0}, {1, 2, 3}}));
+      return finish(dst);
+    }
+
+    // N=1 NCHW->NHWC: [1,C,H,W] -> [1,H,W,C]
+    if (perm == ArrayRef<int64_t>({0, 2, 3, 1}) && is[0] == 1) {
+      int64_t c = is[1], hw = is[2] * is[3];
+      Value src = asContig(input), dst = dstContig();
+      tile::TileTransposeOp::create(rewriter, loc,
+                                    collapse(src, {c, hw}, {{0, 1}, {2, 3}}),
+                                    collapse(dst, {hw, c}, {{0, 1, 2}, {3}}));
+      return finish(dst);
+    }
+
+    // Weight OIHW->OHWI: per-O 2D transpose of I x (H*W)
+    if (perm == ArrayRef<int64_t>({0, 2, 3, 1})) {
+      int64_t o = is[0], i = is[1], h = is[2], w = is[3], hw = h * w;
+      Value src = asContig(input), dst = dstContig();
+      for (int64_t oi = 0; oi < o; ++oi) {
+        SmallVector<int64_t> off = {oi, 0, 0, 0};
+        Value in2 = slice2D(src, off, {1, i, h, w}, {i, hw}, {{0, 1}, {2, 3}});
+        Value outBuf = memref::AllocOp::create(
+            rewriter, loc, MemRefType::get({1, h, w, i}, elem));
+        Value out2 = collapse(outBuf, {hw, i}, {{0, 1, 2}, {3}});
+        tile::TileTransposeOp::create(rewriter, loc, in2, out2);
+        memref::CopyOp::create(
+            rewriter, loc, outBuf,
+            memref::SubViewOp::create(rewriter, loc, dst, off, {1, h, w, i},
+                                      SmallVector<int64_t>(4, 1)));
+        memref::DeallocOp::create(rewriter, loc, outBuf);
+      }
+      return finish(dst);
+    }
+
+    // N=1 NHWC->NCHW / attention: [1,A,B,C] -> [1,C,A,B]
+    if (perm == ArrayRef<int64_t>({0, 3, 1, 2}) && is[0] == 1) {
+      int64_t ab = is[1] * is[2], c = is[3];
+      Value src = asContig(input), dst = dstContig();
+      tile::TileTransposeOp::create(rewriter, loc,
+                                    collapse(src, {ab, c}, {{0, 1, 2}, {3}}),
+                                    collapse(dst, {c, ab}, {{0, 1}, {2, 3}}));
+      return finish(dst);
+    }
+
+    // [N,A,B,C] -> [N,C,B,A] (e.g. NHWC->NCWH). N=1: one [AB,C]->[C,AB]
+    // then per-channel [A,B]->[B,A]. Else loop the cheaper of A/B.
+    if (perm == ArrayRef<int64_t>({0, 3, 2, 1})) {
+      int64_t n = is[0], a = is[1], b = is[2], c = is[3];
+      Value src = asContig(input), dst = dstContig();
+      if (n == 1) {
+        Value tmp = memref::AllocOp::create(
+            rewriter, loc, MemRefType::get({1, c, a, b}, elem));
+        temps.push_back(tmp);
+        tile::TileTransposeOp::create(
+            rewriter, loc, collapse(src, {a * b, c}, {{0, 1, 2}, {3}}),
+            collapse(tmp, {c, a * b}, {{0, 1}, {2, 3}}));
+        for (int64_t ci = 0; ci < c; ++ci) {
+          SmallVector<int64_t> off = {0, ci, 0, 0};
+          Value in2 = slice2D(tmp, off, {1, 1, a, b}, {a, b}, {{0, 1, 2}, {3}});
+          Value outBuf = memref::AllocOp::create(
+              rewriter, loc, MemRefType::get({1, 1, b, a}, elem));
+          Value out2 = collapse(outBuf, {b, a}, {{0, 1, 2}, {3}});
+          tile::TileTransposeOp::create(rewriter, loc, in2, out2);
+          memref::CopyOp::create(
+              rewriter, loc, outBuf,
+              memref::SubViewOp::create(rewriter, loc, dst, off, {1, 1, b, a},
+                                        SmallVector<int64_t>(4, 1)));
+          memref::DeallocOp::create(rewriter, loc, outBuf);
+        }
+        return finish(dst);
+      }
+      bool loopB = b <= a;
+      for (int64_t ni = 0; ni < n; ++ni) {
+        if (loopB) {
+          for (int64_t bi = 0; bi < b; ++bi) {
+            SmallVector<int64_t> off = {ni, 0, bi, 0};
+            Value in2 =
+                slice2D(src, off, {1, a, 1, c}, {a, c}, {{0, 1}, {2, 3}});
+            Value outBuf = memref::AllocOp::create(
+                rewriter, loc, MemRefType::get({1, c, 1, a}, elem));
+            Value out2 = collapse(outBuf, {c, a}, {{0, 1}, {2, 3}});
+            tile::TileTransposeOp::create(rewriter, loc, in2, out2);
+            memref::CopyOp::create(
+                rewriter, loc, outBuf,
+                memref::SubViewOp::create(rewriter, loc, dst, off, {1, c, 1, a},
+                                          SmallVector<int64_t>(4, 1)));
+            memref::DeallocOp::create(rewriter, loc, outBuf);
+          }
+        } else {
+          for (int64_t ai = 0; ai < a; ++ai) {
+            SmallVector<int64_t> inOff = {ni, ai, 0, 0};
+            SmallVector<int64_t> outOff = {ni, 0, 0, ai};
+            Value in2 =
+                slice2D(src, inOff, {1, 1, b, c}, {b, c}, {{0, 1, 2}, {3}});
+            Value outBuf = memref::AllocOp::create(
+                rewriter, loc, MemRefType::get({1, c, b, 1}, elem));
+            Value out2 = collapse(outBuf, {c, b}, {{0, 1}, {2, 3}});
+            tile::TileTransposeOp::create(rewriter, loc, in2, out2);
+            memref::CopyOp::create(rewriter, loc, outBuf,
+                                   memref::SubViewOp::create(
+                                       rewriter, loc, dst, outOff, {1, c, b, 1},
+                                       SmallVector<int64_t>(4, 1)));
+            memref::DeallocOp::create(rewriter, loc, outBuf);
+          }
+        }
+      }
+      return finish(dst);
+    }
+
+    // [N,A,B,C] -> [N,B,A,C]
+    if (perm == ArrayRef<int64_t>({0, 2, 1, 3})) {
+      int64_t n = is[0], a = is[1], b = is[2], c = is[3];
+      Value src = asContig(input), dst = dstContig();
+      for (int64_t ni = 0; ni < n; ++ni) {
+        for (int64_t ci = 0; ci < c; ++ci) {
+          SmallVector<int64_t> off = {ni, 0, 0, ci};
+          Value in2 = slice2D(src, off, {1, a, b, 1}, {a, b}, {{0, 1}, {2, 3}});
+          Value outBuf = memref::AllocOp::create(
+              rewriter, loc, MemRefType::get({1, b, a, 1}, elem));
+          Value out2 = collapse(outBuf, {b, a}, {{0, 1}, {2, 3}});
+          tile::TileTransposeOp::create(rewriter, loc, in2, out2);
+          memref::CopyOp::create(
+              rewriter, loc, outBuf,
+              memref::SubViewOp::create(rewriter, loc, dst, off, {1, b, a, 1},
+                                        SmallVector<int64_t>(4, 1)));
+          memref::DeallocOp::create(rewriter, loc, outBuf);
+        }
+      }
+      return finish(dst);
+    }
+
+    // [N,H,A,B] -> [N,H,B,A]: per-(n,h) 2D transpose
+    if (perm == ArrayRef<int64_t>({0, 1, 3, 2})) {
+      int64_t n = is[0], h = is[1], a = is[2], b = is[3];
+      Value src = asContig(input), dst = dstContig();
+      for (int64_t ni = 0; ni < n; ++ni) {
+        for (int64_t hi = 0; hi < h; ++hi) {
+          SmallVector<int64_t> off = {ni, hi, 0, 0};
+          Value in2 = slice2D(src, off, {1, 1, a, b}, {a, b}, {{0, 1, 2}, {3}});
+          Value outBuf = memref::AllocOp::create(
+              rewriter, loc, MemRefType::get({1, 1, b, a}, elem));
+          Value out2 = collapse(outBuf, {b, a}, {{0, 1, 2}, {3}});
+          tile::TileTransposeOp::create(rewriter, loc, in2, out2);
+          memref::CopyOp::create(
+              rewriter, loc, outBuf,
+              memref::SubViewOp::create(rewriter, loc, dst, off, {1, 1, b, a},
+                                        SmallVector<int64_t>(4, 1)));
+          memref::DeallocOp::create(rewriter, loc, outBuf);
+        }
+      }
+      return finish(dst);
+    }
+
+    // Depthwise OIHW->HWIO: [C,1,k,k] -> [k,k,C,1]
+    if (perm == ArrayRef<int64_t>({2, 3, 0, 1}) && is[1] == 1) {
+      int64_t c = is[0], kk = is[2] * is[3];
+      Value src = asContig(input), dst = dstContig();
+      tile::TileTransposeOp::create(rewriter, loc,
+                                    collapse(src, {c, kk}, {{0, 1}, {2, 3}}),
+                                    collapse(dst, {kk, c}, {{0, 1}, {2, 3}}));
+      return finish(dst);
+    }
+
+    return transposeOp.emitOpError(
+        "unsupported transpose perm/shape for tile lowering");
   }
 };
 
@@ -305,7 +633,7 @@ public:
       return failure();
     auto stride = getUniformAttr(convOp.getStrides());
     auto dilation = getUniformAttr(convOp.getDilations());
-    if (!stride || !dilation || *stride != 1 || *dilation != 1)
+    if (!stride || !dilation || *stride < 1 || *dilation != 1)
       return failure();
 
     Value input = inputs[0];
@@ -316,10 +644,14 @@ public:
     auto outputType = dyn_cast<MemRefType>(output.getType());
     if (!inputType || !filterType || !outputType)
       return failure();
-    if (!supportsTileConv(inputType, filterType, outputType))
+    int64_t padLow = 0, padHigh = 0;
+    getConvPads(convOp, padLow, padHigh);
+    if (!supportsTileConv(inputType, filterType, outputType, *stride, padLow,
+                          padHigh))
       return failure();
-    rewriter.replaceOpWithNewOp<tile::TileConv2dOp>(convOp, input, filter,
-                                                    output);
+    rewriter.replaceOpWithNewOp<tile::TileConv2dOp>(
+        convOp, input, filter, output, rewriter.getI64IntegerAttr(padLow),
+        rewriter.getI64IntegerAttr(padHigh));
     return success();
   }
 };
@@ -349,7 +681,7 @@ public:
 
     auto stride = getUniformAttr(convOp.getStrides());
     auto dilation = getUniformAttr(convOp.getDilations());
-    if (!stride || !dilation || *stride != 1 || *dilation != 1)
+    if (!stride || !dilation || *stride < 1 || *dilation != 1)
       return failure();
 
     Location loc = convOp.getLoc();
@@ -361,7 +693,10 @@ public:
 
     auto hwcfType =
         MemRefType::get({kh, kw, c, oc}, filterType.getElementType());
-    if (!supportsTileConv(inputType, hwcfType, outputType))
+    int64_t padLow = 0, padHigh = 0;
+    getConvPads(convOp, padLow, padHigh);
+    if (!supportsTileConv(inputType, hwcfType, outputType, *stride, padLow,
+                          padHigh))
       return failure();
     Value hwcf = memref::AllocOp::create(rewriter, loc, hwcfType);
 
@@ -394,7 +729,9 @@ public:
                             ValueRange{khIv, kwIv, cIv, ocIv});
 
     rewriter.setInsertionPointAfter(ocLoop);
-    tile::TileConv2dOp::create(rewriter, loc, input, hwcf, output);
+    tile::TileConv2dOp::create(rewriter, loc, input, hwcf, output,
+                               rewriter.getI64IntegerAttr(padLow),
+                               rewriter.getI64IntegerAttr(padHigh));
     memref::DeallocOp::create(rewriter, loc, hwcf);
     rewriter.eraseOp(convOp);
     return success();
@@ -426,7 +763,7 @@ public:
 
     auto stride = getUniformAttr(convOp.getStrides());
     auto dilation = getUniformAttr(convOp.getDilations());
-    if (!stride || !dilation || *stride != 1 || *dilation != 1)
+    if (!stride || !dilation || *stride < 1 || *dilation != 1)
       return failure();
 
     Location loc = convOp.getLoc();
@@ -448,7 +785,10 @@ public:
         MemRefType::get({kh, kw, c, f}, filterType.getElementType());
     auto outNhwcType =
         MemRefType::get({n, oh, ow, f}, outputType.getElementType());
-    if (!supportsTileConv(nhwcType, hwcfType, outNhwcType))
+    int64_t padLow = 0, padHigh = 0;
+    getConvPads(convOp, padLow, padHigh);
+    if (!supportsTileConv(nhwcType, hwcfType, outNhwcType, *stride, padLow,
+                          padHigh))
       return failure();
     Value nhwc = memref::AllocOp::create(rewriter, loc, nhwcType);
     Value hwcf = memref::AllocOp::create(rewriter, loc, hwcfType);
@@ -502,7 +842,9 @@ public:
                             ValueRange{khIv, kwIv, fcIv, fIv});
 
     rewriter.setInsertionPointAfter(fLoop);
-    tile::TileConv2dOp::create(rewriter, loc, nhwc, hwcf, outNhwc);
+    tile::TileConv2dOp::create(rewriter, loc, nhwc, hwcf, outNhwc,
+                               rewriter.getI64IntegerAttr(padLow),
+                               rewriter.getI64IntegerAttr(padHigh));
 
     auto onLoop = scf::ForOp::create(rewriter, loc, zero, nUb, one);
     rewriter.setInsertionPointToStart(onLoop.getBody());
@@ -530,16 +872,243 @@ public:
   }
 };
 
+static bool supportsTileDepthwise(MemRefType inType, MemRefType filterType,
+                                  MemRefType outType, int64_t stride,
+                                  int64_t padLow, int64_t padHigh) {
+  if (inType.getRank() != 4 || filterType.getRank() != 4 ||
+      outType.getRank() != 4)
+    return false;
+  if (!inType.getElementType().isF32() ||
+      !filterType.getElementType().isF32() || !outType.getElementType().isF32())
+    return false;
+  if (!inType.hasStaticShape() || !filterType.hasStaticShape() ||
+      !outType.hasStaticShape())
+    return false;
+  if (stride < 1 || padLow < 0 || padHigh < 0)
+    return false;
+  constexpr int64_t kMaxPad = 7;
+  if (padLow > kMaxPad || padHigh > kMaxPad)
+    return false;
+
+  constexpr int64_t kMaxK = 7;
+  constexpr int64_t kMaxIter = 34;
+  constexpr int64_t kBankLines = 1024;
+  constexpr int64_t kLane = 16;
+
+  auto inShape = inType.getShape();
+  auto fShape = filterType.getShape();
+  auto outShape = outType.getShape();
+  int64_t n = inShape[0], h = inShape[1], w = inShape[2], c = inShape[3];
+  int64_t kh = fShape[0], kw = fShape[1], fc = fShape[2], mult = fShape[3];
+  int64_t oh = outShape[1], ow = outShape[2], oc = outShape[3];
+  if (n <= 0 || h <= 0 || w <= 0 || c <= 0 || kh <= 0 || kw <= 0 || fc <= 0 ||
+      oh <= 0 || ow <= 0)
+    return false;
+  if (n != outShape[0] || fc != c || oc != c || mult != 1)
+    return false;
+  if (h != w || oh != ow || kh != kw)
+    return false;
+  if (kh > kMaxK)
+    return false;
+  int64_t padded = h + padLow + padHigh;
+  if (padded < kh)
+    return false;
+  if ((padded - kh) % stride != 0)
+    return false;
+  if ((padded - kh) / stride + 1 != oh)
+    return false;
+
+  auto cdiv = [](int64_t a, int64_t b) { return (a + b - 1) / b; };
+  for (int64_t t = oh; t >= 1; --t) {
+    if (oh % t != 0)
+      continue;
+    int64_t inSize = (t - 1) * stride + kh;
+    if (inSize > kMaxIter)
+      continue;
+    int64_t rows = cdiv(t * t, kLane) * cdiv(kh * kh, kLane) * kLane;
+    if (rows <= kBankLines)
+      return true;
+  }
+  return false;
+}
+
+class DepthwiseConv2dNhwcHwcmLowering
+    : public OpRewritePattern<linalg::DepthwiseConv2DNhwcHwcmOp> {
+public:
+  using OpRewritePattern<linalg::DepthwiseConv2DNhwcHwcmOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(linalg::DepthwiseConv2DNhwcHwcmOp convOp,
+                                PatternRewriter &rewriter) const override {
+    auto inputs = convOp.getInputs();
+    auto outputs = convOp.getOutputs();
+    if (inputs.size() != 2 || outputs.size() != 1)
+      return failure();
+    auto stride = getUniformAttr(convOp.getStrides());
+    auto dilation = getUniformAttr(convOp.getDilations());
+    if (!stride || !dilation || *stride < 1 || *dilation != 1)
+      return failure();
+
+    Value input = inputs[0];
+    Value filter = inputs[1];
+    Value output = outputs[0];
+    auto inputType = dyn_cast<MemRefType>(input.getType());
+    auto filterType = dyn_cast<MemRefType>(filter.getType());
+    auto outputType = dyn_cast<MemRefType>(output.getType());
+    if (!inputType || !filterType || !outputType)
+      return failure();
+    if (outputType.getRank() != 5 || !outputType.hasStaticShape() ||
+        outputType.getShape()[4] != 1)
+      return failure();
+
+    Location loc = convOp.getLoc();
+    ArrayRef<int64_t> os = outputType.getShape();
+    auto out4Type = MemRefType::get({os[0], os[1], os[2], os[3]},
+                                    outputType.getElementType());
+    SmallVector<ReassociationIndices, 4> reassoc = {{0}, {1}, {2}, {3, 4}};
+    Value out4 = memref::CollapseShapeOp::create(rewriter, loc, out4Type,
+                                                 output, reassoc);
+
+    int64_t padLow = 0, padHigh = 0;
+    getConvPads(convOp, padLow, padHigh);
+    if (!supportsTileDepthwise(inputType, filterType, out4Type, *stride, padLow,
+                               padHigh))
+      return failure();
+
+    tile::TileDepthwiseConv2dOp::create(rewriter, loc, input, filter, out4,
+                                        rewriter.getI64IntegerAttr(padLow),
+                                        rewriter.getI64IntegerAttr(padHigh));
+    rewriter.eraseOp(convOp);
+    return success();
+  }
+};
+
 } // namespace
 
 void populateLowerLinalgToTileConversionPatterns(RewritePatternSet &patterns) {
+  patterns.add<QuantizedGenericLowering>(patterns.getContext());
   patterns.add<MatmulLowering>(patterns.getContext());
   patterns.add<BatchMatMulOpLowering>(patterns.getContext());
   patterns.add<TransposeOpLowering>(patterns.getContext());
   patterns.add<Conv2dNhwcHwcfLowering>(patterns.getContext());
   patterns.add<Conv2dNhwcFhwcLowering>(patterns.getContext());
   patterns.add<Conv2dNchwFchwLowering>(patterns.getContext());
+  patterns.add<DepthwiseConv2dNhwcHwcmLowering>(patterns.getContext());
 }
+
+//===----------------------------------------------------------------------===//
+// FusePadIntoConv
+//===----------------------------------------------------------------------===//
+
+namespace {
+
+static bool isZeroPad(tensor::PadOp pad) {
+  if (!pad.getConstantPaddingValue())
+    return false;
+  auto cst = pad.getConstantPaddingValue().getDefiningOp<arith::ConstantOp>();
+  if (!cst)
+    return false;
+  auto attr = dyn_cast<FloatAttr>(cst.getValue());
+  return attr && attr.getValue().isZero();
+}
+
+static LogicalResult tryFusePad(Operation *conv, PatternRewriter &rewriter) {
+  if (conv->getNumOperands() < 2)
+    return failure();
+  Value in = conv->getOperand(0);
+  auto pad = in.getDefiningOp<tensor::PadOp>();
+  if (!pad || !isZeroPad(pad) || !pad.getResult().hasOneUse())
+    return failure();
+
+  RankedTensorType srcTy =
+      dyn_cast<RankedTensorType>(pad.getSource().getType());
+  RankedTensorType dstTy =
+      dyn_cast<RankedTensorType>(pad.getResult().getType());
+  if (!srcTy || !dstTy || srcTy.getRank() != 4 || !srcTy.hasStaticShape() ||
+      !dstTy.hasStaticShape())
+    return failure();
+
+  SmallVector<OpFoldResult> low = pad.getMixedLowPad();
+  SmallVector<OpFoldResult> high = pad.getMixedHighPad();
+  auto asConst = [](OpFoldResult ofr) -> std::optional<int64_t> {
+    if (auto attr = dyn_cast<Attribute>(ofr))
+      if (auto ia = dyn_cast<IntegerAttr>(attr))
+        return ia.getInt();
+    return std::nullopt;
+  };
+  int64_t pads[4][2];
+  for (int i = 0; i < 4; ++i) {
+    auto lo = asConst(low[i]);
+    auto hi = asConst(high[i]);
+    if (!lo || !hi)
+      return failure();
+    pads[i][0] = *lo;
+    pads[i][1] = *hi;
+  }
+  if (pads[0][0] || pads[0][1] || pads[3][0] || pads[3][1])
+    return failure();
+  if (pads[1][0] != pads[2][0] || pads[1][1] != pads[2][1])
+    return failure();
+  int64_t padLow = pads[1][0];
+  int64_t padHigh = pads[1][1];
+  if (padLow < 0 || padHigh < 0 || padLow > 7 || padHigh > 7)
+    return failure();
+
+  conv->setOperand(0, pad.getSource());
+  conv->setAttr("bb_pad_low", rewriter.getI64IntegerAttr(padLow));
+  conv->setAttr("bb_pad_high", rewriter.getI64IntegerAttr(padHigh));
+  rewriter.eraseOp(pad);
+  return success();
+}
+
+class FusePadConvNhwcFhwc : public OpRewritePattern<linalg::Conv2DNhwcFhwcOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(linalg::Conv2DNhwcFhwcOp op,
+                                PatternRewriter &rewriter) const override {
+    return tryFusePad(op, rewriter);
+  }
+};
+
+class FusePadConvNhwcHwcf : public OpRewritePattern<linalg::Conv2DNhwcHwcfOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(linalg::Conv2DNhwcHwcfOp op,
+                                PatternRewriter &rewriter) const override {
+    return tryFusePad(op, rewriter);
+  }
+};
+
+class FusePadDepthwiseNhwcHwcm
+    : public OpRewritePattern<linalg::DepthwiseConv2DNhwcHwcmOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(linalg::DepthwiseConv2DNhwcHwcmOp op,
+                                PatternRewriter &rewriter) const override {
+    return tryFusePad(op, rewriter);
+  }
+};
+
+class FusePadIntoConvPass
+    : public PassWrapper<FusePadIntoConvPass, OperationPass<ModuleOp>> {
+public:
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(FusePadIntoConvPass);
+  StringRef getArgument() const final { return "fuse-pad-into-conv"; }
+  StringRef getDescription() const final {
+    return "Fuse tensor.pad into linalg conv/depthwise as bb_pad_* attrs";
+  }
+  void runOnOperation() override {
+    RewritePatternSet patterns(&getContext());
+    patterns.add<FusePadConvNhwcFhwc, FusePadConvNhwcHwcf,
+                 FusePadDepthwiseNhwcHwcm>(&getContext());
+    if (failed(applyPatternsGreedily(getOperation(), std::move(patterns))))
+      signalPassFailure();
+  }
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry.insert<tensor::TensorDialect, linalg::LinalgDialect,
+                    arith::ArithDialect>();
+  }
+};
+
+} // namespace
 
 //===----------------------------------------------------------------------===//
 // LowerLinalgToTile
@@ -572,6 +1141,7 @@ void LowerLinalgToTilePass::runOnOperation() {
   target.addLegalDialect<memref::MemRefDialect, tile::TileDialect,
                          arith::ArithDialect, scf::SCFDialect>();
   target.addLegalOp<linalg::FillOp, linalg::YieldOp>();
+  target.addIllegalOp<linalg::TransposeOp>();
   RewritePatternSet patterns(context);
   populateLowerLinalgToTileConversionPatterns(patterns);
   if (failed(applyPartialConversion(module, target, std::move(patterns))))
@@ -582,6 +1152,7 @@ namespace mlir {
 namespace buddy {
 void registerLowerLinalgToTilePass() {
   PassRegistration<LowerLinalgToTilePass>();
+  PassRegistration<FusePadIntoConvPass>();
 }
 } // namespace buddy
 } // namespace mlir
