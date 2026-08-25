@@ -91,6 +91,8 @@ buddy_add_model(
   SPEC "${BUDDY_DSR1_SPEC}"
   RUNNER_SRC DeepSeekR1Runner.cpp
   RUNNER_PLUGIN_SRC DeepSeekR1RunnerPlugin.cpp
+  SERVING_PLUGIN_SRC DeepSeekR1ResidentModelPlugin.cpp
+  EXTRA_SRCS DeepSeekR1ResidentModel.cpp
   HF_CONFIG "${BUDDY_DSR1_HF_CONFIG}"
   LOCAL_MODEL "${BUDDY_DSR1_LOCAL_MODEL}"
   BUILD_DIR "${DEEPSEEKR1_BUILD_DIR}"
