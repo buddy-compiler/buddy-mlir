@@ -58,12 +58,6 @@ runs:
       if: ${{ inputs.arch == 'riscv64' }}
       shell: bash
       run: |
-        if ! command -v flatc >/dev/null 2>&1 || \
-           [ ! -f /usr/include/flatbuffers/flatbuffers.h ]; then
-          sudo apt-get update
-          sudo apt-get install -y flatbuffers-compiler libflatbuffers-dev
-        fi
-
         export PATH="/usr/lib/ccache:$PATH"
         echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
         echo "/usr/lib/ccache" >> "$GITHUB_PATH"
