@@ -36,8 +36,8 @@ jobs:
           - arch: riscv64
             os: linux
             experimental: true
-            llvm_src: "/home/jenkins/src/llvm-project"
-            llvm_build_root: "/home/jenkins/llvm-cache"
+            llvm_src: "$HOME/src/llvm-project"
+            llvm_build_root: "$HOME/llvm-cache"
 
     runs-on:
       - self-hosted

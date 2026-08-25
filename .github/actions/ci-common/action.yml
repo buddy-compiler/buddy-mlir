@@ -59,7 +59,7 @@ runs:
       shell: bash
       run: |
         export PATH="/usr/lib/ccache:$PATH"
-        echo "CCACHE_DIR=/home/jenkins/.ccache" >> $GITHUB_ENV
+        echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
         echo "/usr/lib/ccache" >> "$GITHUB_PATH"
         ccache -M 50G
         echo "CCACHE_MAXSIZE=50G" >> $GITHUB_ENV
