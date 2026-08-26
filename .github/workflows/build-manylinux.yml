@@ -4,11 +4,12 @@ on:
   workflow_dispatch:
     inputs:
       bump:
-        description: "Version bump for a manual release"
+        description: "Release type for a manual run"
         required: true
         default: patch
         type: choice
         options:
+          - dev
           - patch
           - minor
           - major
@@ -43,6 +44,7 @@ jobs:
       llvm_cache_mode: ${{ steps.vars.outputs.llvm_cache_mode }}
       is_prerelease: ${{ steps.vars.outputs.is_prerelease }}
       should_release: ${{ steps.vars.outputs.should_release }}
+      release_id: ${{ steps.create_release.outputs.id }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -83,7 +85,7 @@ jobs:
           # Get next release version
           if [ "${BUMP}" = "dev" ]; then
             PATCH="$((10#${PATCH} + 1))"
-            VERSION="${MAJOR}.${MINOR}.${PATCH}.dev$(TZ=Asia/Shanghai date +%Y%m%d%H%M%S)"
+            VERSION="${MAJOR}.${MINOR}.${PATCH}.dev$(TZ=Asia/Shanghai date +%Y%m%d)"
 
             echo "tag_name=nightly/v${VERSION}" >> "$GITHUB_OUTPUT"
             echo "name=Nightly ${VERSION}" >> "$GITHUB_OUTPUT"
@@ -107,6 +109,7 @@ jobs:
           echo "llvm_cache_mode=${CACHE_MODE}" >> "$GITHUB_OUTPUT"
 
       - name: Create or refresh draft release
+        id: create_release
         uses: softprops/action-gh-release@v2
         if: ${{ steps.vars.outputs.should_release == 'true' }}
         with:
@@ -180,6 +183,8 @@ jobs:
           llvm-src: ${{ steps.vars.outputs.llvm_src }}
 
       - name: Build manylinux wheel in container
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           export LLVM_CACHE_MODE="${{ needs.prepare_release.outputs.llvm_cache_mode }}"
@@ -206,11 +211,15 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Publish complete release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ needs.prepare_release.outputs.tag_name }}
-          draft: false
-          prerelease: ${{ needs.prepare_release.outputs.is_prerelease == 'true' }}
-          make_latest: ${{ needs.prepare_release.outputs.is_prerelease != 'true' }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ needs.prepare_release.outputs.release_id }}
+          IS_PRERELEASE: ${{ needs.prepare_release.outputs.is_prerelease }}
+          MAKE_LATEST: ${{ needs.prepare_release.outputs.is_prerelease != 'true' }}
+        run: |
+          set -euo pipefail
+          gh api --method PATCH \
+            "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" \
+            -F draft=false \
+            -F prerelease="${IS_PRERELEASE}" \
+            -f make_latest="${MAKE_LATEST}"
