@@ -37,7 +37,7 @@ jobs:
             os: linux
             experimental: true
             llvm_src: "$HOME/src/llvm-project"
-            llvm_build_root: "/home/jenkins/llvm-cache"
+            llvm_build_root: "$HOME/llvm-cache"
 
     runs-on:
       - self-hosted
