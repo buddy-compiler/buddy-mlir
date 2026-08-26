@@ -21,11 +21,8 @@ TOSA="builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),f
       -eliminate-empty-tensors -empty-tensor-to-alloc-tensor \
       -convert-elementwise-to-linalg \
       -one-shot-bufferize=bufferize-function-boundaries \
-      -ownership-based-buffer-deallocation \
-      -buffer-deallocation-simplification \
-      -bufferization-lower-deallocations \
-      -convert-bufferization-to-memref \
-      -expand-strided-metadata -canonicalize -cse \
+      -expand-strided-metadata -ownership-based-buffer-deallocation -canonicalize \
+      -buffer-deallocation-simplification -bufferization-lower-deallocations -convert-bufferization-to-memref -cse \
       -canonicalize -optimize-allocation-liveness \
       -matmul-vectorization-blis -batchmatmul-optimize \
       -convert-linalg-to-affine-loops -affine-parallelize -convert-vector-to-scf \

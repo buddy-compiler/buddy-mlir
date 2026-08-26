@@ -4,10 +4,7 @@ This document describes the layer partitioning workflow. It compiles smaller
 MLIR fragments in parallel so the slowest model compile stages can use many
 cores.
 
-The current implementation and validation use DeepSeek R1 as the worked
-example. Other models can use the same high-level flow, but they need their own
-partition strategy, runtime ABI checks, and correctness tests before being
-enabled by default.
+DeepSeek R1 supports both template-based layer partitioning and the existing `PartitionedGraphDriver` workflow. Whisper and Qwen3-VL support template-based layer partitioning with their model-specific import and lowering paths. DeepSeek R1 remains the detailed worked example in this document.
 
 ## Environment
 
@@ -19,36 +16,24 @@ cd buddy-mlir
 conda activate buddy
 ```
 
-## Default Build Integration
+## Build Integration
 
-Layer partitioning is controlled by the CMake option
-`BUDDY_MODEL_LAYER_PARTITION`, which defaults to `ON` for supported models. The
-normal README build therefore uses the validated partitioned path: fine-grained
-prefill partitions and coarser Pow-boundary decode partitions. The finer
-DeepSeek decode split can still be selected for experiments with
-`BUDDY_DSR1_DECODE_SPLIT=fine`, but it is not the default because it changed
-later greedy tokens during validation.
+Template-based layer partitioning is controlled by the CMake option `BUDDY_MODEL_LAYER_PARTITION`. It defaults to `OFF`, so the normal `build_model.py` command uses the original non-template build path.
 
-The default build command is:
+Enable template-based layer partitioning explicitly with:
 
 ```bash
 python3 tools/buddy-codegen/build_model.py \
-  --spec models/deepseek_r1/specs/f32.json \
-  --build-dir build
-```
-
-To use the original whole-graph compile path, disable the option explicitly:
-
-```bash
-python3 tools/buddy-codegen/build_model.py \
-  --spec models/deepseek_r1/specs/f32.json \
+  --spec <model-spec.json> \
   --build-dir build \
-  --cmake-args=-DBUDDY_MODEL_LAYER_PARTITION=OFF
+  --cmake-args=-DBUDDY_MODEL_LAYER_PARTITION=ON
 ```
 
-The layer-partitioned path is automatically disabled for tiered KV cache builds,
-RVV cross-compilation, and pre-generated MLIR directories that do not contain a
-`layer_partitioned/partition_manifest.json` file.
+The option is supported by DeepSeek R1, Whisper, and Qwen3-VL. Omitting the option, or passing `--cmake-args=-DBUDDY_MODEL_LAYER_PARTITION=OFF`, keeps template-based layer partitioning disabled.
+
+DeepSeek R1 also retains the existing `PartitionedGraphDriver` workflow described in the detailed example below. Whisper and Qwen3-VL materialize reusable template subgraphs and compile them through their model-specific import and lowering paths.
+
+For DeepSeek R1, the template-based layer-partitioned path is automatically disabled for tiered KV cache builds, RVV cross-compilation, and pre-generated MLIR directories that do not contain a `layer_partitioned/partition_manifest.json` file.
 
 By default, partitioned builds only emit the MLIR needed by the runtime:
 partition kernels plus the combined `forward_prefill.mlir` and
@@ -72,8 +57,7 @@ for debugging with `--no-direct-plain-weight-export`.
 
 ## DeepSeek R1 Example
 
-The commands below use the f32 DeepSeek R1 Distill Qwen 1.5B configuration as a
-manual, decomposed version of the default flow. They are useful for measuring
+The commands below use the f32 DeepSeek R1 Distill Qwen 1.5B configuration as a manual, decomposed version of the existing `PartitionedGraphDriver` flow. They are useful for measuring
 baseline versus partitioned compile time or debugging the generated artifacts.
 
 ### Generate Config And MLIR
@@ -175,6 +159,8 @@ public entry points. Do not link `forward_prefill<N>.o` or
 runtime path.
 
 ## Adapting To Other Models
+
+This section applies to the existing `PartitionedGraphDriver` workflow used by DeepSeek R1. Whisper and Qwen3-VL use `TemplatePartitionedGraphDriver` with model-specific import and lowering paths instead.
 
 To apply this flow to another model, add a model-specific split strategy under
 `models/<model_family>/codegen/partition_strategy.py`. The generic importer
