@@ -859,7 +859,6 @@ class BOSCAME_EleWise2_IntrOp<string mnemonic> : BOSCAME_IntrOpBase<mnemonic>,
 //===----------------------------------------------------------------------===//
 multiclass BOSCAME_EleWise_Int_NoWiden_IntrOp<string prefix> {
   def "Mm_IntrOp"   : BOSCAME_EleWise3_IntrOp<prefix # ".mm">;
-  def "Hbmm_IntrOp" : BOSCAME_EleWise3_IntrOp<prefix # ".hb.mm">;
   def "Bmm_IntrOp"  : BOSCAME_EleWise3_IntrOp<prefix # ".b.mm">;
   def "Hmm_IntrOp"  : BOSCAME_EleWise3_IntrOp<prefix # ".h.mm">;
   def "Wmm_IntrOp"  : BOSCAME_EleWise3_IntrOp<prefix # ".w.mm">;
@@ -868,7 +867,6 @@ multiclass BOSCAME_EleWise_Int_NoWiden_IntrOp<string prefix> {
 
 multiclass BOSCAME_EleWise_Float_NoWiden_IntrOp<string prefix> {
   def "Mm_IntrOp"   : BOSCAME_EleWise3_IntrOp<prefix # ".mm">;
-  def "Cfmm_IntrOp" : BOSCAME_EleWise3_IntrOp<prefix # ".cf.mm">;
   def "Hfmm_IntrOp" : BOSCAME_EleWise3_IntrOp<prefix # ".hf.mm">;
   def "Fmm_IntrOp"  : BOSCAME_EleWise3_IntrOp<prefix # ".f.mm">;
   def "Dmm_IntrOp"  : BOSCAME_EleWise3_IntrOp<prefix # ".d.mm">;
@@ -876,7 +874,6 @@ multiclass BOSCAME_EleWise_Float_NoWiden_IntrOp<string prefix> {
 
 multiclass BOSCAME_EleWise_Int_DoubleWiden_IntrOp<string prefix> {
   def "Mm_IntrOp"   : BOSCAME_EleWise3_IntrOp<prefix # ".mm">;
-  def "Hbmm_IntrOp" : BOSCAME_EleWise3_IntrOp<prefix # ".hb.mm">;
   def "Bmm_IntrOp"  : BOSCAME_EleWise3_IntrOp<prefix # ".b.mm">;
   def "Hmm_IntrOp"  : BOSCAME_EleWise3_IntrOp<prefix # ".h.mm">;
   def "Wmm_IntrOp"  : BOSCAME_EleWise3_IntrOp<prefix # ".w.mm">;
@@ -884,17 +881,15 @@ multiclass BOSCAME_EleWise_Int_DoubleWiden_IntrOp<string prefix> {
 
 multiclass BOSCAME_EleWise_Float_DoubleWiden_IntrOp<string prefix> {
   def "Mm_IntrOp"   : BOSCAME_EleWise3_IntrOp<prefix # ".mm">;
-  def "Cfmm_IntrOp" : BOSCAME_EleWise3_IntrOp<prefix # ".cf.mm">;
   def "Hfmm_IntrOp" : BOSCAME_EleWise3_IntrOp<prefix # ".hf.mm">;
   def "Fmm_IntrOp"  : BOSCAME_EleWise3_IntrOp<prefix # ".f.mm">;
 }
 
 multiclass BOSCAME_EleWise_Unary_Float_IntrOp<string prefix> {
-  def "Mm_IntrOp"   : BOSCAME_EleWise2_IntrOp<prefix # ".mm">;
-  def "Cfmm_IntrOp" : BOSCAME_EleWise2_IntrOp<prefix # ".cf.mm">;
-  def "Hfmm_IntrOp" : BOSCAME_EleWise2_IntrOp<prefix # ".hf.mm">;
-  def "Fmm_IntrOp"  : BOSCAME_EleWise2_IntrOp<prefix # ".f.mm">;
-  def "Dmm_IntrOp"  : BOSCAME_EleWise2_IntrOp<prefix # ".d.mm">;
+  def "M_IntrOp"   : BOSCAME_EleWise2_IntrOp<prefix # ".m">;
+  def "HfM_IntrOp" : BOSCAME_EleWise2_IntrOp<prefix # ".hf.m">;
+  def "FM_IntrOp"  : BOSCAME_EleWise2_IntrOp<prefix # ".f.m">;
+  def "DM_IntrOp"  : BOSCAME_EleWise2_IntrOp<prefix # ".d.m">;
 }
 
 //===----------------------------------------------------------------------===//
@@ -1066,7 +1061,6 @@ def BOSCAME_MswmaHmm_IntrOp  : BOSCAME_MMA_IntrOp<"mswma.h.mm">;
 def BOSCAME_MswmaWmm_IntrOp  : BOSCAME_MMA_IntrOp<"mswma.w.mm">;
 // float point
 def BOSCAME_MfwmaMm_IntrOp   : BOSCAME_MMA_IntrOp<"mfwma.mm">;
-def BOSCAME_MfwmaCfmm_IntrOp : BOSCAME_MMA_IntrOp<"mfwma.cf.mm">;
 def BOSCAME_MfwmaHfmm_IntrOp : BOSCAME_MMA_IntrOp<"mfwma.hf.mm">;
 def BOSCAME_MfwmaFmm_IntrOp  : BOSCAME_MMA_IntrOp<"mfwma.f.mm">;
 
@@ -1087,22 +1081,17 @@ def BOSCAME_MsqmaMm_IntrOp  : BOSCAME_MMA_IntrOp<"msqma.mm">;
 def BOSCAME_MsqmaBmm_IntrOp : BOSCAME_MMA_IntrOp<"msqma.b.mm">;
 // float point
 def BOSCAME_MfqmaMm_IntrOp   : BOSCAME_MMA_IntrOp<"mfqma.mm">;
-def BOSCAME_MfqmaCfmm_IntrOp : BOSCAME_MMA_IntrOp<"mfqma.cf.mm">;
 
 //===--------------------------------------------------------------------===//
 // 4. Oct-widen matrix multiply-accumulate
 //===--------------------------------------------------------------------===//
 // uint
 def BOSCAME_MomauMm_IntrOp   : BOSCAME_MMA_IntrOp<"momau.mm">;
-def BOSCAME_MomauHbmm_IntrOp : BOSCAME_MMA_IntrOp<"momau.hb.mm">;
 // uint, saturated
 def BOSCAME_MsomauMm_IntrOp   : BOSCAME_MMA_IntrOp<"msomau.mm">;
-def BOSCAME_MsomauHbmm_IntrOp : BOSCAME_MMA_IntrOp<"msomau.hb.mm">;
 // int
 def BOSCAME_MomaMm_IntrOp   : BOSCAME_MMA_IntrOp<"moma.mm">;
-def BOSCAME_MomaHbmm_IntrOp : BOSCAME_MMA_IntrOp<"moma.hb.mm">;
 // int, saturated
 def BOSCAME_MsomaMm_IntrOp   : BOSCAME_MMA_IntrOp<"msoma.mm">;
-def BOSCAME_MsomaHbmm_IntrOp : BOSCAME_MMA_IntrOp<"msoma.hb.mm">;
 
 #endif // BOSCAME_DIALECT
