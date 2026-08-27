@@ -3791,6 +3791,107 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
             conv_out_shape, result_element_type
         )
 
+        if (
+            str(ir.RankedTensorType(weight_val.type).element_type) == "i8"
+            and not is_depthwise
+        ):
+            if is_kernel_transposed:
+                raise ValueError(
+                    "quantized transpose convolution is unsupported"
+                )
+            if stride[0] != stride[1]:
+                raise ValueError("quantized convolution requires equal strides")
+            pad_constant = _create_shape_operand(
+                [0, 0, int(t), int(b), int(l), int(r), 0, 0]
+            )
+            pad_value = _create_zero_point_tensor(input_val)
+            padded_type = ir.RankedTensorType.get(
+                [
+                    conv_out_shape[0],
+                    input_h + int(t) + int(b),
+                    input_w + int(l) + int(r),
+                    in_channels,
+                ],
+                result_element_type,
+            )
+            padded_input = tosa.PadOp(
+                padded_type, input_val, pad_constant, pad_value
+            ).result
+            quant_weight = weight_val
+            if node._layout.find("FCHW") != -1:
+                perm_shape = [
+                    weight_shape[0],
+                    weight_shape[2],
+                    weight_shape[3],
+                    weight_shape[1],
+                ]
+                quant_weight = tosa.TransposeOp(
+                    ir.RankedTensorType.get(
+                        perm_shape, ir.IntegerType.get_signless(8)
+                    ),
+                    weight_val,
+                    _create_permutation_attr([0, 2, 3, 1]),
+                ).result
+            bias_output = tensor.EmptyOp(conv_out_shape, result_element_type)
+            generic_map = ir.AffineMap.get_permutation([0, 1, 2, 3])
+            bias_init = linalg.GenericOp(
+                [output_type],
+                [bias_tensor],
+                [bias_output],
+                ir.ArrayAttr.get(
+                    [
+                        ir.AffineMapAttr.get(generic_map.get_submap([3])),
+                        ir.AffineMapAttr.get(generic_map),
+                    ]
+                ),
+                ir.ArrayAttr.get(
+                    [ir.Attribute.parse("#linalg.iterator_type<parallel>")] * 4
+                ),
+            )
+            bias_block = ir.Block.create_at_start(
+                bias_init.region, [result_element_type, result_element_type]
+            )
+            bias_init.region.blocks[0].append(
+                linalg.YieldOp([bias_block.arguments[0]])
+            )
+            quant_conv = linalg.Conv2DNhwcFhwcOp(
+                [output_type],
+                [padded_input, quant_weight],
+                [bias_init.result],
+                strides=stride_attr,
+                dilations=dilation_attr,
+            )
+            linalg.fill_builtin_region(quant_conv.operation)
+            i64 = ir.IntegerType.get_signless(64)
+            quant_conv.operation.attributes["dw_addr"] = ir.IntegerAttr.get(
+                i64, node._dw_addr
+            )
+            quant_conv.operation.attributes["dw_bytes"] = ir.IntegerAttr.get(
+                i64, node._dw_bytes
+            )
+            quant_conv.operation.attributes["per_channel"] = ir.BoolAttr.get(
+                node._per_channel
+            )
+            quant_conv.operation.attributes["strides"] = (
+                ir.DenseElementsAttr.get(
+                    numpy.array(
+                        [int(stride[0]), int(stride[1])], dtype=numpy.int64
+                    ),
+                    type=ir.VectorType.get([2], i64),
+                )
+            )
+            op = quant_conv
+            if extra_out_h or extra_out_w:
+                slice_start = _create_shape_operand([0, 0, 0, 0])
+                slice_size = _create_shape_operand(out_shape)
+                slice_type = ir.RankedTensorType.get(
+                    out_shape, result_element_type
+                )
+                op = tosa.SliceOp(
+                    slice_type, op.result, slice_start, slice_size
+                )
+            return op
+
         # Depthwise Conv2D Operation.
         if is_depthwise is True:
             # If groups == in_channels,out_channels == in_channels
@@ -3804,11 +3905,101 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
                 perm_shape.append(weight_shape[0])
                 perm_shape.append(weight_shape[1])
                 permute_result_type = ir.RankedTensorType.get(
-                    perm_shape, result_element_type
+                    perm_shape,
+                    ir.RankedTensorType(weight_val.type).element_type,
                 )
                 weight_depthwise = tosa.TransposeOp(
                     permute_result_type, weight_val, perms_attr
                 ).result
+            if (
+                str(ir.RankedTensorType(weight_depthwise.type).element_type)
+                == "i8"
+            ):
+                pad_constant = _create_shape_operand(
+                    [0, 0, int(t), int(b), int(l), int(r), 0, 0]
+                )
+                pad_value = _create_zero_point_tensor(input_val)
+                padded_shape = [
+                    conv_out_shape[0],
+                    input_h + int(t) + int(b),
+                    input_w + int(l) + int(r),
+                    conv_out_shape[3],
+                ]
+                padded_type = ir.RankedTensorType.get(
+                    padded_shape, result_element_type
+                )
+                input_val = tosa.PadOp(
+                    padded_type, input_val, pad_constant, pad_value
+                ).result
+                depth_shape = [
+                    conv_out_shape[0],
+                    conv_out_shape[1],
+                    conv_out_shape[2],
+                    conv_out_shape[3],
+                    1,
+                ]
+                depth_type = ir.RankedTensorType.get(
+                    depth_shape, result_element_type
+                )
+                depth_init = tensor.EmptyOp(depth_shape, result_element_type)
+                identity = ir.AffineMap.get_permutation([0, 1, 2, 3, 4])
+                bias_init = linalg.GenericOp(
+                    [depth_type],
+                    [bias_tensor],
+                    [depth_init],
+                    ir.ArrayAttr.get(
+                        [
+                            ir.AffineMapAttr.get(identity.get_submap([3])),
+                            ir.AffineMapAttr.get(identity),
+                        ]
+                    ),
+                    ir.ArrayAttr.get(
+                        [ir.Attribute.parse("#linalg.iterator_type<parallel>")]
+                        * 5
+                    ),
+                )
+                bias_block = ir.Block.create_at_start(
+                    bias_init.region, [result_element_type, result_element_type]
+                )
+                bias_init.region.blocks[0].append(
+                    linalg.YieldOp([bias_block.arguments[0]])
+                )
+                depthwise_op = linalg.DepthwiseConv2DNhwcHwcmOp(
+                    [depth_type],
+                    [input_val, weight_depthwise],
+                    [bias_init.result],
+                    strides=stride_attr,
+                    dilations=dilation_attr,
+                )
+                linalg.fill_builtin_region(depthwise_op.operation)
+                depthwise_op.operation.attributes["dw_addr"] = (
+                    ir.IntegerAttr.get(
+                        ir.IntegerType.get_signless(64), node._dw_addr
+                    )
+                )
+                depthwise_op.operation.attributes["dw_bytes"] = (
+                    ir.IntegerAttr.get(
+                        ir.IntegerType.get_signless(64), node._dw_bytes
+                    )
+                )
+                depthwise_op.operation.attributes["per_channel"] = (
+                    ir.BoolAttr.get(node._per_channel)
+                )
+                collapse = tensor.CollapseShapeOp(
+                    output_type,
+                    depthwise_op.result,
+                    _build_reassociation_attr([[0], [1], [2], [3, 4]]),
+                ).result
+                if extra_out_h or extra_out_w:
+                    slice_start = _create_shape_operand([0, 0, 0, 0])
+                    slice_size = _create_shape_operand(out_shape)
+                    slice_type = ir.RankedTensorType.get(
+                        out_shape, result_element_type
+                    )
+                    return tosa.SliceOp(
+                        slice_type, collapse, slice_start, slice_size
+                    )
+                return collapse
             input_zp = _create_zero_point_tensor(input_val)
             weight_zp = _create_zero_point_tensor(weight_depthwise)
             depthwise_op = tosa.DepthwiseConv2DOp(
@@ -3823,6 +4014,17 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
                 dilation_attr,
                 acc_type,
             )
+            if hasattr(node, "_dw_addr"):
+                i64 = ir.IntegerType.get_signless(64)
+                depthwise_op.operation.attributes["dw_addr"] = (
+                    ir.IntegerAttr.get(i64, node._dw_addr)
+                )
+                depthwise_op.operation.attributes["dw_bytes"] = (
+                    ir.IntegerAttr.get(i64, node._dw_bytes)
+                )
+                depthwise_op.operation.attributes["per_channel"] = (
+                    ir.BoolAttr.get(node._per_channel)
+                )
             op = depthwise_op
         else:
             # Transpose Conv2D Operation.
@@ -3856,7 +4058,8 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
                     perm_shape.append(weight_shape[3])
                     perm_shape.append(weight_shape[1])
                     permute_result_type = ir.RankedTensorType.get(
-                        perm_shape, result_element_type
+                        perm_shape,
+                        ir.RankedTensorType(weight_val.type).element_type,
                     )
                     weight_val = tosa.TransposeOp(
                         permute_result_type,
@@ -3877,6 +4080,17 @@ def convolution2d_op(node: Conv2dOp, symbol_table):
                     dilation_attr,
                     acc_type,
                 )
+                if hasattr(node, "_dw_addr"):
+                    i64 = ir.IntegerType.get_signless(64)
+                    conv_op.operation.attributes["dw_addr"] = (
+                        ir.IntegerAttr.get(i64, node._dw_addr)
+                    )
+                    conv_op.operation.attributes["dw_bytes"] = (
+                        ir.IntegerAttr.get(i64, node._dw_bytes)
+                    )
+                    conv_op.operation.attributes["per_channel"] = (
+                        ir.BoolAttr.get(node._per_channel)
+                    )
                 op = conv_op
 
         if extra_out_h or extra_out_w:
