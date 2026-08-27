@@ -41,6 +41,8 @@ constexpr StringLiteral kTensorTraceBF16FuncName = "buddyTraceTensorBF16";
 constexpr StringLiteral kTensorTraceF32PathFuncName = "buddyTraceTensorF32Path";
 constexpr StringLiteral kTensorTraceBF16PathFuncName =
     "buddyTraceTensorBF16Path";
+constexpr StringLiteral kTensorTraceI8PathFuncName = "buddyTraceTensorI8Path";
+constexpr StringLiteral kTensorTraceI32PathFuncName = "buddyTraceTensorI32Path";
 constexpr StringLiteral kCycleTraceStartFuncName = "buddyTraceCycleStart";
 constexpr StringLiteral kCycleTraceEndFuncName = "buddyTraceCycleEnd";
 constexpr StringLiteral kCycleTraceStartPathFuncName =
@@ -558,8 +560,13 @@ private:
       funcName = kTensorTraceF32PathFuncName;
     else if (elemType.isBF16())
       funcName = kTensorTraceBF16PathFuncName;
+    else if (elemType.isInteger(8))
+      funcName = kTensorTraceI8PathFuncName;
+    else if (elemType.isInteger(32))
+      funcName = kTensorTraceI32PathFuncName;
     else
-      return op.emitError("trace end only supports f32 and bf16 memrefs");
+      return op.emitError(
+          "trace end only supports f32, bf16, i8, and i32 memrefs");
 
     ensureTensorTracePathDecl(op->getParentOfType<ModuleOp>(), funcName,
                               elemType);

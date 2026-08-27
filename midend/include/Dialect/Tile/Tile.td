@@ -103,6 +103,18 @@ def TileTransposeOp : Tile_Op<"tile_transpose"> {
     type($aMemArray) type($bMemArray)}];
 }
 
+def TileReluOp : Tile_Op<"tile_relu"> {
+  let summary = "Tiled signed INT32 ReLU";
+  let description = [{
+    Perform D = max(X, 0) on an arbitrary-sized INT32 matrix. Lowering pads
+    both dimensions to 16, then runs 512x16 bank tiles.
+  }];
+  let arguments = (ins MemRefRankOf<[AnyType], [2]>:$input,
+                       MemRefRankOf<[AnyType], [2]>:$output);
+  let assemblyFormat = [{$input $output attr-dict `:`
+    type($input) type($output)}];
+}
+
 def TileConv2dOp : Tile_Op<"tile_conv2d"> {
   let summary = "Tiled 2D convolution (NHWC layout)";
   let description = [{
