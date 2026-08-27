@@ -28,6 +28,7 @@
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/PatternMatch.h"
+#include "mlir/IR/SymbolTable.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
@@ -66,7 +67,9 @@ static bool supportsTileConv(MemRefType inType, MemRefType filterType,
       outType.getRank() != 4)
     return false;
   if (!inType.getElementType().isF32() ||
-      !filterType.getElementType().isF32() || !outType.getElementType().isF32())
+      !(filterType.getElementType().isF32() ||
+        filterType.getElementType().isInteger(8)) ||
+      !outType.getElementType().isF32())
     return false;
   if (!inType.hasStaticShape() || !filterType.hasStaticShape() ||
       !outType.hasStaticShape())
@@ -126,6 +129,12 @@ static void getConvPads(Operation *op, int64_t &padLow, int64_t &padHigh) {
     padLow = a.getInt();
   if (auto a = op->getAttrOfType<IntegerAttr>("bb_pad_high"))
     padHigh = a.getInt();
+}
+
+static void copyQuantAttrs(Operation *source, Operation *target) {
+  for (llvm::StringRef name : {"dw_addr", "dw_bytes", "per_channel"})
+    if (Attribute attr = source->getAttr(name))
+      target->setAttr(name, attr);
 }
 
 class MatmulLowering : public OpRewritePattern<linalg::MatmulOp> {
@@ -254,6 +263,71 @@ public:
     tileMatmul->setAttr("dw_addr", dwAddr);
     tileMatmul->setAttr("dw_bytes", dwBytes);
     tileMatmul->setAttr("per_channel", perChannel);
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+class ReluGenericLowering : public OpRewritePattern<linalg::GenericOp> {
+public:
+  using OpRewritePattern<linalg::GenericOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(linalg::GenericOp op,
+                                PatternRewriter &rewriter) const override {
+    Block &body = op.getRegion().front();
+    if (body.getOperations().size() != 2)
+      return failure();
+    auto maximum = dyn_cast<arith::MaxSIOp>(body.front());
+    auto yield = dyn_cast<linalg::YieldOp>(body.back());
+    if (!maximum || !yield || yield.getValues().size() != 1 ||
+        yield.getValues()[0] != maximum.getResult())
+      return failure();
+
+    if (op.getInputs().size() != 2 || op.getOutputs().size() != 1)
+      return op.emitError("signed ReLU requires input, zero, and output");
+    Value input = op.getInputs()[0];
+    Value zero = op.getInputs()[1];
+    Value output = op.getOutputs()[0];
+    auto inputType = dyn_cast<MemRefType>(input.getType());
+    auto zeroType = dyn_cast<MemRefType>(zero.getType());
+    auto outputType = dyn_cast<MemRefType>(output.getType());
+    if (!inputType || !zeroType || !outputType || !inputType.hasStaticShape() ||
+        !zeroType.hasStaticShape() || !outputType.hasStaticShape() ||
+        inputType.getRank() != 2 || zeroType.getRank() != 2 ||
+        outputType.getRank() != 2 ||
+        !inputType.getElementType().isInteger(32) || zeroType != inputType ||
+        outputType != inputType)
+      return op.emitError(
+          "signed ReLU requires matching static memref<MxNxi32>");
+    if (inputType.getShape()[0] <= 0 || inputType.getShape()[1] <= 0)
+      return op.emitError("signed ReLU dimensions must be positive");
+
+    auto maps = op.getIndexingMapsArray();
+    if (maps.size() != 3 || !maps[0].isIdentity() || !maps[1].isIdentity() ||
+        !maps[2].isIdentity())
+      return op.emitError("signed ReLU requires identity indexing maps");
+    for (utils::IteratorType iterator : op.getIteratorTypesArray())
+      if (iterator != utils::IteratorType::parallel)
+        return op.emitError("signed ReLU requires parallel iterators");
+
+    ValueRange args = body.getArguments();
+    if (args.size() != 3 ||
+        !((maximum.getLhs() == args[0] && maximum.getRhs() == args[1]) ||
+          (maximum.getLhs() == args[1] && maximum.getRhs() == args[0])))
+      return op.emitError("signed ReLU must compute max(input, zero)");
+
+    auto global = zero.getDefiningOp<memref::GetGlobalOp>();
+    if (!global)
+      return op.emitError("signed ReLU zero input must be a constant global");
+    auto constant = SymbolTable::lookupNearestSymbolFrom<memref::GlobalOp>(
+        global, global.getNameAttr());
+    auto values = constant ? dyn_cast_or_null<DenseElementsAttr>(
+                                 constant.getConstantInitValue())
+                           : nullptr;
+    if (!values || !values.isSplat() || !values.getSplatValue<APInt>().isZero())
+      return op.emitError("signed ReLU zero input must be a zero splat");
+
+    tile::TileReluOp::create(rewriter, op.getLoc(), input, output);
     rewriter.eraseOp(op);
     return success();
   }
@@ -649,9 +723,12 @@ public:
     if (!supportsTileConv(inputType, filterType, outputType, *stride, padLow,
                           padHigh))
       return failure();
-    rewriter.replaceOpWithNewOp<tile::TileConv2dOp>(
-        convOp, input, filter, output, rewriter.getI64IntegerAttr(padLow),
-        rewriter.getI64IntegerAttr(padHigh));
+    auto tile =
+        tile::TileConv2dOp::create(rewriter, convOp.getLoc(), input, filter,
+                                   output, rewriter.getI64IntegerAttr(padLow),
+                                   rewriter.getI64IntegerAttr(padHigh));
+    copyQuantAttrs(convOp, tile.getOperation());
+    rewriter.replaceOp(convOp, tile);
     return success();
   }
 };
@@ -729,9 +806,10 @@ public:
                             ValueRange{khIv, kwIv, cIv, ocIv});
 
     rewriter.setInsertionPointAfter(ocLoop);
-    tile::TileConv2dOp::create(rewriter, loc, input, hwcf, output,
-                               rewriter.getI64IntegerAttr(padLow),
-                               rewriter.getI64IntegerAttr(padHigh));
+    auto tile = tile::TileConv2dOp::create(rewriter, loc, input, hwcf, output,
+                                           rewriter.getI64IntegerAttr(padLow),
+                                           rewriter.getI64IntegerAttr(padHigh));
+    copyQuantAttrs(convOp, tile.getOperation());
     memref::DeallocOp::create(rewriter, loc, hwcf);
     rewriter.eraseOp(convOp);
     return success();
@@ -842,9 +920,10 @@ public:
                             ValueRange{khIv, kwIv, fcIv, fIv});
 
     rewriter.setInsertionPointAfter(fLoop);
-    tile::TileConv2dOp::create(rewriter, loc, nhwc, hwcf, outNhwc,
-                               rewriter.getI64IntegerAttr(padLow),
-                               rewriter.getI64IntegerAttr(padHigh));
+    auto tile = tile::TileConv2dOp::create(rewriter, loc, nhwc, hwcf, outNhwc,
+                                           rewriter.getI64IntegerAttr(padLow),
+                                           rewriter.getI64IntegerAttr(padHigh));
+    copyQuantAttrs(convOp, tile.getOperation());
 
     auto onLoop = scf::ForOp::create(rewriter, loc, zero, nUb, one);
     rewriter.setInsertionPointToStart(onLoop.getBody());
@@ -879,7 +958,9 @@ static bool supportsTileDepthwise(MemRefType inType, MemRefType filterType,
       outType.getRank() != 4)
     return false;
   if (!inType.getElementType().isF32() ||
-      !filterType.getElementType().isF32() || !outType.getElementType().isF32())
+      !(filterType.getElementType().isF32() ||
+        filterType.getElementType().isInteger(8)) ||
+      !outType.getElementType().isF32())
     return false;
   if (!inType.hasStaticShape() || !filterType.hasStaticShape() ||
       !outType.hasStaticShape())
@@ -973,9 +1054,10 @@ public:
                                padHigh))
       return failure();
 
-    tile::TileDepthwiseConv2dOp::create(rewriter, loc, input, filter, out4,
-                                        rewriter.getI64IntegerAttr(padLow),
-                                        rewriter.getI64IntegerAttr(padHigh));
+    auto tile = tile::TileDepthwiseConv2dOp::create(
+        rewriter, loc, input, filter, out4, rewriter.getI64IntegerAttr(padLow),
+        rewriter.getI64IntegerAttr(padHigh));
+    copyQuantAttrs(convOp, tile.getOperation());
     rewriter.eraseOp(convOp);
     return success();
   }
@@ -985,6 +1067,7 @@ public:
 
 void populateLowerLinalgToTileConversionPatterns(RewritePatternSet &patterns) {
   patterns.add<QuantizedGenericLowering>(patterns.getContext());
+  patterns.add<ReluGenericLowering>(patterns.getContext());
   patterns.add<MatmulLowering>(patterns.getContext());
   patterns.add<BatchMatMulOpLowering>(patterns.getContext());
   patterns.add<TransposeOpLowering>(patterns.getContext());
