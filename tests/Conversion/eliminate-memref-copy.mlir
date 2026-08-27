@@ -14,7 +14,7 @@ module {
 
   // Test multi-dimensional case with strided layout
   func.func @test_multidim(%arg0: memref<1x2x1024x128xf32, strided<[?, ?, ?, ?], offset: ?>>) -> memref<1x2x1024x128xf32> {
-    %alloc = memref.alloc() {alignment = 64 : i64} : memref<1x2x1024x128xf32>
+    %alloc = memref.alloc() alignment = 64 : memref<1x2x1024x128xf32>
     memref.copy %arg0, %alloc : memref<1x2x1024x128xf32, strided<[?, ?, ?, ?], offset: ?>> to memref<1x2x1024x128xf32>
     // Use the allocated memref
     %c0 = arith.constant 0 : index
