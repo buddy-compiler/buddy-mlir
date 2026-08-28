@@ -40,15 +40,14 @@ std::string serialize(json::Value value) {
 json::Value parseValue(const std::string &body) {
   auto parsed = json::parse(body);
   if (!parsed)
-    throw std::runtime_error("invalid JSON: " +
-                             llvm::toString(parsed.takeError()));
+    throw JsonCodecError("invalid JSON: " + llvm::toString(parsed.takeError()));
   return std::move(*parsed);
 }
 
 const json::Object &asObject(const json::Value &value) {
   const auto *obj = value.getAsObject();
   if (!obj)
-    throw std::runtime_error("JSON root must be an object");
+    throw JsonCodecError("JSON root must be an object");
   return *obj;
 }
 
@@ -76,6 +75,91 @@ uint64_t getUInt64(const json::Object &obj, llvm::StringRef key,
   if (auto value = obj.getInteger(key))
     return static_cast<uint64_t>(*value);
   return fallback;
+}
+
+ImageInput parseImageUri(const std::string &raw, const std::string &field) {
+  if (raw.empty())
+    throw JsonCodecError("image URI is empty: " + field);
+  if (raw.size() > 4096)
+    throw JsonCodecError("image URI is too long: " + field);
+  if (raw.find('\0') != std::string::npos)
+    throw JsonCodecError("image URI contains NUL: " + field);
+
+  std::string uri = raw;
+  if (uri.rfind("file:", 0) == 0)
+    uri = uri.substr(5);
+  if (uri.empty())
+    throw JsonCodecError("image file URI is empty: " + field);
+  if (uri.rfind("http://", 0) == 0 || uri.rfind("https://", 0) == 0)
+    throw JsonCodecError("remote image URLs are not supported: " + field);
+  if (uri.rfind("data:", 0) == 0)
+    throw JsonCodecError("data URI images are not supported: " + field);
+
+  ImageInput image;
+  image.uri = std::move(uri);
+  return image;
+}
+
+ImageInput parseImageValue(const json::Value &value, const std::string &field) {
+  std::string uri;
+  if (auto s = value.getAsString()) {
+    uri = s->str();
+  } else if (const auto *obj = value.getAsObject()) {
+    uri = getString(*obj, "url", getString(*obj, "uri"));
+  } else {
+    throw JsonCodecError("image value must be a string or object: " + field);
+  }
+  return parseImageUri(uri, field);
+}
+
+void appendImage(std::vector<ImageInput> &images, ImageInput image,
+                 const std::string &field) {
+  if (!images.empty())
+    throw JsonCodecError("only one image is supported: " + field);
+  images.push_back(std::move(image));
+}
+
+void parseMessageContent(const json::Value &value, ChatMessage &message,
+                         const std::string &field) {
+  if (auto text = value.getAsString()) {
+    message.content = text->str();
+    return;
+  }
+
+  const auto *parts = value.getAsArray();
+  if (!parts)
+    throw JsonCodecError("message content must be a string or array: " + field);
+
+  for (std::size_t i = 0; i < parts->size(); ++i) {
+    const auto *part = (*parts)[i].getAsObject();
+    if (!part)
+      throw JsonCodecError("content entries must be objects: " + field);
+    const std::string type = getString(*part, "type");
+    if (type == "text") {
+      const std::string text = getString(*part, "text");
+      if (text.empty())
+        throw JsonCodecError("text content part is empty: " + field);
+      if (!message.content.empty())
+        message.content += "\n";
+      message.content += text;
+      continue;
+    } else if (type == "image_url" || type == "image") {
+      const json::Value *imageValue = nullptr;
+      if (auto it = part->find("image_url"); it != part->end())
+        imageValue = &it->second;
+      else if (auto it = part->find("image"); it != part->end())
+        imageValue = &it->second;
+      else if (auto it = part->find("url"); it != part->end())
+        imageValue = &it->second;
+      if (!imageValue)
+        throw JsonCodecError("image content part requires image_url: " + field);
+      appendImage(message.images,
+                  parseImageValue(*imageValue, field + ".image_url"), field);
+      continue;
+    }
+    throw JsonCodecError("unsupported content part type '" + type +
+                         "': " + field);
+  }
 }
 
 float getFloat(const json::Object &obj, llvm::StringRef key, float fallback) {
@@ -162,7 +246,11 @@ DecodedCompletionRequest parseCompletionRequest(const std::string &body) {
   DecodedCompletionRequest decoded;
   decoded.request.prompt = getString(obj, "prompt");
   if (decoded.request.prompt.empty())
-    throw std::runtime_error("missing required field: prompt");
+    throw JsonCodecError("missing required field: prompt");
+  if (auto imagePath = obj.getString("image_path"))
+    appendImage(decoded.request.images,
+                parseImageUri(imagePath->str(), "image_path"), "image_path");
+
   fillSampling(obj, decoded.request.sampling);
   decoded.stream = getBool(obj, "stream", false);
   return decoded;
@@ -180,18 +268,31 @@ DecodedChatRequest parseChatCompletionRequest(const std::string &body) {
     for (const auto &messageValue : *messages) {
       const auto *messageObj = messageValue.getAsObject();
       if (!messageObj)
-        throw std::runtime_error("messages entries must be objects");
+        throw JsonCodecError("messages entries must be objects");
       ChatMessage msg;
       msg.role = getString(*messageObj, "role");
-      msg.content = getString(*messageObj, "content");
-      if (msg.role.empty() || msg.content.empty())
-        throw std::runtime_error("chat message requires role and content");
+      if (msg.role.empty())
+        throw JsonCodecError("chat message requires role");
+      auto contentIt = messageObj->find("content");
+      if (contentIt != messageObj->end())
+        parseMessageContent(
+            contentIt->second, msg,
+            "messages[" + std::to_string(decoded.request.messages.size()) +
+                "].content");
+      if (msg.content.empty() && msg.images.empty())
+        throw JsonCodecError("chat message requires content or image");
+      for (const auto &image : msg.images)
+        appendImage(decoded.request.images, image, "messages");
       decoded.request.messages.push_back(std::move(msg));
     }
   }
+  if (auto imagePath = obj.getString("image_path"))
+    appendImage(decoded.request.images,
+                parseImageUri(imagePath->str(), "image_path"), "image_path");
 
-  if (decoded.request.messages.empty() && decoded.request.input.empty())
-    throw std::runtime_error("missing messages or input");
+  if (decoded.request.messages.empty() && decoded.request.input.empty() &&
+      decoded.request.images.empty())
+    throw JsonCodecError("missing messages or input");
 
   fillSampling(obj, decoded.request.sampling);
   decoded.stream = getBool(obj, "stream", false);
@@ -205,7 +306,7 @@ TokenizeRequest parseTokenizeRequest(const std::string &body) {
   TokenizeRequest request;
   request.content = getString(obj, "content", getString(obj, "text"));
   if (request.content.empty())
-    throw std::runtime_error("missing required field: content");
+    throw JsonCodecError("missing required field: content");
   request.addSpecial = getBool(obj, "add_special", request.addSpecial);
   request.countOnly = getBool(obj, "count_only", request.countOnly);
   return request;

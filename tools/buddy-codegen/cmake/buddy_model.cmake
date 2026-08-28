@@ -450,6 +450,25 @@ function(buddy_add_model)
   target_link_libraries(${RUNNER_PLUGIN_TARGET} PRIVATE ${LIB_TARGET})
   target_compile_features(${RUNNER_PLUGIN_TARGET} PRIVATE cxx_std_17)
 
+  # Qwen3-VL has a custom packaging path, so create the resident plugin before
+  if(MDL_CUSTOM_QWEN3_VL)
+    # that path returns instead of relying on the generic branch below.
+    set(SERVING_PLUGIN_TARGET "")
+    if(MDL_SERVING_PLUGIN_SRC)
+      set(SERVING_PLUGIN_TARGET "buddy_models_${MDL_NAME}_serving")
+      add_library(${SERVING_PLUGIN_TARGET} SHARED
+        "${CMAKE_CURRENT_SOURCE_DIR}/${MDL_SERVING_PLUGIN_SRC}")
+      set_target_properties(${SERVING_PLUGIN_TARGET} PROPERTIES
+        LIBRARY_OUTPUT_DIRECTORY "${BIN}"
+        RUNTIME_OUTPUT_DIRECTORY "${BIN}"
+        OUTPUT_NAME "${MDL_NAME}_serving"
+        PREFIX "")
+      target_link_libraries(${SERVING_PLUGIN_TARGET} PRIVATE ${LIB_TARGET})
+      target_compile_features(${SERVING_PLUGIN_TARGET} PRIVATE cxx_std_17)
+      install(TARGETS ${SERVING_PLUGIN_TARGET} EXPORT BuddyMLIRTargets COMPONENT buddy_runtime)
+    endif()
+
+  endif()
   if(MDL_CUSTOM_QWEN3_VL)
     set(_Q_CG  "${CMAKE_CURRENT_SOURCE_DIR}/codegen")
     set(_Q_CODEGEN "${_Q_CG}/qwen3_vl_codegen.py")
@@ -478,6 +497,10 @@ function(buddy_add_model)
       QWEN3_VL_SPEC=${MDL_SPEC}
       BUDDY_RAX_EMBED_PAYLOAD=${_Q_RAX_EMBED_PAYLOAD}
       QWEN3_VL_MODEL_PATH=${MDL_LOCAL_MODEL})
+
+    if(SERVING_PLUGIN_TARGET)
+      list(APPEND _Q_ENV QWEN3_VL_SERVING_SO=$<TARGET_FILE:${SERVING_PLUGIN_TARGET}>)
+    endif()
 
     set(_Q_IMPORT_ARGS)
     if(MDL_LAYER_PARTITION)
@@ -608,6 +631,7 @@ function(buddy_add_model)
               ${_Q_VIS}/vision_shim.so ${_Q_DEC}/decoder_shim.so
               ${_Q_VIS}/vision_arg0.data ${_Q_DEC}/decoder_arg0.data
               ${_Q_DEC}/embed_table.bin ${RUNNER_PLUGIN_TARGET} rax-pack
+              ${SERVING_PLUGIN_TARGET}
       COMMENT "[${MDL_NAME}] Stage 4: packing ${MDL_NAME}.rax"
       VERBATIM)
 

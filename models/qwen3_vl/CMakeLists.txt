@@ -24,6 +24,8 @@ buddy_add_model(
   SPEC "${BUDDY_QWEN3_VL_SPEC}"
   RUNNER_SRC Qwen3VLRunner.cpp
   RUNNER_PLUGIN_SRC Qwen3VLRunnerPlugin.cpp
+  SERVING_PLUGIN_SRC Qwen3VLResidentModelPlugin.cpp
+  EXTRA_SRCS Qwen3VLRuntime.cpp Qwen3VLResidentModel.cpp
   LOCAL_MODEL "${BUDDY_QWEN3_VL_MODEL_PATH}"
   NUM_THREADS "${BUDDY_QWEN3_VL_NUM_THREADS}"
   LLC_ATTRS "${BUDDY_QWEN3_VL_LLC_ATTRS}"
