@@ -24,8 +24,7 @@ on:
           - clean
   schedule:
     # Sunday publishes a stable patch; the other days publish a dev prerelease.
-    - cron: '30 2 * * *'
-      timezone: 'Asia/Shanghai'
+    - cron: '30 18 * * *'
 
 permissions:
   contents: write
