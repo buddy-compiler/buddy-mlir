@@ -144,6 +144,10 @@ def embedding_w8_per_group(graph, group_size):
         replacement._parents = [weight_node.name, token_name, scaler_name]
         replacement._children = node._children[:]
         replacement._tensor_meta = node._tensor_meta.copy()
+        # Trace insertion runs while importing the original Buddy graph.  Keep
+        # the observation boundary when the embedding is replaced by its
+        # native grouped-dequant form.
+        replacement.trace_meta = node.trace_meta
 
         weight_node._children = [
             replacement.name if child == node.name else child
@@ -330,6 +334,10 @@ def _convert_to_quantized_matmul(graph, group_sizes_by_k=None):
 
         new_op._tensor_meta = matmul_node._tensor_meta.copy()
         new_op._children = matmul_node._children[:]
+        # Preserve frontend trace scopes across the W8A8 semantic rewrite.
+        # Otherwise a trace configured for the original matmul silently
+        # disappears before MLIR emission.
+        new_op.trace_meta = matmul_node.trace_meta
 
         weight_node._children = [
             c for c in weight_node._children if c != dequant_name

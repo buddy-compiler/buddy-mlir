@@ -4412,8 +4412,20 @@ def flash_attention_for_cpu_prefill_op(
     head_dim = arith.ConstantOp(index, query_shape[3], loc=loc)
     k_seq_len = arith.ConstantOp(index, key_shape[2], loc=loc)
 
-    block_size_q_num = 16
-    block_size_kv_num = 64
+    # The loops below operate on complete static tiles and intentionally omit
+    # per-element bounds checks.  Pick the largest tile no greater than the
+    # preferred geometry that exactly divides the static sequence length.  In
+    # particular, this prevents a length-22 prompt from reading Q[22:32] and
+    # K/V[22:64], and from writing beyond the output buffer.  Common aligned
+    # prefill lengths (for example 128) retain the preferred 16x64 geometry.
+    def largest_exact_tile(length, preferred):
+        for candidate in range(min(length, preferred), 0, -1):
+            if length % candidate == 0:
+                return candidate
+        return 1
+
+    block_size_q_num = largest_exact_tile(query_shape[2], 16)
+    block_size_kv_num = largest_exact_tile(key_shape[2], 64)
     block_size_q = arith.ConstantOp(index, block_size_q_num, loc=loc)
     block_size_kv = arith.ConstantOp(index, block_size_kv_num, loc=loc)
 
