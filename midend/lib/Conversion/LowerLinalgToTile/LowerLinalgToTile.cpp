@@ -487,18 +487,43 @@ public:
       return success();
     };
 
-    // Copy subview into a fresh contiguous buffer, then collapse to 2D.
-    auto slice2D = [&](Value src4, ArrayRef<int64_t> off, ArrayRef<int64_t> sz4,
-                       ArrayRef<int64_t> shape2,
-                       ArrayRef<ReassociationIndices> reassoc) -> Value {
-      Value sub = memref::SubViewOp::create(rewriter, loc, src4, off, sz4,
-                                            SmallVector<int64_t>(4, 1));
+    Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
+    Value c1 = arith::ConstantIndexOp::create(rewriter, loc, 1);
+    auto idx = [&](int64_t v) {
+      return arith::ConstantIndexOp::create(rewriter, loc, v);
+    };
+    // Returns {collapsed2D, contigBuf}. Caller must dealloc contigBuf.
+    auto ofr = [&](Value v) { return OpFoldResult(v); };
+    auto dynSlice2D = [&](Value src4, ArrayRef<OpFoldResult> off,
+                          ArrayRef<int64_t> sz4, ArrayRef<int64_t> shape2,
+                          ArrayRef<ReassociationIndices> reassoc)
+        -> std::pair<Value, Value> {
+      SmallVector<OpFoldResult> sz = {ofr(idx(sz4[0])), ofr(idx(sz4[1])),
+                                      ofr(idx(sz4[2])), ofr(idx(sz4[3]))};
+      SmallVector<OpFoldResult> str = {ofr(c1), ofr(c1), ofr(c1), ofr(c1)};
+      Value sub =
+          memref::SubViewOp::create(rewriter, loc, src4, off, sz, str);
       Value buf =
           memref::AllocOp::create(rewriter, loc, MemRefType::get(sz4, elem));
       memref::CopyOp::create(rewriter, loc, sub, buf);
-      Value flat = collapse(buf, shape2, reassoc);
-      temps.push_back(buf);
-      return flat;
+      return {collapse(buf, shape2, reassoc), buf};
+    };
+    auto transposeStore = [&](Value in2, Value dst4, ArrayRef<OpFoldResult> off,
+                              ArrayRef<int64_t> outSz4,
+                              ArrayRef<int64_t> shape2,
+                              ArrayRef<ReassociationIndices> reassoc) {
+      Value outBuf = memref::AllocOp::create(
+          rewriter, loc, MemRefType::get(outSz4, elem));
+      Value out2 = collapse(outBuf, shape2, reassoc);
+      tile::TileTransposeOp::create(rewriter, loc, in2, out2);
+      SmallVector<OpFoldResult> sz = {
+          ofr(idx(outSz4[0])), ofr(idx(outSz4[1])), ofr(idx(outSz4[2])),
+          ofr(idx(outSz4[3]))};
+      SmallVector<OpFoldResult> str = {ofr(c1), ofr(c1), ofr(c1), ofr(c1)};
+      memref::CopyOp::create(
+          rewriter, loc, outBuf,
+          memref::SubViewOp::create(rewriter, loc, dst4, off, sz, str));
+      memref::DeallocOp::create(rewriter, loc, outBuf);
     };
 
     if (inT.getRank() == 2) {
@@ -541,23 +566,20 @@ public:
       return finish(dst);
     }
 
-    // Weight OIHW->OHWI: per-O 2D transpose of I x (H*W)
+    // Weight OIHW->OHWI: per-O 2D transpose of I x (H*W). Use scf.for —
+    // unrolling O (often 128/256) explodes tile IR and breaks scf-to-cf.
     if (perm == ArrayRef<int64_t>({0, 2, 3, 1})) {
       int64_t o = is[0], i = is[1], h = is[2], w = is[3], hw = h * w;
       Value src = asContig(input), dst = dstContig();
-      for (int64_t oi = 0; oi < o; ++oi) {
-        SmallVector<int64_t> off = {oi, 0, 0, 0};
-        Value in2 = slice2D(src, off, {1, i, h, w}, {i, hw}, {{0, 1}, {2, 3}});
-        Value outBuf = memref::AllocOp::create(
-            rewriter, loc, MemRefType::get({1, h, w, i}, elem));
-        Value out2 = collapse(outBuf, {hw, i}, {{0, 1, 2}, {3}});
-        tile::TileTransposeOp::create(rewriter, loc, in2, out2);
-        memref::CopyOp::create(
-            rewriter, loc, outBuf,
-            memref::SubViewOp::create(rewriter, loc, dst, off, {1, h, w, i},
-                                      SmallVector<int64_t>(4, 1)));
-        memref::DeallocOp::create(rewriter, loc, outBuf);
-      }
+      auto oLoop = scf::ForOp::create(rewriter, loc, c0, idx(o), c1);
+      rewriter.setInsertionPointToStart(oLoop.getBody());
+      Value oi = oLoop.getInductionVar();
+      SmallVector<OpFoldResult> off = {ofr(oi), ofr(c0), ofr(c0), ofr(c0)};
+      auto [in2, inBuf] =
+          dynSlice2D(src, off, {1, i, h, w}, {i, hw}, {{0, 1}, {2, 3}});
+      transposeStore(in2, dst, off, {1, h, w, i}, {hw, i}, {{0, 1, 2}, {3}});
+      memref::DeallocOp::create(rewriter, loc, inBuf);
+      rewriter.setInsertionPointAfter(oLoop);
       return finish(dst);
     }
 
@@ -583,56 +605,45 @@ public:
         tile::TileTransposeOp::create(
             rewriter, loc, collapse(src, {a * b, c}, {{0, 1, 2}, {3}}),
             collapse(tmp, {c, a * b}, {{0, 1}, {2, 3}}));
-        for (int64_t ci = 0; ci < c; ++ci) {
-          SmallVector<int64_t> off = {0, ci, 0, 0};
-          Value in2 = slice2D(tmp, off, {1, 1, a, b}, {a, b}, {{0, 1, 2}, {3}});
-          Value outBuf = memref::AllocOp::create(
-              rewriter, loc, MemRefType::get({1, 1, b, a}, elem));
-          Value out2 = collapse(outBuf, {b, a}, {{0, 1, 2}, {3}});
-          tile::TileTransposeOp::create(rewriter, loc, in2, out2);
-          memref::CopyOp::create(
-              rewriter, loc, outBuf,
-              memref::SubViewOp::create(rewriter, loc, dst, off, {1, 1, b, a},
-                                        SmallVector<int64_t>(4, 1)));
-          memref::DeallocOp::create(rewriter, loc, outBuf);
-        }
+        auto cLoop = scf::ForOp::create(rewriter, loc, c0, idx(c), c1);
+        rewriter.setInsertionPointToStart(cLoop.getBody());
+        Value ci = cLoop.getInductionVar();
+        SmallVector<OpFoldResult> off = {ofr(c0), ofr(ci), ofr(c0), ofr(c0)};
+        auto [in2, inBuf] =
+            dynSlice2D(tmp, off, {1, 1, a, b}, {a, b}, {{0, 1, 2}, {3}});
+        transposeStore(in2, dst, off, {1, 1, b, a}, {b, a}, {{0, 1, 2}, {3}});
+        memref::DeallocOp::create(rewriter, loc, inBuf);
+        rewriter.setInsertionPointAfter(cLoop);
         return finish(dst);
       }
       bool loopB = b <= a;
-      for (int64_t ni = 0; ni < n; ++ni) {
-        if (loopB) {
-          for (int64_t bi = 0; bi < b; ++bi) {
-            SmallVector<int64_t> off = {ni, 0, bi, 0};
-            Value in2 =
-                slice2D(src, off, {1, a, 1, c}, {a, c}, {{0, 1}, {2, 3}});
-            Value outBuf = memref::AllocOp::create(
-                rewriter, loc, MemRefType::get({1, c, 1, a}, elem));
-            Value out2 = collapse(outBuf, {c, a}, {{0, 1}, {2, 3}});
-            tile::TileTransposeOp::create(rewriter, loc, in2, out2);
-            memref::CopyOp::create(
-                rewriter, loc, outBuf,
-                memref::SubViewOp::create(rewriter, loc, dst, off, {1, c, 1, a},
-                                          SmallVector<int64_t>(4, 1)));
-            memref::DeallocOp::create(rewriter, loc, outBuf);
-          }
-        } else {
-          for (int64_t ai = 0; ai < a; ++ai) {
-            SmallVector<int64_t> inOff = {ni, ai, 0, 0};
-            SmallVector<int64_t> outOff = {ni, 0, 0, ai};
-            Value in2 =
-                slice2D(src, inOff, {1, 1, b, c}, {b, c}, {{0, 1, 2}, {3}});
-            Value outBuf = memref::AllocOp::create(
-                rewriter, loc, MemRefType::get({1, c, b, 1}, elem));
-            Value out2 = collapse(outBuf, {c, b}, {{0, 1}, {2, 3}});
-            tile::TileTransposeOp::create(rewriter, loc, in2, out2);
-            memref::CopyOp::create(rewriter, loc, outBuf,
-                                   memref::SubViewOp::create(
-                                       rewriter, loc, dst, outOff, {1, c, b, 1},
-                                       SmallVector<int64_t>(4, 1)));
-            memref::DeallocOp::create(rewriter, loc, outBuf);
-          }
-        }
+      auto nLoop = scf::ForOp::create(rewriter, loc, c0, idx(n), c1);
+      rewriter.setInsertionPointToStart(nLoop.getBody());
+      Value ni = nLoop.getInductionVar();
+      if (loopB) {
+        auto bLoop = scf::ForOp::create(rewriter, loc, c0, idx(b), c1);
+        rewriter.setInsertionPointToStart(bLoop.getBody());
+        Value bi = bLoop.getInductionVar();
+        SmallVector<OpFoldResult> off = {ofr(ni), ofr(c0), ofr(bi), ofr(c0)};
+        auto [in2, inBuf] =
+            dynSlice2D(src, off, {1, a, 1, c}, {a, c}, {{0, 1}, {2, 3}});
+        transposeStore(in2, dst, off, {1, c, 1, a}, {c, a}, {{0, 1}, {2, 3}});
+        memref::DeallocOp::create(rewriter, loc, inBuf);
+        rewriter.setInsertionPointAfter(bLoop);
+      } else {
+        auto aLoop = scf::ForOp::create(rewriter, loc, c0, idx(a), c1);
+        rewriter.setInsertionPointToStart(aLoop.getBody());
+        Value ai = aLoop.getInductionVar();
+        SmallVector<OpFoldResult> inOff = {ofr(ni), ofr(ai), ofr(c0), ofr(c0)};
+        SmallVector<OpFoldResult> outOff = {ofr(ni), ofr(c0), ofr(c0), ofr(ai)};
+        auto [in2, inBuf] =
+            dynSlice2D(src, inOff, {1, 1, b, c}, {b, c}, {{0, 1, 2}, {3}});
+        transposeStore(in2, dst, outOff, {1, c, b, 1}, {c, b},
+                       {{0, 1}, {2, 3}});
+        memref::DeallocOp::create(rewriter, loc, inBuf);
+        rewriter.setInsertionPointAfter(aLoop);
       }
+      rewriter.setInsertionPointAfter(nLoop);
       return finish(dst);
     }
 
@@ -640,21 +651,19 @@ public:
     if (perm == ArrayRef<int64_t>({0, 2, 1, 3})) {
       int64_t n = is[0], a = is[1], b = is[2], c = is[3];
       Value src = asContig(input), dst = dstContig();
-      for (int64_t ni = 0; ni < n; ++ni) {
-        for (int64_t ci = 0; ci < c; ++ci) {
-          SmallVector<int64_t> off = {ni, 0, 0, ci};
-          Value in2 = slice2D(src, off, {1, a, b, 1}, {a, b}, {{0, 1}, {2, 3}});
-          Value outBuf = memref::AllocOp::create(
-              rewriter, loc, MemRefType::get({1, b, a, 1}, elem));
-          Value out2 = collapse(outBuf, {b, a}, {{0, 1}, {2, 3}});
-          tile::TileTransposeOp::create(rewriter, loc, in2, out2);
-          memref::CopyOp::create(
-              rewriter, loc, outBuf,
-              memref::SubViewOp::create(rewriter, loc, dst, off, {1, b, a, 1},
-                                        SmallVector<int64_t>(4, 1)));
-          memref::DeallocOp::create(rewriter, loc, outBuf);
-        }
-      }
+      auto nLoop = scf::ForOp::create(rewriter, loc, c0, idx(n), c1);
+      rewriter.setInsertionPointToStart(nLoop.getBody());
+      Value ni = nLoop.getInductionVar();
+      auto cLoop = scf::ForOp::create(rewriter, loc, c0, idx(c), c1);
+      rewriter.setInsertionPointToStart(cLoop.getBody());
+      Value ci = cLoop.getInductionVar();
+      SmallVector<OpFoldResult> off = {ofr(ni), ofr(c0), ofr(c0), ofr(ci)};
+      auto [in2, inBuf] =
+          dynSlice2D(src, off, {1, a, b, 1}, {a, b}, {{0, 1}, {2, 3}});
+      transposeStore(in2, dst, off, {1, b, a, 1}, {b, a}, {{0, 1}, {2, 3}});
+      memref::DeallocOp::create(rewriter, loc, inBuf);
+      rewriter.setInsertionPointAfter(cLoop);
+      rewriter.setInsertionPointAfter(nLoop);
       return finish(dst);
     }
 
@@ -662,21 +671,19 @@ public:
     if (perm == ArrayRef<int64_t>({0, 1, 3, 2})) {
       int64_t n = is[0], h = is[1], a = is[2], b = is[3];
       Value src = asContig(input), dst = dstContig();
-      for (int64_t ni = 0; ni < n; ++ni) {
-        for (int64_t hi = 0; hi < h; ++hi) {
-          SmallVector<int64_t> off = {ni, hi, 0, 0};
-          Value in2 = slice2D(src, off, {1, 1, a, b}, {a, b}, {{0, 1, 2}, {3}});
-          Value outBuf = memref::AllocOp::create(
-              rewriter, loc, MemRefType::get({1, 1, b, a}, elem));
-          Value out2 = collapse(outBuf, {b, a}, {{0, 1, 2}, {3}});
-          tile::TileTransposeOp::create(rewriter, loc, in2, out2);
-          memref::CopyOp::create(
-              rewriter, loc, outBuf,
-              memref::SubViewOp::create(rewriter, loc, dst, off, {1, 1, b, a},
-                                        SmallVector<int64_t>(4, 1)));
-          memref::DeallocOp::create(rewriter, loc, outBuf);
-        }
-      }
+      auto nLoop = scf::ForOp::create(rewriter, loc, c0, idx(n), c1);
+      rewriter.setInsertionPointToStart(nLoop.getBody());
+      Value ni = nLoop.getInductionVar();
+      auto hLoop = scf::ForOp::create(rewriter, loc, c0, idx(h), c1);
+      rewriter.setInsertionPointToStart(hLoop.getBody());
+      Value hi = hLoop.getInductionVar();
+      SmallVector<OpFoldResult> off = {ofr(ni), ofr(hi), ofr(c0), ofr(c0)};
+      auto [in2, inBuf] =
+          dynSlice2D(src, off, {1, 1, a, b}, {a, b}, {{0, 1, 2}, {3}});
+      transposeStore(in2, dst, off, {1, 1, b, a}, {b, a}, {{0, 1, 2}, {3}});
+      memref::DeallocOp::create(rewriter, loc, inBuf);
+      rewriter.setInsertionPointAfter(hLoop);
+      rewriter.setInsertionPointAfter(nLoop);
       return finish(dst);
     }
 
@@ -951,6 +958,21 @@ public:
   }
 };
 
+static std::optional<int64_t> inferConvStride(int64_t h, int64_t kh, int64_t oh,
+                                              int64_t padLow, int64_t padHigh) {
+  int64_t padded = h + padLow + padHigh;
+  if (padded < kh || oh < 1)
+    return std::nullopt;
+  if (oh == 1)
+    return padded - kh + 1;
+  if ((padded - kh) % (oh - 1) != 0)
+    return std::nullopt;
+  int64_t stride = (padded - kh) / (oh - 1);
+  if (stride < 1 || (padded - kh) / stride + 1 != oh)
+    return std::nullopt;
+  return stride;
+}
+
 static bool supportsTileDepthwise(MemRefType inType, MemRefType filterType,
                                   MemRefType outType, int64_t stride,
                                   int64_t padLow, int64_t padHigh) {
@@ -975,6 +997,8 @@ static bool supportsTileDepthwise(MemRefType inType, MemRefType filterType,
   constexpr int64_t kMaxIter = 34;
   constexpr int64_t kBankLines = 1024;
   constexpr int64_t kLane = 16;
+  // Pebble SMatMulBall outBW=2 → C packs two rounds per result row.
+  constexpr int64_t kOutputRounds = 2;
 
   auto inShape = inType.getShape();
   auto fShape = filterType.getShape();
@@ -1001,13 +1025,12 @@ static bool supportsTileDepthwise(MemRefType inType, MemRefType filterType,
 
   auto cdiv = [](int64_t a, int64_t b) { return (a + b - 1) / b; };
   for (int64_t t = oh; t >= 1; --t) {
-    if (oh % t != 0)
-      continue;
     int64_t inSize = (t - 1) * stride + kh;
     if (inSize > kMaxIter)
       continue;
-    int64_t rows = cdiv(t * t, kLane) * cdiv(kh * kh, kLane) * kLane;
-    if (rows <= kBankLines)
+    int64_t paddedWins = cdiv(t * t, kLane) * kLane;
+    int64_t rows = (paddedWins / kLane) * cdiv(kh * kh, kLane) * kLane;
+    if (rows <= kBankLines && paddedWins * kOutputRounds <= kBankLines)
       return true;
   }
   return false;
@@ -1023,9 +1046,8 @@ public:
     auto outputs = convOp.getOutputs();
     if (inputs.size() != 2 || outputs.size() != 1)
       return failure();
-    auto stride = getUniformAttr(convOp.getStrides());
     auto dilation = getUniformAttr(convOp.getDilations());
-    if (!stride || !dilation || *stride < 1 || *dilation != 1)
+    if (!dilation || *dilation != 1)
       return failure();
 
     Value input = inputs[0];
@@ -1050,7 +1072,15 @@ public:
 
     int64_t padLow = 0, padHigh = 0;
     getConvPads(convOp, padLow, padHigh);
-    if (!supportsTileDepthwise(inputType, filterType, out4Type, *stride, padLow,
+    // Import often leaves default strides=1 while memoized maps stay unit;
+    // shapes are authoritative for the real stride.
+    auto inferred = inferConvStride(inputType.getShape()[1],
+                                    filterType.getShape()[0], os[1], padLow,
+                                    padHigh);
+    if (!inferred)
+      return failure();
+    int64_t stride = *inferred;
+    if (!supportsTileDepthwise(inputType, filterType, out4Type, stride, padLow,
                                padHigh))
       return failure();
 
