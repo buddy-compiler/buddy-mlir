@@ -1,6 +1,17 @@
+# Large generated artifacts (model import / compile) — do not commit.
 arg0.data
 layer_partitioned/
+generated/
+*.mlir
+*.o
+*.so
+*.rax
+
+# Python
 __pycache__/
+*.pyc
+
+# HuggingFace model / tokenizer weight files
 *.safetensors
 *.bin
 *.ckpt
@@ -8,3 +19,6 @@ __pycache__/
 *.pth
 *.onnx
 *.h5
+tokenizer.json
+tokenizer_config.json
+vocab.txt
