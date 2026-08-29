@@ -1,10 +1,27 @@
+# EmbeddingGemma-generated artifacts.
+# `buddy_add_model` re-imports these from the local HF snapshot
+# (BUDDY_EMBEDDINGGEMMA_MODEL_PATH) at build time; nothing here is committed.
+
+# Import output
 arg0.data
 layer_partitioned/
+
+# Python caches
 __pycache__/
-*.safetensors
-*.bin
-*.ckpt
-*.pt
-*.pth
-*.onnx
-*.h5
+
+# HuggingFace snapshot files (staged via ASSET_FILES / EMBEDDINGGEMMA_MODEL_PATH)
+config.json
+tokenizer.json
+tokenizer_config.json
+tokenizer.model
+special_tokens_map.json
+added_tokens.json
+sentence_bert_config.json
+modules.json
+generation_config.json
+model.safetensors
+pytorch_model.bin
+
+# Root-level compiled IR (build/ contains the real generated outputs)
+forward.mlir
+subgraph0.mlir
