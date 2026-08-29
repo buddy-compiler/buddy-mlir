@@ -14,14 +14,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef BUDDY_RUNTIME_MODELS_WEATHER_RUNNER_H
-#define BUDDY_RUNTIME_MODELS_WEATHER_RUNNER_H
+#ifndef BUDDY_RUNTIME_MODELS_WEATHERRUNNER_H
+#define BUDDY_RUNTIME_MODELS_WEATHERRUNNER_H
 
 #include "buddy/runtime/core/InferenceRunner.h"
 
 namespace buddy {
 namespace runtime {
 
+/// Full inference runner for Weather-LLM (LlamaForCausalLM).
+///
+/// Implements the complete loop: load weights → tokenize → prefill → decode.
+/// Handles both Mode A (.rax manifest) and Mode B (explicit paths).
 class WeatherRunner : public InferenceRunner {
 public:
   void run(const RunConfig &cfg) override;
@@ -30,4 +34,4 @@ public:
 } // namespace runtime
 } // namespace buddy
 
-#endif // BUDDY_RUNTIME_MODELS_WEATHER_RUNNER_H
+#endif // BUDDY_RUNTIME_MODELS_WEATHERRUNNER_H
