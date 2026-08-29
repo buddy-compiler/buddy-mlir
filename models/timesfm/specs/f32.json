@@ -1,11 +1,21 @@
 {
   "model_family": "timesfm",
-  "hidden_size": 1280,
-  "patch_length": 32,
-  "context_length": 16384,
-  "horizon_length": 128,
-  "max_token_len": 16384,
+  "variant": "f32",
+  "model_id": "google/timesfm-2.5-200m-pytorch",
   "hf_model_path": "google/timesfm-2.5-200m-pytorch",
-  "num_threads": 48,
-  "variant": "f32"
+  "params_size": 231289280,
+  "num_patches": 16,
+  "patch_length": 32,
+  "context_len": 512,
+  "max_seq_len": 512,
+  "horizon_length": 128,
+  "output_patch_len": 128,
+  "quantile_len": 10,
+  "decode_index": 5,
+  "hidden_size": 1280,
+  "num_hidden_layers": 20,
+  "so_name": "timesfm_model.so",
+  "weight_file": "arg0.data",
+  "tokenizer_file": "N/A",
+  "num_threads": 48
 }
