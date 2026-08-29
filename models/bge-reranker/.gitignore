@@ -1,10 +1,20 @@
+# Generated/staged artifacts (built under build/models/bge-reranker/, but the
+# source tree may also hold stale copies from earlier integrations).
+*.rax
+*.so
 arg0.data
+forward.mlir
+subgraph0.mlir
 layer_partitioned/
-__pycache__/
+
+# Local HuggingFace snapshot staging area.
 *.safetensors
 *.bin
-*.ckpt
-*.pt
-*.pth
-*.onnx
-*.h5
+config.json
+tokenizer.json
+tokenizer_config.json
+sentencepiece.bpe.model
+
+# Python.
+__pycache__/
+*.pyc
