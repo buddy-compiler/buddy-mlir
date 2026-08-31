@@ -1,19 +1,31 @@
+# PaliGemma-3B-224 vision-language model integration.
+#
+# Uses the shared buddy-codegen model entry point with MODEL_KIND=single_forward.
+# PaliGemma keeps a custom import and manifest generator (like ColBERTv2)
+# because the generic DeepSeek path is LLM prefill/decode + KV-cache specific.
+
 include(${CMAKE_SOURCE_DIR}/tools/buddy-codegen/cmake/buddy_model.cmake)
-include(ProcessorCount)
-ProcessorCount(_BUDDY_PALIGEMMA_DEFAULT_COMPILE_JOBS)
-if(_BUDDY_PALIGEMMA_DEFAULT_COMPILE_JOBS EQUAL 0)
-  set(_BUDDY_PALIGEMMA_DEFAULT_COMPILE_JOBS 1)
-endif()
-set(BUDDY_PALIGEMMA_SPEC "${CMAKE_CURRENT_SOURCE_DIR}/specs/f32.json" CACHE FILEPATH "Variant spec JSON")
-set(BUDDY_PALIGEMMA_HF_CONFIG "" CACHE FILEPATH "Optional HF config.json")
-set(BUDDY_PALIGEMMA_LOCAL_MODEL "" CACHE PATH "Optional local HF model dir")
-set(BUDDY_PALIGEMMA_COMPILE_JOBS "${_BUDDY_PALIGEMMA_DEFAULT_COMPILE_JOBS}" CACHE STRING "Parallel jobs")
-set(PALIGEMMA_BUILD_DIR "" CACHE PATH "Mode A: pre-built .o")
-set(PALIGEMMA_MLIR_DIR "" CACHE PATH "Mode B: pre-generated MLIR")
-if(NOT Python3_EXECUTABLE)
-  find_package(Python3 COMPONENTS Interpreter REQUIRED)
-endif()
-buddy_add_model(NAME paligemma SPEC "${BUDDY_PALIGEMMA_SPEC}" RUNNER_SRC PaligemmaRunner.cpp
-  HF_CONFIG "${BUDDY_PALIGEMMA_HF_CONFIG}" LOCAL_MODEL "${BUDDY_PALIGEMMA_LOCAL_MODEL}"
-  BUILD_DIR "${PALIGEMMA_BUILD_DIR}" MLIR_DIR "${PALIGEMMA_MLIR_DIR}"
-  COMPILE_JOBS "${BUDDY_PALIGEMMA_COMPILE_JOBS}")
+
+set(BUDDY_PALIGEMMA_SPEC
+  "${CMAKE_CURRENT_SOURCE_DIR}/specs/f32.json"
+  CACHE FILEPATH "PaliGemma variant spec JSON, e.g. specs/f32.json")
+set(BUDDY_PALIGEMMA_MODEL_PATH "" CACHE PATH
+  "Local HuggingFace google/paligemma-3b-mix-224 snapshot dir")
+
+buddy_add_model(
+  NAME paligemma
+  MODEL_KIND single_forward
+  SPEC "${BUDDY_PALIGEMMA_SPEC}"
+  RUNNER_SRC PaligemmaRunner.cpp
+  RUNNER_PLUGIN_SRC PaligemmaRunnerPlugin.cpp
+  RUNNER_HDR include/buddy/runtime/models/PaligemmaRunner.h
+  LOCAL_MODEL "${BUDDY_PALIGEMMA_MODEL_PATH}"
+  LOCAL_MODEL_ENV PALIGEMMA_MODEL_PATH
+  IMPORT_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/codegen/import-paligemma.py"
+  MANIFEST_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/codegen/gen_paligemma_manifest.py"
+  MODEL_SO_NAME paligemma_model.so
+  ASSET_FILES
+    "${BUDDY_PALIGEMMA_MODEL_PATH}/tokenizer.json"
+    "${BUDDY_PALIGEMMA_MODEL_PATH}/tokenizer_config.json"
+    "${BUDDY_PALIGEMMA_MODEL_PATH}/special_tokens_map.json"
+)

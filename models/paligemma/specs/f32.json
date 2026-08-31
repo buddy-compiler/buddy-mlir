@@ -1,1 +1,20 @@
-{"model_family":"paligemma","hidden_size":2048,"max_token_len":1024,"hf_model_path":"google/paligemma-3b-mix-224","num_threads":48,"variant":"f32","image_token_id":257152,"num_image_tokens":256}
+{
+  "model_family": "paligemma",
+  "variant": "f32",
+  "model_id": "google/paligemma-3b-mix-224",
+  "hf_model_path": "google/paligemma-3b-mix-224",
+  "params_size": 2923466608,
+  "max_seq_len": 280,
+  "hidden_size": 2048,
+  "vocab_size": 257216,
+  "num_hidden_layers": 18,
+  "image_token_id": 257152,
+  "num_image_tokens": 256,
+  "num_image_patches": 256,
+  "image_size": 224,
+  "vision_hidden_size": 1152,
+  "so_name": "paligemma_model.so",
+  "weight_file": "arg0.data",
+  "tokenizer_file": "tokenizer.json",
+  "num_threads": 48
+}
