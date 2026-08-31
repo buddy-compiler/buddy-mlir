@@ -17,6 +17,9 @@ librosa; platform_machine != "riscv64"
 PyYAML
 certifi
 idna
+# Keep psutil at a known-good version; newer releases can break glibc
+# detection on x86 CI runners.
+psutil<=7.2.2
 diffusers
 pre-commit
 nanobind>=2.9,<3.0
