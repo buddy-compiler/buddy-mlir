@@ -1,1 +1,17 @@
-{"model_family":"sam2","variant":"f32","hf_model_path":"facebook/sam2-hiera-tiny","num_threads":48}
+{
+  "model_family": "sam2",
+  "variant": "f32",
+  "model_id": "facebook/sam2-hiera-tiny",
+  "hf_model_path": "facebook/sam2-hiera-tiny",
+  "params_size": 27219136,
+  "image_size": 256,
+  "num_channels": 3,
+  "hidden_size": 768,
+  "max_seq_len": 64,
+  "output_height": 8,
+  "output_width": 8,
+  "num_hidden_layers": 12,
+  "so_name": "sam2_model.so",
+  "weight_file": "arg0.data",
+  "num_threads": 48
+}
