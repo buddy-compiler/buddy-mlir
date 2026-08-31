@@ -19,10 +19,17 @@
 
 #include "buddy/runtime/core/ServingTypes.h"
 
+#include <stdexcept>
 #include <string>
 
 namespace buddy {
 namespace server {
+
+class JsonCodecError : public std::runtime_error {
+public:
+  explicit JsonCodecError(const std::string &message)
+      : std::runtime_error(message) {}
+};
 
 struct DecodedCompletionRequest {
   buddy::runtime::CompletionRequest request;

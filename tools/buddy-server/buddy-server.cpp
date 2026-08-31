@@ -89,8 +89,10 @@ void sendError(ResponseWriter &writer, int status, const std::string &message,
 template <typename Fn> void withJsonErrors(ResponseWriter &writer, Fn fn) {
   try {
     fn();
-  } catch (const std::exception &ex) {
+  } catch (const buddy::server::JsonCodecError &ex) {
     sendError(writer, 400, ex.what(), "bad_request");
+  } catch (const std::exception &ex) {
+    sendError(writer, 500, ex.what(), "internal_error");
   }
 }
 
@@ -306,8 +308,8 @@ int main(int argc, char **argv) {
                 handleTokenize(residentModel, loadState, request, writer);
               });
 
-  std::thread([&residentModel, modelConfig, &loadState, &loadError,
-               &loadErrorMutex] {
+  std::thread loadThread([&residentModel, modelConfig, &loadState, &loadError,
+                          &loadErrorMutex] {
     try {
       std::cerr << "[buddy-server] loading model...\n";
       residentModel.load(modelConfig);
@@ -321,14 +323,18 @@ int main(int argc, char **argv) {
       loadState.store(Error, std::memory_order_release);
       std::cerr << "[buddy-server] failed to load model: " << ex.what() << "\n";
     }
-  }).detach();
+  });
 
   try {
     server.listen(host, port);
   } catch (const std::exception &ex) {
     std::cerr << "[buddy-server] " << ex.what() << "\n";
+    if (loadThread.joinable())
+      loadThread.join();
     return 1;
   }
+  if (loadThread.joinable())
+    loadThread.join();
 
   return 0;
 }

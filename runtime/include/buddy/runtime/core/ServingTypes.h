@@ -29,6 +29,7 @@
 #include "buddy/runtime/llm/Sampler.h"
 
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <string>
 #include <vector>
@@ -97,17 +98,30 @@ struct SamplingParams {
   /// Optional token-id stops merged with model/template default stop ids.
   std::vector<long long> stopTokenIds;
 };
+/// One image supplied with a multimodal request.
+///
+/// The current Qwen3-VL server path accepts one local file URI/path. `bytes`
+/// is reserved for a future in-memory transport and is intentionally optional.
+/// A resident plugin and buddy-server must be rebuilt together if this DTO is
+/// changed because the resident plugin boundary uses the C++ runtime ABI.
+struct ImageInput {
+  std::string uri;
+  std::string mimeType;
+  std::vector<uint8_t> bytes;
+};
 
 /// Completion request with a fully rendered prompt.
 struct CompletionRequest {
   std::string prompt;
   SamplingParams sampling;
+  std::vector<ImageInput> images;
 };
 
 /// Chat message before model-specific template rendering.
 struct ChatMessage {
   std::string role;    // "system", "user", "assistant"
   std::string content; // Plain message text.
+  std::vector<ImageInput> images;
 };
 
 /// Chat completion request. If messages is empty, input is treated as a single
@@ -117,6 +131,7 @@ struct ChatCompletionRequest {
   std::vector<ChatMessage> messages;
   std::string input;
   SamplingParams sampling;
+  std::vector<ImageInput> images;
 };
 
 /// Tokenization request.

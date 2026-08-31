@@ -34,6 +34,27 @@ if(BUDDY_ENABLE_TESTS)
   add_test(NAME buddy-server-help
     COMMAND buddy-server --help
   )
+  add_executable(buddy-server-json-codec-test
+    JsonCodecTest.cpp
+    JsonCodec.cpp
+  )
+  target_compile_features(buddy-server-json-codec-test PRIVATE cxx_std_17)
+  target_include_directories(buddy-server-json-codec-test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+  )
+  target_link_libraries(buddy-server-json-codec-test PRIVATE
+    buddy_runtime_core
+    buddy_runtime_llm
+    LLVMSupport
+  )
+  target_link_directories(buddy-server-json-codec-test PRIVATE ${LLVM_LIBRARY_DIR})
+  add_test(NAME buddy-server-json-codec
+    COMMAND buddy-server-json-codec-test
+  )
+  set_tests_properties(buddy-server-json-codec PROPERTIES
+    PASS_REGULAR_EXPRESSION "JsonCodec tests passed"
+  )
+
   set_tests_properties(buddy-server-help PROPERTIES
     PASS_REGULAR_EXPRESSION "Usage:.*buddy-server"
   )
