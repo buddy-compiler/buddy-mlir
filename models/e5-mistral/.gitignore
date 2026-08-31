@@ -1,10 +1,31 @@
+# E5-Mistral-generated artifacts (leftovers from a stale model dir).
 arg0.data
 layer_partitioned/
+
+# Python caches.
 __pycache__/
-*.safetensors
-*.bin
-*.ckpt
-*.pt
-*.pth
-*.onnx
-*.h5
+
+# HuggingFace snapshot files (staged via ASSET_FILES / BUDDY_E5_MISTRAL_MODEL_PATH).
+config.json
+tokenizer.json
+tokenizer_config.json
+special_tokens_map.json
+added_tokens.json
+tokenizer.model
+vocab.txt
+lora/
+
+# Sharded safetensors / pytorch weights.
+model.safetensors
+model.safetensors.index.json
+model-00001-of-00002.safetensors
+model-00002-of-00002.safetensors
+pytorch_model.bin
+pytorch_model.bin.index.json
+pytorch_model-00001-of-00002.bin
+pytorch_model-00002-of-00002.bin
+
+# Root-level compiled IR (the real generated outputs live under build/).
+forward.mlir
+subgraph0.mlir
+artifact.metadata
