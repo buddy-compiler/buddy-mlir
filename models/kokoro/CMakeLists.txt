@@ -1,16 +1,28 @@
+# Kokoro-82M text-to-speech model integration.
+#
+# Uses the shared buddy-codegen model entry point with MODEL_KIND=single_forward.
+# Kokoro keeps a custom import and manifest generator (like ColBERTv2 / BGE-M3)
+# because the generic DeepSeek path is LLM prefill/decode + KV-cache specific.
+
 include(${CMAKE_SOURCE_DIR}/tools/buddy-codegen/cmake/buddy_model.cmake)
-include(ProcessorCount)
-ProcessorCount(_BUDDY_KOKORO_DEFAULT_COMPILE_JOBS)
-if(_BUDDY_KOKORO_DEFAULT_COMPILE_JOBS EQUAL 0)
-  set(_BUDDY_KOKORO_DEFAULT_COMPILE_JOBS 1)
-endif()
-set(BUDDY_KOKORO_SPEC "${CMAKE_CURRENT_SOURCE_DIR}/specs/f32.json" CACHE FILEPATH "Variant spec JSON")
-set(BUDDY_KOKORO_HF_CONFIG "" CACHE FILEPATH "Optional HF config.json")
-set(BUDDY_KOKORO_LOCAL_MODEL "" CACHE PATH "Optional local HF model dir")
-set(BUDDY_KOKORO_COMPILE_JOBS "${_BUDDY_KOKORO_DEFAULT_COMPILE_JOBS}" CACHE STRING "Parallel jobs")
-set(KOKORO_BUILD_DIR "" CACHE PATH "Mode A: pre-built .o")
-set(KOKORO_MLIR_DIR "" CACHE PATH "Mode B: pre-generated MLIR")
-if(NOT Python3_EXECUTABLE) find_package(Python3 COMPONENTS Interpreter REQUIRED) endif()
-buddy_add_model(NAME kokoro SPEC "${BUDDY_KOKORO_SPEC}" RUNNER_SRC KokoroRunner.cpp
-  HF_CONFIG "${BUDDY_KOKORO_HF_CONFIG}" LOCAL_MODEL "${BUDDY_KOKORO_LOCAL_MODEL}"
-  BUILD_DIR "${KOKORO_BUILD_DIR}" MLIR_DIR "${KOKORO_MLIR_DIR}" COMPILE_JOBS "${BUDDY_KOKORO_COMPILE_JOBS}")
+
+set(BUDDY_KOKORO_SPEC
+  "${CMAKE_CURRENT_SOURCE_DIR}/specs/f32.json"
+  CACHE FILEPATH "Kokoro-82M variant spec JSON, e.g. specs/f32.json")
+set(BUDDY_KOKORO_MODEL_PATH "" CACHE PATH
+  "Local HuggingFace hexgrad/Kokoro-82M snapshot dir")
+
+buddy_add_model(
+  NAME kokoro
+  MODEL_KIND single_forward
+  SPEC "${BUDDY_KOKORO_SPEC}"
+  RUNNER_SRC KokoroRunner.cpp
+  RUNNER_PLUGIN_SRC KokoroRunnerPlugin.cpp
+  LOCAL_MODEL "${BUDDY_KOKORO_MODEL_PATH}"
+  LOCAL_MODEL_ENV KOKORO_MODEL_PATH
+  IMPORT_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/codegen/import-kokoro.py"
+  MANIFEST_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/codegen/gen_kokoro_manifest.py"
+  MODEL_SO_NAME kokoro_model.so
+  ASSET_FILES
+    "${BUDDY_KOKORO_MODEL_PATH}/config.json"
+)

@@ -1,1 +1,20 @@
-{"model_family":"kokoro","hidden_size":768,"max_token_len":512,"hf_model_path":"hexgrad/Kokoro-82M","num_threads":48,"variant":"f32"}
+{
+  "model_family": "kokoro",
+  "variant": "f32",
+  "model_id": "hexgrad/Kokoro-82M",
+  "hf_model_path": "hexgrad/Kokoro-82M",
+  "params_size": 81810022,
+  "max_seq_len": 30,
+  "max_position_embeddings": 512,
+  "hidden_size": 768,
+  "style_dim": 128,
+  "vocab_size": 178,
+  "num_hidden_layers": 12,
+  "max_dur": 50,
+  "upsample_factor": 300,
+  "audio_buffer_size": 450000,
+  "so_name": "kokoro_model.so",
+  "weight_file": "arg0.data",
+  "tokenizer_file": "config.json",
+  "num_threads": 48
+}
