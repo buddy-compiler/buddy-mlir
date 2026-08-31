@@ -1,4 +1,4 @@
-//===- MMSRunner.h - MMS (VITS) vocoder runner ---------------------------===//
+//===- MMSRunnerPlugin.cpp - MMS runner plugin ---------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,24 +14,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef BUDDY_RUNTIME_MODELS_MMS_RUNNER_H
-#define BUDDY_RUNTIME_MODELS_MMS_RUNNER_H
+#include "buddy/runtime/models/MMSRunner.h"
 
-#include "buddy/runtime/core/InferenceRunner.h"
+extern "C" buddy::runtime::InferenceRunner *buddy_create_inference_runner_v1() {
+  return new buddy::runtime::MMSRunner();
+}
 
-namespace buddy {
-namespace runtime {
-
-/// MMS vocoder-stage runner.
-///
-/// The compiled kernel is the HiFi-GAN vocoder of facebook/mms-tts-eng
-/// (spectrogram latent -> waveform).  See MMSRunner.cpp for the ABI.
-class MMSRunner : public InferenceRunner {
-public:
-  void run(const RunConfig &cfg) override;
-};
-
-} // namespace runtime
-} // namespace buddy
-
-#endif // BUDDY_RUNTIME_MODELS_MMS_RUNNER_H
+extern "C" void
+buddy_destroy_inference_runner_v1(buddy::runtime::InferenceRunner *runner) {
+  delete runner;
+}
