@@ -1,1 +1,17 @@
-{"model_family":"molformer","variant":"f32","hf_model_path":"ibm/MoLFormer-XL-both-10pct","num_threads":48}
+{
+  "model_family": "molformer",
+  "variant": "f32",
+  "model_id": "ibm/MoLFormer-XL-both-10pct",
+  "hf_model_path": "ibm/MoLFormer-XL-both-10pct",
+  "params_size": 44709888,
+  "max_seq_len": 128,
+  "max_position_embeddings": 202,
+  "position_buffer_size": 1024,
+  "hidden_size": 768,
+  "vocab_size": 2362,
+  "num_hidden_layers": 12,
+  "so_name": "molformer_model.so",
+  "weight_file": "arg0.data",
+  "tokenizer_file": "vocab.txt",
+  "num_threads": 48
+}
