@@ -1,41 +1,29 @@
-# ══════════════════════════════════════════════════════════════════════════════
-# PaddleOCR-VL — Vision-Language Model Build Path (buddy-codegen)
-# ══════════════════════════════════════════════════════════════════════════════
+# PaddleOCR-VL OCR vision-language model integration.
+#
+# Uses the shared buddy-codegen model entry point with MODEL_KIND=single_forward.
+# PaddleOCR-VL keeps a custom import and manifest generator (like ColBERTv2)
+# because the generic DeepSeek path is LLM prefill/decode + KV-cache specific.
 
 include(${CMAKE_SOURCE_DIR}/tools/buddy-codegen/cmake/buddy_model.cmake)
-include(ProcessorCount)
-
-ProcessorCount(_BUDDY_PADDLEOCR_DEFAULT_COMPILE_JOBS)
-if(_BUDDY_PADDLEOCR_DEFAULT_COMPILE_JOBS EQUAL 0)
-  set(_BUDDY_PADDLEOCR_DEFAULT_COMPILE_JOBS 1)
-endif()
 
 set(BUDDY_PADDLEOCR_SPEC
   "${CMAKE_CURRENT_SOURCE_DIR}/specs/f32.json"
-  CACHE FILEPATH "Variant spec JSON, e.g. specs/f32.json")
-set(BUDDY_PADDLEOCR_HF_CONFIG ""
-  CACHE FILEPATH "Optional: HuggingFace config.json for gen_config.py")
-set(BUDDY_PADDLEOCR_LOCAL_MODEL ""
-  CACHE PATH "Optional: local HF model directory for weights import")
-set(BUDDY_PADDLEOCR_COMPILE_JOBS "${_BUDDY_PADDLEOCR_DEFAULT_COMPILE_JOBS}"
-  CACHE STRING "Parallel MLIR→.o jobs when using compile_pipeline.py")
-
-set(PADDLEOCR_BUILD_DIR "" CACHE PATH
-  "Mode A: dir containing pre-built forward/subgraph .o files")
-set(PADDLEOCR_MLIR_DIR "" CACHE PATH
-  "Mode B: dir containing pre-generated forward_prefill.mlir etc.")
-
-if(NOT Python3_EXECUTABLE)
-  find_package(Python3 COMPONENTS Interpreter REQUIRED)
-endif()
+  CACHE FILEPATH "PaddleOCR-VL variant spec JSON, e.g. specs/f32.json")
+set(BUDDY_PADDLEOCR_MODEL_PATH "" CACHE PATH
+  "Local HuggingFace lvyufeng/PaddleOCR-VL-0.9B snapshot dir")
 
 buddy_add_model(
-  NAME paddleocr_vl
+  NAME paddleocr
+  MODEL_KIND single_forward
   SPEC "${BUDDY_PADDLEOCR_SPEC}"
-  RUNNER_SRC PaddleOCRVLRunner.cpp
-  HF_CONFIG "${BUDDY_PADDLEOCR_HF_CONFIG}"
-  LOCAL_MODEL "${BUDDY_PADDLEOCR_LOCAL_MODEL}"
-  BUILD_DIR "${PADDLEOCR_BUILD_DIR}"
-  MLIR_DIR "${PADDLEOCR_MLIR_DIR}"
-  COMPILE_JOBS "${BUDDY_PADDLEOCR_COMPILE_JOBS}"
+  RUNNER_SRC PaddleocrRunner.cpp
+  RUNNER_PLUGIN_SRC PaddleocrRunnerPlugin.cpp
+  RUNNER_HDR include/buddy/runtime/models/PaddleocrRunner.h
+  LOCAL_MODEL "${BUDDY_PADDLEOCR_MODEL_PATH}"
+  LOCAL_MODEL_ENV PADDLEOCR_MODEL_PATH
+  IMPORT_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/codegen/import-paddleocr.py"
+  MANIFEST_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/codegen/gen_paddleocr_manifest.py"
+  MODEL_SO_NAME paddleocr_model.so
+  ASSET_FILES
+    "${BUDDY_PADDLEOCR_MODEL_PATH}/tokenizer.json"
 )

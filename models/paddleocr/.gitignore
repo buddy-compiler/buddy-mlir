@@ -1,10 +1,31 @@
+# PaddleOCR-VL-generated artifacts and staged HF snapshot files.
+# `buddy_add_model` re-imports / re-stages these from the local HF snapshot
+# (BUDDY_PADDLEOCR_MODEL_PATH) at build time, so nothing here is committed.
+
+# Import output (stale artifacts from earlier manual runs are ignored too)
 arg0.data
 layer_partitioned/
+subgraph0.mlir
+forward.mlir
+
+# Python caches
 __pycache__/
-*.safetensors
-*.bin
-*.ckpt
-*.pt
-*.pth
-*.onnx
-*.h5
+
+# HuggingFace snapshot files (staged via ASSET_FILES / PADDLEOCR_MODEL_PATH)
+config.json
+configuration_paddleocr_vl.py
+image_processing.py
+processing_paddleocr_vl.py
+preprocessor_config.json
+processor_config.json
+generation_config.json
+tokenizer.json
+tokenizer.model
+tokenizer_config.json
+added_tokens.json
+special_tokens_map.json
+chat_template.jinja
+artifact.metadata
+model.safetensors
+model.onnx
+pytorch_model.bin

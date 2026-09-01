@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# ===- import_model.py ---------------------------------------------------
+# ===- import-paddleocr.py - PaddleOCR-VL-0.9B AOT importer --------------===//
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,49 +13,119 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# ===---------------------------------------------------------------------------
+# ===----------------------------------------------------------------------===//
 #
-# PaddleOCR-VL-0.9B Official Model Importer (Adapted for Buddy-MLIR Pipeline)
+# PaddleOCR-VL-0.9B (lvyufeng/PaddleOCR-VL-0.9B) AOT importer for the buddy-codegen
+# `single_forward` interface: `--spec <spec.json> --output-dir <dir>`.
 #
-# ===---------------------------------------------------------------------------
+# Adapted from the original PR's `import_model.py` (which traced prefill+decode
+# graphs and wrote into `layer_partitioned/`) to the new single_forward format:
+#   - ONE Dynamo trace of `model.forward` over the fixed-shape OCR input
+#     (972 vision tokens + 10 text tokens, 982 total).
+#   - Fusion uses ONLY `graph.fuse_ops([simply_fuse])`.
+#   - Writes `subgraph0.mlir`, `forward.mlir` and `arg0.data` into the
+#     output-directory ROOT (not layer_partitioned/).
+#
+# The HuggingFace remote modeling code (`modeling_paddleocr_vl.py`) is staged
+# under /tmp and patched (same edits the original PR applied) so the whole
+# vision+language path is Dynamo-fullgraph traceable:
+#   (A) thw loop            : numpy/detach/cpu deps removed
+#   (B) asserts             : data-dependent asserts disabled
+#   (C) cu_seqlens slice    : dynamic per-sample slice -> static squeeze
+#   (D) image token check   : data-dependent feature-count check removed
+#   (E) SigLIP rope         : fixed-size 256-entry rope table
+#
+# The local model path is read from the PADDLEOCR_MODEL_PATH environment
+# variable (set by buddy_add_model via LOCAL_MODEL_ENV), falling back to
+# spec["hf_model_path"]. The snapshot must contain the remote-code files
+# (modeling_paddleocr_vl.py, etc.) as shipped by lvyufeng/PaddleOCR-VL-0.9B.
+#
+# ===----------------------------------------------------------------------===//
 
 import argparse
+import json
 import os
 import re
 import shutil
+import tempfile
 
 import numpy
 import torch
+import torch._dynamo
+torch._dynamo.config.suppress_errors = True
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.graph import GraphDriver
 from buddy.compiler.graph.operation import *  # noqa: F403
-from buddy.compiler.graph.transform import (
-    simply_fuse,
-    apply_classic_fusion,
-    eliminate_transpose,
-    eliminate_matmul_transpose_reshape,
-)
+from buddy.compiler.graph.transform import simply_fuse
 from buddy.compiler.graph.type import DeviceType
 from buddy.compiler.ops import tosa
 from torch._inductor.decomposition import decompositions as inductor_decomp
 from transformers import AutoModel
 
 # ==============================================================================
-# 0. Patch HF model code for Dynamo fullgraph compatibility
+# 0. Argument parsing / spec / model path
 # ==============================================================================
 
-snapshot_path = "/home/hanyuning/.cache/huggingface/hub/models--lvyufeng--PaddleOCR-VL-0.9B/snapshots/b68da00edeb02675e68282c6d2fee98e03a58213/modeling_paddleocr_vl.py"
-hf_module_dir = "/home/hanyuning/.cache/huggingface/modules/transformers_modules/lvyufeng/PaddleOCR-VL-0.9B/b68da00edeb02675e68282c6d2fee98e03a58213"
-hf_file_path = os.path.join(hf_module_dir, "modeling_paddleocr_vl.py")
+parser = argparse.ArgumentParser(description="PaddleOCR-VL-0.9B AOT importer")
+parser.add_argument("--spec", required=True, help="Variant spec JSON")
+parser.add_argument("--output-dir", required=True,
+                    help="Directory to save subgraph0.mlir / forward.mlir / arg0.data")
+args = parser.parse_args()
+
+with open(args.spec) as spec_file:
+    spec = json.load(spec_file)
+
+model_path = (os.environ.get("PADDLEOCR_MODEL_PATH")
+              or os.environ.get("BUDDY_LOCAL_MODEL_PATH")
+              or spec.get("hf_model_path", "lvyufeng/PaddleOCR-VL-0.9B"))
+output_dir = args.output_dir
+os.makedirs(output_dir, exist_ok=True)
+
+print(f"[PaddleOCR-Import] Spec: {args.spec}")
+print(f"[PaddleOCR-Import] Model path: {model_path}")
+
+# ==============================================================================
+# 1. Patch HF remote modeling code for Dynamo fullgraph compatibility.
+#    The patched copy is re-derived from the local snapshot each run.
+# ==============================================================================
+
+snapshot_path = os.path.join(model_path, "modeling_paddleocr_vl.py")
+if not os.path.isfile(snapshot_path):
+    raise RuntimeError(
+        f"[PaddleOCR-Import] modeling_paddleocr_vl.py not found at {snapshot_path}. "
+        "PASS the local HF snapshot via PADDLEOCR_MODEL_PATH (trust_remote_code "
+        "remote files must be present in the snapshot)."
+    )
+
+# Stage a patched copy of the model directory.  When loading remote code from a
+# LOCAL path, transformers re-syncs its transformers_modules cache with the
+# source dir on every load (filecmp-based copy), so patching the cache copy
+# directly is unreliable.  Instead we stage the snapshot under /tmp:
+#   - symlink every snapshot file (config.json, model.safetensors, ...),
+#   - replace modeling_paddleocr_vl.py with a real PATCHED copy,
+#   - load from the staged dir.
+# transformers then copies the (already-patched) modeling file into its
+# `transformers_modules/<staged-basename>/` cache once and never re-copies it.
+staged_dir = os.environ.get(
+    "PADDLEOCR_IMPORT_STAGE_DIR"
+) or os.path.join(tempfile.gettempdir(), "paddleocr_model_stage")
+os.makedirs(staged_dir, exist_ok=True)
+for _name in os.listdir(model_path):
+    _src = os.path.join(model_path, _name)
+    _dst = os.path.join(staged_dir, _name)
+    if os.path.lexists(_dst):
+        os.remove(_dst)
+    os.symlink(_src, _dst)
+
+hf_file_path = os.path.join(staged_dir, "modeling_paddleocr_vl.py")
+if os.path.lexists(hf_file_path):
+    os.remove(hf_file_path)
+shutil.copy(snapshot_path, hf_file_path)
+print(f"[PaddleOCR-Import] Staged model dir: {staged_dir}")
 
 print("[PaddleOCR-Import] Patching HF model for fullgraph tracing...")
-os.makedirs(hf_module_dir, exist_ok=True)
-shutil.copy(snapshot_path, hf_file_path)
-
 with open(hf_file_path, "r", encoding="utf-8") as f:
     code = f.read()
-
-print("   -> (F) ROPE_INIT_FUNCTIONS compat handled in-code (see below).")
 
 # --- (A) thw loop: remove numpy/detach/cpu/numpy deps ---
 old_thw_loop = """                pro = 0
@@ -95,7 +165,7 @@ else:
         code,
     )
 
-# --- (B) data-dependent assert -> True ---
+# --- (B) data-dependent assert -> True / disabled ---
 code = re.sub(
     r"sum\(\[np\.prod\(x\) for x in flatten_image_grid_thw\]\)\s*==\s*embeddings\.shape\[1\]",
     "True",
@@ -171,44 +241,26 @@ else:
 with open(hf_file_path, "w", encoding="utf-8") as f:
     f.write(code)
 
-# Clear Python bytecode cache to ensure patched file is loaded
-import py_compile
-pycache = os.path.join(os.path.dirname(hf_file_path), "__pycache__")
-if os.path.exists(pycache):
-    import shutil
-    shutil.rmtree(pycache)
-    print("   -> Cleared __pycache__ to force recompile.")
+# Clear Python bytecode caches (both the staged dir and the transformers
+# modules cache) to force the patched file to be recompiled.
+for _pyc in (
+    os.path.join(os.path.dirname(hf_file_path), "__pycache__"),
+    os.path.join(os.environ.get("HF_HOME", os.path.expanduser("~/.cache/huggingface")),
+                 "modules", "transformers_modules",
+                 os.path.basename(staged_dir), "__pycache__"),
+):
+    if os.path.exists(_pyc):
+        shutil.rmtree(_pyc)
+        print(f"   -> Cleared {_pyc} to force recompile.")
 
 print("[PaddleOCR-Import] HF model patched successfully.\n")
-
-# ==============================================================================
-# 1. Argument parsing
-# ==============================================================================
-
-parser = argparse.ArgumentParser(description="PaddleOCR-VL-0.9B Model AOT Importer")
-parser.add_argument(
-    "--output-dir",
-    type=str,
-    default="./",
-    help="Directory to save output files.",
-)
-parser.add_argument(
-    "--precision",
-    type=str,
-    default="f32",
-    choices=["f32"],
-    help="Precision mode. Currently only 'f32' is supported.",
-)
-args = parser.parse_args()
-
-output_dir = args.output_dir
-os.makedirs(output_dir, exist_ok=True)
 
 # ==============================================================================
 # 2. Load model
 # ==============================================================================
 
-# --- (F) Monkey-patch ROPE_INIT_FUNCTIONS for transformers >=5.0 compat ---
+# Monkey-patch ROPE_INIT_FUNCTIONS for transformers compat (no-op when a
+# 'default' entry already exists, e.g. transformers >= 4.46).
 from transformers.modeling_rope_utils import ROPE_INIT_FUNCTIONS
 if "default" not in ROPE_INIT_FUNCTIONS:
     def _compute_default_rope_parameters(config, device, seq_len=None, **kwargs):
@@ -222,36 +274,29 @@ if "default" not in ROPE_INIT_FUNCTIONS:
     print("   -> (F) ROPE_INIT_FUNCTIONS 'default' monkey-patched.")
 
 print("[PaddleOCR-Import] Loading PaddleOCR-VL-0.9B model...")
-model = AutoModel.from_pretrained(
-    "lvyufeng/PaddleOCR-VL-0.9B", trust_remote_code=True
-).eval()
+model = AutoModel.from_pretrained(staged_dir, trust_remote_code=True).eval()
 model.config.use_cache = False
 
 image_token_id = model.config.image_token_id
 print(f"   image_token_id = {image_token_id}")
 
 # ==============================================================================
-# 3. Initialize Dynamo Compiler (prefill + decode for pipeline compatibility)
+# 3. Initialize Dynamo Compiler (single forward graph)
 # ==============================================================================
 
-dynamo_compiler_prefill = DynamoCompiler(
+dynamo_compiler = DynamoCompiler(
     primary_registry=tosa.ops_registry,
     aot_autograd_decomposition=inductor_decomp,
-    func_name="forward_prefill",
-)
-
-dynamo_compiler_decode = DynamoCompiler(
-    primary_registry=tosa.ops_registry,
-    aot_autograd_decomposition=inductor_decomp,
-    func_name="forward_decode",
+    func_name="forward",
 )
 
 # ==============================================================================
-# 4. Dummy inputs
+# 4. Dummy inputs (fixed shapes, replicated from the original PR)
 # ==============================================================================
+# image_grid_thw = [1, 54, 72] -> 3888 patches (t*h*w with merge kept upstream)
+# Projector merge_kernel_size=(2,2) -> 3888/4 = 972 image tokens
+# + 10 text tokens = 982 total sequence length.
 
-# image_grid_thw = [[1, 54, 72]] -> 3888 patches
-# Projector merge_kernel_size=(2,2): output = 1 * 27 * 36 = 972 tokens
 n_img_tokens = 972
 total_len = 982
 
@@ -271,12 +316,12 @@ print(f"   pixel_values:  {pixel_values.shape}")
 print(f"   position_ids:  {position_ids.shape}")
 
 # ==============================================================================
-# 5. Trace the model (prefill + decode for pipeline compatibility)
+# 5. Trace the model (single forward graph)
 # ==============================================================================
 
-print("\n[PaddleOCR-Import] Tracing prefill graph...")
+print("\n[PaddleOCR-Import] Tracing forward graph...")
 with torch.no_grad():
-    graphs_prefill = dynamo_compiler_prefill.importer(
+    graphs = dynamo_compiler.importer(
         model,
         input_ids=input_ids,
         attention_mask=attention_mask,
@@ -286,77 +331,44 @@ with torch.no_grad():
         return_dict=False,
     )
 
-assert len(graphs_prefill) == 1, f"Expected 1 prefill graph, got {len(graphs_prefill)}"
-graph_prefill = graphs_prefill[0]
+assert len(graphs) == 1, f"Expected 1 forward graph, got {len(graphs)}"
+graph = graphs[0]
 
-print("[PaddleOCR-Import] Tracing decode graph...")
-torch._dynamo.reset()
-with torch.no_grad():
-    graphs_decode = dynamo_compiler_decode.importer(
-        model,
-        input_ids=input_ids,
-        attention_mask=attention_mask,
-        pixel_values=pixel_values,
-        image_grid_thw=static_image_grid_thw,
-        position_ids=position_ids,
-        return_dict=False,
-    )
-
-assert len(graphs_decode) == 1, f"Expected 1 decode graph, got {len(graphs_decode)}"
-graph_decode = graphs_decode[0]
-
-params = dynamo_compiler_prefill.imported_params[graph_prefill]
-print(f"[PaddleOCR-Import] Graphs captured. Params: {len(params)} tensors.")
+params = dynamo_compiler.imported_params[graph]
+n_param_elems = sum(p.numel() for p in params)
+print(f"[PaddleOCR-Import] Graph captured. Params: {len(params)} tensors, "
+      f"{n_param_elems:,} elements.")
 
 # ==============================================================================
-# 6. Graph optimizations (prefill & decode)
+# 6. Graph optimization (simply_fuse ONLY)
 # ==============================================================================
 
 print("[PaddleOCR-Import] Running graph transforms...")
-for g in [graph_prefill, graph_decode]:
-    g.perform([eliminate_transpose, eliminate_matmul_transpose_reshape])
+graph.fuse_ops([simply_fuse])
 
-pattern_list = [
-    simply_fuse,
-    apply_classic_fusion,
-]
-graph_prefill.fuse_ops(pattern_list)
-graph_decode.fuse_ops(pattern_list)
+graph.op_groups["subgraph0"] = graph.op_groups.pop("subgraph0")
+graph.group_map_device["subgraph0"] = DeviceType.CPU
 
-graph_prefill.op_groups["subgraph0_prefill"] = graph_prefill.op_groups.pop("subgraph0")
-graph_prefill.group_map_device["subgraph0_prefill"] = DeviceType.CPU
-
-graph_decode.op_groups["subgraph0_decode"] = graph_decode.op_groups.pop("subgraph0")
-graph_decode.group_map_device["subgraph0_decode"] = DeviceType.CPU
-
-driver_prefill = GraphDriver(graph_prefill)
-driver_prefill.subgraphs[0].lower_to_top_level_ir()
-
-driver_decode = GraphDriver(graph_decode)
-driver_decode.subgraphs[0].lower_to_top_level_ir()
+driver = GraphDriver(graph)
+driver.subgraphs[0].lower_to_top_level_ir()
 
 # ==============================================================================
-# 7. Save outputs (pipeline-compatible naming)
+# 7. Save outputs (single_forward naming at output-dir ROOT)
 # ==============================================================================
 
-layer_dir = os.path.join(output_dir, "layer_partitioned")
-os.makedirs(layer_dir, exist_ok=True)
-print(f"\n[PaddleOCR-Import] Writing MLIR files to: {layer_dir}")
+print(f"\n[PaddleOCR-Import] Writing MLIR files to: {output_dir}")
 
-with open(os.path.join(layer_dir, "subgraph0_prefill.mlir"), "w") as module_file:
-    print(driver_prefill.subgraphs[0]._imported_module, file=module_file)
-with open(os.path.join(layer_dir, "forward_prefill.mlir"), "w") as module_file:
-    print(driver_prefill.construct_main_graph(True), file=module_file)
-
-with open(os.path.join(layer_dir, "subgraph0_decode.mlir"), "w") as module_file:
-    print(driver_decode.subgraphs[0]._imported_module, file=module_file)
-with open(os.path.join(layer_dir, "forward_decode.mlir"), "w") as module_file:
-    print(driver_decode.construct_main_graph(True), file=module_file)
+with open(os.path.join(output_dir, "subgraph0.mlir"), "w") as module_file:
+    print(driver.subgraphs[0]._imported_module, file=module_file)
+with open(os.path.join(output_dir, "forward.mlir"), "w") as module_file:
+    print(driver.construct_main_graph(True), file=module_file)
 
 print(f"[PaddleOCR-Import] Writing weight data...")
 all_param = numpy.concatenate(
     [param.detach().numpy().reshape([-1]) for param in params]
-)
+).astype(numpy.float32, copy=False)
 all_param.tofile(os.path.join(output_dir, "arg0.data"))
 
-print("[PaddleOCR-Import] Done!\n")
+print(f"[PaddleOCR-Import] Done! "
+      f"arg0.data has {n_param_elems:,} f32 elements "
+      f"({all_param.nbytes / 1e9:.2f} GB).")
