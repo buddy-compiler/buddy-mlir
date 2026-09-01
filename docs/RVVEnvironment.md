@@ -1,7 +1,10 @@
 # Environment Setup Guide for MLIR and RVV Testing and Experiments
 
 This guide provides instructions on setting up an environment to test the RISC-V Vector Extension using the buddy-mlir project.
-The target platform for emulation is QEMU.
+The primary target platform in this guide is QEMU. The local LLVM/MLIR,
+OpenMP, and buddy-mlir build in Steps 1 and 2 can also run natively on a
+RISC-V host. The native configuration below was validated on an SG2044
+(T-Head C920, `rv64imafdcv`) running openEuler 24.03 LTS-SP2.
 
 ## Requirements
 
@@ -38,6 +41,14 @@ guide are called out below.
 > environment up as in the top-level `README.md` ("Prepare Python Environment",
 > `pip install -r requirements.txt`); that also provides the `torch` used by the
 > `examples/BuddyJIT/*.py` tests run under `ninja check-buddy`.
+
+> **_NOTE (RISC-V Python packages):_** use the Ruyi package index already
+> listed in `requirements.txt` for the RISC-V PyTorch wheel. If pip rejects the
+> wheel's `manylinux_2_38_riscv64` platform tag, install the requirements with
+> uv as the RISC-V CI does (`uv pip install --index-strategy
+> unsafe-best-match -r requirements.txt`). For the pinned LLVM revision used
+> by this repository, `nanobind==2.9.2` was used for the successful SG2044
+> build; nanobind 2.15.0 caused one MLIR Python binding test failure.
 
 ## Build Steps
 
@@ -77,6 +88,20 @@ $ ninja check-clang check-mlir check-openmp
 $ export BUILD_LOCAL_LLVM_DIR=$PWD
 ```
 
+On native openEuler/RISC-V, the Clang built in this step does not discover the
+system GCC runtime automatically. Append the following option to the CMake
+command above, replacing the GCC directory if the installed version differs:
+
+```
+'-DRUNTIMES_CMAKE_ARGS=-DCMAKE_C_FLAGS=--gcc-install-dir=/usr/lib/gcc/riscv64-openEuler-linux/12;-DCMAKE_CXX_FLAGS=--gcc-install-dir=/usr/lib/gcc/riscv64-openEuler-linux/12;-DOPENMP_TEST_FLAGS=--gcc-install-dir=/usr/lib/gcc/riscv64-openEuler-linux/12'
+```
+
+The compiler flags are needed to find `crtbeginS.o`, `libatomic`, `libgcc`, and
+`libgcc_s` while building the OpenMP runtime. `OPENMP_TEST_FLAGS` is also
+needed because the OpenMP lit tests invoke the newly built Clang directly.
+CMake detects pthread and the C++ runtime without additional overrides; no
+manual thread-cache variables, `-lstdc++`, or extra `-L` option are required.
+
 2. Build Local `buddy-mlir`
 
 ```
@@ -97,6 +122,11 @@ $ export BUILD_RISCV_GNU_TOOLCHAIN_DIR=$PWD/thirdparty/riscv-gnu-toolchain/
 $ export RISCV_GNU_TOOLCHAIN_SYSROOT_DIR=${BUILD_RISCV_GNU_TOOLCHAIN_DIR}/sysroot/
 $ export QEMU_LD_PREFIX=${RISCV_GNU_TOOLCHAIN_SYSROOT_DIR}
 ```
+
+On a native RISC-V host, omit `BUDDY_MLIR_ENABLE_RISCV_GNU_TOOLCHAIN` (its
+default is `OFF`) unless QEMU and the cross-compilation steps are also needed.
+The native SG2044 build and `check-buddy` verification used `OFF`; Steps 3-5
+are only required for the QEMU workflow.
 
 3. Build Cross-Compiled Clang
 
@@ -190,3 +220,19 @@ Unranked Memref base@ = 0x55555729aaa0 rank = 1 offset = 0 sizes = [20] strides 
 ```
 
 Congratulations! Your RVV environment is now fully set up. Enjoy exploring and testing!
+
+## Native SG2044 Verification
+
+The native RISC-V configuration above was validated with LLVM revision
+`c5591fc443b7` and this repository's corresponding revision. The results were:
+
+* `check-clang`: 50,498 passed, 0 failed
+* `check-mlir`: 3,822 passed, 0 failed
+* `check-openmp`: 433 passed, 0 failed
+* `check-buddy`: examples 228 passed / 2 unsupported; regression tests 340
+  passed / 2 unsupported; 0 failed
+
+The `rvv-mul-add` example was also AOT-compiled with `-mtriple riscv64`,
+`-target-abi lp64d`, `-mattr=+m,+d,+v`, and
+`-riscv-v-vector-bits-min=128`, then run directly on the SG2044 without QEMU.
+Its output matched the expected result above.
