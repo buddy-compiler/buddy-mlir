@@ -33,7 +33,7 @@ the kernels, builds the runner plugin, and stages `bge_m3.rax`:
 
 ```bash
 cd buddy-mlir
-conda activate buddy
+conda activate buddy-mlir
 
 python3 tools/buddy-codegen/build_model.py \
   --spec models/bge_m3/specs/base.json \
@@ -90,3 +90,28 @@ The output is a JSON-like dense embedding vector with dimension `1024`.
   `AutoModel.from_pretrained(<local BGE-M3 snapshot>)` using the same tokenizer
   settings: padding to `max_length`, truncation enabled, and `max_length = 512`.
   The dense embedding should match the normalized HF CLS vector closely.
+
+## buddy-server embeddings API
+
+BGE-M3 is an embedding API, not a chat-completion model. The build now emits an
+independent `bge_m3_embedding.so` plugin in addition to the CLI
+`bge_m3_runner.so`; the generated manifest carries
+`embedding_library = "file:bge_m3_embedding.so"`. Start `buddy-server` directly
+from the package (the plugin is discovered from the `.rax`):
+
+```bash
+./build/bin/buddy-server \
+  --model ./build/models/bge_m3/bge_m3.rax \
+  --port 8080
+
+curl http://127.0.0.1:8080/v1/embeddings \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"bge_m3_base","input":"hello world"}'
+```
+
+The response is OpenAI-compatible (`data[0].embedding` is a JSON array and
+`data[0].index` is `0`) with tokenizer prompt usage. The initial server
+implementation accepts one string `input` only; arrays and batch requests are
+rejected explicitly. `tokenizer.json`, weights, model kernels, and the
+embedding plugin are embedded in `--embed-payload` RAX packages, so the
+package can be moved without the source tree or Python runtime.

@@ -4,6 +4,7 @@ add_executable(buddy-server
   buddy-server.cpp
   JsonCodec.cpp
   ResidentModelPluginHandle.cpp
+  EmbeddingModelPluginHandle.cpp
   SimpleHttpServer.cpp
 )
 
@@ -44,6 +45,7 @@ if(BUDDY_ENABLE_TESTS)
   )
   target_link_libraries(buddy-server-json-codec-test PRIVATE
     buddy_runtime_core
+    ${CMAKE_DL_LIBS}
     buddy_runtime_llm
     LLVMSupport
   )
@@ -63,5 +65,26 @@ if(BUDDY_ENABLE_TESTS)
     COMMAND $<TARGET_FILE:buddy-server> --help
     DEPENDS buddy-server
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+  )
+endif()
+
+if(BUDDY_ENABLE_TESTS)
+  add_executable(buddy-server-embedding-plugin-handle-test
+    EmbeddingModelPluginHandleTest.cpp
+    EmbeddingModelPluginHandle.cpp
+  )
+  target_compile_features(buddy-server-embedding-plugin-handle-test PRIVATE cxx_std_17)
+  target_include_directories(buddy-server-embedding-plugin-handle-test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+  )
+  target_link_libraries(buddy-server-embedding-plugin-handle-test PRIVATE
+    buddy_runtime_core
+    ${CMAKE_DL_LIBS}
+  )
+  add_test(NAME buddy-server-embedding-plugin-handle
+    COMMAND buddy-server-embedding-plugin-handle-test
+  )
+  set_tests_properties(buddy-server-embedding-plugin-handle PROPERTIES
+    PASS_REGULAR_EXPRESSION "EmbeddingModelPluginHandle tests passed"
   )
 endif()

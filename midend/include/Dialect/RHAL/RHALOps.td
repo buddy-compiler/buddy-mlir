@@ -36,6 +36,7 @@ class RHAL_Op<string mnemonic, list<Trait> traits = []> :
 //                                  vocab_uri = "...",
 //                                  runner_library = "...",
 //                                  serving_library = "...",
+//                                  embedding_library = "...",
 //                                  runner_uri = "..."} {
 //     ... rhal.constant, rhal.codeobj, rhal.buffer, rhal.func ops ...
 //   }
@@ -48,7 +49,7 @@ def RHAL_ModuleOp : RHAL_Op<"module", [
   let description = [{
     Top-level container op that declares all model resources and functions.
     Attributes carry module-level metadata (version, model_name, vocab_uri,
-    runner_library, serving_library).
+    runner_library, serving_library, embedding_library).
   }];
 
   let arguments = (ins
@@ -58,6 +59,7 @@ def RHAL_ModuleOp : RHAL_Op<"module", [
     OptionalAttr<StrAttr>:$vocab_uri,
     OptionalAttr<StrAttr>:$runner_library,
     OptionalAttr<StrAttr>:$serving_library,
+    OptionalAttr<StrAttr>:$embedding_library,
     OptionalAttr<StrAttr>:$runner_uri,
     OptionalAttr<StrAttr>:$artifacts_uri,
     OptionalAttr<StrAttr>:$tokenizer_uri,

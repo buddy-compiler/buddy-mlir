@@ -295,3 +295,48 @@ Completion and chat requests support:
 - The HTTP layer is a minimal POSIX socket implementation, not a full-featured
   production HTTP framework.
 - SSE streaming uses `data: ...` chunks and finishes with `data: [DONE]`.
+
+## BGE-M3 embedding backend
+
+Build BGE-M3 and its independent server plugin with the `buddy-mlir` conda
+environment (a local HuggingFace snapshot is required for the import step):
+
+```bash
+conda run -n buddy-mlir cmake -S . -B build \
+  -DBUDDY_BUILD_BGE_M3_MODEL=ON \
+  -DBUDDY_BGE_M3_MODEL_PATH=/path/to/bge-m3
+conda run -n buddy-mlir cmake --build build --target bge_m3_rax
+```
+
+The resulting package contains `bge_m3.rax`, `bge_m3_model.so`,
+`bge_m3_runner.so`, and `bge_m3_embedding.so`. Start the embedding backend:
+
+```bash
+./build/bin/buddy-server \
+  --model ./build/models/bge_m3/bge_m3.rax \
+  --host 127.0.0.1 --port 8080
+```
+
+The server discovers `embedding_library` from the manifest. If a manifest
+contains both `serving_library` and `embedding_library`, pass exactly one of
+`--serving-so` or `--embedding-so` to select the backend explicitly. The plugin
+ABI is independent from `ResidentModel`:
+
+```cpp
+extern "C" buddy::runtime::EmbeddingModel *buddy_create_embedding_model_v1();
+extern "C" void buddy_destroy_embedding_model_v1(buddy::runtime::EmbeddingModel *);
+```
+
+`POST /v1/embeddings` (also `/embeddings`) accepts only one non-empty string:
+
+```bash
+curl http://127.0.0.1:8080/v1/embeddings \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"bge_m3_base","input":"hello world"}'
+```
+
+The response contains `data[0].embedding`, `data[0].index`, `model`, and
+`usage.prompt_tokens`/`usage.total_tokens`. Input arrays are rejected with a
+400 unsupported-input error. Embedding mode returns a 400
+`unsupported_endpoint` error for completion, chat completion, and tokenize;
+DeepSeek/Qwen resident behavior and SSE remain unchanged.
