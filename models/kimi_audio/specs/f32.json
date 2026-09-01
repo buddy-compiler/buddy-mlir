@@ -1,10 +1,16 @@
 {
   "model_family": "kimi_audio",
-  "kv_layers": 68,
-  "head_num": 4,
-  "max_token_len": 1024,
-  "hidden_size": 128,
+  "variant": "f32",
+  "model_id": "moonshotai/Kimi-Audio-7B-Instruct",
   "hf_model_path": "moonshotai/Kimi-Audio-7B-Instruct",
-  "num_threads": 48,
-  "variant": "f32"
+  "params_size": 9735127168,
+  "max_seq_len": 1024,
+  "max_position_embeddings": 8192,
+  "hidden_size": 3584,
+  "vocab_size": 168448,
+  "num_hidden_layers": 28,
+  "so_name": "kimi_audio_model.so",
+  "weight_file": "arg0.data",
+  "tokenizer_file": "vocab.txt",
+  "num_threads": 48
 }

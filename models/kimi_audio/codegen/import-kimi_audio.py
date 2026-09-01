@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# ===- import_model.py ---------------------------------------------------
+# ===- import-kimi_audio.py - Kimi-Audio AOT importer ---------------------===//
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,61 +13,125 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# ===---------------------------------------------------------------------------
+# ===------------------------------------------------------------------------===
 #
-# Kimi-Audio-7B-Instruct Official Model Importer (Adapted for Buddy-MLIR Pipeline)
+# Kimi-Audio-7B-Instruct AOT importer, adapted from the original PR
+# import_model.py to the buddy-codegen `single_forward` interface.
 #
-# ===---------------------------------------------------------------------------
+# Usage:
+#   python import-kimi_audio.py --spec specs/f32.json --output-dir <dir>
+#
+# Reads the local HF snapshot from the KIMI_AUDIO_MODEL_PATH environment
+# variable (fallback: spec["hf_model_path"]).  Writes the fixed-shape
+# single-forward graph at the output-dir ROOT:
+#
+#   subgraph0.mlir   - lowered `func.func private @subgraph0(...)`
+#   forward.mlir     - `func.func @forward(...)` calling @subgraph0
+#   arg0.data        - flattened traced weights (f32, little-endian)
+#
+# Forward ABI (fixed shapes; text-only path, whisper features disabled):
+#
+#   forward(%arg0: memref<params_size x f32>,   <- packed traced weights
+#           %arg1: memref<1 x max_seq_len x i64>, <- input_ids
+#           %arg2: memref<1 x max_seq_len x i64>) <- position_ids
+#     -> (audio_logits: memref<1 x max_seq_len x 168448 x f32>,
+#         text_logits : memref<1 x max_seq_len x 168448 x f32>)
+#
+# With the "text-only" dummy inputs used below (all-zero text_input_ids /
+# is_continuous_mask, whisper_input_feature=None, all-ones attention_mask,
+# explicit position_ids) and the patched modeling_moonshot_kimia.py, dead-input
+# elimination prunes text_input_ids, is_continuous_mask, attention_mask and the
+# whisper (vq_adaptor) path, so the compiled forward consumes exactly two
+# runtime tensors: input_ids and position_ids.  Only weights used by the traced
+# graph are exported to arg0.data (vq_adaptor weights are omitted).
+#
+# ===---------------------------------------------------------------------------//
 
 import argparse
+import glob
+import json
 import os
 import re
 import shutil
+import types
 
 import numpy
 import torch
+import torch._dynamo
+
+torch._dynamo.config.suppress_errors = True
+
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.graph import GraphDriver
 from buddy.compiler.graph.operation import *  # noqa: F403
-from buddy.compiler.graph.transform import (
-    simply_fuse,
-    apply_classic_fusion,
-    eliminate_transpose,
-    eliminate_matmul_transpose_reshape,
-    flash_attention_prefill,
-    gqa_attention_fusion,
-)
+from buddy.compiler.graph.transform import simply_fuse
 from buddy.compiler.graph.type import DeviceType
 from buddy.compiler.ops import tosa
 from torch._inductor.decomposition import decompositions as inductor_decomp
-from transformers import AutoModelForCausalLM, StaticCache
+from transformers import AutoModelForCausalLM
 
 # ==============================================================================
-# 0. Patch HF model code for Dynamo fullgraph compatibility
+# 0. Argument parsing
 # ==============================================================================
 
-snapshot_path = "/home/hanyuning/.cache/huggingface/hub/models--moonshotai--Kimi-Audio-7B-Instruct/snapshots/9a82a84c37ad9eb1307fb6ed8d7b397862ef9e6b/modeling_moonshot_kimia.py"
+p = argparse.ArgumentParser(description="Kimi-Audio-7B-Instruct AOT importer")
+p.add_argument("--spec", required=True, help="Variant spec JSON")
+p.add_argument("--output-dir", required=True, help="Output directory (root)")
+a = p.parse_args()
 
-# HF may encode paths differently depending on transformers version.
-# Find ALL cached copies of the modeling file and patch each one.
-import glob
-hf_module_candidates = glob.glob(
-    "/home/hanyuning/.cache/huggingface/modules/transformers_modules/moonshotai/Kimi*Audio*/9a82a84c37ad9eb1307fb6ed8d7b397862ef9e6b"
+with open(a.spec) as f:
+    spec = json.load(f)
+
+model_path = (
+    os.environ.get("KIMI_AUDIO_MODEL_PATH")
+    or os.environ.get("BUDDY_LOCAL_MODEL_PATH")
+    or spec.get("hf_model_path", "moonshotai/Kimi-Audio-7B-Instruct")
 )
-if not hf_module_candidates:
-    # Fallback: also check hyphen-encoded path
-    hf_module_candidates = glob.glob(
-        "/home/hanyuning/.cache/huggingface/modules/transformers_modules/moonshotai/Kimi*hyphen*Audio*/9a82a84c37ad9eb1307fb6ed8d7b397862ef9e6b"
+max_seq_len = int(spec.get("max_seq_len", 1024))
+os.makedirs(a.output_dir, exist_ok=True)
+
+print("[import-kimi_audio] Model path:", model_path)
+print(f"[import-kimi_audio] max_seq_len = {max_seq_len}")
+
+# ==============================================================================
+# 1. Patch HF model code for Dynamo fullgraph compatibility
+# ==============================================================================
+
+snapshot_path = os.path.join(model_path, "modeling_moonshot_kimia.py")
+if not os.path.exists(snapshot_path):
+    raise SystemExit(
+        f"[import-kimi_audio] ERROR: modeling file not found at {snapshot_path}\n"
+        "   Set KIMI_AUDIO_MODEL_PATH to a local Kimi-Audio HF snapshot."
     )
 
-print("[KimiAudio-Import] Patching HF model for CPU fullgraph tracing...")
-print(f"   Found {len(hf_module_candidates)} cached module dir(s): {hf_module_candidates}")
+# HF may encode paths differently depending on transformers version.
+# Find ALL cached copies of the modeling file and patch each one (including
+# both the `moonshotai/Kimi-*/<commit>` and the `_<commit>` underscore layout
+# that newer transformers uses).
+modules_base = os.path.expanduser(
+    "~/.cache/huggingface/modules/transformers_modules"
+)
+hf_module_candidates = []
+for root, dirs, files in os.walk(modules_base):
+    if "modeling_moonshot_kimia.py" in files:
+        hf_module_candidates.append(root)
+
+print(
+    "[import-kimi_audio] Patching HF model for CPU fullgraph tracing..."
+)
+print(
+    "   Found %d cached module dir(s): %s"
+    % (len(hf_module_candidates), hf_module_candidates)
+)
 
 if not hf_module_candidates:
-    print("[KimiAudio-Import] ERROR: No cached HF module dirs found!")
-    print("   Please download the model first: from transformers import AutoModelForCausalLM")
-    print("   AutoModelForCausalLM.from_pretrained('moonshotai/Kimi-Audio-7B-Instruct', trust_remote_code=True)")
-    exit(1)
+    print(
+        "[import-kimi_audio] ERROR: No cached HF module dirs found!\n"
+        "   Please download the model first: from transformers import AutoModelForCausalLM\n"
+        "   AutoModelForCausalLM.from_pretrained('moonshotai/Kimi-Audio-7B-Instruct', trust_remote_code=True)"
+    )
+    raise SystemExit(1)
+
 
 def apply_patches(hf_file_path):
     """Apply all Dynamo compatibility patches to a local HF modeling file."""
@@ -75,7 +139,9 @@ def apply_patches(hf_file_path):
         code = f.read()
 
     # --- (A0) Inject CPU SDPA replacements before flash_attn import check ---
-    inject_marker = "from transformers.models.qwen2.modeling_qwen2 import apply_rotary_pos_emb"
+    inject_marker = (
+        "from transformers.models.qwen2.modeling_qwen2 import apply_rotary_pos_emb"
+    )
     cpu_sdpa_code = """
 
 # === Injected by buddy-mlir: CPU SDPA replacements for flash_attn ===
@@ -128,7 +194,8 @@ def _kimi_unpad_input(hidden_states, attention_mask):
     if inject_marker not in code:
         print("   -> (A0) WARNING: inject marker not found, skip SDPA injection.")
         return False
-    code = code.replace(inject_marker, inject_marker + cpu_sdpa_code)
+    if "# === Injected by buddy-mlir: CPU SDPA replacements for flash_attn ===" not in code:
+        code = code.replace(inject_marker, inject_marker + cpu_sdpa_code)
 
     # --- (A) Remove flash_attn import requirement ---
     old_flash_block = """if is_flash_attn_available():
@@ -152,24 +219,28 @@ unpad_input = _kimi_unpad_input"""
         print("   -> (A) Block match failed, using fragmented fallback...")
         code = code.replace(
             'from flash_attn import flash_attn_func, flash_attn_varlen_func\n    from flash_attn.bert_padding import index_first_axis, pad_input, unpad_input  # noqa',
-            'flash_attn_func = _kimi_flash_attn_func\nflash_attn_varlen_func = _kimi_flash_attn_varlen_func\nindex_first_axis = _kimi_index_first_axis\npad_input = _kimi_pad_input\nunpad_input = _kimi_unpad_input'
+            'flash_attn_func = _kimi_flash_attn_func\nflash_attn_varlen_func = _kimi_flash_attn_varlen_func\nindex_first_axis = _kimi_index_first_axis\npad_input = _kimi_pad_input\nunpad_input = _kimi_unpad_input',
         )
         code = code.replace(
             'raise RuntimeError("flash attention must be installed")',
-            'pass  # flash_attn not required (CPU SDPA injected)'
+            'pass  # flash_attn not required (CPU SDPA injected)',
         )
 
     # --- (B) Replace hardcoded CUDA device references ---
     code = code.replace(
         "input_ids = input_ids.to(torch.cuda.current_device())",
-        "input_ids = input_ids.to(inputs_embeds.device if inputs_embeds is not None else torch.device('cpu'))"
+        "input_ids = input_ids.to(inputs_embeds.device if inputs_embeds is not None else torch.device('cpu'))",
     )
     code = code.replace(
         "text_input_ids = text_input_ids.to(torch.cuda.current_device())",
-        "text_input_ids = text_input_ids.to(inputs_embeds.device if inputs_embeds is not None else torch.device('cpu'))"
+        "text_input_ids = text_input_ids.to(inputs_embeds.device if inputs_embeds is not None else torch.device('cpu'))",
     )
-    code = re.sub(r"\.to\(torch\.cuda\.current_device\(\)\)", ".to(torch.device('cpu'))", code)
-    code = re.sub(r"device=torch\.cuda\.current_device\(\)", "device=torch.device('cpu')", code)
+    code = re.sub(
+        r"\.to\(torch\.cuda\.current_device\(\)\)", ".to(torch.device('cpu'))", code
+    )
+    code = re.sub(
+        r"device=torch\.cuda\.current_device\(\)", "device=torch.device('cpu')", code
+    )
     remaining = code.count("torch.cuda.current_device")
     if remaining == 0:
         print("   -> (B) All CUDA device references replaced with CPU.")
@@ -222,11 +293,11 @@ unpad_input = _kimi_unpad_input"""
     # --- (D) Fix device references in embedding flow ---
     code = code.replace(
         "is_continuous_mask = is_continuous_mask.to(torch.cuda.current_device())",
-        "is_continuous_mask = is_continuous_mask.to(audio_emb.device)"
+        "is_continuous_mask = is_continuous_mask.to(audio_emb.device)",
     )
     code = code.replace(
         "whisper_emb = whisper_emb.to(torch.cuda.current_device())",
-        "whisper_emb = whisper_emb.to(audio_emb.device)"
+        "whisper_emb = whisper_emb.to(audio_emb.device)",
     )
     old_sqrt = """encoder_input_addwith_discrete_token = (
                     audio_emb + whisper_emb
@@ -246,22 +317,17 @@ unpad_input = _kimi_unpad_input"""
     print("   -> (C)(D) CUDA device refs in forward method fixed.")
 
     # --- (E) Fix Prefill KV Cache None shape access ---
-    # During prefill, past_key_values[0][0] is None, but the model code
-    # unconditionally accesses .shape[2], causing AttributeError.
     code = code.replace(
         "past_key_values_length = past_key_values[0][0].shape[2]",
-        "past_key_values_length = past_key_values[0][0].shape[2] if past_key_values[0][0] is not None else 0"
+        "past_key_values_length = past_key_values[0][0].shape[2] if past_key_values[0][0] is not None else 0",
     )
     code = code.replace(
         "past_key_values_length = past_key_values[0][0].shape[1]",
-        "past_key_values_length = past_key_values[0][0].shape[1] if past_key_values[0][0] is not None else 0"
+        "past_key_values_length = past_key_values[0][0].shape[1] if past_key_values[0][0] is not None else 0",
     )
     print("   -> (E) KV cache None-safety guard added.")
 
     # --- (F) Replace custom RotaryEmbedding with compute-based version ---
-    # Kimi-Audio's custom RotaryEmbedding uses register_buffer for cos/sin
-    # caches. Dynamo lifts these as _tensor_constant nodes with None val,
-    # which buddy's TOSA backend rejects. Replace with on-the-fly compute.
     old_rotary_class = """class RotaryEmbedding(nn.Module):
     def __init__(self, dim, max_position_embeddings=2048, base=10000, device=None):
         super().__init__()
@@ -328,32 +394,28 @@ unpad_input = _kimi_unpad_input"""
     else:
         print("   -> (F) RotaryEmbedding class not found (check indentation).")
 
-    # --- (G) Remove ALL past_key_value code (use_cache=False → always None) ---
-    # Force past_key_value=None at top of MoonshotAttention.forward
+    # --- (G) Remove ALL past_key_value code (use_cache=False -> always None) ---
     faf_start = "        bsz, q_len, _ = hidden_states.size()"
     code = code.replace(
         faf_start,
-        faf_start + "\n\n        # buddy-mlir: force None (use_cache=False)\n        past_key_value = None"
+        faf_start
+        + "\n\n        # buddy-mlir: force None (use_cache=False)\n        past_key_value = None",
     )
-    # Replace the first if block (kv_seq_len)
     code = code.replace(
         "if past_key_value is not None:\n            kv_seq_len += past_key_value[0].shape[-2]",
-        "# kv_seq_len unchanged (past_key_value forced None by buddy-mlir)"
+        "# kv_seq_len unchanged (past_key_value forced None by buddy-mlir)",
     )
-    # Replace the second if block (cat key)
     code = code.replace(
         "if past_key_value is not None:\n            # reuse k, v, self_attention\n            key_states = torch.cat([past_key_value[0], key_states], dim=2)",
-        "# reuse k, v skipped (past_key_value forced None by buddy-mlir)"
+        "# reuse k, v skipped (past_key_value forced None by buddy-mlir)",
     )
-    # Replace cat value
     code = code.replace(
         "value_states = torch.cat([past_key_value[1], value_states], dim=2)",
-        "# value cat skipped (past_key_value forced None by buddy-mlir)"
+        "# value cat skipped (past_key_value forced None by buddy-mlir)",
     )
     print("   -> (G) past_key_value code removed (forced None).")
 
     # --- (H) Replace flash_attn_func call in _flash_attention_forward ---
-    # Direct string replacement targeting the exact else-block pattern
     old_else_block = """        else:
             attn_output = flash_attn_func(
                 query_states,
@@ -378,22 +440,12 @@ unpad_input = _kimi_unpad_input"""
     print("   -> (H) flash_attn_func call in _flash_attention_forward replaced.")
 
     # --- (I) Disable Dynamo tracing for _flash_attention_forward ---
-    # Dynamo's subgraph composition loses the GQA head expansion.
-    # Force the entire attention forward method to run eagerly.
-    # Set the disable attribute directly (more reliable than decorator).
-    code = code.replace(
-        "    def _flash_attention_forward(",
-        "    def _flash_attention_forward("
-    )
-    # Add the disable attribute after the function definition
     faf_marker = "        return attn_output\n\n"
     faf_disable = "        return attn_output\n    _flash_attention_forward.__torch_dynamo_disable__ = True\n\n"
     code = code.replace(faf_marker, faf_disable)
     print("   -> (I) _flash_attention_forward.__torch_dynamo_disable__ = True.")
 
     # --- (J) Replace attention mechanism with standard softmax MHA ---
-    # Dynamo's SDPA tracing doesn't correctly handle GQA expansion. Replace
-    # the entire _flash_attention_forward with manual MHA using softmax.
     old_faf_method = """    def _flash_attention_forward(
         self,
         query_states,
@@ -492,8 +544,6 @@ unpad_input = _kimi_unpad_input"""
     print("   -> (J) Skipped (manual MHA string match failed).")
 
     # --- (K) Full attention computation inline (no sub-calls) ---
-    # All previous attempts to preserve GQA shape through sub-calls fail.
-    # Inline the entire MHA computation directly in MoonshotAttention.forward.
     old_attn_tail = """        attn_output = self._flash_attention_forward(
             query_states,
             key_states,
@@ -534,8 +584,6 @@ unpad_input = _kimi_unpad_input"""
         print("   -> (K) Attention tail pattern not found!")
 
     # --- (L) Fix MIMO layer cache access ---
-    # With use_cache=False, past_key_values is always None.
-    # Simply set past_key_value=None unconditionally (no try/except).
     old_mimo_cache = """            past_key_value = (
                 past_key_values[idx + len(self.layers)]
                 if past_key_values is not None
@@ -547,12 +595,8 @@ unpad_input = _kimi_unpad_input"""
     code = code.replace(old_mimo_cache, new_mimo_cache)
     print("   -> (L) MIMO cache access simplified.")
 
-    # --- (M) Remove float32→float16 cast (causes graph break) ---
-    # Use regex: remove the entire if input_dtype == torch.float32: block
-    # including the logger.warning, the .to(torch.float16) casts, and the
-    # blank line after.
-    import re as _re
-    code = _re.sub(
+    # --- (M) Remove float32->float16 cast (causes graph break) ---
+    code = re.sub(
         r"        if input_dtype == torch\.float32:\n"
         r"            logger\.warning_once\(\n"
         r'                "The input hidden states seems to be silently casted in float32.*?"\n'
@@ -563,13 +607,11 @@ unpad_input = _kimi_unpad_input"""
         r"        ",
         r"        # float16 cast removed for CPU fullgraph tracing\n        ",
         code,
-        flags=_re.DOTALL
+        flags=re.DOTALL,
     )
-    print("   -> (M) float32→float16 cast removed (regex).")
+    print("   -> (M) float32->float16 cast removed (regex).")
 
     # --- (N) Eliminate padding_mask check ---
-    # padding_mask check: for full ones (no padding), padding_mask is None
-    # Replace: if padding_mask is not None: ... else: <our_code>
     old_pad_check = """        if padding_mask is not None:
             batch_size = query_states.shape[0]
             (
@@ -634,23 +676,21 @@ unpad_input = _kimi_unpad_input"""
     print("   -> (N) padding_mask check eliminated.")
 
     # --- (O) Force past_key_values=None + use_cache=False in main forward ---
-    # Insert immediately after the docstring, before ANY code.
     old_docstring_end = "        return_dict = (\n            return_dict if return_dict is not None else self.config.use_return_dict\n        )"
     code = code.replace(
         old_docstring_end,
-        old_docstring_end + "\n\n"
+        old_docstring_end
+        + "\n\n"
         "        # buddy-mlir: force None/False for fullgraph\n"
         "        past_key_values = None\n"
-        "        use_cache = False"
+        "        use_cache = False",
     )
     print("   -> (O) past_key_values/use_cache forced in main forward.")
 
     # --- (P) Eliminate text_input_ids.sum() != 0 data-dependent branch ---
-    # text_input_ids is all zeros in our dummy inputs → .sum() == 0.
-    # Replace the conditional to avoid Dynamo graph break.
     code = code.replace(
         "if text_input_ids is not None and text_input_ids.sum() != 0:",
-        "if False:  # text_input_ids.sum()==0 for dummy inputs (buddy-mlir)"
+        "if False:  # text_input_ids.sum()==0 for dummy inputs (buddy-mlir)",
     )
     print("   -> (P) text_input_ids.sum() branch eliminated.")
 
@@ -658,61 +698,40 @@ unpad_input = _kimi_unpad_input"""
         f.write(code)
     return True
 
-# Patch ALL cached copies
+
+# transformers >= 4.57 re-copies the local snapshot's modeling file into the
+# HF module cache on EVERY `from_pretrained` (a `filecmp.cmp` mismatch triggers
+# a `shutil.copy` from the snapshot), so a patch that only touches the cache is
+# wiped before the module is imported.  Patch the snapshot file itself first,
+# then sync the patched file into every cached copy; with both sides patched
+# `filecmp.cmp` matches and transformers keeps the patched cache copy.
+
+print("[import-kimi_audio] Patching local snapshot modeling file in place...")
+apply_patches(snapshot_path)
+
+print("[import-kimi_audio] Syncing patched modeling file into HF module cache...")
 for hf_module_dir in hf_module_candidates:
     hf_file_path = os.path.join(hf_module_dir, "modeling_moonshot_kimia.py")
-    print(f"   Patching: {hf_module_dir}")
+    print(f"   Syncing: {hf_module_dir}")
     shutil.copy(snapshot_path, hf_file_path)
-    success = apply_patches(hf_file_path)
-    # Clear pycache
+    # Clear pycache so the patched module is recompiled/imported.
     pycache = os.path.join(hf_module_dir, "__pycache__")
     if os.path.exists(pycache):
         shutil.rmtree(pycache)
 
-print("[KimiAudio-Import] HF model patched successfully.\n")
-
-# ==============================================================================
-# 0. Dynamo config for Kimi-Audio compatibility
-# ==============================================================================
-import torch._dynamo
-torch._dynamo.config.suppress_errors = True
-print("[KimiAudio-Import] Dynamo configured (suppress_errors=True).\n")
-
-# ==============================================================================
-# 1. Argument parsing
-# ==============================================================================
-
-parser = argparse.ArgumentParser(description="Kimi-Audio-7B-Instruct Model AOT Importer")
-parser.add_argument(
-    "--output-dir",
-    type=str,
-    default="./",
-    help="Directory to save output files.",
-)
-parser.add_argument(
-    "--precision",
-    type=str,
-    default="f32",
-    choices=["f32"],
-    help="Precision mode. Currently only 'f32' is supported.",
-)
-args = parser.parse_args()
-
-output_dir = args.output_dir
-os.makedirs(output_dir, exist_ok=True)
+print("[import-kimi_audio] HF model patched successfully.\n")
 
 # ==============================================================================
 # 2. Load model
 # ==============================================================================
 
-print("[KimiAudio-Import] Loading Kimi-Audio-7B-Instruct model...")
+print("[import-kimi_audio] Loading Kimi-Audio-7B-Instruct model...")
 model = AutoModelForCausalLM.from_pretrained(
-    "moonshotai/Kimi-Audio-7B-Instruct", trust_remote_code=True
+    model_path, trust_remote_code=True, torch_dtype=torch.float32
 ).eval()
 model.config.use_cache = False
 
 # Unwrap HF decorators
-import types
 for m in model.modules():
     if hasattr(m.forward, "__wrapped__"):
         m.forward = types.MethodType(m.forward.__wrapped__, m)
@@ -720,211 +739,140 @@ for m in model.modules():
 print(f"   hidden_size = {model.config.hidden_size}")
 print(f"   num_hidden_layers = {model.config.num_hidden_layers}")
 print(f"   num_kv_heads = {model.config.num_key_value_heads}")
+print(f"   total params = {sum(pp.numel() for pp in model.parameters()):,}")
 
-# ===================================================================
-# [新增补丁] 运行时劫持 forward，无情剔除 cache_implementation 参数
-# 新版 transformers 会往 forward() 里塞入 cache_implementation，
-# 但 Kimi-Audio 的旧代码没有预留 **kwargs，直接拒收报错。
-# ===================================================================
-print("[KimiAudio-Import] Patching forward to ignore 'cache_implementation'...")
-
+# Patch forward to ignore 'cache_implementation' (newer transformers inject it).
+print("[import-kimi_audio] Patching forward to ignore 'cache_implementation'...")
 original_causal_forward = type(model).forward
 
+
 def patched_causal_forward(self, *args, **kwargs):
-    # transformers 新版本注入的参数，Kimi-Audio 旧代码不收
     kwargs.pop("cache_implementation", None)
     kwargs.pop("cache_position", None)
     return original_causal_forward(self, *args, **kwargs)
 
-# 强制替换模型的 forward 方法
+
 type(model).forward = patched_causal_forward
 print("   -> cache_implementation filter patched.\n")
 
 # ==============================================================================
-# 3. Initialize Dynamo Compilers
+# 3. Initialize Dynamo Compiler
 # ==============================================================================
 
 # Extend decomposition table to handle tensor constant ops that buddy
 # does not support in _tensor_constant format (e.g. int64 constants).
 from torch._decomp import core_aten_decompositions
+
 extended_decomp = {**inductor_decomp, **core_aten_decompositions()}
 
-# Note: _tensor_constant fallback is patched directly in
-# build/python_packages/buddy/compiler/frontend.py (line ~1072)
-
-dynamo_compiler_prefill = DynamoCompiler(
+dc = DynamoCompiler(
     primary_registry=tosa.ops_registry,
     aot_autograd_decomposition=extended_decomp,
-    func_name="forward_prefill",
-)
-
-dynamo_compiler_decode = DynamoCompiler(
-    primary_registry=tosa.ops_registry,
-    aot_autograd_decomposition=extended_decomp,
-    func_name="forward_decode",
+    func_name="forward",
 )
 
 # ==============================================================================
-# 4. Dummy inputs
+# 4. Dummy inputs (text-only, fixed shapes)
 # ==============================================================================
 
-max_seq_len = 1024
-
-# Build a simple text-only input for initial tracing
 # Audio model accepts: input_ids, text_input_ids, whisper_input_feature,
-#                       is_continuous_mask, attention_mask, position_ids
-data_prefill = {
+# is_continuous_mask, attention_mask, position_ids.
+data = {
     "input_ids": torch.zeros((1, max_seq_len), dtype=torch.int64),
     "text_input_ids": torch.zeros((1, max_seq_len), dtype=torch.int64),
-    "whisper_input_feature": None,   # skip whisper path → no nonzero() graph break
+    "whisper_input_feature": None,  # skip whisper path -> no nonzero() graph break
     "is_continuous_mask": torch.zeros((1, max_seq_len), dtype=torch.int64),
     "attention_mask": torch.ones((1, max_seq_len), dtype=torch.int64),
     # Provide position_ids explicitly to avoid the `if position_ids is None` branch
     "position_ids": torch.arange(0, max_seq_len, dtype=torch.long).unsqueeze(0),
 }
 
-data_decode = {
-    "input_ids": torch.zeros((1, 1), dtype=torch.int64),
-    "text_input_ids": torch.zeros((1, 1), dtype=torch.int64),
-    "whisper_input_feature": None,
-    "is_continuous_mask": torch.zeros((1, 1), dtype=torch.int64),
-    "attention_mask": torch.ones((1, 1), dtype=torch.int64),
-    "position_ids": torch.tensor([[0]], dtype=torch.long),
-}
-
-print(f"[KimiAudio-Import] Dummy inputs prepared.")
-print(f"   prefill input_ids:     {data_prefill['input_ids'].shape}")
-wf = data_prefill['whisper_input_feature']
-print(f"   prefill whisper_feat:  {wf.shape if wf is not None else None}")
+print("[import-kimi_audio] Dummy inputs prepared.")
+for k, v in data.items():
+    print(f"   {k}: {v.shape if v is not None else None}")
 
 # ==============================================================================
-# 5. Trace the model
+# 5. Trace the model (single forward graph, fixed shapes)
 # ==============================================================================
 
-# Kimi-Audio has 28 LLM layers + 6 MIMO layers = 34 KV cache slots
-# StaticCache only allocates for num_hidden_layers (28).  Hack the config
-# so StaticCache allocates enough slots for all 34 layers.
-_saved_num_layers = model.config.num_hidden_layers
-model.config.num_hidden_layers = _saved_num_layers + model.config.kimia_mimo_layers
-past_key_values_prefill = StaticCache(
-    config=model.config, max_cache_len=max_seq_len
-)
-past_key_values_decode = StaticCache(
-    config=model.config, max_cache_len=max_seq_len
-)
-model.config.num_hidden_layers = _saved_num_layers
-
-print("\n[KimiAudio-Import] Tracing prefill graph...")
+print("[import-kimi_audio] Tracing single forward graph...")
 with torch.no_grad():
-    graphs_prefill = dynamo_compiler_prefill.importer(
+    graphs = dc.importer(
         model,
-        input_ids=data_prefill["input_ids"],
-        text_input_ids=data_prefill["text_input_ids"],
-        whisper_input_feature=data_prefill["whisper_input_feature"],
-        is_continuous_mask=data_prefill["is_continuous_mask"],
-        attention_mask=data_prefill["attention_mask"],
+        input_ids=data["input_ids"],
+        text_input_ids=data["text_input_ids"],
+        whisper_input_feature=data["whisper_input_feature"],
+        is_continuous_mask=data["is_continuous_mask"],
+        attention_mask=data["attention_mask"],
+        position_ids=data["position_ids"],
+        return_dict=False,
         use_cache=False,
     )
 
-seen_param_ids = set()
-params = []
+print(f"[import-kimi_audio] got {len(graphs)} graph(s)")
+if not graphs:
+    raise SystemExit("[import-kimi_audio] ERROR: no graphs produced by importer")
 
-print(f"[KimiAudio-Import] WARNING: got {len(graphs_prefill)} prefill graphs")
-if len(graphs_prefill) == 1:
-    graph_prefill = graphs_prefill[0]
-    params = list(dynamo_compiler_prefill.imported_params.get(graph_prefill, []))
-else:
-    graph_prefill = graphs_prefill[0]
-    for g in graphs_prefill:
-        for p in dynamo_compiler_prefill.imported_params.get(g, []):
-            if id(p) not in seen_param_ids:
-                seen_param_ids.add(id(p))
+graph = graphs[0]
+params = list(dc.imported_params.get(graph, []))
+
+if len(graphs) > 1:
+    # Merge params from any additional graphs (dedup by tensor identity) so the
+    # weight file always covers everything the first graph references.
+    seen_ids = {id(p) for p in params}
+    for g in graphs[1:]:
+        for p in dc.imported_params.get(g, []):
+            if id(p) not in seen_ids:
+                seen_ids.add(id(p))
                 params.append(p)
-    print(f"[KimiAudio-Import] Collected {len(params)} params from prefill graphs.")
-
-print("[KimiAudio-Import] Tracing decode graph...")
-torch._dynamo.reset()
-with torch.no_grad():
-    graphs_decode = dynamo_compiler_decode.importer(
-        model,
-        input_ids=data_decode["input_ids"],
-        text_input_ids=data_decode["text_input_ids"],
-        whisper_input_feature=data_decode["whisper_input_feature"],
-        is_continuous_mask=data_decode["is_continuous_mask"],
-        attention_mask=data_decode["attention_mask"],
-        use_cache=False,
+    print(
+        f"[import-kimi_audio] merged params across {len(graphs)} graphs -> "
+        f"{len(params)} tensors"
     )
 
-print(f"[KimiAudio-Import] WARNING: got {len(graphs_decode)} decode graphs")
-graph_decode = graphs_decode[0]
-
-# Collect params from all decode graphs too
-for g in graphs_decode:
-    for p in dynamo_compiler_decode.imported_params.get(g, []):
-        if id(p) not in seen_param_ids:
-            seen_param_ids.add(id(p))
-            params.append(p)
-print(f"[KimiAudio-Import] Graph captured. Params: {len(params)} tensors.")
+total_elems = sum(p.numel() for p in params)
+print(f"[import-kimi_audio] graph: {len(params)} params, {total_elems:,} elems")
 
 # ==============================================================================
-# 6. Graph optimizations
+# 6. Graph optimization (fuse ONLY with simply_fuse)
 # ==============================================================================
 
-print("[KimiAudio-Import] Running graph transforms...")
-graph_prefill.perform([eliminate_transpose, eliminate_matmul_transpose_reshape])
-graph_decode.perform([eliminate_transpose, eliminate_matmul_transpose_reshape])
-
-pattern_list_prefill = [
-    simply_fuse,
-    apply_classic_fusion,
-    flash_attention_prefill,
-]
-pattern_list_decode = [
-    simply_fuse,
-    apply_classic_fusion,
-    gqa_attention_fusion,
-]
-
-graph_prefill.fuse_ops(pattern_list_prefill)
-graph_decode.fuse_ops(pattern_list_decode)
-
-graph_prefill.op_groups["subgraph0_prefill"] = graph_prefill.op_groups.pop("subgraph0")
-graph_prefill.group_map_device["subgraph0_prefill"] = DeviceType.CPU
-
-graph_decode.op_groups["subgraph0_decode"] = graph_decode.op_groups.pop("subgraph0")
-graph_decode.group_map_device["subgraph0_decode"] = DeviceType.CPU
-
-driver_prefill = GraphDriver(graph_prefill)
-driver_prefill.subgraphs[0].lower_to_top_level_ir()
-
-driver_decode = GraphDriver(graph_decode)
-driver_decode.subgraphs[0].lower_to_top_level_ir()
+print("[import-kimi_audio] Running graph transforms...")
+graph.fuse_ops([simply_fuse])
+graph.op_groups["subgraph0"] = graph.op_groups.pop("subgraph0")
+graph.group_map_device["subgraph0"] = DeviceType.CPU
+dr = GraphDriver(graph)
+dr.subgraphs[0].lower_to_top_level_ir()
 
 # ==============================================================================
-# 7. Save outputs
+# 7. Save outputs (output-dir ROOT)
 # ==============================================================================
 
-layer_dir = os.path.join(output_dir, "layer_partitioned")
-os.makedirs(layer_dir, exist_ok=True)
-print(f"\n[KimiAudio-Import] Writing MLIR files to: {layer_dir}")
+print("[import-kimi_audio] Writing MLIR files...")
+with open(os.path.join(a.output_dir, "subgraph0.mlir"), "w") as module_file:
+    print(dr.subgraphs[0]._imported_module, file=module_file)
+with open(os.path.join(a.output_dir, "forward.mlir"), "w") as module_file:
+    print(dr.construct_main_graph(True), file=module_file)
 
-with open(os.path.join(layer_dir, "subgraph0_prefill.mlir"), "w") as module_file:
-    print(driver_prefill.subgraphs[0]._imported_module, file=module_file)
-with open(os.path.join(layer_dir, "forward_prefill.mlir"), "w") as module_file:
-    print(driver_prefill.construct_main_graph(True), file=module_file)
+print("[import-kimi_audio] Writing weight data (arg0.data)...")
+all_param = (
+    numpy.concatenate([p.detach().cpu().numpy().reshape([-1]) for p in params])
+    .astype(numpy.float32, copy=False)
+)
+all_param.tofile(os.path.join(a.output_dir, "arg0.data"))
+print(
+    f"[import-kimi_audio] arg0.data: {all_param.nbytes / 1e9:.1f} GB "
+    f"({all_param.size:,} f32 elems)"
+)
 
-with open(os.path.join(layer_dir, "subgraph0_decode.mlir"), "w") as module_file:
-    print(driver_decode.subgraphs[0]._imported_module, file=module_file)
-with open(os.path.join(layer_dir, "forward_decode.mlir"), "w") as module_file:
-    print(driver_decode.construct_main_graph(True), file=module_file)
+# Print the forward ABI for the manifest/runner.
+fw_path = os.path.join(a.output_dir, "forward.mlir")
+abi_line = ""
+with open(fw_path) as f:
+    for line in f:
+        if "func.func @forward(" in line:
+            abi_line = line.strip()[:400]
+            break
+print(f"[import-kimi_audio] FORWARD ABI: {abi_line}")
 
-print(f"[KimiAudio-Import] Writing weight data...")
-# Export ALL model parameters directly (not just traced params)
-# This ensures complete weight coverage even with graph breaks.
-all_params_list = [p.detach().cpu().numpy().reshape([-1]) for p in model.parameters()]
-print(f"[KimiAudio-Import] Exporting {len(all_params_list)} parameter tensors "
-      f"({sum(p.nbytes for p in all_params_list)/1e9:.1f} GB total)")
-all_param = numpy.concatenate(all_params_list)
-all_param.tofile(os.path.join(output_dir, "arg0.data"))
-
-print("[KimiAudio-Import] Done!\n")
+print("[import-kimi_audio] Done!\n")
