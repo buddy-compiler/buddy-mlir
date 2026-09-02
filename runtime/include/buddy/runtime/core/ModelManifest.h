@@ -24,6 +24,7 @@
 //   HostSharedLib URIs module_attrs["vocab_uri"] → vocab file URI         (e.g.
 //   "file:vocab.txt") module_attrs["runner_library"] → runner plugin URI
 //   module_attrs["serving_library"] → resident serving plugin URI
+//   module_attrs["embedding_library"] → embedding plugin URI
 //   module_attrs["model_name"]→ model identifier      (e.g.
 //   "deepseek_r1_fp32")
 //
@@ -111,6 +112,8 @@ struct ModelManifest {
   std::string runnerLibraryPath;
   // absolute path to the resident serving plugin shared library.
   std::string servingLibraryPath;
+  // absolute path to the embedding model plugin shared library.
+  std::string embeddingLibraryPath;
   // Raw module attrs plus URI-resolved variants for attrs whose value is a URI.
   std::unordered_map<std::string, std::string> moduleAttrs;
   std::unordered_map<std::string, std::string> resolvedModuleAttrs;
@@ -555,6 +558,10 @@ struct ModelManifest {
         else if (key == "serving_library" && kv->value() &&
                  kv->value()->size() > 0)
           out.servingLibraryPath = resolveUri(kv->value(), "serving_library");
+        else if (key == "embedding_library" && kv->value() &&
+                 kv->value()->size() > 0)
+          out.embeddingLibraryPath =
+              resolveUri(kv->value(), "embedding_library");
         else if (key == "model_name" && kv->value() && kv->value()->size() > 0)
           out.modelName = value;
       }

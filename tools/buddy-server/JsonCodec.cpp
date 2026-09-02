@@ -256,6 +256,33 @@ DecodedCompletionRequest parseCompletionRequest(const std::string &body) {
   return decoded;
 }
 
+DecodedEmbeddingRequest parseEmbeddingRequest(const std::string &body) {
+  json::Value value = parseValue(body);
+  const json::Object &obj = asObject(value);
+
+  DecodedEmbeddingRequest decoded;
+  if (auto model = obj.getString("model"))
+    decoded.request.model = model->str();
+  else if (obj.find("model") != obj.end())
+    throw JsonCodecError("model must be a string");
+
+  auto inputIt = obj.find("input");
+  if (inputIt == obj.end())
+    throw JsonCodecError("missing required field: input");
+  if (auto stream = obj.getBoolean("stream"); stream && *stream)
+    throw JsonCodecError("streaming embeddings are not supported");
+  if (auto input = inputIt->second.getAsString()) {
+    decoded.request.input = input->str();
+    if (decoded.request.input.empty())
+      throw JsonCodecError("input must not be empty");
+  } else if (inputIt->second.getAsArray()) {
+    throw JsonCodecError("input arrays are not supported; provide one string");
+  } else {
+    throw JsonCodecError("input must be a string");
+  }
+  return decoded;
+}
+
 DecodedChatRequest parseChatCompletionRequest(const std::string &body) {
   json::Value value = parseValue(body);
   const json::Object &obj = asObject(value);
@@ -332,6 +359,26 @@ std::string toJson(const CompletionResult &result) {
                    {"stop_reason", finishReason(result.finishReason)},
                    {"usage", usageJson(result.usage)},
                    {"timings", timingsJson(result.timings)}});
+}
+
+std::string toOpenAIEmbeddingJson(const EmbeddingResult &result) {
+  json::Array embedding;
+  embedding.reserve(result.embedding.size());
+  for (float value : result.embedding)
+    embedding.emplace_back(value);
+
+  json::Array data;
+  data.emplace_back(json::Object{{"object", "embedding"},
+                                 {"embedding", std::move(embedding)},
+                                 {"index", 0}});
+  return serialize(json::Object{
+      {"object", "list"},
+      {"data", std::move(data)},
+      {"model", result.model},
+      {"usage",
+       json::Object{
+           {"prompt_tokens", static_cast<int64_t>(result.promptTokens)},
+           {"total_tokens", static_cast<int64_t>(result.totalTokens)}}}});
 }
 
 std::string toOpenAIChatJson(const CompletionResult &result) {

@@ -14,10 +14,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "EmbeddingModelPluginHandle.h"
 #include "JsonCodec.h"
 #include "ResidentModelPluginHandle.h"
 #include "SimpleHttpServer.h"
 
+#include "buddy/runtime/core/EmbeddingModel.h"
+#include "buddy/runtime/core/EmbeddingTypes.h"
 #include "buddy/runtime/core/ModelManifest.h"
 #include "buddy/runtime/core/ResidentModel.h"
 #include "buddy/runtime/core/ServingTypes.h"
@@ -29,8 +32,9 @@
 #include <mutex>
 #include <string>
 #include <thread>
-#include <vector>
 
+using buddy::runtime::EmbeddingModel;
+using buddy::runtime::EmbeddingModelConfig;
 using buddy::runtime::ModelLoadState;
 using buddy::runtime::ModelStatus;
 using buddy::runtime::ResidentModel;
@@ -42,15 +46,10 @@ using buddy::server::SimpleHttpServer;
 
 namespace {
 
-enum ServerLoadState {
-  Loading = 0,
-  Ready = 1,
-  Error = 2,
-};
+enum ServerLoadState { Loading = 0, Ready = 1, Error = 2 };
 
 void usage(const char *prog, std::ostream &os = std::cout) {
-  os << "Usage: " << prog << " [options]\n"
-     << "\n"
+  os << "Usage: " << prog << " [options]\n\n"
      << "Model source (one required):\n"
      << "  --model      <path.rax>  Model manifest (recommended)\n"
      << "  --model-so   <path.so>   Model shared library (legacy mode)\n"
@@ -58,14 +57,12 @@ void usage(const char *prog, std::ostream &os = std::cout) {
      << "  --vocab      <path>      Vocabulary file (legacy mode)\n"
      << "  --model-type <name>      Model type/name override for status\n"
      << "  --serving-so <path.so>   Resident model plugin shared library\n"
-     << "\n"
+     << "  --embedding-so <path.so> Embedding model plugin shared library\n\n"
      << "Server:\n"
      << "  --host       <addr>      Bind address (default 127.0.0.1)\n"
-     << "  --port       <port>      Bind port (default 8080)\n"
-     << "\n"
+     << "  --port       <port>      Bind port (default 8080)\n\n"
      << "Chat:\n"
-     << "  --chat-template <path>   Path to chat template JSON config\n"
-     << "\n"
+     << "  --chat-template <path>   Path to chat template JSON config\n\n"
      << "Other:\n"
      << "  --help / -h\n";
 }
@@ -94,6 +91,13 @@ template <typename Fn> void withJsonErrors(ResponseWriter &writer, Fn fn) {
   } catch (const std::exception &ex) {
     sendError(writer, 500, ex.what(), "internal_error");
   }
+}
+
+void handleUnsupported(ResponseWriter &writer, const char *endpoint) {
+  sendError(writer, 400,
+            std::string(endpoint) +
+                " is not supported by the embedding backend",
+            "unsupported_endpoint");
 }
 
 void handleCompletion(ResidentModel &model, const std::atomic<int> &loadState,
@@ -170,12 +174,37 @@ void handleTokenize(ResidentModel &model, const std::atomic<int> &loadState,
   });
 }
 
+void handleEmbedding(EmbeddingModel &model, const std::atomic<int> &loadState,
+                     const HttpRequest &request, ResponseWriter &writer) {
+  if (!isReady(loadState)) {
+    sendError(writer, 503, "model is not loaded", "model_not_ready");
+    return;
+  }
+
+  withJsonErrors(writer, [&] {
+    auto decoded = buddy::server::parseEmbeddingRequest(request.body);
+    const ModelStatus status = model.status();
+    if (!decoded.request.model.empty() &&
+        decoded.request.model != status.modelName) {
+      sendError(writer, 400,
+                "model '" + decoded.request.model +
+                    "' does not match loaded model '" + status.modelName + "'",
+                "model_not_found");
+      return;
+    }
+    auto result = model.embed(decoded.request);
+    writer.sendResponse(buddy::server::jsonResponse(
+        200, buddy::server::toOpenAIEmbeddingJson(result)));
+  });
+}
+
 } // namespace
 
 int main(int argc, char **argv) {
   ResidentModelConfig modelConfig;
   std::string modelType;
   std::string servingSoPath;
+  std::string embeddingSoPath;
   std::string host = "127.0.0.1";
   int port = 8080;
 
@@ -193,6 +222,8 @@ int main(int argc, char **argv) {
       modelType = argv[++i];
     else if (arg == "--serving-so" && i + 1 < argc)
       servingSoPath = argv[++i];
+    else if (arg == "--embedding-so" && i + 1 < argc)
+      embeddingSoPath = argv[++i];
     else if (arg == "--chat-template" && i + 1 < argc)
       modelConfig.chatTemplatePath = argv[++i];
     else if (arg == "--host" && i + 1 < argc)
@@ -227,46 +258,102 @@ int main(int argc, char **argv) {
     usage(argv[0], std::cerr);
     return 2;
   }
+  if (!servingSoPath.empty() && !embeddingSoPath.empty()) {
+    std::cerr
+        << "buddy-server: choose one of --serving-so or --embedding-so.\n";
+    return 2;
+  }
 
-  if (!modelConfig.raxPath.empty() && servingSoPath.empty()) {
+  bool embeddingMode = !embeddingSoPath.empty();
+  if (!modelConfig.raxPath.empty()) {
     try {
       auto manifest =
           buddy::runtime::ModelManifest::loadFromRax(modelConfig.raxPath);
-      servingSoPath = manifest.servingLibraryPath;
+      if (servingSoPath.empty() && embeddingSoPath.empty()) {
+        const bool hasServing = !manifest.servingLibraryPath.empty();
+        const bool hasEmbedding = !manifest.embeddingLibraryPath.empty();
+        if (hasServing == hasEmbedding) {
+          if (hasServing)
+            std::cerr << "buddy-server: manifest provides both serving_library "
+                         "and embedding_library; pass --serving-so or "
+                         "--embedding-so explicitly.\n";
+          else
+            std::cerr << "buddy-server: manifest has neither serving_library "
+                         "nor embedding_library.\n";
+          return 1;
+        }
+        if (hasEmbedding) {
+          embeddingSoPath = manifest.embeddingLibraryPath;
+          embeddingMode = true;
+        } else {
+          servingSoPath = manifest.servingLibraryPath;
+        }
+      }
     } catch (const std::exception &ex) {
       std::cerr << "buddy-server: failed to read model manifest: " << ex.what()
                 << "\n";
       return 1;
     }
   }
-  if (servingSoPath.empty()) {
-    std::cerr << "buddy-server: no resident serving plugin specified.\n";
-    if (!modelConfig.raxPath.empty()) {
-      std::cerr << "The .rax manifest has no serving_library; pass "
-                   "--serving-so <path.so> or rebuild the .rax with "
-                   "serving_library.\n";
-    } else {
-      std::cerr << "Pass --serving-so <path.so> for legacy --model-so mode.\n";
+
+  std::unique_ptr<buddy::server::ResidentModelPluginHandle> residentPlugin;
+  std::unique_ptr<buddy::server::EmbeddingModelPluginHandle> embeddingPlugin;
+  buddy::server::ResidentModelPluginHandle::ModelPtr residentModel(
+      nullptr, [](ResidentModel *m) { delete m; });
+  buddy::server::EmbeddingModelPluginHandle::ModelPtr embeddingModel(
+      nullptr, [](EmbeddingModel *m) { delete m; });
+
+  if (embeddingMode) {
+    if (embeddingSoPath.empty()) {
+      std::cerr << "buddy-server: no embedding plugin specified.\n";
+      return 1;
     }
-    return 1;
+    try {
+      embeddingPlugin =
+          std::make_unique<buddy::server::EmbeddingModelPluginHandle>(
+              embeddingSoPath);
+      if (modelType.empty()) {
+        const std::string pluginType = embeddingPlugin->modelType();
+        modelType = pluginType.empty() ? "embedding" : pluginType;
+      }
+      embeddingModel = embeddingPlugin->createModel();
+    } catch (const std::exception &ex) {
+      std::cerr << ex.what() << "\n";
+      return 1;
+    }
+  } else {
+    if (servingSoPath.empty()) {
+      std::cerr << "buddy-server: no resident serving plugin specified.\n";
+      if (!modelConfig.raxPath.empty())
+        std::cerr
+            << "The .rax manifest has no serving_library; pass --serving-so "
+               "<path.so> or rebuild the .rax with serving_library.\n";
+      else
+        std::cerr
+            << "Pass --serving-so <path.so> for legacy --model-so mode.\n";
+      return 1;
+    }
+    try {
+      residentPlugin =
+          std::make_unique<buddy::server::ResidentModelPluginHandle>(
+              servingSoPath);
+      if (modelType.empty()) {
+        const std::string pluginType = residentPlugin->modelType();
+        modelType = pluginType.empty() ? "plugin" : pluginType;
+      }
+      residentModel = residentPlugin->createModel();
+    } catch (const std::exception &ex) {
+      std::cerr << ex.what() << "\n";
+      return 1;
+    }
   }
 
-  std::unique_ptr<buddy::server::ResidentModelPluginHandle> pluginHandle;
-  buddy::server::ResidentModelPluginHandle::ModelPtr model(
-      nullptr, [](ResidentModel *m) { delete m; });
-  try {
-    pluginHandle = std::make_unique<buddy::server::ResidentModelPluginHandle>(
-        servingSoPath);
-    if (modelType.empty()) {
-      const std::string pluginType = pluginHandle->modelType();
-      modelType = pluginType.empty() ? "plugin" : pluginType;
-    }
-    model = pluginHandle->createModel();
-  } catch (const std::exception &ex) {
-    std::cerr << ex.what() << "\n";
-    return 1;
-  }
-  ResidentModel &residentModel = *model;
+  EmbeddingModelConfig embeddingConfig;
+  embeddingConfig.raxPath = modelConfig.raxPath;
+  embeddingConfig.modelSoPath = modelConfig.modelSoPath;
+  embeddingConfig.weightPaths = modelConfig.weightPaths;
+  embeddingConfig.vocabPath = modelConfig.vocabPath;
+  embeddingConfig.modelName = modelConfig.modelName;
 
   std::atomic<int> loadState{Loading};
   std::mutex loadErrorMutex;
@@ -276,14 +363,17 @@ int main(int argc, char **argv) {
   server.get("/health", [&](const HttpRequest &, ResponseWriter &writer) {
     const int state = loadState.load(std::memory_order_acquire);
     if (state == Ready) {
-      writer.sendResponse(buddy::server::jsonResponse(
-          200, buddy::server::toJson(residentModel.status())));
+      ModelStatus status =
+          embeddingMode ? embeddingModel->status() : residentModel->status();
+      writer.sendResponse(
+          buddy::server::jsonResponse(200, buddy::server::toJson(status)));
       return;
     }
 
     ModelStatus status;
     status.modelName =
         modelConfig.modelName.empty() ? modelType : modelConfig.modelName;
+    status.backend = embeddingMode ? "cpu" : "";
     if (state == Error) {
       status.state = ModelLoadState::Error;
       std::lock_guard<std::mutex> lock(loadErrorMutex);
@@ -295,35 +385,88 @@ int main(int argc, char **argv) {
     writer.sendResponse(
         buddy::server::jsonResponse(200, buddy::server::toJson(status)));
   });
-  server.post("/completion",
-              [&](const HttpRequest &request, ResponseWriter &writer) {
-                handleCompletion(residentModel, loadState, request, writer);
-              });
-  server.post("/v1/chat/completions",
-              [&](const HttpRequest &request, ResponseWriter &writer) {
-                handleChat(residentModel, loadState, request, writer);
-              });
-  server.post("/tokenize",
-              [&](const HttpRequest &request, ResponseWriter &writer) {
-                handleTokenize(residentModel, loadState, request, writer);
-              });
 
-  std::thread loadThread([&residentModel, modelConfig, &loadState, &loadError,
-                          &loadErrorMutex] {
-    try {
-      std::cerr << "[buddy-server] loading model...\n";
-      residentModel.load(modelConfig);
-      loadState.store(Ready, std::memory_order_release);
-      std::cerr << "[buddy-server] model loaded\n";
-    } catch (const std::exception &ex) {
-      {
-        std::lock_guard<std::mutex> lock(loadErrorMutex);
-        loadError = ex.what();
+  if (embeddingMode) {
+    server.post("/v1/embeddings",
+                [&](const HttpRequest &request, ResponseWriter &writer) {
+                  handleEmbedding(*embeddingModel, loadState, request, writer);
+                });
+    server.post("/embeddings",
+                [&](const HttpRequest &request, ResponseWriter &writer) {
+                  handleEmbedding(*embeddingModel, loadState, request, writer);
+                });
+    server.post("/completion",
+                [&](const HttpRequest &, ResponseWriter &writer) {
+                  handleUnsupported(writer, "/completion");
+                });
+    server.post("/v1/chat/completions",
+                [&](const HttpRequest &, ResponseWriter &writer) {
+                  handleUnsupported(writer, "/v1/chat/completions");
+                });
+    server.post("/tokenize", [&](const HttpRequest &, ResponseWriter &writer) {
+      handleUnsupported(writer, "/tokenize");
+    });
+  } else {
+    server.post("/completion",
+                [&](const HttpRequest &request, ResponseWriter &writer) {
+                  handleCompletion(*residentModel, loadState, request, writer);
+                });
+    server.post("/v1/chat/completions",
+                [&](const HttpRequest &request, ResponseWriter &writer) {
+                  handleChat(*residentModel, loadState, request, writer);
+                });
+    server.post("/tokenize",
+                [&](const HttpRequest &request, ResponseWriter &writer) {
+                  handleTokenize(*residentModel, loadState, request, writer);
+                });
+    server.post("/v1/embeddings",
+                [&](const HttpRequest &, ResponseWriter &writer) {
+                  handleUnsupported(writer, "/v1/embeddings");
+                });
+    server.post("/embeddings",
+                [&](const HttpRequest &, ResponseWriter &writer) {
+                  handleUnsupported(writer, "/embeddings");
+                });
+  }
+
+  std::thread loadThread;
+  if (embeddingMode) {
+    loadThread = std::thread([&embeddingModel, &embeddingConfig, &loadState,
+                              &loadError, &loadErrorMutex] {
+      try {
+        std::cerr << "[buddy-server] loading embedding model...\n";
+        embeddingModel->load(embeddingConfig);
+        loadState.store(Ready, std::memory_order_release);
+        std::cerr << "[buddy-server] embedding model loaded\n";
+      } catch (const std::exception &ex) {
+        {
+          std::lock_guard<std::mutex> lock(loadErrorMutex);
+          loadError = ex.what();
+        }
+        loadState.store(Error, std::memory_order_release);
+        std::cerr << "[buddy-server] failed to load embedding model: "
+                  << ex.what() << "\n";
       }
-      loadState.store(Error, std::memory_order_release);
-      std::cerr << "[buddy-server] failed to load model: " << ex.what() << "\n";
-    }
-  });
+    });
+  } else {
+    loadThread = std::thread([&residentModel, &modelConfig, &loadState,
+                              &loadError, &loadErrorMutex] {
+      try {
+        std::cerr << "[buddy-server] loading model...\n";
+        residentModel->load(modelConfig);
+        loadState.store(Ready, std::memory_order_release);
+        std::cerr << "[buddy-server] model loaded\n";
+      } catch (const std::exception &ex) {
+        {
+          std::lock_guard<std::mutex> lock(loadErrorMutex);
+          loadError = ex.what();
+        }
+        loadState.store(Error, std::memory_order_release);
+        std::cerr << "[buddy-server] failed to load model: " << ex.what()
+                  << "\n";
+      }
+    });
+  }
 
   try {
     server.listen(host, port);
@@ -335,6 +478,5 @@ int main(int argc, char **argv) {
   }
   if (loadThread.joinable())
     loadThread.join();
-
   return 0;
 }

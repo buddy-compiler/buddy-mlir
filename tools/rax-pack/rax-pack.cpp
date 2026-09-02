@@ -66,6 +66,7 @@ enum class PayloadKind : uint16_t {
   CodeObject = 2,
   Vocab = 3,
   ServingPlugin = 4,
+  EmbeddingPlugin = 5,
 };
 
 struct PayloadInput {
@@ -383,6 +384,7 @@ int main(int argc, char **argv) {
     std::string vocabUriAttr;
     std::string runnerLibraryAttr;
     std::string servingLibraryAttr;
+    std::string embeddingLibraryAttr;
     std::vector<std::pair<std::string, std::string>> extraModuleAttrs;
     if (auto v = rhalMod.getModelName())
       modelNameAttr = v->str();
@@ -392,12 +394,14 @@ int main(int argc, char **argv) {
       runnerLibraryAttr = v->str();
     if (auto v = rhalMod.getServingLibrary())
       servingLibraryAttr = v->str();
+    if (auto v = rhalMod.getEmbeddingLibrary())
+      embeddingLibraryAttr = v->str();
 
     for (auto namedAttr : rhalMod->getAttrs()) {
       const std::string key = namedAttr.getName().str();
       if (key == "sym_name" || key == "version" || key == "model_name" ||
           key == "vocab_uri" || key == "runner_library" ||
-          key == "serving_library")
+          key == "serving_library" || key == "embedding_library")
         continue;
       if (auto stringAttr =
               mlir::dyn_cast<mlir::StringAttr>(namedAttr.getValue()))
@@ -557,6 +561,9 @@ int main(int argc, char **argv) {
     if (!servingLibraryAttr.empty())
       registerPayload(PayloadKind::ServingPlugin, servingLibraryAttr,
                       "module attr serving_library");
+    if (!embeddingLibraryAttr.empty())
+      registerPayload(PayloadKind::EmbeddingPlugin, embeddingLibraryAttr,
+                      "module attr embedding_library");
 
     // ── Build FlatBuffer ──────────────────────────────────────────────────
 
@@ -577,6 +584,9 @@ int main(int argc, char **argv) {
     if (!servingLibraryAttr.empty())
       modAttrs.push_back(CreateKV(b, b.CreateString("serving_library"),
                                   b.CreateString(servingLibraryAttr)));
+    if (!embeddingLibraryAttr.empty())
+      modAttrs.push_back(CreateKV(b, b.CreateString("embedding_library"),
+                                  b.CreateString(embeddingLibraryAttr)));
     for (const auto &attr : extraModuleAttrs)
       modAttrs.push_back(
           CreateKV(b, b.CreateString(attr.first), b.CreateString(attr.second)));

@@ -33,7 +33,9 @@ def normalize_uri(raw: str) -> str:
     return f"file:{s}"
 
 
-def gen_manifest(spec: dict, runner_library: str) -> str:
+def gen_manifest(
+    spec: dict, runner_library: str, embedding_library: str | None = None
+) -> str:
     model_id = spec.get("model_id", f"{spec['model_family']}_{spec['variant']}")
     params_size = int(spec["params_size"])
     max_seq_len = int(spec["max_seq_len"])
@@ -52,7 +54,14 @@ def gen_manifest(spec: dict, runner_library: str) -> str:
     p(f'    max_seq_len = "{max_seq_len}",')
     p(f'    max_position_embeddings = "{max_position_embeddings}",')
     p(f'    hidden_size = "{hidden_size}",')
-    p(f'    runner_library = "{runner_library}"}} {{')
+    p(
+        f'    runner_library = "{runner_library}"'
+        + ("," if embedding_library else "")
+    )
+    if embedding_library:
+        p(f'    embedding_library = "{normalize_uri(embedding_library)}"}} {{')
+    else:
+        lines[-1] += "} {"
     p("")
     p('  rhal.constant @params {id = 1 : i32, storage = "external",')
     p(f"                         type = tensor<{params_size}xf32>,")
@@ -101,6 +110,11 @@ def main() -> int:
         help="Runner plugin library URI/name for module attrs.",
     )
     parser.add_argument(
+        "--embedding-library",
+        default=None,
+        help="Embedding plugin library URI/name for module attrs.",
+    )
+    parser.add_argument(
         "-o", "--output", default="-", help="Output path (- for stdout)"
     )
     args = parser.parse_args()
@@ -108,7 +122,9 @@ def main() -> int:
     with open(args.spec) as f:
         spec = json.load(f)
 
-    text = gen_manifest(spec, normalize_uri(args.runner_library))
+    text = gen_manifest(
+        spec, normalize_uri(args.runner_library), args.embedding_library
+    )
 
     if args.output == "-":
         sys.stdout.write(text)

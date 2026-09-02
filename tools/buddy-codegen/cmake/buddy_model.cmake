@@ -80,6 +80,8 @@ endif()
 #   [RUNNER_HDR   <file.h>]                 model-specific runner header
 #   [SERVING_PLUGIN_SRC <file.cpp>]         resident model plugin wrapper source
 #   [SERVING_LIBRARY <URI_OR_NAME>]         optional resident serving plugin URI
+#   [EMBEDDING_PLUGIN_SRC <file.cpp>]       embedding model plugin wrapper source
+#   [EMBEDDING_LIBRARY <URI_OR_NAME>]       optional embedding plugin URI
 #   [EXTRA_SRCS <file.cpp>...]              optional model runtime sources
 #   [HF_CONFIG    <config.json>]            optional HuggingFace config path
 #   [LOCAL_MODEL  <dir>]                    optional: HF snapshot dir for import
@@ -159,7 +161,7 @@ function(buddy_add_model)
   cmake_parse_arguments(
     MDL                                      # prefix
     ""                                       # flags
-    "NAME;SPEC;RUNNER_SRC;RUNNER_PLUGIN_SRC;RUNNER_HDR;SERVING_PLUGIN_SRC;SERVING_LIBRARY;HF_CONFIG;LOCAL_MODEL;BUILD_DIR;MLIR_DIR;NUM_THREADS;LLC_ATTRS;COMPILE_JOBS;TIERED_KV_CACHE;MODEL_KIND;IMPORT_SCRIPT;MANIFEST_SCRIPT;LOCAL_MODEL_ENV;MODEL_SO_NAME;TEMPLATE_PARTITION_CAPABLE"
+    "NAME;SPEC;RUNNER_SRC;RUNNER_PLUGIN_SRC;RUNNER_HDR;SERVING_PLUGIN_SRC;SERVING_LIBRARY;EMBEDDING_PLUGIN_SRC;EMBEDDING_LIBRARY;HF_CONFIG;LOCAL_MODEL;BUILD_DIR;MLIR_DIR;NUM_THREADS;LLC_ATTRS;COMPILE_JOBS;TIERED_KV_CACHE;MODEL_KIND;IMPORT_SCRIPT;MANIFEST_SCRIPT;LOCAL_MODEL_ENV;MODEL_SO_NAME;TEMPLATE_PARTITION_CAPABLE"
     "EXTRA_SRCS;TIERED_CACHE_SIZES;ASSET_FILES;RUNTIME_LINK_LIBS" # multi-value
     ${ARGN}
   )
@@ -260,6 +262,13 @@ function(buddy_add_model)
     list(APPEND MDL_GEN_MANIFEST_ARGS
       --serving-library "${MDL_SERVING_LIBRARY}")
   endif()
+  if(MDL_EMBEDDING_PLUGIN_SRC AND NOT MDL_EMBEDDING_LIBRARY)
+    set(MDL_EMBEDDING_LIBRARY "${MDL_NAME}_embedding.so")
+  endif()
+  if(MDL_EMBEDDING_LIBRARY)
+    list(APPEND MDL_GEN_MANIFEST_ARGS
+      --embedding-library "${MDL_EMBEDDING_LIBRARY}")
+  endif()
 
   if(IS_RVV_CROSSCOMPILE)
     if(NOT RISCV_GNU_TOOLCHAIN)
@@ -332,6 +341,7 @@ function(buddy_add_model)
   set(RUNNER_PLUGIN_NAME "${MDL_NAME}_runner.so")
   set(IMPORT_STAMP "${BIN}/.buddy_import_done")
   set(SERVING_PLUGIN_TARGET "")
+  set(EMBEDDING_PLUGIN_TARGET "")
 
   # ── gen_config.py ─────────────────────────────────────────────────────────
   if(MDL_MODEL_KIND STREQUAL "single_forward")
@@ -654,6 +664,22 @@ function(buddy_add_model)
     )
     target_link_libraries(${SERVING_PLUGIN_TARGET} PRIVATE ${LIB_TARGET})
     target_compile_features(${SERVING_PLUGIN_TARGET} PRIVATE cxx_std_17)
+  endif()
+
+  if(MDL_EMBEDDING_PLUGIN_SRC)
+    set(EMBEDDING_PLUGIN_TARGET "buddy_models_${MDL_NAME}_embedding")
+    add_library(${EMBEDDING_PLUGIN_TARGET} SHARED
+      "${CMAKE_CURRENT_SOURCE_DIR}/${MDL_EMBEDDING_PLUGIN_SRC}"
+    )
+    set_target_properties(${EMBEDDING_PLUGIN_TARGET} PROPERTIES
+      LIBRARY_OUTPUT_DIRECTORY "${BIN}"
+      RUNTIME_OUTPUT_DIRECTORY "${BIN}"
+      OUTPUT_NAME "${MDL_NAME}_embedding"
+      PREFIX ""
+    )
+    target_link_libraries(${EMBEDDING_PLUGIN_TARGET} PRIVATE ${LIB_TARGET})
+    target_compile_features(${EMBEDDING_PLUGIN_TARGET} PRIVATE cxx_std_17)
+    install(TARGETS ${EMBEDDING_PLUGIN_TARGET} EXPORT BuddyMLIRTargets COMPONENT buddy_runtime)
   endif()
 
   # ════════════════════════════════════════════════════════════════════════════
@@ -1147,6 +1173,7 @@ function(buddy_add_model)
     "${GEN_RHAL}"
     "${MODEL_SO}"
     ${RUNNER_PLUGIN_TARGET}
+    ${EMBEDDING_PLUGIN_TARGET}
     ${MDL_ASSET_DSTS})
   if(MDL_MODEL_KIND STREQUAL "single_forward")
     list(APPEND MDL_STAGE4_DEPS "${BIN}/arg0.data")

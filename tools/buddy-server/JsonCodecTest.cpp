@@ -23,6 +23,8 @@
 
 using buddy::server::parseChatCompletionRequest;
 using buddy::server::parseCompletionRequest;
+using buddy::server::parseEmbeddingRequest;
+using buddy::server::toOpenAIEmbeddingJson;
 
 namespace {
 
@@ -72,6 +74,30 @@ int main() {
     parseChatCompletionRequest(
         R"({"messages":[{"role":"user","content":[{"type":"image_url","image_url":{"url":"data:image/png;base64,AA=="}}]}]})");
   });
+
+  auto embedding =
+      parseEmbeddingRequest(R"({"model":"bge_m3_base","input":"hello world"})");
+  assert(embedding.request.model == "bge_m3_base");
+  assert(embedding.request.input == "hello world");
+  expectFailure([] { parseEmbeddingRequest(R"({"model":"bge_m3_base"})"); });
+  expectFailure([] {
+    parseEmbeddingRequest(R"({"model":"bge_m3_base","input":["a","b"]})");
+  });
+  expectFailure(
+      [] { parseEmbeddingRequest(R"({"model":"bge_m3_base","input":3})"); });
+  expectFailure([] {
+    parseEmbeddingRequest(
+        R"({"model":"bge_m3_base","input":"a","stream":true})");
+  });
+  buddy::runtime::EmbeddingResult result;
+  result.model = "bge_m3_base";
+  result.embedding = {0.5f, -0.5f};
+  result.promptTokens = 2;
+  result.totalTokens = 2;
+  const std::string json = toOpenAIEmbeddingJson(result);
+  assert(json.find("\"object\":\"list\"") != std::string::npos);
+  assert(json.find("\"index\":0") != std::string::npos);
+  assert(json.find("\"prompt_tokens\":2") != std::string::npos);
 
   std::cout << "JsonCodec tests passed\n";
   return 0;
