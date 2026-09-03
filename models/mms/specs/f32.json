@@ -1,0 +1,18 @@
+{
+  "model_family": "mms",
+  "variant": "f32",
+  "model_id": "facebook/mms-tts-eng",
+  "hf_model_path": "facebook/mms-tts-eng",
+  "params_size": 14327424,
+  "max_seq_len": 30,
+  "hidden_size": 192,
+  "flow_size": 192,
+  "spectrogram_bins": 80,
+  "upsample_rates": [8, 8, 2, 2],
+  "num_hidden_layers": 6,
+  "vocab_size": 38,
+  "so_name": "mms_model.so",
+  "weight_file": "arg0.data",
+  "tokenizer_file": "vocab.json",
+  "num_threads": 48
+}
