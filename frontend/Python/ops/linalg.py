@@ -13203,9 +13203,11 @@ def mega_conv2d_op(node, symbol_table):
             ir.AffineMap.get(
                 8,
                 0,
-                [dims[0], dims[3], dims[1], dims[2]]
-                if node._final_output
-                else [dims[0], dims[1], dims[2], dims[3]],
+                (
+                    [dims[0], dims[3], dims[1], dims[2]]
+                    if node._final_output
+                    else [dims[0], dims[1], dims[2], dims[3]]
+                ),
             ),
         ]
         reduction_count = 4
@@ -13221,9 +13223,11 @@ def mega_conv2d_op(node, symbol_table):
             ir.AffineMap.get(
                 9,
                 0,
-                [dims[0], dims[3], dims[1], dims[2]]
-                if node._final_output
-                else [dims[0], dims[1], dims[2], dims[3]],
+                (
+                    [dims[0], dims[3], dims[1], dims[2]]
+                    if node._final_output
+                    else [dims[0], dims[1], dims[2], dims[3]]
+                ),
             ),
         ]
         reduction_count = 5
@@ -13389,9 +13393,11 @@ def mega_max_pool2d_op(node, symbol_table):
     output_map = ir.AffineMap.get(
         4,
         0,
-        [dims[0], dims[3], pooled_h, pooled_w]
-        if node._final_output
-        else [dims[0], pooled_h, pooled_w, dims[3]],
+        (
+            [dims[0], dims[3], pooled_h, pooled_w]
+            if node._final_output
+            else [dims[0], pooled_h, pooled_w, dims[3]]
+        ),
     )
     op = linalg.GenericOp(
         [output_type],
@@ -13477,7 +13483,10 @@ def mega_int8_elementwise_op(node, symbol_table, kind):
     lhs_type = ir.RankedTensorType(lhs.type)
     rhs_type = ir.RankedTensorType(rhs.type)
     if lhs_type.element_type != i8 or rhs_type.element_type != i8:
-        raise ValueError(f"Mega INT8 {kind} operands must be INT8")
+        raise ValueError(
+            f"Mega INT8 {kind} operands must be INT8 for {node.name}: "
+            f"{node.args[0]}={lhs_type}, {node.args[1]}={rhs_type}"
+        )
     lhs_shape = [int(x) for x in lhs_type.shape]
     rhs_shape = [int(x) for x in rhs_type.shape]
     if len(lhs_shape) != 4 or len(rhs_shape) != 4:
@@ -13542,6 +13551,149 @@ def mega_int8_elementwise_op(node, symbol_table, kind):
     return op.result
 
 
+def mega_channel_slice_op(node, symbol_table):
+    source = symbol_table.get((str(node.args[0]), 0))
+    if source is None:
+        raise ValueError(f"missing Mega channel-slice input for {node.name}")
+    i8 = ir.IntegerType.get_signless(8)
+    source_type = ir.RankedTensorType(source.type)
+    if source_type.element_type != i8 or len(source_type.shape) != 4:
+        raise ValueError(
+            f"Mega channel-slice requires rank-4 INT8 at {node.name}"
+        )
+    n, c, h, w = node._output_shape
+    output_shape = [n, h, w, c]
+    output_type = ir.RankedTensorType.get(output_shape, i8)
+    output = tensor.EmptyOp(output_shape, i8)
+    dims = [ir.AffineExpr.get_dim(i) for i in range(4)]
+    op = linalg.GenericOp(
+        [output_type],
+        [source],
+        [output],
+        ir.ArrayAttr.get(
+            [
+                ir.AffineMapAttr.get(
+                    ir.AffineMap.get(
+                        4,
+                        0,
+                        [dims[0], dims[1], dims[2], dims[3] + node._offset],
+                    )
+                ),
+                ir.AffineMapAttr.get(ir.AffineMap.get_identity(4)),
+            ]
+        ),
+        ir.ArrayAttr.get(
+            [ir.Attribute.parse("#linalg.iterator_type<parallel>")] * 4
+        ),
+    )
+    op.operation.attributes["buckyball.mega_channel_slice"] = ir.BoolAttr.get(
+        True
+    )
+    op.operation.attributes["offset"] = ir.IntegerAttr.get(
+        ir.IntegerType.get_signless(64), node._offset
+    )
+    block = ir.Block.create_at_start(op.region, [i8, i8])
+    block.append(linalg.YieldOp([block.arguments[0]]))
+    return op.result
+
+
+def mega_channel_concat_op(node, symbol_table):
+    inputs = [symbol_table.get((str(name), 0)) for name in node.args]
+    if not inputs or any(value is None for value in inputs):
+        raise ValueError(f"missing Mega channel-concat input for {node.name}")
+    i8 = ir.IntegerType.get_signless(8)
+    input_shapes = [
+        list(ir.RankedTensorType(value.type).shape) for value in inputs
+    ]
+    if any(
+        ir.RankedTensorType(value.type).element_type != i8 or len(shape) != 4
+        for value, shape in zip(inputs, input_shapes)
+    ):
+        raise ValueError(
+            f"Mega channel-concat requires rank-4 INT8 at {node.name}"
+        )
+    n, c, h, w = node._output_shape
+    output_shape = [n, h, w, c]
+    if (
+        any(shape[:3] != [n, h, w] for shape in input_shapes)
+        or sum(shape[3] for shape in input_shapes) != c
+    ):
+        raise ValueError(f"Mega channel-concat shape mismatch at {node.name}")
+    output_type = ir.RankedTensorType.get(output_shape, i8)
+    output = tensor.EmptyOp(output_shape, i8)
+    dims = [ir.AffineExpr.get_dim(i) for i in range(4)]
+    zero = ir.AffineExpr.get_constant(0)
+    maps = [
+        ir.AffineMapAttr.get(
+            ir.AffineMap.get(4, 0, [dims[0], dims[1], dims[2], zero])
+        )
+        for _ in inputs
+    ]
+    maps.append(ir.AffineMapAttr.get(ir.AffineMap.get_identity(4)))
+    op = linalg.GenericOp(
+        [output_type],
+        inputs,
+        [output],
+        ir.ArrayAttr.get(maps),
+        ir.ArrayAttr.get(
+            [ir.Attribute.parse("#linalg.iterator_type<parallel>")] * 4
+        ),
+    )
+    op.operation.attributes["buckyball.mega_channel_concat"] = ir.BoolAttr.get(
+        True
+    )
+    op.operation.attributes["segments"] = ir.DenseI64ArrayAttr.get(
+        [shape[3] for shape in input_shapes]
+    )
+    block = ir.Block.create_at_start(op.region, [i8] * (len(inputs) + 1))
+    block.append(linalg.YieldOp([block.arguments[-1]]))
+    return op.result
+
+
+def mega_resize_nearest_op(node, symbol_table):
+    source = symbol_table.get((str(node.args[0]), 0))
+    if source is None:
+        raise ValueError(f"missing Mega resize input for {node.name}")
+    i8 = ir.IntegerType.get_signless(8)
+    source_type = ir.RankedTensorType(source.type)
+    if source_type.element_type != i8 or len(source_type.shape) != 4:
+        raise ValueError(f"Mega resize requires rank-4 INT8 at {node.name}")
+    n, c, h, w = node._output_shape
+    output_shape = [n, h, w, c]
+    output_type = ir.RankedTensorType.get(output_shape, i8)
+    output = tensor.EmptyOp(output_shape, i8)
+    dims = [ir.AffineExpr.get_dim(i) for i in range(4)]
+    zero = ir.AffineExpr.get_constant(0)
+    op = linalg.GenericOp(
+        [output_type],
+        [source],
+        [output],
+        ir.ArrayAttr.get(
+            [
+                ir.AffineMapAttr.get(
+                    ir.AffineMap.get(4, 0, [dims[0], zero, zero, dims[3]])
+                ),
+                ir.AffineMapAttr.get(ir.AffineMap.get_identity(4)),
+            ]
+        ),
+        ir.ArrayAttr.get(
+            [ir.Attribute.parse("#linalg.iterator_type<parallel>")] * 4
+        ),
+    )
+    op.operation.attributes["buckyball.mega_resize_nearest"] = ir.BoolAttr.get(
+        True
+    )
+    op.operation.attributes["scale_h"] = ir.IntegerAttr.get(
+        ir.IntegerType.get_signless(64), node._scale_h
+    )
+    op.operation.attributes["scale_w"] = ir.IntegerAttr.get(
+        ir.IntegerType.get_signless(64), node._scale_w
+    )
+    block = ir.Block.create_at_start(op.region, [i8, i8])
+    block.append(linalg.YieldOp([block.arguments[0]]))
+    return op.result
+
+
 def mega_kernel_op(node, symbol_table):
     if not node._stages:
         raise ValueError(f"MegaKernel {node.name} has no stages")
@@ -13555,6 +13707,12 @@ def mega_kernel_op(node, symbol_table):
             result = mega_max_pool2d_op(stage, symbol_table)
         elif isinstance(stage, MegaGlobalAvgPoolOp):
             result = mega_global_avg_pool_op(stage, symbol_table)
+        elif isinstance(stage, MegaChannelSliceOp):
+            result = mega_channel_slice_op(stage, symbol_table)
+        elif isinstance(stage, MegaChannelConcatOp):
+            result = mega_channel_concat_op(stage, symbol_table)
+        elif isinstance(stage, MegaResizeNearestOp):
+            result = mega_resize_nearest_op(stage, symbol_table)
         elif isinstance(stage, MegaInt8MulOp):
             result = mega_int8_elementwise_op(stage, symbol_table, "mul")
         elif isinstance(stage, MegaInt8AddOp):

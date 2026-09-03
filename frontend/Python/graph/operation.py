@@ -513,6 +513,24 @@ class MegaGlobalAvgPoolOp(Op):
         self._op_type = OpType.ReduceType
 
 
+class MegaChannelSliceOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReshapeType
+
+
+class MegaChannelConcatOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ConcatType
+
+
+class MegaResizeNearestOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReshapeType
+
+
 class MegaInt8MulOp(Op):
     def __init__(self) -> None:
         super().__init__()
