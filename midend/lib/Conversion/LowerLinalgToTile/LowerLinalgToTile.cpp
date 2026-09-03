@@ -383,6 +383,7 @@ public:
         auto lhsScale = current->getAttrOfType<FloatAttr>("lhs_scale");
         auto rhsScale = current->getAttrOfType<FloatAttr>("rhs_scale");
         auto outputScale = current->getAttrOfType<FloatAttr>("output_scale");
+        auto activation = current->getAttrOfType<IntegerAttr>("activation");
         if (!lhsType || !rhsType || !outputType || !lhsType.hasStaticShape() ||
             !rhsType.hasStaticShape() || !outputType.hasStaticShape() ||
             lhsType.getRank() != 4 || rhsType.getRank() != 4 ||
@@ -390,13 +391,14 @@ public:
             !lhsType.getElementType().isInteger(8) ||
             !rhsType.getElementType().isInteger(8) ||
             !outputType.getElementType().isInteger(8) || !lhsScale ||
-            !rhsScale || !outputScale ||
+            !rhsScale || !outputScale || !activation ||
             !std::isfinite(lhsScale.getValueAsDouble()) ||
             !std::isfinite(rhsScale.getValueAsDouble()) ||
             !std::isfinite(outputScale.getValueAsDouble()) ||
             lhsScale.getValueAsDouble() <= 0.0 ||
             rhsScale.getValueAsDouble() <= 0.0 ||
-            outputScale.getValueAsDouble() <= 0.0)
+            outputScale.getValueAsDouble() <= 0.0 || activation.getInt() < 0 ||
+            activation.getInt() > 1)
           return current.emitError("Mega INT8 elementwise contract is invalid");
         for (int64_t dimension = 0; dimension < 4; ++dimension) {
           int64_t out = outputType.getShape()[dimension];
@@ -413,11 +415,13 @@ public:
         if (int8Mul)
           tile::TileMegaInt8MulOp::create(
               rewriter, current.getLoc(), current.getInputs()[0],
-              current.getInputs()[1], output, lhsScale, rhsScale, outputScale);
+              current.getInputs()[1], output, lhsScale, rhsScale, outputScale,
+              activation);
         else
           tile::TileMegaInt8AddOp::create(
               rewriter, current.getLoc(), current.getInputs()[0],
-              current.getInputs()[1], output, lhsScale, rhsScale, outputScale);
+              current.getInputs()[1], output, lhsScale, rhsScale, outputScale,
+              activation);
         continue;
       }
 
@@ -425,14 +429,14 @@ public:
         return current.emitError("Mega compute stage has the wrong arity");
       auto activation = current->getAttrOfType<IntegerAttr>("activation");
       auto finalOutput = current->getAttrOfType<BoolAttr>("final_output");
+      auto outputScale = current->getAttrOfType<FloatAttr>("output_scale");
       if (!activation || activation.getInt() < 0 || activation.getInt() > 2 ||
-          !finalOutput ||
+          !finalOutput || !outputScale ||
+          !std::isfinite(outputScale.getValueAsDouble()) ||
+          outputScale.getValueAsDouble() <= 0.0 ||
           (finalOutput.getValue() && index + 1 != stages.size()))
         return current.emitError(
             "MegaKernel final_output is only legal on the last stage");
-      if (activation.getInt() == 2 && finalOutput.getValue())
-        return current.emitError(
-            "HardSwish is only legal between MegaKernel stages");
 
       Value input = current.getInputs()[0];
       Value weight = current.getInputs()[1];
@@ -449,7 +453,7 @@ public:
       if (matmul) {
         tile::TileMegaMatmulOp::create(rewriter, current.getLoc(), input,
                                        weight, bias, scale, lut, output,
-                                       activation);
+                                       activation, outputScale);
         continue;
       }
 
@@ -462,11 +466,11 @@ public:
       if (depthwise)
         tile::TileMegaConv2dDepthwiseOp::create(
             rewriter, current.getLoc(), input, weight, bias, scale, lut, output,
-            stride, padLow, padHigh, activation);
+            stride, padLow, padHigh, activation, outputScale);
       else
-        tile::TileMegaConv2dOp::create(rewriter, current.getLoc(), input,
-                                       weight, bias, scale, lut, output, stride,
-                                       padLow, padHigh, activation);
+        tile::TileMegaConv2dOp::create(
+            rewriter, current.getLoc(), input, weight, bias, scale, lut, output,
+            stride, padLow, padHigh, activation, outputScale);
     }
     tile::TileMegaYieldOp::create(rewriter, op.getLoc());
     for (int64_t index = stages.size(); index > 0; --index)

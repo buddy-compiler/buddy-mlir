@@ -94,7 +94,8 @@ def TileMegaMatmulOp : Tile_Op<"mega_matmul"> {
                        MemRefRankOf<[F32], [1]>:$scale,
                        MemRefRankOf<[I8], [1]>:$lut,
                        MemRefRankOf<[I8, F32], [2]>:$output,
-                       I64Attr:$activation);
+                       I64Attr:$activation,
+                       F32Attr:$outputScale);
   let assemblyFormat = [{$input $weight $bias $scale $lut $output attr-dict `:`
     type($input) type($weight) type($bias) type($scale) type($lut) type($output)}];
 }
@@ -183,7 +184,8 @@ def TileMegaConv2dOp : Tile_Op<"mega_conv2d"> {
                        I64Attr:$stride,
                        I64Attr:$padLow,
                        I64Attr:$padHigh,
-                       I64Attr:$activation);
+                       I64Attr:$activation,
+                       F32Attr:$outputScale);
   let assemblyFormat = [{$input $filter $bias $scale $lut $output attr-dict `:`
     type($input) type($filter) type($bias) type($scale) type($lut) type($output)}];
 }
@@ -199,7 +201,8 @@ def TileMegaConv2dDepthwiseOp : Tile_Op<"mega_conv2d_depthwise"> {
                        I64Attr:$stride,
                        I64Attr:$padLow,
                        I64Attr:$padHigh,
-                       I64Attr:$activation);
+                       I64Attr:$activation,
+                       F32Attr:$outputScale);
   let assemblyFormat = [{$input $filter $bias $scale $lut $output attr-dict `:`
     type($input) type($filter) type($bias) type($scale) type($lut) type($output)}];
 }
@@ -233,7 +236,8 @@ def TileMegaInt8MulOp : Tile_Op<"mega_int8_mul"> {
                        MemRefRankOf<[I8], [4]>:$output,
                        F32Attr:$lhsScale,
                        F32Attr:$rhsScale,
-                       F32Attr:$outputScale);
+                       F32Attr:$outputScale,
+                       I64Attr:$activation);
   let assemblyFormat = [{$lhs $rhs $output attr-dict `:`
     type($lhs) type($rhs) type($output)}];
 }
@@ -245,7 +249,8 @@ def TileMegaInt8AddOp : Tile_Op<"mega_int8_add"> {
                        MemRefRankOf<[I8], [4]>:$output,
                        F32Attr:$lhsScale,
                        F32Attr:$rhsScale,
-                       F32Attr:$outputScale);
+                       F32Attr:$outputScale,
+                       I64Attr:$activation);
   let assemblyFormat = [{$lhs $rhs $output attr-dict `:`
     type($lhs) type($rhs) type($output)}];
 }

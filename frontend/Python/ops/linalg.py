@@ -2021,12 +2021,12 @@ def cat_op(
     for inp in inputs:
         t = symbol_table.get((str(inp), 0))
         if t is None:
-            return
+            raise ValueError(f"missing cat input for {node.name}: {inp}")
         input_tensors.append(t)
         input_shapes.append(list(ir.RankedTensorType(t.type).shape))
 
     if len(input_tensors) == 0:
-        return
+        raise ValueError(f"cat has no inputs: {node.name}")
 
     rank = len(input_shapes[0])
     if dim < 0:
@@ -2034,6 +2034,27 @@ def cat_op(
 
     # Sticky NHWC: PyTorch cat dim is NCHW; remap when SSA is NHWC.
     out_meta = [int(x) for x in node.tensor_meta["shape"]]
+    if rank == 4 and dim == 1 and len(out_meta) == 4:
+        n, out_c, h, w = out_meta
+        nchw_inputs = []
+        channels = 0
+        for value, shape in zip(input_tensors, input_shapes):
+            if shape[0] == n and shape[1] == h and shape[2] == w:
+                nchw_inputs.append(_nhwc_to_nchw(value))
+                channels += shape[3]
+            elif shape[0] == n and shape[2] == h and shape[3] == w:
+                nchw_inputs.append(value)
+                channels += shape[1]
+            else:
+                raise RuntimeError(
+                    f"channel cat input layout mismatch: shape={shape} meta={out_meta}"
+                )
+        if channels != out_c:
+            raise RuntimeError(
+                f"channel cat count mismatch: inputs={input_shapes} meta={out_meta}"
+            )
+        return _nchw_to_nhwc(tosa.ConcatOp(nchw_inputs, 1).result)
+
     if (
         rank == 4
         and len(out_meta) == 4
@@ -2841,6 +2862,8 @@ def split_op(node: SplitOp, symbol_table):
     """
     # Get the input tensor and parameters
     input_tensor = symbol_table.get((str(node.args[0]), 0), node.args[0])
+    if not hasattr(input_tensor, "type"):
+        raise ValueError(f"missing split input for {node.name}: {node.args[0]}")
     split_size = node.args[1]  # Size of each split tensor
     input_shape = [int(x) for x in input_tensor.type.shape]
     dim = int(node.args[2])  # Dimension to split along (PyTorch NCHW)
@@ -13137,7 +13160,9 @@ def mega_conv2d_op(node, symbol_table):
     if out_n != n or out_c != cout:
         raise ValueError(f"Mega Conv2D output shape mismatch for {node.name}")
     scale_values = (
-        node._dequant_scale if node._final_output else node._requant_scale
+        node._dequant_scale
+        if node._final_output and node._activation != 2
+        else node._requant_scale
     )
     if len(node._bias_i32) != cout or len(scale_values) != cout:
         raise ValueError(
@@ -13153,10 +13178,6 @@ def mega_conv2d_op(node, symbol_table):
         numpy.asarray(scale_values, dtype=numpy.float32), type=scale_type
     )
     scale = arith.ConstantOp(scale_type, scale_attr).result
-    if node._activation == 2 and node._final_output:
-        raise ValueError(
-            "HardSwish is only supported between MegaKernel stages"
-        )
     lut_type = ir.RankedTensorType.get([len(node._lut_i8)], i8)
     lut_attr = ir.DenseElementsAttr.get(
         numpy.asarray(node._lut_i8, dtype=numpy.int8), type=lut_type
@@ -13230,6 +13251,9 @@ def mega_conv2d_op(node, symbol_table):
     op.operation.attributes["activation"] = ir.IntegerAttr.get(
         i64, node._activation
     )
+    op.operation.attributes["output_scale"] = ir.FloatAttr.get(
+        f32, node._output_scale
+    )
     op.operation.attributes["final_output"] = ir.BoolAttr.get(
         node._final_output
     )
@@ -13268,7 +13292,9 @@ def mega_matmul_op(node, symbol_table):
     m, k = [int(x) for x in activation_type.shape]
     wk, n = [int(x) for x in weight_type.shape]
     scale_values = (
-        node._dequant_scale if node._final_output else node._requant_scale
+        node._dequant_scale
+        if node._final_output and node._activation != 2
+        else node._requant_scale
     )
     if k != wk or len(node._bias_i32) != n or len(scale_values) != n:
         raise ValueError(f"Mega MatMul shape mismatch for {node.name}")
@@ -13283,10 +13309,6 @@ def mega_matmul_op(node, symbol_table):
         numpy.asarray(scale_values, dtype=numpy.float32), type=scale_type
     )
     scale = arith.ConstantOp(scale_type, scale_attr).result
-    if node._activation == 2 and node._final_output:
-        raise ValueError(
-            "HardSwish is only supported between MegaKernel stages"
-        )
     lut_type = ir.RankedTensorType.get([len(node._lut_i8)], i8)
     lut_attr = ir.DenseElementsAttr.get(
         numpy.asarray(node._lut_i8, dtype=numpy.int8), type=lut_type
@@ -13320,6 +13342,9 @@ def mega_matmul_op(node, symbol_table):
     op.operation.attributes["buckyball.mega_matmul"] = ir.BoolAttr.get(True)
     op.operation.attributes["activation"] = ir.IntegerAttr.get(
         ir.IntegerType.get_signless(64), node._activation
+    )
+    op.operation.attributes["output_scale"] = ir.FloatAttr.get(
+        f32, node._output_scale
     )
     op.operation.attributes["final_output"] = ir.BoolAttr.get(
         node._final_output
@@ -13357,8 +13382,6 @@ def mega_max_pool2d_op(node, symbol_table):
     )
     output_type = ir.RankedTensorType.get(output_shape, i8)
     output = tensor.EmptyOp(output_shape, i8)
-    if node._padding != 0:
-        raise ValueError("Mega MaxPool2D currently requires zero padding")
     dims = [ir.AffineExpr.get_dim(i) for i in range(4)]
     pooled_h = ir.AffineExpr.get_floor_div(dims[1], node._stride)
     pooled_w = ir.AffineExpr.get_floor_div(dims[2], node._stride)
@@ -13510,6 +13533,9 @@ def mega_int8_elementwise_op(node, symbol_table, kind):
     )
     op.operation.attributes["output_scale"] = ir.FloatAttr.get(
         f32, node._output_scale
+    )
+    op.operation.attributes["activation"] = ir.IntegerAttr.get(
+        ir.IntegerType.get_signless(64), node._activation
     )
     block = ir.Block.create_at_start(op.region, [i8, i8, i8])
     block.append(linalg.YieldOp([block.arguments[2]]))

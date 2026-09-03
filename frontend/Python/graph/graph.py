@@ -1124,6 +1124,10 @@ class GraphImporter:
         op_ret: ir.Operation | ir.Value | tuple | list | ir.OpResult = (
             self._ops_registry[op_name](node, self._symbol_table)
         )
+        if op_ret is None:
+            raise ValueError(
+                f"lowering returned no value for {node.name} ({op_name})"
+            )
 
         if isinstance(op_ret, tuple | list | ir.OpResultList):
             for i, operation in enumerate(op_ret):
