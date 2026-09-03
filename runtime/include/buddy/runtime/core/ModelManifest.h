@@ -25,6 +25,7 @@
 //   "file:vocab.txt") module_attrs["runner_library"] → runner plugin URI
 //   module_attrs["serving_library"] → resident serving plugin URI
 //   module_attrs["embedding_library"] → embedding plugin URI
+//   module_attrs["masked_lm_library"] → masked-LM plugin URI
 //   module_attrs["model_name"]→ model identifier      (e.g.
 //   "deepseek_r1_fp32")
 //
@@ -114,6 +115,8 @@ struct ModelManifest {
   std::string servingLibraryPath;
   // absolute path to the embedding model plugin shared library.
   std::string embeddingLibraryPath;
+  // absolute path to the masked language model plugin shared library.
+  std::string maskedLMLibraryPath;
   // Raw module attrs plus URI-resolved variants for attrs whose value is a URI.
   std::unordered_map<std::string, std::string> moduleAttrs;
   std::unordered_map<std::string, std::string> resolvedModuleAttrs;
@@ -548,7 +551,7 @@ struct ModelManifest {
         std::string value = kv->value()->str();
         out.moduleAttrs[key] = value;
         if (hasPrefix(value, "file:") || hasPrefix(value, "payload:") ||
-            hasSuffix(key, "_uri"))
+            hasSuffix(key, "_uri") || key == "masked_lm_library")
           out.resolvedModuleAttrs[key] = resolveUri(kv->value(), key.c_str());
         if (key == "vocab_uri" && kv->value() && kv->value()->size() > 0)
           out.vocabPath = out.resolvedModuleAttrs[key];
@@ -562,6 +565,10 @@ struct ModelManifest {
                  kv->value()->size() > 0)
           out.embeddingLibraryPath =
               resolveUri(kv->value(), "embedding_library");
+        else if (key == "masked_lm_library" && kv->value() &&
+                 kv->value()->size() > 0)
+          out.maskedLMLibraryPath =
+              resolveUri(kv->value(), "masked_lm_library");
         else if (key == "model_name" && kv->value() && kv->value()->size() > 0)
           out.modelName = value;
       }

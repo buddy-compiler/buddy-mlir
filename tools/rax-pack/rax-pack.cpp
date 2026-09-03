@@ -67,6 +67,7 @@ enum class PayloadKind : uint16_t {
   Vocab = 3,
   ServingPlugin = 4,
   EmbeddingPlugin = 5,
+  MaskedLMPlugin = 6,
 };
 
 struct PayloadInput {
@@ -385,6 +386,7 @@ int main(int argc, char **argv) {
     std::string runnerLibraryAttr;
     std::string servingLibraryAttr;
     std::string embeddingLibraryAttr;
+    std::string maskedLMLibraryAttr;
     std::vector<std::pair<std::string, std::string>> extraModuleAttrs;
     if (auto v = rhalMod.getModelName())
       modelNameAttr = v->str();
@@ -396,12 +398,16 @@ int main(int argc, char **argv) {
       servingLibraryAttr = v->str();
     if (auto v = rhalMod.getEmbeddingLibrary())
       embeddingLibraryAttr = v->str();
+    if (auto attr = rhalMod->getAttr("masked_lm_library"))
+      if (auto v = mlir::dyn_cast<mlir::StringAttr>(attr))
+        maskedLMLibraryAttr = v.getValue().str();
 
     for (auto namedAttr : rhalMod->getAttrs()) {
       const std::string key = namedAttr.getName().str();
       if (key == "sym_name" || key == "version" || key == "model_name" ||
           key == "vocab_uri" || key == "runner_library" ||
-          key == "serving_library" || key == "embedding_library")
+          key == "serving_library" || key == "embedding_library" ||
+          key == "masked_lm_library")
         continue;
       if (auto stringAttr =
               mlir::dyn_cast<mlir::StringAttr>(namedAttr.getValue()))
@@ -564,6 +570,9 @@ int main(int argc, char **argv) {
     if (!embeddingLibraryAttr.empty())
       registerPayload(PayloadKind::EmbeddingPlugin, embeddingLibraryAttr,
                       "module attr embedding_library");
+    if (!maskedLMLibraryAttr.empty())
+      registerPayload(PayloadKind::MaskedLMPlugin, maskedLMLibraryAttr,
+                      "module attr masked_lm_library");
 
     // ── Build FlatBuffer ──────────────────────────────────────────────────
 
@@ -587,6 +596,9 @@ int main(int argc, char **argv) {
     if (!embeddingLibraryAttr.empty())
       modAttrs.push_back(CreateKV(b, b.CreateString("embedding_library"),
                                   b.CreateString(embeddingLibraryAttr)));
+    if (!maskedLMLibraryAttr.empty())
+      modAttrs.push_back(CreateKV(b, b.CreateString("masked_lm_library"),
+                                  b.CreateString(maskedLMLibraryAttr)));
     for (const auto &attr : extraModuleAttrs)
       modAttrs.push_back(
           CreateKV(b, b.CreateString(attr.first), b.CreateString(attr.second)));

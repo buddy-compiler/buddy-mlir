@@ -24,6 +24,7 @@
 using buddy::server::parseChatCompletionRequest;
 using buddy::server::parseCompletionRequest;
 using buddy::server::parseEmbeddingRequest;
+using buddy::server::parseMaskedLMRequest;
 using buddy::server::toOpenAIEmbeddingJson;
 
 namespace {
@@ -98,6 +99,22 @@ int main() {
   assert(json.find("\"object\":\"list\"") != std::string::npos);
   assert(json.find("\"index\":0") != std::string::npos);
   assert(json.find("\"prompt_tokens\":2") != std::string::npos);
+
+  auto masked = parseMaskedLMRequest(
+      R"({"model":"proteinglm_1b_mlm","prompt":"A <mask> C","top_k":3,"extra":true})");
+  assert(masked.request.model == "proteinglm_1b_mlm");
+  assert(masked.request.input == "A <mask> C");
+  assert(masked.request.topK == 3);
+  expectFailure([] { parseMaskedLMRequest(R"({"input":"x","prompt":"y"})"); });
+  expectFailure([] { parseMaskedLMRequest(R"({"input":"x","top_k":0})"); });
+  buddy::runtime::MaskedLMResult maskedResult;
+  maskedResult.model = "proteinglm_1b_mlm";
+  maskedResult.sequenceLength = 4;
+  maskedResult.promptTokens = 4;
+  maskedResult.predictions.push_back({1, {{3, "G", 12.3f}}});
+  const std::string maskedJson = buddy::server::toJson(maskedResult);
+  assert(maskedJson.find("\"object\":\"masked_lm\"") != std::string::npos);
+  assert(maskedJson.find("\"position\":1") != std::string::npos);
 
   std::cout << "JsonCodec tests passed\n";
   return 0;

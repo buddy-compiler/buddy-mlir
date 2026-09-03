@@ -18,6 +18,7 @@
 #define BUDDY_TOOLS_BUDDY_SERVER_JSONCODEC_H
 
 #include "buddy/runtime/core/EmbeddingTypes.h"
+#include "buddy/runtime/core/MaskedLMTypes.h"
 #include "buddy/runtime/core/ServingTypes.h"
 
 #include <stdexcept>
@@ -45,16 +46,21 @@ struct DecodedChatRequest {
 struct DecodedEmbeddingRequest {
   buddy::runtime::EmbeddingRequest request;
 };
+struct DecodedMaskedLMRequest {
+  buddy::runtime::MaskedLMRequest request;
+};
 
 DecodedCompletionRequest parseCompletionRequest(const std::string &body);
 DecodedChatRequest parseChatCompletionRequest(const std::string &body);
 DecodedEmbeddingRequest parseEmbeddingRequest(const std::string &body);
+DecodedMaskedLMRequest parseMaskedLMRequest(const std::string &body);
 buddy::runtime::TokenizeRequest parseTokenizeRequest(const std::string &body);
 
 std::string toJson(const buddy::runtime::ModelStatus &status);
 std::string toJson(const buddy::runtime::CompletionResult &result);
 std::string
 toOpenAIEmbeddingJson(const buddy::runtime::EmbeddingResult &result);
+std::string toJson(const buddy::runtime::MaskedLMResult &result);
 std::string toOpenAIChatJson(const buddy::runtime::CompletionResult &result);
 std::string toJson(const buddy::runtime::TokenizeResult &result,
                    bool countOnly);

@@ -283,6 +283,40 @@ DecodedEmbeddingRequest parseEmbeddingRequest(const std::string &body) {
   return decoded;
 }
 
+DecodedMaskedLMRequest parseMaskedLMRequest(const std::string &body) {
+  json::Value value = parseValue(body);
+  const json::Object &obj = asObject(value);
+  DecodedMaskedLMRequest decoded;
+  if (auto model = obj.getString("model"))
+    decoded.request.model = model->str();
+  else if (obj.find("model") != obj.end())
+    throw JsonCodecError("model must be a string");
+  const bool hasInput = obj.find("input") != obj.end();
+  const bool hasPrompt = obj.find("prompt") != obj.end();
+  if (hasInput && hasPrompt)
+    throw JsonCodecError("provide only one of input or prompt");
+  const char *key = hasInput ? "input" : "prompt";
+  if (!hasInput && !hasPrompt)
+    throw JsonCodecError("missing required field: input");
+  auto it = obj.find(key);
+  auto input = it->second.getAsString();
+  if (!input)
+    throw JsonCodecError("input must be a string");
+  decoded.request.input = input->str();
+  if (decoded.request.input.empty())
+    throw JsonCodecError("input must not be empty");
+  if (auto top = obj.getInteger("top_k")) {
+    if (*top <= 0)
+      throw JsonCodecError("top_k must be positive");
+    decoded.request.topK = static_cast<std::size_t>(*top);
+  } else if (obj.find("top_k") != obj.end()) {
+    throw JsonCodecError("top_k must be a positive integer");
+  }
+  if (auto stream = obj.getBoolean("stream"); stream && *stream)
+    throw JsonCodecError("streaming masked-LM is not supported");
+  return decoded;
+}
+
 DecodedChatRequest parseChatCompletionRequest(const std::string &body) {
   json::Value value = parseValue(body);
   const json::Object &obj = asObject(value);
@@ -379,6 +413,27 @@ std::string toOpenAIEmbeddingJson(const EmbeddingResult &result) {
        json::Object{
            {"prompt_tokens", static_cast<int64_t>(result.promptTokens)},
            {"total_tokens", static_cast<int64_t>(result.totalTokens)}}}});
+}
+
+std::string toJson(const MaskedLMResult &result) {
+  json::Array predictions;
+  for (const auto &prediction : result.predictions) {
+    json::Array tokens;
+    for (const auto &token : prediction.tokens)
+      tokens.emplace_back(json::Object{{"token_id", token.tokenId},
+                                       {"token", token.token},
+                                       {"score", token.score}});
+    predictions.emplace_back(
+        json::Object{{"position", static_cast<int64_t>(prediction.position)},
+                     {"tokens", std::move(tokens)}});
+  }
+  return serialize(json::Object{
+      {"object", "masked_lm"},
+      {"model", result.model},
+      {"sequence_length", static_cast<int64_t>(result.sequenceLength)},
+      {"predictions", std::move(predictions)},
+      {"usage", json::Object{{"prompt_tokens",
+                              static_cast<int64_t>(result.promptTokens)}}}});
 }
 
 std::string toOpenAIChatJson(const CompletionResult &result) {
