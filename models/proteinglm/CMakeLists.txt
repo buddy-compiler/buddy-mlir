@@ -23,6 +23,8 @@ buddy_add_model(
   SPEC "${BUDDY_PROTEINGLM_SPEC}"
   RUNNER_SRC ProteinGLMRunner.cpp
   RUNNER_PLUGIN_SRC ProteinGLMRunnerPlugin.cpp
+  MASKED_LM_PLUGIN_SRC ProteinGLMMaskedLMModelPlugin.cpp
+  EXTRA_SRCS ProteinGLMMaskedLMModel.cpp
   RUNNER_HDR include/buddy/runtime/models/ProteinGLMRunner.h
   LOCAL_MODEL "${BUDDY_PROTEINGLM_MODEL_PATH}"
   LOCAL_MODEL_ENV PROTEINGLM_MODEL_PATH
@@ -34,3 +36,14 @@ buddy_add_model(
     "${BUDDY_PROTEINGLM_MODEL_PATH}/tokenizer_config.json"
     "${BUDDY_PROTEINGLM_MODEL_PATH}/special_tokens_map.json"
 )
+
+if(BUDDY_ENABLE_TESTS)
+  add_executable(proteinglm-masked-lm-runtime-test
+    ProteinGLMMaskedLMModelTest.cpp)
+  target_compile_features(proteinglm-masked-lm-runtime-test PRIVATE cxx_std_17)
+  target_link_libraries(proteinglm-masked-lm-runtime-test PRIVATE buddy_models_proteinglm)
+  add_test(NAME proteinglm-masked-lm-runtime
+    COMMAND proteinglm-masked-lm-runtime-test)
+  set_tests_properties(proteinglm-masked-lm-runtime PROPERTIES
+    PASS_REGULAR_EXPRESSION "ProteinGLM masked-LM runtime tests passed")
+endif()

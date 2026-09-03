@@ -5,6 +5,7 @@ add_executable(buddy-server
   JsonCodec.cpp
   ResidentModelPluginHandle.cpp
   EmbeddingModelPluginHandle.cpp
+  MaskedLMModelPluginHandle.cpp
   SimpleHttpServer.cpp
 )
 
@@ -87,4 +88,18 @@ if(BUDDY_ENABLE_TESTS)
   set_tests_properties(buddy-server-embedding-plugin-handle PROPERTIES
     PASS_REGULAR_EXPRESSION "EmbeddingModelPluginHandle tests passed"
   )
+
+  add_executable(buddy-server-masked-lm-plugin-handle-test
+    MaskedLMModelPluginHandleTest.cpp
+    MaskedLMModelPluginHandle.cpp
+  )
+  target_compile_features(buddy-server-masked-lm-plugin-handle-test PRIVATE cxx_std_17)
+  target_include_directories(buddy-server-masked-lm-plugin-handle-test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR})
+  target_link_libraries(buddy-server-masked-lm-plugin-handle-test PRIVATE
+    buddy_runtime_core ${CMAKE_DL_LIBS})
+  add_test(NAME buddy-server-masked-lm-plugin-handle
+    COMMAND buddy-server-masked-lm-plugin-handle-test)
+  set_tests_properties(buddy-server-masked-lm-plugin-handle PROPERTIES
+    PASS_REGULAR_EXPRESSION "MaskedLMModelPluginHandle tests passed")
 endif()

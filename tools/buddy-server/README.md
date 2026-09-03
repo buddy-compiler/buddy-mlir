@@ -4,6 +4,11 @@
 models. The server binary is built by default and is decoupled from concrete
 model implementations through resident model plugins.
 
+It also supports the independent masked-LM backend with `--masked-lm-so`.
+Choose at most one of `--serving-so`, `--embedding-so` and `--masked-lm-so`;
+when a `.rax` manifest is supplied, exactly one corresponding module attribute
+is discovered automatically.
+
 ## Build
 
 `buddy-server` is built by default:
@@ -340,3 +345,25 @@ The response contains `data[0].embedding`, `data[0].index`, `model`, and
 400 unsupported-input error. Embedding mode returns a 400
 `unsupported_endpoint` error for completion, chat completion, and tokenize;
 DeepSeek/Qwen resident behavior and SSE remain unchanged.
+
+## ProteinGLM masked-LM backend
+
+ProteinGLM uses a single forward pass and is served independently from the
+resident completion API. Build the package with a local snapshot, then start
+the server using the manifest's `masked_lm_library` (or pass
+`--masked-lm-so` explicitly):
+
+```bash
+conda run -n buddy-mlir cmake --build build --target proteinglm_rax buddy-server
+./build/bin/buddy-server --model ./build/models/proteinglm/proteinglm.rax \
+  --host 127.0.0.1 --port 8080
+curl http://127.0.0.1:8080/v1/masked-lm \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"proteinglm_1b_mlm","input":"A <mask> C","top_k":5}'
+```
+
+`/masked-lm` is an alias. `prompt` may replace `input`; multiple masks return
+multiple prediction entries and `top_k` overrides the manifest default. The
+endpoint is non-streaming and accepts only a single string input. Completion,
+chat, tokenize and embedding routes return `unsupported_endpoint` in this
+mode.

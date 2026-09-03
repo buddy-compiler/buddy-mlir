@@ -14,7 +14,12 @@ def normalize_uri(raw: str) -> str:
     return f"file:{s}"
 
 
-def gen_manifest(spec: dict, params_size: int, runner_library: str) -> str:
+def gen_manifest(
+    spec: dict,
+    params_size: int,
+    runner_library: str,
+    masked_lm_library: str = "",
+) -> str:
     model_id = spec.get("model_id", f"{spec['model_family']}_{spec['variant']}")
     max_seq_len = int(spec["max_seq_len"])
     vocab_size = int(spec["vocab_size"])
@@ -32,7 +37,11 @@ def gen_manifest(spec: dict, params_size: int, runner_library: str) -> str:
     p(f'    max_seq_len = "{max_seq_len}",')
     p(f'    vocab_size = "{vocab_size}",')
     p(f'    top_k = "{top_k}",')
-    p(f'    runner_library = "{runner_library}"}} {{')
+    if masked_lm_library:
+        p(f'    runner_library = "{runner_library}",')
+        p(f'    masked_lm_library = "{masked_lm_library}"}} {{')
+    else:
+        p(f'    runner_library = "{runner_library}"}} {{')
     p("")
     p('  rhal.constant @params {id = 1 : i32, storage = "external",')
     p(f"                         type = tensor<{params_size}xf32>,")
@@ -82,6 +91,7 @@ def main() -> int:
     )
     parser.add_argument("--spec", required=True)
     parser.add_argument("--runner-library", default="proteinglm_runner.so")
+    parser.add_argument("--masked-lm-library", default="")
     parser.add_argument("-o", "--output", default="-")
     args = parser.parse_args()
 
@@ -98,7 +108,10 @@ def main() -> int:
         raise RuntimeError(f"weight file is not f32-aligned: {params_file}")
 
     text = gen_manifest(
-        spec, params_bytes // 4, normalize_uri(args.runner_library)
+        spec,
+        params_bytes // 4,
+        normalize_uri(args.runner_library),
+        normalize_uri(args.masked_lm_library) if args.masked_lm_library else "",
     )
     if args.output == "-":
         sys.stdout.write(text)

@@ -46,6 +46,7 @@ def gen_manifest(
     runner_library: str | None = None,
     serving_library: str | None = None,
     embedding_library: str | None = None,
+    masked_lm_library: str | None = None,
 ) -> str:
     """Generate the complete RHAL .mlir manifest text."""
     out = StringIO()
@@ -82,6 +83,9 @@ def gen_manifest(
     embedding_uri = (
         _normalize_dep_uri(embedding_library) if embedding_library else None
     )
+    masked_lm_uri = (
+        _normalize_dep_uri(masked_lm_library) if masked_lm_library else None
+    )
 
     dep_uris: list[str] = []
     for item in dep_shared_libs or []:
@@ -98,14 +102,16 @@ def gen_manifest(
         p(f'    serving_library = "{serving_uri}"', end="")
         if embedding_uri:
             p(",")
-            p(f'    embedding_library = "{embedding_uri}"}} {{')
+            p(f'    embedding_library = "{embedding_uri}"', end="")
         else:
-            p("} {")
+            pass
     elif embedding_uri:
         p(",")
-        p(f'    embedding_library = "{embedding_uri}"}} {{')
-    else:
-        p("} {")
+        p(f'    embedding_library = "{embedding_uri}"', end="")
+    if masked_lm_uri:
+        p(",")
+        p(f'    masked_lm_library = "{masked_lm_uri}"', end="")
+    p("} {")
     p()
 
     # -- External constants (weight blobs) -------------------------------------
@@ -263,6 +269,12 @@ def main():
             "If no scheme is given, file: is assumed."
         ),
     )
+    parser.add_argument(
+        "--masked-lm-library",
+        default=None,
+        metavar="URI_OR_NAME",
+        help=("Masked-LM plugin library URI/name to place into module attrs."),
+    )
     args = parser.parse_args()
 
     with open(args.config) as f:
@@ -275,6 +287,7 @@ def main():
             runner_library=args.runner_library,
             serving_library=args.serving_library,
             embedding_library=args.embedding_library,
+            masked_lm_library=args.masked_lm_library,
         )
     except (ValueError, RuntimeError, OSError) as e:
         print(f"error: {e}", file=sys.stderr)
