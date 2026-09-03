@@ -90,6 +90,8 @@ def _split_via_tosa_slice(
     dim: int,
     split_sizes: list[int],
 ) -> list[ir.Value]:
+    # tosa.slice / extract_slice on non-dim1 (esp. NHWC C) lowers wrong;
+    # always slice on dim1 via transpose.
     rank = len(input_shape)
     if dim != 1:
         perm = list(range(rank))
@@ -2057,6 +2059,7 @@ def cat_op(
     dtype = node.tensor_meta["dtype"]
     mlir_dtype = mlir_element_type_get(dtype)
 
+    # insert_slice on NHWC C lowers wrong; concat on NCHW axis=1 instead.
     nhwc_c = (
         rank == 4
         and dim == 3
@@ -2065,11 +2068,6 @@ def cat_op(
     )
     if nhwc_c:
         nchw_inputs = [_nhwc_to_nchw(t) for t in input_tensors]
-        nchw_shape = list(ir.RankedTensorType(nchw_inputs[0].type).shape)
-        out_nchw_shape = list(nchw_shape)
-        out_nchw_shape[1] = sum(
-            list(ir.RankedTensorType(t.type).shape)[1] for t in nchw_inputs
-        )
         cat_nchw = tosa.ConcatOp(nchw_inputs, 1).result
         return _nchw_to_nhwc(cat_nchw)
 
@@ -2882,18 +2880,6 @@ def split_op(node: SplitOp, symbol_table):
         min(split_size, input_shape[dim] - i * split_size)
         for i in range(split_count)
     ]
-    nhwc_c = (
-        len(input_shape) == 4
-        and dim == 3
-        and input_shape[1] == input_shape[2]
-        and input_shape[3] > input_shape[1]
-    )
-    if nhwc_c:
-        nchw = _nhwc_to_nchw(input_tensor)
-        nchw_shape = [int(x) for x in ir.RankedTensorType(nchw.type).shape]
-        nchw_splits = _split_via_tosa_slice(nchw, nchw_shape, 1, split_sizes)
-        return [_nchw_to_nhwc(x) for x in nchw_splits]
-
     return _split_via_tosa_slice(input_tensor, input_shape, dim, split_sizes)
 
 
@@ -13045,35 +13031,284 @@ def _create_tosa_shape_operand(shape):
     return tosa.ConstShapeOp(shape_type, shape_attr).result
 
 
-def _quantized_matmul_generic(activation, weight_i8, node):
-    """Keep W8A8 quantization as a Pebble lowering boundary.
-
-    The generic region is the FP32 reference product.  Pebble consumes the
-    marker and RAX Dw metadata before generic lowering, then emits bank-level
-    FP2INT, SMATMUL, and INT2FP.
-    """
+def _mega_quantize(activation, scale, nchw_to_nhwc=False):
+    input_shape = [int(x) for x in ir.RankedTensorType(activation.type).shape]
     f32 = ir.F32Type.get()
-    act_shape = list(ir.RankedTensorType(activation.type).shape)
-    weight_shape = list(ir.RankedTensorType(weight_i8.type).shape)
-    if len(act_shape) != 2 or len(weight_shape) != 2:
+    i8 = ir.IntegerType.get_signless(8)
+    if ir.RankedTensorType(activation.type).element_type != f32:
+        raise ValueError("Mega input quantization requires FP32")
+    scale = float(scale)
+    if not numpy.isfinite(scale) or scale <= 0.0:
         raise ValueError(
-            "quantized matmul requires rank-2 activation and weight"
+            "Mega input quantization scale must be finite and positive"
         )
-    out_shape = [act_shape[0], weight_shape[1]]
-    out_type = ir.RankedTensorType.get(out_shape, f32)
-    output = tensor.EmptyOp(out_shape, f32)
-    generic_map = _safe_get_permutation([0, 1, 2])
+    if nchw_to_nhwc:
+        if len(input_shape) != 4:
+            raise ValueError("NCHW-to-NHWC quantization requires rank 4")
+        n, c, h, w = input_shape
+        output_shape = [n, h, w, c]
+        dims = [ir.AffineExpr.get_dim(i) for i in range(4)]
+        input_map = ir.AffineMap.get(4, 0, [dims[0], dims[3], dims[1], dims[2]])
+        output_map = ir.AffineMap.get_identity(4)
+    else:
+        output_shape = input_shape
+        input_map = ir.AffineMap.get_identity(len(input_shape))
+        output_map = input_map
+    out_type = ir.RankedTensorType.get(output_shape, i8)
+    output = tensor.EmptyOp(output_shape, i8)
     op = linalg.GenericOp(
         [out_type],
-        [activation, weight_i8],
+        [activation],
         [output],
         ir.ArrayAttr.get(
-            [
-                ir.AffineMapAttr.get(generic_map.get_submap([0, 2])),
-                ir.AffineMapAttr.get(generic_map.get_submap([2, 1])),
-                ir.AffineMapAttr.get(generic_map.get_submap([0, 1])),
-            ]
+            [ir.AffineMapAttr.get(input_map), ir.AffineMapAttr.get(output_map)]
         ),
+        ir.ArrayAttr.get(
+            [ir.Attribute.parse("#linalg.iterator_type<parallel>")]
+            * len(output_shape)
+        ),
+    )
+    op.operation.attributes["buckyball.quant_f32_to_i8"] = ir.BoolAttr.get(True)
+    op.operation.attributes["nchw_to_nhwc"] = ir.BoolAttr.get(nchw_to_nhwc)
+    op.operation.attributes["scale"] = ir.FloatAttr.get(f32, 1.0 / scale)
+    block = ir.Block.create_at_start(op.region, [f32, i8])
+    block.append(linalg.YieldOp([block.arguments[1]]))
+    return op.result
+
+
+def mega_conv2d_op(node, symbol_table):
+    activation = symbol_table.get((str(node.args[0]), 0))
+    weight = symbol_table.get((str(node.args[1]), 0))
+    if activation is None or weight is None:
+        raise ValueError(f"missing Mega Conv2D operand for {node.name}")
+
+    f32 = ir.F32Type.get()
+    i8 = ir.IntegerType.get_signless(8)
+    i32 = ir.IntegerType.get_signless(32)
+    activation_type = ir.RankedTensorType(activation.type)
+    input_shape = [int(x) for x in activation_type.shape]
+    n, cin, h, w = node._input_shape
+    if input_shape == [n, cin, h, w]:
+        if activation_type.element_type != f32:
+            raise ValueError("NCHW Mega Conv2D input must be FP32")
+        activation = _mega_quantize(
+            activation, node._input_scale, nchw_to_nhwc=True
+        )
+    elif input_shape != [n, h, w, cin]:
+        raise ValueError(
+            f"Mega Conv2D input layout mismatch for {node.name}: {input_shape}"
+        )
+    if ir.RankedTensorType(activation.type).element_type == f32:
+        activation = _mega_quantize(
+            activation, node._input_scale, nchw_to_nhwc=False
+        )
+    elif ir.RankedTensorType(activation.type).element_type != i8:
+        raise ValueError("Mega Conv2D activation must be FP32 or INT8")
+
+    depthwise = isinstance(node, MegaConv2dDepthwiseOp)
+    weight_type = ir.RankedTensorType(weight.type)
+    cout, weight_cin, kh, kw = node._weight_shape
+    actual_weight_shape = [int(x) for x in weight_type.shape]
+    packed_weight_shape = (
+        [kh, kw, cout, 1] if depthwise else [kh, kw, weight_cin, cout]
+    )
+    if actual_weight_shape == [cout, weight_cin, kh, kw]:
+        permutation = [2, 3, 0, 1] if depthwise else [2, 3, 1, 0]
+        weight = tosa.TransposeOp(
+            ir.RankedTensorType.get(packed_weight_shape, i8),
+            weight,
+            ir.DenseI32ArrayAttr.get(permutation),
+        ).result
+    elif actual_weight_shape != packed_weight_shape:
+        raise ValueError(
+            f"Mega Conv2D weight layout mismatch for {node.name}: "
+            f"{actual_weight_shape}"
+        )
+    if (
+        weight_type.element_type != i8
+        or (depthwise and (weight_cin != 1 or cin != cout))
+        or (not depthwise and cin != weight_cin)
+    ):
+        raise ValueError(
+            "Mega Conv2D requires INT8 OIHW weight with matching Cin"
+        )
+
+    out_n, out_c, out_h, out_w = node._output_shape
+    if out_n != n or out_c != cout:
+        raise ValueError(f"Mega Conv2D output shape mismatch for {node.name}")
+    scale_values = (
+        node._dequant_scale if node._final_output else node._requant_scale
+    )
+    if len(node._bias_i32) != cout or len(scale_values) != cout:
+        raise ValueError(
+            f"Mega Conv2D quant parameter mismatch for {node.name}"
+        )
+    bias_type = ir.RankedTensorType.get([cout], i32)
+    bias_attr = ir.DenseElementsAttr.get(
+        numpy.asarray(node._bias_i32, dtype=numpy.int32), type=bias_type
+    )
+    bias = arith.ConstantOp(bias_type, bias_attr).result
+    scale_type = ir.RankedTensorType.get([cout], f32)
+    scale_attr = ir.DenseElementsAttr.get(
+        numpy.asarray(scale_values, dtype=numpy.float32), type=scale_type
+    )
+    scale = arith.ConstantOp(scale_type, scale_attr).result
+    if node._activation == 2 and node._final_output:
+        raise ValueError(
+            "HardSwish is only supported between MegaKernel stages"
+        )
+    lut_type = ir.RankedTensorType.get([len(node._lut_i8)], i8)
+    lut_attr = ir.DenseElementsAttr.get(
+        numpy.asarray(node._lut_i8, dtype=numpy.int8), type=lut_type
+    )
+    lut = arith.ConstantOp(lut_type, lut_attr).result
+    output_shape = (
+        [n, cout, out_h, out_w]
+        if node._final_output
+        else [n, out_h, out_w, cout]
+    )
+    output_element = f32 if node._final_output else i8
+    out_type = ir.RankedTensorType.get(output_shape, output_element)
+    output = tensor.EmptyOp(output_shape, output_element)
+    if depthwise:
+        dims = [ir.AffineExpr.get_dim(i) for i in range(8)]
+        zero = ir.AffineExpr.get_constant(0)
+        maps = [
+            ir.AffineMap.get(8, 0, [dims[0], dims[6], dims[7], dims[3]]),
+            ir.AffineMap.get(8, 0, [dims[4], dims[5], dims[3], zero]),
+            ir.AffineMap.get(8, 0, [dims[3]]),
+            ir.AffineMap.get(8, 0, [dims[3]]),
+            ir.AffineMap.get(8, 0, [zero]),
+            ir.AffineMap.get(
+                8,
+                0,
+                [dims[0], dims[3], dims[1], dims[2]]
+                if node._final_output
+                else [dims[0], dims[1], dims[2], dims[3]],
+            ),
+        ]
+        reduction_count = 4
+    else:
+        dims = [ir.AffineExpr.get_dim(i) for i in range(9)]
+        zero = ir.AffineExpr.get_constant(0)
+        maps = [
+            ir.AffineMap.get(9, 0, [dims[0], dims[7], dims[8], dims[6]]),
+            ir.AffineMap.get(9, 0, [dims[4], dims[5], dims[6], dims[3]]),
+            ir.AffineMap.get(9, 0, [dims[3]]),
+            ir.AffineMap.get(9, 0, [dims[3]]),
+            ir.AffineMap.get(9, 0, [zero]),
+            ir.AffineMap.get(
+                9,
+                0,
+                [dims[0], dims[3], dims[1], dims[2]]
+                if node._final_output
+                else [dims[0], dims[1], dims[2], dims[3]],
+            ),
+        ]
+        reduction_count = 5
+    op = linalg.GenericOp(
+        [out_type],
+        [activation, weight, bias, scale, lut],
+        [output],
+        ir.ArrayAttr.get([ir.AffineMapAttr.get(x) for x in maps]),
+        ir.ArrayAttr.get(
+            [ir.Attribute.parse("#linalg.iterator_type<parallel>")] * 4
+            + [ir.Attribute.parse("#linalg.iterator_type<reduction>")]
+            * reduction_count
+        ),
+    )
+    i64 = ir.IntegerType.get_signless(64)
+    marker = (
+        "buckyball.mega_conv2d_depthwise"
+        if depthwise
+        else "buckyball.mega_conv2d"
+    )
+    op.operation.attributes[marker] = ir.BoolAttr.get(True)
+    op.operation.attributes["stride"] = ir.IntegerAttr.get(i64, node._stride)
+    op.operation.attributes["pad_low"] = ir.IntegerAttr.get(i64, node._padding)
+    op.operation.attributes["pad_high"] = ir.IntegerAttr.get(i64, node._padding)
+    op.operation.attributes["activation"] = ir.IntegerAttr.get(
+        i64, node._activation
+    )
+    op.operation.attributes["final_output"] = ir.BoolAttr.get(
+        node._final_output
+    )
+    block = ir.Block.create_at_start(
+        op.region, [i8, i8, i32, f32, i8, output_element]
+    )
+    block.append(linalg.YieldOp([block.arguments[5]]))
+    return op.result
+
+
+def mega_matmul_op(node, symbol_table):
+    activation = symbol_table.get((str(node.args[0]), 0))
+    weight = symbol_table.get((str(node.args[1]), 0))
+    if activation is None or weight is None:
+        raise ValueError(f"missing Mega MatMul operand for {node.name}")
+
+    f32 = ir.F32Type.get()
+    i8 = ir.IntegerType.get_signless(8)
+    i32 = ir.IntegerType.get_signless(32)
+    activation_type = ir.RankedTensorType(activation.type)
+    if activation_type.element_type == f32:
+        activation = _mega_quantize(
+            activation, node._input_scale, nchw_to_nhwc=False
+        )
+        activation_type = ir.RankedTensorType(activation.type)
+    weight_type = ir.RankedTensorType(weight.type)
+    if (
+        activation_type.element_type != i8
+        or weight_type.element_type != i8
+        or activation_type.rank != 2
+        or weight_type.rank != 2
+    ):
+        raise ValueError(
+            "Mega MatMul requires rank-2 INT8 activation and weight"
+        )
+    m, k = [int(x) for x in activation_type.shape]
+    wk, n = [int(x) for x in weight_type.shape]
+    scale_values = (
+        node._dequant_scale if node._final_output else node._requant_scale
+    )
+    if k != wk or len(node._bias_i32) != n or len(scale_values) != n:
+        raise ValueError(f"Mega MatMul shape mismatch for {node.name}")
+
+    bias_type = ir.RankedTensorType.get([n], i32)
+    bias_attr = ir.DenseElementsAttr.get(
+        numpy.asarray(node._bias_i32, dtype=numpy.int32), type=bias_type
+    )
+    bias = arith.ConstantOp(bias_type, bias_attr).result
+    scale_type = ir.RankedTensorType.get([n], f32)
+    scale_attr = ir.DenseElementsAttr.get(
+        numpy.asarray(scale_values, dtype=numpy.float32), type=scale_type
+    )
+    scale = arith.ConstantOp(scale_type, scale_attr).result
+    if node._activation == 2 and node._final_output:
+        raise ValueError(
+            "HardSwish is only supported between MegaKernel stages"
+        )
+    lut_type = ir.RankedTensorType.get([len(node._lut_i8)], i8)
+    lut_attr = ir.DenseElementsAttr.get(
+        numpy.asarray(node._lut_i8, dtype=numpy.int8), type=lut_type
+    )
+    lut = arith.ConstantOp(lut_type, lut_attr).result
+    output_element = f32 if node._final_output else i8
+    out_type = ir.RankedTensorType.get([m, n], output_element)
+    output = tensor.EmptyOp([m, n], output_element)
+    dims = [ir.AffineExpr.get_dim(i) for i in range(3)]
+    maps = [
+        ir.AffineMap.get(3, 0, [dims[0], dims[2]]),
+        ir.AffineMap.get(3, 0, [dims[2], dims[1]]),
+        ir.AffineMap.get(3, 0, [dims[1]]),
+        ir.AffineMap.get(3, 0, [dims[1]]),
+        ir.AffineMap.get(3, 0, [ir.AffineExpr.get_constant(0)]),
+        ir.AffineMap.get(3, 0, [dims[0], dims[1]]),
+    ]
+    op = linalg.GenericOp(
+        [out_type],
+        [activation, weight, bias, scale, lut],
+        [output],
+        ir.ArrayAttr.get([ir.AffineMapAttr.get(x) for x in maps]),
         ir.ArrayAttr.get(
             [
                 ir.Attribute.parse("#linalg.iterator_type<parallel>"),
@@ -13082,61 +13317,241 @@ def _quantized_matmul_generic(activation, weight_i8, node):
             ]
         ),
     )
-    op.operation.attributes["buckyball.quantized"] = ir.BoolAttr.get(True)
-    i64 = ir.IntegerType.get_signless(64)
-    op.operation.attributes["dw_addr"] = ir.IntegerAttr.get(i64, node._dw_addr)
-    op.operation.attributes["dw_bytes"] = ir.IntegerAttr.get(
-        i64, node._dw_bytes
+    op.operation.attributes["buckyball.mega_matmul"] = ir.BoolAttr.get(True)
+    op.operation.attributes["activation"] = ir.IntegerAttr.get(
+        ir.IntegerType.get_signless(64), node._activation
     )
-    op.operation.attributes["per_channel"] = ir.BoolAttr.get(node._per_channel)
+    op.operation.attributes["final_output"] = ir.BoolAttr.get(
+        node._final_output
+    )
     block = ir.Block.create_at_start(
-        op.region, [f32, ir.IntegerType.get_signless(8), f32]
+        op.region, [i8, i8, i32, f32, i8, output_element]
     )
-    weight_f32 = arith.SIToFPOp(f32, block.arguments[1])
-    product = arith.MulFOp(block.arguments[0], weight_f32.result)
-    result = arith.AddFOp(product.result, block.arguments[2])
-    block.append(weight_f32)
-    block.append(product)
-    block.append(result)
-    block.append(linalg.YieldOp([result.result]))
+    block.append(linalg.YieldOp([block.arguments[5]]))
     return op.result
 
 
-def quantized_matmul_op(node, symbol_table):
-    """W8A8 matmul with FP32 activation and offline INT8 weight."""
-    activation = symbol_table.get((str(node.args[0]), 0))
-    weight_i8 = symbol_table.get((str(node.args[1]), 0))
-    return _quantized_matmul_generic(activation, weight_i8, node)
+def mega_max_pool2d_op(node, symbol_table):
+    input_value = symbol_table.get((str(node.args[0]), 0))
+    if input_value is None:
+        raise ValueError(f"missing Mega MaxPool2D input for {node.name}")
+    i8 = ir.IntegerType.get_signless(8)
+    input_type = ir.RankedTensorType(input_value.type)
+    if input_type.element_type != i8 or input_type.rank != 4:
+        raise ValueError("Mega MaxPool2D input must be rank-4 INT8 NHWC")
+    n, h, w, c = [int(x) for x in input_type.shape]
+    out_n, out_c, out_h, out_w = node._output_shape
+    if (
+        [n, c] != [out_n, out_c]
+        or node._kernel <= 0
+        or node._stride <= 0
+        or node._padding < 0
+        or (h + 2 * node._padding - node._kernel) // node._stride + 1 != out_h
+        or (w + 2 * node._padding - node._kernel) // node._stride + 1 != out_w
+    ):
+        raise ValueError(f"Mega MaxPool2D geometry mismatch for {node.name}")
+    output_shape = (
+        [out_n, out_c, out_h, out_w]
+        if node._final_output
+        else [out_n, out_h, out_w, out_c]
+    )
+    output_type = ir.RankedTensorType.get(output_shape, i8)
+    output = tensor.EmptyOp(output_shape, i8)
+    if node._padding != 0:
+        raise ValueError("Mega MaxPool2D currently requires zero padding")
+    dims = [ir.AffineExpr.get_dim(i) for i in range(4)]
+    pooled_h = ir.AffineExpr.get_floor_div(dims[1], node._stride)
+    pooled_w = ir.AffineExpr.get_floor_div(dims[2], node._stride)
+    input_map = ir.AffineMap.get_identity(4)
+    output_map = ir.AffineMap.get(
+        4,
+        0,
+        [dims[0], dims[3], pooled_h, pooled_w]
+        if node._final_output
+        else [dims[0], pooled_h, pooled_w, dims[3]],
+    )
+    op = linalg.GenericOp(
+        [output_type],
+        [input_value],
+        [output],
+        ir.ArrayAttr.get(
+            [ir.AffineMapAttr.get(input_map), ir.AffineMapAttr.get(output_map)]
+        ),
+        ir.ArrayAttr.get(
+            [ir.Attribute.parse("#linalg.iterator_type<parallel>")] * 4
+        ),
+    )
+    i64 = ir.IntegerType.get_signless(64)
+    op.operation.attributes["buckyball.mega_max_pool2d"] = ir.BoolAttr.get(True)
+    op.operation.attributes["kernel"] = ir.IntegerAttr.get(i64, node._kernel)
+    op.operation.attributes["stride"] = ir.IntegerAttr.get(i64, node._stride)
+    op.operation.attributes["padding"] = ir.IntegerAttr.get(i64, node._padding)
+    op.operation.attributes["final_output"] = ir.BoolAttr.get(
+        node._final_output
+    )
+    block = ir.Block.create_at_start(op.region, [i8, i8])
+    block.append(linalg.YieldOp([block.arguments[1]]))
+    return op.result
 
 
-def quantized_addmm_op(node, symbol_table):
-    """W8A8 quantized addmm: args = [bias(f32), activation(f32), weight(i8), weight_scale(f32)]
-    Same as quantized_matmul_op but with bias addition."""
-    bias = symbol_table.get((str(node.args[0]), 0))
-    activation = symbol_table.get((str(node.args[1]), 0))
-    weight_i8 = symbol_table.get((str(node.args[2]), 0))
-    result = _quantized_matmul_generic(activation, weight_i8, node)
-    f32_type = ir.RankedTensorType(result.type)
-    out_shape = list(f32_type.shape)
+def mega_global_avg_pool_op(node, symbol_table):
+    input_value = symbol_table.get((str(node.args[0]), 0))
+    if input_value is None:
+        raise ValueError(f"missing Mega global-average input for {node.name}")
+    i8 = ir.IntegerType.get_signless(8)
+    input_type = ir.RankedTensorType(input_value.type)
+    if input_type.element_type != i8 or input_type.rank != 4:
+        raise ValueError("Mega global-average input must be rank-4 INT8 NHWC")
+    n, h, w, c = [int(x) for x in input_type.shape]
+    if min(n, h, w, c) <= 0:
+        raise ValueError("Mega global-average shape must be positive")
+    output_type = ir.RankedTensorType.get([n, 1, 1, c], i8)
+    output = tensor.EmptyOp([n, 1, 1, c], i8)
+    dims = [ir.AffineExpr.get_dim(i) for i in range(4)]
+    zero = ir.AffineExpr.get_constant(0)
+    op = linalg.GenericOp(
+        [output_type],
+        [input_value],
+        [output],
+        ir.ArrayAttr.get(
+            [
+                ir.AffineMapAttr.get(ir.AffineMap.get_identity(4)),
+                ir.AffineMapAttr.get(
+                    ir.AffineMap.get(4, 0, [dims[0], zero, zero, dims[3]])
+                ),
+            ]
+        ),
+        ir.ArrayAttr.get(
+            [
+                ir.Attribute.parse("#linalg.iterator_type<parallel>"),
+                ir.Attribute.parse("#linalg.iterator_type<reduction>"),
+                ir.Attribute.parse("#linalg.iterator_type<reduction>"),
+                ir.Attribute.parse("#linalg.iterator_type<parallel>"),
+            ]
+        ),
+    )
+    op.operation.attributes["buckyball.mega_global_avg_pool"] = ir.BoolAttr.get(
+        True
+    )
+    f32 = ir.F32Type.get()
+    op.operation.attributes["input_scale"] = ir.FloatAttr.get(
+        f32, node._input_scale
+    )
+    op.operation.attributes["output_scale"] = ir.FloatAttr.get(
+        f32, node._output_scale
+    )
+    block = ir.Block.create_at_start(op.region, [i8, i8])
+    block.append(linalg.YieldOp([block.arguments[1]]))
+    return op.result
 
-    # Add bias with broadcasting (bias may be 1D, result is 2D)
-    bias_shape = list(ir.RankedTensorType(bias.type).shape)
-    if bias_shape != out_shape:
-        new_bias_shape = [1] * (len(out_shape) - len(bias_shape)) + bias_shape
-        if new_bias_shape != bias_shape:
-            shape_operand = _create_tosa_shape_operand(new_bias_shape)
-            bias = tosa.ReshapeOp(bias, shape_operand).result
-        result = tosa.AddOp(f32_type, result, bias).result
-    else:
-        result = tosa.AddOp(f32_type, result, bias).result
 
+def mega_int8_elementwise_op(node, symbol_table, kind):
+    lhs = symbol_table.get((str(node.args[0]), 0))
+    rhs = symbol_table.get((str(node.args[1]), 0))
+    if lhs is None or rhs is None:
+        raise ValueError(f"missing Mega INT8 {kind} input for {node.name}")
+    i8 = ir.IntegerType.get_signless(8)
+    lhs_type = ir.RankedTensorType(lhs.type)
+    rhs_type = ir.RankedTensorType(rhs.type)
+    if lhs_type.element_type != i8 or rhs_type.element_type != i8:
+        raise ValueError(f"Mega INT8 {kind} operands must be INT8")
+    lhs_shape = [int(x) for x in lhs_type.shape]
+    rhs_shape = [int(x) for x in rhs_type.shape]
+    if len(lhs_shape) != 4 or len(rhs_shape) != 4:
+        raise ValueError(f"Mega INT8 {kind} operands must be rank 4")
+    output_shape = [max(a, b) for a, b in zip(lhs_shape, rhs_shape)]
+    if any(
+        a not in (1, out) or b not in (1, out)
+        for a, b, out in zip(lhs_shape, rhs_shape, output_shape)
+    ):
+        raise ValueError(
+            f"Mega INT8 {kind} operands are not broadcast-compatible"
+        )
+    if kind == "add" and lhs_shape != rhs_shape:
+        raise ValueError("Mega residual add requires equal shapes")
+    output_type = ir.RankedTensorType.get(output_shape, i8)
+    output = tensor.EmptyOp(output_shape, i8)
+    dims = [ir.AffineExpr.get_dim(i) for i in range(4)]
+    zero = ir.AffineExpr.get_constant(0)
+    lhs_map = ir.AffineMap.get(
+        4,
+        0,
+        [zero if size == 1 else dims[i] for i, size in enumerate(lhs_shape)],
+    )
+    rhs_map = ir.AffineMap.get(
+        4,
+        0,
+        [zero if size == 1 else dims[i] for i, size in enumerate(rhs_shape)],
+    )
+    op = linalg.GenericOp(
+        [output_type],
+        [lhs, rhs],
+        [output],
+        ir.ArrayAttr.get(
+            [
+                ir.AffineMapAttr.get(lhs_map),
+                ir.AffineMapAttr.get(rhs_map),
+                ir.AffineMapAttr.get(ir.AffineMap.get_identity(4)),
+            ]
+        ),
+        ir.ArrayAttr.get(
+            [ir.Attribute.parse("#linalg.iterator_type<parallel>")] * 4
+        ),
+    )
+    op.operation.attributes[f"buckyball.mega_int8_{kind}"] = ir.BoolAttr.get(
+        True
+    )
+    f32 = ir.F32Type.get()
+    op.operation.attributes["lhs_scale"] = ir.FloatAttr.get(
+        f32, node._lhs_scale
+    )
+    op.operation.attributes["rhs_scale"] = ir.FloatAttr.get(
+        f32, node._rhs_scale
+    )
+    op.operation.attributes["output_scale"] = ir.FloatAttr.get(
+        f32, node._output_scale
+    )
+    block = ir.Block.create_at_start(op.region, [i8, i8, i8])
+    block.append(linalg.YieldOp([block.arguments[2]]))
+    return op.result
+
+
+def mega_kernel_op(node, symbol_table):
+    if not node._stages:
+        raise ValueError(f"MegaKernel {node.name} has no stages")
+    result = None
+    for index, stage in enumerate(node._stages):
+        if isinstance(stage, (MegaConv2dOp, MegaConv2dDepthwiseOp)):
+            result = mega_conv2d_op(stage, symbol_table)
+        elif isinstance(stage, MegaMatmulOp):
+            result = mega_matmul_op(stage, symbol_table)
+        elif isinstance(stage, MegaMaxPool2dOp):
+            result = mega_max_pool2d_op(stage, symbol_table)
+        elif isinstance(stage, MegaGlobalAvgPoolOp):
+            result = mega_global_avg_pool_op(stage, symbol_table)
+        elif isinstance(stage, MegaInt8MulOp):
+            result = mega_int8_elementwise_op(stage, symbol_table, "mul")
+        elif isinstance(stage, MegaInt8AddOp):
+            result = mega_int8_elementwise_op(stage, symbol_table, "add")
+        else:
+            raise ValueError(
+                f"unsupported MegaKernel stage {type(stage).__name__}"
+            )
+        result.owner.attributes["buckyball.mega_kernel"] = ir.BoolAttr.get(True)
+        result.owner.attributes["mega_kernel_stage"] = ir.IntegerAttr.get(
+            ir.IntegerType.get_signless(64), index
+        )
+        result.owner.attributes["mega_kernel_size"] = ir.IntegerAttr.get(
+            ir.IntegerType.get_signless(64), len(node._stages)
+        )
+        result.owner.attributes["mega_kernel_id"] = ir.StringAttr.get(node.name)
+        symbol_table[(stage.name, 0)] = result
     return result
 
 
 ops_registry = {
     "MatmulOp": matmul_op,
-    "QuantizedMatmulOp": quantized_matmul_op,
-    "QuantizedAddMMOp": quantized_addmm_op,
+    "MegaKernelOp": mega_kernel_op,
     "TransposeMatmulFusedOp": matmul_transpose_b_op,
     "ArangeOp": arange_op,
     "UnsqueezeOp": unsqueeze_op,
