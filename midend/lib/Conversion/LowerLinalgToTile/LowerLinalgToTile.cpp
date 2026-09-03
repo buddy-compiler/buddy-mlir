@@ -17,6 +17,7 @@
 // This file defines Linalg dialect lowering pass to Tile dialect.
 //
 //===----------------------------------------------------------------------===//
+#include <cmath>
 #include <optional>
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
@@ -57,9 +58,6 @@ static std::optional<int64_t> getUniformAttr(DenseIntElementsAttr attr) {
   return value;
 }
 
-// Gate for pebble convert-tile-to-buckyball im2col path (HWCF filter).
-// Large H/W are OK: TileConv2dLowering tiles OH/OW. Stride s>=1 with pad:
-//   oh == (h + padLow + padHigh - kh) / s + 1  (exact).
 static bool supportsTileConv(MemRefType inType, MemRefType filterType,
                              MemRefType outType, int64_t stride, int64_t padLow,
                              int64_t padHigh) {
@@ -76,14 +74,6 @@ static bool supportsTileConv(MemRefType inType, MemRefType filterType,
     return false;
   if (stride < 1 || padLow < 0 || padHigh < 0)
     return false;
-  constexpr int64_t kMaxPad = 7;
-  if (padLow > kMaxPad || padHigh > kMaxPad)
-    return false;
-
-  constexpr int64_t kMaxK = 7;
-  constexpr int64_t kMaxIter = 34;
-  constexpr int64_t kBankLines = 1024;
-  constexpr int64_t kLane = 16;
 
   auto inShape = inType.getShape();
   auto fShape = filterType.getShape();
@@ -98,8 +88,6 @@ static bool supportsTileConv(MemRefType inType, MemRefType filterType,
     return false;
   if (h != w || oh != ow || kh != kw)
     return false;
-  if (kh > kMaxK)
-    return false;
   int64_t padded = h + padLow + padHigh;
   if (padded < kh)
     return false;
@@ -107,19 +95,7 @@ static bool supportsTileConv(MemRefType inType, MemRefType filterType,
     return false;
   if ((padded - kh) / stride + 1 != oh)
     return false;
-
-  auto cdiv = [](int64_t a, int64_t b) { return (a + b - 1) / b; };
-  for (int64_t t = oh; t >= 1; --t) {
-    if (oh % t != 0)
-      continue;
-    int64_t inSize = (t - 1) * stride + kh;
-    if (inSize > kMaxIter)
-      continue;
-    int64_t rows = cdiv(t * t, kLane) * cdiv(kh * kh, kLane) * kLane;
-    if (rows <= kBankLines)
-      return true;
-  }
-  return false;
+  return true;
 }
 
 static void getConvPads(Operation *op, int64_t &padLow, int64_t &padHigh) {
@@ -225,45 +201,276 @@ public:
 private:
 };
 
-class QuantizedGenericLowering : public OpRewritePattern<linalg::GenericOp> {
+class QuantF32ToI8Lowering : public OpRewritePattern<linalg::GenericOp> {
 public:
   using OpRewritePattern<linalg::GenericOp>::OpRewritePattern;
 
   LogicalResult matchAndRewrite(linalg::GenericOp op,
                                 PatternRewriter &rewriter) const override {
-    auto quantized = op->getAttrOfType<BoolAttr>("buckyball.quantized");
-    if (!quantized || !quantized.getValue())
+    auto marker = op->getAttrOfType<BoolAttr>("buckyball.quant_f32_to_i8");
+    if (!marker || !marker.getValue())
       return failure();
-    if (op.getInputs().size() != 2 || op.getOutputs().size() != 1)
-      return op.emitError(
-          "quantized generic requires two inputs and one output");
+    if (op.getInputs().size() != 1 || op.getOutputs().size() != 1)
+      return op.emitError("FP32-to-INT8 quant requires one input and output");
 
-    Value activation = op.getInputs()[0];
-    Value weight = op.getInputs()[1];
+    Value input = op.getInputs()[0];
     Value output = op.getOutputs()[0];
-    auto activationType = dyn_cast<MemRefType>(activation.getType());
-    auto weightType = dyn_cast<MemRefType>(weight.getType());
+    auto inputType = dyn_cast<MemRefType>(input.getType());
     auto outputType = dyn_cast<MemRefType>(output.getType());
-    if (!activationType || !weightType || !outputType ||
-        activationType.getRank() != 2 || weightType.getRank() != 2 ||
-        outputType.getRank() != 2 || !activationType.getElementType().isF32() ||
-        !weightType.getElementType().isInteger(8) ||
-        !outputType.getElementType().isF32())
+    auto nchwToNhwc = op->getAttrOfType<BoolAttr>("nchw_to_nhwc");
+    if (!inputType || !outputType ||
+        inputType.getRank() != outputType.getRank() ||
+        (inputType.getRank() != 2 && inputType.getRank() != 4) ||
+        !inputType.getElementType().isF32() ||
+        !outputType.getElementType().isInteger(8) || !nchwToNhwc)
       return op.emitError(
-          "quantized generic requires FP32 x INT8 -> FP32 memrefs");
+          "FP32-to-INT8 quant requires matching rank-2/rank-4 memrefs");
+    ArrayRef<int64_t> inShape = inputType.getShape();
+    ArrayRef<int64_t> outShape = outputType.getShape();
+    if ((!nchwToNhwc.getValue() && inShape != outShape) ||
+        (nchwToNhwc.getValue() && inputType.getRank() != 4) ||
+        (nchwToNhwc.getValue() &&
+         (inShape[0] != outShape[0] || inShape[1] != outShape[3] ||
+          inShape[2] != outShape[1] || inShape[3] != outShape[2])))
+      return op.emitError("FP32-to-INT8 quant layout shape mismatch");
+    auto scale = op->getAttrOfType<FloatAttr>("scale");
+    if (!scale || !std::isfinite(scale.getValueAsDouble()) ||
+        scale.getValueAsDouble() <= 0.0)
+      return op.emitError("FP32-to-INT8 quant requires a positive scale");
 
-    auto dwAddr = op->getAttrOfType<IntegerAttr>("dw_addr");
-    auto dwBytes = op->getAttrOfType<IntegerAttr>("dw_bytes");
-    auto perChannel = op->getAttrOfType<BoolAttr>("per_channel");
-    if (!dwAddr || !dwBytes || !perChannel)
-      return op.emitError("quantized generic requires RAX Dw metadata");
-
-    auto tileMatmul = tile::TileMatMulOp::create(rewriter, op.getLoc(),
-                                                 activation, weight, output);
-    tileMatmul->setAttr("dw_addr", dwAddr);
-    tileMatmul->setAttr("dw_bytes", dwBytes);
-    tileMatmul->setAttr("per_channel", perChannel);
+    tile::TileQuantF32ToI8Op::create(rewriter, op.getLoc(), input, output,
+                                     scale, nchwToNhwc);
     rewriter.eraseOp(op);
+    return success();
+  }
+};
+
+class MegaKernelGenericLowering : public OpRewritePattern<linalg::GenericOp> {
+public:
+  MegaKernelGenericLowering(MLIRContext *context)
+      : OpRewritePattern<linalg::GenericOp>(context, 2) {}
+
+  LogicalResult matchAndRewrite(linalg::GenericOp op,
+                                PatternRewriter &rewriter) const override {
+    auto marker = op->getAttrOfType<BoolAttr>("buckyball.mega_kernel");
+    auto first = op->getAttrOfType<IntegerAttr>("mega_kernel_stage");
+    auto size = op->getAttrOfType<IntegerAttr>("mega_kernel_size");
+    auto kernelId = op->getAttrOfType<StringAttr>("mega_kernel_id");
+    if (!marker || !marker.getValue() || !first || first.getInt() != 0)
+      return failure();
+    if (!size || size.getInt() <= 0 || !kernelId || kernelId.getValue().empty())
+      return op.emitError("MegaKernel requires a positive size and an ID");
+
+    SmallVector<linalg::GenericOp> stages(size.getInt());
+    for (Operation &candidate : *op->getBlock()) {
+      auto generic = dyn_cast<linalg::GenericOp>(candidate);
+      if (!generic ||
+          generic->getAttrOfType<StringAttr>("mega_kernel_id") != kernelId)
+        continue;
+      auto stageMarker =
+          generic->getAttrOfType<BoolAttr>("buckyball.mega_kernel");
+      auto stageIndex =
+          generic->getAttrOfType<IntegerAttr>("mega_kernel_stage");
+      auto stageSize = generic->getAttrOfType<IntegerAttr>("mega_kernel_size");
+      if (!stageMarker || !stageMarker.getValue() || !stageIndex ||
+          !stageSize || stageSize.getInt() != size.getInt() ||
+          stageIndex.getInt() < 0 || stageIndex.getInt() >= size.getInt())
+        return generic.emitError("MegaKernel stage metadata is malformed");
+      if (stages[stageIndex.getInt()])
+        return generic.emitError("MegaKernel stage index is duplicated");
+      stages[stageIndex.getInt()] = generic;
+    }
+    if (llvm::any_of(stages, [](linalg::GenericOp stage) { return !stage; }))
+      return op.emitError("MegaKernel stage sequence is incomplete");
+
+    rewriter.setInsertionPointAfter(stages.back());
+    auto kernel = tile::TileMegaKernelOp::create(rewriter, op.getLoc(),
+                                                 stages.front().getInputs()[0],
+                                                 stages.back().getOutputs()[0]);
+    kernel.getBody().emplaceBlock();
+
+    OpBuilder::InsertionGuard guard(rewriter);
+    rewriter.setInsertionPointToStart(&kernel.getBody().front());
+    for (auto [index, current] : llvm::enumerate(stages)) {
+      bool normal = current->hasAttr("buckyball.mega_conv2d");
+      bool depthwise = current->hasAttr("buckyball.mega_conv2d_depthwise");
+      bool matmul = current->hasAttr("buckyball.mega_matmul");
+      bool maxPool = current->hasAttr("buckyball.mega_max_pool2d");
+      bool globalAvg = current->hasAttr("buckyball.mega_global_avg_pool");
+      bool int8Mul = current->hasAttr("buckyball.mega_int8_mul");
+      bool int8Add = current->hasAttr("buckyball.mega_int8_add");
+      if (static_cast<int>(normal) + static_cast<int>(depthwise) +
+              static_cast<int>(matmul) + static_cast<int>(globalAvg) +
+              static_cast<int>(maxPool) + static_cast<int>(int8Mul) +
+              static_cast<int>(int8Add) !=
+          1)
+        return current.emitError("MegaKernel stage kind is not unique");
+      Value output = current.getOutputs()[0];
+
+      if (maxPool) {
+        if (current.getInputs().size() != 1 || current.getOutputs().size() != 1)
+          return current.emitError("Mega MaxPool2D stage has the wrong arity");
+        auto inputType = dyn_cast<MemRefType>(current.getInputs()[0].getType());
+        auto outputType = dyn_cast<MemRefType>(output.getType());
+        auto kernel = current->getAttrOfType<IntegerAttr>("kernel");
+        auto stride = current->getAttrOfType<IntegerAttr>("stride");
+        auto padding = current->getAttrOfType<IntegerAttr>("padding");
+        auto finalOutput = current->getAttrOfType<BoolAttr>("final_output");
+        if (!inputType || !outputType || !inputType.hasStaticShape() ||
+            !outputType.hasStaticShape() || inputType.getRank() != 4 ||
+            outputType.getRank() != 4 ||
+            !inputType.getElementType().isInteger(8) ||
+            !outputType.getElementType().isInteger(8) || !kernel || !stride ||
+            !padding || !finalOutput || kernel.getInt() <= 0 ||
+            stride.getInt() <= 0 || padding.getInt() < 0 ||
+            finalOutput.getValue() != (index + 1 == stages.size()))
+          return current.emitError("Mega MaxPool2D contract is invalid");
+        auto in = inputType.getShape();
+        auto out = outputType.getShape();
+        int64_t outN = out[0];
+        int64_t outH = finalOutput.getValue() ? out[2] : out[1];
+        int64_t outW = finalOutput.getValue() ? out[3] : out[2];
+        int64_t outC = finalOutput.getValue() ? out[1] : out[3];
+        if (outN != in[0] || outC != in[3] ||
+            outH != (in[1] + 2 * padding.getInt() - kernel.getInt()) /
+                            stride.getInt() +
+                        1 ||
+            outW != (in[2] + 2 * padding.getInt() - kernel.getInt()) /
+                            stride.getInt() +
+                        1)
+          return current.emitError("Mega MaxPool2D shape is invalid");
+        tile::TileMegaMaxPool2dOp::create(rewriter, current.getLoc(),
+                                          current.getInputs()[0], output,
+                                          kernel, stride, padding, finalOutput);
+        continue;
+      }
+
+      if (globalAvg) {
+        if (current.getInputs().size() != 1 || current.getOutputs().size() != 1)
+          return current.emitError(
+              "Mega global-average stage has the wrong arity");
+        auto inputType = dyn_cast<MemRefType>(current.getInputs()[0].getType());
+        auto outputType = dyn_cast<MemRefType>(output.getType());
+        auto inputScale = current->getAttrOfType<FloatAttr>("input_scale");
+        auto outputScale = current->getAttrOfType<FloatAttr>("output_scale");
+        if (!inputType || !outputType || !inputType.hasStaticShape() ||
+            !outputType.hasStaticShape() || inputType.getRank() != 4 ||
+            outputType.getRank() != 4 ||
+            !inputType.getElementType().isInteger(8) ||
+            !outputType.getElementType().isInteger(8) ||
+            inputType.getShape()[0] != outputType.getShape()[0] ||
+            inputType.getShape()[3] != outputType.getShape()[3] ||
+            outputType.getShape()[1] != 1 || outputType.getShape()[2] != 1 ||
+            !inputScale || !outputScale ||
+            !std::isfinite(inputScale.getValueAsDouble()) ||
+            !std::isfinite(outputScale.getValueAsDouble()) ||
+            inputScale.getValueAsDouble() <= 0.0 ||
+            outputScale.getValueAsDouble() <= 0.0)
+          return current.emitError("Mega global-average contract is invalid");
+        tile::TileMegaGlobalAvgPoolOp::create(rewriter, current.getLoc(),
+                                              current.getInputs()[0], output,
+                                              inputScale, outputScale);
+        continue;
+      }
+
+      if (int8Mul || int8Add) {
+        if (current.getInputs().size() != 2 || current.getOutputs().size() != 1)
+          return current.emitError(
+              "Mega INT8 elementwise stage has the wrong arity");
+        auto lhsType = dyn_cast<MemRefType>(current.getInputs()[0].getType());
+        auto rhsType = dyn_cast<MemRefType>(current.getInputs()[1].getType());
+        auto outputType = dyn_cast<MemRefType>(output.getType());
+        auto lhsScale = current->getAttrOfType<FloatAttr>("lhs_scale");
+        auto rhsScale = current->getAttrOfType<FloatAttr>("rhs_scale");
+        auto outputScale = current->getAttrOfType<FloatAttr>("output_scale");
+        if (!lhsType || !rhsType || !outputType || !lhsType.hasStaticShape() ||
+            !rhsType.hasStaticShape() || !outputType.hasStaticShape() ||
+            lhsType.getRank() != 4 || rhsType.getRank() != 4 ||
+            outputType.getRank() != 4 ||
+            !lhsType.getElementType().isInteger(8) ||
+            !rhsType.getElementType().isInteger(8) ||
+            !outputType.getElementType().isInteger(8) || !lhsScale ||
+            !rhsScale || !outputScale ||
+            !std::isfinite(lhsScale.getValueAsDouble()) ||
+            !std::isfinite(rhsScale.getValueAsDouble()) ||
+            !std::isfinite(outputScale.getValueAsDouble()) ||
+            lhsScale.getValueAsDouble() <= 0.0 ||
+            rhsScale.getValueAsDouble() <= 0.0 ||
+            outputScale.getValueAsDouble() <= 0.0)
+          return current.emitError("Mega INT8 elementwise contract is invalid");
+        for (int64_t dimension = 0; dimension < 4; ++dimension) {
+          int64_t out = outputType.getShape()[dimension];
+          if ((lhsType.getShape()[dimension] != 1 &&
+               lhsType.getShape()[dimension] != out) ||
+              (rhsType.getShape()[dimension] != 1 &&
+               rhsType.getShape()[dimension] != out))
+            return current.emitError(
+                "Mega INT8 elementwise shapes do not broadcast");
+        }
+        if (int8Add && lhsType != rhsType)
+          return current.emitError(
+              "Mega residual add requires equal input types");
+        if (int8Mul)
+          tile::TileMegaInt8MulOp::create(
+              rewriter, current.getLoc(), current.getInputs()[0],
+              current.getInputs()[1], output, lhsScale, rhsScale, outputScale);
+        else
+          tile::TileMegaInt8AddOp::create(
+              rewriter, current.getLoc(), current.getInputs()[0],
+              current.getInputs()[1], output, lhsScale, rhsScale, outputScale);
+        continue;
+      }
+
+      if (current.getInputs().size() != 5 || current.getOutputs().size() != 1)
+        return current.emitError("Mega compute stage has the wrong arity");
+      auto activation = current->getAttrOfType<IntegerAttr>("activation");
+      auto finalOutput = current->getAttrOfType<BoolAttr>("final_output");
+      if (!activation || activation.getInt() < 0 || activation.getInt() > 2 ||
+          !finalOutput ||
+          (finalOutput.getValue() && index + 1 != stages.size()))
+        return current.emitError(
+            "MegaKernel final_output is only legal on the last stage");
+      if (activation.getInt() == 2 && finalOutput.getValue())
+        return current.emitError(
+            "HardSwish is only legal between MegaKernel stages");
+
+      Value input = current.getInputs()[0];
+      Value weight = current.getInputs()[1];
+      Value bias = current.getInputs()[2];
+      Value scale = current.getInputs()[3];
+      Value lut = current.getInputs()[4];
+      auto lutType = dyn_cast<MemRefType>(lut.getType());
+      int64_t expectedLutSize = activation.getInt() == 2 ? 256 : 1;
+      if (!lutType || !lutType.hasStaticShape() || lutType.getRank() != 1 ||
+          !lutType.getElementType().isInteger(8) ||
+          lutType.getShape()[0] != expectedLutSize)
+        return current.emitError(
+            "MegaKernel activation LUT has the wrong shape");
+      if (matmul) {
+        tile::TileMegaMatmulOp::create(rewriter, current.getLoc(), input,
+                                       weight, bias, scale, lut, output,
+                                       activation);
+        continue;
+      }
+
+      auto stride = current->getAttrOfType<IntegerAttr>("stride");
+      auto padLow = current->getAttrOfType<IntegerAttr>("pad_low");
+      auto padHigh = current->getAttrOfType<IntegerAttr>("pad_high");
+      if (!stride || !padLow || !padHigh)
+        return current.emitError(
+            "MegaKernel convolution attributes are missing");
+      if (depthwise)
+        tile::TileMegaConv2dDepthwiseOp::create(
+            rewriter, current.getLoc(), input, weight, bias, scale, lut, output,
+            stride, padLow, padHigh, activation);
+      else
+        tile::TileMegaConv2dOp::create(rewriter, current.getLoc(), input,
+                                       weight, bias, scale, lut, output, stride,
+                                       padLow, padHigh, activation);
+    }
+    tile::TileMegaYieldOp::create(rewriter, op.getLoc());
+    for (int64_t index = stages.size(); index > 0; --index)
+      rewriter.eraseOp(stages[index - 1]);
     return success();
   }
 };
@@ -494,15 +701,14 @@ public:
     };
     // Returns {collapsed2D, contigBuf}. Caller must dealloc contigBuf.
     auto ofr = [&](Value v) { return OpFoldResult(v); };
-    auto dynSlice2D = [&](Value src4, ArrayRef<OpFoldResult> off,
-                          ArrayRef<int64_t> sz4, ArrayRef<int64_t> shape2,
-                          ArrayRef<ReassociationIndices> reassoc)
-        -> std::pair<Value, Value> {
+    auto dynSlice2D =
+        [&](Value src4, ArrayRef<OpFoldResult> off, ArrayRef<int64_t> sz4,
+            ArrayRef<int64_t> shape2,
+            ArrayRef<ReassociationIndices> reassoc) -> std::pair<Value, Value> {
       SmallVector<OpFoldResult> sz = {ofr(idx(sz4[0])), ofr(idx(sz4[1])),
                                       ofr(idx(sz4[2])), ofr(idx(sz4[3]))};
       SmallVector<OpFoldResult> str = {ofr(c1), ofr(c1), ofr(c1), ofr(c1)};
-      Value sub =
-          memref::SubViewOp::create(rewriter, loc, src4, off, sz, str);
+      Value sub = memref::SubViewOp::create(rewriter, loc, src4, off, sz, str);
       Value buf =
           memref::AllocOp::create(rewriter, loc, MemRefType::get(sz4, elem));
       memref::CopyOp::create(rewriter, loc, sub, buf);
@@ -512,13 +718,12 @@ public:
                               ArrayRef<int64_t> outSz4,
                               ArrayRef<int64_t> shape2,
                               ArrayRef<ReassociationIndices> reassoc) {
-      Value outBuf = memref::AllocOp::create(
-          rewriter, loc, MemRefType::get(outSz4, elem));
+      Value outBuf =
+          memref::AllocOp::create(rewriter, loc, MemRefType::get(outSz4, elem));
       Value out2 = collapse(outBuf, shape2, reassoc);
       tile::TileTransposeOp::create(rewriter, loc, in2, out2);
-      SmallVector<OpFoldResult> sz = {
-          ofr(idx(outSz4[0])), ofr(idx(outSz4[1])), ofr(idx(outSz4[2])),
-          ofr(idx(outSz4[3]))};
+      SmallVector<OpFoldResult> sz = {ofr(idx(outSz4[0])), ofr(idx(outSz4[1])),
+                                      ofr(idx(outSz4[2])), ofr(idx(outSz4[3]))};
       SmallVector<OpFoldResult> str = {ofr(c1), ofr(c1), ofr(c1), ofr(c1)};
       memref::CopyOp::create(
           rewriter, loc, outBuf,
@@ -546,6 +751,17 @@ public:
 
     if (inT.getRank() != 4)
       return transposeOp.emitOpError("unsupported transpose rank");
+
+    // Moving a channel dimension across singleton spatial dimensions does not
+    // change the contiguous byte order.
+    if (perm == ArrayRef<int64_t>({0, 3, 1, 2}) && is[0] == 1 && is[1] == 1 &&
+        is[2] == 1) {
+      Value src = asContig(input), dst = dstContig();
+      memref::CopyOp::create(rewriter, loc,
+                             collapse(src, {1, is[3]}, {{0, 1, 2}, {3}}),
+                             collapse(dst, {1, is[3]}, {{0}, {1, 2, 3}}));
+      return finish(dst);
+    }
 
     // 1x1 OIHW->OHWI is layout-identical after collapse to [O,I].
     if (perm == ArrayRef<int64_t>({0, 2, 3, 1}) && is[2] == 1 && is[3] == 1) {
@@ -593,27 +809,16 @@ public:
       return finish(dst);
     }
 
-    // [N,A,B,C] -> [N,C,B,A] (e.g. NHWC->NCWH). N=1: one [AB,C]->[C,AB]
-    // then per-channel [A,B]->[B,A]. Else loop the cheaper of A/B.
+    // [N,A,B,C] -> [N,C,B,A]. N=1 square spatial (A=channels, B=H, C=W, H=W):
+    // same as NCHW->NHWC — one [C,HW]->[HW,C] tile transpose.
     if (perm == ArrayRef<int64_t>({0, 3, 2, 1})) {
       int64_t n = is[0], a = is[1], b = is[2], c = is[3];
       Value src = asContig(input), dst = dstContig();
       if (n == 1) {
-        Value tmp = memref::AllocOp::create(
-            rewriter, loc, MemRefType::get({1, c, a, b}, elem));
-        temps.push_back(tmp);
-        tile::TileTransposeOp::create(
-            rewriter, loc, collapse(src, {a * b, c}, {{0, 1, 2}, {3}}),
-            collapse(tmp, {c, a * b}, {{0, 1}, {2, 3}}));
-        auto cLoop = scf::ForOp::create(rewriter, loc, c0, idx(c), c1);
-        rewriter.setInsertionPointToStart(cLoop.getBody());
-        Value ci = cLoop.getInductionVar();
-        SmallVector<OpFoldResult> off = {ofr(c0), ofr(ci), ofr(c0), ofr(c0)};
-        auto [in2, inBuf] =
-            dynSlice2D(tmp, off, {1, 1, a, b}, {a, b}, {{0, 1, 2}, {3}});
-        transposeStore(in2, dst, off, {1, 1, b, a}, {b, a}, {{0, 1, 2}, {3}});
-        memref::DeallocOp::create(rewriter, loc, inBuf);
-        rewriter.setInsertionPointAfter(cLoop);
+        int64_t ab = a * b;
+        tile::TileTransposeOp::create(rewriter, loc,
+                                      collapse(src, {ab, c}, {{0, 1, 2}, {3}}),
+                                      collapse(dst, {c, ab}, {{0, 1}, {2, 3}}));
         return finish(dst);
       }
       bool loopB = b <= a;
@@ -989,16 +1194,6 @@ static bool supportsTileDepthwise(MemRefType inType, MemRefType filterType,
     return false;
   if (stride < 1 || padLow < 0 || padHigh < 0)
     return false;
-  constexpr int64_t kMaxPad = 7;
-  if (padLow > kMaxPad || padHigh > kMaxPad)
-    return false;
-
-  constexpr int64_t kMaxK = 7;
-  constexpr int64_t kMaxIter = 34;
-  constexpr int64_t kBankLines = 1024;
-  constexpr int64_t kLane = 16;
-  // Pebble SMatMulBall outBW=2 → C packs two rounds per result row.
-  constexpr int64_t kOutputRounds = 2;
 
   auto inShape = inType.getShape();
   auto fShape = filterType.getShape();
@@ -1013,8 +1208,6 @@ static bool supportsTileDepthwise(MemRefType inType, MemRefType filterType,
     return false;
   if (h != w || oh != ow || kh != kw)
     return false;
-  if (kh > kMaxK)
-    return false;
   int64_t padded = h + padLow + padHigh;
   if (padded < kh)
     return false;
@@ -1022,18 +1215,7 @@ static bool supportsTileDepthwise(MemRefType inType, MemRefType filterType,
     return false;
   if ((padded - kh) / stride + 1 != oh)
     return false;
-
-  auto cdiv = [](int64_t a, int64_t b) { return (a + b - 1) / b; };
-  for (int64_t t = oh; t >= 1; --t) {
-    int64_t inSize = (t - 1) * stride + kh;
-    if (inSize > kMaxIter)
-      continue;
-    int64_t paddedWins = cdiv(t * t, kLane) * kLane;
-    int64_t rows = (paddedWins / kLane) * cdiv(kh * kh, kLane) * kLane;
-    if (rows <= kBankLines && paddedWins * kOutputRounds <= kBankLines)
-      return true;
-  }
-  return false;
+  return true;
 }
 
 class DepthwiseConv2dNhwcHwcmLowering
@@ -1074,9 +1256,9 @@ public:
     getConvPads(convOp, padLow, padHigh);
     // Import often leaves default strides=1 while memoized maps stay unit;
     // shapes are authoritative for the real stride.
-    auto inferred = inferConvStride(inputType.getShape()[1],
-                                    filterType.getShape()[0], os[1], padLow,
-                                    padHigh);
+    auto inferred =
+        inferConvStride(inputType.getShape()[1], filterType.getShape()[0],
+                        os[1], padLow, padHigh);
     if (!inferred)
       return failure();
     int64_t stride = *inferred;
@@ -1096,7 +1278,8 @@ public:
 } // namespace
 
 void populateLowerLinalgToTileConversionPatterns(RewritePatternSet &patterns) {
-  patterns.add<QuantizedGenericLowering>(patterns.getContext());
+  patterns.add<QuantF32ToI8Lowering, MegaKernelGenericLowering>(
+      patterns.getContext());
   patterns.add<ReluGenericLowering>(patterns.getContext());
   patterns.add<MatmulLowering>(patterns.getContext());
   patterns.add<BatchMatMulOpLowering>(patterns.getContext());
@@ -1228,6 +1411,79 @@ public:
 //===----------------------------------------------------------------------===//
 
 namespace {
+static bool isIdentityPerm(ArrayRef<int64_t> perm) {
+  for (int64_t i = 0; i < (int64_t)perm.size(); ++i)
+    if (perm[i] != i)
+      return false;
+  return true;
+}
+
+static SmallVector<int64_t> composePerm(ArrayRef<int64_t> p1,
+                                        ArrayRef<int64_t> p2) {
+  SmallVector<int64_t> out(p2.size());
+  for (int64_t i = 0; i < (int64_t)p2.size(); ++i)
+    out[i] = p1[p2[i]];
+  return out;
+}
+
+class CancelDuplicateTransposePattern
+    : public OpRewritePattern<linalg::TransposeOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(linalg::TransposeOp op,
+                                PatternRewriter &rewriter) const override {
+    Value in = op.getInput();
+    auto perm = op.getPermutation();
+    for (Operation *user : in.getUsers()) {
+      auto prev = dyn_cast<linalg::TransposeOp>(user);
+      if (!prev || prev == op || prev.getInput() != in ||
+          prev.getPermutation() != perm)
+        continue;
+      auto inTy = cast<MemRefType>(in.getType());
+      auto outTy = cast<MemRefType>(op.getInit().getType());
+      auto prevOutTy = cast<MemRefType>(prev.getInit().getType());
+      if (inTy.getShape() != outTy.getShape() ||
+          prevOutTy.getShape() != outTy.getShape())
+        continue;
+      Location loc = op.getLoc();
+      if (prev.getInit() != op.getInit())
+        memref::CopyOp::create(rewriter, loc, prev.getInit(), op.getInit());
+      rewriter.eraseOp(op);
+      return success();
+    }
+    return failure();
+  }
+};
+
+class CancelTransposePairPattern
+    : public OpRewritePattern<linalg::TransposeOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(linalg::TransposeOp op2,
+                                PatternRewriter &rewriter) const override {
+    auto op1 = op2.getInput().getDefiningOp<linalg::TransposeOp>();
+    if (!op1 || op1.getInit() != op2.getInput() || !op2.getInput().hasOneUse())
+      return failure();
+    auto p1 = op1.getPermutation();
+    auto p2 = op2.getPermutation();
+    if (p1.size() != p2.size() || !isIdentityPerm(composePerm(p1, p2)))
+      return failure();
+    auto srcTy = cast<MemRefType>(op1.getInput().getType());
+    auto dstTy = cast<MemRefType>(op2.getInit().getType());
+    if (srcTy.getShape() != dstTy.getShape())
+      return failure();
+    Location loc = op2.getLoc();
+    if (op1.getInput() != op2.getInit())
+      memref::CopyOp::create(rewriter, loc, op1.getInput(), op2.getInit());
+    rewriter.eraseOp(op2);
+    if (op1.getInit().use_empty())
+      rewriter.eraseOp(op1);
+    return success();
+  }
+};
+
 class LowerLinalgToTilePass
     : public PassWrapper<LowerLinalgToTilePass, OperationPass<ModuleOp>> {
 public:
@@ -1238,7 +1494,35 @@ public:
   StringRef getDescription() const final {
     return "convert linalg dialect to tile dialect";
   }
-  void runOnOperation() override;
+  void runOnOperation() override {
+    MLIRContext *context = &getContext();
+    ModuleOp module = getOperation();
+    {
+      RewritePatternSet cancel(context);
+      cancel.add<CancelTransposePairPattern, CancelDuplicateTransposePattern>(
+          context);
+      if (failed(applyPatternsGreedily(module, std::move(cancel))))
+        signalPassFailure();
+    }
+    ConversionTarget target(*context);
+    target.addLegalDialect<memref::MemRefDialect, tile::TileDialect,
+                           arith::ArithDialect, scf::SCFDialect>();
+    target.addLegalOp<linalg::FillOp, linalg::YieldOp>();
+    target.addDynamicallyLegalOp<linalg::GenericOp>([](linalg::GenericOp op) {
+      for (StringRef marker :
+           {"buckyball.quant_f32_to_i8", "buckyball.mega_kernel"}) {
+        auto enabled = op->getAttrOfType<BoolAttr>(marker);
+        if (enabled && enabled.getValue())
+          return false;
+      }
+      return true;
+    });
+    target.addIllegalOp<linalg::TransposeOp>();
+    RewritePatternSet patterns(context);
+    populateLowerLinalgToTileConversionPatterns(patterns);
+    if (failed(applyPartialConversion(module, target, std::move(patterns))))
+      signalPassFailure();
+  }
   void getDependentDialects(DialectRegistry &registry) const override {
     registry
         .insert<tile::TileDialect, func::FuncDialect, memref::MemRefDialect,
@@ -1246,20 +1530,6 @@ public:
   }
 };
 } // namespace
-
-void LowerLinalgToTilePass::runOnOperation() {
-  MLIRContext *context = &getContext();
-  ModuleOp module = getOperation();
-  ConversionTarget target(*context);
-  target.addLegalDialect<memref::MemRefDialect, tile::TileDialect,
-                         arith::ArithDialect, scf::SCFDialect>();
-  target.addLegalOp<linalg::FillOp, linalg::YieldOp>();
-  target.addIllegalOp<linalg::TransposeOp>();
-  RewritePatternSet patterns(context);
-  populateLowerLinalgToTileConversionPatterns(patterns);
-  if (failed(applyPartialConversion(module, target, std::move(patterns))))
-    signalPassFailure();
-}
 
 namespace mlir {
 namespace buddy {

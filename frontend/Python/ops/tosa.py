@@ -577,6 +577,8 @@ def _split_via_tosa_slice(
     dim: int,
     split_sizes: list[int],
 ) -> list[ir.Value]:
+    # tosa.slice / extract_slice on non-dim1 (esp. NHWC C) lowers wrong;
+    # always slice on dim1 via transpose.
     rank = len(input_shape)
     if dim != 1:
         perm = list(range(rank))
@@ -7256,20 +7258,6 @@ def split_with_sizes_op(node: SplitWithSizesOp, symbol_table):
         raise RuntimeError(
             f"split_with_sizes sizes={split_sizes} sum != input dim{dim} "
             f"of {input_shape}"
-        )
-
-    nhwc_c = (
-        len(input_shape) == 4
-        and dim == 3
-        and input_shape[1] == input_shape[2]
-        and input_shape[3] > input_shape[1]
-    )
-    if nhwc_c:
-        nchw = _nhwc_to_nchw(input1)
-        nchw_shape = [int(x) for x in ir.RankedTensorType(nchw.type).shape]
-        return tuple(
-            _nchw_to_nhwc(x)
-            for x in _split_via_tosa_slice(nchw, nchw_shape, 1, split_sizes)
         )
 
     return tuple(_split_via_tosa_slice(input1, input_shape, dim, split_sizes))
