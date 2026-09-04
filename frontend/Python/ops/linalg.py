@@ -13133,19 +13133,14 @@ def mega_conv2d_op(node, symbol_table):
     cout, weight_cin, kh, kw = node._weight_shape
     actual_weight_shape = [int(x) for x in weight_type.shape]
     packed_weight_shape = (
-        [kh, kw, cout, 1] if depthwise else [kh, kw, weight_cin, cout]
+        [kh, kw, cout, 1]
+        if depthwise
+        else [(cout + 15) // 16, weight_cin, ((kh * kw + 15) // 16) * 16, 16]
     )
-    if actual_weight_shape == [cout, weight_cin, kh, kw]:
-        permutation = [2, 3, 0, 1] if depthwise else [2, 3, 1, 0]
-        weight = tosa.TransposeOp(
-            ir.RankedTensorType.get(packed_weight_shape, i8),
-            weight,
-            ir.DenseI32ArrayAttr.get(permutation),
-        ).result
-    elif actual_weight_shape != packed_weight_shape:
+    if actual_weight_shape != packed_weight_shape:
         raise ValueError(
             f"Mega Conv2D weight layout mismatch for {node.name}: "
-            f"{actual_weight_shape}"
+            f"expected {packed_weight_shape}, got {actual_weight_shape}"
         )
     if (
         weight_type.element_type != i8
@@ -13191,46 +13186,17 @@ def mega_conv2d_op(node, symbol_table):
     output_element = f32 if node._final_output else i8
     out_type = ir.RankedTensorType.get(output_shape, output_element)
     output = tensor.EmptyOp(output_shape, output_element)
-    if depthwise:
-        dims = [ir.AffineExpr.get_dim(i) for i in range(8)]
-        zero = ir.AffineExpr.get_constant(0)
-        maps = [
-            ir.AffineMap.get(8, 0, [dims[0], dims[6], dims[7], dims[3]]),
-            ir.AffineMap.get(8, 0, [dims[4], dims[5], dims[3], zero]),
-            ir.AffineMap.get(8, 0, [dims[3]]),
-            ir.AffineMap.get(8, 0, [dims[3]]),
-            ir.AffineMap.get(8, 0, [zero]),
-            ir.AffineMap.get(
-                8,
-                0,
-                (
-                    [dims[0], dims[3], dims[1], dims[2]]
-                    if node._final_output
-                    else [dims[0], dims[1], dims[2], dims[3]]
-                ),
-            ),
-        ]
-        reduction_count = 4
-    else:
-        dims = [ir.AffineExpr.get_dim(i) for i in range(9)]
-        zero = ir.AffineExpr.get_constant(0)
-        maps = [
-            ir.AffineMap.get(9, 0, [dims[0], dims[7], dims[8], dims[6]]),
-            ir.AffineMap.get(9, 0, [dims[4], dims[5], dims[6], dims[3]]),
-            ir.AffineMap.get(9, 0, [dims[3]]),
-            ir.AffineMap.get(9, 0, [dims[3]]),
-            ir.AffineMap.get(9, 0, [zero]),
-            ir.AffineMap.get(
-                9,
-                0,
-                (
-                    [dims[0], dims[3], dims[1], dims[2]]
-                    if node._final_output
-                    else [dims[0], dims[1], dims[2], dims[3]]
-                ),
-            ),
-        ]
-        reduction_count = 5
+    dims = [ir.AffineExpr.get_dim(i) for i in range(4)]
+    zero = ir.AffineExpr.get_constant(0)
+    output_map = ir.AffineMap.get_identity(4)
+    maps = [
+        ir.AffineMap.get(4, 0, [zero, zero, zero, zero]),
+        ir.AffineMap.get(4, 0, [zero, zero, zero, zero]),
+        ir.AffineMap.get(4, 0, [zero]),
+        ir.AffineMap.get(4, 0, [zero]),
+        ir.AffineMap.get(4, 0, [zero]),
+        output_map,
+    ]
     op = linalg.GenericOp(
         [out_type],
         [activation, weight, bias, scale, lut],
@@ -13238,8 +13204,6 @@ def mega_conv2d_op(node, symbol_table):
         ir.ArrayAttr.get([ir.AffineMapAttr.get(x) for x in maps]),
         ir.ArrayAttr.get(
             [ir.Attribute.parse("#linalg.iterator_type<parallel>")] * 4
-            + [ir.Attribute.parse("#linalg.iterator_type<reduction>")]
-            * reduction_count
         ),
     )
     i64 = ir.IntegerType.get_signless(64)
@@ -13250,6 +13214,7 @@ def mega_conv2d_op(node, symbol_table):
     )
     op.operation.attributes[marker] = ir.BoolAttr.get(True)
     op.operation.attributes["stride"] = ir.IntegerAttr.get(i64, node._stride)
+    op.operation.attributes["kernel"] = ir.IntegerAttr.get(i64, kh)
     op.operation.attributes["pad_low"] = ir.IntegerAttr.get(i64, node._padding)
     op.operation.attributes["pad_high"] = ir.IntegerAttr.get(i64, node._padding)
     op.operation.attributes["activation"] = ir.IntegerAttr.get(

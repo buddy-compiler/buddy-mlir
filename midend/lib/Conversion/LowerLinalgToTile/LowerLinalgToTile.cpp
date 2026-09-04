@@ -458,19 +458,21 @@ public:
       }
 
       auto stride = current->getAttrOfType<IntegerAttr>("stride");
+      auto kernelSize = current->getAttrOfType<IntegerAttr>("kernel");
       auto padLow = current->getAttrOfType<IntegerAttr>("pad_low");
       auto padHigh = current->getAttrOfType<IntegerAttr>("pad_high");
-      if (!stride || !padLow || !padHigh)
+      if (!kernelSize || kernelSize.getInt() <= 0 || !stride || !padLow ||
+          !padHigh)
         return current.emitError(
             "MegaKernel convolution attributes are missing");
       if (depthwise)
         tile::TileMegaConv2dDepthwiseOp::create(
             rewriter, current.getLoc(), input, weight, bias, scale, lut, output,
-            stride, padLow, padHigh, activation, outputScale);
+            kernelSize, stride, padLow, padHigh, activation, outputScale);
       else
         tile::TileMegaConv2dOp::create(
             rewriter, current.getLoc(), input, weight, bias, scale, lut, output,
-            stride, padLow, padHigh, activation, outputScale);
+            kernelSize, stride, padLow, padHigh, activation, outputScale);
     }
     tile::TileMegaYieldOp::create(rewriter, op.getLoc());
     for (int64_t index = stages.size(); index > 0; --index)
