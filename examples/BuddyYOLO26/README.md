@@ -2,17 +2,23 @@
 
 1. Enter Python virtual environment
 
-We recommend using anaconda3 to create a Python virtual environment.
+We recommend you to use conda to create python virtual environment.
 
-```bash
+```
 $ conda activate <your virtual environment name>
 $ cd buddy-mlir
 $ pip install -r requirements.txt
 ```
 
-2. Build LLVM/MLIR
+To run YOLO26 example:
 
-```bash
+```
+$ pip install ultralytics
+```
+
+2. Build and check LLVM/MLIR
+
+```
 $ cd buddy-mlir
 $ mkdir -p llvm/build
 $ cd llvm/build
@@ -28,9 +34,9 @@ $ cmake -G Ninja ../llvm \
 $ ninja check-clang check-mlir check-openmp
 ```
 
-3. Build buddy-mlir
+3. Build and check buddy-mlir
 
-```bash
+```
 $ cd buddy-mlir
 $ mkdir -p build
 $ cd build
@@ -40,40 +46,59 @@ $ cmake -G Ninja .. \
     -DLLVM_ENABLE_ASSERTIONS=ON \
     -DCMAKE_BUILD_TYPE=RELEASE \
     -DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON \
-    -DBUDDY_MLIR_ENABLE_DIP_LIB=ON \
-    -DBUDDY_ENABLE_PNG=ON \
     -DPython3_EXECUTABLE=$(which python3)
 $ ninja
 ```
 
-4. Set `PYTHONPATH`
+4. Set environment variables
 
-```bash
+```
 $ cd buddy-mlir/build
 $ export BUDDY_MLIR_BUILD_DIR=$PWD
 $ export LLVM_MLIR_BUILD_DIR=$PWD/../llvm/build
-$ export PYTHONPATH=${LLVM_MLIR_BUILD_DIR}/tools/mlir/python_packages/mlir_core:${BUDDY_MLIR_BUILD_DIR}/python_packages:${PYTHONPATH}
+$ export PYTHONPATH=${BUDDY_MLIR_BUILD_DIR}/python_packages:${PYTHONPATH}
 ```
 
-5. Set YOLO26n model path (optional)
+Test Python bindings:
 
-```bash
+```
+$ python3 -c "from buddy.compiler.frontend import DynamoCompiler"
+```
+
+5. Optional: Set YOLO26n model path
+
+```
 $ export YOLO26N_MODEL_PATH=/path/to/yolo26n.pt
 ```
 
-If `YOLO26N_MODEL_PATH` is not set, the importer tries `buddy-mlir/yolo26n.pt`.
-If the file does not exist, Ultralytics will download `yolo26n.pt`
-automatically. In the CMake flow above, it is downloaded to
-`build/examples/BuddyYOLO26/yolo26n.pt`.
+If not set, the importer will automatically download `yolo26n.pt`.
 
 6. Build and run YOLO26n example
 
-```bash
+```
 $ cd buddy-mlir/build
 $ cmake -G Ninja .. -DBUDDY_YOLO26_EXAMPLES=ON
 $ ninja buddy-yolo26n-run
-$ ./bin/buddy-yolo26n-run ../examples/BuddyYOLO26/images/bus.bmp
+$ ./bin/buddy-yolo26n-run ../examples/BuddyYOLO26/images/bus_16bit.bmp
 ```
 
-The runtime prints both `class_id` and label name resolved from
-`examples/BuddyYOLO26/labels.txt`.
+7. Expected output
+
+```
+YOLO26n Inference Powered by Buddy Compiler
+
+[0] class_id=0 label=person ...
+[1] class_id=0 label=person ...
+[2] class_id=0 label=person ...
+[3] class_id=5 label=bus ...
+[4] class_id=0 label=person ...
+
+Detections: 5
+```
+
+Runtime prints:
+
+* class id
+* class label
+* confidence score
+* bounding box coordinates
