@@ -370,6 +370,7 @@ def import_graph(
     prefix,
     *example_inputs,
     template_partitioned=False,
+    output_remap=None,
 ):
     import numpy
     from buddy.compiler.frontend import DynamoCompiler
@@ -442,7 +443,9 @@ def import_graph(
             "w",
         ) as module_file:
             print(
-                driver.construct_template_combined_main_graph(True),
+                driver.construct_template_combined_main_graph(
+                    True, output_remap=output_remap
+                ),
                 file=module_file,
             )
 
@@ -535,6 +538,8 @@ def cmd_import_vision(args):
             "experimental_template_partitioned",
             False,
         ),
+        # Preserve the existing vision ABI: (ds0, ds1, ds2, pooled).
+        output_remap=[1, 2, 3, 0],
     )
     print(
         f"[import] OK -> {VISION_DIR}/vision_forward.mlir weights={weight_count}"
