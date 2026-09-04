@@ -147,15 +147,26 @@ def VIR_ReduceOp : VIR_Op<"reduce"> {
     predefined combiner kind.
 
     v1 semantics:
-    - `kind = \"add\"`    : floating-point sum reduction
-    - `kind = \"maxnum\"` : floating-point maxnum reduction
+    - `kind = \"add\"`     : integer/index/floating-point sum reduction
+    - `kind = \"mul\"`     : integer/index/floating-point product reduction
+    - `kind = \"and\"`     : integer/index bitwise-and reduction
+    - `kind = \"or\"`      : integer/index bitwise-or reduction
+    - `kind = \"xor\"`     : integer/index bitwise-xor reduction
+    - `kind = \"minui\"`   : unsigned integer minimum reduction
+    - `kind = \"minsi\"`   : signed integer minimum reduction
+    - `kind = \"maxui\"`   : unsigned integer maximum reduction
+    - `kind = \"maxsi\"`   : signed integer maximum reduction
+    - `kind = \"minnum\"`  : floating-point minnum reduction
+    - `kind = \"maxnum\"`  : floating-point maxnum reduction
+    - `kind = \"minimum\"` : floating-point minimum reduction
+    - `kind = \"maximum\"` : floating-point maximum reduction
   }];
   let arguments = (ins
     VIR_DynamicVectorType:$input,
-    AnyFloat:$acc,
+    VIR_DynamicVectorTypeElementType:$acc,
     StrAttr:$kind
   );
-  let results = (outs AnyFloat:$result);
+  let results = (outs VIR_DynamicVectorTypeElementType:$result);
 
   let assemblyFormat = "$input `,` $acc attr-dict `:` qualified(type($input))"
                        " `,` type($acc) `->` type($result)";
