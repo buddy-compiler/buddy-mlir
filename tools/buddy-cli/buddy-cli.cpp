@@ -60,7 +60,29 @@ static void applyCpuAffinity(const std::string &spec) {
   std::cerr << "[buddy-cli] Doesn't support applyCpuAffinity; --cpus ignored\n";
 }
 #else
+#include <fcntl.h>
 #include <sched.h>
+#include <unistd.h>
+
+// Register the current thread for K3 IME execution when supported.
+static void bindAiThread() {
+  const char *path = "/proc/set_ai_thread";
+  int fd = open(path, O_WRONLY);
+  if (fd < 0) {
+    std::cerr << "[buddy-cli] /proc/set_ai_thread not available: "
+              << strerror(errno) << "\n";
+    return;
+  }
+
+  const char *val = "0";
+  if (write(fd, val, strlen(val)) < 0)
+    std::cerr << "[buddy-cli] write to /proc/set_ai_thread failed: "
+              << strerror(errno) << "\n";
+  else
+    std::cout << "[buddy-cli] /proc/set_ai_thread: IME kernel context enabled\n";
+
+  close(fd);
+}
 
 // Parse "0-47" or "0-15,32-47,64" into a cpu_set_t.
 static cpu_set_t parseCpuSet(const std::string &spec) {
@@ -89,14 +111,31 @@ static cpu_set_t parseCpuSet(const std::string &spec) {
   return mask;
 }
 
+static bool cpuSetIntersects(const cpu_set_t &mask, int lo, int hi) {
+  for (int cpu = lo; cpu <= hi; ++cpu)
+    if (CPU_ISSET(cpu, &mask))
+      return true;
+  return false;
+}
+
 // Apply CPU affinity via sched_setaffinity.
 static void applyCpuAffinity(const std::string &spec) {
+  int beforeCpu = sched_getcpu();
+  std::cout << "[buddy-cli] --cpus " << spec
+            << " requested (currently on CPU " << beforeCpu << ")\n";
+
   auto mask = parseCpuSet(spec);
-  if (sched_setaffinity(0, sizeof(mask), &mask) != 0)
-    std::cerr << "[buddy-cli] sched_setaffinity failed: " << strerror(errno)
-              << "\n";
-  else
-    std::cout << "[buddy-cli] CPU affinity set: " << spec << "\n";
+  if (cpuSetIntersects(mask, 8, 15))
+    bindAiThread();
+  if (sched_setaffinity(0, sizeof(mask), &mask) != 0) {
+    std::cerr << "[buddy-cli] sched_setaffinity failed for --cpus " << spec
+              << ": " << strerror(errno) << "\n";
+    return;
+  }
+
+  int afterCpu = sched_getcpu();
+  std::cout << "[buddy-cli] CPU affinity OK: now on CPU " << afterCpu
+            << "\n";
 }
 #endif
 
