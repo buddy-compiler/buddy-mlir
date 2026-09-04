@@ -82,13 +82,19 @@ jobs:
       - name: Run check-buddy
         continue-on-error: ${{ matrix.arch == 'arm64' }}
         run: |
+          # Newest first: the latest torch releases break most often, so fail
+          # fast before spending time on the older, stable ones.
           if [ "${{ matrix.arch }}" = "riscv64" ]; then
             # The Ruyi torch 2.12 riscv64 wheel omits the top-level functorch
             # compatibility package still imported by torch._dynamo.
             # https://ruyirepo.ruyicommunity.cn/pypi/simple/torch/
-            torch_versions=(2.10 2.11 2.12 2.13)
+            # That index carries torch 2.14.0 for x86_64/aarch64 but its newest
+            # riscv64 build is still 2.13.0, so keep 2.14 off riscv64 until it
+            # shows up.
+            torch_versions=(2.13 2.12 2.11 2.10)
           else
-            torch_versions=(2.10 2.11 2.12 2.13)
+            # torch 2.14.0 is on the CPU index and on PyPI, including cp312.
+            torch_versions=(2.14 2.13 2.12 2.11 2.10)
           fi
 
           for torch_version in "${torch_versions[@]}"; do
@@ -114,5 +120,16 @@ jobs:
               import torch
               print("torch:", torch.__version__)
             """))'
-            ninja -C build check-buddy
+            # Only the newest version needs the whole suite: of the 590 cases
+            # check-buddy runs, the 268 that import torch while running all live
+            # in check-tests, plus the matmul roundtrip in examples/BuddyJIT; the
+            # rest consume .mlir checked into the tree, so swapping the wheel
+            # cannot show up in them. Measured per version: check-examples costs
+            # 57s on x64 and 587-707s on riscv64, check-tests 34s and 150-190s,
+            # and the BuddyJIT case is a single test out of those 239.
+            if [ "${torch_version}" = "${torch_versions[0]}" ]; then
+              ninja -C build check-buddy
+            else
+              ninja -C build check-tests check-buddy-examples-buddyjit
+            fi
           done
