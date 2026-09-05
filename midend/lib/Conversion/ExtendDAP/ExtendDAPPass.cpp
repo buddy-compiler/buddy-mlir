@@ -723,8 +723,15 @@ Value padReflect(PatternRewriter &rewriter, Location loc, Value c0, Value c1,
   rewriter.createBlock(padOpRegion1, padOpRegion1->end(), blockArgTypes1,
                        blockArgLocs1);
   Value iv1 = padOp1.getRegion().front().getArgument(0);
-  Value idx1 = arith::SubIOp::create(rewriter, loc, lowPadLen, iv1);
-  Value elem1 = tensor::ExtractOp::create(rewriter, loc, input, idx1);
+  Value reflectedIdx1 = arith::SubIOp::create(rewriter, loc, lowPadLen, iv1);
+  Value isLeftPadding = arith::CmpIOp::create(
+      rewriter, loc, arith::CmpIPredicate::slt, iv1, lowPadLen);
+  // Bufferization may evaluate the padding region for the complete result.
+  // Keep the non-padding iterations on a valid source element; the source
+  // slice is copied over those values immediately after padding.
+  Value safeIdx1 =
+      arith::SelectOp::create(rewriter, loc, isLeftPadding, reflectedIdx1, c0);
+  Value elem1 = tensor::ExtractOp::create(rewriter, loc, input, safeIdx1);
   tensor::YieldOp::create(rewriter, loc, elem1);
   rewriter.restoreInsertionPoint(ip1);
   lowValues.clear();
@@ -753,8 +760,13 @@ Value padReflect(PatternRewriter &rewriter, Location loc, Value c0, Value c1,
                        blockArgLocs2);
   Value iv2 = padOp2.getRegion().front().getArgument(0);
   Value sub = arith::SubIOp::create(rewriter, loc, iv2, symIndex);
-  Value idx2 = arith::SubIOp::create(rewriter, loc, symIndex, sub);
-  Value elem2 = tensor::ExtractOp::create(rewriter, loc, lowPaddedInput, idx2);
+  Value reflectedIdx2 = arith::SubIOp::create(rewriter, loc, symIndex, sub);
+  Value isRightPadding = arith::CmpIOp::create(
+      rewriter, loc, arith::CmpIPredicate::sge, iv2, lowPaddedInputDim);
+  Value safeIdx2 =
+      arith::SelectOp::create(rewriter, loc, isRightPadding, reflectedIdx2, c0);
+  Value elem2 =
+      tensor::ExtractOp::create(rewriter, loc, lowPaddedInput, safeIdx2);
   tensor::YieldOp::create(rewriter, loc, elem2);
   rewriter.restoreInsertionPoint(ip2);
   lowValues.clear();
