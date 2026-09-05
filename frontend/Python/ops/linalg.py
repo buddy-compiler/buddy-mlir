@@ -13223,6 +13223,10 @@ def mega_conv2d_op(node, symbol_table):
     op.operation.attributes["output_scale"] = ir.FloatAttr.get(
         f32, node._output_scale
     )
+    if getattr(node, "_lane_output_scales", []):
+        op.operation.attributes["lane_output_scales"] = (
+            ir.DenseF32ArrayAttr.get(node._lane_output_scales)
+        )
     op.operation.attributes["final_output"] = ir.BoolAttr.get(
         node._final_output
     )

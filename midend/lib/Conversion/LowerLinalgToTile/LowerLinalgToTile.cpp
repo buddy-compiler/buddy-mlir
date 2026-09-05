@@ -36,6 +36,7 @@
 
 #include "Tile/TileDialect.h"
 #include "Tile/TileOps.h"
+#include "llvm/ADT/STLExtras.h"
 using namespace mlir;
 using namespace buddy;
 
@@ -445,11 +446,27 @@ public:
       Value lut = current.getInputs()[4];
       auto lutType = dyn_cast<MemRefType>(lut.getType());
       int64_t expectedLutSize = activation.getInt() == 2 ? 256 : 1;
+      if (activation.getInt() == 2 && lutType && lutType.hasStaticShape() &&
+          lutType.getRank() == 1 && lutType.getShape()[0] == 4096)
+        expectedLutSize = 4096;
       if (!lutType || !lutType.hasStaticShape() || lutType.getRank() != 1 ||
           !lutType.getElementType().isInteger(8) ||
           lutType.getShape()[0] != expectedLutSize)
         return current.emitError(
             "MegaKernel activation LUT has the wrong shape");
+      if (expectedLutSize == 4096) {
+        auto outputType = dyn_cast<MemRefType>(output.getType());
+        int64_t consumers = 0;
+        for (linalg::GenericOp candidate : stages)
+          consumers += llvm::is_contained(candidate.getInputs(), output);
+        if (!normal || index != 0 || !outputType || outputType.getRank() != 4 ||
+            outputType.getShape()[3] != 16 || stages.size() < 2 ||
+            !stages[1]->hasAttr("buckyball.mega_conv2d_depthwise") ||
+            stages[1].getInputs()[0] != output || consumers != 1)
+          return current.emitError(
+              "4096-entry lane LUT is only legal on stage 0 before one "
+              "16-channel depthwise Conv");
+      }
       if (matmul) {
         tile::TileMegaMatmulOp::create(rewriter, current.getLoc(), input,
                                        weight, bias, scale, lut, output,
