@@ -47,6 +47,7 @@ def gen_manifest(
     serving_library: str | None = None,
     embedding_library: str | None = None,
     masked_lm_library: str | None = None,
+    transcription_library: str | None = None,
 ) -> str:
     """Generate the complete RHAL .mlir manifest text."""
     out = StringIO()
@@ -86,6 +87,11 @@ def gen_manifest(
     masked_lm_uri = (
         _normalize_dep_uri(masked_lm_library) if masked_lm_library else None
     )
+    transcription_uri = (
+        _normalize_dep_uri(transcription_library)
+        if transcription_library
+        else None
+    )
 
     dep_uris: list[str] = []
     for item in dep_shared_libs or []:
@@ -111,6 +117,9 @@ def gen_manifest(
     if masked_lm_uri:
         p(",")
         p(f'    masked_lm_library = "{masked_lm_uri}"', end="")
+    if transcription_uri:
+        p(",")
+        p(f'    transcription_library = "{transcription_uri}"', end="")
     p("} {")
     p()
 
@@ -275,6 +284,14 @@ def main():
         metavar="URI_OR_NAME",
         help=("Masked-LM plugin library URI/name to place into module attrs."),
     )
+    parser.add_argument(
+        "--transcription-library",
+        default=None,
+        metavar="URI_OR_NAME",
+        help=(
+            "Audio transcription plugin URI/name to place into module attrs."
+        ),
+    )
     args = parser.parse_args()
 
     with open(args.config) as f:
@@ -288,6 +305,7 @@ def main():
             serving_library=args.serving_library,
             embedding_library=args.embedding_library,
             masked_lm_library=args.masked_lm_library,
+            transcription_library=args.transcription_library,
         )
     except (ValueError, RuntimeError, OSError) as e:
         print(f"error: {e}", file=sys.stderr)

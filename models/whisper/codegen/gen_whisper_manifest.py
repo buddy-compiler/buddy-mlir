@@ -14,21 +14,6 @@
 # limitations under the License.
 #
 # ===----------------------------------------------------------------------===//
-#
-# Generates the RHAL dialect .mlir manifest that rax-pack consumes for the
-# Whisper encoder-decoder model.
-#
-# Unlike the LLM manifest (tools/buddy-codegen/gen_manifest.py), Whisper has a
-# single `forward` entrypoint, no KV cache, and an audio-feature input.  buddy-cli
-# does not interpret the rhal.func/buffer bodies at runtime; it only reads the
-# external constant (weights), the host_shared_lib code object (model .so), and
-# the module attrs (model_name, vocab_uri, runner_library).  The func/buffer
-# entries exist only so rax-pack can parse a well-formed module.
-#
-# Usage:
-#   python gen_whisper_manifest.py --spec specs/base.json -o whisper.mlir
-#
-# ===----------------------------------------------------------------------===//
 
 import argparse
 import json
@@ -36,7 +21,16 @@ import os
 import sys
 
 
-def gen_manifest(spec: dict, runner_library: str) -> str:
+def _normalize_uri(raw: str) -> str:
+    value = raw.strip()
+    if ":" in value:
+        return value
+    return f"file:{value}"
+
+
+def gen_manifest(
+    spec: dict, runner_library: str, transcription_library: str
+) -> str:
     model_id = spec.get("model_id", f"{spec['model_family']}_{spec['variant']}")
     params_size = spec["params_size"]
     vocab_size = spec["vocab_size"]
@@ -48,59 +42,58 @@ def gen_manifest(spec: dict, runner_library: str) -> str:
     vocab_file = spec.get("vocab_file", "vocab.txt")
 
     lines = []
-    p = lines.append
+    emit = lines.append
+    emit("rhal.module @whisper attributes {")
+    emit('    version = "0.1.0",')
+    emit(f'    model_name = "{model_id}",')
+    emit(f'    vocab_uri = "file:{vocab_file}",')
+    emit(f'    runner_library = "{runner_library}",')
+    emit(f'    transcription_library = "{transcription_library}",')
+    emit(f'    params_size = "{params_size}",')
+    emit(f'    vocab_size = "{vocab_size}",')
+    emit(f'    max_token_len = "{max_token_len}",')
+    emit(f'    mel_bins = "{mel_bins}",')
+    emit(f'    audio_frames = "{audio_frames}",')
+    emit(f'    enc_seq = "{spec["enc_seq"]}",')
+    emit(f'    enc_dim = "{spec["enc_dim"]}",')
+    emit(f'    sot_token = "{spec["sot_token"]}",')
+    emit(f'    eot_token = "{spec["eot_token"]}"')
+    emit("} {")
+    emit("")
 
-    # -- Module header ---------------------------------------------------------
-    p("rhal.module @whisper attributes {")
-    p('    version = "0.1.0",')
-    p(f'    model_name = "{model_id}",')
-    p(f'    vocab_uri = "file:{vocab_file}",')
-    p(f'    runner_library = "{runner_library}"}} {{')
-    p("")
+    emit('  rhal.constant @params {id = 1 : i32, storage = "external",')
+    emit(f"                         type = tensor<{params_size}xf32>,")
+    emit(f'                         uri = "file:{weight_file}"}}')
+    emit("")
 
-    # -- External constant (weight blob) ---------------------------------------
-    p('  rhal.constant @params {id = 1 : i32, storage = "external",')
-    p(f"                         type = tensor<{params_size}xf32>,")
-    p(f'                         uri = "file:{weight_file}"}}')
-    p("")
+    emit(
+        '  rhal.codeobj @model_kernels {id = 1 : i32, kind = "host_shared_lib",'
+    )
+    emit('                                backend = "cpu",')
+    emit(f'                                uri = "file:{so_name}"}}')
+    emit("")
 
-    # -- Code object (the compiled MLIR kernels) -------------------------------
-    p('  rhal.codeobj @model_kernels {id = 1 : i32, kind = "host_shared_lib",')
-    p('                                backend = "cpu",')
-    p(f'                                uri = "file:{so_name}"}}')
-    p("")
-
-    # -- Buffer descriptors (informational; not read by buddy-cli) -------------
-    p(
+    emit(
         f'  rhal.buffer @audio_features {{space = "host", '
         f"type = tensor<1x{mel_bins}x{audio_frames}xf32>}}"
     )
-    p(
+    emit(
         f'  rhal.buffer @decoder_tokens {{space = "host", '
         f"type = tensor<1x{max_token_len}xi64>}}"
     )
-    p(
+    emit(
         f'  rhal.buffer @logits {{space = "host", '
         f"type = tensor<1x{max_token_len}x{vocab_size}xf32>}}"
     )
-    p("")
+    emit("")
 
-    # -- forward entrypoint ----------------------------------------------------
-    p("  rhal.func @forward {")
-    p('    inputs   = ["audio_features", "decoder_tokens"],')
-    p('    outputs  = ["logits"],')
-    p('    dispatch = "model_kernels",')
-    p('    args     = ["audio_features", "decoder_tokens", "logits"]}')
-    p("}")
-
+    emit("  rhal.func @forward {")
+    emit('    inputs   = ["audio_features", "decoder_tokens"],')
+    emit('    outputs  = ["logits"],')
+    emit('    dispatch = "model_kernels",')
+    emit('    args     = ["audio_features", "decoder_tokens", "logits"]}')
+    emit("}")
     return "\n".join(lines) + "\n"
-
-
-def _normalize_uri(raw: str) -> str:
-    s = raw.strip()
-    if ":" in s:
-        return s
-    return f"file:{s}"
 
 
 def main():
@@ -116,14 +109,23 @@ def main():
         help="Runner plugin library URI/name for module attrs.",
     )
     parser.add_argument(
+        "--transcription-library",
+        default="whisper_transcription.so",
+        help="Audio transcription plugin URI/name for module attrs.",
+    )
+    parser.add_argument(
         "-o", "--output", default="-", help="Output path (- for stdout)"
     )
     args = parser.parse_args()
 
-    with open(args.spec) as f:
-        spec = json.load(f)
+    with open(args.spec, encoding="utf-8") as spec_file:
+        spec = json.load(spec_file)
 
-    text = gen_manifest(spec, _normalize_uri(args.runner_library))
+    text = gen_manifest(
+        spec,
+        _normalize_uri(args.runner_library),
+        _normalize_uri(args.transcription_library),
+    )
 
     if args.output == "-":
         sys.stdout.write(text)
@@ -131,10 +133,9 @@ def main():
         os.makedirs(
             os.path.dirname(os.path.abspath(args.output)), exist_ok=True
         )
-        with open(args.output, "w") as f:
-            f.write(text)
+        with open(args.output, "w", encoding="utf-8") as output_file:
+            output_file.write(text)
         print(f"[gen_whisper_manifest] Written: {args.output}", file=sys.stderr)
-
     return 0
 
 
