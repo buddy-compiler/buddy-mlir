@@ -14,6 +14,22 @@
 # limitations under the License.
 #
 # ===----------------------------------------------------------------------===//
+#
+# Generates the RHAL dialect .mlir manifest that rax-pack consumes for the
+# Whisper encoder-decoder model.
+#
+# Unlike the LLM manifest (tools/buddy-codegen/gen_manifest.py), Whisper has a
+# single `forward` entrypoint, no KV cache, and an audio-feature input.  buddy-cli
+# does not interpret the rhal.func/buffer bodies at runtime; it only reads the
+# external constant (weights), the host_shared_lib code object (model .so), and
+# the module attrs (model_name, vocab_uri, runner_library,
+# transcription_library).  The func/buffer entries exist only so rax-pack can
+# parse a well-formed module.
+#
+# Usage:
+#   python gen_whisper_manifest.py --spec specs/base.json -o whisper.mlir
+#
+# ===----------------------------------------------------------------------===//
 
 import argparse
 import json
