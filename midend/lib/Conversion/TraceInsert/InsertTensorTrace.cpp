@@ -43,6 +43,8 @@ constexpr StringLiteral kTensorTraceBF16PathFuncName =
     "buddyTraceTensorBF16Path";
 constexpr StringLiteral kTensorTraceI8PathFuncName = "buddyTraceTensorI8Path";
 constexpr StringLiteral kTensorTraceI32PathFuncName = "buddyTraceTensorI32Path";
+constexpr StringLiteral kBuckyballStageTraceI8PathFuncName =
+    "buckyballTraceStageI8Path";
 constexpr StringLiteral kCycleTraceStartFuncName = "buddyTraceCycleStart";
 constexpr StringLiteral kCycleTraceEndFuncName = "buddyTraceCycleEnd";
 constexpr StringLiteral kCycleTraceStartPathFuncName =
@@ -556,7 +558,12 @@ private:
       return op.emitError("trace end requires static memref shape");
     Type elemType = memrefType.getElementType();
     StringRef funcName;
-    if (elemType.isF32())
+    bool buckyballStageTrace = op->hasAttr("buckyball.stage_trace");
+    if (buckyballStageTrace && elemType.isInteger(8))
+      funcName = kBuckyballStageTraceI8PathFuncName;
+    else if (buckyballStageTrace)
+      return op.emitError("Buckyball stage trace requires an i8 memref");
+    else if (elemType.isF32())
       funcName = kTensorTraceF32PathFuncName;
     else if (elemType.isBF16())
       funcName = kTensorTraceBF16PathFuncName;
