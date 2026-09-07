@@ -115,6 +115,39 @@ struct QuantizePerGroupOpInterface
   }
 };
 
+struct SiluMulQuantizePerGroupOpInterface
+    : public DstBufferizableOpInterfaceExternalModel<
+          SiluMulQuantizePerGroupOpInterface, SiluMulQuantizePerGroupOp> {
+  bool bufferizesToMemoryRead(Operation *op, OpOperand &operand,
+                              const AnalysisState &) const {
+    auto quantize = cast<SiluMulQuantizePerGroupOp>(op);
+    return &operand == &quantize.getSiluMutable() ||
+           &operand == &quantize.getUpMutable();
+  }
+
+  LogicalResult bufferize(Operation *op, RewriterBase &rewriter,
+                          const BufferizationOptions &options,
+                          BufferizationState &state) const {
+    auto quantize = cast<SiluMulQuantizePerGroupOp>(op);
+    SmallVector<Value> buffers;
+    for (Value value : quantize->getOperands()) {
+      FailureOr<Value> buffer =
+          getBufferForOperand(rewriter, value, options, state);
+      if (failed(buffer))
+        return failure();
+      buffers.push_back(*buffer);
+    }
+
+    OperationState newState(quantize.getLoc(), quantize->getName());
+    newState.addOperands(buffers);
+    newState.addAttributes(quantize->getAttrs());
+    rewriter.create(newState);
+    bufferization::replaceOpWithBufferizedValues(
+        rewriter, op, ValueRange{buffers[2], buffers[3]});
+    return success();
+  }
+};
+
 struct W8A8LinearOpInterface
     : public DstBufferizableOpInterfaceExternalModel<W8A8LinearOpInterface,
                                                      W8A8LinearOp> {
@@ -142,6 +175,39 @@ struct W8A8LinearOpInterface
     newState.addAttributes(linear->getAttrs());
     rewriter.create(newState);
     bufferization::replaceOpWithBufferizedValues(rewriter, op, buffers[4]);
+    return success();
+  }
+};
+
+struct W8A8LinearPairOpInterface
+    : public DstBufferizableOpInterfaceExternalModel<
+          W8A8LinearPairOpInterface, W8A8LinearPairOp> {
+  bool bufferizesToMemoryRead(Operation *op, OpOperand &operand,
+                              const AnalysisState &) const {
+    auto pair = cast<W8A8LinearPairOp>(op);
+    return &operand != &pair.getOutput0Mutable() &&
+           &operand != &pair.getOutput1Mutable();
+  }
+
+  LogicalResult bufferize(Operation *op, RewriterBase &rewriter,
+                          const BufferizationOptions &options,
+                          BufferizationState &state) const {
+    auto pair = cast<W8A8LinearPairOp>(op);
+    SmallVector<Value> buffers;
+    for (Value value : pair->getOperands()) {
+      FailureOr<Value> buffer =
+          getBufferForOperand(rewriter, value, options, state);
+      if (failed(buffer))
+        return failure();
+      buffers.push_back(*buffer);
+    }
+
+    OperationState newState(pair.getLoc(), pair->getName());
+    newState.addOperands(buffers);
+    newState.addAttributes(pair->getAttrs());
+    rewriter.create(newState);
+    bufferization::replaceOpWithBufferizedValues(
+        rewriter, op, ValueRange{buffers[6], buffers[7]});
     return success();
   }
 };
@@ -176,6 +242,77 @@ LogicalResult QuantizePerGroupOp::verify() {
   return success();
 }
 
+void QuantizePerGroupOp::getEffects(
+    SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
+  // Tensor form is a deterministic value computation.  Describing it as
+  // effect-free lets CSE share activation quantization across linears that
+  // consume the same activation (Q/K/V and Gate/Up in Qwen3).  Buffer form
+  // must retain its explicit reads and writes so two calls with different
+  // destinations are never folded after bufferization.
+  if (isa<BaseMemRefType>(getInput().getType()))
+    effects.emplace_back(MemoryEffects::Read::get(), &getInputMutable());
+  if (isa<BaseMemRefType>(getQuantized().getType()))
+    effects.emplace_back(MemoryEffects::Write::get(), &getQuantizedMutable());
+  if (isa<BaseMemRefType>(getScales().getType()))
+    effects.emplace_back(MemoryEffects::Write::get(), &getScalesMutable());
+}
+
+LogicalResult SiluMulQuantizePerGroupOp::verify() {
+  MLIRContext *context = getContext();
+  Type f32 = Float32Type::get(context);
+  Type i8 = IntegerType::get(context, 8);
+  if (failed(requireStaticShape(*this, getSilu(), "silu", 2, f32)) ||
+      failed(requireStaticShape(*this, getUp(), "up", 2, f32)) ||
+      failed(requireStaticShape(*this, getQuantized(), "quantized", 2, i8)) ||
+      failed(requireStaticShape(*this, getScales(), "scales", 2, f32)) ||
+      failed(verifyTensorBufferForm(*this,
+                                    ValueRange{getQuantized(), getScales()})))
+    return failure();
+
+  auto siluType = cast<ShapedType>(getSilu().getType());
+  auto upType = cast<ShapedType>(getUp().getType());
+  auto quantizedType = cast<ShapedType>(getQuantized().getType());
+  auto scalesType = cast<ShapedType>(getScales().getType());
+  // All four shaped values participate in one DPS form; mixed tensor/memref
+  // operands cannot be bufferized or reasoned about safely.
+  const bool tensorForm = isa<TensorType>(getQuantized().getType());
+  const bool inputsMatchForm =
+      tensorForm
+          ? isa<RankedTensorType>(getSilu().getType()) &&
+                isa<RankedTensorType>(getUp().getType())
+          : isa<MemRefType>(getSilu().getType()) &&
+                isa<MemRefType>(getUp().getType());
+  if (!inputsMatchForm)
+    return emitOpError(
+        "silu/up and destinations must use the same tensor/buffer form");
+  int64_t groupSize = getGroupSize();
+  int64_t rows = siluType.getDimSize(0);
+  int64_t width = siluType.getDimSize(1);
+  if (groupSize <= 0 || groupSize > 1024)
+    return emitOpError("group_size must be in [1, 1024]");
+  if (width % groupSize != 0)
+    return emitOpError("K must be divisible by group_size");
+  if (upType.getShape() != siluType.getShape())
+    return emitOpError("up shape must match silu shape");
+  if (quantizedType.getShape() != siluType.getShape())
+    return emitOpError("quantized shape must match silu shape");
+  if (scalesType.getShape() != ArrayRef<int64_t>{rows, width / groupSize})
+    return emitOpError("scales shape must be [T, K / group_size]");
+  return success();
+}
+
+void SiluMulQuantizePerGroupOp::getEffects(
+    SmallVectorImpl<MemoryEffects::EffectInstance> &effects) {
+  if (isa<BaseMemRefType>(getSilu().getType()))
+    effects.emplace_back(MemoryEffects::Read::get(), &getSiluMutable());
+  if (isa<BaseMemRefType>(getUp().getType()))
+    effects.emplace_back(MemoryEffects::Read::get(), &getUpMutable());
+  if (isa<BaseMemRefType>(getQuantized().getType()))
+    effects.emplace_back(MemoryEffects::Write::get(), &getQuantizedMutable());
+  if (isa<BaseMemRefType>(getScales().getType()))
+    effects.emplace_back(MemoryEffects::Write::get(), &getScalesMutable());
+}
+
 LogicalResult W8A8LinearOp::verify() {
   MLIRContext *context = getContext();
   Type f32 = Float32Type::get(context);
@@ -206,6 +343,8 @@ LogicalResult W8A8LinearOp::verify() {
     return emitOpError("K must be divisible by group_size");
   if (width % 64 != 0)
     return emitOpError("K must be divisible by the AME K tile (64)");
+  if (groupSize % 64 != 0)
+    return emitOpError("group_size must be divisible by the AME K tile (64)");
   if (outputWidth % 64 != 0)
     return emitOpError("D must be divisible by OUTBLK (64)");
   int64_t groups = width / groupSize;
@@ -222,6 +361,70 @@ LogicalResult W8A8LinearOp::verify() {
   return success();
 }
 
+LogicalResult W8A8LinearPairOp::verify() {
+  MLIRContext *context = getContext();
+  Type f32 = Float32Type::get(context);
+  Type i8 = IntegerType::get(context, 8);
+  if (failed(requireStaticShape(*this, getXq(), "xq", 2, i8)) ||
+      failed(requireStaticShape(*this, getXs(), "xs", 2, f32)) ||
+      failed(requireStaticShape(*this, getWq0(), "wq0", 4, i8)) ||
+      failed(requireStaticShape(*this, getWs0(), "ws0", 2, f32)) ||
+      failed(requireStaticShape(*this, getWq1(), "wq1", 4, i8)) ||
+      failed(requireStaticShape(*this, getWs1(), "ws1", 2, f32)) ||
+      failed(requireStaticShape(*this, getOutput0(), "output0", 2, f32)) ||
+      failed(requireStaticShape(*this, getOutput1(), "output1", 2, f32)) ||
+      failed(verifyTensorBufferForm(
+          *this, ValueRange{getOutput0(), getOutput1()})))
+    return failure();
+
+  if (getWeightLayout() != "ame_outblk64")
+    return emitOpError("weight_layout must be 'ame_outblk64'");
+
+  auto xqType = cast<ShapedType>(getXq().getType());
+  auto xsType = cast<ShapedType>(getXs().getType());
+  auto wq0Type = cast<ShapedType>(getWq0().getType());
+  auto ws0Type = cast<ShapedType>(getWs0().getType());
+  auto wq1Type = cast<ShapedType>(getWq1().getType());
+  auto ws1Type = cast<ShapedType>(getWs1().getType());
+  auto output0Type = cast<ShapedType>(getOutput0().getType());
+  auto output1Type = cast<ShapedType>(getOutput1().getType());
+  int64_t groupSize = getGroupSize();
+  int64_t tokens = xqType.getDimSize(0);
+  int64_t width = xqType.getDimSize(1);
+  int64_t outputWidth = output0Type.getDimSize(1);
+  if (groupSize <= 0 || groupSize > 1024)
+    return emitOpError("group_size must be in [1, 1024]");
+  if (width % groupSize != 0)
+    return emitOpError("K must be divisible by group_size");
+  if (width % 64 != 0)
+    return emitOpError("K must be divisible by the AME K tile (64)");
+  if (groupSize % 64 != 0)
+    return emitOpError("group_size must be divisible by the AME K tile (64)");
+  if (outputWidth % 64 != 0)
+    return emitOpError("D must be divisible by OUTBLK (64)");
+  if (output1Type.getShape() != output0Type.getShape())
+    return emitOpError("paired output shapes must match");
+  if (isa<BaseMemRefType>(getOutput0().getType()) &&
+      getOperation()->getOperand(6) == getOperation()->getOperand(7))
+    return emitOpError("buffer-form paired outputs must not alias");
+  int64_t groups = width / groupSize;
+  if (xsType.getShape() != ArrayRef<int64_t>{tokens, groups})
+    return emitOpError("xs shape must be [T, K / group_size]");
+  SmallVector<int64_t> expectedWqShape =
+      {outputWidth / 64, groups, 64, groupSize};
+  SmallVector<int64_t> expectedWsShape = {groups, outputWidth};
+  if (wq0Type.getShape() != ArrayRef<int64_t>(expectedWqShape) ||
+      wq1Type.getShape() != ArrayRef<int64_t>(expectedWqShape))
+    return emitOpError(
+        "both wq shapes must be [D / 64, K / group_size, 64, group_size]");
+  if (ws0Type.getShape() != ArrayRef<int64_t>(expectedWsShape) ||
+      ws1Type.getShape() != ArrayRef<int64_t>(expectedWsShape))
+    return emitOpError("both ws shapes must be [K / group_size, D]");
+  if (output0Type.getDimSize(0) != tokens)
+    return emitOpError("output token dimension must match xq");
+  return success();
+}
+
 void BOSCAMEDialect::initialize() {
   addOperations<
 #define GET_OP_LIST
@@ -229,5 +432,8 @@ void BOSCAMEDialect::initialize() {
       >();
   QuantizePerGroupOp::attachInterface<QuantizePerGroupOpInterface>(
       *getContext());
+  SiluMulQuantizePerGroupOp::attachInterface<
+      SiluMulQuantizePerGroupOpInterface>(*getContext());
   W8A8LinearOp::attachInterface<W8A8LinearOpInterface>(*getContext());
+  W8A8LinearPairOp::attachInterface<W8A8LinearPairOpInterface>(*getContext());
 }

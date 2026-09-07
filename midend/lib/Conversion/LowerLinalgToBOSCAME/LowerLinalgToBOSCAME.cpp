@@ -20,6 +20,7 @@
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
@@ -39,7 +40,7 @@ using namespace buddy::boscame;
 
 namespace {
 
-static bool hasSupported2DLayout(MemRefType type) {
+static bool hasSupportedRowMajor2DLayout(MemRefType type) {
   SmallVector<int64_t> strides;
   int64_t offset;
   return succeeded(type.getStridesAndOffset(strides, offset)) &&
@@ -48,6 +49,24 @@ static bool hasSupported2DLayout(MemRefType type) {
          (ShapedType::isDynamic(strides.back()) || strides.back() == 1);
 }
 
+// Triton materializes a logical [K, N] tile loaded from a row-major [N, full-K]
+// weight as a zero-copy memref with strides [1, full-K]. The AME mlbe path can
+// consume that physical [N, full-K] layout directly.
+static bool hasSupportedTransposed2DLayout(MemRefType type) {
+  SmallVector<int64_t> strides;
+  int64_t offset;
+  return succeeded(type.getStridesAndOffset(strides, offset)) &&
+         strides.size() == 2 && strides.front() == 1 && strides.back() > 0;
+}
+
+static bool hasSupportedBLayout(MemRefType type) {
+  return hasSupportedRowMajor2DLayout(type) ||
+         hasSupportedTransposed2DLayout(type);
+}
+
+static constexpr StringLiteral kTritonConsumerFenceAttr =
+    "bosc_ame.triton_consumer_fence";
+
 struct QwenDirectCMatch {
   memref::AllocOp temporaryAlloc;
   linalg::FillOp zeroFill;
@@ -55,6 +74,182 @@ struct QwenDirectCMatch {
   memref::DeallocOp temporaryDealloc;
   Value finalOutput;
 };
+
+struct TritonI8DotCastMatch {
+  memref::AllocOp integerAlloc;
+  Operation *integerInitialization;
+  linalg::GenericOp castToF32;
+  memref::AllocOp floatAlloc;
+  memref::AllocOp zeroTemplateAlloc;
+  linalg::FillOp zeroTemplateFill;
+};
+
+// Triton defines an integer dot as i8 x i8 -> i32 even when its result is
+// immediately converted to fp32.  The FPGA AME instead keeps the exact i32
+// accumulator internally and converts it to fp32 at msce32.m.  For K <= 1024
+// the worst-case signed-i8 dot does not exceed 2^24, so this fusion is exact.
+static FailureOr<TritonI8DotCastMatch>
+matchTritonI8DotCast(linalg::MatmulOp op) {
+  if (!op.hasPureBufferSemantics() || op.getNumDpsInputs() != 2 ||
+      op.getNumDpsInits() != 1 || op.getCast() != linalg::TypeFn::cast_signed ||
+      op.hasUserDefinedMaps())
+    return failure();
+
+  Value A = op.getDpsInputOperand(0)->get();
+  Value B = op.getDpsInputOperand(1)->get();
+  Value integerC = op.getDpsInitOperand(0)->get();
+  auto AType = dyn_cast<MemRefType>(A.getType());
+  auto BType = dyn_cast<MemRefType>(B.getType());
+  auto integerCType = dyn_cast<MemRefType>(integerC.getType());
+  if (!AType || !BType || !integerCType || AType.getRank() != 2 ||
+      BType.getRank() != 2 || integerCType.getRank() != 2 ||
+      !AType.hasStaticShape() || !BType.hasStaticShape() ||
+      !integerCType.hasStaticShape())
+    return failure();
+
+  int64_t dimM = AType.getDimSize(0);
+  int64_t dimK = AType.getDimSize(1);
+  int64_t dimN = BType.getDimSize(1);
+  if (dimM <= 0 || dimN <= 0 || dimK <= 0 || dimK % 16 != 0 || dimK > 1024 ||
+      BType.getDimSize(0) != dimK ||
+      integerCType.getShape() != ArrayRef<int64_t>({dimM, dimN}) ||
+      !AType.getElementType().isSignlessInteger(8) ||
+      !BType.getElementType().isSignlessInteger(8) ||
+      !integerCType.getElementType().isSignlessInteger(32) ||
+      !hasSupportedRowMajor2DLayout(AType) || !hasSupportedBLayout(BType))
+    return failure();
+
+  auto integerAlloc = integerC.getDefiningOp<memref::AllocOp>();
+  if (!integerAlloc || integerAlloc->getBlock() != op->getBlock() ||
+      !integerAlloc->isBeforeInBlock(op))
+    return failure();
+
+  Operation *integerInitialization = nullptr;
+  linalg::GenericOp castToF32;
+  memref::AllocOp zeroTemplateAlloc;
+  linalg::FillOp zeroTemplateFill;
+  for (Operation *user : integerC.getUsers()) {
+    if (user == op.getOperation())
+      continue;
+    if (auto fill = dyn_cast<linalg::FillOp>(user)) {
+      if (integerInitialization ||
+          fill.getDpsInitOperand(0)->get() != integerC ||
+          !matchPattern(fill.getDpsInputOperand(0)->get(), m_Zero()))
+        return failure();
+      integerInitialization = fill;
+      continue;
+    }
+    if (auto copy = dyn_cast<memref::CopyOp>(user)) {
+      // A direct zero buffer may also seed earlier group-dot destinations.
+      // Those are reads and do not change the value seen by this matmul.
+      if (copy.getSource() == integerC) {
+        if (copy->getBlock() != op->getBlock() || !copy->isBeforeInBlock(op))
+          return failure();
+        continue;
+      }
+      if (integerInitialization || copy.getTarget() != integerC)
+        return failure();
+
+      Value zeroTemplate = copy.getSource();
+      auto zeroTemplateType = dyn_cast<MemRefType>(zeroTemplate.getType());
+      zeroTemplateAlloc = zeroTemplate.getDefiningOp<memref::AllocOp>();
+      if (!zeroTemplateType || zeroTemplateType != integerCType ||
+          !zeroTemplateAlloc || zeroTemplateAlloc->getBlock() != op->getBlock())
+        return failure();
+
+      // Multiple static Triton group dots reuse one zero tensor. Bufferization
+      // copies it into fresh destinations and may use the template itself for
+      // the last dot. Only users before this copy matter: they must initialize
+      // the template or read it through another copy, never modify it.
+      for (Operation *templateUser : zeroTemplate.getUsers()) {
+        if (auto templateFill = dyn_cast<linalg::FillOp>(templateUser)) {
+          if (zeroTemplateFill ||
+              templateFill.getDpsInitOperand(0)->get() != zeroTemplate ||
+              !matchPattern(templateFill.getDpsInputOperand(0)->get(),
+                            m_Zero()))
+            return failure();
+          zeroTemplateFill = templateFill;
+          continue;
+        }
+        if (templateUser == copy.getOperation())
+          continue;
+        if (templateUser->getBlock() != copy->getBlock())
+          return failure();
+        if (copy->isBeforeInBlock(templateUser))
+          continue;
+        auto earlierCopy = dyn_cast<memref::CopyOp>(templateUser);
+        if (!earlierCopy || earlierCopy.getSource() != zeroTemplate)
+          return failure();
+      }
+      if (!zeroTemplateFill ||
+          !zeroTemplateAlloc->isBeforeInBlock(zeroTemplateFill) ||
+          !zeroTemplateFill->isBeforeInBlock(copy))
+        return failure();
+      integerInitialization = copy;
+      continue;
+    }
+    if (auto generic = dyn_cast<linalg::GenericOp>(user)) {
+      if (castToF32 || generic.getNumDpsInputs() != 1 ||
+          generic.getNumDpsInits() != 1 ||
+          generic.getDpsInputOperand(0)->get() != integerC)
+        return failure();
+      castToF32 = generic;
+      continue;
+    }
+    return failure();
+  }
+
+  if (!integerInitialization || !castToF32 ||
+      castToF32->getBlock() != op->getBlock() ||
+      !op->isBeforeInBlock(castToF32))
+    return failure();
+  if (isa<memref::CopyOp>(integerInitialization)) {
+    if (integerAlloc->getNextNode() != integerInitialization ||
+        integerInitialization->getNextNode() != op.getOperation())
+      return failure();
+  } else if (!integerAlloc->isBeforeInBlock(integerInitialization) ||
+             !integerInitialization->isBeforeInBlock(op)) {
+    return failure();
+  }
+
+  Value floatC = castToF32.getDpsInitOperand(0)->get();
+  auto floatCType = dyn_cast<MemRefType>(floatC.getType());
+  auto floatAlloc = floatC.getDefiningOp<memref::AllocOp>();
+  if (!floatCType || !floatAlloc || floatCType.getRank() != 2 ||
+      floatCType.getShape() != integerCType.getShape() ||
+      !floatCType.getElementType().isF32() ||
+      !hasSupportedRowMajor2DLayout(floatCType) ||
+      floatAlloc->getBlock() != op->getBlock() ||
+      !floatAlloc->isBeforeInBlock(castToF32))
+    return failure();
+
+  for (Operation *user : floatC.getUsers()) {
+    if (user == castToF32.getOperation())
+      continue;
+    if (user->getBlock() != op->getBlock() || !castToF32->isBeforeInBlock(user))
+      return failure();
+  }
+
+  if (castToF32.getNumLoops() != 2 || castToF32.getNumParallelLoops() != 2)
+    return failure();
+  for (AffineMap map : castToF32.getIndexingMapsArray())
+    if (!map.isIdentity())
+      return failure();
+
+  Block &body = castToF32.getRegion().front();
+  if (body.getNumArguments() != 2)
+    return failure();
+  auto cast = dyn_cast<arith::SIToFPOp>(body.front());
+  auto yield = dyn_cast<linalg::YieldOp>(body.getTerminator());
+  if (!cast || !yield || cast->getNextNode() != yield.getOperation() ||
+      cast.getIn() != body.getArgument(0) || yield.getNumOperands() != 1 ||
+      yield.getValues().front() != cast.getOut())
+    return failure();
+
+  return TritonI8DotCastMatch{integerAlloc,      integerInitialization,
+                              castToF32,         floatAlloc,
+                              zeroTemplateAlloc, zeroTemplateFill};
+}
 
 // Match the bufferization shapes emitted for Qwen3 matmuls:
 //
@@ -110,8 +305,8 @@ static FailureOr<QwenDirectCMatch> matchQwenDirectCMatmul(linalg::MatmulOp op) {
   // Dynamic strides occur on Buddy Frontend function arguments.  The Qwen3
   // generated wrapper/bare-metal runner provides tight row-major buffers;
   // getRowStride below still reads the runtime leading stride.
-  if (!hasSupported2DLayout(AType) || !hasSupported2DLayout(BType) ||
-      !hasSupported2DLayout(temporaryCType))
+  if (!hasSupportedRowMajor2DLayout(AType) || !hasSupportedBLayout(BType) ||
+      !hasSupportedRowMajor2DLayout(temporaryCType))
     return failure();
 
   auto temporaryAlloc = temporaryC.getDefiningOp<memref::AllocOp>();
@@ -141,6 +336,16 @@ static FailureOr<QwenDirectCMatch> matchQwenDirectCMatmul(linalg::MatmulOp op) {
     }
 
     if (auto copyOp = dyn_cast<memref::CopyOp>(user)) {
+      // Triton accumulates all quantization groups in the first dot buffer
+      // and copies that fully scaled result to the ABI output much later.
+      // That copy is a downstream read, not the direct-C copy shape below.
+      if (op->hasAttr(kTritonConsumerFenceAttr)) {
+        if (copyOp.getSource() != temporaryC ||
+            copyOp->getBlock() != op->getBlock() ||
+            !op->isBeforeInBlock(copyOp))
+          return failure();
+        continue;
+      }
       if (copyToFinal || copyOp.getSource() != temporaryC)
         return failure();
       copyToFinal = copyOp;
@@ -167,9 +372,8 @@ static FailureOr<QwenDirectCMatch> matchQwenDirectCMatmul(linalg::MatmulOp op) {
       zeroFill->getNextNode() != op.getOperation())
     return failure();
 
-  if (temporaryDealloc &&
-      (temporaryDealloc->getBlock() != op->getBlock() ||
-       !op->isBeforeInBlock(temporaryDealloc)))
+  if (temporaryDealloc && (temporaryDealloc->getBlock() != op->getBlock() ||
+                           !op->isBeforeInBlock(temporaryDealloc)))
     return failure();
 
   if (!copyToFinal)
@@ -193,7 +397,7 @@ static FailureOr<QwenDirectCMatch> matchQwenDirectCMatmul(linalg::MatmulOp op) {
       finalType.getShape() != temporaryCType.getShape() ||
       finalType.getElementType() != temporaryCType.getElementType() ||
       finalType.getMemorySpace() != temporaryCType.getMemorySpace() ||
-      !hasSupported2DLayout(finalType))
+      !hasSupportedRowMajor2DLayout(finalType))
     return failure();
 
   // Recompute at the original copy point instead of moving %final's defining
@@ -210,9 +414,64 @@ static FailureOr<QwenDirectCMatch> matchQwenDirectCMatmul(linalg::MatmulOp op) {
                           temporaryDealloc, finalOutput};
 }
 
-class MatmulToBOSCAMELowering : public OpRewritePattern<linalg::MatmulOp> {
+class TritonI8DotCastToF32Matmul : public OpRewritePattern<linalg::MatmulOp> {
 public:
   using OpRewritePattern<linalg::MatmulOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(linalg::MatmulOp op,
+                                PatternRewriter &rewriter) const override {
+    FailureOr<TritonI8DotCastMatch> match = matchTritonI8DotCast(op);
+    if (failed(match))
+      return failure();
+
+    Value A = op.getDpsInputOperand(0)->get();
+    Value B = op.getDpsInputOperand(1)->get();
+    Value oldFloatC = match->castToF32.getDpsInitOperand(0)->get();
+    auto floatType = cast<MemRefType>(oldFloatC.getType());
+    Location loc = op.getLoc();
+
+    // Preserve the original dot's execution point and redirect all consumers
+    // of the later sitofp buffer to this exact-fp32 AME destination.
+    rewriter.setInsertionPoint(op);
+    Value floatC = memref::AllocOp::create(rewriter, loc, floatType);
+    Value zero = arith::ConstantFloatOp::create(
+        rewriter, loc, rewriter.getF32Type(), APFloat(0.0f));
+    linalg::FillOp::create(rewriter, loc, zero, floatC);
+    auto floatMatmul = linalg::MatmulOp::create(rewriter, loc, ValueRange{A, B},
+                                                ValueRange{floatC});
+    floatMatmul.setCast(linalg::TypeFn::cast_signed);
+    floatMatmul->setAttr(kTritonConsumerFenceAttr, rewriter.getUnitAttr());
+
+    oldFloatC.replaceAllUsesWith(floatC);
+    rewriter.eraseOp(match->castToF32);
+    rewriter.eraseOp(match->floatAlloc);
+    rewriter.eraseOp(op);
+
+    auto eraseZeroBufferIfDead = [&](memref::AllocOp alloc,
+                                     linalg::FillOp fill) {
+      if (alloc && fill && alloc.getResult().hasOneUse() &&
+          *alloc.getResult().getUsers().begin() == fill.getOperation()) {
+        rewriter.eraseOp(fill);
+        rewriter.eraseOp(alloc);
+      }
+    };
+    if (isa<memref::CopyOp>(match->integerInitialization)) {
+      rewriter.eraseOp(match->integerInitialization);
+      rewriter.eraseOp(match->integerAlloc);
+      eraseZeroBufferIfDead(match->zeroTemplateAlloc, match->zeroTemplateFill);
+    } else {
+      eraseZeroBufferIfDead(match->integerAlloc,
+                            cast<linalg::FillOp>(match->integerInitialization));
+    }
+    return success();
+  }
+};
+
+class MatmulToBOSCAMELowering : public OpRewritePattern<linalg::MatmulOp> {
+public:
+  MatmulToBOSCAMELowering(MLIRContext *context, bool tritonW8A8FastPath)
+      : OpRewritePattern<linalg::MatmulOp>(context),
+        tritonW8A8FastPath(tritonW8A8FastPath) {}
 
   LogicalResult matchAndRewrite(linalg::MatmulOp op,
                                 PatternRewriter &rewriter) const override {
@@ -226,6 +485,10 @@ public:
     Value A = op.getDpsInputOperand(0)->get();
     Value B = op.getDpsInputOperand(1)->get();
     Value C = directC->finalOutput;
+    auto AType = cast<MemRefType>(A.getType());
+    auto BType = cast<MemRefType>(B.getType());
+    const bool transposedB = !hasSupportedRowMajor2DLayout(BType) &&
+                             hasSupportedTransposed2DLayout(BType);
 
     const bool copiedDestination = static_cast<bool>(directC->copyToFinal);
     if (copiedDestination) {
@@ -242,9 +505,9 @@ public:
       rewriter.setInsertionPoint(op);
     }
 
-    constexpr int64_t tileM = 4;
-    constexpr int64_t tileN = 4;
-    constexpr int64_t tileK = 16;
+    constexpr int64_t tileM = 16;
+    constexpr int64_t tileN = 16;
+    constexpr int64_t tileK = 64;
 
     // Helper: build mtype CSR value for Qwen3 FPGA AME.
     //
@@ -277,14 +540,6 @@ public:
     Value stepK = arith::ConstantIndexOp::create(rewriter, loc, tileK);
     Value stepN = arith::ConstantIndexOp::create(rewriter, loc, tileN);
 
-    auto loopM = scf::ForOp::create(rewriter, loc, c0, dimM, stepM);
-    rewriter.setInsertionPointToStart(loopM.getBody());
-    Value ivM = loopM.getInductionVar();
-
-    auto loopN = scf::ForOp::create(rewriter, loc, c0, dimN, stepN);
-    rewriter.setInsertionPointToStart(loopN.getBody());
-    Value ivN = loopN.getInductionVar();
-
     auto calcCurrentSize = [&](Value bound, Value iv, int64_t step) {
       Value remain = arith::SubIOp::create(rewriter, loc, bound, iv);
       Value stepVal = arith::ConstantIndexOp::create(rewriter, loc, step);
@@ -293,26 +548,14 @@ public:
       return arith::SelectOp::create(rewriter, loc, cmp, remain, stepVal);
     };
 
-    Value currM = calcCurrentSize(dimM, ivM, tileM);
-    Value currN = calcCurrentSize(dimN, ivN, tileN);
-
-    Value currMI64 =
-        arith::IndexCastOp::create(rewriter, loc, rewriter.getI64Type(), currM);
-    Value currNI64 =
-        arith::IndexCastOp::create(rewriter, loc, rewriter.getI64Type(), currN);
-
     SmallVector<OpFoldResult> stridesAttr = {rewriter.getIndexAttr(1),
                                              rewriter.getIndexAttr(1)};
-    Value subC = memref::SubViewOp::create(
-        rewriter, loc, C, ArrayRef<OpFoldResult>{ivM, ivN},
-        ArrayRef<OpFoldResult>{currM, currN}, stridesAttr);
-
-    auto getRowStride = [&](Value subview) -> Value {
+    auto getStrideBytes = [&](Value buffer, unsigned dimension) -> Value {
       auto meta =
-          memref::ExtractStridedMetadataOp::create(rewriter, loc, subview);
-      Value strideElem = meta.getResult(4);
+          memref::ExtractStridedMetadataOp::create(rewriter, loc, buffer);
+      Value strideElem = meta.getResult(4 + dimension);
 
-      auto memrefType = cast<MemRefType>(subview.getType());
+      auto memrefType = cast<MemRefType>(buffer.getType());
       unsigned bytesPerElem = memrefType.getElementTypeBitWidth() / 8;
       Value bytesVal =
           arith::ConstantIndexOp::create(rewriter, loc, bytesPerElem);
@@ -323,13 +566,198 @@ public:
       return arith::IndexCastOp::create(rewriter, loc, rewriter.getI64Type(),
                                         strideBytes);
     };
-    Value strideC = getRowStride(subC);
+
+    auto makeSubview = [&](Value source, ArrayRef<OpFoldResult> offsets,
+                           ArrayRef<OpFoldResult> sizes) -> Value {
+      return memref::SubViewOp::create(rewriter, loc, source, offsets, sizes,
+                                       stridesAttr);
+    };
+
+    auto finishReplacement = [&]() {
+      rewriter.eraseOp(op);
+      if (copiedDestination) {
+        if (directC->temporaryDealloc)
+          rewriter.eraseOp(directC->temporaryDealloc);
+        rewriter.eraseOp(directC->copyToFinal);
+        rewriter.eraseOp(directC->zeroFill);
+        rewriter.eraseOp(directC->temporaryAlloc);
+      }
+    };
+
+    const int64_t staticM = AType.getDimSize(0);
+    const int64_t staticK = AType.getDimSize(1);
+    const int64_t staticN = BType.getDimSize(1);
+    const bool use2A4B = tritonW8A8FastPath && transposedB && staticM == 32 &&
+                         staticN % 64 == 0 && staticK % 64 == 0;
+    const bool useDecodeWide = tritonW8A8FastPath && transposedB &&
+                               staticM > 0 && staticM <= 16 &&
+                               staticN % 64 == 0 && staticK % 64 == 0;
+
+    if (use2A4B || useDecodeWide) {
+      Value strideA = getStrideBytes(A, 0);
+      // Logical B is [K, N], but the Triton view is physically [N, K].
+      Value strideB = getStrideBytes(B, 1);
+      Value strideC = getStrideBytes(C, 0);
+      Value tileMValue = arith::ConstantOp::create(
+          rewriter, loc, rewriter.getI64Type(),
+          rewriter.getI64IntegerAttr(use2A4B ? 16 : staticM));
+      Value tileNValue = arith::ConstantOp::create(
+          rewriter, loc, rewriter.getI64Type(), rewriter.getI64IntegerAttr(16));
+      Value tileKValue = arith::ConstantOp::create(
+          rewriter, loc, rewriter.getI64Type(), rewriter.getI64IntegerAttr(64));
+      Value accMtype =
+          arith::ConstantOp::create(rewriter, loc, rewriter.getI64Type(),
+                                    rewriter.getI64IntegerAttr(accMtypeImm));
+      Value mmaMtype =
+          arith::ConstantOp::create(rewriter, loc, rewriter.getI64Type(),
+                                    rewriter.getI64IntegerAttr(mmaMtypeImm));
+      MSettilemOp::create(rewriter, loc, rewriter.getI64Type(), tileMValue);
+      MSettilenOp::create(rewriter, loc, rewriter.getI64Type(), tileNValue);
+      MSettilekOp::create(rewriter, loc, rewriter.getI64Type(), tileKValue);
+
+      auto cTile = [&](int64_t row, int64_t column, int64_t rows) {
+        return makeSubview(
+            C,
+            ArrayRef<OpFoldResult>{rewriter.getIndexAttr(row),
+                                   rewriter.getIndexAttr(column)},
+            ArrayRef<OpFoldResult>{rewriter.getIndexAttr(rows),
+                                   rewriter.getIndexAttr(16)});
+      };
+      auto aTile = [&](int64_t row, Value k, int64_t rows) {
+        return makeSubview(
+            A, ArrayRef<OpFoldResult>{rewriter.getIndexAttr(row), k},
+            ArrayRef<OpFoldResult>{rewriter.getIndexAttr(rows),
+                                   rewriter.getIndexAttr(64)});
+      };
+      auto bTile = [&](Value k, int64_t column) {
+        return makeSubview(
+            B, ArrayRef<OpFoldResult>{k, rewriter.getIndexAttr(column)},
+            ArrayRef<OpFoldResult>{rewriter.getIndexAttr(64),
+                                   rewriter.getIndexAttr(16)});
+      };
+
+      auto emitFourWeights = [&](Value k, int64_t column,
+                                 int64_t accumulatorBase,
+                                 int64_t activationRegister) {
+        Value weight0 = bTile(k, column);
+        Value weight1 = bTile(k, column + 16);
+        Value weight2 = bTile(k, column + 32);
+        Value weight3 = bTile(k, column + 48);
+        Mlbe8mOp::create(rewriter, loc, 4, weight0, strideB);
+        Mlbe8mOp::create(rewriter, loc, 5, weight1, strideB);
+        MqmaBmmOp::create(rewriter, loc, accumulatorBase, activationRegister,
+                          4);
+        Mlbe8mOp::create(rewriter, loc, 6, weight2, strideB);
+        MqmaBmmOp::create(rewriter, loc, accumulatorBase + 1,
+                          activationRegister, 5);
+        Mlbe8mOp::create(rewriter, loc, 7, weight3, strideB);
+        MqmaBmmOp::create(rewriter, loc, accumulatorBase + 2,
+                          activationRegister, 6);
+        MqmaBmmOp::create(rewriter, loc, accumulatorBase + 3,
+                          activationRegister, 7);
+      };
+
+      if (use2A4B) {
+        for (int64_t column = 0; column < staticN; column += 64) {
+          MSettypeOp::create(rewriter, loc, rewriter.getI64Type(), accMtype);
+          for (int64_t lane = 0; lane < 4; ++lane) {
+            Mlce32mOp::create(rewriter, loc, lane,
+                              cTile(0, column + lane * 16, 16), strideC);
+            Mlce32mOp::create(rewriter, loc, lane + 4,
+                              cTile(16, column + lane * 16, 16), strideC);
+          }
+
+          MSettypeOp::create(rewriter, loc, rewriter.getI64Type(), mmaMtype);
+          auto kLoop = scf::ForOp::create(rewriter, loc, c0, dimK, stepK);
+          rewriter.setInsertionPointToStart(kLoop.getBody());
+          Value k = kLoop.getInductionVar();
+          Mlae8mOp::create(rewriter, loc, 0, aTile(0, k, 16), strideA);
+          Mlae8mOp::create(rewriter, loc, 2, aTile(16, k, 16), strideA);
+          Value weight0 = bTile(k, column);
+          Value weight1 = bTile(k, column + 16);
+          Value weight2 = bTile(k, column + 32);
+          Value weight3 = bTile(k, column + 48);
+          Mlbe8mOp::create(rewriter, loc, 4, weight0, strideB);
+          Mlbe8mOp::create(rewriter, loc, 5, weight1, strideB);
+          MqmaBmmOp::create(rewriter, loc, 0, 0, 4);
+          Mlbe8mOp::create(rewriter, loc, 6, weight2, strideB);
+          MqmaBmmOp::create(rewriter, loc, 4, 2, 4);
+          Mlbe8mOp::create(rewriter, loc, 7, weight3, strideB);
+          MqmaBmmOp::create(rewriter, loc, 1, 0, 5);
+          MqmaBmmOp::create(rewriter, loc, 5, 2, 5);
+          MqmaBmmOp::create(rewriter, loc, 2, 0, 6);
+          MqmaBmmOp::create(rewriter, loc, 6, 2, 6);
+          MqmaBmmOp::create(rewriter, loc, 3, 0, 7);
+          MqmaBmmOp::create(rewriter, loc, 7, 2, 7);
+          rewriter.setInsertionPointAfter(kLoop);
+
+          MSettypeOp::create(rewriter, loc, rewriter.getI64Type(), accMtype);
+          for (int64_t lane = 0; lane < 4; ++lane) {
+            Msce32mOp::create(rewriter, loc, lane,
+                              cTile(0, column + lane * 16, 16), strideC);
+            Msce32mOp::create(rewriter, loc, lane + 4,
+                              cTile(16, column + lane * 16, 16), strideC);
+          }
+        }
+      } else {
+        // Decode-style M<=16 path.  Consume N128 with acc0..acc7 and retain
+        // N64 as the exact fallback for the last half-block.
+        for (int64_t column = 0; column < staticN;) {
+          int64_t lanes = staticN - column >= 128 ? 8 : 4;
+          MSettypeOp::create(rewriter, loc, rewriter.getI64Type(), accMtype);
+          for (int64_t lane = 0; lane < lanes; ++lane)
+            Mlce32mOp::create(rewriter, loc, lane,
+                              cTile(0, column + lane * 16, staticM), strideC);
+
+          MSettypeOp::create(rewriter, loc, rewriter.getI64Type(), mmaMtype);
+          auto kLoop = scf::ForOp::create(rewriter, loc, c0, dimK, stepK);
+          rewriter.setInsertionPointToStart(kLoop.getBody());
+          Value k = kLoop.getInductionVar();
+          Mlae8mOp::create(rewriter, loc, 0, aTile(0, k, staticM), strideA);
+          emitFourWeights(k, column, 0, 0);
+          if (lanes == 8)
+            emitFourWeights(k, column + 64, 4, 0);
+          rewriter.setInsertionPointAfter(kLoop);
+
+          MSettypeOp::create(rewriter, loc, rewriter.getI64Type(), accMtype);
+          for (int64_t lane = 0; lane < lanes; ++lane)
+            Msce32mOp::create(rewriter, loc, lane,
+                              cTile(0, column + lane * 16, staticM), strideC);
+          column += lanes * 16;
+        }
+      }
+
+      if (op->hasAttr(kTritonConsumerFenceAttr))
+        LLVM::FenceOp::create(rewriter, loc, LLVM::AtomicOrdering::seq_cst);
+      finishReplacement();
+      return success();
+    }
+
+    auto loopM = scf::ForOp::create(rewriter, loc, c0, dimM, stepM);
+    rewriter.setInsertionPointToStart(loopM.getBody());
+    Value ivM = loopM.getInductionVar();
+
+    auto loopN = scf::ForOp::create(rewriter, loc, c0, dimN, stepN);
+    rewriter.setInsertionPointToStart(loopN.getBody());
+    Value ivN = loopN.getInductionVar();
+
+    Value currM = calcCurrentSize(dimM, ivM, tileM);
+    Value currN = calcCurrentSize(dimN, ivN, tileN);
+
+    Value currMI64 =
+        arith::IndexCastOp::create(rewriter, loc, rewriter.getI64Type(), currM);
+    Value currNI64 =
+        arith::IndexCastOp::create(rewriter, loc, rewriter.getI64Type(), currN);
+
+    Value subC = makeSubview(C, ArrayRef<OpFoldResult>{ivM, ivN},
+                             ArrayRef<OpFoldResult>{currM, currN});
+    Value strideC = getStrideBytes(subC, 0);
 
     //===----------------------------------------------------------------===//
     // The accumulator must remain resident across all K tiles:
     //
     //   1. msettilem/n + msettype(accMtype) + mlce32  (load C once)
-    //   2. for each K tile: msettilek + msettype(mmaMtype) + MMA
+    //   2. msettype(mmaMtype), then for each K tile: msettilek + MMA
     //   3. msettype(accMtype) + msce32                (store C once)
     //
     // On Qwen3 i8->f32 hardware, msce32 converts the integer accumulator to
@@ -348,6 +776,11 @@ public:
     // FPGA RTL only supports mlce32 for accumulator init (not msub.w.mm).
     Mlce32mOp::create(rewriter, loc, 0, subC, strideC);
 
+    Value mmaMtypeVal =
+        arith::ConstantOp::create(rewriter, loc, rewriter.getI64Type(),
+                                  rewriter.getI64IntegerAttr(mmaMtypeImm));
+    MSettypeOp::create(rewriter, loc, rewriter.getI64Type(), mmaMtypeVal);
+
     auto loopK = scf::ForOp::create(rewriter, loc, c0, dimK, stepK);
     rewriter.setInsertionPointToStart(loopK.getBody());
     Value ivK = loopK.getInductionVar();
@@ -361,18 +794,17 @@ public:
     Value subB = memref::SubViewOp::create(
         rewriter, loc, B, ArrayRef<OpFoldResult>{ivK, ivN},
         ArrayRef<OpFoldResult>{currK, currN}, stridesAttr);
-    Value strideA = getRowStride(subA);
-    Value strideB = getRowStride(subB);
+    Value strideA = getStrideBytes(subA, 0);
+    Value strideB = getStrideBytes(subB, transposedB ? 1 : 0);
 
     // --- Step 2: MMA for one K tile (mtype = A/B element type) ---
     MSettilekOp::create(rewriter, loc, rewriter.getI64Type(), currKI64);
-    Value mmaMtypeVal =
-        arith::ConstantOp::create(rewriter, loc, rewriter.getI64Type(),
-                                  rewriter.getI64IntegerAttr(mmaMtypeImm));
-    MSettypeOp::create(rewriter, loc, rewriter.getI64Type(), mmaMtypeVal);
 
     Mlae8mOp::create(rewriter, loc, 0, subA, strideA);
-    Mlbte8mOp::create(rewriter, loc, 1, subB, strideB);
+    if (transposedB)
+      Mlbe8mOp::create(rewriter, loc, 1, subB, strideB);
+    else
+      Mlbte8mOp::create(rewriter, loc, 1, subB, strideB);
     MqmaBmmOp::create(rewriter, loc, 0, 0, 1);
 
     rewriter.setInsertionPointAfter(loopK);
@@ -386,17 +818,15 @@ public:
     Msce32mOp::create(rewriter, loc, 0, subC, strideC);
 
     rewriter.setInsertionPointAfter(loopM);
-    rewriter.eraseOp(op);
-    if (copiedDestination) {
-      if (directC->temporaryDealloc)
-        rewriter.eraseOp(directC->temporaryDealloc);
-      rewriter.eraseOp(directC->copyToFinal);
-      rewriter.eraseOp(directC->zeroFill);
-      rewriter.eraseOp(directC->temporaryAlloc);
-    }
+    if (op->hasAttr(kTritonConsumerFenceAttr))
+      LLVM::FenceOp::create(rewriter, loc, LLVM::AtomicOrdering::seq_cst);
+    finishReplacement();
 
     return success();
   }
+
+private:
+  bool tritonW8A8FastPath;
 };
 
 } // namespace
@@ -417,13 +847,19 @@ public:
   }
 
   LowerLinalgToBOSCAMEPass() = default;
-  LowerLinalgToBOSCAMEPass(const LowerLinalgToBOSCAMEPass &) {}
+  LowerLinalgToBOSCAMEPass(const LowerLinalgToBOSCAMEPass &pass)
+      : PassWrapper(pass) {}
+
+  Option<bool> tritonW8A8FastPath{
+      *this, "triton-w8a8-fast-path",
+      llvm::cl::desc("Fuse exact Triton i8 dot + sitofp and use the Qwen "
+                     "2A4B/1A8B AME schedules for transposed weights"),
+      llvm::cl::init(false)};
 
   void getDependentDialects(DialectRegistry &registry) const override {
-    registry.insert<BOSCAMEDialect>();
-    registry.insert<linalg::LinalgDialect>();
-    registry.insert<arith::ArithDialect>();
-    registry.insert<memref::MemRefDialect>();
+    registry
+        .insert<BOSCAMEDialect, arith::ArithDialect, linalg::LinalgDialect,
+                LLVM::LLVMDialect, memref::MemRefDialect, scf::SCFDialect>();
   }
 
   void runOnOperation() override;
@@ -434,15 +870,33 @@ void LowerLinalgToBOSCAMEPass::runOnOperation() {
   MLIRContext *context = &getContext();
   ModuleOp module = getOperation();
 
+  // Materialize every eligible Triton i32-dot/sitofp fusion before dialect
+  // conversion. Keeping this as a distinct greedy phase guarantees that all
+  // newly created f32 matmuls are visible to the AME conversion, including
+  // the first of several static quantization groups.
+  if (tritonW8A8FastPath) {
+    RewritePatternSet fusionPatterns(context);
+    fusionPatterns.add<TritonI8DotCastToF32Matmul>(context);
+    if (failed(applyPatternsGreedily(module, std::move(fusionPatterns)))) {
+      signalPassFailure();
+      return;
+    }
+  }
+
   RewritePatternSet patterns(context);
-  patterns.add<MatmulToBOSCAMELowering>(context);
+  patterns.add<MatmulToBOSCAMELowering>(context, tritonW8A8FastPath);
 
   ConversionTarget target(*context);
   target.addLegalDialect<BOSCAMEDialect, arith::ArithDialect,
-                         linalg::LinalgDialect, memref::MemRefDialect,
-                         scf::SCFDialect>();
-  target.addDynamicallyLegalOp<linalg::MatmulOp>(
-      [](linalg::MatmulOp op) { return failed(matchQwenDirectCMatmul(op)); });
+                         linalg::LinalgDialect, LLVM::LLVMDialect,
+                         memref::MemRefDialect, scf::SCFDialect>();
+  target.addDynamicallyLegalOp<linalg::MatmulOp>([&](linalg::MatmulOp op) {
+    if (op->hasAttr(kTritonConsumerFenceAttr))
+      return false;
+    if (tritonW8A8FastPath && succeeded(matchTritonI8DotCast(op)))
+      return false;
+    return failed(matchQwenDirectCMatmul(op));
+  });
 
   if (failed(applyPartialConversion(module, target, std::move(patterns)))) {
     signalPassFailure();

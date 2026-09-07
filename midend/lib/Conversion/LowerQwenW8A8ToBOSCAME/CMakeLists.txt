@@ -9,6 +9,7 @@ add_mlir_library(LowerQwenW8A8ToBOSCAMEPass
   MLIRMathDialect
   MLIRMemRefDialect
   MLIRSCFDialect
+  MLIRTosaDialect
   MLIRTransforms
   MLIRVectorDialect
 )

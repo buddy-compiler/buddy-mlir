@@ -5,4 +5,5 @@ add_mlir_dialect_library(BuddyBOSCAME
   MLIRBufferizationDialect
   MLIRIR
   MLIRDestinationStyleOpInterface
+  MLIRSideEffectInterfaces
 )

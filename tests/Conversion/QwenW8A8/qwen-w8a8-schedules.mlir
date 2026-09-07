@@ -1,5 +1,7 @@
 // RUN: buddy-opt %s --lower-qwen-w8a8-to-boscame | FileCheck %s
 // RUN: buddy-opt %s --lower-qwen-w8a8-to-boscame='scalar-fallback' | FileCheck %s --check-prefix=SCALAR
+// RUN: buddy-opt %s --lower-qwen-w8a8-to-boscame='scalar-fallback profile-phases' | FileCheck %s --check-prefix=SCALAR-PROFILE
+// RUN: buddy-opt %s --lower-qwen-w8a8-to-boscame='experimental-decode-n128=false' | FileCheck %s --check-prefix=N64
 // RUN: buddy-opt %s --lower-qwen-w8a8-to-boscame='profile-phases' | FileCheck %s --check-prefix=PROFILE
 
 module {
@@ -94,6 +96,7 @@ module {
 
 // CHECK-DAG: memref.global "private" @__buddy_qwen_w8a8_scratch_f32 : memref<32x64xf32>
 // CHECK-DAG: memref.global "private" @__buddy_qwen_w8a8_zero_f32 : memref<32x64xf32>
+// CHECK-DAG: func.func private @buddy_w8a8_rvv_accumulate_n64({{.*}}) attributes {llvm.emit_c_interface}
 
 // Decode pairs adjacent OUTBLK64 blocks and uses all eight accumulators.
 // CHECK-LABEL: func.func @decode_pair_gs512
@@ -101,6 +104,15 @@ module {
 // SCALAR: bosc_ame.mqma.b.mm 3, 0, 7
 // SCALAR-NOT: bosc_ame.mqma.b.mm 7,
 // SCALAR-NOT: vector.load
+// SCALAR-PROFILE-LABEL: func.func @decode_pair_gs512
+// SCALAR-PROFILE: call @buddyTraceCycleStartPath
+// SCALAR-PROFILE: bosc_ame.mqma.b.mm 3, 0, 7
+// SCALAR-PROFILE: call @buddyTraceCycleEndPath
+// N64-LABEL: func.func @decode_pair_gs512
+// N64: bosc_ame.mqma.b.mm 3, 0, 7
+// N64-NOT: bosc_ame.mqma.b.mm 4,
+// N64-NOT: bosc_ame.msce32.m 7
+// N64: func.call @buddy_w8a8_rvv_accumulate_n64
 // PROFILE-LABEL: func.func @decode_pair_gs512
 // PROFILE: call @buddyTraceCycleStartPath(%{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}) : (i64, i64, i64, i64, i64, i64) -> ()
 // PROFILE: bosc_ame.mqma.b.mm 7, 0, 7

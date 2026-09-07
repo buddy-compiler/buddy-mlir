@@ -32,5 +32,5 @@ module {
 // ASM: mqma.b.mm acc7, tr0, tr7
 // ASM: msce32.m acc7
 // ASM-NEXT: fence rw, rw
-// ASM: call buddy_w8a8_rvv_accumulate_n64
-// ASM: call buddy_w8a8_rvv_accumulate_n64
+// ASM: call {{.*}}buddy_w8a8_rvv_accumulate_n64
+// ASM: call {{.*}}buddy_w8a8_rvv_accumulate_n64

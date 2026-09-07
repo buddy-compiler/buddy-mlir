@@ -61,7 +61,8 @@ class BOSCAME_Op<string mnemonic, list<Trait> traits = []> :
 //===----------------------------------------------------------------------===//
 
 def QuantizePerGroupOp : BOSCAME_Op<"quantize_per_group",
-    [DestinationStyleOpInterface]> {
+    [DestinationStyleOpInterface,
+     DeclareOpInterfaceMethods<MemoryEffectsOpInterface>]> {
   let summary = "Dynamically quantize f32 rows to per-group int8";
   let description = [{
     Quantizes a rank-2 `[T, K]` f32 activation independently for every
@@ -80,6 +81,35 @@ def QuantizePerGroupOp : BOSCAME_Op<"quantize_per_group",
   let extraClassDeclaration = [{
     ::mlir::MutableOperandRange getDpsInitsMutable() {
       return ::mlir::MutableOperandRange(getOperation(), 1, 2);
+    }
+  }];
+}
+
+def SiluMulQuantizePerGroupOp :
+    BOSCAME_Op<"silu_mul_quantize_per_group",
+    [DestinationStyleOpInterface,
+     DeclareOpInterfaceMethods<MemoryEffectsOpInterface>]> {
+  let summary = "Fuse SiLU-times-up with per-group activation quantization";
+  let description = [{
+    Multiplies a precomputed `silu` activation by `up` elementwise and directly
+    produces the grouped int8 activation and f32 scales consumed by the Qwen3
+    Down projection. `silu` and `up` have shape `[T, K]`, `quantized` has shape
+    `[T, K]`, and
+    `scales` has shape `[T, K / group_size]`.  Tensor form has two tied
+    results; buffer form has no results and writes the two destinations.
+  }];
+  let arguments = (ins
+    AnyShaped:$silu,
+    AnyShaped:$up,
+    AnyShaped:$quantized,
+    AnyShaped:$scales,
+    I64Attr:$group_size
+  );
+  let results = (outs Variadic<AnyRankedTensor>:$results);
+  let hasVerifier = 1;
+  let extraClassDeclaration = [{
+    ::mlir::MutableOperandRange getDpsInitsMutable() {
+      return ::mlir::MutableOperandRange(getOperation(), 2, 2);
     }
   }];
 }
@@ -114,6 +144,41 @@ def W8A8LinearOp : BOSCAME_Op<"w8a8_linear",
   let extraClassDeclaration = [{
     ::mlir::MutableOperandRange getDpsInitsMutable() {
       return getOutputMutable();
+    }
+  }];
+}
+
+def W8A8LinearPairOp : BOSCAME_Op<"w8a8_linear_pair",
+    [DestinationStyleOpInterface]> {
+  let summary = "Two Qwen3 W8A8 linears sharing one quantized activation";
+  let description = [{
+    Computes two independent `w8a8_linear` results from the same `xq` and
+    `xs`.  Both projections have the same `[T, D]` output shape and retain
+    separate `ame_outblk64` weight and scale buffers, so this operation does
+    not change the packed-weight ABI.  The paired lowering may share only the
+    output-zero/AME-resynchronization preamble; the established AME and RVV
+    schedules for each projection remain ordered and independent.
+
+    Tensor form has two tied results.  Buffer form has no results and writes
+    `output0` and `output1`.
+  }];
+  let arguments = (ins
+    AnyShaped:$xq,
+    AnyShaped:$xs,
+    AnyShaped:$wq0,
+    AnyShaped:$ws0,
+    AnyShaped:$wq1,
+    AnyShaped:$ws1,
+    AnyShaped:$output0,
+    AnyShaped:$output1,
+    I64Attr:$group_size,
+    StrAttr:$weight_layout
+  );
+  let results = (outs Variadic<AnyRankedTensor>:$results);
+  let hasVerifier = 1;
+  let extraClassDeclaration = [{
+    ::mlir::MutableOperandRange getDpsInitsMutable() {
+      return ::mlir::MutableOperandRange(getOperation(), 6, 2);
     }
   }];
 }

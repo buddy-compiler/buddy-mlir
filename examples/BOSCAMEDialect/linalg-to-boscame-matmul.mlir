@@ -124,11 +124,10 @@ module {
 // CHECK: return
 
 // STRIDE-LABEL: func.func @matmul_unique_copy
+// STRIDE: %[[K_SIZE:.*]] = arith.constant 32 : i64
 // STRIDE: %[[C_STRIDE:.*]] = arith.constant 64 : i64
-// STRIDE: %[[K_BOUND:.*]] = arith.constant 32 : index
-// STRIDE: %[[K_STEP:.*]] = arith.constant 16 : index
 // STRIDE: bosc_ame.mlce32.m 0, {{.*}}, %[[C_STRIDE]]
-// STRIDE: scf.for {{.*}} = {{.*}} to %[[K_BOUND]] step %[[K_STEP]]
+// STRIDE: bosc_ame.msettilek %[[K_SIZE]]
 // STRIDE: bosc_ame.mqma.b.mm 0, 0, 1
 // STRIDE: bosc_ame.msce32.m 0, {{.*}}, %[[C_STRIDE]]
 
