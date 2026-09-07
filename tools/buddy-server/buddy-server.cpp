@@ -362,6 +362,17 @@ int main(int argc, char **argv) {
       residentPlugin =
           std::make_unique<buddy::server::ResidentModelPluginHandle>(
               selection.pluginPath);
+      if (!modelConfig.modelName.empty() &&
+          !residentPlugin->modelType().empty() &&
+          modelConfig.modelName != residentPlugin->modelType() &&
+          modelConfig.modelName.rfind(residentPlugin->modelType() + "_", 0) !=
+              0) {
+        std::cerr << "buddy-server: resident plugin type '"
+                  << residentPlugin->modelType()
+                  << "' does not match manifest model '"
+                  << modelConfig.modelName << "'\n";
+        return 2;
+      }
       modelType = modelType.empty() ? residentPlugin->modelType() : modelType;
       residentModel = residentPlugin->createModel();
       break;

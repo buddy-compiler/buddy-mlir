@@ -101,6 +101,33 @@ Run the canonical package.
   --repeat-last-n 128
 ```
 
+## Run with buddy-server
+
+The same canonical package can be served through the resident plugin. Enable
+the model target while configuring the project; the package target builds
+`llama31_tt_serving.so` and records it in the manifest as `serving_library`.
+
+```bash
+conda run -n buddy-mlir cmake --build "$BUDDY_BUILD" \
+  --target buddy-server llama31_tt_rax
+source "$BUDDY_REPO_ROOT/thirdparty/tt-mlir/env/activate"
+export TT_METAL_RUNTIME_ROOT="$BUDDY_REPO_ROOT/thirdparty/tt-mlir/third_party/tt-metal/src/tt-metal"
+export TT_METAL_HOME="$TT_METAL_RUNTIME_ROOT"
+"$BUDDY_BUILD/bin/buddy-server" \
+  --model "$BUDDY_BUILD/models/llama31_tt/llama31_tt.rax" \
+  --host 127.0.0.1 --port 8080
+```
+
+`POST /completion`, `POST /v1/chat/completions`, and `POST /tokenize` use the
+same tokenizer and chat-template metadata as the package. Requests are
+serialized over one device/context and reset the KV/cache position before and
+after generation. Only `batch_size=1` is accepted; `llama31_tt_bN.rax` is
+rejected by the server rather than silently treating a batch package as a
+single request. Both external (manifest-only) and embedded payload packages
+are supported. The generated serving plugin currently requires the
+Tenstorrent runtime for real generation; no-device lifecycle and HTTP tests can
+set `BUDDY_LLAMA31_TT_FAKE_EXECUTION=1`.
+
 ## Run Fixed Batch
 
 Run a fixed-batch package.
