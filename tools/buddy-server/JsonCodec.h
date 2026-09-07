@@ -17,6 +17,7 @@
 #ifndef BUDDY_TOOLS_BUDDY_SERVER_JSONCODEC_H
 #define BUDDY_TOOLS_BUDDY_SERVER_JSONCODEC_H
 
+#include "buddy/runtime/core/AudioTranscriptionTypes.h"
 #include "buddy/runtime/core/EmbeddingTypes.h"
 #include "buddy/runtime/core/MaskedLMTypes.h"
 #include "buddy/runtime/core/ServingTypes.h"
@@ -31,6 +32,10 @@ class JsonCodecError : public std::runtime_error {
 public:
   explicit JsonCodecError(const std::string &message)
       : std::runtime_error(message) {}
+};
+
+struct DecodedAudioTranscriptionRequest {
+  buddy::runtime::AudioTranscriptionRequest request;
 };
 
 struct DecodedCompletionRequest {
@@ -50,6 +55,8 @@ struct DecodedMaskedLMRequest {
   buddy::runtime::MaskedLMRequest request;
 };
 
+DecodedAudioTranscriptionRequest
+parseAudioTranscriptionRequest(const std::string &body);
 DecodedCompletionRequest parseCompletionRequest(const std::string &body);
 DecodedChatRequest parseChatCompletionRequest(const std::string &body);
 DecodedEmbeddingRequest parseEmbeddingRequest(const std::string &body);
@@ -60,6 +67,8 @@ std::string toJson(const buddy::runtime::ModelStatus &status);
 std::string toJson(const buddy::runtime::CompletionResult &result);
 std::string
 toOpenAIEmbeddingJson(const buddy::runtime::EmbeddingResult &result);
+std::string toOpenAIAudioTranscriptionJson(
+    const buddy::runtime::AudioTranscriptionResult &result);
 std::string toJson(const buddy::runtime::MaskedLMResult &result);
 std::string toOpenAIChatJson(const buddy::runtime::CompletionResult &result);
 std::string toJson(const buddy::runtime::TokenizeResult &result,

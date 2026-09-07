@@ -68,6 +68,7 @@ enum class PayloadKind : uint16_t {
   ServingPlugin = 4,
   EmbeddingPlugin = 5,
   MaskedLMPlugin = 6,
+  TranscriptionPlugin = 7,
 };
 
 struct PayloadInput {
@@ -387,6 +388,7 @@ int main(int argc, char **argv) {
     std::string servingLibraryAttr;
     std::string embeddingLibraryAttr;
     std::string maskedLMLibraryAttr;
+    std::string transcriptionLibraryAttr;
     std::vector<std::pair<std::string, std::string>> extraModuleAttrs;
     if (auto v = rhalMod.getModelName())
       modelNameAttr = v->str();
@@ -401,13 +403,16 @@ int main(int argc, char **argv) {
     if (auto attr = rhalMod->getAttr("masked_lm_library"))
       if (auto v = mlir::dyn_cast<mlir::StringAttr>(attr))
         maskedLMLibraryAttr = v.getValue().str();
+    if (auto attr = rhalMod->getAttr("transcription_library"))
+      if (auto v = mlir::dyn_cast<mlir::StringAttr>(attr))
+        transcriptionLibraryAttr = v.getValue().str();
 
     for (auto namedAttr : rhalMod->getAttrs()) {
       const std::string key = namedAttr.getName().str();
       if (key == "sym_name" || key == "version" || key == "model_name" ||
           key == "vocab_uri" || key == "runner_library" ||
           key == "serving_library" || key == "embedding_library" ||
-          key == "masked_lm_library")
+          key == "masked_lm_library" || key == "transcription_library")
         continue;
       if (auto stringAttr =
               mlir::dyn_cast<mlir::StringAttr>(namedAttr.getValue()))
@@ -573,6 +578,10 @@ int main(int argc, char **argv) {
     if (!maskedLMLibraryAttr.empty())
       registerPayload(PayloadKind::MaskedLMPlugin, maskedLMLibraryAttr,
                       "module attr masked_lm_library");
+    if (!transcriptionLibraryAttr.empty())
+      registerPayload(PayloadKind::TranscriptionPlugin,
+                      transcriptionLibraryAttr,
+                      "module attr transcription_library");
 
     // ── Build FlatBuffer ──────────────────────────────────────────────────
 
@@ -599,6 +608,9 @@ int main(int argc, char **argv) {
     if (!maskedLMLibraryAttr.empty())
       modAttrs.push_back(CreateKV(b, b.CreateString("masked_lm_library"),
                                   b.CreateString(maskedLMLibraryAttr)));
+    if (!transcriptionLibraryAttr.empty())
+      modAttrs.push_back(CreateKV(b, b.CreateString("transcription_library"),
+                                  b.CreateString(transcriptionLibraryAttr)));
     for (const auto &attr : extraModuleAttrs)
       modAttrs.push_back(
           CreateKV(b, b.CreateString(attr.first), b.CreateString(attr.second)));

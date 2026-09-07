@@ -367,3 +367,75 @@ multiple prediction entries and `top_k` overrides the manifest default. The
 endpoint is non-streaming and accepts only a single string input. Completion,
 chat, tokenize and embedding routes return `unsupported_endpoint` in this
 mode.
+## Whisper Audio Transcription Backend
+
+`buddy-server` loads one model backend through a dynamic plugin and exposes
+health plus model-specific HTTP routes. Whisper is an independent audio
+transcription backend and does not use the text `ResidentModel` interface.
+
+## Build
+
+```bash
+conda run -n buddy-mlir cmake -S . -B build \
+  -DMLIR_DIR=$PWD/llvm/build/lib/cmake/mlir \
+  -DLLVM_DIR=$PWD/llvm/build/lib/cmake/llvm
+conda run -n buddy-mlir cmake --build build --target buddy-server check-buddy-server -j4
+```
+
+The server binary does not link Whisper. It loads
+`whisper_transcription.so` through the v1 plugin ABI after resolving the
+manifest's `transcription_library` URI. The loader keeps the shared library
+alive until the model object is destroyed.
+
+## Start Whisper
+
+```bash
+./build/bin/buddy-server --model ./build/models/whisper/whisper.rax \
+  --host 127.0.0.1 --port 8080
+```
+
+Health is available during background loading:
+
+```bash
+curl http://127.0.0.1:8080/health
+```
+
+The JSON status is `loading`, `ok`, or `error`; requests received before `ok`
+return HTTP 503 with error type `model_not_ready`.
+
+## Audio transcription
+
+```bash
+curl http://127.0.0.1:8080/v1/audio/transcriptions \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"whisper_base","file":"/absolute/path/to/audio.wav",'\
+'"max_tokens":64}'
+```
+
+`POST /audio/transcriptions` is an equivalent short alias. A successful body
+looks like:
+
+```json
+{
+  "text": "transcribed text",
+  "model": "whisper_base",
+  "generated_tokens": 12,
+  "timings": {
+    "preprocess_ms": 8.1,
+    "inference_ms": 120.4,
+    "total_ms": 129.0
+  }
+}
+```
+
+Paths are read from the server's local filesystem. Only WAV files are
+supported. Multipart, uploads, bytes/base64, data URIs, remote URLs, and
+`stream=true` are intentionally rejected in this first version. A process owns
+one loaded model and its single Whisper runtime serializes inference requests.
+
+## Backend selection
+
+Exactly one backend is selected from `--serving-so`, `--embedding-so`,
+`--masked-lm-so`, and `--transcription-so`; when no override is supplied, the
+same four module attributes are discovered from `.rax`. Endpoints for other
+backend families return HTTP 400 with `unsupported_endpoint`.

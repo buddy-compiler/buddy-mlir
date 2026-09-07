@@ -117,6 +117,8 @@ struct ModelManifest {
   std::string embeddingLibraryPath;
   // absolute path to the masked language model plugin shared library.
   std::string maskedLMLibraryPath;
+  // absolute path to the audio transcription model plugin shared library.
+  std::string transcriptionLibraryPath;
   // Raw module attrs plus URI-resolved variants for attrs whose value is a URI.
   std::unordered_map<std::string, std::string> moduleAttrs;
   std::unordered_map<std::string, std::string> resolvedModuleAttrs;
@@ -551,7 +553,8 @@ struct ModelManifest {
         std::string value = kv->value()->str();
         out.moduleAttrs[key] = value;
         if (hasPrefix(value, "file:") || hasPrefix(value, "payload:") ||
-            hasSuffix(key, "_uri") || key == "masked_lm_library")
+            hasSuffix(key, "_uri") || key == "masked_lm_library" ||
+            key == "transcription_library")
           out.resolvedModuleAttrs[key] = resolveUri(kv->value(), key.c_str());
         if (key == "vocab_uri" && kv->value() && kv->value()->size() > 0)
           out.vocabPath = out.resolvedModuleAttrs[key];
@@ -569,6 +572,10 @@ struct ModelManifest {
                  kv->value()->size() > 0)
           out.maskedLMLibraryPath =
               resolveUri(kv->value(), "masked_lm_library");
+        else if (key == "transcription_library" && kv->value() &&
+                 kv->value()->size() > 0)
+          out.transcriptionLibraryPath =
+              resolveUri(kv->value(), "transcription_library");
         else if (key == "model_name" && kv->value() && kv->value()->size() > 0)
           out.modelName = value;
       }

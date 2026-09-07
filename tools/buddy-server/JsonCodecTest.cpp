@@ -21,10 +21,12 @@
 #include <stdexcept>
 #include <string>
 
+using buddy::server::parseAudioTranscriptionRequest;
 using buddy::server::parseChatCompletionRequest;
 using buddy::server::parseCompletionRequest;
 using buddy::server::parseEmbeddingRequest;
 using buddy::server::parseMaskedLMRequest;
+using buddy::server::toOpenAIAudioTranscriptionJson;
 using buddy::server::toOpenAIEmbeddingJson;
 
 namespace {
@@ -115,6 +117,61 @@ int main() {
   const std::string maskedJson = buddy::server::toJson(maskedResult);
   assert(maskedJson.find("\"object\":\"masked_lm\"") != std::string::npos);
   assert(maskedJson.find("\"position\":1") != std::string::npos);
+
+  auto audio = parseAudioTranscriptionRequest(
+      R"({"model":"whisper_base","file":"file:/tmp/sample.wav","max_tokens":7})");
+  assert(audio.request.model == "whisper_base");
+  assert(audio.request.audio.uri == "/tmp/sample.wav");
+  assert(audio.request.audio.mimeType == "audio/wav");
+  assert(audio.request.audio.bytes.empty());
+  assert(audio.request.maxTokens == 7);
+  auto alias =
+      parseAudioTranscriptionRequest(R"({"audio_path":"/tmp/sample.wav"})");
+  assert(alias.request.audio.uri == "/tmp/sample.wav");
+  assert(alias.request.maxTokens == 64);
+
+  expectFailure([] { parseAudioTranscriptionRequest(R"({})"); });
+  expectFailure([] { parseAudioTranscriptionRequest(R"({"file":""})"); });
+  expectFailure([] { parseAudioTranscriptionRequest(R"({"file":[]})"); });
+  expectFailure([] {
+    parseAudioTranscriptionRequest(R"({"file":"a.wav","audio_path":"b.wav"})");
+  });
+  expectFailure([] {
+    parseAudioTranscriptionRequest(R"({"file":"http://example/a.wav"})");
+  });
+  expectFailure([] {
+    parseAudioTranscriptionRequest(R"({"file":"data:audio/wav;base64,AA=="})");
+  });
+  expectFailure([] {
+    parseAudioTranscriptionRequest(R"({"file":"a.wav","stream":true})");
+  });
+  expectFailure([] {
+    parseAudioTranscriptionRequest(R"({"file":"a.wav","max_tokens":0})");
+  });
+  expectFailure([] {
+    parseAudioTranscriptionRequest(R"({"file":"a.wav","max_tokens":448})");
+  });
+  expectFailure([] {
+    parseAudioTranscriptionRequest(R"({"file":"a.wav","audio_base64":"AA=="})");
+  });
+  expectFailure([] {
+    parseAudioTranscriptionRequest(std::string("{\"file\":\"a") + '\0' +
+                                   ".wav\"}");
+  });
+
+  buddy::runtime::AudioTranscriptionResult transcriptionResult;
+  transcriptionResult.model = "whisper_base";
+  transcriptionResult.text = "hello";
+  transcriptionResult.generatedTokens = 2;
+  transcriptionResult.timings.preprocessMs = 1.25;
+  transcriptionResult.timings.inferenceMs = 3.5;
+  transcriptionResult.timings.totalMs = 4.75;
+  const std::string audioJson =
+      toOpenAIAudioTranscriptionJson(transcriptionResult);
+  assert(audioJson.find("\"text\":\"hello\"") != std::string::npos);
+  assert(audioJson.find("\"model\":\"whisper_base\"") != std::string::npos);
+  assert(audioJson.find("\"generated_tokens\":2") != std::string::npos);
+  assert(audioJson.find("\"preprocess_ms\":1.25") != std::string::npos);
 
   std::cout << "JsonCodec tests passed\n";
   return 0;
