@@ -67,8 +67,8 @@ void WeatherRunner::run(const RunConfig &cfgIn) {
   const bool suppress = cfg.suppressStats || cfg.streamJsonl;
 
   if (!suppress)
-    std::cerr
-        << "\033[36;1mWeather-LLM Inference (buddy-cli / BuddyRuntime)\033[0m\n";
+    std::cerr << "\033[36;1mWeather-LLM Inference (buddy-cli / "
+                 "BuddyRuntime)\033[0m\n";
 
   // ── Chat template: load if provided ─────────────────────────────────────
   std::vector<long long> stopTokenIds = {kEosToken};

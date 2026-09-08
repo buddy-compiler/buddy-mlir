@@ -51,7 +51,9 @@ from transformers import (
 # 1. Argument parsing
 # ==============================================================================
 
-parser = argparse.ArgumentParser(description="Weather-LLM-SFT Model AOT Importer")
+parser = argparse.ArgumentParser(
+    description="Weather-LLM-SFT Model AOT Importer"
+)
 parser.add_argument(
     "--output-dir",
     type=str,
@@ -128,7 +130,7 @@ data_decode = {
 cache_position = torch.tensor([200], dtype=torch.int64)
 cache_position_prefill = torch.arange(max_seq_len, dtype=torch.int64)
 
-print(f"[WeatherLLM-Import] Dummy inputs prepared.")
+print("[WeatherLLM-Import] Dummy inputs prepared.")
 print(f"   prefill input_ids:  {data_prefill['input_ids'].shape}")
 print(f"   decode input_ids:   {data_decode['input_ids'].shape}")
 
@@ -171,8 +173,12 @@ with torch.no_grad():
         cache_implementation="static",
     )
 
-assert len(graphs_prefill) == 1, f"Expected 1 prefill graph, got {len(graphs_prefill)}"
-assert len(graphs_decode) == 1, f"Expected 1 decode graph, got {len(graphs_decode)}"
+assert len(graphs_prefill) == 1, (
+    f"Expected 1 prefill graph, got {len(graphs_prefill)}"
+)
+assert len(graphs_decode) == 1, (
+    f"Expected 1 decode graph, got {len(graphs_decode)}"
+)
 graph_prefill = graphs_prefill[0]
 graph_decode = graphs_decode[0]
 
@@ -201,10 +207,14 @@ pattern_list_decode = [
 graph_prefill.fuse_ops(pattern_list_prefill)
 graph_decode.fuse_ops(pattern_list_decode)
 
-graph_prefill.op_groups["subgraph0_prefill"] = graph_prefill.op_groups.pop("subgraph0")
+graph_prefill.op_groups["subgraph0_prefill"] = graph_prefill.op_groups.pop(
+    "subgraph0"
+)
 graph_prefill.group_map_device["subgraph0_prefill"] = DeviceType.CPU
 
-graph_decode.op_groups["subgraph0_decode"] = graph_decode.op_groups.pop("subgraph0")
+graph_decode.op_groups["subgraph0_decode"] = graph_decode.op_groups.pop(
+    "subgraph0"
+)
 graph_decode.group_map_device["subgraph0_decode"] = DeviceType.CPU
 
 driver_prefill = GraphDriver(graph_prefill)
@@ -221,7 +231,9 @@ layer_dir = os.path.join(output_dir, "layer_partitioned")
 os.makedirs(layer_dir, exist_ok=True)
 print(f"\n[WeatherLLM-Import] Writing MLIR files to: {layer_dir}")
 
-with open(os.path.join(layer_dir, "subgraph0_prefill.mlir"), "w") as module_file:
+with open(
+    os.path.join(layer_dir, "subgraph0_prefill.mlir"), "w"
+) as module_file:
     print(driver_prefill.subgraphs[0]._imported_module, file=module_file)
 with open(os.path.join(layer_dir, "forward_prefill.mlir"), "w") as module_file:
     print(driver_prefill.construct_main_graph(True), file=module_file)
@@ -231,7 +243,7 @@ with open(os.path.join(layer_dir, "subgraph0_decode.mlir"), "w") as module_file:
 with open(os.path.join(layer_dir, "forward_decode.mlir"), "w") as module_file:
     print(driver_decode.construct_main_graph(True), file=module_file)
 
-print(f"[WeatherLLM-Import] Writing weight data...")
+print("[WeatherLLM-Import] Writing weight data...")
 all_param = numpy.concatenate(
     [param.detach().cpu().numpy().reshape([-1]) for param in params]
 )
