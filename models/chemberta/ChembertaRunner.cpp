@@ -148,8 +148,8 @@ public:
   explicit ByteLevelTokenizer(const std::string &vocabPath) {
     std::ifstream in(vocabPath);
     if (!in)
-      throw std::runtime_error(
-          "ChembertaRunner: failed to open vocab: " + vocabPath);
+      throw std::runtime_error("ChembertaRunner: failed to open vocab: " +
+                               vocabPath);
     std::string line;
     while (std::getline(in, line)) {
       if (!line.empty() && line.back() == '\r')
@@ -223,8 +223,7 @@ void ChembertaRunner::run(const RunConfig &cfg) {
   const bool suppress = cfg.suppressStats;
 
   if (cfg.prompt.empty() && cfg.prompts.empty())
-    throw std::runtime_error(
-        "ChembertaRunner: pass --prompt or --prompt-file");
+    throw std::runtime_error("ChembertaRunner: pass --prompt or --prompt-file");
   if (cfg.prompts.size() > 1)
     throw std::runtime_error(
         "ChembertaRunner: only single-prompt inference is implemented");
@@ -330,7 +329,8 @@ void ChembertaRunner::run(const RunConfig &cfg) {
     std::cerr << "  time    : " << seconds << "s\n";
   }
 
-  // Emit the full logits tensor (1 x max_seq_len x vocab_size) as nested arrays.
+  // Emit the full logits tensor (1 x max_seq_len x vocab_size) as nested
+  // arrays.
   const float *data = logits.getData();
   std::cout << "[";
   for (size_t tok = 0; tok < maxSeqLen; ++tok) {

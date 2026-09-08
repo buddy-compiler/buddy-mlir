@@ -34,16 +34,25 @@
 # environment variable (fallback: spec["hf_model_path"]).
 #
 # ===----------------------------------------------------------------------===//
-import argparse, os, json, numpy, torch
-import torch._dynamo; torch._dynamo.config.suppress_errors = True
-from buddy.compiler.frontend import DynamoCompiler
-from buddy.compiler.graph import GraphDriver
-from buddy.compiler.graph.operation import *
-from buddy.compiler.graph.transform import simply_fuse
-from buddy.compiler.graph.type import DeviceType
-from buddy.compiler.ops import tosa
-from torch._inductor.decomposition import decompositions as inductor_decomp
-from transformers import AutoModelForMaskedLM
+import argparse
+import json
+import os
+
+import numpy
+import torch
+import torch._dynamo
+
+torch._dynamo.config.suppress_errors = True
+from buddy.compiler.frontend import DynamoCompiler  # noqa: E402
+from buddy.compiler.graph import GraphDriver  # noqa: E402
+from buddy.compiler.graph.operation import *  # noqa: E402
+from buddy.compiler.graph.transform import simply_fuse  # noqa: E402
+from buddy.compiler.graph.type import DeviceType  # noqa: E402
+from buddy.compiler.ops import tosa  # noqa: E402
+from torch._inductor.decomposition import (  # noqa: E402
+    decompositions as inductor_decomp,  # noqa: E402
+)
+from transformers import AutoModelForMaskedLM  # noqa: E402
 
 p = argparse.ArgumentParser(description="ChemBERTa AOT importer")
 p.add_argument("--spec", required=True)
@@ -51,22 +60,29 @@ p.add_argument("--output-dir", required=True)
 a = p.parse_args()
 with open(a.spec) as f:
     spec = json.load(f)
-model_path = (os.environ.get("CHEMBERTA_MODEL_PATH")
-              or os.environ.get("BUDDY_LOCAL_MODEL_PATH")
-              or spec.get("hf_model_path", "DeepChem/ChemBERTa-77M-MLM"))
+model_path = (
+    os.environ.get("CHEMBERTA_MODEL_PATH")
+    or os.environ.get("BUDDY_LOCAL_MODEL_PATH")
+    or spec.get("hf_model_path", "DeepChem/ChemBERTa-77M-MLM")
+)
 max_seq_len = int(spec.get("max_seq_len", 128))
 os.makedirs(a.output_dir, exist_ok=True)
 
 print(f"[import-chemberta] Loading ChemBERTa-77M-MLM from: {model_path}")
 m = AutoModelForMaskedLM.from_pretrained(
-    model_path, torch_dtype=torch.float32).eval()
+    model_path, torch_dtype=torch.float32
+).eval()
 m.config.use_cache = False
-print(f"  model class: {type(m).__name__}, params: "
-      f"{sum(pp.numel() for pp in m.parameters()):,}")
+print(
+    f"  model class: {type(m).__name__}, params: "
+    f"{sum(pp.numel() for pp in m.parameters()):,}"
+)
 
-dc = DynamoCompiler(primary_registry=tosa.ops_registry,
-                    aot_autograd_decomposition=inductor_decomp,
-                    func_name="forward")
+dc = DynamoCompiler(
+    primary_registry=tosa.ops_registry,
+    aot_autograd_decomposition=inductor_decomp,
+    func_name="forward",
+)
 dummy = torch.zeros((1, max_seq_len), dtype=torch.int64)
 mask = torch.ones((1, max_seq_len), dtype=torch.int64)
 with torch.no_grad():
@@ -75,8 +91,10 @@ print(f"[import-chemberta] {len(g)} graphs")
 assert len(g) == 1, f"expected 1 graph, got {len(g)}"
 graph = g[0]
 params = dc.imported_params[graph]
-print(f"[import-chemberta] first graph: {len(params)} params, "
-      f"{sum(p.numel() for p in params):,} elems")
+print(
+    f"[import-chemberta] first graph: {len(params)} params, "
+    f"{sum(p.numel() for p in params):,} elems"
+)
 
 graph.fuse_ops([simply_fuse])
 graph.op_groups["subgraph0"] = graph.op_groups.pop("subgraph0")
@@ -91,5 +109,7 @@ all_param = numpy.concatenate(
     [p.detach().cpu().numpy().reshape([-1]) for p in params]
 ).astype(numpy.float32, copy=False)
 all_param.tofile(os.path.join(a.output_dir, "arg0.data"))
-print(f"[import-chemberta] Wrote forward.mlir, subgraph0.mlir, arg0.data "
-      f"to {a.output_dir}")
+print(
+    f"[import-chemberta] Wrote forward.mlir, subgraph0.mlir, arg0.data "
+    f"to {a.output_dir}"
+)

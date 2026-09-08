@@ -52,8 +52,11 @@ def gen_manifest(spec: dict, runner_library: str) -> str:
     params_size = int(spec["params_size"])
     max_seq_len = int(spec["max_seq_len"])
     max_position_embeddings = int(spec.get("max_position_embeddings", 515))
-    position_buffer_size = int(spec.get(
-        "position_buffer_size", spec.get("max_position_embeddings", 515)))
+    position_buffer_size = int(
+        spec.get(
+            "position_buffer_size", spec.get("max_position_embeddings", 515)
+        )
+    )
     hidden_size = int(spec["hidden_size"])
     vocab_size = int(spec["vocab_size"])
     so_name = spec.get("so_name", f"{model_family}_model.so")
@@ -81,14 +84,22 @@ def gen_manifest(spec: dict, runner_library: str) -> str:
     p('                                backend = "cpu",')
     p(f'                                uri = "file:{so_name}"}}')
     p("")
-    p(f'  rhal.buffer @input_ids {{space = "host", '
-      f"type = tensor<1x{max_seq_len}xi64>}}")
-    p(f'  rhal.buffer @attention_mask {{space = "host", '
-      f"type = tensor<1x{max_seq_len}xi64>}}")
-    p(f'  rhal.buffer @position_ids {{space = "host", '
-      f"type = tensor<{position_buffer_size}xi64>}}")
-    p(f'  rhal.buffer @logits {{space = "host", '
-      f"type = tensor<1x{max_seq_len}x{vocab_size}xf32>}}")
+    p(
+        f'  rhal.buffer @input_ids {{space = "host", '
+        f"type = tensor<1x{max_seq_len}xi64>}}"
+    )
+    p(
+        f'  rhal.buffer @attention_mask {{space = "host", '
+        f"type = tensor<1x{max_seq_len}xi64>}}"
+    )
+    p(
+        f'  rhal.buffer @position_ids {{space = "host", '
+        f"type = tensor<{position_buffer_size}xi64>}}"
+    )
+    p(
+        f'  rhal.buffer @logits {{space = "host", '
+        f"type = tensor<1x{max_seq_len}x{vocab_size}xf32>}}"
+    )
     p("")
     p("  rhal.func @forward {")
     p('    inputs   = ["input_ids", "attention_mask"],')
@@ -130,8 +141,9 @@ def main() -> int:
         )
         with open(args.output, "w") as f:
             f.write(text)
-        print(f"[gen_chemberta_manifest] Written: {args.output}",
-              file=sys.stderr)
+        print(
+            f"[gen_chemberta_manifest] Written: {args.output}", file=sys.stderr
+        )
     return 0
 
 
