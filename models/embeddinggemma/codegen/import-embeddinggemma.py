@@ -15,20 +15,21 @@
 #
 # ===----------------------------------------------------------------------===//
 import argparse
-import os
 import json
+import os
+
 import numpy
 import torch
-import torch.nn as nn
 import torch._dynamo
+import torch.nn as nn
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.graph import GraphDriver
 from buddy.compiler.graph.operation import *  # noqa: F403
 from buddy.compiler.graph.transform import simply_fuse
 from buddy.compiler.graph.type import DeviceType
 from buddy.compiler.ops import tosa
-from torch._inductor.decomposition import decompositions as inductor_decomp
 from sentence_transformers import SentenceTransformer
+from torch._inductor.decomposition import decompositions as inductor_decomp
 
 torch._dynamo.config.suppress_errors = True
 
@@ -72,7 +73,9 @@ class EmbeddingGemmaWrapper(nn.Module):
         token_emb = trans_out["token_embeddings"]
 
         # 2. Mean Pooling (traceable: all tensor ops, no control flow)
-        mask_expanded = attention_mask.unsqueeze(-1).expand(token_emb.size()).float()
+        mask_expanded = (
+            attention_mask.unsqueeze(-1).expand(token_emb.size()).float()
+        )
         sum_emb = torch.sum(token_emb * mask_expanded, dim=1)
         sum_mask = mask_expanded.sum(dim=1).clamp(min=1e-9)
         pooled = sum_emb / sum_mask
@@ -82,10 +85,14 @@ class EmbeddingGemmaWrapper(nn.Module):
         d1_out = self.dense1(pooled)["sentence_embedding"]
 
         # 4. Dense 3072 -> 768 (Linear + Identity activation)
-        d2_out = self.dense2({"sentence_embedding": d1_out})["sentence_embedding"]
+        d2_out = self.dense2({"sentence_embedding": d1_out})[
+            "sentence_embedding"
+        ]
 
         # 5. L2 Normalize
-        normed = self.normalize({"sentence_embedding": d2_out})["sentence_embedding"]
+        normed = self.normalize({"sentence_embedding": d2_out})[
+            "sentence_embedding"
+        ]
 
         return normed
 
@@ -132,7 +139,7 @@ dc = DynamoCompiler(
 # ==============================================================================
 dummy_input_ids = torch.ones((1, max_seq_len), dtype=torch.int64)
 dummy_attention_mask = torch.ones((1, max_seq_len), dtype=torch.int64)
-print(f"[import-embeddinggemma] Dummy inputs:")
+print("[import-embeddinggemma] Dummy inputs:")
 print(f"   input_ids:      {tuple(dummy_input_ids.shape)}")
 print(f"   attention_mask: {tuple(dummy_attention_mask.shape)}")
 
@@ -150,9 +157,11 @@ with torch.no_grad():
 assert len(graphs) == 1, f"Expected 1 graph, got {len(graphs)}"
 graph = graphs[0]
 params = dc.imported_params[graph]
-print(f"[import-embeddinggemma] {len(graphs)} graph(s), "
-      f"{len(params)} params, "
-      f"{sum(p.numel() for p in params):,} elems")
+print(
+    f"[import-embeddinggemma] {len(graphs)} graph(s), "
+    f"{len(params)} params, "
+    f"{sum(p.numel() for p in params):,} elems"
+)
 
 # ==============================================================================
 # 6. Graph optimization (simply_fuse ONLY)
@@ -183,34 +192,51 @@ def _repair_subgraph0(module_text):
 
     sel_pat = re.compile(
         r'^(\s*)%(\w+) = "arith\.select"\((%\w+), (%\w+), (%\w+)\) : '
-        r'\(f32, f32, f32\) -> f32$',
-        re.M)
+        r"\(f32, f32, f32\) -> f32$",
+        re.M,
+    )
 
     def _sel_repl(mo):
-        ind, res, cond, t, f = (mo.group(1), mo.group(2), mo.group(3),
-                                mo.group(4), mo.group(5))
-        return "\n".join([
-            f'{ind}%selz_{res} = "arith.constant"() '
-            f'<{{value = 0.000000e+00 : f32}}> : () -> f32',
-            f'{ind}%selc_{res} = "arith.cmpf"({cond}, %selz_{res}) '
-            f'<{{fastmath = #arith.fastmath<none>, predicate = 13 : i64}}> : '
-            f'(f32, f32) -> i1',
-            f'{ind}%{res} = "arith.select"(%selc_{res}, {t}, {f}) : '
-            f'(i1, f32, f32) -> f32',
-        ])
+        ind, res, cond, t, f = (
+            mo.group(1),
+            mo.group(2),
+            mo.group(3),
+            mo.group(4),
+            mo.group(5),
+        )
+        return "\n".join(
+            [
+                f'{ind}%selz_{res} = "arith.constant"() '
+                f"<{{value = 0.000000e+00 : f32}}> : () -> f32",
+                f'{ind}%selc_{res} = "arith.cmpf"({cond}, %selz_{res}) '
+                f"<{{fastmath = #arith.fastmath<none>, predicate = 13 : i64}}> : "
+                f"(f32, f32) -> i1",
+                f'{ind}%{res} = "arith.select"(%selc_{res}, {t}, {f}) : '
+                f"(i1, f32, f32) -> f32",
+            ]
+        )
 
     module_text = sel_pat.sub(_sel_repl, module_text)
 
-    f32ty = r'(?:tensor<[^>]*f32>|f32)'
+    f32ty = r"(?:tensor<[^>]*f32>|f32)"
     _bit_pat = re.compile(
         r'"(tosa\.bitwise_or|tosa\.bitwise_and)"\(([^)]*)\) : \('
-        + r'(' + f32ty + r'), (' + f32ty + r')\) -> (' + f32ty + r')')
+        + r"("
+        + f32ty
+        + r"), ("
+        + f32ty
+        + r")\) -> ("
+        + f32ty
+        + r")"
+    )
 
     def _bit_repl(mo):
         op = mo.group(1)
         repl = "tosa.maximum" if op == "tosa.bitwise_or" else "tosa.minimum"
-        return f'"{repl}"({mo.group(2)}) : ({mo.group(3)}, {mo.group(4)}) -> ' \
-            f'{mo.group(5)}'
+        return (
+            f'"{repl}"({mo.group(2)}) : ({mo.group(3)}, {mo.group(4)}) -> '
+            f"{mo.group(5)}"
+        )
 
     module_text = _bit_pat.sub(_bit_repl, module_text)
     return module_text
@@ -220,8 +246,10 @@ def _repair_subgraph0(module_text):
 # 7. Save outputs at the output-dir ROOT (single_forward build convention)
 # ==============================================================================
 with open(os.path.join(a.output_dir, "subgraph0.mlir"), "w") as module_file:
-    print(_repair_subgraph0(str(driver.subgraphs[0]._imported_module)),
-          file=module_file)
+    print(
+        _repair_subgraph0(str(driver.subgraphs[0]._imported_module)),
+        file=module_file,
+    )
 with open(os.path.join(a.output_dir, "forward.mlir"), "w") as module_file:
     print(driver.construct_main_graph(True), file=module_file)
 
@@ -230,5 +258,7 @@ all_param = numpy.concatenate(
 ).astype(numpy.float32, copy=False)
 all_param.tofile(os.path.join(a.output_dir, "arg0.data"))
 
-print(f"[import-embeddinggemma] Wrote forward.mlir, subgraph0.mlir, "
-      f"arg0.data ({all_param.size} f32 elems) to {a.output_dir}")
+print(
+    f"[import-embeddinggemma] Wrote forward.mlir, subgraph0.mlir, "
+    f"arg0.data ({all_param.size} f32 elems) to {a.output_dir}"
+)

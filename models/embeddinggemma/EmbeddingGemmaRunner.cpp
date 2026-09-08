@@ -1,4 +1,5 @@
-//===- EmbeddingGemmaRunner.cpp - embeddinggemma inference runner ----------===//
+//===- EmbeddingGemmaRunner.cpp - embeddinggemma inference runner
+//----------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -42,8 +43,8 @@ void EmbeddingGemmaRunner::run(const RunConfig &cfgIn) {
   RunConfig cfg = cfgIn;
 
   if (!cfg.suppressStats)
-    std::cerr
-        << "\033[34;1mEmbeddingGemma Inference (buddy-cli / BuddyRuntime)\033[0m\n";
+    std::cerr << "\033[34;1mEmbeddingGemma Inference (buddy-cli / "
+                 "BuddyRuntime)\033[0m\n";
 
   // ── Create session ──────────────────────────────────────────────────────
   std::unique_ptr<ModelSession> session;

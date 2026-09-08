@@ -24,28 +24,28 @@
 
 import argparse
 import os
+
 import numpy
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.graph import GraphDriver
 from buddy.compiler.graph.operation import *  # noqa: F403
 from buddy.compiler.graph.transform import (
-    simply_fuse,
     apply_classic_fusion,
-    eliminate_transpose,
     eliminate_matmul_transpose_reshape,
+    eliminate_transpose,
+    simply_fuse,
 )
 from buddy.compiler.graph.type import DeviceType
 from buddy.compiler.ops import tosa
-from torch._inductor.decomposition import decompositions as inductor_decomp
 from sentence_transformers import SentenceTransformer
-
+from torch._inductor.decomposition import decompositions as inductor_decomp
 
 # ==============================================================================
 # 1. Build a clean wrapper module for Dynamo tracing
 # ==============================================================================
+
 
 class EmbeddingGemmaWrapper(nn.Module):
     """Wraps the SentenceTransformer pipeline as a clean nn.Module for tracing.
@@ -77,7 +77,9 @@ class EmbeddingGemmaWrapper(nn.Module):
         token_emb = trans_out["token_embeddings"]
 
         # 2. Mean Pooling (traceable: all tensor ops, no control flow)
-        mask_expanded = attention_mask.unsqueeze(-1).expand(token_emb.size()).float()
+        mask_expanded = (
+            attention_mask.unsqueeze(-1).expand(token_emb.size()).float()
+        )
         sum_emb = torch.sum(token_emb * mask_expanded, dim=1)
         sum_mask = mask_expanded.sum(dim=1).clamp(min=1e-9)
         pooled = sum_emb / sum_mask
@@ -87,10 +89,14 @@ class EmbeddingGemmaWrapper(nn.Module):
         d1_out = self.dense1(pooled)["sentence_embedding"]
 
         # 4. Dense 3072→768 (Linear + Identity activation)
-        d2_out = self.dense2({"sentence_embedding": d1_out})["sentence_embedding"]
+        d2_out = self.dense2({"sentence_embedding": d1_out})[
+            "sentence_embedding"
+        ]
 
         # 5. L2 Normalize
-        normed = self.normalize({"sentence_embedding": d2_out})["sentence_embedding"]
+        normed = self.normalize({"sentence_embedding": d2_out})[
+            "sentence_embedding"
+        ]
 
         return normed
 
@@ -99,7 +105,9 @@ class EmbeddingGemmaWrapper(nn.Module):
 # 2. Argument parsing
 # ==============================================================================
 
-parser = argparse.ArgumentParser(description="embeddinggemma-300m Model AOT Importer")
+parser = argparse.ArgumentParser(
+    description="embeddinggemma-300m Model AOT Importer"
+)
 parser.add_argument(
     "--output-dir",
     type=str,
@@ -127,7 +135,7 @@ model = EmbeddingGemmaWrapper("google/embeddinggemma-300m")
 model.eval()
 
 total_params = sum(p.numel() for p in model.parameters())
-print(f"   Total parameters: {total_params:,} ({total_params/1e6:.1f}M)")
+print(f"   Total parameters: {total_params:,} ({total_params / 1e6:.1f}M)")
 
 # ==============================================================================
 # 4. Initialize Dynamo Compiler
@@ -147,7 +155,7 @@ max_seq_len = 128
 dummy_input_ids = torch.ones((1, max_seq_len), dtype=torch.int64)
 dummy_attention_mask = torch.ones((1, max_seq_len), dtype=torch.int64)
 
-print(f"[EmbeddingGemma-Import] Dummy inputs:")
+print("[EmbeddingGemma-Import] Dummy inputs:")
 print(f"   input_ids:       {dummy_input_ids.shape}")
 print(f"   attention_mask:  {dummy_attention_mask.shape}")
 
@@ -201,7 +209,7 @@ with open(os.path.join(layer_dir, "subgraph0.mlir"), "w") as module_file:
 with open(os.path.join(layer_dir, "forward.mlir"), "w") as module_file:
     print(driver.construct_main_graph(True), file=module_file)
 
-print(f"[EmbeddingGemma-Import] Writing weight data...")
+print("[EmbeddingGemma-Import] Writing weight data...")
 all_param = numpy.concatenate(
     [param.detach().cpu().numpy().reshape([-1]) for param in params]
 )

@@ -33,8 +33,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "buddy/runtime/models/EmbeddinggemmaRunner.h"
-#include "buddy/runtime/models/EmbeddinggemmaTokenizer.h"
 #include "buddy/runtime/core/ModelManifest.h"
+#include "buddy/runtime/models/EmbeddinggemmaTokenizer.h"
 
 #include "buddy/Core/Container.h"
 

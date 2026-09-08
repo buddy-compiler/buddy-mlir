@@ -61,25 +61,24 @@ namespace runtime {
 
 class EmbeddinggemmaTokenizer {
 public:
-  static EmbeddinggemmaTokenizer loadFromFile(
-      const std::string &tokenizerJsonPath) {
+  static EmbeddinggemmaTokenizer
+  loadFromFile(const std::string &tokenizerJsonPath) {
     auto bufOrErr = llvm::MemoryBuffer::getFile(tokenizerJsonPath);
     if (!bufOrErr)
-      throw std::runtime_error(
-          "EmbeddinggemmaTokenizer: cannot open " + tokenizerJsonPath + ": " +
-          bufOrErr.getError().message());
+      throw std::runtime_error("EmbeddinggemmaTokenizer: cannot open " +
+                               tokenizerJsonPath + ": " +
+                               bufOrErr.getError().message());
 
     llvm::Expected<llvm::json::Value> parsed =
         llvm::json::parse((*bufOrErr)->getBuffer());
     if (!parsed)
-      throw std::runtime_error(
-          "EmbeddinggemmaTokenizer: failed to parse " + tokenizerJsonPath +
-          ": " + llvm::toString(parsed.takeError()));
+      throw std::runtime_error("EmbeddinggemmaTokenizer: failed to parse " +
+                               tokenizerJsonPath + ": " +
+                               llvm::toString(parsed.takeError()));
 
     const llvm::json::Object *root = parsed->getAsObject();
     if (!root)
-      throw std::runtime_error("EmbeddinggemmaTokenizer: " +
-                               tokenizerJsonPath +
+      throw std::runtime_error("EmbeddinggemmaTokenizer: " + tokenizerJsonPath +
                                " root is not a JSON object");
 
     EmbeddinggemmaTokenizer tok;
@@ -95,7 +94,8 @@ public:
               std::vector<int64_t> &inputIds,
               std::vector<int64_t> &attentionMask) const {
     if (maxSeqLen < 2)
-      throw std::runtime_error("EmbeddinggemmaTokenizer: maxSeqLen must be >= 2");
+      throw std::runtime_error(
+          "EmbeddinggemmaTokenizer: maxSeqLen must be >= 2");
 
     std::vector<int64_t> content = tokenize(text);
     size_t maxContent = maxSeqLen - 2;

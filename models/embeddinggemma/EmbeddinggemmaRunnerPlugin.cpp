@@ -20,7 +20,7 @@ extern "C" buddy::runtime::InferenceRunner *buddy_create_inference_runner_v1() {
   return new buddy::runtime::EmbeddinggemmaRunner();
 }
 
-extern "C" void buddy_destroy_inference_runner_v1(
-    buddy::runtime::InferenceRunner *runner) {
+extern "C" void
+buddy_destroy_inference_runner_v1(buddy::runtime::InferenceRunner *runner) {
   delete runner;
 }
