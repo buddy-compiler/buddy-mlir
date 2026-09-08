@@ -37,8 +37,8 @@
 // first, then one pointer per input memref in declaration order:
 //
 //   void _mlir_ciface_forward(MemRef<float,3> *last_hidden_state,   // result
-//                             MemRef<float,1> *weights,             // arg0.data
-//                             MemRef<int64_t,2> *input_ids,
+//                             MemRef<float,1> *weights,             //
+//                             arg0.data MemRef<int64_t,2> *input_ids,
 //                             MemRef<int64_t,2> *attention_mask);
 //
 // The tokenizer reproduces `AutoTokenizer(text, padding="max_length",
@@ -54,8 +54,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "buddy/runtime/models/E5MistralRunner.h"
-#include "buddy/runtime/models/E5MistralTokenizer.h"
 #include "buddy/runtime/core/ModelManifest.h"
+#include "buddy/runtime/models/E5MistralTokenizer.h"
 
 #include "buddy/Core/Container.h"
 
@@ -124,8 +124,7 @@ void E5MistralRunner::run(const RunConfig &cfg) {
   const bool suppress = cfg.suppressStats;
 
   if (cfg.prompt.empty() && cfg.prompts.empty())
-    throw std::runtime_error(
-        "E5MistralRunner: pass --prompt or --prompt-file");
+    throw std::runtime_error("E5MistralRunner: pass --prompt or --prompt-file");
   if (cfg.prompts.size() > 1)
     throw std::runtime_error(
         "E5MistralRunner: only single-prompt inference is implemented");
@@ -171,7 +170,8 @@ void E5MistralRunner::run(const RunConfig &cfg) {
   printLog("Weights   : " + weightsPath, suppress);
   printLog("Tokenizer : " + tokenizerPath, suppress);
 
-  E5MistralTokenizer tokenizer = E5MistralTokenizer::loadFromFile(tokenizerPath);
+  E5MistralTokenizer tokenizer =
+      E5MistralTokenizer::loadFromFile(tokenizerPath);
   std::vector<int64_t> inputIdVec, attentionMaskVec;
   tokenizer.encode(prompt, maxSeqLen, inputIdVec, attentionMaskVec);
   printLog("Tokenization complete", suppress);
@@ -217,7 +217,8 @@ void E5MistralRunner::run(const RunConfig &cfg) {
 
   // Sentence embedding = last token (always "</s>", right-aligned by the
   // left-padding above), matching last_hidden_state[0, -1, :] in PyTorch.
-  const float *embedding = lastHiddenState.getData() + (maxSeqLen - 1) * hiddenSize;
+  const float *embedding =
+      lastHiddenState.getData() + (maxSeqLen - 1) * hiddenSize;
 
   if (!suppress) {
     const double seconds = std::chrono::duration<double>(t1 - t0).count();

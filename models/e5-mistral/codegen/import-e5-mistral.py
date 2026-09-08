@@ -38,13 +38,15 @@ import torch._dynamo
 
 torch._dynamo.config.suppress_errors = True
 
-from buddy.compiler.frontend import DynamoCompiler
-from buddy.compiler.graph import GraphDriver
-from buddy.compiler.graph.transform import simply_fuse
-from buddy.compiler.graph.type import DeviceType
-from buddy.compiler.ops import tosa
-from torch._inductor.decomposition import decompositions as inductor_decomp
-from transformers import AutoModel
+from buddy.compiler.frontend import DynamoCompiler  # noqa: E402
+from buddy.compiler.graph import GraphDriver  # noqa: E402
+from buddy.compiler.graph.transform import simply_fuse  # noqa: E402
+from buddy.compiler.graph.type import DeviceType  # noqa: E402
+from buddy.compiler.ops import tosa  # noqa: E402
+from torch._inductor.decomposition import (  # noqa: E402
+    decompositions as inductor_decomp,  # noqa: E402
+)
+from transformers import AutoModel  # noqa: E402
 
 p = argparse.ArgumentParser(description="E5-Mistral AOT importer")
 p.add_argument("--spec", required=True)
@@ -102,7 +104,8 @@ subgraph0_text = str(dr.subgraphs[0]._imported_module)
 # all-masked rows finite (a uniform softmax). Replace every -inf mask
 # constant with -1e30 to reproduce the reference numerics.
 subgraph0_text = subgraph0_text.replace(
-    "dense<0xFF800000> : tensor<f32>", "dense<-1.00000000e+30> : tensor<f32>")
+    "dense<0xFF800000> : tensor<f32>", "dense<-1.00000000e+30> : tensor<f32>"
+)
 with open(os.path.join(a.output_dir, "subgraph0.mlir"), "w") as f:
     print(subgraph0_text, file=f)
 with open(os.path.join(a.output_dir, "forward.mlir"), "w") as f:
@@ -114,9 +117,16 @@ weights_path = os.path.join(a.output_dir, "arg0.data")
 total_elems = 0
 with open(weights_path, "wb") as f:
     for pp in params:
-        arr = pp.detach().cpu().numpy().reshape([-1]).astype(numpy.float32,
-                                                             copy=False)
+        arr = (
+            pp.detach()
+            .cpu()
+            .numpy()
+            .reshape([-1])
+            .astype(numpy.float32, copy=False)
+        )
         f.write(arr.tobytes())
         total_elems += arr.size
-print(f"[import-e5-mistral] Wrote forward.mlir, subgraph0.mlir, arg0.data "
-      f"({total_elems:,} f32 elems) to {a.output_dir}")
+print(
+    f"[import-e5-mistral] Wrote forward.mlir, subgraph0.mlir, arg0.data "
+    f"({total_elems:,} f32 elems) to {a.output_dir}"
+)

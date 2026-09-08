@@ -118,7 +118,8 @@ public:
     const size_t pad = maxSeqLen - n;
     inputIds.assign(maxSeqLen, padId_);
     attentionMask.assign(maxSeqLen, 0);
-    std::copy(seq.begin(), seq.end(), inputIds.begin() + static_cast<long>(pad));
+    std::copy(seq.begin(), seq.end(),
+              inputIds.begin() + static_cast<long>(pad));
     std::fill(attentionMask.begin() + static_cast<long>(pad),
               attentionMask.end(), 1);
   }
@@ -134,8 +135,8 @@ private:
       throw std::runtime_error("E5MistralTokenizer: missing \"model\"");
     auto type = model->getString("type");
     if (!type || *type != "BPE")
-      throw std::runtime_error(
-          "E5MistralTokenizer: unsupported tokenizer model type (expected BPE)");
+      throw std::runtime_error("E5MistralTokenizer: unsupported tokenizer "
+                               "model type (expected BPE)");
 
     const llvm::json::Object *vocabObj = model->getObject("vocab");
     if (!vocabObj)
