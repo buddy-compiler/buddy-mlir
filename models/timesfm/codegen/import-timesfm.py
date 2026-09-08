@@ -38,11 +38,10 @@ import json
 import os
 
 import numpy
-import torch
-import torch.nn as nn
-import torch._dynamo
-
 import timesfm
+import torch
+import torch._dynamo
+import torch.nn as nn
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.graph import GraphDriver
 from buddy.compiler.graph.operation import *  # noqa: F403
@@ -57,6 +56,7 @@ torch._dynamo.config.suppress_errors = True
 # ==============================================================================
 # 1. Build a clean wrapper module for Dynamo tracing
 # ==============================================================================
+
 
 class TimesFMWrapper(nn.Module):
     """Wraps TimesFM 2.5 for single-graph Dynamo tracing.
@@ -81,18 +81,28 @@ class TimesFMWrapper(nn.Module):
 # ==============================================================================
 
 parser = argparse.ArgumentParser(description="TimesFM 2.5 Model AOT Importer")
-parser.add_argument("--spec", type=str, required=True,
-                    help="Variant spec JSON (models/timesfm/specs/f32.json).")
-parser.add_argument("--output-dir", type=str, required=True,
-                    help="Directory to save output files.")
+parser.add_argument(
+    "--spec",
+    type=str,
+    required=True,
+    help="Variant spec JSON (models/timesfm/specs/f32.json).",
+)
+parser.add_argument(
+    "--output-dir",
+    type=str,
+    required=True,
+    help="Directory to save output files.",
+)
 args = parser.parse_args()
 
 with open(args.spec) as spec_file:
     spec = json.load(spec_file)
 
-model_path = (os.environ.get("TIMESFM_MODEL_PATH")
-              or os.environ.get("BUDDY_LOCAL_MODEL_PATH")
-              or spec.get("hf_model_path", "google/timesfm-2.5-200m-pytorch"))
+model_path = (
+    os.environ.get("TIMESFM_MODEL_PATH")
+    or os.environ.get("BUDDY_LOCAL_MODEL_PATH")
+    or spec.get("hf_model_path", "google/timesfm-2.5-200m-pytorch")
+)
 
 output_dir = args.output_dir
 os.makedirs(output_dir, exist_ok=True)
@@ -101,7 +111,9 @@ os.makedirs(output_dir, exist_ok=True)
 # 3. Load model
 # ==============================================================================
 
-print(f"[TimesFM-Import] Loading TimesFM 2.5 200M PyTorch from {model_path} ...")
+print(
+    f"[TimesFM-Import] Loading TimesFM 2.5 200M PyTorch from {model_path} ..."
+)
 tfm = timesfm.TimesFM_2p5_200M_torch.from_pretrained(model_path, backend="cpu")
 base_model = tfm.model
 # Force all params to CPU explicitly
@@ -135,7 +147,7 @@ patch_length = int(spec.get("patch_length", 32))
 dummy_inputs = torch.randn(1, num_patches, patch_length, dtype=torch.float32)
 dummy_masks = torch.ones(1, num_patches, patch_length, dtype=torch.float32)
 
-print(f"[TimesFM-Import] Dummy inputs:")
+print("[TimesFM-Import] Dummy inputs:")
 print(f"   inputs:  {dummy_inputs.shape}")
 print(f"   masks:   {dummy_masks.shape}")
 
@@ -155,8 +167,10 @@ assert len(graphs) == 1, f"Expected 1 graph, got {len(graphs)}"
 graph = graphs[0]
 
 params = dynamo_compiler.imported_params[graph]
-print(f"[TimesFM-Import] Graph captured. Params: {len(params)} tensors, "
-      f"{sum(p.numel() for p in params):,} elems.")
+print(
+    f"[TimesFM-Import] Graph captured. Params: {len(params)} tensors, "
+    f"{sum(p.numel() for p in params):,} elems."
+)
 
 # ==============================================================================
 # 7. Graph optimizations (only simply_fuse)
@@ -187,28 +201,32 @@ def _repair_subgraph0(module_text):
 
     # Collect start-const name -> input shape dims for every tosa.slice.
     slice_pat = re.compile(
-        r'tosa\.slice (\S+), (\S+), (\S+) : \(tensor<([0-9x]+xf32)>')
+        r"tosa\.slice (\S+), (\S+), (\S+) : \(tensor<([0-9x]+xf32)>"
+    )
     start_to_dims = {}
     for m in slice_pat.finditer(module_text):
-        dims = [int(d) for d in m.group(4).split('x')[:-1]]
-        start_to_dims.setdefault(m.group(2).lstrip('%'), dims)
+        dims = [int(d) for d in m.group(4).split("x")[:-1]]
+        start_to_dims.setdefault(m.group(2).lstrip("%"), dims)
 
     def _const_repl(mo):
         name, vals, n = mo.group(1), mo.group(2), mo.group(3)
         dims = start_to_dims.get(name)
         if dims is None:
             return mo.group(0)
-        nums = [int(v) for v in vals.split(',')]
+        nums = [int(v) for v in vals.split(",")]
         fixed = [
             str(dims[i] + v) if (v < 0 and i < len(dims)) else str(v)
             for i, v in enumerate(nums)
         ]
-        return (f'    %{name} = tosa.const_shape  '
-                f'{{values = dense<[{", ".join(fixed)}]> : tensor<{n}xindex>')
+        return (
+            f"    %{name} = tosa.const_shape  "
+            f"{{values = dense<[{', '.join(fixed)}]> : tensor<{n}xindex>"
+        )
 
     const_pat = re.compile(
-        r'    %(\w+) = tosa\.const_shape  '
-        r'\{values = dense<\[([^\]]*)\]> : tensor<(\d+)xindex>')
+        r"    %(\w+) = tosa\.const_shape  "
+        r"\{values = dense<\[([^\]]*)\]> : tensor<(\d+)xindex>"
+    )
     return const_pat.sub(_const_repl, module_text)
 
 
@@ -219,8 +237,10 @@ def _repair_subgraph0(module_text):
 print(f"\n[TimesFM-Import] Writing MLIR files to: {output_dir}")
 
 with open(os.path.join(output_dir, "subgraph0.mlir"), "w") as module_file:
-    print(_repair_subgraph0(str(driver.subgraphs[0]._imported_module)),
-          file=module_file)
+    print(
+        _repair_subgraph0(str(driver.subgraphs[0]._imported_module)),
+        file=module_file,
+    )
 with open(os.path.join(output_dir, "forward.mlir"), "w") as module_file:
     print(driver.construct_main_graph(True), file=module_file)
 
@@ -230,6 +250,8 @@ all_param = numpy.concatenate(
 ).astype(numpy.float32, copy=False)
 all_param.tofile(os.path.join(output_dir, "arg0.data"))
 
-print(f"[TimesFM-Import] Wrote forward.mlir, subgraph0.mlir, arg0.data "
-      f"({all_param.size:,} f32 elems) to {output_dir}")
+print(
+    f"[TimesFM-Import] Wrote forward.mlir, subgraph0.mlir, arg0.data "
+    f"({all_param.size:,} f32 elems) to {output_dir}"
+)
 print("[TimesFM-Import] Done!\n")

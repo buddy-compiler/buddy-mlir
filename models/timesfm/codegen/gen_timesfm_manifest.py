@@ -55,8 +55,9 @@ def gen_manifest(spec: dict, runner_library: str) -> str:
     # Fixed input context window in time points (num_patches * patch_length).
     max_seq_len = int(spec.get("max_seq_len", num_patches * patch_length))
     hidden_size = int(spec["hidden_size"])
-    output_patch_len = int(spec.get("output_patch_len",
-                                    spec.get("horizon_length", 128)))
+    output_patch_len = int(
+        spec.get("output_patch_len", spec.get("horizon_length", 128))
+    )
     quantile_len = int(spec.get("quantile_len", 10))
     forecast_features = output_patch_len * quantile_len
     decode_index = int(spec.get("decode_index", 5))
@@ -91,12 +92,18 @@ def gen_manifest(spec: dict, runner_library: str) -> str:
     p('                                backend = "cpu",')
     p(f'                                uri = "file:{so_name}"}}')
     p("")
-    p(f'  rhal.buffer @inputs {{space = "host", '
-      f"type = tensor<1x{num_patches}x{patch_length}xf32>}}")
-    p(f'  rhal.buffer @masks {{space = "host", '
-      f"type = tensor<1x{num_patches}x{patch_length}xf32>}}")
-    p(f'  rhal.buffer @point_forecast {{space = "host", '
-      f"type = tensor<1x{num_patches}x{forecast_features}xf32>}}")
+    p(
+        f'  rhal.buffer @inputs {{space = "host", '
+        f"type = tensor<1x{num_patches}x{patch_length}xf32>}}"
+    )
+    p(
+        f'  rhal.buffer @masks {{space = "host", '
+        f"type = tensor<1x{num_patches}x{patch_length}xf32>}}"
+    )
+    p(
+        f'  rhal.buffer @point_forecast {{space = "host", '
+        f"type = tensor<1x{num_patches}x{forecast_features}xf32>}}"
+    )
     p("")
     p("  rhal.func @forward {")
     p('    inputs   = ["inputs", "masks"],')

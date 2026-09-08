@@ -24,7 +24,8 @@
 //   forward(weights: memref<params_size x f32>,
 //           inputs:   memref<1 x num_patches x patch_length x f32>,
 //           masks:    memref<1 x num_patches x patch_length x f32>)
-//     -> (point_forecast: memref<1 x num_patches x (output_patch_len*quantile_len) x f32>)
+//     -> (point_forecast: memref<1 x num_patches x
+//     (output_patch_len*quantile_len) x f32>)
 //
 // The forward has a SINGLE result, so the C ABI wrapper `_mlir_ciface_forward`
 // takes one pointer for the result memref first, then one pointer per input
@@ -149,8 +150,9 @@ void fillContextWindow(const std::string &text, size_t windowLen,
 void fillDefaultContextWindow(size_t windowLen, std::vector<float> &series) {
   series.resize(windowLen);
   for (size_t i = 0; i < windowLen; ++i)
-    series[i] = static_cast<float>(std::sin(0.05 * static_cast<double>(i)) +
-                                   0.5 * std::sin(0.3 * static_cast<double>(i)));
+    series[i] =
+        static_cast<float>(std::sin(0.05 * static_cast<double>(i)) +
+                           0.5 * std::sin(0.3 * static_cast<double>(i)));
 }
 
 } // namespace
@@ -184,7 +186,8 @@ void TimesfmRunner::run(const RunConfig &cfg) {
     numPatches = parseSizeAttr(manifest, "num_patches", numPatches);
     patchLength = parseSizeAttr(manifest, "patch_length", patchLength);
     paramsSize = parseSizeAttr(manifest, "params_size", paramsSize);
-    outputPatchLen = parseSizeAttr(manifest, "output_patch_len", outputPatchLen);
+    outputPatchLen =
+        parseSizeAttr(manifest, "output_patch_len", outputPatchLen);
     quantileLen = parseSizeAttr(manifest, "quantile_len", quantileLen);
     decodeIndex = parseSizeAttr(manifest, "decode_index", decodeIndex);
     numThreads = parseSizeAttr(manifest, "num_threads", numThreads);
@@ -204,8 +207,8 @@ void TimesfmRunner::run(const RunConfig &cfg) {
   printLog("Model .so  : " + soPath, suppress);
   printLog("Weights    : " + weightsPath, suppress);
   printLog("Context    : " + std::to_string(windowLen) + " points (" +
-               std::to_string(numPatches) + " x " + std::to_string(patchLength) +
-               ")",
+               std::to_string(numPatches) + " x " +
+               std::to_string(patchLength) + ")",
            suppress);
 
   std::vector<float> series;
@@ -229,17 +232,15 @@ void TimesfmRunner::run(const RunConfig &cfg) {
       reinterpret_cast<ForwardFn>(dlsym(handle, "_mlir_ciface_forward"));
   if (const char *err = dlerror()) {
     dlclose(handle);
-    throw std::runtime_error(
-        "TimesfmRunner: missing _mlir_ciface_forward in " + soPath + ": " +
-        std::string(err));
+    throw std::runtime_error("TimesfmRunner: missing _mlir_ciface_forward in " +
+                             soPath + ": " + std::string(err));
   }
 
   if (paramsSize == 0) {
     const auto weightBytes = fs::file_size(weightsPath);
     if (weightBytes % sizeof(float) != 0) {
       dlclose(handle);
-      throw std::runtime_error(
-          "TimesfmRunner: weight file is not f32-aligned");
+      throw std::runtime_error("TimesfmRunner: weight file is not f32-aligned");
     }
     paramsSize = weightBytes / sizeof(float);
   }
@@ -294,8 +295,8 @@ void TimesfmRunner::run(const RunConfig &cfg) {
   if (!suppress) {
     // Concise point-forecast summary: last patch, column decode_index.
     const float *lastPatch = data + (numPatches - 1) * forecastFeatures;
-    std::cerr << "\033[33;1mPoint forecast (last patch, column "
-              << decodeIndex << ")\033[0m\n  [";
+    std::cerr << "\033[33;1mPoint forecast (last patch, column " << decodeIndex
+              << ")\033[0m\n  [";
     for (size_t j = 0; j < outputPatchLen; ++j) {
       if (j)
         std::cerr << ", ";

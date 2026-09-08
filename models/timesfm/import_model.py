@@ -26,27 +26,28 @@
 
 import argparse
 import os
+
 import numpy
+import timesfm
 import torch
 import torch.nn as nn
-import timesfm
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.graph import GraphDriver
 from buddy.compiler.graph.operation import *  # noqa: F403
 from buddy.compiler.graph.transform import (
-    simply_fuse,
     apply_classic_fusion,
-    eliminate_transpose,
     eliminate_matmul_transpose_reshape,
+    eliminate_transpose,
+    simply_fuse,
 )
 from buddy.compiler.graph.type import DeviceType
 from buddy.compiler.ops import tosa
 from torch._inductor.decomposition import decompositions as inductor_decomp
 
-
 # ==============================================================================
 # 1. Build a clean wrapper module for Dynamo tracing
 # ==============================================================================
+
 
 class TimesFMWrapper(nn.Module):
     """Wraps TimesFM 2.5 for single-graph Dynamo tracing.
@@ -129,7 +130,7 @@ patch_length = 32
 dummy_inputs = torch.randn(1, num_patches, patch_length, dtype=torch.float32)
 dummy_masks = torch.ones(1, num_patches, patch_length, dtype=torch.float32)
 
-print(f"[TimesFM-Import] Dummy inputs:")
+print("[TimesFM-Import] Dummy inputs:")
 print(f"   inputs:  {dummy_inputs.shape}")
 print(f"   masks:   {dummy_masks.shape}")
 
@@ -183,7 +184,7 @@ with open(os.path.join(layer_dir, "subgraph0.mlir"), "w") as module_file:
 with open(os.path.join(layer_dir, "forward.mlir"), "w") as module_file:
     print(driver.construct_main_graph(True), file=module_file)
 
-print(f"[TimesFM-Import] Writing weight data...")
+print("[TimesFM-Import] Writing weight data...")
 all_param = numpy.concatenate(
     [param.detach().cpu().numpy().reshape([-1]) for param in params]
 )
