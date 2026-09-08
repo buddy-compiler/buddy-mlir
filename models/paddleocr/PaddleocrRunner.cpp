@@ -82,7 +82,7 @@ constexpr size_t kDefaultHiddenSize = 1024;
 constexpr size_t kDefaultVocabSize = 103424;
 constexpr size_t kDefaultNumImagePatches = 3888;
 constexpr size_t kDefaultPatchSize = 14;
-constexpr size_t kNumImageTokens = 972; // (54*72) / (2*2) = 3888/4
+constexpr size_t kNumImageTokens = 972;   // (54*72) / (2*2) = 3888/4
 constexpr int64_t kImageTokenId = 100295; // config.image_token_id
 constexpr int64_t kPadTokenId = 1;        // traced text-token id
 
@@ -130,13 +130,12 @@ void loadWeights(const std::string &weightsPath, MemRef<float, 1> &params) {
 /// Simplified deterministic text encoder for the 10 text-token slots.
 /// Each UTF-8 byte maps to token id in [1, 199]; remaining slots use the pad
 /// id 1 (matching the traced HF reference input). Not a real BPE tokenizer.
-void encodeText(const std::string &prompt, size_t textSlots,
-                int64_t *ids) {
+void encodeText(const std::string &prompt, size_t textSlots, int64_t *ids) {
   size_t n = std::min(prompt.size(), textSlots);
   for (size_t i = 0; i < textSlots; ++i) {
     if (i < n)
-      ids[i] = 1 + static_cast<int64_t>(static_cast<unsigned char>(prompt[i]) %
-                                        199);
+      ids[i] =
+          1 + static_cast<int64_t>(static_cast<unsigned char>(prompt[i]) % 199);
     else
       ids[i] = kPadTokenId;
   }
@@ -164,14 +163,13 @@ void PaddleocrRunner::run(const RunConfig &cfg) {
     if (weightsPath.empty() && !manifest.weightPaths.empty())
       weightsPath = manifest.weightPaths.front();
     if (weightsPath.empty())
-      throw std::runtime_error(
-          "PaddleocrRunner: manifest has no weight file");
+      throw std::runtime_error("PaddleocrRunner: manifest has no weight file");
     paramsSize = parseSizeAttr(manifest, "params_size", paramsSize);
     maxSeqLen = parseSizeAttr(manifest, "max_seq_len", maxSeqLen);
     hiddenSize = parseSizeAttr(manifest, "hidden_size", hiddenSize);
     vocabSize = parseSizeAttr(manifest, "vocab_size", vocabSize);
-    numImagePatches = parseSizeAttr(manifest, "num_image_patches",
-                                    numImagePatches);
+    numImagePatches =
+        parseSizeAttr(manifest, "num_image_patches", numImagePatches);
     patchSize = parseSizeAttr(manifest, "patch_size", patchSize);
   } else {
     if (cfg.modelSoPath.empty() || cfg.weightsPath.empty())
@@ -200,8 +198,8 @@ void PaddleocrRunner::run(const RunConfig &cfg) {
     throw std::runtime_error("PaddleocrRunner: dlopen failed: " + soPath +
                              ": " + dlerror());
   dlerror();
-  auto forward = reinterpret_cast<ForwardFn>(
-      dlsym(handle, "_mlir_ciface_forward"));
+  auto forward =
+      reinterpret_cast<ForwardFn>(dlsym(handle, "_mlir_ciface_forward"));
   if (const char *err = dlerror()) {
     dlclose(handle);
     throw std::runtime_error(
@@ -233,8 +231,8 @@ void PaddleocrRunner::run(const RunConfig &cfg) {
     encodeText(prompt, textSlots, inputIds.getData() + kNumImageTokens);
 
   // pixel_values: deterministic zeros (no real image decoding).
-  MemRef<float, 4> pixelValues(
-      {numImagePatches, 3, patchSize, patchSize}, 0.0f);
+  MemRef<float, 4> pixelValues({numImagePatches, 3, patchSize, patchSize},
+                               0.0f);
 
   // attention_mask: all ones.
   MemRef<int64_t, 2> attentionMask({1, maxSeqLen}, 1);
@@ -277,8 +275,7 @@ void PaddleocrRunner::run(const RunConfig &cfg) {
   topK.resize(5);
 
   if (!suppress) {
-    const double seconds =
-        std::chrono::duration<double>(t1 - t0).count();
+    const double seconds = std::chrono::duration<double>(t1 - t0).count();
     std::cerr << "\033[33;1mPaddleOCR-VL Last-Token Logits\033[0m\n";
     std::cerr << "  logits shape : 1 x " << maxSeqLen << " x " << vocabSize
               << "\n";

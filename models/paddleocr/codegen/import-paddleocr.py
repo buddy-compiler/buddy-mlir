@@ -52,15 +52,18 @@ import tempfile
 import numpy
 import torch
 import torch._dynamo
+
 torch._dynamo.config.suppress_errors = True
-from buddy.compiler.frontend import DynamoCompiler
-from buddy.compiler.graph import GraphDriver
-from buddy.compiler.graph.operation import *  # noqa: F403
-from buddy.compiler.graph.transform import simply_fuse
-from buddy.compiler.graph.type import DeviceType
-from buddy.compiler.ops import tosa
-from torch._inductor.decomposition import decompositions as inductor_decomp
-from transformers import AutoModel
+from buddy.compiler.frontend import DynamoCompiler  # noqa: E402
+from buddy.compiler.graph import GraphDriver  # noqa: E402
+from buddy.compiler.graph.operation import *  # noqa: E402, F403
+from buddy.compiler.graph.transform import simply_fuse  # noqa: E402
+from buddy.compiler.graph.type import DeviceType  # noqa: E402
+from buddy.compiler.ops import tosa  # noqa: E402
+from torch._inductor.decomposition import (  # noqa: E402
+    decompositions as inductor_decomp,  # noqa: E402
+)
+from transformers import AutoModel  # noqa: E402
 
 # ==============================================================================
 # 0. Argument parsing / spec / model path
@@ -68,16 +71,21 @@ from transformers import AutoModel
 
 parser = argparse.ArgumentParser(description="PaddleOCR-VL-0.9B AOT importer")
 parser.add_argument("--spec", required=True, help="Variant spec JSON")
-parser.add_argument("--output-dir", required=True,
-                    help="Directory to save subgraph0.mlir / forward.mlir / arg0.data")
+parser.add_argument(
+    "--output-dir",
+    required=True,
+    help="Directory to save subgraph0.mlir / forward.mlir / arg0.data",
+)
 args = parser.parse_args()
 
 with open(args.spec) as spec_file:
     spec = json.load(spec_file)
 
-model_path = (os.environ.get("PADDLEOCR_MODEL_PATH")
-              or os.environ.get("BUDDY_LOCAL_MODEL_PATH")
-              or spec.get("hf_model_path", "lvyufeng/PaddleOCR-VL-0.9B"))
+model_path = (
+    os.environ.get("PADDLEOCR_MODEL_PATH")
+    or os.environ.get("BUDDY_LOCAL_MODEL_PATH")
+    or spec.get("hf_model_path", "lvyufeng/PaddleOCR-VL-0.9B")
+)
 output_dir = args.output_dir
 os.makedirs(output_dir, exist_ok=True)
 
@@ -106,9 +114,9 @@ if not os.path.isfile(snapshot_path):
 #   - load from the staged dir.
 # transformers then copies the (already-patched) modeling file into its
 # `transformers_modules/<staged-basename>/` cache once and never re-copies it.
-staged_dir = os.environ.get(
-    "PADDLEOCR_IMPORT_STAGE_DIR"
-) or os.path.join(tempfile.gettempdir(), "paddleocr_model_stage")
+staged_dir = os.environ.get("PADDLEOCR_IMPORT_STAGE_DIR") or os.path.join(
+    tempfile.gettempdir(), "paddleocr_model_stage"
+)
 os.makedirs(staged_dir, exist_ok=True)
 for _name in os.listdir(model_path):
     _src = os.path.join(model_path, _name)
@@ -124,7 +132,7 @@ shutil.copy(snapshot_path, hf_file_path)
 print(f"[PaddleOCR-Import] Staged model dir: {staged_dir}")
 
 print("[PaddleOCR-Import] Patching HF model for fullgraph tracing...")
-with open(hf_file_path, "r", encoding="utf-8") as f:
+with open(hf_file_path, encoding="utf-8") as f:
     code = f.read()
 
 # --- (A) thw loop: remove numpy/detach/cpu/numpy deps ---
@@ -158,7 +166,9 @@ else:
         "thw_tuple = tuple(thw.detach().cpu().numpy().tolist())",
         "thw_tuple = tuple(thw) if isinstance(thw, (list, tuple)) else tuple(thw.tolist())",
     )
-    code = code.replace("numel = np.prod(thw_tuple)", "numel = int(np.prod(thw_tuple))")
+    code = code.replace(
+        "numel = np.prod(thw_tuple)", "numel = int(np.prod(thw_tuple))"
+    )
     code = re.sub(
         r"int\(np\.prod\(thw_tuple\[1:\]\)\)",
         "(int(thw_tuple[1]) * int(thw_tuple[2]))",
@@ -245,9 +255,13 @@ with open(hf_file_path, "w", encoding="utf-8") as f:
 # modules cache) to force the patched file to be recompiled.
 for _pyc in (
     os.path.join(os.path.dirname(hf_file_path), "__pycache__"),
-    os.path.join(os.environ.get("HF_HOME", os.path.expanduser("~/.cache/huggingface")),
-                 "modules", "transformers_modules",
-                 os.path.basename(staged_dir), "__pycache__"),
+    os.path.join(
+        os.environ.get("HF_HOME", os.path.expanduser("~/.cache/huggingface")),
+        "modules",
+        "transformers_modules",
+        os.path.basename(staged_dir),
+        "__pycache__",
+    ),
 ):
     if os.path.exists(_pyc):
         shutil.rmtree(_pyc)
@@ -261,15 +275,28 @@ print("[PaddleOCR-Import] HF model patched successfully.\n")
 
 # Monkey-patch ROPE_INIT_FUNCTIONS for transformers compat (no-op when a
 # 'default' entry already exists, e.g. transformers >= 4.46).
-from transformers.modeling_rope_utils import ROPE_INIT_FUNCTIONS
+from transformers.modeling_rope_utils import ROPE_INIT_FUNCTIONS  # noqa: E402
+
 if "default" not in ROPE_INIT_FUNCTIONS:
-    def _compute_default_rope_parameters(config, device, seq_len=None, **kwargs):
+
+    def _compute_default_rope_parameters(
+        config, device, seq_len=None, **kwargs
+    ):
         base = config.rope_theta
         partial_rotary_factor = getattr(config, "partial_rotary_factor", 1.0)
-        head_dim = getattr(config, "head_dim", config.hidden_size // config.num_attention_heads)
+        head_dim = getattr(
+            config, "head_dim", config.hidden_size // config.num_attention_heads
+        )
         dim = int(head_dim * partial_rotary_factor)
-        inv_freq = 1.0 / (base ** (torch.arange(0, dim, 2, dtype=torch.int64).float().to(device) / dim))
+        inv_freq = 1.0 / (
+            base
+            ** (
+                torch.arange(0, dim, 2, dtype=torch.int64).float().to(device)
+                / dim
+            )
+        )
         return inv_freq, 1.0
+
     ROPE_INIT_FUNCTIONS["default"] = _compute_default_rope_parameters
     print("   -> (F) ROPE_INIT_FUNCTIONS 'default' monkey-patched.")
 
@@ -309,7 +336,7 @@ position_ids = torch.zeros((3, 1, total_len), dtype=torch.int64)
 
 static_image_grid_thw = [[1, 54, 72]]
 
-print(f"[PaddleOCR-Import] Dummy inputs:")
+print("[PaddleOCR-Import] Dummy inputs:")
 print(f"   input_ids:     {input_ids.shape}")
 print(f"   attention_mask:{attention_mask.shape}")
 print(f"   pixel_values:  {pixel_values.shape}")
@@ -336,8 +363,10 @@ graph = graphs[0]
 
 params = dynamo_compiler.imported_params[graph]
 n_param_elems = sum(p.numel() for p in params)
-print(f"[PaddleOCR-Import] Graph captured. Params: {len(params)} tensors, "
-      f"{n_param_elems:,} elements.")
+print(
+    f"[PaddleOCR-Import] Graph captured. Params: {len(params)} tensors, "
+    f"{n_param_elems:,} elements."
+)
 
 # ==============================================================================
 # 6. Graph optimization (simply_fuse ONLY)
@@ -363,12 +392,14 @@ with open(os.path.join(output_dir, "subgraph0.mlir"), "w") as module_file:
 with open(os.path.join(output_dir, "forward.mlir"), "w") as module_file:
     print(driver.construct_main_graph(True), file=module_file)
 
-print(f"[PaddleOCR-Import] Writing weight data...")
+print("[PaddleOCR-Import] Writing weight data...")
 all_param = numpy.concatenate(
     [param.detach().numpy().reshape([-1]) for param in params]
 ).astype(numpy.float32, copy=False)
 all_param.tofile(os.path.join(output_dir, "arg0.data"))
 
-print(f"[PaddleOCR-Import] Done! "
-      f"arg0.data has {n_param_elems:,} f32 elements "
-      f"({all_param.nbytes / 1e9:.2f} GB).")
+print(
+    f"[PaddleOCR-Import] Done! "
+    f"arg0.data has {n_param_elems:,} f32 elements "
+    f"({all_param.nbytes / 1e9:.2f} GB)."
+)

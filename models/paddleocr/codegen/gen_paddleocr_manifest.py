@@ -81,20 +81,32 @@ def gen_manifest(spec: dict, runner_library: str) -> str:
     p('                                backend = "cpu",')
     p(f'                                uri = "file:{so_name}"}}')
     p("")
-    p(f'  rhal.buffer @input_ids {{space = "host", '
-      f"type = tensor<1x{max_seq_len}xi64>}}")
-    p(f'  rhal.buffer @attention_mask {{space = "host", '
-      f"type = tensor<1x{max_seq_len}xi64>}}")
-    p(f'  rhal.buffer @pixel_values {{space = "host", '
-      f"type = tensor<{num_image_patches}x3x{patch_size}x{patch_size}xf32>}}")
-    p(f'  rhal.buffer @position_ids {{space = "host", '
-      f"type = tensor<3x1x{max_seq_len}xi64>}}")
-    p(f'  rhal.buffer @logits {{space = "host", '
-      f"type = tensor<1x{max_seq_len}x{vocab_size}xf32>}}")
+    p(
+        f'  rhal.buffer @input_ids {{space = "host", '
+        f"type = tensor<1x{max_seq_len}xi64>}}"
+    )
+    p(
+        f'  rhal.buffer @attention_mask {{space = "host", '
+        f"type = tensor<1x{max_seq_len}xi64>}}"
+    )
+    p(
+        f'  rhal.buffer @pixel_values {{space = "host", '
+        f"type = tensor<{num_image_patches}x3x{patch_size}x{patch_size}xf32>}}"
+    )
+    p(
+        f'  rhal.buffer @position_ids {{space = "host", '
+        f"type = tensor<3x1x{max_seq_len}xi64>}}"
+    )
+    p(
+        f'  rhal.buffer @logits {{space = "host", '
+        f"type = tensor<1x{max_seq_len}x{vocab_size}xf32>}}"
+    )
     p("")
     p("  rhal.func @forward {")
-    p('    inputs   = ["input_ids", "attention_mask", "pixel_values",'
-      ' "position_ids"],')
+    p(
+        '    inputs   = ["input_ids", "attention_mask", "pixel_values",'
+        ' "position_ids"],'
+    )
     p('    outputs  = ["logits"],')
     p('    dispatch = "model_kernels",')
     p('    args     = ["input_ids", "attention_mask", "pixel_values",')
@@ -133,8 +145,9 @@ def main() -> int:
         )
         with open(args.output, "w") as f:
             f.write(text)
-        print(f"[gen_paddleocr_manifest] Written: {args.output}",
-              file=sys.stderr)
+        print(
+            f"[gen_paddleocr_manifest] Written: {args.output}", file=sys.stderr
+        )
     return 0
 
 
