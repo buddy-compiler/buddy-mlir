@@ -25,6 +25,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "buddy/runtime/models/Qwen3Runner.h"
+#include "buddy/Core/Container.h"
 #include "buddy/LLM/ChatTemplate.h"
 #include "buddy/LLM/ConversationManager.h"
 #include "buddy/LLM/TextContainer.h"
@@ -32,7 +33,6 @@
 #include "buddy/runtime/llm/InteractiveSession.h"
 #include "buddy/runtime/llm/TextGeneration.h"
 #include "buddy/runtime/models/ModelSession.h"
-#include "buddy/Core/Container.h"
 
 using buddy::Text;
 
@@ -54,7 +54,8 @@ void Qwen3Runner::run(const RunConfig &cfgIn) {
   const bool suppress = cfg.suppressStats || cfg.streamJsonl;
 
   if (!suppress)
-    std::cerr << "\033[32;1mQwen3 Inference (buddy-cli / BuddyRuntime)\033[0m\n";
+    std::cerr
+        << "\033[32;1mQwen3 Inference (buddy-cli / BuddyRuntime)\033[0m\n";
 
   std::vector<long long> stopTokenIds = {kEosToken};
   std::unique_ptr<buddy::ChatTemplate> chatTmpl;
@@ -63,7 +64,8 @@ void Qwen3Runner::run(const RunConfig &cfgIn) {
     chatTmpl = std::make_unique<buddy::ChatTemplate>(
         buddy::ChatTemplate::fromFile(cfg.chatTemplatePath));
     for (int id : chatTmpl->stopTokenIds()) {
-      if (std::find(stopTokenIds.begin(), stopTokenIds.end(), id) == stopTokenIds.end()) {
+      if (std::find(stopTokenIds.begin(), stopTokenIds.end(), id) ==
+          stopTokenIds.end()) {
         stopTokenIds.push_back(static_cast<long long>(id));
       }
     }
@@ -78,7 +80,9 @@ void Qwen3Runner::run(const RunConfig &cfgIn) {
     session = ModelSession::createFromRax(cfg.raxPath, manifest);
     weightPaths = manifest.weightPaths;
     vocabPath = manifest.vocabPath.empty()
-                    ? (std::filesystem::path(manifest.soPath).parent_path() / "vocab.txt").string()
+                    ? (std::filesystem::path(manifest.soPath).parent_path() /
+                       "vocab.txt")
+                          .string()
                     : manifest.vocabPath;
   } else {
     if (cfg.modelSoPath.empty() || cfg.weightsPath.empty())
@@ -86,7 +90,9 @@ void Qwen3Runner::run(const RunConfig &cfgIn) {
 
     weightPaths.push_back(cfg.weightsPath);
     vocabPath = cfg.vocabPath.empty()
-                    ? (std::filesystem::path(cfg.modelSoPath).parent_path() / "vocab.txt").string()
+                    ? (std::filesystem::path(cfg.modelSoPath).parent_path() /
+                       "vocab.txt")
+                          .string()
                     : cfg.vocabPath;
 
     ModelSession::Config mcfg;
@@ -113,24 +119,29 @@ void Qwen3Runner::run(const RunConfig &cfgIn) {
   buddy::Sampler sampler(cfg.samplerConfig);
 
   if (cfg.interactive) {
-    if (!chatTmpl) throw std::runtime_error("--interactive requires --chat-template");
+    if (!chatTmpl)
+      throw std::runtime_error("--interactive requires --chat-template");
     buddy::ConversationManager conv(
         std::move(*chatTmpl), [&](const std::string &text) -> size_t {
           Text<size_t, 2> tmp(text);
           tmp.tokenizeQwen3(vocabPath, BUDDY_QWEN3_MAX_TOKEN_LEN);
           return tmp.getTokenCnt();
         });
-    if (!cfg.prompt.empty()) conv.setSystemPrompt(cfg.prompt);
-    runInteractiveSession(*session, vocabPath, cfg, stopTokenIds, conv, codec, sampler);
+    if (!cfg.prompt.empty())
+      conv.setSystemPrompt(cfg.prompt);
+    runInteractiveSession(*session, vocabPath, cfg, stopTokenIds, conv, codec,
+                          sampler);
   } else {
     std::string finalPrompt = cfg.prompt;
     if (chatTmpl) {
       std::vector<buddy::Message> msgs = {{"user", cfg.prompt}};
       finalPrompt = chatTmpl->apply(msgs);
     }
-    GenerationResult result = runGeneration(finalPrompt, *session, vocabPath, cfg.maxNewTokens,
-                                           stopTokenIds, sampler, codec, suppress, cfg.streamJsonl);
-    if (!suppress) printStats(result, true);
+    GenerationResult result =
+        runGeneration(finalPrompt, *session, vocabPath, cfg.maxNewTokens,
+                      stopTokenIds, sampler, codec, suppress, cfg.streamJsonl);
+    if (!suppress)
+      printStats(result, true);
   }
 }
 

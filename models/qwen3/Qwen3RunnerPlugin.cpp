@@ -1,4 +1,5 @@
-//===- Qwen3RunnerPlugin.cpp - Qwen3 runner plugin -------------------------===//
+//===- Qwen3RunnerPlugin.cpp - Qwen3 runner plugin
+//-------------------------===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.

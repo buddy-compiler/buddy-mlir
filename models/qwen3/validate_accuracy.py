@@ -65,8 +65,13 @@ def generate_reference(output_dir: str, max_seq_len: int = 128):
 
     for i, prompt in enumerate(test_prompts):
         print(f"\n[Qwen3-Validate] Processing prompt {i}: {prompt!r}")
-        inputs = tokenizer(prompt, return_tensors="pt", truncation=True,
-                          max_length=max_seq_len, padding=False)
+        inputs = tokenizer(
+            prompt,
+            return_tensors="pt",
+            truncation=True,
+            max_length=max_seq_len,
+            padding=False,
+        )
         input_ids = inputs["input_ids"]
         attention_mask = inputs["attention_mask"]
 
@@ -89,14 +94,18 @@ def generate_reference(output_dir: str, max_seq_len: int = 128):
             "logits_mean": float(np.mean(last_logits)),
             "logits_std": float(np.std(last_logits)),
             "top5_indices": np.argsort(last_logits)[-5:][::-1].tolist(),
-            "top5_values": last_logits[np.argsort(last_logits)[-5:][::-1]].tolist(),
+            "top5_values": last_logits[
+                np.argsort(last_logits)[-5:][::-1]
+            ].tolist(),
         }
         references[f"prompt_{i}"] = ref
 
         # Also save full logits for detailed comparison
         np.save(os.path.join(output_dir, f"ref_logits_{i}.npy"), last_logits)
-        np.save(os.path.join(output_dir, f"ref_input_ids_{i}.npy"),
-                input_ids.squeeze(0).numpy())
+        np.save(
+            os.path.join(output_dir, f"ref_input_ids_{i}.npy"),
+            input_ids.squeeze(0).numpy(),
+        )
 
         print(f"   input shape: {input_ids.shape}")
         print(f"   logits shape: {logits.shape}")
@@ -110,7 +119,9 @@ def generate_reference(output_dir: str, max_seq_len: int = 128):
     return references
 
 
-def compare_outputs(reference_dir: str, buddy_output_dir: str, tolerance: float = 1e-3):
+def compare_outputs(
+    reference_dir: str, buddy_output_dir: str, tolerance: float = 1e-3
+):
     """Compare Buddy-MLIR compiled model outputs against HF reference."""
     # Load reference manifest
     with open(os.path.join(reference_dir, "reference_manifest.json")) as f:
@@ -123,7 +134,9 @@ def compare_outputs(reference_dir: str, buddy_output_dir: str, tolerance: float 
         print(f"\n[Qwen3-Validate] Checking {key}: {ref['prompt']!r}")
 
         # Load buddy output logits
-        buddy_logits_path = os.path.join(buddy_output_dir, f"buddy_logits_{key.split('_')[1]}.npy")
+        buddy_logits_path = os.path.join(
+            buddy_output_dir, f"buddy_logits_{key.split('_')[1]}.npy"
+        )
         if not os.path.exists(buddy_logits_path):
             print(f"   SKIP: buddy logits not found at {buddy_logits_path}")
             continue
@@ -161,19 +174,25 @@ def compare_outputs(reference_dir: str, buddy_output_dir: str, tolerance: float 
         results.append(result)
 
         status = "PASS" if passed else "FAIL"
-        print(f"   {status}: max_abs_err={max_abs_error:.6e}, "
-              f"cos_sim={cos_sim:.8f}, top5_match={top5_match}/5")
+        print(
+            f"   {status}: max_abs_err={max_abs_error:.6e}, "
+            f"cos_sim={cos_sim:.8f}, top5_match={top5_match}/5"
+        )
 
         if not passed:
             all_passed = False
 
     # Summary
     print("\n" + "=" * 60)
-    print(f"[Qwen3-Validate] Summary: {'ALL PASSED' if all_passed else 'SOME FAILED'}")
+    print(
+        f"[Qwen3-Validate] Summary: {'ALL PASSED' if all_passed else 'SOME FAILED'}"
+    )
     for r in results:
         status = "PASS" if r["passed"] else "FAIL"
-        print(f"  {status} | {r['prompt'][:50]:50s} | "
-              f"max_err={r['max_abs_error']:.2e} | cos={r['cosine_similarity']:.6f}")
+        print(
+            f"  {status} | {r['prompt'][:50]:50s} | "
+            f"max_err={r['max_abs_error']:.2e} | cos={r['cosine_similarity']:.6f}"
+        )
 
     return all_passed
 

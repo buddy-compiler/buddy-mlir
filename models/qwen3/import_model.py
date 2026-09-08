@@ -27,7 +27,7 @@ import numpy
 import torch
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.graph import GraphDriver
-from buddy.compiler.graph.operation import * # noqa: F403
+from buddy.compiler.graph.operation import *  # noqa: F403
 from buddy.compiler.graph.transform import (
     apply_classic_fusion,
     eliminate_matmul_transpose_reshape,
@@ -192,22 +192,28 @@ driver_decode.subgraphs[0].lower_to_top_level_ir()
 # Ninja 的 compile_pipeline.py 强制要求在 layer_partitioned 目录下找文件
 layer_dir = os.path.join(output_dir, "layer_partitioned")
 os.makedirs(layer_dir, exist_ok=True)
-print(f"\n[Qwen3-Import] 📦 正在向流水线目标目录写入标准 MLIR 文件: {layer_dir}")
+print(
+    f"\n[Qwen3-Import] 📦 正在向流水线目标目录写入标准 MLIR 文件: {layer_dir}"
+)
 
 # 1. 保存 Prefill 图 (去除 _0_6b 后缀)
-with open(os.path.join(layer_dir, "subgraph0_prefill0.mlir"), "w") as module_file:
+with open(
+    os.path.join(layer_dir, "subgraph0_prefill0.mlir"), "w"
+) as module_file:
     print(driver_prefill.subgraphs[0]._imported_module, file=module_file)
 with open(os.path.join(layer_dir, "forward_prefill.mlir"), "w") as module_file:
     print(driver_prefill.construct_main_graph(True), file=module_file)
 
 # 2. 保存 Decode 图 (去除 _0_6b 后缀)
-with open(os.path.join(layer_dir, "subgraph0_decode0.mlir"), "w") as module_file:
+with open(
+    os.path.join(layer_dir, "subgraph0_decode0.mlir"), "w"
+) as module_file:
     print(driver_decode.subgraphs[0]._imported_module, file=module_file)
 with open(os.path.join(layer_dir, "forward_decode.mlir"), "w") as module_file:
     print(driver_decode.construct_main_graph(True), file=module_file)
 
 # 3. 导出权重参数 (保存在外层的 output_dir)
-print(f"[Qwen3-Import] 💾 正在导出模型权重参数...")
+print("[Qwen3-Import] 💾 正在导出模型权重参数...")
 all_param = numpy.concatenate(
     [param.detach().numpy().reshape([-1]) for param in params]
 )

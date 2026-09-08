@@ -16,8 +16,10 @@
 # ===----------------------------------------------------------------------===//
 
 from buddy.compiler.graph import SplitStrategy
-from buddy.compiler.graph.operation import FlashAttentionForCpuPrefillOp
-from buddy.compiler.graph.operation import GQAAttentionFusedOp
+from buddy.compiler.graph.operation import (
+    FlashAttentionForCpuPrefillOp,
+    GQAAttentionFusedOp,
+)
 
 # === ABI output-order fix ====================================================
 # The shared tools/buddy-codegen/import_model.py applies a DeepSeek-style prefill
@@ -61,7 +63,7 @@ def _transform_decode_text(module_text):
             s = s[1:-1]
         out, depth, cur = [], 0, ""
         for ch in s:
-            if ch in "<([" :
+            if ch in "<([":
                 depth += 1
             elif ch in ">)]":
                 depth -= 1
@@ -76,7 +78,9 @@ def _transform_decode_text(module_text):
 
     m = re.search(
         r"func\.func @forward_decode(\(.*?\))\s*->\s*\((.*?)\)\s*\{",
-        module_text, re.S)
+        module_text,
+        re.S,
+    )
     if m is None:
         raise ValueError("_transform_decode_text: no func.func @forward_decode")
 
@@ -86,10 +90,11 @@ def _transform_decode_text(module_text):
     n_kv = len(rets) - 1
     if len(args) != 3 + n_kv:
         raise ValueError(
-            f"_transform_decode_text: unexpected arg count {len(args)}")
+            f"_transform_decode_text: unexpected arg count {len(args)}"
+        )
     KV = args[3].split(":", 1)[1].strip()
     LOGITS = rets[-1]
-    if not all(a.split(":", 1)[1].strip() == KV for a in args[3:3 + n_kv]):
+    if not all(a.split(":", 1)[1].strip() == KV for a in args[3 : 3 + n_kv]):
         raise ValueError("_transform_decode_text: kv args not contiguous")
     if n_kv < 4 or n_kv % 2 != 0:
         raise ValueError(f"_transform_decode_text: bad n_kv={n_kv}")
@@ -135,11 +140,14 @@ def _transform_decode_text(module_text):
                 break
     if close is None:
         raise ValueError("_transform_decode_text: unbalanced body")
-    body = module_text[brace_open + 1:close]
+    body = module_text[brace_open + 1 : close]
     func_end = close + 1
 
     cm = re.search(
-        r"%(\w+)(?::\d+)?\s*=\s*(?:func\.)?call @subgraph0_decode0\(", body, re.S)
+        r"%(\w+)(?::\d+)?\s*=\s*(?:func\.)?call @subgraph0_decode0\(",
+        body,
+        re.S,
+    )
     if cm is None:
         raise ValueError("_transform_decode_text: no call @subgraph0_decode0")
     res_var = cm.group(1)
@@ -160,13 +168,15 @@ def _transform_decode_text(module_text):
     body2 = re.sub(
         r"(memref\.cast )(%arg\d+)( : " + re.escape(KV) + r")",
         lambda mo: mo.group(1) + _map(mo) + mo.group(3),
-        body)
+        body,
+    )
 
     retm = re.search(r"(?m)^\s*return (.+)$", body2)
     if retm is None:
         raise ValueError("_transform_decode_text: no return in body")
-    res_idx = [int(o.split("#")[1])
-               for o in retm.group(1).split(" : ")[0].split(",")]
+    res_idx = [
+        int(o.split("#")[1]) for o in retm.group(1).split(" : ")[0].split(",")
+    ]
     kv_residx = {k: res_idx[k] for k in range(n_kv)}
     logits_residx = res_idx[n_kv]
 
@@ -181,14 +191,28 @@ def _transform_decode_text(module_text):
     if len(new_return_ops) != len(new_rets):
         raise ValueError("_transform_decode_text: return ops/type mismatch")
 
-    ret_line = "  return " + ", ".join(new_return_ops) + " : " + \
-        ", ".join(new_rets) + "\n"
-    new_body = body2[:retm.start()] + ret_line + body2[retm.end():]
+    ret_line = (
+        "  return "
+        + ", ".join(new_return_ops)
+        + " : "
+        + ", ".join(new_rets)
+        + "\n"
+    )
+    new_body = body2[: retm.start()] + ret_line + body2[retm.end() :]
 
-    new_sig = "func.func @forward_decode(" + ", ".join(new_args) + ") -> (" + \
-        ", ".join(new_rets) + ") {"
-    return module_text[:func_start] + new_sig + new_body + \
-        module_text[func_end - 1:]
+    new_sig = (
+        "func.func @forward_decode("
+        + ", ".join(new_args)
+        + ") -> ("
+        + ", ".join(new_rets)
+        + ") {"
+    )
+    return (
+        module_text[:func_start]
+        + new_sig
+        + new_body
+        + module_text[func_end - 1 :]
+    )
 
 
 def _patch_combined_graph_abi():
@@ -209,8 +233,9 @@ def _patch_combined_graph_abi():
                 n >= 3
                 and (n - 1) % 2 == 0
                 and all(
-                    (output_index_remap[i] == (i ^ 1)) if i < kv_count else
-                    (output_index_remap[i] == i)
+                    (output_index_remap[i] == (i ^ 1))
+                    if i < kv_count
+                    else (output_index_remap[i] == i)
                     for i in range(n)
                 )
             )
