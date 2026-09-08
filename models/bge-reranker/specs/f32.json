@@ -1,0 +1,16 @@
+{
+  "model_family": "bge_reranker",
+  "variant": "f32",
+  "model_id": "BAAI/bge-reranker-v2-m3",
+  "hf_model_path": "BAAI/bge-reranker-v2-m3",
+  "params_size": 567755777,
+  "max_seq_len": 512,
+  "max_position_embeddings": 8194,
+  "hidden_size": 1024,
+  "vocab_size": 250002,
+  "num_hidden_layers": 24,
+  "so_name": "bge_reranker_model.so",
+  "weight_file": "arg0.data",
+  "tokenizer_file": "tokenizer.json",
+  "num_threads": 48
+}
