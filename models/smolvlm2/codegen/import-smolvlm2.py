@@ -32,19 +32,20 @@ import os
 
 import numpy
 import torch
-
 import torch._dynamo
 
 torch._dynamo.config.suppress_errors = True
 
-from buddy.compiler.frontend import DynamoCompiler
-from buddy.compiler.graph import GraphDriver
-from buddy.compiler.graph.operation import *  # noqa: F403
-from buddy.compiler.graph.transform import simply_fuse
-from buddy.compiler.graph.type import DeviceType
-from buddy.compiler.ops import tosa
-from torch._inductor.decomposition import decompositions as inductor_decomp
-from transformers import AutoModel
+from buddy.compiler.frontend import DynamoCompiler  # noqa: E402
+from buddy.compiler.graph import GraphDriver  # noqa: E402
+from buddy.compiler.graph.operation import *  # noqa: E402, F403
+from buddy.compiler.graph.transform import simply_fuse  # noqa: E402
+from buddy.compiler.graph.type import DeviceType  # noqa: E402
+from buddy.compiler.ops import tosa  # noqa: E402
+from torch._inductor.decomposition import (  # noqa: E402
+    decompositions as inductor_decomp,  # noqa: E402
+)
+from transformers import AutoModel  # noqa: E402
 
 p = argparse.ArgumentParser(description="SmolVLM2 AOT importer")
 p.add_argument("--spec", required=True, help="Variant spec JSON")
@@ -65,20 +66,24 @@ m = AutoModel.from_pretrained(model_path, torch_dtype=torch.float32).eval()
 m.config.use_cache = False
 
 # Unwrap any decorated `forward`s so Dynamo can trace the real computation.
-import types
+import types  # noqa: E402
 
 for mod in m.modules():
     if hasattr(mod.forward, "__wrapped__"):
         mod.forward = types.MethodType(mod.forward.__wrapped__, mod)
 
-print(f"  model class: {type(m).__name__}, "
-      f"params: {sum(pp.numel() for pp in m.parameters()):,}")
+print(
+    f"  model class: {type(m).__name__}, "
+    f"params: {sum(pp.numel() for pp in m.parameters()):,}"
+)
 
 # Trace the text-only LM core (SmolVLMModel.text_model, a 32-layer Llama3
 # decoder).  The full VLM forward is not a single Dynamo graph (see header).
 tm = m.text_model
-print(f"  trace target: {type(tm).__name__} (text_model), "
-      f"params: {sum(pp.numel() for pp in tm.parameters()):,}")
+print(
+    f"  trace target: {type(tm).__name__} (text_model), "
+    f"params: {sum(pp.numel() for pp in tm.parameters()):,}"
+)
 
 dc = DynamoCompiler(
     primary_registry=tosa.ops_registry,
@@ -90,16 +95,20 @@ dc = DynamoCompiler(
 dummy_ids = torch.ones((1, 64), dtype=torch.int64)
 dummy_mask = torch.ones((1, 64), dtype=torch.int64)
 
-print(f"[import-smolvlm2] input_ids: {tuple(dummy_ids.shape)}, "
-      f"attention_mask: {tuple(dummy_mask.shape)}")
+print(
+    f"[import-smolvlm2] input_ids: {tuple(dummy_ids.shape)}, "
+    f"attention_mask: {tuple(dummy_mask.shape)}"
+)
 
 with torch.no_grad():
     g = dc.importer(tm, input_ids=dummy_ids, attention_mask=dummy_mask)
 print(f"[import-smolvlm2] {len(g)} graph(s)")
 graph = g[0]
 params = dc.imported_params[graph]
-print(f"[import-smolvlm2] first graph: {len(params)} params, "
-      f"{sum(pp.numel() for pp in params):,} elems")
+print(
+    f"[import-smolvlm2] first graph: {len(params)} params, "
+    f"{sum(pp.numel() for pp in params):,} elems"
+)
 
 # Fusion: simply_fuse ONLY -- no other graph transforms.
 graph.fuse_ops([simply_fuse])
@@ -120,5 +129,7 @@ all_param = numpy.concatenate(
 ).astype(numpy.float32, copy=False)
 all_param.tofile(os.path.join(a.output_dir, "arg0.data"))
 
-print(f"[import-smolvlm2] Wrote forward.mlir, subgraph0.mlir, arg0.data "
-      f"({all_param.shape[0]} f32) to {a.output_dir}")
+print(
+    f"[import-smolvlm2] Wrote forward.mlir, subgraph0.mlir, arg0.data "
+    f"({all_param.shape[0]} f32) to {a.output_dir}"
+)

@@ -201,8 +201,7 @@ private:
                                llvm::toString(parsed.takeError()));
 
     const llvm::json::Object *root = parsed->getAsObject();
-    const llvm::json::Object *model =
-        root ? root->getObject("model") : nullptr;
+    const llvm::json::Object *model = root ? root->getObject("model") : nullptr;
     const llvm::json::Object *vocab =
         model ? model->getObject("vocab") : nullptr;
     if (!vocab)
@@ -411,8 +410,7 @@ void Smolvlm2Runner::run(const RunConfig &cfg) {
   const bool suppress = cfg.suppressStats;
 
   if (cfg.prompt.empty() && cfg.prompts.empty())
-    throw std::runtime_error(
-        "Smolvlm2Runner: pass --prompt or --prompt-file");
+    throw std::runtime_error("Smolvlm2Runner: pass --prompt or --prompt-file");
   if (cfg.prompts.size() > 1)
     throw std::runtime_error(
         "Smolvlm2Runner: only single-prompt inference is implemented");
@@ -462,8 +460,8 @@ void Smolvlm2Runner::run(const RunConfig &cfg) {
   const int64_t padId = tokenizer.padId();
 
   // Minimal chat scaffold (instruct model): user prompt, assistant turn.
-  std::string scaffold = "<|im_start|>user\n" + prompt +
-                         "<|im_end|>\n<|im_start|>assistant\n";
+  std::string scaffold =
+      "<|im_start|>user\n" + prompt + "<|im_end|>\n<|im_start|>assistant\n";
   std::vector<int64_t> tokenIds = tokenizer.encode(scaffold, maxSeqLen);
   printLog("Tokenization complete: " + std::to_string(tokenIds.size()) +
                " tokens (max " + std::to_string(maxSeqLen) + ")",
@@ -475,7 +473,8 @@ void Smolvlm2Runner::run(const RunConfig &cfg) {
     throw std::runtime_error("Smolvlm2Runner: dlopen failed: " + soPath + ": " +
                              dlerror());
   dlerror();
-  auto forward = reinterpret_cast<ForwardFn>(dlsym(handle, "_mlir_ciface_forward"));
+  auto forward =
+      reinterpret_cast<ForwardFn>(dlsym(handle, "_mlir_ciface_forward"));
   if (const char *err = dlerror()) {
     dlclose(handle);
     throw std::runtime_error(
