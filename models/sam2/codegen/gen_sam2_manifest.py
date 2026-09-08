@@ -91,23 +91,32 @@ def gen_manifest(spec: dict, runner_library: str) -> str:
     p('                                backend = "cpu",')
     p(f'                                uri = "file:{so_name}"}}')
     p("")
-    p(f'  rhal.buffer @pixel_values {{space = "host", '
-      f"type = tensor<1x3x{image_size}x{image_size}xf32>}}")
-    p(f'  rhal.buffer @last_hidden_state {{space = "host", '
-      f"type = tensor<1x{out_h}x{out_w}x{hidden_size}xf32>}}")
+    p(
+        f'  rhal.buffer @pixel_values {{space = "host", '
+        f"type = tensor<1x3x{image_size}x{image_size}xf32>}}"
+    )
+    p(
+        f'  rhal.buffer @last_hidden_state {{space = "host", '
+        f"type = tensor<1x{out_h}x{out_w}x{hidden_size}xf32>}}"
+    )
     for i, (fh, fw) in enumerate(FPN_SHAPES):
-        p(f'  rhal.buffer @fpn_{i} {{space = "host", '
-          f"type = tensor<1x{FPN_CHANNELS}x{fh}x{fw}xf32>}}")
+        p(
+            f'  rhal.buffer @fpn_{i} {{space = "host", '
+            f"type = tensor<1x{FPN_CHANNELS}x{fh}x{fw}xf32>}}"
+        )
     p("")
+
     def str_list(names):
         return "[" + ", ".join(f'"{n}"' for n in names) + "]"
 
-    outputs = ["last_hidden_state"] + [f"fpn_{i}" for i in range(len(FPN_SHAPES))]
+    outputs = ["last_hidden_state"] + [
+        f"fpn_{i}" for i in range(len(FPN_SHAPES))
+    ]
     p("  rhal.func @forward {")
-    p(f'    inputs   = {str_list(["pixel_values"])},')
-    p(f'    outputs  = {str_list(outputs)},')
+    p(f"    inputs   = {str_list(['pixel_values'])},")
+    p(f"    outputs  = {str_list(outputs)},")
     p('    dispatch = "model_kernels",')
-    p(f'    args     = {str_list(["pixel_values"] + outputs)}}}')
+    p(f"    args     = {str_list(['pixel_values'] + outputs)}}}")
     p("}")
     return "\n".join(lines) + "\n"
 
@@ -142,8 +151,7 @@ def main() -> int:
         )
         with open(args.output, "w") as f:
             f.write(text)
-        print(f"[gen_sam2_manifest] Written: {args.output}",
-              file=sys.stderr)
+        print(f"[gen_sam2_manifest] Written: {args.output}", file=sys.stderr)
     return 0
 
 

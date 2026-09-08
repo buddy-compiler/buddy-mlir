@@ -77,7 +77,7 @@ namespace {
 
 constexpr size_t kDefaultImageSize = 256; // input 1 x 3 x 256 x 256
 constexpr size_t kDefaultHiddenSize = 768;
-constexpr size_t kDefaultOutputHeight = 8;  // last_hidden_state spatial dims
+constexpr size_t kDefaultOutputHeight = 8; // last_hidden_state spatial dims
 constexpr size_t kDefaultOutputWidth = 8;
 constexpr size_t kDefaultFpnChannels = 256;
 
@@ -181,12 +181,12 @@ void Sam2Runner::run(const RunConfig &cfg) {
     throw std::runtime_error("Sam2Runner: dlopen failed: " + soPath + ": " +
                              dlerror());
   dlerror();
-  auto forward = reinterpret_cast<ForwardFn>(dlsym(handle, "_mlir_ciface_forward"));
+  auto forward =
+      reinterpret_cast<ForwardFn>(dlsym(handle, "_mlir_ciface_forward"));
   if (const char *err = dlerror()) {
     dlclose(handle);
-    throw std::runtime_error(
-        "Sam2Runner: missing _mlir_ciface_forward in " + soPath + ": " +
-        std::string(err));
+    throw std::runtime_error("Sam2Runner: missing _mlir_ciface_forward in " +
+                             soPath + ": " + std::string(err));
   }
 
   const auto weightBytes = fs::file_size(weightsPath);
