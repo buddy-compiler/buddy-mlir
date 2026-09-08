@@ -71,10 +71,14 @@ def gen_manifest(spec: dict, runner_library: str) -> str:
     p('                                backend = "cpu",')
     p(f'                                uri = "file:{so_name}"}}')
     p("")
-    p(f'  rhal.buffer @latents {{space = "host", '
-      f"type = tensor<1x{flow_size}x{max_seq_len}xf32>}}")
-    p(f'  rhal.buffer @waveform {{space = "host", '
-      f"type = tensor<1x{audio_buffer_size}xf32>}}")
+    p(
+        f'  rhal.buffer @latents {{space = "host", '
+        f"type = tensor<1x{flow_size}x{max_seq_len}xf32>}}"
+    )
+    p(
+        f'  rhal.buffer @waveform {{space = "host", '
+        f"type = tensor<1x{audio_buffer_size}xf32>}}"
+    )
     p("")
     p("  rhal.func @forward {")
     p('    inputs   = ["latents"],')
@@ -102,7 +106,9 @@ def main() -> int:
     if args.output == "-":
         sys.stdout.write(text)
     else:
-        os.makedirs(os.path.dirname(os.path.abspath(args.output)), exist_ok=True)
+        os.makedirs(
+            os.path.dirname(os.path.abspath(args.output)), exist_ok=True
+        )
         with open(args.output, "w") as f:
             f.write(text)
         print(f"[gen_mms_manifest] Written: {args.output}", file=sys.stderr)

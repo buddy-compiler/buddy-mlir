@@ -96,8 +96,7 @@ void loadWeights(const std::string &weightsPath, MemRef<float, 1> &params) {
 
 /// Load a raw f32 latent spectrogram blob (1 x flow_size x max_seq_len).
 void loadLatents(const std::string &path, MemRef<float, 3> &latents) {
-  const size_t expected =
-      sizeof(float) * latents.getSize();
+  const size_t expected = sizeof(float) * latents.getSize();
   if (std::filesystem::file_size(path) != expected)
     throw std::runtime_error(
         "MMSRunner: latent file size does not match 1 x flow_size x "
@@ -153,12 +152,12 @@ void MMSRunner::run(const RunConfig &cfg) {
     throw std::runtime_error("MMSRunner: dlopen failed: " + soPath + ": " +
                              dlerror());
   dlerror();
-  auto forward = reinterpret_cast<ForwardFn>(dlsym(handle, "_mlir_ciface_forward"));
+  auto forward =
+      reinterpret_cast<ForwardFn>(dlsym(handle, "_mlir_ciface_forward"));
   if (const char *err = dlerror()) {
     dlclose(handle);
-    throw std::runtime_error(
-        "MMSRunner: missing _mlir_ciface_forward in " + soPath + ": " +
-        std::string(err));
+    throw std::runtime_error("MMSRunner: missing _mlir_ciface_forward in " +
+                             soPath + ": " + std::string(err));
   }
 
   const auto weightBytes = fs::file_size(weightsPath);
