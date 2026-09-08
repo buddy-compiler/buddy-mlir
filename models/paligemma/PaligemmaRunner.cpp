@@ -202,10 +202,10 @@ void PaligemmaRunner::run(const RunConfig &cfg) {
     maxSeqLen = parseSizeAttr(manifest, "max_seq_len", maxSeqLen);
     hiddenSize = parseSizeAttr(manifest, "hidden_size", hiddenSize);
     vocabSize = parseSizeAttr(manifest, "vocab_size", vocabSize);
-    numImageTokens = parseSizeAttr(manifest, "num_image_tokens",
-                                   numImageTokens);
-    numImagePatches = parseSizeAttr(manifest, "num_image_patches",
-                                    numImagePatches);
+    numImageTokens =
+        parseSizeAttr(manifest, "num_image_tokens", numImageTokens);
+    numImagePatches =
+        parseSizeAttr(manifest, "num_image_patches", numImagePatches);
     imageSize = parseSizeAttr(manifest, "image_size", imageSize);
     imageTokenId = parseIntAttr(manifest, "image_token_id", imageTokenId);
   } else {
@@ -225,7 +225,8 @@ void PaligemmaRunner::run(const RunConfig &cfg) {
     throw std::runtime_error("PaligemmaRunner: dlopen failed: " + soPath +
                              ": " + dlerror());
   dlerror();
-  auto forward = reinterpret_cast<ForwardFn>(dlsym(handle, "_mlir_ciface_forward"));
+  auto forward =
+      reinterpret_cast<ForwardFn>(dlsym(handle, "_mlir_ciface_forward"));
   if (const char *err = dlerror()) {
     dlclose(handle);
     throw std::runtime_error(
@@ -262,7 +263,8 @@ void PaligemmaRunner::run(const RunConfig &cfg) {
 
   if (!suppress) {
     const double seconds = std::chrono::duration<double>(t1 - t0).count();
-    std::cerr << "\033[33;1mPaliGemma-3B-224 Vision-Language Inference\033[0m\n";
+    std::cerr
+        << "\033[33;1mPaliGemma-3B-224 Vision-Language Inference\033[0m\n";
     std::cerr << "  seq_len    : " << maxSeqLen << "\n";
     std::cerr << "  image_size : " << imageSize << "\n";
     std::cerr << "  time       : " << seconds << "s\n";
@@ -279,8 +281,8 @@ void PaligemmaRunner::run(const RunConfig &cfg) {
       [&](size_t a, size_t b) { return lastLogits[a] > lastLogits[b]; });
 
   std::cout << "{\"logits_shape\":[" << results.logits.getSizes()[0] << ","
-            << results.logits.getSizes()[1] << "," << results.logits.getSizes()[2]
-            << "],\"last_token_top5\":[";
+            << results.logits.getSizes()[1] << ","
+            << results.logits.getSizes()[2] << "],\"last_token_top5\":[";
   for (size_t k = 0; k < 5; ++k) {
     if (k)
       std::cout << ",";

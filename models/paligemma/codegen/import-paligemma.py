@@ -27,7 +27,6 @@ import os
 
 import numpy
 import torch
-
 import torch._dynamo
 
 torch._dynamo.config.suppress_errors = True
@@ -38,7 +37,9 @@ from buddy.compiler.graph.operation import *  # noqa: E402,F403
 from buddy.compiler.graph.transform import simply_fuse  # noqa: E402
 from buddy.compiler.graph.type import DeviceType  # noqa: E402
 from buddy.compiler.ops import tosa  # noqa: E402
-from torch._inductor.decomposition import decompositions as inductor_decomp  # noqa: E402
+from torch._inductor.decomposition import (  # noqa: E402
+    decompositions as inductor_decomp,  # noqa: E402
+)
 from transformers import PaliGemmaForConditionalGeneration  # noqa: E402
 
 p = argparse.ArgumentParser(description="PaliGemma AOT importer")
@@ -111,21 +112,31 @@ print(
 _orig_get_placeholder_mask = model.model.get_placeholder_mask
 
 
-def _patched_get_placeholder_mask(self, input_ids, inputs_embeds, image_features):
+def _patched_get_placeholder_mask(
+    self, input_ids, inputs_embeds, image_features
+):
     if input_ids is None:
         special_image_mask = inputs_embeds == self.get_input_embeddings()(
-            torch.tensor(self.config.image_token_id, dtype=torch.long, device=inputs_embeds.device)
+            torch.tensor(
+                self.config.image_token_id,
+                dtype=torch.long,
+                device=inputs_embeds.device,
+            )
         )
         special_image_mask = special_image_mask.all(-1)
     else:
         special_image_mask = input_ids == self.config.image_token_id
-    special_image_mask = special_image_mask.unsqueeze(-1).expand_as(inputs_embeds).to(
-        inputs_embeds.device
+    special_image_mask = (
+        special_image_mask.unsqueeze(-1)
+        .expand_as(inputs_embeds)
+        .to(inputs_embeds.device)
     )
     return special_image_mask
 
 
-model.model.get_placeholder_mask = _patched_get_placeholder_mask.__get__(model.model)
+model.model.get_placeholder_mask = _patched_get_placeholder_mask.__get__(
+    model.model
+)
 print("[import-paligemma] monkey-patched get_placeholder_mask.")
 
 
@@ -230,7 +241,9 @@ def _fix_generic_indexing_maps(text):
             alias = "#map%d" % (max_num + len(fixes) + 1)
             domain = ", ".join("d%d" % j for j in range(loop_rank))
             proj = ", ".join("0" for _ in range(tr))
-            fixes.append((gm, i, alias, f"{alias} = affine_map<({domain}) -> ({proj})>"))
+            fixes.append(
+                (gm, i, alias, f"{alias} = affine_map<({domain}) -> ({proj})>")
+            )
 
     out = text
     # Apply per-generic map fixes bottom-up (spans never overlap).
@@ -238,12 +251,25 @@ def _fix_generic_indexing_maps(text):
         mm = _re.search(r"indexing_maps\s*=\s*\[([^\]]*)\]", gm.group(2))
         mrefs = [x.strip() for x in mm.group(1).split(",")]
         mrefs[i] = alias
-        new_attrs = gm.group(2)[: mm.start(1)] + ", ".join(mrefs) + gm.group(2)[mm.end(1):]
-        out = out[: gm.start()] + out[gm.start():gm.end()].replace(gm.group(2), new_attrs) + out[gm.end():]
+        new_attrs = (
+            gm.group(2)[: mm.start(1)]
+            + ", ".join(mrefs)
+            + gm.group(2)[mm.end(1) :]
+        )
+        out = (
+            out[: gm.start()]
+            + out[gm.start() : gm.end()].replace(gm.group(2), new_attrs)
+            + out[gm.end() :]
+        )
 
     # Append the new alias definitions after the last existing one.
     if fixes and last_def_end is not None:
-        out = out[:last_def_end] + "\n" + "\n".join(f[3] for f in fixes) + out[last_def_end:]
+        out = (
+            out[:last_def_end]
+            + "\n"
+            + "\n".join(f[3] for f in fixes)
+            + out[last_def_end:]
+        )
 
     return out
 
@@ -274,49 +300,63 @@ def _fix_paligemma_mask_and_norm(subgraph0_text):
     #    causal tensor to 1x1x280x280 becomes a zero constant (the only live
     #    mask term left is the padding check against attention_mask).
     def _zero_causal(m):
-        return ('%s = "arith.constant"() <{value = dense<0.000000e+00> : '
-                'tensor<1x1x280x280xf32>}> : () -> tensor<1x1x280x280xf32>'
-                % m.group(1))
+        return (
+            '%s = "arith.constant"() <{value = dense<0.000000e+00> : '
+            "tensor<1x1x280x280xf32>}> : () -> tensor<1x1x280x280xf32>"
+            % m.group(1)
+        )
 
     subgraph0_text = _re.sub(
         r'(%[\w]+) = "tosa\.reshape"\(%[\w]+, %[\w]+\) : '
-        r'\(tensor<1x280x280xf32>, !tosa\.shape<4>\) -> tensor<1x1x280x280xf32>',
-        _zero_causal, subgraph0_text)
+        r"\(tensor<1x280x280xf32>, !tosa\.shape<4>\) -> tensor<1x1x280x280xf32>",
+        _zero_causal,
+        subgraph0_text,
+    )
 
     # 2. Mask select operand order.  The mask linalg.generic is the only block
     #    whose region declares (i1, f32, f32, f32); force its select to
     #    select(cond, -3.4e38, mask).
     _blk = _re.search(
-        r'\^bb0\((%[\w]+): i1, (%[\w]+): f32, (%[\w]+): f32, (%[\w]+): f32\):',
-        subgraph0_text)
+        r"\^bb0\((%[\w]+): i1, (%[\w]+): f32, (%[\w]+): f32, (%[\w]+): f32\):",
+        subgraph0_text,
+    )
     if _blk:
         cond, scalar, mask = _blk.group(1), _blk.group(2), _blk.group(3)
         subgraph0_text = _re.sub(
             r'("arith\.select"\()%[\w]+, %[\w]+, %[\w]+\) : \(i1, f32, f32\) -> f32',
-            lambda mm: mm.group(1) + '%s, %s, %s) : (i1, f32, f32) -> f32'
-                        % (cond, scalar, mask),
-            subgraph0_text, count=1)
+            lambda mm: (
+                mm.group(1)
+                + "%s, %s, %s) : (i1, f32, f32) -> f32" % (cond, scalar, mask)
+            ),
+            subgraph0_text,
+            count=1,
+        )
 
     # 3. Decoder-input norm scale: the constant feeding (identity/reshape) the
     #    single `tosa.mul(dec_input, 1x1x1, 0)` is forced to sqrt(2048).
     _scale = _re.compile(
         r'(%[\w]+) = "arith\.constant"\(\) <\{value = dense<[^>]*> : '
-        r'tensor<1xf32>\}> : \(\) -> tensor<1xf32>\n'
+        r"tensor<1xf32>\}> : \(\) -> tensor<1xf32>\n"
         r'[ \t]+%[\w]+ = "tosa\.identity"\(\1\) : \(tensor<1xf32>\) -> tensor<1xf32>\n'
         r'[ \t]+%[\w]+ = "tosa\.const_shape"\(\) <\{values = dense<1> : '
-        r'tensor<3xindex>\}> : \(\) -> !tosa\.shape<3>\n'
+        r"tensor<3xindex>\}> : \(\) -> !tosa\.shape<3>\n"
         r'[ \t]+%[\w]+ = "tosa\.reshape"\([^\n]*\) : \(tensor<1xf32>, '
-        r'!tosa\.shape<3>\) -> tensor<1x1x1xf32>\n'
+        r"!tosa\.shape<3>\) -> tensor<1x1x1xf32>\n"
         r'[ \t]+%[\w]+ = "tosa\.const"\(\) <\{values = dense<0> : tensor<1xi8>\}> : '
-        r'\(\) -> tensor<1xi8>\n'
+        r"\(\) -> tensor<1xi8>\n"
         r'[ \t]+%[\w]+ = "tosa\.mul"\(%[\w]+, %[\w]+, %[\w]+\) : '
-        r'\(tensor<1x280x2048xf32>, tensor<1x1x1xf32>, tensor<1xi8>\) -> '
-        r'tensor<1x280x2048xf32>')
+        r"\(tensor<1x280x2048xf32>, tensor<1x1x1xf32>, tensor<1xi8>\) -> "
+        r"tensor<1x280x2048xf32>"
+    )
 
     def _fix_scale(mm):
         line = mm.group(0)
-        line, n = _re.subn(r'(dense<)[^>]*(> : tensor<1xf32>)',
-                           r'\g<1>4.52548332E+01\g<2>', line, count=1)
+        line, n = _re.subn(
+            r"(dense<)[^>]*(> : tensor<1xf32>)",
+            r"\g<1>4.52548332E+01\g<2>",
+            line,
+            count=1,
+        )
         if n != 1:  # defensive: leave untouched rather than corrupt the chain
             return mm.group(0)
         return line
@@ -346,11 +386,16 @@ params = dynamo_compiler.imported_params[graph]
 # non-f32 leaf (the SigLIP `position_ids` buffer, i64, 256 elems) which becomes
 # its own `memref<256xi64>` argument of `@forward` (filled 0..255 by the
 # runner). Only the f32 params go into `arg0.data`.
-non_f32 = [(pp.dtype, tuple(pp.shape), pp.numel())
-           for pp in params if pp.dtype != torch.float32]
+non_f32 = [
+    (pp.dtype, tuple(pp.shape), pp.numel())
+    for pp in params
+    if pp.dtype != torch.float32
+]
 if non_f32:
-    print("[import-paligemma] non-f32 leaf tensors (packed separately, "
-          f"NOT in arg0.data): {non_f32}")
+    print(
+        "[import-paligemma] non-f32 leaf tensors (packed separately, "
+        f"NOT in arg0.data): {non_f32}"
+    )
 params_f32 = [pp for pp in params if pp.dtype == torch.float32]
 n_elem = sum(pp.numel() for pp in params_f32)
 print(
@@ -396,10 +441,9 @@ print(
 import re  # noqa: E402
 
 fm = os.path.join(a.output_dir, "forward.mlir")
-text = open(fm).read()
-m = re.search(
-    r"func\.func @forward\([^)]*%arg0: memref<(\d+)xf32>", text
-)
+with open(fm) as f:
+    text = f.read()
+m = re.search(r"func\.func @forward\([^)]*%arg0: memref<(\d+)xf32>", text)
 abi_size = int(m.group(1)) if m else None
 subviews = [
     (int(off), int(sz))
