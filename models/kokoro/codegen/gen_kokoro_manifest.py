@@ -55,8 +55,9 @@ def gen_manifest(spec: dict, runner_library: str) -> str:
     # The AOT kernel is fixed at the traced input_ids length (max_seq_len
     # tokens); the maximum output waveform length is
     #   max_seq_len * max_dur * upsample_factor   samples.
-    audio_buffer_size = int(spec.get(
-        "audio_buffer_size", max_seq_len * max_dur * upsample_factor))
+    audio_buffer_size = int(
+        spec.get("audio_buffer_size", max_seq_len * max_dur * upsample_factor)
+    )
     so_name = spec.get("so_name", f"{model_family}_model.so")
     weight_file = spec.get("weight_file", "arg0.data")
     # Kokoro's phoneme vocab lives in the `vocab` field of config.json (there is
@@ -70,7 +71,9 @@ def gen_manifest(spec: dict, runner_library: str) -> str:
     p(f'    model_name = "{model_id}",')
     p(f'    vocab_uri = "file:{tokenizer_file}",')
     p(f'    max_seq_len = "{max_seq_len}",')
-    p(f'    max_position_embeddings = "{spec.get("max_position_embeddings", 512)}",')
+    p(
+        f'    max_position_embeddings = "{spec.get("max_position_embeddings", 512)}",'
+    )
     p(f'    hidden_size = "{hidden_size}",')
     p(f'    style_dim = "{style_dim}",')
     p(f'    audio_buffer_size = "{audio_buffer_size}",')
@@ -84,13 +87,19 @@ def gen_manifest(spec: dict, runner_library: str) -> str:
     p('                                backend = "cpu",')
     p(f'                                uri = "file:{so_name}"}}')
     p("")
-    p(f'  rhal.buffer @input_ids {{space = "host", '
-      f"type = tensor<1x{max_seq_len}xi64>}}")
-    p(f'  rhal.buffer @ref_s {{space = "host", '
-      f"type = tensor<1x{2 * style_dim}xf32>}}")
-    p(f'  rhal.buffer @speed {{space = "host", type = tensor<1xf32>}}')
-    p(f'  rhal.buffer @waveform {{space = "host", '
-      f"type = tensor<1x{audio_buffer_size}xf32>}}")
+    p(
+        f'  rhal.buffer @input_ids {{space = "host", '
+        f"type = tensor<1x{max_seq_len}xi64>}}"
+    )
+    p(
+        f'  rhal.buffer @ref_s {{space = "host", '
+        f"type = tensor<1x{2 * style_dim}xf32>}}"
+    )
+    p('  rhal.buffer @speed {space = "host", type = tensor<1xf32>}')
+    p(
+        f'  rhal.buffer @waveform {{space = "host", '
+        f"type = tensor<1x{audio_buffer_size}xf32>}}"
+    )
     p("")
     p("  rhal.func @forward {")
     p('    inputs   = ["input_ids", "ref_s", "speed"],')
@@ -131,8 +140,7 @@ def main() -> int:
         )
         with open(args.output, "w") as f:
             f.write(text)
-        print(f"[gen_kokoro_manifest] Written: {args.output}",
-              file=sys.stderr)
+        print(f"[gen_kokoro_manifest] Written: {args.output}", file=sys.stderr)
     return 0
 
 

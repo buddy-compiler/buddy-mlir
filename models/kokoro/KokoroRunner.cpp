@@ -78,9 +78,9 @@ namespace runtime {
 
 namespace {
 
-constexpr size_t kDefaultMaxSeqLen = 30;    // traced input_ids length
-constexpr size_t kDefaultStyleDim = 128;    // ref_s = 2 * style_dim = 256
-constexpr size_t kDefaultMaxDur = 50;       // max per-token phoneme duration
+constexpr size_t kDefaultMaxSeqLen = 30;       // traced input_ids length
+constexpr size_t kDefaultStyleDim = 128;       // ref_s = 2 * style_dim = 256
+constexpr size_t kDefaultMaxDur = 50;          // max per-token phoneme duration
 constexpr size_t kDefaultUpsampleFactor = 300; // prod(upsample_rates)*istft_hop
 constexpr size_t kDefaultAudioBufferSize = 450000; // 30 * 50 * 300
 constexpr size_t kDefaultParamsSize = 81810022;    // total Kokoro-82M params
@@ -134,8 +134,8 @@ void fillDeterministicInputIds(int64_t *ids, size_t maxSeqLen) {
     return;
   for (size_t i = 0; i < maxSeqLen; ++i)
     ids[i] = 16 + static_cast<int64_t>((i * 17) % 160); // vocab range [16, 175]
-  ids[0] = 0;               // BOS token
-  ids[maxSeqLen - 1] = 0;   // EOS token
+  ids[0] = 0;                                           // BOS token
+  ids[maxSeqLen - 1] = 0;                               // EOS token
 }
 
 /// Fill `refS` (2 * styleDim floats, i.e. a (1, 256) row) with a fixed
@@ -146,8 +146,7 @@ void fillDeterministicRefS(float *refS, size_t styleDim) {
   const size_t n = 2 * styleDim;
   for (size_t i = 0; i < n; ++i) {
     // Deterministic small-amplitude pseudo-random values.
-    const uint32_t x =
-        static_cast<uint32_t>(i * 2654435761u) ^ 0x9E3779B9u;
+    const uint32_t x = static_cast<uint32_t>(i * 2654435761u) ^ 0x9E3779B9u;
     const float v = static_cast<float>(x & 0xFFFFu) / 32768.0f - 1.0f;
     refS[i] = 0.05f * v;
   }
@@ -202,9 +201,8 @@ void KokoroRunner::run(const RunConfig &cfg) {
       reinterpret_cast<ForwardFn>(dlsym(handle, "_mlir_ciface_forward"));
   if (const char *err = dlerror()) {
     dlclose(handle);
-    throw std::runtime_error(
-        "KokoroRunner: missing _mlir_ciface_forward in " + soPath + ": " +
-        std::string(err));
+    throw std::runtime_error("KokoroRunner: missing _mlir_ciface_forward in " +
+                             soPath + ": " + std::string(err));
   }
 
   const auto weightBytes = fs::file_size(weightsPath);
@@ -232,7 +230,8 @@ void KokoroRunner::run(const RunConfig &cfg) {
   MemRef<float, 1> speed({1});
   speed.getData()[0] = 1.0f;
 
-  // Output waveform buffer: the kernel allocates and fills this (needMalloc=false).
+  // Output waveform buffer: the kernel allocates and fills this
+  // (needMalloc=false).
   MemRef<float, 2> waveform({1, audioBufferSize}, false, 0);
 
   const auto t0 = std::chrono::high_resolution_clock::now();
