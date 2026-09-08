@@ -61,7 +61,9 @@ def gen_manifest(spec: dict, runner_library: str) -> str:
     p(f'    model_name = "{model_id}",')
     p(f'    vocab_uri = "file:{tokenizer_file}",')
     p(f'    max_seq_len = "{max_seq_len}",')
-    p(f'    max_position_embeddings = "{spec.get("max_position_embeddings", 8192)}",')
+    p(
+        f'    max_position_embeddings = "{spec.get("max_position_embeddings", 8192)}",'
+    )
     p(f'    hidden_size = "{hidden_size}",')
     p(f'    vocab_size = "{vocab_size}",')
     p(f'    num_hidden_layers = "{num_hidden_layers}",')
@@ -75,14 +77,22 @@ def gen_manifest(spec: dict, runner_library: str) -> str:
     p('                                backend = "cpu",')
     p(f'                                uri = "file:{so_name}"}}')
     p("")
-    p(f'  rhal.buffer @input_ids {{space = "host", '
-      f"type = tensor<1x{max_seq_len}xi64>}}")
-    p(f'  rhal.buffer @position_ids {{space = "host", '
-      f"type = tensor<1x{max_seq_len}xi64>}}")
-    p(f'  rhal.buffer @audio_logits {{space = "host", '
-      f"type = tensor<1x{max_seq_len}x{vocab_size}xf32>}}")
-    p(f'  rhal.buffer @text_logits {{space = "host", '
-      f"type = tensor<1x{max_seq_len}x{vocab_size}xf32>}}")
+    p(
+        f'  rhal.buffer @input_ids {{space = "host", '
+        f"type = tensor<1x{max_seq_len}xi64>}}"
+    )
+    p(
+        f'  rhal.buffer @position_ids {{space = "host", '
+        f"type = tensor<1x{max_seq_len}xi64>}}"
+    )
+    p(
+        f'  rhal.buffer @audio_logits {{space = "host", '
+        f"type = tensor<1x{max_seq_len}x{vocab_size}xf32>}}"
+    )
+    p(
+        f'  rhal.buffer @text_logits {{space = "host", '
+        f"type = tensor<1x{max_seq_len}x{vocab_size}xf32>}}"
+    )
     p("")
     p("  rhal.func @forward {")
     p('    inputs   = ["input_ids", "position_ids"],')
@@ -124,8 +134,9 @@ def main() -> int:
         )
         with open(args.output, "w") as f:
             f.write(text)
-        print(f"[gen_kimi_audio_manifest] Written: {args.output}",
-              file=sys.stderr)
+        print(
+            f"[gen_kimi_audio_manifest] Written: {args.output}", file=sys.stderr
+        )
     return 0
 
 

@@ -107,8 +107,8 @@ void loadWeights(const std::string &weightsPath, MemRef<float, 1> &params) {
 }
 
 /// Emit a JSON array of the argmax token id per sequence position.
-void printArgmaxTokens(const char *label, const float *logits,
-                       size_t maxSeqLen, size_t vocabSize, bool suppress) {
+void printArgmaxTokens(const char *label, const float *logits, size_t maxSeqLen,
+                       size_t vocabSize, bool suppress) {
   if (!suppress)
     std::cerr << "\033[33;1m" << label << " argmax token ids\033[0m\n";
   std::cout << "[";
@@ -136,8 +136,7 @@ void KimiAudioRunner::run(const RunConfig &cfg) {
   const bool suppress = cfg.suppressStats;
 
   if (cfg.prompt.empty() && cfg.prompts.empty())
-    throw std::runtime_error(
-        "KimiAudioRunner: pass --prompt or --prompt-file");
+    throw std::runtime_error("KimiAudioRunner: pass --prompt or --prompt-file");
   if (cfg.prompts.size() > 1)
     throw std::runtime_error(
         "KimiAudioRunner: only single-prompt inference is implemented");
@@ -197,7 +196,8 @@ void KimiAudioRunner::run(const RunConfig &cfg) {
     throw std::runtime_error("KimiAudioRunner: dlopen failed: " + soPath +
                              ": " + dlerror());
   dlerror();
-  auto forward = reinterpret_cast<ForwardFn>(dlsym(handle, "_mlir_ciface_forward"));
+  auto forward =
+      reinterpret_cast<ForwardFn>(dlsym(handle, "_mlir_ciface_forward"));
   if (const char *err = dlerror()) {
     dlclose(handle);
     throw std::runtime_error(

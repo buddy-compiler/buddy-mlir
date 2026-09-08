@@ -48,7 +48,6 @@
 # ===---------------------------------------------------------------------------//
 
 import argparse
-import glob
 import json
 import os
 import re
@@ -61,14 +60,16 @@ import torch._dynamo
 
 torch._dynamo.config.suppress_errors = True
 
-from buddy.compiler.frontend import DynamoCompiler
-from buddy.compiler.graph import GraphDriver
-from buddy.compiler.graph.operation import *  # noqa: F403
-from buddy.compiler.graph.transform import simply_fuse
-from buddy.compiler.graph.type import DeviceType
-from buddy.compiler.ops import tosa
-from torch._inductor.decomposition import decompositions as inductor_decomp
-from transformers import AutoModelForCausalLM
+from buddy.compiler.frontend import DynamoCompiler  # noqa: E402
+from buddy.compiler.graph import GraphDriver  # noqa: E402
+from buddy.compiler.graph.operation import *  # noqa: E402, F403
+from buddy.compiler.graph.transform import simply_fuse  # noqa: E402
+from buddy.compiler.graph.type import DeviceType  # noqa: E402
+from buddy.compiler.ops import tosa  # noqa: E402
+from torch._inductor.decomposition import (  # noqa: E402
+    decompositions as inductor_decomp,  # noqa: E402
+)
+from transformers import AutoModelForCausalLM  # noqa: E402
 
 # ==============================================================================
 # 0. Argument parsing
@@ -116,9 +117,7 @@ for root, dirs, files in os.walk(modules_base):
     if "modeling_moonshot_kimia.py" in files:
         hf_module_candidates.append(root)
 
-print(
-    "[import-kimi_audio] Patching HF model for CPU fullgraph tracing..."
-)
+print("[import-kimi_audio] Patching HF model for CPU fullgraph tracing...")
 print(
     "   Found %d cached module dir(s): %s"
     % (len(hf_module_candidates), hf_module_candidates)
@@ -135,13 +134,11 @@ if not hf_module_candidates:
 
 def apply_patches(hf_file_path):
     """Apply all Dynamo compatibility patches to a local HF modeling file."""
-    with open(hf_file_path, "r", encoding="utf-8") as f:
+    with open(hf_file_path, encoding="utf-8") as f:
         code = f.read()
 
     # --- (A0) Inject CPU SDPA replacements before flash_attn import check ---
-    inject_marker = (
-        "from transformers.models.qwen2.modeling_qwen2 import apply_rotary_pos_emb"
-    )
+    inject_marker = "from transformers.models.qwen2.modeling_qwen2 import apply_rotary_pos_emb"
     cpu_sdpa_code = """
 
 # === Injected by buddy-mlir: CPU SDPA replacements for flash_attn ===
@@ -192,9 +189,14 @@ def _kimi_unpad_input(hidden_states, attention_mask):
 
 """
     if inject_marker not in code:
-        print("   -> (A0) WARNING: inject marker not found, skip SDPA injection.")
+        print(
+            "   -> (A0) WARNING: inject marker not found, skip SDPA injection."
+        )
         return False
-    if "# === Injected by buddy-mlir: CPU SDPA replacements for flash_attn ===" not in code:
+    if (
+        "# === Injected by buddy-mlir: CPU SDPA replacements for flash_attn ==="
+        not in code
+    ):
         code = code.replace(inject_marker, inject_marker + cpu_sdpa_code)
 
     # --- (A) Remove flash_attn import requirement ---
@@ -213,17 +215,19 @@ unpad_input = _kimi_unpad_input"""
 
     if old_flash_block in code:
         code = code.replace(old_flash_block, new_flash_block)
-        print("   -> (A) Flash attention import replaced with CPU SDPA aliases.")
+        print(
+            "   -> (A) Flash attention import replaced with CPU SDPA aliases."
+        )
     else:
         # Fragmented fallback
         print("   -> (A) Block match failed, using fragmented fallback...")
         code = code.replace(
-            'from flash_attn import flash_attn_func, flash_attn_varlen_func\n    from flash_attn.bert_padding import index_first_axis, pad_input, unpad_input  # noqa',
-            'flash_attn_func = _kimi_flash_attn_func\nflash_attn_varlen_func = _kimi_flash_attn_varlen_func\nindex_first_axis = _kimi_index_first_axis\npad_input = _kimi_pad_input\nunpad_input = _kimi_unpad_input',
+            "from flash_attn import flash_attn_func, flash_attn_varlen_func\n    from flash_attn.bert_padding import index_first_axis, pad_input, unpad_input  # noqa",
+            "flash_attn_func = _kimi_flash_attn_func\nflash_attn_varlen_func = _kimi_flash_attn_varlen_func\nindex_first_axis = _kimi_index_first_axis\npad_input = _kimi_pad_input\nunpad_input = _kimi_unpad_input",
         )
         code = code.replace(
             'raise RuntimeError("flash attention must be installed")',
-            'pass  # flash_attn not required (CPU SDPA injected)',
+            "pass  # flash_attn not required (CPU SDPA injected)",
         )
 
     # --- (B) Replace hardcoded CUDA device references ---
@@ -236,10 +240,14 @@ unpad_input = _kimi_unpad_input"""
         "text_input_ids = text_input_ids.to(inputs_embeds.device if inputs_embeds is not None else torch.device('cpu'))",
     )
     code = re.sub(
-        r"\.to\(torch\.cuda\.current_device\(\)\)", ".to(torch.device('cpu'))", code
+        r"\.to\(torch\.cuda\.current_device\(\)\)",
+        ".to(torch.device('cpu'))",
+        code,
     )
     code = re.sub(
-        r"device=torch\.cuda\.current_device\(\)", "device=torch.device('cpu')", code
+        r"device=torch\.cuda\.current_device\(\)",
+        "device=torch.device('cpu')",
+        code,
     )
     remaining = code.count("torch.cuda.current_device")
     if remaining == 0:
@@ -437,7 +445,9 @@ unpad_input = _kimi_unpad_input"""
                                   is_causal=True, scale=softmax_scale)
             attn_output = attn_output.transpose(1, 2)"""
     code = code.replace(old_else_block, new_else_block)
-    print("   -> (H) flash_attn_func call in _flash_attention_forward replaced.")
+    print(
+        "   -> (H) flash_attn_func call in _flash_attention_forward replaced."
+    )
 
     # --- (I) Disable Dynamo tracing for _flash_attention_forward ---
     faf_marker = "        return attn_output\n\n"
@@ -679,8 +689,7 @@ unpad_input = _kimi_unpad_input"""
     old_docstring_end = "        return_dict = (\n            return_dict if return_dict is not None else self.config.use_return_dict\n        )"
     code = code.replace(
         old_docstring_end,
-        old_docstring_end
-        + "\n\n"
+        old_docstring_end + "\n\n"
         "        # buddy-mlir: force None/False for fullgraph\n"
         "        past_key_values = None\n"
         "        use_cache = False",
@@ -709,7 +718,9 @@ unpad_input = _kimi_unpad_input"""
 print("[import-kimi_audio] Patching local snapshot modeling file in place...")
 apply_patches(snapshot_path)
 
-print("[import-kimi_audio] Syncing patched modeling file into HF module cache...")
+print(
+    "[import-kimi_audio] Syncing patched modeling file into HF module cache..."
+)
 for hf_module_dir in hf_module_candidates:
     hf_file_path = os.path.join(hf_module_dir, "modeling_moonshot_kimia.py")
     print(f"   Syncing: {hf_module_dir}")
@@ -742,7 +753,9 @@ print(f"   num_kv_heads = {model.config.num_key_value_heads}")
 print(f"   total params = {sum(pp.numel() for pp in model.parameters()):,}")
 
 # Patch forward to ignore 'cache_implementation' (newer transformers inject it).
-print("[import-kimi_audio] Patching forward to ignore 'cache_implementation'...")
+print(
+    "[import-kimi_audio] Patching forward to ignore 'cache_implementation'..."
+)
 original_causal_forward = type(model).forward
 
 
@@ -761,7 +774,7 @@ print("   -> cache_implementation filter patched.\n")
 
 # Extend decomposition table to handle tensor constant ops that buddy
 # does not support in _tensor_constant format (e.g. int64 constants).
-from torch._decomp import core_aten_decompositions
+from torch._decomp import core_aten_decompositions  # noqa: E402
 
 extended_decomp = {**inductor_decomp, **core_aten_decompositions()}
 
@@ -811,7 +824,9 @@ with torch.no_grad():
 
 print(f"[import-kimi_audio] got {len(graphs)} graph(s)")
 if not graphs:
-    raise SystemExit("[import-kimi_audio] ERROR: no graphs produced by importer")
+    raise SystemExit(
+        "[import-kimi_audio] ERROR: no graphs produced by importer"
+    )
 
 graph = graphs[0]
 params = list(dc.imported_params.get(graph, []))
@@ -855,10 +870,9 @@ with open(os.path.join(a.output_dir, "forward.mlir"), "w") as module_file:
     print(dr.construct_main_graph(True), file=module_file)
 
 print("[import-kimi_audio] Writing weight data (arg0.data)...")
-all_param = (
-    numpy.concatenate([p.detach().cpu().numpy().reshape([-1]) for p in params])
-    .astype(numpy.float32, copy=False)
-)
+all_param = numpy.concatenate(
+    [p.detach().cpu().numpy().reshape([-1]) for p in params]
+).astype(numpy.float32, copy=False)
 all_param.tofile(os.path.join(a.output_dir, "arg0.data"))
 print(
     f"[import-kimi_audio] arg0.data: {all_param.nbytes / 1e9:.1f} GB "
