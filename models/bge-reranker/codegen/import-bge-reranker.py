@@ -27,7 +27,6 @@ import types
 
 import numpy
 import torch
-
 import torch._dynamo
 
 torch._dynamo.config.suppress_errors = True
@@ -39,20 +38,21 @@ if "tomli" not in sys.modules:
     tomli_stub = types.ModuleType("tomli")
 
     def _tomli_unavailable(*_args, **_kwargs):
-        raise RuntimeError(
-            "tomli is required only when loading trace configs")
+        raise RuntimeError("tomli is required only when loading trace configs")
 
     tomli_stub.load = _tomli_unavailable
     tomli_stub.loads = _tomli_unavailable
     sys.modules["tomli"] = tomli_stub
 
-from buddy.compiler.frontend import DynamoCompiler
-from buddy.compiler.graph import GraphDriver
-from buddy.compiler.graph.transform import simply_fuse
-from buddy.compiler.graph.type import DeviceType
-from buddy.compiler.ops import tosa
-from torch._inductor.decomposition import decompositions as inductor_decomp
-from transformers import AutoModelForSequenceClassification
+from buddy.compiler.frontend import DynamoCompiler  # noqa: E402
+from buddy.compiler.graph import GraphDriver  # noqa: E402
+from buddy.compiler.graph.transform import simply_fuse  # noqa: E402
+from buddy.compiler.graph.type import DeviceType  # noqa: E402
+from buddy.compiler.ops import tosa  # noqa: E402
+from torch._inductor.decomposition import (  # noqa: E402
+    decompositions as inductor_decomp,  # noqa: E402
+)
+from transformers import AutoModelForSequenceClassification  # noqa: E402
 
 
 class BgeRerankerWrapper(torch.nn.Module):
@@ -76,9 +76,11 @@ a = p.parse_args()
 with open(a.spec) as f:
     spec = json.load(f)
 
-model_path = (os.environ.get("BGE_RERANKER_MODEL_PATH")
-              or os.environ.get("BUDDY_LOCAL_MODEL_PATH")
-              or spec.get("hf_model_path", "BAAI/bge-reranker-v2-m3"))
+model_path = (
+    os.environ.get("BGE_RERANKER_MODEL_PATH")
+    or os.environ.get("BUDDY_LOCAL_MODEL_PATH")
+    or spec.get("hf_model_path", "BAAI/bge-reranker-v2-m3")
+)
 max_seq_len = int(spec.get("max_seq_len", 512))
 os.makedirs(a.output_dir, exist_ok=True)
 
@@ -89,31 +91,38 @@ model = AutoModelForSequenceClassification.from_pretrained(
     model_path, torch_dtype=torch.float32, attn_implementation="eager"
 ).eval()
 model.config.use_cache = False
-print(f"  model class: {type(model).__name__}, "
-      f"hidden={model.config.hidden_size}, "
-      f"layers={model.config.num_hidden_layers}, "
-      f"heads={model.config.num_attention_heads}, "
-      f"params: {sum(pp.numel() for pp in model.parameters()):,}")
+print(
+    f"  model class: {type(model).__name__}, "
+    f"hidden={model.config.hidden_size}, "
+    f"layers={model.config.num_hidden_layers}, "
+    f"heads={model.config.num_attention_heads}, "
+    f"params: {sum(pp.numel() for pp in model.parameters()):,}"
+)
 
 wrapped = BgeRerankerWrapper(model).eval()
 
-dc = DynamoCompiler(primary_registry=tosa.ops_registry,
-                    aot_autograd_decomposition=inductor_decomp,
-                    func_name="forward")
+dc = DynamoCompiler(
+    primary_registry=tosa.ops_registry,
+    aot_autograd_decomposition=inductor_decomp,
+    func_name="forward",
+)
 
 dummy_ids = torch.ones((1, max_seq_len), dtype=torch.int64)
 dummy_mask = torch.ones((1, max_seq_len), dtype=torch.int64)
 print(f"[import-bge-reranker] Dummy inputs: {dummy_ids.shape}")
 
 with torch.no_grad():
-    graphs = dc.importer(wrapped, input_ids=dummy_ids,
-                         attention_mask=dummy_mask)
+    graphs = dc.importer(
+        wrapped, input_ids=dummy_ids, attention_mask=dummy_mask
+    )
 
 assert len(graphs) == 1, f"Expected 1 graph, got {len(graphs)}"
 graph = graphs[0]
 params = dc.imported_params[graph]
-print(f"[import-bge-reranker] 1 graph, {len(params)} params, "
-      f"{sum(p.numel() for p in params):,} elems")
+print(
+    f"[import-bge-reranker] 1 graph, {len(params)} params, "
+    f"{sum(p.numel() for p in params):,} elems"
+)
 
 # The forward ABI's first memref is the flattened f32 weights
 # (memref<params_size x f32>).  `imported_params` may also capture the
@@ -122,8 +131,10 @@ print(f"[import-bge-reranker] 1 graph, {len(params)} params, "
 # forward argument instead).  Keep only the f32 tensors so arg0.data matches
 # the `params_size` in the spec / forward.mlir exactly.
 params = [p for p in params if p.dtype == torch.float32]
-print(f"[import-bge-reranker] {len(params)} f32 params -> "
-      f"{sum(p.numel() for p in params):,} weight elems")
+print(
+    f"[import-bge-reranker] {len(params)} f32 params -> "
+    f"{sum(p.numel() for p in params):,} weight elems"
+)
 
 graph.fuse_ops([simply_fuse])
 graph.op_groups["subgraph0"] = graph.op_groups.pop("subgraph0")
@@ -142,5 +153,7 @@ all_param = numpy.concatenate(
 ).astype(numpy.float32, copy=False)
 all_param.tofile(os.path.join(a.output_dir, "arg0.data"))
 
-print(f"[import-bge-reranker] Wrote forward.mlir, subgraph0.mlir, "
-      f"arg0.data to {a.output_dir}")
+print(
+    f"[import-bge-reranker] Wrote forward.mlir, subgraph0.mlir, "
+    f"arg0.data to {a.output_dir}"
+)

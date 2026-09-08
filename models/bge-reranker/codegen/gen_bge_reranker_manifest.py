@@ -75,14 +75,22 @@ def gen_manifest(spec: dict, runner_library: str) -> str:
     p('                                backend = "cpu",')
     p(f'                                uri = "file:{so_name}"}}')
     p("")
-    p(f'  rhal.buffer @input_ids {{space = "host", '
-      f"type = tensor<1x{max_seq_len}xi64>}}")
-    p(f'  rhal.buffer @attention_mask {{space = "host", '
-      f"type = tensor<1x{max_seq_len}xi64>}}")
-    p(f'  rhal.buffer @position_ids {{space = "host", '
-      f"type = tensor<{max_position_embeddings}xi64>}}")
-    p(f'  rhal.buffer @logits {{space = "host", '
-      f"type = tensor<1x{num_labels}xf32>}}")
+    p(
+        f'  rhal.buffer @input_ids {{space = "host", '
+        f"type = tensor<1x{max_seq_len}xi64>}}"
+    )
+    p(
+        f'  rhal.buffer @attention_mask {{space = "host", '
+        f"type = tensor<1x{max_seq_len}xi64>}}"
+    )
+    p(
+        f'  rhal.buffer @position_ids {{space = "host", '
+        f"type = tensor<{max_position_embeddings}xi64>}}"
+    )
+    p(
+        f'  rhal.buffer @logits {{space = "host", '
+        f"type = tensor<1x{num_labels}xf32>}}"
+    )
     p("")
     p("  rhal.func @forward {")
     p('    inputs   = ["input_ids", "attention_mask"],')
@@ -124,8 +132,10 @@ def main() -> int:
         )
         with open(args.output, "w") as f:
             f.write(text)
-        print(f"[gen_bge_reranker_manifest] Written: {args.output}",
-              file=sys.stderr)
+        print(
+            f"[gen_bge_reranker_manifest] Written: {args.output}",
+            file=sys.stderr,
+        )
     return 0
 
 

@@ -44,9 +44,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "buddy/runtime/models/Bge_rerankerRunner.h"
-#include "buddy/runtime/models/BgeRerankerTokenizer.h"
 #include "buddy/runtime/core/ModelManifest.h"
+#include "buddy/runtime/models/BgeRerankerTokenizer.h"
+#include "buddy/runtime/models/Bge_rerankerRunner.h"
 
 #include "buddy/Core/Container.h"
 
@@ -174,7 +174,8 @@ void Bge_rerankerRunner::run(const RunConfig &cfg) {
     if (weightsPath.empty() && !manifest.weightPaths.empty())
       weightsPath = manifest.weightPaths.front();
     if (weightsPath.empty())
-      throw std::runtime_error("Bge_rerankerRunner: manifest has no weight file");
+      throw std::runtime_error(
+          "Bge_rerankerRunner: manifest has no weight file");
     vocabPath = manifest.vocabPath;
     maxSeqLen = parseSizeAttr(manifest, "max_seq_len", maxSeqLen);
     maxPositionEmbeddings = parseSizeAttr(manifest, "max_position_embeddings",
@@ -200,9 +201,11 @@ void Bge_rerankerRunner::run(const RunConfig &cfg) {
   printLog("Query     : " + query, suppress);
   printLog("Document  : " + document, suppress);
 
-  BgeRerankerTokenizer tokenizer = BgeRerankerTokenizer::loadFromFile(vocabPath);
+  BgeRerankerTokenizer tokenizer =
+      BgeRerankerTokenizer::loadFromFile(vocabPath);
   std::vector<int64_t> inputIdVec, attentionMaskVec;
-  tokenizer.encodePair(query, document, maxSeqLen, inputIdVec, attentionMaskVec);
+  tokenizer.encodePair(query, document, maxSeqLen, inputIdVec,
+                       attentionMaskVec);
   printLog("Tokenization complete", suppress);
 
   printLog("Loading model shared library", suppress);
@@ -211,7 +214,8 @@ void Bge_rerankerRunner::run(const RunConfig &cfg) {
     throw std::runtime_error("Bge_rerankerRunner: dlopen failed: " + soPath +
                              ": " + dlerror());
   dlerror();
-  auto forward = reinterpret_cast<ForwardFn>(dlsym(handle, "_mlir_ciface_forward"));
+  auto forward =
+      reinterpret_cast<ForwardFn>(dlsym(handle, "_mlir_ciface_forward"));
   if (const char *err = dlerror()) {
     dlclose(handle);
     throw std::runtime_error(

@@ -1,4 +1,5 @@
-//===- BgeRerankerTokenizer.h - SentencePiece Unigram tokenizer, pure C++ --===//
+//===- BgeRerankerTokenizer.h - SentencePiece Unigram tokenizer, pure C++
+//--===//
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -58,7 +59,8 @@ namespace runtime {
 
 class BgeRerankerTokenizer {
 public:
-  static BgeRerankerTokenizer loadFromFile(const std::string &tokenizerJsonPath) {
+  static BgeRerankerTokenizer
+  loadFromFile(const std::string &tokenizerJsonPath) {
     auto bufOrErr = llvm::MemoryBuffer::getFile(tokenizerJsonPath);
     if (!bufOrErr)
       throw std::runtime_error("BgeRerankerTokenizer: cannot open " +
@@ -344,7 +346,8 @@ private:
 
   uint32_t xcdaNode(size_t index) const {
     if (index >= xcdaArraySize_)
-      throw std::runtime_error("BgeRerankerTokenizer: XCDA index out of bounds");
+      throw std::runtime_error(
+          "BgeRerankerTokenizer: XCDA index out of bounds");
     uint32_t value;
     std::memcpy(&value,
                 charsmap_.data() + xcdaArrayOffset_ + index * sizeof(uint32_t),

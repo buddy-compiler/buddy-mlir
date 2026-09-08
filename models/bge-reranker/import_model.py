@@ -26,16 +26,17 @@
 
 import argparse
 import os
+
 import numpy
 import torch
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.graph import GraphDriver
 from buddy.compiler.graph.operation import *  # noqa: F403
 from buddy.compiler.graph.transform import (
-    simply_fuse,
     apply_classic_fusion,
-    eliminate_transpose,
     eliminate_matmul_transpose_reshape,
+    eliminate_transpose,
+    simply_fuse,
 )
 from buddy.compiler.graph.type import DeviceType
 from buddy.compiler.ops import tosa
@@ -43,7 +44,9 @@ from torch._inductor.decomposition import decompositions as inductor_decomp
 from transformers import AutoModelForSequenceClassification
 
 parser = argparse.ArgumentParser(description="BGE-Reranker Model AOT Importer")
-parser.add_argument("--output-dir", type=str, default="./", help="Output directory")
+parser.add_argument(
+    "--output-dir", type=str, default="./", help="Output directory"
+)
 parser.add_argument("--precision", type=str, default="f32", choices=["f32"])
 args = parser.parse_args()
 output_dir = args.output_dir
@@ -53,7 +56,9 @@ print("[BGE-Import] Loading BGE-Reranker-v2-M3...")
 model = AutoModelForSequenceClassification.from_pretrained(
     "BAAI/bge-reranker-v2-m3", dtype=torch.float32
 ).eval()
-print(f"   hidden={model.config.hidden_size}, layers={model.config.num_hidden_layers}, heads={model.config.num_attention_heads}")
+print(
+    f"   hidden={model.config.hidden_size}, layers={model.config.num_hidden_layers}, heads={model.config.num_attention_heads}"
+)
 
 dynamo_compiler = DynamoCompiler(
     primary_registry=tosa.ops_registry,
@@ -68,7 +73,9 @@ dummy_mask = torch.ones((1, max_seq_len), dtype=torch.int64)
 print(f"[BGE-Import] Dummy inputs: {dummy_ids.shape}")
 
 with torch.no_grad():
-    graphs = dynamo_compiler.importer(model, input_ids=dummy_ids, attention_mask=dummy_mask)
+    graphs = dynamo_compiler.importer(
+        model, input_ids=dummy_ids, attention_mask=dummy_mask
+    )
 
 assert len(graphs) == 1, f"Expected 1 graph, got {len(graphs)}"
 graph = graphs[0]
@@ -91,6 +98,8 @@ with open(os.path.join(layer_dir, "subgraph0.mlir"), "w") as f:
 with open(os.path.join(layer_dir, "forward.mlir"), "w") as f:
     print(driver.construct_main_graph(True), file=f)
 
-all_param = numpy.concatenate([p.detach().cpu().numpy().reshape([-1]) for p in params])
+all_param = numpy.concatenate(
+    [p.detach().cpu().numpy().reshape([-1]) for p in params]
+)
 all_param.tofile(os.path.join(output_dir, "arg0.data"))
 print("[BGE-Import] Done!")
