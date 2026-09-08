@@ -70,14 +70,22 @@ def gen_manifest(spec: dict, runner_library: str) -> str:
     p('                                backend = "cpu",')
     p(f'                                uri = "file:{so_name}"}}')
     p("")
-    p(f'  rhal.buffer @input_ids {{space = "host", '
-      f"type = tensor<1x{max_seq_len}xi64>}}")
-    p(f'  rhal.buffer @attention_mask {{space = "host", '
-      f"type = tensor<1x{max_seq_len}xi64>}}")
-    p(f'  rhal.buffer @last_hidden_state {{space = "host", '
-      f"type = tensor<1x{max_seq_len}x{hidden_size}xf32>}}")
-    p(f'  rhal.buffer @pooled {{space = "host", '
-      f"type = tensor<1x{hidden_size}xf32>}}")
+    p(
+        f'  rhal.buffer @input_ids {{space = "host", '
+        f"type = tensor<1x{max_seq_len}xi64>}}"
+    )
+    p(
+        f'  rhal.buffer @attention_mask {{space = "host", '
+        f"type = tensor<1x{max_seq_len}xi64>}}"
+    )
+    p(
+        f'  rhal.buffer @last_hidden_state {{space = "host", '
+        f"type = tensor<1x{max_seq_len}x{hidden_size}xf32>}}"
+    )
+    p(
+        f'  rhal.buffer @pooled {{space = "host", '
+        f"type = tensor<1x{hidden_size}xf32>}}"
+    )
     p("")
     p("  rhal.func @forward {")
     p('    inputs   = ["input_ids", "attention_mask"],')
@@ -119,8 +127,9 @@ def main() -> int:
         )
         with open(args.output, "w") as f:
             f.write(text)
-        print(f"[gen_molformer_manifest] Written: {args.output}",
-              file=sys.stderr)
+        print(
+            f"[gen_molformer_manifest] Written: {args.output}", file=sys.stderr
+        )
     return 0
 
 

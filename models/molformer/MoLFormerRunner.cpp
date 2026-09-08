@@ -116,7 +116,8 @@ bool isAsciiDigit(char c) { return c >= '0' && c <= '9'; }
 /// MoLFormer SMILES WordLevel tokenizer.
 ///
 /// The checkpoint ships a WordLevel tokenizer whose pre-tokenizer applies the
-/// SMILES token regex `(\[[^]]+]|Br?|Cl?|N|O|S|P|F|I|b|c|n|o|s|p|\(|\)|\.|=|#|-|\+|\|\/|:|~|@|\?|>|\*|\$|%[0-9]{2}|[0-9])`
+/// SMILES token regex
+/// `(\[[^]]+]|Br?|Cl?|N|O|S|P|F|I|b|c|n|o|s|p|\(|\)|\.|=|#|-|\+|\|\/|:|~|@|\?|>|\*|\$|%[0-9]{2}|[0-9])`
 /// and whose post-processor wraps the sequence in `<bos>` ... `<eos>`.  We
 /// reproduce the scanner (leftmost, greedy by alternation order) and the
 /// static WordLevel vocabulary; tokens are padded to max_seq_len with `<pad>`.
@@ -154,8 +155,8 @@ public:
   }
 
 private:
-  static std::unordered_map<std::string, int64_t> loadVocab(
-      const std::string &vocabPath) {
+  static std::unordered_map<std::string, int64_t>
+  loadVocab(const std::string &vocabPath) {
     std::ifstream in(vocabPath);
     if (!in)
       throw std::runtime_error(
@@ -178,7 +179,9 @@ private:
     return it != vocab_.end() ? it->second : fallback;
   }
 
-  int64_t vocabToken(const std::string &tok) const { return lookup(tok, unkId_); }
+  int64_t vocabToken(const std::string &tok) const {
+    return lookup(tok, unkId_);
+  }
 
   /// Extract the next SMILES token at `pos` (regex alternation order).
   static void nextToken(const std::string &s, size_t &pos, std::string &tok) {

@@ -16,9 +16,10 @@
 # ===----------------------------------------------------------------------===//
 
 import argparse
-import os
 import json
+import os
 import sys
+
 import numpy
 import torch
 
@@ -34,7 +35,11 @@ import transformers.masking_utils as mask_utils
 def universal_bidirectional_mask(*args, **kwargs):
     if args:
         first_arg = args[0]
-        shape = first_arg.shape if isinstance(first_arg, torch.Tensor) else first_arg
+        shape = (
+            first_arg.shape
+            if isinstance(first_arg, torch.Tensor)
+            else first_arg
+        )
     elif kwargs.get("inputs_embeds") is not None:
         shape = kwargs["inputs_embeds"].shape
     elif kwargs.get("attention_mask") is not None:
@@ -44,22 +49,26 @@ def universal_bidirectional_mask(*args, **kwargs):
     else:
         shape = torch.zeros(1, 128).shape
     batch_size, seq_len = shape[0], shape[1]
-    return torch.ones((batch_size, 1, 1, seq_len), device=kwargs.get("device", "cpu"))
+    return torch.ones(
+        (batch_size, 1, 1, seq_len), device=kwargs.get("device", "cpu")
+    )
 
 
 mask_utils.create_bidirectional_mask = universal_bidirectional_mask
 
-import torch._dynamo
+import torch._dynamo  # noqa: E402
 
 torch._dynamo.config.suppress_errors = True
-from buddy.compiler.frontend import DynamoCompiler
-from buddy.compiler.graph import GraphDriver
-from buddy.compiler.graph.operation import *
-from buddy.compiler.graph.transform import simply_fuse
-from buddy.compiler.graph.type import DeviceType
-from buddy.compiler.ops import tosa
-from torch._inductor.decomposition import decompositions as inductor_decomp
-from transformers import AutoModel
+from buddy.compiler.frontend import DynamoCompiler  # noqa: E402
+from buddy.compiler.graph import GraphDriver  # noqa: E402
+from buddy.compiler.graph.operation import *  # noqa: E402
+from buddy.compiler.graph.transform import simply_fuse  # noqa: E402
+from buddy.compiler.graph.type import DeviceType  # noqa: E402
+from buddy.compiler.ops import tosa  # noqa: E402
+from torch._inductor.decomposition import (  # noqa: E402
+    decompositions as inductor_decomp,  # noqa: E402
+)
+from transformers import AutoModel  # noqa: E402
 
 p = argparse.ArgumentParser(description="MoLFormer AOT importer")
 p.add_argument("--spec", required=True)
@@ -67,10 +76,13 @@ p.add_argument("--output-dir", required=True)
 a = p.parse_args()
 with open(a.spec) as f:
     spec = json.load(f)
-model_path = (os.environ.get("MOLFORMER_MODEL_PATH")
-              or os.environ.get("BUDDY_LOCAL_MODEL_PATH")
-              or spec.get("hf_model_path", "ibm/MoLFormer-XL-both-10pct"))
+model_path = (
+    os.environ.get("MOLFORMER_MODEL_PATH")
+    or os.environ.get("BUDDY_LOCAL_MODEL_PATH")
+    or spec.get("hf_model_path", "ibm/MoLFormer-XL-both-10pct")
+)
 os.makedirs(a.output_dir, exist_ok=True)
+
 
 # --- Deterministic random features + drop the attention shape check ----------
 # MoLFormer's linear attention uses Generalized Random Fourier Features.  With
@@ -97,15 +109,21 @@ def _make_deterministic(model):
 def _patch_attention(model):
     mod = sys.modules[type(model.encoder.layer[0].attention.self).__module__]
 
-    def patched_self_attn(self, hidden_states, attention_mask=None,
-                          position_ids=None, output_attentions=False):
+    def patched_self_attn(
+        self,
+        hidden_states,
+        attention_mask=None,
+        position_ids=None,
+        output_attentions=False,
+    ):
         query_layer = self.transpose_for_scores(self.query(hidden_states))
         key_layer = self.transpose_for_scores(self.key(hidden_states))
         value_layer = self.transpose_for_scores(self.value(hidden_states))
         kv_seq_len = key_layer.shape[-2]
         cos, sin = self.rotary_embeddings(value_layer, seq_len=kv_seq_len)
         query_layer, key_layer = mod.apply_rotary_pos_emb(
-            query_layer, key_layer, cos, sin, position_ids)
+            query_layer, key_layer, cos, sin, position_ids
+        )
         query_layer, key_layer = self.feature_map(query_layer, key_layer)
         if attention_mask is not None:
             attention_mask = (attention_mask == 0).to(attention_mask.dtype)
@@ -114,7 +132,8 @@ def _patch_attention(model):
             key_layer = key_layer * per_query_attn[:, None, -kv_seq_len:, None]
         key_value = torch.matmul(key_layer.transpose(-1, -2), value_layer)
         norm = torch.matmul(
-            query_layer, key_layer.sum(dim=-2).unsqueeze(-1)).clamp(min=self.eps)
+            query_layer, key_layer.sum(dim=-2).unsqueeze(-1)
+        ).clamp(min=self.eps)
         context_layer = torch.matmul(query_layer, key_value) / norm
         context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
         new_shape = context_layer.size()[:-2] + (self.all_head_size,)
@@ -123,20 +142,29 @@ def _patch_attention(model):
 
     for layer in model.encoder.layer:
         bound = patched_self_attn.__get__(
-            layer.attention.self, type(layer.attention.self))
+            layer.attention.self, type(layer.attention.self)
+        )
         layer.attention.self.forward = bound
 
 
-print("[import-molformer] Loading ibm/MoLFormer-XL-both-10pct from:", model_path)
-m = AutoModel.from_pretrained(model_path, trust_remote_code=True,
-                              dtype=torch.float32).eval()
+print(
+    "[import-molformer] Loading ibm/MoLFormer-XL-both-10pct from:", model_path
+)
+m = AutoModel.from_pretrained(
+    model_path, trust_remote_code=True, dtype=torch.float32
+).eval()
 m.config.use_cache = False
 _make_deterministic(m)
 _patch_attention(m)
-print(f"  model class: {type(m).__name__}, params: {sum(pp.numel() for pp in m.parameters()):,}")
+print(
+    f"  model class: {type(m).__name__}, params: {sum(pp.numel() for pp in m.parameters()):,}"
+)
 
-dc = DynamoCompiler(primary_registry=tosa.ops_registry,
-                    aot_autograd_decomposition=inductor_decomp, func_name="forward")
+dc = DynamoCompiler(
+    primary_registry=tosa.ops_registry,
+    aot_autograd_decomposition=inductor_decomp,
+    func_name="forward",
+)
 dummy = torch.zeros((1, 128), dtype=torch.int64)
 mask = torch.ones((1, 128), dtype=torch.int64)
 with torch.no_grad():
@@ -144,8 +172,10 @@ with torch.no_grad():
 print(f"[import-molformer] {len(g)} graphs")
 graph = g[0]
 params = dc.imported_params[graph]
-print(f"[import-molformer] first graph: {len(params)} tensors, "
-      f"{sum(p.numel() for p in params):,} elems")
+print(
+    f"[import-molformer] first graph: {len(params)} tensors, "
+    f"{sum(p.numel() for p in params):,} elems"
+)
 
 graph.fuse_ops([simply_fuse])
 graph.op_groups["subgraph0"] = graph.op_groups.pop("subgraph0")
@@ -160,4 +190,6 @@ all_param = numpy.concatenate(
     [p.detach().cpu().numpy().reshape([-1]) for p in params]
 ).astype(numpy.float32, copy=False)
 all_param.tofile(os.path.join(a.output_dir, "arg0.data"))
-print(f"[import-molformer] Wrote forward.mlir, subgraph0.mlir, arg0.data to {a.output_dir}")
+print(
+    f"[import-molformer] Wrote forward.mlir, subgraph0.mlir, arg0.data to {a.output_dir}"
+)
