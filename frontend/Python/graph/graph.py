@@ -631,20 +631,29 @@ class Graph:
         for transform_func in func_list:
             transform_func(self)
 
-    def lower_to_top_level_ir(self):
+    def lower_to_top_level_ir(
+        self,
+        do_param_pack: bool = False,
+        param_pack_sizes=None,
+        param_pack_offsets=None,
+    ):
         """
         Lowers the graph to top-level MLIR dialects.
 
         Parameters:
-        - do_params_pack: bool, optional (default=False)
+        - do_param_pack: bool, optional (default=False)
             Flag indicating whether to perform parameters packing to one memref.
+        - param_pack_sizes: dict, optional
+            Explicit total element count for each dtype pack.
+        - param_pack_offsets: dict, optional
+            Explicit element offset for each parameter placeholder name.
 
         Returns:
         None
 
         Example:
         graph_instance = Graph(inputs, fake_params, ops_registry, func_name)
-        graph_instance.lower_to_top_level_ir(do_params_pack=True)
+        graph_instance.lower_to_top_level_ir(do_param_pack=True)
         # The graph is now lowered to top-level MLIR dialects
         """
         with ir.Location.unknown(self._ctx):
@@ -654,20 +663,30 @@ class Graph:
                 self.inputs_shapes,
                 self._func_name,
                 self._ops_registry,
-                False,
+                do_param_pack,
                 self.device,
                 verbose=self._verbose,
                 verbose_path=self._verbose_path,
                 enable_external_calls=self._enable_external_calls,
+                param_pack_sizes=param_pack_sizes,
+                param_pack_offsets=param_pack_offsets,
             )
-            self._imported_module = fx_importer.import_graph()
+            self._imported_module = (
+                fx_importer.import_main_graph()
+                if do_param_pack
+                else fx_importer.import_graph()
+            )
             outputs = fx_importer.get_output_nodes()
             self._outputs = outputs
         self._output_memref = []
         output_ranks = []
         output_dtypes = []
         for out_node in outputs:
-            out_type = ir.RankedTensorType(out_node.type)
+            out_type = (
+                ir.MemRefType(out_node.type)
+                if do_param_pack
+                else ir.RankedTensorType(out_node.type)
+            )
             shape = list(out_type.shape)
             dtype = out_type.element_type
             match str(dtype):
@@ -830,6 +849,8 @@ class GraphImporter:
         verbose=False,
         verbose_path: str | Path | None = None,
         enable_external_calls: bool = False,
+        param_pack_sizes=None,
+        param_pack_offsets=None,
     ):
         """
         Initializes the buddy Graph importer.
@@ -862,6 +883,13 @@ class GraphImporter:
         self._ops_registry = ops_registry
         self._current_param_pack_offset = None
         self._enable_external_calls = enable_external_calls
+        if (param_pack_sizes is None) != (param_pack_offsets is None):
+            raise ValueError(
+                "param_pack_sizes and param_pack_offsets must be provided "
+                "together"
+            )
+        self._param_pack_sizes = param_pack_sizes
+        self._param_pack_offsets = param_pack_offsets
 
     def _verbose_output(self):
         if self._verbose_path is None:
@@ -939,18 +967,26 @@ class GraphImporter:
         graph_instance._pack_params()
         # The parameters of the graph are now packed to one memref.
         """
-        dtypes = list(set([param.dtype for param in self._params_shapes]))
+        if self._param_pack_sizes is not None:
+            dtypes = list(self._param_pack_sizes)
+        else:
+            dtypes = list(set([param.dtype for param in self._params_shapes]))
         dtypes.sort(key=str)
         self._current_param_pack_offset = dict.fromkeys(dtypes, 0)
         for dtype in dtypes:
-            params_of_dtype = [
-                param for param in self._params_shapes if param.dtype == dtype
-            ]
-            param_total_size = 0
-            for param in params_of_dtype:
-                param_total_size += functools.reduce(
-                    lambda x, y: x * y, list(param.shape), 1
-                )
+            if self._param_pack_sizes is not None:
+                param_total_size = self._param_pack_sizes[dtype]
+            else:
+                params_of_dtype = [
+                    param
+                    for param in self._params_shapes
+                    if param.dtype == dtype
+                ]
+                param_total_size = 0
+                for param in params_of_dtype:
+                    param_total_size += functools.reduce(
+                        lambda x, y: x * y, list(param.shape), 1
+                    )
             mlir_dtype = self._str_to_mlir_dtype(dtype)
             self._param_packs.append(
                 ir.MemRefType.get([param_total_size], mlir_dtype)
@@ -1104,12 +1140,19 @@ class GraphImporter:
                 ).element_type == self._str_to_mlir_dtype(dtype):
                     pack_of_dtype = pack
                     break
+            if self._param_pack_offsets is None:
+                offset = self._current_param_pack_offset[dtype]
+            else:
+                offset = self._param_pack_offsets[str(node.name)]
             placeholder_name = self._ops_registry["param.extract"](
-                node, self._current_param_pack_offset[dtype], pack_of_dtype
+                node, offset, pack_of_dtype
             ).result
-            self._current_param_pack_offset[dtype] += functools.reduce(
-                lambda x, y: x * y, list(node.tensor_meta["shape"]), 1
-            )
+            if self._param_pack_offsets is None:
+                self._current_param_pack_offset[dtype] += functools.reduce(
+                    lambda x, y: x * y,
+                    list(node.tensor_meta["shape"]),
+                    1,
+                )
         elif self._do_param_pack:
             if len(self._params_shapes) > 0:
                 placeholder_name = args_list[
