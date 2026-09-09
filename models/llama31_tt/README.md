@@ -128,6 +128,40 @@ are supported. The generated serving plugin currently requires the
 Tenstorrent runtime for real generation; no-device lifecycle and HTTP tests can
 set `BUDDY_LLAMA31_TT_FAKE_EXECUTION=1`.
 
+The production plugin creates a TTNN session while the model is loading. The
+session keeps the prefill/decode Binary objects, 1x1 MeshDevice, static weight
+tensors, tokenizer artifacts, and program descriptors resident; prompt inputs,
+KV tensors, and cache-position inputs are request-scoped and released on
+success, cancellation, or exception. A healthy server reports
+`backend: "ttnn"` and does not require the fake environment variable.
+
+```bash
+curl -sS http://127.0.0.1:8080/health | jq .
+
+curl -sS http://127.0.0.1:8080/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"llama31_tt","messages":[{"role":"user","content":"Explain MLIR in one sentence."}],"max_tokens":32,"temperature":0}' | jq .
+
+curl -N --no-buffer http://127.0.0.1:8080/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"Write one sentence about Tenstorrent."}],"max_tokens":32,"temperature":0,"stream":true}'
+
+curl -sS http://127.0.0.1:8080/completion \
+  -H 'Content-Type: application/json' \
+  -d '{"prompt":"<|begin_of_text|><|start_header_id|>user<|end_header_id|>\\n\\nHello<|eot_id|><|start_header_id|>assistant<|end_header_id|>\\n\\n","max_tokens":32,"temperature":0}' | jq .
+
+curl -sS http://127.0.0.1:8080/tokenize \
+  -H 'Content-Type: application/json' \
+  -d '{"content":"Hello buddy-server","add_special":true,"count_only":false}' | jq .
+```
+
+`llama31_tt_serving.so` resolves TTNN runtime libraries through its build/install
+RPATH. When running from a non-installed build, keep the tt-metal runtime and
+the conda `buddy-mlir` Python library on `LD_LIBRARY_PATH`; a missing Binary,
+artifact, tokenizer, or device is a load error and `/health` remains in the
+`error` state. `BUDDY_LLAMA31_TT_FAKE_EXECUTION=1` is an explicit no-hardware
+test mode and must not be used to mask a production initialization failure.
+
 ## Run Fixed Batch
 
 Run a fixed-batch package.

@@ -19,6 +19,7 @@
 
 #include "buddy/runtime/core/ServingTypes.h"
 
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <string>
@@ -45,7 +46,10 @@ public:
     std::string prefillKVOutputOrder = "key_value";
     int maxCacheLen = 1024;
     int batchSize = 1;
+    int eosTokenId = 128009;
+    uint32_t programIndex = 0;
     bool ignoreEOS = false;
+    bool disableStaticReuse = false;
   };
 
   struct BackendRequest {
@@ -54,11 +58,18 @@ public:
     int cachePosition = 0;
     int maxCacheLen = 0;
     bool ignoreEOS = false;
+    int eosTokenId = 128009;
+    std::function<std::string(int)> decodeToken;
   };
 
   using Backend = std::function<CompletionResult(
       const BackendRequest &, const CompletionStreamCallback &)>;
   using ResetCallback = std::function<void()>;
+  struct BackendHooks {
+    Backend generate;
+    ResetCallback reset;
+  };
+  using BackendFactory = std::function<BackendHooks(const Metadata &)>;
 
   Llama31TTExecution();
   ~Llama31TTExecution();
@@ -82,9 +93,12 @@ public:
                             const SamplingParams &sampling,
                             const CompletionStreamCallback &callback = {});
 
-  /// Install a fake or hardware backend. The default backend reports a clear
-  /// error unless BUDDY_LLAMA31_TT_FAKE_EXECUTION is enabled.
+  /// Install a test/injected backend. A production plugin uses
+  /// setBackendFactory() to create its hardware session during load().
   void setBackend(Backend backend) { backendValue = std::move(backend); }
+  void setBackendFactory(BackendFactory factory) {
+    backendFactory = std::move(factory);
+  }
   void setResetCallback(ResetCallback callback) {
     resetCallback = std::move(callback);
   }
@@ -94,6 +108,7 @@ private:
   std::unique_ptr<Tokenizer> tokenizer;
   Metadata metadataValue;
   Backend backendValue;
+  BackendFactory backendFactory;
   ResetCallback resetCallback;
   int cachePositionValue = 0;
   bool loaded = false;

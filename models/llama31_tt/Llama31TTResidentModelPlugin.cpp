@@ -15,10 +15,41 @@
 //===----------------------------------------------------------------------===//
 
 #include "buddy/runtime/core/ResidentModelPlugin.h"
+#include "buddy/runtime/models/Llama31TTNNBackend.h"
 #include "buddy/runtime/models/Llama31TTResidentModel.h"
 
+#include <algorithm>
+#include <cctype>
+#include <cstdlib>
+#include <memory>
+#include <string>
+
+namespace {
+
+bool fakeExecutionRequested() {
+  const char *value = std::getenv("BUDDY_LLAMA31_TT_FAKE_EXECUTION");
+  if (!value)
+    return false;
+  std::string normalized(value);
+  std::transform(normalized.begin(), normalized.end(), normalized.begin(),
+                 [](unsigned char c) { return std::tolower(c); });
+  return normalized == "1" || normalized == "true" || normalized == "yes" ||
+         normalized == "on";
+}
+
+} // namespace
+
 extern "C" buddy::runtime::ResidentModel *buddy_create_resident_model_v1() {
-  return new buddy::runtime::Llama31TTResidentModel();
+  auto execution = std::make_shared<buddy::runtime::Llama31TTExecution>();
+  // Fake execution is an explicit test mode. Production plugin instances
+  // always construct the hardware session during ResidentModel::load().
+  if (!fakeExecutionRequested()) {
+    execution->setBackendFactory(
+        [](const buddy::runtime::Llama31TTExecution::Metadata &metadata) {
+          return buddy::runtime::createLlama31TTNNBackend(metadata);
+        });
+  }
+  return new buddy::runtime::Llama31TTResidentModel(std::move(execution));
 }
 
 extern "C" void

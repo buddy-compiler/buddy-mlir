@@ -94,6 +94,54 @@ int parsePositiveIntAttr(const ModelManifest &manifest,
   }
 }
 
+std::string lookupAttrOr(const ModelManifest &manifest, const std::string &key,
+                         const std::string &fallback) {
+  if (auto it = manifest.resolvedModuleAttrs.find(key);
+      it != manifest.resolvedModuleAttrs.end())
+    return it->second;
+  if (auto it = manifest.moduleAttrs.find(key);
+      it != manifest.moduleAttrs.end())
+    return it->second;
+  return fallback;
+}
+
+int parseNonNegativeIntAttr(const ModelManifest &manifest,
+                            const std::string &key, int fallback) {
+  const std::string value = lookupAttrOr(manifest, key, "");
+  if (value.empty())
+    return fallback;
+  try {
+    std::size_t consumed = 0;
+    const long long number = std::stoll(value, &consumed);
+    if (consumed != value.size() || number < 0 ||
+        number > std::numeric_limits<int>::max())
+      throw std::invalid_argument("range");
+    return static_cast<int>(number);
+  } catch (...) {
+    throw std::runtime_error("llama31_tt: manifest field '" + key +
+                             "' must be a non-negative integer, got '" + value +
+                             "'");
+  }
+}
+
+bool parseBoolAttrOr(const ModelManifest &manifest, const std::string &key,
+                     bool fallback) {
+  const std::string value = lookupAttrOr(manifest, key, "");
+  if (value.empty())
+    return fallback;
+  std::string normalized = value;
+  std::transform(normalized.begin(), normalized.end(), normalized.begin(),
+                 [](unsigned char c) { return std::tolower(c); });
+  if (normalized == "1" || normalized == "true" || normalized == "on" ||
+      normalized == "yes")
+    return true;
+  if (normalized == "0" || normalized == "false" || normalized == "off" ||
+      normalized == "no")
+    return false;
+  throw std::runtime_error("llama31_tt: manifest field '" + key +
+                           "' must be boolean, got '" + value + "'");
+}
+
 bool parseBoolAttr(const ModelManifest &manifest, const std::string &key) {
   std::string value = lookupAttr(manifest, key);
   std::transform(value.begin(), value.end(), value.begin(),
@@ -320,6 +368,13 @@ public:
                                       : std::optional<int>(found->second);
   }
 
+  std::string decodeToken(int id) const {
+    if (specialTextById.find(id) != specialTextById.end())
+      return "";
+    auto found = idToToken.find(id);
+    return found == idToToken.end() ? std::string() : found->second;
+  }
+
 private:
   void load(const fs::path &root) {
     fs::path model = root / "original" / "tokenizer.model";
@@ -355,10 +410,10 @@ private:
       const std::vector<uint8_t> decoded =
           decodeBase64(std::string_view(line).substr(0, space));
       const int id = std::stoi(line.substr(space + 1));
-      tokenToId.emplace(
-          std::string(reinterpret_cast<const char *>(decoded.data()),
-                      decoded.size()),
-          id);
+      std::string token(reinterpret_cast<const char *>(decoded.data()),
+                        decoded.size());
+      tokenToId.emplace(token, id);
+      idToToken[id] = std::move(token);
     }
   }
 
@@ -390,6 +445,7 @@ private:
              position = token.find(marker, position + 1))
           token.replace(position, marker.size(), " ");
         tokenToId[token] = static_cast<int>(*id);
+        idToToken[static_cast<int>(*id)] = token;
       }
     }
     if (auto *added = root->getArray("added_tokens")) {
@@ -406,7 +462,10 @@ private:
     }
   }
 
-  void addSpecial(int id, const std::string &text) { specialToId[text] = id; }
+  void addSpecial(int id, const std::string &text) {
+    specialToId[text] = id;
+    specialTextById[id] = text;
+  }
 
   std::optional<std::pair<int, std::size_t>>
   matchSpecial(std::string_view text, std::size_t position) const {
@@ -448,7 +507,9 @@ private:
   }
 
   std::unordered_map<std::string, int> tokenToId;
+  std::unordered_map<int, std::string> idToToken;
   std::unordered_map<std::string, int> specialToId;
+  std::unordered_map<int, std::string> specialTextById;
 };
 
 Llama31TTExecution::Llama31TTExecution() = default;
@@ -478,6 +539,12 @@ void Llama31TTExecution::load(const ResidentModelConfig &config) {
         "manifest batch_size=" +
         std::to_string(candidate.batchSize));
   candidate.ignoreEOS = parseBoolAttr(manifest, "ignore_eos");
+  candidate.eosTokenId =
+      parseNonNegativeIntAttr(manifest, "eos_token_id", kEot);
+  candidate.programIndex = static_cast<uint32_t>(
+      parseNonNegativeIntAttr(manifest, "program_index", 0));
+  candidate.disableStaticReuse =
+      parseBoolAttrOr(manifest, "disable_static_reuse", false);
   candidate.promptFormat = lookupAttr(manifest, "prompt_format");
   if (candidate.promptFormat != "chat" &&
       candidate.promptFormat != "completion")
@@ -497,8 +564,21 @@ void Llama31TTExecution::load(const ResidentModelConfig &config) {
 
   auto candidateTokenizer =
       std::make_unique<Tokenizer>(fs::path(candidate.tokenizerPath));
+  Backend candidateBackend = backendValue;
+  ResetCallback candidateReset = resetCallback;
+  if (!candidateBackend && backendFactory) {
+    BackendHooks hooks = backendFactory(candidate);
+    candidateBackend = std::move(hooks.generate);
+    if (hooks.reset)
+      candidateReset = std::move(hooks.reset);
+    if (!candidateBackend)
+      throw std::runtime_error(
+          "llama31_tt: backend factory returned no generate function");
+  }
   metadataValue = std::move(candidate);
   tokenizer = std::move(candidateTokenizer);
+  backendValue = std::move(candidateBackend);
+  resetCallback = std::move(candidateReset);
   chatTemplatePath = config.chatTemplatePath;
   loaded = true;
   reset();
@@ -587,6 +667,10 @@ Llama31TTExecution::generate(const std::string &prompt,
     request.cachePosition = static_cast<int>(request.promptTokens.size());
     request.maxCacheLen = metadataValue.maxCacheLen;
     request.ignoreEOS = metadataValue.ignoreEOS;
+    request.eosTokenId = metadataValue.eosTokenId;
+    request.decodeToken = [this](int token) {
+      return tokenizer ? tokenizer->decodeToken(token) : std::string();
+    };
     const int availableTokens =
         metadataValue.maxCacheLen - request.cachePosition;
     if (request.sampling.maxTokens == 0 ||

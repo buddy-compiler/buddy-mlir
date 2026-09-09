@@ -119,6 +119,7 @@ target_link_options(buddy_models_llama31_tt INTERFACE
 # runner's private TTNN orchestration code.
 add_library(buddy_models_llama31_tt_serving_runtime STATIC
   Llama31TTExecution.cpp
+  Llama31TTNNBackend.cpp
   Llama31TTResidentModel.cpp
 )
 target_compile_features(buddy_models_llama31_tt_serving_runtime PUBLIC cxx_std_20)
@@ -126,10 +127,26 @@ set_target_properties(buddy_models_llama31_tt_serving_runtime PROPERTIES
   POSITION_INDEPENDENT_CODE ON)
 target_include_directories(buddy_models_llama31_tt_serving_runtime PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_include_directories(buddy_models_llama31_tt_serving_runtime SYSTEM PRIVATE
+  "${BUDDY_TT_MLIR_SOURCE_DIR}/runtime/include"
+  "${BUDDY_TT_MLIR_SOURCE_DIR}/include"
+  "${BUDDY_TT_MLIR_BUILD_DIR}/runtime/include"
+  "${BUDDY_TT_MLIR_BUILD_DIR}/include")
 target_link_libraries(buddy_models_llama31_tt_serving_runtime PUBLIC
   buddy_runtime_core buddy_runtime_llm LLVMSupport)
+target_link_libraries(buddy_models_llama31_tt_serving_runtime PRIVATE
+  "${BUDDY_TTMLIR_RUNTIME_LIB}" "${BUDDY_LLAMA31_PYTHON_LIB}")
+target_compile_definitions(buddy_models_llama31_tt_serving_runtime PRIVATE
+  BUDDY_LLAMA31_TT_HAS_TTNN=1)
+set_property(TARGET buddy_models_llama31_tt_serving_runtime APPEND PROPERTY
+  BUILD_RPATH
+    "${_BUDDY_TTMLIR_RUNTIME_LIB_DIR}"
+    "${_BUDDY_TT_METAL_BUILD_LIB_DIR}"
+    "${_BUDDY_LLAMA31_PYTHON_LIB_DIR}"
+    "${BUDDY_TT_MLIR_BUILD_DIR}/python_packages/ttrt/runtime")
 install(FILES
   include/buddy/runtime/models/Llama31TTExecution.h
+  include/buddy/runtime/models/Llama31TTNNBackend.h
   include/buddy/runtime/models/Llama31TTResidentModel.h
   DESTINATION include/buddy-mlir/buddy/runtime/models/
   COMPONENT buddy_runtime)
@@ -148,6 +165,17 @@ set_target_properties(buddy_models_llama31_tt_serving PROPERTIES
 target_link_libraries(buddy_models_llama31_tt_serving
   PRIVATE buddy_models_llama31_tt_serving_runtime)
 target_compile_features(buddy_models_llama31_tt_serving PRIVATE cxx_std_20)
+set_property(TARGET buddy_models_llama31_tt_serving APPEND PROPERTY BUILD_RPATH
+  "${_BUDDY_TTMLIR_RUNTIME_LIB_DIR}"
+  "${_BUDDY_TT_METAL_BUILD_LIB_DIR}"
+  "${_BUDDY_LLAMA31_PYTHON_LIB_DIR}"
+  "${BUDDY_TT_MLIR_BUILD_DIR}/python_packages/ttrt/runtime")
+set_property(TARGET buddy_models_llama31_tt_serving APPEND PROPERTY INSTALL_RPATH
+  "$ORIGIN" "$ORIGIN/../lib"
+  "${_BUDDY_TTMLIR_RUNTIME_LIB_DIR}"
+  "${_BUDDY_TT_METAL_BUILD_LIB_DIR}"
+  "${_BUDDY_LLAMA31_PYTHON_LIB_DIR}"
+  "${BUDDY_TT_MLIR_BUILD_DIR}/python_packages/ttrt/runtime")
 install(TARGETS buddy_models_llama31_tt_serving
   EXPORT BuddyMLIRTargets COMPONENT buddy_runtime)
 

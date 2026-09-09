@@ -96,6 +96,32 @@ int main() {
   assert(second.content == "x");
   assert(starts == 2);
 
+  auto factoryExecution = std::make_shared<Llama31TTExecution>();
+  bool factoryCalled = false;
+  int factoryResets = 0;
+  factoryExecution->setBackendFactory(
+      [&](const Llama31TTExecution::Metadata &metadata) {
+        factoryCalled = true;
+        assert(metadata.modelName == "llama31_tt");
+        Llama31TTExecution::BackendHooks hooks;
+        hooks.generate = [](const Llama31TTExecution::BackendRequest &request,
+                            const CompletionStreamCallback &) {
+          assert(request.decodeToken);
+          assert(request.decodeToken(3) == "abc");
+          CompletionResult result;
+          result.finishReason = FinishReason::Stop;
+          result.content = "factory";
+          result.usage.completionTokens = 1;
+          return result;
+        };
+        hooks.reset = [&] { ++factoryResets; };
+        return hooks;
+      });
+  factoryExecution->load(config);
+  assert(factoryCalled);
+  assert(factoryExecution->generate("abc", sampling).content == "factory");
+  assert(factoryResets >= 2);
+
   bool sawChunk = false;
   CompletionResult cancelled =
       execution->generate("abc", sampling, [&](const CompletionChunk &chunk) {
