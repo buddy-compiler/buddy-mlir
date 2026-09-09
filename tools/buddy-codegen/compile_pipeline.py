@@ -80,6 +80,7 @@ def build_stages(
     variant: str = "f32",
     tiered: bool = False,
     decode_pack: dict | None = None,
+    tp_wrapper_out_params: bool = False,
 ):
     """
     Build the list of (tool_name, [args]) stages for a given pipeline type.
@@ -98,10 +99,20 @@ def build_stages(
         llc_base_args.append("-code-model=large")
 
     if pipeline_type == "forward":
+        out_param_opts = []
+        if tp_wrapper_out_params:
+            out_param_opts = [
+                "-buffer-results-to-out-params=hoist-static-allocs",
+                (
+                    "-buffer-results-to-out-params="
+                    "hoist-static-allocs modify-public-functions"
+                ),
+            ]
         stages.append(
             (
                 "buddy-opt",
-                [
+                out_param_opts
+                + [
                     "-expand-strided-metadata",
                     "-canonicalize",
                     "-cse",
@@ -144,6 +155,17 @@ def build_stages(
     opts.extend(
         [
             "-one-shot-bufferize=bufferize-function-boundaries",
+            *(
+                [
+                    "-buffer-results-to-out-params=hoist-static-allocs",
+                    (
+                        "-buffer-results-to-out-params="
+                        "hoist-static-allocs modify-public-functions"
+                    ),
+                ]
+                if tp_wrapper_out_params
+                else []
+            ),
             "-expand-strided-metadata",
             "-ownership-based-buffer-deallocation",
             "-canonicalize",
@@ -402,6 +424,7 @@ def _compile_one(task: dict) -> str:
         task.get("variant", "f32"),
         task.get("tiered", False),
         task.get("decode_pack"),
+        task.get("tp_wrapper_out_params", False),
     )
     run_pipeline(
         stages,
@@ -609,6 +632,139 @@ def partitioned_compile_entries(
     ]
 
 
+def tp_runtime_compile_entries(
+    mlir_dir: str, runtime_plan_paths: list[str]
+) -> list[tuple[str, str, str, str, bool]]:
+    """Resolve the exact rank-local wrapper/subgraph sources in runtime plans."""
+    mlir_dir = os.path.abspath(mlir_dir)
+    plans = []
+    for path in runtime_plan_paths:
+        with open(path) as file:
+            plan = json.load(file)
+        rank = plan.get("rank")
+        graph = plan.get("graph")
+        if type(rank) is not int or rank < 0:
+            raise ValueError(f"{path}: invalid runtime-plan rank {rank!r}")
+        if not isinstance(graph, str) or not re.fullmatch(
+            r"[A-Za-z_][A-Za-z0-9_]*", graph
+        ):
+            raise ValueError(f"{path}: invalid runtime-plan graph {graph!r}")
+        plans.append((path, rank, graph, plan))
+
+    ranks = sorted({rank for _, rank, _, _ in plans})
+    if not ranks:
+        raise ValueError("TP wrapper compilation requires runtime plans")
+    canonical_rank = ranks[0]
+    canonical_plans = [item for item in plans if item[1] == canonical_rank]
+    other_plans = {(rank, graph): plan for _, rank, graph, plan in plans}
+
+    def dispatch_symbols(plan):
+        return {
+            (operation.get("wrapper"), operation.get("function"))
+            for operation in plan.get("operations", [])
+            if isinstance(operation, dict)
+            and operation.get("kind") == "dispatch"
+        }
+
+    for _, _, graph, canonical_plan in canonical_plans:
+        canonical_symbols = dispatch_symbols(canonical_plan)
+        for rank in ranks[1:]:
+            other_plan = other_plans.get((rank, graph))
+            if (
+                other_plan is None
+                or dispatch_symbols(other_plan) != canonical_symbols
+            ):
+                raise ValueError(
+                    f"rank-local dispatch set differs for {graph}; "
+                    "pass one rank's runtime plans per rank-specific library"
+                )
+
+    sources = {}
+    wrappers = {}
+    for path, _, graph, plan in canonical_plans:
+        operations = plan.get("operations")
+        if not isinstance(operations, list):
+            raise ValueError(f"{path}: 'operations' must be an array")
+        phase_dir = os.path.join(mlir_dir, f"rank{canonical_rank}", graph)
+        for operation in operations:
+            if operation.get("kind") != "dispatch":
+                continue
+            wrapper = operation.get("wrapper")
+            function = operation.get("function")
+            for label, symbol in (("wrapper", wrapper), ("function", function)):
+                if not isinstance(symbol, str) or not re.fullmatch(
+                    r"[A-Za-z_][A-Za-z0-9_]*", symbol
+                ):
+                    raise ValueError(
+                        f"{path}: dispatch has invalid {label} symbol {symbol!r}"
+                    )
+            previous = wrappers.setdefault(wrapper, function)
+            if previous != function:
+                raise ValueError(
+                    f"{path}: wrapper {wrapper!r} references inconsistent functions"
+                )
+            sources[(graph, wrapper, True)] = os.path.join(
+                phase_dir, f"{wrapper}.mlir"
+            )
+            sources[(graph, function, False)] = os.path.join(
+                phase_dir, f"{function}.mlir"
+            )
+
+    for key, canonical_source in sources.items():
+        graph, symbol, _ = key
+        if not os.path.isfile(canonical_source):
+            raise FileNotFoundError(
+                f"Missing TP runtime MLIR source: {canonical_source}"
+            )
+        with open(canonical_source, "rb") as file:
+            canonical_contents = file.read()
+        for rank in ranks[1:]:
+            if (rank, graph) not in other_plans:
+                raise ValueError(
+                    f"rank {rank} has no {graph!r} runtime plan; "
+                    "pass one rank only to build a rank-specific library"
+                )
+            other_source = os.path.join(
+                mlir_dir, f"rank{rank}", graph, f"{symbol}.mlir"
+            )
+            try:
+                with open(other_source, "rb") as file:
+                    other_contents = file.read()
+            except OSError as error:
+                raise FileNotFoundError(
+                    f"Missing TP runtime MLIR source: {other_source}"
+                ) from error
+            if other_contents != canonical_contents:
+                raise ValueError(
+                    f"rank-local source differs for {graph}/{symbol}; "
+                    "pass one rank's runtime plans per rank-specific library"
+                )
+
+    entries = []
+    for (graph, symbol, is_wrapper), source in sorted(sources.items()):
+        if is_wrapper:
+            pipeline = "forward"
+            kind = "wrapper"
+        else:
+            pipeline = "subgraph_decode" if "decode" in graph else "subgraph"
+            kind = "subgraph"
+        # An external declaration in a separately compiled wrapper is not
+        # rewritten by buffer-results-to-out-params. Keep reusable subgraph
+        # definitions on the returned-descriptor ABI that declaration uses.
+        entries.append(
+            (
+                f"{graph}_{kind}_{symbol}",
+                source,
+                f"tp_{graph}_{kind}_{symbol}.o",
+                pipeline,
+                is_wrapper,
+            )
+        )
+    if not entries:
+        raise RuntimeError("Runtime plans contain no TP dispatch sources")
+    return entries
+
+
 def compile_partitioned(
     config: dict,
     mlir_dir: str,
@@ -619,14 +775,21 @@ def compile_partitioned(
     jobs: int = 1,
     prefill_only: bool = False,
     full_mlir_dir: str | None = None,
-) -> None:
+    runtime_plan_paths: list[str] | None = None,
+) -> list[str]:
     """Compile all per-layer MLIR files from a layer_partitioned directory."""
-    entries = partitioned_compile_entries(
-        mlir_dir,
-        prefill_only=prefill_only,
-        full_mlir_dir=full_mlir_dir,
-        tiered=is_tiered_kv_cache(config),
-    )
+    if runtime_plan_paths:
+        entries = tp_runtime_compile_entries(mlir_dir, runtime_plan_paths)
+    else:
+        entries = [
+            (*entry, False)
+            for entry in partitioned_compile_entries(
+                mlir_dir,
+                prefill_only=prefill_only,
+                full_mlir_dir=full_mlir_dir,
+                tiered=is_tiered_kv_cache(config),
+            )
+        ]
     if not entries:
         raise RuntimeError(f"No partitioned MLIR files found in {mlir_dir}")
 
@@ -636,7 +799,7 @@ def compile_partitioned(
     os.makedirs(output_dir, exist_ok=True)
 
     tasks = []
-    for key, mlir_name, obj_name, pipeline_type in entries:
+    for key, mlir_name, obj_name, pipeline_type, tp_out_params in entries:
         tasks.append(
             {
                 "name": key,
@@ -652,6 +815,7 @@ def compile_partitioned(
                 "output": os.path.join(output_dir, obj_name),
                 "buddy_opt": buddy_opt,
                 "llvm_dir": llvm_dir,
+                "tp_wrapper_out_params": tp_out_params,
             }
         )
 
@@ -673,6 +837,7 @@ def compile_partitioned(
 
     elapsed = time.perf_counter() - started
     print(f"[compile] All done in {elapsed:.2f}s.", file=sys.stderr)
+    return [task["output"] for task in tasks]
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -733,6 +898,14 @@ def link_shared_lib(
 
     print(f"[link] {os.path.basename(output_so)}", file=sys.stderr)
     subprocess.check_call(cmd)
+
+
+def compile_cpp(source: str, output: str, cxx: str = "c++") -> None:
+    """Compile the generated RAX shim translation unit."""
+    print(f"[compile] {os.path.basename(source)}", file=sys.stderr)
+    subprocess.check_call(
+        [cxx, "-std=c++17", "-fPIC", "-c", source, "-o", output]
+    )
 
 
 def partitioned_runtime_objects(
@@ -824,6 +997,27 @@ def main():
         help="Pipeline type (single-file mode)",
     )
     parser.add_argument(
+        "--tp-wrapper-out-params",
+        action="store_true",
+        help=(
+            "Convert public TP wrapper memref results to caller-provided "
+            "output arguments (single-file forward mode)"
+        ),
+    )
+    parser.add_argument(
+        "--runtime-plan",
+        action="append",
+        default=[],
+        help=(
+            "Stage 4 runtime-plan JSON used to select and compile exact TP "
+            "wrappers (repeatable)"
+        ),
+    )
+    parser.add_argument(
+        "--rax-shims",
+        help="Generated RaxShims.cpp to compile into a TP kernel library",
+    )
+    parser.add_argument(
         "--mlir-dir", help="Directory with MLIR files (compile-all)"
     )
     parser.add_argument(
@@ -880,6 +1074,21 @@ def main():
 
     args = parser.parse_args()
 
+    if args.tp_wrapper_out_params and (
+        args.compile_all
+        or args.compile_partitioned
+        or args.pipeline != "forward"
+    ):
+        parser.error(
+            "--tp-wrapper-out-params requires single-file --pipeline forward"
+        )
+    if args.runtime_plan and not args.compile_partitioned:
+        parser.error("--runtime-plan requires --compile-partitioned")
+    if args.rax_shims and not args.runtime_plan:
+        parser.error("--rax-shims requires --runtime-plan")
+    if args.runtime_plan and args.link and not args.rax_shims:
+        parser.error("linked TP runtime-plan compilation requires --rax-shims")
+
     with open(args.config) as f:
         config = json.load(f)
 
@@ -919,7 +1128,7 @@ def main():
                 "--compile-partitioned requires --mlir-dir and --output-dir"
             )
 
-        compile_partitioned(
+        compiled_objects = compile_partitioned(
             config=config,
             mlir_dir=args.mlir_dir,
             output_dir=args.output_dir,
@@ -929,17 +1138,27 @@ def main():
             jobs=args.jobs,
             prefill_only=args.partitioned_prefill_only,
             full_mlir_dir=args.full_mlir_dir,
+            runtime_plan_paths=args.runtime_plan,
         )
         if args.link:
             output_so = args.output_so or os.path.join(
                 args.output_dir, config["compilation"]["so_name"]
             )
-            link_shared_lib(
-                obj_files=partitioned_runtime_objects(
+            obj_files = (
+                compiled_objects
+                if args.runtime_plan
+                else partitioned_runtime_objects(
                     args.output_dir,
                     config,
                     prefill_only=args.partitioned_prefill_only,
-                ),
+                )
+            )
+            if args.rax_shims:
+                shim_object = os.path.join(args.output_dir, "RaxShims.o")
+                compile_cpp(args.rax_shims, shim_object, args.cxx)
+                obj_files.append(shim_object)
+            link_shared_lib(
+                obj_files=obj_files,
                 output_so=output_so,
                 cxx=args.cxx,
                 llvm_lib_dir=args.llvm_lib_dir,
@@ -958,6 +1177,7 @@ def main():
             variant,
             is_tiered_kv_cache(config),
             config.get("decode_pack"),
+            args.tp_wrapper_out_params,
         )
 
         print(

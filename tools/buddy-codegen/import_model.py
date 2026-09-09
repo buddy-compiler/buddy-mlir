@@ -71,8 +71,11 @@ try:
     from buddy.compiler.frontend import DynamoCompiler
     from buddy.compiler.graph import (
         GraphDriver,
+        ParallelTemplatePartitionedGraphDriver,
         PartitionedGraphDriver,
         TemplatePartitionedGraphDriver,
+        TransformerParallelConfig,
+        build_transformer_parallel_plan,
         build_transformer_partition_plan,
     )
     from buddy.compiler.graph.operation import *
@@ -697,9 +700,258 @@ def export_layer_partitioned_mlir(
     return manifest
 
 
+def _lower_parallel_driver_artifacts(driver, phase_dir: str) -> None:
+    """Write one rank/phase's reusable segments and concrete wrappers."""
+    subgraphs = driver.build_parallel_template_subgraphs()
+    for subgraph in subgraphs:
+        subgraph.lower_to_top_level_ir()
+
+    os.makedirs(phase_dir, exist_ok=True)
+    for template in driver._parallel_plan.templates:
+        for segment in template.segments:
+            key = (template.template_id, segment.segment_index)
+            subgraph = driver._subgraphs[key]
+            name = f"{driver.parallel_template_symbol(*key)}.mlir"
+            with open(os.path.join(phase_dir, name), "w") as f:
+                print(subgraph._imported_module, file=f)
+
+    driver.construct_parallel_segment_wrappers()
+    pack_sizes = {}
+    for layout in driver._rank_parameter_layout.values():
+        dtype = layout["dtype"]
+        pack_sizes[dtype] = max(
+            pack_sizes.get(dtype, 0), layout["offset"] + layout["numel"]
+        )
+    for key, wrapper in driver._parallel_segment_wrappers.items():
+        bindings = driver._wrapper_parameter_bindings[key]
+        offsets = {
+            name: driver._rank_parameter_layout[parameter_index]["offset"]
+            for name, parameter_index in bindings.items()
+        }
+        wrapper_pack_sizes = {
+            layout["dtype"]: pack_sizes[layout["dtype"]]
+            for parameter_index in bindings.values()
+            for layout in (driver._rank_parameter_layout[parameter_index],)
+        }
+        wrapper.lower_to_top_level_ir(
+            do_param_pack=True,
+            param_pack_sizes=wrapper_pack_sizes,
+            param_pack_offsets=offsets,
+        )
+        with open(
+            os.path.join(phase_dir, f"{wrapper._func_name}.mlir"), "w"
+        ) as f:
+            print(wrapper._imported_module, file=f)
+
+
+def _write_runtime_plan(path: str, runtime_plan: dict) -> None:
+    with open(path, "w") as f:
+        json.dump(runtime_plan, f, indent=2)
+        f.write("\n")
+
+
+def _parallel_plan_provenance(
+    graph, partition_plan, parallel_plan, output_remap
+):
+    """Serialize the real frontend instance/template coverage for validation."""
+    excluded = set(graph.inputs) | set(graph.params)
+    eligible = {
+        op
+        for op in graph.body
+        if op not in excluded
+        and not isinstance(op, (TensorConstantOp, OutputOp))
+    }
+    covered = [
+        op
+        for region in partition_plan.partition_sequence
+        for op in region.nodes
+    ]
+    if len(covered) != len(set(covered)) or set(covered) != eligible:
+        raise ValueError("parallel artifact provenance has incomplete coverage")
+
+    suffix = graph._func_name.removeprefix("forward_")
+    separator = "" if suffix in ("prefill", "decode") else "_"
+    templates = {item.template_id: item for item in parallel_plan.templates}
+    template_records = []
+    for template in parallel_plan.templates:
+        base = f"subgraph0_{suffix}{separator}{template.template_id}"
+        template_records.append(
+            {
+                "template_id": template.template_id,
+                "segment_indices": [
+                    segment.segment_index for segment in template.segments
+                ],
+                "reusable_subgraphs": [
+                    f"{base}_seg{segment.segment_index}.mlir"
+                    for segment in template.segments
+                ],
+            }
+        )
+
+    instances = []
+    for instance_index, binding in enumerate(partition_plan.instance_bindings):
+        is_layer = hasattr(binding.region, "layer_index")
+        region_index = (
+            binding.region.layer_index if is_layer else instance_index
+        )
+        instances.append(
+            {
+                "instance_index": instance_index,
+                "region_type": type(binding.region).__name__,
+                "region_kind": binding.region.kind.name.lower(),
+                "region_label": "layer" if is_layer else "region",
+                "region_index": region_index,
+                "template_id": binding.template_id,
+                "segment_indices": [
+                    segment.segment_index
+                    for segment in templates[binding.template_id].segments
+                ],
+                "node_count": len(binding.region.nodes),
+            }
+        )
+
+    layer_count = sum(item["region_label"] == "layer" for item in instances)
+    return {
+        "graph": graph._func_name,
+        "eligible_node_count": len(eligible),
+        "covered_node_count": len(covered),
+        "region_instance_count": len(instances),
+        "layer_region_count": layer_count,
+        "non_layer_region_count": len(instances) - layer_count,
+        "template_ids": [item.template_id for item in parallel_plan.templates],
+        "templates": template_records,
+        "instances": instances,
+        "output_remap": output_remap,
+        "rank_schedules": {},
+    }
+
+
+def _export_parallel_template_runtime_artifacts(
+    graph_plans: list[tuple[object, object, list[int] | None]],
+    params: list,
+    output_dir: str,
+    partition_dir: str,
+    world_size: int,
+) -> dict:
+    """Materialize and serialize the existing TP plan for every rank."""
+    if not graph_plans:
+        raise ValueError("parallel template export requires at least one graph")
+    if params is None:
+        raise ValueError("parallel template export requires model parameters")
+
+    runtime_dir = os.path.join(partition_dir, "runtime")
+    os.makedirs(runtime_dir, exist_ok=True)
+    for filename in os.listdir(runtime_dir):
+        if re.fullmatch(r"rank\d+_forward_[A-Za-z0-9_]+\.json", filename):
+            os.remove(os.path.join(runtime_dir, filename))
+
+    parallel_config = TransformerParallelConfig(tp_size=world_size)
+    parallel_plans = [
+        build_transformer_parallel_plan(graph, partition_plan, parallel_config)
+        for graph, partition_plan, _ in graph_plans
+    ]
+    plan_artifacts = {
+        graph._func_name: _parallel_plan_provenance(
+            graph, partition_plan, parallel_plan, output_remap
+        )
+        for (graph, partition_plan, output_remap), parallel_plan in zip(
+            graph_plans, parallel_plans, strict=True
+        )
+    }
+    rank_artifacts = []
+    for rank in range(world_size):
+        rank_dir = os.path.join(partition_dir, f"rank{rank}")
+        os.makedirs(rank_dir, exist_ok=True)
+        for root, _, filenames in os.walk(rank_dir):
+            for filename in filenames:
+                if filename.endswith(".mlir"):
+                    os.remove(os.path.join(root, filename))
+
+        drivers = []
+        for (graph, partition_plan, _), parallel_plan in zip(
+            graph_plans, parallel_plans, strict=True
+        ):
+            driver = ParallelTemplatePartitionedGraphDriver(
+                graph, partition_plan, parallel_plan, rank=rank
+            )
+            phase_dir = os.path.join(rank_dir, graph._func_name)
+            _lower_parallel_driver_artifacts(driver, phase_dir)
+            drivers.append(driver)
+
+        expected_layout = drivers[0]._rank_parameter_layout
+        for driver in drivers[1:]:
+            if driver._rank_parameter_layout != expected_layout:
+                raise ValueError(
+                    f"rank {rank} Prefill/Decode parameter-pack metadata is "
+                    "inconsistent"
+                )
+
+        for filename in os.listdir(output_dir):
+            if re.fullmatch(
+                rf"rank{rank}_params_[A-Za-z0-9_]+\.data", filename
+            ):
+                os.remove(os.path.join(output_dir, filename))
+        drivers[0].build_rank_parameter_pack(params, output_dir)
+
+        function_artifacts = {"rank": rank}
+        expected_packs = None
+        for (graph, _, output_remap), driver in zip(
+            graph_plans, drivers, strict=True
+        ):
+            runtime_plan = driver.build_parallel_runtime_plan(
+                output_remap=output_remap
+            )
+            plan_artifacts[graph._func_name]["rank_schedules"][str(rank)] = {
+                "operations": [
+                    {
+                        "kind": operation["kind"],
+                        **(
+                            {"wrapper": operation["wrapper"]}
+                            if operation["kind"] == "dispatch"
+                            else {"collective": operation["collective"]}
+                        ),
+                    }
+                    for operation in runtime_plan["operations"]
+                ],
+                "runtime_outputs": list(runtime_plan["runtime_outputs"]),
+            }
+            packs = runtime_plan["parameter_packs"]
+            if expected_packs is None:
+                expected_packs = packs
+            elif packs != expected_packs:
+                raise ValueError(
+                    f"rank {rank} Prefill/Decode parameter-pack metadata is "
+                    "inconsistent"
+                )
+            filename = f"rank{rank}_{graph._func_name}.json"
+            _write_runtime_plan(
+                os.path.join(runtime_dir, filename), runtime_plan
+            )
+            function_artifacts[graph._func_name] = f"runtime/{filename}"
+            print(
+                f"[import] Written: layer_partitioned/runtime/{filename}",
+                file=sys.stderr,
+            )
+        function_artifacts["parameter_packs"] = [
+            f"../{pack['resource']}.data" for pack in expected_packs or ()
+        ]
+        function_artifacts["materialized_mlir"] = f"rank{rank}"
+        rank_artifacts.append(function_artifacts)
+
+    return {
+        "world_size": world_size,
+        "plans": plan_artifacts,
+        "ranks": rank_artifacts,
+    }
+
+
 def export_template_partitioned_mlir(
-    graph_prefill, graph_decode, output_dir: str
-) -> dict[str, int | bool]:
+    graph_prefill,
+    graph_decode,
+    output_dir: str,
+    params: list | None = None,
+    tensor_parallel_size: int = 1,
+) -> dict:
     """Export unique prefill/decode templates and complete static wrappers."""
     prefill_plan = build_transformer_partition_plan(graph_prefill)
     prefill_driver = TemplatePartitionedGraphDriver(graph_prefill, prefill_plan)
@@ -775,6 +1027,21 @@ def export_template_partitioned_mlir(
         "debug_wrappers": False,
         "template_materialization": True,
     }
+    if tensor_parallel_size > 1:
+        manifest["runtime"] = _export_parallel_template_runtime_artifacts(
+            [
+                (
+                    graph_prefill,
+                    prefill_plan,
+                    _prefill_output_remap(graph_prefill),
+                ),
+                (graph_decode, decode_plan, None),
+            ],
+            params,
+            output_dir,
+            partition_dir,
+            tensor_parallel_size,
+        )
     with open(os.path.join(partition_dir, "partition_manifest.json"), "w") as f:
         json.dump(manifest, f, indent=2)
         f.write("\n")
@@ -1216,15 +1483,36 @@ def import_model(
     direct_plain_weight_export: bool = True,
     reuse_existing_weights: bool = False,
     skip_weights: bool = False,
+    tensor_parallel_size: int = 1,
 ):
     """Full import pipeline: load → compile → transform → export."""
     if export_layer_partitioned and export_template_partitioned:
         raise ValueError(
             "layer and template partitioned exports are mutually exclusive"
         )
+    if tensor_parallel_size < 1:
+        raise ValueError("tensor parallel size must be positive")
+    if tensor_parallel_size > 1 and not export_template_partitioned:
+        raise ValueError(
+            "tensor parallel export requires --experimental-template-partitioned"
+        )
     os.makedirs(output_dir, exist_ok=True)
     variant = config["variant"]
     is_quantized = variant.startswith("w")
+    if tensor_parallel_size > 1 and is_tiered_kv_cache(config):
+        raise ValueError(
+            "tensor parallel runtime artifacts do not support tiered KV cache"
+        )
+    if tensor_parallel_size > 1 and is_quantized:
+        raise ValueError(
+            "tensor parallel runtime artifacts currently require plain weights"
+        )
+    if tensor_parallel_size > 1 and config.get("decode_pack", {}).get(
+        "enabled"
+    ):
+        raise ValueError(
+            "tensor parallel runtime artifacts do not support decode_pack"
+        )
 
     # 1. Load model
     with timed_import_step("load_model"):
@@ -1339,7 +1627,11 @@ def import_model(
     if export_template_partitioned:
         with timed_import_step("export_template_partitioned_mlir"):
             export_template_partitioned_mlir(
-                graphs_prefill[0], graphs_decode[0], output_dir
+                graphs_prefill[0],
+                graphs_decode[0],
+                output_dir,
+                params=original_params,
+                tensor_parallel_size=tensor_parallel_size,
             )
 
     # 7. Export whole-graph MLIR when requested. Partitioned runtime builds
@@ -1443,6 +1735,16 @@ def main():
         ),
     )
     parser.add_argument(
+        "--tensor-parallel-size",
+        type=int,
+        default=1,
+        help=(
+            "Experimental template tensor-parallel world size. The current "
+            "frontend planner supports 2; runtime plans are generated "
+            "automatically."
+        ),
+    )
+    parser.add_argument(
         "--layer-partition-debug-wrappers",
         action="store_true",
         help=(
@@ -1488,6 +1790,11 @@ def main():
 
     try:
         if config.get("model_family") == "qwen3_vl":
+            if args.tensor_parallel_size > 1:
+                raise ValueError(
+                    "tensor parallel runtime artifacts are limited to the "
+                    "DeepSeek template path"
+                )
             import_qwen3_vl_model(
                 config,
                 args.output_dir,
@@ -1510,8 +1817,9 @@ def main():
                 direct_plain_weight_export=not args.no_direct_plain_weight_export,
                 reuse_existing_weights=args.reuse_existing_weights,
                 skip_weights=args.skip_weights,
+                tensor_parallel_size=args.tensor_parallel_size,
             )
-    except RuntimeError as e:
+    except (RuntimeError, ValueError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
 
