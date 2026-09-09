@@ -36,6 +36,7 @@
 #endif
 
 #include <cerrno>
+#include <cstdlib>
 #include <cstring>
 #include <dlfcn.h>
 #include <filesystem>
@@ -271,6 +272,7 @@ static void usage(const char *prog) {
       << "\n"
       << "Model source (one required):\n"
       << "  --model      <path.rax>  Model manifest (recommended)\n"
+      << "                           {rank} resolves from PMI_RANK\n"
       << "  --model-so   <path.so>   Model shared library  (legacy mode)\n"
       << "  --weights    <path>      Weights file           (legacy mode)\n"
       << "  --vocab      <path>      Vocabulary file        (legacy mode)\n"
@@ -478,6 +480,23 @@ int main(int argc, char **argv) {
     return 2;
   }
 
+  const std::string rankPlaceholder = "{rank}";
+  size_t rankPosition = raxPath.find(rankPlaceholder);
+  const bool rankLocalModel = rankPosition != std::string::npos;
+  if (rankLocalModel) {
+    const char *rankEnv = std::getenv("PMI_RANK");
+    if (!rankEnv || rankEnv[0] == '\0') {
+      std::cerr << "\033[31;1m[Error]\033[0m "
+                   "--model contains {rank}, but PMI_RANK is not set.\n";
+      return 2;
+    }
+    const std::string rank(rankEnv);
+    do {
+      raxPath.replace(rankPosition, rankPlaceholder.size(), rank);
+      rankPosition = raxPath.find(rankPlaceholder, rankPosition + rank.size());
+    } while (rankPosition != std::string::npos);
+  }
+
   std::vector<std::string> prompts;
   if (!promptFile.empty()) {
     std::ifstream input(promptFile);
@@ -501,7 +520,7 @@ int main(int argc, char **argv) {
 
   // Speech and vision-language runs are driven by media inputs.
   if (prompt.empty() && prompts.empty() && audioPath.empty() &&
-      imagePath.empty() && !interactive) {
+      imagePath.empty() && !interactive && !rankLocalModel) {
     std::cout << "Prompt: ";
     std::getline(std::cin, prompt);
     std::cout << "\n";
