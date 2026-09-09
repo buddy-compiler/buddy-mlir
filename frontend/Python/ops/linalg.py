@@ -13111,21 +13111,28 @@ def mega_conv2d_op(node, symbol_table):
     activation_type = ir.RankedTensorType(activation.type)
     input_shape = [int(x) for x in activation_type.shape]
     n, cin, h, w = node._input_shape
-    if input_shape == [n, cin, h, w]:
-        if activation_type.element_type != f32:
-            raise ValueError("NCHW Mega Conv2D input must be FP32")
+    if activation_type.element_type == f32:
+        if input_shape == [n, cin, h, w]:
+            nchw_to_nhwc = True
+        elif input_shape == [n, h, w, cin]:
+            nchw_to_nhwc = False
+        else:
+            raise ValueError(
+                f"FP32 Mega Conv2D input layout mismatch for {node.name}: "
+                f"expected {[n, cin, h, w]} or {[n, h, w, cin]}, got {input_shape}"
+            )
         activation = _mega_quantize(
-            activation, node._input_scale, nchw_to_nhwc=True
+            activation, node._input_scale, nchw_to_nhwc=nchw_to_nhwc
         )
-    elif input_shape != [n, h, w, cin]:
-        raise ValueError(
-            f"Mega Conv2D input layout mismatch for {node.name}: {input_shape}"
-        )
-    if ir.RankedTensorType(activation.type).element_type == f32:
-        activation = _mega_quantize(
-            activation, node._input_scale, nchw_to_nhwc=False
-        )
-    elif ir.RankedTensorType(activation.type).element_type != i8:
+    elif activation_type.element_type == i8:
+        if input_shape == [n, cin, h, w]:
+            activation = _nchw_to_nhwc(activation)
+        elif input_shape != [n, h, w, cin]:
+            raise ValueError(
+                f"INT8 Mega Conv2D input layout mismatch for {node.name}: "
+                f"expected {[n, cin, h, w]} or {[n, h, w, cin]}, got {input_shape}"
+            )
+    else:
         raise ValueError("Mega Conv2D activation must be FP32 or INT8")
 
     depthwise = isinstance(node, MegaConv2dDepthwiseOp)
@@ -13667,7 +13674,40 @@ def mega_kernel_op(node, symbol_table):
     if not node._stages:
         raise ValueError(f"MegaKernel {node.name} has no stages")
     result = None
-    for index, stage in enumerate(node._stages):
+    compute_stages = (
+        MegaConv2dOp,
+        MegaConv2dDepthwiseOp,
+        MegaMatmulOp,
+        MegaMaxPool2dOp,
+        MegaGlobalAvgPoolOp,
+        MegaInt8MulOp,
+        MegaInt8AddOp,
+    )
+    segment = []
+    segment_index = 0
+
+    def flush_segment():
+        nonlocal segment, segment_index
+        if not segment:
+            return
+        kernel_id = f"{node.name}:{segment_index}"
+        for stage_index, (stage, value) in enumerate(segment):
+            value.owner.attributes["buckyball.mega_kernel"] = ir.BoolAttr.get(
+                True
+            )
+            value.owner.attributes["mega_kernel_stage"] = ir.IntegerAttr.get(
+                ir.IntegerType.get_signless(64), stage_index
+            )
+            value.owner.attributes["mega_kernel_size"] = ir.IntegerAttr.get(
+                ir.IntegerType.get_signless(64), len(segment)
+            )
+            value.owner.attributes["mega_kernel_id"] = ir.StringAttr.get(
+                kernel_id
+            )
+        segment = []
+        segment_index += 1
+
+    for stage in node._stages:
         if isinstance(stage, (MegaConv2dOp, MegaConv2dDepthwiseOp)):
             result = mega_conv2d_op(stage, symbol_table)
         elif isinstance(stage, MegaMatmulOp):
@@ -13690,15 +13730,12 @@ def mega_kernel_op(node, symbol_table):
             raise ValueError(
                 f"unsupported MegaKernel stage {type(stage).__name__}"
             )
-        result.owner.attributes["buckyball.mega_kernel"] = ir.BoolAttr.get(True)
-        result.owner.attributes["mega_kernel_stage"] = ir.IntegerAttr.get(
-            ir.IntegerType.get_signless(64), index
-        )
-        result.owner.attributes["mega_kernel_size"] = ir.IntegerAttr.get(
-            ir.IntegerType.get_signless(64), len(node._stages)
-        )
-        result.owner.attributes["mega_kernel_id"] = ir.StringAttr.get(node.name)
+        if isinstance(stage, compute_stages):
+            segment.append((stage, result))
+        else:
+            flush_segment()
         symbol_table[(stage.name, 0)] = result
+    flush_segment()
     return result
 
 
