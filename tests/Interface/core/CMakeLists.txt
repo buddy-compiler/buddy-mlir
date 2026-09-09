@@ -41,3 +41,17 @@ _add_test_executable(buddy-audio-container-test
 _add_test_executable(buddy-text-container-test
   TextContainerTest.cpp
 )
+
+add_library(buddy-rax-executor-test-kernels SHARED
+  Inputs/RaxExecutorTestKernels.cpp
+)
+
+_add_test_executable(buddy-rax-executor-test
+  RaxExecutorTest.cpp
+  LINK_LIBS
+    buddy_runtime_execution
+)
+target_compile_definitions(buddy-rax-executor-test PRIVATE
+  RAX_EXECUTOR_TEST_LIBRARY="$<TARGET_FILE:buddy-rax-executor-test-kernels>"
+)
+add_dependencies(buddy-rax-executor-test buddy-rax-executor-test-kernels)

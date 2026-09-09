@@ -42,6 +42,7 @@ option(LLVM_INCLUDE_TOOLS "Generate build targets for the LLVM tools." ON)
 option(LLVM_BUILD_TOOLS "Build the LLVM tools. If OFF, just generate build targets." ON)
 option(BUDDY_MLIR_OUT_OF_TREE_BUILD "Specifies an out of tree build" OFF)
 option(BUDDY_ENABLE_TESTS "Enable buddy-mlir test targets." ON)
+option(BUDDY_RUNTIME_ENABLE_MPI "Build the Buddy Runtime MPI communicator" OFF)
 
 #-------------------------------------------------------------------------------
 # MLIR/LLVM Configuration
