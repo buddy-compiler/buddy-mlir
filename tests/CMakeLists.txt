@@ -15,6 +15,8 @@ set(BUDDY_TEST_DEPENDS
   buddy-container-test
   buddy-audio-container-test
   buddy-text-container-test
+  rax-inspect
+  rax-pack
   mlir-runner
   )
 
