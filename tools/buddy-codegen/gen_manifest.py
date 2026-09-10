@@ -231,6 +231,325 @@ def gen_manifest(
     return out.getvalue()
 
 
+_RUNTIME_DTYPE_TO_MLIR = {
+    "int8": "i8",
+    "int32": "i32",
+    "int64": "i64",
+    "float16": "f16",
+    "bfloat16": "bf16",
+    "float32": "f32",
+    "float64": "f64",
+    "bool": "i1",
+    "complex64": "complex<f32>",
+    "complex128": "complex<f64>",
+}
+
+
+def _runtime_tensor_type(resource: str, metadata: dict) -> str:
+    dtype = metadata["dtype"]
+    try:
+        element_type = _RUNTIME_DTYPE_TO_MLIR[dtype]
+    except KeyError:
+        raise ValueError(
+            f"unsupported dtype {dtype!r} for resource {resource!r}"
+        ) from None
+    dimensions = "x".join(str(dimension) for dimension in metadata["shape"])
+    if dimensions:
+        dimensions += "x"
+    return f"tensor<{dimensions}{element_type}>"
+
+
+def gen_parallel_manifest(
+    config: dict,
+    runtime_plans: dict[str, dict],
+    dep_shared_libs: list[str] | None = None,
+    runner_library: str | None = None,
+    kernel_library: str | None = None,
+) -> str:
+    """Generate one rank-local body-form RHAL manifest from Stage 4A plans."""
+    if not runtime_plans:
+        raise ValueError("at least one runtime plan is required")
+
+    plans = list(runtime_plans.items())
+    rank = plans[0][1]["rank"]
+    world_size = plans[0][1]["world_size"]
+    for function_name, plan in plans[1:]:
+        if plan["rank"] != rank:
+            raise ValueError(
+                f"runtime plan {function_name!r} has rank {plan['rank']}; "
+                f"expected {rank}"
+            )
+        if plan["world_size"] != world_size:
+            raise ValueError(
+                f"runtime plan {function_name!r} has world_size "
+                f"{plan['world_size']}; expected {world_size}"
+            )
+
+    parameter_packs = {}
+    parameter_metadata = {}
+    for function_name, plan in plans:
+        resources = plan["resources"]
+        for pack in plan["parameter_packs"]:
+            resource = pack["resource"]
+            if resource not in resources:
+                raise ValueError(
+                    f"parameter pack {resource!r} in {function_name!r} has "
+                    "no resource metadata"
+                )
+            metadata = resources[resource]
+            if metadata["role"] != "parameter":
+                raise ValueError(
+                    f"parameter pack {resource!r} in {function_name!r} "
+                    "does not reference a parameter resource"
+                )
+            signature = (pack["dtype"], pack["numel"])
+            resource_signature = (metadata["dtype"], tuple(metadata["shape"]))
+            if resource in parameter_packs:
+                if parameter_packs[resource] != signature:
+                    raise ValueError(
+                        f"parameter pack {resource!r} has inconsistent "
+                        "dtype/size metadata"
+                    )
+                if parameter_metadata[resource] != resource_signature:
+                    raise ValueError(
+                        f"parameter resource {resource!r} has inconsistent "
+                        "dtype/size metadata"
+                    )
+                continue
+            if signature != (metadata["dtype"], metadata["shape"][0]):
+                raise ValueError(
+                    f"parameter pack {resource!r} metadata does not match "
+                    "its resource"
+                )
+            parameter_packs[resource] = signature
+            parameter_metadata[resource] = resource_signature
+
+    wrappers = []
+    seen_wrappers = set()
+    for function_name, plan in plans:
+        for operation in plan["operations"]:
+            if operation["kind"] == "dispatch":
+                wrapper = operation["wrapper"]
+                if wrapper not in seen_wrappers:
+                    seen_wrappers.add(wrapper)
+                    wrappers.append(wrapper)
+            elif operation["kind"] != "collective":
+                raise ValueError(
+                    f"unsupported operation kind {operation['kind']!r} "
+                    f"in {function_name!r}"
+                )
+
+    model_id = config["model_id"]
+    model_family = config["model_family"]
+    vocab_file = config["tokens"]["vocab_file"]
+    runner_uri = _normalize_dep_uri(
+        runner_library or f"{model_family}_runner.so"
+    )
+    kernel_uri = _normalize_dep_uri(
+        kernel_library or config["compilation"]["so_name"]
+    )
+    dep_uris = [_normalize_dep_uri(item) for item in dep_shared_libs or []]
+
+    def buffer_symbol(function_name: str, resource: str) -> str:
+        return f"{function_name}__{resource}"
+
+    def operand_symbol(function_name: str, plan: dict, resource: str) -> str:
+        metadata = plan["resources"].get(resource)
+        if metadata is None:
+            raise ValueError(
+                f"operation in {function_name!r} references unknown "
+                f"resource {resource!r}"
+            )
+        if metadata["role"] == "parameter":
+            if resource not in parameter_packs:
+                raise ValueError(
+                    f"parameter resource {resource!r} in {function_name!r} "
+                    "has no parameter-pack metadata"
+                )
+            return resource
+        return buffer_symbol(function_name, resource)
+
+    def quoted_resources(function_name: str, plan: dict, resources) -> str:
+        return ", ".join(
+            f'"{operand_symbol(function_name, plan, resource)}"'
+            for resource in resources
+        )
+
+    def at_resources(function_name: str, plan: dict, resources) -> str:
+        return ", ".join(
+            f"@{operand_symbol(function_name, plan, resource)}"
+            for resource in resources
+        )
+
+    out = StringIO()
+
+    def p(*args, **kwargs):
+        print(*args, file=out, **kwargs)
+
+    p(f"rhal.module @{model_family}_rank{rank} attributes {{")
+    p('    version = "0.1.0",')
+    p(f'    model_name = "{model_id}",')
+    p(f'    vocab_uri = "file:{vocab_file}",')
+    p(f'    runner_library = "{runner_uri}"}} {{')
+    p()
+
+    for constant_id, resource in enumerate(parameter_packs, start=1):
+        metadata = None
+        for _, plan in plans:
+            if resource in plan["resources"]:
+                metadata = plan["resources"][resource]
+                break
+        tensor_type = _runtime_tensor_type(resource, metadata)
+        p(
+            f"  rhal.constant @{resource} {{id = {constant_id} : i32, "
+            'storage = "external",'
+        )
+        p(f"                         type = {tensor_type},")
+        p(f'                         uri = "file:{resource}.data"}}')
+    if parameter_packs:
+        p()
+
+    code_object_symbols = {}
+    for code_object_id, wrapper in enumerate(wrappers, start=1):
+        symbol = f"scheduled_codeobj__{wrapper}"
+        code_object_symbols[wrapper] = symbol
+        p(
+            f"  rhal.codeobj @{symbol} {{id = {code_object_id} : i32, "
+            'kind = "host_shared_lib",'
+        )
+        p('                                backend = "cpu",')
+        p(f'                                uri = "{kernel_uri}",')
+        p(f'                                entry_symbol = "rax_{wrapper}"}}')
+    for dependency_index, dep_uri in enumerate(dep_uris, start=1):
+        code_object_id = len(wrappers) + dependency_index
+        symbol = f"scheduled_runtime_dep_{dependency_index}"
+        p(
+            f"  rhal.codeobj @{symbol} {{id = {code_object_id} : i32, "
+            'kind = "host_shared_lib",'
+        )
+        p('                                backend = "cpu",')
+        p(f'                                uri = "{dep_uri}"}}')
+    if wrappers or dep_uris:
+        p()
+
+    for function_name, plan in plans:
+        for resource, metadata in plan["resources"].items():
+            if metadata["role"] == "parameter":
+                continue
+            symbol = buffer_symbol(function_name, resource)
+            tensor_type = _runtime_tensor_type(resource, metadata)
+            p(
+                f'  rhal.buffer @{symbol} {{space = "host", '
+                f"type = {tensor_type}}}"
+            )
+    p()
+
+    for function_index, (function_name, plan) in enumerate(plans):
+        inputs = quoted_resources(function_name, plan, plan["runtime_inputs"])
+        outputs = quoted_resources(function_name, plan, plan["runtime_outputs"])
+        p(
+            f"  rhal.func @{function_name} {{inputs = [{inputs}], "
+            f"outputs = [{outputs}]}} body {{"
+        )
+        for operation in plan["operations"]:
+            if operation["kind"] == "dispatch":
+                arguments = at_resources(
+                    function_name, plan, operation["arguments"]
+                )
+                code_object = code_object_symbols[operation["wrapper"]]
+                p(f"    rhal.dispatch @{code_object} [{arguments}]")
+                continue
+
+            collective = operation["collective"]
+            input_symbol = at_resources(
+                function_name, plan, (operation["input"],)
+            )
+            output_symbol = at_resources(
+                function_name, plan, (operation["output"],)
+            )
+            if collective == "all_reduce":
+                if operation["input"] != operation["output"]:
+                    raise ValueError(
+                        f"all_reduce in {function_name!r} must be in-place"
+                    )
+                if operation.get("reduction") != "sum":
+                    raise ValueError(
+                        f"all_reduce in {function_name!r} requires sum "
+                        "reduction"
+                    )
+                p(f"    rhal.collective [{input_symbol}] {{")
+                p('      kind = "all_reduce",')
+                p('      reduction = "sum"')
+            elif collective == "all_gatherv":
+                if operation["input"] == operation["output"]:
+                    raise ValueError(
+                        f"all_gatherv in {function_name!r} must be out-of-place"
+                    )
+                counts = ", ".join(
+                    str(item) for item in operation["recv_counts"]
+                )
+                displacements = ", ".join(
+                    str(item) for item in operation["displacements"]
+                )
+                p(f"    rhal.collective [{input_symbol}] {{")
+                p('      kind = "all_gatherv",')
+                p(f"      output_buffers = [{output_symbol}],")
+                p(f"      recv_counts = array<i64: {counts}>,")
+                p(f"      displacements = array<i64: {displacements}>")
+            elif collective == "reduce_scatter":
+                if operation["input"] == operation["output"]:
+                    raise ValueError(
+                        f"reduce_scatter in {function_name!r} must be "
+                        "out-of-place"
+                    )
+                if operation.get("reduction") != "sum":
+                    raise ValueError(
+                        f"reduce_scatter in {function_name!r} requires sum "
+                        "reduction"
+                    )
+                counts = ", ".join(
+                    str(item) for item in operation["recv_counts"]
+                )
+                p(f"    rhal.collective [{input_symbol}] {{")
+                p('      kind = "reduce_scatter",')
+                p(f"      output_buffers = [{output_symbol}],")
+                p(f"      recv_counts = array<i64: {counts}>,")
+                p('      reduction = "sum"')
+            else:
+                raise ValueError(
+                    f"unsupported collective {collective!r} in "
+                    f"{function_name!r}"
+                )
+            p("    }")
+        p("  }")
+        if function_index + 1 != len(plans):
+            p()
+
+    p("}")
+    return out.getvalue()
+
+
+def _load_runtime_plans(items: list[str]) -> dict[str, dict]:
+    runtime_plans = {}
+    for item in items:
+        if "=" not in item:
+            raise ValueError(
+                f"malformed --runtime-plan {item!r}; expected FUNCTION=PATH"
+            )
+        function_name, path = item.split("=", 1)
+        if not function_name or not path:
+            raise ValueError(
+                f"malformed --runtime-plan {item!r}; expected FUNCTION=PATH"
+            )
+        if function_name in runtime_plans:
+            raise ValueError(
+                f"duplicate --runtime-plan function {function_name!r}"
+            )
+        with open(path) as file:
+            runtime_plans[function_name] = json.load(file)
+    return runtime_plans
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Generate RHAL .mlir manifest from a full model config."
@@ -292,21 +611,47 @@ def main():
             "Audio transcription plugin URI/name to place into module attrs."
         ),
     )
+    parser.add_argument(
+        "--runtime-plan",
+        action="append",
+        default=[],
+        metavar="FUNCTION=PATH",
+        help=(
+            "Stage 4A rank-local runtime plan JSON for a body-form function "
+            "(repeatable)"
+        ),
+    )
+    parser.add_argument(
+        "--kernel-library",
+        default=None,
+        metavar="URI_OR_NAME",
+        help="Shared library used by scheduled dispatch code objects",
+    )
     args = parser.parse_args()
 
     with open(args.config) as f:
         config = json.load(f)
 
     try:
-        mlir_text = gen_manifest(
-            config,
-            dep_shared_libs=args.dep_shared_lib,
-            runner_library=args.runner_library,
-            serving_library=args.serving_library,
-            embedding_library=args.embedding_library,
-            masked_lm_library=args.masked_lm_library,
-            transcription_library=args.transcription_library,
-        )
+        if args.runtime_plan:
+            runtime_plans = _load_runtime_plans(args.runtime_plan)
+            mlir_text = gen_parallel_manifest(
+                config,
+                runtime_plans,
+                dep_shared_libs=args.dep_shared_lib,
+                runner_library=args.runner_library,
+                kernel_library=args.kernel_library,
+            )
+        else:
+            mlir_text = gen_manifest(
+                config,
+                dep_shared_libs=args.dep_shared_lib,
+                runner_library=args.runner_library,
+                serving_library=args.serving_library,
+                embedding_library=args.embedding_library,
+                masked_lm_library=args.masked_lm_library,
+                transcription_library=args.transcription_library,
+            )
     except (ValueError, RuntimeError, OSError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 1

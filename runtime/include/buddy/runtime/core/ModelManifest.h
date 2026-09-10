@@ -77,6 +77,50 @@ inline std::filesystem::path buddyRaxPayloadBaseDir() {
 } // namespace detail
 
 struct ModelManifest {
+  struct RaxBuffer {
+    uint32_t id = 0;
+    std::string name;
+    rhal::rax::DType dtype = rhal::rax::DType_Invalid;
+    std::vector<int64_t> shape;
+    std::vector<int64_t> strides;
+    rhal::rax::Layout layout = rhal::rax::Layout_Any;
+    rhal::rax::MemorySpace memorySpace = rhal::rax::MemorySpace_Any;
+    std::unordered_map<std::string, std::string> attrs;
+  };
+
+  struct RaxDispatchArgument {
+    enum class Kind { Buffer, Constant };
+
+    Kind kind;
+    uint32_t resourceId = 0;
+  };
+
+  struct RaxCollectiveOperand {
+    uint32_t inputBufferId = 0;
+    uint32_t outputBufferId = 0;
+    std::vector<int64_t> recvCounts;
+    std::vector<int64_t> displacements;
+  };
+
+  struct RaxOperation {
+    rhal::rax::OpKind kind = rhal::rax::OpKind_Invalid;
+    uint32_t codeObjectId = 0;
+    std::vector<RaxDispatchArgument> arguments;
+    rhal::rax::CollectiveKind collectiveKind =
+        rhal::rax::CollectiveKind_Invalid;
+    rhal::rax::ReductionKind reductionKind = rhal::rax::ReductionKind_Invalid;
+    int32_t root = -1;
+    std::vector<RaxCollectiveOperand> collectiveOperands;
+  };
+
+  struct RaxFunction {
+    std::string name;
+    std::vector<uint32_t> inputs;
+    std::vector<uint32_t> outputs;
+    std::vector<uint32_t> temps;
+    std::vector<RaxOperation> ops;
+  };
+
   struct ResolvedCodeObject {
     uint32_t id = 0;
     std::string name;
@@ -124,8 +168,10 @@ struct ModelManifest {
   std::unordered_map<std::string, std::string> resolvedModuleAttrs;
   // All manifest resources, including non-CPU backends such as TTNN
   // flatbuffers.
+  std::vector<RaxBuffer> buffers;
   std::vector<ResolvedCodeObject> codeObjects;
   std::vector<ResolvedConstant> constants;
+  std::vector<RaxFunction> functions;
 
   // Load and resolve from a .rax manifest file.
   // Throws std::runtime_error on any parse / missing-field error.
@@ -490,6 +536,32 @@ struct ModelManifest {
       return out;
     };
 
+    // --- Buffers -> owned tensor metadata ---------------------------------
+    if (mod->buffers()) {
+      for (auto buffer : *mod->buffers()) {
+        if (!buffer)
+          continue;
+
+        RaxBuffer rec;
+        rec.id = buffer->id();
+        if (buffer->name())
+          rec.name = buffer->name()->str();
+        rec.memorySpace = buffer->space();
+        rec.attrs = attrsToMap(buffer->attrs());
+        if (const auto *type = buffer->type()) {
+          rec.dtype = type->dtype();
+          rec.layout = type->layout();
+          if (type->shape() && type->shape()->dims())
+            rec.shape.assign(type->shape()->dims()->begin(),
+                             type->shape()->dims()->end());
+          if (type->strides())
+            rec.strides.assign(type->strides()->begin(),
+                               type->strides()->end());
+        }
+        out.buffers.push_back(std::move(rec));
+      }
+    }
+
     // --- Code objects -> generic list + legacy soPath fields ---------------
     if (!mod->code_objects() || mod->code_objects()->size() == 0)
       throw std::runtime_error("ModelManifest: no code_objects in " +
@@ -541,6 +613,104 @@ struct ModelManifest {
 
         if (c->storage() == rhal::rax::ConstantStorage_External)
           out.weightPaths.push_back(rec.path);
+      }
+    }
+
+    // --- Functions -> owned, linear execution metadata --------------------
+    if (mod->functions()) {
+      for (auto function : *mod->functions()) {
+        if (!function || !function->name() || function->name()->size() == 0)
+          throw std::runtime_error("ModelManifest: function has no name");
+
+        RaxFunction functionRecord;
+        functionRecord.name = function->name()->str();
+        if (function->inputs())
+          functionRecord.inputs.assign(function->inputs()->begin(),
+                                       function->inputs()->end());
+        if (function->outputs())
+          functionRecord.outputs.assign(function->outputs()->begin(),
+                                        function->outputs()->end());
+        if (function->temps())
+          functionRecord.temps.assign(function->temps()->begin(),
+                                      function->temps()->end());
+
+        if (function->ops()) {
+          for (auto op : *function->ops()) {
+            if (!op)
+              throw std::runtime_error("ModelManifest: null op in function " +
+                                       functionRecord.name);
+
+            RaxOperation operation;
+            operation.kind = op->kind();
+            if (operation.kind == rhal::rax::OpKind_Dispatch) {
+              const auto *dispatch = op->dispatch();
+              if (!dispatch || dispatch->code_object_id() == 0)
+                throw std::runtime_error(
+                    "ModelManifest: malformed Dispatch in function " +
+                    functionRecord.name);
+              operation.codeObjectId = dispatch->code_object_id();
+
+              if (dispatch->args()) {
+                for (auto arg : *dispatch->args()) {
+                  if (!arg)
+                    throw std::runtime_error(
+                        "ModelManifest: null Dispatch argument in function " +
+                        functionRecord.name);
+
+                  const bool hasBuffer = arg->buffer_id() != 0;
+                  const bool hasConstant = arg->constant_id() != 0;
+                  if (arg->scalar() || hasBuffer == hasConstant)
+                    throw std::runtime_error(
+                        "ModelManifest: unsupported or malformed Dispatch "
+                        "argument in function " +
+                        functionRecord.name);
+
+                  operation.arguments.push_back(
+                      {hasBuffer ? RaxDispatchArgument::Kind::Buffer
+                                 : RaxDispatchArgument::Kind::Constant,
+                       hasBuffer ? arg->buffer_id() : arg->constant_id()});
+                }
+              }
+            } else if (operation.kind == rhal::rax::OpKind_Collective) {
+              const auto *collective = op->collective();
+              if (!collective)
+                throw std::runtime_error(
+                    "ModelManifest: malformed Collective in function " +
+                    functionRecord.name);
+              operation.collectiveKind = collective->kind();
+              operation.reductionKind = collective->reduction();
+              operation.root = collective->root();
+              if (collective->operands()) {
+                for (auto operand : *collective->operands()) {
+                  if (!operand)
+                    throw std::runtime_error(
+                        "ModelManifest: null Collective operand in function " +
+                        functionRecord.name);
+                  RaxCollectiveOperand operandRecord;
+                  operandRecord.inputBufferId = operand->input_buffer_id();
+                  operandRecord.outputBufferId = operand->output_buffer_id();
+                  if (operand->recv_counts())
+                    operandRecord.recvCounts.assign(
+                        operand->recv_counts()->begin(),
+                        operand->recv_counts()->end());
+                  if (operand->displacements())
+                    operandRecord.displacements.assign(
+                        operand->displacements()->begin(),
+                        operand->displacements()->end());
+                  operation.collectiveOperands.push_back(
+                      std::move(operandRecord));
+                }
+              }
+            } else if (operation.kind == rhal::rax::OpKind_Barrier &&
+                       !op->barrier()) {
+              throw std::runtime_error(
+                  "ModelManifest: malformed Barrier in function " +
+                  functionRecord.name);
+            }
+            functionRecord.ops.push_back(std::move(operation));
+          }
+        }
+        out.functions.push_back(std::move(functionRecord));
       }
     }
 

@@ -26,5 +26,7 @@ install(TARGETS buddy_runtime_core
         EXPORT BuddyMLIRTargets
         COMPONENT buddy_runtime)
 
+add_subdirectory(execution)
+
 # LLM runtime utilities (text generation, interactive REPL).
 add_subdirectory(llm)

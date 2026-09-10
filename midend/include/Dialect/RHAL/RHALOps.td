@@ -130,7 +130,8 @@ def RHAL_CodeobjOp : RHAL_Op<"codeobj", [Symbol]> {
     I32Attr:$id,
     StrAttr:$kind,
     StrAttr:$backend,
-    StrAttr:$uri
+    StrAttr:$uri,
+    OptionalAttr<StrAttr>:$entry_symbol
   );
 
   let assemblyFormat = [{
@@ -171,30 +172,88 @@ def RHAL_BufferOp : RHAL_Op<"buffer", [Symbol]> {
 //   rhal.func @name inputs = ["buf1", ...], outputs = ["buf2", ...],
 //                   dispatch = "codeobj_name",
 //                   args = ["buf1", "buf2", ...]
+//   rhal.func @name inputs = ["buf1", ...], outputs = ["buf2", ...] body {
+//     rhal.dispatch @codeobj [@resource1, @resource2, ...]
+//   }
 //===----------------------------------------------------------------------===//
 
-def RHAL_FuncOp : RHAL_Op<"func", [Symbol]> {
+def RHAL_FuncOp : RHAL_Op<"func", [Symbol, NoTerminator, SingleBlock]> {
   let summary = "Model function dispatch declaration.";
   let description = [{
-    Declares a model entry point and its dispatch configuration:
+    Declares a model entry point. The legacy form has an attribute-only
+    dispatch configuration:
     - `inputs`:   buffer names that are function inputs
     - `outputs`:  buffer names that are function outputs
     - `dispatch`: name of the code object that provides this function
     - `args`:     all buffer names passed as arguments to the kernel,
                   in ABI order (inputs + state + outputs)
+
+    The body form instead contains ordered `rhal.dispatch` operations.
   }];
 
   let arguments = (ins
     SymbolNameAttr:$sym_name,
     ArrayAttr:$inputs,
     ArrayAttr:$outputs,
-    StrAttr:$dispatch,
-    ArrayAttr:$args
+    OptionalAttr<StrAttr>:$dispatch,
+    OptionalAttr<ArrayAttr>:$args
+  );
+  let regions = (region MaxSizedRegion<1>:$body);
+
+  let assemblyFormat = [{
+    $sym_name attr-dict (`body` $body^)?
+  }];
+
+  let hasVerifier = 1;
+}
+
+//===----------------------------------------------------------------------===//
+// rhal.dispatch — dispatch inside a body-form rhal.func
+//
+// Syntax:
+//   rhal.dispatch @codeobj [@resource1, @resource2, ...]
+//===----------------------------------------------------------------------===//
+
+def RHAL_DispatchOp : RHAL_Op<"dispatch"> {
+  let summary = "Dispatch a code object with ordered resource arguments.";
+
+  let arguments = (ins
+    FlatSymbolRefAttr:$code_object,
+    FlatSymbolRefArrayAttr:$args
   );
 
   let assemblyFormat = [{
-    $sym_name attr-dict
+    $code_object $args attr-dict
   }];
+}
+
+//===----------------------------------------------------------------------===//
+// rhal.collective — collective communication inside a schedule
+//
+// Syntax:
+//   rhal.collective [@buffer1, @buffer2, ...] {
+//     kind = "all_reduce", reduction = "sum"
+//   }
+//===----------------------------------------------------------------------===//
+
+def RHAL_CollectiveOp : RHAL_Op<"collective"> {
+  let summary = "Collective communication over ordered buffer arguments.";
+
+  let arguments = (ins
+    FlatSymbolRefArrayAttr:$buffers,
+    OptionalAttr<FlatSymbolRefArrayAttr>:$output_buffers,
+    StrAttr:$kind,
+    OptionalAttr<StrAttr>:$reduction,
+    OptionalAttr<I32Attr>:$root,
+    OptionalAttr<DenseI64ArrayAttr>:$recv_counts,
+    OptionalAttr<DenseI64ArrayAttr>:$displacements
+  );
+
+  let assemblyFormat = [{
+    $buffers attr-dict
+  }];
+
+  let hasVerifier = 1;
 }
 
 #endif // BUDDY_MIDEND_RHAL_RHALOPS_TD

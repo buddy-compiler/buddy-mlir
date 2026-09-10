@@ -87,6 +87,9 @@ tools = [
     "buddy-container-test",
     "buddy-audio-container-test",
     "buddy-text-container-test",
+    "buddy-rax-executor-test",
+    "rax-inspect",
+    "rax-pack",
     "mlir-runner",
 ]
 

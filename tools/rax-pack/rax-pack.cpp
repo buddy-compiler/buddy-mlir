@@ -31,6 +31,7 @@
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
+#include <variant>
 #include <vector>
 
 #include "buddy/runtime/rax/RAX.h"
@@ -444,13 +445,28 @@ int main(int argc, char **argv) {
       CodeObjectKind kind;
       std::string backend;
       std::string uri;
+      std::string entrySymbol;
     };
+    struct DispatchRec {
+      std::string codeObject;
+      std::vector<std::string> args;
+    };
+    struct CollectiveRec {
+      CollectiveKind kind = CollectiveKind_Invalid;
+      std::vector<std::string> inputBuffers;
+      std::vector<std::string> outputBuffers;
+      ReductionKind reduction = ReductionKind_Invalid;
+      int32_t root = -1;
+      std::vector<int64_t> recvCounts;
+      std::vector<int64_t> displacements;
+    };
+    using FuncOpRec = std::variant<DispatchRec, CollectiveRec>;
     struct FuncRec {
       std::string name;
       std::vector<std::string> inputs;
       std::vector<std::string> outputs;
-      std::string dispatch;
-      std::vector<std::string> args;
+      bool hasBody;
+      std::vector<FuncOpRec> ops;
     };
 
     std::vector<BufRec> buffers;
@@ -461,6 +477,7 @@ int main(int argc, char **argv) {
     // Walk the rhal.module body (single block)
     uint32_t nextBufId = 1;
     std::unordered_map<std::string, uint32_t> bufNameToId;
+    std::unordered_map<std::string, uint32_t> constNameToId;
 
     for (auto &op : rhalMod.getBody().front()) {
       if (auto co = mlir::dyn_cast<buddy::rhal::ConstantOp>(&op)) {
@@ -472,6 +489,7 @@ int main(int argc, char **argv) {
         r.storage = (co.getStorage() == "inline") ? ConstantStorage_Inline
                                                   : ConstantStorage_External;
         r.uri = co.getUri().str();
+        constNameToId[r.name] = r.id;
         constants.push_back(std::move(r));
 
       } else if (auto co = mlir::dyn_cast<buddy::rhal::CodeobjOp>(&op)) {
@@ -481,6 +499,8 @@ int main(int argc, char **argv) {
         r.kind = parseCodeKind(co.getKind());
         r.backend = co.getBackend().str();
         r.uri = co.getUri().str();
+        if (auto entry = co.getEntrySymbol())
+          r.entrySymbol = entry->str();
         codeobjs.push_back(std::move(r));
 
       } else if (auto bo = mlir::dyn_cast<buddy::rhal::BufferOp>(&op)) {
@@ -496,13 +516,79 @@ int main(int argc, char **argv) {
       } else if (auto fo = mlir::dyn_cast<buddy::rhal::FuncOp>(&op)) {
         FuncRec r;
         r.name = fo.getSymName().str();
-        r.dispatch = fo.getDispatch().str();
+        r.hasBody = !fo.getBody().empty();
         for (auto a : fo.getInputs())
           r.inputs.push_back(mlir::cast<mlir::StringAttr>(a).getValue().str());
         for (auto a : fo.getOutputs())
           r.outputs.push_back(mlir::cast<mlir::StringAttr>(a).getValue().str());
-        for (auto a : fo.getArgs())
-          r.args.push_back(mlir::cast<mlir::StringAttr>(a).getValue().str());
+
+        if (!r.hasBody) {
+          DispatchRec dispatch;
+          dispatch.codeObject =
+              fo->getAttrOfType<mlir::StringAttr>("dispatch").getValue().str();
+          for (auto a : fo->getAttrOfType<mlir::ArrayAttr>("args"))
+            dispatch.args.push_back(
+                mlir::cast<mlir::StringAttr>(a).getValue().str());
+          r.ops.push_back(std::move(dispatch));
+        } else {
+          for (auto &bodyOp : fo.getBody().front()) {
+            if (auto dispatch =
+                    mlir::dyn_cast<buddy::rhal::DispatchOp>(&bodyOp)) {
+              DispatchRec record;
+              record.codeObject = dispatch.getCodeObject().str();
+              for (auto a : dispatch.getArgs())
+                record.args.push_back(
+                    mlir::cast<mlir::FlatSymbolRefAttr>(a).getValue().str());
+              r.ops.push_back(std::move(record));
+              continue;
+            }
+
+            if (auto collective =
+                    mlir::dyn_cast<buddy::rhal::CollectiveOp>(&bodyOp)) {
+              CollectiveRec record;
+              if (collective.getKind() == "all_reduce") {
+                record.kind = CollectiveKind_AllReduce;
+                record.reduction = ReductionKind_Sum;
+              } else if (collective.getKind() == "broadcast") {
+                record.kind = CollectiveKind_Broadcast;
+                record.root = *collective.getRoot();
+              } else if (collective.getKind() == "all_gatherv") {
+                record.kind = CollectiveKind_AllGatherV;
+              } else if (collective.getKind() == "reduce_scatter") {
+                record.kind = CollectiveKind_ReduceScatter;
+                record.reduction = ReductionKind_Sum;
+              } else {
+                throw std::runtime_error("rhal.func @" + r.name +
+                                         ": unsupported collective kind '" +
+                                         collective.getKind().str() + "'");
+              }
+              for (auto buffer : collective.getBuffers())
+                record.inputBuffers.push_back(
+                    mlir::cast<mlir::FlatSymbolRefAttr>(buffer)
+                        .getValue()
+                        .str());
+              if (record.kind == CollectiveKind_AllGatherV ||
+                  record.kind == CollectiveKind_ReduceScatter) {
+                for (auto buffer : *collective.getOutputBuffers())
+                  record.outputBuffers.push_back(
+                      mlir::cast<mlir::FlatSymbolRefAttr>(buffer)
+                          .getValue()
+                          .str());
+                auto recvCounts = *collective.getRecvCounts();
+                record.recvCounts.assign(recvCounts.begin(), recvCounts.end());
+                if (auto displacements = collective.getDisplacements())
+                  record.displacements.assign(displacements->begin(),
+                                              displacements->end());
+              }
+              r.ops.push_back(std::move(record));
+              continue;
+            }
+
+            throw std::runtime_error(
+                "rhal.func @" + r.name + ": unsupported body operation '" +
+                bodyOp.getName().getStringRef().str() + "'");
+          }
+        }
         funcs.push_back(std::move(r));
       }
     }
@@ -640,47 +726,103 @@ int main(int argc, char **argv) {
     std::unordered_map<std::string, uint32_t> codeNameToId;
     for (auto &r : codeobjs) {
       codeNameToId[r.name] = r.id;
-      fbCodes.push_back(CreateCodeObject(b, r.id, b.CreateString(r.name),
-                                         r.kind,
-                                         0, // inline data
-                                         b.CreateString(r.uri),
-                                         b.CreateString(""), // entry
-                                         b.CreateString(r.backend), 0));
+      fbCodes.push_back(
+          CreateCodeObject(b, r.id, b.CreateString(r.name), r.kind,
+                           0, // inline data
+                           b.CreateString(r.uri), b.CreateString(r.entrySymbol),
+                           b.CreateString(r.backend), 0));
     }
 
     // Functions
     std::vector<flatbuffers::Offset<Function>> fbFuncs;
     for (auto &fr : funcs) {
-      auto codeIt = codeNameToId.find(fr.dispatch);
-      if (codeIt == codeNameToId.end())
-        throw std::runtime_error("rhal.func @" + fr.name +
-                                 ": unknown dispatch target '" + fr.dispatch +
-                                 "'");
-      uint32_t codeId = codeIt->second;
+      std::vector<flatbuffers::Offset<Op>> ops;
+      for (auto &op : fr.ops) {
+        if (auto *collective = std::get_if<CollectiveRec>(&op)) {
+          std::vector<flatbuffers::Offset<CollectiveOperand>> operands;
+          if (collective->kind == CollectiveKind_AllGatherV ||
+              collective->kind == CollectiveKind_ReduceScatter) {
+            auto inputIt = bufNameToId.find(collective->inputBuffers.front());
+            if (inputIt == bufNameToId.end())
+              throw std::runtime_error("rhal.func @" + fr.name +
+                                       ": unknown buffer '" +
+                                       collective->inputBuffers.front() +
+                                       "' in collective operands");
+            auto outputIt = bufNameToId.find(collective->outputBuffers.front());
+            if (outputIt == bufNameToId.end())
+              throw std::runtime_error("rhal.func @" + fr.name +
+                                       ": unknown buffer '" +
+                                       collective->outputBuffers.front() +
+                                       "' in collective operands");
+            auto recvCounts = b.CreateVector(collective->recvCounts);
+            flatbuffers::Offset<flatbuffers::Vector<int64_t>> displacements;
+            if (collective->kind == CollectiveKind_AllGatherV)
+              displacements = b.CreateVector(collective->displacements);
+            operands.push_back(
+                CreateCollectiveOperand(b, inputIt->second, outputIt->second,
+                                        recvCounts, displacements));
+          } else {
+            for (auto &name : collective->inputBuffers) {
+              auto bufferIt = bufNameToId.find(name);
+              if (bufferIt == bufNameToId.end())
+                throw std::runtime_error("rhal.func @" + fr.name +
+                                         ": unknown buffer '" + name +
+                                         "' in collective operands");
+              operands.push_back(CreateCollectiveOperand(b, bufferIt->second,
+                                                         bufferIt->second));
+            }
+          }
+          auto collectiveOp =
+              CreateCollectiveOp(b, collective->kind, b.CreateVector(operands),
+                                 collective->reduction, collective->root, 0);
+          ops.push_back(
+              CreateOp(b, OpKind_Collective, 0, 0, 0, 0, 0, 0, collectiveOp));
+          continue;
+        }
 
-      // Build dispatch arg list (buffer name → id)
-      std::vector<flatbuffers::Offset<Arg>> dispArgs;
-      for (auto &name : fr.args) {
-        auto it = bufNameToId.find(name);
-        if (it == bufNameToId.end())
+        auto &dispatch = std::get<DispatchRec>(op);
+        auto codeIt = codeNameToId.find(dispatch.codeObject);
+        if (codeIt == codeNameToId.end())
+          throw std::runtime_error("rhal.func @" + fr.name +
+                                   ": unknown dispatch target '" +
+                                   dispatch.codeObject + "'");
+
+        std::vector<flatbuffers::Offset<Arg>> dispArgs;
+        for (auto &name : dispatch.args) {
+          auto bufferIt = bufNameToId.find(name);
+          if (bufferIt != bufNameToId.end()) {
+            dispArgs.push_back(CreateArg(b, bufferIt->second, 0, 0, 0));
+            continue;
+          }
+
+          if (fr.hasBody) {
+            auto constantIt = constNameToId.find(name);
+            if (constantIt != constNameToId.end()) {
+              dispArgs.push_back(CreateArg(b, 0, constantIt->second, 0, 0));
+              continue;
+            }
+          }
+
+          if (fr.hasBody)
+            throw std::runtime_error("rhal.func @" + fr.name +
+                                     ": unknown resource '" + name +
+                                     "' in dispatch args");
           throw std::runtime_error("rhal.func @" + fr.name +
                                    ": unknown buffer '" + name + "' in args");
-        dispArgs.push_back(CreateArg(b, it->second, 0, 0, 0));
+        }
+
+        // grid/block: (1,1,1) for CPU kernels
+        std::vector<uint32_t> g{1, 1, 1}, blk{1, 1, 1};
+        auto dims =
+            CreateLaunchDims(b, b.CreateVector(g), b.CreateVector(blk), 0);
+        auto disp = CreateDispatchOp(b, codeIt->second,
+                                     b.CreateVector(dispArgs), dims, 0);
+        ops.push_back(CreateOp(b, OpKind_Dispatch, disp, 0, 0, 0, 0, 0));
       }
 
-      // grid/block: (1,1,1) for CPU kernels
-      std::vector<uint32_t> g{1, 1, 1}, blk{1, 1, 1};
-      auto dims =
-          CreateLaunchDims(b, b.CreateVector(g), b.CreateVector(blk), 0);
-
-      auto disp =
-          CreateDispatchOp(b, codeId, b.CreateVector(dispArgs), dims, 0);
-      auto dispOp = CreateOp(b, OpKind_Dispatch, disp, 0, 0, 0, 0, 0);
-
-      auto barrierOp =
-          CreateOp(b, OpKind_Barrier, 0, 0, 0, CreateBarrierOp(b, 0), 0, 0);
-
-      std::vector<flatbuffers::Offset<Op>> ops = {dispOp, barrierOp};
+      if (!fr.hasBody)
+        ops.push_back(
+            CreateOp(b, OpKind_Barrier, 0, 0, 0, CreateBarrierOp(b, 0), 0, 0));
 
       // input/output buffer id lists
       std::vector<uint32_t> inputIds, outputIds;

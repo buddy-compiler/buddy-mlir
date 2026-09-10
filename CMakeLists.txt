@@ -42,6 +42,7 @@ option(LLVM_INCLUDE_TOOLS "Generate build targets for the LLVM tools." ON)
 option(LLVM_BUILD_TOOLS "Build the LLVM tools. If OFF, just generate build targets." ON)
 option(BUDDY_MLIR_OUT_OF_TREE_BUILD "Specifies an out of tree build" OFF)
 option(BUDDY_ENABLE_TESTS "Enable buddy-mlir test targets." ON)
+option(BUDDY_RUNTIME_ENABLE_MPI "Build the Buddy Runtime MPI communicator" OFF)
 
 #-------------------------------------------------------------------------------
 # MLIR/LLVM Configuration
@@ -127,6 +128,9 @@ set(BUDDY_ENABLE_OPENCV OFF CACHE BOOL "Enable OpenCV support.")
 # tools/buddy-codegen/build_model.py or -DBUDDY_BUILD_DEEPSEEK_R1_MODEL=ON.
 option(BUDDY_BUILD_DEEPSEEK_R1_MODEL
   "Build models/deepseek_r1 (buddy_models_deepseek_r1, .so, .rax)"
+  OFF)
+option(BUDDY_BUILD_DEEPSEEK_R1_TP2_MODEL
+  "Build the independent models/deepseek_r1_tp2 MPI/RAX package"
   OFF)
 option(BUDDY_BUILD_LLAMA31_TT_MODEL
   "Build models/llama31_tt and link the Tenstorrent Llama 3.1 runner into buddy-cli"
@@ -379,6 +383,9 @@ endif()
 
 add_subdirectory(midend)
 add_subdirectory(tools)
+if(BUDDY_BUILD_DEEPSEEK_R1_TP2_MODEL)
+  add_dependencies(deepseek_r1_tp2_rax buddy-cli)
+endif()
 get_property(_buddy_llama_tt_rax_targets_set GLOBAL PROPERTY
              BUDDY_LLAMA_TT_RAX_TARGETS SET)
 if(_buddy_llama_tt_rax_targets_set)
