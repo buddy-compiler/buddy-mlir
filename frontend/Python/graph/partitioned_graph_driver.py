@@ -1747,11 +1747,6 @@ class TemplatePartitionedGraphDriver:
                     original_output, self._graph.node_table
                 )
             )
-        if output_remap is None:
-            body_positions = {
-                op: index for index, op in enumerate(self._graph.body)
-            }
-            final_outputs.sort(key=lambda value: body_positions[value.op])
         resolved_outputs = []
         for value in final_outputs:
             if value.op in self._plan.parameter_indices:
