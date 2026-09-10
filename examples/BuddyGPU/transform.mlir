@@ -135,10 +135,10 @@ module attributes { transform.with_named_sequence } {
     // Rewrite bufferized scf.forall ops to distributed gpu.thread_id attribute.
     %mapped = transform.gpu.map_nested_forall_to_threads %gpu_launch block_dims = [64, 2, 1] warp_size = 32 : (!transform.any_op) -> !transform.any_op
 
-    %15 = transform.structured.match ops{["func.func"]} in %11 : (!transform.any_op) -> !transform.any_op
+    %14 = transform.structured.match ops{["func.func"]} in %11 : (!transform.any_op) -> !transform.any_op
 
     // Removes unnecessary GPU barriers from the function.
-    // %15 = transform.buddy.eliminate_gpu_barriers %14 : (!transform.any_op) -> !transform.any_op
+    %15 = transform.buddy.eliminate_gpu_barriers %14 : (!transform.any_op) -> !transform.any_op
 
     // Perform canonicalization.
     transform.apply_patterns to %15 {
@@ -191,7 +191,7 @@ module attributes { transform.with_named_sequence } {
 
     // Insert a gpu.barrier after a given scf.for loop
     %16 = transform.structured.match ops{["scf.for"]} in %15 : (!transform.any_op) -> !transform.op<"scf.for">
-    // transform.buddy.synchronize_loop %16 : (!transform.op<"scf.for">) -> ()
+    transform.buddy.synchronize_loop %16 : (!transform.op<"scf.for">) -> ()
 
 
     transform.apply_patterns to %15 {
@@ -223,77 +223,77 @@ module attributes { transform.with_named_sequence } {
     // mma operations, targetting warp level tensorcore operations.
     transform.buddy.vector.vector_to_mma_conversion %17 {use_mma_sync} : (!transform.any_op) -> ()
 
-    // %18 = transform.buddy.eliminate_gpu_barriers %17 : (!transform.any_op) -> !transform.any_op
+    %18 = transform.buddy.eliminate_gpu_barriers %17 : (!transform.any_op) -> !transform.any_op
 
     // Perform canonicalization.
-    transform.apply_patterns to %17 {
+    transform.apply_patterns to %18 {
       transform.apply_patterns.linalg.tiling_canonicalization
       transform.apply_patterns.scf.for_loop_canonicalization
       transform.apply_patterns.canonicalization
     } : !transform.any_op
-    transform.apply_cse to %17 : !transform.any_op
+    transform.apply_cse to %18 : !transform.any_op
     %all_loops_7 = transform.structured.match interface{LoopLikeInterface}
-        in %17
+        in %18
         : (!transform.any_op) -> !transform.any_op
     transform.apply_licm to %all_loops_7 : !transform.any_op
-    transform.apply_patterns to %17 {
+    transform.apply_patterns to %18 {
       transform.apply_patterns.linalg.tiling_canonicalization
       transform.apply_patterns.vector.lower_masked_transfers
     } : !transform.any_op
 
-    %19 = transform.structured.match ops{["gpu.launch"]} in %17 : (!transform.any_op) -> !transform.any_op
+    %19 = transform.structured.match ops{["gpu.launch"]} in %18 : (!transform.any_op) -> !transform.any_op
     %fwfa = transform.structured.match ops{["memref.alloc"]} in %19 : (!transform.any_op) -> !transform.op<"memref.alloc">
 
     // Do multi-buffering/array expansion to remove dependencies on the temporary allocation between consecutive loop iterations.
     transform.memref.multibuffer %fwfa {factor = 3 : i64, skip_analysis} : (!transform.op<"memref.alloc">) -> !transform.any_op
 
-    transform.apply_patterns to %17 {
+    transform.apply_patterns to %18 {
       transform.apply_patterns.vector.transfer_to_scf full_unroll = true
     } : !transform.any_op
-    transform.apply_patterns to %17 {
+    transform.apply_patterns to %18 {
       transform.apply_patterns.linalg.tiling_canonicalization
       transform.apply_patterns.scf.for_loop_canonicalization
       transform.apply_patterns.canonicalization
     } : !transform.any_op
-    transform.apply_cse to %17 : !transform.any_op
+    transform.apply_cse to %18 : !transform.any_op
     %all_loops_8 = transform.structured.match interface{LoopLikeInterface}
-        in %17
+        in %18
         : (!transform.any_op) -> !transform.any_op
     transform.apply_licm to %all_loops_8 : !transform.any_op
-    transform.apply_patterns to %17 {
+    transform.apply_patterns to %18 {
       transform.apply_patterns.linalg.tiling_canonicalization
       transform.apply_patterns.vector.lower_masked_transfers
     } : !transform.any_op
 
     // Convert sync copies to shared memory to async.
-    // transform.buddy.create_async_groups %17 {use_mma_sync} : (!transform.any_op) -> ()
-    transform.apply_patterns to %17 {
+    transform.buddy.create_async_groups %18 {use_mma_sync} : (!transform.any_op) -> ()
+    transform.apply_patterns to %18 {
       transform.apply_patterns.linalg.tiling_canonicalization
       transform.apply_patterns.scf.for_loop_canonicalization
       transform.apply_patterns.canonicalization
       transform.apply_patterns.memref.fold_memref_alias_ops
     } : !transform.any_op
     %all_loops_9 = transform.structured.match interface{LoopLikeInterface}
-        in %17
+        in %18
         : (!transform.any_op) -> !transform.any_op
     transform.apply_licm to %all_loops_9 : !transform.any_op
-    transform.apply_cse to %17 : !transform.any_op
+    transform.apply_cse to %18 : !transform.any_op
 
 
-    %20 = transform.structured.match ops{["nvgpu.mma.sync"]} in %17 : (!transform.any_op) -> !transform.any_op
+    %20 = transform.structured.match ops{["nvgpu.mma.sync"]} in %18 : (!transform.any_op) -> !transform.any_op
     %21 = transform.get_parent_op %20 {deduplicate, op_name = "scf.for"} : (!transform.any_op) -> !transform.any_op
     // This applies software pipelining to a given scf.for loop.
     // The pipelining strategy will look for a copy to shared memory and pipeline it to overlap it with the rest of the loop.
     // %22 = transform.buddy.pipeline_shared_memory_copies %21 {depth = 3 : i64, use_mma_sync, peel_epilogue} : (!transform.any_op) -> !transform.any_op
 
     // Perform canonicalization.
-    transform.apply_patterns to %17 {
+    transform.apply_patterns to %18 {
       transform.apply_patterns.vector.lower_masks
     } : !transform.any_op
-    transform.apply_patterns to %17 {
+    transform.apply_patterns to %18 {
       transform.apply_patterns.vector.materialize_masks
     } : !transform.any_op
-    transform.apply_patterns to %17 {
+    transform.apply_patterns to %18 {
       transform.apply_patterns.linalg.tiling_canonicalization
       transform.apply_patterns.scf.for_loop_canonicalization
       transform.apply_patterns.canonicalization
@@ -301,10 +301,10 @@ module attributes { transform.with_named_sequence } {
     } : !transform.any_op
 
     %all_loops_10 = transform.structured.match interface{LoopLikeInterface}
-        in %17
+        in %18
         : (!transform.any_op) -> !transform.any_op
     transform.apply_licm to %all_loops_10 : !transform.any_op
-    transform.apply_cse to %17 : !transform.any_op
+    transform.apply_cse to %18 : !transform.any_op
 
     transform.yield
   }
