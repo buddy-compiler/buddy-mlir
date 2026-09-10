@@ -490,7 +490,16 @@ int main(int argc, char **argv) {
                    "--model contains {rank}, but PMI_RANK is not set.\n";
       return 2;
     }
-    const std::string rank(rankEnv);
+    errno = 0;
+    char *rankEnd = nullptr;
+    const long parsedRank = std::strtol(rankEnv, &rankEnd, 10);
+    if (errno == ERANGE || rankEnd == rankEnv || *rankEnd != '\0' ||
+        parsedRank < 0) {
+      std::cerr << "\033[31;1m[Error]\033[0m "
+                   "PMI_RANK must be a non-negative integer.\n";
+      return 2;
+    }
+    const std::string rank = std::to_string(parsedRank);
     do {
       raxPath.replace(rankPosition, rankPlaceholder.size(), rank);
       rankPosition = raxPath.find(rankPlaceholder, rankPosition + rank.size());

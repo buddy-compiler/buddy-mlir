@@ -1143,7 +1143,12 @@ class GraphImporter:
             if self._param_pack_offsets is None:
                 offset = self._current_param_pack_offset[dtype]
             else:
-                offset = self._param_pack_offsets[str(node.name)]
+                param_name = str(node.name)
+                if param_name not in self._param_pack_offsets:
+                    raise ValueError(
+                        f"param_pack_offsets is missing placeholder {param_name!r}"
+                    )
+                offset = self._param_pack_offsets[param_name]
             placeholder_name = self._ops_registry["param.extract"](
                 node, offset, pack_of_dtype
             ).result

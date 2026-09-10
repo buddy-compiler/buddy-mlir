@@ -170,9 +170,19 @@ RaxExecutor::resolveHostBuffer(uint32_t bufferId) const {
         buffer->strides[dim] != static_cast<int64_t>(expectedStride))
       throw std::runtime_error("RaxExecutor: non-contiguous buffer " +
                                std::to_string(bufferId));
-    elementCount *= static_cast<size_t>(staticSize);
+    const size_t dimension = static_cast<size_t>(staticSize);
+    if (dimension != 0 &&
+        elementCount > std::numeric_limits<size_t>::max() / dimension)
+      throw std::runtime_error("RaxExecutor: element count overflows size_t "
+                               "for buffer " +
+                               std::to_string(bufferId));
+    elementCount *= dimension;
     expectedStride = elementCount;
   }
+  if (elementCount > std::numeric_limits<size_t>::max() / elementBytes)
+    throw std::runtime_error("RaxExecutor: byte size overflows size_t for "
+                             "buffer " +
+                             std::to_string(bufferId));
   const size_t bytes = elementCount * elementBytes;
   return {binding->second, elementCount, bytes, buffer->dtype};
 }
