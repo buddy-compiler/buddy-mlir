@@ -298,15 +298,104 @@ public:
       bool matmul = current->hasAttr("buckyball.mega_matmul");
       bool maxPool = current->hasAttr("buckyball.mega_max_pool2d");
       bool globalAvg = current->hasAttr("buckyball.mega_global_avg_pool");
+      bool channelSlice = current->hasAttr("buckyball.mega_channel_slice");
+      bool channelConcat = current->hasAttr("buckyball.mega_channel_concat");
+      bool resizeNearest = current->hasAttr("buckyball.mega_resize_nearest");
       bool int8Mul = current->hasAttr("buckyball.mega_int8_mul");
       bool int8Add = current->hasAttr("buckyball.mega_int8_add");
       if (static_cast<int>(normal) + static_cast<int>(depthwise) +
               static_cast<int>(matmul) + static_cast<int>(globalAvg) +
-              static_cast<int>(maxPool) + static_cast<int>(int8Mul) +
+              static_cast<int>(maxPool) + static_cast<int>(channelSlice) +
+              static_cast<int>(channelConcat) +
+              static_cast<int>(resizeNearest) + static_cast<int>(int8Mul) +
               static_cast<int>(int8Add) !=
           1)
         return current.emitError("MegaKernel stage kind is not unique");
       Value output = current.getOutputs()[0];
+
+      if (channelSlice || channelConcat || resizeNearest) {
+        auto outputType = dyn_cast<MemRefType>(output.getType());
+        if (!outputType || !outputType.hasStaticShape() ||
+            outputType.getRank() != 4 ||
+            !outputType.getElementType().isInteger(8))
+          return current.emitError(
+              "Mega channel stage requires static rank-4 INT8");
+
+        if (channelSlice) {
+          if (current.getInputs().size() != 1 ||
+              current.getOutputs().size() != 1)
+            return current.emitError("Mega channel slice has the wrong arity");
+          auto inputType =
+              dyn_cast<MemRefType>(current.getInputs()[0].getType());
+          auto offset = current->getAttrOfType<IntegerAttr>("offset");
+          if (!inputType || !inputType.hasStaticShape() ||
+              inputType.getRank() != 4 ||
+              !inputType.getElementType().isInteger(8) || !offset ||
+              offset.getInt() < 0 || offset.getInt() % 16 != 0 ||
+              outputType.getShape()[3] % 16 != 0 ||
+              inputType.getShape()[0] != outputType.getShape()[0] ||
+              inputType.getShape()[1] != outputType.getShape()[1] ||
+              inputType.getShape()[2] != outputType.getShape()[2] ||
+              offset.getInt() + outputType.getShape()[3] >
+                  inputType.getShape()[3])
+            return current.emitError("Mega channel slice contract is invalid");
+          tile::TileMegaChannelSliceOp::create(rewriter, current.getLoc(),
+                                               current.getInputs()[0], output,
+                                               offset);
+          continue;
+        }
+
+        if (channelConcat) {
+          auto segments = current->getAttrOfType<DenseI64ArrayAttr>("segments");
+          if (current.getInputs().empty() || current.getOutputs().size() != 1 ||
+              !segments || segments.size() != current.getInputs().size())
+            return current.emitError("Mega channel concat has the wrong arity");
+          int64_t channels = 0;
+          for (auto [input, segment] :
+               llvm::zip(current.getInputs(), segments.asArrayRef())) {
+            auto inputType = dyn_cast<MemRefType>(input.getType());
+            if (!inputType || !inputType.hasStaticShape() ||
+                inputType.getRank() != 4 ||
+                !inputType.getElementType().isInteger(8) || segment <= 0 ||
+                segment % 16 != 0 ||
+                inputType.getShape()[0] != outputType.getShape()[0] ||
+                inputType.getShape()[1] != outputType.getShape()[1] ||
+                inputType.getShape()[2] != outputType.getShape()[2] ||
+                inputType.getShape()[3] != segment)
+              return current.emitError(
+                  "Mega channel concat contract is invalid");
+            channels += segment;
+          }
+          if (outputType.getShape()[3] != channels)
+            return current.emitError(
+                "Mega channel concat output channels are invalid");
+          tile::TileMegaChannelConcatOp::create(rewriter, current.getLoc(),
+                                                current.getInputs(), output,
+                                                segments);
+          continue;
+        }
+
+        if (current.getInputs().size() != 1 || current.getOutputs().size() != 1)
+          return current.emitError("Mega resize-nearest has the wrong arity");
+        auto inputType = dyn_cast<MemRefType>(current.getInputs()[0].getType());
+        auto scaleH = current->getAttrOfType<IntegerAttr>("scale_h");
+        auto scaleW = current->getAttrOfType<IntegerAttr>("scale_w");
+        if (!inputType || !inputType.hasStaticShape() ||
+            inputType.getRank() != 4 ||
+            !inputType.getElementType().isInteger(8) || !scaleH || !scaleW ||
+            scaleH.getInt() <= 0 || scaleW.getInt() <= 0 ||
+            inputType.getShape()[0] != outputType.getShape()[0] ||
+            inputType.getShape()[3] != outputType.getShape()[3] ||
+            outputType.getShape()[1] !=
+                inputType.getShape()[1] * scaleH.getInt() ||
+            outputType.getShape()[2] !=
+                inputType.getShape()[2] * scaleW.getInt())
+          return current.emitError("Mega resize-nearest contract is invalid");
+        tile::TileMegaResizeNearestOp::create(rewriter, current.getLoc(),
+                                              current.getInputs()[0], output,
+                                              scaleH, scaleW);
+        continue;
+      }
 
       if (maxPool) {
         if (current.getInputs().size() != 1 || current.getOutputs().size() != 1)
@@ -324,7 +413,7 @@ public:
             !outputType.getElementType().isInteger(8) || !kernel || !stride ||
             !padding || !finalOutput || kernel.getInt() <= 0 ||
             stride.getInt() <= 0 || padding.getInt() < 0 ||
-            finalOutput.getValue() != (index + 1 == stages.size()))
+            (finalOutput.getValue() && index + 1 != stages.size()))
           return current.emitError("Mega MaxPool2D contract is invalid");
         auto in = inputType.getShape();
         auto out = outputType.getShape();

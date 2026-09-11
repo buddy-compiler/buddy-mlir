@@ -13125,12 +13125,10 @@ def mega_conv2d_op(node, symbol_table):
             activation, node._input_scale, nchw_to_nhwc=nchw_to_nhwc
         )
     elif activation_type.element_type == i8:
-        if input_shape == [n, cin, h, w]:
-            activation = _nchw_to_nhwc(activation)
-        elif input_shape != [n, h, w, cin]:
+        if input_shape != [n, h, w, cin]:
             raise ValueError(
                 f"INT8 Mega Conv2D input layout mismatch for {node.name}: "
-                f"expected {[n, cin, h, w]} or {[n, h, w, cin]}, got {input_shape}"
+                f"expected NHWC {[n, h, w, cin]}, got {input_shape}"
             )
     else:
         raise ValueError("Mega Conv2D activation must be FP32 or INT8")
@@ -13541,20 +13539,23 @@ def mega_channel_slice_op(node, symbol_table):
     output_shape = [n, h, w, c]
     output_type = ir.RankedTensorType.get(output_shape, i8)
     output = tensor.EmptyOp(output_shape, i8)
-    dims = [ir.AffineExpr.get_dim(i) for i in range(4)]
+    source_slice = tensor.ExtractSliceOp(
+        output_type,
+        source,
+        [],
+        [],
+        [],
+        ir._denseI64ArrayAttr([0, 0, 0, node._offset], None),
+        ir._denseI64ArrayAttr(output_shape, None),
+        ir._denseI64ArrayAttr([1, 1, 1, 1], None),
+    )
     op = linalg.GenericOp(
         [output_type],
-        [source],
+        [source_slice],
         [output],
         ir.ArrayAttr.get(
             [
-                ir.AffineMapAttr.get(
-                    ir.AffineMap.get(
-                        4,
-                        0,
-                        [dims[0], dims[1], dims[2], dims[3] + node._offset],
-                    )
-                ),
+                ir.AffineMapAttr.get(ir.AffineMap.get_identity(4)),
                 ir.AffineMapAttr.get(ir.AffineMap.get_identity(4)),
             ]
         ),
@@ -13566,7 +13567,7 @@ def mega_channel_slice_op(node, symbol_table):
         True
     )
     op.operation.attributes["offset"] = ir.IntegerAttr.get(
-        ir.IntegerType.get_signless(64), node._offset
+        ir.IntegerType.get_signless(64), 0
     )
     block = ir.Block.create_at_start(op.region, [i8, i8])
     block.append(linalg.YieldOp([block.arguments[0]]))
@@ -13680,14 +13681,18 @@ def mega_kernel_op(node, symbol_table):
         MegaMatmulOp,
         MegaMaxPool2dOp,
         MegaGlobalAvgPoolOp,
+        MegaChannelSliceOp,
+        MegaChannelConcatOp,
+        MegaResizeNearestOp,
         MegaInt8MulOp,
         MegaInt8AddOp,
     )
     segment = []
     segment_index = 0
+    segment_kind = None
 
     def flush_segment():
-        nonlocal segment, segment_index
+        nonlocal segment, segment_index, segment_kind
         if not segment:
             return
         kernel_id = f"{node.name}:{segment_index}"
@@ -13706,6 +13711,7 @@ def mega_kernel_op(node, symbol_table):
             )
         segment = []
         segment_index += 1
+        segment_kind = None
 
     for stage in node._stages:
         if isinstance(stage, (MegaConv2dOp, MegaConv2dDepthwiseOp)):
@@ -13731,9 +13737,15 @@ def mega_kernel_op(node, symbol_table):
                 f"unsupported MegaKernel stage {type(stage).__name__}"
             )
         if isinstance(stage, compute_stages):
+            stage_kind = "matmul" if isinstance(stage, MegaMatmulOp) else "conv"
+            if segment and stage_kind != segment_kind:
+                flush_segment()
             segment.append((stage, result))
+            segment_kind = stage_kind
         else:
-            flush_segment()
+            raise ValueError(
+                f"unsupported MegaKernel stage {type(stage).__name__}"
+            )
         symbol_table[(stage.name, 0)] = result
     flush_segment()
     return result
