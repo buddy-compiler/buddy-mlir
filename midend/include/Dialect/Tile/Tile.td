@@ -257,6 +257,31 @@ def TileMegaInt8AddOp : Tile_Op<"mega_int8_add"> {
     type($lhs) type($rhs) type($output)}];
 }
 
+def TileMegaChannelSliceOp : Tile_Op<"mega_channel_slice"> {
+  let summary = "INT8 NHWC channel slice inside a Tile MegaKernel";
+  let arguments = (ins MemRefRankOf<[I8], [4]>:$input,
+                       MemRefRankOf<[I8], [4]>:$output,
+                       I64Attr:$offset);
+  let assemblyFormat = [{$input $output attr-dict `:` type($input) type($output)}];
+}
+
+def TileMegaChannelConcatOp : Tile_Op<"mega_channel_concat"> {
+  let summary = "INT8 NHWC channel concatenation inside a Tile MegaKernel";
+  let arguments = (ins Variadic<MemRefRankOf<[I8], [4]>>:$inputs,
+                       MemRefRankOf<[I8], [4]>:$output,
+                       DenseI64ArrayAttr:$segments);
+  let assemblyFormat = [{$inputs $output attr-dict `:` type($inputs) type($output)}];
+}
+
+def TileMegaResizeNearestOp : Tile_Op<"mega_resize_nearest"> {
+  let summary = "INT8 NHWC nearest-neighbor resize inside a Tile MegaKernel";
+  let arguments = (ins MemRefRankOf<[I8], [4]>:$input,
+                       MemRefRankOf<[I8], [4]>:$output,
+                       I64Attr:$scaleH,
+                       I64Attr:$scaleW);
+  let assemblyFormat = [{$input $output attr-dict `:` type($input) type($output)}];
+}
+
 def TileDepthwiseConv2dOp : Tile_Op<"tile_depthwise_conv2d"> {
   let summary = "Tiled depthwise 2D convolution (NHWC, multiplier=1)";
   let description = [{
