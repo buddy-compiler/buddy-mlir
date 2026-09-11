@@ -2705,6 +2705,23 @@ def reshape_op(node: ReshapeOp, symbol_table):
     ):
         return input1
 
+    producer = input1.owner
+    if isinstance(producer, ir.OpView):
+        producer = producer.operation
+    if len(now_shape) == 4 and isinstance(producer, ir.Operation):
+        attrs = producer.attributes
+        if (
+            (
+                "buckyball.mega_conv2d" in attrs
+                or "buckyball.mega_conv2d_depthwise" in attrs
+            )
+            and "final_output" in attrs
+            and ir.BoolAttr(attrs["final_output"]).value
+            and ir.RankedTensorType(input1.type).element_type
+            == ir.F32Type.get()
+        ):
+            return _reshape_or_extract_for_complex(input1, new_shape)
+
     # Sticky layout: do not reshape NHWC <-> NCHW (same numel); that is a
     # layout change. Keep NHWC; only transpose when going NCHW -> NHWC.
     if len(now_shape) == 4 and len(new_shape) == 4:
