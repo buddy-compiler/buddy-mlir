@@ -1,8 +1,8 @@
-// RUN: buddy-opt %s --lower-qwen-w8a8-to-boscame | FileCheck %s
-// RUN: buddy-opt %s --lower-qwen-w8a8-to-boscame='scalar-fallback' | FileCheck %s --check-prefix=SCALAR
-// RUN: buddy-opt %s --lower-qwen-w8a8-to-boscame='scalar-fallback profile-phases' | FileCheck %s --check-prefix=SCALAR-PROFILE
-// RUN: buddy-opt %s --lower-qwen-w8a8-to-boscame='experimental-decode-n128=false' | FileCheck %s --check-prefix=N64
-// RUN: buddy-opt %s --lower-qwen-w8a8-to-boscame='profile-phases' | FileCheck %s --check-prefix=PROFILE
+// RUN: buddy-opt %s --lower-qwen-w8a8-to-boscame='target=qwen3-fpga' | FileCheck %s
+// RUN: buddy-opt %s --lower-qwen-w8a8-to-boscame='target=qwen3-fpga scalar-fallback' | FileCheck %s --check-prefix=SCALAR
+// RUN: buddy-opt %s --lower-qwen-w8a8-to-boscame='target=qwen3-fpga scalar-fallback profile-phases' | FileCheck %s --check-prefix=SCALAR-PROFILE
+// RUN: buddy-opt %s --lower-qwen-w8a8-to-boscame='target=qwen3-fpga experimental-decode-n128=false' | FileCheck %s --check-prefix=N64
+// RUN: buddy-opt %s --lower-qwen-w8a8-to-boscame='target=qwen3-fpga profile-phases' | FileCheck %s --check-prefix=PROFILE
 
 module {
   func.func @decode_pair_gs512(
@@ -101,94 +101,95 @@ module {
 // Decode pairs adjacent OUTBLK64 blocks and uses all eight accumulators.
 // CHECK-LABEL: func.func @decode_pair_gs512
 // SCALAR-LABEL: func.func @decode_pair_gs512
-// SCALAR: bosc_ame.mqma.b.mm 3, 0, 7
+// SCALAR: bosc_ame.mqma.b.mm %{{.*}}, %{{.*}}, %{{.*}}
 // SCALAR-NOT: bosc_ame.mqma.b.mm 7,
 // SCALAR-NOT: vector.load
 // SCALAR-PROFILE-LABEL: func.func @decode_pair_gs512
 // SCALAR-PROFILE: call @buddyTraceCycleStartPath
-// SCALAR-PROFILE: bosc_ame.mqma.b.mm 3, 0, 7
+// SCALAR-PROFILE: bosc_ame.mqma.b.mm %{{.*}}, %{{.*}}, %{{.*}}
 // SCALAR-PROFILE: call @buddyTraceCycleEndPath
 // N64-LABEL: func.func @decode_pair_gs512
-// N64: bosc_ame.mqma.b.mm 3, 0, 7
-// N64-NOT: bosc_ame.mqma.b.mm 4,
-// N64-NOT: bosc_ame.msce32.m 7
+// N64: bosc_ame.mqma.b.mm %{{.*}}, %{{.*}}, %{{.*}}
+// N64: bosc_ame.msce32.m %{{.*}}#3, {{.*}}
+// The disabled N128 pair must not use the upper half of the accumulator bank.
+// N64-NOT: bosc_ame.msce32.m %{{.*}}#7, {{.*}}
 // N64: func.call @buddy_w8a8_rvv_accumulate_n64
 // PROFILE-LABEL: func.func @decode_pair_gs512
 // PROFILE: call @buddyTraceCycleStartPath(%{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}) : (i64, i64, i64, i64, i64, i64) -> ()
-// PROFILE: bosc_ame.mqma.b.mm 7, 0, 7
+// PROFILE: bosc_ame.mqma.b.mm %{{.*}}, %{{.*}}, %{{.*}}
 // PROFILE: call @buddyTraceCycleEndPath(%{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}) : (i64, i64, i64, i64, i64, i64) -> ()
 // CHECK: bosc_ame.msettilem
 // CHECK: scf.for
 // CHECK: scf.for
-// CHECK: bosc_ame.mlce32.m 7
+// CHECK: bosc_ame.mlce32.m
 // CHECK: scf.for {{.*}} to %{{.*}} step %{{.*}} {
-// CHECK: bosc_ame.mlae8.m 0
-// CHECK: bosc_ame.mqma.b.mm 3, 0, 7
-// CHECK: bosc_ame.mlbe8.m 4
-// CHECK: bosc_ame.mqma.b.mm 4, 0, 4
-// CHECK: bosc_ame.mqma.b.mm 7, 0, 7
-// CHECK: bosc_ame.msce32.m 7
+// CHECK: bosc_ame.mlae8.m
+// CHECK: bosc_ame.mqma.b.mm %{{.*}}, %{{.*}}, %{{.*}}
+// CHECK: bosc_ame.mlbe8.m
+// CHECK: bosc_ame.mqma.b.mm %{{.*}}, %{{.*}}, %{{.*}}
+// CHECK: bosc_ame.mqma.b.mm %{{.*}}, %{{.*}}, %{{.*}}
+// CHECK: bosc_ame.msce32.m {{.*}}#7, {{.*}}
 // CHECK-NEXT: llvm.fence seq_cst
 // CHECK: func.call @buddy_w8a8_rvv_accumulate_n64
 // CHECK: func.call @buddy_w8a8_rvv_accumulate_n64
 
 // Three N64 blocks use one paired N128 kernel followed by reliable 1A x 4B.
 // CHECK-LABEL: func.func @decode_n64_fallback_gs1024
-// CHECK: bosc_ame.mqma.b.mm 7, 0, 7
-// CHECK: bosc_ame.msce32.m 7
-// CHECK: bosc_ame.mlce32.m 0
-// CHECK: bosc_ame.mlce32.m 3
-// CHECK: bosc_ame.mqma.b.mm 3, 0, 7
-// CHECK: bosc_ame.msce32.m 3
+// CHECK: bosc_ame.mqma.b.mm %{{.*}}, %{{.*}}, %{{.*}}
+// CHECK: bosc_ame.msce32.m
+// CHECK: bosc_ame.mlce32.m
+// CHECK: bosc_ame.mlce32.m
+// CHECK: bosc_ame.mqma.b.mm %{{.*}}, %{{.*}}, %{{.*}}
+// CHECK: bosc_ame.msce32.m
 
 // T=16 remains the validated 1A x 4B schedule.
 // CHECK-LABEL: func.func @prefill_t16_gs512
 // CHECK: %[[M16:.*]] = arith.constant 16 : i64
 // CHECK: bosc_ame.msettilem %[[M16]]
-// CHECK: bosc_ame.mlae8.m 0
-// CHECK-NOT: bosc_ame.mlae8.m 2
-// CHECK: bosc_ame.mqma.b.mm 3, 0, 7
+// CHECK: bosc_ame.mlae8.m
+// CHECK-NOT: bosc_ame.mlae8.m
+// CHECK: bosc_ame.mqma.b.mm %{{.*}}, %{{.*}}, %{{.*}}
 // CHECK-NOT: bosc_ame.mqma.b.mm 4,
 
 // T=22 is one exact M16 tile followed by an exact M6 tail.
 // CHECK-LABEL: func.func @prefill_t22_gs512
 // CHECK: bosc_ame.msettilem
-// CHECK: bosc_ame.mqma.b.mm 3, 0, 7
+// CHECK: bosc_ame.mqma.b.mm %{{.*}}, %{{.*}}, %{{.*}}
 // CHECK: %[[M6:.*]] = arith.constant 6 : i64
 // CHECK: bosc_ame.msettilem %[[M6]]
-// CHECK: bosc_ame.mqma.b.mm 3, 0, 7
+// CHECK: bosc_ame.mqma.b.mm %{{.*}}, %{{.*}}, %{{.*}}
 
 // T=32 uses 2A x 4B: two A loads, four B loads and acc0..acc7.
 // CHECK-LABEL: func.func @prefill_t32_gs1024
 // CHECK: bosc_ame.msettilem
 // CHECK: scf.for
-// CHECK: bosc_ame.mlae8.m 0
-// CHECK-NEXT: bosc_ame.mlae8.m 2
-// CHECK: bosc_ame.mlbe8.m 4
-// CHECK: bosc_ame.mlbe8.m 5
-// CHECK: bosc_ame.mqma.b.mm 0, 0, 4
-// CHECK: bosc_ame.mlbe8.m 6
-// CHECK: bosc_ame.mqma.b.mm 4, 2, 4
-// CHECK: bosc_ame.mlbe8.m 7
-// CHECK: bosc_ame.mqma.b.mm 7, 2, 7
-// CHECK: bosc_ame.msce32.m 7
+// CHECK: bosc_ame.mlae8.m
+// CHECK-NEXT: bosc_ame.mlae8.m
+// CHECK: bosc_ame.mlbe8.m
+// CHECK: bosc_ame.mlbe8.m
+// CHECK: bosc_ame.mqma.b.mm %{{.*}}, %{{.*}}, %{{.*}}
+// CHECK: bosc_ame.mlbe8.m
+// CHECK: bosc_ame.mqma.b.mm %{{.*}}, %{{.*}}, %{{.*}}
+// CHECK: bosc_ame.mlbe8.m
+// CHECK: bosc_ame.mqma.b.mm %{{.*}}, %{{.*}}, %{{.*}}
+// CHECK: bosc_ame.msce32.m {{.*}}#7, {{.*}}
 // CHECK-NEXT: llvm.fence seq_cst
 
 // T=128 executes the same 32-row body four times.
 // CHECK-LABEL: func.func @prefill_t128_gs512
 // CHECK: %[[FOUR:.*]] = arith.constant 4 : index
 // CHECK: scf.for {{.*}} to %[[FOUR]] step
-// CHECK: bosc_ame.mlae8.m 0
-// CHECK-NEXT: bosc_ame.mlae8.m 2
-// CHECK: bosc_ame.mqma.b.mm 7, 2, 7
+// CHECK: bosc_ame.mlae8.m
+// CHECK-NEXT: bosc_ame.mlae8.m
+// CHECK: bosc_ame.mqma.b.mm %{{.*}}, %{{.*}}, %{{.*}}
 
 // T=8 uses an exact M8 1A x 4B tail.
 // CHECK-LABEL: func.func @prefill_t8_gs512
 // CHECK: %[[M8:.*]] = arith.constant 8 : i64
 // CHECK: bosc_ame.msettilem %[[M8]]
-// CHECK: bosc_ame.mlae8.m 0
-// CHECK-NOT: bosc_ame.mlae8.m 2
-// CHECK: bosc_ame.mqma.b.mm 3, 0, 7
+// CHECK: bosc_ame.mlae8.m
+// CHECK-NOT: bosc_ame.mlae8.m
+// CHECK: bosc_ame.mqma.b.mm %{{.*}}, %{{.*}}, %{{.*}}
 
 // T=64 executes two 32-row 2A x 4B iterations.
 // CHECK-LABEL: func.func @prefill_t64_gs1024
@@ -197,6 +198,6 @@ module {
 // CHECK: scf.for
 // CHECK: %[[TWO:.*]] = arith.constant 2 : index
 // CHECK-NEXT: scf.for {{.*}} to %[[TWO]] step
-// CHECK: bosc_ame.mlae8.m 0
-// CHECK-NEXT: bosc_ame.mlae8.m 2
-// CHECK: bosc_ame.mqma.b.mm 7, 2, 7
+// CHECK: bosc_ame.mlae8.m
+// CHECK-NEXT: bosc_ame.mlae8.m
+// CHECK: bosc_ame.mqma.b.mm %{{.*}}, %{{.*}}, %{{.*}}

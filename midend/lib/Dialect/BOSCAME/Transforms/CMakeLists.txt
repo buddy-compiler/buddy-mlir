@@ -1,4 +1,6 @@
 add_mlir_library(BuddyBOSCAMETransforms
+  AMEValueEmitter.cpp
+  FPGAAMETarget.cpp
   LegalizeForLLVMExport.cpp
 
   DEPENDS
@@ -13,5 +15,6 @@ add_mlir_library(BuddyBOSCAMETransforms
   MLIRLLVMDialect
   MLIRMemRefDialect
   MLIRPass
+  MLIRSCFTransforms
   MLIRTransforms
 )

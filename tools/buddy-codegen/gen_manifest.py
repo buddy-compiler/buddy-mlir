@@ -44,6 +44,10 @@ def gen_manifest(
     config: dict,
     dep_shared_libs: list[str] | None = None,
     runner_library: str | None = None,
+    serving_library: str | None = None,
+    embedding_library: str | None = None,
+    masked_lm_library: str | None = None,
+    transcription_library: str | None = None,
 ) -> str:
     """Generate the complete RHAL .mlir manifest text."""
     out = StringIO()
@@ -74,6 +78,20 @@ def gen_manifest(
     runner_uri = _normalize_dep_uri(
         runner_library or f"{model_family}_runner.so"
     )
+    serving_uri = (
+        _normalize_dep_uri(serving_library) if serving_library else None
+    )
+    embedding_uri = (
+        _normalize_dep_uri(embedding_library) if embedding_library else None
+    )
+    masked_lm_uri = (
+        _normalize_dep_uri(masked_lm_library) if masked_lm_library else None
+    )
+    transcription_uri = (
+        _normalize_dep_uri(transcription_library)
+        if transcription_library
+        else None
+    )
 
     dep_uris: list[str] = []
     for item in dep_shared_libs or []:
@@ -84,7 +102,25 @@ def gen_manifest(
     p('    version = "0.1.0",')
     p(f'    model_name = "{model_id}",')
     p(f'    vocab_uri = "file:{vocab_file}",')
-    p(f'    runner_library = "{runner_uri}"}} {{')
+    p(f'    runner_library = "{runner_uri}"', end="")
+    if serving_uri:
+        p(",")
+        p(f'    serving_library = "{serving_uri}"', end="")
+        if embedding_uri:
+            p(",")
+            p(f'    embedding_library = "{embedding_uri}"', end="")
+        else:
+            pass
+    elif embedding_uri:
+        p(",")
+        p(f'    embedding_library = "{embedding_uri}"', end="")
+    if masked_lm_uri:
+        p(",")
+        p(f'    masked_lm_library = "{masked_lm_uri}"', end="")
+    if transcription_uri:
+        p(",")
+        p(f'    transcription_library = "{transcription_uri}"', end="")
+    p("} {")
     p()
 
     # -- External constants (weight blobs) -------------------------------------
@@ -224,6 +260,38 @@ def main():
             "If no scheme is given, file: is assumed."
         ),
     )
+    parser.add_argument(
+        "--serving-library",
+        default=None,
+        metavar="URI_OR_NAME",
+        help=(
+            "Resident serving plugin library URI/name to place into module "
+            "attrs. If no scheme is given, file: is assumed."
+        ),
+    )
+    parser.add_argument(
+        "--embedding-library",
+        default=None,
+        metavar="URI_OR_NAME",
+        help=(
+            "Embedding plugin library URI/name to place into module attrs. "
+            "If no scheme is given, file: is assumed."
+        ),
+    )
+    parser.add_argument(
+        "--masked-lm-library",
+        default=None,
+        metavar="URI_OR_NAME",
+        help=("Masked-LM plugin library URI/name to place into module attrs."),
+    )
+    parser.add_argument(
+        "--transcription-library",
+        default=None,
+        metavar="URI_OR_NAME",
+        help=(
+            "Audio transcription plugin URI/name to place into module attrs."
+        ),
+    )
     args = parser.parse_args()
 
     with open(args.config) as f:
@@ -234,6 +302,10 @@ def main():
             config,
             dep_shared_libs=args.dep_shared_lib,
             runner_library=args.runner_library,
+            serving_library=args.serving_library,
+            embedding_library=args.embedding_library,
+            masked_lm_library=args.masked_lm_library,
+            transcription_library=args.transcription_library,
         )
     except (ValueError, RuntimeError, OSError) as e:
         print(f"error: {e}", file=sys.stderr)

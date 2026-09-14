@@ -69,6 +69,12 @@ MANYLINUX_IMAGE="${MANYLINUX_IMAGE:-${DEFAULT_MANYLINUX_IMAGE}}"
 
 MANYLINUX_TAG="${MANYLINUX_TAG:-${DEFAULT_MANYLINUX_TAG}}"
 
+GIT_AUTH_ARGS=()
+if [ -n "${GITHUB_TOKEN:-}" ]; then
+  GIT_AUTH_HEADER="AUTHORIZATION: basic $(printf 'x-access-token:%s' "${GITHUB_TOKEN}" | base64 | tr -d '\n')"
+  GIT_AUTH_ARGS=(-c "http.extraheader=${GIT_AUTH_HEADER}")
+fi
+
 if [ -z "${IN_DOCKER:-}" ]; then
   # ---------------------------------------------------------------------------
   # Host side: validate mounts and re-enter inside the manylinux container
@@ -92,7 +98,7 @@ if [ -z "${IN_DOCKER:-}" ]; then
 
   # Sync git remote and latest commit
   git submodule sync --recursive
-  git -C "${HOST_LLVM_SRC}" fetch origin "${LLVM_COMMIT}"
+  git -C "${HOST_LLVM_SRC}" "${GIT_AUTH_ARGS[@]}" fetch origin "${LLVM_COMMIT}"
   # Reset to specific commit
   git -C "${HOST_LLVM_SRC}" checkout -f "${LLVM_COMMIT}"
   git -C "${HOST_LLVM_SRC}" reset --hard HEAD
@@ -163,6 +169,7 @@ if [ -z "${IN_DOCKER:-}" ]; then
     -e BUDDY_HASH="${BUDDY_HASH}" \
     -e LLVM_HASH="${LLVM_HASH}" \
     -e MANYLINUX_TAG="${MANYLINUX_TAG}" \
+    -e GITHUB_TOKEN \
     \
     -v "${REPO_ROOT}:${WORKSPACE}" \
     -v "${HOST_LLVM_SRC}:${WORKSPACE_LLVM_SRC}:ro" \
@@ -299,7 +306,9 @@ else
 
   # Flatbuffer doesn't exist in riscv image.
   FLATBUFFERS_VERSION="25.12.19"
-  git clone --depth 1 --branch "v${FLATBUFFERS_VERSION}" https://github.com/google/flatbuffers.git /tmp/flatbuffers
+  set +x
+  git "${GIT_AUTH_ARGS[@]}" clone --depth 1 --branch "v${FLATBUFFERS_VERSION}" https://github.com/google/flatbuffers.git /tmp/flatbuffers
+  set -x
   pushd /tmp/flatbuffers
     mkdir build && cd build
     cmake .. \

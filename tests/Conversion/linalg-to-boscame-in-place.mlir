@@ -1,4 +1,4 @@
-// RUN: buddy-opt %s --lower-linalg-to-boscame --lower-bosc-ame | FileCheck %s
+// RUN: buddy-opt %s --lower-linalg-to-boscame='target=qwen3-fpga' --lower-bosc-ame | FileCheck %s
 
 // Buddy Frontend bufferization leaves the matmul destination in place and
 // lets later elementwise operations consume it.  It also places dynamic
@@ -20,5 +20,9 @@ func.func @buddy_in_place(
 
 // CHECK-LABEL: func.func @buddy_in_place
 // CHECK-NOT: linalg.matmul
-// CHECK: llvm.call @llvm.riscv.bosc.mqma.b.mm
+// The destination is reused in place: the accumulator is seeded from the
+// original allocation and the result stays visible to the consumer.
+// CHECK: bosc_ame.intr.mlce32.m
+// CHECK: bosc_ame.intr.mqma.b.mm
+// CHECK: bosc_ame.intr.msce32.m
 // CHECK: memref.load

@@ -1,4 +1,4 @@
-// RUN: buddy-opt %s --lower-qwen-w8a8-to-boscame | FileCheck %s
+// RUN: buddy-opt %s --lower-qwen-w8a8-to-boscame='target=qwen3-fpga' | FileCheck %s
 
 module {
   func.func @prefill_m8(

@@ -93,7 +93,7 @@ module {
             %a_vec_5 = vector.broadcast %a_ele_5 : f32 to vector<32xf32>
             %a_vec_6 = vector.broadcast %a_ele_6 : f32 to vector<32xf32>
             %a_vec_7 = vector.broadcast %a_ele_7 : f32 to vector<32xf32>
-            %b_vec = vector.load %b_aligned[%k_idx, %n_idx] {alignment = 64} : memref<?x?xf32>, vector<32xf32>
+            %b_vec = vector.load %b_aligned[%k_idx, %n_idx] alignment = 64 : memref<?x?xf32>, vector<32xf32>
             %res_sum_vec_0 = vector.fma %a_vec_0, %b_vec, %sum_vec_0 : vector<32xf32>
             %res_sum_vec_1 = vector.fma %a_vec_1, %b_vec, %sum_vec_1 : vector<32xf32>
             %res_sum_vec_2 = vector.fma %a_vec_2, %b_vec, %sum_vec_2 : vector<32xf32>
@@ -107,14 +107,14 @@ module {
                 : vector<32xf32>, vector<32xf32>, vector<32xf32>, vector<32xf32>,
                 vector<32xf32>, vector<32xf32>, vector<32xf32>, vector<32xf32>
         }
-        vector.store %sum_iter_vec_0, %c_aligned[%m_idx, %n_idx] {alignment = 64} : memref<?x?xf32>, vector<32xf32>
-        vector.store %sum_iter_vec_1, %c_aligned[%m_idx_1, %n_idx] {alignment = 64} : memref<?x?xf32>, vector<32xf32>
-        vector.store %sum_iter_vec_2, %c_aligned[%m_idx_2, %n_idx] {alignment = 64} : memref<?x?xf32>, vector<32xf32>
-        vector.store %sum_iter_vec_3, %c_aligned[%m_idx_3, %n_idx] {alignment = 64} : memref<?x?xf32>, vector<32xf32>
-        vector.store %sum_iter_vec_4, %c_aligned[%m_idx_4, %n_idx] {alignment = 64} : memref<?x?xf32>, vector<32xf32>
-        vector.store %sum_iter_vec_5, %c_aligned[%m_idx_5, %n_idx] {alignment = 64} : memref<?x?xf32>, vector<32xf32>
-        vector.store %sum_iter_vec_6, %c_aligned[%m_idx_6, %n_idx] {alignment = 64} : memref<?x?xf32>, vector<32xf32>
-        vector.store %sum_iter_vec_7, %c_aligned[%m_idx_7, %n_idx] {alignment = 64} : memref<?x?xf32>, vector<32xf32>
+        vector.store %sum_iter_vec_0, %c_aligned[%m_idx, %n_idx] alignment = 64 : memref<?x?xf32>, vector<32xf32>
+        vector.store %sum_iter_vec_1, %c_aligned[%m_idx_1, %n_idx] alignment = 64 : memref<?x?xf32>, vector<32xf32>
+        vector.store %sum_iter_vec_2, %c_aligned[%m_idx_2, %n_idx] alignment = 64 : memref<?x?xf32>, vector<32xf32>
+        vector.store %sum_iter_vec_3, %c_aligned[%m_idx_3, %n_idx] alignment = 64 : memref<?x?xf32>, vector<32xf32>
+        vector.store %sum_iter_vec_4, %c_aligned[%m_idx_4, %n_idx] alignment = 64 : memref<?x?xf32>, vector<32xf32>
+        vector.store %sum_iter_vec_5, %c_aligned[%m_idx_5, %n_idx] alignment = 64 : memref<?x?xf32>, vector<32xf32>
+        vector.store %sum_iter_vec_6, %c_aligned[%m_idx_6, %n_idx] alignment = 64 : memref<?x?xf32>, vector<32xf32>
+        vector.store %sum_iter_vec_7, %c_aligned[%m_idx_7, %n_idx] alignment = 64 : memref<?x?xf32>, vector<32xf32>
         %k_next = arith.addi %n_idx, %step : index
         scf.yield %k_next : index
       }
@@ -200,9 +200,9 @@ module {
     %cf2 = arith.constant 2.0 : f32
     %c0 = arith.constant 0.0 : f32
 
-    %A = memref.alloc(%cM, %cK) {alignment = 64} : memref<?x?xf32>
-    %B = memref.alloc(%cK, %cN) {alignment = 64} : memref<?x?xf32>
-    %C = memref.alloc(%cM, %cN) {alignment = 64} : memref<?x?xf32>
+    %A = memref.alloc(%cM, %cK) alignment = 64 : memref<?x?xf32>
+    %B = memref.alloc(%cK, %cN) alignment = 64 : memref<?x?xf32>
+    %C = memref.alloc(%cM, %cN) alignment = 64 : memref<?x?xf32>
 
     linalg.fill
     ins(%cf1 : f32)

@@ -35,9 +35,9 @@ module {
     %true = arith.constant true
     %cst = arith.constant 4.000000e+00 : f32
     %cst_0 = arith.constant 2.000000e+00 : f32
-    %a = memref.alloc() {alignment = 64 : i64} : memref<1x8960xf32>
+    %a = memref.alloc() alignment = 64 : memref<1x8960xf32>
     linalg.fill ins(%cst_0 : f32) outs(%a : memref<1x8960xf32>)
-    %c = memref.alloc() {alignment = 64 : i64} : memref<1x1536xf32>
+    %c = memref.alloc() alignment = 64 : memref<1x1536xf32>
     linalg.fill ins(%cst : f32) outs(%c : memref<1x1536xf32>)
     %0 = call @rtclock() : () -> f64
 
@@ -55,17 +55,17 @@ module {
     %k = arith.constant 8960 : index
 
     scf.parallel (%n_idx) = (%c0) to (%n) step (%step) {
-      %c_vec = vector.load %c[%c0, %n_idx] {alignment = 64 : i64} : memref<1x1536xf32>, vector<32xf32>
+      %c_vec = vector.load %c[%c0, %n_idx] alignment = 64 : memref<1x1536xf32>, vector<32xf32>
       %sum_iter = scf.for %k_idx = %c0 to %k step %c1 iter_args(%sum_vec = %c_vec) -> (vector<32xf32>) {
         %k_prefetch = arith.addi %k_idx, %prefetch_step : index
         memref.prefetch %b[%k_prefetch, %n_idx], read, locality<0>, data : memref<8960x1536xf32, strided<[?, 1], offset: ?>>
         %a_ele = memref.load %a[%c0, %k_idx] : memref<1x8960xf32>
         %a_vec = vector.broadcast %a_ele : f32 to vector<32xf32>
-        %b_vec = vector.load %b[%k_idx, %n_idx] {alignment = 64 : i64, nontemporal = true} : memref<8960x1536xf32, strided<[?, 1], offset: ?>>, vector<32xf32>
+        %b_vec = vector.load %b[%k_idx, %n_idx] alignment = 64 nontemporal = true : memref<8960x1536xf32, strided<[?, 1], offset: ?>>, vector<32xf32>
         %r_vec = vector.fma %a_vec, %b_vec, %sum_vec : vector<32xf32>
         scf.yield %r_vec : vector<32xf32>
       }
-      vector.store %sum_iter, %c[%c0, %n_idx] {alignment = 64 : i64} : memref<1x1536xf32>, vector<32xf32>
+      vector.store %sum_iter, %c[%c0, %n_idx] alignment = 64 : memref<1x1536xf32>, vector<32xf32>
     }
 
     %5 = call @rtclock() : () -> f64
@@ -77,7 +77,7 @@ module {
   func.func @main() {
     %true = arith.constant true
     %cst = arith.constant 3.000000e+00 : f32
-    %alloc = memref.alloc() {alignment = 64 : i64} : memref<8960x1536xf32>
+    %alloc = memref.alloc() alignment = 64 : memref<8960x1536xf32>
     linalg.fill ins(%cst : f32) outs(%alloc : memref<8960x1536xf32>)
     %cast = memref.cast %alloc : memref<8960x1536xf32> to memref<8960x1536xf32, strided<[?, ?], offset: ?>>
     %0 = call @kernel(%cast) : (memref<8960x1536xf32, strided<[?, ?], offset: ?>>) -> memref<1x1536xf32>

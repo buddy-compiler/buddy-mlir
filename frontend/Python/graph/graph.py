@@ -24,6 +24,7 @@ import functools
 from enum import Enum, auto
 from pathlib import Path
 from types import FunctionType
+from typing import TYPE_CHECKING
 
 import buddy_mlir.dialects.func as func
 import buddy_mlir.ir as ir
@@ -34,6 +35,35 @@ from buddy_mlir.passmanager import PassManager
 
 from .operation import *
 from .type import *
+
+if TYPE_CHECKING:
+    from .structure_analysis import GraphStructureAnalysisResult
+    from .transformer_partition import GraphStructureIndex, TemplateIndex
+
+
+def _replace_node_name(value, old_name, new_name, node_table):
+    if isinstance(value, str):
+        if value == old_name and value in node_table:
+            return new_name
+        return value
+    if isinstance(value, list):
+        return [
+            _replace_node_name(item, old_name, new_name, node_table)
+            for item in value
+        ]
+    if isinstance(value, tuple):
+        return tuple(
+            _replace_node_name(item, old_name, new_name, node_table)
+            for item in value
+        )
+    if isinstance(value, dict):
+        return {
+            _replace_node_name(
+                key, old_name, new_name, node_table
+            ): _replace_node_name(item, old_name, new_name, node_table)
+            for key, item in value.items()
+        }
+    return value
 
 
 def make_output_memref_descriptor(ranks, dtypes):
@@ -154,6 +184,55 @@ class Graph:
         self.op_groups: dict[str, list[Op]] = {}
         self.group_map_device: dict[str, DeviceType] = {}
         self._enable_external_calls = enable_external_calls
+        self._structure_index: GraphStructureIndex | None = None
+        self._template_index: TemplateIndex | None = None
+
+    @property
+    def structure_index(self) -> "GraphStructureIndex | None":
+        """The cached structural index, or ``None`` before explicit build."""
+        return self._structure_index
+
+    @property
+    def template_index(self) -> "TemplateIndex | None":
+        """The cached layer-template index, or ``None`` before recognition."""
+        return self._template_index
+
+    def analyze_structure(
+        self, enable_template_recognition: bool = False
+    ) -> "GraphStructureAnalysisResult":
+        """Explicitly build and cache structural and optional template indexes."""
+        from .structure_analysis import GraphStructureAnalysisResult
+        from .transformer_partition import RegionBuilder
+
+        if self._structure_index is None:
+            recognizer = None
+            if enable_template_recognition:
+                from .transformer_partition import TemplateRecognizer
+
+                recognizer = TemplateRecognizer()
+            self._structure_index = RegionBuilder(self).build(recognizer)
+            if recognizer is not None:
+                self._template_index = recognizer.finish()
+        elif enable_template_recognition and self._template_index is None:
+            from .transformer_partition import build_template_index
+
+            self._template_index = build_template_index(
+                self, self._structure_index
+            )
+
+        return GraphStructureAnalysisResult(
+            structure_index=self._structure_index,
+            template_index=self._template_index,
+        )
+
+    def build_structure_index(self) -> "GraphStructureIndex":
+        """Build and cache the graph's non-mutating structural description.
+
+        Call this after all frontend graph transforms and before structural
+        planning or lowering. Version one has no automatic invalidation, so the
+        graph must not be mutated in place after this method is called.
+        """
+        return self.analyze_structure().structure_index
 
     @property
     def ttir_module(self):
@@ -314,21 +393,36 @@ class Graph:
         newnode._tensor_meta = node.tensor_meta
         newnode._op_type = node._op_type
         newnode.trace_meta = node.trace_meta
+        newnode._source_meta = node._source_meta
 
         for i in node._children:
             newnode.add_children(i)
         users = [self.node_table[i] for i in node._children]
         for user in users:
-            if node.name in user._parents:
-                user._parents[user._parents.index(node.name)] = newnode.name
-            user.args[user.args.index(node.name)] = newnode.name
+            user._arguments = _replace_node_name(
+                user.args, node.name, newnode.name, self.node_table
+            )
+            user._keyword_arguments = _replace_node_name(
+                user.kwargs, node.name, newnode.name, self.node_table
+            )
+            user._parents[:] = [
+                newnode.name if parent == node.name else parent
+                for parent in user._parents
+            ]
         node._children.clear()
         # deal with parents+args
         for i in node._parents:
             newnode.add_parent(i)
-        parents = [self.node_table[i] for i in node._parents]
-        for parent in parents:
-            parent._children[parent._children.index(node.name)] = newnode.name
+
+        # A producer can record this node as a user even when the dependency is
+        # carried in kwargs and is therefore absent from node._parents. Update
+        # every actual reverse use so replacing a consumer cannot leave its old
+        # name dangling in a producer's children list.
+        for producer in self._body:
+            producer._children[:] = [
+                newnode.name if child == node.name else child
+                for child in producer._children
+            ]
         node._parents.clear()
         # update node table
         self._body[self._body.index(node)] = newnode

@@ -1,7 +1,7 @@
 // RUN: buddy-opt %s --fuse-qwen-silu-mul-quantize --cse | FileCheck %s --check-prefix=FUSE
 // RUN: buddy-opt %s --fuse-qwen-silu-mul-quantize --cse -o %t.fused
 // RUN: buddy-opt %t.fused -pass-pipeline="builtin.module(func.func(tosa-to-linalg-named),func.func(tosa-to-linalg),func.func(tosa-to-tensor),func.func(tosa-to-arith))" -o %t.linalg
-// RUN: buddy-opt %t.linalg --eliminate-empty-tensors --empty-tensor-to-alloc-tensor --convert-elementwise-to-linalg --one-shot-bufferize="bufferize-function-boundaries" --lower-qwen-w8a8-to-boscame="profile-phases quantize-one-ahead=true" | FileCheck %s --check-prefix=LOWER
+// RUN: buddy-opt %t.linalg --eliminate-empty-tensors --empty-tensor-to-alloc-tensor --convert-elementwise-to-linalg --one-shot-bufferize="bufferize-function-boundaries" --lower-qwen-w8a8-to-boscame="target=qwen3-fpga profile-phases quantize-one-ahead=true" | FileCheck %s --check-prefix=LOWER
 
 // The Qwen Down input is spelled exactly as emitted by the frontend.  The
 // fusion keeps sigmoid and gate*sigmoid on their established lowering and

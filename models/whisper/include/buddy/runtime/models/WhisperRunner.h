@@ -28,7 +28,8 @@ namespace runtime {
 /// autoregressive decode over a single `_mlir_ciface_forward` entrypoint →
 /// detokenize.  Handles both Mode A (.rax manifest) and Mode B (explicit
 /// --model-so / --weights paths).  The audio file comes from cfg.audioPath
-/// (--audio); when empty it falls back to `audio.wav` next to the model.
+/// (--audio); when empty it falls back to `audio.wav` next to the `.rax`
+/// package (or model `.so` in legacy mode).
 class WhisperRunner : public InferenceRunner {
 public:
   void run(const RunConfig &cfg) override;

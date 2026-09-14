@@ -17,6 +17,8 @@
 
 #include "Dialect/BOSCAME/BOSCAMEDialect.h"
 #include "Dialect/BOSCAME/BOSCAMEOps.h"
+#include "Dialect/BOSCAME/Transforms/AMEValueEmitter.h"
+#include "Dialect/BOSCAME/Transforms/FPGAAMETarget.h"
 
 using namespace mlir;
 using namespace buddy::boscame;
@@ -34,8 +36,6 @@ constexpr int64_t kHardwareM = 16;
 constexpr int64_t kPrefillRows = 2 * kHardwareM;
 constexpr int64_t kHardwareN = 16;
 constexpr int64_t kHardwareK = 64;
-constexpr int64_t kMTypeI8 = (1LL << 16) | (1LL << 4);
-constexpr int64_t kMTypeI32 = (1LL << 16) | (1LL << 6) | 2;
 constexpr StringLiteral kProfileStart = "buddyTraceCycleStartPath";
 constexpr StringLiteral kProfileEnd = "buddyTraceCycleEndPath";
 constexpr int64_t kProfileLinearTotal = 251;
@@ -784,8 +784,10 @@ private:
 // lowering below is registered by default.
 class W8A8LinearScalarFallback : public OpRewritePattern<W8A8LinearOp> {
 public:
-  W8A8LinearScalarFallback(MLIRContext *context, bool profilePhases)
-      : OpRewritePattern<W8A8LinearOp>(context), profilePhases(profilePhases) {}
+  W8A8LinearScalarFallback(MLIRContext *context, bool profilePhases,
+                           AmeTargetProfile profile)
+      : OpRewritePattern<W8A8LinearOp>(context), profilePhases(profilePhases),
+        profile(profile) {}
 
   LogicalResult matchAndRewrite(W8A8LinearOp op,
                                 PatternRewriter &rewriter) const override {
@@ -834,8 +836,11 @@ public:
     Value oneI64 = i64Constant(rewriter, loc, 1);
     Value nSixteen = i64Constant(rewriter, loc, kHardwareN);
     Value kSixtyFour = i64Constant(rewriter, loc, kHardwareK);
-    Value typeI8 = i64Constant(rewriter, loc, kMTypeI8);
-    Value typeI32 = i64Constant(rewriter, loc, kMTypeI32);
+    // Matrix tiles are SSA values now: A/B carry the memref element type, the
+    // accumulator datapath is i32 while its memory side stays fp32.
+    Type i8ElementType = xqType.getElementType();
+    Type i32ElementType = rewriter.getI32Type();
+    Type f32ElementType = scratchType.getElementType();
     if (profilePhases)
       emitProfileCall(rewriter, loc, kProfileStart, kProfileLinearTotal);
 
@@ -859,30 +864,55 @@ public:
     // boundary synchronization, not a per-group fence.
     memref::StoreOp::create(rewriter, loc, zeroI8, tailActivation,
                             ValueRange{c0, c0});
-    MSettilemOp::create(rewriter, loc, rewriter.getI64Type(), oneI64);
-    MSettilenOp::create(rewriter, loc, rewriter.getI64Type(), oneI64);
-    MSettilekOp::create(rewriter, loc, rewriter.getI64Type(), oneI64);
-    MSettypeOp::create(rewriter, loc, rewriter.getI64Type(), typeI8);
+    if (failed(ame::configureTiles(rewriter, loc, oneI64, oneI64, oneI64)))
+      return failure();
+    if (failed(ame::configureMmaType(rewriter, loc, i8ElementType,
+                                     AmeTargetProfile::Qwen3Fpga, op)))
+      return failure();
     Value syncI8 = makeSubview(rewriter, loc, tailActivation,
                                ArrayRef<OpFoldResult>{rewriter.getIndexAttr(0),
                                                       rewriter.getIndexAttr(0)},
                                ArrayRef<int64_t>{1, 1});
-    Mlae8mOp::create(rewriter, loc, 0, syncI8, strideOneI8);
-    Mlbte8mOp::create(rewriter, loc, 1, syncI8, strideOneI8);
-    MqmaBmmOp::create(rewriter, loc, 0, 0, 1);
-    MSettypeOp::create(rewriter, loc, rewriter.getI64Type(), typeI32);
     Value syncZero =
         makeSubview(rewriter, loc, zero,
                     ArrayRef<OpFoldResult>{rewriter.getIndexAttr(0),
                                            rewriter.getIndexAttr(0)},
                     ArrayRef<int64_t>{1, 1});
+    // In SSA the MMA needs an accumulator operand.  Hoist the accumulator load
+    // that feeds the discarded MMA so it has a defined input; the load/store
+    // pair below keeps its original position, so the round trip is unchanged.
+    FailureOr<Value> syncAcc =
+        ame::createLoadAccumulator(rewriter, loc, i32ElementType,
+                                   f32ElementType, syncZero, strideOneF32, op);
+    if (failed(syncAcc))
+      return failure();
+    FailureOr<Value> syncA =
+        ame::createLoadA(rewriter, loc, i8ElementType, syncI8, strideOneI8, op);
+    if (failed(syncA))
+      return failure();
+    FailureOr<Value> syncB = ame::createLoadBTransposed(
+        rewriter, loc, i8ElementType, syncI8, strideOneI8, op);
+    if (failed(syncB))
+      return failure();
+    syncAcc = ame::createMma(rewriter, loc, *syncAcc, *syncA, *syncB, op);
+    if (failed(syncAcc))
+      return failure();
+    if (failed(ame::configureAccumulatorType(rewriter, loc, i32ElementType,
+                                             AmeTargetProfile::Qwen3Fpga, op)))
+      return failure();
     Value syncScratch =
         makeSubview(rewriter, loc, scratch,
                     ArrayRef<OpFoldResult>{rewriter.getIndexAttr(0),
                                            rewriter.getIndexAttr(0)},
                     ArrayRef<int64_t>{1, 1});
-    Mlce32mOp::create(rewriter, loc, 0, syncZero, strideOneF32);
-    Msce32mOp::create(rewriter, loc, 0, syncScratch, strideOneF32);
+    FailureOr<Value> syncReload =
+        ame::createLoadAccumulator(rewriter, loc, i32ElementType,
+                                   f32ElementType, syncZero, strideOneF32, op);
+    if (failed(syncReload))
+      return failure();
+    if (failed(ame::createStoreAccumulator(rewriter, loc, *syncReload,
+                                           syncScratch, strideOneF32, op)))
+      return failure();
     LLVM::FenceOp::create(rewriter, loc, LLVM::AtomicOrdering::seq_cst);
 
     if (profilePhases)
@@ -904,7 +934,8 @@ public:
     MSettilenOp::create(rewriter, loc, rewriter.getI64Type(), nSixteen);
     MSettilekOp::create(rewriter, loc, rewriter.getI64Type(), kSixtyFour);
 
-    auto emitTokenTile = [&](Value tokenBase, int64_t tileRows) {
+    auto emitTokenTile = [&](Value tokenBase,
+                             int64_t tileRows) -> LogicalResult {
       Value tileM = i64Constant(rewriter, loc, tileRows);
       Value tileRowBound = indexConstant(rewriter, loc, tileRows);
       MSettilemOp::create(rewriter, loc, rewriter.getI64Type(), tileM);
@@ -919,20 +950,34 @@ public:
 
       if (profilePhases)
         emitProfileCall(rewriter, loc, kProfileStart, kProfileAMEKernel);
-      MSettypeOp::create(rewriter, loc, rewriter.getI64Type(), typeI32);
+      if (failed(ame::configureAccumulatorType(
+              rewriter, loc, i32ElementType, AmeTargetProfile::Qwen3Fpga, op)))
+        return failure();
+      // accs[n] is the accumulator tile of output column block n.  The group
+      // loop re-seeds every chain from the zero buffer, so only the K loop
+      // below has to carry them.
+      SmallVector<Value, 8> accs(4);
       for (int64_t n = 0; n < 4; ++n) {
         Value zeroTile = makeSubview(
             rewriter, loc, zero,
             ArrayRef<OpFoldResult>{rewriter.getIndexAttr(0),
                                    rewriter.getIndexAttr(n * kHardwareN)},
             ArrayRef<int64_t>{tileRows, kHardwareN});
-        Mlce32mOp::create(rewriter, loc, n, zeroTile, strideC);
+        FailureOr<Value> acc =
+            ame::createLoadAccumulator(rewriter, loc, i32ElementType,
+                                       f32ElementType, zeroTile, strideC, op);
+        if (failed(acc))
+          return failure();
+        accs[n] = *acc;
       }
 
       Value groupBase =
           arith::MulIOp::create(rewriter, loc, group, groupSizeIndex);
-      auto kLoop = scf::ForOp::create(rewriter, loc, c0, groupSizeIndex, c64);
+      auto kLoop =
+          scf::ForOp::create(rewriter, loc, c0, groupSizeIndex, c64, accs);
       rewriter.setInsertionPointToStart(kLoop.getBody());
+      MutableArrayRef<BlockArgument> iterAccs = kLoop.getRegionIterArgs();
+      SmallVector<Value, 8> updatedAccs(iterAccs.begin(), iterAccs.end());
       Value kOffset = kLoop.getInductionVar();
       Value activationOffset =
           arith::AddIOp::create(rewriter, loc, groupBase, kOffset);
@@ -940,8 +985,13 @@ public:
           makeSubview(rewriter, loc, op.getXq(),
                       ArrayRef<OpFoldResult>{tokenBase, activationOffset},
                       ArrayRef<int64_t>{tileRows, kHardwareK});
-      MSettypeOp::create(rewriter, loc, rewriter.getI64Type(), typeI8);
-      Mlae8mOp::create(rewriter, loc, 0, activationTile, strideA);
+      if (failed(ame::configureMmaType(rewriter, loc, i8ElementType,
+                                       AmeTargetProfile::Qwen3Fpga, op)))
+        return failure();
+      FailureOr<Value> a0 = ame::createLoadA(rewriter, loc, i8ElementType,
+                                             activationTile, strideA, op);
+      if (failed(a0))
+        return failure();
       SmallVector<Value, 4> weightTiles;
       for (int64_t n = 0; n < 4; ++n) {
         weightTiles.push_back(makeSubview(
@@ -954,24 +1004,59 @@ public:
 
       // Match Qwen3's validated 1A x 4B schedule.  Every mqma produces one
       // tileRows x N16 tile.
-      Mlbe8mOp::create(rewriter, loc, 4, weightTiles[0], strideB);
-      Mlbe8mOp::create(rewriter, loc, 5, weightTiles[1], strideB);
-      MqmaBmmOp::create(rewriter, loc, 0, 0, 4);
-      Mlbe8mOp::create(rewriter, loc, 6, weightTiles[2], strideB);
-      MqmaBmmOp::create(rewriter, loc, 1, 0, 5);
-      Mlbe8mOp::create(rewriter, loc, 7, weightTiles[3], strideB);
-      MqmaBmmOp::create(rewriter, loc, 2, 0, 6);
-      MqmaBmmOp::create(rewriter, loc, 3, 0, 7);
+      FailureOr<Value> b4 = ame::createLoadB(rewriter, loc, i8ElementType,
+                                             weightTiles[0], strideB, op);
+      if (failed(b4))
+        return failure();
+      FailureOr<Value> b5 = ame::createLoadB(rewriter, loc, i8ElementType,
+                                             weightTiles[1], strideB, op);
+      if (failed(b5))
+        return failure();
+      FailureOr<Value> mma0 =
+          ame::createMma(rewriter, loc, updatedAccs[0], *a0, *b4, op);
+      if (failed(mma0))
+        return failure();
+      updatedAccs[0] = *mma0;
+      FailureOr<Value> b6 = ame::createLoadB(rewriter, loc, i8ElementType,
+                                             weightTiles[2], strideB, op);
+      if (failed(b6))
+        return failure();
+      FailureOr<Value> mma1 =
+          ame::createMma(rewriter, loc, updatedAccs[1], *a0, *b5, op);
+      if (failed(mma1))
+        return failure();
+      updatedAccs[1] = *mma1;
+      FailureOr<Value> b7 = ame::createLoadB(rewriter, loc, i8ElementType,
+                                             weightTiles[3], strideB, op);
+      if (failed(b7))
+        return failure();
+      FailureOr<Value> mma2 =
+          ame::createMma(rewriter, loc, updatedAccs[2], *a0, *b6, op);
+      if (failed(mma2))
+        return failure();
+      updatedAccs[2] = *mma2;
+      FailureOr<Value> mma3 =
+          ame::createMma(rewriter, loc, updatedAccs[3], *a0, *b7, op);
+      if (failed(mma3))
+        return failure();
+      updatedAccs[3] = *mma3;
+      scf::YieldOp::create(rewriter, loc, updatedAccs);
 
       rewriter.setInsertionPointAfter(kLoop);
-      MSettypeOp::create(rewriter, loc, rewriter.getI64Type(), typeI32);
+      for (int64_t n = 0; n < 4; ++n)
+        accs[n] = kLoop.getResult(n);
+      if (failed(ame::configureAccumulatorType(
+              rewriter, loc, i32ElementType, AmeTargetProfile::Qwen3Fpga, op)))
+        return failure();
       for (int64_t n = 0; n < 4; ++n) {
         Value scratchTile = makeSubview(
             rewriter, loc, scratch,
             ArrayRef<OpFoldResult>{rewriter.getIndexAttr(0),
                                    rewriter.getIndexAttr(n * kHardwareN)},
             ArrayRef<int64_t>{tileRows, kHardwareN});
-        Msce32mOp::create(rewriter, loc, n, scratchTile, strideC);
+        if (failed(ame::createStoreAccumulator(rewriter, loc, accs[n],
+                                               scratchTile, strideC, op)))
+          return failure();
       }
 
       // The AME stores above are asynchronous with respect to scalar CPU
@@ -1015,6 +1100,7 @@ public:
       if (profilePhases)
         emitProfileCall(rewriter, loc, kProfileEnd, kProfileRVVAccumulation);
       rewriter.setInsertionPointAfter(blockLoop);
+      return success();
     };
 
     int64_t fullTiles = tokens / kHardwareM;
@@ -1026,12 +1112,14 @@ public:
       rewriter.setInsertionPointToStart(tokenTileLoop.getBody());
       Value tokenBase = arith::MulIOp::create(
           rewriter, loc, tokenTileLoop.getInductionVar(), c16);
-      emitTokenTile(tokenBase, kHardwareM);
+      if (failed(emitTokenTile(tokenBase, kHardwareM)))
+        return failure();
       rewriter.setInsertionPointAfter(tokenTileLoop);
     }
     if (tailRows != 0) {
       Value tailBase = indexConstant(rewriter, loc, fullTiles * kHardwareM);
-      emitTokenTile(tailBase, tailRows);
+      if (failed(emitTokenTile(tailBase, tailRows)))
+        return failure();
     }
 
     if (profilePhases)
@@ -1042,6 +1130,7 @@ public:
 
 private:
   bool profilePhases;
+  AmeTargetProfile profile;
 };
 
 /// Lower a paired semantic op to two established W8A8 schedules.  The fast
@@ -1053,9 +1142,10 @@ private:
 class W8A8LinearPairLowering : public OpRewritePattern<W8A8LinearPairOp> {
 public:
   W8A8LinearPairLowering(MLIRContext *context, bool profilePhases,
-                         bool sharePreamble)
+                         bool sharePreamble, AmeTargetProfile profile)
       : OpRewritePattern<W8A8LinearPairOp>(context),
-        profilePhases(profilePhases), sharePreamble(sharePreamble) {}
+        profilePhases(profilePhases), sharePreamble(sharePreamble),
+        profile(profile) {}
 
   LogicalResult matchAndRewrite(W8A8LinearPairOp op,
                                 PatternRewriter &rewriter) const override {
@@ -1159,10 +1249,13 @@ public:
     Value oneI64 = i64Constant(rewriter, loc, 1);
     Value nSixteen = i64Constant(rewriter, loc, kHardwareN);
     Value kSixtyFour = i64Constant(rewriter, loc, kHardwareK);
-    Value typeI8 = i64Constant(rewriter, loc, kMTypeI8);
-    Value typeI32 = i64Constant(rewriter, loc, kMTypeI32);
     Value strideOneI8 = i64Constant(rewriter, loc, sizeof(int8_t));
     Value strideOneF32 = i64Constant(rewriter, loc, sizeof(float));
+    // Matrix tiles are SSA values now: A/B carry the memref element type, the
+    // accumulator datapath is i32 while its memory side stays fp32.
+    Type i8ElementType = tailActivationType.getElementType();
+    Type i32ElementType = rewriter.getI32Type();
+    Type f32ElementType = scratchType.getElementType();
 
     if (profilePhases)
       emitProfileCall(rewriter, loc, kProfileStart, kProfileLinearTotal);
@@ -1208,31 +1301,55 @@ public:
     // second resynchronization.
     memref::StoreOp::create(rewriter, loc, zeroI8, tailActivation,
                             ValueRange{c0, c0});
-    MSettilemOp::create(rewriter, loc, rewriter.getI64Type(), oneI64);
-    MSettilenOp::create(rewriter, loc, rewriter.getI64Type(), oneI64);
-    MSettilekOp::create(rewriter, loc, rewriter.getI64Type(), oneI64);
-    MSettypeOp::create(rewriter, loc, rewriter.getI64Type(), typeI8);
-    Value syncI8 = makeSubview(
-        rewriter, loc, tailActivation,
-        ArrayRef<OpFoldResult>{rewriter.getIndexAttr(0),
-                               rewriter.getIndexAttr(0)},
-        ArrayRef<int64_t>{1, 1});
-    Mlae8mOp::create(rewriter, loc, 0, syncI8, strideOneI8);
-    Mlbte8mOp::create(rewriter, loc, 1, syncI8, strideOneI8);
-    MqmaBmmOp::create(rewriter, loc, 0, 0, 1);
-    MSettypeOp::create(rewriter, loc, rewriter.getI64Type(), typeI32);
+    if (failed(ame::configureTiles(rewriter, loc, oneI64, oneI64, oneI64)))
+      return failure();
+    if (failed(ame::configureMmaType(rewriter, loc, i8ElementType,
+                                     AmeTargetProfile::Qwen3Fpga, op)))
+      return failure();
+    Value syncI8 = makeSubview(rewriter, loc, tailActivation,
+                               ArrayRef<OpFoldResult>{rewriter.getIndexAttr(0),
+                                                      rewriter.getIndexAttr(0)},
+                               ArrayRef<int64_t>{1, 1});
     Value syncZero = makeSubview(
         rewriter, loc, zero,
         ArrayRef<OpFoldResult>{rewriter.getIndexAttr(0),
                                rewriter.getIndexAttr(0)},
         ArrayRef<int64_t>{1, 1});
+    // In SSA the MMA needs an accumulator operand.  Hoist the accumulator load
+    // that feeds the discarded MMA so it has a defined input; the load/store
+    // pair below keeps its original position, so the round trip is unchanged.
+    FailureOr<Value> syncAcc =
+        ame::createLoadAccumulator(rewriter, loc, i32ElementType,
+                                   f32ElementType, syncZero, strideOneF32, op);
+    if (failed(syncAcc))
+      return failure();
+    FailureOr<Value> syncA =
+        ame::createLoadA(rewriter, loc, i8ElementType, syncI8, strideOneI8, op);
+    if (failed(syncA))
+      return failure();
+    FailureOr<Value> syncB = ame::createLoadBTransposed(
+        rewriter, loc, i8ElementType, syncI8, strideOneI8, op);
+    if (failed(syncB))
+      return failure();
+    syncAcc = ame::createMma(rewriter, loc, *syncAcc, *syncA, *syncB, op);
+    if (failed(syncAcc))
+      return failure();
+    if (failed(ame::configureAccumulatorType(rewriter, loc, i32ElementType,
+                                             AmeTargetProfile::Qwen3Fpga, op)))
+      return failure();
     Value syncScratch = makeSubview(
         rewriter, loc, scratch,
         ArrayRef<OpFoldResult>{rewriter.getIndexAttr(0),
                                rewriter.getIndexAttr(0)},
         ArrayRef<int64_t>{1, 1});
-    Mlce32mOp::create(rewriter, loc, 0, syncZero, strideOneF32);
-    Msce32mOp::create(rewriter, loc, 0, syncScratch, strideOneF32);
+    FailureOr<Value> syncReload =
+        ame::createLoadAccumulator(rewriter, loc, i32ElementType,
+                                   f32ElementType, syncZero, strideOneF32, op);
+    if (failed(syncReload))
+      return failure();
+    if (failed(ame::createStoreAccumulator(rewriter, loc, *syncReload,
+                                           syncScratch, strideOneF32, op)))
+      return failure();
     LLVM::FenceOp::create(rewriter, loc, LLVM::AtomicOrdering::seq_cst);
     MSettilenOp::create(rewriter, loc, rewriter.getI64Type(), nSixteen);
     MSettilekOp::create(rewriter, loc, rewriter.getI64Type(), kSixtyFour);
@@ -1246,14 +1363,15 @@ public:
 private:
   bool profilePhases;
   bool sharePreamble;
+  AmeTargetProfile profile;
 };
 
 class W8A8LinearLowering : public OpRewritePattern<W8A8LinearOp> {
 public:
   W8A8LinearLowering(MLIRContext *context, bool profilePhases,
-                     bool experimentalDecodeN128)
+                     bool experimentalDecodeN128, AmeTargetProfile profile)
       : OpRewritePattern<W8A8LinearOp>(context), profilePhases(profilePhases),
-        experimentalDecodeN128(experimentalDecodeN128) {}
+        experimentalDecodeN128(experimentalDecodeN128), profile(profile) {}
 
   LogicalResult matchAndRewrite(W8A8LinearOp op,
                                 PatternRewriter &rewriter) const override {
@@ -1341,8 +1459,11 @@ public:
     Value mSixteen = i64Constant(rewriter, loc, kHardwareM);
     Value nSixteen = i64Constant(rewriter, loc, kHardwareN);
     Value kSixtyFour = i64Constant(rewriter, loc, kHardwareK);
-    Value typeI8 = i64Constant(rewriter, loc, kMTypeI8);
-    Value typeI32 = i64Constant(rewriter, loc, kMTypeI32);
+    // Matrix tiles are SSA values now: A/B carry the memref element type, the
+    // accumulator datapath is i32 while its memory side stays fp32.
+    Type i8ElementType = xqType.getElementType();
+    Type i32ElementType = rewriter.getI32Type();
+    Type f32ElementType = scratchType.getElementType();
     auto zeroVectorType = VectorType::get({kHardwareN}, rewriter.getF32Type());
     bool preambleManaged = op->hasAttr(kPairPreambleManagedAttr);
     bool linearTotalStarted = op->hasAttr(kPairLinearTotalStartedAttr);
@@ -1384,31 +1505,57 @@ public:
       // initialization, before configuring the real operation tiles.
       memref::StoreOp::create(rewriter, loc, zeroI8, tailActivation,
                               ValueRange{c0, c0});
-      MSettilemOp::create(rewriter, loc, rewriter.getI64Type(), oneI64);
-      MSettilenOp::create(rewriter, loc, rewriter.getI64Type(), oneI64);
-      MSettilekOp::create(rewriter, loc, rewriter.getI64Type(), oneI64);
-      MSettypeOp::create(rewriter, loc, rewriter.getI64Type(), typeI8);
+      if (failed(ame::configureTiles(rewriter, loc, oneI64, oneI64, oneI64)))
+        return failure();
+      if (failed(ame::configureMmaType(rewriter, loc, i8ElementType,
+                                       AmeTargetProfile::Qwen3Fpga, op)))
+        return failure();
       Value syncI8 =
           makeSubview(rewriter, loc, tailActivation,
                       ArrayRef<OpFoldResult>{rewriter.getIndexAttr(0),
                                              rewriter.getIndexAttr(0)},
                       ArrayRef<int64_t>{1, 1});
-      Mlae8mOp::create(rewriter, loc, 0, syncI8, strideOneI8);
-      Mlbte8mOp::create(rewriter, loc, 1, syncI8, strideOneI8);
-      MqmaBmmOp::create(rewriter, loc, 0, 0, 1);
-      MSettypeOp::create(rewriter, loc, rewriter.getI64Type(), typeI32);
       Value syncZero =
           makeSubview(rewriter, loc, zero,
                       ArrayRef<OpFoldResult>{rewriter.getIndexAttr(0),
                                              rewriter.getIndexAttr(0)},
                       ArrayRef<int64_t>{1, 1});
+      // In SSA the MMA needs an accumulator operand.  Hoist the accumulator
+      // load that feeds the discarded MMA so it has a defined input; the
+      // load/store pair below keeps its original position, so the round trip
+      // is unchanged.
+      FailureOr<Value> syncAcc = ame::createLoadAccumulator(
+          rewriter, loc, i32ElementType, f32ElementType, syncZero, strideOneF32,
+          op);
+      if (failed(syncAcc))
+        return failure();
+      FailureOr<Value> syncA = ame::createLoadA(rewriter, loc, i8ElementType,
+                                                syncI8, strideOneI8, op);
+      if (failed(syncA))
+        return failure();
+      FailureOr<Value> syncB = ame::createLoadBTransposed(
+          rewriter, loc, i8ElementType, syncI8, strideOneI8, op);
+      if (failed(syncB))
+        return failure();
+      syncAcc = ame::createMma(rewriter, loc, *syncAcc, *syncA, *syncB, op);
+      if (failed(syncAcc))
+        return failure();
+      if (failed(ame::configureAccumulatorType(
+              rewriter, loc, i32ElementType, AmeTargetProfile::Qwen3Fpga, op)))
+        return failure();
       Value syncScratch =
           makeSubview(rewriter, loc, scratch,
                       ArrayRef<OpFoldResult>{rewriter.getIndexAttr(0),
                                              rewriter.getIndexAttr(0)},
                       ArrayRef<int64_t>{1, 1});
-      Mlce32mOp::create(rewriter, loc, 0, syncZero, strideOneF32);
-      Msce32mOp::create(rewriter, loc, 0, syncScratch, strideOneF32);
+      FailureOr<Value> syncReload = ame::createLoadAccumulator(
+          rewriter, loc, i32ElementType, f32ElementType, syncZero, strideOneF32,
+          op);
+      if (failed(syncReload))
+        return failure();
+      if (failed(ame::createStoreAccumulator(rewriter, loc, *syncReload,
+                                             syncScratch, strideOneF32, op)))
+        return failure();
       LLVM::FenceOp::create(rewriter, loc, LLVM::AtomicOrdering::seq_cst);
 
       // N=16 and K=64 are invariant for every supported Qwen3 geometry.
@@ -1417,16 +1564,22 @@ public:
     }
 
     auto emitAccumulatorZero = [&](int64_t accumulatorBase, int64_t zeroRowBase,
-                                   int64_t count) {
+                                   int64_t count,
+                                   SmallVectorImpl<Value> &accs) {
       for (int64_t n = 0; n < count; ++n) {
         Value zeroTile = makeSubview(
             rewriter, loc, zero,
             ArrayRef<OpFoldResult>{rewriter.getIndexAttr(zeroRowBase),
                                    rewriter.getIndexAttr(n * kHardwareN)},
             ArrayRef<int64_t>{kHardwareM, kHardwareN});
-        Mlce32mOp::create(rewriter, loc, accumulatorBase + n, zeroTile,
-                          strideC);
+        FailureOr<Value> acc =
+            ame::createLoadAccumulator(rewriter, loc, i32ElementType,
+                                       f32ElementType, zeroTile, strideC, op);
+        if (failed(acc))
+          return failure();
+        accs[accumulatorBase + n] = *acc;
       }
+      return success();
     };
 
     auto emitAccumulateRows = [&](Value scratchRowBase, Value tokenBase,
@@ -1503,17 +1656,29 @@ public:
     };
 
     auto emit1A4B = [&](Value tokenBase, int64_t tileRows, Value outputBlock,
-                        Value group) {
+                        Value group) -> LogicalResult {
       if (profilePhases)
         emitProfileCall(rewriter, loc, kProfileStart, kProfileAMEKernel);
-      MSettypeOp::create(rewriter, loc, rewriter.getI64Type(), typeI32);
-      emitAccumulatorZero(/*accumulatorBase=*/0, /*zeroRowBase=*/0,
-                          /*count=*/4);
+      if (failed(ame::configureAccumulatorType(
+              rewriter, loc, i32ElementType, AmeTargetProfile::Qwen3Fpga, op)))
+        return failure();
+      // accs[n] is the accumulator tile of output column block n.  Every 1A x
+      // 4B batch re-seeds the four chains from the zero buffer, so only the K
+      // loop has to carry them.
+      SmallVector<Value, 8> accs(4);
+      if (failed(emitAccumulatorZero(/*accumulatorBase=*/0, /*zeroRowBase=*/0,
+                                     /*count=*/4, accs)))
+        return failure();
       Value groupBase =
           arith::MulIOp::create(rewriter, loc, group, groupSizeIndex);
-      MSettypeOp::create(rewriter, loc, rewriter.getI64Type(), typeI8);
-      auto kLoop = scf::ForOp::create(rewriter, loc, c0, groupSizeIndex, c64);
+      if (failed(ame::configureMmaType(rewriter, loc, i8ElementType,
+                                       AmeTargetProfile::Qwen3Fpga, op)))
+        return failure();
+      auto kLoop =
+          scf::ForOp::create(rewriter, loc, c0, groupSizeIndex, c64, accs);
       rewriter.setInsertionPointToStart(kLoop.getBody());
+      MutableArrayRef<BlockArgument> iterAccs = kLoop.getRegionIterArgs();
+      SmallVector<Value, 8> updatedAccs(iterAccs.begin(), iterAccs.end());
       Value kOffset = kLoop.getInductionVar();
       Value activationOffset =
           arith::AddIOp::create(rewriter, loc, groupBase, kOffset);
@@ -1521,29 +1686,67 @@ public:
           makeSubview(rewriter, loc, op.getXq(),
                       ArrayRef<OpFoldResult>{tokenBase, activationOffset},
                       ArrayRef<int64_t>{tileRows, kHardwareK});
-      Mlae8mOp::create(rewriter, loc, 0, activationTile, strideA);
+      FailureOr<Value> a0 = ame::createLoadA(rewriter, loc, i8ElementType,
+                                             activationTile, strideA, op);
+      if (failed(a0))
+        return failure();
       Value weight0 = makeWeightTile(outputBlock, group, 0, kOffset);
       Value weight1 = makeWeightTile(outputBlock, group, 1, kOffset);
       Value weight2 = makeWeightTile(outputBlock, group, 2, kOffset);
       Value weight3 = makeWeightTile(outputBlock, group, 3, kOffset);
-      Mlbe8mOp::create(rewriter, loc, 4, weight0, strideB);
-      Mlbe8mOp::create(rewriter, loc, 5, weight1, strideB);
-      MqmaBmmOp::create(rewriter, loc, 0, 0, 4);
-      Mlbe8mOp::create(rewriter, loc, 6, weight2, strideB);
-      MqmaBmmOp::create(rewriter, loc, 1, 0, 5);
-      Mlbe8mOp::create(rewriter, loc, 7, weight3, strideB);
-      MqmaBmmOp::create(rewriter, loc, 2, 0, 6);
-      MqmaBmmOp::create(rewriter, loc, 3, 0, 7);
+      FailureOr<Value> b4 =
+          ame::createLoadB(rewriter, loc, i8ElementType, weight0, strideB, op);
+      if (failed(b4))
+        return failure();
+      FailureOr<Value> b5 =
+          ame::createLoadB(rewriter, loc, i8ElementType, weight1, strideB, op);
+      if (failed(b5))
+        return failure();
+      FailureOr<Value> mma0 =
+          ame::createMma(rewriter, loc, updatedAccs[0], *a0, *b4, op);
+      if (failed(mma0))
+        return failure();
+      updatedAccs[0] = *mma0;
+      FailureOr<Value> b6 =
+          ame::createLoadB(rewriter, loc, i8ElementType, weight2, strideB, op);
+      if (failed(b6))
+        return failure();
+      FailureOr<Value> mma1 =
+          ame::createMma(rewriter, loc, updatedAccs[1], *a0, *b5, op);
+      if (failed(mma1))
+        return failure();
+      updatedAccs[1] = *mma1;
+      FailureOr<Value> b7 =
+          ame::createLoadB(rewriter, loc, i8ElementType, weight3, strideB, op);
+      if (failed(b7))
+        return failure();
+      FailureOr<Value> mma2 =
+          ame::createMma(rewriter, loc, updatedAccs[2], *a0, *b6, op);
+      if (failed(mma2))
+        return failure();
+      updatedAccs[2] = *mma2;
+      FailureOr<Value> mma3 =
+          ame::createMma(rewriter, loc, updatedAccs[3], *a0, *b7, op);
+      if (failed(mma3))
+        return failure();
+      updatedAccs[3] = *mma3;
+      scf::YieldOp::create(rewriter, loc, updatedAccs);
       rewriter.setInsertionPointAfter(kLoop);
+      for (int64_t n = 0; n < 4; ++n)
+        accs[n] = kLoop.getResult(n);
 
-      MSettypeOp::create(rewriter, loc, rewriter.getI64Type(), typeI32);
+      if (failed(ame::configureAccumulatorType(
+              rewriter, loc, i32ElementType, AmeTargetProfile::Qwen3Fpga, op)))
+        return failure();
       for (int64_t n = 0; n < 4; ++n) {
         Value scratchTile = makeSubview(
             rewriter, loc, scratch,
             ArrayRef<OpFoldResult>{rewriter.getIndexAttr(0),
                                    rewriter.getIndexAttr(n * kHardwareN)},
             ArrayRef<int64_t>{tileRows, kHardwareN});
-        Msce32mOp::create(rewriter, loc, n, scratchTile, strideC);
+        if (failed(ame::createStoreAccumulator(rewriter, loc, accs[n],
+                                               scratchTile, strideC, op)))
+          return failure();
       }
       LLVM::FenceOp::create(rewriter, loc, LLVM::AtomicOrdering::seq_cst);
       if (profilePhases)
@@ -1554,23 +1757,38 @@ public:
       emitAccumulateRows(c0, tokenBase, tileRows, outputBase, group);
       if (profilePhases)
         emitProfileCall(rewriter, loc, kProfileEnd, kProfileRVVAccumulation);
+      return success();
     };
 
-    auto emit2A4B = [&](Value tokenBase, Value outputBlock, Value group) {
+    auto emit2A4B = [&](Value tokenBase, Value outputBlock,
+                        Value group) -> LogicalResult {
       if (profilePhases)
         emitProfileCall(rewriter, loc, kProfileStart, kProfileAMEKernel);
-      MSettypeOp::create(rewriter, loc, rewriter.getI64Type(), typeI32);
-      emitAccumulatorZero(/*accumulatorBase=*/0, /*zeroRowBase=*/0,
-                          /*count=*/4);
-      emitAccumulatorZero(/*accumulatorBase=*/4,
-                          /*zeroRowBase=*/kHardwareM, /*count=*/4);
+      if (failed(ame::configureAccumulatorType(
+              rewriter, loc, i32ElementType, AmeTargetProfile::Qwen3Fpga, op)))
+        return failure();
+      // accs[0..3] are the accumulators of the first token tile, accs[4..7]
+      // those of the second.  A pair batch re-seeds all eight chains.
+      SmallVector<Value, 8> accs(8);
+      if (failed(emitAccumulatorZero(/*accumulatorBase=*/0, /*zeroRowBase=*/0,
+                                     /*count=*/4, accs)))
+        return failure();
+      if (failed(emitAccumulatorZero(/*accumulatorBase=*/4,
+                                     /*zeroRowBase=*/kHardwareM, /*count=*/4,
+                                     accs)))
+        return failure();
       Value groupBase =
           arith::MulIOp::create(rewriter, loc, group, groupSizeIndex);
       Value secondTokenBase =
           arith::AddIOp::create(rewriter, loc, tokenBase, c16);
-      MSettypeOp::create(rewriter, loc, rewriter.getI64Type(), typeI8);
-      auto kLoop = scf::ForOp::create(rewriter, loc, c0, groupSizeIndex, c64);
+      if (failed(ame::configureMmaType(rewriter, loc, i8ElementType,
+                                       AmeTargetProfile::Qwen3Fpga, op)))
+        return failure();
+      auto kLoop =
+          scf::ForOp::create(rewriter, loc, c0, groupSizeIndex, c64, accs);
       rewriter.setInsertionPointToStart(kLoop.getBody());
+      MutableArrayRef<BlockArgument> iterAccs = kLoop.getRegionIterArgs();
+      SmallVector<Value, 8> updatedAccs(iterAccs.begin(), iterAccs.end());
       Value kOffset = kLoop.getInductionVar();
       Value activationOffset =
           arith::AddIOp::create(rewriter, loc, groupBase, kOffset);
@@ -1586,28 +1804,83 @@ public:
       // occupy the even A-bank registers tr0/tr2, while the four B tiles
       // occupy tr4..tr7.  acc4..acc7 select tr2; tr4 is not an A register in
       // this schedule.
-      Mlae8mOp::create(rewriter, loc, 0, activation0, strideA);
-      Mlae8mOp::create(rewriter, loc, 2, activation1, strideA);
+      FailureOr<Value> a0 = ame::createLoadA(rewriter, loc, i8ElementType,
+                                             activation0, strideA, op);
+      if (failed(a0))
+        return failure();
+      FailureOr<Value> a2 = ame::createLoadA(rewriter, loc, i8ElementType,
+                                             activation1, strideA, op);
+      if (failed(a2))
+        return failure();
       Value weight0 = makeWeightTile(outputBlock, group, 0, kOffset);
       Value weight1 = makeWeightTile(outputBlock, group, 1, kOffset);
       Value weight2 = makeWeightTile(outputBlock, group, 2, kOffset);
       Value weight3 = makeWeightTile(outputBlock, group, 3, kOffset);
       // Keep the FPGA-validated 2A x 4B issue order.
-      Mlbe8mOp::create(rewriter, loc, 4, weight0, strideB);
-      Mlbe8mOp::create(rewriter, loc, 5, weight1, strideB);
-      MqmaBmmOp::create(rewriter, loc, 0, 0, 4);
-      Mlbe8mOp::create(rewriter, loc, 6, weight2, strideB);
-      MqmaBmmOp::create(rewriter, loc, 4, 2, 4);
-      Mlbe8mOp::create(rewriter, loc, 7, weight3, strideB);
-      MqmaBmmOp::create(rewriter, loc, 1, 0, 5);
-      MqmaBmmOp::create(rewriter, loc, 5, 2, 5);
-      MqmaBmmOp::create(rewriter, loc, 2, 0, 6);
-      MqmaBmmOp::create(rewriter, loc, 6, 2, 6);
-      MqmaBmmOp::create(rewriter, loc, 3, 0, 7);
-      MqmaBmmOp::create(rewriter, loc, 7, 2, 7);
+      FailureOr<Value> b4 =
+          ame::createLoadB(rewriter, loc, i8ElementType, weight0, strideB, op);
+      if (failed(b4))
+        return failure();
+      FailureOr<Value> b5 =
+          ame::createLoadB(rewriter, loc, i8ElementType, weight1, strideB, op);
+      if (failed(b5))
+        return failure();
+      FailureOr<Value> mma0 =
+          ame::createMma(rewriter, loc, updatedAccs[0], *a0, *b4, op);
+      if (failed(mma0))
+        return failure();
+      updatedAccs[0] = *mma0;
+      FailureOr<Value> b6 =
+          ame::createLoadB(rewriter, loc, i8ElementType, weight2, strideB, op);
+      if (failed(b6))
+        return failure();
+      FailureOr<Value> mma4 =
+          ame::createMma(rewriter, loc, updatedAccs[4], *a2, *b4, op);
+      if (failed(mma4))
+        return failure();
+      updatedAccs[4] = *mma4;
+      FailureOr<Value> b7 =
+          ame::createLoadB(rewriter, loc, i8ElementType, weight3, strideB, op);
+      if (failed(b7))
+        return failure();
+      FailureOr<Value> mma1 =
+          ame::createMma(rewriter, loc, updatedAccs[1], *a0, *b5, op);
+      if (failed(mma1))
+        return failure();
+      updatedAccs[1] = *mma1;
+      FailureOr<Value> mma5 =
+          ame::createMma(rewriter, loc, updatedAccs[5], *a2, *b5, op);
+      if (failed(mma5))
+        return failure();
+      updatedAccs[5] = *mma5;
+      FailureOr<Value> mma2 =
+          ame::createMma(rewriter, loc, updatedAccs[2], *a0, *b6, op);
+      if (failed(mma2))
+        return failure();
+      updatedAccs[2] = *mma2;
+      FailureOr<Value> mma6 =
+          ame::createMma(rewriter, loc, updatedAccs[6], *a2, *b6, op);
+      if (failed(mma6))
+        return failure();
+      updatedAccs[6] = *mma6;
+      FailureOr<Value> mma3 =
+          ame::createMma(rewriter, loc, updatedAccs[3], *a0, *b7, op);
+      if (failed(mma3))
+        return failure();
+      updatedAccs[3] = *mma3;
+      FailureOr<Value> mma7 =
+          ame::createMma(rewriter, loc, updatedAccs[7], *a2, *b7, op);
+      if (failed(mma7))
+        return failure();
+      updatedAccs[7] = *mma7;
+      scf::YieldOp::create(rewriter, loc, updatedAccs);
       rewriter.setInsertionPointAfter(kLoop);
+      for (int64_t n = 0; n < 8; ++n)
+        accs[n] = kLoop.getResult(n);
 
-      MSettypeOp::create(rewriter, loc, rewriter.getI64Type(), typeI32);
+      if (failed(ame::configureAccumulatorType(
+              rewriter, loc, i32ElementType, AmeTargetProfile::Qwen3Fpga, op)))
+        return failure();
       for (int64_t n = 0; n < 4; ++n) {
         Value scratch0 = makeSubview(
             rewriter, loc, scratch,
@@ -1619,8 +1892,12 @@ public:
             ArrayRef<OpFoldResult>{rewriter.getIndexAttr(kHardwareM),
                                    rewriter.getIndexAttr(n * kHardwareN)},
             ArrayRef<int64_t>{kHardwareM, kHardwareN});
-        Msce32mOp::create(rewriter, loc, n, scratch0, strideC);
-        Msce32mOp::create(rewriter, loc, 4 + n, scratch1, strideC);
+        if (failed(ame::createStoreAccumulator(rewriter, loc, accs[n], scratch0,
+                                               strideC, op)))
+          return failure();
+        if (failed(ame::createStoreAccumulator(rewriter, loc, accs[4 + n],
+                                               scratch1, strideC, op)))
+          return failure();
       }
       LLVM::FenceOp::create(rewriter, loc, LLVM::AtomicOrdering::seq_cst);
       if (profilePhases)
@@ -1632,23 +1909,37 @@ public:
       emitAccumulateRows(c16, secondTokenBase, kHardwareM, outputBase, group);
       if (profilePhases)
         emitProfileCall(rewriter, loc, kProfileEnd, kProfileRVVAccumulation);
+      return success();
     };
 
-    auto emitDecodePair = [&](Value outputBlock0, Value group) {
+    auto emitDecodePair = [&](Value outputBlock0,
+                              Value group) -> LogicalResult {
       if (profilePhases)
         emitProfileCall(rewriter, loc, kProfileStart, kProfileAMEKernel);
-      MSettypeOp::create(rewriter, loc, rewriter.getI64Type(), typeI32);
-      emitAccumulatorZero(/*accumulatorBase=*/0, /*zeroRowBase=*/0,
-                          /*count=*/4);
-      emitAccumulatorZero(/*accumulatorBase=*/4, /*zeroRowBase=*/0,
-                          /*count=*/4);
+      if (failed(ame::configureAccumulatorType(
+              rewriter, loc, i32ElementType, AmeTargetProfile::Qwen3Fpga, op)))
+        return failure();
+      // Eight accumulator chains: accs[0..3] belong to the first output block,
+      // accs[4..7] to the second one.
+      SmallVector<Value, 8> accs(8);
+      if (failed(emitAccumulatorZero(/*accumulatorBase=*/0, /*zeroRowBase=*/0,
+                                     /*count=*/4, accs)))
+        return failure();
+      if (failed(emitAccumulatorZero(/*accumulatorBase=*/4,
+                                     /*zeroRowBase=*/0, /*count=*/4, accs)))
+        return failure();
       Value outputBlock1 =
           arith::AddIOp::create(rewriter, loc, outputBlock0, c1);
       Value groupBase =
           arith::MulIOp::create(rewriter, loc, group, groupSizeIndex);
-      MSettypeOp::create(rewriter, loc, rewriter.getI64Type(), typeI8);
-      auto kLoop = scf::ForOp::create(rewriter, loc, c0, groupSizeIndex, c64);
+      if (failed(ame::configureMmaType(rewriter, loc, i8ElementType,
+                                       AmeTargetProfile::Qwen3Fpga, op)))
+        return failure();
+      auto kLoop =
+          scf::ForOp::create(rewriter, loc, c0, groupSizeIndex, c64, accs);
       rewriter.setInsertionPointToStart(kLoop.getBody());
+      MutableArrayRef<BlockArgument> iterAccs = kLoop.getRegionIterArgs();
+      SmallVector<Value, 8> updatedAccs(iterAccs.begin(), iterAccs.end());
       Value kOffset = kLoop.getInductionVar();
       Value activationOffset =
           arith::AddIOp::create(rewriter, loc, groupBase, kOffset);
@@ -1656,32 +1947,71 @@ public:
           makeSubview(rewriter, loc, op.getXq(),
                       ArrayRef<OpFoldResult>{c0, activationOffset},
                       ArrayRef<int64_t>{1, kHardwareK});
-      Mlae8mOp::create(rewriter, loc, 0, activation, strideA);
+      FailureOr<Value> a0 = ame::createLoadA(rewriter, loc, i8ElementType,
+                                             activation, strideA, op);
+      if (failed(a0))
+        return failure();
 
       auto emitFourWeights = [&](Value outputBlock, int64_t accumulatorBase,
-                                 int64_t activationRegister) {
+                                 Value activationValue) -> LogicalResult {
         Value weight0 = makeWeightTile(outputBlock, group, 0, kOffset);
         Value weight1 = makeWeightTile(outputBlock, group, 1, kOffset);
         Value weight2 = makeWeightTile(outputBlock, group, 2, kOffset);
         Value weight3 = makeWeightTile(outputBlock, group, 3, kOffset);
-        Mlbe8mOp::create(rewriter, loc, 4, weight0, strideB);
-        Mlbe8mOp::create(rewriter, loc, 5, weight1, strideB);
-        MqmaBmmOp::create(rewriter, loc, accumulatorBase + 0,
-                          activationRegister, 4);
-        Mlbe8mOp::create(rewriter, loc, 6, weight2, strideB);
-        MqmaBmmOp::create(rewriter, loc, accumulatorBase + 1,
-                          activationRegister, 5);
-        Mlbe8mOp::create(rewriter, loc, 7, weight3, strideB);
-        MqmaBmmOp::create(rewriter, loc, accumulatorBase + 2,
-                          activationRegister, 6);
-        MqmaBmmOp::create(rewriter, loc, accumulatorBase + 3,
-                          activationRegister, 7);
+        FailureOr<Value> b4 = ame::createLoadB(rewriter, loc, i8ElementType,
+                                               weight0, strideB, op);
+        if (failed(b4))
+          return failure();
+        FailureOr<Value> b5 = ame::createLoadB(rewriter, loc, i8ElementType,
+                                               weight1, strideB, op);
+        if (failed(b5))
+          return failure();
+        FailureOr<Value> mma0 =
+            ame::createMma(rewriter, loc, updatedAccs[accumulatorBase + 0],
+                           activationValue, *b4, op);
+        if (failed(mma0))
+          return failure();
+        updatedAccs[accumulatorBase + 0] = *mma0;
+        FailureOr<Value> b6 = ame::createLoadB(rewriter, loc, i8ElementType,
+                                               weight2, strideB, op);
+        if (failed(b6))
+          return failure();
+        FailureOr<Value> mma1 =
+            ame::createMma(rewriter, loc, updatedAccs[accumulatorBase + 1],
+                           activationValue, *b5, op);
+        if (failed(mma1))
+          return failure();
+        updatedAccs[accumulatorBase + 1] = *mma1;
+        FailureOr<Value> b7 = ame::createLoadB(rewriter, loc, i8ElementType,
+                                               weight3, strideB, op);
+        if (failed(b7))
+          return failure();
+        FailureOr<Value> mma2 =
+            ame::createMma(rewriter, loc, updatedAccs[accumulatorBase + 2],
+                           activationValue, *b6, op);
+        if (failed(mma2))
+          return failure();
+        updatedAccs[accumulatorBase + 2] = *mma2;
+        FailureOr<Value> mma3 =
+            ame::createMma(rewriter, loc, updatedAccs[accumulatorBase + 3],
+                           activationValue, *b7, op);
+        if (failed(mma3))
+          return failure();
+        updatedAccs[accumulatorBase + 3] = *mma3;
+        return success();
       };
-      emitFourWeights(outputBlock0, 0, 0);
-      emitFourWeights(outputBlock1, 4, 0);
+      if (failed(emitFourWeights(outputBlock0, 0, *a0)))
+        return failure();
+      if (failed(emitFourWeights(outputBlock1, 4, *a0)))
+        return failure();
+      scf::YieldOp::create(rewriter, loc, updatedAccs);
       rewriter.setInsertionPointAfter(kLoop);
+      for (int64_t n = 0; n < 8; ++n)
+        accs[n] = kLoop.getResult(n);
 
-      MSettypeOp::create(rewriter, loc, rewriter.getI64Type(), typeI32);
+      if (failed(ame::configureAccumulatorType(
+              rewriter, loc, i32ElementType, AmeTargetProfile::Qwen3Fpga, op)))
+        return failure();
       for (int64_t n = 0; n < 4; ++n) {
         Value scratch0 = makeSubview(
             rewriter, loc, scratch,
@@ -1693,8 +2023,12 @@ public:
             ArrayRef<OpFoldResult>{rewriter.getIndexAttr(1),
                                    rewriter.getIndexAttr(n * kHardwareN)},
             ArrayRef<int64_t>{1, kHardwareN});
-        Msce32mOp::create(rewriter, loc, n, scratch0, strideC);
-        Msce32mOp::create(rewriter, loc, 4 + n, scratch1, strideC);
+        if (failed(ame::createStoreAccumulator(rewriter, loc, accs[n], scratch0,
+                                               strideC, op)))
+          return failure();
+        if (failed(ame::createStoreAccumulator(rewriter, loc, accs[4 + n],
+                                               scratch1, strideC, op)))
+          return failure();
       }
       LLVM::FenceOp::create(rewriter, loc, LLVM::AtomicOrdering::seq_cst);
       if (profilePhases)
@@ -1709,6 +2043,7 @@ public:
       emitAccumulateRows(c1, c0, 1, outputBase1, group);
       if (profilePhases)
         emitProfileCall(rewriter, loc, kProfileEnd, kProfileRVVAccumulation);
+      return success();
     };
 
     if (tokens == 1) {
@@ -1726,18 +2061,21 @@ public:
           rewriter.setInsertionPointToStart(pairLoop.getBody());
           Value outputBlock0 = arith::MulIOp::create(
               rewriter, loc, pairLoop.getInductionVar(), c2);
-          emitDecodePair(outputBlock0, group);
+          if (failed(emitDecodePair(outputBlock0, group)))
+            return failure();
           rewriter.setInsertionPointAfter(pairLoop);
         }
         if (outputBlocks % 2 != 0) {
           Value lastBlock = indexConstant(rewriter, loc, outputBlocks - 1);
-          emit1A4B(c0, 1, lastBlock, group);
+          if (failed(emit1A4B(c0, 1, lastBlock, group)))
+            return failure();
         }
       } else {
         Value blockBound = indexConstant(rewriter, loc, outputBlocks);
         auto blockLoop = scf::ForOp::create(rewriter, loc, c0, blockBound, c1);
         rewriter.setInsertionPointToStart(blockLoop.getBody());
-        emit1A4B(c0, 1, blockLoop.getInductionVar(), group);
+        if (failed(emit1A4B(c0, 1, blockLoop.getInductionVar(), group)))
+          return failure();
         rewriter.setInsertionPointAfter(blockLoop);
       }
       rewriter.setInsertionPointAfter(groupLoop);
@@ -1768,7 +2106,8 @@ public:
         rewriter.setInsertionPointToStart(pairLoop.getBody());
         Value tokenBase = arith::MulIOp::create(
             rewriter, loc, pairLoop.getInductionVar(), c32);
-        emit2A4B(tokenBase, outputBlock, group);
+        if (failed(emit2A4B(tokenBase, outputBlock, group)))
+          return failure();
         rewriter.setInsertionPointAfter(pairLoop);
       }
 
@@ -1777,7 +2116,8 @@ public:
         if (!invariantM && fullPairs == 0)
           MSettilemOp::create(rewriter, loc, rewriter.getI64Type(), mSixteen);
         Value tokenBase = indexConstant(rewriter, loc, staticTokenBase);
-        emit1A4B(tokenBase, kHardwareM, outputBlock, group);
+        if (failed(emit1A4B(tokenBase, kHardwareM, outputBlock, group)))
+          return failure();
         staticTokenBase += kHardwareM;
         remainingRows -= kHardwareM;
       }
@@ -1787,7 +2127,8 @@ public:
           MSettilemOp::create(rewriter, loc, rewriter.getI64Type(), tailM);
         }
         Value tokenBase = indexConstant(rewriter, loc, staticTokenBase);
-        emit1A4B(tokenBase, remainingRows, outputBlock, group);
+        if (failed(emit1A4B(tokenBase, remainingRows, outputBlock, group)))
+          return failure();
       }
       rewriter.setInsertionPointAfter(blockLoop);
       rewriter.setInsertionPointAfter(groupLoop);
@@ -1806,6 +2147,7 @@ public:
 private:
   bool profilePhases;
   bool experimentalDecodeN128;
+  AmeTargetProfile profile;
 };
 
 class LowerQwenW8A8ToBOSCAMEPass
@@ -1859,6 +2201,12 @@ public:
                      "for GS512/1024 quantize writeback"),
       llvm::cl::init(false)};
 
+  Option<std::string> target{
+      *this, "target",
+      llvm::cl::desc("AME target contract; this FPGA schedule requires "
+                     "\"qwen3-fpga\" (or bosc_ame.target on the module)"),
+      llvm::cl::init("")};
+
   void getDependentDialects(DialectRegistry &registry) const override {
     registry.insert<BOSCAMEDialect, arith::ArithDialect, func::FuncDialect,
                     math::MathDialect, memref::MemRefDialect, scf::SCFDialect,
@@ -1867,6 +2215,17 @@ public:
 
   void runOnOperation() override {
     ModuleOp module = getOperation();
+    FailureOr<AmeTargetProfile> profile = resolveAmeTarget(module, target);
+    if (failed(profile)) {
+      signalPassFailure();
+      return;
+    }
+    if (*profile != AmeTargetProfile::Qwen3Fpga) {
+      module.emitError() << "--lower-qwen-w8a8-to-boscame requires "
+                            "bosc_ame.target = \"qwen3-fpga\"";
+      signalPassFailure();
+      return;
+    }
     if (quantizeReciprocal && quantizeOneAhead) {
       module.emitError("quantize-reciprocal and quantize-one-ahead are "
                        "mutually exclusive");
@@ -1919,7 +2278,7 @@ public:
           globalBuilder.getI64IntegerAttr(64));
     }
     if (!hasLinear) {
-      lower(module);
+      lower(module, *profile);
       return;
     }
 
@@ -1960,11 +2319,11 @@ public:
           globalBuilder.getStringAttr("private"), tailActivationType,
           UnitAttr::get(&getContext()), /*constant=*/false,
           globalBuilder.getI64IntegerAttr(64));
-    lower(module);
+    lower(module, *profile);
   }
 
 private:
-  void lower(ModuleOp module) {
+  void lower(ModuleOp module, AmeTargetProfile profile) {
     MLIRContext *context = &getContext();
     RewritePatternSet patterns(context);
     patterns.add<QuantizePerGroupLowering>(context, profilePhases,
@@ -1974,12 +2333,13 @@ private:
         context, profilePhases, quantizeUnroll, quantizeReciprocal,
         quantizeOneAhead);
     patterns.add<W8A8LinearPairLowering>(context, profilePhases,
-                                         /*sharePreamble=*/!scalarFallback);
+                                         /*sharePreamble=*/!scalarFallback,
+                                         profile);
     if (scalarFallback)
-      patterns.add<W8A8LinearScalarFallback>(context, profilePhases);
+      patterns.add<W8A8LinearScalarFallback>(context, profilePhases, profile);
     else
       patterns.add<W8A8LinearLowering>(context, profilePhases,
-                                       experimentalDecodeN128);
+                                       experimentalDecodeN128, profile);
     ConversionTarget target(*context);
     target.addLegalDialect<BOSCAMEDialect, arith::ArithDialect,
                            func::FuncDialect, math::MathDialect,

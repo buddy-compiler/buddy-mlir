@@ -1,8 +1,8 @@
-// RUN: buddy-opt %s --lower-qwen-w8a8-to-boscame | FileCheck %s --check-prefix=UNROLL-DIV
-// RUN: buddy-opt %s --lower-qwen-w8a8-to-boscame='quantize-reciprocal=true' | FileCheck %s --check-prefix=RECIPROCAL
-// RUN: buddy-opt %s --lower-qwen-w8a8-to-boscame='quantize-one-ahead=true' | FileCheck %s --check-prefix=ONE-AHEAD
-// RUN: buddy-opt %s --lower-qwen-w8a8-to-boscame='quantize-unroll=false quantize-reciprocal=false' | FileCheck %s --check-prefix=FALLBACK
-// RUN: not buddy-opt %s --lower-qwen-w8a8-to-boscame='quantize-reciprocal=true quantize-one-ahead=true' 2>&1 | FileCheck %s --check-prefix=CONFLICT
+// RUN: buddy-opt %s --lower-qwen-w8a8-to-boscame='target=qwen3-fpga' | FileCheck %s --check-prefix=UNROLL-DIV
+// RUN: buddy-opt %s --lower-qwen-w8a8-to-boscame='target=qwen3-fpga quantize-reciprocal=true' | FileCheck %s --check-prefix=RECIPROCAL
+// RUN: buddy-opt %s --lower-qwen-w8a8-to-boscame='target=qwen3-fpga quantize-one-ahead=true' | FileCheck %s --check-prefix=ONE-AHEAD
+// RUN: buddy-opt %s --lower-qwen-w8a8-to-boscame='target=qwen3-fpga quantize-unroll=false quantize-reciprocal=false' | FileCheck %s --check-prefix=FALLBACK
+// RUN: not buddy-opt %s --lower-qwen-w8a8-to-boscame='target=qwen3-fpga quantize-reciprocal=true quantize-one-ahead=true' 2>&1 | FileCheck %s --check-prefix=CONFLICT
 
 module {
   func.func @quantize_gs512(

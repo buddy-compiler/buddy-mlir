@@ -1,15 +1,53 @@
 # Environment Setup Guide for MLIR and RVV Testing and Experiments
 
 This guide provides instructions on setting up an environment to test the RISC-V Vector Extension using the buddy-mlir project.
-The target platform for emulation is QEMU.
+The primary target platform in this guide is QEMU. The local LLVM/MLIR,
+OpenMP, and buddy-mlir build in Steps 1 and 2 can also run natively on a
+RISC-V host.
 
 ## Requirements
 
-Before proceed any further make sure that you installed dependencies below
+Before proceeding any further make sure that you installed the dependencies below:
 
-* [LLVM dependecies](https://llvm.org/docs/GettingStarted.html#requirements)
-* [GNU Toolchain dependecies](https://github.com/riscv-collab/riscv-gnu-toolchain#prerequisites)
-* [QEMU dependecies](https://wiki.qemu.org/Hosts/Linux)
+* [LLVM dependencies](https://llvm.org/docs/GettingStarted.html#requirements)
+* [GNU Toolchain dependencies](https://github.com/riscv-collab/riscv-gnu-toolchain#prerequisites)
+* [QEMU dependencies](https://wiki.qemu.org/Hosts/Linux)
+
+`BUDDY_MLIR_ENABLE_RISCV_GNU_TOOLCHAIN=ON` (Step 2) builds the RISC-V GNU
+toolchain **and** QEMU from source, so the host also needs their build
+dependencies — follow the GNU toolchain and QEMU links above for the full
+package lists. The stages that blocked a fresh build while validating this
+guide are called out below.
+
+> **_NOTE (QEMU):_** the QEMU sub-build needs the `glib-2.0` development
+> package (e.g. `libglib2.0-dev` on Debian/Ubuntu). Without it `meson setup`
+> fails with `Dependency "glib-2.0" not found`.
+
+> **_NOTE (gdb):_** the toolchain builds `gdb` by default, which needs GMP and
+> MPFR development packages (e.g. `libgmp-dev`/`libmpfr-dev`). If they are not
+> available, configure the toolchain with `--disable-gdb` — gdb is not needed
+> for cross-compiling MLIR or buddy-mlir.
+
+> **_NOTE (clean environment):_** the GNU toolchain build uses autotools and
+> is sensitive to a polluted environment. In particular `make linux` fails if
+> `CPATH`/`C_INCLUDE_PATH`/`CPLUS_INCLUDE_PATH` inject foreign headers, or if
+> `LD_LIBRARY_PATH` contains the current directory (a trailing `:`). Build in a
+> clean shell, e.g. `env -u CPATH -u C_INCLUDE_PATH -u CPLUS_INCLUDE_PATH -u LD_LIBRARY_PATH ...`.
+
+> **_NOTE (Python):_** `MLIR_ENABLE_BINDINGS_PYTHON=ON` /
+> `BUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON` need the `Python3_EXECUTABLE`
+> interpreter to have the project's Python dependencies installed. Set the
+> environment up as in the top-level `README.md` ("Prepare Python Environment",
+> `pip install -r requirements.txt`); that also provides the `torch` used by the
+> `examples/BuddyJIT/*.py` tests run under `ninja check-buddy`.
+
+> **_NOTE (RISC-V Python packages):_** use the Ruyi package index already
+> listed in `requirements.txt` for the RISC-V PyTorch wheel. If pip rejects the
+> wheel's `manylinux_2_38_riscv64` platform tag, install the requirements with
+> uv as the RISC-V CI does (`uv pip install --index-strategy
+> unsafe-best-match -r requirements.txt`). For the pinned LLVM revision used
+> by this repository, `nanobind==2.9.2` was used for the successful native RISC-V
+> build; nanobind 2.15.0 caused one MLIR Python binding test failure.
 
 ## Build Steps
 
@@ -22,6 +60,13 @@ $ git clone https://github.com/buddy-compiler/buddy-mlir.git
 $ cd buddy-mlir
 $ git submodule update --init
 ```
+
+Before running the CMake commands below, prepare the Python environment as
+described in the top-level `README.md` ("Prepare Python Environment",
+i.e. `pip install -r requirements.txt`) and make sure `python3` resolves to it.
+The `-DPython3_EXECUTABLE=$(which python3)` flags in Steps 1 and 2 use this
+interpreter, and `ninja check-buddy` runs the `examples/BuddyJIT/*.py` tests
+with it.
 
 1. Build Local LLVM/MLIR
 
@@ -38,9 +83,23 @@ $ cmake -G Ninja ../llvm \
     -DCMAKE_BUILD_TYPE=RELEASE \
     -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
     -DPython3_EXECUTABLE=$(which python3)
-$ ninja check-clang check-mlir omp
+$ ninja check-clang check-mlir check-openmp
 $ export BUILD_LOCAL_LLVM_DIR=$PWD
 ```
+
+On native openEuler/RISC-V, the Clang built in this step does not discover the
+system GCC runtime automatically. Append the following option to the CMake
+command above, replacing the GCC directory if the installed version differs:
+
+```
+'-DRUNTIMES_CMAKE_ARGS=-DCMAKE_C_FLAGS=--gcc-install-dir=/usr/lib/gcc/riscv64-openEuler-linux/12;-DCMAKE_CXX_FLAGS=--gcc-install-dir=/usr/lib/gcc/riscv64-openEuler-linux/12;-DOPENMP_TEST_FLAGS=--gcc-install-dir=/usr/lib/gcc/riscv64-openEuler-linux/12'
+```
+
+The compiler flags are needed to find `crtbeginS.o`, `libatomic`, `libgcc`, and
+`libgcc_s` while building the OpenMP runtime. `OPENMP_TEST_FLAGS` is also
+needed because the OpenMP lit tests invoke the newly built Clang directly.
+CMake detects pthread and the C++ runtime without additional overrides; no
+manual thread-cache variables, `-lstdc++`, or extra `-L` option are required.
 
 2. Build Local `buddy-mlir`
 
@@ -62,6 +121,11 @@ $ export BUILD_RISCV_GNU_TOOLCHAIN_DIR=$PWD/thirdparty/riscv-gnu-toolchain/
 $ export RISCV_GNU_TOOLCHAIN_SYSROOT_DIR=${BUILD_RISCV_GNU_TOOLCHAIN_DIR}/sysroot/
 $ export QEMU_LD_PREFIX=${RISCV_GNU_TOOLCHAIN_SYSROOT_DIR}
 ```
+
+On a native RISC-V host, omit `BUDDY_MLIR_ENABLE_RISCV_GNU_TOOLCHAIN` (its
+default is `OFF`) unless QEMU and the cross-compilation steps are also needed.
+The native RISC-V build and `check-buddy` verification used `OFF`; Steps 3-5
+are only required for the QEMU workflow.
 
 3. Build Cross-Compiled Clang
 

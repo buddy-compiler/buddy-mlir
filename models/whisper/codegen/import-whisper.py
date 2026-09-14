@@ -35,7 +35,11 @@ import os
 import numpy
 import torch
 from buddy.compiler.frontend import DynamoCompiler
-from buddy.compiler.graph import GraphDriver
+from buddy.compiler.graph import (
+    GraphDriver,
+    TemplatePartitionedGraphDriver,
+    build_transformer_partition_plan,
+)
 from buddy.compiler.graph.transform import simply_fuse
 from buddy.compiler.ops import tosa
 from torch._inductor.decomposition import decompositions as inductor_decomp
@@ -54,6 +58,11 @@ parser.add_argument(
     type=str,
     default=None,
     help="Path to the variant spec JSON (for hf_model_path fallback).",
+)
+parser.add_argument(
+    "--experimental-template-partitioned",
+    action="store_true",
+    help="Export template-partitioned MLIR for internal build integration.",
 )
 args = parser.parse_args()
 
@@ -113,21 +122,79 @@ assert len(graphs) == 1
 graph = graphs[0]
 params = dynamo_compiler.imported_params[graph]
 pattern_list = [simply_fuse]
-graphs[0].fuse_ops(pattern_list)
-driver = GraphDriver(graphs[0])
-driver.subgraphs[0].lower_to_top_level_ir()
+graph.fuse_ops(pattern_list)
 
-# Save the MLIR files and parameter data to the specified output directory.
-with open(os.path.join(output_dir, "subgraph0.mlir"), "w") as module_file:
-    print(driver.subgraphs[0]._imported_module, file=module_file)
+if args.experimental_template_partitioned:
+    mlir_dir = os.path.join(output_dir, "layer_partitioned")
+    os.makedirs(mlir_dir, exist_ok=True)
+    partition_dir = os.path.join(output_dir, "layer_partitioned")
+    os.makedirs(partition_dir, exist_ok=True)
 
-with open(os.path.join(output_dir, "forward.mlir"), "w") as module_file:
-    print(driver.construct_main_graph(True), file=module_file)
+    for filename in os.listdir(mlir_dir):
+        if filename.startswith("subgraph0_forward_") and filename.endswith(
+            ".mlir"
+        ):
+            os.remove(os.path.join(mlir_dir, filename))
+
+    plan = build_transformer_partition_plan(graph)
+    driver = TemplatePartitionedGraphDriver(graph, plan)
+    subgraphs = driver.build_template_subgraphs()
+    if len(subgraphs) != len(plan.templates):
+        raise ValueError(
+            "Whisper template count does not match materialized subgraph count: "
+            f"templates={len(plan.templates)}, subgraphs={len(subgraphs)}"
+        )
+
+    template_files = []
+    for unit, subgraph in zip(plan.templates, subgraphs, strict=True):
+        subgraph.lower_to_top_level_ir()
+        filename = f"{driver.template_symbol(unit.template_id)}.mlir"
+        with open(os.path.join(partition_dir, filename), "w") as module_file:
+            print(subgraph._imported_module, file=module_file)
+        template_files.append(filename)
+
+    with open(os.path.join(partition_dir, "forward.mlir"), "w") as module_file:
+        print(
+            driver.construct_template_combined_main_graph(True),
+            file=module_file,
+        )
+
+    manifest = {
+        "template_materialization": True,
+        "graphs": [
+            {
+                "name": "forward",
+                "component": "model",
+                "forward": "forward.mlir",
+                "templates": template_files,
+            }
+        ],
+    }
+    with open(
+        os.path.join(partition_dir, "partition_manifest.json"),
+        "w",
+    ) as manifest_file:
+        json.dump(manifest, manifest_file, indent=2)
+        manifest_file.write("\n")
+else:
+    driver = GraphDriver(graph)
+    driver.subgraphs[0].lower_to_top_level_ir()
+    with open(os.path.join(output_dir, "subgraph0.mlir"), "w") as module_file:
+        print(driver.subgraphs[0]._imported_module, file=module_file)
+    with open(os.path.join(output_dir, "forward.mlir"), "w") as module_file:
+        print(driver.construct_main_graph(True), file=module_file)
 
 all_param = numpy.concatenate(
     [param.detach().numpy().reshape([-1]) for param in params]
 )
 all_param.tofile(os.path.join(output_dir, "arg0.data"))
-print(
-    f"[import-whisper] Wrote forward.mlir, subgraph0.mlir, arg0.data → {output_dir}"
-)
+if args.experimental_template_partitioned:
+    print(
+        "[import-whisper] Wrote layer_partitioned MLIR and "
+        f"arg0.data → {output_dir}"
+    )
+else:
+    print(
+        "[import-whisper] Wrote forward.mlir, subgraph0.mlir, "
+        f"arg0.data → {output_dir}"
+    )

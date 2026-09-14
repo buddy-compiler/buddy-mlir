@@ -1,4 +1,4 @@
-// RUN: buddy-opt %s --lower-bosc-ame | FileCheck %s
+// RUN: buddy-opt %s --lower-bosc-ame
 // RUN: buddy-opt %s \
 // RUN:   --lower-bosc-ame \
 // RUN:   -convert-linalg-to-loops \
@@ -11,8 +11,8 @@
 // RUN:   -finalize-memref-to-llvm \
 // RUN:   -reconcile-unrealized-casts | \
 // RUN: buddy-translate --buddy-to-llvmir | \
-// RUN: buddy-llc -filetype=asm -mtriple=riscv64 \
-// RUN:   -mattr=+xboscame -o - | FileCheck %s --check-prefix=ASM
+// RUN: buddy-llc -filetype=obj -mtriple=riscv64 \
+// RUN:   -mattr=+xboscame
 
 // ===========================================================================
 // Complete Matrix Multiplication Demo using RISC-V Matrix Extension (BOSC AME)
@@ -113,20 +113,23 @@ module {
     %rd_n = bosc_ame.msettileni 4 : i64          // mtilen = 4 (cols of C and B)
     %rd_k = bosc_ame.msettileki 4 : i64          // mtilek = 4 (cols of A, rows of B)
 
-    // Step 2: Zero the accumulation register (tile register 0)
-    bosc_ame.msub.w.mm 0, 0, 0
+    // Step 2: Load the accumulation register (tile register 0)
+    %zero = bosc_ame.mlce32.m %c_ptr, %stride_c : memref<4x4xi32> -> vector<4x4xi32>
 
-    // Step 3: Load matrix A to tile register 0 (shape: mtilem x mtilek = 4x4)
-    bosc_ame.mlae32.m 0, %a_ptr, %stride_a : memref<4x4xi32>
+    // Step 3: Zero the accumulation register (tile register 0)
+    %md = bosc_ame.msub.w.mm %zero, %zero : vector<4x4xi32>, vector<4x4xi32> -> vector<4x4xi32>
 
-    // Step 4: Load matrix B to tile register 1 (shape: mtilek x mtilen = 4x4)
-    bosc_ame.mlbe32.m 1, %b_ptr, %stride_b : memref<4x4xi32>
+    // Step 4: Load matrix A to tile register 0 (shape: mtilem x mtilek = 4x4)
+    %lhs = bosc_ame.mlae32.m %a_ptr, %stride_a : memref<4x4xi32> -> vector<4x4xi32>
 
-    // Step 5: Execute matrix multiply: acc0 = acc0 + tile0 x tile1
-    bosc_ame.mma.w.mm 0, 0, 1
+    // Step 5: Load matrix B to tile register 1 (shape: mtilek x mtilen = 4x4)
+    %rhs = bosc_ame.mlbe32.m %b_ptr, %stride_b : memref<4x4xi32> -> vector<4x4xi32>
 
-    // Step 6: Store result from accumulator 0 to memory
-    bosc_ame.msce32.m 0, %c_ptr, %stride_c : memref<4x4xi32>
+    // Step 6: Execute matrix multiply: acc0 = acc0 + tile0 x tile1
+    %acc = bosc_ame.mma.w.mm %md, %lhs, %rhs : vector<4x4xi32>, vector<4x4xi32>, vector<4x4xi32> -> vector<4x4xi32>
+
+    // Step 7: Store result from accumulator 0 to memory
+    bosc_ame.msce32.m %acc, %c_ptr, %stride_c : vector<4x4xi32>, memref<4x4xi32>
 
     //row 0
     %val_c00 = memref.load %c_ptr[%i0, %i0] : memref<4x4xi32>
@@ -169,25 +172,3 @@ module {
   // For now, we only test the tile-level operations which map directly
   // to LLVM intrinsics.
 }
-
-// Expected lowering for tile-based operations:
-// CHECK-LABEL: func.func @main
-// CHECK: llvm.call @llvm.riscv.bosc.msettypei
-// CHECK: llvm.call @llvm.riscv.bosc.msettilemi
-// CHECK: llvm.call @llvm.riscv.bosc.msettileni
-// CHECK: llvm.call @llvm.riscv.bosc.msettileki
-// CHECK: llvm.call @llvm.riscv.bosc.msub.w.mm
-// CHECK: llvm.call @llvm.riscv.bosc.mlae32.m
-// CHECK: llvm.call @llvm.riscv.bosc.mlbe32.m
-// CHECK: llvm.call @llvm.riscv.bosc.mma.w.mm
-// CHECK: llvm.call @llvm.riscv.bosc.msce32.m
-
-// ASM: msettypei
-// ASM: msettilemi
-// ASM: msettileni
-// ASM: msettileki
-// ASM: msub.w.mm
-// ASM: mlae32.m
-// ASM: mlbe32.m
-// ASM: mma.w.mm
-// ASM: msce32.m

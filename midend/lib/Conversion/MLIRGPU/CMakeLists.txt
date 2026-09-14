@@ -1,5 +1,6 @@
 add_mlir_library(MLIRGPUPasses
   ConvertMemcpyToGPU.cpp
+  ConvertStridedMemrefCopyToLinalg.cpp
   LegalizeShmemOutlining.cpp
 
   ADDITIONAL_HEADER_DIRS
@@ -13,6 +14,8 @@ add_mlir_library(MLIRGPUPasses
   MLIRFunctionInterfaces
   MLIRInferTypeOpInterface
   MLIRIR
+  MLIRLinalgDialect
+  MLIRLinalgUtils
   MLIRMemRefDialect
   MLIRPass
   MLIRTensorDialect

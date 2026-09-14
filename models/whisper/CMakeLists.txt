@@ -16,10 +16,16 @@ set(WHISPER_EXAMPLE "${CMAKE_SOURCE_DIR}/examples/BuddyWhisper")
 
 buddy_add_model(
   NAME whisper
+  TEMPLATE_PARTITION_CAPABLE ON
   MODEL_KIND single_forward
   SPEC "${BUDDY_WHISPER_SPEC}"
   RUNNER_SRC WhisperRunner.cpp
   RUNNER_PLUGIN_SRC WhisperRunnerPlugin.cpp
+  TRANSCRIPTION_PLUGIN_SRC WhisperAudioTranscriptionModelPlugin.cpp
+  TRANSCRIPTION_LIBRARY whisper_transcription.so
+  EXTRA_SRCS
+    WhisperRuntime.cpp
+    WhisperAudioTranscriptionModel.cpp
   LOCAL_MODEL "${BUDDY_WHISPER_MODEL_PATH}"
   LOCAL_MODEL_ENV WHISPER_MODEL_PATH
   IMPORT_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/codegen/import-whisper.py"
@@ -32,3 +38,7 @@ buddy_add_model(
     BuddyLibDAP
     mlir_c_runner_utils
 )
+
+if(BUDDY_ENABLE_TESTS)
+  include(${CMAKE_CURRENT_SOURCE_DIR}/WhisperTests.cmake)
+endif()

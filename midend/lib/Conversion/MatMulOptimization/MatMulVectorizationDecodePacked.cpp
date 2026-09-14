@@ -152,6 +152,16 @@ public:
       return false;
     int64_t k = bType.getDimSize(0);
     int64_t n = bType.getDimSize(1);
+    Type aElementType = aType.getElementType();
+    Type bElementType = bType.getElementType();
+    Type cElementType = cType.getElementType();
+    // The packed decode kernel currently performs the FMA in the tensor's
+    // native element type.  Check this explicitly instead of reinterpreting
+    // B using C's element type below: that happened to work for f32, but made
+    // the advertised f16/bf16 support depend on an unchecked assumption.
+    if (aElementType != bElementType || bElementType != cElementType ||
+        !isa<FloatType>(cElementType))
+      return false;
     if (n % vecSize != 0)
       return false;
     // Empty `packed-shapes` means every m==1 matmul weight in this module is
@@ -178,7 +188,7 @@ public:
     auto bType = cast<MemRefType>(B.getType());
     int64_t K = bType.getDimSize(0);
     int64_t N = bType.getDimSize(1);
-    Type elementType = cast<MemRefType>(C.getType()).getElementType();
+    Type elementType = bType.getElementType();
     auto vectorType = VectorType::get({vecSize}, elementType);
 
     // Reinterpret B's underlying buffer as a flat [K*N] row-major view,

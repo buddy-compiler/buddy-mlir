@@ -70,16 +70,47 @@ Qwen-3-VL 0.0
 2026
 ```
 
+Qwen3-VL packages also contain `qwen3_vl_serving.so`, referenced by the
+manifest `serving_library` attribute. Start the resident HTTP model with:
+
+```bash
+./build/bin/buddy-server \
+  --model ./build/models/qwen3_vl/qwen3_vl.rax \
+  --host 127.0.0.1 --port 8080
+```
+
+The server accepts one local image through `image_path`, or an OpenAI-style
+chat content array:
+
+```json
+{
+  "messages": [{
+    "role": "user",
+    "content": [
+      {"type": "text", "text": "Read all text in the image."},
+      {"type": "image_url", "image_url": {"url": "file:/tmp/input.png"}}
+    ]
+  }],
+  "stream": false
+}
+```
+
+Only local paths/file URIs and one fixed-grid image are currently supported;
+omitting the image uses the packaged test image.
+Remote URLs, data URIs, in-memory image bytes, multiple images, video and
+non-greedy sampling are rejected or unsupported. Decoder RoPE tables are
+packaged for the build-time prompt length; requests with another tokenized
+prompt length are rejected rather than producing silently incorrect results.
+String stop sequences are not applied; `stop_token_ids` and the model EOS
+ids are honored.
+The HTTP resident path is implemented separately from `Qwen3VLRunner`, so
+the existing buddy-cli interface and output behavior remain unchanged.
+
 ## Notes
 
-- The `.rax` and other artifacts live in the **build** directory
-  (`build/models/qwen3_vl/`), not in the source tree. Use the `build/` prefix in
-  the `--model` path.
-- Per-query preprocessing (image resize/patchify, prompt tokenization, MRoPE
-  positions) is delegated to the HuggingFace processor via a small Python helper
-  the runner invokes; the model forward itself runs entirely on the compiled
-  kernels. A pure-C++ preprocessing path is future work.
+- The `.rax` and other artifacts live in `build/models/qwen3_vl/`.
+- Runtime image decoding, resize and patchification use the pure-C++
+  `ImagePreprocess.h` implementation; Python is only used while building the
+  package and its fixed positional constants.
 - Greedy decode uses fixed-max-length recompute (no KV cache), and the image
   resolution is pinned at import time (no dynamic resolution / crop modes yet).
-- The first run loads the HuggingFace processor once and memory-maps the weight
-  blobs (~8 GB), so expect ~1–2 minutes end-to-end on CPU.

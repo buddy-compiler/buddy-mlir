@@ -12,7 +12,7 @@ module {
   func.func @matmul(%arg0: memref<32x32xf32>, %arg1: memref<32x32xf32>) -> memref<32x32xf32> {
     %alloc = memref.alloc() : memref<16x32xf32, 3>
     %alloc_2 = memref.alloc() : memref<32x16xf32, 3>
-    %alloc_3 = memref.alloc() {alignment = 64 : i64} : memref<32x32xf32>
+    %alloc_3 = memref.alloc() alignment = 64 : memref<32x32xf32>
     %c1 = arith.constant 1 : index
     %c64 = arith.constant 64 : index
     %c2 = arith.constant 2 : index

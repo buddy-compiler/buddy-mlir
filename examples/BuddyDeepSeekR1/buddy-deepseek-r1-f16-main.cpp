@@ -390,13 +390,17 @@ void copy_kv_by_cache_position_block(const KVPtrArray &prefillPtrs,
 }
 
 // -----------------------------------------------------------------------------
-// DeepSeekR1 BF16 Inference Main Entry
+// DeepSeekR1 FP16 Inference Main Entry
 // -----------------------------------------------------------------------------
 
 int main() {
   /// Print the title of this example.
   const std::string title =
-      "DeepSeekR1 BF16 Inference Powered by Buddy Compiler";
+#ifdef DEEPSEEKR1_PACKED_DECODE
+      "DeepSeekR1 FP16 Packed Decode Inference Powered by Buddy Compiler";
+#else
+      "DeepSeekR1 FP16 Inference Powered by Buddy Compiler";
+#endif
   std::cout << "\033[33;1m" << title << "\033[0m" << std::endl;
 
   /// Define directories of vocabulary and parameter file.
@@ -404,6 +408,9 @@ int main() {
   std::string deepSeekR1BuildDir = DEEPSEEKR1_EXAMPLE_BUILD_PATH;
   const std::string vocabDir = deepSeekR1Dir + "vocab.txt";
   const std::string paramsDir = deepSeekR1BuildDir + "arg0-f16.data";
+#ifdef DEEPSEEKR1_PACKED_DECODE
+  const std::string paramsDecodeDir = deepSeekR1BuildDir + "arg0-decode.data";
+#endif
 
   /// Get user message.
   std::string inputStr;
@@ -414,6 +421,9 @@ int main() {
   Text<size_t, 2> inputContainerPrefill(inputStr);
   MemRef<long long, 2> inputContainerDecode({1, 1}, 0LL);
   MemRef<uint16_t, 1> ParamsContainer({ParamsSize});
+#ifdef DEEPSEEKR1_PACKED_DECODE
+  MemRef<uint16_t, 1> ParamsDecodeContainer({ParamsSize});
+#endif
   MemRef<long long, 1> cachePosition({1}, 0LL);
 
   MemRef<uint16_t, 3> logits_prefill({1, MaxTokenLength, MaxVocabSize});
@@ -493,6 +503,9 @@ int main() {
   tokenizeInput(vocabDir, inputContainerPrefill);
   outputContainer.loadVocab(vocabDir);
   loadParameters(paramsDir, ParamsContainer);
+#ifdef DEEPSEEKR1_PACKED_DECODE
+  loadParameters(paramsDecodeDir, ParamsDecodeContainer);
+#endif
 
   /// Run DeepSeekR1 Inference - Prefill phase
   double prefillTokensPerSec = 0.0;
@@ -654,9 +667,15 @@ int main() {
     decodeRet.ret_dummy26.getData()[0] = cachePosition.getData()[0];
 
     _mlir_ciface_forward_decode(
-        &decodeRet, &ParamsContainer, &inputContainerDecode, &cachePosition,
-        &decodeRet.kv0, &decodeRet.kv1, &decodeRet.ret_dummy0, &decodeRet.kv2,
-        &decodeRet.kv3, &decodeRet.ret_dummy1, &decodeRet.kv4, &decodeRet.kv5,
+        &decodeRet,
+#ifdef DEEPSEEKR1_PACKED_DECODE
+        &ParamsDecodeContainer,
+#else
+        &ParamsContainer,
+#endif
+        &inputContainerDecode, &cachePosition, &decodeRet.kv0, &decodeRet.kv1,
+        &decodeRet.ret_dummy0, &decodeRet.kv2, &decodeRet.kv3,
+        &decodeRet.ret_dummy1, &decodeRet.kv4, &decodeRet.kv5,
         &decodeRet.ret_dummy2, &decodeRet.kv6, &decodeRet.kv7,
         &decodeRet.ret_dummy3, &decodeRet.kv8, &decodeRet.kv9,
         &decodeRet.ret_dummy4, &decodeRet.kv10, &decodeRet.kv11,

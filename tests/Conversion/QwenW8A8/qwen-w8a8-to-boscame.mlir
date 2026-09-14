@@ -1,5 +1,5 @@
-// RUN: buddy-opt %s --lower-qwen-w8a8-to-boscame | FileCheck %s
-// RUN: buddy-opt %s --lower-qwen-w8a8-to-boscame='profile-phases' | FileCheck %s --check-prefix=PROFILE
+// RUN: buddy-opt %s --lower-qwen-w8a8-to-boscame='target=qwen3-fpga' | FileCheck %s
+// RUN: buddy-opt %s --lower-qwen-w8a8-to-boscame='target=qwen3-fpga profile-phases' | FileCheck %s --check-prefix=PROFILE
 
 module {
   func.func @decode_minimum(
@@ -22,8 +22,8 @@ module {
 }
 
 // CHECK-DAG: memref.global "private" @__buddy_qwen_w8a8_scratch_f32
-// CHECK-DAG: memref.global "private" @__buddy_qwen_w8a8_zero_f32 : memref<32x64xf32> = dense<0.000000e+00> {alignment = 64 : i64}
-// CHECK-DAG: memref.global "private" @__buddy_qwen_w8a8_tail_activation_i8 : memref<16x64xi8> = uninitialized {alignment = 64 : i64}
+// CHECK-DAG: memref.global "private" @__buddy_qwen_w8a8_zero_f32 : memref<32x64xf32> = dense<0.000000e+00> alignment = 64
+// CHECK-DAG: memref.global "private" @__buddy_qwen_w8a8_tail_activation_i8 : memref<16x64xi8> = uninitialized alignment = 64
 // CHECK-LABEL: func.func @decode_minimum
 // CHECK-NOT: bosc_ame.quantize_per_group
 // CHECK-NOT: bosc_ame.w8a8_linear
@@ -35,33 +35,33 @@ module {
 // CHECK: bosc_ame.msettilem %[[ONE]]
 // CHECK: bosc_ame.msettilen %[[ONE]]
 // CHECK: bosc_ame.msettilek %[[ONE]]
-// CHECK: bosc_ame.mlae8.m 0
-// CHECK: bosc_ame.mlbte8.m 1
-// CHECK: bosc_ame.mqma.b.mm 0, 0, 1
-// CHECK: bosc_ame.mlce32.m 0
-// CHECK: bosc_ame.msce32.m 0
+// CHECK: bosc_ame.mlae8.m
+// CHECK: bosc_ame.mlbte8.m
+// CHECK: bosc_ame.mqma.b.mm %{{.*}}, %{{.*}}, %{{.*}}
+// CHECK: bosc_ame.mlce32.m
+// CHECK: bosc_ame.msce32.m
 // CHECK-NEXT: llvm.fence seq_cst
 // CHECK: bosc_ame.msettilen
 // CHECK: bosc_ame.msettilek
 // CHECK: bosc_ame.msettilem %[[ONE]]
-// CHECK: bosc_ame.mlce32.m 0
-// CHECK: bosc_ame.mlce32.m 1
-// CHECK: bosc_ame.mlce32.m 2
-// CHECK: bosc_ame.mlce32.m 3
+// CHECK: bosc_ame.mlce32.m
+// CHECK: bosc_ame.mlce32.m
+// CHECK: bosc_ame.mlce32.m
+// CHECK: bosc_ame.mlce32.m
 // CHECK: scf.for
 // CHECK: bosc_ame.mlae8.m
-// CHECK: bosc_ame.mlbe8.m 4
-// CHECK: bosc_ame.mlbe8.m 5
-// CHECK: bosc_ame.mqma.b.mm 0, 0, 4
-// CHECK: bosc_ame.mlbe8.m 6
-// CHECK: bosc_ame.mqma.b.mm 1, 0, 5
-// CHECK: bosc_ame.mlbe8.m 7
-// CHECK: bosc_ame.mqma.b.mm 2, 0, 6
-// CHECK: bosc_ame.mqma.b.mm 3, 0, 7
-// CHECK: bosc_ame.msce32.m 0
-// CHECK: bosc_ame.msce32.m 1
-// CHECK: bosc_ame.msce32.m 2
-// CHECK: bosc_ame.msce32.m 3
+// CHECK: bosc_ame.mlbe8.m
+// CHECK: bosc_ame.mlbe8.m
+// CHECK: bosc_ame.mqma.b.mm %{{.*}}, %{{.*}}, %{{.*}}
+// CHECK: bosc_ame.mlbe8.m
+// CHECK: bosc_ame.mqma.b.mm %{{.*}}, %{{.*}}, %{{.*}}
+// CHECK: bosc_ame.mlbe8.m
+// CHECK: bosc_ame.mqma.b.mm %{{.*}}, %{{.*}}, %{{.*}}
+// CHECK: bosc_ame.mqma.b.mm %{{.*}}, %{{.*}}, %{{.*}}
+// CHECK: bosc_ame.msce32.m
+// CHECK: bosc_ame.msce32.m
+// CHECK: bosc_ame.msce32.m
+// CHECK: bosc_ame.msce32.m
 // CHECK-NEXT: llvm.fence seq_cst
 // CHECK-NOT: arith.sitofp
 // CHECK: func.call @buddy_w8a8_rvv_accumulate_n64

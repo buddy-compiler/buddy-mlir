@@ -3,6 +3,7 @@ add_mlir_library(LowerQwenW8A8ToBOSCAMEPass
 
   LINK_LIBS PUBLIC
   BuddyBOSCAME
+  BuddyBOSCAMETransforms
   MLIRArithDialect
   MLIRFuncDialect
   MLIRLLVMDialect

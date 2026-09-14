@@ -102,5 +102,9 @@ if(BUDDY_ENABLE_TESTS)
     )
   set_target_properties(check-examples PROPERTIES FOLDER "Examples")
 
-  add_lit_testsuites(BUDDY-EXAMPLES ${CMAKE_CURRENT_SOURCE_DIR} DEPENDS ${BUDDY_EXAMPLES_DEPENDS})
+  # See tests/CMakeLists.txt: BINARY_DIR keeps the check-buddy-examples-*
+  # targets on the build tree, where lit.site.cfg.py is.
+  add_lit_testsuites(BUDDY-EXAMPLES ${CMAKE_CURRENT_SOURCE_DIR}
+    BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}
+    DEPENDS ${BUDDY_EXAMPLES_DEPENDS})
 endif()

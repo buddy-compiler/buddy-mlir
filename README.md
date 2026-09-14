@@ -31,16 +31,16 @@ pip
 
 ```
 python -m venv .venv
-pip install -r requirements.txt
 source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
 uv
 
 ```
 uv venv
-uv pip install -r requirements.txt
 source .venv/bin/activate
+uv pip install -r requirements.txt
 ```
 
 conda
@@ -125,11 +125,17 @@ python3 tools/buddy-codegen/build_model.py \
   --build-dir build
 ```
 
-For supported models, the default build uses layer-partitioned model
-compilation to parallelize the slowest MLIR compile stages while preserving
-validated runtime correctness. See
-[Layer Partitioning](docs/LayerPartitioning.md) for details and validation
-steps.
+DeepSeek R1, Whisper, and Qwen3-VL support template-based layer-partitioned compilation. It is disabled by default. Enable it explicitly by passing
+`--cmake-args=-DBUDDY_MODEL_LAYER_PARTITION=ON` to `build_model.py`. DeepSeek R1 also retains the existing `PartitionedGraphDriver` workflow. See [Layer Partitioning](docs/LayerPartitioning.md) for details.
+
+For example, enable template-based layer partitioning for Whisper with:
+
+```bash
+python3 tools/buddy-codegen/build_model.py \
+  --spec models/whisper/specs/base.json \
+  --build-dir build \
+  --cmake-args=-DBUDDY_MODEL_LAYER_PARTITION=ON
+```
 
 To import weights from a **local** HuggingFace style directory (offline or a custom path), pass `--local-model` to that directory (it must contain `config.json` and the weight files). If you omit `--hf-config`, `build_model.py` uses `<local-model>/config.json` for codegen when present:
 
@@ -206,13 +212,13 @@ We use `setuptools` to bundle CMake outputs (Python packages, `bin/`, and
 Build x86_64 artifacts:
 
 ```bash
-./scripts/release.sh cp310-cp310 0.0.0 x86_64
+./scripts/release.sh cp312 0.0.0 x86_64
 ```
 
 Build riscv64 artifacts:
 
 ```bash
-./scripts/release.sh cp310-cp310 0.0.0 riscv64
+./scripts/release.sh cp312 0.0.0 riscv64
 ```
 
 This script calls `docker run` internally to enter the offical manylinux container,

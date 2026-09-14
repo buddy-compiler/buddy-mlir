@@ -1,11 +1,11 @@
-// RUN: buddy-opt %s --lower-qwen-w8a8-to-boscame -o %t.fast
+// RUN: buddy-opt %s --lower-qwen-w8a8-to-boscame='target=qwen3-fpga' -o %t.fast
 // RUN: FileCheck %s --input-file=%t.fast --check-prefix=FAST
 // RUN: FileCheck %s --input-file=%t.fast --check-prefix=NCOUNT
 // RUN: FileCheck %s --input-file=%t.fast --check-prefix=KCOUNT
 // RUN: FileCheck %s --input-file=%t.fast --check-prefix=SYNC
 // RUN: FileCheck %s --input-file=%t.fast --check-prefix=PREFILL
 // RUN: FileCheck %s --input-file=%t.fast --check-prefix=UNKNOWN
-// RUN: buddy-opt %s --lower-qwen-w8a8-to-boscame="scalar-fallback=true" -o %t.scalar
+// RUN: buddy-opt %s --lower-qwen-w8a8-to-boscame="target=qwen3-fpga scalar-fallback=true" -o %t.scalar
 // RUN: FileCheck %s --input-file=%t.scalar --check-prefix=SCALAR
 
 module {

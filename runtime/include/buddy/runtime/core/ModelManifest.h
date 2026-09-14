@@ -23,6 +23,9 @@
 //   "file:model.so") code_objects[1..]         → optional dependent
 //   HostSharedLib URIs module_attrs["vocab_uri"] → vocab file URI         (e.g.
 //   "file:vocab.txt") module_attrs["runner_library"] → runner plugin URI
+//   module_attrs["serving_library"] → resident serving plugin URI
+//   module_attrs["embedding_library"] → embedding plugin URI
+//   module_attrs["masked_lm_library"] → masked-LM plugin URI
 //   module_attrs["model_name"]→ model identifier      (e.g.
 //   "deepseek_r1_fp32")
 //
@@ -108,6 +111,14 @@ struct ModelManifest {
   std::string vocabPath;
   // absolute path to the model runner plugin shared library.
   std::string runnerLibraryPath;
+  // absolute path to the resident serving plugin shared library.
+  std::string servingLibraryPath;
+  // absolute path to the embedding model plugin shared library.
+  std::string embeddingLibraryPath;
+  // absolute path to the masked language model plugin shared library.
+  std::string maskedLMLibraryPath;
+  // absolute path to the audio transcription model plugin shared library.
+  std::string transcriptionLibraryPath;
   // Raw module attrs plus URI-resolved variants for attrs whose value is a URI.
   std::unordered_map<std::string, std::string> moduleAttrs;
   std::unordered_map<std::string, std::string> resolvedModuleAttrs;
@@ -542,13 +553,29 @@ struct ModelManifest {
         std::string value = kv->value()->str();
         out.moduleAttrs[key] = value;
         if (hasPrefix(value, "file:") || hasPrefix(value, "payload:") ||
-            hasSuffix(key, "_uri"))
+            hasSuffix(key, "_uri") || key == "masked_lm_library" ||
+            key == "transcription_library")
           out.resolvedModuleAttrs[key] = resolveUri(kv->value(), key.c_str());
         if (key == "vocab_uri" && kv->value() && kv->value()->size() > 0)
           out.vocabPath = out.resolvedModuleAttrs[key];
         else if (key == "runner_library" && kv->value() &&
                  kv->value()->size() > 0)
           out.runnerLibraryPath = resolveUri(kv->value(), "runner_library");
+        else if (key == "serving_library" && kv->value() &&
+                 kv->value()->size() > 0)
+          out.servingLibraryPath = resolveUri(kv->value(), "serving_library");
+        else if (key == "embedding_library" && kv->value() &&
+                 kv->value()->size() > 0)
+          out.embeddingLibraryPath =
+              resolveUri(kv->value(), "embedding_library");
+        else if (key == "masked_lm_library" && kv->value() &&
+                 kv->value()->size() > 0)
+          out.maskedLMLibraryPath =
+              resolveUri(kv->value(), "masked_lm_library");
+        else if (key == "transcription_library" && kv->value() &&
+                 kv->value()->size() > 0)
+          out.transcriptionLibraryPath =
+              resolveUri(kv->value(), "transcription_library");
         else if (key == "model_name" && kv->value() && kv->value()->size() > 0)
           out.modelName = value;
       }

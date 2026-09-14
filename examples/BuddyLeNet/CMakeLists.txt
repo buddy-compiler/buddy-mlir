@@ -97,7 +97,7 @@ add_custom_command(
   OUTPUT forward_gpu.o
   COMMAND ${BUDDY_BINARY_DIR}/buddy-opt ${CMAKE_CURRENT_BINARY_DIR}/forward.mlir
           -buffer-hoisting
-          -canonicalize -cse -expand-strided-metadata -convert-memcpy-to-gpu -gpu-async-region |
+          -canonicalize -cse -expand-strided-metadata -pass-pipeline="builtin.module(func.func(convert-memcpy-to-gpu))" -gpu-async-region |
           ${LLVM_TOOLS_BINARY_DIR}/mlir-opt -llvm-request-c-wrappers --gpu-to-llvm |
           ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
           ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
@@ -123,7 +123,7 @@ add_custom_command(
           -buffer-hoisting
           -canonicalize
           -cse |
-          ${BUDDY_BINARY_DIR}/buddy-opt -convert-memcpy-to-gpu=${CONVERT_MEMCPY_TO_GPU_OPTION_DISABLE_PROCESS_ARG} -gpu-async-region -canonicalize |
+          ${BUDDY_BINARY_DIR}/buddy-opt -pass-pipeline="builtin.module(func.func(convert-memcpy-to-gpu{${CONVERT_MEMCPY_TO_GPU_OPTION_DISABLE_PROCESS_ARG}}))" -gpu-async-region -canonicalize |
           ${LLVM_TOOLS_BINARY_DIR}/mlir-opt -llvm-request-c-wrappers -gpu-lower-to-nvvm-pipeline=${LOWER_TO_NVVM_OPTION} |
           ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
           ${LLVM_TOOLS_BINARY_DIR}/llvm-as |

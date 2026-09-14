@@ -39,3 +39,22 @@ func.func @matmul_decode_unpacked_shape_untouched(%A: memref<1x128xf32>,
 
 // CHECK-LABEL: func.func @matmul_decode_unpacked_shape_untouched
 // CHECK: linalg.matmul
+
+// FP16 uses the same packed addressing as FP32, but loads, accumulates, and
+// stores native f16 vectors.  Keep this coverage here so the packed pass does
+// not silently regress to being f32-only.
+func.func @matmul_decode_packed_f16(%A: memref<1x128xf16>,
+                                     %B: memref<128x64xf16>,
+                                     %C: memref<1x64xf16>) {
+  linalg.matmul
+    ins(%A, %B: memref<1x128xf16>, memref<128x64xf16>)
+    outs(%C: memref<1x64xf16>)
+  return
+}
+
+// CHECK-LABEL: func.func @matmul_decode_packed_f16
+// CHECK: memref.reinterpret_cast {{.*}} sizes: [8192], strides: [1] : memref<f16> to memref<8192xf16, strided<[1], offset: ?>>
+// CHECK: vector.load {{.*}} : memref<8192xf16, strided<[1], offset: ?>>, vector<32xf16>
+// CHECK: vector.fma {{.*}} : vector<32xf16>
+// CHECK: vector.store {{.*}} : memref<1x64xf16>, vector<32xf16>
+// CHECK-NOT: linalg.matmul

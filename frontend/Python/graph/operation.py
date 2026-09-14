@@ -20,6 +20,8 @@
 
 from enum import Enum
 
+from .source_meta import SourceMeta
+
 
 class OpType(Enum):
     """
@@ -86,6 +88,7 @@ class Op:
         self._parents: list[str] = []
         self._args_index = []
         self._trace_meta = None
+        self._source_meta: tuple[SourceMeta, ...] = ()
 
     def add_argument(self, arg, arg_index=0):
         """

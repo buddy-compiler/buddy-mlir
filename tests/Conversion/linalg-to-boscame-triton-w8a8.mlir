@@ -1,7 +1,7 @@
 // RUN: buddy-opt %s \
-// RUN:   '--lower-linalg-to-boscame=triton-w8a8-fast-path=true' \
+// RUN:   '--lower-linalg-to-boscame=target=qwen3-fpga triton-w8a8-fast-path=true' \
 // RUN:   --canonicalize | FileCheck %s --check-prefix=FAST
-// RUN: buddy-opt %s --lower-linalg-to-boscame | \
+// RUN: buddy-opt %s --lower-linalg-to-boscame='target=qwen3-fpga' | \
 // RUN:   FileCheck %s --check-prefix=FALLBACK
 
 // Triton lowers tl.dot(i8, i8) to an exact i32 linalg.matmul followed by an
@@ -98,23 +98,26 @@ func.func @k2048_is_not_fused(
 // FAST: bosc_ame.msettilen
 // FAST: bosc_ame.msettilek
 // FAST-COUNT-8: bosc_ame.mlce32.m
-// FAST-COUNT-1: bosc_ame.mlae8.m
-// FAST: bosc_ame.mlbe8.m 4
-// FAST: bosc_ame.mlbe8.m 5
-// FAST: bosc_ame.mqma.b.mm 0, 0, 4
-// FAST: bosc_ame.mlbe8.m 6
-// FAST: bosc_ame.mqma.b.mm 1, 0, 5
-// FAST: bosc_ame.mlbe8.m 7
-// FAST: bosc_ame.mqma.b.mm 2, 0, 6
-// FAST: bosc_ame.mqma.b.mm 3, 0, 7
-// FAST: bosc_ame.mlbe8.m 4
-// FAST: bosc_ame.mlbe8.m 5
-// FAST: bosc_ame.mqma.b.mm 4, 0, 4
-// FAST: bosc_ame.mlbe8.m 6
-// FAST: bosc_ame.mqma.b.mm 5, 0, 5
-// FAST: bosc_ame.mlbe8.m 7
-// FAST: bosc_ame.mqma.b.mm 6, 0, 6
-// FAST: bosc_ame.mqma.b.mm 7, 0, 7
+// The eight accumulator chains are loop-carried SSA values, so the schedule is
+// visible as dataflow: one activation tile feeds both N64 half-blocks, and each
+// MMA consumes exactly the B tile that was loaded for it.
+// FAST: %[[A:.*]] = bosc_ame.mlae8.m
+// FAST: %[[B0:.*]] = bosc_ame.mlbe8.m
+// FAST: %[[B1:.*]] = bosc_ame.mlbe8.m
+// FAST: bosc_ame.mqma.b.mm %{{.*}}, %[[A]], %[[B0]]
+// FAST: %[[B2:.*]] = bosc_ame.mlbe8.m
+// FAST: bosc_ame.mqma.b.mm %{{.*}}, %[[A]], %[[B1]]
+// FAST: %[[B3:.*]] = bosc_ame.mlbe8.m
+// FAST: bosc_ame.mqma.b.mm %{{.*}}, %[[A]], %[[B2]]
+// FAST: bosc_ame.mqma.b.mm %{{.*}}, %[[A]], %[[B3]]
+// FAST: %[[C0:.*]] = bosc_ame.mlbe8.m
+// FAST: %[[C1:.*]] = bosc_ame.mlbe8.m
+// FAST: bosc_ame.mqma.b.mm %{{.*}}, %[[A]], %[[C0]]
+// FAST: %[[C2:.*]] = bosc_ame.mlbe8.m
+// FAST: bosc_ame.mqma.b.mm %{{.*}}, %[[A]], %[[C1]]
+// FAST: %[[C3:.*]] = bosc_ame.mlbe8.m
+// FAST: bosc_ame.mqma.b.mm %{{.*}}, %[[A]], %[[C2]]
+// FAST: bosc_ame.mqma.b.mm %{{.*}}, %[[A]], %[[C3]]
 // FAST-COUNT-8: bosc_ame.msce32.m
 // FAST: llvm.fence seq_cst
 
@@ -125,19 +128,22 @@ func.func @k2048_is_not_fused(
 // FAST: bosc_ame.msettilen
 // FAST: bosc_ame.msettilek
 // FAST-COUNT-8: bosc_ame.mlce32.m
-// FAST-COUNT-2: bosc_ame.mlae8.m
-// FAST: bosc_ame.mlbe8.m 4
-// FAST: bosc_ame.mlbe8.m 5
-// FAST: bosc_ame.mqma.b.mm 0, 0, 4
-// FAST: bosc_ame.mlbe8.m 6
-// FAST: bosc_ame.mqma.b.mm 4, 2, 4
-// FAST: bosc_ame.mlbe8.m 7
-// FAST: bosc_ame.mqma.b.mm 1, 0, 5
-// FAST: bosc_ame.mqma.b.mm 5, 2, 5
-// FAST: bosc_ame.mqma.b.mm 2, 0, 6
-// FAST: bosc_ame.mqma.b.mm 6, 2, 6
-// FAST: bosc_ame.mqma.b.mm 3, 0, 7
-// FAST: bosc_ame.mqma.b.mm 7, 2, 7
+// 2A4B: two activation tiles against one bank of four B tiles.  Both A banks
+// consume the same B values, which is what makes four B registers enough.
+// FAST: %[[A0:.*]] = bosc_ame.mlae8.m
+// FAST: %[[A1:.*]] = bosc_ame.mlae8.m
+// FAST: %[[B0:.*]] = bosc_ame.mlbe8.m
+// FAST: %[[B1:.*]] = bosc_ame.mlbe8.m
+// FAST: bosc_ame.mqma.b.mm %{{.*}}, %[[A0]], %[[B0]]
+// FAST: %[[B2:.*]] = bosc_ame.mlbe8.m
+// FAST: bosc_ame.mqma.b.mm %{{.*}}, %[[A1]], %[[B0]]
+// FAST: %[[B3:.*]] = bosc_ame.mlbe8.m
+// FAST: bosc_ame.mqma.b.mm %{{.*}}, %[[A0]], %[[B1]]
+// FAST: bosc_ame.mqma.b.mm %{{.*}}, %[[A1]], %[[B1]]
+// FAST: bosc_ame.mqma.b.mm %{{.*}}, %[[A0]], %[[B2]]
+// FAST: bosc_ame.mqma.b.mm %{{.*}}, %[[A1]], %[[B2]]
+// FAST: bosc_ame.mqma.b.mm %{{.*}}, %[[A0]], %[[B3]]
+// FAST: bosc_ame.mqma.b.mm %{{.*}}, %[[A1]], %[[B3]]
 // FAST-COUNT-8: bosc_ame.msce32.m
 // FAST: llvm.fence seq_cst
 

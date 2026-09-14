@@ -79,6 +79,44 @@ position 1:
   C (20): ...
 ```
 
+## Masked-LM server
+
+The package also exposes a non-streaming masked-LM endpoint. Build
+`buddy-server` with the model target, then start it with the `.rax` manifest;
+the `masked_lm_library` attribute is discovered automatically.
+
+```bash
+conda run -n buddy-mlir cmake --build build --target proteinglm_rax buddy-server
+./build/bin/buddy-server --model build/models/proteinglm/proteinglm.rax \
+  --host 127.0.0.1 --port 8080
+curl http://127.0.0.1:8080/v1/masked-lm \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"proteinglm_1b_mlm","input":"A <mask> C","top_k":5}'
+```
+
+`prompt` is accepted as an alias for `input`. Multiple `<mask>` tokens produce
+one prediction entry per position; `top_k` overrides the manifest default.
+Input arrays and SSE streaming are not supported.
+
+## Masked-LM server
+
+The same package exposes a non-streaming masked-LM endpoint. Build
+`buddy-server` together with the model target, then start it with the `.rax`
+manifest (the `masked_lm_library` attr is discovered automatically):
+
+```bash
+conda run -n buddy-mlir cmake --build build --target proteinglm_rax buddy-server
+./build/bin/buddy-server --model build/models/proteinglm/proteinglm.rax \
+  --host 127.0.0.1 --port 8080
+curl http://127.0.0.1:8080/v1/masked-lm \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"proteinglm_1b_mlm","input":"A <mask> C","top_k":5}'
+```
+
+`prompt` is accepted as an alias for `input`. Multiple `<mask>` tokens produce
+one prediction entry per position; `top_k` overrides the manifest default.
+Input arrays and SSE streaming are not supported.
+
 ## Implementation Notes
 
 ProteinGLM is built as `MODEL_KIND single_forward`, not as an autoregressive
@@ -106,4 +144,8 @@ runner and packer are updated to resolve it portably.
 - `ProteinGLMRunner.cpp`: runtime loading, tokenization, forward call, top-k
   printing
 - `ProteinGLMRunnerPlugin.cpp`: `InferenceRunner` plugin C ABI exports
+- `ProteinGLMMaskedLMModel.cpp` and `ProteinGLMMaskedLMModelPlugin.cpp`:
+  masked-LM runtime and `buddy-server` plugin ABI
+- `ProteinGLMMaskedLMModel.cpp` and `ProteinGLMMaskedLMModelPlugin.cpp`:
+  masked-LM runtime and `buddy-server` plugin ABI
 - `CMakeLists.txt`: `buddy_add_model` integration

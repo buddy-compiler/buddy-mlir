@@ -24,11 +24,11 @@
 
 module {
   func.func private @rtclock() -> f64
-  memref.global "private" constant @__constant_1x32x40x128xf32 : memref<1x32x40x128xf32> = dense<8.000000e+00> {alignment = 64 : i64}
-  memref.global "private" constant @__constant_1x1x40x40xf32 : memref<1x1x40x40xf32> = dense<4.000000e+00> {alignment = 64 : i64}
-  memref.global "private" constant @__constant_32x128x40xf32 : memref<32x128x40xf32> = dense<2.000000e+00> {alignment = 64 : i64}
-  memref.global "private" constant @__constant_32x40x128xf32 : memref<32x40x128xf32> = dense<3.000000e+00> {alignment = 64 : i64}
-  memref.global "private" constant @__constant_1x32x40x40xf32 : memref<1x32x40x40xf32> = dense<11.3137083> {alignment = 64 : i64}
+  memref.global "private" constant @__constant_1x32x40x128xf32 : memref<1x32x40x128xf32> = dense<8.000000e+00> alignment = 64
+  memref.global "private" constant @__constant_1x1x40x40xf32 : memref<1x1x40x40xf32> = dense<4.000000e+00> alignment = 64
+  memref.global "private" constant @__constant_32x128x40xf32 : memref<32x128x40xf32> = dense<2.000000e+00> alignment = 64
+  memref.global "private" constant @__constant_32x40x128xf32 : memref<32x40x128xf32> = dense<3.000000e+00> alignment = 64
+  memref.global "private" constant @__constant_1x32x40x40xf32 : memref<1x32x40x40xf32> = dense<11.3137083> alignment = 64
   func.func @kenerl(%arg0: tensor<32x40x128xf32>, %arg1: tensor<32x128x40xf32>, %arg2: tensor<1x1x40x40xf32>, %arg3: tensor<1x32x40x128xf32>) {
     %t_start = call @rtclock() : () -> f64
     %cst = arith.constant 0.0883883461 : f32
@@ -44,7 +44,7 @@ module {
     // MatMul
     // %0 = tosa.matmul %t0, %t1 : (tensor<32x40x128xf32>, tensor<32x128x40xf32>) -> tensor<32x40x40xf32>
     // Initialize MatMul Output.
-    %alloc = memref.alloc() {alignment = 64 : i64} : memref<32x40x40xf32>
+    %alloc = memref.alloc() alignment = 64 : memref<32x40x40xf32>
     affine.for %arg4 = 0 to 32 {
       affine.for %arg5 = 0 to 40 {
         affine.for %arg6 = 0 to 40 {
@@ -73,7 +73,7 @@ module {
     // %2 = "tosa.const"() <{value = dense<11.3137083> : tensor<1x32x40x40xf32>}> : () -> tensor<1x32x40x40xf32>
     // %3 = tosa.reciprocal %2 : (tensor<1x32x40x40xf32>) -> tensor<1x32x40x40xf32>
     %expand_shape = memref.expand_shape %alloc [[0, 1], [2], [3]] output_shape [1, 32, 40, 40]: memref<32x40x40xf32> into memref<1x32x40x40xf32>
-    %alloc_3 = memref.alloc() {alignment = 64 : i64} : memref<1x32x40x40xf32>
+    %alloc_3 = memref.alloc() alignment = 64 : memref<1x32x40x40xf32>
     affine.for %arg4 = 0 to 1 {
       affine.for %arg5 = 0 to 32 {
         affine.for %arg6 = 0 to 40 {
@@ -86,7 +86,7 @@ module {
 
     // Multiplication
     // %4 = tosa.mul %1, %3 {shift = 0 : i8} : (tensor<1x32x40x40xf32>, tensor<1x32x40x40xf32>) -> tensor<1x32x40x40xf32>
-    %alloc_4 = memref.alloc() {alignment = 64 : i64} : memref<1x32x40x40xf32>
+    %alloc_4 = memref.alloc() alignment = 64 : memref<1x32x40x40xf32>
     affine.for %arg4 = 0 to 1 {
       affine.for %arg5 = 0 to 32 {
         affine.for %arg6 = 0 to 40 {
@@ -102,7 +102,7 @@ module {
 
     // Addition
     // %5 = tosa.add %4, %t2 : (tensor<1x32x40x40xf32>, tensor<1x1x40x40xf32>) -> tensor<1x32x40x40xf32>
-    %alloc_5 = memref.alloc() {alignment = 64 : i64} : memref<1x32x40x40xf32>
+    %alloc_5 = memref.alloc() alignment = 64 : memref<1x32x40x40xf32>
     affine.for %arg4 = 0 to 1 {
       affine.for %arg5 = 0 to 32 {
         affine.for %arg6 = 0 to 40 {
@@ -119,7 +119,7 @@ module {
     // Reduce Max
     // %6 = tosa.reduce_max %5 {axis = 3 : i32} : (tensor<1x32x40x40xf32>) -> tensor<1x32x40x1xf32>
     // Initialize reduce max operation output.
-    %alloc_6 = memref.alloc() {alignment = 64 : i64} : memref<1x32x40xf32>
+    %alloc_6 = memref.alloc() alignment = 64 : memref<1x32x40xf32>
     affine.for %arg4 = 0 to 1 {
       affine.for %arg5 = 0 to 32 {
         affine.for %arg6 = 0 to 40 {
@@ -148,7 +148,7 @@ module {
     // %7 = tosa.sub %5, %6 : (tensor<1x32x40x40xf32>, tensor<1x32x40x1xf32>) -> tensor<1x32x40x40xf32>
     // Allocate space and perform subtraction.
     %expand_shape_7 = memref.expand_shape %alloc_6 [[0], [1], [2, 3]] output_shape [1, 32, 40, 1]: memref<1x32x40xf32> into memref<1x32x40x1xf32>
-    %alloc_8 = memref.alloc() {alignment = 64 : i64} : memref<1x32x40x40xf32>
+    %alloc_8 = memref.alloc() alignment = 64 : memref<1x32x40x40xf32>
     affine.for %arg4 = 0 to 1 {
       affine.for %arg5 = 0 to 32 {
         affine.for %arg6 = 0 to 40 {
@@ -165,7 +165,7 @@ module {
     // Exponentiation
     // %8 = tosa.exp %7 : (tensor<1x32x40x40xf32>) -> tensor<1x32x40x40xf32>
     // Allocate space and perform exponentiation.
-    %alloc_9 = memref.alloc() {alignment = 64 : i64} : memref<1x32x40x40xf32>
+    %alloc_9 = memref.alloc() alignment = 64 : memref<1x32x40x40xf32>
     affine.for %arg4 = 0 to 1 {
       affine.for %arg5 = 0 to 32 {
         affine.for %arg6 = 0 to 40 {
@@ -181,7 +181,7 @@ module {
     // Reduce Sum
     // %9 = tosa.reduce_sum %8 {axis = 3 : i32} : (tensor<1x32x40x40xf32>) -> tensor<1x32x40x1xf32>
     // Allocate space and initialize the output.
-    %alloc_10 = memref.alloc() {alignment = 64 : i64} : memref<1x32x40xf32>
+    %alloc_10 = memref.alloc() alignment = 64 : memref<1x32x40xf32>
     affine.for %arg4 = 0 to 1 {
       affine.for %arg5 = 0 to 32 {
         affine.for %arg6 = 0 to 40 {
@@ -206,7 +206,7 @@ module {
     // Reciprocal
     // %10 = tosa.reciprocal %9 : (tensor<1x32x40x1xf32>) -> tensor<1x32x40x1xf32>
     %expand_shape_11 = memref.expand_shape %alloc_10 [[0], [1], [2, 3]] output_shape [1, 32, 40, 1]: memref<1x32x40xf32> into memref<1x32x40x1xf32>
-    %alloc_12 = memref.alloc() {alignment = 64 : i64} : memref<1x32x40x1xf32>
+    %alloc_12 = memref.alloc() alignment = 64 : memref<1x32x40x1xf32>
     affine.for %arg4 = 0 to 1 {
       affine.for %arg5 = 0 to 32 {
         affine.for %arg6 = 0 to 40 {
@@ -221,7 +221,7 @@ module {
 
     // Multiplication
     // %11 = tosa.mul %8, %10 {shift = 0 : i8} : (tensor<1x32x40x40xf32>, tensor<1x32x40x1xf32>) -> tensor<1x32x40x40xf32>
-    %alloc_13 = memref.alloc() {alignment = 64 : i64} : memref<1x32x40x40xf32>
+    %alloc_13 = memref.alloc() alignment = 64 : memref<1x32x40x40xf32>
     affine.for %arg4 = 0 to 1 {
       affine.for %arg5 = 0 to 32 {
         affine.for %arg6 = 0 to 40 {
@@ -243,7 +243,7 @@ module {
     // %16 = tosa.add %t3, %15 : (tensor<1x32x40x128xf32>, tensor<1x32x40x128xf32>) -> tensor<1x32x40x128xf32>
     // %17 = tosa.reshape %16 {new_shape = array<i64: 32, 40, 128>} : (tensor<1x32x40x128xf32>) -> tensor<32x40x128xf32>
     %collapse_shape = memref.collapse_shape %alloc_13 [[0, 1], [2], [3]] : memref<1x32x40x40xf32> into memref<32x40x40xf32>
-    %alloc_14 = memref.alloc() {alignment = 64 : i64} : memref<1x32x40x128xf32>
+    %alloc_14 = memref.alloc() alignment = 64 : memref<1x32x40x128xf32>
     // SSA value %0 is from %arg3
     memref.copy %0, %alloc_14 : memref<1x32x40x128xf32, strided<[?, ?, ?, ?], offset: ?>> to memref<1x32x40x128xf32>
     %collapse_shape_15 = memref.collapse_shape %alloc_14 [[0, 1], [2], [3]] : memref<1x32x40x128xf32> into memref<32x40x128xf32>
@@ -251,7 +251,7 @@ module {
     // MatMul
     // %18 = tosa.matmul %14, %17 : (tensor<32x40x40xf32>, tensor<32x40x128xf32>) -> tensor<32x40x128xf32>
     // Allocate space and initialize output.
-    %alloc_16 = memref.alloc() {alignment = 64 : i64} : memref<32x40x128xf32>
+    %alloc_16 = memref.alloc() alignment = 64 : memref<32x40x128xf32>
     affine.for %arg4 = 0 to 32 {
       affine.for %arg5 = 0 to 40 {
         affine.for %arg6 = 0 to 128 {

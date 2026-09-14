@@ -1,4 +1,4 @@
-// RUN: buddy-opt %s --eliminate-empty-tensors --empty-tensor-to-alloc-tensor --one-shot-bufferize="allow-return-allocs-from-loops=true bufferize-function-boundaries" --expand-strided-metadata --lower-qwen-w8a8-to-boscame | FileCheck %s
+// RUN: buddy-opt %s --eliminate-empty-tensors --empty-tensor-to-alloc-tensor --one-shot-bufferize="allow-return-allocs-from-loops=true bufferize-function-boundaries" --expand-strided-metadata --lower-qwen-w8a8-to-boscame='target=qwen3-fpga' | FileCheck %s
 
 module {
   func.func @decode_tensor_form(
