@@ -24,7 +24,10 @@ def run(command: list[str]) -> None:
 
 def make_w8a8_pass(args: argparse.Namespace) -> str:
     """Build the W8A8 lowering option string, including A/B fallbacks."""
-    option_list = []
+    # This pass only exists for the Qwen3 FPGA AME contract: it programs the
+    # bit-field mtype CSR and relies on the hardware i32 -> f32 accumulator
+    # store, so the target must be explicit rather than defaulted.
+    option_list = ["target=qwen3-fpga"]
     if args.w8a8_scalar_fallback:
         option_list.append("scalar-fallback")
     if args.w8a8_profile_phases:
@@ -845,7 +848,7 @@ def main() -> int:
     boscame_passes = [
         str(BUDDY_OPT), str(bufferized),
         w8a8_pass,
-        "--lower-linalg-to-boscame",
+        "--lower-linalg-to-boscame=target=qwen3-fpga",
         "--lower-bosc-ame",
     ]
     if args.optimize_attention_bmm:
