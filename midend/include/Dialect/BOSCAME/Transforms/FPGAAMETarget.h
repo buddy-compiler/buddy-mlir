@@ -55,6 +55,7 @@ namespace buddy {
 namespace boscame {
 
 using mlir::FailureOr;
+using mlir::LogicalResult;
 using mlir::Operation;
 using mlir::Type;
 
@@ -63,6 +64,11 @@ using mlir::Type;
 ///   module attributes {bosc_ame.target = "upstream"}     // default
 ///   module attributes {bosc_ame.target = "qwen3-fpga"}
 inline constexpr llvm::StringLiteral kAmeTargetAttrName = "bosc_ame.target";
+
+/// Subtarget feature that selects the FPGA register-file convention in the
+/// RISC-V backend.  It is a prototype convention and is therefore opt-in: the
+/// default `+xboscame` target keeps the upstream mapping.
+inline constexpr llvm::StringLiteral kFPGATargetFeature = "+xboscame-fpga";
 
 enum class AmeTargetProfile {
   /// Default: upstream/main value semantics, GEM5-compatible.
@@ -125,6 +131,19 @@ struct FpgaMtype {
 /// `mtype` value for an FPGA phase, or failure with a diagnostic when the
 /// element type has no verified FPGA encoding.
 FailureOr<int64_t> getFpgaMtypeImm(Type elementType, FpgaMtypePhase phase);
+
+/// Diagnose AME operations that the FPGA register-file convention cannot
+/// represent.
+///
+/// The prototype convention selects the register file (tile vs accumulator)
+/// from the element width, so any matrix value outside the W8A8 datapath - i8
+/// A/B tiles with an i32 accumulator - would silently pick the wrong register
+/// file.  This walk turns that into a compile error naming the operation, which
+/// is the safety net for AME operations that reach the module from another
+/// pass or from hand-written input.
+///
+/// `root` is usually the module being lowered.  Emits at most one diagnostic.
+LogicalResult verifyFpgaAmeCapabilities(Operation *root);
 
 /// True when the FPGA pathway has a verified instruction for an
 /// `lhs x lhs -> acc` MMA with these element types.

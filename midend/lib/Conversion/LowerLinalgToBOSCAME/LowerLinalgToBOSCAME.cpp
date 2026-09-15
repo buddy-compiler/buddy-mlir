@@ -18,6 +18,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Analysis/AliasAnalysis.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -344,7 +345,7 @@ static bool hasSupportedRowMajor2DLayout(MemRefType type) {
   return succeeded(type.getStridesAndOffset(strides, offset)) &&
          strides.size() == 2 &&
          (ShapedType::isDynamic(strides.front()) || strides.front() > 0) &&
-         (ShapedType::isDynamic(strides.back()) || strides.back() == 1);
+         strides.back() == 1;
 }
 
 // Triton materializes a logical [K, N] tile loaded from a row-major [N, full-K]
@@ -600,9 +601,8 @@ static FailureOr<QwenDirectCMatch> matchQwenDirectCMatmul(linalg::MatmulOp op) {
   if (op.getCast() != linalg::TypeFn::cast_signed || op.hasUserDefinedMaps())
     return failure();
 
-  // Dynamic strides occur on Buddy Frontend function arguments.  The Qwen3
-  // generated wrapper/bare-metal runner provides tight row-major buffers;
-  // getRowStride below still reads the runtime leading stride.
+  // A dynamic leading stride is read from the descriptor. The inner stride
+  // must be proven unit: selecting an FPGA target is not a layout assertion.
   if (!hasSupportedRowMajor2DLayout(AType) || !hasSupportedBLayout(BType) ||
       !hasSupportedRowMajor2DLayout(temporaryCType))
     return failure();
@@ -616,6 +616,7 @@ static FailureOr<QwenDirectCMatch> matchQwenDirectCMatmul(linalg::MatmulOp op) {
   memref::CopyOp copyToFinal;
   memref::DeallocOp temporaryDealloc;
   bool sawMatmul = false;
+  bool hasOtherConsumer = false;
 
   for (Operation *user : temporaryC.getUsers()) {
     if (user == op.getOperation()) {
@@ -662,6 +663,7 @@ static FailureOr<QwenDirectCMatch> matchQwenDirectCMatmul(linalg::MatmulOp op) {
     // in the same block and occur after the matmul.
     if (user->getBlock() != op->getBlock() || !op->isBeforeInBlock(user))
       return failure();
+    hasOtherConsumer = true;
   }
 
   if (!sawMatmul || !zeroFill)
@@ -677,6 +679,11 @@ static FailureOr<QwenDirectCMatch> matchQwenDirectCMatmul(linalg::MatmulOp op) {
   if (!copyToFinal)
     return QwenDirectCMatch{temporaryAlloc, zeroFill, copyToFinal,
                             temporaryDealloc, temporaryC};
+
+  // KeepTemporary permits downstream consumers; CopyElision must not erase
+  // an allocation that is still read, written or escaped after the copy.
+  if (hasOtherConsumer)
+    return failure();
 
   if (copyToFinal->getBlock() != op->getBlock() ||
       !op->isBeforeInBlock(copyToFinal))
@@ -696,6 +703,11 @@ static FailureOr<QwenDirectCMatch> matchQwenDirectCMatmul(linalg::MatmulOp op) {
       finalType.getElementType() != temporaryCType.getElementType() ||
       finalType.getMemorySpace() != temporaryCType.getMemorySpace() ||
       !hasSupportedRowMajor2DLayout(finalType))
+    return failure();
+
+  AliasAnalysis aliasAnalysis(op->getParentOp());
+  if (!aliasAnalysis.alias(finalOutput, A).isNo() ||
+      !aliasAnalysis.alias(finalOutput, B).isNo())
     return failure();
 
   // Recompute at the original copy point instead of moving %final's defining
@@ -1314,9 +1326,9 @@ static LogicalResult lowerFpgaMatmul(linalg::MatmulOp op,
     };
 
     // Seed the accumulator chains from the (zero-filled) destination.
-    auto seedAccumulator = [&](Value tile) -> FailureOr<Value> {
+    auto seedAccumulator = [&](Value tile, unsigned slot) -> FailureOr<Value> {
       return ame::createLoadAccumulator(rewriter, loc, i32Type, cMemoryType,
-                                        tile, strideC, op);
+                                        tile, strideC, op, slot);
     };
 
     // One activation tile against four B tiles feeding `accBase + 0..3`.
@@ -1330,7 +1342,7 @@ static LogicalResult lowerFpgaMatmul(linalg::MatmulOp op,
       FailureOr<Value> weight0 =
           ame::createLoadB(rewriter, loc, i8Type, bTile(k, column), strideB, op);
       FailureOr<Value> weight1 = ame::createLoadB(
-          rewriter, loc, i8Type, bTile(k, column + bankN), strideB, op);
+          rewriter, loc, i8Type, bTile(k, column + bankN), strideB, op, 5);
       if (failed(weight0) || failed(weight1))
         return failure();
 
@@ -1341,7 +1353,7 @@ static LogicalResult lowerFpgaMatmul(linalg::MatmulOp op,
       updated[accBase + 0] = *next0;
 
       FailureOr<Value> weight2 = ame::createLoadB(
-          rewriter, loc, i8Type, bTile(k, column + 2 * bankN), strideB, op);
+          rewriter, loc, i8Type, bTile(k, column + 2 * bankN), strideB, op, 6);
       if (failed(weight2))
         return failure();
       FailureOr<Value> next1 = ame::createMma(
@@ -1351,7 +1363,7 @@ static LogicalResult lowerFpgaMatmul(linalg::MatmulOp op,
       updated[accBase + 1] = *next1;
 
       FailureOr<Value> weight3 = ame::createLoadB(
-          rewriter, loc, i8Type, bTile(k, column + 3 * bankN), strideB, op);
+          rewriter, loc, i8Type, bTile(k, column + 3 * bankN), strideB, op, 7);
       if (failed(weight3))
         return failure();
       FailureOr<Value> next2 = ame::createMma(
@@ -1375,12 +1387,15 @@ static LogicalResult lowerFpgaMatmul(linalg::MatmulOp op,
                                      cIndex(tileK))))
         return failure();
 
-      for (int64_t column = 0; column < staticN; column += 2 * bankN) {
+      for (int64_t column = 0; column < staticN; column += 4 * bankN) {
+        if (failed(ame::configureAccumulatorType(rewriter, loc, i32Type,
+                                                profile, op)))
+          return failure();
         SmallVector<Value, 8> seeds;
         for (unsigned lane = 0; lane < 8; ++lane) {
           int64_t row = lane < 4 ? 0 : 16;
           int64_t offset = column + static_cast<int64_t>(lane % 4) * bankN;
-          FailureOr<Value> seed = seedAccumulator(cTile(row, offset, 16));
+          FailureOr<Value> seed = seedAccumulator(cTile(row, offset, 16), lane);
           if (failed(seed))
             return failure();
           seeds.push_back(*seed);
@@ -1397,7 +1412,7 @@ static LogicalResult lowerFpgaMatmul(linalg::MatmulOp op,
         FailureOr<Value> activation0 =
             ame::createLoadA(rewriter, loc, i8Type, aTile(0, k, 16), strideA, op);
         FailureOr<Value> activation1 = ame::createLoadA(
-            rewriter, loc, i8Type, aTile(16, k, 16), strideA, op);
+            rewriter, loc, i8Type, aTile(16, k, 16), strideA, op, 2);
         if (failed(activation0) || failed(activation1))
           return failure();
 
@@ -1412,7 +1427,7 @@ static LogicalResult lowerFpgaMatmul(linalg::MatmulOp op,
         FailureOr<Value> weight0 =
             ame::createLoadB(rewriter, loc, i8Type, bTile(k, column), strideB, op);
         FailureOr<Value> weight1 = ame::createLoadB(
-            rewriter, loc, i8Type, bTile(k, column + bankN), strideB, op);
+            rewriter, loc, i8Type, bTile(k, column + bankN), strideB, op, 5);
         if (failed(weight0) || failed(weight1))
           return failure();
 
@@ -1423,7 +1438,7 @@ static LogicalResult lowerFpgaMatmul(linalg::MatmulOp op,
         updated[0] = *mma0;
 
         FailureOr<Value> weight2 = ame::createLoadB(
-            rewriter, loc, i8Type, bTile(k, column + 2 * bankN), strideB, op);
+            rewriter, loc, i8Type, bTile(k, column + 2 * bankN), strideB, op, 6);
         if (failed(weight2))
           return failure();
         FailureOr<Value> mma4 = ame::createMma(rewriter, loc, updated[4],
@@ -1433,7 +1448,7 @@ static LogicalResult lowerFpgaMatmul(linalg::MatmulOp op,
         updated[4] = *mma4;
 
         FailureOr<Value> weight3 = ame::createLoadB(
-            rewriter, loc, i8Type, bTile(k, column + 3 * bankN), strideB, op);
+            rewriter, loc, i8Type, bTile(k, column + 3 * bankN), strideB, op, 7);
         if (failed(weight3))
           return failure();
 
@@ -1483,9 +1498,7 @@ static LogicalResult lowerFpgaMatmul(linalg::MatmulOp op,
         }
       }
 
-      rewriter.setInsertionPointAfter(op);
-      if (op->hasAttr(kTritonConsumerFenceAttr))
-        LLVM::FenceOp::create(rewriter, loc, LLVM::AtomicOrdering::seq_cst);
+      LLVM::FenceOp::create(rewriter, loc, LLVM::AtomicOrdering::seq_cst);
       finishReplacement();
       return success();
     }
@@ -1500,13 +1513,17 @@ static LogicalResult lowerFpgaMatmul(linalg::MatmulOp op,
       return failure();
 
     for (int64_t column = 0; column < staticN;) {
-      const int64_t banks = staticN - column >= 2 * bankN ? 2 : 1;
+      const int64_t banks = staticN - column >= 8 * bankN ? 2 : 1;
       const unsigned lanes = static_cast<unsigned>(banks) * 4;
+
+      if (failed(ame::configureAccumulatorType(rewriter, loc, i32Type,
+                                              profile, op)))
+        return failure();
 
       SmallVector<Value, 8> seeds;
       for (unsigned lane = 0; lane < lanes; ++lane) {
         FailureOr<Value> seed =
-            seedAccumulator(cTile(0, column + lane * bankN, staticM));
+            seedAccumulator(cTile(0, column + lane * bankN, staticM), lane);
         if (failed(seed))
           return failure();
         seeds.push_back(*seed);
@@ -1553,9 +1570,7 @@ static LogicalResult lowerFpgaMatmul(linalg::MatmulOp op,
       column += static_cast<int64_t>(lanes) * bankN;
     }
 
-    rewriter.setInsertionPointAfter(op);
-    if (op->hasAttr(kTritonConsumerFenceAttr))
-      LLVM::FenceOp::create(rewriter, loc, LLVM::AtomicOrdering::seq_cst);
+    LLVM::FenceOp::create(rewriter, loc, LLVM::AtomicOrdering::seq_cst);
     finishReplacement();
     return success();
   }
@@ -1626,8 +1641,7 @@ static LogicalResult lowerFpgaMatmul(linalg::MatmulOp op,
     return failure();
 
   rewriter.setInsertionPointAfter(loopM);
-  if (op->hasAttr(kTritonConsumerFenceAttr))
-    LLVM::FenceOp::create(rewriter, loc, LLVM::AtomicOrdering::seq_cst);
+  LLVM::FenceOp::create(rewriter, loc, LLVM::AtomicOrdering::seq_cst);
 
   finishReplacement();
   return success();
@@ -2101,6 +2115,24 @@ void LowerLinalgToBOSCAMEPass::runOnOperation() {
   FailureOr<AmeTargetProfile> profile =
       resolveAmeTarget(module, ameTarget.getValue());
   if (failed(profile)) {
+    signalPassFailure();
+    return;
+  }
+
+  // Record a non-default decision on the module so that every later stage (the
+  // BOSCAME export, the LLVM target feature, a following pass that resolves the
+  // target with no option of its own) sees the same contract instead of
+  // re-deciding.  The default profile is left implicit so that the upstream IR
+  // text stays byte-for-byte identical.
+  if (*profile != AmeTargetProfile::Upstream)
+    module->setAttr(
+        kAmeTargetAttrName,
+        StringAttr::get(context, stringifyAmeTargetProfile(*profile)));
+
+  // The FPGA convention is only defined for the W8A8 datapath; anything else in
+  // the module has to be diagnosed here rather than silently mis-mapped.
+  if (*profile == AmeTargetProfile::Qwen3Fpga &&
+      failed(verifyFpgaAmeCapabilities(module))) {
     signalPassFailure();
     return;
   }

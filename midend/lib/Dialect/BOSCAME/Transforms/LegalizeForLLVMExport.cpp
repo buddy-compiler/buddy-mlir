@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "Dialect/BOSCAME/BOSCAMEDialect.h"
+#include "Dialect/BOSCAME/Transforms/FPGAAMETarget.h"
 #include "Dialect/BOSCAME/BOSCAMEOps.h"
 #include "Dialect/BOSCAME/Transform.h"
 #include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
@@ -19,6 +20,7 @@
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SCF/Transforms/Patterns.h"
 #include "mlir/IR/PatternMatch.h"
+#include "mlir/Interfaces/FunctionInterfaces.h"
 #include "mlir/Pass/Pass.h"
 
 #include <algorithm>
@@ -197,6 +199,10 @@ public:
       return failure();
 
     Location loc = op->getLoc();
+    auto module = op->getParentOfType<ModuleOp>();
+    auto target = module->getAttrOfType<StringAttr>(kAmeTargetAttrName);
+    bool fpga = target && target.getValue() == "qwen3-fpga";
+    std::string fpgaName = "bosc_ame.fpga." + name.drop_front(9).str();
 
     // Matrix load: memref, i64 stride -> scalable LLVM vector.
     if (op->getNumResults() == 1 && op->getNumOperands() == 2 &&
@@ -205,9 +211,18 @@ public:
       if (!resultType)
         return failure();
       Value base = extractPointerFromMemref(rewriter, loc, op->getOperand(0));
+      SmallVector<Value> loadOperands{base, operands[1]};
+      if (fpga) {
+        auto slot = op->getAttrOfType<IntegerAttr>("bosc_ame.fpga.slot");
+        if (!slot || slot.getInt() < 0 || slot.getInt() > 7)
+          return op->emitError("FPGA matrix load requires a slot in [0, 7]");
+        loadOperands.push_back(LLVM::ConstantOp::create(
+            rewriter, loc, rewriter.getI32Type(),
+            rewriter.getI32IntegerAttr(slot.getInt())));
+      }
       Operation *intrinsic =
-          createBOSCAMEIntrinsicOp(rewriter, loc, name, TypeRange{resultType},
-                                   ValueRange{base, operands[1]});
+          createBOSCAMEIntrinsicOp(rewriter, loc, fpga ? fpgaName : name,
+                                  TypeRange{resultType}, loadOperands);
       rewriter.replaceOp(op, intrinsic->getResults());
       return success();
     }
@@ -216,7 +231,7 @@ public:
     if (op->getNumResults() == 0 && op->getNumOperands() == 3 &&
         isMemRefValue(op->getOperand(1))) {
       Value base = extractPointerFromMemref(rewriter, loc, op->getOperand(1));
-      createBOSCAMEIntrinsicOp(rewriter, loc, name, TypeRange(),
+      createBOSCAMEIntrinsicOp(rewriter, loc, fpga ? fpgaName : name, TypeRange(),
                                ValueRange{operands[0], base, operands[2]});
       rewriter.eraseOp(op);
       return success();
@@ -237,7 +252,9 @@ public:
     }
 
     Operation *intrinsic = createBOSCAMEIntrinsicOp(
-        rewriter, loc, name, TypeRange(resultTypes), intrinsicOperands);
+        rewriter, loc,
+        fpga && name == "bosc_ame.mqma.b.mm" ? fpgaName : name,
+        TypeRange(resultTypes), intrinsicOperands);
     rewriter.replaceOp(op, intrinsic->getResults());
     return success();
   }
@@ -264,8 +281,68 @@ struct LegalizeBOSCAMEForLLVMExport
     registry.insert<scf::SCFDialect>();
   }
 
+  /// FPGA profile: make the backend select the FPGA register-file convention.
+  ///
+  /// The `mtype` encoding alone is not enough: the FPGA convention also covers
+  /// how matrix values map to the tile/accumulator register files, which is a
+  /// target feature.  Carrying it on the lowered functions keeps a single
+  /// source of truth for "which AME contract is this module" instead of relying
+  /// on every caller remembering `-mattr=+xboscame-fpga`.
+  LogicalResult annotateFPGATargetFeatures(ModuleOp module) {
+    FailureOr<AmeTargetProfile> profile = resolveAmeTarget(module, "");
+    if (failed(profile) || *profile != AmeTargetProfile::Qwen3Fpga)
+      return success();
+
+    MLIRContext *context = &getContext();
+    llvm::SmallVector<llvm::StringRef, 4> features = {kFPGATargetFeature};
+    WalkResult result = module.walk([&](FunctionOpInterface function) {
+      llvm::SmallVector<llvm::StringRef, 4> merged(features);
+      std::string featureAttrName =
+          isa<LLVM::LLVMFuncOp>(function.getOperation())
+              ? LLVM::TargetFeaturesAttr::getAttributeName().str()
+              : ("llvm." + LLVM::TargetFeaturesAttr::getAttributeName()).str();
+      if (auto existing = function->getAttrOfType<LLVM::TargetFeaturesAttr>(
+              featureAttrName)) {
+        for (llvm::StringRef feature : existing.getFeatures()) {
+          if (feature == "-xboscame-fpga" || feature == "-xboscame") {
+            function->emitError("target features disable the module's "
+                                "qwen3-fpga AME contract");
+            return WalkResult::interrupt();
+          }
+          if (!llvm::is_contained(merged, feature))
+            merged.push_back(feature);
+        }
+      }
+      // func.func needs the llvm.* prefix for conversion; llvm.func already
+      // stores the feature set as its unprefixed target_features property.
+      function->setAttr(featureAttrName,
+                        LLVM::TargetFeaturesAttr::get(context, merged));
+      return WalkResult::advance();
+    });
+    return failure(result.wasInterrupted());
+  }
+
+  /// Reject AME operations the FPGA convention cannot represent before they can
+  /// reach the backend and select the wrong register file.
+  LogicalResult verifyFPGACapabilities(ModuleOp module) {
+    FailureOr<AmeTargetProfile> profile = resolveAmeTarget(module, "");
+    if (failed(profile))
+      return failure();
+    if (*profile != AmeTargetProfile::Qwen3Fpga)
+      return success();
+    return verifyFpgaAmeCapabilities(module);
+  }
+
   void runOnOperation() override {
     ModuleOp module = getOperation();
+    if (failed(verifyFPGACapabilities(module))) {
+      signalPassFailure();
+      return;
+    }
+    if (failed(annotateFPGATargetFeatures(module))) {
+      signalPassFailure();
+      return;
+    }
     MLIRContext &context = getContext();
     LLVMConversionTarget target(context);
     target.addLegalDialect<arith::ArithDialect>();

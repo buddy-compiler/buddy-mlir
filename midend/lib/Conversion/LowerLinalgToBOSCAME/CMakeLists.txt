@@ -4,6 +4,7 @@ add_mlir_library(LowerLinalgToBOSCAMEPass
   LINK_LIBS PUBLIC
   BuddyBOSCAME
   BuddyBOSCAMETransforms
+  MLIRAnalysis
   MLIRArithDialect
   MLIRLinalgDialect
   MLIRLLVMDialect

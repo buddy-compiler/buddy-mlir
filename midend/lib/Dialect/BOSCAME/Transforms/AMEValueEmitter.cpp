@@ -62,7 +62,8 @@ Value createByteStride(OpBuilder &builder, Location loc, Value memref,
 
   // extract_strided_metadata results:
   //   [baseBuffer, offset, sizes..., strides...]
-  auto metadata = memref::ExtractStridedMetadataOp::create(builder, loc, memref);
+  auto metadata =
+      memref::ExtractStridedMetadataOp::create(builder, loc, memref);
   Value strideElem = metadata.getResult(2 + rank + dim);
   Value strideBytes = arith::MulIOp::create(builder, loc, strideElem, bytes);
   return arith::IndexCastOp::create(builder, loc, builder.getI64Type(),
@@ -73,8 +74,10 @@ Value createByteStride(OpBuilder &builder, Location loc, Value memref,
 template <typename OpTy>
 static FailureOr<Value> createLoadOp(OpBuilder &builder, Location loc,
                                      Type tileType, Value source,
-                                     Value byteStride) {
-  return OpTy::create(builder, loc, tileType, source, byteStride).getRes();
+                                     Value byteStride, unsigned slot) {
+  auto op = OpTy::create(builder, loc, tileType, source, byteStride);
+  op->setAttr("bosc_ame.fpga.slot", builder.getI32IntegerAttr(slot));
+  return op.getRes();
 }
 
 /// Emit one of the `m{qma,ma,...}*.mm` MMAs with a uniform call shape.
@@ -120,48 +123,56 @@ static DatapathKind classify(Type elementType) {
 static FailureOr<Value> rejectUnsupported(Operation *anchor, StringRef what,
                                           Type elementType) {
   if (anchor)
-    anchor->emitOpError()
-        << "unsupported BOSCAME " << what << " element type " << elementType;
+    anchor->emitOpError() << "unsupported BOSCAME " << what << " element type "
+                          << elementType;
   return failure();
 }
 
 FailureOr<Value> createLoadA(OpBuilder &builder, Location loc, Type elementType,
-                             Value source, Value byteStride,
-                             Operation *anchor) {
+                             Value source, Value byteStride, Operation *anchor,
+                             unsigned slot) {
   Type tileType = getMatrixTileType(builder.getContext(), elementType);
   switch (classify(elementType)) {
   case DatapathKind::I8:
-    return createLoadOp<Mlae8mOp>(builder, loc, tileType, source, byteStride);
+    return createLoadOp<Mlae8mOp>(builder, loc, tileType, source, byteStride,
+                                  slot);
   case DatapathKind::I16:
   case DatapathKind::F16:
-    return createLoadOp<Mlae16mOp>(builder, loc, tileType, source, byteStride);
+    return createLoadOp<Mlae16mOp>(builder, loc, tileType, source, byteStride,
+                                   slot);
   case DatapathKind::I32:
   case DatapathKind::F32:
-    return createLoadOp<Mlae32mOp>(builder, loc, tileType, source, byteStride);
+    return createLoadOp<Mlae32mOp>(builder, loc, tileType, source, byteStride,
+                                   slot);
   case DatapathKind::I64:
   case DatapathKind::F64:
-    return createLoadOp<Mlae64mOp>(builder, loc, tileType, source, byteStride);
+    return createLoadOp<Mlae64mOp>(builder, loc, tileType, source, byteStride,
+                                   slot);
   default:
     return rejectUnsupported(anchor, "A load", elementType);
   }
 }
 
 FailureOr<Value> createLoadB(OpBuilder &builder, Location loc, Type elementType,
-                             Value source, Value byteStride,
-                             Operation *anchor) {
+                             Value source, Value byteStride, Operation *anchor,
+                             unsigned slot) {
   Type tileType = getMatrixTileType(builder.getContext(), elementType);
   switch (classify(elementType)) {
   case DatapathKind::I8:
-    return createLoadOp<Mlbe8mOp>(builder, loc, tileType, source, byteStride);
+    return createLoadOp<Mlbe8mOp>(builder, loc, tileType, source, byteStride,
+                                  slot);
   case DatapathKind::I16:
   case DatapathKind::F16:
-    return createLoadOp<Mlbe16mOp>(builder, loc, tileType, source, byteStride);
+    return createLoadOp<Mlbe16mOp>(builder, loc, tileType, source, byteStride,
+                                   slot);
   case DatapathKind::I32:
   case DatapathKind::F32:
-    return createLoadOp<Mlbe32mOp>(builder, loc, tileType, source, byteStride);
+    return createLoadOp<Mlbe32mOp>(builder, loc, tileType, source, byteStride,
+                                   slot);
   case DatapathKind::I64:
   case DatapathKind::F64:
-    return createLoadOp<Mlbe64mOp>(builder, loc, tileType, source, byteStride);
+    return createLoadOp<Mlbe64mOp>(builder, loc, tileType, source, byteStride,
+                                   slot);
   default:
     return rejectUnsupported(anchor, "B load", elementType);
   }
@@ -169,20 +180,25 @@ FailureOr<Value> createLoadB(OpBuilder &builder, Location loc, Type elementType,
 
 FailureOr<Value> createLoadBTransposed(OpBuilder &builder, Location loc,
                                        Type elementType, Value source,
-                                       Value byteStride, Operation *anchor) {
+                                       Value byteStride, Operation *anchor,
+                                       unsigned slot) {
   Type tileType = getMatrixTileType(builder.getContext(), elementType);
   switch (classify(elementType)) {
   case DatapathKind::I8:
-    return createLoadOp<Mlbte8mOp>(builder, loc, tileType, source, byteStride);
+    return createLoadOp<Mlbte8mOp>(builder, loc, tileType, source, byteStride,
+                                   slot);
   case DatapathKind::I16:
   case DatapathKind::F16:
-    return createLoadOp<Mlbte16mOp>(builder, loc, tileType, source, byteStride);
+    return createLoadOp<Mlbte16mOp>(builder, loc, tileType, source, byteStride,
+                                    slot);
   case DatapathKind::I32:
   case DatapathKind::F32:
-    return createLoadOp<Mlbte32mOp>(builder, loc, tileType, source, byteStride);
+    return createLoadOp<Mlbte32mOp>(builder, loc, tileType, source, byteStride,
+                                    slot);
   case DatapathKind::I64:
   case DatapathKind::F64:
-    return createLoadOp<Mlbte64mOp>(builder, loc, tileType, source, byteStride);
+    return createLoadOp<Mlbte64mOp>(builder, loc, tileType, source, byteStride,
+                                    slot);
   default:
     return rejectUnsupported(anchor, "transposed B load", elementType);
   }
@@ -191,20 +207,25 @@ FailureOr<Value> createLoadBTransposed(OpBuilder &builder, Location loc,
 FailureOr<Value> createLoadAccumulator(OpBuilder &builder, Location loc,
                                        Type accElementType,
                                        Type memoryElementType, Value source,
-                                       Value byteStride, Operation *anchor) {
+                                       Value byteStride, Operation *anchor,
+                                       unsigned slot) {
   Type tileType = getMatrixTileType(builder.getContext(), accElementType);
   switch (classify(accElementType)) {
   case DatapathKind::I8:
-    return createLoadOp<Mlce8mOp>(builder, loc, tileType, source, byteStride);
+    return createLoadOp<Mlce8mOp>(builder, loc, tileType, source, byteStride,
+                                  slot);
   case DatapathKind::I16:
   case DatapathKind::F16:
-    return createLoadOp<Mlce16mOp>(builder, loc, tileType, source, byteStride);
+    return createLoadOp<Mlce16mOp>(builder, loc, tileType, source, byteStride,
+                                   slot);
   case DatapathKind::I32:
   case DatapathKind::F32:
-    return createLoadOp<Mlce32mOp>(builder, loc, tileType, source, byteStride);
+    return createLoadOp<Mlce32mOp>(builder, loc, tileType, source, byteStride,
+                                   slot);
   case DatapathKind::I64:
   case DatapathKind::F64:
-    return createLoadOp<Mlce64mOp>(builder, loc, tileType, source, byteStride);
+    return createLoadOp<Mlce64mOp>(builder, loc, tileType, source, byteStride,
+                                   slot);
   default:
     return rejectUnsupported(anchor, "accumulator load", accElementType);
   }
@@ -246,9 +267,9 @@ FailureOr<Value> createMma(OpBuilder &builder, Location loc, Value acc,
     return createWidenMmaOp<MfmaDmmOp>(builder, loc, tileType, acc, lhs, rhs);
 
   if (anchor)
-    anchor->emitOpError()
-        << "unsupported BOSCAME matmul instruction type: lhs " << lhsElementType
-        << ", accumulator " << accElementType;
+    anchor->emitOpError() << "unsupported BOSCAME matmul instruction type: lhs "
+                          << lhsElementType << ", accumulator "
+                          << accElementType;
   return failure();
 }
 
@@ -305,8 +326,7 @@ FailureOr<int64_t> getUpstreamMsetTypeImm(Type elementType) {
     return 4;
   if (elementType.isInteger(8))
     return 8;
-  if (elementType.isInteger(16) || elementType.isF16() ||
-      elementType.isBF16())
+  if (elementType.isInteger(16) || elementType.isF16() || elementType.isBF16())
     return 16;
   if (elementType.isInteger(32) || elementType.isF32())
     return 32;
@@ -357,8 +377,8 @@ static FailureOr<int64_t> configureMtype(OpBuilder &builder, Location loc,
 FailureOr<int64_t> configureMmaType(OpBuilder &builder, Location loc,
                                     Type elementType, AmeTargetProfile profile,
                                     Operation *anchor) {
-  return configureMtype(builder, loc, elementType, profile,
-                        FpgaMtypePhase::Mma, anchor);
+  return configureMtype(builder, loc, elementType, profile, FpgaMtypePhase::Mma,
+                        anchor);
 }
 
 FailureOr<int64_t> configureAccumulatorType(OpBuilder &builder, Location loc,

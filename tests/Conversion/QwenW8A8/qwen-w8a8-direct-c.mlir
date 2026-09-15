@@ -19,16 +19,20 @@ module {
                                 %out: memref<*xf32>,
                                 %rowOffset: index,
                                 %columnOffset: index) {
+    // The caller guarantees that input and output buffers do not overlap.
+    %out_ranked = memref.cast %out : memref<*xf32> to memref<?xf32>
+    %A_distinct, %B_distinct, %out_distinct = memref.distinct_objects %A, %B, %out_ranked : memref<4x32xi8>, memref<32x4xi8>, memref<?xf32>
+
     %C = memref.alloc() : memref<4x4xf32>
     %zero = arith.constant 0.0 : f32
     linalg.fill ins(%zero : f32) outs(%C : memref<4x4xf32>)
     linalg.matmul {cast = #linalg.type_fn<cast_signed>}
-        ins(%A, %B : memref<4x32xi8>, memref<32x4xi8>)
+        ins(%A_distinct, %B_distinct : memref<4x32xi8>, memref<32x4xi8>)
         outs(%C : memref<4x4xf32>)
     %targetOffset = arith.addi %rowOffset, %columnOffset : index
-    %target = memref.reinterpret_cast %out to
+    %target = memref.reinterpret_cast %out_distinct to
         offset: [%targetOffset], sizes: [4, 4], strides: [16, 1]
-        : memref<*xf32> to memref<4x4xf32, strided<[16, 1], offset: ?>>
+        : memref<?xf32> to memref<4x4xf32, strided<[16, 1], offset: ?>>
     memref.copy %C, %target
         : memref<4x4xf32>
           to memref<4x4xf32, strided<[16, 1], offset: ?>>
@@ -122,8 +126,8 @@ module {
 // STRIDE-DAG: %[[C_STRIDE:.*]] = arith.constant 64 : i64
 // STRIDE: bosc_ame.msettilem %[[FOUR]] : i64
 // STRIDE: bosc_ame.msettilen %[[FOUR]] : i64
-// STRIDE: bosc_ame.mlce32.m {{.*}}, %[[C_STRIDE]] : memref<?x?xf32, strided<[16, 1], offset: ?>>
+// STRIDE: bosc_ame.mlce32.m {{.*}}, %[[C_STRIDE]] {bosc_ame.fpga.slot = 0 : i32} : memref<?x?xf32, strided<[16, 1], offset: ?>>
 // STRIDE: bosc_ame.msettilek %[[THIRTY_TWO]] : i64
-// STRIDE: bosc_ame.mlae8.m {{.*}}, %[[THIRTY_TWO]] : memref<?x?xi8, strided<[32, 1], offset: ?>>
-// STRIDE: bosc_ame.mlbte8.m {{.*}}, %[[FOUR]] : memref<?x?xi8, strided<[4, 1], offset: ?>>
+// STRIDE: bosc_ame.mlae8.m {{.*}}, %[[THIRTY_TWO]] {bosc_ame.fpga.slot = 0 : i32} : memref<?x?xi8, strided<[32, 1], offset: ?>>
+// STRIDE: bosc_ame.mlbte8.m {{.*}}, %[[FOUR]] {bosc_ame.fpga.slot = 4 : i32} : memref<?x?xi8, strided<[4, 1], offset: ?>>
 // STRIDE: bosc_ame.msce32.m {{.*}}, {{.*}}, %[[C_STRIDE]] :

@@ -34,7 +34,8 @@ llvm::StringRef stringifyAmeTargetProfile(AmeTargetProfile profile) {
   llvm_unreachable("unknown AmeTargetProfile");
 }
 
-std::optional<AmeTargetProfile> symbolizeAmeTargetProfile(llvm::StringRef name) {
+std::optional<AmeTargetProfile>
+symbolizeAmeTargetProfile(llvm::StringRef name) {
   if (name.empty() || name == "upstream")
     return AmeTargetProfile::Upstream;
   if (name == "qwen3-fpga")
@@ -54,6 +55,9 @@ FailureOr<AmeTargetProfile> resolveAmeTarget(Operation *op,
   }
 
   std::optional<AmeTargetProfile> fromAttribute;
+  if (op->hasAttr(kAmeTargetAttrName) &&
+      !op->getAttrOfType<StringAttr>(kAmeTargetAttrName))
+    return op->emitError() << kAmeTargetAttrName << " must be a string";
   if (auto attr = op->getAttrOfType<StringAttr>(kAmeTargetAttrName)) {
     fromAttribute = symbolizeAmeTargetProfile(attr.getValue());
     if (!fromAttribute)
@@ -63,11 +67,10 @@ FailureOr<AmeTargetProfile> resolveAmeTarget(Operation *op,
   }
 
   if (fromOption && fromAttribute && *fromOption != *fromAttribute)
-    return op->emitError()
-           << "conflicting AME target: pass option requests '"
-           << stringifyAmeTargetProfile(*fromOption) << "' but "
-           << kAmeTargetAttrName << " is '"
-           << stringifyAmeTargetProfile(*fromAttribute) << "'";
+    return op->emitError() << "conflicting AME target: pass option requests '"
+                           << stringifyAmeTargetProfile(*fromOption) << "' but "
+                           << kAmeTargetAttrName << " is '"
+                           << stringifyAmeTargetProfile(*fromAttribute) << "'";
 
   if (fromOption)
     return *fromOption;
@@ -92,6 +95,131 @@ FailureOr<int64_t> getFpgaMtypeImm(Type elementType, FpgaMtypePhase phase) {
   return failure();
 }
 
+/// Element type that the FPGA prototype convention accepts for one operand or
+/// result role of an AME matrix operation.
+enum class AmeRole { Tile, Accumulator };
+
+/// Roles of the matrix operands and results of one AME operation.  An MMA has
+/// both an accumulator operand and tile operands, so the role is tracked per
+/// operand rather than per operation.
+struct AmeRoleSpec {
+  std::optional<AmeRole> operand[3];
+  std::optional<AmeRole> result;
+};
+
+/// Classify an AME operation by mnemonic.  Returns std::nullopt for operations
+/// the FPGA convention does not support.
+static std::optional<AmeRoleSpec> classifyAmeMnemonic(llvm::StringRef name) {
+  AmeRoleSpec spec;
+
+  // Only the instruction subset emitted by the verified W8A8 adapter has an
+  // FPGA intrinsic and fixed-slot contract. Other upstream operations remain
+  // available under the upstream profile.
+  if (name == "bosc_ame.mlae8.m" || name == "bosc_ame.mlbe8.m" ||
+      name == "bosc_ame.mlbte8.m") {
+    spec.result = AmeRole::Tile;
+    return spec;
+  }
+  if (name == "bosc_ame.mlce32.m") {
+    spec.result = AmeRole::Accumulator;
+    return spec;
+  }
+  if (name == "bosc_ame.msce32.m") {
+    spec.operand[0] = AmeRole::Accumulator;
+    return spec;
+  }
+  if (name == "bosc_ame.mqma.b.mm") {
+    spec.operand[0] = AmeRole::Accumulator;
+    spec.operand[1] = AmeRole::Tile;
+    spec.operand[2] = AmeRole::Tile;
+    spec.result = AmeRole::Accumulator;
+    return spec;
+  }
+
+  return std::nullopt;
+}
+
+static bool roleMatches(AmeRole role, Type elementType) {
+  return role == AmeRole::Tile ? elementType.isInteger(8)
+                               : elementType.isInteger(32);
+}
+
+LogicalResult verifyFpgaAmeCapabilities(Operation *root) {
+  WalkResult result = root->walk([&](Operation *op) {
+    llvm::StringRef name = op->getName().getStringRef();
+    if (!name.starts_with("bosc_ame."))
+      return WalkResult::advance();
+
+    // The default profile deliberately leaves no module marker. Nevertheless,
+    // already-lowered upstream configuration must never be reinterpreted as
+    // FPGA code by a subsequent pass (including after intrinsic export).
+    if (name == "bosc_ame.msettypei" || name == "bosc_ame.intr.msettypei" ||
+        name == "bosc_ame.msettypehi" || name == "bosc_ame.intr.msettypehi") {
+      op->emitError("upstream AME configuration cannot be mixed with the "
+                    "qwen3-fpga target");
+      return WalkResult::interrupt();
+    }
+
+    // Only operations that carry a matrix value are constrained by the register
+    // file convention.  Configuration instructions and the high-level W8A8
+    // semantic ops (quantize_per_group, w8a8_linear, ...) work on memrefs and
+    // are lowered by their own patterns.
+    auto isMatrix = [](Type type) {
+      auto vectorType = dyn_cast<VectorType>(type);
+      return vectorType && vectorType.getRank() == 2;
+    };
+    bool carriesMatrix = llvm::any_of(op->getOperandTypes(), isMatrix) ||
+                         llvm::any_of(op->getResultTypes(), isMatrix);
+    if (!carriesMatrix)
+      return WalkResult::advance();
+
+    std::optional<AmeRoleSpec> spec = classifyAmeMnemonic(name);
+    if (!spec) {
+      op->emitError() << "BOSC AME operation '" << name
+                      << "' is not supported by the FPGA prototype convention "
+                         "(i8 A/B tiles with an i32 accumulator); see "
+                         "docs/BOSCAMEFPGAValueSemantics.md";
+      return WalkResult::interrupt();
+    }
+
+    auto check = [&](Value value, std::optional<AmeRole> role) -> bool {
+      if (!role)
+        return true;
+      auto vectorType = dyn_cast<VectorType>(value.getType());
+      if (!vectorType)
+        return true;
+      if (roleMatches(*role, vectorType.getElementType()))
+        return true;
+      // The streamed type already carries its own quotes.
+      op->emitError() << "BOSC AME operation '" << name << "' uses "
+                      << vectorType.getElementType()
+                      << " where the FPGA prototype convention requires "
+                      << (*role == AmeRole::Tile ? "an 8-bit tile"
+                                                 : "a 32-bit accumulator");
+      return false;
+    };
+
+    for (unsigned index = 0; index < op->getNumOperands() && index < 3; ++index)
+      if (!check(op->getOperand(index), spec->operand[index]))
+        return WalkResult::interrupt();
+    for (Value resultValue : op->getResults())
+      if (!check(resultValue, spec->result))
+        return WalkResult::interrupt();
+    if (name == "bosc_ame.mlce32.m" || name == "bosc_ame.msce32.m") {
+      unsigned memoryIndex = name == "bosc_ame.mlce32.m" ? 0 : 1;
+      auto memoryType = cast<ShapedType>(op->getOperand(memoryIndex).getType());
+      if (!memoryType.getElementType().isF32()) {
+        op->emitError(
+            "qwen3-fpga accumulator memory must be f32; "
+            "msce32.m converts i32 to f32 and is not a lossless spill");
+        return WalkResult::interrupt();
+      }
+    }
+    return WalkResult::advance();
+  });
+  return result.wasInterrupted() ? failure() : success();
+}
+
 bool isFpgaMmaSupported(Type lhsElementType, Type accElementType) {
   // Verified FPGA datapath: i8 x i8 -> i32 (`mqma.b.mm`).
   return lhsElementType.isInteger(8) && accElementType.isInteger(32);
@@ -105,7 +233,7 @@ bool isFpgaAccumulatorMemorySupported(Type accElementType,
   // +0.0 buffer, which is exactly the i32 zero accumulator.
   if (!accElementType.isInteger(32))
     return false;
-  return memoryElementType.isF32() || memoryElementType.isInteger(32);
+  return memoryElementType.isF32();
 }
 
 } // namespace boscame

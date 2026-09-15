@@ -1214,3 +1214,17 @@ def BOSCAME_MsomaMm_IntrOp   : BOSCAME_WidenMMA_IntrOp<"msoma.mm">;
 //def BOSCAME_MsomaHbmm_IntrOp : BOSCAME_WidenMMA_IntrOp<"msoma.hb.mm">;
 
 #endif // BOSCAME_DIALECT
+
+// FPGA adapter intrinsics retain the common SSA carrier, but carry each load's
+// physical slot explicitly. They are never emitted for the upstream profile.
+class BOSCAME_FpgaLoad_IntrOp<string mnemonic>
+    : BOSCAME_IntrOpBase<"fpga." # mnemonic, 1, [0], [1]>,
+      Arguments<(ins LLVM_Type:$base, LLVM_Type:$stride, I32:$slot)>;
+def BOSCAME_FpgaLoadA_IntrOp : BOSCAME_FpgaLoad_IntrOp<"mlae8.m">;
+def BOSCAME_FpgaLoadB_IntrOp : BOSCAME_FpgaLoad_IntrOp<"mlbe8.m">;
+def BOSCAME_FpgaLoadBT_IntrOp : BOSCAME_FpgaLoad_IntrOp<"mlbte8.m">;
+def BOSCAME_FpgaLoadAcc_IntrOp : BOSCAME_FpgaLoad_IntrOp<"mlce32.m">;
+def BOSCAME_FpgaMma_IntrOp : BOSCAME_WidenMMA_IntrOp<"fpga.mqma.b.mm">;
+// Final accumulator write-back converts i32 to f32 on this target; it is not a
+// lossless spill and must not share the upstream store's semantic identity.
+def BOSCAME_FpgaStoreAcc_IntrOp : BOSCAME_Store_IntrOp<"fpga.msce32.m">;

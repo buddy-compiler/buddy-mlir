@@ -1,5 +1,11 @@
 add_subdirectory(Interface)
 
+# lit.site.cfg.py embeds the interpreter used for the Python tests.  The MLIR
+# config discovers Python inside its own scope, so the variable is not
+# guaranteed to be visible here; look it up again (FindPython3 reuses the
+# already-cached interpreter) so "%PYTHON" never expands to an empty string.
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+
 configure_lit_site_cfg(
   ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
   ${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py
@@ -29,11 +35,15 @@ if(BUDDY_MLIR_ENABLE_DIP_LIB)
   endif()
 endif()
 
-if(MLIR_ENABLE_BINDINGS_PYTHON)
+# Depend on the Python packages only when this build actually defines them.
+# `MLIR_ENABLE_BINDINGS_PYTHON` comes from the LLVM build and is also true when
+# buddy itself is configured with BUDDY_MLIR_ENABLE_PYTHON_PACKAGES=OFF, which
+# used to make every check-* target depend on a target that does not exist.
+if(TARGET python-package-buddy)
   list(APPEND BUDDY_TEST_DEPENDS python-package-buddy)
 endif()
-if(BUDDY_MLIR_ENABLE_PYTHON_PACKAGES)
-  list(APPEND BUDDY_TEST_DEPENDS python-package-buddy-mlir python-package-buddy)
+if(BUDDY_MLIR_ENABLE_PYTHON_PACKAGES AND TARGET python-package-buddy-mlir)
+  list(APPEND BUDDY_TEST_DEPENDS python-package-buddy-mlir)
 endif()
 
 add_lit_testsuite(check-tests "Running the buddy regression tests..."

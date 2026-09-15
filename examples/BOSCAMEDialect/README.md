@@ -692,20 +692,27 @@ module {
     %rd_n = bosc_ame.msettileni 4 : i64          // mtilen = 4 (cols of C and B)
     %rd_k = bosc_ame.msettileki 4 : i64          // mtilek = 4 (cols of A, rows of B)
 
-    // Step 2: Zero the accumulation register (tile register 0)
-    bosc_ame.msub.w.mm 0, 0, 0
+    // Step 2: The accumulator is an SSA value.  Load it from memory; a buffer
+    // holding +0.0 (or the destination itself, for C += A x B) is the seed.
+    %acc0 = bosc_ame.mlce32.m %c_ptr, %stride_c
+        : memref<4x4xi32> -> vector<4x4xi32>
 
-    // Step 3: Load matrix A to tile register 0 (shape: mtilem x mtilek = 4x4)
-    bosc_ame.mlae32.m 0, %a_ptr, %stride_a : memref<4x4xi32>
+    // Step 3: Load matrix A (shape: mtilem x mtilek = 4x4)
+    %a = bosc_ame.mlae32.m %a_ptr, %stride_a
+        : memref<4x4xi32> -> vector<4x4xi32>
 
-    // Step 4: Load matrix B to tile register 1 (shape: mtilek x mtilen = 4x4)
-    bosc_ame.mlbe32.m 1, %b_ptr, %stride_b : memref<4x4xi32>
+    // Step 4: Load matrix B (shape: mtilek x mtilen = 4x4)
+    %b = bosc_ame.mlbe32.m %b_ptr, %stride_b
+        : memref<4x4xi32> -> vector<4x4xi32>
 
-    // Step 5: Execute matrix multiply: acc0 = acc0 + tile0 x tile1
-    bosc_ame.mma.w.mm 0, 0, 1
+    // Step 5: Execute matrix multiply: the MMA consumes the accumulator SSA
+    // value and returns the updated one, so chains are explicit dataflow.
+    %acc1 = bosc_ame.mma.w.mm %acc0, %a, %b
+        : vector<4x4xi32>, vector<4x4xi32>, vector<4x4xi32> -> vector<4x4xi32>
 
-    // Step 6: Store result from accumulator 0 to memory
-    bosc_ame.msce32.m 0, %c_ptr, %stride_c : memref<4x4xi32>
+    // Step 6: Store the resulting accumulator to memory
+    bosc_ame.msce32.m %acc1, %c_ptr, %stride_c
+        : vector<4x4xi32>, memref<4x4xi32>
 
     //row 0
     %val_c00 = memref.load %c_ptr[%i0, %i0] : memref<4x4xi32>

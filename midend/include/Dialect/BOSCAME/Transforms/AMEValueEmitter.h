@@ -82,19 +82,20 @@ Value createByteStride(OpBuilder &builder, Location loc, Value memref,
 /// `mlae*.m`: load the left matrix tile.
 FailureOr<Value> createLoadA(OpBuilder &builder, Location loc, Type elementType,
                              Value source, Value byteStride,
-                             Operation *anchor = nullptr);
+                             Operation *anchor = nullptr, unsigned slot = 0);
 
 /// `mlbe*.m`: load the right matrix tile from a row-major `[K, N]` view.
 FailureOr<Value> createLoadB(OpBuilder &builder, Location loc, Type elementType,
                              Value source, Value byteStride,
-                             Operation *anchor = nullptr);
+                             Operation *anchor = nullptr, unsigned slot = 4);
 
 /// `mlbte*.m`: load the right matrix tile from a physically transposed
 /// `[N, K]` view (the Triton weight layout).
 FailureOr<Value> createLoadBTransposed(OpBuilder &builder, Location loc,
                                        Type elementType, Value source,
                                        Value byteStride,
-                                       Operation *anchor = nullptr);
+                                       Operation *anchor = nullptr,
+                                       unsigned slot = 4);
 
 /// `mlce*.m`: load an accumulator tile.
 ///
@@ -102,11 +103,10 @@ FailureOr<Value> createLoadBTransposed(OpBuilder &builder, Location loc,
 /// `memoryElementType` is what the memref actually holds.  On the FPGA these
 /// differ on purpose: `mlce32.m` reads an fp32 buffer and uses its bit pattern
 /// as the integer accumulator, so only a `+0.0` buffer is a valid zero seed.
-FailureOr<Value> createLoadAccumulator(OpBuilder &builder, Location loc,
-                                       Type accElementType,
-                                       Type memoryElementType, Value source,
-                                       Value byteStride,
-                                       Operation *anchor = nullptr);
+FailureOr<Value>
+createLoadAccumulator(OpBuilder &builder, Location loc, Type accElementType,
+                      Type memoryElementType, Value source, Value byteStride,
+                      Operation *anchor = nullptr, unsigned slot = 0);
 
 /// MMA: returns the updated accumulator, which must feed the next MMA of the
 /// same chain or the final store.  Dropping the result silently loses the
@@ -124,8 +124,8 @@ LogicalResult createStoreAccumulator(OpBuilder &builder, Location loc,
 /// Program `mtilem` / `mtilen` / `mtilek`.  These are plain CSR writes and are
 /// identical for both profiles; they are wrapped here so every emitter uses
 /// the same i64 casting.
-LogicalResult configureTiles(OpBuilder &builder, Location loc, Value m,
-                             Value n, Value k = {});
+LogicalResult configureTiles(OpBuilder &builder, Location loc, Value m, Value n,
+                             Value k = {});
 
 /// Program only `mtilek` (the K loop re-sets the K extent for each tile).
 LogicalResult configureTileK(OpBuilder &builder, Location loc, Value k);

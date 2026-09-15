@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -12,9 +13,11 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 BUDDY_ROOT = HERE.parents[1]
-BUDDY_OPT = BUDDY_ROOT / "build/bin/buddy-opt"
-BUDDY_TRANSLATE = BUDDY_ROOT / "build/bin/buddy-translate"
-MLIR_OPT = BUDDY_ROOT / "llvm/build/bin/mlir-opt"
+BUDDY_BUILD_DIR = Path(os.environ.get("BUDDY_BUILD_DIR", BUDDY_ROOT / "build-migrate")).resolve()
+LLVM_BUILD_DIR = Path(os.environ.get("LLVM_BUILD_DIR", BUDDY_ROOT / "llvm/build-2d26")).resolve()
+BUDDY_OPT = Path(os.environ.get("BUDDY_OPT", BUDDY_BUILD_DIR / "bin/buddy-opt"))
+BUDDY_TRANSLATE = Path(os.environ.get("BUDDY_TRANSLATE", BUDDY_BUILD_DIR / "bin/buddy-translate"))
+MLIR_OPT = Path(os.environ.get("MLIR_OPT", LLVM_BUILD_DIR / "bin/mlir-opt"))
 
 
 def run(command: list[str]) -> None:

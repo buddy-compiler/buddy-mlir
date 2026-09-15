@@ -1,7 +1,10 @@
 BUDDY_ROOT := ../..
 SHELL := /bin/bash
 .SHELLFLAGS := -o pipefail -c
-BUDDY_LLC := $(BUDDY_ROOT)/llvm/build/bin/llc
+BUDDY_BUILD_DIR ?= $(BUDDY_ROOT)/build-migrate
+LLVM_BUILD_DIR ?= $(BUDDY_ROOT)/llvm/build-2d26
+export BUDDY_BUILD_DIR LLVM_BUILD_DIR
+BUDDY_LLC ?= $(LLVM_BUILD_DIR)/bin/llc
 QWEN3 ?= $(QWEN3_0_6B_DIR)
 PLATFORM := $(QWEN3)/platform
 TOOLS := tools

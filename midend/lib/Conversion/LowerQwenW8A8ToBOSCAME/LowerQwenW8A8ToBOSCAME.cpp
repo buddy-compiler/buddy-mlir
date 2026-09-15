@@ -866,8 +866,8 @@ public:
                             ValueRange{c0, c0});
     if (failed(ame::configureTiles(rewriter, loc, oneI64, oneI64, oneI64)))
       return failure();
-    if (failed(ame::configureMmaType(rewriter, loc, i8ElementType,
-                                     AmeTargetProfile::Qwen3Fpga, op)))
+    if (failed(ame::configureAccumulatorType(rewriter, loc, i32ElementType,
+                                             AmeTargetProfile::Qwen3Fpga, op)))
       return failure();
     Value syncI8 = makeSubview(rewriter, loc, tailActivation,
                                ArrayRef<OpFoldResult>{rewriter.getIndexAttr(0),
@@ -885,6 +885,9 @@ public:
         ame::createLoadAccumulator(rewriter, loc, i32ElementType,
                                    f32ElementType, syncZero, strideOneF32, op);
     if (failed(syncAcc))
+      return failure();
+    if (failed(ame::configureMmaType(rewriter, loc, i8ElementType,
+                                     AmeTargetProfile::Qwen3Fpga, op)))
       return failure();
     FailureOr<Value> syncA =
         ame::createLoadA(rewriter, loc, i8ElementType, syncI8, strideOneI8, op);
@@ -965,7 +968,7 @@ public:
             ArrayRef<int64_t>{tileRows, kHardwareN});
         FailureOr<Value> acc =
             ame::createLoadAccumulator(rewriter, loc, i32ElementType,
-                                       f32ElementType, zeroTile, strideC, op);
+                                       f32ElementType, zeroTile, strideC, op, n);
         if (failed(acc))
           return failure();
         accs[n] = *acc;
@@ -1009,7 +1012,7 @@ public:
       if (failed(b4))
         return failure();
       FailureOr<Value> b5 = ame::createLoadB(rewriter, loc, i8ElementType,
-                                             weightTiles[1], strideB, op);
+                                             weightTiles[1], strideB, op, 5);
       if (failed(b5))
         return failure();
       FailureOr<Value> mma0 =
@@ -1018,7 +1021,7 @@ public:
         return failure();
       updatedAccs[0] = *mma0;
       FailureOr<Value> b6 = ame::createLoadB(rewriter, loc, i8ElementType,
-                                             weightTiles[2], strideB, op);
+                                             weightTiles[2], strideB, op, 6);
       if (failed(b6))
         return failure();
       FailureOr<Value> mma1 =
@@ -1027,7 +1030,7 @@ public:
         return failure();
       updatedAccs[1] = *mma1;
       FailureOr<Value> b7 = ame::createLoadB(rewriter, loc, i8ElementType,
-                                             weightTiles[3], strideB, op);
+                                             weightTiles[3], strideB, op, 7);
       if (failed(b7))
         return failure();
       FailureOr<Value> mma2 =
@@ -1303,18 +1306,18 @@ public:
                             ValueRange{c0, c0});
     if (failed(ame::configureTiles(rewriter, loc, oneI64, oneI64, oneI64)))
       return failure();
-    if (failed(ame::configureMmaType(rewriter, loc, i8ElementType,
-                                     AmeTargetProfile::Qwen3Fpga, op)))
+    if (failed(ame::configureAccumulatorType(rewriter, loc, i32ElementType,
+                                             AmeTargetProfile::Qwen3Fpga, op)))
       return failure();
     Value syncI8 = makeSubview(rewriter, loc, tailActivation,
                                ArrayRef<OpFoldResult>{rewriter.getIndexAttr(0),
                                                       rewriter.getIndexAttr(0)},
                                ArrayRef<int64_t>{1, 1});
-    Value syncZero = makeSubview(
-        rewriter, loc, zero,
-        ArrayRef<OpFoldResult>{rewriter.getIndexAttr(0),
-                               rewriter.getIndexAttr(0)},
-        ArrayRef<int64_t>{1, 1});
+    Value syncZero =
+        makeSubview(rewriter, loc, zero,
+                    ArrayRef<OpFoldResult>{rewriter.getIndexAttr(0),
+                                           rewriter.getIndexAttr(0)},
+                    ArrayRef<int64_t>{1, 1});
     // In SSA the MMA needs an accumulator operand.  Hoist the accumulator load
     // that feeds the discarded MMA so it has a defined input; the load/store
     // pair below keeps its original position, so the round trip is unchanged.
@@ -1322,6 +1325,9 @@ public:
         ame::createLoadAccumulator(rewriter, loc, i32ElementType,
                                    f32ElementType, syncZero, strideOneF32, op);
     if (failed(syncAcc))
+      return failure();
+    if (failed(ame::configureMmaType(rewriter, loc, i8ElementType,
+                                     AmeTargetProfile::Qwen3Fpga, op)))
       return failure();
     FailureOr<Value> syncA =
         ame::createLoadA(rewriter, loc, i8ElementType, syncI8, strideOneI8, op);
@@ -1337,11 +1343,11 @@ public:
     if (failed(ame::configureAccumulatorType(rewriter, loc, i32ElementType,
                                              AmeTargetProfile::Qwen3Fpga, op)))
       return failure();
-    Value syncScratch = makeSubview(
-        rewriter, loc, scratch,
-        ArrayRef<OpFoldResult>{rewriter.getIndexAttr(0),
-                               rewriter.getIndexAttr(0)},
-        ArrayRef<int64_t>{1, 1});
+    Value syncScratch =
+        makeSubview(rewriter, loc, scratch,
+                    ArrayRef<OpFoldResult>{rewriter.getIndexAttr(0),
+                                           rewriter.getIndexAttr(0)},
+                    ArrayRef<int64_t>{1, 1});
     FailureOr<Value> syncReload =
         ame::createLoadAccumulator(rewriter, loc, i32ElementType,
                                    f32ElementType, syncZero, strideOneF32, op);
@@ -1507,8 +1513,8 @@ public:
                               ValueRange{c0, c0});
       if (failed(ame::configureTiles(rewriter, loc, oneI64, oneI64, oneI64)))
         return failure();
-      if (failed(ame::configureMmaType(rewriter, loc, i8ElementType,
-                                       AmeTargetProfile::Qwen3Fpga, op)))
+      if (failed(ame::configureAccumulatorType(
+              rewriter, loc, i32ElementType, AmeTargetProfile::Qwen3Fpga, op)))
         return failure();
       Value syncI8 =
           makeSubview(rewriter, loc, tailActivation,
@@ -1528,6 +1534,9 @@ public:
           rewriter, loc, i32ElementType, f32ElementType, syncZero, strideOneF32,
           op);
       if (failed(syncAcc))
+        return failure();
+      if (failed(ame::configureMmaType(rewriter, loc, i8ElementType,
+                                       AmeTargetProfile::Qwen3Fpga, op)))
         return failure();
       FailureOr<Value> syncA = ame::createLoadA(rewriter, loc, i8ElementType,
                                                 syncI8, strideOneI8, op);
@@ -1574,7 +1583,7 @@ public:
             ArrayRef<int64_t>{kHardwareM, kHardwareN});
         FailureOr<Value> acc =
             ame::createLoadAccumulator(rewriter, loc, i32ElementType,
-                                       f32ElementType, zeroTile, strideC, op);
+                                       f32ElementType, zeroTile, strideC, op, accumulatorBase + n);
         if (failed(acc))
           return failure();
         accs[accumulatorBase + n] = *acc;
@@ -1699,7 +1708,7 @@ public:
       if (failed(b4))
         return failure();
       FailureOr<Value> b5 =
-          ame::createLoadB(rewriter, loc, i8ElementType, weight1, strideB, op);
+          ame::createLoadB(rewriter, loc, i8ElementType, weight1, strideB, op, 5);
       if (failed(b5))
         return failure();
       FailureOr<Value> mma0 =
@@ -1708,7 +1717,7 @@ public:
         return failure();
       updatedAccs[0] = *mma0;
       FailureOr<Value> b6 =
-          ame::createLoadB(rewriter, loc, i8ElementType, weight2, strideB, op);
+          ame::createLoadB(rewriter, loc, i8ElementType, weight2, strideB, op, 6);
       if (failed(b6))
         return failure();
       FailureOr<Value> mma1 =
@@ -1717,7 +1726,7 @@ public:
         return failure();
       updatedAccs[1] = *mma1;
       FailureOr<Value> b7 =
-          ame::createLoadB(rewriter, loc, i8ElementType, weight3, strideB, op);
+          ame::createLoadB(rewriter, loc, i8ElementType, weight3, strideB, op, 7);
       if (failed(b7))
         return failure();
       FailureOr<Value> mma2 =
@@ -1809,7 +1818,7 @@ public:
       if (failed(a0))
         return failure();
       FailureOr<Value> a2 = ame::createLoadA(rewriter, loc, i8ElementType,
-                                             activation1, strideA, op);
+                                             activation1, strideA, op, 2);
       if (failed(a2))
         return failure();
       Value weight0 = makeWeightTile(outputBlock, group, 0, kOffset);
@@ -1822,7 +1831,7 @@ public:
       if (failed(b4))
         return failure();
       FailureOr<Value> b5 =
-          ame::createLoadB(rewriter, loc, i8ElementType, weight1, strideB, op);
+          ame::createLoadB(rewriter, loc, i8ElementType, weight1, strideB, op, 5);
       if (failed(b5))
         return failure();
       FailureOr<Value> mma0 =
@@ -1831,7 +1840,7 @@ public:
         return failure();
       updatedAccs[0] = *mma0;
       FailureOr<Value> b6 =
-          ame::createLoadB(rewriter, loc, i8ElementType, weight2, strideB, op);
+          ame::createLoadB(rewriter, loc, i8ElementType, weight2, strideB, op, 6);
       if (failed(b6))
         return failure();
       FailureOr<Value> mma4 =
@@ -1840,7 +1849,7 @@ public:
         return failure();
       updatedAccs[4] = *mma4;
       FailureOr<Value> b7 =
-          ame::createLoadB(rewriter, loc, i8ElementType, weight3, strideB, op);
+          ame::createLoadB(rewriter, loc, i8ElementType, weight3, strideB, op, 7);
       if (failed(b7))
         return failure();
       FailureOr<Value> mma1 =
@@ -1963,7 +1972,7 @@ public:
         if (failed(b4))
           return failure();
         FailureOr<Value> b5 = ame::createLoadB(rewriter, loc, i8ElementType,
-                                               weight1, strideB, op);
+                                               weight1, strideB, op, 5);
         if (failed(b5))
           return failure();
         FailureOr<Value> mma0 =
@@ -1973,7 +1982,7 @@ public:
           return failure();
         updatedAccs[accumulatorBase + 0] = *mma0;
         FailureOr<Value> b6 = ame::createLoadB(rewriter, loc, i8ElementType,
-                                               weight2, strideB, op);
+                                               weight2, strideB, op, 6);
         if (failed(b6))
           return failure();
         FailureOr<Value> mma1 =
@@ -1983,7 +1992,7 @@ public:
           return failure();
         updatedAccs[accumulatorBase + 1] = *mma1;
         FailureOr<Value> b7 = ame::createLoadB(rewriter, loc, i8ElementType,
-                                               weight3, strideB, op);
+                                               weight3, strideB, op, 7);
         if (failed(b7))
           return failure();
         FailureOr<Value> mma2 =
@@ -2217,6 +2226,20 @@ public:
     ModuleOp module = getOperation();
     FailureOr<AmeTargetProfile> profile = resolveAmeTarget(module, target);
     if (failed(profile)) {
+      signalPassFailure();
+      return;
+    }
+
+    // Keep a single source of truth for the AME contract: later stages (the
+    // BOSCAME export, the LLVM target feature) read this attribute.  The default
+    // profile stays implicit so upstream IR text is unchanged.
+    if (*profile != AmeTargetProfile::Upstream)
+      module->setAttr(kAmeTargetAttrName,
+                      StringAttr::get(module.getContext(),
+                                      stringifyAmeTargetProfile(*profile)));
+
+    if (*profile == AmeTargetProfile::Qwen3Fpga &&
+        failed(verifyFpgaAmeCapabilities(module))) {
       signalPassFailure();
       return;
     }

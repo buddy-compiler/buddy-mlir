@@ -67,3 +67,12 @@ make clean
 | `--prompt` | 固定提示词（左填充到 `--prefill-len`） | - |
 | `LAYERWISE_DECODE_STEPS` | 镜像内的 decode 步数 | 1 |
 | `LAYERWISE_HEAP_SIZE` | 裸机运行时堆大小 | 50331648u |
+
+### Compiler build selection
+
+The migrated FPGA flow uses `../../build-migrate` and
+`../../llvm/build-2d26` by default. To select another matching toolchain, set
+`BUDDY_BUILD_DIR` and `LLVM_BUILD_DIR` for the import/lower scripts and Makefile.
+The lowering script also accepts binary overrides `BUDDY_OPT`,
+`BUDDY_TRANSLATE`, and `MLIR_OPT`; the Makefile accepts `BUDDY_LLC`.
+These should point to the same migrated Buddy/LLVM pair used for validation.
