@@ -114,6 +114,9 @@ set(BUDDY_MLIR_PYTHON_PACKAGES_DIR ${BUDDY_BUILD_DIR}/python_packages)
 option(BUDDY_MLIR_ENABLE_PYTHON_PACKAGES
   "Build buddy.compiler Python package files used by model lowering scripts"
   ON)
+option(BUDDY_RISCV_ENABLE_ZFH_ZVFH
+  "Enable RISC-V Zfh/Zvfh hardware FP16 extensions"
+  OFF)
 set(BUDDY_EXAMPLES OFF CACHE BOOL "Build examples")
 set(BUDDY_TORQ_EXAMPLES OFF CACHE BOOL
     "Build BuddyTorq example (PyTorch->MLIR + TORQ-Tile RVV GEMM); requires RISC-V RVV toolchain")
