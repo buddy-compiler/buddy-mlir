@@ -34,7 +34,10 @@ def normalize_uri(raw: str) -> str:
 
 
 def gen_manifest(
-    spec: dict, runner_library: str, embedding_library: str | None = None
+    spec: dict,
+    runner_library: str,
+    embedding_library: str | None = None,
+    version: str = "0.1.0",
 ) -> str:
     model_id = spec.get("model_id", f"{spec['model_family']}_{spec['variant']}")
     params_size = int(spec["params_size"])
@@ -48,7 +51,7 @@ def gen_manifest(
     lines = []
     p = lines.append
     p("rhal.module @bge_m3 attributes {")
-    p('    version = "0.1.0",')
+    p(f'    version = "{version}",')
     p(f'    model_name = "{model_id}",')
     p(f'    vocab_uri = "file:{tokenizer_file}",')
     p(f'    max_seq_len = "{max_seq_len}",')
@@ -117,13 +120,21 @@ def main() -> int:
     parser.add_argument(
         "-o", "--output", default="-", help="Output path (- for stdout)"
     )
+    parser.add_argument(
+        "--version",
+        default="0.1.0",
+        help="RAX module version string (usually the CLI release version).",
+    )
     args = parser.parse_args()
 
     with open(args.spec) as f:
         spec = json.load(f)
 
     text = gen_manifest(
-        spec, normalize_uri(args.runner_library), args.embedding_library
+        spec,
+        normalize_uri(args.runner_library),
+        args.embedding_library,
+        version=args.version,
     )
 
     if args.output == "-":
