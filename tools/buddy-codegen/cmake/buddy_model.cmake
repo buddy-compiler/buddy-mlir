@@ -322,6 +322,28 @@ function(buddy_add_model)
     set(RISCV_OMP_LOCAL "${BIN}/${RISCV_OMP_BASENAME}")
     set(RISCV_MLIR_RUNNER_LOCAL "${BIN}/${RISCV_MLIR_RUNNER_BASENAME}")
 
+    # mlir_c_runner_utils depends on the float16/apfloat wrappers; ship them too
+    # (loaded before mlir_c_runner_utils by the runner).
+    get_filename_component(RISCV_RUNTIME_LIB_DIR
+      "${RISCV_MLIR_C_RUNNER_UTILS}" DIRECTORY)
+    set(RISCV_EXTRA_LOCAL)
+    set(RISCV_EXTRA_ARGS)
+    foreach(_name libmlir_float16_utils libmlir_apfloat_wrappers)
+      set(_cand "${RISCV_RUNTIME_LIB_DIR}/${_name}${CMAKE_SHARED_LIBRARY_SUFFIX}")
+      if(EXISTS "${_cand}")
+        set(_dst "${BIN}/${_name}${CMAKE_SHARED_LIBRARY_SUFFIX}")
+        add_custom_command(
+          OUTPUT "${_dst}"
+          COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_cand}" "${_dst}"
+          DEPENDS "${_cand}"
+          COMMENT "[${MDL_NAME}] Copying RVV runtime dep ${_name}"
+          VERBATIM)
+        list(APPEND RISCV_EXTRA_LOCAL "${_dst}")
+        list(APPEND RISCV_EXTRA_ARGS
+          --dep-shared-lib "file:${_name}${CMAKE_SHARED_LIBRARY_SUFFIX}")
+      endif()
+    endforeach()
+
     add_custom_command(
       OUTPUT "${RISCV_OMP_LOCAL}" "${RISCV_MLIR_RUNNER_LOCAL}"
       COMMAND ${CMAKE_COMMAND} -E copy_if_different "${RISCV_OMP_SHARED}" "${RISCV_OMP_LOCAL}"
@@ -332,12 +354,55 @@ function(buddy_add_model)
     )
 
     list(APPEND MDL_GEN_MANIFEST_ARGS
-      --dep-shared-lib "file:${RISCV_OMP_BASENAME}"
-      --dep-shared-lib "file:${RISCV_MLIR_RUNNER_BASENAME}")
+      ${RISCV_EXTRA_ARGS}
+      --dep-shared-lib "file:${RISCV_MLIR_RUNNER_BASENAME}"
+      --dep-shared-lib "file:${RISCV_OMP_BASENAME}")
 
     list(APPEND MDL_EXTRA_STAGE4_DEPS
-      "${RISCV_OMP_LOCAL}"
-      "${RISCV_MLIR_RUNNER_LOCAL}")
+      ${RISCV_EXTRA_LOCAL}
+      "${RISCV_MLIR_RUNNER_LOCAL}"
+      "${RISCV_OMP_LOCAL}")
+  endif()
+
+  if(NOT IS_RVV_CROSSCOMPILE AND NOT APPLE)
+    # Native builds must ship the runtime dependencies inside the .rax: the
+    # runner dlopens them (RTLD_GLOBAL) before the model, and the model .so
+    # resolves them through its $ORIGIN rpath. Order matters: transitive deps
+    # (float16 / apfloat) are loaded before the libraries that need them.
+    set(_NATIVE_RUNTIME_DEPS)
+    foreach(_cand
+        "${LLVM_LIBRARY_DIR}/libmlir_float16_utils${CMAKE_SHARED_LIBRARY_SUFFIX}"
+        "${LLVM_LIBRARY_DIR}/libmlir_apfloat_wrappers${CMAKE_SHARED_LIBRARY_SUFFIX}"
+        "${LLVM_LIBRARY_DIR}/libmlir_c_runner_utils${CMAKE_SHARED_LIBRARY_SUFFIX}")
+      if(EXISTS "${_cand}")
+        list(APPEND _NATIVE_RUNTIME_DEPS "${_cand}")
+      endif()
+    endforeach()
+    if(BUDDY_OPENMP_RUNTIME_LIBRARY AND EXISTS "${BUDDY_OPENMP_RUNTIME_LIBRARY}")
+      list(APPEND _NATIVE_RUNTIME_DEPS "${BUDDY_OPENMP_RUNTIME_LIBRARY}")
+    else()
+      get_filename_component(_NATIVE_LLVM_BUILD_DIR "${LLVM_LIBRARY_DIR}" DIRECTORY)
+      set(_NATIVE_OMP
+        "${_NATIVE_LLVM_BUILD_DIR}/runtimes/runtimes-bins/openmp/runtime/src/libomp${CMAKE_SHARED_LIBRARY_SUFFIX}")
+      if(EXISTS "${_NATIVE_OMP}")
+        list(APPEND _NATIVE_RUNTIME_DEPS "${_NATIVE_OMP}")
+      endif()
+    endif()
+    foreach(_dep ${_NATIVE_RUNTIME_DEPS})
+      # Copy under the library's real (SONAME) name so it matches the NEEDED
+      # entries of the model and of the other runtime deps.
+      get_filename_component(_dep_real "${_dep}" REALPATH)
+      get_filename_component(_dep_name "${_dep_real}" NAME)
+      add_custom_command(
+        OUTPUT "${BIN}/${_dep_name}"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${_dep_real}" "${BIN}/${_dep_name}"
+        DEPENDS "${_dep_real}"
+        COMMENT "[${MDL_NAME}] Copying runtime dep ${_dep_name}"
+        VERBATIM)
+      list(APPEND MDL_GEN_MANIFEST_ARGS --dep-shared-lib "file:${_dep_name}")
+      list(APPEND MDL_EXTRA_STAGE4_DEPS "${BIN}/${_dep_name}")
+    endforeach()
   endif()
 
   # ════════════════════════════════════════════════════════════════════════════
@@ -1209,6 +1274,9 @@ function(buddy_add_model)
       "${RISCV_OMP_SHARED}"
       "${RISCV_MLIR_C_RUNNER_UTILS}"
       -lm)
+  elseif(NOT APPLE)
+    # Native builds resolve the embedded runtime deps relative to the model.
+    list(APPEND MDL_STAGE3_LINK_OPTS "-Wl,-rpath,\$ORIGIN")
   endif()
 
   if(APPLE)
