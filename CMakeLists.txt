@@ -254,6 +254,9 @@ include_directories(${BUDDY_SOURCE_DIR}/frontend/Interfaces)
 include_directories(${LLVM_INCLUDE_DIRS})
 include_directories(${MLIR_INCLUDE_DIRS})
 
+# ── Header-only third-party dependencies ─────────────────────────────────────
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/deps.cmake)
+
 find_program(LLVM_TABLEGEN_EXE "llvm-tblgen" ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH)
 
 include(TableGen)
