@@ -1,0 +1,60 @@
+{
+  "_comment": "Registry of model families published as .rax packages to Hugging Face. One HF repo per family; variants live in subdirectories. `enabled` controls the default set built by .github/workflows/publish-models.yml; the workflow can also select families explicitly. Set `namespace` to the personal account while testing and to the RuyiAI org for production.",
+  "namespace": "trdthg",
+  "arch": "riscv64",
+  "targets": [
+    {
+      "family": "whisper",
+      "repo": "buddy-whisper",
+      "enabled": true,
+      "snapshot": "openai/whisper-base",
+      "variants": {
+        "base": "models/whisper/specs/base.json"
+      }
+    },
+    {
+      "family": "bge_m3",
+      "repo": "buddy-bge-m3",
+      "enabled": true,
+      "snapshot": "BAAI/bge-m3",
+      "variants": {
+        "base": "models/bge_m3/specs/base.json"
+      }
+    },
+    {
+      "family": "qwen3_vl",
+      "repo": "buddy-qwen3-vl",
+      "enabled": false,
+      "snapshot": "Qwen/Qwen3-VL-2B-Instruct",
+      "variants": {
+        "instruct_2b": "models/qwen3_vl/specs/instruct_2b.json"
+      }
+    },
+    {
+      "family": "deepseek_r1",
+      "repo": "buddy-deepseek-r1",
+      "enabled": true,
+      "snapshot": "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",
+      "variants": {
+        "f32": "models/deepseek_r1/specs/f32.json",
+        "f16": "models/deepseek_r1/specs/f16.json",
+        "w4a16": "models/deepseek_r1/specs/w4a16.json",
+        "w8a8": "models/deepseek_r1/specs/w8a8.json",
+        "w8a16": "models/deepseek_r1/specs/w8a16.json",
+        "w8a32": "models/deepseek_r1/specs/w8a32.json",
+        "f32_packed_decode": "models/deepseek_r1/specs/f32_packed_decode.json",
+        "f32_tiered_kv_cache": "models/deepseek_r1/specs/f32_tiered_kv_cache.json"
+      }
+    },
+    {
+      "family": "proteinglm",
+      "repo": "buddy-proteinglm",
+      "enabled": false,
+      "snapshot": null,
+      "note": "The checked-in spec uses a local absolute hf_model_path; upload a public snapshot before enabling.",
+      "variants": {
+        "base": "models/proteinglm/specs/base.json"
+      }
+    }
+  ]
+}

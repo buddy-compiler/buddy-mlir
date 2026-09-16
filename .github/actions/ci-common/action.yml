@@ -11,6 +11,10 @@ inputs:
   llvm-build-root:
     description: Path to the LLVM build cache root.
     required: true
+  run-checks:
+    description: Run LLVM's check-* targets after building (slower).
+    required: false
+    default: "true"
 
 runs:
   using: composite
@@ -102,7 +106,11 @@ runs:
           -DPython_EXECUTABLE="$(which python)"
 
         ccache -z
-        ninja -C "$LLVM_BUILD_DIR" check-clang check-mlir check-openmp
+        if [ "${{ inputs.run-checks }}" = "true" ]; then
+          ninja -C "$LLVM_BUILD_DIR" check-clang check-mlir check-openmp
+        else
+          ninja -C "$LLVM_BUILD_DIR"
+        fi
         ccache -s
         printf 'ready\n' > "$LLVM_BUILD_DIR/.ci-llvm-ready"
 
