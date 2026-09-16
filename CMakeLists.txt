@@ -376,6 +376,9 @@ add_subdirectory(runtime)
 # Before models/: codegen (buddy_add_model) needs target python-package-buddy and
 # ${CMAKE_BINARY_DIR}/python_packages for import_model.py (buddy.compiler.*).
 add_subdirectory(frontend)
+
+# Release version baked into .rax manifests and tool --version output.
+set(BUDDY_PACKAGE_VERSION "0.0.0" CACHE STRING "Release VERSION")
 add_subdirectory(models)
 
 # Add external dialects before midend so they can be referenced
@@ -429,7 +432,6 @@ configure_package_config_file(
   INSTALL_DESTINATION ${BUDDY_MLIR_INSTALL_CMAKE_DIR}
 )
 
-set(BUDDY_PACKAGE_VERSION "0.0.0" CACHE STRING "Release VERSION")
 write_basic_package_version_file(
   ${CMAKE_CURRENT_BINARY_DIR}/BuddyMLIRConfigVersion.cmake
   VERSION ${BUDDY_PACKAGE_VERSION}

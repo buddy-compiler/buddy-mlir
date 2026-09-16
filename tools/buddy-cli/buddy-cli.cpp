@@ -47,6 +47,8 @@
 #include <string>
 #include <vector>
 
+#include <CLI11.hpp>
+
 #ifdef BUDDY_CLI_HAVE_NUMA
 #include <numa.h>
 #endif
@@ -265,84 +267,6 @@ static std::string resolvePathRelativeToRax(const std::string &path,
 // CLI
 //===----------------------------------------------------------------------===//
 
-static void usage(const char *prog) {
-  std::cout
-      << "Usage: " << prog << " [options]\n"
-      << "\n"
-      << "Model source (one required):\n"
-      << "  --model      <path.rax>  Model manifest (recommended)\n"
-      << "  --model-so   <path.so>   Model shared library  (legacy mode)\n"
-      << "  --weights    <path>      Weights file           (legacy mode)\n"
-      << "  --vocab      <path>      Vocabulary file        (legacy mode)\n"
-      << "  --runner-so  <path.so>   Runner plugin          (legacy mode)\n"
-      << "\n"
-      << "Inference:\n"
-      << "  --prompt     <text>      Input prompt (interactive if omitted)\n"
-      << "  --prompt-file <path>     One prompt per line for fixed-batch runs\n"
-      << "  --prompt-length <N>      Fixed prompt/prefill length in tokens\n"
-      << "  --audio      <path>      Audio file for speech models (e.g. "
-         "Whisper)\n"
-      << "  --image      <path>      Image file for vision-language models\n"
-      << "  --max-tokens <N>         Max generated tokens (default "
-         "1024)\n"
-      << "  --batch-size <N>         Batch size override for fixed-batch "
-         "packages\n"
-      << "\n"
-      << "Sampling:\n"
-      << "  --temperature <float>    Sampling temperature (0.0 = greedy, "
-         "default)\n"
-      << "  --top-k       <int>      Top-K candidates (0 = disabled)\n"
-      << "  --top-p       <float>    Nucleus sampling threshold (1.0 = "
-         "disabled)\n"
-      << "  --min-p       <float>    Min-P threshold (0.0 = disabled)\n"
-      << "  --repeat-penalty <float> Repetition penalty (1.0 = disabled)\n"
-      << "  --repeat-last-n  <int>   Repeat penalty window (default 64)\n"
-      << "  --seed        <int>      Random seed (0 = random)\n"
-      << "\n"
-      << "Chat:\n"
-      << "  --chat-template <path>   Path to chat template JSON config\n"
-      << "  --interactive            Start REPL-style interactive mode\n"
-      << "                           (--prompt becomes system prompt)\n"
-      << "\n"
-      << "Output:\n"
-      << "  --no-stats               Suppress performance statistics\n"
-      << "  --defer-decode-token-readback\n"
-      << "                           Defer device token-id readback until "
-         "after\n"
-      << "                           fixed-step decode when supported\n"
-      << "  --stream-jsonl           Emit token events as JSON Lines\n"
-      << "\n"
-      << "NUMA / affinity (applied before model load):\n"
-      << "  --cpus       <spec>      CPU affinity, e.g. 0-47 or 0-15,32-47\n"
-      << "                           (equivalent to: taskset -c <spec>)\n"
-      << "  --numa       <nodes>     Shortcut: sets both cpubind AND "
-         "interleave\n"
-      << "                           e.g. 0,1,2,3\n"
-      << "                           (equivalent to: numactl "
-         "--cpunodebind=<nodes>\n"
-      << "                                                    "
-         "--interleave=<nodes>)\n"
-      << "  --numa-cpubind   <nodes> Bind to CPUs of these NUMA nodes\n"
-      << "  --numa-interleave <nodes> Interleave memory allocation across "
-         "nodes\n"
-      << "\n"
-      << "Other:\n"
-      << "  --help / -h\n"
-      << "\n"
-      << "Batch output:\n"
-      << "  --print-all-batch        Print every user in batch runs\n"
-      << "\n"
-      << "Examples:\n"
-      << "  # Equivalent to: numactl --cpunodebind=0,1,2,3 "
-         "--interleave=0,1,2,3 \\\n"
-      << "  #                taskset -c 0-47\n"
-      << "  buddy-cli --numa 0,1,2,3 --cpus 0-47 \\\n"
-      << "            --model deepseek_r1.rax --prompt \"Hello\"\n"
-      << "\n"
-      << "  buddy-cli --model-so model.so --weights arg0.data --prompt "
-         "\"Hi\"\n";
-}
-
 int main(int argc, char **argv) {
   std::string raxPath;
   std::string modelSoPath;
@@ -380,74 +304,109 @@ int main(int argc, char **argv) {
   std::string numaCpuBind;    // --numa-cpubind
   std::string numaInterleave; // --numa-interleave
 
-  for (int i = 1; i < argc; ++i) {
-    std::string a = argv[i];
-    if (a == "--model" && i + 1 < argc)
-      raxPath = argv[++i];
-    else if (a == "--model-so" && i + 1 < argc)
-      modelSoPath = argv[++i];
-    else if (a == "--weights" && i + 1 < argc)
-      weightsPath = argv[++i];
-    else if (a == "--vocab" && i + 1 < argc)
-      vocabPath = argv[++i];
-    else if (a == "--runner-so" && i + 1 < argc)
-      runnerSoPath = argv[++i];
-    else if (a == "--prompt" && i + 1 < argc)
-      prompt = argv[++i];
-    else if (a == "--prompt-file" && i + 1 < argc)
-      promptFile = argv[++i];
-    else if (a == "--prompt-length" && i + 1 < argc)
-      promptLength = std::stoi(argv[++i]);
-    else if (a == "--audio" && i + 1 < argc)
-      audioPath = argv[++i];
-    else if (a == "--image" && i + 1 < argc)
-      imagePath = argv[++i];
-    else if (a == "--max-tokens" && i + 1 < argc)
-      maxTokens = std::stoi(argv[++i]);
-    else if (a == "--batch-size" && i + 1 < argc)
-      batchSize = std::stoi(argv[++i]);
-    else if (a == "--temperature" && i + 1 < argc)
-      temperature = std::stof(argv[++i]);
-    else if (a == "--top-k" && i + 1 < argc)
-      topK = std::stoi(argv[++i]);
-    else if (a == "--top-p" && i + 1 < argc)
-      topP = std::stof(argv[++i]);
-    else if (a == "--min-p" && i + 1 < argc)
-      minP = std::stof(argv[++i]);
-    else if (a == "--repeat-penalty" && i + 1 < argc)
-      repeatPenalty = std::stof(argv[++i]);
-    else if (a == "--repeat-last-n" && i + 1 < argc)
-      repeatLastN = std::stoi(argv[++i]);
-    else if (a == "--seed" && i + 1 < argc)
-      seed = std::stoull(argv[++i]);
-    else if (a == "--chat-template" && i + 1 < argc)
-      chatTemplatePath = argv[++i];
-    else if (a == "--no-stats")
-      suppressStats = true;
-    else if (a == "--defer-decode-token-readback")
-      deferDecodeTokenReadback = true;
-    else if (a == "--stream-jsonl")
-      streamJsonl = true;
-    else if (a == "--print-all-batch")
-      printAllBatchOutputs = true;
-    else if (a == "--interactive")
-      interactive = true;
-    else if (a == "--cpus" && i + 1 < argc)
-      cpuSpec = argv[++i];
-    else if (a == "--numa" && i + 1 < argc)
-      numaNodes = argv[++i];
-    else if (a == "--numa-cpubind" && i + 1 < argc)
-      numaCpuBind = argv[++i];
-    else if (a == "--numa-interleave" && i + 1 < argc)
-      numaInterleave = argv[++i];
-    else if (a == "--help" || a == "-h") {
-      usage(argv[0]);
-      return 0;
-    } else {
-      std::cerr << "Unknown argument: " << a << "\n";
-      usage(argv[0]);
-      return 2;
-    }
+  CLI::App app{"buddy-cli: run Buddy MLIR .rax model packages"};
+  app.set_version_flag("--version", BUDDY_VERSION);
+  app.footer(
+      "Examples:\n"
+      "  # Equivalent to: numactl --cpunodebind=0,1,2,3 --interleave=0,1,2,3 "
+      "taskset -c 0-47\n"
+      "  buddy-cli --numa 0,1,2,3 --cpus 0-47 --model deepseek_r1.rax "
+      "--prompt \"Hello\"\n"
+      "  buddy-cli --model-so model.so --weights arg0.data --prompt \"Hi\"");
+
+  app.add_option("--model", raxPath, "Model manifest (recommended)")
+      ->group("Model source");
+  app.add_option("--model-so", modelSoPath,
+                 "Model shared library (legacy mode)")
+      ->group("Model source");
+  app.add_option("--weights", weightsPath, "Weights file (legacy mode)")
+      ->group("Model source");
+  app.add_option("--vocab", vocabPath, "Vocabulary file (legacy mode)")
+      ->group("Model source");
+  app.add_option("--runner-so", runnerSoPath, "Runner plugin (legacy mode)")
+      ->group("Model source");
+
+  app.add_option("--prompt", prompt, "Input prompt (interactive if omitted)")
+      ->group("Inference");
+  app.add_option("--prompt-file", promptFile,
+                 "One prompt per line for fixed-batch runs")
+      ->group("Inference");
+  app.add_option("--prompt-length", promptLength,
+                 "Fixed prompt/prefill length in tokens")
+      ->group("Inference");
+  app.add_option("--audio", audioPath,
+                 "Audio file for speech models (e.g. Whisper)")
+      ->group("Inference");
+  app.add_option("--image", imagePath, "Image file for vision-language models")
+      ->group("Inference");
+  app.add_option("--max-tokens", maxTokens, "Max generated tokens")
+      ->group("Inference")
+      ->capture_default_str();
+  app.add_option("--batch-size", batchSize,
+                 "Batch size override for fixed-batch packages")
+      ->group("Inference");
+
+  app.add_option("--temperature", temperature,
+                 "Sampling temperature (0.0 = greedy, default)")
+      ->group("Sampling")
+      ->capture_default_str();
+  app.add_option("--top-k", topK, "Top-K candidates (0 = disabled)")
+      ->group("Sampling")
+      ->capture_default_str();
+  app.add_option("--top-p", topP, "Nucleus sampling threshold (1.0 = disabled)")
+      ->group("Sampling")
+      ->capture_default_str();
+  app.add_option("--min-p", minP, "Min-P threshold (0.0 = disabled)")
+      ->group("Sampling")
+      ->capture_default_str();
+  app.add_option("--repeat-penalty", repeatPenalty,
+                 "Repetition penalty (1.0 = disabled)")
+      ->group("Sampling")
+      ->capture_default_str();
+  app.add_option("--repeat-last-n", repeatLastN, "Repeat penalty window")
+      ->group("Sampling")
+      ->capture_default_str();
+  app.add_option("--seed", seed, "Random seed (0 = random)")
+      ->group("Sampling")
+      ->capture_default_str();
+
+  app.add_option("--chat-template", chatTemplatePath,
+                 "Path to chat template JSON config")
+      ->group("Chat");
+  app.add_flag("--interactive", interactive,
+               "Start REPL-style interactive mode (--prompt becomes system "
+               "prompt)")
+      ->group("Chat");
+
+  app.add_flag("--no-stats", suppressStats, "Suppress performance statistics")
+      ->group("Output");
+  app.add_flag("--defer-decode-token-readback", deferDecodeTokenReadback,
+               "Defer device token-id readback until after fixed-step decode "
+               "when supported")
+      ->group("Output");
+  app.add_flag("--stream-jsonl", streamJsonl, "Emit token events as JSON Lines")
+      ->group("Output");
+  app.add_flag("--print-all-batch", printAllBatchOutputs,
+               "Print every user in batch runs")
+      ->group("Output");
+
+  app.add_option("--cpus", cpuSpec,
+                 "CPU affinity, e.g. 0-47 or 0-15,32-47 (taskset -c <spec>)")
+      ->group("NUMA / affinity");
+  app.add_option("--numa", numaNodes,
+                 "Shortcut: sets both cpubind AND interleave, e.g. 0,1,2,3")
+      ->group("NUMA / affinity");
+  app.add_option("--numa-cpubind", numaCpuBind,
+                 "Bind to CPUs of these NUMA nodes")
+      ->group("NUMA / affinity");
+  app.add_option("--numa-interleave", numaInterleave,
+                 "Interleave memory allocation across nodes")
+      ->group("NUMA / affinity");
+
+  try {
+    app.parse(argc, argv);
+  } catch (const CLI::ParseError &e) {
+    return app.exit(e);
   }
 
   // ── Apply NUMA / affinity settings BEFORE any memory allocation ──────────
@@ -468,7 +427,7 @@ int main(int argc, char **argv) {
   if (raxPath.empty() && modelSoPath.empty()) {
     std::cerr << "\033[31;1m[Error]\033[0m "
                  "Provide --model <path.rax> or --model-so <path.so>.\n\n";
-    usage(argv[0]);
+    std::cerr << app.help() << "\n";
     return 2;
   }
   if (streamJsonl && deferDecodeTokenReadback) {

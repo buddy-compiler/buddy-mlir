@@ -16,8 +16,11 @@ add_executable(buddy-server
   ${BUDDY_SERVER_COMMON_SOURCES}
 )
 target_compile_features(buddy-server PRIVATE cxx_std_17)
+target_compile_definitions(buddy-server PRIVATE
+  BUDDY_VERSION="${BUDDY_PACKAGE_VERSION}")
 target_include_directories(buddy-server PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(buddy-server PRIVATE
+  CLI11
   buddy_runtime_core
   buddy_runtime_llm
   LLVMSupport
