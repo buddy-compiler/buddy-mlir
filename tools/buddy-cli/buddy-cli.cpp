@@ -250,6 +250,43 @@ private:
   buddy::runtime::InferenceRunner *runner = nullptr;
 };
 
+// Keep shared libraries declared by the RAX manifest loaded while the runner
+// and its model are alive.  This is needed by runners that dlopen the model
+// directly instead of going through the generated ModelSession loader.
+class RaxDependenciesHandle {
+public:
+  explicit RaxDependenciesHandle(
+      const std::vector<std::string> &dependencyPaths) {
+    try {
+      for (const auto &path : dependencyPaths) {
+        void *handle = dlopen(path.c_str(), RTLD_NOW | RTLD_GLOBAL);
+        if (!handle)
+          throw std::runtime_error("buddy-cli: dlopen RAX dependency failed: " +
+                                   path + ": " + dlerror());
+        handles.push_back(handle);
+      }
+    } catch (...) {
+      closeHandles();
+      throw;
+    }
+  }
+
+  ~RaxDependenciesHandle() { closeHandles(); }
+
+  RaxDependenciesHandle(const RaxDependenciesHandle &) = delete;
+  RaxDependenciesHandle &operator=(const RaxDependenciesHandle &) = delete;
+
+private:
+  void closeHandles() {
+    for (auto it = handles.rbegin(); it != handles.rend(); ++it)
+      if (*it)
+        dlclose(*it);
+    handles.clear();
+  }
+
+  std::vector<void *> handles;
+};
+
 static std::string resolvePathRelativeToRax(const std::string &path,
                                             const std::string &raxPath) {
   namespace fs = std::filesystem;
@@ -510,11 +547,13 @@ int main(int argc, char **argv) {
   // ── Determine model type ─────────────────────────────────────────────────
   std::string modelName;
   std::string manifestRunnerSoPath;
+  std::vector<std::string> manifestDependencyPaths;
   if (!raxPath.empty()) {
     try {
       auto manifest = buddy::runtime::ModelManifest::loadFromRax(raxPath);
       modelName = manifest.modelName;
       manifestRunnerSoPath = manifest.runnerLibraryPath;
+      manifestDependencyPaths = manifest.dependentSoPaths;
     } catch (const std::exception &e) {
       std::cerr << "\033[31;1m[Error]\033[0m reading manifest: " << e.what()
                 << "\n";
@@ -561,6 +600,11 @@ int main(int argc, char **argv) {
   cfg.interactive = interactive;
 
   try {
+    std::unique_ptr<RaxDependenciesHandle> raxDependencies;
+    if (!manifestDependencyPaths.empty())
+      raxDependencies =
+          std::make_unique<RaxDependenciesHandle>(manifestDependencyPaths);
+
     if (!runnerSoPath.empty()) {
       RunnerHandle runner(runnerSoPath, modelName);
       runner.get().run(cfg);
