@@ -1,0 +1,197 @@
+name: publish-models
+
+# Manually publish riscv64 .rax model packages to Hugging Face.
+#
+# Cross-compiles on an x64 runner: `make riscv` builds the host LLVM/Buddy and
+# the RISC-V GNU toolchain + cross MLIR/OpenMP runtimes, then build_model.py
+# produces one riscv64 .rax per spec. The selected revision drives both the CLI
+# version and the Hugging Face version tag, so packages stay in sync with the
+# CLI release.
+
+on:
+  # Temporary testing trigger: any push to the ci branch runs the workflow.
+  # Remove this trigger and use workflow_dispatch once testing is done.
+  push:
+    branches: [ci]
+  workflow_dispatch:
+    inputs:
+      source:
+        description: "Which revision to package"
+        required: true
+        default: current-commit
+        type: choice
+        options:
+          - current-commit
+          - latest-release
+          - latest-nightly
+
+permissions:
+  contents: read
+
+concurrency:
+  # Serialize runs: they share the persistent build cache on the runner.
+  group: publish-models
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    name: Resolve revision
+    runs-on: ubuntu-latest
+    outputs:
+      ref: ${{ steps.resolve.outputs.ref }}
+    steps:
+      - name: Checkout workflow scripts
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Resolve revision
+        id: resolve
+        env:
+          SOURCE: ${{ inputs.source }}
+        run: |
+          set -euo pipefail
+
+          case "${SOURCE:-current-commit}" in
+            current-commit)
+              ref="${GITHUB_SHA}"
+              ;;
+            latest-release)
+              ref="$(git tag --list 'release/v*' | sort -V | tail -n1)"
+              ;;
+            latest-nightly)
+              ref="$(git tag --list 'nightly/v*' | sort -V | tail -n1)"
+              ;;
+            *)
+              echo "::error::unknown source: $SOURCE"
+              exit 1
+              ;;
+          esac
+
+          if [ -z "$ref" ]; then
+            echo "::error::could not resolve a revision for source=${SOURCE:-current-commit}"
+            exit 1
+          fi
+
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+          echo "Resolved revision: $ref"
+
+  build-and-publish:
+    name: Build and publish rax (x64 cross)
+    needs: resolve
+    runs-on:
+      - self-hosted
+      - x64
+    timeout-minutes: 720
+    env:
+      # Read-only mirror used only for snapshot downloads (not for uploads).
+      HF_DOWNLOAD_ENDPOINT: https://hf-mirror.com
+    steps:
+      - name: Prepare runner paths
+        # Persistent caches live outside the workspace so actions/checkout's
+        # clean does not wipe them. Use the same LLVM source path as
+        # TestBuild.yml (x64) so the existing clone is reused.
+        run: |
+          set -euo pipefail
+          echo "CACHE_ROOT=$HOME/buddy-rax-cache" >> "$GITHUB_ENV"
+          echo "LLVM_SRC=$HOME/actions-runner/workspace/llvm-project" >> "$GITHUB_ENV"
+          mkdir -p "$HOME/buddy-rax-cache" "$HOME/actions-runner/workspace"
+
+      - name: Checkout revision
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.resolve.outputs.ref }}
+          submodules: 'false'
+          fetch-depth: 0
+
+      - name: Checkout LLVM submodule
+        uses: ./.github/actions/checkout_llvm
+        with:
+          llvm-src: ${{ env.LLVM_SRC }}
+
+      - name: Link cached LLVM source
+        # `make host` reads llvm/llvm; a symlink keeps source mtimes stable so
+        # incremental CMake/Ninja builds reuse the persistent build tree.
+        run: |
+          set -euo pipefail
+          rm -rf llvm
+          ln -s "$LLVM_SRC" llvm
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@f98e06938123ccabd21905ea5d0069192241f9f1
+        with:
+          python-version: "3.12"
+          activate-environment: "true"
+          no-project: "true"
+          enable-cache: "true"
+          cache-dependency-glob: requirements.txt
+
+      - name: Install Python dependencies
+        # LLVM's MLIR python bindings configure step needs nanobind; the model
+        # importers need torch/transformers/huggingface_hub.
+        run: |
+          set -euo pipefail
+          uv pip install --torch-backend cpu -r requirements.txt huggingface_hub
+
+      - name: Install libsndfile
+        # The Whisper importer pulls in transformers.audio_utils -> soundfile,
+        # which dlopens the system libsndfile.
+        run: |
+          set -euo pipefail
+          if ldconfig -p 2>/dev/null | grep -q libsndfile; then
+            echo "libsndfile already available"
+            exit 0
+          fi
+          SUDO=""
+          if [ "$(id -u)" != "0" ]; then
+            SUDO="sudo"
+          fi
+          if command -v apt-get >/dev/null; then
+            $SUDO apt-get update -y
+            $SUDO apt-get install -y libsndfile1 libsndfile1-dev
+          elif command -v dnf >/dev/null; then
+            $SUDO dnf install -y libsndfile libsndfile-devel
+          elif command -v yum >/dev/null; then
+            $SUDO yum install -y libsndfile libsndfile-devel
+          else
+            echo "::warning::no supported package manager; assuming libsndfile is present"
+          fi
+          ldconfig -p | grep libsndfile || true
+
+      - name: Compute dependency cache key
+        id: deps
+        run: |
+          set -euo pipefail
+          llvm_commit="$(git ls-tree HEAD llvm | awk '{print $3}')"
+          buddy_commit="$(git rev-parse HEAD)"
+          stamp="$CACHE_ROOT/.deps-${llvm_commit}-${buddy_commit}"
+          if [ -f "$stamp" ] \
+             && [ -x "$CACHE_ROOT/riscv/bin/riscv64-unknown-linux-gnu-gcc" ] \
+             && [ -x "$CACHE_ROOT/buddy/bin/buddy-opt" ]; then
+            echo "hit=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "hit=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "stamp=$stamp" >> "$GITHUB_OUTPUT"
+
+      - name: Build models and publish
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          args=(
+            --tag "${{ needs.resolve.outputs.ref }}"
+            --cache-root "$CACHE_ROOT"
+            --dist-dir "$GITHUB_WORKSPACE/dist"
+            --continue-on-error
+            --python "$(command -v python)"
+            --jobs "$(nproc)"
+          )
+          if [ "${{ steps.deps.outputs.hit }}" = "true" ]; then
+            args+=(--skip-deps)
+          else
+            args+=(--deps-stamp "${{ steps.deps.outputs.stamp }}")
+          fi
+
+          python scripts/model_release/build_and_publish.py "${args[@]}"
