@@ -33,6 +33,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include "CLI11.hpp"
+
 #include "buddy/runtime/rax/RAX.h"
 #include "flatbuffers/flatbuffers.h"
 
@@ -329,28 +331,20 @@ static void writeAll(const char *path, const uint8_t *data, size_t n) {
 //===----------------------------------------------------------------------===//
 
 int main(int argc, char **argv) {
-  const char *inputPath = nullptr;
-  const char *outputPath = nullptr;
+  std::string inputPath;
+  std::string outputPath;
   bool embedPayload = false;
 
-  for (int i = 1; i < argc; ++i) {
-    std::string arg(argv[i]);
-    if (arg == "--embed-payload") {
-      embedPayload = true;
-    } else if (arg == "-o" && i + 1 < argc) {
-      outputPath = argv[++i];
-    } else if (!inputPath) {
-      inputPath = argv[i];
-    } else {
-      llvm::errs() << "unexpected argument: " << arg << "\n";
-      return 2;
-    }
-  }
-
-  if (!inputPath || !outputPath) {
-    llvm::errs()
-        << "usage: rax-pack <input.mlir> -o <output.rax> [--embed-payload]\n";
-    return 2;
+  CLI::App app{"rax-pack: pack an RHAL .mlir manifest into a binary .rax"};
+  app.set_version_flag("--version", BUDDY_VERSION);
+  app.add_option("-o,--output", outputPath, "Output .rax path")->required();
+  app.add_flag("--embed-payload", embedPayload,
+               "Embed weights/libraries into the .rax payload");
+  app.add_option("input", inputPath, "Input RHAL .mlir file")->required();
+  try {
+    app.parse(argc, argv);
+  } catch (const CLI::ParseError &e) {
+    return app.exit(e);
   }
 
   const fs::path outputFs = fs::absolute(fs::path(outputPath));
@@ -713,7 +707,7 @@ int main(int argc, char **argv) {
 
     // Legacy behavior: write plain RAX0 FlatBuffer only.
     if (!embedPayload || payloadInputs.empty()) {
-      writeAll(outputPath, b.GetBufferPointer(), b.GetSize());
+      writeAll(outputPath.c_str(), b.GetBufferPointer(), b.GetSize());
       std::cout << "wrote " << outputPath << " (" << b.GetSize() << " bytes)\n";
       return 0;
     }

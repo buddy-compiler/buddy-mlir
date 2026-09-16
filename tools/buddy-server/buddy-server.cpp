@@ -41,6 +41,8 @@
 #include <string>
 #include <thread>
 
+#include "CLI11.hpp"
+
 using buddy::runtime::AudioTranscriptionModel;
 using buddy::runtime::AudioTranscriptionModelConfig;
 using buddy::runtime::EmbeddingModel;
@@ -59,26 +61,6 @@ using buddy::server::SimpleHttpServer;
 namespace {
 
 enum ServerLoadState { Loading = 0, Ready = 1, Error = 2 };
-
-void usage(const char *program, std::ostream &stream = std::cout) {
-  stream << "Usage: " << program << " [options]\n\n"
-         << "Model source (one required):\n"
-         << "  --model <path.rax>       Model manifest (recommended)\n"
-         << "  --model-so <path.so>     Model library (legacy mode)\n"
-         << "  --weights <path>         Weights; repeatable in legacy mode\n"
-         << "  --vocab <path>           Vocabulary (legacy mode)\n"
-         << "  --model-type <name>      Model name override\n\n"
-         << "Backend plugin (at most one explicit override):\n"
-         << "  --serving-so <path.so>       Resident completion plugin\n"
-         << "  --embedding-so <path.so>     Embedding plugin\n"
-         << "  --masked-lm-so <path.so>     Masked-LM plugin\n"
-         << "  --transcription-so <path.so> Audio transcription plugin\n\n"
-         << "Server:\n"
-         << "  --host <addr>            Bind address (default 127.0.0.1)\n"
-         << "  --port <port>            Bind port (default 8080)\n"
-         << "  --chat-template <path>   Chat template JSON\n"
-         << "  --help / -h\n";
-}
 
 bool hasSuffix(const std::string &value, const std::string &suffix) {
   return value.size() >= suffix.size() &&
@@ -268,42 +250,47 @@ int main(int argc, char **argv) {
   std::string host = "127.0.0.1";
   int port = 8080;
 
-  for (int index = 1; index < argc; ++index) {
-    const std::string argument = argv[index];
-    if (argument == "--model" && index + 1 < argc)
-      modelConfig.raxPath = argv[++index];
-    else if (argument == "--model-so" && index + 1 < argc)
-      modelConfig.modelSoPath = argv[++index];
-    else if (argument == "--weights" && index + 1 < argc)
-      modelConfig.weightPaths.push_back(argv[++index]);
-    else if (argument == "--vocab" && index + 1 < argc)
-      modelConfig.vocabPath = argv[++index];
-    else if (argument == "--model-type" && index + 1 < argc) {
-      modelType = argv[++index];
-      modelConfig.modelName = modelType;
-    } else if (argument == "--serving-so" && index + 1 < argc)
-      explicitPlugins.resident = argv[++index];
-    else if (argument == "--embedding-so" && index + 1 < argc)
-      explicitPlugins.embedding = argv[++index];
-    else if (argument == "--masked-lm-so" && index + 1 < argc)
-      explicitPlugins.maskedLM = argv[++index];
-    else if (argument == "--transcription-so" && index + 1 < argc)
-      explicitPlugins.transcription = argv[++index];
-    else if (argument == "--chat-template" && index + 1 < argc)
-      modelConfig.chatTemplatePath = argv[++index];
-    else if (argument == "--host" && index + 1 < argc)
-      host = argv[++index];
-    else if (argument == "--port" && index + 1 < argc)
-      port = std::stoi(argv[++index]);
-    else if (argument == "--help" || argument == "-h") {
-      usage(argv[0]);
-      return 0;
-    } else {
-      std::cerr << "Unknown or incomplete argument: " << argument << "\n";
-      usage(argv[0], std::cerr);
-      return 2;
-    }
+  CLI::App app{"buddy-server: HTTP inference server for Buddy MLIR models"};
+  app.set_version_flag("--version", BUDDY_VERSION);
+  app.add_option("--model", modelConfig.raxPath, "Model manifest (recommended)")
+      ->group("Model source");
+  app.add_option("--model-so", modelConfig.modelSoPath,
+                 "Model library (legacy mode)")
+      ->group("Model source");
+  app.add_option("--weights", modelConfig.weightPaths,
+                 "Weights; repeatable in legacy mode")
+      ->group("Model source");
+  app.add_option("--vocab", modelConfig.vocabPath, "Vocabulary (legacy mode)")
+      ->group("Model source");
+  app.add_option("--model-type", modelType, "Model name override")
+      ->group("Model source");
+  app.add_option("--serving-so", explicitPlugins.resident,
+                 "Resident completion plugin")
+      ->group("Backend plugin");
+  app.add_option("--embedding-so", explicitPlugins.embedding,
+                 "Embedding plugin")
+      ->group("Backend plugin");
+  app.add_option("--masked-lm-so", explicitPlugins.maskedLM, "Masked-LM plugin")
+      ->group("Backend plugin");
+  app.add_option("--transcription-so", explicitPlugins.transcription,
+                 "Audio transcription plugin")
+      ->group("Backend plugin");
+  app.add_option("--host", host, "Bind address")
+      ->group("Server")
+      ->capture_default_str();
+  app.add_option("--port", port, "Bind port")
+      ->group("Server")
+      ->capture_default_str();
+  app.add_option("--chat-template", modelConfig.chatTemplatePath,
+                 "Chat template JSON")
+      ->group("Server");
+  try {
+    app.parse(argc, argv);
+  } catch (const CLI::ParseError &e) {
+    return app.exit(e);
   }
+  if (!modelType.empty())
+    modelConfig.modelName = modelType;
 
   if (modelConfig.raxPath.empty() && modelConfig.modelSoPath.empty()) {
     std::cerr << "Provide --model <path.rax> or --model-so <path.so>.\n";
