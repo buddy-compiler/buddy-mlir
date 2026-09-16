@@ -161,6 +161,53 @@ function(_buddy_compile_generated_subgraphs)
   )
 endfunction()
 
+# Build a model plugin shared library. On cross builds the plugin is loaded by
+# the RISC-V runner, so compile the plugin plus the model runtime sources with
+# the cross clang (the host static library is not usable for the target).
+function(_buddy_add_model_plugin)
+  cmake_parse_arguments(P "" "TARGET;NAME;SRC;LIB_TARGET" "EXTRA_SRCS" ${ARGN})
+  if(IS_RVV_CROSSCOMPILE)
+    set(_out "${BIN}/${P_NAME}.so")
+    set(_sources "${CMAKE_CURRENT_SOURCE_DIR}/${P_SRC}")
+    foreach(_extra ${P_EXTRA_SRCS})
+      list(APPEND _sources "${CMAKE_CURRENT_SOURCE_DIR}/${_extra}")
+    endforeach()
+    add_custom_command(
+      OUTPUT "${_out}"
+      COMMAND "${MDL_CROSS_CXX_COMPILER}" ${MDL_CROSS_TARGET_FLAGS}
+              -shared -fPIC -std=c++17
+              -Wl,-z,defs -Wl,-z,nodelete
+              "-Wl,-soname,${P_NAME}.so"
+              "-Wl,-rpath,\$ORIGIN"
+              ${MDL_CROSS_PLUGIN_INCLUDES}
+              -I${GEN_DIR}
+              -I${CMAKE_CURRENT_SOURCE_DIR}/include
+              -I${BUDDY_SOURCE_DIR}/runtime/include
+              -I${CMAKE_BINARY_DIR}/runtime/include
+              -I${BUDDY_SOURCE_DIR}/frontend/Interfaces
+              -I${BUDDY_BINARY_DIR}/frontend/Interfaces
+              -idirafter ${FLATBUFFERS_INCLUDE_DIR}
+              ${_sources}
+              ${MDL_CROSS_PLUGIN_OBJECTS}
+              -lm -o "${_out}"
+      DEPENDS ${_sources} ${MDL_CROSS_PLUGIN_OBJECTS}
+              ${MDL_CROSS_PLUGIN_DEPS} buddy-rax-gen
+      COMMENT "[${P_NAME}] Cross-compiling ${P_NAME}.so for RISC-V"
+      VERBATIM)
+    add_custom_target(${P_TARGET} DEPENDS "${_out}")
+  else()
+    add_library(${P_TARGET} SHARED "${CMAKE_CURRENT_SOURCE_DIR}/${P_SRC}")
+    set_target_properties(${P_TARGET} PROPERTIES
+      LIBRARY_OUTPUT_DIRECTORY "${BIN}"
+      RUNTIME_OUTPUT_DIRECTORY "${BIN}"
+      OUTPUT_NAME "${P_NAME}"
+      PREFIX "")
+    target_link_libraries(${P_TARGET} PRIVATE ${P_LIB_TARGET})
+    target_compile_features(${P_TARGET} PRIVATE cxx_std_17)
+    install(TARGETS ${P_TARGET} EXPORT BuddyMLIRTargets COMPONENT buddy_runtime)
+  endif()
+endfunction()
+
 function(buddy_add_model)
   cmake_parse_arguments(
     MDL                                      # prefix
@@ -555,6 +602,17 @@ function(buddy_add_model)
     set(MDL_CROSS_PLUGIN_SOURCES
       "${CMAKE_CURRENT_SOURCE_DIR}/${MDL_RUNNER_SRC}"
       "${CMAKE_CURRENT_SOURCE_DIR}/${MDL_RUNNER_PLUGIN_SRC}")
+    # Model runtime sources (e.g. WhisperRuntime.cpp / BgeM3Runtime.cpp) were
+    # only compiled into the host static library, so the cross plugin link
+    # failed with undefined references. Compile them for the target as well.
+    foreach(_extra ${MDL_EXTRA_SRCS})
+      list(APPEND MDL_CROSS_PLUGIN_SOURCES
+        "${CMAKE_CURRENT_SOURCE_DIR}/${_extra}")
+    endforeach()
+    set(MDL_CROSS_PLUGIN_INCLUDES)
+    foreach(_inc ${LLVM_INCLUDE_DIRS} ${MLIR_INCLUDE_DIRS})
+      list(APPEND MDL_CROSS_PLUGIN_INCLUDES "-I${_inc}")
+    endforeach()
     set(MDL_CROSS_PLUGIN_OBJECTS)
     set(MDL_CROSS_PLUGIN_DEPS)
     if("BuddyLibDAP" IN_LIST MDL_RUNTIME_LINK_LIBS)
@@ -574,10 +632,13 @@ function(buddy_add_model)
               -Wl,-z,defs -Wl,-z,nodelete
               "-Wl,-soname,${MDL_NAME}_runner.so"
               "-Wl,-rpath,\$ORIGIN"
+              ${MDL_CROSS_PLUGIN_INCLUDES}
+              -I${GEN_DIR}
               -I${CMAKE_CURRENT_SOURCE_DIR}/include
               -I${BUDDY_SOURCE_DIR}/runtime/include
               -I${CMAKE_BINARY_DIR}/runtime/include
               -I${BUDDY_SOURCE_DIR}/frontend/Interfaces
+              -I${BUDDY_BINARY_DIR}/frontend/Interfaces
               -idirafter ${FLATBUFFERS_INCLUDE_DIR}
               ${MDL_CROSS_PLUGIN_SOURCES}
               ${MDL_CROSS_PLUGIN_OBJECTS}
@@ -798,64 +859,36 @@ function(buddy_add_model)
 
   if(MDL_SERVING_PLUGIN_SRC)
     set(SERVING_PLUGIN_TARGET "buddy_models_${MDL_NAME}_serving")
-    add_library(${SERVING_PLUGIN_TARGET} SHARED
-      "${CMAKE_CURRENT_SOURCE_DIR}/${MDL_SERVING_PLUGIN_SRC}"
-    )
-    set_target_properties(${SERVING_PLUGIN_TARGET} PROPERTIES
-      LIBRARY_OUTPUT_DIRECTORY "${BIN}"
-      RUNTIME_OUTPUT_DIRECTORY "${BIN}"
-      OUTPUT_NAME "${MDL_NAME}_serving"
-      PREFIX ""
-    )
-    target_link_libraries(${SERVING_PLUGIN_TARGET} PRIVATE ${LIB_TARGET})
-    target_compile_features(${SERVING_PLUGIN_TARGET} PRIVATE cxx_std_17)
+    _buddy_add_model_plugin(
+      TARGET "${SERVING_PLUGIN_TARGET}" NAME "${MDL_NAME}_serving"
+      SRC "${MDL_SERVING_PLUGIN_SRC}" LIB_TARGET "${LIB_TARGET}"
+      EXTRA_SRCS ${MDL_EXTRA_SRCS})
   endif()
 
   if(MDL_EMBEDDING_PLUGIN_SRC)
     set(EMBEDDING_PLUGIN_TARGET "buddy_models_${MDL_NAME}_embedding")
-    add_library(${EMBEDDING_PLUGIN_TARGET} SHARED
-      "${CMAKE_CURRENT_SOURCE_DIR}/${MDL_EMBEDDING_PLUGIN_SRC}"
-    )
-    set_target_properties(${EMBEDDING_PLUGIN_TARGET} PROPERTIES
-      LIBRARY_OUTPUT_DIRECTORY "${BIN}"
-      RUNTIME_OUTPUT_DIRECTORY "${BIN}"
-      OUTPUT_NAME "${MDL_NAME}_embedding"
-      PREFIX ""
-    )
-    target_link_libraries(${EMBEDDING_PLUGIN_TARGET} PRIVATE ${LIB_TARGET})
-    target_compile_features(${EMBEDDING_PLUGIN_TARGET} PRIVATE cxx_std_17)
-    install(TARGETS ${EMBEDDING_PLUGIN_TARGET} EXPORT BuddyMLIRTargets COMPONENT buddy_runtime)
+    _buddy_add_model_plugin(
+      TARGET "${EMBEDDING_PLUGIN_TARGET}" NAME "${MDL_NAME}_embedding"
+      SRC "${MDL_EMBEDDING_PLUGIN_SRC}" LIB_TARGET "${LIB_TARGET}"
+      EXTRA_SRCS ${MDL_EXTRA_SRCS})
   endif()
 
   if(MDL_MASKED_LM_PLUGIN_SRC)
     set(MASKED_LM_PLUGIN_TARGET "buddy_models_${MDL_NAME}_masked_lm")
-    add_library(${MASKED_LM_PLUGIN_TARGET} SHARED
-      "${CMAKE_CURRENT_SOURCE_DIR}/${MDL_MASKED_LM_PLUGIN_SRC}")
-    set_target_properties(${MASKED_LM_PLUGIN_TARGET} PROPERTIES
-      LIBRARY_OUTPUT_DIRECTORY "${BIN}"
-      RUNTIME_OUTPUT_DIRECTORY "${BIN}"
-      OUTPUT_NAME "${MDL_NAME}_masked_lm"
-      PREFIX "")
-    target_link_libraries(${MASKED_LM_PLUGIN_TARGET} PRIVATE ${LIB_TARGET})
-    target_compile_features(${MASKED_LM_PLUGIN_TARGET} PRIVATE cxx_std_17)
-    install(TARGETS ${MASKED_LM_PLUGIN_TARGET} EXPORT BuddyMLIRTargets COMPONENT buddy_runtime)
+    _buddy_add_model_plugin(
+      TARGET "${MASKED_LM_PLUGIN_TARGET}" NAME "${MDL_NAME}_masked_lm"
+      SRC "${MDL_MASKED_LM_PLUGIN_SRC}" LIB_TARGET "${LIB_TARGET}"
+      EXTRA_SRCS ${MDL_EXTRA_SRCS})
   endif()
 
-  # ════════════════════════════════════════════════════════════════════════════
+  # ═══════════════════════════════════════════════════════════════════════════
   if(MDL_TRANSCRIPTION_PLUGIN_SRC)
     set(TRANSCRIPTION_PLUGIN_TARGET
       "buddy_models_${MDL_NAME}_transcription")
-    add_library(${TRANSCRIPTION_PLUGIN_TARGET} SHARED
-      "${CMAKE_CURRENT_SOURCE_DIR}/${MDL_TRANSCRIPTION_PLUGIN_SRC}")
-    set_target_properties(${TRANSCRIPTION_PLUGIN_TARGET} PROPERTIES
-      LIBRARY_OUTPUT_DIRECTORY "${BIN}"
-      RUNTIME_OUTPUT_DIRECTORY "${BIN}"
-      OUTPUT_NAME "${MDL_NAME}_transcription"
-      PREFIX "")
-    target_link_libraries(${TRANSCRIPTION_PLUGIN_TARGET} PRIVATE ${LIB_TARGET})
-    target_compile_features(${TRANSCRIPTION_PLUGIN_TARGET} PRIVATE cxx_std_17)
-    install(TARGETS ${TRANSCRIPTION_PLUGIN_TARGET}
-      EXPORT BuddyMLIRTargets COMPONENT buddy_runtime)
+    _buddy_add_model_plugin(
+      TARGET "${TRANSCRIPTION_PLUGIN_TARGET}" NAME "${MDL_NAME}_transcription"
+      SRC "${MDL_TRANSCRIPTION_PLUGIN_SRC}" LIB_TARGET "${LIB_TARGET}"
+      EXTRA_SRCS ${MDL_EXTRA_SRCS})
   endif()
 
   # Part 2: Model compilation pipeline (MLIR → .o → .so)
