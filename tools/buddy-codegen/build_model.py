@@ -129,7 +129,7 @@ def main() -> int:
     ap.add_argument(
         "--is-rvv-crosscompile",
         action="store_true",
-        help="Enable RVV cross-compilation for model.so (sets IS_RVV_CROSSCOMPILE=ON)",
+        help="Enable RVV cross-compilation for the model and runner package",
     )
     ap.add_argument(
         "--riscv-gnu-toolchain",
@@ -367,6 +367,8 @@ def main() -> int:
         cmake_args.extend(
             [
                 "-DIS_RVV_CROSSCOMPILE=ON",
+                "-DBUDDY_TARGET_TRIPLE=riscv64-unknown-linux-gnu",
+                "-DBUDDY_OPT_ATTR=+m,+d,+v",
                 f"-DRISCV_GNU_TOOLCHAIN={rvv_toolchain}",
                 f"-DRISCV_OMP_SHARED={rvv_omp_shared}",
                 f"-DRISCV_MLIR_C_RUNNER_UTILS={rvv_mlir_runner_utils}",

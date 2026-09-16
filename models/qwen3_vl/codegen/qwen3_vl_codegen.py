@@ -819,8 +819,9 @@ def cmd_stage(args):
         rhal_file_constant(idx, name, os.path.join(PKG_DIR, filename))
         for idx, (name, filename) in enumerate(resources, start=1)
     )
+    rax_version = os.environ.get("BUDDY_PACKAGE_VERSION", "0.1.0")
     manifest = f"""rhal.module @qwen3_vl attributes {{
-    version = "0.1.0",
+    version = "{rax_version}",
     model_name = "qwen3_vl",
     vocab_uri = "file:vocab.txt",
     runner_library = "file:qwen3_vl_runner.so"{serving_attr}}} {{
