@@ -92,8 +92,9 @@ def main() -> int:
         type=Path,
         default=None,
         help="Local HuggingFace-format model directory for PyTorch import. "
-        "For deepseek_r1, this sets BUDDY_DSR1_LOCAL_MODEL and may provide "
-        "config.json. For qwen3_vl and bge_m3, this is required and sets "
+        "For deepseek_r1, this sets the selected TP1/TP2 package's local-model "
+        "cache variable and may provide config.json. For qwen3_vl and bge_m3, "
+        "this is required and sets "
         "BUDDY_QWEN3_VL_MODEL_PATH / BUDDY_BGE_M3_MODEL_PATH.",
     )
     ap.add_argument(
@@ -111,6 +112,12 @@ def main() -> int:
         "--target",
         default=None,
         help="Semicolon-separated CMake targets (default: inferred from spec model_family)",
+    )
+    ap.add_argument(
+        "--tensor-parallel-size",
+        type=int,
+        default=1,
+        help="Tensor-parallel world size (DeepSeek: 1 or validated size 2; default: 1)",
     )
     ap.add_argument(
         "--jobs",
@@ -198,6 +205,21 @@ def main() -> int:
         )
         return 1
 
+    if args.tensor_parallel_size not in {1, 2}:
+        print(
+            "error: --tensor-parallel-size currently supports only 1 or 2; "
+            f"got {args.tensor_parallel_size}",
+            file=sys.stderr,
+        )
+        return 1
+    if args.tensor_parallel_size == 2 and model_family != "deepseek_r1":
+        print(
+            "error: --tensor-parallel-size 2 is currently validated only "
+            "for model_family=deepseek_r1",
+            file=sys.stderr,
+        )
+        return 1
+
     build_dir = resolve_from_cwd(args.build_dir)
 
     rvv_toolchain: Path | None = None
@@ -270,22 +292,33 @@ def main() -> int:
         "-DBUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON",
     ]
     if model_family == "deepseek_r1":
-        cmake_args.extend(
-            [
-                f"-DBUDDY_DSR1_SPEC={spec}",
-                "-DBUDDY_BUILD_DEEPSEEK_R1_MODEL=ON",
-            ]
-        )
+        if args.tensor_parallel_size == 2:
+            cmake_args.extend(
+                [
+                    f"-DBUDDY_DSR1_TP2_SPEC={spec}",
+                    "-DBUDDY_BUILD_DEEPSEEK_R1_TP2_MODEL=ON",
+                    "-DBUDDY_RUNTIME_ENABLE_MPI=ON",
+                ]
+            )
+            model_prefix = "BUDDY_DSR1_TP2"
+        else:
+            cmake_args.extend(
+                [
+                    f"-DBUDDY_DSR1_SPEC={spec}",
+                    "-DBUDDY_BUILD_DEEPSEEK_R1_MODEL=ON",
+                ]
+            )
+            model_prefix = "BUDDY_DSR1"
         if local_model is not None:
-            cmake_args.append(f"-DBUDDY_DSR1_LOCAL_MODEL={local_model}")
+            cmake_args.append(f"-D{model_prefix}_LOCAL_MODEL={local_model}")
 
         if args.hf_config is not None:
             hf = resolve_from_cwd(args.hf_config)
-            cmake_args.append(f"-DBUDDY_DSR1_HF_CONFIG={hf}")
+            cmake_args.append(f"-D{model_prefix}_HF_CONFIG={hf}")
         elif local_model is not None:
             auto_cfg = local_model / "config.json"
             if auto_cfg.is_file():
-                cmake_args.append(f"-DBUDDY_DSR1_HF_CONFIG={auto_cfg}")
+                cmake_args.append(f"-D{model_prefix}_HF_CONFIG={auto_cfg}")
     elif model_family == "whisper":
         cmake_args.extend(
             [
@@ -393,7 +426,12 @@ def main() -> int:
         if rc != 0:
             return rc
 
-    target = args.target or f"{model_family}_rax"
+    if args.target:
+        target = args.target
+    elif model_family == "deepseek_r1" and args.tensor_parallel_size == 2:
+        target = "deepseek_r1_tp2_rax"
+    else:
+        target = f"{model_family}_rax"
     build_cmd = ["cmake", "--build", str(build_dir), "--target"]
     build_cmd.extend(target.split(";"))
     if args.jobs > 0:

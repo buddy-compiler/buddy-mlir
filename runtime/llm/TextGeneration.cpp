@@ -160,7 +160,8 @@ GenerationResult runGeneration(const std::string &prompt, LLMSession &session,
                                const std::string &vocabPath, int maxNewTokens,
                                const std::vector<long long> &stopTokenIds,
                                buddy::Sampler &sampler, const TextCodec &codec,
-                               bool suppress, bool streamJsonl) {
+                               bool suppress, bool streamJsonl,
+                               bool emitOutput) {
   GenerationResult result;
 
   const int keepTokenNum = codec.maxTokenLen / 4;
@@ -197,10 +198,10 @@ GenerationResult runGeneration(const std::string &prompt, LLMSession &session,
   recentTokens.push_back(firstToken);
 
   if (isStopToken(firstToken)) {
-    if (streamJsonl) {
+    if (streamJsonl && emitOutput) {
       writeStreamJsonTokenEvent("prefill", 0, firstToken, "", true);
       writeStreamJsonDoneEvent("");
-    } else {
+    } else if (emitOutput) {
       std::cout << std::endl;
     }
     return result;
@@ -209,9 +210,9 @@ GenerationResult runGeneration(const std::string &prompt, LLMSession &session,
   outputTokens.appendTokenIdx(firstToken);
   std::string lastPrinted;
   std::string delta = takeNewText(outputTokens, lastPrinted, codec);
-  if (streamJsonl)
+  if (streamJsonl && emitOutput)
     writeStreamJsonTokenEvent("prefill", 0, firstToken, delta, false);
-  else
+  else if (emitOutput)
     writeStdoutDelta(delta);
 
   // ── Decode loop ─────────────────────────────────────────────────────────
@@ -266,29 +267,29 @@ GenerationResult runGeneration(const std::string &prompt, LLMSession &session,
                          recentTokens.end() - sampler.config().repeatLastN);
 
     if (isStopToken(nextToken)) {
-      if (streamJsonl)
+      if (streamJsonl && emitOutput)
         writeStreamJsonTokenEvent("decode", step, nextToken, "", true);
       break;
     }
 
     outputTokens.appendTokenIdx(nextToken);
     delta = takeNewText(outputTokens, lastPrinted, codec);
-    if (streamJsonl)
+    if (streamJsonl && emitOutput)
       writeStreamJsonTokenEvent("decode", step, nextToken, delta, false);
-    else
+    else if (emitOutput)
       writeStdoutDelta(delta);
     curToken = nextToken;
     if (step == maxSteps)
       result.hitTokenLimit = true;
   }
 
-  if (!streamJsonl)
+  if (!streamJsonl && emitOutput)
     std::cout << std::endl;
 
   result.generatedTokens = decodeCount;
   result.decodeSecs = decodeAccumMs / 1000.0;
   result.text = codec.detokenize(outputTokens);
-  if (streamJsonl)
+  if (streamJsonl && emitOutput)
     writeStreamJsonDoneEvent(result.text);
   return result;
 }

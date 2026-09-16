@@ -23,6 +23,9 @@ from .graph import NodeType as NodeType
 from .graph_driver import GraphDriver as GraphDriver
 from .operation import *
 from .partitioned_graph_driver import (
+    ParallelTemplatePartitionedGraphDriver as ParallelTemplatePartitionedGraphDriver,
+)
+from .partitioned_graph_driver import (
     PartitionedGraphDriver as PartitionedGraphDriver,
 )
 from .partitioned_graph_driver import (
@@ -36,7 +39,16 @@ from .transformer_partition import (
 )
 from .transformer_partition import TemplateUnit as TemplateUnit
 from .transformer_partition import (
+    TransformerParallelConfig as TransformerParallelConfig,
+)
+from .transformer_partition import (
+    TransformerParallelPlan as TransformerParallelPlan,
+)
+from .transformer_partition import (
     TransformerPartitionPlan as TransformerPartitionPlan,
+)
+from .transformer_partition import (
+    build_transformer_parallel_plan as build_transformer_parallel_plan,
 )
 from .transformer_partition import (
     build_transformer_partition_plan as build_transformer_partition_plan,

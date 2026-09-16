@@ -149,7 +149,22 @@ enum OpKind : byte {
   // Memory operations
   Memcpy = 2,      // buffer-to-buffer copy
   Fill = 3,        // fill a buffer with a scalar pattern (optional)
-  Barrier = 4      // synchronization point
+  Barrier = 4,     // synchronization point
+
+  Collective = 5
+}
+
+enum CollectiveKind : byte {
+  Invalid = 0,
+  AllReduce = 1,
+  Broadcast = 2,
+  AllGatherV = 3,
+  ReduceScatter = 4
+}
+
+enum ReductionKind : byte {
+  Invalid = 0,
+  Sum = 1
 }
 
 enum MemcpyKind : byte {
@@ -222,6 +237,21 @@ table BarrierOp {
   attrs:[KV];
 }
 
+table CollectiveOperand {
+  input_buffer_id:uint32;
+  output_buffer_id:uint32;
+  recv_counts:[int64];
+  displacements:[int64];
+}
+
+table CollectiveOp {
+  kind:CollectiveKind = Invalid;
+  operands:[CollectiveOperand];
+  reduction:ReductionKind = Invalid;
+  root:int32 = -1;
+  attrs:[KV];
+}
+
 table Op {
   kind:OpKind = Invalid;
 
@@ -233,6 +263,8 @@ table Op {
   // Useful for debugging/profiling.
   name:string;
   attrs:[KV];
+
+  collective:CollectiveOp;
 }
 
 // -----------------------------
