@@ -91,7 +91,7 @@ jobs:
             # That index carries torch 2.14.0 for x86_64/aarch64 but its newest
             # riscv64 build is still 2.13.0, so keep 2.14 off riscv64 until it
             # shows up.
-            torch_versions=(2.13 2.12 2.11 2.10)
+            torch_versions=(2.14 2.13 2.12 2.11 2.10)
           else
             # torch 2.14.0 is on the CPU index and on PyPI, including cp312.
             torch_versions=(2.14 2.13 2.12 2.11 2.10)
