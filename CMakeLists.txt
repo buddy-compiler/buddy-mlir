@@ -254,25 +254,8 @@ include_directories(${BUDDY_SOURCE_DIR}/frontend/Interfaces)
 include_directories(${LLVM_INCLUDE_DIRS})
 include_directories(${MLIR_INCLUDE_DIRS})
 
-# ── jsoncons (header-only JSON) ───────────────────────────────────────────────
-# Used by the BGE-M3 tokenizer and the LLM chat template parser instead of
-# llvm::json, so cross-compiled model plugins do not need to link LLVM.
-if(BUDDY_BUILD_BGE_M3_MODEL OR BUDDY_BUILD_DEEPSEEK_R1_MODEL
-   OR BUDDY_BUILD_LLAMA31_TT_MODEL OR BUDDY_BUILD_LLAMA32_TT_MODEL)
-  option(BUDDY_DOWNLOAD_JSONCONS "Download the jsoncons JSON library" ON)
-  if(BUDDY_DOWNLOAD_JSONCONS)
-    include(FetchContent)
-    set(JSONCONS_BUILD_TESTS OFF)
-    FetchContent_Declare(
-      jsoncons
-      URL https://github.com/danielaparker/jsoncons/archive/refs/tags/v1.8.1.tar.gz
-      URL_HASH SHA3_256=c1f7957049ce756005ce67917ce8b6f09c0cf56e630664edeb272365229baada
-    )
-    FetchContent_MakeAvailable(jsoncons)
-    set(BUDDY_JSONCONS_INCLUDE_DIR "${jsoncons_SOURCE_DIR}/include")
-    include_directories(${BUDDY_JSONCONS_INCLUDE_DIR})
-  endif()
-endif()
+# ── Header-only third-party dependencies (jsoncons, CLI11) ───────────────────
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/deps.cmake)
 
 find_program(LLVM_TABLEGEN_EXE "llvm-tblgen" ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH)
 
