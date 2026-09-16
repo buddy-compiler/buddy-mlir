@@ -34,47 +34,83 @@
 #ifndef BUDDY_RUNTIME_MODELS_BGEM3TOKENIZER_H
 #define BUDDY_RUNTIME_MODELS_BGEM3TOKENIZER_H
 
-#include "llvm/Support/Base64.h"
-#include "llvm/Support/JSON.h"
-#include "llvm/Support/MemoryBuffer.h"
+#include <jsoncons/json.hpp>
 
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <fstream>
+#include <iterator>
 #include <limits>
 #include <map>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace buddy {
 namespace runtime {
 
+// Minimal standard base64 decoder; avoids depending on llvm::decodeBase64.
+inline void decodeBase64(std::string_view input, std::vector<char> &output) {
+  auto valueOf = [](unsigned char c) -> int {
+    if (c >= 'A' && c <= 'Z')
+      return c - 'A';
+    if (c >= 'a' && c <= 'z')
+      return c - 'a' + 26;
+    if (c >= '0' && c <= '9')
+      return c - '0' + 52;
+    if (c == '+')
+      return 62;
+    if (c == '/')
+      return 63;
+    return -1;
+  };
+
+  output.clear();
+  uint32_t buffer = 0;
+  int bits = 0;
+  for (char ch : input) {
+    unsigned char c = static_cast<unsigned char>(ch);
+    if (c == '=' || c == '\n' || c == '\r' || c == ' ' || c == '\t')
+      continue;
+    int value = valueOf(c);
+    if (value < 0)
+      throw std::runtime_error("BgeM3Tokenizer: invalid base64 input");
+    buffer = (buffer << 6) | static_cast<uint32_t>(value);
+    bits += 6;
+    if (bits >= 8) {
+      bits -= 8;
+      output.push_back(static_cast<char>((buffer >> bits) & 0xFF));
+    }
+  }
+}
+
 class BgeM3Tokenizer {
 public:
   static BgeM3Tokenizer loadFromFile(const std::string &tokenizerJsonPath) {
-    auto bufOrErr = llvm::MemoryBuffer::getFile(tokenizerJsonPath);
-    if (!bufOrErr)
+    std::ifstream in(tokenizerJsonPath, std::ios::binary);
+    if (!in)
       throw std::runtime_error("BgeM3Tokenizer: cannot open " +
-                               tokenizerJsonPath + ": " +
-                               bufOrErr.getError().message());
+                               tokenizerJsonPath);
+    std::string text((std::istreambuf_iterator<char>(in)),
+                     std::istreambuf_iterator<char>());
 
-    llvm::Expected<llvm::json::Value> parsed =
-        llvm::json::parse((*bufOrErr)->getBuffer());
-    if (!parsed)
+    jsoncons::json root;
+    try {
+      root = jsoncons::json::parse(text);
+    } catch (const std::exception &e) {
       throw std::runtime_error("BgeM3Tokenizer: failed to parse " +
-                               tokenizerJsonPath + ": " +
-                               llvm::toString(parsed.takeError()));
-
-    const llvm::json::Object *root = parsed->getAsObject();
-    if (!root)
+                               tokenizerJsonPath + ": " + e.what());
+    }
+    if (!root.is_object())
       throw std::runtime_error("BgeM3Tokenizer: " + tokenizerJsonPath +
                                " root is not a JSON object");
 
     BgeM3Tokenizer tok;
-    tok.loadVocab(*root);
-    tok.loadCharsmap(*root);
-    tok.loadSpecialTokens(*root);
+    tok.loadVocab(root);
+    tok.loadCharsmap(root);
+    tok.loadSpecialTokens(root);
     tok.buildMatchers();
     return tok;
   }
@@ -156,60 +192,63 @@ private:
 
   // ── Loading ───────────────────────────────────────────────────────────
 
-  void loadVocab(const llvm::json::Object &root) {
-    const llvm::json::Object *model = root.getObject("model");
-    if (!model)
+  void loadVocab(const jsoncons::json &root) {
+    if (!root.contains("model") || !root["model"].is_object())
       throw std::runtime_error("BgeM3Tokenizer: missing \"model\"");
-    auto type = model->getString("type");
-    if (!type || *type != "Unigram")
+    const jsoncons::json &model = root["model"];
+    if (!model.contains("type") || !model["type"].is_string() ||
+        model["type"].as<std::string>() != "Unigram")
       throw std::runtime_error(
           "BgeM3Tokenizer: unsupported tokenizer model type (expected "
           "Unigram)");
 
-    if (auto unk = model->getInteger("unk_id"))
-      unkId_ = *unk;
+    if (model.contains("unk_id") && model["unk_id"].is_number())
+      unkId_ = model["unk_id"].as<int64_t>();
 
-    const llvm::json::Array *vocabArr = model->getArray("vocab");
-    if (!vocabArr)
+    if (!model.contains("vocab") || !model["vocab"].is_array())
       throw std::runtime_error("BgeM3Tokenizer: missing \"model.vocab\"");
-    vocab_.reserve(vocabArr->size());
-    for (const llvm::json::Value &entry : *vocabArr) {
-      const llvm::json::Array *pair = entry.getAsArray();
-      if (!pair || pair->size() != 2)
+    const jsoncons::json &vocabArr = model["vocab"];
+    vocab_.reserve(vocabArr.size());
+    for (const jsoncons::json &entry : vocabArr.array_range()) {
+      if (!entry.is_array() || entry.size() != 2)
         throw std::runtime_error("BgeM3Tokenizer: malformed vocab entry");
-      auto piece = (*pair)[0].getAsString();
-      auto score = (*pair)[1].getAsNumber();
-      if (!piece || !score)
+      const jsoncons::json &piece = entry[0];
+      const jsoncons::json &score = entry[1];
+      if (!piece.is_string() || !score.is_number())
         throw std::runtime_error("BgeM3Tokenizer: malformed vocab entry");
-      vocab_.emplace_back(piece->str(), *score);
+      vocab_.emplace_back(piece.as<std::string>(), score.as<double>());
     }
   }
 
-  void loadCharsmap(const llvm::json::Object &root) {
-    const llvm::json::Object *normalizer = root.getObject("normalizer");
-    if (!normalizer)
+  void loadCharsmap(const jsoncons::json &root) {
+    if (!root.contains("normalizer") || !root["normalizer"].is_object())
       return;
-    const llvm::json::Array *steps = normalizer->getArray("normalizers");
-    std::vector<const llvm::json::Object *> flat;
-    if (steps) {
-      for (const llvm::json::Value &s : *steps)
-        if (const llvm::json::Object *o = s.getAsObject())
-          flat.push_back(o);
+    const jsoncons::json &normalizer = root["normalizer"];
+    std::vector<const jsoncons::json *> flat;
+    if (normalizer.contains("normalizers") &&
+        normalizer["normalizers"].is_array()) {
+      for (const jsoncons::json &s : normalizer["normalizers"].array_range())
+        if (s.is_object())
+          flat.push_back(&s);
     } else {
-      flat.push_back(normalizer);
+      flat.push_back(&normalizer);
     }
 
-    for (const llvm::json::Object *step : flat) {
-      auto type = step->getString("type");
-      if (!type || *type != "Precompiled")
+    for (const jsoncons::json *step : flat) {
+      if (!step->contains("type") || !(*step)["type"].is_string() ||
+          (*step)["type"].as<std::string>() != "Precompiled")
         continue;
-      auto b64 = step->getString("precompiled_charsmap");
-      if (!b64)
+      if (!step->contains("precompiled_charsmap") ||
+          !(*step)["precompiled_charsmap"].is_string())
         continue;
-      if (llvm::Error err = llvm::decodeBase64(*b64, charsmap_))
+      try {
+        decodeBase64((*step)["precompiled_charsmap"].as<std::string>(),
+                     charsmap_);
+      } catch (const std::exception &e) {
         throw std::runtime_error(
             "BgeM3Tokenizer: failed to decode precompiled_charsmap: " +
-            llvm::toString(std::move(err)));
+            std::string(e.what()));
+      }
       break;
     }
 
@@ -233,37 +272,36 @@ private:
     prefixReplacementsSize_ = charsmap_.size() - offset;
   }
 
-  void loadSpecialTokens(const llvm::json::Object &root) {
+  void loadSpecialTokens(const jsoncons::json &root) {
     bosId_ = findTokenId(root, "<s>", 0);
     eosId_ = findTokenId(root, "</s>", 2);
     padId_ = findTokenId(root, "<pad>", 1);
 
-    if (const llvm::json::Array *added = root.getArray("added_tokens")) {
-      for (const llvm::json::Value &v : *added) {
-        const llvm::json::Object *o = v.getAsObject();
-        if (!o)
+    if (root.contains("added_tokens") && root["added_tokens"].is_array()) {
+      for (const jsoncons::json &o : root["added_tokens"].array_range()) {
+        if (!o.is_object())
           continue;
-        auto content = o->getString("content");
-        auto id = o->getInteger("id");
-        auto special = o->getBoolean("special");
-        if (content && id && special && *special)
-          specialIds_.push_back(*id);
+        if (o.contains("content") && o.contains("id") &&
+            o.contains("special") && o["special"].is_bool() &&
+            o["special"].as<bool>())
+          specialIds_.push_back(o["id"].as<int64_t>());
       }
     }
   }
 
   // Looks up a special token's id via post_processor.special_tokens first
   // (authoritative for bos/eos), falling back to `fallback`.
-  static int64_t findTokenId(const llvm::json::Object &root,
-                             llvm::StringRef content, int64_t fallback) {
-    if (const llvm::json::Object *pp = root.getObject("post_processor")) {
-      if (const llvm::json::Object *special = pp->getObject("special_tokens")) {
-        if (const llvm::json::Object *entry = special->getObject(content)) {
-          if (const llvm::json::Array *ids = entry->getArray("ids")) {
-            if (!ids->empty())
-              if (auto id = (*ids)[0].getAsInteger())
-                return *id;
-          }
+  static int64_t findTokenId(const jsoncons::json &root,
+                             const std::string &content, int64_t fallback) {
+    if (root.contains("post_processor") && root["post_processor"].is_object()) {
+      const jsoncons::json &pp = root["post_processor"];
+      if (pp.contains("special_tokens") && pp["special_tokens"].is_object()) {
+        const jsoncons::json &special = pp["special_tokens"];
+        if (special.contains(content) && special[content].is_object()) {
+          const jsoncons::json &entry = special[content];
+          if (entry.contains("ids") && entry["ids"].is_array() &&
+              !entry["ids"].empty() && entry["ids"][0].is_number())
+            return entry["ids"][0].as<int64_t>();
         }
       }
     }

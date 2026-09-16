@@ -22,6 +22,24 @@
 
 include(FetchContent)
 
+# ── jsoncons: JSON parsing for the BGE-M3 tokenizer ──────────────────────────
+# Used instead of llvm::json so cross-compiled model plugins do not need to
+# link LLVM.
+option(BUDDY_DOWNLOAD_JSONCONS "Download the jsoncons JSON library" ON)
+if(BUDDY_DOWNLOAD_JSONCONS)
+  set(JSONCONS_BUILD_TESTS OFF)
+  FetchContent_Declare(
+    jsoncons
+    URL https://github.com/danielaparker/jsoncons/archive/refs/tags/v1.8.1.tar.gz
+    URL_HASH SHA3_256=c1f7957049ce756005ce67917ce8b6f09c0cf56e630664edeb272365229baada
+  )
+  FetchContent_MakeAvailable(jsoncons)
+  set(BUDDY_JSONCONS_INCLUDE_DIR "${jsoncons_SOURCE_DIR}/include")
+  include_directories(${BUDDY_JSONCONS_INCLUDE_DIR})
+else()
+  message(STATUS "jsoncons download disabled; expecting its headers on the include path")
+endif()
+
 # ── CLI11: command line parsing for the buddy tools ──────────────────────────
 option(BUDDY_DOWNLOAD_CLI11 "Download the CLI11 command line parser" ON)
 if(BUDDY_DOWNLOAD_CLI11)
