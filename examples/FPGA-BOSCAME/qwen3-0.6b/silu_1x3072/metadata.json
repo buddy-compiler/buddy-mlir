@@ -1,0 +1,29 @@
+{
+  "name": "silu_1x3072",
+  "kind": "silu",
+  "dtype": "f32",
+  "description": "SwiGLU activation/product",
+  "entry": "kernel_silu_1x3072",
+  "workspace_bytes": 24576,
+  "buffers": [
+    {
+      "name": "x",
+      "shape": [
+        1,
+        3072
+      ],
+      "dtype": "f32",
+      "offset": 0
+    },
+    {
+      "name": "out",
+      "shape": [
+        1,
+        3072
+      ],
+      "dtype": "f32",
+      "offset": 12288
+    }
+  ],
+  "validation": "All output elements versus an independent C oracle; host oracle uses libm double precision."
+}

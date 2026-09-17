@@ -1,0 +1,9 @@
+{
+  "status": "INTERRUPTED_NOT_ACCEPTED",
+  "accepted": false,
+  "run_id": "run-a869ed2912a941d4",
+  "observed": "46 prefill intermediate comparisons zeroerror then UART stopped at 8099 bytes mid profile record; stopped by root after repeated no progress",
+  "new_linker": "LLD20",
+  "scope": "No full16+8 acceptance; original illegalPC not recurred",
+  "reason_unknown": true
+}

@@ -1,0 +1,120 @@
+{
+  "stage": "28 layers with the COMPLETE replacement set: verified, image built, ready to run",
+  "status": "host PASS, image audit PASS, not yet on the board",
+  "why": "the run in flight uses the earlier image (attention and the cache write still lowered as linalg). This one replaces every pattern the operator inventory listed.",
+  "coverage": {
+    "attention": "56 replacements (28 layers x 2 graphs); chain layout_k -> qk -> mask -> softmax -> pv",
+    "kv_cache_write": "112 replacements (28 layers x 2 caches x 2 graphs); chain layout_context -> kv_cache_update_position",
+    "linear": "197 per graph, W8A8 quantize / int8 matmul / dequantize",
+    "embedding": "1 per graph, int8 gather with per-token rescale",
+    "rmsnorm": 113,
+    "silu": 28,
+    "uncovered": 0,
+    "external_calls_per_graph": 985
+  },
+  "numeric_verification": {
+    "prefill_argmax": {
+      "graph": 49000,
+      "fp32_reference": 49000,
+      "w8a8_reference": 49000,
+      "all_three_agree": true
+    },
+    "cosine_graph_vs_fp32": 0.991826,
+    "cosine_w8a8_reference_vs_fp32": 0.986791,
+    "cosine_graph_vs_w8a8_reference": 0.994366,
+    "generated_ids": [
+      374,
+      264,
+      3146,
+      7407,
+      304,
+      4787,
+      5159,
+      11
+    ],
+    "fp32_ids": [
+      374,
+      264,
+      3146,
+      7407,
+      304,
+      4787,
+      5159,
+      11
+    ],
+    "tokens_match_fp32": true,
+    "reading": "the graph is CLOSER to FP32 (0.9918) than the W8A8 host reference is (0.9868), and its token sequence is identical to FP32. The replacement set does not cost accuracy."
+  },
+  "image": {
+    "elf_bytes": 1480584,
+    "bin_bytes": 874072,
+    "undefined_symbols": 0,
+    "elf_audit": "PASS: 290328 instructions, 121 AME, 251 RVV",
+    "previous_image_for_comparison": "286903 instructions, 121 AME, 156 RVV",
+    "rvv_delta": "+95"
+  },
+  "board": {
+    "current_run": "still capturing, about 78 minutes into a 9000 s window, boot banner only",
+    "next": "when it settles, run the 1-layer image first (a few minutes) to MEASURE whether the replacements speed the layer up, then decide whether the 28-layer run is worth another long window"
+  },
+  "measurement_staged": {
+    "why": "before committing another long board window to 28 layers, measure what the replacements actually do to ONE layer. The instruction-count comparison could not answer it because the code that was removed is a loop.",
+    "image": {
+      "path": "build/board/w8a8-1l-full-replace/qwen_model.bin",
+      "bin_bytes": 178760,
+      "elf_bytes": 271976,
+      "undefined_symbols": 0,
+      "elf_audit": "PASS: 37120 instructions, 121 AME, 251 RVV",
+      "contents": "1 layer, W8A8 linears and embedding, attention replaced, cache write replaced, prefill + 8 decode steps"
+    },
+    "run_assets": "build/board/run-1l-full/ (image.bin, weights-w8a8.bin, ddr-load.plan)",
+    "runner": "model/tools/run_full_1l.sh",
+    "baseline_to_beat": {
+      "cycles": 5515994658,
+      "what": "the same one layer, W8A8, WITHOUT the attention and cache replacements",
+      "run": "run-2484a75128174e0f"
+    },
+    "what_it_will_settle": [
+      "whether replacing attention and the cache write is faster, slower, or neutral on this hardware",
+      "whether another 28-layer window is worth committing"
+    ],
+    "graph_verified_before_running": {
+      "one_layer_complete_replacement_host": {
+        "prefill_argmax": {
+          "graph": 33067,
+          "w8a8_reference": 33067
+        },
+        "cosine": 1.0,
+        "max_abs_error": 0.0,
+        "generated_ids": [
+          11853,
+          11853,
+          11853,
+          11853,
+          11853,
+          11853,
+          11853,
+          11853
+        ],
+        "match": true,
+        "external_calls_per_graph": 40,
+        "reading": "bit-exact against the W8A8 host reference, so the image being measured is the correct one and the cycle count will mean something"
+      },
+      "bridge_note": "a host bridge is built per rewrite set AND the wrapper symbols embed the graph's node names, so the 28-layer bridge does not satisfy a 1-layer graph: the symbols are _cpu_1_..., _cpu_2_... there and _cpu_... here. The failure mode is 'Unknown function forward_prefill', which looks like a JIT problem and is not."
+    }
+  },
+  "artifact_mismatch_hit_this_round": {
+    "symptom": "build_nr_w8a8_image.py raised KeyError: 'arg1_1' when building the one-layer full-replacement image",
+    "cause": "the rewrite report had been generated with --attention but WITHOUT --w8a8, so its parameter list still contained the f32 embedding matrix, while the parameter segment had been built from a --w8a8 report and therefore did not",
+    "fix": "regenerated the report with both flags; the report and the segment have to come from the same rewrite set, which is worth checking before any image build"
+  },
+  "review_2026_09_17": {
+    "status": "INVALIDATED: old image ABI and cache storage are incorrect; host numeric agreement with independent quantized reference is unproven",
+    "findings": [
+      "C GraphResults reserves only 288 bytes but actual 28-layer LLVM return has 6120 bytes.",
+      "All layers received the same K/V base pointers.",
+      "Graph-vs-quantized-reference cosine 0.994366 is not kernel/chain acceptance; closer to FP32 is not a substitute."
+    ],
+    "previous_results_are_historical": true
+  }
+}

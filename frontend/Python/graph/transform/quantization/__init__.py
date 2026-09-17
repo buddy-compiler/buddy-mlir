@@ -19,7 +19,9 @@
 # ===---------------------------------------------------------------------------
 
 from .passes import (
+    embedding_w8_per_group,
     weight_only_channel_wise,
     weight_only_int4_f16_channel_wise,
     w8a8_channel_wise,
+    w8a8_per_group,
 )

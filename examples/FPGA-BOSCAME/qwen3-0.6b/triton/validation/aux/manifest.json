@@ -1,0 +1,472 @@
+{
+  "group": "aux",
+  "host": false,
+  "frontend": "triton",
+  "case_count": 49,
+  "cases": [
+    "add_16x1024",
+    "add_1x1024",
+    "attention_pv_16x16x128x16",
+    "attention_pv_16x1x128x17",
+    "attention_qk_16x16x16x128",
+    "attention_qk_16x1x17x128",
+    "attention_scale_mask_16x16x16",
+    "attention_scale_mask_16x1x17",
+    "dequantize_16x1024",
+    "dequantize_16x2048",
+    "dequantize_16x3072",
+    "dequantize_1x1024",
+    "dequantize_1x151936",
+    "dequantize_1x2048",
+    "dequantize_1x3072",
+    "embedding_16x1024",
+    "embedding_1x1024",
+    "gqa_repeat_8x16x128_to_16x16x128",
+    "gqa_repeat_8x17x128_to_16x17x128",
+    "kv_cache_update_16x8x128",
+    "kv_cache_update_1x8x128",
+    "layout_context_16x16x128",
+    "layout_context_16x1x128",
+    "layout_k_16x16x128",
+    "layout_k_16x17x128",
+    "layout_q_16x16x128",
+    "layout_q_1x16x128",
+    "mul_16x3072",
+    "mul_1x3072",
+    "quantize_16x1024",
+    "quantize_16x2048",
+    "quantize_16x3072",
+    "quantize_1x1024",
+    "quantize_1x2048",
+    "quantize_1x3072",
+    "rmsnorm_128x128",
+    "rmsnorm_16x1024",
+    "rmsnorm_16x128",
+    "rmsnorm_1x1024",
+    "rmsnorm_256x128",
+    "rmsnorm_8x128",
+    "rope_16x16x128",
+    "rope_16x8x128",
+    "rope_1x16x128",
+    "rope_1x8x128",
+    "silu_16x3072",
+    "silu_1x3072",
+    "softmax_16x16x16",
+    "softmax_16x1x17"
+  ],
+  "image": "build/suite-aux/suite.bin",
+  "sha256": "f3366cc19af2e8f9a21220ea7afd81cef3cf5684a2a85af7f03901c8dab6393d",
+  "build_configuration": {
+    "configuration_helper_sha256": "329f37d882ed8692d77f20260e1969730d50eb446a77a635c7f7f69edfa02200",
+    "directory": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/add_16x1024",
+    "tools": {
+      "BUDDY_OPT": {
+        "command": [
+          "../../../../build-migrate/bin/buddy-opt"
+        ],
+        "executable": "/home/chh/gitprojects/buddy-mlir-for-fpga/build-migrate/bin/buddy-opt",
+        "mtime_ns": 1789564143516005703,
+        "size": 233541736
+      },
+      "BUDDY_TRANSLATE": {
+        "command": [
+          "../../../../build-migrate/bin/buddy-translate"
+        ],
+        "executable": "/home/chh/gitprojects/buddy-mlir-for-fpga/build-migrate/bin/buddy-translate",
+        "mtime_ns": 1789561823467950389,
+        "size": 88421040
+      },
+      "HOST_CC": {
+        "command": [
+          "../../../../llvm/build-2d26/bin/clang"
+        ],
+        "executable": "/home/chh/gitprojects/buddy-mlir-for-fpga/llvm/build-2d26/bin/clang-24",
+        "mtime_ns": 1789561724771948036,
+        "size": 198446528
+      },
+      "LLC": {
+        "command": [
+          "../../../../llvm/build-2d26/bin/llc"
+        ],
+        "executable": "/home/chh/gitprojects/buddy-mlir-for-fpga/llvm/build-2d26/bin/llc",
+        "mtime_ns": 1789561707515947624,
+        "size": 105802208
+      },
+      "PYTHON": {
+        "command": [
+          "python3"
+        ],
+        "executable": "/home/chh/miniconda3/envs/trex/bin/python3.11",
+        "mtime_ns": 1786713732132046602,
+        "size": 25548416
+      },
+      "RISCV_CC": {
+        "command": [
+          "../../../../llvm/build-2d26/bin/clang",
+          "--target=riscv64-unknown-elf"
+        ],
+        "executable": "/home/chh/gitprojects/buddy-mlir-for-fpga/llvm/build-2d26/bin/clang-24",
+        "mtime_ns": 1789561724771948036,
+        "size": 198446528
+      },
+      "RISCV_LD": {
+        "command": [
+          "ld.lld",
+          "-m",
+          "elf64lriscv"
+        ],
+        "executable": "/home/chh/Ascend/ascend-toolkit/8.3.RC1.alpha001/x86_64-linux/ccec_compiler/bin/lld",
+        "mtime_ns": 1756951095611583894,
+        "size": 83964000
+      },
+      "RISCV_OBJCOPY": {
+        "command": [
+          "../../../../llvm/build-2d26/bin/llvm-objcopy"
+        ],
+        "executable": "/home/chh/gitprojects/buddy-mlir-for-fpga/llvm/build-2d26/bin/llvm-objcopy",
+        "mtime_ns": 1789373748055466322,
+        "size": 8712848
+      }
+    },
+    "variables": {
+      "AME_PASS": "--lower-linalg-to-boscame=target=nr-fpga",
+      "BATCH_FP32_PASS": "--batchmatmul-optimize=vector-size=16",
+      "BUDDY_BIN": "../../../../build-migrate/bin",
+      "BUDDY_OPT": "../../../../build-migrate/bin/buddy-opt",
+      "BUDDY_TRANSLATE": "../../../../build-migrate/bin/buddy-translate",
+      "BUILD": "build",
+      "CFLAGS": "-march=rv64gc_zicbom -mabi=lp64d -mcmodel=medany -O2 -nostdlib -ffreestanding -fno-builtin -fno-pie -fno-vectorize -fno-slp-vectorize -ffp-contract=off -ffunction-sections -fdata-sections -I.. -I../../common/nr -I../../common/uart",
+      "FP32_PASS": "--matmul-transpose-b-vectorization-decode='vector-size=16 unroll=1 n-tile=1'",
+      "HOST_CC": "../../../../llvm/build-2d26/bin/clang",
+      "HOST_CFLAGS": "-O2 -ffp-contract=off -DHOST_TEST -I..",
+      "KERNEL_LLFLAGS": "-O2 -filetype=asm -mtriple=riscv64 -target-abi=lp64d -mattr=+m,+a,+f,+d,+c,-v,+xboscame -code-model=medium",
+      "LLC": "../../../../llvm/build-2d26/bin/llc",
+      "LLVM_BIN": "../../../../llvm/build-2d26/bin",
+      "LOWER": "--convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts",
+      "MATMUL_FP32_PASS": "--matmul-vectorization='vector-size=16 vector-type=fixed'",
+      "NR": "../../common/nr",
+      "PYTHON": "python3",
+      "RISCV_CC": "../../../../llvm/build-2d26/bin/clang --target=riscv64-unknown-elf",
+      "RISCV_LD": "ld.lld -m elf64lriscv",
+      "RISCV_OBJCOPY": "../../../../llvm/build-2d26/bin/llvm-objcopy",
+      "ROOT": "..",
+      "RUNTIME_OBJS": "build/crt.o build/nr_runtime.o build/nr_math.o build/ame_sync.o build/nr_copy.o build/support.o",
+      "RVV_ENABLED": "0",
+      "RVV_FLAGS": "-mattr=+m,+a,+f,+d,+c,+v,+zvl512b,+xboscame -riscv-v-vector-bits-min=512",
+      "SCALAR_FLAGS": "-mattr=+m,+a,+f,+d,+c,-v,+xboscame",
+      "TOOLS": "../../tools"
+    }
+  },
+  "source_files": {
+    "examples/FPGA-BOSCAME/common/nr/ame_sync.c": "ed7efdd659ca50f79c0249d13a8762188cdbb745b8d65193ff4dc62c5380256d",
+    "examples/FPGA-BOSCAME/common/nr/crt.S": "75431219ba064928a9064d728608095d01e53c0f31e76b2cf38c0a2a35c5a706",
+    "examples/FPGA-BOSCAME/common/nr/nr.ld": "50ba0a1ebaa19929fad8fa68457f1080ce1d39653aff30825f3c7c18fcb5b366",
+    "examples/FPGA-BOSCAME/common/nr/nr_copy.S": "84e13b00c06a837fdf1967402780bd6c78a27cb58b45aed11406cd5f52f20a46",
+    "examples/FPGA-BOSCAME/common/nr/nr_math.c": "f0bb33d8e96cb2bf7ad596916acfa1fb2bcfdf2afbd16cf1facc042144d588e8",
+    "examples/FPGA-BOSCAME/common/nr/nr_runtime.c": "2e9ce2b51135855e21176e9505dc142e6099bdf27f8a07f637f3535e366350c8",
+    "examples/FPGA-BOSCAME/common/nr/nr_runtime.h": "537623b2362210a8342b50be1e0358009b78d94ef1d1c3ee7c71963f31afccbe",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/add_16x1024/launch.c": "adcaa47b03e4b469ce6c832f398e31fac645138ac9483927cc33c5c02f746774",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/add_1x1024/launch.c": "43a171e315dea1b2db4c45c231d6c8910fb00d04ae411ce890af4431a73a9a6a",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/attention_pv_16x16x128x16/launch.c": "0c7e6fe33e69688d33f282b7c807a1c77cf6d8453c877323903996ff23512c0c",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/attention_pv_16x1x128x17/launch.c": "ee28ed4f4ccafbbc743b74ef21f59666781f046c1f33a16576d333cebb5e3d3f",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/attention_qk_16x16x16x128/launch.c": "daf0c5a263e7c6c2fea01478186eb47c880566878a4ba0e5745b07c6d64beecd",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/attention_qk_16x1x17x128/launch.c": "c9d8a23a192db5165875fe63e72cf84e4a56d480fd7e47c12c3f058c3d18c102",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/attention_scale_mask_16x16x16/launch.c": "c23d2c58f88c0dcb2b1435d25d2890fbca48187025b80f15cba8d1dbd8385f00",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/attention_scale_mask_16x1x17/launch.c": "0dab3859bfd29aab67ba78d782e740fb1e820c652a11503f4a33ccbd352f9e36",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/common.mk": "916771716587816164e8a93c3bea0488ffe201d8db47f8ebc8449bca0c3a53ab",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/dequantize_16x1024/launch.c": "4b34ef078ee5dba51961c5b76229e4977811d45eb78ae314cd652ecdcbe4f4ab",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/dequantize_16x2048/launch.c": "f49e6a732b68edf992b56d9765f2b80c6bb60790efe91c8a2e0fe18e4e05b50e",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/dequantize_16x3072/launch.c": "4a5256dfc576d85244ed2bbfd4e86024445326dedaa40b2cb9f4ba52053002df",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/dequantize_1x1024/launch.c": "526a6fb83ca0e1e281aaf9d20adeb6cc293b463667e510bb2fe87a753252bdd8",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/dequantize_1x151936/launch.c": "83911fe2e902c5652cfde304a54b3954091b8f7e4e9e16a7a53be1c3da25c2f1",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/dequantize_1x2048/launch.c": "52b8852a7b1273a5351879fe70fcce79eb2ab3f5162f8daa9f65d05de62c434b",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/dequantize_1x3072/launch.c": "70a8c4d06bcb56253328da6b9cfb376764e9af2263a9a9ff17a13317af514e74",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/embedding_16x1024/launch.c": "1093e556b22f1e73afaa19918026e32f841f306cb81f006a8ef2035ce23b0e05",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/embedding_1x1024/launch.c": "e8a801a51c4b429e45806d1446897375eb0071a1f9d9ba791a5fe019a529995d",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/gqa_repeat_8x16x128_to_16x16x128/launch.c": "3fc40ebe234c726aa9456e95d193b4e1b8f160c39d2ff77d78653e935b7c97f9",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/gqa_repeat_8x17x128_to_16x17x128/launch.c": "cd0f259127f1467ef29915d17256e90c468d7b72fbaf4d9426cc00635c0ddb88",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/kv_cache_update_16x8x128/launch.c": "a9400f788aded4612bb6a27426633944a8a4642274252becb3aba4c2f9706aca",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/kv_cache_update_1x8x128/launch.c": "bc3aafacabcf8c8a600beebb3b3ee676329e6648c2cea63bc694dbcb8d1244e1",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/layout_context_16x16x128/launch.c": "d33bd3d43eb82b16055614e26076ea5daae87987204f1634be9679c3ec0108b0",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/layout_context_16x1x128/launch.c": "749632a85654db77951e81707ca53f3adead5f760db45142cccbe42f5a2ae458",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/layout_k_16x16x128/launch.c": "6672523acc007a7223ba1ac3594a450b0619513d2feb18e31b9f654a65387f39",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/layout_k_16x17x128/launch.c": "82c497844595146e16c74d58492376b1f5f4fa88423fd77d1f6cf71e677574c9",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/layout_q_16x16x128/launch.c": "822a75df75e3857aed7001c5fca67af3a580c5a7c6ee25a633446165ec051030",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/layout_q_1x16x128/launch.c": "b991eb08efff379ee3b779d6a12a7d6b46ae6f21bcca4551635d106ff3665414",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/mul_16x3072/launch.c": "ce41dc6670a4fef993285716f53e791b4fd03960bf0d686622b7ff4a04dbb707",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/mul_1x3072/launch.c": "cbd818dca563d45dd2c41c047e71598ede4e9ad3cdd5c6216f0ef30dc02fc7f4",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/quantize_16x1024/launch.c": "c201fa39ee1b4334fb38cb16322eeeab0950b14be4baed595ecb5f5779581b27",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/quantize_16x2048/launch.c": "70256aed19169b9e1d3ec7bc964ed0ffe275b8d043243cb5a631542d8d569165",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/quantize_16x3072/launch.c": "3934db0d6bc09da43161f0efde4596876983c21d38488ecde5ee261c05e2505d",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/quantize_1x1024/launch.c": "101d7f2ba9d332aa123e3f5f2aca46c66729ef0b994715b5920a7c89d6adc071",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/quantize_1x2048/launch.c": "5042354967250ed2587c8cb207fff6fb26f98f29857c8742dfa1197156c45d95",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/quantize_1x3072/launch.c": "24d263f2c186c3ae96ca2b05554a918b13f194d0d9f2ca10d3b0bae1cda95b6a",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/rmsnorm_128x128/launch.c": "f4eb9824f65f9b09b56832b1f59c7af8f950a3cc10bb48bfedcd76d2928bcd1d",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/rmsnorm_16x1024/launch.c": "95172a168493e7e34c5c9735cf79ff1b7e7e73699d3c9448d4502f30d11922a7",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/rmsnorm_16x128/launch.c": "468860b9aea7ccc06241a595a4dffb1e640981f3a058f5c0a9934919fc0df64b",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/rmsnorm_1x1024/launch.c": "1275353fc9fabe49399deeb5bfb1865af9e567b01ce18bddd9f353f467caec16",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/rmsnorm_256x128/launch.c": "a73f04697476d4965065075527684a727bd6e978e04f7a92bd31dc9ea30e1829",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/rmsnorm_8x128/launch.c": "859275a2bbffeeef88cd4796dbdff50ae47510c174e8760d194274ec6d8bbe81",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/rope_16x16x128/launch.c": "154f3581baa72212b723680aa37b232cf4898d2d24a412158ef02de649414c59",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/rope_16x8x128/launch.c": "34c674cc19a37cdad84d5779cda8c84a96fb541238dc73ca0f7a2aef8f3b2355",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/rope_1x16x128/launch.c": "038fea1559459122f903f20ae5b44fe7022d21cdcb2c9895337c39891b87108d",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/rope_1x8x128/launch.c": "199955fabb3a40656b45555c9872b2fd8e550466769729d5a83a6fa5c084a384",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/silu_16x3072/launch.c": "7aea3868e3a79985326a7a8e40c2f46da75f75fc8e12d75c89c6aa5e600e5a24",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/silu_1x3072/launch.c": "b1416e28c4d4c27e288703c2c18ccd31ca3340f9156a85daf46bb9a564c95b28",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/softmax_16x16x16/launch.c": "25cc7f96f5eb57e86c0691f547bb7c7e6d2d979a3760979178263079dac46d24",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/softmax_16x1x17/launch.c": "0b5d029365273264e7ea8954524459df952810036cad8a7c2e2eebb3f8528d80",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/support.c": "1748abf575678c8602aef1e69c47d9d3d11a9362879665b87ad8d219aa6b26f0",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/support.h": "0ee1e660c1be2847f88a11cbf220fa665eada68552103e46d645fbcebb1f7d7d",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/triton/build.py": "fb99ae1ae247bfee103b5719d1aaa553b7100e95729c4b98bddb072241da395d",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/triton/cases.py": "f259d6ca7fa62ad6d88f5c516bd78baa89d759e9d7e6f64d68adb2cf26ca117b",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/triton/export.py": "266a64dda66018359776c61fbbee1c9e8109ff554938a0cc4e66a5d50d0fc56a",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/triton/kernels.py": "942d987512a0a6f91bae5b4c915eea5a5f8f090f2c4407e6d5b251e4ec54f1a8"
+  },
+  "kernels": {
+    "add_16x1024": {
+      "ttir": "93dbddd3cdfe43e0a13542e63256337ba29d7ef4de361c2842c52dc09024a518",
+      "linalg": "eb765a6f88cb95ae44992a55371c33c30cdcf3b7da42f64f52f0ef00dcb5ce5b",
+      "llvm": "b48d5d9b3594e250880afd897e478c8d264d9cff91d9dcfb9740f52681cb2a4c"
+    },
+    "add_1x1024": {
+      "ttir": "f8b5e8b3819851dcfb684990078557a0c2465fc8bda925da4200e358a7b9d689",
+      "linalg": "7643a1abf4afc13642c100c31e19c07e97d58a10bda6e3a4c10d89a41ec48ca5",
+      "llvm": "9e7216a9fab4fdf145c0298db71bb1b7686217df8353c18142bb1f552ac27d1e"
+    },
+    "attention_pv_16x16x128x16": {
+      "ttir": "901793e3439ac9eca30e26cea4b910b9b8f647563159c4f73c3e2b883620d194",
+      "linalg": "9934b9b26f89b53059a40161764cdc68bfe2b7769a7211879e35594183f6d57b",
+      "llvm": "02c22bdee671c6657a9c7fd916bd56b0db5f812d09dc06cbf7a4f70544fbdbfd"
+    },
+    "attention_pv_16x1x128x17": {
+      "ttir": "1133aa222e43d106ae92a5e20719d1aea53350be9aa6e4c7ce5d4a2f939b3050",
+      "linalg": "5ccb765cccf758435a0f63e87f1a22da0e73277849ca85f64e249b9089f545f8",
+      "llvm": "c898945a5a34185e60f7b2f2ce7d706d09f6bec9befe178da7d4f870dc18f783"
+    },
+    "attention_qk_16x16x16x128": {
+      "ttir": "24e891667483520668f3de49c72ee675e3f8a573665174e5c6c734eee2fe6aff",
+      "linalg": "7cd35a842c2b1145fc8745714a45425d0d4c8fad8fd4b91df492fc25daf4c7e4",
+      "llvm": "7f8160d19730a33e3128ae7458eeeed98568079c8ab2e1e8d75afd3bea074603"
+    },
+    "attention_qk_16x1x17x128": {
+      "ttir": "bfa256a8d3e64361314e26f243b4284f3e0f0c24e55e4c01fce444e07a3f97e4",
+      "linalg": "736a3e45eafc559af320d8a9ce19b66091e765ed71023ed99a8938dd48d88c0f",
+      "llvm": "f0a258ec0cb024124a1a21e20d6bf40a7dd548751d7c2e96632ac2f4ac15927c"
+    },
+    "attention_scale_mask_16x16x16": {
+      "ttir": "4c4ecdd32d76f9a515a286ffbe3cebc7004e74ae2fb1a47232caf4d1bf1bee97",
+      "linalg": "72d60cbd4184af66794a9ce017f8502d1de172aeecded6c70335cd2e484ea1ed",
+      "llvm": "a9a6e6bda38949e4969ce6ec59cc6f786b4618e47078c3195c6bee2e66e99cb6"
+    },
+    "attention_scale_mask_16x1x17": {
+      "ttir": "9bd6e97e85dafb79c47d26091fc253e487e32e287565481fb1ef274ff244419d",
+      "linalg": "72ee748e2aec2af9fb3ca12825c852100ee30cb321a151cf82accb8b12670277",
+      "llvm": "8eae286b80cf4198721f70377e06c034a6f5d359dad990716a63f0147c86d96b"
+    },
+    "dequantize_16x1024": {
+      "ttir": "e8b429f3f7aca60bf248b078b3597b8070c97b05de17c72543bfe2d4809e2929",
+      "linalg": "efd66faa172eb98036e40213492962a2e3bd7beec1fe96e043d10e2a809d3285",
+      "llvm": "a15a6df41195a5998dca4f65564ef1c7bcba79660f305e5cb9fd744993314f56"
+    },
+    "dequantize_16x2048": {
+      "ttir": "fe064ef99724efc512dfae18b92c8c4dbb1a25e64655e85c8a48a70419709799",
+      "linalg": "bac19cd346ef9909a915b4000509e880964715f265939567f2e8ecd6551f7fd1",
+      "llvm": "822f4af175090bceda85875f27482fbf69ecdfecdbfd90d4b50f0c9a4aaa77b7"
+    },
+    "dequantize_16x3072": {
+      "ttir": "3ddd1c9c584a7c87220f2d79c2491d224807f0e177f96550a876d9eb64052cf1",
+      "linalg": "20059e47ed8f04b4a96cccee5b856c32719dc8720fe91a9cf369eb1e8fb34972",
+      "llvm": "242d495872f691b6e37b6070fba43e6eaf4c6ae778297115b7112ff1b3168737"
+    },
+    "dequantize_1x1024": {
+      "ttir": "4ce87c8a8dc8bd04554f0278200cc6b91c4e81cae79ac32ebbe57d03b732deaf",
+      "linalg": "4bb892ad64a57712952064f9116e629f051af27062ad1e4d83660bb429632680",
+      "llvm": "0feba6b31f611212ec9949dbbb41d27ca10437106c29c0b8b48d7cc3a02eb9a2"
+    },
+    "dequantize_1x151936": {
+      "ttir": "48f001d5b187d50519a941f8227880f3d7c9ee4f5b474ccba038d2d68b037f3c",
+      "linalg": "18f046d39d099ce74edcf1ca96ebf95f3de85c131d95afb2ccbf12db0d8d5419",
+      "llvm": "651e0da57cd3ecb5fcc8c1cdaebd9d642d81f7517703b7014581890c420c1fa4"
+    },
+    "dequantize_1x2048": {
+      "ttir": "c93987324a1be7b796f4d4d47117c5a6d0d08eeaa8eed9e676f92fbaeefa59d4",
+      "linalg": "caea89fdcb830953fd88d5651cd31549dfb8141bc6955423ee88da5b8c4de5a7",
+      "llvm": "c19c76e3dcca6449f94585fdff2eed79ebdfc60db59880f00e1eba8ec8824ff2"
+    },
+    "dequantize_1x3072": {
+      "ttir": "fda9bce6bbbc55c295614975a6490de625b5a8896c908b78eb42c1144fb4d62c",
+      "linalg": "027ae917724e9b72874b221dcdf5d75691f79a30c7906021f94cf3fb63819d8f",
+      "llvm": "d8d1d7bf4b10179ee3b0be12dedfcd528fdaead6ac3a583ab791d5ad25ebe459"
+    },
+    "embedding_16x1024": {
+      "ttir": "eb675c35386dbf0300cc9ee0679e6728a0f5fececc1e807466446f52c09212ab",
+      "linalg": "f782383f6f245d4d9ac87a1c9f668cdb0d0e45bb5f6a42c87fbc2f92a52e7ef8",
+      "llvm": "336ed0ce43ec3aae8435ce524effd3a724407f79430d55f0a55126e6c0cc25fd"
+    },
+    "embedding_1x1024": {
+      "ttir": "63e898c144471c126bff46befa8bdca3e9cfa92382e2d88984338c6647b50044",
+      "linalg": "9bea8f0f72463d0042a2ef113822339957048a8ec6adeff3db56929225b8cbe6",
+      "llvm": "da33f58de41acd85bb4beaedbd13f1e4a67b5286a0bb4b135dbae2a4285be24f"
+    },
+    "gqa_repeat_8x16x128_to_16x16x128": {
+      "ttir": "2a38655e06f8d09e7981c145f8c7ab29e1fb183b99661547cc5b5249ed2e7306",
+      "linalg": "a5a90df2148045828bec72e650984962d6feb57ef42907736ca22736f2374467",
+      "llvm": "dbade2e073d688bd0055edb879ad6e11e2f8c9fe78f9f684021575e2e741be42"
+    },
+    "gqa_repeat_8x17x128_to_16x17x128": {
+      "ttir": "22a446ff3f6652c93a8a10d05580a8dd780bd15025ca07628ca5d0530bae596c",
+      "linalg": "12042bb426ba74ac45cab8adff750953d84929ba54afc25cf2e59aa8088e82d0",
+      "llvm": "a4024a55ec4fbc4afb562fc978d017cdd57f46616050d62741f65958c2f25002"
+    },
+    "kv_cache_update_16x8x128": {
+      "ttir": "bb75f6d422ff279db899167c31afcc7430bcdc6243b19a28505f12027ee7feac",
+      "linalg": "0cfa354091da5b5bf4bf625aa3d996caff213e98a28862bf5d60847ddb1e3399",
+      "llvm": "a7c4f07e73e2bb5e0aedd2f67786b429964cdca8ba558dc8a584c2091a5add87"
+    },
+    "kv_cache_update_1x8x128": {
+      "ttir": "3527b58e8a195fd9d76b0af61ab6a8e0c0d063a8a7399ceb6294f17441aff6c1",
+      "linalg": "98243d05b5e241d7ae1a8569d23bd90297d3d1fd2792da97ab24f616f3f34a77",
+      "llvm": "3a0aaae4b9cc38757be25b2b193b8b6115339dfaee4eea53be6bd90d75b4cd6a"
+    },
+    "layout_context_16x16x128": {
+      "ttir": "8dfdb977ed49e5f9259d498edb040207d9ce4ebd2228d90b7b032d2c3582acf7",
+      "linalg": "d3a90d06a0d5d42afaec1c1f88819adc36f72ce683c8c2a157a69149f3699b6f",
+      "llvm": "c4da11c40be2262a1d7fdd53777ed0ec29e38de8681c143d27a5f1ee5798ce75"
+    },
+    "layout_context_16x1x128": {
+      "ttir": "4434bd2c4fac957bdffb098af33432a1661f03f21e2eac312496988ca200989b",
+      "linalg": "9d0371cedccf4be9b01798e9fa50de7f9fe38d80b3d81b43f068f719c14d9b2c",
+      "llvm": "fff89675ac9638c5918543ab3a4d94273aa4e933e41a6f237abcc4bebc667014"
+    },
+    "layout_k_16x16x128": {
+      "ttir": "c699229ff5cd1f68919bd1e8e040d0ef04ba3c2ea543ff5891eff73fd25fb1a5",
+      "linalg": "f6d62c84c5d4d38b79d97911e8981b8a65efadcbd447708f0c24d131a843b30d",
+      "llvm": "eecabae9c21597a17e7cd611e873f0ff2e900e3ae2f07597b09a0a4a67532cfb"
+    },
+    "layout_k_16x17x128": {
+      "ttir": "26b27d0aeccae308e82abbfa6a9421033d1b64833d8b18020e7f0d47f46f114d",
+      "linalg": "eda2c447d45d0aa47814ed4fc8b7926b394de84843cfb0585d18caf146f03409",
+      "llvm": "cadcb3f4ddd68c58426971ae4922fd4eb8c52b5d4c612b374158565b4747e6a2"
+    },
+    "layout_q_16x16x128": {
+      "ttir": "a4938c61a85839809a7ba38a734e96322a7e808e0a3aa91866346bf83ff87a83",
+      "linalg": "50a356f6eb6aa95145cc24018e501de6001d6fd7d10ce875e8f9bc6a04bc1456",
+      "llvm": "710f69e3a0c799f65025e2f69efc45c2010d4fac023d3f3d97d3b14531c1607a"
+    },
+    "layout_q_1x16x128": {
+      "ttir": "9688d66e86f97bedb11b938c92f305dae7252ef8d9ad3a5b1002711a4df4f1a6",
+      "linalg": "a3538915ccaef6d951c7bb93dc49fcba3934a69e7feaf6035cb75d22c3dcd764",
+      "llvm": "8864015a343c09a80f318eec4f1ee643fd5d614f436b3f8b8deb994a4a3665f1"
+    },
+    "mul_16x3072": {
+      "ttir": "b2e666be0c164231a888f13d9872b1d7ffa44a86f81187b629161edd07046014",
+      "linalg": "cc3b0607e06a1442a6b1395df250995ffddca67088f37c1b1c88c4c92836b4e2",
+      "llvm": "00af56c2b3a2353acd2b19c052f9aaee16daf62a4307228a8d202b573616a845"
+    },
+    "mul_1x3072": {
+      "ttir": "204499f3e58e46dff1b8bec253d463646060bb9e7367deabb2a995bc46461966",
+      "linalg": "595d7ebb4edcb35eefc21376289317237c14084ce4df3643539a1241900f3689",
+      "llvm": "099522f4ac97717ff6cca1a240795a967edc6a12a6eccc2bb0a7add93b65dce4"
+    },
+    "quantize_16x1024": {
+      "ttir": "5886c40cc2a2039451ba9008f56f1b099be5da1374850da3434e7541f08e5db1",
+      "linalg": "21b42306fc5dbb1fb8e24921b7dc156135141e47e82c0f3370192cea2950a972",
+      "llvm": "57acbe4b6ccc65f13ed5ca7be16377ae73e6816aa20f535046f3f7eb0f842d75"
+    },
+    "quantize_16x2048": {
+      "ttir": "6262e544fd35fd1265b258f4be87a865a6158b3555ea1b4c51bcdec7ebde780d",
+      "linalg": "16c0954d67595666758a3e33dc6cea143defbf922efcd1d73a49324a8256296e",
+      "llvm": "6cd8d18479b8e4587b9b1e45647cd2b035fbed136a3b683d49100c4ead21839e"
+    },
+    "quantize_16x3072": {
+      "ttir": "75930f63b8c9b14c4c94ae8058538f918820594fbaaf50682731f04128cf81b3",
+      "linalg": "a2b1ae7f935611dc7f16dcb15849545228fa3a27e4f2b8d2658d0c880adf8243",
+      "llvm": "2d3791a5d3806344e847020f3d79830c12a93a69173a601e989c7010b4b1ec5a"
+    },
+    "quantize_1x1024": {
+      "ttir": "81300a44adc8fe71cfd3246da99785cbb260bcf50a4aaa1d068895c348e8e30b",
+      "linalg": "395424b741f4faa4d7c4ba008f5fc349f3f96391be9d7cb3e79ded2f13b08380",
+      "llvm": "3a7997322038814fc73e916ff7e0660972157ffe5d3b0b7afc73d607df169eac"
+    },
+    "quantize_1x2048": {
+      "ttir": "da678c62bf3743e4b363e3a1e6e48abeba20b1a26758fe9815e9a71808c19528",
+      "linalg": "d8836f1e610205decd217b237ed5145732c57ae73561ddf32427e662e127e3d9",
+      "llvm": "6879253ac625c8fad866fa6a6111864a9c5fd82cbe7a2847b18cfdd7fe0dea95"
+    },
+    "quantize_1x3072": {
+      "ttir": "13b73861f683ee47e4ffd497bdd36423604ce7d88b1c9ece865b544a0dd5de7c",
+      "linalg": "f95b74d6e8be5e3c87f9a1e6c9d0aaa78bbfa03b7208e20d37301b2fa221e51b",
+      "llvm": "ea8edca621fc723f8082f5d707e01f7c3caabcb2df36998ec2164dc40931a800"
+    },
+    "rmsnorm_128x128": {
+      "ttir": "6ddd85d30a9c9e900a326ba1dc1482d6d758fdde0967e7f1390fbd1ce75ce8fc",
+      "linalg": "422dd5aac2a9543069b790711a5c6074a8d54affbfcfe7a84ea4223a6817c66b",
+      "llvm": "fc4433a657f89864547055eeb8f95864cf030ddd9b93100540e81e50cd7afe1d"
+    },
+    "rmsnorm_16x1024": {
+      "ttir": "1cb348ef2104ba09969f4b9b247297f65a1047853f5bf1b4ded79bdc6bb67bb7",
+      "linalg": "076f83a8b3bb727d1d6269d722145ed69da4b538c0f3f62e40ed74fd24e25fae",
+      "llvm": "9c845267677783e663d409eaf2989aacfa0bb4f2a83b97722ccdb76e8e33ba00"
+    },
+    "rmsnorm_16x128": {
+      "ttir": "5ade149c9bebe5e41dcd3b7f4d81cd28d58ec6f0f8d7d2d3826d974bdfe0294a",
+      "linalg": "a4893fc0eb50f6183cab496da83eaf6768ec859ce2f213c98a9fa00a680cd4fa",
+      "llvm": "4ddbb5eaf6bf0b470d3aea8da372c38ad47cca6d64fa11a257ec5a32bfdb4090"
+    },
+    "rmsnorm_1x1024": {
+      "ttir": "8158abe476a5d7278617f4a76183a3b799e93f2c5f566bb57d0320651b9c4ae8",
+      "linalg": "65ebf0fdda46b96a3950b906193f4cc7ebdc2ba841007ce10d16792026409f1c",
+      "llvm": "69bb23ac75f8ca591c5655eaa1f6be72fb58dbf3554e7633f0bb8630d74af6b7"
+    },
+    "rmsnorm_256x128": {
+      "ttir": "e77f9bf5779d232a3e6bfdbef05beb171e2664f97b1f41d1ca65df1f48a12590",
+      "linalg": "a18fbe5d29901393494d6de35741dcf1b9e5f74d6ab0aa2b4b37ae6bba652e52",
+      "llvm": "5add6e1edc3ff902aa3219ffe477e8dca1f23c0547119c3625bdeb31880546b9"
+    },
+    "rmsnorm_8x128": {
+      "ttir": "31ad1157d317f815807246d47118f6a146c4fdf68f8b5a324266e553b367932c",
+      "linalg": "87aad8e6c7e4189a4c9e8eff8c1510aafba4b2c9802cb760ce289a6aa3962b75",
+      "llvm": "9248b6c23eecb59f22099126af5151448bededb9b40333180699f3c6abbf47e0"
+    },
+    "rope_16x16x128": {
+      "ttir": "5c249b1a1eb5e5b74c9ce2ea6e57b6b89ada212e267532133ef6623d524ebe7b",
+      "linalg": "e74b2070ae1016a7238052f2756c3563597de2436c2bbbd70bc986d66106319e",
+      "llvm": "bb6e260306d242465f6c5a984065bf37b60dd4406a7536893fce66f7dc59cddd"
+    },
+    "rope_16x8x128": {
+      "ttir": "cca94e240aa8714d9e0d127c33b348a6d9721a9829138da0c3ebb3e2b2ee7036",
+      "linalg": "514426750e83c6f7ab5a37db081f8e6ec5e146982b0e9dbfa979050a3d36375a",
+      "llvm": "b5d89d07b15275957d35cef1ed660e28070c78fb2bed98fdeeb628dea9ae3da3"
+    },
+    "rope_1x16x128": {
+      "ttir": "37c39443a28f555c31a1e9d03ba5ee3bb33a5c831ba69bfbe583fdcb47554484",
+      "linalg": "411ff1cb8eabbfe44b88468083524193736d997117333503b639059c58c21e37",
+      "llvm": "09427cf44797fb44da3803b4aad42839086cc8cd6aa32d667479da2e2d1cd757"
+    },
+    "rope_1x8x128": {
+      "ttir": "eca3bab419816063d081d8af6ed244edf7ecaeb2a90874e1b7b336fdbb2346f8",
+      "linalg": "17dfc0f3df3c32931e3545f041e8d15366850faada83eda79797362a83bd566c",
+      "llvm": "307f288d2081b59256faafbd271e36a5091999a973fe2ea8eeaee267f953ac16"
+    },
+    "silu_16x3072": {
+      "ttir": "52745e49f65ac94d4ce8637c04e5f116f4c559057b55a3c8cd70b8de3f60f75c",
+      "linalg": "7ab0cb0b92e5738d3cb8aa58427bdf91a751f2d358da1cf92664137096a54006",
+      "llvm": "5370e9f46501597283a4398963507afa4a5d74db7d640ef32c435d9f5d725f0a"
+    },
+    "silu_1x3072": {
+      "ttir": "87661e565d14869028b84378d6d86584315a2ac3cf3a6442ebfecfadb00268b0",
+      "linalg": "d8eb8c413e60d6c3e54718b15b72a5ef5925c823f41fbb26b89ecbbbd87d13ae",
+      "llvm": "1ed4dc31d5b479f95a1c0fad407849dfdc86ac4d0e8efd085602e991e2b38596"
+    },
+    "softmax_16x16x16": {
+      "ttir": "ff76cbbd83356cb9520c25e890196dd16974ec074a5d215d428d7d6a13f5a902",
+      "linalg": "1a3d919b4fc139dbafba9051e453b8c42aad62c84ee2ebf7abc6184535a31fdf",
+      "llvm": "b90ef20ae18606db4e05615424118809c7af4249f0c3a49109a7b5fd497af4e0"
+    },
+    "softmax_16x1x17": {
+      "ttir": "d132897a9e6181e91f4357ba8cb9153a353f652306afc3478d97aeca8b8e7053",
+      "linalg": "31fc900b2393145fb7b98117e661a766504095a11e7fa8b493a09dcf2253b67b",
+      "llvm": "e8740964fb31f1354fa36cc9e4b460c2a83be9b9cd18016f4b2df36b4f4a90e9"
+    }
+  }
+}

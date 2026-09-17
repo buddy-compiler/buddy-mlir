@@ -1,0 +1,58 @@
+{
+  "stage": "Stage E: the on-board tokenizer ENCODER, verified against the official tokenizer",
+  "status": "PASS",
+  "what_was_missing": "the resource pack and reader already covered decoding and the chat template, but not encoding. The packer's own docstring says so: 'full NFC + regex + BPE encoding is a separate integration task, deliberately not approximated by splitting on spaces'.",
+  "what_was_added": {
+    "tables": "tools/gen_unicode_tables.py emits \\p{L}, \\p{N} and \\s range tables plus canonical decomposition, combining classes and canonical composition into text/unicode_tables.c",
+    "encoder": "text/tokenizer_encode.c implements NFC, the declared split regex, byte-level mapping and BPE merges, allocation-free and bounded",
+    "resource": "the reader now exposes the merge table's offset and count"
+  },
+  "verification": {
+    "corpus_size": 566,
+    "identical_to_official_tokenizer": 566,
+    "pass_rate": 1.0,
+    "sources": "repository Python sources and markdown, plus synthetic whitespace/script/symbol combinations",
+    "method": "tests/tokenizer_encode_check.c reads NUL-separated records (so embedded newlines survive) and prints ids; the driver compares against AutoTokenizer.from_pretrained('assets/official')"
+  },
+  "table_budget": {
+    "letter_ranges": 648,
+    "number_ranges": 134,
+    "space_ranges": 10,
+    "canonical_decompositions": 2061,
+    "canonical_decompositions_longer_than_two": 0,
+    "combining_marks": 912,
+    "composition_pairs": 941,
+    "table_bytes_estimate": 49656,
+    "unicode_version": "14.0.0"
+  },
+  "bugs_found_and_fixed": [
+    {
+      "symptom": "17/19 on the first corpus; whitespace runs tokenised wrong",
+      "cause": "I read `\\s+(?!\\S)` as 'whitespace at the end of the string'. With a greedy \\s+ and a negative lookahead, a maximal run of n whitespace characters followed by a non-space matches n-1 of them, because the character the lookahead peeks at is itself whitespace. Reading it the naive way made '  leading' one piece instead of ' ' + ' leading'.",
+      "fix": "implement the backtracking semantics exactly: n at end of string, n-1 when a non-space follows, and no match at all for a single space followed by a non-space"
+    }
+  ],
+  "corpus_coverage": [
+    "contractions ('s 't 're 've 'm 'll 'd)",
+    "punctuation runs, digits, code comments and indentation",
+    "leading/trailing/multiple spaces, tabs, CRLF and blank lines",
+    "Latin with diacritics, CJK, emoji, mathematical symbols",
+    "combining marks, non-breaking space, em space, Turkish dotted capital I"
+  ],
+  "not_done": [
+    "the encoder has not been run on the board (it is verified on the host with the same C that will be compiled for NR)",
+    "special/added-token matching in the encoder: the packer refuses added tokens with single_word/lstrip/rstrip/normalized flags, so plain longest-first matching is what the resource supports, and the encoder does not yet apply it",
+    "the generation loop and UART input are not wired into a firmware yet"
+  ],
+  "full_model_board_run": {
+    "status": "in progress at the end of this round",
+    "what": "the 28-layer fully quantised image, re-linked with the argument-order fix, launched with a 9000 s capture window",
+    "why_so_long": "the one-layer prefill+decode took 5.5e9 cycles (about 374 s), so 28 layers is on the order of one to two hours. An earlier estimate of about 51 minutes for the attention alone was wrong: it came from the Stage A attention kernel cycles, and attention is NOT in the replacement set -- the graph lowers attention as linalg, so those kernels are never called by the model.",
+    "board_discipline": "the board was confirmed idle before launch, the run owns UART through the worker's lock, and the capture window is the only cost to other users"
+  },
+  "corpus_size": 616,
+  "identical": 616,
+  "pass_rate": 1.0,
+  "sample_mismatches": [],
+  "corpus_now_includes": "special-token spellings embedded in ordinary text, which is what forced the added-token split into a first pass"
+}

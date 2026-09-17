@@ -1,0 +1,2416 @@
+{
+  "format": 1,
+  "archive": "libqwen_triton.a",
+  "sha256": "5118ae57d1f417aaea56c3fc56549fb6bcae7050e02c645244a4665c92306f6d",
+  "members": [
+    "attention_pv_16x16x128x512.kernel.o",
+    "attention_pv_16x16x128x512.adapter.o",
+    "attention_pv_16x1x128x512.kernel.o",
+    "attention_pv_16x1x128x512.adapter.o",
+    "attention_qk_16x16x512x128.kernel.o",
+    "attention_qk_16x16x512x128.adapter.o",
+    "attention_qk_16x1x512x128.kernel.o",
+    "attention_qk_16x1x512x128.adapter.o",
+    "attention_scale_mask_position_16x16x512.kernel.o",
+    "attention_scale_mask_position_16x16x512.adapter.o",
+    "attention_scale_mask_position_16x1x512.kernel.o",
+    "attention_scale_mask_position_16x1x512.adapter.o",
+    "embedding_16x1024.kernel.o",
+    "embedding_16x1024.adapter.o",
+    "embedding_1x1024.kernel.o",
+    "embedding_1x1024.adapter.o",
+    "gqa_repeat_8x512x128_to_16x512x128.kernel.o",
+    "gqa_repeat_8x512x128_to_16x512x128.adapter.o",
+    "kv_cache_update_position_16x8x128_cap512.kernel.o",
+    "kv_cache_update_position_16x8x128_cap512.adapter.o",
+    "kv_cache_update_position_1x8x128_cap512.kernel.o",
+    "kv_cache_update_position_1x8x128_cap512.adapter.o",
+    "matmul_16x1024x1024_f32.kernel.o",
+    "matmul_16x1024x1024_f32.adapter.o",
+    "matmul_16x1024x2048_f32.kernel.o",
+    "matmul_16x1024x2048_f32.adapter.o",
+    "matmul_16x1024x3072_f32.kernel.o",
+    "matmul_16x1024x3072_f32.adapter.o",
+    "matmul_16x2048x1024_f32.kernel.o",
+    "matmul_16x2048x1024_f32.adapter.o",
+    "matmul_16x3072x1024_f32.kernel.o",
+    "matmul_16x3072x1024_f32.adapter.o",
+    "matmul_1x1024x1024_f32.kernel.o",
+    "matmul_1x1024x1024_f32.adapter.o",
+    "matmul_1x1024x2048_f32.kernel.o",
+    "matmul_1x1024x2048_f32.adapter.o",
+    "matmul_1x1024x3072_f32.kernel.o",
+    "matmul_1x1024x3072_f32.adapter.o",
+    "matmul_1x151936x1024_f32.kernel.o",
+    "matmul_1x151936x1024_f32.adapter.o",
+    "matmul_1x2048x1024_f32.kernel.o",
+    "matmul_1x2048x1024_f32.adapter.o",
+    "matmul_1x3072x1024_f32.kernel.o",
+    "matmul_1x3072x1024_f32.adapter.o",
+    "rmsnorm_128x128.kernel.o",
+    "rmsnorm_128x128.adapter.o",
+    "rmsnorm_16x1024.kernel.o",
+    "rmsnorm_16x1024.adapter.o",
+    "rmsnorm_16x128.kernel.o",
+    "rmsnorm_16x128.adapter.o",
+    "rmsnorm_1x1024.kernel.o",
+    "rmsnorm_1x1024.adapter.o",
+    "rmsnorm_256x128.kernel.o",
+    "rmsnorm_256x128.adapter.o",
+    "rmsnorm_8x128.kernel.o",
+    "rmsnorm_8x128.adapter.o",
+    "silu_16x3072.kernel.o",
+    "silu_16x3072.adapter.o",
+    "silu_1x3072.kernel.o",
+    "silu_1x3072.adapter.o",
+    "softmax_16x16x512.kernel.o",
+    "softmax_16x16x512.adapter.o",
+    "softmax_16x1x512.kernel.o",
+    "softmax_16x1x512.adapter.o"
+  ],
+  "case_count": 32,
+  "cases": [
+    {
+      "case": "attention_pv_16x16x128x512",
+      "symbols": [
+        "_mlir_ciface_kernel_attention_pv_16x16x128x512",
+        "triton_attention_pv_16x16x128x512"
+      ],
+      "undefined_runtime_symbols": [
+        "memcpy"
+      ],
+      "files_sha256": {
+        "kernel.ttir": "1b92d204277fb3d758d37bfefe5dcb7b9faff36c1af39b08ce3af4bfcb57ccb7",
+        "kernel.linalg.mlir": "8017a8551e9433eb734e85ba1b36e88156d56827761853cdbb9edecff245ee2a",
+        "kernel.ll": "aad56e82be3966a2132cd64392948e83def91af77d869fa57a4c1ffba04fd9f5",
+        "adapter.c": "3894e6103860ee3c3505d55b85c9c78cffd2565409f72421326e830d62473638",
+        "frontend.json": "c00d4e6ac5c36a8634b0ca2b2676852955b867523664c7fabe92f57e2d66b8a2",
+        "kernel.o": "349f160938972d63a541da9043f8a8af1025518d84ee077ea95aae2e5d94a4f6",
+        "adapter.o": "185d92f4464ac211fd2ac85725bcb13061baa478fb085565faa4bbea2e90459a",
+        "kernel.s": "821ef324138f4716d75e4fedebee881274a5945009bd39f0612a6a0106fe9a75",
+        "kernel.nr.S": "adbc1255d38bb88e825864d2aeb4bc2962d7a6d0404755223127d6fe1e4b21d7"
+      },
+      "frontend": {
+        "name": "attention_pv_16x16x128x512",
+        "family": "attention_pv",
+        "kernel": "attention_dot",
+        "symbol": "triton_attention_pv_16x16x128x512",
+        "arguments": [
+          {
+            "name": "A",
+            "rank": 3,
+            "dtype": "f32"
+          },
+          {
+            "name": "B",
+            "rank": 3,
+            "dtype": "f32"
+          },
+          {
+            "name": "C",
+            "rank": 3,
+            "dtype": "f32"
+          }
+        ],
+        "signature": {
+          "A": "*fp32",
+          "B": "*fp32",
+          "C": "*fp32"
+        },
+        "constexprs": {
+          "M": 16,
+          "N": 128,
+          "K": 512,
+          "BM": 16,
+          "BN": 16,
+          "BK": 64
+        },
+        "grid": [
+          1,
+          8,
+          16
+        ],
+        "directory": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/model-cases/attention_pv_16x16x128x512",
+        "launch_source": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/model-cases/attention_pv_16x16x128x512/launch.c",
+        "validation": "Unmodified parent launch.c and its independent numerical oracle",
+        "frontend": "triton.compiler.ASTSource -> CPUBackend.make_ttir -> triton-riscv _ttir_to_ttsharedir",
+        "triton_version": "3.8.0",
+        "kernels_sha256": "0596945721efbd12958267ad0093e59cf8cac464316b14cda1af4b78e236f930",
+        "exporter_sha256": "266a64dda66018359776c61fbbee1c9e8109ff554938a0cc4e66a5d50d0fc56a",
+        "cases_sha256": "3e6e4bb2654df8781feccfa0a0974a2d35962282d33ec98622e52c55a6dfdba7",
+        "ttir_sha256": "1b92d204277fb3d758d37bfefe5dcb7b9faff36c1af39b08ce3af4bfcb57ccb7",
+        "linalg_sha256": "8017a8551e9433eb734e85ba1b36e88156d56827761853cdbb9edecff245ee2a",
+        "abi": "unranked memref: (i64 rank=0, rank-0 descriptor pointer) per tensor, then six i32 grid/pid values"
+      },
+      "model_graph_binding": "pending semantic/layout/alias/accumulation matching",
+      "adapter_precondition": "static shapes/grid/physical layout from frontend; offsets supported; strides not dynamically checked",
+      "hardware_validation": "consult parent final verification; archive creation does not run hardware"
+    },
+    {
+      "case": "attention_pv_16x1x128x512",
+      "symbols": [
+        "_mlir_ciface_kernel_attention_pv_16x1x128x512",
+        "triton_attention_pv_16x1x128x512"
+      ],
+      "undefined_runtime_symbols": [
+        "memcpy"
+      ],
+      "files_sha256": {
+        "kernel.ttir": "1a81eaf40ccfac6b953eeef3a0b9cc605aa14924a73c69f12ccf09f33f85350c",
+        "kernel.linalg.mlir": "caef79731021653e6620759a9bb813142da2bf03a6c68d71cb9e609290ada160",
+        "kernel.ll": "f498d82863eede4acb1e0ceb683a24e03698cd3ab3322301b4b99fec1e18853a",
+        "adapter.c": "273bdd193ee44d18f694a2528a8f469259a596b105d45f8d602deb48df9e97e7",
+        "frontend.json": "f9df224c3f8516dd08a648f7ae432722d9fd1453c1098d3ab0c8087f4d40b79b",
+        "kernel.o": "7668b9809be2d3926220c939169ca8f50fc1b94ace1fe302e2656a55307a2cad",
+        "adapter.o": "4dc6deddd5261022e41e338c9e9f71401d862ced856069faf2028064acb12920",
+        "kernel.s": "3b3fdea1eb330b651376e74423bbf25fc7738e5f496cbd200b83ab399d306e36",
+        "kernel.nr.S": "92e52607d3a2da2d7ad8709691fcb04f95adc16d4f9b9e95231148b44e67af2c"
+      },
+      "frontend": {
+        "name": "attention_pv_16x1x128x512",
+        "family": "attention_pv",
+        "kernel": "attention_dot",
+        "symbol": "triton_attention_pv_16x1x128x512",
+        "arguments": [
+          {
+            "name": "A",
+            "rank": 3,
+            "dtype": "f32"
+          },
+          {
+            "name": "B",
+            "rank": 3,
+            "dtype": "f32"
+          },
+          {
+            "name": "C",
+            "rank": 3,
+            "dtype": "f32"
+          }
+        ],
+        "signature": {
+          "A": "*fp32",
+          "B": "*fp32",
+          "C": "*fp32"
+        },
+        "constexprs": {
+          "M": 1,
+          "N": 128,
+          "K": 512,
+          "BM": 1,
+          "BN": 16,
+          "BK": 64
+        },
+        "grid": [
+          1,
+          8,
+          16
+        ],
+        "directory": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/model-cases/attention_pv_16x1x128x512",
+        "launch_source": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/model-cases/attention_pv_16x1x128x512/launch.c",
+        "validation": "Unmodified parent launch.c and its independent numerical oracle",
+        "frontend": "triton.compiler.ASTSource -> CPUBackend.make_ttir -> triton-riscv _ttir_to_ttsharedir",
+        "triton_version": "3.8.0",
+        "kernels_sha256": "0596945721efbd12958267ad0093e59cf8cac464316b14cda1af4b78e236f930",
+        "exporter_sha256": "266a64dda66018359776c61fbbee1c9e8109ff554938a0cc4e66a5d50d0fc56a",
+        "cases_sha256": "3e6e4bb2654df8781feccfa0a0974a2d35962282d33ec98622e52c55a6dfdba7",
+        "ttir_sha256": "1a81eaf40ccfac6b953eeef3a0b9cc605aa14924a73c69f12ccf09f33f85350c",
+        "linalg_sha256": "caef79731021653e6620759a9bb813142da2bf03a6c68d71cb9e609290ada160",
+        "abi": "unranked memref: (i64 rank=0, rank-0 descriptor pointer) per tensor, then six i32 grid/pid values"
+      },
+      "model_graph_binding": "pending semantic/layout/alias/accumulation matching",
+      "adapter_precondition": "static shapes/grid/physical layout from frontend; offsets supported; strides not dynamically checked",
+      "hardware_validation": "consult parent final verification; archive creation does not run hardware"
+    },
+    {
+      "case": "attention_qk_16x16x512x128",
+      "symbols": [
+        "_mlir_ciface_kernel_attention_qk_16x16x512x128",
+        "triton_attention_qk_16x16x512x128"
+      ],
+      "undefined_runtime_symbols": [
+        "memcpy"
+      ],
+      "files_sha256": {
+        "kernel.ttir": "96741426bd195fa0318193c8cba2e445767de3d78fffa674eb009270328c6d9f",
+        "kernel.linalg.mlir": "ee40e2c1bba51d98ac1e3bee1b7d63a33530734e796fb326f047bc4699004c93",
+        "kernel.ll": "c562659db81fae055e8e62800c374e03796587c9f24c18f13567c47ca3c26ce6",
+        "adapter.c": "1576269dded8890c7fd65427e966b13964ece496c2f1f85ccbc5302c71e569de",
+        "frontend.json": "fb28701473041caae5ffe22fa2c58c69443e3b221aba8fe6f256801b0ae74c09",
+        "kernel.o": "fde2bee3b62b9235e72433886c8dcfe45afdf2bf4b80e8dd025dcce60883195f",
+        "adapter.o": "672cd1c803740d5771b89bf23c5aa956ab2bce639bdd42f27668610a27ffb766",
+        "kernel.s": "e3be2f6537b66ca6870fad9108cf24fe918d2dc76a80056c3a9f379e90ef8d52",
+        "kernel.nr.S": "922b686e4515a7b43470496451d6c7d4e0f5623a7b3bee79197b6398f8da60ab"
+      },
+      "frontend": {
+        "name": "attention_qk_16x16x512x128",
+        "family": "attention_qk",
+        "kernel": "attention_dot",
+        "symbol": "triton_attention_qk_16x16x512x128",
+        "arguments": [
+          {
+            "name": "A",
+            "rank": 3,
+            "dtype": "f32"
+          },
+          {
+            "name": "B",
+            "rank": 3,
+            "dtype": "f32"
+          },
+          {
+            "name": "C",
+            "rank": 3,
+            "dtype": "f32"
+          }
+        ],
+        "signature": {
+          "A": "*fp32",
+          "B": "*fp32",
+          "C": "*fp32"
+        },
+        "constexprs": {
+          "M": 16,
+          "N": 512,
+          "K": 128,
+          "BM": 16,
+          "BN": 16,
+          "BK": 64
+        },
+        "grid": [
+          1,
+          32,
+          16
+        ],
+        "directory": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/model-cases/attention_qk_16x16x512x128",
+        "launch_source": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/model-cases/attention_qk_16x16x512x128/launch.c",
+        "validation": "Unmodified parent launch.c and its independent numerical oracle",
+        "frontend": "triton.compiler.ASTSource -> CPUBackend.make_ttir -> triton-riscv _ttir_to_ttsharedir",
+        "triton_version": "3.8.0",
+        "kernels_sha256": "0596945721efbd12958267ad0093e59cf8cac464316b14cda1af4b78e236f930",
+        "exporter_sha256": "266a64dda66018359776c61fbbee1c9e8109ff554938a0cc4e66a5d50d0fc56a",
+        "cases_sha256": "3e6e4bb2654df8781feccfa0a0974a2d35962282d33ec98622e52c55a6dfdba7",
+        "ttir_sha256": "96741426bd195fa0318193c8cba2e445767de3d78fffa674eb009270328c6d9f",
+        "linalg_sha256": "ee40e2c1bba51d98ac1e3bee1b7d63a33530734e796fb326f047bc4699004c93",
+        "abi": "unranked memref: (i64 rank=0, rank-0 descriptor pointer) per tensor, then six i32 grid/pid values"
+      },
+      "model_graph_binding": "pending semantic/layout/alias/accumulation matching",
+      "adapter_precondition": "static shapes/grid/physical layout from frontend; offsets supported; strides not dynamically checked",
+      "hardware_validation": "consult parent final verification; archive creation does not run hardware"
+    },
+    {
+      "case": "attention_qk_16x1x512x128",
+      "symbols": [
+        "_mlir_ciface_kernel_attention_qk_16x1x512x128",
+        "triton_attention_qk_16x1x512x128"
+      ],
+      "undefined_runtime_symbols": [
+        "memcpy"
+      ],
+      "files_sha256": {
+        "kernel.ttir": "d2f6e852a57d9bb456f6da035c3967751c95c405935357656690172291865f4e",
+        "kernel.linalg.mlir": "a21af4de354be6d24e13c4efee5f6332c7473da821e53711c49e81519ebf7947",
+        "kernel.ll": "db18a09f7ba70de53c5ecd0186cb5005b81d752a94789249f05f23b0f4ed2122",
+        "adapter.c": "2fe03f52bd4889e594b149d5eba9eba8d750278ed0bddd429fd257ae10355616",
+        "frontend.json": "3b70f4ccb9e64299eace0daff5db24e60edf8fe031316b82276e5cb9d6c041e2",
+        "kernel.o": "1e2feb0bc32c9268a5fb07294706d7b50fc4edd7c2b9dcd3f61d9c6735a96a61",
+        "adapter.o": "3e0c6f41049635c0484d5ba8de234378301467eddf7511cabab7a7a9f704df84",
+        "kernel.s": "1b38a2f7cc6aa876e7166c8ba0d20b872406c56c4f7923b8f13b7a7c365f25f2",
+        "kernel.nr.S": "6fac0844246cabf7162f6f590f26d8835dfeb9ea455dee7570c85f6d16d65dc6"
+      },
+      "frontend": {
+        "name": "attention_qk_16x1x512x128",
+        "family": "attention_qk",
+        "kernel": "attention_dot",
+        "symbol": "triton_attention_qk_16x1x512x128",
+        "arguments": [
+          {
+            "name": "A",
+            "rank": 3,
+            "dtype": "f32"
+          },
+          {
+            "name": "B",
+            "rank": 3,
+            "dtype": "f32"
+          },
+          {
+            "name": "C",
+            "rank": 3,
+            "dtype": "f32"
+          }
+        ],
+        "signature": {
+          "A": "*fp32",
+          "B": "*fp32",
+          "C": "*fp32"
+        },
+        "constexprs": {
+          "M": 1,
+          "N": 512,
+          "K": 128,
+          "BM": 1,
+          "BN": 16,
+          "BK": 64
+        },
+        "grid": [
+          1,
+          32,
+          16
+        ],
+        "directory": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/model-cases/attention_qk_16x1x512x128",
+        "launch_source": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/model-cases/attention_qk_16x1x512x128/launch.c",
+        "validation": "Unmodified parent launch.c and its independent numerical oracle",
+        "frontend": "triton.compiler.ASTSource -> CPUBackend.make_ttir -> triton-riscv _ttir_to_ttsharedir",
+        "triton_version": "3.8.0",
+        "kernels_sha256": "0596945721efbd12958267ad0093e59cf8cac464316b14cda1af4b78e236f930",
+        "exporter_sha256": "266a64dda66018359776c61fbbee1c9e8109ff554938a0cc4e66a5d50d0fc56a",
+        "cases_sha256": "3e6e4bb2654df8781feccfa0a0974a2d35962282d33ec98622e52c55a6dfdba7",
+        "ttir_sha256": "d2f6e852a57d9bb456f6da035c3967751c95c405935357656690172291865f4e",
+        "linalg_sha256": "a21af4de354be6d24e13c4efee5f6332c7473da821e53711c49e81519ebf7947",
+        "abi": "unranked memref: (i64 rank=0, rank-0 descriptor pointer) per tensor, then six i32 grid/pid values"
+      },
+      "model_graph_binding": "pending semantic/layout/alias/accumulation matching",
+      "adapter_precondition": "static shapes/grid/physical layout from frontend; offsets supported; strides not dynamically checked",
+      "hardware_validation": "consult parent final verification; archive creation does not run hardware"
+    },
+    {
+      "case": "attention_scale_mask_position_16x16x512",
+      "symbols": [
+        "_mlir_ciface_kernel_attention_scale_mask_position_16x16x512",
+        "triton_attention_scale_mask_position_16x16x512"
+      ],
+      "undefined_runtime_symbols": [],
+      "files_sha256": {
+        "kernel.ttir": "45f561ff80a14b5091240c451b2825ef4bb632eac9607613db97bac099bf535c",
+        "kernel.linalg.mlir": "4dc9fdab766bf854c4cbc6e47cd015507ff7a927aceb1d127bc1568cb6e3e84e",
+        "kernel.ll": "62e872b47bd55e0f4f37d490043a45d82d98f5a217f1586c52d898ee166d14db",
+        "adapter.c": "da5228a547723aaddc546fd7ed64e3e36ab0deb7b1da367489f671feddd4253c",
+        "frontend.json": "0bcf5639d433d0ad0c32ff6c74c290bde1b0b402683213028bd415ad024e2028",
+        "kernel.o": "e9bfb8e088a97063ef9ac472f509edb8ed032c918f8bda8c9706defbb81efebc",
+        "adapter.o": "65f4beb6bc82e4e7a9335f0e2d42e438852eb41822ff082e9b82743f9dc28232",
+        "kernel.s": "b65c2f1c043571bf2856ab13d8eb06b624e74f825feed38660d9ab01752653ec",
+        "kernel.nr.S": "688f368c029521b5971cd2bcb9846d6b63f7791ce40b8171f18515f605881549"
+      },
+      "frontend": {
+        "name": "attention_scale_mask_position_16x16x512",
+        "family": "attention_scale_mask_position",
+        "kernel": "attention_scale_mask_position",
+        "symbol": "triton_attention_scale_mask_position_16x16x512",
+        "arguments": [
+          {
+            "name": "X",
+            "rank": 3,
+            "dtype": "f32"
+          },
+          {
+            "name": "Position",
+            "rank": 1,
+            "dtype": "i32"
+          },
+          {
+            "name": "Out",
+            "rank": 3,
+            "dtype": "f32"
+          }
+        ],
+        "signature": {
+          "X": "*fp32",
+          "Position": "*i32",
+          "Out": "*fp32"
+        },
+        "constexprs": {
+          "SEQUENCE": 16,
+          "TOTAL": 512,
+          "BLOCK": 128
+        },
+        "grid": [
+          1024,
+          1,
+          1
+        ],
+        "directory": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/model-cases/attention_scale_mask_position_16x16x512",
+        "launch_source": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/model-cases/attention_scale_mask_position_16x16x512/launch.c",
+        "validation": "Unmodified parent launch.c and its independent numerical oracle",
+        "frontend": "triton.compiler.ASTSource -> CPUBackend.make_ttir -> triton-riscv _ttir_to_ttsharedir",
+        "triton_version": "3.8.0",
+        "kernels_sha256": "0596945721efbd12958267ad0093e59cf8cac464316b14cda1af4b78e236f930",
+        "exporter_sha256": "266a64dda66018359776c61fbbee1c9e8109ff554938a0cc4e66a5d50d0fc56a",
+        "cases_sha256": "3e6e4bb2654df8781feccfa0a0974a2d35962282d33ec98622e52c55a6dfdba7",
+        "ttir_sha256": "45f561ff80a14b5091240c451b2825ef4bb632eac9607613db97bac099bf535c",
+        "linalg_sha256": "4dc9fdab766bf854c4cbc6e47cd015507ff7a927aceb1d127bc1568cb6e3e84e",
+        "abi": "unranked memref: (i64 rank=0, rank-0 descriptor pointer) per tensor, then six i32 grid/pid values"
+      },
+      "model_graph_binding": "pending semantic/layout/alias/accumulation matching",
+      "adapter_precondition": "static shapes/grid/physical layout from frontend; offsets supported; strides not dynamically checked",
+      "hardware_validation": "consult parent final verification; archive creation does not run hardware"
+    },
+    {
+      "case": "attention_scale_mask_position_16x1x512",
+      "symbols": [
+        "_mlir_ciface_kernel_attention_scale_mask_position_16x1x512",
+        "triton_attention_scale_mask_position_16x1x512"
+      ],
+      "undefined_runtime_symbols": [],
+      "files_sha256": {
+        "kernel.ttir": "72b897383a7cf9c234cf2e07af3de943ee163a1eb130ada2dc4bab094d84e496",
+        "kernel.linalg.mlir": "e9fe93c31ba1c2a10d23737dda19ffa00a66b49c07fa8e11e36176f6d788a973",
+        "kernel.ll": "faf2013fac62ec25237b973d280d72cd2188d59559ecbb6e761543996dedb284",
+        "adapter.c": "3d899aceea5c6b0f55e75a1452a669f630d4feafd5bc57d4b7393476653379e9",
+        "frontend.json": "64a3071a81f12d7fbb19499958356eba84fba986e4f5f87fe396a4c4074a8521",
+        "kernel.o": "b2605a07fe17d8100ab7d11b9978c1296fd4856c518744d59fac4f27c4790cb6",
+        "adapter.o": "1410f6abeb5f54eca168d498df86e07783f5aaebd911b4ca2e4d2d33e18b05f9",
+        "kernel.s": "17efdb99cd30a1f9795e34f52726b561d4be64bb32586db22276b9b108f0eee3",
+        "kernel.nr.S": "937696fee3cce717e7c10674edb3d3a1a81dfb461b5562c9c60c2b5465249a13"
+      },
+      "frontend": {
+        "name": "attention_scale_mask_position_16x1x512",
+        "family": "attention_scale_mask_position",
+        "kernel": "attention_scale_mask_position",
+        "symbol": "triton_attention_scale_mask_position_16x1x512",
+        "arguments": [
+          {
+            "name": "X",
+            "rank": 3,
+            "dtype": "f32"
+          },
+          {
+            "name": "Position",
+            "rank": 1,
+            "dtype": "i32"
+          },
+          {
+            "name": "Out",
+            "rank": 3,
+            "dtype": "f32"
+          }
+        ],
+        "signature": {
+          "X": "*fp32",
+          "Position": "*i32",
+          "Out": "*fp32"
+        },
+        "constexprs": {
+          "SEQUENCE": 1,
+          "TOTAL": 512,
+          "BLOCK": 128
+        },
+        "grid": [
+          64,
+          1,
+          1
+        ],
+        "directory": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/model-cases/attention_scale_mask_position_16x1x512",
+        "launch_source": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/model-cases/attention_scale_mask_position_16x1x512/launch.c",
+        "validation": "Unmodified parent launch.c and its independent numerical oracle",
+        "frontend": "triton.compiler.ASTSource -> CPUBackend.make_ttir -> triton-riscv _ttir_to_ttsharedir",
+        "triton_version": "3.8.0",
+        "kernels_sha256": "0596945721efbd12958267ad0093e59cf8cac464316b14cda1af4b78e236f930",
+        "exporter_sha256": "266a64dda66018359776c61fbbee1c9e8109ff554938a0cc4e66a5d50d0fc56a",
+        "cases_sha256": "3e6e4bb2654df8781feccfa0a0974a2d35962282d33ec98622e52c55a6dfdba7",
+        "ttir_sha256": "72b897383a7cf9c234cf2e07af3de943ee163a1eb130ada2dc4bab094d84e496",
+        "linalg_sha256": "e9fe93c31ba1c2a10d23737dda19ffa00a66b49c07fa8e11e36176f6d788a973",
+        "abi": "unranked memref: (i64 rank=0, rank-0 descriptor pointer) per tensor, then six i32 grid/pid values"
+      },
+      "model_graph_binding": "pending semantic/layout/alias/accumulation matching",
+      "adapter_precondition": "static shapes/grid/physical layout from frontend; offsets supported; strides not dynamically checked",
+      "hardware_validation": "consult parent final verification; archive creation does not run hardware"
+    },
+    {
+      "case": "embedding_16x1024",
+      "symbols": [
+        "_mlir_ciface_kernel_embedding_16x1024",
+        "triton_embedding_16x1024"
+      ],
+      "undefined_runtime_symbols": [],
+      "files_sha256": {
+        "kernel.ttir": "eb675c35386dbf0300cc9ee0679e6728a0f5fececc1e807466446f52c09212ab",
+        "kernel.linalg.mlir": "f782383f6f245d4d9ac87a1c9f668cdb0d0e45bb5f6a42c87fbc2f92a52e7ef8",
+        "kernel.ll": "336ed0ce43ec3aae8435ce524effd3a724407f79430d55f0a55126e6c0cc25fd",
+        "adapter.c": "4b831636e94334e161a140589f4e0a51365a831758469df2d72b79e3b97eb49a",
+        "frontend.json": "ccfdd94f399edcda66192e3b6e962c81de4e2a5e0149fa5a75dfbc4ad21579b9",
+        "kernel.o": "05f7a2c6a96fabe1244a5e6451395ff17d54f9dbb7f99c85cb9e940a91048606",
+        "adapter.o": "7b21a0e39ed03c11e69ea28163bd5f38d73d846458806907ddb91a631797beb7",
+        "kernel.s": "3da4becb19792a6335d82f1d1e7869d17d44c317ffbab9e6406c9aa4878b0f29",
+        "kernel.nr.S": "e6e4499c65b240043f90cc342d60c1351fc3da4b00a662a4135066319563965f"
+      },
+      "frontend": {
+        "name": "embedding_16x1024",
+        "family": "embedding",
+        "kernel": "embedding",
+        "symbol": "triton_embedding_16x1024",
+        "arguments": [
+          {
+            "name": "Ids",
+            "rank": 1,
+            "dtype": "i64"
+          },
+          {
+            "name": "Out",
+            "rank": 2,
+            "dtype": "f32"
+          },
+          {
+            "name": "Weight",
+            "rank": 2,
+            "dtype": "f32"
+          }
+        ],
+        "signature": {
+          "Ids": "*i64",
+          "Out": "*fp32",
+          "Weight": "*fp32"
+        },
+        "constexprs": {
+          "WIDTH": 1024,
+          "BLOCK": 1024
+        },
+        "grid": [
+          16,
+          1,
+          1
+        ],
+        "launch_source": "../embedding_16x1024/launch.c",
+        "validation": "Unmodified parent launch.c and its independent numerical oracle",
+        "frontend": "triton.compiler.ASTSource -> CPUBackend.make_ttir -> triton-riscv _ttir_to_ttsharedir",
+        "triton_version": "3.8.0",
+        "kernels_sha256": "942d987512a0a6f91bae5b4c915eea5a5f8f090f2c4407e6d5b251e4ec54f1a8",
+        "exporter_sha256": "266a64dda66018359776c61fbbee1c9e8109ff554938a0cc4e66a5d50d0fc56a",
+        "cases_sha256": "f259d6ca7fa62ad6d88f5c516bd78baa89d759e9d7e6f64d68adb2cf26ca117b",
+        "ttir_sha256": "eb675c35386dbf0300cc9ee0679e6728a0f5fececc1e807466446f52c09212ab",
+        "linalg_sha256": "f782383f6f245d4d9ac87a1c9f668cdb0d0e45bb5f6a42c87fbc2f92a52e7ef8",
+        "abi": "unranked memref: (i64 rank=0, rank-0 descriptor pointer) per tensor, then six i32 grid/pid values"
+      },
+      "model_graph_binding": "pending semantic/layout/alias/accumulation matching",
+      "adapter_precondition": "static shapes/grid/physical layout from frontend; offsets supported; strides not dynamically checked",
+      "hardware_validation": "consult parent final verification; archive creation does not run hardware"
+    },
+    {
+      "case": "embedding_1x1024",
+      "symbols": [
+        "_mlir_ciface_kernel_embedding_1x1024",
+        "triton_embedding_1x1024"
+      ],
+      "undefined_runtime_symbols": [],
+      "files_sha256": {
+        "kernel.ttir": "63e898c144471c126bff46befa8bdca3e9cfa92382e2d88984338c6647b50044",
+        "kernel.linalg.mlir": "9bea8f0f72463d0042a2ef113822339957048a8ec6adeff3db56929225b8cbe6",
+        "kernel.ll": "da33f58de41acd85bb4beaedbd13f1e4a67b5286a0bb4b135dbae2a4285be24f",
+        "adapter.c": "ced692de9663a3ef70e4b52357189499f80ce46eaaed86e272598692614cb73b",
+        "frontend.json": "14eeeeeb1d17e03c8aa8f419aeb6a0a574f5bf617b03883fb37398e1bda45091",
+        "kernel.o": "be67690166465943befe53629160909d00d7c7fc300cb7c432ac47b170d66ebf",
+        "adapter.o": "bbc42275d269cb29986df1d6bf4cd8282bb7627c4e68cd48a39803e2456af2e5",
+        "kernel.s": "d4fcd42127c41f3853f05bac649edf1e310e08a590e02d37ce88a7328039723c",
+        "kernel.nr.S": "206e7a5a88f60ef6601351113ecbea15414853e2969d2a5a6ed9a3a7c1cdf37c"
+      },
+      "frontend": {
+        "name": "embedding_1x1024",
+        "family": "embedding",
+        "kernel": "embedding",
+        "symbol": "triton_embedding_1x1024",
+        "arguments": [
+          {
+            "name": "Ids",
+            "rank": 1,
+            "dtype": "i64"
+          },
+          {
+            "name": "Out",
+            "rank": 2,
+            "dtype": "f32"
+          },
+          {
+            "name": "Weight",
+            "rank": 2,
+            "dtype": "f32"
+          }
+        ],
+        "signature": {
+          "Ids": "*i64",
+          "Out": "*fp32",
+          "Weight": "*fp32"
+        },
+        "constexprs": {
+          "WIDTH": 1024,
+          "BLOCK": 1024
+        },
+        "grid": [
+          1,
+          1,
+          1
+        ],
+        "launch_source": "../embedding_1x1024/launch.c",
+        "validation": "Unmodified parent launch.c and its independent numerical oracle",
+        "frontend": "triton.compiler.ASTSource -> CPUBackend.make_ttir -> triton-riscv _ttir_to_ttsharedir",
+        "triton_version": "3.8.0",
+        "kernels_sha256": "942d987512a0a6f91bae5b4c915eea5a5f8f090f2c4407e6d5b251e4ec54f1a8",
+        "exporter_sha256": "266a64dda66018359776c61fbbee1c9e8109ff554938a0cc4e66a5d50d0fc56a",
+        "cases_sha256": "f259d6ca7fa62ad6d88f5c516bd78baa89d759e9d7e6f64d68adb2cf26ca117b",
+        "ttir_sha256": "63e898c144471c126bff46befa8bdca3e9cfa92382e2d88984338c6647b50044",
+        "linalg_sha256": "9bea8f0f72463d0042a2ef113822339957048a8ec6adeff3db56929225b8cbe6",
+        "abi": "unranked memref: (i64 rank=0, rank-0 descriptor pointer) per tensor, then six i32 grid/pid values"
+      },
+      "model_graph_binding": "pending semantic/layout/alias/accumulation matching",
+      "adapter_precondition": "static shapes/grid/physical layout from frontend; offsets supported; strides not dynamically checked",
+      "hardware_validation": "consult parent final verification; archive creation does not run hardware"
+    },
+    {
+      "case": "gqa_repeat_8x512x128_to_16x512x128",
+      "symbols": [
+        "_mlir_ciface_kernel_gqa_repeat_8x512x128_to_16x512x128",
+        "triton_gqa_repeat_8x512x128_to_16x512x128"
+      ],
+      "undefined_runtime_symbols": [],
+      "files_sha256": {
+        "kernel.ttir": "1ae88f1ec44ce2bef638d49537fa61c5dc827c9aed50ec4f7829341688b99096",
+        "kernel.linalg.mlir": "3fa08d5dba66d97158f9dbf2ba38eacb92030e764144e976f982c6a15362149f",
+        "kernel.ll": "de168e1c1e3409f09fcd8b9065eaed68987a04225d866d2983322ca13ba16c87",
+        "adapter.c": "c8909089e1c5888704fa9c3a48e4b2feb5d438a97abc4b9ca1b2298d0309fd97",
+        "frontend.json": "b4346ae315f0e802bcdf967857bbce7137b8d2455611153eacb70532d0fb88f0",
+        "kernel.o": "14799eb7efde4f5e6aa735ea5737f9a3da16bf5c2204ed3fdf54fb49e935c6ff",
+        "adapter.o": "e5afb7e9cc15862b8fe404953293fa017fc1537ba0c2264cfec12701b1a2e25b",
+        "kernel.s": "db3310f5add24934553f5cc5cd736082476a494b35b3d49ec028c58119be92e1",
+        "kernel.nr.S": "1c772cbaacd3f88f0412a747f4d3a8aff76e5b0dfbd8c041bc303400f27946c9"
+      },
+      "frontend": {
+        "name": "gqa_repeat_8x512x128_to_16x512x128",
+        "family": "gqa_repeat",
+        "kernel": "gqa_repeat",
+        "symbol": "triton_gqa_repeat_8x512x128_to_16x512x128",
+        "arguments": [
+          {
+            "name": "X",
+            "rank": 3,
+            "dtype": "f32"
+          },
+          {
+            "name": "Out",
+            "rank": 3,
+            "dtype": "f32"
+          }
+        ],
+        "signature": {
+          "X": "*fp32",
+          "Out": "*fp32"
+        },
+        "constexprs": {
+          "TOTAL": 512
+        },
+        "grid": [
+          16,
+          512,
+          1
+        ],
+        "directory": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/model-cases/gqa_repeat_8x512x128_to_16x512x128",
+        "launch_source": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/model-cases/gqa_repeat_8x512x128_to_16x512x128/launch.c",
+        "validation": "Unmodified parent launch.c and its independent numerical oracle",
+        "frontend": "triton.compiler.ASTSource -> CPUBackend.make_ttir -> triton-riscv _ttir_to_ttsharedir",
+        "triton_version": "3.8.0",
+        "kernels_sha256": "0596945721efbd12958267ad0093e59cf8cac464316b14cda1af4b78e236f930",
+        "exporter_sha256": "266a64dda66018359776c61fbbee1c9e8109ff554938a0cc4e66a5d50d0fc56a",
+        "cases_sha256": "3e6e4bb2654df8781feccfa0a0974a2d35962282d33ec98622e52c55a6dfdba7",
+        "ttir_sha256": "1ae88f1ec44ce2bef638d49537fa61c5dc827c9aed50ec4f7829341688b99096",
+        "linalg_sha256": "3fa08d5dba66d97158f9dbf2ba38eacb92030e764144e976f982c6a15362149f",
+        "abi": "unranked memref: (i64 rank=0, rank-0 descriptor pointer) per tensor, then six i32 grid/pid values"
+      },
+      "model_graph_binding": "pending semantic/layout/alias/accumulation matching",
+      "adapter_precondition": "static shapes/grid/physical layout from frontend; offsets supported; strides not dynamically checked",
+      "hardware_validation": "consult parent final verification; archive creation does not run hardware"
+    },
+    {
+      "case": "kv_cache_update_position_16x8x128_cap512",
+      "symbols": [
+        "_mlir_ciface_kernel_kv_cache_update_position_16x8x128_cap512",
+        "triton_kv_cache_update_position_16x8x128_cap512"
+      ],
+      "undefined_runtime_symbols": [],
+      "files_sha256": {
+        "kernel.ttir": "2b97ac235f13b5eec6af342d351db07d11ef563b833d82285a46ab63a1a12a29",
+        "kernel.linalg.mlir": "dcef2f6c81668349bfdcb4386608a07012a4698afda826406328d3260c1e6970",
+        "kernel.ll": "87fa5ed2507b5eab289b249800cb7f5958e1e10388015807552b628f203dbfa2",
+        "adapter.c": "645cf3186fd5c784ae51c00d1edd426a2eba68449f5faf51ef8ee62771d1a3d9",
+        "frontend.json": "a56da95075e8969757b0f555c7d274274b456e99361b02905c87ae6a8516a882",
+        "kernel.o": "c1dae673b5f097786df1a0a8e2d4fda342b8cf54f1e2179a28a3f0ab8372df3d",
+        "adapter.o": "a89f5e938ae36fededddac7e095c33d07dce360615da5834781102670e9961e2",
+        "kernel.s": "e346e40f7fa038570d44eda486327af5d8de5686d377b98cde62963e66d52f70",
+        "kernel.nr.S": "cf98fc5d0614d8367203b9d3701e7a2d48676df72a292f2c0ce39bec22bd4312"
+      },
+      "frontend": {
+        "name": "kv_cache_update_position_16x8x128_cap512",
+        "family": "kv_cache_update_position",
+        "kernel": "kv_cache_update_position",
+        "symbol": "triton_kv_cache_update_position_16x8x128_cap512",
+        "arguments": [
+          {
+            "name": "X",
+            "rank": 3,
+            "dtype": "f32"
+          },
+          {
+            "name": "Position",
+            "rank": 1,
+            "dtype": "i32"
+          },
+          {
+            "name": "Cache",
+            "rank": 3,
+            "dtype": "f32"
+          }
+        ],
+        "signature": {
+          "X": "*fp32",
+          "Position": "*i32",
+          "Cache": "*fp32"
+        },
+        "constexprs": {
+          "CAPACITY": 512
+        },
+        "grid": [
+          16,
+          8,
+          1
+        ],
+        "directory": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/model-cases/kv_cache_update_position_16x8x128_cap512",
+        "launch_source": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/model-cases/kv_cache_update_position_16x8x128_cap512/launch.c",
+        "validation": "Unmodified parent launch.c and its independent numerical oracle",
+        "frontend": "triton.compiler.ASTSource -> CPUBackend.make_ttir -> triton-riscv _ttir_to_ttsharedir",
+        "triton_version": "3.8.0",
+        "kernels_sha256": "0596945721efbd12958267ad0093e59cf8cac464316b14cda1af4b78e236f930",
+        "exporter_sha256": "266a64dda66018359776c61fbbee1c9e8109ff554938a0cc4e66a5d50d0fc56a",
+        "cases_sha256": "3e6e4bb2654df8781feccfa0a0974a2d35962282d33ec98622e52c55a6dfdba7",
+        "ttir_sha256": "2b97ac235f13b5eec6af342d351db07d11ef563b833d82285a46ab63a1a12a29",
+        "linalg_sha256": "dcef2f6c81668349bfdcb4386608a07012a4698afda826406328d3260c1e6970",
+        "abi": "unranked memref: (i64 rank=0, rank-0 descriptor pointer) per tensor, then six i32 grid/pid values"
+      },
+      "model_graph_binding": "pending semantic/layout/alias/accumulation matching",
+      "adapter_precondition": "static shapes/grid/physical layout from frontend; offsets supported; strides not dynamically checked",
+      "hardware_validation": "consult parent final verification; archive creation does not run hardware"
+    },
+    {
+      "case": "kv_cache_update_position_1x8x128_cap512",
+      "symbols": [
+        "_mlir_ciface_kernel_kv_cache_update_position_1x8x128_cap512",
+        "triton_kv_cache_update_position_1x8x128_cap512"
+      ],
+      "undefined_runtime_symbols": [],
+      "files_sha256": {
+        "kernel.ttir": "a15a977405dfc80b1aaa39f1ec5bda0225830e058aab7dc8bc7e5fb01b8a7327",
+        "kernel.linalg.mlir": "e92b72f36e7df2d6ecbcef0cac8a80f4f4d70e97d92169240e1fbb71a970964c",
+        "kernel.ll": "1258671ba747dbd1d7c8733753afb314e819359af080f7b0953eec595cb9d602",
+        "adapter.c": "c62e9083ea9429dc5c6b7e885e3794414689a90aeb6f4c0c9b6277a736d5fc43",
+        "frontend.json": "27bb4b570ebb63177d47ed6f8fde981678baaa64f6c40adef450257a8b5e2593",
+        "kernel.o": "c14e68f0077c3895da422b2665d62931d4ce65e23f345af6fd6faec3fd89c1a8",
+        "adapter.o": "23f600a71a7e18ce6ea1e9cb53ed50e0eccc69aa9b11082b28caf0b74756f845",
+        "kernel.s": "c803cdb9ee16f1b53b8925309584f95e994756d7a5b701b235b7df85ab63e505",
+        "kernel.nr.S": "26d27982cda1d971869df091c8771a93e9b77b50fed7dbf00df19a213b3ffe70"
+      },
+      "frontend": {
+        "name": "kv_cache_update_position_1x8x128_cap512",
+        "family": "kv_cache_update_position",
+        "kernel": "kv_cache_update_position",
+        "symbol": "triton_kv_cache_update_position_1x8x128_cap512",
+        "arguments": [
+          {
+            "name": "X",
+            "rank": 3,
+            "dtype": "f32"
+          },
+          {
+            "name": "Position",
+            "rank": 1,
+            "dtype": "i32"
+          },
+          {
+            "name": "Cache",
+            "rank": 3,
+            "dtype": "f32"
+          }
+        ],
+        "signature": {
+          "X": "*fp32",
+          "Position": "*i32",
+          "Cache": "*fp32"
+        },
+        "constexprs": {
+          "CAPACITY": 512
+        },
+        "grid": [
+          1,
+          8,
+          1
+        ],
+        "directory": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/model-cases/kv_cache_update_position_1x8x128_cap512",
+        "launch_source": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/model-cases/kv_cache_update_position_1x8x128_cap512/launch.c",
+        "validation": "Unmodified parent launch.c and its independent numerical oracle",
+        "frontend": "triton.compiler.ASTSource -> CPUBackend.make_ttir -> triton-riscv _ttir_to_ttsharedir",
+        "triton_version": "3.8.0",
+        "kernels_sha256": "0596945721efbd12958267ad0093e59cf8cac464316b14cda1af4b78e236f930",
+        "exporter_sha256": "266a64dda66018359776c61fbbee1c9e8109ff554938a0cc4e66a5d50d0fc56a",
+        "cases_sha256": "3e6e4bb2654df8781feccfa0a0974a2d35962282d33ec98622e52c55a6dfdba7",
+        "ttir_sha256": "a15a977405dfc80b1aaa39f1ec5bda0225830e058aab7dc8bc7e5fb01b8a7327",
+        "linalg_sha256": "e92b72f36e7df2d6ecbcef0cac8a80f4f4d70e97d92169240e1fbb71a970964c",
+        "abi": "unranked memref: (i64 rank=0, rank-0 descriptor pointer) per tensor, then six i32 grid/pid values"
+      },
+      "model_graph_binding": "pending semantic/layout/alias/accumulation matching",
+      "adapter_precondition": "static shapes/grid/physical layout from frontend; offsets supported; strides not dynamically checked",
+      "hardware_validation": "consult parent final verification; archive creation does not run hardware"
+    },
+    {
+      "case": "matmul_16x1024x1024_f32",
+      "symbols": [
+        "_mlir_ciface_kernel_matmul_16x1024x1024_f32",
+        "triton_matmul_16x1024x1024_f32"
+      ],
+      "undefined_runtime_symbols": [],
+      "files_sha256": {
+        "kernel.ttir": "cb6e628be14a570a784ac98fc8acbbc187e555a910953c7823ec74c441ecb1cb",
+        "kernel.linalg.mlir": "b2ac0d7abb2248be4eec63e1cc773ffd293a1e6c150249b3f8b780f4d9c04b5c",
+        "kernel.ll": "ff2a89b4e5497f82831d5b1d8c95638c36916969c4c2946903e6ba21b2828a33",
+        "adapter.c": "c47fac7a49a0d9fe5d2146353bb0307331e810718d3a4d59ecdeb36a6dd682b4",
+        "frontend.json": "f1949580a80f90266cea5dafdf610c8c19dca566b988a0eee7670c2f6b9fdb88",
+        "kernel.o": "012416cd509a62e9fcd5bbbec4b4338df6115188d1d752401540b0ca27e3748c",
+        "adapter.o": "dc06bc585a9462b9382ba66c1344ba3ddb6b4ca8bfb091ab558ee6046f831f1e",
+        "kernel.s": "b4042fd7deec8193048d2a8dd15886dfd1183ca9df839fb76a1b6f9cde91cc84",
+        "kernel.nr.S": "c0552a99ed1f9c71d2acd59ccf97bf52e59608a45d5a302581db00a2dc1c3dd5"
+      },
+      "frontend": {
+        "name": "matmul_16x1024x1024_f32",
+        "family": "matmul_f32",
+        "kernel": "linear",
+        "symbol": "triton_matmul_16x1024x1024_f32",
+        "arguments": [
+          {
+            "name": "A",
+            "rank": 2,
+            "dtype": "f32"
+          },
+          {
+            "name": "B",
+            "rank": 2,
+            "dtype": "f32"
+          },
+          {
+            "name": "C",
+            "rank": 2,
+            "dtype": "f32"
+          }
+        ],
+        "signature": {
+          "A": "*fp32",
+          "B": "*fp32",
+          "C": "*fp32"
+        },
+        "constexprs": {
+          "M": 16,
+          "N": 1024,
+          "K": 1024,
+          "BM": 16,
+          "BN": 16,
+          "BK": 1024,
+          "INTEGER": false
+        },
+        "grid": [
+          1,
+          64,
+          1
+        ],
+        "launch_source": "../matmul_16x1024x1024_f32/launch.c",
+        "validation": "Unmodified parent launch.c and its independent numerical oracle",
+        "frontend": "triton.compiler.ASTSource -> CPUBackend.make_ttir -> triton-riscv _ttir_to_ttsharedir",
+        "triton_version": "3.8.0",
+        "kernels_sha256": "942d987512a0a6f91bae5b4c915eea5a5f8f090f2c4407e6d5b251e4ec54f1a8",
+        "exporter_sha256": "266a64dda66018359776c61fbbee1c9e8109ff554938a0cc4e66a5d50d0fc56a",
+        "cases_sha256": "f259d6ca7fa62ad6d88f5c516bd78baa89d759e9d7e6f64d68adb2cf26ca117b",
+        "ttir_sha256": "cb6e628be14a570a784ac98fc8acbbc187e555a910953c7823ec74c441ecb1cb",
+        "linalg_sha256": "b2ac0d7abb2248be4eec63e1cc773ffd293a1e6c150249b3f8b780f4d9c04b5c",
+        "abi": "unranked memref: (i64 rank=0, rank-0 descriptor pointer) per tensor, then six i32 grid/pid values"
+      },
+      "model_graph_binding": "pending semantic/layout/alias/accumulation matching",
+      "adapter_precondition": "static shapes/grid/physical layout from frontend; offsets supported; strides not dynamically checked",
+      "hardware_validation": "consult parent final verification; archive creation does not run hardware"
+    },
+    {
+      "case": "matmul_16x1024x2048_f32",
+      "symbols": [
+        "_mlir_ciface_kernel_matmul_16x1024x2048_f32",
+        "triton_matmul_16x1024x2048_f32"
+      ],
+      "undefined_runtime_symbols": [],
+      "files_sha256": {
+        "kernel.ttir": "50aa1336ad1833ac44d9b9aa8bf3c5e77f87d9bbb522c6c41270bc1a4b6f1aa4",
+        "kernel.linalg.mlir": "b7c2de65618894505b173eb2ddedc0a871944269e16a5da587ae1b749c1491e1",
+        "kernel.ll": "ed9b76c3455879f730892f61e0b245b7fd593e2989bfae1fac2be8a07f3bba97",
+        "adapter.c": "9ae66b8b20e58f39785a8d7941a883aff97492da4b04e7937a39e0198ec3fe12",
+        "frontend.json": "3d856aab6ee3d7fbf4770a83d9506d8453f5b37b9765a53a95251e586d047305",
+        "kernel.o": "a8c395bcda2b3124f715da964a6a469bb794acc37fc477e7a489417f1bfd4882",
+        "adapter.o": "c69872ec6c93fe3f9be281401e3aecaa4c98788f70001b15452f22d07d0fcdef",
+        "kernel.s": "aa3762ea0ceed4bd521a3b0e1fd7139cf23cdb4bda22172daa55329e42ca607b",
+        "kernel.nr.S": "b09e8b3c7ea662b87401f72df8c9594012113ffbd7cce477fde28032edeb9ef7"
+      },
+      "frontend": {
+        "name": "matmul_16x1024x2048_f32",
+        "family": "matmul_f32",
+        "kernel": "linear",
+        "symbol": "triton_matmul_16x1024x2048_f32",
+        "arguments": [
+          {
+            "name": "A",
+            "rank": 2,
+            "dtype": "f32"
+          },
+          {
+            "name": "B",
+            "rank": 2,
+            "dtype": "f32"
+          },
+          {
+            "name": "C",
+            "rank": 2,
+            "dtype": "f32"
+          }
+        ],
+        "signature": {
+          "A": "*fp32",
+          "B": "*fp32",
+          "C": "*fp32"
+        },
+        "constexprs": {
+          "M": 16,
+          "N": 1024,
+          "K": 2048,
+          "BM": 16,
+          "BN": 16,
+          "BK": 2048,
+          "INTEGER": false
+        },
+        "grid": [
+          1,
+          64,
+          1
+        ],
+        "launch_source": "../matmul_16x1024x2048_f32/launch.c",
+        "validation": "Unmodified parent launch.c and its independent numerical oracle",
+        "frontend": "triton.compiler.ASTSource -> CPUBackend.make_ttir -> triton-riscv _ttir_to_ttsharedir",
+        "triton_version": "3.8.0",
+        "kernels_sha256": "942d987512a0a6f91bae5b4c915eea5a5f8f090f2c4407e6d5b251e4ec54f1a8",
+        "exporter_sha256": "266a64dda66018359776c61fbbee1c9e8109ff554938a0cc4e66a5d50d0fc56a",
+        "cases_sha256": "f259d6ca7fa62ad6d88f5c516bd78baa89d759e9d7e6f64d68adb2cf26ca117b",
+        "ttir_sha256": "50aa1336ad1833ac44d9b9aa8bf3c5e77f87d9bbb522c6c41270bc1a4b6f1aa4",
+        "linalg_sha256": "b7c2de65618894505b173eb2ddedc0a871944269e16a5da587ae1b749c1491e1",
+        "abi": "unranked memref: (i64 rank=0, rank-0 descriptor pointer) per tensor, then six i32 grid/pid values"
+      },
+      "model_graph_binding": "pending semantic/layout/alias/accumulation matching",
+      "adapter_precondition": "static shapes/grid/physical layout from frontend; offsets supported; strides not dynamically checked",
+      "hardware_validation": "consult parent final verification; archive creation does not run hardware"
+    },
+    {
+      "case": "matmul_16x1024x3072_f32",
+      "symbols": [
+        "_mlir_ciface_kernel_matmul_16x1024x3072_f32",
+        "triton_matmul_16x1024x3072_f32"
+      ],
+      "undefined_runtime_symbols": [
+        "memcpy"
+      ],
+      "files_sha256": {
+        "kernel.ttir": "835ddddb3263d1d1aff0e2dd8b25c6ffc032156f014fd43f3db8ee3e2848a048",
+        "kernel.linalg.mlir": "77e4a4aead7c2378fe9b13224c1e36771db8df2798159d0da7320f3c9b1bda30",
+        "kernel.ll": "249b43b99cb6a3fecbdfbb0246261e65b5535bb1d4a0887603d1024edb273575",
+        "adapter.c": "c2c1e21b432780ac7e094a64dff46019193e889aa1b1d01ee0cf9e856a06bd90",
+        "frontend.json": "2499e753783709d1aa4f23a2774a8ce014eb604811c51d07e7fc0ef082d23dd9",
+        "kernel.o": "ef0d39f7bd6167ed1665aaa06d84eba83e5e8d0bb2f4469cf2e415ff52ca653b",
+        "adapter.o": "30b65df1d7b5c96fc63f88ee2729ba1973d15ed6aa5d79276a19838de3528eb1",
+        "kernel.s": "bafbe1c2ef433a192ba70db1997504ab78890cf7f8c2ecfa47ec0df78b1225aa",
+        "kernel.nr.S": "a64c8f631324a85b1eb1f33c6a789dce66960bee669f29d1a4aae7ec2b70646f"
+      },
+      "frontend": {
+        "name": "matmul_16x1024x3072_f32",
+        "family": "matmul_f32",
+        "kernel": "linear",
+        "symbol": "triton_matmul_16x1024x3072_f32",
+        "arguments": [
+          {
+            "name": "A",
+            "rank": 2,
+            "dtype": "f32"
+          },
+          {
+            "name": "B",
+            "rank": 2,
+            "dtype": "f32"
+          },
+          {
+            "name": "C",
+            "rank": 2,
+            "dtype": "f32"
+          }
+        ],
+        "signature": {
+          "A": "*fp32",
+          "B": "*fp32",
+          "C": "*fp32"
+        },
+        "constexprs": {
+          "M": 16,
+          "N": 1024,
+          "K": 3072,
+          "BM": 16,
+          "BN": 16,
+          "BK": 1024,
+          "INTEGER": false
+        },
+        "grid": [
+          1,
+          64,
+          1
+        ],
+        "launch_source": "../matmul_16x1024x3072_f32/launch.c",
+        "validation": "Unmodified parent launch.c and its independent numerical oracle",
+        "frontend": "triton.compiler.ASTSource -> CPUBackend.make_ttir -> triton-riscv _ttir_to_ttsharedir",
+        "triton_version": "3.8.0",
+        "kernels_sha256": "942d987512a0a6f91bae5b4c915eea5a5f8f090f2c4407e6d5b251e4ec54f1a8",
+        "exporter_sha256": "266a64dda66018359776c61fbbee1c9e8109ff554938a0cc4e66a5d50d0fc56a",
+        "cases_sha256": "f259d6ca7fa62ad6d88f5c516bd78baa89d759e9d7e6f64d68adb2cf26ca117b",
+        "ttir_sha256": "835ddddb3263d1d1aff0e2dd8b25c6ffc032156f014fd43f3db8ee3e2848a048",
+        "linalg_sha256": "77e4a4aead7c2378fe9b13224c1e36771db8df2798159d0da7320f3c9b1bda30",
+        "abi": "unranked memref: (i64 rank=0, rank-0 descriptor pointer) per tensor, then six i32 grid/pid values"
+      },
+      "model_graph_binding": "pending semantic/layout/alias/accumulation matching",
+      "adapter_precondition": "static shapes/grid/physical layout from frontend; offsets supported; strides not dynamically checked",
+      "hardware_validation": "consult parent final verification; archive creation does not run hardware"
+    },
+    {
+      "case": "matmul_16x2048x1024_f32",
+      "symbols": [
+        "_mlir_ciface_kernel_matmul_16x2048x1024_f32",
+        "triton_matmul_16x2048x1024_f32"
+      ],
+      "undefined_runtime_symbols": [],
+      "files_sha256": {
+        "kernel.ttir": "843bb6edfe15261e0223b9b4574644eda92dcf42898d0a1ed9935243112dc4ee",
+        "kernel.linalg.mlir": "80c03f4e4dde5869caee728cfdbfd6742857832f816dee0f70b32f4f784eb87a",
+        "kernel.ll": "f0fa6206a99e8a44f571d483ec93f74bd4d383c4e162b8726c0ea01ceab6ecbd",
+        "adapter.c": "62c6079ecfe02f0a48030296a4c7c7fbf6e0b36a7463cb9e01f49e4aeda2ed1a",
+        "frontend.json": "35becf9a2f699a3fb8a1004b16654f91057c6aa007ed8d78301cddf4cfee651c",
+        "kernel.o": "1008ed7db07cfe87f980b8564d1848156d9a8da0370dba30ba88f04377cb1ce1",
+        "adapter.o": "19fc7711465f150bd2e60a13fb07cc10895980a92759735c1bce37c98065bcd2",
+        "kernel.s": "385d488f335c409cfbb9e38293a04e6c8c09dd9a4cc4c2178f81c2f0b924c60a",
+        "kernel.nr.S": "8093ed7915e2f781fc0aa31f09f4437fa2d1714cbb2e030ae0a5a4604d41d571"
+      },
+      "frontend": {
+        "name": "matmul_16x2048x1024_f32",
+        "family": "matmul_f32",
+        "kernel": "linear",
+        "symbol": "triton_matmul_16x2048x1024_f32",
+        "arguments": [
+          {
+            "name": "A",
+            "rank": 2,
+            "dtype": "f32"
+          },
+          {
+            "name": "B",
+            "rank": 2,
+            "dtype": "f32"
+          },
+          {
+            "name": "C",
+            "rank": 2,
+            "dtype": "f32"
+          }
+        ],
+        "signature": {
+          "A": "*fp32",
+          "B": "*fp32",
+          "C": "*fp32"
+        },
+        "constexprs": {
+          "M": 16,
+          "N": 2048,
+          "K": 1024,
+          "BM": 16,
+          "BN": 16,
+          "BK": 1024,
+          "INTEGER": false
+        },
+        "grid": [
+          1,
+          128,
+          1
+        ],
+        "launch_source": "../matmul_16x2048x1024_f32/launch.c",
+        "validation": "Unmodified parent launch.c and its independent numerical oracle",
+        "frontend": "triton.compiler.ASTSource -> CPUBackend.make_ttir -> triton-riscv _ttir_to_ttsharedir",
+        "triton_version": "3.8.0",
+        "kernels_sha256": "942d987512a0a6f91bae5b4c915eea5a5f8f090f2c4407e6d5b251e4ec54f1a8",
+        "exporter_sha256": "266a64dda66018359776c61fbbee1c9e8109ff554938a0cc4e66a5d50d0fc56a",
+        "cases_sha256": "f259d6ca7fa62ad6d88f5c516bd78baa89d759e9d7e6f64d68adb2cf26ca117b",
+        "ttir_sha256": "843bb6edfe15261e0223b9b4574644eda92dcf42898d0a1ed9935243112dc4ee",
+        "linalg_sha256": "80c03f4e4dde5869caee728cfdbfd6742857832f816dee0f70b32f4f784eb87a",
+        "abi": "unranked memref: (i64 rank=0, rank-0 descriptor pointer) per tensor, then six i32 grid/pid values"
+      },
+      "model_graph_binding": "pending semantic/layout/alias/accumulation matching",
+      "adapter_precondition": "static shapes/grid/physical layout from frontend; offsets supported; strides not dynamically checked",
+      "hardware_validation": "consult parent final verification; archive creation does not run hardware"
+    },
+    {
+      "case": "matmul_16x3072x1024_f32",
+      "symbols": [
+        "_mlir_ciface_kernel_matmul_16x3072x1024_f32",
+        "triton_matmul_16x3072x1024_f32"
+      ],
+      "undefined_runtime_symbols": [],
+      "files_sha256": {
+        "kernel.ttir": "3f5ed854d632a43d45dff0e992f6762a1b889d6d9a902d0a565200deff1bdaad",
+        "kernel.linalg.mlir": "d0a105191e6ac7c0c2be9bb09e7ee57682af0c420b7079ea0cc1b037b700e6d4",
+        "kernel.ll": "801c7ed82772715ceee38ee40307893eab300d424799ded66063e0cd7983765c",
+        "adapter.c": "9ca60e65d88f55abad34d0379e9bbaa17f7a90b3fc6838493739c18ffc6d0825",
+        "frontend.json": "a1040875e9cafb9be195001c9444eeab835231ba89a68ea2fda4b2b5f5a94de1",
+        "kernel.o": "0880ba95f052afb2e7314c7ed6bc7d43862b15326be94a312387c0d4555803e2",
+        "adapter.o": "236cce9d18231245a4b44acfcab0d35442498da27bae0265a3902b514b379040",
+        "kernel.s": "03630b94ef6185c601f73948be2680782d6fdff13d7d542a3bf6e1b53874e526",
+        "kernel.nr.S": "987ac86388e8300e292a378d5e67470dbd6887453bcf9389c12f2da3b88ab0c3"
+      },
+      "frontend": {
+        "name": "matmul_16x3072x1024_f32",
+        "family": "matmul_f32",
+        "kernel": "linear",
+        "symbol": "triton_matmul_16x3072x1024_f32",
+        "arguments": [
+          {
+            "name": "A",
+            "rank": 2,
+            "dtype": "f32"
+          },
+          {
+            "name": "B",
+            "rank": 2,
+            "dtype": "f32"
+          },
+          {
+            "name": "C",
+            "rank": 2,
+            "dtype": "f32"
+          }
+        ],
+        "signature": {
+          "A": "*fp32",
+          "B": "*fp32",
+          "C": "*fp32"
+        },
+        "constexprs": {
+          "M": 16,
+          "N": 3072,
+          "K": 1024,
+          "BM": 16,
+          "BN": 16,
+          "BK": 1024,
+          "INTEGER": false
+        },
+        "grid": [
+          1,
+          192,
+          1
+        ],
+        "launch_source": "../matmul_16x3072x1024_f32/launch.c",
+        "validation": "Unmodified parent launch.c and its independent numerical oracle",
+        "frontend": "triton.compiler.ASTSource -> CPUBackend.make_ttir -> triton-riscv _ttir_to_ttsharedir",
+        "triton_version": "3.8.0",
+        "kernels_sha256": "942d987512a0a6f91bae5b4c915eea5a5f8f090f2c4407e6d5b251e4ec54f1a8",
+        "exporter_sha256": "266a64dda66018359776c61fbbee1c9e8109ff554938a0cc4e66a5d50d0fc56a",
+        "cases_sha256": "f259d6ca7fa62ad6d88f5c516bd78baa89d759e9d7e6f64d68adb2cf26ca117b",
+        "ttir_sha256": "3f5ed854d632a43d45dff0e992f6762a1b889d6d9a902d0a565200deff1bdaad",
+        "linalg_sha256": "d0a105191e6ac7c0c2be9bb09e7ee57682af0c420b7079ea0cc1b037b700e6d4",
+        "abi": "unranked memref: (i64 rank=0, rank-0 descriptor pointer) per tensor, then six i32 grid/pid values"
+      },
+      "model_graph_binding": "pending semantic/layout/alias/accumulation matching",
+      "adapter_precondition": "static shapes/grid/physical layout from frontend; offsets supported; strides not dynamically checked",
+      "hardware_validation": "consult parent final verification; archive creation does not run hardware"
+    },
+    {
+      "case": "matmul_1x1024x1024_f32",
+      "symbols": [
+        "_mlir_ciface_kernel_matmul_1x1024x1024_f32",
+        "triton_matmul_1x1024x1024_f32"
+      ],
+      "undefined_runtime_symbols": [],
+      "files_sha256": {
+        "kernel.ttir": "b8e063401e553846a015bfaf0a015e37d8a0c232e14cf94bb83da242979b0518",
+        "kernel.linalg.mlir": "7d0359f0c093d9c059558a17d3d892065ee90012b3e9a8282e7a29259007a976",
+        "kernel.ll": "04fe7f4c7ee122cf1ba0548f90a184a41ae98f6bc8af8f7f32e368f5aebf2b9f",
+        "adapter.c": "4f3adecb6fe3f9beff833242fb802b2a69edcf5932afc26d76900fff0bd3c6b9",
+        "frontend.json": "f8604728c8d726228bac1b5925aba3ba61ea30514474f5f26bcda2b6fc33a7ae",
+        "kernel.o": "0116eb71cf89a171a20135cd553c5fc35ef82c5e3f1fba7c5b26c191282fd986",
+        "adapter.o": "80dabaa26e0847bd059da0ee8aaf97b04511bb195c449e4287c49a86db2033eb",
+        "kernel.s": "71dd489f1bc40f50859a449fd5db12b801190b329f89a2637d7228a78cc298c4",
+        "kernel.nr.S": "2387cc43666b2a2a67928b9d90730a6444ba0ee341e74cfbf1d101a29825ec37"
+      },
+      "frontend": {
+        "name": "matmul_1x1024x1024_f32",
+        "family": "matmul_f32",
+        "kernel": "linear",
+        "symbol": "triton_matmul_1x1024x1024_f32",
+        "arguments": [
+          {
+            "name": "A",
+            "rank": 2,
+            "dtype": "f32"
+          },
+          {
+            "name": "B",
+            "rank": 2,
+            "dtype": "f32"
+          },
+          {
+            "name": "C",
+            "rank": 2,
+            "dtype": "f32"
+          }
+        ],
+        "signature": {
+          "A": "*fp32",
+          "B": "*fp32",
+          "C": "*fp32"
+        },
+        "constexprs": {
+          "M": 1,
+          "N": 1024,
+          "K": 1024,
+          "BM": 1,
+          "BN": 16,
+          "BK": 1024,
+          "INTEGER": false
+        },
+        "grid": [
+          1,
+          64,
+          1
+        ],
+        "launch_source": "../matmul_1x1024x1024_f32/launch.c",
+        "validation": "Unmodified parent launch.c and its independent numerical oracle",
+        "frontend": "triton.compiler.ASTSource -> CPUBackend.make_ttir -> triton-riscv _ttir_to_ttsharedir",
+        "triton_version": "3.8.0",
+        "kernels_sha256": "942d987512a0a6f91bae5b4c915eea5a5f8f090f2c4407e6d5b251e4ec54f1a8",
+        "exporter_sha256": "266a64dda66018359776c61fbbee1c9e8109ff554938a0cc4e66a5d50d0fc56a",
+        "cases_sha256": "f259d6ca7fa62ad6d88f5c516bd78baa89d759e9d7e6f64d68adb2cf26ca117b",
+        "ttir_sha256": "b8e063401e553846a015bfaf0a015e37d8a0c232e14cf94bb83da242979b0518",
+        "linalg_sha256": "7d0359f0c093d9c059558a17d3d892065ee90012b3e9a8282e7a29259007a976",
+        "abi": "unranked memref: (i64 rank=0, rank-0 descriptor pointer) per tensor, then six i32 grid/pid values"
+      },
+      "model_graph_binding": "pending semantic/layout/alias/accumulation matching",
+      "adapter_precondition": "static shapes/grid/physical layout from frontend; offsets supported; strides not dynamically checked",
+      "hardware_validation": "consult parent final verification; archive creation does not run hardware"
+    },
+    {
+      "case": "matmul_1x1024x2048_f32",
+      "symbols": [
+        "_mlir_ciface_kernel_matmul_1x1024x2048_f32",
+        "triton_matmul_1x1024x2048_f32"
+      ],
+      "undefined_runtime_symbols": [],
+      "files_sha256": {
+        "kernel.ttir": "256cc07122bd1b9ba0d35e8ded2bbd9eddd0402c861ccafd92fd1f20aa58a906",
+        "kernel.linalg.mlir": "ef7e3083e8270355a623d985f19b1c0c7ed8a9a7f752a2ca0ed9556baf850a4e",
+        "kernel.ll": "a44e823dfb3af983b77fd7c2b682394d75969b302ff95fd819432891aed2ae0a",
+        "adapter.c": "17e2ac8a7a248ba4a9c64e49287816db88eced39f98355a34941c2a4e03f934e",
+        "frontend.json": "88ada6dbc4ea0b37a91edfb4bd9f70ebedde8443569e068860dfa444937786d9",
+        "kernel.o": "2dc9008ed3901f08295a0f8cea97d40576c4d4a30d60ae5ce14cb4679f54c406",
+        "adapter.o": "30b53aa989d29e101deb95f19870d1bb94118e9a32fd7a7b0e46041510e5b893",
+        "kernel.s": "b6c514a1451a672c55680d8b93d87a37843590c95aa514af6025e801dd8805fe",
+        "kernel.nr.S": "f4d9765e7703a64fc0dbbd570cb6211dcffaf2f188693c4345a1d3982deb19bc"
+      },
+      "frontend": {
+        "name": "matmul_1x1024x2048_f32",
+        "family": "matmul_f32",
+        "kernel": "linear",
+        "symbol": "triton_matmul_1x1024x2048_f32",
+        "arguments": [
+          {
+            "name": "A",
+            "rank": 2,
+            "dtype": "f32"
+          },
+          {
+            "name": "B",
+            "rank": 2,
+            "dtype": "f32"
+          },
+          {
+            "name": "C",
+            "rank": 2,
+            "dtype": "f32"
+          }
+        ],
+        "signature": {
+          "A": "*fp32",
+          "B": "*fp32",
+          "C": "*fp32"
+        },
+        "constexprs": {
+          "M": 1,
+          "N": 1024,
+          "K": 2048,
+          "BM": 1,
+          "BN": 16,
+          "BK": 2048,
+          "INTEGER": false
+        },
+        "grid": [
+          1,
+          64,
+          1
+        ],
+        "launch_source": "../matmul_1x1024x2048_f32/launch.c",
+        "validation": "Unmodified parent launch.c and its independent numerical oracle",
+        "frontend": "triton.compiler.ASTSource -> CPUBackend.make_ttir -> triton-riscv _ttir_to_ttsharedir",
+        "triton_version": "3.8.0",
+        "kernels_sha256": "942d987512a0a6f91bae5b4c915eea5a5f8f090f2c4407e6d5b251e4ec54f1a8",
+        "exporter_sha256": "266a64dda66018359776c61fbbee1c9e8109ff554938a0cc4e66a5d50d0fc56a",
+        "cases_sha256": "f259d6ca7fa62ad6d88f5c516bd78baa89d759e9d7e6f64d68adb2cf26ca117b",
+        "ttir_sha256": "256cc07122bd1b9ba0d35e8ded2bbd9eddd0402c861ccafd92fd1f20aa58a906",
+        "linalg_sha256": "ef7e3083e8270355a623d985f19b1c0c7ed8a9a7f752a2ca0ed9556baf850a4e",
+        "abi": "unranked memref: (i64 rank=0, rank-0 descriptor pointer) per tensor, then six i32 grid/pid values"
+      },
+      "model_graph_binding": "pending semantic/layout/alias/accumulation matching",
+      "adapter_precondition": "static shapes/grid/physical layout from frontend; offsets supported; strides not dynamically checked",
+      "hardware_validation": "consult parent final verification; archive creation does not run hardware"
+    },
+    {
+      "case": "matmul_1x1024x3072_f32",
+      "symbols": [
+        "_mlir_ciface_kernel_matmul_1x1024x3072_f32",
+        "triton_matmul_1x1024x3072_f32"
+      ],
+      "undefined_runtime_symbols": [
+        "memcpy"
+      ],
+      "files_sha256": {
+        "kernel.ttir": "772ab6c45d2cee7d93b3a8cd198467bd13354f0aa4c21f30d7d873792aaf6cc7",
+        "kernel.linalg.mlir": "a4ef330105cd2d2a0346ed9a325f66c77e183ce0b097814286dbbb424d9ec8b8",
+        "kernel.ll": "4a0bcd07eec1d498fac001a94f04871cc22afe385cc9474a77a5701ea3c2c489",
+        "adapter.c": "e9b33640f7d96aff427e6dffb036e1d3d9186d553585f0e15b1483e0dd238f27",
+        "frontend.json": "8ce8df6227165e3bb9808e632ba5c3859ba416c95f740eee70f1c010b7771225",
+        "kernel.o": "eff0c5e816a4f6bb60700663e26970d953e13964975d4437c2f6705c08f9441b",
+        "adapter.o": "5ff3d3802a789862c70fcaee339008503c4f88a28aaa6fcda178cd51416a4821",
+        "kernel.s": "f3a3efa038facf1ba5800a6033300d43d5481ecbcc850a4c41010fc9bbd48fa6",
+        "kernel.nr.S": "ea658ba14133c6b7df8f6ee0d173d7738e4f2d0eeb52782caea6553042135c49"
+      },
+      "frontend": {
+        "name": "matmul_1x1024x3072_f32",
+        "family": "matmul_f32",
+        "kernel": "linear",
+        "symbol": "triton_matmul_1x1024x3072_f32",
+        "arguments": [
+          {
+            "name": "A",
+            "rank": 2,
+            "dtype": "f32"
+          },
+          {
+            "name": "B",
+            "rank": 2,
+            "dtype": "f32"
+          },
+          {
+            "name": "C",
+            "rank": 2,
+            "dtype": "f32"
+          }
+        ],
+        "signature": {
+          "A": "*fp32",
+          "B": "*fp32",
+          "C": "*fp32"
+        },
+        "constexprs": {
+          "M": 1,
+          "N": 1024,
+          "K": 3072,
+          "BM": 1,
+          "BN": 16,
+          "BK": 1024,
+          "INTEGER": false
+        },
+        "grid": [
+          1,
+          64,
+          1
+        ],
+        "launch_source": "../matmul_1x1024x3072_f32/launch.c",
+        "validation": "Unmodified parent launch.c and its independent numerical oracle",
+        "frontend": "triton.compiler.ASTSource -> CPUBackend.make_ttir -> triton-riscv _ttir_to_ttsharedir",
+        "triton_version": "3.8.0",
+        "kernels_sha256": "942d987512a0a6f91bae5b4c915eea5a5f8f090f2c4407e6d5b251e4ec54f1a8",
+        "exporter_sha256": "266a64dda66018359776c61fbbee1c9e8109ff554938a0cc4e66a5d50d0fc56a",
+        "cases_sha256": "f259d6ca7fa62ad6d88f5c516bd78baa89d759e9d7e6f64d68adb2cf26ca117b",
+        "ttir_sha256": "772ab6c45d2cee7d93b3a8cd198467bd13354f0aa4c21f30d7d873792aaf6cc7",
+        "linalg_sha256": "a4ef330105cd2d2a0346ed9a325f66c77e183ce0b097814286dbbb424d9ec8b8",
+        "abi": "unranked memref: (i64 rank=0, rank-0 descriptor pointer) per tensor, then six i32 grid/pid values"
+      },
+      "model_graph_binding": "pending semantic/layout/alias/accumulation matching",
+      "adapter_precondition": "static shapes/grid/physical layout from frontend; offsets supported; strides not dynamically checked",
+      "hardware_validation": "consult parent final verification; archive creation does not run hardware"
+    },
+    {
+      "case": "matmul_1x151936x1024_f32",
+      "symbols": [
+        "_mlir_ciface_kernel_matmul_1x151936x1024_f32",
+        "triton_matmul_1x151936x1024_f32"
+      ],
+      "undefined_runtime_symbols": [],
+      "files_sha256": {
+        "kernel.ttir": "d58e8971a51f6e7d7e082e428d340ef8a3b6a7061187bd79b5bc7a4ac472346b",
+        "kernel.linalg.mlir": "765428810c2270d2f884fa446886b2c98c2cf5275826fd480c1c9b40d7a215a3",
+        "kernel.ll": "ee6653ddf0850e057d335c782d17347d298d134f0713b583801f9ea426db5323",
+        "adapter.c": "458e6d33ba97bf22f81c8e15109d94f3e48106a4400ba14f37a0b858800575b6",
+        "frontend.json": "d8116b34088d960a5c290afa782d38c343f9e9da1b05ca6073ac53ee82032179",
+        "kernel.o": "aaf6a832c003a796bb4512015fe34b6f7c401f954af779039369ac583640bc35",
+        "adapter.o": "f58d1c008daa156eb4d61d180b5ac30c4b5a47146e2019f60d86294db15eceef",
+        "kernel.s": "af14c7522f1b08a42c8a868fa058101deae912a03b425a0e383f39b8e504d847",
+        "kernel.nr.S": "5643a1aec8025a9892c5b79e98437ba1db01330033524c96f949ef5cba602979"
+      },
+      "frontend": {
+        "name": "matmul_1x151936x1024_f32",
+        "family": "matmul_f32",
+        "kernel": "linear",
+        "symbol": "triton_matmul_1x151936x1024_f32",
+        "arguments": [
+          {
+            "name": "A",
+            "rank": 2,
+            "dtype": "f32"
+          },
+          {
+            "name": "B",
+            "rank": 2,
+            "dtype": "f32"
+          },
+          {
+            "name": "C",
+            "rank": 2,
+            "dtype": "f32"
+          }
+        ],
+        "signature": {
+          "A": "*fp32",
+          "B": "*fp32",
+          "C": "*fp32"
+        },
+        "constexprs": {
+          "M": 1,
+          "N": 151936,
+          "K": 1024,
+          "BM": 1,
+          "BN": 16,
+          "BK": 1024,
+          "INTEGER": false
+        },
+        "grid": [
+          1,
+          9496,
+          1
+        ],
+        "launch_source": "../matmul_1x151936x1024_f32/launch.c",
+        "validation": "Unmodified parent launch.c and its independent numerical oracle",
+        "frontend": "triton.compiler.ASTSource -> CPUBackend.make_ttir -> triton-riscv _ttir_to_ttsharedir",
+        "triton_version": "3.8.0",
+        "kernels_sha256": "942d987512a0a6f91bae5b4c915eea5a5f8f090f2c4407e6d5b251e4ec54f1a8",
+        "exporter_sha256": "266a64dda66018359776c61fbbee1c9e8109ff554938a0cc4e66a5d50d0fc56a",
+        "cases_sha256": "f259d6ca7fa62ad6d88f5c516bd78baa89d759e9d7e6f64d68adb2cf26ca117b",
+        "ttir_sha256": "d58e8971a51f6e7d7e082e428d340ef8a3b6a7061187bd79b5bc7a4ac472346b",
+        "linalg_sha256": "765428810c2270d2f884fa446886b2c98c2cf5275826fd480c1c9b40d7a215a3",
+        "abi": "unranked memref: (i64 rank=0, rank-0 descriptor pointer) per tensor, then six i32 grid/pid values"
+      },
+      "model_graph_binding": "pending semantic/layout/alias/accumulation matching",
+      "adapter_precondition": "static shapes/grid/physical layout from frontend; offsets supported; strides not dynamically checked",
+      "hardware_validation": "consult parent final verification; archive creation does not run hardware"
+    },
+    {
+      "case": "matmul_1x2048x1024_f32",
+      "symbols": [
+        "_mlir_ciface_kernel_matmul_1x2048x1024_f32",
+        "triton_matmul_1x2048x1024_f32"
+      ],
+      "undefined_runtime_symbols": [],
+      "files_sha256": {
+        "kernel.ttir": "73691187a2f2dc59eaff146bef49280fdc757c3c631654bdf066e7a504eb62e5",
+        "kernel.linalg.mlir": "eefe01daa50d3c51ae1c4e9d521093b8b8ae1ac57ac6694abd1c2445ec17ee68",
+        "kernel.ll": "9c745ec1a3db4e3e6d489484c4f471f74979488e28e0178ef444009bf30f3768",
+        "adapter.c": "d44c80ab4b8e41b37eb646778f552529c8d7b34c3746c4d421da71a710719ba6",
+        "frontend.json": "35dd5d0e71e6077f42003421ec2bf039af265f2b8ebd7d5c356ee1479230dda4",
+        "kernel.o": "6e6d066d4701b3740e3ef26d622000f8c5620b21ca50ac72d4f7f82e33d45cb1",
+        "adapter.o": "a4fa448e957d5a1f961bdc3a3c2a0862d48d9c16f711aba18a4beaee097c13c8",
+        "kernel.s": "bad66112d5ea764a2914eca338d60904a8c704fc201ac4ab387128ad329e270f",
+        "kernel.nr.S": "7aca74edd914289850c2d048f1bc072784cba75439a41e7bc060773d82cb2e42"
+      },
+      "frontend": {
+        "name": "matmul_1x2048x1024_f32",
+        "family": "matmul_f32",
+        "kernel": "linear",
+        "symbol": "triton_matmul_1x2048x1024_f32",
+        "arguments": [
+          {
+            "name": "A",
+            "rank": 2,
+            "dtype": "f32"
+          },
+          {
+            "name": "B",
+            "rank": 2,
+            "dtype": "f32"
+          },
+          {
+            "name": "C",
+            "rank": 2,
+            "dtype": "f32"
+          }
+        ],
+        "signature": {
+          "A": "*fp32",
+          "B": "*fp32",
+          "C": "*fp32"
+        },
+        "constexprs": {
+          "M": 1,
+          "N": 2048,
+          "K": 1024,
+          "BM": 1,
+          "BN": 16,
+          "BK": 1024,
+          "INTEGER": false
+        },
+        "grid": [
+          1,
+          128,
+          1
+        ],
+        "launch_source": "../matmul_1x2048x1024_f32/launch.c",
+        "validation": "Unmodified parent launch.c and its independent numerical oracle",
+        "frontend": "triton.compiler.ASTSource -> CPUBackend.make_ttir -> triton-riscv _ttir_to_ttsharedir",
+        "triton_version": "3.8.0",
+        "kernels_sha256": "942d987512a0a6f91bae5b4c915eea5a5f8f090f2c4407e6d5b251e4ec54f1a8",
+        "exporter_sha256": "266a64dda66018359776c61fbbee1c9e8109ff554938a0cc4e66a5d50d0fc56a",
+        "cases_sha256": "f259d6ca7fa62ad6d88f5c516bd78baa89d759e9d7e6f64d68adb2cf26ca117b",
+        "ttir_sha256": "73691187a2f2dc59eaff146bef49280fdc757c3c631654bdf066e7a504eb62e5",
+        "linalg_sha256": "eefe01daa50d3c51ae1c4e9d521093b8b8ae1ac57ac6694abd1c2445ec17ee68",
+        "abi": "unranked memref: (i64 rank=0, rank-0 descriptor pointer) per tensor, then six i32 grid/pid values"
+      },
+      "model_graph_binding": "pending semantic/layout/alias/accumulation matching",
+      "adapter_precondition": "static shapes/grid/physical layout from frontend; offsets supported; strides not dynamically checked",
+      "hardware_validation": "consult parent final verification; archive creation does not run hardware"
+    },
+    {
+      "case": "matmul_1x3072x1024_f32",
+      "symbols": [
+        "_mlir_ciface_kernel_matmul_1x3072x1024_f32",
+        "triton_matmul_1x3072x1024_f32"
+      ],
+      "undefined_runtime_symbols": [],
+      "files_sha256": {
+        "kernel.ttir": "1ee6f96c042031f393dd14896dcb3b0176ce319fc15ba08241bc82a66877919b",
+        "kernel.linalg.mlir": "9d70728443815fb26dd24da781632ce8958267072912d68cfc854364c7da54e2",
+        "kernel.ll": "44b3857ac2dabebe28c6efa724037c63ef88ce0228dc48184263444d9cd225d6",
+        "adapter.c": "df795e04ef3f9daf6b895ab169a175fd9047909969faa91e283282d57a585de4",
+        "frontend.json": "1f646b517c08c8caa4dfcd1e7242d77bbc9f7c1bc53af753a56ea154c1042021",
+        "kernel.o": "c55b51ba8c744d04b6e0358bf8d7a4d24821ddb97536e18c140bd72187ae867e",
+        "adapter.o": "d0c692ddaf018a56d7b9e3e752692faf819bd1df5c6374ae8e707d5d641cd288",
+        "kernel.s": "d188425fec75cb9fd27ff904f1c3f47c8d89abea1a574b0100a9671f7b3353cb",
+        "kernel.nr.S": "ad5c7ac71850f30f9149d505ad826ff2a196fd0fafdf8137acb9424f1aebaf7d"
+      },
+      "frontend": {
+        "name": "matmul_1x3072x1024_f32",
+        "family": "matmul_f32",
+        "kernel": "linear",
+        "symbol": "triton_matmul_1x3072x1024_f32",
+        "arguments": [
+          {
+            "name": "A",
+            "rank": 2,
+            "dtype": "f32"
+          },
+          {
+            "name": "B",
+            "rank": 2,
+            "dtype": "f32"
+          },
+          {
+            "name": "C",
+            "rank": 2,
+            "dtype": "f32"
+          }
+        ],
+        "signature": {
+          "A": "*fp32",
+          "B": "*fp32",
+          "C": "*fp32"
+        },
+        "constexprs": {
+          "M": 1,
+          "N": 3072,
+          "K": 1024,
+          "BM": 1,
+          "BN": 16,
+          "BK": 1024,
+          "INTEGER": false
+        },
+        "grid": [
+          1,
+          192,
+          1
+        ],
+        "launch_source": "../matmul_1x3072x1024_f32/launch.c",
+        "validation": "Unmodified parent launch.c and its independent numerical oracle",
+        "frontend": "triton.compiler.ASTSource -> CPUBackend.make_ttir -> triton-riscv _ttir_to_ttsharedir",
+        "triton_version": "3.8.0",
+        "kernels_sha256": "942d987512a0a6f91bae5b4c915eea5a5f8f090f2c4407e6d5b251e4ec54f1a8",
+        "exporter_sha256": "266a64dda66018359776c61fbbee1c9e8109ff554938a0cc4e66a5d50d0fc56a",
+        "cases_sha256": "f259d6ca7fa62ad6d88f5c516bd78baa89d759e9d7e6f64d68adb2cf26ca117b",
+        "ttir_sha256": "1ee6f96c042031f393dd14896dcb3b0176ce319fc15ba08241bc82a66877919b",
+        "linalg_sha256": "9d70728443815fb26dd24da781632ce8958267072912d68cfc854364c7da54e2",
+        "abi": "unranked memref: (i64 rank=0, rank-0 descriptor pointer) per tensor, then six i32 grid/pid values"
+      },
+      "model_graph_binding": "pending semantic/layout/alias/accumulation matching",
+      "adapter_precondition": "static shapes/grid/physical layout from frontend; offsets supported; strides not dynamically checked",
+      "hardware_validation": "consult parent final verification; archive creation does not run hardware"
+    },
+    {
+      "case": "rmsnorm_128x128",
+      "symbols": [
+        "_mlir_ciface_kernel_rmsnorm_128x128",
+        "triton_rmsnorm_128x128"
+      ],
+      "undefined_runtime_symbols": [],
+      "files_sha256": {
+        "kernel.ttir": "6ddd85d30a9c9e900a326ba1dc1482d6d758fdde0967e7f1390fbd1ce75ce8fc",
+        "kernel.linalg.mlir": "422dd5aac2a9543069b790711a5c6074a8d54affbfcfe7a84ea4223a6817c66b",
+        "kernel.ll": "fc4433a657f89864547055eeb8f95864cf030ddd9b93100540e81e50cd7afe1d",
+        "adapter.c": "a60397ae98c765c7593e7548fd7674f4bfaf650e906685b164961d8fe5ee33ed",
+        "frontend.json": "e33da64bd38141188b1550f71cd314c9454b4e40bbfec9064bd9528e34badc91",
+        "kernel.o": "9ac8d2bc9d62f3530d84acedc9c02eb813335c2593275cec4904589c8bc3e826",
+        "adapter.o": "27bcfac2309e0179188b8a5aa020aaaa619a3e2c15154975be0188eef28ad05a",
+        "kernel.s": "3703d379c2de0563ff8c4a566ebe3cc99e5c3734b6d4387d9e2fd74f67761541",
+        "kernel.nr.S": "3f96e5ca0b4d226b80c4bc05c4e05669dc8d2835638f9f7efe070a91ead7152d"
+      },
+      "frontend": {
+        "name": "rmsnorm_128x128",
+        "family": "rmsnorm",
+        "kernel": "rmsnorm",
+        "symbol": "triton_rmsnorm_128x128",
+        "arguments": [
+          {
+            "name": "X",
+            "rank": 2,
+            "dtype": "f32"
+          },
+          {
+            "name": "Weight",
+            "rank": 1,
+            "dtype": "f32"
+          },
+          {
+            "name": "Sums",
+            "rank": 1,
+            "dtype": "f32"
+          },
+          {
+            "name": "Out",
+            "rank": 2,
+            "dtype": "f32"
+          }
+        ],
+        "signature": {
+          "X": "*fp32",
+          "Weight": "*fp32",
+          "Sums": "*fp32",
+          "Out": "*fp32"
+        },
+        "constexprs": {
+          "WIDTH": 128,
+          "BLOCK": 128
+        },
+        "grid": [
+          128,
+          1,
+          1
+        ],
+        "launch_source": "../rmsnorm_128x128/launch.c",
+        "validation": "Unmodified parent launch.c and its independent numerical oracle",
+        "frontend": "triton.compiler.ASTSource -> CPUBackend.make_ttir -> triton-riscv _ttir_to_ttsharedir",
+        "triton_version": "3.8.0",
+        "kernels_sha256": "942d987512a0a6f91bae5b4c915eea5a5f8f090f2c4407e6d5b251e4ec54f1a8",
+        "exporter_sha256": "266a64dda66018359776c61fbbee1c9e8109ff554938a0cc4e66a5d50d0fc56a",
+        "cases_sha256": "f259d6ca7fa62ad6d88f5c516bd78baa89d759e9d7e6f64d68adb2cf26ca117b",
+        "ttir_sha256": "6ddd85d30a9c9e900a326ba1dc1482d6d758fdde0967e7f1390fbd1ce75ce8fc",
+        "linalg_sha256": "422dd5aac2a9543069b790711a5c6074a8d54affbfcfe7a84ea4223a6817c66b",
+        "abi": "unranked memref: (i64 rank=0, rank-0 descriptor pointer) per tensor, then six i32 grid/pid values"
+      },
+      "model_graph_binding": "pending semantic/layout/alias/accumulation matching",
+      "adapter_precondition": "static shapes/grid/physical layout from frontend; offsets supported; strides not dynamically checked",
+      "hardware_validation": "consult parent final verification; archive creation does not run hardware"
+    },
+    {
+      "case": "rmsnorm_16x1024",
+      "symbols": [
+        "_mlir_ciface_kernel_rmsnorm_16x1024",
+        "triton_rmsnorm_16x1024"
+      ],
+      "undefined_runtime_symbols": [],
+      "files_sha256": {
+        "kernel.ttir": "1cb348ef2104ba09969f4b9b247297f65a1047853f5bf1b4ded79bdc6bb67bb7",
+        "kernel.linalg.mlir": "076f83a8b3bb727d1d6269d722145ed69da4b538c0f3f62e40ed74fd24e25fae",
+        "kernel.ll": "9c845267677783e663d409eaf2989aacfa0bb4f2a83b97722ccdb76e8e33ba00",
+        "adapter.c": "0761164c54cfc886537ddadacad1deeb62e5dd3468f5e74bbfbd3cc1497e101e",
+        "frontend.json": "0cc0e60516d4499208c2da49c8910967ea4d1192ee1968c2d5369ce0143cde0b",
+        "kernel.o": "5fe0d74ac80a539791e5d0cc33b536994bd006c34c89ab6552a780928e4782d1",
+        "adapter.o": "6d7bed369738b75f8471ca9ef0ff0105473a4d4ce1c96f2bc0f124a2fb6fd40f",
+        "kernel.s": "f5de7777e863a5cdad426f50cbcafc4e8512871be49d0d4f34ea5ff4de293b9a",
+        "kernel.nr.S": "37a7f91fd7aa3f14b1802156828005f6d9f8837760b4fd7b3a41070f3a5b67a2"
+      },
+      "frontend": {
+        "name": "rmsnorm_16x1024",
+        "family": "rmsnorm",
+        "kernel": "rmsnorm",
+        "symbol": "triton_rmsnorm_16x1024",
+        "arguments": [
+          {
+            "name": "X",
+            "rank": 2,
+            "dtype": "f32"
+          },
+          {
+            "name": "Weight",
+            "rank": 1,
+            "dtype": "f32"
+          },
+          {
+            "name": "Sums",
+            "rank": 1,
+            "dtype": "f32"
+          },
+          {
+            "name": "Out",
+            "rank": 2,
+            "dtype": "f32"
+          }
+        ],
+        "signature": {
+          "X": "*fp32",
+          "Weight": "*fp32",
+          "Sums": "*fp32",
+          "Out": "*fp32"
+        },
+        "constexprs": {
+          "WIDTH": 1024,
+          "BLOCK": 1024
+        },
+        "grid": [
+          16,
+          1,
+          1
+        ],
+        "launch_source": "../rmsnorm_16x1024/launch.c",
+        "validation": "Unmodified parent launch.c and its independent numerical oracle",
+        "frontend": "triton.compiler.ASTSource -> CPUBackend.make_ttir -> triton-riscv _ttir_to_ttsharedir",
+        "triton_version": "3.8.0",
+        "kernels_sha256": "942d987512a0a6f91bae5b4c915eea5a5f8f090f2c4407e6d5b251e4ec54f1a8",
+        "exporter_sha256": "266a64dda66018359776c61fbbee1c9e8109ff554938a0cc4e66a5d50d0fc56a",
+        "cases_sha256": "f259d6ca7fa62ad6d88f5c516bd78baa89d759e9d7e6f64d68adb2cf26ca117b",
+        "ttir_sha256": "1cb348ef2104ba09969f4b9b247297f65a1047853f5bf1b4ded79bdc6bb67bb7",
+        "linalg_sha256": "076f83a8b3bb727d1d6269d722145ed69da4b538c0f3f62e40ed74fd24e25fae",
+        "abi": "unranked memref: (i64 rank=0, rank-0 descriptor pointer) per tensor, then six i32 grid/pid values"
+      },
+      "model_graph_binding": "pending semantic/layout/alias/accumulation matching",
+      "adapter_precondition": "static shapes/grid/physical layout from frontend; offsets supported; strides not dynamically checked",
+      "hardware_validation": "consult parent final verification; archive creation does not run hardware"
+    },
+    {
+      "case": "rmsnorm_16x128",
+      "symbols": [
+        "_mlir_ciface_kernel_rmsnorm_16x128",
+        "triton_rmsnorm_16x128"
+      ],
+      "undefined_runtime_symbols": [],
+      "files_sha256": {
+        "kernel.ttir": "5ade149c9bebe5e41dcd3b7f4d81cd28d58ec6f0f8d7d2d3826d974bdfe0294a",
+        "kernel.linalg.mlir": "a4893fc0eb50f6183cab496da83eaf6768ec859ce2f213c98a9fa00a680cd4fa",
+        "kernel.ll": "4ddbb5eaf6bf0b470d3aea8da372c38ad47cca6d64fa11a257ec5a32bfdb4090",
+        "adapter.c": "51eb06b256d59b7e75d1b6aca657631159c99dd2354cb0fcfceab0778c005096",
+        "frontend.json": "02f197a12fcb3e8d85d1c813ca5ea3b2b5a10ce8f4819bd8766ff0c4ff126f8c",
+        "kernel.o": "98b1e1d86ceda5ab8c053c5048a4c7393c356c362ec8529cb714c7a3df7d4a7c",
+        "adapter.o": "8a795e5549459d1a30e9985fbe4588e057e99aa732839876d06ea46ef753169f",
+        "kernel.s": "b9bda9e65b48ec34170db3c513eefd2f06743f2add24086c3ea5c926325a17d4",
+        "kernel.nr.S": "886c4e0bd99b8adf8d603cea2c3ab2ff23e088adfe3d679c40aa1b820f362769"
+      },
+      "frontend": {
+        "name": "rmsnorm_16x128",
+        "family": "rmsnorm",
+        "kernel": "rmsnorm",
+        "symbol": "triton_rmsnorm_16x128",
+        "arguments": [
+          {
+            "name": "X",
+            "rank": 2,
+            "dtype": "f32"
+          },
+          {
+            "name": "Weight",
+            "rank": 1,
+            "dtype": "f32"
+          },
+          {
+            "name": "Sums",
+            "rank": 1,
+            "dtype": "f32"
+          },
+          {
+            "name": "Out",
+            "rank": 2,
+            "dtype": "f32"
+          }
+        ],
+        "signature": {
+          "X": "*fp32",
+          "Weight": "*fp32",
+          "Sums": "*fp32",
+          "Out": "*fp32"
+        },
+        "constexprs": {
+          "WIDTH": 128,
+          "BLOCK": 128
+        },
+        "grid": [
+          16,
+          1,
+          1
+        ],
+        "launch_source": "../rmsnorm_16x128/launch.c",
+        "validation": "Unmodified parent launch.c and its independent numerical oracle",
+        "frontend": "triton.compiler.ASTSource -> CPUBackend.make_ttir -> triton-riscv _ttir_to_ttsharedir",
+        "triton_version": "3.8.0",
+        "kernels_sha256": "942d987512a0a6f91bae5b4c915eea5a5f8f090f2c4407e6d5b251e4ec54f1a8",
+        "exporter_sha256": "266a64dda66018359776c61fbbee1c9e8109ff554938a0cc4e66a5d50d0fc56a",
+        "cases_sha256": "f259d6ca7fa62ad6d88f5c516bd78baa89d759e9d7e6f64d68adb2cf26ca117b",
+        "ttir_sha256": "5ade149c9bebe5e41dcd3b7f4d81cd28d58ec6f0f8d7d2d3826d974bdfe0294a",
+        "linalg_sha256": "a4893fc0eb50f6183cab496da83eaf6768ec859ce2f213c98a9fa00a680cd4fa",
+        "abi": "unranked memref: (i64 rank=0, rank-0 descriptor pointer) per tensor, then six i32 grid/pid values"
+      },
+      "model_graph_binding": "pending semantic/layout/alias/accumulation matching",
+      "adapter_precondition": "static shapes/grid/physical layout from frontend; offsets supported; strides not dynamically checked",
+      "hardware_validation": "consult parent final verification; archive creation does not run hardware"
+    },
+    {
+      "case": "rmsnorm_1x1024",
+      "symbols": [
+        "_mlir_ciface_kernel_rmsnorm_1x1024",
+        "triton_rmsnorm_1x1024"
+      ],
+      "undefined_runtime_symbols": [],
+      "files_sha256": {
+        "kernel.ttir": "8158abe476a5d7278617f4a76183a3b799e93f2c5f566bb57d0320651b9c4ae8",
+        "kernel.linalg.mlir": "65ebf0fdda46b96a3950b906193f4cc7ebdc2ba841007ce10d16792026409f1c",
+        "kernel.ll": "69bb23ac75f8ca591c5655eaa1f6be72fb58dbf3554e7633f0bb8630d74af6b7",
+        "adapter.c": "206fee86b3d1b120da00dc3f2533b8c03c8338c32f1a20c0ec9902d66493262e",
+        "frontend.json": "b055f11a5e3cfeb773dbd0f7af8a69e449943aa57621c0cff60792e71beba32a",
+        "kernel.o": "3e18a9e7760530bd35b5708b3274d0543a80a1107184b382a8ebbc0fb223c203",
+        "adapter.o": "8aad955375b0d0f4c54da03fbd5bb4b8c12a833b32f48d8a4fb8ee4aa4e51a08",
+        "kernel.s": "f4cae2371aa16efce4fee010f7de781afd97f11b94d414e3c644e3d18fd690a8",
+        "kernel.nr.S": "ba5aedbf3de1d4b65c261c9fe1369ff93410da5b6ef964d08bfd1614a76a3971"
+      },
+      "frontend": {
+        "name": "rmsnorm_1x1024",
+        "family": "rmsnorm",
+        "kernel": "rmsnorm",
+        "symbol": "triton_rmsnorm_1x1024",
+        "arguments": [
+          {
+            "name": "X",
+            "rank": 2,
+            "dtype": "f32"
+          },
+          {
+            "name": "Weight",
+            "rank": 1,
+            "dtype": "f32"
+          },
+          {
+            "name": "Sums",
+            "rank": 1,
+            "dtype": "f32"
+          },
+          {
+            "name": "Out",
+            "rank": 2,
+            "dtype": "f32"
+          }
+        ],
+        "signature": {
+          "X": "*fp32",
+          "Weight": "*fp32",
+          "Sums": "*fp32",
+          "Out": "*fp32"
+        },
+        "constexprs": {
+          "WIDTH": 1024,
+          "BLOCK": 1024
+        },
+        "grid": [
+          1,
+          1,
+          1
+        ],
+        "launch_source": "../rmsnorm_1x1024/launch.c",
+        "validation": "Unmodified parent launch.c and its independent numerical oracle",
+        "frontend": "triton.compiler.ASTSource -> CPUBackend.make_ttir -> triton-riscv _ttir_to_ttsharedir",
+        "triton_version": "3.8.0",
+        "kernels_sha256": "942d987512a0a6f91bae5b4c915eea5a5f8f090f2c4407e6d5b251e4ec54f1a8",
+        "exporter_sha256": "266a64dda66018359776c61fbbee1c9e8109ff554938a0cc4e66a5d50d0fc56a",
+        "cases_sha256": "f259d6ca7fa62ad6d88f5c516bd78baa89d759e9d7e6f64d68adb2cf26ca117b",
+        "ttir_sha256": "8158abe476a5d7278617f4a76183a3b799e93f2c5f566bb57d0320651b9c4ae8",
+        "linalg_sha256": "65ebf0fdda46b96a3950b906193f4cc7ebdc2ba841007ce10d16792026409f1c",
+        "abi": "unranked memref: (i64 rank=0, rank-0 descriptor pointer) per tensor, then six i32 grid/pid values"
+      },
+      "model_graph_binding": "pending semantic/layout/alias/accumulation matching",
+      "adapter_precondition": "static shapes/grid/physical layout from frontend; offsets supported; strides not dynamically checked",
+      "hardware_validation": "consult parent final verification; archive creation does not run hardware"
+    },
+    {
+      "case": "rmsnorm_256x128",
+      "symbols": [
+        "_mlir_ciface_kernel_rmsnorm_256x128",
+        "triton_rmsnorm_256x128"
+      ],
+      "undefined_runtime_symbols": [],
+      "files_sha256": {
+        "kernel.ttir": "e77f9bf5779d232a3e6bfdbef05beb171e2664f97b1f41d1ca65df1f48a12590",
+        "kernel.linalg.mlir": "a18fbe5d29901393494d6de35741dcf1b9e5f74d6ab0aa2b4b37ae6bba652e52",
+        "kernel.ll": "5add6e1edc3ff902aa3219ffe477e8dca1f23c0547119c3625bdeb31880546b9",
+        "adapter.c": "9b1408ae0c46d553a786158c3a852d6beb94b165218a1ce4616ebe531bc19ca5",
+        "frontend.json": "45993b2dbca09264996b57c48446536d7d2fe8535c6d96b416b7b865bd206e13",
+        "kernel.o": "0e1d5eb68741feaddd07e0717aba4044a40853c91e059ba5a51c6fa371c9f9e6",
+        "adapter.o": "90f89c3167528e49266eeb9fbc7c2c682840dcf9baee1cb8041396700116d3ee",
+        "kernel.s": "bd6a9d398f6792031053d7ace773ec44f4cd6d7dab4285c7b7eec1126e4a6808",
+        "kernel.nr.S": "0318f19ca3beca77ccf4c1d31b5d95eb74a10d2bb74bf724fd80bd9e058068fb"
+      },
+      "frontend": {
+        "name": "rmsnorm_256x128",
+        "family": "rmsnorm",
+        "kernel": "rmsnorm",
+        "symbol": "triton_rmsnorm_256x128",
+        "arguments": [
+          {
+            "name": "X",
+            "rank": 2,
+            "dtype": "f32"
+          },
+          {
+            "name": "Weight",
+            "rank": 1,
+            "dtype": "f32"
+          },
+          {
+            "name": "Sums",
+            "rank": 1,
+            "dtype": "f32"
+          },
+          {
+            "name": "Out",
+            "rank": 2,
+            "dtype": "f32"
+          }
+        ],
+        "signature": {
+          "X": "*fp32",
+          "Weight": "*fp32",
+          "Sums": "*fp32",
+          "Out": "*fp32"
+        },
+        "constexprs": {
+          "WIDTH": 128,
+          "BLOCK": 128
+        },
+        "grid": [
+          256,
+          1,
+          1
+        ],
+        "launch_source": "../rmsnorm_256x128/launch.c",
+        "validation": "Unmodified parent launch.c and its independent numerical oracle",
+        "frontend": "triton.compiler.ASTSource -> CPUBackend.make_ttir -> triton-riscv _ttir_to_ttsharedir",
+        "triton_version": "3.8.0",
+        "kernels_sha256": "942d987512a0a6f91bae5b4c915eea5a5f8f090f2c4407e6d5b251e4ec54f1a8",
+        "exporter_sha256": "266a64dda66018359776c61fbbee1c9e8109ff554938a0cc4e66a5d50d0fc56a",
+        "cases_sha256": "f259d6ca7fa62ad6d88f5c516bd78baa89d759e9d7e6f64d68adb2cf26ca117b",
+        "ttir_sha256": "e77f9bf5779d232a3e6bfdbef05beb171e2664f97b1f41d1ca65df1f48a12590",
+        "linalg_sha256": "a18fbe5d29901393494d6de35741dcf1b9e5f74d6ab0aa2b4b37ae6bba652e52",
+        "abi": "unranked memref: (i64 rank=0, rank-0 descriptor pointer) per tensor, then six i32 grid/pid values"
+      },
+      "model_graph_binding": "pending semantic/layout/alias/accumulation matching",
+      "adapter_precondition": "static shapes/grid/physical layout from frontend; offsets supported; strides not dynamically checked",
+      "hardware_validation": "consult parent final verification; archive creation does not run hardware"
+    },
+    {
+      "case": "rmsnorm_8x128",
+      "symbols": [
+        "_mlir_ciface_kernel_rmsnorm_8x128",
+        "triton_rmsnorm_8x128"
+      ],
+      "undefined_runtime_symbols": [],
+      "files_sha256": {
+        "kernel.ttir": "31ad1157d317f815807246d47118f6a146c4fdf68f8b5a324266e553b367932c",
+        "kernel.linalg.mlir": "87aad8e6c7e4189a4c9e8eff8c1510aafba4b2c9802cb760ce289a6aa3962b75",
+        "kernel.ll": "9248b6c23eecb59f22099126af5151448bededb9b40333180699f3c6abbf47e0",
+        "adapter.c": "269b6373ffc8a4b027295d29f845ecd70bb2933dd6c083608bbcd1245bc9a512",
+        "frontend.json": "1cf209d9cb33f44ab0fec94d526e654e45270d56a72d1321b939ed8340539cfd",
+        "kernel.o": "b3eb44abac823f30cbe80c2285d16ba3edb5f91b963c395118f6ea655be54054",
+        "adapter.o": "9dd37953334be831f4be5c76e16bb9d9fabab4faecc24bdf632b0db960bbb5c3",
+        "kernel.s": "7d59e61540cf4fb2ab6357a642669d013e9952d3ec37421885768f657d3ac881",
+        "kernel.nr.S": "2228669499cea56883b9d72ed85ca704c9f20853a7184706f54dc9368d1f6663"
+      },
+      "frontend": {
+        "name": "rmsnorm_8x128",
+        "family": "rmsnorm",
+        "kernel": "rmsnorm",
+        "symbol": "triton_rmsnorm_8x128",
+        "arguments": [
+          {
+            "name": "X",
+            "rank": 2,
+            "dtype": "f32"
+          },
+          {
+            "name": "Weight",
+            "rank": 1,
+            "dtype": "f32"
+          },
+          {
+            "name": "Sums",
+            "rank": 1,
+            "dtype": "f32"
+          },
+          {
+            "name": "Out",
+            "rank": 2,
+            "dtype": "f32"
+          }
+        ],
+        "signature": {
+          "X": "*fp32",
+          "Weight": "*fp32",
+          "Sums": "*fp32",
+          "Out": "*fp32"
+        },
+        "constexprs": {
+          "WIDTH": 128,
+          "BLOCK": 128
+        },
+        "grid": [
+          8,
+          1,
+          1
+        ],
+        "launch_source": "../rmsnorm_8x128/launch.c",
+        "validation": "Unmodified parent launch.c and its independent numerical oracle",
+        "frontend": "triton.compiler.ASTSource -> CPUBackend.make_ttir -> triton-riscv _ttir_to_ttsharedir",
+        "triton_version": "3.8.0",
+        "kernels_sha256": "942d987512a0a6f91bae5b4c915eea5a5f8f090f2c4407e6d5b251e4ec54f1a8",
+        "exporter_sha256": "266a64dda66018359776c61fbbee1c9e8109ff554938a0cc4e66a5d50d0fc56a",
+        "cases_sha256": "f259d6ca7fa62ad6d88f5c516bd78baa89d759e9d7e6f64d68adb2cf26ca117b",
+        "ttir_sha256": "31ad1157d317f815807246d47118f6a146c4fdf68f8b5a324266e553b367932c",
+        "linalg_sha256": "87aad8e6c7e4189a4c9e8eff8c1510aafba4b2c9802cb760ce289a6aa3962b75",
+        "abi": "unranked memref: (i64 rank=0, rank-0 descriptor pointer) per tensor, then six i32 grid/pid values"
+      },
+      "model_graph_binding": "pending semantic/layout/alias/accumulation matching",
+      "adapter_precondition": "static shapes/grid/physical layout from frontend; offsets supported; strides not dynamically checked",
+      "hardware_validation": "consult parent final verification; archive creation does not run hardware"
+    },
+    {
+      "case": "silu_16x3072",
+      "symbols": [
+        "_mlir_ciface_kernel_silu_16x3072",
+        "triton_silu_16x3072"
+      ],
+      "undefined_runtime_symbols": [
+        "expf"
+      ],
+      "files_sha256": {
+        "kernel.ttir": "52745e49f65ac94d4ce8637c04e5f116f4c559057b55a3c8cd70b8de3f60f75c",
+        "kernel.linalg.mlir": "7ab0cb0b92e5738d3cb8aa58427bdf91a751f2d358da1cf92664137096a54006",
+        "kernel.ll": "5370e9f46501597283a4398963507afa4a5d74db7d640ef32c435d9f5d725f0a",
+        "adapter.c": "91ea610168d534c6679941db2854dd7a58024af30273db95238bb41fdb6b4198",
+        "frontend.json": "bba8de362d0c128945547dacb5ee7199593c60b52492407ca345b8f405120eb8",
+        "kernel.o": "9999fe4583c7cdd1018e39bbad1434ebc7b0ef8373690a94f64ceb272131eeef",
+        "adapter.o": "1ab7a83c84a616302b9d6ad69a64cad18089f194b749d1afd1da28bd90d12423",
+        "kernel.s": "91ac08d4087d27f130974a4eb333d1b21095cf584d9afe2f3a0f55fc209c480e",
+        "kernel.nr.S": "21e50f7f9f11d72b5bd89ca1a788361a1def1b531a6f0b8aa5c37e2ff0f574db"
+      },
+      "frontend": {
+        "name": "silu_16x3072",
+        "family": "silu",
+        "kernel": "silu",
+        "symbol": "triton_silu_16x3072",
+        "arguments": [
+          {
+            "name": "X",
+            "rank": 2,
+            "dtype": "f32"
+          },
+          {
+            "name": "Out",
+            "rank": 2,
+            "dtype": "f32"
+          }
+        ],
+        "signature": {
+          "X": "*fp32",
+          "Out": "*fp32"
+        },
+        "constexprs": {
+          "COUNT": 49152,
+          "BLOCK": 128
+        },
+        "grid": [
+          384,
+          1,
+          1
+        ],
+        "launch_source": "../silu_16x3072/launch.c",
+        "validation": "Unmodified parent launch.c and its independent numerical oracle",
+        "frontend": "triton.compiler.ASTSource -> CPUBackend.make_ttir -> triton-riscv _ttir_to_ttsharedir",
+        "triton_version": "3.8.0",
+        "kernels_sha256": "942d987512a0a6f91bae5b4c915eea5a5f8f090f2c4407e6d5b251e4ec54f1a8",
+        "exporter_sha256": "266a64dda66018359776c61fbbee1c9e8109ff554938a0cc4e66a5d50d0fc56a",
+        "cases_sha256": "f259d6ca7fa62ad6d88f5c516bd78baa89d759e9d7e6f64d68adb2cf26ca117b",
+        "ttir_sha256": "52745e49f65ac94d4ce8637c04e5f116f4c559057b55a3c8cd70b8de3f60f75c",
+        "linalg_sha256": "7ab0cb0b92e5738d3cb8aa58427bdf91a751f2d358da1cf92664137096a54006",
+        "abi": "unranked memref: (i64 rank=0, rank-0 descriptor pointer) per tensor, then six i32 grid/pid values"
+      },
+      "model_graph_binding": "pending semantic/layout/alias/accumulation matching",
+      "adapter_precondition": "static shapes/grid/physical layout from frontend; offsets supported; strides not dynamically checked",
+      "hardware_validation": "consult parent final verification; archive creation does not run hardware"
+    },
+    {
+      "case": "silu_1x3072",
+      "symbols": [
+        "_mlir_ciface_kernel_silu_1x3072",
+        "triton_silu_1x3072"
+      ],
+      "undefined_runtime_symbols": [
+        "expf"
+      ],
+      "files_sha256": {
+        "kernel.ttir": "87661e565d14869028b84378d6d86584315a2ac3cf3a6442ebfecfadb00268b0",
+        "kernel.linalg.mlir": "d8eb8c413e60d6c3e54718b15b72a5ef5925c823f41fbb26b89ecbbbd87d13ae",
+        "kernel.ll": "1ed4dc31d5b479f95a1c0fad407849dfdc86ac4d0e8efd085602e991e2b38596",
+        "adapter.c": "06c24f13599bce4216baa590628604bef8f3a9baf7509871851caa28b578130d",
+        "frontend.json": "eb8003a852bf916ca01f91f2d3b9c3d59b5403eaa5fa4e4a9b31325c910633ee",
+        "kernel.o": "f262c3c8bcc610d48627741bff274a4b7e1b0db2b9020674964f931d7cf6e6c5",
+        "adapter.o": "40d02039b3024a8d900870c7c4b9134362254da85d5265f8c1479b1fef3c2ee1",
+        "kernel.s": "c5af2c7305cacbb2af5f23f360c25fdc72e92fb89df2eb19832dd74a78681025",
+        "kernel.nr.S": "f56b8bdcee0fcd3ff7bb253019be401e774d490e8c166a91e40adedec2e82377"
+      },
+      "frontend": {
+        "name": "silu_1x3072",
+        "family": "silu",
+        "kernel": "silu",
+        "symbol": "triton_silu_1x3072",
+        "arguments": [
+          {
+            "name": "X",
+            "rank": 2,
+            "dtype": "f32"
+          },
+          {
+            "name": "Out",
+            "rank": 2,
+            "dtype": "f32"
+          }
+        ],
+        "signature": {
+          "X": "*fp32",
+          "Out": "*fp32"
+        },
+        "constexprs": {
+          "COUNT": 3072,
+          "BLOCK": 128
+        },
+        "grid": [
+          24,
+          1,
+          1
+        ],
+        "launch_source": "../silu_1x3072/launch.c",
+        "validation": "Unmodified parent launch.c and its independent numerical oracle",
+        "frontend": "triton.compiler.ASTSource -> CPUBackend.make_ttir -> triton-riscv _ttir_to_ttsharedir",
+        "triton_version": "3.8.0",
+        "kernels_sha256": "942d987512a0a6f91bae5b4c915eea5a5f8f090f2c4407e6d5b251e4ec54f1a8",
+        "exporter_sha256": "266a64dda66018359776c61fbbee1c9e8109ff554938a0cc4e66a5d50d0fc56a",
+        "cases_sha256": "f259d6ca7fa62ad6d88f5c516bd78baa89d759e9d7e6f64d68adb2cf26ca117b",
+        "ttir_sha256": "87661e565d14869028b84378d6d86584315a2ac3cf3a6442ebfecfadb00268b0",
+        "linalg_sha256": "d8eb8c413e60d6c3e54718b15b72a5ef5925c823f41fbb26b89ecbbbd87d13ae",
+        "abi": "unranked memref: (i64 rank=0, rank-0 descriptor pointer) per tensor, then six i32 grid/pid values"
+      },
+      "model_graph_binding": "pending semantic/layout/alias/accumulation matching",
+      "adapter_precondition": "static shapes/grid/physical layout from frontend; offsets supported; strides not dynamically checked",
+      "hardware_validation": "consult parent final verification; archive creation does not run hardware"
+    },
+    {
+      "case": "softmax_16x16x512",
+      "symbols": [
+        "_mlir_ciface_kernel_softmax_16x16x512",
+        "triton_softmax_16x16x512"
+      ],
+      "undefined_runtime_symbols": [
+        "expf"
+      ],
+      "files_sha256": {
+        "kernel.ttir": "2386e57f1fddd8bdaca2a4f2a9a3a6ba7b2c65ae5dab57c478981f7180b0fd7a",
+        "kernel.linalg.mlir": "f1b940580e1f0db7fea3840a325201f88ffe06f36e12d535760a82d4a25f0526",
+        "kernel.ll": "31401957c233e002f5c4ffaeb372dd6d3b4e211afb0c2c92b57f55b0d88ca3ea",
+        "adapter.c": "6142eb6bc9de4373dcb35197a3b6ad24b14f53255e12eec598e0462d128b2e64",
+        "frontend.json": "d2f61dfbd13f5a9c321092027ff6fd3a6a1c3e732373d22458c3fcd2a135a16d",
+        "kernel.o": "6430f55298d4685add3da2af8bcbcd447a09db43c3638ac12a1191e8a51aea4c",
+        "adapter.o": "84e913bd58a5296bc97efa9f826314cbb3ae852b21787fd6549ad86e063fc608",
+        "kernel.s": "02792b0b36fdceda457ba23e686a8b7d7d3a65842b44ec9a9ef490f6fb20f2fb",
+        "kernel.nr.S": "c57941ecede2c5605055de97cc3c5642f2bae7f53cabdbc55a5443dad301869f"
+      },
+      "frontend": {
+        "name": "softmax_16x16x512",
+        "family": "softmax",
+        "kernel": "softmax",
+        "symbol": "triton_softmax_16x16x512",
+        "arguments": [
+          {
+            "name": "X",
+            "rank": 3,
+            "dtype": "f32"
+          },
+          {
+            "name": "Maxima",
+            "rank": 1,
+            "dtype": "f32"
+          },
+          {
+            "name": "Sums",
+            "rank": 1,
+            "dtype": "f32"
+          },
+          {
+            "name": "Out",
+            "rank": 3,
+            "dtype": "f32"
+          }
+        ],
+        "signature": {
+          "X": "*fp32",
+          "Maxima": "*fp32",
+          "Sums": "*fp32",
+          "Out": "*fp32"
+        },
+        "constexprs": {
+          "LENGTH": 512,
+          "BLOCK": 512
+        },
+        "grid": [
+          256,
+          1,
+          1
+        ],
+        "directory": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/model-cases/softmax_16x16x512",
+        "launch_source": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/model-cases/softmax_16x16x512/launch.c",
+        "validation": "Unmodified parent launch.c and its independent numerical oracle",
+        "frontend": "triton.compiler.ASTSource -> CPUBackend.make_ttir -> triton-riscv _ttir_to_ttsharedir",
+        "triton_version": "3.8.0",
+        "kernels_sha256": "0596945721efbd12958267ad0093e59cf8cac464316b14cda1af4b78e236f930",
+        "exporter_sha256": "266a64dda66018359776c61fbbee1c9e8109ff554938a0cc4e66a5d50d0fc56a",
+        "cases_sha256": "3e6e4bb2654df8781feccfa0a0974a2d35962282d33ec98622e52c55a6dfdba7",
+        "ttir_sha256": "2386e57f1fddd8bdaca2a4f2a9a3a6ba7b2c65ae5dab57c478981f7180b0fd7a",
+        "linalg_sha256": "f1b940580e1f0db7fea3840a325201f88ffe06f36e12d535760a82d4a25f0526",
+        "abi": "unranked memref: (i64 rank=0, rank-0 descriptor pointer) per tensor, then six i32 grid/pid values"
+      },
+      "model_graph_binding": "pending semantic/layout/alias/accumulation matching",
+      "adapter_precondition": "static shapes/grid/physical layout from frontend; offsets supported; strides not dynamically checked",
+      "hardware_validation": "consult parent final verification; archive creation does not run hardware"
+    },
+    {
+      "case": "softmax_16x1x512",
+      "symbols": [
+        "_mlir_ciface_kernel_softmax_16x1x512",
+        "triton_softmax_16x1x512"
+      ],
+      "undefined_runtime_symbols": [
+        "expf"
+      ],
+      "files_sha256": {
+        "kernel.ttir": "65d3bf4c5b7c59e5709fc625f8f8d600f57cf8a04385fb55462ae2abe184f29a",
+        "kernel.linalg.mlir": "d23f4162a5b767bd9b8b3a997b9304a101eaedb9946b606ad1fb68dbff090da5",
+        "kernel.ll": "53790d88613f1cd0eecaa1b6afd301bab7df495562542c9096f641dedc87adee",
+        "adapter.c": "de67af4492fdfa5bb421cedcb975f653123fb319acd27b2735c47db60e6c97ac",
+        "frontend.json": "dfcbfc1b41dea8372c7a08ba36994ff18d56b745be0d1e821e2d24ce54b3176f",
+        "kernel.o": "27be7c8601f980bfab7b096c3c191e6d8b63e6174e2939359871a79b9fa0ab25",
+        "adapter.o": "0d35812ec40a6480561b90507737ad648be1b447eefffe6fbbc94c3e02f87e2a",
+        "kernel.s": "6095cfeac1a82dd32f8951596a31482dd952a1fc967e0eb02eac76ccf516f0ae",
+        "kernel.nr.S": "447f8ec5b1ec1340c0e0d7b7eba1996c03d1abf563c2a4473eceabff6dac924e"
+      },
+      "frontend": {
+        "name": "softmax_16x1x512",
+        "family": "softmax",
+        "kernel": "softmax",
+        "symbol": "triton_softmax_16x1x512",
+        "arguments": [
+          {
+            "name": "X",
+            "rank": 3,
+            "dtype": "f32"
+          },
+          {
+            "name": "Maxima",
+            "rank": 1,
+            "dtype": "f32"
+          },
+          {
+            "name": "Sums",
+            "rank": 1,
+            "dtype": "f32"
+          },
+          {
+            "name": "Out",
+            "rank": 3,
+            "dtype": "f32"
+          }
+        ],
+        "signature": {
+          "X": "*fp32",
+          "Maxima": "*fp32",
+          "Sums": "*fp32",
+          "Out": "*fp32"
+        },
+        "constexprs": {
+          "LENGTH": 512,
+          "BLOCK": 512
+        },
+        "grid": [
+          16,
+          1,
+          1
+        ],
+        "directory": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/model-cases/softmax_16x1x512",
+        "launch_source": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/model-cases/softmax_16x1x512/launch.c",
+        "validation": "Unmodified parent launch.c and its independent numerical oracle",
+        "frontend": "triton.compiler.ASTSource -> CPUBackend.make_ttir -> triton-riscv _ttir_to_ttsharedir",
+        "triton_version": "3.8.0",
+        "kernels_sha256": "0596945721efbd12958267ad0093e59cf8cac464316b14cda1af4b78e236f930",
+        "exporter_sha256": "266a64dda66018359776c61fbbee1c9e8109ff554938a0cc4e66a5d50d0fc56a",
+        "cases_sha256": "3e6e4bb2654df8781feccfa0a0974a2d35962282d33ec98622e52c55a6dfdba7",
+        "ttir_sha256": "65d3bf4c5b7c59e5709fc625f8f8d600f57cf8a04385fb55462ae2abe184f29a",
+        "linalg_sha256": "d23f4162a5b767bd9b8b3a997b9304a101eaedb9946b606ad1fb68dbff090da5",
+        "abi": "unranked memref: (i64 rank=0, rank-0 descriptor pointer) per tensor, then six i32 grid/pid values"
+      },
+      "model_graph_binding": "pending semantic/layout/alias/accumulation matching",
+      "adapter_precondition": "static shapes/grid/physical layout from frontend; offsets supported; strides not dynamically checked",
+      "hardware_validation": "consult parent final verification; archive creation does not run hardware"
+    }
+  ],
+  "contains_test_launch": false,
+  "contains_runtime": false,
+  "graph_calls_verified": false
+}

@@ -1,0 +1,2 @@
+_mlir_ciface_kernel_rmsnorm_16x128 T 0 80
+triton_rmsnorm_16x128 U 0 0

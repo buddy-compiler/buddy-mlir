@@ -1,0 +1,971 @@
+[fpga_run] UART ready: /dev/FPGA5, 115200, 8N1, no flow control
+[fpga_run] FPGA5 session active; elapsed=0s, UART=0 bytes
+
+[nr] NH boot; RA operator runtime
+[nr] RA entry=0x0000000080000040
+[nr] RA entered; clearing application BSS
+[nr] mstatus=0x8000000A00006000; launch BEGIN
+[fpga_run] FPGA5 started; capturing for 900 seconds
+[text] prompt count=00000010 ids=0002505C 00000368 000000C6 00000EFE 00000176 00002599 0000001E 0002505D 000000C6 0002505C 00012D23 000000C6 00025073 0000010F 00025074 0000010F encode_cycles=000000000002B203
+verify fixed prompt tokenizer: PASS
+[text] mode=fixed-validation; EOS is recorded, never early-stops
+[model] prefill begin position=00000000 input_token=0002505C
+[probe] entry=00000000 rank=00000003 descriptor=00000000813656D0
+[probe] entry=00000001 rank=00000003 descriptor=0000000081365718
+[probe] entry=0000000B rank=00000002 descriptor=00000000813656F0
+[probe] entry=0000000C rank=00000002 descriptor=00000000813656B8
+[probe] entry=0000000D rank=00000001 descriptor=0000000081365690
+[probe] entry=0000000E rank=00000002 descriptor=0000000081365620
+[probe] entry=00000002 rank=00000004 descriptor=0000000081365698
+[probe] entry=00000003 rank=00000004 descriptor=00000000813656F0
+[probe] entry=0000000F rank=00000002 descriptor=00000000813656F0
+[probe] entry=00000010 rank=00000002 descriptor=00000000813656B8
+[probe] entry=00000011 rank=00000001 descriptor=0000000081365690
+[probe] entry=00000012 rank=00000002 descriptor=0000000081365620
+[probe] entry=00000004 rank=00000004 descriptor=0000000081365698
+[probe] entry=00000005 rank=00000004 descriptor=00000000813656F0
+[probe] entry=00000013 rank=00000002 descriptor=00000000813656F0
+[probe] entry=00000014 rank=00000002 descriptor=00000000813656B8
+[probe] entry=00000015 rank=00000001 descriptor=0000000081365690
+[probe] entry=00000016 rank=00000002 descriptor=0000000081365620
+[fpga_run] FPGA5 session active; elapsed=9s, UART=1723 bytes
+[probe] entry=0000002B rank=00000004 descriptor=0000000081365660
+[probe] entry=0000002C rank=00000004 descriptor=00000000813655E8
+[probe] entry=0000002D rank=00000004 descriptor=0000000081365588
+[probe] entry=00000017 rank=00000002 descriptor=00000000813656F0
+[probe] entry=00000018 rank=00000002 descriptor=00000000813656B8
+[probe] entry=00000019 rank=00000001 descriptor=0000000081365690
+[probe] entry=0000001A rank=00000002 descriptor=0000000081365620
+[probe] entry=00000006 rank=00000003 descriptor=00000000813656D0
+[probe] entry=00000007 rank=00000003 descriptor=0000000081365718
+[probe] entry=0000001B rank=00000002 descriptor=00000000813656F0
+[probe] entry=0000001C rank=00000002 descriptor=00000000813656B8
+[probe] entry=0000001D rank=00000001 descriptor=0000000081365690
+[probe] entry=0000001E rank=00000002 descriptor=0000000081365620
+[probe] entry=00000009 rank=00000003 descriptor=0000000081365700
+[probe] entry=0000000A rank=00000003 descriptor=0000000081365748
+[probe] entry=0000001F rank=00000002 descriptor=00000000813656F0
+[probe] entry=00000020 rank=00000002 descriptor=00000000813656B8
+[probe] entry=00000021 rank=00000001 descriptor=0000000081365690
+[probe] entry=00000022 rank=00000002 descriptor=0000000081365620
+[probe] entry=00000023 rank=00000002 descriptor=00000000813656F0
+[probe] entry=00000024 rank=00000002 descriptor=00000000813656B8
+[probe] entry=00000025 rank=00000001 descriptor=0000000081365690
+[probe] entry=00000026 rank=00000002 descriptor=0000000081365620
+[probe] entry=00000008 rank=00000003 descriptor=00000000813656D0
+[probe] entry=00000027 rank=00000002 descriptor=00000000813656F0
+[probe] entry=00000055 rank=00000002 descriptor=00000000813656F0
+[probe] entry=00000028 rank=00000002 descriptor=00000000813656B8
+[probe] entry=00000029 rank=00000001 descriptor=0000000081365690
+[probe] entry=00000056 rank=00000002 descriptor=00000000813656B8
+[probe] entry=00000057 rank=00000001 descriptor=0000000081365690
+[probe] entry=0000002A rank=00000002 descriptor=0000000081365620
+[probe] entry=00000058 rank=00000002 descriptor=0000000081365620
+[compare] logits position=0000000F count=00025180 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] key_cache position=0000000F count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] value_cache position=0000000F count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[model] selected position=0000000F 0000BF68:C072D924 00000176:407D53F8 00000108:4018637A 00000C4A:3E50A3D4 00001CEF:400822CC 00000130:40910151 000012B3:BF8A919D 00001427:400F0715 0000000B:40247727
+[model] kv position=0000000F layer=00000000 k=BEFA4528 v=3B3D6C2F
+[model] prefill position=00000000 token=0000812B logit_bits=410D46B2 compute_cycles=000000001CA8E9F3 preparation_cycles=00000000001059F1 selection_cycles=0000000000278B73 cache_retention_cycles=0000000000650CB4 model_cycles=000000001D45DC0B total_with_uart_cycles=000000001D7CD68B scratch_bytes=0000000000E4F344
+[intermediate] position=00000000 entry=00000000 calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000001 calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000002 calls=00000001 checked=00000001 count=00008000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000003 calls=00000001 checked=00000001 count=00008000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000004 calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000005 calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000006 calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000007 calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000008 calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000009 calls=00000001 checked=00000001 count=0000C000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=0000000A calls=00000001 checked=00000001 count=0000C000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=0000000B calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=0000000C calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=0000000D calls=00000001 checked=00000001 count=00000010 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=0000000E calls=00000001 checked=00000001 count=00008000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=0000000F calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000010 calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000011 calls=00000001 checked=00000001 count=00000010 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000012 calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000013 calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000014 calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000015 calls=00000001 checked=00000001 count=00000010 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000016 calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000017 calls=00000001 checked=00000001 count=00008000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000018 calls=00000001 checked=00000001 count=00008000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000019 calls=00000001 checked=00000001 count=00000010 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=0000001A calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=0000001B calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=0000001C calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=0000001D calls=00000001 checked=00000001 count=00000010 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=0000001E calls=00000001 checked=00000001 count=0000C000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=0000001F calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000020 calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000021 calls=00000001 checked=00000001 count=00000010 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000022 calls=00000001 checked=00000001 count=0000C000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000023 calls=00000001 checked=00000001 count=0000C000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000024 calls=00000001 checked=00000001 count=0000C000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000025 calls=00000001 checked=00000001 count=00000010 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000026 calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000027 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000028 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000029 calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=0000002A calls=00000001 checked=00000001 count=00025180 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=0000002B calls=00000001 checked=00000001 count=00008000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=0000002C calls=00000001 checked=00000001 count=00020000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=0000002D calls=00000001 checked=00000001 count=00008000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] complete position=00000000 PASS
+[text] prediction=00000000 token=0000812B eos=00000000 bytes=0000000B hex=20696e7465726e616c6c79
+[model] decode begin position=00000010 input_token=0000812B
+[probe] entry=0000002E rank=00000003 descriptor=00000000813668A0
+[probe] entry=0000002F rank=00000003 descriptor=00000000813668E8
+[probe] entry=00000039 rank=00000002 descriptor=00000000813668C0
+[probe] entry=0000003A rank=00000002 descriptor=0000000081366888
+[probe] entry=0000003B rank=00000001 descriptor=0000000081366860
+[probe] entry=0000003C rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000030 rank=00000004 descriptor=0000000081366868
+[probe] entry=00000031 rank=00000004 descriptor=00000000813668C0
+[probe] entry=0000003D rank=00000002 descriptor=00000000813668C0
+[probe] entry=0000003E rank=00000002 descriptor=0000000081366888
+[probe] entry=0000003F rank=00000001 descriptor=0000000081366860
+[probe] entry=00000040 rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000032 rank=00000004 descriptor=0000000081366868
+[probe] entry=00000033 rank=00000004 descriptor=00000000813668C0
+[probe] entry=00000041 rank=00000002 descriptor=00000000813668C0
+[probe] entry=00000042 rank=00000002 descriptor=0000000081366888
+[probe] entry=00000043 rank=00000001 descriptor=0000000081366860
+[probe] entry=00000044 rank=00000002 descriptor=00000000813667F0
+[fpga_run] FPGA5 session active; elapsed=39s, UART=12605 bytes
+[probe] entry=00000059 rank=00000004 descriptor=0000000081366830
+[probe] entry=0000005A rank=00000004 descriptor=00000000813667B8
+[probe] entry=0000005B rank=00000004 descriptor=0000000081366758
+[probe] entry=00000045 rank=00000002 descriptor=00000000813668C0
+[probe] entry=00000046 rank=00000002 descriptor=0000000081366888
+[probe] entry=00000047 rank=00000001 descriptor=0000000081366860
+[probe] entry=00000048 rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000034 rank=00000003 descriptor=00000000813668A0
+[probe] entry=00000035 rank=00000003 descriptor=00000000813668E8
+[probe] entry=00000049 rank=00000002 descriptor=00000000813668C0
+[probe] entry=0000004A rank=00000002 descriptor=0000000081366888
+[probe] entry=0000004B rank=00000001 descriptor=0000000081366860
+[probe] entry=0000004C rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000037 rank=00000003 descriptor=00000000813668D0
+[probe] entry=00000038 rank=00000003 descriptor=0000000081366918
+[probe] entry=0000004D rank=00000002 descriptor=00000000813668C0
+[probe] entry=0000004E rank=00000002 descriptor=0000000081366888
+[probe] entry=0000004F rank=00000001 descriptor=0000000081366860
+[probe] entry=00000050 rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000051 rank=00000002 descriptor=00000000813668C0
+[probe] entry=00000052 rank=00000002 descriptor=0000000081366888
+[probe] entry=00000053 rank=00000001 descriptor=0000000081366860
+[probe] entry=00000054 rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000036 rank=00000003 descriptor=00000000813668A0
+[probe] entry=00000027 rank=00000002 descriptor=00000000813668C0
+[probe] entry=00000055 rank=00000002 descriptor=00000000813668C0
+[probe] entry=00000028 rank=00000002 descriptor=0000000081366888
+[probe] entry=00000029 rank=00000001 descriptor=0000000081366860
+[probe] entry=00000056 rank=00000002 descriptor=0000000081366888
+[probe] entry=00000057 rank=00000001 descriptor=0000000081366860
+[probe] entry=0000002A rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000058 rank=00000002 descriptor=00000000813667F0
+[compare] logits position=00000010 count=00025180 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] key_cache position=00000010 count=00004400 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] value_cache position=00000010 count=00004400 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[model] selected position=00000010 0000BF68:C0450EF5 00000176:40633810 00000108:40B0DB7E 00000C4A:C0252FD5 00001CEF:40461F57 00000130:4091967C 000012B3:4078177C 00001427:C04B56FE 0000000B:3FCE87D7
+[model] kv position=00000010 layer=00000000 k=C0014F7C v=BE0EFAE0
+[model] decode position=00000010 token=00002E4D logit_bits=415556A5 compute_cycles=000000000A6F7E25 preparation_cycles=0000000000084267 selection_cycles=0000000000278B08 cache_retention_cycles=0000000000650D89 model_cycles=000000000B04591D total_with_uart_cycles=000000000B442BCA scratch_bytes=0000000000CB0CC4
+[intermediate] position=00000010 entry=0000002E calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000010 entry=0000002F calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000010 entry=00000030 calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000010 entry=00000031 calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000010 entry=00000032 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000010 entry=00000033 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000010 entry=00000034 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000010 entry=00000035 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000010 entry=00000036 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000010 entry=00000037 calls=00000001 checked=00000001 count=00000C00 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000010 entry=00000038 calls=00000001 checked=00000001 count=00000C00 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000010 entry=00000039 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000010 entry=0000003A calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000010 entry=0000003B calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000010 entry=0000003C calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000010 entry=0000003D calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000010 entry=0000003E calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000010 entry=0000003F calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000010 entry=00000040 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000010 entry=00000041 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000010 entry=00000042 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000010 entry=00000043 calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000010 entry=00000044 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000010 entry=00000045 calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000010 entry=00000046 calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000010 entry=00000047 calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000010 entry=00000048 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000010 entry=00000049 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000010 entry=0000004A calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000010 entry=0000004B calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000010 entry=0000004C calls=00000001 checked=00000001 count=00000C00 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000010 entry=0000004D calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000010 entry=0000004E calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000010 entry=0000004F calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000010 entry=00000050 calls=00000001 checked=00000001 count=00000C00 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000010 entry=00000051 calls=00000001 checked=00000001 count=00000C00 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000010 entry=00000052 calls=00000001 checked=00000001 count=00000C00 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000010 entry=00000053 calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000010 entry=00000054 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000010 entry=00000055 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000010 entry=00000056 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000010 entry=00000057 calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000010 entry=00000058 calls=00000001 checked=00000001 count=00025180 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000010 entry=00000059 calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000010 entry=0000005A calls=00000001 checked=00000001 count=00002000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000010 entry=0000005B calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] complete position=00000010 PASS
+[text] prediction=00000001 token=00002E4D eos=00000000 bytes=00000005 hex=696d697a65
+[model] decode begin position=00000011 input_token=00002E4D
+[probe] entry=0000002E rank=00000003 descriptor=00000000813668A0
+[probe] entry=0000002F rank=00000003 descriptor=00000000813668E8
+[probe] entry=00000039 rank=00000002 descriptor=00000000813668C0
+[probe] entry=0000003A rank=00000002 descriptor=0000000081366888
+[probe] entry=0000003B rank=00000001 descriptor=0000000081366860
+[probe] entry=0000003C rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000030 rank=00000004 descriptor=0000000081366868
+[probe] entry=00000031 rank=00000004 descriptor=00000000813668C0
+[probe] entry=0000003D rank=00000002 descriptor=00000000813668C0
+[probe] entry=0000003E rank=00000002 descriptor=0000000081366888
+[probe] entry=0000003F rank=00000001 descriptor=0000000081366860
+[probe] entry=00000040 rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000032 rank=00000004 descriptor=0000000081366868
+[probe] entry=00000033 rank=00000004 descriptor=00000000813668C0
+[probe] entry=00000041 rank=00000002 descriptor=00000000813668C0
+[probe] entry=00000042 rank=00000002 descriptor=0000000081366888
+[probe] entry=00000043 rank=00000001 descriptor=0000000081366860
+[probe] entry=00000044 rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000059 rank=00000004 descriptor=0000000081366830
+[probe] entry=0000005A rank=00000004 descriptor=00000000813667B8
+[probe] entry=0000005B rank=00000004 descriptor=0000000081366758
+[probe] entry=00000045 rank=00000002 descriptor=00000000813668C0
+[probe] entry=00000046 rank=00000002 descriptor=0000000081366888
+[probe] entry=00000047 rank=00000001 descriptor=0000000081366860
+[probe] entry=00000048 rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000034 rank=00000003 descriptor=00000000813668A0
+[probe] entry=00000035 rank=00000003 descriptor=00000000813668E8
+[probe] entry=00000049 rank=00000002 descriptor=00000000813668C0
+[probe] entry=0000004A rank=00000002 descriptor=0000000081366888
+[probe] entry=0000004B rank=00000001 descriptor=0000000081366860
+[probe] entry=0000004C rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000037 rank=00000003 descriptor=00000000813668D0
+[probe] entry=00000038 rank=00000003 descriptor=0000000081366918
+[probe] entry=0000004D rank=00000002 descriptor=00000000813668C0
+[probe] entry=0000004E rank=00000002 descriptor=0000000081366888
+[probe] entry=0000004F rank=00000001 descriptor=0000000081366860
+[probe] entry=00000050 rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000051 rank=00000002 descriptor=00000000813668C0
+[probe] entry=00000052 rank=00000002 descriptor=0000000081366888
+[probe] entry=00000053 rank=00000001 descriptor=0000000081366860
+[probe] entry=00000054 rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000036 rank=00000003 descriptor=00000000813668A0
+[probe] entry=00000027 rank=00000002 descriptor=00000000813668C0
+[probe] entry=00000055 rank=00000002 descriptor=00000000813668C0
+[probe] entry=00000028 rank=00000002 descriptor=0000000081366888
+[probe] entry=00000029 rank=00000001 descriptor=0000000081366860
+[probe] entry=00000056 rank=00000002 descriptor=0000000081366888
+[probe] entry=00000057 rank=00000001 descriptor=0000000081366860
+[probe] entry=0000002A rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000058 rank=00000002 descriptor=00000000813667F0
+[compare] logits position=00000011 count=00025180 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] key_cache position=00000011 count=00004800 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] value_cache position=00000011 count=00004800 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[model] selected position=00000011 0000BF68:C0C7C8C8 00000176:4099F4C2 00000108:BFD6F390 00000C4A:BFFFD744 00001CEF:BF4756E1 00000130:3FAEF4E8 000012B3:3EDA5DB3 00001427:C0C6C543 0000000B:40941656
+[model] kv position=00000011 layer=00000000 k=BE7F132A v=3C868823
+[model] decode position=00000011 token=00002E4D logit_bits=41A680BF compute_cycles=000000000A71276A preparation_cycles=00000000000845C6 selection_cycles=0000000000278BE2 cache_retention_cycles=0000000000650D58 model_cycles=000000000B06066A total_with_uart_cycles=000000000B469A50 scratch_bytes=0000000000CB0CC4
+[intermediate] position=00000011 entry=0000002E calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000011 entry=0000002F calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000011 entry=00000030 calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000011 entry=00000031 calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000011 entry=00000032 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000011 entry=00000033 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000011 entry=00000034 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000011 entry=00000035 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000011 entry=00000036 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000011 entry=00000037 calls=00000001 checked=00000001 count=00000C00 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000011 entry=00000038 calls=00000001 checked=00000001 count=00000C00 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000011 entry=00000039 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000011 entry=0000003A calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000011 entry=0000003B calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000011 entry=0000003C calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000011 entry=0000003D calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000011 entry=0000003E calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000011 entry=0000003F calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000011 entry=00000040 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000011 entry=00000041 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000011 entry=00000042 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000011 entry=00000043 calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000011 entry=00000044 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000011 entry=00000045 calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000011 entry=00000046 calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000011 entry=00000047 calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000011 entry=00000048 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000011 entry=00000049 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000011 entry=0000004A calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000011 entry=0000004B calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000011 entry=0000004C calls=00000001 checked=00000001 count=00000C00 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000011 entry=0000004D calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000011 entry=0000004E calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000011 entry=0000004F calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000011 entry=00000050 calls=00000001 checked=00000001 count=00000C00 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000011 entry=00000051 calls=00000001 checked=00000001 count=00000C00 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000011 entry=00000052 calls=00000001 checked=00000001 count=00000C00 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000011 entry=00000053 calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000011 entry=00000054 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000011 entry=00000055 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000011 entry=00000056 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000011 entry=00000057 calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000011 entry=00000058 calls=00000001 checked=00000001 count=00025180 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000011 entry=00000059 calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000011 entry=0000005A calls=00000001 checked=00000001 count=00002000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000011 entry=0000005B calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] complete position=00000011 PASS
+[text] prediction=00000002 token=00002E4D eos=00000000 bytes=00000005 hex=696d697a65
+[model] decode begin position=00000012 input_token=00002E4D
+[probe] entry=0000002E rank=00000003 descriptor=00000000813668A0
+[probe] entry=0000002F rank=00000003 descriptor=00000000813668E8
+[probe] entry=00000039 rank=00000002 descriptor=00000000813668C0
+[probe] entry=0000003A rank=00000002 descriptor=0000000081366888
+[probe] entry=0000003B rank=00000001 descriptor=0000000081366860
+[probe] entry=0000003C rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000030 rank=00000004 descriptor=0000000081366868
+[probe] entry=00000031 rank=00000004 descriptor=00000000813668C0
+[probe] entry=0000003D rank=00000002 descriptor=00000000813668C0
+[probe] entry=0000003E rank=00000002 descriptor=0000000081366888
+[probe] entry=0000003F rank=00000001 descriptor=0000000081366860
+[probe] entry=00000040 rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000032 rank=00000004 descriptor=0000000081366868
+[probe] entry=00000033 rank=00000004 descriptor=00000000813668C0
+[probe] entry=00000041 rank=00000002 descriptor=00000000813668C0
+[probe] entry=00000042 rank=00000002 descriptor=0000000081366888
+[probe] entry=00000043 rank=00000001 descriptor=0000000081366860
+[probe] entry=00000044 rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000059 rank=00000004 descriptor=0000000081366830
+[probe] entry=0000005A rank=00000004 descriptor=00000000813667B8
+[probe] entry=0000005B rank=00000004 descriptor=0000000081366758
+[probe] entry=00000045 rank=00000002 descriptor=00000000813668C0
+[probe] entry=00000046 rank=00000002 descriptor=0000000081366888
+[probe] entry=00000047 rank=00000001 descriptor=0000000081366860
+[probe] entry=00000048 rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000034 rank=00000003 descriptor=00000000813668A0
+[probe] entry=00000035 rank=00000003 descriptor=00000000813668E8
+[probe] entry=00000049 rank=00000002 descriptor=00000000813668C0
+[probe] entry=0000004A rank=00000002 descriptor=0000000081366888
+[probe] entry=0000004B rank=00000001 descriptor=0000000081366860
+[probe] entry=0000004C rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000037 rank=00000003 descriptor=00000000813668D0
+[probe] entry=00000038 rank=00000003 descriptor=0000000081366918
+[probe] entry=0000004D rank=00000002 descriptor=00000000813668C0
+[probe] entry=0000004E rank=00000002 descriptor=0000000081366888
+[probe] entry=0000004F rank=00000001 descriptor=0000000081366860
+[probe] entry=00000050 rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000051 rank=00000002 descriptor=00000000813668C0
+[probe] entry=00000052 rank=00000002 descriptor=0000000081366888
+[probe] entry=00000053 rank=00000001 descriptor=0000000081366860
+[probe] entry=00000054 rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000036 rank=00000003 descriptor=00000000813668A0
+[probe] entry=00000027 rank=00000002 descriptor=00000000813668C0
+[probe] entry=00000055 rank=00000002 descriptor=00000000813668C0
+[probe] entry=00000028 rank=00000002 descriptor=0000000081366888
+[probe] entry=00000029 rank=00000001 descriptor=0000000081366860
+[probe] entry=00000056 rank=00000002 descriptor=0000000081366888
+[probe] entry=00000057 rank=00000001 descriptor=0000000081366860
+[fpga_run] FPGA5 session active; elapsed=69s, UART=36323 bytes
+[probe] entry=0000002A rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000058 rank=00000002 descriptor=00000000813667F0
+[compare] logits position=00000012 count=00025180 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] key_cache position=00000012 count=00004C00 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] value_cache position=00000012 count=00004C00 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[model] selected position=00000012 0000BF68:C0A456C9 00000176:40ACADB3 00000108:BFB8A33D 00000C4A:BEB2E934 00001CEF:BF127A0C 00000130:3F93D873 000012B3:3F3ABFB8 00001427:C0AD3647 0000000B:40CB2FF2
+[model] kv position=00000012 layer=00000000 k=3FE2F6EF v=3C868823
+[model] decode position=00000012 token=00002E4D logit_bits=41B2599F compute_cycles=000000000A7188A2 preparation_cycles=0000000000084316 selection_cycles=0000000000278B65 cache_retention_cycles=0000000000650D3E model_cycles=000000000B06645B total_with_uart_cycles=000000000B47BDEA scratch_bytes=0000000000CB0CC4
+[intermediate] position=00000012 entry=0000002E calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000012 entry=0000002F calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000012 entry=00000030 calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000012 entry=00000031 calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000012 entry=00000032 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000012 entry=00000033 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000012 entry=00000034 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000012 entry=00000035 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000012 entry=00000036 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000012 entry=00000037 calls=00000001 checked=00000001 count=00000C00 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000012 entry=00000038 calls=00000001 checked=00000001 count=00000C00 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000012 entry=00000039 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000012 entry=0000003A calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000012 entry=0000003B calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000012 entry=0000003C calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000012 entry=0000003D calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000012 entry=0000003E calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000012 entry=0000003F calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000012 entry=00000040 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000012 entry=00000041 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000012 entry=00000042 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000012 entry=00000043 calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000012 entry=00000044 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000012 entry=00000045 calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000012 entry=00000046 calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000012 entry=00000047 calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000012 entry=00000048 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000012 entry=00000049 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000012 entry=0000004A calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000012 entry=0000004B calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000012 entry=0000004C calls=00000001 checked=00000001 count=00000C00 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000012 entry=0000004D calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000012 entry=0000004E calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000012 entry=0000004F calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000012 entry=00000050 calls=00000001 checked=00000001 count=00000C00 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000012 entry=00000051 calls=00000001 checked=00000001 count=00000C00 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000012 entry=00000052 calls=00000001 checked=00000001 count=00000C00 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000012 entry=00000053 calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000012 entry=00000054 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000012 entry=00000055 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000012 entry=00000056 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000012 entry=00000057 calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000012 entry=00000058 calls=00000001 checked=00000001 count=00025180 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000012 entry=00000059 calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000012 entry=0000005A calls=00000001 checked=00000001 count=00002000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000012 entry=0000005B calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] complete position=00000012 PASS
+[text] prediction=00000003 token=00002E4D eos=00000000 bytes=00000005 hex=696d697a65
+[model] decode begin position=00000013 input_token=00002E4D
+[probe] entry=0000002E rank=00000003 descriptor=00000000813668A0
+[probe] entry=0000002F rank=00000003 descriptor=00000000813668E8
+[probe] entry=00000039 rank=00000002 descriptor=00000000813668C0
+[probe] entry=0000003A rank=00000002 descriptor=0000000081366888
+[probe] entry=0000003B rank=00000001 descriptor=0000000081366860
+[probe] entry=0000003C rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000030 rank=00000004 descriptor=0000000081366868
+[probe] entry=00000031 rank=00000004 descriptor=00000000813668C0
+[probe] entry=0000003D rank=00000002 descriptor=00000000813668C0
+[probe] entry=0000003E rank=00000002 descriptor=0000000081366888
+[probe] entry=0000003F rank=00000001 descriptor=0000000081366860
+[probe] entry=00000040 rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000032 rank=00000004 descriptor=0000000081366868
+[probe] entry=00000033 rank=00000004 descriptor=00000000813668C0
+[probe] entry=00000041 rank=00000002 descriptor=00000000813668C0
+[probe] entry=00000042 rank=00000002 descriptor=0000000081366888
+[probe] entry=00000043 rank=00000001 descriptor=0000000081366860
+[probe] entry=00000044 rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000059 rank=00000004 descriptor=0000000081366830
+[probe] entry=0000005A rank=00000004 descriptor=00000000813667B8
+[probe] entry=0000005B rank=00000004 descriptor=0000000081366758
+[probe] entry=00000045 rank=00000002 descriptor=00000000813668C0
+[probe] entry=00000046 rank=00000002 descriptor=0000000081366888
+[probe] entry=00000047 rank=00000001 descriptor=0000000081366860
+[probe] entry=00000048 rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000034 rank=00000003 descriptor=00000000813668A0
+[probe] entry=00000035 rank=00000003 descriptor=00000000813668E8
+[probe] entry=00000049 rank=00000002 descriptor=00000000813668C0
+[probe] entry=0000004A rank=00000002 descriptor=0000000081366888
+[probe] entry=0000004B rank=00000001 descriptor=0000000081366860
+[probe] entry=0000004C rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000037 rank=00000003 descriptor=00000000813668D0
+[probe] entry=00000038 rank=00000003 descriptor=0000000081366918
+[probe] entry=0000004D rank=00000002 descriptor=00000000813668C0
+[probe] entry=0000004E rank=00000002 descriptor=0000000081366888
+[probe] entry=0000004F rank=00000001 descriptor=0000000081366860
+[probe] entry=00000050 rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000051 rank=00000002 descriptor=00000000813668C0
+[probe] entry=00000052 rank=00000002 descriptor=0000000081366888
+[probe] entry=00000053 rank=00000001 descriptor=0000000081366860
+[probe] entry=00000054 rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000036 rank=00000003 descriptor=00000000813668A0
+[probe] entry=00000027 rank=00000002 descriptor=00000000813668C0
+[probe] entry=00000055 rank=00000002 descriptor=00000000813668C0
+[probe] entry=00000028 rank=00000002 descriptor=0000000081366888
+[probe] entry=00000029 rank=00000001 descriptor=0000000081366860
+[probe] entry=00000056 rank=00000002 descriptor=0000000081366888
+[probe] entry=00000057 rank=00000001 descriptor=0000000081366860
+[probe] entry=0000002A rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000058 rank=00000002 descriptor=00000000813667F0
+[compare] logits position=00000013 count=00025180 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] key_cache position=00000013 count=00005000 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] value_cache position=00000013 count=00005000 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[model] selected position=00000013 0000BF68:C08EC24C 00000176:40BF55FF 00000108:BFCAC2F9 00000C4A:3F27A899 00001CEF:BEB68807 00000130:3FB3FB64 000012B3:3F6C5060 00001427:C0AB4576 0000000B:40C9BE75
+[model] kv position=00000013 layer=00000000 k=400A9259 v=3C868823
+[model] decode position=00000013 token=00002E4D logit_bits=41B2878C compute_cycles=000000000A737740 preparation_cycles=000000000008436E selection_cycles=0000000000278BCC cache_retention_cycles=0000000000650D5D model_cycles=000000000B0853D7 total_with_uart_cycles=000000000B4A701C scratch_bytes=0000000000CB0CC4
+[intermediate] position=00000013 entry=0000002E calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000013 entry=0000002F calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000013 entry=00000030 calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000013 entry=00000031 calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000013 entry=00000032 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000013 entry=00000033 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000013 entry=00000034 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000013 entry=00000035 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000013 entry=00000036 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000013 entry=00000037 calls=00000001 checked=00000001 count=00000C00 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000013 entry=00000038 calls=00000001 checked=00000001 count=00000C00 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000013 entry=00000039 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000013 entry=0000003A calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000013 entry=0000003B calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000013 entry=0000003C calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000013 entry=0000003D calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000013 entry=0000003E calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000013 entry=0000003F calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000013 entry=00000040 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000013 entry=00000041 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000013 entry=00000042 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000013 entry=00000043 calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000013 entry=00000044 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000013 entry=00000045 calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000013 entry=00000046 calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000013 entry=00000047 calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000013 entry=00000048 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000013 entry=00000049 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000013 entry=0000004A calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000013 entry=0000004B calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000013 entry=0000004C calls=00000001 checked=00000001 count=00000C00 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000013 entry=0000004D calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000013 entry=0000004E calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000013 entry=0000004F calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000013 entry=00000050 calls=00000001 checked=00000001 count=00000C00 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000013 entry=00000051 calls=00000001 checked=00000001 count=00000C00 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000013 entry=00000052 calls=00000001 checked=00000001 count=00000C00 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000013 entry=00000053 calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000013 entry=00000054 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000013 entry=00000055 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000013 entry=00000056 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000013 entry=00000057 calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000013 entry=00000058 calls=00000001 checked=00000001 count=00025180 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000013 entry=00000059 calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000013 entry=0000005A calls=00000001 checked=00000001 count=00002000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000013 entry=0000005B calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] complete position=00000013 PASS
+[text] prediction=00000004 token=00002E4D eos=00000000 bytes=00000005 hex=696d697a65
+[model] decode begin position=00000014 input_token=00002E4D
+[probe] entry=0000002E rank=00000003 descriptor=00000000813668A0
+[probe] entry=0000002F rank=00000003 descriptor=00000000813668E8
+[probe] entry=00000039 rank=00000002 descriptor=00000000813668C0
+[probe] entry=0000003A rank=00000002 descriptor=0000000081366888
+[probe] entry=0000003B rank=00000001 descriptor=0000000081366860
+[probe] entry=0000003C rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000030 rank=00000004 descriptor=0000000081366868
+[probe] entry=00000031 rank=00000004 descriptor=00000000813668C0
+[probe] entry=0000003D rank=00000002 descriptor=00000000813668C0
+[probe] entry=0000003E rank=00000002 descriptor=0000000081366888
+[probe] entry=0000003F rank=00000001 descriptor=0000000081366860
+[probe] entry=00000040 rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000032 rank=00000004 descriptor=0000000081366868
+[probe] entry=00000033 rank=00000004 descriptor=00000000813668C0
+[probe] entry=00000041 rank=00000002 descriptor=00000000813668C0
+[probe] entry=00000042 rank=00000002 descriptor=0000000081366888
+[probe] entry=00000043 rank=00000001 descriptor=0000000081366860
+[probe] entry=00000044 rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000059 rank=00000004 descriptor=0000000081366830
+[probe] entry=0000005A rank=00000004 descriptor=00000000813667B8
+[probe] entry=0000005B rank=00000004 descriptor=0000000081366758
+[probe] entry=00000045 rank=00000002 descriptor=00000000813668C0
+[probe] entry=00000046 rank=00000002 descriptor=0000000081366888
+[probe] entry=00000047 rank=00000001 descriptor=0000000081366860
+[probe] entry=00000048 rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000034 rank=00000003 descriptor=00000000813668A0
+[probe] entry=00000035 rank=00000003 descriptor=00000000813668E8
+[probe] entry=00000049 rank=00000002 descriptor=00000000813668C0
+[probe] entry=0000004A rank=00000002 descriptor=0000000081366888
+[probe] entry=0000004B rank=00000001 descriptor=0000000081366860
+[probe] entry=0000004C rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000037 rank=00000003 descriptor=00000000813668D0
+[probe] entry=00000038 rank=00000003 descriptor=0000000081366918
+[probe] entry=0000004D rank=00000002 descriptor=00000000813668C0
+[probe] entry=0000004E rank=00000002 descriptor=0000000081366888
+[probe] entry=0000004F rank=00000001 descriptor=0000000081366860
+[probe] entry=00000050 rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000051 rank=00000002 descriptor=00000000813668C0
+[probe] entry=00000052 rank=00000002 descriptor=0000000081366888
+[probe] entry=00000053 rank=00000001 descriptor=0000000081366860
+[probe] entry=00000054 rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000036 rank=00000003 descriptor=00000000813668A0
+[probe] entry=00000027 rank=00000002 descriptor=00000000813668C0
+[probe] entry=00000055 rank=00000002 descriptor=00000000813668C0
+[probe] entry=00000028 rank=00000002 descriptor=0000000081366888
+[probe] entry=00000029 rank=00000001 descriptor=0000000081366860
+[probe] entry=00000056 rank=00000002 descriptor=0000000081366888
+[probe] entry=00000057 rank=00000001 descriptor=0000000081366860
+[probe] entry=0000002A rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000058 rank=00000002 descriptor=00000000813667F0
+[fpga_run] FPGA5 session active; elapsed=99s, UART=58193 bytes
+[compare] logits position=00000014 count=00025180 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] key_cache position=00000014 count=00005400 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] value_cache position=00000014 count=00005400 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[model] selected position=00000014 0000BF68:C083DFDD 00000176:40CDF0D0 00000108:BF9E249C 00000C4A:3F7472C7 00001CEF:BC9E123B 00000130:3F83FFB5 000012B3:3F8569DB 00001427:C09D79FB 0000000B:40CB554C
+[model] kv position=00000014 layer=00000000 k=3F11091A v=3C868823
+[model] decode position=00000014 token=00002E4D logit_bits=41B32C29 compute_cycles=000000000A743C76 preparation_cycles=0000000000084345 selection_cycles=0000000000278B8D cache_retention_cycles=0000000000650C56 model_cycles=000000000B09179E total_with_uart_cycles=000000000B4BF791 scratch_bytes=0000000000CB0CC4
+[intermediate] position=00000014 entry=0000002E calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000014 entry=0000002F calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000014 entry=00000030 calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000014 entry=00000031 calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000014 entry=00000032 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000014 entry=00000033 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000014 entry=00000034 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000014 entry=00000035 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000014 entry=00000036 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000014 entry=00000037 calls=00000001 checked=00000001 count=00000C00 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000014 entry=00000038 calls=00000001 checked=00000001 count=00000C00 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000014 entry=00000039 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000014 entry=0000003A calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000014 entry=0000003B calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000014 entry=0000003C calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000014 entry=0000003D calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000014 entry=0000003E calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000014 entry=0000003F calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000014 entry=00000040 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000014 entry=00000041 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000014 entry=00000042 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000014 entry=00000043 calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000014 entry=00000044 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000014 entry=00000045 calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000014 entry=00000046 calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000014 entry=00000047 calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000014 entry=00000048 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000014 entry=00000049 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000014 entry=0000004A calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000014 entry=0000004B calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000014 entry=0000004C calls=00000001 checked=00000001 count=00000C00 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000014 entry=0000004D calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000014 entry=0000004E calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000014 entry=0000004F calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000014 entry=00000050 calls=00000001 checked=00000001 count=00000C00 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000014 entry=00000051 calls=00000001 checked=00000001 count=00000C00 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000014 entry=00000052 calls=00000001 checked=00000001 count=00000C00 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000014 entry=00000053 calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000014 entry=00000054 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000014 entry=00000055 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000014 entry=00000056 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000014 entry=00000057 calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000014 entry=00000058 calls=00000001 checked=00000001 count=00025180 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000014 entry=00000059 calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000014 entry=0000005A calls=00000001 checked=00000001 count=00002000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000014 entry=0000005B calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] complete position=00000014 PASS
+[text] prediction=00000005 token=00002E4D eos=00000000 bytes=00000005 hex=696d697a65
+[model] decode begin position=00000015 input_token=00002E4D
+[probe] entry=0000002E rank=00000003 descriptor=00000000813668A0
+[probe] entry=0000002F rank=00000003 descriptor=00000000813668E8
+[probe] entry=00000039 rank=00000002 descriptor=00000000813668C0
+[probe] entry=0000003A rank=00000002 descriptor=0000000081366888
+[probe] entry=0000003B rank=00000001 descriptor=0000000081366860
+[probe] entry=0000003C rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000030 rank=00000004 descriptor=0000000081366868
+[probe] entry=00000031 rank=00000004 descriptor=00000000813668C0
+[probe] entry=0000003D rank=00000002 descriptor=00000000813668C0
+[probe] entry=0000003E rank=00000002 descriptor=0000000081366888
+[probe] entry=0000003F rank=00000001 descriptor=0000000081366860
+[probe] entry=00000040 rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000032 rank=00000004 descriptor=0000000081366868
+[probe] entry=00000033 rank=00000004 descriptor=00000000813668C0
+[probe] entry=00000041 rank=00000002 descriptor=00000000813668C0
+[probe] entry=00000042 rank=00000002 descriptor=0000000081366888
+[probe] entry=00000043 rank=00000001 descriptor=0000000081366860
+[probe] entry=00000044 rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000059 rank=00000004 descriptor=0000000081366830
+[probe] entry=0000005A rank=00000004 descriptor=00000000813667B8
+[probe] entry=0000005B rank=00000004 descriptor=0000000081366758
+[probe] entry=00000045 rank=00000002 descriptor=00000000813668C0
+[probe] entry=00000046 rank=00000002 descriptor=0000000081366888
+[probe] entry=00000047 rank=00000001 descriptor=0000000081366860
+[probe] entry=00000048 rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000034 rank=00000003 descriptor=00000000813668A0
+[probe] entry=00000035 rank=00000003 descriptor=00000000813668E8
+[probe] entry=00000049 rank=00000002 descriptor=00000000813668C0
+[probe] entry=0000004A rank=00000002 descriptor=0000000081366888
+[probe] entry=0000004B rank=00000001 descriptor=0000000081366860
+[probe] entry=0000004C rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000037 rank=00000003 descriptor=00000000813668D0
+[probe] entry=00000038 rank=00000003 descriptor=0000000081366918
+[probe] entry=0000004D rank=00000002 descriptor=00000000813668C0
+[probe] entry=0000004E rank=00000002 descriptor=0000000081366888
+[probe] entry=0000004F rank=00000001 descriptor=0000000081366860
+[probe] entry=00000050 rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000051 rank=00000002 descriptor=00000000813668C0
+[probe] entry=00000052 rank=00000002 descriptor=0000000081366888
+[probe] entry=00000053 rank=00000001 descriptor=0000000081366860
+[probe] entry=00000054 rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000036 rank=00000003 descriptor=00000000813668A0
+[probe] entry=00000027 rank=00000002 descriptor=00000000813668C0
+[probe] entry=00000055 rank=00000002 descriptor=00000000813668C0
+[probe] entry=00000028 rank=00000002 descriptor=0000000081366888
+[probe] entry=00000029 rank=00000001 descriptor=0000000081366860
+[probe] entry=00000056 rank=00000002 descriptor=0000000081366888
+[probe] entry=00000057 rank=00000001 descriptor=0000000081366860
+[probe] entry=0000002A rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000058 rank=00000002 descriptor=00000000813667F0
+[compare] logits position=00000015 count=00025180 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] key_cache position=00000015 count=00005800 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] value_cache position=00000015 count=00005800 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[model] selected position=00000015 0000BF68:C088B466 00000176:40CCBF87 00000108:BFB1934C 00000C4A:3F90FC9F 00001CEF:3D9D2762 00000130:3F80B87E 000012B3:3FAA1E4C 00001427:C091997C 0000000B:40CF0D7D
+[model] kv position=00000015 layer=00000000 k=BFC6C7C0 v=3C868823
+[model] decode position=00000015 token=00002E4D logit_bits=41B532A5 compute_cycles=000000000A7637BE preparation_cycles=0000000000084582 selection_cycles=0000000000278BBC cache_retention_cycles=0000000000650E05 model_cycles=000000000B0B1701 total_with_uart_cycles=000000000B4EB8FE scratch_bytes=0000000000CB0CC4
+[intermediate] position=00000015 entry=0000002E calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000015 entry=0000002F calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000015 entry=00000030 calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000015 entry=00000031 calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000015 entry=00000032 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000015 entry=00000033 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000015 entry=00000034 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000015 entry=00000035 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000015 entry=00000036 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000015 entry=00000037 calls=00000001 checked=00000001 count=00000C00 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000015 entry=00000038 calls=00000001 checked=00000001 count=00000C00 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000015 entry=00000039 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000015 entry=0000003A calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000015 entry=0000003B calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000015 entry=0000003C calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000015 entry=0000003D calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000015 entry=0000003E calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000015 entry=0000003F calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000015 entry=00000040 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000015 entry=00000041 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000015 entry=00000042 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000015 entry=00000043 calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000015 entry=00000044 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000015 entry=00000045 calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000015 entry=00000046 calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000015 entry=00000047 calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000015 entry=00000048 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000015 entry=00000049 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000015 entry=0000004A calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000015 entry=0000004B calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000015 entry=0000004C calls=00000001 checked=00000001 count=00000C00 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000015 entry=0000004D calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000015 entry=0000004E calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000015 entry=0000004F calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000015 entry=00000050 calls=00000001 checked=00000001 count=00000C00 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000015 entry=00000051 calls=00000001 checked=00000001 count=00000C00 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000015 entry=00000052 calls=00000001 checked=00000001 count=00000C00 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000015 entry=00000053 calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000015 entry=00000054 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000015 entry=00000055 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000015 entry=00000056 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000015 entry=00000057 calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000015 entry=00000058 calls=00000001 checked=00000001 count=00025180 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000015 entry=00000059 calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000015 entry=0000005A calls=00000001 checked=00000001 count=00002000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000015 entry=0000005B calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] complete position=00000015 PASS
+[text] prediction=00000006 token=00002E4D eos=00000000 bytes=00000005 hex=696d697a65
+[model] decode begin position=00000016 input_token=00002E4D
+[probe] entry=0000002E rank=00000003 descriptor=00000000813668A0
+[probe] entry=0000002F rank=00000003 descriptor=00000000813668E8
+[probe] entry=00000039 rank=00000002 descriptor=00000000813668C0
+[probe] entry=0000003A rank=00000002 descriptor=0000000081366888
+[probe] entry=0000003B rank=00000001 descriptor=0000000081366860
+[probe] entry=0000003C rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000030 rank=00000004 descriptor=0000000081366868
+[probe] entry=00000031 rank=00000004 descriptor=00000000813668C0
+[probe] entry=0000003D rank=00000002 descriptor=00000000813668C0
+[probe] entry=0000003E rank=00000002 descriptor=0000000081366888
+[probe] entry=0000003F rank=00000001 descriptor=0000000081366860
+[probe] entry=00000040 rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000032 rank=00000004 descriptor=0000000081366868
+[probe] entry=00000033 rank=00000004 descriptor=00000000813668C0
+[probe] entry=00000041 rank=00000002 descriptor=00000000813668C0
+[probe] entry=00000042 rank=00000002 descriptor=0000000081366888
+[probe] entry=00000043 rank=00000001 descriptor=0000000081366860
+[probe] entry=00000044 rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000059 rank=00000004 descriptor=0000000081366830
+[probe] entry=0000005A rank=00000004 descriptor=00000000813667B8
+[probe] entry=0000005B rank=00000004 descriptor=0000000081366758
+[probe] entry=00000045 rank=00000002 descriptor=00000000813668C0
+[probe] entry=00000046 rank=00000002 descriptor=0000000081366888
+[probe] entry=00000047 rank=00000001 descriptor=0000000081366860
+[probe] entry=00000048 rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000034 rank=00000003 descriptor=00000000813668A0
+[probe] entry=00000035 rank=00000003 descriptor=00000000813668E8
+[probe] entry=00000049 rank=00000002 descriptor=00000000813668C0
+[probe] entry=0000004A rank=00000002 descriptor=0000000081366888
+[probe] entry=0000004B rank=00000001 descriptor=0000000081366860
+[probe] entry=0000004C rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000037 rank=00000003 descriptor=00000000813668D0
+[probe] entry=00000038 rank=00000003 descriptor=0000000081366918
+[probe] entry=0000004D rank=00000002 descriptor=00000000813668C0
+[probe] entry=0000004E rank=00000002 descriptor=0000000081366888
+[probe] entry=0000004F rank=00000001 descriptor=0000000081366860
+[probe] entry=00000050 rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000051 rank=00000002 descriptor=00000000813668C0
+[probe] entry=00000052 rank=00000002 descriptor=0000000081366888
+[probe] entry=00000053 rank=00000001 descriptor=0000000081366860
+[probe] entry=00000054 rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000036 rank=00000003 descriptor=00000000813668A0
+[probe] entry=00000027 rank=00000002 descriptor=00000000813668C0
+[probe] entry=00000055 rank=00000002 descriptor=00000000813668C0
+[probe] entry=00000028 rank=00000002 descriptor=0000000081366888
+[probe] entry=00000029 rank=00000001 descriptor=0000000081366860
+[probe] entry=00000056 rank=00000002 descriptor=0000000081366888
+[probe] entry=00000057 rank=00000001 descriptor=0000000081366860
+[probe] entry=0000002A rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000058 rank=00000002 descriptor=00000000813667F0
+[compare] logits position=00000016 count=00025180 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] key_cache position=00000016 count=00005C00 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] value_cache position=00000016 count=00005C00 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[model] selected position=00000016 0000BF68:C0803DEB 00000176:40C92D95 00000108:BFA7FB76 00000C4A:3FBEBC72 00001CEF:3E910B8D 00000130:3F5192CE 000012B3:3FAB04CB 00001427:C08BD120 0000000B:40C81B33
+[model] kv position=00000016 layer=00000000 k=C00FA90C v=3C868823
+[model] decode position=00000016 token=00002E4D logit_bits=41B401BA compute_cycles=000000000A77592A preparation_cycles=000000000008434F selection_cycles=0000000000278BF1 cache_retention_cycles=0000000000650D6B model_cycles=000000000B0C35D5 total_with_uart_cycles=000000000B509C78 scratch_bytes=0000000000CB0CC4
+[intermediate] position=00000016 entry=0000002E calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000016 entry=0000002F calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000016 entry=00000030 calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000016 entry=00000031 calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000016 entry=00000032 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000016 entry=00000033 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000016 entry=00000034 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000016 entry=00000035 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000016 entry=00000036 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000016 entry=00000037 calls=00000001 checked=00000001 count=00000C00 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000016 entry=00000038 calls=00000001 checked=00000001 count=00000C00 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000016 entry=00000039 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000016 entry=0000003A calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000016 entry=0000003B calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000016 entry=0000003C calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000016 entry=0000003D calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000016 entry=0000003E calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000016 entry=0000003F calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000016 entry=00000040 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000016 entry=00000041 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000016 entry=00000042 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000016 entry=00000043 calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000016 entry=00000044 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000016 entry=00000045 calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000016 entry=00000046 calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000016 entry=00000047 calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000016 entry=00000048 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000016 entry=00000049 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000016 entry=0000004A calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000016 entry=0000004B calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000016 entry=0000004C calls=00000001 checked=00000001 count=00000C00 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000016 entry=0000004D calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000016 entry=0000004E calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000016 entry=0000004F calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000016 entry=00000050 calls=00000001 checked=00000001 count=00000C00 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000016 entry=00000051 calls=00000001 checked=00000001 count=00000C00 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000016 entry=00000052 calls=00000001 checked=00000001 count=00000C00 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000016 entry=00000053 calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000016 entry=00000054 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000016 entry=00000055 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000016 entry=00000056 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000016 entry=00000057 calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000016 entry=00000058 calls=00000001 checked=00000001 count=00025180 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000016 entry=00000059 calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000016 entry=0000005A calls=00000001 checked=00000001 count=00002000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000016 entry=0000005B calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] complete position=00000016 PASS
+[text] prediction=00000007 token=00002E4D eos=00000000 bytes=00000005 hex=696d697a65
+[model] decode begin position=00000017 input_token=00002E4D
+[probe] entry=0000002E rank=00000003 descriptor=00000000813668A0
+[probe] entry=0000002F rank=00000003 descriptor=00000000813668E8
+[probe] entry=00000039 rank=00000002 descriptor=00000000813668C0
+[probe] entry=0000003A rank=00000002 descriptor=0000000081366888
+[probe] entry=0000003B rank=00000001 descriptor=0000000081366860
+[probe] entry=0000003C rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000030 rank=00000004 descriptor=0000000081366868
+[probe] entry=00000031 rank=00000004 descriptor=00000000813668C0
+[probe] entry=0000003D rank=00000002 descriptor=00000000813668C0
+[probe] entry=0000003E rank=00000002 descriptor=0000000081366888
+[probe] entry=0000003F rank=00000001 descriptor=0000000081366860
+[probe] entry=00000040 rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000032 rank=00000004 descriptor=0000000081366868
+[probe] entry=00000033 rank=00000004 descriptor=00000000813668C0
+[probe] entry=00000041 rank=00000002 descriptor=00000000813668C0
+[probe] entry=00000042 rank=00000002 descriptor=0000000081366888
+[probe] entry=00000043 rank=00000001 descriptor=0000000081366860
+[probe] entry=00000044 rank=00000002 descriptor=00000000813667F0
+[fpga_run] FPGA5 session active; elapsed=129s, UART=88688 bytes
+[probe] entry=00000059 rank=00000004 descriptor=0000000081366830
+[probe] entry=0000005A rank=00000004 descriptor=00000000813667B8
+[probe] entry=0000005B rank=00000004 descriptor=0000000081366758
+[probe] entry=00000045 rank=00000002 descriptor=00000000813668C0
+[probe] entry=00000046 rank=00000002 descriptor=0000000081366888
+[probe] entry=00000047 rank=00000001 descriptor=0000000081366860
+[probe] entry=00000048 rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000034 rank=00000003 descriptor=00000000813668A0
+[probe] entry=00000035 rank=00000003 descriptor=00000000813668E8
+[probe] entry=00000049 rank=00000002 descriptor=00000000813668C0
+[probe] entry=0000004A rank=00000002 descriptor=0000000081366888
+[probe] entry=0000004B rank=00000001 descriptor=0000000081366860
+[probe] entry=0000004C rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000037 rank=00000003 descriptor=00000000813668D0
+[probe] entry=00000038 rank=00000003 descriptor=0000000081366918
+[probe] entry=0000004D rank=00000002 descriptor=00000000813668C0
+[probe] entry=0000004E rank=00000002 descriptor=0000000081366888
+[probe] entry=0000004F rank=00000001 descriptor=0000000081366860
+[probe] entry=00000050 rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000051 rank=00000002 descriptor=00000000813668C0
+[probe] entry=00000052 rank=00000002 descriptor=0000000081366888
+[probe] entry=00000053 rank=00000001 descriptor=0000000081366860
+[probe] entry=00000054 rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000036 rank=00000003 descriptor=00000000813668A0
+[probe] entry=00000027 rank=00000002 descriptor=00000000813668C0
+[probe] entry=00000055 rank=00000002 descriptor=00000000813668C0
+[probe] entry=00000028 rank=00000002 descriptor=0000000081366888
+[probe] entry=00000029 rank=00000001 descriptor=0000000081366860
+[probe] entry=00000056 rank=00000002 descriptor=0000000081366888
+[probe] entry=00000057 rank=00000001 descriptor=0000000081366860
+[probe] entry=0000002A rank=00000002 descriptor=00000000813667F0
+[probe] entry=00000058 rank=00000002 descriptor=00000000813667F0
+[compare] logits position=00000017 count=00025180 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] key_cache position=00000017 count=00006000 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] value_cache position=00000017 count=00006000 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[model] selected position=00000017 0000BF68:C081FE79 00000176:40D3A58F 00000108:BFA04EC8 00000C4A:3FA66B45 00001CEF:BDA27370 00000130:3F4D6C4E 000012B3:3FB8D3A4 00001427:C08A1280 0000000B:40D468A8
+[model] kv position=00000017 layer=00000000 k=BF5F6645 v=3C868823
+[model] decode position=00000017 token=00002E4D logit_bits=41B5214C compute_cycles=000000000A7957E1 preparation_cycles=000000000007A549 selection_cycles=0000000000278B48 cache_retention_cycles=0000000000650D08 model_cycles=000000000B0D957A total_with_uart_cycles=000000000B535D68 scratch_bytes=0000000000CB0CC4
+[intermediate] position=00000017 entry=0000002E calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000017 entry=0000002F calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000017 entry=00000030 calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000017 entry=00000031 calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000017 entry=00000032 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000017 entry=00000033 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000017 entry=00000034 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000017 entry=00000035 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000017 entry=00000036 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000017 entry=00000037 calls=00000001 checked=00000001 count=00000C00 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000017 entry=00000038 calls=00000001 checked=00000001 count=00000C00 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000017 entry=00000039 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000017 entry=0000003A calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000017 entry=0000003B calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000017 entry=0000003C calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000017 entry=0000003D calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000017 entry=0000003E calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000017 entry=0000003F calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000017 entry=00000040 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000017 entry=00000041 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000017 entry=00000042 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000017 entry=00000043 calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000017 entry=00000044 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000017 entry=00000045 calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000017 entry=00000046 calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000017 entry=00000047 calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000017 entry=00000048 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000017 entry=00000049 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000017 entry=0000004A calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000017 entry=0000004B calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000017 entry=0000004C calls=00000001 checked=00000001 count=00000C00 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000017 entry=0000004D calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000017 entry=0000004E calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000017 entry=0000004F calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000017 entry=00000050 calls=00000001 checked=00000001 count=00000C00 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000017 entry=00000051 calls=00000001 checked=00000001 count=00000C00 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000017 entry=00000052 calls=00000001 checked=00000001 count=00000C00 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000017 entry=00000053 calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000017 entry=00000054 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000017 entry=00000055 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000017 entry=00000056 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000017 entry=00000057 calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000017 entry=00000058 calls=00000001 checked=00000001 count=00025180 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000017 entry=00000059 calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000017 entry=0000005A calls=00000001 checked=00000001 count=00002000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000017 entry=0000005B calls=00000001 checked=00000001 count=00000800 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] complete position=00000017 PASS
+[text] prediction=00000008 token=00002E4D eos=00000000 bytes=00000005 hex=696d697a65
+[text] finish hex=
+[text] output bytes=00000033 hex=20696e7465726e616c6c79696d697a65696d697a65696d697a65696d697a65696d697a65696d697a65696d697a65696d697a65
+[text] BEGIN
+ internallyimizeimizeimizeimizeimizeimizeimizeimize
+[text] END
+verify fixed text validation: PASS
+[nr] launch cycles=0x000000007B2E30FD status=0x00000000
+[nr] RA returned: PASS
+verify NR runtime: PASS
+[fpga_run] Finished: 98686 UART bytes; DDR readback matches

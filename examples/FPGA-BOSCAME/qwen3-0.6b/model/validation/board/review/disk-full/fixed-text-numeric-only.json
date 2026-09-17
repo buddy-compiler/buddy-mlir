@@ -1,0 +1,175 @@
+{
+  "status": "FIXED_TEXT_PASS",
+  "execution": "FPGA trace verified post-run on host",
+  "scope": "fixed raw prompt -> board template/tokenize -> actual graph-selected predictions -> board incremental UTF-8 decode",
+  "prompt_utf8_hex": "57686174206973204672616e63653f",
+  "actual_prompt": {
+    "ids": [
+      151644,
+      872,
+      198,
+      3838,
+      374,
+      9625,
+      30,
+      151645,
+      198,
+      151644,
+      77091,
+      198,
+      151667,
+      271,
+      151668,
+      271
+    ],
+    "count": 16,
+    "encode_cycles": 174223
+  },
+  "official_prompt_ids": [
+    151644,
+    872,
+    198,
+    3838,
+    374,
+    9625,
+    30,
+    151645,
+    198,
+    151644,
+    77091,
+    198,
+    151667,
+    271,
+    151668,
+    271
+  ],
+  "model_stages": [
+    {
+      "kind": "prefill",
+      "position": 0,
+      "token": 2152
+    },
+    {
+      "kind": "decode",
+      "position": 16,
+      "token": 318
+    },
+    {
+      "kind": "decode",
+      "position": 17,
+      "token": 1107
+    },
+    {
+      "kind": "decode",
+      "position": 18,
+      "token": 1127
+    },
+    {
+      "kind": "decode",
+      "position": 19,
+      "token": 1292
+    },
+    {
+      "kind": "decode",
+      "position": 20,
+      "token": 2740
+    },
+    {
+      "kind": "decode",
+      "position": 21,
+      "token": 39522
+    },
+    {
+      "kind": "decode",
+      "position": 22,
+      "token": 745
+    },
+    {
+      "kind": "decode",
+      "position": 23,
+      "token": 12
+    }
+  ],
+  "predictions": [
+    {
+      "prediction": 0,
+      "token": 2152,
+      "eos": 0,
+      "bytes": 2,
+      "hex": "6e6f"
+    },
+    {
+      "prediction": 1,
+      "token": 318,
+      "eos": 0,
+      "bytes": 2,
+      "hex": "696d"
+    },
+    {
+      "prediction": 2,
+      "token": 1107,
+      "eos": 0,
+      "bytes": 3,
+      "hex": "646572"
+    },
+    {
+      "prediction": 3,
+      "token": 1127,
+      "eos": 0,
+      "bytes": 3,
+      "hex": "616c73"
+    },
+    {
+      "prediction": 4,
+      "token": 1292,
+      "eos": 0,
+      "bytes": 3,
+      "hex": "646179"
+    },
+    {
+      "prediction": 5,
+      "token": 2740,
+      "eos": 0,
+      "bytes": 3,
+      "hex": "6c6962"
+    },
+    {
+      "prediction": 6,
+      "token": 39522,
+      "eos": 0,
+      "bytes": 6,
+      "hex": "657261746f72"
+    },
+    {
+      "prediction": 7,
+      "token": 745,
+      "eos": 0,
+      "bytes": 4,
+      "hex": "616c6c79"
+    },
+    {
+      "prediction": 8,
+      "token": 12,
+      "eos": 0,
+      "bytes": 1,
+      "hex": "2d"
+    }
+  ],
+  "finish_hex": "",
+  "output_utf8_hex": "6e6f696d646572616c736461796c6962657261746f72616c6c792d",
+  "output_text": "noimderalsdayliberatorally-",
+  "limits": [
+    "Fixed prompt fixture only; no UART RX or arbitrary user interaction acceptance.",
+    "Text validation does not replace numerical logits/KV or hidden-state verification.",
+    "Nine predictions mean one prefill-selected token plus eight sequential decode predictions."
+  ],
+  "official_assets_sha256": {
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/assets/official/tokenizer.json": "aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/assets/official/tokenizer_config.json": "d5d09f07b48c3086c508b30d1c9114bd1189145b74e982a265350c923acd8101",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/assets/official/generation_config.json": "2325da0f15bb848e018c5ae071b7943332e9f871d6b60e2ed22ca97d4cb993d2"
+  },
+  "inputs_sha256": {
+    "examples/FPGA-BOSCAME/build/fpga-runs/run-06aaa50105af47e1/uart.raw.log": "5754000d38599ad9a1e9c5e3a476e348647d2a837238d37d37c0fbe5ca7fc064",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-native-4l/image-fixed-text-progress/w8a8-image-plan.json": "3893b142d686d8a7712953c124c11d257af6ce0be7bb1d516ab420c87fca9d42"
+  }
+}

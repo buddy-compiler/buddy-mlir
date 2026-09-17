@@ -1,0 +1,11 @@
+{
+  "status": "ERROR",
+  "fpga": 5,
+  "sha256": "f07bb95c4cd904a4e22fd1d86e2fd60d01b1f13cfb890f0a78f4ef6e88760fc1",
+  "capture_seconds": 60,
+  "baud": 115200,
+  "padded_sha256": "df685de2acf71f4146c72f7e6b0c96c7ccded9d7ea6f985ab031b9194ab1ef74",
+  "ddr_readback_matches": true,
+  "uart_bytes": 3806,
+  "error": "program reported a verification failure or trap"
+}

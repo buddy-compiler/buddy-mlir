@@ -1,0 +1,57 @@
+{
+  "stage": "B (board): the compiled Qwen3 graph executed on FPGA5",
+  "board": "FPGA5",
+  "run_id": "run-f8ad50b5e3b94049",
+  "what_worked": {
+    "multi_segment_load": "the platform reported both segments and issued one writemem per segment",
+    "segments": [
+      "model:    address=0x80000000 size=110976",
+      "weights:  address=0xb8000000 size=685257984"
+    ],
+    "writemem_evidence": [
+      "writemem -rtl nanhu_xilinx.i_ddr[1733:0] -file /home/hjuser/Desktop/fpga-tester-ISCAS/fpga-runs/run-f8ad50b5e3b94049/image.bin -file_type bin",
+      "writemem -rtl nanhu_xilinx.i_ddr[25387219:14680064] -file /home/hjuser/Desktop/fpga-tester-ISCAS/fpga-runs/run-f8ad50b5e3b94049/weights-fp32.bin -file_type bin"
+    ],
+    "execution": "the graph ran to completion: [nr] RA returned: PASS, verify NR runtime: PASS",
+    "uart": [
+      "[nr] RA entered; clearing application BSS",
+      "[nr] mstatus=0x8000000A00006000; launch BEGIN",
+      "[model] prefill argmax token=0000010F logit_bits=00400000",
+      "[nr] launch cycles=0x00000000BB05E94F status=0x00000000",
+      "[nr] RA returned: PASS",
+      "verify NR runtime: PASS"
+    ],
+    "cycles": 3137726799
+  },
+  "what_is_wrong": {
+    "board_argmax_token": 271,
+    "board_logit_bits": "00400000",
+    "board_logit_value": 5.877471754111438e-39,
+    "expected_from_fp32_reference": 49000,
+    "expected_logit_magnitude": "~30 (see validation/reference/fp32-16plus8.reference.json)",
+    "verdict": "the graph executes on the board but the numbers are wrong; this is NOT a passing numeric result",
+    "board_logit_note": "0x00400000 is a denormal, not 2.0. The winning logit is essentially zero, so the logits are not the reference's order of magnitude (~30) at all."
+  },
+  "suspects_not_yet_excluded": [
+    "the 685 MB writemem may be truncated or wrapped by the RTL DDR model: the operator examples only ever touched a few KB at 0xb8000000, so a 653 MiB write into i_ddr[25387219:14680064] has never been exercised before",
+    "the model main's descriptors point at .workspace; the linker places them at 0xb8000000 only if they are the first .workspace items, which has not been verified on hardware",
+    "the graph's parameter order and the segment's section order are assumed to agree; run_graph_host.py checks that against the layout, but nothing checks it against the segment file"
+  ],
+  "next_diagnostic": "print a checksum over a slice of the parameter buffer and the first few embedding values from the board, and compare with the same values computed from the segment file locally; that separates 'segment did not arrive' from 'graph read it wrong'",
+  "infrastructure_changes_this_round": {
+    "fpga_remote.py": "additive --layout mode: runs the platform's run_uv_layout.sh instead of the single-image path, and verifies every segment's readback. Also forwards --layout through detached_start, which rebuilds the worker command line and silently dropped it (that is why the first attempt ran the single-image path)",
+    "fpga_run.py": "additive --layout-plan / --segment options that upload the plan and its extra files; the single-image flow is unchanged"
+  },
+  "upload_cost_measured": {
+    "bytes": 685257984,
+    "seconds": 129,
+    "rate_mib_per_s": 5.07
+  },
+  "not_verified": [
+    "no correct numeric result on the board yet",
+    "the per-segment readback files were not verified because the worker exited without writing result.json (an SSH disconnect during the run)",
+    "decode steps were not exercised on the board"
+  ],
+  "superseded_by": "validation/board/stage-b-board-1layer.json -- the failure here was traced to a byte-vs-element offset bug in the generated model main and fixed",
+  "status": "SUPERSEDED (was a failing numeric result)"
+}

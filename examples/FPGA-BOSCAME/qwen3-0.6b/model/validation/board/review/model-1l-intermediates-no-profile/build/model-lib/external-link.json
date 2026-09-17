@@ -1,0 +1,9 @@
+{
+  "undefined_symbols": [
+    "expf",
+    "memcpy"
+  ],
+  "unresolved_kernel_symbols": [],
+  "status": "PASS",
+  "scope": "relocatable link; runtime/libm resolution is checked by final ELF audit"
+}

@@ -1,0 +1,117 @@
+{
+  "case_count": 18,
+  "cases": {
+    "dequantize_16x1024": {
+      "status": "PASS",
+      "errors": 0,
+      "max_abs": 0
+    },
+    "dequantize_16x2048": {
+      "status": "PASS",
+      "errors": 0,
+      "max_abs": 0
+    },
+    "dequantize_16x3072": {
+      "status": "PASS",
+      "errors": 0,
+      "max_abs": 0
+    },
+    "dequantize_1x1024": {
+      "status": "PASS",
+      "errors": 0,
+      "max_abs": 0
+    },
+    "dequantize_1x151936": {
+      "status": "PASS",
+      "errors": 0,
+      "max_abs": 0
+    },
+    "dequantize_1x2048": {
+      "status": "PASS",
+      "errors": 0,
+      "max_abs": 0
+    },
+    "dequantize_1x3072": {
+      "status": "PASS",
+      "errors": 0,
+      "max_abs": 0
+    },
+    "matmul_16x1024x1024": {
+      "status": "PASS",
+      "errors": 0,
+      "max_abs": 0
+    },
+    "matmul_16x1024x2048": {
+      "status": "PASS",
+      "errors": 0,
+      "max_abs": 0
+    },
+    "matmul_16x1024x3072": {
+      "status": "PASS",
+      "errors": 0,
+      "max_abs": 0
+    },
+    "matmul_16x2048x1024": {
+      "status": "PASS",
+      "errors": 0,
+      "max_abs": 0
+    },
+    "matmul_16x3072x1024": {
+      "status": "PASS",
+      "errors": 0,
+      "max_abs": 0
+    },
+    "matmul_1x1024x1024": {
+      "status": "PASS",
+      "errors": 0,
+      "max_abs": 0
+    },
+    "matmul_1x1024x2048": {
+      "status": "PASS",
+      "errors": 0,
+      "max_abs": 0
+    },
+    "matmul_1x1024x3072": {
+      "status": "PASS",
+      "errors": 0,
+      "max_abs": 0
+    },
+    "matmul_1x151936x1024": {
+      "status": "PASS",
+      "errors": 0,
+      "max_abs": 0
+    },
+    "matmul_1x2048x1024": {
+      "status": "PASS",
+      "errors": 0,
+      "max_abs": 0
+    },
+    "matmul_1x3072x1024": {
+      "status": "PASS",
+      "errors": 0,
+      "max_abs": 0
+    }
+  },
+  "matmul_cycles": {
+    "matmul_16x1024x1024": 1467130,
+    "matmul_16x1024x2048": 1868384,
+    "matmul_16x1024x3072": 3832662,
+    "matmul_16x2048x1024": 2929488,
+    "matmul_16x3072x1024": 4390147,
+    "matmul_1x1024x1024": 462687,
+    "matmul_1x1024x2048": 833489,
+    "matmul_1x1024x3072": 1349358,
+    "matmul_1x151936x1024": 67876768,
+    "matmul_1x2048x1024": 920423,
+    "matmul_1x3072x1024": 1377672
+  },
+  "launch_cycles": 465732548,
+  "status": "PASS",
+  "run_id": "run-b661e82b934047f6",
+  "image_sha256": "2367b4bf5ed1aa6aa67d1552b08f78c0025a79b1593e8eeeb8f690ec2c26e886",
+  "uart_sha256": "d26be281ba4d9323ceba133a1ab43865931ecfaa3c6ad459fc62e0dc69af16e8",
+  "manifest_sha256": "f95be051af4584d4e72d770cc9c05a103b68e72bccb7220cea6092d77d6ced3e",
+  "provenance_sha256": "afa433153fe8a1e7572046f3ea8761a5284827807bb81ec3f182dfbb7b6c0c96",
+  "ddr_readback_matches": true,
+  "scope": "18 standalone optimized model kernel shapes; not a model inference result"
+}

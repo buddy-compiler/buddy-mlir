@@ -1,0 +1,132 @@
+{
+  "stage": "model graph -> external Triton call replacement",
+  "execution": "Buddy graph transform, then typed IR lowering; no board, no inference",
+  "source_report": "build/triton-call/full-28l/triton-call-replacement.json",
+  "source_report_sha256": "7d192e73bfc83300af253fdccf7a73491a26bbd38301ce982615b7cde0c5ea89",
+  "matching": "structural (dataflow-anchored), never by node name",
+  "kernel_index": {
+    "source": "triton/build/*/frontend.json",
+    "cases": 83
+  },
+  "graphs": {
+    "prefill": {
+      "lm_head_last_token_rewrites": 1,
+      "ops_before": 3219,
+      "ops_after": 2429,
+      "pattern_matches": {
+        "linear": 197,
+        "rmsnorm": 113,
+        "silu": 28,
+        "embedding": 1
+      },
+      "external_calls": 339
+    },
+    "decode": {
+      "lm_head_last_token_rewrites": 0,
+      "ops_before": 3217,
+      "ops_after": 2427,
+      "pattern_matches": {
+        "linear": 197,
+        "rmsnorm": 113,
+        "silu": 28,
+        "embedding": 1
+      },
+      "external_calls": 339
+    }
+  },
+  "replaced_nodes_total": 678,
+  "replaced_by_kind": {
+    "linear": 394,
+    "rmsnorm": 226,
+    "silu": 56,
+    "embedding": 2
+  },
+  "distinct_symbols": [
+    "qwen_graph_embedding_16x1024",
+    "qwen_graph_embedding_1x1024",
+    "qwen_graph_matmul_16x1024x1024_f32",
+    "qwen_graph_matmul_16x1024x2048_f32",
+    "qwen_graph_matmul_16x1024x3072_f32",
+    "qwen_graph_matmul_16x2048x1024_f32",
+    "qwen_graph_matmul_16x3072x1024_f32",
+    "qwen_graph_matmul_1x1024x1024_f32",
+    "qwen_graph_matmul_1x1024x2048_f32",
+    "qwen_graph_matmul_1x1024x3072_f32",
+    "qwen_graph_matmul_1x151936x1024_f32",
+    "qwen_graph_matmul_1x2048x1024_f32",
+    "qwen_graph_matmul_1x3072x1024_f32",
+    "qwen_graph_rmsnorm_128x128",
+    "qwen_graph_rmsnorm_16x1024",
+    "qwen_graph_rmsnorm_16x128",
+    "qwen_graph_rmsnorm_1x1024",
+    "qwen_graph_rmsnorm_256x128",
+    "qwen_graph_rmsnorm_8x128",
+    "qwen_graph_silu_16x3072",
+    "qwen_graph_silu_1x3072"
+  ],
+  "uncovered": [],
+  "adapter": {
+    "source": "build/triton-call/full-28l/qwen_triton_adapters.c",
+    "role": "ABI only: result-first -> result-last reordering, descriptor rank cast, RMSNorm sum-of-squares scratch",
+    "scratch_floats": 256,
+    "declares_archive_entries": "yes, with the kernel case's own ranks (compile-time check)"
+  },
+  "correctness_guards": [
+    "call operands are explicitly retargeted after displacement: a linear call takes the physical [N,K] weight, not its transposed view; an RMSNorm call takes the pre-norm tensor, not the already-normalised one",
+    "interior nodes are deleted only when nothing else consumes them",
+    "a shape with no built kernel case is reported as uncovered, never replaced"
+  ],
+  "known_gap": {
+    "node": "prefill lm_head",
+    "shape": [
+      16,
+      151936,
+      1024
+    ],
+    "reason": "no built f32 linear case for M=16 N=151936 K=1024; the decode lm_head (M=1) is covered. Generation only needs the last position, so the deployment fix is a graph-level last-token slice, not a new kernel."
+  },
+  "not_yet_done": [
+    "numeric execution of the replaced graph (host or board)",
+    "attention / RoPE / SiLU / embedding / KV-write are still lowered by Buddy, not by the archive"
+  ],
+  "patterns": [
+    "linear",
+    "rmsnorm",
+    "silu",
+    "embedding"
+  ],
+  "adapter_output_workspace_floats": 430464,
+  "patterns_not_implemented": [
+    "attention (the graph holds one fused SDPA op; the library has split QK/softmax/PV kernels, so a whole-attention kernel or an IR-level decomposition match is needed)",
+    "RoPE (cos/sin are computed inline in the graph and would have to become explicit call arguments)",
+    "KV cache write (in-place update of a graph input; needs an out-parameter form rather than a returned value)"
+  ],
+  "numerically_verified": "yes: validation/stage-cd/replaced-28l-host.json and validation/nr-lower/1layer-prefill.json (cosine 1.0000000000, token trajectory identical to FP32, with the last-token lm_head rewrite applied)",
+  "lm_head_last_token_rewrites": 1,
+  "lm_head_last_token_detail": [
+    {
+      "matmul": "mm_196",
+      "source": "alias",
+      "source_shape": [
+        1,
+        16,
+        1024
+      ],
+      "sliced_to": [
+        1,
+        1024
+      ],
+      "inserted": [
+        "mm_196_last_slice",
+        "mm_196_last_view"
+      ],
+      "result_shape_now": [
+        1,
+        151936
+      ],
+      "views_reshaped": [
+        "view_565"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "status": "PROGRESS_SEQUENCE_VALID_SO_FAR",
+  "errors": [],
+  "graph_stages": [
+    {
+      "kind": "prefill",
+      "position": 0,
+      "completed_kernel_calls": 523,
+      "expected_kernel_calls": 957,
+      "graph_return_observed": false,
+      "last_completed_kernel": {
+        "index": 522,
+        "adapter": "qwen_graph_w8a8_mm_107_dequantize_16x1024",
+        "kernel": "_mlir_ciface_kernel_dequantize_16x1024",
+        "symbol_call_index": 61,
+        "region": "decoder",
+        "decoder_block_index": 15,
+        "call_in_decoder_block": 11,
+        "uart_line": 1054
+      }
+    }
+  ],
+  "unpaired_begin": {
+    "index": 523,
+    "adapter": "qwen_graph_kv_index_put_30_layout_context_8x16x128",
+    "kernel": "_mlir_ciface_kernel_layout_context_8x16x128",
+    "symbol_call_index": 30,
+    "region": "decoder",
+    "decoder_block_index": 15,
+    "call_in_decoder_block": 12,
+    "uart_line": 1056
+  },
+  "runtime_completion": null,
+  "limits": [
+    "Progress only; no numerical correctness or model acceptance claim.",
+    "An unpaired begin means end has not been observed, not a hang diagnosis.",
+    "UART kernel rows have no timestamps; per-kernel elapsed wall time is unknown.",
+    "A kernel end follows the profiler-added public ame_fence and bookkeeping.",
+    "Graph cycles include diagnostic UART and per-kernel synchronization.",
+    "Decoder block indices are zero based and derived from verified repeated compiled-call structure."
+  ],
+  "sources_sha256": {
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-native-28l/replacement/triton-call-replacement.json": "029c8bfb823f57c29f1b1988a723835441e4f4124e989b7aa97b6a41a72b2941",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-native-28l/replacement/qwen_triton_adapters.c": "eea83d9d5dacf3c89944dd4dade58e8a5eb0381403ab523e9eefc2365d5b7ae1",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/ame-v05/model-28l-phase-probe/image/kernel-profile.json": "229145a91e375e0bcd23d034d5cffb8ca90c4b3112efa0666d3e76b7f071c780",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-native-28l/nr-prefill/forward_prefill.ll": "1ee58596b0ae3eac561f8b433ad2d99a8dbe3fa4104923fbdb55948deaa61671",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-native-28l/nr-decode/forward_decode.ll": "8b2ab634eaf4791175f9395484b6c85a858f5475ed2b49f5a899507461d3260e"
+  },
+  "uart_log": "examples/FPGA-BOSCAME/build/fpga-runs/run-427eb992645a44b6/uart.raw.log",
+  "uart_sha256": "1f235c851261807fc3880f677932cea9df1cb16142806279a2fbeffa7711d97b",
+  "uart_bytes": 82797,
+  "layers": 28,
+  "snapshot_utc": "2026-09-17T07:49:48.689330+00:00"
+}

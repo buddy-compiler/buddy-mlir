@@ -12,6 +12,7 @@
 include "mlir/IR/OpBase.td"
 include "mlir/IR/BuiltinTypes.td"
 include "mlir/Interfaces/InferTypeOpInterface.td"
+include "mlir/Interfaces/DestinationStyleOpInterface.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/Dialect/LLVMIR/LLVMOpBase.td"
 
@@ -41,6 +42,133 @@ def BOSCAME_MatrixType : Type<
 
 class BOSCAME_Op<string mnemonic, list<Trait> traits = []> :
   Op<BOSCAME_Dialect, mnemonic, traits> {}
+
+//===----------------------------------------------------------------------===//
+// Qwen3 W8A8 semantic operations
+//===----------------------------------------------------------------------===//
+
+def QuantizePerGroupOp : BOSCAME_Op<"quantize_per_group",
+    [DestinationStyleOpInterface,
+     DeclareOpInterfaceMethods<MemoryEffectsOpInterface>]> {
+  let summary = "Dynamically quantize f32 rows to per-group int8";
+  let description = [{
+    Quantizes a rank-2 `[T, K]` f32 activation independently for every
+    `[group_size]` slice.  `quantized` has shape `[T, K]` and `scales` has
+    shape `[T, K / group_size]`.  Tensor form has two tied results; buffer form
+    has no results and writes the two destination operands.
+  }];
+  let arguments = (ins
+    AnyShaped:$input,
+    AnyShaped:$quantized,
+    AnyShaped:$scales,
+    I64Attr:$group_size
+  );
+  let results = (outs Variadic<AnyRankedTensor>:$results);
+  let hasVerifier = 1;
+  let extraClassDeclaration = [{
+    ::mlir::MutableOperandRange getDpsInitsMutable() {
+      return ::mlir::MutableOperandRange(getOperation(), 1, 2);
+    }
+  }];
+}
+
+def SiluMulQuantizePerGroupOp :
+    BOSCAME_Op<"silu_mul_quantize_per_group",
+    [DestinationStyleOpInterface,
+     DeclareOpInterfaceMethods<MemoryEffectsOpInterface>]> {
+  let summary = "Fuse SiLU-times-up with per-group activation quantization";
+  let description = [{
+    Multiplies a precomputed `silu` activation by `up` elementwise and directly
+    produces the grouped int8 activation and f32 scales consumed by the Qwen3
+    Down projection. `silu` and `up` have shape `[T, K]`, `quantized` has shape
+    `[T, K]`, and
+    `scales` has shape `[T, K / group_size]`.  Tensor form has two tied
+    results; buffer form has no results and writes the two destinations.
+  }];
+  let arguments = (ins
+    AnyShaped:$silu,
+    AnyShaped:$up,
+    AnyShaped:$quantized,
+    AnyShaped:$scales,
+    I64Attr:$group_size
+  );
+  let results = (outs Variadic<AnyRankedTensor>:$results);
+  let hasVerifier = 1;
+  let extraClassDeclaration = [{
+    ::mlir::MutableOperandRange getDpsInitsMutable() {
+      return ::mlir::MutableOperandRange(getOperation(), 2, 2);
+    }
+  }];
+}
+
+def W8A8LinearOp : BOSCAME_Op<"w8a8_linear",
+    [DestinationStyleOpInterface]> {
+  let summary = "Qwen3 per-group W8A8 linear with OUTBLK=64 weights";
+  let description = [{
+    Computes a complete Qwen3 W8A8 linear operation without exposing its
+    groups as independent matmuls.  The required logical layouts are:
+
+      xq     : [T, K] i8
+      xs     : [T, K / group_size] f32
+      wq     : [D / 64, K / group_size, 64, group_size] i8
+      ws     : [K / group_size, D] f32
+      output : [T, D] f32
+
+    `weight_layout` must be `ame_outblk64`.  Tensor form has one tied result;
+    buffer form has no results and writes `output`.
+  }];
+  let arguments = (ins
+    AnyShaped:$xq,
+    AnyShaped:$xs,
+    AnyShaped:$wq,
+    AnyShaped:$ws,
+    AnyShaped:$output,
+    I64Attr:$group_size,
+    StrAttr:$weight_layout
+  );
+  let results = (outs Variadic<AnyRankedTensor>:$results);
+  let hasVerifier = 1;
+  let extraClassDeclaration = [{
+    ::mlir::MutableOperandRange getDpsInitsMutable() {
+      return getOutputMutable();
+    }
+  }];
+}
+
+def W8A8LinearPairOp : BOSCAME_Op<"w8a8_linear_pair",
+    [DestinationStyleOpInterface]> {
+  let summary = "Two Qwen3 W8A8 linears sharing one quantized activation";
+  let description = [{
+    Computes two independent `w8a8_linear` results from the same `xq` and
+    `xs`.  Both projections have the same `[T, D]` output shape and retain
+    separate `ame_outblk64` weight and scale buffers, so this operation does
+    not change the packed-weight ABI.  The paired lowering may share only the
+    output-zero/AME-resynchronization preamble; the established AME and RVV
+    schedules for each projection remain ordered and independent.
+
+    Tensor form has two tied results.  Buffer form has no results and writes
+    `output0` and `output1`.
+  }];
+  let arguments = (ins
+    AnyShaped:$xq,
+    AnyShaped:$xs,
+    AnyShaped:$wq0,
+    AnyShaped:$ws0,
+    AnyShaped:$wq1,
+    AnyShaped:$ws1,
+    AnyShaped:$output0,
+    AnyShaped:$output1,
+    I64Attr:$group_size,
+    StrAttr:$weight_layout
+  );
+  let results = (outs Variadic<AnyRankedTensor>:$results);
+  let hasVerifier = 1;
+  let extraClassDeclaration = [{
+    ::mlir::MutableOperandRange getDpsInitsMutable() {
+      return ::mlir::MutableOperandRange(getOperation(), 6, 2);
+    }
+  }];
+}
 
 //===----------------------------------------------------------------------===//
 // Matrix Configuration Operations (with register)
@@ -1086,3 +1214,17 @@ def BOSCAME_MsomaMm_IntrOp   : BOSCAME_WidenMMA_IntrOp<"msoma.mm">;
 //def BOSCAME_MsomaHbmm_IntrOp : BOSCAME_WidenMMA_IntrOp<"msoma.hb.mm">;
 
 #endif // BOSCAME_DIALECT
+
+// FPGA adapter intrinsics retain the common SSA carrier, but carry each load's
+// physical slot explicitly. They are never emitted for the upstream profile.
+class BOSCAME_FpgaLoad_IntrOp<string mnemonic>
+    : BOSCAME_IntrOpBase<"fpga." # mnemonic, 1, [0], [1]>,
+      Arguments<(ins LLVM_Type:$base, LLVM_Type:$stride, I32:$slot)>;
+def BOSCAME_FpgaLoadA_IntrOp : BOSCAME_FpgaLoad_IntrOp<"mlae8.m">;
+def BOSCAME_FpgaLoadB_IntrOp : BOSCAME_FpgaLoad_IntrOp<"mlbe8.m">;
+def BOSCAME_FpgaLoadBT_IntrOp : BOSCAME_FpgaLoad_IntrOp<"mlbte8.m">;
+def BOSCAME_FpgaLoadAcc_IntrOp : BOSCAME_FpgaLoad_IntrOp<"mlce32.m">;
+def BOSCAME_FpgaMma_IntrOp : BOSCAME_WidenMMA_IntrOp<"fpga.mqma.b.mm">;
+// Final accumulator write-back converts i32 to f32 on this target; it is not a
+// lossless spill and must not share the upstream store's semantic identity.
+def BOSCAME_FpgaStoreAcc_IntrOp : BOSCAME_Store_IntrOp<"fpga.msce32.m">;

@@ -1,0 +1,54 @@
+{
+  "name": "rmsnorm_16x128",
+  "family": "rmsnorm",
+  "kernel": "rmsnorm",
+  "symbol": "triton_rmsnorm_16x128",
+  "arguments": [
+    {
+      "name": "X",
+      "rank": 2,
+      "dtype": "f32"
+    },
+    {
+      "name": "Weight",
+      "rank": 1,
+      "dtype": "f32"
+    },
+    {
+      "name": "Sums",
+      "rank": 1,
+      "dtype": "f32"
+    },
+    {
+      "name": "Out",
+      "rank": 2,
+      "dtype": "f32"
+    }
+  ],
+  "signature": {
+    "X": "*fp32",
+    "Weight": "*fp32",
+    "Sums": "*fp32",
+    "Out": "*fp32"
+  },
+  "constexprs": {
+    "WIDTH": 128,
+    "BLOCK": 128
+  },
+  "grid": [
+    16,
+    1,
+    1
+  ],
+  "directory": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/rmsnorm_16x128",
+  "launch_source": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/rmsnorm_16x128/launch.c",
+  "validation": "Unmodified parent launch.c and its independent numerical oracle",
+  "frontend": "triton.compiler.ASTSource -> CPUBackend.make_ttir -> triton-riscv _ttir_to_ttsharedir",
+  "triton_version": "3.8.0",
+  "kernels_sha256": "f89c28aeff34416c679b86c0d9bf11187b062ded1ae3437df2c2031221fc2d3e",
+  "exporter_sha256": "266a64dda66018359776c61fbbee1c9e8109ff554938a0cc4e66a5d50d0fc56a",
+  "cases_sha256": "ad71d8957e5c09a3ffa5ec1476ece4ca241c7d4e70ef65966d00127b6e0e12e6",
+  "ttir_sha256": "5ade149c9bebe5e41dcd3b7f4d81cd28d58ec6f0f8d7d2d3826d974bdfe0294a",
+  "linalg_sha256": "a4893fc0eb50f6183cab496da83eaf6768ec859ce2f213c98a9fa00a680cd4fa",
+  "abi": "unranked memref: (i64 rank=0, rank-0 descriptor pointer) per tensor, then six i32 grid/pid values"
+}

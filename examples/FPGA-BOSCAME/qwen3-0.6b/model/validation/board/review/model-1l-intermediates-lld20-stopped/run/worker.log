@@ -1,0 +1,73 @@
+[fpga_run] UART ready: /dev/FPGA5, 115200, 8N1, no flow control
+[fpga_run] FPGA5 session active; elapsed=0s, UART=0 bytes
+
+[nr] NH boot; RA operator runtime
+[nr] RA entry=0x0000000080000040
+[nr] RA entered; clearing application BSS
+[nr] mstatus=0x8000000A00006000; launch BEGIN
+[fpga_run] FPGA5 started; capturing for 1200 seconds
+[text] prompt count=00000010 ids=0002505C 00000368 000000C6 00000EFE 00000176 00002599 0000001E 0002505D 000000C6 0002505C 00012D23 000000C6 00025073 0000010F 00025074 0000010F encode_cycles=000000000002AB0A
+verify fixed prompt tokenizer: PASS
+[text] mode=fixed-validation; EOS is recorded, never early-stops
+[model] prefill begin position=00000000 input_token=0002505C
+[fpga_run] FPGA5 session active; elapsed=11s, UART=535 bytes
+[fpga_run] FPGA5 session active; elapsed=41s, UART=535 bytes
+[compare] logits position=0000000F count=00025180 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] key_cache position=0000000F count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] value_cache position=0000000F count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[model] selected position=0000000F 0000BF68:C072D924 00000176:407D53F8 00000108:4018637A 00000C4A:3E50A3D4 00001CEF:400822CC 00000130:40910151 000012B3:BF8A919D 00001427:400F0715 0000000B:40247727
+[model] kv position=0000000F layer=00000000 k=BEFA4528 v=3B3D6C2F
+[model] prefill position=00000000 token=0000812B logit_bits=410D46B2 compute_cycles=00000000271B1524 preparation_cycles=0000000000105485 selection_cycles=0000000000278AB8 cache_retention_cycles=0000000000650D3C model_cycles=0000000027B8019D total_with_uart_cycles=0000000027EF0CD1 scratch_bytes=0000000000E4F344
+[intermediate] position=00000000 entry=00000000 calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000001 calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000002 calls=00000001 checked=00000001 count=00008000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000003 calls=00000001 checked=00000001 count=00008000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000004 calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000005 calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000006 calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000007 calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000008 calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000009 calls=00000001 checked=00000001 count=0000C000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=0000000A calls=00000001 checked=00000001 count=0000C000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=0000000B calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=0000000C calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=0000000D calls=00000001 checked=00000001 count=00000010 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=0000000E calls=00000001 checked=00000001 count=00008000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=0000000F calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000010 calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000011 calls=00000001 checked=00000001 count=00000010 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000012 calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000013 calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000014 calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000015 calls=00000001 checked=00000001 count=00000010 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000016 calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000017 calls=00000001 checked=00000001 count=00008000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000018 calls=00000001 checked=00000001 count=00008000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000019 calls=00000001 checked=00000001 count=00000010 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=0000001A calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=0000001B calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=0000001C calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=0000001D calls=00000001 checked=00000001 count=00000010 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=0000001E calls=00000001 checked=00000001 count=0000C000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=0000001F calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000020 calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000021 calls=00000001 checked=00000001 count=00000010 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000022 calls=00000001 checked=00000001 count=0000C000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000023 calls=00000001 checked=00000001 count=0000C000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000024 calls=00000001 checked=00000001 count=0000C000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000025 calls=00000001 checked=00000001 count=00000010 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000026 calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000027 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000028 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000029 calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=0000002A calls=00000001 checked=00000001 count=00025180 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=0000002B calls=00000001 checked=00000001 count=00008000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=0000002C calls=00000001 checked=00000001 count=00020000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=0000002D calls=00000001 checked=00000001 count=00008000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] complete position=00000000 PASS
+[profile] position=0000000F kernel=_mlir_ciface_kernel_attention_pv_position_16x16x128x512 calls=0000000000000001 cycles=0000000000C0A976
+[p[fpga_run] FPGA5 session active; elapsed=71s, UART=8099 bytes
+[fpga_run] FPGA5 session active; elapsed=101s, UART=8099 bytes
+[fpga_run] FPGA5 session active; elapsed=131s, UART=8099 bytes
+[fpga_run] FPGA5 session active; elapsed=161s, UART=8099 bytes
+[fpga_run] interrupted; releasing this session

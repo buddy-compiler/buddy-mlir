@@ -1,0 +1,68 @@
+{
+  "format": 1,
+  "triton_riscv": {
+    "url": "git@github.com:RuyiAI-Stack/triton-riscv.git",
+    "commit": "12c2f6a46f53529ba90c305e62f80d49e90b5e59"
+  },
+  "triton": {
+    "url": "https://github.com/triton-lang/triton.git",
+    "commit": "58895270e6230491acc15fe7ba6d4c849e838db1"
+  },
+  "buddy": {
+    "base_commit": "6129002c85f36cfdbdf60c1e502057e53cc34777",
+    "source": "This repository, including its NR FPGA lowering changes; not the triton-riscv buddy-hash.txt checkout."
+  },
+  "llvm": {
+    "commit": "6ceae32b77a2c0cc3c929ae8924254525155a26c",
+    "source": "This repository llvm submodule, built with MLIR and RISC-V/BOSCAME targets."
+  },
+  "python": {
+    "major_minor": "3.12",
+    "tested": "3.12.14",
+    "environment": "boscame"
+  },
+  "python_build_requirements": "requirements-build.txt",
+  "pytorch": {
+    "tested": "2.10.0+cpu",
+    "note": "Optional for these offline ASTSource frontends; upstream execution driver expects torch. Use existing boscame package or the PyTorch CPU index."
+  },
+  "json": {
+    "version": "v3.11.3",
+    "source": "Triton cmake/json-version.txt pinned upstream download, or JSON_SYSPATH override"
+  },
+  "build": {
+    "cmake_extra": "-DTRITON_SHARED_BUILD_TRITON_SAN=OFF",
+    "editable": true,
+    "llvm_build_type": "Release",
+    "llvm_assertions": true
+  },
+  "patches": [
+    {
+      "origin": "triton-riscv",
+      "path": "patches/0001-cpu-only-no-nv-amd-backends.patch",
+      "sha256": "27dce45a28fed32875ac1ce2fee417c8a41da7b4d430dce22c3f3e75c56745c7"
+    },
+    {
+      "origin": "triton-riscv",
+      "path": "patches/0002-add-triton-shared-opt-entry-point.patch",
+      "sha256": "7a8a5abff3a83d2cb6c15c5080f30cddfbac25b35875e94aa57c01c8be6de7aa"
+    },
+    {
+      "origin": "triton-riscv",
+      "path": "patches/0003-triton-compatibility.patch",
+      "sha256": "a36ce93c6cac3f328b8101ae2709d962b772c46d32250c3c26c8b6b78c8e7b7c"
+    },
+    {
+      "origin": "common/triton",
+      "path": "patches/0004-buddy-llvm-symbol-inlineasm.patch",
+      "sha256": "826b0abbaf9470d630ad5b1d4e9020256ad2fcbee3e364078dedb0c54eaa0d21"
+    }
+  ],
+  "source_constraints": [
+    "The qwen3 reference repository supplies model architecture only; no v0.1 operator or instruction implementation is imported.",
+    "The Triton repository is the genuine Python JIT/TTIR frontend; generated linalg is lowered by this repository Buddy NR implementation.",
+    "NR instruction encodings and FPGA boot/link conventions come from the ModelZoo hardware reference, with maintained code under FPGA-BOSCAME/common and tools.",
+    "The full Qwen model weights are not needed for per-operator deterministic validation.",
+    "The compatibility patch only adapts SymbolName/SymbolVisibility and the LLVM InlineAsmOp convergent parameter to this LLVM commit."
+  ]
+}

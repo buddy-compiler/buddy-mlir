@@ -1,0 +1,12 @@
+{
+  "status": "NUMERIC_AND_TEXT_PASS_BUT_LOAD_VERIFICATION_FAILED",
+  "accepted": false,
+  "run_id": "run-06aaa50105af47e1",
+  "layers": 4,
+  "numerical_evidence": "numeric-only.json",
+  "fixed_text_evidence": "fixed-text-numeric-only.json",
+  "root_cause_of_readback_failure": "/home filesystem full: source weights 219342592 bytes, readback 201195520; tokenizer readback zero bytes. This does not explain the earlier separate no-progress run.",
+  "disk_available_before_cleanup_bytes": 1990656,
+  "cleanup": "Only explicit completed root-owned run binary/readback copies removed, with hashes and verified local regeneration sources; logs and result manifests retained.",
+  "sources": "local-regeneration-sources.json"
+}

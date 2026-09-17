@@ -1,0 +1,19 @@
+
+[nr] NH boot; RA operator runtime
+[nr] RA entry=0x0000000080000040
+[nr] RA entered; clearing application BSS
+[nr] mstatus=0x8000000A00006000; launch BEGIN
+[dequant-ab] config rows=00000010 cols=00000400 repeats=00000003 offset_words=00000010 timing=adapter_plus_kernel
+[dequant-ab] sample round=00000000 variant=baseline order=00000000 cycles=00000000003DB7A2 mismatches=00000000 nonfinite=00000000 guard_errors=00000000 input_errors=00000000 max_abs_f64_bits=0000000000000000 mean_abs_f64_bits=0000000000000000 status=PASS
+[dequant-ab] sample round=00000000 variant=optimized order=00000001 cycles=000000000007D6FE mismatches=00000000 nonfinite=00000000 guard_errors=00000000 input_errors=00000000 max_abs_f64_bits=0000000000000000 mean_abs_f64_bits=0000000000000000 status=PASS
+[dequant-ab] pair round=00000000 mismatches=00000000
+[dequant-ab] sample round=00000001 variant=optimized order=00000000 cycles=000000000007D662 mismatches=00000000 nonfinite=00000000 guard_errors=00000000 input_errors=00000000 max_abs_f64_bits=0000000000000000 mean_abs_f64_bits=0000000000000000 status=PASS
+[dequant-ab] sample round=00000001 variant=baseline order=00000001 cycles=00000000003DB791 mismatches=00000000 nonfinite=00000000 guard_errors=00000000 input_errors=00000000 max_abs_f64_bits=0000000000000000 mean_abs_f64_bits=0000000000000000 status=PASS
+[dequant-ab] pair round=00000001 mismatches=00000000
+[dequant-ab] sample round=00000002 variant=baseline order=00000000 cycles=00000000003DB6B1 mismatches=00000000 nonfinite=00000000 guard_errors=00000000 input_errors=00000000 max_abs_f64_bits=0000000000000000 mean_abs_f64_bits=0000000000000000 status=PASS
+[dequant-ab] sample round=00000002 variant=optimized order=00000001 cycles=000000000007D6BD mismatches=00000000 nonfinite=00000000 guard_errors=00000000 input_errors=00000000 max_abs_f64_bits=0000000000000000 mean_abs_f64_bits=0000000000000000 status=PASS
+[dequant-ab] pair round=00000002 mismatches=00000000
+[dequant-ab] PASS errors=00000000
+[nr] launch cycles=0x0000000001DE9279 status=0x00000000
+[nr] RA returned: PASS
+verify NR runtime: PASS

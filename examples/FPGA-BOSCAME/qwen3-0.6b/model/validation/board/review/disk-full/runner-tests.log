@@ -1,0 +1,40 @@
+test_interactive_stdin_enqueue_ack_loss_is_not_duplicate_input (test_fpga_cli.ConfigurationTests.test_interactive_stdin_enqueue_ack_loss_is_not_duplicate_input) ... ok
+test_invalid_uart_schedule_is_rejected (test_fpga_cli.ConfigurationTests.test_invalid_uart_schedule_is_rejected) ... ok
+test_layout_manifest_rejects_escaping_or_overwriting_uploads (test_fpga_cli.ConfigurationTests.test_layout_manifest_rejects_escaping_or_overwriting_uploads) ... ok
+test_relocated_launcher_and_shell_quoting (test_fpga_cli.ConfigurationTests.test_relocated_launcher_and_shell_quoting) ... ok
+test_server_directory_defaults_and_overrides (test_fpga_cli.ConfigurationTests.test_server_directory_defaults_and_overrides) ... ok
+test_closed_session_rejects_new_input_but_allows_idempotent_reply (test_fpga_input.InputQueueTests.test_closed_session_rejects_new_input_but_allows_idempotent_reply) ... ok
+test_deduplicate_lost_enqueue_ack_and_preserve_order (test_fpga_input.InputQueueTests.test_deduplicate_lost_enqueue_ack_and_preserve_order) ... [fpga_run] UART input request aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa written (FPGA receipt unconfirmed)
+[fpga_run] UART input request bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb written (FPGA receipt unconfirmed)
+ok
+test_local_uuid_persists_until_valid_ack (test_fpga_input.InputQueueTests.test_local_uuid_persists_until_valid_ack) ... ok
+test_real_pty_byte_transfer_with_embedded_nul (test_fpga_input.InputQueueTests.test_real_pty_byte_transfer_with_embedded_nul) ... [fpga_run] UART input request cccccccccccccccccccccccccccccccc written (FPGA receipt unconfirmed)
+ok
+test_symlinks_cannot_redirect_queue_or_ack_files (test_fpga_input.InputQueueTests.test_symlinks_cannot_redirect_queue_or_ack_files) ... ok
+test_detached_start_is_idempotent (test_fpga_reconnect.ReconnectTests.test_detached_start_is_idempotent) ... ok
+test_relay_resumes_without_duplicates (test_fpga_reconnect.ReconnectTests.test_relay_resumes_without_duplicates) ... ok
+test_relay_retains_hardware_failure (test_fpga_reconnect.ReconnectTests.test_relay_retains_hardware_failure) ... ok
+test_completion_marker_required (test_fpga_run.RunnerTests.test_completion_marker_required) ... ok
+test_corrupt_readback (test_fpga_run.RunnerTests.test_corrupt_readback) ... ok
+test_detached_worker_obeys_persistent_stop (test_fpga_run.RunnerTests.test_detached_worker_obeys_persistent_stop) ... ok
+test_error_detection (test_fpga_run.RunnerTests.test_error_detection) ... ok
+test_first_uart_bytes_and_readback (test_fpga_run.RunnerTests.test_first_uart_bytes_and_readback) ... ok
+test_interrupt_does_not_kill_unrelated_process (test_fpga_run.RunnerTests.test_interrupt_does_not_kill_unrelated_process) ... ok
+test_layout_requires_every_readback_and_retains_original_hash (test_fpga_run.RunnerTests.test_layout_requires_every_readback_and_retains_original_hash) ... ok
+test_loader_error_even_if_make_exits_zero (test_fpga_run.RunnerTests.test_loader_error_even_if_make_exits_zero) ... ok
+test_no_uart_is_not_success (test_fpga_run.RunnerTests.test_no_uart_is_not_success) ... ok
+test_nr_failure_at_completion (test_fpga_run.RunnerTests.test_nr_failure_at_completion) ... ok
+test_partial_uart_write_preserves_utf8_and_retries (test_fpga_run.RunnerTests.test_partial_uart_write_preserves_utf8_and_retries) ... [fpga_run] UART payload written; total=7 bytes (board receipt unconfirmed)
+[fpga_run] UART payload written; total=13 bytes (board receipt unconfirmed)
+ok
+test_program_failure (test_fpga_run.RunnerTests.test_program_failure) ... ok
+test_resource_table (test_fpga_run.RunnerTests.test_resource_table) ... ok
+test_symlink_output_rejected (test_fpga_run.RunnerTests.test_symlink_output_rejected) ... ok
+test_timeout (test_fpga_run.RunnerTests.test_timeout) ... ok
+test_tty_restore_error_still_releases_exclusive_access_and_writes_result (test_fpga_run.RunnerTests.test_tty_restore_error_still_releases_exclusive_access_and_writes_result) ... ok
+test_upload_mismatch_prevents_hardware_access (test_fpga_run.RunnerTests.test_upload_mismatch_prevents_hardware_access) ... ok
+
+----------------------------------------------------------------------
+Ran 30 tests in 13.646s
+
+OK

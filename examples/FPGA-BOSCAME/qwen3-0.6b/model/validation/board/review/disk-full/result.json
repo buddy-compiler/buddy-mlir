@@ -1,0 +1,11 @@
+{
+  "status": "ERROR",
+  "fpga": 5,
+  "sha256": "74cc8ce95de55c3e897800be609d5d94a39c5af58c8d8cb2a1bc0b65f6377c5e",
+  "capture_seconds": 1200,
+  "baud": 115200,
+  "error": "missing or mismatched segment readback: weights-w8a8.bin",
+  "uart_input_bytes_written": 0,
+  "uart_interactive_bytes_written": 0,
+  "uart_input_unacknowledged_requests": 0
+}

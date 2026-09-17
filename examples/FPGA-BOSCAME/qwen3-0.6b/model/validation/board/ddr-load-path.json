@@ -1,0 +1,80 @@
+{
+  "stage": "board infrastructure: how weights can reach DDR, and how much DDR exists",
+  "why": "the compiled model needs its parameters resident in DDR, and nothing in model/ had established that the infrastructure can preload them",
+  "single_image_path": {
+    "what": "examples/FPGA-BOSCAME/fpga_run.sh uploads one .bin and the platform loads it with `writemem -rtl nanhu_xilinx.i_ddr[16383:0]`",
+    "measured": {
+      "images_produced_so_far": "72-191 KB (single operator 73,793 B; 72-case suite 191,425 B)",
+      "padding": "UV_RUN_ALIGN_BYTES=1048576, UV_RUN_MIN_BYTES=1048576 -> every image is padded up to 1 MiB",
+      "readback_size": "1,048,576 bytes exactly for every run",
+      "window": "1048576 / 16384 = 64 bytes per element, and the range is hardcoded in user_script_nr/hw_run.tcl"
+    },
+    "conclusion": "the single-image path preloads at most 1 MiB at 0x80000000; it cannot carry model weights"
+  },
+  "multi_segment_path": {
+    "what": "the platform also ships a DDR load-plan loader, reachable from the remote Makefile as `uv_run<id> layout=<plan>`",
+    "entry_points": [
+      "user_script_nr/run_uv_layout.sh <runtime-id 0..7> <ddr-load.plan>",
+      "user_script_nr/prepare_uv_layout.py --plan <plan> --output-tcl <tcl> --readback 0|1"
+    ],
+    "plan_format": {
+      "syntax": "TOML",
+      "required": [
+        "version = 1",
+        "ddr_base",
+        "ddr_size"
+      ],
+      "optional": [
+        "alignment (default 64)"
+      ],
+      "segment_keys": [
+        "name",
+        "file",
+        "address",
+        "size",
+        "sha256"
+      ],
+      "example": [
+        "version = 1",
+        "ddr_base = 0x80000000",
+        "ddr_size = 0x400000000",
+        "alignment = 64",
+        "",
+        "[[segments]]",
+        "name = \"model\"",
+        "file = \"model.bin\"",
+        "address = 0x80000000",
+        "size = <bytes>",
+        "sha256 = \"<hex>\"",
+        "",
+        "[[segments]]",
+        "name = \"weights\"",
+        "file = \"weights.bin\"",
+        "address = 0xb8000000",
+        "size = <bytes>",
+        "sha256 = \"<hex>\""
+      ]
+    },
+    "validation_rules": [
+      "version must be 1",
+      "ddr_base must be 0x80000000 and ddr_size must be 0x400000000 -- the platform asserts this exact range",
+      "addresses and sizes must be multiples of `alignment` (>= 64)",
+      "each segment's file size must equal the declared size and its SHA256 must match",
+      "segments must not overlap",
+      "each segment becomes one `writemem -rtl nanhu_xilinx.i_ddr[end:start]`"
+    ],
+    "conclusion": "weights CAN be preloaded as their own segment at 0xb8000000, which is exactly where validation/weight-image.json already places them"
+  },
+  "ddr_size_finding": {
+    "declared_by_platform": "ddr_base=0x80000000, ddr_size=0x400000000 -> 16 GiB",
+    "contrast": "common/nr/nr.ld models only 768 MiB (LOW) + 1152 MiB (HIGH) = 1920 MiB, and validation/memory-plan.json inherited that",
+    "indirect_evidence_that_memory_beyond_LOW_is_backed": "the operator suite allocates and uses a 640 MiB workspace at 0xb8000000 and its numerics pass on this board",
+    "not_verified": "the full 16 GiB was NOT probed; only the range the platform asserts and the ~1 GiB the operator suite already touched",
+    "implication": "the 1920 MiB ceiling in memory-plan.json is self-imposed by the linker script, not a hardware limit -- but it must not be raised on the strength of a declared constant alone"
+  },
+  "not_yet_done": [
+    "fpga_run.sh has no layout-mode entry point; a model-side runner is needed to upload several segments plus the plan and invoke `make uv_run<id> layout=<plan>`",
+    "no model image or weight segment has been uploaded",
+    "the graph still takes a flat FP32 parameter buffer, so no weight segment has been wired to it yet"
+  ]
+}

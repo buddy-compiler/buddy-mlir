@@ -1,0 +1,15 @@
+[fpga_run] UART ready: /dev/FPGA5, 115200, 8N1, no flow control
+[fpga_run] FPGA5 session active; elapsed=0s, UART=0 bytes
+
+[nr] NH boot; RA operator runtime
+[nr] RA entry=0x0000000080000040
+[nr] RA entered; clearing application BSS
+[nr] mstatus=0x8000000A00006000; launch BEGIN
+[rx] ready: send BOSC NR UART RX followed by LF
+[fpga_run] FPGA5 started; capturing for 90 seconds
+[fpga_run] UART payload written; total=16 bytes (board receipt unconfirmed)
+[fpga_run] FPGA5 session active; elapsed=9s, UART=210 bytes
+[fpga_run] FPGA5 session active; elapsed=39s, UART=210 bytes
+[fpga_run] FPGA5 session active; elapsed=69s, UART=210 bytes
+[fpga_run] FPGA5 session active; elapsed=99s, UART=210 bytes
+[fpga_run] ERROR: UART completion marker missing at capture timeout

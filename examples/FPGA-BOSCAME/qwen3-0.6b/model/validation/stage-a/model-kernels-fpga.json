@@ -1,0 +1,167 @@
+{
+  "stage": "A: model-shape Triton kernels executed on the FPGA",
+  "board": "FPGA5",
+  "not_host": true,
+  "kernels": [
+    {
+      "case": "attention_qk_16x16x512x128",
+      "result": "PASS",
+      "runtime": "PASS",
+      "cycles_hex": "0x000000002BDF0A99",
+      "cycles": 736037529,
+      "max_abs_error_f32_hex": "00000000",
+      "max_abs_error": 0.0,
+      "run_id": "run-a75aebd930db47cf",
+      "uart_log_sha256": "9b8f7347868a24743a928f1e8a762e9595a10b688a514fae9abf241c5153461a",
+      "image_sha256": "e5d064621ebf4fd07feba2dfa4e4e961e2926117f5b217aa70e76913c324a91a",
+      "elf_audit": "PASS"
+    },
+    {
+      "case": "attention_qk_16x1x512x128",
+      "result": "PASS",
+      "runtime": "PASS",
+      "cycles_hex": "0x0000000006A84614",
+      "cycles": 111691284,
+      "max_abs_error_f32_hex": "00000000",
+      "max_abs_error": 0.0,
+      "run_id": "run-f793b347b6d44987",
+      "uart_log_sha256": "3e05659431f20a5e9105e70b74fc1d1810fe665cc21c0547f8aef01363043a0b",
+      "image_sha256": "1a81bf8fef5616a6bdf7ab86fe669fb99a6a47267eef2d10c86f1bcde313c2d2",
+      "elf_audit": "PASS"
+    },
+    {
+      "case": "attention_pv_16x16x128x512",
+      "result": "PASS",
+      "runtime": "PASS",
+      "cycles_hex": "0x00000000271AC17E",
+      "cycles": 656064894,
+      "max_abs_error_f32_hex": "00000000",
+      "max_abs_error": 0.0,
+      "run_id": "run-fbd56c8b7ee34f8e",
+      "uart_log_sha256": "84ef0e75e9f7bdd7312e67ae0da9b73bf49e019eaab96b3383d597a2c95fe07d",
+      "image_sha256": "07052242fa9406ab064f776572b3f81d7c326e553fac37d9cddf8e50fadeaadc",
+      "elf_audit": "PASS"
+    },
+    {
+      "case": "attention_pv_16x1x128x512",
+      "result": "PASS",
+      "runtime": "PASS",
+      "cycles_hex": "0x00000000065A5192",
+      "cycles": 106582418,
+      "max_abs_error_f32_hex": "00000000",
+      "max_abs_error": 0.0,
+      "run_id": "run-0a18b28b35ea414a",
+      "uart_log_sha256": "917be77b2c5d6826bdb925d7e6c2db48f85fb86ad1a0119e54e1ffc9c32b2e3d",
+      "image_sha256": "4676574bda2e3f874dade0caebee0637bf38c2e5b6b4294330363b1a06b97608",
+      "elf_audit": "PASS"
+    },
+    {
+      "case": "attention_scale_mask_position_16x16x512",
+      "result": "PASS",
+      "runtime": "PASS",
+      "cycles_hex": "0x00000000031E5FAA",
+      "cycles": 52322218,
+      "max_abs_error_f32_hex": "33800000",
+      "max_abs_error": 5.960464477539063e-08,
+      "run_id": "run-11f900a9532e461c",
+      "uart_log_sha256": "726b421ec2cd330d673cea483f9b6e5a3b0c98ae9ef21e11e50f1d35a579a013",
+      "image_sha256": "8f6540fd766c72b0ee9a8ece52ef7db9672cf980e9088a8b924f03f0465cb69c",
+      "elf_audit": "PASS"
+    },
+    {
+      "case": "attention_scale_mask_position_16x1x512",
+      "result": "PASS",
+      "runtime": "PASS",
+      "cycles_hex": "0x000000000026020C",
+      "cycles": 2490892,
+      "max_abs_error_f32_hex": "33800000",
+      "max_abs_error": 5.960464477539063e-08,
+      "run_id": "run-bf5ed07a25ec40de",
+      "uart_log_sha256": "80072298360ad35c70fc899b5e71880fa707d9a8f8c3388a615cbad1b01fea54",
+      "image_sha256": "602ef5dbbb8778f19cb6d81ab450066062e9ac6c8e3a18120b710af576eb4064",
+      "elf_audit": "PASS"
+    },
+    {
+      "case": "softmax_16x16x512",
+      "result": "PASS",
+      "runtime": "PASS",
+      "cycles_hex": "0x0000000003963E56",
+      "cycles": 60178006,
+      "max_abs_error_f32_hex": "35A80000",
+      "max_abs_error": 1.2516975402832031e-06,
+      "run_id": "run-28d28f35cab24ee6",
+      "uart_log_sha256": "75a76ef7aabf10249c14dd5e0079384131c561b369e4c2cc17c280da95b0bcd4",
+      "image_sha256": "9b3c22045f4a577902da03703e5c38859b8fcbfb2c9574b612f89090e261a725",
+      "elf_audit": "PASS"
+    },
+    {
+      "case": "softmax_16x1x512",
+      "result": "PASS",
+      "runtime": "PASS",
+      "cycles_hex": "0x000000000039A257",
+      "cycles": 3777111,
+      "max_abs_error_f32_hex": "35A80000",
+      "max_abs_error": 1.2516975402832031e-06,
+      "run_id": "run-868e55c36bcb4b7c",
+      "uart_log_sha256": "92fd509d21c36cc3b431916aac93d837cca6bfeb5512d4d46eea2a8fc5715663",
+      "image_sha256": "5d87c34ecd95c01139756bae7226dbc002096d59be2d4f95b638cf55479b9010",
+      "elf_audit": "PASS"
+    },
+    {
+      "case": "kv_cache_update_position_16x8x128_cap512",
+      "result": "PASS",
+      "runtime": "PASS",
+      "cycles_hex": "0x0000000001C97E7F",
+      "cycles": 29982335,
+      "max_abs_error_f32_hex": "00000000",
+      "max_abs_error": 0.0,
+      "run_id": "run-dd942b66fa594f8b",
+      "uart_log_sha256": "9c34afbfffd446d9c3e299223a2340b2bcf74f87880b3867cee30a6f42b32e74",
+      "image_sha256": "c290d93c301ce63177230b474262645247f4a50bb8d2534ecc035b2309d46f97",
+      "elf_audit": "PASS"
+    },
+    {
+      "case": "kv_cache_update_position_1x8x128_cap512",
+      "result": "PASS",
+      "runtime": "PASS",
+      "cycles_hex": "0x0000000001B3CBED",
+      "cycles": 28560365,
+      "max_abs_error_f32_hex": "00000000",
+      "max_abs_error": 0.0,
+      "run_id": "run-c56b627338164f9b",
+      "uart_log_sha256": "0c06daefd940756b93ffe24371622e44c0a68f62b968f559e0c03522f1e50882",
+      "image_sha256": "e5e56e5a2fc2d4bb34cb611b3d7b915cb9f58e1ac543f00d2cd73aacd16b3de6",
+      "elf_audit": "PASS"
+    },
+    {
+      "case": "gqa_repeat_8x512x128_to_16x512x128",
+      "result": "PASS",
+      "runtime": "PASS",
+      "cycles_hex": "0x00000000041CAF31",
+      "cycles": 68988721,
+      "max_abs_error_f32_hex": "00000000",
+      "max_abs_error": 0.0,
+      "run_id": "run-b075a74972894829",
+      "uart_log_sha256": "7154d0f633666dd0aee111eb6ae30f087a277dfb52960f4af5cb739d5e853ec6",
+      "image_sha256": "415edeae51e0bb2a04ba85fc7345a544763194407e75ba8476553614e0c43575",
+      "elf_audit": "PASS"
+    }
+  ],
+  "summary": {
+    "pass": 11,
+    "fail": 0,
+    "count": 11
+  },
+  "why_these": "The shared 72-case set covers a fully packed cache (T=16 prefill, T=17 decode). The imported Qwen3 graph keeps a fixed 512-slot cache and varies only the mask boundary, so these 11 specialisations are genuinely new: attention over the full cache, a causal boundary and a KV slot that come from runtime data, and softmax/GQA over 512 slots.",
+  "evidence": {
+    "driver": "examples/FPGA-BOSCAME/fpga_run.sh (upload + UART capture)",
+    "runner": "model/tools/run_model_kernels_fpga.sh (strictly sequential, one UART owner)",
+    "per_case_logs": "build/fpga-model-kernels",
+    "checks": "upload hash, DDR readback, completion marker, UART trap/FAIL scan"
+  },
+  "not_verified": [
+    "these kernels were run individually, not as one compiled model",
+    "no weights were uploaded; inputs come from each case's own launch.c",
+    "cycles are per single kernel invocation, not a model timing figure"
+  ]
+}

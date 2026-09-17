@@ -1,0 +1,1431 @@
+{
+  "execution": "FPGA, compared after execution on host",
+  "scope": {
+    "layers": 4,
+    "prefill": 16,
+    "decode_steps": 8
+  },
+  "limits": [
+    "Full logits/valid-KV errors are computed on FPGA; UART carries summaries",
+    "Compiled-host comparison remains sampled; hidden states are not captured",
+    "Full 28-layer and UART interactive acceptance are separate requirements"
+  ],
+  "inputs": {
+    "examples/FPGA-BOSCAME/build/fpga-runs/run-b8d3ed3ead854a24/uart.raw.log": "4c1004c4bb93108df8903febecdc8279b0692975510577461444cffcc0566c14",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-native-4l/host-run/arrays.npz": "3ca2a73f6d64772e1df81f7abd1a77d2b611f2fba27746a24371ccaef35d7fa8",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-4l/quant-nr-order/arrays.npz": "9447b4b3cba02873001cfd2fc83b7ddce7fe27141ab1a95285bc6eaa9d08254f",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-native-4l/image-fixed-text-progress/numeric-reference.json": "dde60944110a4db8c9fc7c19bfed48231adda1ccbb473a74370f83cc617066a1"
+  },
+  "fpga_vs_compiled_host": {
+    "scope": "argmax, nine logits, and head0/dim0 of K/V at written positions",
+    "trace_complete": true,
+    "stages": {
+      "prefill": {
+        "position": 0,
+        "position_semantics": "graph_start",
+        "last_output_position": 15,
+        "token": 2152,
+        "logit": 11.71351432800293,
+        "compute_cycles": 1616987962,
+        "reference_token": 2152,
+        "token_matches": true,
+        "selected_max_logit_abs_error": 9.5367431640625e-07
+      },
+      "decode_0": {
+        "position": 16,
+        "position_semantics": "graph_start",
+        "last_output_position": 16,
+        "token": 318,
+        "logit": 12.107006072998047,
+        "compute_cycles": 572887382,
+        "reference_token": 318,
+        "token_matches": true,
+        "selected_max_logit_abs_error": 1.9073486328125e-06
+      },
+      "decode_1": {
+        "position": 17,
+        "position_semantics": "graph_start",
+        "last_output_position": 17,
+        "token": 1107,
+        "logit": 12.044293403625488,
+        "compute_cycles": 573311430,
+        "reference_token": 1107,
+        "token_matches": true,
+        "selected_max_logit_abs_error": 0.0
+      },
+      "decode_2": {
+        "position": 18,
+        "position_semantics": "graph_start",
+        "last_output_position": 18,
+        "token": 1127,
+        "logit": 12.66865062713623,
+        "compute_cycles": 573503881,
+        "reference_token": 1127,
+        "token_matches": true,
+        "selected_max_logit_abs_error": 9.5367431640625e-07
+      },
+      "decode_3": {
+        "position": 19,
+        "position_semantics": "graph_start",
+        "last_output_position": 19,
+        "token": 1292,
+        "logit": 13.592732429504395,
+        "compute_cycles": 574021881,
+        "reference_token": 1292,
+        "token_matches": true,
+        "selected_max_logit_abs_error": 2.86102294921875e-06
+      },
+      "decode_4": {
+        "position": 20,
+        "position_semantics": "graph_start",
+        "last_output_position": 20,
+        "token": 2740,
+        "logit": 12.860923767089844,
+        "compute_cycles": 574255749,
+        "reference_token": 2740,
+        "token_matches": true,
+        "selected_max_logit_abs_error": 0.0
+      },
+      "decode_5": {
+        "position": 21,
+        "position_semantics": "graph_start",
+        "last_output_position": 21,
+        "token": 39522,
+        "logit": 14.35779094696045,
+        "compute_cycles": 574746405,
+        "reference_token": 39522,
+        "token_matches": true,
+        "selected_max_logit_abs_error": 0.0
+      },
+      "decode_6": {
+        "position": 22,
+        "position_semantics": "graph_start",
+        "last_output_position": 22,
+        "token": 745,
+        "logit": 15.394883155822754,
+        "compute_cycles": 574944695,
+        "reference_token": 745,
+        "token_matches": true,
+        "selected_max_logit_abs_error": 0.5502634048461914
+      },
+      "decode_7": {
+        "position": 23,
+        "position_semantics": "graph_start",
+        "last_output_position": 23,
+        "token": 12,
+        "logit": 11.936004638671875,
+        "compute_cycles": 575445415,
+        "reference_token": 12,
+        "token_matches": true,
+        "selected_max_logit_abs_error": 0.21768569946289062
+      }
+    },
+    "selected_logits": [
+      {
+        "position": 15,
+        "token_ids": [
+          49000,
+          374,
+          264,
+          3146,
+          7407,
+          304,
+          4787,
+          5159,
+          11
+        ],
+        "samples": 9,
+        "max_abs_error": 4.76837158203125e-07,
+        "mean_abs_error": 2.384185791015625e-07,
+        "all_finite": true
+      },
+      {
+        "position": 16,
+        "token_ids": [
+          49000,
+          374,
+          264,
+          3146,
+          7407,
+          304,
+          4787,
+          5159,
+          11
+        ],
+        "samples": 9,
+        "max_abs_error": 9.5367431640625e-07,
+        "mean_abs_error": 4.4372346666124133e-07,
+        "all_finite": true
+      },
+      {
+        "position": 17,
+        "token_ids": [
+          49000,
+          374,
+          264,
+          3146,
+          7407,
+          304,
+          4787,
+          5159,
+          11
+        ],
+        "samples": 9,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 18,
+        "token_ids": [
+          49000,
+          374,
+          264,
+          3146,
+          7407,
+          304,
+          4787,
+          5159,
+          11
+        ],
+        "samples": 9,
+        "max_abs_error": 9.5367431640625e-07,
+        "mean_abs_error": 3.319647577073839e-07,
+        "all_finite": true
+      },
+      {
+        "position": 19,
+        "token_ids": [
+          49000,
+          374,
+          264,
+          3146,
+          7407,
+          304,
+          4787,
+          5159,
+          11
+        ],
+        "samples": 9,
+        "max_abs_error": 1.9073486328125e-06,
+        "mean_abs_error": 8.477105034722222e-07,
+        "all_finite": true
+      },
+      {
+        "position": 20,
+        "token_ids": [
+          49000,
+          374,
+          264,
+          3146,
+          7407,
+          304,
+          4787,
+          5159,
+          11
+        ],
+        "samples": 9,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 21,
+        "token_ids": [
+          49000,
+          374,
+          264,
+          3146,
+          7407,
+          304,
+          4787,
+          5159,
+          11
+        ],
+        "samples": 9,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 22,
+        "token_ids": [
+          49000,
+          374,
+          264,
+          3146,
+          7407,
+          304,
+          4787,
+          5159,
+          11
+        ],
+        "samples": 9,
+        "max_abs_error": 0.4023151397705078,
+        "mean_abs_error": 0.16518143150541517,
+        "all_finite": true
+      },
+      {
+        "position": 23,
+        "token_ids": [
+          49000,
+          374,
+          264,
+          3146,
+          7407,
+          304,
+          4787,
+          5159,
+          11
+        ],
+        "samples": 9,
+        "max_abs_error": 0.48514366149902344,
+        "mean_abs_error": 0.18053113089667427,
+        "all_finite": true
+      }
+    ],
+    "kv_samples_head0_dim0": [
+      {
+        "position": 15,
+        "layer": 0,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 15,
+        "layer": 1,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 15,
+        "layer": 2,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 15,
+        "layer": 3,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 16,
+        "layer": 0,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 16,
+        "layer": 1,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 16,
+        "layer": 2,
+        "samples": 2,
+        "max_abs_error": 1.1920928955078125e-07,
+        "mean_abs_error": 6.007030606269836e-08,
+        "all_finite": true
+      },
+      {
+        "position": 16,
+        "layer": 3,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 17,
+        "layer": 0,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 17,
+        "layer": 1,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 17,
+        "layer": 2,
+        "samples": 2,
+        "max_abs_error": 7.450580596923828e-09,
+        "mean_abs_error": 3.725290298461914e-09,
+        "all_finite": true
+      },
+      {
+        "position": 17,
+        "layer": 3,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 18,
+        "layer": 0,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 18,
+        "layer": 1,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 18,
+        "layer": 2,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 18,
+        "layer": 3,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 19,
+        "layer": 0,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 19,
+        "layer": 1,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 19,
+        "layer": 2,
+        "samples": 2,
+        "max_abs_error": 2.9802322387695312e-08,
+        "mean_abs_error": 2.421438694000244e-08,
+        "all_finite": true
+      },
+      {
+        "position": 19,
+        "layer": 3,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 20,
+        "layer": 0,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 20,
+        "layer": 1,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 20,
+        "layer": 2,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 20,
+        "layer": 3,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 21,
+        "layer": 0,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 21,
+        "layer": 1,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 21,
+        "layer": 2,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 21,
+        "layer": 3,
+        "samples": 2,
+        "max_abs_error": 5.960464477539063e-08,
+        "mean_abs_error": 3.725290298461914e-08,
+        "all_finite": true
+      },
+      {
+        "position": 22,
+        "layer": 0,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 22,
+        "layer": 1,
+        "samples": 2,
+        "max_abs_error": 0.17210674285888672,
+        "mean_abs_error": 0.08714309707283974,
+        "all_finite": true
+      },
+      {
+        "position": 22,
+        "layer": 2,
+        "samples": 2,
+        "max_abs_error": 0.012812554836273193,
+        "mean_abs_error": 0.007180556654930115,
+        "all_finite": true
+      },
+      {
+        "position": 22,
+        "layer": 3,
+        "samples": 2,
+        "max_abs_error": 0.0321393758058548,
+        "mean_abs_error": 0.023153044283390045,
+        "all_finite": true
+      },
+      {
+        "position": 23,
+        "layer": 0,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 23,
+        "layer": 1,
+        "samples": 2,
+        "max_abs_error": 9.5367431640625e-07,
+        "mean_abs_error": 4.842877388000488e-07,
+        "all_finite": true
+      },
+      {
+        "position": 23,
+        "layer": 2,
+        "samples": 2,
+        "max_abs_error": 0.0692790150642395,
+        "mean_abs_error": 0.03503014147281647,
+        "all_finite": true
+      },
+      {
+        "position": 23,
+        "layer": 3,
+        "samples": 2,
+        "max_abs_error": 0.07247138023376465,
+        "mean_abs_error": 0.05065159220248461,
+        "all_finite": true
+      }
+    ],
+    "sampled_numeric_pass_at_1e_3": false
+  },
+  "fpga_vs_independent_quantized_reference": {
+    "scope": "argmax, nine logits, and head0/dim0 of K/V at written positions",
+    "trace_complete": true,
+    "stages": {
+      "prefill": {
+        "position": 0,
+        "position_semantics": "graph_start",
+        "last_output_position": 15,
+        "token": 2152,
+        "logit": 11.71351432800293,
+        "compute_cycles": 1616987962,
+        "reference_token": 2152,
+        "token_matches": true,
+        "selected_max_logit_abs_error": 0.0
+      },
+      "decode_0": {
+        "position": 16,
+        "position_semantics": "graph_start",
+        "last_output_position": 16,
+        "token": 318,
+        "logit": 12.107006072998047,
+        "compute_cycles": 572887382,
+        "reference_token": 318,
+        "token_matches": true,
+        "selected_max_logit_abs_error": 0.0
+      },
+      "decode_1": {
+        "position": 17,
+        "position_semantics": "graph_start",
+        "last_output_position": 17,
+        "token": 1107,
+        "logit": 12.044293403625488,
+        "compute_cycles": 573311430,
+        "reference_token": 1107,
+        "token_matches": true,
+        "selected_max_logit_abs_error": 0.0
+      },
+      "decode_2": {
+        "position": 18,
+        "position_semantics": "graph_start",
+        "last_output_position": 18,
+        "token": 1127,
+        "logit": 12.66865062713623,
+        "compute_cycles": 573503881,
+        "reference_token": 1127,
+        "token_matches": true,
+        "selected_max_logit_abs_error": 0.0
+      },
+      "decode_3": {
+        "position": 19,
+        "position_semantics": "graph_start",
+        "last_output_position": 19,
+        "token": 1292,
+        "logit": 13.592732429504395,
+        "compute_cycles": 574021881,
+        "reference_token": 1292,
+        "token_matches": true,
+        "selected_max_logit_abs_error": 0.0
+      },
+      "decode_4": {
+        "position": 20,
+        "position_semantics": "graph_start",
+        "last_output_position": 20,
+        "token": 2740,
+        "logit": 12.860923767089844,
+        "compute_cycles": 574255749,
+        "reference_token": 2740,
+        "token_matches": true,
+        "selected_max_logit_abs_error": 0.0
+      },
+      "decode_5": {
+        "position": 21,
+        "position_semantics": "graph_start",
+        "last_output_position": 21,
+        "token": 39522,
+        "logit": 14.35779094696045,
+        "compute_cycles": 574746405,
+        "reference_token": 39522,
+        "token_matches": true,
+        "selected_max_logit_abs_error": 0.0
+      },
+      "decode_6": {
+        "position": 22,
+        "position_semantics": "graph_start",
+        "last_output_position": 22,
+        "token": 745,
+        "logit": 15.394883155822754,
+        "compute_cycles": 574944695,
+        "reference_token": 745,
+        "token_matches": true,
+        "selected_max_logit_abs_error": 0.0
+      },
+      "decode_7": {
+        "position": 23,
+        "position_semantics": "graph_start",
+        "last_output_position": 23,
+        "token": 12,
+        "logit": 11.936004638671875,
+        "compute_cycles": 575445415,
+        "reference_token": 12,
+        "token_matches": true,
+        "selected_max_logit_abs_error": 0.0
+      }
+    },
+    "selected_logits": [
+      {
+        "position": 15,
+        "token_ids": [
+          49000,
+          374,
+          264,
+          3146,
+          7407,
+          304,
+          4787,
+          5159,
+          11
+        ],
+        "samples": 9,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 16,
+        "token_ids": [
+          49000,
+          374,
+          264,
+          3146,
+          7407,
+          304,
+          4787,
+          5159,
+          11
+        ],
+        "samples": 9,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 17,
+        "token_ids": [
+          49000,
+          374,
+          264,
+          3146,
+          7407,
+          304,
+          4787,
+          5159,
+          11
+        ],
+        "samples": 9,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 18,
+        "token_ids": [
+          49000,
+          374,
+          264,
+          3146,
+          7407,
+          304,
+          4787,
+          5159,
+          11
+        ],
+        "samples": 9,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 19,
+        "token_ids": [
+          49000,
+          374,
+          264,
+          3146,
+          7407,
+          304,
+          4787,
+          5159,
+          11
+        ],
+        "samples": 9,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 20,
+        "token_ids": [
+          49000,
+          374,
+          264,
+          3146,
+          7407,
+          304,
+          4787,
+          5159,
+          11
+        ],
+        "samples": 9,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 21,
+        "token_ids": [
+          49000,
+          374,
+          264,
+          3146,
+          7407,
+          304,
+          4787,
+          5159,
+          11
+        ],
+        "samples": 9,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 22,
+        "token_ids": [
+          49000,
+          374,
+          264,
+          3146,
+          7407,
+          304,
+          4787,
+          5159,
+          11
+        ],
+        "samples": 9,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 23,
+        "token_ids": [
+          49000,
+          374,
+          264,
+          3146,
+          7407,
+          304,
+          4787,
+          5159,
+          11
+        ],
+        "samples": 9,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      }
+    ],
+    "kv_samples_head0_dim0": [
+      {
+        "position": 15,
+        "layer": 0,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 15,
+        "layer": 1,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 15,
+        "layer": 2,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 15,
+        "layer": 3,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 16,
+        "layer": 0,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 16,
+        "layer": 1,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 16,
+        "layer": 2,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 16,
+        "layer": 3,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 17,
+        "layer": 0,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 17,
+        "layer": 1,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 17,
+        "layer": 2,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 17,
+        "layer": 3,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 18,
+        "layer": 0,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 18,
+        "layer": 1,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 18,
+        "layer": 2,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 18,
+        "layer": 3,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 19,
+        "layer": 0,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 19,
+        "layer": 1,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 19,
+        "layer": 2,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 19,
+        "layer": 3,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 20,
+        "layer": 0,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 20,
+        "layer": 1,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 20,
+        "layer": 2,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 20,
+        "layer": 3,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 21,
+        "layer": 0,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 21,
+        "layer": 1,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 21,
+        "layer": 2,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 21,
+        "layer": 3,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 22,
+        "layer": 0,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 22,
+        "layer": 1,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 22,
+        "layer": 2,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 22,
+        "layer": 3,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 23,
+        "layer": 0,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 23,
+        "layer": 1,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 23,
+        "layer": 2,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 23,
+        "layer": 3,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      }
+    ],
+    "sampled_numeric_pass_at_1e_3": true
+  },
+  "full_tensor_fpga_vs_quantized_reference": {
+    "reference_manifest": {
+      "schema_version": 1,
+      "layers": 4,
+      "prefill_len": 16,
+      "decode_steps": 8,
+      "vocab_size": 151936,
+      "source": "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-4l/quant-nr-order/arrays.npz",
+      "source_sha256": "9447b4b3cba02873001cfd2fc83b7ddce7fe27141ab1a95285bc6eaa9d08254f",
+      "metadata_source": "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-4l/quant-nr-order/quant-reference.json",
+      "metadata_sha256": "1291592a1fa72b6099170e43817a5f27cbe9d17483ac705972f7751610e30010",
+      "prompt_ids": [
+        151644,
+        872,
+        198,
+        3838,
+        374,
+        9625,
+        30,
+        151645,
+        198,
+        151644,
+        77091,
+        198,
+        151667,
+        271,
+        151668,
+        271
+      ],
+      "arithmetic_profile": "nr-fpga",
+      "capacity": 512,
+      "trajectory_verified": true,
+      "blob_sha256": "1f75347c658c4d10959d44f2bda6d7f1f6005a06c6a418411251c33a982f83a8",
+      "bytes": 6256128,
+      "layout": "logits[steps+1,V], K[L,8,T,128], V[L,8,T,128]",
+      "max_abs_tolerance": 0.001,
+      "mean_abs_tolerance": 0.0001,
+      "purpose": "validation only; not used to choose tokens or update model state"
+    },
+    "checks": [
+      {
+        "tensor": "logits",
+        "position": 15,
+        "count": 151936,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "key_cache",
+        "position": 15,
+        "count": 65536,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "value_cache",
+        "position": 15,
+        "count": 65536,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "logits",
+        "position": 16,
+        "count": 151936,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "key_cache",
+        "position": 16,
+        "count": 69632,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "value_cache",
+        "position": 16,
+        "count": 69632,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "logits",
+        "position": 17,
+        "count": 151936,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "key_cache",
+        "position": 17,
+        "count": 73728,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "value_cache",
+        "position": 17,
+        "count": 73728,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "logits",
+        "position": 18,
+        "count": 151936,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "key_cache",
+        "position": 18,
+        "count": 77824,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "value_cache",
+        "position": 18,
+        "count": 77824,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "logits",
+        "position": 19,
+        "count": 151936,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "key_cache",
+        "position": 19,
+        "count": 81920,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "value_cache",
+        "position": 19,
+        "count": 81920,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "logits",
+        "position": 20,
+        "count": 151936,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "key_cache",
+        "position": 20,
+        "count": 86016,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "value_cache",
+        "position": 20,
+        "count": 86016,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "logits",
+        "position": 21,
+        "count": 151936,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "key_cache",
+        "position": 21,
+        "count": 90112,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "value_cache",
+        "position": 21,
+        "count": 90112,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "logits",
+        "position": 22,
+        "count": 151936,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "key_cache",
+        "position": 22,
+        "count": 94208,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "value_cache",
+        "position": 22,
+        "count": 94208,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "logits",
+        "position": 23,
+        "count": 151936,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "key_cache",
+        "position": 23,
+        "count": 98304,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "value_cache",
+        "position": 23,
+        "count": 98304,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      }
+    ],
+    "pass": true,
+    "metadata_verified": true,
+    "scope": "firmware compares every last-position logit and every valid K/V element; no hidden-state capture",
+    "generation_trace_complete": true,
+    "generated_tokens_match_reference": true,
+    "sampled_values_consistent_with_full_bound": true
+  },
+  "status": "FULL_LOGITS_KV_PASS"
+}

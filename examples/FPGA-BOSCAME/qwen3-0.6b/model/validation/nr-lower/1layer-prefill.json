@@ -1,0 +1,248 @@
+{
+  "stage": "NR path: OpenMP blocker removed, heap blocker removed and verified numerically",
+  "openmp": {
+    "change": "Graph.lower_to_llvm_ir(enable_openmp=False) and Graph.compile(enable_openmp=False)",
+    "why": "the graph pipeline lowered scf with convert-scf-to-openmp, pulling in a libomp runtime (__kmpc_*) that bare-metal NR does not have; the handwritten NR operator pipeline lowers scf to cf instead",
+    "before": {
+      "undefined_total": 23,
+      "openmp_runtime": [
+        "__kmpc_barrier",
+        "__kmpc_for_static_fini",
+        "__kmpc_for_static_init_8u",
+        "__kmpc_fork_call",
+        "__kmpc_global_thread_num"
+      ]
+    },
+    "after": {
+      "undefined_total": 18,
+      "openmp_runtime": []
+    },
+    "evidence": [
+      "build/nr-lower/1layer/nr-lower.json",
+      "build/nr-lower/1layer-decode/nr-lower.json"
+    ],
+    "default_preserved": "host lowering keeps enable_openmp=True, so the host JIT behaviour is unchanged",
+    "status": "removed and verified"
+  },
+  "heap_blocker": {
+    "statement": "the compiled graph still allocates; on bare-metal NR there is no heap",
+    "measured": {
+      "prefill_1_layer": {
+        "malloc_calls": 59,
+        "total_bytes": 645651458,
+        "largest_bytes": 622329920,
+        "uncovered_patterns": [
+          {
+            "kind": "linear",
+            "node": "mm_7",
+            "shape": [
+              16,
+              151936,
+              1024
+            ],
+            "reason": "no built f32 linear case for M=16 N=151936 K=1024"
+          }
+        ]
+      },
+      "decode_1_layer": {
+        "malloc_calls": 56,
+        "total_bytes": 8689068,
+        "largest_bytes": 4194368,
+        "uncovered_patterns": []
+      },
+      "prefill_1_layer_after_slice": {
+        "malloc_calls": 57,
+        "total_bytes": 13597570,
+        "largest_bytes": 4194368
+      },
+      "prefill_1_layer_before_slice": {
+        "malloc_calls": 59,
+        "total_bytes": 645651458,
+        "largest_bytes": 622329920
+      }
+    },
+    "root_cause": {
+      "largest_allocation": "622329920 bytes = 1024 x 151936 x 4 (+64 alignment)",
+      "what_it_is": "an out-of-place materialisation of the TRANSPOSED lm_head weight (memref<1024x151936xf32>, seen as %alloc_157 right after one-shot-bufferize)",
+      "why": "prefill's lm_head is M=16, the one pattern the replacement leaves uncovered, so that matmul keeps its permuted weight operand and bufferization materialises the transpose",
+      "scope": "per graph call"
+    },
+    "ab_experiment": {
+      "prefill": "615.7 MiB total, largest 593.5 MiB (lm_head uncovered: [16,151936,1024])",
+      "decode": "8.3 MiB total, largest 4.0 MiB (no uncovered pattern; its lm_head is M=1 and IS covered)",
+      "conclusion": "covering that one pattern removes ~593 MiB per call; the A/B differs only in which patterns matched"
+    },
+    "secondary": {
+      "kv_cache_copies": "bufferization also copies both KV cache arguments into fresh static-layout allocations (memref.copy %arg16 -> %alloc_86, 1x8x512x128 f32 = 2 MiB each, four copies) because the argument has a dynamic-offset strided layout",
+      "bytes": 8388608
+    },
+    "fix_options": [
+      {
+        "option": "slice the prefill hidden state to the last token before lm_head",
+        "effect": "lm_head becomes M=1, matches the existing matmul_1x151936x1024_f32, and generation only needs the last position anyway",
+        "cost": "changes the prefill graph output from [1,16,151936] to [1,1,151936]; the FP32 reference comparison must then use prefill_logits[0,-1]",
+        "status": "recommended, not implemented"
+      },
+      {
+        "option": "add a matmul_16x151936x1024_f32 case",
+        "effect": "removes the transpose materialisation",
+        "cost": "16x the lm_head work for positions generation never reads"
+      }
+    ],
+    "status": "root cause removed",
+    "fix_implemented": {
+      "what": "rewrite_lm_head_last_token in tools/triton_call_replace.py slices the prefill hidden state to its last position before lm_head, so it becomes an ordinary M=1 linear covered by matmul_1x151936x1024_f32",
+      "how_lm_head_is_identified": "semantically: the matmul whose right operand is a view of the same weight placeholder the embedding reads (the checkpoint ties them). A shape rule would also match q_proj, whose output width equals its weight's first dimension",
+      "shape_propagation": "the matmul's tensor_meta and the consuming ViewOp's args and tensor_meta are both updated; updating only tensor_meta fails with 'tosa.reshape cannot reshape 151936 elements into 2430976'",
+      "coverage_effect": "uncovered patterns went from 1 to 0"
+    }
+  },
+  "status": "object builds with no OpenMP and 13.0 MiB of heap per prefill call; still not linkable as a bare-metal image -- see remaining_blockers",
+  "not_verified": [
+    "no bare-metal link",
+    "no board run of the model graph",
+    "the 28-layer object was not produced"
+  ],
+  "numeric_verification": {
+    "source_report": "build/host-run/replaced-28l-sliced/host-run.json",
+    "source_report_sha256": "3055f4a7a58ee7ad08be7eb0e2f2a20884fd2f0867acd624be9647320906bde1",
+    "layers": 28,
+    "replacement": {
+      "prefill": {
+        "pattern_matches": {
+          "linear": 197,
+          "rmsnorm": 113,
+          "silu": 28,
+          "embedding": 1
+        },
+        "lm_head_last_token_rewrites": 1,
+        "external_calls": 339
+      },
+      "decode": {
+        "pattern_matches": {
+          "linear": 197,
+          "rmsnorm": 113,
+          "silu": 28,
+          "embedding": 1
+        },
+        "lm_head_last_token_rewrites": 0,
+        "external_calls": 339
+      }
+    },
+    "prefill_logits_shape": [
+      1,
+      1,
+      151936
+    ],
+    "comparison_note": "sliced: the graph emits only the last position (last-token lm_head rewrite); the reference's last position is used",
+    "generated_ids": [
+      374,
+      264,
+      3146,
+      7407,
+      304,
+      4787,
+      5159,
+      11
+    ],
+    "fp32_generated_ids": [
+      374,
+      264,
+      3146,
+      7407,
+      304,
+      4787,
+      5159,
+      11
+    ],
+    "token_trajectory_matches_fp32": true,
+    "logits_vs_fp32": {
+      "prefill_logits": {
+        "max_abs_error": 6.771087646484375e-05,
+        "mean_abs_error": 1.0688910289575504e-05,
+        "cosine_similarity": 0.9999999999977489,
+        "elements": 151936
+      },
+      "decode_logits_0": {
+        "max_abs_error": 7.343292236328125e-05,
+        "mean_abs_error": 9.057591452944233e-06,
+        "cosine_similarity": 0.9999999999981616,
+        "elements": 151936
+      },
+      "decode_logits_1": {
+        "max_abs_error": 6.580352783203125e-05,
+        "mean_abs_error": 1.0890130159164023e-05,
+        "cosine_similarity": 0.9999999999981257,
+        "elements": 151936
+      },
+      "decode_logits_2": {
+        "max_abs_error": 7.05718994140625e-05,
+        "mean_abs_error": 1.1989274976400207e-05,
+        "cosine_similarity": 0.9999999999986083,
+        "elements": 151936
+      },
+      "decode_logits_3": {
+        "max_abs_error": 6.771087646484375e-05,
+        "mean_abs_error": 9.803494799081218e-06,
+        "cosine_similarity": 0.9999999999986291,
+        "elements": 151936
+      },
+      "decode_logits_4": {
+        "max_abs_error": 7.152557373046875e-05,
+        "mean_abs_error": 1.0402656585316366e-05,
+        "cosine_similarity": 0.9999999999985794,
+        "elements": 151936
+      },
+      "decode_logits_5": {
+        "max_abs_error": 6.580352783203125e-05,
+        "mean_abs_error": 9.535253128050673e-06,
+        "cosine_similarity": 0.9999999999986928,
+        "elements": 151936
+      },
+      "decode_logits_6": {
+        "max_abs_error": 7.009506225585938e-05,
+        "mean_abs_error": 1.1226136917522488e-05,
+        "cosine_similarity": 0.9999999999976231,
+        "elements": 151936
+      },
+      "decode_logits_7": {
+        "max_abs_error": 5.793571472167969e-05,
+        "mean_abs_error": 1.2325439832827989e-05,
+        "cosine_similarity": 0.9999999999966608,
+        "elements": 151936
+      }
+    }
+  },
+  "resolved_blockers": [
+    {
+      "blocker": "OpenMP runtime",
+      "status": "removed",
+      "evidence": "undefined __kmpc_* symbols went from 5 to 0; total undefined 23 -> 18",
+      "fix": "Graph.lower_to_llvm_ir(enable_openmp=False)"
+    },
+    {
+      "blocker": "heap allocation",
+      "status": "removed",
+      "evidence": "prefill 1-layer allocations 645,651,458 B -> 13,597,570 B; largest 622,329,920 B -> 4,194,368 B",
+      "fix": "rewrite_lm_head_last_token slices the prefill hidden state to the last position so the lm_head is an M=1 linear with no transposed weight copy; uncovered patterns went 1 -> 0"
+    }
+  ],
+  "remaining_blockers": [
+    {
+      "blocker": "KV cache argument copies",
+      "evidence": "bufferization copies both KV cache arguments into fresh static-layout allocations: memref.copy %arg16 -> %alloc_86, 1x8x512x128 f32 = 2 MiB, four copies = 8 MiB per call",
+      "why": "the arguments carry a dynamic-offset strided layout",
+      "status": "measured, not addressed"
+    },
+    {
+      "blocker": "no bare-metal entry point",
+      "evidence": "there is no main, no linker script inclusion for the model object, and the adapter static workspace is not yet unified with the DDR plan in validation/weight-image.json",
+      "status": "not started"
+    },
+    {
+      "blocker": "weight image not wired to the graph",
+      "evidence": "the graph still takes the flat FP32 parameter buffer as its first argument; the W8A8 image exists but nothing reads it",
+      "status": "not started"
+    }
+  ]
+}

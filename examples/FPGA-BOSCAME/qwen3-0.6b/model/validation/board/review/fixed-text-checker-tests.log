@@ -1,0 +1,16 @@
+$ python3 -m unittest discover -s examples/FPGA-BOSCAME/qwen3-0.6b/model/tests -p test*fixed*text*.py -v
+test_cli_failure_is_nonzero_and_records_hashes (test_check_fixed_text.FixedTextCheckTests.test_cli_failure_is_nonzero_and_records_hashes) ... ok
+test_official_prompt_model_tokens_and_skip_special (test_check_fixed_text.FixedTextCheckTests.test_official_prompt_model_tokens_and_skip_special) ... ok
+test_payload_marker_text_is_not_parsed_as_control (test_check_fixed_text.FixedTextCheckTests.test_payload_marker_text_is_not_parsed_as_control) ... ok
+test_rejects_manifest_tampering (test_check_fixed_text.FixedTextCheckTests.test_rejects_manifest_tampering) ... ok
+test_rejects_trace_and_framing_mutations (test_check_fixed_text.FixedTextCheckTests.test_rejects_trace_and_framing_mutations) ... ok
+test_utf8_can_span_tokens_and_finish_with_incomplete_sequence (test_check_fixed_text.FixedTextCheckTests.test_utf8_can_span_tokens_and_finish_with_incomplete_sequence) ... ok
+test_exact_raw_utf8_incremental_records_and_payload (test_fixed_text_check.FixedTextChecker.test_exact_raw_utf8_incremental_records_and_payload) ... ok
+test_generated_marker_spellings_are_payload_not_fake_records (test_fixed_text_check.FixedTextChecker.test_generated_marker_spellings_are_payload_not_fake_records) ... ok
+test_missing_duplicate_unknown_wrong_bytes_tokens_position_and_failures (test_fixed_text_check.FixedTextChecker.test_missing_duplicate_unknown_wrong_bytes_tokens_position_and_failures) ... ok
+test_official_oracle_checks_actual_template_and_cross_token_utf8 (test_fixed_text_check.FixedTextChecker.test_official_oracle_checks_actual_template_and_cross_token_utf8) ... ok
+
+----------------------------------------------------------------------
+Ran 10 tests in 5.843s
+
+OK

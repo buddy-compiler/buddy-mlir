@@ -1,0 +1,56 @@
+
+[nr] NH boot; RA operator runtime
+[nr] RA entry=0x0000000080000040
+[nr] RA entered; clearing application BSS
+[nr] mstatus=0x8000000A00006000; launch BEGIN
+[1/18] Triton dequantize_16x1024 BEGIN
+verify dequantize_16x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[2/18] Triton dequantize_16x2048 BEGIN
+verify dequantize_16x2048: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[3/18] Triton dequantize_16x3072 BEGIN
+verify dequantize_16x3072: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[4/18] Triton dequantize_1x1024 BEGIN
+verify dequantize_1x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[5/18] Triton dequantize_1x151936 BEGIN
+verify dequantize_1x151936: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[6/18] Triton dequantize_1x2048 BEGIN
+verify dequantize_1x2048: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[7/18] Triton dequantize_1x3072 BEGIN
+verify dequantize_1x3072: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[8/18] Triton matmul_16x1024x1024 BEGIN
+cycles matmul_16x1024x1024: 00000000001662FA
+verify matmul_16x1024x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[9/18] Triton matmul_16x1024x2048 BEGIN
+cycles matmul_16x1024x2048: 00000000001C8260
+verify matmul_16x1024x2048: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[10/18] Triton matmul_16x1024x3072 BEGIN
+cycles matmul_16x1024x3072: 00000000003A7B56
+verify matmul_16x1024x3072: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[11/18] Triton matmul_16x2048x1024 BEGIN
+cycles matmul_16x2048x1024: 00000000002CB350
+verify matmul_16x2048x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[12/18] Triton matmul_16x3072x1024 BEGIN
+cycles matmul_16x3072x1024: 000000000042FD03
+verify matmul_16x3072x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[13/18] Triton matmul_1x1024x1024 BEGIN
+cycles matmul_1x1024x1024: 0000000000070F5F
+verify matmul_1x1024x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[14/18] Triton matmul_1x1024x2048 BEGIN
+cycles matmul_1x1024x2048: 00000000000CB7D1
+verify matmul_1x1024x2048: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[15/18] Triton matmul_1x1024x3072 BEGIN
+cycles matmul_1x1024x3072: 00000000001496EE
+verify matmul_1x1024x3072: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[16/18] Triton matmul_1x151936x1024 BEGIN
+cycles matmul_1x151936x1024: 00000000040BB7A0
+verify matmul_1x151936x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[17/18] Triton matmul_1x2048x1024 BEGIN
+cycles matmul_1x2048x1024: 00000000000E0B67
+verify matmul_1x2048x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[18/18] Triton matmul_1x3072x1024 BEGIN
+cycles matmul_1x3072x1024: 0000000000150588
+verify matmul_1x3072x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify qwen3 Triton operator suite: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[nr] launch cycles=0x000000001BC283C4 status=0x00000000
+[nr] RA returned: PASS
+verify NR runtime: PASS

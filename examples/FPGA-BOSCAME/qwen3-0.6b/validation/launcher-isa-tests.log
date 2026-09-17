@@ -1,0 +1,52 @@
+test_relocated_launcher_and_shell_quoting (test_fpga_cli.ConfigurationTests.test_relocated_launcher_and_shell_quoting) ... ok
+test_server_directory_defaults_and_overrides (test_fpga_cli.ConfigurationTests.test_server_directory_defaults_and_overrides) ... ok
+test_detached_start_is_idempotent (test_fpga_reconnect.ReconnectTests.test_detached_start_is_idempotent) ... ok
+test_relay_resumes_without_duplicates (test_fpga_reconnect.ReconnectTests.test_relay_resumes_without_duplicates) ... ok
+test_relay_retains_hardware_failure (test_fpga_reconnect.ReconnectTests.test_relay_retains_hardware_failure) ... ok
+test_completion_marker_required (test_fpga_run.RunnerTests.test_completion_marker_required) ... ok
+test_corrupt_readback (test_fpga_run.RunnerTests.test_corrupt_readback) ... ok
+test_detached_worker_obeys_persistent_stop (test_fpga_run.RunnerTests.test_detached_worker_obeys_persistent_stop) ... ok
+test_error_detection (test_fpga_run.RunnerTests.test_error_detection) ... ok
+test_first_uart_bytes_and_readback (test_fpga_run.RunnerTests.test_first_uart_bytes_and_readback) ... ok
+test_interrupt_does_not_kill_unrelated_process (test_fpga_run.RunnerTests.test_interrupt_does_not_kill_unrelated_process) ... ok
+test_loader_error_even_if_make_exits_zero (test_fpga_run.RunnerTests.test_loader_error_even_if_make_exits_zero) ... ok
+test_no_uart_is_not_success (test_fpga_run.RunnerTests.test_no_uart_is_not_success) ... ok
+test_nr_failure_at_completion (test_fpga_run.RunnerTests.test_nr_failure_at_completion) ... ok
+test_program_failure (test_fpga_run.RunnerTests.test_program_failure) ... ok
+test_resource_table (test_fpga_run.RunnerTests.test_resource_table) ... ok
+test_symlink_output_rejected (test_fpga_run.RunnerTests.test_symlink_output_rejected) ... ok
+test_timeout (test_fpga_run.RunnerTests.test_timeout) ... ok
+test_upload_mismatch_prevents_hardware_access (test_fpga_run.RunnerTests.test_upload_mismatch_prevents_hardware_access) ... ok
+test_cli_errors_do_not_emit_partial_assembly (test_nr_assembly.NrAssemblyTests.test_cli_errors_do_not_emit_partial_assembly) ... ok
+test_configuration_return_value_survives_restore_and_aliases (test_nr_assembly.NrAssemblyTests.test_configuration_return_value_survives_restore_and_aliases) ... ok
+test_data_is_preserved_and_section_stack_tracks_code (test_nr_assembly.NrAssemblyTests.test_data_is_preserved_and_section_stack_tracks_code) ... ok
+test_expanded_verified_memory_receives_fences (test_nr_assembly.NrAssemblyTests.test_expanded_verified_memory_receives_fences) ... ok
+test_fixed_memory_wrappers_preserve_operands_and_registers (test_nr_assembly.NrAssemblyTests.test_fixed_memory_wrappers_preserve_operands_and_registers) ... ok
+test_multiple_words_receive_individual_fences (test_nr_assembly.NrAssemblyTests.test_multiple_words_receive_individual_fences) ... ok
+test_old_trace_options_rejected (test_nr_assembly.NrAssemblyTests.test_old_trace_options_rejected) ... ok
+test_reject_unsupported_raw_words_and_bypasses (test_nr_assembly.NrAssemblyTests.test_reject_unsupported_raw_words_and_bypasses) ... ok
+test_reject_unverified_mnemonics_and_banks (test_nr_assembly.NrAssemblyTests.test_reject_unverified_mnemonics_and_banks) ... ok
+test_verified_reference_words (test_nr_assembly.NrAssemblyTests.test_verified_reference_words) ... ok
+test_whole_moves_are_rejected_even_with_known_configuration (test_nr_assembly.NrAssemblyTests.test_whole_moves_are_rejected_even_with_known_configuration) ... ok
+test_all_vector_csr_forms_are_rejected_from_raw_bytes (test_nr_elf.NrElfTests.test_all_vector_csr_forms_are_rejected_from_raw_bytes) ... ok
+test_byte_pair_disassembly_keeps_ame_words (test_nr_elf.NrElfTests.test_byte_pair_disassembly_keeps_ame_words) ... ok
+test_c_aggregate_initializer_vector_is_rejected (test_nr_elf.NrElfTests.test_c_aggregate_initializer_vector_is_rejected) ... ok
+test_cli_writes_failure_report_and_returns_nonzero (test_nr_elf.NrElfTests.test_cli_writes_failure_report_and_returns_nonzero) ... ok
+test_csr_is_detected_without_objdump_annotation (test_nr_elf.NrElfTests.test_csr_is_detected_without_objdump_annotation) ... ok
+test_decoder_word_mismatch_cannot_authorize_vector (test_nr_elf.NrElfTests.test_decoder_word_mismatch_cannot_authorize_vector) ... ok
+test_executable_noload_and_nonexecuting_data_are_not_code (test_nr_elf.NrElfTests.test_executable_noload_and_nonexecuting_data_are_not_code) ... ok
+test_executable_word_mapping_cannot_hide_vector_instruction (test_nr_elf.NrElfTests.test_executable_word_mapping_cannot_hide_vector_instruction) ... ok
+test_fence_bytes_straddling_instructions_are_not_a_fence (test_nr_elf.NrElfTests.test_fence_bytes_straddling_instructions_are_not_a_fence) ... ok
+test_fence_is_required_on_both_sides (test_nr_elf.NrElfTests.test_fence_is_required_on_both_sides) ... ok
+test_normal_vector_memory_requires_decoder_and_fences (test_nr_elf.NrElfTests.test_normal_vector_memory_requires_decoder_and_fences) ... ok
+test_raw_ame_is_checked_without_decoder_and_data_is_ignored (test_nr_elf.NrElfTests.test_raw_ame_is_checked_without_decoder_and_data_is_ignored) ... ok
+test_real_fences_after_compressed_instructions_are_accepted (test_nr_elf.NrElfTests.test_real_fences_after_compressed_instructions_are_accepted) ... ok
+test_sections_do_not_share_fence_or_decoder_state (test_nr_elf.NrElfTests.test_sections_do_not_share_fence_or_decoder_state) ... ok
+test_truncated_and_unsupported_instruction_widths_fail_closed (test_nr_elf.NrElfTests.test_truncated_and_unsupported_instruction_widths_fail_closed) ... ok
+test_unknown_vector_and_whole_move_are_rejected (test_nr_elf.NrElfTests.test_unknown_vector_and_whole_move_are_rejected) ... ok
+test_whole_register_memory_is_rejected_even_when_fenced (test_nr_elf.NrElfTests.test_whole_register_memory_is_rejected_even_when_fenced) ... ok
+
+----------------------------------------------------------------------
+Ran 47 tests in 10.899s
+
+OK

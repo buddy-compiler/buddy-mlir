@@ -1,0 +1,10 @@
+......[fpga_run] UART input request aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa written (FPGA receipt unconfirmed)
+[fpga_run] UART input request bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb written (FPGA receipt unconfirmed)
+..[fpga_run] UART input request cccccccccccccccccccccccccccccccc written (FPGA receipt unconfirmed)
+...............[fpga_run] UART payload written; total=7 bytes (board receipt unconfirmed)
+[fpga_run] UART payload written; total=13 bytes (board receipt unconfirmed)
+.......
+----------------------------------------------------------------------
+Ran 30 tests in 13.482s
+
+OK

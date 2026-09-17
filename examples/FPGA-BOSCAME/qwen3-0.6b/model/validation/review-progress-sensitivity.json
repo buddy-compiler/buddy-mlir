@@ -1,0 +1,133 @@
+{
+  "status": "UNRESOLVED",
+  "scope": "read-only software comparison; no FPGA experiment; does not attribute timeout to platform speed",
+  "elf_sha256": {
+    "without_progress": "a000232800d8ddf962aae1b988549749dd3035a8bf624bb0324895253b57ce37",
+    "with_progress": "9d80ece738383f7a14bed72c59cf3474578ecacfb2391aed188e54d2a630e0d5"
+  },
+  "object_comparison": {
+    "adapters.o": {
+      "same": true,
+      "no_progress_sha256": "1d6f4fa2a17797adadbd9bb56c46ac024525303d1f5a560c88c9860dbe701ebc",
+      "progress_sha256": "1d6f4fa2a17797adadbd9bb56c46ac024525303d1f5a560c88c9860dbe701ebc"
+    },
+    "ame_sync.o": {
+      "same": true,
+      "no_progress_sha256": "63ba33d14e87fda6553c981a7af119223b4b3ba76fd751a66b7073039177a9eb",
+      "progress_sha256": "63ba33d14e87fda6553c981a7af119223b4b3ba76fd751a66b7073039177a9eb"
+    },
+    "crt.o": {
+      "same": true,
+      "no_progress_sha256": "17192745e4ca892ad6ff46fd1708d2cbe650c22eb0bc843ded9b28507e8d89f2",
+      "progress_sha256": "17192745e4ca892ad6ff46fd1708d2cbe650c22eb0bc843ded9b28507e8d89f2"
+    },
+    "forward_decode.nr.o": {
+      "same": true,
+      "no_progress_sha256": "968a3f0420703fb111dce34a2456440aeb308b7d058986375935eeda4faee9ce",
+      "progress_sha256": "968a3f0420703fb111dce34a2456440aeb308b7d058986375935eeda4faee9ce"
+    },
+    "forward_decode.raw.o": {
+      "same": true,
+      "no_progress_sha256": "67e44f087327237ae3ab2299d022b2e22d750b147b64175e7fca5b0c424a19c8",
+      "progress_sha256": "67e44f087327237ae3ab2299d022b2e22d750b147b64175e7fca5b0c424a19c8"
+    },
+    "forward_prefill.nr.o": {
+      "same": true,
+      "no_progress_sha256": "83750f293d7f141f8bad8ce9d7a8f144a19bece10fc5a0915d90544f10c756d4",
+      "progress_sha256": "83750f293d7f141f8bad8ce9d7a8f144a19bece10fc5a0915d90544f10c756d4"
+    },
+    "kernel-profile.o": {
+      "same": false,
+      "no_progress_sha256": "2a4fee5412d8a0b5c9f7a76a3836b8a05229ff1ab5c014a8eee77971fcb9bcb1",
+      "progress_sha256": "8203159964500263ad2e5099f89a52d2500358be5f542d12180b54c974bb6ee9"
+    },
+    "model_main.o": {
+      "same": true,
+      "no_progress_sha256": "1bb093bbd6233190de0a6a76b3fc13eed82d55007b6eb3d99b1336f1740d9126",
+      "progress_sha256": "1bb093bbd6233190de0a6a76b3fc13eed82d55007b6eb3d99b1336f1740d9126"
+    },
+    "nr_copy.o": {
+      "same": true,
+      "no_progress_sha256": "0413af1dc17a9678cad7a132d8f503c899bbc8a9242f65174b172b019234e3a0",
+      "progress_sha256": "0413af1dc17a9678cad7a132d8f503c899bbc8a9242f65174b172b019234e3a0"
+    },
+    "nr_math.o": {
+      "same": true,
+      "no_progress_sha256": "749a35ee7880a2c0580dc780cd9f0398b8d0407b19b87572297a10a268797751",
+      "progress_sha256": "749a35ee7880a2c0580dc780cd9f0398b8d0407b19b87572297a10a268797751"
+    },
+    "nr_runtime.o": {
+      "same": true,
+      "no_progress_sha256": "6e1694905a8b8543096cdeff67c9b783a153a97ee9c7db3b81793c4442d0bad1",
+      "progress_sha256": "6e1694905a8b8543096cdeff67c9b783a153a97ee9c7db3b81793c4442d0bad1"
+    },
+    "numeric-reference.o": {
+      "same": true,
+      "no_progress_sha256": "ee5eabec71e8466baf9c18bc736bc628346202fc4268dbb9f597fe3e41aa7ca5",
+      "progress_sha256": "ee5eabec71e8466baf9c18bc736bc628346202fc4268dbb9f597fe3e41aa7ca5"
+    },
+    "tokenizer_encode.o": {
+      "same": true,
+      "no_progress_sha256": "694fe945f0e930942e6f7a6578ff7f043b930141fccedd686a04a6a6e8a41f0c",
+      "progress_sha256": "694fe945f0e930942e6f7a6578ff7f043b930141fccedd686a04a6a6e8a41f0c"
+    },
+    "tokenizer_resource.o": {
+      "same": true,
+      "no_progress_sha256": "93e9492a123901dc7370fa3bf24f6da64335e4d06bd690a81c6fe0c15b2f55d9",
+      "progress_sha256": "93e9492a123901dc7370fa3bf24f6da64335e4d06bd690a81c6fe0c15b2f55d9"
+    },
+    "unicode_tables.o": {
+      "same": true,
+      "no_progress_sha256": "9667648f93d79021397786e74856335589e63cabea4358e3e8d0cc52cd780ef3",
+      "progress_sha256": "9667648f93d79021397786e74856335589e63cabea4358e3e8d0cc52cd780ef3"
+    }
+  },
+  "identical_main_c": true,
+  "known_difference": "kernel-profile.o only among shared objects: per-kernel begin/end nr_puts/nr_hex64 adds fences, DDR writes, delay; alters wrappers/register allocation/link layout",
+  "clobber_contract_finding": {
+    "source": "examples/FPGA-BOSCAME/common/nr/ame_sync.c:35",
+    "source_sha256": "ed7efdd659ca50f79c0249d13a8762188cdbb745b8d65193ff4dc62c5380256d",
+    "problem": "msettype caller-saved GPR clobbers are on a later empty asm, not the asm containing the custom instruction; compiler may consume a live caller-saved value in between",
+    "object_evidence": "ame_sync.o: auipc a1 at +0x1e; msettype word at +0x42; mv s0,a1 at +0x4a. Linked object relocates mv to addi; address high part survives across instruction in a1.",
+    "hardware_condition": "a hang consequence requires this hardware msettype to actually clobber that live register; not demonstrated by this audit",
+    "cross_reference": "tools/ame_to_word.py already preserves all caller-saved GPRs around msettype",
+    "minimal_source_correction": "declare +r(a0) and a1..a7,t0..t6,memory clobbers on the same asm as the raw word; remove the separate empty asm"
+  },
+  "memory_layout": {
+    "without_progress": {
+      "console": "0x806635c0",
+      "RA_stack": [
+        "0x809b8dc0",
+        "0x80ab8dc0"
+      ],
+      "heap": [
+        "0x80ab8dc0",
+        "0xb0000000"
+      ]
+    },
+    "with_progress": {
+      "console": "0x806658c0",
+      "RA_stack": [
+        "0x809bb0c0",
+        "0x80abb0c0"
+      ],
+      "heap": [
+        "0x80abb0c0",
+        "0xb0000000"
+      ]
+    },
+    "shared_workspace": [
+      "0xb8000000",
+      "0xc7709b00"
+    ],
+    "state_address_shift": "0x2300",
+    "observed_progress_prefill_heap_bytes": 58265037,
+    "static_findings": "no linker overlap; per-core stack 1MiB; native forward_prefill primary frame 3776 bytes plus outgoing arguments; console excluded from RA BSS clearing"
+  },
+  "recommended_experiments": [
+    "First localize without UART using a compact DDR breadcrumb: kernel index, invocation count, phase before/after actual kernel and after ame_fence. Read retained values; use fixed-size counters and existing fences, not per-byte logging.",
+    "Isolate logger effects from layout: same generated progress image with runtime-gated logging controlled by a same-sized initialized data flag. Keep all sections, frames and model/kernel bytes identical, change only flag value. Compare with and without output.",
+    "Test corrected same-asm msettype clobber contract without progress. Audit assembly to ensure no caller-saved value remains live across the raw word. A passing run is evidence; repeat plus same-layout control needed before attributing cause.",
+    "A delay-only or extra-fence-only variant can then split pacing from ordering, if no-output same-layout control still fails."
+  ]
+}

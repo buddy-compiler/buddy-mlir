@@ -1,0 +1,17 @@
+{
+  "status": "INTERRUPTED",
+  "fpga": 5,
+  "sha256": "da9dc3f79b425214544c7f88f8f6dc33c4ee5313176d079723553904ae025c3e",
+  "capture_seconds": 7200,
+  "baud": 115200,
+  "segment_readbacks": {
+    "image.bin": true,
+    "weights-w8a8.bin": true,
+    "tokenizer.bin": true
+  },
+  "ddr_readback_matches": true,
+  "error": "interrupted; releasing this session",
+  "uart_input_bytes_written": 0,
+  "uart_interactive_bytes_written": 0,
+  "uart_input_unacknowledged_requests": 0
+}

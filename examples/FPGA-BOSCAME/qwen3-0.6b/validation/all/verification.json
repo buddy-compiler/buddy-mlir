@@ -1,0 +1,394 @@
+{
+  "recorded_at_utc": "2026-09-16T13:44:37.219179+00:00",
+  "source_run": "run-a2db3e72d49d4359",
+  "fpga": 5,
+  "image_sha256": "0fc59316d0bb0af07174936d20d792988cb1eea6e21babcd3d5b123f9efc1cce",
+  "uart_sha256": "455af389c7baf11f90296d8f42d69c10610c2212b482562978015de5988b9b2e",
+  "case_count": 72,
+  "all_pass": true,
+  "cases": [
+    {
+      "case": "add_16x1024",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "add_1x1024",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "attention_pv_16x16x128x16",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "attention_pv_16x1x128x17",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "attention_qk_16x16x16x128",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "attention_qk_16x1x17x128",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "attention_scale_mask_16x16x16",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "33800000"
+    },
+    {
+      "case": "attention_scale_mask_16x1x17",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "33800000"
+    },
+    {
+      "case": "dequantize_16x1024",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "dequantize_16x2048",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "dequantize_16x3072",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "dequantize_1x1024",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "dequantize_1x151936",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "dequantize_1x2048",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "dequantize_1x3072",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "embedding_16x1024",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "embedding_1x1024",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "gqa_repeat_8x16x128_to_16x16x128",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "gqa_repeat_8x17x128_to_16x17x128",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "kv_cache_update_16x8x128",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "kv_cache_update_1x8x128",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "layout_context_16x16x128",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "layout_context_16x1x128",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "layout_k_16x16x128",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "layout_k_16x17x128",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "layout_q_16x16x128",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "layout_q_1x16x128",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "matmul_16x1024x1024",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000",
+      "kernel_cycles": 1126483
+    },
+    {
+      "case": "matmul_16x1024x1024_f32",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000",
+      "kernel_cycles": 48540360
+    },
+    {
+      "case": "matmul_16x1024x2048",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000",
+      "kernel_cycles": 2149993
+    },
+    {
+      "case": "matmul_16x1024x2048_f32",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000",
+      "kernel_cycles": 94674479
+    },
+    {
+      "case": "matmul_16x1024x3072",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000",
+      "kernel_cycles": 3169231
+    },
+    {
+      "case": "matmul_16x1024x3072_f32",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000",
+      "kernel_cycles": 143947537
+    },
+    {
+      "case": "matmul_16x2048x1024",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000",
+      "kernel_cycles": 2250633
+    },
+    {
+      "case": "matmul_16x2048x1024_f32",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000",
+      "kernel_cycles": 97074454
+    },
+    {
+      "case": "matmul_16x3072x1024",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000",
+      "kernel_cycles": 3372550
+    },
+    {
+      "case": "matmul_16x3072x1024_f32",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000",
+      "kernel_cycles": 145782140
+    },
+    {
+      "case": "matmul_1x1024x1024",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000",
+      "kernel_cycles": 1002649
+    },
+    {
+      "case": "matmul_1x1024x1024_f32",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000",
+      "kernel_cycles": 3036999
+    },
+    {
+      "case": "matmul_1x1024x2048",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000",
+      "kernel_cycles": 1905690
+    },
+    {
+      "case": "matmul_1x1024x2048_f32",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000",
+      "kernel_cycles": 5920952
+    },
+    {
+      "case": "matmul_1x1024x3072",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000",
+      "kernel_cycles": 2785312
+    },
+    {
+      "case": "matmul_1x1024x3072_f32",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000",
+      "kernel_cycles": 8999761
+    },
+    {
+      "case": "matmul_1x151936x1024",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000",
+      "kernel_cycles": 147384091
+    },
+    {
+      "case": "matmul_1x151936x1024_f32",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000",
+      "kernel_cycles": 449895722
+    },
+    {
+      "case": "matmul_1x2048x1024",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000",
+      "kernel_cycles": 1992530
+    },
+    {
+      "case": "matmul_1x2048x1024_f32",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000",
+      "kernel_cycles": 6068272
+    },
+    {
+      "case": "matmul_1x3072x1024",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000",
+      "kernel_cycles": 2985367
+    },
+    {
+      "case": "matmul_1x3072x1024_f32",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000",
+      "kernel_cycles": 9102303
+    },
+    {
+      "case": "matmul_3x19x70",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000",
+      "kernel_cycles": 10762
+    },
+    {
+      "case": "mul_16x3072",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "mul_1x3072",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "quantize_16x1024",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "quantize_16x2048",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "quantize_16x3072",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "quantize_1x1024",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "quantize_1x2048",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "quantize_1x3072",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "rmsnorm_128x128",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "rmsnorm_16x1024",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "rmsnorm_16x128",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "rmsnorm_1x1024",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "rmsnorm_256x128",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "rmsnorm_8x128",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "rope_16x16x128",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "rope_16x8x128",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "rope_1x16x128",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "rope_1x8x128",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "silu_16x3072",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "silu_1x3072",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "softmax_16x16x16",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "34800000"
+    },
+    {
+      "case": "softmax_16x1x17",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "34000000"
+    }
+  ]
+}

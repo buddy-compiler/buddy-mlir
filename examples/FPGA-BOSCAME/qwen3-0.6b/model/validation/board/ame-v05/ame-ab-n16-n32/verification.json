@@ -1,0 +1,133 @@
+{
+  "status": "PASS",
+  "shape": [
+    1,
+    151936,
+    1024
+  ],
+  "repeats": 2,
+  "samples": [
+    {
+      "round": 0,
+      "variant": "baseline",
+      "order": 0,
+      "cycles": 107847127,
+      "pre_sync_cycles": 658,
+      "adapter_kernel_cycles": 107846375,
+      "post_sync_cycles": 752,
+      "mismatches": 0,
+      "guard_errors": 0,
+      "input_errors": 0,
+      "max_abs_i64": 0,
+      "status": "PASS",
+      "mean_abs": 0.0
+    },
+    {
+      "round": 0,
+      "variant": "optimized",
+      "order": 1,
+      "cycles": 78223699,
+      "pre_sync_cycles": 625,
+      "adapter_kernel_cycles": 78222938,
+      "post_sync_cycles": 761,
+      "mismatches": 0,
+      "guard_errors": 0,
+      "input_errors": 0,
+      "max_abs_i64": 0,
+      "status": "PASS",
+      "mean_abs": 0.0
+    },
+    {
+      "round": 1,
+      "variant": "optimized",
+      "order": 0,
+      "cycles": 78223308,
+      "pre_sync_cycles": 641,
+      "adapter_kernel_cycles": 78222554,
+      "post_sync_cycles": 754,
+      "mismatches": 0,
+      "guard_errors": 0,
+      "input_errors": 0,
+      "max_abs_i64": 0,
+      "status": "PASS",
+      "mean_abs": 0.0
+    },
+    {
+      "round": 1,
+      "variant": "baseline",
+      "order": 1,
+      "cycles": 107846139,
+      "pre_sync_cycles": 628,
+      "adapter_kernel_cycles": 107845393,
+      "post_sync_cycles": 746,
+      "mismatches": 0,
+      "guard_errors": 0,
+      "input_errors": 0,
+      "max_abs_i64": 0,
+      "status": "PASS",
+      "mean_abs": 0.0
+    }
+  ],
+  "platform": "fpga",
+  "timing_unit": "RA_cycles",
+  "timing": {
+    "baseline": {
+      "cycles": [
+        107847127,
+        107846139
+      ],
+      "median": 107846633.0,
+      "mean": 107846633
+    },
+    "optimized": {
+      "cycles": [
+        78223699,
+        78223308
+      ],
+      "median": 78223503.5,
+      "mean": 78223503.5
+    },
+    "median_speedup": 1.3786985774678322
+  },
+  "scope": "adapter+kernel+post ame_fence; pre-sync separately recorded",
+  "correctness": "exact int64 oracle, all outputs, guards",
+  "input_integrity": "full_A_sampled_B",
+  "variant_configuration": {
+    "baseline": {
+      "ame_gpr_mode": "direct",
+      "coalesce_fences": "0",
+      "tile": {
+        "BM": 1,
+        "BN": 16,
+        "BK": 1024
+      },
+      "grid": [
+        1,
+        9496,
+        1
+      ],
+      "native_manifest_sha256": "c29daa1c6933bfe7f43fbfaa8d4aea608cb5106a5857694bd668cf22d5edc13b"
+    },
+    "optimized": {
+      "ame_gpr_mode": "direct",
+      "coalesce_fences": "0",
+      "tile": {
+        "BM": 1,
+        "BN": 32,
+        "BK": 1024
+      },
+      "grid": [
+        1,
+        4748,
+        1
+      ],
+      "native_manifest_sha256": "826133fc7afda6606327c0d319c640311a2861f56771989cf8f966a20e2252d8"
+    }
+  },
+  "run_id": "run-a8ff658ff15146ca",
+  "image_sha256": "a95d0a36aab1efb256b5ed9fef39ffb86d12745869be41592b6f4c7795df2437",
+  "log_sha256": "8ffde5dd6b561718ecdba1568c3ffc4ee9e32461ef6947bbc4c880a77aed1171",
+  "manifest_sha256": "5be344d25e86a9a5f4ac0c56a2ab614b726b0e5c7e01a5af05033bda4fc015e4",
+  "ddr_readback_matches": true,
+  "source_hashes_and_abi_checked": true
+}

@@ -1,0 +1,25 @@
+00000000800250b6 <_mlir_ciface_qwen_graph_rmsnorm_16x1024__forward_prefill_mul_3>:
+800250b6:      	addi	sp, sp, -0x30
+800250b8:      	sd	ra, 0x28(sp)
+800250ba:      	mv	a3, a2
+800250bc:      	mv	a4, a0
+
+00000000800250be <.Lpcrel_hi6>:
+800250be:      	auipc	a0, 0x10e0
+800250c2:      	addi	a0, a0, -0x66
+800250c6:      	li	a2, 0x1
+800250c8:      	lui	a5, 0x4
+800250ca:      	li	a6, 0x10
+800250cc:      	li	a7, 0x400
+800250d0:      	sd	a6, 0x20(a4)
+800250d4:      	sd	a7, 0x28(a4)
+800250d8:      	sd	a5, 0x30(a4)
+800250da:      	sd	a7, 0x38(a4)
+
+00000000800250de <.Lpcrel_hi7>:
+800250de:      	auipc	a5, 0x10c0
+800250e2:      	sd	zero, 0x0(a4)
+800250e6:      	sd	a0, 0x8(a4)
+800250e8:      	sd	zero, 0x10(a4)
+800250ec:      	sd	a2, 0x18(a4)
+800250ee:      	addi	a0, a5, -0x486

@@ -1,0 +1,167 @@
+{
+  "stage": "D (board): prefill then 8 continuous decode steps on FPGA5",
+  "board": "FPGA5",
+  "run_id": "run-75a4bb3f41e74f23",
+  "result": "PASS for one decoder layer",
+  "scope": {
+    "layers": 1,
+    "prefill_len": 16,
+    "decode_steps": 8,
+    "cache_positions_exercised": [
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23
+    ],
+    "not_covered": [
+      "the other 27 layers",
+      "the full 28-layer model",
+      "the whole logit vector (only the argmax logit is printed)",
+      "tokenizer and text decoding (stage E)"
+    ]
+  },
+  "prefill": {
+    "board_token": 33067,
+    "reference_token": 33067,
+    "token_matches": true,
+    "board_logit": 8.480880737304688,
+    "reference_logit": 8.480889320373535,
+    "logit_abs_error": 8.58306884765625e-06
+  },
+  "decode_steps": [
+    {
+      "step": 0,
+      "cache_position": 16,
+      "board_token": 11853,
+      "board_logit_bits": "4156F2B4",
+      "board_logit": 13.434253692626953,
+      "reference_token": 11853,
+      "reference_logit": 13.434248924255371,
+      "token_matches": true,
+      "logit_abs_error": 4.76837158203125e-06
+    },
+    {
+      "step": 1,
+      "cache_position": 17,
+      "board_token": 11853,
+      "board_logit_bits": "41A8D27A",
+      "board_logit": 21.102771759033203,
+      "reference_token": 11853,
+      "reference_logit": 21.102781295776367,
+      "token_matches": true,
+      "logit_abs_error": 9.5367431640625e-06
+    },
+    {
+      "step": 2,
+      "cache_position": 18,
+      "board_token": 11853,
+      "board_logit_bits": "41B0BF5E",
+      "board_logit": 22.093441009521484,
+      "reference_token": 11853,
+      "reference_logit": 22.09345054626465,
+      "token_matches": true,
+      "logit_abs_error": 9.5367431640625e-06
+    },
+    {
+      "step": 3,
+      "cache_position": 19,
+      "board_token": 11853,
+      "board_logit_bits": "41B3A80E",
+      "board_logit": 22.45705795288086,
+      "reference_token": 11853,
+      "reference_logit": 22.45707130432129,
+      "token_matches": true,
+      "logit_abs_error": 1.33514404296875e-05
+    },
+    {
+      "step": 4,
+      "cache_position": 20,
+      "board_token": 11853,
+      "board_logit_bits": "41B4BC33",
+      "board_logit": 22.591894149780273,
+      "reference_token": 11853,
+      "reference_logit": 22.59191131591797,
+      "token_matches": true,
+      "logit_abs_error": 1.71661376953125e-05
+    },
+    {
+      "step": 5,
+      "cache_position": 21,
+      "board_token": 11853,
+      "board_logit_bits": "41B59136",
+      "board_logit": 22.695903778076172,
+      "reference_token": 11853,
+      "reference_logit": 22.695926666259766,
+      "token_matches": true,
+      "logit_abs_error": 2.288818359375e-05
+    },
+    {
+      "step": 6,
+      "cache_position": 22,
+      "board_token": 11853,
+      "board_logit_bits": "41B5C243",
+      "board_logit": 22.7198543548584,
+      "reference_token": 11853,
+      "reference_logit": 22.719850540161133,
+      "token_matches": true,
+      "logit_abs_error": 3.814697265625e-06
+    },
+    {
+      "step": 7,
+      "cache_position": 23,
+      "board_token": 11853,
+      "board_logit_bits": "41B55172",
+      "board_logit": 22.66476821899414,
+      "reference_token": 11853,
+      "reference_logit": 22.664783477783203,
+      "token_matches": true,
+      "logit_abs_error": 1.52587890625e-05
+    }
+  ],
+  "all_decode_tokens_match": true,
+  "max_decode_logit_abs_error": 2.288818359375e-05,
+  "cache_semantics": {
+    "evidence": "the position field printed by the board advances 16..23 while the token stays the same, and every step's logit matches the reference computed with the same position",
+    "why_it_matters": "the decode graph returns updated K/V descriptors and the program feeds those back; using the input descriptors again would decode against a stale cache and diverge within a step or two"
+  },
+  "cycles": 8762587239,
+  "cycles_note": "one number for the whole prefill + 8 decode session; per-kernel and per-step split is not measured",
+  "segments": [
+    "segment model: address=0x0000000080000000 size=4391360",
+    "segment weights: address=0x00000000b8000000 size=685257984"
+  ],
+  "execution_uart": [
+    "[nr] NH boot; RA operator runtime",
+    "[nr] RA entry=0x0000000080000040",
+    "[nr] RA entered; clearing application BSS",
+    "[nr] mstatus=0x8000000A00006000; launch BEGIN",
+    "[model] prefill argmax token=0000812B logit_bits=4107B1B0",
+    "[model] decode step 00000000 position=00000010 token=00002E4D logit_bits=4156F2B4",
+    "[model] decode step 00000001 position=00000011 token=00002E4D logit_bits=41A8D27A",
+    "[model] decode step 00000002 position=00000012 token=00002E4D logit_bits=41B0BF5E",
+    "[model] decode step 00000003 position=00000013 token=00002E4D logit_bits=41B3A80E",
+    "[model] decode step 00000004 position=00000014 token=00002E4D logit_bits=41B4BC33",
+    "[model] decode step 00000005 position=00000015 token=00002E4D logit_bits=41B59136",
+    "[model] decode step 00000006 position=00000016 token=00002E4D logit_bits=41B5C243",
+    "[model] decode step 00000007 position=00000017 token=00002E4D logit_bits=41B55172",
+    "[nr] launch cycles=0x000000020A4A7867 status=0x00000000",
+    "[nr] RA returned: PASS",
+    "verify NR runtime: PASS"
+  ],
+  "uart_log_sha256": "ee75233ad44d1a28cf32f0ce2aeea852479a06656a35464bba2d1407a4688d60",
+  "reference": "build/reference/fp32-1layer-16plus8 (transformers, official checkpoint, float32, one layer)",
+  "bug_found_and_fixed_this_round": {
+    "symptom": "two graph entry points could not link",
+    "cause": "each graph lowerer emits its own `dealloc_helper` / `_mlir_ciface_dealloc_helper` from bufferization-lower-deallocations",
+    "fix": "llvm-objcopy --redefine-sym renames the decode object's copies; the helper is module-local in purpose"
+  },
+  "not_verified": [
+    "28 layers on the board",
+    "the board's full logit vector",
+    "the per-segment readback for this run (the worker exited without writing result.json after an SSH disconnect; the loader's own readback ran)"
+  ]
+}

@@ -1,0 +1,2 @@
+triton_silu_16x3072 T 0 25e
+expf U 0 0

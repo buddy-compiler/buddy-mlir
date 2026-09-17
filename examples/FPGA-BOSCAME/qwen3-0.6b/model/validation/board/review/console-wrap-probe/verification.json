@@ -1,0 +1,8 @@
+{
+  "run_id": "run-33c1d41050c94a48",
+  "uart_sha256": "447e74a9a8656a13317fcb89afe9497fdea7a8ccf8da52461fbefbf35ec64381",
+  "status": "PASS",
+  "bytes_compared": 67584,
+  "bytewise_equal": true,
+  "scope": "67,584-byte board output crosses 64 KiB ring boundary; SSH relay reconnected without restarting worker"
+}

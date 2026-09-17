@@ -1,0 +1,29 @@
+{
+  "status": "PASS",
+  "elf_sha256": "8af9aa0994d47828533f40f61e430425e644261dc5b100c8157e94d404b5e737",
+  "executable_sections": [
+    {
+      "name": ".text.init",
+      "address": "0x80000000",
+      "bytes": 236
+    },
+    {
+      "name": ".text",
+      "address": "0x80011000",
+      "bytes": 119470
+    }
+  ],
+  "instructions": 40983,
+  "ame_instructions": 131,
+  "vector_memory_instructions": 168,
+  "rvv_instructions": {
+    "vfmacc.vf": 18,
+    "vle32.v": 78,
+    "vle8.v": 8,
+    "vse32.v": 74,
+    "vse8.v": 8,
+    "vsetivli": 67,
+    "vsetvli": 1
+  },
+  "errors": []
+}

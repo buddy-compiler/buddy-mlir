@@ -1,0 +1,42 @@
+{
+  "stage": "Stage E firmware built; its board run is queued behind the full-model run",
+  "status": "firmware PASSES the ELF audit, not yet run on the board",
+  "firmware": {
+    "what": "tools/build_nr_w8a8_image.py --interactive emits a UART conversation loop: read a line, run the chat template, tokenise on the board with the encoder, feed the prompt through the decode graph one token at a time, generate, and print the decoded text",
+    "why_the_decode_graph": "the compiled prefill entry is fixed at 16 tokens, so a prompt of any other length cannot use it. The decode graph is M=1 and takes its position as data, so it serves the prompt and the generation alike -- no new kernels and no recompilation per input length",
+    "elf_bytes": 4523616,
+    "bin_bytes": 4456472,
+    "undefined_symbols": 0,
+    "elf_audit": "PASS: 25105 instructions, 121 AME, 156 RVV",
+    "tokenizer_segment_bytes": 5222928,
+    "tokenizer_load_address": "0xc2cbddc0",
+    "output_path": "uses uart_putc, NOT nr_puts",
+    "why_not_nr_puts": "the NR runtime's write_serial appends to a console buffer that is flushed only after launch() returns, so an interactive prompt written with nr_puts would appear all at once at the end"
+  },
+  "uart_input": {
+    "problem": "interactive firmware needs bytes sent TO the board; the capture path only reads",
+    "first_attempt_failed": "writing to /dev/FPGA5 from a second process raised OSError: [Errno 16] Device or resource busy -- the worker holds the device with TIOCEXCL and only restores the tty with TIOCNXCL on exit",
+    "fix": "the payloads now travel with the worker invocation: fpga_run.py forwards --uart-send to fpga_remote.py's --uart-input, and the worker writes them to the device it already owns after --uart-input-delay",
+    "why_this_is_the_right_shape": "it keeps one process owning the UART, which is the same discipline the lock enforces",
+    "second_trap_hit": "the detached worker rebuilds its command line, so the new options had to be forwarded there too -- the same trap --layout fell into earlier"
+  },
+  "board_state": {
+    "full_model_run": "RUNNING, not finished",
+    "detail": "the 28-layer image (re-linked with the argument-order fix) has been capturing for about 21 minutes of a 9000 s window and has emitted only the boot banner, which is expected: the one-layer prefill+decode took 374 s, so 28 layers is on the order of an hour or more",
+    "stage_e_run": "refused with 'another fpga_run is using this platform workdir' -- the lock working as designed; it is queued behind the full-model run rather than started"
+  },
+  "not_done": [
+    "Stage E has not been exercised on the board",
+    "the full-model board result is still pending",
+    "the 28-layer image is prefill-only; no decode"
+  ],
+  "review_2026_09_17": {
+    "status": "SUPERSEDED: old firmware has a generation sequencing bug and stale output-path documentation",
+    "findings": [
+      "The generated loop replayed the last prompt token instead of emitting its predicted next token.",
+      "RA output must use public NR console; NH drains it while RA runs.",
+      "No completed UART-input model generation has been verified."
+    ],
+    "previous_results_are_historical": true
+  }
+}

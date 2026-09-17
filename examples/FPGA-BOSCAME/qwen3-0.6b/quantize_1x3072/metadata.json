@@ -1,0 +1,11 @@
+{
+  "kind": "per_token_quantization",
+  "shape": [
+    1,
+    3072
+  ],
+  "rounding": "nearest, ties away from zero",
+  "zero_row_scale": 1,
+  "target": "scalar",
+  "model_operator": false
+}

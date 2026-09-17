@@ -1,0 +1,35 @@
+{
+  "stage": "Stage E tokenizer path complete: added tokens, chat template, and the encoder verified together",
+  "status": "PASS",
+  "verified": {
+    "plain_encoder": {
+      "corpus": 616,
+      "identical": 616,
+      "pass_rate": 1.0
+    },
+    "chat_template": {
+      "cases": 8,
+      "identical": 8
+    },
+    "full_stage_e_path": {
+      "cases": 36,
+      "identical": 36,
+      "what": "qwen_chat_single_turn then qwen_encode -- the exact sequence the firmware runs, over both thinking modes, with and without a system message, and nine user inputs"
+    }
+  },
+  "bug_found_and_fixed": {
+    "symptom": "0/36 on the full path: <|im_start|> and <|im_end|> were tokenised as literal text, so every prompt was wrong from its first token",
+    "first_attempt": "check for an added token at each position the regex left off at",
+    "why_that_is_still_wrong": "the regex happily swallows the '<|' that starts an added token into a punctuation run, so by the time the scan looks, the token's first character has already been consumed. It showed up as the trailing <|im_end|> being missed in prompts that ended in punctuation.",
+    "fix": "added tokens are split out FIRST, over the whole text; only the spans between them go through the regex and BPE. That is the order the reference tokenizers library uses.",
+    "resource_support": "the packer already stored added tokens longest-first and rejects any that declare single_word/lstrip/rstrip or normalized flags, so plain exact matching is what the resource supports -- nothing is approximating a dropped flag"
+  },
+  "board_state": {
+    "full_model_run": "STILL RUNNING, about 24 minutes into a 9000 s window, only the boot banner so far",
+    "stage_e_run": "still queued behind it; the lock refused the second run, which is the discipline working rather than a failure"
+  },
+  "not_done": [
+    "Stage E has not been exercised on the board",
+    "the full-model board result is still pending"
+  ]
+}

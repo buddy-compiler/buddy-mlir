@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "Dialect/BOSCAME/BOSCAMEDialect.h"
+#include "Dialect/BOSCAME/Transforms/FPGAAMETarget.h"
 #include "Dialect/BOSCAME/BOSCAMEOps.h"
 #include "Dialect/BOSCAME/Transform.h"
 #include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
@@ -16,9 +17,13 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Dialect/SCF/Transforms/Patterns.h"
 #include "mlir/IR/PatternMatch.h"
+#include "mlir/Interfaces/FunctionInterfaces.h"
 #include "mlir/Pass/Pass.h"
 
+#include <algorithm>
 #include <memory>
 #include <string>
 
@@ -82,10 +87,17 @@ static void addBOSCAMETypeConversions(LLVMTypeConverter &converter) {
   // arrays. BOSCAME matrix registers are represented by scalable vectors in
   // the backend, so keep those values in the register form throughout this
   // conversion instead of materializing unrealized array casts.
+  //
+  // Vectors that are *not* matrix tiles must convert to themselves.  Returning
+  // a null type here would make the framework report "unable to convert type
+  // for operand" as soon as a loop carries an already-converted register type
+  // (the accumulator chain), which then fails to legalize the generated
+  // `scf.for` even though its types are correct.
   converter.addConversion([](VectorType type) -> Type {
     if (type.getRank() != 2)
-      return Type();
-    return getBOSCAMERegisterType(type);
+      return type;
+    Type registerType = getBOSCAMERegisterType(type);
+    return registerType ? registerType : type;
   });
 }
 
@@ -93,15 +105,44 @@ static bool isMemRefValue(Value value) {
   return isa<MemRefType, UnrankedMemRefType>(value.getType());
 }
 
+// Materialize the effective base address of `memref` as an LLVM pointer.
+//
+// The aligned pointer alone describes the allocation base; it ignores the
+// descriptor offset introduced by subviews, reinterpret_cast and strided
+// layouts. Feeding that pointer to a matrix load/store silently addresses the
+// wrong tile, so decode the strided metadata and fold the element offset in:
+//
+//   effective = alignedPointer(baseBuffer) + offset * bytesPerElement
+//
+// `memref.extract_strided_metadata` resolves arbitrarily nested
+// subview/reinterpret_cast chains into a single descriptor, so the offset is
+// applied exactly once even for multi-level views.
 static Value extractPointerFromMemref(ConversionPatternRewriter &rewriter,
                                       Location loc, Value memref) {
   MLIRContext *context = rewriter.getContext();
   Type pointerType = LLVM::LLVMPointerType::get(context);
   Type i64Type = IntegerType::get(context, 64);
+
+  auto metadata =
+      memref::ExtractStridedMetadataOp::create(rewriter, loc, memref);
+  Value baseBuffer = metadata.getBaseBuffer();
+  Value offset = metadata.getOffset();
   Value pointerAsIndex =
-      memref::ExtractAlignedPointerAsIndexOp::create(rewriter, loc, memref);
+      memref::ExtractAlignedPointerAsIndexOp::create(rewriter, loc, baseBuffer);
+
+  Type elementType = getElementTypeOrSelf(memref.getType());
+  unsigned bitWidth = elementType.getIntOrFloatBitWidth();
+  // Sub-byte element types (e.g. i4) share a byte; an offset is only
+  // expressible in whole elements, so keep the element granularity.
+  unsigned bytesPerElement = std::max(1u, bitWidth / 8u);
+  Value elementBytes =
+      arith::ConstantIndexOp::create(rewriter, loc, bytesPerElement);
+  Value byteOffset =
+      arith::MulIOp::create(rewriter, loc, offset, elementBytes);
+  Value effectiveAsIndex =
+      arith::AddIOp::create(rewriter, loc, pointerAsIndex, byteOffset);
   Value pointerAsI64 =
-      arith::IndexCastOp::create(rewriter, loc, i64Type, pointerAsIndex);
+      arith::IndexCastOp::create(rewriter, loc, i64Type, effectiveAsIndex);
   return LLVM::IntToPtrOp::create(rewriter, loc, pointerType, pointerAsI64);
 }
 
@@ -158,6 +199,11 @@ public:
       return failure();
 
     Location loc = op->getLoc();
+    auto module = op->getParentOfType<ModuleOp>();
+    auto target = module->getAttrOfType<StringAttr>(kAmeTargetAttrName);
+    bool fpga = target && (target.getValue() == "qwen3-fpga" ||
+                           target.getValue() == "nr-fpga");
+    std::string fpgaName = "bosc_ame.fpga." + name.drop_front(9).str();
 
     // Matrix load: memref, i64 stride -> scalable LLVM vector.
     if (op->getNumResults() == 1 && op->getNumOperands() == 2 &&
@@ -166,9 +212,18 @@ public:
       if (!resultType)
         return failure();
       Value base = extractPointerFromMemref(rewriter, loc, op->getOperand(0));
+      SmallVector<Value> loadOperands{base, operands[1]};
+      if (fpga) {
+        auto slot = op->getAttrOfType<IntegerAttr>("bosc_ame.fpga.slot");
+        if (!slot || slot.getInt() < 0 || slot.getInt() > 7)
+          return op->emitError("FPGA matrix load requires a slot in [0, 7]");
+        loadOperands.push_back(LLVM::ConstantOp::create(
+            rewriter, loc, rewriter.getI32Type(),
+            rewriter.getI32IntegerAttr(slot.getInt())));
+      }
       Operation *intrinsic =
-          createBOSCAMEIntrinsicOp(rewriter, loc, name, TypeRange{resultType},
-                                   ValueRange{base, operands[1]});
+          createBOSCAMEIntrinsicOp(rewriter, loc, fpga ? fpgaName : name,
+                                  TypeRange{resultType}, loadOperands);
       rewriter.replaceOp(op, intrinsic->getResults());
       return success();
     }
@@ -177,7 +232,7 @@ public:
     if (op->getNumResults() == 0 && op->getNumOperands() == 3 &&
         isMemRefValue(op->getOperand(1))) {
       Value base = extractPointerFromMemref(rewriter, loc, op->getOperand(1));
-      createBOSCAMEIntrinsicOp(rewriter, loc, name, TypeRange(),
+      createBOSCAMEIntrinsicOp(rewriter, loc, fpga ? fpgaName : name, TypeRange(),
                                ValueRange{operands[0], base, operands[2]});
       rewriter.eraseOp(op);
       return success();
@@ -198,7 +253,9 @@ public:
     }
 
     Operation *intrinsic = createBOSCAMEIntrinsicOp(
-        rewriter, loc, name, TypeRange(resultTypes), intrinsicOperands);
+        rewriter, loc,
+        fpga && name == "bosc_ame.mqma.b.mm" ? fpgaName : name,
+        TypeRange(resultTypes), intrinsicOperands);
     rewriter.replaceOp(op, intrinsic->getResults());
     return success();
   }
@@ -222,10 +279,72 @@ struct LegalizeBOSCAMEForLLVMExport
     registry.insert<LLVM::LLVMDialect>();
     registry.insert<arith::ArithDialect>();
     registry.insert<memref::MemRefDialect>();
+    registry.insert<scf::SCFDialect>();
+  }
+
+  /// FPGA profile: make the backend select the FPGA register-file convention.
+  ///
+  /// The `mtype` encoding alone is not enough: the FPGA convention also covers
+  /// how matrix values map to the tile/accumulator register files, which is a
+  /// target feature.  Carrying it on the lowered functions keeps a single
+  /// source of truth for "which AME contract is this module" instead of relying
+  /// on every caller remembering `-mattr=+xboscame-fpga`.
+  LogicalResult annotateFPGATargetFeatures(ModuleOp module) {
+    FailureOr<AmeTargetProfile> profile = resolveAmeTarget(module, "");
+    if (failed(profile) || !isFpgaTarget(*profile))
+      return success();
+
+    MLIRContext *context = &getContext();
+    llvm::SmallVector<llvm::StringRef, 4> features = {kFPGATargetFeature};
+    WalkResult result = module.walk([&](FunctionOpInterface function) {
+      llvm::SmallVector<llvm::StringRef, 4> merged(features);
+      std::string featureAttrName =
+          isa<LLVM::LLVMFuncOp>(function.getOperation())
+              ? LLVM::TargetFeaturesAttr::getAttributeName().str()
+              : ("llvm." + LLVM::TargetFeaturesAttr::getAttributeName()).str();
+      if (auto existing = function->getAttrOfType<LLVM::TargetFeaturesAttr>(
+              featureAttrName)) {
+        for (llvm::StringRef feature : existing.getFeatures()) {
+          if (feature == "-xboscame-fpga" || feature == "-xboscame") {
+            function->emitError()
+                << "target features disable the module's "
+                << stringifyAmeTargetProfile(*profile) << " AME contract";
+            return WalkResult::interrupt();
+          }
+          if (!llvm::is_contained(merged, feature))
+            merged.push_back(feature);
+        }
+      }
+      // func.func needs the llvm.* prefix for conversion; llvm.func already
+      // stores the feature set as its unprefixed target_features property.
+      function->setAttr(featureAttrName,
+                        LLVM::TargetFeaturesAttr::get(context, merged));
+      return WalkResult::advance();
+    });
+    return failure(result.wasInterrupted());
+  }
+
+  /// Reject AME operations the FPGA convention cannot represent before they can
+  /// reach the backend and select the wrong register file.
+  LogicalResult verifyFPGACapabilities(ModuleOp module) {
+    FailureOr<AmeTargetProfile> profile = resolveAmeTarget(module, "");
+    if (failed(profile))
+      return failure();
+    if (!isFpgaTarget(*profile))
+      return success();
+    return verifyFpgaAmeCapabilities(module);
   }
 
   void runOnOperation() override {
     ModuleOp module = getOperation();
+    if (failed(verifyFPGACapabilities(module))) {
+      signalPassFailure();
+      return;
+    }
+    if (failed(annotateFPGATargetFeatures(module))) {
+      signalPassFailure();
+      return;
+    }
     MLIRContext &context = getContext();
     LLVMConversionTarget target(context);
     target.addLegalDialect<arith::ArithDialect>();
@@ -238,6 +357,15 @@ struct LegalizeBOSCAMEForLLVMExport
     addBOSCAMETypeConversions(converter);
     RewritePatternSet patterns(&context);
     patterns.add<BOSCAMEToIntrinsicLowering>(converter, &context);
+    // A matrix value that is carried across an `scf.for` reduction (the FPGA
+    // accumulator chain) has to be converted consistently with the value
+    // produced by the intrinsic, otherwise the loop result keeps the fixed
+    // `vector<4x4xT>` type and a permanent unrealized_conversion_cast bridges
+    // it to the scalable register type.  `reconcile-unrealized-casts` cannot
+    // remove that bridge once the loop is lowered to a CFG, and the LLVM
+    // translation refuses it.
+    scf::populateSCFStructuralTypeConversionsAndLegality(converter, patterns,
+                                                         target);
     if (failed(applyPartialConversion(module, target, std::move(patterns))))
       signalPassFailure();
   }
@@ -249,6 +377,9 @@ void mlir::populateBOSCAMELegalizeForLLVMExportPatterns(
     LLVMTypeConverter &converter, RewritePatternSet &patterns) {
   addBOSCAMETypeConversions(converter);
   patterns.add<BOSCAMEToIntrinsicLowering>(converter, patterns.getContext());
+  // NOTE: callers of this helper that also lower loop-carried matrix values
+  // must add `scf::populateSCFStructuralTypeConversionsAndLegality` themselves;
+  // see the pass below.
 }
 
 void mlir::configureBOSCAMELegalizeForExportTarget(

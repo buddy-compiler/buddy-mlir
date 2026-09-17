@@ -1,0 +1,308 @@
+{
+  "status": "FULL_LOGITS_KV_PASS",
+  "run_id": "run-015b4fabf4014edc",
+  "fpga": 5,
+  "scope": {
+    "layers": 1,
+    "vocab_size": 151936,
+    "prefill_len": 16,
+    "decode_steps": 8,
+    "capacity": 512,
+    "prompt_ids": [
+      151644,
+      872,
+      198,
+      3838,
+      374,
+      9625,
+      30,
+      151645,
+      198,
+      151644,
+      77091,
+      198,
+      151667,
+      271,
+      151668,
+      271
+    ],
+    "arithmetic_profile": "nr-fpga",
+    "quantization": "W8A8 linear and tied embedding; FP32 residual/cache"
+  },
+  "identity_checks": {
+    "run_result_complete": true,
+    "deployment_segment_hashes_match_uploaded_manifest": true,
+    "all_segments_ddr_readback_match": true,
+    "elf_hash_matches_deployment": true,
+    "raw_bin_matches_padded_upload": true,
+    "reference_npz_hash_matches_oracle_manifest": true,
+    "oracle_blob_repacked_from_npz_matches": true,
+    "oracle_blob_in_executed_elf_matches": true,
+    "oracle_symbol": "0x8002c580",
+    "oracle_elf_file_offset": 120192,
+    "legacy_manifest_preserved_unchanged": true,
+    "legacy_metadata_verified_by_checker": false,
+    "supplemental_prompt_dimensions_trajectory_crosscheck": true
+  },
+  "numerical": {
+    "whole_tensor_comparisons": 27,
+    "scope": "all 151936 last-position logits and all valid K/V elements at every step; hidden states not captured",
+    "max_abs_error": 0.0,
+    "mean_abs_error": 0.0,
+    "generated_tokens": [
+      33067,
+      11853,
+      11853,
+      11853,
+      11853,
+      11853,
+      11853,
+      11853,
+      11853
+    ],
+    "fpga_vs_compiled_host": "sampled only: nine logits and one K/V coordinate per layer per position plus argmax",
+    "compiled_host_selected_logit_max_abs_error": 9.5367431640625e-07,
+    "compiled_host_argmax_logit_max_abs_error": 3.814697265625e-06,
+    "compiled_host_kv_sample_max_abs_error": 0.0
+  },
+  "performance": {
+    "stages": [
+      {
+        "stage": "prefill",
+        "position": 0,
+        "last_output_position": 15,
+        "token": 33067,
+        "logit": 8.82975959777832,
+        "compute_cycles": 1183615186
+      },
+      {
+        "stage": "decode_0",
+        "position": 16,
+        "last_output_position": 16,
+        "token": 11853,
+        "logit": 13.333653450012207,
+        "compute_cycles": 784100292
+      },
+      {
+        "stage": "decode_1",
+        "position": 17,
+        "last_output_position": 17,
+        "token": 11853,
+        "logit": 20.812864303588867,
+        "compute_cycles": 784122030
+      },
+      {
+        "stage": "decode_2",
+        "position": 18,
+        "last_output_position": 18,
+        "token": 11853,
+        "logit": 22.293760299682617,
+        "compute_cycles": 784127784
+      },
+      {
+        "stage": "decode_3",
+        "position": 19,
+        "last_output_position": 19,
+        "token": 11853,
+        "logit": 22.316184997558594,
+        "compute_cycles": 784128243
+      },
+      {
+        "stage": "decode_4",
+        "position": 20,
+        "last_output_position": 20,
+        "token": 11853,
+        "logit": 22.396562576293945,
+        "compute_cycles": 784127494
+      },
+      {
+        "stage": "decode_5",
+        "position": 21,
+        "last_output_position": 21,
+        "token": 11853,
+        "logit": 22.649728775024414,
+        "compute_cycles": 784124937
+      },
+      {
+        "stage": "decode_6",
+        "position": 22,
+        "last_output_position": 22,
+        "token": 11853,
+        "logit": 22.500843048095703,
+        "compute_cycles": 784135605
+      },
+      {
+        "stage": "decode_7",
+        "position": 23,
+        "last_output_position": 23,
+        "token": 11853,
+        "logit": 22.641258239746094,
+        "compute_cycles": 784125479
+      }
+    ],
+    "graph_compute_total_cycles": 7456607050,
+    "nr_launch_cycles": 7591649001,
+    "cycle_scope": "graph calls only; launch includes oracle comparisons, trace output and setup"
+  },
+  "archived_files": {
+    "result.json": {
+      "path": "examples/FPGA-BOSCAME/qwen3-0.6b/model/validation/board/review/model-1l-full/result.json",
+      "bytes": 487,
+      "sha256": "7bb7835a4dd31d5531f81bbc4548551598273bb2d5776f43afebbcf45196749f"
+    },
+    "run-manifest.json": {
+      "path": "examples/FPGA-BOSCAME/qwen3-0.6b/model/validation/board/review/model-1l-full/run-manifest.json",
+      "bytes": 436,
+      "sha256": "2ef07adc5d653fe29c835f05477756a3b4c05275170691ba2856114fcd9e5c37"
+    },
+    "uart.raw.log": {
+      "path": "examples/FPGA-BOSCAME/qwen3-0.6b/model/validation/board/review/model-1l-full/uart.raw.log",
+      "bytes": 7361,
+      "sha256": "7203ec7f65562976f4b3d1683ccdcc306cb658d9b1f6a132a9f17275c3f18896"
+    },
+    "uvhs.log": {
+      "path": "examples/FPGA-BOSCAME/qwen3-0.6b/model/validation/board/review/model-1l-full/uvhs.log",
+      "bytes": 67978,
+      "sha256": "28bada37d483747256d38e6e7b48aa60252d8740cef5f5d80258718aa088a1a0"
+    },
+    "worker.log": {
+      "path": "examples/FPGA-BOSCAME/qwen3-0.6b/model/validation/board/review/model-1l-full/worker.log",
+      "bytes": 8718,
+      "sha256": "9070dbd344e7eec6e634a56b85b31b502bf69685b7cfba8a9d5707a1f86ed2d6"
+    },
+    "numeric-reference.json": {
+      "path": "examples/FPGA-BOSCAME/qwen3-0.6b/model/validation/board/review/model-1l-full/numeric-reference.json",
+      "bytes": 495,
+      "sha256": "64e03829191e49241f57827b4ef8f00fa19f675923fcd7880b801480b7b05a2f"
+    },
+    "image.json": {
+      "path": "examples/FPGA-BOSCAME/qwen3-0.6b/model/validation/board/review/model-1l-full/image.json",
+      "bytes": 13174,
+      "sha256": "73752e6c0a559777ddc95abecdbbeddf3fae50b9f7a8ef7901e6effba44583bf"
+    },
+    "elf-audit.json": {
+      "path": "examples/FPGA-BOSCAME/qwen3-0.6b/model/validation/board/review/model-1l-full/elf-audit.json",
+      "bytes": 582,
+      "sha256": "cf5a85d1e75caae269b754fe23eb682452b22a42044f26e9cb06259f34de55aa"
+    },
+    "w8a8-image-plan.json": {
+      "path": "examples/FPGA-BOSCAME/qwen3-0.6b/model/validation/board/review/model-1l-full/w8a8-image-plan.json",
+      "bytes": 3250,
+      "sha256": "3c37403080fedac76ee280f50a37e29c36aaa4656a65be73acfbbf395ae9efb0"
+    },
+    "qwen_model.map": {
+      "path": "examples/FPGA-BOSCAME/qwen3-0.6b/model/validation/board/review/model-1l-full/qwen_model.map",
+      "bytes": 293961,
+      "sha256": "fb35aebc02dd70d2a3a42d11bac18f691cf2715ad7da70be4c756c6fb6189605"
+    },
+    "model_main.c": {
+      "path": "examples/FPGA-BOSCAME/qwen3-0.6b/model/validation/board/review/model-1l-full/model_main.c",
+      "bytes": 21494,
+      "sha256": "d5367ef682b7ead758faef6c27bb91fa0eb3ac7ce8b8b2716ec7858260162d64"
+    },
+    "deployment.json": {
+      "path": "examples/FPGA-BOSCAME/qwen3-0.6b/model/validation/board/review/model-1l-full/deployment.json",
+      "bytes": 877,
+      "sha256": "8becb659e6ca680369109be6e284639d8a9e83710c86e47ca4c8627a479eaf73"
+    },
+    "ddr-load.plan": {
+      "path": "examples/FPGA-BOSCAME/qwen3-0.6b/model/validation/board/review/model-1l-full/ddr-load.plan",
+      "bytes": 486,
+      "sha256": "d4ab86a845a1a1d227f29ae09194a91d257a51c5d4b2d3d3794ea51ecf5aa61c"
+    },
+    "quant-reference.json": {
+      "path": "examples/FPGA-BOSCAME/qwen3-0.6b/model/validation/board/review/model-1l-full/quant-reference.json",
+      "bytes": 7603,
+      "sha256": "4580a946b4b6cae947991b779b83f95377c9faa04c03312458b246393196aa7c"
+    },
+    "host-run.json": {
+      "path": "examples/FPGA-BOSCAME/qwen3-0.6b/model/validation/board/review/model-1l-full/host-run.json",
+      "bytes": 69955,
+      "sha256": "78af814eaf072b5338a097aa57dbdbe43360ae01b150f8f40dafa2ec2fd94577"
+    },
+    "archive.json": {
+      "path": "examples/FPGA-BOSCAME/qwen3-0.6b/model/validation/board/review/model-1l-full/archive.json",
+      "bytes": 159400,
+      "sha256": "3b2de8c1fa09eaeee52f97a4ded75f93ba5fb2ae1c93f51f415599a9886e400f"
+    },
+    "external-link.json": {
+      "path": "examples/FPGA-BOSCAME/qwen3-0.6b/model/validation/board/review/model-1l-full/external-link.json",
+      "bytes": 199,
+      "sha256": "fbe915150064300cffd7c1ef7f918db5c5821ca67b851f1637ceaacb62518b8e"
+    },
+    "symbols.txt": {
+      "path": "examples/FPGA-BOSCAME/qwen3-0.6b/model/validation/board/review/model-1l-full/symbols.txt",
+      "bytes": 10490,
+      "sha256": "05d3959f110e8c1981cc3ad567fb226d3601ea9156a242e601b81b2256510a30"
+    },
+    "triton-call-replacement.json": {
+      "path": "examples/FPGA-BOSCAME/qwen3-0.6b/model/validation/board/review/model-1l-full/triton-call-replacement.json",
+      "bytes": 136914,
+      "sha256": "5e3c1660fc6de66f2fa0c1a6a2bce5b20e580aa4ceba5b24e70ca6f6468f4a84"
+    }
+  },
+  "large_artifacts_not_copied": [
+    {
+      "path": "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-1l/quant-nr-order/arrays.npz",
+      "bytes": 14391428,
+      "sha256": "1083f9f9d1d178deebc730e5e0371b34c26767c49a46e67989caf32e65d2c227"
+    },
+    {
+      "path": "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-1l/host-trace/arrays.npz",
+      "bytes": 18945846,
+      "sha256": "00dfbf69d43bd70806ecdab6f03ee9228a5c970f2f74b0bdbdd21864b17ed785"
+    },
+    {
+      "path": "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-1l/image-oracle/qwen_model.elf",
+      "bytes": 5947856,
+      "sha256": "918a65ba662385592382d984dc2fe3997117148205937e49e72eafbb174fb61e"
+    },
+    {
+      "path": "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-1l/image-oracle/qwen_model.bin",
+      "bytes": 5849793,
+      "sha256": "85f94e5601fb8b5f32b787b63fc1dba485d3d88ffed35a4ad6efc48490935cd2"
+    },
+    {
+      "path": "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-1l/image-oracle/numeric-reference.bin",
+      "bytes": 5666304,
+      "sha256": "e6a20dcd280eb5b53cef7a74b5ce885e11c25df82265083440c6bdcb79172333"
+    },
+    {
+      "path": "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-1l/prepared-oracle-audit/image.bin",
+      "bytes": 5849856,
+      "sha256": "8e2747d650a4e9e10efbfd212230b26c8e00aad71614d3c6bd0a1df5b06df517"
+    },
+    {
+      "path": "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-1l/prepared-oracle-audit/weights-w8a8.bin",
+      "bytes": 171981568,
+      "sha256": "7dadd6dc021fb23eb9741f6d2da3dc00c31b9b1e5c7b5369b2b705d97de98143"
+    },
+    {
+      "path": "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-1l/model-lib/libqwen_triton.a",
+      "bytes": 261590,
+      "sha256": "6082d332e9cbcdf844ab5781a352db9a55d1fb84987beb19c74b420047965f67"
+    },
+    {
+      "path": "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-1l/nr-prefill/forward_prefill.ll",
+      "bytes": 562366,
+      "sha256": "8c958fb86f39b5e8d26656851c17136c361f631c2983f11f0765a04df73f363a"
+    },
+    {
+      "path": "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-1l/nr-decode/forward_decode.ll",
+      "bytes": 561264,
+      "sha256": "d144a28a8e8879ca40d0d08ce7fe2ed5f905899f4bae69785e55391b2ad03e00"
+    },
+    {
+      "path": "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-1l/replacement/qwen_triton_adapters.c",
+      "bytes": 40932,
+      "sha256": "ef169b4ce3e3e7c7a2cec149b509fc998ecde5f828d3290434b34575bd721250"
+    }
+  ],
+  "limits": [
+    "Only one decoder layer; not full 28-layer acceptance.",
+    "Fixed IDs originate on host for this numeric test; this run does not exercise UART input or board tokenizer.",
+    "Oracle summaries cover full last-position logits and valid cache, not hidden states or all prefill-position logits.",
+    "Legacy oracle metadata lacked schema/dimensions; preserved unchanged, with separate crosschecks above.",
+    "Build-time input hashes identify the executed image even when runtime source later changes."
+  ]
+}

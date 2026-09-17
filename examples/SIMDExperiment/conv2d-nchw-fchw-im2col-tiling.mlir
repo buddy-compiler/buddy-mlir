@@ -113,7 +113,7 @@ func.func @conv2d_nchw_fchw_im2col(%input: memref<?x?x?x?xf32>, %kernel: memref<
   %c64 = arith.constant 64 : index
   %kernel_collapse = memref.collapse_shape %kernel_specific [[0], [1, 2, 3]] : memref<64x64x3x3xf32> into memref<64x576xf32>
   %output_collapse = memref.collapse_shape %output_specific [[0], [1], [2, 3]] : memref<1x64x56x56xf32> into memref<1x64x3136xf32>
-  %input_collapse = memref.alloc() {alignment = 64 : i64} : memref<1x576x3136xf32>
+  %input_collapse = memref.alloc() alignment = 64 : memref<1x576x3136xf32>
   // Apply im2col.
   scf.for %idx0 = %c0 to %c1 step %c1 {
     scf.for %idx1 = %c0 to %c576 step %c1 {

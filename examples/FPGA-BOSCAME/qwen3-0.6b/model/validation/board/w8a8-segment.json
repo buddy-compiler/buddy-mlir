@@ -1,0 +1,33 @@
+{
+  "stage": "W8A8 parameter segment materialised from the compiled graph's parameter list",
+  "segment": {
+    "segment": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/board/w8a8-28l/weights-w8a8.bin",
+    "bytes": 598230784,
+    "sha256": "0ddd3640545b26c09a3e2fa6829f7675a2d1a5b128490635b7037efd697e33a7",
+    "address": "0xb8000000",
+    "alignment": 64,
+    "parameters": 508
+  },
+  "cross_check_against_the_image_plan": {
+    "segment_int8_bytes": 595984384,
+    "plan_weights_int8": 595984384,
+    "int8_matches": true,
+    "segment_f32_bytes": 2246400,
+    "plan_scales_plus_kept_f32": 2246400,
+    "f32_matches": true,
+    "reading": "the segment built from the graph's parameter list and the image planned from the checkpoint agree byte for byte in both the int8 and the f32 totals. Two independent derivations, same answer -- so the rewrite quantises exactly the tensors the deployment plan expected, in the same amounts."
+  },
+  "how_it_is_built": {
+    "order": "graph.params, positionally -- that is the compiled entry's argument order, so the segment is the layout",
+    "alignment": "every parameter 64-byte aligned; the tool records each offset so the bare-metal main can build a descriptor",
+    "int8_matrices_and_scales": "quantised from the checkpoint with the same contract the Triton kernels implement",
+    "f32_left": "RMSNorm weights and the rotary table; the table is computed from rope_theta because the checkpoint does not contain it",
+    "shared_tied_matrix": "one int8 copy, shared by the embedding gather and lm_head"
+  },
+  "not_yet": [
+    "the image.bin in the plan is a 64 KiB placeholder, not a real model image",
+    "lower_model_nr.py does not yet know about --w8a8",
+    "no bare-metal main for the 508 parameters and 1578 workspace inputs",
+    "nothing on the board"
+  ]
+}

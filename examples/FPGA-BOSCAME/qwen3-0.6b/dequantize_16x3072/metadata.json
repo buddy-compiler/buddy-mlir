@@ -1,0 +1,10 @@
+{
+  "kind": "dequantization",
+  "shape": [
+    16,
+    3072
+  ],
+  "dtype": "i32 -> f32",
+  "target": "scalar",
+  "model_operator": false
+}

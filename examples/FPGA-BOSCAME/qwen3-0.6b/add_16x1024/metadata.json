@@ -1,0 +1,38 @@
+{
+  "name": "add_16x1024",
+  "kind": "add",
+  "dtype": "f32",
+  "description": "Residual connection",
+  "entry": "kernel_add_16x1024",
+  "workspace_bytes": 196608,
+  "buffers": [
+    {
+      "name": "x",
+      "shape": [
+        16,
+        1024
+      ],
+      "dtype": "f32",
+      "offset": 0
+    },
+    {
+      "name": "y",
+      "shape": [
+        16,
+        1024
+      ],
+      "dtype": "f32",
+      "offset": 65536
+    },
+    {
+      "name": "out",
+      "shape": [
+        16,
+        1024
+      ],
+      "dtype": "f32",
+      "offset": 131072
+    }
+  ],
+  "validation": "All output elements versus an independent C oracle; host oracle uses libm double precision."
+}

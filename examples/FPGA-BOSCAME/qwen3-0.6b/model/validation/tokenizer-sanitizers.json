@@ -1,0 +1,17 @@
+{
+  "status": "PASS",
+  "execution": "host ASan/UBSan; no FPGA access",
+  "command": [
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/text-audit/safety-check",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/text-audit/tokenizer.bin"
+  ],
+  "exit_code": 0,
+  "stdout": "PASS host sanitizer boundary checks\n",
+  "stderr": "",
+  "source_sha256": {
+    "tests/tokenizer_safety_check.c": "8d24d4bad286df2d4fe39858823fb3f2472f3c4c79ab2499bbb9ffcd24b6abbb",
+    "text/tokenizer_resource.c": "bac5018fb31802035c2716bab98539e7429d92cc2bd94b13bd56fafc11b1304f",
+    "text/tokenizer_encode.c": "c65e1de2c1b1b88ecfac82d3a7c402e2e1382a1a1fb73f649e7cadc73d239997",
+    "text/unicode_tables.c": "c944e508f8bc45e2a24b15d2a717d969822aa18f5c4381862a136d936f136364"
+  }
+}

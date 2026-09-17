@@ -1,0 +1,34 @@
+{
+  "elf": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/ame-v05/model-28l-cap128/image/qwen_model.elf",
+  "elf_sha256": "afe0244ab9d8f65fd7fa8e95f6d17119e4812efbe8b116cb732b5b4c51b15886",
+  "segments": [
+    {
+      "name": "model",
+      "file": "image.bin",
+      "address": 2147483648,
+      "size": 12712448,
+      "sha256": "85163f82c2c56d0b44238ee2c008f538ad4b46b8c8b77f5e27cea7a21dd7ef3a"
+    },
+    {
+      "name": "weights",
+      "file": "weights-w8a8.bin",
+      "address": 3087007744,
+      "size": 598230784,
+      "sha256": "0ddd3640545b26c09a3e2fa6829f7675a2d1a5b128490635b7037efd697e33a7",
+      "arena_end": 3685238528
+    },
+    {
+      "name": "tokenizer",
+      "file": "tokenizer.bin",
+      "address": 3714598848,
+      "size": 5222976,
+      "sha256": "7e436961bdc35adbcca4887a6f767cdbdaabc69cc0349298a40c54a400b4bcc4",
+      "arena_end": 3719821824
+    }
+  ],
+  "boot_bin_matches_elf": true,
+  "elf_objcopy_bytes": 12712385,
+  "per_resource_arena_bounds_verified": true,
+  "workspace_end": "0xe21d5b00",
+  "execution": "prepared only; no hardware result"
+}

@@ -1,0 +1,971 @@
+{
+  "execution": "FPGA, compared after execution on host",
+  "scope": {
+    "layers": 1,
+    "prefill": 16,
+    "decode_steps": 8
+  },
+  "limits": [
+    "Full logits/valid-KV errors are computed on FPGA; UART carries summaries",
+    "Compiled-host comparison remains sampled; hidden states are not captured",
+    "Full 28-layer and UART interactive acceptance are separate requirements"
+  ],
+  "inputs": {
+    "examples/FPGA-BOSCAME/build/fpga-runs/run-015b4fabf4014edc/uart.raw.log": "7203ec7f65562976f4b3d1683ccdcc306cb658d9b1f6a132a9f17275c3f18896",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-1l/host-trace/arrays.npz": "00dfbf69d43bd70806ecdab6f03ee9228a5c970f2f74b0bdbdd21864b17ed785",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-1l/quant-nr-order/arrays.npz": "1083f9f9d1d178deebc730e5e0371b34c26767c49a46e67989caf32e65d2c227",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-1l/image-oracle/numeric-reference.json": "64e03829191e49241f57827b4ef8f00fa19f675923fcd7880b801480b7b05a2f"
+  },
+  "fpga_vs_compiled_host": {
+    "scope": "argmax, nine logits, and head0/dim0 of K/V at written positions",
+    "trace_complete": true,
+    "stages": {
+      "prefill": {
+        "position": 0,
+        "position_semantics": "graph_start",
+        "last_output_position": 15,
+        "token": 33067,
+        "logit": 8.82975959777832,
+        "compute_cycles": 1183615186,
+        "reference_token": 33067,
+        "token_matches": true,
+        "selected_max_logit_abs_error": 0.0
+      },
+      "decode_0": {
+        "position": 16,
+        "position_semantics": "graph_start",
+        "last_output_position": 16,
+        "token": 11853,
+        "logit": 13.333653450012207,
+        "compute_cycles": 784100292,
+        "reference_token": 11853,
+        "token_matches": true,
+        "selected_max_logit_abs_error": 1.9073486328125e-06
+      },
+      "decode_1": {
+        "position": 17,
+        "position_semantics": "graph_start",
+        "last_output_position": 17,
+        "token": 11853,
+        "logit": 20.812864303588867,
+        "compute_cycles": 784122030,
+        "reference_token": 11853,
+        "token_matches": true,
+        "selected_max_logit_abs_error": 3.814697265625e-06
+      },
+      "decode_2": {
+        "position": 18,
+        "position_semantics": "graph_start",
+        "last_output_position": 18,
+        "token": 11853,
+        "logit": 22.293760299682617,
+        "compute_cycles": 784127784,
+        "reference_token": 11853,
+        "token_matches": true,
+        "selected_max_logit_abs_error": 1.9073486328125e-06
+      },
+      "decode_3": {
+        "position": 19,
+        "position_semantics": "graph_start",
+        "last_output_position": 19,
+        "token": 11853,
+        "logit": 22.316184997558594,
+        "compute_cycles": 784128243,
+        "reference_token": 11853,
+        "token_matches": true,
+        "selected_max_logit_abs_error": 0.0
+      },
+      "decode_4": {
+        "position": 20,
+        "position_semantics": "graph_start",
+        "last_output_position": 20,
+        "token": 11853,
+        "logit": 22.396562576293945,
+        "compute_cycles": 784127494,
+        "reference_token": 11853,
+        "token_matches": true,
+        "selected_max_logit_abs_error": 0.0
+      },
+      "decode_5": {
+        "position": 21,
+        "position_semantics": "graph_start",
+        "last_output_position": 21,
+        "token": 11853,
+        "logit": 22.649728775024414,
+        "compute_cycles": 784124937,
+        "reference_token": 11853,
+        "token_matches": true,
+        "selected_max_logit_abs_error": 1.9073486328125e-06
+      },
+      "decode_6": {
+        "position": 22,
+        "position_semantics": "graph_start",
+        "last_output_position": 22,
+        "token": 11853,
+        "logit": 22.500843048095703,
+        "compute_cycles": 784135605,
+        "reference_token": 11853,
+        "token_matches": true,
+        "selected_max_logit_abs_error": 0.0
+      },
+      "decode_7": {
+        "position": 23,
+        "position_semantics": "graph_start",
+        "last_output_position": 23,
+        "token": 11853,
+        "logit": 22.641258239746094,
+        "compute_cycles": 784125479,
+        "reference_token": 11853,
+        "token_matches": true,
+        "selected_max_logit_abs_error": 0.0
+      }
+    },
+    "selected_logits": [
+      {
+        "position": 15,
+        "token_ids": [
+          49000,
+          374,
+          264,
+          3146,
+          7407,
+          304,
+          4787,
+          5159,
+          11
+        ],
+        "samples": 9,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 16,
+        "token_ids": [
+          49000,
+          374,
+          264,
+          3146,
+          7407,
+          304,
+          4787,
+          5159,
+          11
+        ],
+        "samples": 9,
+        "max_abs_error": 9.5367431640625e-07,
+        "mean_abs_error": 3.5762786865234375e-07,
+        "all_finite": true
+      },
+      {
+        "position": 17,
+        "token_ids": [
+          49000,
+          374,
+          264,
+          3146,
+          7407,
+          304,
+          4787,
+          5159,
+          11
+        ],
+        "samples": 9,
+        "max_abs_error": 9.5367431640625e-07,
+        "mean_abs_error": 3.8080745273166235e-07,
+        "all_finite": true
+      },
+      {
+        "position": 18,
+        "token_ids": [
+          49000,
+          374,
+          264,
+          3146,
+          7407,
+          304,
+          4787,
+          5159,
+          11
+        ],
+        "samples": 9,
+        "max_abs_error": 4.76837158203125e-07,
+        "mean_abs_error": 1.556343502468533e-07,
+        "all_finite": true
+      },
+      {
+        "position": 19,
+        "token_ids": [
+          49000,
+          374,
+          264,
+          3146,
+          7407,
+          304,
+          4787,
+          5159,
+          11
+        ],
+        "samples": 9,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 20,
+        "token_ids": [
+          49000,
+          374,
+          264,
+          3146,
+          7407,
+          304,
+          4787,
+          5159,
+          11
+        ],
+        "samples": 9,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 21,
+        "token_ids": [
+          49000,
+          374,
+          264,
+          3146,
+          7407,
+          304,
+          4787,
+          5159,
+          11
+        ],
+        "samples": 9,
+        "max_abs_error": 4.76837158203125e-07,
+        "mean_abs_error": 1.5977356168958875e-07,
+        "all_finite": true
+      },
+      {
+        "position": 22,
+        "token_ids": [
+          49000,
+          374,
+          264,
+          3146,
+          7407,
+          304,
+          4787,
+          5159,
+          11
+        ],
+        "samples": 9,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 23,
+        "token_ids": [
+          49000,
+          374,
+          264,
+          3146,
+          7407,
+          304,
+          4787,
+          5159,
+          11
+        ],
+        "samples": 9,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      }
+    ],
+    "kv_samples_head0_dim0": [
+      {
+        "position": 15,
+        "layer": 0,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 16,
+        "layer": 0,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 17,
+        "layer": 0,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 18,
+        "layer": 0,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 19,
+        "layer": 0,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 20,
+        "layer": 0,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 21,
+        "layer": 0,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 22,
+        "layer": 0,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 23,
+        "layer": 0,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      }
+    ],
+    "sampled_numeric_pass_at_1e_3": true
+  },
+  "fpga_vs_independent_quantized_reference": {
+    "scope": "argmax, nine logits, and head0/dim0 of K/V at written positions",
+    "trace_complete": true,
+    "stages": {
+      "prefill": {
+        "position": 0,
+        "position_semantics": "graph_start",
+        "last_output_position": 15,
+        "token": 33067,
+        "logit": 8.82975959777832,
+        "compute_cycles": 1183615186,
+        "reference_token": 33067,
+        "token_matches": true,
+        "selected_max_logit_abs_error": 0.0
+      },
+      "decode_0": {
+        "position": 16,
+        "position_semantics": "graph_start",
+        "last_output_position": 16,
+        "token": 11853,
+        "logit": 13.333653450012207,
+        "compute_cycles": 784100292,
+        "reference_token": 11853,
+        "token_matches": true,
+        "selected_max_logit_abs_error": 0.0
+      },
+      "decode_1": {
+        "position": 17,
+        "position_semantics": "graph_start",
+        "last_output_position": 17,
+        "token": 11853,
+        "logit": 20.812864303588867,
+        "compute_cycles": 784122030,
+        "reference_token": 11853,
+        "token_matches": true,
+        "selected_max_logit_abs_error": 0.0
+      },
+      "decode_2": {
+        "position": 18,
+        "position_semantics": "graph_start",
+        "last_output_position": 18,
+        "token": 11853,
+        "logit": 22.293760299682617,
+        "compute_cycles": 784127784,
+        "reference_token": 11853,
+        "token_matches": true,
+        "selected_max_logit_abs_error": 0.0
+      },
+      "decode_3": {
+        "position": 19,
+        "position_semantics": "graph_start",
+        "last_output_position": 19,
+        "token": 11853,
+        "logit": 22.316184997558594,
+        "compute_cycles": 784128243,
+        "reference_token": 11853,
+        "token_matches": true,
+        "selected_max_logit_abs_error": 0.0
+      },
+      "decode_4": {
+        "position": 20,
+        "position_semantics": "graph_start",
+        "last_output_position": 20,
+        "token": 11853,
+        "logit": 22.396562576293945,
+        "compute_cycles": 784127494,
+        "reference_token": 11853,
+        "token_matches": true,
+        "selected_max_logit_abs_error": 0.0
+      },
+      "decode_5": {
+        "position": 21,
+        "position_semantics": "graph_start",
+        "last_output_position": 21,
+        "token": 11853,
+        "logit": 22.649728775024414,
+        "compute_cycles": 784124937,
+        "reference_token": 11853,
+        "token_matches": true,
+        "selected_max_logit_abs_error": 0.0
+      },
+      "decode_6": {
+        "position": 22,
+        "position_semantics": "graph_start",
+        "last_output_position": 22,
+        "token": 11853,
+        "logit": 22.500843048095703,
+        "compute_cycles": 784135605,
+        "reference_token": 11853,
+        "token_matches": true,
+        "selected_max_logit_abs_error": 0.0
+      },
+      "decode_7": {
+        "position": 23,
+        "position_semantics": "graph_start",
+        "last_output_position": 23,
+        "token": 11853,
+        "logit": 22.641258239746094,
+        "compute_cycles": 784125479,
+        "reference_token": 11853,
+        "token_matches": true,
+        "selected_max_logit_abs_error": 0.0
+      }
+    },
+    "selected_logits": [
+      {
+        "position": 15,
+        "token_ids": [
+          49000,
+          374,
+          264,
+          3146,
+          7407,
+          304,
+          4787,
+          5159,
+          11
+        ],
+        "samples": 9,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 16,
+        "token_ids": [
+          49000,
+          374,
+          264,
+          3146,
+          7407,
+          304,
+          4787,
+          5159,
+          11
+        ],
+        "samples": 9,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 17,
+        "token_ids": [
+          49000,
+          374,
+          264,
+          3146,
+          7407,
+          304,
+          4787,
+          5159,
+          11
+        ],
+        "samples": 9,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 18,
+        "token_ids": [
+          49000,
+          374,
+          264,
+          3146,
+          7407,
+          304,
+          4787,
+          5159,
+          11
+        ],
+        "samples": 9,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 19,
+        "token_ids": [
+          49000,
+          374,
+          264,
+          3146,
+          7407,
+          304,
+          4787,
+          5159,
+          11
+        ],
+        "samples": 9,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 20,
+        "token_ids": [
+          49000,
+          374,
+          264,
+          3146,
+          7407,
+          304,
+          4787,
+          5159,
+          11
+        ],
+        "samples": 9,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 21,
+        "token_ids": [
+          49000,
+          374,
+          264,
+          3146,
+          7407,
+          304,
+          4787,
+          5159,
+          11
+        ],
+        "samples": 9,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 22,
+        "token_ids": [
+          49000,
+          374,
+          264,
+          3146,
+          7407,
+          304,
+          4787,
+          5159,
+          11
+        ],
+        "samples": 9,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 23,
+        "token_ids": [
+          49000,
+          374,
+          264,
+          3146,
+          7407,
+          304,
+          4787,
+          5159,
+          11
+        ],
+        "samples": 9,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      }
+    ],
+    "kv_samples_head0_dim0": [
+      {
+        "position": 15,
+        "layer": 0,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 16,
+        "layer": 0,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 17,
+        "layer": 0,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 18,
+        "layer": 0,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 19,
+        "layer": 0,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 20,
+        "layer": 0,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 21,
+        "layer": 0,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 22,
+        "layer": 0,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      },
+      {
+        "position": 23,
+        "layer": 0,
+        "samples": 2,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true
+      }
+    ],
+    "sampled_numeric_pass_at_1e_3": true
+  },
+  "full_tensor_fpga_vs_quantized_reference": {
+    "reference_manifest": {
+      "source": "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-1l/quant-nr-order/arrays.npz",
+      "source_sha256": "1083f9f9d1d178deebc730e5e0371b34c26767c49a46e67989caf32e65d2c227",
+      "blob_sha256": "e6a20dcd280eb5b53cef7a74b5ce885e11c25df82265083440c6bdcb79172333",
+      "bytes": 5666304,
+      "layout": "logits[steps+1,V], K[L,8,T,128], V[L,8,T,128]",
+      "max_abs_tolerance": 0.001,
+      "mean_abs_tolerance": 0.0001,
+      "purpose": "validation only; not used to choose tokens or update model state"
+    },
+    "checks": [
+      {
+        "tensor": "logits",
+        "position": 15,
+        "count": 151936,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "key_cache",
+        "position": 15,
+        "count": 16384,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "value_cache",
+        "position": 15,
+        "count": 16384,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "logits",
+        "position": 16,
+        "count": 151936,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "key_cache",
+        "position": 16,
+        "count": 17408,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "value_cache",
+        "position": 16,
+        "count": 17408,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "logits",
+        "position": 17,
+        "count": 151936,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "key_cache",
+        "position": 17,
+        "count": 18432,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "value_cache",
+        "position": 17,
+        "count": 18432,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "logits",
+        "position": 18,
+        "count": 151936,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "key_cache",
+        "position": 18,
+        "count": 19456,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "value_cache",
+        "position": 18,
+        "count": 19456,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "logits",
+        "position": 19,
+        "count": 151936,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "key_cache",
+        "position": 19,
+        "count": 20480,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "value_cache",
+        "position": 19,
+        "count": 20480,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "logits",
+        "position": 20,
+        "count": 151936,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "key_cache",
+        "position": 20,
+        "count": 21504,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "value_cache",
+        "position": 20,
+        "count": 21504,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "logits",
+        "position": 21,
+        "count": 151936,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "key_cache",
+        "position": 21,
+        "count": 22528,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "value_cache",
+        "position": 21,
+        "count": 22528,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "logits",
+        "position": 22,
+        "count": 151936,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "key_cache",
+        "position": 22,
+        "count": 23552,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "value_cache",
+        "position": 22,
+        "count": 23552,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "logits",
+        "position": 23,
+        "count": 151936,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "key_cache",
+        "position": 23,
+        "count": 24576,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      },
+      {
+        "tensor": "value_cache",
+        "position": 23,
+        "count": 24576,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "all_finite": true,
+        "firmware_verdict": "PASS"
+      }
+    ],
+    "pass": true,
+    "metadata_verified": false,
+    "scope": "firmware compares every last-position logit and every valid K/V element; no hidden-state capture",
+    "generation_trace_complete": true,
+    "generated_tokens_match_reference": true,
+    "sampled_values_consistent_with_full_bound": true
+  },
+  "status": "FULL_LOGITS_KV_PASS"
+}

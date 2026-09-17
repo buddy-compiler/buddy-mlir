@@ -1,0 +1,83 @@
+
+attention_pv_16x16x128x512.kernel.o:
+                 U memcpy
+0000000000000000 T triton_attention_pv_16x16x128x512
+
+attention_pv_16x16x128x512.adapter.o:
+0000000000000000 T _mlir_ciface_kernel_attention_pv_16x16x128x512
+                 U triton_attention_pv_16x16x128x512
+
+attention_pv_16x1x128x512.kernel.o:
+                 U memcpy
+0000000000000000 T triton_attention_pv_16x1x128x512
+
+attention_pv_16x1x128x512.adapter.o:
+0000000000000000 T _mlir_ciface_kernel_attention_pv_16x1x128x512
+                 U triton_attention_pv_16x1x128x512
+
+attention_qk_16x16x512x128.kernel.o:
+                 U memcpy
+0000000000000000 T triton_attention_qk_16x16x512x128
+
+attention_qk_16x16x512x128.adapter.o:
+0000000000000000 T _mlir_ciface_kernel_attention_qk_16x16x512x128
+                 U triton_attention_qk_16x16x512x128
+
+attention_qk_16x1x512x128.kernel.o:
+                 U memcpy
+0000000000000000 T triton_attention_qk_16x1x512x128
+
+attention_qk_16x1x512x128.adapter.o:
+0000000000000000 T _mlir_ciface_kernel_attention_qk_16x1x512x128
+                 U triton_attention_qk_16x1x512x128
+
+attention_scale_mask_position_16x16x512.kernel.o:
+0000000000000000 T triton_attention_scale_mask_position_16x16x512
+
+attention_scale_mask_position_16x16x512.adapter.o:
+0000000000000000 T _mlir_ciface_kernel_attention_scale_mask_position_16x16x512
+                 U triton_attention_scale_mask_position_16x16x512
+
+attention_scale_mask_position_16x1x512.kernel.o:
+0000000000000000 T triton_attention_scale_mask_position_16x1x512
+
+attention_scale_mask_position_16x1x512.adapter.o:
+0000000000000000 T _mlir_ciface_kernel_attention_scale_mask_position_16x1x512
+                 U triton_attention_scale_mask_position_16x1x512
+
+gqa_repeat_8x512x128_to_16x512x128.kernel.o:
+0000000000000000 T triton_gqa_repeat_8x512x128_to_16x512x128
+
+gqa_repeat_8x512x128_to_16x512x128.adapter.o:
+0000000000000000 T _mlir_ciface_kernel_gqa_repeat_8x512x128_to_16x512x128
+                 U triton_gqa_repeat_8x512x128_to_16x512x128
+
+kv_cache_update_position_16x8x128_cap512.kernel.o:
+0000000000000000 T triton_kv_cache_update_position_16x8x128_cap512
+
+kv_cache_update_position_16x8x128_cap512.adapter.o:
+0000000000000000 T _mlir_ciface_kernel_kv_cache_update_position_16x8x128_cap512
+                 U triton_kv_cache_update_position_16x8x128_cap512
+
+kv_cache_update_position_1x8x128_cap512.kernel.o:
+0000000000000000 T triton_kv_cache_update_position_1x8x128_cap512
+
+kv_cache_update_position_1x8x128_cap512.adapter.o:
+0000000000000000 T _mlir_ciface_kernel_kv_cache_update_position_1x8x128_cap512
+                 U triton_kv_cache_update_position_1x8x128_cap512
+
+softmax_16x16x512.kernel.o:
+                 U expf
+0000000000000000 T triton_softmax_16x16x512
+
+softmax_16x16x512.adapter.o:
+0000000000000000 T _mlir_ciface_kernel_softmax_16x16x512
+                 U triton_softmax_16x16x512
+
+softmax_16x1x512.kernel.o:
+                 U expf
+0000000000000000 T triton_softmax_16x1x512
+
+softmax_16x1x512.adapter.o:
+0000000000000000 T _mlir_ciface_kernel_softmax_16x1x512
+                 U triton_softmax_16x1x512

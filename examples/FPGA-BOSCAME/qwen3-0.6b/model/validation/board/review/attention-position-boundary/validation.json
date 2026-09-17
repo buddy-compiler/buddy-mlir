@@ -1,0 +1,195 @@
+{
+  "status": "PASS",
+  "scope": "Stage A QK/PV kernels only, not model performance",
+  "run_id": "run-fc93b229478146d5",
+  "fpga": 5,
+  "image_sha256": "20c3e117784d60c8b93a679893add40dcd98279f33f904d2fba09a4447ab73ec",
+  "cases": {
+    "attention_pv_position_16x16x128x512_bounds": {
+      "length_checks": [
+        {
+          "valid": 23,
+          "errors": 0,
+          "kernel_cycles": 13180010
+        },
+        {
+          "valid": 16,
+          "errors": 0,
+          "kernel_cycles": 12609402
+        },
+        {
+          "valid": 23,
+          "errors": 0,
+          "kernel_cycles": 13179713
+        }
+      ],
+      "kernel_cycles_512_over_16": null,
+      "performance_scope": "same dynamic kernel, valid512 versus valid16; mean repeated lengths; excludes oracle/UART and is not old-kernel speedup"
+    },
+    "attention_pv_position_16x1x128x512_bounds": {
+      "length_checks": [
+        {
+          "valid": 1,
+          "errors": 0,
+          "kernel_cycles": 3792231
+        },
+        {
+          "valid": 2,
+          "errors": 0,
+          "kernel_cycles": 3841036
+        },
+        {
+          "valid": 23,
+          "errors": 0,
+          "kernel_cycles": 4797594
+        },
+        {
+          "valid": 2,
+          "errors": 0,
+          "kernel_cycles": 3841143
+        },
+        {
+          "valid": 1,
+          "errors": 0,
+          "kernel_cycles": 3792045
+        }
+      ],
+      "kernel_cycles_512_over_16": null,
+      "performance_scope": "same dynamic kernel, valid512 versus valid16; mean repeated lengths; excludes oracle/UART and is not old-kernel speedup"
+    },
+    "attention_qk_position_16x16x512x128_bounds": {
+      "length_checks": [
+        {
+          "valid": 23,
+          "errors": 0,
+          "kernel_cycles": 12807654
+        },
+        {
+          "valid": 16,
+          "errors": 0,
+          "kernel_cycles": 9392202
+        },
+        {
+          "valid": 23,
+          "errors": 0,
+          "kernel_cycles": 12807208
+        }
+      ],
+      "kernel_cycles_512_over_16": null,
+      "performance_scope": "same dynamic kernel, valid512 versus valid16; mean repeated lengths; excludes oracle/UART and is not old-kernel speedup"
+    },
+    "attention_qk_position_16x1x512x128_bounds": {
+      "length_checks": [
+        {
+          "valid": 1,
+          "errors": 0,
+          "kernel_cycles": 1452970
+        },
+        {
+          "valid": 2,
+          "errors": 0,
+          "kernel_cycles": 1470953
+        },
+        {
+          "valid": 23,
+          "errors": 0,
+          "kernel_cycles": 3247170
+        },
+        {
+          "valid": 2,
+          "errors": 0,
+          "kernel_cycles": 1471021
+        },
+        {
+          "valid": 1,
+          "errors": 0,
+          "kernel_cycles": 1452664
+        }
+      ],
+      "kernel_cycles_512_over_16": null,
+      "performance_scope": "same dynamic kernel, valid512 versus valid16; mean repeated lengths; excludes oracle/UART and is not old-kernel speedup"
+    }
+  },
+  "total_length_checks": 16,
+  "archive_sha256": {
+    "cases/attention_pv_position_16x16x128x512_bounds/adapter.c": "359729697cf28a7633727feeeea2ebce6a1917816af5a66f99e3dba0e8ef5aee",
+    "cases/attention_pv_position_16x16x128x512_bounds/frontend.json": "e6022fb6ca2908afcd324b841837ebfb85dc8fb935bf03589e66f0fea5e2ac14",
+    "cases/attention_pv_position_16x16x128x512_bounds/host.log": "857e758d7b7356078f1b39c5851058faffbf2cfa0cfb718dc344190499c8e55a",
+    "cases/attention_pv_position_16x16x128x512_bounds/kernel.linalg.mlir": "57490211a48aa5d631a18718fc7ba5876e607cbb7e664c3dda7b5c88ebb727ec",
+    "cases/attention_pv_position_16x16x128x512_bounds/kernel.s": "a7c2821b86684cb77a7487aab0782f58869994c517e5d83a43e98968507f1828",
+    "cases/attention_pv_position_16x16x128x512_bounds/kernel.ttir": "e0db57c094761bae58df5c7d4f66b44a59c3c8d277d4748b02e23d88d1cb8e81",
+    "cases/attention_pv_position_16x16x128x512_bounds/launch.c": "1bba8bcf198736187855df62e3b997f8b675032be2681740012bd8db06299119",
+    "cases/attention_pv_position_16x16x128x512_bounds/metadata.json": "8c6f99adba101aa2f266f6c26f01bbc94d9a7352143fde624723cb85464330e5",
+    "cases/attention_pv_position_16x16x128x512_bounds/nr-manifest.json": "56eb09ca78cf2baba139c7435d68854ce2d244c9f0e397fb8bef38fc4df41b6a",
+    "cases/attention_pv_position_16x16x128x512_bounds/vector-host.log": "453867db006bfb03b63f7c35a4dd19fd2f2a5655e68517b7259fa8909d44ad1f",
+    "cases/attention_pv_position_16x1x128x512_bounds/adapter.c": "f515e300d905a02ea9f9a625e21935d77f0e9ab1f32adb0f553bb4f814493bd3",
+    "cases/attention_pv_position_16x1x128x512_bounds/frontend.json": "e11125eb9f829b2f2f856b028283c3b295210a804f7b6830c6fea830a330963c",
+    "cases/attention_pv_position_16x1x128x512_bounds/host.log": "0623d475ae2a9ac485d953435008ee82785a5d1ae483336010aaf095f3be5871",
+    "cases/attention_pv_position_16x1x128x512_bounds/kernel.linalg.mlir": "50321f3e94a456873868eddb7e95ef8452101d3cafe41e3dec57638b0421a0d3",
+    "cases/attention_pv_position_16x1x128x512_bounds/kernel.s": "0bb06680b7bbc881a4535bf10ad37f392842937bda6aecfd50451fb24b8b34cd",
+    "cases/attention_pv_position_16x1x128x512_bounds/kernel.ttir": "5e960d78052dd89cca3f58063b47a91e0665661dbaade8789de3c9cb1a0fe53c",
+    "cases/attention_pv_position_16x1x128x512_bounds/launch.c": "2865749a9a7e9b96d07af116b9ec528f673bfdd734d9c1fe983bcc841e5c84a9",
+    "cases/attention_pv_position_16x1x128x512_bounds/metadata.json": "1b9aa27bd9ce5c747b1c087553bb5628ddf08e3b5aaecb7111f18a123b79b473",
+    "cases/attention_pv_position_16x1x128x512_bounds/nr-manifest.json": "6e96210a4716e5c61d3ac79ba56e21ea21835bcf5f1e867c8f37f93972c2a2f0",
+    "cases/attention_pv_position_16x1x128x512_bounds/vector-host.log": "02b7d9fd029111154d1d96efd73a7129d6c988ed49e8596f0a7a479c23fed90e",
+    "cases/attention_qk_position_16x16x512x128_bounds/adapter.c": "313f5945617d8e95d4732335b07da5fcfdca2c61aa95760900b3cfae19fc2f61",
+    "cases/attention_qk_position_16x16x512x128_bounds/frontend.json": "ed5909bcd030b9cc102d30d67931f414612a34493458f26695591084361cd0c7",
+    "cases/attention_qk_position_16x16x512x128_bounds/host.log": "5c559e2fe0f29e8685d5dac4178a9b34c872ad433fc4b2bb23d74197907a87cc",
+    "cases/attention_qk_position_16x16x512x128_bounds/kernel.linalg.mlir": "02eed3fabff27ed72d986ed4f8cc1c0604ca18875c1de1b0272244d5e8091b5c",
+    "cases/attention_qk_position_16x16x512x128_bounds/kernel.s": "652c37ca0010a01bb9d20ed6ced577fd508a3e9ee52e79b96f4cf170b91f9eb5",
+    "cases/attention_qk_position_16x16x512x128_bounds/kernel.ttir": "83b868890ddc015d3640654586d0efca74be52506c715624c489919e73b37157",
+    "cases/attention_qk_position_16x16x512x128_bounds/launch.c": "2cfc8d22cd4b6e3d5344fa5b8b7fa6b2755ed847efb930efb481d860e77b6189",
+    "cases/attention_qk_position_16x16x512x128_bounds/metadata.json": "ab3f246224eed0e37f756df5550627a06650be6b78c55d8f454a916db215e4db",
+    "cases/attention_qk_position_16x16x512x128_bounds/nr-manifest.json": "0b2af3f7c8866794b50196d9069a43a232a43bdd0919cdf54ea4142c5f08bd4f",
+    "cases/attention_qk_position_16x16x512x128_bounds/vector-host.log": "cf5da7196f9f39c145f87f8ba1d06d668d99711ddedb4a10243bc094aba665fc",
+    "cases/attention_qk_position_16x1x512x128_bounds/adapter.c": "621939dd368eb9eb5c79ab859a35c7290fa68e91156418a3146a4c0213959412",
+    "cases/attention_qk_position_16x1x512x128_bounds/frontend.json": "1a8845e681b2123e991be427f62c4e5a9a93be86e9877ba453ce54325d21c515",
+    "cases/attention_qk_position_16x1x512x128_bounds/host.log": "4c572e1662ea9fd3a10eaed60a81ffd4d0ea09cb24a1b791600a29b78dc12c5b",
+    "cases/attention_qk_position_16x1x512x128_bounds/kernel.linalg.mlir": "573c36962bec98d215a962a88d1dc63b336e269b51b2603af9cd1b1c07de3f02",
+    "cases/attention_qk_position_16x1x512x128_bounds/kernel.s": "2b2e7585eee8ab7c18fa6ddaea50c795400a62962949d69f32015c17ba448d07",
+    "cases/attention_qk_position_16x1x512x128_bounds/kernel.ttir": "9107df7422a8048a44d42f792f7faee12c3e1c8863e0f55b70b468977d4b88ab",
+    "cases/attention_qk_position_16x1x512x128_bounds/launch.c": "0924f1816cc2e920d682a7dda2ab6740206ed713a137cb956757a987fd2b2cf7",
+    "cases/attention_qk_position_16x1x512x128_bounds/metadata.json": "37734a954460f53ee33b7a41c003153451074422df4211b08ba54ce48c690908",
+    "cases/attention_qk_position_16x1x512x128_bounds/nr-manifest.json": "6514ebc9c67dcccad3f35c0af2ea5e9d0ce06befda553fad884f0aa81a36f3fb",
+    "cases/attention_qk_position_16x1x512x128_bounds/vector-host.log": "8408c790b7ac19d7be64306080a9bba931b1e0f68a4a054ac6732f5bb37328a4",
+    "result.json": "da7e0e18083513cff1bfe2dfd0d6391a870da1a82295ce40554ea2c22c012a90",
+    "sources/examples/FPGA-BOSCAME/common/nr/ame_sync.c": "ed7efdd659ca50f79c0249d13a8762188cdbb745b8d65193ff4dc62c5380256d",
+    "sources/examples/FPGA-BOSCAME/common/nr/crt.S": "75431219ba064928a9064d728608095d01e53c0f31e76b2cf38c0a2a35c5a706",
+    "sources/examples/FPGA-BOSCAME/common/nr/nr.ld": "50ba0a1ebaa19929fad8fa68457f1080ce1d39653aff30825f3c7c18fcb5b366",
+    "sources/examples/FPGA-BOSCAME/common/nr/nr_copy.S": "84e13b00c06a837fdf1967402780bd6c78a27cb58b45aed11406cd5f52f20a46",
+    "sources/examples/FPGA-BOSCAME/common/nr/nr_math.c": "f0bb33d8e96cb2bf7ad596916acfa1fb2bcfdf2afbd16cf1facc042144d588e8",
+    "sources/examples/FPGA-BOSCAME/common/nr/nr_runtime.c": "966a14bbddd91a78ae02dcbba074643c2b23b3394223b89fde518b4487f251c4",
+    "sources/examples/FPGA-BOSCAME/common/nr/nr_runtime.h": "05133325005c5aaa0656aeac7e952ab8d2b003bccb03a5abd55210e44ade714b",
+    "sources/examples/FPGA-BOSCAME/common/toolchain.mk": "ad47446fc294c85f67b94bec786028e5f848121c939f52b73f66981c14cf1cdb",
+    "sources/examples/FPGA-BOSCAME/common/triton/setup-triton.sh": "090f13768ee7b5f9e9db6f65ed94cfab87e3ae2501b34aa1070e90784b1e4e66",
+    "sources/examples/FPGA-BOSCAME/common/triton/toolchain-lock.json": "f4c92fd176ab7bf6a7dbf6680c6d5023fa22c4d12bfe447e2ba35f18120cff37",
+    "sources/examples/FPGA-BOSCAME/common/triton/triton-env.sh": "6756c899a5c6b42334040b677ebeee42260528d512914f7377407732ee0c8a44",
+    "sources/examples/FPGA-BOSCAME/common/uart/uart.h": "cd8dc86559e8588e2d82cf0519fb3c912e8284f3d122b864c124d4cc967a65b0",
+    "sources/examples/FPGA-BOSCAME/qwen3-0.6b/common.mk": "65cf2ca3eed8e7c2cdc4dbab7c1af28dddf5772e9c70b39e886fa5b7324ce742",
+    "sources/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/attention-position-boundary-cases/attention_pv_position_16x16x128x512_bounds/launch.c": "1bba8bcf198736187855df62e3b997f8b675032be2681740012bd8db06299119",
+    "sources/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/attention-position-boundary-cases/attention_pv_position_16x16x128x512_bounds/metadata.json": "8c6f99adba101aa2f266f6c26f01bbc94d9a7352143fde624723cb85464330e5",
+    "sources/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/attention-position-boundary-cases/attention_pv_position_16x1x128x512_bounds/launch.c": "2865749a9a7e9b96d07af116b9ec528f673bfdd734d9c1fe983bcc841e5c84a9",
+    "sources/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/attention-position-boundary-cases/attention_pv_position_16x1x128x512_bounds/metadata.json": "1b9aa27bd9ce5c747b1c087553bb5628ddf08e3b5aaecb7111f18a123b79b473",
+    "sources/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/attention-position-boundary-cases/attention_qk_position_16x16x512x128_bounds/launch.c": "2cfc8d22cd4b6e3d5344fa5b8b7fa6b2755ed847efb930efb481d860e77b6189",
+    "sources/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/attention-position-boundary-cases/attention_qk_position_16x16x512x128_bounds/metadata.json": "ab3f246224eed0e37f756df5550627a06650be6b78c55d8f454a916db215e4db",
+    "sources/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/attention-position-boundary-cases/attention_qk_position_16x1x512x128_bounds/launch.c": "0924f1816cc2e920d682a7dda2ab6740206ed713a137cb956757a987fd2b2cf7",
+    "sources/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/attention-position-boundary-cases/attention_qk_position_16x1x512x128_bounds/metadata.json": "37734a954460f53ee33b7a41c003153451074422df4211b08ba54ce48c690908",
+    "sources/examples/FPGA-BOSCAME/qwen3-0.6b/support.c": "1748abf575678c8602aef1e69c47d9d3d11a9362879665b87ad8d219aa6b26f0",
+    "sources/examples/FPGA-BOSCAME/qwen3-0.6b/support.h": "0ee1e660c1be2847f88a11cbf220fa665eada68552103e46d645fbcebb1f7d7d",
+    "sources/examples/FPGA-BOSCAME/qwen3-0.6b/tools/build_suite.py": "0189d330d27ec1fd342d32c6ae28bbdfd60cba4785b1891b5ddfb8d8a9297131",
+    "sources/examples/FPGA-BOSCAME/qwen3-0.6b/tools/host_main.c": "b069c7f2d8465e1078275e3d52d9aab2263d2b98e2e0173fb418284757a7c729",
+    "sources/examples/FPGA-BOSCAME/qwen3-0.6b/tools/vectorize_nr.py": "df7849f281b3e0d76064ebdc493bffe8ac83f2ac68189e25f75f989241367f94",
+    "sources/examples/FPGA-BOSCAME/qwen3-0.6b/triton/export.py": "7bfd217e11bea1d2ed8c018aa138fb9d765470c64080218a3327468fd8379a1a",
+    "sources/examples/FPGA-BOSCAME/qwen3-0.6b/triton/kernels.py": "f89c28aeff34416c679b86c0d9bf11187b062ded1ae3437df2c2031221fc2d3e",
+    "sources/examples/FPGA-BOSCAME/qwen3-0.6b/triton/kernels_position.py": "ea32ea04825723b5bb547d440e2e90e4a41750caae3cd9de6ec75c2cd8a764f4",
+    "sources/examples/FPGA-BOSCAME/tools/ame_to_word.py": "f037da7131a2662869b3c8a3c1db9a29e95137331a5a3435fa73152990f0e285",
+    "sources/examples/FPGA-BOSCAME/tools/check_nr_elf.py": "9545edf67d9c3143a74c4b5dd514f539af3a15f898ffb3c027698521898e5a51",
+    "sources/examples/FPGA-BOSCAME/tools/nr_isa.py": "f2fd286fda695428fd66bbebdb290534b54a6c74c0a7f0beb015e22277707f15",
+    "sources/examples/FPGA-BOSCAME/tools/restrict_fpga_assembly.py": "7aea34f930dc22aad1a7252aa0479dbc0db13d39ea09ba8f560e934b595dade9",
+    "suite-manifest.json": "a58cf40f8eae260a5adde535753f7ee0a2cf881eaf72dfa35c5db2b9afbdc469",
+    "suite.audit.json": "003bfef04d60e2cc0e1f1c73935578c58553d03c5d74dcf1a61ed16da33ff24e",
+    "uart.raw.log": "12b9273c6716d50b743afd0628b77c9c0aad41d672969ef2bf4f0b3234501022",
+    "uvhs.log": "0e2690f7c40c0a6ba805e2851553a1f287110431b99e378be01b3463c2b49a75",
+    "worker.log": "623312750ab9676ebd0faad573c05b7de25ef99b5ed3d3279d891ec1a1c3f5db"
+  }
+}

@@ -1,0 +1,82 @@
+{
+  "stage": "B (board): one real decoder layer of the compiled Qwen3 graph executed on FPGA5",
+  "board": "FPGA5",
+  "run_id": "run-ff9346c18f644e0d",
+  "result": "PASS for what it covers -- see scope",
+  "scope": {
+    "layers": 1,
+    "what_ran": "16-token prefill only",
+    "not_covered": [
+      "the other 27 layers",
+      "decode steps",
+      "all 151936 logits (only the argmax and its value were printed over UART)"
+    ]
+  },
+  "comparison": {
+    "board_argmax_token": 33067,
+    "reference_argmax_token": 33067,
+    "argmax_matches": true,
+    "board_logit_bits": "4107B1B0",
+    "board_logit_value": 8.480880737304688,
+    "reference_logit_value": 8.480889320373535,
+    "absolute_error": 8.58306884765625e-06,
+    "relative_error": 1.0120482090288869e-06,
+    "reference_top5": [
+      {
+        "token": 33067,
+        "logit": 8.480889320373535
+      },
+      {
+        "token": 14310,
+        "logit": 8.133320808410645
+      },
+      {
+        "token": 2677,
+        "logit": 7.9832282066345215
+      },
+      {
+        "token": 11574,
+        "logit": 7.980268955230713
+      },
+      {
+        "token": 5942,
+        "logit": 7.925414562225342
+      }
+    ],
+    "reference": "validation/reference/fp32-16plus8.reference.json (transformers, official checkpoint, float32); the 1-layer arrays are the same model truncated to one layer"
+  },
+  "cycles": 3138276468,
+  "segments": [
+    "segment model: address=0x0000000080000000 size=110976",
+    "segment weights: address=0x00000000b8000000 size=685257984"
+  ],
+  "execution_uart": [
+    "[nr] RA entered; clearing application BSS",
+    "[nr] mstatus=0x8000000A00006000; launch BEGIN",
+    "[model] prefill argmax token=0000812B logit_bits=4107B1B0",
+    "[nr] launch cycles=0x00000000BB0E4C74 status=0x00000000",
+    "[nr] RA returned: PASS",
+    "verify NR runtime: PASS"
+  ],
+  "readback_verified": {
+    "image.bin": "matches its readback byte for byte",
+    "weights-fp32.bin": "matches its readback byte for byte (685,257,984 bytes)",
+    "note": "checked directly on the server for the previous run; the same loader path re-verifies on every run"
+  },
+  "workspace_address_check": {
+    "weight_arena_raw": "0xb8000000 (llvm-nm on the linked ELF)",
+    "weight_segment_address": "0xb8000000 (plan)",
+    "conclusion": "the descriptors point exactly where the loader puts the data"
+  },
+  "bug_found_and_fixed_this_round": {
+    "symptom": "the first two board runs produced argmax 271 and a denormal logit",
+    "cause": "tools/build_model_image.py added the layout's *byte* offset to a float*, so `weights + 622329856` advanced 622M floats (2.49 GB) instead of 155M. Every parameter except the first was read from outside the loaded segment.",
+    "fix": "use offset_elements",
+    "evidence": "generated main went from `weights + 622329856` to `weights + 155582464`, matching the layout's offset_elements"
+  },
+  "not_yet_done": [
+    "the full 28-layer model has not run on the board",
+    "no decode step has run on the board",
+    "only one logit value was compared; a stronger check would print several"
+  ]
+}

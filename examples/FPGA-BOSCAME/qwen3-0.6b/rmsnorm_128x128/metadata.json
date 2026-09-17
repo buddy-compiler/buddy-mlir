@@ -1,0 +1,45 @@
+{
+  "name": "rmsnorm_128x128",
+  "kind": "rmsnorm",
+  "dtype": "f32",
+  "description": "Qwen3 RMSNorm, including learned per-feature weight and epsilon=1e-6; width128 is per-head Q/K norm",
+  "entry": "kernel_rmsnorm_128x128",
+  "workspace_bytes": 132096,
+  "buffers": [
+    {
+      "name": "x",
+      "shape": [
+        128,
+        128
+      ],
+      "dtype": "f32",
+      "offset": 0
+    },
+    {
+      "name": "weight",
+      "shape": [
+        128
+      ],
+      "dtype": "f32",
+      "offset": 65536
+    },
+    {
+      "name": "sums",
+      "shape": [
+        128
+      ],
+      "dtype": "f32",
+      "offset": 66048
+    },
+    {
+      "name": "out",
+      "shape": [
+        128,
+        128
+      ],
+      "dtype": "f32",
+      "offset": 66560
+    }
+  ],
+  "validation": "All output elements versus an independent C oracle; host oracle uses libm double precision."
+}

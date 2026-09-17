@@ -63,6 +63,9 @@ config.excludes = [
     "BuddyStableDiffusion",
     "BuddyDeepSeekR1",
     "BuddyQwen3",
+    # Generated flow outputs (boscame.mlir, vector.mlir, ...); the sources live
+    # under examples/FPGA-BOSCAME/<case>/ and are not lit tests.
+    "FPGA-BOSCAME",
     "BuddyTensorParallel",
     "BuddyTransformer",
     "BuddyYOLO26",

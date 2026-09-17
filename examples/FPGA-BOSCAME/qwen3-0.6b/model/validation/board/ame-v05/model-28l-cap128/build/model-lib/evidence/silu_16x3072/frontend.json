@@ -1,0 +1,42 @@
+{
+  "name": "silu_16x3072",
+  "family": "silu",
+  "kernel": "silu",
+  "symbol": "triton_silu_16x3072",
+  "arguments": [
+    {
+      "name": "X",
+      "rank": 2,
+      "dtype": "f32"
+    },
+    {
+      "name": "Out",
+      "rank": 2,
+      "dtype": "f32"
+    }
+  ],
+  "signature": {
+    "X": "*fp32",
+    "Out": "*fp32"
+  },
+  "constexprs": {
+    "COUNT": 49152,
+    "BLOCK": 128
+  },
+  "grid": [
+    384,
+    1,
+    1
+  ],
+  "directory": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/silu_16x3072",
+  "launch_source": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/silu_16x3072/launch.c",
+  "validation": "Unmodified parent launch.c and its independent numerical oracle",
+  "frontend": "triton.compiler.ASTSource -> CPUBackend.make_ttir -> triton-riscv _ttir_to_ttsharedir",
+  "triton_version": "3.8.0",
+  "kernels_sha256": "f89c28aeff34416c679b86c0d9bf11187b062ded1ae3437df2c2031221fc2d3e",
+  "exporter_sha256": "266a64dda66018359776c61fbbee1c9e8109ff554938a0cc4e66a5d50d0fc56a",
+  "cases_sha256": "ad71d8957e5c09a3ffa5ec1476ece4ca241c7d4e70ef65966d00127b6e0e12e6",
+  "ttir_sha256": "52745e49f65ac94d4ce8637c04e5f116f4c559057b55a3c8cd70b8de3f60f75c",
+  "linalg_sha256": "7ab0cb0b92e5738d3cb8aa58427bdf91a751f2d358da1cf92664137096a54006",
+  "abi": "unranked memref: (i64 rank=0, rank-0 descriptor pointer) per tensor, then six i32 grid/pid values"
+}

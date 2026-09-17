@@ -1,0 +1,6 @@
+cmake==3.31.10
+ninja==1.13.2
+nanobind==2.10.2
+setuptools==83.0.0
+pytest==9.1.1
+pytest-xdist==3.8.0

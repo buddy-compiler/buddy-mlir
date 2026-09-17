@@ -1,0 +1,162 @@
+{
+  "stage": "D: replaced graph (linear + RMSNorm + SiLU + embedding) executed and scored",
+  "execution": "Buddy graph -> generated adapters -> compiled Triton kernels, via MLIR ExecutionEngine on the host",
+  "not_fpga": true,
+  "source_report": "build/host-run/replaced-28l-4pat/host-run.json",
+  "source_report_sha256": "b66f3a5eff4e0f56f24e6dacefe66d515ec39af177f4ac394f1f3b33ec031b00",
+  "layers": 28,
+  "parameter_count": 311,
+  "external_calls_enabled": true,
+  "external_lib": [
+    "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/host-bridge/libqwen_triton_host.so"
+  ],
+  "replacement": {
+    "prefill": {
+      "pattern_matches": {
+        "linear": 197,
+        "rmsnorm": 113,
+        "silu": 28,
+        "embedding": 1
+      },
+      "external_calls": 338
+    },
+    "decode": {
+      "pattern_matches": {
+        "linear": 197,
+        "rmsnorm": 113,
+        "silu": 28,
+        "embedding": 1
+      },
+      "external_calls": 339
+    }
+  },
+  "call_chain": [
+    "_mlir__mlir_ciface_forward_prefill  (JIT entry)",
+    "_mlir_ciface_forward_prefill        (MLIR C wrapper)",
+    "forward_prefill                     (graph body, calls qwen_graph_<case>)",
+    "qwen_graph_<case>                   (MLIR-generated private bridge, has a body)",
+    "_mlir_ciface_qwen_graph_<case>      (generated adapter: static workspace + descriptor fill)",
+    "_mlir_ciface_kernel_<case>          (archive per-case adapter: descriptor + grid)",
+    "triton_<case>                       (compiled Triton kernel)"
+  ],
+  "call_chain_evidence": "gdb backtrace at the crash site before the fix; validation/external-calls/return-descriptor-contract.md",
+  "prefill_argmax_all": [
+    14582,
+    198,
+    106287,
+    374,
+    279,
+    594,
+    3555,
+    198,
+    151644,
+    198,
+    510,
+    151667,
+    198,
+    151668,
+    271,
+    49000
+  ],
+  "generated_ids": [
+    374,
+    264,
+    3146,
+    7407,
+    304,
+    4787,
+    5159,
+    11
+  ],
+  "fp32_reference_generated_ids": [
+    374,
+    264,
+    3146,
+    7407,
+    304,
+    4787,
+    5159,
+    11
+  ],
+  "token_trajectory_matches_fp32": true,
+  "replaced_graph_vs_fp32": {
+    "prefill_logits": {
+      "max_abs_error": 0.00012874603271484375,
+      "mean_abs_error": 1.2867941688440319e-05,
+      "cosine_similarity": 0.9999999999918543,
+      "elements": 2430976
+    },
+    "decode_logits_0": {
+      "max_abs_error": 7.343292236328125e-05,
+      "mean_abs_error": 9.057591452944233e-06,
+      "cosine_similarity": 0.9999999999981616,
+      "elements": 151936
+    },
+    "decode_logits_1": {
+      "max_abs_error": 6.580352783203125e-05,
+      "mean_abs_error": 1.0890130159164023e-05,
+      "cosine_similarity": 0.9999999999981257,
+      "elements": 151936
+    },
+    "decode_logits_2": {
+      "max_abs_error": 7.05718994140625e-05,
+      "mean_abs_error": 1.1989274976400207e-05,
+      "cosine_similarity": 0.9999999999986083,
+      "elements": 151936
+    },
+    "decode_logits_3": {
+      "max_abs_error": 6.771087646484375e-05,
+      "mean_abs_error": 9.803494799081218e-06,
+      "cosine_similarity": 0.9999999999986291,
+      "elements": 151936
+    },
+    "decode_logits_4": {
+      "max_abs_error": 7.152557373046875e-05,
+      "mean_abs_error": 1.0402656585316366e-05,
+      "cosine_similarity": 0.9999999999985794,
+      "elements": 151936
+    },
+    "decode_logits_5": {
+      "max_abs_error": 6.580352783203125e-05,
+      "mean_abs_error": 9.535253128050673e-06,
+      "cosine_similarity": 0.9999999999986928,
+      "elements": 151936
+    },
+    "decode_logits_6": {
+      "max_abs_error": 7.009506225585938e-05,
+      "mean_abs_error": 1.1226136917522488e-05,
+      "cosine_similarity": 0.9999999999976231,
+      "elements": 151936
+    },
+    "decode_logits_7": {
+      "max_abs_error": 5.793571472167969e-05,
+      "mean_abs_error": 1.2325439832827989e-05,
+      "cosine_similarity": 0.9999999999966608,
+      "elements": 151936
+    }
+  },
+  "adapter_output_workspace_floats": 430464,
+  "aliasing_assumption": {
+    "statement": "one static output buffer per symbol; two simultaneously-live results of the same symbol would collide",
+    "how_tested": "every decode step is scored against the FP32 reference; aliasing would appear as a large logits error",
+    "result": "no aliasing observed: cosine 1.0000000000 on every step"
+  },
+  "jit_opt_level": 1,
+  "not_yet_done": [
+    "the same run on the FPGA (only the host path is verified here)",
+    "attention / RoPE / SiLU / embedding / KV-write are still lowered by Buddy",
+    "the adapter's static workspace is not yet unified with the DDR plan"
+  ],
+  "patterns": [
+    "linear",
+    "rmsnorm",
+    "silu",
+    "embedding"
+  ],
+  "external_calls_per_graph": {
+    "prefill": 338,
+    "decode": 339
+  },
+  "total_replaced_nodes": 678,
+  "patched_by": "run_graph_host.py --replace (silu/embedding wired in this round)"
+}

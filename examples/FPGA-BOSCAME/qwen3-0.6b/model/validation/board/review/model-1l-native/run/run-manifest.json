@@ -1,0 +1,16 @@
+{
+  "plan": "ddr-load.plan",
+  "plan_sha256": "e2c72bfdfdd78c3889b9a4eb72a4ab5e0318eb3f925881dc7b054b23036f569c",
+  "segments": [
+    {
+      "file": "image.bin",
+      "size": 5858048,
+      "sha256": "6fde5a81a5abfd24bd7e69dce767c1df909d156b009d07c2710fc53d1baed6bd"
+    },
+    {
+      "file": "weights-w8a8.bin",
+      "size": 171981568,
+      "sha256": "7dadd6dc021fb23eb9741f6d2da3dc00c31b9b1e5c7b5369b2b705d97de98143"
+    }
+  ]
+}

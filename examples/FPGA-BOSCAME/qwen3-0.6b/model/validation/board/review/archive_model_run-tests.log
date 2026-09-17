@@ -1,0 +1,11 @@
+$ python3 -m unittest discover -s examples/FPGA-BOSCAME/qwen3-0.6b/model/tests -p test_archive_model_run.py -v
+test_elf_uses_actual_embedded_bytes_not_manifest_claim (test_archive_model_run.ArchiveModelRunTests.test_elf_uses_actual_embedded_bytes_not_manifest_claim) ... ok
+test_exact_manifest_completion_and_optional_local_readbacks (test_archive_model_run.ArchiveModelRunTests.test_exact_manifest_completion_and_optional_local_readbacks) ... ok
+test_oracle_must_reconstruct_from_npz_and_match_full_dimensions (test_archive_model_run.ArchiveModelRunTests.test_oracle_must_reconstruct_from_npz_and_match_full_dimensions) ... ok
+test_refuses_archive_overwrite_before_other_work (test_archive_model_run.ArchiveModelRunTests.test_refuses_archive_overwrite_before_other_work) ... ok
+test_rejects_missing_segment_wrong_hash_false_success_and_symlinks (test_archive_model_run.ArchiveModelRunTests.test_rejects_missing_segment_wrong_hash_false_success_and_symlinks) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.057s
+
+OK

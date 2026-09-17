@@ -1,0 +1,458 @@
+{
+  "capacity": 512,
+  "layers": 1,
+  "arithmetic_profile": "nr-fpga",
+  "kv_layout": "layer,position,kv_head,head_dim",
+  "quantization": {
+    "enabled": true,
+    "weight": "per-output-channel symmetric int8, [-127,127], scale = max|row|/127, zero rows -> scale 1",
+    "activation": "per-token symmetric int8, dynamic, same rounding",
+    "accumulator": "int32",
+    "dequantize": "(acc_f32 * activation_scale) * weight_scale"
+  },
+  "floating_arithmetic": "ordered FP32 reductions; BK64 dot partials with fmaf (observed NR vfmacc.vf); shared NR scalar math; exp/sum softmax; direct SiLU divide",
+  "reference_independence": "graph ordering, int8 quantization/accumulation and attention dot implemented independently; public NR scalar math reused, not independently validated here",
+  "prefill_argmax_all": [
+    8,
+    8,
+    4963,
+    31871,
+    19149,
+    61388,
+    5267,
+    9746,
+    29897,
+    8,
+    77091,
+    29897,
+    1403,
+    33067,
+    6940,
+    33067
+  ],
+  "prefill_argmax_last": 33067,
+  "decode_steps_recorded": [
+    {
+      "step": 0,
+      "cache_position": 16,
+      "input_token": 33067,
+      "generated_token": 11853,
+      "top_k": [
+        [
+          11853,
+          13.333653450012207
+        ],
+        [
+          78694,
+          12.730575561523438
+        ],
+        [
+          61270,
+          12.048467636108398
+        ],
+        [
+          14023,
+          11.940389633178711
+        ],
+        [
+          7596,
+          11.473380088806152
+        ],
+        [
+          5400,
+          11.452224731445312
+        ],
+        [
+          9587,
+          11.432845115661621
+        ],
+        [
+          40224,
+          11.390040397644043
+        ]
+      ]
+    },
+    {
+      "step": 1,
+      "cache_position": 17,
+      "input_token": 11853,
+      "generated_token": 11853,
+      "top_k": [
+        [
+          11853,
+          20.812864303588867
+        ],
+        [
+          62599,
+          14.743253707885742
+        ],
+        [
+          16223,
+          14.418038368225098
+        ],
+        [
+          318,
+          13.769404411315918
+        ],
+        [
+          58623,
+          13.279571533203125
+        ],
+        [
+          336,
+          12.669787406921387
+        ],
+        [
+          1087,
+          12.538002014160156
+        ],
+        [
+          966,
+          12.511393547058105
+        ]
+      ]
+    },
+    {
+      "step": 2,
+      "cache_position": 18,
+      "input_token": 11853,
+      "generated_token": 11853,
+      "top_k": [
+        [
+          11853,
+          22.293760299682617
+        ],
+        [
+          62599,
+          15.80230712890625
+        ],
+        [
+          318,
+          14.511937141418457
+        ],
+        [
+          58623,
+          14.160162925720215
+        ],
+        [
+          16223,
+          13.872688293457031
+        ],
+        [
+          44173,
+          13.557899475097656
+        ],
+        [
+          65964,
+          13.078059196472168
+        ],
+        [
+          5120,
+          13.065000534057617
+        ]
+      ]
+    },
+    {
+      "step": 3,
+      "cache_position": 19,
+      "input_token": 11853,
+      "generated_token": 11853,
+      "top_k": [
+        [
+          11853,
+          22.316184997558594
+        ],
+        [
+          62599,
+          16.022127151489258
+        ],
+        [
+          58623,
+          14.688478469848633
+        ],
+        [
+          318,
+          14.601848602294922
+        ],
+        [
+          44173,
+          13.738790512084961
+        ],
+        [
+          5120,
+          13.475543022155762
+        ],
+        [
+          65964,
+          13.357523918151855
+        ],
+        [
+          16223,
+          13.152010917663574
+        ]
+      ]
+    },
+    {
+      "step": 4,
+      "cache_position": 20,
+      "input_token": 11853,
+      "generated_token": 11853,
+      "top_k": [
+        [
+          11853,
+          22.396562576293945
+        ],
+        [
+          62599,
+          16.049184799194336
+        ],
+        [
+          58623,
+          14.956198692321777
+        ],
+        [
+          318,
+          13.994242668151855
+        ],
+        [
+          5120,
+          13.70246410369873
+        ],
+        [
+          65964,
+          13.500274658203125
+        ],
+        [
+          44173,
+          13.487064361572266
+        ],
+        [
+          16223,
+          13.394696235656738
+        ]
+      ]
+    },
+    {
+      "step": 5,
+      "cache_position": 21,
+      "input_token": 11853,
+      "generated_token": 11853,
+      "top_k": [
+        [
+          11853,
+          22.649728775024414
+        ],
+        [
+          62599,
+          16.18898582458496
+        ],
+        [
+          58623,
+          14.510066986083984
+        ],
+        [
+          318,
+          13.932886123657227
+        ],
+        [
+          44173,
+          13.860076904296875
+        ],
+        [
+          65964,
+          13.418499946594238
+        ],
+        [
+          16223,
+          13.157552719116211
+        ],
+        [
+          5120,
+          13.139039039611816
+        ]
+      ]
+    },
+    {
+      "step": 6,
+      "cache_position": 22,
+      "input_token": 11853,
+      "generated_token": 11853,
+      "top_k": [
+        [
+          11853,
+          22.500843048095703
+        ],
+        [
+          62599,
+          16.15730857849121
+        ],
+        [
+          58623,
+          14.158039093017578
+        ],
+        [
+          65964,
+          13.911332130432129
+        ],
+        [
+          44173,
+          13.852519989013672
+        ],
+        [
+          318,
+          13.815194129943848
+        ],
+        [
+          5120,
+          13.202312469482422
+        ],
+        [
+          966,
+          12.983820915222168
+        ]
+      ]
+    },
+    {
+      "step": 7,
+      "cache_position": 23,
+      "input_token": 11853,
+      "generated_token": 11853,
+      "top_k": [
+        [
+          11853,
+          22.641258239746094
+        ],
+        [
+          62599,
+          16.070302963256836
+        ],
+        [
+          58623,
+          14.35332202911377
+        ],
+        [
+          44173,
+          13.936738967895508
+        ],
+        [
+          318,
+          13.80971622467041
+        ],
+        [
+          65964,
+          13.509564399719238
+        ],
+        [
+          5120,
+          13.452924728393555
+        ],
+        [
+          966,
+          13.15845012664795
+        ]
+      ]
+    }
+  ],
+  "generated_ids": [
+    11853,
+    11853,
+    11853,
+    11853,
+    11853,
+    11853,
+    11853,
+    11853
+  ],
+  "config": {
+    "hidden_size": 1024,
+    "intermediate_size": 3072,
+    "num_hidden_layers": 1,
+    "num_attention_heads": 16,
+    "num_key_value_heads": 8,
+    "head_dim": 128,
+    "vocab_size": 151936,
+    "rms_norm_eps": 1e-06,
+    "rope_theta": 1000000,
+    "tie_word_embeddings": true
+  },
+  "prompt_ids": [
+    151644,
+    872,
+    198,
+    3838,
+    374,
+    9625,
+    30,
+    151645,
+    198,
+    151644,
+    77091,
+    198,
+    151667,
+    271,
+    151668,
+    271
+  ],
+  "invocation": [
+    "/home/chh/venvs/qwen3fpga-py311/bin/python",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/tools/quant_model_reference.py",
+    "--assets",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/assets/official",
+    "--checkpoint",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/assets/checkpoint",
+    "--layout",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/import/probe-1layer/weight-layout.json",
+    "--output",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-native-1l/quant-nr-trace",
+    "--layers",
+    "1",
+    "--decode-steps",
+    "8",
+    "--max-cache-len",
+    "512",
+    "--prompt-ids",
+    "151644,872,198,3838,374,9625,30,151645,198,151644,77091,198,151667,271,151668,271",
+    "--capture-layers",
+    "0",
+    "--capture-intermediates",
+    "--arithmetic-profile",
+    "nr-fpga"
+  ],
+  "source_sha256": {
+    "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/tools/quant_model_reference.py": "09e0b953abc684cff0c2276c4b7a39adb9774e7befe4adce0ef7f9cb5e79755c",
+    "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/tools/quant_reference.py": "70f655aa4d4995f359bd5a52cd3bcc5222282b177effb8249995d325e40b434d",
+    "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/tools/reference_fp32.py": "d57dd4964204f08e1da3ce2c1b6242b9abcdead1e8d1bcd428b097728be33b87",
+    "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/tools/reference_fp32.c": "f4008f001b92b60f2cf6f074f621601502b038233f65e7a2b1de721df959ab8a",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/assets/official/config.json": "660db3b73d788119c04535e48cf9be5f55bc3100841a718637ae695b442f27dd",
+    "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/common/nr/nr_math.c": "f0bb33d8e96cb2bf7ad596916acfa1fb2bcfdf2afbd16cf1facc042144d588e8"
+  },
+  "checkpoint": "examples/FPGA-BOSCAME/qwen3-0.6b/model/assets/checkpoint/model.safetensors",
+  "layout_usage": "independent named-checkpoint reference; --layout retained for CLI compatibility, not used for graph ordering",
+  "weight_quantization_error_worst5": {
+    "model.layers.27.mlp.up_proj.weight": {
+      "max_abs_error": 0.004859745502471924,
+      "mean_abs_error": 0.00022707234893459827,
+      "max_abs_weight": 1.234375
+    },
+    "model.layers.27.mlp.gate_proj.weight": {
+      "max_abs_error": 0.004552125930786133,
+      "mean_abs_error": 0.00021167668455746025,
+      "max_abs_weight": 1.15625
+    },
+    "model.layers.26.mlp.up_proj.weight": {
+      "max_abs_error": 0.0043330118060112,
+      "mean_abs_error": 0.00024264615785796195,
+      "max_abs_weight": 1.1015625
+    },
+    "model.layers.26.mlp.gate_proj.weight": {
+      "max_abs_error": 0.004160016775131226,
+      "mean_abs_error": 0.0002051541378023103,
+      "max_abs_weight": 1.0625
+    },
+    "model.layers.16.self_attn.k_proj.weight": {
+      "max_abs_error": 0.003254566341638565,
+      "mean_abs_error": 0.00017309689428657293,
+      "max_abs_weight": 0.828125
+    }
+  }
+}

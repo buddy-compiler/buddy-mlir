@@ -1,0 +1,21 @@
+[fpga_run] UART ready: /dev/FPGA5, 115200, 8N1, no flow control
+[fpga_run] FPGA5 session active; elapsed=0s, UART=0 bytes
+
+[nr] NH boot; RA operator runtime
+[nr] RA entry=0x0000000080000040
+[nr] RA entered; clearing application BSS
+[nr] mstatus=0x8000000A00006000; launch BEGIN
+[fpga_run] FPGA5 started; capturing for 1200 seconds
+[text] prompt count=00000010 ids=0002505C 00000368 000000C6 00000EFE 00000176 00002599 0000001E 0002505D 000000C6 0002505C 00012D23 000000C6 00025073 0000010F 00025074 0000010F encode_cycles=000000000002AB62
+verify fixed prompt tokenizer: PASS
+[text] mode=fixed-validation; EOS is recorded, never early-stops
+[model] prefill begin position=00000000 input_token=0002505C
+[fpga_run] FPGA5 session active; elapsed=12s, UART=535 bytes
+[fpga_run] FPGA5 session active; elapsed=42s, UART=535 bytes
+[fpga_run] FPGA5 session active; elapsed=72s, UART=535 bytes
+[fpga_run] FPGA5 session active; elapsed=102s, UART=535 bytes
+[fpga_run] FPGA5 session active; elapsed=132s, UART=535 bytes
+[fpga_run] FPGA5 session active; elapsed=162s, UART=535 bytes
+[fpga_run] FPGA5 session active; elapsed=192s, UART=535 bytes
+[fpga_run] FPGA5 session active; elapsed=222s, UART=535 bytes
+[fpga_run] interrupted; releasing this session

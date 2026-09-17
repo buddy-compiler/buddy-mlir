@@ -1,0 +1,31 @@
+{
+  "name": "gqa_repeat_8x16x128_to_16x16x128",
+  "kind": "gqa_repeat",
+  "dtype": "f32",
+  "description": "GQA repeat_kv: query head h reads KV head floor(h/2), retaining token and head_dim axes",
+  "entry": "kernel_gqa_repeat_8x16x128_to_16x16x128",
+  "workspace_bytes": 196608,
+  "buffers": [
+    {
+      "name": "x",
+      "shape": [
+        8,
+        16,
+        128
+      ],
+      "dtype": "f32",
+      "offset": 0
+    },
+    {
+      "name": "out",
+      "shape": [
+        16,
+        16,
+        128
+      ],
+      "dtype": "f32",
+      "offset": 65536
+    }
+  ],
+  "validation": "All output elements versus an independent C oracle; host oracle uses libm double precision."
+}

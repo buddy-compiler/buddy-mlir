@@ -1,0 +1,93 @@
+[fpga_run] UART ready: /dev/FPGA5, 115200, 8N1, no flow control
+[fpga_run] FPGA5 session active; elapsed=0s, UART=0 bytes
+
+[nr] NH boot; RA operator runtime
+[nr] RA entry=0x0000000080000040
+[nr] RA entered; clearing application BSS
+[nr] mstatus=0x8000000A00006000; launch BEGIN
+[fpga_run] FPGA5 started; capturing for 900 seconds
+[model] prefill begin position=00000000
+[fpga_run] FPGA5 session active; elapsed=9s, UART=202 bytes
+[fpga_run] FPGA5 session active; elapsed=39s, UART=202 bytes
+[fpga_run] FPGA5 session active; elapsed=69s, UART=202 bytes
+[compare] logits position=0000000F count=00025180 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] key_cache position=0000000F count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] value_cache position=0000000F count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[model] selected position=0000000F 0000BF68:C072D924 00000176:407D53F8 00000108:4018637A 00000C4A:3E50A3D4 00001CEF:400822CC 00000130:40910151 000012B3:BF8A919D 00001427:400F0715 0000000B:40247727
+[model] kv position=0000000F layer=00000000 k=BEFA4528 v=3B3D6C2F
+[model] prefill position=00000000 token=0000812B logit_bits=410D46B2 compute_cycles=00000000468C88D2 total_with_uart_cycles=000000004760188B scratch_bytes=0000000000E4F344
+[model] decode begin position=00000010
+[fpga_run] FPGA5 session active; elapsed=99s, UART=991 bytes
+[fpga_run] FPGA5 session active; elapsed=129s, UART=991 bytes
+[compare] logits position=00000010 count=00025180 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] key_cache position=00000010 count=00004400 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] value_cache position=00000010 count=00004400 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[model] selected position=00000010 0000BF68:C0450EF5 00000176:40633810 00000108:40B0DB7E 00000C4A:C0252FD5 00001CEF:40461F57 00000130:4091967C 000012B3:4078177C 00001427:C04B56FE 0000000B:3FCE87D7
+[model] kv position=00000010 layer=00000000 k=C0014F7C v=BE0EFAE0
+[model] decode position=00000010 token=00002E4D logit_bits=415556A5 compute_cycles=000000002EBC6BC4 total_with_uart_cycles=000000002F90BDA7 scratch_bytes=0000000000CB0CC4
+[model] decode begin position=00000011
+[fpga_run] FPGA5 session active; elapsed=159s, UART=1779 bytes
+[compare] logits position=00000011 count=00025180 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] key_cache position=00000011 count=00004800 max_abs_bit[fpga_run] FPGA5 session active; elapsed=189s, UART=1944 bytes
+s=00000000 mean_abs_bits=00000000 PASS
+[compare] value_cache position=00000011 count=00004800 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[model] selected position=00000011 0000BF68:C0C7C8C8 00000176:4099F4C2 00000108:BFD6F390 00000C4A:BFFFD744 00001CEF:BF4756E1 00000130:3FAEF4E8 000012B3:3EDA5DB3 00001427:C0C6C543 0000000B:40941656
+[model] kv position=00000011 layer=00000000 k=BE7F132A v=3C868823
+[model] decode position=00000011 token=00002E4D logit_bits=41A680BF compute_cycles=000000002EBCC0AE total_with_uart_cycles=000000002F91D4B9 scratch_bytes=0000000000CB0CC4
+[model] decode begin position=00000012
+[fpga_run] FPGA5 session active; elapsed=219s, UART=2567 bytes
+[compare] logits position=00000012 count=00025180 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] key_cache position=00000012 count=00004C00 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] value_cache position=00000012 count=00004C00 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[model] selected position=00000012 0000BF68:C0A456C9 00000176:40ACADB3 00000108:BFB8A33D 00000C4A:BEB2E934 00001CEF:BF127A0C 00000130:3F93D873 000012B3:3F3ABFB8 00001427:C0AD3647 0000000B:40CB2FF2
+[model] kv position=00000012 layer=00000000 k=3FE2F6EF v=3C868823
+[model] decode position=00000012 token=00002E4D logit_bits=41B2599F compute_cycles=000000002EBCD728 total_with_uart_cycles=000000002F92B0FE scratch_bytes=0000000000CB0CC4
+[model] decode begin position=00000013
+[fpga_run] FPGA5 session active; elapsed=249s, UART=3355 bytes
+[fpga_run] FPGA5 session active; elapsed=279s, UART=3355 bytes
+[compare] logits position=00000013 count=00025180 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] key_cache position=00000013 count=00005000 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] value_cache position=00000013 count=00005000 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[model] selected position=00000013 0000BF68:C08EC24C 00000176:40BF55FF 00000108:BFCAC2F9 00000C4A:3F27A899 00001CEF:BEB68807 00000130:3FB3FB64 000012B3:3F6C5060 00001427:C0AB4576 0000000B:40C9BE75
+[model] kv position=00000013 layer=00000000 k=400A9259 v=3C868823
+[model] decode position=00000013 token=00002E4D logit_bits=41B2878C compute_cycles=000000002EBCD8F3 total_with_uart_cycles=000000002F93745B scratch_bytes=0000000000CB0CC4
+[model] decode begin position=00000014
+[fpga_run] FPGA5 session active; elapsed=309s, UART=4143 bytes
+[fpga_run] FPGA5 session active; elapsed=339s, UART=4143 bytes
+[compare] logits position=00000014 count=00025180 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] key_cache position=00000014 count=00005400 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] value_cache position=00000014 count=00005400 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[model] selected position=00000014 0000BF68:C083DFDD 00000176:40CDF0D0 00000108:BF9E249C 00000C4A:3F7472C7 00001CEF:BC9E123B 00000130:3F83FFB5 000012B3:3F8569DB 00001427:C09D79FB 0000000B:40CB554C
+[model] kv position=00000014 layer=00000000 k=3F11091A v=3C868823
+[model] decode position=00000014 token=00002E4D logit_bits=41B32C29 compute_cycles=000000002EBCD606 total_with_uart_cycles=000000002F9433AF scratch_bytes=0000000000CB0CC4
+[model] decode begin position=00000015
+[fpga_run] FPGA5 session active; elapsed=369s, UART=4931 bytes
+[fpga_run] FPGA5 session active; elapsed=399s, UART=4931 bytes
+[compare] logits position=00000015 count=00025180 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] key_cache position=00000015 count=00005800 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] value_cache position=00000015 count=00005800 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[model] selected position=00000015 0000BF68:C088B466 00000176:40CCBF87 00000108:BFB1934C 00000C4A:3F90FC9F 00001CEF:3D9D2762 00000130:3F80B87E 000012B3:3FAA1E4C 00001427:C091997C 0000000B:40CF0D7D
+[model] kv position=00000015 layer=00000000 k=BFC6C7C0 v=3C868823
+[model] decode position=00000015 token=00002E4D logit_bits=41B532A5 compute_cycles=000000002EBCCC09 total_with_uart_cycles=000000002F94F09A scratch_bytes=0000000000CB0CC4
+[model] decode begin position=00000016
+[fpga_run] FPGA5 session active; elapsed=429s, UART=5719 bytes
+[fpga_run] FPGA5 session active; elapsed=459s, UART=5719 bytes
+[compare] logits position=00000016 count=00025180 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] key_cache position=00000016 count=00005C00 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] value_cache position=00000016 count=00005C00 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[model] selected position=00000016 0000BF68:C0803DEB 00000176:40C92D95 00000108:BFA7FB76 00000C4A:3FBEBC72 00001CEF:3E910B8D 00000130:3F5192CE 000012B3:3FAB04CB 00001427:C08BD120 0000000B:40C81B33
+[model] kv position=00000016 layer=00000000 k=C00FA90C v=3C868823
+[model] decode position=00000016 token=00002E4D logit_bits=41B401BA compute_cycles=000000002EBCF5B5 total_with_uart_cycles=000000002F95DBBA scratch_bytes=0000000000CB0CC4
+[model] decode begin position=00000017
+[fpga_run] FPGA5 session active; elapsed=489s, UART=6507 bytes
+[compare] logits position=00000017 count=00025180 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] key_cache position=00000017 count=00006000 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] value_cache position=00000017 count=00006000 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[model] selected position=00000017 0000BF68:C081FE79 00000176:40D3A58F 00000108:BFA04EC8 00000C4A:3FA66B45 00001CEF:BDA27370 00000130:3F4D6C4E 000012B3:3FB8D3A4 00001427:C08A1280 0000000B:40D468A8
+[model] kv position=00000017 layer=00000000 k=BF5F6645 v=3C868823
+[model] decode position=00000017 token=00002E4D logit_bits=41B5214C compute_cycles=000000002EBCCE27 total_with_uart_cycles=000000002F9676E6 scratch_bytes=0000000000CB0CC4
+[nr] launch cycles=0x00000001C47F5EE9 status=0x00000000
+[nr] RA returned: PASS
+verify NR runtime: PASS
+[fpga_run] FPGA5 session active; elapsed=519s, UART=7361 bytes
+[fpga_run] Finished: 7361 UART bytes; DDR readback matches

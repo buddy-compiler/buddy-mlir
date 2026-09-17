@@ -1,0 +1,83 @@
+{
+  "status": "FAILED_NOT_ACCEPTED",
+  "reason": "No prefill result within 1200 seconds; load readbacks all match; cause unresolved",
+  "run_id": "run-609ee349d2a04f75",
+  "accepted": false,
+  "run_result": {
+    "status": "ERROR",
+    "fpga": 5,
+    "sha256": "26d089f14274de36236b0fd1c573cedc2ce1f230e88527d3d4abd0364823eca2",
+    "capture_seconds": 1200,
+    "baud": 115200,
+    "segment_readbacks": {
+      "image.bin": true,
+      "weights-w8a8.bin": true,
+      "tokenizer.bin": true
+    },
+    "ddr_readback_matches": true,
+    "uart_bytes": 583,
+    "completion_marker": "[nr] RA returned:",
+    "completion_marker_seen": false,
+    "error": "UART completion marker missing at capture timeout",
+    "uart_input_bytes_written": 0,
+    "uart_interactive_bytes_written": 0,
+    "uart_input_unacknowledged_requests": 0
+  },
+  "artifacts": [
+    {
+      "path": "deployment/ddr-load.plan",
+      "bytes": 654,
+      "sha256": "7d8d887d0a5484dcd8b16d7a3165159a04229edd61132bb6ce70869a6740cad4"
+    },
+    {
+      "path": "deployment/deployment.json",
+      "bytes": 1125,
+      "sha256": "25a67986fa070edad7fdfd2de0a3b11d776b567e97d785e6f62aa4c90b6268b2"
+    },
+    {
+      "path": "image/elf-audit.json",
+      "bytes": 583,
+      "sha256": "0bc2a2adfb6761a78e2cefa5ffc727ba5c718a6ee920b68031a4d741bf0aca09"
+    },
+    {
+      "path": "image/image.json",
+      "bytes": 23181,
+      "sha256": "fdbc0cb0be214e3041d0124fdab92f5167d2b814b727a1c0848634d33e2d051c"
+    },
+    {
+      "path": "image/kernel-profile.json",
+      "bytes": 12222,
+      "sha256": "b57680c5fbd319fde31071e9f9eee5eae5a9730c46e64b05643633f4a149fdc4"
+    },
+    {
+      "path": "image/w8a8-image-plan.json",
+      "bytes": 8929,
+      "sha256": "3893b142d686d8a7712953c124c11d257af6ce0be7bb1d516ab420c87fca9d42"
+    },
+    {
+      "path": "run/result.json",
+      "bytes": 582,
+      "sha256": "7ee963967b4ad4cb52d5577ecc9a72248b77d86712939ae75211dfae2b0673d1"
+    },
+    {
+      "path": "run/run-manifest.json",
+      "bytes": 586,
+      "sha256": "c498dc5d5b6df24a00e903f4e6d8a9087a7157241cf8b044815588e5f22a9e61"
+    },
+    {
+      "path": "run/uart.raw.log",
+      "bytes": 583,
+      "sha256": "982d10ce72c8b4312294db2138a78c6385a51f442b156eec7587c58548efe254"
+    },
+    {
+      "path": "run/uvhs.log",
+      "bytes": 68866,
+      "sha256": "b9ef714a09092538e53675f6217cb0ab3d730cb7e712002dc122ea038753d19b"
+    },
+    {
+      "path": "run/worker.log",
+      "bytes": 3310,
+      "sha256": "71a3a1b534e0409a65b6e3ddca6d239b2e15b227c5f6338aa3a148ad4d13ed09"
+    }
+  ]
+}

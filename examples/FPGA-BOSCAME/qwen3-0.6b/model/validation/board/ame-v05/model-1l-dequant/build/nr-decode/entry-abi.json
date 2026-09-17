@@ -1,0 +1,875 @@
+{
+  "entry": "forward_decode",
+  "source": "actual imported func.func type",
+  "inputs": [
+    {
+      "index": 0,
+      "node": "arg4_1",
+      "shape": [
+        1024
+      ],
+      "dtype": "f32",
+      "rank": 1,
+      "descriptor_bytes_lp64": 40,
+      "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+    },
+    {
+      "index": 1,
+      "node": "arg6_1",
+      "shape": [
+        128
+      ],
+      "dtype": "f32",
+      "rank": 1,
+      "descriptor_bytes_lp64": 40,
+      "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+    },
+    {
+      "index": 2,
+      "node": "arg8_1",
+      "shape": [
+        128
+      ],
+      "dtype": "f32",
+      "rank": 1,
+      "descriptor_bytes_lp64": 40,
+      "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+    },
+    {
+      "index": 3,
+      "node": "arg13_1",
+      "shape": [
+        1024
+      ],
+      "dtype": "f32",
+      "rank": 1,
+      "descriptor_bytes_lp64": 40,
+      "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+    },
+    {
+      "index": 4,
+      "node": "arg17_1",
+      "shape": [
+        1024
+      ],
+      "dtype": "f32",
+      "rank": 1,
+      "descriptor_bytes_lp64": 40,
+      "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+    },
+    {
+      "index": 5,
+      "node": "arg3_1",
+      "shape": [
+        64
+      ],
+      "dtype": "f32",
+      "rank": 1,
+      "descriptor_bytes_lp64": 40,
+      "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+    },
+    {
+      "index": 6,
+      "node": "w8a8_embedding_weight_i8",
+      "shape": [
+        151936,
+        1024
+      ],
+      "dtype": "i8",
+      "rank": 2,
+      "descriptor_bytes_lp64": 56,
+      "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+    },
+    {
+      "index": 7,
+      "node": "w8a8_embedding_weight_scale",
+      "shape": [
+        151936
+      ],
+      "dtype": "f32",
+      "rank": 1,
+      "descriptor_bytes_lp64": 40,
+      "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+    },
+    {
+      "index": 8,
+      "node": "w8a8_mm_6_weight_i8",
+      "shape": [
+        1024,
+        3072
+      ],
+      "dtype": "i8",
+      "rank": 2,
+      "descriptor_bytes_lp64": 56,
+      "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+    },
+    {
+      "index": 9,
+      "node": "w8a8_mm_6_weight_scale",
+      "shape": [
+        1024
+      ],
+      "dtype": "f32",
+      "rank": 1,
+      "descriptor_bytes_lp64": 40,
+      "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+    },
+    {
+      "index": 10,
+      "node": "w8a8_mm_5_weight_i8",
+      "shape": [
+        3072,
+        1024
+      ],
+      "dtype": "i8",
+      "rank": 2,
+      "descriptor_bytes_lp64": 56,
+      "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+    },
+    {
+      "index": 11,
+      "node": "w8a8_mm_5_weight_scale",
+      "shape": [
+        3072
+      ],
+      "dtype": "f32",
+      "rank": 1,
+      "descriptor_bytes_lp64": 40,
+      "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+    },
+    {
+      "index": 12,
+      "node": "w8a8_mm_4_weight_i8",
+      "shape": [
+        3072,
+        1024
+      ],
+      "dtype": "i8",
+      "rank": 2,
+      "descriptor_bytes_lp64": 56,
+      "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+    },
+    {
+      "index": 13,
+      "node": "w8a8_mm_4_weight_scale",
+      "shape": [
+        3072
+      ],
+      "dtype": "f32",
+      "rank": 1,
+      "descriptor_bytes_lp64": 40,
+      "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+    },
+    {
+      "index": 14,
+      "node": "w8a8_mm_3_weight_i8",
+      "shape": [
+        1024,
+        2048
+      ],
+      "dtype": "i8",
+      "rank": 2,
+      "descriptor_bytes_lp64": 56,
+      "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+    },
+    {
+      "index": 15,
+      "node": "w8a8_mm_3_weight_scale",
+      "shape": [
+        1024
+      ],
+      "dtype": "f32",
+      "rank": 1,
+      "descriptor_bytes_lp64": 40,
+      "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+    },
+    {
+      "index": 16,
+      "node": "w8a8_mm_2_weight_i8",
+      "shape": [
+        1024,
+        1024
+      ],
+      "dtype": "i8",
+      "rank": 2,
+      "descriptor_bytes_lp64": 56,
+      "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+    },
+    {
+      "index": 17,
+      "node": "w8a8_mm_2_weight_scale",
+      "shape": [
+        1024
+      ],
+      "dtype": "f32",
+      "rank": 1,
+      "descriptor_bytes_lp64": 40,
+      "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+    },
+    {
+      "index": 18,
+      "node": "w8a8_mm_1_weight_i8",
+      "shape": [
+        1024,
+        1024
+      ],
+      "dtype": "i8",
+      "rank": 2,
+      "descriptor_bytes_lp64": 56,
+      "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+    },
+    {
+      "index": 19,
+      "node": "w8a8_mm_1_weight_scale",
+      "shape": [
+        1024
+      ],
+      "dtype": "f32",
+      "rank": 1,
+      "descriptor_bytes_lp64": 40,
+      "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+    },
+    {
+      "index": 20,
+      "node": "w8a8_mm_weight_i8",
+      "shape": [
+        2048,
+        1024
+      ],
+      "dtype": "i8",
+      "rank": 2,
+      "descriptor_bytes_lp64": 56,
+      "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+    },
+    {
+      "index": 21,
+      "node": "w8a8_mm_weight_scale",
+      "shape": [
+        2048
+      ],
+      "dtype": "f32",
+      "rank": 1,
+      "descriptor_bytes_lp64": 40,
+      "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+    },
+    {
+      "index": 22,
+      "node": "arg0_1",
+      "shape": [
+        1,
+        1
+      ],
+      "dtype": "i64",
+      "rank": 2,
+      "descriptor_bytes_lp64": 56,
+      "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+    },
+    {
+      "index": 23,
+      "node": "arg2_1",
+      "shape": [
+        1
+      ],
+      "dtype": "i64",
+      "rank": 1,
+      "descriptor_bytes_lp64": 40,
+      "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+    },
+    {
+      "index": 24,
+      "node": "arg10_1",
+      "shape": [
+        1,
+        8,
+        512,
+        128
+      ],
+      "dtype": "f32",
+      "rank": 4,
+      "descriptor_bytes_lp64": 88,
+      "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }"
+    },
+    {
+      "index": 25,
+      "node": "arg11_1",
+      "shape": [
+        1,
+        8,
+        512,
+        128
+      ],
+      "dtype": "f32",
+      "rank": 4,
+      "descriptor_bytes_lp64": 88,
+      "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }"
+    },
+    {
+      "index": 26,
+      "node": "attn__scaled_dot_product_flash_attention_for_cpu_qk",
+      "shape": [
+        1,
+        16,
+        1,
+        512
+      ],
+      "dtype": "f32",
+      "rank": 4,
+      "descriptor_bytes_lp64": 88,
+      "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }"
+    },
+    {
+      "index": 27,
+      "node": "attn__scaled_dot_product_flash_attention_for_cpu_masked",
+      "shape": [
+        1,
+        16,
+        1,
+        512
+      ],
+      "dtype": "f32",
+      "rank": 4,
+      "descriptor_bytes_lp64": 88,
+      "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }"
+    },
+    {
+      "index": 28,
+      "node": "attn__scaled_dot_product_flash_attention_for_cpu_maxima",
+      "shape": [
+        16
+      ],
+      "dtype": "f32",
+      "rank": 1,
+      "descriptor_bytes_lp64": 40,
+      "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+    },
+    {
+      "index": 29,
+      "node": "attn__scaled_dot_product_flash_attention_for_cpu_sums",
+      "shape": [
+        16
+      ],
+      "dtype": "f32",
+      "rank": 1,
+      "descriptor_bytes_lp64": 40,
+      "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+    },
+    {
+      "index": 30,
+      "node": "attn__scaled_dot_product_flash_attention_for_cpu_probs",
+      "shape": [
+        1,
+        16,
+        1,
+        512
+      ],
+      "dtype": "f32",
+      "rank": 4,
+      "descriptor_bytes_lp64": 88,
+      "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }"
+    },
+    {
+      "index": 31,
+      "node": "attn__scaled_dot_product_flash_attention_for_cpu_pooled",
+      "shape": [
+        1,
+        16,
+        1,
+        128
+      ],
+      "dtype": "f32",
+      "rank": 4,
+      "descriptor_bytes_lp64": 88,
+      "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }"
+    },
+    {
+      "index": 32,
+      "node": "attn__scaled_dot_product_flash_attention_for_cpu_position",
+      "shape": [
+        1
+      ],
+      "dtype": "i32",
+      "rank": 1,
+      "descriptor_bytes_lp64": 40,
+      "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+    },
+    {
+      "index": 33,
+      "node": "kv_index_put_tm",
+      "shape": [
+        1,
+        8,
+        1,
+        128
+      ],
+      "dtype": "f32",
+      "rank": 4,
+      "descriptor_bytes_lp64": 88,
+      "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }"
+    },
+    {
+      "index": 34,
+      "node": "kv_index_put_1_tm",
+      "shape": [
+        1,
+        8,
+        1,
+        128
+      ],
+      "dtype": "f32",
+      "rank": 4,
+      "descriptor_bytes_lp64": 88,
+      "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }"
+    },
+    {
+      "index": 35,
+      "node": "w8a8_embedding_out",
+      "shape": [
+        1,
+        1,
+        1024
+      ],
+      "dtype": "f32",
+      "rank": 3,
+      "descriptor_bytes_lp64": 72,
+      "llvm_descriptor": "{ ptr, ptr, i64, [3 x i64], [3 x i64] }"
+    },
+    {
+      "index": 36,
+      "node": "w8a8_mm_q",
+      "shape": [
+        1,
+        1024
+      ],
+      "dtype": "i8",
+      "rank": 2,
+      "descriptor_bytes_lp64": 56,
+      "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+    },
+    {
+      "index": 37,
+      "node": "w8a8_mm_a_scale",
+      "shape": [
+        1
+      ],
+      "dtype": "f32",
+      "rank": 1,
+      "descriptor_bytes_lp64": 40,
+      "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+    },
+    {
+      "index": 38,
+      "node": "w8a8_mm_acc",
+      "shape": [
+        1,
+        2048
+      ],
+      "dtype": "i32",
+      "rank": 2,
+      "descriptor_bytes_lp64": 56,
+      "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+    },
+    {
+      "index": 39,
+      "node": "w8a8_mm_out",
+      "shape": [
+        1,
+        2048
+      ],
+      "dtype": "f32",
+      "rank": 2,
+      "descriptor_bytes_lp64": 56,
+      "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+    },
+    {
+      "index": 40,
+      "node": "w8a8_mm_1_q",
+      "shape": [
+        1,
+        1024
+      ],
+      "dtype": "i8",
+      "rank": 2,
+      "descriptor_bytes_lp64": 56,
+      "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+    },
+    {
+      "index": 41,
+      "node": "w8a8_mm_1_a_scale",
+      "shape": [
+        1
+      ],
+      "dtype": "f32",
+      "rank": 1,
+      "descriptor_bytes_lp64": 40,
+      "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+    },
+    {
+      "index": 42,
+      "node": "w8a8_mm_1_acc",
+      "shape": [
+        1,
+        1024
+      ],
+      "dtype": "i32",
+      "rank": 2,
+      "descriptor_bytes_lp64": 56,
+      "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+    },
+    {
+      "index": 43,
+      "node": "w8a8_mm_1_out",
+      "shape": [
+        1,
+        1024
+      ],
+      "dtype": "f32",
+      "rank": 2,
+      "descriptor_bytes_lp64": 56,
+      "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+    },
+    {
+      "index": 44,
+      "node": "w8a8_mm_2_q",
+      "shape": [
+        1,
+        1024
+      ],
+      "dtype": "i8",
+      "rank": 2,
+      "descriptor_bytes_lp64": 56,
+      "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+    },
+    {
+      "index": 45,
+      "node": "w8a8_mm_2_a_scale",
+      "shape": [
+        1
+      ],
+      "dtype": "f32",
+      "rank": 1,
+      "descriptor_bytes_lp64": 40,
+      "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+    },
+    {
+      "index": 46,
+      "node": "w8a8_mm_2_acc",
+      "shape": [
+        1,
+        1024
+      ],
+      "dtype": "i32",
+      "rank": 2,
+      "descriptor_bytes_lp64": 56,
+      "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+    },
+    {
+      "index": 47,
+      "node": "w8a8_mm_2_out",
+      "shape": [
+        1,
+        1024
+      ],
+      "dtype": "f32",
+      "rank": 2,
+      "descriptor_bytes_lp64": 56,
+      "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+    },
+    {
+      "index": 48,
+      "node": "w8a8_mm_3_q",
+      "shape": [
+        1,
+        2048
+      ],
+      "dtype": "i8",
+      "rank": 2,
+      "descriptor_bytes_lp64": 56,
+      "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+    },
+    {
+      "index": 49,
+      "node": "w8a8_mm_3_a_scale",
+      "shape": [
+        1
+      ],
+      "dtype": "f32",
+      "rank": 1,
+      "descriptor_bytes_lp64": 40,
+      "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+    },
+    {
+      "index": 50,
+      "node": "w8a8_mm_3_acc",
+      "shape": [
+        1,
+        1024
+      ],
+      "dtype": "i32",
+      "rank": 2,
+      "descriptor_bytes_lp64": 56,
+      "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+    },
+    {
+      "index": 51,
+      "node": "w8a8_mm_3_out",
+      "shape": [
+        1,
+        1024
+      ],
+      "dtype": "f32",
+      "rank": 2,
+      "descriptor_bytes_lp64": 56,
+      "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+    },
+    {
+      "index": 52,
+      "node": "w8a8_mm_4_q",
+      "shape": [
+        1,
+        1024
+      ],
+      "dtype": "i8",
+      "rank": 2,
+      "descriptor_bytes_lp64": 56,
+      "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+    },
+    {
+      "index": 53,
+      "node": "w8a8_mm_4_a_scale",
+      "shape": [
+        1
+      ],
+      "dtype": "f32",
+      "rank": 1,
+      "descriptor_bytes_lp64": 40,
+      "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+    },
+    {
+      "index": 54,
+      "node": "w8a8_mm_4_acc",
+      "shape": [
+        1,
+        3072
+      ],
+      "dtype": "i32",
+      "rank": 2,
+      "descriptor_bytes_lp64": 56,
+      "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+    },
+    {
+      "index": 55,
+      "node": "w8a8_mm_4_out",
+      "shape": [
+        1,
+        3072
+      ],
+      "dtype": "f32",
+      "rank": 2,
+      "descriptor_bytes_lp64": 56,
+      "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+    },
+    {
+      "index": 56,
+      "node": "w8a8_mm_5_q",
+      "shape": [
+        1,
+        1024
+      ],
+      "dtype": "i8",
+      "rank": 2,
+      "descriptor_bytes_lp64": 56,
+      "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+    },
+    {
+      "index": 57,
+      "node": "w8a8_mm_5_a_scale",
+      "shape": [
+        1
+      ],
+      "dtype": "f32",
+      "rank": 1,
+      "descriptor_bytes_lp64": 40,
+      "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+    },
+    {
+      "index": 58,
+      "node": "w8a8_mm_5_acc",
+      "shape": [
+        1,
+        3072
+      ],
+      "dtype": "i32",
+      "rank": 2,
+      "descriptor_bytes_lp64": 56,
+      "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+    },
+    {
+      "index": 59,
+      "node": "w8a8_mm_5_out",
+      "shape": [
+        1,
+        3072
+      ],
+      "dtype": "f32",
+      "rank": 2,
+      "descriptor_bytes_lp64": 56,
+      "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+    },
+    {
+      "index": 60,
+      "node": "w8a8_mm_6_q",
+      "shape": [
+        1,
+        3072
+      ],
+      "dtype": "i8",
+      "rank": 2,
+      "descriptor_bytes_lp64": 56,
+      "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+    },
+    {
+      "index": 61,
+      "node": "w8a8_mm_6_a_scale",
+      "shape": [
+        1
+      ],
+      "dtype": "f32",
+      "rank": 1,
+      "descriptor_bytes_lp64": 40,
+      "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+    },
+    {
+      "index": 62,
+      "node": "w8a8_mm_6_acc",
+      "shape": [
+        1,
+        1024
+      ],
+      "dtype": "i32",
+      "rank": 2,
+      "descriptor_bytes_lp64": 56,
+      "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+    },
+    {
+      "index": 63,
+      "node": "w8a8_mm_6_out",
+      "shape": [
+        1,
+        1024
+      ],
+      "dtype": "f32",
+      "rank": 2,
+      "descriptor_bytes_lp64": 56,
+      "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+    },
+    {
+      "index": 64,
+      "node": "w8a8_mm_7_q",
+      "shape": [
+        1,
+        1024
+      ],
+      "dtype": "i8",
+      "rank": 2,
+      "descriptor_bytes_lp64": 56,
+      "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+    },
+    {
+      "index": 65,
+      "node": "w8a8_mm_7_a_scale",
+      "shape": [
+        1
+      ],
+      "dtype": "f32",
+      "rank": 1,
+      "descriptor_bytes_lp64": 40,
+      "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+    },
+    {
+      "index": 66,
+      "node": "w8a8_mm_7_acc",
+      "shape": [
+        1,
+        151936
+      ],
+      "dtype": "i32",
+      "rank": 2,
+      "descriptor_bytes_lp64": 56,
+      "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+    },
+    {
+      "index": 67,
+      "node": "w8a8_mm_7_out",
+      "shape": [
+        1,
+        151936
+      ],
+      "dtype": "f32",
+      "rank": 2,
+      "descriptor_bytes_lp64": 56,
+      "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+    }
+  ],
+  "outputs": [
+    {
+      "index": 0,
+      "node": "add_9",
+      "shape": [
+        1
+      ],
+      "dtype": "i64",
+      "rank": 1,
+      "descriptor_bytes_lp64": 40,
+      "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }",
+      "aggregate_offset_bytes_lp64": 0
+    },
+    {
+      "index": 1,
+      "node": "arg10_1",
+      "shape": [
+        1,
+        8,
+        512,
+        128
+      ],
+      "dtype": "f32",
+      "rank": 4,
+      "descriptor_bytes_lp64": 88,
+      "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }",
+      "aggregate_offset_bytes_lp64": 40
+    },
+    {
+      "index": 2,
+      "node": "arg11_1",
+      "shape": [
+        1,
+        8,
+        512,
+        128
+      ],
+      "dtype": "f32",
+      "rank": 4,
+      "descriptor_bytes_lp64": 88,
+      "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }",
+      "aggregate_offset_bytes_lp64": 128
+    },
+    {
+      "index": 3,
+      "node": "view_25",
+      "shape": [
+        1,
+        1,
+        151936
+      ],
+      "dtype": "f32",
+      "rank": 3,
+      "descriptor_bytes_lp64": 72,
+      "llvm_descriptor": "{ ptr, ptr, i64, [3 x i64], [3 x i64] }",
+      "aggregate_offset_bytes_lp64": 216
+    }
+  ],
+  "parameter_count": 22,
+  "result_descriptor_count": 4,
+  "result_aggregate_bytes_lp64": 288,
+  "contract": "CIFACE result aggregate pointer first, then one descriptor pointer per input; descriptor offsets and strides must be honored"
+}

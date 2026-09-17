@@ -1,0 +1,5 @@
+build/
+build-*/
+__pycache__/
+*.log
+fpga_run.sh

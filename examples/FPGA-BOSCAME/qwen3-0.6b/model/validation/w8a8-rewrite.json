@@ -1,0 +1,180 @@
+{
+  "stage": "W8A8 graph rewrite: complete and measured; still not numerically verified",
+  "source_report": "build/w8a8-probe/triton-call-replacement.json",
+  "source_report_sha256": "940516ed03cf800b6058a1ef1fbb8c48df609609228e3444eca321deda105d61",
+  "one_layer": {
+    "parameters": 23,
+    "was": 14,
+    "f32_weight_matrices_remaining": 0,
+    "pruned_nodes": 16,
+    "external_calls": 31,
+    "total_parameter_bytes": 794311424,
+    "total_parameter_mib": 757.5
+  },
+  "what_the_parameters_are_now": {
+    "embedding_f32": {
+      "name": "arg1_1",
+      "shape": [
+        151936,
+        1024
+      ],
+      "bytes": 622329856,
+      "note": "STILL f32 -- the embedding op was not quantised"
+    },
+    "norms_and_rotary_f32": "input_layernorm, q_norm, k_norm, final norm, post_attention_layernorm, rotary inv_freq (about 14 KB)",
+    "per_linear_int8_weights_and_scales": {
+      "int8_bytes": 15728640,
+      "scale_bytes": 49152
+    },
+    "lm_head_int8_and_scales": {
+      "int8_bytes": 155582464
+    }
+  },
+  "projection_to_28_layers": {
+    "embedding_f32": 622329856,
+    "per_layer_int8_plus_scales": 15777792,
+    "x28": 441778176,
+    "total_with_f32_embedding_bytes": 1064108032,
+    "total_with_f32_embedding_mib": 1014.8,
+    "nr_ld_high_region_mib": 1152,
+    "verdict": "fits the HIGH region, but leaves little room once the 112 MiB KV cache and the graph's own buffers are added",
+    "with_int8_embedding_mib": 569.7,
+    "conclusion": "quantising the embedding is the remaining memory piece; it is what makes the full model comfortable rather than merely possible"
+  },
+  "bugs_found_and_fixed_this_round": [
+    {
+      "symptom": "the void wrapper declared a phantom `MemRef0 *a0`",
+      "cause": "the parameter list was built as [result_rank] + graph_ranks even for calls that return nothing, shifting every operand by one",
+      "fix": "void calls build their parameter list from graph_ranks only"
+    },
+    {
+      "symptom": "the new int8 weight and scale parameters vanished from the graph",
+      "cause": "_reindex rebuilt the parameter list from the pre-surgery snapshot",
+      "fix": "carry the added parameters through to the reindex"
+    },
+    {
+      "symptom": "pruned_nodes and parameters were absent from the report",
+      "cause": "the block wrote to report['graphs'][kind] before that key was assigned, so the assignment overwrote it",
+      "fix": "moved after the assignment, with a comment on the hazard"
+    },
+    {
+      "symptom": "ValueError: PlaceholderOp is not in list during reindex",
+      "cause": "_reindex indexed nodes that pruning had already removed",
+      "fix": "_reindex builds an id->index map and skips absent nodes"
+    }
+  ],
+  "verification": {
+    "adapters_compile": "PASS (riscv64 clang, -I support.h), undefined symbols are exactly the _mlir_ciface_kernel_* entries",
+    "not_done": [
+      "numeric verification (blocked by the import failure above)",
+      "not lowered to an NR object; no image built",
+      "no int8 weight segment with scales exists",
+      "the embedding is not quantised",
+      "28 layers"
+    ],
+    "numeric": "BLOCKED, see numeric_verification_attempt"
+  },
+  "numeric_verification_attempt": {
+    "status": "the W8A8 graph now COMPILES, LINKS AND RUNS on the host, but the numbers are wrong",
+    "root_cause_of_the_import_failure": {
+      "found": true,
+      "what": "Graph.lower_to_top_level_ir builds the signature as `params_shapes + inputs_shapes` and then binds each PlaceholderOp to the next argument **in body order**. The rewrite inserted its new int8 and scale parameters at the first compute node -- which is after the graph inputs -- so the inputs were bound to weight-shaped arguments and a [2048] quantised buffer ended up where the cache position belongs.",
+      "why_the_tool_did_not_catch_it": "tools/triton_call_replace.py lowers through GraphDriver, which builds subgraphs and binds arguments differently; the same graph lowered fine there while failing through Graph. Reproduced side by side in one process.",
+      "fixes": [
+        "_placeholder_anchor places a new parameter right after the last existing parameter, so the body keeps its 'parameters, then inputs' order",
+        "_reindex now emits _fake_params and _inputs sorted by body index, because the insertion order of the new parameters is not their body order"
+      ]
+    },
+    "second_import_failure_and_fix": {
+      "symptom": "func.call operand type mismatch: expected tensor<2048x1024xi8> but provided tensor<151936x1024xi8> for operand 1",
+      "cause": "the new parameters' body order was the reverse of their creation order, so _fake_params disagreed with the body",
+      "fix": "the same body-order sort in _reindex"
+    },
+    "run": {
+      "report": "build/host-run/w8a8-1layer/host-run.json",
+      "report_sha256": "d82a6e748bae8fb1baf1c9f96c506a8172f95f5a3c09027c950e19e46fb67c5a",
+      "external_calls_per_graph": {
+        "prefill": 31,
+        "decode": 31
+      },
+      "w8a8_linears_per_graph": 8,
+      "prefill_logits_shape": [
+        1,
+        1,
+        151936
+      ],
+      "board_style_argmax": 0,
+      "generated_ids": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "fp32_reference_ids": [
+        11853,
+        11853,
+        11853,
+        11853,
+        11853,
+        11853,
+        11853,
+        11853
+      ],
+      "token_trajectory_matches_fp32": false,
+      "logit_errors_vs_fp32": {
+        "prefill_logits": {
+          "max_abs_error": 16.084840774536133,
+          "mean_abs_error": 4.214060950755488,
+          "cosine_similarity": 0.0,
+          "elements": 151936
+        },
+        "decode_logits_0": {
+          "max_abs_error": 21.49235725402832,
+          "mean_abs_error": 4.629945593134275,
+          "cosine_similarity": 0.0,
+          "elements": 151936
+        },
+        "decode_logits_1": {
+          "max_abs_error": 21.102781295776367,
+          "mean_abs_error": 4.277476043150945,
+          "cosine_similarity": 0.0,
+          "elements": 151936
+        }
+      },
+      "verdict": "WRONG. cosine 0.0 against the FP32 reference and every generated token is 0, so this is not a result -- it is a working pipeline producing incorrect arithmetic."
+    },
+    "next_hypotheses": [
+      "the dequantize call's argument order: the chain passes (acc, activation_scale, weight_scale, out) assuming the kernel signature is (X, Row, Column, Out); if the kernel wants them the other way round the scales are applied to the wrong axis",
+      "the quantize kernel's contract: whether Scale is per-row of the [rows, K] input in the layout the chain assumes",
+      "whether the activation scale buffer [rows] and the weight scale buffer [n] reach the kernel as the ranks it expects -- the wrappers cast ranks but the element types are only checked at link time"
+    ],
+    "infrastructure_built": {
+      "w8a8_host_bridge": "build_host_bridge.sh discovers its cases from the generated adapters, so ADAPTERS=<w8a8 adapters> builds a W8A8 bridge; done, build/host-bridge-w8a8/libqwen_triton_host.so"
+    },
+    "round_17": {
+      "status": "still WRONG: the graph compiles and runs, but the output is exactly all zeros (unique value count 1), so the kernel writes are not reaching the buffer the graph output reads",
+      "ruled_out_this_round": {
+        "kernel_signatures": "read from each case's triton/build/<case>/frontend.json: quantize(X f32 r2, Q i8 r2, Scale f32 r1), matmul(A i8 r2, B i8 r2, C i32 r2), dequantize(X i32 r2, Row f32 r1, Column f32 r1, Out f32 r2). The chain passes exactly these, in this order.",
+        "lowered_tensor_IR": "subgraph0_prefill.triton.mlir shows the three calls wired correctly: quantize(%48, %49, %50); matmul(%49, %arg6, %53); dequantize(%53, %50, %arg7, %54); consumer reshapes %54",
+        "host_bridge": "libqwen_triton_host.so exports 45 w8a8 symbols including all six _mlir_ciface_kernel_{quantize,matmul,dequantize} entries"
+      },
+      "defect_found_and_fixed": {
+        "symptom": "the accumulator was produced by a FullOp (arith.constant)",
+        "why_it_matters": "a constant used as a writable operand makes one-shot bufferize give the call a copy, so writes are lost; and the int8 matmul kernel genuinely accumulates (its TTIR does `tt.load %C` then `tt.dot(a, b, previous)`), so C must start at zero AND be shared",
+        "fix": "Q, activation scale and Out now come from EmptyOp (tensor.empty, which bufferize allocates and shares); the accumulator is a linalg.generic that copies a zero constant into an empty buffer -- a computed value, so it is neither folded back to a constant nor copied on write",
+        "sub_bug": "copy_op's argument order is (destination, source): it builds `linalg.generic ins(args[1]) outs(args[0])`. I had them the other way round, which copied the uninitialised buffer into the constant."
+      },
+      "evidence_kept": {
+        "compiled_module": "build/host-run/w8a8-1layer/compiled.llvm.mlir",
+        "compiled_module_bytes": 816932,
+        "note": "the graph body calls the private bridges with 19/21/24 unpacked operands for quantize/matmul/dequantize, and each bridge builds its descriptor on the stack and forwards to the _mlir_ciface_ wrapper"
+      },
+      "next_diagnostic": "follow the SSA definitions in the dumped module: take the aligned pointer the quantize bridge receives as Q and check it is the same value the matmul bridge receives as A, and likewise that dequantize's Out is what the consumer reads. If they differ, bufferization is still inserting a copy somewhere in the chain.",
+      "verdict": "no numeric result for W8A8; the cosine-0.0 output is all zeros, not a near-miss"
+    }
+  }
+}

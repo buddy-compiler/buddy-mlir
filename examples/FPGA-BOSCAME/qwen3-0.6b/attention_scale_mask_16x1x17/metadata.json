@@ -1,0 +1,31 @@
+{
+  "name": "attention_scale_mask_16x1x17",
+  "kind": "attention_scale_mask",
+  "dtype": "f32",
+  "description": "Scale QK by 1/sqrt(128), then apply causal mask with absolute query position past+s",
+  "entry": "kernel_attention_scale_mask_16x1x17",
+  "workspace_bytes": 2176,
+  "buffers": [
+    {
+      "name": "x",
+      "shape": [
+        16,
+        1,
+        17
+      ],
+      "dtype": "f32",
+      "offset": 0
+    },
+    {
+      "name": "out",
+      "shape": [
+        16,
+        1,
+        17
+      ],
+      "dtype": "f32",
+      "offset": 1088
+    }
+  ],
+  "validation": "All output elements versus an independent C oracle; host oracle uses libm double precision."
+}

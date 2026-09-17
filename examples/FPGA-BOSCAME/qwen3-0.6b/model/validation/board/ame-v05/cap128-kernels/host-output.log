@@ -1,0 +1,104 @@
+[1/10] Triton attention_pv_position_16x16x128x128 BEGIN
+[attention-position] valid=00000010 errors=00000000 kernel_cycles=0000000000000bef
+[attention-position] valid=00000011 errors=00000000 kernel_cycles=0000000000000bb5
+[attention-position] valid=00000018 errors=00000000 kernel_cycles=0000000000000bec
+[attention-position] valid=0000003f errors=00000000 kernel_cycles=0000000000000c25
+[attention-position] valid=00000040 errors=00000000 kernel_cycles=0000000000000aaa
+[attention-position] valid=00000041 errors=00000000 kernel_cycles=000000000000155a
+[attention-position] valid=00000041 errors=00000000 kernel_cycles=00000000000012f9
+[attention-position] valid=00000040 errors=00000000 kernel_cycles=00000000000009aa
+[attention-position] valid=0000003f errors=00000000 kernel_cycles=0000000000000917
+[attention-position] valid=00000018 errors=00000000 kernel_cycles=00000000000008ad
+[attention-position] valid=00000011 errors=00000000 kernel_cycles=0000000000000896
+[attention-position] valid=00000010 errors=00000000 kernel_cycles=000000000000087d
+[attention-position] valid=0000007f errors=00000000 kernel_cycles=0000000000001015
+[attention-position] valid=00000080 errors=00000000 kernel_cycles=0000000000000ffe
+[attention-position] valid=00000010 errors=00000000 kernel_cycles=000000000000073e
+verify attention_pv_position_16x16x128x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[2/10] Triton attention_pv_position_16x1x128x128 BEGIN
+[attention-position] valid=00000010 errors=00000000 kernel_cycles=0000000000000090
+[attention-position] valid=00000011 errors=00000000 kernel_cycles=0000000000000092
+[attention-position] valid=00000018 errors=00000000 kernel_cycles=0000000000000094
+[attention-position] valid=0000003f errors=00000000 kernel_cycles=00000000000000b4
+[attention-position] valid=00000040 errors=00000000 kernel_cycles=00000000000000b1
+[attention-position] valid=00000041 errors=00000000 kernel_cycles=000000000000013b
+[attention-position] valid=00000041 errors=00000000 kernel_cycles=0000000000000141
+[attention-position] valid=00000040 errors=00000000 kernel_cycles=00000000000000b1
+[attention-position] valid=0000003f errors=00000000 kernel_cycles=00000000000000b4
+[attention-position] valid=00000018 errors=00000000 kernel_cycles=0000000000000094
+[attention-position] valid=00000011 errors=00000000 kernel_cycles=000000000000008d
+[attention-position] valid=00000010 errors=00000000 kernel_cycles=0000000000000084
+[attention-position] valid=0000007f errors=00000000 kernel_cycles=000000000000014a
+[attention-position] valid=00000080 errors=00000000 kernel_cycles=0000000000000146
+[attention-position] valid=00000001 errors=00000000 kernel_cycles=0000000000000084
+verify attention_pv_position_16x1x128x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[3/10] Triton attention_qk_position_native_16x16x128x128 BEGIN
+[attention-position] valid=00000010 errors=00000000 kernel_cycles=00000000000001d3
+[attention-position] valid=00000011 errors=00000000 kernel_cycles=0000000000000380
+[attention-position] valid=00000012 errors=00000000 kernel_cycles=0000000000000382
+[attention-position] valid=00000013 errors=00000000 kernel_cycles=0000000000000347
+[attention-position] valid=00000014 errors=00000000 kernel_cycles=0000000000000349
+[attention-position] valid=00000015 errors=00000000 kernel_cycles=000000000000034c
+[attention-position] valid=00000016 errors=00000000 kernel_cycles=0000000000000352
+[attention-position] valid=00000017 errors=00000000 kernel_cycles=0000000000000354
+[attention-position] valid=00000018 errors=00000000 kernel_cycles=000000000000031f
+[attention-position] valid=0000001f errors=00000000 kernel_cycles=0000000000000329
+[attention-position] valid=00000020 errors=00000000 kernel_cycles=0000000000000318
+[attention-position] valid=00000021 errors=00000000 kernel_cycles=0000000000000496
+[attention-position] valid=0000003f errors=00000000 kernel_cycles=0000000000000639
+[attention-position] valid=00000040 errors=00000000 kernel_cycles=00000000000005c3
+[attention-position] valid=00000041 errors=00000000 kernel_cycles=0000000000000738
+[attention-position] valid=0000007f errors=00000000 kernel_cycles=0000000000000b64
+[attention-position] valid=00000080 errors=00000000 kernel_cycles=0000000000000ae1
+[attention-position] valid=00000041 errors=00000000 kernel_cycles=00000000000006c4
+[attention-position] valid=00000040 errors=00000000 kernel_cycles=000000000000057b
+[attention-position] valid=0000003f errors=00000000 kernel_cycles=000000000000055b
+[attention-position] valid=00000018 errors=00000000 kernel_cycles=0000000000000298
+[attention-position] valid=00000017 errors=00000000 kernel_cycles=000000000000029c
+[attention-position] valid=00000011 errors=00000000 kernel_cycles=0000000000000297
+[attention-position] valid=00000010 errors=00000000 kernel_cycles=0000000000000156
+verify attention_qk_position_native_16x16x128x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[4/10] Triton attention_qk_position_native_16x1x128x128 BEGIN
+[attention-position] valid=00000001 errors=00000000 kernel_cycles=000000000000001b
+[attention-position] valid=00000002 errors=00000000 kernel_cycles=000000000000001b
+[attention-position] valid=0000000f errors=00000000 kernel_cycles=0000000000000025
+[attention-position] valid=00000010 errors=00000000 kernel_cycles=0000000000000023
+[attention-position] valid=00000011 errors=00000000 kernel_cycles=000000000000003c
+[attention-position] valid=00000012 errors=00000000 kernel_cycles=000000000000003e
+[attention-position] valid=00000013 errors=00000000 kernel_cycles=0000000000000041
+[attention-position] valid=00000014 errors=00000000 kernel_cycles=0000000000000043
+[attention-position] valid=00000015 errors=00000000 kernel_cycles=0000000000000046
+[attention-position] valid=00000016 errors=00000000 kernel_cycles=0000000000000044
+[attention-position] valid=00000017 errors=00000000 kernel_cycles=0000000000000047
+[attention-position] valid=00000018 errors=00000000 kernel_cycles=000000000000003f
+[attention-position] valid=0000001f errors=00000000 kernel_cycles=0000000000000047
+[attention-position] valid=00000020 errors=00000000 kernel_cycles=0000000000000045
+[attention-position] valid=00000021 errors=00000000 kernel_cycles=0000000000000055
+[attention-position] valid=0000003f errors=00000000 kernel_cycles=000000000000007d
+[attention-position] valid=00000040 errors=00000000 kernel_cycles=000000000000007c
+[attention-position] valid=00000041 errors=00000000 kernel_cycles=0000000000000091
+[attention-position] valid=0000007f errors=00000000 kernel_cycles=00000000000000f7
+[attention-position] valid=00000080 errors=00000000 kernel_cycles=00000000000000f4
+[attention-position] valid=00000041 errors=00000000 kernel_cycles=0000000000000092
+[attention-position] valid=00000040 errors=00000000 kernel_cycles=000000000000007b
+[attention-position] valid=0000003f errors=00000000 kernel_cycles=000000000000007d
+[attention-position] valid=00000018 errors=00000000 kernel_cycles=0000000000000039
+[attention-position] valid=00000017 errors=00000000 kernel_cycles=000000000000003e
+[attention-position] valid=00000011 errors=00000000 kernel_cycles=0000000000000037
+[attention-position] valid=00000010 errors=00000000 kernel_cycles=0000000000000020
+[attention-position] valid=00000002 errors=00000000 kernel_cycles=0000000000000019
+[attention-position] valid=00000001 errors=00000000 kernel_cycles=0000000000000018
+verify attention_qk_position_native_16x1x128x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[5/10] Triton attention_scale_mask_position_16x16x128 BEGIN
+verify attention_scale_mask_position_16x16x128: PASS errors=00000000 max_abs_error_f32_bits=33800000
+[6/10] Triton attention_scale_mask_position_16x1x128 BEGIN
+verify attention_scale_mask_position_16x1x128: PASS errors=00000000 max_abs_error_f32_bits=33800000
+[7/10] Triton kv_cache_update_position_16x8x128_cap128 BEGIN
+verify kv_cache_update_position_16x8x128_cap128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[8/10] Triton kv_cache_update_position_1x8x128_cap128 BEGIN
+verify kv_cache_update_position_1x8x128_cap128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[9/10] Triton softmax_16x16x128 BEGIN
+verify softmax_16x16x128: PASS errors=00000000 max_abs_error_f32_bits=34c00000
+[10/10] Triton softmax_16x1x128 BEGIN
+verify softmax_16x1x128: PASS errors=00000000 max_abs_error_f32_bits=34c00000
+verify qwen3 Triton operator suite: PASS errors=00000000 max_abs_error_f32_bits=00000000

@@ -1,0 +1,49 @@
+{
+  "run_id": "run-6e31d5d081284634",
+  "image_sha256": "6cad81a06f303d5636fee2f3572821793e0adc25c747964f423fbbe4e9025808",
+  "uart_sha256": "e7a4e452e634977169172d49c81180a5c4b962bda93c97e8729c02fc2ffef1c5",
+  "ddr_readback_matches": true,
+  "supported": [
+    "vsetvli+vle32+vse32",
+    "vmv.v.v",
+    "vfadd.vv",
+    "vfsub.vv",
+    "vfmul.vv",
+    "vfdiv.vv",
+    "vfmacc.vv",
+    "vfadd.vf",
+    "vfmul.vf",
+    "vfdiv.vf",
+    "vfmacc.vf",
+    "vfsqrt.v",
+    "vfredusum.vs",
+    "vfredosum.vs",
+    "vfredmax.vs",
+    "vfmax.vv",
+    "vfmin.vv",
+    "vfcvt.x.f.v",
+    "vfcvt.rtz.x.f.v",
+    "vfcvt.f.x.v",
+    "vfmv.v.f",
+    "vmv.v.i",
+    "vfmv.f.s",
+    "vfmadd.vv",
+    "vmv1r.v",
+    "vsetivli",
+    "vle8.v+vse8.v(e8,mf4,VL16)",
+    "vle64.v+vse64.v(e64,m1,VL2)",
+    "vle64.v+vse64.v(e64,m1,VL4)"
+  ],
+  "unsupported_illegal": [
+    "csrr.vlenb",
+    "csrr.vl",
+    "csrr.vtype"
+  ],
+  "executed_numeric_failure": [
+    "vl1re32.v+vs1r.v"
+  ],
+  "copy_cases": 384,
+  "copy_errors": 0,
+  "expected_runtime_status": "FAIL",
+  "interpretation": "Capability discovery completed; 29 checks passed, 3 CSR reads trapped, whole-register memory sequence had 12 mismatches. Runtime FAIL is expected for that numeric failure; it is not an operator-suite result."
+}

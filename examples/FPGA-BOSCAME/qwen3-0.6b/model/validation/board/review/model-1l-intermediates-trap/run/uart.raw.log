@@ -1,0 +1,13 @@
+
+[nr] NH boot; RA operator runtime
+[nr] RA entry=0x0000000080000040
+[nr] RA entered; clearing application BSS
+[nr] mstatus=0x8000000A00006000; launch BEGIN
+[text] prompt count=00000010 ids=0002505C 00000368 000000C6 00000EFE 00000176 00002599 0000001E 0002505D 000000C6 0002505C 00012D23 000000C6 00025073 0000010F 00025074 0000010F encode_cycles=000000000002AC21
+verify fixed prompt tokenizer: PASS
+[text] mode=fixed-validation; EOS is recorded, never early-stops
+[model] prefill begin position=00000000 input_token=0002505C
+
+[nr] RA TRAP mcause=0x0000000000000002 mepc=0x00000000B8000000 mtval=0x0000000000000000
+[nr] RA returned: FAIL
+verify NR runtime: FAIL

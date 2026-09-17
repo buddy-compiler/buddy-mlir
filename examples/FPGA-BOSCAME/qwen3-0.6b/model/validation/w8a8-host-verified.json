@@ -1,0 +1,116 @@
+{
+  "stage": "W8A8 graph: NUMERICALLY VERIFIED on the host for one layer",
+  "result": "PASS",
+  "why_w8a8": "FP32 parameters are 2.22 GiB and cannot be placed on this board (validation/board/fp32-28layer-does-not-fit.json)",
+  "what_the_graph_does": "each MatmulOp becomes quantize -> int8 matmul -> dequantize, three external calls into kernels that already pass on FPGA5; no arithmetic happens in C",
+  "comparison_target": {
+    "reference": "build/quant-reference/w8a8-f32emb-1l/quant-reference.json",
+    "why_this_reference": "it quantises the linears with the same contract the Triton kernels implement and keeps the embedding in FP32, which is what the compiled graph currently does (the embedding op is not part of the rewrite yet)",
+    "generated_by": "tools/quant_model_reference.py --f32-embedding (added this round)"
+  },
+  "prefill": {
+    "cosine": 0.9999999403953552,
+    "graph_argmax": 33067,
+    "reference_argmax": 33067
+  },
+  "decode": [
+    {
+      "step": 0,
+      "cosine": 1.0,
+      "max_abs_error": 5.7220458984375e-06,
+      "graph_token": 11853,
+      "reference_token": 11853
+    },
+    {
+      "step": 1,
+      "cosine": 1.0000001192092896,
+      "max_abs_error": 7.62939453125e-06,
+      "graph_token": 11853,
+      "reference_token": 11853
+    },
+    {
+      "step": 2,
+      "cosine": 0.9999999403953552,
+      "max_abs_error": 3.814697265625e-06,
+      "graph_token": 11853,
+      "reference_token": 11853
+    },
+    {
+      "step": 3,
+      "cosine": 1.0,
+      "max_abs_error": 5.7220458984375e-06,
+      "graph_token": 11853,
+      "reference_token": 11853
+    },
+    {
+      "step": 4,
+      "cosine": 1.0000001192092896,
+      "max_abs_error": 1.33514404296875e-05,
+      "graph_token": 11853,
+      "reference_token": 11853
+    },
+    {
+      "step": 5,
+      "cosine": 1.0,
+      "max_abs_error": 1.1444091796875e-05,
+      "graph_token": 11853,
+      "reference_token": 11853
+    },
+    {
+      "step": 6,
+      "cosine": 1.0000001192092896,
+      "max_abs_error": 0.0,
+      "graph_token": 11853,
+      "reference_token": 11853
+    },
+    {
+      "step": 7,
+      "cosine": 0.9999999403953552,
+      "max_abs_error": 7.62939453125e-06,
+      "graph_token": 11853,
+      "reference_token": 11853
+    }
+  ],
+  "generated_ids": [
+    11853,
+    11853,
+    11853,
+    11853,
+    11853,
+    11853,
+    11853,
+    11853
+  ],
+  "reference_ids": [
+    11853,
+    11853,
+    11853,
+    11853,
+    11853,
+    11853,
+    11853,
+    11853
+  ],
+  "token_trajectory_matches": true,
+  "root_causes_found_this_round": [
+    {
+      "symptom": "the graph ran but its output was exactly all zero (unique value count 1)",
+      "diagnosis": "a sentinel build of the dequantize wrapper -- one that fills Out with a constant instead of calling the kernel -- was called exactly once and the output was STILL zero, proving the call writes a buffer the graph does not read",
+      "cause": "one-shot bufferize treats the operands of an unknown external function as read-only, so a call whose destination is a tensor.empty result is handed a copy and its writes are discarded",
+      "fix": "the four destinations (Q, activation scale, accumulator, Out) are now WORKSPACE, supplied as graph inputs; function arguments are always treated as writable. This is also what deployment needs: an explicit DDR workspace."
+    },
+    {
+      "symptom": "the decode logits grew by a fixed step every call -- 25, 36, 47, 58 ... against a reference that stayed at 22 -- with cosine still 0.65, i.e. the shape was right and the scale was not",
+      "cause": "the int8 matmul accumulates into C (its TTIR loads C and calls tt.dot(a, b, previous)), so the accumulators must be zero before *every* graph call; the caller was reusing them",
+      "fix": "the host runner zeroes every buffer whose name ends in _acc before each call. The deployment main must do the same."
+    }
+  ],
+  "deployment_consequence": "the W8A8 graph needs caller-owned workspace: 4 buffers per linear (Q i8, activation scale f32, accumulator i32, Out f32), with the accumulators zeroed before each graph call. That has to appear in the DDR plan and in the bare-metal main.",
+  "not_done": [
+    "no NR object or bare-metal image for the W8A8 graph",
+    "no int8 weight segment with per-channel scales",
+    "the embedding is still FP32 (622 MB for one layer)",
+    "28 layers",
+    "nothing W8A8 has run on the board"
+  ]
+}

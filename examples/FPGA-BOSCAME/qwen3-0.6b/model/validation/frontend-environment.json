@@ -1,0 +1,52 @@
+{
+  "python_version": "3.12.14 | packaged by Anaconda, Inc. | (main, Aug 27 2026, 14:46:43) [GCC 14.3.0]",
+  "packages": {
+    "torch": "available",
+    "transformers": "available",
+    "tokenizers": "available",
+    "buddy": "missing",
+    "mlir": "missing"
+  },
+  "source_sha256": {
+    "examples/BuddyQwen3/import-qwen3.py": "267b0acbd9b51ed5bf9d422e85ffa216e56b6ad48f14aa90b6108d71c6a0a847",
+    "examples/BuddyQwen3/CMakeLists.txt": "50ea7e9d664e48da22dfedaa19c89f8c808cb15c46de70abe89574d768d2d8ef",
+    "examples/BuddyQwen3/buddy-qwen3-0.6b-main.cpp": "7ed6a2d29de8c874b6f4c40f3c0cbf15a569eb3df25fffc44f4c6a846480c7e7"
+  },
+  "actual_buddy_model_ir_inspected": false,
+  "model_graph_mapping_status": "blocked until importer Python bindings are available; source review only",
+  "buddy_cmake": {
+    "BUDDY_MLIR_ENABLE_PYTHON_PACKAGES:BOOL": "OFF",
+    "_Python3_EXECUTABLE:INTERNAL": "/home/chh/miniconda3/envs/trex/bin/python3.11"
+  },
+  "llvm_cmake": {
+    "MLIR_ENABLE_BINDINGS_PYTHON:BOOL": "ON",
+    "Python3_EXECUTABLE:UNINITIALIZED": "/home/chh/miniconda3/envs/trex/bin/python3",
+    "_Python3_EXECUTABLE:INTERNAL": "/home/chh/miniconda3/envs/trex/bin/python3",
+    "_Python_EXECUTABLE:INTERNAL": "/home/chh/miniconda3/envs/trex/bin/python3.11"
+  },
+  "mlir_python_extension_names": [
+    "_mlir.cpython-311-x86_64-linux-gnu.so"
+  ],
+  "transformers_meta_check": {
+    "torch": "2.10.0+cpu",
+    "transformers": "5.5.0",
+    "checkpoint_loaded": false,
+    "inference_executed": false,
+    "unique_parameters": 596049920,
+    "buffers": {
+      "model.rotary_emb.inv_freq": {
+        "shape": [
+          64
+        ],
+        "dtype": "torch.float32"
+      },
+      "model.rotary_emb.original_inv_freq": {
+        "shape": [
+          64
+        ],
+        "dtype": "torch.float32"
+      }
+    },
+    "embedding_lm_head_same_parameter": true
+  }
+}

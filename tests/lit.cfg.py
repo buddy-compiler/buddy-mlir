@@ -15,7 +15,13 @@ config.name = "BUDDY"
 config.test_format = lit.formats.ShTest(execute_external=False)
 
 # suffixes: A list of file extensions to treat as test files.
-config.suffixes = [".mlir", ".c", ".cpp"]
+config.suffixes = [".mlir", ".c", ".cpp", ".ll"]
+
+# Tests that need a real shell (for example a negative test around a compiler
+# diagnostic that terminates the process) declare `REQUIRES: shell`, the same
+# convention LLVM's own suites use.
+if lit.util.which("bash"):
+    config.available_features.add("shell")
 if config.buddy_mlir_enable_python_packages:
     config.suffixes.append(".py")
 
@@ -84,6 +90,7 @@ tool_dirs = [config.buddy_tools_dir, config.llvm_tools_dir]
 tools = [
     "buddy-opt",
     "buddy-translate",
+    "buddy-llc",
     "buddy-container-test",
     "buddy-audio-container-test",
     "buddy-text-container-test",

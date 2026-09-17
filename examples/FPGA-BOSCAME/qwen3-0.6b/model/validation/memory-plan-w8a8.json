@@ -1,0 +1,95 @@
+{
+  "stage": "DDR budget for the fully quantised 28-layer W8A8 deployment",
+  "supersedes": "the earlier FP32-based plan; W8A8 is the deployment form because FP32 does not fit (validation/board/fp32-28layer-does-not-fit.json)",
+  "regions": {
+    "low": {
+      "origin": "0x80000000",
+      "length": "0x30000000 (768 MiB)",
+      "holds": "boot, .text, .rodata, .bss, stacks, bump heap"
+    },
+    "high": {
+      "origin": "0xb8000000",
+      "length": "0x48000000 (1152 MiB)",
+      "holds": ".workspace (NOLOAD): parameters, KV cache, W8A8 workspace, tokenizer"
+    },
+    "assert": "nr.ld requires __workspace_end <= 0x100000000 (4 GiB)"
+  },
+  "segments_loaded": {
+    "model_image": {
+      "bytes": 1513280,
+      "bin_bytes": 905576,
+      "address": "0x80000000"
+    },
+    "parameters": {
+      "bytes": 598230784,
+      "mib": 570.52,
+      "address": "0xb8000000",
+      "breakdown": {
+        "int8_weights": 595984384,
+        "f32_scales_and_norms": 2246400
+      }
+    },
+    "tokenizer": {
+      "bytes": 5222928,
+      "address": "0xc2cbddc0 (stage E)",
+      "note": "5.2 MB packed BPE resource; the Unicode tables the encoder needs are 49,656 B and live in .rodata"
+    }
+  },
+  "workspace_breakdown": {
+    "parameters": 598230784,
+    "kv_cache_28_layers": 117440512,
+    "w8a8_prefill_workspace": 49922368,
+    "w8a8_decode_workspace": 3019264,
+    "tokenizer_blob": 5222928,
+    "lowering_runtime_buffers": "about 13 MiB allocated by the graph itself per prefill call, served by the NR bump allocator"
+  },
+  "totals": {
+    "must_reside_in_high": 773835856,
+    "must_reside_in_high_mib": 737.99,
+    "high_capacity_mib": 1152,
+    "fits": true,
+    "headroom_mib": 414.01,
+    "low": {
+      "image_bytes": 1513280,
+      "capacity_mib": 768
+    }
+  },
+  "verification": {
+    "workspace_section_header": [
+      "10",
+      ".workspace",
+      "2dab4f00",
+      "00000000b8000000",
+      "BSS"
+    ],
+    "note": "the linker reports the .workspace size directly; it must fit in the 1152 MiB HIGH region and end below 4 GiB"
+  },
+  "address_check": {
+    "workspace_origin": "0xb8000000",
+    "workspace_bytes": 766201600,
+    "workspace_end": "0xe5ab4f00",
+    "four_gib": "0x100000000",
+    "below_the_assert": true,
+    "note": "the parameters are placed first in .workspace, so the segment's load address and the arena's address are both 0xb8000000; a later region would not have this property"
+  },
+  "runtime_projection": {
+    "measured_one_layer": {
+      "cycles": 5515994658,
+      "seconds_at_14_7456MHz": 374.0,
+      "what": "prefill (16 tokens) + 8 decode steps, fully quantised W8A8, on FPGA5"
+    },
+    "derivation_for_28_layers": {
+      "assumption": "a decode step costs one unit and the 16-token prefill costs about sixteen, which is what a per-token cost model gives",
+      "arithmetic": "16u + 8u = 24u = 5.516e9 cycles -> u = 2.30e8 cycles; the one-layer prefill is therefore about 3.7e9 cycles (250 s)",
+      "projection": "28 x 250 s = about 7000 s, i.e. roughly 117 minutes",
+      "window": "the run in flight was launched with a 9000 s capture window, so it has about 30 minutes of margin if the cost is linear in layers",
+      "caveat": "this is a projection from one measurement, not a measured multi-layer cost; a per-layer board measurement would settle it and needs a short window rather than a long one"
+    },
+    "correction_to_an_earlier_estimate": "an earlier note put the attention alone at about 51 minutes for 28 layers, computed from the Stage A attention kernel cycles. That was wrong: attention is not in the replacement set, so the graph lowers it as linalg and never calls those kernels."
+  },
+  "review_2026_09_17": {
+    "status": "SUPERSEDED estimate; actual both-entry full-replacement linked HIGH persistent storage is 1010.32 MiB before tokenizer",
+    "current_evidence": "review-memory-28l.json",
+    "note": "LOW static and scoped graph heap are separate; older 737.99 MiB omitted current attention workspaces and live temporaries"
+  }
+}

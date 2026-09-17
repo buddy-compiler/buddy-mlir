@@ -1,0 +1,74 @@
+{
+  "source_layout": "validation/weight-layout.json",
+  "layout_sha256": "9b2d4eb5b7145f405ffdd8e934251a9cb1f643377760a2d49ef336c092db63ee",
+  "deployment_precision": "W8A8 linear (AME int8 x int8 -> int32) with FP32 norms, RoPE, attention and residuals",
+  "cache": {
+    "max_cache_len": 512,
+    "layers": 28,
+    "batch": 1,
+    "kv_heads": 8,
+    "head_dim": 128,
+    "kv_dtype": "f32",
+    "bytes": 117440512
+  },
+  "components_bytes": {
+    "weights_int8": 595984384,
+    "weights_per_channel_scales_f32": 1984000,
+    "weights_kept_f32_norms_and_rope_table": 262400,
+    "kv_cache": 117440512,
+    "tokenizer_resource_blob": 5222928
+  },
+  "reserves_bytes": {
+    "activation_and_workspace_reserve": 67108864,
+    "attention_scores_and_probabilities": 2097152,
+    "logits_f32_vocab": 607744,
+    "runtime_text_data_bss": 8388608,
+    "nh_and_ra_stacks": 2097152,
+    "uart_buffers": 65536
+  },
+  "total_bytes": 801259280,
+  "total_mib": 764.14,
+  "quantized_matrices": 197,
+  "fp32_kept_tensors": 114,
+  "analysis": {
+    "f32_weights_bytes_if_unquantized": 2384199936,
+    "f32_weights_gib": 2.22,
+    "int8_saving_factor": 3.985
+  },
+  "linker_regions": {
+    "LOW": {
+      "origin": "0x80000000",
+      "length": "0x30000000",
+      "mib": 768.0,
+      "planned_use": 10551296,
+      "fits": true
+    },
+    "HIGH": {
+      "origin": "0xb8000000",
+      "length": "0x48000000",
+      "mib": 1152.0,
+      "planned_use": 790707984,
+      "fits": true
+    },
+    "excluded_aperture": {
+      "origin": "0xb0000000",
+      "length": "0x8000000",
+      "reason": "ModelZoo reports RA access faults here"
+    }
+  },
+  "verification_status": {
+    "weight_offsets": "derived from the compiled main graph (verified)",
+    "cache_shape": "taken from the imported graph ABI (verified)",
+    "linker_regions": "read from common/nr/nr.ld (verified as a linker assertion)",
+    "physical_ddr_capacity": "NOT verified: no board probe performed",
+    "activation_and_workspace": "reserve, not a measured liveness result"
+  },
+  "conclusion": "W8A8 fits the linker regions with the stated reserves",
+  "ddr_capacity_note": {
+    "linker_script_limit": "common/nr/nr.ld models LOW 768 MiB + HIGH 1152 MiB = 1920 MiB",
+    "platform_declared_range": "the DDR load-plan loader requires ddr_base=0x80000000 and ddr_size=0x400000000 (16 GiB)",
+    "indirect_evidence": "the operator suite uses a 640 MiB workspace at 0xb8000000 and its numerics pass on this board",
+    "status": "the 1920 MiB figure is a self-imposed linker limit, not a measured hardware limit; the full 16 GiB was NOT probed",
+    "source": "validation/board/ddr-load-path.json"
+  }
+}

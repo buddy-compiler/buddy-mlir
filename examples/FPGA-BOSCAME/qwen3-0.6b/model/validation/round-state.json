@@ -1,0 +1,203 @@
+{
+  "review_date": "2026-09-17",
+  "stage": "native-K model verification; preset raw text permitted, UART RX deferred",
+  "overall_status": "NOT_END_TO_END_ACCEPTED",
+  "current": {
+    "host_model": {
+      "layers": [
+        1,
+        4,
+        28
+      ],
+      "variant": "native-K valid-length attention",
+      "status": "PASS against independent triton-host quantized reference",
+      "prefill": 16,
+      "decode_steps": 8,
+      "full_logit_and_valid_kv_max_mean_error": 0.0,
+      "evidence": [
+        "validation/review-host-native-1l.json",
+        "validation/review-host-native-4l.json",
+        "validation/review-host-native-28l.json"
+      ]
+    },
+    "fpga_model": {
+      "layers": 1,
+      "variant": "native-K valid-length attention",
+      "run_id": "run-390dfc362f234ec6",
+      "status": "FULL_LOGITS_KV_PASS",
+      "checks": 27,
+      "max_mean_error": 0.0,
+      "evidence": "validation/board/review/model-1l-native/verification.json",
+      "limits": "Full last-position logits and valid KV; 4/28-layer fixed text and hidden-state checks still pending."
+    },
+    "fpga_tokenizer": {
+      "status": "8/8 literal-text fixtures PASS",
+      "evidence": "validation/board/review/tokenizer-probe/verification.json",
+      "not_uart_input": true
+    },
+    "fpga_uart_rx": {
+      "status": "not received in FPGA5 probe; root cause unresolved",
+      "evidence": "validation/board/review/uart-rx-probe/verification.json",
+      "correction": "platform scripts do assign RX; host write completion does not prove receipt"
+    },
+    "memory": {
+      "high_persistent_bytes": 829741824,
+      "high_remaining_bytes": 378217728,
+      "evidence": "validation/review-memory-native-28l-fixed-text.json",
+      "limits": "Final native-K fixed-text ELF; dynamic scratch peak pending 28-layer board measurement."
+    },
+    "dynamic_attention": {
+      "status": "native-K Stage A 65 length/NaN/sentinel checks pass; native-K 1L model16+8 pass",
+      "run_id": "run-1552379db1d74dd4",
+      "evidence": "validation/board/review/attention-native/validation.json",
+      "remaining": "4/28-layer board, selected intermediate tensors"
+    },
+    "fixed_text": {
+      "prompt": "What is France?",
+      "mode": "16-token board template/tokenization; one prefill then 8 decode steps; board incremental decode",
+      "status": "4L progress run-b8d3ed3ead854a24 accepted by strict archive: allreadbacks,27 zeroerror comparisons,profile and fixed-text PASS. Plain4L stillunresolved.",
+      "uart_rx_required": false,
+      "unresolved": "Adding progress UART changes layout/timing; original no-result cause unconfirmed, no hardware/platform-only attribution.",
+      "evidence": "validation/board/review/model-4l-native-fixed-text-progress/verification.json"
+    },
+    "intermediate_probe": {
+      "status": "INTERMEDIATES_PASS",
+      "layers": 1,
+      "run": "run-550440b96df24b2c",
+      "comparisons": 414,
+      "max_abs_error": 0.0,
+      "mean_abs_error": 0.0,
+      "full_logits_kv_comparisons": 27,
+      "fixed_text": "PASS",
+      "evidence": "validation/board/review/model-1l-intermediates-no-profile/verification.json",
+      "limits": "Selected adapter boundary tensors only; kernel profiler disabled; diagnostic overhead inside timings"
+    },
+    "remote_disk": {
+      "available": "28 GiB reported by df -h after user cleanup",
+      "checked_utc": "2026-09-17",
+      "status": "sufficient for planned 28L upload and readback"
+    },
+    "linker": {
+      "minimum_version": 20,
+      "observed_defect": "LLD15 --wrap/relaxation corrupted graph-adapter entry address",
+      "evidence": "validation/board/review/linker-wrap-audit/finding.json"
+    },
+    "profiler_issue": {
+      "status": "UNRESOLVED",
+      "evidence": [
+        "validation/board/review/model-1l-intermediates-lld20-stopped/verification.json",
+        "validation/board/review/model-1l-intermediates-syncfix-stopped/verification.json",
+        "validation/board/review/model-4l-native-syncfix-stopped/verification.json"
+      ],
+      "finding": "Removing kernel profiler allowed complete1L16+8; exact mechanism not established"
+    }
+  },
+  "next_required": [
+    "Await user continue instruction.",
+    "Validate4L fixed-text with kernel profiler entirely disabled; isolate remaining profiler-related stalls.",
+    "Run full28L fixed-text16+8 with verified compilation/runtime path; strict archive and performance evidence."
+  ],
+  "historical_report_notice": "The following is the original handoff report retained verbatim as historical data. Its simulator-progress, absence-of-crash, tokenizer-board and platform-RX conclusions were rejected by review; do not use it as present status.",
+  "historical_report": {
+    "stage": "three board tasks staged behind the full-model run",
+    "why_three": "the board is busy with a long run, so the useful work is to make every follow-up measurement a single command the moment it frees",
+    "tasks": {
+      "measure_the_replacements": {
+        "runner": "model/tools/run_full_1l.sh",
+        "config": "1 layer, W8A8, attention and cache write replaced, prefill + 8 decode",
+        "baseline": "5,515,994,658 cycles for the same layer WITHOUT those two replacements (run-2484a75128174e0f)",
+        "graph_verified": "cosine 1.00000000, max abs error 0.0",
+        "answers": "did replacing attention and the cache write help on this hardware"
+      },
+      "stage_e_interactive": {
+        "runner": "model/tools/run_stage_e.sh",
+        "config": "1 layer; the prompt goes in over UART and the board runs the chat template, the on-board tokenizer, generation and the decode back",
+        "expected": "19 prompt tokens, then [11853] x 24",
+        "answers": "does the Stage E firmware work end to end on hardware"
+      },
+      "scaling_measurement": {
+        "runner": "model/tools/run_4l.sh",
+        "config": "4 layers, W8A8, complete replacement set, prefill only",
+        "image": "audit PASS: 55617 instructions, 121 AME, 251 RVV",
+        "segment_bytes": 219342592,
+        "answers": "how the cost scales with depth, which is what sizes a 28-layer window -- the current 28-layer estimate is a projection from ONE measurement, and a run in flight will show whether that was good enough"
+      }
+    },
+    "board": {
+      "run": "run-eb2299839c824f80",
+      "state": "about 92 minutes into a 9000 s window, boot banner only",
+      "note": "the 28-layer projection was about 117 minutes; if it does not finish, the four-layer slope from the staged run replaces the projection with a measurement"
+    },
+    "board_progress_measured_not_guessed": {
+      "question": "is the 28-layer run slow, or hung?",
+      "method": [
+        "the runner, its make child and the uvhs shell all sit at 0-0.4% CPU, which looks alarming -- but ps reports a LIFETIME AVERAGE, and a single-threaded simulator on an eight-core host averages about 12.5%",
+        "so the average was re-sampled instantaneously instead: read /proc/<pid>/stat utime+stime, wait 20 s, read again"
+      ],
+      "result": {
+        "cpu_ticks_in_20s": 301,
+        "one_full_core": 2000,
+        "meaning": "about 15% of one core, i.e. the simulation IS advancing"
+      },
+      "which_process": "uv_file_process (pid 70894), 307 MB RSS, the highest-CPU process owned by this user",
+      "conclusion": "the run is alive and computing, not hung. It is simply slow: 28 layers needs about nineteen times the simulated time of the one-layer run, so the wall clock is set by the simulator's throughput rather than by anything in the model.",
+      "why_this_matters": "it changes the decision for the next window. If the run times out, the answer is not 'make the window longer' but 'measure the per-layer slope with the staged four-layer run and size the window from that, or reduce what the window has to do'.",
+      "the_uvhs_log_is_not_a_progress_indicator": "it is static at 67573 bytes and ends at the hspRun> setup prompt; it holds the image-loading transcript, not the running program's output. The running program's output is the UART file, which is the 161-byte banner."
+    },
+    "deliverable_this_round": {
+      "file": "validation/evidence-index.json",
+      "what": "every stage with the command that produces it, the artifact that records it, and the number that decides it -- nineteen stages, read out of the files rather than recalled",
+      "why": "the objective asks each stage to produce real commands, IR, symbols, logs, errors and cycles. Scattered across thirty-odd json files that is hard to check; as one index it can be audited.",
+      "coverage": [
+        "checkpoint import, operator inventory, kernel library, stage A on FPGA5",
+        "stage C+D on the host, and the four replacements (W8A8, attention, cache write, RoPE)",
+        "the NR images, stages B and D on the board for FP32 and W8A8, with cycles",
+        "the on-board tokenizer, the chat template and the stage E path",
+        "the stage E firmware, and the 28-layer complete-replacement build"
+      ],
+      "honesty_note": "the index records the RoPE replacement as 'not implemented' and the 28-layer board run as 'in flight', because that is what they are"
+    },
+    "decision_on_the_board_run": {
+      "situation": "the 28-layer run has been in flight for about 97 minutes of a 9000 s window and has emitted only the boot banner; no progress artifact exists to read a percentage from",
+      "options": [
+        "let the window expire, which costs about 53 more minutes and may still produce the headline number",
+        "stop it now and run the three staged tasks, which together take about an hour and include stage E -- a required deliverable that has never run on hardware"
+      ],
+      "choice": "let it run this round. Stopping is irreversible and the run may be close to finishing; the window expiring costs wall time but nothing else, since the lock is released either way.",
+      "when_this_reverses": "if the next check still shows only the banner and the window is nearly out, stage E and the short measurements take priority over a second long attempt"
+    },
+    "full_model_board_run_outcome": {
+      "run": "run-eb2299839c824f80",
+      "result": "DID NOT COMPLETE",
+      "detail": "the worker captured for 8216 s of its 9000 s window and the UART never carried anything beyond the 161-byte boot banner: no [model] line, no 'RA returned:'. There is no result.json.",
+      "what_that_rules_out": "it is not a crash, a wrong answer or a link problem. The image passed the ELF audit with zero undefined symbols, and the same machinery produces correct answers for one layer. The run simply did not finish inside the window.",
+      "what_it_says_about_the_projection": "the earlier estimate of about 117 minutes for 28 layers came from extrapolating one layer and is now FALSIFIED: 137 minutes was not enough, and the simulator was measured at about 15% of one core throughout.",
+      "why_the_extrapolation_was_wrong": "it assumed the cost is linear in depth and that the one-layer wall time scales directly. The four-layer run that is staged replaces this with a measured slope.",
+      "honest_summary": "the full 28-layer model has been built, audited and host-verified token-for-token against FP32, and its one-layer form runs correctly on the board; the 28-layer form has NOT been shown to run to completion on hardware."
+    },
+    "stage_e_state": "output path FIXED and demonstrated on hardware; input path routed through the runtime but the character still does not arrive",
+    "review_2026_09_17": {
+      "status": "SUPERSEDED by review; 28-layer hardware run did not complete and its software was incorrect",
+      "findings": [
+        "CPU ticks of the FPGA control process cannot establish RA model progress.",
+        "Link success and a one-layer run do not exclude a multi-layer runtime fault.",
+        "RX wiring exists in platform constraints; receive failure root cause remains unknown."
+      ],
+      "previous_results_are_historical": true
+    }
+  },
+  "paused_by_user": true,
+  "resumed_scope": "Preset raw text is accepted in place of UART input; tokenize/model/text decode stay on FPGA.",
+  "pause_requested_after_current_checkpoint": true,
+  "no_28_layer_run_this_checkpoint": true,
+  "active_board_run": null,
+  "checkpoint_utc": "2026-09-17T05:16:23.658727+00:00",
+  "pause_cleanup": {
+    "active_local_board_or_build_processes": 0,
+    "remote_platform_lock": "verified free",
+    "last_run": "run-550440b96df24b2c",
+    "last_run_status": "OK",
+    "no_new_28_layer_hardware_run": true,
+    "git_index_filename_hash": "74d4d15f60e2fa73a9baf90085bfb725955edbde8042a328b6aac18bd437d73e"
+  }
+}

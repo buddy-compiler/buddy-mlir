@@ -1,0 +1,61 @@
+UTC: 2026-09-16T13:12:20.283554+00:00
+Buddy source HEAD: 6129002c85f36cfdbdf60c1e502057e53cc34777
+LLVM source HEAD: 6ceae32b77a2c0cc3c929ae8924254525155a26c
+Working directory: /home/chh/gitprojects/buddy-mlir-for-fpga
+Command: llvm/build-2d26/bin/llvm-lit -v -j 8 build-migrate/tests/Conversion/linalg-to-boscame-nr.mlir build-migrate/tests/Conversion/linalg-to-boscame-nr-fallback.mlir build-migrate/tests/Conversion/boscame-nr-invalid.mlir build-migrate/tests/Conversion/QwenW8A8 build-migrate/tests/Conversion/linalg-to-boscame-in-place.mlir build-migrate/tests/Conversion/linalg-to-boscame-triton-w8a8.mlir build-migrate/tests/Target/RISCV build-migrate/tests/Conversion/matmul-transpose-b-vectorization-decode-maps.mlir build-migrate/tests/Conversion/matmul-transpose-b-vectorization.mlir build-migrate/tests/Conversion/batchmatmul-transpose-b-vectorization-scalable.mlir
+
+llvm-lit: /home/chh/gitprojects/buddy-mlir-for-fpga/llvm/llvm/utils/lit/lit/llvm/subst.py:130: note: Did not find buddy-container-test in /home/chh/gitprojects/buddy-mlir-for-fpga/build-migrate/bin:/home/chh/gitprojects/buddy-mlir-for-fpga/llvm/build-2d26/./bin
+llvm-lit: /home/chh/gitprojects/buddy-mlir-for-fpga/llvm/llvm/utils/lit/lit/llvm/subst.py:130: note: Did not find buddy-audio-container-test in /home/chh/gitprojects/buddy-mlir-for-fpga/build-migrate/bin:/home/chh/gitprojects/buddy-mlir-for-fpga/llvm/build-2d26/./bin
+llvm-lit: /home/chh/gitprojects/buddy-mlir-for-fpga/llvm/llvm/utils/lit/lit/llvm/subst.py:130: note: Did not find buddy-text-container-test in /home/chh/gitprojects/buddy-mlir-for-fpga/build-migrate/bin:/home/chh/gitprojects/buddy-mlir-for-fpga/llvm/build-2d26/./bin
+-- Testing: 35 tests, 8 workers --
+PASS: BUDDY :: Conversion/QwenW8A8/qwen-w8a8-gate-up-linear-fusion.mlir (1 of 35)
+PASS: BUDDY :: Conversion/linalg-to-boscame-triton-w8a8.mlir (2 of 35)
+PASS: BUDDY :: Conversion/QwenW8A8/qwen-w8a8-to-boscame.mlir (3 of 35)
+PASS: BUDDY :: Conversion/QwenW8A8/qwen-w8a8-mixed-target-rejected.mlir (4 of 35)
+PASS: BUDDY :: Conversion/matmul-transpose-b-vectorization.mlir (5 of 35)
+PASS: BUDDY :: Conversion/QwenW8A8/qwen-w8a8-default-upstream.mlir (6 of 35)
+PASS: BUDDY :: Conversion/QwenW8A8/qwen-w8a8-linear-pair-lowering.mlir (7 of 35)
+PASS: BUDDY :: Conversion/QwenW8A8/qwen-w8a8-direct-c.mlir (8 of 35)
+PASS: BUDDY :: Conversion/QwenW8A8/qwen-w8a8-target-required.mlir (9 of 35)
+PASS: BUDDY :: Conversion/QwenW8A8/qwen-w8a8-accumulator-chain.mlir (10 of 35)
+PASS: BUDDY :: Conversion/QwenW8A8/qwen-w8a8-gate-up-linear-fusion-noop.mlir (11 of 35)
+PASS: BUDDY :: Conversion/QwenW8A8/qwen-w8a8-verifier.mlir (12 of 35)
+PASS: BUDDY :: Conversion/QwenW8A8/qwen-w8a8-quantize-fast.mlir (13 of 35)
+PASS: BUDDY :: Conversion/QwenW8A8/qwen-w8a8-silu-quant-fusion.mlir (14 of 35)
+PASS: BUDDY :: Conversion/QwenW8A8/qwen-w8a8-bufferize.mlir (15 of 35)
+PASS: BUDDY :: Conversion/QwenW8A8/qwen-w8a8-prefill-rejected.mlir (16 of 35)
+PASS: BUDDY :: Conversion/QwenW8A8/qwen-w8a8-matrix-stays-local.mlir (17 of 35)
+PASS: BUDDY :: Conversion/QwenW8A8/qwen-w8a8-fpga-contract-rejected.mlir (18 of 35)
+PASS: BUDDY :: Conversion/QwenW8A8/qwen-w8a8-direct-c-safety.mlir (19 of 35)
+PASS: BUDDY :: Conversion/linalg-to-boscame-in-place.mlir (20 of 35)
+PASS: BUDDY :: Conversion/boscame-nr-invalid.mlir (21 of 35)
+PASS: BUDDY :: Target/RISCV/qwen-w8a8-matrix-capacity.ll (22 of 35)
+PASS: BUDDY :: Conversion/QwenW8A8/qwen-w8a8-fpga-unsupported-op.mlir (23 of 35)
+PASS: BUDDY :: Conversion/matmul-transpose-b-vectorization-decode-maps.mlir (24 of 35)
+PASS: BUDDY :: Conversion/batchmatmul-transpose-b-vectorization-scalable.mlir (25 of 35)
+PASS: BUDDY :: Conversion/QwenW8A8/qwen-w8a8-fpga-wrong-type.mlir (26 of 35)
+PASS: BUDDY :: Conversion/QwenW8A8/qwen-w8a8-target-feature-preservation.mlir (27 of 35)
+PASS: BUDDY :: Conversion/QwenW8A8/qwen-w8a8-quantize-cse.mlir (28 of 35)
+PASS: BUDDY :: Conversion/linalg-to-boscame-nr-fallback.mlir (29 of 35)
+PASS: BUDDY :: Conversion/linalg-to-boscame-nr.mlir (30 of 35)
+PASS: BUDDY :: Conversion/QwenW8A8/qwen-w8a8-schedules.mlir (31 of 35)
+PASS: BUDDY :: Target/RISCV/qwen-w8a8-matrix-spill.ll (32 of 35)
+PASS: BUDDY :: Conversion/QwenW8A8/qwen-w8a8-rvv-asm.mlir (33 of 35)
+PASS: BUDDY :: Target/RISCV/qwen-w8a8-slot-liveness.ll (34 of 35)
+PASS: BUDDY :: Conversion/QwenW8A8/qwen-w8a8-wide-codegen.mlir (35 of 35)
+
+Testing Time: 10.48s
+
+Total Discovered Tests: 35
+  Passed: 35 (100.00%)
+
+Exit status: 0
+
+RHAL compatibility audit: buddy-opt does not register the RHAL dialect; testing its actual consumer rax-pack instead.
+Build: cmake --build build-migrate --target rax-pack -j 8: PASS
+PASS: build-migrate/bin/rax-pack tools/buddy-server/TranscriptionManifestTest.mlir -o /tmp/nr-rhal-transcription.rax
+RAX size: 1048; sha256: 831a939b3770172f18b03bde07df45ad64a7d3721bcfff0b6403c0d7ec3bd880
+PASS: build-migrate/bin/rax-pack models/whisper/WhisperRuntimeTest.mlir -o /tmp/nr-rhal-whisper.rax
+RAX size: 1488; sha256: 18b071f1f031d93325ba92c47ad20181948f586c1d8dac9dcb6df7e3786ce0af
+
+Final summary: 35/35 related lit tests PASS; 2/2 existing RHAL manifests pack successfully using the updated symbol traits.

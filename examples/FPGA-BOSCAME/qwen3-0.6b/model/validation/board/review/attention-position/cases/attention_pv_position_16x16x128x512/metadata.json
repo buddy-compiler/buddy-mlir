@@ -1,0 +1,34 @@
+{
+  "name": "attention_pv_position_16x16x128x512",
+  "kind": "attention_pv",
+  "shape": [
+    16,
+    16,
+    128,
+    512
+  ],
+  "dtype": "f32",
+  "description": "Runtime valid length; physical capacity 512; NaN tail validation",
+  "target": "nr-fpga",
+  "checked_elements": 32768,
+  "runtime_position": true,
+  "valid_lengths": [
+    16,
+    17,
+    24,
+    63,
+    64,
+    65,
+    511,
+    512,
+    511,
+    65,
+    64,
+    63,
+    24,
+    17,
+    16
+  ],
+  "oracle": "Independent double sums for all 17x13 input phases; all output elements checked exactly",
+  "poison": "NaN in invalid cache; both reduction operands poisoned for PV"
+}

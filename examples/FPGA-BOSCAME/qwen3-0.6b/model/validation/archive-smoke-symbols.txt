@@ -1,0 +1,15 @@
+
+add_1x1024.kernel.o:
+0000000000000000 T triton_add_1x1024
+
+add_1x1024.adapter.o:
+0000000000000000 T _mlir_ciface_kernel_add_1x1024
+                 U triton_add_1x1024
+
+matmul_3x19x70.kernel.o:
+                 U memcpy
+0000000000000000 T triton_matmul_3x19x70
+
+matmul_3x19x70.adapter.o:
+0000000000000000 T _mlir_ciface_kernel_matmul_3x19x70
+                 U triton_matmul_3x19x70

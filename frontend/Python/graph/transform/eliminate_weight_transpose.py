@@ -129,13 +129,12 @@ def eliminate_transpose(graph: Graph):
         transpose_info = None
         node_dtype = input_node.tensor_meta.get("dtype")
 
-        for idx, tensor_meta in enumerate(graph.params_shapes):
-            if (
-                list(tensor_meta.shape) == current_shape
-                and tensor_meta.dtype == node_dtype
-                and idx not in param_changed
-                and idx > 0
-            ):
+        # Placeholder objects and ``graph._params_ref`` have the same order.
+        # Resolve by object identity instead of shape: transformer models have
+        # hundreds of equally-shaped weights, so shape matching can silently
+        # transpose a different checkpoint tensor.
+        for idx, param_node in enumerate(graph.params):
+            if param_node is input_node and idx not in param_changed:
                 param_idx = idx
                 param_changed.add(idx)
                 break

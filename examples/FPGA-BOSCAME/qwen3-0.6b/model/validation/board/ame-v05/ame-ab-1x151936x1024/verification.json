@@ -1,0 +1,100 @@
+{
+  "status": "PASS",
+  "shape": [
+    1,
+    151936,
+    1024
+  ],
+  "repeats": 2,
+  "samples": [
+    {
+      "round": 0,
+      "variant": "baseline",
+      "order": 0,
+      "cycles": 158513941,
+      "pre_sync_cycles": 657,
+      "adapter_kernel_cycles": 158513197,
+      "post_sync_cycles": 744,
+      "mismatches": 0,
+      "guard_errors": 0,
+      "input_errors": 0,
+      "max_abs_i64": 0,
+      "status": "PASS",
+      "mean_abs": 0.0
+    },
+    {
+      "round": 0,
+      "variant": "optimized",
+      "order": 1,
+      "cycles": 107801674,
+      "pre_sync_cycles": 635,
+      "adapter_kernel_cycles": 107800927,
+      "post_sync_cycles": 747,
+      "mismatches": 0,
+      "guard_errors": 0,
+      "input_errors": 0,
+      "max_abs_i64": 0,
+      "status": "PASS",
+      "mean_abs": 0.0
+    },
+    {
+      "round": 1,
+      "variant": "optimized",
+      "order": 0,
+      "cycles": 107803060,
+      "pre_sync_cycles": 621,
+      "adapter_kernel_cycles": 107802317,
+      "post_sync_cycles": 743,
+      "mismatches": 0,
+      "guard_errors": 0,
+      "input_errors": 0,
+      "max_abs_i64": 0,
+      "status": "PASS",
+      "mean_abs": 0.0
+    },
+    {
+      "round": 1,
+      "variant": "baseline",
+      "order": 1,
+      "cycles": 158510062,
+      "pre_sync_cycles": 628,
+      "adapter_kernel_cycles": 158509295,
+      "post_sync_cycles": 767,
+      "mismatches": 0,
+      "guard_errors": 0,
+      "input_errors": 0,
+      "max_abs_i64": 0,
+      "status": "PASS",
+      "mean_abs": 0.0
+    }
+  ],
+  "platform": "fpga",
+  "timing_unit": "RA_cycles",
+  "timing": {
+    "baseline": {
+      "cycles": [
+        158513941,
+        158510062
+      ],
+      "median": 158512001.5,
+      "mean": 158512001.5
+    },
+    "optimized": {
+      "cycles": [
+        107801674,
+        107803060
+      ],
+      "median": 107802367.0,
+      "mean": 107802367
+    },
+    "median_speedup": 1.4703944441219923
+  },
+  "scope": "adapter+kernel+post ame_fence; pre-sync separately recorded",
+  "correctness": "exact int64 oracle, all outputs, guards, full A plus sampled B",
+  "run_id": "run-7bd1204db677434a",
+  "image_sha256": "bd19b807ce806a184a9ee38fede9b92cc8540b3a9cb0c0a42f5adbecea557c4e",
+  "log_sha256": "56b70296dec78ebffb218d1d206aa049dd5dc03fcb2a7b468818e6b4831f3383",
+  "manifest_sha256": "b48d239f4590dd55a49bfbb686715b1e9027bde707418524d5b8d22cc6b9bcf1",
+  "ddr_readback_matches": true,
+  "source_hashes_and_abi_checked": true
+}

@@ -1,0 +1,789 @@
+make: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/add_16x1024'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+verify add_16x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/add_16x1024'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/add_1x1024'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+verify add_1x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/add_1x1024'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/attention_pv_16x16x128x16'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-vector-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+'+xboscame-fpga' is not a recognized feature for this target (ignoring feature)
+'+xboscame-fpga' is not a recognized feature for this target (ignoring feature)
+1 warning generated.
+./build/host-vector-check
+verify attention_pv_16x16x128x16: PASS errors=00000000 max_abs_error_f32_bits=00000000
+./build/host-check
+verify attention_pv_16x16x128x16: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/attention_pv_16x16x128x16'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/attention_pv_16x1x128x17'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-vector-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+'+xboscame-fpga' is not a recognized feature for this target (ignoring feature)
+'+xboscame-fpga' is not a recognized feature for this target (ignoring feature)
+1 warning generated.
+./build/host-vector-check
+verify attention_pv_16x1x128x17: PASS errors=00000000 max_abs_error_f32_bits=00000000
+./build/host-check
+verify attention_pv_16x1x128x17: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/attention_pv_16x1x128x17'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/attention_qk_16x16x16x128'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-vector-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+'+xboscame-fpga' is not a recognized feature for this target (ignoring feature)
+'+xboscame-fpga' is not a recognized feature for this target (ignoring feature)
+1 warning generated.
+./build/host-vector-check
+verify attention_qk_16x16x16x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+./build/host-check
+verify attention_qk_16x16x16x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/attention_qk_16x16x16x128'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/attention_qk_16x1x17x128'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-vector-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+'+xboscame-fpga' is not a recognized feature for this target (ignoring feature)
+'+xboscame-fpga' is not a recognized feature for this target (ignoring feature)
+1 warning generated.
+./build/host-vector-check
+verify attention_qk_16x1x17x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+./build/host-check
+verify attention_qk_16x1x17x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/attention_qk_16x1x17x128'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/attention_scale_mask_16x16x16'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+verify attention_scale_mask_16x16x16: PASS errors=00000000 max_abs_error_f32_bits=33800000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/attention_scale_mask_16x16x16'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/attention_scale_mask_16x1x17'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+verify attention_scale_mask_16x1x17: PASS errors=00000000 max_abs_error_f32_bits=33800000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/attention_scale_mask_16x1x17'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/dequantize_16x1024'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+verify dequantize_16x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/dequantize_16x1024'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/dequantize_16x2048'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+verify dequantize_16x2048: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/dequantize_16x2048'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/dequantize_16x3072'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+verify dequantize_16x3072: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/dequantize_16x3072'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/dequantize_1x1024'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+verify dequantize_1x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/dequantize_1x1024'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/dequantize_1x151936'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+verify dequantize_1x151936: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/dequantize_1x151936'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/dequantize_1x2048'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+verify dequantize_1x2048: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/dequantize_1x2048'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/dequantize_1x3072'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+verify dequantize_1x3072: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/dequantize_1x3072'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/embedding_16x1024'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+verify embedding_16x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/embedding_16x1024'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/embedding_1x1024'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+verify embedding_1x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/embedding_1x1024'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/gqa_repeat_8x16x128_to_16x16x128'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+verify gqa_repeat_8x16x128_to_16x16x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/gqa_repeat_8x16x128_to_16x16x128'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/gqa_repeat_8x17x128_to_16x17x128'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+verify gqa_repeat_8x17x128_to_16x17x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/gqa_repeat_8x17x128_to_16x17x128'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/kv_cache_update_16x8x128'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+verify kv_cache_update_16x8x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/kv_cache_update_16x8x128'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/kv_cache_update_1x8x128'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+verify kv_cache_update_1x8x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/kv_cache_update_1x8x128'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/layout_context_16x16x128'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+verify layout_context_16x16x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/layout_context_16x16x128'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/layout_context_16x1x128'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+verify layout_context_16x1x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/layout_context_16x1x128'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/layout_k_16x16x128'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+verify layout_k_16x16x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/layout_k_16x16x128'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/layout_k_16x17x128'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+verify layout_k_16x17x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/layout_k_16x17x128'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/layout_q_16x16x128'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+verify layout_q_16x16x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/layout_q_16x16x128'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/layout_q_1x16x128'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+verify layout_q_1x16x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/layout_q_1x16x128'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/matmul_16x1024x1024'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+cycles matmul_16x1024x1024: 0000000000003877
+verify matmul_16x1024x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/matmul_16x1024x1024'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/matmul_16x1024x1024_f32'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-vector-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+'+xboscame-fpga' is not a recognized feature for this target (ignoring feature)
+'+xboscame-fpga' is not a recognized feature for this target (ignoring feature)
+1 warning generated.
+./build/host-vector-check
+cycles matmul_16x1024x1024_f32: 00000000000022ac
+verify matmul_16x1024x1024_f32: PASS errors=00000000 max_abs_error_f32_bits=00000000
+./build/host-check
+cycles matmul_16x1024x1024_f32: 0000000000008f99
+verify matmul_16x1024x1024_f32: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/matmul_16x1024x1024_f32'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/matmul_16x1024x2048'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+cycles matmul_16x1024x2048: 0000000000006fbf
+verify matmul_16x1024x2048: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/matmul_16x1024x2048'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/matmul_16x1024x2048_f32'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-vector-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+'+xboscame-fpga' is not a recognized feature for this target (ignoring feature)
+'+xboscame-fpga' is not a recognized feature for this target (ignoring feature)
+1 warning generated.
+./build/host-vector-check
+cycles matmul_16x1024x2048_f32: 0000000000003ef3
+verify matmul_16x1024x2048_f32: PASS errors=00000000 max_abs_error_f32_bits=00000000
+./build/host-check
+cycles matmul_16x1024x2048_f32: 0000000000010160
+verify matmul_16x1024x2048_f32: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/matmul_16x1024x2048_f32'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/matmul_16x1024x3072'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+cycles matmul_16x1024x3072: 000000000000999b
+verify matmul_16x1024x3072: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/matmul_16x1024x3072'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/matmul_16x1024x3072_f32'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-vector-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+'+xboscame-fpga' is not a recognized feature for this target (ignoring feature)
+'+xboscame-fpga' is not a recognized feature for this target (ignoring feature)
+1 warning generated.
+./build/host-vector-check
+cycles matmul_16x1024x3072_f32: 0000000000005dff
+verify matmul_16x1024x3072_f32: PASS errors=00000000 max_abs_error_f32_bits=00000000
+./build/host-check
+cycles matmul_16x1024x3072_f32: 00000000000153b4
+verify matmul_16x1024x3072_f32: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/matmul_16x1024x3072_f32'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/matmul_16x2048x1024'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+cycles matmul_16x2048x1024: 0000000000006d61
+verify matmul_16x2048x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/matmul_16x2048x1024'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/matmul_16x2048x1024_f32'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-vector-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+'+xboscame-fpga' is not a recognized feature for this target (ignoring feature)
+'+xboscame-fpga' is not a recognized feature for this target (ignoring feature)
+1 warning generated.
+./build/host-vector-check
+cycles matmul_16x2048x1024_f32: 0000000000003fec
+verify matmul_16x2048x1024_f32: PASS errors=00000000 max_abs_error_f32_bits=00000000
+./build/host-check
+cycles matmul_16x2048x1024_f32: 000000000000f54f
+verify matmul_16x2048x1024_f32: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/matmul_16x2048x1024_f32'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/matmul_16x3072x1024'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+cycles matmul_16x3072x1024: 0000000000009c01
+verify matmul_16x3072x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/matmul_16x3072x1024'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/matmul_16x3072x1024_f32'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-vector-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+'+xboscame-fpga' is not a recognized feature for this target (ignoring feature)
+'+xboscame-fpga' is not a recognized feature for this target (ignoring feature)
+1 warning generated.
+./build/host-vector-check
+cycles matmul_16x3072x1024_f32: 0000000000005a1d
+verify matmul_16x3072x1024_f32: PASS errors=00000000 max_abs_error_f32_bits=00000000
+./build/host-check
+cycles matmul_16x3072x1024_f32: 000000000001566f
+verify matmul_16x3072x1024_f32: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/matmul_16x3072x1024_f32'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/matmul_1x1024x1024'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+cycles matmul_1x1024x1024: 00000000000003e3
+verify matmul_1x1024x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/matmul_1x1024x1024'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/matmul_1x1024x1024_f32'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-vector-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+'+xboscame-fpga' is not a recognized feature for this target (ignoring feature)
+'+xboscame-fpga' is not a recognized feature for this target (ignoring feature)
+1 warning generated.
+./build/host-vector-check
+cycles matmul_1x1024x1024_f32: 0000000000000281
+verify matmul_1x1024x1024_f32: PASS errors=00000000 max_abs_error_f32_bits=00000000
+./build/host-check
+cycles matmul_1x1024x1024_f32: 0000000000000a87
+verify matmul_1x1024x1024_f32: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/matmul_1x1024x1024_f32'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/matmul_1x1024x2048'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+cycles matmul_1x1024x2048: 000000000000077f
+verify matmul_1x1024x2048: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/matmul_1x1024x2048'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/matmul_1x1024x2048_f32'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-vector-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+'+xboscame-fpga' is not a recognized feature for this target (ignoring feature)
+'+xboscame-fpga' is not a recognized feature for this target (ignoring feature)
+1 warning generated.
+./build/host-vector-check
+cycles matmul_1x1024x2048_f32: 00000000000004a3
+verify matmul_1x1024x2048_f32: PASS errors=00000000 max_abs_error_f32_bits=00000000
+./build/host-check
+cycles matmul_1x1024x2048_f32: 00000000000014e9
+verify matmul_1x1024x2048_f32: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/matmul_1x1024x2048_f32'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/matmul_1x1024x3072'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+cycles matmul_1x1024x3072: 0000000000000b2f
+verify matmul_1x1024x3072: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/matmul_1x1024x3072'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/matmul_1x1024x3072_f32'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-vector-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+'+xboscame-fpga' is not a recognized feature for this target (ignoring feature)
+'+xboscame-fpga' is not a recognized feature for this target (ignoring feature)
+1 warning generated.
+./build/host-vector-check
+cycles matmul_1x1024x3072_f32: 00000000000006a9
+verify matmul_1x1024x3072_f32: PASS errors=00000000 max_abs_error_f32_bits=00000000
+./build/host-check
+cycles matmul_1x1024x3072_f32: 0000000000001f2c
+verify matmul_1x1024x3072_f32: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/matmul_1x1024x3072_f32'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/matmul_1x151936x1024'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+cycles matmul_1x151936x1024: 000000000000dc18
+verify matmul_1x151936x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/matmul_1x151936x1024'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/matmul_1x151936x1024_f32'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-vector-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+'+xboscame-fpga' is not a recognized feature for this target (ignoring feature)
+'+xboscame-fpga' is not a recognized feature for this target (ignoring feature)
+1 warning generated.
+./build/host-vector-check
+cycles matmul_1x151936x1024_f32: 00000000000148ee
+verify matmul_1x151936x1024_f32: PASS errors=00000000 max_abs_error_f32_bits=00000000
+./build/host-check
+cycles matmul_1x151936x1024_f32: 00000000000210fb
+verify matmul_1x151936x1024_f32: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/matmul_1x151936x1024_f32'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/matmul_1x2048x1024'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+cycles matmul_1x2048x1024: 0000000000000789
+verify matmul_1x2048x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/matmul_1x2048x1024'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/matmul_1x2048x1024_f32'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-vector-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+'+xboscame-fpga' is not a recognized feature for this target (ignoring feature)
+'+xboscame-fpga' is not a recognized feature for this target (ignoring feature)
+1 warning generated.
+./build/host-vector-check
+cycles matmul_1x2048x1024_f32: 00000000000004a3
+verify matmul_1x2048x1024_f32: PASS errors=00000000 max_abs_error_f32_bits=00000000
+./build/host-check
+cycles matmul_1x2048x1024_f32: 0000000000001494
+verify matmul_1x2048x1024_f32: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/matmul_1x2048x1024_f32'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/matmul_1x3072x1024'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+cycles matmul_1x3072x1024: 0000000000000ae8
+verify matmul_1x3072x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/matmul_1x3072x1024'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/matmul_1x3072x1024_f32'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-vector-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+'+xboscame-fpga' is not a recognized feature for this target (ignoring feature)
+'+xboscame-fpga' is not a recognized feature for this target (ignoring feature)
+1 warning generated.
+./build/host-vector-check
+cycles matmul_1x3072x1024_f32: 00000000000006e5
+verify matmul_1x3072x1024_f32: PASS errors=00000000 max_abs_error_f32_bits=00000000
+./build/host-check
+cycles matmul_1x3072x1024_f32: 0000000000001ed5
+verify matmul_1x3072x1024_f32: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/matmul_1x3072x1024_f32'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/matmul_3x19x70'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+cycles matmul_3x19x70: 0000000000000059
+verify matmul_3x19x70: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/matmul_3x19x70'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/mul_16x3072'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+verify mul_16x3072: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/mul_16x3072'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/mul_1x3072'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+verify mul_1x3072: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/mul_1x3072'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/quantize_16x1024'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+verify quantize_16x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/quantize_16x1024'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/quantize_16x2048'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+verify quantize_16x2048: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/quantize_16x2048'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/quantize_16x3072'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+verify quantize_16x3072: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/quantize_16x3072'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/quantize_1x1024'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+verify quantize_1x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/quantize_1x1024'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/quantize_1x2048'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+verify quantize_1x2048: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/quantize_1x2048'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/quantize_1x3072'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+verify quantize_1x3072: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/quantize_1x3072'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/rmsnorm_128x128'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+verify rmsnorm_128x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/rmsnorm_128x128'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/rmsnorm_16x1024'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+verify rmsnorm_16x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/rmsnorm_16x1024'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/rmsnorm_16x128'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+verify rmsnorm_16x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/rmsnorm_16x128'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/rmsnorm_1x1024'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+verify rmsnorm_1x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/rmsnorm_1x1024'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/rmsnorm_256x128'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+verify rmsnorm_256x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/rmsnorm_256x128'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/rmsnorm_8x128'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+verify rmsnorm_8x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/rmsnorm_8x128'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/rope_16x16x128'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+verify rope_16x16x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/rope_16x16x128'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/rope_16x8x128'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+verify rope_16x8x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/rope_16x8x128'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/rope_1x16x128'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+verify rope_1x16x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/rope_1x16x128'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/rope_1x8x128'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+verify rope_1x8x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/rope_1x8x128'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/silu_16x3072'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+verify silu_16x3072: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/silu_16x3072'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/silu_1x3072'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+verify silu_1x3072: PASS errors=00000000 max_abs_error_f32_bits=00000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/silu_1x3072'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/softmax_16x16x16'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+verify softmax_16x16x16: PASS errors=00000000 max_abs_error_f32_bits=34000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/softmax_16x16x16'
+make[1]: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/softmax_16x1x17'
+../../../../build-migrate/bin/buddy-opt kernel.mlir --convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts -o build/kernel.host.mlir
+../../../../build-migrate/bin/buddy-translate --buddy-to-llvmir build/kernel.host.mlir -o build/kernel.host.ll
+../../../../llvm/build-2d26/bin/clang -O2 -ffp-contract=off -DHOST_TEST -I.. build/kernel.host.ll launch.c ../support.c ../tools/host_main.c -lm -o build/host-check
+warning: overriding the module target triple with x86_64-unknown-linux-gnu [-Woverride-module]
+1 warning generated.
+./build/host-check
+verify softmax_16x1x17: PASS errors=00000000 max_abs_error_f32_bits=34000000
+make[1]: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/softmax_16x1x17'
+make: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b'

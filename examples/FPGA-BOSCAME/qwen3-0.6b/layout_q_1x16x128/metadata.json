@@ -1,0 +1,31 @@
+{
+  "name": "layout_q_1x16x128",
+  "kind": "layout_transpose",
+  "dtype": "f32",
+  "description": "Transpose Q from token-major projection view [S,16,128] to [16,S,128]",
+  "entry": "kernel_layout_q_1x16x128",
+  "workspace_bytes": 16384,
+  "buffers": [
+    {
+      "name": "x",
+      "shape": [
+        1,
+        16,
+        128
+      ],
+      "dtype": "f32",
+      "offset": 0
+    },
+    {
+      "name": "out",
+      "shape": [
+        16,
+        1,
+        128
+      ],
+      "dtype": "f32",
+      "offset": 8192
+    }
+  ],
+  "validation": "All output elements versus an independent C oracle; host oracle uses libm double precision."
+}

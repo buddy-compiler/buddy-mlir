@@ -1,0 +1,54 @@
+{
+  "name": "embedding_w8a8_1x1024",
+  "family": "embedding_w8a8",
+  "kernel": "embedding_w8a8",
+  "symbol": "triton_embedding_w8a8_1x1024",
+  "arguments": [
+    {
+      "name": "Ids",
+      "rank": 1,
+      "dtype": "i64"
+    },
+    {
+      "name": "Out",
+      "rank": 2,
+      "dtype": "f32"
+    },
+    {
+      "name": "Weight",
+      "rank": 2,
+      "dtype": "i8"
+    },
+    {
+      "name": "Scale",
+      "rank": 1,
+      "dtype": "f32"
+    }
+  ],
+  "signature": {
+    "Ids": "*i64",
+    "Out": "*fp32",
+    "Weight": "*i8",
+    "Scale": "*fp32"
+  },
+  "constexprs": {
+    "WIDTH": 1024,
+    "BLOCK": 1024
+  },
+  "grid": [
+    1,
+    1,
+    1
+  ],
+  "directory": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/embedding_w8a8_1x1024",
+  "launch_source": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/embedding_w8a8_1x1024/launch.c",
+  "validation": "Unmodified parent launch.c and its independent numerical oracle",
+  "frontend": "triton.compiler.ASTSource -> CPUBackend.make_ttir -> triton-riscv _ttir_to_ttsharedir",
+  "triton_version": "3.8.0",
+  "kernels_sha256": "f89c28aeff34416c679b86c0d9bf11187b062ded1ae3437df2c2031221fc2d3e",
+  "exporter_sha256": "266a64dda66018359776c61fbbee1c9e8109ff554938a0cc4e66a5d50d0fc56a",
+  "cases_sha256": "ad71d8957e5c09a3ffa5ec1476ece4ca241c7d4e70ef65966d00127b6e0e12e6",
+  "ttir_sha256": "eda3cff2188d6d472939131ae02c929ccf0e8b63522c91420f55d0440f98ddee",
+  "linalg_sha256": "be8586cb7a3d5c716efebd7da92f3ea63300d7c80fc9c4640b9528aad786e090",
+  "abi": "unranked memref: (i64 rank=0, rank-0 descriptor pointer) per tensor, then six i32 grid/pid values"
+}

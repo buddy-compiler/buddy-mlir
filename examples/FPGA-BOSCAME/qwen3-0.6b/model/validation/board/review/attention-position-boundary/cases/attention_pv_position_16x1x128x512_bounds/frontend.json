@@ -1,0 +1,61 @@
+{
+  "name": "attention_pv_position_16x1x128x512_bounds",
+  "family": "attention_pv",
+  "kernel": "attention_dot_position",
+  "kernel_module": "kernels_position",
+  "symbol": "triton_attention_pv_position_16x1x128x512_bounds",
+  "arguments": [
+    {
+      "name": "A",
+      "rank": 3,
+      "dtype": "f32"
+    },
+    {
+      "name": "B",
+      "rank": 3,
+      "dtype": "f32"
+    },
+    {
+      "name": "Position",
+      "rank": 1,
+      "dtype": "i32"
+    },
+    {
+      "name": "C",
+      "rank": 3,
+      "dtype": "f32"
+    }
+  ],
+  "signature": {
+    "A": "*fp32",
+    "B": "*fp32",
+    "Position": "*i32",
+    "C": "*fp32"
+  },
+  "constexprs": {
+    "M": 1,
+    "N": 128,
+    "K": 512,
+    "BM": 1,
+    "BN": 16,
+    "BK": 64,
+    "QK": false
+  },
+  "grid": [
+    1,
+    8,
+    16
+  ],
+  "directory": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/attention-position-boundary-cases/attention_pv_position_16x1x128x512_bounds",
+  "launch_source": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/attention-position-boundary-cases/attention_pv_position_16x1x128x512_bounds/launch.c",
+  "validation": "Unmodified parent launch.c and its independent numerical oracle",
+  "frontend": "triton.compiler.ASTSource -> CPUBackend.make_ttir -> triton-riscv _ttir_to_ttsharedir",
+  "triton_version": "3.8.0",
+  "kernels_sha256": "f89c28aeff34416c679b86c0d9bf11187b062ded1ae3437df2c2031221fc2d3e",
+  "kernel_module_sha256": "ea32ea04825723b5bb547d440e2e90e4a41750caae3cd9de6ec75c2cd8a764f4",
+  "exporter_sha256": "7bfd217e11bea1d2ed8c018aa138fb9d765470c64080218a3327468fd8379a1a",
+  "cases_sha256": "f9bbf07f56c9ceeef0be4fc26281ce8faacf11dc58780a82a064c8a31d33d2d3",
+  "ttir_sha256": "5e960d78052dd89cca3f58063b47a91e0665661dbaade8789de3c9cb1a0fe53c",
+  "linalg_sha256": "50321f3e94a456873868eddb7e95ef8452101d3cafe41e3dec57638b0421a0d3",
+  "abi": "unranked memref: (i64 rank=0, rank-0 descriptor pointer) per tensor, then six i32 grid/pid values"
+}

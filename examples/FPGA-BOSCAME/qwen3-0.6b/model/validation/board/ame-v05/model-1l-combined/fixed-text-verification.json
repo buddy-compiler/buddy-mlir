@@ -1,0 +1,175 @@
+{
+  "status": "FIXED_TEXT_PASS",
+  "execution": "FPGA trace verified post-run on host",
+  "scope": "fixed raw prompt -> board template/tokenize -> actual graph-selected predictions -> board incremental UTF-8 decode",
+  "prompt_utf8_hex": "57686174206973204672616e63653f",
+  "actual_prompt": {
+    "ids": [
+      151644,
+      872,
+      198,
+      3838,
+      374,
+      9625,
+      30,
+      151645,
+      198,
+      151644,
+      77091,
+      198,
+      151667,
+      271,
+      151668,
+      271
+    ],
+    "count": 16,
+    "encode_cycles": 176643
+  },
+  "official_prompt_ids": [
+    151644,
+    872,
+    198,
+    3838,
+    374,
+    9625,
+    30,
+    151645,
+    198,
+    151644,
+    77091,
+    198,
+    151667,
+    271,
+    151668,
+    271
+  ],
+  "model_stages": [
+    {
+      "kind": "prefill",
+      "position": 0,
+      "token": 33067
+    },
+    {
+      "kind": "decode",
+      "position": 16,
+      "token": 11853
+    },
+    {
+      "kind": "decode",
+      "position": 17,
+      "token": 11853
+    },
+    {
+      "kind": "decode",
+      "position": 18,
+      "token": 11853
+    },
+    {
+      "kind": "decode",
+      "position": 19,
+      "token": 11853
+    },
+    {
+      "kind": "decode",
+      "position": 20,
+      "token": 11853
+    },
+    {
+      "kind": "decode",
+      "position": 21,
+      "token": 11853
+    },
+    {
+      "kind": "decode",
+      "position": 22,
+      "token": 11853
+    },
+    {
+      "kind": "decode",
+      "position": 23,
+      "token": 11853
+    }
+  ],
+  "predictions": [
+    {
+      "prediction": 0,
+      "token": 33067,
+      "eos": 0,
+      "bytes": 11,
+      "hex": "20696e7465726e616c6c79"
+    },
+    {
+      "prediction": 1,
+      "token": 11853,
+      "eos": 0,
+      "bytes": 5,
+      "hex": "696d697a65"
+    },
+    {
+      "prediction": 2,
+      "token": 11853,
+      "eos": 0,
+      "bytes": 5,
+      "hex": "696d697a65"
+    },
+    {
+      "prediction": 3,
+      "token": 11853,
+      "eos": 0,
+      "bytes": 5,
+      "hex": "696d697a65"
+    },
+    {
+      "prediction": 4,
+      "token": 11853,
+      "eos": 0,
+      "bytes": 5,
+      "hex": "696d697a65"
+    },
+    {
+      "prediction": 5,
+      "token": 11853,
+      "eos": 0,
+      "bytes": 5,
+      "hex": "696d697a65"
+    },
+    {
+      "prediction": 6,
+      "token": 11853,
+      "eos": 0,
+      "bytes": 5,
+      "hex": "696d697a65"
+    },
+    {
+      "prediction": 7,
+      "token": 11853,
+      "eos": 0,
+      "bytes": 5,
+      "hex": "696d697a65"
+    },
+    {
+      "prediction": 8,
+      "token": 11853,
+      "eos": 0,
+      "bytes": 5,
+      "hex": "696d697a65"
+    }
+  ],
+  "finish_hex": "",
+  "output_utf8_hex": "20696e7465726e616c6c79696d697a65696d697a65696d697a65696d697a65696d697a65696d697a65696d697a65696d697a65",
+  "output_text": " internallyimizeimizeimizeimizeimizeimizeimizeimize",
+  "limits": [
+    "Fixed prompt fixture only; no UART RX or arbitrary user interaction acceptance.",
+    "Text validation does not replace numerical logits/KV or hidden-state verification.",
+    "Nine predictions mean one prefill-selected token plus eight sequential decode predictions."
+  ],
+  "official_assets_sha256": {
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/assets/official/tokenizer.json": "aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/assets/official/tokenizer_config.json": "d5d09f07b48c3086c508b30d1c9114bd1189145b74e982a265350c923acd8101",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/assets/official/generation_config.json": "2325da0f15bb848e018c5ae071b7943332e9f871d6b60e2ed22ca97d4cb993d2"
+  },
+  "inputs_sha256": {
+    "examples/FPGA-BOSCAME/build/fpga-runs/run-7df735200fa54dab/uart.raw.log": "37493ff0ed50b65e4ded13f52100db45a95e9e779e679d919f72e339669b51b0",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/ame-v05/model-combined/image/w8a8-image-plan.json": "df69588a31a2f1cabac7ad22637709ddc803ec11ed83220bb31b91de011e1f56"
+  }
+}

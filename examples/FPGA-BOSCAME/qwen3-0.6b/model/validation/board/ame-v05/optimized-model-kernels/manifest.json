@@ -1,0 +1,363 @@
+{
+  "group": "optimized-model-kernels",
+  "host": false,
+  "frontend": "triton",
+  "case_count": 18,
+  "cases": [
+    "dequantize_16x1024",
+    "dequantize_16x2048",
+    "dequantize_16x3072",
+    "dequantize_1x1024",
+    "dequantize_1x151936",
+    "dequantize_1x2048",
+    "dequantize_1x3072",
+    "matmul_16x1024x1024",
+    "matmul_16x1024x2048",
+    "matmul_16x1024x3072",
+    "matmul_16x2048x1024",
+    "matmul_16x3072x1024",
+    "matmul_1x1024x1024",
+    "matmul_1x1024x2048",
+    "matmul_1x1024x3072",
+    "matmul_1x151936x1024",
+    "matmul_1x2048x1024",
+    "matmul_1x3072x1024"
+  ],
+  "image": "../model/build/ame-v05/model-combined/kernel-overlay/suite-optimized-model-kernels/suite.bin",
+  "sha256": "2367b4bf5ed1aa6aa67d1552b08f78c0025a79b1593e8eeeb8f690ec2c26e886",
+  "build_configuration": {
+    "configuration_helper_sha256": "0189d330d27ec1fd342d32c6ae28bbdfd60cba4785b1891b5ddfb8d8a9297131",
+    "directory": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/dequantize_16x1024",
+    "tools": {
+      "BUDDY_OPT": {
+        "command": [
+          "../../../../build-migrate/bin/buddy-opt"
+        ],
+        "executable": "/home/chh/gitprojects/buddy-mlir-for-fpga/build-migrate/bin/buddy-opt",
+        "mtime_ns": 1789625427762871559,
+        "size": 233560976
+      },
+      "BUDDY_TRANSLATE": {
+        "command": [
+          "../../../../build-migrate/bin/buddy-translate"
+        ],
+        "executable": "/home/chh/gitprojects/buddy-mlir-for-fpga/build-migrate/bin/buddy-translate",
+        "mtime_ns": 1789561823467950389,
+        "size": 88421040
+      },
+      "HOST_CC": {
+        "command": [
+          "../../../../llvm/build-2d26/bin/clang"
+        ],
+        "executable": "/home/chh/gitprojects/buddy-mlir-for-fpga/llvm/build-2d26/bin/clang-24",
+        "mtime_ns": 1789561724771948036,
+        "size": 198446528
+      },
+      "LLC": {
+        "command": [
+          "../../../../llvm/build-2d26/bin/llc"
+        ],
+        "executable": "/home/chh/gitprojects/buddy-mlir-for-fpga/llvm/build-2d26/bin/llc",
+        "mtime_ns": 1789561707515947624,
+        "size": 105802208
+      },
+      "PYTHON": {
+        "command": [
+          "python3"
+        ],
+        "executable": "/home/chh/miniconda3/envs/boscame/bin/python3.12",
+        "mtime_ns": 1788849708114972236,
+        "size": 31509696
+      },
+      "RISCV_CC": {
+        "command": [
+          "../../../../llvm/build-2d26/bin/clang",
+          "--target=riscv64-unknown-elf"
+        ],
+        "executable": "/home/chh/gitprojects/buddy-mlir-for-fpga/llvm/build-2d26/bin/clang-24",
+        "mtime_ns": 1789561724771948036,
+        "size": 198446528
+      },
+      "RISCV_LD": {
+        "command": [
+          "/usr/bin/ld.lld-20"
+        ],
+        "executable": "/usr/lib/llvm-20/bin/lld",
+        "mtime_ns": 1752006269000000000,
+        "size": 5618256
+      },
+      "RISCV_OBJCOPY": {
+        "command": [
+          "../../../../llvm/build-2d26/bin/llvm-objcopy"
+        ],
+        "executable": "/home/chh/gitprojects/buddy-mlir-for-fpga/llvm/build-2d26/bin/llvm-objcopy",
+        "mtime_ns": 1789373748055466322,
+        "size": 8712848
+      },
+      "RISCV_OBJDUMP": {
+        "command": [
+          "../../../../llvm/build-2d26/bin/llvm-objdump"
+        ],
+        "executable": "/home/chh/gitprojects/buddy-mlir-for-fpga/llvm/build-2d26/bin/llvm-objdump",
+        "mtime_ns": 1789373755615466502,
+        "size": 22164480
+      }
+    },
+    "variables": {
+      "AME_GPR_MODE": "direct",
+      "AME_PASS": "--lower-linalg-to-boscame=target=nr-fpga",
+      "BATCH_FP32_PASS": "--batchmatmul-optimize=vector-size=16",
+      "BUDDY_BIN": "../../../../build-migrate/bin",
+      "BUDDY_OPT": "../../../../build-migrate/bin/buddy-opt",
+      "BUDDY_TRANSLATE": "../../../../build-migrate/bin/buddy-translate",
+      "BUILD": "build",
+      "CFLAGS": "-march=rv64gc_zicbom -mabi=lp64d -mcmodel=medany -O2 -nostdlib -ffreestanding -fno-builtin -fno-pie -fno-vectorize -fno-slp-vectorize -ffp-contract=off -ffunction-sections -fdata-sections -I.. -I../../common/nr -I../../common/uart",
+      "FP32_PASS": "--matmul-transpose-b-vectorization-decode='vector-size=16 unroll=1 n-tile=1'",
+      "HOST_CC": "../../../../llvm/build-2d26/bin/clang",
+      "HOST_CFLAGS": "-O2 -ffp-contract=off -DHOST_TEST -I..",
+      "KERNEL_LLFLAGS": "-O2 -filetype=asm -mtriple=riscv64 -target-abi=lp64d -mattr=+m,+a,+f,+d,+c,-v,+xboscame -code-model=medium",
+      "LLC": "../../../../llvm/build-2d26/bin/llc",
+      "LLVM_BIN": "../../../../llvm/build-2d26/bin",
+      "LOWER": "--convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts",
+      "MATMUL_FP32_PASS": "--matmul-vectorization='vector-size=16 vector-type=fixed'",
+      "NR": "../../common/nr",
+      "NR_COALESCE_FENCES": "1",
+      "PYTHON": "python3",
+      "RISCV_CC": "../../../../llvm/build-2d26/bin/clang --target=riscv64-unknown-elf",
+      "RISCV_LD": "/usr/bin/ld.lld-20",
+      "RISCV_OBJCOPY": "../../../../llvm/build-2d26/bin/llvm-objcopy",
+      "RISCV_OBJDUMP": "../../../../llvm/build-2d26/bin/llvm-objdump",
+      "ROOT": "..",
+      "RUNTIME_OBJS": "build/crt.o build/nr_runtime.o build/nr_math.o build/ame_sync.o build/nr_copy.o build/support.o",
+      "RVV_ENABLED": "0",
+      "RVV_FLAGS": "-mattr=+m,+a,+f,+d,+c,+v,+zvl512b,+xboscame -riscv-v-vector-bits-min=512",
+      "RVV_LINEAR_FLAGS": "-mattr=+m,+a,+f,+d,+c,+v,+zvl512b,+xboscame -riscv-v-vector-bits-min=512 -disable-machine-licm -disable-machine-cse",
+      "SCALAR_FLAGS": "-mattr=+m,+a,+f,+d,+c,-v,+xboscame",
+      "TOOLS": "../../tools"
+    }
+  },
+  "source_files": {
+    "examples/FPGA-BOSCAME/common/nr/ame_sync.c": "130a531600e734405289f4894d813012cf160f9df7e3507e51d5eebf9397e9da",
+    "examples/FPGA-BOSCAME/common/nr/crt.S": "75431219ba064928a9064d728608095d01e53c0f31e76b2cf38c0a2a35c5a706",
+    "examples/FPGA-BOSCAME/common/nr/nr.ld": "50ba0a1ebaa19929fad8fa68457f1080ce1d39653aff30825f3c7c18fcb5b366",
+    "examples/FPGA-BOSCAME/common/nr/nr_copy.S": "84e13b00c06a837fdf1967402780bd6c78a27cb58b45aed11406cd5f52f20a46",
+    "examples/FPGA-BOSCAME/common/nr/nr_math.c": "f0bb33d8e96cb2bf7ad596916acfa1fb2bcfdf2afbd16cf1facc042144d588e8",
+    "examples/FPGA-BOSCAME/common/nr/nr_runtime.c": "966a14bbddd91a78ae02dcbba074643c2b23b3394223b89fde518b4487f251c4",
+    "examples/FPGA-BOSCAME/common/nr/nr_runtime.h": "05133325005c5aaa0656aeac7e952ab8d2b003bccb03a5abd55210e44ade714b",
+    "examples/FPGA-BOSCAME/common/toolchain.mk": "ad47446fc294c85f67b94bec786028e5f848121c939f52b73f66981c14cf1cdb",
+    "examples/FPGA-BOSCAME/common/triton/setup-triton.sh": "090f13768ee7b5f9e9db6f65ed94cfab87e3ae2501b34aa1070e90784b1e4e66",
+    "examples/FPGA-BOSCAME/common/triton/toolchain-lock.json": "1d77043b8d76412ec51a48f834d8587cb6f3255898fae63433d46460fdcf29c6",
+    "examples/FPGA-BOSCAME/common/triton/triton-env.sh": "6756c899a5c6b42334040b677ebeee42260528d512914f7377407732ee0c8a44",
+    "examples/FPGA-BOSCAME/common/uart/uart.h": "cd8dc86559e8588e2d82cf0519fb3c912e8284f3d122b864c124d4cc967a65b0",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/common.mk": "5244a950bb22731606d857e1bf0945ca880d7c9ca222520ff7de5821899f8ed5",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/dequantize_16x1024/launch.c": "4b34ef078ee5dba51961c5b76229e4977811d45eb78ae314cd652ecdcbe4f4ab",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/dequantize_16x1024/metadata.json": "9f4404c13a019b3fe77ad889b387264b7ca92b58854914ed55c227b1d77568f2",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/dequantize_16x2048/launch.c": "f49e6a732b68edf992b56d9765f2b80c6bb60790efe91c8a2e0fe18e4e05b50e",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/dequantize_16x2048/metadata.json": "0d67389f2c2dae8d51db03607384f6203f1968ad0f4755006fb41520af67c269",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/dequantize_16x3072/launch.c": "4a5256dfc576d85244ed2bbfd4e86024445326dedaa40b2cb9f4ba52053002df",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/dequantize_16x3072/metadata.json": "75ee2702e1de2b8d5db8e3a9c43242e44293059ef6c5e795244d537f125ab4e3",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/dequantize_1x1024/launch.c": "526a6fb83ca0e1e281aaf9d20adeb6cc293b463667e510bb2fe87a753252bdd8",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/dequantize_1x1024/metadata.json": "1c8fb453a6d57fb91c9caacba7a12eddbe39a418afc97f7340a65001c5b94726",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/dequantize_1x151936/launch.c": "83911fe2e902c5652cfde304a54b3954091b8f7e4e9e16a7a53be1c3da25c2f1",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/dequantize_1x151936/metadata.json": "59bb07ace4f56256d5dd34dfe4c61d411a7159008c2874c2a7033e4670da7d73",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/dequantize_1x2048/launch.c": "52b8852a7b1273a5351879fe70fcce79eb2ab3f5162f8daa9f65d05de62c434b",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/dequantize_1x2048/metadata.json": "10ac4b35375d958545a5c5e173d832a1a318b6779536e0b3e7e20ce50fc8ddae",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/dequantize_1x3072/launch.c": "70a8c4d06bcb56253328da6b9cfb376764e9af2263a9a9ff17a13317af514e74",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/dequantize_1x3072/metadata.json": "7d424753dcb2b7d6414408b8791cdd63f2f7bc999e1eac736ee8dfdcc6567075",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/matmul_16x1024x1024/launch.c": "5d270ebfe9ed748d749160ba8733180cfc3e503a0dafb776e91a636695516464",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/matmul_16x1024x1024/metadata.json": "27f7a0b42750e06256dd2b6a55a1574e0438eaffac2297b3583789a4bb8a0294",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/matmul_16x1024x2048/launch.c": "ffd5c27fa77fd5989acae9623773abc50c1a9d04f2c92f6088f4ef35e76bf9b3",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/matmul_16x1024x2048/metadata.json": "6a71e3b1cb86d39d87e55b1208f9650700642451f2892d8c0c1189da042fbfc4",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/matmul_16x1024x3072/launch.c": "79bd640e6fbc66a6f1b04bdf8d14ae5dba5c1c3d224e5042d01cfa934dd32831",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/matmul_16x1024x3072/metadata.json": "1c93b613da4a2fe5e0b3fc518b5bd8f94ae1b8cce99569d43f6fe1eaa0feffbd",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/matmul_16x2048x1024/launch.c": "bc3a20df4e0ae9fc7c0862c368125ea91c30d9bd1098fdf7c080aee648489b31",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/matmul_16x2048x1024/metadata.json": "18423d2c7f62a18f7134b55a6036d3e12f64eabf4485c074306a61f317ca5f2d",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/matmul_16x3072x1024/launch.c": "a58029f7bab2f16e111e4597b761786ced2b1c49d2ae4e59a5d7c9ac67b5cea5",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/matmul_16x3072x1024/metadata.json": "fa00c13e0caa91b62fc8f83ae6d98d26647252b5acb8c5b553248062eaab92de",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/matmul_1x1024x1024/launch.c": "b60616572ac4d6db7ce5b8733653c1a86bb98c419ccf0f11b667762cd64da721",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/matmul_1x1024x1024/metadata.json": "a91e0507b99a29ac755c9f6844d27936ae06230fc8c7f893c702407f11820628",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/matmul_1x1024x2048/launch.c": "228748f09932b39bdec62cc7b73d23342b7ef3ec03b3e587cd11e7f9148e6748",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/matmul_1x1024x2048/metadata.json": "ab3e6522041b315a55f86ad3dfadeaf2e70411d8332e0318b56c618d8318af79",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/matmul_1x1024x3072/launch.c": "c9ca506229de9f021adb85e06d720beb0b9a772a8392c45ff5aa91bfb35d5087",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/matmul_1x1024x3072/metadata.json": "31b75a163c2f683c3be2a558474adb641caab9c81e3affc9caf46d56a78b3520",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/matmul_1x151936x1024/launch.c": "36d357314a1d8776cea9b877497a0c767b2406709b4f945e8726ceccb32a3d99",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/matmul_1x151936x1024/metadata.json": "a2b2b9bb248ba4c0d79fd36f2443dbb44fee89db38ceff4a7c6060d600027d38",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/matmul_1x2048x1024/launch.c": "82436c355644d7ecb40b6f0417b5b654931c5c00c3f7fb5cda6149c940e7b5f1",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/matmul_1x2048x1024/metadata.json": "3c843bd1dd2bf55ee4c7a1ecd1a111fcc9c25d09508cdd31b842e8ffd3f8c85b",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/matmul_1x3072x1024/launch.c": "44b2ae426165782fba7f04039dd526cbbb3961d7e03836ff9492355f19172e6f",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/matmul_1x3072x1024/metadata.json": "123112f529e3e2d147f4a9a7a70e5d3cc240387a3180698a389e8fbc43a3c223",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/support.c": "1748abf575678c8602aef1e69c47d9d3d11a9362879665b87ad8d219aa6b26f0",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/support.h": "0ee1e660c1be2847f88a11cbf220fa665eada68552103e46d645fbcebb1f7d7d",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/tools/build_suite.py": "0189d330d27ec1fd342d32c6ae28bbdfd60cba4785b1891b5ddfb8d8a9297131",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/tools/host_main.c": "b069c7f2d8465e1078275e3d52d9aab2263d2b98e2e0173fb418284757a7c729",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/tools/vectorize_nr.py": "df7849f281b3e0d76064ebdc493bffe8ac83f2ac68189e25f75f989241367f94",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/triton/build.py": "3eb98a2a64bce65e43200f194b8f3b9e36e955874a45e8a947476e8af7f772c0",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/triton/cases.py": "c3e5dab1f3321cbaa7368465b0595a891b7d99394f4dae937ae54eea5f255e1e",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/triton/export.py": "7bfd217e11bea1d2ed8c018aa138fb9d765470c64080218a3327468fd8379a1a",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/triton/kernels.py": "f89c28aeff34416c679b86c0d9bf11187b062ded1ae3437df2c2031221fc2d3e",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/triton/kernels_dequant.py": "cea484317504ce2f12a757836f25d7ad59b2c4f72412ea0d118af45a06c111ed",
+    "examples/FPGA-BOSCAME/tools/ame_to_word.py": "d2899d577394f9732a4324c66fdf6fea0e803b3767b374e5f8d3e3842bb19441",
+    "examples/FPGA-BOSCAME/tools/check_nr_elf.py": "9545edf67d9c3143a74c4b5dd514f539af3a15f898ffb3c027698521898e5a51",
+    "examples/FPGA-BOSCAME/tools/nr_isa.py": "f2fd286fda695428fd66bbebdb290534b54a6c74c0a7f0beb015e22277707f15",
+    "examples/FPGA-BOSCAME/tools/restrict_fpga_assembly.py": "badc43f0163a05668222442c3926403def092bb9022e48e795c28c44199f69bd"
+  },
+  "kernels": {
+    "dequantize_16x1024": {
+      "frontend": "90fc735eff1f49370bffb61fd49e30b9882aef43cb271d1c4e17c10f92c39949",
+      "adapter": "e4a954575a8e67c547ef89ec288507712d759aec292380170d803486234dd104",
+      "ttir": "e85a13303caeae0b975ee5da34e98554cf339d7b23e81ec7e5e08f98f943fd45",
+      "linalg": "855caa183f7048109711be15cea33dbb294b2af71f233a2f3b4a3560c5300438",
+      "llvm": "f73176c62b6305ee6c8934660aad8f3211043d406028e30df762b90f651b96e2"
+    },
+    "dequantize_16x2048": {
+      "frontend": "398e85c0abeb2116ad03ad266814b195e5cb7e1225d846570b8e16771d9bbc6f",
+      "adapter": "e9545d4a9a5ce6c1f4c47f12f5ec227d0b607314985991542ddc8e2849d5917c",
+      "ttir": "9337a967c6bffe7b3661a5700157575f08ae699aaaddf50d13779e07cd0c3637",
+      "linalg": "b43464d62ce19c6b617ddf2c63b4629bcdefe183ecb665aca1de82d3e9f65637",
+      "llvm": "8b6ea572002a318eb84c4440da920899e306d71d75abe28ae82245d5ff33f736"
+    },
+    "dequantize_16x3072": {
+      "frontend": "1a94c1556b8f5dca7f1f5f531d7f55a8800b86517585fed2904487db82e55413",
+      "adapter": "85bfb104f192ed0922920ad09312d308a38349216a0857d5ed34d70111d3ab18",
+      "ttir": "add4e5122b3d0047d5eb1747e369bf98561978605b3159c596044707f5ebd60e",
+      "linalg": "84a551731ef56faf8488e71b5d923cd6d8a68ae5f3ee734aa449c81a5a096af3",
+      "llvm": "5fb09bcaa88511f0b585620dbe0fbc96ece00414ad30b5417ac21d356b19a54d"
+    },
+    "dequantize_1x1024": {
+      "frontend": "44359e50e8074a677f03a9740be124656bb449b89a6bbbfd4abc4308a4217dd1",
+      "adapter": "f9b04f539d5aac4ec1b9ae47d442f88094e18ef8d70a7b9d70335fd6d370d485",
+      "ttir": "96123ef090ae371b5efb5079546930b25b6d0e30342534167afed064fedf2f99",
+      "linalg": "045fa7de6a3fcd9dcc467e5e404f74782ef08883fd2054bbb3fe8b4fca522998",
+      "llvm": "8a3f57de272a4c62e62c429018e790f4cc71799154f714705e19c24d7aea5735"
+    },
+    "dequantize_1x151936": {
+      "frontend": "6d286456f941b8cac77937dcccf59bdfa591c537ff0f37463d94835401ec1134",
+      "adapter": "84a7c9a1c54f8cb9a7c37e55fd128afc2ad862efec762cca7c08820415b0f1e2",
+      "ttir": "c2e6392bc2f311124ac6dfa9d2884f0b2605e48c174f7071d58f75e553a3eddb",
+      "linalg": "a1705e229284f95a7f1f14da668b9d7743b43b7b4f0a9ac942381ddcdd75ef9d",
+      "llvm": "d40405737246663337a79edb0dd7a25f1732c4b6243345f2c9a57f7d1a53880b"
+    },
+    "dequantize_1x2048": {
+      "frontend": "2ceb219bc4fa9f82ff8dffe8b279a9ece35aca5861461fe4b2a4b72324ffc2b4",
+      "adapter": "f2bbe6c3f6f2fb9d53b93f088dca924aefc9449c46375fbe226391ea5c498dd5",
+      "ttir": "4d2acf96fea8fba7705a4673d79c2be89947ad9dbba47999ca72f79df67ab207",
+      "linalg": "e3eac56704a43f92c761d7c220df242c9d86fa0db8d12dffbdfcbf8b43f67efb",
+      "llvm": "f361acee643d2fa8f2ee317df98be59ad70592e892bf07fdc35b0d6daff96848"
+    },
+    "dequantize_1x3072": {
+      "frontend": "e1d32cf69a6433b44fe75332e055b0faca41891a0c18d15e99266fdbd30b46b2",
+      "adapter": "82bcc20f5af61607522639b1db21e0cc28688234db5358b8b9368d74cad3ad4c",
+      "ttir": "c1b518c1f33e9c0bb0d652c800777e9281c26713cf95ad33100c586d65d81317",
+      "linalg": "3add70b3336086da3aff38246f525ec13f346cbb504bfac19067bc6b540dfe6d",
+      "llvm": "0c19c6f6b195f7b449fd25ee98ea5c9c3bc225bbf7cb56999b4e4b7ad30952e9"
+    },
+    "matmul_16x1024x1024": {
+      "frontend": "afe7170f750f013e3cd8f06ccff8e6913d4ff18d533f1071c01e3a6831b7a507",
+      "adapter": "6ed9324fc150294477e968531dcd07e2c55ba53ad2839294a5b478c7ce9cee10",
+      "ttir": "cbf7a90b00f4968861ef85888cc5f1b40fb789a517e9fd39ee3434e03c75a97d",
+      "linalg": "b1741ca9fce51acf43ff8f6f386844d38c87b6dcd8504e312d1908ed568ac18a",
+      "llvm": "070215547e95c78980188fb9e4e5870a8574aafca25cbecab6844255d5a7b353"
+    },
+    "matmul_16x1024x2048": {
+      "frontend": "7dfa74046dcc78740053639847d81fc319656d7e24dc918e8625231ac6ea69bf",
+      "adapter": "72de64946545289999ff001d7cafc46201956b81ee6ce5eb8c07c091a3c2700b",
+      "ttir": "552509d07149577c0cd014258b68c87bd4a92b05dcbf4ae5cec044cd559b8462",
+      "linalg": "2fb82f9d713485cc6ee8dfe035f38335e92637785e80149fe7b9002ab27cb490",
+      "llvm": "f5b39d410782f3b7a88af0be1c5a1104d71eba5cb69298b5b40e10785d61ea91"
+    },
+    "matmul_16x1024x3072": {
+      "frontend": "b493b17274198bb598454fade37719ea6e2512813eec2d76b0ac935c6633fe9f",
+      "adapter": "f9d8838501d15815911eebbdb386baf50d079fda81e8d2252617d142a1e84703",
+      "ttir": "d370cd15127c6cc8d0ae5e26e43c40fc1c54df218033fa5110e7b59232314bd9",
+      "linalg": "b14b735d585a3168cb846a6bbc3ec3bb4f4a3f2e49782f03c25e1ec214e57b1c",
+      "llvm": "9da72c58bacad14b5548d168d852358faf8efcffc2622a04e6ebdc115f192f53"
+    },
+    "matmul_16x2048x1024": {
+      "frontend": "fc310e6e510127723899a0845665f8f0766e5def1f8658760fd55dd95cfc3210",
+      "adapter": "ff1256c130449848dd6b6be7be1f7bc61086ae37f74efb04ec29ba0eb41a6da3",
+      "ttir": "910ac1748388c9fa617366fbd70c306079dc14b4060f19199c245301b2e9ee9d",
+      "linalg": "28e30c3b9352ca13e3efbd1ffe7a5ec60e1cf0dd12afe616789cb809e8bb592c",
+      "llvm": "132d65638312d5f52a016602c470ba725a72dff70476293fea2efc5a1dc9573a"
+    },
+    "matmul_16x3072x1024": {
+      "frontend": "6df56c81e7748f6fadd1d1dbe554af7777aa3270864423a9a0dae53b284ba2f2",
+      "adapter": "1c3830592ca9406cd452491407189de25d9ffa0ed7c373230016c764104243c2",
+      "ttir": "f7f045db13aa3122c6e799a40bd8c41b675ea5aebf125161736bc87f6976f1b7",
+      "linalg": "a8a6853fdc572535db67d741adb22f06af056dc3b4bdc14462dcc40b8c5aceac",
+      "llvm": "c06b03b3cb4ca4e7ac89243b80f5fcb76c76d1ae6aa5cf78d77cc7a8ff183c03"
+    },
+    "matmul_1x1024x1024": {
+      "frontend": "a86ae84cafd642d57910eba90450648258ac38187c4773afe59d23908aa337d3",
+      "adapter": "2f80eb8aa1c8920a174c919256be062b56fcd366cc3eaaf2ed16bd0db5c4fd46",
+      "ttir": "a6f2799dd11120ffd121a8af7c7d9f643784af58ce15580c78daaa12e81af4c5",
+      "linalg": "a638cf8e9abe8bc8d8eca50767bf3e1bd3416ebf3eb6a97368e4a842a9b25022",
+      "llvm": "17225ff04b7ef1a673225f047f462f77690f53dbafd9258a8c8b7c4806068a7e"
+    },
+    "matmul_1x1024x2048": {
+      "frontend": "54097b7aeb4ea42f565ee10a204d8865bf4073b1ec65b8a055304b32b9594896",
+      "adapter": "b24d3e8e86700f6be715ba7a08dafb78af55f451fda80c6566bd38be4f4710dc",
+      "ttir": "e422c5d22d927d8be38dd307d44125b3421e47af263dd4eaacc835eee28c510e",
+      "linalg": "97cb5fb8b3fe2cd3f697edc5538c7b65d0b443a32cc11925137fca7e8c885cd1",
+      "llvm": "b03bd0dd69da4cfb771deaa6f8fe66ba55cbdf78b4e72892a11198a5041c5e8d"
+    },
+    "matmul_1x1024x3072": {
+      "frontend": "638b633562472f114f3e810f653e3662ea8614c5ea7bae2fbcf3af4574cdf63e",
+      "adapter": "9641f4844c510fa59b2cc033624fd88031530f8478c8ab6a9e0f0f7e37dd005e",
+      "ttir": "03dea262b9f4fde83a40030f060d06a2c49701862d73bf5f210638ae86e9e5e9",
+      "linalg": "0dddb839dc4c77df32afeb905427762dbfe649191ca2582f642bc2824f54d689",
+      "llvm": "aa321c6a90bcce44aa726841210bac17a0163005098f990d5ace4a472610dc29"
+    },
+    "matmul_1x151936x1024": {
+      "frontend": "6985e11b1df1a1b99315094e06f7e9bcb4a0e2b1133070b620080c613d2c988e",
+      "adapter": "08973ee73e775febafaa1a7e7c0360fa293ae3b51f125d49042a24dd1cc617d6",
+      "ttir": "3252ee52c8c9c4f7815bcb06525b2123ce89bc454cd7b57df780bc81b79ceb64",
+      "linalg": "724239820232c740c0dd40a8d15fa909d7038976af6405b7a2e7758b0224fa5b",
+      "llvm": "533fe49bee5f852d5e22a5eb6d21360aac7c440b62ffd5d3d6e73b41a12e2b16"
+    },
+    "matmul_1x2048x1024": {
+      "frontend": "0d458360f4fbb76ebb115b2a6ce300f6e5077a35c552ea40eb48f88df3677945",
+      "adapter": "7f06ccadefef2ebb687dae49698550ea41090fbf04f849c29b1a8841d5b3fc76",
+      "ttir": "c511818d2764a88c6b9850d227fac7cc5c99193a61c73547291fa6a2189fc97e",
+      "linalg": "9c1c371f3d8b7452f412b8de5239781c6e83c14618308349b170063ab131b4bd",
+      "llvm": "31beff75873a51d138c0827c534aeacb1a91104016f3ca26acf2f54fa1f70614"
+    },
+    "matmul_1x3072x1024": {
+      "frontend": "b2139c862afc7e5dceb46b0167d5a32d1143ead1cffd9cc8c583668dffa3a7c9",
+      "adapter": "c413c80509bae5b45644375809ef86553f737008b1006e8b310a97b67019d15e",
+      "ttir": "26b68a1ebda0deda2819fab961fb53ac3b7cc9b434583ece27d98cfac9762370",
+      "linalg": "b65c98285676d9c910140c96a08895943fdf711654e73a23451e093bc9f79fd9",
+      "llvm": "43903faaefc8ec52edfcab45c72c8e5d7730992d5e081a98aaf8eda79233ec88"
+    }
+  },
+  "elf_audit": {
+    "status": "PASS",
+    "elf_sha256": "0c4c8d99081b43f574565ab0b2043d1eb1470cfb744407054737f1be42634d0c",
+    "executable_sections": [
+      {
+        "name": ".text.init",
+        "address": "0x80000000",
+        "bytes": 236
+      },
+      {
+        "name": ".text",
+        "address": "0x80011000",
+        "bytes": 29250
+      }
+    ],
+    "instructions": 10285,
+    "ame_instructions": 131,
+    "vector_memory_instructions": 23,
+    "rvv_instructions": {
+      "vfcvt.f.x.v": 7,
+      "vfmul.vf": 7,
+      "vfmul.vv": 7,
+      "vle32.v": 15,
+      "vse32.v": 8,
+      "vsetivli": 7,
+      "vsetvli": 1
+    },
+    "errors": []
+  },
+  "ame_gpr_mode": "direct",
+  "nr_coalesce_fences": true
+}

@@ -1,0 +1,43 @@
+{
+  "status": "PASS",
+  "scope": "final operator mapping consistency and rejection checks; no FPGA numerical assertion",
+  "checks": [
+    {
+      "entry": "prefill",
+      "all_calls_checked": 957,
+      "native_K_strides_checked": 28,
+      "unresolved_descriptor_fields": 0,
+      "runtime_memory_call_sites": {
+        "static_call_sites": {
+          "malloc": 714,
+          "llvm.memcpy.p0.p0.i64": 140,
+          "free": 770
+        },
+        "scope": "actual unoptimized forward entry LLVM body; sites inside loops may execute many times; this is not traffic, peak memory, or cycle measurement"
+      }
+    },
+    {
+      "entry": "decode",
+      "all_calls_checked": 957,
+      "native_K_strides_checked": 28,
+      "unresolved_descriptor_fields": 0,
+      "runtime_memory_call_sites": {
+        "static_call_sites": {
+          "malloc": 714,
+          "llvm.memcpy.p0.p0.i64": 140,
+          "free": 770
+        },
+        "scope": "actual unoptimized forward entry LLVM body; sites inside loops may execute many times; this is not traffic, peak memory, or cycle measurement"
+      }
+    },
+    {
+      "negative_check": "wrong checkpoint projection shape rejected",
+      "message": "projection checkpoint dimensions disagree"
+    },
+    {
+      "negative_check": "unverified checkpoint projection weight rejected",
+      "message": "kernel weight is not value-verified: qwen_graph_w8a8_mm_quantize_16x1024"
+    }
+  ],
+  "mapping_sha256": "eb7ca34df6c14c95a3029bdea724b34af5b539824a06d3368beeabfd594a342f"
+}

@@ -1,0 +1,15 @@
+{
+  "status": "OK",
+  "fpga": 5,
+  "sha256": "2367b4bf5ed1aa6aa67d1552b08f78c0025a79b1593e8eeeb8f690ec2c26e886",
+  "capture_seconds": 300,
+  "baud": 115200,
+  "padded_sha256": "cab7c20de2c27fd006a516c17fc06b698339f26f19201d42476feafaa78320f8",
+  "ddr_readback_matches": true,
+  "uart_bytes": 3056,
+  "completion_marker": "[nr] RA returned:",
+  "completion_marker_seen": true,
+  "uart_input_bytes_written": 0,
+  "uart_interactive_bytes_written": 0,
+  "uart_input_unacknowledged_requests": 0
+}

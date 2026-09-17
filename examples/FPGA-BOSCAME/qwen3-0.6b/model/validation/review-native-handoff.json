@@ -1,0 +1,60 @@
+{
+  "status": "READY_FOR_ROOT_MODEL_FPGA",
+  "variant": "--attention --attention-position --attention-native-key",
+  "stage_a": "validation/board/review/attention-native/validation.json",
+  "graph_source": "Buddy import; structured attention/causal-mask semantic checks plus actual LLVM key layout audit",
+  "host_result": "1/4/28 layers each pass all 27 tensor comparisons at max_abs=mean_abs=0, including complete-vocabulary last-position prefill and 8 decode logits, and valid K/V snapshots",
+  "graph_tests": 10,
+  "all_local_processes_completed": true,
+  "kernel_index": "build/review-native-kernels",
+  "artifacts": {
+    "1": {
+      "root": "build/review-native-1l",
+      "folders": [
+        "replacement",
+        "nr-prefill",
+        "nr-decode",
+        "model-lib",
+        "host-bridge",
+        "host-run"
+      ],
+      "score": "validation/review-host-native-1l.json",
+      "kernel_calls_per_entry": 39,
+      "removed_workspace_both_entries_bytes": 8388608
+    },
+    "4": {
+      "root": "build/review-native-4l",
+      "folders": [
+        "replacement",
+        "nr-prefill",
+        "nr-decode",
+        "model-lib",
+        "host-bridge",
+        "host-run"
+      ],
+      "score": "validation/review-host-native-4l.json",
+      "kernel_calls_per_entry": 141,
+      "removed_workspace_both_entries_bytes": 33554432
+    },
+    "28": {
+      "root": "build/review-native-28l",
+      "folders": [
+        "replacement",
+        "nr-prefill",
+        "nr-decode",
+        "model-lib",
+        "host-bridge",
+        "host-run"
+      ],
+      "score": "validation/review-host-native-28l.json",
+      "kernel_calls_per_entry": 957,
+      "removed_workspace_both_entries_bytes": 234881024
+    }
+  },
+  "reference_unchanged": "build/review-{1,4,28}l/quant-nr-order; same BK64 FMA order and public NR scalar math",
+  "limitations": [
+    "Full-model FPGA run remains root-owned and must pass its own full-logits/KV oracle",
+    "Preset text/tokenizer execution and image layout are root/other-agent owned",
+    "Native key kernel retains the graph GQA expansion; it only removes the redundant whole-cache key transpose"
+  ]
+}

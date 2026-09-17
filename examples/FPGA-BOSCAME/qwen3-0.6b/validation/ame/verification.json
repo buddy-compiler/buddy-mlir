@@ -1,0 +1,83 @@
+{
+  "recorded_at_utc": "2026-09-16T13:00:47.577214+00:00",
+  "source_run": "run-99d5ac278458424e",
+  "fpga": 5,
+  "image_sha256": "a2778d4ab0da9f5220b99bd35b5efc718df36fe2c9ec1d37e0b3de649738aa30",
+  "uart_sha256": "bae75741b20cc9664515cc3fd283b9f9cea2715ef001d39c1b513a48bf7971a1",
+  "case_count": 12,
+  "all_pass": true,
+  "cases": [
+    {
+      "case": "matmul_16x1024x1024",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000",
+      "kernel_cycles": 1126168
+    },
+    {
+      "case": "matmul_16x1024x2048",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000",
+      "kernel_cycles": 2149677
+    },
+    {
+      "case": "matmul_16x1024x3072",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000",
+      "kernel_cycles": 3172206
+    },
+    {
+      "case": "matmul_16x2048x1024",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000",
+      "kernel_cycles": 2248703
+    },
+    {
+      "case": "matmul_16x3072x1024",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000",
+      "kernel_cycles": 3382720
+    },
+    {
+      "case": "matmul_1x1024x1024",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000",
+      "kernel_cycles": 996358
+    },
+    {
+      "case": "matmul_1x1024x2048",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000",
+      "kernel_cycles": 1891839
+    },
+    {
+      "case": "matmul_1x1024x3072",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000",
+      "kernel_cycles": 2785233
+    },
+    {
+      "case": "matmul_1x151936x1024",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000",
+      "kernel_cycles": 148236530
+    },
+    {
+      "case": "matmul_1x2048x1024",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000",
+      "kernel_cycles": 1993924
+    },
+    {
+      "case": "matmul_1x3072x1024",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000",
+      "kernel_cycles": 3003452
+    },
+    {
+      "case": "matmul_3x19x70",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000",
+      "kernel_cycles": 10888
+    }
+  ]
+}

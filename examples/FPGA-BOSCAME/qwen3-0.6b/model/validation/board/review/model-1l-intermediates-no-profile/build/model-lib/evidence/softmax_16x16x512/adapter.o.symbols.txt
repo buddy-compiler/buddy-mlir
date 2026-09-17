@@ -1,0 +1,2 @@
+_mlir_ciface_kernel_softmax_16x16x512 T 0 82
+triton_softmax_16x16x512 U 0 0

@@ -1,0 +1,258 @@
+{
+  "reference_dir": "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-1l/quant-host-order",
+  "comparisons": {
+    "prefill_logits": {
+      "max_abs_error": 0.0,
+      "mean_abs_error": 0.0,
+      "cosine_similarity": 1.0,
+      "elements": 151936
+    },
+    "decode_logits_0": {
+      "max_abs_error": 0.0,
+      "mean_abs_error": 0.0,
+      "cosine_similarity": 1.0000000000000002,
+      "elements": 151936
+    },
+    "decode_logits_1": {
+      "max_abs_error": 0.0,
+      "mean_abs_error": 0.0,
+      "cosine_similarity": 1.0000000000000002,
+      "elements": 151936
+    },
+    "decode_logits_2": {
+      "max_abs_error": 0.0,
+      "mean_abs_error": 0.0,
+      "cosine_similarity": 1.0,
+      "elements": 151936
+    },
+    "decode_logits_3": {
+      "max_abs_error": 0.0,
+      "mean_abs_error": 0.0,
+      "cosine_similarity": 1.0000000000000002,
+      "elements": 151936
+    },
+    "decode_logits_4": {
+      "max_abs_error": 0.0,
+      "mean_abs_error": 0.0,
+      "cosine_similarity": 0.9999999999999999,
+      "elements": 151936
+    },
+    "decode_logits_5": {
+      "max_abs_error": 0.0,
+      "mean_abs_error": 0.0,
+      "cosine_similarity": 1.0,
+      "elements": 151936
+    },
+    "decode_logits_6": {
+      "max_abs_error": 0.0,
+      "mean_abs_error": 0.0,
+      "cosine_similarity": 1.0,
+      "elements": 151936
+    },
+    "decode_logits_7": {
+      "max_abs_error": 0.0,
+      "mean_abs_error": 0.0,
+      "cosine_similarity": 1.0000000000000002,
+      "elements": 151936
+    },
+    "kv_key_used": {
+      "max_abs_error": 0.0,
+      "mean_abs_error": 0.0,
+      "cosine_similarity": 0.9999999999999999,
+      "elements": 24576
+    },
+    "kv_value_used": {
+      "max_abs_error": 0.0,
+      "mean_abs_error": 0.0,
+      "cosine_similarity": 1.0,
+      "elements": 24576
+    },
+    "decode_kv_key_0": {
+      "max_abs_error": 0.0,
+      "mean_abs_error": 0.0,
+      "cosine_similarity": 1.0,
+      "elements": 17408
+    },
+    "decode_kv_value_0": {
+      "max_abs_error": 0.0,
+      "mean_abs_error": 0.0,
+      "cosine_similarity": 0.9999999999999999,
+      "elements": 17408
+    },
+    "decode_kv_key_1": {
+      "max_abs_error": 0.0,
+      "mean_abs_error": 0.0,
+      "cosine_similarity": 1.0,
+      "elements": 18432
+    },
+    "decode_kv_value_1": {
+      "max_abs_error": 0.0,
+      "mean_abs_error": 0.0,
+      "cosine_similarity": 0.9999999999999999,
+      "elements": 18432
+    },
+    "decode_kv_key_2": {
+      "max_abs_error": 0.0,
+      "mean_abs_error": 0.0,
+      "cosine_similarity": 0.9999999999999998,
+      "elements": 19456
+    },
+    "decode_kv_value_2": {
+      "max_abs_error": 0.0,
+      "mean_abs_error": 0.0,
+      "cosine_similarity": 1.0000000000000002,
+      "elements": 19456
+    },
+    "decode_kv_key_3": {
+      "max_abs_error": 0.0,
+      "mean_abs_error": 0.0,
+      "cosine_similarity": 1.0000000000000002,
+      "elements": 20480
+    },
+    "decode_kv_value_3": {
+      "max_abs_error": 0.0,
+      "mean_abs_error": 0.0,
+      "cosine_similarity": 1.0,
+      "elements": 20480
+    },
+    "decode_kv_key_4": {
+      "max_abs_error": 0.0,
+      "mean_abs_error": 0.0,
+      "cosine_similarity": 1.0000000000000002,
+      "elements": 21504
+    },
+    "decode_kv_value_4": {
+      "max_abs_error": 0.0,
+      "mean_abs_error": 0.0,
+      "cosine_similarity": 1.0,
+      "elements": 21504
+    },
+    "decode_kv_key_5": {
+      "max_abs_error": 0.0,
+      "mean_abs_error": 0.0,
+      "cosine_similarity": 1.0,
+      "elements": 22528
+    },
+    "decode_kv_value_5": {
+      "max_abs_error": 0.0,
+      "mean_abs_error": 0.0,
+      "cosine_similarity": 1.0,
+      "elements": 22528
+    },
+    "decode_kv_key_6": {
+      "max_abs_error": 0.0,
+      "mean_abs_error": 0.0,
+      "cosine_similarity": 0.9999999999999999,
+      "elements": 23552
+    },
+    "decode_kv_value_6": {
+      "max_abs_error": 0.0,
+      "mean_abs_error": 0.0,
+      "cosine_similarity": 1.0,
+      "elements": 23552
+    },
+    "decode_kv_key_7": {
+      "max_abs_error": 0.0,
+      "mean_abs_error": 0.0,
+      "cosine_similarity": 0.9999999999999999,
+      "elements": 24576
+    },
+    "decode_kv_value_7": {
+      "max_abs_error": 0.0,
+      "mean_abs_error": 0.0,
+      "cosine_similarity": 1.0,
+      "elements": 24576
+    }
+  },
+  "arithmetic_profile": "triton-host",
+  "cache_snapshots_compared": [
+    "kv_key_used",
+    "kv_value_used",
+    "decode_kv_key_0",
+    "decode_kv_value_0",
+    "decode_kv_key_1",
+    "decode_kv_value_1",
+    "decode_kv_key_2",
+    "decode_kv_value_2",
+    "decode_kv_key_3",
+    "decode_kv_value_3",
+    "decode_kv_key_4",
+    "decode_kv_value_4",
+    "decode_kv_key_5",
+    "decode_kv_value_5",
+    "decode_kv_key_6",
+    "decode_kv_value_6",
+    "decode_kv_key_7",
+    "decode_kv_value_7"
+  ],
+  "prefill_argmax_match": true,
+  "token_trajectory_match": true,
+  "reference_generated_ids": [
+    11853,
+    11853,
+    11853,
+    11853,
+    11853,
+    11853,
+    11853,
+    11853
+  ],
+  "decode_same_input_context": [
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true
+  ],
+  "interpretation": "After token/context divergence, free-running logits include trajectory error and are not an isolated kernel check",
+  "status": "PASS",
+  "not_fpga": true,
+  "scope": "captured Buddy compiled graph execution versus independent host quantized reference",
+  "layers": 1,
+  "prompt_ids": [
+    151644,
+    872,
+    198,
+    3838,
+    374,
+    9625,
+    30,
+    151645,
+    198,
+    151644,
+    77091,
+    198,
+    151667,
+    271,
+    151668,
+    271
+  ],
+  "cache_snapshots_complete": true,
+  "max_abs_error_limit": 0.0,
+  "mean_abs_error_limit": 0.0,
+  "sources": [
+    {
+      "path": "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-native-1l/host-run/host-run.json",
+      "bytes": 67702,
+      "sha256": "870a099a8ff48cfe4fea04042af93712cfaef58d09eafea22cf6dac317173871"
+    },
+    {
+      "path": "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-native-1l/host-run/arrays.npz",
+      "bytes": 6289173,
+      "sha256": "b68686c1d46dc5412f8f300dc67a1bf3dbcfa4a7ac5689954a7cbbff547741d3"
+    },
+    {
+      "path": "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-1l/quant-host-order/quant-reference.json",
+      "bytes": 7600,
+      "sha256": "c577460f341dd86d7dd32b3d30ca1a8d371110c2535a7c76af68e3e974ed5b31"
+    },
+    {
+      "path": "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-1l/quant-host-order/arrays.npz",
+      "bytes": 29807004,
+      "sha256": "b36e58f75dc843324f3c82acbd22a4a653d7f161baee905908836d42fe28b920"
+    }
+  ]
+}

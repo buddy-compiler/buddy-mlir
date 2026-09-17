@@ -1,0 +1,53 @@
+[fpga_run] UART ready: /dev/FPGA5, 115200, 8N1, no flow control
+[fpga_run] FPGA5 session active; elapsed=0s, UART=0 bytes
+
+[nr] NH boot; RA operator runtime
+[nr] RA entry=0x0000000080000040
+[nr] RA entered; clearing application BSS
+[nr] mstatus=0x8000000A00006000; launch BEGIN
+[ddr] sparse RA address/alias test; 19 lines, 64 bytes each
+[ddr] write address=0x00000000B8000000
+[ddr] write address=0x00000000BC000000
+[ddr] write address=0x00000000C0000000
+[ddr] write address=0x00000000C4000000
+[ddr] write address=0x00000000C8000000
+[ddr] write address=0x00000000CC000000
+[ddr] write address=0x00000000D0000000
+[ddr] write address=0x00000000D4000000
+[ddr] write address=0x00000000D8000000
+[ddr] write address=0x00000000DC000000
+[ddr] write address=0x00000000E0000000
+[ddr] write address=0x00000000E4000000
+[ddr] write address=0x00000000E8000000
+[ddr] write address=0x00000000EC000000
+[ddr] write address=0x00000000F0000000
+[ddr] write address=0x00000000F4000000
+[ddr] write address=0x00000000F8000000
+[ddr] write address=0x00000000FC000000
+[ddr] write address=0x00000000FFFFF000
+[ddr] read PASS address=0x00000000B8000000
+[ddr] read PASS address=0x00000000BC000000
+[ddr] read PASS address=0x00000000C0000000
+[ddr] read PASS address=0x00000000C4000000
+[ddr] read PASS address=0x00000000C8000000
+[ddr] read PASS address=0x00000000CC000000
+[ddr] read PASS address=0x00000000D0000000
+[ddr] read PASS address=0x00000000D4000000
+[ddr] read PASS address=0x00000000D8000000
+[ddr] read PASS address=0x00000000DC000000
+[ddr] read PASS address=0x00000000E0000000
+[ddr] read PASS address=0x00000000E4000000
+[ddr] read PASS address=0x[fpga_run] FPGA5 started; capturing for 30 seconds
+00000000E8000000
+[ddr] read PASS address=0x00000000EC000000
+[ddr] read PASS address=0x00000000F0000000
+[ddr] read PASS address=0x00000000F4000000
+[ddr] read PASS address=0x00000000F8000000
+[ddr] read PASS address=0x00000000FC000000
+[ddr] read PASS address=0x00000000FFFFF000
+verify sparse DDR address probe: PASS
+[nr] launch cycles=0x000000000004E658 status=0x00000000
+[nr] RA returned: PASS
+verify NR runtime: PASS
+[fpga_run] FPGA5 session active; elapsed=4s, UART=1963 bytes
+[fpga_run] Finished: 1963 UART bytes; DDR readback matches

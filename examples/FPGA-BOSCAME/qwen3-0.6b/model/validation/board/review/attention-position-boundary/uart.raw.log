@@ -1,0 +1,33 @@
+
+[nr] NH boot; RA operator runtime
+[nr] RA entry=0x0000000080000040
+[nr] RA entered; clearing application BSS
+[nr] mstatus=0x8000000A00006000; launch BEGIN
+[1/4] Triton attention_pv_position_16x16x128x512_bounds BEGIN
+[attention-position] valid=00000017 errors=00000000 kernel_cycles=0000000000C91C6A
+[attention-position] valid=00000010 errors=00000000 kernel_cycles=0000000000C0677A
+[attention-position] valid=00000017 errors=00000000 kernel_cycles=0000000000C91B41
+verify attention_pv_position_16x16x128x512_bounds: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[2/4] Triton attention_pv_position_16x1x128x512_bounds BEGIN
+[attention-position] valid=00000001 errors=00000000 kernel_cycles=000000000039DD67
+[attention-position] valid=00000002 errors=00000000 kernel_cycles=00000000003A9C0C
+[attention-position] valid=00000017 errors=00000000 kernel_cycles=000000000049349A
+[attention-position] valid=00000002 errors=00000000 kernel_cycles=00000000003A9C77
+[attention-position] valid=00000001 errors=00000000 kernel_cycles=000000000039DCAD
+verify attention_pv_position_16x1x128x512_bounds: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[3/4] Triton attention_qk_position_16x16x512x128_bounds BEGIN
+[attention-position] valid=00000017 errors=00000000 kernel_cycles=0000000000C36DE6
+[attention-position] valid=00000010 errors=00000000 kernel_cycles=00000000008F504A
+[attention-position] valid=00000017 errors=00000000 kernel_cycles=0000000000C36C28
+verify attention_qk_position_16x16x512x128_bounds: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[4/4] Triton attention_qk_position_16x1x512x128_bounds BEGIN
+[attention-position] valid=00000001 errors=00000000 kernel_cycles=0000000000162BAA
+[attention-position] valid=00000002 errors=00000000 kernel_cycles=00000000001671E9
+[attention-position] valid=00000017 errors=00000000 kernel_cycles=0000000000318C42
+[attention-position] valid=00000002 errors=00000000 kernel_cycles=000000000016722D
+[attention-position] valid=00000001 errors=00000000 kernel_cycles=0000000000162A78
+verify attention_qk_position_16x1x512x128_bounds: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify qwen3 Triton operator suite: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[nr] launch cycles=0x000000001E125A08 status=0x00000000
+[nr] RA returned: PASS
+verify NR runtime: PASS

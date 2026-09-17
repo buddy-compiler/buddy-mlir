@@ -1,0 +1,2 @@
+_mlir_ciface_kernel_rmsnorm_1x1024 T 0 6a
+triton_rmsnorm_1x1024 U 0 0

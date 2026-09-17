@@ -1,0 +1,131 @@
+{
+  "stage": "KV cache write replacement: implemented and firing; NOT numerically correct",
+  "status": "PASS",
+  "what_it_replaces": "the two IndexPutOps that write projected K and V into the cache. The operator inventory said this one would need an out-parameter form, and it does: the kernel writes through its Cache argument and the graph's cache is a function argument, which one-shot bufferize treats as writable.",
+  "structure": {
+    "kernels": [
+      "layout_context_8x{16,1}x128",
+      "kv_cache_update_position_{16,1}x8x128_cap512"
+    ],
+    "shared_position": "the mask kernel and the cache write both need one absolute slot per token, so they share a single i32 [S] buffer rather than carrying two",
+    "new_cases_built": "layout_context_8x16x128 and layout_context_8x1x128, added to tools/generate_elementwise.py and built through the full Triton -> triton-riscv -> MLIR -> Buddy lowering -> NR chain",
+    "result": "4 replacements (2 caches x 2 graphs), uncovered still 0, 22 external calls per graph"
+  },
+  "numeric_result": {
+    "attention_only": {
+      "cosine": 1.00000012,
+      "argmax": 33067,
+      "verdict": "PASS"
+    },
+    "attention_plus_kv_without_transpose": {
+      "cosine": 0.81226796,
+      "argmax": 19756,
+      "verdict": "wrong"
+    },
+    "attention_plus_kv_with_transpose": {
+      "cosine": -0.40432355,
+      "argmax": 127334,
+      "verdict": "wrong, and worse"
+    },
+    "reading": "the transpose made it worse, which means either the layout claim is backwards or something else is wrong and the transpose merely changed how it is wrong"
+  },
+  "reasoning_about_the_layout": {
+    "graph": "index_put(dest=[1,8,512,128], index=[16] along dim 2, value=[1,8,16,128]) means value is [batch, heads, sequence, head_dim]",
+    "kernel": "kv_cache_update_position indexes `X + (token*8 + head)*128 + channel`, i.e. [sequence, heads, head_dim]",
+    "so": "a dim-1/dim-2 swap is needed -- which is what layout_context does, and what I added. Since it made things worse, this reasoning needs checking against a standalone kernel test rather than more of the same argument."
+  },
+  "next_diagnostic": {
+    "what": "check whether the attention reads the same buffer the cache-write call writes. The graph's IndexPut produced a NEW tensor that its consumers read; my rewrite makes them read the cache INPUT instead, and if one-shot bufferize decided the attention needs a copy of that input, it sees the pre-write cache.",
+    "how": "dump the lowered LLVM IR and follow the pointer the cache-write call receives into the descriptor the attention call receives; if they differ the aliasing is broken",
+    "alternative_fix": "write into a caller-owned workspace buffer that is initialised from the cache once per call, so the write and the read share a buffer the graph never treats as read-only -- but that must preserve the cache across decode steps, so it has to be the same buffer every call"
+  },
+  "bug_found_along_the_way": "the first version named a loop variable `index`, shadowing the case-table parameter; every lookup raised AttributeError on an AddOp",
+  "board": {
+    "note": "host-only work; the full-model run was not disturbed"
+  },
+  "standalone_kernel_test": {
+    "what": "called _mlir_ciface_kernel_kv_cache_update_position_16x8x128_cap512 directly on the host with X[s,h,0] = s*1000 + h*10 + 7 and Position = arange(16)",
+    "result": {
+      "cache[0,0,0]": 7.0,
+      "cache[0,1,0]": 1007.0,
+      "cache[3,2,0]": 2037.0,
+      "cache[0,16,0]": -1.0
+    },
+    "conclusion": "the kernel reads X as [sequence, heads, head_dim] and writes Cache[head, slot, dim] exactly as the source says. My layout reasoning was RIGHT and the transpose is required.",
+    "so": "the numeric failure is NOT a layout problem. With the transpose correct and the result still wrong -- and worse than without it -- the remaining suspect is the graph's dataflow: the attention may be reading a buffer the write never reached."
+  },
+  "isolated_by_comparing_the_written_cache": {
+    "method": "both host runs save the cache the graph returns (prefill_kv_key/value), so the write can be judged on its own rather than through the logits",
+    "good_run_attention_only": "non-zero slots per head: 0..17 -- the graph's IndexPut writes the whole prompt",
+    "bad_run_attention_plus_kv": "non-zero slots per head: 0, 16, 17 only",
+    "reading": "slots 1..15 are ZERO in the replaced run. That is the signature of a Position array that is all zeros: every token is told to write slot 0, so each one overwrites the last and only slot 0 survives.",
+    "so_the_defect_is": "the position buffer the cache-write kernel receives, not the kernel, not the layout, and not the transpose",
+    "puzzle": "the SAME buffer feeds the attention mask, and in the attention-only run that works -- the mask clearly uses 0..15, since the logits match FP32 to 1e-7. So the buffer is filled correctly there. Something about the KV path either receives a different buffer or zeroes it.",
+    "candidates": [
+      "the attention rewrite and the KV rewrite may not be sharing the node I think: the report shows both keyed to attn__scaled_dot_product_flash_attention_for_cpu_position, so a name check passes -- but the host runner fills by NAME across a workspace list that contains two entries with that name, one [16] for prefill and one [1] for decode, and an index/dtype mix-up between them would produce exactly this",
+      "the descriptor the kernel receives may point at a different buffer than the one the host fills"
+    ],
+    "next_step": "print the position buffer immediately before the call in the host runner, so the value the kernel is handed is observed rather than inferred"
+  },
+  "resolved": {
+    "verification": {
+      "one_layer_host_attention_and_kv": {
+        "prefill_argmax": {
+          "graph": 33067,
+          "fp32_reference": 33067
+        },
+        "cosine": 1.00000012,
+        "max_abs_error": 4.482e-05,
+        "generated_ids": [
+          11853,
+          11853,
+          11853,
+          11853,
+          11853,
+          11853,
+          11853,
+          11853
+        ],
+        "match": true,
+        "cache_nonzero_slots": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17
+        ]
+      }
+    },
+    "root_cause": {
+      "symptom": "the cache came back with slots {0, 16, 17} only, and adding the K/V transpose made the logits worse rather than better",
+      "cause": "a SYMBOL NAME COLLISION. call_types is shared across graphs and keyed by the wrapper symbol. I named the layout wrapper `kv_<node>_layout`, without the case name -- and the prefill and decode graphs both have a node called index_put, so the decode graph's entry overwrote the prefill's. One wrapper then served both, calling the DECODE layout kernel layout_context_8x1x128 for the prefill, i.e. transposing only the first token and leaving the rest of the K/V block unconverted.",
+      "fix": "the symbol now carries the case: kv_<node>_<case>, giving kv_index_put_layout_context_8x16x128 and ..._8x1x128 as separate wrappers",
+      "how_it_was_found": "reading the generated adapters, where the wrapper for the prefill layout call visibly invoked the 8x1 kernel"
+    },
+    "what_made_it_hard": [
+      "the report and the adapter used different names for the same thing, so a grep for the case name in the adapters returned nothing and looked like the case was missing rather than mis-wired",
+      "the transposed run being WORSE than the untransposed one was the clue: a transpose applied to one token out of sixteen is worse than none"
+    ],
+    "all_replacements_now_pass": {
+      "linear": "W8A8 quantize / int8 matmul / dequantize",
+      "embedding": "int8 gather with per-token rescale",
+      "rmsnorm, silu": "as before",
+      "attention": "layout_k + qk + mask + softmax + pv",
+      "kv_cache_write": "layout_context + kv_cache_update_position",
+      "uncovered": "0"
+    }
+  }
+}

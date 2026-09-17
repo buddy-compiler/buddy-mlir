@@ -1,0 +1,47 @@
+[fpga_run] UART ready: /dev/FPGA5, 115200, 8N1, no flow control
+[fpga_run] FPGA5 session active; elapsed=0s, UART=0 bytes
+
+[nr] NH boot; RA operator runtime
+[nr] RA entry=0x0000000080000040
+[nr] RA entered; clearing application BSS
+[fpga_run] FPGA5 started; capturing for 1800 seconds
+[nr] mstatus=0x8000000A00006000; launch BEGIN
+[text] prompt count=00000010 ids=0002505C 00000368 000000C6 00000EFE 00000176 00002599 0000001E 0002505D 000000C6 0002505C 00012D23 000000C6 00025073 0000010F 00025074 0000010F encode_cycles=000000000002AB4C
+verify fixed prompt tokenizer: PASS
+[text] mode=fixed-validation; EOS is recorded, never early-stops
+[model] prefill begin position=00000000 input_token=0002505C
+[fpga_run] FPGA5 session active; elapsed=8s, UART=535 bytes
+[fpga_run] FPGA5 session active; elapsed=38s, UART=535 bytes
+[fpga_run] FPGA5 session active; elapsed=68s, UART=535 bytes
+[fpga_run] FPGA5 session active; elapsed=98s, UART=535 bytes
+[fpga_run] FPGA5 session active; elapsed=128s, UART=535 bytes
+[fpga_run] FPGA5 session active; elapsed=158s, UART=535 bytes
+[fpga_run] FPGA5 session active; elapsed=188s, UART=535 bytes
+[fpga_run] FPGA5 session active; elapsed=218s, UART=535 bytes
+[fpga_run] FPGA5 session active; elapsed=248s, UART=535 bytes
+[fpga_run] FPGA5 session active; elapsed=278s, UART=535 bytes
+[fpga_run] FPGA5 session active; elapsed=308s, UART=535 bytes
+[fpga_run] FPGA5 session active; elapsed=338s, UART=535 bytes
+[fpga_run] FPGA5 session active; elapsed=368s, UART=535 bytes
+[fpga_run] FPGA5 session active; elapsed=398s, UART=535 bytes
+[fpga_run] FPGA5 session active; elapsed=428s, UART=535 bytes
+[fpga_run] FPGA5 session active; elapsed=459s, UART=535 bytes
+[fpga_run] FPGA5 session active; elapsed=489s, UART=535 bytes
+[fpga_run] FPGA5 session active; elapsed=519s, UART=535 bytes
+[fpga_run] FPGA5 session active; elapsed=549s, UART=535 bytes
+[fpga_run] FPGA5 session active; elapsed=579s, UART=535 bytes
+[fpga_run] FPGA5 session active; elapsed=609s, UART=535 bytes
+[fpga_run] FPGA5 session active; elapsed=639s, UART=535 bytes
+[fpga_run] FPGA5 session active; elapsed=669s, UART=535 bytes
+[fpga_run] FPGA5 session active; elapsed=699s, UART=535 bytes
+[fpga_run] FPGA5 session active; elapsed=729s, UART=535 bytes
+[fpga_run] FPGA5 session active; elapsed=759s, UART=535 bytes
+[fpga_run] FPGA5 session active; elapsed=789s, UART=535 bytes
+[fpga_run] FPGA5 session active; elapsed=819s, UART=535 bytes
+[fpga_run] FPGA5 session active; elapsed=849s, UART=535 bytes
+[fpga_run] FPGA5 session active; elapsed=879s, UART=535 bytes
+[fpga_run] FPGA5 session active; elapsed=909s, UART=535 bytes
+[fpga_run] FPGA5 session active; elapsed=939s, UART=535 bytes
+[fpga_run] FPGA5 session active; elapsed=969s, UART=535 bytes
+[fpga_run] FPGA5 session active; elapsed=999s, UART=535 bytes
+[fpga_run] interrupted; releasing this session

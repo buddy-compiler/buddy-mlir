@@ -1,0 +1,7 @@
+test_old_linker_rejected (test_model_linker.ModelLinker.test_old_linker_rejected) ... ok
+test_symlink_name_preserved_for_multicall_executable (test_model_linker.ModelLinker.test_symlink_name_preserved_for_multicall_executable) ... ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.007s
+
+OK

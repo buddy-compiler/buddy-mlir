@@ -1,0 +1,40 @@
+{
+  "status": "INCOMPLETE_PREFILL_STALLED",
+  "run_id": "run-427eb992645a44b6",
+  "prefill_completed": false,
+  "decode_steps_completed": 0,
+  "stalled_boundary": {
+    "index": 523,
+    "adapter": "qwen_graph_kv_index_put_30_layout_context_8x16x128",
+    "kernel": "_mlir_ciface_kernel_layout_context_8x16x128",
+    "symbol_call_index": 30,
+    "region": "decoder",
+    "decoder_block_index": 15,
+    "call_in_decoder_block": 12,
+    "uart_line": 1056
+  },
+  "probe_executed": false,
+  "observed_no_new_uart_seconds": 300.022751,
+  "runner_result": {
+    "status": "INTERRUPTED",
+    "fpga": 5,
+    "sha256": "4fe0a8037bd961c5426f506afb917b65ad20eb02b1fb285a199f50ae45df60ba",
+    "capture_seconds": 7200,
+    "baud": 115200,
+    "segment_readbacks": {
+      "image.bin": true,
+      "weights-w8a8.bin": true,
+      "tokenizer.bin": true
+    },
+    "ddr_readback_matches": true,
+    "error": "interrupted; releasing this session",
+    "uart_input_bytes_written": 0,
+    "uart_interactive_bytes_written": 0,
+    "uart_input_unacknowledged_requests": 0
+  },
+  "limits": [
+    "Different stall boundary before selected probe executes; cannot isolate first run RVV dequantization.",
+    "Begin/end includes actual kernel, profiler AME sync, and UART writes. No actual PC sample.",
+    "Not model numerical acceptance."
+  ]
+}

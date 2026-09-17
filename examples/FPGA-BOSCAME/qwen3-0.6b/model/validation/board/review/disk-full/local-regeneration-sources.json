@@ -1,0 +1,10 @@
+{
+  "8e2747d650a4e9e10efbfd212230b26c8e00aad71614d3c6bd0a1df5b06df517": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-1l/prepared-oracle-audit/image.bin",
+  "7dadd6dc021fb23eb9741f6d2da3dc00c31b9b1e5c7b5369b2b705d97de98143": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-1l/prepared-oracle-audit/weights-w8a8.bin",
+  "b8ffaef85a845a759d1477e5284132adea2e8da1942d5620829929d09b7d1030": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-position-1l/prepared-oracle-profile/image.bin",
+  "6fde5a81a5abfd24bd7e69dce767c1df909d156b009d07c2710fc53d1baed6bd": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-native-1l/prepared-oracle-profile/image.bin",
+  "26d089f14274de36236b0fd1c573cedc2ce1f230e88527d3d4abd0364823eca2": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-native-4l/prepared-fixed-text/image.bin",
+  "4ae30d1197e0531834dd8d81f4bf92c78f435e0267eee165cc4910c0a27ef4c5": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-native-4l/prepared-fixed-text/weights-w8a8.bin",
+  "7e436961bdc35adbcca4887a6f767cdbdaabc69cc0349298a40c54a400b4bcc4": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-native-28l/prepared-fixed-text/tokenizer.bin",
+  "74cc8ce95de55c3e897800be609d5d94a39c5af58c8d8cb2a1bc0b65f6377c5e": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-native-4l/prepared-fixed-text-progress/image.bin"
+}

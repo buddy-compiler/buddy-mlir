@@ -1,0 +1,25 @@
+0000000080025102 <_mlir_ciface_qwen_graph_rmsnorm_16x1024__forward_prefill_mul_3>:
+80025102:      	mv	a1, a3
+80025104:      	mv	a3, a4
+80025106:      	jal	0x8001a010 <__wrap__mlir_ciface_kernel_rmsnorm_16x1024>
+8002510a:      	ld	ra, 0x28(sp)
+8002510c:      	addi	sp, sp, 0x30
+8002510e:      	ret
+80025110:      	addi	sp, sp, -0x30
+80025112:      	sd	ra, 0x28(sp)
+80025114:      	mv	a3, a2
+80025116:      	mv	a4, a0
+
+0000000080025118 <.Lpcrel_hi8>:
+80025118:      	auipc	a0, 0x10f0
+8002511c:      	addi	a0, a0, -0xc0
+80025120:      	li	a2, 0x1
+80025122:      	sd	zero, 0x0(a4)
+80025126:      	sd	a0, 0x8(a4)
+80025128:      	sd	zero, 0x10(a4)
+8002512c:      	sd	a2, 0x18(a4)
+8002512e:      	slli	a0, a2, 0xb
+80025132:      	li	a5, 0x10
+80025134:      	li	a6, 0x80
+
+0000000080025138 <.Lpcrel_hi9>:

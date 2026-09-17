@@ -65,19 +65,6 @@ func.func @reduce_1d_to_0d_mulf(%arg0: memref<16xf32>, %arg1: memref<f32>) {
 
 // -----
 
-// Unsupported higher-rank reduction shape.
-func.func @reduce_3d_to_2d(%arg0: memref<2x4x8xf32>, %arg1: memref<2x4xf32>) {
-  // expected-error @+1 {{unsupported linalg.reduce for -lower-linalg-to-vir}}
-  linalg.reduce ins(%arg0 : memref<2x4x8xf32>) outs(%arg1 : memref<2x4xf32>) dimensions = [2]
-    (%in: f32, %init0: f32) {
-      %sum = arith.addf %in, %init0 : f32
-      linalg.yield %sum : f32
-    }
-  return
-}
-
-// -----
-
 // Unsupported 3D->2D dim-0 reduction with dynamic M.
 func.func @reduce_3d_to_2d_dim0_dynamic_m(%arg0: memref<?x4x8xf32>, %arg1: memref<4x8xf32>) {
   // expected-error @+1 {{unsupported linalg.reduce for -lower-linalg-to-vir}}

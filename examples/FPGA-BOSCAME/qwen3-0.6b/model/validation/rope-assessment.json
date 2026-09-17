@@ -1,0 +1,43 @@
+{
+  "stage": "RoPE replacement: pattern fully identified, not implemented",
+  "status": "assessed; the mechanism the inventory asked for is now written down",
+  "why_it_was_deferred": "the two replacements that change what runs on the hardware -- attention and the cache write -- are done and verified. RoPE is lower value: the graph already computes it correctly, and replacing it costs three kernels per rotation to save a broadcast multiply.",
+  "the_pattern": {
+    "summary": "standard rotate-half RoPE, but spread over twelve ops rather than being one node",
+    "shape": "add_6 [1,16,16,128] = mul_8 + mul_9",
+    "mul_8": "MulOp(permute_2, unsqueeze_11)  -- q * cos",
+    "mul_9": "MulOp(cat, unsqueeze_12)        -- rotate_half(q) * sin",
+    "cat": "CatOp(NegOp(SliceOp(permute_2, dim 3, 64, end)), SliceOp(permute_2, dim 3, 0, 64))  -- rotate_half",
+    "permute_2": "PermuteOp(mul_5)            -- the rotation input",
+    "sin": "SinOp(clone_1); cos is the symmetric SinOp sibling",
+    "cos_sin_shape_here": "[1, S, 128], i.e. the 64 frequencies duplicated",
+    "cos_sin_in_the_shape_the_kernel_wants": "the [1, S, 2, 64] tensor that view_3 reshapes to [1, S, 128]; the rope kernel needs [S, 64]"
+  },
+  "what_a_matcher_would_have_to_do": [
+    "find an AddOp whose parents are both MulOps, with one sharing a rotate-half sub-pattern (Cat of Neg(Slice(64:)) and Slice(:64)) and the other not",
+    "check both muls use the same rotation input",
+    "trace the two unsqueezes back to the cos and sin tensors and reshape them to [S, 64] via the pre-view tensor",
+    "transpose the rotation input from [1, heads, S, head_dim] to [S, heads, head_dim], which the rope kernel indexes, and transpose the result back",
+    "call rope_{S}x{heads}x128(X, Cosine, Sine, Out) and repoint the consumers"
+  ],
+  "kernels_available": "rope_16x16x128, rope_1x16x128, rope_16x8x128, rope_1x8x128 -- all four model shapes exist and pass on the board",
+  "cost_if_done": "three kernels per rotation (transpose in, rope, transpose out), two rotations per layer",
+  "the_pattern_is_verified": "the reading above was taken from the imported graph by walking parents, not from the model's source",
+  "cost_benefit": {
+    "what_it_would_take": {
+      "matcher": "find an AddOp of two MulOps where one shares a rotate-half sub-pattern (Cat of Neg(Slice(64:)) and Slice(:64)) over the same rotation input as the other",
+      "cos_sin": "the graph carries cos and sin as [1, S, 128] -- the 64 frequencies duplicated -- and the kernel wants [S, 64], so each needs a slice of the first half",
+      "transposes": "the rotation input is [1, heads, S, 128] and the kernel indexes [S, heads, 128], so it needs a transpose in and another out; layout_context_{16,8}x{S}x128 and layout_q_{S}x16x128 both exist",
+      "kernels_per_rotation": 5,
+      "rotations_per_layer": 2,
+      "so": "10 extra kernel calls per layer to replace a broadcast multiply and a concatenate"
+    },
+    "why_that_is_a_bad_trade_right_now": [
+      "the graph's RoPE is already correct and verified -- this changes what runs, not whether it is right",
+      "the two replacements that change the hardware picture (attention, cache write) are done, verified, and are the ones whose speed effect is actually in question",
+      "each replacement so far has cost a debugging cycle on a layout or naming subtlety (the K transpose, the symbol collision); this one has more moving parts than either",
+      "the remaining board work -- the full model and stage E -- is the objective's headline and cannot be advanced while the board is busy"
+    ],
+    "decision": "documented in full rather than rushed. The inventory asked for the mechanism for these three; for RoPE that mechanism is now written down precisely enough to be a bounded task."
+  }
+}

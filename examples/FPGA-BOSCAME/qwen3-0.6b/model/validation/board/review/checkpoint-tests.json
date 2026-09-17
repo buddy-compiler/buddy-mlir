@@ -1,0 +1,31 @@
+{
+  "status": "PASS",
+  "tests": 31,
+  "scope": "Local validation plumbing regressions; does not establish FPGA model acceptance",
+  "suites": [
+    {
+      "log": "intermediate-checks-tests.log",
+      "tests": 12,
+      "sha256": "963c6590d9dbdbbe057de562bfcc976fb146f264ff7755c6effb9e7f69c7a34f",
+      "status": "PASS"
+    },
+    {
+      "log": "archive-with-intermediates-tests.log",
+      "tests": 11,
+      "sha256": "5eb99a268b1355c965a416d60ff612300672e9a2a5121475dd8677f6a1b8406e",
+      "status": "PASS"
+    },
+    {
+      "log": "linker-wrap-audit/linker-selection-tests.log",
+      "tests": 2,
+      "sha256": "18f33d41746e8e6313c8745aaceded4e78011258109a7469b870e223c64c9fce",
+      "status": "PASS"
+    },
+    {
+      "log": "linker-wrap-audit/fixed-prompt-regression.log",
+      "tests": 6,
+      "sha256": "945371411839bf95df82e99dd0de4e5415c30d88448b7a6e4db403e0698543f0",
+      "status": "PASS"
+    }
+  ]
+}

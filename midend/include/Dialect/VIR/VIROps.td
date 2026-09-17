@@ -147,8 +147,9 @@ def VIR_ReduceOp : VIR_Op<"reduce"> {
     predefined combiner kind.
 
     v1 semantics:
-    - `kind = \"add\"`    : floating-point sum reduction
-    - `kind = \"maxnum\"` : floating-point maxnum reduction
+    - `kind = \"add\"`     : floating-point sum reduction
+    - `kind = \"maximum\"` : floating-point maximum reduction (propagates NaN)
+    - `kind = \"maxnum\"`  : floating-point maxnum reduction
   }];
   let arguments = (ins
     VIR_DynamicVectorType:$input,

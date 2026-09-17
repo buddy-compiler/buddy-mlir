@@ -1,0 +1,14 @@
+{
+  "status": "ERROR",
+  "fpga": 5,
+  "sha256": "93b136050c3d5619bb5a6bfb26eeb8e19c61ecdc6fe910371f1997a80d3c4b41",
+  "capture_seconds": 90,
+  "baud": 115200,
+  "padded_sha256": "7a0265952fa89de22504ebf7ee59dce8ba81a23d41f53aac21ab3bfb79373196",
+  "ddr_readback_matches": true,
+  "uart_bytes": 210,
+  "completion_marker": "[nr] RA returned:",
+  "completion_marker_seen": false,
+  "error": "UART completion marker missing at capture timeout",
+  "uart_input_bytes_written": 16
+}
