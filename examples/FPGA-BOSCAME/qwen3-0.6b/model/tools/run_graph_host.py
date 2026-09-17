@@ -306,7 +306,7 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--prompt-ids", required=True)
     parser.add_argument("--decode-steps", type=int, default=8)
-    parser.add_argument("--max-cache-len", type=int, default=512)
+    parser.add_argument("--max-cache-len", type=int, default=128)
     parser.add_argument("--layers", type=int, default=None)
     parser.add_argument("--llvm-libs", type=Path, default=None,
                         help="directory holding the MLIR runner libs; prepared "

@@ -16,6 +16,21 @@ BUILD := build
 TOOLS := ../../tools
 NR := $(COMMON)/nr
 AME_PASS ?= --lower-linalg-to-boscame=target=nr-fpga
+# Opt-in v0.5 operand encoding; keep the previously verified wrappers by default.
+# Export in print-config/config.json so changing this invalidates built kernels.
+AME_GPR_MODE ?= fixed
+ifneq ($(AME_GPR_MODE),fixed)
+ifneq ($(AME_GPR_MODE),direct)
+$(error AME_GPR_MODE must be fixed or direct)
+endif
+endif
+# Experimental adjacent identical fence sharing; retains the ELF fence audit.
+NR_COALESCE_FENCES ?= 0
+ifneq ($(NR_COALESCE_FENCES),0)
+ifneq ($(NR_COALESCE_FENCES),1)
+$(error NR_COALESCE_FENCES must be 0 or 1)
+endif
+endif
 FP32_PASS ?= --matmul-transpose-b-vectorization-decode='vector-size=16 unroll=1 n-tile=1'
 MATMUL_FP32_PASS ?= --matmul-vectorization='vector-size=16 vector-type=fixed'
 BATCH_FP32_PASS ?= --batchmatmul-optimize=vector-size=16
@@ -45,7 +60,7 @@ CONFIG_STAMP := $(BUILD)/config.json
 # Export configuration as data, without interpolating tool commands into Python
 # or shell string literals. Suite builds consume exactly this configuration.
 CONFIG_VARIABLES := BUDDY_BIN BUDDY_OPT BUDDY_TRANSLATE LLVM_BIN LLC HOST_CC \
- PYTHON RISCV_CC RISCV_LD RISCV_OBJCOPY RISCV_OBJDUMP CFLAGS HOST_CFLAGS LOWER AME_PASS \
+ PYTHON RISCV_CC RISCV_LD RISCV_OBJCOPY RISCV_OBJDUMP CFLAGS HOST_CFLAGS LOWER AME_PASS AME_GPR_MODE NR_COALESCE_FENCES \
  BUILD NR ROOT TOOLS RUNTIME_OBJS FP32_PASS MATMUL_FP32_PASS BATCH_FP32_PASS RVV_FLAGS RVV_LINEAR_FLAGS SCALAR_FLAGS RVV_ENABLED KERNEL_LLFLAGS
 $(foreach variable,$(CONFIG_VARIABLES),$(eval export QWEN_CFG_$(variable) := $($(variable))))
 
@@ -76,8 +91,8 @@ $(BUILD)/kernel.ll: $(BUILD)/kernel.raw.ll metadata.json $(ROOT)/tools/vectorize
 $(BUILD)/kernel.s: $(BUILD)/kernel.ll
 	$(LLC) $< $(KERNEL_LLFLAGS) -o $@
 $(BUILD)/kernel.nr.S: $(BUILD)/kernel.s $(TOOLS)/ame_to_word.py $(TOOLS)/restrict_fpga_assembly.py $(TOOLS)/nr_isa.py
-	$(PYTHON) $(TOOLS)/ame_to_word.py < $< > $(BUILD)/kernel.encoded.s
-	$(PYTHON) $(TOOLS)/restrict_fpga_assembly.py < $(BUILD)/kernel.encoded.s > $@
+	$(PYTHON) $(TOOLS)/ame_to_word.py --gpr-mode=$(AME_GPR_MODE) < $< > $(BUILD)/kernel.encoded.s
+	$(PYTHON) $(TOOLS)/restrict_fpga_assembly.py $(if $(filter 1,$(NR_COALESCE_FENCES)),--coalesce-fences) < $(BUILD)/kernel.encoded.s > $@
 $(BUILD)/kernel.o: $(BUILD)/kernel.nr.S
 	$(RISCV_CC) $(CFLAGS) $(if $(filter 1,$(RVV_ENABLED)),-march=rv64gcv_zicbom) -c $< -o $@
 $(BUILD)/launch.o: launch.c $(ROOT)/support.h $(NR)/nr_runtime.h | $(BUILD)

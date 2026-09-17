@@ -1,0 +1,120 @@
+[fpga_run] UART ready: /dev/FPGA5, 115200, 8N1, no flow control
+[fpga_run] FPGA5 session active; elapsed=0s, UART=0 bytes
+
+[nr] NH boot; RA operator runtime
+[nr] RA entry=0x0000000080000040
+[nr] RA entered; clearing application BSS
+[nr] mstatus=0x8000000A00006000; launch BEGIN
+[1/10] Triton attention_pv_position_16x16x128x128 BEGIN
+[fpga_run] FPGA5 started; capturing for 600 seconds
+[attention-position] valid=00000010 errors=00000000 kernel_cycles=0000000000C09C4C
+[attention-position] valid=00000011 errors=00000000 kernel_cycles=0000000000C15858
+[attention-position] valid=00000018 errors=00000000 kernel_cycles=0000000000CB1F79
+[attention-position] valid=0000003F errors=00000000 kernel_cycles=0000000000FE82BD
+[attention-position] valid=00000040 errors=00000000 kernel_cycles=0000000001007148
+[attention-position] valid=00000041 errors=00000000 kernel_cycles=000000000198850B
+[fpga_run] FPGA5 session active; elapsed=10s, UART=722 bytes
+[attention-position] valid=00000041 errors=00000000 kernel_cycles=00000000019883D2
+[attention-position] valid=00000040 errors=00000000 kernel_cycles=00000000010070DD
+[attention-position] valid=0000003F errors=00000000 kernel_cycles=0000000000FE83F6
+[attention-position] valid=00000018 errors=00000000 kernel_cycles=0000000000CB1E5E
+[attention-position] valid=00000011 errors=00000000 kernel_cycles=0000000000C1538C
+[attention-position] valid=00000010 errors=00000000 kernel_cycles=0000000000C09C65
+[attention-position] valid=0000007F errors=00000000 kernel_cycles=0000000001E8BDD0
+[attention-position] valid=00000080 errors=00000000 kernel_cycles=0000000001EAA13E
+[attention-position] valid=00000010 errors=00000000 kernel_cycles=0000000000C09D3F
+verify attention_pv_position_16x16x128x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[2/10] Triton attention_pv_position_16x1x128x128 BEGIN
+[attention-position] valid=00000010 errors=00000000 kernel_cycles=0000000000446759
+[attention-position] valid=00000011 errors=00000000 kernel_cycles=000000000045059D
+[attention-position] valid=00000018 errors=00000000 kernel_cycles=000000000049F3DC
+[attention-position] valid=0000003F errors=00000000 kernel_cycles=0000000000651E40
+[attention-position] valid=00000040 errors=00000000 kernel_cycles=000000000065DDD5
+[attention-position] valid=00000041 errors=00000000 kernel_cycles=00000000009E1257
+[attention-position] valid=00000041 errors=00000000 kernel_cycles=00000000009E1239
+[attention-position] valid=00000040 errors=00000000 kernel_cycles=000000000065DDD5
+[attention-position] valid=0000003F errors=00000000 kernel_cycles=0000000000651E49
+[attention-position] valid=00000018 errors=00000000 kernel_cycles=000000000049F468
+[attention-position] valid=00000011 errors=00000000 kernel_cycles=00000000004505D4
+[attention-position] valid=00000010 errors=00000000 kernel_cycles=000000000044659E
+[attention-position] valid=0000007F errors=00000000 kernel_cycles=0000000000C9542E
+[attention-position] valid=00000080 errors=00000000 kernel_cycles=0000000000CA1392
+[fpga_run] FPGA5 session active; elapsed=40s, UART=2808 bytes
+[attention-position] valid=00000001 errors=00000000 kernel_cycles=000000000039DEDE
+verify attention_pv_position_16x1x128x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[3/10] Triton attention_qk_position_native_16x16x128x128 BEGIN
+[attention-position] valid=00000010 errors=00000000 kernel_cycles=0000000000509089
+[attention-position] valid=00000011 errors=00000000 kernel_cycles=0000000000813ED8
+[attention-position] valid=00000012 errors=00000000 kernel_cycles=0000000000820060
+[attention-position] valid=00000013 errors=00000000 kernel_cycles=000000000082249D
+[attention-position] valid=00000014 errors=00000000 kernel_cycles=000000000083504B
+[attention-position] valid=00000015 errors=00000000 kernel_cycles=0000000000838E45
+[attention-position] valid=00000016 errors=00000000 kernel_cycles=000000000084A027
+[attention-position] valid=00000017 errors=00000000 kernel_cycles=000000000084D25E
+[attention-position] valid=00000018 errors=00000000 kernel_cycles=000000000085F0C1
+[attention-position] valid=0000001F errors=00000000 kernel_cycles=00000000008AFF3F
+[attention-position] valid=00000020 errors=00000000 kernel_cycles=00000000008BF58D
+[attention-position] valid=00000021 errors=00000000 kernel_cycles=0000000000BCA34F
+[attention-position] valid=0000003F errors=00000000 kernel_cycles=000000000101C8C7
+[attention-position] valid=00000040 errors=00000000 kernel_cycles=000000000102C224
+[attention-position] valid=00000041 errors=00000000 kernel_cycles=0000000001337B69
+[attention-position] valid=0000007F errors=00000000 kernel_cycles=0000000001EF6A46
+[attention-position] valid=00000080 errors=00000000 kernel_cycles=0000000001F07477
+[attention-position] valid=00000041 errors=00000000 kernel_cycles=0000000001337E43
+[attention-position] valid=00000040 errors=00000000 kernel_cycles=000000000102C009
+[attention-position] valid=0000003F errors=00000000 kernel_cycles=000000000101CB6F
+[attention-position] valid=00000018 errors=00000000 kernel_cycles=000000000085EFCF
+[fpga_run] FPGA5 session active; elapsed=70s, UART=4817 bytes
+[attention-position] valid=00000017 errors=00000000 kernel_cycles=000000000084D2AB
+[attention-position] valid=00000011 errors=00000000 kernel_cycles=000000000081418C
+[attention-position] valid=00000010 errors=00000000 kernel_cycles=00000000005092CC
+verify attention_qk_position_native_16x16x128x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[4/10] Triton attention_qk_position_native_16x1x128x128 BEGIN
+[attention-position] valid=00000001 errors=00000000 kernel_cycles=0000000000107E77
+[attention-position] valid=00000002 errors=00000000 kernel_cycles=0000000000115ECB
+[attention-position] valid=0000000F errors=00000000 kernel_cycles=00000000001A5D05
+[attention-position] valid=00000010 errors=00000000 kernel_cycles=00000000001B5471
+[attention-position] valid=00000011 errors=00000000 kernel_cycles=00000000002A53FD
+[attention-position] valid=00000012 errors=00000000 kernel_cycles=00000000002B3373
+[attention-position] valid=00000013 errors=00000000 kernel_cycles=00000000002B4E86
+[attention-position] valid=00000014 errors=00000000 kernel_cycles=00000000002C8355
+[attention-position] valid=00000015 errors=00000000 kernel_cycles=00000000002CBA4C
+[attention-position] valid=00000016 errors=00000000 kernel_cycles=00000000002DD771
+[attention-position] valid=00000017 errors=00000000 kernel_cycles=00000000002DF5E9
+[attention-position] valid=00000018 errors=00000000 kernel_cycles=00000000002F2725
+[attention-position] valid=0000001F errors=00000000 kernel_cycles=0000000000343368
+[attention-position] valid=00000020 errors=00000000 kernel_cycles=0000000000352F6C
+[attention-position] valid=00000021 errors=00000000 kernel_cycles=0000000000442E7B
+[attention-position] valid=0000003F errors=00000000 kernel_cycles=000000000067E5BD
+[attention-position] valid=00000040 errors=00000000 kernel_cycles=000000000068DC0C
+[attention-position] valid=00000041 errors=00000000 kernel_cycles=000000000077DE1A
+[attention-position] valid=0000007F errors=00000000 kernel_cycles=0000000000CF3A16
+[attention-position] valid=00000080 errors=00000000 kernel_cycles=0000000000D052AF
+[attention-position] valid=00000041 errors=00000000 kernel_cycles=000000000077E0A8
+[attention-position] valid=00000040 errors=00000000 kernel_cycles=000000000068E048
+[attention-position] valid=0000003F errors=00000000 kernel_cycles=000000000067E45A
+[attention-position] valid=00000018 errors=00000000 kernel_cycles=00000000002F279A
+[attention-position] valid=00000017 errors=00000000 kernel_cycles=00000000002DF96A
+[attention-position] valid=00000011 errors=00000000 kernel_cycles=00000000002A544B
+[attention-position] valid=00000010 errors=00000000 kernel_cycles=00000000001B5412
+[attention-position] valid=00000002 errors=00000000 kernel_cycles=0000000000115F3F
+[attention-position] valid=00000001 errors=00000000 kernel_cycles=0000000000107E3F
+verify attention_qk_position_native_16x1x128x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[5/10] Triton attention_scale_mask_position_16x16x128 BEGIN
+verify attention_scale_mask_position_16x16x128: PASS errors=00000000 max_abs_error_f32_bits=33800000
+[6/10] Triton attention_scale_mask_position_16x1x128 BEGIN
+verify attention_scale_mask_position_16x1x128: PASS errors=00000000 max_abs_error_f32_bits=33800000
+[7/10] Triton kv_cache_update_position_16x8x128_cap128 BEGIN
+verify kv_cache_update_position_16x8x128_cap128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[8/10] Triton kv_cache_update_position_1x8x128_cap128 BEGIN
+verify kv_cache_update_position_1x8x128_cap128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[9/10] Triton softmax_16x16x128 BEGIN
+verify softmax_16x16x128: PASS errors=00000000 max_abs_error_f32_bits=35000000
+[10/10] Triton softmax_16x1x128 BEGIN
+verify softmax_16x1x128: PASS errors=00000000 max_abs_error_f32_bits=35000000
+verify qwen3 Triton operator suite: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[nr] launch cycles=0x000000005122EF8C status=0x00000000
+[nr] RA returned: PASS
+verify NR runtime: PASS
+[fpga_run] FPGA5 session active; elapsed=100s, UART=8862 bytes
+[fpga_run] Finished: 8862 UART bytes; DDR readback matches

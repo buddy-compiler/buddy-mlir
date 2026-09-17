@@ -1,0 +1,14 @@
+
+[nr] NH boot; RA operator runtime
+[nr] RA entry=0x0000000080000040
+[nr] RA entered; clearing application BSS
+[nr] mstatus=0x8000000A00006000; launch BEGIN
+[ame-gpr] direct GPR probe M=2 N=3 K=4 rounds=4
+[ame-gpr] round=00000000 tile_m=0000000000000002 tile_n=0000000000000003 tile_k=0000000000000004 errors=00000000
+[ame-gpr] round=00000001 tile_m=0000000000000002 tile_n=0000000000000003 tile_k=0000000000000004 errors=00000000
+[ame-gpr] round=00000002 tile_m=0000000000000002 tile_n=0000000000000003 tile_k=0000000000000004 errors=00000000
+[ame-gpr] round=00000003 tile_m=0000000000000002 tile_n=0000000000000003 tile_k=0000000000000004 errors=00000000
+verify AME direct GPR probe: PASS
+[nr] launch cycles=0x0000000000022AFF status=0x00000000
+[nr] RA returned: PASS
+verify NR runtime: PASS

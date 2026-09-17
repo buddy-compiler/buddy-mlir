@@ -9,8 +9,12 @@ Run AFTER ame_to_word.py. NR rejects transposed B loads, unverified AME
 encodings, vector CSR reads/spills and raw RVV encodings. Data sections are
 preserved exactly: an AME-looking floating-point constant is not an instruction.
 This is a checked compiler-output filter, not a general-purpose assembler.
+Opt-in --coalesce-fences shares an adjacent identical fence between instructions;
+every AME/vector memory instruction still has both adjacent fences. Labels,
+directives, and all other instructions prevent sharing across that boundary.
 """
 
+import argparse
 import re
 import sys
 from pathlib import Path
@@ -36,29 +40,53 @@ def _raw_words(code):
     return words
 
 
-def transform(source):
+def transform(source, coalesce_fences=False):
     output = []
     executable = True
     previous = True
     sections = []
+    last_fence = False
+
+    def emit(line):
+        nonlocal last_fence
+        source_code, separator, source_comment = line.partition("#")
+        code = source_code.strip()
+        if not code or code.startswith("//"):
+            output.append(line)
+            return
+        # Do not discard an annotation attached to a fence while sharing it;
+        # generated fences have no comments, but preserving hand-written input
+        # makes this transformation lossless outside instruction bytes.
+        same_fence = bool(executable and not (separator and source_comment.strip())
+                          and re.fullmatch(r"fence\s+rw\s*,\s*rw", code))
+        if coalesce_fences and same_fence and last_fence:
+            return
+        output.append(line)
+        # A label must break sharing even though it occupies no instruction
+        # bytes: a branch to it must execute the following operation's fence.
+        # Unknown directives are likewise conservative barriers, including
+        # alignment, section transitions and assembler metadata.
+        last_fence = same_fence
+
     for number, original_line in enumerate(source.splitlines(), 1):
         try:
             line = original_line
             code = line.split("#", 1)[0].strip()
             if not code or code.startswith("//"):
-                output.append(line)
+                emit(line)
                 continue
             # Do not let a same-line label hide raw instructions from checks.
             label = re.match(r"^([\w.$]+:)\s*(.*)$", code)
             if label:
                 if not label[2] or not executable:
-                    output.append(line)
+                    emit(line)
                     continue
-                output.append(label[1])
+                emit(label[1])
                 line = "\t" + label[2]
                 code = label[2]
             # LLVM's custom xboscame ISA attribute is unknown to the assembler.
             if re.match(r"\.attribute\s+5,", code):
+                last_fence = False
                 continue
             mnemonic = code.split()[0]
             if mnemonic in (".text", ".data", ".bss", ".rodata", ".sdata", ".sbss"):
@@ -78,7 +106,7 @@ def transform(source):
             elif mnemonic == ".previous":
                 executable, previous = previous, executable
             if not executable:
-                output.append(original_line)
+                emit(original_line)
                 continue
             if ";" in code:
                 raise ValueError("multiple assembly statements must be on separate lines")
@@ -108,16 +136,16 @@ def transform(source):
                         raise ValueError("raw vector CSR access bypasses allowlist")
                     if is_ame(word):
                         validate_ame_word(word)
-                        output.append("\tfence\trw, rw")
-                    output.append(line if len(words) == 1 else f"\t.word 0x{word:08x}")
+                        emit("\tfence\trw, rw")
+                    emit(line if len(words) == 1 else f"\t.word 0x{word:08x}")
                     if is_ame(word):
-                        output.append("\tfence\trw, rw")
+                        emit("\tfence\trw, rw")
                 continue
             if mnemonic in VECTOR_MEMORY:
-                output.append("\tfence\trw, rw")
-            output.append(line)
+                emit("\tfence\trw, rw")
+            emit(line)
             if mnemonic in VECTOR_MEMORY:
-                output.append("\tfence\trw, rw")
+                emit("\tfence\trw, rw")
         except (ValueError, IndexError) as error:
             raise ValueError(f"line {number}: {error}") from error
     if sections:
@@ -126,8 +154,13 @@ def transform(source):
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--coalesce-fences", action="store_true",
+                        help="share only adjacent identical fence rw,rw; "
+                             "default retains separate pairs")
+    args = parser.parse_args()
     try:
-        output = transform(sys.stdin.read())
+        output = transform(sys.stdin.read(), coalesce_fences=args.coalesce_fences)
     except ValueError as error:
         print(f"restrict_fpga_assembly: {error}", file=sys.stderr)
         return 1

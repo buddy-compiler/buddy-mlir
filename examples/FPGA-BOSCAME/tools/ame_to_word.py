@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Encode the verified NR FPGA AME subset, preserving fixed GPR operands.
+"""Encode the verified NR FPGA AME subset with explicit GPR handling.
 
 Adapted from ModelZoo's examples/tools/ame_to_word.py, commit 8815b74fb6d3cd6288c4d99ac6fd7c5d041a7cc3:
 https://gitlink.org.cn/michaelcjl/ModelZoo.git
@@ -8,8 +8,13 @@ This example-side tool targets NR only. GEM5 uses the compiler backend directly.
 Run restrict_fpga_assembly.py afterwards to validate raw words and insert the
 required fence before AND after every AME instruction. No UART/MMIO tracing,
 legacy ISA fallback, or experimental environment-dependent encoding is provided.
+The default fixed mode retains the board-tested operand-preservation wrappers.
+Opt-in --gpr-mode=direct uses v0.5's full five-bit GPR fields for tile and memory
+instructions only. msettype retains its existing caller-saved preservation in
+both modes; this change makes no new claim about its hardware clobber behavior.
 """
 
+import argparse
 import os
 import re
 import sys
@@ -41,6 +46,7 @@ MEMORY = {
     "mlce32.m": ("acc", "t3", "t0", 0x005E2077),
     "msce32.m": ("acc", "t3", "t0", 0x025E2077),
 }
+GPR_MODES = ("fixed", "direct")
 # Historical switches are deliberately rejected, including a value of "0":
 # callers should remove stale configuration instead of relying on it silently.
 REMOVED_ENVIRONMENT_OPTIONS = frozenset({
@@ -121,8 +127,10 @@ def encode_mma(mnemonic, accumulator, lhs, rhs):
     return word
 
 
-def convert_line(line):
+def convert_line(line, gpr_mode="fixed"):
     """Return (converted assembly, changed), rejecting unverified AME forms."""
+    if gpr_mode not in GPR_MODES:
+        raise ValueError(f"unsupported AME GPR mode: {gpr_mode}")
     code = line.split("#", 1)[0].strip()
     if not code or code.startswith("//"):
         return line, False
@@ -132,7 +140,7 @@ def convert_line(line):
     if label:
         if not label[2]:
             return line, False
-        converted, changed = convert_line("\t" + label[2])
+        converted, changed = convert_line("\t" + label[2], gpr_mode)
         return label[1] + "\n" + converted, changed
     if code.startswith("."):
         return line, False
@@ -149,6 +157,14 @@ def convert_line(line):
             raise ValueError(f"{mnemonic} expects rd, rs1")
         rd, rs1 = map(canonical_gpr, operands)
         fixed_rs1, fixed_rd, word = CONFIG[mnemonic]
+        if gpr_mode == "direct" and mnemonic != "msettype":
+            # AME v0.5 software contract section 2.1: rd and rs1 are
+            # independent five-bit GPR fields. In particular rd=rs1 reads
+            # the original source before writing the effective tile size.
+            word = ((word & ~((31 << 15) | (31 << 7))) |
+                    (GPR[rs1] << 15) | (GPR[rd] << 7))
+            validate_ame_word(word)
+            return f"{indent}.word 0x{word:08x} # {code} [nr direct]", True
         live = list(CALLER_SAVED_GPRS) if mnemonic == "msettype" else [fixed_rs1]
         if mnemonic == "msettype" and rd != "zero":
             fixed_rd = "a6"
@@ -167,6 +183,13 @@ def convert_line(line):
         if address.startswith("(") and address.endswith(")"):
             address = address[1:-1].strip()
         base, stride = canonical_gpr(address), canonical_gpr(operands[2])
+        if gpr_mode == "direct":
+            # AME v0.5 software contract section 2.2: rs2 is FIVE bits.
+            # Bit 24 belongs to the GPR field, not to an eight-bit opcode.
+            word = ((word & ~((31 << 20) | (31 << 15))) |
+                    (GPR[stride] << 20) | (GPR[base] << 15) | (matrix << 7))
+            validate_ame_word(word)
+            return f"{indent}.word 0x{word:08x} # {code} [nr direct]", True
         return emit_fixed_reg_sequence(
             indent, [fixed_base, fixed_stride],
             [(fixed_base, base), (fixed_stride, stride)], word | (matrix << 7),
@@ -184,12 +207,14 @@ def convert_line(line):
     return line, False
 
 
-def transform(source):
+def transform(source, gpr_mode="fixed"):
     validate_environment()
+    if gpr_mode not in GPR_MODES:
+        raise ValueError(f"unsupported AME GPR mode: {gpr_mode}")
     converted_lines = []
     for number, line in enumerate(source.splitlines(), 1):
         try:
-            converted, _ = convert_line(line)
+            converted, _ = convert_line(line, gpr_mode)
         except ValueError as error:
             raise ValueError(f"line {number}: {error}") from error
         converted_lines.append(converted)
@@ -197,8 +222,13 @@ def transform(source):
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--gpr-mode", choices=GPR_MODES, default="fixed",
+                        help="tile/MLS GPR handling (default: fixed); "
+                             "msettype always retains its fixed wrapper")
+    args = parser.parse_args()
     try:
-        output = transform(sys.stdin.read())
+        output = transform(sys.stdin.read(), args.gpr_mode)
     except ValueError as error:
         print(f"ame_to_word: {error}", file=sys.stderr)
         return 1

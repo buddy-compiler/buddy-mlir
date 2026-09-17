@@ -208,7 +208,7 @@ def main():
     parser.add_argument("--layers", type=int, default=None,
                         help="truncate layer count (diagnostic only)")
     parser.add_argument("--prefill-len", type=int, default=16)
-    parser.add_argument("--max-cache-len", type=int, default=512)
+    parser.add_argument("--max-cache-len", type=int, default=128)
     parser.add_argument("--decode-steps", type=int, default=8)
     parser.add_argument("--dtype", default="float32")
     parser.add_argument("--fuse", default="none",
@@ -442,7 +442,7 @@ def main():
                 str(driver.construct_main_graph(True)))
             results["graphs"][label]["typed_ir_saved"] = True
             text = str(driver.construct_main_graph(True))
-            cache_args = text.count("memref<1x8x512x128xf32>")
+            cache_args = text.count(f"memref<1x8x{args.max_cache_len}x128xf32>")
             results["graphs"][label]["main_graph_cache_memref_mentions"] = cache_args
 
     results["elapsed_seconds"] = round(time.time() - started, 3)

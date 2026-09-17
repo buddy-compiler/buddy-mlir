@@ -476,7 +476,7 @@ def cli():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--layers", type=int, default=1)
     parser.add_argument("--head-dim", type=int, default=128)
-    parser.add_argument("--max-cache-len", type=int, default=512)
+    parser.add_argument("--max-cache-len", type=int, default=128)
     parser.add_argument("--prompt-ids", default="151644,872,198,3838,374,9625,30,"
                                                "151645,198,151644,77091,198,"
                                                "151667,271,151668,271")

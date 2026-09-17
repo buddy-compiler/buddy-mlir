@@ -1,0 +1,74 @@
+
+[nr] NH boot; RA operator runtime
+[nr] RA entry=0x0000000080000040
+[nr] RA entered; clearing application BSS
+[nr] mstatus=0x8000000A00006000; launch BEGIN
+[ame-ab] config m=00000003 n=00000013 k=00000046 repeats=00000010 semantic=accumulate input_check=full descriptor_offset_bytes=00000040
+[ame-ab] prepare round=00000000
+[ame-ab] sample round=00000000 variant=baseline order=00000000 cycles=0000000000063F10 pre_sync_cycles=0000000000000295 adapter_kernel_cycles=0000000000063CA9 post_sync_cycles=0000000000000267 mismatches=00000000 guard_errors=00000000 input_errors=00000000 max_abs_i64=0000000000000000 mean_abs_f64_bits=0000000000000000 status=PASS
+[ame-ab] sample round=00000000 variant=optimized order=00000001 cycles=00000000000A7FE2 pre_sync_cycles=0000000000000271 adapter_kernel_cycles=00000000000A7D05 post_sync_cycles=00000000000002DD mismatches=00000000 guard_errors=00000000 input_errors=00000000 max_abs_i64=0000000000000000 mean_abs_f64_bits=0000000000000000 status=PASS
+[ame-ab] pair round=00000000 mismatches=00000000
+[ame-ab] prepare round=00000001
+[ame-ab] sample round=00000001 variant=optimized order=00000000 cycles=00000000000A7F16 pre_sync_cycles=0000000000000273 adapter_kernel_cycles=00000000000A7BF4 post_sync_cycles=0000000000000322 mismatches=00000000 guard_errors=00000000 input_errors=00000000 max_abs_i64=0000000000000000 mean_abs_f64_bits=0000000000000000 status=PASS
+[ame-ab] sample round=00000001 variant=baseline order=00000001 cycles=0000000000063EA6 pre_sync_cycles=0000000000000272 adapter_kernel_cycles=0000000000063C52 post_sync_cycles=0000000000000254 mismatches=00000000 guard_errors=00000000 input_errors=00000000 max_abs_i64=0000000000000000 mean_abs_f64_bits=0000000000000000 status=PASS
+[ame-ab] pair round=00000001 mismatches=00000000
+[ame-ab] prepare round=00000002
+[ame-ab] sample round=00000002 variant=baseline order=00000000 cycles=0000000000063EC8 pre_sync_cycles=0000000000000272 adapter_kernel_cycles=0000000000063C72 post_sync_cycles=0000000000000256 mismatches=00000000 guard_errors=00000000 input_errors=00000000 max_abs_i64=0000000000000000 mean_abs_f64_bits=0000000000000000 status=PASS
+[ame-ab] sample round=00000002 variant=optimized order=00000001 cycles=00000000000A7F67 pre_sync_cycles=000000000000026D adapter_kernel_cycles=00000000000A7C45 post_sync_cycles=0000000000000322 mismatches=00000000 guard_errors=00000000 input_errors=00000000 max_abs_i64=0000000000000000 mean_abs_f64_bits=0000000000000000 status=PASS
+[ame-ab] pair round=00000002 mismatches=00000000
+[ame-ab] prepare round=00000003
+[ame-ab] sample round=00000003 variant=optimized order=00000000 cycles=00000000000A7F45 pre_sync_cycles=0000000000000273 adapter_kernel_cycles=00000000000A7C23 post_sync_cycles=0000000000000322 mismatches=00000000 guard_errors=00000000 input_errors=00000000 max_abs_i64=0000000000000000 mean_abs_f64_bits=0000000000000000 status=PASS
+[ame-ab] sample round=00000003 variant=baseline order=00000001 cycles=0000000000063E69 pre_sync_cycles=000000000000026C adapter_kernel_cycles=0000000000063C16 post_sync_cycles=0000000000000253 mismatches=00000000 guard_errors=00000000 input_errors=00000000 max_abs_i64=0000000000000000 mean_abs_f64_bits=0000000000000000 status=PASS
+[ame-ab] pair round=00000003 mismatches=00000000
+[ame-ab] prepare round=00000004
+[ame-ab] sample round=00000004 variant=baseline order=00000000 cycles=0000000000063EB8 pre_sync_cycles=0000000000000279 adapter_kernel_cycles=0000000000063C5F post_sync_cycles=0000000000000259 mismatches=00000000 guard_errors=00000000 input_errors=00000000 max_abs_i64=0000000000000000 mean_abs_f64_bits=0000000000000000 status=PASS
+[ame-ab] sample round=00000004 variant=optimized order=00000001 cycles=00000000000A7EAA pre_sync_cycles=0000000000000270 adapter_kernel_cycles=00000000000A7B89 post_sync_cycles=0000000000000321 mismatches=00000000 guard_errors=00000000 input_errors=00000000 max_abs_i64=0000000000000000 mean_abs_f64_bits=0000000000000000 status=PASS
+[ame-ab] pair round=00000004 mismatches=00000000
+[ame-ab] prepare round=00000005
+[ame-ab] sample round=00000005 variant=optimized order=00000000 cycles=00000000000A7EE3 pre_sync_cycles=0000000000000271 adapter_kernel_cycles=00000000000A7BC0 post_sync_cycles=0000000000000323 mismatches=00000000 guard_errors=00000000 input_errors=00000000 max_abs_i64=0000000000000000 mean_abs_f64_bits=0000000000000000 status=PASS
+[ame-ab] sample round=00000005 variant=baseline order=00000001 cycles=0000000000063E9E pre_sync_cycles=0000000000000271 adapter_kernel_cycles=0000000000063C4B post_sync_cycles=0000000000000253 mismatches=00000000 guard_errors=00000000 input_errors=00000000 max_abs_i64=0000000000000000 mean_abs_f64_bits=0000000000000000 status=PASS
+[ame-ab] pair round=00000005 mismatches=00000000
+[ame-ab] prepare round=00000006
+[ame-ab] sample round=00000006 variant=baseline order=00000000 cycles=0000000000063E6C pre_sync_cycles=0000000000000272 adapter_kernel_cycles=0000000000063C16 post_sync_cycles=0000000000000256 mismatches=00000000 guard_errors=00000000 input_errors=00000000 max_abs_i64=0000000000000000 mean_abs_f64_bits=0000000000000000 status=PASS
+[ame-ab] sample round=00000006 variant=optimized order=00000001 cycles=00000000000A7F15 pre_sync_cycles=0000000000000271 adapter_kernel_cycles=00000000000A7BF4 post_sync_cycles=0000000000000321 mismatches=00000000 guard_errors=00000000 input_errors=00000000 max_abs_i64=0000000000000000 mean_abs_f64_bits=0000000000000000 status=PASS
+[ame-ab] pair round=00000006 mismatches=00000000
+[ame-ab] prepare round=00000007
+[ame-ab] sample round=00000007 variant=optimized order=00000000 cycles=00000000000A7EED pre_sync_cycles=0000000000000273 adapter_kernel_cycles=00000000000A7BCB post_sync_cycles=0000000000000322 mismatches=00000000 guard_errors=00000000 input_errors=00000000 max_abs_i64=0000000000000000 mean_abs_f64_bits=0000000000000000 status=PASS
+[ame-ab] sample round=00000007 variant=baseline order=00000001 cycles=0000000000063E94 pre_sync_cycles=000000000000026D adapter_kernel_cycles=0000000000063C41 post_sync_cycles=0000000000000253 mismatches=00000000 guard_errors=00000000 input_errors=00000000 max_abs_i64=0000000000000000 mean_abs_f64_bits=0000000000000000 status=PASS
+[ame-ab] pair round=00000007 mismatches=00000000
+[ame-ab] prepare round=00000008
+[ame-ab] sample round=00000008 variant=baseline order=00000000 cycles=0000000000063ECD pre_sync_cycles=0000000000000278 adapter_kernel_cycles=0000000000063C7A post_sync_cycles=0000000000000253 mismatches=00000000 guard_errors=00000000 input_errors=00000000 max_abs_i64=0000000000000000 mean_abs_f64_bits=0000000000000000 status=PASS
+[ame-ab] sample round=00000008 variant=optimized order=00000001 cycles=00000000000A7F05 pre_sync_cycles=000000000000026D adapter_kernel_cycles=00000000000A7BE4 post_sync_cycles=0000000000000321 mismatches=00000000 guard_errors=00000000 input_errors=00000000 max_abs_i64=0000000000000000 mean_abs_f64_bits=0000000000000000 status=PASS
+[ame-ab] pair round=00000008 mismatches=00000000
+[ame-ab] prepare round=00000009
+[ame-ab] sample round=00000009 variant=optimized order=00000000 cycles=00000000000A7F23 pre_sync_cycles=000000000000027C adapter_kernel_cycles=00000000000A7C01 post_sync_cycles=0000000000000322 mismatches=00000000 guard_errors=00000000 input_errors=00000000 max_abs_i64=0000000000000000 mean_abs_f64_bits=0000000000000000 status=PASS
+[ame-ab] sample round=00000009 variant=baseline order=00000001 cycles=0000000000063E83 pre_sync_cycles=000000000000026D adapter_kernel_cycles=0000000000063C30 post_sync_cycles=0000000000000253 mismatches=00000000 guard_errors=00000000 input_errors=00000000 max_abs_i64=0000000000000000 mean_abs_f64_bits=0000000000000000 status=PASS
+[ame-ab] pair round=00000009 mismatches=00000000
+[ame-ab] prepare round=0000000A
+[ame-ab] sample round=0000000A variant=baseline order=00000000 cycles=0000000000063EAE pre_sync_cycles=0000000000000272 adapter_kernel_cycles=0000000000063C5A post_sync_cycles=0000000000000254 mismatches=00000000 guard_errors=00000000 input_errors=00000000 max_abs_i64=0000000000000000 mean_abs_f64_bits=0000000000000000 status=PASS
+[ame-ab] sample round=0000000A variant=optimized order=00000001 cycles=00000000000A7EBF pre_sync_cycles=0000000000000272 adapter_kernel_cycles=00000000000A7B9D post_sync_cycles=0000000000000322 mismatches=00000000 guard_errors=00000000 input_errors=00000000 max_abs_i64=0000000000000000 mean_abs_f64_bits=0000000000000000 status=PASS
+[ame-ab] pair round=0000000A mismatches=00000000
+[ame-ab] prepare round=0000000B
+[ame-ab] sample round=0000000B variant=optimized order=00000000 cycles=00000000000A7F30 pre_sync_cycles=0000000000000273 adapter_kernel_cycles=00000000000A7C0E post_sync_cycles=0000000000000322 mismatches=00000000 guard_errors=00000000 input_errors=00000000 max_abs_i64=0000000000000000 mean_abs_f64_bits=0000000000000000 status=PASS
+[ame-ab] sample round=0000000B variant=baseline order=00000001 cycles=0000000000063EA2 pre_sync_cycles=000000000000026C adapter_kernel_cycles=0000000000063C48 post_sync_cycles=000000000000025A mismatches=00000000 guard_errors=00000000 input_errors=00000000 max_abs_i64=0000000000000000 mean_abs_f64_bits=0000000000000000 status=PASS
+[ame-ab] pair round=0000000B mismatches=00000000
+[ame-ab] prepare round=0000000C
+[ame-ab] sample round=0000000C variant=baseline order=00000000 cycles=0000000000063ECF pre_sync_cycles=0000000000000277 adapter_kernel_cycles=0000000000063C7B post_sync_cycles=0000000000000254 mismatches=00000000 guard_errors=00000000 input_errors=00000000 max_abs_i64=0000000000000000 mean_abs_f64_bits=0000000000000000 status=PASS
+[ame-ab] sample round=0000000C variant=optimized order=00000001 cycles=00000000000A7EFC pre_sync_cycles=0000000000000271 adapter_kernel_cycles=00000000000A7BDB post_sync_cycles=0000000000000321 mismatches=00000000 guard_errors=00000000 input_errors=00000000 max_abs_i64=0000000000000000 mean_abs_f64_bits=0000000000000000 status=PASS
+[ame-ab] pair round=0000000C mismatches=00000000
+[ame-ab] prepare round=0000000D
+[ame-ab] sample round=0000000D variant=optimized order=00000000 cycles=00000000000A7ED6 pre_sync_cycles=0000000000000273 adapter_kernel_cycles=00000000000A7BB4 post_sync_cycles=0000000000000322 mismatches=00000000 guard_errors=00000000 input_errors=00000000 max_abs_i64=0000000000000000 mean_abs_f64_bits=0000000000000000 status=PASS
+[ame-ab] sample round=0000000D variant=baseline order=00000001 cycles=0000000000063E67 pre_sync_cycles=000000000000026D adapter_kernel_cycles=0000000000063C14 post_sync_cycles=0000000000000253 mismatches=00000000 guard_errors=00000000 input_errors=00000000 max_abs_i64=0000000000000000 mean_abs_f64_bits=0000000000000000 status=PASS
+[ame-ab] pair round=0000000D mismatches=00000000
+[ame-ab] prepare round=0000000E
+[ame-ab] sample round=0000000E variant=baseline order=00000000 cycles=0000000000063EA8 pre_sync_cycles=0000000000000272 adapter_kernel_cycles=0000000000063C54 post_sync_cycles=0000000000000254 mismatches=00000000 guard_errors=00000000 input_errors=00000000 max_abs_i64=0000000000000000 mean_abs_f64_bits=0000000000000000 status=PASS
+[ame-ab] sample round=0000000E variant=optimized order=00000001 cycles=00000000000A7EFB pre_sync_cycles=0000000000000271 adapter_kernel_cycles=00000000000A7BDB post_sync_cycles=0000000000000320 mismatches=00000000 guard_errors=00000000 input_errors=00000000 max_abs_i64=0000000000000000 mean_abs_f64_bits=0000000000000000 status=PASS
+[ame-ab] pair round=0000000E mismatches=00000000
+[ame-ab] prepare round=0000000F
+[ame-ab] sample round=0000000F variant=optimized order=00000000 cycles=00000000000A7E9E pre_sync_cycles=0000000000000272 adapter_kernel_cycles=00000000000A7B7C post_sync_cycles=0000000000000322 mismatches=00000000 guard_errors=00000000 input_errors=00000000 max_abs_i64=0000000000000000 mean_abs_f64_bits=0000000000000000 status=PASS
+[ame-ab] sample round=0000000F variant=baseline order=00000001 cycles=0000000000063E8A pre_sync_cycles=000000000000026D adapter_kernel_cycles=0000000000063C36 post_sync_cycles=0000000000000254 mismatches=00000000 guard_errors=00000000 input_errors=00000000 max_abs_i64=0000000000000000 mean_abs_f64_bits=0000000000000000 status=PASS
+[ame-ab] pair round=0000000F mismatches=00000000
+[ame-ab] PASS errors=00000000
+[nr] launch cycles=0x00000000018D02C7 status=0x00000000
+[nr] RA returned: PASS
+verify NR runtime: PASS

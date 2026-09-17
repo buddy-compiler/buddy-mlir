@@ -1,0 +1,130 @@
+{
+  "status": "PASS",
+  "run_id": "run-28100ee541de485d",
+  "capacity": 128,
+  "case_count": 10,
+  "image_sha256": "84e84d5902b102135b8c69838a3e8745829bcc16213c7212f301ff0844cf3778",
+  "elf_sha256": "32dd4920e51ff933c76ab6edfd43d0b61f962db9072a206effb0c8193d807109",
+  "uart_sha256": "22a107e802d0350671012755dea14a3914b68411bde782a00e4b91d39c5f3ba7",
+  "runtime_variable_length_checks": 83,
+  "cases": {
+    "attention_pv_position_16x16x128x128": {
+      "status": "PASS",
+      "errors": 0,
+      "max_abs_error": 0.0
+    },
+    "attention_pv_position_16x1x128x128": {
+      "status": "PASS",
+      "errors": 0,
+      "max_abs_error": 0.0
+    },
+    "attention_qk_position_native_16x16x128x128": {
+      "status": "PASS",
+      "errors": 0,
+      "max_abs_error": 0.0
+    },
+    "attention_qk_position_native_16x1x128x128": {
+      "status": "PASS",
+      "errors": 0,
+      "max_abs_error": 0.0
+    },
+    "attention_scale_mask_position_16x16x128": {
+      "status": "PASS",
+      "errors": 0,
+      "max_abs_error": 5.960464477539063e-08
+    },
+    "attention_scale_mask_position_16x1x128": {
+      "status": "PASS",
+      "errors": 0,
+      "max_abs_error": 5.960464477539063e-08
+    },
+    "kv_cache_update_position_16x8x128_cap128": {
+      "status": "PASS",
+      "errors": 0,
+      "max_abs_error": 0.0
+    },
+    "kv_cache_update_position_1x8x128_cap128": {
+      "status": "PASS",
+      "errors": 0,
+      "max_abs_error": 0.0
+    },
+    "softmax_16x16x128": {
+      "status": "PASS",
+      "errors": 0,
+      "max_abs_error": 4.76837158203125e-07
+    },
+    "softmax_16x1x128": {
+      "status": "PASS",
+      "errors": 0,
+      "max_abs_error": 4.76837158203125e-07
+    },
+    "qwen3 Triton operator suite": {
+      "status": "PASS",
+      "errors": 0,
+      "max_abs_error": 0.0
+    }
+  },
+  "source_objects": {
+    "attention_pv_position_16x16x128x128": {
+      "nr/kernel.o": "c7ced70c2cfd2c0710ac9c665000e403d798635e99f7359144d459a41b9668c8",
+      "nr/adapter.o": "57b7d3967f091843bef3f859770d69d5fc2d3ece9cd439d2c338e6e9181ac0cf",
+      "frontend.json": "2491bb04bb5bb3a6b029085a84cdc7ebdb0f38a7b51094f57dfc472a163f1dbc",
+      "nr/manifest.json": "20d905403d38dc279f2ccbd00865a28242112d55cc8206c173d35f9be2ea487a"
+    },
+    "attention_pv_position_16x1x128x128": {
+      "nr/kernel.o": "b68e7311ea5d7b0e411e04c98c78c2c70618680cb643094c16b4ed0370589ca1",
+      "nr/adapter.o": "a09579c1c301979460fa48896753a3615ec4bf1dbe1f299e0c614d2c63b9a69d",
+      "frontend.json": "7d2cd05102c6e42cd83a250b3d212c80c54f2f7a0d1c27abd36ae2457664f4e3",
+      "nr/manifest.json": "7af61f2e2ae680ca5a29eec0257a1384184c9b4971a20aceb051c8ceee51a77c"
+    },
+    "attention_qk_position_native_16x16x128x128": {
+      "nr/kernel.o": "d4278935e879f86421a0682c80e4bc5db136f256e4482e95cc92a08bc29dbc4f",
+      "nr/adapter.o": "a6fb1bdd91a55ee75aae77b59ed830fa8e37f5c407c5b7952c68bba82ca183d4",
+      "frontend.json": "46286bf617dbd4ceacd0dc7dd7406058c962a6c0994568ef644d55243502ede6",
+      "nr/manifest.json": "21df6566123362f15ba03e72189a7d8a8588f4afced433986afea411061f041a"
+    },
+    "attention_qk_position_native_16x1x128x128": {
+      "nr/kernel.o": "c5b1d142de2ab41fd018d3a50ec51eefdd5e73bdd91d0e130ebc766ad48c3f06",
+      "nr/adapter.o": "6a9eede02ba30ff757e2cd53166eea5a3626027cb4a3d9ecabf0765b7fc910b3",
+      "frontend.json": "a6b7ec763e96e7ea4f6121c970e0465c712e318b750a1f2b1db919cbcd338735",
+      "nr/manifest.json": "915e1436b54fb645944f88e96ec8edb24d052d31ff7ea3d85b6c3ece1ece7210"
+    },
+    "attention_scale_mask_position_16x16x128": {
+      "nr/kernel.o": "1c967fda2995327541c09c451b572dbc905c8f32cdd508e79088b12c7cc6e4ce",
+      "nr/adapter.o": "ec6bf49f278975a21c57555ad02102dec4d65915baff52bd2bf32bbd596673e6",
+      "frontend.json": "bb91e680a9f178f88fb85be436357140b51c551ec3d456318ce40f293680537d",
+      "nr/manifest.json": "a4468f39e4d46d93107213fbe2acf45abe869bdb348ff4c01b8b870b08946462"
+    },
+    "attention_scale_mask_position_16x1x128": {
+      "nr/kernel.o": "bee66275569305288caba6b337b7f9098ac11e61cc9bf4ccb048d57dd2467977",
+      "nr/adapter.o": "37b7f6e820857c93f43e867d0459943d27369c9ba4450668caf3b70655b60ccd",
+      "frontend.json": "6be5133fdbf19b2e0884051345e99b8f9d6cb1abe9529819648bbc3b04ed0d89",
+      "nr/manifest.json": "080d36d7bbd02dd6440d82bb63134b1fa4d91cf71558f622d412b14fa5215de7"
+    },
+    "kv_cache_update_position_16x8x128_cap128": {
+      "nr/kernel.o": "bcc1f7736abf79584a669879b551485b0764b5d784d717cb0dd1c65805afc980",
+      "nr/adapter.o": "50f898c139e847cdfaca96ff7fe71c67b35cdc75d8d34a42b24923dc5c625836",
+      "frontend.json": "93258357bdff7a00af043c36c64e78d713bcb0158c36d24472f7891732ad2dad",
+      "nr/manifest.json": "ebdbc4a5a64eaccae7e12be5cda18c6df3cfd34d687dfeab38f7c9bdafa0fd11"
+    },
+    "kv_cache_update_position_1x8x128_cap128": {
+      "nr/kernel.o": "572a5662b69c107ff13d153fc0a4fbde1480fc15cf01d44a47895ee31b4a5684",
+      "nr/adapter.o": "3b55ae4fdd5ca1ac39b56671e0d0431ae0f5f6c8368876657c263e461241cfb5",
+      "frontend.json": "909010ba1bf95996fb38a140ba7bfb4f457a4ca608f319cdfed7515a68927e4c",
+      "nr/manifest.json": "4675762f393ba5b2ce74e73317cba33ecba4185bef0b8c70437e633924308628"
+    },
+    "softmax_16x16x128": {
+      "nr/kernel.o": "d605872e2174606f63d92637e89f417c97a58d35d2588f61d032438232f4b3d5",
+      "nr/adapter.o": "ccb76a595a44eeb2e066cb3b65590f5951ffb48b9ef953e6c53c690c3f0e81c6",
+      "frontend.json": "12b40bbcfaf7d68b3e93c070a66df1469762cad7428efc322b909bfce0dc3c1c",
+      "nr/manifest.json": "358484308a192f68d4b1f10787f43979262316b2c9f15d3be5463160afea33c1"
+    },
+    "softmax_16x1x128": {
+      "nr/kernel.o": "249149fc23c2096e5daaf53adcbf0ab9bf8487842c07342253a457a2df669a05",
+      "nr/adapter.o": "9faea2ffc20f377eca9bcf17b5c6c5ce974f4df5393538709fd5ca91e8e79634",
+      "frontend.json": "3a079fc89851dbfe4c82e04e651d188ee821bab74b9fb18abe4e8bd6b4ff397b",
+      "nr/manifest.json": "30e2f4aa20973becc62afe9b44d1667c6bdef64e2e9e07a0a700ea9ead4a3aa0"
+    }
+  },
+  "scope": "Capacity128 standalone kernels; not a full model run. Floating mask/softmax use existing launcher tolerances."
+}

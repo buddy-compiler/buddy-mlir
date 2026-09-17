@@ -80,7 +80,7 @@ def main():
     parser.add_argument("--prompt-ids", required=True,
                         help="comma-separated token ids for the 16-token prefill")
     parser.add_argument("--decode-steps", type=int, default=8)
-    parser.add_argument("--max-cache-len", type=int, default=512)
+    parser.add_argument("--max-cache-len", type=int, default=128)
     parser.add_argument("--top-k", type=int, default=8)
     parser.add_argument("--layers", type=int, default=None)
     parser.add_argument("--capture-layer", type=int, default=None,

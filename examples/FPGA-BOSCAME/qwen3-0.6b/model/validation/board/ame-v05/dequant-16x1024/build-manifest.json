@@ -1,0 +1,215 @@
+{
+  "shape": [
+    16,
+    1024
+  ],
+  "repeats": 3,
+  "host": false,
+  "variants": {
+    "baseline": {
+      "source": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/ame-v05/baseline/dequantize_16x1024",
+      "manifest": {
+        "name": "dequantize_16x1024",
+        "family": "dequantization",
+        "kernel": "dequantize",
+        "kernel_module": "kernels",
+        "symbol": "triton_dequantize_16x1024",
+        "arguments": [
+          {
+            "name": "X",
+            "rank": 2,
+            "dtype": "i32"
+          },
+          {
+            "name": "Row",
+            "rank": 1,
+            "dtype": "f32"
+          },
+          {
+            "name": "Column",
+            "rank": 1,
+            "dtype": "f32"
+          },
+          {
+            "name": "Out",
+            "rank": 2,
+            "dtype": "f32"
+          }
+        ],
+        "signature": {
+          "X": "*i32",
+          "Row": "*fp32",
+          "Column": "*fp32",
+          "Out": "*fp32"
+        },
+        "constexprs": {
+          "ROWS": 16,
+          "COLS": 1024,
+          "BLOCK": 128
+        },
+        "grid": [
+          128,
+          1,
+          1
+        ],
+        "directory": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/dequantize_16x1024",
+        "launch_source": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/dequantize_16x1024/launch.c",
+        "validation": "Unmodified parent launch.c and its independent numerical oracle",
+        "frontend": "triton.compiler.ASTSource -> CPUBackend.make_ttir -> triton-riscv _ttir_to_ttsharedir",
+        "triton_version": "3.8.0",
+        "kernels_sha256": "f89c28aeff34416c679b86c0d9bf11187b062ded1ae3437df2c2031221fc2d3e",
+        "kernel_module_sha256": "f89c28aeff34416c679b86c0d9bf11187b062ded1ae3437df2c2031221fc2d3e",
+        "exporter_sha256": "7bfd217e11bea1d2ed8c018aa138fb9d765470c64080218a3327468fd8379a1a",
+        "cases_sha256": "b22d2306aa0fe8808b7205297695379abaec6bbee9539995393df302091b3721",
+        "ttir_sha256": "c796754fb7318339ac8d6dd23785e7b4261e665049062e2c76341c3c0b8b5711",
+        "linalg_sha256": "a4859bf59e8e4b374d87b9ee797ecbcffc70c74a8006a06dc80746c897623475",
+        "abi": "unranked memref: (i64 rank=0, rank-0 descriptor pointer) per tensor, then six i32 grid/pid values"
+      },
+      "inputs_sha256": {
+        "frontend.json": "56ce30e284265883bed0c631a4c9c09ec5c9792b7c25257232a70558f996ff8f",
+        "adapter.c": "492edac983cfa20320d2c49416e02b30ca2f4ed4ba99c2c7d4b692573dc2d774",
+        "kernel.ttir": "c796754fb7318339ac8d6dd23785e7b4261e665049062e2c76341c3c0b8b5711",
+        "kernel.linalg.mlir": "a4859bf59e8e4b374d87b9ee797ecbcffc70c74a8006a06dc80746c897623475",
+        "nr/kernel.o": "48a7dacf896daeb1025bb847ae80aed0e8559a8de7a29f7c786ef594bf8095d4",
+        "nr/adapter.o": "b93af290eeeb778dd4eac9803b41be21612df0a90ddd59b002b114b555c11515",
+        "nr/kernel.ll": "a15a6df41195a5998dca4f65564ef1c7bcba79660f305e5cb9fd744993314f56",
+        "nr/kernel.llvm.mlir": "67aad7ea3dcd416be43b778e8055d76e3454115585f96c6a1583d8feb0ce125f",
+        "nr/kernel.nr.S": "609f2b31ac81e0cd13f52cda260c795f4a7b4ba4a473702663d21ea47d97105a",
+        "nr/manifest.json": "80e53d24352abbb0c00d766b0aef1821dc3985cf1eac6f7b75c54f5b39a59725"
+      },
+      "renamed_symbols": {
+        "_mlir_ciface_kernel_dequantize_16x1024": "qwen_dequant_baseline",
+        "triton_dequantize_16x1024": "qwen_dequant_raw_baseline"
+      },
+      "objects": [
+        {
+          "object": "baseline.kernel.o",
+          "sha256": "251de8934012300230650119ff80a329e26ce4210b9aacd34b576225dc6b09f6"
+        },
+        {
+          "object": "baseline.adapter.o",
+          "sha256": "2c25a3315e4bbfd871dc23bc36a03752db03233b730079ab2f79418f737bf024"
+        }
+      ]
+    },
+    "optimized": {
+      "source": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/ame-v05/rvv/dequantize_16x1024",
+      "manifest": {
+        "name": "dequantize_16x1024",
+        "family": "dequantization",
+        "kernel": "dequantize_rows",
+        "kernel_module": "kernels_dequant",
+        "symbol": "triton_dequantize_16x1024",
+        "arguments": [
+          {
+            "name": "X",
+            "rank": 2,
+            "dtype": "i32"
+          },
+          {
+            "name": "Row",
+            "rank": 1,
+            "dtype": "f32"
+          },
+          {
+            "name": "Column",
+            "rank": 1,
+            "dtype": "f32"
+          },
+          {
+            "name": "Out",
+            "rank": 2,
+            "dtype": "f32"
+          }
+        ],
+        "signature": {
+          "X": "*i32",
+          "Row": "*fp32",
+          "Column": "*fp32",
+          "Out": "*fp32"
+        },
+        "constexprs": {
+          "ROWS": 16,
+          "COLS": 1024,
+          "BLOCK": 128
+        },
+        "grid": [
+          8,
+          16,
+          1
+        ],
+        "directory": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/dequantize_16x1024",
+        "launch_source": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/dequantize_16x1024/launch.c",
+        "validation": "Unmodified parent launch.c and its independent numerical oracle",
+        "frontend": "triton.compiler.ASTSource -> CPUBackend.make_ttir -> triton-riscv _ttir_to_ttsharedir",
+        "triton_version": "3.8.0",
+        "kernels_sha256": "f89c28aeff34416c679b86c0d9bf11187b062ded1ae3437df2c2031221fc2d3e",
+        "kernel_module_sha256": "cea484317504ce2f12a757836f25d7ad59b2c4f72412ea0d118af45a06c111ed",
+        "exporter_sha256": "7bfd217e11bea1d2ed8c018aa138fb9d765470c64080218a3327468fd8379a1a",
+        "cases_sha256": "b22d2306aa0fe8808b7205297695379abaec6bbee9539995393df302091b3721",
+        "ttir_sha256": "e85a13303caeae0b975ee5da34e98554cf339d7b23e81ec7e5e08f98f943fd45",
+        "linalg_sha256": "855caa183f7048109711be15cea33dbb294b2af71f233a2f3b4a3560c5300438",
+        "abi": "unranked memref: (i64 rank=0, rank-0 descriptor pointer) per tensor, then six i32 grid/pid values"
+      },
+      "inputs_sha256": {
+        "frontend.json": "90fc735eff1f49370bffb61fd49e30b9882aef43cb271d1c4e17c10f92c39949",
+        "adapter.c": "e4a954575a8e67c547ef89ec288507712d759aec292380170d803486234dd104",
+        "kernel.ttir": "e85a13303caeae0b975ee5da34e98554cf339d7b23e81ec7e5e08f98f943fd45",
+        "kernel.linalg.mlir": "855caa183f7048109711be15cea33dbb294b2af71f233a2f3b4a3560c5300438",
+        "nr/kernel.o": "b6f066e0be9c569d746099e396984e939a3055183849034c3e092b483ee8da5e",
+        "nr/adapter.o": "9cae44d67a39e1b2a18065b831cc326e0d23ebd35b9b4585635eb01da0497866",
+        "nr/kernel.ll": "f73176c62b6305ee6c8934660aad8f3211043d406028e30df762b90f651b96e2",
+        "nr/kernel.llvm.mlir": "708e0c7a503ec12243f630223328f02319f3484d1880489f9f50f89a7e78cfeb",
+        "nr/kernel.nr.S": "27466fdf5e9075441968a209f0bcc6053f8a32f2e26f44ad1670a33483c5faaa",
+        "nr/manifest.json": "9e56eb00604575e74cbc1af301a1dcf40aad003c4a58c04c109f31674ec57a02"
+      },
+      "renamed_symbols": {
+        "_mlir_ciface_kernel_dequantize_16x1024": "qwen_dequant_optimized",
+        "triton_dequantize_16x1024": "qwen_dequant_raw_optimized"
+      },
+      "objects": [
+        {
+          "object": "optimized.kernel.o",
+          "sha256": "bdb931c7d6bdbe596a7eb353b10a4d60527c0b884c372051caabd731ac4cf798"
+        },
+        {
+          "object": "optimized.adapter.o",
+          "sha256": "1143fe2ea2b67ae45ea5ddd851c04aae7bace6b3b055df6d1e46cf24f4ba22b2"
+        }
+      ]
+    }
+  },
+  "oracle": "independent C int32->FP32, multiply row then column; exact bits",
+  "timing": "existing descriptor adapter including unchanged grid loop",
+  "fence_policy": "no added hardware fence; matches shipped RVV-only adapter",
+  "harness_sha256": "59d04d445927080dcb1d515844a3b4777029cc4a46892c7c613d181031f6bdcc",
+  "builder_sha256": "5f37810bed10188e61a735834f19a151521daa2fabe121e8d3a6e5116fc5738f",
+  "source_hashes_and_abi_checked": true,
+  "runtime_sources_sha256": {
+    "examples/FPGA-BOSCAME/common/nr/ame_sync.c": "130a531600e734405289f4894d813012cf160f9df7e3507e51d5eebf9397e9da",
+    "examples/FPGA-BOSCAME/common/nr/crt.S": "75431219ba064928a9064d728608095d01e53c0f31e76b2cf38c0a2a35c5a706",
+    "examples/FPGA-BOSCAME/common/nr/nr.ld": "50ba0a1ebaa19929fad8fa68457f1080ce1d39653aff30825f3c7c18fcb5b366",
+    "examples/FPGA-BOSCAME/common/nr/nr.mk": "881147da66262d180c8bd7578e2a762b2386289e272a2ce32738de4e04777911",
+    "examples/FPGA-BOSCAME/common/nr/nr_copy.S": "84e13b00c06a837fdf1967402780bd6c78a27cb58b45aed11406cd5f52f20a46",
+    "examples/FPGA-BOSCAME/common/nr/nr_math.c": "f0bb33d8e96cb2bf7ad596916acfa1fb2bcfdf2afbd16cf1facc042144d588e8",
+    "examples/FPGA-BOSCAME/common/nr/nr_runtime.c": "966a14bbddd91a78ae02dcbba074643c2b23b3394223b89fde518b4487f251c4",
+    "examples/FPGA-BOSCAME/common/nr/nr_runtime.h": "05133325005c5aaa0656aeac7e952ab8d2b003bccb03a5abd55210e44ade714b",
+    "examples/FPGA-BOSCAME/common/toolchain.mk": "ad47446fc294c85f67b94bec786028e5f848121c939f52b73f66981c14cf1cdb",
+    "examples/FPGA-BOSCAME/common/uart/uart.h": "cd8dc86559e8588e2d82cf0519fb3c912e8284f3d122b864c124d4cc967a65b0",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/optimization/dequant_ab.mk": "99a459f3a9ea0794c7d68a331a8de5ba57fb57e18d73a744cd432bf4dfeaacef",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/support.h": "0ee1e660c1be2847f88a11cbf220fa665eada68552103e46d645fbcebb1f7d7d"
+  },
+  "linker": {
+    "path": "/usr/bin/ld.lld-20",
+    "version": "Ubuntu LLD 20.1.8 (compatible with GNU linkers)",
+    "sha256": "eae8a97ae221ee3e87ed7447ab547f52022890c96ad3f09d0496ec43a64accb4"
+  },
+  "image": {
+    "path": "dequant-ab.bin",
+    "sha256": "e918f1f81b6080ff2b0e7f13aa4f3188ef4966a1dd06fec06706d4fd1c3f9045"
+  },
+  "clang": {
+    "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/llvm/build-2d26/bin/clang",
+    "version": "clang version 24.0.0git (git@github.com:CBalaa/llvm-project.git 6ceae32b77a2c0cc3c929ae8924254525155a26c)\nTarget: x86_64-unknown-linux-gnu\nThread model: posix\nInstalledDir: /home/chh/gitprojects/buddy-mlir-for-fpga/llvm/build-2d26/bin\nBuild config: +assertions"
+  }
+}

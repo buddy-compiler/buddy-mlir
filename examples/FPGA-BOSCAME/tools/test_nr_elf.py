@@ -76,6 +76,31 @@ class NrElfTests(unittest.TestCase):
                       [FENCE_RW_RW, 0x13, 0x04b50077, FENCE_RW_RW]):
             self.assertEqual(check_nr_elf.audit(fixture(words), '')['status'], 'FAIL')
 
+    def test_shared_fence_between_adjacent_ame_still_satisfies_audit(self):
+        words = [FENCE_RW_RW, 0x05ef83f7, FENCE_RW_RW, 0x09f88277, FENCE_RW_RW]
+        report = check_nr_elf.audit(fixture(words), '')
+        self.assertEqual(report['status'], 'PASS')
+        self.assertEqual(report['ame_instructions'], 2)
+        # Sharing cannot be mistaken for removing the inter-operation fence.
+        self.assertEqual(check_nr_elf.audit(
+            fixture([FENCE_RW_RW, 0x05ef83f7, 0x09f88277, FENCE_RW_RW]), '')['status'], 'FAIL')
+
+    def test_direct_gpr_ame_uses_full_fields_and_requires_fences(self):
+        # v0.5 fields: mlae8 tr7,(x31),x30; mlbe8 tr4,(x17),x31;
+        # msettilem x31,x31. High GPRs do not change opcode/width/bank.
+        for word in (0x05ef83f7, 0x09f88277, 0x040fdff7):
+            with self.subTest(word=hex(word)):
+                report = check_nr_elf.audit(fixture([FENCE_RW_RW, word, FENCE_RW_RW]), '')
+                self.assertEqual(report['status'], 'PASS')
+                self.assertEqual(report['ame_instructions'], 1)
+                for words in ([word, FENCE_RW_RW], [FENCE_RW_RW, word]):
+                    self.assertEqual(check_nr_elf.audit(fixture(words), '')['status'], 'FAIL')
+        # No new width, transposed load, matrix bank/index, or immediate config.
+        for word in (0x05ef93f7, 0x09f88a77, 0x05ef8477, 0x060fdff7):
+            with self.subTest(word=hex(word)):
+                self.assertEqual(check_nr_elf.audit(
+                    fixture([FENCE_RW_RW, word, FENCE_RW_RW]), '')['status'], 'FAIL')
+
     def test_unknown_vector_and_whole_move_are_rejected(self):
         word = 0x9e8034d7  # vmv1r.v v9, v8
         dump = 'Disassembly of section .text:\n80000000: 9e8034d7 vmv1r.v v9, v8\n'

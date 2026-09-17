@@ -99,6 +99,102 @@ class NrAssemblyTests(unittest.TestCase):
                          encoder.convert_line('msettilem a6, a0')[0].replace(
                              'msettilem a6, a0', 'msettilem x16, x10'))
 
+    def test_direct_memory_uses_all_five_gpr_bits_without_temporaries(self):
+        original = {name: 0x10000 + index * 32
+                    for index, name in enumerate(encoder.ABI_NAMES)}
+        original['zero'] = 0
+        for mnemonic, bank in [('mlae8.m', 'tr'), ('mlbe8.m', 'tr'),
+                               ('mlce32.m', 'acc'), ('msce32.m', 'acc')]:
+            for matrix in range(8):
+                for base in encoder.ABI_NAMES:
+                    for stride in encoder.ABI_NAMES:
+                        assembly, changed = encoder.convert_line(
+                            f'{mnemonic} {bank}{matrix}, ({base}), {stride}',
+                            gpr_mode='direct')
+                        self.assertTrue(changed)
+                        self.assertEqual(len(assembly.splitlines()), 1)
+                        regs, seen = execute_wrapper(assembly, original)
+                        self.assertEqual(regs, original, (mnemonic, base, stride))
+                        self.assertEqual(seen[0][1:],
+                                         (original[base], original[stride]))
+                        self.assertEqual((seen[0][0] >> 7) & 15, matrix)
+        # Independent v0.5 section 2 field examples, including rs2 bit 24.
+        self.assertIn('0x05ef83f7', encoder.transform(
+            'mlae8.m tr7, (x31), x30', 'direct'))
+        self.assertIn('0x09f88277', encoder.transform(
+            'mlbe8.m tr4, (x17), x31', 'direct'))
+
+    def test_direct_tile_preserves_source_before_destination_write(self):
+        original = {name: 0x10000 + index * 32
+                    for index, name in enumerate(encoder.ABI_NAMES)}
+        original['zero'] = 0
+        for mnemonic in ('msettilem', 'msettilen', 'msettilek'):
+            for rd in encoder.ABI_NAMES:
+                for rs1 in encoder.ABI_NAMES:
+                    assembly, _ = encoder.convert_line(
+                        f'{mnemonic} {rd}, {rs1}', gpr_mode='direct')
+                    self.assertEqual(len(assembly.splitlines()), 1)
+                    regs, seen = execute_wrapper(assembly, original)
+                    self.assertEqual(seen[0][1], original[rs1])
+                    expected = dict(original)
+                    if rd != 'zero':
+                        expected[rd] = 13
+                    self.assertEqual(regs, expected, (mnemonic, rd, rs1))
+        self.assertIn('0x040fdff7', encoder.transform(
+            'msettilem x31, x31', 'direct'))
+
+    def test_direct_aliases_labels_and_msettype_unchanged(self):
+        for left, right in (
+            ('mlae8.m tr3, (fp), x31', 'mlae8.m tr3, (s0), t6'),
+            ('msce32.m acc0, (x2), x0', 'msce32.m acc0, (sp), zero'),
+            ('msettilen x31, fp', 'msettilen t6, s0'),
+        ):
+            actual = encoder.transform(left, 'direct').split('#')[0]
+            expected = encoder.transform(right, 'direct').split('#')[0]
+            self.assertEqual(actual, expected)
+        direct = encoder.transform('.Ltile: msettilek sp, sp', 'direct')
+        self.assertEqual(direct.splitlines()[0], '.Ltile:')
+        self.assertEqual(len(direct.splitlines()), 2)
+        self.assertIn('[nr direct]', direct)
+        for rd in encoder.ABI_NAMES:
+            for rs1 in encoder.ABI_NAMES:
+                source = f'msettype {rd}, {rs1}'
+                self.assertEqual(encoder.transform(source, 'direct'),
+                                 encoder.transform(source, 'fixed'))
+                self.assertEqual(encoder.transform(source),
+                                 encoder.transform(source, 'fixed'))
+
+    def test_direct_mode_does_not_relax_validation_or_fences(self):
+        for source in ('mlae8.m tr8, (a0), a1',
+                       'mlbe8.m tr1, (x32), a1',
+                       'mlce32.m tr0, (a0), a1',
+                       'msce32.m acc0, (a0), x32',
+                       'mlbte8.m tr1, (a0), a1',
+                       'msettilem x32, a0', 'msettilek a0, 31',
+                       'msettypei zero, 0'):
+            with self.subTest(source=source), self.assertRaises(ValueError):
+                encoder.transform(source, 'direct')
+        for source in ('mlae8.m tr7, (sp), t6', 'msettilem t6, t6',
+                       'msce32.m acc7, (t6), s11'):
+            assembly = encoder.transform(source, 'direct')
+            self.assertEqual(restriction.transform(assembly).count('fence\trw, rw'), 2)
+        with self.assertRaises(ValueError):
+            encoder.transform('', 'unknown')
+
+    def test_gpr_mode_cli_is_explicit_and_keeps_stdin_interface(self):
+        script = str(Path(encoder.__file__))
+        source = 'mlae8.m tr7, (x31), x30\n'
+        for args, mode in (([], 'fixed'), (['--gpr-mode=fixed'], 'fixed'),
+                           (['--gpr-mode=direct'], 'direct')):
+            result = subprocess.run([sys.executable, script, *args],
+                                    input=source, text=True, capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout, encoder.transform(source, mode))
+        result = subprocess.run([sys.executable, script, '--gpr-mode=unknown'],
+                                input=source, text=True, capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, '')
+
     def test_reject_unverified_mnemonics_and_banks(self):
         for text in ('mlbte8.m tr1, (a0), a1', '.Lx: mlbte8.m tr1, (a0), a1',
                      'msettypei zero, 8', 'mqma.h.mm acc0, tr0, tr1',
@@ -123,6 +219,74 @@ class NrAssemblyTests(unittest.TestCase):
     def test_multiple_words_receive_individual_fences(self):
         output = restriction.transform('.word 0x04b50077, 0x08b500f7')
         self.assertEqual(output.count('fence\trw, rw'), 4)
+
+    def test_coalescing_shares_only_adjacent_ame_and_vector_fences(self):
+        source = '.word 0x04b50077, 0x08b500f7\nvle32.v v0, (a0)\nvse32.v v0, (a1)'
+        baseline = restriction.transform(source)
+        optimized = restriction.transform(source, coalesce_fences=True)
+        self.assertEqual(baseline.count('fence\trw, rw'), 8)
+        self.assertEqual(optimized.count('fence\trw, rw'), 5)
+        self.assertEqual(restriction.transform(source, coalesce_fences=False), baseline)
+        # Every memory/AME operation still has a fence immediately on each
+        # side; a shared fence is both preceding store/load and following op.
+        instructions = [line.strip() for line in optimized.splitlines()]
+        for i, line in enumerate(instructions):
+            if line.startswith(('.word', 'vle32.v', 'vse32.v')):
+                self.assertEqual(instructions[i - 1], 'fence\trw, rw')
+                self.assertEqual(instructions[i + 1], 'fence\trw, rw')
+        self.assertEqual(restriction.transform(optimized, coalesce_fences=True), optimized)
+
+    def test_coalescing_never_crosses_control_flow_or_directives(self):
+        for boundary in ('.Lentry:', '1:', 'addi a0, a0, 1', 'j .Lentry',
+                         'cbo.flush (a0)', '.p2align 4', '.cfi_remember_state',
+                         '.attribute 5, "rv64i2p1"', '.unknown_directive'):
+            source = '.word 0x04b50077\n' + boundary + '\n.word 0x08b500f7'
+            with self.subTest(boundary=boundary):
+                result = restriction.transform(source, coalesce_fences=True)
+                self.assertEqual(result.count('fence\trw, rw'), 4)
+        # A same-line branch target also needs its own entry fence.
+        result = restriction.transform('.word 0x04b50077\n.Lentry: .word 0x08b500f7',
+                                       coalesce_fences=True)
+        self.assertIn('.Lentry\u003a\n\tfence\trw, rw', result)
+        self.assertEqual(result.count('fence\trw, rw'), 4)
+
+    def test_coalescing_respects_sections_and_preserves_data_exactly(self):
+        source = ('.text\n.word 0x04b50077\n'
+                  '.pushsection .rodata\n.word 0x04b50077\n'
+                  '.ascii "fence rw,rw; not code"\n.popsection\n.word 0x08b500f7')
+        result = restriction.transform(source, coalesce_fences=True)
+        self.assertEqual(result.count('fence\trw, rw'), 4)
+        self.assertIn('.pushsection .rodata\n.word 0x04b50077\n'
+                      '.ascii "fence rw,rw; not code"\n.popsection', result)
+
+    def test_coalescing_keeps_other_fences_and_instruction_words(self):
+        for boundary in ('fence iorw, iorw', 'fence r, rw', 'fence.tso',
+                         '.word 0x0330000f'):
+            source = 'fence rw, rw\n' + boundary + '\nfence rw, rw'
+            with self.subTest(boundary=boundary):
+                self.assertEqual(restriction.transform(source, coalesce_fences=True),
+                                 source + '\n')
+        # Non-code comments may separate duplicate mnemonics; preserve comments.
+        source = 'fence rw, rw\n# comment\n\n// comment\nfence\trw,rw'
+        self.assertEqual(restriction.transform(source, coalesce_fences=True),
+                         'fence rw, rw\n# comment\n\n// comment\n')
+        annotated = 'fence rw, rw # keep first\nfence rw, rw # keep second'
+        self.assertEqual(restriction.transform(annotated, coalesce_fences=True),
+                         annotated + '\n')
+
+    def test_coalescing_cli_remains_opt_in_and_validation_is_unchanged(self):
+        script = str(Path(restriction.__file__))
+        source = '.word 0x04b50077, 0x08b500f7'
+        for args, enabled in (([], False), (['--coalesce-fences'], True)):
+            result = subprocess.run([sys.executable, script, *args], input=source,
+                                    text=True, capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout, restriction.transform(source, enabled))
+        for source in ('.word 0x08b508f7', 'vmv1r.v v0, v1', 'csrr a0, vlenb'):
+            result = subprocess.run([sys.executable, script, '--coalesce-fences'],
+                                    input=source, text=True, capture_output=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(result.stdout, '')
 
     def test_expanded_verified_memory_receives_fences(self):
         for mnemonic in ('vle8.v', 'vse8.v', 'vle32.v', 'vse32.v',

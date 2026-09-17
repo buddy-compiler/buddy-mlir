@@ -1,0 +1,121 @@
+{
+  "status": "PASS",
+  "platform": "fpga",
+  "timing_unit": "RA_cycles",
+  "shape": [
+    16,
+    1024
+  ],
+  "repeats": 3,
+  "samples": [
+    {
+      "round": 0,
+      "variant": "baseline",
+      "order": 0,
+      "cycles": 4044706,
+      "mismatches": 0,
+      "nonfinite": 0,
+      "guard_errors": 0,
+      "input_errors": 0,
+      "status": "PASS",
+      "max_abs": 0.0,
+      "mean_abs": 0.0
+    },
+    {
+      "round": 0,
+      "variant": "optimized",
+      "order": 1,
+      "cycles": 513790,
+      "mismatches": 0,
+      "nonfinite": 0,
+      "guard_errors": 0,
+      "input_errors": 0,
+      "status": "PASS",
+      "max_abs": 0.0,
+      "mean_abs": 0.0
+    },
+    {
+      "round": 1,
+      "variant": "optimized",
+      "order": 0,
+      "cycles": 513634,
+      "mismatches": 0,
+      "nonfinite": 0,
+      "guard_errors": 0,
+      "input_errors": 0,
+      "status": "PASS",
+      "max_abs": 0.0,
+      "mean_abs": 0.0
+    },
+    {
+      "round": 1,
+      "variant": "baseline",
+      "order": 1,
+      "cycles": 4044689,
+      "mismatches": 0,
+      "nonfinite": 0,
+      "guard_errors": 0,
+      "input_errors": 0,
+      "status": "PASS",
+      "max_abs": 0.0,
+      "mean_abs": 0.0
+    },
+    {
+      "round": 2,
+      "variant": "baseline",
+      "order": 0,
+      "cycles": 4044465,
+      "mismatches": 0,
+      "nonfinite": 0,
+      "guard_errors": 0,
+      "input_errors": 0,
+      "status": "PASS",
+      "max_abs": 0.0,
+      "mean_abs": 0.0
+    },
+    {
+      "round": 2,
+      "variant": "optimized",
+      "order": 1,
+      "cycles": 513725,
+      "mismatches": 0,
+      "nonfinite": 0,
+      "guard_errors": 0,
+      "input_errors": 0,
+      "status": "PASS",
+      "max_abs": 0.0,
+      "mean_abs": 0.0
+    }
+  ],
+  "timing": {
+    "baseline": {
+      "samples": [
+        4044706,
+        4044689,
+        4044465
+      ],
+      "min": 4044465,
+      "median": 4044689,
+      "mean": 4044620
+    },
+    "optimized": {
+      "samples": [
+        513790,
+        513634,
+        513725
+      ],
+      "min": 513634,
+      "median": 513725,
+      "mean": 513716.3333333333
+    },
+    "median_speedup": 7.87325709280257
+  },
+  "scope": "descriptor adapter and kernel; excludes initialization, oracle, and UART",
+  "correctness": "exact FP32 bits, finite results, input preservation, output guards",
+  "run_id": "run-281f5f11e01a4f6b",
+  "image_sha256": "e918f1f81b6080ff2b0e7f13aa4f3188ef4966a1dd06fec06706d4fd1c3f9045",
+  "log_sha256": "09314663f0604ce7b7cb9eb45a93099e9c3f799ff25cb5a0a57b53d9241d4ee5",
+  "manifest_sha256": "e0447c55df16f3fdd172db2d0ae40d577e31d201307060723f34b3ed8bdf176b",
+  "ddr_readback_matches": true,
+  "source_hashes_and_abi_checked": true
+}

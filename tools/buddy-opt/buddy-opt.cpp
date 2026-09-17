@@ -140,12 +140,14 @@ void registerSimplifyTosaMatmulScalarPass();
 void registerEliminateMemRefCopyPass();
 void registerEliminateLargeZeroConstantsPass();
 void registerConvertTraceToLLVMPass();
+void registerVectorizeDequantizePass();
 } // namespace buddy
 } // namespace mlir
 
 int main(int argc, char **argv) {
   // Register all MLIR passes.
   mlir::registerAllPasses();
+  mlir::buddy::registerVectorizeDequantizePass();
   mlir::buddy::registerPointwiseConvToGemmPass();
   // Register Vectorization of Convolution.
   mlir::buddy::registerConvVectorizationPass();

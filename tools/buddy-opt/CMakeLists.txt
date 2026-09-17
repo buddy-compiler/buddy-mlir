@@ -80,4 +80,5 @@ target_link_libraries(buddy-opt
   EliminateMemRefCopyPass
   EliminateLargeZeroConstants
   TraceInsert
+  VectorizeDequantizePass
   )

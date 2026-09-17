@@ -1,0 +1,18 @@
+
+[nr] NH boot; RA operator runtime
+[nr] RA entry=0x0000000080000040
+[nr] RA entered; clearing application BSS
+[nr] mstatus=0x8000000A00006000; launch BEGIN
+[ame-ab] config m=00000001 n=00025180 k=00000400 repeats=00000002 semantic=accumulate input_check=full_A_sampled_B descriptor_offset_bytes=00000040
+[ame-ab] prepare round=00000000
+[ame-ab] sample round=00000000 variant=baseline order=00000000 cycles=00000000041135EE pre_sync_cycles=000000000000029E adapter_kernel_cycles=00000000041132F2 post_sync_cycles=00000000000002FC mismatches=00000000 guard_errors=00000000 input_errors=00000000 max_abs_i64=0000000000000000 mean_abs_f64_bits=0000000000000000 status=PASS
+[ame-ab] sample round=00000000 variant=optimized order=00000001 cycles=00000000040BA206 pre_sync_cycles=0000000000000274 adapter_kernel_cycles=00000000040B9F12 post_sync_cycles=00000000000002F4 mismatches=00000000 guard_errors=00000000 input_errors=00000000 max_abs_i64=0000000000000000 mean_abs_f64_bits=0000000000000000 status=PASS
+[ame-ab] pair round=00000000 mismatches=00000000
+[ame-ab] prepare round=00000001
+[ame-ab] sample round=00000001 variant=optimized order=00000000 cycles=00000000040BA77A pre_sync_cycles=0000000000000289 adapter_kernel_cycles=00000000040BA487 post_sync_cycles=00000000000002F3 mismatches=00000000 guard_errors=00000000 input_errors=00000000 max_abs_i64=0000000000000000 mean_abs_f64_bits=0000000000000000 status=PASS
+[ame-ab] sample round=00000001 variant=baseline order=00000001 cycles=0000000004113565 pre_sync_cycles=0000000000000275 adapter_kernel_cycles=0000000004113268 post_sync_cycles=00000000000002FD mismatches=00000000 guard_errors=00000000 input_errors=00000000 max_abs_i64=0000000000000000 mean_abs_f64_bits=0000000000000000 status=PASS
+[ame-ab] pair round=00000001 mismatches=00000000
+[ame-ab] PASS errors=00000000
+[nr] launch cycles=0x0000000037B09073 status=0x00000000
+[nr] RA returned: PASS
+verify NR runtime: PASS

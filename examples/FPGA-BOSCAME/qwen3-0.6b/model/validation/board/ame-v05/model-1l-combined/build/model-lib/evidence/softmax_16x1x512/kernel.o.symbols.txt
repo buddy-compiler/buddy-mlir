@@ -1,0 +1,2 @@
+triton_softmax_16x1x512 T 0 228
+expf U 0 0

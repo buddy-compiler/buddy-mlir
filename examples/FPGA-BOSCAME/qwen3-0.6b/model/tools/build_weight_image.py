@@ -217,7 +217,7 @@ def main():
     parser.add_argument("--checkpoint", type=Path, required=True)
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--cache-len", type=int, default=512)
+    parser.add_argument("--cache-len", type=int, default=128)
     parser.add_argument("--tokenizer-blob", type=Path, default=None)
     args = parser.parse_args()
     report = build(args.layout, args.checkpoint, args.config, args.output,

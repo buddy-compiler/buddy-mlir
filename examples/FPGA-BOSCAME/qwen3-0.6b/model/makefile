@@ -11,11 +11,11 @@ LLVM_AR ?= $(LLVM_BIN)/llvm-ar
 LLVM_NM ?= $(LLVM_BIN)/llvm-nm
 ASSETS ?= assets/official
 CHECKPOINT ?= assets/checkpoint
-CONTEXT ?= 512
+CONTEXT ?= 128
 LAYERS ?=
 PROMPT ?= 151644,872,198,3838,374,9625,30,151645,198,151644,77091,198,151667,271,151668,271
-IMPORT_DIR ?= build/import/full-28l-shared-cache
-MODEL_CASES ?= build/model-cases
+IMPORT_DIR ?= build/import/full-28l-cap$(CONTEXT)
+MODEL_CASES ?= build/model-cases-cap$(CONTEXT)
 
 .PHONY: help assets checkpoint resources check inventory frontend text-library \
         archive-smoke import layout inventory-report reference host-run \
@@ -167,6 +167,7 @@ lower-nr:
 	PYTHONPATH=$(BUDDY_PYTHONPATH) $(BUDDY_PYTHON) -B tools/lower_model_nr.py \
 	  --assets $(ASSETS) --checkpoint $(CHECKPOINT) --triton-build ../triton/build \
 	  --output build/nr-lower/layer$(or $(LAYERS),1) --kind $(or $(KIND),prefill) \
+	  --max-cache-len $(CONTEXT) \
 	  $(if $(LAYERS),--layers $(LAYERS),)
 
 # Bare-metal image for the compiled model graph (1 layer), plus the parameter
@@ -174,13 +175,13 @@ lower-nr:
 image-1layer: triton-calls
 	$(PYTHON) -B tools/lower_model_nr.py --assets $(ASSETS) --checkpoint $(CHECKPOINT) \
 	  --triton-build ../triton/build --output build/board/1layer-prefill \
-	  --layers 1 --kind prefill
+	  --layers 1 --kind prefill --max-cache-len $(CONTEXT)
 	$(PYTHON) -B tools/build_model_image.py --repo-root $(abspath $(REPO)) \
 	  --layout build/import/probe-1layer/weight-layout.json \
 	  --graph-ir build/board/1layer-prefill/forward_prefill.ll \
 	  --archive build/model-lib/libqwen_triton.a \
 	  --adapters build/triton-call/full-28l/qwen_triton_adapters.c \
-	  --output build/board/image-1layer --layers 1
+	  --output build/board/image-1layer --layers 1 --max-cache-len $(CONTEXT)
 
 # Run the model-shape kernels on the board. Sequential; one UART owner at a time.
 run-model-kernels:

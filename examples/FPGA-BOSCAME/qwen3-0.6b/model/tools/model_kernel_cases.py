@@ -3,14 +3,14 @@
 
 The shared 72-case set was built for a *fully packed* cache: attention spans
 exactly as many keys as the sequence holds (T=16 prefill, T=17 decode). The
-imported graph does something different -- it keeps a fixed 512-slot cache and
+imported graph does something different -- it keeps a fixed-capacity cache and
 varies only the mask boundary -- so several shapes and two runtime-position
 kernel variants are genuinely new:
 
-  * attention over the full 512-slot cache for both prefill and decode;
+  * attention over the full cache (128 slots by default) for prefill and decode;
   * scale+mask whose causal boundary is the runtime ``cache_position``;
   * KV writes whose destination slot is runtime data, not a constexpr;
-  * softmax and GQA expansion over 512 slots.
+  * softmax and GQA expansion over the selected capacity.
 
 Every case is emitted with the same contract as the existing set: a
 ``metadata.json`` describing buffers, plus a ``launch.c`` that fills
@@ -228,6 +228,8 @@ def metadata(name, kind, dtype, description, entry, buffers, validation):
 
 def build_cases(capacity):
     """Return name -> (metadata, launch_source)."""
+    if capacity < 109:
+        raise ValueError('capacity must be >=109 for the 16-token scattered-slot KV oracle')
     cases = {}
     total = capacity
 
@@ -309,7 +311,7 @@ def case_makefile():
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--capacity", type=int, default=512)
+    parser.add_argument("--capacity", type=int, default=128)
     args = parser.parse_args()
 
     cases = build_cases(args.capacity)

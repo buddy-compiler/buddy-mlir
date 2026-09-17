@@ -1678,7 +1678,8 @@ static bool isNrMatmul(linalg::MatmulOp op, bool transposeB) {
 
 class NrMatmulToBOSCAMELowering : public OpRewritePattern<linalg::MatmulOp> {
 public:
-  using OpRewritePattern<linalg::MatmulOp>::OpRewritePattern;
+  NrMatmulToBOSCAMELowering(MLIRContext *context, int64_t tileN)
+      : OpRewritePattern<linalg::MatmulOp>(context), tileN(tileN) {}
 
   LogicalResult matchAndRewrite(linalg::MatmulOp op,
                                 PatternRewriter &rewriter) const override {
@@ -1699,14 +1700,14 @@ public:
       return arith::ConstantIndexOp::create(rewriter, loc, value);
     };
     Value zero = index(0), one = index(1);
-    Value stepM = index(16), stepN = index(16), stepK = index(64);
+    Value stepM = index(16), stepN = index(tileN), stepK = index(64);
     Value dimM = createDim(rewriter, loc, a, 0);
     Value dimK = createDim(rewriter, loc, a, 1);
     Value dimN = createDim(rewriter, loc, b, transposeB ? 0 : 1);
     Value packedB;
     if (!physicalNK) {
       auto storage = memref::AllocaOp::create(
-          rewriter, loc, MemRefType::get({16, 64}, i8));
+          rewriter, loc, MemRefType::get({tileN, 64}, i8));
       storage->setAttr("alignment", rewriter.getI64IntegerAttr(64));
       packedB = storage;
     }
@@ -1720,7 +1721,7 @@ public:
     auto nLoop = scf::ForOp::create(rewriter, loc, zero, dimN, stepN);
     rewriter.setInsertionPointToStart(nLoop.getBody());
     Value n = nLoop.getInductionVar();
-    Value columns = createIndexMin(rewriter, loc, dimN, n, 16);
+    Value columns = createIndexMin(rewriter, loc, dimN, n, tileN);
     Value subC = createSubView(rewriter, loc, c, {m, n}, {rows, columns});
     Value strideC = ame::createByteStride(rewriter, loc, subC);
     if (failed(ame::configureTiles(rewriter, loc, rows, columns)) ||
@@ -1785,6 +1786,13 @@ public:
     rewriter.eraseOp(op);
     return success();
   }
+
+private:
+  // The v0.5 direct-memory AME contract supports N up to 64. This controls
+  // both the logical tile and the optional [N, K] packing buffer; it does not
+  // change the source/output row strides or reset the accumulator between K
+  // chunks. Keep 16 as the default until wider schedules are board-validated.
+  int64_t tileN;
 };
 
 class MatmulToBOSCAMELowering : public OpRewritePattern<linalg::MatmulOp> {
@@ -2239,6 +2247,12 @@ public:
                      "target=qwen3-fpga)"),
       llvm::cl::init(false)};
 
+  Option<int64_t> nrTileN{
+      *this, "nr-tile-n",
+      llvm::cl::desc("NR FPGA INT8 matmul N tile: 16 (default), 32, or 64; "
+                     "wider tiles require target=nr-fpga"),
+      llvm::cl::init(16)};
+
   void getDependentDialects(DialectRegistry &registry) const override {
     registry
         .insert<BOSCAMEDialect, arith::ArithDialect, linalg::LinalgDialect,
@@ -2256,6 +2270,17 @@ void LowerLinalgToBOSCAMEPass::runOnOperation() {
   FailureOr<AmeTargetProfile> profile =
       resolveAmeTarget(module, ameTarget.getValue());
   if (failed(profile)) {
+    signalPassFailure();
+    return;
+  }
+
+  if (nrTileN != 16 && nrTileN != 32 && nrTileN != 64) {
+    module.emitError("nr-tile-n must be 16, 32, or 64");
+    signalPassFailure();
+    return;
+  }
+  if (nrTileN != 16 && *profile != AmeTargetProfile::NrFpga) {
+    module.emitError("non-default nr-tile-n requires target=nr-fpga");
     signalPassFailure();
     return;
   }
@@ -2309,7 +2334,7 @@ void LowerLinalgToBOSCAMEPass::runOnOperation() {
                                    memref::MemRefDialect, scf::SCFDialect>();
 
   if (*profile == AmeTargetProfile::NrFpga) {
-    patterns.add<NrMatmulToBOSCAMELowering>(context);
+    patterns.add<NrMatmulToBOSCAMELowering>(context, nrTileN.getValue());
     conversionTarget.addDynamicallyLegalOp<linalg::MatmulOp>(
         [](linalg::MatmulOp op) {
           return !isNrMatmul(

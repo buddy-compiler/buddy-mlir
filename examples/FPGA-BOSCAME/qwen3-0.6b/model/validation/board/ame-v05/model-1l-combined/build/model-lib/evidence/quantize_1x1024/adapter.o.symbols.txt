@@ -1,0 +1,2 @@
+_mlir_ciface_kernel_quantize_1x1024 T 0 54
+triton_quantize_1x1024 U 0 0

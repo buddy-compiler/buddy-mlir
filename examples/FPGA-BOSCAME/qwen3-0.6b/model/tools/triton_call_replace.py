@@ -810,8 +810,8 @@ def rewrite_attention_to_triton(graph, index, call_types, report, shared=None,
 
     The graph carries a single ``ScaledDotProductFlashAttentionForCpuOp``; the
     library has it split into QK, scale+mask+position, softmax and PV, at exactly
-    this model's shapes (16 heads, 16 sequence, 512 context, 128 head_dim). This is
-    what the operator inventory called the missing attention replacement.
+    this model's shapes and the selected cache capacity. This is what the
+    operator inventory called the missing attention replacement.
 
     The graph already expands the 8 KV heads to 16 before the fused op, so the
     gqa_repeat kernel is not needed here.
@@ -868,7 +868,7 @@ def rewrite_attention_to_triton(graph, index, call_types, report, shared=None,
             report["uncovered"].append({"kind": "attention", "node": op.name,
                                         "reason": "unproven scale/dropout/causal-mask semantics or a live auxiliary result"})
             continue
-        # The library names these heads-first: attention_qk_16x1x512x128 is the
+        # The library names these heads-first: attention_qk_16x1x128x128 is the
         # decode case with M=1, not a 16-token one.
         wanted = {
             # attention_dot computes A[M,K] @ B[K,N], so K has to arrive already
@@ -1633,7 +1633,7 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--layers", type=int, default=None)
     parser.add_argument("--prefill-len", type=int, default=16)
-    parser.add_argument("--max-cache-len", type=int, default=512)
+    parser.add_argument("--max-cache-len", type=int, default=128)
     parser.add_argument("--kv-cache", action="store_true",
                         help="replace the cache writes only (diagnostic: isolates "
                              "them from the attention rewrite)")

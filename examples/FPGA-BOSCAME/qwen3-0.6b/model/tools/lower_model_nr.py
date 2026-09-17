@@ -63,7 +63,7 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--layers", type=int, default=None)
     parser.add_argument("--prefill-len", type=int, default=16)
-    parser.add_argument("--max-cache-len", type=int, default=512)
+    parser.add_argument("--max-cache-len", type=int, default=128)
     parser.add_argument("--kind", default="prefill", choices=["prefill", "decode"])
     parser.add_argument("--no-replace", action="store_true")
     parser.add_argument("--attention", action="store_true",

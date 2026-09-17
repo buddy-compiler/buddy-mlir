@@ -61,6 +61,10 @@ def describe(name):
         arg("B", 2, "i8" if integer else "f32")
         arg("C", 2, "i32" if integer else "f32")
         bm, bn, bk = power_of_two(min(m, 16)), 16, 64
+        if integer:
+            bn = int(os.environ.get("QWEN_TRITON_AME_N", "16"))
+            if bn not in (16, 32, 64):
+                raise ValueError("QWEN_TRITON_AME_N must be 16, 32, or 64")
         if "nr_tail_regression" not in metadata.get("roles", []):
             # Preserve pointer views for full tiles. NR itself splits K into
             # 64-byte hardware blocks, avoiding Triton padding/copy per block.
@@ -104,6 +108,13 @@ def describe(name):
             arg("Out", 2)
             constants = dict(ROWS=m, COLS=width, BLOCK=128)
             grid = (cdiv(m * width, 128), 1, 1)
+            dequant_mode = os.environ.get("QWEN_TRITON_DEQUANT", "baseline")
+            if dequant_mode == "rvv":
+                kernel = "dequantize_rows"
+                kernel_module = "kernels_dequant"
+                grid = (cdiv(width, 128), m, 1)
+            elif dequant_mode != "baseline":
+                raise ValueError("QWEN_TRITON_DEQUANT must be baseline or rvv")
     else:
         buffers = metadata["buffers"]
         shapes = [buffer["shape"] for buffer in buffers]

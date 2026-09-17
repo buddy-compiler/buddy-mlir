@@ -92,6 +92,27 @@ def llvm_pipeline(config):
     return passes
 
 
+def ame_pipeline(case, config):
+    """Keep Triton N blocking and NR hardware tiling in the same experiment."""
+    passes = shlex.split(config["variables"]["AME_PASS"])
+    if case["family"] != "matmul_i8":
+        return passes
+    tile = case["constexprs"]["BN"]
+    if tile not in (16, 32, 64):
+        raise ValueError("Unsupported Triton AME N blocking")
+    candidates = [i for i, value in enumerate(passes)
+                  if value.startswith("--lower-linalg-to-boscame=")]
+    if len(candidates) != 1:
+        raise ValueError("Expected one explicit NR AME lowering pass")
+    index = candidates[0]
+    found = re.search(r"\bnr-tile-n=(\d+)", passes[index])
+    if found and int(found[1]) != tile:
+        raise ValueError("Triton BN and NR nr-tile-n disagree")
+    if not found and tile != 16:
+        passes[index] += " nr-tile-n=" + str(tile)
+    return passes
+
+
 def verify_abi(path, case):
     contents = Path(path).read_text()
     match = re.search(r"define\s+void\s+@" + re.escape(case["symbol"]) + r"\((.*?)\)", contents, re.S)
@@ -138,19 +159,29 @@ def source_provenance(cases, host):
 def build_case(case, config, host, runtime_objects):
     directory = Path(case["directory"])
     variables = config["variables"]
+    gpr_mode = variables.get("AME_GPR_MODE", "fixed")
+    if gpr_mode not in ("fixed", "direct"):
+        raise ValueError("AME_GPR_MODE must be fixed or direct")
+    coalesce_setting = variables.get("NR_COALESCE_FENCES", "0")
+    if coalesce_setting not in ("0", "1"):
+        raise ValueError("NR_COALESCE_FENCES must be 0 or 1")
+    coalesce_fences = coalesce_setting == "1"
     export_dir = BUILD_ROOT / case["name"]
     out = export_dir / ("host" if host else "nr")
     out.mkdir(parents=True, exist_ok=True)
     opt = shlex.split(variables["BUDDY_OPT"])
     translate = shlex.split(variables["BUDDY_TRANSLATE"])
     bufferized = out / "bufferized.mlir"
-    command([*opt, export_dir / "kernel.linalg.mlir", "--empty-tensor-to-alloc-tensor",
+    dequant_rvv = case.get("kernel_module") == "kernels_dequant"
+    fusion = ["--linalg-fuse-elementwise-ops", "--canonicalize", "--cse"] if dequant_rvv else []
+    command([*opt, export_dir / "kernel.linalg.mlir", *fusion, "--empty-tensor-to-alloc-tensor",
              "--one-shot-bufferize=allow-return-allocs-from-loops=true buffer-alignment=64",
              "-o", bufferized], cwd=directory)
     lowered = bufferized
     if not host:
         lowered = out / "ame.mlir"
-        command([*opt, bufferized, *shlex.split(variables["AME_PASS"]), "-o", lowered], cwd=directory)
+        effective_ame_pass = ame_pipeline(case, config)
+        command([*opt, bufferized, *effective_ame_pass, "-o", lowered], cwd=directory)
         text = lowered.read_text()
         if 'bosc_ame.target = "nr-fpga"' not in text:
             raise RuntimeError("This runtime only accepts explicit nr-fpga lowering")
@@ -174,6 +205,8 @@ def build_case(case, config, host, runtime_objects):
         optimization = shlex.split(variables["FP32_PASS"])
     elif not host and case["family"] in ("attention_qk", "attention_pv"):
         optimization = shlex.split(variables.get("MATMUL_FP32_PASS", "--matmul-vectorization=vector-size=16"))
+    elif dequant_rvv:
+        optimization = ["--vectorize-dequantize"]
     command([*opt, copies, *optimization, "--canonicalize", "--cse",
              *([] if host else ["--lower-bosc-ame"]),
              *llvm_pipeline(config), "-o", llvm_mlir], cwd=directory)
@@ -192,7 +225,7 @@ def build_case(case, config, host, runtime_objects):
             raise RuntimeError("Parent numerical oracle did not report PASS")
         print("host PASS " + case["name"], flush=True)
     else:
-        if case["family"] in ("matmul_f32", "attention_qk", "attention_pv"):
+        if case["family"] in ("matmul_f32", "attention_qk", "attention_pv") or dequant_rvv:
             # Check the actual vectorized LLVM, not only the scalar control.
             vector_check = out / "vector-host-check"
             command([*shlex.split(variables["HOST_CC"]), *shlex.split(variables["HOST_CFLAGS"]),
@@ -207,11 +240,19 @@ def build_case(case, config, host, runtime_objects):
         kernel_flags = ["-O2", "-filetype=asm", "-mtriple=riscv64", "-target-abi=lp64d",
                         *shlex.split(vector_flags), "-code-model=medium"]
         command([*llc, llvm_ir, *kernel_flags, "-o", assembly], cwd=directory)
+        if dequant_rvv:
+            generated = assembly.read_text()
+            if ("vfcvt.f.x.v" not in generated or
+                    not re.search(r"\bvfmul\.(?:vv|vf)\b", generated)):
+                raise RuntimeError("RVV dequantization lost vector conversion/multiplication")
         encoder = PARENT.parent / "tools/ame_to_word.py"
         restrict = PARENT.parent / "tools/restrict_fpga_assembly.py"
         python = shlex.split(variables["PYTHON"])
-        encoded = command([*python, encoder], input_text=assembly.read_text())
-        constrained = command([*python, restrict], input_text=encoded)
+        encoded = command([*python, encoder, "--gpr-mode=" + gpr_mode],
+                          input_text=assembly.read_text())
+        constrained = command([*python, restrict,
+                               *(["--coalesce-fences"] if coalesce_fences else [])],
+                              input_text=encoded)
         nr_assembly = out / "kernel.nr.S"
         nr_assembly.write_text(constrained)
         objects = []
@@ -239,6 +280,9 @@ def build_case(case, config, host, runtime_objects):
     if not host:
         record["elf_audit"] = elf_audit
         record["effective_kernel_llc_flags"] = kernel_flags
+        record["effective_ame_pass"] = effective_ame_pass
+        record["ame_gpr_mode"] = gpr_mode
+        record["nr_coalesce_fences"] = coalesce_fences
     (out / "manifest.json").write_text(json.dumps(record, indent=2) + "\n")
     return record
 
@@ -297,6 +341,8 @@ def build_suite(cases, config, host, runtime_objects, group):
                           for case in cases}}
     if not host:
         record["elf_audit"] = elf_audit
+        record["ame_gpr_mode"] = variables.get("AME_GPR_MODE", "fixed")
+        record["nr_coalesce_fences"] = variables.get("NR_COALESCE_FENCES", "0") == "1"
     (out / "manifest.json").write_text(json.dumps(record, indent=2) + "\n")
     print(image, flush=True)
     return record

@@ -1,0 +1,70 @@
+{
+  "status": "PROGRESS_SEQUENCE_VALID_SO_FAR",
+  "errors": [],
+  "graph_stages": [
+    {
+      "kind": "prefill",
+      "position": 0,
+      "completed_kernel_calls": 957,
+      "expected_kernel_calls": 957,
+      "graph_return_observed": true,
+      "last_completed_kernel": {
+        "index": 956,
+        "adapter": "qwen_graph_w8a8_mm_196_dequantize_1x151936",
+        "kernel": "_mlir_ciface_kernel_dequantize_1x151936",
+        "symbol_call_index": 0,
+        "region": "final_norm_lm_head",
+        "uart_line": 1922
+      },
+      "compute_cycles": 8515121607
+    },
+    {
+      "kind": "decode",
+      "position": 16,
+      "completed_kernel_calls": 110,
+      "expected_kernel_calls": 957,
+      "graph_return_observed": false,
+      "last_completed_kernel": {
+        "index": 109,
+        "adapter": "qwen_graph_w8a8_mm_22_matmul_1x1024x1024",
+        "kernel": "_mlir_ciface_kernel_matmul_1x1024x1024",
+        "symbol_call_index": 6,
+        "region": "decoder",
+        "decoder_block_index": 3,
+        "call_in_decoder_block": 6,
+        "uart_line": 2202
+      }
+    }
+  ],
+  "unpaired_begin": {
+    "index": 110,
+    "adapter": "qwen_graph_w8a8_mm_22_dequantize_1x1024",
+    "kernel": "_mlir_ciface_kernel_dequantize_1x1024",
+    "symbol_call_index": 12,
+    "region": "decoder",
+    "decoder_block_index": 3,
+    "call_in_decoder_block": 7,
+    "uart_line": 2204
+  },
+  "runtime_completion": null,
+  "limits": [
+    "Progress only; no numerical correctness or model acceptance claim.",
+    "An unpaired begin means end has not been observed, not a hang diagnosis.",
+    "UART kernel rows have no timestamps; per-kernel elapsed wall time is unknown.",
+    "A kernel end follows the profiler-added public ame_fence and bookkeeping.",
+    "Graph cycles include diagnostic UART and per-kernel synchronization.",
+    "Decoder block indices are zero based and derived from verified repeated compiled-call structure."
+  ],
+  "sources_sha256": {
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-native-28l/replacement/triton-call-replacement.json": "029c8bfb823f57c29f1b1988a723835441e4f4124e989b7aa97b6a41a72b2941",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-native-28l/replacement/qwen_triton_adapters.c": "eea83d9d5dacf3c89944dd4dade58e8a5eb0381403ab523e9eefc2365d5b7ae1",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/ame-v05/model-28l-diagnostic/image/kernel-profile.json": "224255ccdb4f43eda8974c8733a6d5bef98f758039b74fad56c882307f860937",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-native-28l/nr-prefill/forward_prefill.ll": "1ee58596b0ae3eac561f8b433ad2d99a8dbe3fa4104923fbdb55948deaa61671",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-native-28l/nr-decode/forward_decode.ll": "8b2ab634eaf4791175f9395484b6c85a858f5475ed2b49f5a899507461d3260e"
+  },
+  "uart_log": "examples/FPGA-BOSCAME/build/fpga-runs/run-60ee04b0cf194c0f/uart.raw.log",
+  "uart_sha256": "2678c7a42ab49e2adb04f668dd32689b318944ad16dd9e3be862c7fc374e88ca",
+  "uart_bytes": 174116,
+  "layers": 28,
+  "snapshot_utc": "2026-09-17T07:32:40.858266+00:00"
+}

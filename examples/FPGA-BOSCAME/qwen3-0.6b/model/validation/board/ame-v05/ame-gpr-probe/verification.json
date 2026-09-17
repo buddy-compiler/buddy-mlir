@@ -1,0 +1,13 @@
+{
+  "status": "PASS",
+  "run_id": "run-2e55b693715b40ec",
+  "rounds": 4,
+  "shapes": [
+    2,
+    3,
+    4
+  ],
+  "image_sha256": "417b9feda4d692e2c89012968b00d91b5da8d499ec77c03d888ea8124a677769",
+  "uart_sha256": "8d9be4c224673777f89a55f252c2a53e4fced7f85b32a3ecbb85b3f341748524",
+  "scope": "high5-bitGPR tile/MLS, rd==rs1, signedINT8, nonzeroINT32C, paddedstrides, input/canaries, repeatedbuffers"
+}

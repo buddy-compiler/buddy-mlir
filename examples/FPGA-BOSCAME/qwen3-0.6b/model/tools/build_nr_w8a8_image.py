@@ -274,7 +274,15 @@ def check_contract(report, segment, args):
     """
     if getattr(args, 'profile_progress', False) and not getattr(args, 'profile_kernels', False):
         raise ValueError('--profile-progress requires --profile-kernels')
-    import re
+    if getattr(args, 'profile_probe', None):
+        if not (getattr(args, 'profile_kernels', False) and getattr(args, 'profile_progress', False)):
+            raise ValueError('--profile-probe requires --profile-kernels and --profile-progress')
+        from kernel_profile import parse_probe
+        probe = parse_probe(args.profile_probe)
+        prototypes = re.findall(r'^extern void (_mlir_ciface_kernel_\w+)\(',
+                                args.adapters.read_text(), re.MULTILINE)
+        if probe['symbol'] not in prototypes:
+            raise ValueError('--profile-probe symbol absent from typed adapters: ' + probe['symbol'])
     scalar_dtype = {"TensorDType.Float32": "f32", "TensorDType.Int8": "i8",
                     "TensorDType.Int32": "i32", "TensorDType.Int64": "i64"}
     if not 1 <= args.layers <= 28 or args.head_dim != 128:
@@ -763,10 +771,11 @@ static int interactive(void) {
         "known_copy_cost": "copy returned KV only when graph output does not alias persistent cache",
         "profile_kernels": getattr(args, 'profile_kernels', False),
         "profile_progress": getattr(args, 'profile_progress', False),
+        "profile_probe": getattr(args, 'profile_probe', None),
         "cycle_scope": {"compute_cycles": "compiled graph plus final AME fence (and optional profiler overhead)",
                         "model_cycles": "per-call descriptor/workspace preparation + graph + token selection + cache retention; excludes validation and UART",
                         "excluded": "session cache reset, tokenizer, input forwarding, validation, UART, scoped-heap reset",
-                        "diagnostic_override": "--profile-progress adds UART inside graph timing; --intermediate-arrays adds comparison inside graph timing. These diagnostic timings are not model throughput."},
+                        "diagnostic_override": "--profile-progress adds UART inside graph timing; --profile-probe also adds returned/synced UART inside the selected kernel timing; --intermediate-arrays adds comparison inside graph timing. These diagnostic timings are not model throughput."},
     }
 
 
@@ -844,7 +853,8 @@ def build(args, output):
     if getattr(args, 'profile_kernels', False):
         from kernel_profile import generate_profile
         profile_source, kernel_profile_flags = generate_profile(
-            args.adapters, output, progress=getattr(args, 'profile_progress', False))
+            args.adapters, output, progress=getattr(args, 'profile_progress', False),
+            probe=getattr(args, 'profile_probe', None))
         profile_flags += kernel_profile_flags
         obj = output / 'kernel-profile.o'
         result = run([llvm / 'clang', *flags, '-c', profile_source, '-o', obj])
@@ -989,7 +999,7 @@ def main():
     parser.add_argument("--graph", default="prefill")
     parser.add_argument("--layers", type=int, default=28)
     parser.add_argument("--head-dim", type=int, default=128)
-    parser.add_argument("--cache-len", type=int, default=512)
+    parser.add_argument("--cache-len", type=int, default=128)
     parser.add_argument("--prefill-len", type=int, default=16)
     parser.add_argument("--prompt-ids", default="151644,872,198,3838,374,9625,30,"
                                                "151645,198,151644,77091,198,"
@@ -1024,6 +1034,9 @@ def main():
                              "adds fences/bookkeeping, reports counters after each graph call")
     parser.add_argument("--profile-progress", action="store_true",
                         help="diagnostic UART begin/end records for each kernel; requires --profile-kernels")
+    parser.add_argument("--profile-probe", metavar="SYMBOL:CALL_INDEX",
+                        help="selected kernel occurrence: descriptor, returned-before-fence and synced-after-fence UART; "
+                             "requires --profile-kernels and --profile-progress; decimal or 0x index resets per graph")
     parser.add_argument('--intermediate-arrays', type=Path,
                         help='optional one-layer independent Stage B intermediate NPZ; instrumentation only')
     parser.add_argument('--intermediate-layout', type=Path,

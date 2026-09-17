@@ -44,6 +44,7 @@ set(LinkedLibs
   EliminateMemRefCopyPass
   EliminateLargeZeroConstants
   TraceInsert
+  VectorizeDequantizePass
   GraphRedundancyElimination
 )
 
