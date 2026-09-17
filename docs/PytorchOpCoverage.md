@@ -1,112 +1,91 @@
-# PyTorch Operator Coverage Methodology (Buddy-MLIR)
+# PyTorch Operator Coverage
 
-This document defines how Buddy-MLIR measures PyTorch operator coverage for
-[issue #911](https://github.com/buddy-compiler/buddy-mlir/issues/911).
+This document describes how Buddy-MLIR measures PyTorch operator coverage
+along the compilation path used by the Python frontend
+([issue #911](https://github.com/buddy-compiler/buddy-mlir/issues/911)).
 
-## Pipeline under test
+## Compilation path
 
 ```text
-PyTorch eager / nn.Module
-        │  TorchDynamo + AOTAutograd decomp (optional inductor decomp)
-        ▼
-FX graph (aten / prims symbols)
-        │  DynamoCompiler._ops_map   →  Buddy Graph Op classes
-        ▼
-Buddy Graph
-        │  ops_registry (tosa / linalg / math / func / ttir)
-        ▼
-Top-level MLIR
-        │  buddy-opt / codegen / ExecutionEngine   (live / CI)
-        ▼
-Compiled artifact (+ optional numerical check vs PyTorch)
+PyTorch module / function
+  → TorchDynamo (+ optional AOTAutograd / Inductor decompositions)
+  → FX graph (ATen / Prim symbols)
+  → DynamoCompiler._ops_map  (frontend recognition)
+  → Buddy Graph
+  → ops_registry lowering (tosa / linalg / math / func / ttir)
+  → top-level MLIR
+  → compile / run  (optional correctness check vs PyTorch)
 ```
 
-Key sources in-tree:
+Relevant sources:
 
 | Stage | Location |
 | --- | --- |
 | Frontend map | `frontend/Python/frontend.py` (`DynamoCompiler._ops_map`) |
-| Buddy Graph ops | `frontend/Python/graph/operation.py` |
-| Lowerings | `frontend/Python/ops/{tosa,linalg,math,func,ttir,ttir_llm}.py` |
-| Import examples | `examples/BuddyPython/module_gen.py`, model `import-*.py` |
-| Tool | `tools/pytorch_op_coverage/` |
+| Graph ops | `frontend/Python/graph/operation.py` |
+| Lowerings | `frontend/Python/ops/*.py` |
+| Coverage scripts | `scripts/pytorch_op_coverage/` |
 
-A frontend mapping **alone** is not full support.
+A frontend mapping alone does **not** count as full support.
 
 ## Coverage levels
 
-| Level | Meaning | How MVP measures it |
-| --- | --- | --- |
-| Frontend-recognized | ATen overload key present in `_ops_map` | Static parse |
-| Lowered | Buddy Graph op has an `ops_registry` entry (static), or `lower_to_top_level_ir()` succeeds (live) | Static + live |
-| Compiled | Module compiles through Buddy pipeline | Live (stubbed in MVP; wire `buddy-opt` next) |
-| Correctness-validated | Numerical match vs PyTorch on probe inputs | Live (stubbed in MVP) |
-| Unsupported | Missing from `_ops_map` for the target key | Static |
-| Partial | Mapped + lowered, but known attribute/shape/dtype limits | Annotated in target set |
-| Limited shapes/dtypes | Supported only for a subset of schemas | Same as partial; expand with probe matrix later |
+| Level | Meaning |
+| --- | --- |
+| Frontend-recognized | ATen overload key is present in `_ops_map` |
+| Lowered | Buddy Graph op has an `ops_registry` entry (static), or `lower_to_top_level_ir()` succeeds (live) |
+| Compiled | Module compiles through the Buddy pipeline |
+| Correctness-validated | Output matches PyTorch on probe inputs |
+| Unsupported | Missing from `_ops_map` for the target key |
+| Partial / limited | Mapped and lowered, but known limits on attrs, shapes, or dtypes |
 
-### Status labels emitted by the tool
+For the issue **90%+** target, an operator should count as fully supported only when it is
+frontend-recognized, lowered, compiled, and correctness-validated.
+Partial operators are reported separately and are not counted in that numerator.
 
-- `fully_supported_static` — frontend + lowering found (evidence for scaffolding only)
-- `partial` — frontend + lowering, but flagged limited
-- `frontend_only` — mapped, no lowering registry entry found
-- `unsupported` — not in `_ops_map`
-- `live_passed` / `live_failed` / skip notes — when `--mode live`
+## Target operator set (denominator)
 
-## Denominator for the 90%+ target
+Coverage percentage is always relative to a named set:
 
-**Name:** Buddy Target Op Set v0  
-**File:** `tools/pytorch_op_coverage/data/target_ops_v0.json`
+- **Name:** Buddy Target Op Set v0
+- **File:** `scripts/pytorch_op_coverage/data/target_ops_v0.json`
 
-Rules:
+v0 seeds common dense-Transformer ATen symbols plus MoE-critical routing / dispatch /
+index / scatter-gather ops. Expand the set from real workload traces and bump the
+version (`v0.1`, `v1`, …) when the denominator changes.
 
-1. The denominator is the set of **unique ATen overload keys** listed in v0
-   (Transformer core ∪ MoE-critical ∪ ViT extras, de-duplicated).
-2. Percentage claims for issue #911 must state which set version was used.
-3. Until live compile+correctness is enabled in CI, reports may publish
-   `fully_supported_static_pct` but **must not** claim the issue’s 90% acceptance
-   criterion is met.
-4. v0 is a seed. Expand by tracing representative workloads (Llama/Qwen,
-   DeepSeek-MoE style routing, ViT, Whisper, embeddings) and adding newly seen
-   aten keys to a versioned set (`v0.1`, `v1`, …).
-
-### Suggested “fully supported” predicate (for the final 90% claim)
-
-An op counts as fully supported only if:
-
-`frontend_recognized ∧ lowered ∧ compiled ∧ correctness_validated`
-
-Partial / limited ops count toward a separate bucket, not toward the 90%
-numerator.
+Static reports may publish `fully_supported_static` (frontend map + lowering found).
+That metric is **not** the same as the live 90% acceptance criterion.
 
 ## MoE focus
 
-MoE-critical families in v0 emphasize:
+The MoE-critical subset prioritizes:
 
 - routing / gating (`topk`, `softmax`, comparisons)
 - expert dispatch / combine (`index*`, `gather`, `scatter*`, `masked_*`)
 - dynamic tensor ops (`nonzero`, `where`, `repeat_interleave`, splits)
-- expert GEMM (`mm`, `bmm`, `addmm`) and activations
+- expert GEMM and activations (`mm`, `bmm`, `addmm`, `silu`, `gelu`, …)
 
-Gaps in this subset are prioritized ahead of long-tail special functions.
+## How to reproduce
 
-## Reproducing the report
+From the repository root, after the normal Buddy Python package build
+(`BUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON`):
 
 ```bash
-# Static (Windows/Linux, no Buddy build)
-python tools/pytorch_op_coverage/run_coverage.py \
-  --out-dir tools/pytorch_op_coverage/out
+# Static analysis (parses frontend sources; does not need a running Buddy build)
+python scripts/pytorch_op_coverage/run_coverage.py \
+  --out-dir scripts/pytorch_op_coverage/out
 
-# Live (Linux/WSL recommended)
-python tools/pytorch_op_coverage/run_coverage.py --mode live \
-  --out-dir tools/pytorch_op_coverage/out
+# Live probes (requires torch + buddy.compiler on PYTHONPATH)
+export PYTHONPATH=$PWD/build/python_packages:$PWD/llvm/build/tools/mlir/python_packages/mlir_core:$PYTHONPATH
+python scripts/pytorch_op_coverage/run_coverage.py --mode live \
+  --out-dir scripts/pytorch_op_coverage/out
 ```
 
-See `tools/pytorch_op_coverage/README.md` for `PYTHONPATH` setup.
+Outputs:
 
-## Out of scope for the first MVP PR
+- `pytorch_op_coverage.json` — machine-readable
+- `pytorch_op_coverage.md` — human-readable summary
 
-- Implementing every missing MoE op
-- Claiming 90% coverage without live measurement
-- Full model E2E as the only coverage signal (used for validation, not as the
-  sole denominator)
+Live mode currently exercises a small seed probe set through import and
+`lower_to_top_level_ir`. Compile and numerical checks are the next iteration.

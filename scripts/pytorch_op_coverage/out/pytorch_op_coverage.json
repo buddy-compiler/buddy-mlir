@@ -1,9 +1,9 @@
 {
-  "generated_at": "2026-09-16T16:10:43.295581+00:00",
+  "generated_at": "2026-09-17T00:53:49.844289+00:00",
   "issue": "https://github.com/buddy-compiler/buddy-mlir/issues/911",
   "mode": "static",
-  "repo_rev": "6699773",
-  "target_set": "C:\\Temp\\buddy-mlir-911\\buddy-mlir\\tools\\pytorch_op_coverage\\data\\target_ops_v0.json",
+  "repo_rev": "eaceca2",
+  "target_set": "scripts\\pytorch_op_coverage\\data\\target_ops_v0.json",
   "summary": {
     "denominator": "Buddy Target Op Set v0 (unique aten keys)",
     "total_ops": 108,
@@ -30,7 +30,7 @@
       "partial": 7,
       "unsupported": 5
     },
-    "disclaimer": "fully_supported_static is NOT live compile/correctness coverage. Do not claim issue #911 90% until live mode measures compiled+correct."
+    "disclaimer": "fully_supported_static is not live compile/correctness coverage. Do not claim issue #911 90% until live measurements are available."
   },
   "operators": [
     {
@@ -53,7 +53,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -77,7 +77,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -100,7 +100,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -121,7 +121,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -145,7 +145,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -169,7 +169,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -192,7 +192,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -214,7 +214,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -237,7 +237,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -259,7 +259,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -283,7 +283,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -305,7 +305,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -328,7 +328,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -351,7 +351,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -373,7 +373,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -395,7 +395,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -416,7 +416,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -438,7 +438,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -461,7 +461,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -483,7 +483,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -507,7 +507,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -529,7 +529,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -550,7 +550,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -573,7 +573,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -596,7 +596,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -618,7 +618,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -641,7 +641,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -663,7 +663,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -687,7 +687,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -711,7 +711,7 @@
       "correctness": "not_run",
       "status": "partial",
       "known_limitations": "FX often emits view.default; tracked via decomp_aliases.",
-      "notes": "No direct _ops_map entry; expected via decomp/alias → `view.default` → `ViewOp`.",
+      "notes": "No direct _ops_map entry; covered via decomp/alias `view.default` → `ViewOp`.",
       "live_error": null
     },
     {
@@ -734,7 +734,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -756,7 +756,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -779,7 +779,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -801,7 +801,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -824,7 +824,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -846,7 +846,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -869,7 +869,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -891,7 +891,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -913,7 +913,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -936,7 +936,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -958,7 +958,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -980,7 +980,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -1002,7 +1002,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -1024,7 +1024,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -1046,7 +1046,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -1068,7 +1068,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -1090,7 +1090,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -1111,7 +1111,7 @@
       "correctness": "not_run",
       "status": "partial",
       "known_limitations": "CPU flash path; GPU/other backends may differ.",
-      "notes": "Frontend + lowering present; flagged as limited/partial in target set.",
+      "notes": "Frontend + lowering present; flagged as limited in the target set.",
       "live_error": null
     },
     {
@@ -1134,7 +1134,7 @@
       "correctness": "not_run",
       "status": "partial",
       "known_limitations": "Advanced indexing / None / boolean masks may be partial.",
-      "notes": "Frontend + lowering present; flagged as limited/partial in target set.",
+      "notes": "Frontend + lowering present; flagged as limited in the target set.",
       "live_error": null
     },
     {
@@ -1156,7 +1156,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -1178,7 +1178,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -1200,7 +1200,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -1221,7 +1221,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -1242,7 +1242,7 @@
       "correctness": "not_run",
       "status": "partial",
       "known_limitations": "Buddy KV-cache helper; not a generic ATen public op.",
-      "notes": "Frontend + lowering present; flagged as limited/partial in target set.",
+      "notes": "Frontend + lowering present; flagged as limited in the target set.",
       "live_error": null
     },
     {
@@ -1263,7 +1263,7 @@
       "correctness": "not_run",
       "status": "partial",
       "known_limitations": "Buddy KV-cache helper; not a generic ATen public op.",
-      "notes": "Frontend + lowering present; flagged as limited/partial in target set.",
+      "notes": "Frontend + lowering present; flagged as limited in the target set.",
       "live_error": null
     },
     {
@@ -1285,7 +1285,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -1306,7 +1306,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -1328,7 +1328,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -1350,7 +1350,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -1372,7 +1372,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -1393,7 +1393,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -1414,7 +1414,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -1435,7 +1435,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -1456,7 +1456,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -1477,7 +1477,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -1498,7 +1498,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -1519,7 +1519,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -1541,7 +1541,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -1563,7 +1563,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -1586,7 +1586,7 @@
       "correctness": "not_run",
       "status": "partial",
       "known_limitations": "Often elided; treated as alias of clone.default when present.",
-      "notes": "No direct _ops_map entry; expected via decomp/alias → `clone.default` → `CloneOp`.",
+      "notes": "No direct _ops_map entry; covered via decomp/alias `clone.default` → `CloneOp`.",
       "live_error": null
     },
     {
@@ -1607,7 +1607,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -1629,7 +1629,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -1650,7 +1650,7 @@
       "correctness": "not_run",
       "status": "partial",
       "known_limitations": "Often shape/k-attr limited; validate expert routing sizes.",
-      "notes": "Frontend + lowering present; flagged as limited/partial in target set.",
+      "notes": "Frontend + lowering present; flagged as limited in the target set.",
       "live_error": null
     },
     {
@@ -1672,7 +1672,7 @@
       "correctness": "not_run",
       "status": "partial",
       "known_limitations": "FX often emits _softmax.default; tracked via decomp_aliases.",
-      "notes": "No direct _ops_map entry; expected via decomp/alias → `_softmax.default` → `SoftmaxOp`.",
+      "notes": "No direct _ops_map entry; covered via decomp/alias `_softmax.default` → `SoftmaxOp`.",
       "live_error": null
     },
     {
@@ -1712,7 +1712,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -1734,7 +1734,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -1755,7 +1755,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -1776,7 +1776,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -1798,7 +1798,7 @@
       "correctness": "not_run",
       "status": "partial",
       "known_limitations": "Accumulate / advanced indexing may be partial.",
-      "notes": "Frontend + lowering present; flagged as limited/partial in target set.",
+      "notes": "Frontend + lowering present; flagged as limited in the target set.",
       "live_error": null
     },
     {
@@ -1857,7 +1857,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -1878,7 +1878,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -1899,7 +1899,7 @@
       "correctness": "not_run",
       "status": "partial",
       "known_limitations": "Reduce mode / dtype coverage may be partial.",
-      "notes": "Frontend + lowering present; flagged as limited/partial in target set.",
+      "notes": "Frontend + lowering present; flagged as limited in the target set.",
       "live_error": null
     },
     {
@@ -1920,7 +1920,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -1941,7 +1941,7 @@
       "correctness": "not_run",
       "status": "partial",
       "known_limitations": "Reduce mode / dtype coverage may be partial.",
-      "notes": "Frontend + lowering present; flagged as limited/partial in target set.",
+      "notes": "Frontend + lowering present; flagged as limited in the target set.",
       "live_error": null
     },
     {
@@ -1962,7 +1962,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -1983,7 +1983,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -2004,7 +2004,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -2025,7 +2025,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -2084,7 +2084,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -2105,7 +2105,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -2126,7 +2126,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -2148,7 +2148,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -2169,7 +2169,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -2190,7 +2190,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -2211,7 +2211,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -2232,7 +2232,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -2253,7 +2253,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -2274,7 +2274,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -2295,7 +2295,7 @@
       "correctness": "not_run",
       "status": "partial",
       "known_limitations": "Often lowers via constant_pad_nd; tracked via decomp_aliases.",
-      "notes": "No direct _ops_map entry; expected via decomp/alias → `constant_pad_nd.default` → `ConstantPadNdOp`.",
+      "notes": "No direct _ops_map entry; covered via decomp/alias `constant_pad_nd.default` → `ConstantPadNdOp`.",
       "live_error": null
     },
     {
@@ -2316,7 +2316,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {
@@ -2337,7 +2337,7 @@
       "correctness": "not_run",
       "status": "fully_supported_static",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static evidence only).",
+      "notes": "Frontend map + at least one dialect lowering (static only).",
       "live_error": null
     },
     {

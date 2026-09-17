@@ -1,10 +1,10 @@
 # Buddy-MLIR PyTorch Operator Coverage Report
 
-- Generated (UTC): `2026-09-16T16:10:43.295581+00:00`
+- Generated (UTC): `2026-09-17T00:53:49.844289+00:00`
 - Issue: https://github.com/buddy-compiler/buddy-mlir/issues/911
 - Mode: `static`
-- Repo rev: `6699773`
-- Target set: `C:\Temp\buddy-mlir-911\buddy-mlir\tools\pytorch_op_coverage\data\target_ops_v0.json`
+- Repo rev: `eaceca2`
+- Target set: `scripts\pytorch_op_coverage\data\target_ops_v0.json`
 
 ## Summary
 
@@ -17,7 +17,7 @@
 - Frontend only (no lowering): **0**
 - Unsupported: **7** (6.48%)
 
-> fully_supported_static is NOT live compile/correctness coverage. Do not claim issue #911 90% until live mode measures compiled+correct.
+> fully_supported_static is not live compile/correctness coverage. Do not claim issue #911 90% until live measurements are available.
 
 ## MoE-critical subset
 
@@ -59,10 +59,8 @@
 
 _None._
 
-## High-priority follow-ups
+## Follow-ups
 
-1. Enable live mode (import→lower→compile→correctness) on Linux/WSL CI.
-2. Trace real MoE workloads to expand the denominator beyond v0 seed.
-3. Prioritize unsupported MoE ops that block expert dispatch/combine.
-4. Add regression microtests for each newly supported MoE op.
-
+1. Enable live compile and numerical checks in CI.
+2. Expand the target set from MoE / Transformer workload traces.
+3. Add regression tests for high-priority unsupported MoE ops.

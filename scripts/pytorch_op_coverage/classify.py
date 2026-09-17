@@ -1,14 +1,9 @@
-# ===- classify.py - Coverage status classification -------------------------===
-#
-# Licensed under the Apache License, Version 2.0 (the "License").
-# ===----------------------------------------------------------------------===
-"""Classify each target ATen op into coverage buckets for issue #911."""
+"""Classify target ATen ops into Buddy-MLIR coverage buckets."""
 
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
-
 
 Status = Literal[
     "fully_supported_static",
@@ -31,7 +26,7 @@ class OpCoverageRecord:
     frontend_recognized: bool = False
     has_buddy_lowering: bool = False
     lowering_dialects: list[str] = field(default_factory=list)
-    lowered: str = "not_run"  # yes|no|not_run|error
+    lowered: str = "not_run"
     compiled: str = "not_run"
     correctness: str = "not_run"
     status: Status = "unsupported"
@@ -58,18 +53,17 @@ def classify_static(
     has_lowering = bool(dialects)
     limitation = known_partial.get(aten)
     aliases = (decomp_aliases or {}).get(aten, [])
-    alias_hits = [a for a in aliases if a in ops_map]
+    alias_hits = [alias for alias in aliases if alias in ops_map]
 
     if not frontend and alias_hits:
-        # Count as recognized via documented decomp/alias path, but partial.
         alias = alias_hits[0]
         buddy_op = ops_map[alias]
         dialects = lowering_by_op.get(buddy_op or "", [])
         has_lowering = bool(dialects)
         status: Status = "partial"
         notes = (
-            f"No direct _ops_map entry; expected via decomp/alias → `{alias}` "
-            f"→ `{buddy_op}`."
+            f"No direct _ops_map entry; covered via decomp/alias "
+            f"`{alias}` → `{buddy_op}`."
         )
         limitation = limitation or f"Alias/decomp of {alias}"
         frontend = True
@@ -79,15 +73,15 @@ def classify_static(
     elif not has_lowering:
         status = "frontend_only"
         notes = (
-            f"Mapped to {buddy_op} but no ops_registry lowering found "
-            f"in tosa/linalg/math/func/ttir."
+            f"Mapped to {buddy_op}, but no ops_registry lowering found "
+            "in tosa/linalg/math/func/ttir."
         )
     elif limitation:
         status = "partial"
-        notes = "Frontend + lowering present; flagged as limited/partial in target set."
+        notes = "Frontend + lowering present; flagged as limited in the target set."
     else:
         status = "fully_supported_static"
-        notes = "Frontend map + at least one dialect lowering (static evidence only)."
+        notes = "Frontend map + at least one dialect lowering (static only)."
 
     return OpCoverageRecord(
         aten=aten,
@@ -107,19 +101,18 @@ def classify_static(
 def summarize(records: list[OpCoverageRecord]) -> dict[str, Any]:
     total = len(records)
     by_status: dict[str, int] = {}
-    for r in records:
-        by_status[r.status] = by_status.get(r.status, 0) + 1
+    for record in records:
+        by_status[record.status] = by_status.get(record.status, 0) + 1
+
+    def pct(n: int) -> float:
+        return round(100.0 * n / total, 2) if total else 0.0
 
     frontend_n = sum(1 for r in records if r.frontend_recognized)
     lowering_n = sum(1 for r in records if r.has_buddy_lowering)
-    # Static "coverage" used for MVP denominator progress (NOT the final 90% claim).
     static_full = sum(1 for r in records if r.status == "fully_supported_static")
     partial_n = sum(1 for r in records if r.status == "partial")
     unsupported_n = sum(1 for r in records if r.status == "unsupported")
     frontend_only_n = sum(1 for r in records if r.status == "frontend_only")
-
-    def pct(n: int) -> float:
-        return round(100.0 * n / total, 2) if total else 0.0
 
     moe = [r for r in records if "moe_critical" in (r.families or [r.family])]
     moe_total = len(moe)
@@ -153,7 +146,7 @@ def summarize(records: list[OpCoverageRecord]) -> dict[str, Any]:
             "unsupported": moe_unsupported,
         },
         "disclaimer": (
-            "fully_supported_static is NOT live compile/correctness coverage. "
-            "Do not claim issue #911 90% until live mode measures compiled+correct."
+            "fully_supported_static is not live compile/correctness coverage. "
+            "Do not claim issue #911 90% until live measurements are available."
         ),
     }

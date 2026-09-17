@@ -1,16 +1,8 @@
-# ===- probes.py - Optional live import/lower/compile probes ---------------===
-#
-# Licensed under the Apache License, Version 2.0 (the "License").
-# ===----------------------------------------------------------------------===
-"""
-Live probes for Buddy-MLIR PyTorch coverage.
+"""Optional live DynamoCompiler probes for coverage measurement.
 
-Requires:
-  - torch
-  - buddy.compiler (BUDDY_MLIR_ENABLE_PYTHON_PACKAGES build + PYTHONPATH)
-  - MLIR Python bindings on PYTHONPATH
-
-On machines without the stack, run_coverage.py stays in static mode.
+Requires torch and buddy.compiler (Buddy built with
+BUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON, PYTHONPATH set). Without that stack,
+`run_coverage.py` should stay in static mode.
 """
 
 from __future__ import annotations
@@ -26,21 +18,20 @@ class ProbeSpec:
     note: str = ""
 
 
-def _try_import_stack() -> tuple[bool, str]:
+def try_import_stack() -> tuple[bool, str]:
     try:
         import torch  # noqa: F401
-    except Exception as exc:  # pragma: no cover
+    except Exception as exc:
         return False, f"torch unavailable: {exc}"
     try:
         from buddy.compiler.frontend import DynamoCompiler  # noqa: F401
         from buddy.compiler.ops import tosa  # noqa: F401
-    except Exception as exc:  # pragma: no cover
+    except Exception as exc:
         return False, f"buddy.compiler unavailable: {exc}"
     return True, "ok"
 
 
 def seed_probes() -> dict[str, ProbeSpec]:
-    """Small seed probes; expand as live env becomes available."""
     import torch
 
     def add():
@@ -65,10 +56,7 @@ def seed_probes() -> dict[str, ProbeSpec]:
         def fn(x, idx):
             return torch.gather(x, 1, idx)
 
-        return fn, (
-            torch.randn(2, 8),
-            torch.randint(0, 8, (2, 3)),
-        )
+        return fn, (torch.randn(2, 8), torch.randint(0, 8, (2, 3)))
 
     def scatter_add():
         def fn(x, idx, src):
@@ -106,11 +94,7 @@ def seed_probes() -> dict[str, ProbeSpec]:
 
 
 def run_live_probe(aten: str, probe: ProbeSpec) -> dict[str, Any]:
-    """
-    Import → lower_to_top_level_ir. Compilation/correctness are best-effort.
-
-    Returns status fields consumable by classify records.
-    """
+    """Import and lower one probe. Compile/correctness are left for follow-up."""
     from torch._inductor.decomposition import decompositions as inductor_decomp
 
     from buddy.compiler.frontend import DynamoCompiler
@@ -121,7 +105,6 @@ def run_live_probe(aten: str, probe: ProbeSpec) -> dict[str, Any]:
         "compiled": "not_run",
         "correctness": "not_run",
         "error": None,
-        "seen_aten": [],
     }
     try:
         fn, args = probe.builder()
@@ -133,19 +116,12 @@ def run_live_probe(aten: str, probe: ProbeSpec) -> dict[str, Any]:
         if not graphs:
             result["error"] = "importer returned no graphs"
             return result
-        graph = graphs[0]
-        # Collect aten-like names present after import (buddy node names differ;
-        # keep FX tabular dump when verbose is needed later).
-        graph.lower_to_top_level_ir()
+        graphs[0].lower_to_top_level_ir()
         result["lowered"] = "yes"
-        # Full buddy-opt / ExecutionEngine compile is env-specific; mark pending.
-        result["compiled"] = "not_run"
-        result["correctness"] = "not_run"
         result["note"] = (
-            "Lowered to top-level MLIR. Compile+correctness hooks left for "
-            "follow-up once buddy-opt pipeline is wired in CI."
+            "Lowered to top-level MLIR; compile/correctness not wired yet."
         )
-    except Exception as exc:  # pragma: no cover - depends on env
+    except Exception as exc:
         result["error"] = f"{type(exc).__name__}: {exc}"
         result["lowered"] = "error"
     return result
