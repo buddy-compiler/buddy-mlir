@@ -1,0 +1,11 @@
+test_build_contract_rejects_ambiguous_or_invalid_text_modes (test_fixed_prompt.FixedPrompt.test_build_contract_rejects_ambiguous_or_invalid_text_modes) ... ok
+test_decoded_output_overflow_fails_without_partial_success (test_fixed_prompt.FixedPrompt.test_decoded_output_overflow_fails_without_partial_success) ... ok
+test_different_logits_change_text_even_with_unrelated_oracle (test_fixed_prompt.FixedPrompt.test_different_logits_change_text_even_with_unrelated_oracle) ... ok
+test_encoded_length_mismatch_rejected_before_graph (test_fixed_prompt.FixedPrompt.test_encoded_length_mismatch_rejected_before_graph) ... ok
+test_expected_id_mismatch_rejected_before_graph (test_fixed_prompt.FixedPrompt.test_expected_id_mismatch_rejected_before_graph) ... ok
+test_real_encoder_prefill_eight_decode_eos_and_actual_text (test_fixed_prompt.FixedPrompt.test_real_encoder_prefill_eight_decode_eos_and_actual_text) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 4.506s
+
+OK

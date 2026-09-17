@@ -1,0 +1,31 @@
+{
+  "name": "kv_cache_update_16x8x128",
+  "kind": "kv_cache_update",
+  "dtype": "f32",
+  "description": "Append projected/rotated K or projected V from [S,8,128] into [8,32,128] cache; preserve untouched entries",
+  "entry": "kernel_kv_cache_update_16x8x128",
+  "workspace_bytes": 196608,
+  "buffers": [
+    {
+      "name": "x",
+      "shape": [
+        16,
+        8,
+        128
+      ],
+      "dtype": "f32",
+      "offset": 0
+    },
+    {
+      "name": "cache",
+      "shape": [
+        8,
+        32,
+        128
+      ],
+      "dtype": "f32",
+      "offset": 65536
+    }
+  ],
+  "validation": "All output elements versus an independent C oracle; host oracle uses libm double precision."
+}

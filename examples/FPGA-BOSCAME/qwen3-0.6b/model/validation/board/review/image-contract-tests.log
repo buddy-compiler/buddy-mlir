@@ -1,0 +1,32 @@
+test_boot_bytes_and_only_canonical_zero_padding (test_deployment_contracts.DeploymentContracts.test_boot_bytes_and_only_canonical_zero_padding) ... ok
+test_resource_must_fit_its_own_arena_not_entire_workspace (test_deployment_contracts.DeploymentContracts.test_resource_must_fit_its_own_arena_not_entire_workspace) ... ok
+test_resource_requires_explicit_end_label_and_workspace_bounds (test_deployment_contracts.DeploymentContracts.test_resource_requires_explicit_end_label_and_workspace_bounds) ... ok
+test_layer_capture_keeps_prefill_and_decode_shapes_separate (test_graph_contracts.EvidenceContracts.test_layer_capture_keeps_prefill_and_decode_shapes_separate) ... ok
+test_matching_later_tokens_does_not_hide_prefill_divergence (test_graph_contracts.EvidenceContracts.test_matching_later_tokens_does_not_hide_prefill_divergence) ... ok
+test_nr_profile_models_single_rounding_fma (test_graph_contracts.EvidenceContracts.test_nr_profile_models_single_rounding_fma) ... ok
+test_shape_and_nonfinite_errors_are_not_success (test_graph_contracts.EvidenceContracts.test_shape_and_nonfinite_errors_are_not_success) ... ok
+test_returned_outputs_do_not_alias (test_graph_contracts.MatchContracts.test_returned_outputs_do_not_alias)
+Compile generated adapters and keep two equal-shaped results live. ... ok
+test_rmsnorm_rejects_different_math (test_graph_contracts.MatchContracts.test_rmsnorm_rejects_different_math) ... ok
+test_square_linear_rejects_identity_permutation (test_graph_contracts.MatchContracts.test_square_linear_rejects_identity_permutation) ... ok
+test_interactive_uses_last_prompt_prediction (test_image_abi.ImageABI.test_interactive_uses_last_prompt_prediction) ... ok
+test_multilayer_return_and_cache_lifetime (test_image_abi.ImageABI.test_multilayer_return_and_cache_lifetime) ... ok
+test_reject_cache_shape_with_unchanged_descriptor_ranks (test_image_abi.ImageABI.test_reject_cache_shape_with_unchanged_descriptor_ranks) ... ok
+test_reject_context_overflow (test_image_abi.ImageABI.test_reject_context_overflow) ... ok
+test_reject_layer_mismatch (test_image_abi.ImageABI.test_reject_layer_mismatch) ... ok
+test_reject_missing_workspace (test_image_abi.ImageABI.test_reject_missing_workspace) ... ok
+test_reject_token_shape_with_unchanged_descriptor_ranks (test_image_abi.ImageABI.test_reject_token_shape_with_unchanged_descriptor_ranks) ... ok
+test_reject_workspace_dtype_with_opaque_llvm_pointers (test_image_abi.ImageABI.test_reject_workspace_dtype_with_opaque_llvm_pointers) ... ok
+test_reject_wrong_output_dtype_or_aggregate_layout (test_image_abi.ImageABI.test_reject_wrong_output_dtype_or_aggregate_layout) ... ok
+test_require_imported_abi (test_image_abi.ImageABI.test_require_imported_abi) ... ok
+test_independent_integer_oracle_and_multiply_order (test_quant_reference.QuantizationContract.test_independent_integer_oracle_and_multiply_order) ... ok
+test_reject_invalid_contract (test_quant_reference.QuantizationContract.test_reject_invalid_contract) ... ok
+test_zero_signed_half_and_saturation (test_quant_reference.QuantizationContract.test_zero_signed_half_and_saturation) ... ok
+test_duplicate_results_and_failures_rejected (test_tokenizer_probe.TokenizerProbeVerification.test_duplicate_results_and_failures_rejected) ... ok
+test_host_evidence_is_never_board_evidence (test_tokenizer_probe.TokenizerProbeVerification.test_host_evidence_is_never_board_evidence) ... ok
+test_pass_labels_do_not_hide_wrong_or_missing_results (test_tokenizer_probe.TokenizerProbeVerification.test_pass_labels_do_not_hide_wrong_or_missing_results) ... ok
+
+----------------------------------------------------------------------
+Ran 26 tests in 5.824s
+
+OK

@@ -1,0 +1,47 @@
+{
+  "name": "kv_cache_update_position_16x8x128_cap512",
+  "family": "kv_cache_update_position",
+  "kernel": "kv_cache_update_position",
+  "symbol": "triton_kv_cache_update_position_16x8x128_cap512",
+  "arguments": [
+    {
+      "name": "X",
+      "rank": 3,
+      "dtype": "f32"
+    },
+    {
+      "name": "Position",
+      "rank": 1,
+      "dtype": "i32"
+    },
+    {
+      "name": "Cache",
+      "rank": 3,
+      "dtype": "f32"
+    }
+  ],
+  "signature": {
+    "X": "*fp32",
+    "Position": "*i32",
+    "Cache": "*fp32"
+  },
+  "constexprs": {
+    "CAPACITY": 512
+  },
+  "grid": [
+    16,
+    8,
+    1
+  ],
+  "directory": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/model-cases/kv_cache_update_position_16x8x128_cap512",
+  "launch_source": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/model-cases/kv_cache_update_position_16x8x128_cap512/launch.c",
+  "validation": "Unmodified parent launch.c and its independent numerical oracle",
+  "frontend": "triton.compiler.ASTSource -> CPUBackend.make_ttir -> triton-riscv _ttir_to_ttsharedir",
+  "triton_version": "3.8.0",
+  "kernels_sha256": "0596945721efbd12958267ad0093e59cf8cac464316b14cda1af4b78e236f930",
+  "exporter_sha256": "266a64dda66018359776c61fbbee1c9e8109ff554938a0cc4e66a5d50d0fc56a",
+  "cases_sha256": "3e6e4bb2654df8781feccfa0a0974a2d35962282d33ec98622e52c55a6dfdba7",
+  "ttir_sha256": "2b97ac235f13b5eec6af342d351db07d11ef563b833d82285a46ab63a1a12a29",
+  "linalg_sha256": "dcef2f6c81668349bfdcb4386608a07012a4698afda826406328d3260c1e6970",
+  "abi": "unranked memref: (i64 rank=0, rank-0 descriptor pointer) per tensor, then six i32 grid/pid values"
+}

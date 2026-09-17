@@ -1,0 +1,50 @@
+{
+  "run_id": "run-baf62e6e7b5242a1",
+  "image_sha256": "f07bb95c4cd904a4e22fd1d86e2fd60d01b1f13cfb890f0a78f4ef6e88760fc1",
+  "uart_sha256": "24719d7360aa0bd1891d60177140b4c0cfa01fae28688c33603e689ec4a036ea",
+  "ddr_readback_matches": true,
+  "supported": [
+    "vsetvli+vle32+vse32",
+    "vmv.v.v",
+    "vfadd.vv",
+    "vfsub.vv",
+    "vfmul.vv",
+    "vfdiv.vv",
+    "vfmacc.vv",
+    "vfadd.vf",
+    "vfmul.vf",
+    "vfdiv.vf",
+    "vfmacc.vf",
+    "vfsqrt.v",
+    "vfredusum.vs",
+    "vfredosum.vs",
+    "vfredmax.vs",
+    "vfmax.vv",
+    "vfmin.vv",
+    "vfcvt.x.f.v",
+    "vfcvt.rtz.x.f.v",
+    "vfcvt.f.x.v",
+    "vfmv.v.f",
+    "vmv.v.i",
+    "vfmv.f.s",
+    "vfmadd.vv",
+    "vmv1r.v",
+    "vsetivli",
+    "vle8.v+vse8.v(e8,mf4,VL16)",
+    "vle64.v+vse64.v(e64,m1,VL2)",
+    "vle64.v+vse64.v(e64,m1,VL4)"
+  ],
+  "unsupported_illegal": [
+    "csrr.vlenb",
+    "csrr.vl",
+    "csrr.vtype"
+  ],
+  "executed_numeric_failure": [
+    "vl1re32.v+vs1r.v",
+    "vmv1r.v(after VL1/e8)"
+  ],
+  "copy_cases": 384,
+  "copy_errors": 0,
+  "expected_runtime_status": "FAIL",
+  "interpretation": "vmv1r.v after VL1/e8 fails all 16 output lanes despite passing under e32/VL16. Production rejects every whole-register move. Whole-register memory still has 12 errors and 3 vector CSR reads remain illegal."
+}

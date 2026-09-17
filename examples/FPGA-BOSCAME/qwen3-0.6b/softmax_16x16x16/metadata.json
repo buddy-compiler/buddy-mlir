@@ -1,0 +1,49 @@
+{
+  "name": "softmax_16x16x16",
+  "kind": "softmax",
+  "dtype": "f32",
+  "description": "Stable attention softmax: subtract row maximum, exponentiate and normalize along cache length",
+  "entry": "kernel_softmax_16x16x16",
+  "workspace_bytes": 34816,
+  "buffers": [
+    {
+      "name": "x",
+      "shape": [
+        16,
+        16,
+        16
+      ],
+      "dtype": "f32",
+      "offset": 0
+    },
+    {
+      "name": "maxima",
+      "shape": [
+        16,
+        16
+      ],
+      "dtype": "f32",
+      "offset": 16384
+    },
+    {
+      "name": "sums",
+      "shape": [
+        16,
+        16
+      ],
+      "dtype": "f32",
+      "offset": 17408
+    },
+    {
+      "name": "out",
+      "shape": [
+        16,
+        16,
+        16
+      ],
+      "dtype": "f32",
+      "offset": 18432
+    }
+  ],
+  "validation": "All output elements versus an independent C oracle; host oracle uses libm double precision."
+}

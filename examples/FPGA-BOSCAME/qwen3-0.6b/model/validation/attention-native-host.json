@@ -1,0 +1,123 @@
+{
+  "status": "HOST_VECTOR_HOST_ELF_PASS",
+  "fpga_status": "PASS: 65 strict length checks on FPGA5; see validation/board/review/attention-native/validation.json",
+  "scope": "QK direct [head,capacity,head_dim] cache only",
+  "kernels": {
+    "attention_qk_position_native_16x16x512x128": {
+      "valid_lengths": [
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        31,
+        32,
+        33,
+        63,
+        64,
+        65,
+        127,
+        128,
+        129,
+        255,
+        256,
+        257,
+        511,
+        512,
+        65,
+        64,
+        63,
+        24,
+        23,
+        17,
+        16
+      ],
+      "poison": "NaN in invalid cache; both reduction operands poisoned for PV",
+      "bounds": "64-byte sentinel before/after every buffer; Position remains unchanged",
+      "kernel_module": "kernels_position_native",
+      "bk": 64,
+      "frontend_sha256": "287b3d3c97fcf7cde23f1cf47e330d8ad817260eec6ab92020c9769ec49fb4e4",
+      "host_log": "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/attention-native-kernels/attention_qk_position_native_16x16x512x128/host/output.log",
+      "vector_host_log": "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/attention-native-kernels/attention_qk_position_native_16x16x512x128/nr/vector-host.log",
+      "nr_manifest": "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/attention-native-kernels/attention_qk_position_native_16x16x512x128/nr/manifest.json"
+    },
+    "attention_qk_position_native_16x1x512x128": {
+      "valid_lengths": [
+        1,
+        2,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        31,
+        32,
+        33,
+        63,
+        64,
+        65,
+        127,
+        128,
+        129,
+        255,
+        256,
+        257,
+        511,
+        512,
+        65,
+        64,
+        63,
+        24,
+        23,
+        17,
+        16,
+        2,
+        1
+      ],
+      "poison": "NaN in invalid cache; both reduction operands poisoned for PV",
+      "bounds": "64-byte sentinel before/after every buffer; Position remains unchanged",
+      "kernel_module": "kernels_position_native",
+      "bk": 64,
+      "frontend_sha256": "f97c484f576b40d1d2fc5a5348d27ed37358a154427a93366f842b58f96e49b0",
+      "host_log": "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/attention-native-kernels/attention_qk_position_native_16x1x512x128/host/output.log",
+      "vector_host_log": "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/attention-native-kernels/attention_qk_position_native_16x1x512x128/nr/vector-host.log",
+      "nr_manifest": "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/attention-native-kernels/attention_qk_position_native_16x1x512x128/nr/manifest.json"
+    }
+  },
+  "suite_audit": {
+    "status": "PASS",
+    "elf_sha256": "c2105ba92327d847fca10d0bee216c7b81ec5e357998fc2a38a7de64fe2ccaf3",
+    "executable_sections": [
+      {
+        "name": ".text.init",
+        "address": "0x80000000",
+        "bytes": 236
+      },
+      {
+        "name": ".text",
+        "address": "0x80011000",
+        "bytes": 8542
+      }
+    ],
+    "instructions": 2733,
+    "ame_instructions": 0,
+    "vector_memory_instructions": 20,
+    "rvv_instructions": {
+      "vfmacc.vf": 9,
+      "vle32.v": 11,
+      "vse32.v": 9,
+      "vsetivli": 2
+    },
+    "errors": []
+  },
+  "binary_sha256": "6007d969b8e571aabf0291d48b423f33f854999540431998f0da861e98fa147e"
+}

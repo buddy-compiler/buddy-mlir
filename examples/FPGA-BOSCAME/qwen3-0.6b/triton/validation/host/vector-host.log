@@ -1,0 +1,26 @@
+verify attention_pv_16x16x128x16: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify attention_pv_16x1x128x17: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify attention_qk_16x16x16x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify attention_qk_16x1x17x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+cycles matmul_16x1024x1024_f32: 0000000000001710
+verify matmul_16x1024x1024_f32: PASS errors=00000000 max_abs_error_f32_bits=00000000
+cycles matmul_16x1024x2048_f32: 0000000000002dba
+verify matmul_16x1024x2048_f32: PASS errors=00000000 max_abs_error_f32_bits=00000000
+cycles matmul_16x1024x3072_f32: 0000000000003460
+verify matmul_16x1024x3072_f32: PASS errors=00000000 max_abs_error_f32_bits=00000000
+cycles matmul_16x2048x1024_f32: 0000000000002cce
+verify matmul_16x2048x1024_f32: PASS errors=00000000 max_abs_error_f32_bits=00000000
+cycles matmul_16x3072x1024_f32: 0000000000003a83
+verify matmul_16x3072x1024_f32: PASS errors=00000000 max_abs_error_f32_bits=00000000
+cycles matmul_1x1024x1024_f32: 000000000000026b
+verify matmul_1x1024x1024_f32: PASS errors=00000000 max_abs_error_f32_bits=00000000
+cycles matmul_1x1024x2048_f32: 000000000000049f
+verify matmul_1x1024x2048_f32: PASS errors=00000000 max_abs_error_f32_bits=00000000
+cycles matmul_1x1024x3072_f32: 00000000000006fc
+verify matmul_1x1024x3072_f32: PASS errors=00000000 max_abs_error_f32_bits=00000000
+cycles matmul_1x151936x1024_f32: 0000000000012a8e
+verify matmul_1x151936x1024_f32: PASS errors=00000000 max_abs_error_f32_bits=00000000
+cycles matmul_1x2048x1024_f32: 000000000000049a
+verify matmul_1x2048x1024_f32: PASS errors=00000000 max_abs_error_f32_bits=00000000
+cycles matmul_1x3072x1024_f32: 00000000000006cf
+verify matmul_1x3072x1024_f32: PASS errors=00000000 max_abs_error_f32_bits=00000000

@@ -1,0 +1,89 @@
+[fpga_run] UART ready: /dev/FPGA5, 115200, 8N1, no flow control
+[fpga_run] FPGA5 session active; elapsed=0s, UART=0 bytes
+
+[nr] NH boot; RA operator runtime
+[nr] RA entry=0x0000000080000040
+[nr] RA entered; clearing application BSS
+[nr] mstatus=0x8000000A00006000; launch BEGIN
+[1/4] Triton attention_pv_position_16x16x128x512 BEGIN
+[fpga_run] FPGA5 started; capturing for 600 seconds
+[attention-position] valid=00000010 errors=00000000 kernel_cycles=0000000000C0A188
+[attention-position] valid=00000011 errors=00000000 kernel_cycles=0000000000C15B60
+[attention-position] valid=00000018 errors=00000000 kernel_cycles=0000000000CB2BBE
+[fpga_run] FPGA5 session active; elapsed=9s, UART=469 bytes
+[attention-position] valid=0000003F errors=00000000 kernel_cycles=0000000000FE757F
+[attention-position] valid=00000040 errors=00000000 kernel_cycles=0000000001005F08
+[attention-position] valid=00000041 errors=00000000 kernel_cycles=0000000001987461
+[attention-position] valid=000001FF errors=00000000 kernel_cycles=000000000766C9D5
+[attention-position] valid=00000200 errors=00000000 kernel_cycles=000000000768BDA3
+[fpga_run] FPGA5 session active; elapsed=39s, UART=889 bytes
+[attention-position] valid=000001FF errors=00000000 kernel_cycles=000000000766CA80
+[attention-position] valid=00000041 errors=00000000 kernel_cycles=0000000001987696
+[attention-position] valid=00000040 errors=00000000 kernel_cycles=0000000001005EA5
+[attention-position] valid=0000003F errors=00000000 kernel_cycles=0000000000FE749A
+[attention-position] valid=00000018 errors=00000000 kernel_cycles=0000000000CB2A08
+[attention-position] valid=00000011 errors=00000000 kernel_cycles=0000000000C15768
+[attention-position] valid=00000010 errors=00000000 kernel_cycles=0000000000C09E2E
+verify attention_pv_position_16x16x128x512: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[2/4] Triton attention_pv_position_16x1x128x512 BEGIN
+[attention-position] valid=00000010 errors=00000000 kernel_cycles=0000000000446A44
+[fpga_run] FPGA5 session active; elapsed=69s, UART=1714 bytes
+[attention-position] valid=00000011 errors=00000000 kernel_cycles=00000000004510CE
+[attention-position] valid=00000018 errors=00000000 kernel_cycles=000000000049F46C
+[attention-position] valid=0000003F errors=00000000 kernel_cycles=0000000000651E97
+[attention-position] valid=00000040 errors=00000000 kernel_cycles=000000000065DE36
+[attention-position] valid=00000041 errors=00000000 kernel_cycles=00000000009E12E0
+[attention-position] valid=000001FF errors=00000000 kernel_cycles=0000000003223948
+[attention-position] valid=00000200 errors=00000000 kernel_cycles=000000000322E628
+[attention-position] valid=000001FF errors=00000000 kernel_cycles=0000000003223926
+[attention-position] valid=00000041 errors=00000000 kernel_cycles=00000000009E12C9
+[attention-position] valid=00000040 errors=00000000 kernel_cycles=000000000065DE23
+[fpga_run] FPGA5 session active; elapsed=99s, UART=2554 bytes
+[attention-position] valid=0000003F errors=00000000 kernel_cycles=0000000000651EFD
+[attention-position] valid=00000018 errors=00000000 kernel_cycles=000000000049F452
+[attention-position] valid=00000011 errors=00000000 kernel_cycles=0000000000450FDF
+[attention-position] valid=00000010 errors=00000000 kernel_cycles=0000000000446A36
+verify attention_pv_position_16x1x128x512: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[3/4] Triton attention_qk_position_16x16x512x128 BEGIN
+[attention-position] valid=00000010 errors=00000000 kernel_cycles=00000000008F7173
+[attention-position] valid=00000011 errors=00000000 kernel_cycles=0000000000C16346
+[attention-position] valid=00000018 errors=00000000 kernel_cycles=0000000000C4EF37
+[attention-position] valid=0000003F errors=00000000 kernel_cycles=00000000013E63D3
+[attention-position] valid=00000040 errors=00000000 kernel_cycles=00000000013FA1D7
+[attention-position] valid=00000041 errors=00000000 kernel_cycles=00000000017194FB
+[fpga_run] FPGA5 session active; elapsed=129s, UART=3547 bytes
+[attention-position] valid=000001FF errors=00000000 kernel_cycles=0000000007AB3B9B
+[attention-position] valid=00000200 errors=00000000 kernel_cycles=0000000007AC7051
+[attention-position] valid=000001FF errors=00000000 kernel_cycles=0000000007AB3FEA
+[fpga_run] FPGA5 session active; elapsed=159s, UART=3799 bytes
+[attention-position] valid=00000041 errors=00000000 kernel_cycles=000000000171963E
+[attention-position] valid=00000040 errors=00000000 kernel_cycles=00000000013FA19B
+[attention-position] valid=0000003F errors=00000000 kernel_cycles=00000000013E64DC
+[attention-position] valid=00000018 errors=00000000 kernel_cycles=0000000000C4F003
+[attention-position] valid=00000011 errors=00000000 kernel_cycles=0000000000C16212
+[attention-position] valid=00000010 errors=00000000 kernel_cycles=00000000008F7002
+verify attention_qk_position_16x16x512x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[4/4] Triton attention_qk_position_16x1x512x128 BEGIN
+[attention-position] valid=00000010 errors=00000000 kernel_cycles=00000000001F07FE
+[attention-position] valid=00000011 errors=00000000 kernel_cycles=00000000002F42D8
+[attention-position] valid=00000018 errors=00000000 kernel_cycles=000000000032DAC1
+[attention-position] valid=0000003F errors=00000000 kernel_cycles=000000000069011D
+[attention-position] valid=00000040 errors=00000000 kernel_cycles=00000000006A3F67
+[attention-position] valid=00000041 errors=00000000 kernel_cycles=00000000007A7A84
+[fpga_run] FPGA5 session active; elapsed=189s, UART=4960 bytes
+[attention-position] valid=000001FF errors=00000000 kernel_cycles=00000000032708B4
+[attention-position] valid=00000200 errors=00000000 kernel_cycles=00000000032847A4
+[attention-position] valid=000001FF errors=00000000 kernel_cycles=00000000032708F3
+[attention-position] valid=00000041 errors=00000000 kernel_cycles=00000000007A7AA2
+[attention-position] valid=00000040 errors=00000000 kernel_cycles=00000000006A3F29
+[attention-position] valid=0000003F errors=00000000 kernel_cycles=0000000000690015
+[attention-position] valid=00000018 errors=00000000 kernel_cycles=000000000032DA85
+[attention-position] valid=00000011 errors=00000000 kernel_cycles=00000000002F4300
+[attention-position] valid=00000010 errors=00000000 kernel_cycles=00000000001F07D6
+verify attention_qk_position_16x1x512x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify qwen3 Triton operator suite: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[nr] launch cycles=0x00000000BE20E141 status=0x00000000
+[nr] RA returned: PASS
+verify NR runtime: PASS
+[fpga_run] FPGA5 session active; elapsed=219s, UART=6009 bytes
+[fpga_run] Finished: 6009 UART bytes; DDR readback matches

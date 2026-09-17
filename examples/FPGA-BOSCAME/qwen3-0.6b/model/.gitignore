@@ -1,0 +1,22 @@
+/build/
+/assets/
+__pycache__/
+
+# Keep compact board evidence; retain full binary/IR archives locally.
+/validation/board/**/*.o
+/validation/board/**/*.a
+/validation/board/**/*.elf
+/validation/board/**/*.bin
+/validation/board/**/*.npz
+/validation/board/**/*.npy
+/validation/board/**/*.ll
+/validation/board/**/*.mlir
+/validation/board/**/*.s
+/validation/board/**/*.S
+/validation/board/**/*.ttir
+/validation/board/**/*.ttgir
+# Historical source snapshots include handwritten assembly.
+!/validation/board/**/sources/**
+
+# Detailed, reproducible per-operation inventory; summaries remain tracked.
+/validation/final-native-28l-coverage/operator-mapping.json

@@ -1,0 +1,6 @@
+{
+  "cases": 8,
+  "identical": 8,
+  "mismatches": [],
+  "note": "the single-turn subset the resource header declares: optional system, exactly one user message, generation prompt, and both thinking modes"
+}

@@ -1,0 +1,11 @@
+$ python3 -m unittest discover -s examples/FPGA-BOSCAME/qwen3-0.6b/model/tests -p test_numeric_oracle.py -v
+test_cli_full_success_is_zero_but_cannot_hide_missing_step_or_wrong_token (test_numeric_oracle.BoardTraceTests.test_cli_full_success_is_zero_but_cannot_hide_missing_step_or_wrong_token) ... ok
+test_full_summary_fails_missing_duplicate_wrong_count_error_and_nonfinite (test_numeric_oracle.BoardTraceTests.test_full_summary_fails_missing_duplicate_wrong_count_error_and_nonfinite) ... ok
+test_generation_trace_rejects_duplicate_missing_empty_samples_and_wrong_order (test_numeric_oracle.BoardTraceTests.test_generation_trace_rejects_duplicate_missing_empty_samples_and_wrong_order) ... ok
+test_generated_oracle_detects_unsampled_elements_without_selecting_tokens (test_numeric_oracle.NativeOracleTests.test_generated_oracle_detects_unsampled_elements_without_selecting_tokens) ... ok
+test_prepare_reference_packs_transposed_kv_and_rejects_invalid_values (test_numeric_oracle.NativeOracleTests.test_prepare_reference_packs_transposed_kv_and_rejects_invalid_values) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 2.290s
+
+OK

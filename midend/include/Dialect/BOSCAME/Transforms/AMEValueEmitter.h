@@ -84,13 +84,14 @@ FailureOr<Value> createLoadA(OpBuilder &builder, Location loc, Type elementType,
                              Value source, Value byteStride,
                              Operation *anchor = nullptr, unsigned slot = 0);
 
-/// `mlbe*.m`: load the right matrix tile from a row-major `[K, N]` view.
+/// `mlbe*.m`: load the right tile. FPGA profiles read physical `[N, K]`
+/// rows (which may be described by a logical `[K, N]` transposed memref).
 FailureOr<Value> createLoadB(OpBuilder &builder, Location loc, Type elementType,
                              Value source, Value byteStride,
                              Operation *anchor = nullptr, unsigned slot = 4);
 
-/// `mlbte*.m`: load the right matrix tile from a physically transposed
-/// `[N, K]` view (the Triton weight layout).
+/// `mlbte*.m`: transposed right tile load. The legacy FPGA profile uses it
+/// for physical `[K, N]` rows; NR does not support this instruction.
 FailureOr<Value> createLoadBTransposed(OpBuilder &builder, Location loc,
                                        Type elementType, Value source,
                                        Value byteStride,
@@ -100,9 +101,9 @@ FailureOr<Value> createLoadBTransposed(OpBuilder &builder, Location loc,
 /// `mlce*.m`: load an accumulator tile.
 ///
 /// `accElementType` is the accumulator datapath width (i32 on the FPGA), while
-/// `memoryElementType` is what the memref actually holds.  On the FPGA these
-/// differ on purpose: `mlce32.m` reads an fp32 buffer and uses its bit pattern
-/// as the integer accumulator, so only a `+0.0` buffer is a valid zero seed.
+/// `memoryElementType` is what the memref actually holds. NR requires i32
+/// memory and preserves any integer accumulator seed. The legacy FPGA profile
+/// uses an f32 buffer whose +0.0 bit pattern seeds an integer zero accumulator.
 FailureOr<Value>
 createLoadAccumulator(OpBuilder &builder, Location loc, Type accElementType,
                       Type memoryElementType, Value source, Value byteStride,

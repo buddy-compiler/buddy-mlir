@@ -1,0 +1,79 @@
+
+[nr] NH boot; RA operator runtime
+[nr] RA entry=0x0000000080000040
+[nr] RA entered; clearing application BSS
+[nr] mstatus=0x8000000A00006000; launch BEGIN
+[probe] NR RVV e32,m1 requested VL=16; per-instruction results follow
+[probe] BEGIN vsetvli+vle32+vse32
+[probe] vsetvli+vle32+vse32 VL=0x00000010 SUPPORTED numeric=PASS
+[probe] BEGIN vmv.v.v
+[probe] vmv.v.v VL=0x00000010 SUPPORTED numeric=PASS
+[probe] BEGIN vfadd.vv
+[probe] vfadd.vv VL=0x00000010 SUPPORTED numeric=PASS
+[probe] BEGIN vfsub.vv
+[probe] vfsub.vv VL=0x00000010 SUPPORTED numeric=PASS
+[probe] BEGIN vfmul.vv
+[probe] vfmul.vv VL=0x00000010 SUPPORTED numeric=PASS
+[probe] BEGIN vfdiv.vv
+[probe] vfdiv.vv VL=0x00000010 SUPPORTED numeric=PASS
+[probe] BEGIN vfmacc.vv
+[probe] vfmacc.vv VL=0x00000010 SUPPORTED numeric=PASS
+[probe] BEGIN vfadd.vf
+[probe] vfadd.vf VL=0x00000010 SUPPORTED numeric=PASS
+[probe] BEGIN vfmul.vf
+[probe] vfmul.vf VL=0x00000010 SUPPORTED numeric=PASS
+[probe] BEGIN vfdiv.vf
+[probe] vfdiv.vf VL=0x00000010 SUPPORTED numeric=PASS
+[probe] BEGIN vfmacc.vf
+[probe] vfmacc.vf VL=0x00000010 SUPPORTED numeric=PASS
+[probe] BEGIN vfsqrt.v
+[probe] vfsqrt.v VL=0x00000010 SUPPORTED numeric=PASS
+[probe] BEGIN vfredusum.vs
+[probe] vfredusum.vs VL=0x00000010 SUPPORTED numeric=PASS
+[probe] BEGIN vfredosum.vs
+[probe] vfredosum.vs VL=0x00000010 SUPPORTED numeric=PASS
+[probe] BEGIN vfredmax.vs
+[probe] vfredmax.vs VL=0x00000010 SUPPORTED numeric=PASS
+[probe] BEGIN vfmax.vv
+[probe] vfmax.vv VL=0x00000010 SUPPORTED numeric=PASS
+[probe] BEGIN vfmin.vv
+[probe] vfmin.vv VL=0x00000010 SUPPORTED numeric=PASS
+[probe] BEGIN vfcvt.x.f.v
+[probe] vfcvt.x.f.v VL=0x00000010 SUPPORTED numeric=PASS
+[probe] BEGIN vfcvt.rtz.x.f.v
+[probe] vfcvt.rtz.x.f.v VL=0x00000010 SUPPORTED numeric=PASS
+[probe] BEGIN vfcvt.f.x.v
+[probe] vfcvt.f.x.v VL=0x00000010 SUPPORTED numeric=PASS
+[probe] BEGIN vfmv.v.f
+[probe] vfmv.v.f VL=0x00000010 SUPPORTED numeric=PASS
+[probe] BEGIN vmv.v.i
+[probe] vmv.v.i VL=0x00000010 SUPPORTED numeric=PASS
+[probe] BEGIN vfmv.f.s
+[probe] vfmv.f.s VL=0x00000010 SUPPORTED numeric=PASS
+[probe] BEGIN vfmadd.vv
+[probe] vfmadd.vv VL=0x00000010 SUPPORTED numeric=PASS
+[probe] BEGIN vmv1r.v
+[probe] vmv1r.v VL=0x00000010 SUPPORTED numeric=PASS
+[probe] BEGIN vl1re32.v+vs1r.v
+[probe] vl1re32.v+vs1r.v VL=0x00000010 EXECUTED NUMERIC_FAIL errors=0x0000000C got_bits=0x3E000000 expected_bits=0xBF800000
+[probe] BEGIN vsetivli
+[probe] vsetivli VL=0x00000010 SUPPORTED numeric=PASS
+[probe] BEGIN csrr.vlenb
+[probe] csrr.vlenb VL=0x00000010 UNSUPPORTED illegal=0x00000001 last_pc=0x0000000080011C94 mtval=0x00000000C2202373
+[probe] BEGIN csrr.vl
+[probe] csrr.vl VL=0x00000010 UNSUPPORTED illegal=0x00000001 last_pc=0x0000000080011CB0 mtval=0x00000000C2002373
+[probe] BEGIN csrr.vtype
+[probe] csrr.vtype VL=0x00000010 UNSUPPORTED illegal=0x00000001 last_pc=0x0000000080011CCC mtval=0x00000000C2102373
+[probe] BEGIN vle8.v+vse8.v(e8,mf4,VL16)
+[probe] vle8.v+vse8.v(e8,mf4,VL16) VL=0x00000010 SUPPORTED numeric=PASS
+[probe] BEGIN vle64.v+vse64.v(e64,m1,VL2)
+[probe] vle64.v+vse64.v(e64,m1,VL2) VL=0x00000002 SUPPORTED numeric=PASS
+[probe] BEGIN vle64.v+vse64.v(e64,m1,VL4)
+[probe] vle64.v+vse64.v(e64,m1,VL4) VL=0x00000004 SUPPORTED numeric=PASS
+[probe] totals supported=0x0000001D unsupported=0x00000003 numeric_fail=0x00000001
+[probe] completion does not imply all instructions are supported
+verify RVV probe completion: PASS
+verify nr_copy_bytes: PASS cases=0x00000180 errors=0x00000000
+[nr] launch cycles=0x0000000000CFDECE status=0x00000001
+[nr] RA returned: FAIL
+verify NR runtime: FAIL

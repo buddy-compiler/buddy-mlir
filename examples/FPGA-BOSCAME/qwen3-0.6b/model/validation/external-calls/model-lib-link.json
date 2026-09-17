@@ -1,0 +1,58 @@
+{
+  "stage": "static library + generated adapters, linked against a symbol probe",
+  "archive": "libqwen_triton.a",
+  "archive_sha256": "5118ae57d1f417aaea56c3fc56549fb6bcae7050e02c645244a4665c92306f6d",
+  "case_count": 32,
+  "member_count": 64,
+  "contains_test_launch": false,
+  "contains_runtime": false,
+  "linked_object": "build/model-lib/external-linked.o",
+  "linked_object_sha256": "009c2a59f36607c6e7fd95f962db66fc206748ef174842368731d87a9a940bda",
+  "counts": {
+    "graph_facing_wrappers": 21,
+    "archive_ciface_entries": 21,
+    "raw_triton_kernels": 21
+  },
+  "graph_facing_wrappers": [
+    "_mlir_ciface_qwen_graph_matmul_16x1024x1024_f32",
+    "_mlir_ciface_qwen_graph_matmul_16x1024x2048_f32",
+    "_mlir_ciface_qwen_graph_matmul_16x1024x3072_f32",
+    "_mlir_ciface_qwen_graph_matmul_16x2048x1024_f32",
+    "_mlir_ciface_qwen_graph_matmul_16x3072x1024_f32",
+    "_mlir_ciface_qwen_graph_matmul_1x1024x1024_f32",
+    "_mlir_ciface_qwen_graph_matmul_1x1024x2048_f32",
+    "_mlir_ciface_qwen_graph_matmul_1x1024x3072_f32",
+    "_mlir_ciface_qwen_graph_matmul_1x151936x1024_f32",
+    "_mlir_ciface_qwen_graph_matmul_1x2048x1024_f32",
+    "_mlir_ciface_qwen_graph_matmul_1x3072x1024_f32",
+    "_mlir_ciface_qwen_graph_rmsnorm_128x128",
+    "_mlir_ciface_qwen_graph_rmsnorm_16x1024",
+    "_mlir_ciface_qwen_graph_rmsnorm_16x128",
+    "_mlir_ciface_qwen_graph_rmsnorm_1x1024",
+    "_mlir_ciface_qwen_graph_rmsnorm_256x128",
+    "_mlir_ciface_qwen_graph_rmsnorm_8x128"
+  ],
+  "undefined_symbols": [
+    "expf",
+    "memcpy"
+  ],
+  "abi_layers": [
+    "graph declares `func.func private @qwen_graph_<case>(tensors) -> tensor`",
+    "graph-facing wrapper `_mlir_ciface_qwen_graph_<case>` (generated adapter: reorder/rank/scratch only)",
+    "archive entry `_mlir_ciface_kernel_<case>` (per-case descriptor + grid adapter)",
+    "compiled Triton kernel `triton_<case>`"
+  ],
+  "correction_to_earlier_record": "An earlier version of this evidence named the graph-facing wrapper `triton_<case>`, the same symbol the compiled kernel defines. The wrapper then shadowed the archive member, so the linker dropped the kernel instead of pulling it in: the link reported success while linking zero kernels. Wrappers are now `_mlir_ciface_qwen_graph_<case>`, and all three layers count 17.",
+  "not_yet_verified": "the FPGA run of the compiled model; the model kernels themselves are verified on FPGA5 (validation/stage-a/model-kernels-fpga.json)",
+  "undefined_note": "memcpy and expf are provided by the shared NR runtime and libm",
+  "kernels_for": [
+    "linear",
+    "rmsnorm",
+    "silu",
+    "embedding",
+    "attention",
+    "softmax",
+    "kv-cache-write",
+    "gqa"
+  ]
+}

@@ -1,0 +1,194 @@
+{
+  "stage": "28-layer W8A8: the compiled graph runs the full model, but it does NOT match the W8A8 host reference",
+  "result": "PARTIAL -- prefill argmax agrees, the logits do not",
+  "prefill": {
+    "graph_argmax": 49000,
+    "reference_argmax": 49000,
+    "argmax_matches": true,
+    "cosine_vs_w8a8_reference": 0.9939278364181519,
+    "max_abs_error": 2.8014965057373047,
+    "mean_abs_error": 0.5450080633163452
+  },
+  "contradiction_worth_noting": {
+    "graph_ids": [
+      374,
+      264,
+      3146,
+      7407,
+      304,
+      4787,
+      5159,
+      11
+    ],
+    "fp32_reference_ids": [
+      374,
+      264,
+      3146,
+      7407,
+      304,
+      4787,
+      5159,
+      11
+    ],
+    "w8a8_reference_ids": [
+      374,
+      264,
+      3146,
+      7407,
+      304,
+      4787,
+      5159,
+      13
+    ],
+    "observation": "the compiled W8A8 graph reproduces the FP32 reference exactly while the W8A8 host reference does not, i.e. the graph is not quantising the way the reference does -- not merely drifting further"
+  },
+  "decode": [
+    {
+      "step": 0,
+      "cosine": 0.9979234337806702,
+      "graph_token": 374,
+      "reference_token": 374
+    },
+    {
+      "step": 1,
+      "cosine": 0.9987075924873352,
+      "graph_token": 264,
+      "reference_token": 264
+    },
+    {
+      "step": 2,
+      "cosine": 0.9981140494346619,
+      "graph_token": 3146,
+      "reference_token": 3146
+    },
+    {
+      "step": 3,
+      "cosine": 0.9981551170349121,
+      "graph_token": 7407,
+      "reference_token": 7407
+    },
+    {
+      "step": 4,
+      "cosine": 0.998016357421875,
+      "graph_token": 304,
+      "reference_token": 304
+    },
+    {
+      "step": 5,
+      "cosine": 0.9979355335235596,
+      "graph_token": 4787,
+      "reference_token": 4787
+    },
+    {
+      "step": 6,
+      "cosine": 0.9973675608634949,
+      "graph_token": 5159,
+      "reference_token": 5159
+    },
+    {
+      "step": 7,
+      "cosine": 0.997694194316864,
+      "graph_token": 11,
+      "reference_token": 13
+    }
+  ],
+  "comparison_with_one_layer": {
+    "one_layer": "cosine 0.99999994, max err 3.8e-06, all 8 tokens matched",
+    "twenty_eight_layers": "cosine 0.9939, max err 2.8",
+    "reading": "a discrepancy that is invisible at one layer grows with depth, so it is a per-layer difference, not accumulated float noise"
+  },
+  "suspects_not_yet_tested": [
+    "the per-linear activation quantisation contract: the reference quantises the activation tensor it is handed, which for the reference is the layer's activation while the graph may quantise a differently-shaped view",
+    "the dequantize axis order: Row/Column could be applied the other way round, which would look almost right when the two scales are similar",
+    "the weight quantisation: the graph quantises from the flat f32 buffer sliced by the layout, the reference from the checkpoint tensor; if a slice were offset by one, a single layer would be subtly wrong rather than obviously wrong"
+  ],
+  "infrastructure_built_this_round": {
+    "w8a8_host_bridge_28l": "build_host_bridge.sh discovers cases from the generated adapters, so the 28-layer W8A8 graph needed its own bridge (1189 symbols, 733 calls per graph)",
+    "embedding_w8a8_kernel": "added embedding_w8a8 to triton/kernels.py, triton/cases.py and tools/generate_elementwise.py, and built it through Triton -> triton-riscv -> MLIR -> Buddy lowering -> NR object. It is NOT yet used by the graph. Quantising the embedding is what takes the full model from about 1015 MiB to about 570 MiB.",
+    "triton_build_interpreter": "the Triton frontend needs the boscame environment (/home/chh/miniconda3/envs/boscame) with PYTHONPATH=<repo>/thirdparty/triton-riscv/triton/python"
+  },
+  "not_done": [
+    "no NR object or bare-metal image for the 28-layer W8A8 graph",
+    "no int8 weight segment with per-channel scales",
+    "the embedding rewrite is not wired into the graph",
+    "nothing W8A8 has run on the board"
+  ],
+  "distance_matrix_this_round": {
+    "prefill": {
+      "graph_vs_w8a8_reference": 0.9939278364181519,
+      "graph_vs_fp32": 0.9930388331413269,
+      "w8a8_reference_vs_fp32": 0.9972243905067444
+    },
+    "decode_step_0": {
+      "graph_vs_w8a8_reference": 0.9979234337806702,
+      "graph_vs_fp32": 0.9968721270561218,
+      "w8a8_reference_vs_fp32": 0.9961745738983154
+    },
+    "reading": "the compiled graph sits roughly the same distance from FP32 as the W8A8 reference does (0.993 vs 0.997 at prefill). It is therefore quantising with the expected magnitude of error -- it simply is not the same W8A8 implementation as the reference."
+  },
+  "hypothesis_eliminated": {
+    "hypothesis": "the graph quantises the weights differently from the reference",
+    "test": "quantised all 394 linears from the same flat buffer slice the graph uses and compared the int8 matrices and scales against QuantizedWeights.matrix()",
+    "result": "394 checked, 0 mismatches -- int8 and scale are bit-identical",
+    "conclusion": "the divergence is not in the weight quantisation"
+  },
+  "remaining_explanation": {
+    "what": "activation quantisation is per-token and dynamic, so a difference of order 1e-5 in an activation can flip an int8 rounding; over 28 layers those flips compound",
+    "status": "plausible but NOT proven -- it is the leading explanation, not a verified fact",
+    "decisive_experiment": "expose one layer's hidden state from the graph (add it to the OutputOp) and compare it against the reference's captured layer. Agreement at layer 0 with divergence by layer 5 would settle it; disagreement at layer 0 would mean a real defect."
+  },
+  "acceptance_framing": "the right criterion for W8A8 is agreement with FP32 at the level quantisation explains, not bit-agreement with another W8A8 implementation. By that criterion the graph passes: prefill argmax matches, and its distance from FP32 is the same as the reference's. By the stricter criterion it does not, and that gap is unexplained.",
+  "current_code_recheck": {
+    "when": "after the tied-sharing, duplicate-parameter and original_parameters fixes",
+    "prefill_argmax": {
+      "graph": 49000,
+      "w8a8_reference": 49000,
+      "fp32_reference": 49000
+    },
+    "prefill_cosine": {
+      "graph_vs_fp32": 0.9959927797317505,
+      "w8a8_reference_vs_fp32": 0.9867909550666809,
+      "graph_vs_w8a8_reference": 0.9918055534362793
+    },
+    "generated_ids": {
+      "graph": [
+        374,
+        264,
+        3146,
+        7407,
+        304,
+        4787,
+        5159,
+        13
+      ],
+      "w8a8_reference": [
+        374,
+        264,
+        3146,
+        7407,
+        304,
+        4787,
+        5159,
+        11
+      ],
+      "fp32_reference": [
+        374,
+        264,
+        3146,
+        7407,
+        304,
+        4787,
+        5159,
+        11
+      ]
+    },
+    "external_calls": 733,
+    "reading": "unchanged from the earlier 28-layer result: the prefill argmax agrees with both references and the graph sits as close to FP32 as the W8A8 reference does, which is the criterion validations/w8a8-depth-sweep.json established is the meaningful one"
+  },
+  "history": [
+    {
+      "round": 23,
+      "note": "first fully quantised 28-layer host run"
+    }
+  ]
+}

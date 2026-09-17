@@ -1,0 +1,11 @@
+{
+  "status": "INTERRUPTED",
+  "fpga": 5,
+  "sha256": "26d089f14274de36236b0fd1c573cedc2ce1f230e88527d3d4abd0364823eca2",
+  "capture_seconds": 1800,
+  "baud": 115200,
+  "error": "interrupted; releasing this session",
+  "uart_input_bytes_written": 0,
+  "uart_interactive_bytes_written": 0,
+  "uart_input_unacknowledged_requests": 0
+}

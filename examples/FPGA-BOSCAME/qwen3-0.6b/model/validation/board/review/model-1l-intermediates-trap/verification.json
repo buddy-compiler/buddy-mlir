@@ -1,0 +1,86 @@
+{
+  "status": "FAILED_NOT_ACCEPTED",
+  "reason": "Illegal instruction at PC 0xb8000000 after prefill begin; cause unresolved",
+  "run_id": "run-7572316e1fdb424f",
+  "accepted": false,
+  "run_result": {
+    "status": "ERROR",
+    "fpga": 5,
+    "sha256": "b4bf35f1528a31a0d841cf8d2baa2f22cbc2982060318d83a0f33ef7ead5c118",
+    "capture_seconds": 1200,
+    "baud": 115200,
+    "segment_readbacks": {
+      "image.bin": true,
+      "weights-w8a8.bin": true,
+      "tokenizer.bin": true
+    },
+    "ddr_readback_matches": true,
+    "uart_bytes": 675,
+    "error": "program reported a verification failure or trap",
+    "uart_input_bytes_written": 0,
+    "uart_interactive_bytes_written": 0,
+    "uart_input_unacknowledged_requests": 0
+  },
+  "artifacts": [
+    {
+      "path": "deployment/ddr-load.plan",
+      "bytes": 655,
+      "sha256": "2aa4fd95a3519d803f34a5c15988840fddafce5abf7f0ba48b07a56108ed390f"
+    },
+    {
+      "path": "deployment/deployment.json",
+      "bytes": 1130,
+      "sha256": "bbeccb90da402eb6040b03f67ba2c279059366ec2d4c293a26de9656843f5995"
+    },
+    {
+      "path": "image/elf-audit.json",
+      "bytes": 582,
+      "sha256": "54ebbefe7b0b9bfd5f47cddd63acf1c6d90a4056fa9b29ef410d2ac5bb7b8c1d"
+    },
+    {
+      "path": "image/image.json",
+      "bytes": 29233,
+      "sha256": "760cdc762ea4e1ef78be33bccf5a2fce756a8e3e4517ef7bfd2af74ecaf1b015"
+    },
+    {
+      "path": "image/intermediate-probe.json",
+      "bytes": 102044,
+      "sha256": "35e45f7ceea3e5e4e28f4f4b31e1aac5b40576eb041b0a5614457329a6ae8419"
+    },
+    {
+      "path": "image/kernel-profile.json",
+      "bytes": 12248,
+      "sha256": "3a68230ac0b94d9f5150c1f14135a12a6bf46c6d31154f395455ff00c5c825bb"
+    },
+    {
+      "path": "image/w8a8-image-plan.json",
+      "bytes": 4981,
+      "sha256": "32cd15491fdded44aaac100ba847bd3f90c37dd685b230df930e0cf0cb06d4cf"
+    },
+    {
+      "path": "run/result.json",
+      "bytes": 501,
+      "sha256": "7eba0f3b8f077915bb4233718d0da22412b0fe440cb5859aec156659181675a4"
+    },
+    {
+      "path": "run/run-manifest.json",
+      "bytes": 587,
+      "sha256": "0070edb1b3f0b652c24f850752ec453e18e8a187cbeb444cde19bee47de1c309"
+    },
+    {
+      "path": "run/uart.raw.log",
+      "bytes": 675,
+      "sha256": "015f4cf8d7ca958215ea1a098b483ac97f5382ebfc2680883b89e0f8e661b2e5"
+    },
+    {
+      "path": "run/uvhs.log",
+      "bytes": 68866,
+      "sha256": "5dbb267c7463fdc34730669d5a6078378c69111f85929d1122c70e3dd5ca8872"
+    },
+    {
+      "path": "run/worker.log",
+      "bytes": 977,
+      "sha256": "5baf68617f8abdb042aaa6aaa4ba9f9837e67c31a7611e3abfb4fa16558dc145"
+    }
+  ]
+}

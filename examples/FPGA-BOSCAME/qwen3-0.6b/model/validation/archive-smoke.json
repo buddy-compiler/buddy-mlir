@@ -1,0 +1,63 @@
+{
+  "format": 1,
+  "archive": "libqwen_triton.a",
+  "sha256": "e3118dade82a3c19cc5a9a4a7d0ac15d5278c601365ba6b09c44569ff6fc6e5a",
+  "members": [
+    "add_1x1024.kernel.o",
+    "add_1x1024.adapter.o",
+    "matmul_3x19x70.kernel.o",
+    "matmul_3x19x70.adapter.o"
+  ],
+  "case_count": 2,
+  "contains_test_launch": false,
+  "contains_runtime": false,
+  "graph_calls_verified": false,
+  "cases": [
+    {
+      "case": "add_1x1024",
+      "symbols": [
+        "_mlir_ciface_kernel_add_1x1024",
+        "triton_add_1x1024"
+      ],
+      "undefined_runtime_symbols": [],
+      "files_sha256": {
+        "kernel.ttir": "f8b5e8b3819851dcfb684990078557a0c2465fc8bda925da4200e358a7b9d689",
+        "kernel.linalg.mlir": "7643a1abf4afc13642c100c31e19c07e97d58a10bda6e3a4c10d89a41ec48ca5",
+        "kernel.ll": "9e7216a9fab4fdf145c0298db71bb1b7686217df8353c18142bb1f552ac27d1e",
+        "adapter.c": "e1d4bfac7bd322eb23f656e03cfe9f658d66d9b917e5f3b10830a4bfc4de2e98",
+        "frontend.json": "f72e82caf4fbdebdf66de26a4d35800f9a63d0ca67c946565c65c01bdc4229f9",
+        "kernel.o": "a1d41cb6a3ee9f49112a7585afa5b309bc0ec9ac2bf3f26edd81f493eaf664ba",
+        "adapter.o": "2ac4b3e49869dc97f6640782d8bb8a4858c1505250556f1fb2e64149eeba7a37",
+        "kernel.s": "7de160f43f138c5bfaecc6886aa4588b7184887790960d3a55945191db6307ea",
+        "kernel.nr.S": "1ef0947d9a4f041ee305f41902d34f3c807d37e8ecd8ae06b73447262dfd5357"
+      },
+      "model_graph_binding": "pending semantic/layout/alias/accumulation matching",
+      "adapter_precondition": "static shapes/grid/physical layout from frontend; offsets supported; strides not dynamically checked",
+      "hardware_validation": "consult parent final verification; archive creation does not run hardware"
+    },
+    {
+      "case": "matmul_3x19x70",
+      "symbols": [
+        "_mlir_ciface_kernel_matmul_3x19x70",
+        "triton_matmul_3x19x70"
+      ],
+      "undefined_runtime_symbols": [
+        "memcpy"
+      ],
+      "files_sha256": {
+        "kernel.ttir": "a82de31742b803193acaa79d261c8b96647bdabfeb883d3f1ea465915ecb32b6",
+        "kernel.linalg.mlir": "1898a2b1d30bba6ddb6ce7ca64ab9587beaed257b9a87a87aa1f9047f88d4943",
+        "kernel.ll": "e44080d82197ee038c7f8f8469eca2d017561ca9dd79d72f15ff6d13061c41c8",
+        "adapter.c": "99ff61797b0c0f215b88a6fd97260ca112d925b7548e0522b3643a12d27ba50e",
+        "frontend.json": "7d332763cfa3738d8b43cc22b7fa58b00b9be85d12e6278acf6aa85d25b677b4",
+        "kernel.o": "a2112ef48ccf0784203fbd1c2493ba7d957e6415c577485608ba3b6b555bbc06",
+        "adapter.o": "9cff242b74dc1aebc6e3b024bbbcd2a957d50d786ab3c3cf8fe48b38650720a9",
+        "kernel.s": "c458a22fd596ad54bc93144f0f41fe90a18d2a28c6356d12305c3150e0f37dfd",
+        "kernel.nr.S": "42d1150d3737eb43143e3b9626d4deca4d6fcb4de21d591921e0aa30da7c76f9"
+      },
+      "model_graph_binding": "pending semantic/layout/alias/accumulation matching",
+      "adapter_precondition": "static shapes/grid/physical layout from frontend; offsets supported; strides not dynamically checked",
+      "hardware_validation": "consult parent final verification; archive creation does not run hardware"
+    }
+  ]
+}

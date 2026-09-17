@@ -1,0 +1,23 @@
+{
+  "status": "STOPPED_UNVERIFIED",
+  "reason": "user requested checkpoint stop; host execution had not written final result at approximately 7 minutes",
+  "scope": "opt-in position attention 28-layer host graph only",
+  "session": 37879,
+  "pid": 3890919,
+  "termination": "SIGTERM to verified owned run_graph_host.py process; process exited 143",
+  "host_report_exists": false,
+  "arrays_exist": false,
+  "completed_artifacts": [
+    "replacement",
+    "nr-prefill",
+    "nr-decode",
+    "model-lib",
+    "host-bridge"
+  ],
+  "retained_passing_results": [
+    "review-host-28l.json (full-capacity kernels)",
+    "review-host-position-1l.json",
+    "review-host-position-4l.json"
+  ],
+  "instruction": "Resume by rerunning the host command in ATTENTION_POSITION.md with LAYERS=28 and official 28-layer layout; do not call this run PASS"
+}

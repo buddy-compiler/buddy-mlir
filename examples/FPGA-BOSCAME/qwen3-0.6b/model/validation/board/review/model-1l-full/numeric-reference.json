@@ -1,0 +1,10 @@
+{
+  "source": "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-1l/quant-nr-order/arrays.npz",
+  "source_sha256": "1083f9f9d1d178deebc730e5e0371b34c26767c49a46e67989caf32e65d2c227",
+  "blob_sha256": "e6a20dcd280eb5b53cef7a74b5ce885e11c25df82265083440c6bdcb79172333",
+  "bytes": 5666304,
+  "layout": "logits[steps+1,V], K[L,8,T,128], V[L,8,T,128]",
+  "max_abs_tolerance": 0.001,
+  "mean_abs_tolerance": 0.0001,
+  "purpose": "validation only; not used to choose tokens or update model state"
+}

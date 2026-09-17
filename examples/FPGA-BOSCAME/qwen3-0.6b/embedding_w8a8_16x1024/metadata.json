@@ -1,0 +1,45 @@
+{
+  "name": "embedding_w8a8_16x1024",
+  "kind": "embedding_w8a8",
+  "dtype": "f32",
+  "description": "Gather int8 embedding rows and rescale to f32 by the per-token scale",
+  "entry": "kernel_embedding_w8a8_16x1024",
+  "workspace_bytes": 156255872,
+  "buffers": [
+    {
+      "name": "ids",
+      "shape": [
+        16
+      ],
+      "dtype": "i64",
+      "offset": 0
+    },
+    {
+      "name": "out",
+      "shape": [
+        16,
+        1024
+      ],
+      "dtype": "f32",
+      "offset": 128
+    },
+    {
+      "name": "weight",
+      "shape": [
+        151936,
+        1024
+      ],
+      "dtype": "i8",
+      "offset": 65664
+    },
+    {
+      "name": "scale",
+      "shape": [
+        151936
+      ],
+      "dtype": "f32",
+      "offset": 155648128
+    }
+  ],
+  "validation": "All output elements versus an independent C oracle; host oracle uses libm double precision."
+}

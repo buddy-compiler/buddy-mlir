@@ -1,0 +1,7 @@
+{
+  "run_id": "run-dca587dbe36a45e1",
+  "uart_sha256": "cd5062a731f2b63236b13f4be7a1cea82e499bc437b2a4358deb97ab33788da4",
+  "status": "NOT_RECEIVED",
+  "scope": "16 bytes written by host; FPGA5 produced no RX byte report during 90-second capture. Not evidence that all boards/platforms lack RX.",
+  "platform_rx_pin": "user_script/u2_set_partition.tcl:8 assigns rx on APCP4 pin 131"
+}

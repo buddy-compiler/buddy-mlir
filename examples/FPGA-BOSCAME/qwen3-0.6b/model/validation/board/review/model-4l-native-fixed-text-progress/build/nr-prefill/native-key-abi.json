@@ -1,0 +1,85 @@
+{
+  "status": "PASS",
+  "scope": "actual lowered native-QK key descriptor ABI; no numerical execution",
+  "llvm": "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-native-4l/nr-prefill/forward_prefill.ll",
+  "llvm_sha256": "caf938217bdd322de3f68f568119497ef6adad1de43380bf7d35b1ce798797d3",
+  "callsite_count": 4,
+  "callsites": [
+    {
+      "function": "forward_prefill",
+      "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_qk_attention_qk_position_native_16x16x512x128",
+      "key_sizes": [
+        1,
+        16,
+        512,
+        128
+      ],
+      "key_strides": [
+        1048576,
+        65536,
+        128,
+        1
+      ],
+      "key_offset_elements": 0,
+      "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+      "query_sequence": 16
+    },
+    {
+      "function": "forward_prefill",
+      "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_1_qk_attention_qk_position_native_16x16x512x128",
+      "key_sizes": [
+        1,
+        16,
+        512,
+        128
+      ],
+      "key_strides": [
+        1048576,
+        65536,
+        128,
+        1
+      ],
+      "key_offset_elements": 0,
+      "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+      "query_sequence": 16
+    },
+    {
+      "function": "forward_prefill",
+      "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_2_qk_attention_qk_position_native_16x16x512x128",
+      "key_sizes": [
+        1,
+        16,
+        512,
+        128
+      ],
+      "key_strides": [
+        1048576,
+        65536,
+        128,
+        1
+      ],
+      "key_offset_elements": 0,
+      "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+      "query_sequence": 16
+    },
+    {
+      "function": "forward_prefill",
+      "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_3_qk_attention_qk_position_native_16x16x512x128",
+      "key_sizes": [
+        1,
+        16,
+        512,
+        128
+      ],
+      "key_strides": [
+        1048576,
+        65536,
+        128,
+        1
+      ],
+      "key_offset_elements": 0,
+      "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+      "query_sequence": 16
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "kind": "attention_qk",
+  "shape": [
+    16,
+    1,
+    17,
+    128
+  ],
+  "dtype": "f32",
+  "target": "nr-rvv",
+  "checked_elements": 272
+}

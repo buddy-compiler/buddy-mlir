@@ -1,0 +1,77 @@
+{
+  "stage": "board: the fully quantised W8A8 model (1 layer) now produces the CORRECT result on FPGA5",
+  "status": "PASS",
+  "run_id": "run-43ca9b9505994cd8",
+  "board": {
+    "argmax_token": 33067,
+    "logit_bits": "410D46B1",
+    "logit": 8.829758644104004,
+    "cycles": 2273735111,
+    "seconds_at_14_7456MHz": 154.2,
+    "nr_runtime": "RA returned: PASS"
+  },
+  "reference": {
+    "argmax_token": 33067,
+    "max_logit": 8.82975959777832,
+    "source": "build/quant-reference/w8a8-full-1l"
+  },
+  "comparison": {
+    "argmax_matches": true,
+    "absolute_error": 9.5367431640625e-07,
+    "relative_error": 1.0800682689551441e-07
+  },
+  "activation_scales_are_now_sane": {
+    "w8a8_mm M16 N2048 K1024": 0.06487567722797394,
+    "w8a8_mm_1 M16 N1024 K1024": 0.06487567722797394,
+    "w8a8_mm_2 M16 N1024 K1024": 0.06487567722797394,
+    "w8a8_mm_3 M16 N1024 K2048": 0.01725614443421364,
+    "w8a8_mm_4 M16 N3072 K1024": 0.052189916372299194,
+    "w8a8_mm_5 M16 N3072 K1024": 0.052189916372299194,
+    "w8a8_mm_6 M16 N1024 K3072": 0.05102634057402611,
+    "w8a8_mm_7 M1 N151936 K1024": 0.3925986588001251,
+    "w8a8_mm M1 N2048 K1024": 0.06487567722797394,
+    "w8a8_mm_1 M1 N1024 K1024": 0.06487567722797394,
+    "w8a8_mm_2 M1 N1024 K1024": 0.06487567722797394,
+    "w8a8_mm_3 M1 N1024 K2048": 0.01725614443421364,
+    "w8a8_mm_4 M1 N3072 K1024": 0.052189916372299194,
+    "w8a8_mm_5 M1 N3072 K1024": 0.052189916372299194,
+    "w8a8_mm_6 M1 N1024 K3072": 0.05102634057402611
+  },
+  "segments": [
+    "segment model: address=0x0000000080000000 size=140480",
+    "segment weights: address=0x00000000b8000000 size=171981568"
+  ],
+  "uart": [
+    "[model] prefill argmax token=0000812B logit_bits=410D46B1",
+    "[dbg] embedding_out0..2=3A66CD9BBDE500003CB450A1",
+    "[dbg] activation scales in graph order:",
+    "[dbg]   w8a8_mm M16 N2048 K1024 = 3D84DD8A",
+    "[dbg]   w8a8_mm_1 M16 N1024 K1024 = 3D84DD8A",
+    "[dbg]   w8a8_mm_2 M16 N1024 K1024 = 3D84DD8A",
+    "[dbg]   w8a8_mm_3 M16 N1024 K2048 = 3C8D5CC2",
+    "[dbg]   w8a8_mm_4 M16 N3072 K1024 = 3D55C518",
+    "[dbg]   w8a8_mm_5 M16 N3072 K1024 = 3D55C518",
+    "[dbg]   w8a8_mm_6 M16 N1024 K3072 = 3D5100FF",
+    "[dbg]   w8a8_mm_7 M1 N151936 K1024 = 3EC902B1",
+    "[dbg]   w8a8_mm M1 N2048 K1024 = 3D84DD8A",
+    "[dbg]   w8a8_mm_1 M1 N1024 K1024 = 3D84DD8A",
+    "[dbg]   w8a8_mm_2 M1 N1024 K1024 = 3D84DD8A",
+    "[dbg]   w8a8_mm_3 M1 N1024 K2048 = 3C8D5CC2",
+    "[dbg]   w8a8_mm_4 M1 N3072 K1024 = 3D55C518",
+    "[dbg]   w8a8_mm_5 M1 N3072 K1024 = 3D55C518",
+    "[dbg]   w8a8_mm_6 M1 N1024 K3072 = 3D5100FF",
+    "[dbg]   w8a8_mm_7 M1 N151936 K1024 = 3EC902B1"
+  ],
+  "root_cause": {
+    "symptom": "the board produced a logit of 802603 (about 91000x too large) and every activation scale read back as a denormal or NaN, while the identical graph in the host JIT matched the reference exactly",
+    "cause": "the generated bare-metal main passed an extra cache-position descriptor. The graph's inputs are [ids, position, K0, V0, position1, K1, V1, ...] -- layer 0 uses the TOP-LEVEL position and only later layers carry their own. My generator emitted a position for layer 0 as well, so every argument after it was bound one slot to the right and the kernels wrote into each other's buffers.",
+    "why_the_earlier_evidence_looked_like_a_kernel_problem": "uninitialized DDR reads back as denormals and NaNs, which is exactly what a mis-bound workspace looks like; the kernels themselves were fine, as the 72-case board suite already showed.",
+    "how_it_was_found": "printing the activation scale of every linear in graph order bracketed it: after the fix they read 3D84DD8A (0.0648), 3C8D5CC2 (0.0173), 3D55C518 (0.0522), 3EC902B1 (0.3926) -- all plausible per-row scales -- where before they were denormals.",
+    "arity_check_that_confirms_the_fix": "the entry takes 60 arguments: 1 results pointer + 22 parameters + 4 graph inputs + 33 workspace buffers. The generated call passes exactly those."
+  },
+  "not_done": [
+    "the 28-layer image has not been re-linked with this fix, and even then it needs a multi-hour board window (attention alone measured at about 51 minutes)",
+    "decode is not in this image",
+    "stage E (tokenizer, text generation, UART interaction) not started"
+  ]
+}

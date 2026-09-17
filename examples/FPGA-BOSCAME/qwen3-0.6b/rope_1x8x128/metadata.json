@@ -1,0 +1,51 @@
+{
+  "name": "rope_1x8x128",
+  "kind": "rope",
+  "dtype": "f32",
+  "description": "Split-half Qwen3 RoPE; sin/cos are precomputed inputs, theta=1000000 and nonzero absolute position offset7",
+  "entry": "kernel_rope_1x8x128",
+  "workspace_bytes": 8704,
+  "buffers": [
+    {
+      "name": "x",
+      "shape": [
+        1,
+        8,
+        2,
+        64
+      ],
+      "dtype": "f32",
+      "offset": 0
+    },
+    {
+      "name": "cosine",
+      "shape": [
+        1,
+        64
+      ],
+      "dtype": "f32",
+      "offset": 4096
+    },
+    {
+      "name": "sine",
+      "shape": [
+        1,
+        64
+      ],
+      "dtype": "f32",
+      "offset": 4352
+    },
+    {
+      "name": "out",
+      "shape": [
+        1,
+        8,
+        2,
+        64
+      ],
+      "dtype": "f32",
+      "offset": 4608
+    }
+  ],
+  "validation": "All output elements versus an independent C oracle; host oracle uses libm double precision."
+}

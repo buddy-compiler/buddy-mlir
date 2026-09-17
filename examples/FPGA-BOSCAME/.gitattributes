@@ -1,0 +1,2 @@
+# Preserve raw UART CRLF and hashed historical evidence byte for byte.
+**/validation/** -text -whitespace

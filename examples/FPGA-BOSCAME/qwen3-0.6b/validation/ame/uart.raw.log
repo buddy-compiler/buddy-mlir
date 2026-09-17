@@ -1,0 +1,46 @@
+
+[nr] NH boot; RA operator runtime
+[nr] RA entry=0x0000000080000040
+[nr] RA entered; clearing application BSS
+[nr] mstatus=0x8000000A00006000; launch BEGIN
+[1/12] matmul_16x1024x1024 BEGIN
+cycles matmul_16x1024x1024: 0000000000112F18
+verify matmul_16x1024x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[2/12] matmul_16x1024x2048 BEGIN
+cycles matmul_16x1024x2048: 000000000020CD2D
+verify matmul_16x1024x2048: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[3/12] matmul_16x1024x3072 BEGIN
+cycles matmul_16x1024x3072: 000000000030676E
+verify matmul_16x1024x3072: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[4/12] matmul_16x2048x1024 BEGIN
+cycles matmul_16x2048x1024: 0000000000224FFF
+verify matmul_16x2048x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[5/12] matmul_16x3072x1024 BEGIN
+cycles matmul_16x3072x1024: 0000000000339DC0
+verify matmul_16x3072x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[6/12] matmul_1x1024x1024 BEGIN
+cycles matmul_1x1024x1024: 00000000000F3406
+verify matmul_1x1024x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[7/12] matmul_1x1024x2048 BEGIN
+cycles matmul_1x1024x2048: 00000000001CDDFF
+verify matmul_1x1024x2048: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[8/12] matmul_1x1024x3072 BEGIN
+cycles matmul_1x1024x3072: 00000000002A7FD1
+verify matmul_1x1024x3072: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[9/12] matmul_1x151936x1024 BEGIN
+cycles matmul_1x151936x1024: 0000000008D5E8F2
+verify matmul_1x151936x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[10/12] matmul_1x2048x1024 BEGIN
+cycles matmul_1x2048x1024: 00000000001E6CC4
+verify matmul_1x2048x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[11/12] matmul_1x3072x1024 BEGIN
+cycles matmul_1x3072x1024: 00000000002DD43C
+verify matmul_1x3072x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[12/12] matmul_3x19x70 BEGIN
+cycles matmul_3x19x70: 0000000000002A88
+verify matmul_3x19x70: PASS errors=00000000 max_abs_error_f32_bits=00000000
+suite failed cases: 00000000
+verify qwen3 operator suite: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[nr] launch cycles=0x000000001ED94556 status=0x00000000
+[nr] RA returned: PASS
+verify NR runtime: PASS

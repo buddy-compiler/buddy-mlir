@@ -1,0 +1,5384 @@
+{
+  "source_layout": "validation/weight-layout.json",
+  "layout_sha256": "9b2d4eb5b7145f405ffdd8e934251a9cb1f643377760a2d49ef336c092db63ee",
+  "checkpoint_sha256_source": "validation/checkpoint-manifest.json",
+  "quantization": {
+    "linear": "per-output-channel symmetric int8, range [-127,127]",
+    "scale": "max|row| / 127, zero rows use 1",
+    "rounding": "FP32 divide, +/-0.5 by sign, truncate, saturate",
+    "dequantize": "(acc_f32 * activation_scale) * weight_scale",
+    "kept_f32": "norms and rotary table"
+  },
+  "sizes": {
+    "weights_int8": 595984384,
+    "weight_scales_f32": 1984000,
+    "weights_kept_f32": 262400,
+    "kv_cache_f32": 117440512,
+    "image_bytes": 720894224,
+    "fp32_weights_if_unquantized": 2384199936
+  },
+  "compression_vs_f32": 3.985,
+  "placements": [
+    {
+      "label": "weights_int8",
+      "kind": "int8-per-output-channel",
+      "address": "0xb8000000",
+      "address_value": 3087007744,
+      "bytes": 595984384,
+      "sha256": "b87f9d0ed362a9092107d46ab0d1929f54b407355443774099faa9f1d1728cdc"
+    },
+    {
+      "label": "weight_scales_f32",
+      "kind": "per-output-channel-scale",
+      "address": "0xdb860000",
+      "address_value": 3682992128,
+      "bytes": 1984000,
+      "sha256": "9a6f6ccb729ea9a462b4f3159c022bf4c42f03a5d868393341562ccebf531e4a"
+    },
+    {
+      "label": "weights_kept_f32",
+      "kind": "f32-norms-and-rotary",
+      "address": "0xdba44600",
+      "address_value": 3684976128,
+      "bytes": 262400,
+      "sha256": "3500c59b1a074882516079d057597d47567b82dd06ccba4f7ed7c5a7d27da42b"
+    },
+    {
+      "label": "kv_cache_f32",
+      "kind": "zero-initialised-f32",
+      "address": "0xdba84700",
+      "address_value": 3685238528,
+      "bytes": 117440512,
+      "sha256": "886a3281a5ebd092d6ff398849ff77748435c2b56cda3a784bf30a83bc44d5c0",
+      "note": "included so the image length reflects the reserved layout; the board must zero it"
+    },
+    {
+      "label": "tokenizer_resource",
+      "kind": "qwen-tokenizer",
+      "address": "0xe2a84700",
+      "address_value": 3802679040,
+      "bytes": 5222928,
+      "sha256": "e1f0bdff51120bbc271f0828e3014aa04ebeb0d96420752152e2f20140d533e8"
+    }
+  ],
+  "image": {
+    "path": "build/weight-image/qwen3-w8a8.bin",
+    "bytes": 720894224,
+    "sha256": "1770e3fa7f6c7fb10eb536d04e3258803eaee1b75c9edc2c7e37da2991a0a761",
+    "start_address": "0xb8000000",
+    "end_address": "0xe2f7f910"
+  },
+  "memory_regions": {
+    "HIGH": {
+      "origin": "0xb8000000",
+      "length": "0x48000000",
+      "used_bytes": 720894224,
+      "fits": true,
+      "section": "NOLOAD workspace"
+    },
+    "LOW": {
+      "origin": "0x80000000",
+      "length": "0x30000000",
+      "section": "boot, text, data, .bss, stacks",
+      "image_overlaps": false
+    }
+  },
+  "bss_zeroing_safety": {
+    "claim": "the NR startup zeroes .bss/.tbss/stacks in LOW; the image lives entirely in HIGH, so zeroing cannot reach it",
+    "evidence": "common/nr/nr.ld places .bss/.tbss/.stacks in > LOW and .workspace at 0xb8000000 in > HIGH",
+    "image_region_tested": "0xb8000000..0xe2f7f910",
+    "overlap_with_low": false
+  },
+  "sections_emitted": 508,
+  "section_index": [
+    {
+      "kind": "int8",
+      "tensor": "lm_head.weight",
+      "shape": [
+        151936,
+        1024
+      ],
+      "elements": 155582464,
+      "buffer_offset": 0,
+      "bytes": 155582464
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "lm_head.weight",
+      "shape": [
+        151936
+      ],
+      "elements": 151936,
+      "buffer_offset": 0,
+      "bytes": 607744
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.0.input_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 0,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.0.self_attn.q_proj.weight",
+      "shape": [
+        2048,
+        1024
+      ],
+      "elements": 2097152,
+      "buffer_offset": 155582464,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.0.self_attn.q_proj.weight",
+      "shape": [
+        2048
+      ],
+      "elements": 2048,
+      "buffer_offset": 607744,
+      "bytes": 8192
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.0.self_attn.q_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 4096,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.0.self_attn.k_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 157679616,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.0.self_attn.k_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 615936,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.0.self_attn.k_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 4608,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.0.self_attn.v_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 158728192,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.0.self_attn.v_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 620032,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.0.self_attn.o_proj.weight",
+      "shape": [
+        1024,
+        2048
+      ],
+      "elements": 2097152,
+      "buffer_offset": 159776768,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.0.self_attn.o_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 624128,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.0.post_attention_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 5120,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.0.mlp.gate_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 161873920,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.0.mlp.gate_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 628224,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.0.mlp.up_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 165019648,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.0.mlp.up_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 640512,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.0.mlp.down_proj.weight",
+      "shape": [
+        1024,
+        3072
+      ],
+      "elements": 3145728,
+      "buffer_offset": 168165376,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.0.mlp.down_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 652800,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.1.input_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 9216,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.1.self_attn.q_proj.weight",
+      "shape": [
+        2048,
+        1024
+      ],
+      "elements": 2097152,
+      "buffer_offset": 171311104,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.1.self_attn.q_proj.weight",
+      "shape": [
+        2048
+      ],
+      "elements": 2048,
+      "buffer_offset": 656896,
+      "bytes": 8192
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.1.self_attn.q_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 13312,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.1.self_attn.k_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 173408256,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.1.self_attn.k_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 665088,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.1.self_attn.k_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 13824,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.1.self_attn.v_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 174456832,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.1.self_attn.v_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 669184,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.1.self_attn.o_proj.weight",
+      "shape": [
+        1024,
+        2048
+      ],
+      "elements": 2097152,
+      "buffer_offset": 175505408,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.1.self_attn.o_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 673280,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.1.post_attention_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 14336,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.1.mlp.gate_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 177602560,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.1.mlp.gate_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 677376,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.1.mlp.up_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 180748288,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.1.mlp.up_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 689664,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.1.mlp.down_proj.weight",
+      "shape": [
+        1024,
+        3072
+      ],
+      "elements": 3145728,
+      "buffer_offset": 183894016,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.1.mlp.down_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 701952,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.2.input_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 18432,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.2.self_attn.q_proj.weight",
+      "shape": [
+        2048,
+        1024
+      ],
+      "elements": 2097152,
+      "buffer_offset": 187039744,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.2.self_attn.q_proj.weight",
+      "shape": [
+        2048
+      ],
+      "elements": 2048,
+      "buffer_offset": 706048,
+      "bytes": 8192
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.2.self_attn.q_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 22528,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.2.self_attn.k_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 189136896,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.2.self_attn.k_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 714240,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.2.self_attn.k_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 23040,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.2.self_attn.v_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 190185472,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.2.self_attn.v_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 718336,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.2.self_attn.o_proj.weight",
+      "shape": [
+        1024,
+        2048
+      ],
+      "elements": 2097152,
+      "buffer_offset": 191234048,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.2.self_attn.o_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 722432,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.2.post_attention_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 23552,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.2.mlp.gate_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 193331200,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.2.mlp.gate_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 726528,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.2.mlp.up_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 196476928,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.2.mlp.up_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 738816,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.2.mlp.down_proj.weight",
+      "shape": [
+        1024,
+        3072
+      ],
+      "elements": 3145728,
+      "buffer_offset": 199622656,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.2.mlp.down_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 751104,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.3.input_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 27648,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.3.self_attn.q_proj.weight",
+      "shape": [
+        2048,
+        1024
+      ],
+      "elements": 2097152,
+      "buffer_offset": 202768384,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.3.self_attn.q_proj.weight",
+      "shape": [
+        2048
+      ],
+      "elements": 2048,
+      "buffer_offset": 755200,
+      "bytes": 8192
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.3.self_attn.q_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 31744,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.3.self_attn.k_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 204865536,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.3.self_attn.k_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 763392,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.3.self_attn.k_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 32256,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.3.self_attn.v_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 205914112,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.3.self_attn.v_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 767488,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.3.self_attn.o_proj.weight",
+      "shape": [
+        1024,
+        2048
+      ],
+      "elements": 2097152,
+      "buffer_offset": 206962688,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.3.self_attn.o_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 771584,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.3.post_attention_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 32768,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.3.mlp.gate_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 209059840,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.3.mlp.gate_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 775680,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.3.mlp.up_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 212205568,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.3.mlp.up_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 787968,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.3.mlp.down_proj.weight",
+      "shape": [
+        1024,
+        3072
+      ],
+      "elements": 3145728,
+      "buffer_offset": 215351296,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.3.mlp.down_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 800256,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.4.input_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 36864,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.4.self_attn.q_proj.weight",
+      "shape": [
+        2048,
+        1024
+      ],
+      "elements": 2097152,
+      "buffer_offset": 218497024,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.4.self_attn.q_proj.weight",
+      "shape": [
+        2048
+      ],
+      "elements": 2048,
+      "buffer_offset": 804352,
+      "bytes": 8192
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.4.self_attn.q_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 40960,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.4.self_attn.k_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 220594176,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.4.self_attn.k_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 812544,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.4.self_attn.k_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 41472,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.4.self_attn.v_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 221642752,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.4.self_attn.v_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 816640,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.4.self_attn.o_proj.weight",
+      "shape": [
+        1024,
+        2048
+      ],
+      "elements": 2097152,
+      "buffer_offset": 222691328,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.4.self_attn.o_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 820736,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.4.post_attention_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 41984,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.4.mlp.gate_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 224788480,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.4.mlp.gate_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 824832,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.4.mlp.up_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 227934208,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.4.mlp.up_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 837120,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.4.mlp.down_proj.weight",
+      "shape": [
+        1024,
+        3072
+      ],
+      "elements": 3145728,
+      "buffer_offset": 231079936,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.4.mlp.down_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 849408,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.5.input_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 46080,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.5.self_attn.q_proj.weight",
+      "shape": [
+        2048,
+        1024
+      ],
+      "elements": 2097152,
+      "buffer_offset": 234225664,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.5.self_attn.q_proj.weight",
+      "shape": [
+        2048
+      ],
+      "elements": 2048,
+      "buffer_offset": 853504,
+      "bytes": 8192
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.5.self_attn.q_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 50176,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.5.self_attn.k_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 236322816,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.5.self_attn.k_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 861696,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.5.self_attn.k_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 50688,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.5.self_attn.v_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 237371392,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.5.self_attn.v_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 865792,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.5.self_attn.o_proj.weight",
+      "shape": [
+        1024,
+        2048
+      ],
+      "elements": 2097152,
+      "buffer_offset": 238419968,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.5.self_attn.o_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 869888,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.5.post_attention_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 51200,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.5.mlp.gate_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 240517120,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.5.mlp.gate_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 873984,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.5.mlp.up_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 243662848,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.5.mlp.up_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 886272,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.5.mlp.down_proj.weight",
+      "shape": [
+        1024,
+        3072
+      ],
+      "elements": 3145728,
+      "buffer_offset": 246808576,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.5.mlp.down_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 898560,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.6.input_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 55296,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.6.self_attn.q_proj.weight",
+      "shape": [
+        2048,
+        1024
+      ],
+      "elements": 2097152,
+      "buffer_offset": 249954304,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.6.self_attn.q_proj.weight",
+      "shape": [
+        2048
+      ],
+      "elements": 2048,
+      "buffer_offset": 902656,
+      "bytes": 8192
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.6.self_attn.q_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 59392,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.6.self_attn.k_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 252051456,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.6.self_attn.k_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 910848,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.6.self_attn.k_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 59904,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.6.self_attn.v_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 253100032,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.6.self_attn.v_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 914944,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.6.self_attn.o_proj.weight",
+      "shape": [
+        1024,
+        2048
+      ],
+      "elements": 2097152,
+      "buffer_offset": 254148608,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.6.self_attn.o_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 919040,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.6.post_attention_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 60416,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.6.mlp.gate_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 256245760,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.6.mlp.gate_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 923136,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.6.mlp.up_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 259391488,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.6.mlp.up_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 935424,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.6.mlp.down_proj.weight",
+      "shape": [
+        1024,
+        3072
+      ],
+      "elements": 3145728,
+      "buffer_offset": 262537216,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.6.mlp.down_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 947712,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.7.input_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 64512,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.7.self_attn.q_proj.weight",
+      "shape": [
+        2048,
+        1024
+      ],
+      "elements": 2097152,
+      "buffer_offset": 265682944,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.7.self_attn.q_proj.weight",
+      "shape": [
+        2048
+      ],
+      "elements": 2048,
+      "buffer_offset": 951808,
+      "bytes": 8192
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.7.self_attn.q_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 68608,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.7.self_attn.k_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 267780096,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.7.self_attn.k_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 960000,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.7.self_attn.k_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 69120,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.7.self_attn.v_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 268828672,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.7.self_attn.v_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 964096,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.7.self_attn.o_proj.weight",
+      "shape": [
+        1024,
+        2048
+      ],
+      "elements": 2097152,
+      "buffer_offset": 269877248,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.7.self_attn.o_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 968192,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.7.post_attention_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 69632,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.7.mlp.gate_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 271974400,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.7.mlp.gate_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 972288,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.7.mlp.up_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 275120128,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.7.mlp.up_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 984576,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.7.mlp.down_proj.weight",
+      "shape": [
+        1024,
+        3072
+      ],
+      "elements": 3145728,
+      "buffer_offset": 278265856,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.7.mlp.down_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 996864,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.8.input_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 73728,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.8.self_attn.q_proj.weight",
+      "shape": [
+        2048,
+        1024
+      ],
+      "elements": 2097152,
+      "buffer_offset": 281411584,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.8.self_attn.q_proj.weight",
+      "shape": [
+        2048
+      ],
+      "elements": 2048,
+      "buffer_offset": 1000960,
+      "bytes": 8192
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.8.self_attn.q_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 77824,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.8.self_attn.k_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 283508736,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.8.self_attn.k_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1009152,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.8.self_attn.k_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 78336,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.8.self_attn.v_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 284557312,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.8.self_attn.v_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1013248,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.8.self_attn.o_proj.weight",
+      "shape": [
+        1024,
+        2048
+      ],
+      "elements": 2097152,
+      "buffer_offset": 285605888,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.8.self_attn.o_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1017344,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.8.post_attention_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 78848,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.8.mlp.gate_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 287703040,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.8.mlp.gate_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 1021440,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.8.mlp.up_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 290848768,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.8.mlp.up_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 1033728,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.8.mlp.down_proj.weight",
+      "shape": [
+        1024,
+        3072
+      ],
+      "elements": 3145728,
+      "buffer_offset": 293994496,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.8.mlp.down_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1046016,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.9.input_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 82944,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.9.self_attn.q_proj.weight",
+      "shape": [
+        2048,
+        1024
+      ],
+      "elements": 2097152,
+      "buffer_offset": 297140224,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.9.self_attn.q_proj.weight",
+      "shape": [
+        2048
+      ],
+      "elements": 2048,
+      "buffer_offset": 1050112,
+      "bytes": 8192
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.9.self_attn.q_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 87040,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.9.self_attn.k_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 299237376,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.9.self_attn.k_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1058304,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.9.self_attn.k_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 87552,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.9.self_attn.v_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 300285952,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.9.self_attn.v_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1062400,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.9.self_attn.o_proj.weight",
+      "shape": [
+        1024,
+        2048
+      ],
+      "elements": 2097152,
+      "buffer_offset": 301334528,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.9.self_attn.o_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1066496,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.9.post_attention_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 88064,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.9.mlp.gate_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 303431680,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.9.mlp.gate_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 1070592,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.9.mlp.up_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 306577408,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.9.mlp.up_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 1082880,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.9.mlp.down_proj.weight",
+      "shape": [
+        1024,
+        3072
+      ],
+      "elements": 3145728,
+      "buffer_offset": 309723136,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.9.mlp.down_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1095168,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.10.input_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 92160,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.10.self_attn.q_proj.weight",
+      "shape": [
+        2048,
+        1024
+      ],
+      "elements": 2097152,
+      "buffer_offset": 312868864,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.10.self_attn.q_proj.weight",
+      "shape": [
+        2048
+      ],
+      "elements": 2048,
+      "buffer_offset": 1099264,
+      "bytes": 8192
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.10.self_attn.q_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 96256,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.10.self_attn.k_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 314966016,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.10.self_attn.k_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1107456,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.10.self_attn.k_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 96768,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.10.self_attn.v_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 316014592,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.10.self_attn.v_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1111552,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.10.self_attn.o_proj.weight",
+      "shape": [
+        1024,
+        2048
+      ],
+      "elements": 2097152,
+      "buffer_offset": 317063168,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.10.self_attn.o_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1115648,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.10.post_attention_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 97280,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.10.mlp.gate_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 319160320,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.10.mlp.gate_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 1119744,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.10.mlp.up_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 322306048,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.10.mlp.up_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 1132032,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.10.mlp.down_proj.weight",
+      "shape": [
+        1024,
+        3072
+      ],
+      "elements": 3145728,
+      "buffer_offset": 325451776,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.10.mlp.down_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1144320,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.11.input_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 101376,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.11.self_attn.q_proj.weight",
+      "shape": [
+        2048,
+        1024
+      ],
+      "elements": 2097152,
+      "buffer_offset": 328597504,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.11.self_attn.q_proj.weight",
+      "shape": [
+        2048
+      ],
+      "elements": 2048,
+      "buffer_offset": 1148416,
+      "bytes": 8192
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.11.self_attn.q_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 105472,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.11.self_attn.k_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 330694656,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.11.self_attn.k_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1156608,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.11.self_attn.k_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 105984,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.11.self_attn.v_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 331743232,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.11.self_attn.v_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1160704,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.11.self_attn.o_proj.weight",
+      "shape": [
+        1024,
+        2048
+      ],
+      "elements": 2097152,
+      "buffer_offset": 332791808,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.11.self_attn.o_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1164800,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.11.post_attention_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 106496,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.11.mlp.gate_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 334888960,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.11.mlp.gate_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 1168896,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.11.mlp.up_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 338034688,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.11.mlp.up_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 1181184,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.11.mlp.down_proj.weight",
+      "shape": [
+        1024,
+        3072
+      ],
+      "elements": 3145728,
+      "buffer_offset": 341180416,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.11.mlp.down_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1193472,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.12.input_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 110592,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.12.self_attn.q_proj.weight",
+      "shape": [
+        2048,
+        1024
+      ],
+      "elements": 2097152,
+      "buffer_offset": 344326144,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.12.self_attn.q_proj.weight",
+      "shape": [
+        2048
+      ],
+      "elements": 2048,
+      "buffer_offset": 1197568,
+      "bytes": 8192
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.12.self_attn.q_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 114688,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.12.self_attn.k_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 346423296,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.12.self_attn.k_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1205760,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.12.self_attn.k_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 115200,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.12.self_attn.v_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 347471872,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.12.self_attn.v_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1209856,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.12.self_attn.o_proj.weight",
+      "shape": [
+        1024,
+        2048
+      ],
+      "elements": 2097152,
+      "buffer_offset": 348520448,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.12.self_attn.o_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1213952,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.12.post_attention_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 115712,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.12.mlp.gate_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 350617600,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.12.mlp.gate_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 1218048,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.12.mlp.up_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 353763328,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.12.mlp.up_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 1230336,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.12.mlp.down_proj.weight",
+      "shape": [
+        1024,
+        3072
+      ],
+      "elements": 3145728,
+      "buffer_offset": 356909056,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.12.mlp.down_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1242624,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.13.input_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 119808,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.13.self_attn.q_proj.weight",
+      "shape": [
+        2048,
+        1024
+      ],
+      "elements": 2097152,
+      "buffer_offset": 360054784,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.13.self_attn.q_proj.weight",
+      "shape": [
+        2048
+      ],
+      "elements": 2048,
+      "buffer_offset": 1246720,
+      "bytes": 8192
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.13.self_attn.q_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 123904,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.13.self_attn.k_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 362151936,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.13.self_attn.k_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1254912,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.13.self_attn.k_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 124416,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.13.self_attn.v_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 363200512,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.13.self_attn.v_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1259008,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.13.self_attn.o_proj.weight",
+      "shape": [
+        1024,
+        2048
+      ],
+      "elements": 2097152,
+      "buffer_offset": 364249088,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.13.self_attn.o_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1263104,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.13.post_attention_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 124928,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.13.mlp.gate_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 366346240,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.13.mlp.gate_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 1267200,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.13.mlp.up_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 369491968,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.13.mlp.up_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 1279488,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.13.mlp.down_proj.weight",
+      "shape": [
+        1024,
+        3072
+      ],
+      "elements": 3145728,
+      "buffer_offset": 372637696,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.13.mlp.down_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1291776,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.14.input_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 129024,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.14.self_attn.q_proj.weight",
+      "shape": [
+        2048,
+        1024
+      ],
+      "elements": 2097152,
+      "buffer_offset": 375783424,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.14.self_attn.q_proj.weight",
+      "shape": [
+        2048
+      ],
+      "elements": 2048,
+      "buffer_offset": 1295872,
+      "bytes": 8192
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.14.self_attn.q_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 133120,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.14.self_attn.k_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 377880576,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.14.self_attn.k_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1304064,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.14.self_attn.k_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 133632,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.14.self_attn.v_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 378929152,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.14.self_attn.v_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1308160,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.14.self_attn.o_proj.weight",
+      "shape": [
+        1024,
+        2048
+      ],
+      "elements": 2097152,
+      "buffer_offset": 379977728,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.14.self_attn.o_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1312256,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.14.post_attention_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 134144,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.14.mlp.gate_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 382074880,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.14.mlp.gate_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 1316352,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.14.mlp.up_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 385220608,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.14.mlp.up_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 1328640,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.14.mlp.down_proj.weight",
+      "shape": [
+        1024,
+        3072
+      ],
+      "elements": 3145728,
+      "buffer_offset": 388366336,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.14.mlp.down_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1340928,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.15.input_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 138240,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.15.self_attn.q_proj.weight",
+      "shape": [
+        2048,
+        1024
+      ],
+      "elements": 2097152,
+      "buffer_offset": 391512064,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.15.self_attn.q_proj.weight",
+      "shape": [
+        2048
+      ],
+      "elements": 2048,
+      "buffer_offset": 1345024,
+      "bytes": 8192
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.15.self_attn.q_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 142336,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.15.self_attn.k_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 393609216,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.15.self_attn.k_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1353216,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.15.self_attn.k_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 142848,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.15.self_attn.v_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 394657792,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.15.self_attn.v_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1357312,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.15.self_attn.o_proj.weight",
+      "shape": [
+        1024,
+        2048
+      ],
+      "elements": 2097152,
+      "buffer_offset": 395706368,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.15.self_attn.o_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1361408,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.15.post_attention_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 143360,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.15.mlp.gate_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 397803520,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.15.mlp.gate_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 1365504,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.15.mlp.up_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 400949248,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.15.mlp.up_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 1377792,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.15.mlp.down_proj.weight",
+      "shape": [
+        1024,
+        3072
+      ],
+      "elements": 3145728,
+      "buffer_offset": 404094976,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.15.mlp.down_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1390080,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.16.input_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 147456,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.16.self_attn.q_proj.weight",
+      "shape": [
+        2048,
+        1024
+      ],
+      "elements": 2097152,
+      "buffer_offset": 407240704,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.16.self_attn.q_proj.weight",
+      "shape": [
+        2048
+      ],
+      "elements": 2048,
+      "buffer_offset": 1394176,
+      "bytes": 8192
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.16.self_attn.q_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 151552,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.16.self_attn.k_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 409337856,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.16.self_attn.k_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1402368,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.16.self_attn.k_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 152064,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.16.self_attn.v_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 410386432,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.16.self_attn.v_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1406464,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.16.self_attn.o_proj.weight",
+      "shape": [
+        1024,
+        2048
+      ],
+      "elements": 2097152,
+      "buffer_offset": 411435008,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.16.self_attn.o_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1410560,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.16.post_attention_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 152576,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.16.mlp.gate_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 413532160,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.16.mlp.gate_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 1414656,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.16.mlp.up_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 416677888,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.16.mlp.up_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 1426944,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.16.mlp.down_proj.weight",
+      "shape": [
+        1024,
+        3072
+      ],
+      "elements": 3145728,
+      "buffer_offset": 419823616,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.16.mlp.down_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1439232,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.17.input_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 156672,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.17.self_attn.q_proj.weight",
+      "shape": [
+        2048,
+        1024
+      ],
+      "elements": 2097152,
+      "buffer_offset": 422969344,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.17.self_attn.q_proj.weight",
+      "shape": [
+        2048
+      ],
+      "elements": 2048,
+      "buffer_offset": 1443328,
+      "bytes": 8192
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.17.self_attn.q_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 160768,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.17.self_attn.k_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 425066496,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.17.self_attn.k_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1451520,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.17.self_attn.k_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 161280,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.17.self_attn.v_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 426115072,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.17.self_attn.v_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1455616,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.17.self_attn.o_proj.weight",
+      "shape": [
+        1024,
+        2048
+      ],
+      "elements": 2097152,
+      "buffer_offset": 427163648,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.17.self_attn.o_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1459712,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.17.post_attention_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 161792,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.17.mlp.gate_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 429260800,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.17.mlp.gate_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 1463808,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.17.mlp.up_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 432406528,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.17.mlp.up_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 1476096,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.17.mlp.down_proj.weight",
+      "shape": [
+        1024,
+        3072
+      ],
+      "elements": 3145728,
+      "buffer_offset": 435552256,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.17.mlp.down_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1488384,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.18.input_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 165888,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.18.self_attn.q_proj.weight",
+      "shape": [
+        2048,
+        1024
+      ],
+      "elements": 2097152,
+      "buffer_offset": 438697984,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.18.self_attn.q_proj.weight",
+      "shape": [
+        2048
+      ],
+      "elements": 2048,
+      "buffer_offset": 1492480,
+      "bytes": 8192
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.18.self_attn.q_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 169984,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.18.self_attn.k_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 440795136,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.18.self_attn.k_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1500672,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.18.self_attn.k_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 170496,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.18.self_attn.v_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 441843712,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.18.self_attn.v_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1504768,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.18.self_attn.o_proj.weight",
+      "shape": [
+        1024,
+        2048
+      ],
+      "elements": 2097152,
+      "buffer_offset": 442892288,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.18.self_attn.o_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1508864,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.18.post_attention_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 171008,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.18.mlp.gate_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 444989440,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.18.mlp.gate_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 1512960,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.18.mlp.up_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 448135168,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.18.mlp.up_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 1525248,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.18.mlp.down_proj.weight",
+      "shape": [
+        1024,
+        3072
+      ],
+      "elements": 3145728,
+      "buffer_offset": 451280896,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.18.mlp.down_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1537536,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.19.input_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 175104,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.19.self_attn.q_proj.weight",
+      "shape": [
+        2048,
+        1024
+      ],
+      "elements": 2097152,
+      "buffer_offset": 454426624,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.19.self_attn.q_proj.weight",
+      "shape": [
+        2048
+      ],
+      "elements": 2048,
+      "buffer_offset": 1541632,
+      "bytes": 8192
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.19.self_attn.q_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 179200,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.19.self_attn.k_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 456523776,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.19.self_attn.k_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1549824,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.19.self_attn.k_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 179712,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.19.self_attn.v_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 457572352,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.19.self_attn.v_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1553920,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.19.self_attn.o_proj.weight",
+      "shape": [
+        1024,
+        2048
+      ],
+      "elements": 2097152,
+      "buffer_offset": 458620928,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.19.self_attn.o_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1558016,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.19.post_attention_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 180224,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.19.mlp.gate_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 460718080,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.19.mlp.gate_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 1562112,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.19.mlp.up_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 463863808,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.19.mlp.up_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 1574400,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.19.mlp.down_proj.weight",
+      "shape": [
+        1024,
+        3072
+      ],
+      "elements": 3145728,
+      "buffer_offset": 467009536,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.19.mlp.down_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1586688,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.20.input_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 184320,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.20.self_attn.q_proj.weight",
+      "shape": [
+        2048,
+        1024
+      ],
+      "elements": 2097152,
+      "buffer_offset": 470155264,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.20.self_attn.q_proj.weight",
+      "shape": [
+        2048
+      ],
+      "elements": 2048,
+      "buffer_offset": 1590784,
+      "bytes": 8192
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.20.self_attn.q_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 188416,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.20.self_attn.k_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 472252416,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.20.self_attn.k_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1598976,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.20.self_attn.k_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 188928,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.20.self_attn.v_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 473300992,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.20.self_attn.v_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1603072,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.20.self_attn.o_proj.weight",
+      "shape": [
+        1024,
+        2048
+      ],
+      "elements": 2097152,
+      "buffer_offset": 474349568,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.20.self_attn.o_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1607168,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.20.post_attention_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 189440,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.20.mlp.gate_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 476446720,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.20.mlp.gate_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 1611264,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.20.mlp.up_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 479592448,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.20.mlp.up_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 1623552,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.20.mlp.down_proj.weight",
+      "shape": [
+        1024,
+        3072
+      ],
+      "elements": 3145728,
+      "buffer_offset": 482738176,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.20.mlp.down_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1635840,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.21.input_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 193536,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.21.self_attn.q_proj.weight",
+      "shape": [
+        2048,
+        1024
+      ],
+      "elements": 2097152,
+      "buffer_offset": 485883904,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.21.self_attn.q_proj.weight",
+      "shape": [
+        2048
+      ],
+      "elements": 2048,
+      "buffer_offset": 1639936,
+      "bytes": 8192
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.21.self_attn.q_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 197632,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.21.self_attn.k_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 487981056,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.21.self_attn.k_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1648128,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.21.self_attn.k_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 198144,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.21.self_attn.v_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 489029632,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.21.self_attn.v_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1652224,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.21.self_attn.o_proj.weight",
+      "shape": [
+        1024,
+        2048
+      ],
+      "elements": 2097152,
+      "buffer_offset": 490078208,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.21.self_attn.o_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1656320,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.21.post_attention_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 198656,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.21.mlp.gate_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 492175360,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.21.mlp.gate_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 1660416,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.21.mlp.up_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 495321088,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.21.mlp.up_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 1672704,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.21.mlp.down_proj.weight",
+      "shape": [
+        1024,
+        3072
+      ],
+      "elements": 3145728,
+      "buffer_offset": 498466816,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.21.mlp.down_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1684992,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.22.input_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 202752,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.22.self_attn.q_proj.weight",
+      "shape": [
+        2048,
+        1024
+      ],
+      "elements": 2097152,
+      "buffer_offset": 501612544,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.22.self_attn.q_proj.weight",
+      "shape": [
+        2048
+      ],
+      "elements": 2048,
+      "buffer_offset": 1689088,
+      "bytes": 8192
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.22.self_attn.q_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 206848,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.22.self_attn.k_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 503709696,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.22.self_attn.k_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1697280,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.22.self_attn.k_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 207360,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.22.self_attn.v_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 504758272,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.22.self_attn.v_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1701376,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.22.self_attn.o_proj.weight",
+      "shape": [
+        1024,
+        2048
+      ],
+      "elements": 2097152,
+      "buffer_offset": 505806848,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.22.self_attn.o_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1705472,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.22.post_attention_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 207872,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.22.mlp.gate_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 507904000,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.22.mlp.gate_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 1709568,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.22.mlp.up_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 511049728,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.22.mlp.up_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 1721856,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.22.mlp.down_proj.weight",
+      "shape": [
+        1024,
+        3072
+      ],
+      "elements": 3145728,
+      "buffer_offset": 514195456,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.22.mlp.down_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1734144,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.23.input_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 211968,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.23.self_attn.q_proj.weight",
+      "shape": [
+        2048,
+        1024
+      ],
+      "elements": 2097152,
+      "buffer_offset": 517341184,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.23.self_attn.q_proj.weight",
+      "shape": [
+        2048
+      ],
+      "elements": 2048,
+      "buffer_offset": 1738240,
+      "bytes": 8192
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.23.self_attn.q_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 216064,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.23.self_attn.k_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 519438336,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.23.self_attn.k_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1746432,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.23.self_attn.k_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 216576,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.23.self_attn.v_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 520486912,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.23.self_attn.v_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1750528,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.23.self_attn.o_proj.weight",
+      "shape": [
+        1024,
+        2048
+      ],
+      "elements": 2097152,
+      "buffer_offset": 521535488,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.23.self_attn.o_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1754624,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.23.post_attention_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 217088,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.23.mlp.gate_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 523632640,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.23.mlp.gate_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 1758720,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.23.mlp.up_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 526778368,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.23.mlp.up_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 1771008,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.23.mlp.down_proj.weight",
+      "shape": [
+        1024,
+        3072
+      ],
+      "elements": 3145728,
+      "buffer_offset": 529924096,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.23.mlp.down_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1783296,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.24.input_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 221184,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.24.self_attn.q_proj.weight",
+      "shape": [
+        2048,
+        1024
+      ],
+      "elements": 2097152,
+      "buffer_offset": 533069824,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.24.self_attn.q_proj.weight",
+      "shape": [
+        2048
+      ],
+      "elements": 2048,
+      "buffer_offset": 1787392,
+      "bytes": 8192
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.24.self_attn.q_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 225280,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.24.self_attn.k_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 535166976,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.24.self_attn.k_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1795584,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.24.self_attn.k_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 225792,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.24.self_attn.v_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 536215552,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.24.self_attn.v_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1799680,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.24.self_attn.o_proj.weight",
+      "shape": [
+        1024,
+        2048
+      ],
+      "elements": 2097152,
+      "buffer_offset": 537264128,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.24.self_attn.o_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1803776,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.24.post_attention_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 226304,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.24.mlp.gate_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 539361280,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.24.mlp.gate_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 1807872,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.24.mlp.up_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 542507008,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.24.mlp.up_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 1820160,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.24.mlp.down_proj.weight",
+      "shape": [
+        1024,
+        3072
+      ],
+      "elements": 3145728,
+      "buffer_offset": 545652736,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.24.mlp.down_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1832448,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.25.input_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 230400,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.25.self_attn.q_proj.weight",
+      "shape": [
+        2048,
+        1024
+      ],
+      "elements": 2097152,
+      "buffer_offset": 548798464,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.25.self_attn.q_proj.weight",
+      "shape": [
+        2048
+      ],
+      "elements": 2048,
+      "buffer_offset": 1836544,
+      "bytes": 8192
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.25.self_attn.q_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 234496,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.25.self_attn.k_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 550895616,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.25.self_attn.k_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1844736,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.25.self_attn.k_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 235008,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.25.self_attn.v_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 551944192,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.25.self_attn.v_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1848832,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.25.self_attn.o_proj.weight",
+      "shape": [
+        1024,
+        2048
+      ],
+      "elements": 2097152,
+      "buffer_offset": 552992768,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.25.self_attn.o_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1852928,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.25.post_attention_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 235520,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.25.mlp.gate_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 555089920,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.25.mlp.gate_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 1857024,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.25.mlp.up_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 558235648,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.25.mlp.up_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 1869312,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.25.mlp.down_proj.weight",
+      "shape": [
+        1024,
+        3072
+      ],
+      "elements": 3145728,
+      "buffer_offset": 561381376,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.25.mlp.down_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1881600,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.26.input_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 239616,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.26.self_attn.q_proj.weight",
+      "shape": [
+        2048,
+        1024
+      ],
+      "elements": 2097152,
+      "buffer_offset": 564527104,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.26.self_attn.q_proj.weight",
+      "shape": [
+        2048
+      ],
+      "elements": 2048,
+      "buffer_offset": 1885696,
+      "bytes": 8192
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.26.self_attn.q_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 243712,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.26.self_attn.k_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 566624256,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.26.self_attn.k_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1893888,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.26.self_attn.k_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 244224,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.26.self_attn.v_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 567672832,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.26.self_attn.v_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1897984,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.26.self_attn.o_proj.weight",
+      "shape": [
+        1024,
+        2048
+      ],
+      "elements": 2097152,
+      "buffer_offset": 568721408,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.26.self_attn.o_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1902080,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.26.post_attention_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 244736,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.26.mlp.gate_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 570818560,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.26.mlp.gate_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 1906176,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.26.mlp.up_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 573964288,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.26.mlp.up_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 1918464,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.26.mlp.down_proj.weight",
+      "shape": [
+        1024,
+        3072
+      ],
+      "elements": 3145728,
+      "buffer_offset": 577110016,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.26.mlp.down_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1930752,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.27.input_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 248832,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.27.self_attn.q_proj.weight",
+      "shape": [
+        2048,
+        1024
+      ],
+      "elements": 2097152,
+      "buffer_offset": 580255744,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.27.self_attn.q_proj.weight",
+      "shape": [
+        2048
+      ],
+      "elements": 2048,
+      "buffer_offset": 1934848,
+      "bytes": 8192
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.27.self_attn.q_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 252928,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.27.self_attn.k_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 582352896,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.27.self_attn.k_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1943040,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.27.self_attn.k_norm.weight",
+      "shape": [
+        128
+      ],
+      "elements": 128,
+      "buffer_offset": 253440,
+      "bytes": 512
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.27.self_attn.v_proj.weight",
+      "shape": [
+        1024,
+        1024
+      ],
+      "elements": 1048576,
+      "buffer_offset": 583401472,
+      "bytes": 1048576
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.27.self_attn.v_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1947136,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.27.self_attn.o_proj.weight",
+      "shape": [
+        1024,
+        2048
+      ],
+      "elements": 2097152,
+      "buffer_offset": 584450048,
+      "bytes": 2097152
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.27.self_attn.o_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1951232,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.layers.27.post_attention_layernorm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 253952,
+      "bytes": 4096
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.27.mlp.gate_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 586547200,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.27.mlp.gate_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 1955328,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.27.mlp.up_proj.weight",
+      "shape": [
+        3072,
+        1024
+      ],
+      "elements": 3145728,
+      "buffer_offset": 589692928,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.27.mlp.up_proj.weight",
+      "shape": [
+        3072
+      ],
+      "elements": 3072,
+      "buffer_offset": 1967616,
+      "bytes": 12288
+    },
+    {
+      "kind": "int8",
+      "tensor": "model.layers.27.mlp.down_proj.weight",
+      "shape": [
+        1024,
+        3072
+      ],
+      "elements": 3145728,
+      "buffer_offset": 592838656,
+      "bytes": 3145728
+    },
+    {
+      "kind": "f32-scale-per-output-channel",
+      "tensor": "model.layers.27.mlp.down_proj.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 1979904,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32",
+      "tensor": "model.norm.weight",
+      "shape": [
+        1024
+      ],
+      "elements": 1024,
+      "buffer_offset": 258048,
+      "bytes": 4096
+    },
+    {
+      "kind": "f32-computed",
+      "tensor": "inv_freq",
+      "shape": [
+        64
+      ],
+      "elements": 64,
+      "buffer_offset": 262144,
+      "bytes": 256
+    }
+  ],
+  "not_verified": [
+    "no board upload or readback was performed",
+    "physical DDR capacity was not probed",
+    "the image is not executed by any compiled model yet"
+  ],
+  "verification": {
+    "embedding_int8_identical_to_quant_reference": true,
+    "embedding_scales_identical_to_quant_reference": true,
+    "placement_hashes_reverified_against_image_bytes": true,
+    "method": "read the image back, dequantize one matrix, compare element-wise with tools/quant_reference.py::quantize_rows on the checkpoint, and re-hash every placed region",
+    "independently_confirmed_image_sha256": "1770e3fa7f6c7fb10eb536d04e3258803eaee1b75c9edc2c7e37da2991a0a761"
+  }
+}

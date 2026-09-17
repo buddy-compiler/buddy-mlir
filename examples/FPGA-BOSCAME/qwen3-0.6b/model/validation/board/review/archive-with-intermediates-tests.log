@@ -1,0 +1,16 @@
+test_elf_uses_actual_embedded_bytes_not_manifest_claim (test_archive_model_run.ArchiveModelRunTests.test_elf_uses_actual_embedded_bytes_not_manifest_claim) ... ok
+test_exact_manifest_completion_and_optional_local_readbacks (test_archive_model_run.ArchiveModelRunTests.test_exact_manifest_completion_and_optional_local_readbacks) ... ok
+test_intermediate_generated_source_npz_and_metadata_hashes_are_required (test_archive_model_run.ArchiveModelRunTests.test_intermediate_generated_source_npz_and_metadata_hashes_are_required) ... ok
+test_intermediate_npz_rejects_wrong_dtype_shape_missing_nonfinite_and_coverage (test_archive_model_run.ArchiveModelRunTests.test_intermediate_npz_rejects_wrong_dtype_shape_missing_nonfinite_and_coverage) ... ok
+test_intermediate_offsets_cannot_reorder_or_alias_the_reference_blob (test_archive_model_run.ArchiveModelRunTests.test_intermediate_offsets_cannot_reorder_or_alias_the_reference_blob) ... ok
+test_intermediate_reference_reconstructs_every_layout_and_resolves_provenance (test_archive_model_run.ArchiveModelRunTests.test_intermediate_reference_reconstructs_every_layout_and_resolves_provenance) ... ok
+test_intermediate_rehashed_blob_still_must_match_independent_npz (test_archive_model_run.ArchiveModelRunTests.test_intermediate_rehashed_blob_still_must_match_independent_npz) ... ok
+test_optional_intermediate_manifest_is_bound_to_plan_and_uart (test_archive_model_run.ArchiveModelRunTests.test_optional_intermediate_manifest_is_bound_to_plan_and_uart) ... ok
+test_oracle_must_reconstruct_from_npz_and_match_full_dimensions (test_archive_model_run.ArchiveModelRunTests.test_oracle_must_reconstruct_from_npz_and_match_full_dimensions) ... ok
+test_refuses_archive_overwrite_before_other_work (test_archive_model_run.ArchiveModelRunTests.test_refuses_archive_overwrite_before_other_work) ... ok
+test_rejects_missing_segment_wrong_hash_false_success_and_symlinks (test_archive_model_run.ArchiveModelRunTests.test_rejects_missing_segment_wrong_hash_false_success_and_symlinks) ... ok
+
+----------------------------------------------------------------------
+Ran 11 tests in 0.328s
+
+OK

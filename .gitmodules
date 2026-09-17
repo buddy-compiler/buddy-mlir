@@ -1,7 +1,7 @@
 [submodule "llvm"]
 	path = llvm
-	url = https://github.com/RuyiAI-Stack/llvm-project
-	branch = riscv
+	url = https://github.com/CBalaa/llvm-project.git
+	branch = fpga-boscame-upstream
 	shallow = true
 [submodule "thirdparty/mimalloc"]
 	path = thirdparty/mimalloc
@@ -15,3 +15,7 @@
 	path = thirdparty/tt-mlir
 	url = https://github.com/tenstorrent/tt-mlir.git
 	shallow = false
+[submodule "thirdparty/triton-riscv"]
+	path = thirdparty/triton-riscv
+	url = git@github.com:CBalaa/triton-riscv-for-fpga.git
+	branch = fpga-boscame-checkpoint

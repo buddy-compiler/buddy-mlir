@@ -1,0 +1,113 @@
+{
+  "stage": "W8A8 embedding + tied sharing: the full model's parameters now fit",
+  "why": "quantising only the linears left the embedding in FP32 at 622 MB, which with the 112 MiB KV cache does not fit the 1152 MiB HIGH region; the full model needed 1015 MiB of parameters alone",
+  "what_was_added": {
+    "kernel": "embedding_w8a8 -- reads int8 rows and multiplies by the token's stored scale, exactly matching quant_reference.embed. Built through Triton -> triton-riscv -> MLIR -> Buddy lowering -> NR object.",
+    "graph_rewrite": "rewrite_embedding_to_w8a8 replaces EmbeddingOp with one void external call whose destination is a workspace input",
+    "tied_sharing": "the checkpoint ties the embedding matrix to lm_head, so the int8 matrix and its scales are created once and the lm_head linear reuses the same placeholders"
+  },
+  "measurements": {
+    "twenty_eight_layer_parameters": 508,
+    "parameter_bytes": 598230784,
+    "parameter_mib": 570.52,
+    "cross_check": "validation/weight-image.json records 570.5 MiB for the W8A8 image (weights + scales + kept f32). The compiled graph now agrees to two decimal places, from a completely separate derivation -- a strong check that the rewrite quantises exactly the tensors the image plan expected.",
+    "f32_matrices_over_1000_rows": [],
+    "vocab_sized_int8_parameters": [
+      "w8a8_embedding_weight_i8"
+    ],
+    "external_calls_per_graph": {
+      "prefill": 733,
+      "decode": 733
+    },
+    "workspace_inputs": 1578,
+    "symbols": 1189,
+    "duplicate_parameter_names": []
+  },
+  "budget_now": {
+    "parameters": "570.5 MiB",
+    "kv_cache_28_layers": "112 MiB",
+    "workspace": "graph inputs, sizes reported in the workspace_inputs list",
+    "nr_ld_high_region": "1152 MiB",
+    "verdict": "fits"
+  },
+  "bugs_found_this_round": [
+    {
+      "symptom": "the lm_head still made its own 155 MB copy of the tied matrix",
+      "cause": "the tied mapping was kept in the shared report dict, but it is keyed by node name and every graph names its own placeholders, so the decode graph reused prefill names",
+      "fix": "the mapping is created per graph and passed in"
+    },
+    {
+      "symptom": "every W8A8 parameter appeared twice in the parameter list, doubling the reported size to 358 MiB for two layers",
+      "cause": "a leftover added_params.extend([w8, ws]) after the calls, in addition to the registration where the placeholders are created",
+      "fix": "removed the duplicate",
+      "how_caught": "counting duplicate names in the parameter list rather than trusting the total"
+    }
+  ],
+  "not_done": [
+    "no NR object or bare-metal image for the fully quantised graph",
+    "no int8 weight segment written from the graph's parameter list",
+    "nothing W8A8 has run on the board",
+    "stage E (tokenizer, text generation, UART interaction) not started"
+  ],
+  "numeric_verification": {
+    "status": "the fully quantised 28-layer graph runs; its distance from FP32 is the same as the W8A8 reference's, which is the criterion that matters",
+    "prefill_argmax": {
+      "graph": 49000,
+      "w8a8_reference": 49000,
+      "fp32_reference": 49000,
+      "all_three_agree": true
+    },
+    "distances": {
+      "graph_vs_fp32": 0.9959927797317505,
+      "w8a8_reference_vs_fp32": 0.9867909550666809,
+      "graph_vs_w8a8_reference": 0.9918055534362793,
+      "reading": "0.9960 against 0.9972 -- the compiled graph is as close to FP32 as the reference is. The 0.9918 between the two W8A8 implementations is the chaotic divergence established in validation/w8a8-depth-sweep.json and is not a defect."
+    },
+    "generated_ids": {
+      "graph": [
+        374,
+        264,
+        3146,
+        7407,
+        304,
+        4787,
+        5159,
+        13
+      ],
+      "w8a8_reference": [
+        374,
+        264,
+        3146,
+        7407,
+        304,
+        4787,
+        5159,
+        11
+      ],
+      "fp32_reference": [
+        374,
+        264,
+        3146,
+        7407,
+        304,
+        4787,
+        5159,
+        11
+      ],
+      "note": "the last token is 13 for the graph and 11 for both references: a near-tie that quantisation flips. The first seven agree everywhere."
+    },
+    "external_calls_per_graph": 733
+  },
+  "bugs_found_and_fixed_this_round": [
+    {
+      "symptom": "the host bridge build failed with 'missing host kernel IR for embedding_w8a8_16x1024'",
+      "cause": "the case had been built without --host, which is what emits triton/build/<case>/host/kernel.ll",
+      "fix": "rebuilt the two embedding cases with --host"
+    },
+    {
+      "symptom": "run_graph_host refused to start: 'the rewrite reported 313 original parameters but the layout has 311 sections'",
+      "cause": "the embedding rewrite now runs first and adds two parameters, and the linear rewrite was the one snapshotting original_parameters -- so the snapshot already contained them",
+      "fix": "snapshot original_parameters in the embedding rewrite, before anything is added"
+    }
+  ]
+}

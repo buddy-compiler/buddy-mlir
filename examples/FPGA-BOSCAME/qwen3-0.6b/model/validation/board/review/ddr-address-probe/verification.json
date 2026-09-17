@@ -1,0 +1,29 @@
+{
+  "status": "PASS",
+  "run_id": "run-f58ee08065af4c65",
+  "sampled_addresses": [
+    "0xb8000000",
+    "0xbc000000",
+    "0xc0000000",
+    "0xc4000000",
+    "0xc8000000",
+    "0xcc000000",
+    "0xd0000000",
+    "0xd4000000",
+    "0xd8000000",
+    "0xdc000000",
+    "0xe0000000",
+    "0xe4000000",
+    "0xe8000000",
+    "0xec000000",
+    "0xf0000000",
+    "0xf4000000",
+    "0xf8000000",
+    "0xfc000000",
+    "0xfffff000"
+  ],
+  "bytes_per_address": 64,
+  "total_bytes_compared": 1216,
+  "scope": "Sparse RA reads/writes and alias check only. Does not establish contiguous/full DDR capacity or reliability.",
+  "uart_sha256": "ef13012929dc7a9e476974299c3add52897cd1034cea429b7bb91c759ff13add"
+}

@@ -40,6 +40,40 @@ print('    Total ERROR:  0  suppressed:  0',flush=True)
 
 
 class RunnerTests(unittest.TestCase):
+    def test_partial_uart_write_preserves_utf8_and_retries(self):
+        sender = remote.UartInput(['你好\n', '-next\n'], 2, 3)
+        sender.start(10)
+        with patch.object(remote.os, 'write', side_effect=[2, BlockingIOError(), 5, 6]) as write:
+            sender.pump(99, 11)
+            write.assert_not_called()
+            sender.pump(99, 12)
+            sender.pump(99, 12.1)
+            sender.pump(99, 12.2)
+            sender.pump(99, 14)
+            self.assertEqual(write.call_count, 3)
+            sender.pump(99, 15.3)
+            self.assertFalse(sender.pending)
+            self.assertEqual(sender.sent_bytes, len('你好\n-next\n'.encode()))
+            self.assertEqual(write.call_args_list[1].args[1], '你好\n'.encode()[2:])
+
+    def test_layout_requires_every_readback_and_retains_original_hash(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            segments = []
+            for name, data in [('image.bin', b'boot'), ('weights.bin', b'parameters')]:
+                (root/name).write_bytes(data)
+                segments.append({'file': name, 'size': len(data),
+                                 'sha256': hashlib.sha256(data).hexdigest()})
+            (root/'image.bin.readback').write_bytes(b'boot')
+            with self.assertRaisesRegex(RuntimeError, 'weights.bin'):
+                remote.verify_layout_readbacks(root, segments)
+            (root/'weights.bin.readback').write_bytes(b'parameters')
+            self.assertEqual(len(remote.verify_layout_readbacks(root, segments)), 2)
+            (root/'weights.bin').write_bytes(b'changed')
+            (root/'weights.bin.readback').write_bytes(b'changed')
+            with self.assertRaisesRegex(RuntimeError, 'weights.bin'):
+                remote.verify_layout_readbacks(root, segments)
+
     def test_resource_table(self):
         remote.board_available(b'uvhs-0 B1 F1 on link down false\n', 5)
         for row in (b'uvhs-0 B1 F1 on link up hjuser false\n',
@@ -59,7 +93,7 @@ class RunnerTests(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 remote.check_paths(root,run)
 
-    def simulate(self, mode, payload=b'Hello, World!\r\nverify hello: PASS\r\n'):
+    def simulate(self, mode, payload=b'Hello, World!\r\nverify hello: PASS\r\n', marker=None):
         cwd=Path.cwd()
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory); run=root/'run'; run.mkdir()
@@ -70,8 +104,9 @@ class RunnerTests(unittest.TestCase):
             device=os.ttyname(serial_slave)
             control_r,control_w=os.pipe()
             args=SimpleNamespace(fpga=5,sha256=hashlib.sha256(image.read_bytes()).hexdigest(),
-                                 capture_seconds=.15,startup_timeout=.3,baud=115200)
+                                 capture_seconds=.15,startup_timeout=.3,baud=115200,completion_marker=marker)
             if mode=='hash_mismatch': args.sha256='0'*64
+            if mode=='stop_file': args.background=True
             producer_error=[]
             def producer():
                 deadline=time.monotonic()+2
@@ -80,6 +115,7 @@ class RunnerTests(unittest.TestCase):
                 if (run/'trigger').exists():
                     try:
                         if mode=='interrupt': os.write(control_w,b'STOP\n')
+                        elif mode=='stop_file': (run/'stop').touch()
                         elif mode!='empty': os.write(serial_master,payload)
                     except OSError as error:
                         producer_error.append(error)
@@ -89,13 +125,15 @@ class RunnerTests(unittest.TestCase):
             try:
                 with patch.dict(os.environ,PATH=str(bindir)+':'+os.environ['PATH'],FPGA_TEST_MODE=mode), \
                      patch.object(remote,'check_processes'),patch.object(remote,'preflight') as preflight, \
+                     (patch.object(remote.shutil, 'disk_usage', return_value=SimpleNamespace(free=0))
+                      if mode == 'disk_full' else contextlib.nullcontext()), \
                      contextlib.redirect_stdout(stdout),contextlib.redirect_stderr(io.StringIO()):
                     status=remote.run(args,root=root,run_dir=run,device=device,control_fd=control_r)
                 result=json.loads((run/'result.json').read_text())
                 stdout.flush(); output=stdout.buffer.getvalue()
                 # TIOCEXCL must be released even on errors or interruption.
                 reopened=os.open(device,os.O_RDWR|os.O_NOCTTY); os.close(reopened)
-                if mode=='hash_mismatch': preflight.assert_not_called()
+                if mode in ('hash_mismatch','disk_full'): preflight.assert_not_called()
                 return status,result,output
             finally:
                 os.chdir(cwd)
@@ -105,11 +143,42 @@ class RunnerTests(unittest.TestCase):
                 self.assertFalse(thread.is_alive())
                 self.assertFalse(producer_error)
 
+    def test_disk_full_prevents_hardware_access(self):
+        status,result,_=self.simulate('disk_full')
+        self.assertNotEqual(status,0)
+        self.assertIn('insufficient remote disk space',result['error'])
+
     def test_first_uart_bytes_and_readback(self):
         status,result,output=self.simulate('ok')
         self.assertEqual(status,0)
         self.assertTrue(result['ddr_readback_matches'])
         self.assertEqual(output,b'Hello, World!\r\nverify hello: PASS\r\n')
+
+    def test_tty_restore_error_still_releases_exclusive_access_and_writes_result(self):
+        original = remote.termios.tcsetattr
+        calls = []
+        def configure(*args):
+            calls.append(args)
+            if len(calls) == 2: raise OSError('simulated disconnected tty during restore')
+            return original(*args)
+        with patch.object(remote.termios, 'tcsetattr', side_effect=configure):
+            status, result, _ = self.simulate('ok')
+        self.assertEqual(status, 1)
+        self.assertEqual(result['status'], 'ERROR')
+        self.assertIn('disconnected tty', result['cleanup_errors'][0])
+
+    def test_completion_marker_required(self):
+        status,result,_=self.simulate('ok',marker='DONE')
+        self.assertNotEqual(status,0)
+        self.assertIn('completion marker missing',result['error'])
+        status,result,_=self.simulate('ok',marker='verify hello: PASS')
+        self.assertEqual(status,0)
+        self.assertTrue(result['completion_marker_seen'])
+
+    def test_nr_failure_at_completion(self):
+        status,result,_=self.simulate('ok',b'[nr] RA returned: FAIL\r\n',marker='[nr] RA returned:')
+        self.assertNotEqual(status,0)
+        self.assertIn('verification failure',result['error'])
 
     def test_corrupt_readback(self):
         status,result,_=self.simulate('bad_readback')
@@ -140,6 +209,11 @@ class RunnerTests(unittest.TestCase):
         status,result,_=self.simulate('timeout')
         self.assertNotEqual(status,0)
         self.assertIn('startup timed out',result['error'])
+
+    def test_detached_worker_obeys_persistent_stop(self):
+        status,result,_=self.simulate('stop_file')
+        self.assertEqual(status,130)
+        self.assertEqual(result['status'],'INTERRUPTED')
 
     def test_interrupt_does_not_kill_unrelated_process(self):
         unrelated=subprocess.Popen(['sleep','30'],start_new_session=True)

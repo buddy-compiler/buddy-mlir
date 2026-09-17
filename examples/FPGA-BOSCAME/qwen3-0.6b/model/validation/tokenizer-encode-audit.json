@@ -1,0 +1,688 @@
+{
+  "status": "PASS",
+  "execution": "host only; portable C; no FPGA/UART/model execution",
+  "board_tokenizer_verified": false,
+  "tokenizers_version": "0.22.2",
+  "encoder_cases": 5173,
+  "identical_encoder_cases": 5173,
+  "nfc_cases": 26464,
+  "regex_boundary_cases": 5173,
+  "chat_template_then_encoder_cases": 144,
+  "rejected_inputs": 18,
+  "resource_struct_size": 48,
+  "tokenizer_blob_sha256": "e1f0bdff51120bbc271f0828e3014aa04ebeb0d96420752152e2f20140d533e8",
+  "fixtures": [
+    {
+      "text": "",
+      "host_reference_ids": [],
+      "host_c_encoder_ids": [],
+      "fpga_ids": null
+    },
+    {
+      "text": "Hello, world!",
+      "host_reference_ids": [
+        9707,
+        11,
+        1879,
+        0
+      ],
+      "host_c_encoder_ids": [
+        9707,
+        11,
+        1879,
+        0
+      ],
+      "fpga_ids": null
+    },
+    {
+      "text": "你好，世界！",
+      "host_reference_ids": [
+        108386,
+        3837,
+        99489,
+        6313
+      ],
+      "host_c_encoder_ids": [
+        108386,
+        3837,
+        99489,
+        6313
+      ],
+      "fpga_ids": null
+    },
+    {
+      "text": "a\u0000b",
+      "host_reference_ids": [
+        64,
+        188,
+        65
+      ],
+      "host_c_encoder_ids": [
+        64,
+        188,
+        65
+      ],
+      "fpga_ids": null
+    },
+    {
+      "text": "Å",
+      "host_reference_ids": [
+        144044
+      ],
+      "host_c_encoder_ids": [
+        144044
+      ],
+      "fpga_ids": null
+    },
+    {
+      "text": "̀",
+      "host_reference_ids": [
+        96549
+      ],
+      "host_c_encoder_ids": [
+        96549
+      ],
+      "fpga_ids": null
+    },
+    {
+      "text": "Á̧",
+      "host_reference_ids": [
+        43701,
+        136,
+        100
+      ],
+      "host_c_encoder_ids": [
+        43701,
+        136,
+        100
+      ],
+      "fpga_ids": null
+    },
+    {
+      "text": "Ǻ",
+      "host_reference_ids": [
+        148947
+      ],
+      "host_c_encoder_ids": [
+        148947
+      ],
+      "fpga_ids": null
+    },
+    {
+      "text": "á́",
+      "host_reference_ids": [
+        1953,
+        53839
+      ],
+      "host_c_encoder_ids": [
+        1953,
+        53839
+      ],
+      "fpga_ids": null
+    },
+    {
+      "text": "́A̧",
+      "host_reference_ids": [
+        53839,
+        32,
+        136,
+        100
+      ],
+      "host_c_encoder_ids": [
+        53839,
+        32,
+        136,
+        100
+      ],
+      "fpga_ids": null
+    },
+    {
+      "text": "각",
+      "host_reference_ids": [
+        126317
+      ],
+      "host_c_encoder_ids": [
+        126317
+      ],
+      "fpga_ids": null
+    },
+    {
+      "text": "각",
+      "host_reference_ids": [
+        126317
+      ],
+      "host_c_encoder_ids": [
+        126317
+      ],
+      "fpga_ids": null
+    },
+    {
+      "text": "𑤸",
+      "host_reference_ids": [
+        128240,
+        97,
+        116
+      ],
+      "host_c_encoder_ids": [
+        128240,
+        97,
+        116
+      ],
+      "fpga_ids": null
+    },
+    {
+      "text": "x\n \ny",
+      "host_reference_ids": [
+        87,
+        26809,
+        88
+      ],
+      "host_c_encoder_ids": [
+        87,
+        26809,
+        88
+      ],
+      "fpga_ids": null
+    },
+    {
+      "text": "\r \n \t\r\nx",
+      "host_reference_ids": [
+        201,
+        715,
+        220,
+        4474,
+        87
+      ],
+      "host_c_encoder_ids": [
+        201,
+        715,
+        220,
+        4474,
+        87
+      ],
+      "fpga_ids": null
+    },
+    {
+      "text": "a'ſb",
+      "host_reference_ids": [
+        64,
+        6,
+        144815,
+        65
+      ],
+      "host_c_encoder_ids": [
+        64,
+        6,
+        144815,
+        65
+      ],
+      "fpga_ids": null
+    },
+    {
+      "text": "\u001cA\u001d1\u001e!\u001f?",
+      "host_reference_ids": [
+        216,
+        32,
+        217,
+        16,
+        218,
+        0,
+        219,
+        30
+      ],
+      "host_c_encoder_ids": [
+        216,
+        32,
+        217,
+        16,
+        218,
+        0,
+        219,
+        30
+      ],
+      "fpga_ids": null
+    },
+    {
+      "text": "a𑼂b",
+      "host_reference_ids": [
+        64,
+        128240,
+        120,
+        224,
+        65
+      ],
+      "host_c_encoder_ids": [
+        64,
+        128240,
+        120,
+        224,
+        65
+      ],
+      "fpga_ids": null
+    },
+    {
+      "text": "a𞓐b",
+      "host_reference_ids": [
+        64,
+        172,
+        252,
+        241,
+        238,
+        65
+      ],
+      "host_c_encoder_ids": [
+        64,
+        172,
+        252,
+        241,
+        238,
+        65
+      ],
+      "fpga_ids": null
+    },
+    {
+      "text": "👩‍💻🚀🙂",
+      "host_reference_ids": [
+        145233,
+        378,
+        235,
+        145851,
+        145836,
+        145080
+      ],
+      "host_c_encoder_ids": [
+        145233,
+        378,
+        235,
+        145851,
+        145836,
+        145080
+      ],
+      "fpga_ids": null
+    },
+    {
+      "text": "مرحبا بالعالم",
+      "host_reference_ids": [
+        124122,
+        29825,
+        124671,
+        124476,
+        129634
+      ],
+      "host_c_encoder_ids": [
+        124122,
+        29825,
+        124671,
+        124476,
+        129634
+      ],
+      "fpga_ids": null
+    },
+    {
+      "text": "नमस्ते दुनिया",
+      "host_reference_ids": [
+        60096,
+        87244,
+        78368,
+        30484,
+        97,
+        34370,
+        14925,
+        99,
+        72653,
+        60096,
+        42311,
+        107,
+        23868
+      ],
+      "host_c_encoder_ids": [
+        60096,
+        87244,
+        78368,
+        30484,
+        97,
+        34370,
+        14925,
+        99,
+        72653,
+        60096,
+        42311,
+        107,
+        23868
+      ],
+      "fpga_ids": null
+    },
+    {
+      "text": "한글 日本語",
+      "host_reference_ids": [
+        23573,
+        83291,
+        75402,
+        21894,
+        102819
+      ],
+      "host_c_encoder_ids": [
+        23573,
+        83291,
+        75402,
+        21894,
+        102819
+      ],
+      "fpga_ids": null
+    },
+    {
+      "text": "<|endoftext|>",
+      "host_reference_ids": [
+        151643
+      ],
+      "host_c_encoder_ids": [
+        151643
+      ],
+      "fpga_ids": null
+    }
+  ],
+  "chat_fixtures": [
+    {
+      "user_text": "Hello, world!",
+      "enable_thinking": false,
+      "host_reference_prompt_ids": [
+        151644,
+        872,
+        198,
+        9707,
+        11,
+        1879,
+        0,
+        151645,
+        198,
+        151644,
+        77091,
+        198,
+        151667,
+        271,
+        151668,
+        271
+      ],
+      "host_c_prompt_ids": [
+        151644,
+        872,
+        198,
+        9707,
+        11,
+        1879,
+        0,
+        151645,
+        198,
+        151644,
+        77091,
+        198,
+        151667,
+        271,
+        151668,
+        271
+      ],
+      "fpga_prompt_ids": null
+    },
+    {
+      "user_text": "Hello, world!",
+      "enable_thinking": true,
+      "host_reference_prompt_ids": [
+        151644,
+        872,
+        198,
+        9707,
+        11,
+        1879,
+        0,
+        151645,
+        198,
+        151644,
+        77091,
+        198
+      ],
+      "host_c_prompt_ids": [
+        151644,
+        872,
+        198,
+        9707,
+        11,
+        1879,
+        0,
+        151645,
+        198,
+        151644,
+        77091,
+        198
+      ],
+      "fpga_prompt_ids": null
+    },
+    {
+      "user_text": "你好，世界！",
+      "enable_thinking": false,
+      "host_reference_prompt_ids": [
+        151644,
+        872,
+        198,
+        108386,
+        3837,
+        99489,
+        6313,
+        151645,
+        198,
+        151644,
+        77091,
+        198,
+        151667,
+        271,
+        151668,
+        271
+      ],
+      "host_c_prompt_ids": [
+        151644,
+        872,
+        198,
+        108386,
+        3837,
+        99489,
+        6313,
+        151645,
+        198,
+        151644,
+        77091,
+        198,
+        151667,
+        271,
+        151668,
+        271
+      ],
+      "fpga_prompt_ids": null
+    },
+    {
+      "user_text": "你好，世界！",
+      "enable_thinking": true,
+      "host_reference_prompt_ids": [
+        151644,
+        872,
+        198,
+        108386,
+        3837,
+        99489,
+        6313,
+        151645,
+        198,
+        151644,
+        77091,
+        198
+      ],
+      "host_c_prompt_ids": [
+        151644,
+        872,
+        198,
+        108386,
+        3837,
+        99489,
+        6313,
+        151645,
+        198,
+        151644,
+        77091,
+        198
+      ],
+      "fpga_prompt_ids": null
+    },
+    {
+      "user_text": "Å",
+      "enable_thinking": false,
+      "host_reference_prompt_ids": [
+        151644,
+        872,
+        198,
+        144044,
+        151645,
+        198,
+        151644,
+        77091,
+        198,
+        151667,
+        271,
+        151668,
+        271
+      ],
+      "host_c_prompt_ids": [
+        151644,
+        872,
+        198,
+        144044,
+        151645,
+        198,
+        151644,
+        77091,
+        198,
+        151667,
+        271,
+        151668,
+        271
+      ],
+      "fpga_prompt_ids": null
+    },
+    {
+      "user_text": "Å",
+      "enable_thinking": true,
+      "host_reference_prompt_ids": [
+        151644,
+        872,
+        198,
+        144044,
+        151645,
+        198,
+        151644,
+        77091,
+        198
+      ],
+      "host_c_prompt_ids": [
+        151644,
+        872,
+        198,
+        144044,
+        151645,
+        198,
+        151644,
+        77091,
+        198
+      ],
+      "fpga_prompt_ids": null
+    },
+    {
+      "user_text": "Á̧",
+      "enable_thinking": false,
+      "host_reference_prompt_ids": [
+        151644,
+        872,
+        198,
+        43701,
+        136,
+        100,
+        151645,
+        198,
+        151644,
+        77091,
+        198,
+        151667,
+        271,
+        151668,
+        271
+      ],
+      "host_c_prompt_ids": [
+        151644,
+        872,
+        198,
+        43701,
+        136,
+        100,
+        151645,
+        198,
+        151644,
+        77091,
+        198,
+        151667,
+        271,
+        151668,
+        271
+      ],
+      "fpga_prompt_ids": null
+    },
+    {
+      "user_text": "Á̧",
+      "enable_thinking": true,
+      "host_reference_prompt_ids": [
+        151644,
+        872,
+        198,
+        43701,
+        136,
+        100,
+        151645,
+        198,
+        151644,
+        77091,
+        198
+      ],
+      "host_c_prompt_ids": [
+        151644,
+        872,
+        198,
+        43701,
+        136,
+        100,
+        151645,
+        198,
+        151644,
+        77091,
+        198
+      ],
+      "fpga_prompt_ids": null
+    }
+  ],
+  "compile_command": [
+    "../../../../llvm/build-2d26/bin/clang",
+    "-std=c11",
+    "-O2",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-shared",
+    "-fPIC",
+    "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/text/tokenizer_resource.c",
+    "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/tests/tokenizer_primitives_check.c",
+    "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/text/unicode_tables.c",
+    "-o",
+    "build/text-encode-audit/libqwen_encode_check.so"
+  ],
+  "sources": {
+    "text/tokenizer_encode.c": "c65e1de2c1b1b88ecfac82d3a7c402e2e1382a1a1fb73f649e7cadc73d239997",
+    "text/tokenizer_resource.c": "bac5018fb31802035c2716bab98539e7429d92cc2bd94b13bd56fafc11b1304f",
+    "text/tokenizer_resource.h": "a97a1bdcd564fc4ef66e8c279ebfd5418853090b9a0e87f9f278dbf6085da2f1",
+    "text/unicode_tables.c": "c944e508f8bc45e2a24b15d2a717d969822aa18f5c4381862a136d936f136364",
+    "tools/check_tokenizer_encode.py": "55c0c5b5fbf8687164dd7e2c7efc1742d4be90927a1c89e9af6b6732d07cb0d9"
+  }
+}

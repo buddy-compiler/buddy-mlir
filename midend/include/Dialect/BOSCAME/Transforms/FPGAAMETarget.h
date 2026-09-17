@@ -17,7 +17,7 @@
 // Single source of truth for "which AME hardware contract does this module
 // target".
 //
-// buddy-mlir carries two AME software conventions that cannot be mixed inside
+// buddy-mlir carries AME software conventions that cannot be mixed inside
 // one module:
 //
 //  * `upstream`  - the value-semantics pathway merged from upstream/main
@@ -32,6 +32,11 @@
 //                  accumulator that stays resident across the whole K
 //                  reduction, and the final `msce32.m` write-back performs the
 //                  i32 -> f32 conversion in hardware.
+//
+//  * `nr-fpga` - current NH/RA FPGA: the same bit-field configuration and
+//                register banks, but accumulator memory is raw i32 and the
+//                transposed B-load instruction is unsupported. Float
+//                conversion must remain explicit in the input program.
 //
 // Feeding the wrong convention to the wrong machine is *silent*: both
 // encodings are legal i64 constants, so a mismatch produces wrong numbers
@@ -63,6 +68,7 @@ using mlir::Type;
 ///
 ///   module attributes {bosc_ame.target = "upstream"}     // default
 ///   module attributes {bosc_ame.target = "qwen3-fpga"}
+///   module attributes {bosc_ame.target = "nr-fpga"}
 inline constexpr llvm::StringLiteral kAmeTargetAttrName = "bosc_ame.target";
 
 /// Subtarget feature that selects the FPGA register-file convention in the
@@ -75,7 +81,13 @@ enum class AmeTargetProfile {
   Upstream,
   /// Qwen3 FPGA RTL: bit-field `mtype` CSR and the FPGA W8A8 schedule.
   Qwen3Fpga,
+  /// NR FPGA: raw i32 accumulator memory and non-transposed B loads only.
+  NrFpga,
 };
+
+inline bool isFpgaTarget(AmeTargetProfile profile) {
+  return profile != AmeTargetProfile::Upstream;
+}
 
 llvm::StringRef stringifyAmeTargetProfile(AmeTargetProfile profile);
 std::optional<AmeTargetProfile> symbolizeAmeTargetProfile(llvm::StringRef name);

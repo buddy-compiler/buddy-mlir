@@ -1,0 +1,1616 @@
+{
+  "status": "KERNEL_PROFILE_PASS",
+  "errors": [],
+  "stages": [
+    {
+      "kind": "prefill",
+      "graph_start_position": 0,
+      "position": 15,
+      "compute_cycles": 1616987962,
+      "preparation_cycles": 2953090,
+      "selection_cycles": 2591362,
+      "cache_retention_cycles": 26493920,
+      "model_cycles": 1649026334,
+      "total_with_uart_cycles": 1653611527,
+      "scratch_bytes": 58265037,
+      "kernels": [
+        {
+          "symbol": "_mlir_ciface_kernel_attention_pv_position_16x16x128x512",
+          "calls": 4,
+          "cycles": 50506897
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_attention_qk_position_native_16x16x512x128",
+          "calls": 4,
+          "cycles": 37809836
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_attention_scale_mask_position_16x16x512",
+          "calls": 4,
+          "cycles": 189811254
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_dequantize_16x1024",
+          "calls": 16,
+          "cycles": 64726356
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_dequantize_16x2048",
+          "calls": 4,
+          "cycles": 32358099
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_dequantize_16x3072",
+          "calls": 8,
+          "cycles": 97808868
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_dequantize_1x151936",
+          "calls": 1,
+          "cycles": 37600546
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_embedding_w8a8_16x1024",
+          "calls": 1,
+          "cycles": 1243866
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_kv_cache_update_position_16x8x128_cap512",
+          "calls": 8,
+          "cycles": 2769054
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_layout_context_8x16x128",
+          "calls": 8,
+          "cycles": 45259977
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_16x1024x1024",
+          "calls": 8,
+          "cycles": 17326798
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_16x1024x2048",
+          "calls": 4,
+          "cycles": 12760621
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_16x1024x3072",
+          "calls": 4,
+          "cycles": 23756330
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_16x2048x1024",
+          "calls": 4,
+          "cycles": 17326834
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_16x3072x1024",
+          "calls": 8,
+          "cycles": 51961606
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_1x151936x1024",
+          "calls": 1,
+          "cycles": 159524631
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_quantize_16x1024",
+          "calls": 20,
+          "cycles": 134138470
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_quantize_16x2048",
+          "calls": 4,
+          "cycles": 54133423
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_quantize_16x3072",
+          "calls": 4,
+          "cycles": 113423097
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_quantize_1x1024",
+          "calls": 1,
+          "cycles": 420410
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_rmsnorm_128x128",
+          "calls": 4,
+          "cycles": 9809952
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_rmsnorm_16x1024",
+          "calls": 9,
+          "cycles": 21804104
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_rmsnorm_256x128",
+          "calls": 4,
+          "cycles": 19611906
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_silu_16x3072",
+          "calls": 4,
+          "cycles": 35889399
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_softmax_16x16x512",
+          "calls": 4,
+          "cycles": 113024454
+        }
+      ],
+      "kernel_calls": 141,
+      "kernel_cycles": 1344806788,
+      "graph_cycles_outside_kernel_measurements": 272181174
+    },
+    {
+      "kind": "decode",
+      "graph_start_position": 16,
+      "position": 16,
+      "compute_cycles": 572887382,
+      "preparation_cycles": 623233,
+      "selection_cycles": 2591409,
+      "cache_retention_cycles": 26493905,
+      "model_cycles": 602595929,
+      "total_with_uart_cycles": 609737359,
+      "scratch_bytes": 51406669,
+      "kernels": [
+        {
+          "symbol": "_mlir_ciface_kernel_attention_pv_position_16x1x128x512",
+          "calls": 4,
+          "cycles": 18112583
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_attention_qk_position_native_16x1x512x128",
+          "calls": 4,
+          "cycles": 12269296
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_attention_scale_mask_position_16x1x512",
+          "calls": 4,
+          "cycles": 8641753
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_dequantize_1x1024",
+          "calls": 16,
+          "cycles": 4041717
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_dequantize_1x151936",
+          "calls": 1,
+          "cycles": 37544661
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_dequantize_1x2048",
+          "calls": 4,
+          "cycles": 2016988
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_dequantize_1x3072",
+          "calls": 8,
+          "cycles": 6088215
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_embedding_w8a8_1x1024",
+          "calls": 1,
+          "cycles": 78690
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_kv_cache_update_position_1x8x128_cap512",
+          "calls": 8,
+          "cycles": 180554
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_layout_context_8x1x128",
+          "calls": 8,
+          "cycles": 1632831
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_1x1024x1024",
+          "calls": 8,
+          "cycles": 8551742
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_1x1024x2048",
+          "calls": 4,
+          "cycles": 7872888
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_1x1024x3072",
+          "calls": 4,
+          "cycles": 12765220
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_1x151936x1024",
+          "calls": 1,
+          "cycles": 159297032
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_1x2048x1024",
+          "calls": 4,
+          "cycles": 8550575
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_1x3072x1024",
+          "calls": 8,
+          "cycles": 25654252
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_quantize_1x1024",
+          "calls": 21,
+          "cycles": 8825364
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_quantize_1x2048",
+          "calls": 4,
+          "cycles": 3385515
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_quantize_1x3072",
+          "calls": 4,
+          "cycles": 7095467
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_rmsnorm_16x128",
+          "calls": 4,
+          "cycles": 1229201
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_rmsnorm_1x1024",
+          "calls": 9,
+          "cycles": 1370795
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_rmsnorm_8x128",
+          "calls": 4,
+          "cycles": 616754
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_silu_1x3072",
+          "calls": 4,
+          "cycles": 2243836
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_softmax_16x1x512",
+          "calls": 4,
+          "cycles": 7095835
+        }
+      ],
+      "kernel_calls": 141,
+      "kernel_cycles": 345161764,
+      "graph_cycles_outside_kernel_measurements": 227725618
+    },
+    {
+      "kind": "decode",
+      "graph_start_position": 17,
+      "position": 17,
+      "compute_cycles": 573311430,
+      "preparation_cycles": 623575,
+      "selection_cycles": 2591378,
+      "cache_retention_cycles": 26493899,
+      "model_cycles": 603020282,
+      "total_with_uart_cycles": 610388035,
+      "scratch_bytes": 51406669,
+      "kernels": [
+        {
+          "symbol": "_mlir_ciface_kernel_attention_pv_position_16x1x128x512",
+          "calls": 4,
+          "cycles": 18308796
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_attention_qk_position_native_16x1x512x128",
+          "calls": 4,
+          "cycles": 12500213
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_attention_scale_mask_position_16x1x512",
+          "calls": 4,
+          "cycles": 8641767
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_dequantize_1x1024",
+          "calls": 16,
+          "cycles": 4041494
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_dequantize_1x151936",
+          "calls": 1,
+          "cycles": 37544385
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_dequantize_1x2048",
+          "calls": 4,
+          "cycles": 2016967
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_dequantize_1x3072",
+          "calls": 8,
+          "cycles": 6088202
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_embedding_w8a8_1x1024",
+          "calls": 1,
+          "cycles": 78707
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_kv_cache_update_position_1x8x128_cap512",
+          "calls": 8,
+          "cycles": 180517
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_layout_context_8x1x128",
+          "calls": 8,
+          "cycles": 1632584
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_1x1024x1024",
+          "calls": 8,
+          "cycles": 8552479
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_1x1024x2048",
+          "calls": 4,
+          "cycles": 7872713
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_1x1024x3072",
+          "calls": 4,
+          "cycles": 12765291
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_1x151936x1024",
+          "calls": 1,
+          "cycles": 159290531
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_1x2048x1024",
+          "calls": 4,
+          "cycles": 8552164
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_1x3072x1024",
+          "calls": 8,
+          "cycles": 25655464
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_quantize_1x1024",
+          "calls": 21,
+          "cycles": 8823072
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_quantize_1x2048",
+          "calls": 4,
+          "cycles": 3385477
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_quantize_1x3072",
+          "calls": 4,
+          "cycles": 7094925
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_rmsnorm_16x128",
+          "calls": 4,
+          "cycles": 1229086
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_rmsnorm_1x1024",
+          "calls": 9,
+          "cycles": 1370670
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_rmsnorm_8x128",
+          "calls": 4,
+          "cycles": 616944
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_silu_1x3072",
+          "calls": 4,
+          "cycles": 2244012
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_softmax_16x1x512",
+          "calls": 4,
+          "cycles": 7099326
+        }
+      ],
+      "kernel_calls": 141,
+      "kernel_cycles": 345585786,
+      "graph_cycles_outside_kernel_measurements": 227725644
+    },
+    {
+      "kind": "decode",
+      "graph_start_position": 18,
+      "position": 18,
+      "compute_cycles": 573503881,
+      "preparation_cycles": 631115,
+      "selection_cycles": 2591396,
+      "cache_retention_cycles": 26492788,
+      "model_cycles": 603219180,
+      "total_with_uart_cycles": 610805861,
+      "scratch_bytes": 51406669,
+      "kernels": [
+        {
+          "symbol": "_mlir_ciface_kernel_attention_pv_position_16x1x128x512",
+          "calls": 4,
+          "cycles": 18466290
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_attention_qk_position_native_16x1x512x128",
+          "calls": 4,
+          "cycles": 12524044
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_attention_scale_mask_position_16x1x512",
+          "calls": 4,
+          "cycles": 8641749
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_dequantize_1x1024",
+          "calls": 16,
+          "cycles": 4041613
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_dequantize_1x151936",
+          "calls": 1,
+          "cycles": 37544608
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_dequantize_1x2048",
+          "calls": 4,
+          "cycles": 2016945
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_dequantize_1x3072",
+          "calls": 8,
+          "cycles": 6087943
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_embedding_w8a8_1x1024",
+          "calls": 1,
+          "cycles": 78641
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_kv_cache_update_position_1x8x128_cap512",
+          "calls": 8,
+          "cycles": 180545
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_layout_context_8x1x128",
+          "calls": 8,
+          "cycles": 1632717
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_1x1024x1024",
+          "calls": 8,
+          "cycles": 8552260
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_1x1024x2048",
+          "calls": 4,
+          "cycles": 7870540
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_1x1024x3072",
+          "calls": 4,
+          "cycles": 12765005
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_1x151936x1024",
+          "calls": 1,
+          "cycles": 159300838
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_1x2048x1024",
+          "calls": 4,
+          "cycles": 8552708
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_1x3072x1024",
+          "calls": 8,
+          "cycles": 25655432
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_quantize_1x1024",
+          "calls": 21,
+          "cycles": 8823293
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_quantize_1x2048",
+          "calls": 4,
+          "cycles": 3386114
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_quantize_1x3072",
+          "calls": 4,
+          "cycles": 7094842
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_rmsnorm_16x128",
+          "calls": 4,
+          "cycles": 1229105
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_rmsnorm_1x1024",
+          "calls": 9,
+          "cycles": 1370615
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_rmsnorm_8x128",
+          "calls": 4,
+          "cycles": 616916
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_silu_1x3072",
+          "calls": 4,
+          "cycles": 2243413
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_softmax_16x1x512",
+          "calls": 4,
+          "cycles": 7102120
+        }
+      ],
+      "kernel_calls": 141,
+      "kernel_cycles": 345778296,
+      "graph_cycles_outside_kernel_measurements": 227725585
+    },
+    {
+      "kind": "decode",
+      "graph_start_position": 19,
+      "position": 19,
+      "compute_cycles": 574021881,
+      "preparation_cycles": 626009,
+      "selection_cycles": 2591376,
+      "cache_retention_cycles": 26493829,
+      "model_cycles": 603733095,
+      "total_with_uart_cycles": 611551514,
+      "scratch_bytes": 51406669,
+      "kernels": [
+        {
+          "symbol": "_mlir_ciface_kernel_attention_pv_position_16x1x128x512",
+          "calls": 4,
+          "cycles": 18662250
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_attention_qk_position_native_16x1x512x128",
+          "calls": 4,
+          "cycles": 12842646
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_attention_scale_mask_position_16x1x512",
+          "calls": 4,
+          "cycles": 8641883
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_dequantize_1x1024",
+          "calls": 16,
+          "cycles": 4041478
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_dequantize_1x151936",
+          "calls": 1,
+          "cycles": 37544136
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_dequantize_1x2048",
+          "calls": 4,
+          "cycles": 2016927
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_dequantize_1x3072",
+          "calls": 8,
+          "cycles": 6088011
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_embedding_w8a8_1x1024",
+          "calls": 1,
+          "cycles": 78702
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_kv_cache_update_position_1x8x128_cap512",
+          "calls": 8,
+          "cycles": 180580
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_layout_context_8x1x128",
+          "calls": 8,
+          "cycles": 1632672
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_1x1024x1024",
+          "calls": 8,
+          "cycles": 8552186
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_1x1024x2048",
+          "calls": 4,
+          "cycles": 7872724
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_1x1024x3072",
+          "calls": 4,
+          "cycles": 12764718
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_1x151936x1024",
+          "calls": 1,
+          "cycles": 159296414
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_1x2048x1024",
+          "calls": 4,
+          "cycles": 8552173
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_1x3072x1024",
+          "calls": 8,
+          "cycles": 25654700
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_quantize_1x1024",
+          "calls": 21,
+          "cycles": 8825843
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_quantize_1x2048",
+          "calls": 4,
+          "cycles": 3386663
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_quantize_1x3072",
+          "calls": 4,
+          "cycles": 7097534
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_rmsnorm_16x128",
+          "calls": 4,
+          "cycles": 1229134
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_rmsnorm_1x1024",
+          "calls": 9,
+          "cycles": 1370674
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_rmsnorm_8x128",
+          "calls": 4,
+          "cycles": 616823
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_silu_1x3072",
+          "calls": 4,
+          "cycles": 2244167
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_softmax_16x1x512",
+          "calls": 4,
+          "cycles": 7103793
+        }
+      ],
+      "kernel_calls": 141,
+      "kernel_cycles": 346296831,
+      "graph_cycles_outside_kernel_measurements": 227725050
+    },
+    {
+      "kind": "decode",
+      "graph_start_position": 20,
+      "position": 20,
+      "compute_cycles": 574255749,
+      "preparation_cycles": 623223,
+      "selection_cycles": 2591425,
+      "cache_retention_cycles": 26492925,
+      "model_cycles": 603963322,
+      "total_with_uart_cycles": 612011287,
+      "scratch_bytes": 51406669,
+      "kernels": [
+        {
+          "symbol": "_mlir_ciface_kernel_attention_pv_position_16x1x128x512",
+          "calls": 4,
+          "cycles": 18838694
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_attention_qk_position_native_16x1x512x128",
+          "calls": 4,
+          "cycles": 12900458
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_attention_scale_mask_position_16x1x512",
+          "calls": 4,
+          "cycles": 8641599
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_dequantize_1x1024",
+          "calls": 16,
+          "cycles": 4041307
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_dequantize_1x151936",
+          "calls": 1,
+          "cycles": 37544356
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_dequantize_1x2048",
+          "calls": 4,
+          "cycles": 2016923
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_dequantize_1x3072",
+          "calls": 8,
+          "cycles": 6087980
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_embedding_w8a8_1x1024",
+          "calls": 1,
+          "cycles": 78703
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_kv_cache_update_position_1x8x128_cap512",
+          "calls": 8,
+          "cycles": 180498
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_layout_context_8x1x128",
+          "calls": 8,
+          "cycles": 1632680
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_1x1024x1024",
+          "calls": 8,
+          "cycles": 8551915
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_1x1024x2048",
+          "calls": 4,
+          "cycles": 7873914
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_1x1024x3072",
+          "calls": 4,
+          "cycles": 12764950
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_1x151936x1024",
+          "calls": 1,
+          "cycles": 159292444
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_1x2048x1024",
+          "calls": 4,
+          "cycles": 8551842
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_1x3072x1024",
+          "calls": 8,
+          "cycles": 25654670
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_quantize_1x1024",
+          "calls": 21,
+          "cycles": 8824650
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_quantize_1x2048",
+          "calls": 4,
+          "cycles": 3385674
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_quantize_1x3072",
+          "calls": 4,
+          "cycles": 7098915
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_rmsnorm_16x128",
+          "calls": 4,
+          "cycles": 1229108
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_rmsnorm_1x1024",
+          "calls": 9,
+          "cycles": 1370576
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_rmsnorm_8x128",
+          "calls": 4,
+          "cycles": 616893
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_silu_1x3072",
+          "calls": 4,
+          "cycles": 2243932
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_softmax_16x1x512",
+          "calls": 4,
+          "cycles": 7107153
+        }
+      ],
+      "kernel_calls": 141,
+      "kernel_cycles": 346529834,
+      "graph_cycles_outside_kernel_measurements": 227725915
+    },
+    {
+      "kind": "decode",
+      "graph_start_position": 21,
+      "position": 21,
+      "compute_cycles": 574746405,
+      "preparation_cycles": 624887,
+      "selection_cycles": 2591375,
+      "cache_retention_cycles": 26493870,
+      "model_cycles": 604456537,
+      "total_with_uart_cycles": 612729308,
+      "scratch_bytes": 51406669,
+      "kernels": [
+        {
+          "symbol": "_mlir_ciface_kernel_attention_pv_position_16x1x128x512",
+          "calls": 4,
+          "cycles": 19034372
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_attention_qk_position_native_16x1x512x128",
+          "calls": 4,
+          "cycles": 13186250
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_attention_scale_mask_position_16x1x512",
+          "calls": 4,
+          "cycles": 8641906
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_dequantize_1x1024",
+          "calls": 16,
+          "cycles": 4041642
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_dequantize_1x151936",
+          "calls": 1,
+          "cycles": 37544658
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_dequantize_1x2048",
+          "calls": 4,
+          "cycles": 2016925
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_dequantize_1x3072",
+          "calls": 8,
+          "cycles": 6088141
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_embedding_w8a8_1x1024",
+          "calls": 1,
+          "cycles": 78714
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_kv_cache_update_position_1x8x128_cap512",
+          "calls": 8,
+          "cycles": 180559
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_layout_context_8x1x128",
+          "calls": 8,
+          "cycles": 1632872
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_1x1024x1024",
+          "calls": 8,
+          "cycles": 8552005
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_1x1024x2048",
+          "calls": 4,
+          "cycles": 7875485
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_1x1024x3072",
+          "calls": 4,
+          "cycles": 12764981
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_1x151936x1024",
+          "calls": 1,
+          "cycles": 159297553
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_1x2048x1024",
+          "calls": 4,
+          "cycles": 8551371
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_1x3072x1024",
+          "calls": 8,
+          "cycles": 25655129
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_quantize_1x1024",
+          "calls": 21,
+          "cycles": 8824522
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_quantize_1x2048",
+          "calls": 4,
+          "cycles": 3384769
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_quantize_1x3072",
+          "calls": 4,
+          "cycles": 7097750
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_rmsnorm_16x128",
+          "calls": 4,
+          "cycles": 1229018
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_rmsnorm_1x1024",
+          "calls": 9,
+          "cycles": 1370657
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_rmsnorm_8x128",
+          "calls": 4,
+          "cycles": 616854
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_silu_1x3072",
+          "calls": 4,
+          "cycles": 2243838
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_softmax_16x1x512",
+          "calls": 4,
+          "cycles": 7110923
+        }
+      ],
+      "kernel_calls": 141,
+      "kernel_cycles": 347020894,
+      "graph_cycles_outside_kernel_measurements": 227725511
+    },
+    {
+      "kind": "decode",
+      "graph_start_position": 22,
+      "position": 22,
+      "compute_cycles": 574944695,
+      "preparation_cycles": 628800,
+      "selection_cycles": 2591384,
+      "cache_retention_cycles": 26493075,
+      "model_cycles": 604657954,
+      "total_with_uart_cycles": 613153258,
+      "scratch_bytes": 51406669,
+      "kernels": [
+        {
+          "symbol": "_mlir_ciface_kernel_attention_pv_position_16x1x128x512",
+          "calls": 4,
+          "cycles": 19193257
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_attention_qk_position_native_16x1x512x128",
+          "calls": 4,
+          "cycles": 13225820
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_attention_scale_mask_position_16x1x512",
+          "calls": 4,
+          "cycles": 8641765
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_dequantize_1x1024",
+          "calls": 16,
+          "cycles": 4042065
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_dequantize_1x151936",
+          "calls": 1,
+          "cycles": 37544635
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_dequantize_1x2048",
+          "calls": 4,
+          "cycles": 2016983
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_dequantize_1x3072",
+          "calls": 8,
+          "cycles": 6088012
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_embedding_w8a8_1x1024",
+          "calls": 1,
+          "cycles": 78710
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_kv_cache_update_position_1x8x128_cap512",
+          "calls": 8,
+          "cycles": 180563
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_layout_context_8x1x128",
+          "calls": 8,
+          "cycles": 1632645
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_1x1024x1024",
+          "calls": 8,
+          "cycles": 8551363
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_1x1024x2048",
+          "calls": 4,
+          "cycles": 7873387
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_1x1024x3072",
+          "calls": 4,
+          "cycles": 12764655
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_1x151936x1024",
+          "calls": 1,
+          "cycles": 159298230
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_1x2048x1024",
+          "calls": 4,
+          "cycles": 8552239
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_1x3072x1024",
+          "calls": 8,
+          "cycles": 25655054
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_quantize_1x1024",
+          "calls": 21,
+          "cycles": 8825266
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_quantize_1x2048",
+          "calls": 4,
+          "cycles": 3387573
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_quantize_1x3072",
+          "calls": 4,
+          "cycles": 7094897
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_rmsnorm_16x128",
+          "calls": 4,
+          "cycles": 1229093
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_rmsnorm_1x1024",
+          "calls": 9,
+          "cycles": 1370678
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_rmsnorm_8x128",
+          "calls": 4,
+          "cycles": 616779
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_silu_1x3072",
+          "calls": 4,
+          "cycles": 2243567
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_softmax_16x1x512",
+          "calls": 4,
+          "cycles": 7112322
+        }
+      ],
+      "kernel_calls": 141,
+      "kernel_cycles": 347219558,
+      "graph_cycles_outside_kernel_measurements": 227725137
+    },
+    {
+      "kind": "decode",
+      "graph_start_position": 23,
+      "position": 23,
+      "compute_cycles": 575445415,
+      "preparation_cycles": 624168,
+      "selection_cycles": 2591363,
+      "cache_retention_cycles": 26492457,
+      "model_cycles": 605153403,
+      "total_with_uart_cycles": 613880064,
+      "scratch_bytes": 51406669,
+      "kernels": [
+        {
+          "symbol": "_mlir_ciface_kernel_attention_pv_position_16x1x128x512",
+          "calls": 4,
+          "cycles": 19388588
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_attention_qk_position_native_16x1x512x128",
+          "calls": 4,
+          "cycles": 13531858
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_attention_scale_mask_position_16x1x512",
+          "calls": 4,
+          "cycles": 8641800
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_dequantize_1x1024",
+          "calls": 16,
+          "cycles": 4041653
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_dequantize_1x151936",
+          "calls": 1,
+          "cycles": 37544200
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_dequantize_1x2048",
+          "calls": 4,
+          "cycles": 2016910
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_dequantize_1x3072",
+          "calls": 8,
+          "cycles": 6087803
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_embedding_w8a8_1x1024",
+          "calls": 1,
+          "cycles": 78703
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_kv_cache_update_position_1x8x128_cap512",
+          "calls": 8,
+          "cycles": 180555
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_layout_context_8x1x128",
+          "calls": 8,
+          "cycles": 1633315
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_1x1024x1024",
+          "calls": 8,
+          "cycles": 8552746
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_1x1024x2048",
+          "calls": 4,
+          "cycles": 7875183
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_1x1024x3072",
+          "calls": 4,
+          "cycles": 12764980
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_1x151936x1024",
+          "calls": 1,
+          "cycles": 159295587
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_1x2048x1024",
+          "calls": 4,
+          "cycles": 8550705
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_matmul_1x3072x1024",
+          "calls": 8,
+          "cycles": 25655454
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_quantize_1x1024",
+          "calls": 21,
+          "cycles": 8825220
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_quantize_1x2048",
+          "calls": 4,
+          "cycles": 3385343
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_quantize_1x3072",
+          "calls": 4,
+          "cycles": 7095060
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_rmsnorm_16x128",
+          "calls": 4,
+          "cycles": 1229096
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_rmsnorm_1x1024",
+          "calls": 9,
+          "cycles": 1370597
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_rmsnorm_8x128",
+          "calls": 4,
+          "cycles": 616966
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_silu_1x3072",
+          "calls": 4,
+          "cycles": 2244044
+        },
+        {
+          "symbol": "_mlir_ciface_kernel_softmax_16x1x512",
+          "calls": 4,
+          "cycles": 7114083
+        }
+      ],
+      "kernel_calls": 141,
+      "kernel_cycles": 347720449,
+      "graph_cycles_outside_kernel_measurements": 227724966
+    }
+  ],
+  "limits": [
+    "Timing/count validation only; numerical acceptance requires check_board_trace.py.",
+    "Kernel timing includes the added AME completion fence; instrumentation changes execution cost.",
+    "Graph minus kernels includes adapter/bookkeeping, allocation, scalar work, copies and synchronization; it is not pure memory time.",
+    "Actual LLVM call sites must be unconditional and acyclic; unsupported dynamic control flow is rejected.",
+    "Per-kernel diagnostic UART is inside graph timing. Kernel cycles exclude its writes; graph/model cycles are not UART-free throughput."
+  ],
+  "diagnostic_uart_inside_graph_timing": true,
+  "expected_kernel_calls": {
+    "prefill": {
+      "_mlir_ciface_kernel_attention_pv_position_16x16x128x512": 4,
+      "_mlir_ciface_kernel_attention_qk_position_native_16x16x512x128": 4,
+      "_mlir_ciface_kernel_attention_scale_mask_position_16x16x512": 4,
+      "_mlir_ciface_kernel_dequantize_16x1024": 16,
+      "_mlir_ciface_kernel_dequantize_16x2048": 4,
+      "_mlir_ciface_kernel_dequantize_16x3072": 8,
+      "_mlir_ciface_kernel_dequantize_1x151936": 1,
+      "_mlir_ciface_kernel_embedding_w8a8_16x1024": 1,
+      "_mlir_ciface_kernel_kv_cache_update_position_16x8x128_cap512": 8,
+      "_mlir_ciface_kernel_layout_context_8x16x128": 8,
+      "_mlir_ciface_kernel_matmul_16x1024x1024": 8,
+      "_mlir_ciface_kernel_matmul_16x1024x2048": 4,
+      "_mlir_ciface_kernel_matmul_16x1024x3072": 4,
+      "_mlir_ciface_kernel_matmul_16x2048x1024": 4,
+      "_mlir_ciface_kernel_matmul_16x3072x1024": 8,
+      "_mlir_ciface_kernel_matmul_1x151936x1024": 1,
+      "_mlir_ciface_kernel_quantize_16x1024": 20,
+      "_mlir_ciface_kernel_quantize_16x2048": 4,
+      "_mlir_ciface_kernel_quantize_16x3072": 4,
+      "_mlir_ciface_kernel_quantize_1x1024": 1,
+      "_mlir_ciface_kernel_rmsnorm_128x128": 4,
+      "_mlir_ciface_kernel_rmsnorm_16x1024": 9,
+      "_mlir_ciface_kernel_rmsnorm_256x128": 4,
+      "_mlir_ciface_kernel_silu_16x3072": 4,
+      "_mlir_ciface_kernel_softmax_16x16x512": 4
+    },
+    "decode": {
+      "_mlir_ciface_kernel_attention_pv_position_16x1x128x512": 4,
+      "_mlir_ciface_kernel_attention_qk_position_native_16x1x512x128": 4,
+      "_mlir_ciface_kernel_attention_scale_mask_position_16x1x512": 4,
+      "_mlir_ciface_kernel_dequantize_1x1024": 16,
+      "_mlir_ciface_kernel_dequantize_1x151936": 1,
+      "_mlir_ciface_kernel_dequantize_1x2048": 4,
+      "_mlir_ciface_kernel_dequantize_1x3072": 8,
+      "_mlir_ciface_kernel_embedding_w8a8_1x1024": 1,
+      "_mlir_ciface_kernel_kv_cache_update_position_1x8x128_cap512": 8,
+      "_mlir_ciface_kernel_layout_context_8x1x128": 8,
+      "_mlir_ciface_kernel_matmul_1x1024x1024": 8,
+      "_mlir_ciface_kernel_matmul_1x1024x2048": 4,
+      "_mlir_ciface_kernel_matmul_1x1024x3072": 4,
+      "_mlir_ciface_kernel_matmul_1x151936x1024": 1,
+      "_mlir_ciface_kernel_matmul_1x2048x1024": 4,
+      "_mlir_ciface_kernel_matmul_1x3072x1024": 8,
+      "_mlir_ciface_kernel_quantize_1x1024": 21,
+      "_mlir_ciface_kernel_quantize_1x2048": 4,
+      "_mlir_ciface_kernel_quantize_1x3072": 4,
+      "_mlir_ciface_kernel_rmsnorm_16x128": 4,
+      "_mlir_ciface_kernel_rmsnorm_1x1024": 9,
+      "_mlir_ciface_kernel_rmsnorm_8x128": 4,
+      "_mlir_ciface_kernel_silu_1x3072": 4,
+      "_mlir_ciface_kernel_softmax_16x1x512": 4
+    }
+  },
+  "expectation_evidence": {
+    "prefill": {
+      "entry": "forward_prefill",
+      "raw_call_sites": {
+        "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_1_mask_attention_scale_mask_position_16x16x512": 1,
+        "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_1_pv_attention_pv_position_16x16x128x512": 1,
+        "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_1_qk_attention_qk_position_native_16x16x512x128": 1,
+        "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_1_softmax_softmax_16x16x512": 1,
+        "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_2_mask_attention_scale_mask_position_16x16x512": 1,
+        "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_2_pv_attention_pv_position_16x16x128x512": 1,
+        "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_2_qk_attention_qk_position_native_16x16x512x128": 1,
+        "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_2_softmax_softmax_16x16x512": 1,
+        "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_3_mask_attention_scale_mask_position_16x16x512": 1,
+        "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_3_pv_attention_pv_position_16x16x128x512": 1,
+        "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_3_qk_attention_qk_position_native_16x16x512x128": 1,
+        "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_3_softmax_softmax_16x16x512": 1,
+        "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_mask_attention_scale_mask_position_16x16x512": 1,
+        "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_pv_attention_pv_position_16x16x128x512": 1,
+        "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_qk_attention_qk_position_native_16x16x512x128": 1,
+        "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_softmax_softmax_16x16x512": 1,
+        "qwen_graph_kv_index_put_1_kv_cache_update_position_16x8x128_cap512": 1,
+        "qwen_graph_kv_index_put_1_layout_context_8x16x128": 1,
+        "qwen_graph_kv_index_put_2_kv_cache_update_position_16x8x128_cap512": 1,
+        "qwen_graph_kv_index_put_2_layout_context_8x16x128": 1,
+        "qwen_graph_kv_index_put_3_kv_cache_update_position_16x8x128_cap512": 1,
+        "qwen_graph_kv_index_put_3_layout_context_8x16x128": 1,
+        "qwen_graph_kv_index_put_4_kv_cache_update_position_16x8x128_cap512": 1,
+        "qwen_graph_kv_index_put_4_layout_context_8x16x128": 1,
+        "qwen_graph_kv_index_put_5_kv_cache_update_position_16x8x128_cap512": 1,
+        "qwen_graph_kv_index_put_5_layout_context_8x16x128": 1,
+        "qwen_graph_kv_index_put_6_kv_cache_update_position_16x8x128_cap512": 1,
+        "qwen_graph_kv_index_put_6_layout_context_8x16x128": 1,
+        "qwen_graph_kv_index_put_7_kv_cache_update_position_16x8x128_cap512": 1,
+        "qwen_graph_kv_index_put_7_layout_context_8x16x128": 1,
+        "qwen_graph_kv_index_put_kv_cache_update_position_16x8x128_cap512": 1,
+        "qwen_graph_kv_index_put_layout_context_8x16x128": 1,
+        "qwen_graph_rmsnorm_128x128__forward_prefill_mul_21": 1,
+        "qwen_graph_rmsnorm_128x128__forward_prefill_mul_35": 1,
+        "qwen_graph_rmsnorm_128x128__forward_prefill_mul_49": 1,
+        "qwen_graph_rmsnorm_128x128__forward_prefill_mul_7": 1,
+        "qwen_graph_rmsnorm_16x1024__forward_prefill_mul_13": 1,
+        "qwen_graph_rmsnorm_16x1024__forward_prefill_mul_17": 1,
+        "qwen_graph_rmsnorm_16x1024__forward_prefill_mul_27": 1,
+        "qwen_graph_rmsnorm_16x1024__forward_prefill_mul_3": 1,
+        "qwen_graph_rmsnorm_16x1024__forward_prefill_mul_31": 1,
+        "qwen_graph_rmsnorm_16x1024__forward_prefill_mul_41": 1,
+        "qwen_graph_rmsnorm_16x1024__forward_prefill_mul_45": 1,
+        "qwen_graph_rmsnorm_16x1024__forward_prefill_mul_55": 1,
+        "qwen_graph_rmsnorm_16x1024__forward_prefill_mul_59": 1,
+        "qwen_graph_rmsnorm_256x128__forward_prefill_mul_19": 1,
+        "qwen_graph_rmsnorm_256x128__forward_prefill_mul_33": 1,
+        "qwen_graph_rmsnorm_256x128__forward_prefill_mul_47": 1,
+        "qwen_graph_rmsnorm_256x128__forward_prefill_mul_5": 1,
+        "qwen_graph_silu_16x3072__forward_prefill_mul_14": 1,
+        "qwen_graph_silu_16x3072__forward_prefill_mul_28": 1,
+        "qwen_graph_silu_16x3072__forward_prefill_mul_42": 1,
+        "qwen_graph_silu_16x3072__forward_prefill_mul_56": 1,
+        "qwen_graph_w8a8_embedding_embedding_w8a8_16x1024": 1,
+        "qwen_graph_w8a8_mm_10_dequantize_16x1024": 1,
+        "qwen_graph_w8a8_mm_10_matmul_16x1024x2048": 1,
+        "qwen_graph_w8a8_mm_10_quantize_16x2048": 1,
+        "qwen_graph_w8a8_mm_11_dequantize_16x3072": 1,
+        "qwen_graph_w8a8_mm_11_matmul_16x3072x1024": 1,
+        "qwen_graph_w8a8_mm_11_quantize_16x1024": 1,
+        "qwen_graph_w8a8_mm_12_dequantize_16x3072": 1,
+        "qwen_graph_w8a8_mm_12_matmul_16x3072x1024": 1,
+        "qwen_graph_w8a8_mm_12_quantize_16x1024": 1,
+        "qwen_graph_w8a8_mm_13_dequantize_16x1024": 1,
+        "qwen_graph_w8a8_mm_13_matmul_16x1024x3072": 1,
+        "qwen_graph_w8a8_mm_13_quantize_16x3072": 1,
+        "qwen_graph_w8a8_mm_14_dequantize_16x2048": 1,
+        "qwen_graph_w8a8_mm_14_matmul_16x2048x1024": 1,
+        "qwen_graph_w8a8_mm_14_quantize_16x1024": 1,
+        "qwen_graph_w8a8_mm_15_dequantize_16x1024": 1,
+        "qwen_graph_w8a8_mm_15_matmul_16x1024x1024": 1,
+        "qwen_graph_w8a8_mm_15_quantize_16x1024": 1,
+        "qwen_graph_w8a8_mm_16_dequantize_16x1024": 1,
+        "qwen_graph_w8a8_mm_16_matmul_16x1024x1024": 1,
+        "qwen_graph_w8a8_mm_16_quantize_16x1024": 1,
+        "qwen_graph_w8a8_mm_17_dequantize_16x1024": 1,
+        "qwen_graph_w8a8_mm_17_matmul_16x1024x2048": 1,
+        "qwen_graph_w8a8_mm_17_quantize_16x2048": 1,
+        "qwen_graph_w8a8_mm_18_dequantize_16x3072": 1,
+        "qwen_graph_w8a8_mm_18_matmul_16x3072x1024": 1,
+        "qwen_graph_w8a8_mm_18_quantize_16x1024": 1,
+        "qwen_graph_w8a8_mm_19_dequantize_16x3072": 1,
+        "qwen_graph_w8a8_mm_19_matmul_16x3072x1024": 1,
+        "qwen_graph_w8a8_mm_19_quantize_16x1024": 1,
+        "qwen_graph_w8a8_mm_1_dequantize_16x1024": 1,
+        "qwen_graph_w8a8_mm_1_matmul_16x1024x1024": 1,
+        "qwen_graph_w8a8_mm_1_quantize_16x1024": 1,
+        "qwen_graph_w8a8_mm_20_dequantize_16x1024": 1,
+        "qwen_graph_w8a8_mm_20_matmul_16x1024x3072": 1,
+        "qwen_graph_w8a8_mm_20_quantize_16x3072": 1,
+        "qwen_graph_w8a8_mm_21_dequantize_16x2048": 1,
+        "qwen_graph_w8a8_mm_21_matmul_16x2048x1024": 1,
+        "qwen_graph_w8a8_mm_21_quantize_16x1024": 1,
+        "qwen_graph_w8a8_mm_22_dequantize_16x1024": 1,
+        "qwen_graph_w8a8_mm_22_matmul_16x1024x1024": 1,
+        "qwen_graph_w8a8_mm_22_quantize_16x1024": 1,
+        "qwen_graph_w8a8_mm_23_dequantize_16x1024": 1,
+        "qwen_graph_w8a8_mm_23_matmul_16x1024x1024": 1,
+        "qwen_graph_w8a8_mm_23_quantize_16x1024": 1,
+        "qwen_graph_w8a8_mm_24_dequantize_16x1024": 1,
+        "qwen_graph_w8a8_mm_24_matmul_16x1024x2048": 1,
+        "qwen_graph_w8a8_mm_24_quantize_16x2048": 1,
+        "qwen_graph_w8a8_mm_25_dequantize_16x3072": 1,
+        "qwen_graph_w8a8_mm_25_matmul_16x3072x1024": 1,
+        "qwen_graph_w8a8_mm_25_quantize_16x1024": 1,
+        "qwen_graph_w8a8_mm_26_dequantize_16x3072": 1,
+        "qwen_graph_w8a8_mm_26_matmul_16x3072x1024": 1,
+        "qwen_graph_w8a8_mm_26_quantize_16x1024": 1,
+        "qwen_graph_w8a8_mm_27_dequantize_16x1024": 1,
+        "qwen_graph_w8a8_mm_27_matmul_16x1024x3072": 1,
+        "qwen_graph_w8a8_mm_27_quantize_16x3072": 1,
+        "qwen_graph_w8a8_mm_28_dequantize_1x151936": 1,
+        "qwen_graph_w8a8_mm_28_matmul_1x151936x1024": 1,
+        "qwen_graph_w8a8_mm_28_quantize_1x1024": 1,
+        "qwen_graph_w8a8_mm_2_dequantize_16x1024": 1,
+        "qwen_graph_w8a8_mm_2_matmul_16x1024x1024": 1,
+        "qwen_graph_w8a8_mm_2_quantize_16x1024": 1,
+        "qwen_graph_w8a8_mm_3_dequantize_16x1024": 1,
+        "qwen_graph_w8a8_mm_3_matmul_16x1024x2048": 1,
+        "qwen_graph_w8a8_mm_3_quantize_16x2048": 1,
+        "qwen_graph_w8a8_mm_4_dequantize_16x3072": 1,
+        "qwen_graph_w8a8_mm_4_matmul_16x3072x1024": 1,
+        "qwen_graph_w8a8_mm_4_quantize_16x1024": 1,
+        "qwen_graph_w8a8_mm_5_dequantize_16x3072": 1,
+        "qwen_graph_w8a8_mm_5_matmul_16x3072x1024": 1,
+        "qwen_graph_w8a8_mm_5_quantize_16x1024": 1,
+        "qwen_graph_w8a8_mm_6_dequantize_16x1024": 1,
+        "qwen_graph_w8a8_mm_6_matmul_16x1024x3072": 1,
+        "qwen_graph_w8a8_mm_6_quantize_16x3072": 1,
+        "qwen_graph_w8a8_mm_7_dequantize_16x2048": 1,
+        "qwen_graph_w8a8_mm_7_matmul_16x2048x1024": 1,
+        "qwen_graph_w8a8_mm_7_quantize_16x1024": 1,
+        "qwen_graph_w8a8_mm_8_dequantize_16x1024": 1,
+        "qwen_graph_w8a8_mm_8_matmul_16x1024x1024": 1,
+        "qwen_graph_w8a8_mm_8_quantize_16x1024": 1,
+        "qwen_graph_w8a8_mm_9_dequantize_16x1024": 1,
+        "qwen_graph_w8a8_mm_9_matmul_16x1024x1024": 1,
+        "qwen_graph_w8a8_mm_9_quantize_16x1024": 1,
+        "qwen_graph_w8a8_mm_dequantize_16x2048": 1,
+        "qwen_graph_w8a8_mm_matmul_16x2048x1024": 1,
+        "qwen_graph_w8a8_mm_quantize_16x1024": 1
+      },
+      "total_raw_calls": 141,
+      "expected_kernel_calls": 141,
+      "unconditional_acyclic_calls_verified": true
+    },
+    "decode": {
+      "entry": "forward_decode",
+      "raw_call_sites": {
+        "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_1_mask_attention_scale_mask_position_16x1x512": 1,
+        "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_1_pv_attention_pv_position_16x1x128x512": 1,
+        "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_1_qk_attention_qk_position_native_16x1x512x128": 1,
+        "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_1_softmax_softmax_16x1x512": 1,
+        "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_2_mask_attention_scale_mask_position_16x1x512": 1,
+        "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_2_pv_attention_pv_position_16x1x128x512": 1,
+        "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_2_qk_attention_qk_position_native_16x1x512x128": 1,
+        "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_2_softmax_softmax_16x1x512": 1,
+        "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_3_mask_attention_scale_mask_position_16x1x512": 1,
+        "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_3_pv_attention_pv_position_16x1x128x512": 1,
+        "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_3_qk_attention_qk_position_native_16x1x512x128": 1,
+        "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_3_softmax_softmax_16x1x512": 1,
+        "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_mask_attention_scale_mask_position_16x1x512": 1,
+        "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_pv_attention_pv_position_16x1x128x512": 1,
+        "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_qk_attention_qk_position_native_16x1x512x128": 1,
+        "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_softmax_softmax_16x1x512": 1,
+        "qwen_graph_kv_index_put_1_kv_cache_update_position_1x8x128_cap512": 1,
+        "qwen_graph_kv_index_put_1_layout_context_8x1x128": 1,
+        "qwen_graph_kv_index_put_2_kv_cache_update_position_1x8x128_cap512": 1,
+        "qwen_graph_kv_index_put_2_layout_context_8x1x128": 1,
+        "qwen_graph_kv_index_put_3_kv_cache_update_position_1x8x128_cap512": 1,
+        "qwen_graph_kv_index_put_3_layout_context_8x1x128": 1,
+        "qwen_graph_kv_index_put_4_kv_cache_update_position_1x8x128_cap512": 1,
+        "qwen_graph_kv_index_put_4_layout_context_8x1x128": 1,
+        "qwen_graph_kv_index_put_5_kv_cache_update_position_1x8x128_cap512": 1,
+        "qwen_graph_kv_index_put_5_layout_context_8x1x128": 1,
+        "qwen_graph_kv_index_put_6_kv_cache_update_position_1x8x128_cap512": 1,
+        "qwen_graph_kv_index_put_6_layout_context_8x1x128": 1,
+        "qwen_graph_kv_index_put_7_kv_cache_update_position_1x8x128_cap512": 1,
+        "qwen_graph_kv_index_put_7_layout_context_8x1x128": 1,
+        "qwen_graph_kv_index_put_kv_cache_update_position_1x8x128_cap512": 1,
+        "qwen_graph_kv_index_put_layout_context_8x1x128": 1,
+        "qwen_graph_rmsnorm_16x128__forward_decode_mul_19": 1,
+        "qwen_graph_rmsnorm_16x128__forward_decode_mul_33": 1,
+        "qwen_graph_rmsnorm_16x128__forward_decode_mul_47": 1,
+        "qwen_graph_rmsnorm_16x128__forward_decode_mul_5": 1,
+        "qwen_graph_rmsnorm_1x1024__forward_decode_mul_13": 1,
+        "qwen_graph_rmsnorm_1x1024__forward_decode_mul_17": 1,
+        "qwen_graph_rmsnorm_1x1024__forward_decode_mul_27": 1,
+        "qwen_graph_rmsnorm_1x1024__forward_decode_mul_3": 1,
+        "qwen_graph_rmsnorm_1x1024__forward_decode_mul_31": 1,
+        "qwen_graph_rmsnorm_1x1024__forward_decode_mul_41": 1,
+        "qwen_graph_rmsnorm_1x1024__forward_decode_mul_45": 1,
+        "qwen_graph_rmsnorm_1x1024__forward_decode_mul_55": 1,
+        "qwen_graph_rmsnorm_1x1024__forward_decode_mul_59": 1,
+        "qwen_graph_rmsnorm_8x128__forward_decode_mul_21": 1,
+        "qwen_graph_rmsnorm_8x128__forward_decode_mul_35": 1,
+        "qwen_graph_rmsnorm_8x128__forward_decode_mul_49": 1,
+        "qwen_graph_rmsnorm_8x128__forward_decode_mul_7": 1,
+        "qwen_graph_silu_1x3072__forward_decode_mul_14": 1,
+        "qwen_graph_silu_1x3072__forward_decode_mul_28": 1,
+        "qwen_graph_silu_1x3072__forward_decode_mul_42": 1,
+        "qwen_graph_silu_1x3072__forward_decode_mul_56": 1,
+        "qwen_graph_w8a8_embedding_embedding_w8a8_1x1024": 1,
+        "qwen_graph_w8a8_mm_10_dequantize_1x1024": 1,
+        "qwen_graph_w8a8_mm_10_matmul_1x1024x2048": 1,
+        "qwen_graph_w8a8_mm_10_quantize_1x2048": 1,
+        "qwen_graph_w8a8_mm_11_dequantize_1x3072": 1,
+        "qwen_graph_w8a8_mm_11_matmul_1x3072x1024": 1,
+        "qwen_graph_w8a8_mm_11_quantize_1x1024": 1,
+        "qwen_graph_w8a8_mm_12_dequantize_1x3072": 1,
+        "qwen_graph_w8a8_mm_12_matmul_1x3072x1024": 1,
+        "qwen_graph_w8a8_mm_12_quantize_1x1024": 1,
+        "qwen_graph_w8a8_mm_13_dequantize_1x1024": 1,
+        "qwen_graph_w8a8_mm_13_matmul_1x1024x3072": 1,
+        "qwen_graph_w8a8_mm_13_quantize_1x3072": 1,
+        "qwen_graph_w8a8_mm_14_dequantize_1x2048": 1,
+        "qwen_graph_w8a8_mm_14_matmul_1x2048x1024": 1,
+        "qwen_graph_w8a8_mm_14_quantize_1x1024": 1,
+        "qwen_graph_w8a8_mm_15_dequantize_1x1024": 1,
+        "qwen_graph_w8a8_mm_15_matmul_1x1024x1024": 1,
+        "qwen_graph_w8a8_mm_15_quantize_1x1024": 1,
+        "qwen_graph_w8a8_mm_16_dequantize_1x1024": 1,
+        "qwen_graph_w8a8_mm_16_matmul_1x1024x1024": 1,
+        "qwen_graph_w8a8_mm_16_quantize_1x1024": 1,
+        "qwen_graph_w8a8_mm_17_dequantize_1x1024": 1,
+        "qwen_graph_w8a8_mm_17_matmul_1x1024x2048": 1,
+        "qwen_graph_w8a8_mm_17_quantize_1x2048": 1,
+        "qwen_graph_w8a8_mm_18_dequantize_1x3072": 1,
+        "qwen_graph_w8a8_mm_18_matmul_1x3072x1024": 1,
+        "qwen_graph_w8a8_mm_18_quantize_1x1024": 1,
+        "qwen_graph_w8a8_mm_19_dequantize_1x3072": 1,
+        "qwen_graph_w8a8_mm_19_matmul_1x3072x1024": 1,
+        "qwen_graph_w8a8_mm_19_quantize_1x1024": 1,
+        "qwen_graph_w8a8_mm_1_dequantize_1x1024": 1,
+        "qwen_graph_w8a8_mm_1_matmul_1x1024x1024": 1,
+        "qwen_graph_w8a8_mm_1_quantize_1x1024": 1,
+        "qwen_graph_w8a8_mm_20_dequantize_1x1024": 1,
+        "qwen_graph_w8a8_mm_20_matmul_1x1024x3072": 1,
+        "qwen_graph_w8a8_mm_20_quantize_1x3072": 1,
+        "qwen_graph_w8a8_mm_21_dequantize_1x2048": 1,
+        "qwen_graph_w8a8_mm_21_matmul_1x2048x1024": 1,
+        "qwen_graph_w8a8_mm_21_quantize_1x1024": 1,
+        "qwen_graph_w8a8_mm_22_dequantize_1x1024": 1,
+        "qwen_graph_w8a8_mm_22_matmul_1x1024x1024": 1,
+        "qwen_graph_w8a8_mm_22_quantize_1x1024": 1,
+        "qwen_graph_w8a8_mm_23_dequantize_1x1024": 1,
+        "qwen_graph_w8a8_mm_23_matmul_1x1024x1024": 1,
+        "qwen_graph_w8a8_mm_23_quantize_1x1024": 1,
+        "qwen_graph_w8a8_mm_24_dequantize_1x1024": 1,
+        "qwen_graph_w8a8_mm_24_matmul_1x1024x2048": 1,
+        "qwen_graph_w8a8_mm_24_quantize_1x2048": 1,
+        "qwen_graph_w8a8_mm_25_dequantize_1x3072": 1,
+        "qwen_graph_w8a8_mm_25_matmul_1x3072x1024": 1,
+        "qwen_graph_w8a8_mm_25_quantize_1x1024": 1,
+        "qwen_graph_w8a8_mm_26_dequantize_1x3072": 1,
+        "qwen_graph_w8a8_mm_26_matmul_1x3072x1024": 1,
+        "qwen_graph_w8a8_mm_26_quantize_1x1024": 1,
+        "qwen_graph_w8a8_mm_27_dequantize_1x1024": 1,
+        "qwen_graph_w8a8_mm_27_matmul_1x1024x3072": 1,
+        "qwen_graph_w8a8_mm_27_quantize_1x3072": 1,
+        "qwen_graph_w8a8_mm_28_dequantize_1x151936": 1,
+        "qwen_graph_w8a8_mm_28_matmul_1x151936x1024": 1,
+        "qwen_graph_w8a8_mm_28_quantize_1x1024": 1,
+        "qwen_graph_w8a8_mm_2_dequantize_1x1024": 1,
+        "qwen_graph_w8a8_mm_2_matmul_1x1024x1024": 1,
+        "qwen_graph_w8a8_mm_2_quantize_1x1024": 1,
+        "qwen_graph_w8a8_mm_3_dequantize_1x1024": 1,
+        "qwen_graph_w8a8_mm_3_matmul_1x1024x2048": 1,
+        "qwen_graph_w8a8_mm_3_quantize_1x2048": 1,
+        "qwen_graph_w8a8_mm_4_dequantize_1x3072": 1,
+        "qwen_graph_w8a8_mm_4_matmul_1x3072x1024": 1,
+        "qwen_graph_w8a8_mm_4_quantize_1x1024": 1,
+        "qwen_graph_w8a8_mm_5_dequantize_1x3072": 1,
+        "qwen_graph_w8a8_mm_5_matmul_1x3072x1024": 1,
+        "qwen_graph_w8a8_mm_5_quantize_1x1024": 1,
+        "qwen_graph_w8a8_mm_6_dequantize_1x1024": 1,
+        "qwen_graph_w8a8_mm_6_matmul_1x1024x3072": 1,
+        "qwen_graph_w8a8_mm_6_quantize_1x3072": 1,
+        "qwen_graph_w8a8_mm_7_dequantize_1x2048": 1,
+        "qwen_graph_w8a8_mm_7_matmul_1x2048x1024": 1,
+        "qwen_graph_w8a8_mm_7_quantize_1x1024": 1,
+        "qwen_graph_w8a8_mm_8_dequantize_1x1024": 1,
+        "qwen_graph_w8a8_mm_8_matmul_1x1024x1024": 1,
+        "qwen_graph_w8a8_mm_8_quantize_1x1024": 1,
+        "qwen_graph_w8a8_mm_9_dequantize_1x1024": 1,
+        "qwen_graph_w8a8_mm_9_matmul_1x1024x1024": 1,
+        "qwen_graph_w8a8_mm_9_quantize_1x1024": 1,
+        "qwen_graph_w8a8_mm_dequantize_1x2048": 1,
+        "qwen_graph_w8a8_mm_matmul_1x2048x1024": 1,
+        "qwen_graph_w8a8_mm_quantize_1x1024": 1
+      },
+      "total_raw_calls": 141,
+      "expected_kernel_calls": 141,
+      "unconditional_acyclic_calls_verified": true
+    }
+  },
+  "inputs_sha256": {
+    "examples/FPGA-BOSCAME/build/fpga-runs/run-b8d3ed3ead854a24/uart.raw.log": "4c1004c4bb93108df8903febecdc8279b0692975510577461444cffcc0566c14",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-native-4l/image-fixed-text-progress/kernel-profile.json": "2d549c847097fde4acb3a452fb9385395d91211365516b19b43e8e3ec6b96ea5",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-native-4l/image-fixed-text-progress/kernel-profile.c": "ad4b1b7abcd234f14ddb825b09ea151dba99e5dd89739f0c6bf948365abeb64a",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-native-4l/replacement/triton-call-replacement.json": "b79e7d7aadbf895054c252e0b8569578ef728de3f495f3cfbf494a33c5873295",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-native-4l/replacement/qwen_triton_adapters.c": "8913a649d3092f90c8add5b45ddf9c2480cdb748b2faf9257078eb73548ede35",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-native-4l/nr-prefill/forward_prefill.ll": "caf938217bdd322de3f68f568119497ef6adad1de43380bf7d35b1ce798797d3",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-native-4l/nr-decode/forward_decode.ll": "4e8bd7288200527eb5322432d7ae547b44064943c0a6d098c483968bb0ef6029"
+  }
+}

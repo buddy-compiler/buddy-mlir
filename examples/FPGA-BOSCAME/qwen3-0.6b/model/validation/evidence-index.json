@@ -1,0 +1,423 @@
+{
+  "review_date": "2026-09-17",
+  "overall_status": "FULL_28_LAYER_FPGA_NOT_ACCEPTED_PRESET_TEXT_SCOPE",
+  "what": "Current reviewed evidence is separated from historical artifacts. Result scope and arithmetic profile are mandatory.",
+  "stages": {
+    "checkpoint": {
+      "status": "VERIFIED",
+      "execution": "host resource verification",
+      "command": "make checkpoint",
+      "evidence": [
+        "validation/checkpoint-verification.json"
+      ],
+      "scope": "Official revision/config and all stored tensors; embedding/lm_head byte identity"
+    },
+    "graph_and_kernel_coverage": {
+      "status": "REVIEWED",
+      "execution": "host compilation",
+      "command": "See REVIEW.md reproduction: import_model.py, triton_call_replace.py --w8a8 --attention, lower_model_nr.py",
+      "evidence": [
+        "validation/operator-inventory.json",
+        "validation/board/review/model-1l-full/triton-call-replacement.json"
+      ],
+      "scope": "Actual graph structure, ABI and semantic matching; RoPE remains Buddy graph lowering; inventory classification is not kernel replacement coverage"
+    },
+    "kernel_archive_and_link": {
+      "status": "VERIFIED_FOR_1L_EXECUTED_IMAGE",
+      "execution": "host build plus linked FPGA image",
+      "command": "ADAPTERS=<generated adapters> OUT=<library dir> bash tools/build_model_lib.sh",
+      "evidence": [
+        "validation/board/review/model-1l-full/archive.json",
+        "validation/board/review/model-1l-full/symbols.txt",
+        "validation/board/review/model-1l-full/qwen_model.map",
+        "validation/board/review/model-1l-full/image.json"
+      ],
+      "scope": "Triton/Buddy static kernels, no test main/data/runtime in archive; input hashes tie library to executed image"
+    },
+    "stage_a_historical_kernels": {
+      "status": "11_KERNELS_PASSED",
+      "execution": "fpga",
+      "command": "tools/run_model_kernels_fpga.sh",
+      "evidence": [
+        "validation/stage-a/model-kernels-fpga.json"
+      ],
+      "scope": "11 individual model-shape kernels with per-run cycles; not model acceptance"
+    },
+    "host_1_4_28_layers": {
+      "status": "PASS",
+      "execution": "host, not FPGA",
+      "command": "tools/run_graph_host.py with --w8a8 --attention --quant-reference-dir <triton-host independent reference>; REVIEW.md",
+      "evidence": [
+        "validation/review-host-1l.json",
+        "validation/review-host-4l.json",
+        "validation/review-host-28l.json"
+      ],
+      "result": {
+        "arithmetic_profile": "triton-host",
+        "prefill_tokens": 16,
+        "decode_steps": 8,
+        "full_last_position_logits_max_abs_error": 0.0,
+        "full_last_position_logits_mean_abs_error": 0.0,
+        "all_recorded_valid_kv_snapshots_max_abs_error": 0.0,
+        "token_trajectories_match": true
+      },
+      "scope": "Independent quantized-reference correctness, separate from quantization-vs-FP32 error; not all intermediate hidden states"
+    },
+    "fpga_1_layer_full_numeric": {
+      "status": "FULL_LOGITS_KV_PASS",
+      "execution": "fpga",
+      "run_id": "run-015b4fabf4014edc",
+      "command": "Run and recheck commands: validation/board/review/model-1l-full/README.md",
+      "evidence": [
+        "validation/board/review/model-1l-full/verification.json",
+        "validation/board/review/model-1l-full/numeric-verification.json",
+        "validation/board/review/model-1l-full/uart.raw.log",
+        "validation/board/review/model-1l-full/result.json",
+        "validation/board/review/model-1l-full/run-manifest.json"
+      ],
+      "result": {
+        "layers": 1,
+        "prefill_tokens": 16,
+        "decode_steps": 8,
+        "vocabulary": 151936,
+        "tensor_checks": 27,
+        "max_abs_error": 0.0,
+        "mean_abs_error": 0.0,
+        "prefill_cycles": 1183615186,
+        "decode_cycle_range": [
+          784100292,
+          784135605
+        ],
+        "ddr_segment_readbacks_match": true
+      },
+      "scope": "Every last-position logit and valid K/V element versus nr-fpga independent reference; excludes hidden states, 28 layers, UART text input; legacy oracle metadata crosschecked separately without modifying it"
+    },
+    "fpga_28_layers": {
+      "status": "NOT_ACCEPTED",
+      "execution": "pending corrected full board run",
+      "evidence": [
+        "REVIEW.md",
+        "validation/round-state.json"
+      ],
+      "scope": "Old timeout/control-process CPU cannot distinguish a software fault from slow model progress; corrected host result is not hardware acceptance"
+    },
+    "text_host": {
+      "status": "PASS",
+      "execution": "host",
+      "command": "See text/README.md differential and sanitizer commands",
+      "evidence": [
+        "validation/tokenizer-encode-audit.json",
+        "validation/text-check-audit.json",
+        "validation/tokenizer-sanitizers.json"
+      ],
+      "scope": "5173 encoding/regex, 26464 NFC, 144 template+encode, 1076 decoder, 1256 malformed UTF-8, 72 template cases and rejection checks; host only"
+    },
+    "text_fpga": {
+      "status": "PASS_8_FIXTURES",
+      "execution": "fpga",
+      "run_id": "run-584aa2e8c308423f",
+      "command": "tools/build_tokenizer_probe.py and tools/check_tokenizer_probe.py; text/README.md",
+      "evidence": [
+        "validation/board/review/tokenizer-probe/verification.json",
+        "validation/board/review/tokenizer-probe/uart.raw.log"
+      ],
+      "scope": "Eight compiled literal-text fixtures, actual board tokenize/decode IDs/bytes match official resources; no UART RX or model inference"
+    },
+    "uart_tx_and_reconnection": {
+      "status": "PASS_PROBE",
+      "execution": "fpga and host transport tests",
+      "command": "See validation/board/review/transport-review.md",
+      "evidence": [
+        "validation/board/review/console-wrap-probe/verification.json",
+        "validation/board/review/transport-tests.log"
+      ],
+      "scope": "67584 byte exact TX, same-worker real SSH reconnect, host UUID input queue tests"
+    },
+    "uart_rx_and_stage_e": {
+      "status": "RX_CAUSE_UNRESOLVED_STAGE_E_NOT_ACCEPTED",
+      "execution": "FPGA5 diagnostic",
+      "command": "See common/nr/probes/README.md",
+      "evidence": [
+        "validation/board/review/uart-rx-probe/verification.json",
+        "validation/board/review/transport-review.md"
+      ],
+      "scope": "Host OS wrote 16 bytes, firmware received none in observed window; platform has RX pin assignment, no platform-wide absence claim"
+    },
+    "memory_and_ddr": {
+      "status": "STATIC_ELF_PLANNED_SPARSE_DDR_PROBE_PASSED",
+      "execution": "host ELF audit plus FPGA address probe",
+      "evidence": [
+        "validation/review-memory-28l.json",
+        "validation/board/review/ddr-address-probe/verification.json"
+      ],
+      "result": {
+        "high_persistent_bytes": 1059399872,
+        "high_limit_bytes": 1207959552,
+        "high_remaining_bytes": 148559680,
+        "low_static_stack_bytes": 19527680,
+        "low_scoped_heap_available_bytes": 785778688,
+        "ddr_sampled_lines": 19,
+        "ddr_sampled_bytes": 1216
+      },
+      "scope": "Actual 28-layer noninteractive ELF plan, not old 738 MiB estimate; no exhaustive DDR or measured dynamic scratch peak"
+    },
+    "dynamic_length_attention": {
+      "status": "EXPERIMENT_STAGE_A_IN_PROGRESS_NOT_ADOPTED",
+      "execution": "kernel optimization experiment",
+      "scope": "Not used to claim the accepted model-1l-full run; requires separate kernel and integrated model numerical evidence"
+    },
+    "attention_position_stage_a": {
+      "status": "PASS",
+      "execution": "fpga",
+      "evidence": [
+        "validation/board/review/attention-position/validation.json"
+      ],
+      "scope": "4 kernels, 60 runtime lengths, poisoned invalid tails; not full model"
+    },
+    "attention_position_model_1l": {
+      "status": "FULL_LOGITS_KV_PASS",
+      "execution": "fpga",
+      "evidence": [
+        "validation/board/review/model-1l-position/verification.json",
+        "validation/board/review/model-1l-position/kernel-profile-verification.json"
+      ],
+      "scope": "1layer fixed16+8, 27 full last logits/effective KV checks, real graph40kernel calls each invocation; no UART input"
+    },
+    "nr_quantized_vs_fp32": {
+      "status": "RECORDED",
+      "execution": "host reference",
+      "evidence": [
+        "validation/reference/review-nr-28l.json"
+      ],
+      "scope": "Deployment precision error, distinct from FPGA-vs-quantized implementation error"
+    },
+    "native_host": {
+      "status": "PASS",
+      "evidence": [
+        "validation/review-host-native-1l.json",
+        "validation/review-host-native-4l.json",
+        "validation/review-host-native-28l.json"
+      ],
+      "scope": "Independent triton-host quantized reference;27 full logits/effectiveKV comparisons each"
+    },
+    "native_fpga_1l": {
+      "status": "PASS",
+      "evidence": [
+        "validation/board/review/model-1l-native/verification.json"
+      ],
+      "scope": "1L16+8,27 full logits/effectiveKV comparisons;numeric-only input"
+    },
+    "native_fpga_4l_fixed_text_progress": {
+      "status": "PASS",
+      "evidence": [
+        "validation/board/review/model-4l-native-fixed-text-progress/verification.json"
+      ],
+      "scope": "4L16+8,on-board raw-text template/tokenization and incremental decode;progress UART inside graph timings"
+    },
+    "native_final_coverage": {
+      "status": "MAPPING_PASS",
+      "evidence": [
+        "validation/final-native-28l-coverage/coverage.md"
+      ],
+      "scope": "957 externalcalls per graph;46 kernels;remaining Buddy ops and scalar arithmetic explicitly recorded"
+    },
+    "native_fpga_1l_intermediates": {
+      "status": "INTERMEDIATES_PASS",
+      "run": "run-550440b96df24b2c",
+      "evidence": [
+        "validation/board/review/model-1l-intermediates-no-profile/verification.json"
+      ],
+      "scope": "414 selected full intermediate tensors and27 full logits/effectiveKV comparisons zeroerror;fixed raw text processed on board;kernel profiler disabled"
+    },
+    "linker_and_profiler_review": {
+      "status": "LINKER_DEFECT_FIXED_PROFILER_STALL_UNRESOLVED",
+      "evidence": [
+        "validation/board/review/linker-wrap-audit/finding.json",
+        "validation/review-linker-4l-static.json",
+        "validation/board/review/model-4l-native-syncfix-stopped/verification.json"
+      ]
+    }
+  },
+  "historical_stages": {
+    "checkpoint import": {
+      "command": "tools/import_model.py --assets assets/official --checkpoint assets/checkpoint",
+      "evidence": "validation/checkpoint-verification.json",
+      "result": {
+        "tensors_verified": true,
+        "shape_facts": {
+          "hidden": 1024,
+          "intermediate": 3072,
+          "layers": 28,
+          "q_heads": 16,
+          "kv_heads": 8,
+          "head_dim": 128,
+          "rope_theta": 1000000,
+          "vocab": 151936,
+          "rms_norm_eps": 1e-06,
+          "tie_word_embeddings": true
+        }
+      },
+      "scope_notice": "Historical artifact; use current stages below for reviewed acceptance. Original result values retained."
+    },
+    "operator inventory": {
+      "command": "tools/operator_inventory.py",
+      "evidence": "validation/operator-inventory.json",
+      "result": {
+        "unclassified": 0
+      },
+      "scope_notice": "Historical artifact; use current stages below for reviewed acceptance. Original result values retained."
+    },
+    "Triton kernel library": {
+      "command": "model/tools/build_model_lib.sh ADAPTERS=<adapters>",
+      "evidence": "validation/model-archive.json",
+      "result": {
+        "cases_built_and_board_verified": "11 model-shape kernels in stage A; the library now also carries the attention, layout and cache-write kernels"
+      },
+      "scope_notice": "Historical artifact; use current stages below for reviewed acceptance. Original result values retained."
+    },
+    "stage A, kernels on FPGA5": {
+      "command": "model/tools/run_model_kernels_fpga.sh",
+      "evidence": "validation/stage-a/model-kernels-fpga.json",
+      "result": {
+        "result": "11/11 PASS with cycles"
+      },
+      "scope_notice": "Historical artifact; use current stages below for reviewed acceptance. Original result values retained."
+    },
+    "stage C+D, compiled graph on host": {
+      "command": "model/tools/run_graph_host.py --layers 28 --reference-dir <fp32 ref>",
+      "evidence": "validation/stage-cd/full-28l-host.json",
+      "result": {
+        "result": "token-for-token identical to the FP32 reference"
+      },
+      "scope_notice": "Historical artifact; use current stages below for reviewed acceptance. Original result values retained."
+    },
+    "replacement: W8A8 linears and embedding": {
+      "command": "tools/triton_call_replace.py --w8a8",
+      "evidence": "validation/w8a8-rewrite.json, validation/w8a8-host-verified.json",
+      "result": {
+        "one_layer": "8/8 decode tokens identical",
+        "twenty_eight_layer": "argmax 49000 for graph, W8A8 reference and FP32 alike"
+      },
+      "scope_notice": "Historical artifact; use current stages below for reviewed acceptance. Original result values retained."
+    },
+    "replacement: attention": {
+      "command": "tools/triton_call_replace.py --attention",
+      "evidence": "validation/attention-replacement.json",
+      "result": {
+        "cosine_vs_fp32_one_layer": 1.00000012,
+        "uncovered": 0,
+        "chain": "layout_k -> attention_qk -> attention_scale_mask_position -> softmax -> attention_pv"
+      },
+      "scope_notice": "Historical artifact; use current stages below for reviewed acceptance. Original result values retained."
+    },
+    "replacement: KV cache write": {
+      "command": "tools/triton_call_replace.py --attention   (the cache write runs with it)",
+      "evidence": "validation/kv-cache-replacement.json",
+      "result": {
+        "cosine_vs_fp32_one_layer": 1.00000012,
+        "cache_slots_written": "0..15",
+        "chain": "layout_context -> kv_cache_update_position"
+      },
+      "scope_notice": "Historical artifact; use current stages below for reviewed acceptance. Original result values retained."
+    },
+    "replacement: RoPE": {
+      "command": "not implemented",
+      "evidence": "validation/rope-assessment.json",
+      "result": {
+        "status": "pattern identified across 12 ops; deliberately deferred because it costs 5 kernels per rotation to replace a broadcast multiply"
+      },
+      "scope_notice": "Historical artifact; use current stages below for reviewed acceptance. Original result values retained."
+    },
+    "NR bare-metal image, one layer": {
+      "command": "model/tools/lower_model_nr.py + model/tools/build_nr_w8a8_image.py",
+      "evidence": "validation/board/model-image-1layer.json",
+      "result": {
+        "audit": "PASS"
+      },
+      "scope_notice": "Historical artifact; use current stages below for reviewed acceptance. Original result values retained."
+    },
+    "stage B on the board, one layer FP32": {
+      "command": "examples/FPGA-BOSCAME/fpga_run.sh <image> --layout-plan <plan>",
+      "evidence": "validation/board/stage-b-board-1layer.json",
+      "result": {
+        "argmax": 33067,
+        "max_abs_error": 8.6e-06
+      },
+      "scope_notice": "Historical artifact; use current stages below for reviewed acceptance. Original result values retained."
+    },
+    "stage D on the board, one layer FP32": {
+      "command": "same runner, decode linked in",
+      "evidence": "validation/board/stage-d-board-1layer.json",
+      "result": {
+        "result": "8 decode tokens all correct",
+        "positions": "16 -> 23"
+      },
+      "scope_notice": "Historical artifact; use current stages below for reviewed acceptance. Original result values retained."
+    },
+    "stage D on the board, one layer W8A8": {
+      "command": "same runner, W8A8 image",
+      "evidence": "validation/board/stage-d-board-w8a8.json",
+      "result": {
+        "result": "prefill 33067 and 8 decode tokens all correct",
+        "cycles": 5515994658
+      },
+      "scope_notice": "Historical artifact; use current stages below for reviewed acceptance. Original result values retained."
+    },
+    "on-board tokenizer": {
+      "command": "model/build/tokcheck build/tokenizer.bin < corpus",
+      "evidence": "validation/tokenizer-encode.json",
+      "result": {
+        "result": "616/616 identical to the official tokenizer",
+        "execution": "host C process, not FPGA",
+        "board_verified": false
+      },
+      "scope_notice": "Historical host-only test, not FPGA execution."
+    },
+    "chat template": {
+      "command": "model/build/chattcheck < cases, compared with apply_chat_template",
+      "evidence": "validation/chat-template.json",
+      "result": {
+        "result": "8/8 identical"
+      },
+      "scope_notice": "Historical host-only test, not FPGA execution."
+    },
+    "stage E tokenizer path": {
+      "command": "chattcheck then tokcheck, 36 cases over both thinking modes",
+      "evidence": "validation/stage-e-tokenizer-path.json",
+      "result": {
+        "result": "36/36 identical"
+      },
+      "scope_notice": "Historical host-only test, not FPGA execution."
+    },
+    "stage E firmware": {
+      "command": "model/tools/build_nr_w8a8_image.py --interactive",
+      "evidence": "validation/board/stage-e-firmware.json",
+      "result": {
+        "audit": "PASS: 25302 instructions, 121 AME, 156 RVV",
+        "status": "built; board run queued behind the full-model run"
+      },
+      "scope_notice": "Historical artifact; use current stages below for reviewed acceptance. Original result values retained."
+    },
+    "28 layers, complete replacement set": {
+      "command": "triton_call_replace --w8a8 --attention, then lower_model_nr, then build_nr_w8a8_image",
+      "evidence": "validation/board/w8a8-28l-full.json",
+      "result": {
+        "host": "argmax 49000 matching FP32; tokens identical to FP32; cosine 0.991826 vs FP32 where the W8A8 reference is 0.986791",
+        "image": "PASS: 290328 instructions, 121 AME, 251 RVV",
+        "board": "not yet",
+        "review": "NOT numerically accepted against independent W8A8 reference; old image invalidated by multilayer ABI and KV defects."
+      },
+      "scope_notice": "NOT ACCEPTED: obsolete multilayer ABI/KV image; FP32 cosine/token agreement did not establish independent W8A8 correctness."
+    },
+    "full 28-layer board run": {
+      "command": "examples/FPGA-BOSCAME/fpga_run.sh with the 28-layer image and a 9000 s window",
+      "evidence": "validation/round-state.json",
+      "result": {
+        "status": "NOT COMPLETED; old generated multi-layer image has ABI overflow and aliased KV buffers. Control-process CPU ticks are not model progress."
+      },
+      "scope_notice": "NOT ACCEPTED: obsolete multilayer ABI/KV image; FP32 cosine/token agreement did not establish independent W8A8 correctness."
+    }
+  },
+  "review_notice": "Historical result values are preserved for audit; they are not current acceptance. See README.md and REVIEW.md.",
+  "paused_by_user": true
+}

@@ -1,0 +1,16 @@
+[attention-position] valid=00000010 errors=00000000 kernel_cycles=000000000000010e
+[attention-position] valid=00000011 errors=00000000 kernel_cycles=00000000000000f6
+[attention-position] valid=00000018 errors=00000000 kernel_cycles=00000000000000fa
+[attention-position] valid=0000003f errors=00000000 kernel_cycles=0000000000000140
+[attention-position] valid=00000040 errors=00000000 kernel_cycles=000000000000013e
+[attention-position] valid=00000041 errors=00000000 kernel_cycles=0000000000000223
+[attention-position] valid=000001ff errors=00000000 kernel_cycles=0000000000000a25
+[attention-position] valid=00000200 errors=00000000 kernel_cycles=0000000000000a38
+[attention-position] valid=000001ff errors=00000000 kernel_cycles=0000000000000947
+[attention-position] valid=00000041 errors=00000000 kernel_cycles=00000000000001b1
+[attention-position] valid=00000040 errors=00000000 kernel_cycles=00000000000000e2
+[attention-position] valid=0000003f errors=00000000 kernel_cycles=00000000000000e3
+[attention-position] valid=00000018 errors=00000000 kernel_cycles=00000000000000b7
+[attention-position] valid=00000011 errors=00000000 kernel_cycles=00000000000000b4
+[attention-position] valid=00000010 errors=00000000 kernel_cycles=00000000000000b3
+verify attention_pv_position_16x1x128x512: PASS errors=00000000 max_abs_error_f32_bits=00000000

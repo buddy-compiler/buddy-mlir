@@ -1,0 +1,28 @@
+{
+  "status": "PASS",
+  "scope": "actual lowered native-QK key descriptor ABI; no numerical execution",
+  "llvm": "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-native-1l/nr-prefill/forward_prefill.ll",
+  "llvm_sha256": "ef07f063f67b4813f4b89b357284621ef0d1a75d30e087eec76c5289d420265a",
+  "callsite_count": 1,
+  "callsites": [
+    {
+      "function": "forward_prefill",
+      "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_qk_attention_qk_position_native_16x16x512x128",
+      "key_sizes": [
+        1,
+        16,
+        512,
+        128
+      ],
+      "key_strides": [
+        1048576,
+        65536,
+        128,
+        1
+      ],
+      "key_offset_elements": 0,
+      "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+      "query_sequence": 16
+    }
+  ]
+}

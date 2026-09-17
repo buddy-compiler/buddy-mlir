@@ -1,0 +1,290 @@
+{
+  "scope": "host compiled graph versus independent host-precision W8A8 reference; not board validation",
+  "runs": {
+    "1": {
+      "reference_dir": "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-1l/quant-host-order",
+      "comparisons": {
+        "prefill_logits": {
+          "max_abs_error": 0.0,
+          "mean_abs_error": 0.0,
+          "cosine_similarity": 1.0,
+          "elements": 151936
+        },
+        "decode_logits_0": {
+          "max_abs_error": 0.0,
+          "mean_abs_error": 0.0,
+          "cosine_similarity": 1.0000000000000002,
+          "elements": 151936
+        },
+        "decode_logits_1": {
+          "max_abs_error": 0.0,
+          "mean_abs_error": 0.0,
+          "cosine_similarity": 1.0000000000000002,
+          "elements": 151936
+        },
+        "decode_logits_2": {
+          "max_abs_error": 0.0,
+          "mean_abs_error": 0.0,
+          "cosine_similarity": 1.0,
+          "elements": 151936
+        },
+        "decode_logits_3": {
+          "max_abs_error": 0.0,
+          "mean_abs_error": 0.0,
+          "cosine_similarity": 1.0000000000000002,
+          "elements": 151936
+        },
+        "decode_logits_4": {
+          "max_abs_error": 0.0,
+          "mean_abs_error": 0.0,
+          "cosine_similarity": 0.9999999999999999,
+          "elements": 151936
+        },
+        "decode_logits_5": {
+          "max_abs_error": 0.0,
+          "mean_abs_error": 0.0,
+          "cosine_similarity": 1.0,
+          "elements": 151936
+        },
+        "decode_logits_6": {
+          "max_abs_error": 0.0,
+          "mean_abs_error": 0.0,
+          "cosine_similarity": 1.0,
+          "elements": 151936
+        },
+        "decode_logits_7": {
+          "max_abs_error": 0.0,
+          "mean_abs_error": 0.0,
+          "cosine_similarity": 1.0000000000000002,
+          "elements": 151936
+        },
+        "kv_key_used": {
+          "max_abs_error": 0.0,
+          "mean_abs_error": 0.0,
+          "cosine_similarity": 0.9999999999999999,
+          "elements": 24576
+        },
+        "kv_value_used": {
+          "max_abs_error": 0.0,
+          "mean_abs_error": 0.0,
+          "cosine_similarity": 1.0,
+          "elements": 24576
+        }
+      },
+      "prefill_argmax_match": true,
+      "token_trajectory_match": true,
+      "reference_generated_ids": [
+        11853,
+        11853,
+        11853,
+        11853,
+        11853,
+        11853,
+        11853,
+        11853
+      ],
+      "decode_same_input_context": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "interpretation": "After token/context divergence, free-running logits include trajectory error and are not an isolated kernel check",
+      "status": "PASS"
+    },
+    "4": {
+      "reference_dir": "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-4l/quant-host-order",
+      "comparisons": {
+        "prefill_logits": {
+          "max_abs_error": 0.0,
+          "mean_abs_error": 0.0,
+          "cosine_similarity": 1.0,
+          "elements": 151936
+        },
+        "decode_logits_0": {
+          "max_abs_error": 0.0,
+          "mean_abs_error": 0.0,
+          "cosine_similarity": 1.0000000000000002,
+          "elements": 151936
+        },
+        "decode_logits_1": {
+          "max_abs_error": 0.0,
+          "mean_abs_error": 0.0,
+          "cosine_similarity": 1.0,
+          "elements": 151936
+        },
+        "decode_logits_2": {
+          "max_abs_error": 0.0,
+          "mean_abs_error": 0.0,
+          "cosine_similarity": 1.0,
+          "elements": 151936
+        },
+        "decode_logits_3": {
+          "max_abs_error": 0.0,
+          "mean_abs_error": 0.0,
+          "cosine_similarity": 0.9999999999999999,
+          "elements": 151936
+        },
+        "decode_logits_4": {
+          "max_abs_error": 0.0,
+          "mean_abs_error": 0.0,
+          "cosine_similarity": 1.0000000000000002,
+          "elements": 151936
+        },
+        "decode_logits_5": {
+          "max_abs_error": 0.0,
+          "mean_abs_error": 0.0,
+          "cosine_similarity": 1.0,
+          "elements": 151936
+        },
+        "decode_logits_6": {
+          "max_abs_error": 0.0,
+          "mean_abs_error": 0.0,
+          "cosine_similarity": 1.0,
+          "elements": 151936
+        },
+        "decode_logits_7": {
+          "max_abs_error": 0.0,
+          "mean_abs_error": 0.0,
+          "cosine_similarity": 1.0,
+          "elements": 151936
+        },
+        "kv_key_used": {
+          "max_abs_error": 0.0,
+          "mean_abs_error": 0.0,
+          "cosine_similarity": 1.0,
+          "elements": 98304
+        },
+        "kv_value_used": {
+          "max_abs_error": 0.0,
+          "mean_abs_error": 0.0,
+          "cosine_similarity": 1.0,
+          "elements": 98304
+        }
+      },
+      "prefill_argmax_match": true,
+      "token_trajectory_match": true,
+      "reference_generated_ids": [
+        318,
+        1107,
+        1127,
+        1292,
+        2740,
+        39522,
+        745,
+        12
+      ],
+      "decode_same_input_context": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "interpretation": "After token/context divergence, free-running logits include trajectory error and are not an isolated kernel check",
+      "status": "PASS"
+    },
+    "28": {
+      "reference_dir": "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-28l/quant-host-order",
+      "comparisons": {
+        "prefill_logits": {
+          "max_abs_error": 0.0,
+          "mean_abs_error": 0.0,
+          "cosine_similarity": 0.9999999999999998,
+          "elements": 151936
+        },
+        "decode_logits_0": {
+          "max_abs_error": 0.0,
+          "mean_abs_error": 0.0,
+          "cosine_similarity": 1.0,
+          "elements": 151936
+        },
+        "decode_logits_1": {
+          "max_abs_error": 0.0,
+          "mean_abs_error": 0.0,
+          "cosine_similarity": 1.0000000000000002,
+          "elements": 151936
+        },
+        "decode_logits_2": {
+          "max_abs_error": 0.0,
+          "mean_abs_error": 0.0,
+          "cosine_similarity": 1.0,
+          "elements": 151936
+        },
+        "decode_logits_3": {
+          "max_abs_error": 0.0,
+          "mean_abs_error": 0.0,
+          "cosine_similarity": 1.0000000000000002,
+          "elements": 151936
+        },
+        "decode_logits_4": {
+          "max_abs_error": 0.0,
+          "mean_abs_error": 0.0,
+          "cosine_similarity": 1.0000000000000002,
+          "elements": 151936
+        },
+        "decode_logits_5": {
+          "max_abs_error": 0.0,
+          "mean_abs_error": 0.0,
+          "cosine_similarity": 1.0000000000000002,
+          "elements": 151936
+        },
+        "decode_logits_6": {
+          "max_abs_error": 0.0,
+          "mean_abs_error": 0.0,
+          "cosine_similarity": 0.9999999999999999,
+          "elements": 151936
+        },
+        "decode_logits_7": {
+          "max_abs_error": 0.0,
+          "mean_abs_error": 0.0,
+          "cosine_similarity": 0.9999999999999998,
+          "elements": 151936
+        },
+        "kv_key_used": {
+          "max_abs_error": 0.0,
+          "mean_abs_error": 0.0,
+          "cosine_similarity": 0.9999999999999999,
+          "elements": 688128
+        },
+        "kv_value_used": {
+          "max_abs_error": 0.0,
+          "mean_abs_error": 0.0,
+          "cosine_similarity": 0.9999999999999998,
+          "elements": 688128
+        }
+      },
+      "prefill_argmax_match": true,
+      "token_trajectory_match": true,
+      "reference_generated_ids": [
+        374,
+        264,
+        3146,
+        7407,
+        304,
+        4787,
+        5159,
+        11
+      ],
+      "decode_same_input_context": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "interpretation": "After token/context divergence, free-running logits include trajectory error and are not an isolated kernel check",
+      "status": "PASS"
+    }
+  }
+}

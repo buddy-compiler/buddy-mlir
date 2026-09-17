@@ -1,0 +1,55 @@
+{
+  "stage": "W8A8 NR object and parameter segment for the full 28-layer model",
+  "nr_object": {
+    "riscv_object_bytes": 5016896,
+    "llvm_ir_bytes": 12503625,
+    "openmp_enabled": false,
+    "undefined_total": 604,
+    "undefined_groups": {
+      "openmp_runtime": [],
+      "heap": [
+        "free",
+        "malloc"
+      ],
+      "libc_libm": [
+        "cosf",
+        "expf",
+        "logf",
+        "memcpy",
+        "memrefCopy",
+        "sinf"
+      ],
+      "qwen_graph_kernels": 596,
+      "other": []
+    },
+    "reading": "604 undefined symbols, all of them expected: the model kernels the static library provides, malloc/free from the NR runtime, and libm/memcpy. No openmp runtime, which is the change made earlier."
+  },
+  "parameter_segment": {
+    "bytes": 598230784,
+    "sha256": "0ddd3640545b26c09a3e2fa6829f7675a2d1a5b128490635b7037efd697e33a7",
+    "address": "0xb8000000",
+    "parameters": 508,
+    "i8_bytes": 595984384,
+    "f32_bytes": 2246400
+  },
+  "graph": {
+    "pattern_matches": {
+      "w8a8_embedding": 1,
+      "w8a8": 197,
+      "linear": 0,
+      "rmsnorm": 113,
+      "silu": 28,
+      "embedding": 0
+    },
+    "external_calls": 733,
+    "workspace_inputs": 1578,
+    "symbols": 1189
+  },
+  "still_missing_for_a_board_run": [
+    "the ram-memory main: 508 parameter descriptors plus 1578 workspace inputs, which has to be generated mechanically rather than written by hand",
+    "build_model_image.py does not know about the W8A8 parameter list or the workspace inputs yet",
+    "the plan currently names a 64 KiB placeholder as the model image",
+    "the KV cache and workspace are not yet laid out against the DDR plan"
+  ],
+  "why_this_matters": "this is the first time the FULL model -- 28 layers, every weight matrix quantised, embedding included -- exists as a linked-ready RISC-V object plus a matching 570 MiB parameter segment whose int8 and f32 totals match the deployment image plan byte for byte"
+}

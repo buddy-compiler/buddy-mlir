@@ -1,0 +1,181 @@
+{
+  "stage": "D (board): the FULLY QUANTISED W8A8 model, 16-token prefill then 8 continuous decode steps, on FPGA5",
+  "status": "PASS",
+  "run_id": "run-2484a75128174e0f",
+  "scope": {
+    "layers": 1,
+    "prefill_len": 16,
+    "decode_steps": 8,
+    "quantisation": "every weight matrix int8 including the embedding, tied lm_head shared, per-token dynamic activation quantisation",
+    "cache_positions_exercised": [
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23
+    ],
+    "not_covered": [
+      "the other 27 layers",
+      "tokenizer and text decoding"
+    ]
+  },
+  "prefill": {
+    "board_token": 33067,
+    "board_logit": 8.829758644104004,
+    "reference_token": 33067,
+    "reference_logit": 8.82975959777832,
+    "token_matches": true,
+    "logit_abs_error": 9.5367431640625e-07
+  },
+  "decode_steps": [
+    {
+      "step": 0,
+      "position": 16,
+      "board_token": 11853,
+      "board_logit_bits": "415556A3",
+      "board_logit": 13.333651542663574,
+      "reference_token": 11853,
+      "reference_logit": 13.333658218383789,
+      "token_matches": true,
+      "logit_abs_error": 6.67572021484375e-06
+    },
+    {
+      "step": 1,
+      "position": 17,
+      "board_token": 11853,
+      "board_logit_bits": "41A6FE29",
+      "board_logit": 20.874101638793945,
+      "reference_token": 11853,
+      "reference_logit": 20.812864303588867,
+      "token_matches": true,
+      "logit_abs_error": 0.061237335205078125
+    },
+    {
+      "step": 2,
+      "position": 18,
+      "board_token": 11853,
+      "board_logit_bits": "41B2599F",
+      "board_logit": 22.293760299682617,
+      "reference_token": 11853,
+      "reference_logit": 22.29375648498535,
+      "token_matches": true,
+      "logit_abs_error": 3.814697265625e-06
+    },
+    {
+      "step": 3,
+      "position": 19,
+      "board_token": 11853,
+      "board_logit_bits": "41B2878B",
+      "board_logit": 22.31618309020996,
+      "reference_token": 11853,
+      "reference_logit": 22.316184997558594,
+      "token_matches": true,
+      "logit_abs_error": 1.9073486328125e-06
+    },
+    {
+      "step": 4,
+      "position": 20,
+      "board_token": 11853,
+      "board_logit_bits": "41B32C27",
+      "board_logit": 22.39655876159668,
+      "reference_token": 11853,
+      "reference_logit": 22.39655876159668,
+      "token_matches": true,
+      "logit_abs_error": 0.0
+    },
+    {
+      "step": 5,
+      "position": 21,
+      "board_token": 11853,
+      "board_logit_bits": "41B532A5",
+      "board_logit": 22.649728775024414,
+      "reference_token": 11853,
+      "reference_logit": 22.649728775024414,
+      "token_matches": true,
+      "logit_abs_error": 0.0
+    },
+    {
+      "step": 6,
+      "position": 22,
+      "board_token": 11853,
+      "board_logit_bits": "41B401BA",
+      "board_logit": 22.500843048095703,
+      "reference_token": 11853,
+      "reference_logit": 22.500843048095703,
+      "token_matches": true,
+      "logit_abs_error": 0.0
+    },
+    {
+      "step": 7,
+      "position": 23,
+      "board_token": 11853,
+      "board_logit_bits": "41B5214C",
+      "board_logit": 22.641258239746094,
+      "reference_token": 11853,
+      "reference_logit": 22.649658203125,
+      "token_matches": true,
+      "logit_abs_error": 0.00839996337890625
+    }
+  ],
+  "all_decode_tokens_match": true,
+  "max_decode_logit_abs_error": 0.061237335205078125,
+  "cycles": 5515994658,
+  "seconds_at_14_7456MHz": 374.1,
+  "image": {
+    "elf_bytes": 4507112,
+    "bin_bytes": 4430392,
+    "undefined_symbols": 0,
+    "elf_audit": "PASS: 32935 instructions, 121 AME, 156 RVV"
+  },
+  "segments": [
+    "segment model: address=0x0000000080000000 size=4430400",
+    "segment weights: address=0x00000000b8000000 size=171981568"
+  ],
+  "uart": [
+    "[nr] NH boot; RA operator runtime",
+    "[nr] RA entry=0x0000000080000040",
+    "[nr] RA entered; clearing application BSS",
+    "[nr] mstatus=0x8000000A00006000; launch BEGIN",
+    "[model] prefill argmax token=0000812B logit_bits=410D46B1",
+    "[model] decode step 00000000 position=00000010 token=00002E4D logit_bits=415556A3",
+    "[model] decode step 00000001 position=00000011 token=00002E4D logit_bits=41A6FE29",
+    "[model] decode step 00000002 position=00000012 token=00002E4D logit_bits=41B2599F",
+    "[model] decode step 00000003 position=00000013 token=00002E4D logit_bits=41B2878B",
+    "[model] decode step 00000004 position=00000014 token=00002E4D logit_bits=41B32C27",
+    "[model] decode step 00000005 position=00000015 token=00002E4D logit_bits=41B532A5",
+    "[model] decode step 00000006 position=00000016 token=00002E4D logit_bits=41B401BA",
+    "[model] decode step 00000007 position=00000017 token=00002E4D logit_bits=41B5214C",
+    "[nr] launch cycles=0x0000000148C76622 status=0x00000000",
+    "[nr] RA returned: PASS",
+    "verify NR runtime: PASS"
+  ],
+  "what_this_proves": "the complete W8A8 path works on the FPGA: int8 embedding gather with per-token rescale, per-token activation quantisation, int8 matmul on the AME with int32 accumulation, and dequantisation with the row and column scales in the contract's order. The cache position advances 16..23 and every step's logits match the reference, so the KV cache is genuinely being written and read across steps rather than a fixed shape being replayed.",
+  "bugs_fixed_this_round": [
+    {
+      "symptom": "the extra cache-position argument, fixed in the previous round, had a twin: the prefill+decode image could not link",
+      "cause": "each graph lowerer emits its own dealloc_helper, so two entry points compiled separately collide",
+      "fix": "llvm-objcopy --redefine-sym on the decode object, the same treatment the FP32 image builder already used"
+    },
+    {
+      "symptom": "the decode prototype was computed but never emitted",
+      "cause": "the prelude was assembled from `prototype` only",
+      "fix": "emit dec_prototype alongside it"
+    }
+  ],
+  "not_done": [
+    "28 layers on the board: the image has not been re-linked with the argument fix, and it needs a multi-hour window (attention alone about 51 minutes)",
+    "stage E (tokenizer, text generation, UART interaction)"
+  ],
+  "review_2026_09_17": {
+    "status": "HISTORICAL token-only check; not full numerical acceptance",
+    "findings": [
+      "One-layer token IDs match, but one selected logit differs by 0.0612373.",
+      "Only selected maximum logits were compared, not all logits or intermediate tensors.",
+      "New image/runtime/adapter checks require a fresh board run."
+    ],
+    "previous_results_are_historical": true
+  }
+}

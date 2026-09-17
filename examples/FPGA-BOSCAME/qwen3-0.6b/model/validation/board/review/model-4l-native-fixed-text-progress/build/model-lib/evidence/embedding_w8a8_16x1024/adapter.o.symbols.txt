@@ -1,0 +1,2 @@
+_mlir_ciface_kernel_embedding_w8a8_16x1024 T 0 7e
+triton_embedding_w8a8_16x1024 U 0 0

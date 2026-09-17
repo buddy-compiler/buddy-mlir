@@ -28,6 +28,9 @@ include "mlir/IR/SymbolInterfaces.td"
 class RHAL_Op<string mnemonic, list<Trait> traits = []> :
     Op<RHAL_Dialect, mnemonic, traits>;
 
+// Current MLIR's Symbol interface requires explicit name/visibility traits and
+// the optional sym_visibility property. Absent visibility remains public.
+
 //===----------------------------------------------------------------------===//
 // rhal.module — top-level model manifest container
 //
@@ -44,7 +47,7 @@ class RHAL_Op<string mnemonic, list<Trait> traits = []> :
 
 def RHAL_ModuleOp : RHAL_Op<"module", [
     AffineScope, IsolatedFromAbove, NoRegionArguments,
-    SymbolTable, Symbol, NoTerminator, SingleBlock]> {
+    SymbolTable, SymbolName, SymbolVisibility, Symbol, NoTerminator, SingleBlock]> {
   let summary = "RHAL model manifest module.";
   let description = [{
     Top-level container op that declares all model resources and functions.
@@ -54,6 +57,7 @@ def RHAL_ModuleOp : RHAL_Op<"module", [
 
   let arguments = (ins
     SymbolNameAttr:$sym_name,
+    OptionalAttr<StrAttr>:$sym_visibility,
     OptionalAttr<StrAttr>:$version,
     OptionalAttr<StrAttr>:$model_name,
     OptionalAttr<StrAttr>:$vocab_uri,
@@ -85,7 +89,7 @@ def RHAL_ModuleOp : RHAL_Op<"module", [
 //                              type = tensor<...xf32>, uri = "file:..."
 //===----------------------------------------------------------------------===//
 
-def RHAL_ConstantOp : RHAL_Op<"constant", [Symbol]> {
+def RHAL_ConstantOp : RHAL_Op<"constant", [SymbolName, SymbolVisibility, Symbol]> {
   let summary = "External model constant (weight) declaration.";
   let description = [{
     Declares a model weight tensor stored outside the .rax file.
@@ -96,6 +100,7 @@ def RHAL_ConstantOp : RHAL_Op<"constant", [Symbol]> {
 
   let arguments = (ins
     SymbolNameAttr:$sym_name,
+    OptionalAttr<StrAttr>:$sym_visibility,
     I32Attr:$id,
     StrAttr:$storage,
     TypeAttr:$type,
@@ -115,7 +120,7 @@ def RHAL_ConstantOp : RHAL_Op<"constant", [Symbol]> {
 //                              backend = "cpu", uri = "file:..."
 //===----------------------------------------------------------------------===//
 
-def RHAL_CodeobjOp : RHAL_Op<"codeobj", [Symbol]> {
+def RHAL_CodeobjOp : RHAL_Op<"codeobj", [SymbolName, SymbolVisibility, Symbol]> {
   let summary = "Compiled kernel code object declaration.";
   let description = [{
     Declares a compiled kernel library (e.g. a .so file) that provides
@@ -127,6 +132,7 @@ def RHAL_CodeobjOp : RHAL_Op<"codeobj", [Symbol]> {
 
   let arguments = (ins
     SymbolNameAttr:$sym_name,
+    OptionalAttr<StrAttr>:$sym_visibility,
     I32Attr:$id,
     StrAttr:$kind,
     StrAttr:$backend,
@@ -145,7 +151,7 @@ def RHAL_CodeobjOp : RHAL_Op<"codeobj", [Symbol]> {
 //   rhal.buffer @name space = "host"|"dram", type = tensor<...>
 //===----------------------------------------------------------------------===//
 
-def RHAL_BufferOp : RHAL_Op<"buffer", [Symbol]> {
+def RHAL_BufferOp : RHAL_Op<"buffer", [SymbolName, SymbolVisibility, Symbol]> {
   let summary = "Named buffer descriptor (input, output, or KV-cache state).";
   let description = [{
     Declares a named buffer used by the model functions.
@@ -155,6 +161,7 @@ def RHAL_BufferOp : RHAL_Op<"buffer", [Symbol]> {
 
   let arguments = (ins
     SymbolNameAttr:$sym_name,
+    OptionalAttr<StrAttr>:$sym_visibility,
     StrAttr:$space,
     TypeAttr:$type
   );
@@ -173,7 +180,7 @@ def RHAL_BufferOp : RHAL_Op<"buffer", [Symbol]> {
 //                   args = ["buf1", "buf2", ...]
 //===----------------------------------------------------------------------===//
 
-def RHAL_FuncOp : RHAL_Op<"func", [Symbol]> {
+def RHAL_FuncOp : RHAL_Op<"func", [SymbolName, SymbolVisibility, Symbol]> {
   let summary = "Model function dispatch declaration.";
   let description = [{
     Declares a model entry point and its dispatch configuration:
@@ -186,6 +193,7 @@ def RHAL_FuncOp : RHAL_Op<"func", [Symbol]> {
 
   let arguments = (ins
     SymbolNameAttr:$sym_name,
+    OptionalAttr<StrAttr>:$sym_visibility,
     ArrayAttr:$inputs,
     ArrayAttr:$outputs,
     StrAttr:$dispatch,

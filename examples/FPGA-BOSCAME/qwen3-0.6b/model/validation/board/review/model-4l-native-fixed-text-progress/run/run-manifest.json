@@ -1,0 +1,21 @@
+{
+  "plan": "ddr-load.plan",
+  "plan_sha256": "049b3e24cfaf570fb4255b66c59d7e38043b5703079d4cf5bbd71bb2b1a3f5fb",
+  "segments": [
+    {
+      "file": "image.bin",
+      "size": 6703168,
+      "sha256": "74cc8ce95de55c3e897800be609d5d94a39c5af58c8d8cb2a1bc0b65f6377c5e"
+    },
+    {
+      "file": "weights-w8a8.bin",
+      "size": 219342592,
+      "sha256": "4ae30d1197e0531834dd8d81f4bf92c78f435e0267eee165cc4910c0a27ef4c5"
+    },
+    {
+      "file": "tokenizer.bin",
+      "size": 5222976,
+      "sha256": "7e436961bdc35adbcca4887a6f767cdbdaabc69cc0349298a40c54a400b4bcc4"
+    }
+  ]
+}

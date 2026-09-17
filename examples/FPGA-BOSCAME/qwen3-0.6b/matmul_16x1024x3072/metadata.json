@@ -1,0 +1,14 @@
+{
+  "kind": "matmul_i8",
+  "shape": [
+    16,
+    1024,
+    3072
+  ],
+  "roles": [
+    "down_proj"
+  ],
+  "dtype": "i8 x i8 -> i32",
+  "target": "nr-fpga",
+  "checked_elements": 16384
+}

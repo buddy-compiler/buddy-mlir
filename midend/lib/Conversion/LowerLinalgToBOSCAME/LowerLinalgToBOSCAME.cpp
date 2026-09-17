@@ -1647,6 +1647,146 @@ static LogicalResult lowerFpgaMatmul(linalg::MatmulOp op,
   return success();
 }
 
+/// NR exposes the integer accumulator without the v0.1 implicit f32 conversion.
+/// Keep linalg's ordinary C += A * B semantics, including nonzero C and an
+/// explicit subsequent sitofp. The NR mlbe8 instruction consumes physical
+/// [N, K] rows; ordinary [K, N] weights need a small scalar packing buffer.
+static bool isNrMatmul(linalg::MatmulOp op, bool transposeB) {
+  if (!op.hasPureBufferSemantics() ||
+      op.getCast() != linalg::TypeFn::cast_signed ||
+      (op.hasUserDefinedMaps() && !transposeB))
+    return false;
+  auto a = dyn_cast<MemRefType>(op.getDpsInputOperand(0)->get().getType());
+  auto b = dyn_cast<MemRefType>(op.getDpsInputOperand(1)->get().getType());
+  auto c = dyn_cast<MemRefType>(op.getDpsInitOperand(0)->get().getType());
+  if (!a || !b || !c || a.getRank() != 2 || b.getRank() != 2 ||
+      c.getRank() != 2 || !a.hasStaticShape() || !b.hasStaticShape() ||
+      !c.hasStaticShape() || !a.getElementType().isSignlessInteger(8) ||
+      !b.getElementType().isSignlessInteger(8) ||
+      !c.getElementType().isSignlessInteger(32))
+    return false;
+  int64_t m = a.getDimSize(0), k = a.getDimSize(1);
+  int64_t n = b.getDimSize(transposeB ? 0 : 1);
+  return m > 0 && n > 0 && k > 0 &&
+         b.getDimSize(transposeB ? 1 : 0) == k &&
+         c.getShape() == ArrayRef<int64_t>({m, n}) &&
+         hasSupportedRowMajor2DLayout(a) &&
+         hasSupportedRowMajor2DLayout(c) &&
+         (transposeB ? hasSupportedRowMajor2DLayout(b)
+                     : hasSupportedBLayout(b));
+}
+
+class NrMatmulToBOSCAMELowering : public OpRewritePattern<linalg::MatmulOp> {
+public:
+  using OpRewritePattern<linalg::MatmulOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(linalg::MatmulOp op,
+                                PatternRewriter &rewriter) const override {
+    bool transposeB = isa<linalg::MatmulTransposeBOp>(op.getOperation());
+    if (!isNrMatmul(op, transposeB))
+      return failure();
+    Location loc = op.getLoc();
+    Value a = op.getDpsInputOperand(0)->get();
+    Value b = op.getDpsInputOperand(1)->get();
+    Value c = op.getDpsInitOperand(0)->get();
+    auto bType = cast<MemRefType>(b.getType());
+    bool physicalNK = transposeB ||
+                      (!hasSupportedRowMajor2DLayout(bType) &&
+                       hasSupportedTransposed2DLayout(bType));
+    Type i8 = rewriter.getI8Type(), i32 = rewriter.getI32Type();
+    constexpr AmeTargetProfile profile = AmeTargetProfile::NrFpga;
+    auto index = [&](int64_t value) -> Value {
+      return arith::ConstantIndexOp::create(rewriter, loc, value);
+    };
+    Value zero = index(0), one = index(1);
+    Value stepM = index(16), stepN = index(16), stepK = index(64);
+    Value dimM = createDim(rewriter, loc, a, 0);
+    Value dimK = createDim(rewriter, loc, a, 1);
+    Value dimN = createDim(rewriter, loc, b, transposeB ? 0 : 1);
+    Value packedB;
+    if (!physicalNK) {
+      auto storage = memref::AllocaOp::create(
+          rewriter, loc, MemRefType::get({16, 64}, i8));
+      storage->setAttr("alignment", rewriter.getI64IntegerAttr(64));
+      packedB = storage;
+    }
+
+    // Drain preceding CPU writes before AME seeds its accumulator / tiles.
+    LLVM::FenceOp::create(rewriter, loc, LLVM::AtomicOrdering::seq_cst);
+    auto mLoop = scf::ForOp::create(rewriter, loc, zero, dimM, stepM);
+    rewriter.setInsertionPointToStart(mLoop.getBody());
+    Value m = mLoop.getInductionVar();
+    Value rows = createIndexMin(rewriter, loc, dimM, m, 16);
+    auto nLoop = scf::ForOp::create(rewriter, loc, zero, dimN, stepN);
+    rewriter.setInsertionPointToStart(nLoop.getBody());
+    Value n = nLoop.getInductionVar();
+    Value columns = createIndexMin(rewriter, loc, dimN, n, 16);
+    Value subC = createSubView(rewriter, loc, c, {m, n}, {rows, columns});
+    Value strideC = ame::createByteStride(rewriter, loc, subC);
+    if (failed(ame::configureTiles(rewriter, loc, rows, columns)) ||
+        failed(ame::configureAccumulatorType(rewriter, loc, i32, profile, op)))
+      return failure();
+    FailureOr<Value> seed = ame::createLoadAccumulator(
+        rewriter, loc, i32, i32, subC, strideC, op);
+    if (failed(seed) ||
+        failed(ame::configureMmaType(rewriter, loc, i8, profile, op)))
+      return failure();
+    auto kLoop = scf::ForOp::create(rewriter, loc, zero, dimK, stepK,
+                                   ValueRange{*seed});
+    rewriter.setInsertionPointToStart(kLoop.getBody());
+    Value k = kLoop.getInductionVar();
+    Value depth = createIndexMin(rewriter, loc, dimK, k, 64);
+    Value subA = createSubView(rewriter, loc, a, {m, k}, {rows, depth});
+    Value subB, strideB;
+    if (physicalNK) {
+      subB = transposeB
+                 ? createSubView(rewriter, loc, b, {n, k}, {columns, depth})
+                 : createSubView(rewriter, loc, b, {k, n}, {depth, columns});
+      strideB = ame::createByteStride(rewriter, loc, subB, transposeB ? 0 : 1);
+    } else {
+      // Complete the preceding B load before reusing its scratch, and publish
+      // this tile after packing. Both loops stop at the real tail dimensions.
+      LLVM::FenceOp::create(rewriter, loc, LLVM::AtomicOrdering::seq_cst);
+      auto packN = scf::ForOp::create(rewriter, loc, zero, columns, one);
+      rewriter.setInsertionPointToStart(packN.getBody());
+      auto packK = scf::ForOp::create(rewriter, loc, zero, depth, one);
+      rewriter.setInsertionPointToStart(packK.getBody());
+      Value bn = arith::AddIOp::create(rewriter, loc, n, packN.getInductionVar());
+      Value bk = arith::AddIOp::create(rewriter, loc, k, packK.getInductionVar());
+      Value element = memref::LoadOp::create(rewriter, loc, b, ValueRange{bk, bn});
+      memref::StoreOp::create(rewriter, loc, element, packedB,
+                             ValueRange{packN.getInductionVar(),
+                                        packK.getInductionVar()});
+      rewriter.setInsertionPointAfter(packN);
+      LLVM::FenceOp::create(rewriter, loc, LLVM::AtomicOrdering::seq_cst);
+      subB = packedB;
+      strideB = castIndexToI64(rewriter, loc, stepK);
+    }
+    if (failed(ame::configureTileK(rewriter, loc, depth)))
+      return failure();
+    FailureOr<Value> tileA = ame::createLoadA(
+        rewriter, loc, i8, subA, ame::createByteStride(rewriter, loc, subA), op);
+    FailureOr<Value> tileB =
+        ame::createLoadB(rewriter, loc, i8, subB, strideB, op);
+    if (failed(tileA) || failed(tileB))
+      return failure();
+    FailureOr<Value> acc = ame::createMma(rewriter, loc,
+        kLoop.getRegionIterArgs()[0], *tileA, *tileB, op);
+    if (failed(acc))
+      return failure();
+    scf::YieldOp::create(rewriter, loc, ValueRange{*acc});
+    rewriter.setInsertionPointAfter(kLoop);
+    if (failed(ame::configureAccumulatorType(rewriter, loc, i32, profile, op)) ||
+        failed(ame::createStoreAccumulator(rewriter, loc, kLoop.getResult(0),
+                                          subC, strideC, op)))
+      return failure();
+    rewriter.setInsertionPointAfter(mLoop);
+    LLVM::FenceOp::create(rewriter, loc, LLVM::AtomicOrdering::seq_cst);
+    rewriter.eraseOp(op);
+    return success();
+  }
+};
+
 class MatmulToBOSCAMELowering : public OpRewritePattern<linalg::MatmulOp> {
 public:
   MatmulToBOSCAMELowering(MLIRContext *context, AmeTargetProfile profile,
@@ -2087,7 +2227,8 @@ public:
   Option<std::string> ameTarget{
       *this, "target",
       llvm::cl::desc("AME hardware contract: 'upstream' (default) or "
-                     "'qwen3-fpga'. Must agree with the bosc_ame.target "
+                     "'nr-fpga' (NH/RA) or 'qwen3-fpga' (legacy). Must agree "
+                     "with the bosc_ame.target "
                      "module attribute when both are present."),
       llvm::cl::init("")};
 
@@ -2131,7 +2272,7 @@ void LowerLinalgToBOSCAMEPass::runOnOperation() {
 
   // The FPGA convention is only defined for the W8A8 datapath; anything else in
   // the module has to be diagnosed here rather than silently mis-mapped.
-  if (*profile == AmeTargetProfile::Qwen3Fpga &&
+  if (isFpgaTarget(*profile) &&
       failed(verifyFpgaAmeCapabilities(module))) {
     signalPassFailure();
     return;
@@ -2167,7 +2308,14 @@ void LowerLinalgToBOSCAMEPass::runOnOperation() {
                                    linalg::LinalgDialect, LLVM::LLVMDialect,
                                    memref::MemRefDialect, scf::SCFDialect>();
 
-  if (*profile == AmeTargetProfile::Qwen3Fpga) {
+  if (*profile == AmeTargetProfile::NrFpga) {
+    patterns.add<NrMatmulToBOSCAMELowering>(context);
+    conversionTarget.addDynamicallyLegalOp<linalg::MatmulOp>(
+        [](linalg::MatmulOp op) {
+          return !isNrMatmul(
+              op, isa<linalg::MatmulTransposeBOp>(op.getOperation()));
+        });
+  } else if (*profile == AmeTargetProfile::Qwen3Fpga) {
     // FPGA contract: this pass only owns the operations the FPGA emitter can
     // actually lower.  The upstream Generic* lowerings are deliberately NOT
     // registered here, because they program `bosc_ame.msettypei` with a raw

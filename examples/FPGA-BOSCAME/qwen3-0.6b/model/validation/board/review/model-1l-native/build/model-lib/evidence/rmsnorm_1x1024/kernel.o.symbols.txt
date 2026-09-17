@@ -1,0 +1,1 @@
+triton_rmsnorm_1x1024 T 0 214

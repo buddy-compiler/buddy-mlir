@@ -1,0 +1,46 @@
+{
+  "stage": "the FULL 28-layer quantised Qwen3 model exists as a bare-metal NR image",
+  "status": "PASS",
+  "what_this_is": "every weight matrix quantised (embedding included), 28 layers, 16-token prefill, linked against the Triton static library and the shared NR runtime, and accepted by the FPGA instruction audit",
+  "image": {
+    "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/board/w8a8-image/qwen_model.elf",
+    "bytes": 1513312,
+    "bin_bytes": 905592
+  },
+  "elf_audit": "NR ELF audit PASS: 286910 instructions, 121 AME, 156 RVV; /home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/board/w8a8-image/qwen_model.elf",
+  "undefined_symbols": [],
+  "generated_program": {
+    "source_lines": 5694,
+    "parameters": 508,
+    "workspace_buffers": 789,
+    "workspace_bytes": 49922368,
+    "call_arguments": 1383,
+    "note": "the main is generated, not written: 508 descriptors and 789 workspace declarations are emitted from the rewrite report and the segment's recorded offsets"
+  },
+  "ddr_budget": {
+    "parameters": 598230784,
+    "parameters_mib": 570.52,
+    "kv_cache_28_layers": 117440512,
+    "workspace": 49922368,
+    "image": 1513312,
+    "total_bytes": 767106976,
+    "nr_ld_high_region_mib": 1152,
+    "verdict": "fits, with room to spare"
+  },
+  "build_provenance_finding": {
+    "symptom": "the archive builder refused every case with 'stale or changing build'",
+    "cause": "each case's nr/manifest.json records sha256 of triton/kernels.py, triton/cases.py and triton/export.py. Adding embedding_w8a8 changed those, so every previously built case became legitimately stale. Re-running the builder alone did not refresh the manifest because the NR link was cached.",
+    "fix": "removed the nr/ build outputs for the affected cases and rebuilt; the cache key is the source hash, so this is a rebuild, not a workaround",
+    "also_found": "triton/build.py --host builds only the host side and plain invocation builds only the NR side; both are needed"
+  },
+  "archive_change": {
+    "what": "build_model_lib.sh now DISCOVERS its cases from the generated adapters, with the old explicit lists as a fallback",
+    "why": "the hardcoded list covered only the f32 replacement's needs. The W8A8 rewrite needs a superset -- quantize at K=3072, the int8 matmuls with K=3072, and the int8 embedding -- and a hand-maintained list produced an archive that linked with 12 undefined symbols.",
+    "evidence": "the link now reports zero undefined symbols"
+  },
+  "not_done": [
+    "the image has NOT been uploaded or run on the board",
+    "decode is not in this image (prefill only); the decode graph, its workspace and its bridge are all built but not linked into an image yet",
+    "stage E (tokenizer, text generation, UART interaction) not started"
+  ]
+}

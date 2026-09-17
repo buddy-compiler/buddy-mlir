@@ -1,0 +1,577 @@
+{
+  "source": "real Buddy graph op dumps",
+  "layers": 28,
+  "graphs": {
+    "prefill": {
+      "op_count": 3217,
+      "groups": {
+        "attention-fused-op": {
+          "count": 28,
+          "output_shapes": {
+            "[[1, 16, 16, 128], [1, 16, 16]]": 28
+          },
+          "op_types": {
+            "ScaledDotProductFlashAttentionForCpuOp": 28
+          },
+          "dtypes": {
+            "['Float32', 'Float32']": 28
+          }
+        },
+        "attention-result-select": {
+          "count": 28,
+          "output_shapes": {
+            "1x16x16x128": 28
+          },
+          "op_types": {
+            "GetItemOp": 28
+          },
+          "dtypes": {
+            "Float32": 28
+          }
+        },
+        "consumed-by-matched-pattern": {
+          "count": 3,
+          "output_shapes": {},
+          "op_types": {
+            "count-only": 3
+          },
+          "dtypes": {
+            "None": 3
+          }
+        },
+        "elementwise": {
+          "count": 369,
+          "output_shapes": {
+            "1x16x16x128": 84,
+            "1x16x1": 57,
+            "1x8x16x128": 56,
+            "16": 30,
+            "1x16x1024": 29,
+            "1x16x16x1": 28,
+            "1x16x8x1": 28,
+            "1x16x8x128": 28,
+            "1": 28,
+            "512": 1
+          },
+          "op_types": {
+            "AddOp": 172,
+            "MulOp": 197
+          },
+          "dtypes": {
+            "Int64": 59,
+            "Float32": 310
+          }
+        },
+        "embedding": {
+          "count": 1,
+          "output_shapes": {
+            "1x16x1024": 1
+          },
+          "op_types": {
+            "EmbeddingOp": 1
+          },
+          "dtypes": {
+            "Float32": 1
+          }
+        },
+        "kv-cache-write": {
+          "count": 56,
+          "output_shapes": {
+            "1x8x512x128": 56
+          },
+          "op_types": {
+            "IndexPutOp": 56
+          },
+          "dtypes": {
+            "Float32": 56
+          }
+        },
+        "layout-view": {
+          "count": 555,
+          "output_shapes": {
+            "1x8x2x512x128": 112,
+            "16x1024": 85,
+            "1x8x16x128": 56,
+            "1x8x1x512x128": 56,
+            "1x16x512x128": 56,
+            "1024x3072": 56,
+            "1x16x1024": 29,
+            "1x16x16x128": 28,
+            "1024x1024": 28,
+            "1x16x8x128": 28,
+            "1x1x16": 4,
+            "1x64x1": 4
+          },
+          "op_types": {
+            "UnsqueezeOp": 67,
+            "ExpandOp": 60,
+            "ViewOp": 201,
+            "PermuteOp": 170,
+            "CloneOp": 56,
+            "AliasOp": 1
+          },
+          "dtypes": {
+            "Int64": 8,
+            "Bool": 1,
+            "Float32": 546
+          }
+        },
+        "linear-projection": {
+          "count": 196,
+          "output_shapes": {
+            "16x1024": 112,
+            "16x3072": 56,
+            "16x2048": 28
+          },
+          "op_types": {
+            "MatmulOp": 196
+          },
+          "dtypes": {
+            "Float32": 196
+          }
+        },
+        "lm_head": {
+          "count": 1,
+          "output_shapes": {
+            "16x151936": 1
+          },
+          "op_types": {
+            "MatmulOp": 1
+          },
+          "dtypes": {
+            "Float32": 1
+          }
+        },
+        "mask-or-position": {
+          "count": 117,
+          "output_shapes": {
+            "": 56,
+            "16": 30,
+            "1x1x16x512": 29,
+            "512": 1,
+            "1x1x16": 1
+          },
+          "op_types": {
+            "IotaOp": 31,
+            "LeTensorOp": 1,
+            "ConvertElementTypeOp": 1,
+            "ScalarTensorOp": 56,
+            "WhereOp": 28
+          },
+          "dtypes": {
+            "Int64": 31,
+            "Bool": 1,
+            "Float32": 85
+          }
+        },
+        "output": {
+          "count": 1,
+          "output_shapes": {},
+          "op_types": {
+            "OutputOp": 1
+          },
+          "dtypes": {
+            "None": 1
+          }
+        },
+        "parameter-or-input": {
+          "count": 396,
+          "output_shapes": {
+            "1024": 57,
+            "128": 56,
+            "1024x1024": 56,
+            "3072x1024": 56,
+            "1x8x512x128": 56,
+            "2048x1024": 28,
+            "1024x2048": 28,
+            "1024x3072": 28,
+            "1": 28,
+            "151936x1024": 1,
+            "64": 1,
+            "1x16": 1
+          },
+          "op_types": {
+            "PlaceholderOp": 396
+          },
+          "dtypes": {
+            "Float32": 367,
+            "Int64": 29
+          }
+        },
+        "pattern-interior": {
+          "count": 535,
+          "output_shapes": {
+            "1x16x1": 86,
+            "1x16x16x64": 84,
+            "1x8x16x64": 84,
+            "1x16x1024": 57,
+            "1x16x16x128": 56,
+            "1x16x16x1": 56,
+            "1x16x8x1": 56,
+            "1x16x8x128": 28,
+            "1x8x16x128": 28
+          },
+          "op_types": {
+            "PowOp": 113,
+            "MeanOp": 113,
+            "RsqrtOp": 85,
+            "SliceOp": 112,
+            "NegOp": 56,
+            "CatOp": 56
+          },
+          "dtypes": {
+            "Float32": 535
+          }
+        },
+        "qk-norm": {
+          "count": 56,
+          "output_shapes": {
+            "1x16x16x128": 28,
+            "1x16x8x128": 28
+          },
+          "op_types": {
+            "MulOp": 56
+          },
+          "dtypes": {
+            "Float32": 56
+          }
+        },
+        "rms-norm": {
+          "count": 57,
+          "output_shapes": {
+            "1x16x1024": 57
+          },
+          "op_types": {
+            "MulOp": 57
+          },
+          "dtypes": {
+            "Float32": 57
+          }
+        },
+        "rope-frequency-outer-product-or-attention": {
+          "count": 1,
+          "output_shapes": {
+            "1x64x16": 1
+          },
+          "op_types": {
+            "BatchMatmulOp": 1
+          },
+          "dtypes": {
+            "Float32": 1
+          }
+        },
+        "rope-rotation": {
+          "count": 56,
+          "output_shapes": {
+            "1x16x16x128": 28,
+            "1x8x16x128": 28
+          },
+          "op_types": {
+            "AddOp": 56
+          },
+          "dtypes": {
+            "Float32": 56
+          }
+        },
+        "silu": {
+          "count": 28,
+          "output_shapes": {
+            "1x16x3072": 28
+          },
+          "op_types": {
+            "MulOp": 28
+          },
+          "dtypes": {
+            "Float32": 28
+          }
+        }
+      }
+    },
+    "decode": {
+      "op_count": 3217,
+      "groups": {
+        "attention-fused-op": {
+          "count": 28,
+          "output_shapes": {
+            "[[1, 16, 1, 128], [1, 16, 1]]": 28
+          },
+          "op_types": {
+            "ScaledDotProductFlashAttentionForCpuOp": 28
+          },
+          "dtypes": {
+            "['Float32', 'Float32']": 28
+          }
+        },
+        "attention-result-select": {
+          "count": 28,
+          "output_shapes": {
+            "1x16x1x128": 28
+          },
+          "op_types": {
+            "GetItemOp": 28
+          },
+          "dtypes": {
+            "Float32": 28
+          }
+        },
+        "consumed-by-matched-pattern": {
+          "count": 3,
+          "output_shapes": {},
+          "op_types": {
+            "count-only": 3
+          },
+          "dtypes": {
+            "None": 3
+          }
+        },
+        "elementwise": {
+          "count": 369,
+          "output_shapes": {
+            "1": 58,
+            "1x1x1": 57,
+            "1x16x1x128": 56,
+            "1x8x1x128": 56,
+            "1x1x1024": 29,
+            "1x1x16x1": 28,
+            "1x1x16x128": 28,
+            "1x1x8x1": 28,
+            "1x1x8x128": 28,
+            "512": 1
+          },
+          "op_types": {
+            "AddOp": 172,
+            "MulOp": 197
+          },
+          "dtypes": {
+            "Int64": 59,
+            "Float32": 310
+          }
+        },
+        "embedding": {
+          "count": 1,
+          "output_shapes": {
+            "1x1x1024": 1
+          },
+          "op_types": {
+            "EmbeddingOp": 1
+          },
+          "dtypes": {
+            "Float32": 1
+          }
+        },
+        "kv-cache-write": {
+          "count": 56,
+          "output_shapes": {
+            "1x8x512x128": 56
+          },
+          "op_types": {
+            "IndexPutOp": 56
+          },
+          "dtypes": {
+            "Float32": 56
+          }
+        },
+        "layout-view": {
+          "count": 555,
+          "output_shapes": {
+            "1x8x2x512x128": 112,
+            "1x1024": 85,
+            "1x8x1x128": 56,
+            "1x8x1x512x128": 56,
+            "1x16x512x128": 56,
+            "1024x3072": 56,
+            "1x1x1024": 29,
+            "1x16x1x128": 28,
+            "1024x1024": 28,
+            "1x1x8x128": 28,
+            "1x64x1": 5,
+            "1x1x1": 4
+          },
+          "op_types": {
+            "UnsqueezeOp": 67,
+            "ExpandOp": 60,
+            "ViewOp": 201,
+            "PermuteOp": 170,
+            "CloneOp": 56,
+            "AliasOp": 1
+          },
+          "dtypes": {
+            "Int64": 8,
+            "Bool": 1,
+            "Float32": 546
+          }
+        },
+        "linear-projection": {
+          "count": 196,
+          "output_shapes": {
+            "1x1024": 112,
+            "1x3072": 56,
+            "1x2048": 28
+          },
+          "op_types": {
+            "MatmulOp": 196
+          },
+          "dtypes": {
+            "Float32": 196
+          }
+        },
+        "lm_head": {
+          "count": 1,
+          "output_shapes": {
+            "1x151936": 1
+          },
+          "op_types": {
+            "MatmulOp": 1
+          },
+          "dtypes": {
+            "Float32": 1
+          }
+        },
+        "mask-or-position": {
+          "count": 117,
+          "output_shapes": {
+            "": 56,
+            "1": 30,
+            "1x1x1x512": 29,
+            "512": 1,
+            "1x1x1": 1
+          },
+          "op_types": {
+            "IotaOp": 31,
+            "LeTensorOp": 1,
+            "ConvertElementTypeOp": 1,
+            "ScalarTensorOp": 56,
+            "WhereOp": 28
+          },
+          "dtypes": {
+            "Int64": 31,
+            "Bool": 1,
+            "Float32": 85
+          }
+        },
+        "output": {
+          "count": 1,
+          "output_shapes": {},
+          "op_types": {
+            "OutputOp": 1
+          },
+          "dtypes": {
+            "None": 1
+          }
+        },
+        "parameter-or-input": {
+          "count": 396,
+          "output_shapes": {
+            "1024": 57,
+            "128": 56,
+            "1024x1024": 56,
+            "3072x1024": 56,
+            "1x8x512x128": 56,
+            "2048x1024": 28,
+            "1024x2048": 28,
+            "1024x3072": 28,
+            "1": 28,
+            "151936x1024": 1,
+            "64": 1,
+            "1x1": 1
+          },
+          "op_types": {
+            "PlaceholderOp": 396
+          },
+          "dtypes": {
+            "Float32": 367,
+            "Int64": 29
+          }
+        },
+        "pattern-interior": {
+          "count": 535,
+          "output_shapes": {
+            "1x1x1": 86,
+            "1x16x1x64": 84,
+            "1x8x1x64": 84,
+            "1x1x1024": 57,
+            "1x1x16x1": 56,
+            "1x1x8x1": 56,
+            "1x1x16x128": 28,
+            "1x1x8x128": 28,
+            "1x16x1x128": 28,
+            "1x8x1x128": 28
+          },
+          "op_types": {
+            "PowOp": 113,
+            "MeanOp": 113,
+            "RsqrtOp": 85,
+            "SliceOp": 112,
+            "NegOp": 56,
+            "CatOp": 56
+          },
+          "dtypes": {
+            "Float32": 535
+          }
+        },
+        "qk-norm": {
+          "count": 56,
+          "output_shapes": {
+            "1x1x16x128": 28,
+            "1x1x8x128": 28
+          },
+          "op_types": {
+            "MulOp": 56
+          },
+          "dtypes": {
+            "Float32": 56
+          }
+        },
+        "rms-norm": {
+          "count": 57,
+          "output_shapes": {
+            "1x1x1024": 57
+          },
+          "op_types": {
+            "MulOp": 57
+          },
+          "dtypes": {
+            "Float32": 57
+          }
+        },
+        "rope-frequency-outer-product-or-attention": {
+          "count": 1,
+          "output_shapes": {
+            "1x64x1": 1
+          },
+          "op_types": {
+            "BatchMatmulOp": 1
+          },
+          "dtypes": {
+            "Float32": 1
+          }
+        },
+        "rope-rotation": {
+          "count": 56,
+          "output_shapes": {
+            "1x16x1x128": 28,
+            "1x8x1x128": 28
+          },
+          "op_types": {
+            "AddOp": 56
+          },
+          "dtypes": {
+            "Float32": 56
+          }
+        },
+        "silu": {
+          "count": 28,
+          "output_shapes": {
+            "1x1x3072": 28
+          },
+          "op_types": {
+            "MulOp": 28
+          },
+          "dtypes": {
+            "Float32": 28
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,95 @@
+verify add_16x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify add_1x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify attention_pv_16x16x128x16: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify attention_pv_16x1x128x17: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify attention_qk_16x16x16x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify attention_qk_16x1x17x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify attention_scale_mask_16x16x16: PASS errors=00000000 max_abs_error_f32_bits=33800000
+verify attention_scale_mask_16x1x17: PASS errors=00000000 max_abs_error_f32_bits=33800000
+verify dequantize_16x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify dequantize_16x2048: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify dequantize_16x3072: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify dequantize_1x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify dequantize_1x151936: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify dequantize_1x2048: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify dequantize_1x3072: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify embedding_16x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify embedding_1x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify gqa_repeat_8x16x128_to_16x16x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify gqa_repeat_8x17x128_to_16x17x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify kv_cache_update_16x8x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify kv_cache_update_1x8x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify layout_context_16x16x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify layout_context_16x1x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify layout_k_16x16x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify layout_k_16x17x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify layout_q_16x16x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify layout_q_1x16x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+cycles matmul_16x1024x1024: 000000000000386f
+verify matmul_16x1024x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+cycles matmul_16x1024x1024_f32: 00000000000094d5
+verify matmul_16x1024x1024_f32: PASS errors=00000000 max_abs_error_f32_bits=00000000
+cycles matmul_16x1024x2048: 0000000000006dc8
+verify matmul_16x1024x2048: PASS errors=00000000 max_abs_error_f32_bits=00000000
+cycles matmul_16x1024x2048_f32: 000000000000fe8f
+verify matmul_16x1024x2048_f32: PASS errors=00000000 max_abs_error_f32_bits=00000000
+cycles matmul_16x1024x3072: 00000000000095ec
+verify matmul_16x1024x3072: PASS errors=00000000 max_abs_error_f32_bits=00000000
+cycles matmul_16x1024x3072_f32: 0000000000014950
+verify matmul_16x1024x3072_f32: PASS errors=00000000 max_abs_error_f32_bits=00000000
+cycles matmul_16x2048x1024: 0000000000006dbc
+verify matmul_16x2048x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+cycles matmul_16x2048x1024_f32: 000000000000f027
+verify matmul_16x2048x1024_f32: PASS errors=00000000 max_abs_error_f32_bits=00000000
+cycles matmul_16x3072x1024: 0000000000009357
+verify matmul_16x3072x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+cycles matmul_16x3072x1024_f32: 0000000000014c87
+verify matmul_16x3072x1024_f32: PASS errors=00000000 max_abs_error_f32_bits=00000000
+cycles matmul_1x1024x1024: 00000000000003d1
+verify matmul_1x1024x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+cycles matmul_1x1024x1024_f32: 0000000000000a3b
+verify matmul_1x1024x1024_f32: PASS errors=00000000 max_abs_error_f32_bits=00000000
+cycles matmul_1x1024x2048: 000000000000075f
+verify matmul_1x1024x2048: PASS errors=00000000 max_abs_error_f32_bits=00000000
+cycles matmul_1x1024x2048_f32: 0000000000001483
+verify matmul_1x1024x2048_f32: PASS errors=00000000 max_abs_error_f32_bits=00000000
+cycles matmul_1x1024x3072: 0000000000000b35
+verify matmul_1x1024x3072: PASS errors=00000000 max_abs_error_f32_bits=00000000
+cycles matmul_1x1024x3072_f32: 0000000000001ea4
+verify matmul_1x1024x3072_f32: PASS errors=00000000 max_abs_error_f32_bits=00000000
+cycles matmul_1x151936x1024: 000000000000d3a4
+verify matmul_1x151936x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+cycles matmul_1x151936x1024_f32: 000000000001de1a
+verify matmul_1x151936x1024_f32: PASS errors=00000000 max_abs_error_f32_bits=00000000
+cycles matmul_1x2048x1024: 0000000000000769
+verify matmul_1x2048x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+cycles matmul_1x2048x1024_f32: 0000000000001422
+verify matmul_1x2048x1024_f32: PASS errors=00000000 max_abs_error_f32_bits=00000000
+cycles matmul_1x3072x1024: 0000000000000aef
+verify matmul_1x3072x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+cycles matmul_1x3072x1024_f32: 0000000000001dd9
+verify matmul_1x3072x1024_f32: PASS errors=00000000 max_abs_error_f32_bits=00000000
+cycles matmul_3x19x70: 0000000000000063
+verify matmul_3x19x70: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify mul_16x3072: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify mul_1x3072: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify quantize_16x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify quantize_16x2048: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify quantize_16x3072: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify quantize_1x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify quantize_1x2048: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify quantize_1x3072: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify rmsnorm_128x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify rmsnorm_16x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify rmsnorm_16x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify rmsnorm_1x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify rmsnorm_256x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify rmsnorm_8x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify rope_16x16x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify rope_16x8x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify rope_1x16x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify rope_1x8x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify silu_16x3072: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify silu_1x3072: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify softmax_16x16x16: PASS errors=00000000 max_abs_error_f32_bits=34000000
+verify softmax_16x1x17: PASS errors=00000000 max_abs_error_f32_bits=34000000

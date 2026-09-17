@@ -32,3 +32,16 @@ ttrt-artifacts/
 # SyncBots agent output (upgrade logs / iteration summaries)
 syncbots-output/
 llm_config.yaml
+
+# Local reference repositories (cloned, not vendored)
+/references/
+
+# codex-helper 工作区配置与运行时状态（本机专用，不进版本库）
+/.codex_helper/
+
+# Superseded local Triton checkout; active frontend is managed by triton-riscv.
+/thirdparty/triton/
+
+# Local migration scratch directories.
+/.plan/
+/.ex/

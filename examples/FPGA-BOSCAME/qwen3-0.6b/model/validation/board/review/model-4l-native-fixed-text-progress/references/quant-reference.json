@@ -1,0 +1,561 @@
+{
+  "capacity": 512,
+  "layers": 4,
+  "arithmetic_profile": "nr-fpga",
+  "kv_layout": "layer,position,kv_head,head_dim",
+  "quantization": {
+    "enabled": true,
+    "weight": "per-output-channel symmetric int8, [-127,127], scale = max|row|/127, zero rows -> scale 1",
+    "activation": "per-token symmetric int8, dynamic, same rounding",
+    "accumulator": "int32",
+    "dequantize": "(acc_f32 * activation_scale) * weight_scale"
+  },
+  "floating_arithmetic": "ordered FP32 reductions; BK64 dot partials with fmaf (observed NR vfmacc.vf); shared NR scalar math; exp/sum softmax; direct SiLU divide",
+  "reference_independence": "graph ordering, int8 quantization/accumulation and attention dot implemented independently; public NR scalar math reused, not independently validated here",
+  "prefill_argmax_all": [
+    538,
+    12,
+    17,
+    323,
+    3139,
+    9150,
+    11,
+    6,
+    54708,
+    44956,
+    12,
+    36925,
+    33108,
+    2152,
+    263,
+    2152
+  ],
+  "prefill_argmax_last": 2152,
+  "decode_steps_recorded": [
+    {
+      "step": 0,
+      "cache_position": 16,
+      "input_token": 2152,
+      "generated_token": 318,
+      "top_k": [
+        [
+          318,
+          12.107006072998047
+        ],
+        [
+          453,
+          11.8077392578125
+        ],
+        [
+          285,
+          10.131831169128418
+        ],
+        [
+          72,
+          10.006773948669434
+        ],
+        [
+          12,
+          9.006789207458496
+        ],
+        [
+          1358,
+          8.884584426879883
+        ],
+        [
+          11,
+          8.577672004699707
+        ],
+        [
+          339,
+          8.301671028137207
+        ]
+      ]
+    },
+    {
+      "step": 1,
+      "cache_position": 17,
+      "input_token": 318,
+      "generated_token": 1107,
+      "top_k": [
+        [
+          1107,
+          12.044293403625488
+        ],
+        [
+          1229,
+          11.545592308044434
+        ],
+        [
+          960,
+          11.478120803833008
+        ],
+        [
+          301,
+          11.367230415344238
+        ],
+        [
+          721,
+          11.348241806030273
+        ],
+        [
+          3045,
+          10.951626777648926
+        ],
+        [
+          14012,
+          10.79365348815918
+        ],
+        [
+          380,
+          10.542642593383789
+        ]
+      ]
+    },
+    {
+      "step": 2,
+      "cache_position": 18,
+      "input_token": 1107,
+      "generated_token": 1127,
+      "top_k": [
+        [
+          1127,
+          12.66865062713623
+        ],
+        [
+          261,
+          12.135400772094727
+        ],
+        [
+          18376,
+          11.260477066040039
+        ],
+        [
+          41978,
+          11.20725154876709
+        ],
+        [
+          1723,
+          11.033666610717773
+        ],
+        [
+          1506,
+          11.031807899475098
+        ],
+        [
+          41313,
+          10.77724552154541
+        ],
+        [
+          815,
+          10.5712890625
+        ]
+      ]
+    },
+    {
+      "step": 3,
+      "cache_position": 19,
+      "input_token": 1127,
+      "generated_token": 1292,
+      "top_k": [
+        [
+          1292,
+          13.592732429504395
+        ],
+        [
+          1306,
+          11.901498794555664
+        ],
+        [
+          2246,
+          11.716423034667969
+        ],
+        [
+          815,
+          11.499963760375977
+        ],
+        [
+          6,
+          11.460485458374023
+        ],
+        [
+          17033,
+          11.098678588867188
+        ],
+        [
+          5689,
+          11.031034469604492
+        ],
+        [
+          2705,
+          11.01873779296875
+        ]
+      ]
+    },
+    {
+      "step": 4,
+      "cache_position": 20,
+      "input_token": 1292,
+      "generated_token": 2740,
+      "top_k": [
+        [
+          2740,
+          12.860923767089844
+        ],
+        [
+          14380,
+          12.540892601013184
+        ],
+        [
+          29642,
+          12.224852561950684
+        ],
+        [
+          23771,
+          11.851761817932129
+        ],
+        [
+          31703,
+          11.81721305847168
+        ],
+        [
+          1229,
+          11.441511154174805
+        ],
+        [
+          4145,
+          11.338973999023438
+        ],
+        [
+          56191,
+          11.12477970123291
+        ]
+      ]
+    },
+    {
+      "step": 5,
+      "cache_position": 21,
+      "input_token": 2740,
+      "generated_token": 39522,
+      "top_k": [
+        [
+          39522,
+          14.35779094696045
+        ],
+        [
+          355,
+          13.45647144317627
+        ],
+        [
+          21621,
+          13.034154891967773
+        ],
+        [
+          12,
+          12.420522689819336
+        ],
+        [
+          261,
+          12.272693634033203
+        ],
+        [
+          777,
+          12.125744819641113
+        ],
+        [
+          7675,
+          11.680959701538086
+        ],
+        [
+          354,
+          11.624523162841797
+        ]
+      ]
+    },
+    {
+      "step": 6,
+      "cache_position": 22,
+      "input_token": 39522,
+      "generated_token": 745,
+      "top_k": [
+        [
+          745,
+          15.394883155822754
+        ],
+        [
+          339,
+          13.159541130065918
+        ],
+        [
+          79,
+          12.893678665161133
+        ],
+        [
+          1055,
+          12.75792121887207
+        ],
+        [
+          67,
+          12.447668075561523
+        ],
+        [
+          3391,
+          11.90380573272705
+        ],
+        [
+          1223,
+          11.89311695098877
+        ],
+        [
+          1862,
+          11.819217681884766
+        ]
+      ]
+    },
+    {
+      "step": 7,
+      "cache_position": 23,
+      "input_token": 745,
+      "generated_token": 12,
+      "top_k": [
+        [
+          12,
+          11.936004638671875
+        ],
+        [
+          940,
+          10.929908752441406
+        ],
+        [
+          40270,
+          10.875080108642578
+        ],
+        [
+          438,
+          10.870528221130371
+        ],
+        [
+          11,
+          10.862573623657227
+        ],
+        [
+          20458,
+          10.834320068359375
+        ],
+        [
+          22433,
+          10.768742561340332
+        ],
+        [
+          58607,
+          10.360530853271484
+        ]
+      ]
+    }
+  ],
+  "generated_ids": [
+    318,
+    1107,
+    1127,
+    1292,
+    2740,
+    39522,
+    745,
+    12
+  ],
+  "config": {
+    "hidden_size": 1024,
+    "intermediate_size": 3072,
+    "num_hidden_layers": 4,
+    "num_attention_heads": 16,
+    "num_key_value_heads": 8,
+    "head_dim": 128,
+    "vocab_size": 151936,
+    "rms_norm_eps": 1e-06,
+    "rope_theta": 1000000,
+    "tie_word_embeddings": true
+  },
+  "prompt_ids": [
+    151644,
+    872,
+    198,
+    3838,
+    374,
+    9625,
+    30,
+    151645,
+    198,
+    151644,
+    77091,
+    198,
+    151667,
+    271,
+    151668,
+    271
+  ],
+  "invocation": [
+    "/home/chh/venvs/qwen3fpga-py311/bin/python",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/tools/quant_model_reference.py",
+    "--assets",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/assets/official",
+    "--checkpoint",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/assets/checkpoint",
+    "--layout",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/import/probe-4layer/weight-layout.json",
+    "--output",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-4l/quant-nr-order",
+    "--prompt-ids",
+    "151644,872,198,3838,374,9625,30,151645,198,151644,77091,198,151667,271,151668,271",
+    "--decode-steps",
+    "8",
+    "--max-cache-len",
+    "512",
+    "--layers",
+    "4",
+    "--arithmetic-profile",
+    "nr-fpga",
+    "--fp32-reference",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/reference/fp32-4layer-16plus8"
+  ],
+  "source_sha256": {
+    "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/tools/quant_model_reference.py": "fbd7dfe8690024fb015f0b104f78db5ac9585411dad47c461f09ca068b94cbef",
+    "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/tools/quant_reference.py": "70f655aa4d4995f359bd5a52cd3bcc5222282b177effb8249995d325e40b434d",
+    "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/tools/reference_fp32.py": "d57dd4964204f08e1da3ce2c1b6242b9abcdead1e8d1bcd428b097728be33b87",
+    "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/tools/reference_fp32.c": "f4008f001b92b60f2cf6f074f621601502b038233f65e7a2b1de721df959ab8a",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/assets/official/config.json": "660db3b73d788119c04535e48cf9be5f55bc3100841a718637ae695b442f27dd",
+    "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/common/nr/nr_math.c": "f0bb33d8e96cb2bf7ad596916acfa1fb2bcfdf2afbd16cf1facc042144d588e8"
+  },
+  "checkpoint": "examples/FPGA-BOSCAME/qwen3-0.6b/model/assets/checkpoint/model.safetensors",
+  "layout_usage": "independent named-checkpoint reference; --layout retained for CLI compatibility, not used for graph ordering",
+  "weight_quantization_error_worst5": {
+    "model.layers.27.mlp.up_proj.weight": {
+      "max_abs_error": 0.004859745502471924,
+      "mean_abs_error": 0.00022707234893459827,
+      "max_abs_weight": 1.234375
+    },
+    "model.layers.27.mlp.gate_proj.weight": {
+      "max_abs_error": 0.004552125930786133,
+      "mean_abs_error": 0.00021167668455746025,
+      "max_abs_weight": 1.15625
+    },
+    "model.layers.26.mlp.up_proj.weight": {
+      "max_abs_error": 0.0043330118060112,
+      "mean_abs_error": 0.00024264615785796195,
+      "max_abs_weight": 1.1015625
+    },
+    "model.layers.26.mlp.gate_proj.weight": {
+      "max_abs_error": 0.004160016775131226,
+      "mean_abs_error": 0.0002051541378023103,
+      "max_abs_weight": 1.0625
+    },
+    "model.layers.16.self_attn.k_proj.weight": {
+      "max_abs_error": 0.003254566341638565,
+      "mean_abs_error": 0.00017309689428657293,
+      "max_abs_weight": 0.828125
+    }
+  },
+  "quantized_vs_fp32": {
+    "prefill_logits": {
+      "max_abs_error": 2.4091601967811584,
+      "mean_abs_error": 0.30287431685330735,
+      "max_relative_error": 76300.28125,
+      "cosine_similarity": 0.9986663403670837,
+      "elements": 2430976
+    },
+    "decode_logits_0": {
+      "max_abs_error": 1.2329378128051758,
+      "mean_abs_error": 0.18606606893371996,
+      "max_relative_error": 2342.3894282632145,
+      "cosine_similarity": 0.9996396080291864,
+      "elements": 151936
+    },
+    "decode_logits_1": {
+      "max_abs_error": 1.7784175872802734,
+      "mean_abs_error": 0.2512892638161304,
+      "max_relative_error": 1941.286823358785,
+      "cosine_similarity": 0.9989379546795314,
+      "elements": 151936
+    },
+    "decode_logits_2": {
+      "max_abs_error": 2.4099583625793457,
+      "mean_abs_error": 0.406481941961888,
+      "max_relative_error": 3585.5030324652157,
+      "cosine_similarity": 0.9983301752692447,
+      "elements": 151936
+    },
+    "decode_logits_3": {
+      "max_abs_error": 1.8978891372680664,
+      "mean_abs_error": 0.31621943263551866,
+      "max_relative_error": 1139.9644351464435,
+      "cosine_similarity": 0.9981651590399813,
+      "elements": 151936
+    },
+    "decode_logits_4": {
+      "max_abs_error": 1.3203449249267578,
+      "mean_abs_error": 0.2280988063660925,
+      "max_relative_error": 9216.819574468085,
+      "cosine_similarity": 0.9991283554567489,
+      "elements": 151936
+    },
+    "decode_logits_5": {
+      "max_abs_error": 15.93476915359497,
+      "mean_abs_error": 2.6029387428593607,
+      "max_relative_error": 16890.270860129436,
+      "cosine_similarity": 0.9347160287275255,
+      "elements": 151936
+    },
+    "decode_logits_6": {
+      "max_abs_error": 23.462031722068787,
+      "mean_abs_error": 3.335926419876928,
+      "max_relative_error": 15040.862914676649,
+      "cosine_similarity": 0.8591012456484163,
+      "elements": 151936
+    },
+    "decode_logits_7": {
+      "max_abs_error": 23.0964617729187,
+      "mean_abs_error": 3.3454122097408416,
+      "max_relative_error": 19442.538662896386,
+      "cosine_similarity": 0.8143050636200873,
+      "elements": 151936
+    }
+  },
+  "prefill_argmax_vs_fp32": {
+    "quantized": 2152,
+    "fp32": 2152,
+    "match": true
+  },
+  "token_trajectory_vs_fp32": {
+    "quantized": [
+      318,
+      1107,
+      1127,
+      1292,
+      2740,
+      39522,
+      745,
+      12
+    ],
+    "fp32": [
+      318,
+      1107,
+      1127,
+      1292,
+      14380,
+      355,
+      29886,
+      4482
+    ],
+    "match": false
+  },
+  "decode_same_input_context_vs_fp32": [
+    true,
+    true,
+    true,
+    true,
+    true,
+    false,
+    false,
+    false
+  ],
+  "quantized_vs_fp32_interpretation": "Deployment precision error; after differing tokens, includes free-running trajectory divergence"
+}

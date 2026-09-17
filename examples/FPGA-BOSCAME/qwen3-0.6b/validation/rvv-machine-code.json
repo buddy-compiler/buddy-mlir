@@ -1,0 +1,291 @@
+{
+  "scope": "Complete linked machine code for 15 actual Buddy-vectorized FP32 operator images; counts include runtime nr_copy_bytes where linked. This is code generation/ISA evidence, not a hardware execution result.",
+  "configuration": "FP32 linear matmul uses -disable-machine-licm -disable-machine-cse; attention retains default machine optimizations. Exact per-case flags below.",
+  "case_count": 15,
+  "cases": [
+    {
+      "case": "attention_pv_16x16x128x16",
+      "kind": "attention_pv",
+      "kernel_llflags": "-O2 -filetype=asm -mtriple=riscv64 -target-abi=lp64d -mattr=+m,+a,+f,+d,+c,+v,+zvl512b,+xboscame -riscv-v-vector-bits-min=512 -code-model=medium",
+      "elf_sha256": "e99282e8c1fcdca61e315468f7f2a5bcfd84e1d0681dd716d0b5f027a647582e",
+      "bin_sha256": "d260e08cac2612c5232d56509e1cc368fffea8ff0bc47efdfcaad7db4e9b0911",
+      "elf_audit": "PASS",
+      "ame_instructions": 0,
+      "rvv_instructions": {
+        "vfmacc.vf": 8,
+        "vle32.v": 9,
+        "vse32.v": 8,
+        "vsetivli": 1
+      },
+      "vector_memory_instructions": 17
+    },
+    {
+      "case": "attention_pv_16x1x128x17",
+      "kind": "attention_pv",
+      "kernel_llflags": "-O2 -filetype=asm -mtriple=riscv64 -target-abi=lp64d -mattr=+m,+a,+f,+d,+c,+v,+zvl512b,+xboscame -riscv-v-vector-bits-min=512 -code-model=medium",
+      "elf_sha256": "bbd6cefa0607c3b84dab7f550a91882d0725e4991ca78865c77e968ec3f611a3",
+      "bin_sha256": "33054dce661d2b5d55bce854f886e113d728962c8b28a9d14acdd5df5ffbacb1",
+      "elf_audit": "PASS",
+      "ame_instructions": 0,
+      "rvv_instructions": {
+        "vfmacc.vf": 1,
+        "vle32.v": 2,
+        "vse32.v": 1,
+        "vsetivli": 1
+      },
+      "vector_memory_instructions": 3
+    },
+    {
+      "case": "attention_qk_16x16x16x128",
+      "kind": "attention_qk",
+      "kernel_llflags": "-O2 -filetype=asm -mtriple=riscv64 -target-abi=lp64d -mattr=+m,+a,+f,+d,+c,+v,+zvl512b,+xboscame -riscv-v-vector-bits-min=512 -code-model=medium",
+      "elf_sha256": "14992825fe605ea4edb1713f756488f03ad8270af8b55b832614c5768a730b21",
+      "bin_sha256": "5ae30ab9bf2224692b2b24dc2b0bac49f59eb89445e5d65b4a56dfb5f398088c",
+      "elf_audit": "PASS",
+      "ame_instructions": 0,
+      "rvv_instructions": {
+        "vfmacc.vf": 8,
+        "vle32.v": 9,
+        "vse32.v": 8,
+        "vsetivli": 1
+      },
+      "vector_memory_instructions": 17
+    },
+    {
+      "case": "attention_qk_16x1x17x128",
+      "kind": "attention_qk",
+      "kernel_llflags": "-O2 -filetype=asm -mtriple=riscv64 -target-abi=lp64d -mattr=+m,+a,+f,+d,+c,+v,+zvl512b,+xboscame -riscv-v-vector-bits-min=512 -code-model=medium",
+      "elf_sha256": "5c50d051bb1848a4482911e186add573f747ec6b079692cade64db37d2e5fcca",
+      "bin_sha256": "5966fb983defa2e9b0bc183d36f9b9b569c087c96161b942a4e9649e4b812641",
+      "elf_audit": "PASS",
+      "ame_instructions": 0,
+      "rvv_instructions": {
+        "vfmacc.vf": 1,
+        "vle32.v": 2,
+        "vse32.v": 1,
+        "vsetivli": 1
+      },
+      "vector_memory_instructions": 3
+    },
+    {
+      "case": "matmul_16x1024x1024_f32",
+      "kind": "matmul_f32",
+      "kernel_llflags": "-O2 -filetype=asm -mtriple=riscv64 -target-abi=lp64d -mattr=+m,+a,+f,+d,+c,+v,+zvl512b,+xboscame -riscv-v-vector-bits-min=512 -disable-machine-licm -disable-machine-cse -code-model=medium",
+      "elf_sha256": "1b225d2506a93c7611eae933e913dfb6f4dc7d38f14a4ca2f9384df15f7e322c",
+      "bin_sha256": "1269884109b932320309e4fa39315b44082f4d415ab7b491235b6e79f804dd6b",
+      "elf_audit": "PASS",
+      "ame_instructions": 0,
+      "rvv_instructions": {
+        "vfmacc.vv": 1,
+        "vfmv.s.f": 1,
+        "vfredusum.vs": 1,
+        "vle32.v": 3,
+        "vmv.v.i": 1,
+        "vse32.v": 2,
+        "vsetivli": 2,
+        "vsetvli": 1
+      },
+      "vector_memory_instructions": 5
+    },
+    {
+      "case": "matmul_16x1024x2048_f32",
+      "kind": "matmul_f32",
+      "kernel_llflags": "-O2 -filetype=asm -mtriple=riscv64 -target-abi=lp64d -mattr=+m,+a,+f,+d,+c,+v,+zvl512b,+xboscame -riscv-v-vector-bits-min=512 -disable-machine-licm -disable-machine-cse -code-model=medium",
+      "elf_sha256": "e5c40ed31daa7669a28003dcbf85da98a84ce3cbf36458f12a23209332242952",
+      "bin_sha256": "627835e62db4f7b988bbcb3298d57530c35576888424c966e61787c91fd94760",
+      "elf_audit": "PASS",
+      "ame_instructions": 0,
+      "rvv_instructions": {
+        "vfmacc.vv": 1,
+        "vfmv.s.f": 1,
+        "vfredusum.vs": 1,
+        "vle32.v": 3,
+        "vmv.v.i": 1,
+        "vse32.v": 2,
+        "vsetivli": 2,
+        "vsetvli": 1
+      },
+      "vector_memory_instructions": 5
+    },
+    {
+      "case": "matmul_16x1024x3072_f32",
+      "kind": "matmul_f32",
+      "kernel_llflags": "-O2 -filetype=asm -mtriple=riscv64 -target-abi=lp64d -mattr=+m,+a,+f,+d,+c,+v,+zvl512b,+xboscame -riscv-v-vector-bits-min=512 -disable-machine-licm -disable-machine-cse -code-model=medium",
+      "elf_sha256": "205d2b0a62d5bf2faf91609e92dd840b2a152eaf5649c9af80abe3c6ab051689",
+      "bin_sha256": "fa7d7c65f8b229b9e9ca2513cc3bd80b3c7fdcdd25f182eb2661e5baab69e48d",
+      "elf_audit": "PASS",
+      "ame_instructions": 0,
+      "rvv_instructions": {
+        "vfmacc.vv": 1,
+        "vfmv.s.f": 1,
+        "vfredusum.vs": 1,
+        "vle32.v": 3,
+        "vmv.v.i": 1,
+        "vse32.v": 2,
+        "vsetivli": 2,
+        "vsetvli": 1
+      },
+      "vector_memory_instructions": 5
+    },
+    {
+      "case": "matmul_16x2048x1024_f32",
+      "kind": "matmul_f32",
+      "kernel_llflags": "-O2 -filetype=asm -mtriple=riscv64 -target-abi=lp64d -mattr=+m,+a,+f,+d,+c,+v,+zvl512b,+xboscame -riscv-v-vector-bits-min=512 -disable-machine-licm -disable-machine-cse -code-model=medium",
+      "elf_sha256": "9c6e0b5ddd9324d0fe7146bfc98e7bf8f33c3d4aec720282da1197cdf2baea89",
+      "bin_sha256": "c1687dc3114b6f93295116ed437558a968e3e64294d7d50d5d5a8e00b7378ee3",
+      "elf_audit": "PASS",
+      "ame_instructions": 0,
+      "rvv_instructions": {
+        "vfmacc.vv": 1,
+        "vfmv.s.f": 1,
+        "vfredusum.vs": 1,
+        "vle32.v": 3,
+        "vmv.v.i": 1,
+        "vse32.v": 2,
+        "vsetivli": 2,
+        "vsetvli": 1
+      },
+      "vector_memory_instructions": 5
+    },
+    {
+      "case": "matmul_16x3072x1024_f32",
+      "kind": "matmul_f32",
+      "kernel_llflags": "-O2 -filetype=asm -mtriple=riscv64 -target-abi=lp64d -mattr=+m,+a,+f,+d,+c,+v,+zvl512b,+xboscame -riscv-v-vector-bits-min=512 -disable-machine-licm -disable-machine-cse -code-model=medium",
+      "elf_sha256": "5430d4f825cf7ea695d39190b68eb9e2a4ccd650f5cdb2f689aeabb5c447c4e9",
+      "bin_sha256": "e2d3ca52904dcee8af20fb9fb65500e84e6c85b9d70fb0b5af948bc49ebca0d6",
+      "elf_audit": "PASS",
+      "ame_instructions": 0,
+      "rvv_instructions": {
+        "vfmacc.vv": 1,
+        "vfmv.s.f": 1,
+        "vfredusum.vs": 1,
+        "vle32.v": 3,
+        "vmv.v.i": 1,
+        "vse32.v": 2,
+        "vsetivli": 2,
+        "vsetvli": 1
+      },
+      "vector_memory_instructions": 5
+    },
+    {
+      "case": "matmul_1x1024x1024_f32",
+      "kind": "matmul_f32",
+      "kernel_llflags": "-O2 -filetype=asm -mtriple=riscv64 -target-abi=lp64d -mattr=+m,+a,+f,+d,+c,+v,+zvl512b,+xboscame -riscv-v-vector-bits-min=512 -disable-machine-licm -disable-machine-cse -code-model=medium",
+      "elf_sha256": "ec2b72c8f6547b89df131a9b368f7ee0588809871ce6d18ccd6d5e6c6a4f7485",
+      "bin_sha256": "a666bffbfea7771cdcefce566cb4b0b5a6d27547b8f3988ce3df3c49d408d6d8",
+      "elf_audit": "PASS",
+      "ame_instructions": 0,
+      "rvv_instructions": {
+        "vfmacc.vv": 1,
+        "vfmv.s.f": 1,
+        "vfredusum.vs": 1,
+        "vle32.v": 3,
+        "vmv.v.i": 1,
+        "vse32.v": 2,
+        "vsetivli": 2,
+        "vsetvli": 1
+      },
+      "vector_memory_instructions": 5
+    },
+    {
+      "case": "matmul_1x1024x2048_f32",
+      "kind": "matmul_f32",
+      "kernel_llflags": "-O2 -filetype=asm -mtriple=riscv64 -target-abi=lp64d -mattr=+m,+a,+f,+d,+c,+v,+zvl512b,+xboscame -riscv-v-vector-bits-min=512 -disable-machine-licm -disable-machine-cse -code-model=medium",
+      "elf_sha256": "3bd203189176ff20a6265aecb8ea51e504146986928d99284e74d77feb0f3759",
+      "bin_sha256": "2c8436daf8f0e762e809a6d8731527e66aff8e857e66e2dae4dd703c847d86bd",
+      "elf_audit": "PASS",
+      "ame_instructions": 0,
+      "rvv_instructions": {
+        "vfmacc.vv": 1,
+        "vfmv.s.f": 1,
+        "vfredusum.vs": 1,
+        "vle32.v": 3,
+        "vmv.v.i": 1,
+        "vse32.v": 2,
+        "vsetivli": 2,
+        "vsetvli": 1
+      },
+      "vector_memory_instructions": 5
+    },
+    {
+      "case": "matmul_1x1024x3072_f32",
+      "kind": "matmul_f32",
+      "kernel_llflags": "-O2 -filetype=asm -mtriple=riscv64 -target-abi=lp64d -mattr=+m,+a,+f,+d,+c,+v,+zvl512b,+xboscame -riscv-v-vector-bits-min=512 -disable-machine-licm -disable-machine-cse -code-model=medium",
+      "elf_sha256": "9a95b49f8d83daca43ca2f5a18a35d752966cf453f2eac5fccebe46acefffeae",
+      "bin_sha256": "d8f7270bc9fd018c33be42859d7a869fd1136ed6e931732e857a728a00afd85f",
+      "elf_audit": "PASS",
+      "ame_instructions": 0,
+      "rvv_instructions": {
+        "vfmacc.vv": 1,
+        "vfmv.s.f": 1,
+        "vfredusum.vs": 1,
+        "vle32.v": 3,
+        "vmv.v.i": 1,
+        "vse32.v": 2,
+        "vsetivli": 2,
+        "vsetvli": 1
+      },
+      "vector_memory_instructions": 5
+    },
+    {
+      "case": "matmul_1x151936x1024_f32",
+      "kind": "matmul_f32",
+      "kernel_llflags": "-O2 -filetype=asm -mtriple=riscv64 -target-abi=lp64d -mattr=+m,+a,+f,+d,+c,+v,+zvl512b,+xboscame -riscv-v-vector-bits-min=512 -disable-machine-licm -disable-machine-cse -code-model=medium",
+      "elf_sha256": "b5bec29f68b20c3194f0eea8c21af841d062c796b1b51ac37e406188e8fa0313",
+      "bin_sha256": "00ede42f77eaa4727038ef415187688ebc90ba4e91b88c655eed664b0ea369a4",
+      "elf_audit": "PASS",
+      "ame_instructions": 0,
+      "rvv_instructions": {
+        "vfmacc.vv": 1,
+        "vfmv.s.f": 1,
+        "vfredusum.vs": 1,
+        "vle32.v": 3,
+        "vmv.v.i": 1,
+        "vse32.v": 2,
+        "vsetivli": 2,
+        "vsetvli": 1
+      },
+      "vector_memory_instructions": 5
+    },
+    {
+      "case": "matmul_1x2048x1024_f32",
+      "kind": "matmul_f32",
+      "kernel_llflags": "-O2 -filetype=asm -mtriple=riscv64 -target-abi=lp64d -mattr=+m,+a,+f,+d,+c,+v,+zvl512b,+xboscame -riscv-v-vector-bits-min=512 -disable-machine-licm -disable-machine-cse -code-model=medium",
+      "elf_sha256": "8f8ae2a0858817f3c098cb473c0ea7cdbd362776f264b8f39034f8b8bd609ece",
+      "bin_sha256": "ec8d1d206881e3d59abc78ff7b3e5aa1aa71da921f645650e9e91ff35c102bbf",
+      "elf_audit": "PASS",
+      "ame_instructions": 0,
+      "rvv_instructions": {
+        "vfmacc.vv": 1,
+        "vfmv.s.f": 1,
+        "vfredusum.vs": 1,
+        "vle32.v": 3,
+        "vmv.v.i": 1,
+        "vse32.v": 2,
+        "vsetivli": 2,
+        "vsetvli": 1
+      },
+      "vector_memory_instructions": 5
+    },
+    {
+      "case": "matmul_1x3072x1024_f32",
+      "kind": "matmul_f32",
+      "kernel_llflags": "-O2 -filetype=asm -mtriple=riscv64 -target-abi=lp64d -mattr=+m,+a,+f,+d,+c,+v,+zvl512b,+xboscame -riscv-v-vector-bits-min=512 -disable-machine-licm -disable-machine-cse -code-model=medium",
+      "elf_sha256": "9039a3de38cbd373f39315698e793c96a198305e4b5bf057e62d13b260e96102",
+      "bin_sha256": "65a8e0507d5209fcff5425487151301e2e021d82fe9cfc9372f8156457d9efc4",
+      "elf_audit": "PASS",
+      "ame_instructions": 0,
+      "rvv_instructions": {
+        "vfmacc.vv": 1,
+        "vfmv.s.f": 1,
+        "vfredusum.vs": 1,
+        "vle32.v": 3,
+        "vmv.v.i": 1,
+        "vse32.v": 2,
+        "vsetivli": 2,
+        "vsetvli": 1
+      },
+      "vector_memory_instructions": 5
+    }
+  ]
+}

@@ -1,0 +1,2 @@
+_mlir_ciface_kernel_attention_scale_mask_position_16x16x512 T 0 70
+triton_attention_scale_mask_position_16x16x512 U 0 0

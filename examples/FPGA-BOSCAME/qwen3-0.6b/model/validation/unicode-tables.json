@@ -1,0 +1,16 @@
+{
+  "tokenizers_version": "0.22.2",
+  "unicode_scalar_values_examined": 1112064,
+  "regex_source": "tokenizers.Regex; exhaustive scalar classification",
+  "normalization_source": "tokenizers.normalizers.NFD/NFC; exhaustive scalar scan",
+  "combining_class_names": "Python Unicode 14.0.0",
+  "combining_class_semantics": "validated/ordered by the reference NFD engine",
+  "table_sha256": "ec749b1ad45260d3a149cf442a9db82b826efcb5876a8a38f8e5ea3d3ad87ade",
+  "letter_ranges": 677,
+  "number_ranges": 144,
+  "space_ranges": 10,
+  "canonical_decompositions": 2060,
+  "combining_marks": 810,
+  "composition_pairs": 940,
+  "table_bytes_estimate": 73848
+}

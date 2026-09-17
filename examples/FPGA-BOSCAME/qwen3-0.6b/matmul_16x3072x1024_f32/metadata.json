@@ -1,0 +1,15 @@
+{
+  "kind": "matmul_f32",
+  "shape": [
+    16,
+    3072,
+    1024
+  ],
+  "roles": [
+    "gate_proj",
+    "up_proj"
+  ],
+  "dtype": "f32",
+  "target": "nr-rvv",
+  "checked_elements": 49152
+}

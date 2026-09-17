@@ -1,0 +1,21 @@
+{
+  "transformers": "5.5.0",
+  "torch": "2.10.0+cpu",
+  "device": "meta; no checkpoint loaded/no inference",
+  "unique_parameters": 596049920,
+  "buffers": {
+    "model.rotary_emb.inv_freq": {
+      "shape": [
+        64
+      ],
+      "dtype": "torch.float32"
+    },
+    "model.rotary_emb.original_inv_freq": {
+      "shape": [
+        64
+      ],
+      "dtype": "torch.float32"
+    }
+  },
+  "embedding_lm_head_same_parameter": true
+}

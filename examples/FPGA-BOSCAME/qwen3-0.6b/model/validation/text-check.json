@@ -1,0 +1,200 @@
+{
+  "status": "PASS",
+  "execution": "host: portable C; no FPGA or model inference",
+  "token_sequence_decoder_checks": 1076,
+  "malformed_utf8_checks": 1256,
+  "official_chat_template_checks": 72,
+  "rejected_invalid_resources_or_ids": 29,
+  "tokenizer_blob_sha256": "e1f0bdff51120bbc271f0828e3014aa04ebeb0d96420752152e2f20140d533e8",
+  "fixtures": [
+    {
+      "text": "Hello, world!",
+      "host_token_ids": [
+        9707,
+        11,
+        1879,
+        0
+      ],
+      "fpga_token_ids": null
+    },
+    {
+      "text": "你好，世界！",
+      "host_token_ids": [
+        108386,
+        3837,
+        99489,
+        6313
+      ],
+      "fpga_token_ids": null
+    },
+    {
+      "text": "I'm testing 12345.67\nNext line.",
+      "host_token_ids": [
+        40,
+        2776,
+        7497,
+        220,
+        16,
+        17,
+        18,
+        19,
+        20,
+        13,
+        21,
+        22,
+        198,
+        5847,
+        1555,
+        13
+      ],
+      "fpga_token_ids": null
+    },
+    {
+      "text": "é café ÅÅ",
+      "host_token_ids": [
+        963,
+        51950,
+        79252,
+        144044
+      ],
+      "fpga_token_ids": null
+    },
+    {
+      "text": "👩‍💻🚀🙂",
+      "host_token_ids": [
+        145233,
+        378,
+        235,
+        145851,
+        145836,
+        145080
+      ],
+      "fpga_token_ids": null
+    },
+    {
+      "text": " \t \r\n  end  ",
+      "host_token_ids": [
+        7018,
+        2529,
+        220,
+        835,
+        256
+      ],
+      "fpga_token_ids": null
+    },
+    {
+      "text": "<|im_start|>user\n你好<|im_end|>\n",
+      "host_token_ids": [
+        151644,
+        872,
+        198,
+        108386,
+        151645,
+        198
+      ],
+      "fpga_token_ids": null
+    },
+    {
+      "text": "<think>\n\n</think>\n\n",
+      "host_token_ids": [
+        151667,
+        271,
+        151668,
+        271
+      ],
+      "fpga_token_ids": null
+    },
+    {
+      "text": "a\u0000b",
+      "host_token_ids": [
+        64,
+        188,
+        65
+      ],
+      "fpga_token_ids": null
+    },
+    {
+      "text": "مرحبا بالعالم",
+      "host_token_ids": [
+        124122,
+        29825,
+        124671,
+        124476,
+        129634
+      ],
+      "fpga_token_ids": null
+    },
+    {
+      "text": "नमस्ते दुनिया",
+      "host_token_ids": [
+        60096,
+        87244,
+        78368,
+        30484,
+        97,
+        34370,
+        14925,
+        99,
+        72653,
+        60096,
+        42311,
+        107,
+        23868
+      ],
+      "fpga_token_ids": null
+    },
+    {
+      "text": "한글 日本語",
+      "host_token_ids": [
+        23573,
+        83291,
+        75402,
+        21894,
+        102819
+      ],
+      "fpga_token_ids": null
+    }
+  ],
+  "reference_tokenizer_incompatibilities": [
+    {
+      "text": "é café ÅÅ",
+      "official": [
+        963,
+        51950,
+        79252,
+        144044
+      ],
+      "reference_space_split_equivalent": [
+        68,
+        53839,
+        51950,
+        79252,
+        147485
+      ]
+    },
+    {
+      "text": " \t \r\n  end  ",
+      "official": [
+        7018,
+        2529,
+        220,
+        835,
+        256
+      ],
+      "reference_space_split_equivalent": [
+        7018,
+        2529,
+        256,
+        408,
+        256
+      ]
+    }
+  ],
+  "encoder_status": "tested separately by check_tokenizer_encode.py; no FPGA token IDs in this host report",
+  "sources": {
+    "text/tokenizer_resource.c": "bac5018fb31802035c2716bab98539e7429d92cc2bd94b13bd56fafc11b1304f",
+    "text/tokenizer_resource.h": "a97a1bdcd564fc4ef66e8c279ebfd5418853090b9a0e87f9f278dbf6085da2f1",
+    "tools/check_text.py": "2d7a7fa834f0e34fec2e7f1045a546a257e4b08fd73de1dbfb08b700e21f8d8a"
+  },
+  "supported_chat_subset": "optional system + one user; no tools/history; thinking flag"
+}

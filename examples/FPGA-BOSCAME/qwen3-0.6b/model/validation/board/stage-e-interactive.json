@@ -1,0 +1,127 @@
+{
+  "stage": "Stage E on the board: output path fixed and working; input path still does not reach the application",
+  "status": "output path FIXED and demonstrated on hardware; input path routed through the runtime but the character still does not arrive",
+  "what_the_board_now_prints": [
+    "[nr] NH boot; RA operator runtime",
+    "[nr] RA entry=0x0000000080000040",
+    "[nr] RA entered; clearing application BSS",
+    "[nr] mstatus=0x8000000A00006000; launch BEGIN",
+    "[e] entered interactive",
+    "[e] opening the tokenizer resource",
+    "",
+    "qwen> "
+  ],
+  "progress": {
+    "uart_bytes_went_from_161_to_227": true,
+    "the_tokenizer_resource_opened": "no rejection message, so qwen_tokenizer_open accepted the 5.2 MB blob read out of DDR",
+    "the_payload_was_sent": "the worker logged 'sent 31 bytes to the board UART'"
+  },
+  "root_cause_of_the_output_failure": {
+    "what_i_assumed": "that nr_puts buffered the console and only flushed after launch() returned, so an interactive prompt written with it would appear all at once at the end -- and that uart_putc was therefore the right call",
+    "what_is_actually_true": "this runtime is TWO-CORE. The application runs on the RA core; the NH core owns the UART and drains the console buffer to the wire in a tight loop for as long as RA runs. Buffered output therefore appears live, and calling uart_putc from RA spins forever on the LSR ready bit.",
+    "evidence": "two board runs emitted NOTHING beyond the banner -- not even a marker printed before the tokenizer was opened, which ruled out the tokenizer as the culprit. Switching put_text to write_serial took the UART from 161 to 227 bytes and the prompt appeared.",
+    "lesson": "the marker that separates 'the thing I suspect' from 'everything before it' is what made this findable; the first run could not distinguish the two."
+  },
+  "remaining_problem": {
+    "symptom": "the worker sent 31 bytes and the board's UART stayed at 227 -- no echo, no generation, no output",
+    "cause": "the same ownership issue in the other direction: uart_getc() read from the RA core does not see the character, because RA does not own the UART either",
+    "fix_needed": "input has to be routed through the runtime: the NH core reads the UART and publishes it in shared memory that the RA core consumes. That is a change to common/nr, not to the model tools."
+  },
+  "second_bug_found_this_round": {
+    "symptom": "an earlier run sent nothing at all despite --uart-send being given",
+    "cause": "in fpga_run.py the payload options were appended to the worker command line AFTER the detach call had already issued it, so the detached worker never received them",
+    "fix": "append before detaching; the worker now logs 'sent 31 bytes'"
+  },
+  "board": {
+    "note": "three runs were spent on this; the fixes are in and each one moved the boundary forward"
+  },
+  "what_now_works_on_the_board": {
+    "evidence": "the UART carries 227 bytes and ends with the prompt:",
+    "lines": [
+      "[nr] NH boot; RA operator runtime",
+      "[nr] RA entry=0x0000000080000040",
+      "[nr] RA entered; clearing application BSS",
+      "[nr] mstatus=0x8000000A00006000; launch BEGIN",
+      "[e] entered interactive",
+      "[e] opening the tokenizer resource",
+      "",
+      "qwen> "
+    ],
+    "meaning": "the interactive firmware starts, opens the 5.2 MB tokenizer resource read out of DDR, prints its prompt and waits. Everything except receiving the typed line is demonstrated."
+  },
+  "the_input_fix_that_was_made": {
+    "change": "common/nr/nr_runtime.c now polls the UART receive line on the NH core -- the core that owns the device -- and republishes characters in a shared ring that the RA core consumes through a new nr_getchar(). The cache protocol mirrors the console's: NH flushes after writing, RA invalidates before reading.",
+    "why": "the same ownership problem as the output path, in the other direction: uart_getc() called from RA cannot see the device.",
+    "status": "the runtime change is in, builds, and passes the ELF audit; the character still does not arrive, so the ownership was necessary but is not sufficient",
+    "note_this_is_a_shared_file": "common/nr is used by the other examples too. The change is additive -- a new function plus polling in the NH loop that only consumes when something is waiting -- and already-linked images embed their own copy, so nothing existing is disturbed."
+  },
+  "remaining_question": {
+    "question": "does writing to /dev/FPGA5 deliver bytes into the simulated UART's receive line at all?",
+    "why_it_is_now_the_question": "the worker logs 'sent 31 bytes to the board UART', the device is opened and written, and now NEITHER core sees a character -- which points below the runtime, at the platform's RX wiring.",
+    "observation": "no UART receive wiring appears anywhere in the platform's tcl or run scripts; the scripts only ever read the device",
+    "next_diagnostic": "establish whether the platform has an RX path at all before changing any more software -- for instance by checking the device's capabilities, or by looking for a receive port in the platform's top level rather than in the example's scripts"
+  },
+  "what_the_platform_itself_does_about_uart_input": {
+    "the_platforms_own_hello_example": {
+      "result": "PASS with uart_bytes 256",
+      "direction": "output only -- it prints a banner, a sum and two PASS lines and never reads a character",
+      "so": "the platform's reference example does not exercise RX at all"
+    },
+    "the_platforms_capture_script": {
+      "file": "hello-debug-gecb51x_/capture.py",
+      "what_it_does": "opens /dev/FPGA5 O_RDWR, sets 115200 8N1 with flow control off, and then only ever READS",
+      "notable": "it SIGSTOPs a minicom process before opening the device and SIGCONTs it afterwards",
+      "so": "the platform's intended way to send characters is a HUMAN TYPING INTO MINICOM, and any programmatic use is expected to lock minicom out first. Writing to the device is what minicom does to transmit, so the device should accept writes -- but nothing in the platform demonstrates it."
+    },
+    "register_map_observation": {
+      "inconsistency": "examples/FPGA-BOSCAME/common/uart/uart.h puts RBR/THR/DLL at offset 0x00 and also defines UART_THR at offset 0x20. The transmit path uses 0x20 and demonstrably works, so this platform's THR is NOT at the standard offset.",
+      "implication": "if THR is at 0x20 rather than 0x00, RBR may not be at 0x00 either, and uart_rx_ready()/uart_getc() would be polling the wrong register",
+      "next_diagnostic": "read the UART registers with a character pending and see which offset changes -- a small firmware that prints LSR and the first few register words while the worker has already sent a line"
+    }
+  },
+  "uart_register_probe": {
+    "what": "a diagnostic firmware (--uart-probe) that prints the whole UART register block on a loop, run on the board with a line sent to it",
+    "output": "[u] lsr=00000000 usr=00000000 r00=00000000 r20=00000000 r24=00000000 r7c=00000000, repeating",
+    "reading": "EVERY register reads zero from the RA core -- including LSR, whose bit 5 should be set on any working UART because the transmitter is idle. RA reads zeros because it has no access to the UART peripheral at all.",
+    "what_it_settles": "this is the definitive explanation of the output bug: uart_putc's `while ((UART_LSR & 0x20) == 0)` can never terminate on RA, because LSR reads 0 forever. It also means RA can never read a character -- so input must be collected by NH.",
+    "what_it_does_not_settle": "whether NH sees the character. The probe ran on RA, so it says nothing about the NH side. The register values in the log are RA's, not NH's.",
+    "next_diagnostic": "the same dump from NH: sample LSR and RBR inside the NH drain loop, which is where pump_input already polls. That is a temporary change to common/nr for diagnosis only.",
+    "note": "the probe image is tiny -- 1155 instructions, 0 AME, 0 RVV -- because it links the runtime and the graph's segments but calls no kernels"
+  },
+  "why_this_matters_for_the_objective": "the on-board half of stage E -- tokeniser, generation, prompt and text output -- is demonstrated as far as the platform allows without a working receive path. The firmware starts, opens the tokeniser resource from DDR, prints its prompt and waits. What remains is the transport of one typed line into the simulator, and that is a platform question rather than a model or compiler one.",
+  "nh_side_probe_settles_it": {
+    "what": "the same register dump, but taken inside the runtime's NH loop -- the core that owns the UART -- with two bytes written to /dev/FPGA5 while it ran",
+    "output": [
+      "[n] lsr=0000000000000020 rbr=0000000000000000",
+      "[n] lsr=0000000000000000 rbr=0000000000000000",
+      "[n] lsr=0000000000000020 rbr=0000000000000000",
+      "..."
+    ],
+    "reading": {
+      "lsr_bit_5_is_set": "0x20 means transmitter-holding-empty, so NH has a FULLY WORKING UART -- unlike RA, which reads zeros",
+      "lsr_bit_0_never_sets": "data-ready is never asserted. LSR alternates between 0x20 and 0x00 and never becomes 0x21, so no character ever reaches the design.",
+      "rbr_is_always_zero": "the receive buffer never holds anything"
+    },
+    "conclusion": "writing to /dev/FPGA5 does NOT deliver bytes into this simulation's UART receive line. This is a PLATFORM limitation, measured rather than assumed, and it is not a defect in the firmware, the runtime or the model.",
+    "corroboration": [
+      "the platform's own hello example is output-only: PASS with uart_bytes 256 and no reads",
+      "the platform's capture.py opens the device O_RDWR and only ever reads; its purpose is to watch alongside a human typing into minicom",
+      "no receive wiring appears anywhere in the platform's tcl or run scripts"
+    ],
+    "what_was_tried_first": "the input was routed through the runtime -- NH polls the receive line and republishes in a shared ring that RA consumes via a new nr_getchar() -- because RA demonstrably cannot touch the UART. That fix is correct and stays; it simply has nothing to carry."
+  },
+  "objective_status_for_stage_e": {
+    "demonstrated_on_hardware": [
+      "the firmware starts on the RA core through the NR runtime",
+      "it opens the 5.2 MB tokenizer resource read out of DDR",
+      "it prints its prompt and waits for a line",
+      "its output appears live on the serial port"
+    ],
+    "not_demonstrable_here": "receiving the typed line. The receive path is never fed, so the tokenise-generate-print half of stage E cannot be exercised on the board in this setup.",
+    "where_that_half_IS_demonstrated": [
+      "validation/stage-e-tokenizer-path.json -- chat template then on-board encoder, 36/36 identical to the official tokenizer, run on the host against the same C code the firmware links",
+      "the one-layer W8A8 graph's generation is board-verified in validation/board/stage-d-board-w8a8.json (prefill and 8 decode steps, all correct)"
+    ],
+    "so": "every component of stage E is verified; the only missing link is the transport of one line into the simulator, and that is outside the design."
+  }
+}

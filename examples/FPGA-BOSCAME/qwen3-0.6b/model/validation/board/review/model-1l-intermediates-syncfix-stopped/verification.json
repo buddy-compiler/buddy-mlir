@@ -1,0 +1,8 @@
+{
+  "status": "INTERRUPTED_NOT_ACCEPTED",
+  "accepted": false,
+  "run": "run-32d92461be72456c",
+  "observed": "46 prefill intermediate records zeroerror; stops mid qwen_profile_report after2lines,17657UARTbytes; no decodebegin",
+  "changes": "LLD20,ame_sync msettype contract fixed,kernel/probe progress",
+  "root_cause": "unresolved"
+}

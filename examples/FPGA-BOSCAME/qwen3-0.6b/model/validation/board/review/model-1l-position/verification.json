@@ -1,0 +1,247 @@
+{
+  "run_id": "run-9173a2481e114612",
+  "status": "PASS",
+  "scope": "1-layer official-checkpoint graph, complete replacement with runtime-length attention, fixed16+8; not28-layer nor interactive",
+  "numeric_status": "FULL_LOGITS_KV_PASS",
+  "profile_status": "KERNEL_PROFILE_PASS",
+  "full_tensor_checks": 27,
+  "max_abs_error": 0.0,
+  "mean_abs_error": 0.0,
+  "image_reference_chain": {
+    "deployment_elf_hash_matches": true,
+    "uploaded_boot_hash_matches": true,
+    "all_segments_readback_match": true,
+    "oracle_blob_hash_matches": true,
+    "oracle_bytes_in_executed_elf_match": true,
+    "oracle_address": "0x8002f0c0",
+    "oracle_file_offset": 131264
+  },
+  "performance": {
+    "prefill_cycles": 949799911,
+    "decode_cycles": [
+      685809105,
+      685851835,
+      685931067,
+      686014902,
+      686069606,
+      686184750,
+      686214987,
+      686344451
+    ],
+    "graph_cycles_sum": 6438220614,
+    "baseline_graph_cycles_sum": 7456607050,
+    "caveat": "position variant includes profiling wrappers/fences; baseline is uninstrumented; these are observed graph-only cycles, not full session throughput",
+    "per_step_top_kernels": [
+      {
+        "position": 15,
+        "top3": [
+          {
+            "symbol": "_mlir_ciface_kernel_layout_k_16x512x128",
+            "calls": 1,
+            "cycles": 395208134
+          },
+          {
+            "symbol": "_mlir_ciface_kernel_matmul_1x151936x1024",
+            "calls": 1,
+            "cycles": 158544387
+          },
+          {
+            "symbol": "_mlir_ciface_kernel_attention_scale_mask_position_16x16x512",
+            "calls": 1,
+            "cycles": 47427368
+          }
+        ]
+      },
+      {
+        "position": 16,
+        "top3": [
+          {
+            "symbol": "_mlir_ciface_kernel_layout_k_16x512x128",
+            "calls": 1,
+            "cycles": 395109486
+          },
+          {
+            "symbol": "_mlir_ciface_kernel_matmul_1x151936x1024",
+            "calls": 1,
+            "cycles": 158536210
+          },
+          {
+            "symbol": "_mlir_ciface_kernel_dequantize_1x151936",
+            "calls": 1,
+            "cycles": 37543924
+          }
+        ]
+      },
+      {
+        "position": 17,
+        "top3": [
+          {
+            "symbol": "_mlir_ciface_kernel_layout_k_16x512x128",
+            "calls": 1,
+            "cycles": 395107910
+          },
+          {
+            "symbol": "_mlir_ciface_kernel_matmul_1x151936x1024",
+            "calls": 1,
+            "cycles": 158512917
+          },
+          {
+            "symbol": "_mlir_ciface_kernel_dequantize_1x151936",
+            "calls": 1,
+            "cycles": 37544375
+          }
+        ]
+      },
+      {
+        "position": 18,
+        "top3": [
+          {
+            "symbol": "_mlir_ciface_kernel_layout_k_16x512x128",
+            "calls": 1,
+            "cycles": 395108038
+          },
+          {
+            "symbol": "_mlir_ciface_kernel_matmul_1x151936x1024",
+            "calls": 1,
+            "cycles": 158533854
+          },
+          {
+            "symbol": "_mlir_ciface_kernel_dequantize_1x151936",
+            "calls": 1,
+            "cycles": 37543477
+          }
+        ]
+      },
+      {
+        "position": 19,
+        "top3": [
+          {
+            "symbol": "_mlir_ciface_kernel_layout_k_16x512x128",
+            "calls": 1,
+            "cycles": 395107577
+          },
+          {
+            "symbol": "_mlir_ciface_kernel_matmul_1x151936x1024",
+            "calls": 1,
+            "cycles": 158541956
+          },
+          {
+            "symbol": "_mlir_ciface_kernel_dequantize_1x151936",
+            "calls": 1,
+            "cycles": 37544118
+          }
+        ]
+      },
+      {
+        "position": 20,
+        "top3": [
+          {
+            "symbol": "_mlir_ciface_kernel_layout_k_16x512x128",
+            "calls": 1,
+            "cycles": 395104518
+          },
+          {
+            "symbol": "_mlir_ciface_kernel_matmul_1x151936x1024",
+            "calls": 1,
+            "cycles": 158514547
+          },
+          {
+            "symbol": "_mlir_ciface_kernel_dequantize_1x151936",
+            "calls": 1,
+            "cycles": 37543561
+          }
+        ]
+      },
+      {
+        "position": 21,
+        "top3": [
+          {
+            "symbol": "_mlir_ciface_kernel_layout_k_16x512x128",
+            "calls": 1,
+            "cycles": 395108049
+          },
+          {
+            "symbol": "_mlir_ciface_kernel_matmul_1x151936x1024",
+            "calls": 1,
+            "cycles": 158530211
+          },
+          {
+            "symbol": "_mlir_ciface_kernel_dequantize_1x151936",
+            "calls": 1,
+            "cycles": 37544490
+          }
+        ]
+      },
+      {
+        "position": 22,
+        "top3": [
+          {
+            "symbol": "_mlir_ciface_kernel_layout_k_16x512x128",
+            "calls": 1,
+            "cycles": 395103356
+          },
+          {
+            "symbol": "_mlir_ciface_kernel_matmul_1x151936x1024",
+            "calls": 1,
+            "cycles": 158518275
+          },
+          {
+            "symbol": "_mlir_ciface_kernel_dequantize_1x151936",
+            "calls": 1,
+            "cycles": 37543791
+          }
+        ]
+      },
+      {
+        "position": 23,
+        "top3": [
+          {
+            "symbol": "_mlir_ciface_kernel_layout_k_16x512x128",
+            "calls": 1,
+            "cycles": 395105858
+          },
+          {
+            "symbol": "_mlir_ciface_kernel_matmul_1x151936x1024",
+            "calls": 1,
+            "cycles": 158514818
+          },
+          {
+            "symbol": "_mlir_ciface_kernel_dequantize_1x151936",
+            "calls": 1,
+            "cycles": 37544325
+          }
+        ]
+      }
+    ]
+  },
+  "artifacts": {
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-position-1l/image-oracle-profile/qwen_model.elf": {
+      "bytes": 5969848,
+      "sha256": "8af9aa0994d47828533f40f61e430425e644261dc5b100c8157e94d404b5e737"
+    },
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-position-1l/prepared-oracle-profile/image.bin": {
+      "bytes": 5860032,
+      "sha256": "b8ffaef85a845a759d1477e5284132adea2e8da1942d5620829929d09b7d1030"
+    },
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-position-1l/model-lib/libqwen_triton.a": {
+      "bytes": 260910,
+      "sha256": "494efd72383056bbda6f4576acf11c4e02c5c4e3bf2ad69efa1afbcb31082d29"
+    },
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-position-1l/nr-prefill/forward_prefill.ll": {
+      "bytes": 564844,
+      "sha256": "6ed8e0d7769492d330ade0113406498fb522ee7f83f797b84465feb108a0ec9a"
+    },
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-position-1l/nr-decode/forward_decode.ll": {
+      "bytes": 563742,
+      "sha256": "6e1f4d8c0061f8cfc23b0423dc9cadbf74523ffc223b4299cad2563b3d67c1d7"
+    },
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-1l/quant-nr-order/arrays.npz": {
+      "bytes": 14391428,
+      "sha256": "1083f9f9d1d178deebc730e5e0371b34c26767c49a46e67989caf32e65d2c227"
+    },
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-position-1l/host-run/arrays.npz": {
+      "bytes": 6289173,
+      "sha256": "b68686c1d46dc5412f8f300dc67a1bf3dbcfa4a7ac5689954a7cbbff547741d3"
+    }
+  }
+}

@@ -8,9 +8,12 @@ FPGA-BOSCAME/
 ├── common/
 │   ├── toolchain.mk       # LLVM 工具选择，可通过 make 参数覆盖
 │   ├── uart/              # NR UART 驱动
-│   └── runtime/           # 单核 CRT、CSR 定义及 C 运行时
+│   ├── runtime/           # hello 使用的 NH 单核运行时
+│   ├── nr/                # 算子使用的 NH→RA、AME/RVV 运行时
+│   └── triton/            # Triton 编译器安装、版本与兼容补丁
 ├── fpga_run.sh            # 公共上板入口
 ├── tools/                 # SSH 上传、远端执行、离线测试
+├── qwen3-0.6b/            # linalg 算子；triton/ 提供对应前端
 └── hello/
     ├── hello.c
     ├── makefile
@@ -82,13 +85,32 @@ examples/FPGA-BOSCAME/fpga_run.sh \
   模型等长任务应显式增加这两个值。
 - UART 内容实时写到标准输出，状态写到标准错误；可使用 `> uart.log`
   单独保存程序输出。
+- `--uart-send=$'hello\n' --uart-send-delay=20` 发送预设原始文本；可重复
+  `--uart-send`，用 `--uart-send-gap=5` 指定间隔。发送计划必须早于捕获截止时间。
+- `--interactive` 从本机 stdin 转发原始字节，等待 FPGA 提示符后输入。
+  只有已有 worker 打开 UART；主机只写入本次 run 目录的请求队列。EOF 只结束
+  输入，`Ctrl-C` 仍停止本次 FPGA 会话。通常需显式设置较长的捕获时间。
+  `--resume-run=run-实际编号 --interactive` 可恢复同一会话和未确认的输入请求，
+  不重新上传或加载。每条请求有持久 UUID，SSH 重试不会重复发送已接受的请求。
+  远端 `input/*.ack.json` 只确认操作系统接受了 UART 字节，不证明板上接收或分词
+  成功；worker 崩溃后不会自动重启或重放部分输入。
+- `--layout-plan=ddr-load.plan --segment=weights.bin` 使用多段 DDR 装载，可重复
+  `--segment`。计划中的文件必须是本次上传文件的 basename，boot 必须叫
+  `image.bin`，文件大小和 SHA256 必须完全匹配。每个声明的段都必须有完整 DDR
+  读回；任意段缺失都判失败。
 - 每次独立上传到服务器工作目录内的 `fpga-runs/run-*/`，检查上传 SHA256，
   不复用旧的补齐镜像。结束时检查补齐文件与 DDR 读回的一致性。
 - 已有 UVHS／minicom 会话或板卡占用时会报错，不结束其他任务。
   同一工作目录同时只允许一个该脚本实例运行。
-- `Ctrl-C` 请求清理本次运行；正常结束后自动退出 UVHS、释放串口。
+- SSH 连接和上传失败默认重试5次，可用 `--retries=10 --retry-delay=3` 调整。
+  远端有时限的工作进程独立保存日志，SSH断连后继续采集；重连按UART字节位置
+  接续输出，不重复复位或加载程序。达到重试次数仍无法连接时返回非零，远端工作
+  进程在原定启动/捕获时限内结束，日志保留在本次目录。可用相同image、板号和
+  `--resume-run=run-实际编号` 重新连接已有任务，不再次上传或执行。
+- `Ctrl-C` 写入本次运行的停止请求；正常结束后自动退出 UVHS、释放串口。
+  若网络完全不可达，停止请求无法送达时会明确提示，远端时限仍然有效。
 - 本地日志存于本目录 `build/fpga-runs/run-*/`，远端日志留在本次上传目录。
-  文件包括 `uart.raw.log`、`uvhs.log` 和 `result.json`。
+  文件包括 `uart.raw.log`、`uvhs.log`、`worker.log` 和 `result.json`。
 - 加载错误、读回不同、无 UART 输出、`verify ...: FAIL` 或 trap 返回非零。
   返回 0 说明加载和捕获流程成功，不替任意程序验证计算结果。
   `PASS` 不会自动提前结束捕获窗口。
@@ -96,7 +118,7 @@ examples/FPGA-BOSCAME/fpga_run.sh \
 脚本只负责上传和运行，不编译传入文件。需传入适配 NR 平台的 flat binary，
 镜像是否已按 64 字节补齐均可；服务器包装脚本负责所需 padding。
 Bash 入口与 `tools/` 下两个 Python 实现需一起保留；依赖 Bash、OpenSSH、
-Python 3 标准库，不依赖 pyserial 或 expect。
+本机 Python 3.11+ 标准库（TOML 解析）、服务器 Python 3.8+，不依赖 pyserial 或 expect。
 
 ## 公共源码与验证
 
@@ -110,3 +132,20 @@ UART 和启动／运行时的来源及适配范围见
 python3 -B -m unittest discover \
   -s examples/FPGA-BOSCAME/tools -p 'test_fpga*.py' -v
 ```
+
+## Qwen3-0.6B 算子
+
+[qwen3-0.6b](qwen3-0.6b/README.md) 提供逐算子的 linalg → Buddy lowering →
+RISC-V 对象 → 裸机二进制流程，覆盖 FP32 模型公式及独立的 NR W8A8 部署路径。
+算子通过 [common/nr](common/nr/README.md) 的 NH→RA 运行时执行；共享 UART 和
+上传脚本继续位于本目录。构建不需要本地参考仓库。
+
+较长的算子集合可传入 `--completion-marker='[nr] RA returned:'`：脚本在接收到
+该标记后保留短暂收尾时间并退出；若捕获时间结束仍缺少标记，则判为失败。
+标记只控制结束时机，程序打印 FAIL/trap 或 DDR 读回不一致仍会失败。
+
+## Triton 前端
+
+Qwen算子的 [Triton 版本](qwen3-0.6b/triton/) 使用独立的 `triton-riscv`
+编译器将真实 `@triton.jit` 内核导出为TTIR、linalg，再进入本仓库Buddy lowering。
+两种前端复用同一套C launch、NR运行时和数值参考。

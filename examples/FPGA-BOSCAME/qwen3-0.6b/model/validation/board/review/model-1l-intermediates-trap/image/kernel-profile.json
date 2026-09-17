@@ -1,0 +1,493 @@
+{
+  "adapter_sha256": "b1c26f0a2b4b29d1778014b01558e0ee82cfabaffe5820e2edfed0b1a1fbbcd4",
+  "source_sha256": "63e061f9e0f14bf45d43ac39fdadeca90dc3a304855b7cdd621c0f3d005d3b65",
+  "kernels": [
+    {
+      "index": 0,
+      "symbol": "_mlir_ciface_kernel_attention_pv_position_16x16x128x512",
+      "argument_types": [
+        "MemRef3 *",
+        "MemRef3 *",
+        "MemRef1 *",
+        "MemRef3 *"
+      ]
+    },
+    {
+      "index": 1,
+      "symbol": "_mlir_ciface_kernel_attention_pv_position_16x1x128x512",
+      "argument_types": [
+        "MemRef3 *",
+        "MemRef3 *",
+        "MemRef1 *",
+        "MemRef3 *"
+      ]
+    },
+    {
+      "index": 2,
+      "symbol": "_mlir_ciface_kernel_attention_qk_position_native_16x16x512x128",
+      "argument_types": [
+        "MemRef3 *",
+        "MemRef3 *",
+        "MemRef1 *",
+        "MemRef3 *"
+      ]
+    },
+    {
+      "index": 3,
+      "symbol": "_mlir_ciface_kernel_attention_qk_position_native_16x1x512x128",
+      "argument_types": [
+        "MemRef3 *",
+        "MemRef3 *",
+        "MemRef1 *",
+        "MemRef3 *"
+      ]
+    },
+    {
+      "index": 4,
+      "symbol": "_mlir_ciface_kernel_attention_scale_mask_position_16x16x512",
+      "argument_types": [
+        "MemRef3 *",
+        "MemRef1 *",
+        "MemRef3 *"
+      ]
+    },
+    {
+      "index": 5,
+      "symbol": "_mlir_ciface_kernel_attention_scale_mask_position_16x1x512",
+      "argument_types": [
+        "MemRef3 *",
+        "MemRef1 *",
+        "MemRef3 *"
+      ]
+    },
+    {
+      "index": 6,
+      "symbol": "_mlir_ciface_kernel_dequantize_16x1024",
+      "argument_types": [
+        "MemRef2 *",
+        "MemRef1 *",
+        "MemRef1 *",
+        "MemRef2 *"
+      ]
+    },
+    {
+      "index": 7,
+      "symbol": "_mlir_ciface_kernel_dequantize_16x2048",
+      "argument_types": [
+        "MemRef2 *",
+        "MemRef1 *",
+        "MemRef1 *",
+        "MemRef2 *"
+      ]
+    },
+    {
+      "index": 8,
+      "symbol": "_mlir_ciface_kernel_dequantize_16x3072",
+      "argument_types": [
+        "MemRef2 *",
+        "MemRef1 *",
+        "MemRef1 *",
+        "MemRef2 *"
+      ]
+    },
+    {
+      "index": 9,
+      "symbol": "_mlir_ciface_kernel_dequantize_1x1024",
+      "argument_types": [
+        "MemRef2 *",
+        "MemRef1 *",
+        "MemRef1 *",
+        "MemRef2 *"
+      ]
+    },
+    {
+      "index": 10,
+      "symbol": "_mlir_ciface_kernel_dequantize_1x151936",
+      "argument_types": [
+        "MemRef2 *",
+        "MemRef1 *",
+        "MemRef1 *",
+        "MemRef2 *"
+      ]
+    },
+    {
+      "index": 11,
+      "symbol": "_mlir_ciface_kernel_dequantize_1x2048",
+      "argument_types": [
+        "MemRef2 *",
+        "MemRef1 *",
+        "MemRef1 *",
+        "MemRef2 *"
+      ]
+    },
+    {
+      "index": 12,
+      "symbol": "_mlir_ciface_kernel_dequantize_1x3072",
+      "argument_types": [
+        "MemRef2 *",
+        "MemRef1 *",
+        "MemRef1 *",
+        "MemRef2 *"
+      ]
+    },
+    {
+      "index": 13,
+      "symbol": "_mlir_ciface_kernel_embedding_w8a8_16x1024",
+      "argument_types": [
+        "MemRef1 *",
+        "MemRef2 *",
+        "MemRef2 *",
+        "MemRef1 *"
+      ]
+    },
+    {
+      "index": 14,
+      "symbol": "_mlir_ciface_kernel_embedding_w8a8_1x1024",
+      "argument_types": [
+        "MemRef1 *",
+        "MemRef2 *",
+        "MemRef2 *",
+        "MemRef1 *"
+      ]
+    },
+    {
+      "index": 15,
+      "symbol": "_mlir_ciface_kernel_kv_cache_update_position_16x8x128_cap512",
+      "argument_types": [
+        "MemRef3 *",
+        "MemRef1 *",
+        "MemRef3 *"
+      ]
+    },
+    {
+      "index": 16,
+      "symbol": "_mlir_ciface_kernel_kv_cache_update_position_1x8x128_cap512",
+      "argument_types": [
+        "MemRef3 *",
+        "MemRef1 *",
+        "MemRef3 *"
+      ]
+    },
+    {
+      "index": 17,
+      "symbol": "_mlir_ciface_kernel_layout_context_8x16x128",
+      "argument_types": [
+        "MemRef3 *",
+        "MemRef3 *"
+      ]
+    },
+    {
+      "index": 18,
+      "symbol": "_mlir_ciface_kernel_layout_context_8x1x128",
+      "argument_types": [
+        "MemRef3 *",
+        "MemRef3 *"
+      ]
+    },
+    {
+      "index": 19,
+      "symbol": "_mlir_ciface_kernel_matmul_16x1024x1024",
+      "argument_types": [
+        "MemRef2 *",
+        "MemRef2 *",
+        "MemRef2 *"
+      ]
+    },
+    {
+      "index": 20,
+      "symbol": "_mlir_ciface_kernel_matmul_16x1024x2048",
+      "argument_types": [
+        "MemRef2 *",
+        "MemRef2 *",
+        "MemRef2 *"
+      ]
+    },
+    {
+      "index": 21,
+      "symbol": "_mlir_ciface_kernel_matmul_16x1024x3072",
+      "argument_types": [
+        "MemRef2 *",
+        "MemRef2 *",
+        "MemRef2 *"
+      ]
+    },
+    {
+      "index": 22,
+      "symbol": "_mlir_ciface_kernel_matmul_16x2048x1024",
+      "argument_types": [
+        "MemRef2 *",
+        "MemRef2 *",
+        "MemRef2 *"
+      ]
+    },
+    {
+      "index": 23,
+      "symbol": "_mlir_ciface_kernel_matmul_16x3072x1024",
+      "argument_types": [
+        "MemRef2 *",
+        "MemRef2 *",
+        "MemRef2 *"
+      ]
+    },
+    {
+      "index": 24,
+      "symbol": "_mlir_ciface_kernel_matmul_1x1024x1024",
+      "argument_types": [
+        "MemRef2 *",
+        "MemRef2 *",
+        "MemRef2 *"
+      ]
+    },
+    {
+      "index": 25,
+      "symbol": "_mlir_ciface_kernel_matmul_1x1024x2048",
+      "argument_types": [
+        "MemRef2 *",
+        "MemRef2 *",
+        "MemRef2 *"
+      ]
+    },
+    {
+      "index": 26,
+      "symbol": "_mlir_ciface_kernel_matmul_1x1024x3072",
+      "argument_types": [
+        "MemRef2 *",
+        "MemRef2 *",
+        "MemRef2 *"
+      ]
+    },
+    {
+      "index": 27,
+      "symbol": "_mlir_ciface_kernel_matmul_1x151936x1024",
+      "argument_types": [
+        "MemRef2 *",
+        "MemRef2 *",
+        "MemRef2 *"
+      ]
+    },
+    {
+      "index": 28,
+      "symbol": "_mlir_ciface_kernel_matmul_1x2048x1024",
+      "argument_types": [
+        "MemRef2 *",
+        "MemRef2 *",
+        "MemRef2 *"
+      ]
+    },
+    {
+      "index": 29,
+      "symbol": "_mlir_ciface_kernel_matmul_1x3072x1024",
+      "argument_types": [
+        "MemRef2 *",
+        "MemRef2 *",
+        "MemRef2 *"
+      ]
+    },
+    {
+      "index": 30,
+      "symbol": "_mlir_ciface_kernel_quantize_16x1024",
+      "argument_types": [
+        "MemRef2 *",
+        "MemRef2 *",
+        "MemRef1 *"
+      ]
+    },
+    {
+      "index": 31,
+      "symbol": "_mlir_ciface_kernel_quantize_16x2048",
+      "argument_types": [
+        "MemRef2 *",
+        "MemRef2 *",
+        "MemRef1 *"
+      ]
+    },
+    {
+      "index": 32,
+      "symbol": "_mlir_ciface_kernel_quantize_16x3072",
+      "argument_types": [
+        "MemRef2 *",
+        "MemRef2 *",
+        "MemRef1 *"
+      ]
+    },
+    {
+      "index": 33,
+      "symbol": "_mlir_ciface_kernel_quantize_1x1024",
+      "argument_types": [
+        "MemRef2 *",
+        "MemRef2 *",
+        "MemRef1 *"
+      ]
+    },
+    {
+      "index": 34,
+      "symbol": "_mlir_ciface_kernel_quantize_1x2048",
+      "argument_types": [
+        "MemRef2 *",
+        "MemRef2 *",
+        "MemRef1 *"
+      ]
+    },
+    {
+      "index": 35,
+      "symbol": "_mlir_ciface_kernel_quantize_1x3072",
+      "argument_types": [
+        "MemRef2 *",
+        "MemRef2 *",
+        "MemRef1 *"
+      ]
+    },
+    {
+      "index": 36,
+      "symbol": "_mlir_ciface_kernel_rmsnorm_128x128",
+      "argument_types": [
+        "MemRef2 *",
+        "MemRef1 *",
+        "MemRef1 *",
+        "MemRef2 *"
+      ]
+    },
+    {
+      "index": 37,
+      "symbol": "_mlir_ciface_kernel_rmsnorm_16x1024",
+      "argument_types": [
+        "MemRef2 *",
+        "MemRef1 *",
+        "MemRef1 *",
+        "MemRef2 *"
+      ]
+    },
+    {
+      "index": 38,
+      "symbol": "_mlir_ciface_kernel_rmsnorm_16x128",
+      "argument_types": [
+        "MemRef2 *",
+        "MemRef1 *",
+        "MemRef1 *",
+        "MemRef2 *"
+      ]
+    },
+    {
+      "index": 39,
+      "symbol": "_mlir_ciface_kernel_rmsnorm_1x1024",
+      "argument_types": [
+        "MemRef2 *",
+        "MemRef1 *",
+        "MemRef1 *",
+        "MemRef2 *"
+      ]
+    },
+    {
+      "index": 40,
+      "symbol": "_mlir_ciface_kernel_rmsnorm_256x128",
+      "argument_types": [
+        "MemRef2 *",
+        "MemRef1 *",
+        "MemRef1 *",
+        "MemRef2 *"
+      ]
+    },
+    {
+      "index": 41,
+      "symbol": "_mlir_ciface_kernel_rmsnorm_8x128",
+      "argument_types": [
+        "MemRef2 *",
+        "MemRef1 *",
+        "MemRef1 *",
+        "MemRef2 *"
+      ]
+    },
+    {
+      "index": 42,
+      "symbol": "_mlir_ciface_kernel_silu_16x3072",
+      "argument_types": [
+        "MemRef2 *",
+        "MemRef2 *"
+      ]
+    },
+    {
+      "index": 43,
+      "symbol": "_mlir_ciface_kernel_silu_1x3072",
+      "argument_types": [
+        "MemRef2 *",
+        "MemRef2 *"
+      ]
+    },
+    {
+      "index": 44,
+      "symbol": "_mlir_ciface_kernel_softmax_16x16x512",
+      "argument_types": [
+        "MemRef3 *",
+        "MemRef1 *",
+        "MemRef1 *",
+        "MemRef3 *"
+      ]
+    },
+    {
+      "index": 45,
+      "symbol": "_mlir_ciface_kernel_softmax_16x1x512",
+      "argument_types": [
+        "MemRef3 *",
+        "MemRef1 *",
+        "MemRef1 *",
+        "MemRef3 *"
+      ]
+    }
+  ],
+  "linker_flags": [
+    "--wrap=_mlir_ciface_kernel_attention_pv_position_16x16x128x512",
+    "--wrap=_mlir_ciface_kernel_attention_pv_position_16x1x128x512",
+    "--wrap=_mlir_ciface_kernel_attention_qk_position_native_16x16x512x128",
+    "--wrap=_mlir_ciface_kernel_attention_qk_position_native_16x1x512x128",
+    "--wrap=_mlir_ciface_kernel_attention_scale_mask_position_16x16x512",
+    "--wrap=_mlir_ciface_kernel_attention_scale_mask_position_16x1x512",
+    "--wrap=_mlir_ciface_kernel_dequantize_16x1024",
+    "--wrap=_mlir_ciface_kernel_dequantize_16x2048",
+    "--wrap=_mlir_ciface_kernel_dequantize_16x3072",
+    "--wrap=_mlir_ciface_kernel_dequantize_1x1024",
+    "--wrap=_mlir_ciface_kernel_dequantize_1x151936",
+    "--wrap=_mlir_ciface_kernel_dequantize_1x2048",
+    "--wrap=_mlir_ciface_kernel_dequantize_1x3072",
+    "--wrap=_mlir_ciface_kernel_embedding_w8a8_16x1024",
+    "--wrap=_mlir_ciface_kernel_embedding_w8a8_1x1024",
+    "--wrap=_mlir_ciface_kernel_kv_cache_update_position_16x8x128_cap512",
+    "--wrap=_mlir_ciface_kernel_kv_cache_update_position_1x8x128_cap512",
+    "--wrap=_mlir_ciface_kernel_layout_context_8x16x128",
+    "--wrap=_mlir_ciface_kernel_layout_context_8x1x128",
+    "--wrap=_mlir_ciface_kernel_matmul_16x1024x1024",
+    "--wrap=_mlir_ciface_kernel_matmul_16x1024x2048",
+    "--wrap=_mlir_ciface_kernel_matmul_16x1024x3072",
+    "--wrap=_mlir_ciface_kernel_matmul_16x2048x1024",
+    "--wrap=_mlir_ciface_kernel_matmul_16x3072x1024",
+    "--wrap=_mlir_ciface_kernel_matmul_1x1024x1024",
+    "--wrap=_mlir_ciface_kernel_matmul_1x1024x2048",
+    "--wrap=_mlir_ciface_kernel_matmul_1x1024x3072",
+    "--wrap=_mlir_ciface_kernel_matmul_1x151936x1024",
+    "--wrap=_mlir_ciface_kernel_matmul_1x2048x1024",
+    "--wrap=_mlir_ciface_kernel_matmul_1x3072x1024",
+    "--wrap=_mlir_ciface_kernel_quantize_16x1024",
+    "--wrap=_mlir_ciface_kernel_quantize_16x2048",
+    "--wrap=_mlir_ciface_kernel_quantize_16x3072",
+    "--wrap=_mlir_ciface_kernel_quantize_1x1024",
+    "--wrap=_mlir_ciface_kernel_quantize_1x2048",
+    "--wrap=_mlir_ciface_kernel_quantize_1x3072",
+    "--wrap=_mlir_ciface_kernel_rmsnorm_128x128",
+    "--wrap=_mlir_ciface_kernel_rmsnorm_16x1024",
+    "--wrap=_mlir_ciface_kernel_rmsnorm_16x128",
+    "--wrap=_mlir_ciface_kernel_rmsnorm_1x1024",
+    "--wrap=_mlir_ciface_kernel_rmsnorm_256x128",
+    "--wrap=_mlir_ciface_kernel_rmsnorm_8x128",
+    "--wrap=_mlir_ciface_kernel_silu_16x3072",
+    "--wrap=_mlir_ciface_kernel_silu_1x3072",
+    "--wrap=_mlir_ciface_kernel_softmax_16x16x512",
+    "--wrap=_mlir_ciface_kernel_softmax_16x1x512"
+  ],
+  "progress_uart": false,
+  "scope": "per-graph kernel calls and cycles; kernel bodies are unchanged",
+  "limits": [
+    "cycles include one AME completion fence after every call",
+    "graph compute_cycles include wrapper bookkeeping overhead",
+    "graph-internal copies, view materialization and scalar work are outside kernel totals",
+    "this instrumented image is not an uninstrumented throughput measurement"
+  ]
+}

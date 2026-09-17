@@ -1,0 +1,3072 @@
+{
+  "schema_version": 1,
+  "layers": 1,
+  "prefill_len": 16,
+  "decode_steps": 8,
+  "max_abs_tolerance": 0.001,
+  "mean_abs_tolerance": 0.0001,
+  "entries": [
+    {
+      "index": 0,
+      "graph": "prefill",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_rmsnorm_16x1024__forward_prefill_mul_3",
+      "operand": 1,
+      "phase": "before",
+      "reference_suffix": "model.layers.0_input_hidden",
+      "transform": "identity",
+      "shape": [
+        1,
+        16,
+        1024
+      ],
+      "dtype": "f32",
+      "rank": 3,
+      "elements": 16384,
+      "semantic": "model.layers.0_input_hidden",
+      "ir_line": "%45 = call @qwen_graph_rmsnorm_16x1024__forward_prefill_mul_3(%arg76, %arg8) : (tensor<1x16x1024xf32>, tensor<1024xf32>) -> tensor<1x16x1024xf32>",
+      "offsets": [
+        0
+      ],
+      "reference_keys": [
+        "prefill_model.layers.0_input_hidden"
+      ]
+    },
+    {
+      "index": 1,
+      "graph": "prefill",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_rmsnorm_16x1024__forward_prefill_mul_3",
+      "operand": 0,
+      "phase": "after",
+      "reference_suffix": "model.layers.0_input_norm",
+      "transform": "identity",
+      "shape": [
+        1,
+        16,
+        1024
+      ],
+      "dtype": "f32",
+      "rank": 3,
+      "elements": 16384,
+      "semantic": "model.layers.0_input_norm",
+      "ir_line": "%45 = call @qwen_graph_rmsnorm_16x1024__forward_prefill_mul_3(%arg76, %arg8) : (tensor<1x16x1024xf32>, tensor<1024xf32>) -> tensor<1x16x1024xf32>",
+      "offsets": [
+        16384
+      ],
+      "reference_keys": [
+        "prefill_model.layers.0_input_norm"
+      ]
+    },
+    {
+      "index": 2,
+      "graph": "prefill",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_rmsnorm_256x128__forward_prefill_mul_5",
+      "operand": 1,
+      "phase": "before",
+      "reference_suffix": "model.layers.0.self_attn.q_proj.weight_out",
+      "transform": "projection_heads",
+      "shape": [
+        1,
+        16,
+        16,
+        128
+      ],
+      "dtype": "f32",
+      "rank": 4,
+      "elements": 32768,
+      "semantic": "model.layers.0.self_attn.q_proj.weight_out",
+      "ir_line": "%52 = call @qwen_graph_rmsnorm_256x128__forward_prefill_mul_5(%51, %arg19) : (tensor<1x16x16x128xf32>, tensor<128xf32>) -> tensor<1x16x16x128xf32>",
+      "offsets": [
+        32768
+      ],
+      "reference_keys": [
+        "prefill_model.layers.0.self_attn.q_proj.weight_out"
+      ]
+    },
+    {
+      "index": 3,
+      "graph": "prefill",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_rmsnorm_256x128__forward_prefill_mul_5",
+      "operand": 0,
+      "phase": "after",
+      "reference_suffix": "model.layers.0_q_norm",
+      "transform": "identity",
+      "shape": [
+        1,
+        16,
+        16,
+        128
+      ],
+      "dtype": "f32",
+      "rank": 4,
+      "elements": 32768,
+      "semantic": "model.layers.0_q_norm",
+      "ir_line": "%52 = call @qwen_graph_rmsnorm_256x128__forward_prefill_mul_5(%51, %arg19) : (tensor<1x16x16x128xf32>, tensor<128xf32>) -> tensor<1x16x16x128xf32>",
+      "offsets": [
+        65536
+      ],
+      "reference_keys": [
+        "prefill_model.layers.0_q_norm"
+      ]
+    },
+    {
+      "index": 4,
+      "graph": "prefill",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_rmsnorm_128x128__forward_prefill_mul_7",
+      "operand": 1,
+      "phase": "before",
+      "reference_suffix": "model.layers.0.self_attn.k_proj.weight_out",
+      "transform": "projection_heads",
+      "shape": [
+        1,
+        16,
+        8,
+        128
+      ],
+      "dtype": "f32",
+      "rank": 4,
+      "elements": 16384,
+      "semantic": "model.layers.0.self_attn.k_proj.weight_out",
+      "ir_line": "%60 = call @qwen_graph_rmsnorm_128x128__forward_prefill_mul_7(%59, %arg30) : (tensor<1x16x8x128xf32>, tensor<128xf32>) -> tensor<1x16x8x128xf32>",
+      "offsets": [
+        98304
+      ],
+      "reference_keys": [
+        "prefill_model.layers.0.self_attn.k_proj.weight_out"
+      ]
+    },
+    {
+      "index": 5,
+      "graph": "prefill",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_rmsnorm_128x128__forward_prefill_mul_7",
+      "operand": 0,
+      "phase": "after",
+      "reference_suffix": "model.layers.0_k_norm",
+      "transform": "identity",
+      "shape": [
+        1,
+        16,
+        8,
+        128
+      ],
+      "dtype": "f32",
+      "rank": 4,
+      "elements": 16384,
+      "semantic": "model.layers.0_k_norm",
+      "ir_line": "%60 = call @qwen_graph_rmsnorm_128x128__forward_prefill_mul_7(%59, %arg30) : (tensor<1x16x8x128xf32>, tensor<128xf32>) -> tensor<1x16x8x128xf32>",
+      "offsets": [
+        114688
+      ],
+      "reference_keys": [
+        "prefill_model.layers.0_k_norm"
+      ]
+    },
+    {
+      "index": 6,
+      "graph": "prefill",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_rmsnorm_16x1024__forward_prefill_mul_13",
+      "operand": 1,
+      "phase": "before",
+      "reference_suffix": "model.layers.0_attention_residual",
+      "transform": "identity",
+      "shape": [
+        1,
+        16,
+        1024
+      ],
+      "dtype": "f32",
+      "rank": 3,
+      "elements": 16384,
+      "semantic": "model.layers.0_attention_residual",
+      "ir_line": "%115 = call @qwen_graph_rmsnorm_16x1024__forward_prefill_mul_13(%114, %arg77) : (tensor<1x16x1024xf32>, tensor<1024xf32>) -> tensor<1x16x1024xf32>",
+      "offsets": [
+        131072
+      ],
+      "reference_keys": [
+        "prefill_model.layers.0_attention_residual"
+      ]
+    },
+    {
+      "index": 7,
+      "graph": "prefill",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_rmsnorm_16x1024__forward_prefill_mul_13",
+      "operand": 0,
+      "phase": "after",
+      "reference_suffix": "model.layers.0_post_attention_norm",
+      "transform": "identity",
+      "shape": [
+        1,
+        16,
+        1024
+      ],
+      "dtype": "f32",
+      "rank": 3,
+      "elements": 16384,
+      "semantic": "model.layers.0_post_attention_norm",
+      "ir_line": "%115 = call @qwen_graph_rmsnorm_16x1024__forward_prefill_mul_13(%114, %arg77) : (tensor<1x16x1024xf32>, tensor<1024xf32>) -> tensor<1x16x1024xf32>",
+      "offsets": [
+        147456
+      ],
+      "reference_keys": [
+        "prefill_model.layers.0_post_attention_norm"
+      ]
+    },
+    {
+      "index": 8,
+      "graph": "prefill",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_rmsnorm_16x1024__forward_prefill_mul_17",
+      "operand": 1,
+      "phase": "before",
+      "reference_suffix": "model.layers.0_output_hidden",
+      "transform": "identity",
+      "shape": [
+        1,
+        16,
+        1024
+      ],
+      "dtype": "f32",
+      "rank": 3,
+      "elements": 16384,
+      "semantic": "model.layers.0_output_hidden",
+      "ir_line": "%132 = call @qwen_graph_rmsnorm_16x1024__forward_prefill_mul_17(%131, %arg108) : (tensor<1x16x1024xf32>, tensor<1024xf32>) -> tensor<1x16x1024xf32>",
+      "offsets": [
+        163840
+      ],
+      "reference_keys": [
+        "prefill_model.layers.0_output_hidden"
+      ]
+    },
+    {
+      "index": 9,
+      "graph": "prefill",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_silu_16x3072__forward_prefill_mul_14",
+      "operand": 1,
+      "phase": "before",
+      "reference_suffix": "model.layers.0.mlp.gate_proj.weight_out",
+      "transform": "identity",
+      "shape": [
+        1,
+        16,
+        3072
+      ],
+      "dtype": "f32",
+      "rank": 3,
+      "elements": 49152,
+      "semantic": "model.layers.0.mlp.gate_proj.weight_out",
+      "ir_line": "%120 = call @qwen_graph_silu_16x3072__forward_prefill_mul_14(%119) : (tensor<1x16x3072xf32>) -> tensor<1x16x3072xf32>",
+      "offsets": [
+        180224
+      ],
+      "reference_keys": [
+        "prefill_model.layers.0.mlp.gate_proj.weight_out"
+      ]
+    },
+    {
+      "index": 10,
+      "graph": "prefill",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_silu_16x3072__forward_prefill_mul_14",
+      "operand": 0,
+      "phase": "after",
+      "reference_suffix": "model.layers.0_silu",
+      "transform": "identity",
+      "shape": [
+        1,
+        16,
+        3072
+      ],
+      "dtype": "f32",
+      "rank": 3,
+      "elements": 49152,
+      "semantic": "model.layers.0_silu",
+      "ir_line": "%120 = call @qwen_graph_silu_16x3072__forward_prefill_mul_14(%119) : (tensor<1x16x3072xf32>) -> tensor<1x16x3072xf32>",
+      "offsets": [
+        229376
+      ],
+      "reference_keys": [
+        "prefill_model.layers.0_silu"
+      ]
+    },
+    {
+      "index": 11,
+      "graph": "prefill",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_quantize_16x1024",
+      "operand": 0,
+      "phase": "before",
+      "reference_suffix": "model.layers.0.self_attn.q_proj.weight_activation",
+      "transform": "identity",
+      "shape": [
+        16,
+        1024
+      ],
+      "dtype": "f32",
+      "rank": 2,
+      "elements": 16384,
+      "semantic": "model.layers.0.self_attn.q_proj.weight_activation",
+      "ir_line": "call @qwen_graph_w8a8_mm_quantize_16x1024(%47, %arg11, %arg15) : (tensor<16x1024xf32>, tensor<16x1024xi8>, tensor<16xf32>) -> ()",
+      "offsets": [
+        278528
+      ],
+      "reference_keys": [
+        "prefill_model.layers.0.self_attn.q_proj.weight_activation"
+      ]
+    },
+    {
+      "index": 12,
+      "graph": "prefill",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_quantize_16x1024",
+      "operand": 1,
+      "phase": "after",
+      "reference_suffix": "model.layers.0.self_attn.q_proj.weight_q",
+      "transform": "identity",
+      "shape": [
+        16,
+        1024
+      ],
+      "dtype": "i8",
+      "rank": 2,
+      "elements": 16384,
+      "semantic": "model.layers.0.self_attn.q_proj.weight_q",
+      "ir_line": "call @qwen_graph_w8a8_mm_quantize_16x1024(%47, %arg11, %arg15) : (tensor<16x1024xf32>, tensor<16x1024xi8>, tensor<16xf32>) -> ()",
+      "offsets": [
+        294912
+      ],
+      "reference_keys": [
+        "prefill_model.layers.0.self_attn.q_proj.weight_q"
+      ]
+    },
+    {
+      "index": 13,
+      "graph": "prefill",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_quantize_16x1024",
+      "operand": 2,
+      "phase": "after",
+      "reference_suffix": "model.layers.0.self_attn.q_proj.weight_a_scale",
+      "transform": "identity",
+      "shape": [
+        16
+      ],
+      "dtype": "f32",
+      "rank": 1,
+      "elements": 16,
+      "semantic": "model.layers.0.self_attn.q_proj.weight_a_scale",
+      "ir_line": "call @qwen_graph_w8a8_mm_quantize_16x1024(%47, %arg11, %arg15) : (tensor<16x1024xf32>, tensor<16x1024xi8>, tensor<16xf32>) -> ()",
+      "offsets": [
+        311296
+      ],
+      "reference_keys": [
+        "prefill_model.layers.0.self_attn.q_proj.weight_a_scale"
+      ]
+    },
+    {
+      "index": 14,
+      "graph": "prefill",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_dequantize_16x2048",
+      "operand": 3,
+      "phase": "after",
+      "reference_suffix": "model.layers.0.self_attn.q_proj.weight_out",
+      "transform": "identity",
+      "shape": [
+        16,
+        2048
+      ],
+      "dtype": "f32",
+      "rank": 2,
+      "elements": 32768,
+      "semantic": "model.layers.0.self_attn.q_proj.weight_out",
+      "ir_line": "call @qwen_graph_w8a8_mm_dequantize_16x2048(%arg14, %arg15, %arg16, %arg18) : (tensor<16x2048xi32>, tensor<16xf32>, tensor<2048xf32>, tensor<16x2048xf32>) -> ()",
+      "offsets": [
+        311312
+      ],
+      "reference_keys": [
+        "prefill_model.layers.0.self_attn.q_proj.weight_out"
+      ]
+    },
+    {
+      "index": 15,
+      "graph": "prefill",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_1_quantize_16x1024",
+      "operand": 0,
+      "phase": "before",
+      "reference_suffix": "model.layers.0.self_attn.k_proj.weight_activation",
+      "transform": "identity",
+      "shape": [
+        16,
+        1024
+      ],
+      "dtype": "f32",
+      "rank": 2,
+      "elements": 16384,
+      "semantic": "model.layers.0.self_attn.k_proj.weight_activation",
+      "ir_line": "call @qwen_graph_w8a8_mm_1_quantize_16x1024(%55, %arg22, %arg26) : (tensor<16x1024xf32>, tensor<16x1024xi8>, tensor<16xf32>) -> ()",
+      "offsets": [
+        344080
+      ],
+      "reference_keys": [
+        "prefill_model.layers.0.self_attn.k_proj.weight_activation"
+      ]
+    },
+    {
+      "index": 16,
+      "graph": "prefill",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_1_quantize_16x1024",
+      "operand": 1,
+      "phase": "after",
+      "reference_suffix": "model.layers.0.self_attn.k_proj.weight_q",
+      "transform": "identity",
+      "shape": [
+        16,
+        1024
+      ],
+      "dtype": "i8",
+      "rank": 2,
+      "elements": 16384,
+      "semantic": "model.layers.0.self_attn.k_proj.weight_q",
+      "ir_line": "call @qwen_graph_w8a8_mm_1_quantize_16x1024(%55, %arg22, %arg26) : (tensor<16x1024xf32>, tensor<16x1024xi8>, tensor<16xf32>) -> ()",
+      "offsets": [
+        360464
+      ],
+      "reference_keys": [
+        "prefill_model.layers.0.self_attn.k_proj.weight_q"
+      ]
+    },
+    {
+      "index": 17,
+      "graph": "prefill",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_1_quantize_16x1024",
+      "operand": 2,
+      "phase": "after",
+      "reference_suffix": "model.layers.0.self_attn.k_proj.weight_a_scale",
+      "transform": "identity",
+      "shape": [
+        16
+      ],
+      "dtype": "f32",
+      "rank": 1,
+      "elements": 16,
+      "semantic": "model.layers.0.self_attn.k_proj.weight_a_scale",
+      "ir_line": "call @qwen_graph_w8a8_mm_1_quantize_16x1024(%55, %arg22, %arg26) : (tensor<16x1024xf32>, tensor<16x1024xi8>, tensor<16xf32>) -> ()",
+      "offsets": [
+        376848
+      ],
+      "reference_keys": [
+        "prefill_model.layers.0.self_attn.k_proj.weight_a_scale"
+      ]
+    },
+    {
+      "index": 18,
+      "graph": "prefill",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_1_dequantize_16x1024",
+      "operand": 3,
+      "phase": "after",
+      "reference_suffix": "model.layers.0.self_attn.k_proj.weight_out",
+      "transform": "identity",
+      "shape": [
+        16,
+        1024
+      ],
+      "dtype": "f32",
+      "rank": 2,
+      "elements": 16384,
+      "semantic": "model.layers.0.self_attn.k_proj.weight_out",
+      "ir_line": "call @qwen_graph_w8a8_mm_1_dequantize_16x1024(%arg25, %arg26, %arg27, %arg29) : (tensor<16x1024xi32>, tensor<16xf32>, tensor<1024xf32>, tensor<16x1024xf32>) -> ()",
+      "offsets": [
+        376864
+      ],
+      "reference_keys": [
+        "prefill_model.layers.0.self_attn.k_proj.weight_out"
+      ]
+    },
+    {
+      "index": 19,
+      "graph": "prefill",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_2_quantize_16x1024",
+      "operand": 0,
+      "phase": "before",
+      "reference_suffix": "model.layers.0.self_attn.v_proj.weight_activation",
+      "transform": "identity",
+      "shape": [
+        16,
+        1024
+      ],
+      "dtype": "f32",
+      "rank": 2,
+      "elements": 16384,
+      "semantic": "model.layers.0.self_attn.v_proj.weight_activation",
+      "ir_line": "call @qwen_graph_w8a8_mm_2_quantize_16x1024(%63, %arg33, %arg37) : (tensor<16x1024xf32>, tensor<16x1024xi8>, tensor<16xf32>) -> ()",
+      "offsets": [
+        393248
+      ],
+      "reference_keys": [
+        "prefill_model.layers.0.self_attn.v_proj.weight_activation"
+      ]
+    },
+    {
+      "index": 20,
+      "graph": "prefill",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_2_quantize_16x1024",
+      "operand": 1,
+      "phase": "after",
+      "reference_suffix": "model.layers.0.self_attn.v_proj.weight_q",
+      "transform": "identity",
+      "shape": [
+        16,
+        1024
+      ],
+      "dtype": "i8",
+      "rank": 2,
+      "elements": 16384,
+      "semantic": "model.layers.0.self_attn.v_proj.weight_q",
+      "ir_line": "call @qwen_graph_w8a8_mm_2_quantize_16x1024(%63, %arg33, %arg37) : (tensor<16x1024xf32>, tensor<16x1024xi8>, tensor<16xf32>) -> ()",
+      "offsets": [
+        409632
+      ],
+      "reference_keys": [
+        "prefill_model.layers.0.self_attn.v_proj.weight_q"
+      ]
+    },
+    {
+      "index": 21,
+      "graph": "prefill",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_2_quantize_16x1024",
+      "operand": 2,
+      "phase": "after",
+      "reference_suffix": "model.layers.0.self_attn.v_proj.weight_a_scale",
+      "transform": "identity",
+      "shape": [
+        16
+      ],
+      "dtype": "f32",
+      "rank": 1,
+      "elements": 16,
+      "semantic": "model.layers.0.self_attn.v_proj.weight_a_scale",
+      "ir_line": "call @qwen_graph_w8a8_mm_2_quantize_16x1024(%63, %arg33, %arg37) : (tensor<16x1024xf32>, tensor<16x1024xi8>, tensor<16xf32>) -> ()",
+      "offsets": [
+        426016
+      ],
+      "reference_keys": [
+        "prefill_model.layers.0.self_attn.v_proj.weight_a_scale"
+      ]
+    },
+    {
+      "index": 22,
+      "graph": "prefill",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_2_dequantize_16x1024",
+      "operand": 3,
+      "phase": "after",
+      "reference_suffix": "model.layers.0.self_attn.v_proj.weight_out",
+      "transform": "identity",
+      "shape": [
+        16,
+        1024
+      ],
+      "dtype": "f32",
+      "rank": 2,
+      "elements": 16384,
+      "semantic": "model.layers.0.self_attn.v_proj.weight_out",
+      "ir_line": "call @qwen_graph_w8a8_mm_2_dequantize_16x1024(%arg36, %arg37, %arg38, %arg40) : (tensor<16x1024xi32>, tensor<16xf32>, tensor<1024xf32>, tensor<16x1024xf32>) -> ()",
+      "offsets": [
+        426032
+      ],
+      "reference_keys": [
+        "prefill_model.layers.0.self_attn.v_proj.weight_out"
+      ]
+    },
+    {
+      "index": 23,
+      "graph": "prefill",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_3_quantize_16x2048",
+      "operand": 0,
+      "phase": "before",
+      "reference_suffix": "model.layers.0.self_attn.o_proj.weight_activation",
+      "transform": "identity",
+      "shape": [
+        16,
+        2048
+      ],
+      "dtype": "f32",
+      "rank": 2,
+      "elements": 32768,
+      "semantic": "model.layers.0.self_attn.o_proj.weight_activation",
+      "ir_line": "call @qwen_graph_w8a8_mm_3_quantize_16x2048(%111, %arg68, %arg72) : (tensor<16x2048xf32>, tensor<16x2048xi8>, tensor<16xf32>) -> ()",
+      "offsets": [
+        442416
+      ],
+      "reference_keys": [
+        "prefill_model.layers.0.self_attn.o_proj.weight_activation"
+      ]
+    },
+    {
+      "index": 24,
+      "graph": "prefill",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_3_quantize_16x2048",
+      "operand": 1,
+      "phase": "after",
+      "reference_suffix": "model.layers.0.self_attn.o_proj.weight_q",
+      "transform": "identity",
+      "shape": [
+        16,
+        2048
+      ],
+      "dtype": "i8",
+      "rank": 2,
+      "elements": 32768,
+      "semantic": "model.layers.0.self_attn.o_proj.weight_q",
+      "ir_line": "call @qwen_graph_w8a8_mm_3_quantize_16x2048(%111, %arg68, %arg72) : (tensor<16x2048xf32>, tensor<16x2048xi8>, tensor<16xf32>) -> ()",
+      "offsets": [
+        475184
+      ],
+      "reference_keys": [
+        "prefill_model.layers.0.self_attn.o_proj.weight_q"
+      ]
+    },
+    {
+      "index": 25,
+      "graph": "prefill",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_3_quantize_16x2048",
+      "operand": 2,
+      "phase": "after",
+      "reference_suffix": "model.layers.0.self_attn.o_proj.weight_a_scale",
+      "transform": "identity",
+      "shape": [
+        16
+      ],
+      "dtype": "f32",
+      "rank": 1,
+      "elements": 16,
+      "semantic": "model.layers.0.self_attn.o_proj.weight_a_scale",
+      "ir_line": "call @qwen_graph_w8a8_mm_3_quantize_16x2048(%111, %arg68, %arg72) : (tensor<16x2048xf32>, tensor<16x2048xi8>, tensor<16xf32>) -> ()",
+      "offsets": [
+        507952
+      ],
+      "reference_keys": [
+        "prefill_model.layers.0.self_attn.o_proj.weight_a_scale"
+      ]
+    },
+    {
+      "index": 26,
+      "graph": "prefill",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_3_dequantize_16x1024",
+      "operand": 3,
+      "phase": "after",
+      "reference_suffix": "model.layers.0.self_attn.o_proj.weight_out",
+      "transform": "identity",
+      "shape": [
+        16,
+        1024
+      ],
+      "dtype": "f32",
+      "rank": 2,
+      "elements": 16384,
+      "semantic": "model.layers.0.self_attn.o_proj.weight_out",
+      "ir_line": "call @qwen_graph_w8a8_mm_3_dequantize_16x1024(%arg71, %arg72, %arg73, %arg75) : (tensor<16x1024xi32>, tensor<16xf32>, tensor<1024xf32>, tensor<16x1024xf32>) -> ()",
+      "offsets": [
+        507968
+      ],
+      "reference_keys": [
+        "prefill_model.layers.0.self_attn.o_proj.weight_out"
+      ]
+    },
+    {
+      "index": 27,
+      "graph": "prefill",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_4_quantize_16x1024",
+      "operand": 0,
+      "phase": "before",
+      "reference_suffix": "model.layers.0.mlp.gate_proj.weight_activation",
+      "transform": "identity",
+      "shape": [
+        16,
+        1024
+      ],
+      "dtype": "f32",
+      "rank": 2,
+      "elements": 16384,
+      "semantic": "model.layers.0.mlp.gate_proj.weight_activation",
+      "ir_line": "call @qwen_graph_w8a8_mm_4_quantize_16x1024(%117, %arg80, %arg84) : (tensor<16x1024xf32>, tensor<16x1024xi8>, tensor<16xf32>) -> ()",
+      "offsets": [
+        524352
+      ],
+      "reference_keys": [
+        "prefill_model.layers.0.mlp.gate_proj.weight_activation"
+      ]
+    },
+    {
+      "index": 28,
+      "graph": "prefill",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_4_quantize_16x1024",
+      "operand": 1,
+      "phase": "after",
+      "reference_suffix": "model.layers.0.mlp.gate_proj.weight_q",
+      "transform": "identity",
+      "shape": [
+        16,
+        1024
+      ],
+      "dtype": "i8",
+      "rank": 2,
+      "elements": 16384,
+      "semantic": "model.layers.0.mlp.gate_proj.weight_q",
+      "ir_line": "call @qwen_graph_w8a8_mm_4_quantize_16x1024(%117, %arg80, %arg84) : (tensor<16x1024xf32>, tensor<16x1024xi8>, tensor<16xf32>) -> ()",
+      "offsets": [
+        540736
+      ],
+      "reference_keys": [
+        "prefill_model.layers.0.mlp.gate_proj.weight_q"
+      ]
+    },
+    {
+      "index": 29,
+      "graph": "prefill",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_4_quantize_16x1024",
+      "operand": 2,
+      "phase": "after",
+      "reference_suffix": "model.layers.0.mlp.gate_proj.weight_a_scale",
+      "transform": "identity",
+      "shape": [
+        16
+      ],
+      "dtype": "f32",
+      "rank": 1,
+      "elements": 16,
+      "semantic": "model.layers.0.mlp.gate_proj.weight_a_scale",
+      "ir_line": "call @qwen_graph_w8a8_mm_4_quantize_16x1024(%117, %arg80, %arg84) : (tensor<16x1024xf32>, tensor<16x1024xi8>, tensor<16xf32>) -> ()",
+      "offsets": [
+        557120
+      ],
+      "reference_keys": [
+        "prefill_model.layers.0.mlp.gate_proj.weight_a_scale"
+      ]
+    },
+    {
+      "index": 30,
+      "graph": "prefill",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_4_dequantize_16x3072",
+      "operand": 3,
+      "phase": "after",
+      "reference_suffix": "model.layers.0.mlp.gate_proj.weight_out",
+      "transform": "identity",
+      "shape": [
+        16,
+        3072
+      ],
+      "dtype": "f32",
+      "rank": 2,
+      "elements": 49152,
+      "semantic": "model.layers.0.mlp.gate_proj.weight_out",
+      "ir_line": "call @qwen_graph_w8a8_mm_4_dequantize_16x3072(%arg83, %arg84, %arg85, %arg87) : (tensor<16x3072xi32>, tensor<16xf32>, tensor<3072xf32>, tensor<16x3072xf32>) -> ()",
+      "offsets": [
+        557136
+      ],
+      "reference_keys": [
+        "prefill_model.layers.0.mlp.gate_proj.weight_out"
+      ]
+    },
+    {
+      "index": 31,
+      "graph": "prefill",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_5_quantize_16x1024",
+      "operand": 0,
+      "phase": "before",
+      "reference_suffix": "model.layers.0.mlp.up_proj.weight_activation",
+      "transform": "identity",
+      "shape": [
+        16,
+        1024
+      ],
+      "dtype": "f32",
+      "rank": 2,
+      "elements": 16384,
+      "semantic": "model.layers.0.mlp.up_proj.weight_activation",
+      "ir_line": "call @qwen_graph_w8a8_mm_5_quantize_16x1024(%122, %arg90, %arg94) : (tensor<16x1024xf32>, tensor<16x1024xi8>, tensor<16xf32>) -> ()",
+      "offsets": [
+        606288
+      ],
+      "reference_keys": [
+        "prefill_model.layers.0.mlp.up_proj.weight_activation"
+      ]
+    },
+    {
+      "index": 32,
+      "graph": "prefill",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_5_quantize_16x1024",
+      "operand": 1,
+      "phase": "after",
+      "reference_suffix": "model.layers.0.mlp.up_proj.weight_q",
+      "transform": "identity",
+      "shape": [
+        16,
+        1024
+      ],
+      "dtype": "i8",
+      "rank": 2,
+      "elements": 16384,
+      "semantic": "model.layers.0.mlp.up_proj.weight_q",
+      "ir_line": "call @qwen_graph_w8a8_mm_5_quantize_16x1024(%122, %arg90, %arg94) : (tensor<16x1024xf32>, tensor<16x1024xi8>, tensor<16xf32>) -> ()",
+      "offsets": [
+        622672
+      ],
+      "reference_keys": [
+        "prefill_model.layers.0.mlp.up_proj.weight_q"
+      ]
+    },
+    {
+      "index": 33,
+      "graph": "prefill",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_5_quantize_16x1024",
+      "operand": 2,
+      "phase": "after",
+      "reference_suffix": "model.layers.0.mlp.up_proj.weight_a_scale",
+      "transform": "identity",
+      "shape": [
+        16
+      ],
+      "dtype": "f32",
+      "rank": 1,
+      "elements": 16,
+      "semantic": "model.layers.0.mlp.up_proj.weight_a_scale",
+      "ir_line": "call @qwen_graph_w8a8_mm_5_quantize_16x1024(%122, %arg90, %arg94) : (tensor<16x1024xf32>, tensor<16x1024xi8>, tensor<16xf32>) -> ()",
+      "offsets": [
+        639056
+      ],
+      "reference_keys": [
+        "prefill_model.layers.0.mlp.up_proj.weight_a_scale"
+      ]
+    },
+    {
+      "index": 34,
+      "graph": "prefill",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_5_dequantize_16x3072",
+      "operand": 3,
+      "phase": "after",
+      "reference_suffix": "model.layers.0.mlp.up_proj.weight_out",
+      "transform": "identity",
+      "shape": [
+        16,
+        3072
+      ],
+      "dtype": "f32",
+      "rank": 2,
+      "elements": 49152,
+      "semantic": "model.layers.0.mlp.up_proj.weight_out",
+      "ir_line": "call @qwen_graph_w8a8_mm_5_dequantize_16x3072(%arg93, %arg94, %arg95, %arg97) : (tensor<16x3072xi32>, tensor<16xf32>, tensor<3072xf32>, tensor<16x3072xf32>) -> ()",
+      "offsets": [
+        639072
+      ],
+      "reference_keys": [
+        "prefill_model.layers.0.mlp.up_proj.weight_out"
+      ]
+    },
+    {
+      "index": 35,
+      "graph": "prefill",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_6_quantize_16x3072",
+      "operand": 0,
+      "phase": "before",
+      "reference_suffix": "model.layers.0.mlp.down_proj.weight_activation",
+      "transform": "identity",
+      "shape": [
+        16,
+        3072
+      ],
+      "dtype": "f32",
+      "rank": 2,
+      "elements": 49152,
+      "semantic": "model.layers.0.mlp.down_proj.weight_activation",
+      "ir_line": "call @qwen_graph_w8a8_mm_6_quantize_16x3072(%128, %arg100, %arg104) : (tensor<16x3072xf32>, tensor<16x3072xi8>, tensor<16xf32>) -> ()",
+      "offsets": [
+        688224
+      ],
+      "reference_keys": [
+        "prefill_model.layers.0.mlp.down_proj.weight_activation"
+      ]
+    },
+    {
+      "index": 36,
+      "graph": "prefill",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_6_quantize_16x3072",
+      "operand": 1,
+      "phase": "after",
+      "reference_suffix": "model.layers.0.mlp.down_proj.weight_q",
+      "transform": "identity",
+      "shape": [
+        16,
+        3072
+      ],
+      "dtype": "i8",
+      "rank": 2,
+      "elements": 49152,
+      "semantic": "model.layers.0.mlp.down_proj.weight_q",
+      "ir_line": "call @qwen_graph_w8a8_mm_6_quantize_16x3072(%128, %arg100, %arg104) : (tensor<16x3072xf32>, tensor<16x3072xi8>, tensor<16xf32>) -> ()",
+      "offsets": [
+        737376
+      ],
+      "reference_keys": [
+        "prefill_model.layers.0.mlp.down_proj.weight_q"
+      ]
+    },
+    {
+      "index": 37,
+      "graph": "prefill",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_6_quantize_16x3072",
+      "operand": 2,
+      "phase": "after",
+      "reference_suffix": "model.layers.0.mlp.down_proj.weight_a_scale",
+      "transform": "identity",
+      "shape": [
+        16
+      ],
+      "dtype": "f32",
+      "rank": 1,
+      "elements": 16,
+      "semantic": "model.layers.0.mlp.down_proj.weight_a_scale",
+      "ir_line": "call @qwen_graph_w8a8_mm_6_quantize_16x3072(%128, %arg100, %arg104) : (tensor<16x3072xf32>, tensor<16x3072xi8>, tensor<16xf32>) -> ()",
+      "offsets": [
+        786528
+      ],
+      "reference_keys": [
+        "prefill_model.layers.0.mlp.down_proj.weight_a_scale"
+      ]
+    },
+    {
+      "index": 38,
+      "graph": "prefill",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_6_dequantize_16x1024",
+      "operand": 3,
+      "phase": "after",
+      "reference_suffix": "model.layers.0.mlp.down_proj.weight_out",
+      "transform": "identity",
+      "shape": [
+        16,
+        1024
+      ],
+      "dtype": "f32",
+      "rank": 2,
+      "elements": 16384,
+      "semantic": "model.layers.0.mlp.down_proj.weight_out",
+      "ir_line": "call @qwen_graph_w8a8_mm_6_dequantize_16x1024(%arg103, %arg104, %arg105, %arg107) : (tensor<16x1024xi32>, tensor<16xf32>, tensor<1024xf32>, tensor<16x1024xf32>) -> ()",
+      "offsets": [
+        786544
+      ],
+      "reference_keys": [
+        "prefill_model.layers.0.mlp.down_proj.weight_out"
+      ]
+    },
+    {
+      "index": 39,
+      "graph": "prefill",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_7_quantize_1x1024",
+      "operand": 0,
+      "phase": "before",
+      "reference_suffix": "model.embed_tokens.weight_activation",
+      "transform": "last_row",
+      "shape": [
+        1,
+        1024
+      ],
+      "dtype": "f32",
+      "rank": 2,
+      "elements": 1024,
+      "semantic": "model.embed_tokens.weight_activation",
+      "ir_line": "call @qwen_graph_w8a8_mm_7_quantize_1x1024(%134, %arg111, %arg115) : (tensor<1x1024xf32>, tensor<1x1024xi8>, tensor<1xf32>) -> ()",
+      "offsets": [
+        802928
+      ],
+      "reference_keys": [
+        "prefill_model.embed_tokens.weight_activation"
+      ]
+    },
+    {
+      "index": 40,
+      "graph": "prefill",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_7_quantize_1x1024",
+      "operand": 1,
+      "phase": "after",
+      "reference_suffix": "model.embed_tokens.weight_q",
+      "transform": "last_row",
+      "shape": [
+        1,
+        1024
+      ],
+      "dtype": "i8",
+      "rank": 2,
+      "elements": 1024,
+      "semantic": "model.embed_tokens.weight_q",
+      "ir_line": "call @qwen_graph_w8a8_mm_7_quantize_1x1024(%134, %arg111, %arg115) : (tensor<1x1024xf32>, tensor<1x1024xi8>, tensor<1xf32>) -> ()",
+      "offsets": [
+        803952
+      ],
+      "reference_keys": [
+        "prefill_model.embed_tokens.weight_q"
+      ]
+    },
+    {
+      "index": 41,
+      "graph": "prefill",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_7_quantize_1x1024",
+      "operand": 2,
+      "phase": "after",
+      "reference_suffix": "model.embed_tokens.weight_a_scale",
+      "transform": "last_row",
+      "shape": [
+        1
+      ],
+      "dtype": "f32",
+      "rank": 1,
+      "elements": 1,
+      "semantic": "model.embed_tokens.weight_a_scale",
+      "ir_line": "call @qwen_graph_w8a8_mm_7_quantize_1x1024(%134, %arg111, %arg115) : (tensor<1x1024xf32>, tensor<1x1024xi8>, tensor<1xf32>) -> ()",
+      "offsets": [
+        804976
+      ],
+      "reference_keys": [
+        "prefill_model.embed_tokens.weight_a_scale"
+      ]
+    },
+    {
+      "index": 42,
+      "graph": "prefill",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_7_dequantize_1x151936",
+      "operand": 3,
+      "phase": "after",
+      "reference_suffix": "model.embed_tokens.weight_out",
+      "transform": "last_row",
+      "shape": [
+        1,
+        151936
+      ],
+      "dtype": "f32",
+      "rank": 2,
+      "elements": 151936,
+      "semantic": "model.embed_tokens.weight_out",
+      "ir_line": "call @qwen_graph_w8a8_mm_7_dequantize_1x151936(%arg114, %arg115, %arg116, %arg118) : (tensor<1x151936xi32>, tensor<1xf32>, tensor<151936xf32>, tensor<1x151936xf32>) -> ()",
+      "offsets": [
+        804977
+      ],
+      "reference_keys": [
+        "prefill_model.embed_tokens.weight_out"
+      ]
+    },
+    {
+      "index": 43,
+      "graph": "prefill",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_qk_attention_qk_position_native_16x16x512x128",
+      "operand": 0,
+      "phase": "before",
+      "reference_suffix": "model.layers.0_q_rope",
+      "transform": "heads_first",
+      "shape": [
+        1,
+        16,
+        16,
+        128
+      ],
+      "dtype": "f32",
+      "rank": 4,
+      "elements": 32768,
+      "semantic": "model.layers.0_q_rope",
+      "ir_line": "call @qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_qk_attention_qk_position_native_16x16x512x128(%81, %98, %arg63, %arg55) : (tensor<1x16x16x128xf32>, tensor<1x16x512x128xf32>, tensor<16xi32>, tensor<1x16x16x512xf32>) -> ()",
+      "offsets": [
+        956913
+      ],
+      "reference_keys": [
+        "prefill_model.layers.0_q_rope"
+      ]
+    },
+    {
+      "index": 44,
+      "graph": "prefill",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_softmax_softmax_16x16x512",
+      "operand": 3,
+      "phase": "after",
+      "reference_suffix": "model.layers.0_attention_probabilities",
+      "transform": "identity",
+      "shape": [
+        1,
+        16,
+        16,
+        512
+      ],
+      "dtype": "f32",
+      "rank": 4,
+      "elements": 131072,
+      "semantic": "model.layers.0_attention_probabilities",
+      "ir_line": "call @qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_softmax_softmax_16x16x512(%arg58, %arg59, %arg60, %arg62) : (tensor<1x16x16x512xf32>, tensor<256xf32>, tensor<256xf32>, tensor<1x16x16x512xf32>) -> ()",
+      "offsets": [
+        989681
+      ],
+      "reference_keys": [
+        "prefill_model.layers.0_attention_probabilities"
+      ]
+    },
+    {
+      "index": 45,
+      "graph": "prefill",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_pv_attention_pv_position_16x16x128x512",
+      "operand": 3,
+      "phase": "after",
+      "reference_suffix": "model.layers.0_attention_context",
+      "transform": "context_heads_first",
+      "shape": [
+        1,
+        16,
+        16,
+        128
+      ],
+      "dtype": "f32",
+      "rank": 4,
+      "elements": 32768,
+      "semantic": "model.layers.0_attention_context",
+      "ir_line": "call @qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_pv_attention_pv_position_16x16x128x512(%arg62, %104, %arg63, %arg65) : (tensor<1x16x16x512xf32>, tensor<1x16x512x128xf32>, tensor<16xi32>, tensor<1x16x16x128xf32>) -> ()",
+      "offsets": [
+        1120753
+      ],
+      "reference_keys": [
+        "prefill_model.layers.0_attention_context"
+      ]
+    },
+    {
+      "index": 46,
+      "graph": "decode",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_rmsnorm_1x1024__forward_decode_mul_3",
+      "operand": 1,
+      "phase": "before",
+      "reference_suffix": "model.layers.0_input_hidden",
+      "transform": "identity",
+      "shape": [
+        1,
+        1,
+        1024
+      ],
+      "dtype": "f32",
+      "rank": 3,
+      "elements": 1024,
+      "semantic": "model.layers.0_input_hidden",
+      "ir_line": "%45 = call @qwen_graph_rmsnorm_1x1024__forward_decode_mul_3(%arg76, %arg8) : (tensor<1x1x1024xf32>, tensor<1024xf32>) -> tensor<1x1x1024xf32>",
+      "offsets": [
+        1153521,
+        1154545,
+        1155569,
+        1156593,
+        1157617,
+        1158641,
+        1159665,
+        1160689
+      ],
+      "reference_keys": [
+        "decode_0_model.layers.0_input_hidden",
+        "decode_1_model.layers.0_input_hidden",
+        "decode_2_model.layers.0_input_hidden",
+        "decode_3_model.layers.0_input_hidden",
+        "decode_4_model.layers.0_input_hidden",
+        "decode_5_model.layers.0_input_hidden",
+        "decode_6_model.layers.0_input_hidden",
+        "decode_7_model.layers.0_input_hidden"
+      ]
+    },
+    {
+      "index": 47,
+      "graph": "decode",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_rmsnorm_1x1024__forward_decode_mul_3",
+      "operand": 0,
+      "phase": "after",
+      "reference_suffix": "model.layers.0_input_norm",
+      "transform": "identity",
+      "shape": [
+        1,
+        1,
+        1024
+      ],
+      "dtype": "f32",
+      "rank": 3,
+      "elements": 1024,
+      "semantic": "model.layers.0_input_norm",
+      "ir_line": "%45 = call @qwen_graph_rmsnorm_1x1024__forward_decode_mul_3(%arg76, %arg8) : (tensor<1x1x1024xf32>, tensor<1024xf32>) -> tensor<1x1x1024xf32>",
+      "offsets": [
+        1161713,
+        1162737,
+        1163761,
+        1164785,
+        1165809,
+        1166833,
+        1167857,
+        1168881
+      ],
+      "reference_keys": [
+        "decode_0_model.layers.0_input_norm",
+        "decode_1_model.layers.0_input_norm",
+        "decode_2_model.layers.0_input_norm",
+        "decode_3_model.layers.0_input_norm",
+        "decode_4_model.layers.0_input_norm",
+        "decode_5_model.layers.0_input_norm",
+        "decode_6_model.layers.0_input_norm",
+        "decode_7_model.layers.0_input_norm"
+      ]
+    },
+    {
+      "index": 48,
+      "graph": "decode",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_rmsnorm_16x128__forward_decode_mul_5",
+      "operand": 1,
+      "phase": "before",
+      "reference_suffix": "model.layers.0.self_attn.q_proj.weight_out",
+      "transform": "projection_heads",
+      "shape": [
+        1,
+        1,
+        16,
+        128
+      ],
+      "dtype": "f32",
+      "rank": 4,
+      "elements": 2048,
+      "semantic": "model.layers.0.self_attn.q_proj.weight_out",
+      "ir_line": "%52 = call @qwen_graph_rmsnorm_16x128__forward_decode_mul_5(%51, %arg19) : (tensor<1x1x16x128xf32>, tensor<128xf32>) -> tensor<1x1x16x128xf32>",
+      "offsets": [
+        1169905,
+        1171953,
+        1174001,
+        1176049,
+        1178097,
+        1180145,
+        1182193,
+        1184241
+      ],
+      "reference_keys": [
+        "decode_0_model.layers.0.self_attn.q_proj.weight_out",
+        "decode_1_model.layers.0.self_attn.q_proj.weight_out",
+        "decode_2_model.layers.0.self_attn.q_proj.weight_out",
+        "decode_3_model.layers.0.self_attn.q_proj.weight_out",
+        "decode_4_model.layers.0.self_attn.q_proj.weight_out",
+        "decode_5_model.layers.0.self_attn.q_proj.weight_out",
+        "decode_6_model.layers.0.self_attn.q_proj.weight_out",
+        "decode_7_model.layers.0.self_attn.q_proj.weight_out"
+      ]
+    },
+    {
+      "index": 49,
+      "graph": "decode",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_rmsnorm_16x128__forward_decode_mul_5",
+      "operand": 0,
+      "phase": "after",
+      "reference_suffix": "model.layers.0_q_norm",
+      "transform": "identity",
+      "shape": [
+        1,
+        1,
+        16,
+        128
+      ],
+      "dtype": "f32",
+      "rank": 4,
+      "elements": 2048,
+      "semantic": "model.layers.0_q_norm",
+      "ir_line": "%52 = call @qwen_graph_rmsnorm_16x128__forward_decode_mul_5(%51, %arg19) : (tensor<1x1x16x128xf32>, tensor<128xf32>) -> tensor<1x1x16x128xf32>",
+      "offsets": [
+        1186289,
+        1188337,
+        1190385,
+        1192433,
+        1194481,
+        1196529,
+        1198577,
+        1200625
+      ],
+      "reference_keys": [
+        "decode_0_model.layers.0_q_norm",
+        "decode_1_model.layers.0_q_norm",
+        "decode_2_model.layers.0_q_norm",
+        "decode_3_model.layers.0_q_norm",
+        "decode_4_model.layers.0_q_norm",
+        "decode_5_model.layers.0_q_norm",
+        "decode_6_model.layers.0_q_norm",
+        "decode_7_model.layers.0_q_norm"
+      ]
+    },
+    {
+      "index": 50,
+      "graph": "decode",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_rmsnorm_8x128__forward_decode_mul_7",
+      "operand": 1,
+      "phase": "before",
+      "reference_suffix": "model.layers.0.self_attn.k_proj.weight_out",
+      "transform": "projection_heads",
+      "shape": [
+        1,
+        1,
+        8,
+        128
+      ],
+      "dtype": "f32",
+      "rank": 4,
+      "elements": 1024,
+      "semantic": "model.layers.0.self_attn.k_proj.weight_out",
+      "ir_line": "%60 = call @qwen_graph_rmsnorm_8x128__forward_decode_mul_7(%59, %arg30) : (tensor<1x1x8x128xf32>, tensor<128xf32>) -> tensor<1x1x8x128xf32>",
+      "offsets": [
+        1202673,
+        1203697,
+        1204721,
+        1205745,
+        1206769,
+        1207793,
+        1208817,
+        1209841
+      ],
+      "reference_keys": [
+        "decode_0_model.layers.0.self_attn.k_proj.weight_out",
+        "decode_1_model.layers.0.self_attn.k_proj.weight_out",
+        "decode_2_model.layers.0.self_attn.k_proj.weight_out",
+        "decode_3_model.layers.0.self_attn.k_proj.weight_out",
+        "decode_4_model.layers.0.self_attn.k_proj.weight_out",
+        "decode_5_model.layers.0.self_attn.k_proj.weight_out",
+        "decode_6_model.layers.0.self_attn.k_proj.weight_out",
+        "decode_7_model.layers.0.self_attn.k_proj.weight_out"
+      ]
+    },
+    {
+      "index": 51,
+      "graph": "decode",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_rmsnorm_8x128__forward_decode_mul_7",
+      "operand": 0,
+      "phase": "after",
+      "reference_suffix": "model.layers.0_k_norm",
+      "transform": "identity",
+      "shape": [
+        1,
+        1,
+        8,
+        128
+      ],
+      "dtype": "f32",
+      "rank": 4,
+      "elements": 1024,
+      "semantic": "model.layers.0_k_norm",
+      "ir_line": "%60 = call @qwen_graph_rmsnorm_8x128__forward_decode_mul_7(%59, %arg30) : (tensor<1x1x8x128xf32>, tensor<128xf32>) -> tensor<1x1x8x128xf32>",
+      "offsets": [
+        1210865,
+        1211889,
+        1212913,
+        1213937,
+        1214961,
+        1215985,
+        1217009,
+        1218033
+      ],
+      "reference_keys": [
+        "decode_0_model.layers.0_k_norm",
+        "decode_1_model.layers.0_k_norm",
+        "decode_2_model.layers.0_k_norm",
+        "decode_3_model.layers.0_k_norm",
+        "decode_4_model.layers.0_k_norm",
+        "decode_5_model.layers.0_k_norm",
+        "decode_6_model.layers.0_k_norm",
+        "decode_7_model.layers.0_k_norm"
+      ]
+    },
+    {
+      "index": 52,
+      "graph": "decode",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_rmsnorm_1x1024__forward_decode_mul_13",
+      "operand": 1,
+      "phase": "before",
+      "reference_suffix": "model.layers.0_attention_residual",
+      "transform": "identity",
+      "shape": [
+        1,
+        1,
+        1024
+      ],
+      "dtype": "f32",
+      "rank": 3,
+      "elements": 1024,
+      "semantic": "model.layers.0_attention_residual",
+      "ir_line": "%115 = call @qwen_graph_rmsnorm_1x1024__forward_decode_mul_13(%114, %arg77) : (tensor<1x1x1024xf32>, tensor<1024xf32>) -> tensor<1x1x1024xf32>",
+      "offsets": [
+        1219057,
+        1220081,
+        1221105,
+        1222129,
+        1223153,
+        1224177,
+        1225201,
+        1226225
+      ],
+      "reference_keys": [
+        "decode_0_model.layers.0_attention_residual",
+        "decode_1_model.layers.0_attention_residual",
+        "decode_2_model.layers.0_attention_residual",
+        "decode_3_model.layers.0_attention_residual",
+        "decode_4_model.layers.0_attention_residual",
+        "decode_5_model.layers.0_attention_residual",
+        "decode_6_model.layers.0_attention_residual",
+        "decode_7_model.layers.0_attention_residual"
+      ]
+    },
+    {
+      "index": 53,
+      "graph": "decode",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_rmsnorm_1x1024__forward_decode_mul_13",
+      "operand": 0,
+      "phase": "after",
+      "reference_suffix": "model.layers.0_post_attention_norm",
+      "transform": "identity",
+      "shape": [
+        1,
+        1,
+        1024
+      ],
+      "dtype": "f32",
+      "rank": 3,
+      "elements": 1024,
+      "semantic": "model.layers.0_post_attention_norm",
+      "ir_line": "%115 = call @qwen_graph_rmsnorm_1x1024__forward_decode_mul_13(%114, %arg77) : (tensor<1x1x1024xf32>, tensor<1024xf32>) -> tensor<1x1x1024xf32>",
+      "offsets": [
+        1227249,
+        1228273,
+        1229297,
+        1230321,
+        1231345,
+        1232369,
+        1233393,
+        1234417
+      ],
+      "reference_keys": [
+        "decode_0_model.layers.0_post_attention_norm",
+        "decode_1_model.layers.0_post_attention_norm",
+        "decode_2_model.layers.0_post_attention_norm",
+        "decode_3_model.layers.0_post_attention_norm",
+        "decode_4_model.layers.0_post_attention_norm",
+        "decode_5_model.layers.0_post_attention_norm",
+        "decode_6_model.layers.0_post_attention_norm",
+        "decode_7_model.layers.0_post_attention_norm"
+      ]
+    },
+    {
+      "index": 54,
+      "graph": "decode",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_rmsnorm_1x1024__forward_decode_mul_17",
+      "operand": 1,
+      "phase": "before",
+      "reference_suffix": "model.layers.0_output_hidden",
+      "transform": "identity",
+      "shape": [
+        1,
+        1,
+        1024
+      ],
+      "dtype": "f32",
+      "rank": 3,
+      "elements": 1024,
+      "semantic": "model.layers.0_output_hidden",
+      "ir_line": "%132 = call @qwen_graph_rmsnorm_1x1024__forward_decode_mul_17(%131, %arg108) : (tensor<1x1x1024xf32>, tensor<1024xf32>) -> tensor<1x1x1024xf32>",
+      "offsets": [
+        1235441,
+        1236465,
+        1237489,
+        1238513,
+        1239537,
+        1240561,
+        1241585,
+        1242609
+      ],
+      "reference_keys": [
+        "decode_0_model.layers.0_output_hidden",
+        "decode_1_model.layers.0_output_hidden",
+        "decode_2_model.layers.0_output_hidden",
+        "decode_3_model.layers.0_output_hidden",
+        "decode_4_model.layers.0_output_hidden",
+        "decode_5_model.layers.0_output_hidden",
+        "decode_6_model.layers.0_output_hidden",
+        "decode_7_model.layers.0_output_hidden"
+      ]
+    },
+    {
+      "index": 55,
+      "graph": "decode",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_silu_1x3072__forward_decode_mul_14",
+      "operand": 1,
+      "phase": "before",
+      "reference_suffix": "model.layers.0.mlp.gate_proj.weight_out",
+      "transform": "identity",
+      "shape": [
+        1,
+        1,
+        3072
+      ],
+      "dtype": "f32",
+      "rank": 3,
+      "elements": 3072,
+      "semantic": "model.layers.0.mlp.gate_proj.weight_out",
+      "ir_line": "%120 = call @qwen_graph_silu_1x3072__forward_decode_mul_14(%119) : (tensor<1x1x3072xf32>) -> tensor<1x1x3072xf32>",
+      "offsets": [
+        1243633,
+        1246705,
+        1249777,
+        1252849,
+        1255921,
+        1258993,
+        1262065,
+        1265137
+      ],
+      "reference_keys": [
+        "decode_0_model.layers.0.mlp.gate_proj.weight_out",
+        "decode_1_model.layers.0.mlp.gate_proj.weight_out",
+        "decode_2_model.layers.0.mlp.gate_proj.weight_out",
+        "decode_3_model.layers.0.mlp.gate_proj.weight_out",
+        "decode_4_model.layers.0.mlp.gate_proj.weight_out",
+        "decode_5_model.layers.0.mlp.gate_proj.weight_out",
+        "decode_6_model.layers.0.mlp.gate_proj.weight_out",
+        "decode_7_model.layers.0.mlp.gate_proj.weight_out"
+      ]
+    },
+    {
+      "index": 56,
+      "graph": "decode",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_silu_1x3072__forward_decode_mul_14",
+      "operand": 0,
+      "phase": "after",
+      "reference_suffix": "model.layers.0_silu",
+      "transform": "identity",
+      "shape": [
+        1,
+        1,
+        3072
+      ],
+      "dtype": "f32",
+      "rank": 3,
+      "elements": 3072,
+      "semantic": "model.layers.0_silu",
+      "ir_line": "%120 = call @qwen_graph_silu_1x3072__forward_decode_mul_14(%119) : (tensor<1x1x3072xf32>) -> tensor<1x1x3072xf32>",
+      "offsets": [
+        1268209,
+        1271281,
+        1274353,
+        1277425,
+        1280497,
+        1283569,
+        1286641,
+        1289713
+      ],
+      "reference_keys": [
+        "decode_0_model.layers.0_silu",
+        "decode_1_model.layers.0_silu",
+        "decode_2_model.layers.0_silu",
+        "decode_3_model.layers.0_silu",
+        "decode_4_model.layers.0_silu",
+        "decode_5_model.layers.0_silu",
+        "decode_6_model.layers.0_silu",
+        "decode_7_model.layers.0_silu"
+      ]
+    },
+    {
+      "index": 57,
+      "graph": "decode",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_quantize_1x1024",
+      "operand": 0,
+      "phase": "before",
+      "reference_suffix": "model.layers.0.self_attn.q_proj.weight_activation",
+      "transform": "identity",
+      "shape": [
+        1,
+        1024
+      ],
+      "dtype": "f32",
+      "rank": 2,
+      "elements": 1024,
+      "semantic": "model.layers.0.self_attn.q_proj.weight_activation",
+      "ir_line": "call @qwen_graph_w8a8_mm_quantize_1x1024(%47, %arg11, %arg15) : (tensor<1x1024xf32>, tensor<1x1024xi8>, tensor<1xf32>) -> ()",
+      "offsets": [
+        1292785,
+        1293809,
+        1294833,
+        1295857,
+        1296881,
+        1297905,
+        1298929,
+        1299953
+      ],
+      "reference_keys": [
+        "decode_0_model.layers.0.self_attn.q_proj.weight_activation",
+        "decode_1_model.layers.0.self_attn.q_proj.weight_activation",
+        "decode_2_model.layers.0.self_attn.q_proj.weight_activation",
+        "decode_3_model.layers.0.self_attn.q_proj.weight_activation",
+        "decode_4_model.layers.0.self_attn.q_proj.weight_activation",
+        "decode_5_model.layers.0.self_attn.q_proj.weight_activation",
+        "decode_6_model.layers.0.self_attn.q_proj.weight_activation",
+        "decode_7_model.layers.0.self_attn.q_proj.weight_activation"
+      ]
+    },
+    {
+      "index": 58,
+      "graph": "decode",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_quantize_1x1024",
+      "operand": 1,
+      "phase": "after",
+      "reference_suffix": "model.layers.0.self_attn.q_proj.weight_q",
+      "transform": "identity",
+      "shape": [
+        1,
+        1024
+      ],
+      "dtype": "i8",
+      "rank": 2,
+      "elements": 1024,
+      "semantic": "model.layers.0.self_attn.q_proj.weight_q",
+      "ir_line": "call @qwen_graph_w8a8_mm_quantize_1x1024(%47, %arg11, %arg15) : (tensor<1x1024xf32>, tensor<1x1024xi8>, tensor<1xf32>) -> ()",
+      "offsets": [
+        1300977,
+        1302001,
+        1303025,
+        1304049,
+        1305073,
+        1306097,
+        1307121,
+        1308145
+      ],
+      "reference_keys": [
+        "decode_0_model.layers.0.self_attn.q_proj.weight_q",
+        "decode_1_model.layers.0.self_attn.q_proj.weight_q",
+        "decode_2_model.layers.0.self_attn.q_proj.weight_q",
+        "decode_3_model.layers.0.self_attn.q_proj.weight_q",
+        "decode_4_model.layers.0.self_attn.q_proj.weight_q",
+        "decode_5_model.layers.0.self_attn.q_proj.weight_q",
+        "decode_6_model.layers.0.self_attn.q_proj.weight_q",
+        "decode_7_model.layers.0.self_attn.q_proj.weight_q"
+      ]
+    },
+    {
+      "index": 59,
+      "graph": "decode",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_quantize_1x1024",
+      "operand": 2,
+      "phase": "after",
+      "reference_suffix": "model.layers.0.self_attn.q_proj.weight_a_scale",
+      "transform": "identity",
+      "shape": [
+        1
+      ],
+      "dtype": "f32",
+      "rank": 1,
+      "elements": 1,
+      "semantic": "model.layers.0.self_attn.q_proj.weight_a_scale",
+      "ir_line": "call @qwen_graph_w8a8_mm_quantize_1x1024(%47, %arg11, %arg15) : (tensor<1x1024xf32>, tensor<1x1024xi8>, tensor<1xf32>) -> ()",
+      "offsets": [
+        1309169,
+        1309170,
+        1309171,
+        1309172,
+        1309173,
+        1309174,
+        1309175,
+        1309176
+      ],
+      "reference_keys": [
+        "decode_0_model.layers.0.self_attn.q_proj.weight_a_scale",
+        "decode_1_model.layers.0.self_attn.q_proj.weight_a_scale",
+        "decode_2_model.layers.0.self_attn.q_proj.weight_a_scale",
+        "decode_3_model.layers.0.self_attn.q_proj.weight_a_scale",
+        "decode_4_model.layers.0.self_attn.q_proj.weight_a_scale",
+        "decode_5_model.layers.0.self_attn.q_proj.weight_a_scale",
+        "decode_6_model.layers.0.self_attn.q_proj.weight_a_scale",
+        "decode_7_model.layers.0.self_attn.q_proj.weight_a_scale"
+      ]
+    },
+    {
+      "index": 60,
+      "graph": "decode",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_dequantize_1x2048",
+      "operand": 3,
+      "phase": "after",
+      "reference_suffix": "model.layers.0.self_attn.q_proj.weight_out",
+      "transform": "identity",
+      "shape": [
+        1,
+        2048
+      ],
+      "dtype": "f32",
+      "rank": 2,
+      "elements": 2048,
+      "semantic": "model.layers.0.self_attn.q_proj.weight_out",
+      "ir_line": "call @qwen_graph_w8a8_mm_dequantize_1x2048(%arg14, %arg15, %arg16, %arg18) : (tensor<1x2048xi32>, tensor<1xf32>, tensor<2048xf32>, tensor<1x2048xf32>) -> ()",
+      "offsets": [
+        1309177,
+        1311225,
+        1313273,
+        1315321,
+        1317369,
+        1319417,
+        1321465,
+        1323513
+      ],
+      "reference_keys": [
+        "decode_0_model.layers.0.self_attn.q_proj.weight_out",
+        "decode_1_model.layers.0.self_attn.q_proj.weight_out",
+        "decode_2_model.layers.0.self_attn.q_proj.weight_out",
+        "decode_3_model.layers.0.self_attn.q_proj.weight_out",
+        "decode_4_model.layers.0.self_attn.q_proj.weight_out",
+        "decode_5_model.layers.0.self_attn.q_proj.weight_out",
+        "decode_6_model.layers.0.self_attn.q_proj.weight_out",
+        "decode_7_model.layers.0.self_attn.q_proj.weight_out"
+      ]
+    },
+    {
+      "index": 61,
+      "graph": "decode",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_1_quantize_1x1024",
+      "operand": 0,
+      "phase": "before",
+      "reference_suffix": "model.layers.0.self_attn.k_proj.weight_activation",
+      "transform": "identity",
+      "shape": [
+        1,
+        1024
+      ],
+      "dtype": "f32",
+      "rank": 2,
+      "elements": 1024,
+      "semantic": "model.layers.0.self_attn.k_proj.weight_activation",
+      "ir_line": "call @qwen_graph_w8a8_mm_1_quantize_1x1024(%55, %arg22, %arg26) : (tensor<1x1024xf32>, tensor<1x1024xi8>, tensor<1xf32>) -> ()",
+      "offsets": [
+        1325561,
+        1326585,
+        1327609,
+        1328633,
+        1329657,
+        1330681,
+        1331705,
+        1332729
+      ],
+      "reference_keys": [
+        "decode_0_model.layers.0.self_attn.k_proj.weight_activation",
+        "decode_1_model.layers.0.self_attn.k_proj.weight_activation",
+        "decode_2_model.layers.0.self_attn.k_proj.weight_activation",
+        "decode_3_model.layers.0.self_attn.k_proj.weight_activation",
+        "decode_4_model.layers.0.self_attn.k_proj.weight_activation",
+        "decode_5_model.layers.0.self_attn.k_proj.weight_activation",
+        "decode_6_model.layers.0.self_attn.k_proj.weight_activation",
+        "decode_7_model.layers.0.self_attn.k_proj.weight_activation"
+      ]
+    },
+    {
+      "index": 62,
+      "graph": "decode",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_1_quantize_1x1024",
+      "operand": 1,
+      "phase": "after",
+      "reference_suffix": "model.layers.0.self_attn.k_proj.weight_q",
+      "transform": "identity",
+      "shape": [
+        1,
+        1024
+      ],
+      "dtype": "i8",
+      "rank": 2,
+      "elements": 1024,
+      "semantic": "model.layers.0.self_attn.k_proj.weight_q",
+      "ir_line": "call @qwen_graph_w8a8_mm_1_quantize_1x1024(%55, %arg22, %arg26) : (tensor<1x1024xf32>, tensor<1x1024xi8>, tensor<1xf32>) -> ()",
+      "offsets": [
+        1333753,
+        1334777,
+        1335801,
+        1336825,
+        1337849,
+        1338873,
+        1339897,
+        1340921
+      ],
+      "reference_keys": [
+        "decode_0_model.layers.0.self_attn.k_proj.weight_q",
+        "decode_1_model.layers.0.self_attn.k_proj.weight_q",
+        "decode_2_model.layers.0.self_attn.k_proj.weight_q",
+        "decode_3_model.layers.0.self_attn.k_proj.weight_q",
+        "decode_4_model.layers.0.self_attn.k_proj.weight_q",
+        "decode_5_model.layers.0.self_attn.k_proj.weight_q",
+        "decode_6_model.layers.0.self_attn.k_proj.weight_q",
+        "decode_7_model.layers.0.self_attn.k_proj.weight_q"
+      ]
+    },
+    {
+      "index": 63,
+      "graph": "decode",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_1_quantize_1x1024",
+      "operand": 2,
+      "phase": "after",
+      "reference_suffix": "model.layers.0.self_attn.k_proj.weight_a_scale",
+      "transform": "identity",
+      "shape": [
+        1
+      ],
+      "dtype": "f32",
+      "rank": 1,
+      "elements": 1,
+      "semantic": "model.layers.0.self_attn.k_proj.weight_a_scale",
+      "ir_line": "call @qwen_graph_w8a8_mm_1_quantize_1x1024(%55, %arg22, %arg26) : (tensor<1x1024xf32>, tensor<1x1024xi8>, tensor<1xf32>) -> ()",
+      "offsets": [
+        1341945,
+        1341946,
+        1341947,
+        1341948,
+        1341949,
+        1341950,
+        1341951,
+        1341952
+      ],
+      "reference_keys": [
+        "decode_0_model.layers.0.self_attn.k_proj.weight_a_scale",
+        "decode_1_model.layers.0.self_attn.k_proj.weight_a_scale",
+        "decode_2_model.layers.0.self_attn.k_proj.weight_a_scale",
+        "decode_3_model.layers.0.self_attn.k_proj.weight_a_scale",
+        "decode_4_model.layers.0.self_attn.k_proj.weight_a_scale",
+        "decode_5_model.layers.0.self_attn.k_proj.weight_a_scale",
+        "decode_6_model.layers.0.self_attn.k_proj.weight_a_scale",
+        "decode_7_model.layers.0.self_attn.k_proj.weight_a_scale"
+      ]
+    },
+    {
+      "index": 64,
+      "graph": "decode",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_1_dequantize_1x1024",
+      "operand": 3,
+      "phase": "after",
+      "reference_suffix": "model.layers.0.self_attn.k_proj.weight_out",
+      "transform": "identity",
+      "shape": [
+        1,
+        1024
+      ],
+      "dtype": "f32",
+      "rank": 2,
+      "elements": 1024,
+      "semantic": "model.layers.0.self_attn.k_proj.weight_out",
+      "ir_line": "call @qwen_graph_w8a8_mm_1_dequantize_1x1024(%arg25, %arg26, %arg27, %arg29) : (tensor<1x1024xi32>, tensor<1xf32>, tensor<1024xf32>, tensor<1x1024xf32>) -> ()",
+      "offsets": [
+        1341953,
+        1342977,
+        1344001,
+        1345025,
+        1346049,
+        1347073,
+        1348097,
+        1349121
+      ],
+      "reference_keys": [
+        "decode_0_model.layers.0.self_attn.k_proj.weight_out",
+        "decode_1_model.layers.0.self_attn.k_proj.weight_out",
+        "decode_2_model.layers.0.self_attn.k_proj.weight_out",
+        "decode_3_model.layers.0.self_attn.k_proj.weight_out",
+        "decode_4_model.layers.0.self_attn.k_proj.weight_out",
+        "decode_5_model.layers.0.self_attn.k_proj.weight_out",
+        "decode_6_model.layers.0.self_attn.k_proj.weight_out",
+        "decode_7_model.layers.0.self_attn.k_proj.weight_out"
+      ]
+    },
+    {
+      "index": 65,
+      "graph": "decode",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_2_quantize_1x1024",
+      "operand": 0,
+      "phase": "before",
+      "reference_suffix": "model.layers.0.self_attn.v_proj.weight_activation",
+      "transform": "identity",
+      "shape": [
+        1,
+        1024
+      ],
+      "dtype": "f32",
+      "rank": 2,
+      "elements": 1024,
+      "semantic": "model.layers.0.self_attn.v_proj.weight_activation",
+      "ir_line": "call @qwen_graph_w8a8_mm_2_quantize_1x1024(%63, %arg33, %arg37) : (tensor<1x1024xf32>, tensor<1x1024xi8>, tensor<1xf32>) -> ()",
+      "offsets": [
+        1350145,
+        1351169,
+        1352193,
+        1353217,
+        1354241,
+        1355265,
+        1356289,
+        1357313
+      ],
+      "reference_keys": [
+        "decode_0_model.layers.0.self_attn.v_proj.weight_activation",
+        "decode_1_model.layers.0.self_attn.v_proj.weight_activation",
+        "decode_2_model.layers.0.self_attn.v_proj.weight_activation",
+        "decode_3_model.layers.0.self_attn.v_proj.weight_activation",
+        "decode_4_model.layers.0.self_attn.v_proj.weight_activation",
+        "decode_5_model.layers.0.self_attn.v_proj.weight_activation",
+        "decode_6_model.layers.0.self_attn.v_proj.weight_activation",
+        "decode_7_model.layers.0.self_attn.v_proj.weight_activation"
+      ]
+    },
+    {
+      "index": 66,
+      "graph": "decode",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_2_quantize_1x1024",
+      "operand": 1,
+      "phase": "after",
+      "reference_suffix": "model.layers.0.self_attn.v_proj.weight_q",
+      "transform": "identity",
+      "shape": [
+        1,
+        1024
+      ],
+      "dtype": "i8",
+      "rank": 2,
+      "elements": 1024,
+      "semantic": "model.layers.0.self_attn.v_proj.weight_q",
+      "ir_line": "call @qwen_graph_w8a8_mm_2_quantize_1x1024(%63, %arg33, %arg37) : (tensor<1x1024xf32>, tensor<1x1024xi8>, tensor<1xf32>) -> ()",
+      "offsets": [
+        1358337,
+        1359361,
+        1360385,
+        1361409,
+        1362433,
+        1363457,
+        1364481,
+        1365505
+      ],
+      "reference_keys": [
+        "decode_0_model.layers.0.self_attn.v_proj.weight_q",
+        "decode_1_model.layers.0.self_attn.v_proj.weight_q",
+        "decode_2_model.layers.0.self_attn.v_proj.weight_q",
+        "decode_3_model.layers.0.self_attn.v_proj.weight_q",
+        "decode_4_model.layers.0.self_attn.v_proj.weight_q",
+        "decode_5_model.layers.0.self_attn.v_proj.weight_q",
+        "decode_6_model.layers.0.self_attn.v_proj.weight_q",
+        "decode_7_model.layers.0.self_attn.v_proj.weight_q"
+      ]
+    },
+    {
+      "index": 67,
+      "graph": "decode",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_2_quantize_1x1024",
+      "operand": 2,
+      "phase": "after",
+      "reference_suffix": "model.layers.0.self_attn.v_proj.weight_a_scale",
+      "transform": "identity",
+      "shape": [
+        1
+      ],
+      "dtype": "f32",
+      "rank": 1,
+      "elements": 1,
+      "semantic": "model.layers.0.self_attn.v_proj.weight_a_scale",
+      "ir_line": "call @qwen_graph_w8a8_mm_2_quantize_1x1024(%63, %arg33, %arg37) : (tensor<1x1024xf32>, tensor<1x1024xi8>, tensor<1xf32>) -> ()",
+      "offsets": [
+        1366529,
+        1366530,
+        1366531,
+        1366532,
+        1366533,
+        1366534,
+        1366535,
+        1366536
+      ],
+      "reference_keys": [
+        "decode_0_model.layers.0.self_attn.v_proj.weight_a_scale",
+        "decode_1_model.layers.0.self_attn.v_proj.weight_a_scale",
+        "decode_2_model.layers.0.self_attn.v_proj.weight_a_scale",
+        "decode_3_model.layers.0.self_attn.v_proj.weight_a_scale",
+        "decode_4_model.layers.0.self_attn.v_proj.weight_a_scale",
+        "decode_5_model.layers.0.self_attn.v_proj.weight_a_scale",
+        "decode_6_model.layers.0.self_attn.v_proj.weight_a_scale",
+        "decode_7_model.layers.0.self_attn.v_proj.weight_a_scale"
+      ]
+    },
+    {
+      "index": 68,
+      "graph": "decode",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_2_dequantize_1x1024",
+      "operand": 3,
+      "phase": "after",
+      "reference_suffix": "model.layers.0.self_attn.v_proj.weight_out",
+      "transform": "identity",
+      "shape": [
+        1,
+        1024
+      ],
+      "dtype": "f32",
+      "rank": 2,
+      "elements": 1024,
+      "semantic": "model.layers.0.self_attn.v_proj.weight_out",
+      "ir_line": "call @qwen_graph_w8a8_mm_2_dequantize_1x1024(%arg36, %arg37, %arg38, %arg40) : (tensor<1x1024xi32>, tensor<1xf32>, tensor<1024xf32>, tensor<1x1024xf32>) -> ()",
+      "offsets": [
+        1366537,
+        1367561,
+        1368585,
+        1369609,
+        1370633,
+        1371657,
+        1372681,
+        1373705
+      ],
+      "reference_keys": [
+        "decode_0_model.layers.0.self_attn.v_proj.weight_out",
+        "decode_1_model.layers.0.self_attn.v_proj.weight_out",
+        "decode_2_model.layers.0.self_attn.v_proj.weight_out",
+        "decode_3_model.layers.0.self_attn.v_proj.weight_out",
+        "decode_4_model.layers.0.self_attn.v_proj.weight_out",
+        "decode_5_model.layers.0.self_attn.v_proj.weight_out",
+        "decode_6_model.layers.0.self_attn.v_proj.weight_out",
+        "decode_7_model.layers.0.self_attn.v_proj.weight_out"
+      ]
+    },
+    {
+      "index": 69,
+      "graph": "decode",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_3_quantize_1x2048",
+      "operand": 0,
+      "phase": "before",
+      "reference_suffix": "model.layers.0.self_attn.o_proj.weight_activation",
+      "transform": "identity",
+      "shape": [
+        1,
+        2048
+      ],
+      "dtype": "f32",
+      "rank": 2,
+      "elements": 2048,
+      "semantic": "model.layers.0.self_attn.o_proj.weight_activation",
+      "ir_line": "call @qwen_graph_w8a8_mm_3_quantize_1x2048(%111, %arg68, %arg72) : (tensor<1x2048xf32>, tensor<1x2048xi8>, tensor<1xf32>) -> ()",
+      "offsets": [
+        1374729,
+        1376777,
+        1378825,
+        1380873,
+        1382921,
+        1384969,
+        1387017,
+        1389065
+      ],
+      "reference_keys": [
+        "decode_0_model.layers.0.self_attn.o_proj.weight_activation",
+        "decode_1_model.layers.0.self_attn.o_proj.weight_activation",
+        "decode_2_model.layers.0.self_attn.o_proj.weight_activation",
+        "decode_3_model.layers.0.self_attn.o_proj.weight_activation",
+        "decode_4_model.layers.0.self_attn.o_proj.weight_activation",
+        "decode_5_model.layers.0.self_attn.o_proj.weight_activation",
+        "decode_6_model.layers.0.self_attn.o_proj.weight_activation",
+        "decode_7_model.layers.0.self_attn.o_proj.weight_activation"
+      ]
+    },
+    {
+      "index": 70,
+      "graph": "decode",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_3_quantize_1x2048",
+      "operand": 1,
+      "phase": "after",
+      "reference_suffix": "model.layers.0.self_attn.o_proj.weight_q",
+      "transform": "identity",
+      "shape": [
+        1,
+        2048
+      ],
+      "dtype": "i8",
+      "rank": 2,
+      "elements": 2048,
+      "semantic": "model.layers.0.self_attn.o_proj.weight_q",
+      "ir_line": "call @qwen_graph_w8a8_mm_3_quantize_1x2048(%111, %arg68, %arg72) : (tensor<1x2048xf32>, tensor<1x2048xi8>, tensor<1xf32>) -> ()",
+      "offsets": [
+        1391113,
+        1393161,
+        1395209,
+        1397257,
+        1399305,
+        1401353,
+        1403401,
+        1405449
+      ],
+      "reference_keys": [
+        "decode_0_model.layers.0.self_attn.o_proj.weight_q",
+        "decode_1_model.layers.0.self_attn.o_proj.weight_q",
+        "decode_2_model.layers.0.self_attn.o_proj.weight_q",
+        "decode_3_model.layers.0.self_attn.o_proj.weight_q",
+        "decode_4_model.layers.0.self_attn.o_proj.weight_q",
+        "decode_5_model.layers.0.self_attn.o_proj.weight_q",
+        "decode_6_model.layers.0.self_attn.o_proj.weight_q",
+        "decode_7_model.layers.0.self_attn.o_proj.weight_q"
+      ]
+    },
+    {
+      "index": 71,
+      "graph": "decode",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_3_quantize_1x2048",
+      "operand": 2,
+      "phase": "after",
+      "reference_suffix": "model.layers.0.self_attn.o_proj.weight_a_scale",
+      "transform": "identity",
+      "shape": [
+        1
+      ],
+      "dtype": "f32",
+      "rank": 1,
+      "elements": 1,
+      "semantic": "model.layers.0.self_attn.o_proj.weight_a_scale",
+      "ir_line": "call @qwen_graph_w8a8_mm_3_quantize_1x2048(%111, %arg68, %arg72) : (tensor<1x2048xf32>, tensor<1x2048xi8>, tensor<1xf32>) -> ()",
+      "offsets": [
+        1407497,
+        1407498,
+        1407499,
+        1407500,
+        1407501,
+        1407502,
+        1407503,
+        1407504
+      ],
+      "reference_keys": [
+        "decode_0_model.layers.0.self_attn.o_proj.weight_a_scale",
+        "decode_1_model.layers.0.self_attn.o_proj.weight_a_scale",
+        "decode_2_model.layers.0.self_attn.o_proj.weight_a_scale",
+        "decode_3_model.layers.0.self_attn.o_proj.weight_a_scale",
+        "decode_4_model.layers.0.self_attn.o_proj.weight_a_scale",
+        "decode_5_model.layers.0.self_attn.o_proj.weight_a_scale",
+        "decode_6_model.layers.0.self_attn.o_proj.weight_a_scale",
+        "decode_7_model.layers.0.self_attn.o_proj.weight_a_scale"
+      ]
+    },
+    {
+      "index": 72,
+      "graph": "decode",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_3_dequantize_1x1024",
+      "operand": 3,
+      "phase": "after",
+      "reference_suffix": "model.layers.0.self_attn.o_proj.weight_out",
+      "transform": "identity",
+      "shape": [
+        1,
+        1024
+      ],
+      "dtype": "f32",
+      "rank": 2,
+      "elements": 1024,
+      "semantic": "model.layers.0.self_attn.o_proj.weight_out",
+      "ir_line": "call @qwen_graph_w8a8_mm_3_dequantize_1x1024(%arg71, %arg72, %arg73, %arg75) : (tensor<1x1024xi32>, tensor<1xf32>, tensor<1024xf32>, tensor<1x1024xf32>) -> ()",
+      "offsets": [
+        1407505,
+        1408529,
+        1409553,
+        1410577,
+        1411601,
+        1412625,
+        1413649,
+        1414673
+      ],
+      "reference_keys": [
+        "decode_0_model.layers.0.self_attn.o_proj.weight_out",
+        "decode_1_model.layers.0.self_attn.o_proj.weight_out",
+        "decode_2_model.layers.0.self_attn.o_proj.weight_out",
+        "decode_3_model.layers.0.self_attn.o_proj.weight_out",
+        "decode_4_model.layers.0.self_attn.o_proj.weight_out",
+        "decode_5_model.layers.0.self_attn.o_proj.weight_out",
+        "decode_6_model.layers.0.self_attn.o_proj.weight_out",
+        "decode_7_model.layers.0.self_attn.o_proj.weight_out"
+      ]
+    },
+    {
+      "index": 73,
+      "graph": "decode",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_4_quantize_1x1024",
+      "operand": 0,
+      "phase": "before",
+      "reference_suffix": "model.layers.0.mlp.gate_proj.weight_activation",
+      "transform": "identity",
+      "shape": [
+        1,
+        1024
+      ],
+      "dtype": "f32",
+      "rank": 2,
+      "elements": 1024,
+      "semantic": "model.layers.0.mlp.gate_proj.weight_activation",
+      "ir_line": "call @qwen_graph_w8a8_mm_4_quantize_1x1024(%117, %arg80, %arg84) : (tensor<1x1024xf32>, tensor<1x1024xi8>, tensor<1xf32>) -> ()",
+      "offsets": [
+        1415697,
+        1416721,
+        1417745,
+        1418769,
+        1419793,
+        1420817,
+        1421841,
+        1422865
+      ],
+      "reference_keys": [
+        "decode_0_model.layers.0.mlp.gate_proj.weight_activation",
+        "decode_1_model.layers.0.mlp.gate_proj.weight_activation",
+        "decode_2_model.layers.0.mlp.gate_proj.weight_activation",
+        "decode_3_model.layers.0.mlp.gate_proj.weight_activation",
+        "decode_4_model.layers.0.mlp.gate_proj.weight_activation",
+        "decode_5_model.layers.0.mlp.gate_proj.weight_activation",
+        "decode_6_model.layers.0.mlp.gate_proj.weight_activation",
+        "decode_7_model.layers.0.mlp.gate_proj.weight_activation"
+      ]
+    },
+    {
+      "index": 74,
+      "graph": "decode",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_4_quantize_1x1024",
+      "operand": 1,
+      "phase": "after",
+      "reference_suffix": "model.layers.0.mlp.gate_proj.weight_q",
+      "transform": "identity",
+      "shape": [
+        1,
+        1024
+      ],
+      "dtype": "i8",
+      "rank": 2,
+      "elements": 1024,
+      "semantic": "model.layers.0.mlp.gate_proj.weight_q",
+      "ir_line": "call @qwen_graph_w8a8_mm_4_quantize_1x1024(%117, %arg80, %arg84) : (tensor<1x1024xf32>, tensor<1x1024xi8>, tensor<1xf32>) -> ()",
+      "offsets": [
+        1423889,
+        1424913,
+        1425937,
+        1426961,
+        1427985,
+        1429009,
+        1430033,
+        1431057
+      ],
+      "reference_keys": [
+        "decode_0_model.layers.0.mlp.gate_proj.weight_q",
+        "decode_1_model.layers.0.mlp.gate_proj.weight_q",
+        "decode_2_model.layers.0.mlp.gate_proj.weight_q",
+        "decode_3_model.layers.0.mlp.gate_proj.weight_q",
+        "decode_4_model.layers.0.mlp.gate_proj.weight_q",
+        "decode_5_model.layers.0.mlp.gate_proj.weight_q",
+        "decode_6_model.layers.0.mlp.gate_proj.weight_q",
+        "decode_7_model.layers.0.mlp.gate_proj.weight_q"
+      ]
+    },
+    {
+      "index": 75,
+      "graph": "decode",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_4_quantize_1x1024",
+      "operand": 2,
+      "phase": "after",
+      "reference_suffix": "model.layers.0.mlp.gate_proj.weight_a_scale",
+      "transform": "identity",
+      "shape": [
+        1
+      ],
+      "dtype": "f32",
+      "rank": 1,
+      "elements": 1,
+      "semantic": "model.layers.0.mlp.gate_proj.weight_a_scale",
+      "ir_line": "call @qwen_graph_w8a8_mm_4_quantize_1x1024(%117, %arg80, %arg84) : (tensor<1x1024xf32>, tensor<1x1024xi8>, tensor<1xf32>) -> ()",
+      "offsets": [
+        1432081,
+        1432082,
+        1432083,
+        1432084,
+        1432085,
+        1432086,
+        1432087,
+        1432088
+      ],
+      "reference_keys": [
+        "decode_0_model.layers.0.mlp.gate_proj.weight_a_scale",
+        "decode_1_model.layers.0.mlp.gate_proj.weight_a_scale",
+        "decode_2_model.layers.0.mlp.gate_proj.weight_a_scale",
+        "decode_3_model.layers.0.mlp.gate_proj.weight_a_scale",
+        "decode_4_model.layers.0.mlp.gate_proj.weight_a_scale",
+        "decode_5_model.layers.0.mlp.gate_proj.weight_a_scale",
+        "decode_6_model.layers.0.mlp.gate_proj.weight_a_scale",
+        "decode_7_model.layers.0.mlp.gate_proj.weight_a_scale"
+      ]
+    },
+    {
+      "index": 76,
+      "graph": "decode",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_4_dequantize_1x3072",
+      "operand": 3,
+      "phase": "after",
+      "reference_suffix": "model.layers.0.mlp.gate_proj.weight_out",
+      "transform": "identity",
+      "shape": [
+        1,
+        3072
+      ],
+      "dtype": "f32",
+      "rank": 2,
+      "elements": 3072,
+      "semantic": "model.layers.0.mlp.gate_proj.weight_out",
+      "ir_line": "call @qwen_graph_w8a8_mm_4_dequantize_1x3072(%arg83, %arg84, %arg85, %arg87) : (tensor<1x3072xi32>, tensor<1xf32>, tensor<3072xf32>, tensor<1x3072xf32>) -> ()",
+      "offsets": [
+        1432089,
+        1435161,
+        1438233,
+        1441305,
+        1444377,
+        1447449,
+        1450521,
+        1453593
+      ],
+      "reference_keys": [
+        "decode_0_model.layers.0.mlp.gate_proj.weight_out",
+        "decode_1_model.layers.0.mlp.gate_proj.weight_out",
+        "decode_2_model.layers.0.mlp.gate_proj.weight_out",
+        "decode_3_model.layers.0.mlp.gate_proj.weight_out",
+        "decode_4_model.layers.0.mlp.gate_proj.weight_out",
+        "decode_5_model.layers.0.mlp.gate_proj.weight_out",
+        "decode_6_model.layers.0.mlp.gate_proj.weight_out",
+        "decode_7_model.layers.0.mlp.gate_proj.weight_out"
+      ]
+    },
+    {
+      "index": 77,
+      "graph": "decode",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_5_quantize_1x1024",
+      "operand": 0,
+      "phase": "before",
+      "reference_suffix": "model.layers.0.mlp.up_proj.weight_activation",
+      "transform": "identity",
+      "shape": [
+        1,
+        1024
+      ],
+      "dtype": "f32",
+      "rank": 2,
+      "elements": 1024,
+      "semantic": "model.layers.0.mlp.up_proj.weight_activation",
+      "ir_line": "call @qwen_graph_w8a8_mm_5_quantize_1x1024(%122, %arg90, %arg94) : (tensor<1x1024xf32>, tensor<1x1024xi8>, tensor<1xf32>) -> ()",
+      "offsets": [
+        1456665,
+        1457689,
+        1458713,
+        1459737,
+        1460761,
+        1461785,
+        1462809,
+        1463833
+      ],
+      "reference_keys": [
+        "decode_0_model.layers.0.mlp.up_proj.weight_activation",
+        "decode_1_model.layers.0.mlp.up_proj.weight_activation",
+        "decode_2_model.layers.0.mlp.up_proj.weight_activation",
+        "decode_3_model.layers.0.mlp.up_proj.weight_activation",
+        "decode_4_model.layers.0.mlp.up_proj.weight_activation",
+        "decode_5_model.layers.0.mlp.up_proj.weight_activation",
+        "decode_6_model.layers.0.mlp.up_proj.weight_activation",
+        "decode_7_model.layers.0.mlp.up_proj.weight_activation"
+      ]
+    },
+    {
+      "index": 78,
+      "graph": "decode",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_5_quantize_1x1024",
+      "operand": 1,
+      "phase": "after",
+      "reference_suffix": "model.layers.0.mlp.up_proj.weight_q",
+      "transform": "identity",
+      "shape": [
+        1,
+        1024
+      ],
+      "dtype": "i8",
+      "rank": 2,
+      "elements": 1024,
+      "semantic": "model.layers.0.mlp.up_proj.weight_q",
+      "ir_line": "call @qwen_graph_w8a8_mm_5_quantize_1x1024(%122, %arg90, %arg94) : (tensor<1x1024xf32>, tensor<1x1024xi8>, tensor<1xf32>) -> ()",
+      "offsets": [
+        1464857,
+        1465881,
+        1466905,
+        1467929,
+        1468953,
+        1469977,
+        1471001,
+        1472025
+      ],
+      "reference_keys": [
+        "decode_0_model.layers.0.mlp.up_proj.weight_q",
+        "decode_1_model.layers.0.mlp.up_proj.weight_q",
+        "decode_2_model.layers.0.mlp.up_proj.weight_q",
+        "decode_3_model.layers.0.mlp.up_proj.weight_q",
+        "decode_4_model.layers.0.mlp.up_proj.weight_q",
+        "decode_5_model.layers.0.mlp.up_proj.weight_q",
+        "decode_6_model.layers.0.mlp.up_proj.weight_q",
+        "decode_7_model.layers.0.mlp.up_proj.weight_q"
+      ]
+    },
+    {
+      "index": 79,
+      "graph": "decode",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_5_quantize_1x1024",
+      "operand": 2,
+      "phase": "after",
+      "reference_suffix": "model.layers.0.mlp.up_proj.weight_a_scale",
+      "transform": "identity",
+      "shape": [
+        1
+      ],
+      "dtype": "f32",
+      "rank": 1,
+      "elements": 1,
+      "semantic": "model.layers.0.mlp.up_proj.weight_a_scale",
+      "ir_line": "call @qwen_graph_w8a8_mm_5_quantize_1x1024(%122, %arg90, %arg94) : (tensor<1x1024xf32>, tensor<1x1024xi8>, tensor<1xf32>) -> ()",
+      "offsets": [
+        1473049,
+        1473050,
+        1473051,
+        1473052,
+        1473053,
+        1473054,
+        1473055,
+        1473056
+      ],
+      "reference_keys": [
+        "decode_0_model.layers.0.mlp.up_proj.weight_a_scale",
+        "decode_1_model.layers.0.mlp.up_proj.weight_a_scale",
+        "decode_2_model.layers.0.mlp.up_proj.weight_a_scale",
+        "decode_3_model.layers.0.mlp.up_proj.weight_a_scale",
+        "decode_4_model.layers.0.mlp.up_proj.weight_a_scale",
+        "decode_5_model.layers.0.mlp.up_proj.weight_a_scale",
+        "decode_6_model.layers.0.mlp.up_proj.weight_a_scale",
+        "decode_7_model.layers.0.mlp.up_proj.weight_a_scale"
+      ]
+    },
+    {
+      "index": 80,
+      "graph": "decode",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_5_dequantize_1x3072",
+      "operand": 3,
+      "phase": "after",
+      "reference_suffix": "model.layers.0.mlp.up_proj.weight_out",
+      "transform": "identity",
+      "shape": [
+        1,
+        3072
+      ],
+      "dtype": "f32",
+      "rank": 2,
+      "elements": 3072,
+      "semantic": "model.layers.0.mlp.up_proj.weight_out",
+      "ir_line": "call @qwen_graph_w8a8_mm_5_dequantize_1x3072(%arg93, %arg94, %arg95, %arg97) : (tensor<1x3072xi32>, tensor<1xf32>, tensor<3072xf32>, tensor<1x3072xf32>) -> ()",
+      "offsets": [
+        1473057,
+        1476129,
+        1479201,
+        1482273,
+        1485345,
+        1488417,
+        1491489,
+        1494561
+      ],
+      "reference_keys": [
+        "decode_0_model.layers.0.mlp.up_proj.weight_out",
+        "decode_1_model.layers.0.mlp.up_proj.weight_out",
+        "decode_2_model.layers.0.mlp.up_proj.weight_out",
+        "decode_3_model.layers.0.mlp.up_proj.weight_out",
+        "decode_4_model.layers.0.mlp.up_proj.weight_out",
+        "decode_5_model.layers.0.mlp.up_proj.weight_out",
+        "decode_6_model.layers.0.mlp.up_proj.weight_out",
+        "decode_7_model.layers.0.mlp.up_proj.weight_out"
+      ]
+    },
+    {
+      "index": 81,
+      "graph": "decode",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_6_quantize_1x3072",
+      "operand": 0,
+      "phase": "before",
+      "reference_suffix": "model.layers.0.mlp.down_proj.weight_activation",
+      "transform": "identity",
+      "shape": [
+        1,
+        3072
+      ],
+      "dtype": "f32",
+      "rank": 2,
+      "elements": 3072,
+      "semantic": "model.layers.0.mlp.down_proj.weight_activation",
+      "ir_line": "call @qwen_graph_w8a8_mm_6_quantize_1x3072(%128, %arg100, %arg104) : (tensor<1x3072xf32>, tensor<1x3072xi8>, tensor<1xf32>) -> ()",
+      "offsets": [
+        1497633,
+        1500705,
+        1503777,
+        1506849,
+        1509921,
+        1512993,
+        1516065,
+        1519137
+      ],
+      "reference_keys": [
+        "decode_0_model.layers.0.mlp.down_proj.weight_activation",
+        "decode_1_model.layers.0.mlp.down_proj.weight_activation",
+        "decode_2_model.layers.0.mlp.down_proj.weight_activation",
+        "decode_3_model.layers.0.mlp.down_proj.weight_activation",
+        "decode_4_model.layers.0.mlp.down_proj.weight_activation",
+        "decode_5_model.layers.0.mlp.down_proj.weight_activation",
+        "decode_6_model.layers.0.mlp.down_proj.weight_activation",
+        "decode_7_model.layers.0.mlp.down_proj.weight_activation"
+      ]
+    },
+    {
+      "index": 82,
+      "graph": "decode",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_6_quantize_1x3072",
+      "operand": 1,
+      "phase": "after",
+      "reference_suffix": "model.layers.0.mlp.down_proj.weight_q",
+      "transform": "identity",
+      "shape": [
+        1,
+        3072
+      ],
+      "dtype": "i8",
+      "rank": 2,
+      "elements": 3072,
+      "semantic": "model.layers.0.mlp.down_proj.weight_q",
+      "ir_line": "call @qwen_graph_w8a8_mm_6_quantize_1x3072(%128, %arg100, %arg104) : (tensor<1x3072xf32>, tensor<1x3072xi8>, tensor<1xf32>) -> ()",
+      "offsets": [
+        1522209,
+        1525281,
+        1528353,
+        1531425,
+        1534497,
+        1537569,
+        1540641,
+        1543713
+      ],
+      "reference_keys": [
+        "decode_0_model.layers.0.mlp.down_proj.weight_q",
+        "decode_1_model.layers.0.mlp.down_proj.weight_q",
+        "decode_2_model.layers.0.mlp.down_proj.weight_q",
+        "decode_3_model.layers.0.mlp.down_proj.weight_q",
+        "decode_4_model.layers.0.mlp.down_proj.weight_q",
+        "decode_5_model.layers.0.mlp.down_proj.weight_q",
+        "decode_6_model.layers.0.mlp.down_proj.weight_q",
+        "decode_7_model.layers.0.mlp.down_proj.weight_q"
+      ]
+    },
+    {
+      "index": 83,
+      "graph": "decode",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_6_quantize_1x3072",
+      "operand": 2,
+      "phase": "after",
+      "reference_suffix": "model.layers.0.mlp.down_proj.weight_a_scale",
+      "transform": "identity",
+      "shape": [
+        1
+      ],
+      "dtype": "f32",
+      "rank": 1,
+      "elements": 1,
+      "semantic": "model.layers.0.mlp.down_proj.weight_a_scale",
+      "ir_line": "call @qwen_graph_w8a8_mm_6_quantize_1x3072(%128, %arg100, %arg104) : (tensor<1x3072xf32>, tensor<1x3072xi8>, tensor<1xf32>) -> ()",
+      "offsets": [
+        1546785,
+        1546786,
+        1546787,
+        1546788,
+        1546789,
+        1546790,
+        1546791,
+        1546792
+      ],
+      "reference_keys": [
+        "decode_0_model.layers.0.mlp.down_proj.weight_a_scale",
+        "decode_1_model.layers.0.mlp.down_proj.weight_a_scale",
+        "decode_2_model.layers.0.mlp.down_proj.weight_a_scale",
+        "decode_3_model.layers.0.mlp.down_proj.weight_a_scale",
+        "decode_4_model.layers.0.mlp.down_proj.weight_a_scale",
+        "decode_5_model.layers.0.mlp.down_proj.weight_a_scale",
+        "decode_6_model.layers.0.mlp.down_proj.weight_a_scale",
+        "decode_7_model.layers.0.mlp.down_proj.weight_a_scale"
+      ]
+    },
+    {
+      "index": 84,
+      "graph": "decode",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_6_dequantize_1x1024",
+      "operand": 3,
+      "phase": "after",
+      "reference_suffix": "model.layers.0.mlp.down_proj.weight_out",
+      "transform": "identity",
+      "shape": [
+        1,
+        1024
+      ],
+      "dtype": "f32",
+      "rank": 2,
+      "elements": 1024,
+      "semantic": "model.layers.0.mlp.down_proj.weight_out",
+      "ir_line": "call @qwen_graph_w8a8_mm_6_dequantize_1x1024(%arg103, %arg104, %arg105, %arg107) : (tensor<1x1024xi32>, tensor<1xf32>, tensor<1024xf32>, tensor<1x1024xf32>) -> ()",
+      "offsets": [
+        1546793,
+        1547817,
+        1548841,
+        1549865,
+        1550889,
+        1551913,
+        1552937,
+        1553961
+      ],
+      "reference_keys": [
+        "decode_0_model.layers.0.mlp.down_proj.weight_out",
+        "decode_1_model.layers.0.mlp.down_proj.weight_out",
+        "decode_2_model.layers.0.mlp.down_proj.weight_out",
+        "decode_3_model.layers.0.mlp.down_proj.weight_out",
+        "decode_4_model.layers.0.mlp.down_proj.weight_out",
+        "decode_5_model.layers.0.mlp.down_proj.weight_out",
+        "decode_6_model.layers.0.mlp.down_proj.weight_out",
+        "decode_7_model.layers.0.mlp.down_proj.weight_out"
+      ]
+    },
+    {
+      "index": 85,
+      "graph": "decode",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_7_quantize_1x1024",
+      "operand": 0,
+      "phase": "before",
+      "reference_suffix": "model.embed_tokens.weight_activation",
+      "transform": "last_row",
+      "shape": [
+        1,
+        1024
+      ],
+      "dtype": "f32",
+      "rank": 2,
+      "elements": 1024,
+      "semantic": "model.embed_tokens.weight_activation",
+      "ir_line": "call @qwen_graph_w8a8_mm_7_quantize_1x1024(%134, %arg111, %arg115) : (tensor<1x1024xf32>, tensor<1x1024xi8>, tensor<1xf32>) -> ()",
+      "offsets": [
+        1554985,
+        1556009,
+        1557033,
+        1558057,
+        1559081,
+        1560105,
+        1561129,
+        1562153
+      ],
+      "reference_keys": [
+        "decode_0_model.embed_tokens.weight_activation",
+        "decode_1_model.embed_tokens.weight_activation",
+        "decode_2_model.embed_tokens.weight_activation",
+        "decode_3_model.embed_tokens.weight_activation",
+        "decode_4_model.embed_tokens.weight_activation",
+        "decode_5_model.embed_tokens.weight_activation",
+        "decode_6_model.embed_tokens.weight_activation",
+        "decode_7_model.embed_tokens.weight_activation"
+      ]
+    },
+    {
+      "index": 86,
+      "graph": "decode",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_7_quantize_1x1024",
+      "operand": 1,
+      "phase": "after",
+      "reference_suffix": "model.embed_tokens.weight_q",
+      "transform": "last_row",
+      "shape": [
+        1,
+        1024
+      ],
+      "dtype": "i8",
+      "rank": 2,
+      "elements": 1024,
+      "semantic": "model.embed_tokens.weight_q",
+      "ir_line": "call @qwen_graph_w8a8_mm_7_quantize_1x1024(%134, %arg111, %arg115) : (tensor<1x1024xf32>, tensor<1x1024xi8>, tensor<1xf32>) -> ()",
+      "offsets": [
+        1563177,
+        1564201,
+        1565225,
+        1566249,
+        1567273,
+        1568297,
+        1569321,
+        1570345
+      ],
+      "reference_keys": [
+        "decode_0_model.embed_tokens.weight_q",
+        "decode_1_model.embed_tokens.weight_q",
+        "decode_2_model.embed_tokens.weight_q",
+        "decode_3_model.embed_tokens.weight_q",
+        "decode_4_model.embed_tokens.weight_q",
+        "decode_5_model.embed_tokens.weight_q",
+        "decode_6_model.embed_tokens.weight_q",
+        "decode_7_model.embed_tokens.weight_q"
+      ]
+    },
+    {
+      "index": 87,
+      "graph": "decode",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_7_quantize_1x1024",
+      "operand": 2,
+      "phase": "after",
+      "reference_suffix": "model.embed_tokens.weight_a_scale",
+      "transform": "last_row",
+      "shape": [
+        1
+      ],
+      "dtype": "f32",
+      "rank": 1,
+      "elements": 1,
+      "semantic": "model.embed_tokens.weight_a_scale",
+      "ir_line": "call @qwen_graph_w8a8_mm_7_quantize_1x1024(%134, %arg111, %arg115) : (tensor<1x1024xf32>, tensor<1x1024xi8>, tensor<1xf32>) -> ()",
+      "offsets": [
+        1571369,
+        1571370,
+        1571371,
+        1571372,
+        1571373,
+        1571374,
+        1571375,
+        1571376
+      ],
+      "reference_keys": [
+        "decode_0_model.embed_tokens.weight_a_scale",
+        "decode_1_model.embed_tokens.weight_a_scale",
+        "decode_2_model.embed_tokens.weight_a_scale",
+        "decode_3_model.embed_tokens.weight_a_scale",
+        "decode_4_model.embed_tokens.weight_a_scale",
+        "decode_5_model.embed_tokens.weight_a_scale",
+        "decode_6_model.embed_tokens.weight_a_scale",
+        "decode_7_model.embed_tokens.weight_a_scale"
+      ]
+    },
+    {
+      "index": 88,
+      "graph": "decode",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_w8a8_mm_7_dequantize_1x151936",
+      "operand": 3,
+      "phase": "after",
+      "reference_suffix": "model.embed_tokens.weight_out",
+      "transform": "last_row",
+      "shape": [
+        1,
+        151936
+      ],
+      "dtype": "f32",
+      "rank": 2,
+      "elements": 151936,
+      "semantic": "model.embed_tokens.weight_out",
+      "ir_line": "call @qwen_graph_w8a8_mm_7_dequantize_1x151936(%arg114, %arg115, %arg116, %arg118) : (tensor<1x151936xi32>, tensor<1xf32>, tensor<151936xf32>, tensor<1x151936xf32>) -> ()",
+      "offsets": [
+        1571377,
+        1723313,
+        1875249,
+        2027185,
+        2179121,
+        2331057,
+        2482993,
+        2634929
+      ],
+      "reference_keys": [
+        "decode_0_model.embed_tokens.weight_out",
+        "decode_1_model.embed_tokens.weight_out",
+        "decode_2_model.embed_tokens.weight_out",
+        "decode_3_model.embed_tokens.weight_out",
+        "decode_4_model.embed_tokens.weight_out",
+        "decode_5_model.embed_tokens.weight_out",
+        "decode_6_model.embed_tokens.weight_out",
+        "decode_7_model.embed_tokens.weight_out"
+      ]
+    },
+    {
+      "index": 89,
+      "graph": "decode",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_qk_attention_qk_position_native_16x1x512x128",
+      "operand": 0,
+      "phase": "before",
+      "reference_suffix": "model.layers.0_q_rope",
+      "transform": "heads_first",
+      "shape": [
+        1,
+        16,
+        1,
+        128
+      ],
+      "dtype": "f32",
+      "rank": 4,
+      "elements": 2048,
+      "semantic": "model.layers.0_q_rope",
+      "ir_line": "call @qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_qk_attention_qk_position_native_16x1x512x128(%81, %98, %arg63, %arg55) : (tensor<1x16x1x128xf32>, tensor<1x16x512x128xf32>, tensor<1xi32>, tensor<1x16x1x512xf32>) -> ()",
+      "offsets": [
+        2786865,
+        2788913,
+        2790961,
+        2793009,
+        2795057,
+        2797105,
+        2799153,
+        2801201
+      ],
+      "reference_keys": [
+        "decode_0_model.layers.0_q_rope",
+        "decode_1_model.layers.0_q_rope",
+        "decode_2_model.layers.0_q_rope",
+        "decode_3_model.layers.0_q_rope",
+        "decode_4_model.layers.0_q_rope",
+        "decode_5_model.layers.0_q_rope",
+        "decode_6_model.layers.0_q_rope",
+        "decode_7_model.layers.0_q_rope"
+      ]
+    },
+    {
+      "index": 90,
+      "graph": "decode",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_softmax_softmax_16x1x512",
+      "operand": 3,
+      "phase": "after",
+      "reference_suffix": "model.layers.0_attention_probabilities",
+      "transform": "identity",
+      "shape": [
+        1,
+        16,
+        1,
+        512
+      ],
+      "dtype": "f32",
+      "rank": 4,
+      "elements": 8192,
+      "semantic": "model.layers.0_attention_probabilities",
+      "ir_line": "call @qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_softmax_softmax_16x1x512(%arg58, %arg59, %arg60, %arg62) : (tensor<1x16x1x512xf32>, tensor<16xf32>, tensor<16xf32>, tensor<1x16x1x512xf32>) -> ()",
+      "offsets": [
+        2803249,
+        2811441,
+        2819633,
+        2827825,
+        2836017,
+        2844209,
+        2852401,
+        2860593
+      ],
+      "reference_keys": [
+        "decode_0_model.layers.0_attention_probabilities",
+        "decode_1_model.layers.0_attention_probabilities",
+        "decode_2_model.layers.0_attention_probabilities",
+        "decode_3_model.layers.0_attention_probabilities",
+        "decode_4_model.layers.0_attention_probabilities",
+        "decode_5_model.layers.0_attention_probabilities",
+        "decode_6_model.layers.0_attention_probabilities",
+        "decode_7_model.layers.0_attention_probabilities"
+      ]
+    },
+    {
+      "index": 91,
+      "graph": "decode",
+      "layer": 0,
+      "symbol": "_mlir_ciface_qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_pv_attention_pv_position_16x1x128x512",
+      "operand": 3,
+      "phase": "after",
+      "reference_suffix": "model.layers.0_attention_context",
+      "transform": "context_heads_first",
+      "shape": [
+        1,
+        16,
+        1,
+        128
+      ],
+      "dtype": "f32",
+      "rank": 4,
+      "elements": 2048,
+      "semantic": "model.layers.0_attention_context",
+      "ir_line": "call @qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_pv_attention_pv_position_16x1x128x512(%arg62, %104, %arg63, %arg65) : (tensor<1x16x1x512xf32>, tensor<1x16x512x128xf32>, tensor<1xi32>, tensor<1x16x1x128xf32>) -> ()",
+      "offsets": [
+        2868785,
+        2870833,
+        2872881,
+        2874929,
+        2876977,
+        2879025,
+        2881073,
+        2883121
+      ],
+      "reference_keys": [
+        "decode_0_model.layers.0_attention_context",
+        "decode_1_model.layers.0_attention_context",
+        "decode_2_model.layers.0_attention_context",
+        "decode_3_model.layers.0_attention_context",
+        "decode_4_model.layers.0_attention_context",
+        "decode_5_model.layers.0_attention_context",
+        "decode_6_model.layers.0_attention_context",
+        "decode_7_model.layers.0_attention_context"
+      ]
+    }
+  ],
+  "uncovered_reference_tensors": [
+    "decode_0_model.layers.0_k_rope",
+    "decode_0_model.layers.0_swiglu",
+    "decode_1_model.layers.0_k_rope",
+    "decode_1_model.layers.0_swiglu",
+    "decode_2_model.layers.0_k_rope",
+    "decode_2_model.layers.0_swiglu",
+    "decode_3_model.layers.0_k_rope",
+    "decode_3_model.layers.0_swiglu",
+    "decode_4_model.layers.0_k_rope",
+    "decode_4_model.layers.0_swiglu",
+    "decode_5_model.layers.0_k_rope",
+    "decode_5_model.layers.0_swiglu",
+    "decode_6_model.layers.0_k_rope",
+    "decode_6_model.layers.0_swiglu",
+    "decode_7_model.layers.0_k_rope",
+    "decode_7_model.layers.0_swiglu",
+    "decode_layer_0_hidden",
+    "prefill_model.layers.0_k_rope",
+    "prefill_model.layers.0_swiglu"
+  ],
+  "reference_bytes": 11540676,
+  "source_sha256": {
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-native-1l/replacement/subgraph0_prefill.triton.mlir": "981a02d3d4102cad0991141474b54602faec3b88f4f3430504d78dcefbc5ac5d",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-native-1l/nr-prefill/forward_prefill.ll": "ef07f063f67b4813f4b89b357284621ef0d1a75d30e087eec76c5289d420265a",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-native-1l/replacement/subgraph0_decode.triton.mlir": "fd46f600d823ed22d48c890ae4b891e49f521a7d23db421971a553d51ddc71db",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-native-1l/nr-decode/forward_decode.ll": "bf5f0375f95d94f031fb79af597d668bade72ad6dcd5d22e4daa3b2dc2314a59",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-native-1l/replacement/triton-call-replacement.json": "25c3a9dfe2bd669e129257800403cf9e114cbc1cdb9585baee815ef9ce8432b2",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-native-1l/replacement/qwen_triton_adapters.c": "b1c26f0a2b4b29d1778014b01558e0ee82cfabaffe5820e2edfed0b1a1fbbcd4",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/import/probe-1layer/weight-layout.json": "93bc5b6ba9f8f3f8924f1e0d08e7c7624041c0ef0da195de6812d5cef3753ea7",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-native-1l/quant-nr-trace/arrays.npz": "8ecef9dbc3e7726aed95bed08eff5d0fda7a66f9f9e7725228c7a9cf828d8281",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-native-1l/quant-nr-trace/quant-reference.json": "9dbe7bb1b85e0972078a04ea337a85ea047483767f66922c7b89faa765e35918"
+  },
+  "generated_source_sha256": "834f052f259c7adfdd928b0d04d68505db167d5e25da9f0577c45374fa63b8c2",
+  "reference_blob_sha256": "45f39019e82a40da1c0a929eb6af337a62deb5c0a7b8450dfb7cc828b3cca87a",
+  "linker_flags": [
+    "--wrap=_mlir_ciface_qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_pv_attention_pv_position_16x16x128x512",
+    "--wrap=_mlir_ciface_qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_pv_attention_pv_position_16x1x128x512",
+    "--wrap=_mlir_ciface_qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_qk_attention_qk_position_native_16x16x512x128",
+    "--wrap=_mlir_ciface_qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_qk_attention_qk_position_native_16x1x512x128",
+    "--wrap=_mlir_ciface_qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_softmax_softmax_16x16x512",
+    "--wrap=_mlir_ciface_qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_softmax_softmax_16x1x512",
+    "--wrap=_mlir_ciface_qwen_graph_rmsnorm_128x128__forward_prefill_mul_7",
+    "--wrap=_mlir_ciface_qwen_graph_rmsnorm_16x1024__forward_prefill_mul_13",
+    "--wrap=_mlir_ciface_qwen_graph_rmsnorm_16x1024__forward_prefill_mul_17",
+    "--wrap=_mlir_ciface_qwen_graph_rmsnorm_16x1024__forward_prefill_mul_3",
+    "--wrap=_mlir_ciface_qwen_graph_rmsnorm_16x128__forward_decode_mul_5",
+    "--wrap=_mlir_ciface_qwen_graph_rmsnorm_1x1024__forward_decode_mul_13",
+    "--wrap=_mlir_ciface_qwen_graph_rmsnorm_1x1024__forward_decode_mul_17",
+    "--wrap=_mlir_ciface_qwen_graph_rmsnorm_1x1024__forward_decode_mul_3",
+    "--wrap=_mlir_ciface_qwen_graph_rmsnorm_256x128__forward_prefill_mul_5",
+    "--wrap=_mlir_ciface_qwen_graph_rmsnorm_8x128__forward_decode_mul_7",
+    "--wrap=_mlir_ciface_qwen_graph_silu_16x3072__forward_prefill_mul_14",
+    "--wrap=_mlir_ciface_qwen_graph_silu_1x3072__forward_decode_mul_14",
+    "--wrap=_mlir_ciface_qwen_graph_w8a8_mm_1_dequantize_16x1024",
+    "--wrap=_mlir_ciface_qwen_graph_w8a8_mm_1_dequantize_1x1024",
+    "--wrap=_mlir_ciface_qwen_graph_w8a8_mm_1_quantize_16x1024",
+    "--wrap=_mlir_ciface_qwen_graph_w8a8_mm_1_quantize_1x1024",
+    "--wrap=_mlir_ciface_qwen_graph_w8a8_mm_2_dequantize_16x1024",
+    "--wrap=_mlir_ciface_qwen_graph_w8a8_mm_2_dequantize_1x1024",
+    "--wrap=_mlir_ciface_qwen_graph_w8a8_mm_2_quantize_16x1024",
+    "--wrap=_mlir_ciface_qwen_graph_w8a8_mm_2_quantize_1x1024",
+    "--wrap=_mlir_ciface_qwen_graph_w8a8_mm_3_dequantize_16x1024",
+    "--wrap=_mlir_ciface_qwen_graph_w8a8_mm_3_dequantize_1x1024",
+    "--wrap=_mlir_ciface_qwen_graph_w8a8_mm_3_quantize_16x2048",
+    "--wrap=_mlir_ciface_qwen_graph_w8a8_mm_3_quantize_1x2048",
+    "--wrap=_mlir_ciface_qwen_graph_w8a8_mm_4_dequantize_16x3072",
+    "--wrap=_mlir_ciface_qwen_graph_w8a8_mm_4_dequantize_1x3072",
+    "--wrap=_mlir_ciface_qwen_graph_w8a8_mm_4_quantize_16x1024",
+    "--wrap=_mlir_ciface_qwen_graph_w8a8_mm_4_quantize_1x1024",
+    "--wrap=_mlir_ciface_qwen_graph_w8a8_mm_5_dequantize_16x3072",
+    "--wrap=_mlir_ciface_qwen_graph_w8a8_mm_5_dequantize_1x3072",
+    "--wrap=_mlir_ciface_qwen_graph_w8a8_mm_5_quantize_16x1024",
+    "--wrap=_mlir_ciface_qwen_graph_w8a8_mm_5_quantize_1x1024",
+    "--wrap=_mlir_ciface_qwen_graph_w8a8_mm_6_dequantize_16x1024",
+    "--wrap=_mlir_ciface_qwen_graph_w8a8_mm_6_dequantize_1x1024",
+    "--wrap=_mlir_ciface_qwen_graph_w8a8_mm_6_quantize_16x3072",
+    "--wrap=_mlir_ciface_qwen_graph_w8a8_mm_6_quantize_1x3072",
+    "--wrap=_mlir_ciface_qwen_graph_w8a8_mm_7_dequantize_1x151936",
+    "--wrap=_mlir_ciface_qwen_graph_w8a8_mm_7_quantize_1x1024",
+    "--wrap=_mlir_ciface_qwen_graph_w8a8_mm_dequantize_16x2048",
+    "--wrap=_mlir_ciface_qwen_graph_w8a8_mm_dequantize_1x2048",
+    "--wrap=_mlir_ciface_qwen_graph_w8a8_mm_quantize_16x1024",
+    "--wrap=_mlir_ciface_qwen_graph_w8a8_mm_quantize_1x1024"
+  ],
+  "scope": "full tensors at verified external adapter boundaries; one decoder layer only",
+  "limitations": [
+    "q/k/v linears covered, but int32 accumulator not captured",
+    "K RoPE validated by existing full KV comparator; no direct intermediate hook",
+    "SwiGLU captured as down projection activation; final norm captured at lm_head input",
+    "comparison and synchronization overhead included in instrumented graph cycles"
+  ]
+}

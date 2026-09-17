@@ -1,0 +1,6 @@
+[attention-position] valid=00000001 errors=00000000 kernel_cycles=0000000000000046
+[attention-position] valid=00000002 errors=00000000 kernel_cycles=0000000000000035
+[attention-position] valid=00000017 errors=00000000 kernel_cycles=000000000000005b
+[attention-position] valid=00000002 errors=00000000 kernel_cycles=000000000000002f
+[attention-position] valid=00000001 errors=00000000 kernel_cycles=0000000000000039
+verify attention_qk_position_16x1x512x128_bounds: PASS errors=00000000 max_abs_error_f32_bits=00000000

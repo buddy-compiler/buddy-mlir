@@ -1,0 +1,536 @@
+{
+  "stage": "C+D: full 28-layer compiled graph, 16-token prefill then 8 decode steps",
+  "execution": "Buddy graph compiled to LLVM and run through MLIR's ExecutionEngine on the host",
+  "not_fpga": true,
+  "source_report": "build/host-run/full-28l/host-run.json",
+  "source_report_sha256": "9907858b29244d50dea664d39f3005a21bf49658665731425bfbae621a8d05fa",
+  "jit_opt_level": 1,
+  "jit_threads": 8,
+  "avoids_frontend_opt_level_3": "the frontend helper hardcodes opt_level=3, which did not finish in >30 min on this graph; MLIR lowering is identical at every level",
+  "layers": 28,
+  "parameter_count": 311,
+  "param_order_matches_layout": true,
+  "weight_sections_filled": 310,
+  "computed_sections": [
+    {
+      "index": 310,
+      "kind": "inv_freq",
+      "elements": 64
+    }
+  ],
+  "layout_sha256": "9b2d4eb5b7145f405ffdd8e934251a9cb1f643377760a2d49ef336c092db63ee",
+  "weights_source": "validation/weight-layout.json offsets, filled from the pinned safetensors checkpoint",
+  "prefill": {
+    "func": "forward_prefill",
+    "outputs": [
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      [],
+      []
+    ],
+    "argmax_all": [
+      14582,
+      198,
+      106287,
+      374,
+      279,
+      594,
+      3555,
+      198,
+      151644,
+      198,
+      510,
+      151667,
+      198,
+      151668,
+      271,
+      49000
+    ],
+    "argmax_last": 49000
+  },
+  "decode_steps": [
+    {
+      "step": 0,
+      "cache_position": 16,
+      "input_token": 49000,
+      "generated_token": 374,
+      "top_k": [
+        [
+          374,
+          26.542766571044922
+        ],
+        [
+          11,
+          20.8554744720459
+        ],
+        [
+          320,
+          18.772729873657227
+        ],
+        [
+          19257,
+          18.570295333862305
+        ],
+        [
+          13352,
+          16.292509078979492
+        ],
+        [
+          702,
+          15.988446235656738
+        ],
+        [
+          646,
+          15.493329048156738
+        ],
+        [
+          101909,
+          15.391693115234375
+        ]
+      ]
+    },
+    {
+      "step": 1,
+      "cache_position": 17,
+      "input_token": 374,
+      "generated_token": 264,
+      "top_k": [
+        [
+          264,
+          25.546052932739258
+        ],
+        [
+          279,
+          21.394681930541992
+        ],
+        [
+          458,
+          19.935701370239258
+        ],
+        [
+          825,
+          18.39728355407715
+        ],
+        [
+          3545,
+          18.131084442138672
+        ],
+        [
+          7407,
+          17.1502628326416
+        ],
+        [
+          3070,
+          16.626970291137695
+        ],
+        [
+          2176,
+          16.217439651489258
+        ]
+      ]
+    },
+    {
+      "step": 2,
+      "cache_position": 18,
+      "input_token": 264,
+      "generated_token": 3146,
+      "top_k": [
+        [
+          3146,
+          20.14429473876953
+        ],
+        [
+          45284,
+          16.302675247192383
+        ],
+        [
+          3070,
+          16.11419105529785
+        ],
+        [
+          6995,
+          15.851381301879883
+        ],
+        [
+          3460,
+          15.693059921264648
+        ],
+        [
+          4268,
+          14.946646690368652
+        ],
+        [
+          7513,
+          14.761960983276367
+        ],
+        [
+          24526,
+          14.755953788757324
+        ]
+      ]
+    },
+    {
+      "step": 3,
+      "cache_position": 19,
+      "input_token": 3146,
+      "generated_token": 7407,
+      "top_k": [
+        [
+          7407,
+          23.890871047973633
+        ],
+        [
+          304,
+          22.804149627685547
+        ],
+        [
+          429,
+          18.47698211669922
+        ],
+        [
+          30083,
+          18.017871856689453
+        ],
+        [
+          389,
+          17.015562057495117
+        ],
+        [
+          11,
+          16.839981079101562
+        ],
+        [
+          30606,
+          15.813299179077148
+        ],
+        [
+          23415,
+          15.70845890045166
+        ]
+      ]
+    },
+    {
+      "step": 4,
+      "cache_position": 20,
+      "input_token": 7407,
+      "generated_token": 304,
+      "top_k": [
+        [
+          304,
+          26.357994079589844
+        ],
+        [
+          518,
+          20.824750900268555
+        ],
+        [
+          389,
+          20.563703536987305
+        ],
+        [
+          311,
+          19.38243293762207
+        ],
+        [
+          15503,
+          18.331039428710938
+        ],
+        [
+          11368,
+          17.687265396118164
+        ],
+        [
+          2878,
+          17.365602493286133
+        ],
+        [
+          14576,
+          16.42205047607422
+        ]
+      ]
+    },
+    {
+      "step": 5,
+      "cache_position": 21,
+      "input_token": 304,
+      "generated_token": 4787,
+      "top_k": [
+        [
+          4787,
+          21.13728904724121
+        ],
+        [
+          10867,
+          20.202041625976562
+        ],
+        [
+          4505,
+          19.757360458374023
+        ],
+        [
+          18494,
+          19.616729736328125
+        ],
+        [
+          10200,
+          19.157272338867188
+        ],
+        [
+          16926,
+          18.994064331054688
+        ],
+        [
+          18172,
+          18.85576629638672
+        ],
+        [
+          23149,
+          18.50930404663086
+        ]
+      ]
+    },
+    {
+      "step": 6,
+      "cache_position": 22,
+      "input_token": 4787,
+      "generated_token": 5159,
+      "top_k": [
+        [
+          5159,
+          19.852109909057617
+        ],
+        [
+          10174,
+          18.53658676147461
+        ],
+        [
+          30282,
+          18.456342697143555
+        ],
+        [
+          60761,
+          17.810338973999023
+        ],
+        [
+          4505,
+          17.100505828857422
+        ],
+        [
+          37602,
+          17.093326568603516
+        ],
+        [
+          10867,
+          16.619277954101562
+        ],
+        [
+          93664,
+          16.03266716003418
+        ]
+      ]
+    },
+    {
+      "step": 7,
+      "cache_position": 23,
+      "input_token": 5159,
+      "generated_token": 11,
+      "top_k": [
+        [
+          11,
+          22.541589736938477
+        ],
+        [
+          13,
+          22.138700485229492
+        ],
+        [
+          323,
+          18.62289047241211
+        ],
+        [
+          304,
+          17.786287307739258
+        ],
+        [
+          320,
+          17.436574935913086
+        ],
+        [
+          7407,
+          16.762828826904297
+        ],
+        [
+          448,
+          16.610395431518555
+        ],
+        [
+          1948,
+          15.70604133605957
+        ]
+      ]
+    }
+  ],
+  "generated_ids": [
+    374,
+    264,
+    3146,
+    7407,
+    304,
+    4787,
+    5159,
+    11
+  ],
+  "fp32_reference_generated_ids": [
+    374,
+    264,
+    3146,
+    7407,
+    304,
+    4787,
+    5159,
+    11
+  ],
+  "token_trajectory_matches_fp32": true,
+  "compiled_graph_vs_fp32": {
+    "prefill_logits": {
+      "max_abs_error": 0.000125885009765625,
+      "mean_abs_error": 1.5077376014972839e-05,
+      "cosine_similarity": 0.9999999999883976,
+      "elements": 2430976
+    },
+    "decode_logits_0": {
+      "max_abs_error": 8.58306884765625e-05,
+      "mean_abs_error": 1.9258048154034445e-05,
+      "cosine_similarity": 0.9999999999973829,
+      "elements": 151936
+    },
+    "decode_logits_1": {
+      "max_abs_error": 7.343292236328125e-05,
+      "mean_abs_error": 1.1103300850574535e-05,
+      "cosine_similarity": 0.9999999999981269,
+      "elements": 151936
+    },
+    "decode_logits_2": {
+      "max_abs_error": 8.0108642578125e-05,
+      "mean_abs_error": 1.1806665465534643e-05,
+      "cosine_similarity": 0.9999999999985397,
+      "elements": 151936
+    },
+    "decode_logits_3": {
+      "max_abs_error": 6.771087646484375e-05,
+      "mean_abs_error": 1.1836389543890098e-05,
+      "cosine_similarity": 0.9999999999984567,
+      "elements": 151936
+    },
+    "decode_logits_4": {
+      "max_abs_error": 5.7220458984375e-05,
+      "mean_abs_error": 9.693727594685927e-06,
+      "cosine_similarity": 0.9999999999987387,
+      "elements": 151936
+    },
+    "decode_logits_5": {
+      "max_abs_error": 6.961822509765625e-05,
+      "mean_abs_error": 9.805590633749066e-06,
+      "cosine_similarity": 0.9999999999986229,
+      "elements": 151936
+    },
+    "decode_logits_6": {
+      "max_abs_error": 6.866455078125e-05,
+      "mean_abs_error": 9.763971588336407e-06,
+      "cosine_similarity": 0.9999999999982496,
+      "elements": 151936
+    },
+    "decode_logits_7": {
+      "max_abs_error": 6.103515625e-05,
+      "mean_abs_error": 9.811076132136146e-06,
+      "cosine_similarity": 0.999999999997083,
+      "elements": 151936
+    }
+  },
+  "kv_cache": {
+    "note": "prefill and decode share one set of persistent cache buffers passed as graph inputs",
+    "shape": "1x8x512x128 per layer per K/V",
+    "used_positions": 24
+  }
+}

@@ -742,9 +742,17 @@ class Graph:
             element_dtype=element_dtype,
         )
 
-    def lower_to_llvm_ir(self):
+    def lower_to_llvm_ir(self, enable_openmp: bool = True):
         """
         Lower graph to llvm ir.
+
+        Args:
+            enable_openmp: Lower `scf` to OpenMP parallel regions. The host JIT
+                uses this for parallelism. A bare-metal target must not: it pulls
+                in a `libomp` runtime (`__kmpc_*`) that does not exist there, and
+                the handwritten NR operator pipeline lowers `scf` to `cf`
+                instead. Turning it off leaves the `scf` ops for the
+                `convert-scf-to-cf` pass that already runs later in this pipeline.
         """
         if self._imported_module is None:
             self.lower_to_top_level_ir()
@@ -776,7 +784,8 @@ class Graph:
             pm.add("convert-linalg-to-affine-loops")
             pm.add("convert-vector-to-scf")
             pm.add("lower-affine")
-            pm.add("convert-scf-to-openmp")
+            if enable_openmp:
+                pm.add("convert-scf-to-openmp")
             pm.add("cse")
             pm.add("memref-expand")
             pm.add("arith-expand")
@@ -784,24 +793,73 @@ class Graph:
             pm.add("convert-vector-to-llvm")
             pm.add("convert-complex-to-llvm")
             pm.add("convert-arith-to-llvm")
+            # Mirrors the handwritten operator pipeline in
+            # examples/FPGA-BOSCAME/qwen3-0.6b/common.mk. It does not by itself
+            # fix the index-typed constants described in
+            # _repair_index_constants (verified by bisecting the pipeline), but
+            # it keeps the two pipelines aligned.
+            pm.add("convert-index-to-llvm")
             pm.add("finalize-memref-to-llvm")
             pm.add("convert-scf-to-cf")
             pm.add("convert-cf-to-llvm")
             pm.add("func.func(llvm-request-c-wrappers)")
-            pm.add("convert-openmp-to-llvm")
+            if enable_openmp:
+                pm.add("convert-openmp-to-llvm")
             pm.add("convert-arith-to-llvm")
             pm.add("convert-math-to-llvm")
             pm.add("convert-math-to-libm")
             pm.add("convert-func-to-llvm")
             pm.add("reconcile-unrealized-casts")
             pm.run(self._imported_module.operation)
+            self._repair_index_constants()
 
-    def compile(self):
+    def _repair_index_constants(self):
+        """Re-type `llvm.mlir.constant` attributes that disagree with their result.
+
+        The vector/arith/memref-to-LLVM conversions in this checkout emit
+        ``llvm.mlir.constant(0 : index) : i64`` -- an ``index``-typed attribute on
+        an ``i64`` result -- for constants that pass through memref descriptors.
+        That form is rejected by the verifier, so the module prints but cannot be
+        parsed again: ``buddy-opt`` and ``buddy-translate`` both fail on it, which
+        blocks the RISC-V path entirely (the host JIT happens to tolerate it).
+
+        Running ``convert-index-to-llvm`` before, between or after those passes
+        does not help -- verified by bisecting the pipeline, which shows the
+        count going 0 -> 166 (convert-vector-to-llvm) -> 188
+        (convert-arith-to-llvm) -> 2311 (finalize-memref-to-llvm) and staying
+        there. So the attribute is rewritten here, matching the result type.
+        Only mismatched constants are touched; a valid module is unchanged.
+        """
+        def walk(op):
+            yield op
+            for region in op.regions:
+                for block in region.blocks:
+                    for inner in block.operations:
+                        yield from walk(inner)
+
+        repaired = 0
+        for op in walk(self._imported_module.operation):
+            if op.operation.name != "llvm.mlir.constant":
+                continue
+            if "value" not in op.attributes or not op.results:
+                continue
+            attribute = op.attributes["value"]
+            result_type = op.results[0].type
+            if attribute.type == result_type:
+                continue
+            if not isinstance(attribute, ir.IntegerAttr):
+                continue
+            op.attributes["value"] = ir.IntegerAttr.get(result_type,
+                                                        attribute.value)
+            repaired += 1
+        return repaired
+
+    def compile(self, enable_openmp: bool = True):
         """
         Compile graph from Buddy Graph to LLVM IR.
         """
         self.lower_to_top_level_ir()
-        self.lower_to_llvm_ir()
+        self.lower_to_llvm_ir(enable_openmp=enable_openmp)
 
 
 class GraphImporter:
@@ -1013,9 +1071,18 @@ class GraphImporter:
             if self._enable_external_calls:
                 from .operation import CallExternalOp
 
+                # One declaration per callee, not per call site. A model graph
+                # calls the same kernel hundreds of times, and re-declaring the
+                # symbol for every call makes MLIR reject the module with a
+                # "redefinition of symbol" error.
+                declared = set()
                 for node in self._body:
-                    if isinstance(node, CallExternalOp):
-                        self._generate_external_func_decl(node)
+                    if not isinstance(node, CallExternalOp):
+                        continue
+                    if node.call_func_name in declared:
+                        continue
+                    declared.add(node.call_func_name)
+                    self._generate_external_func_decl(node)
 
         return self._module
 

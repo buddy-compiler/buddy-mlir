@@ -1,0 +1,307 @@
+{
+  "model": "Qwen3-0.6B",
+  "scope": "Independent operator validation, not end-to-end inference or checkpoint accuracy",
+  "sources": {
+    "structure_repository": "https://gitlink.org.cn/michaelcjl/qwen3-0.6b.git",
+    "official_config": "https://huggingface.co/Qwen/Qwen3-0.6B/raw/main/config.json",
+    "official_config_retrieved": "2026-09-16",
+    "implementation_reference_repository": "https://gitlink.org.cn/michaelcjl/ModelZoo.git",
+    "implementation_reference_commit": "8815b74fb6d3cd6288c4d99ac6fd7c5d041a7cc3",
+    "legacy_v01_operators_reused": false,
+    "structure_commit": "e9bb2dc3e2fe3893cd84f8bc19d0872618c8a0d6",
+    "official_model_definition": "https://github.com/huggingface/transformers/blob/v4.51.0/src/transformers/models/qwen3/modeling_qwen3.py",
+    "structure_evidence": [
+      {
+        "file": "config.json",
+        "lines": [
+          9,
+          29
+        ],
+        "purpose": "official dimensions, normalization, RoPE and dtype"
+      },
+      {
+        "file": "convert_qwen3_06b_fp32.py",
+        "lines": [
+          63,
+          101
+        ],
+        "purpose": "actual projection shapes and mandatory Q/K norm parameters"
+      },
+      {
+        "file": "qwen3_run.c",
+        "lines": [
+          338,
+          433
+        ],
+        "purpose": "model-level call graph only; implementations not reused"
+      },
+      {
+        "file": "qwen3_run.c",
+        "lines": [
+          607,
+          648
+        ],
+        "purpose": "variable prompt length and single-token prefill/decode scheduling"
+      }
+    ],
+    "historical_blob_note": {
+      "file": "qwen3-0.6b-fp32.bin",
+      "header_version": 1,
+      "rope_theta": 10000,
+      "has_qk_norm_header_field": false,
+      "used_as_structure_authority": false
+    },
+    "reference_schedule": "Variable prompt length; token-by-token prefill. README includes a five-token example; it does not impose S=5.",
+    "fused_qkv_storage_note": "Reference exporter concatenates Q,K,V into [4096,1024]. Standalone cases represent the official separate projections."
+  },
+  "official_config": {
+    "architectures": [
+      "Qwen3ForCausalLM"
+    ],
+    "attention_bias": false,
+    "attention_dropout": 0.0,
+    "bos_token_id": 151643,
+    "eos_token_id": 151645,
+    "head_dim": 128,
+    "hidden_act": "silu",
+    "hidden_size": 1024,
+    "initializer_range": 0.02,
+    "intermediate_size": 3072,
+    "max_position_embeddings": 40960,
+    "max_window_layers": 28,
+    "model_type": "qwen3",
+    "num_attention_heads": 16,
+    "num_hidden_layers": 28,
+    "num_key_value_heads": 8,
+    "rms_norm_eps": 1e-06,
+    "rope_scaling": null,
+    "rope_theta": 1000000,
+    "sliding_window": null,
+    "tie_word_embeddings": true,
+    "torch_dtype": "bfloat16",
+    "transformers_version": "4.51.0",
+    "use_cache": true,
+    "use_sliding_window": false,
+    "vocab_size": 151936
+  },
+  "derived": {
+    "q_projection_width": 2048,
+    "kv_projection_width": 1024,
+    "gqa_repeat_factor": 2,
+    "qk_normalization_width": 128,
+    "batch": 1
+  },
+  "profiles": [
+    {
+      "name": "prefill",
+      "sequence": 16,
+      "past": 0,
+      "total": 16
+    },
+    {
+      "name": "decode",
+      "sequence": 1,
+      "past": 16,
+      "total": 17
+    }
+  ],
+  "cache_test_capacity": 32,
+  "rope_test_position_offset": 7,
+  "shape_convention": "M,N,K means A[M,K] times B[K,N] yields C[M,N]",
+  "linear_shapes": [
+    {
+      "shape_mnk": [
+        16,
+        2048,
+        1024
+      ],
+      "roles": [
+        "q_proj"
+      ],
+      "profile": "prefill"
+    },
+    {
+      "shape_mnk": [
+        16,
+        1024,
+        1024
+      ],
+      "roles": [
+        "k_proj",
+        "v_proj"
+      ],
+      "profile": "prefill"
+    },
+    {
+      "shape_mnk": [
+        16,
+        1024,
+        2048
+      ],
+      "roles": [
+        "o_proj"
+      ],
+      "profile": "prefill"
+    },
+    {
+      "shape_mnk": [
+        16,
+        3072,
+        1024
+      ],
+      "roles": [
+        "gate_proj",
+        "up_proj"
+      ],
+      "profile": "prefill"
+    },
+    {
+      "shape_mnk": [
+        16,
+        1024,
+        3072
+      ],
+      "roles": [
+        "down_proj"
+      ],
+      "profile": "prefill"
+    },
+    {
+      "shape_mnk": [
+        1,
+        2048,
+        1024
+      ],
+      "roles": [
+        "q_proj"
+      ],
+      "profile": "decode"
+    },
+    {
+      "shape_mnk": [
+        1,
+        1024,
+        1024
+      ],
+      "roles": [
+        "k_proj",
+        "v_proj"
+      ],
+      "profile": "decode"
+    },
+    {
+      "shape_mnk": [
+        1,
+        1024,
+        2048
+      ],
+      "roles": [
+        "o_proj"
+      ],
+      "profile": "decode"
+    },
+    {
+      "shape_mnk": [
+        1,
+        3072,
+        1024
+      ],
+      "roles": [
+        "gate_proj",
+        "up_proj"
+      ],
+      "profile": "decode"
+    },
+    {
+      "shape_mnk": [
+        1,
+        1024,
+        3072
+      ],
+      "roles": [
+        "down_proj"
+      ],
+      "profile": "decode"
+    },
+    {
+      "shape_mnk": [
+        1,
+        151936,
+        1024
+      ],
+      "roles": [
+        "lm_head_last_token"
+      ],
+      "profile": "prefill_and_decode"
+    }
+  ],
+  "attention_shapes": [
+    {
+      "profile": "prefill",
+      "qk_bmnk": [
+        16,
+        16,
+        16,
+        128
+      ],
+      "pv_bmnk": [
+        16,
+        16,
+        128,
+        16
+      ]
+    },
+    {
+      "profile": "decode",
+      "qk_bmnk": [
+        16,
+        1,
+        17,
+        128
+      ],
+      "pv_bmnk": [
+        16,
+        1,
+        128,
+        17
+      ]
+    }
+  ],
+  "auxiliary_families": [
+    "embedding",
+    "rmsnorm",
+    "rope",
+    "attention_scale_mask",
+    "softmax",
+    "silu",
+    "mul",
+    "add",
+    "kv_cache_update",
+    "gqa_repeat",
+    "layout_transpose"
+  ],
+  "deployment_only_families": [
+    "per_token_quantization",
+    "dequantization"
+  ],
+  "linear_dtypes": {
+    "semantic": "f32 x f32 -> f32",
+    "nr_ame_deployment": "i8 x i8 -> i32"
+  },
+  "shape_only_operations": [
+    "reshape",
+    "head split/merge views",
+    "cache prefix slicing",
+    "last-token slicing",
+    "tied embedding/lm_head transpose view"
+  ],
+  "out_of_scope": [
+    "model weights",
+    "full-model generated text",
+    "tokenization",
+    "sampling policy",
+    "training",
+    "quantized model quality evaluation"
+  ],
+  "dynamic_shape_policy": "Two static profiles instantiate a dynamically parameterized model; all possible sequence/cache lengths are not enumerated."
+}

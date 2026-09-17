@@ -1,0 +1,14 @@
+{
+  "kind": "matmul_i8",
+  "shape": [
+    3,
+    19,
+    70
+  ],
+  "roles": [
+    "nr_tail_regression"
+  ],
+  "dtype": "i8 x i8 -> i32",
+  "target": "nr-fpga",
+  "checked_elements": 57
+}

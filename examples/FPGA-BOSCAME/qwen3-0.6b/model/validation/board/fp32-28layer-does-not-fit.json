@@ -1,0 +1,28 @@
+{
+  "question": "can the 28-layer model run on the board with FP32 parameters?",
+  "answer": "no, not within the address space the linker and loader allow; W8A8 is required",
+  "numbers": {
+    "fp32_parameter_buffer_bytes": 2384199936,
+    "fp32_gib": 2.22,
+    "nr_ld_high_region": "origin 0xb8000000 length 0x48000000 = 1152 MiB",
+    "nr_ld_assert": "__workspace_end <= 0x100000000 (4 GiB)",
+    "lowest_possible_start": "just after the model's .bss/stacks, about 0x80400000",
+    "end_if_started_there": "0x80400000 + 0x8E1C0000 = 0x10E5C0000 -> still above 4 GiB",
+    "platform_declared_ddr": "16 GiB (the load plan must declare ddr_size = 0x400000000)"
+  },
+  "why_not_just_raise_the_limit": [
+    "the 4 GiB ASSERT is in the shared common/nr/nr.ld",
+    "the operator examples only ever proved DDR up to about 1.6 GB is backed (the 685 MB weight segment landed at 0xb8000000..0xE0D83500 and its readback matched), so DDR above 4 GiB is unverified"
+  ],
+  "w8a8": {
+    "weights_int8": 595984384,
+    "per_channel_scales_f32": 1984000,
+    "kept_f32_norms_and_rotary": 262400,
+    "total_bytes": 598230784,
+    "total_mib": 570.5,
+    "fits_in_high_region": true,
+    "source": "validation/weight-image.json"
+  },
+  "conclusion": "the deployment path for the full model is W8A8, which the task anticipated: 'if the hardware cannot hold all of FP32, evaluate W8A8 linear + AME first'. The int8 matmul, quantize and dequantize kernels already exist in the shared 72-case set and pass on FPGA5.",
+  "next": "quantise the graph: express quantize -> int8 matmul -> dequantize as external calls, then the weight segment becomes the existing W8A8 image"
+}

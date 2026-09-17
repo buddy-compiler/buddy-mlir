@@ -1,0 +1,37 @@
+{
+  "name": "embedding_16x1024",
+  "kind": "embedding",
+  "dtype": "f32",
+  "description": "Gather full-vocabulary embedding rows [151936,1024]; tied lm_head shares this weight semantically",
+  "entry": "kernel_embedding_16x1024",
+  "workspace_bytes": 622395520,
+  "buffers": [
+    {
+      "name": "ids",
+      "shape": [
+        16
+      ],
+      "dtype": "i64",
+      "offset": 0
+    },
+    {
+      "name": "out",
+      "shape": [
+        16,
+        1024
+      ],
+      "dtype": "f32",
+      "offset": 128
+    },
+    {
+      "name": "weight",
+      "shape": [
+        151936,
+        1024
+      ],
+      "dtype": "f32",
+      "offset": 65664
+    }
+  ],
+  "validation": "All output elements versus an independent C oracle; host oracle uses libm double precision."
+}

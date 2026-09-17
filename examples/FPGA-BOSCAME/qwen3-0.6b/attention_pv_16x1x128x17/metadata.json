@@ -1,0 +1,12 @@
+{
+  "kind": "attention_pv",
+  "shape": [
+    16,
+    1,
+    128,
+    17
+  ],
+  "dtype": "f32",
+  "target": "nr-rvv",
+  "checked_elements": 2048
+}

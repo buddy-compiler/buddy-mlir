@@ -1,0 +1,107 @@
+
+[nr] NH boot; RA operator runtime
+[nr] RA entry=0x0000000080000040
+[nr] RA entered; clearing application BSS
+[nr] mstatus=0x8000000A00006000; launch BEGIN
+[1/49] Triton add_16x1024 BEGIN
+verify add_16x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[2/49] Triton add_1x1024 BEGIN
+verify add_1x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[3/49] Triton attention_pv_16x16x128x16 BEGIN
+verify attention_pv_16x16x128x16: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[4/49] Triton attention_pv_16x1x128x17 BEGIN
+verify attention_pv_16x1x128x17: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[5/49] Triton attention_qk_16x16x16x128 BEGIN
+verify attention_qk_16x16x16x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[6/49] Triton attention_qk_16x1x17x128 BEGIN
+verify attention_qk_16x1x17x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[7/49] Triton attention_scale_mask_16x16x16 BEGIN
+verify attention_scale_mask_16x16x16: PASS errors=00000000 max_abs_error_f32_bits=33800000
+[8/49] Triton attention_scale_mask_16x1x17 BEGIN
+verify attention_scale_mask_16x1x17: PASS errors=00000000 max_abs_error_f32_bits=33800000
+[9/49] Triton dequantize_16x1024 BEGIN
+verify dequantize_16x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[10/49] Triton dequantize_16x2048 BEGIN
+verify dequantize_16x2048: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[11/49] Triton dequantize_16x3072 BEGIN
+verify dequantize_16x3072: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[12/49] Triton dequantize_1x1024 BEGIN
+verify dequantize_1x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[13/49] Triton dequantize_1x151936 BEGIN
+verify dequantize_1x151936: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[14/49] Triton dequantize_1x2048 BEGIN
+verify dequantize_1x2048: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[15/49] Triton dequantize_1x3072 BEGIN
+verify dequantize_1x3072: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[16/49] Triton embedding_16x1024 BEGIN
+verify embedding_16x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[17/49] Triton embedding_1x1024 BEGIN
+verify embedding_1x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[18/49] Triton gqa_repeat_8x16x128_to_16x16x128 BEGIN
+verify gqa_repeat_8x16x128_to_16x16x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[19/49] Triton gqa_repeat_8x17x128_to_16x17x128 BEGIN
+verify gqa_repeat_8x17x128_to_16x17x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[20/49] Triton kv_cache_update_16x8x128 BEGIN
+verify kv_cache_update_16x8x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[21/49] Triton kv_cache_update_1x8x128 BEGIN
+verify kv_cache_update_1x8x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[22/49] Triton layout_context_16x16x128 BEGIN
+verify layout_context_16x16x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[23/49] Triton layout_context_16x1x128 BEGIN
+verify layout_context_16x1x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[24/49] Triton layout_k_16x16x128 BEGIN
+verify layout_k_16x16x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[25/49] Triton layout_k_16x17x128 BEGIN
+verify layout_k_16x17x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[26/49] Triton layout_q_16x16x128 BEGIN
+verify layout_q_16x16x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[27/49] Triton layout_q_1x16x128 BEGIN
+verify layout_q_1x16x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[28/49] Triton mul_16x3072 BEGIN
+verify mul_16x3072: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[29/49] Triton mul_1x3072 BEGIN
+verify mul_1x3072: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[30/49] Triton quantize_16x1024 BEGIN
+verify quantize_16x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[31/49] Triton quantize_16x2048 BEGIN
+verify quantize_16x2048: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[32/49] Triton quantize_16x3072 BEGIN
+verify quantize_16x3072: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[33/49] Triton quantize_1x1024 BEGIN
+verify quantize_1x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[34/49] Triton quantize_1x2048 BEGIN
+verify quantize_1x2048: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[35/49] Triton quantize_1x3072 BEGIN
+verify quantize_1x3072: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[36/49] Triton rmsnorm_128x128 BEGIN
+verify rmsnorm_128x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[37/49] Triton rmsnorm_16x1024 BEGIN
+verify rmsnorm_16x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[38/49] Triton rmsnorm_16x128 BEGIN
+verify rmsnorm_16x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[39/49] Triton rmsnorm_1x1024 BEGIN
+verify rmsnorm_1x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[40/49] Triton rmsnorm_256x128 BEGIN
+verify rmsnorm_256x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[41/49] Triton rmsnorm_8x128 BEGIN
+verify rmsnorm_8x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[42/49] Triton rope_16x16x128 BEGIN
+verify rope_16x16x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[43/49] Triton rope_16x8x128 BEGIN
+verify rope_16x8x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[44/49] Triton rope_1x16x128 BEGIN
+verify rope_1x16x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[45/49] Triton rope_1x8x128 BEGIN
+verify rope_1x8x128: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[46/49] Triton silu_16x3072 BEGIN
+verify silu_16x3072: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[47/49] Triton silu_1x3072 BEGIN
+verify silu_1x3072: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[48/49] Triton softmax_16x16x16 BEGIN
+verify softmax_16x16x16: PASS errors=00000000 max_abs_error_f32_bits=34800000
+[49/49] Triton softmax_16x1x17 BEGIN
+verify softmax_16x1x17: PASS errors=00000000 max_abs_error_f32_bits=34000000
+verify qwen3 Triton operator suite: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[nr] launch cycles=0x0000000014F5520D status=0x00000000
+[nr] RA returned: PASS
+verify NR runtime: PASS

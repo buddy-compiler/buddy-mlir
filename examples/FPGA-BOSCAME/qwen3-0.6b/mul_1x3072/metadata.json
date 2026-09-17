@@ -1,0 +1,38 @@
+{
+  "name": "mul_1x3072",
+  "kind": "mul",
+  "dtype": "f32",
+  "description": "SwiGLU activation/product",
+  "entry": "kernel_mul_1x3072",
+  "workspace_bytes": 36864,
+  "buffers": [
+    {
+      "name": "x",
+      "shape": [
+        1,
+        3072
+      ],
+      "dtype": "f32",
+      "offset": 0
+    },
+    {
+      "name": "y",
+      "shape": [
+        1,
+        3072
+      ],
+      "dtype": "f32",
+      "offset": 12288
+    },
+    {
+      "name": "out",
+      "shape": [
+        1,
+        3072
+      ],
+      "dtype": "f32",
+      "offset": 24576
+    }
+  ],
+  "validation": "All output elements versus an independent C oracle; host oracle uses libm double precision."
+}

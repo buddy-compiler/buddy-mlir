@@ -64,6 +64,13 @@ public:
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> /*operands*/,
                   ConversionPatternRewriter &rewriter) const override {
+    // MatmulTransposeBOp is an indexing-map view of linalg.matmul, not a
+    // distinct operation name. A name-only pattern also matches ordinary
+    // [K, N] operands, including square matrices whose shapes cannot detect
+    // the mistaken transpose.
+    if (!isa<linalg::MatmulTransposeBOp>(op))
+      return rewriter.notifyMatchFailure(op, "requires transpose-B indexing maps");
+
     Location loc = op->getLoc();
 
     Value A = op->getOperand(0); // [M, K]
@@ -466,7 +473,10 @@ void MatMulTransposeBVecDecodePass::runOnOperation() {
 
   // This pass supports MxK x NxK -> MxN f32 memref shapes and rewrites
   // linalg.matmul_transpose_b into explicit vector/scf/memref operations.
-  target.addIllegalOp<linalg::MatmulTransposeBOp>();
+  target.addDynamicallyLegalOp<linalg::MatmulOp>(
+      [](linalg::MatmulOp op) {
+        return !isa<linalg::MatmulTransposeBOp>(op.getOperation());
+      });
 
   RewritePatternSet patterns(context);
   patterns.add<MatMulTransposeBVecDecodePattern>(

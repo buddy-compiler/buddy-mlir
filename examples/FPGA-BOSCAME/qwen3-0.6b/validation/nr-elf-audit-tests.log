@@ -1,0 +1,52 @@
+test_cli_errors_do_not_emit_partial_assembly (test_nr_assembly.NrAssemblyTests.test_cli_errors_do_not_emit_partial_assembly) ... ok
+test_configuration_return_value_survives_restore_and_aliases (test_nr_assembly.NrAssemblyTests.test_configuration_return_value_survives_restore_and_aliases) ... ok
+test_data_is_preserved_and_section_stack_tracks_code (test_nr_assembly.NrAssemblyTests.test_data_is_preserved_and_section_stack_tracks_code) ... ok
+test_expanded_verified_memory_receives_fences (test_nr_assembly.NrAssemblyTests.test_expanded_verified_memory_receives_fences) ... ok
+test_fixed_memory_wrappers_preserve_operands_and_registers (test_nr_assembly.NrAssemblyTests.test_fixed_memory_wrappers_preserve_operands_and_registers) ... ok
+test_multiple_words_receive_individual_fences (test_nr_assembly.NrAssemblyTests.test_multiple_words_receive_individual_fences) ... ok
+test_old_trace_options_rejected (test_nr_assembly.NrAssemblyTests.test_old_trace_options_rejected) ... ok
+test_reject_unsupported_raw_words_and_bypasses (test_nr_assembly.NrAssemblyTests.test_reject_unsupported_raw_words_and_bypasses) ... ok
+test_reject_unverified_mnemonics_and_banks (test_nr_assembly.NrAssemblyTests.test_reject_unverified_mnemonics_and_banks) ... ok
+test_verified_reference_words (test_nr_assembly.NrAssemblyTests.test_verified_reference_words) ... ok
+test_whole_moves_are_rejected_even_with_known_configuration (test_nr_assembly.NrAssemblyTests.test_whole_moves_are_rejected_even_with_known_configuration) ... ok
+test_all_vector_csr_forms_are_rejected_from_raw_bytes (test_nr_elf.NrElfTests.test_all_vector_csr_forms_are_rejected_from_raw_bytes) ... ok
+test_byte_pair_disassembly_keeps_ame_words (test_nr_elf.NrElfTests.test_byte_pair_disassembly_keeps_ame_words) ... ok
+test_c_aggregate_initializer_vector_is_rejected (test_nr_elf.NrElfTests.test_c_aggregate_initializer_vector_is_rejected) ... ok
+test_cli_writes_failure_report_and_returns_nonzero (test_nr_elf.NrElfTests.test_cli_writes_failure_report_and_returns_nonzero) ... ok
+test_csr_is_detected_without_objdump_annotation (test_nr_elf.NrElfTests.test_csr_is_detected_without_objdump_annotation) ... ok
+test_decoder_word_mismatch_cannot_authorize_vector (test_nr_elf.NrElfTests.test_decoder_word_mismatch_cannot_authorize_vector) ... ok
+test_executable_noload_and_nonexecuting_data_are_not_code (test_nr_elf.NrElfTests.test_executable_noload_and_nonexecuting_data_are_not_code) ... ok
+test_executable_word_mapping_cannot_hide_vector_instruction (test_nr_elf.NrElfTests.test_executable_word_mapping_cannot_hide_vector_instruction) ... ok
+test_fence_bytes_straddling_instructions_are_not_a_fence (test_nr_elf.NrElfTests.test_fence_bytes_straddling_instructions_are_not_a_fence) ... ok
+test_fence_is_required_on_both_sides (test_nr_elf.NrElfTests.test_fence_is_required_on_both_sides) ... ok
+test_normal_vector_memory_requires_decoder_and_fences (test_nr_elf.NrElfTests.test_normal_vector_memory_requires_decoder_and_fences) ... ok
+test_raw_ame_is_checked_without_decoder_and_data_is_ignored (test_nr_elf.NrElfTests.test_raw_ame_is_checked_without_decoder_and_data_is_ignored) ... ok
+test_real_fences_after_compressed_instructions_are_accepted (test_nr_elf.NrElfTests.test_real_fences_after_compressed_instructions_are_accepted) ... ok
+test_sections_do_not_share_fence_or_decoder_state (test_nr_elf.NrElfTests.test_sections_do_not_share_fence_or_decoder_state) ... ok
+test_truncated_and_unsupported_instruction_widths_fail_closed (test_nr_elf.NrElfTests.test_truncated_and_unsupported_instruction_widths_fail_closed) ... ok
+test_unknown_vector_and_whole_move_are_rejected (test_nr_elf.NrElfTests.test_unknown_vector_and_whole_move_are_rejected) ... ok
+test_whole_register_memory_is_rejected_even_when_fenced (test_nr_elf.NrElfTests.test_whole_register_memory_is_rejected_even_when_fenced) ... ok
+
+----------------------------------------------------------------------
+Ran 28 tests in 0.357s
+
+OK
+
+Actual linked ELF cross-checks (diagnostics from tail investigation):
+Original RVV-C descriptor initialization must fail: FAIL; sha256 de358ad0ee439cebba938cf9f34f7e9825aa2dcd0d1a1063d1bc8b176661701c; 2721 instructions, 21 AME
+.text@0x80012130: unsupported RVV: vmv.s.x	v8, a0
+.text@0x8001213c: unsupported RVV: vmv.s.x	v9, a0
+.text@0x80012148: unsupported RVV: vmv.s.x	v10, a0
+.text@0x8001214c: unsupported RVV: vsext.vf8	v11, v8
+.text@0x80012152: unsupported RVV: vsext.vf8	v8, v9
+.text@0x80012156: missing adjacent fence rw,rw: vse64.v	v11, (a0)
+.text@0x8001215c: unsupported RVV: vsext.vf8	v9, v10
+.text@0x80012160: missing adjacent fence rw,rw: vse64.v	v8, (a0)
+.text@0x80012174: missing adjacent fence rw,rw: vse64.v	v9, (a1)
+.text@0x80012444: unsupported RVV: vsext.vf8	v9, v8
+.text@0x80012458: missing adjacent fence rw,rw: vse64.v	v9, (sp)
+.text@0x80012468: unsupported RVV: vmv.s.x	v8, a0
+.text@0x8001246c: unsupported RVV: vsext.vf8	v9, v8
+.text@0x80012480: missing adjacent fence rw,rw: vse64.v	v9, (sp)
+Scalar-C descriptor initialization must pass: PASS; sha256 b4d3ff6cb74019d1de722b99810b1cd6097b43df27bd629522f96a0740073c13; 2716 instructions, 21 AME
+

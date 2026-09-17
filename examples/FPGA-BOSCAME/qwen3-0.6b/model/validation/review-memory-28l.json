@@ -1,0 +1,74 @@
+{
+  "elf": "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-28l/image/qwen_model.elf",
+  "elf_sha256": "3129e836b811dbcf52ff430e8d0cea8b1c033ad0564a4ed23a7e878bae9cac18",
+  "arenas": {
+    "cache_position": {
+      "start": "0xe2a84780",
+      "end": "0xe2a847c0",
+      "bytes": 64
+    },
+    "input_ids": {
+      "start": "0xe2a84700",
+      "end": "0xe2a84780",
+      "bytes": 128
+    },
+    "k_cache": {
+      "start": "0xdba84700",
+      "end": "0xdf284700",
+      "bytes": 58720256
+    },
+    "v_cache": {
+      "start": "0xdf284700",
+      "end": "0xe2a84700",
+      "bytes": 58720256
+    },
+    "weight_arena": {
+      "start": "0xb8000000",
+      "end": "0xdba84700",
+      "bytes": 598230784
+    },
+    "ws_decode": {
+      "start": "0xefb2e940",
+      "end": "0xf72528c0",
+      "bytes": 124927872
+    },
+    "ws_prefill": {
+      "start": "0xe2a847c0",
+      "end": "0xefb2e940",
+      "bytes": 218800512
+    }
+  },
+  "low": {
+    "base": "0x80000000",
+    "limit": "0xb0000000",
+    "static_and_stacks_bytes": 19527680,
+    "remaining_scoped_heap_bytes": 785778688
+  },
+  "high": {
+    "base": "0xb8000000",
+    "limit": "0x100000000",
+    "persistent_bytes": 1059399872,
+    "remaining_bytes": 148559680
+  },
+  "static_allocation_site_estimates": [
+    {
+      "source": "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-28l/nr-prefill/forward_prefill.ll",
+      "source_sha256": "70d8d0b8ebccbae9f3f7922b2d6dd09b3a2bf2ddde657e185c08d2e328abb81c",
+      "constant_sites": 714,
+      "constant_bytes_sum": 404347455,
+      "dynamic_sites": 0
+    },
+    {
+      "source": "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-28l/nr-decode/forward_decode.ll",
+      "source_sha256": "7af845cb0d4b0bc8139f1044be8039edc2fed4ded841abb06707010b826d72b2",
+      "constant_sites": 714,
+      "constant_bytes_sum": 356201235,
+      "dynamic_sites": 0
+    }
+  ],
+  "limitations": [
+    "malloc site sums are not dynamic peak proofs; loops and dynamic sizes need measured scratch_bytes",
+    "NR linker bounds are not physical DDR capacity measurements",
+    "see board/review/ddr-address-probe for sparse RA access and alias checks"
+  ]
+}

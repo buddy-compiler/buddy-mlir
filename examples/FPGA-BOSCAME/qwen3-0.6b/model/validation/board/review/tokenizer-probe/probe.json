@@ -1,0 +1,229 @@
+{
+  "status": "BUILT_AND_ISA_AUDITED_NOT_RUN",
+  "fpga_executed": false,
+  "entry": "0x80000000",
+  "elf": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/tokenizer-probe/tokenizer_probe.elf",
+  "bin": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/tokenizer-probe/tokenizer_probe.bin",
+  "elf_sha256": "a4c0b623e11f73974201f79a59a2c5919c78144fb4fe4cda689315076681cdfa",
+  "bin_sha256": "84420425917b41700b6fe06d98b9d5c13af07b7d946833d3955eeccd746e3b9b",
+  "bin_bytes": 5379304,
+  "resource_bytes": 5222928,
+  "resource_sha256": "e1f0bdff51120bbc271f0828e3014aa04ebeb0d96420752152e2f20140d533e8",
+  "fixtures": [
+    {
+      "case": 0,
+      "user_text": "Hello, world!",
+      "enable_thinking": false,
+      "expected_ids": [
+        151644,
+        872,
+        198,
+        9707,
+        11,
+        1879,
+        0,
+        151645,
+        198,
+        151644,
+        77091,
+        198,
+        151667,
+        271,
+        151668,
+        271
+      ],
+      "expected_decoded_hex": "3c7c696d5f73746172747c3e757365720a48656c6c6f2c20776f726c64213c7c696d5f656e647c3e0a3c7c696d5f73746172747c3e617373697374616e740a3c7468696e6b3e0a0a3c2f7468696e6b3e0a0a"
+    },
+    {
+      "case": 1,
+      "user_text": "Hello, world!",
+      "enable_thinking": true,
+      "expected_ids": [
+        151644,
+        872,
+        198,
+        9707,
+        11,
+        1879,
+        0,
+        151645,
+        198,
+        151644,
+        77091,
+        198
+      ],
+      "expected_decoded_hex": "3c7c696d5f73746172747c3e757365720a48656c6c6f2c20776f726c64213c7c696d5f656e647c3e0a3c7c696d5f73746172747c3e617373697374616e740a"
+    },
+    {
+      "case": 2,
+      "user_text": "你好，世界！",
+      "enable_thinking": false,
+      "expected_ids": [
+        151644,
+        872,
+        198,
+        108386,
+        3837,
+        99489,
+        6313,
+        151645,
+        198,
+        151644,
+        77091,
+        198,
+        151667,
+        271,
+        151668,
+        271
+      ],
+      "expected_decoded_hex": "3c7c696d5f73746172747c3e757365720ae4bda0e5a5bdefbc8ce4b896e7958cefbc813c7c696d5f656e647c3e0a3c7c696d5f73746172747c3e617373697374616e740a3c7468696e6b3e0a0a3c2f7468696e6b3e0a0a"
+    },
+    {
+      "case": 3,
+      "user_text": "你好，世界！",
+      "enable_thinking": true,
+      "expected_ids": [
+        151644,
+        872,
+        198,
+        108386,
+        3837,
+        99489,
+        6313,
+        151645,
+        198,
+        151644,
+        77091,
+        198
+      ],
+      "expected_decoded_hex": "3c7c696d5f73746172747c3e757365720ae4bda0e5a5bdefbc8ce4b896e7958cefbc813c7c696d5f656e647c3e0a3c7c696d5f73746172747c3e617373697374616e740a"
+    },
+    {
+      "case": 4,
+      "user_text": "Å",
+      "enable_thinking": false,
+      "expected_ids": [
+        151644,
+        872,
+        198,
+        144044,
+        151645,
+        198,
+        151644,
+        77091,
+        198,
+        151667,
+        271,
+        151668,
+        271
+      ],
+      "expected_decoded_hex": "3c7c696d5f73746172747c3e757365720ac3853c7c696d5f656e647c3e0a3c7c696d5f73746172747c3e617373697374616e740a3c7468696e6b3e0a0a3c2f7468696e6b3e0a0a"
+    },
+    {
+      "case": 5,
+      "user_text": "Å",
+      "enable_thinking": true,
+      "expected_ids": [
+        151644,
+        872,
+        198,
+        144044,
+        151645,
+        198,
+        151644,
+        77091,
+        198
+      ],
+      "expected_decoded_hex": "3c7c696d5f73746172747c3e757365720ac3853c7c696d5f656e647c3e0a3c7c696d5f73746172747c3e617373697374616e740a"
+    },
+    {
+      "case": 6,
+      "user_text": "Á̧",
+      "enable_thinking": false,
+      "expected_ids": [
+        151644,
+        872,
+        198,
+        43701,
+        136,
+        100,
+        151645,
+        198,
+        151644,
+        77091,
+        198,
+        151667,
+        271,
+        151668,
+        271
+      ],
+      "expected_decoded_hex": "3c7c696d5f73746172747c3e757365720ac381cca73c7c696d5f656e647c3e0a3c7c696d5f73746172747c3e617373697374616e740a3c7468696e6b3e0a0a3c2f7468696e6b3e0a0a"
+    },
+    {
+      "case": 7,
+      "user_text": "Á̧",
+      "enable_thinking": true,
+      "expected_ids": [
+        151644,
+        872,
+        198,
+        43701,
+        136,
+        100,
+        151645,
+        198,
+        151644,
+        77091,
+        198
+      ],
+      "expected_decoded_hex": "3c7c696d5f73746172747c3e757365720ac381cca73c7c696d5f656e647c3e0a3c7c696d5f73746172747c3e617373697374616e740a"
+    }
+  ],
+  "expected_success_marker": "verify tokenizer suite: PASS",
+  "commands": [
+    [
+      "make",
+      "-f",
+      "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/tests/tokenizer_probe.mk",
+      "MODEL=/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model",
+      "BUILD=/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/tokenizer-probe",
+      "LLVM_BIN=/home/chh/gitprojects/buddy-mlir-for-fpga/llvm/build-2d26/bin",
+      "-j4"
+    ],
+    [
+      "/home/chh/venvs/qwen3fpga-py311/bin/python",
+      "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/tools/check_nr_elf.py",
+      "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/tokenizer-probe/tokenizer_probe.elf",
+      "--objdump",
+      "/home/chh/gitprojects/buddy-mlir-for-fpga/llvm/build-2d26/bin/llvm-objdump",
+      "--output",
+      "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/tokenizer-probe/elf-audit.json"
+    ]
+  ],
+  "undefined_symbols": [],
+  "source_sha256": {
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/text/tokenizer_encode.c": "c65e1de2c1b1b88ecfac82d3a7c402e2e1382a1a1fb73f649e7cadc73d239997",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/text/tokenizer_resource.c": "bac5018fb31802035c2716bab98539e7429d92cc2bd94b13bd56fafc11b1304f",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/text/unicode_tables.c": "c944e508f8bc45e2a24b15d2a717d969822aa18f5c4381862a136d936f136364",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/text/unicode_tables.h": "7ab991b81b4c1b6d39d770421816111818821adc0c69a266de04530419f06f01",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/text/tokenizer_resource.h": "a97a1bdcd564fc4ef66e8c279ebfd5418853090b9a0e87f9f278dbf6085da2f1",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/tests/tokenizer_probe.c": "40571463d5c07e3a8a3e9fe75869845ee99444a07ac078bca07147f92ecd862c",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/tests/tokenizer_probe.mk": "db53f755e47a1b4e8bf7451f2980da04e590b4e420e9ccce4bc377bb49a00598",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/tools/build_tokenizer_probe.py": "86a57c80aced735e3305cd8583a5c9a7dead6e8760a57a86e91432182ff51e07",
+    "examples/FPGA-BOSCAME/common/nr/crt.S": "75431219ba064928a9064d728608095d01e53c0f31e76b2cf38c0a2a35c5a706",
+    "examples/FPGA-BOSCAME/common/nr/nr_runtime.h": "05133325005c5aaa0656aeac7e952ab8d2b003bccb03a5abd55210e44ade714b",
+    "examples/FPGA-BOSCAME/common/nr/nr_copy.S": "84e13b00c06a837fdf1967402780bd6c78a27cb58b45aed11406cd5f52f20a46",
+    "examples/FPGA-BOSCAME/common/nr/nr_runtime.c": "966a14bbddd91a78ae02dcbba074643c2b23b3394223b89fde518b4487f251c4",
+    "examples/FPGA-BOSCAME/common/nr/ame_sync.c": "ed7efdd659ca50f79c0249d13a8762188cdbb745b8d65193ff4dc62c5380256d",
+    "examples/FPGA-BOSCAME/common/nr/nr_math.c": "f0bb33d8e96cb2bf7ad596916acfa1fb2bcfdf2afbd16cf1facc042144d588e8",
+    "examples/FPGA-BOSCAME/common/nr/nr.ld": "50ba0a1ebaa19929fad8fa68457f1080ce1d39653aff30825f3c7c18fcb5b366",
+    "examples/FPGA-BOSCAME/common/nr/nr.mk": "881147da66262d180c8bd7578e2a762b2386289e272a2ce32738de4e04777911",
+    "examples/FPGA-BOSCAME/common/uart/uart.h": "cd8dc86559e8588e2d82cf0519fb3c912e8284f3d122b864c124d4cc967a65b0"
+  },
+  "fixture_source_sha256": "8c15ad1e43b7a810362c297f4f78e5252205251e14262ff236b77d49c3a77646",
+  "notes": [
+    "No model inference and no UART RX is needed by this automatic probe.",
+    "Expected data is used for comparison only; output IDs/bytes are computed by firmware.",
+    "Token resource is embedded in readonly ELF data; startup BSS clear cannot overwrite it."
+  ]
+}

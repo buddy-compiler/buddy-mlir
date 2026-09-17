@@ -1,0 +1,256 @@
+{
+  "recorded_at_utc": "2026-09-16T13:28:55.860724+00:00",
+  "source_run": "run-f635cf2811484c7b",
+  "fpga": 5,
+  "image_sha256": "f3366cc19af2e8f9a21220ea7afd81cef3cf5684a2a85af7f03901c8dab6393d",
+  "uart_sha256": "643298472a141350fb7848bc27d783b129b6c976eabf3ab9a61260f70d0712b0",
+  "case_count": 49,
+  "all_pass": true,
+  "cases": [
+    {
+      "case": "add_16x1024",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "add_1x1024",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "attention_pv_16x16x128x16",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "attention_pv_16x1x128x17",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "attention_qk_16x16x16x128",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "attention_qk_16x1x17x128",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "attention_scale_mask_16x16x16",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "33800000"
+    },
+    {
+      "case": "attention_scale_mask_16x1x17",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "33800000"
+    },
+    {
+      "case": "dequantize_16x1024",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "dequantize_16x2048",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "dequantize_16x3072",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "dequantize_1x1024",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "dequantize_1x151936",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "dequantize_1x2048",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "dequantize_1x3072",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "embedding_16x1024",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "embedding_1x1024",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "gqa_repeat_8x16x128_to_16x16x128",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "gqa_repeat_8x17x128_to_16x17x128",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "kv_cache_update_16x8x128",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "kv_cache_update_1x8x128",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "layout_context_16x16x128",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "layout_context_16x1x128",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "layout_k_16x16x128",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "layout_k_16x17x128",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "layout_q_16x16x128",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "layout_q_1x16x128",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "mul_16x3072",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "mul_1x3072",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "quantize_16x1024",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "quantize_16x2048",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "quantize_16x3072",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "quantize_1x1024",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "quantize_1x2048",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "quantize_1x3072",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "rmsnorm_128x128",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "rmsnorm_16x1024",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "rmsnorm_16x128",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "rmsnorm_1x1024",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "rmsnorm_256x128",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "rmsnorm_8x128",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "rope_16x16x128",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "rope_16x8x128",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "rope_1x16x128",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "rope_1x8x128",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "silu_16x3072",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "silu_1x3072",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "00000000"
+    },
+    {
+      "case": "softmax_16x16x16",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "34800000"
+    },
+    {
+      "case": "softmax_16x1x17",
+      "status": "PASS",
+      "max_abs_error_f32_bits": "34000000"
+    }
+  ]
+}

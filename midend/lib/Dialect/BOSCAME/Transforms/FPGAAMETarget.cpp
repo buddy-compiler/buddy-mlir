@@ -19,6 +19,8 @@
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/Diagnostics.h"
 
+#include <string>
+
 using namespace mlir;
 
 namespace buddy {
@@ -30,6 +32,8 @@ llvm::StringRef stringifyAmeTargetProfile(AmeTargetProfile profile) {
     return "upstream";
   case AmeTargetProfile::Qwen3Fpga:
     return "qwen3-fpga";
+  case AmeTargetProfile::NrFpga:
+    return "nr-fpga";
   }
   llvm_unreachable("unknown AmeTargetProfile");
 }
@@ -40,6 +44,8 @@ symbolizeAmeTargetProfile(llvm::StringRef name) {
     return AmeTargetProfile::Upstream;
   if (name == "qwen3-fpga")
     return AmeTargetProfile::Qwen3Fpga;
+  if (name == "nr-fpga")
+    return AmeTargetProfile::NrFpga;
   return std::nullopt;
 }
 
@@ -51,7 +57,7 @@ FailureOr<AmeTargetProfile> resolveAmeTarget(Operation *op,
     if (!fromOption)
       return op->emitError()
              << "unknown " << kAmeTargetAttrName << " value '" << option
-             << "' (expected 'upstream' or 'qwen3-fpga')";
+             << "' (expected 'upstream', 'qwen3-fpga' or 'nr-fpga')";
   }
 
   std::optional<AmeTargetProfile> fromAttribute;
@@ -63,7 +69,8 @@ FailureOr<AmeTargetProfile> resolveAmeTarget(Operation *op,
     if (!fromAttribute)
       return op->emitError()
              << "unknown " << kAmeTargetAttrName << " value '"
-             << attr.getValue() << "' (expected 'upstream' or 'qwen3-fpga')";
+             << attr.getValue()
+             << "' (expected 'upstream', 'qwen3-fpga' or 'nr-fpga')";
   }
 
   if (fromOption && fromAttribute && *fromOption != *fromAttribute)
@@ -145,6 +152,10 @@ static bool roleMatches(AmeRole role, Type elementType) {
 }
 
 LogicalResult verifyFpgaAmeCapabilities(Operation *root) {
+  FailureOr<AmeTargetProfile> profile = resolveAmeTarget(root, "");
+  if (failed(profile))
+    return failure();
+  bool nr = *profile == AmeTargetProfile::NrFpga;
   WalkResult result = root->walk([&](Operation *op) {
     llvm::StringRef name = op->getName().getStringRef();
     if (!name.starts_with("bosc_ame."))
@@ -155,8 +166,21 @@ LogicalResult verifyFpgaAmeCapabilities(Operation *root) {
     // FPGA code by a subsequent pass (including after intrinsic export).
     if (name == "bosc_ame.msettypei" || name == "bosc_ame.intr.msettypei" ||
         name == "bosc_ame.msettypehi" || name == "bosc_ame.intr.msettypehi") {
-      op->emitError("upstream AME configuration cannot be mixed with the "
-                    "qwen3-fpga target");
+      op->emitError() << "upstream AME configuration cannot be mixed with the "
+                      << stringifyAmeTargetProfile(*profile) << " target";
+      return WalkResult::interrupt();
+    }
+
+    if (nr && name.contains("mlbte")) {
+      op->emitError("nr-fpga does not support transposed B loads; use a "
+                    "physical [N, K] weight or pack the B tile first");
+      return WalkResult::interrupt();
+    }
+
+    if (nr && (name.ends_with("msettilemi") ||
+               name.ends_with("msettileni") ||
+               name.ends_with("msettileki"))) {
+      op->emitError("nr-fpga requires register-form tile configuration");
       return WalkResult::interrupt();
     }
 
@@ -164,14 +188,30 @@ LogicalResult verifyFpgaAmeCapabilities(Operation *root) {
     // file convention.  Configuration instructions and the high-level W8A8
     // semantic ops (quantize_per_group, w8a8_linear, ...) work on memrefs and
     // are lowered by their own patterns.
-    auto isMatrix = [](Type type) {
+    auto isMatrix = [nr](Type type) {
       auto vectorType = dyn_cast<VectorType>(type);
-      return vectorType && vectorType.getRank() == 2;
+      return vectorType && (nr || vectorType.getRank() == 2);
     };
     bool carriesMatrix = llvm::any_of(op->getOperandTypes(), isMatrix) ||
                          llvm::any_of(op->getResultTypes(), isMatrix);
     if (!carriesMatrix)
       return WalkResult::advance();
+
+    // Exported matrix values are rank-one scalable vectors. Check them too:
+    // accepting an already-exported upstream load would select the wrong
+    // register bank even though the module was subsequently labelled NR.
+    bool intrinsic = nr && name.starts_with("bosc_ame.intr.");
+    std::string highLevelName;
+    if (intrinsic) {
+      if (!name.starts_with("bosc_ame.intr.fpga.")) {
+        op->emitError("nr-fpga cannot use an upstream matrix intrinsic");
+        return WalkResult::interrupt();
+      }
+      highLevelName =
+          "bosc_ame." +
+          name.drop_front(StringRef("bosc_ame.intr.fpga.").size()).str();
+      name = highLevelName;
+    }
 
     std::optional<AmeRoleSpec> spec = classifyAmeMnemonic(name);
     if (!spec) {
@@ -205,10 +245,24 @@ LogicalResult verifyFpgaAmeCapabilities(Operation *root) {
     for (Value resultValue : op->getResults())
       if (!check(resultValue, spec->result))
         return WalkResult::interrupt();
-    if (name == "bosc_ame.mlce32.m" || name == "bosc_ame.msce32.m") {
+
+    if (nr && !intrinsic &&
+        (name == "bosc_ame.mlae8.m" || name == "bosc_ame.mlbe8.m") &&
+        !cast<ShapedType>(op->getOperand(0).getType())
+             .getElementType().isInteger(8)) {
+      op->emitError("nr-fpga A/B tile memory must be i8");
+      return WalkResult::interrupt();
+    }
+    if (!intrinsic &&
+        (name == "bosc_ame.mlce32.m" || name == "bosc_ame.msce32.m")) {
       unsigned memoryIndex = name == "bosc_ame.mlce32.m" ? 0 : 1;
       auto memoryType = cast<ShapedType>(op->getOperand(memoryIndex).getType());
-      if (!memoryType.getElementType().isF32()) {
+      if (nr && !memoryType.getElementType().isInteger(32)) {
+        op->emitError("nr-fpga accumulator memory must be i32; msce32.m "
+                      "stores raw integer bits, not f32 values");
+        return WalkResult::interrupt();
+      }
+      if (!nr && !memoryType.getElementType().isF32()) {
         op->emitError(
             "qwen3-fpga accumulator memory must be f32; "
             "msce32.m converts i32 to f32 and is not a lossless spill");

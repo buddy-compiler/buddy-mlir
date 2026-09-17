@@ -1,0 +1,17 @@
+test_accepts_exact_414_full_comparisons_and_reference_identity (test_check_intermediates.IntermediateCheckerTests.test_accepts_exact_414_full_comparisons_and_reference_identity) ... ok
+test_cli_writes_machine_readable_failure_and_success (test_check_intermediates.IntermediateCheckerTests.test_cli_writes_machine_readable_failure_and_success) ... ok
+test_malformed_rows_and_completions (test_check_intermediates.IntermediateCheckerTests.test_malformed_rows_and_completions) ... ok
+test_manifest_dimensions_order_mapping_hashes_and_offsets_must_be_well_formed (test_check_intermediates.IntermediateCheckerTests.test_manifest_dimensions_order_mapping_hashes_and_offsets_must_be_well_formed) ... ok
+test_missing_duplicate_early_or_malformed_return_and_traps (test_check_intermediates.IntermediateCheckerTests.test_missing_duplicate_early_or_malformed_return_and_traps) ... ok
+test_nonfinite_negative_and_excess_errors_reject_even_complete_pass (test_check_intermediates.IntermediateCheckerTests.test_nonfinite_negative_and_excess_errors_reject_even_complete_pass) ... ok
+test_omission_duplicate_and_reordered_rows_cannot_pass (test_check_intermediates.IntermediateCheckerTests.test_omission_duplicate_and_reordered_rows_cannot_pass) ... ok
+test_wrong_position_kind_index_extent_or_call_counts (test_check_intermediates.IntermediateCheckerTests.test_wrong_position_kind_index_extent_or_call_counts) ... ok
+test_full_tensor_strides_offsets_and_nine_call_positions (test_intermediate_probe.IntermediateProbe.test_full_tensor_strides_offsets_and_nine_call_positions) ... ok
+test_mapping_rejects_wrong_layer_count_weight_identity_and_missing_callee (test_intermediate_probe.IntermediateProbe.test_mapping_rejects_wrong_layer_count_weight_identity_and_missing_callee) ... ok
+test_missing_duplicate_shape_outlier_nan_negative_stride_and_position_fail (test_intermediate_probe.IntermediateProbe.test_missing_duplicate_shape_outlier_nan_negative_stride_and_position_fail) ... ok
+test_unknown_reference_shape_and_nonfinite_rejected (test_intermediate_probe.IntermediateProbe.test_unknown_reference_shape_and_nonfinite_rejected) ... ok
+
+----------------------------------------------------------------------
+Ran 12 tests in 3.283s
+
+OK

@@ -1,0 +1,19 @@
+make: Entering directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/hello'
+make: Nothing to be done for 'all'.
+--- captured UART output ---
+
+========================================
+  BUDDY-MLIR Hello World (plain C)
+  NR / NH RISC-V @ 0x80000000
+========================================
+
+rt: call main
+Hello, World!
+computed: 40 + 2 = 0000002A
+verify hello: PASS
+
+=== Hello Done ===
+
+----------------------------
+host_check: PASS (UART byte sequence matches)
+make: Leaving directory '/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/hello'

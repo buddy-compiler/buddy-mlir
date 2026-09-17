@@ -1,0 +1,1453 @@
+{
+  "variant": "native key QK plus position PV",
+  "status": "OBJECTS_LIBRARIES_HOST_NUMERICS_PASS",
+  "fpga_model_status": "root-owned; consult board run records",
+  "layers": {
+    "1": {
+      "prefill": {
+        "input_descriptors": 68,
+        "output_descriptors": 4,
+        "result_aggregate_bytes_lp64": 288,
+        "native_key_abi": {
+          "status": "PASS",
+          "scope": "actual lowered native-QK key descriptor ABI; no numerical execution",
+          "llvm": "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-native-1l/nr-prefill/forward_prefill.ll",
+          "llvm_sha256": "ef07f063f67b4813f4b89b357284621ef0d1a75d30e087eec76c5289d420265a",
+          "callsite_count": 1,
+          "callsites": [
+            {
+              "function": "forward_prefill",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_qk_attention_qk_position_native_16x16x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 16
+            }
+          ]
+        },
+        "object_sha256": "9c42963a02ca8104eb70590f6122bbe1cb808eeddb1bef79dceea51984d93997"
+      },
+      "decode": {
+        "input_descriptors": 68,
+        "output_descriptors": 4,
+        "result_aggregate_bytes_lp64": 288,
+        "native_key_abi": {
+          "status": "PASS",
+          "scope": "actual lowered native-QK key descriptor ABI; no numerical execution",
+          "llvm": "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-native-1l/nr-decode/forward_decode.ll",
+          "llvm_sha256": "bf5f0375f95d94f031fb79af597d668bade72ad6dcd5d22e4daa3b2dc2314a59",
+          "callsite_count": 1,
+          "callsites": [
+            {
+              "function": "forward_decode",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_qk_attention_qk_position_native_16x1x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 1
+            }
+          ]
+        },
+        "object_sha256": "cac265a9f6b5b8922ac0710a06ead3a85029fab59571703b7b9fd33dad77634f"
+      },
+      "external_calls_per_entry": {
+        "prefill": 39,
+        "decode": 39
+      },
+      "removed_key_workspace_bytes_both_entries": 8388608,
+      "external_link": {
+        "undefined_symbols": [
+          "expf",
+          "memcpy"
+        ],
+        "unresolved_kernel_symbols": [],
+        "status": "PASS",
+        "scope": "relocatable link; runtime/libm resolution is checked by final ELF audit"
+      },
+      "archive_sha256": "c3afb5fc9043a0c55b012aa5fa4a7f708b2a9a2a80be4091a91ae2980e982715",
+      "host_numerical_validation": {
+        "status": "PASS",
+        "max_abs_error_limit": 0.0,
+        "mean_abs_error_limit": 0.0,
+        "reference": "quantized"
+      },
+      "host_generated_ids": [
+        11853,
+        11853,
+        11853,
+        11853,
+        11853,
+        11853,
+        11853,
+        11853
+      ],
+      "host_prefill_argmax": 33067
+    },
+    "4": {
+      "prefill": {
+        "input_descriptors": 239,
+        "output_descriptors": 13,
+        "result_aggregate_bytes_lp64": 936,
+        "native_key_abi": {
+          "status": "PASS",
+          "scope": "actual lowered native-QK key descriptor ABI; no numerical execution",
+          "llvm": "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-native-4l/nr-prefill/forward_prefill.ll",
+          "llvm_sha256": "caf938217bdd322de3f68f568119497ef6adad1de43380bf7d35b1ce798797d3",
+          "callsite_count": 4,
+          "callsites": [
+            {
+              "function": "forward_prefill",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_qk_attention_qk_position_native_16x16x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 16
+            },
+            {
+              "function": "forward_prefill",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_1_qk_attention_qk_position_native_16x16x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 16
+            },
+            {
+              "function": "forward_prefill",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_2_qk_attention_qk_position_native_16x16x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 16
+            },
+            {
+              "function": "forward_prefill",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_3_qk_attention_qk_position_native_16x16x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 16
+            }
+          ]
+        },
+        "object_sha256": "c3d31fea7d82cc4c9ee6323c48172da064f133dfeb28f8af45df077e9c05c51c"
+      },
+      "decode": {
+        "input_descriptors": 239,
+        "output_descriptors": 13,
+        "result_aggregate_bytes_lp64": 936,
+        "native_key_abi": {
+          "status": "PASS",
+          "scope": "actual lowered native-QK key descriptor ABI; no numerical execution",
+          "llvm": "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-native-4l/nr-decode/forward_decode.ll",
+          "llvm_sha256": "4e8bd7288200527eb5322432d7ae547b44064943c0a6d098c483968bb0ef6029",
+          "callsite_count": 4,
+          "callsites": [
+            {
+              "function": "forward_decode",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_qk_attention_qk_position_native_16x1x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 1
+            },
+            {
+              "function": "forward_decode",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_1_qk_attention_qk_position_native_16x1x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 1
+            },
+            {
+              "function": "forward_decode",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_2_qk_attention_qk_position_native_16x1x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 1
+            },
+            {
+              "function": "forward_decode",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_3_qk_attention_qk_position_native_16x1x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 1
+            }
+          ]
+        },
+        "object_sha256": "ed19706db47094dc5dc164f129af3351c859df7e23701adab02db3e9cd85b843"
+      },
+      "external_calls_per_entry": {
+        "prefill": 141,
+        "decode": 141
+      },
+      "removed_key_workspace_bytes_both_entries": 33554432,
+      "external_link": {
+        "undefined_symbols": [
+          "expf",
+          "memcpy"
+        ],
+        "unresolved_kernel_symbols": [],
+        "status": "PASS",
+        "scope": "relocatable link; runtime/libm resolution is checked by final ELF audit"
+      },
+      "archive_sha256": "c3afb5fc9043a0c55b012aa5fa4a7f708b2a9a2a80be4091a91ae2980e982715",
+      "host_numerical_validation": {
+        "status": "PASS",
+        "max_abs_error_limit": 0.0,
+        "mean_abs_error_limit": 0.0,
+        "reference": "quantized"
+      },
+      "host_generated_ids": [
+        318,
+        1107,
+        1127,
+        1292,
+        2740,
+        39522,
+        745,
+        12
+      ],
+      "host_prefill_argmax": 2152
+    },
+    "28": {
+      "prefill": {
+        "input_descriptors": 1607,
+        "output_descriptors": 85,
+        "result_aggregate_bytes_lp64": 6120,
+        "native_key_abi": {
+          "status": "PASS",
+          "scope": "actual lowered native-QK key descriptor ABI; no numerical execution",
+          "llvm": "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-native-28l/nr-prefill/forward_prefill.ll",
+          "llvm_sha256": "1ee58596b0ae3eac561f8b433ad2d99a8dbe3fa4104923fbdb55948deaa61671",
+          "callsite_count": 28,
+          "callsites": [
+            {
+              "function": "forward_prefill",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_qk_attention_qk_position_native_16x16x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 16
+            },
+            {
+              "function": "forward_prefill",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_1_qk_attention_qk_position_native_16x16x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 16
+            },
+            {
+              "function": "forward_prefill",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_2_qk_attention_qk_position_native_16x16x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 16
+            },
+            {
+              "function": "forward_prefill",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_3_qk_attention_qk_position_native_16x16x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 16
+            },
+            {
+              "function": "forward_prefill",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_4_qk_attention_qk_position_native_16x16x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 16
+            },
+            {
+              "function": "forward_prefill",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_5_qk_attention_qk_position_native_16x16x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 16
+            },
+            {
+              "function": "forward_prefill",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_6_qk_attention_qk_position_native_16x16x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 16
+            },
+            {
+              "function": "forward_prefill",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_7_qk_attention_qk_position_native_16x16x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 16
+            },
+            {
+              "function": "forward_prefill",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_8_qk_attention_qk_position_native_16x16x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 16
+            },
+            {
+              "function": "forward_prefill",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_9_qk_attention_qk_position_native_16x16x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 16
+            },
+            {
+              "function": "forward_prefill",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_10_qk_attention_qk_position_native_16x16x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 16
+            },
+            {
+              "function": "forward_prefill",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_11_qk_attention_qk_position_native_16x16x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 16
+            },
+            {
+              "function": "forward_prefill",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_12_qk_attention_qk_position_native_16x16x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 16
+            },
+            {
+              "function": "forward_prefill",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_13_qk_attention_qk_position_native_16x16x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 16
+            },
+            {
+              "function": "forward_prefill",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_14_qk_attention_qk_position_native_16x16x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 16
+            },
+            {
+              "function": "forward_prefill",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_15_qk_attention_qk_position_native_16x16x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 16
+            },
+            {
+              "function": "forward_prefill",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_16_qk_attention_qk_position_native_16x16x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 16
+            },
+            {
+              "function": "forward_prefill",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_17_qk_attention_qk_position_native_16x16x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 16
+            },
+            {
+              "function": "forward_prefill",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_18_qk_attention_qk_position_native_16x16x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 16
+            },
+            {
+              "function": "forward_prefill",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_19_qk_attention_qk_position_native_16x16x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 16
+            },
+            {
+              "function": "forward_prefill",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_20_qk_attention_qk_position_native_16x16x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 16
+            },
+            {
+              "function": "forward_prefill",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_21_qk_attention_qk_position_native_16x16x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 16
+            },
+            {
+              "function": "forward_prefill",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_22_qk_attention_qk_position_native_16x16x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 16
+            },
+            {
+              "function": "forward_prefill",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_23_qk_attention_qk_position_native_16x16x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 16
+            },
+            {
+              "function": "forward_prefill",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_24_qk_attention_qk_position_native_16x16x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 16
+            },
+            {
+              "function": "forward_prefill",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_25_qk_attention_qk_position_native_16x16x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 16
+            },
+            {
+              "function": "forward_prefill",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_26_qk_attention_qk_position_native_16x16x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 16
+            },
+            {
+              "function": "forward_prefill",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_27_qk_attention_qk_position_native_16x16x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 16
+            }
+          ]
+        },
+        "object_sha256": "45dda79e60f581d36fdc1f28e7766e0db17fd3405ee24d818ff21af0887afc0f"
+      },
+      "decode": {
+        "input_descriptors": 1607,
+        "output_descriptors": 85,
+        "result_aggregate_bytes_lp64": 6120,
+        "native_key_abi": {
+          "status": "PASS",
+          "scope": "actual lowered native-QK key descriptor ABI; no numerical execution",
+          "llvm": "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-native-28l/nr-decode/forward_decode.ll",
+          "llvm_sha256": "8b2ab634eaf4791175f9395484b6c85a858f5475ed2b49f5a899507461d3260e",
+          "callsite_count": 28,
+          "callsites": [
+            {
+              "function": "forward_decode",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_qk_attention_qk_position_native_16x1x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 1
+            },
+            {
+              "function": "forward_decode",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_1_qk_attention_qk_position_native_16x1x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 1
+            },
+            {
+              "function": "forward_decode",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_2_qk_attention_qk_position_native_16x1x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 1
+            },
+            {
+              "function": "forward_decode",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_3_qk_attention_qk_position_native_16x1x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 1
+            },
+            {
+              "function": "forward_decode",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_4_qk_attention_qk_position_native_16x1x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 1
+            },
+            {
+              "function": "forward_decode",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_5_qk_attention_qk_position_native_16x1x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 1
+            },
+            {
+              "function": "forward_decode",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_6_qk_attention_qk_position_native_16x1x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 1
+            },
+            {
+              "function": "forward_decode",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_7_qk_attention_qk_position_native_16x1x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 1
+            },
+            {
+              "function": "forward_decode",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_8_qk_attention_qk_position_native_16x1x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 1
+            },
+            {
+              "function": "forward_decode",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_9_qk_attention_qk_position_native_16x1x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 1
+            },
+            {
+              "function": "forward_decode",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_10_qk_attention_qk_position_native_16x1x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 1
+            },
+            {
+              "function": "forward_decode",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_11_qk_attention_qk_position_native_16x1x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 1
+            },
+            {
+              "function": "forward_decode",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_12_qk_attention_qk_position_native_16x1x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 1
+            },
+            {
+              "function": "forward_decode",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_13_qk_attention_qk_position_native_16x1x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 1
+            },
+            {
+              "function": "forward_decode",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_14_qk_attention_qk_position_native_16x1x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 1
+            },
+            {
+              "function": "forward_decode",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_15_qk_attention_qk_position_native_16x1x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 1
+            },
+            {
+              "function": "forward_decode",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_16_qk_attention_qk_position_native_16x1x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 1
+            },
+            {
+              "function": "forward_decode",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_17_qk_attention_qk_position_native_16x1x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 1
+            },
+            {
+              "function": "forward_decode",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_18_qk_attention_qk_position_native_16x1x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 1
+            },
+            {
+              "function": "forward_decode",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_19_qk_attention_qk_position_native_16x1x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 1
+            },
+            {
+              "function": "forward_decode",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_20_qk_attention_qk_position_native_16x1x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 1
+            },
+            {
+              "function": "forward_decode",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_21_qk_attention_qk_position_native_16x1x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 1
+            },
+            {
+              "function": "forward_decode",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_22_qk_attention_qk_position_native_16x1x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 1
+            },
+            {
+              "function": "forward_decode",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_23_qk_attention_qk_position_native_16x1x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 1
+            },
+            {
+              "function": "forward_decode",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_24_qk_attention_qk_position_native_16x1x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 1
+            },
+            {
+              "function": "forward_decode",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_25_qk_attention_qk_position_native_16x1x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 1
+            },
+            {
+              "function": "forward_decode",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_26_qk_attention_qk_position_native_16x1x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 1
+            },
+            {
+              "function": "forward_decode",
+              "symbol": "qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_27_qk_attention_qk_position_native_16x1x512x128",
+              "key_sizes": [
+                1,
+                16,
+                512,
+                128
+              ],
+              "key_strides": [
+                1048576,
+                65536,
+                128,
+                1
+              ],
+              "key_offset_elements": 0,
+              "kernel_reads": "[head, capacity, head_dim] using aligned + offset",
+              "query_sequence": 1
+            }
+          ]
+        },
+        "object_sha256": "a3244b4cbefea4f04dbbc6b02ce7d0a4efd485c14efa665059ccc6bd0b273f8d"
+      },
+      "external_calls_per_entry": {
+        "prefill": 957,
+        "decode": 957
+      },
+      "removed_key_workspace_bytes_both_entries": 234881024,
+      "external_link": {
+        "undefined_symbols": [
+          "expf",
+          "memcpy"
+        ],
+        "unresolved_kernel_symbols": [],
+        "status": "PASS",
+        "scope": "relocatable link; runtime/libm resolution is checked by final ELF audit"
+      },
+      "archive_sha256": "c3afb5fc9043a0c55b012aa5fa4a7f708b2a9a2a80be4091a91ae2980e982715",
+      "host_numerical_validation": {
+        "status": "PASS",
+        "max_abs_error_limit": 0.0,
+        "mean_abs_error_limit": 0.0,
+        "reference": "quantized"
+      },
+      "host_generated_ids": [
+        374,
+        264,
+        3146,
+        7407,
+        304,
+        4787,
+        5159,
+        11
+      ],
+      "host_prefill_argmax": 49000
+    }
+  }
+}

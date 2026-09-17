@@ -1,0 +1,101 @@
+{
+  "stage": "attention replacement: VERIFIED",
+  "status": "PASS",
+  "what_it_replaces": "the graph's single ScaledDotProductFlashAttentionForCpuOp",
+  "chain": {
+    "kernels": [
+      "layout_k_16x512x128",
+      "attention_qk",
+      "attention_scale_mask_position",
+      "softmax",
+      "attention_pv"
+    ],
+    "layouts": {
+      "Q": "[1,16,16,128] as the graph already has it",
+      "K": "transposed first: attention_dot computes A[M,K] @ B[K,N], so K has to arrive as [1,16,128,512]",
+      "V": "used directly as [1,16,512,128]",
+      "output": "[1,16,16,128], which is what the fused op returned"
+    },
+    "calls_per_graph": "15 -> 20",
+    "uncovered": "0"
+  },
+  "verification": {
+    "one_layer_host": {
+      "prefill_argmax": {
+        "graph": 33067,
+        "fp32_reference": 33067
+      },
+      "cosine": 1.00000012,
+      "max_abs_error": 4.482e-05,
+      "generated_ids": [
+        11853,
+        11853,
+        11853,
+        11853,
+        11853,
+        11853,
+        11853,
+        11853
+      ],
+      "fp32_ids": [
+        11853,
+        11853,
+        11853,
+        11853,
+        11853,
+        11853,
+        11853,
+        11853
+      ],
+      "match": true
+    }
+  },
+  "bugs_found_and_fixed": [
+    {
+      "symptom": "NaN everywhere on the first attempt",
+      "cause": "the mask kernel does `tl.load(Position + query)`, so Position is one causal boundary PER QUERY ROW, not a scalar. A [1] buffer meant query >= 1 read past it, a negative garbage boundary masked the whole row, and a fully masked row makes softmax NaN.",
+      "fix": "position workspace is [sequence], filled with start + arange(S)"
+    },
+    {
+      "symptom": "cosine 0.58 after that, still wrong",
+      "cause": "attention_dot is `A[M,K] @ B[K,N]` -- B is NOT transposed. So QK needs K as [heads, head_dim, total], but the graph carries [heads, total, head_dim]. I had assumed Q@K^T.",
+      "fix": "transpose K with a layout kernel first. The library only had layout_k for 16- and 17-slot contexts, so layout_k_16x512x128 was added to tools/generate_elementwise.py and built through the full Triton -> triton-riscv -> MLIR -> Buddy lowering -> NR chain",
+      "how_it_was_found": "a standalone host test of attention_qk with known inputs against numpy, which showed the output matched neither Q@K^T nor any scaled variant; reading kernels.py's attention_dot then gave the layout outright"
+    }
+  ],
+  "remaining_replacements": {
+    "rope": "cos/sin are computed in the graph; they would have to become explicit call arguments",
+    "kv_cache_write": "it updates a graph input in place, so it needs an out-parameter form rather than a returned value"
+  },
+  "board": {
+    "note": "host-only work; the full-model run was not disturbed"
+  },
+  "compiled_code_comparison": {
+    "both_are_one_layer_w8a8_prefill_only": true,
+    "without_attention_replacement": {
+      "instructions": 23177,
+      "ame": 121,
+      "rvv": 156,
+      "bin_bytes": 140424
+    },
+    "with_attention_replacement": {
+      "instructions": 26630,
+      "ame": 121,
+      "rvv": 245,
+      "bin_bytes": 149416
+    },
+    "delta": {
+      "instructions": 3453,
+      "rvv": 89,
+      "bin_bytes": 8992
+    },
+    "reading": "RVV rises 156 -> 245, so more of the work is vectorised, but the total instruction count RISES rather than falls. That is a warning, not a result: instruction count is not a runtime proxy when the code being removed is a LOOP. A nested linalg attention can be a few hundred instructions executed many thousands of times, while the five kernels that replace it contribute their own few thousand instructions once.",
+    "correction": "the first version of this comparison accidentally read the 28-layer image (286,910 instructions) as the baseline; both entries are now one-layer builds",
+    "conclusion": "the speed effect of the attention replacement cannot be established from the audit; it needs a board measurement"
+  },
+  "ready_to_measure": {
+    "image": "build/board/w8a8-attn-1l/qwen_model.bin (audit PASS)",
+    "plan": "the 1-layer interactive-free image; the run takes a few minutes, so it can replace the per-layer projection (validation/memory-plan-w8a8.json) with a measured number as soon as the board frees",
+    "what_to_compare": "launch cycles for prefill against the 5,515,994,658 measured for the same layer without the attention replacement"
+  }
+}

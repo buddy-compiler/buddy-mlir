@@ -1,0 +1,7027 @@
+{
+  "stage": "model graph -> RISC-V object (stops before linking a board image)",
+  "kind": "decode",
+  "layers": 4,
+  "replacement": {
+    "pattern_matches": {
+      "attention": 4,
+      "kv_cache": 8,
+      "w8a8_embedding": 1,
+      "w8a8": 29,
+      "rmsnorm": 17,
+      "silu": 4
+    },
+    "lm_head_last_token_rewrites": 0,
+    "uncovered": [],
+    "external_calls": 141,
+    "pruned_nodes": 58,
+    "parameters": [
+      {
+        "name": "arg4_1",
+        "shape": [
+          1024
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "arg6_1",
+        "shape": [
+          128
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "arg8_1",
+        "shape": [
+          128
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "arg13_1",
+        "shape": [
+          1024
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "arg17_1",
+        "shape": [
+          1024
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "arg19_1",
+        "shape": [
+          128
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "arg21_1",
+        "shape": [
+          128
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "arg27_1",
+        "shape": [
+          1024
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "arg31_1",
+        "shape": [
+          1024
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "arg33_1",
+        "shape": [
+          128
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "arg35_1",
+        "shape": [
+          128
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "arg41_1",
+        "shape": [
+          1024
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "arg45_1",
+        "shape": [
+          1024
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "arg47_1",
+        "shape": [
+          128
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "arg49_1",
+        "shape": [
+          128
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "arg55_1",
+        "shape": [
+          1024
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "arg59_1",
+        "shape": [
+          1024
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "arg3_1",
+        "shape": [
+          64
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_embedding_weight_i8",
+        "shape": [
+          151936,
+          1024
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_embedding_weight_scale",
+        "shape": [
+          151936
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_27_weight_i8",
+        "shape": [
+          1024,
+          3072
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_27_weight_scale",
+        "shape": [
+          1024
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_26_weight_i8",
+        "shape": [
+          3072,
+          1024
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_26_weight_scale",
+        "shape": [
+          3072
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_25_weight_i8",
+        "shape": [
+          3072,
+          1024
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_25_weight_scale",
+        "shape": [
+          3072
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_24_weight_i8",
+        "shape": [
+          1024,
+          2048
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_24_weight_scale",
+        "shape": [
+          1024
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_23_weight_i8",
+        "shape": [
+          1024,
+          1024
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_23_weight_scale",
+        "shape": [
+          1024
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_22_weight_i8",
+        "shape": [
+          1024,
+          1024
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_22_weight_scale",
+        "shape": [
+          1024
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_21_weight_i8",
+        "shape": [
+          2048,
+          1024
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_21_weight_scale",
+        "shape": [
+          2048
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_20_weight_i8",
+        "shape": [
+          1024,
+          3072
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_20_weight_scale",
+        "shape": [
+          1024
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_19_weight_i8",
+        "shape": [
+          3072,
+          1024
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_19_weight_scale",
+        "shape": [
+          3072
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_18_weight_i8",
+        "shape": [
+          3072,
+          1024
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_18_weight_scale",
+        "shape": [
+          3072
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_17_weight_i8",
+        "shape": [
+          1024,
+          2048
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_17_weight_scale",
+        "shape": [
+          1024
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_16_weight_i8",
+        "shape": [
+          1024,
+          1024
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_16_weight_scale",
+        "shape": [
+          1024
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_15_weight_i8",
+        "shape": [
+          1024,
+          1024
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_15_weight_scale",
+        "shape": [
+          1024
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_14_weight_i8",
+        "shape": [
+          2048,
+          1024
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_14_weight_scale",
+        "shape": [
+          2048
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_13_weight_i8",
+        "shape": [
+          1024,
+          3072
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_13_weight_scale",
+        "shape": [
+          1024
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_12_weight_i8",
+        "shape": [
+          3072,
+          1024
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_12_weight_scale",
+        "shape": [
+          3072
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_11_weight_i8",
+        "shape": [
+          3072,
+          1024
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_11_weight_scale",
+        "shape": [
+          3072
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_10_weight_i8",
+        "shape": [
+          1024,
+          2048
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_10_weight_scale",
+        "shape": [
+          1024
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_9_weight_i8",
+        "shape": [
+          1024,
+          1024
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_9_weight_scale",
+        "shape": [
+          1024
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_8_weight_i8",
+        "shape": [
+          1024,
+          1024
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_8_weight_scale",
+        "shape": [
+          1024
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_7_weight_i8",
+        "shape": [
+          2048,
+          1024
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_7_weight_scale",
+        "shape": [
+          2048
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_6_weight_i8",
+        "shape": [
+          1024,
+          3072
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_6_weight_scale",
+        "shape": [
+          1024
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_5_weight_i8",
+        "shape": [
+          3072,
+          1024
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_5_weight_scale",
+        "shape": [
+          3072
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_4_weight_i8",
+        "shape": [
+          3072,
+          1024
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_4_weight_scale",
+        "shape": [
+          3072
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_3_weight_i8",
+        "shape": [
+          1024,
+          2048
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_3_weight_scale",
+        "shape": [
+          1024
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_2_weight_i8",
+        "shape": [
+          1024,
+          1024
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_2_weight_scale",
+        "shape": [
+          1024
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_1_weight_i8",
+        "shape": [
+          1024,
+          1024
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_1_weight_scale",
+        "shape": [
+          1024
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_weight_i8",
+        "shape": [
+          2048,
+          1024
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_weight_scale",
+        "shape": [
+          2048
+        ],
+        "dtype": "TensorDType.Float32"
+      }
+    ],
+    "workspace_inputs": [
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_qk",
+        "shape": [
+          1,
+          16,
+          1,
+          512
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_masked",
+        "shape": [
+          1,
+          16,
+          1,
+          512
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_maxima",
+        "shape": [
+          16
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_sums",
+        "shape": [
+          16
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_probs",
+        "shape": [
+          1,
+          16,
+          1,
+          512
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_pooled",
+        "shape": [
+          1,
+          16,
+          1,
+          128
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_position",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Int32",
+        "role": "cache_positions",
+        "initialization": "cache_position + arange(sequence), every graph invocation"
+      },
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_1_qk",
+        "shape": [
+          1,
+          16,
+          1,
+          512
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_1_masked",
+        "shape": [
+          1,
+          16,
+          1,
+          512
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_1_maxima",
+        "shape": [
+          16
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_1_sums",
+        "shape": [
+          16
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_1_probs",
+        "shape": [
+          1,
+          16,
+          1,
+          512
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_1_pooled",
+        "shape": [
+          1,
+          16,
+          1,
+          128
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_2_qk",
+        "shape": [
+          1,
+          16,
+          1,
+          512
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_2_masked",
+        "shape": [
+          1,
+          16,
+          1,
+          512
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_2_maxima",
+        "shape": [
+          16
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_2_sums",
+        "shape": [
+          16
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_2_probs",
+        "shape": [
+          1,
+          16,
+          1,
+          512
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_2_pooled",
+        "shape": [
+          1,
+          16,
+          1,
+          128
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_3_qk",
+        "shape": [
+          1,
+          16,
+          1,
+          512
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_3_masked",
+        "shape": [
+          1,
+          16,
+          1,
+          512
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_3_maxima",
+        "shape": [
+          16
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_3_sums",
+        "shape": [
+          16
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_3_probs",
+        "shape": [
+          1,
+          16,
+          1,
+          512
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_3_pooled",
+        "shape": [
+          1,
+          16,
+          1,
+          128
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "kv_index_put_tm",
+        "shape": [
+          1,
+          8,
+          1,
+          128
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "kv_index_put_1_tm",
+        "shape": [
+          1,
+          8,
+          1,
+          128
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "kv_index_put_2_tm",
+        "shape": [
+          1,
+          8,
+          1,
+          128
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "kv_index_put_3_tm",
+        "shape": [
+          1,
+          8,
+          1,
+          128
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "kv_index_put_4_tm",
+        "shape": [
+          1,
+          8,
+          1,
+          128
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "kv_index_put_5_tm",
+        "shape": [
+          1,
+          8,
+          1,
+          128
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "kv_index_put_6_tm",
+        "shape": [
+          1,
+          8,
+          1,
+          128
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "kv_index_put_7_tm",
+        "shape": [
+          1,
+          8,
+          1,
+          128
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_embedding_out",
+        "shape": [
+          1,
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int8",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_acc",
+        "shape": [
+          1,
+          2048
+        ],
+        "dtype": "TensorDType.Int32",
+        "role": "accumulator",
+        "initialization": "zero, every graph invocation"
+      },
+      {
+        "name": "w8a8_mm_out",
+        "shape": [
+          1,
+          2048
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_1_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int8",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_1_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_1_acc",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int32",
+        "role": "accumulator",
+        "initialization": "zero, every graph invocation"
+      },
+      {
+        "name": "w8a8_mm_1_out",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_2_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int8",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_2_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_2_acc",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int32",
+        "role": "accumulator",
+        "initialization": "zero, every graph invocation"
+      },
+      {
+        "name": "w8a8_mm_2_out",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_3_q",
+        "shape": [
+          1,
+          2048
+        ],
+        "dtype": "TensorDType.Int8",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_3_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_3_acc",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int32",
+        "role": "accumulator",
+        "initialization": "zero, every graph invocation"
+      },
+      {
+        "name": "w8a8_mm_3_out",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_4_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int8",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_4_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_4_acc",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "TensorDType.Int32",
+        "role": "accumulator",
+        "initialization": "zero, every graph invocation"
+      },
+      {
+        "name": "w8a8_mm_4_out",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_5_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int8",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_5_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_5_acc",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "TensorDType.Int32",
+        "role": "accumulator",
+        "initialization": "zero, every graph invocation"
+      },
+      {
+        "name": "w8a8_mm_5_out",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_6_q",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "TensorDType.Int8",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_6_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_6_acc",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int32",
+        "role": "accumulator",
+        "initialization": "zero, every graph invocation"
+      },
+      {
+        "name": "w8a8_mm_6_out",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_7_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int8",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_7_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_7_acc",
+        "shape": [
+          1,
+          2048
+        ],
+        "dtype": "TensorDType.Int32",
+        "role": "accumulator",
+        "initialization": "zero, every graph invocation"
+      },
+      {
+        "name": "w8a8_mm_7_out",
+        "shape": [
+          1,
+          2048
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_8_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int8",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_8_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_8_acc",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int32",
+        "role": "accumulator",
+        "initialization": "zero, every graph invocation"
+      },
+      {
+        "name": "w8a8_mm_8_out",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_9_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int8",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_9_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_9_acc",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int32",
+        "role": "accumulator",
+        "initialization": "zero, every graph invocation"
+      },
+      {
+        "name": "w8a8_mm_9_out",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_10_q",
+        "shape": [
+          1,
+          2048
+        ],
+        "dtype": "TensorDType.Int8",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_10_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_10_acc",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int32",
+        "role": "accumulator",
+        "initialization": "zero, every graph invocation"
+      },
+      {
+        "name": "w8a8_mm_10_out",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_11_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int8",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_11_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_11_acc",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "TensorDType.Int32",
+        "role": "accumulator",
+        "initialization": "zero, every graph invocation"
+      },
+      {
+        "name": "w8a8_mm_11_out",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_12_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int8",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_12_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_12_acc",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "TensorDType.Int32",
+        "role": "accumulator",
+        "initialization": "zero, every graph invocation"
+      },
+      {
+        "name": "w8a8_mm_12_out",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_13_q",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "TensorDType.Int8",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_13_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_13_acc",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int32",
+        "role": "accumulator",
+        "initialization": "zero, every graph invocation"
+      },
+      {
+        "name": "w8a8_mm_13_out",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_14_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int8",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_14_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_14_acc",
+        "shape": [
+          1,
+          2048
+        ],
+        "dtype": "TensorDType.Int32",
+        "role": "accumulator",
+        "initialization": "zero, every graph invocation"
+      },
+      {
+        "name": "w8a8_mm_14_out",
+        "shape": [
+          1,
+          2048
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_15_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int8",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_15_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_15_acc",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int32",
+        "role": "accumulator",
+        "initialization": "zero, every graph invocation"
+      },
+      {
+        "name": "w8a8_mm_15_out",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_16_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int8",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_16_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_16_acc",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int32",
+        "role": "accumulator",
+        "initialization": "zero, every graph invocation"
+      },
+      {
+        "name": "w8a8_mm_16_out",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_17_q",
+        "shape": [
+          1,
+          2048
+        ],
+        "dtype": "TensorDType.Int8",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_17_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_17_acc",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int32",
+        "role": "accumulator",
+        "initialization": "zero, every graph invocation"
+      },
+      {
+        "name": "w8a8_mm_17_out",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_18_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int8",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_18_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_18_acc",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "TensorDType.Int32",
+        "role": "accumulator",
+        "initialization": "zero, every graph invocation"
+      },
+      {
+        "name": "w8a8_mm_18_out",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_19_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int8",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_19_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_19_acc",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "TensorDType.Int32",
+        "role": "accumulator",
+        "initialization": "zero, every graph invocation"
+      },
+      {
+        "name": "w8a8_mm_19_out",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_20_q",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "TensorDType.Int8",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_20_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_20_acc",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int32",
+        "role": "accumulator",
+        "initialization": "zero, every graph invocation"
+      },
+      {
+        "name": "w8a8_mm_20_out",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_21_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int8",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_21_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_21_acc",
+        "shape": [
+          1,
+          2048
+        ],
+        "dtype": "TensorDType.Int32",
+        "role": "accumulator",
+        "initialization": "zero, every graph invocation"
+      },
+      {
+        "name": "w8a8_mm_21_out",
+        "shape": [
+          1,
+          2048
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_22_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int8",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_22_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_22_acc",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int32",
+        "role": "accumulator",
+        "initialization": "zero, every graph invocation"
+      },
+      {
+        "name": "w8a8_mm_22_out",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_23_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int8",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_23_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_23_acc",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int32",
+        "role": "accumulator",
+        "initialization": "zero, every graph invocation"
+      },
+      {
+        "name": "w8a8_mm_23_out",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_24_q",
+        "shape": [
+          1,
+          2048
+        ],
+        "dtype": "TensorDType.Int8",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_24_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_24_acc",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int32",
+        "role": "accumulator",
+        "initialization": "zero, every graph invocation"
+      },
+      {
+        "name": "w8a8_mm_24_out",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_25_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int8",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_25_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_25_acc",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "TensorDType.Int32",
+        "role": "accumulator",
+        "initialization": "zero, every graph invocation"
+      },
+      {
+        "name": "w8a8_mm_25_out",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_26_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int8",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_26_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_26_acc",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "TensorDType.Int32",
+        "role": "accumulator",
+        "initialization": "zero, every graph invocation"
+      },
+      {
+        "name": "w8a8_mm_26_out",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_27_q",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "TensorDType.Int8",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_27_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_27_acc",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int32",
+        "role": "accumulator",
+        "initialization": "zero, every graph invocation"
+      },
+      {
+        "name": "w8a8_mm_27_out",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_28_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int8",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_28_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      },
+      {
+        "name": "w8a8_mm_28_acc",
+        "shape": [
+          1,
+          151936
+        ],
+        "dtype": "TensorDType.Int32",
+        "role": "accumulator",
+        "initialization": "zero, every graph invocation"
+      },
+      {
+        "name": "w8a8_mm_28_out",
+        "shape": [
+          1,
+          151936
+        ],
+        "dtype": "TensorDType.Float32",
+        "role": "kernel_output"
+      }
+    ],
+    "inputs": [
+      {
+        "name": "arg0_1",
+        "shape": [
+          1,
+          1
+        ],
+        "dtype": "TensorDType.Int64"
+      },
+      {
+        "name": "arg2_1",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Int64"
+      },
+      {
+        "name": "arg10_1",
+        "shape": [
+          1,
+          8,
+          512,
+          128
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "arg11_1",
+        "shape": [
+          1,
+          8,
+          512,
+          128
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "arg23_1",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Int64"
+      },
+      {
+        "name": "arg24_1",
+        "shape": [
+          1,
+          8,
+          512,
+          128
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "arg25_1",
+        "shape": [
+          1,
+          8,
+          512,
+          128
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "arg37_1",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Int64"
+      },
+      {
+        "name": "arg38_1",
+        "shape": [
+          1,
+          8,
+          512,
+          128
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "arg39_1",
+        "shape": [
+          1,
+          8,
+          512,
+          128
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "arg51_1",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Int64"
+      },
+      {
+        "name": "arg52_1",
+        "shape": [
+          1,
+          8,
+          512,
+          128
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "arg53_1",
+        "shape": [
+          1,
+          8,
+          512,
+          128
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_qk",
+        "shape": [
+          1,
+          16,
+          1,
+          512
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_masked",
+        "shape": [
+          1,
+          16,
+          1,
+          512
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_maxima",
+        "shape": [
+          16
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_sums",
+        "shape": [
+          16
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_probs",
+        "shape": [
+          1,
+          16,
+          1,
+          512
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_pooled",
+        "shape": [
+          1,
+          16,
+          1,
+          128
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_position",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Int32"
+      },
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_1_qk",
+        "shape": [
+          1,
+          16,
+          1,
+          512
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_1_masked",
+        "shape": [
+          1,
+          16,
+          1,
+          512
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_1_maxima",
+        "shape": [
+          16
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_1_sums",
+        "shape": [
+          16
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_1_probs",
+        "shape": [
+          1,
+          16,
+          1,
+          512
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_1_pooled",
+        "shape": [
+          1,
+          16,
+          1,
+          128
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_2_qk",
+        "shape": [
+          1,
+          16,
+          1,
+          512
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_2_masked",
+        "shape": [
+          1,
+          16,
+          1,
+          512
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_2_maxima",
+        "shape": [
+          16
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_2_sums",
+        "shape": [
+          16
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_2_probs",
+        "shape": [
+          1,
+          16,
+          1,
+          512
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_2_pooled",
+        "shape": [
+          1,
+          16,
+          1,
+          128
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_3_qk",
+        "shape": [
+          1,
+          16,
+          1,
+          512
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_3_masked",
+        "shape": [
+          1,
+          16,
+          1,
+          512
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_3_maxima",
+        "shape": [
+          16
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_3_sums",
+        "shape": [
+          16
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_3_probs",
+        "shape": [
+          1,
+          16,
+          1,
+          512
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "attn__scaled_dot_product_flash_attention_for_cpu_3_pooled",
+        "shape": [
+          1,
+          16,
+          1,
+          128
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "kv_index_put_tm",
+        "shape": [
+          1,
+          8,
+          1,
+          128
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "kv_index_put_1_tm",
+        "shape": [
+          1,
+          8,
+          1,
+          128
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "kv_index_put_2_tm",
+        "shape": [
+          1,
+          8,
+          1,
+          128
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "kv_index_put_3_tm",
+        "shape": [
+          1,
+          8,
+          1,
+          128
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "kv_index_put_4_tm",
+        "shape": [
+          1,
+          8,
+          1,
+          128
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "kv_index_put_5_tm",
+        "shape": [
+          1,
+          8,
+          1,
+          128
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "kv_index_put_6_tm",
+        "shape": [
+          1,
+          8,
+          1,
+          128
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "kv_index_put_7_tm",
+        "shape": [
+          1,
+          8,
+          1,
+          128
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_embedding_out",
+        "shape": [
+          1,
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_acc",
+        "shape": [
+          1,
+          2048
+        ],
+        "dtype": "TensorDType.Int32"
+      },
+      {
+        "name": "w8a8_mm_out",
+        "shape": [
+          1,
+          2048
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_1_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_1_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_1_acc",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int32"
+      },
+      {
+        "name": "w8a8_mm_1_out",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_2_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_2_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_2_acc",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int32"
+      },
+      {
+        "name": "w8a8_mm_2_out",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_3_q",
+        "shape": [
+          1,
+          2048
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_3_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_3_acc",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int32"
+      },
+      {
+        "name": "w8a8_mm_3_out",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_4_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_4_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_4_acc",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "TensorDType.Int32"
+      },
+      {
+        "name": "w8a8_mm_4_out",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_5_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_5_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_5_acc",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "TensorDType.Int32"
+      },
+      {
+        "name": "w8a8_mm_5_out",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_6_q",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_6_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_6_acc",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int32"
+      },
+      {
+        "name": "w8a8_mm_6_out",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_7_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_7_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_7_acc",
+        "shape": [
+          1,
+          2048
+        ],
+        "dtype": "TensorDType.Int32"
+      },
+      {
+        "name": "w8a8_mm_7_out",
+        "shape": [
+          1,
+          2048
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_8_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_8_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_8_acc",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int32"
+      },
+      {
+        "name": "w8a8_mm_8_out",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_9_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_9_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_9_acc",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int32"
+      },
+      {
+        "name": "w8a8_mm_9_out",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_10_q",
+        "shape": [
+          1,
+          2048
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_10_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_10_acc",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int32"
+      },
+      {
+        "name": "w8a8_mm_10_out",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_11_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_11_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_11_acc",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "TensorDType.Int32"
+      },
+      {
+        "name": "w8a8_mm_11_out",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_12_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_12_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_12_acc",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "TensorDType.Int32"
+      },
+      {
+        "name": "w8a8_mm_12_out",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_13_q",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_13_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_13_acc",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int32"
+      },
+      {
+        "name": "w8a8_mm_13_out",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_14_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_14_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_14_acc",
+        "shape": [
+          1,
+          2048
+        ],
+        "dtype": "TensorDType.Int32"
+      },
+      {
+        "name": "w8a8_mm_14_out",
+        "shape": [
+          1,
+          2048
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_15_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_15_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_15_acc",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int32"
+      },
+      {
+        "name": "w8a8_mm_15_out",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_16_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_16_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_16_acc",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int32"
+      },
+      {
+        "name": "w8a8_mm_16_out",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_17_q",
+        "shape": [
+          1,
+          2048
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_17_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_17_acc",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int32"
+      },
+      {
+        "name": "w8a8_mm_17_out",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_18_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_18_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_18_acc",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "TensorDType.Int32"
+      },
+      {
+        "name": "w8a8_mm_18_out",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_19_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_19_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_19_acc",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "TensorDType.Int32"
+      },
+      {
+        "name": "w8a8_mm_19_out",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_20_q",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_20_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_20_acc",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int32"
+      },
+      {
+        "name": "w8a8_mm_20_out",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_21_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_21_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_21_acc",
+        "shape": [
+          1,
+          2048
+        ],
+        "dtype": "TensorDType.Int32"
+      },
+      {
+        "name": "w8a8_mm_21_out",
+        "shape": [
+          1,
+          2048
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_22_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_22_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_22_acc",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int32"
+      },
+      {
+        "name": "w8a8_mm_22_out",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_23_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_23_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_23_acc",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int32"
+      },
+      {
+        "name": "w8a8_mm_23_out",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_24_q",
+        "shape": [
+          1,
+          2048
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_24_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_24_acc",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int32"
+      },
+      {
+        "name": "w8a8_mm_24_out",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_25_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_25_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_25_acc",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "TensorDType.Int32"
+      },
+      {
+        "name": "w8a8_mm_25_out",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_26_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_26_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_26_acc",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "TensorDType.Int32"
+      },
+      {
+        "name": "w8a8_mm_26_out",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_27_q",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_27_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_27_acc",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int32"
+      },
+      {
+        "name": "w8a8_mm_27_out",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_28_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "TensorDType.Int8"
+      },
+      {
+        "name": "w8a8_mm_28_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "TensorDType.Float32"
+      },
+      {
+        "name": "w8a8_mm_28_acc",
+        "shape": [
+          1,
+          151936
+        ],
+        "dtype": "TensorDType.Int32"
+      },
+      {
+        "name": "w8a8_mm_28_out",
+        "shape": [
+          1,
+          151936
+        ],
+        "dtype": "TensorDType.Float32"
+      }
+    ]
+  },
+  "entry_abi": {
+    "entry": "forward_decode",
+    "source": "actual imported func.func type",
+    "inputs": [
+      {
+        "index": 0,
+        "node": "arg4_1",
+        "shape": [
+          1024
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 1,
+        "node": "arg6_1",
+        "shape": [
+          128
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 2,
+        "node": "arg8_1",
+        "shape": [
+          128
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 3,
+        "node": "arg13_1",
+        "shape": [
+          1024
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 4,
+        "node": "arg17_1",
+        "shape": [
+          1024
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 5,
+        "node": "arg19_1",
+        "shape": [
+          128
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 6,
+        "node": "arg21_1",
+        "shape": [
+          128
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 7,
+        "node": "arg27_1",
+        "shape": [
+          1024
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 8,
+        "node": "arg31_1",
+        "shape": [
+          1024
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 9,
+        "node": "arg33_1",
+        "shape": [
+          128
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 10,
+        "node": "arg35_1",
+        "shape": [
+          128
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 11,
+        "node": "arg41_1",
+        "shape": [
+          1024
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 12,
+        "node": "arg45_1",
+        "shape": [
+          1024
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 13,
+        "node": "arg47_1",
+        "shape": [
+          128
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 14,
+        "node": "arg49_1",
+        "shape": [
+          128
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 15,
+        "node": "arg55_1",
+        "shape": [
+          1024
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 16,
+        "node": "arg59_1",
+        "shape": [
+          1024
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 17,
+        "node": "arg3_1",
+        "shape": [
+          64
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 18,
+        "node": "w8a8_embedding_weight_i8",
+        "shape": [
+          151936,
+          1024
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 19,
+        "node": "w8a8_embedding_weight_scale",
+        "shape": [
+          151936
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 20,
+        "node": "w8a8_mm_27_weight_i8",
+        "shape": [
+          1024,
+          3072
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 21,
+        "node": "w8a8_mm_27_weight_scale",
+        "shape": [
+          1024
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 22,
+        "node": "w8a8_mm_26_weight_i8",
+        "shape": [
+          3072,
+          1024
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 23,
+        "node": "w8a8_mm_26_weight_scale",
+        "shape": [
+          3072
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 24,
+        "node": "w8a8_mm_25_weight_i8",
+        "shape": [
+          3072,
+          1024
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 25,
+        "node": "w8a8_mm_25_weight_scale",
+        "shape": [
+          3072
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 26,
+        "node": "w8a8_mm_24_weight_i8",
+        "shape": [
+          1024,
+          2048
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 27,
+        "node": "w8a8_mm_24_weight_scale",
+        "shape": [
+          1024
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 28,
+        "node": "w8a8_mm_23_weight_i8",
+        "shape": [
+          1024,
+          1024
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 29,
+        "node": "w8a8_mm_23_weight_scale",
+        "shape": [
+          1024
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 30,
+        "node": "w8a8_mm_22_weight_i8",
+        "shape": [
+          1024,
+          1024
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 31,
+        "node": "w8a8_mm_22_weight_scale",
+        "shape": [
+          1024
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 32,
+        "node": "w8a8_mm_21_weight_i8",
+        "shape": [
+          2048,
+          1024
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 33,
+        "node": "w8a8_mm_21_weight_scale",
+        "shape": [
+          2048
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 34,
+        "node": "w8a8_mm_20_weight_i8",
+        "shape": [
+          1024,
+          3072
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 35,
+        "node": "w8a8_mm_20_weight_scale",
+        "shape": [
+          1024
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 36,
+        "node": "w8a8_mm_19_weight_i8",
+        "shape": [
+          3072,
+          1024
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 37,
+        "node": "w8a8_mm_19_weight_scale",
+        "shape": [
+          3072
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 38,
+        "node": "w8a8_mm_18_weight_i8",
+        "shape": [
+          3072,
+          1024
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 39,
+        "node": "w8a8_mm_18_weight_scale",
+        "shape": [
+          3072
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 40,
+        "node": "w8a8_mm_17_weight_i8",
+        "shape": [
+          1024,
+          2048
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 41,
+        "node": "w8a8_mm_17_weight_scale",
+        "shape": [
+          1024
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 42,
+        "node": "w8a8_mm_16_weight_i8",
+        "shape": [
+          1024,
+          1024
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 43,
+        "node": "w8a8_mm_16_weight_scale",
+        "shape": [
+          1024
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 44,
+        "node": "w8a8_mm_15_weight_i8",
+        "shape": [
+          1024,
+          1024
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 45,
+        "node": "w8a8_mm_15_weight_scale",
+        "shape": [
+          1024
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 46,
+        "node": "w8a8_mm_14_weight_i8",
+        "shape": [
+          2048,
+          1024
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 47,
+        "node": "w8a8_mm_14_weight_scale",
+        "shape": [
+          2048
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 48,
+        "node": "w8a8_mm_13_weight_i8",
+        "shape": [
+          1024,
+          3072
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 49,
+        "node": "w8a8_mm_13_weight_scale",
+        "shape": [
+          1024
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 50,
+        "node": "w8a8_mm_12_weight_i8",
+        "shape": [
+          3072,
+          1024
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 51,
+        "node": "w8a8_mm_12_weight_scale",
+        "shape": [
+          3072
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 52,
+        "node": "w8a8_mm_11_weight_i8",
+        "shape": [
+          3072,
+          1024
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 53,
+        "node": "w8a8_mm_11_weight_scale",
+        "shape": [
+          3072
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 54,
+        "node": "w8a8_mm_10_weight_i8",
+        "shape": [
+          1024,
+          2048
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 55,
+        "node": "w8a8_mm_10_weight_scale",
+        "shape": [
+          1024
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 56,
+        "node": "w8a8_mm_9_weight_i8",
+        "shape": [
+          1024,
+          1024
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 57,
+        "node": "w8a8_mm_9_weight_scale",
+        "shape": [
+          1024
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 58,
+        "node": "w8a8_mm_8_weight_i8",
+        "shape": [
+          1024,
+          1024
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 59,
+        "node": "w8a8_mm_8_weight_scale",
+        "shape": [
+          1024
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 60,
+        "node": "w8a8_mm_7_weight_i8",
+        "shape": [
+          2048,
+          1024
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 61,
+        "node": "w8a8_mm_7_weight_scale",
+        "shape": [
+          2048
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 62,
+        "node": "w8a8_mm_6_weight_i8",
+        "shape": [
+          1024,
+          3072
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 63,
+        "node": "w8a8_mm_6_weight_scale",
+        "shape": [
+          1024
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 64,
+        "node": "w8a8_mm_5_weight_i8",
+        "shape": [
+          3072,
+          1024
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 65,
+        "node": "w8a8_mm_5_weight_scale",
+        "shape": [
+          3072
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 66,
+        "node": "w8a8_mm_4_weight_i8",
+        "shape": [
+          3072,
+          1024
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 67,
+        "node": "w8a8_mm_4_weight_scale",
+        "shape": [
+          3072
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 68,
+        "node": "w8a8_mm_3_weight_i8",
+        "shape": [
+          1024,
+          2048
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 69,
+        "node": "w8a8_mm_3_weight_scale",
+        "shape": [
+          1024
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 70,
+        "node": "w8a8_mm_2_weight_i8",
+        "shape": [
+          1024,
+          1024
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 71,
+        "node": "w8a8_mm_2_weight_scale",
+        "shape": [
+          1024
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 72,
+        "node": "w8a8_mm_1_weight_i8",
+        "shape": [
+          1024,
+          1024
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 73,
+        "node": "w8a8_mm_1_weight_scale",
+        "shape": [
+          1024
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 74,
+        "node": "w8a8_mm_weight_i8",
+        "shape": [
+          2048,
+          1024
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 75,
+        "node": "w8a8_mm_weight_scale",
+        "shape": [
+          2048
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 76,
+        "node": "arg0_1",
+        "shape": [
+          1,
+          1
+        ],
+        "dtype": "i64",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 77,
+        "node": "arg2_1",
+        "shape": [
+          1
+        ],
+        "dtype": "i64",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 78,
+        "node": "arg10_1",
+        "shape": [
+          1,
+          8,
+          512,
+          128
+        ],
+        "dtype": "f32",
+        "rank": 4,
+        "descriptor_bytes_lp64": 88,
+        "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }"
+      },
+      {
+        "index": 79,
+        "node": "arg11_1",
+        "shape": [
+          1,
+          8,
+          512,
+          128
+        ],
+        "dtype": "f32",
+        "rank": 4,
+        "descriptor_bytes_lp64": 88,
+        "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }"
+      },
+      {
+        "index": 80,
+        "node": "arg23_1",
+        "shape": [
+          1
+        ],
+        "dtype": "i64",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 81,
+        "node": "arg24_1",
+        "shape": [
+          1,
+          8,
+          512,
+          128
+        ],
+        "dtype": "f32",
+        "rank": 4,
+        "descriptor_bytes_lp64": 88,
+        "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }"
+      },
+      {
+        "index": 82,
+        "node": "arg25_1",
+        "shape": [
+          1,
+          8,
+          512,
+          128
+        ],
+        "dtype": "f32",
+        "rank": 4,
+        "descriptor_bytes_lp64": 88,
+        "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }"
+      },
+      {
+        "index": 83,
+        "node": "arg37_1",
+        "shape": [
+          1
+        ],
+        "dtype": "i64",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 84,
+        "node": "arg38_1",
+        "shape": [
+          1,
+          8,
+          512,
+          128
+        ],
+        "dtype": "f32",
+        "rank": 4,
+        "descriptor_bytes_lp64": 88,
+        "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }"
+      },
+      {
+        "index": 85,
+        "node": "arg39_1",
+        "shape": [
+          1,
+          8,
+          512,
+          128
+        ],
+        "dtype": "f32",
+        "rank": 4,
+        "descriptor_bytes_lp64": 88,
+        "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }"
+      },
+      {
+        "index": 86,
+        "node": "arg51_1",
+        "shape": [
+          1
+        ],
+        "dtype": "i64",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 87,
+        "node": "arg52_1",
+        "shape": [
+          1,
+          8,
+          512,
+          128
+        ],
+        "dtype": "f32",
+        "rank": 4,
+        "descriptor_bytes_lp64": 88,
+        "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }"
+      },
+      {
+        "index": 88,
+        "node": "arg53_1",
+        "shape": [
+          1,
+          8,
+          512,
+          128
+        ],
+        "dtype": "f32",
+        "rank": 4,
+        "descriptor_bytes_lp64": 88,
+        "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }"
+      },
+      {
+        "index": 89,
+        "node": "attn__scaled_dot_product_flash_attention_for_cpu_qk",
+        "shape": [
+          1,
+          16,
+          1,
+          512
+        ],
+        "dtype": "f32",
+        "rank": 4,
+        "descriptor_bytes_lp64": 88,
+        "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }"
+      },
+      {
+        "index": 90,
+        "node": "attn__scaled_dot_product_flash_attention_for_cpu_masked",
+        "shape": [
+          1,
+          16,
+          1,
+          512
+        ],
+        "dtype": "f32",
+        "rank": 4,
+        "descriptor_bytes_lp64": 88,
+        "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }"
+      },
+      {
+        "index": 91,
+        "node": "attn__scaled_dot_product_flash_attention_for_cpu_maxima",
+        "shape": [
+          16
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 92,
+        "node": "attn__scaled_dot_product_flash_attention_for_cpu_sums",
+        "shape": [
+          16
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 93,
+        "node": "attn__scaled_dot_product_flash_attention_for_cpu_probs",
+        "shape": [
+          1,
+          16,
+          1,
+          512
+        ],
+        "dtype": "f32",
+        "rank": 4,
+        "descriptor_bytes_lp64": 88,
+        "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }"
+      },
+      {
+        "index": 94,
+        "node": "attn__scaled_dot_product_flash_attention_for_cpu_pooled",
+        "shape": [
+          1,
+          16,
+          1,
+          128
+        ],
+        "dtype": "f32",
+        "rank": 4,
+        "descriptor_bytes_lp64": 88,
+        "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }"
+      },
+      {
+        "index": 95,
+        "node": "attn__scaled_dot_product_flash_attention_for_cpu_position",
+        "shape": [
+          1
+        ],
+        "dtype": "i32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 96,
+        "node": "attn__scaled_dot_product_flash_attention_for_cpu_1_qk",
+        "shape": [
+          1,
+          16,
+          1,
+          512
+        ],
+        "dtype": "f32",
+        "rank": 4,
+        "descriptor_bytes_lp64": 88,
+        "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }"
+      },
+      {
+        "index": 97,
+        "node": "attn__scaled_dot_product_flash_attention_for_cpu_1_masked",
+        "shape": [
+          1,
+          16,
+          1,
+          512
+        ],
+        "dtype": "f32",
+        "rank": 4,
+        "descriptor_bytes_lp64": 88,
+        "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }"
+      },
+      {
+        "index": 98,
+        "node": "attn__scaled_dot_product_flash_attention_for_cpu_1_maxima",
+        "shape": [
+          16
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 99,
+        "node": "attn__scaled_dot_product_flash_attention_for_cpu_1_sums",
+        "shape": [
+          16
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 100,
+        "node": "attn__scaled_dot_product_flash_attention_for_cpu_1_probs",
+        "shape": [
+          1,
+          16,
+          1,
+          512
+        ],
+        "dtype": "f32",
+        "rank": 4,
+        "descriptor_bytes_lp64": 88,
+        "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }"
+      },
+      {
+        "index": 101,
+        "node": "attn__scaled_dot_product_flash_attention_for_cpu_1_pooled",
+        "shape": [
+          1,
+          16,
+          1,
+          128
+        ],
+        "dtype": "f32",
+        "rank": 4,
+        "descriptor_bytes_lp64": 88,
+        "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }"
+      },
+      {
+        "index": 102,
+        "node": "attn__scaled_dot_product_flash_attention_for_cpu_2_qk",
+        "shape": [
+          1,
+          16,
+          1,
+          512
+        ],
+        "dtype": "f32",
+        "rank": 4,
+        "descriptor_bytes_lp64": 88,
+        "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }"
+      },
+      {
+        "index": 103,
+        "node": "attn__scaled_dot_product_flash_attention_for_cpu_2_masked",
+        "shape": [
+          1,
+          16,
+          1,
+          512
+        ],
+        "dtype": "f32",
+        "rank": 4,
+        "descriptor_bytes_lp64": 88,
+        "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }"
+      },
+      {
+        "index": 104,
+        "node": "attn__scaled_dot_product_flash_attention_for_cpu_2_maxima",
+        "shape": [
+          16
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 105,
+        "node": "attn__scaled_dot_product_flash_attention_for_cpu_2_sums",
+        "shape": [
+          16
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 106,
+        "node": "attn__scaled_dot_product_flash_attention_for_cpu_2_probs",
+        "shape": [
+          1,
+          16,
+          1,
+          512
+        ],
+        "dtype": "f32",
+        "rank": 4,
+        "descriptor_bytes_lp64": 88,
+        "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }"
+      },
+      {
+        "index": 107,
+        "node": "attn__scaled_dot_product_flash_attention_for_cpu_2_pooled",
+        "shape": [
+          1,
+          16,
+          1,
+          128
+        ],
+        "dtype": "f32",
+        "rank": 4,
+        "descriptor_bytes_lp64": 88,
+        "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }"
+      },
+      {
+        "index": 108,
+        "node": "attn__scaled_dot_product_flash_attention_for_cpu_3_qk",
+        "shape": [
+          1,
+          16,
+          1,
+          512
+        ],
+        "dtype": "f32",
+        "rank": 4,
+        "descriptor_bytes_lp64": 88,
+        "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }"
+      },
+      {
+        "index": 109,
+        "node": "attn__scaled_dot_product_flash_attention_for_cpu_3_masked",
+        "shape": [
+          1,
+          16,
+          1,
+          512
+        ],
+        "dtype": "f32",
+        "rank": 4,
+        "descriptor_bytes_lp64": 88,
+        "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }"
+      },
+      {
+        "index": 110,
+        "node": "attn__scaled_dot_product_flash_attention_for_cpu_3_maxima",
+        "shape": [
+          16
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 111,
+        "node": "attn__scaled_dot_product_flash_attention_for_cpu_3_sums",
+        "shape": [
+          16
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 112,
+        "node": "attn__scaled_dot_product_flash_attention_for_cpu_3_probs",
+        "shape": [
+          1,
+          16,
+          1,
+          512
+        ],
+        "dtype": "f32",
+        "rank": 4,
+        "descriptor_bytes_lp64": 88,
+        "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }"
+      },
+      {
+        "index": 113,
+        "node": "attn__scaled_dot_product_flash_attention_for_cpu_3_pooled",
+        "shape": [
+          1,
+          16,
+          1,
+          128
+        ],
+        "dtype": "f32",
+        "rank": 4,
+        "descriptor_bytes_lp64": 88,
+        "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }"
+      },
+      {
+        "index": 114,
+        "node": "kv_index_put_tm",
+        "shape": [
+          1,
+          8,
+          1,
+          128
+        ],
+        "dtype": "f32",
+        "rank": 4,
+        "descriptor_bytes_lp64": 88,
+        "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }"
+      },
+      {
+        "index": 115,
+        "node": "kv_index_put_1_tm",
+        "shape": [
+          1,
+          8,
+          1,
+          128
+        ],
+        "dtype": "f32",
+        "rank": 4,
+        "descriptor_bytes_lp64": 88,
+        "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }"
+      },
+      {
+        "index": 116,
+        "node": "kv_index_put_2_tm",
+        "shape": [
+          1,
+          8,
+          1,
+          128
+        ],
+        "dtype": "f32",
+        "rank": 4,
+        "descriptor_bytes_lp64": 88,
+        "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }"
+      },
+      {
+        "index": 117,
+        "node": "kv_index_put_3_tm",
+        "shape": [
+          1,
+          8,
+          1,
+          128
+        ],
+        "dtype": "f32",
+        "rank": 4,
+        "descriptor_bytes_lp64": 88,
+        "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }"
+      },
+      {
+        "index": 118,
+        "node": "kv_index_put_4_tm",
+        "shape": [
+          1,
+          8,
+          1,
+          128
+        ],
+        "dtype": "f32",
+        "rank": 4,
+        "descriptor_bytes_lp64": 88,
+        "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }"
+      },
+      {
+        "index": 119,
+        "node": "kv_index_put_5_tm",
+        "shape": [
+          1,
+          8,
+          1,
+          128
+        ],
+        "dtype": "f32",
+        "rank": 4,
+        "descriptor_bytes_lp64": 88,
+        "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }"
+      },
+      {
+        "index": 120,
+        "node": "kv_index_put_6_tm",
+        "shape": [
+          1,
+          8,
+          1,
+          128
+        ],
+        "dtype": "f32",
+        "rank": 4,
+        "descriptor_bytes_lp64": 88,
+        "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }"
+      },
+      {
+        "index": 121,
+        "node": "kv_index_put_7_tm",
+        "shape": [
+          1,
+          8,
+          1,
+          128
+        ],
+        "dtype": "f32",
+        "rank": 4,
+        "descriptor_bytes_lp64": 88,
+        "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }"
+      },
+      {
+        "index": 122,
+        "node": "w8a8_embedding_out",
+        "shape": [
+          1,
+          1,
+          1024
+        ],
+        "dtype": "f32",
+        "rank": 3,
+        "descriptor_bytes_lp64": 72,
+        "llvm_descriptor": "{ ptr, ptr, i64, [3 x i64], [3 x i64] }"
+      },
+      {
+        "index": 123,
+        "node": "w8a8_mm_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 124,
+        "node": "w8a8_mm_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 125,
+        "node": "w8a8_mm_acc",
+        "shape": [
+          1,
+          2048
+        ],
+        "dtype": "i32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 126,
+        "node": "w8a8_mm_out",
+        "shape": [
+          1,
+          2048
+        ],
+        "dtype": "f32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 127,
+        "node": "w8a8_mm_1_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 128,
+        "node": "w8a8_mm_1_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 129,
+        "node": "w8a8_mm_1_acc",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "i32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 130,
+        "node": "w8a8_mm_1_out",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "f32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 131,
+        "node": "w8a8_mm_2_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 132,
+        "node": "w8a8_mm_2_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 133,
+        "node": "w8a8_mm_2_acc",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "i32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 134,
+        "node": "w8a8_mm_2_out",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "f32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 135,
+        "node": "w8a8_mm_3_q",
+        "shape": [
+          1,
+          2048
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 136,
+        "node": "w8a8_mm_3_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 137,
+        "node": "w8a8_mm_3_acc",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "i32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 138,
+        "node": "w8a8_mm_3_out",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "f32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 139,
+        "node": "w8a8_mm_4_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 140,
+        "node": "w8a8_mm_4_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 141,
+        "node": "w8a8_mm_4_acc",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "i32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 142,
+        "node": "w8a8_mm_4_out",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "f32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 143,
+        "node": "w8a8_mm_5_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 144,
+        "node": "w8a8_mm_5_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 145,
+        "node": "w8a8_mm_5_acc",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "i32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 146,
+        "node": "w8a8_mm_5_out",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "f32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 147,
+        "node": "w8a8_mm_6_q",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 148,
+        "node": "w8a8_mm_6_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 149,
+        "node": "w8a8_mm_6_acc",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "i32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 150,
+        "node": "w8a8_mm_6_out",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "f32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 151,
+        "node": "w8a8_mm_7_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 152,
+        "node": "w8a8_mm_7_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 153,
+        "node": "w8a8_mm_7_acc",
+        "shape": [
+          1,
+          2048
+        ],
+        "dtype": "i32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 154,
+        "node": "w8a8_mm_7_out",
+        "shape": [
+          1,
+          2048
+        ],
+        "dtype": "f32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 155,
+        "node": "w8a8_mm_8_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 156,
+        "node": "w8a8_mm_8_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 157,
+        "node": "w8a8_mm_8_acc",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "i32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 158,
+        "node": "w8a8_mm_8_out",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "f32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 159,
+        "node": "w8a8_mm_9_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 160,
+        "node": "w8a8_mm_9_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 161,
+        "node": "w8a8_mm_9_acc",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "i32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 162,
+        "node": "w8a8_mm_9_out",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "f32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 163,
+        "node": "w8a8_mm_10_q",
+        "shape": [
+          1,
+          2048
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 164,
+        "node": "w8a8_mm_10_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 165,
+        "node": "w8a8_mm_10_acc",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "i32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 166,
+        "node": "w8a8_mm_10_out",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "f32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 167,
+        "node": "w8a8_mm_11_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 168,
+        "node": "w8a8_mm_11_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 169,
+        "node": "w8a8_mm_11_acc",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "i32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 170,
+        "node": "w8a8_mm_11_out",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "f32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 171,
+        "node": "w8a8_mm_12_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 172,
+        "node": "w8a8_mm_12_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 173,
+        "node": "w8a8_mm_12_acc",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "i32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 174,
+        "node": "w8a8_mm_12_out",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "f32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 175,
+        "node": "w8a8_mm_13_q",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 176,
+        "node": "w8a8_mm_13_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 177,
+        "node": "w8a8_mm_13_acc",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "i32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 178,
+        "node": "w8a8_mm_13_out",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "f32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 179,
+        "node": "w8a8_mm_14_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 180,
+        "node": "w8a8_mm_14_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 181,
+        "node": "w8a8_mm_14_acc",
+        "shape": [
+          1,
+          2048
+        ],
+        "dtype": "i32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 182,
+        "node": "w8a8_mm_14_out",
+        "shape": [
+          1,
+          2048
+        ],
+        "dtype": "f32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 183,
+        "node": "w8a8_mm_15_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 184,
+        "node": "w8a8_mm_15_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 185,
+        "node": "w8a8_mm_15_acc",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "i32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 186,
+        "node": "w8a8_mm_15_out",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "f32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 187,
+        "node": "w8a8_mm_16_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 188,
+        "node": "w8a8_mm_16_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 189,
+        "node": "w8a8_mm_16_acc",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "i32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 190,
+        "node": "w8a8_mm_16_out",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "f32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 191,
+        "node": "w8a8_mm_17_q",
+        "shape": [
+          1,
+          2048
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 192,
+        "node": "w8a8_mm_17_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 193,
+        "node": "w8a8_mm_17_acc",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "i32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 194,
+        "node": "w8a8_mm_17_out",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "f32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 195,
+        "node": "w8a8_mm_18_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 196,
+        "node": "w8a8_mm_18_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 197,
+        "node": "w8a8_mm_18_acc",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "i32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 198,
+        "node": "w8a8_mm_18_out",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "f32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 199,
+        "node": "w8a8_mm_19_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 200,
+        "node": "w8a8_mm_19_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 201,
+        "node": "w8a8_mm_19_acc",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "i32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 202,
+        "node": "w8a8_mm_19_out",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "f32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 203,
+        "node": "w8a8_mm_20_q",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 204,
+        "node": "w8a8_mm_20_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 205,
+        "node": "w8a8_mm_20_acc",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "i32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 206,
+        "node": "w8a8_mm_20_out",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "f32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 207,
+        "node": "w8a8_mm_21_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 208,
+        "node": "w8a8_mm_21_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 209,
+        "node": "w8a8_mm_21_acc",
+        "shape": [
+          1,
+          2048
+        ],
+        "dtype": "i32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 210,
+        "node": "w8a8_mm_21_out",
+        "shape": [
+          1,
+          2048
+        ],
+        "dtype": "f32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 211,
+        "node": "w8a8_mm_22_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 212,
+        "node": "w8a8_mm_22_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 213,
+        "node": "w8a8_mm_22_acc",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "i32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 214,
+        "node": "w8a8_mm_22_out",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "f32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 215,
+        "node": "w8a8_mm_23_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 216,
+        "node": "w8a8_mm_23_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 217,
+        "node": "w8a8_mm_23_acc",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "i32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 218,
+        "node": "w8a8_mm_23_out",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "f32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 219,
+        "node": "w8a8_mm_24_q",
+        "shape": [
+          1,
+          2048
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 220,
+        "node": "w8a8_mm_24_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 221,
+        "node": "w8a8_mm_24_acc",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "i32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 222,
+        "node": "w8a8_mm_24_out",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "f32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 223,
+        "node": "w8a8_mm_25_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 224,
+        "node": "w8a8_mm_25_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 225,
+        "node": "w8a8_mm_25_acc",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "i32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 226,
+        "node": "w8a8_mm_25_out",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "f32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 227,
+        "node": "w8a8_mm_26_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 228,
+        "node": "w8a8_mm_26_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 229,
+        "node": "w8a8_mm_26_acc",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "i32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 230,
+        "node": "w8a8_mm_26_out",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "f32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 231,
+        "node": "w8a8_mm_27_q",
+        "shape": [
+          1,
+          3072
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 232,
+        "node": "w8a8_mm_27_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 233,
+        "node": "w8a8_mm_27_acc",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "i32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 234,
+        "node": "w8a8_mm_27_out",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "f32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 235,
+        "node": "w8a8_mm_28_q",
+        "shape": [
+          1,
+          1024
+        ],
+        "dtype": "i8",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 236,
+        "node": "w8a8_mm_28_a_scale",
+        "shape": [
+          1
+        ],
+        "dtype": "f32",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }"
+      },
+      {
+        "index": 237,
+        "node": "w8a8_mm_28_acc",
+        "shape": [
+          1,
+          151936
+        ],
+        "dtype": "i32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      },
+      {
+        "index": 238,
+        "node": "w8a8_mm_28_out",
+        "shape": [
+          1,
+          151936
+        ],
+        "dtype": "f32",
+        "rank": 2,
+        "descriptor_bytes_lp64": 56,
+        "llvm_descriptor": "{ ptr, ptr, i64, [2 x i64], [2 x i64] }"
+      }
+    ],
+    "outputs": [
+      {
+        "index": 0,
+        "node": "add_9",
+        "shape": [
+          1
+        ],
+        "dtype": "i64",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }",
+        "aggregate_offset_bytes_lp64": 0
+      },
+      {
+        "index": 1,
+        "node": "arg10_1",
+        "shape": [
+          1,
+          8,
+          512,
+          128
+        ],
+        "dtype": "f32",
+        "rank": 4,
+        "descriptor_bytes_lp64": 88,
+        "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }",
+        "aggregate_offset_bytes_lp64": 40
+      },
+      {
+        "index": 2,
+        "node": "arg11_1",
+        "shape": [
+          1,
+          8,
+          512,
+          128
+        ],
+        "dtype": "f32",
+        "rank": 4,
+        "descriptor_bytes_lp64": 88,
+        "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }",
+        "aggregate_offset_bytes_lp64": 128
+      },
+      {
+        "index": 3,
+        "node": "add_19",
+        "shape": [
+          1
+        ],
+        "dtype": "i64",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }",
+        "aggregate_offset_bytes_lp64": 216
+      },
+      {
+        "index": 4,
+        "node": "arg24_1",
+        "shape": [
+          1,
+          8,
+          512,
+          128
+        ],
+        "dtype": "f32",
+        "rank": 4,
+        "descriptor_bytes_lp64": 88,
+        "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }",
+        "aggregate_offset_bytes_lp64": 256
+      },
+      {
+        "index": 5,
+        "node": "arg25_1",
+        "shape": [
+          1,
+          8,
+          512,
+          128
+        ],
+        "dtype": "f32",
+        "rank": 4,
+        "descriptor_bytes_lp64": 88,
+        "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }",
+        "aggregate_offset_bytes_lp64": 344
+      },
+      {
+        "index": 6,
+        "node": "add_29",
+        "shape": [
+          1
+        ],
+        "dtype": "i64",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }",
+        "aggregate_offset_bytes_lp64": 432
+      },
+      {
+        "index": 7,
+        "node": "arg38_1",
+        "shape": [
+          1,
+          8,
+          512,
+          128
+        ],
+        "dtype": "f32",
+        "rank": 4,
+        "descriptor_bytes_lp64": 88,
+        "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }",
+        "aggregate_offset_bytes_lp64": 472
+      },
+      {
+        "index": 8,
+        "node": "arg39_1",
+        "shape": [
+          1,
+          8,
+          512,
+          128
+        ],
+        "dtype": "f32",
+        "rank": 4,
+        "descriptor_bytes_lp64": 88,
+        "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }",
+        "aggregate_offset_bytes_lp64": 560
+      },
+      {
+        "index": 9,
+        "node": "add_39",
+        "shape": [
+          1
+        ],
+        "dtype": "i64",
+        "rank": 1,
+        "descriptor_bytes_lp64": 40,
+        "llvm_descriptor": "{ ptr, ptr, i64, [1 x i64], [1 x i64] }",
+        "aggregate_offset_bytes_lp64": 648
+      },
+      {
+        "index": 10,
+        "node": "arg52_1",
+        "shape": [
+          1,
+          8,
+          512,
+          128
+        ],
+        "dtype": "f32",
+        "rank": 4,
+        "descriptor_bytes_lp64": 88,
+        "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }",
+        "aggregate_offset_bytes_lp64": 688
+      },
+      {
+        "index": 11,
+        "node": "arg53_1",
+        "shape": [
+          1,
+          8,
+          512,
+          128
+        ],
+        "dtype": "f32",
+        "rank": 4,
+        "descriptor_bytes_lp64": 88,
+        "llvm_descriptor": "{ ptr, ptr, i64, [4 x i64], [4 x i64] }",
+        "aggregate_offset_bytes_lp64": 776
+      },
+      {
+        "index": 12,
+        "node": "view_85",
+        "shape": [
+          1,
+          1,
+          151936
+        ],
+        "dtype": "f32",
+        "rank": 3,
+        "descriptor_bytes_lp64": 72,
+        "llvm_descriptor": "{ ptr, ptr, i64, [3 x i64], [3 x i64] }",
+        "aggregate_offset_bytes_lp64": 864
+      }
+    ],
+    "parameter_count": 76,
+    "result_descriptor_count": 13,
+    "result_aggregate_bytes_lp64": 936,
+    "contract": "CIFACE result aggregate pointer first, then one descriptor pointer per input; descriptor offsets and strides must be honored"
+  },
+  "dense_coverage": {
+    "remaining": [
+      {
+        "node": "bmm",
+        "kind": "BatchMatmulOp",
+        "operand_shapes": [
+          [
+            1,
+            64,
+            1
+          ],
+          [
+            1,
+            1,
+            1
+          ]
+        ],
+        "estimated_macs": 64,
+        "large": false,
+        "fallback": "generic Buddy lowering; no Triton call",
+        "performance": "unverified; large entries block full kernel coverage"
+      }
+    ],
+    "large_uncovered": []
+  },
+  "llvm_entry_evidence": {
+    "llvm_signatures": [
+      "define { { ptr, ptr, i64, [1 x i64], [1 x i64] }, { ptr, ptr, i64, [4 x i64], [4 x i64] }, { ptr, ptr, i64, [4 x i64], [4 x i64] }, { ptr, ptr, i64, [1 x i64], [1 x i64] }, { ptr, ptr, i64, [4 x i64], [4 x i64] }, { ptr, ptr, i64, [4 x i64], [4 x i64] }, { ptr, ptr, i64, [1 x i64], [1 x i64] }, { ptr, ptr, i64, [4 x i64], [4 x i64] }, { ptr, ptr, i64, [4 x i64], [4 x i64] }, { ptr, ptr, i64, [1 x i64], [1 x i64] }, { ptr, ptr, i64, [4 x i64], [4 x i64] }, { ptr, ptr, i64, [4 x i64], [4 x i64] }, { ptr, ptr, i64, [3 x i64], [3 x i64] } } @forward_decode(ptr %0, ptr %1, i64 %2, i64 %3, i64 %4, ptr %5, ptr %6, i64 %7, i64 %8, i64 %9, ptr %10, ptr %11, i64 %12, i64 %13, i64 %14, ptr %15, ptr %16, i64 %17, i64 %18, i64 %19, ptr %20, ptr %21, i64 %22, i64 %23, i64 %24, ptr %25, ptr %26, i64 %27, i64 %28, i64 %29, ptr %30, ptr %31, i64 %32, i64 %33, i64 %34, ptr %35, ptr %36, i64 %37, i64 %38, i64 %39, ptr %40, ptr %41, i64 %42, i64 %43, i64 %44, ptr %45, ptr %46, i64 %47, i64 %48, i64 %49, ptr %50, ptr %51, i64 %52, i64 %53, i64 %54, ptr %55, ptr %56, i64 %57, i64 %58, i64 %59, ptr %60, ptr %61, i64 %62, i64 %63, i64 %64, ptr %65, ptr %66, i64 %67, i64 %68, i64 %69, ptr %70, ptr %71, i64 %72, i64 %73, i64 %74, ptr %75, ptr %76, i64 %77, i64 %78, i64 %79, ptr %80, ptr %81, i64 %82, i64 %83, i64 %84, ptr %85, ptr %86, i64 %87, i64 %88, i64 %89, ptr %90, ptr %91, i64 %92, i64 %93, i64 %94, i64 %95, i64 %96, ptr %97, ptr %98, i64 %99, i64 %100, i64 %101, ptr %102, ptr %103, i64 %104, i64 %105, i64 %106, i64 %107, i64 %108, ptr %109, ptr %110, i64 %111, i64 %112, i64 %113, ptr %114, ptr %115, i64 %116, i64 %117, i64 %118, i64 %119, i64 %120, ptr %121, ptr %122, i64 %123, i64 %124, i64 %125, ptr %126, ptr %127, i64 %128, i64 %129, i64 %130, i64 %131, i64 %132, ptr %133, ptr %134, i64 %135, i64 %136, i64 %137, ptr %138, ptr %139, i64 %140, i64 %141, i64 %142, i64 %143, i64 %144, ptr %145, ptr %146, i64 %147, i64 %148, i64 %149, ptr %150, ptr %151, i64 %152, i64 %153, i64 %154, i64 %155, i64 %156, ptr %157, ptr %158, i64 %159, i64 %160, i64 %161, ptr %162, ptr %163, i64 %164, i64 %165, i64 %166, i64 %167, i64 %168, ptr %169, ptr %170, i64 %171, i64 %172, i64 %173, ptr %174, ptr %175, i64 %176, i64 %177, i64 %178, i64 %179, i64 %180, ptr %181, ptr %182, i64 %183, i64 %184, i64 %185, ptr %186, ptr %187, i64 %188, i64 %189, i64 %190, i64 %191, i64 %192, ptr %193, ptr %194, i64 %195, i64 %196, i64 %197, ptr %198, ptr %199, i64 %200, i64 %201, i64 %202, i64 %203, i64 %204, ptr %205, ptr %206, i64 %207, i64 %208, i64 %209, ptr %210, ptr %211, i64 %212, i64 %213, i64 %214, i64 %215, i64 %216, ptr %217, ptr %218, i64 %219, i64 %220, i64 %221, ptr %222, ptr %223, i64 %224, i64 %225, i64 %226, i64 %227, i64 %228, ptr %229, ptr %230, i64 %231, i64 %232, i64 %233, ptr %234, ptr %235, i64 %236, i64 %237, i64 %238, i64 %239, i64 %240, ptr %241, ptr %242, i64 %243, i64 %244, i64 %245, ptr %246, ptr %247, i64 %248, i64 %249, i64 %250, i64 %251, i64 %252, ptr %253, ptr %254, i64 %255, i64 %256, i64 %257, ptr %258, ptr %259, i64 %260, i64 %261, i64 %262, i64 %263, i64 %264, ptr %265, ptr %266, i64 %267, i64 %268, i64 %269, ptr %270, ptr %271, i64 %272, i64 %273, i64 %274, i64 %275, i64 %276, ptr %277, ptr %278, i64 %279, i64 %280, i64 %281, ptr %282, ptr %283, i64 %284, i64 %285, i64 %286, i64 %287, i64 %288, ptr %289, ptr %290, i64 %291, i64 %292, i64 %293, ptr %294, ptr %295, i64 %296, i64 %297, i64 %298, i64 %299, i64 %300, ptr %301, ptr %302, i64 %303, i64 %304, i64 %305, ptr %306, ptr %307, i64 %308, i64 %309, i64 %310, i64 %311, i64 %312, ptr %313, ptr %314, i64 %315, i64 %316, i64 %317, ptr %318, ptr %319, i64 %320, i64 %321, i64 %322, i64 %323, i64 %324, ptr %325, ptr %326, i64 %327, i64 %328, i64 %329, ptr %330, ptr %331, i64 %332, i64 %333, i64 %334, i64 %335, i64 %336, ptr %337, ptr %338, i64 %339, i64 %340, i64 %341, ptr %342, ptr %343, i64 %344, i64 %345, i64 %346, i64 %347, i64 %348, ptr %349, ptr %350, i64 %351, i64 %352, i64 %353, ptr %354, ptr %355, i64 %356, i64 %357, i64 %358, i64 %359, i64 %360, ptr %361, ptr %362, i64 %363, i64 %364, i64 %365, ptr %366, ptr %367, i64 %368, i64 %369, i64 %370, i64 %371, i64 %372, ptr %373, ptr %374, i64 %375, i64 %376, i64 %377, ptr %378, ptr %379, i64 %380, i64 %381, i64 %382, i64 %383, i64 %384, ptr %385, ptr %386, i64 %387, i64 %388, i64 %389, ptr %390, ptr %391, i64 %392, i64 %393, i64 %394, i64 %395, i64 %396, ptr %397, ptr %398, i64 %399, i64 %400, i64 %401, ptr %402, ptr %403, i64 %404, i64 %405, i64 %406, i64 %407, i64 %408, ptr %409, ptr %410, i64 %411, i64 %412, i64 %413, ptr %414, ptr %415, i64 %416, i64 %417, i64 %418, i64 %419, i64 %420, ptr %421, ptr %422, i64 %423, i64 %424, i64 %425, ptr %426, ptr %427, i64 %428, i64 %429, i64 %430, i64 %431, i64 %432, ptr %433, ptr %434, i64 %435, i64 %436, i64 %437, ptr %438, ptr %439, i64 %440, i64 %441, i64 %442, i64 %443, i64 %444, ptr %445, ptr %446, i64 %447, i64 %448, i64 %449, ptr %450, ptr %451, i64 %452, i64 %453, i64 %454, i64 %455, i64 %456, i64 %457, i64 %458, i64 %459, i64 %460, ptr %461, ptr %462, i64 %463, i64 %464, i64 %465, i64 %466, i64 %467, i64 %468, i64 %469, i64 %470, i64 %471, ptr %472, ptr %473, i64 %474, i64 %475, i64 %476, ptr %477, ptr %478, i64 %479, i64 %480, i64 %481, i64 %482, i64 %483, i64 %484, i64 %485, i64 %486, i64 %487, ptr %488, ptr %489, i64 %490, i64 %491, i64 %492, i64 %493, i64 %494, i64 %495, i64 %496, i64 %497, i64 %498, ptr %499, ptr %500, i64 %501, i64 %502, i64 %503, ptr %504, ptr %505, i64 %506, i64 %507, i64 %508, i64 %509, i64 %510, i64 %511, i64 %512, i64 %513, i64 %514, ptr %515, ptr %516, i64 %517, i64 %518, i64 %519, i64 %520, i64 %521, i64 %522, i64 %523, i64 %524, i64 %525, ptr %526, ptr %527, i64 %528, i64 %529, i64 %530, ptr %531, ptr %532, i64 %533, i64 %534, i64 %535, i64 %536, i64 %537, i64 %538, i64 %539, i64 %540, i64 %541, ptr %542, ptr %543, i64 %544, i64 %545, i64 %546, i64 %547, i64 %548, i64 %549, i64 %550, i64 %551, i64 %552, ptr %553, ptr %554, i64 %555, i64 %556, i64 %557, i64 %558, i64 %559, i64 %560, i64 %561, i64 %562, i64 %563, ptr %564, ptr %565, i64 %566, i64 %567, i64 %568, i64 %569, i64 %570, i64 %571, i64 %572, i64 %573, i64 %574, ptr %575, ptr %576, i64 %577, i64 %578, i64 %579, ptr %580, ptr %581, i64 %582, i64 %583, i64 %584, ptr %585, ptr %586, i64 %587, i64 %588, i64 %589, i64 %590, i64 %591, i64 %592, i64 %593, i64 %594, i64 %595, ptr %596, ptr %597, i64 %598, i64 %599, i64 %600, i64 %601, i64 %602, i64 %603, i64 %604, i64 %605, i64 %606, ptr %607, ptr %608, i64 %609, i64 %610, i64 %611, ptr %612, ptr %613, i64 %614, i64 %615, i64 %616, i64 %617, i64 %618, i64 %619, i64 %620, i64 %621, i64 %622, ptr %623, ptr %624, i64 %625, i64 %626, i64 %627, i64 %628, i64 %629, i64 %630, i64 %631, i64 %632, i64 %633, ptr %634, ptr %635, i64 %636, i64 %637, i64 %638, ptr %639, ptr %640, i64 %641, i64 %642, i64 %643, ptr %644, ptr %645, i64 %646, i64 %647, i64 %648, i64 %649, i64 %650, i64 %651, i64 %652, i64 %653, i64 %654, ptr %655, ptr %656, i64 %657, i64 %658, i64 %659, i64 %660, i64 %661, i64 %662, i64 %663, i64 %664, i64 %665, ptr %666, ptr %667, i64 %668, i64 %669, i64 %670, i64 %671, i64 %672, i64 %673, i64 %674, i64 %675, i64 %676, ptr %677, ptr %678, i64 %679, i64 %680, i64 %681, i64 %682, i64 %683, i64 %684, i64 %685, i64 %686, i64 %687, ptr %688, ptr %689, i64 %690, i64 %691, i64 %692, ptr %693, ptr %694, i64 %695, i64 %696, i64 %697, ptr %698, ptr %699, i64 %700, i64 %701, i64 %702, i64 %703, i64 %704, i64 %705, i64 %706, i64 %707, i64 %708, ptr %709, ptr %710, i64 %711, i64 %712, i64 %713, i64 %714, i64 %715, i64 %716, i64 %717, i64 %718, i64 %719, ptr %720, ptr %721, i64 %722, i64 %723, i64 %724, i64 %725, i64 %726, i64 %727, i64 %728, i64 %729, i64 %730, ptr %731, ptr %732, i64 %733, i64 %734, i64 %735, i64 %736, i64 %737, i64 %738, i64 %739, i64 %740, i64 %741, ptr %742, ptr %743, i64 %744, i64 %745, i64 %746, ptr %747, ptr %748, i64 %749, i64 %750, i64 %751, ptr %752, ptr %753, i64 %754, i64 %755, i64 %756, i64 %757, i64 %758, i64 %759, i64 %760, i64 %761, i64 %762, ptr %763, ptr %764, i64 %765, i64 %766, i64 %767, i64 %768, i64 %769, i64 %770, i64 %771, i64 %772, i64 %773, ptr %774, ptr %775, i64 %776, i64 %777, i64 %778, i64 %779, i64 %780, i64 %781, i64 %782, i64 %783, i64 %784, ptr %785, ptr %786, i64 %787, i64 %788, i64 %789, i64 %790, i64 %791, i64 %792, i64 %793, i64 %794, i64 %795, ptr %796, ptr %797, i64 %798, i64 %799, i64 %800, i64 %801, i64 %802, i64 %803, i64 %804, i64 %805, i64 %806, ptr %807, ptr %808, i64 %809, i64 %810, i64 %811, i64 %812, i64 %813, i64 %814, i64 %815, i64 %816, i64 %817, ptr %818, ptr %819, i64 %820, i64 %821, i64 %822, i64 %823, i64 %824, i64 %825, i64 %826, i64 %827, i64 %828, ptr %829, ptr %830, i64 %831, i64 %832, i64 %833, i64 %834, i64 %835, i64 %836, i64 %837, i64 %838, i64 %839, ptr %840, ptr %841, i64 %842, i64 %843, i64 %844, i64 %845, i64 %846, i64 %847, i64 %848, i64 %849, i64 %850, ptr %851, ptr %852, i64 %853, i64 %854, i64 %855, i64 %856, i64 %857, i64 %858, i64 %859, i64 %860, i64 %861, ptr %862, ptr %863, i64 %864, i64 %865, i64 %866, i64 %867, i64 %868, i64 %869, i64 %870, ptr %871, ptr %872, i64 %873, i64 %874, i64 %875, i64 %876, i64 %877, ptr %878, ptr %879, i64 %880, i64 %881, i64 %882, ptr %883, ptr %884, i64 %885, i64 %886, i64 %887, i64 %888, i64 %889, ptr %890, ptr %891, i64 %892, i64 %893, i64 %894, i64 %895, i64 %896, ptr %897, ptr %898, i64 %899, i64 %900, i64 %901, i64 %902, i64 %903, ptr %904, ptr %905, i64 %906, i64 %907, i64 %908, ptr %909, ptr %910, i64 %911, i64 %912, i64 %913, i64 %914, i64 %915, ptr %916, ptr %917, i64 %918, i64 %919, i64 %920, i64 %921, i64 %922, ptr %923, ptr %924, i64 %925, i64 %926, i64 %927, i64 %928, i64 %929, ptr %930, ptr %931, i64 %932, i64 %933, i64 %934, ptr %935, ptr %936, i64 %937, i64 %938, i64 %939, i64 %940, i64 %941, ptr %942, ptr %943, i64 %944, i64 %945, i64 %946, i64 %947, i64 %948, ptr %949, ptr %950, i64 %951, i64 %952, i64 %953, i64 %954, i64 %955, ptr %956, ptr %957, i64 %958, i64 %959, i64 %960, ptr %961, ptr %962, i64 %963, i64 %964, i64 %965, i64 %966, i64 %967, ptr %968, ptr %969, i64 %970, i64 %971, i64 %972, i64 %973, i64 %974, ptr %975, ptr %976, i64 %977, i64 %978, i64 %979, i64 %980, i64 %981, ptr %982, ptr %983, i64 %984, i64 %985, i64 %986, ptr %987, ptr %988, i64 %989, i64 %990, i64 %991, i64 %992, i64 %993, ptr %994, ptr %995, i64 %996, i64 %997, i64 %998, i64 %999, i64 %1000, ptr %1001, ptr %1002, i64 %1003, i64 %1004, i64 %1005, i64 %1006, i64 %1007, ptr %1008, ptr %1009, i64 %1010, i64 %1011, i64 %1012, ptr %1013, ptr %1014, i64 %1015, i64 %1016, i64 %1017, i64 %1018, i64 %1019, ptr %1020, ptr %1021, i64 %1022, i64 %1023, i64 %1024, i64 %1025, i64 %1026, ptr %1027, ptr %1028, i64 %1029, i64 %1030, i64 %1031, i64 %1032, i64 %1033, ptr %1034, ptr %1035, i64 %1036, i64 %1037, i64 %1038, ptr %1039, ptr %1040, i64 %1041, i64 %1042, i64 %1043, i64 %1044, i64 %1045, ptr %1046, ptr %1047, i64 %1048, i64 %1049, i64 %1050, i64 %1051, i64 %1052, ptr %1053, ptr %1054, i64 %1055, i64 %1056, i64 %1057, i64 %1058, i64 %1059, ptr %1060, ptr %1061, i64 %1062, i64 %1063, i64 %1064, ptr %1065, ptr %1066, i64 %1067, i64 %1068, i64 %1069, i64 %1070, i64 %1071, ptr %1072, ptr %1073, i64 %1074, i64 %1075, i64 %1076, i64 %1077, i64 %1078, ptr %1079, ptr %1080, i64 %1081, i64 %1082, i64 %1083, i64 %1084, i64 %1085, ptr %1086, ptr %1087, i64 %1088, i64 %1089, i64 %1090, ptr %1091, ptr %1092, i64 %1093, i64 %1094, i64 %1095, i64 %1096, i64 %1097, ptr %1098, ptr %1099, i64 %1100, i64 %1101, i64 %1102, i64 %1103, i64 %1104, ptr %1105, ptr %1106, i64 %1107, i64 %1108, i64 %1109, i64 %1110, i64 %1111, ptr %1112, ptr %1113, i64 %1114, i64 %1115, i64 %1116, ptr %1117, ptr %1118, i64 %1119, i64 %1120, i64 %1121, i64 %1122, i64 %1123, ptr %1124, ptr %1125, i64 %1126, i64 %1127, i64 %1128, i64 %1129, i64 %1130, ptr %1131, ptr %1132, i64 %1133, i64 %1134, i64 %1135, i64 %1136, i64 %1137, ptr %1138, ptr %1139, i64 %1140, i64 %1141, i64 %1142, ptr %1143, ptr %1144, i64 %1145, i64 %1146, i64 %1147, i64 %1148, i64 %1149, ptr %1150, ptr %1151, i64 %1152, i64 %1153, i64 %1154, i64 %1155, i64 %1156, ptr %1157, ptr %1158, i64 %1159, i64 %1160, i64 %1161, i64 %1162, i64 %1163, ptr %1164, ptr %1165, i64 %1166, i64 %1167, i64 %1168, ptr %1169, ptr %1170, i64 %1171, i64 %1172, i64 %1173, i64 %1174, i64 %1175, ptr %1176, ptr %1177, i64 %1178, i64 %1179, i64 %1180, i64 %1181, i64 %1182, ptr %1183, ptr %1184, i64 %1185, i64 %1186, i64 %1187, i64 %1188, i64 %1189, ptr %1190, ptr %1191, i64 %1192, i64 %1193, i64 %1194, ptr %1195, ptr %1196, i64 %1197, i64 %1198, i64 %1199, i64 %1200, i64 %1201, ptr %1202, ptr %1203, i64 %1204, i64 %1205, i64 %1206, i64 %1207, i64 %1208, ptr %1209, ptr %1210, i64 %1211, i64 %1212, i64 %1213, i64 %1214, i64 %1215, ptr %1216, ptr %1217, i64 %1218, i64 %1219, i64 %1220, ptr %1221, ptr %1222, i64 %1223, i64 %1224, i64 %1225, i64 %1226, i64 %1227, ptr %1228, ptr %1229, i64 %1230, i64 %1231, i64 %1232, i64 %1233, i64 %1234, ptr %1235, ptr %1236, i64 %1237, i64 %1238, i64 %1239, i64 %1240, i64 %1241, ptr %1242, ptr %1243, i64 %1244, i64 %1245, i64 %1246, ptr %1247, ptr %1248, i64 %1249, i64 %1250, i64 %1251, i64 %1252, i64 %1253, ptr %1254, ptr %1255, i64 %1256, i64 %1257, i64 %1258, i64 %1259, i64 %1260, ptr %1261, ptr %1262, i64 %1263, i64 %1264, i64 %1265, i64 %1266, i64 %1267, ptr %1268, ptr %1269, i64 %1270, i64 %1271, i64 %1272, ptr %1273, ptr %1274, i64 %1275, i64 %1276, i64 %1277, i64 %1278, i64 %1279, ptr %1280, ptr %1281, i64 %1282, i64 %1283, i64 %1284, i64 %1285, i64 %1286, ptr %1287, ptr %1288, i64 %1289, i64 %1290, i64 %1291, i64 %1292, i64 %1293, ptr %1294, ptr %1295, i64 %1296, i64 %1297, i64 %1298, ptr %1299, ptr %1300, i64 %1301, i64 %1302, i64 %1303, i64 %1304, i64 %1305, ptr %1306, ptr %1307, i64 %1308, i64 %1309, i64 %1310, i64 %1311, i64 %1312, ptr %1313, ptr %1314, i64 %1315, i64 %1316, i64 %1317, i64 %1318, i64 %1319, ptr %1320, ptr %1321, i64 %1322, i64 %1323, i64 %1324, ptr %1325, ptr %1326, i64 %1327, i64 %1328, i64 %1329, i64 %1330, i64 %1331, ptr %1332, ptr %1333, i64 %1334, i64 %1335, i64 %1336, i64 %1337, i64 %1338, ptr %1339, ptr %1340, i64 %1341, i64 %1342, i64 %1343, i64 %1344, i64 %1345, ptr %1346, ptr %1347, i64 %1348, i64 %1349, i64 %1350, ptr %1351, ptr %1352, i64 %1353, i64 %1354, i64 %1355, i64 %1356, i64 %1357, ptr %1358, ptr %1359, i64 %1360, i64 %1361, i64 %1362, i64 %1363, i64 %1364, ptr %1365, ptr %1366, i64 %1367, i64 %1368, i64 %1369, i64 %1370, i64 %1371, ptr %1372, ptr %1373, i64 %1374, i64 %1375, i64 %1376, ptr %1377, ptr %1378, i64 %1379, i64 %1380, i64 %1381, i64 %1382, i64 %1383, ptr %1384, ptr %1385, i64 %1386, i64 %1387, i64 %1388, i64 %1389, i64 %1390, ptr %1391, ptr %1392, i64 %1393, i64 %1394, i64 %1395, i64 %1396, i64 %1397, ptr %1398, ptr %1399, i64 %1400, i64 %1401, i64 %1402, ptr %1403, ptr %1404, i64 %1405, i64 %1406, i64 %1407, i64 %1408, i64 %1409, ptr %1410, ptr %1411, i64 %1412, i64 %1413, i64 %1414, i64 %1415, i64 %1416, ptr %1417, ptr %1418, i64 %1419, i64 %1420, i64 %1421, i64 %1422, i64 %1423, ptr %1424, ptr %1425, i64 %1426, i64 %1427, i64 %1428, ptr %1429, ptr %1430, i64 %1431, i64 %1432, i64 %1433, i64 %1434, i64 %1435, ptr %1436, ptr %1437, i64 %1438, i64 %1439, i64 %1440, i64 %1441, i64 %1442, ptr %1443, ptr %1444, i64 %1445, i64 %1446, i64 %1447, i64 %1448, i64 %1449, ptr %1450, ptr %1451, i64 %1452, i64 %1453, i64 %1454, ptr %1455, ptr %1456, i64 %1457, i64 %1458, i64 %1459, i64 %1460, i64 %1461, ptr %1462, ptr %1463, i64 %1464, i64 %1465, i64 %1466, i64 %1467, i64 %1468, ptr %1469, ptr %1470, i64 %1471, i64 %1472, i64 %1473, i64 %1474, i64 %1475, ptr %1476, ptr %1477, i64 %1478, i64 %1479, i64 %1480, ptr %1481, ptr %1482, i64 %1483, i64 %1484, i64 %1485, i64 %1486, i64 %1487, ptr %1488, ptr %1489, i64 %1490, i64 %1491, i64 %1492, i64 %1493, i64 %1494, ptr %1495, ptr %1496, i64 %1497, i64 %1498, i64 %1499, i64 %1500, i64 %1501, ptr %1502, ptr %1503, i64 %1504, i64 %1505, i64 %1506, ptr %1507, ptr %1508, i64 %1509, i64 %1510, i64 %1511, i64 %1512, i64 %1513, ptr %1514, ptr %1515, i64 %1516, i64 %1517, i64 %1518, i64 %1519, i64 %1520, ptr %1521, ptr %1522, i64 %1523, i64 %1524, i64 %1525, i64 %1526, i64 %1527, ptr %1528, ptr %1529, i64 %1530, i64 %1531, i64 %1532, ptr %1533, ptr %1534, i64 %1535, i64 %1536, i64 %1537, i64 %1538, i64 %1539, ptr %1540, ptr %1541, i64 %1542, i64 %1543, i64 %1544, i64 %1545, i64 %1546, ptr %1547, ptr %1548, i64 %1549, i64 %1550, i64 %1551, i64 %1552, i64 %1553, ptr %1554, ptr %1555, i64 %1556, i64 %1557, i64 %1558, ptr %1559, ptr %1560, i64 %1561, i64 %1562, i64 %1563, i64 %1564, i64 %1565, ptr %1566, ptr %1567, i64 %1568, i64 %1569, i64 %1570, i64 %1571, i64 %1572, ptr %1573, ptr %1574, i64 %1575, i64 %1576, i64 %1577, i64 %1578, i64 %1579, ptr %1580, ptr %1581, i64 %1582, i64 %1583, i64 %1584, ptr %1585, ptr %1586, i64 %1587, i64 %1588, i64 %1589, i64 %1590, i64 %1591, ptr %1592, ptr %1593, i64 %1594, i64 %1595, i64 %1596, i64 %1597, i64 %1598, ptr %1599, ptr %1600, i64 %1601, i64 %1602, i64 %1603, i64 %1604, i64 %1605, ptr %1606, ptr %1607, i64 %1608, i64 %1609, i64 %1610, ptr %1611, ptr %1612, i64 %1613, i64 %1614, i64 %1615, i64 %1616, i64 %1617, ptr %1618, ptr %1619, i64 %1620, i64 %1621, i64 %1622, i64 %1623, i64 %1624) {",
+      "define void @_mlir_ciface_forward_decode(ptr %0, ptr %1, ptr %2, ptr %3, ptr %4, ptr %5, ptr %6, ptr %7, ptr %8, ptr %9, ptr %10, ptr %11, ptr %12, ptr %13, ptr %14, ptr %15, ptr %16, ptr %17, ptr %18, ptr %19, ptr %20, ptr %21, ptr %22, ptr %23, ptr %24, ptr %25, ptr %26, ptr %27, ptr %28, ptr %29, ptr %30, ptr %31, ptr %32, ptr %33, ptr %34, ptr %35, ptr %36, ptr %37, ptr %38, ptr %39, ptr %40, ptr %41, ptr %42, ptr %43, ptr %44, ptr %45, ptr %46, ptr %47, ptr %48, ptr %49, ptr %50, ptr %51, ptr %52, ptr %53, ptr %54, ptr %55, ptr %56, ptr %57, ptr %58, ptr %59, ptr %60, ptr %61, ptr %62, ptr %63, ptr %64, ptr %65, ptr %66, ptr %67, ptr %68, ptr %69, ptr %70, ptr %71, ptr %72, ptr %73, ptr %74, ptr %75, ptr %76, ptr %77, ptr %78, ptr %79, ptr %80, ptr %81, ptr %82, ptr %83, ptr %84, ptr %85, ptr %86, ptr %87, ptr %88, ptr %89, ptr %90, ptr %91, ptr %92, ptr %93, ptr %94, ptr %95, ptr %96, ptr %97, ptr %98, ptr %99, ptr %100, ptr %101, ptr %102, ptr %103, ptr %104, ptr %105, ptr %106, ptr %107, ptr %108, ptr %109, ptr %110, ptr %111, ptr %112, ptr %113, ptr %114, ptr %115, ptr %116, ptr %117, ptr %118, ptr %119, ptr %120, ptr %121, ptr %122, ptr %123, ptr %124, ptr %125, ptr %126, ptr %127, ptr %128, ptr %129, ptr %130, ptr %131, ptr %132, ptr %133, ptr %134, ptr %135, ptr %136, ptr %137, ptr %138, ptr %139, ptr %140, ptr %141, ptr %142, ptr %143, ptr %144, ptr %145, ptr %146, ptr %147, ptr %148, ptr %149, ptr %150, ptr %151, ptr %152, ptr %153, ptr %154, ptr %155, ptr %156, ptr %157, ptr %158, ptr %159, ptr %160, ptr %161, ptr %162, ptr %163, ptr %164, ptr %165, ptr %166, ptr %167, ptr %168, ptr %169, ptr %170, ptr %171, ptr %172, ptr %173, ptr %174, ptr %175, ptr %176, ptr %177, ptr %178, ptr %179, ptr %180, ptr %181, ptr %182, ptr %183, ptr %184, ptr %185, ptr %186, ptr %187, ptr %188, ptr %189, ptr %190, ptr %191, ptr %192, ptr %193, ptr %194, ptr %195, ptr %196, ptr %197, ptr %198, ptr %199, ptr %200, ptr %201, ptr %202, ptr %203, ptr %204, ptr %205, ptr %206, ptr %207, ptr %208, ptr %209, ptr %210, ptr %211, ptr %212, ptr %213, ptr %214, ptr %215, ptr %216, ptr %217, ptr %218, ptr %219, ptr %220, ptr %221, ptr %222, ptr %223, ptr %224, ptr %225, ptr %226, ptr %227, ptr %228, ptr %229, ptr %230, ptr %231, ptr %232, ptr %233, ptr %234, ptr %235, ptr %236, ptr %237, ptr %238, ptr %239) {"
+    ],
+    "allocation_call_sites": [
+      {
+        "llvm": "%6211 = call ptr @malloc(i64 72)",
+        "constant_bytes": 72
+      },
+      {
+        "llvm": "%6229 = call ptr @malloc(i64 72)",
+        "constant_bytes": 72
+      },
+      {
+        "llvm": "%6286 = call ptr @malloc(i64 68)",
+        "constant_bytes": 68
+      },
+      {
+        "llvm": "%6327 = call ptr @malloc(i64 320)",
+        "constant_bytes": 320
+      },
+      {
+        "llvm": "%6410 = call ptr @malloc(i64 320)",
+        "constant_bytes": 320
+      },
+      {
+        "llvm": "%6464 = call ptr @malloc(i64 576)",
+        "constant_bytes": 576
+      },
+      {
+        "llvm": "%6529 = call ptr @malloc(i64 576)",
+        "constant_bytes": 576
+      },
+      {
+        "llvm": "%6574 = call ptr @malloc(i64 576)",
+        "constant_bytes": 576
+      },
+      {
+        "llvm": "%6648 = call ptr @malloc(i64 576)",
+        "constant_bytes": 576
+      },
+      {
+        "llvm": "%6748 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%6926 = call ptr @malloc(i64 8256)",
+        "constant_bytes": 8256
+      },
+      {
+        "llvm": "%6983 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%7161 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%7345 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%7424 = call ptr @malloc(i64 8256)",
+        "constant_bytes": 8256
+      },
+      {
+        "llvm": "%7510 = call ptr @malloc(i64 8256)",
+        "constant_bytes": 8256
+      },
+      {
+        "llvm": "%7597 = call ptr @malloc(i64 8256)",
+        "constant_bytes": 8256
+      },
+      {
+        "llvm": "%7661 = call ptr @malloc(i64 8256)",
+        "constant_bytes": 8256
+      },
+      {
+        "llvm": "%7726 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%7812 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%7899 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%7963 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%8028 = call ptr @malloc(i64 72)",
+        "constant_bytes": 72
+      },
+      {
+        "llvm": "%8241 = call ptr @malloc(i64 4194368)",
+        "constant_bytes": 4194368
+      },
+      {
+        "llvm": "%8351 = call ptr @malloc(i64 4194368)",
+        "constant_bytes": 4194368
+      },
+      {
+        "llvm": "%8623 = call ptr @malloc(i64 8256)",
+        "constant_bytes": 8256
+      },
+      {
+        "llvm": "%8810 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%8863 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%8936 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%9216 = call ptr @malloc(i64 12352)",
+        "constant_bytes": 12352
+      },
+      {
+        "llvm": "%9399 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%9451 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%9524 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%9702 = call ptr @malloc(i64 8256)",
+        "constant_bytes": 8256
+      },
+      {
+        "llvm": "%9759 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%9937 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%10121 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%10178 = call ptr @malloc(i64 8256)",
+        "constant_bytes": 8256
+      },
+      {
+        "llvm": "%10264 = call ptr @malloc(i64 8256)",
+        "constant_bytes": 8256
+      },
+      {
+        "llvm": "%10351 = call ptr @malloc(i64 8256)",
+        "constant_bytes": 8256
+      },
+      {
+        "llvm": "%10415 = call ptr @malloc(i64 8256)",
+        "constant_bytes": 8256
+      },
+      {
+        "llvm": "%10480 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%10566 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%10653 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%10717 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%10782 = call ptr @malloc(i64 72)",
+        "constant_bytes": 72
+      },
+      {
+        "llvm": "%10987 = call ptr @malloc(i64 4194368)",
+        "constant_bytes": 4194368
+      },
+      {
+        "llvm": "%11097 = call ptr @malloc(i64 4194368)",
+        "constant_bytes": 4194368
+      },
+      {
+        "llvm": "%11369 = call ptr @malloc(i64 8256)",
+        "constant_bytes": 8256
+      },
+      {
+        "llvm": "%11556 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%11608 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%11681 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%11961 = call ptr @malloc(i64 12352)",
+        "constant_bytes": 12352
+      },
+      {
+        "llvm": "%12144 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%12196 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%12269 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%12447 = call ptr @malloc(i64 8256)",
+        "constant_bytes": 8256
+      },
+      {
+        "llvm": "%12504 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%12682 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%12866 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%12923 = call ptr @malloc(i64 8256)",
+        "constant_bytes": 8256
+      },
+      {
+        "llvm": "%13009 = call ptr @malloc(i64 8256)",
+        "constant_bytes": 8256
+      },
+      {
+        "llvm": "%13096 = call ptr @malloc(i64 8256)",
+        "constant_bytes": 8256
+      },
+      {
+        "llvm": "%13160 = call ptr @malloc(i64 8256)",
+        "constant_bytes": 8256
+      },
+      {
+        "llvm": "%13225 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%13311 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%13398 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%13462 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%13527 = call ptr @malloc(i64 72)",
+        "constant_bytes": 72
+      },
+      {
+        "llvm": "%13732 = call ptr @malloc(i64 4194368)",
+        "constant_bytes": 4194368
+      },
+      {
+        "llvm": "%13842 = call ptr @malloc(i64 4194368)",
+        "constant_bytes": 4194368
+      },
+      {
+        "llvm": "%14114 = call ptr @malloc(i64 8256)",
+        "constant_bytes": 8256
+      },
+      {
+        "llvm": "%14301 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%14353 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%14426 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%14706 = call ptr @malloc(i64 12352)",
+        "constant_bytes": 12352
+      },
+      {
+        "llvm": "%14889 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%14941 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%15014 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%15192 = call ptr @malloc(i64 8256)",
+        "constant_bytes": 8256
+      },
+      {
+        "llvm": "%15249 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%15427 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%15611 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%15668 = call ptr @malloc(i64 8256)",
+        "constant_bytes": 8256
+      },
+      {
+        "llvm": "%15754 = call ptr @malloc(i64 8256)",
+        "constant_bytes": 8256
+      },
+      {
+        "llvm": "%15841 = call ptr @malloc(i64 8256)",
+        "constant_bytes": 8256
+      },
+      {
+        "llvm": "%15905 = call ptr @malloc(i64 8256)",
+        "constant_bytes": 8256
+      },
+      {
+        "llvm": "%15970 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%16056 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%16143 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%16207 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%16272 = call ptr @malloc(i64 72)",
+        "constant_bytes": 72
+      },
+      {
+        "llvm": "%16477 = call ptr @malloc(i64 4194368)",
+        "constant_bytes": 4194368
+      },
+      {
+        "llvm": "%16587 = call ptr @malloc(i64 4194368)",
+        "constant_bytes": 4194368
+      },
+      {
+        "llvm": "%16859 = call ptr @malloc(i64 8256)",
+        "constant_bytes": 8256
+      },
+      {
+        "llvm": "%17046 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%17098 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%17171 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%17451 = call ptr @malloc(i64 12352)",
+        "constant_bytes": 12352
+      },
+      {
+        "llvm": "%17634 = call ptr @malloc(i64 4160)",
+        "constant_bytes": 4160
+      },
+      {
+        "llvm": "%17863 = call ptr @malloc(i64 2097152)",
+        "constant_bytes": 2097152
+      },
+      {
+        "llvm": "%17896 = call ptr @malloc(i64 2097152)",
+        "constant_bytes": 2097152
+      },
+      {
+        "llvm": "%17929 = call ptr @malloc(i64 2097152)",
+        "constant_bytes": 2097152
+      },
+      {
+        "llvm": "%17962 = call ptr @malloc(i64 2097152)",
+        "constant_bytes": 2097152
+      },
+      {
+        "llvm": "%17995 = call ptr @malloc(i64 2097152)",
+        "constant_bytes": 2097152
+      },
+      {
+        "llvm": "%18028 = call ptr @malloc(i64 2097152)",
+        "constant_bytes": 2097152
+      },
+      {
+        "llvm": "%18061 = call ptr @malloc(i64 2097152)",
+        "constant_bytes": 2097152
+      },
+      {
+        "llvm": "%18094 = call ptr @malloc(i64 2097152)",
+        "constant_bytes": 2097152
+      },
+      {
+        "llvm": "%18127 = call ptr @malloc(i64 607744)",
+        "constant_bytes": 607744
+      },
+      {
+        "llvm": "%18187 = call ptr @malloc(i64 2376)",
+        "constant_bytes": 2376
+      },
+      {
+        "llvm": "%18193 = call ptr @malloc(i64 297)",
+        "constant_bytes": 297
+      },
+      {
+        "llvm": "%18199 = call ptr @malloc(i64 104)",
+        "constant_bytes": 104
+      },
+      {
+        "llvm": "%19100 = call ptr @malloc(i64 297)",
+        "constant_bytes": 297
+      },
+      {
+        "llvm": "%19106 = call ptr @malloc(i64 13)",
+        "constant_bytes": 13
+      }
+    ],
+    "allocation_peak_bytes": null,
+    "peak_note": "Not derivable from call-site counting; measure scoped arena high-water mark"
+  },
+  "openmp_enabled": false,
+  "artifacts": {
+    "llvm_dialect_mlir": {
+      "path": "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-native-4l/nr-decode/forward_decode.llvm.mlir",
+      "bytes": 3000038
+    },
+    "llvm_ir": {
+      "path": "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-native-4l/nr-decode/forward_decode.ll",
+      "bytes": 1924975
+    },
+    "riscv_object": {
+      "path": "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/review-native-4l/nr-decode/forward_decode.o",
+      "bytes": 4329744
+    }
+  },
+  "steps": {
+    "buddy_translate": {
+      "returncode": 0,
+      "stderr": ""
+    },
+    "llc": {
+      "returncode": 0,
+      "stderr": ""
+    }
+  },
+  "symbols": {
+    "defined": 4,
+    "undefined_total": 147,
+    "undefined_by_provider": {
+      "openmp_runtime": [],
+      "heap": [
+        "free",
+        "malloc"
+      ],
+      "libc_libm": [
+        "cosf",
+        "memcpy",
+        "memrefCopy",
+        "sinf"
+      ],
+      "qwen_graph_kernels": [
+        "_mlir_ciface_qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_1_mask_attention_scale_mask_position_16x1x512",
+        "_mlir_ciface_qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_1_pv_attention_pv_position_16x1x128x512",
+        "_mlir_ciface_qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_1_qk_attention_qk_position_native_16x1x512x128",
+        "_mlir_ciface_qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_1_softmax_softmax_16x1x512",
+        "_mlir_ciface_qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_2_mask_attention_scale_mask_position_16x1x512",
+        "_mlir_ciface_qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_2_pv_attention_pv_position_16x1x128x512",
+        "_mlir_ciface_qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_2_qk_attention_qk_position_native_16x1x512x128",
+        "_mlir_ciface_qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_2_softmax_softmax_16x1x512",
+        "_mlir_ciface_qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_3_mask_attention_scale_mask_position_16x1x512",
+        "_mlir_ciface_qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_3_pv_attention_pv_position_16x1x128x512",
+        "_mlir_ciface_qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_3_qk_attention_qk_position_native_16x1x512x128",
+        "_mlir_ciface_qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_3_softmax_softmax_16x1x512",
+        "_mlir_ciface_qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_mask_attention_scale_mask_position_16x1x512",
+        "_mlir_ciface_qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_pv_attention_pv_position_16x1x128x512",
+        "_mlir_ciface_qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_qk_attention_qk_position_native_16x1x512x128",
+        "_mlir_ciface_qwen_graph_attn__scaled_dot_product_flash_attention_for_cpu_softmax_softmax_16x1x512",
+        "_mlir_ciface_qwen_graph_kv_index_put_1_kv_cache_update_position_1x8x128_cap512",
+        "_mlir_ciface_qwen_graph_kv_index_put_1_layout_context_8x1x128",
+        "_mlir_ciface_qwen_graph_kv_index_put_2_kv_cache_update_position_1x8x128_cap512",
+        "_mlir_ciface_qwen_graph_kv_index_put_2_layout_context_8x1x128",
+        "_mlir_ciface_qwen_graph_kv_index_put_3_kv_cache_update_position_1x8x128_cap512",
+        "_mlir_ciface_qwen_graph_kv_index_put_3_layout_context_8x1x128",
+        "_mlir_ciface_qwen_graph_kv_index_put_4_kv_cache_update_position_1x8x128_cap512",
+        "_mlir_ciface_qwen_graph_kv_index_put_4_layout_context_8x1x128",
+        "_mlir_ciface_qwen_graph_kv_index_put_5_kv_cache_update_position_1x8x128_cap512",
+        "_mlir_ciface_qwen_graph_kv_index_put_5_layout_context_8x1x128",
+        "_mlir_ciface_qwen_graph_kv_index_put_6_kv_cache_update_position_1x8x128_cap512",
+        "_mlir_ciface_qwen_graph_kv_index_put_6_layout_context_8x1x128",
+        "_mlir_ciface_qwen_graph_kv_index_put_7_kv_cache_update_position_1x8x128_cap512",
+        "_mlir_ciface_qwen_graph_kv_index_put_7_layout_context_8x1x128",
+        "_mlir_ciface_qwen_graph_kv_index_put_kv_cache_update_position_1x8x128_cap512",
+        "_mlir_ciface_qwen_graph_kv_index_put_layout_context_8x1x128",
+        "_mlir_ciface_qwen_graph_rmsnorm_16x128__forward_decode_mul_19",
+        "_mlir_ciface_qwen_graph_rmsnorm_16x128__forward_decode_mul_33",
+        "_mlir_ciface_qwen_graph_rmsnorm_16x128__forward_decode_mul_47",
+        "_mlir_ciface_qwen_graph_rmsnorm_16x128__forward_decode_mul_5",
+        "_mlir_ciface_qwen_graph_rmsnorm_1x1024__forward_decode_mul_13",
+        "_mlir_ciface_qwen_graph_rmsnorm_1x1024__forward_decode_mul_17",
+        "_mlir_ciface_qwen_graph_rmsnorm_1x1024__forward_decode_mul_27",
+        "_mlir_ciface_qwen_graph_rmsnorm_1x1024__forward_decode_mul_3",
+        "_mlir_ciface_qwen_graph_rmsnorm_1x1024__forward_decode_mul_31",
+        "_mlir_ciface_qwen_graph_rmsnorm_1x1024__forward_decode_mul_41",
+        "_mlir_ciface_qwen_graph_rmsnorm_1x1024__forward_decode_mul_45",
+        "_mlir_ciface_qwen_graph_rmsnorm_1x1024__forward_decode_mul_55",
+        "_mlir_ciface_qwen_graph_rmsnorm_1x1024__forward_decode_mul_59",
+        "_mlir_ciface_qwen_graph_rmsnorm_8x128__forward_decode_mul_21",
+        "_mlir_ciface_qwen_graph_rmsnorm_8x128__forward_decode_mul_35",
+        "_mlir_ciface_qwen_graph_rmsnorm_8x128__forward_decode_mul_49",
+        "_mlir_ciface_qwen_graph_rmsnorm_8x128__forward_decode_mul_7",
+        "_mlir_ciface_qwen_graph_silu_1x3072__forward_decode_mul_14",
+        "_mlir_ciface_qwen_graph_silu_1x3072__forward_decode_mul_28",
+        "_mlir_ciface_qwen_graph_silu_1x3072__forward_decode_mul_42",
+        "_mlir_ciface_qwen_graph_silu_1x3072__forward_decode_mul_56",
+        "_mlir_ciface_qwen_graph_w8a8_embedding_embedding_w8a8_1x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_10_dequantize_1x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_10_matmul_1x1024x2048",
+        "_mlir_ciface_qwen_graph_w8a8_mm_10_quantize_1x2048",
+        "_mlir_ciface_qwen_graph_w8a8_mm_11_dequantize_1x3072",
+        "_mlir_ciface_qwen_graph_w8a8_mm_11_matmul_1x3072x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_11_quantize_1x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_12_dequantize_1x3072",
+        "_mlir_ciface_qwen_graph_w8a8_mm_12_matmul_1x3072x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_12_quantize_1x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_13_dequantize_1x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_13_matmul_1x1024x3072",
+        "_mlir_ciface_qwen_graph_w8a8_mm_13_quantize_1x3072",
+        "_mlir_ciface_qwen_graph_w8a8_mm_14_dequantize_1x2048",
+        "_mlir_ciface_qwen_graph_w8a8_mm_14_matmul_1x2048x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_14_quantize_1x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_15_dequantize_1x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_15_matmul_1x1024x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_15_quantize_1x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_16_dequantize_1x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_16_matmul_1x1024x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_16_quantize_1x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_17_dequantize_1x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_17_matmul_1x1024x2048",
+        "_mlir_ciface_qwen_graph_w8a8_mm_17_quantize_1x2048",
+        "_mlir_ciface_qwen_graph_w8a8_mm_18_dequantize_1x3072",
+        "_mlir_ciface_qwen_graph_w8a8_mm_18_matmul_1x3072x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_18_quantize_1x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_19_dequantize_1x3072",
+        "_mlir_ciface_qwen_graph_w8a8_mm_19_matmul_1x3072x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_19_quantize_1x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_1_dequantize_1x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_1_matmul_1x1024x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_1_quantize_1x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_20_dequantize_1x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_20_matmul_1x1024x3072",
+        "_mlir_ciface_qwen_graph_w8a8_mm_20_quantize_1x3072",
+        "_mlir_ciface_qwen_graph_w8a8_mm_21_dequantize_1x2048",
+        "_mlir_ciface_qwen_graph_w8a8_mm_21_matmul_1x2048x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_21_quantize_1x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_22_dequantize_1x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_22_matmul_1x1024x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_22_quantize_1x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_23_dequantize_1x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_23_matmul_1x1024x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_23_quantize_1x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_24_dequantize_1x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_24_matmul_1x1024x2048",
+        "_mlir_ciface_qwen_graph_w8a8_mm_24_quantize_1x2048",
+        "_mlir_ciface_qwen_graph_w8a8_mm_25_dequantize_1x3072",
+        "_mlir_ciface_qwen_graph_w8a8_mm_25_matmul_1x3072x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_25_quantize_1x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_26_dequantize_1x3072",
+        "_mlir_ciface_qwen_graph_w8a8_mm_26_matmul_1x3072x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_26_quantize_1x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_27_dequantize_1x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_27_matmul_1x1024x3072",
+        "_mlir_ciface_qwen_graph_w8a8_mm_27_quantize_1x3072",
+        "_mlir_ciface_qwen_graph_w8a8_mm_28_dequantize_1x151936",
+        "_mlir_ciface_qwen_graph_w8a8_mm_28_matmul_1x151936x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_28_quantize_1x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_2_dequantize_1x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_2_matmul_1x1024x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_2_quantize_1x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_3_dequantize_1x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_3_matmul_1x1024x2048",
+        "_mlir_ciface_qwen_graph_w8a8_mm_3_quantize_1x2048",
+        "_mlir_ciface_qwen_graph_w8a8_mm_4_dequantize_1x3072",
+        "_mlir_ciface_qwen_graph_w8a8_mm_4_matmul_1x3072x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_4_quantize_1x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_5_dequantize_1x3072",
+        "_mlir_ciface_qwen_graph_w8a8_mm_5_matmul_1x3072x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_5_quantize_1x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_6_dequantize_1x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_6_matmul_1x1024x3072",
+        "_mlir_ciface_qwen_graph_w8a8_mm_6_quantize_1x3072",
+        "_mlir_ciface_qwen_graph_w8a8_mm_7_dequantize_1x2048",
+        "_mlir_ciface_qwen_graph_w8a8_mm_7_matmul_1x2048x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_7_quantize_1x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_8_dequantize_1x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_8_matmul_1x1024x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_8_quantize_1x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_9_dequantize_1x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_9_matmul_1x1024x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_9_quantize_1x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_dequantize_1x2048",
+        "_mlir_ciface_qwen_graph_w8a8_mm_matmul_1x2048x1024",
+        "_mlir_ciface_qwen_graph_w8a8_mm_quantize_1x1024"
+      ],
+      "other": []
+    }
+  },
+  "blockers": [
+    {
+      "blocker": "heap allocation",
+      "evidence": "undefined free, malloc",
+      "why": "one-shot-bufferize leaves memref.alloc/dealloc in the graph; the NR examples require zero heap allocations in a kernel object"
+    }
+  ],
+  "status": "object built; not linkable as a bare-metal image yet"
+}

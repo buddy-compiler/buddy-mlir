@@ -1,0 +1,68 @@
+{
+  "stage": "bare-metal NR image for the compiled Qwen3 graph (1 layer)",
+  "what_this_proves": "the compiled graph, with its operators replaced by calls into the Triton static library, links into a bare-metal NR image that passes the full FPGA instruction audit",
+  "not_yet": "it has NOT been uploaded or run on the board",
+  "image": {
+    "elf": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/board/image-1layer/qwen_model.elf",
+    "bytes": 111528,
+    "bin": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/board/image-1layer/qwen_model.bin",
+    "bin_bytes": 110968
+  },
+  "elf_audit_status": "PASS",
+  "audit_report": "build/board/image-1layer/elf-audit.json",
+  "undefined_symbols": [],
+  "graph": {
+    "source": "build/board/1layer-prefill/forward_prefill.ll",
+    "entry": "_mlir_ciface_forward_prefill(PrefillResults*, 18 descriptors)",
+    "descriptor_order": "14 parameters in compiled layout order, then ids, cache position, K cache, V cache",
+    "abi_derived_from": "the lowered module, not hand-written; an earlier hand-written prototype had the wrong arity",
+    "external_calls": "339 per graph (validation/external-calls/full-28l.json)"
+  },
+  "parameter_segment": {
+    "file": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/board/image-1layer/weights-fp32.bin",
+    "bytes": 685257984,
+    "sha256": "1a436527bf634c5aa7da09fd5ff144c62c89dd5d7caeca70e2a4bce348be16a2",
+    "address": "0xb8000000",
+    "elements": 171314496,
+    "sections": 14,
+    "computed_sections": [
+      13
+    ],
+    "dtype": "f32",
+    "layout_sha256": "df383f8b1ff76d84285fc91ee3c23f388feb1f54e76bbbd8a4ec248d50fc76f5",
+    "note": "this is the FP32 buffer the compiled graph actually reads; W8A8 (validation/weight-image.json) is the deployment target once the graph is quantised"
+  },
+  "load_plan": {
+    "file": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/board/image-1layer/ddr-load.plan",
+    "format": "TOML, as required by user_script_nr/prepare_uv_layout.py",
+    "segments": [
+      {
+        "file": "qwen_model.padded.bin",
+        "bytes": 110976,
+        "sha256": "bcc3b600557643a51e574530ed242a93ceef8cf98bda40be9998ce803de493af",
+        "address": "0x80000000"
+      },
+      {
+        "file": "weights-fp32.bin",
+        "bytes": 685257984,
+        "sha256": "1a436527bf634c5aa7da09fd5ff144c62c89dd5d7caeca70e2a4bce348be16a2",
+        "address": "0xb8000000"
+      }
+    ],
+    "total_ddr_bytes": 685368960,
+    "validated_locally_against": "validation/board/ddr-load-path.json rules"
+  },
+  "build_fixes_along_the_way": [
+    "the graph's LLVM IR must go through ame_to_word.py and restrict_fpga_assembly.py like the operator pipeline; compiling llc straight to an object skips the fences and the ELF audit rejects it",
+    "the model's workspace arrays need explicit `.section .workspace,\"aw\",@nobits` asm; a plain section attribute emits SHT_PROGBITS and the linker refuses",
+    "support.c's 640 MiB operator arena must not be linked: it would collide with the model's own workspace and overflow HIGH",
+    "the link must be driven with ld.lld -m elf64lriscv; through clang it picks the host ld, which has no riscv emulation",
+    "nr_copy.S needs -march=rv64gcv_zicbom while the rest of the runtime uses rv64gc_zicbom, exactly as common.mk specifies",
+    "no -lm: the NR runtime already provides expf/logf/sinf/cosf/sqrtf/powf (nr_math.c) and memrefCopy (nr_runtime.c)"
+  ],
+  "runtime_heap_note": {
+    "finding": "the NR runtime already provides malloc (a bump allocator over __heap_start..__heap_end) and free (a no-op), so the graph's heap use is not a link blocker",
+    "budget": "1-layer prefill allocates 13.0 MiB; the whole LOW remainder is available to the bump allocator",
+    "caveat": "free is a no-op, so allocations accumulate across graph calls; 8 decode steps at 8.3 MiB each is fine, a 28-layer session would not fit without a static memory plan"
+  }
+}

@@ -201,7 +201,8 @@ public:
     Location loc = op->getLoc();
     auto module = op->getParentOfType<ModuleOp>();
     auto target = module->getAttrOfType<StringAttr>(kAmeTargetAttrName);
-    bool fpga = target && target.getValue() == "qwen3-fpga";
+    bool fpga = target && (target.getValue() == "qwen3-fpga" ||
+                           target.getValue() == "nr-fpga");
     std::string fpgaName = "bosc_ame.fpga." + name.drop_front(9).str();
 
     // Matrix load: memref, i64 stride -> scalable LLVM vector.
@@ -290,7 +291,7 @@ struct LegalizeBOSCAMEForLLVMExport
   /// on every caller remembering `-mattr=+xboscame-fpga`.
   LogicalResult annotateFPGATargetFeatures(ModuleOp module) {
     FailureOr<AmeTargetProfile> profile = resolveAmeTarget(module, "");
-    if (failed(profile) || *profile != AmeTargetProfile::Qwen3Fpga)
+    if (failed(profile) || !isFpgaTarget(*profile))
       return success();
 
     MLIRContext *context = &getContext();
@@ -305,8 +306,9 @@ struct LegalizeBOSCAMEForLLVMExport
               featureAttrName)) {
         for (llvm::StringRef feature : existing.getFeatures()) {
           if (feature == "-xboscame-fpga" || feature == "-xboscame") {
-            function->emitError("target features disable the module's "
-                                "qwen3-fpga AME contract");
+            function->emitError()
+                << "target features disable the module's "
+                << stringifyAmeTargetProfile(*profile) << " AME contract";
             return WalkResult::interrupt();
           }
           if (!llvm::is_contained(merged, feature))
@@ -328,7 +330,7 @@ struct LegalizeBOSCAMEForLLVMExport
     FailureOr<AmeTargetProfile> profile = resolveAmeTarget(module, "");
     if (failed(profile))
       return failure();
-    if (*profile != AmeTargetProfile::Qwen3Fpga)
+    if (!isFpgaTarget(*profile))
       return success();
     return verifyFpgaAmeCapabilities(module);
   }

@@ -1,0 +1,31 @@
+{
+  "name": "layout_k_16x17x128",
+  "kind": "layout_transpose",
+  "dtype": "f32",
+  "description": "Transpose expanded K [16,T,128] into [16,128,T] for QK batch_matmul",
+  "entry": "kernel_layout_k_16x17x128",
+  "workspace_bytes": 278528,
+  "buffers": [
+    {
+      "name": "x",
+      "shape": [
+        16,
+        17,
+        128
+      ],
+      "dtype": "f32",
+      "offset": 0
+    },
+    {
+      "name": "out",
+      "shape": [
+        16,
+        128,
+        17
+      ],
+      "dtype": "f32",
+      "offset": 139264
+    }
+  ],
+  "validation": "All output elements versus an independent C oracle; host oracle uses libm double precision."
+}

@@ -1,0 +1,17 @@
+{
+  "status": "STOPPED_NO_MODEL_RESULT",
+  "run_id": "run-53885c89b85646dc",
+  "layers": 4,
+  "uart_bytes": 535,
+  "completed": "board template+tokenization exactly16IDs; entered run_prefill",
+  "missing": "no graph return/full numeric check/runtime completion",
+  "reason": "Stopped after >1000s without any new model progress so a separate per-kernel progress image can locate execution. This alone does not distinguish slow computation from a hang.",
+  "image_sha256": "26d089f14274de36236b0fd1c573cedc2ce1f230e88527d3d4abd0364823eca2",
+  "logs_sha256": {
+    "uart.raw.log": "09739aed04735f3fdb081d41a05960af5c38420639018be9bd3b1da3ff91cda5",
+    "result.json": "ef212a7b67e51075457bc5e99b119f3340fdf5b95d31de8f2d1827672240a9e7",
+    "worker.log": "451bea409336d56f57cd5eba1c61b8830ed54627ba82a29a43914067c8bbee68",
+    "uvhs.log": "7d17ede6ae9cbdb313e53cb234ab734dedb0c08c770a6cba3b71b37bc01109d8",
+    "run-manifest.json": "c498dc5d5b6df24a00e903f4e6d8a9087a7157241cf8b044815588e5f22a9e61"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "kind": "matmul_f32",
+  "shape": [
+    16,
+    2048,
+    1024
+  ],
+  "roles": [
+    "q_proj"
+  ],
+  "dtype": "f32",
+  "target": "nr-rvv",
+  "checked_elements": 32768
+}

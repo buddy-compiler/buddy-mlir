@@ -1,0 +1,14 @@
+UTC: 2026-09-16T13:15:34.052761+00:00
+Command: examples/FPGA-BOSCAME/common/triton/setup-triton.sh --check
+Verified 4 locked Triton patches
+PASS: @triton.jit integer_dot -> TTIR -> linalg.matmul
+PASS: @triton.jit normalized -> TTIR -> linalg.reduce
+Triton 3.8.0
+Triton frontend ready: /home/chh/gitprojects/buddy-mlir-for-fpga/thirdparty/triton-riscv/triton/build/cmake.linux-x86_64-cpython-3.12/third_party/triton_shared/tools/triton-shared-opt/triton-shared-opt
+Exit status: 0
+
+Additional executed audit: real JIT smoke with import-hook rejecting torch imports and Python audit-hook rejecting every open under /references/.
+PASS integer_dot -> TTIR -> linalg.matmul
+PASS normalized -> TTIR -> linalg.reduce
+Source audit: common/triton scripts have no references/ dependency or hardcoded /home/ path.
+Maintained compatibility patch SHA256 is checked against toolchain-lock.json; upstream patches fetched from pinned triton-riscv commit are also checked.

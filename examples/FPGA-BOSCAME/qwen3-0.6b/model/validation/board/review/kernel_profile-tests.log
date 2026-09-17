@@ -1,0 +1,12 @@
+$ python3 -m unittest discover -s examples/FPGA-BOSCAME/qwen3-0.6b/model/tests -p test_kernel_profile.py -v
+test_actual_entry_and_adapter_calls_not_bridge_or_scratch_double_counted (test_kernel_profile.KernelProfileTests.test_actual_entry_and_adapter_calls_not_bridge_or_scratch_double_counted) ... ok
+test_cfg_rejects_conditional_calls_and_loops_but_allows_other_loops (test_kernel_profile.KernelProfileTests.test_cfg_rejects_conditional_calls_and_loops_but_allows_other_loops) ... ok
+test_cli_source_hash_and_exit_status (test_kernel_profile.KernelProfileTests.test_cli_source_hash_and_exit_status) ... ok
+test_complete_phase_telemetry_must_sum_and_fit_total (test_kernel_profile.KernelProfileTests.test_complete_phase_telemetry_must_sum_and_fit_total) ... ok
+test_rejects_insufficient_mismatched_and_conditional_count_evidence (test_kernel_profile.KernelProfileTests.test_rejects_insufficient_mismatched_and_conditional_count_evidence) ... ok
+test_uart_missing_duplicate_unknown_wrong_counts_cycles_and_positions (test_kernel_profile.KernelProfileTests.test_uart_missing_duplicate_unknown_wrong_counts_cycles_and_positions) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.009s
+
+OK

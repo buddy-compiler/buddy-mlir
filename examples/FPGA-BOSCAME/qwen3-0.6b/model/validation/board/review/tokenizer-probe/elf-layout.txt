@@ -1,0 +1,44 @@
+There are 16 section headers, starting at offset 0x517490:
+
+Section Headers:
+  [Nr] Name              Type            Address          Off    Size   ES Flg Lk Inf Al
+  [ 0]                   NULL            0000000000000000 000000 000000 00      0   0  0
+  [ 1] .text.init        PROGBITS        0000000080000000 001000 0000ec 00  AX  0   0 16
+  [ 2] .nr_mailbox       NOBITS          0000000080010000 002000 001000 00  AX  0   0  1
+  [ 3] .text             PROGBITS        0000000080011000 002000 0028b6 00  AX  0   0  2
+  [ 4] .rodata           PROGBITS        00000000800138c0 0048c0 50dc28 00 AMS  0   0 64
+  [ 5] .sdata            PROGBITS        0000000080521500 5124e8 000000 00   A  0   0  1
+  [ 6] .nr_console       NOBITS          0000000080521500 512500 011100 00  WA  0   0 64
+  [ 7] .bss              NOBITS          0000000080532600 512500 000000 00  WA  0   0  1
+  [ 8] .tbss             NOBITS          0000000080532600 512500 000000 00  WA  0   0  1
+  [ 9] .stacks           NOBITS          0000000080532600 512500 200000 00  WA  0   0  1
+  [10] .workspace        NOBITS          00000000b8000000 512500 000000 00  WA  0   0  1
+  [11] .comment          PROGBITS        0000000000000000 512500 00007e 01  MS  0   0  1
+  [12] .riscv.attributes RISCV_ATTRIBUTES 0000000000000000 51257e 00007e 00      0   0  1
+  [13] .symtab           SYMTAB          0000000000000000 512600 003348 18     15 493  8
+  [14] .shstrtab         STRTAB          0000000000000000 515948 00008c 00      0   0  1
+  [15] .strtab           STRTAB          0000000000000000 5159d4 001ab5 00      0   0  1
+Key to Flags:
+  W (write), A (alloc), X (execute), M (merge), S (strings), I (info),
+  L (link order), O (extra OS processing required), G (group), T (TLS),
+  C (compressed), x (unknown), o (OS specific), E (exclude),
+  R (retain), p (processor specific)
+
+Elf file type is EXEC (Executable file)
+Entry point 0x80000000
+There are 4 program headers, starting at offset 64
+
+Program Headers:
+  Type           Offset   VirtAddr           PhysAddr           FileSiz  MemSiz   Flg Align
+  LOAD           0x001000 0x0000000080000000 0x0000000080000000 0x0000ec 0x0000ec R E 0x1000
+  LOAD           0x002000 0x0000000080010000 0x0000000080010000 0x000000 0x001000 RW  0x1000
+  LOAD           0x002000 0x0000000080011000 0x0000000080011000 0x5104e8 0x5104e8 R E 0x1000
+  LOAD           0x512500 0x0000000080521500 0x0000000080521500 0x000000 0x211100 RW  0x1000
+
+ Section to Segment mapping:
+  Segment Sections...
+   00     .text.init 
+   01     .nr_mailbox 
+   02     .text .rodata 
+   03     .nr_console .bss .tbss .stacks 
+   None   .sdata .workspace .comment .riscv.attributes .symtab .shstrtab .strtab 

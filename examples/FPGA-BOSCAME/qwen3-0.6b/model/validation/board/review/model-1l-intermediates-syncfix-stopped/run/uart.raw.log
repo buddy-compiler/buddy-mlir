@@ -1,0 +1,193 @@
+
+[nr] NH boot; RA operator runtime
+[nr] RA entry=0x0000000080000040
+[nr] RA entered; clearing application BSS
+[nr] mstatus=0x8000000A00006000; launch BEGIN
+[text] prompt count=00000010 ids=0002505C 00000368 000000C6 00000EFE 00000176 00002599 0000001E 0002505D 000000C6 0002505C 00012D23 000000C6 00025073 0000010F 00025074 0000010F encode_cycles=000000000002B859
+verify fixed prompt tokenizer: PASS
+[text] mode=fixed-validation; EOS is recorded, never early-stops
+[model] prefill begin position=00000000 input_token=0002505C
+[kernel] begin _mlir_ciface_kernel_embedding_w8a8_16x1024 call=0000000000000000
+[kernel] end _mlir_ciface_kernel_embedding_w8a8_16x1024 call=0000000000000000
+[probe] entry=00000000 rank=00000003 descriptor=000000008136BC10
+[kernel] begin _mlir_ciface_kernel_rmsnorm_16x1024 call=0000000000000000
+[kernel] end _mlir_ciface_kernel_rmsnorm_16x1024 call=0000000000000000
+[probe] entry=00000001 rank=00000003 descriptor=000000008136BC58
+[probe] entry=0000000B rank=00000002 descriptor=000000008136BC30
+[kernel] begin _mlir_ciface_kernel_quantize_16x1024 call=0000000000000000
+[kernel] end _mlir_ciface_kernel_quantize_16x1024 call=0000000000000000
+[probe] entry=0000000C rank=00000002 descriptor=000000008136BBF8
+[probe] entry=0000000D rank=00000001 descriptor=000000008136BBD0
+[kernel] begin _mlir_ciface_kernel_matmul_16x2048x1024 call=0000000000000000
+[kernel] end _mlir_ciface_kernel_matmul_16x2048x1024 call=0000000000000000
+[kernel] begin _mlir_ciface_kernel_dequantize_16x2048 call=0000000000000000
+[kernel] end _mlir_ciface_kernel_dequantize_16x2048 call=0000000000000000
+[probe] entry=0000000E rank=00000002 descriptor=000000008136BB60
+[probe] entry=00000002 rank=00000004 descriptor=000000008136BBD8
+[kernel] begin _mlir_ciface_kernel_rmsnorm_256x128 call=0000000000000000
+[kernel] end _mlir_ciface_kernel_rmsnorm_256x128 call=0000000000000000
+[probe] entry=00000003 rank=00000004 descriptor=000000008136BC30
+[probe] entry=0000000F rank=00000002 descriptor=000000008136BC30
+[kernel] begin _mlir_ciface_kernel_quantize_16x1024 call=0000000000000001
+[kernel] end _mlir_ciface_kernel_quantize_16x1024 call=0000000000000001
+[probe] entry=00000010 rank=00000002 descriptor=000000008136BBF8
+[probe] entry=00000011 rank=00000001 descriptor=000000008136BBD0
+[kernel] begin _mlir_ciface_kernel_matmul_16x1024x1024 call=0000000000000000
+[kernel] end _mlir_ciface_kernel_matmul_16x1024x1024 call=0000000000000000
+[kernel] begin _mlir_ciface_kernel_dequantize_16x1024 call=0000000000000000
+[kernel] end _mlir_ciface_kernel_dequantize_16x1024 call=0000000000000000
+[probe] entry=00000012 rank=00000002 descriptor=000000008136BB60
+[probe] entry=00000004 rank=00000004 descriptor=000000008136BBD8
+[kernel] begin _mlir_ciface_kernel_rmsnorm_128x128 call=0000000000000000
+[kernel] end _mlir_ciface_kernel_rmsnorm_128x128 call=0000000000000000
+[probe] entry=00000005 rank=00000004 descriptor=000000008136BC30
+[probe] entry=00000013 rank=00000002 descriptor=000000008136BC30
+[kernel] begin _mlir_ciface_kernel_quantize_16x1024 call=0000000000000002
+[kernel] end _mlir_ciface_kernel_quantize_16x1024 call=0000000000000002
+[probe] entry=00000014 rank=00000002 descriptor=000000008136BBF8
+[probe] entry=00000015 rank=00000001 descriptor=000000008136BBD0
+[kernel] begin _mlir_ciface_kernel_matmul_16x1024x1024 call=0000000000000001
+[kernel] end _mlir_ciface_kernel_matmul_16x1024x1024 call=0000000000000001
+[kernel] begin _mlir_ciface_kernel_dequantize_16x1024 call=0000000000000001
+[kernel] end _mlir_ciface_kernel_dequantize_16x1024 call=0000000000000001
+[probe] entry=00000016 rank=00000002 descriptor=000000008136BB60
+[kernel] begin _mlir_ciface_kernel_layout_context_8x16x128 call=0000000000000000
+[kernel] end _mlir_ciface_kernel_layout_context_8x16x128 call=0000000000000000
+[kernel] begin _mlir_ciface_kernel_kv_cache_update_position_16x8x128_cap512 call=0000000000000000
+[kernel] end _mlir_ciface_kernel_kv_cache_update_position_16x8x128_cap512 call=0000000000000000
+[kernel] begin _mlir_ciface_kernel_layout_context_8x16x128 call=0000000000000001
+[kernel] end _mlir_ciface_kernel_layout_context_8x16x128 call=0000000000000001
+[kernel] begin _mlir_ciface_kernel_kv_cache_update_position_16x8x128_cap512 call=0000000000000001
+[kernel] end _mlir_ciface_kernel_kv_cache_update_position_16x8x128_cap512 call=0000000000000001
+[probe] entry=0000002B rank=00000004 descriptor=000000008136BBA0
+[kernel] begin _mlir_ciface_kernel_attention_qk_position_native_16x16x512x128 call=0000000000000000
+[kernel] end _mlir_ciface_kernel_attention_qk_position_native_16x16x512x128 call=0000000000000000
+[kernel] begin _mlir_ciface_kernel_attention_scale_mask_position_16x16x512 call=0000000000000000
+[kernel] end _mlir_ciface_kernel_attention_scale_mask_position_16x16x512 call=0000000000000000
+[kernel] begin _mlir_ciface_kernel_softmax_16x16x512 call=0000000000000000
+[kernel] end _mlir_ciface_kernel_softmax_16x16x512 call=0000000000000000
+[probe] entry=0000002C rank=00000004 descriptor=000000008136BB28
+[kernel] begin _mlir_ciface_kernel_attention_pv_position_16x16x128x512 call=0000000000000000
+[kernel] end _mlir_ciface_kernel_attention_pv_position_16x16x128x512 call=0000000000000000
+[probe] entry=0000002D rank=00000004 descriptor=000000008136BAC8
+[probe] entry=00000017 rank=00000002 descriptor=000000008136BC30
+[kernel] begin _mlir_ciface_kernel_quantize_16x2048 call=0000000000000000
+[kernel] end _mlir_ciface_kernel_quantize_16x2048 call=0000000000000000
+[probe] entry=00000018 rank=00000002 descriptor=000000008136BBF8
+[probe] entry=00000019 rank=00000001 descriptor=000000008136BBD0
+[kernel] begin _mlir_ciface_kernel_matmul_16x1024x2048 call=0000000000000000
+[kernel] end _mlir_ciface_kernel_matmul_16x1024x2048 call=0000000000000000
+[kernel] begin _mlir_ciface_kernel_dequantize_16x1024 call=0000000000000002
+[kernel] end _mlir_ciface_kernel_dequantize_16x1024 call=0000000000000002
+[probe] entry=0000001A rank=00000002 descriptor=000000008136BB60
+[probe] entry=00000006 rank=00000003 descriptor=000000008136BC10
+[kernel] begin _mlir_ciface_kernel_rmsnorm_16x1024 call=0000000000000001
+[kernel] end _mlir_ciface_kernel_rmsnorm_16x1024 call=0000000000000001
+[probe] entry=00000007 rank=00000003 descriptor=000000008136BC58
+[probe] entry=0000001B rank=00000002 descriptor=000000008136BC30
+[kernel] begin _mlir_ciface_kernel_quantize_16x1024 call=0000000000000003
+[kernel] end _mlir_ciface_kernel_quantize_16x1024 call=0000000000000003
+[probe] entry=0000001C rank=00000002 descriptor=000000008136BBF8
+[probe] entry=0000001D rank=00000001 descriptor=000000008136BBD0
+[kernel] begin _mlir_ciface_kernel_matmul_16x3072x1024 call=0000000000000000
+[kernel] end _mlir_ciface_kernel_matmul_16x3072x1024 call=0000000000000000
+[kernel] begin _mlir_ciface_kernel_dequantize_16x3072 call=0000000000000000
+[kernel] end _mlir_ciface_kernel_dequantize_16x3072 call=0000000000000000
+[probe] entry=0000001E rank=00000002 descriptor=000000008136BB60
+[probe] entry=00000009 rank=00000003 descriptor=000000008136BC40
+[kernel] begin _mlir_ciface_kernel_silu_16x3072 call=0000000000000000
+[kernel] end _mlir_ciface_kernel_silu_16x3072 call=0000000000000000
+[probe] entry=0000000A rank=00000003 descriptor=000000008136BC88
+[probe] entry=0000001F rank=00000002 descriptor=000000008136BC30
+[kernel] begin _mlir_ciface_kernel_quantize_16x1024 call=0000000000000004
+[kernel] end _mlir_ciface_kernel_quantize_16x1024 call=0000000000000004
+[probe] entry=00000020 rank=00000002 descriptor=000000008136BBF8
+[probe] entry=00000021 rank=00000001 descriptor=000000008136BBD0
+[kernel] begin _mlir_ciface_kernel_matmul_16x3072x1024 call=0000000000000001
+[kernel] end _mlir_ciface_kernel_matmul_16x3072x1024 call=0000000000000001
+[kernel] begin _mlir_ciface_kernel_dequantize_16x3072 call=0000000000000001
+[kernel] end _mlir_ciface_kernel_dequantize_16x3072 call=0000000000000001
+[probe] entry=00000022 rank=00000002 descriptor=000000008136BB60
+[probe] entry=00000023 rank=00000002 descriptor=000000008136BC30
+[kernel] begin _mlir_ciface_kernel_quantize_16x3072 call=0000000000000000
+[kernel] end _mlir_ciface_kernel_quantize_16x3072 call=0000000000000000
+[probe] entry=00000024 rank=00000002 descriptor=000000008136BBF8
+[probe] entry=00000025 rank=00000001 descriptor=000000008136BBD0
+[kernel] begin _mlir_ciface_kernel_matmul_16x1024x3072 call=0000000000000000
+[kernel] end _mlir_ciface_kernel_matmul_16x1024x3072 call=0000000000000000
+[kernel] begin _mlir_ciface_kernel_dequantize_16x1024 call=0000000000000003
+[kernel] end _mlir_ciface_kernel_dequantize_16x1024 call=0000000000000003
+[probe] entry=00000026 rank=00000002 descriptor=000000008136BB60
+[probe] entry=00000008 rank=00000003 descriptor=000000008136BC10
+[kernel] begin _mlir_ciface_kernel_rmsnorm_16x1024 call=0000000000000002
+[kernel] end _mlir_ciface_kernel_rmsnorm_16x1024 call=0000000000000002
+[probe] entry=00000027 rank=00000002 descriptor=000000008136BC30
+[probe] entry=00000055 rank=00000002 descriptor=000000008136BC30
+[kernel] begin _mlir_ciface_kernel_quantize_1x1024 call=0000000000000000
+[kernel] end _mlir_ciface_kernel_quantize_1x1024 call=0000000000000000
+[probe] entry=00000028 rank=00000002 descriptor=000000008136BBF8
+[probe] entry=00000029 rank=00000001 descriptor=000000008136BBD0
+[probe] entry=00000056 rank=00000002 descriptor=000000008136BBF8
+[probe] entry=00000057 rank=00000001 descriptor=000000008136BBD0
+[kernel] begin _mlir_ciface_kernel_matmul_1x151936x1024 call=0000000000000000
+[kernel] end _mlir_ciface_kernel_matmul_1x151936x1024 call=0000000000000000
+[kernel] begin _mlir_ciface_kernel_dequantize_1x151936 call=0000000000000000
+[kernel] end _mlir_ciface_kernel_dequantize_1x151936 call=0000000000000000
+[probe] entry=0000002A rank=00000002 descriptor=000000008136BB60
+[probe] entry=00000058 rank=00000002 descriptor=000000008136BB60
+[compare] logits position=0000000F count=00025180 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] key_cache position=0000000F count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] value_cache position=0000000F count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[model] selected position=0000000F 0000BF68:C072D924 00000176:407D53F8 00000108:4018637A 00000C4A:3E50A3D4 00001CEF:400822CC 00000130:40910151 000012B3:BF8A919D 00001427:400F0715 0000000B:40247727
+[model] kv position=0000000F layer=00000000 k=BEFA4528 v=3B3D6C2F
+[model] prefill position=00000000 token=0000812B logit_bits=410D46B2 compute_cycles=0000000027684B2F preparation_cycles=00000000001068A3 selection_cycles=0000000000278ACB cache_retention_cycles=0000000000650D96 model_cycles=0000000028054C33 total_with_uart_cycles=00000000283C43F3 scratch_bytes=0000000000E4F344
+[intermediate] position=00000000 entry=00000000 calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000001 calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000002 calls=00000001 checked=00000001 count=00008000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000003 calls=00000001 checked=00000001 count=00008000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000004 calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000005 calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000006 calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000007 calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000008 calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000009 calls=00000001 checked=00000001 count=0000C000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=0000000A calls=00000001 checked=00000001 count=0000C000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=0000000B calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=0000000C calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=0000000D calls=00000001 checked=00000001 count=00000010 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=0000000E calls=00000001 checked=00000001 count=00008000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=0000000F calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000010 calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000011 calls=00000001 checked=00000001 count=00000010 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000012 calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000013 calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000014 calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000015 calls=00000001 checked=00000001 count=00000010 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000016 calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000017 calls=00000001 checked=00000001 count=00008000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000018 calls=00000001 checked=00000001 count=00008000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000019 calls=00000001 checked=00000001 count=00000010 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=0000001A calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=0000001B calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=0000001C calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=0000001D calls=00000001 checked=00000001 count=00000010 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=0000001E calls=00000001 checked=00000001 count=0000C000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=0000001F calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000020 calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000021 calls=00000001 checked=00000001 count=00000010 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000022 calls=00000001 checked=00000001 count=0000C000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000023 calls=00000001 checked=00000001 count=0000C000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000024 calls=00000001 checked=00000001 count=0000C000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000025 calls=00000001 checked=00000001 count=00000010 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000026 calls=00000001 checked=00000001 count=00004000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000027 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000028 calls=00000001 checked=00000001 count=00000400 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=00000029 calls=00000001 checked=00000001 count=00000001 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=0000002A calls=00000001 checked=00000001 count=00025180 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=0000002B calls=00000001 checked=00000001 count=00008000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=0000002C calls=00000001 checked=00000001 count=00020000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] position=00000000 entry=0000002D calls=00000001 checked=00000001 count=00008000 max_abs_bits=00000000 mean_abs_bits=00000000
+[intermediate] complete position=00000000 PASS
+[profile] position=0000000F kernel=_mlir_ciface_kernel_attention_pv_position_16x16x128x512 calls=0000000000000001 cycles=0000000000C0BD71
+[profile] position=0000000F kernel=_mlir_ciface_kernel_attention_qk_position_native_16x16x512x128 calls=0000000000000001 cycles=0000000000902066
+[pro

@@ -1,0 +1,20 @@
+{
+  "status": "ERROR",
+  "fpga": 5,
+  "sha256": "26d089f14274de36236b0fd1c573cedc2ce1f230e88527d3d4abd0364823eca2",
+  "capture_seconds": 1200,
+  "baud": 115200,
+  "segment_readbacks": {
+    "image.bin": true,
+    "weights-w8a8.bin": true,
+    "tokenizer.bin": true
+  },
+  "ddr_readback_matches": true,
+  "uart_bytes": 583,
+  "completion_marker": "[nr] RA returned:",
+  "completion_marker_seen": false,
+  "error": "UART completion marker missing at capture timeout",
+  "uart_input_bytes_written": 0,
+  "uart_interactive_bytes_written": 0,
+  "uart_input_unacknowledged_requests": 0
+}
