@@ -11,7 +11,7 @@ from build_dequant_ab import inspect_case, sha
 from check_dequant_ab import parse
 
 
-def main():
+def main(benchmark="dequant", parse_log=parse):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run", required=True, type=Path)
     parser.add_argument("--build", required=True, type=Path)
@@ -31,7 +31,9 @@ def main():
     log = args.run / "uart.raw.log"
     if log.stat().st_size != runner.get("uart_bytes"):
         raise ValueError("UART byte count differs from runner result")
-    result = parse(log.read_text(errors="replace"), platform="fpga", manifest=manifest)
+    if manifest.get("benchmark") != benchmark:
+        raise ValueError("benchmark kind does not match the archive checker")
+    result = parse_log(log.read_text(errors="replace"), platform="fpga", manifest=manifest)
     result.update(run_id=args.run.name, image_sha256=digest,
                   log_sha256=sha(log), manifest_sha256=sha(manifest_path),
                   ddr_readback_matches=True)
@@ -42,7 +44,7 @@ def main():
     native_manifests = {}
     for variant, entry in manifest["variants"].items():
         source = Path(entry["source"])
-        inspect_case(source)
+        inspect_case(source, benchmark)
         for relative, expected in entry["inputs_sha256"].items():
             if sha(source / relative) != expected:
                 raise ValueError(f"source changed since A/B build: {variant}/{relative}")

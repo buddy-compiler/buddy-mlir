@@ -1,0 +1,80 @@
+{
+  "case_count": 6,
+  "cases": {
+    "quantize_16x1024": {
+      "status": "PASS",
+      "errors": 0,
+      "max_abs": 0
+    },
+    "quantize_16x2048": {
+      "status": "PASS",
+      "errors": 0,
+      "max_abs": 0
+    },
+    "quantize_16x3072": {
+      "status": "PASS",
+      "errors": 0,
+      "max_abs": 0
+    },
+    "quantize_1x1024": {
+      "status": "PASS",
+      "errors": 0,
+      "max_abs": 0
+    },
+    "quantize_1x2048": {
+      "status": "PASS",
+      "errors": 0,
+      "max_abs": 0
+    },
+    "quantize_1x3072": {
+      "status": "PASS",
+      "errors": 0,
+      "max_abs": 0
+    }
+  },
+  "matmul_cycles": {},
+  "launch_cycles": 26839268,
+  "status": "PASS",
+  "run_id": "run-8019f65198fd46df",
+  "image_sha256": "f8e0e1f4717ec9c46224c3f164015c666526dba1d4343b33001219dbbd17dd9c",
+  "uart_sha256": "a011b6b61bcc4963b89d85b35857e925dcebe93b6f673f6862be0024ead7564a",
+  "input_hashes": {
+    "quantize_16x1024": {
+      "nr/kernel.o": "b93a32a4055803a788fcdb8f884fc29f88fff97805903767720052596eac32f1",
+      "nr/adapter.o": "4ed5257e3cde73727b1b63fd745400d6dd804cd8a15b2d566254109dc609d635",
+      "nr/kernel.nr.S": "29a2928a53f9459a226b1586c166ff4ad0fd8078f86080c750c4f6fc1933c35e",
+      "nr/manifest.json": "33d0fb471d5928e181767cdc1940561e6df20b2248697751434ecd6988301f27"
+    },
+    "quantize_16x2048": {
+      "nr/kernel.o": "91daaed10cd4db97c6a2d25ead278b8f483d3729f65d9b282469f35b46eb7cb5",
+      "nr/adapter.o": "72842001baa53a6134471dbd975aad1c606261aac81ba2d9cf9caf3e0d1b5cfb",
+      "nr/kernel.nr.S": "e0a8b58fde147cd3355900fb3e45124bcb3c594b7305fb3bcaa9c624cc16646b",
+      "nr/manifest.json": "05083c015cc840ba213aae2febf515fccb5638162f2b9f8d10cc68968c795f31"
+    },
+    "quantize_16x3072": {
+      "nr/kernel.o": "d7f0ad1ac3d1a39b42bd3762fb7f79bad13d609be4d0317ed6dde7f923a9361b",
+      "nr/adapter.o": "86be75f21a61a6c2fbed2c91fff160bdf39e789f51f41d94b3c69c8ab0f5dfac",
+      "nr/kernel.nr.S": "257c0f60565fb6d3bb960f4443bd760b314cb35cca21054e44d347817513bcce",
+      "nr/manifest.json": "f23fbd961cfad5037327b62b86606a71cdd10fa478ec1bc213d11d97a907d183"
+    },
+    "quantize_1x1024": {
+      "nr/kernel.o": "9337c7366ba66207113c7c76fa95ae20d3df8078dd5adc00537fbe760e835042",
+      "nr/adapter.o": "277a707ddce08067553f398e8a1bff38063718f91aa3d33a1baa7c41a1442247",
+      "nr/kernel.nr.S": "86df2cf9d65744cdb5c2004333bf95a834c6ecbfb2f917dc6d1f48a16f2b3890",
+      "nr/manifest.json": "b9310de9a2d72d47067b110ca74fdabb2f942a45bf8b7c5c77343994ac4bc92d"
+    },
+    "quantize_1x2048": {
+      "nr/kernel.o": "bc75c018a668456d3c664f665675a8c23ce79a197d62f83d7d63964bbcd502c3",
+      "nr/adapter.o": "ec9b51dab5794c84d82e08325ec6c7375e6a2f5dcef150d1613583599d664468",
+      "nr/kernel.nr.S": "c82428e5601e6889d55410600278b0cf55b3b7feb4d89f05eca77dcf9013efd3",
+      "nr/manifest.json": "0a8285319e4e2d24fb8f57234a3bf85c365c948ded6bf32c0f3fb6c7f1da9673"
+    },
+    "quantize_1x3072": {
+      "nr/kernel.o": "3476fa2d3fbc51d2f4c98191ca8a0eff6b1982de45c0500e78a8fec49cde5bef",
+      "nr/adapter.o": "0ef4b94f0944c82ae6f760c6e5c91928d4a2fa377662b98a4f5698a54b7bee07",
+      "nr/kernel.nr.S": "0afe8ecd4037352f3558c91f19d5ad4875ecad8d028aa9664e4d57d8d75af1d2",
+      "nr/manifest.json": "c8898146370958e27c11c30b7d895a58b41c95b6c306fcaee32923aa7bfece16"
+    }
+  },
+  "scope": "six standalone RVV quantizers; full-model acceptance is separate"
+}

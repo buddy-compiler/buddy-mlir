@@ -1,0 +1,2 @@
+triton_matmul_1x1024x3072 T 0 364
+memcpy U 0 0

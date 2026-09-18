@@ -1,0 +1,18 @@
+
+[nr] NH boot; RA operator runtime
+[nr] RA entry=0x0000000080000040
+[nr] RA entered; clearing application BSS
+[nr] mstatus=0x8000000A00006000; launch BEGIN
+[quant-ab] rows=00000001 cols=00000400
+[quant-ab] round=00000000 variant=baseline cycles=00000000000635F5 errors=00000000
+[quant-ab] round=00000000 variant=optimized cycles=0000000000007F41 errors=00000000
+[quant-ab] round=00000001 variant=optimized cycles=0000000000007EBF errors=00000000
+[quant-ab] round=00000001 variant=baseline cycles=0000000000065996 errors=00000000
+[quant-ab] round=00000002 variant=baseline cycles=0000000000065187 errors=00000000
+[quant-ab] round=00000002 variant=optimized cycles=0000000000007F1A errors=00000000
+[quant-ab] round=00000003 variant=optimized cycles=0000000000007ED8 errors=00000000
+[quant-ab] round=00000003 variant=baseline cycles=000000000006586E errors=00000000
+[quant-ab] PASS errors=00000000
+[nr] launch cycles=0x000000000034C4AC status=0x00000000
+[nr] RA returned: PASS
+verify NR runtime: PASS

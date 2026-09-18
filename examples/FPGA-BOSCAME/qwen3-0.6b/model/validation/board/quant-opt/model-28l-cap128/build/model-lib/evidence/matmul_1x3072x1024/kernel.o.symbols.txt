@@ -1,0 +1,1 @@
+triton_matmul_1x3072x1024 T 0 286

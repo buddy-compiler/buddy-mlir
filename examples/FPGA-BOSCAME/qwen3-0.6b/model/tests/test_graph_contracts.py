@@ -36,6 +36,37 @@ def graph(*nodes):
 
 
 class MatchContracts(unittest.TestCase):
+    def test_quantization_shares_only_readonly_views_of_the_same_rmsnorm(self):
+        x = node("PlaceholderOp", "x", [1, 2, 4])
+        w = node("PlaceholderOp", "w", [4])
+        power = node("PowOp", "power", [1, 2, 4], ["x", 2])
+        mean = node("MeanOp", "mean", [1, 2, 1], ["power", [-1], True])
+        add = node("AddOp", "eps", [1, 2, 1], ["mean", 1e-6])
+        rsqrt = node("RsqrtOp", "rsqrt", [1, 2, 1], ["eps"])
+        scaled = node("MulOp", "scaled", [1, 2, 4], ["x", "rsqrt"])
+        norm = node("MulOp", "norm", [1, 2, 4], ["w", "scaled"])
+        a = node("ViewOp", "a", [2, 4], ["norm", [2, 4]])
+        b = node("ViewOp", "b", [2, 4], ["norm", [2, 4]])
+        qa = node("MatmulOp", "qa", [2, 4], ["a", "weight"])
+        qb = node("MatmulOp", "qb", [2, 4], ["b", "weight"])
+        g = graph(x, w, power, mean, add, rsqrt, scaled, norm, a, b, qa, qb)
+        index = {"rmsnorm_2x4": {"name": "rmsnorm_2x4"}}
+        key = tcr.activation_quantization_key(g, a, index)
+        self.assertIsNotNone(key)
+        self.assertEqual(key, tcr.activation_quantization_key(g, b, index))
+        b.tensor_meta["shape"] = [4, 2]
+        self.assertIsNone(tcr.activation_quantization_key(g, a, index))
+        b.tensor_meta["shape"] = [2, 4]
+        for kind in ("SliceOp", "PermuteOp", "ExpandOp", "CallOp"):
+            b.__class__ = type(kind, (), {})
+            self.assertIsNone(tcr.activation_quantization_key(g, a, index))
+        b.__class__ = type("ViewOp", (), {})
+        qb.__class__ = type("CallOp", (), {})
+        self.assertIsNone(tcr.activation_quantization_key(g, a, index))
+        qb.__class__ = type("MatmulOp", (), {})
+        power.args[1] = 3
+        self.assertIsNone(tcr.activation_quantization_key(g, a, index))
+
     def test_actual_bufferized_key_stride_is_required(self):
         # A tensor has the expected logical shape even when its lowered memref
         # describes a transpose. Validate the actual ABI, not merely the shape.

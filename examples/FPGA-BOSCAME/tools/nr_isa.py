@@ -34,6 +34,10 @@ RVV_ALLOWED = frozenset({
     # vmv1r.v passed only e32/VL16, while compiler uses e8/VL1. The actual
     # FP32 matrix program fails on that path, so whole moves remain rejected.
     "vfmadd.vv", "vle8.v", "vle64.v", "vse64.v",
+    # FPGA5 run-be16db38f65745f4 (2026-09-18), quant_ops.S: exact
+    # abs/div/round/clamp/i32->i8 sequence, signed boundary inputs, VL1/7/16,
+    # e32/m1 -> e16/mf2 -> e8/mf4, guards intact, zero illegal instructions.
+    "vfabs.v", "vmfge.vf", "vmerge.vxm", "vfmax.vf", "vfmin.vf", "vnsrl.wi",
 })
 VECTOR_MEMORY = frozenset({"vle8.v", "vse8.v", "vle32.v", "vse32.v",
                            "vle64.v", "vse64.v"})

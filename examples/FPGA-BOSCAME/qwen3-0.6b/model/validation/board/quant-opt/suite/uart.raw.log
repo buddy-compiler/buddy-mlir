@@ -1,0 +1,21 @@
+
+[nr] NH boot; RA operator runtime
+[nr] RA entry=0x0000000080000040
+[nr] RA entered; clearing application BSS
+[nr] mstatus=0x8000000A00006000; launch BEGIN
+[1/6] Triton quantize_16x1024 BEGIN
+verify quantize_16x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[2/6] Triton quantize_16x2048 BEGIN
+verify quantize_16x2048: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[3/6] Triton quantize_16x3072 BEGIN
+verify quantize_16x3072: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[4/6] Triton quantize_1x1024 BEGIN
+verify quantize_1x1024: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[5/6] Triton quantize_1x2048 BEGIN
+verify quantize_1x2048: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[6/6] Triton quantize_1x3072 BEGIN
+verify quantize_1x3072: PASS errors=00000000 max_abs_error_f32_bits=00000000
+verify qwen3 Triton operator suite: PASS errors=00000000 max_abs_error_f32_bits=00000000
+[nr] launch cycles=0x00000000019988E4 status=0x00000000
+[nr] RA returned: PASS
+verify NR runtime: PASS

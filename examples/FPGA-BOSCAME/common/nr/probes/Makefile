@@ -18,6 +18,14 @@ build/rvv_probe.elf: build/launch.o build/rvv_ops.o build/copy_embedded.o $(NR_O
 	$(RISCV_LD) -T $(NR_LINKER_SCRIPT) --gc-sections -o $@ $(filter %.o,$^)
 build/rvv_probe.bin: build/rvv_probe.elf
 	$(RISCV_OBJCOPY) -O binary $< $@
+build/quant_launch.o: quant_launch.c ../nr_runtime.h | build
+	$(RISCV_CC) $(NR_CFLAGS) -c $< -o $@
+build/quant_ops.o: quant_ops.S | build
+	$(RISCV_CC) --target=riscv64-unknown-elf -march=rv64gcv -mabi=lp64d -mcmodel=medany -c $< -o $@
+build/quant_probe.elf: build/quant_launch.o build/quant_ops.o build/rvv_ops.o $(NR_OBJECTS) $(NR_LINKER_SCRIPT)
+	$(RISCV_LD) -T $(NR_LINKER_SCRIPT) --gc-sections -Map=$@.map -o $@ $(filter %.o,$^)
+build/quant_probe.bin: build/quant_probe.elf
+	$(RISCV_OBJCOPY) -O binary $< $@
 build/copy_launch.o: copy_launch.c ../nr_runtime.h | build
 	$(RISCV_CC) $(NR_CFLAGS) -c $< -o $@
 build/copy_probe.elf: build/copy_launch.o $(NR_OBJECTS) $(NR_LINKER_SCRIPT)

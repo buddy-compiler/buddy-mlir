@@ -5,7 +5,8 @@
 上应用 chat template、编码为 16 token，执行一次 prefill，保留 KV 后连续 decode 8 步
 （position 16…23），由 FPGA 选择 token 并增量解码输出文本。
 
-2026-09-17，FPGA5 的 `run-2c2dd9c210c1492a` 已通过严格数值验收：
+2026-09-18，启用共享激活动态量化及 RVV 量化的 FPGA5
+`run-c9c51a235a154732` 已通过严格数值验收：
 
 | 检查 | 结果 |
 | --- | --- |
@@ -14,11 +15,16 @@
 | 装载与退出 | 三段 DDR 回读一致，`RA returned: PASS`，runner `status: OK` |
 | 严格归档 | `MODEL_RUN_NUMERIC_PASS`、`FULL_LOGITS_KV_PASS`、`FIXED_TEXT_PASS` |
 
-证据见 [verification.json](validation/board/ame-v05/model-28l-cap128/verification.json)，
-时间见 [performance.json](validation/board/ame-v05/model-28l-cap128-performance.json)。
-Prefill 图计算 **382.35 秒**；decode 平均图计算 **76.59 秒/token**，计入准备、选择和
-KV 保留后 **80.01 秒/token**；整个 launch 含初始化、验证和输出约 **17.5 分钟**。
+证据见 [verification.json](validation/board/quant-opt/model-28l-cap128/verification.json)，
+时间见 [performance.json](validation/board/quant-opt/performance.json)。
+Prefill 图计算 **247.92 秒**；decode 平均图计算 **68.00 秒/token**，计入准备、选择和
+KV 保留后 **71.43 秒/token**；整个 launch 含初始化、验证和输出约 **14.13 分钟**。
 时间按配置时钟 14.7456 MHz 换算，不含主机上传和 DDR 装载；该验收镜像没有逐 kernel profiler。
+
+2026-09-17 的原验收基线 `run-2c2dd9c210c1492a` 保留在
+[原归档](validation/board/ame-v05/model-28l-cap128/verification.json)。其 prefill 为
+382.35 秒，decode 图计算为 76.59 秒/token，含准备/选择/KV 为 80.01 秒/token。
+本次对应减少 **35.16%、11.21%、10.72%**，token 轨迹及数值误差保持一致。
 
 本次预测 token（含 prefill 的首次预测）为：
 
@@ -39,7 +45,7 @@ Git，新 checkout 需要先按后面的步骤重建。
 ```bash
 REPO="$(git rev-parse --show-toplevel)"
 MODEL="$REPO/examples/FPGA-BOSCAME/qwen3-0.6b/model"
-OUT="$MODEL/build/ame-v05/model-28l-cap128"
+OUT="$MODEL/build/quant-opt/shared"
 "$MODEL/tools/run_model.sh" "$OUT/prepared" \
   --fpga=5 --capture-seconds=2400 --startup-timeout=900
 ```
@@ -50,13 +56,13 @@ OUT="$MODEL/build/ame-v05/model-28l-cap128"
 SSH 断开不表示 FPGA 停止。使用实际 run ID 恢复原 worker，不重新上传或 reset：
 
 ```bash
-RUN_ID=run-2c2dd9c210c1492a  # 换成本次任务打印的 ID
+RUN_ID=run-c9c51a235a154732  # 换成本次任务打印的 ID
 "$REPO/examples/FPGA-BOSCAME/fpga_run.sh" "$OUT/prepared/image.bin" \
   --fpga=5 --resume-run="$RUN_ID"
 ```
 
 恢复必须直接调用公共 `fpga_run.sh`，不要调用会附加上传段的 `run_model.sh`。
-本次验收就是在 SSH 中断后恢复原 worker、取回完整结果，未重启模型。
+之前的验收已验证在 SSH 中断后恢复原 worker、取回完整结果，无需重启模型。
 
 ## 从源码重建：环境与资源
 
@@ -68,7 +74,7 @@ RUN_ID=run-2c2dd9c210c1492a  # 换成本次任务打印的 ID
 set -euo pipefail
 REPO="$(git rev-parse --show-toplevel)"
 MODEL="$REPO/examples/FPGA-BOSCAME/qwen3-0.6b/model"
-OUT="$MODEL/build/ame-v05/model-28l-cap128-reproduce"
+OUT="$MODEL/build/quant-opt/model-28l-cap128-reproduce"
 # 按机器环境设置；Buddy Python 必须与其 MLIR bindings 的 Python ABI 一致。
 export BUDDY_PYTHON="${BUDDY_PYTHON:-/home/chh/venvs/qwen3fpga-py311/bin/python}"
 export TRITON_PYTHON="${TRITON_PYTHON:-/home/chh/miniconda3/envs/boscame/bin/python}"
@@ -95,7 +101,9 @@ Buddy 使用 Python 3.11 bindings，当前 `boscame` 的 Triton 使用 Python 3.
 从本次归档读取精确 case 清单，重新执行 Triton → triton-riscv → linalg → Buddy
 lowering → object。清单仅选择算子，不复用归档里的旧目标文件。
 11 个 INT8 linear 使用 AME N64、直接 GPR 编码及已验证的 fence 合并；7 个反量化算子
-使用 RVV。其余算子保持保守配置。不同配置用独立目录，最终 overlay 仅用于读取。
+和 6 个动态量化算子使用 RVV。不同配置用独立目录，最终 overlay 仅用于读取。
+量化仍使用 FP32 除法及原有舍入规则，优化细节和单算子 A/B 复现见
+[QUANTIZE.md](optimization/QUANTIZE.md)。
 
 ```bash
 CASES="$OUT/cases"
@@ -121,6 +129,7 @@ assert {k: len(v) for k, v in groups.items()} == {'ame': 11, 'rvv': 7, 'base': 2
 for group, names in groups.items():
     (pathlib.Path(sys.argv[2]) / (group + '-cases.txt')).write_text('\n'.join(sorted(names)) + '\n')
 PY
+export QWEN_TRITON_QUANT=rvv
 for group in base ame rvv; do
   args=()
   while IFS= read -r name; do args+=(--case "$name"); done < "$OUT/$group-cases.txt"
@@ -136,14 +145,15 @@ for group in base ame rvv; do
   "$TRITON_PYTHON" -B "$MODEL/../triton/build.py" "${args[@]}" --jobs 2
   "$TRITON_PYTHON" -B "$MODEL/../triton/build.py" "${args[@]}" --jobs 2 --host
 done
-unset QWEN_TRITON_BUILD_ROOT QWEN_TRITON_AME_N QWEN_TRITON_DEQUANT QWEN_MAKE_FLAGS
+unset QWEN_TRITON_BUILD_ROOT QWEN_TRITON_AME_N QWEN_TRITON_DEQUANT QWEN_TRITON_QUANT QWEN_MAKE_FLAGS
 "$BUDDY_PYTHON" -B "$MODEL/tools/kernel_build_overlay.py" \
   --source "$KERNELS/base" --source "$KERNELS/ame" --source "$KERNELS/rvv" \
   --output "$OVERLAY"
 ```
 
 `--host` 是独立主机验证产物，不执行 FPGA AME 指令。不要把编译器输出指向 overlay
-中的软链接。本次 kernel 与模型的板上证据位于 `validation/board/ame-v05/`。
+中的软链接。原 AME/反量化证据位于 `validation/board/ame-v05/`，新增量化及模型
+证据位于 `validation/board/quant-opt/`。
 
 ## 导入真实模型图、替换与 lowering
 
@@ -156,11 +166,11 @@ unset QWEN_TRITON_BUILD_ROOT QWEN_TRITON_AME_N QWEN_TRITON_DEQUANT QWEN_MAKE_FLA
   --config "$MODEL/assets/official/config.json" --output "$OUT/import/weight-layout.json"
 "$BUDDY_PYTHON" -B "$MODEL/tools/triton_call_replace.py" "${COMMON[@]}" \
   --triton-build "$OVERLAY" --output "$OUT/replacement" \
-  --attention --attention-position --attention-native-key --w8a8
+  --attention --attention-position --attention-native-key --w8a8 --share-activation-quantization
 for kind in prefill decode; do
   "$BUDDY_PYTHON" -B "$MODEL/tools/lower_model_nr.py" "${COMMON[@]}" \
     --triton-build "$OVERLAY" --output "$OUT/nr-$kind" --kind "$kind" \
-    --attention --attention-position --attention-native-key --w8a8
+    --attention --attention-position --attention-native-key --w8a8 --share-activation-quantization
 done
 TRITON_BUILD="$OVERLAY" OUT="$OUT/model-lib" \
   ADAPTERS="$OUT/replacement/qwen_triton_adapters.c" LD_LLD="$LINKER" \
@@ -170,7 +180,9 @@ TRITON_BUILD="$OVERLAY" OUT="$OUT/host-bridge" \
   bash "$MODEL/tools/build_host_bridge.sh"
 ```
 
-每图应有 957 个外部 kernel 调用，未覆盖的大计算为 0；图 ABI、replacement report、
+每图应有 873 个外部 kernel 调用，未覆盖的大计算为 0。Q/K/V 及 gate/up 共享
+已经证明相同的 RMSNorm 输入量化，每图 Quantize 从 197 次降至 113 次；
+`activation_quantization` 报告应为 `created=113, reused=84`。图 ABI、replacement report、
 adapter、KV 容量和权重 layout 必须来自同一次配置。静态库包含 46 个 kernel 的
 92 个 kernel/adapter 对象；不包含测试 main、测试数据或公共 NR runtime。
 `model-lib/archive.json`、`evidence/`、symbol/link report 和最终 ELF map 保留调用链证据。
@@ -197,7 +209,7 @@ done
   --layers 28 --max-cache-len 128 --output "$OUT/host-run" \
   --layout "$OUT/import/weight-layout.json" --triton-build "$OVERLAY" \
   --external-lib "$OUT/host-bridge/libqwen_triton_host.so" \
-  --replace --attention --attention-position --attention-native-key --w8a8 \
+  --replace --attention --attention-position --attention-native-key --w8a8 --share-activation-quantization \
   --decode-steps 8 --capture-intermediates --prompt-ids "$PROMPT" \
   --quant-reference-dir "$OUT/quant-triton-host"
 ```
@@ -241,9 +253,9 @@ embedding/lm_head 共享量化矩阵与 scale，norm、RoPE、attention、SiLU�
 公共 `common/nr` 负责启动、通信和同步，ELF audit 应无未定义符号。
 
 本次权重段 598,230,784 字节，tokenizer 5,222,976 字节；HIGH 持久区总计
-706,566,912 字节，范围约 `0xb8000000..0xe21d5b00`，包含权重、KV、tokenizer 和 workspace。
-LOW heap 可用 774,676,608 字节；实测 prefill/decode scratch 峰值分别为
-140,108,245 / 91,962,197 字节。实际装载地址、大小与 hash 以当前生成的 manifest 和
+705,093,888 字节，范围约 `0xb8000000..0xe206e100`，包含权重、KV、tokenizer 和 workspace。
+LOW heap 可用 774,796,928 字节；实测 prefill/decode scratch 峰值分别为
+134,597,013 / 91,611,925 字节。实际装载地址、大小与 hash 以当前生成的 manifest 和
 `prepared/ddr-load.plan` 为准；startup 清零范围不得覆盖外部装载资源。
 
 ## 结果归档与校验
@@ -252,7 +264,7 @@ LOW heap 可用 774,676,608 字节；实测 prefill/decode scratch 峰值分别�
 
 ```bash
 RUN_ID=run-ACTUAL_ID
-ARCHIVE="$MODEL/validation/board/ame-v05/model-28l-cap128-reproduce"
+ARCHIVE="$MODEL/validation/board/quant-opt/model-28l-cap128-reproduce"
 "$BUDDY_PYTHON" -B "$MODEL/tools/archive_model_run.py" \
   --run "$REPO/examples/FPGA-BOSCAME/build/fpga-runs/$RUN_ID" \
   --build "$OUT" --image-dir "$OUT/image" --prepared-dir "$OUT/prepared" \

@@ -1,0 +1,175 @@
+{
+  "status": "FIXED_TEXT_PASS",
+  "execution": "FPGA trace verified post-run on host",
+  "scope": "fixed raw prompt -> board template/tokenize -> actual graph-selected predictions -> board incremental UTF-8 decode",
+  "prompt_utf8_hex": "57686174206973204672616e63653f",
+  "actual_prompt": {
+    "ids": [
+      151644,
+      872,
+      198,
+      3838,
+      374,
+      9625,
+      30,
+      151645,
+      198,
+      151644,
+      77091,
+      198,
+      151667,
+      271,
+      151668,
+      271
+    ],
+    "count": 16,
+    "encode_cycles": 181301
+  },
+  "official_prompt_ids": [
+    151644,
+    872,
+    198,
+    3838,
+    374,
+    9625,
+    30,
+    151645,
+    198,
+    151644,
+    77091,
+    198,
+    151667,
+    271,
+    151668,
+    271
+  ],
+  "model_stages": [
+    {
+      "kind": "prefill",
+      "position": 0,
+      "token": 49000
+    },
+    {
+      "kind": "decode",
+      "position": 16,
+      "token": 374
+    },
+    {
+      "kind": "decode",
+      "position": 17,
+      "token": 264
+    },
+    {
+      "kind": "decode",
+      "position": 18,
+      "token": 3146
+    },
+    {
+      "kind": "decode",
+      "position": 19,
+      "token": 7407
+    },
+    {
+      "kind": "decode",
+      "position": 20,
+      "token": 304
+    },
+    {
+      "kind": "decode",
+      "position": 21,
+      "token": 4787
+    },
+    {
+      "kind": "decode",
+      "position": 22,
+      "token": 5159
+    },
+    {
+      "kind": "decode",
+      "position": 23,
+      "token": 11
+    }
+  ],
+  "predictions": [
+    {
+      "prediction": 0,
+      "token": 49000,
+      "eos": 0,
+      "bytes": 6,
+      "hex": "4672616e6365"
+    },
+    {
+      "prediction": 1,
+      "token": 374,
+      "eos": 0,
+      "bytes": 3,
+      "hex": "206973"
+    },
+    {
+      "prediction": 2,
+      "token": 264,
+      "eos": 0,
+      "bytes": 2,
+      "hex": "2061"
+    },
+    {
+      "prediction": 3,
+      "token": 3146,
+      "eos": 0,
+      "bytes": 8,
+      "hex": "20636f756e747279"
+    },
+    {
+      "prediction": 4,
+      "token": 7407,
+      "eos": 0,
+      "bytes": 8,
+      "hex": "206c6f6361746564"
+    },
+    {
+      "prediction": 5,
+      "token": 304,
+      "eos": 0,
+      "bytes": 3,
+      "hex": "20696e"
+    },
+    {
+      "prediction": 6,
+      "token": 4787,
+      "eos": 0,
+      "bytes": 6,
+      "hex": "204e6f727468"
+    },
+    {
+      "prediction": 7,
+      "token": 5159,
+      "eos": 0,
+      "bytes": 8,
+      "hex": "20416d6572696361"
+    },
+    {
+      "prediction": 8,
+      "token": 11,
+      "eos": 0,
+      "bytes": 1,
+      "hex": "2c"
+    }
+  ],
+  "finish_hex": "",
+  "output_utf8_hex": "4672616e6365206973206120636f756e747279206c6f636174656420696e204e6f72746820416d65726963612c",
+  "output_text": "France is a country located in North America,",
+  "limits": [
+    "Fixed prompt fixture only; no UART RX or arbitrary user interaction acceptance.",
+    "Text validation does not replace numerical logits/KV or hidden-state verification.",
+    "Nine predictions mean one prefill-selected token plus eight sequential decode predictions."
+  ],
+  "official_assets_sha256": {
+    "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/assets/official/tokenizer.json": "aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4",
+    "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/assets/official/tokenizer_config.json": "d5d09f07b48c3086c508b30d1c9114bd1189145b74e982a265350c923acd8101",
+    "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/assets/official/generation_config.json": "2325da0f15bb848e018c5ae071b7943332e9f871d6b60e2ed22ca97d4cb993d2"
+  },
+  "inputs_sha256": {
+    "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-c9c51a235a154732/uart.raw.log": "f46b249530207b667363458592b56e2468b2027822b216361efd2a0114ccb55c",
+    "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/quant-opt/shared/image/w8a8-image-plan.json": "d20ac19efd78cf2dfd9e7de90b63733d996626d4cd1461f36ecaf54fb4c4493e"
+  }
+}

@@ -25,6 +25,9 @@
 // flags, combine scales, speculate tail loads or assume dynamic strides are 1.
 // Fixed 16-lane i32/f32 vectors use e32/m1 on the 512-bit NR RVV target; this
 // opt-in pass is also executable on a host target for numerical comparison.
+// The separate vectorize-quantize pass also handles fused abs/divide/round/
+// clamp/narrow and proven abs-max reductions. It preserves FP32 division and
+// rounding operations; it never substitutes reciprocal multiplication.
 //
 //===----------------------------------------------------------------------===//
 
@@ -32,6 +35,7 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
+#include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Vector/IR/VectorOps.h"
@@ -44,25 +48,30 @@ namespace {
 
 constexpr int64_t vectorWidth = 16;
 
-static bool isElementType(Type type) {
-  return type.isInteger(32) || type.isF32();
+static bool isElementType(Type type, bool quantize = false) {
+  return type.isInteger(32) || type.isF32() ||
+         (quantize && (type.isInteger(8) || type.isInteger(1)));
 }
 
-static bool isContiguousVector(MemRefType type) {
+static bool isContiguousVector(MemRefType type, bool quantize = false) {
   SmallVector<int64_t> strides;
   int64_t offset;
-  return type.getRank() == 1 && isElementType(type.getElementType()) &&
+  // i1 is allowed for temporary comparison masks, not memory: vector<i1>
+  // packing must not be confused with scalar memref element addressing.
+  return type.getRank() == 1 && !type.getElementType().isInteger(1) &&
+         isElementType(type.getElementType(), quantize) &&
          succeeded(type.getStridesAndOffset(strides, offset)) &&
          strides[0] == 1;
 }
 
-static bool canVectorize(linalg::GenericOp op, AliasAnalysis &aliases) {
+static bool canVectorize(linalg::GenericOp op, AliasAnalysis &aliases,
+                         bool quantize = false) {
   if (!op.hasPureBufferSemantics() || op.getNumLoops() != 1 ||
       op.getNumParallelLoops() != 1 || op.getNumDpsInits() != 1)
     return false;
   Value output = op.getDpsInits()[0];
   auto outputType = dyn_cast<MemRefType>(output.getType());
-  if (!outputType || !isContiguousVector(outputType) ||
+  if (!outputType || !isContiguousVector(outputType, quantize) ||
       !op.getIndexingMapsArray().back().isIdentity())
     return false;
 
@@ -70,17 +79,17 @@ static bool canVectorize(linalg::GenericOp op, AliasAnalysis &aliases) {
   for (auto [index, input] : llvm::enumerate(op.getDpsInputs())) {
     auto inputType = dyn_cast<MemRefType>(input.getType());
     if (!inputType) {
-      if (!isElementType(input.getType()) || maps[index].getNumResults() != 0)
+      if (!isElementType(input.getType(), quantize) || maps[index].getNumResults() != 0)
         return false;
       continue;
     }
     // Scalar memrefs are broadcast. Vector inputs require identity indexing
     // and a statically known unit stride; dynamic offsets remain supported.
     if (inputType.getRank() == 0) {
-      if (!isElementType(inputType.getElementType()) ||
+      if (!isElementType(inputType.getElementType(), quantize) ||
           maps[index].getNumResults() != 0)
         return false;
-    } else if (!isContiguousVector(inputType) || !maps[index].isIdentity()) {
+    } else if (!isContiguousVector(inputType, quantize) || !maps[index].isIdentity()) {
       return false;
     }
     // Exact in-place identity access is safe. Partial/unknown aliasing may
@@ -98,6 +107,16 @@ static bool canVectorize(linalg::GenericOp op, AliasAnalysis &aliases) {
     } else if (auto multiply = dyn_cast<arith::MulFOp>(nested)) {
       if (!multiply.getType().isF32())
         return false;
+    } else if (quantize && isa<math::AbsFOp, arith::DivFOp, arith::AddFOp,
+                                arith::CmpFOp, arith::SelectOp, arith::MaxNumFOp,
+                                arith::MinNumFOp, arith::FPToSIOp,
+                                arith::TruncIOp>(nested)) {
+      for (Type type : nested.getOperandTypes())
+        if (!isElementType(type, true))
+          return false;
+      for (Type type : nested.getResultTypes())
+        if (!isElementType(type, true))
+          return false;
     } else {
       return false;
     }
@@ -183,6 +202,114 @@ static void vectorize(linalg::GenericOp op, OpBuilder &builder) {
   op.erase();
 }
 
+// Max(abs(x)) has no negative-zero ordering ambiguity. Restrict reduction
+// vectorization to an explicitly recognized abs producer and -infinity seed.
+// Other reductions (especially floating-point sums) keep their original order.
+static bool isAbsMax(linalg::ReduceOp op, AliasAnalysis &aliases) {
+  if (!op.hasPureBufferSemantics() || op.getInputs().size() != 1 ||
+      op.getInits().size() != 1 || op.getDimensions() != ArrayRef<int64_t>{0})
+    return false;
+  Value input = op.getInputs()[0], output = op.getInits()[0];
+  auto inType = dyn_cast<MemRefType>(input.getType());
+  auto outType = dyn_cast<MemRefType>(output.getType());
+  if (!inType || !outType || !isContiguousVector(inType) ||
+      !inType.getElementType().isF32() || outType.getRank() != 0 ||
+      !outType.getElementType().isF32() || !aliases.alias(input, output).isNo())
+    return false;
+  Block &body = op.getRegion().front();
+  if (body.getOperations().size() != 2)
+    return false;
+  auto max = dyn_cast<arith::MaxNumFOp>(body.front());
+  if (!max || max.getLhs() != body.getArgument(0) ||
+      max.getRhs() != body.getArgument(1) ||
+      cast<linalg::YieldOp>(body.getTerminator()).getValues()[0] != max.getResult())
+    return false;
+  bool seed = false;
+  for (Operation *prev = op->getPrevNode(); prev; prev = prev->getPrevNode()) {
+    if (auto fill = dyn_cast<linalg::FillOp>(prev)) {
+      if (fill.getOutputs()[0] != output || seed)
+        return false;
+      auto constant = fill.getInputs()[0].getDefiningOp<arith::ConstantOp>();
+      auto value = constant ? dyn_cast<FloatAttr>(constant.getValue()) : FloatAttr();
+      if (!value || !value.getValue().isInfinity() || !value.getValue().isNegative())
+        return false;
+      seed = true;
+      continue;
+    }
+    if (isa<memref::AllocOp, memref::AllocaOp, arith::ConstantOp>(prev))
+      continue;
+    auto abs = dyn_cast<linalg::GenericOp>(prev);
+    if (!seed || !abs || abs.getNumDpsInputs() != 1 ||
+        abs.getNumDpsInits() != 1 || abs.getDpsInits()[0] != input ||
+        !canVectorize(abs, aliases, true))
+      return false;
+    Block &ab = abs.getRegion().front();
+    auto operation = dyn_cast<math::AbsFOp>(ab.front());
+    return ab.getOperations().size() == 2 && operation &&
+           operation.getOperand() == ab.getArgument(0) &&
+           cast<linalg::YieldOp>(ab.getTerminator()).getValues()[0] == operation.getResult();
+  }
+  return false;
+}
+
+static void vectorizeAbsMax(linalg::ReduceOp op, OpBuilder &b) {
+  b.setInsertionPoint(op);
+  Location l = op.getLoc();
+  Value input = op.getInputs()[0], output = op.getInits()[0];
+  Value zero = arith::ConstantIndexOp::create(b, l, 0);
+  Value one = arith::ConstantIndexOp::create(b, l, 1);
+  Value width = arith::ConstantIndexOp::create(b, l, vectorWidth);
+  Value size = memref::DimOp::create(b, l, input, zero);
+  Value rem = arith::RemUIOp::create(b, l, size, width);
+  Value end = arith::SubIOp::create(b, l, size, rem);
+  Value init = memref::LoadOp::create(b, l, output);
+  auto vecType = VectorType::get({vectorWidth}, b.getF32Type());
+  Value initVector = vector::BroadcastOp::create(b, l, vecType, init);
+  auto loop = scf::ForOp::create(b, l, zero, end, width, ValueRange{initVector},
+      [&](OpBuilder &nb, Location nl, Value iv, ValueRange args) {
+        Value data = vector::LoadOp::create(nb, nl, vecType, input, ValueRange{iv});
+        Value maximum = arith::MaxNumFOp::create(nb, nl, data, args[0]);
+        scf::YieldOp::create(nb, nl, maximum);
+      });
+  Value maximum = vector::ReductionOp::create(
+      b, l, vector::CombiningKind::MAXNUMF, loop.getResult(0), init);
+  auto tail = scf::ForOp::create(b, l, end, size, one, ValueRange{maximum},
+      [&](OpBuilder &nb, Location nl, Value iv, ValueRange args) {
+        Value data = memref::LoadOp::create(nb, nl, input, ValueRange{iv});
+        Value next = arith::MaxNumFOp::create(nb, nl, data, args[0]);
+        scf::YieldOp::create(nb, nl, next);
+      });
+  memref::StoreOp::create(b, l, tail.getResult(0), output);
+  op.erase();
+}
+
+struct VectorizeQuantizePass
+    : PassWrapper<VectorizeQuantizePass, OperationPass<func::FuncOp>> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(VectorizeQuantizePass)
+  StringRef getArgument() const final { return "vectorize-quantize"; }
+  StringRef getDescription() const final {
+    return "Vectorize fused contiguous quantization and abs-max reduction without reciprocal approximation";
+  }
+  void getDependentDialects(DialectRegistry &r) const override {
+    r.insert<arith::ArithDialect, math::MathDialect, memref::MemRefDialect,
+             scf::SCFDialect, vector::VectorDialect>();
+  }
+  void runOnOperation() override {
+    AliasAnalysis aliases(getOperation());
+    SmallVector<linalg::ReduceOp> reductions;
+    getOperation().walk([&](linalg::ReduceOp op) {
+      if (isAbsMax(op, aliases)) reductions.push_back(op);
+    });
+    OpBuilder b(&getContext());
+    for (auto op : reductions) vectorizeAbsMax(op, b);
+    SmallVector<linalg::GenericOp> generics;
+    getOperation().walk([&](linalg::GenericOp op) {
+      if (canVectorize(op, aliases, true)) generics.push_back(op);
+    });
+    for (auto op : generics) vectorize(op, b);
+  }
+};
+
 struct VectorizeDequantizePass
     : PassWrapper<VectorizeDequantizePass, OperationPass<func::FuncOp>> {
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(VectorizeDequantizePass)
@@ -212,6 +339,9 @@ struct VectorizeDequantizePass
 } // namespace
 
 namespace mlir::buddy {
+void registerVectorizeQuantizePass() {
+  PassRegistration<VectorizeQuantizePass>();
+}
 void registerVectorizeDequantizePass() {
   PassRegistration<VectorizeDequantizePass>();
 }

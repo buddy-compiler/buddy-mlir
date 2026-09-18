@@ -64,6 +64,8 @@ def ensure_export(case):
                  == sha(ROOT / (case.get("kernel_module", "kernels") + ".py"))
                  and previous.get("constexprs") == case["constexprs"]
                  and previous.get("grid") == case["grid"]
+                 and previous.get("quantization_lowering", "baseline")
+                 == case.get("quantization_lowering", "baseline")
                  and previous.get("signature") == case["signature"]
                  and all((manifest.parent / filename).is_file()
                          and previous.get(key) == sha(manifest.parent / filename)
@@ -173,7 +175,8 @@ def build_case(case, config, host, runtime_objects):
     translate = shlex.split(variables["BUDDY_TRANSLATE"])
     bufferized = out / "bufferized.mlir"
     dequant_rvv = case.get("kernel_module") == "kernels_dequant"
-    fusion = ["--linalg-fuse-elementwise-ops", "--canonicalize", "--cse"] if dequant_rvv else []
+    quant_rvv = case.get("quantization_lowering") == "rvv"
+    fusion = ["--linalg-fuse-elementwise-ops", "--canonicalize", "--cse"] if dequant_rvv or quant_rvv else []
     command([*opt, export_dir / "kernel.linalg.mlir", *fusion, "--empty-tensor-to-alloc-tensor",
              "--one-shot-bufferize=allow-return-allocs-from-loops=true buffer-alignment=64",
              "-o", bufferized], cwd=directory)
@@ -205,6 +208,8 @@ def build_case(case, config, host, runtime_objects):
         optimization = shlex.split(variables["FP32_PASS"])
     elif not host and case["family"] in ("attention_qk", "attention_pv"):
         optimization = shlex.split(variables.get("MATMUL_FP32_PASS", "--matmul-vectorization=vector-size=16"))
+    elif quant_rvv:
+        optimization = ["--vectorize-quantize"]
     elif dequant_rvv:
         optimization = ["--vectorize-dequantize"]
     command([*opt, copies, *optimization, "--canonicalize", "--cse",
@@ -225,7 +230,7 @@ def build_case(case, config, host, runtime_objects):
             raise RuntimeError("Parent numerical oracle did not report PASS")
         print("host PASS " + case["name"], flush=True)
     else:
-        if case["family"] in ("matmul_f32", "attention_qk", "attention_pv") or dequant_rvv:
+        if case["family"] in ("matmul_f32", "attention_qk", "attention_pv") or dequant_rvv or quant_rvv:
             # Check the actual vectorized LLVM, not only the scalar control.
             vector_check = out / "vector-host-check"
             command([*shlex.split(variables["HOST_CC"]), *shlex.split(variables["HOST_CFLAGS"]),
@@ -240,6 +245,11 @@ def build_case(case, config, host, runtime_objects):
         kernel_flags = ["-O2", "-filetype=asm", "-mtriple=riscv64", "-target-abi=lp64d",
                         *shlex.split(vector_flags), "-code-model=medium"]
         command([*llc, llvm_ir, *kernel_flags, "-o", assembly], cwd=directory)
+        if quant_rvv:
+            generated = assembly.read_text()
+            required = ("vfredmax.vs", "vfdiv.", "vfcvt.rtz.x.f.v")
+            if any(instruction not in generated for instruction in required):
+                raise RuntimeError("RVV quantization lost vector max/division/conversion")
         if dequant_rvv:
             generated = assembly.read_text()
             if ("vfcvt.f.x.v" not in generated or

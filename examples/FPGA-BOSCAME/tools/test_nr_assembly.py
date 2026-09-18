@@ -51,6 +51,13 @@ def execute_wrapper(source, registers):
 
 
 class NrAssemblyTests(unittest.TestCase):
+    def test_verified_quantize_sequence(self):
+        assembly = (Path(__file__).parents[1] / "common/nr/probes/quant_ops.S").read_text()
+        transformed = restriction.transform(assembly)
+        for instruction in ("vfabs.v", "vmfge.vf", "vmerge.vxm", "vfmax.vf",
+                            "vfmin.vf", "vnsrl.wi"):
+            self.assertIn(instruction, transformed)
+
     def setUp(self):
         self.environment = patch.dict(os.environ, {
             key: value for key, value in os.environ.items()

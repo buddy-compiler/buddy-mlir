@@ -1,0 +1,92 @@
+{
+  "status": "PASS",
+  "shape": [
+    1,
+    1024
+  ],
+  "samples": [
+    {
+      "round": 0,
+      "variant": "baseline",
+      "cycles": 407029,
+      "errors": 0
+    },
+    {
+      "round": 0,
+      "variant": "optimized",
+      "cycles": 32577,
+      "errors": 0
+    },
+    {
+      "round": 1,
+      "variant": "optimized",
+      "cycles": 32447,
+      "errors": 0
+    },
+    {
+      "round": 1,
+      "variant": "baseline",
+      "cycles": 416150,
+      "errors": 0
+    },
+    {
+      "round": 2,
+      "variant": "baseline",
+      "cycles": 414087,
+      "errors": 0
+    },
+    {
+      "round": 2,
+      "variant": "optimized",
+      "cycles": 32538,
+      "errors": 0
+    },
+    {
+      "round": 3,
+      "variant": "optimized",
+      "cycles": 32472,
+      "errors": 0
+    },
+    {
+      "round": 3,
+      "variant": "baseline",
+      "cycles": 415854,
+      "errors": 0
+    }
+  ],
+  "timing": {
+    "baseline": {
+      "samples": [
+        407029,
+        416150,
+        414087,
+        415854
+      ],
+      "min": 407029,
+      "mean": 413280,
+      "median": 414970.5
+    },
+    "optimized": {
+      "samples": [
+        32577,
+        32447,
+        32538,
+        32472
+      ],
+      "min": 32447,
+      "mean": 32508.5,
+      "median": 32505.0
+    },
+    "mean_speedup": 12.712982758355507
+  },
+  "platform": "fpga",
+  "repeats": 4,
+  "timing_unit": "RA_cycles",
+  "scope": "exact int8, scale bits, nonzero descriptor offsets, guards and input integrity; kernel-only A/B",
+  "run_id": "run-ccbc2e893bd5422c",
+  "image_sha256": "c77254ad2abf1fa8df574b34541dd791a6f41e8710da851468b9caeb9984c7f7",
+  "log_sha256": "ec7879f8d3c02c1431d012fff7f6e2415a5da36fd9768752e226020ea71bd150",
+  "manifest_sha256": "1f5206efa0d8d189b57060c30a796d396fc211b11803ccbe7738056f5d41fbd4",
+  "ddr_readback_matches": true,
+  "source_hashes_and_abi_checked": true
+}

@@ -1,0 +1,31 @@
+{
+  "status": "PASS",
+  "run_id": "run-be16db38f65745f4",
+  "fpga": 5,
+  "image_sha256": "3f9a4f0051f84cf5e53688720b2514058bf308c8fe6531d963c2636179fd6923",
+  "padded_sha256": "93c421ae8e492056a9795ba3c2b9bb373a637ad3e8dd8b8c0462d2b27031beb3",
+  "ddr_readback_matches": true,
+  "uart_bytes": 433,
+  "uart_sha256": "8a65ae788f12567fdf130d17d861f975b0b31b8b8ea349045321afa3ace65347",
+  "sources": {
+    "examples/FPGA-BOSCAME/common/nr/probes/quant_launch.c": "7c139765a3851c65743222ca5f4d9538fb3687205421c1b3fe325afbb6cab4c6",
+    "examples/FPGA-BOSCAME/common/nr/probes/quant_ops.S": "05cb6951aaefd99d8ee9813e0840ef9058e5686ff6646d2669e5c4a02a022cb7"
+  },
+  "instructions": ["vfabs.v", "vmfge.vf", "vmerge.vxm", "vfmax.vf", "vfmin.vf", "vnsrl.wi"],
+  "vector_lengths": [1, 7, 16],
+  "vector_types": ["e32,m1", "e16,mf2", "e8,mf4"],
+  "checks": "12 cases: signed round/clamp boundaries, nonbinary scale, signed zero, exact abs bits and int8 values, output guards and untouched tail",
+  "errors": 0,
+  "illegal_instructions": 0,
+  "uart_excerpt": [
+    "[quant-probe] BEGIN abs/mask/merge/clamp/narrow",
+    "[quant-probe] errors=0x00000000 illegal=0x0000000000000000 last_pc=0x0000000000000000 mtval=0x0000000000000000 PASS",
+    "[nr] launch cycles=0x0000000000015865 status=0x00000000",
+    "[nr] RA returned: PASS",
+    "verify NR runtime: PASS"
+  ],
+  "reproduce": [
+    "make -C examples/FPGA-BOSCAME/common/nr/probes build/quant_probe.bin RISCV_LD=/usr/bin/ld.lld-20",
+    "examples/FPGA-BOSCAME/fpga_run.sh examples/FPGA-BOSCAME/common/nr/probes/build/quant_probe.bin --fpga=5 --capture-seconds=40 --startup-timeout=240 --completion-marker='[nr] RA returned: PASS'"
+  ]
+}

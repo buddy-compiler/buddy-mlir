@@ -7,6 +7,7 @@ add_mlir_library(VectorizeDequantizePass
     MLIRFuncDialect
     MLIRIR
     MLIRLinalgDialect
+    MLIRMathDialect
     MLIRMemRefDialect
     MLIRPass
     MLIRSCFDialect

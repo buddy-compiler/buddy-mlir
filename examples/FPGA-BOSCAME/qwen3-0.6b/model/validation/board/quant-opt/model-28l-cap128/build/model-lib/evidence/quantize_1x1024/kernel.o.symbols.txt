@@ -1,0 +1,1 @@
+triton_quantize_1x1024 T 0 1fe

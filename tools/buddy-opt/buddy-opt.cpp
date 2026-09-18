@@ -141,6 +141,7 @@ void registerEliminateMemRefCopyPass();
 void registerEliminateLargeZeroConstantsPass();
 void registerConvertTraceToLLVMPass();
 void registerVectorizeDequantizePass();
+void registerVectorizeQuantizePass();
 } // namespace buddy
 } // namespace mlir
 
@@ -148,6 +149,7 @@ int main(int argc, char **argv) {
   // Register all MLIR passes.
   mlir::registerAllPasses();
   mlir::buddy::registerVectorizeDequantizePass();
+  mlir::buddy::registerVectorizeQuantizePass();
   mlir::buddy::registerPointwiseConvToGemmPass();
   // Register Vectorization of Convolution.
   mlir::buddy::registerConvVectorizationPass();

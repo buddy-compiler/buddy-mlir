@@ -68,6 +68,16 @@ def inspect_case(directory, benchmark="dequant"):
             expected_grid = [(cols + block - 1) // block, rows, 1]
         else:
             raise ValueError("unsupported kernel/module contract")
+    elif benchmark == "quant":
+        if (manifest.get("family") != "per_token_quantization" or
+                manifest["kernel"] != "quantize" or manifest.get("kernel_module", "kernels") != "kernels"):
+            raise ValueError("quant benchmark requires the production Triton quantize")
+        if arguments != [(2, "f32"), (2, "i8"), (1, "f32")]:
+            raise ValueError("unexpected quantization descriptor ABI")
+        shape = (manifest["grid"][0], constants["WIDTH"])
+        if constants["BLOCK"] < shape[1] or constants["BLOCK"] & (constants["BLOCK"] - 1):
+            raise ValueError("quantization block must be a power of two covering WIDTH")
+        expected_grid = [shape[0], 1, 1]
     elif benchmark == "ame":
         if manifest.get("family") != "matmul_i8" or manifest["kernel"] != "linear" or manifest.get("kernel_module", "kernels") != "kernels":
             raise ValueError("AME benchmark requires the production INT8 Triton linear")
@@ -85,8 +95,8 @@ def inspect_case(directory, benchmark="dequant"):
     if manifest["grid"] != expected_grid:
         raise ValueError(f"unexpected grid: {manifest['grid']} != {expected_grid}")
     build_manifest = json.loads((directory / "nr/manifest.json").read_text())
-    for key in ("name", "family", "kernel", "symbol", "arguments", "signature", "constexprs", "grid"):
-        if build_manifest["case"][key] != manifest[key]:
+    for key in ("name", "family", "kernel", "symbol", "arguments", "signature", "constexprs", "grid", "quantization_lowering"):
+        if build_manifest["case"].get(key) != manifest.get(key):
             raise ValueError(f"frontend/native case mismatch: {key}")
     for key, relative in (("frontend_manifest_sha256", "frontend.json"),
                           ("ttir_sha256", "kernel.ttir"),
@@ -113,7 +123,7 @@ def inspect_case(directory, benchmark="dequant"):
 
 
 def main(benchmark="dequant"):
-    description = (__doc__ if benchmark == "dequant" else
+    description = (__doc__ if benchmark in ("dequant", "quant") else
                    "Link existing INT8 Triton linear kernel/adapter variants with the shared NR runtime; "
                    "check accumulation using the independent AME A/B oracle.")
     parser = argparse.ArgumentParser(description=description)
@@ -136,8 +146,9 @@ def main(benchmark="dequant"):
         parser.error(f"shape mismatch: {shape} != {other_shape}")
     if min(shape) < 1:
         parser.error("empty shapes unsupported")
-    if benchmark == "dequant":
-        definitions = [f"-DDQ_ROWS={shape[0]}", f"-DDQ_COLS={shape[1]}", f"-DDQ_REPEATS={args.repeats}"]
+    if benchmark in ("dequant", "quant"):
+        prefix = "DQ" if benchmark == "dequant" else "Q"
+        definitions = [f"-D{prefix}_ROWS={shape[0]}", f"-D{prefix}_COLS={shape[1]}", f"-D{prefix}_REPEATS={args.repeats}"]
     else:
         definitions = [f"-DAM_M={shape[0]}", f"-DAM_N={shape[1]}", f"-DAM_K={shape[2]}",
                        f"-DAM_REPEATS={args.repeats}", f"-DAM_FULL_INPUT_SCAN={int(args.full_input_scan)}"]
@@ -161,6 +172,9 @@ def main(benchmark="dequant"):
                   "harness_sha256": sha(harness),
                   "builder_sha256": sha(Path(__file__)),
                   "source_hashes_and_abi_checked": True}
+    if benchmark == "quant":
+        provenance.update(oracle="independent FP32 absmax/divide/signed half/truncate/clamp; exact scale bits and all int8",
+                          input_integrity="full", semantics="overwrite")
     if benchmark == "ame":
         provenance.update(oracle="independent int64 dots for32 B templates, exact all-output C+=A@B check",
                           timing="adapter and kernel plus post ame_fence; pre/post sync separately reported",

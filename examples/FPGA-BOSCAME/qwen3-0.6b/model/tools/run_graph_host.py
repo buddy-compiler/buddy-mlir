@@ -346,7 +346,11 @@ def main():
                         help="replace each linear with quantize / int8 matmul / "
                              "dequantize; the parameters are quantised offline "
                              "with the same contract the Triton kernels implement")
+    parser.add_argument("--share-activation-quantization", action="store_true",
+                        help="reuse quantized inputs of proven identical RMSNorm views")
     args = parser.parse_args()
+    if args.share_activation_quantization and (not args.w8a8 or not args.replace):
+        parser.error("--share-activation-quantization requires --replace --w8a8")
     if args.attention_position and not args.attention:
         parser.error("--attention-position requires --attention")
     if args.attention_native_key and not args.attention_position:
@@ -467,7 +471,8 @@ def main():
                 counts["w8a8_embedding"] = tcr.rewrite_embedding_to_w8a8(
                     graph, kernel_index, {}, local_report, tied)
                 counts["w8a8"] = tcr.rewrite_linear_to_w8a8(
-                    graph, kernel_index, {}, local_report, tied)
+                    graph, kernel_index, {}, local_report, tied,
+                    share_activation_quantization=args.share_activation_quantization)
             selected = args.replace_pattern or ["linear", "rmsnorm", "silu",
                                                 "embedding"]
             if getattr(args, "w8a8", False):

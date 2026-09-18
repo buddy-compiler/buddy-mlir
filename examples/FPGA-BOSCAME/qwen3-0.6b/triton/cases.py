@@ -184,7 +184,12 @@ def describe(name):
                              P1=permutation[1], P2=permutation[2], BLOCK=128)
             grid = (cdiv(d0*d1*d2, 128), 1, 1)
     pointer_type = {"f32": "*fp32", "i8": "*i8", "i32": "*i32", "i64": "*i64"}
+    quant_mode = os.environ.get("QWEN_TRITON_QUANT", "baseline")
+    if quant_mode not in ("baseline", "rvv"):
+        raise ValueError("QWEN_TRITON_QUANT must be baseline or rvv")
     return {"name": name, "family": kind, "kernel": kernel,
+            **({"quantization_lowering": quant_mode}
+               if kind == "per_token_quantization" else {}),
             "kernel_module": kernel_module,
             "symbol": "triton_" + name, "arguments": arguments,
             "signature": {argument["name"]: pointer_type[argument["dtype"]] for argument in arguments},

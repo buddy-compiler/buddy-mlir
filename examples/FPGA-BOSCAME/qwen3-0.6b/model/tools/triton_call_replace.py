@@ -1177,7 +1177,39 @@ def rewrite_kv_cache_to_triton(graph, index, call_types, report, shared=None,
     return matched
 
 
-def rewrite_linear_to_w8a8(graph, index, call_types, report, tied, only=None):
+def activation_quantization_key(graph, activation, index):
+    """Prove equal logical inputs before any mutating graph rewrite.
+
+    Only flattenings of a matched functional RMSNorm are shareable. No slices,
+    transposes, expanded views, mutable inputs or unknown external writers are
+    accepted. All consumers must be direct read-only linear input views.
+    Distinct norm results always have distinct keys even if their shapes match.
+    """
+    if type(activation).__name__ != "ViewOp" or not is_float32(activation):
+        return None
+    source = graph.node_table.get(activation.args[0])
+    if source is None:
+        return None
+    found = match_rmsnorm(graph, source, index)
+    if not found or "reason" in found:
+        return None
+    shape = shape_of(activation)
+    if not shape or len(shape) != 2 or any(d <= 0 for d in shape):
+        return None
+    if math.prod(shape) != math.prod(shape_of(source)):
+        return None
+    for view in children_of(graph, source):
+        if (type(view).__name__ != "ViewOp" or not is_float32(view)
+                or shape_of(view) != shape or view.args[0] != source.name):
+            return None
+        for consumer in children_of(graph, view):
+            if type(consumer).__name__ != "MatmulOp" or consumer.args[0] != view.name:
+                return None
+    return (source.name, tuple(shape), dtype_of(activation))
+
+
+def rewrite_linear_to_w8a8(graph, index, call_types, report, tied, only=None,
+                           share_activation_quantization=False):
     """Express each linear as quantize -> int8 matmul -> dequantize.
 
     FP32 parameters are 2.22 GiB and cannot be placed on this board (see
@@ -1215,6 +1247,14 @@ def rewrite_linear_to_w8a8(graph, index, call_types, report, tied, only=None):
     added_params = []
     matched = 0
     _visited = 0
+    # Snapshot proof before replacements change the uses of the functional values.
+    share_keys = ({node.name: activation_quantization_key(graph, node, index)
+                   for node in graph.body if type(node).__name__ == "ViewOp"}
+                  if share_activation_quantization else {})
+    quantized_inputs = {}
+    sharing = {"graph": graph._func_name, "enabled": share_activation_quantization,
+               "created": 0, "reused": 0, "reuse": []}
+    report.setdefault("activation_quantization", []).append(sharing)
     for op in list(graph.body):
         if type(op).__name__ != "MatmulOp":
             continue
@@ -1309,19 +1349,29 @@ def rewrite_linear_to_w8a8(graph, index, call_types, report, tied, only=None):
         # always treated as writable.
         #
         # The caller therefore owns these buffers, which is also what the
-        # deployment needs: an explicit DDR workspace. The accumulator is
-        # per-linear precisely so that the caller can zero them all once per
+        # deployment needs: an explicit DDR workspace.
+        # Accumulators stay per-linear so the caller can zero them all once per
         # graph call -- the int8 matmul accumulates into C rather than writing it.
+        # Only proven identical activation/scale buffers may be shared below.
         anchor = _input_anchor(graph, inputs_before)
+        share_key = share_keys.get(activation.name)
+        cached_quant = quantized_inputs.get(share_key) if share_key else None
         workspace = []
-        for suffix, shape, dtype in (
-                ("_q", [rows, k], TensorDType.Int8),
-                ("_a_scale", [rows], TensorDType.Float32),
-                ("_acc", [rows, n], TensorDType.Int32),
-                ("_out", [rows, n], TensorDType.Float32)):
+        specs = [("_acc", [rows, n], TensorDType.Int32),
+                 ("_out", [rows, n], TensorDType.Float32)]
+        if cached_quant is None:
+            specs = [("_q", [rows, k], TensorDType.Int8),
+                     ("_a_scale", [rows], TensorDType.Float32)] + specs
+        for suffix, shape, dtype in specs:
             workspace.append(_new_node(graph, PlaceholderOp, prefix + suffix, [],
                                        shape, dtype, before=anchor))
-        quantised, act_scale, accumulator, result = workspace
+        if cached_quant is None:
+            quantised, act_scale, accumulator, result = workspace
+            if share_key:
+                quantized_inputs[share_key] = (quantised, act_scale)
+        else:
+            quantised, act_scale = cached_quant
+            accumulator, result = workspace
         accumulator.workspace_role = "accumulator"
         added_inputs.extend(workspace)
 
@@ -1357,7 +1407,14 @@ def rewrite_linear_to_w8a8(graph, index, call_types, report, tied, only=None):
             })
             return node
 
-        call(quantise_case, [activation, quantised, act_scale], 0)
+        if cached_quant is None:
+            call(quantise_case, [activation, quantised, act_scale], 0)
+            sharing["created"] += 1
+        else:
+            sharing["reused"] += 1
+            sharing["reuse"].append({"linear": op.name, "activation": activation.name,
+                                    "source": share_key[0], "shape": [rows, k],
+                                    "quantized": quantised.name, "scale": act_scale.name})
         call(matmul_case, [quantised, w8, accumulator], 1)
         # dequantize's C signature is (X, Row, Column, Out); the per-output-channel
         # weight scales are the column scales.
@@ -1654,7 +1711,11 @@ def main():
                              "the last position (costs a transposed-weight copy)")
     parser.add_argument("--pattern", action="append", default=None,
                         choices=["linear", "rmsnorm", "silu", "embedding"])
+    parser.add_argument("--share-activation-quantization", action="store_true",
+                        help="reuse quantized inputs of proven identical RMSNorm views")
     args = parser.parse_args()
+    if args.share_activation_quantization and not args.w8a8:
+        parser.error("--share-activation-quantization requires --w8a8")
     if args.attention_position and not args.attention:
         parser.error("--attention-position requires --attention")
     if args.attention_native_key and not args.attention_position:
@@ -1754,7 +1815,8 @@ def main():
             counts["w8a8_embedding"] = rewrite_embedding_to_w8a8(
                 graph, index, call_types, report, tied)
             counts["w8a8"] = rewrite_linear_to_w8a8(
-                graph, index, call_types, report, tied, only=args.w8a8_only)
+                graph, index, call_types, report, tied, only=args.w8a8_only,
+                share_activation_quantization=args.share_activation_quantization)
         for name in patterns:
             counts[name] = replace(graph, matchers[name], index, call_types,
                                    report)
