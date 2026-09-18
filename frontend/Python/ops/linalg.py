@@ -690,7 +690,35 @@ def to_copy_op(
 
     op = None  # Initialize op to None
 
-    if dtype == TensorDType.Bool:
+    if str(ir.RankedTensorType(input1.type).element_type) == "i1" and dtype in (
+        TensorDType.Int8,
+        TensorDType.Int32,
+        TensorDType.Int64,
+    ):
+        # Boolean true must become +1, not the -1 produced by sign extension.
+        element_type = mlir_element_type_get(dtype)
+        tensor_type = ir.RankedTensorType.get(output_shape, element_type)
+        output = tensor.EmptyOp(output_shape, element_type)
+        identity = ir.AffineMapAttr.get(
+            _safe_get_permutation(list(range(len(output_shape))))
+        )
+        op = linalg.GenericOp(
+            [tensor_type],
+            [input1],
+            [output],
+            ir.ArrayAttr.get([identity, identity]),
+            ir.ArrayAttr.get(
+                [ir.Attribute.parse("#linalg.iterator_type<parallel>")]
+                * len(output_shape)
+            ),
+        )
+        block = ir.Block.create_at_start(
+            op.region, [ir.IntegerType.get_signless(1), element_type]
+        )
+        converted = arith.ExtUIOp(element_type, block.arguments[0])
+        block.append(converted)
+        block.append(linalg.YieldOp([converted.result]))
+    elif dtype == TensorDType.Bool:
         if str(ir.RankedTensorType(input1.type).element_type) == "f32":
             tensor_type = ir.RankedTensorType.get(
                 output_shape, ir.IntegerType.get_signless(1)
