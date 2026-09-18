@@ -3,11 +3,14 @@
 add_executable(buddy-cli buddy-cli.cpp)
 
 target_compile_features(buddy-cli PRIVATE cxx_std_17)
+target_compile_definitions(buddy-cli PRIVATE
+  BUDDY_VERSION="${BUDDY_PACKAGE_VERSION}")
 
 # buddy_models_<name> is produced by model subdirectories under models/.
 target_link_libraries(buddy-cli PRIVATE
   buddy_runtime_core
   buddy_runtime_llm
+  CLI11
   ${CMAKE_DL_LIBS}
 )
 
@@ -24,11 +27,6 @@ endif()
 if(BUDDY_BUILD_BGE_M3_MODEL)
   target_link_libraries(buddy-cli PRIVATE buddy_models_bge_m3)
 endif()
-target_link_libraries(buddy-cli PRIVATE
-  StaticMLIRCRunnerUtils
-  LLVMSupport
-)
-target_link_directories(buddy-cli PRIVATE ${LLVM_LIBRARY_DIR})
 
 # ── libnuma (optional but strongly recommended on NUMA systems) ────────────
 find_library(NUMA_LIB numa)

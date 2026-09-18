@@ -112,7 +112,7 @@ set(BUDDY_THIRDPARTY_INCLUDE_DIR ${BUDDY_SOURCE_DIR}/thirdparty/include)
 set(BUDDY_MLIR_PYTHON_PACKAGES_DIR ${BUDDY_BUILD_DIR}/python_packages)
 
 option(BUDDY_MLIR_ENABLE_PYTHON_PACKAGES
-  "Build buddy.compiler Python package files used by model lowering scripts"
+  "Build Buddy Python packages and native bindings used by model lowering"
   ON)
 option(BUDDY_RISCV_ENABLE_ZFH_ZVFH
   "Enable RISC-V Zfh/Zvfh hardware FP16 extensions"
@@ -254,6 +254,9 @@ include_directories(${BUDDY_SOURCE_DIR}/frontend/Interfaces)
 include_directories(${LLVM_INCLUDE_DIRS})
 include_directories(${MLIR_INCLUDE_DIRS})
 
+# ── Header-only third-party dependencies (jsoncons, CLI11) ───────────────────
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/deps.cmake)
+
 find_program(LLVM_TABLEGEN_EXE "llvm-tblgen" ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH)
 
 include(TableGen)
@@ -373,6 +376,9 @@ add_subdirectory(runtime)
 # Before models/: codegen (buddy_add_model) needs target python-package-buddy and
 # ${CMAKE_BINARY_DIR}/python_packages for import_model.py (buddy.compiler.*).
 add_subdirectory(frontend)
+
+# Release version baked into .rax manifests and tool --version output.
+set(BUDDY_PACKAGE_VERSION "0.0.0" CACHE STRING "Release VERSION")
 add_subdirectory(models)
 
 # Add external dialects before midend so they can be referenced
@@ -426,7 +432,6 @@ configure_package_config_file(
   INSTALL_DESTINATION ${BUDDY_MLIR_INSTALL_CMAKE_DIR}
 )
 
-set(BUDDY_PACKAGE_VERSION "0.0.0" CACHE STRING "Release VERSION")
 write_basic_package_version_file(
   ${CMAKE_CURRENT_BINARY_DIR}/BuddyMLIRConfigVersion.cmake
   VERSION ${BUDDY_PACKAGE_VERSION}

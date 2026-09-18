@@ -1,6 +1,15 @@
 # Nested build directory
 /build*
 
+# Staged rax packages produced by scripts/model_release/build_and_publish.py
+/dist/
+
+# Generated RISC-V toolchain/sysroot and runtime installation.
+/thirdparty/riscv/
+
+# Local prefix used by `make install` by default.
+/install/
+
 # vscode configurations
 /.vscode
 

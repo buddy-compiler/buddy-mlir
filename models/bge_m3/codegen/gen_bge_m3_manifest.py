@@ -34,7 +34,11 @@ def normalize_uri(raw: str) -> str:
 
 
 def gen_manifest(
-    spec: dict, runner_library: str, embedding_library: str | None = None
+    spec: dict,
+    runner_library: str,
+    embedding_library: str | None = None,
+    dep_shared_libs: list[str] | None = None,
+    version: str = "0.1.0",
 ) -> str:
     model_id = spec.get("model_id", f"{spec['model_family']}_{spec['variant']}")
     params_size = int(spec["params_size"])
@@ -48,7 +52,7 @@ def gen_manifest(
     lines = []
     p = lines.append
     p("rhal.module @bge_m3 attributes {")
-    p('    version = "0.1.0",')
+    p(f'    version = "{version}",')
     p(f'    model_name = "{model_id}",')
     p(f'    vocab_uri = "file:{tokenizer_file}",')
     p(f'    max_seq_len = "{max_seq_len}",')
@@ -70,6 +74,12 @@ def gen_manifest(
     p('  rhal.codeobj @model_kernels {id = 1 : i32, kind = "host_shared_lib",')
     p('                                backend = "cpu",')
     p(f'                                uri = "file:{so_name}"}}')
+    for idx, dep in enumerate(dep_shared_libs or [], start=2):
+        p(
+            f'  rhal.codeobj @runtime_dep_{idx - 1} {{id = {idx} : i32, kind = "host_shared_lib",'
+        )
+        p('                                backend = "cpu",')
+        p(f'                                uri = "{normalize_uri(dep)}"}}')
     p("")
     p(
         f'  rhal.buffer @input_ids {{space = "host", '
@@ -115,7 +125,19 @@ def main() -> int:
         help="Embedding plugin library URI/name for module attrs.",
     )
     parser.add_argument(
+        "--dep-shared-lib",
+        action="append",
+        default=[],
+        metavar="URI_OR_NAME",
+        help="Additional shared library dependency URI/name (repeatable).",
+    )
+    parser.add_argument(
         "-o", "--output", default="-", help="Output path (- for stdout)"
+    )
+    parser.add_argument(
+        "--version",
+        default="0.1.0",
+        help="RAX module version string (usually the CLI release version).",
     )
     args = parser.parse_args()
 
@@ -123,7 +145,11 @@ def main() -> int:
         spec = json.load(f)
 
     text = gen_manifest(
-        spec, normalize_uri(args.runner_library), args.embedding_library
+        spec,
+        normalize_uri(args.runner_library),
+        args.embedding_library,
+        dep_shared_libs=args.dep_shared_lib,
+        version=args.version,
     )
 
     if args.output == "-":

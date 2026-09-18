@@ -232,6 +232,11 @@ def main() -> int:
     )
     parser.add_argument("--ignore-eos", action="store_true")
     parser.add_argument("--device-token-loop", action="store_true")
+    parser.add_argument(
+        "--version",
+        default="0.1.0",
+        help="RAX module version string (usually the CLI release version).",
+    )
     args = parser.parse_args()
 
     tokenizer_value = args.tokenizer
@@ -240,7 +245,7 @@ def main() -> int:
         tokenizer_value = _file_uri(tokenizer_path)
 
     attrs = {
-        "version": "0.1.0",
+        "version": args.version,
         "model_name": args.model_name,
         "artifacts_uri": _file_uri(args.artifacts),
         "tokenizer_uri": tokenizer_value,
