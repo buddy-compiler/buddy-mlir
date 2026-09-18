@@ -1,0 +1,17 @@
+{
+  "model_family": "chemberta",
+  "variant": "f32",
+  "model_id": "DeepChem/ChemBERTa-77M-MLM",
+  "hf_model_path": "DeepChem/ChemBERTa-77M-MLM",
+  "params_size": 3428808,
+  "max_seq_len": 128,
+  "max_position_embeddings": 515,
+  "position_buffer_size": 515,
+  "hidden_size": 384,
+  "vocab_size": 600,
+  "num_hidden_layers": 3,
+  "so_name": "chemberta_model.so",
+  "weight_file": "arg0.data",
+  "tokenizer_file": "vocab.txt",
+  "num_threads": 48
+}

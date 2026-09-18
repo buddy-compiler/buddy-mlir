@@ -1,0 +1,25 @@
+# ChemBERTa-generated artifacts and staged HF snapshot files.
+# `buddy_add_model` re-imports / re-stages these from the local HF snapshot
+# (BUDDY_CHEMBERTA_MODEL_PATH) at build time, so nothing here is committed.
+
+# Import output
+arg0.data
+layer_partitioned/
+
+# Python caches
+__pycache__/
+
+# HuggingFace snapshot files (staged via ASSET_FILES / CHEMBERTA_MODEL_PATH)
+config.json
+tokenizer.json
+tokenizer_config.json
+special_tokens_map.json
+artifact.metadata
+model.safetensors
+pytorch_model.bin
+# NOTE: vocab.txt is committed (the HF snapshot has no vocab.txt; we generate
+# it from vocab.json). vocab.json / merges.txt are committed as documentation.
+
+# Root-level compiled IR (build/ contains the real generated outputs)
+forward.mlir
+subgraph0.mlir
