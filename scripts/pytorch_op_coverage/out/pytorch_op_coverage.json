@@ -1,2386 +1,2261 @@
 {
-  "generated_at": "2026-09-17T00:53:49.844289+00:00",
-  "issue": "https://github.com/buddy-compiler/buddy-mlir/issues/911",
+  "report_version": 2,
+  "generated_at": "2026-09-18T00:51:08.056185+00:00",
   "mode": "static",
-  "repo_rev": "eaceca2",
-  "target_set": "scripts\\pytorch_op_coverage\\data\\target_ops_v0.json",
+  "run_status": "completed",
+  "exit_code": 0,
+  "minimum_coverage": null,
+  "target": {
+    "name": "Buddy Target Op Set v1",
+    "version": "1.0.0",
+    "denominator_rule": "Unique namespace::operator.overload keys across families. All untested, failed and limited entries stay in the denominator.",
+    "schema_source": {
+      "torch_version": "2.10.0+cpu",
+      "api": "torch.ops.<namespace>.<op>.<overload>._schema"
+    },
+    "migration_from_v0": {
+      "original_count": 108,
+      "removed": {
+        "fill_cache.default": "Buddy-specific KV helper, outside ATen/Prim scope",
+        "update_cache.default": "Buddy-specific KV helper, outside ATen/Prim scope"
+      },
+      "renamed": {
+        "convert_element_type.default": "prims::convert_element_type.default",
+        "softmax.default": "aten::softmax.int"
+      },
+      "note": "v0 and v1 percentages are not directly comparable. v0 retained for historical reference."
+    }
+  },
+  "provenance": {
+    "git_revision": "b9228a22ad1ef117d2179a6c620a6648d719ad54",
+    "dirty": true,
+    "source_sha256": "5084f96092069ea57633346098817118d7063154af653e746b9eed285d0fc767",
+    "files_sha256": {
+      "frontend/Python/frontend.py": "001a1ec2e47c18bc11d4c393cbe48536780e5ae81d215ae7131e5da1adc48dec",
+      "frontend/Python/graph/__init__.py": "3d2d48a2c14f34b52181bc3b206001d13931d0befd7a3991e76317aec4cd8b5e",
+      "frontend/Python/graph/graph.py": "53407486d76d5e2927a56cf0e9cb8374c63130acf7f64faea7816f9e74d023a1",
+      "frontend/Python/graph/graph_driver.py": "2e217981f937f390c6e6c85c9fbdf2e504110d4171bf39f8cfb2e445a5c528f6",
+      "frontend/Python/graph/operation.py": "3ce75fd0f4c2d0b2e0aa3b41164916e272e51384b54d09d6e741c59b17ba3641",
+      "frontend/Python/graph/partitioned_graph_driver.py": "224be109626e8c8bea0295aaaeef3c5c6b1b940b472712d3a4642327882c8268",
+      "frontend/Python/graph/source_meta.py": "8e62eb26ed277ccc432bfd3827b2c3687b888a782dc486abf5dc643b02f5044e",
+      "frontend/Python/graph/structure_analysis.py": "f23befbe165f7ed48ff05cebea0f6b431280605f856467e162af855b97cb04b0",
+      "frontend/Python/graph/transform/__init__.py": "f50e896288f9527dc89ecd2c96a01ab171d19140f79795d81b22c32a4ffa0ce9",
+      "frontend/Python/graph/transform/eliminate_matmul_transpose_reshape.py": "8e38fd73be62d29d13917344cbcb39a0c69cfc69e87c6068ec3997ba557b9d2c",
+      "frontend/Python/graph/transform/eliminate_weight_transpose.py": "e875f03f41fc7b8c0fcb73cf9427711964750fc77a7494a4abc26e0c4a57f7c1",
+      "frontend/Python/graph/transform/fuse_ops.py": "67110b0bf7fe372a7660ffaacd074ac0b9a5d79837996a21e1e8e4588266ab76",
+      "frontend/Python/graph/transform/onednn_replace.py": "85ad72cdee75c02b26255b0c27fa25bc701a2da03a91db056794ab352749ba9d",
+      "frontend/Python/graph/transform/pack_decode_weights.py": "3aec375c2e40e8aa7651609626d74f6eb3e8e04564d8cb1fc91957dcf668677a",
+      "frontend/Python/graph/transform/quantization/__init__.py": "d67b42b8af5ec5b670f595e62ff40924b23addfe4169ef889db06b037e55bef8",
+      "frontend/Python/graph/transform/quantization/passes.py": "d24bd2b0e06a33f918d12583b7e16b10038a1cf7bda1d7f0a1beb17f5d9f37c1",
+      "frontend/Python/graph/transform/quantization/quantize.py": "06c57962b481364da624bc89977d9619dad9c658b901c6729018d05fc693da2f",
+      "frontend/Python/graph/transform/quantization/weight_only_channel_wise.py": "2bef727efe813ae84e135057be0e016b73cc7da2746bb42dbac21ff5c42d51d5",
+      "frontend/Python/graph/transform/rand_replace.py": "7b79b1b1188a1064f737f9904faabcb34f3f14854d383efa581185fe9ff81bf6",
+      "frontend/Python/graph/transform/runtime_matmul_replace.py": "c6ee39dbc7858fc983ca83e5ed59aa8e375ef77f94d522ee68a4fbf58824056c",
+      "frontend/Python/graph/transform/trace/__init__.py": "0d277f1329f559df594f1819ac961c3175b024c164296df91612d0c0b5c25208",
+      "frontend/Python/graph/transform/trace/lowering.py": "e7805860f11253a6869bd67f7a6d5316461c54b870472dc95c62fb98c8f2205e",
+      "frontend/Python/graph/transform/trace/passes.py": "ab6f2e57a272c02fefe8a6827f1f54033f58fac967cee3218af7e0d82f228781",
+      "frontend/Python/graph/transform/useless_op_eliminate.py": "ae9dab6f32a7b6e9d720071bb31e55a0cea76e65e62c1b5967b105a656163c0b",
+      "frontend/Python/graph/transformer_partition.py": "b6e1861571f5630841111b79ae86f339cde41371af185ecd8111017362fea948",
+      "frontend/Python/graph/ttir_import.py": "d1485c1a8ce652fc7457a228bc7fa165db0b1b3e15cc16a10cac3cb4b28b45e9",
+      "frontend/Python/graph/type.py": "f00cec5f34697e5ee3e8e1817ac5979c29f5dd942a79ec8329ab6ee5bc10b54a",
+      "frontend/Python/ops/__init__.py": "e3cbb6f957b003f0345c355237445a225a98af5d74a950d61fa4007a5de094f0",
+      "frontend/Python/ops/func.py": "6246e74f3fa98e318171e8cb76fb195189755ee0484a5d7c5186d923aa32e907",
+      "frontend/Python/ops/linalg.py": "81e2aefca4fc54f5e5d8698f05feaf79740d4a52750d569c998bbe204c635289",
+      "frontend/Python/ops/math.py": "71b2c037d7706622d31d0b542d908d16f54c8c45fb0bf416f138a6acfe5f2e5a",
+      "frontend/Python/ops/tosa.py": "ee6d01350220055a9ecd916714a7f97fb46044e40cff92c062f68e691c8ac09f",
+      "frontend/Python/ops/ttir.py": "c7b640d15cc46641bf9a56330415026146f0153ef846a297e92c3a189cfa8bd5",
+      "frontend/Python/ops/ttir_llm.py": "38c314dff4559742b64e87ef028082e8a41c5f85e3b73d14da5496bf254f6d25",
+      "frontend/Python/ops/utils.py": "4174a8d0c1a3252d3b8f7d32603cee848b16aa33221dcdc2d31bead5fd6eb6b1",
+      "frontend/Python/trace/__init__.py": "9d9b31877d2a8c2a2c15e5e923a2b444538f4d134e216f1524a05f254fc4f86b",
+      "frontend/Python/trace/config.py": "1417402997c35816e243e3d2322ec81fb14ce8541192666650d7db831a8492d9",
+      "scripts/pytorch_op_coverage/classify.py": "707c47c6928eacedd0dd6a598064d8e1f2bc4e1fab92275e7420abf0b0d74e70",
+      "scripts/pytorch_op_coverage/data/target_ops_v1.json": "4d4d372dc10191ab74b6656e7cc278fc96096f88c7dbd7aabc99556903f33c5c",
+      "scripts/pytorch_op_coverage/parse_frontend.py": "4ffb93305c0e0bab60f0d146b3dcec89a479ceb172bc9fb39ca29736c576b639",
+      "scripts/pytorch_op_coverage/probes.py": "7d373ec185c0c03bbda9f264907962cb748eb4defdee1b9c62722fea951ec55a",
+      "scripts/pytorch_op_coverage/report.py": "7ae973da6153a0d9aae10c0a7487c6e8213cf5046543cb627a7b41ff3d8fbdcb",
+      "scripts/pytorch_op_coverage/run_coverage.py": "c52c2aaf34963eb85317829ce199a7927388c0fd48103f3c75b459be981003b0",
+      "scripts/pytorch_op_coverage/test_coverage.py": "e851f664f9718bfb0a1f3be54cdd40cef288e4b8e19e1273fe32cd8b81ef3239",
+      "scripts/pytorch_op_coverage/test_probes.py": "27e36b41003adc020ec2c8cbaf80cfc651e4c3ca42d23b9e16f6b2c868e9149c",
+      "scripts/pytorch_op_coverage/worker.py": "858486810e0fa0ce832abf6ef63836c5e3640eb3de29eb9cc5d36a1c3ed53b2f",
+      "tests/Python/AtenOpsCoverage/aten_coverage_runner.py": "cedb26ca659f25c9c5f487d57a5d36bc8f8cb8926d2d30b7b0cf68696e8acb36"
+    },
+    "python": "3.13.13",
+    "changed_during_run": false
+  },
+  "environment": {},
+  "profile": {
+    "name": "cpu-export-v1",
+    "cases": {
+      "small-f32": {
+        "rows": 4,
+        "width": 8,
+        "dtype": "float32"
+      },
+      "rect-f32": {
+        "rows": 3,
+        "width": 5,
+        "dtype": "float32"
+      },
+      "small-f64": {
+        "rows": 4,
+        "width": 8,
+        "dtype": "float64"
+      }
+    },
+    "seed": 0,
+    "rtol": 0.0001,
+    "atol": 1e-05,
+    "external_calls": false,
+    "path": "strict torch.export -> Buddy _compile_fx -> tosa-priority -> JIT",
+    "scope": "Explicit small contiguous CPU inputs; no claim for arbitrary shapes/dtypes or full models"
+  },
   "summary": {
-    "denominator": "Buddy Target Op Set v0 (unique aten keys)",
-    "total_ops": 108,
-    "frontend_recognized": 101,
-    "frontend_recognized_pct": 93.52,
-    "has_buddy_lowering": 101,
-    "has_buddy_lowering_pct": 93.52,
-    "fully_supported_static": 89,
-    "fully_supported_static_pct": 82.41,
-    "partial": 12,
-    "partial_pct": 11.11,
-    "frontend_only": 0,
-    "unsupported": 7,
-    "unsupported_pct": 6.48,
-    "by_status": {
-      "fully_supported_static": 89,
-      "partial": 12,
-      "unsupported": 7
+    "total_ops": 106,
+    "frontend_recognized": 95,
+    "registered_lowering": 95,
+    "alias_candidate": 4,
+    "unmapped": 7,
+    "known_limited": 17,
+    "validated_for_profile": 0,
+    "percentages": {
+      "frontend_recognized": 89.62,
+      "registered_lowering": 89.62,
+      "alias_candidate": 3.77,
+      "unmapped": 6.6,
+      "known_limited": 16.04,
+      "validated_for_profile": 0.0
     },
+    "case_counts": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 0,
+      "blocked": 0,
+      "timeout": 0
+    },
+    "stage_passed_cases": {
+      "exported": 0,
+      "imported": 0,
+      "lowered": 0,
+      "compiled": 0,
+      "executed": 0,
+      "correctness": 0
+    },
+    "required_case_count": 72,
+    "operators_without_cases": 82,
     "moe_critical": {
-      "total": 47,
-      "fully_supported_static": 35,
-      "fully_supported_static_pct": 74.47,
-      "partial": 7,
-      "unsupported": 5
-    },
-    "disclaimer": "fully_supported_static is not live compile/correctness coverage. Do not claim issue #911 90% until live measurements are available."
+      "total_ops": 47,
+      "frontend_recognized": 40,
+      "registered_lowering": 40,
+      "alias_candidate": 2,
+      "unmapped": 5,
+      "known_limited": 12,
+      "validated_for_profile": 0,
+      "percentages": {
+        "frontend_recognized": 85.11,
+        "registered_lowering": 85.11,
+        "alias_candidate": 4.26,
+        "unmapped": 10.64,
+        "known_limited": 25.53,
+        "validated_for_profile": 0.0
+      },
+      "case_counts": {
+        "passed": 0,
+        "failed": 0,
+        "skipped": 0,
+        "blocked": 0,
+        "timeout": 0
+      },
+      "stage_passed_cases": {
+        "exported": 0,
+        "imported": 0,
+        "lowered": 0,
+        "compiled": 0,
+        "executed": 0,
+        "correctness": 0
+      },
+      "required_case_count": 69,
+      "operators_without_cases": 24
+    }
   },
   "operators": [
     {
-      "aten": "mm.default",
-      "family": "transformer_core",
+      "operator": "aten::mm.default",
       "families": [
         "transformer_core",
         "moe_critical"
       ],
-      "pytorch_schema": "aten::mm.default",
+      "pytorch_schema": "aten::mm(Tensor self, Tensor mat2) -> Tensor",
       "buddy_op": "MatmulOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "linalg",
         "ttir_llm"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "bmm.default",
-      "family": "transformer_core",
+      "operator": "aten::bmm.default",
       "families": [
         "transformer_core",
         "moe_critical"
       ],
-      "pytorch_schema": "aten::bmm.default",
+      "pytorch_schema": "aten::bmm(Tensor self, Tensor mat2) -> Tensor",
       "buddy_op": "BatchMatmulOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa",
         "linalg",
         "ttir_llm"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "addmm.default",
-      "family": "transformer_core",
+      "operator": "aten::addmm.default",
       "families": [
         "transformer_core",
         "moe_critical"
       ],
-      "pytorch_schema": "aten::addmm.default",
+      "pytorch_schema": "aten::addmm(Tensor self, Tensor mat1, Tensor mat2, *, Scalar beta=1, Scalar alpha=1) -> Tensor",
       "buddy_op": "AddMMOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa",
         "ttir"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "baddbmm.default",
-      "family": "transformer_core",
+      "operator": "aten::baddbmm.default",
       "families": [
         "transformer_core"
       ],
-      "pytorch_schema": "aten::baddbmm.default",
+      "pytorch_schema": "aten::baddbmm(Tensor self, Tensor batch1, Tensor batch2, *, Scalar beta=1, Scalar alpha=1) -> Tensor",
       "buddy_op": "BaddbmmOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "add.Tensor",
-      "family": "transformer_core",
+      "operator": "aten::add.Tensor",
       "families": [
         "transformer_core",
         "moe_critical"
       ],
-      "pytorch_schema": "aten::add.Tensor",
+      "pytorch_schema": "aten::add.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor",
       "buddy_op": "AddOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa",
         "linalg",
         "ttir"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "mul.Tensor",
-      "family": "transformer_core",
+      "operator": "aten::mul.Tensor",
       "families": [
         "transformer_core",
         "moe_critical"
       ],
-      "pytorch_schema": "aten::mul.Tensor",
+      "pytorch_schema": "aten::mul.Tensor(Tensor self, Tensor other) -> Tensor",
       "buddy_op": "MulOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa",
         "linalg",
         "ttir_llm"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "div.Tensor",
-      "family": "transformer_core",
+      "operator": "aten::div.Tensor",
       "families": [
         "transformer_core"
       ],
-      "pytorch_schema": "aten::div.Tensor",
+      "pytorch_schema": "aten::div.Tensor(Tensor self, Tensor other) -> Tensor",
       "buddy_op": "DivOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa",
         "linalg",
         "ttir_llm"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "sub.Tensor",
-      "family": "transformer_core",
+      "operator": "aten::sub.Tensor",
       "families": [
         "transformer_core"
       ],
-      "pytorch_schema": "aten::sub.Tensor",
+      "pytorch_schema": "aten::sub.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor",
       "buddy_op": "SubOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa",
         "ttir_llm"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "neg.default",
-      "family": "transformer_core",
+      "operator": "aten::neg.default",
       "families": [
         "transformer_core"
       ],
-      "pytorch_schema": "aten::neg.default",
+      "pytorch_schema": "aten::neg(Tensor self) -> Tensor",
       "buddy_op": "NegOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa",
         "linalg",
         "ttir_llm"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "pow.Tensor_Scalar",
-      "family": "transformer_core",
+      "operator": "aten::pow.Tensor_Scalar",
       "families": [
         "transformer_core"
       ],
-      "pytorch_schema": "aten::pow.Tensor_Scalar",
+      "pytorch_schema": "aten::pow.Tensor_Scalar(Tensor self, Scalar exponent) -> Tensor",
       "buddy_op": "PowOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "linalg",
         "ttir_llm"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "rsqrt.default",
-      "family": "transformer_core",
+      "operator": "aten::rsqrt.default",
       "families": [
         "transformer_core"
       ],
-      "pytorch_schema": "aten::rsqrt.default",
+      "pytorch_schema": "aten::rsqrt(Tensor self) -> Tensor",
       "buddy_op": "RsqrtOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa",
         "linalg",
         "math",
         "ttir_llm"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "sqrt.default",
-      "family": "transformer_core",
+      "operator": "aten::sqrt.default",
       "families": [
         "transformer_core"
       ],
-      "pytorch_schema": "aten::sqrt.default",
+      "pytorch_schema": "aten::sqrt(Tensor self) -> Tensor",
       "buddy_op": "SqrtOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "math",
         "ttir_llm"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "exp.default",
-      "family": "transformer_core",
+      "operator": "aten::exp.default",
       "families": [
         "transformer_core"
       ],
-      "pytorch_schema": "aten::exp.default",
+      "pytorch_schema": "aten::exp(Tensor self) -> Tensor",
       "buddy_op": "ExpOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa",
         "math",
         "ttir_llm"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "silu.default",
-      "family": "transformer_core",
+      "operator": "aten::silu.default",
       "families": [
         "transformer_core",
         "moe_critical"
       ],
-      "pytorch_schema": "aten::silu.default",
+      "pytorch_schema": "aten::silu(Tensor self) -> Tensor",
       "buddy_op": "SiluOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "linalg",
         "ttir_llm"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "gelu.default",
-      "family": "transformer_core",
+      "operator": "aten::gelu.default",
       "families": [
         "transformer_core",
         "moe_critical"
       ],
-      "pytorch_schema": "aten::gelu.default",
+      "pytorch_schema": "aten::gelu(Tensor self, *, str approximate=\"none\") -> Tensor",
       "buddy_op": "GeluOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "ttir_llm"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "relu.default",
-      "family": "transformer_core",
+      "operator": "aten::relu.default",
       "families": [
         "transformer_core"
       ],
-      "pytorch_schema": "aten::relu.default",
+      "pytorch_schema": "aten::relu(Tensor self) -> Tensor",
       "buddy_op": "ReluOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa",
         "ttir"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "sigmoid.default",
-      "family": "transformer_core",
+      "operator": "aten::sigmoid.default",
       "families": [
         "transformer_core"
       ],
-      "pytorch_schema": "aten::sigmoid.default",
+      "pytorch_schema": "aten::sigmoid(Tensor self) -> Tensor",
       "buddy_op": "SigmoidOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "tanh.default",
-      "family": "transformer_core",
+      "operator": "aten::tanh.default",
       "families": [
         "transformer_core"
       ],
-      "pytorch_schema": "aten::tanh.default",
+      "pytorch_schema": "aten::tanh(Tensor self) -> Tensor",
       "buddy_op": "TanhOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa",
         "math"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "_softmax.default",
-      "family": "transformer_core",
+      "operator": "aten::_softmax.default",
       "families": [
         "transformer_core",
         "moe_critical"
       ],
-      "pytorch_schema": "aten::_softmax.default",
+      "pytorch_schema": "aten::_softmax(Tensor self, int dim, bool half_to_float) -> Tensor",
       "buddy_op": "SoftmaxOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "linalg",
         "ttir_llm"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "native_layer_norm.default",
-      "family": "transformer_core",
+      "operator": "aten::native_layer_norm.default",
       "families": [
         "transformer_core",
         "moe_critical"
       ],
-      "pytorch_schema": "aten::native_layer_norm.default",
+      "pytorch_schema": "aten::native_layer_norm(Tensor input, SymInt[] normalized_shape, Tensor? weight, Tensor? bias, float eps) -> (Tensor, Tensor, Tensor)",
       "buddy_op": "NativeLayerNormOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "ttir_llm"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "mean.dim",
-      "family": "transformer_core",
+      "operator": "aten::mean.dim",
       "families": [
         "transformer_core",
         "moe_critical"
       ],
-      "pytorch_schema": "aten::mean.dim",
+      "pytorch_schema": "aten::mean.dim(Tensor self, int[1]? dim, bool keepdim=False, *, ScalarType? dtype=None) -> Tensor",
       "buddy_op": "MeanOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa",
         "linalg",
         "ttir_llm"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "sum.dim_IntList",
-      "family": "transformer_core",
+      "operator": "aten::sum.dim_IntList",
       "families": [
         "transformer_core",
         "moe_critical"
       ],
-      "pytorch_schema": "aten::sum.dim_IntList",
+      "pytorch_schema": "aten::sum.dim_IntList(Tensor self, int[1]? dim, bool keepdim=False, *, ScalarType? dtype=None) -> Tensor",
       "buddy_op": "SumDimOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "amax.default",
-      "family": "transformer_core",
+      "operator": "aten::amax.default",
       "families": [
         "transformer_core"
       ],
-      "pytorch_schema": "aten::amax.default",
+      "pytorch_schema": "aten::amax(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor",
       "buddy_op": "AmaxOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "embedding.default",
-      "family": "transformer_core",
+      "operator": "aten::embedding.default",
       "families": [
         "transformer_core"
       ],
-      "pytorch_schema": "aten::embedding.default",
+      "pytorch_schema": "aten::embedding(Tensor weight, Tensor indices, SymInt padding_idx=-1, bool scale_grad_by_freq=False, bool sparse=False) -> Tensor",
       "buddy_op": "EmbeddingOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa",
         "linalg",
         "ttir_llm"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "cat.default",
-      "family": "transformer_core",
+      "operator": "aten::cat.default",
       "families": [
         "transformer_core",
         "moe_critical"
       ],
-      "pytorch_schema": "aten::cat.default",
+      "pytorch_schema": "aten::cat(Tensor[] tensors, int dim=0) -> Tensor",
       "buddy_op": "CatOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "linalg",
         "ttir_llm"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "stack.default",
-      "family": "transformer_core",
+      "operator": "aten::stack.default",
       "families": [
         "transformer_core",
         "moe_critical"
       ],
-      "pytorch_schema": "aten::stack.default",
+      "pytorch_schema": "aten::stack(Tensor[] tensors, int dim=0) -> Tensor",
       "buddy_op": "StackOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "slice.Tensor",
-      "family": "transformer_core",
+      "operator": "aten::slice.Tensor",
       "families": [
         "transformer_core"
       ],
-      "pytorch_schema": "aten::slice.Tensor",
+      "pytorch_schema": "aten::slice.Tensor(Tensor(a) self, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor(a)",
       "buddy_op": "SliceOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa",
         "linalg",
         "ttir_llm"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "select.int",
-      "family": "transformer_core",
+      "operator": "aten::select.int",
       "families": [
         "transformer_core"
       ],
-      "pytorch_schema": "aten::select.int",
+      "pytorch_schema": "aten::select.int(Tensor(a) self, int dim, SymInt index) -> Tensor(a)",
       "buddy_op": "SelectOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa",
         "ttir_llm"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "view.default",
-      "family": "transformer_core",
+      "operator": "aten::view.default",
       "families": [
         "transformer_core",
         "moe_critical"
       ],
-      "pytorch_schema": "aten::view.default",
+      "pytorch_schema": "aten::view(Tensor(a) self, SymInt[] size) -> Tensor(a)",
       "buddy_op": "ViewOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa",
         "linalg",
         "ttir"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "reshape.default",
-      "family": "transformer_core",
+      "operator": "aten::reshape.default",
       "families": [
         "transformer_core",
         "moe_critical"
       ],
-      "pytorch_schema": "aten::reshape.default",
-      "buddy_op": "ViewOp",
-      "frontend_recognized": true,
-      "has_buddy_lowering": true,
-      "lowering_dialects": [
-        "tosa",
-        "linalg",
-        "ttir"
+      "pytorch_schema": "aten::reshape(Tensor(a) self, SymInt[] shape) -> Tensor(a)",
+      "buddy_op": null,
+      "frontend_recognized": false,
+      "lowering_dialects": [],
+      "alias_candidates": [
+        "aten::view.default",
+        "aten::_unsafe_view.default"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "partial",
-      "known_limitations": "FX often emits view.default; tracked via decomp_aliases.",
-      "notes": "No direct _ops_map entry; covered via decomp/alias `view.default` → `ViewOp`.",
-      "live_error": null
+      "static_status": "alias_candidate",
+      "known_limitations": "Configured contiguous cases pass through AOT ViewOp. Non-contiguous reshape semantics remain untested.",
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "transpose.int",
-      "family": "transformer_core",
+      "operator": "aten::transpose.int",
       "families": [
         "transformer_core"
       ],
-      "pytorch_schema": "aten::transpose.int",
+      "pytorch_schema": "aten::transpose.int(Tensor(a) self, int dim0, int dim1) -> Tensor(a)",
       "buddy_op": "TransposeOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa",
         "linalg",
         "ttir"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "permute.default",
-      "family": "transformer_core",
+      "operator": "aten::permute.default",
       "families": [
         "transformer_core"
       ],
-      "pytorch_schema": "aten::permute.default",
+      "pytorch_schema": "aten::permute(Tensor(a) self, int[] dims) -> Tensor(a)",
       "buddy_op": "PermuteOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa",
         "ttir"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "unsqueeze.default",
-      "family": "transformer_core",
+      "operator": "aten::unsqueeze.default",
       "families": [
         "transformer_core"
       ],
-      "pytorch_schema": "aten::unsqueeze.default",
+      "pytorch_schema": "aten::unsqueeze(Tensor(a) self, int dim) -> Tensor(a)",
       "buddy_op": "UnsqueezeOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa",
         "linalg",
         "ttir_llm"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "squeeze.dim",
-      "family": "transformer_core",
+      "operator": "aten::squeeze.dim",
       "families": [
         "transformer_core"
       ],
-      "pytorch_schema": "aten::squeeze.dim",
+      "pytorch_schema": "aten::squeeze.dim(Tensor(a) self, int dim) -> Tensor(a)",
       "buddy_op": "SqueezeDimOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa",
         "linalg"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "expand.default",
-      "family": "transformer_core",
+      "operator": "aten::expand.default",
       "families": [
         "transformer_core"
       ],
-      "pytorch_schema": "aten::expand.default",
+      "pytorch_schema": "aten::expand(Tensor(a) self, SymInt[] size, *, bool implicit=False) -> Tensor(a)",
       "buddy_op": "ExpandOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa",
         "linalg",
         "ttir_llm"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "repeat.default",
-      "family": "transformer_core",
+      "operator": "aten::repeat.default",
       "families": [
         "transformer_core"
       ],
-      "pytorch_schema": "aten::repeat.default",
+      "pytorch_schema": "aten::repeat(Tensor self, SymInt[] repeats) -> Tensor",
       "buddy_op": "RepeatOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa",
         "linalg"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "clone.default",
-      "family": "transformer_core",
+      "operator": "aten::clone.default",
       "families": [
         "transformer_core"
       ],
-      "pytorch_schema": "aten::clone.default",
+      "pytorch_schema": "aten::clone(Tensor self, *, MemoryFormat? memory_format=None) -> Tensor",
       "buddy_op": "CloneOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa",
         "linalg",
         "ttir_llm"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "_to_copy.default",
-      "family": "transformer_core",
+      "operator": "aten::_to_copy.default",
       "families": [
         "transformer_core"
       ],
-      "pytorch_schema": "aten::_to_copy.default",
+      "pytorch_schema": "aten::_to_copy(Tensor self, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None, bool non_blocking=False, MemoryFormat? memory_format=None) -> Tensor",
       "buddy_op": "ToCopyOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "linalg",
         "ttir_llm"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "convert_element_type.default",
-      "family": "transformer_core",
+      "operator": "prims::convert_element_type.default",
       "families": [
         "transformer_core"
       ],
-      "pytorch_schema": "aten::convert_element_type.default",
+      "pytorch_schema": "prims::convert_element_type(Tensor a, ScalarType dtype) -> Tensor",
       "buddy_op": "ConvertElementTypeOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa",
         "ttir_llm"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "where.self",
-      "family": "transformer_core",
+      "operator": "aten::where.self",
       "families": [
         "transformer_core",
         "moe_critical"
       ],
-      "pytorch_schema": "aten::where.self",
+      "pytorch_schema": "aten::where.self(Tensor condition, Tensor self, Tensor other) -> Tensor",
       "buddy_op": "WhereOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "linalg",
         "ttir_llm"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "masked_fill.Scalar",
-      "family": "transformer_core",
+      "operator": "aten::masked_fill.Scalar",
       "families": [
         "transformer_core"
       ],
-      "pytorch_schema": "aten::masked_fill.Scalar",
+      "pytorch_schema": "aten::masked_fill.Scalar(Tensor self, Tensor mask, Scalar value) -> Tensor",
       "buddy_op": "MaskedFillOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa",
         "linalg"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "arange.start",
-      "family": "transformer_core",
+      "operator": "aten::arange.start",
       "families": [
         "transformer_core"
       ],
-      "pytorch_schema": "aten::arange.start",
+      "pytorch_schema": "aten::arange.start(Scalar start, Scalar end, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor",
       "buddy_op": "ArangeOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "linalg",
         "ttir_llm"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "arange.start_step",
-      "family": "transformer_core",
+      "operator": "aten::arange.start_step",
       "families": [
         "transformer_core"
       ],
-      "pytorch_schema": "aten::arange.start_step",
+      "pytorch_schema": "aten::arange.start_step(Scalar start, Scalar end, Scalar step=1, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor",
       "buddy_op": "ArangeStartStepOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa",
         "ttir_llm"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "ones.default",
-      "family": "transformer_core",
+      "operator": "aten::ones.default",
       "families": [
         "transformer_core"
       ],
-      "pytorch_schema": "aten::ones.default",
+      "pytorch_schema": "aten::ones(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor",
       "buddy_op": "OnesOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "linalg",
         "ttir_llm"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "zeros.default",
-      "family": "transformer_core",
+      "operator": "aten::zeros.default",
       "families": [
         "transformer_core"
       ],
-      "pytorch_schema": "aten::zeros.default",
+      "pytorch_schema": "aten::zeros(SymInt[] size, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor",
       "buddy_op": "ZerosOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa",
         "ttir_llm"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "full.default",
-      "family": "transformer_core",
+      "operator": "aten::full.default",
       "families": [
         "transformer_core"
       ],
-      "pytorch_schema": "aten::full.default",
+      "pytorch_schema": "aten::full(SymInt[] size, Scalar fill_value, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor",
       "buddy_op": "FullOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "linalg",
         "ttir_llm"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "scalar_tensor.default",
-      "family": "transformer_core",
+      "operator": "aten::scalar_tensor.default",
       "families": [
         "transformer_core"
       ],
-      "pytorch_schema": "aten::scalar_tensor.default",
+      "pytorch_schema": "aten::scalar_tensor(Scalar s, *, ScalarType? dtype=None, Layout? layout=None, Device? device=None, bool? pin_memory=None) -> Tensor",
       "buddy_op": "ScalarTensorOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "linalg",
         "ttir_llm"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "_scaled_dot_product_flash_attention_for_cpu.default",
-      "family": "transformer_core",
+      "operator": "aten::_scaled_dot_product_flash_attention_for_cpu.default",
       "families": [
         "transformer_core"
       ],
-      "pytorch_schema": "aten::_scaled_dot_product_flash_attention_for_cpu.default",
+      "pytorch_schema": "aten::_scaled_dot_product_flash_attention_for_cpu(Tensor query, Tensor key, Tensor value, float dropout_p=0., bool is_causal=False, *, Tensor? attn_mask=None, float? scale=None) -> (Tensor output, Tensor logsumexp)",
       "buddy_op": "ScaledDotProductFlashAttentionForCpuOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "partial",
-      "known_limitations": "CPU flash path; GPU/other backends may differ.",
-      "notes": "Frontend + lowering present; flagged as limited in the target set.",
-      "live_error": null
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
+      "known_limitations": "tosa.py:scaled_dot_product_flash_attention_for_cpu_op asserts dropout_p == 0 for explicit dropout arguments.",
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "index.Tensor",
-      "family": "transformer_core",
+      "operator": "aten::index.Tensor",
       "families": [
         "transformer_core",
         "moe_critical"
       ],
-      "pytorch_schema": "aten::index.Tensor",
+      "pytorch_schema": "aten::index.Tensor(Tensor self, Tensor?[] indices) -> Tensor",
       "buddy_op": "IndexOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "linalg",
         "ttir_llm"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "partial",
-      "known_limitations": "Advanced indexing / None / boolean masks may be partial.",
-      "notes": "Frontend + lowering present; flagged as limited in the target set.",
-      "live_error": null
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
+      "known_limitations": "Review pending: Advanced indexing / None / boolean masks may be partial.",
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "index_select.default",
-      "family": "transformer_core",
+      "operator": "aten::index_select.default",
       "families": [
         "transformer_core",
         "moe_critical"
       ],
-      "pytorch_schema": "aten::index_select.default",
+      "pytorch_schema": "aten::index_select(Tensor self, int dim, Tensor index) -> Tensor",
       "buddy_op": "IndexSelectOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "linalg"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "gather.default",
-      "family": "transformer_core",
+      "operator": "aten::gather.default",
       "families": [
         "transformer_core",
         "moe_critical"
       ],
-      "pytorch_schema": "aten::gather.default",
+      "pytorch_schema": "aten::gather(Tensor self, int dim, Tensor index, *, bool sparse_grad=False) -> Tensor",
       "buddy_op": "GatherOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "linalg"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "scatter_add.default",
-      "family": "transformer_core",
+      "operator": "aten::scatter_add.default",
       "families": [
         "transformer_core",
         "moe_critical"
       ],
-      "pytorch_schema": "aten::scatter_add.default",
+      "pytorch_schema": "aten::scatter_add(Tensor self, int dim, Tensor index, Tensor src) -> Tensor",
       "buddy_op": "ScatterAddOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "linalg"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "slice_scatter.default",
-      "family": "transformer_core",
+      "operator": "aten::slice_scatter.default",
       "families": [
         "transformer_core"
       ],
-      "pytorch_schema": "aten::slice_scatter.default",
+      "pytorch_schema": "aten::slice_scatter(Tensor self, Tensor src, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor",
       "buddy_op": "SliceScatterOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "linalg"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "fill_cache.default",
-      "family": "transformer_core",
-      "families": [
-        "transformer_core"
-      ],
-      "pytorch_schema": "aten::fill_cache.default",
-      "buddy_op": "FillCacheOp",
-      "frontend_recognized": true,
-      "has_buddy_lowering": true,
-      "lowering_dialects": [
-        "ttir_llm"
-      ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "partial",
-      "known_limitations": "Buddy KV-cache helper; not a generic ATen public op.",
-      "notes": "Frontend + lowering present; flagged as limited in the target set.",
-      "live_error": null
-    },
-    {
-      "aten": "update_cache.default",
-      "family": "transformer_core",
-      "families": [
-        "transformer_core"
-      ],
-      "pytorch_schema": "aten::update_cache.default",
-      "buddy_op": "UpdateCacheOp",
-      "frontend_recognized": true,
-      "has_buddy_lowering": true,
-      "lowering_dialects": [
-        "ttir_llm"
-      ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "partial",
-      "known_limitations": "Buddy KV-cache helper; not a generic ATen public op.",
-      "notes": "Frontend + lowering present; flagged as limited in the target set.",
-      "live_error": null
-    },
-    {
-      "aten": "cumsum.default",
-      "family": "transformer_core",
+      "operator": "aten::cumsum.default",
       "families": [
         "transformer_core",
         "moe_critical"
       ],
-      "pytorch_schema": "aten::cumsum.default",
+      "pytorch_schema": "aten::cumsum(Tensor self, int dim, *, ScalarType? dtype=None) -> Tensor",
       "buddy_op": "CumsumOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "linalg"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "eq.Scalar",
-      "family": "transformer_core",
+      "operator": "aten::eq.Scalar",
       "families": [
         "transformer_core"
       ],
-      "pytorch_schema": "aten::eq.Scalar",
+      "pytorch_schema": "aten::eq.Scalar(Tensor self, Scalar other) -> Tensor",
       "buddy_op": "EqualOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "linalg"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "eq.Tensor",
-      "family": "transformer_core",
+      "operator": "aten::eq.Tensor",
       "families": [
         "transformer_core"
       ],
-      "pytorch_schema": "aten::eq.Tensor",
+      "pytorch_schema": "aten::eq.Tensor(Tensor self, Tensor other) -> Tensor",
       "buddy_op": "EqTensorOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa",
         "ttir_llm"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "ne.Scalar",
-      "family": "transformer_core",
+      "operator": "aten::ne.Scalar",
       "families": [
         "transformer_core"
       ],
-      "pytorch_schema": "aten::ne.Scalar",
+      "pytorch_schema": "aten::ne.Scalar(Tensor self, Scalar other) -> Tensor",
       "buddy_op": "NeScalarOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa",
         "linalg"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "gt.Scalar",
-      "family": "transformer_core",
+      "operator": "aten::gt.Scalar",
       "families": [
         "transformer_core"
       ],
-      "pytorch_schema": "aten::gt.Scalar",
+      "pytorch_schema": "aten::gt.Scalar(Tensor self, Scalar other) -> Tensor",
       "buddy_op": "GtOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa",
         "linalg"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "lt.Scalar",
-      "family": "transformer_core",
+      "operator": "aten::lt.Scalar",
       "families": [
         "transformer_core"
       ],
-      "pytorch_schema": "aten::lt.Scalar",
+      "pytorch_schema": "aten::lt.Scalar(Tensor self, Scalar other) -> Tensor",
       "buddy_op": "LtScalarOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "le.Scalar",
-      "family": "transformer_core",
+      "operator": "aten::le.Scalar",
       "families": [
         "transformer_core"
       ],
-      "pytorch_schema": "aten::le.Scalar",
+      "pytorch_schema": "aten::le.Scalar(Tensor self, Scalar other) -> Tensor",
       "buddy_op": "LeScalarOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "ge.Scalar",
-      "family": "transformer_core",
+      "operator": "aten::ge.Scalar",
       "families": [
         "transformer_core"
       ],
-      "pytorch_schema": "aten::ge.Scalar",
+      "pytorch_schema": "aten::ge.Scalar(Tensor self, Scalar other) -> Tensor",
       "buddy_op": "GeOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "linalg"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "maximum.default",
-      "family": "transformer_core",
+      "operator": "aten::maximum.default",
       "families": [
         "transformer_core"
       ],
-      "pytorch_schema": "aten::maximum.default",
+      "pytorch_schema": "aten::maximum(Tensor self, Tensor other) -> Tensor",
       "buddy_op": "MaximumOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "minimum.default",
-      "family": "transformer_core",
+      "operator": "aten::minimum.default",
       "families": [
         "transformer_core"
       ],
-      "pytorch_schema": "aten::minimum.default",
+      "pytorch_schema": "aten::minimum(Tensor self, Tensor other) -> Tensor",
       "buddy_op": "MinimumOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "clamp.default",
-      "family": "transformer_core",
+      "operator": "aten::clamp.default",
       "families": [
         "transformer_core"
       ],
-      "pytorch_schema": "aten::clamp.default",
+      "pytorch_schema": "aten::clamp(Tensor self, Scalar? min=None, Scalar? max=None) -> Tensor",
       "buddy_op": "ClampOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "split.Tensor",
-      "family": "transformer_core",
+      "operator": "aten::split.Tensor",
       "families": [
         "transformer_core"
       ],
-      "pytorch_schema": "aten::split.Tensor",
+      "pytorch_schema": "aten::split.Tensor(Tensor(a -> *) self, SymInt split_size, int dim=0) -> Tensor(a)[]",
       "buddy_op": "SplitOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "linalg"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "split_with_sizes.default",
-      "family": "transformer_core",
+      "operator": "aten::split_with_sizes.default",
       "families": [
         "transformer_core",
         "moe_critical"
       ],
-      "pytorch_schema": "aten::split_with_sizes.default",
+      "pytorch_schema": "aten::split_with_sizes(Tensor(a -> *) self, SymInt[] split_sizes, int dim=0) -> Tensor(a)[]",
       "buddy_op": "SplitWithSizesOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "unbind.int",
-      "family": "transformer_core",
+      "operator": "aten::unbind.int",
       "families": [
         "transformer_core",
         "moe_critical"
       ],
-      "pytorch_schema": "aten::unbind.int",
+      "pytorch_schema": "aten::unbind.int(Tensor(a -> *) self, int dim=0) -> Tensor(a)[]",
       "buddy_op": "UnbindOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "contiguous.default",
-      "family": "transformer_core",
+      "operator": "aten::contiguous.default",
       "families": [
         "transformer_core"
       ],
-      "pytorch_schema": "aten::contiguous.default",
-      "buddy_op": "CloneOp",
-      "frontend_recognized": true,
-      "has_buddy_lowering": true,
-      "lowering_dialects": [
-        "tosa",
-        "linalg",
-        "ttir_llm"
+      "pytorch_schema": "aten::contiguous(Tensor(a) self, *, MemoryFormat memory_format=0) -> Tensor(a)",
+      "buddy_op": null,
+      "frontend_recognized": false,
+      "lowering_dialects": [],
+      "alias_candidates": [
+        "aten::clone.default"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "partial",
-      "known_limitations": "Often elided; treated as alias of clone.default when present.",
-      "notes": "No direct _ops_map entry; covered via decomp/alias `clone.default` → `CloneOp`.",
-      "live_error": null
+      "static_status": "alias_candidate",
+      "known_limitations": "Review pending: May be elided or cloned depending on strides; requires layout-specific cases.",
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "copy.default",
-      "family": "transformer_core",
+      "operator": "aten::copy.default",
       "families": [
         "transformer_core"
       ],
-      "pytorch_schema": "aten::copy.default",
+      "pytorch_schema": "aten::copy(Tensor self, Tensor src, bool non_blocking=False) -> Tensor",
       "buddy_op": "CopyOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "linalg"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "lift_fresh_copy.default",
-      "family": "transformer_core",
+      "operator": "aten::lift_fresh_copy.default",
       "families": [
         "transformer_core"
       ],
-      "pytorch_schema": "aten::lift_fresh_copy.default",
+      "pytorch_schema": "aten::lift_fresh_copy(Tensor self) -> Tensor",
       "buddy_op": "LiftFreshCopyOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "linalg",
         "ttir_llm"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "topk.default",
-      "family": "moe_critical",
+      "operator": "aten::topk.default",
       "families": [
         "moe_critical"
       ],
-      "pytorch_schema": "aten::topk.default",
+      "pytorch_schema": "aten::topk(Tensor self, SymInt k, int dim=-1, bool largest=True, bool sorted=True) -> (Tensor values, Tensor indices)",
       "buddy_op": "TopkOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "linalg"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "partial",
-      "known_limitations": "Often shape/k-attr limited; validate expert routing sizes.",
-      "notes": "Frontend + lowering present; flagged as limited in the target set.",
-      "live_error": null
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
+      "known_limitations": "linalg.py:topk_op requires static shapes and a static integer k; complex types are rejected.",
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "softmax.default",
-      "family": "moe_critical",
+      "operator": "aten::softmax.int",
       "families": [
         "moe_critical"
       ],
-      "pytorch_schema": "aten::softmax.default",
-      "buddy_op": "SoftmaxOp",
-      "frontend_recognized": true,
-      "has_buddy_lowering": true,
-      "lowering_dialects": [
-        "linalg",
-        "ttir_llm"
-      ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "partial",
-      "known_limitations": "FX often emits _softmax.default; tracked via decomp_aliases.",
-      "notes": "No direct _ops_map entry; covered via decomp/alias `_softmax.default` → `SoftmaxOp`.",
-      "live_error": null
-    },
-    {
-      "aten": "argsort.default",
-      "family": "moe_critical",
-      "families": [
-        "moe_critical"
-      ],
-      "pytorch_schema": "aten::argsort.default",
+      "pytorch_schema": "aten::softmax.int(Tensor self, int dim, ScalarType? dtype=None) -> Tensor",
       "buddy_op": null,
       "frontend_recognized": false,
-      "has_buddy_lowering": false,
       "lowering_dialects": [],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "unsupported",
-      "known_limitations": "May be missing; routing sometimes uses sort/topk instead.",
-      "notes": "No DynamoCompiler._ops_map entry.",
-      "live_error": null
+      "alias_candidates": [
+        "aten::_softmax.default"
+      ],
+      "static_status": "alias_candidate",
+      "known_limitations": "Configured last-dimension cases pass through AOT SoftmaxOp. Other dimensions and optional output dtype remain untested.",
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "sort.default",
-      "family": "moe_critical",
+      "operator": "aten::argsort.default",
       "families": [
         "moe_critical"
       ],
-      "pytorch_schema": "aten::sort.default",
+      "pytorch_schema": "aten::argsort(Tensor self, int dim=-1, bool descending=False) -> Tensor",
+      "buddy_op": null,
+      "frontend_recognized": false,
+      "lowering_dialects": [],
+      "alias_candidates": [],
+      "static_status": "unmapped",
+      "known_limitations": "Configured default-attribute cases pass through AOT SortOp. Other dimensions, descending order and non-contiguous inputs remain untested.",
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
+      "cases": [],
+      "validated_for_profile": false
+    },
+    {
+      "operator": "aten::sort.default",
+      "families": [
+        "moe_critical"
+      ],
+      "pytorch_schema": "aten::sort(Tensor self, int dim=-1, bool descending=False) -> (Tensor values, Tensor indices)",
       "buddy_op": "SortOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "linalg"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "argmax.default",
-      "family": "moe_critical",
+      "operator": "aten::argmax.default",
       "families": [
         "moe_critical"
       ],
-      "pytorch_schema": "aten::argmax.default",
+      "pytorch_schema": "aten::argmax(Tensor self, int? dim=None, bool keepdim=False) -> Tensor",
       "buddy_op": "ArgMaxOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa",
         "ttir_llm"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "argmin.default",
-      "family": "moe_critical",
+      "operator": "aten::argmin.default",
       "families": [
         "moe_critical"
       ],
-      "pytorch_schema": "aten::argmin.default",
+      "pytorch_schema": "aten::argmin(Tensor self, int? dim=None, bool keepdim=False) -> Tensor",
       "buddy_op": "ArgMinOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "_unsafe_index.Tensor",
-      "family": "moe_critical",
+      "operator": "aten::_unsafe_index.Tensor",
       "families": [
         "moe_critical"
       ],
-      "pytorch_schema": "aten::_unsafe_index.Tensor",
+      "pytorch_schema": "aten::_unsafe_index.Tensor(Tensor self, Tensor?[] indices) -> Tensor",
       "buddy_op": "UnsafeIndexOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "linalg"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "index_put.default",
-      "family": "moe_critical",
+      "operator": "aten::index_put.default",
       "families": [
         "moe_critical"
       ],
-      "pytorch_schema": "aten::index_put.default",
+      "pytorch_schema": "aten::index_put(Tensor self, Tensor?[] indices, Tensor values, bool accumulate=False) -> Tensor",
       "buddy_op": "IndexPutOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "linalg",
         "ttir_llm"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "partial",
-      "known_limitations": "Accumulate / advanced indexing may be partial.",
-      "notes": "Frontend + lowering present; flagged as limited in the target set.",
-      "live_error": null
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
+      "known_limitations": "Review pending: Accumulate / advanced indexing may be partial.",
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "index_add.default",
-      "family": "moe_critical",
+      "operator": "aten::index_add.default",
       "families": [
         "moe_critical"
       ],
-      "pytorch_schema": "aten::index_add.default",
+      "pytorch_schema": "aten::index_add(Tensor self, int dim, Tensor index, Tensor source, *, Scalar alpha=1) -> Tensor",
       "buddy_op": null,
       "frontend_recognized": false,
-      "has_buddy_lowering": false,
       "lowering_dialects": [],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "unsupported",
-      "known_limitations": "MoE combine path; verify frontend + lowering.",
-      "notes": "No DynamoCompiler._ops_map entry.",
-      "live_error": null
+      "alias_candidates": [],
+      "static_status": "unmapped",
+      "known_limitations": "The cpu-export-v1 cases fail during Buddy import with KeyError: index_add.default.",
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "index_copy.default",
-      "family": "moe_critical",
+      "operator": "aten::index_copy.default",
       "families": [
         "moe_critical"
       ],
-      "pytorch_schema": "aten::index_copy.default",
+      "pytorch_schema": "aten::index_copy(Tensor self, int dim, Tensor index, Tensor source) -> Tensor",
       "buddy_op": null,
       "frontend_recognized": false,
-      "has_buddy_lowering": false,
       "lowering_dialects": [],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "unsupported",
-      "known_limitations": "MoE dispatch path; verify frontend + lowering.",
-      "notes": "No DynamoCompiler._ops_map entry.",
-      "live_error": null
+      "alias_candidates": [],
+      "static_status": "unmapped",
+      "known_limitations": "The cpu-export-v1 cases fail during Buddy import with KeyError: index_copy.default.",
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "scatter.src",
-      "family": "moe_critical",
+      "operator": "aten::scatter.src",
       "families": [
         "moe_critical"
       ],
-      "pytorch_schema": "aten::scatter.src",
+      "pytorch_schema": "aten::scatter.src(Tensor self, int dim, Tensor index, Tensor src) -> Tensor",
       "buddy_op": "ScatterSrcOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "linalg"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "scatter.value",
-      "family": "moe_critical",
+      "operator": "aten::scatter.value",
       "families": [
         "moe_critical"
       ],
-      "pytorch_schema": "aten::scatter.value",
+      "pytorch_schema": "aten::scatter.value(Tensor self, int dim, Tensor index, Scalar value) -> Tensor",
       "buddy_op": "ScatterValueOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "linalg"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "scatter.reduce",
-      "family": "moe_critical",
+      "operator": "aten::scatter.reduce",
       "families": [
         "moe_critical"
       ],
-      "pytorch_schema": "aten::scatter.reduce",
+      "pytorch_schema": "aten::scatter.reduce(Tensor self, int dim, Tensor index, Tensor src, *, str reduce) -> Tensor",
       "buddy_op": "ScatterReduceOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "linalg"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "partial",
-      "known_limitations": "Reduce mode / dtype coverage may be partial.",
-      "notes": "Frontend + lowering present; flagged as limited in the target set.",
-      "live_error": null
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
+      "known_limitations": "Review pending: Reduce mode / dtype coverage may be partial.",
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "scatter.value_reduce",
-      "family": "moe_critical",
+      "operator": "aten::scatter.value_reduce",
       "families": [
         "moe_critical"
       ],
-      "pytorch_schema": "aten::scatter.value_reduce",
+      "pytorch_schema": "aten::scatter.value_reduce(Tensor self, int dim, Tensor index, Scalar value, *, str reduce) -> Tensor",
       "buddy_op": "ScatterReduceOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "linalg"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "scatter_reduce.two",
-      "family": "moe_critical",
+      "operator": "aten::scatter_reduce.two",
       "families": [
         "moe_critical"
       ],
-      "pytorch_schema": "aten::scatter_reduce.two",
+      "pytorch_schema": "aten::scatter_reduce.two(Tensor self, int dim, Tensor index, Tensor src, str reduce, *, bool include_self=True) -> Tensor",
       "buddy_op": "ScatterReduceOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "linalg"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "partial",
-      "known_limitations": "Reduce mode / dtype coverage may be partial.",
-      "notes": "Frontend + lowering present; flagged as limited in the target set.",
-      "live_error": null
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
+      "known_limitations": "Review pending: Reduce mode / dtype coverage may be partial.",
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "masked_scatter.default",
-      "family": "moe_critical",
+      "operator": "aten::masked_scatter.default",
       "families": [
         "moe_critical"
       ],
-      "pytorch_schema": "aten::masked_scatter.default",
+      "pytorch_schema": "aten::masked_scatter(Tensor self, Tensor mask, Tensor source) -> Tensor",
       "buddy_op": "MaskedScatterOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "masked_select.default",
-      "family": "moe_critical",
+      "operator": "aten::masked_select.default",
       "families": [
         "moe_critical"
       ],
-      "pytorch_schema": "aten::masked_select.default",
+      "pytorch_schema": "aten::masked_select(Tensor self, Tensor mask) -> Tensor",
       "buddy_op": "MaskedSelectOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "linalg"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "nonzero.default",
-      "family": "moe_critical",
+      "operator": "aten::nonzero.default",
       "families": [
         "moe_critical"
       ],
-      "pytorch_schema": "aten::nonzero.default",
+      "pytorch_schema": "aten::nonzero(Tensor self) -> Tensor",
       "buddy_op": "NonzeroOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "linalg"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "nonzero_static.default",
-      "family": "moe_critical",
+      "operator": "aten::nonzero_static.default",
       "families": [
         "moe_critical"
       ],
-      "pytorch_schema": "aten::nonzero_static.default",
+      "pytorch_schema": "aten::nonzero_static(Tensor self, *, SymInt size, int fill_value=-1) -> Tensor",
       "buddy_op": "NonzeroStaticOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "linalg"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "one_hot.default",
-      "family": "moe_critical",
+      "operator": "aten::one_hot.default",
       "families": [
         "moe_critical"
       ],
-      "pytorch_schema": "aten::one_hot.default",
+      "pytorch_schema": "aten::one_hot(Tensor self, int num_classes=-1) -> Tensor",
       "buddy_op": null,
       "frontend_recognized": false,
-      "has_buddy_lowering": false,
       "lowering_dialects": [],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "unsupported",
-      "known_limitations": "May be missing or decomposed; verify frontend map.",
-      "notes": "No DynamoCompiler._ops_map entry.",
-      "live_error": null
+      "alias_candidates": [],
+      "static_status": "unmapped",
+      "known_limitations": "Configured explicit-num_classes=4 cases pass through AOT decomposition after the bool-to-integer copy fix. Inferred class counts, empty inputs and invalid indices remain untested.",
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "bincount.default",
-      "family": "moe_critical",
+      "operator": "aten::bincount.default",
       "families": [
         "moe_critical"
       ],
-      "pytorch_schema": "aten::bincount.default",
+      "pytorch_schema": "aten::bincount(Tensor self, Tensor? weights=None, SymInt minlength=0) -> Tensor",
       "buddy_op": null,
       "frontend_recognized": false,
-      "has_buddy_lowering": false,
       "lowering_dialects": [],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "unsupported",
-      "known_limitations": "May be missing; MoE load-balance analytics often need it.",
-      "notes": "No DynamoCompiler._ops_map entry.",
-      "live_error": null
+      "alias_candidates": [],
+      "static_status": "unmapped",
+      "known_limitations": "The cpu-export-v1 cases fail during AOT import with DynamicOutputShapeException; minlength does not fix the data-dependent output extent.",
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "cumprod.default",
-      "family": "moe_critical",
+      "operator": "aten::cumprod.default",
       "families": [
         "moe_critical"
       ],
-      "pytorch_schema": "aten::cumprod.default",
+      "pytorch_schema": "aten::cumprod(Tensor self, int dim, *, ScalarType? dtype=None) -> Tensor",
       "buddy_op": "CumProdOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "linalg"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "repeat_interleave.self_int",
-      "family": "moe_critical",
+      "operator": "aten::repeat_interleave.self_int",
       "families": [
         "moe_critical"
       ],
-      "pytorch_schema": "aten::repeat_interleave.self_int",
+      "pytorch_schema": "aten::repeat_interleave.self_int(Tensor self, SymInt repeats, int? dim=None, *, SymInt? output_size=None) -> Tensor",
       "buddy_op": "RepeatInterleaveOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "linalg"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "repeat_interleave.Tensor",
-      "family": "moe_critical",
+      "operator": "aten::repeat_interleave.Tensor",
       "families": [
         "moe_critical"
       ],
-      "pytorch_schema": "aten::repeat_interleave.Tensor",
+      "pytorch_schema": "aten::repeat_interleave.Tensor(Tensor repeats, *, SymInt? output_size=None) -> Tensor",
       "buddy_op": "RepeatInterleaveOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "linalg"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "convolution.default",
-      "family": "vision_transformer_extra",
+      "operator": "aten::convolution.default",
       "families": [
         "vision_transformer_extra"
       ],
-      "pytorch_schema": "aten::convolution.default",
+      "pytorch_schema": "aten::convolution(Tensor input, Tensor weight, Tensor? bias, SymInt[] stride, SymInt[] padding, SymInt[] dilation, bool transposed, SymInt[] output_padding, SymInt groups) -> Tensor",
       "buddy_op": "Conv2dOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa",
         "ttir"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "avg_pool2d.default",
-      "family": "vision_transformer_extra",
+      "operator": "aten::avg_pool2d.default",
       "families": [
         "vision_transformer_extra"
       ],
-      "pytorch_schema": "aten::avg_pool2d.default",
+      "pytorch_schema": "aten::avg_pool2d(Tensor self, int[2] kernel_size, int[2] stride=[], int[2] padding=0, bool ceil_mode=False, bool count_include_pad=True, int? divisor_override=None) -> Tensor",
       "buddy_op": "AvgPool2dOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "_adaptive_avg_pool2d.default",
-      "family": "vision_transformer_extra",
+      "operator": "aten::_adaptive_avg_pool2d.default",
       "families": [
         "vision_transformer_extra"
       ],
-      "pytorch_schema": "aten::_adaptive_avg_pool2d.default",
+      "pytorch_schema": "aten::_adaptive_avg_pool2d(Tensor self, SymInt[2] output_size) -> Tensor",
       "buddy_op": "AdaptiveAvgPool2dOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "max_pool2d_with_indices.default",
-      "family": "vision_transformer_extra",
+      "operator": "aten::max_pool2d_with_indices.default",
       "families": [
         "vision_transformer_extra"
       ],
-      "pytorch_schema": "aten::max_pool2d_with_indices.default",
+      "pytorch_schema": "aten::max_pool2d_with_indices(Tensor self, int[2] kernel_size, int[2] stride=[], int[2] padding=0, int[2] dilation=1, bool ceil_mode=False) -> (Tensor, Tensor)",
       "buddy_op": "MaxPool2dWithIndicesOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "linalg"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "upsample_bilinear2d.vec",
-      "family": "vision_transformer_extra",
+      "operator": "aten::upsample_bilinear2d.vec",
       "families": [
         "vision_transformer_extra"
       ],
-      "pytorch_schema": "aten::upsample_bilinear2d.vec",
+      "pytorch_schema": "aten::upsample_bilinear2d.vec(Tensor input, SymInt[]? output_size, bool align_corners, float[]? scale_factors) -> Tensor",
       "buddy_op": "UpsampleBilinear2dVecOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "upsample_nearest2d.vec",
-      "family": "vision_transformer_extra",
+      "operator": "aten::upsample_nearest2d.vec",
       "families": [
         "vision_transformer_extra"
       ],
-      "pytorch_schema": "aten::upsample_nearest2d.vec",
+      "pytorch_schema": "aten::upsample_nearest2d.vec(Tensor input, SymInt[]? output_size, float[]? scale_factors) -> Tensor",
       "buddy_op": "UpsampleNearest2dVecOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "grid_sampler_2d.default",
-      "family": "vision_transformer_extra",
+      "operator": "aten::grid_sampler_2d.default",
       "families": [
         "vision_transformer_extra"
       ],
-      "pytorch_schema": "aten::grid_sampler_2d.default",
+      "pytorch_schema": "aten::grid_sampler_2d(Tensor input, Tensor grid, int interpolation_mode, int padding_mode, bool align_corners) -> Tensor",
       "buddy_op": "GridSampler2dOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "pad.default",
-      "family": "vision_transformer_extra",
+      "operator": "aten::pad.default",
       "families": [
         "vision_transformer_extra"
       ],
-      "pytorch_schema": "aten::pad.default",
+      "pytorch_schema": "aten::pad(Tensor self, SymInt[] pad, str mode=\"constant\", float? value=None) -> Tensor",
+      "buddy_op": null,
+      "frontend_recognized": false,
+      "lowering_dialects": [],
+      "alias_candidates": [
+        "aten::constant_pad_nd.default"
+      ],
+      "static_status": "alias_candidate",
+      "known_limitations": "Review pending: General padding modes are not established by a constant_pad_nd mapping.",
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
+    },
+    {
+      "operator": "aten::constant_pad_nd.default",
+      "families": [
+        "vision_transformer_extra"
+      ],
+      "pytorch_schema": "aten::constant_pad_nd(Tensor self, SymInt[] pad, Scalar value=0) -> Tensor",
       "buddy_op": "ConstantPadNdOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "partial",
-      "known_limitations": "Often lowers via constant_pad_nd; tracked via decomp_aliases.",
-      "notes": "No direct _ops_map entry; covered via decomp/alias `constant_pad_nd.default` → `ConstantPadNdOp`.",
-      "live_error": null
-    },
-    {
-      "aten": "constant_pad_nd.default",
-      "family": "vision_transformer_extra",
-      "families": [
-        "vision_transformer_extra"
-      ],
-      "pytorch_schema": "aten::constant_pad_nd.default",
-      "buddy_op": "ConstantPadNdOp",
-      "frontend_recognized": true,
-      "has_buddy_lowering": true,
-      "lowering_dialects": [
-        "tosa"
-      ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "reflection_pad2d.default",
-      "family": "vision_transformer_extra",
+      "operator": "aten::reflection_pad2d.default",
       "families": [
         "vision_transformer_extra"
       ],
-      "pytorch_schema": "aten::reflection_pad2d.default",
+      "pytorch_schema": "aten::reflection_pad2d(Tensor self, SymInt[4] padding) -> Tensor",
       "buddy_op": "ReflectionPad2dOp",
       "frontend_recognized": true,
-      "has_buddy_lowering": true,
       "lowering_dialects": [
         "tosa"
       ],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "fully_supported_static",
+      "alias_candidates": [],
+      "static_status": "registered_lowering",
       "known_limitations": null,
-      "notes": "Frontend map + at least one dialect lowering (static only).",
-      "live_error": null
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "pixel_shuffle.default",
-      "family": "vision_transformer_extra",
+      "operator": "aten::pixel_shuffle.default",
       "families": [
         "vision_transformer_extra"
       ],
-      "pytorch_schema": "aten::pixel_shuffle.default",
+      "pytorch_schema": "aten::pixel_shuffle(Tensor self, int upscale_factor) -> Tensor",
       "buddy_op": null,
       "frontend_recognized": false,
-      "has_buddy_lowering": false,
       "lowering_dialects": [],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "unsupported",
-      "known_limitations": "Vision path; may be unsupported.",
-      "notes": "No DynamoCompiler._ops_map entry.",
-      "live_error": null
+      "alias_candidates": [],
+      "static_status": "unmapped",
+      "known_limitations": "Review pending: Vision path; may be unsupported.",
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     },
     {
-      "aten": "pixel_unshuffle.default",
-      "family": "vision_transformer_extra",
+      "operator": "aten::pixel_unshuffle.default",
       "families": [
         "vision_transformer_extra"
       ],
-      "pytorch_schema": "aten::pixel_unshuffle.default",
+      "pytorch_schema": "aten::pixel_unshuffle(Tensor self, int downscale_factor) -> Tensor",
       "buddy_op": null,
       "frontend_recognized": false,
-      "has_buddy_lowering": false,
       "lowering_dialects": [],
-      "lowered": "not_run",
-      "compiled": "not_run",
-      "correctness": "not_run",
-      "status": "unsupported",
-      "known_limitations": "Vision path; may be unsupported.",
-      "notes": "No DynamoCompiler._ops_map entry.",
-      "live_error": null
+      "alias_candidates": [],
+      "static_status": "unmapped",
+      "known_limitations": "Review pending: Vision path; may be unsupported.",
+      "required_cases": [],
+      "cases": [],
+      "validated_for_profile": false
     }
   ],
-  "extra": {
-    "frontend_ops_map_size": 527,
-    "registry_op_classes": 342
-  }
+  "workloads": [],
+  "workload_operator_inventory": []
 }

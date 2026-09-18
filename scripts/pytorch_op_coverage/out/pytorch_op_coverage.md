@@ -1,66 +1,161 @@
-# Buddy-MLIR PyTorch Operator Coverage Report
+# PyTorch operator coverage
 
-- Generated (UTC): `2026-09-17T00:53:49.844289+00:00`
-- Issue: https://github.com/buddy-compiler/buddy-mlir/issues/911
-- Mode: `static`
-- Repo rev: `eaceca2`
-- Target set: `scripts\pytorch_op_coverage\data\target_ops_v0.json`
+- Mode: **static**; run: **completed**; exit: **0**
+- Generated (UTC): `2026-09-18T00:51:08.056185+00:00`
+- Target: **Buddy Target Op Set v1** / `1.0.0`; **106** unique operators
+- Source: `b9228a22ad1ef117d2179a6c620a6648d719ad54`; dirty: `True`
+- Source SHA-256: `5084f96092069ea57633346098817118d7063154af653e746b9eed285d0fc767`
+- Profile: `cpu-export-v1`; seed 0; rtol 1e-4; atol 1e-5; external calls disabled
 
-## Summary
+> Registration and export are not compile/correctness evidence. Untested, skipped, failed and limited operators stay in the denominator.
 
-- Denominator: **Buddy Target Op Set v0 (unique aten keys)**
-- Total ops: **108**
-- Frontend recognized: **101** (93.52%)
-- Has Buddy lowering: **101** (93.52%)
-- Fully supported (static): **89** (82.41%)
-- Partial / limited: **12** (11.11%)
-- Frontend only (no lowering): **0**
-- Unsupported: **7** (6.48%)
+> v1 has 106 entries versus v0's 108: two Buddy cache helpers were removed; Prim namespace and softmax overload were corrected. Percentages are not directly comparable.
 
-> fully_supported_static is not live compile/correctness coverage. Do not claim issue #911 90% until live measurements are available.
+Python: `3.13.13`; measured torch: `not loaded`; schema snapshot torch: `2.10.0+cpu`.
 
-## MoE-critical subset
+## Coverage
 
-- Total: **47**
-- Fully supported (static): **35** (74.47%)
-- Partial: **7**
-- Unsupported: **5**
+| Evidence | Count | % of fixed denominator |
+| --- | ---: | ---: |
+| frontend_recognized | 95 | 89.62% |
+| registered_lowering | 95 | 89.62% |
+| alias_candidate | 4 | 3.77% |
+| unmapped | 7 | 6.6% |
+| known_limited | 17 | 16.04% |
+| validated_for_profile | 0 | 0.0% |
 
-## Unsupported operators
+Live validation: **not measured**. Confirmed end-to-end numerator: **0**.
+Operators without an input contract: **82**.
+A completed run is not the 90% gate; use `--mode live --min-coverage 90` for that gate.
 
-| ATen | Family | Notes |
-| --- | --- | --- |
-| `argsort.default` | moe_critical | No DynamoCompiler._ops_map entry. |
-| `index_add.default` | moe_critical | No DynamoCompiler._ops_map entry. |
-| `index_copy.default` | moe_critical | No DynamoCompiler._ops_map entry. |
-| `one_hot.default` | moe_critical | No DynamoCompiler._ops_map entry. |
-| `bincount.default` | moe_critical | No DynamoCompiler._ops_map entry. |
-| `pixel_shuffle.default` | vision_transformer_extra | No DynamoCompiler._ops_map entry. |
-| `pixel_unshuffle.default` | vision_transformer_extra | No DynamoCompiler._ops_map entry. |
+MoE: **0/47** validated for profile (0.0%); **12** known limited.
 
-## Partial / limited operators
+## Execution evidence
 
-| ATen | Buddy op | Dialects | Limitation |
-| --- | --- | --- | --- |
-| `reshape.default` | `ViewOp` | tosa, linalg, ttir | FX often emits view.default; tracked via decomp_aliases. |
-| `_scaled_dot_product_flash_attention_for_cpu.default` | `ScaledDotProductFlashAttentionForCpuOp` | tosa | CPU flash path; GPU/other backends may differ. |
-| `index.Tensor` | `IndexOp` | linalg, ttir_llm | Advanced indexing / None / boolean masks may be partial. |
-| `fill_cache.default` | `FillCacheOp` | ttir_llm | Buddy KV-cache helper; not a generic ATen public op. |
-| `update_cache.default` | `UpdateCacheOp` | ttir_llm | Buddy KV-cache helper; not a generic ATen public op. |
-| `contiguous.default` | `CloneOp` | tosa, linalg, ttir_llm | Often elided; treated as alias of clone.default when present. |
-| `topk.default` | `TopkOp` | linalg | Often shape/k-attr limited; validate expert routing sizes. |
-| `softmax.default` | `SoftmaxOp` | linalg, ttir_llm | FX often emits _softmax.default; tracked via decomp_aliases. |
-| `index_put.default` | `IndexPutOp` | linalg, ttir_llm | Accumulate / advanced indexing may be partial. |
-| `scatter.reduce` | `ScatterReduceOp` | linalg | Reduce mode / dtype coverage may be partial. |
-| `scatter_reduce.two` | `ScatterReduceOp` | linalg | Reduce mode / dtype coverage may be partial. |
-| `pad.default` | `ConstantPadNdOp` | tosa | Often lowers via constant_pad_nd; tracked via decomp_aliases. |
+| Stage | Passed cases |
+| --- | ---: |
+| exported | 0 |
+| imported | 0 |
+| lowered | 0 |
+| compiled | 0 |
+| executed | 0 |
+| correctness | 0 |
 
-## Frontend-only (mapped, no lowering found)
+Case outcomes: `{"blocked": 0, "failed": 0, "passed": 0, "skipped": 0, "timeout": 0}`
 
-_None._
+## Operator details
 
-## Follow-ups
+| Operator | Source evidence | Required/passed cases | Validated | Limitation / alias candidates |
+| --- | --- | ---: | --- | --- |
+| `aten::mm.default` | registered_lowering | 3/0 | False |  |
+| `aten::bmm.default` | registered_lowering | 3/0 | False |  |
+| `aten::addmm.default` | registered_lowering | 3/0 | False |  |
+| `aten::baddbmm.default` | registered_lowering | 0/0 | False |  |
+| `aten::add.Tensor` | registered_lowering | 3/0 | False |  |
+| `aten::mul.Tensor` | registered_lowering | 3/0 | False |  |
+| `aten::div.Tensor` | registered_lowering | 0/0 | False |  |
+| `aten::sub.Tensor` | registered_lowering | 0/0 | False |  |
+| `aten::neg.default` | registered_lowering | 0/0 | False |  |
+| `aten::pow.Tensor_Scalar` | registered_lowering | 0/0 | False |  |
+| `aten::rsqrt.default` | registered_lowering | 0/0 | False |  |
+| `aten::sqrt.default` | registered_lowering | 0/0 | False |  |
+| `aten::exp.default` | registered_lowering | 0/0 | False |  |
+| `aten::silu.default` | registered_lowering | 3/0 | False |  |
+| `aten::gelu.default` | registered_lowering | 3/0 | False |  |
+| `aten::relu.default` | registered_lowering | 0/0 | False |  |
+| `aten::sigmoid.default` | registered_lowering | 0/0 | False |  |
+| `aten::tanh.default` | registered_lowering | 0/0 | False |  |
+| `aten::_softmax.default` | registered_lowering | 3/0 | False |  |
+| `aten::native_layer_norm.default` | registered_lowering | 3/0 | False |  |
+| `aten::mean.dim` | registered_lowering | 0/0 | False |  |
+| `aten::sum.dim_IntList` | registered_lowering | 3/0 | False |  |
+| `aten::amax.default` | registered_lowering | 0/0 | False |  |
+| `aten::embedding.default` | registered_lowering | 0/0 | False |  |
+| `aten::cat.default` | registered_lowering | 0/0 | False |  |
+| `aten::stack.default` | registered_lowering | 0/0 | False |  |
+| `aten::slice.Tensor` | registered_lowering | 0/0 | False |  |
+| `aten::select.int` | registered_lowering | 0/0 | False |  |
+| `aten::view.default` | registered_lowering | 3/0 | False |  |
+| `aten::reshape.default` | alias_candidate | 3/0 | False | Configured contiguous cases pass through AOT ViewOp. Non-contiguous reshape semantics remain untested. |
+| `aten::transpose.int` | registered_lowering | 0/0 | False |  |
+| `aten::permute.default` | registered_lowering | 0/0 | False |  |
+| `aten::unsqueeze.default` | registered_lowering | 0/0 | False |  |
+| `aten::squeeze.dim` | registered_lowering | 0/0 | False |  |
+| `aten::expand.default` | registered_lowering | 0/0 | False |  |
+| `aten::repeat.default` | registered_lowering | 0/0 | False |  |
+| `aten::clone.default` | registered_lowering | 0/0 | False |  |
+| `aten::_to_copy.default` | registered_lowering | 0/0 | False |  |
+| `prims::convert_element_type.default` | registered_lowering | 3/0 | False |  |
+| `aten::where.self` | registered_lowering | 0/0 | False |  |
+| `aten::masked_fill.Scalar` | registered_lowering | 0/0 | False |  |
+| `aten::arange.start` | registered_lowering | 0/0 | False |  |
+| `aten::arange.start_step` | registered_lowering | 0/0 | False |  |
+| `aten::ones.default` | registered_lowering | 0/0 | False |  |
+| `aten::zeros.default` | registered_lowering | 0/0 | False |  |
+| `aten::full.default` | registered_lowering | 0/0 | False |  |
+| `aten::scalar_tensor.default` | registered_lowering | 0/0 | False |  |
+| `aten::_scaled_dot_product_flash_attention_for_cpu.default` | registered_lowering | 0/0 | False | tosa.py:scaled_dot_product_flash_attention_for_cpu_op asserts dropout_p == 0 for explicit dropout arguments. |
+| `aten::index.Tensor` | registered_lowering | 0/0 | False | Review pending: Advanced indexing / None / boolean masks may be partial. |
+| `aten::index_select.default` | registered_lowering | 3/0 | False |  |
+| `aten::gather.default` | registered_lowering | 3/0 | False |  |
+| `aten::scatter_add.default` | registered_lowering | 3/0 | False |  |
+| `aten::slice_scatter.default` | registered_lowering | 0/0 | False |  |
+| `aten::cumsum.default` | registered_lowering | 0/0 | False |  |
+| `aten::eq.Scalar` | registered_lowering | 0/0 | False |  |
+| `aten::eq.Tensor` | registered_lowering | 0/0 | False |  |
+| `aten::ne.Scalar` | registered_lowering | 0/0 | False |  |
+| `aten::gt.Scalar` | registered_lowering | 0/0 | False |  |
+| `aten::lt.Scalar` | registered_lowering | 0/0 | False |  |
+| `aten::le.Scalar` | registered_lowering | 0/0 | False |  |
+| `aten::ge.Scalar` | registered_lowering | 0/0 | False |  |
+| `aten::maximum.default` | registered_lowering | 0/0 | False |  |
+| `aten::minimum.default` | registered_lowering | 0/0 | False |  |
+| `aten::clamp.default` | registered_lowering | 0/0 | False |  |
+| `aten::split.Tensor` | registered_lowering | 0/0 | False |  |
+| `aten::split_with_sizes.default` | registered_lowering | 0/0 | False |  |
+| `aten::unbind.int` | registered_lowering | 0/0 | False |  |
+| `aten::contiguous.default` | alias_candidate | 0/0 | False | Review pending: May be elided or cloned depending on strides; requires layout-specific cases. |
+| `aten::copy.default` | registered_lowering | 0/0 | False |  |
+| `aten::lift_fresh_copy.default` | registered_lowering | 0/0 | False |  |
+| `aten::topk.default` | registered_lowering | 3/0 | False | linalg.py:topk_op requires static shapes and a static integer k; complex types are rejected. |
+| `aten::softmax.int` | alias_candidate | 3/0 | False | Configured last-dimension cases pass through AOT SoftmaxOp. Other dimensions and optional output dtype remain untested. |
+| `aten::argsort.default` | unmapped | 3/0 | False | Configured default-attribute cases pass through AOT SortOp. Other dimensions, descending order and non-contiguous inputs remain untested. |
+| `aten::sort.default` | registered_lowering | 3/0 | False |  |
+| `aten::argmax.default` | registered_lowering | 0/0 | False |  |
+| `aten::argmin.default` | registered_lowering | 0/0 | False |  |
+| `aten::_unsafe_index.Tensor` | registered_lowering | 0/0 | False |  |
+| `aten::index_put.default` | registered_lowering | 0/0 | False | Review pending: Accumulate / advanced indexing may be partial. |
+| `aten::index_add.default` | unmapped | 3/0 | False | The cpu-export-v1 cases fail during Buddy import with KeyError: index_add.default. |
+| `aten::index_copy.default` | unmapped | 3/0 | False | The cpu-export-v1 cases fail during Buddy import with KeyError: index_copy.default. |
+| `aten::scatter.src` | registered_lowering | 0/0 | False |  |
+| `aten::scatter.value` | registered_lowering | 0/0 | False |  |
+| `aten::scatter.reduce` | registered_lowering | 0/0 | False | Review pending: Reduce mode / dtype coverage may be partial. |
+| `aten::scatter.value_reduce` | registered_lowering | 0/0 | False |  |
+| `aten::scatter_reduce.two` | registered_lowering | 0/0 | False | Review pending: Reduce mode / dtype coverage may be partial. |
+| `aten::masked_scatter.default` | registered_lowering | 0/0 | False |  |
+| `aten::masked_select.default` | registered_lowering | 0/0 | False |  |
+| `aten::nonzero.default` | registered_lowering | 0/0 | False |  |
+| `aten::nonzero_static.default` | registered_lowering | 0/0 | False |  |
+| `aten::one_hot.default` | unmapped | 3/0 | False | Configured explicit-num_classes=4 cases pass through AOT decomposition after the bool-to-integer copy fix. Inferred class counts, empty inputs and invalid indices remain untested. |
+| `aten::bincount.default` | unmapped | 3/0 | False | The cpu-export-v1 cases fail during AOT import with DynamicOutputShapeException; minlength does not fix the data-dependent output extent. |
+| `aten::cumprod.default` | registered_lowering | 0/0 | False |  |
+| `aten::repeat_interleave.self_int` | registered_lowering | 0/0 | False |  |
+| `aten::repeat_interleave.Tensor` | registered_lowering | 0/0 | False |  |
+| `aten::convolution.default` | registered_lowering | 0/0 | False |  |
+| `aten::avg_pool2d.default` | registered_lowering | 0/0 | False |  |
+| `aten::_adaptive_avg_pool2d.default` | registered_lowering | 0/0 | False |  |
+| `aten::max_pool2d_with_indices.default` | registered_lowering | 0/0 | False |  |
+| `aten::upsample_bilinear2d.vec` | registered_lowering | 0/0 | False |  |
+| `aten::upsample_nearest2d.vec` | registered_lowering | 0/0 | False |  |
+| `aten::grid_sampler_2d.default` | registered_lowering | 0/0 | False |  |
+| `aten::pad.default` | alias_candidate | 0/0 | False | Review pending: General padding modes are not established by a constant_pad_nd mapping. |
+| `aten::constant_pad_nd.default` | registered_lowering | 0/0 | False |  |
+| `aten::reflection_pad2d.default` | registered_lowering | 0/0 | False |  |
+| `aten::pixel_shuffle.default` | unmapped | 0/0 | False | Review pending: Vision path; may be unsupported. |
+| `aten::pixel_unshuffle.default` | unmapped | 0/0 | False | Review pending: Vision path; may be unsupported. |
 
-1. Enable live compile and numerical checks in CI.
-2. Expand the target set from MoE / Transformer workload traces.
-3. Add regression tests for high-priority unsupported MoE ops.
+## Remaining work
+
+- Validate all configured cases on a built Buddy CPU runtime; retain native failures and timeouts.
+- Add input contracts for untested operators; expand shapes, dtypes and attributes with regression tests.
+- Prioritize MoE workload blockers; review trace-derived additions as a new target-set version.

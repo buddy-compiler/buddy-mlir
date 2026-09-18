@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import ast
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -41,7 +42,9 @@ def _name_of(node: ast.AST) -> str | None:
 
 def parse_ops_map(frontend_py: Path) -> dict[str, str]:
     """Return aten_symbol -> BuddyOpClassName from DynamoCompiler._ops_map."""
-    tree = ast.parse(frontend_py.read_text(encoding="utf-8"), filename=str(frontend_py))
+    tree = ast.parse(
+        frontend_py.read_text(encoding="utf-8"), filename=str(frontend_py)
+    )
     ops_map: dict[str, str] = {}
 
     for node in ast.walk(tree):
@@ -98,7 +101,14 @@ def parse_ops_registry_file(path: Path) -> dict[str, str]:
 def parse_all_registries(ops_dir: Path) -> dict[str, dict[str, str]]:
     """Return dialect -> {BuddyOpClassName -> lowering_fn}."""
     dialects: dict[str, dict[str, str]] = {}
-    for name in ("tosa.py", "linalg.py", "math.py", "func.py", "ttir.py", "ttir_llm.py"):
+    for name in (
+        "tosa.py",
+        "linalg.py",
+        "math.py",
+        "func.py",
+        "ttir.py",
+        "ttir_llm.py",
+    ):
         path = ops_dir / name
         if not path.exists():
             continue
@@ -108,7 +118,9 @@ def parse_all_registries(ops_dir: Path) -> dict[str, dict[str, str]]:
     return dialects
 
 
-def merge_registry_keys(dialects: dict[str, dict[str, str]]) -> dict[str, list[str]]:
+def merge_registry_keys(
+    dialects: dict[str, dict[str, str]],
+) -> dict[str, list[str]]:
     """BuddyOpClassName -> dialects that register a lowering."""
     merged: dict[str, list[str]] = {}
     for dialect, registry in dialects.items():
@@ -118,7 +130,40 @@ def merge_registry_keys(dialects: dict[str, dict[str, str]]) -> dict[str, list[s
 
 
 def load_target_op_set(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
+    target = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(target, dict) or not all(
+        target.get(key) for key in ("name", "version", "families")
+    ):
+        raise ValueError("Target set needs name, version and nonempty families")
+    if not isinstance(target["families"], dict):
+        raise ValueError("families must be an object")
+    for meta in target["families"].values():
+        if not isinstance(meta, dict) or not isinstance(meta.get("ops"), list):
+            raise ValueError("Each family needs an ops list")
+        if not all(isinstance(op, str) for op in meta["ops"]):
+            raise ValueError("Operator identities must be strings")
+    rows = flatten_target_ops(target)
+    if not rows:
+        raise ValueError("Target set must contain operators")
+    valid = re.compile(r"^(aten|prims)::[A-Za-z_][A-Za-z_0-9]*\.[A-Za-z_0-9]+$")
+    for row in rows:
+        if not valid.fullmatch(row["operator"]):
+            raise ValueError(f"Use namespace::op.overload: {row['operator']}")
+    keys = {r["operator"] for r in rows}
+    for field in ("known_partial_or_limited", "decomp_aliases", "schemas"):
+        if not isinstance(target.get(field, {}), dict):
+            raise ValueError(f"{field} must be an object")
+        if set(target.get(field, {})) - keys:
+            raise ValueError(f"{field} contains keys outside the denominator")
+    for aliases in target.get("decomp_aliases", {}).values():
+        if not isinstance(aliases, list) or not all(
+            isinstance(alias, str) and valid.fullmatch(alias)
+            for alias in aliases
+        ):
+            raise ValueError(
+                "Alias candidates must be qualified operator lists"
+            )
+    return target
 
 
 def flatten_target_ops(target: dict[str, Any]) -> list[dict[str, Any]]:
@@ -134,7 +179,4 @@ def flatten_target_ops(target: dict[str, Any]) -> list[dict[str, Any]]:
                 all_families[op] = [family]
             elif family not in all_families[op]:
                 all_families[op].append(family)
-    return [
-        {"aten": op, "family": first_family[op], "families": all_families[op]}
-        for op in order
-    ]
+    return [{"operator": op, "families": all_families[op]} for op in order]

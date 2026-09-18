@@ -1,152 +1,115 @@
-"""Classify target ATen ops into Buddy-MLIR coverage buckets."""
+"""Keep source evidence independent from execution results."""
 
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from typing import Any, Literal
+from typing import Any
 
-Status = Literal[
-    "fully_supported_static",
-    "frontend_only",
-    "partial",
-    "unsupported",
-    "live_passed",
-    "live_failed",
-    "live_skipped",
-]
+STAGES = (
+    "exported",
+    "imported",
+    "lowered",
+    "compiled",
+    "executed",
+    "correctness",
+)
 
 
 @dataclass
 class OpCoverageRecord:
-    aten: str
-    family: str
-    families: list[str] = field(default_factory=list)
+    operator: str
+    families: list[str]
     pytorch_schema: str | None = None
     buddy_op: str | None = None
     frontend_recognized: bool = False
-    has_buddy_lowering: bool = False
     lowering_dialects: list[str] = field(default_factory=list)
-    lowered: str = "not_run"
-    compiled: str = "not_run"
-    correctness: str = "not_run"
-    status: Status = "unsupported"
+    alias_candidates: list[str] = field(default_factory=list)
+    static_status: str = "unmapped"
     known_limitations: str | None = None
-    notes: str = ""
-    live_error: str | None = None
+    required_cases: list[str] = field(default_factory=list)
+    cases: list[dict[str, Any]] = field(default_factory=list)
+
+    def validated(self) -> bool:
+        # Missing cases and known limitations keep the op out of the numerator.
+        if not self.required_cases or self.known_limitations:
+            return False
+        by_id = {case["case_id"]: case for case in self.cases}
+        if len(by_id) != len(self.cases):
+            return False
+        return all(
+            case_id in by_id
+            and by_id[case_id].get("status") == "passed"
+            and all(by_id[case_id].get(s) == "passed" for s in STAGES)
+            for case_id in self.required_cases
+        )
 
     def to_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        return {**asdict(self), "validated_for_profile": self.validated()}
 
 
-def classify_static(
-    aten: str,
-    family: str,
-    ops_map: dict[str, str],
-    lowering_by_op: dict[str, list[str]],
-    known_partial: dict[str, str],
-    decomp_aliases: dict[str, list[str]] | None = None,
-    families: list[str] | None = None,
-) -> OpCoverageRecord:
-    buddy_op = ops_map.get(aten)
-    frontend = buddy_op is not None
-    dialects = lowering_by_op.get(buddy_op or "", [])
-    has_lowering = bool(dialects)
-    limitation = known_partial.get(aten)
-    aliases = (decomp_aliases or {}).get(aten, [])
-    alias_hits = [alias for alias in aliases if alias in ops_map]
-
-    if not frontend and alias_hits:
-        alias = alias_hits[0]
-        buddy_op = ops_map[alias]
-        dialects = lowering_by_op.get(buddy_op or "", [])
-        has_lowering = bool(dialects)
-        status: Status = "partial"
-        notes = (
-            f"No direct _ops_map entry; covered via decomp/alias "
-            f"`{alias}` → `{buddy_op}`."
-        )
-        limitation = limitation or f"Alias/decomp of {alias}"
-        frontend = True
-    elif not frontend:
-        status = "unsupported"
-        notes = "No DynamoCompiler._ops_map entry."
-    elif not has_lowering:
+def classify_static(row, ops_map, lowering_by_op, target):
+    operator = row["operator"]
+    # Buddy's map currently drops the namespace. Preserve it in our identity.
+    key = operator.split("::", 1)[1]
+    buddy_op = ops_map.get(key)
+    dialects = lowering_by_op.get(buddy_op, [])
+    aliases = [
+        alias
+        for alias in target.get("decomp_aliases", {}).get(operator, [])
+        if alias.split("::", 1)[1] in ops_map
+    ]
+    limitation = target.get("known_partial_or_limited", {}).get(operator)
+    if buddy_op and dialects:
+        status = "registered_lowering"
+    elif buddy_op:
         status = "frontend_only"
-        notes = (
-            f"Mapped to {buddy_op}, but no ops_registry lowering found "
-            "in tosa/linalg/math/func/ttir."
-        )
-    elif limitation:
-        status = "partial"
-        notes = "Frontend + lowering present; flagged as limited in the target set."
+    elif aliases:
+        status = "alias_candidate"
     else:
-        status = "fully_supported_static"
-        notes = "Frontend map + at least one dialect lowering (static only)."
-
+        status = "unmapped"
     return OpCoverageRecord(
-        aten=aten,
-        family=family,
-        families=list(families or [family]),
-        pytorch_schema=f"aten::{aten}",
+        operator=operator,
+        families=row["families"],
+        pytorch_schema=target.get("schemas", {}).get(operator),
         buddy_op=buddy_op,
-        frontend_recognized=frontend,
-        has_buddy_lowering=has_lowering,
+        frontend_recognized=buddy_op is not None,
         lowering_dialects=dialects,
-        status=status,
+        alias_candidates=aliases,
+        static_status=status,
         known_limitations=limitation,
-        notes=notes,
     )
 
 
 def summarize(records: list[OpCoverageRecord]) -> dict[str, Any]:
     total = len(records)
-    by_status: dict[str, int] = {}
-    for record in records:
-        by_status[record.status] = by_status.get(record.status, 0) + 1
-
-    def pct(n: int) -> float:
-        return round(100.0 * n / total, 2) if total else 0.0
-
-    frontend_n = sum(1 for r in records if r.frontend_recognized)
-    lowering_n = sum(1 for r in records if r.has_buddy_lowering)
-    static_full = sum(1 for r in records if r.status == "fully_supported_static")
-    partial_n = sum(1 for r in records if r.status == "partial")
-    unsupported_n = sum(1 for r in records if r.status == "unsupported")
-    frontend_only_n = sum(1 for r in records if r.status == "frontend_only")
-
-    moe = [r for r in records if "moe_critical" in (r.families or [r.family])]
-    moe_total = len(moe)
-    moe_static_full = sum(1 for r in moe if r.status == "fully_supported_static")
-    moe_partial = sum(1 for r in moe if r.status == "partial")
-    moe_unsupported = sum(1 for r in moe if r.status == "unsupported")
-
-    def moe_pct(n: int) -> float:
-        return round(100.0 * n / moe_total, 2) if moe_total else 0.0
-
-    return {
-        "denominator": "Buddy Target Op Set v0 (unique aten keys)",
-        "total_ops": total,
-        "frontend_recognized": frontend_n,
-        "frontend_recognized_pct": pct(frontend_n),
-        "has_buddy_lowering": lowering_n,
-        "has_buddy_lowering_pct": pct(lowering_n),
-        "fully_supported_static": static_full,
-        "fully_supported_static_pct": pct(static_full),
-        "partial": partial_n,
-        "partial_pct": pct(partial_n),
-        "frontend_only": frontend_only_n,
-        "unsupported": unsupported_n,
-        "unsupported_pct": pct(unsupported_n),
-        "by_status": by_status,
-        "moe_critical": {
-            "total": moe_total,
-            "fully_supported_static": moe_static_full,
-            "fully_supported_static_pct": moe_pct(moe_static_full),
-            "partial": moe_partial,
-            "unsupported": moe_unsupported,
-        },
-        "disclaimer": (
-            "fully_supported_static is not live compile/correctness coverage. "
-            "Do not claim issue #911 90% until live measurements are available."
-        ),
+    counts = {
+        "frontend_recognized": sum(r.frontend_recognized for r in records),
+        "registered_lowering": sum(bool(r.lowering_dialects) for r in records),
+        "alias_candidate": sum(bool(r.alias_candidates) for r in records),
+        "unmapped": sum(r.static_status == "unmapped" for r in records),
+        "known_limited": sum(bool(r.known_limitations) for r in records),
+        "validated_for_profile": sum(r.validated() for r in records),
     }
+    cases = [c for r in records for c in r.cases]
+    result = {
+        "total_ops": total,
+        **counts,
+        "percentages": {
+            k: round(100 * v / total, 2) if total else 0.0
+            for k, v in counts.items()
+        },
+        "case_counts": {
+            status: sum(c.get("status") == status for c in cases)
+            for status in ("passed", "failed", "skipped", "blocked", "timeout")
+        },
+        "stage_passed_cases": {
+            stage: sum(c.get(stage) == "passed" for c in cases)
+            for stage in STAGES
+        },
+        "required_case_count": sum(len(r.required_cases) for r in records),
+        "operators_without_cases": sum(not r.required_cases for r in records),
+    }
+    moe = [r for r in records if "moe_critical" in r.families]
+    if moe and len(moe) != total:
+        result["moe_critical"] = summarize(moe)
+    return result

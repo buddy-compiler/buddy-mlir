@@ -1,91 +1,125 @@
-# PyTorch Operator Coverage
+# PyTorch operator coverage
 
-This document describes how Buddy-MLIR measures PyTorch operator coverage
-along the compilation path used by the Python frontend
-([issue #911](https://github.com/buddy-compiler/buddy-mlir/issues/911)).
+This internal evaluation tool checks which PyTorch operators Buddy-MLIR can
+recognize, lower, compile and execute correctly. It reports source evidence
+separately from measured results; registration alone does not establish support.
 
-## Compilation path
+## Run
 
-```text
-PyTorch module / function
-  → TorchDynamo (+ optional AOTAutograd / Inductor decompositions)
-  → FX graph (ATen / Prim symbols)
-  → DynamoCompiler._ops_map  (frontend recognition)
-  → Buddy Graph
-  → ops_registry lowering (tosa / linalg / math / func / ttir)
-  → top-level MLIR
-  → compile / run  (optional correctness check vs PyTorch)
-```
-
-Relevant sources:
-
-| Stage | Location |
-| --- | --- |
-| Frontend map | `frontend/Python/frontend.py` (`DynamoCompiler._ops_map`) |
-| Graph ops | `frontend/Python/graph/operation.py` |
-| Lowerings | `frontend/Python/ops/*.py` |
-| Coverage scripts | `scripts/pytorch_op_coverage/` |
-
-A frontend mapping alone does **not** count as full support.
-
-## Coverage levels
-
-| Level | Meaning |
-| --- | --- |
-| Frontend-recognized | ATen overload key is present in `_ops_map` |
-| Lowered | Buddy Graph op has an `ops_registry` entry (static), or `lower_to_top_level_ir()` succeeds (live) |
-| Compiled | Module compiles through the Buddy pipeline |
-| Correctness-validated | Output matches PyTorch on probe inputs |
-| Unsupported | Missing from `_ops_map` for the target key |
-| Partial / limited | Mapped and lowered, but known limits on attrs, shapes, or dtypes |
-
-For the issue **90%+** target, an operator should count as fully supported only when it is
-frontend-recognized, lowered, compiled, and correctness-validated.
-Partial operators are reported separately and are not counted in that numerator.
-
-## Target operator set (denominator)
-
-Coverage percentage is always relative to a named set:
-
-- **Name:** Buddy Target Op Set v0
-- **File:** `scripts/pytorch_op_coverage/data/target_ops_v0.json`
-
-v0 seeds common dense-Transformer ATen symbols plus MoE-critical routing / dispatch /
-index / scatter-gather ops. Expand the set from real workload traces and bump the
-version (`v0.1`, `v1`, …) when the denominator changes.
-
-Static reports may publish `fully_supported_static` (frontend map + lowering found).
-That metric is **not** the same as the live 90% acceptance criterion.
-
-## MoE focus
-
-The MoE-critical subset prioritizes:
-
-- routing / gating (`topk`, `softmax`, comparisons)
-- expert dispatch / combine (`index*`, `gather`, `scatter*`, `masked_*`)
-- dynamic tensor ops (`nonzero`, `where`, `repeat_interleave`, splits)
-- expert GEMM and activations (`mm`, `bmm`, `addmm`, `silu`, `gelu`, …)
-
-## How to reproduce
-
-From the repository root, after the normal Buddy Python package build
-(`BUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON`):
+From the repository root, with Python 3.12 or later:
 
 ```bash
-# Static analysis (parses frontend sources; does not need a running Buddy build)
-python scripts/pytorch_op_coverage/run_coverage.py \
-  --out-dir scripts/pytorch_op_coverage/out
+# Source inspection; no PyTorch or Buddy build required.
+python scripts/pytorch_op_coverage/run_coverage.py
 
-# Live probes (requires torch + buddy.compiler on PYTHONPATH)
+# PyTorch 2.10.0: eager/export checks and Transformer/MoE block traces.
+python scripts/pytorch_op_coverage/run_coverage.py \
+  --mode trace --workloads --out-dir scripts/pytorch_op_coverage/out/trace
+
+# After building Buddy with BUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON:
 export PYTHONPATH=$PWD/build/python_packages:$PWD/llvm/build/tools/mlir/python_packages/mlir_core:$PYTHONPATH
-python scripts/pytorch_op_coverage/run_coverage.py --mode live \
-  --out-dir scripts/pytorch_op_coverage/out
+# For an out-of-tree LLVM build, also set LLVM_LIBS_DIR to its runtime library directory.
+python scripts/pytorch_op_coverage/run_coverage.py \
+  --mode live --workloads --min-coverage 90 --out-dir /tmp/buddy-coverage-live
 ```
 
-Outputs:
+Each run writes `pytorch_op_coverage.json` and `pytorch_op_coverage.md`.
+See the [live CPU snapshot](../scripts/pytorch_op_coverage/out/live/pytorch_op_coverage.md)
+for measured results and remaining failures.
+Keep separate output directories for static, trace and live measurements.
+Workers run in separate processes, with `--timeout 120` seconds per worker.
+Failures and timeouts retain the last recorded stage.
 
-- `pytorch_op_coverage.json` — machine-readable
-- `pytorch_op_coverage.md` — human-readable summary
+Exit **0** means the requested checks and any specified threshold passed.
+Exit **1** means a case/schema failure, timeout, source change during the run,
+or failed coverage threshold. Exit **2** means missing dependencies or invalid
+input. Skipped cases alone do not fail a run; they never count as validated.
+A successful static or trace command is not a successful live coverage gate.
 
-Live mode currently exercises a small seed probe set through import and
-`lower_to_top_level_ir`. Compile and numerical checks are the next iteration.
+## Read the report
+
+The target file `scripts/pytorch_op_coverage/data/target_ops_v1.json` defines
+**106** unique `namespace::operator.overload` identities and their real PyTorch
+2.10.0 schemas. Membership in multiple model families does not duplicate an
+operator in the overall denominator.
+
+The report keeps three kinds of evidence independent:
+
+- **Source:** direct frontend-map lookup, registered lowering dialects, candidate
+  aliases, and limitations/review flags. Registrations are a union of dialects,
+  not a claim that every dialect or the selected CPU path works.
+- **Cases:** export, import, lowering, compilation/JIT creation, execution and
+  numerical comparison, with input shapes, dtypes, strides and failure reasons.
+- **Workloads:** observed operators in representative blocks, including entries
+  outside the fixed target set. Workload success does not automatically credit
+  individual operators.
+
+`validated_for_profile` counts an operator only when **all required cases pass
+all execution stages**, with no retained limitation/review flag. Failed,
+skipped, untested and limited operators remain in the denominator. Evidence
+categories overlap; their counts should not be added together.
+
+The `cpu-export-v1` profile configures 24 operators with three cases each:
+two small float32 shapes and one float64 shape; integer-only operators retain
+integer inputs. Seed is 0. Floating outputs use rtol `1e-4` and atol `1e-5`;
+integer/bool outputs require exact equality. Output arity, order and dtype
+must match. Coverage applies only to the declared small contiguous CPU cases.
+
+The live path uses strict `torch.export`, Buddy `_compile_fx`, TOSA-priority
+registries and `dynamo_run()`, with external calls disabled and no user-supplied
+decomposition table. Buddy AOT functionalization may still rewrite operators;
+JSON records the resulting Buddy graph operation classes. An operator removed
+or rewritten during export is skipped. No eager result substitutes for JIT
+execution. Output flattening is reused from the existing ATen coverage runner;
+metadata-only passes and its skip list are not inherited.
+
+## Workloads and reproducibility
+
+`--workloads` adds an attention/residual/layer-normalization/MLP block and a
+four-expert, top-2 MoE block with dispatch, expert GEMMs and scatter-add combine.
+These small fixed-shape blocks do not establish full-model support. Inventory
+counts are maximum FX node counts across profiles, not runtime frequencies.
+Review outside-target operators before adding them in a new target-set version.
+
+Reports record source hashes, full Git revision and dirty state, runtime
+versions and input settings. Live mode checks the loaded Buddy Python sources
+against the inspected repository, ignoring line-ending differences and a
+wheel-generated package initializer. Native builds must also match the intended
+Buddy/LLVM revisions. Regenerate after source changes. The v1 migration
+removes two Buddy-specific cache helpers from v0's 108 entries and corrects the
+Prim namespace and softmax overload. The original v0 file is historical, not a
+runner input; its percentages are not directly comparable with v1. Retained v0
+review flags are conservative exclusions, not all confirmed restrictions.
+
+The live snapshot uses Linux x86-64, Python 3.12.3, NumPy 2.4.2 and
+PyTorch 2.10.0+cpu.
+Its native binaries come from the official
+[Buddy nightly v0.0.10.dev20260917](https://github.com/buddy-compiler/buddy-mlir/releases/tag/nightly/v0.0.10.dev20260917),
+at Buddy revision `669977354e8e47dc3d084e40c9317ef4dfccbaa7` and LLVM revision
+`2d26d272a0ff74b8c81eac0607b07f98b82ecc46`. The installed Python frontend includes
+the local boolean-to-integer `_to_copy` fix; its sources are checked against this
+checkout. This is a prebuilt-runtime measurement, not a clean native rebuild.
+
+## Verify and accept
+
+```bash
+python -m unittest discover -s scripts/pytorch_op_coverage -p 'test_*.py' -v
+```
+
+Standard-library tests check accounting and failure reporting. With PyTorch,
+the suite also checks export fixtures, an independent MoE reference and adapter
+stage handling using a fake backend. Fake-backend tests are not Buddy coverage.
+The core tests also run through the repository's Python lit suite. Apply the
+repository's pinned Ruff checks before submission.
+
+`tests/Python/JIT/to_copy_bool.py` separately exercises boolean-to-integer
+conversion and the one-hot decomposition through real CPU JIT execution.
+
+The static/trace reports establish source/export evidence only. The live report
+adds CPU JIT results, including failures; inspect its environment and source hash
+before comparing runs. Input contracts for the remaining 82 operators are pending.
+For a 90% gate on this 106-entry set, at least **96 operators** must qualify;
+review flags must be resolved with evidence, not removed to raise the score.
+Passing that numerical gate is only part of issue #911 acceptance: representative
+model execution, prioritized missing-operator implementations with correctness
+regressions, and reproducibility on a built Buddy runtime remain required.

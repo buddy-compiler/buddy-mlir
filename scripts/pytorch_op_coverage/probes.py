@@ -1,127 +1,177 @@
-"""Optional live DynamoCompiler probes for coverage measurement.
-
-Requires torch and buddy.compiler (Buddy built with
-BUDDY_MLIR_ENABLE_PYTHON_PACKAGES=ON, PYTHONPATH set). Without that stack,
-`run_coverage.py` should stay in static mode.
-"""
+"""Deterministic CPU cases; importing this module does not require PyTorch."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Callable
+PROFILES = {
+    "small-f32": {"rows": 4, "width": 8, "dtype": "float32"},
+    "rect-f32": {"rows": 3, "width": 5, "dtype": "float32"},
+    "small-f64": {"rows": 4, "width": 8, "dtype": "float64"},
+}
+OPERATORS = (
+    "aten::add.Tensor",
+    "aten::mul.Tensor",
+    "aten::mm.default",
+    "aten::bmm.default",
+    "aten::addmm.default",
+    "aten::silu.default",
+    "aten::gelu.default",
+    "aten::_softmax.default",
+    "aten::softmax.int",
+    "aten::topk.default",
+    "aten::gather.default",
+    "aten::scatter_add.default",
+    "aten::index_select.default",
+    "aten::index_add.default",
+    "aten::index_copy.default",
+    "aten::one_hot.default",
+    "aten::bincount.default",
+    "aten::sort.default",
+    "aten::argsort.default",
+    "aten::view.default",
+    "aten::reshape.default",
+    "aten::native_layer_norm.default",
+    "aten::sum.dim_IntList",
+    "prims::convert_element_type.default",
+)
+WORKLOADS = ("transformer_block", "moe_block")
 
 
-@dataclass
-class ProbeSpec:
-    aten: str
-    builder: Callable[[], tuple[Callable[..., Any], tuple[Any, ...]]]
-    note: str = ""
-
-
-def try_import_stack() -> tuple[bool, str]:
-    try:
-        import torch  # noqa: F401
-    except Exception as exc:
-        return False, f"torch unavailable: {exc}"
-    try:
-        from buddy.compiler.frontend import DynamoCompiler  # noqa: F401
-        from buddy.compiler.ops import tosa  # noqa: F401
-    except Exception as exc:
-        return False, f"buddy.compiler unavailable: {exc}"
-    return True, "ok"
-
-
-def seed_probes() -> dict[str, ProbeSpec]:
+def resolve_operator(name):
     import torch
 
-    def add():
-        def fn(x, y):
-            return x + y
+    namespace, key = name.split("::")
+    op, overload = key.rsplit(".", 1)
+    return getattr(getattr(getattr(torch.ops, namespace), op), overload)
 
-        return fn, (torch.randn(4, 4), torch.randn(4, 4))
 
-    def mm():
-        def fn(x, y):
-            return torch.mm(x, y)
+def build_case(name, profile):
+    import torch
 
-        return fn, (torch.randn(4, 4), torch.randn(4, 4))
+    config = PROFILES[profile]
+    n, d = config["rows"], config["width"]
+    dtype = getattr(torch, config["dtype"])
+    torch.manual_seed(0)
 
-    def topk():
-        def fn(x):
-            return torch.topk(x, k=2)
+    def rand(*shape):
+        return torch.randn(*shape, dtype=dtype)
 
-        return fn, (torch.randn(4, 8),)
+    x = rand(n, d)
+    if name in WORKLOADS:
+        return build_workload(name, x, rand)
+    op = resolve_operator(name)
+    fn = op
+    if name in ("aten::add.Tensor", "aten::mul.Tensor"):
+        args = (x, rand(n, d))
+    elif name == "aten::mm.default":
+        args = (x, rand(d, n + 1))
+    elif name == "aten::bmm.default":
+        args = (rand(2, n, d), rand(2, d, n + 1))
+    elif name == "aten::addmm.default":
+        args = (rand(n, n + 1), x, rand(d, n + 1))
+    elif name == "aten::_softmax.default":
+        fn, args = lambda a: op(a, -1, False), (x,)
+    elif name == "aten::softmax.int":
+        fn, args = lambda a: op(a, -1), (x,)
+    elif name == "aten::topk.default":
+        fn, args = lambda a: op(a, 2, -1, True, True), (x,)
+    elif name == "aten::gather.default":
 
-    def gather():
-        def fn(x, idx):
-            return torch.gather(x, 1, idx)
+        def fn(a, b):
+            return op(a, 1, b)
 
-        return fn, (torch.randn(2, 8), torch.randint(0, 8, (2, 3)))
+        args = (x, torch.randint(d, (n, 3)))
+    elif name == "aten::scatter_add.default":
 
-    def scatter_add():
-        def fn(x, idx, src):
-            return x.scatter_add(1, idx, src)
+        def fn(a, b, c):
+            return op(a, 1, b, c)
 
-        return fn, (
-            torch.zeros(2, 8),
-            torch.randint(0, 8, (2, 3)),
-            torch.randn(2, 3),
+        # Repeated indices exercise accumulation rather than only assignment.
+        args = (x, torch.zeros(n, 3, dtype=torch.int64), rand(n, 3))
+    elif name in (
+        "aten::index_select.default",
+        "aten::index_add.default",
+        "aten::index_copy.default",
+    ):
+        indices = torch.tensor([0, n - 1], dtype=torch.int64)
+        if name == "aten::index_select.default":
+            fn, args = lambda a, b: op(a, 0, b), (x, indices)
+        else:
+            fn, args = lambda a, b, c: op(a, 0, b, c), (x, indices, rand(2, d))
+    elif name == "aten::one_hot.default":
+        fn, args = lambda a: op(a, 4), (torch.tensor([0, 3, 1, 0]),)
+    elif name == "aten::bincount.default":
+        fn, args = lambda a: op(a, minlength=4), (torch.tensor([0, 3, 1, 0]),)
+    elif name in ("aten::view.default", "aten::reshape.default"):
+        fn, args = lambda a: op(a, [d, n]), (x,)
+    elif name == "aten::native_layer_norm.default":
+
+        def fn(a, w, b):
+            return op(a, [d], w, b, 1e-5)
+
+        args = (x, rand(d), rand(d))
+    elif name == "aten::sum.dim_IntList":
+        fn, args = lambda a: op(a, [-1], False), (x,)
+    elif name == "prims::convert_element_type.default":
+        fn, args = lambda a: op(a, torch.float64), (x,)
+    else:
+        args = (x,)
+    return as_module(fn), args
+
+
+def as_module(fn):
+    import torch
+
+    class CaseModule(torch.nn.Module):
+        def forward(self, *args):
+            return fn(*args)
+
+    return CaseModule().eval()
+
+
+def build_workload(name, x, rand):
+    import torch
+    import torch.nn.functional as functional
+
+    d = x.shape[-1]
+    if name == "transformer_block":
+
+        def forward(a, q, k, v, out, up, down, norm_w, norm_b):
+            scores = (a @ q) @ (a @ k).transpose(-1, -2) / (d**0.5)
+            attention = torch.softmax(scores, dim=-1) @ (a @ v)
+            residual = a + attention @ out
+            normalized = functional.layer_norm(residual, [d], norm_w, norm_b)
+            return residual + functional.gelu(normalized @ up) @ down
+
+        args = (
+            x,
+            rand(d, d),
+            rand(d, d),
+            rand(d, d),
+            rand(d, d),
+            rand(d, 2 * d),
+            rand(2 * d, d),
+            rand(d),
+            rand(d),
         )
+    else:
 
-    def silu():
-        def fn(x):
-            return torch.nn.functional.silu(x)
+        def forward(a, gate, up, down):
+            weights, experts = torch.topk(torch.softmax(a @ gate, -1), 2, -1)
+            weights = weights / weights.sum(-1, keepdim=True)
+            token_ids = (
+                torch.arange(a.shape[0]).unsqueeze(1).expand(-1, 2).reshape(-1)
+            )
+            dispatched = a.index_select(0, token_ids)
+            selected_up = up.index_select(0, experts.reshape(-1))
+            selected_down = down.index_select(0, experts.reshape(-1))
+            hidden = functional.silu(
+                torch.bmm(dispatched.unsqueeze(1), selected_up)
+            )
+            expert_out = torch.bmm(hidden, selected_down).squeeze(1)
+            weighted = expert_out * weights.reshape(-1, 1)
+            return torch.zeros_like(a).scatter_add(
+                0, token_ids[:, None].expand(-1, d), weighted
+            )
 
-        return fn, (torch.randn(4, 8),)
-
-    def softmax():
-        def fn(x):
-            return torch.nn.functional.softmax(x, dim=-1)
-
-        return fn, (torch.randn(4, 8),)
-
-    return {
-        "add.Tensor": ProbeSpec("add.Tensor", add),
-        "mm.default": ProbeSpec("mm.default", mm),
-        "topk.default": ProbeSpec("topk.default", topk, "MoE routing"),
-        "gather.default": ProbeSpec("gather.default", gather, "MoE dispatch"),
-        "scatter_add.default": ProbeSpec(
-            "scatter_add.default", scatter_add, "MoE combine"
-        ),
-        "silu.default": ProbeSpec("silu.default", silu),
-        "_softmax.default": ProbeSpec("_softmax.default", softmax),
-    }
-
-
-def run_live_probe(aten: str, probe: ProbeSpec) -> dict[str, Any]:
-    """Import and lower one probe. Compile/correctness are left for follow-up."""
-    from torch._inductor.decomposition import decompositions as inductor_decomp
-
-    from buddy.compiler.frontend import DynamoCompiler
-    from buddy.compiler.ops import tosa
-
-    result: dict[str, Any] = {
-        "lowered": "no",
-        "compiled": "not_run",
-        "correctness": "not_run",
-        "error": None,
-    }
-    try:
-        fn, args = probe.builder()
-        compiler = DynamoCompiler(
-            primary_registry=tosa.ops_registry,
-            aot_autograd_decomposition=inductor_decomp,
-        )
-        graphs = compiler.importer(fn, *args)
-        if not graphs:
-            result["error"] = "importer returned no graphs"
-            return result
-        graphs[0].lower_to_top_level_ir()
-        result["lowered"] = "yes"
-        result["note"] = (
-            "Lowered to top-level MLIR; compile/correctness not wired yet."
-        )
-    except Exception as exc:
-        result["error"] = f"{type(exc).__name__}: {exc}"
-        result["lowered"] = "error"
-    return result
+        args = (x, rand(d, 4), rand(4, d, 2 * d), rand(4, 2 * d, d))
+    return as_module(forward), args
