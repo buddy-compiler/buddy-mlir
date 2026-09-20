@@ -1034,17 +1034,28 @@ public:
     size_t dimIPaded = (dimI / dim + (dimI % dim != 0)) * dim;
     size_t dimJPaded = (dimJ / dim + (dimJ % dim != 0)) * dim;
     size_t dimKPaded = (dimK / dim + (dimK % dim != 0)) * dim;
-    size_t maxSpadRows = BANK_NUM * bankRows / 2;
-    size_t maxAccRows = accRows / 2;
+    int dataflow = tileMatMulOp.getDataflow();
+    // As in gemmini.h: only the WS path (loop_ws) is double-buffered by the
+    // hardware, so only it keeps half of the scratchpad and accumulator free.
+    // The OS path issues its own mvin/compute/mvout and can use all of them.
+    const bool doubleBuffered = dataflow == WEIGHT_STATIONARY;
+    size_t maxSpadRows =
+        doubleBuffered ? BANK_NUM * bankRows / 2 : BANK_NUM * bankRows;
+    size_t maxAccRows = doubleBuffered ? accRows / 2 : accRows;
+    size_t maxTileIJ =
+        doubleBuffered ? dbMaxTileIJ : (size_t)sqrt(accRows / dim);
+    size_t maxTileK = doubleBuffered
+                          ? dbMaxTileK
+                          : ((BANK_NUM * bankRows / 2) / dim) / maxTileIJ;
     size_t tileI, tileJ, tileK;
     if (act == LAYERNORM || act == SOFTMAX) {
       tileI = 1;
       tileJ = dimJPaded / dim;
       tileK = 1;
     } else {
-      tileI = dimIPaded / dim < dbMaxTileIJ ? dimIPaded / dim : dbMaxTileIJ;
-      tileJ = dimJPaded / dim < dbMaxTileIJ ? dimJPaded / dim : dbMaxTileIJ;
-      tileK = dimKPaded / dim < dbMaxTileK ? dimKPaded / dim : dbMaxTileK;
+      tileI = dimIPaded / dim < maxTileIJ ? dimIPaded / dim : maxTileIJ;
+      tileJ = dimJPaded / dim < maxTileIJ ? dimJPaded / dim : maxTileIJ;
+      tileK = dimKPaded / dim < maxTileK ? dimKPaded / dim : maxTileK;
     }
     while (true) {
       bool increased = false;
@@ -1071,7 +1082,6 @@ public:
       if (!increased)
         break;
     }
-    int dataflow = tileMatMulOp.getDataflow();
 
     tiledMatmulOuter(dimI, dimJ, dimK, aArrayindexCastOp, bArrayindexCastOp,
                      dArrayindexCastOp, cArrayindexCastOp, strideA, strideB,
