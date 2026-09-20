@@ -1383,7 +1383,7 @@ def gen_impl(config: dict) -> str:
     p("  cachePosition_->getData()[0] = (long long)position_;")
     p()
     p("  auto &state = impl_->decodeStateAbi;")
-    p("  auto &result = impl_->decodeResultAbi;")
+    p("  auto &result = impl_->decodeStateAbi;")
     p(f"  for (int i = 0; i < {dummy_groups}; ++i)")
     p("    state.dummy(i).getData()[0] = (long long)position_;")
 
@@ -1417,36 +1417,6 @@ def gen_impl(config: dict) -> str:
     if line.strip():
         p(line)
 
-    p()
-    p("  if (result.logits().getData() != state.logits().getData())")
-    p("    std::memcpy(state.logits().getData(), result.logits().getData(),")
-    p(f"                (uint64_t)cfg_.vocabSize * {logits_sizeof});")
-    p("  const uint64_t elemsPerLayer =")
-    p("      (uint64_t)cfg_.headNum * cfg_.maxTokenLen * cfg_.hiddenSize;")
-    p("  for (int i = 0; i < cfg_.kvLayers; ++i) {")
-    p("    if (result.kv(i).getData() != state.kv(i).getData())")
-    p("      std::memcpy(state.kv(i).getData(), result.kv(i).getData(),")
-    p(f"                  elemsPerLayer * {kv_sizeof});")
-    p("  }")
-    p()
-    p("  // Some lowered decode results alias the input/session memrefs. The")
-    p("  // temporary result ABI must not free those buffers when it is reset.")
-    p("  releaseIfAliased(result.cachePositionOut(), *cachePosition_);")
-    p(
-        "  releaseIfAliased(result.cachePositionOut(), state.cachePositionOut());"
-    )
-    p(f"  for (int i = 0; i < {dummy_groups}; ++i)")
-    p("    releaseIfAliased(result.dummy(i), state.dummy(i));")
-    p("  for (int i = 0; i < cfg_.kvLayers; ++i)")
-    p("    releaseIfAliased(result.kv(i), state.kv(i));")
-    p("  releaseIfAliased(result.logits(), state.logits());")
-    p(
-        "  intptr_t kvShape[4] = {1, cfg_.headNum, cfg_.maxTokenLen, cfg_.hiddenSize};"
-    )
-    p("  intptr_t logitsShape[3] = {1, 1, cfg_.vocabSize};")
-    p("  intptr_t pshape[1] = {1};")
-    p("  resetDecodeResultABI(result, kvShape, logitsShape, pshape);")
-    p()
     p("  impl_->lastLogitsAreDecode = true;")
     p("  position_ += 1;")
     p("}")
