@@ -283,7 +283,9 @@ def gen_header(config: dict) -> str:
 
     if has_staged_loading:
         p()
-        p("  // Staged weight loading: avoid keeping both plain and packed Data")
+        p(
+            "  // Staged weight loading: avoid keeping both plain and packed Data"
+        )
         p("  // in memory simultaneously (~6.7 GB each for DeepSeek-R1).")
         p("  void loadPrefillWeights();")
         p("  void loadDecodeWeights();")
@@ -1322,7 +1324,9 @@ def gen_impl(config: dict) -> str:
         )
         p(f"{indent}{{")
         p(f"{indent}  intptr_t shape[1] = {{{mp}_{macro_suffix}}};")
-        p(f"{indent}  {member} = std::make_unique<MemRef<{cpp_type}, 1>>(shape);")
+        p(
+            f"{indent}  {member} = std::make_unique<MemRef<{cpp_type}, 1>>(shape);"
+        )
         p(f"{indent}  std::ifstream f(weightPaths_[{idx}], std::ios::binary);")
         p(f"{indent}  if (!f)")
         p(
@@ -1340,7 +1344,9 @@ def gen_impl(config: dict) -> str:
 
     if has_staged_loading:
         # --- Staged loading: save paths, load only plain first ---
-        p("void ModelSession::loadWeights(const std::vector<std::string> &paths) {")
+        p(
+            "void ModelSession::loadWeights(const std::vector<std::string> &paths) {"
+        )
         p(f"  if (paths.size() < {n_paths}u)")
         p(
             f'    throw std::runtime_error("[BuddyRuntime] Expected {n_paths} weight '
@@ -1359,7 +1365,9 @@ def gen_impl(config: dict) -> str:
         p(
             "//===----------------------------------------------------------------------===//"
         )
-        p("// loadPrefillWeights — release packed decode Data, load plain prefill Data")
+        p(
+            "// loadPrefillWeights — release packed decode Data, load plain prefill Data"
+        )
         p(
             "//===----------------------------------------------------------------------===//"
         )
@@ -1382,7 +1390,9 @@ def gen_impl(config: dict) -> str:
         p(
             "//===----------------------------------------------------------------------===//"
         )
-        p("// loadDecodeWeights — release plain prefill Data, load packed decode Data")
+        p(
+            "// loadDecodeWeights — release plain prefill Data, load packed decode Data"
+        )
         p(
             "//===----------------------------------------------------------------------===//"
         )
@@ -1402,7 +1412,9 @@ def gen_impl(config: dict) -> str:
         p()
     else:
         # --- No staged loading: load everything at once (original behaviour) ---
-        p("void ModelSession::loadWeights(const std::vector<std::string> &paths) {")
+        p(
+            "void ModelSession::loadWeights(const std::vector<std::string> &paths) {"
+        )
         p(f"  if (paths.size() < {n_paths}u)")
         p(
             f'    throw std::runtime_error("[BuddyRuntime] Expected {n_paths} weight '
@@ -1413,7 +1425,9 @@ def gen_impl(config: dict) -> str:
             tag = w["tag"]
             cpp_type = w["cpp_type"]
             macro_suffix = (
-                "PARAMS_SIZE" if len(weights) == 1 else f"PARAMS_SIZE_{tag.upper()}"
+                "PARAMS_SIZE"
+                if len(weights) == 1
+                else f"PARAMS_SIZE_{tag.upper()}"
             )
             p("  {")
             p(f"    intptr_t shape[1] = {{{mp}_{macro_suffix}}};")
@@ -1449,7 +1463,9 @@ def gen_impl(config: dict) -> str:
 
     p("void ModelSession::prefill(Text<size_t, 2> &tokens) {")
     if has_staged_loading:
-        p("  // Staged loading: ensure plain weights are in memory for prefill.")
+        p(
+            "  // Staged loading: ensure plain weights are in memory for prefill."
+        )
         p("  loadPrefillWeights();")
         p()
     p(
@@ -1474,7 +1490,9 @@ def gen_impl(config: dict) -> str:
     p("  resetPrefillResultABI(impl_->prefillResultAbi, kvShape, logitsShape);")
     if has_staged_loading:
         p()
-        p("  // Staged loading: KV/logits are saved; swap to packed decode weights.")
+        p(
+            "  // Staged loading: KV/logits are saved; swap to packed decode weights."
+        )
         p("  loadDecodeWeights();")
         p()
     p("  impl_->lastLogitsAreDecode = false;")
