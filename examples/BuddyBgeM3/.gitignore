@@ -7,3 +7,8 @@ dist/
 # Local archives and logs.
 /archive/
 /logs/
+
+# Bulky per-request server responses are kept locally, not committed.
+/results/**/resp_*.json
+/results/**/warm_resp.json
+/results/**/cli_err.txt
