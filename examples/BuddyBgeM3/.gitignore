@@ -1,0 +1,9 @@
+# Model weights and generated artifacts (2.27 GB) are not committed.
+dist/
+
+# Optional local x86 environment file (contains personal paths).
+/env.sh
+
+# Local archives and logs.
+/archive/
+/logs/

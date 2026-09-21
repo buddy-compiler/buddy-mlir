@@ -1,0 +1,5 @@
+    576 vle32.v
+    288 vse32.v
+    288 vfmacc.vf
+    144 vsetvli
+      5 vsetivli
