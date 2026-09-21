@@ -1,6 +1,6 @@
 {
   "report_version": 2,
-  "generated_at": "2026-09-18T00:56:19.563904+00:00",
+  "generated_at": "2026-09-18T06:05:56.765946+00:00",
   "mode": "live",
   "run_status": "failed",
   "exit_code": 1,
@@ -27,9 +27,9 @@
     }
   },
   "provenance": {
-    "git_revision": "b9228a22ad1ef117d2179a6c620a6648d719ad54",
+    "git_revision": "73e3c79381a9244cbfec831d25c99b9a4d1479c4",
     "dirty": true,
-    "source_sha256": "5084f96092069ea57633346098817118d7063154af653e746b9eed285d0fc767",
+    "source_sha256": "eb84220fcc35a46cc45308bb95d989533c860eaf89b1feafddffae1d148e9927",
     "files_sha256": {
       "frontend/Python/frontend.py": "001a1ec2e47c18bc11d4c393cbe48536780e5ae81d215ae7131e5da1adc48dec",
       "frontend/Python/graph/__init__.py": "3d2d48a2c14f34b52181bc3b206001d13931d0befd7a3991e76317aec4cd8b5e",
@@ -62,7 +62,7 @@
       "frontend/Python/ops/func.py": "6246e74f3fa98e318171e8cb76fb195189755ee0484a5d7c5186d923aa32e907",
       "frontend/Python/ops/linalg.py": "81e2aefca4fc54f5e5d8698f05feaf79740d4a52750d569c998bbe204c635289",
       "frontend/Python/ops/math.py": "71b2c037d7706622d31d0b542d908d16f54c8c45fb0bf416f138a6acfe5f2e5a",
-      "frontend/Python/ops/tosa.py": "ee6d01350220055a9ecd916714a7f97fb46044e40cff92c062f68e691c8ac09f",
+      "frontend/Python/ops/tosa.py": "43f617aaba600735ab6cc988003ba1a9295e89f15910dd53e857d08845c0f384",
       "frontend/Python/ops/ttir.py": "c7b640d15cc46641bf9a56330415026146f0153ef846a297e92c3a189cfa8bd5",
       "frontend/Python/ops/ttir_llm.py": "38c314dff4559742b64e87ef028082e8a41c5f85e3b73d14da5496bf254f6d25",
       "frontend/Python/ops/utils.py": "4174a8d0c1a3252d3b8f7d32603cee848b16aa33221dcdc2d31bead5fd6eb6b1",
@@ -233,7 +233,7 @@
       "ops/func.py": "6e99b4ecee260fe7f92d2d5058c752ed26b98e52e121efe46f22a7c50cd40d7c",
       "ops/linalg.py": "1cb09f13b80cad0ee38cdab5e65d10a2d4a77cdfc2e5b6743b83d3be494249e6",
       "ops/math.py": "a21fb127b89d19f859e83adcfea6988cf189e9e2605294c314694869963b963c",
-      "ops/tosa.py": "892141a8ff9e50fc6e59145f2658246c182c6aed739b4d18cc6651ec9296f29f",
+      "ops/tosa.py": "01255b0b84e66da56f8b22c3f8afd9828068de3612d09405e36f1bbed278e091",
       "ops/ttir.py": "998fd39193a98eedf9fbd6191c9fa9701bd145a561398697bcb625fff1c9d366",
       "ops/ttir_llm.py": "045e5c7f0e3cd5ae7c8bde0b41e8f5e16bc14dfa9a6f32040288b21e478954da",
       "ops/utils.py": "a60d2b7e78674820d650a638bd7753be2a264082b457f3f6b37a4a583a6f0c0a",
@@ -276,18 +276,18 @@
     "alias_candidate": 4,
     "unmapped": 7,
     "known_limited": 17,
-    "validated_for_profile": 14,
+    "validated_for_profile": 16,
     "percentages": {
       "frontend_recognized": 89.62,
       "registered_lowering": 89.62,
       "alias_candidate": 3.77,
       "unmapped": 6.6,
       "known_limited": 16.04,
-      "validated_for_profile": 13.21
+      "validated_for_profile": 15.09
     },
     "case_counts": {
-      "passed": 57,
-      "failed": 15,
+      "passed": 63,
+      "failed": 9,
       "skipped": 82,
       "blocked": 0,
       "timeout": 0
@@ -295,10 +295,10 @@
     "stage_passed_cases": {
       "exported": 72,
       "imported": 63,
-      "lowered": 57,
-      "compiled": 57,
-      "executed": 57,
-      "correctness": 57
+      "lowered": 63,
+      "compiled": 63,
+      "executed": 63,
+      "correctness": 63
     },
     "required_case_count": 72,
     "operators_without_cases": 82,
@@ -309,18 +309,18 @@
       "alias_candidate": 2,
       "unmapped": 5,
       "known_limited": 12,
-      "validated_for_profile": 13,
+      "validated_for_profile": 15,
       "percentages": {
         "frontend_recognized": 85.11,
         "registered_lowering": 85.11,
         "alias_candidate": 4.26,
         "unmapped": 10.64,
         "known_limited": 25.53,
-        "validated_for_profile": 27.66
+        "validated_for_profile": 31.91
       },
       "case_counts": {
-        "passed": 54,
-        "failed": 15,
+        "passed": 60,
+        "failed": 9,
         "skipped": 24,
         "blocked": 0,
         "timeout": 0
@@ -328,10 +328,10 @@
       "stage_passed_cases": {
         "exported": 69,
         "imported": 60,
-        "lowered": 54,
-        "compiled": 54,
-        "executed": 54,
-        "correctness": 54
+        "lowered": 60,
+        "compiled": 60,
+        "executed": 60,
+        "correctness": 60
       },
       "required_case_count": 69,
       "operators_without_cases": 24
@@ -1665,6 +1665,7 @@
       "buddy_op": "GeluOp",
       "frontend_recognized": true,
       "lowering_dialects": [
+        "tosa",
         "ttir_llm"
       ],
       "alias_candidates": [],
@@ -1678,15 +1679,15 @@
       "cases": [
         {
           "case_id": "small-f32",
-          "status": "failed",
-          "reason": "KeyError: 'GeluOp'",
+          "status": "passed",
+          "reason": "",
           "exported": "passed",
           "imported": "passed",
-          "lowered": "failed",
-          "compiled": "not_run",
-          "executed": "not_run",
-          "correctness": "not_run",
-          "active_stage": "lowered",
+          "lowered": "passed",
+          "compiled": "passed",
+          "executed": "passed",
+          "correctness": "passed",
+          "active_stage": null,
           "inputs": [
             {
               "shape": [
@@ -1713,20 +1714,19 @@
             "GeluOp": 1,
             "OutputOp": 1
           },
-          "worker_returncode": 0,
-          "stderr_tail": ""
+          "worker_returncode": 0
         },
         {
           "case_id": "rect-f32",
-          "status": "failed",
-          "reason": "KeyError: 'GeluOp'",
+          "status": "passed",
+          "reason": "",
           "exported": "passed",
           "imported": "passed",
-          "lowered": "failed",
-          "compiled": "not_run",
-          "executed": "not_run",
-          "correctness": "not_run",
-          "active_stage": "lowered",
+          "lowered": "passed",
+          "compiled": "passed",
+          "executed": "passed",
+          "correctness": "passed",
+          "active_stage": null,
           "inputs": [
             {
               "shape": [
@@ -1753,20 +1753,19 @@
             "GeluOp": 1,
             "OutputOp": 1
           },
-          "worker_returncode": 0,
-          "stderr_tail": ""
+          "worker_returncode": 0
         },
         {
           "case_id": "small-f64",
-          "status": "failed",
-          "reason": "KeyError: 'GeluOp'",
+          "status": "passed",
+          "reason": "",
           "exported": "passed",
           "imported": "passed",
-          "lowered": "failed",
-          "compiled": "not_run",
-          "executed": "not_run",
-          "correctness": "not_run",
-          "active_stage": "lowered",
+          "lowered": "passed",
+          "compiled": "passed",
+          "executed": "passed",
+          "correctness": "passed",
+          "active_stage": null,
           "inputs": [
             {
               "shape": [
@@ -1793,11 +1792,10 @@
             "GeluOp": 1,
             "OutputOp": 1
           },
-          "worker_returncode": 0,
-          "stderr_tail": ""
+          "worker_returncode": 0
         }
       ],
-      "validated_for_profile": false
+      "validated_for_profile": true
     },
     {
       "operator": "aten::relu.default",
@@ -2043,6 +2041,7 @@
       "buddy_op": "NativeLayerNormOp",
       "frontend_recognized": true,
       "lowering_dialects": [
+        "tosa",
         "ttir_llm"
       ],
       "alias_candidates": [],
@@ -2056,15 +2055,15 @@
       "cases": [
         {
           "case_id": "small-f32",
-          "status": "failed",
-          "reason": "KeyError: 'NativeLayerNormOp'",
+          "status": "passed",
+          "reason": "",
           "exported": "passed",
           "imported": "passed",
-          "lowered": "failed",
-          "compiled": "not_run",
-          "executed": "not_run",
-          "correctness": "not_run",
-          "active_stage": "lowered",
+          "lowered": "passed",
+          "compiled": "passed",
+          "executed": "passed",
+          "correctness": "passed",
+          "active_stage": null,
           "inputs": [
             {
               "shape": [
@@ -2110,20 +2109,19 @@
             "GetItemOp": 3,
             "OutputOp": 1
           },
-          "worker_returncode": 0,
-          "stderr_tail": ""
+          "worker_returncode": 0
         },
         {
           "case_id": "rect-f32",
-          "status": "failed",
-          "reason": "KeyError: 'NativeLayerNormOp'",
+          "status": "passed",
+          "reason": "",
           "exported": "passed",
           "imported": "passed",
-          "lowered": "failed",
-          "compiled": "not_run",
-          "executed": "not_run",
-          "correctness": "not_run",
-          "active_stage": "lowered",
+          "lowered": "passed",
+          "compiled": "passed",
+          "executed": "passed",
+          "correctness": "passed",
+          "active_stage": null,
           "inputs": [
             {
               "shape": [
@@ -2169,20 +2167,19 @@
             "GetItemOp": 3,
             "OutputOp": 1
           },
-          "worker_returncode": 0,
-          "stderr_tail": ""
+          "worker_returncode": 0
         },
         {
           "case_id": "small-f64",
-          "status": "failed",
-          "reason": "KeyError: 'NativeLayerNormOp'",
+          "status": "passed",
+          "reason": "",
           "exported": "passed",
           "imported": "passed",
-          "lowered": "failed",
-          "compiled": "not_run",
-          "executed": "not_run",
-          "correctness": "not_run",
-          "active_stage": "lowered",
+          "lowered": "passed",
+          "compiled": "passed",
+          "executed": "passed",
+          "correctness": "passed",
+          "active_stage": null,
           "inputs": [
             {
               "shape": [
@@ -2228,11 +2225,10 @@
             "GetItemOp": 3,
             "OutputOp": 1
           },
-          "worker_returncode": 0,
-          "stderr_tail": ""
+          "worker_returncode": 0
         }
       ],
-      "validated_for_profile": false
+      "validated_for_profile": true
     },
     {
       "operator": "aten::mean.dim",
@@ -6745,15 +6741,15 @@
       "cases": [
         {
           "case_id": "small-f32",
-          "status": "failed",
-          "reason": "KeyError: 'NativeLayerNormOp'",
+          "status": "passed",
+          "reason": "",
           "exported": "passed",
           "imported": "passed",
-          "lowered": "failed",
-          "compiled": "not_run",
-          "executed": "not_run",
-          "correctness": "not_run",
-          "active_stage": "lowered",
+          "lowered": "passed",
+          "compiled": "passed",
+          "executed": "passed",
+          "correctness": "passed",
+          "active_stage": null,
           "inputs": [
             {
               "shape": [
@@ -6883,20 +6879,19 @@
             "GeluOp": 1,
             "OutputOp": 1
           },
-          "worker_returncode": 0,
-          "stderr_tail": ""
+          "worker_returncode": 0
         },
         {
           "case_id": "rect-f32",
-          "status": "failed",
-          "reason": "KeyError: 'NativeLayerNormOp'",
+          "status": "passed",
+          "reason": "",
           "exported": "passed",
           "imported": "passed",
-          "lowered": "failed",
-          "compiled": "not_run",
-          "executed": "not_run",
-          "correctness": "not_run",
-          "active_stage": "lowered",
+          "lowered": "passed",
+          "compiled": "passed",
+          "executed": "passed",
+          "correctness": "passed",
+          "active_stage": null,
           "inputs": [
             {
               "shape": [
@@ -7026,20 +7021,19 @@
             "GeluOp": 1,
             "OutputOp": 1
           },
-          "worker_returncode": 0,
-          "stderr_tail": ""
+          "worker_returncode": 0
         },
         {
           "case_id": "small-f64",
-          "status": "failed",
-          "reason": "KeyError: 'NativeLayerNormOp'",
+          "status": "passed",
+          "reason": "",
           "exported": "passed",
           "imported": "passed",
-          "lowered": "failed",
-          "compiled": "not_run",
-          "executed": "not_run",
-          "correctness": "not_run",
-          "active_stage": "lowered",
+          "lowered": "passed",
+          "compiled": "passed",
+          "executed": "passed",
+          "correctness": "passed",
+          "active_stage": null,
           "inputs": [
             {
               "shape": [
@@ -7169,8 +7163,7 @@
             "GeluOp": 1,
             "OutputOp": 1
           },
-          "worker_returncode": 0,
-          "stderr_tail": ""
+          "worker_returncode": 0
         }
       ]
     },
@@ -7713,7 +7706,7 @@
       },
       "in_target": true,
       "static_status": "registered_lowering",
-      "validated_for_profile": false
+      "validated_for_profile": true
     },
     {
       "operator": "aten::layer_norm.default",

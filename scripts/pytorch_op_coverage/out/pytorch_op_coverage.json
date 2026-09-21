@@ -1,6 +1,6 @@
 {
   "report_version": 2,
-  "generated_at": "2026-09-18T00:51:08.056185+00:00",
+  "generated_at": "2026-09-18T06:53:13.526544+00:00",
   "mode": "static",
   "run_status": "completed",
   "exit_code": 0,
@@ -27,9 +27,9 @@
     }
   },
   "provenance": {
-    "git_revision": "b9228a22ad1ef117d2179a6c620a6648d719ad54",
+    "git_revision": "73e3c79381a9244cbfec831d25c99b9a4d1479c4",
     "dirty": true,
-    "source_sha256": "5084f96092069ea57633346098817118d7063154af653e746b9eed285d0fc767",
+    "source_sha256": "eb84220fcc35a46cc45308bb95d989533c860eaf89b1feafddffae1d148e9927",
     "files_sha256": {
       "frontend/Python/frontend.py": "001a1ec2e47c18bc11d4c393cbe48536780e5ae81d215ae7131e5da1adc48dec",
       "frontend/Python/graph/__init__.py": "3d2d48a2c14f34b52181bc3b206001d13931d0befd7a3991e76317aec4cd8b5e",
@@ -62,7 +62,7 @@
       "frontend/Python/ops/func.py": "6246e74f3fa98e318171e8cb76fb195189755ee0484a5d7c5186d923aa32e907",
       "frontend/Python/ops/linalg.py": "81e2aefca4fc54f5e5d8698f05feaf79740d4a52750d569c998bbe204c635289",
       "frontend/Python/ops/math.py": "71b2c037d7706622d31d0b542d908d16f54c8c45fb0bf416f138a6acfe5f2e5a",
-      "frontend/Python/ops/tosa.py": "ee6d01350220055a9ecd916714a7f97fb46044e40cff92c062f68e691c8ac09f",
+      "frontend/Python/ops/tosa.py": "43f617aaba600735ab6cc988003ba1a9295e89f15910dd53e857d08845c0f384",
       "frontend/Python/ops/ttir.py": "c7b640d15cc46641bf9a56330415026146f0153ef846a297e92c3a189cfa8bd5",
       "frontend/Python/ops/ttir_llm.py": "38c314dff4559742b64e87ef028082e8a41c5f85e3b73d14da5496bf254f6d25",
       "frontend/Python/ops/utils.py": "4174a8d0c1a3252d3b8f7d32603cee848b16aa33221dcdc2d31bead5fd6eb6b1",
@@ -491,6 +491,7 @@
       "buddy_op": "GeluOp",
       "frontend_recognized": true,
       "lowering_dialects": [
+        "tosa",
         "ttir_llm"
       ],
       "alias_candidates": [],
@@ -594,6 +595,7 @@
       "buddy_op": "NativeLayerNormOp",
       "frontend_recognized": true,
       "lowering_dialects": [
+        "tosa",
         "ttir_llm"
       ],
       "alias_candidates": [],

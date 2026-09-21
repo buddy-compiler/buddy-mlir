@@ -97,7 +97,8 @@ Its native binaries come from the official
 [Buddy nightly v0.0.10.dev20260917](https://github.com/buddy-compiler/buddy-mlir/releases/tag/nightly/v0.0.10.dev20260917),
 at Buddy revision `669977354e8e47dc3d084e40c9317ef4dfccbaa7` and LLVM revision
 `2d26d272a0ff74b8c81eac0607b07f98b82ecc46`. The installed Python frontend includes
-the local boolean-to-integer `_to_copy` fix; its sources are checked against this
+the boolean-to-integer `_to_copy` fix and direct CPU GELU/layer-norm lowering;
+its sources are checked against this
 checkout. This is a prebuilt-runtime measurement, not a clean native rebuild.
 
 ## Verify and accept
@@ -114,6 +115,10 @@ repository's pinned Ruff checks before submission.
 
 `tests/Python/JIT/to_copy_bool.py` separately exercises boolean-to-integer
 conversion and the one-hot decomposition through real CPU JIT execution.
+`tests/Python/JIT/gelu_layer_norm.py` checks both GELU forms and layer norm's
+output, mean and reciprocal standard deviation, including optional affine
+inputs and non-default epsilon. These direct lowerings support f32/f64;
+layer norm currently requires positive static shapes.
 
 The static/trace reports establish source/export evidence only. The live report
 adds CPU JIT results, including failures; inspect its environment and source hash

@@ -7382,6 +7382,118 @@ def var_default_op(node: VarDefaultOp, symbol_table):
     return result
 
 
+def gelu_op(node, symbol_table):
+    """Lower GELU's exact and tanh forms for f32/f64 CPU tensors."""
+    value = symbol_table[(str(node.args[0]), 0)]
+    result_type = ir.RankedTensorType(value.type)
+    dtype = result_type.element_type
+    if str(dtype) not in ("f32", "f64"):
+        raise NotImplementedError("GELU CPU lowering requires f32 or f64")
+    approximate = node.kwargs.get(
+        "approximate", node.args[1] if len(node.args) > 1 else "none"
+    )
+    if approximate not in ("none", "tanh"):
+        raise NotImplementedError(
+            f"Unsupported GELU approximation: {approximate}"
+        )
+    shift = _create_mul_shift_operand()
+
+    def constant(number):
+        return tosa.ConstOp(
+            ir.DenseElementsAttr.get_splat(
+                result_type, _get_scalar_attr(dtype, number)
+            )
+        ).result
+
+    def multiply(lhs, rhs):
+        return tosa.MulOp(result_type, lhs, rhs, shift).result
+
+    if approximate == "none":
+        activation = math.ErfOp(
+            multiply(value, constant(0.7071067811865476))
+        ).result
+    else:
+        cube = multiply(multiply(value, value), value)
+        inner = tosa.AddOp(
+            result_type, value, multiply(constant(0.044715), cube)
+        ).result
+        activation = math.TanhOp(
+            multiply(constant(0.7978845608028654), inner)
+        ).result
+    return multiply(
+        multiply(constant(0.5), value),
+        tosa.AddOp(result_type, constant(1.0), activation).result,
+    )
+
+
+def native_layer_norm_op(node, symbol_table):
+    """Normalize static f32/f64 tensors, returning output, mean and rstd."""
+    value = symbol_table[(str(node.args[0]), 0)]
+    input_type = ir.RankedTensorType(value.type)
+    shape, dtype = list(input_type.shape), input_type.element_type
+    normalized_shape = list(node.args[1])
+    if str(dtype) not in ("f32", "f64"):
+        raise NotImplementedError("Layer norm CPU lowering requires f32 or f64")
+    if (
+        not normalized_shape
+        or len(normalized_shape) > len(shape)
+        or shape[-len(normalized_shape) :] != normalized_shape
+        or any(size <= 0 for size in shape)
+    ):
+        raise NotImplementedError(
+            "Layer norm requires positive static shapes and matching trailing dimensions"
+        )
+    batch_rank = len(shape) - len(normalized_shape)
+    axes = range(batch_rank, len(shape))
+    reduced_shape = shape[:batch_rank] + [1] * len(normalized_shape)
+    reduced_type = ir.RankedTensorType.get(reduced_shape, dtype)
+    count = 1
+    for size in normalized_shape:
+        count *= size
+    shift = _create_mul_shift_operand()
+
+    def constant(number):
+        return tosa.ConstOp(
+            ir.DenseElementsAttr.get_splat(
+                reduced_type, _get_scalar_attr(dtype, number)
+            )
+        ).result
+
+    def mean_of(tensor_value):
+        for axis in axes:
+            tensor_value = tosa.ReduceSumOp(
+                tensor_value,
+                ir.IntegerAttr.get(ir.IntegerType.get_signless(32), axis),
+            ).results[0]
+        return tosa.MulOp(
+            reduced_type, tensor_value, constant(1.0 / count), shift
+        ).result
+
+    mean = mean_of(value)
+    centered = tosa.SubOp(input_type, value, mean).result
+    # Center before squaring to avoid cancellation in E[x^2] - E[x]^2.
+    variance = mean_of(tosa.MulOp(input_type, centered, centered, shift).result)
+    rstd = tosa.RsqrtOp(
+        reduced_type,
+        tosa.AddOp(reduced_type, variance, constant(node.args[4])).result,
+    ).result
+    output = tosa.MulOp(input_type, centered, rstd, shift).result
+    affine_shape = [1] * batch_rank + normalized_shape
+    for index in (2, 3):
+        if node.args[index] is None:
+            continue
+        affine = tosa.ReshapeOp(
+            symbol_table[(str(node.args[index]), 0)],
+            _create_shape_operand(affine_shape),
+        ).result
+        output = (
+            tosa.MulOp(input_type, output, affine, shift).result
+            if index == 2
+            else tosa.AddOp(input_type, output, affine).result
+        )
+    return output, mean, rstd
+
+
 def native_group_norm_op(node: NativeGroupNormOp, symbol_table):
     """
     Import the native group norm operation.
@@ -14634,6 +14746,8 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
 # Import func ops registry for CallOp support
 
 ops_registry = {
+    "GeluOp": gelu_op,
+    "NativeLayerNormOp": native_layer_norm_op,
     "AddOp": add_op,
     "AddCMulOp": addcmul_op,
     "MulOp": mul_op,

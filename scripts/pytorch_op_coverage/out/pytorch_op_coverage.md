@@ -1,10 +1,10 @@
 # PyTorch operator coverage
 
 - Mode: **static**; run: **completed**; exit: **0**
-- Generated (UTC): `2026-09-18T00:51:08.056185+00:00`
+- Generated (UTC): `2026-09-18T06:53:13.526544+00:00`
 - Target: **Buddy Target Op Set v1** / `1.0.0`; **106** unique operators
-- Source: `b9228a22ad1ef117d2179a6c620a6648d719ad54`; dirty: `True`
-- Source SHA-256: `5084f96092069ea57633346098817118d7063154af653e746b9eed285d0fc767`
+- Source: `73e3c79381a9244cbfec831d25c99b9a4d1479c4`; dirty: `True`
+- Source SHA-256: `eb84220fcc35a46cc45308bb95d989533c860eaf89b1feafddffae1d148e9927`
 - Profile: `cpu-export-v1`; seed 0; rtol 1e-4; atol 1e-5; external calls disabled
 
 > Registration and export are not compile/correctness evidence. Untested, skipped, failed and limited operators stay in the denominator.

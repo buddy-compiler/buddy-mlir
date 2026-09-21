@@ -1,10 +1,10 @@
 # PyTorch operator coverage
 
 - Mode: **live**; run: **failed**; exit: **1**
-- Generated (UTC): `2026-09-18T00:56:19.563904+00:00`
+- Generated (UTC): `2026-09-18T06:05:56.765946+00:00`
 - Target: **Buddy Target Op Set v1** / `1.0.0`; **106** unique operators
-- Source: `b9228a22ad1ef117d2179a6c620a6648d719ad54`; dirty: `True`
-- Source SHA-256: `5084f96092069ea57633346098817118d7063154af653e746b9eed285d0fc767`
+- Source: `73e3c79381a9244cbfec831d25c99b9a4d1479c4`; dirty: `True`
+- Source SHA-256: `eb84220fcc35a46cc45308bb95d989533c860eaf89b1feafddffae1d148e9927`
 - Profile: `cpu-export-v1`; seed 0; rtol 1e-4; atol 1e-5; external calls disabled
 
 > Registration and export are not compile/correctness evidence. Untested, skipped, failed and limited operators stay in the denominator.
@@ -22,13 +22,13 @@ Python: `3.12.3`; measured torch: `2.10.0+cpu`; schema snapshot torch: `2.10.0+c
 | alias_candidate | 4 | 3.77% |
 | unmapped | 7 | 6.6% |
 | known_limited | 17 | 16.04% |
-| validated_for_profile | 14 | 13.21% |
+| validated_for_profile | 16 | 15.09% |
 
-Live validation: **requested**. Confirmed end-to-end numerator: **14**.
+Live validation: **requested**. Confirmed end-to-end numerator: **16**.
 Operators without an input contract: **82**.
 A completed run is not the 90% gate; use `--mode live --min-coverage 90` for that gate.
 
-MoE: **13/47** validated for profile (27.66%); **12** known limited.
+MoE: **15/47** validated for profile (31.91%); **12** known limited.
 
 ## Execution evidence
 
@@ -36,12 +36,12 @@ MoE: **13/47** validated for profile (27.66%); **12** known limited.
 | --- | ---: |
 | exported | 72 |
 | imported | 63 |
-| lowered | 57 |
-| compiled | 57 |
-| executed | 57 |
-| correctness | 57 |
+| lowered | 63 |
+| compiled | 63 |
+| executed | 63 |
+| correctness | 63 |
 
-Case outcomes: `{"blocked": 0, "failed": 15, "passed": 57, "skipped": 82, "timeout": 0}`
+Case outcomes: `{"blocked": 0, "failed": 9, "passed": 63, "skipped": 82, "timeout": 0}`
 
 ## Operator details
 
@@ -61,12 +61,12 @@ Case outcomes: `{"blocked": 0, "failed": 15, "passed": 57, "skipped": 82, "timeo
 | `aten::sqrt.default` | registered_lowering | 0/0 | False |  |
 | `aten::exp.default` | registered_lowering | 0/0 | False |  |
 | `aten::silu.default` | registered_lowering | 3/3 | True |  |
-| `aten::gelu.default` | registered_lowering | 3/0 | False |  |
+| `aten::gelu.default` | registered_lowering | 3/3 | True |  |
 | `aten::relu.default` | registered_lowering | 0/0 | False |  |
 | `aten::sigmoid.default` | registered_lowering | 0/0 | False |  |
 | `aten::tanh.default` | registered_lowering | 0/0 | False |  |
 | `aten::_softmax.default` | registered_lowering | 3/3 | True |  |
-| `aten::native_layer_norm.default` | registered_lowering | 3/0 | False |  |
+| `aten::native_layer_norm.default` | registered_lowering | 3/3 | True |  |
 | `aten::mean.dim` | registered_lowering | 0/0 | False |  |
 | `aten::sum.dim_IntList` | registered_lowering | 3/3 | True |  |
 | `aten::amax.default` | registered_lowering | 0/0 | False |  |
@@ -166,15 +166,9 @@ Case outcomes: `{"blocked": 0, "failed": 15, "passed": 57, "skipped": 82, "timeo
 | `aten::rsqrt.default` | unconfigured | skipped | — | No explicit input contract yet |
 | `aten::sqrt.default` | unconfigured | skipped | — | No explicit input contract yet |
 | `aten::exp.default` | unconfigured | skipped | — | No explicit input contract yet |
-| `aten::gelu.default` | small-f32 | failed | lowered | KeyError: 'GeluOp' |
-| `aten::gelu.default` | rect-f32 | failed | lowered | KeyError: 'GeluOp' |
-| `aten::gelu.default` | small-f64 | failed | lowered | KeyError: 'GeluOp' |
 | `aten::relu.default` | unconfigured | skipped | — | No explicit input contract yet |
 | `aten::sigmoid.default` | unconfigured | skipped | — | No explicit input contract yet |
 | `aten::tanh.default` | unconfigured | skipped | — | No explicit input contract yet |
-| `aten::native_layer_norm.default` | small-f32 | failed | lowered | KeyError: 'NativeLayerNormOp' |
-| `aten::native_layer_norm.default` | rect-f32 | failed | lowered | KeyError: 'NativeLayerNormOp' |
-| `aten::native_layer_norm.default` | small-f64 | failed | lowered | KeyError: 'NativeLayerNormOp' |
 | `aten::mean.dim` | unconfigured | skipped | — | No explicit input contract yet |
 | `aten::amax.default` | unconfigured | skipped | — | No explicit input contract yet |
 | `aten::embedding.default` | unconfigured | skipped | — | No explicit input contract yet |
@@ -262,9 +256,9 @@ These are small fixed-shape blocks, not full-model acceptance tests. Trace succe
 
 | Workload | Case | Status | Stage results | Reason |
 | --- | --- | --- | --- | --- |
-| transformer_block | small-f32 | failed | exported=passed, imported=passed, lowered=failed, compiled=not_run, executed=not_run, correctness=not_run | KeyError: 'NativeLayerNormOp' |
-| transformer_block | rect-f32 | failed | exported=passed, imported=passed, lowered=failed, compiled=not_run, executed=not_run, correctness=not_run | KeyError: 'NativeLayerNormOp' |
-| transformer_block | small-f64 | failed | exported=passed, imported=passed, lowered=failed, compiled=not_run, executed=not_run, correctness=not_run | KeyError: 'NativeLayerNormOp' |
+| transformer_block | small-f32 | passed | exported=passed, imported=passed, lowered=passed, compiled=passed, executed=passed, correctness=passed |  |
+| transformer_block | rect-f32 | passed | exported=passed, imported=passed, lowered=passed, compiled=passed, executed=passed, correctness=passed |  |
+| transformer_block | small-f64 | passed | exported=passed, imported=passed, lowered=passed, compiled=passed, executed=passed, correctness=passed |  |
 | moe_block | small-f32 | passed | exported=passed, imported=passed, lowered=passed, compiled=passed, executed=passed, correctness=passed |  |
 | moe_block | rect-f32 | passed | exported=passed, imported=passed, lowered=passed, compiled=passed, executed=passed, correctness=passed |  |
 | moe_block | small-f64 | passed | exported=passed, imported=passed, lowered=passed, compiled=passed, executed=passed, correctness=passed |  |
