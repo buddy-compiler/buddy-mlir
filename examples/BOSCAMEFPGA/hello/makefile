@@ -15,14 +15,16 @@
 # ===---------------------------------------------------------------------------
 #
 # NH single-hart Hello World for RAV0.5 / NR.
-# hello.c -> RISC-V objects -> hello.elf -> hello.bin (raw, not padded).
-# The server's make uv_run5 wrapper pads the image before loading DDR.
+# hello.c + common UART/CRT/runtime -> RISC-V objects -> hello.elf ->
+# hello.bin (raw, not padded). The server's make uv_runN pads to 64-byte
+# DDR beats before loading. Tools come from ../common/toolchain.mk.
 #
 # ===---------------------------------------------------------------------------
 
 .PHONY: all clean dump help size
 .DELETE_ON_ERROR:
 
+# Shared platform: toolchain.mk, uart/, runtime/ (crt_uart.S, bare_runtime).
 COMMON          := ../common
 include $(COMMON)/toolchain.mk
 
@@ -30,8 +32,8 @@ UART_DIR        := $(COMMON)/uart
 RUNTIME_DIR     := $(COMMON)/runtime
 COMMON_RUNTIME  := $(RUNTIME_DIR)/bare_runtime.c
 LD_SCRIPT       := platform/hello_nr.ld
-# This generic single-hart CRT clears BSS and calls the runtime's _init.
-# The NR dual-core CRT dispatches to nanhu_main / _ra_init; hello needs neither.
+# Single-hart CRT: clear BSS, jump to C _init. Not the dual-core NR CRT
+# (nanhu_main / _ra_init); hello does not start RA.
 CRT_S           := $(RUNTIME_DIR)/crt_uart.S
 UART_C          := $(UART_DIR)/uart.c
 
@@ -40,6 +42,9 @@ BUILD_DIR       := build
 BIN             := $(BUILD_DIR)/hello.bin
 OBJECTS         := $(addprefix $(BUILD_DIR)/,crt_uart.o hello.o bare_runtime.o uart.o)
 
+# rv64gc + lp64d: matches crt_uart.S RV64 / FPU bring-up.
+# -nostdlib -ffreestanding: no libc. medany for 0x80000000.
+# UART_* are passed into bare_runtime.c; uart.c currently ignores them.
 RISCV_CFLAGS    := -march=rv64gc -mabi=lp64d -mcmodel=medany -nostdlib \
                    -fno-builtin -ffreestanding -fno-pie -O2 \
                    -ffunction-sections -fdata-sections -MMD -MP \
@@ -60,20 +65,20 @@ $(BUILD_DIR)/crt_uart.o: $(CRT_S) $(MAKEFILE_LIST) | $(BUILD_DIR)
 $(BUILD_DIR)/uart.o: $(UART_C) $(MAKEFILE_LIST) | $(BUILD_DIR)
 	$(RISCV_CC) $(RISCV_CFLAGS) -c $< -o $@
 
+# Link with hello_nr.ld. --gc-sections drops unused input sections.
 $(BUILD_DIR)/hello.elf: $(OBJECTS) $(LD_SCRIPT) $(MAKEFILE_LIST)
 	$(RISCV_LD) --script=$(LD_SCRIPT) --gc-sections -o $@ $(OBJECTS)
 
+# Raw binary for fpga_run.sh / UVHS; ELF headers stripped.
 $(BIN): $(BUILD_DIR)/hello.elf $(MAKEFILE_LIST)
 	$(RISCV_OBJCOPY) -O binary $< $@
 
+# Raw binary for fpga_run.sh. The remote UVHS uv_runN target pads to
+# 64-byte DDR beats before loading.
 size: $(BIN)
 	@S=$$(stat -c%s $(BIN)); \
 	echo "hello.bin: $${S} bytes (raw), NH entry: 0x80000000"; \
-	if [ $$(( S % 64 )) -eq 0 ]; then \
-	  echo "writemem -rtl {nanhu_xilinx.i_ddr[$$(( S / 64 - 1 )):0]} -file <hello.bin> -file_type bin"; \
-	else \
-	  echo "Not 64-byte aligned; use the server's make uv_run5 wrapper to pad and load."; \
-	fi
+	echo "Upload with ../fpga_run.sh; remote uv_runN pads the image for DDR."
 
 dump: $(BUILD_DIR)/hello.elf
 	$(RISCV_OBJDUMP) -h -d $<

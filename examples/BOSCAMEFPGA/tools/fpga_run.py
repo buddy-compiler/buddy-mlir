@@ -1,4 +1,12 @@
 #!/usr/bin/env python3
+"""Local half of the NR FPGA runner.
+
+Uploads a .bin over one managed SSH session to ssh-host:remote-dir, launches
+the remote worker (fpga_remote.py copied as runner.py), and relays UART bytes
+to stdout while status goes to stderr. No local compilation is performed.
+Close minicom before running.
+"""
+
 # ===- fpga_run.py -------------------------------------------------------------
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,10 +22,6 @@
 # limitations under the License.
 #
 # ===---------------------------------------------------------------------------
-#
-# Upload an NR image and relay its UART through one managed SSH session.
-#
-# ===---------------------------------------------------------------------------
 
 import argparse
 import hashlib
@@ -31,7 +35,9 @@ import time
 import uuid
 from pathlib import Path
 
+# Default server workdir relative to the SSH login home unless overridden.
 DEFAULT_REMOTE_DIR = "Desktop/fpga-tester-ISCAS"
+# Non-interactive SSH: fail fast, keep the session alive during long loads.
 SSH_OPTIONS = [
     "-o",
     "BatchMode=yes",
@@ -42,17 +48,23 @@ SSH_OPTIONS = [
     "-o",
     "ServerAliveCountMax=2",
 ]
+# Extra free-disk margin beyond image + DDR readback copies.
 DISK_RESERVE_BYTES = 64 * 1024 * 1024
 
 
 def upload_disk_budget(args):
-    """New uploads plus full DDR readbacks and small platform/log scratch."""
+    """Estimate remote free space needed before creating the run directory.
+
+    Counts the raw upload, two padded copies used for DDR readback checks,
+    and DISK_RESERVE_BYTES for platform logs and scratch.
+    """
     size = args.image.stat().st_size
     padded = max(1048576, (size + 1048575) // 1048576 * 1048576)
     return size + 2 * padded + DISK_RESERVE_BYTES
 
 
 def positive(value):
+    """argparse type: accept only strictly positive integers."""
     number = int(value)
     if number <= 0:
         raise argparse.ArgumentTypeError("must be a positive integer")
@@ -60,11 +72,17 @@ def positive(value):
 
 
 def parse_args(argv=None):
+    """Parse CLI options: image path, FPGA index, timeouts, SSH target."""
     p = argparse.ArgumentParser(
         prog="fpga_run.sh",
-        description="Upload an NR .bin, run make uv_runN on ssh fpga, and stream UART.",
-        epilog="UART goes to stdout; status goes to stderr. Ctrl-C closes this run. "
-        "No local compilation is performed. Close minicom before running.",
+        description=(
+            "Upload an NR .bin, run make uv_runN on ssh fpga, and stream UART."
+        ),
+        epilog=(
+            "UART goes to stdout; status goes to stderr. "
+            "Ctrl-C closes this run. "
+            "No local compilation is performed. Close minicom before running."
+        ),
     )
     p.add_argument("image", type=Path, help="local binary, padded or unpadded")
     p.add_argument("--fpga", type=int, choices=range(8), required=True)
@@ -123,12 +141,14 @@ def parse_args(argv=None):
         p.error("invalid remote directory")
     if args.remote_dir.startswith("~"):
         p.error(
-            "use a login-relative remote directory without ~/ or an absolute path"
+            "use a login-relative remote directory without ~/ "
+            "or an absolute path"
         )
     return args
 
 
 def digest(path):
+    """Return the SHA-256 hex digest of a file, read in 1 MiB chunks."""
     h = hashlib.sha256()
     with path.open("rb") as f:
         for block in iter(lambda: f.read(1024 * 1024), b""):
@@ -137,6 +157,10 @@ def digest(path):
 
 
 def main(argv=None):
+    """Upload image and remote worker, detach run, relay UART, fetch logs.
+
+    Returns a process exit code: 0 on OK, 130 on interrupt, 1 on failure.
+    """
     args = parse_args(argv)
     run_id = "run-" + uuid.uuid4().hex[:16]
     remote_dir = "fpga-runs/" + run_id
@@ -154,14 +178,17 @@ def main(argv=None):
     hardware_requested = False
 
     def command(words):
+        """Build a remote shell line: cd into remote_dir, then run words."""
         return (
             "cd -- " + shlex.quote(args.remote_dir) + " && " + shlex.join(words)
         )
 
     def log(message):
+        """Write a status line to stderr so UART on stdout stays clean."""
         print("[fpga_run] " + message, file=sys.stderr, flush=True)
 
     def remote(words, **kwargs):
+        """Run words over SSH; retry when ssh exits 255 (disconnect)."""
         for attempt in range(args.retries + 1):
             for stream_name in ("stdin", "stdout"):
                 stream = kwargs.get(stream_name)
@@ -177,16 +204,22 @@ def main(argv=None):
             if result.returncode != 255 or attempt == args.retries:
                 raise subprocess.CalledProcessError(result.returncode, words)
             log(
-                f"SSH unavailable; reconnecting {attempt + 1}/{args.retries} in {args.retry_delay}s"
+                f"SSH unavailable; reconnecting "
+                f"{attempt + 1}/{args.retries} in {args.retry_delay}s"
             )
             time.sleep(args.retry_delay)
 
+    # Remote snippet: check disk, create fpga-runs/<run_id> under workdir.
     prepare = """from pathlib import Path
 import sys, shutil
 root=Path.cwd()
 required=int(sys.argv[2]); available=shutil.disk_usage(str(root)).free
 if available < required:
-    raise SystemExit('insufficient remote disk space for uploads and DDR readbacks: required=%d available=%d; existing files were not removed' % (required, available))
+    raise SystemExit(
+        'insufficient remote disk space for uploads and DDR readbacks: '
+        'required=%d available=%d; existing files were not removed'
+        % (required, available)
+    )
 runs=root/'fpga-runs'
 runs.mkdir(exist_ok=True)
 if runs.is_symlink() or runs.resolve().parent != root:
@@ -212,6 +245,7 @@ if directory.is_symlink() or directory.resolve().parent != runs:
                 str(upload_disk_budget(args)),
             ]
         )
+        # Remote snippet: stream stdin to a temp file, verify SHA-256, rename.
         upload = """from pathlib import Path
 import hashlib, os, sys
 path=Path(sys.argv[1]); temporary=path.with_name(path.name+'.upload')
@@ -259,12 +293,14 @@ temporary.replace(path)
             str(args.baud),
         ]
         hardware_requested = True
+        # Detach: start background worker once, even if SSH ack is lost.
         remote([*words, "--detach"])
         status = 1
         process = None
         try:
             with (local_dir / "uart.raw.log").open("wb") as uart:
                 for attempt in range(args.retries + 1):
+                    # Resume from uart.tell() so SSH drops do not reload FPGA.
                     relay = [
                         "python3",
                         "-u",
@@ -301,7 +337,8 @@ temporary.replace(path)
                     ) or attempt == args.retries:
                         break
                     log(
-                        f"SSH disconnected; resuming UART at byte {uart.tell()} ({attempt + 1}/{args.retries})"
+                        f"SSH disconnected; resuming UART at byte "
+                        f"{uart.tell()} ({attempt + 1}/{args.retries})"
                     )
                     time.sleep(args.retry_delay)
         except (KeyboardInterrupt, BrokenPipeError):
@@ -314,30 +351,40 @@ temporary.replace(path)
                     process.kill()
                     process.wait()
             try:
+                # Touch remote stop file so the background worker exits cleanly.
                 remote(
                     [
                         "python3",
                         "-B",
                         "-c",
-                        "from pathlib import Path; import sys; Path(sys.argv[1]).touch()",
+                        (
+                            "from pathlib import Path; import sys; "
+                            "Path(sys.argv[1]).touch()"
+                        ),
                         remote_dir + "/stop",
                     ]
                 )
             except subprocess.CalledProcessError:
                 log(
-                    "Stop request could not reach server; worker remains bounded by its configured timeouts"
+                    "Stop request could not reach server; worker remains "
+                    "bounded by its configured timeouts"
                 )
             status = 130
         if status == 255 or status < 0:
             log(
-                "Reconnection limit reached; the bounded worker retains server logs and may still be running"
+                "Reconnection limit reached; the bounded worker retains "
+                "server logs and may still be running"
             )
         if status == 130:
+            # Wait briefly for result.json so cleanup artifacts can be fetched.
             wait_result = """from pathlib import Path
 import sys,time
 p=Path(sys.argv[1]);deadline=time.monotonic()+25
 while not p.exists() and time.monotonic()<deadline:time.sleep(0.1)
-if not p.exists():raise SystemExit('worker cleanup has not finished; logs remain on server')
+if not p.exists():
+    raise SystemExit(
+        'worker cleanup has not finished; logs remain on server'
+    )
 """
             try:
                 remote(
@@ -351,7 +398,8 @@ if not p.exists():raise SystemExit('worker cleanup has not finished; logs remain
                 )
             except subprocess.CalledProcessError:
                 log(
-                    "Worker cleanup is still pending; inspect the remote run directory"
+                    "Worker cleanup is still pending; inspect the remote "
+                    "run directory"
                 )
         for name in ("result.json", "uvhs.log", "worker.log"):
             try:
@@ -379,13 +427,17 @@ if not p.exists():raise SystemExit('worker cleanup has not finished; logs remain
                         "python3",
                         "-B",
                         "-c",
-                        "from pathlib import Path; import sys; Path(sys.argv[1]).touch()",
+                        (
+                            "from pathlib import Path; import sys; "
+                            "Path(sys.argv[1]).touch()"
+                        ),
                         remote_dir + "/stop",
                     ]
                 )
             except (subprocess.CalledProcessError, KeyboardInterrupt):
                 log(
-                    "Stop request could not reach server; worker remains bounded by its configured timeouts"
+                    "Stop request could not reach server; worker remains "
+                    "bounded by its configured timeouts"
                 )
         return 130
     except (OSError, ValueError, subprocess.CalledProcessError) as e:

@@ -1,78 +1,90 @@
-# BOSCAME FPGA: Hello on NR / RAV0.5
+# BOSCAME FPGA examples (NR / RAV0.5)
 
-Bare-metal examples for the NR FPGA. **This tree currently brings up
-[`hello`](hello/README.md) only**: compile a single-hart NH image, load it
-into DDR, and print over UART. RA and AME are not used.
+Bare-metal examples for the NR FPGA. Shared platform code lives under
+`common/`; board upload and UART relay live under `tools/` (via
+`fpga_run.sh`). Each example has its own directory and README.
 
-UART, CRT, and the C runtime live in [`common/`](common/README.md). Board
-upload is [`fpga_run.sh`](fpga_run.sh) plus [`tools/`](tools/).
+RA and AME usage depends on the example. The current bring-up path is
+NH + UART only (see `hello`).
+
+## Layout
 
 ```text
 BOSCAMEFPGA/
-├── common/          # Shared UART, CRT, runtime, LLVM tool selection
-├── hello/           # Plain-C Hello World (the working example)
-├── fpga_run.sh      # Upload and run a .bin
-└── tools/           # Python launcher and remote worker
+├── common/          # Shared UART, CRT, C runtime, toolchain.mk
+├── hello/           # Plain-C Hello World (working example)
+├── fpga_run.sh      # Thin wrapper around tools/fpga_run.py
+└── tools/           # Local launcher and remote UVHS worker
 ```
 
-## Build hello
+| Path | Role | Details |
+| --- | --- | --- |
+| [`common/`](common/) | Shared platform sources reused by all examples | [`common/README.md`](common/README.md) |
+| [`fpga_run.sh`](fpga_run.sh) | Entry script: forwards all args to `tools/fpga_run.py` | [`tools/README.md`](tools/README.md) |
+| [`tools/`](tools/) | Upload, load, UART relay, DDR readback check | [`tools/README.md`](tools/README.md) |
 
-From the repository root:
+## Examples
+
+| Example | Status | Notes |
+| --- | --- | --- |
+| [`hello/`](hello/) | Working | NH single-hart UART bring-up; no RA / AME |
+
+Add new operators as sibling directories under `BOSCAMEFPGA/`, each with its
+own README for build steps and expected output. Update this table when an
+example is ready to use. Shared build/run mechanics stay in `common/` and
+`tools/` unless the example needs extra runtime support.
+
+## Shared build notes
+
+Toolchain selection is in [`common/toolchain.mk`](common/toolchain.mk).
+By default it uses `llvm/build/bin` when `clang` is there, otherwise
+`PATH`. Override with `LLVM_BIN=...` or `RISCV_CC` / `RISCV_LD` /
+`RISCV_OBJCOPY`. After changing the toolchain, run `make clean`.
+See [`common/README.md`](common/README.md).
+
+## Shared run notes
+
+The launcher **does not compile**. Pass an existing `.bin` from any
+example build.
+
+You need: passwordless SSH to the FPGA server, a remote workdir that
+already contains the UVHS `Makefile`, a free board (`--fpga=<N>`),
+and Python 3 on the host. Close minicom / other UVHS sessions on that
+board first.
+
+**Do not commit personal host names or workdir paths.** Configure them
+via environment variables or flags. For the lab SSH alias, UVHS install
+path, and board map, see the internal documentation.
 
 ```bash
-make -C examples/BOSCAMEFPGA/hello all size
+export FPGA_SSH_HOST=<ssh-alias-or-host>
+export FPGA_REMOTE_DIR=<uvhs-workdir>   # login-relative or absolute; no ~/
 ```
 
-This writes `examples/BOSCAMEFPGA/hello/build/hello.bin` (raw, not padded).
+`--ssh-host` and `--remote-dir` override those variables.
 
-The makefile includes [`common/toolchain.mk`](common/toolchain.mk). By default
-it uses `llvm/build/bin` when `clang` is there, otherwise `PATH`. Override
-with `LLVM_BIN=...` or `RISCV_CC` / `RISCV_LD` / `RISCV_OBJCOPY`. After
-changing the toolchain, run `make clean`. Details:
-[`common/README.md`](common/README.md).
-
-## Run on the FPGA
-
-Needs: passwordless `ssh fpga` (or `--ssh-host`), a server workdir that
-already has the UVHS `Makefile`, a free board (`--fpga=0` … `7`), and
-Python 3 on the host. Close minicom / other UVHS sessions on that board first.
-
-The script **does not compile**. Pass the `.bin` from the step above.
-
-```bash
-examples/BOSCAMEFPGA/fpga_run.sh \
-  examples/BOSCAMEFPGA/hello/build/hello.bin \
-  --fpga=5
-```
-
-The default SSH host is `fpga`. The default remote workdir is
-`Desktop/fpga-tester-ISCAS` (relative to the SSH login directory; do not
-write `~/`). That is the UVHS install path used in this lab. Other setups
-should override with environment variables or flags; do not commit a
-personal directory:
-
-```bash
-export FPGA_SSH_HOST=fpga
-export FPGA_REMOTE_DIR=path/to/your-uvhs-workdir
-```
-
-`--ssh-host` and `--remote-dir` override those variables. Pick a free board
-with `--fpga` (`0`–`7`).
-
-Hello finishes well within the default 10 s capture window. Success is
-`verify hello: PASS` on stdout (full text in [`hello/README.md`](hello/README.md)).
-Exit code 0 means load and capture succeeded; look at the UART for PASS.
+| Flag | Role |
+| --- | --- |
+| `--fpga=N` | Board and `/dev/FPGAN` (required; valid indices are lab-specific, see internal docs) |
+| `--ssh-host=...` | Override `FPGA_SSH_HOST` |
+| `--remote-dir=...` | Override `FPGA_REMOTE_DIR` |
+| `--capture-seconds=10` | UART window after startup |
 
 Status goes to stderr. Local logs:
 `examples/BOSCAMEFPGA/build/fpga-runs/run-*/`.
 
-Useful flags for hello:
+Keep `fpga_run.sh` together with `tools/fpga_run.py` and
+`tools/fpga_remote.py`. Full tool behavior:
+[`tools/README.md`](tools/README.md).
 
-| Flag | Role |
-| --- | --- |
-| `--fpga=N` | Board and `/dev/FPGAN` (required) |
-| `--remote-dir=...` | Override default `Desktop/fpga-tester-ISCAS` |
-| `--ssh-host=...` | Override default SSH alias `fpga` |
-| `--capture-seconds=10` | UART window after startup |
+## Quick start
 
-Keep `fpga_run.sh` together with `tools/fpga_run.py` and `tools/fpga_remote.py`.
+The first working example is [`hello`](hello/README.md). Follow that
+README to build and run on the FPGA. Other examples use the same upload
+flow: swap the `.bin` and use that example’s README for PASS criteria.
+
+## See also
+
+- Platform sources: [`common/README.md`](common/README.md)
+- Hello example (first bring-up): [`hello/README.md`](hello/README.md)
+- Upload / run tooling: [`tools/README.md`](tools/README.md)

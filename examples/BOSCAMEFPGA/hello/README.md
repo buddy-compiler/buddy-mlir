@@ -4,31 +4,60 @@ A plain-C bare-metal example for `RAV0.5_FPGA_ALPHA_260908`. NH runs `main()`
 directly, prints `Hello, World!` and a check result over UART, and does not
 start RA or execute AME.
 
-## Build and run
+## Quick start
+
+### Build
 
 From the repository root:
 
 ```bash
 make -C examples/BOSCAMEFPGA/hello all size
-examples/BOSCAMEFPGA/fpga_run.sh \
-  examples/BOSCAMEFPGA/hello/build/hello.bin --fpga=5
 ```
 
 Or from this example directory:
 
 ```bash
 cd examples/BOSCAMEFPGA/hello
-make all
-../fpga_run.sh build/hello.bin --fpga=5
+make all size
 ```
 
-The build produces `build/hello.elf` and an unpadded `build/hello.bin`.
-The board script uploads into a private run directory, opens UART, and
-invokes the server's `make uv_run5` to pad, load, and run, then streams
-serial output back. A separate minicom session is not required.
+This writes `build/hello.bin` (raw, not padded; also `build/hello.elf`).
+Toolchain overrides are documented in
+[`../common/README.md`](../common/README.md).
+
+### Run on the FPGA
+
+The launcher **does not compile**. Pass the `.bin` from the step above.
+
+SSH host, UVHS workdir, and shared flags are documented in the
+[parent README](../README.md) and [`../tools/README.md`](../tools/README.md)
+(see internal docs for lab machine details). Set them for your lab first:
+
+```bash
+export FPGA_SSH_HOST=<ssh-alias-or-host>
+export FPGA_REMOTE_DIR=<uvhs-workdir>
+```
+
+From the repository root:
+
+```bash
+examples/BOSCAMEFPGA/fpga_run.sh \
+  examples/BOSCAMEFPGA/hello/build/hello.bin \
+  --fpga=<N>
+```
+
+Or from this example directory:
+
+```bash
+../fpga_run.sh build/hello.bin --fpga=<N>
+```
+
 Capture lasts 10 seconds by default; use `--capture-seconds=60` to extend
-it. Toolchain, SSH, and server workdir are documented in the
-[parent README](../README.md).
+it. A separate minicom session is not required.
+
+Success is `verify hello: PASS` on stdout (full text under
+[Expected output](#expected-output)). Exit code 0 means load and capture
+succeeded; confirm PASS on the UART stream.
 
 ## Files
 

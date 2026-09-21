@@ -75,12 +75,3 @@ Adapted from [ModelZoo](https://gitlink.org.cn/michaelcjl/ModelZoo) commit
 | `uart/` | `thirdparty/nr/src/uart.c`, `thirdparty/nr/include/uart.h` |
 | `runtime/crt_uart.S`, `encoding.h` | `thirdparty/platform-v01/` |
 | `runtime/bare_runtime.c`, `.h` | `examples/tools/bare_runtime.c`, `bare_runtime.h` |
-
-The CRT comments still refer to `riscv-dnn/include/common/crt.S`. File headers
-record that origin; this tree does not invent license text for those sources.
-Since import, the files have been formatted, UART implementation moved into
-`uart.c`, and the assembly weak `_init` / gem5 `_exit` stubs removed so C
-`_init` is the only entry after the CRT.
-
-Hello bring-up and board upload are documented in [`../hello/README.md`](../hello/README.md)
-and [`../README.md`](../README.md).

@@ -1,4 +1,12 @@
 #!/usr/bin/env python3
+"""Remote half of fpga_run.py for the NR FPGA server.
+
+Runs inside an approved workdir: claims the board, opens UART, loads the
+image via make uv_runN, captures serial output, verifies DDR readback, and
+writes result.json. Supports --detach (start once), --background (worker),
+and --relay (resume UART from a byte offset without reloading hardware).
+"""
+
 # ===- fpga_remote.py ----------------------------------------------------------
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,10 +20,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-# ===---------------------------------------------------------------------------
-#
-# Remote half of fpga_run.sh; all generated files stay in the approved root.
 #
 # ===---------------------------------------------------------------------------
 
@@ -36,22 +40,28 @@ import termios
 import time
 from pathlib import Path
 
+# Match UVHS / make fatal lines in the platform log stream.
 ERROR = re.compile(
     rb"(?:^|\n)(?:[^\r\n]*\]\s*(?:ERROR|FATAL):|(?:ERROR|FATAL):|"
     rb"Error: in running command:|make(?:\[\d+\])?: \*\*\*|"
     rb"[ \t]*Total (?:ERROR|FATAL):[ \t]*[1-9])",
     re.MULTILINE,
 )
+# Match bare-metal UART failure markers from hello / kernel dumps.
 UART_FAILURE = re.compile(
-    rb"TRAP mcause=|verify[^\r\n]*:\s*(?:FAIL|mismatches=[1-9])|\[nr\][^\r\n]*FAIL"
+    rb"TRAP mcause=|"
+    rb"verify[^\r\n]*:\s*(?:FAIL|mismatches=[1-9])|"
+    rb"\[nr\][^\r\n]*FAIL"
 )
 
 
 def log(message):
+    """Write a status line to stderr (UART data stays on stdout)."""
     print("[fpga_run] " + message, file=sys.stderr, flush=True)
 
 
 def digest(path):
+    """Return the SHA-256 hex digest of a file, read in 1 MiB chunks."""
     h = hashlib.sha256()
     with path.open("rb") as f:
         for block in iter(lambda: f.read(1024 * 1024), b""):
@@ -60,10 +70,12 @@ def digest(path):
 
 
 def within(path, root):
+    """True if path resolves to root or a descendant of root."""
     return path.resolve() == root or root in path.resolve().parents
 
 
 def check_paths(root, run_dir):
+    """Refuse run directories or platform outputs that escape the workdir."""
     if (
         root.resolve() != root
         or not within(run_dir, root)
@@ -87,7 +99,11 @@ def check_paths(root, run_dir):
 
 
 def check_processes(root, fpga, device):
-    """Do not take over existing sessions or read from someone else's UART."""
+    """Refuse to start if another UVHS session or UART client owns the board.
+
+    Scans /proc for uvhs2_shell / uv_shell_exec targeting this workdir or
+    hw_runN.tcl, and for serial tools holding /dev/FPGAN.
+    """
     actual = os.path.realpath(device)
     for proc in Path("/proc").glob("[0-9]*"):
         if int(proc.name) == os.getpid():
@@ -128,6 +144,7 @@ def check_processes(root, fpga, device):
 
 
 def board_available(output, fpga):
+    """Parse UVHS 'query -fpgas -all'; raise if FPGAN is booked or owned."""
     board, slot = divmod(fpga, 4)
     pattern = (
         rf"^\S+\s+B{board}\s+F{slot}\s+\S+\s+link\s+(?:up|down)\s+"
@@ -145,7 +162,11 @@ def board_available(output, fpga):
 
 
 def shutdown(process, master=None):
-    """Exit the session, escalating only within the process group we created."""
+    """Stop a PTY-backed UVHS/make session within the process group we created.
+
+    Sends 'exit' on the master PTY when possible, then SIGTERM/SIGKILL to the
+    process group. Never signals unrelated processes.
+    """
     if process is None:
         return
     if process.poll() is None and master is not None:
@@ -177,6 +198,11 @@ def shutdown(process, master=None):
 
 
 def preflight(root, run_dir, fpga, stopped):
+    """Validate hw_runN.tcl mapping and confirm FPGAN is free via UVHS query.
+
+    Writes query.tcl under run_dir, runs uvhs2_shell, then board_available.
+    stopped() is polled so Ctrl-C / remote stop can abort the wait.
+    """
     executable = shutil.which("uvhs2_shell")
     if not executable:
         raise RuntimeError("uvhs2_shell is not in the SSH environment PATH")
@@ -231,6 +257,11 @@ def preflight(root, run_dir, fpga, stopped):
 
 
 def verify_readback(run_dir, runtime_output, expected_sha):
+    """Confirm the padded image and DDR .readback match the uploaded SHA-256.
+
+    Checks UV_RUN_IMAGE is under run_dir, padding is zero after the raw bytes,
+    and digest(image) == digest(readback). Returns the padded-image digest.
+    """
     match = re.search(rb"UV_RUN_IMAGE=([^\r\n]+)", runtime_output)
     if not match:
         raise RuntimeError("platform did not report UV_RUN_IMAGE")
@@ -263,6 +294,13 @@ def verify_readback(run_dir, runtime_output, expected_sha):
 
 
 def run(args, root=None, run_dir=None, device=None, control_fd=0):
+    """Load FPGAN, capture UART, verify DDR, write result.json.
+
+    Acquires .fpga_run.lock, opens /dev/FPGAN at the requested baud (8N1),
+    runs make uv_runN under a PTY, streams UART to stdout and uart.raw.log,
+    then verifies readback. control_fd (default stdin) or a stop file can
+    interrupt. Returns 0 / 1 / 130.
+    """
     root = Path(root) if root is not None else Path.cwd()
     run_dir = Path(run_dir or Path(__file__).resolve().parent)
     device = device or f"/dev/FPGA{args.fpga}"
@@ -279,12 +317,14 @@ def run(args, root=None, run_dir=None, device=None, control_fd=0):
     old_signals = {}
 
     def stop(signum, frame):
+        # SIGINT/SIGTERM/SIGHUP: request a clean teardown via stopped().
         stopped_flag[0] = True
 
     for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
         old_signals[sig] = signal.signal(sig, stop)
 
     def stopped():
+        """True if a signal, stop file, or control_fd asked us to abort."""
         if getattr(args, "background", False) and (run_dir / "stop").exists():
             stopped_flag[0] = True
         if stopped_flag[0]:
@@ -298,6 +338,7 @@ def run(args, root=None, run_dir=None, device=None, control_fd=0):
     original = process = None
     status = 1
     try:
+        # Exclusive workdir lock so two fpga_run sessions cannot collide.
         lock = os.open(
             root / ".fpga_run.lock",
             os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW,
@@ -324,7 +365,8 @@ def run(args, root=None, run_dir=None, device=None, control_fd=0):
         available = shutil.disk_usage(str(root)).free
         if available < readback_budget + 64 * 1024 * 1024:
             raise RuntimeError(
-                "insufficient remote disk space for DDR readbacks: required=%d available=%d"
+                "insufficient remote disk space for DDR readbacks: "
+                "required=%d available=%d"
                 % (readback_budget + 64 * 1024 * 1024, available)
             )
         check_processes(root, args.fpga, device)
@@ -374,10 +416,10 @@ def run(args, root=None, run_dir=None, device=None, control_fd=0):
         uart_tail = b""
         failed_uart = False
         heartbeat = time.monotonic()
-        with (
-            (run_dir / "uvhs.log").open("wb") as uvlog,
-            (run_dir / "uart.raw.log").open("wb") as uart,
-        ):
+        # Parenthesized multi-with is 3.10+; FPGA servers often ship 3.8/3.9.
+        with (run_dir / "uvhs.log").open("wb") as uvlog, (
+            run_dir / "uart.raw.log"
+        ).open("wb") as uart:
             while True:
                 if stopped():
                     raise InterruptedError(
@@ -387,7 +429,8 @@ def run(args, root=None, run_dir=None, device=None, control_fd=0):
                 if now - heartbeat >= 30:
                     elapsed = int(now - started) if started is not None else 0
                     log(
-                        f"FPGA{args.fpga} session active; elapsed={elapsed}s, UART={uart_total} bytes"
+                        f"FPGA{args.fpga} session active; elapsed={elapsed}s, "
+                        f"UART={uart_total} bytes"
                     )
                     heartbeat = now
                 if started is None and now >= deadline:
@@ -435,11 +478,13 @@ def run(args, root=None, run_dir=None, device=None, control_fd=0):
                                 not in output
                             ):
                                 raise RuntimeError(
-                                    "UVHS reached its prompt without loading/starting the image"
+                                    "UVHS reached its prompt without "
+                                    "loading/starting the image"
                                 )
                             started = time.monotonic()
                             log(
-                                f"FPGA{args.fpga} started; capturing for {args.capture_seconds} seconds"
+                                f"FPGA{args.fpga} started; capturing for "
+                                f"{args.capture_seconds} seconds"
                             )
                 if process.poll() is not None:
                     if (
@@ -448,7 +493,8 @@ def run(args, root=None, run_dir=None, device=None, control_fd=0):
                         or exit_sent is None
                     ):
                         raise RuntimeError(
-                            f"platform exited unexpectedly ({process.returncode}); see uvhs.log"
+                            f"platform exited unexpectedly "
+                            f"({process.returncode}); see uvhs.log"
                         )
                     break
         result["padded_sha256"] = verify_readback(
@@ -509,7 +555,12 @@ def run(args, root=None, run_dir=None, device=None, control_fd=0):
 
 
 def detached_start(args):
-    """Start at most once, even when SSH loses the acknowledgement."""
+    """Start the background worker at most once for this run directory.
+
+    Uses start.lock + started.json so a lost SSH acknowledgement does not
+    launch a second hardware session. Returns 0 if already started or newly
+    spawned.
+    """
     root = Path.cwd()
     directory = Path(__file__).resolve().parent
     check_paths(root, directory)
@@ -572,7 +623,11 @@ def detached_start(args):
 
 
 def relay(offset):
-    """Read only: reconnect at the exact UART byte offset, without reloading."""
+    """Stream uart.raw.log from byte offset without touching FPGA hardware.
+
+    Used by the local client after SSH drops. Exits when result.json appears,
+    or raises if the worker died without writing a result.
+    """
     directory = Path(__file__).resolve().parent
     uart = directory / "uart.raw.log"
     result_path = directory / "result.json"
@@ -630,6 +685,7 @@ def relay(offset):
 
 
 def main():
+    """CLI entry: --relay, --detach, or --background / foreground run()."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--fpga", type=int, choices=range(8))
     parser.add_argument("--sha256")

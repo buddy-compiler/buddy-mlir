@@ -1,8 +1,26 @@
 #===- crt_uart.S - Single-hart bare-metal CRT for NR FPGA -----------------===#
 #
-# Sets up registers, BSS/TBSS, gp/sp, and the trap vector, then jumps to C
-# _init. Based on riscv-dnn/include/common/crt.S with HTIF removed.
-# RV64 only (hello is -march=rv64gc).
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+#===----------------------------------------------------------------------===#
+#
+# Single-hart bare-metal CRT for the NH core on the NR FPGA platform.
+# Boot path: zero GPRs, enable FPU state, install mtvec, set gp/sp, clear
+# BSS/TBSS, then jump to C _init() in bare_runtime.c.
+# Trap path: trap_entry saves x1-x31, calls handle_trap(mcause, mepc, regs),
+# writes the return value back to mepc, restores state, and mret.
+# RV64 only (hello builds with -march=rv64gc). Linker must provide
+# __global_pointer$, __stack_top, and BSS/TBSS bounds.
 #
 #===----------------------------------------------------------------------===#
 
@@ -18,7 +36,9 @@
 
   .section ".text.init"
   .globl _start
+# Reset / load entry. Linker script sets the reset vector to _start.
 _start:
+  # Zero all GPRs so early C code does not see residual register state.
   li  x1, 0
   li  x2, 0
   li  x3, 0
@@ -51,10 +71,13 @@ _start:
   li  x30,0
   li  x31,0
 
+  # Enable floating-point state in mstatus (FS bits) before any FP use.
   li t0, MSTATUS_FS
   csrs mstatus, t0
 
-  # RV64: 1 << 31 is non-negative. Hang if this image is running as RV32.
+  # Sanity check: on RV64, 1 << 31 is still positive in a 64-bit register.
+  # If this image were somehow running as RV32, 1 << 31 would be negative
+  # and we hang here instead of continuing with a broken ABI.
   li t0, 1
   slli t0, t0, 31
   bgez t0, 1f
@@ -63,6 +86,8 @@ _start:
 1:
 
 #ifdef __riscv_flen
+  # Temporarily point mtvec at the label after FPU init so an FP illegal
+  # instruction during bring-up does not recurse into an unfinished trap path.
   la t0, 1f
   csrw mtvec, t0
 
@@ -102,6 +127,7 @@ _start:
 1:
 #endif
 
+  # Install the real machine-mode trap vector used for the rest of boot/run.
   la t0, trap_entry
   csrw mtvec, t0
 
@@ -110,7 +136,8 @@ _start:
   la gp, __global_pointer$
 .option pop
 
-  # Hello is NH hart 0 only. Other harts spin; stack top comes from the linker.
+  # Hello is NH hart 0 only. Non-zero harts spin forever; stack top comes
+  # from the linker script (__stack_top).
   csrr a0, mhartid
   li a1, 1
 1:bgeu a0, a1, 1b
@@ -137,10 +164,15 @@ _start:
 6:
   fence rw, rw
 
+  # Hand off to C: bare_runtime.c::_init (UART, hooks, main, wfi).
   j _init
   .size    _start, . - _start
 
   .align 2
+# Machine-mode trap stub. Calling convention into handle_trap (bare_runtime.c):
+#   a0 = mcause, a1 = mepc, a2 = pointer to stacked x1-x31 frame.
+# Return value in a0 is written back to mepc before mret. The default C
+# handler never returns (prints then wfi); a strong override may resume.
 trap_entry:
   addi sp, sp, -272
 
@@ -182,6 +214,7 @@ trap_entry:
   jal handle_trap
   csrw mepc, a0
 
+  # Keep privilege mode M after mret (set MPP in mstatus).
   li t0, MSTATUS_MPP
   csrs mstatus, t0
 
