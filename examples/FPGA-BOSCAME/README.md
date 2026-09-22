@@ -47,32 +47,90 @@ make -C examples/FPGA-BOSCAME/hello LLVM_BIN= all
 切换工具链或编译选项后先执行 `make clean` 再构建。
 这些源文件已收进当前目录，构建无需额外克隆 ModelZoo。
 
-## 上传并运行
+## 构建 Qwen3 none 整模型
 
-从仓库根目录执行：
+完整构建命令见 [Qwen3 README：构建 none 整模型二进制](qwen3-0.6b/README.md#构建-none-整模型二进制)，
+包括从零创建 Python 环境、编译 LLVM/Buddy/Triton、下载资源、构建图/kernel/权重和
+ELF/BIN、准备三段 DDR 文件，不要求已有任何 `build/`。关键参数为 `--ame-startup=none --graph-sync=ame-resync
+--ame-cache-sync=none --console-mode=append-only --console-capacity=4194304
+--console-drain=live`，不启用额外诊断选项。
+
+重新构建输出到新目录，必须重新上板验收；下面的复跑命令则只使用原始已验收镜像。
+
+## 上传并运行：Qwen3 原始 none 镜像
+
+Qwen3 整模上板使用已经验收的 `production-control` 原始镜像，
+构建配置为 `--ame-startup=none`：完整 28 层、最大序列长度 128、
+16-token prefill 和 8 步 decode。`none` 仅表示不额外执行首次图调用前的
+启动同步；图结束后的 `ame_fence()` 和 kernel 内部同步仍然保留。
+
+最近一次复跑 `run-1f8b9ec0c3894135` 完成 27 项 logits/KV 校验、固定文本校验和
+`RA returned: PASS`，严格验收为 `MODEL_RUN_NUMERIC_PASS`。证据见
+[none 验收归档](qwen3-0.6b/model/validation/board/startup-ab-20260922/none-run-1f8b9ec0c3894135/verification.json)。
+这是多次成功的基线，不代表任意重新构建的同名配置已经通过验收。
+
+从仓库根目录执行；直接复用下列产物，不重新编译：
 
 ```bash
-examples/FPGA-BOSCAME/fpga_run.sh \
-  examples/FPGA-BOSCAME/hello/build/hello.bin --fpga=5
+set -euo pipefail
+QWEN_MODEL=examples/FPGA-BOSCAME/qwen3-0.6b/model
+QWEN_NONE="$QWEN_MODEL/build/console-fix-20260921/production-control"
+
+# 核对已验收 ELF 和实际上板的补齐镜像，防止误用其他构建。
+printf '%s  %s\n' \
+  9a604617c171be8577dcb5aa6cffe0e05cee2ed549f1f27f55b8af444dfc9f75 "$QWEN_NONE/image/qwen_model.elf" \
+  f4a23079f4272aa4853ec33ccf4f8d0f3c5b5884a0041cea6dc57f92ae088742 "$QWEN_NONE/prepared/image.bin" \
+  | sha256sum --check
+
+"$QWEN_MODEL/tools/run_model.sh" "$QWEN_NONE/prepared" \
+  --fpga=5 \
+  --remote-dir=/home/hjuser/Desktop/fpga-tester-ISCAS \
+  --capture-seconds=1800 --startup-timeout=900
 ```
 
-脚本使用 SSH 别名 `fpga`，默认进入服务器登录目录下的
-`Desktop/fpga-tester-ISCAS`，在该目录内调用 `make uv_run5`。
-该默认值与此前测试的服务器工作目录相对应，不含用户名或固定家目录。
+`run_model.sh` 自动装载 `prepared/` 中的 boot image、权重和 tokenizer 三段，
+使用 `ddr-load.plan` 检查大小、SHA256 和 DDR 回读，并设置模型完成标记。
+不要把模型 `image.bin` 当成 hello 单段镜像直接上传；缺少权重或 tokenizer
+不构成同一实验。完整通过还应看到 27 项 `[compare] ... PASS`、
+`verify fixed text validation: PASS` 和 `[nr] RA returned: PASS`。
+
+这些 `build/` 产物不提交 Git；新 checkout 不能仅靠上述命令运行。
+若产物缺失，应先恢复已验收产物，或按[从零构建说明](qwen3-0.6b/README.md#构建-none-整模型二进制)
+重建并重新验收。不要用另一个镜像冒充此处指定 SHA256 的基线。
+
+脚本使用 SSH 别名 `fpga`。上述命令显式限定服务器工作目录为
+`/home/hjuser/Desktop/fpga-tester-ISCAS`，在该目录内调用 `make uv_run5`。
 SSH 登录需使用免交互密钥认证，服务器需已有 UVHS 环境和配套平台 Makefile。
 
-可配置服务器和工作目录：
+同一目录只能有一个 UART worker。SSH 中断时使用本次实际 run ID 恢复，
+不重新运行上传命令、不打开 minicom：
+
+```bash
+QWEN_RUN_ID=run-0123456789abcdef  # 替换为本次任务的实际 ID
+examples/FPGA-BOSCAME/fpga_run.sh "$QWEN_NONE/prepared/image.bin" \
+  --fpga=5 --resume-run="$QWEN_RUN_ID" \
+  --remote-dir=/home/hjuser/Desktop/fpga-tester-ISCAS
+```
+
+恢复时直接调用公共 `fpga_run.sh`，不要使用会附加上传段的 `run_model.sh`。
+
+### 公共上板工具选项
+
+服务器和工作目录也可由环境变量配置；命令行选项优先：
 
 ```bash
 export FPGA_SSH_HOST=fpga
-export FPGA_REMOTE_DIR=Desktop/fpga-tester-ISCAS
-examples/FPGA-BOSCAME/fpga_run.sh \
-  examples/FPGA-BOSCAME/hello/build/hello.bin --fpga=5
+export FPGA_REMOTE_DIR=/home/hjuser/Desktop/fpga-tester-ISCAS
+"$QWEN_MODEL/tools/run_model.sh" "$QWEN_NONE/prepared" \
+  --fpga=5 --capture-seconds=1800 --startup-timeout=900
+```
 
-# 命令行优先于环境变量；相对路径以服务器 SSH 登录目录为起点。
+hello 只用于独立检查平台 UART／加载链路，不是 Qwen3 验收：
+
+```bash
 examples/FPGA-BOSCAME/fpga_run.sh \
   examples/FPGA-BOSCAME/hello/build/hello.bin \
-  --fpga=5 --remote-dir=Desktop/fpga-tester-ISCAS --capture-seconds=60
+  --fpga=5 --remote-dir=/home/hjuser/Desktop/fpga-tester-ISCAS --capture-seconds=60
 ```
 
 `--remote-dir` 接受相对路径或用户指定的绝对路径；不要写 `~/`。
@@ -113,7 +171,8 @@ examples/FPGA-BOSCAME/fpga_run.sh \
   文件包括 `uart.raw.log`、`uvhs.log`、`worker.log` 和 `result.json`。
 - 加载错误、读回不同、无 UART 输出、`verify ...: FAIL` 或 trap 返回非零。
   返回 0 说明加载和捕获流程成功，不替任意程序验证计算结果。
-  `PASS` 不会自动提前结束捕获窗口。
+  通用入口不因任意 `PASS` 文本提前退出；上述模型入口已配置
+  `--completion-marker='[nr] RA returned:'`，看到完成标记后会自动收尾。
 
 脚本只负责上传和运行，不编译传入文件。需传入适配 NR 平台的 flat binary，
 镜像是否已按 64 字节补齐均可；服务器包装脚本负责所需 padding。

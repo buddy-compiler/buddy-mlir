@@ -1,0 +1,27 @@
+{
+  "status": "INCOMPLETE_INTERRUPTED_AFTER_STALL",
+  "run_id": "run-7e4d51f849eb4bae",
+  "configuration": {"layers": 28, "capacity": 128, "prefill": 16, "decode_steps": 8},
+  "profile_sync": "fence",
+  "graph_sync": "ame-resync",
+  "console": {"mode": "append-only", "capacity_bytes": 4194304},
+  "probe": "_mlir_ciface_kernel_matmul_16x3072x1024:38",
+  "profile_watch": true,
+  "profile_tile_probe": true,
+  "boot_sha256": "e033656c476b4afed2c64ebf3acfcd9b0b3b898a6c6ff312924bf73ce9094528",
+  "raw_uart_bytes": 37627,
+  "recovered_uart_bytes": 2827,
+  "nh_frames": 80,
+  "last_ra_line": "[kernel] begin _mlir_ciface_kernel_matmul_16x1024x1024 call=0000000000000001",
+  "selected_kernel_reached": false,
+  "last_nh_observation": {"phase": 1, "sequence": 2, "position": 0, "count": 2701, "consumed": 2701, "pending": 0, "ra_console_wait": 0, "dropped": 0, "waits": 0},
+  "ddr_readback_matches": true,
+  "limits": [
+    "The selected layer-19 tile probe was not reached; no tile-localization result follows.",
+    "NH continued UART output with increasing cycle and sample counters. Its stable RA-owned record could still be stale.",
+    "This image additionally changes wrapper code, runtime observer, image layout and shared-memory traffic; the earlier stop cannot be uniquely attributed to NH cache operations.",
+    "This run is incomplete, not numerical acceptance or throughput evidence."
+  ],
+  "uart_sha256": "89c699cf0c21f4de52297a7158911a9788cfdc07e68f77812a4ff7a229bb5bc9",
+  "result_sha256": "57dff851e880ef5c7ed2c29e34756810fef7ac33157aa7f2b1f500e806de53a5"
+}

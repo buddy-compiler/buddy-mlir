@@ -1,0 +1,77 @@
+{
+  "status": "INCOMPLETE_RA_TRAP",
+  "run_id": "run-2755b33255ca4832",
+  "layers": 28,
+  "max_sequence_length": 128,
+  "prefill_tokens": 16,
+  "requested_decode_steps": 8,
+  "completed_decode_steps": 2,
+  "trap_decode_position": 18,
+  "trap": {
+    "mcause": "0x18",
+    "mepc": "0x80167710",
+    "mtval": "0x80167710",
+    "elf_instruction": "li a1, 0",
+    "enclosing_function": "collect (inlined compare_reference)",
+    "context": "Return address after key_cache report_error; before value_cache comparison"
+  },
+  "profile_enabled": false,
+  "configured_clock_hz": 14745600,
+  "completed_stages": [
+    {
+      "kind": "prefill",
+      "position": 0,
+      "compute_cycles": 3655746505,
+      "compute_seconds": 247.92117682562935,
+      "model_cycles": 3722652120,
+      "model_seconds": 252.45850423177083
+    },
+    {
+      "kind": "decode",
+      "position": 16,
+      "compute_cycles": 993966978,
+      "compute_seconds": 67.40769978841146,
+      "model_cycles": 1044541225,
+      "model_seconds": 70.83748541937933
+    },
+    {
+      "kind": "decode",
+      "position": 17,
+      "compute_cycles": 996951804,
+      "compute_seconds": 67.61012125651041,
+      "model_cycles": 1047528317,
+      "model_seconds": 71.04006056043836
+    }
+  ],
+  "identity_comparison": [
+    {
+      "file": "image/qwen_model.bin",
+      "sha256": "2853f8e1005456b4bd741393ffd70388718bd5814767c6e74fe7a071f9f3b93f",
+      "baseline_sha256": "2853f8e1005456b4bd741393ffd70388718bd5814767c6e74fe7a071f9f3b93f",
+      "identical": true
+    },
+    {
+      "file": "prepared/image.bin",
+      "sha256": "f24ee895b0f97a872f81524a72abc505fafd336cc2e51d98c5ceef5cdeaf445d",
+      "baseline_sha256": "f24ee895b0f97a872f81524a72abc505fafd336cc2e51d98c5ceef5cdeaf445d",
+      "identical": true
+    },
+    {
+      "file": "prepared/weights-w8a8.bin",
+      "sha256": "0ddd3640545b26c09a3e2fa6829f7675a2d1a5b128490635b7037efd697e33a7",
+      "baseline_sha256": "0ddd3640545b26c09a3e2fa6829f7675a2d1a5b128490635b7037efd697e33a7",
+      "identical": true
+    },
+    {
+      "file": "prepared/tokenizer.bin",
+      "sha256": "7e436961bdc35adbcca4887a6f767cdbdaabc69cc0349298a40c54a400b4bcc4",
+      "baseline_sha256": "7e436961bdc35adbcca4887a6f767cdbdaabc69cc0349298a40c54a400b4bcc4",
+      "identical": true
+    }
+  ],
+  "limits": [
+    "Not full 8-step acceptance; no successful archive generated.",
+    "ELF instruction describes local binary, not a post-failure DDR/ICache instruction-byte readback.",
+    "Exact hardware meaning of mcause 0x18 and relation to prior silent stalls not established."
+  ]
+}

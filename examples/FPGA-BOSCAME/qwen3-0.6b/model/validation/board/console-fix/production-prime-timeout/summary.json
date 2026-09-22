@@ -1,0 +1,51 @@
+{
+  "status": "INCOMPLETE_TIMEOUT",
+  "acceptance": "NOT_ACCEPTED",
+  "run_id": "run-96a031f6164e40a2",
+  "configuration": {
+    "layers": 28,
+    "capacity": 128,
+    "prefill": 16,
+    "decode_steps_requested": 8,
+    "prompt": "What is France?"
+  },
+  "image": {
+    "graph_completion_sync": "ame-resync",
+    "ame_startup": "prime",
+    "boundary_sync": false,
+    "profile_kernels": false,
+    "console_mode": "append-only",
+    "console_capacity_bytes": 4194304,
+    "elf_sha256": "fed6d5bf1a3612e4e653ebb0e781ce27f2f30ef3d794bfc9fd66a6d6d763ad0d",
+    "image_sha256": "c06f7c9da189ba4b7cb3cf2e1f46f8a2c27aef842a280aa20751e6619c6cc9f7",
+    "plan_sha256": "3a7da9a0e7af0da6a017f7e366775f6ba9654fe6cc9bc1dbbc890c9f69138868"
+  },
+  "observation": {
+    "capture_seconds": 1800,
+    "uart_bytes": 3382,
+    "last_line": "[model] decode begin position=00000010 input_token=0000BF68",
+    "decode_position": 16,
+    "completion_marker_seen": false,
+    "remote_worker_elapsed_seconds": 1807,
+    "interpretation": "Prefill completed and the decode-16 begin marker was printed; no decode-16 comparison or return marker appeared before timeout. This is an incomplete timeout, not evidence of an unsupported instruction or numerical failure."
+  },
+  "comparison": {
+    "production_control_pass_runs": [
+      "run-51ef77a6f71b4e4f",
+      "run-0617b5a11ec94e32"
+    ],
+    "graph_final_fence_pass_run": "run-b12aa5c21dbe45ca",
+    "conclusion": "A single startup ame_fence() is not a validated fix and is associated with a repeatable decode-16 timeout in this comparison. Keep the default ame_startup=none pending a separate hardware explanation."
+  },
+  "evidence_sha256": {
+    "uart.raw.log": "cd77885c83d5c0d729756f6247ea265b6b259b56a8cd8d9ec45d754a2095aaf1",
+    "worker.log": "a11283a3793ab3db22d09e5d779699b6781c8474dd245f700f84fd34bd7d91db",
+    "uvhs.log": "524606045fcbd17d6fdb2d45d5961896fe794e0a8812a51a3fc8ee9a7b6c3c0b",
+    "run-manifest.json": "adff8ed10204e505666a64d92b50b33fe4da0c277db3d7e2f5b3d55bc7069bb0"
+  },
+  "limits": [
+    "The worker completed its configured timeout without a trap context; the exact hardware PC is unknown.",
+    "The prime image changes code layout and AME state, so this result does not prove that ame_fence itself is the root cause.",
+    "No default runtime or model source was changed by this experiment."
+  ]
+}

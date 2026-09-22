@@ -1,0 +1,246 @@
+
+[nr] NH boot; RA operator runtime
+[nr] RA entry=0x0000000080000040
+[nr] RA entered; clearing application BSS
+[nr] mstatus=0x8000000A00006000; launch BEGIN
+[text] prompt count=00000010 ids=0002505C 00000368 000000C6 00000EFE 00000176 00002599 0000001E 0002505D 000000C6 0002505C 00012D23 000000C6 00025073 0000010F 00025074 0000010F encode_cycles=000000000002A0CD
+verify fixed prompt tokenizer: PASS
+[text] mode=fixed-validation; EOS is recorded, never early-stops
+[model] prefill begin position=00000000 input_token=0002505C
+[compare] logits position=0000000F count=00025180 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] key_cache position=0000000F count=00070000 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] value_cache position=0000000F count=00070000 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[model] selected position=0000000F 0000BF68:41F54266 00000176:403AF82E 00000108:BFA95B79 00000C4A:40B287E5 00001CEF:3FB8EFE0 00000130:3F543ECD 000012B3:40241D5F 00001427:409B5EA5 0000000B:40C03C92
+[model] kv position=0000000F layer=00000000 k=BEFA4528 v=3B3D6C2F
+[model] kv position=0000000F layer=00000001 k=C01DFA19 v=3D152C2B
+[model] kv position=0000000F layer=00000002 k=BEDB2217 v=BD2ABF52
+[model] kv position=0000000F layer=00000003 k=3EA27C58 v=BE6667A0
+[model] kv position=0000000F layer=00000004 k=3E1648FE v=BE351127
+[model] kv position=0000000F layer=00000005 k=BD36E00C v=BE1B01E3
+[model] kv position=0000000F layer=00000006 k=3F2CA93C v=BDDAC571
+[model] kv position=0000000F layer=00000007 k=BE9397FF v=3E8511E6
+[model] kv position=0000000F layer=00000008 k=3E1FD079 v=3EDE051B
+[model] kv position=0000000F layer=00000009 k=BDEFD52C v=BD87C13B
+[model] kv position=0000000F layer=0000000A k=BE6555E7 v=3D8EE820
+[model] kv position=0000000F layer=0000000B k=BE3C4A64 v=3D113D85
+[model] kv position=0000000F layer=0000000C k=3EB4F451 v=BD5D8BF9
+[model] kv position=0000000F layer=0000000D k=3E8D1BD8 v=BFBF8FDE
+[model] kv position=0000000F layer=0000000E k=3D53990A v=3EA63362
+[model] kv position=0000000F layer=0000000F k=C08DCA8C v=BE0D2EC5
+[model] kv position=0000000F layer=00000010 k=3E3DD582 v=BE84E98C
+[model] kv position=0000000F layer=00000011 k=3F30A9E1 v=BFC27C17
+[model] kv position=0000000F layer=00000012 k=3EDB2EE7 v=C017603B
+[model] kv position=0000000F layer=00000013 k=3DD61774 v=3FA44126
+[model] kv position=0000000F layer=00000014 k=4015D4A0 v=3F5AD3B1
+[model] kv position=0000000F layer=00000015 k=3FE5ADF3 v=40223239
+[model] kv position=0000000F layer=00000016 k=BE8BFC16 v=C0A1BA2A
+[model] kv position=0000000F layer=00000017 k=BECAF156 v=4073E2C4
+[model] kv position=0000000F layer=00000018 k=BF92E593 v=BFB6540E
+[model] kv position=0000000F layer=00000019 k=402A4554 v=4088071E
+[model] kv position=0000000F layer=0000001A k=3F73B88D v=40C2C4BF
+[model] kv position=0000000F layer=0000001B k=BE82BBAB v=BF050E35
+[model] prefill position=00000000 token=0000BF68 logit_bits=41F54266 compute_cycles=00000000DA001DE0 preparation_cycles=0000000001112EC2 selection_cycles=0000000000278AA2 cache_retention_cycles=0000000002C373EE model_cycles=00000000DDFC4B32 total_with_uart_cycles=00000000DE81E84B scratch_bytes=000000000805C995
+[profile] position=0000000F kernel=_mlir_ciface_kernel_attention_pv_position_16x16x128x128 calls=000000000000001C cycles=00000000151248A5
+[profile] position=0000000F kernel=_mlir_ciface_kernel_attention_qk_position_native_16x16x128x128 calls=000000000000001C cycles=0000000008D2985D
+[profile] position=0000000F kernel=_mlir_ciface_kernel_attention_scale_mask_position_16x16x128 calls=000000000000001C cycles=0000000013D1A41B
+[profile] position=0000000F kernel=_mlir_ciface_kernel_dequantize_16x1024 calls=0000000000000070 cycles=00000000036F2CE9
+[profile] position=0000000F kernel=_mlir_ciface_kernel_dequantize_16x2048 calls=000000000000001C cycles=0000000001B744F1
+[profile] position=0000000F kernel=_mlir_ciface_kernel_dequantize_16x3072 calls=0000000000000038 cycles=0000000005254BD8
+[profile] position=0000000F kernel=_mlir_ciface_kernel_dequantize_1x151936 calls=0000000000000001 cycles=000000000048B1F1
+[profile] position=0000000F kernel=_mlir_ciface_kernel_embedding_w8a8_16x1024 calls=0000000000000001 cycles=000000000012FA4B
+[profile] position=0000000F kernel=_mlir_ciface_kernel_kv_cache_update_position_16x8x128_cap128 calls=0000000000000038 cycles=000000000127BD12
+[profile] position=0000000F kernel=_mlir_ciface_kernel_layout_context_8x16x128 calls=0000000000000038 cycles=0000000012DE42EF
+[profile] position=0000000F kernel=_mlir_ciface_kernel_matmul_16x1024x1024 calls=0000000000000038 cycles=0000000004E19733
+[profile] position=0000000F kernel=_mlir_ciface_kernel_matmul_16x1024x2048 calls=000000000000001C cycles=00000000031C398D
+[profile] position=0000000F kernel=_mlir_ciface_kernel_matmul_16x1024x3072 calls=000000000000001C cycles=0000000006638DFF
+[profile] position=0000000F kernel=_mlir_ciface_kernel_matmul_16x2048x1024 calls=000000000000001C cycles=0000000004E13786
+[profile] position=0000000F kernel=_mlir_ciface_kernel_matmul_16x3072x1024 calls=0000000000000038 cycles=000000000EA34D0D
+[profile] position=0000000F kernel=_mlir_ciface_kernel_matmul_1x151936x1024 calls=0000000000000001 cycles=00000000040B358C
+[profile] position=0000000F kernel=_mlir_ciface_kernel_quantize_16x1024 calls=0000000000000038 cycles=0000000001BA6715
+[profile] position=0000000F kernel=_mlir_ciface_kernel_quantize_16x2048 calls=000000000000001C cycles=0000000001B73DBB
+[profile] position=0000000F kernel=_mlir_ciface_kernel_quantize_16x3072 calls=000000000000001C cycles=0000000005602CD8
+[profile] position=0000000F kernel=_mlir_ciface_kernel_quantize_1x1024 calls=0000000000000001 cycles=00000000000081D0
+[profile] position=0000000F kernel=_mlir_ciface_kernel_rmsnorm_128x128 calls=000000000000001C cycles=0000000004171F38
+[profile] position=0000000F kernel=_mlir_ciface_kernel_rmsnorm_16x1024 calls=0000000000000039 cycles=00000000083B85D8
+[profile] position=0000000F kernel=_mlir_ciface_kernel_rmsnorm_256x128 calls=000000000000001C cycles=00000000082EA300
+[profile] position=0000000F kernel=_mlir_ciface_kernel_silu_16x3072 calls=000000000000001C cycles=000000000EFE2C3C
+[profile] position=0000000F kernel=_mlir_ciface_kernel_softmax_16x16x128 calls=000000000000001C cycles=000000000C17E78B
+[text] prediction=00000000 token=0000BF68 eos=00000000 bytes=00000006 hex=4672616e6365
+[model] decode begin position=00000010 input_token=0000BF68
+[compare] logits position=00000010 count=00025180 max_abs_bits=35800000 mean_abs_bits=2D25A266 PASS
+[compare] key_cache position=00000010 count=00077000 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] value_cache position=00000010 count=00077000 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[model] selected position=00000010 0000BF68:40898398 00000176:41D7BB85 00000108:411FA698 00000C4A:40C2F934 00001CEF:40F443E6 00000130:413550E4 000012B3:4016D960 00001427:3F8092BF 0000000B:41A7EAE5
+[model] kv position=00000010 layer=00000000 k=BFF17525 v=BE3D68E0
+[model] kv position=00000010 layer=00000001 k=BFB93C7A v=3C0F6CEA
+[model] kv position=00000010 layer=00000002 k=BE67A43C v=BDE0013F
+[model] kv position=00000010 layer=00000003 k=3FE59F65 v=BDB2B5F0
+[model] kv position=00000010 layer=00000004 k=3F42B00A v=3E07F81D
+[model] kv position=00000010 layer=00000005 k=3ED72FF8 v=BF2CE8A9
+[model] kv position=00000010 layer=00000006 k=3F07B116 v=BF17C6A2
+[model] kv position=00000010 layer=00000007 k=BE885C05 v=3F0B799D
+[model] kv position=00000010 layer=00000008 k=BE87B0F5 v=BF01525D
+[model] kv position=00000010 layer=00000009 k=BE7E9102 v=BF2841DF
+[model] kv position=00000010 layer=0000000A k=BDF7FDF8 v=BEE85398
+[model] kv position=00000010 layer=0000000B k=BEDD0854 v=C08F8706
+[model] kv position=00000010 layer=0000000C k=3D925026 v=BF1F16A4
+[model] kv position=00000010 layer=0000000D k=3F006117 v=BF3F547E
+[model] kv position=00000010 layer=0000000E k=394D0D80 v=3F72458B
+[model] kv position=00000010 layer=0000000F k=BF2E2640 v=3DFE6BE8
+[model] kv position=00000010 layer=00000010 k=BE3914D8 v=BFEE3830
+[model] kv position=00000010 layer=00000011 k=3EA8424D v=3FEDB3AF
+[model] kv position=00000010 layer=00000012 k=BF7FEBD8 v=C0136B85
+[model] kv position=00000010 layer=00000013 k=3E9585C0 v=3FCB4D7D
+[model] kv position=00000010 layer=00000014 k=3F8DDB22 v=BFDE41BA
+[model] kv position=00000010 layer=00000015 k=BF68F5C3 v=BF2BF602
+[model] kv position=00000010 layer=00000016 k=BE1055EE v=3F8B7092
+[model] kv position=00000010 layer=00000017 k=BD2046C7 v=401F5941
+[model] kv position=00000010 layer=00000018 k=C05003CD v=C1659A85
+[model] kv position=00000010 layer=00000019 k=40818B42 v=4138C365
+[model] kv position=00000010 layer=0000001A k=3E9E461A v=C0B903A1
+[model] kv position=00000010 layer=0000001B k=3F71DB90 v=C0B5F0F5
+[model] decode position=00000010 token=00000176 logit_bits=41D7BB85 compute_cycles=000000003B4C953A preparation_cycles=0000000000188DC5 selection_cycles=0000000000278A9D cache_retention_cycles=0000000002C380A3 model_cycles=000000003E502E3F total_with_uart_cycles=000000003FE3ACD7 scratch_bytes=000000000575E315
+[profile] position=00000010 kernel=_mlir_ciface_kernel_attention_pv_position_16x1x128x128 calls=000000000000001C cycles=00000000078ED351
+[profile] position=00000010 kernel=_mlir_ciface_kernel_attention_qk_position_native_16x1x128x128 calls=000000000000001C cycles=0000000004A2649E
+[profile] position=00000010 kernel=_mlir_ciface_kernel_attention_scale_mask_position_16x1x128 calls=000000000000001C cycles=0000000000E6E8AF
+[profile] position=00000010 kernel=_mlir_ciface_kernel_dequantize_1x1024 calls=0000000000000070 cycles=0000000000384445
+[profile] position=00000010 kernel=_mlir_ciface_kernel_dequantize_1x151936 calls=0000000000000001 cycles=000000000048AF8B
+[profile] position=00000010 kernel=_mlir_ciface_kernel_dequantize_1x2048 calls=000000000000001C cycles=00000000001BCD85
+[profile] position=00000010 kernel=_mlir_ciface_kernel_dequantize_1x3072 calls=0000000000000038 cycles=00000000005307D7
+[profile] position=00000010 kernel=_mlir_ciface_kernel_embedding_w8a8_1x1024 calls=0000000000000001 cycles=000000000001335D
+[profile] position=00000010 kernel=_mlir_ciface_kernel_kv_cache_update_position_1x8x128_cap128 calls=0000000000000038 cycles=00000000001336C9
+[profile] position=00000010 kernel=_mlir_ciface_kernel_layout_context_8x1x128 calls=0000000000000038 cycles=0000000000ADFEA2
+[profile] position=00000010 kernel=_mlir_ciface_kernel_matmul_1x1024x1024 calls=0000000000000038 cycles=000000000187980C
+[profile] position=00000010 kernel=_mlir_ciface_kernel_matmul_1x1024x2048 calls=000000000000001C cycles=00000000016232C1
+[profile] position=00000010 kernel=_mlir_ciface_kernel_matmul_1x1024x3072 calls=000000000000001C cycles=00000000023D13AC
+[profile] position=00000010 kernel=_mlir_ciface_kernel_matmul_1x151936x1024 calls=0000000000000001 cycles=00000000040B57E3
+[profile] position=00000010 kernel=_mlir_ciface_kernel_matmul_1x2048x1024 calls=000000000000001C cycles=0000000001874E3E
+[profile] position=00000010 kernel=_mlir_ciface_kernel_matmul_1x3072x1024 calls=0000000000000038 cycles=00000000049501F9
+[profile] position=00000010 kernel=_mlir_ciface_kernel_quantize_1x1024 calls=0000000000000039 cycles=00000000001CD27B
+[profile] position=00000010 kernel=_mlir_ciface_kernel_quantize_1x2048 calls=000000000000001C cycles=00000000001BCA8E
+[profile] position=00000010 kernel=_mlir_ciface_kernel_quantize_1x3072 calls=000000000000001C cycles=0000000000565720
+[profile] position=00000010 kernel=_mlir_ciface_kernel_rmsnorm_16x128 calls=000000000000001C cycles=0000000000833A02
+[profile] position=00000010 kernel=_mlir_ciface_kernel_rmsnorm_1x1024 calls=0000000000000039 cycles=0000000000846AFD
+[profile] position=00000010 kernel=_mlir_ciface_kernel_rmsnorm_8x128 calls=000000000000001C cycles=000000000041DE2C
+[profile] position=00000010 kernel=_mlir_ciface_kernel_silu_1x3072 calls=000000000000001C cycles=0000000000F03734
+[profile] position=00000010 kernel=_mlir_ciface_kernel_softmax_16x1x128 calls=000000000000001C cycles=0000000000C4C7F4
+[text] prediction=00000001 token=00000176 eos=00000000 bytes=00000003 hex=206973
+[model] decode begin position=00000011 input_token=00000176
+[compare] logits position=00000011 count=00025180 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] key_cache position=00000011 count=0007E000 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] value_cache position=00000011 count=0007E000 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[model] selected position=00000011 0000BF68:40C2166B 00000176:4119AE5F 00000108:41CDCF21 00000C4A:413827B3 00001CEF:41889C5B 00000130:413C2BD3 000012B3:40DD604D 00001427:409FBD3A 0000000B:4136E737
+[model] kv position=00000011 layer=00000000 k=BEA4E2C2 v=3D207A7F
+[model] kv position=00000011 layer=00000001 k=C05A4FE2 v=3DF5FC2A
+[model] kv position=00000011 layer=00000002 k=BED6C382 v=BE458F55
+[model] kv position=00000011 layer=00000003 k=3F7D66EA v=BE89B329
+[model] kv position=00000011 layer=00000004 k=3F25D30E v=3EA17F33
+[model] kv position=00000011 layer=00000005 k=3F549A2B v=3E7C2466
+[model] kv position=00000011 layer=00000006 k=3BED8920 v=3DFA12CC
+[model] kv position=00000011 layer=00000007 k=BDBF4E63 v=BC6FC92A
+[model] kv position=00000011 layer=00000008 k=BF0806F7 v=3E7235A2
+[model] kv position=00000011 layer=00000009 k=3C00A7A8 v=BDC785B9
+[model] kv position=00000011 layer=0000000A k=3D442B50 v=BEFE5268
+[model] kv position=00000011 layer=0000000B k=3E18FADE v=C02AD128
+[model] kv position=00000011 layer=0000000C k=BEE13190 v=BEEB4AFF
+[model] kv position=00000011 layer=0000000D k=BDDB8BF0 v=BFE59E9B
+[model] kv position=00000011 layer=0000000E k=BC3473C0 v=BF3785E0
+[model] kv position=00000011 layer=0000000F k=40211ED0 v=BF86721D
+[model] kv position=00000011 layer=00000010 k=BE9E73F3 v=BFD546B9
+[model] kv position=00000011 layer=00000011 k=3EA82F0B v=3EADB5FE
+[model] kv position=00000011 layer=00000012 k=3FF1AEC7 v=C0040BD3
+[model] kv position=00000011 layer=00000013 k=3D9347A4 v=BEF4378A
+[model] kv position=00000011 layer=00000014 k=BF96FEE6 v=BF9D73F0
+[model] kv position=00000011 layer=00000015 k=BE8891E6 v=3EACBC26
+[model] kv position=00000011 layer=00000016 k=3E8B7CFA v=3EEDFF4E
+[model] kv position=00000011 layer=00000017 k=BE5B588A v=3F22944D
+[model] kv position=00000011 layer=00000018 k=BDF56291 v=C0D38E1E
+[model] kv position=00000011 layer=00000019 k=C02F5651 v=BC5BC3ED
+[model] kv position=00000011 layer=0000001A k=BFC6185C v=C1036592
+[model] kv position=00000011 layer=0000001B k=3F853114 v=C0B645E8
+[model] decode position=00000011 token=00000108 logit_bits=41CDCF21 compute_cycles=000000003B7931C1 preparation_cycles=0000000000188C9A selection_cycles=0000000000278A69 cache_retention_cycles=0000000002C372AE model_cycles=000000003E7CBB72 total_with_uart_cycles=0000000040259D20 scratch_bytes=000000000575E315
+[profile] position=00000011 kernel=_mlir_ciface_kernel_attention_pv_position_16x1x128x128 calls=000000000000001C cycles=0000000007A35486
+[profile] position=00000011 kernel=_mlir_ciface_kernel_attention_qk_position_native_16x1x128x128 calls=000000000000001C cycles=0000000004BA255F
+[profile] position=00000011 kernel=_mlir_ciface_kernel_attention_scale_mask_position_16x1x128 calls=000000000000001C cycles=0000000000E6E915
+[profile] position=00000011 kernel=_mlir_ciface_kernel_dequantize_1x1024 calls=0000000000000070 cycles=00000000003844F6
+[profile] position=00000011 kernel=_mlir_ciface_kernel_dequantize_1x151936 calls=0000000000000001 cycles=000000000048AFFE
+[profile] position=00000011 kernel=_mlir_ciface_kernel_dequantize_1x2048 calls=000000000000001C cycles=00000000001BCC6E
+[profile] position=00000011 kernel=_mlir_ciface_kernel_dequantize_1x3072 calls=0000000000000038 cycles=0000000000530811
+[profile] position=00000011 kernel=_mlir_ciface_kernel_embedding_w8a8_1x1024 calls=0000000000000001 cycles=0000000000013358
+[profile] position=00000011 kernel=_mlir_ciface_kernel_kv_cache_update_position_1x8x128_cap128 calls=0000000000000038 cycles=0000000000133825
+[profile] position=00000011 kernel=_mlir_ciface_kernel_layout_context_8x1x128 calls=0000000000000038 cycles=0000000000ADF95F
+[profile] position=00000011 kernel=_mlir_ciface_kernel_matmul_1x1024x1024 calls=0000000000000038 cycles=0000000001879702
+[profile] position=00000011 kernel=_mlir_ciface_kernel_matmul_1x1024x2048 calls=000000000000001C cycles=0000000001623234
+[profile] position=00000011 kernel=_mlir_ciface_kernel_matmul_1x1024x3072 calls=000000000000001C cycles=00000000023D14A7
+[profile] position=00000011 kernel=_mlir_ciface_kernel_matmul_1x151936x1024 calls=0000000000000001 cycles=00000000040B565D
+[profile] position=00000011 kernel=_mlir_ciface_kernel_matmul_1x2048x1024 calls=000000000000001C cycles=0000000001874F0C
+[profile] position=00000011 kernel=_mlir_ciface_kernel_matmul_1x3072x1024 calls=0000000000000038 cycles=0000000004950286
+[profile] position=00000011 kernel=_mlir_ciface_kernel_quantize_1x1024 calls=0000000000000039 cycles=00000000001CD37E
+[profile] position=00000011 kernel=_mlir_ciface_kernel_quantize_1x2048 calls=000000000000001C cycles=00000000001BCBF3
+[profile] position=00000011 kernel=_mlir_ciface_kernel_quantize_1x3072 calls=000000000000001C cycles=0000000000565772
+[profile] position=00000011 kernel=_mlir_ciface_kernel_rmsnorm_16x128 calls=000000000000001C cycles=0000000000833A04
+[profile] position=00000011 kernel=_mlir_ciface_kernel_rmsnorm_1x1024 calls=0000000000000039 cycles=0000000000846AF9
+[profile] position=00000011 kernel=_mlir_ciface_kernel_rmsnorm_8x128 calls=000000000000001C cycles=000000000041DD7E
+[profile] position=00000011 kernel=_mlir_ciface_kernel_silu_1x3072 calls=000000000000001C cycles=0000000000F03629
+[profile] position=00000011 kernel=_mlir_ciface_kernel_softmax_16x1x128 calls=000000000000001C cycles=0000000000C511D6
+[text] prediction=00000002 token=00000108 eos=00000000 bytes=00000002 hex=2061
+[model] decode begin position=00000012 input_token=00000108
+[compare] logits position=00000012 count=00025180 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] key_cache position=00000012 count=00085000 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] value_cache position=00000012 count=00085000 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[model] selected position=00000012 0000BF68:40333453 00000176:403148B5 00000108:40C709AA 00000C4A:419F64B5 00001CEF:40D3921B 00000130:4011DF7D 000012B3:40F4672A 00001427:C10B889A 0000000B:4073A925
+[model] kv position=00000012 layer=00000000 k=3E379484 v=BB340DDD
+[model] kv position=00000012 layer=00000001 k=3FFFB1BA v=3D3C2660
+[model] kv position=00000012 layer=00000002 k=3F0028DE v=BE8DECC7
+[model] kv position=00000012 layer=00000003 k=3EAB0015 v=BD8E3EDE
+[model] kv position=00000012 layer=00000004 k=BDE7DDEE v=3E2041FF
+[model] kv position=00000012 layer=00000005 k=BE2B92DE v=BF177DBC
+[model] kv position=00000012 layer=00000006 k=BD3D7BEB v=BE8D09EC
+[model] kv position=00000012 layer=00000007 k=3E975058 v=BE95DB4A
+[model] kv position=00000012 layer=00000008 k=BE890D64 v=3F2268E2
+[model] kv position=00000012 layer=00000009 k=BE3A2BCE v=BE96A380
+[model] kv position=00000012 layer=0000000A k=3E8075DF v=3D933E8C
+[model] kv position=00000012 layer=0000000B k=3EC359F9 v=C02990E8
+[model] kv position=00000012 layer=0000000C k=BF45B5F7 v=3EA5D637
+[model] kv position=00000012 layer=0000000D k=BF3285BC v=C015D7E9
+[model] kv position=00000012 layer=0000000E k=3D2018C8 v=BEB22A69
+[model] kv position=00000012 layer=0000000F k=413171DE v=3E0F4C0A
+[model] kv position=00000012 layer=00000010 k=BF21A270 v=BFC4C450
+[model] kv position=00000012 layer=00000011 k=BF8100D7 v=3E625865
+[model] kv position=00000012 layer=00000012 k=3F86CA0E v=BFA9BEE6
+[model] kv position=00000012 layer=00000013 k=BDC0E458 v=BF84FF22
+[model] kv position=00000012 layer=00000014 k=C0265879 v=3E0C58E9
+[model] kv position=00000012 layer=00000015 k=BF79E53F v=3C93DC0D
+[model] kv position=00000012 layer=00000016 k=BF1A3562 v=BFCA6667
+[model] kv position=00000012 layer=00000017 k=3D4700CC v=C0C6F019
+[model] kv position=00000012 layer=00000018 k=3F78C5E5 v=C08A5C20
+[model] kv position=00000012 layer=00000019 k=C09555B4 v=C00131A0
+[model] kv position=00000012 layer=0000001A k=BFBBE55E v=3FB81D18
+[model] kv position=00000012 layer=0000001B k=3F3BC733 v=C147F87A
+[model] decode position=00000012 token=00000C4A logit_bits=419F64B5 compute_cycles=000000003B8D6449 preparation_cycles=000000000018823E selection_cycles=0000000000278A9D cache_retention_cycles=0000000002C3734F model_cycles=000000003E90E473 total_with_uart_cycles=00000000404F31E2 scratch_bytes=000000000575E315
+[profile] position=00000012 kernel=_mlir_ciface_kernel_attention_pv_position_16x1x128x128 calls=000000000000001C cycles=0000000007B4D3B8
+[profile] position=00000012 kernel=_mlir_ciface_kernel_attention_qk_position_native_16x1x128x128 calls=000000000000001C cycles=0000000004BC9B48
+[profile] position=00000012 kernel=_mlir_ciface_kernel_attention_scale_mask_position_16x1x128 calls=000000000000001C cycles=0000000000E6EB3C
+[profile] position=00000012 kernel=_mlir_ciface_kernel_dequantize_1x1024 calls=0000000000000070 cycles=00000000003844E2
+[profile] position=00000012 kernel=_mlir_ciface_kernel_dequantize_1x151936 calls=0000000000000001 cycles=000000000048B0D8
+[profile] position=00000012 kernel=_mlir_ciface_kernel_dequantize_1x2048 calls=000000000000001C cycles=00000000001BCC43
+[profile] position=00000012 kernel=_mlir_ciface_kernel_dequantize_1x3072 calls=0000000000000038 cycles=000000000053082D
+[profile] position=00000012 kernel=_mlir_ciface_kernel_embedding_w8a8_1x1024 calls=0000000000000001 cycles=0000000000013359
+[profile] position=00000012 kernel=_mlir_ciface_kernel_kv_cache_update_position_1x8x128_cap128 calls=0000000000000038 cycles=00000000001337A2
+[profile] position=00000012 kernel=_mlir_ciface_kernel_layout_context_8x1x128 calls=0000000000000038 cycles=0000000000ADF844
+[profile] position=00000012 kernel=_mlir_ciface_kernel_matmul_1x1024x1024 calls=0000000000000038 cycles=000000000187970F
+[profile] position=00000012 kernel=_mlir_ciface_kernel_matmul_1x1024x2048 calls=000000000000001C cycles=0000000001623061
+[profile] position=00000012 kernel=_mlir_ciface_kernel_matmul_1x1024x3072 calls=000000000000001C cycles=00000000023D12D4
+[profile] position=00000012 kernel=_mlir_ciface_kernel_matmul_1x151936x1024 calls=0000000000000001 cycles=00000000040B5769
+[profile] position=00000012 kernel=_mlir_ciface_kernel_matmul_1x2048x1024 calls=000000000000001C cycles=0000000001874ED9
+[profile] position=00000012 kernel=_mlir_ciface_kernel_matmul_1x3072x1024 calls=0000000000000038 cycles=00000000049501EB
+[profile] position=00000012 kernel=_mlir_ciface_kernel_quantize_1x1024 calls=0000000000000039 cycles=00000000001CCFE5
+[profile] position=00000012 kernel=_mlir_ciface_kernel_quantize_1x2048 calls=000000000000001C cycles=00000000001BCC0C
+[profile] position=00000012 kernel=_mlir_ciface_kernel_quantize_1x3072 calls=000000000000001C cycles=00000000005656AE
+[profile] position=00000012 kernel=_mlir_ciface_kernel_rmsnorm_16x128 calls=000000000000001C cycles=0000000000833ADB
+[profile] position=00000012 kernel=_mlir_ciface_kernel_rmsnorm_1x1024 calls=0000000000000039 cycles=000000000084685A
+[profile] position=00000012 kernel=_mlir_ciface_kernel_rmsnorm_8x128 calls=000000000000001C cycles=000000000041DC74
+[profile] position=00000012 kernel=_mlir_ciface_kernel_silu_1x3072 calls=000000000000001C cycles=0000000000F030E9
+[profile] position=00000012 kernel=_mlir_ciface_kernel_softmax_16x1x128 calls=000000000000001C cycles=0000000000C55AAB
+[text] prediction=00000003 token=00000C4A eos=00000000 bytes=00000008 hex=20636f756e747279
+[model] decode begin position=00000013 input_token=00000C4A

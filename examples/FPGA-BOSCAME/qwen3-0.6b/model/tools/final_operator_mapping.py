@@ -233,6 +233,7 @@ def actual_descriptors(llvm, entry_abi):
         for rank in ranks:
             raw=values[cursor:cursor+3+2*rank];cursor+=len(raw)
             result.append({'rank':rank,'actual_llvm_fields':raw,
+                'allocated':evaluate(raw[0]),'aligned':evaluate(raw[1]),
                 'offset_elements':evaluate(raw[2]),'sizes':[evaluate(x) for x in raw[3:3+rank]],
                 'strides':[evaluate(x) for x in raw[3+rank:]]})
         if cursor!=len(values):raise ValueError('flattened external ABI count mismatch '+symbol)

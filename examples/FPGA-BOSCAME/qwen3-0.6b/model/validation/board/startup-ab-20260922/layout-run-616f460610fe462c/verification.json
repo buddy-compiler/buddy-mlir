@@ -1,0 +1,478 @@
+{
+  "schema_version": 1,
+  "status": "NOT_ACCEPTED",
+  "created_utc": "2026-09-22T03:18:53.097436+00:00",
+  "run_id": "run-616f460610fe462c",
+  "fpga": 5,
+  "variant": "layout",
+  "failures": [
+    "completed-run identity validation: run incomplete or DDR readback failed",
+    "27 full logits/KV checks did not pass",
+    "fixed prompt/tokenizer/nine-token trajectory did not pass",
+    "worker did not report successful completion"
+  ],
+  "derivation": {
+    "method": "exact ELF instruction replacement; no recompilation",
+    "source_prime_elf_sha256": "fed6d5bf1a3612e4e653ebb0e781ce27f2f30ef3d794bfc9fd66a6d6d763ad0d",
+    "derived_elf_sha256": "c7ebf6a2b54bb0feef13f2d1cc0d1a7ce15fb813bc9043c6df6aaf2743d2401c",
+    "patch_manifest": "derived-image/startup-ab.json",
+    "independently_reapplied_patch_matches": true,
+    "source_build_record": "source-prime/image.json",
+    "source_plan_role": "inherited workload/oracle contract; ame_startup remains prime in original metadata"
+  },
+  "identity": {
+    "derived_raw_bin": {
+      "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/startup-ab-20260922/layout/image/qwen_model.bin",
+      "bytes": 12592833,
+      "sha256": "65640cf046b085550b7adcd23323338d044d4ae7f6a409d2059f2a52c2c3c61c"
+    },
+    "prepared_boot_image": {
+      "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/startup-ab-20260922/layout/prepared/image.bin",
+      "bytes": 12592896,
+      "sha256": "a45b7ae0bf8c07ec7f53d729275cd9c5b494b0f049d87fa821370c81db3e2876"
+    },
+    "raw_and_canonically_zero_padded_boot_match_derived_elf": true,
+    "raw_uart_sha256": "abbe59f6b0475174144d58635f75bccf548547a7d889f328a76a5d8ebae54a4f",
+    "run_identity": {
+      "status": "NOT_ACCEPTED",
+      "error": "run incomplete or DDR readback failed"
+    },
+    "resources": [
+      {
+        "name": "model",
+        "prepared_local": {
+          "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/startup-ab-20260922/layout/prepared/image.bin",
+          "bytes": 12592896,
+          "sha256": "a45b7ae0bf8c07ec7f53d729275cd9c5b494b0f049d87fa821370c81db3e2876"
+        },
+        "remote_file": "fpga:/home/hjuser/Desktop/fpga-tester-ISCAS/fpga-runs/run-616f460610fe462c/image.bin",
+        "remote_readback": "fpga:/home/hjuser/Desktop/fpga-tester-ISCAS/fpga-runs/run-616f460610fe462c/image.bin.readback",
+        "expected_readback_sha256": "a45b7ae0bf8c07ec7f53d729275cd9c5b494b0f049d87fa821370c81db3e2876",
+        "worker_readback_match_reported": true,
+        "readback_downloaded_by_this_archiver": false
+      },
+      {
+        "name": "weights",
+        "prepared_local": {
+          "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/startup-ab-20260922/layout/prepared/weights-w8a8.bin",
+          "bytes": 598230784,
+          "sha256": "0ddd3640545b26c09a3e2fa6829f7675a2d1a5b128490635b7037efd697e33a7"
+        },
+        "remote_file": "fpga:/home/hjuser/Desktop/fpga-tester-ISCAS/fpga-runs/run-616f460610fe462c/weights-w8a8.bin",
+        "remote_readback": "fpga:/home/hjuser/Desktop/fpga-tester-ISCAS/fpga-runs/run-616f460610fe462c/weights-w8a8.bin.readback",
+        "expected_readback_sha256": "0ddd3640545b26c09a3e2fa6829f7675a2d1a5b128490635b7037efd697e33a7",
+        "worker_readback_match_reported": true,
+        "readback_downloaded_by_this_archiver": false
+      },
+      {
+        "name": "tokenizer",
+        "prepared_local": {
+          "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/startup-ab-20260922/layout/prepared/tokenizer.bin",
+          "bytes": 5222976,
+          "sha256": "7e436961bdc35adbcca4887a6f767cdbdaabc69cc0349298a40c54a400b4bcc4"
+        },
+        "remote_file": "fpga:/home/hjuser/Desktop/fpga-tester-ISCAS/fpga-runs/run-616f460610fe462c/tokenizer.bin",
+        "remote_readback": "fpga:/home/hjuser/Desktop/fpga-tester-ISCAS/fpga-runs/run-616f460610fe462c/tokenizer.bin.readback",
+        "expected_readback_sha256": "7e436961bdc35adbcca4887a6f767cdbdaabc69cc0349298a40c54a400b4bcc4",
+        "worker_readback_match_reported": true,
+        "readback_downloaded_by_this_archiver": false
+      }
+    ],
+    "source_prime_inputs": [
+      {
+        "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/quant-opt/shared/nr-prefill/forward_prefill.ll",
+        "recorded_source_prime_sha256": "1f04f5426877d94e12f4a818c2920cb70181cb84c8393ea4cd7fc83694dbea64",
+        "current_sha256": "1f04f5426877d94e12f4a818c2920cb70181cb84c8393ea4cd7fc83694dbea64",
+        "current_matches_source_prime": true
+      },
+      {
+        "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/quant-opt/shared/replacement/qwen_triton_adapters.c",
+        "recorded_source_prime_sha256": "3fd665c62263645a36863bacfcf704919fff07c4b5da21cab101b090bc2d1723",
+        "current_sha256": "3fd665c62263645a36863bacfcf704919fff07c4b5da21cab101b090bc2d1723",
+        "current_matches_source_prime": true
+      },
+      {
+        "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/quant-opt/shared/model-lib/libqwen_triton.a",
+        "recorded_source_prime_sha256": "9e45eb8832b3bf8c0c578de762c684711f0030bcba78cac74b2bd0ee6e0fbe34",
+        "current_sha256": "9e45eb8832b3bf8c0c578de762c684711f0030bcba78cac74b2bd0ee6e0fbe34",
+        "current_matches_source_prime": true
+      },
+      {
+        "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/tools/build_nr_w8a8_image.py",
+        "recorded_source_prime_sha256": "97e6e6b874ea4bafb3603ed78b4c766bbd04d081284ec29dac3629da5b4a387a",
+        "current_sha256": "f5227765dbe58d1ac2fb3105f6162dddde74ca436990a583d212b56f1c6ef632",
+        "current_matches_source_prime": false
+      },
+      {
+        "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/common/nr/nr_runtime.c",
+        "recorded_source_prime_sha256": "54dfa43ab3f512dd4504f84777f501c5da404ffa8458d5620f03f739acaa8c75",
+        "current_sha256": "0c19781e155f724e55365758e0a94fe6a4108b936ad6caf7e0e184f3c7793a72",
+        "current_matches_source_prime": false
+      },
+      {
+        "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/common/nr/nr.ld",
+        "recorded_source_prime_sha256": "50ba0a1ebaa19929fad8fa68457f1080ce1d39653aff30825f3c7c18fcb5b366",
+        "current_sha256": "50ba0a1ebaa19929fad8fa68457f1080ce1d39653aff30825f3c7c18fcb5b366",
+        "current_matches_source_prime": true
+      },
+      {
+        "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/common/nr/nr_hang_watch.inc",
+        "recorded_source_prime_sha256": "b2d48c0b496672ae9f77f32a6ccc58b4c4d65a96d8279295ca384d6285b4b5d1",
+        "current_sha256": "b2d48c0b496672ae9f77f32a6ccc58b4c4d65a96d8279295ca384d6285b4b5d1",
+        "current_matches_source_prime": true
+      },
+      {
+        "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/common/nr/nr_console.inc",
+        "recorded_source_prime_sha256": "79b7cf4f924c42c5f39bdab5774f07d5d137a728e004ca2f28d9e734ac271cd5",
+        "current_sha256": "5fda6d1a61e102b62e6e5456c379f9081109857f68764f5abb4052c4a7d45894",
+        "current_matches_source_prime": false
+      },
+      {
+        "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/common/nr/ame_sync.c",
+        "recorded_source_prime_sha256": "130a531600e734405289f4894d813012cf160f9df7e3507e51d5eebf9397e9da",
+        "current_sha256": "130a531600e734405289f4894d813012cf160f9df7e3507e51d5eebf9397e9da",
+        "current_matches_source_prime": true
+      },
+      {
+        "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/common/nr/nr_runtime.h",
+        "recorded_source_prime_sha256": "9c4baa96c1dcc7a4a24cbf7baffe0905e22770e9a510821e6ea7768ec3b46194",
+        "current_sha256": "50aa6492215912b4257a35891e3296f70a7c380541bae94c3b287921d81e1742",
+        "current_matches_source_prime": false
+      },
+      {
+        "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/common/nr/nr_math.c",
+        "recorded_source_prime_sha256": "f0bb33d8e96cb2bf7ad596916acfa1fb2bcfdf2afbd16cf1facc042144d588e8",
+        "current_sha256": "f0bb33d8e96cb2bf7ad596916acfa1fb2bcfdf2afbd16cf1facc042144d588e8",
+        "current_matches_source_prime": true
+      },
+      {
+        "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/common/nr/nr_copy.S",
+        "recorded_source_prime_sha256": "84e13b00c06a837fdf1967402780bd6c78a27cb58b45aed11406cd5f52f20a46",
+        "current_sha256": "84e13b00c06a837fdf1967402780bd6c78a27cb58b45aed11406cd5f52f20a46",
+        "current_matches_source_prime": true
+      },
+      {
+        "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/common/nr/crt.S",
+        "recorded_source_prime_sha256": "b1bf6ab5ed3815c0cddd49ae625d2eccde22604ce4302745a017ff24ea03a4b5",
+        "current_sha256": "b1bf6ab5ed3815c0cddd49ae625d2eccde22604ce4302745a017ff24ea03a4b5",
+        "current_matches_source_prime": true
+      },
+      {
+        "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/quant-opt/shared/nr-decode/forward_decode.ll",
+        "recorded_source_prime_sha256": "1de21943c89fb0846168bf713e481312460cd8922296ead6ee86cf9d6b1f5e2a",
+        "current_sha256": "1de21943c89fb0846168bf713e481312460cd8922296ead6ee86cf9d6b1f5e2a",
+        "current_matches_source_prime": true
+      }
+    ]
+  },
+  "inherited_oracle": {
+    "manifest": {
+      "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/console-fix-20260921/production-prime2/image/numeric-reference.json",
+      "bytes": 1186,
+      "sha256": "3f7e3a38215f8ec57bf8c7f75b6182402276e77076955bf3d8128b84e626bd12"
+    },
+    "plan": {
+      "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/console-fix-20260921/production-prime2/image/w8a8-image-plan.json",
+      "bytes": 39409,
+      "sha256": "3a7da9a0e7af0da6a017f7e366775f6ba9654fe6cc9bc1dbbc890c9f69138868"
+    },
+    "blob": {
+      "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/console-fix-20260921/production-prime2/image/numeric-reference.bin",
+      "bytes": 10974720,
+      "sha256": "2f82f7f2fc3f40dab7b006939213e6bd9e61d1ae5f0b580bc8108a8d56d10df3"
+    },
+    "arrays": {
+      "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/ame-v05/model-28l-cap128/quant-nr-fpga/arrays.npz",
+      "bytes": 53465561,
+      "sha256": "ede1667942c9fbf90fae0b3a3f70fb2124ff01794b35785db87220aa31470ee7"
+    },
+    "metadata": {
+      "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/ame-v05/model-28l-cap128/quant-nr-fpga/quant-reference.json",
+      "bytes": 12827,
+      "sha256": "66eeca99eec6ced3ba93fe1e1b3f8230f100440cbc2670cde48f7007ec450a9e"
+    },
+    "compiled_host_arrays": {
+      "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/quant-opt/shared/combined-host-run/arrays.npz",
+      "bytes": 127500842,
+      "sha256": "1d56247710745252d4e94c82cb2bd8bcbcd658cf792d4f351897c5c829fd626b"
+    },
+    "address": "0x80178540",
+    "elf_offset": "0x169540",
+    "npz_repacked_and_embedded_bytes_match": true,
+    "expected_nine_tokens": [
+      49000,
+      374,
+      264,
+      3146,
+      7407,
+      304,
+      4787,
+      5159,
+      11
+    ]
+  },
+  "validation": {
+    "numeric": {
+      "argv": [
+        "/home/chh/venvs/qwen3fpga-py311/bin/python",
+        "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/tools/check_board_trace.py",
+        "--uart",
+        "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/validation/board/startup-ab-20260922/.derived-run-archive-kbc6fsow/run/uart.raw.log",
+        "--host-graph",
+        "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/quant-opt/shared/combined-host-run/arrays.npz",
+        "--quant-reference",
+        "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/ame-v05/model-28l-cap128/quant-nr-fpga/arrays.npz",
+        "--embedded-reference",
+        "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/validation/board/startup-ab-20260922/.derived-run-archive-kbc6fsow/source-prime/numeric-reference.json",
+        "--layers",
+        "28",
+        "--prefill",
+        "16",
+        "--steps",
+        "8",
+        "--output",
+        "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/validation/board/startup-ab-20260922/.derived-run-archive-kbc6fsow/numeric-verification.json"
+      ],
+      "returncode": 1,
+      "status": "NOT_ACCEPTED",
+      "report": "numeric-verification.json",
+      "log": "numeric-verification.validator.log"
+    },
+    "fixed_text": {
+      "argv": [
+        "/home/chh/venvs/qwen3fpga-py311/bin/python",
+        "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/tools/check_fixed_text.py",
+        "--uart",
+        "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/validation/board/startup-ab-20260922/.derived-run-archive-kbc6fsow/run/uart.raw.log",
+        "--image-plan",
+        "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/validation/board/startup-ab-20260922/.derived-run-archive-kbc6fsow/source-prime/w8a8-image-plan.json",
+        "--assets",
+        "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/assets/official",
+        "--output",
+        "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/validation/board/startup-ab-20260922/.derived-run-archive-kbc6fsow/fixed-text-verification.json"
+      ],
+      "returncode": 1,
+      "status": "NOT_ACCEPTED",
+      "report": "fixed-text-verification.json",
+      "log": "fixed-text-verification.validator.log"
+    },
+    "full_tensor_check_count": 12,
+    "expected_full_tensor_check_count": 27,
+    "full_tensor_firmware_pass_count": 12
+  },
+  "progress": {
+    "graph_starts_observed": 5,
+    "graph_completions_observed": 4,
+    "last_graph_started": {
+      "kind": "decode",
+      "position": 19,
+      "position_hex": "0x00000013"
+    },
+    "last_graph_completed": {
+      "kind": "decode",
+      "position": 18,
+      "position_hex": "0x00000012"
+    },
+    "started_graph_without_completion": {
+      "kind": "decode",
+      "position": 19,
+      "position_hex": "0x00000013"
+    },
+    "scope": "UART graph boundaries only; this is not a sampled RA program counter"
+  },
+  "time": {
+    "scope": "local host orchestration process, including transfer/wait/collection",
+    "wall_seconds": 2008.34,
+    "host_user_cpu_seconds": 4.04,
+    "host_system_cpu_seconds": 1.54,
+    "raw_text": "Command exited with non-zero status 1\n\tCommand being timed: \"examples/FPGA-BOSCAME/qwen3-0.6b/model/tools/run_model.sh examples/FPGA-BOSCAME/qwen3-0.6b/model/build/startup-ab-20260922/layout/prepared --fpga=5 --remote-dir=/home/hjuser/Desktop/fpga-tester-ISCAS --capture-seconds=1800 --startup-timeout=900\"\n\tUser time (seconds): 4.04\n\tSystem time (seconds): 1.54\n\tPercent of CPU this job got: 0%\n\tElapsed (wall clock) time (h:mm:ss or m:ss): 33:28.34\n\tAverage shared text size (kbytes): 0\n\tAverage unshared data size (kbytes): 0\n\tAverage stack size (kbytes): 0\n\tAverage total size (kbytes): 0\n\tMaximum resident set size (kbytes): 23044\n\tAverage resident set size (kbytes): 0\n\tMajor (requiring I/O) page faults: 0\n\tMinor (reclaiming a frame) page faults: 76509\n\tVoluntary context switches: 24119\n\tInvoluntary context switches: 55\n\tSwaps: 0\n\tFile system inputs: 0\n\tFile system outputs: 1368\n\tSocket messages sent: 0\n\tSocket messages received: 0\n\tSignals delivered: 0\n\tPage size (bytes): 4096\n\tExit status: 1\n",
+    "limitation": "Host CPU time is not RA CPU time and does not establish a hardware wait."
+  },
+  "worker_capture_limit_seconds": 1800,
+  "last_uart_lines": [
+    "[model] kv position=00000012 layer=00000018 k=3F78C5E5 v=C08A5C20",
+    "[model] kv position=00000012 layer=00000019 k=C09555B4 v=C00131A0",
+    "[model] kv position=00000012 layer=0000001A k=BFBBE55E v=3FB81D18",
+    "[model] kv position=00000012 layer=0000001B k=3F3BC733 v=C147F87A",
+    "[model] decode position=00000012 token=00000C4A logit_bits=419F64B5 compute_cycles=000000003BA2697C preparation_cycles=0000000000189B30 selection_cycles=0000000000278AAF cache_retention_cycles=0000000002C37821 model_cycles=000000003EA6077C total_with_uart_cycles=00000000406444B4 scratch_bytes=000000000575E315",
+    "[text] prediction=00000003 token=00000C4A eos=00000000 bytes=00000008 hex=20636f756e747279",
+    "[model] decode begin position=00000013 input_token=00000C4A",
+    "\u0000"
+  ],
+  "limits": [
+    "Source-prime build metadata describes the source ELF, not a recompiled derived build.",
+    "Full last-position logits and valid KV only; no hidden-state acceptance.",
+    "Remote readback hashes are expected identities with worker match attestations; this script downloads nothing.",
+    "Host CPU and wall time include orchestration; neither supplies a stalled RA PC."
+  ],
+  "archived_sources": {
+    "derived-image/qwen_model.elf": {
+      "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/startup-ab-20260922/layout/image/qwen_model.elf",
+      "bytes": 13521480,
+      "sha256": "c7ebf6a2b54bb0feef13f2d1cc0d1a7ce15fb813bc9043c6df6aaf2743d2401c"
+    },
+    "derived-image/qwen_model.bin": {
+      "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/startup-ab-20260922/layout/image/qwen_model.bin",
+      "bytes": 12592833,
+      "sha256": "65640cf046b085550b7adcd23323338d044d4ae7f6a409d2059f2a52c2c3c61c"
+    },
+    "derived-image/elf-audit.json": {
+      "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/startup-ab-20260922/layout/image/elf-audit.json",
+      "bytes": 905,
+      "sha256": "53ddef760cc2f81aab4fb2e9277f0a4b0dba3a0140d88880c6a8b7db4334e119"
+    },
+    "derived-image/startup-ab.json": {
+      "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/startup-ab-20260922/layout/image/startup-ab.json",
+      "bytes": 4713,
+      "sha256": "c32e205b08f22933b25d482f35a9b1a70efe6134c1aa98534da13bf1ad289450"
+    },
+    "source-prime/qwen_model.elf": {
+      "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/console-fix-20260921/production-prime2/image/qwen_model.elf",
+      "bytes": 13521480,
+      "sha256": "fed6d5bf1a3612e4e653ebb0e781ce27f2f30ef3d794bfc9fd66a6d6d763ad0d"
+    },
+    "source-prime/image.json": {
+      "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/console-fix-20260921/production-prime2/image/image.json",
+      "bytes": 23916,
+      "sha256": "e9e3161de8c7962140452ce1c860fb299ea82b7501d0772df0a58ebf68d4d444"
+    },
+    "source-prime/w8a8-image-plan.json": {
+      "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/console-fix-20260921/production-prime2/image/w8a8-image-plan.json",
+      "bytes": 39409,
+      "sha256": "3a7da9a0e7af0da6a017f7e366775f6ba9654fe6cc9bc1dbbc890c9f69138868"
+    },
+    "source-prime/numeric-reference.json": {
+      "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/console-fix-20260921/production-prime2/image/numeric-reference.json",
+      "bytes": 1186,
+      "sha256": "3f7e3a38215f8ec57bf8c7f75b6182402276e77076955bf3d8128b84e626bd12"
+    },
+    "source-prime/model_main.c": {
+      "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/console-fix-20260921/production-prime2/image/model_main.c",
+      "bytes": 253258,
+      "sha256": "99e39679601b13315731bac3989108b5bbd01dcf0f086bd4633be94a2b60c41c"
+    },
+    "run/result.json": {
+      "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-616f460610fe462c/result.json",
+      "bytes": 584,
+      "sha256": "ccd862dc38b2cc1dec429ab2b3e9caf938eb2d35dc910d965c710cd255808bb9"
+    },
+    "run/run-manifest.json": {
+      "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-616f460610fe462c/run-manifest.json",
+      "bytes": 587,
+      "sha256": "7b4c7b9bb2a402b59b5a00f4b5c972f3553d20a483dc9806a8b660dc31439a42"
+    },
+    "run/uart.raw.log": {
+      "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-616f460610fe462c/uart.raw.log",
+      "bytes": 11911,
+      "sha256": "abbe59f6b0475174144d58635f75bccf548547a7d889f328a76a5d8ebae54a4f"
+    },
+    "run/worker.log": {
+      "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-616f460610fe462c/worker.log",
+      "bytes": 16055,
+      "sha256": "fac682d61209402b423a40b6216bf8c8fffbecc05bb5834f15dcf5a50a6d9409"
+    },
+    "run/uvhs.log": {
+      "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/build/fpga-runs/run-616f460610fe462c/uvhs.log",
+      "bytes": 68904,
+      "sha256": "50b58ab34ffc27f12cad18be52b62582ae3d0ec7bfb42b7c6283d704a9c6f218"
+    },
+    "deployment/deployment.json": {
+      "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/startup-ab-20260922/layout/prepared/deployment.json",
+      "bytes": 1126,
+      "sha256": "d274e1bb0ff05adfaeb7db4a731bd2dfce6ccd70293365760afe241104373af9"
+    },
+    "deployment/ddr-load.plan": {
+      "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/startup-ab-20260922/layout/prepared/ddr-load.plan",
+      "bytes": 655,
+      "sha256": "0a37cfb6fde19b3565c32585867a43ca485d4d78f78365d3606a990e37291427"
+    },
+    "host/host-time.txt": {
+      "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/startup-ab-20260922/layout/host-time.txt",
+      "bytes": 1006,
+      "sha256": "a3078bfa29768c7b66e776f1d9d3b5225b15d50b68c2fdc9c174b211447eb3c4"
+    },
+    "host/runner.stdout.log": {
+      "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/startup-ab-20260922/layout/runner.stdout.log",
+      "bytes": 11911,
+      "sha256": "abbe59f6b0475174144d58635f75bccf548547a7d889f328a76a5d8ebae54a4f"
+    },
+    "host/runner.stderr.log": {
+      "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/startup-ab-20260922/layout/runner.stderr.log",
+      "bytes": 6983,
+      "sha256": "d7b3bb027db2287361afeaf01071c2af64c7e25e39d4234b802b115908d26a43"
+    },
+    "validators/prepare_startup_ab.py": {
+      "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/tools/prepare_startup_ab.py",
+      "bytes": 11072,
+      "sha256": "530745086e56d414d354f8be733a44797650426e72b69d01c79867306b2562dc"
+    },
+    "validators/archive_model_run.py": {
+      "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/tools/archive_model_run.py",
+      "bytes": 46970,
+      "sha256": "422245c8b9c3ee12ab18d0fca14c61bf9e15611421337d429cf017e9f0fcb18f"
+    },
+    "validators/prepare_model_run.py": {
+      "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/tools/prepare_model_run.py",
+      "bytes": 6921,
+      "sha256": "7dcd34c63fed61b0d33ee5a589166447f3e396fb915f8746f68c36d3eade7cd9"
+    },
+    "validators/check_board_trace.py": {
+      "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/tools/check_board_trace.py",
+      "bytes": 11431,
+      "sha256": "05fb491b2088556cb084de5f27bc82299ab0c16864f30aa6be74602eda4aaa59"
+    },
+    "validators/check_fixed_text.py": {
+      "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/tools/check_fixed_text.py",
+      "bytes": 14255,
+      "sha256": "df783c60a65a675f401d76c4b294c784c481056f8af0af1f0b13d24386168a5b"
+    },
+    "validators/check_kernel_profile.py": {
+      "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/tools/check_kernel_profile.py",
+      "bytes": 32041,
+      "sha256": "8f90d6949d2601d8e281a729905567fe2a04465711ee34ddde193bfbf2969e1b"
+    },
+    "validators/archive_derived_run.py": {
+      "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/startup-ab-20260922/archive_derived_run.py",
+      "bytes": 19372,
+      "sha256": "681c7fedc4d3bf6d49be69ee1034dac085585455d5567537227769424016d502"
+    },
+    "references/quant-reference.json": {
+      "path": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/ame-v05/model-28l-cap128/quant-nr-fpga/quant-reference.json",
+      "bytes": 12827,
+      "sha256": "66eeca99eec6ced3ba93fe1e1b3f8230f100440cbc2670cde48f7007ec450a9e"
+    }
+  },
+  "archive_sha256": {
+    "deployment/ddr-load.plan": "0a37cfb6fde19b3565c32585867a43ca485d4d78f78365d3606a990e37291427",
+    "deployment/deployment.json": "d274e1bb0ff05adfaeb7db4a731bd2dfce6ccd70293365760afe241104373af9",
+    "derived-image/elf-audit.json": "53ddef760cc2f81aab4fb2e9277f0a4b0dba3a0140d88880c6a8b7db4334e119",
+    "derived-image/qwen_model.bin": "65640cf046b085550b7adcd23323338d044d4ae7f6a409d2059f2a52c2c3c61c",
+    "derived-image/qwen_model.elf": "c7ebf6a2b54bb0feef13f2d1cc0d1a7ce15fb813bc9043c6df6aaf2743d2401c",
+    "derived-image/startup-ab.json": "c32e205b08f22933b25d482f35a9b1a70efe6134c1aa98534da13bf1ad289450",
+    "fixed-text-verification.json": "d33e2f06c84f0e36c89a78805dac560b86667c313faec639d4c79362b9113f66",
+    "fixed-text-verification.validator.log": "fcd734308e365f86c6ec0f5771c92b9a65a923038fdf54f05c9c7a460d380007",
+    "host/host-time.txt": "a3078bfa29768c7b66e776f1d9d3b5225b15d50b68c2fdc9c174b211447eb3c4",
+    "host/runner.stderr.log": "d7b3bb027db2287361afeaf01071c2af64c7e25e39d4234b802b115908d26a43",
+    "host/runner.stdout.log": "abbe59f6b0475174144d58635f75bccf548547a7d889f328a76a5d8ebae54a4f",
+    "numeric-verification.json": "b64278ef5063ca1ee4cdfd09250353eeafcd58a10fa44d4cba248f1fa7095af7",
+    "numeric-verification.validator.log": "bd103494348139b642b71bd009622f1beb3343837bea29f00d8960a4e79f8f2a",
+    "references/quant-reference.json": "66eeca99eec6ced3ba93fe1e1b3f8230f100440cbc2670cde48f7007ec450a9e",
+    "run/result.json": "ccd862dc38b2cc1dec429ab2b3e9caf938eb2d35dc910d965c710cd255808bb9",
+    "run/run-manifest.json": "7b4c7b9bb2a402b59b5a00f4b5c972f3553d20a483dc9806a8b660dc31439a42",
+    "run/uart.raw.log": "abbe59f6b0475174144d58635f75bccf548547a7d889f328a76a5d8ebae54a4f",
+    "run/uvhs.log": "50b58ab34ffc27f12cad18be52b62582ae3d0ec7bfb42b7c6283d704a9c6f218",
+    "run/worker.log": "fac682d61209402b423a40b6216bf8c8fffbecc05bb5834f15dcf5a50a6d9409",
+    "source-prime/image.json": "e9e3161de8c7962140452ce1c860fb299ea82b7501d0772df0a58ebf68d4d444",
+    "source-prime/model_main.c": "99e39679601b13315731bac3989108b5bbd01dcf0f086bd4633be94a2b60c41c",
+    "source-prime/numeric-reference.json": "3f7e3a38215f8ec57bf8c7f75b6182402276e77076955bf3d8128b84e626bd12",
+    "source-prime/qwen_model.elf": "fed6d5bf1a3612e4e653ebb0e781ce27f2f30ef3d794bfc9fd66a6d6d763ad0d",
+    "source-prime/w8a8-image-plan.json": "3a7da9a0e7af0da6a017f7e366775f6ba9654fe6cc9bc1dbbc890c9f69138868",
+    "validators/archive_derived_run.py": "681c7fedc4d3bf6d49be69ee1034dac085585455d5567537227769424016d502",
+    "validators/archive_model_run.py": "422245c8b9c3ee12ab18d0fca14c61bf9e15611421337d429cf017e9f0fcb18f",
+    "validators/check_board_trace.py": "05fb491b2088556cb084de5f27bc82299ab0c16864f30aa6be74602eda4aaa59",
+    "validators/check_fixed_text.py": "df783c60a65a675f401d76c4b294c784c481056f8af0af1f0b13d24386168a5b",
+    "validators/check_kernel_profile.py": "8f90d6949d2601d8e281a729905567fe2a04465711ee34ddde193bfbf2969e1b",
+    "validators/prepare_model_run.py": "7dcd34c63fed61b0d33ee5a589166447f3e396fb915f8746f68c36d3eade7cd9",
+    "validators/prepare_startup_ab.py": "530745086e56d414d354f8be733a44797650426e72b69d01c79867306b2562dc"
+  }
+}

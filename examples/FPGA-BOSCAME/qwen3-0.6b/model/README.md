@@ -66,6 +66,10 @@ RUN_ID=run-c9c51a235a154732  # 换成本次任务打印的 ID
 
 ## 从源码重建：环境与资源
 
+如果没有任何构建目录或已编译工具链，请使用
+[从零构建 none 整模型](../README.md#构建-none-整模型二进制)：其中包含工具链、
+全新 Python 环境、显式 kernel 清单和全部资源的生成，不依赖下面的历史构建环境。
+
 下面各段按顺序在同一个 Bash 会话运行。使用新的输出目录，保留已验收产物。
 需先具备本仓库已编译的 Buddy、LLVM、Python bindings 和 triton-riscv；环境设置见
 [公共 Triton 说明](../../common/triton/README.md)。`examples/BuddyQwen3` 不需修改。
@@ -222,6 +226,11 @@ embedding/lm_head 共享量化矩阵与 scale，norm、RoPE、attention、SiLU�
 
 ## 权重、ELF 与三段 DDR 镜像
 
+下面显式使用原始 none 基线的启动/日志配置：无额外启动同步，图结束仍做
+AME resync，console 为 4 MiB append-only 并实时 drain，不启用额外诊断。
+仅写 `--ame-startup=none` 而保留默认 ring console，并不等于该基线配置。
+不具备已有输入时，使用[从零构建步骤](../README.md#构建-none-整模型二进制)。
+
 ```bash
 "$BUDDY_PYTHON" -B "$MODEL/tools/build_nr_w8a8_segment.py" \
   --report "$OUT/replacement/triton-call-replacement.json" \
@@ -237,20 +246,31 @@ embedding/lm_head 共享量化矩阵与 scale，norm、RoPE、attention、SiLU�
   --archive "$OUT/model-lib/libqwen_triton.a" \
   --adapters "$OUT/replacement/qwen_triton_adapters.c" \
   --output "$OUT/image" --layers 28 --cache-len 128 --prefill-len 16 --decode-steps 8 \
-  --prompt-text 'What is France?' --tokenizer-blob "$MODEL/build/tokenizer.bin" \
+  --prompt-ids "$PROMPT" --prompt-text 'What is France?' \
+  --tokenizer-blob "$MODEL/build/tokenizer.bin" \
   --reference-arrays "$OUT/quant-nr-fpga/arrays.npz" \
-  --reference-metadata "$OUT/quant-nr-fpga/quant-reference.json"
+  --reference-metadata "$OUT/quant-nr-fpga/quant-reference.json" \
+  --ame-startup=none --graph-sync=ame-resync --ame-cache-sync=none \
+  --console-mode=append-only --console-capacity=4194304 --console-drain=live
 "$BUDDY_PYTHON" -B "$MODEL/tools/prepare_model_run.py" \
   --image "$OUT/image/qwen_model.bin" --elf "$OUT/image/qwen_model.elf" \
   --weights "$OUT/weights/weights-w8a8.bin" \
   --weight-manifest "$OUT/weights/w8a8-segment.json" \
   --tokenizer "$MODEL/build/tokenizer.bin" --output "$OUT/prepared"
+```
+
+以上只在本机构建与准备 DDR 文件，不会上板。需要运行新镜像时，再单独执行：
+
+```bash
 "$MODEL/tools/run_model.sh" "$OUT/prepared" \
-  --fpga=5 --capture-seconds=2400 --startup-timeout=900
+  --fpga=5 --remote-dir=/home/hjuser/Desktop/fpga-tester-ISCAS \
+  --capture-seconds=1800 --startup-timeout=900
 ```
 
 此命令不启用 kernel profiler。参考数组仅在模型计算后做比较，不用于生成 token 或更新 KV。
 公共 `common/nr` 负责启动、通信和同步，ELF audit 应无未定义符号。
+当前源码重编不保证与历史 `production-control` ELF 逐字节一致；
+新镜像必须重新验收，不能沿用原始 none 的 PASS 记录。
 
 本次权重段 598,230,784 字节，tokenizer 5,222,976 字节；HIGH 持久区总计
 705,093,888 字节，范围约 `0xb8000000..0xe206e100`，包含权重、KV、tokenizer 和 workspace。

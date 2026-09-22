@@ -1,0 +1,79 @@
+
+/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/quant-opt/no-profile-rerun-28l-cap128/image/qwen_model.elf:	file format elf64-littleriscv
+
+Disassembly of section .text:
+
+0000000080167654 <.Lpcrel_hi84>:
+801676b0: 08a6         	slli	a7, a7, 0x9
+801676b2: a0f61dd3     	flt.s	s11, fa2, fa5
+801676b6: 000d8463     	beqz	s11, 0x801676be <.Lpcrel_hi84+0x6a>
+801676ba: 20c61653     	fneg.s	fa2, fa2
+801676be: a0e60dd3     	fle.s	s11, fa2, fa4
+801676c2: d00d85e3     	beqz	s11, 0x801673cc <.Lpcrel_hi88>
+801676c6: a0c69dd3     	flt.s	s11, fa3, fa2
+801676ca: 20c60553     	fmv.s	fa0, fa2
+801676ce: fc0d93e3     	bnez	s11, 0x80167694 <.Lpcrel_hi84+0x40>
+801676d2: 20d68553     	fmv.s	fa0, fa3
+801676d6: bf7d         	j	0x80167694 <.Lpcrel_hi84+0x40>
+801676d8: 0f85         	addi	t6, t6, 0x1
+801676da: 200a0a13     	addi	s4, s4, 0x200
+801676de: 20048493     	addi	s1, s1, 0x200
+801676e2: fb2f92e3     	bne	t6, s2, 0x80167686 <.Lpcrel_hi84+0x32>
+801676e6: 0e05         	addi	t3, t3, 0x1
+801676e8: 9f3e         	add	t5, t5, a5
+801676ea: 9ec2         	add	t4, t4, a6
+801676ec: f91e1ae3     	bne	t3, a7, 0x80167680 <.Lpcrel_hi84+0x2c>
+801676f0: 0585         	addi	a1, a1, 0x1
+801676f2: 9616         	add	a2, a2, t0
+801676f4: 971a         	add	a4, a4, t1
+801676f6: f87592e3     	bne	a1, t2, 0x8016767a <.Lpcrel_hi84+0x26>
+
+00000000801676fa <.Lpcrel_hi85>:
+801676fa: 00a88617     	auipc	a2, 0xa88
+801676fe: 54260613     	addi	a2, a2, 0x542
+80167702: 85a2         	mv	a1, s0
+80167704: 8a2a         	mv	s4, a0
+80167706: 8532         	mv	a0, a2
+80167708: 84b6         	mv	s1, a3
+8016770a: 8636         	mv	a2, a3
+8016770c: 1a2000ef     	jal	0x801678ae <report_error>
+80167710: 4581         	li	a1, 0x0
+80167712: 007d7637     	lui	a2, 0x7d7
+80167716: 60060613     	addi	a2, a2, 0x600
+8016771a: 01456a33     	or	s4, a0, s4
+8016771e: 99b2         	add	s3, s3, a2
+80167720: f00007d3     	fmv.w.x	fa5, zero
+80167724: 7f800537     	lui	a0, 0x7f800
+
+0000000080167728 <.Lpcrel_hi86>:
+80167728: 5c71d617     	auipc	a2, 0x5c71d
+8016772c: fff50693     	addi	a3, a0, -0x1
+80167730: fd860513     	addi	a0, a2, -0x28
+80167734: f0068753     	fmv.w.x	fa4, a3
+80167738: 660d         	lui	a2, 0x3
+8016773a: 66c1         	lui	a3, 0x10
+8016773c: 4721         	li	a4, 0x8
+8016773e: 67e1         	lui	a5, 0x18
+80167740: 00080837     	lui	a6, 0x80
+80167744: 48f1         	li	a7, 0x1c
+80167746: 20f785d3     	fmv.s	fa1, fa5
+8016774a: 20f78553     	fmv.s	fa0, fa5
+8016774e: 4281         	li	t0, 0x0
+80167750: 832a         	mv	t1, a0
+80167752: 83ce         	mv	t2, s3
+80167754: 4e01         	li	t3, 0x0
+80167756: 8e9a         	mv	t4, t1
+80167758: 8f1e         	mv	t5, t2
+8016775a: 08000f93     	li	t6, 0x80
+8016775e: 8c76         	mv	s8, t4
+80167760: 8cfa         	mv	s9, t5
+80167762: 20a506d3     	fmv.s	fa3, fa0
+80167766: a811         	j	0x8016777a <.Lpcrel_hi86+0x52>
+80167768: 00c5f5d3     	fadd.s	fa1, fa1, fa2
+8016776c: 1ffd         	addi	t6, t6, -0x1
+8016776e: 0c91         	addi	s9, s9, 0x4
+80167770: 0c11         	addi	s8, s8, 0x4
+80167772: 20a506d3     	fmv.s	fa3, fa0
+80167776: 020f8b63     	beqz	t6, 0x801677ac <.Lpcrel_hi86+0x84>
+8016777a: 000c2607     	flw	fa2, 0x0(s8)
+8016777e: 000ca507     	flw	fa0, 0x0(s9)

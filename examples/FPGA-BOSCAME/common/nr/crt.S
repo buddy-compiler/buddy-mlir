@@ -60,9 +60,11 @@ _ra_start:
   .size _ra_start, .-_ra_start
 
   # Trap reporting is terminal, so no interrupted register frame is needed.
-  # Reset the stack as well: this also reports stack faults where possible.
+  # Capture the interrupted return/stack pointers before using a safe stack.
   .balign 4
 .Lnh_trap:
+  mv a3, ra
+  mv a4, sp
   la sp, __stack_top
   csrr a0, mcause
   csrr a1, mepc
@@ -70,6 +72,8 @@ _ra_start:
   tail nr_nh_trap
   .balign 4
 .Lra_trap:
+  mv a3, ra
+  mv a4, sp
   la sp, __ra_stack_top
   csrr a0, mcause
   csrr a1, mepc

@@ -1,0 +1,26 @@
+# Platform loader DDR window; segments also satisfy the stricter NR linker bounds.
+version = 1
+ddr_base = 0x80000000
+ddr_size = 0x400000000
+alignment = 64
+
+[[segments]]
+name = "model"
+file = "image.bin"
+address = 0x80000000
+size = 12593984
+sha256 = "67c6446e8b3d03ab89232e43469b8928611127724acbc429cbe8dd572508dc40"
+
+[[segments]]
+name = "weights"
+file = "weights-w8a8.bin"
+address = 0xb8000000
+size = 598230784
+sha256 = "0ddd3640545b26c09a3e2fa6829f7675a2d1a5b128490635b7037efd697e33a7"
+
+[[segments]]
+name = "tokenizer"
+file = "tokenizer.bin"
+address = 0xdd6847c0
+size = 5222976
+sha256 = "7e436961bdc35adbcca4887a6f767cdbdaabc69cc0349298a40c54a400b4bcc4"

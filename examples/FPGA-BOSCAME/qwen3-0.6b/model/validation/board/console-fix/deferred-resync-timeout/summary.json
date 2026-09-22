@@ -1,0 +1,33 @@
+{
+  "status": "INCOMPLETE_TIMEOUT",
+  "run_id": "run-ca6f2cf51eef4b88",
+  "configuration": {"layers": 28, "capacity": 128, "prefill": 16, "decode_steps_requested": 8},
+  "profile_sync": "ame-resync",
+  "graph_sync": "ame-resync",
+  "console": {"mode": "append-only", "capacity_bytes": 4194304, "drain": "after-completion"},
+  "ame_startup": "none",
+  "graph_entry_fence": false,
+  "boot_sha256": "49306ca6a53d54db5468a7fc3341e2a28c1390209184fb47db8dd3ff051a87f1",
+  "capture_seconds": 1500,
+  "uart_bytes": 71,
+  "ddr_readback_matches": true,
+  "completion_marker_seen": false,
+  "error": "UART completion marker missing at capture timeout",
+  "limits": [
+    "Only the NH banner is visible. Deferred output hides RA progress until completion, so no particular graph, kernel or PC can be located.",
+    "Restoring profiler AME resync did not produce a complete validated run within this window.",
+    "This is not proof that resync itself stalled, or that the prior numerical failure and this timeout share one cause.",
+    "No numeric checks or generated tokens were observed."
+  ],
+  "evidence_sha256": {
+    "elf-audit.json": "00a614798afe78946c0579a4c7bfecd99cf158a5b10e83c4c7bd5b2707b85b94",
+    "image.json": "8725838e88ea5dad313e488cb13adc61fd508886e85bd9164d386efb1bd7ae8b",
+    "kernel-profile.json": "d8fc51c20abb255e295ee4fbb88f94805465201b6829e0557f33cb1968251136",
+    "result.json": "52aed379ab54d7cab84794c801f6e5d0a7f6ade2473bc51124d2bd0da02d6212",
+    "run-manifest.json": "ef87e1677b72a5411913a6be68fba24e33199fb24929acd3411092c288cafcca",
+    "uart.raw.log": "4e30fd827be3636499d08b100f10cd91e56f9c8ddc29dda7543fa217ad1049db",
+    "uvhs.log": "f4adaa4a47318eb4be9050b14a8d6e0afaa558d61e6fff9c49055884cf37f3cf",
+    "w8a8-image-plan.json": "cde3a32a45e1673c6786608f972bf03287d8a04bef7474f93994a0f524f5beb6",
+    "worker.log": "b8c45bc0803e19a442f68fe45af0e3c66f20c81ae554ee3479aab5160be89a96"
+  }
+}

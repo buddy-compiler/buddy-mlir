@@ -1,0 +1,365 @@
+[fpga_run] UART ready: /dev/FPGA5, 115200, 8N1, no flow control
+[fpga_run] FPGA5 session active; elapsed=0s, UART=0 bytes
+
+[nr] NH boot; RA operator runtime
+[nr] RA entry=0x0000000080000040
+[fpga_run] FPGA5 started; capturing for 1500 seconds
+[fpga_run] FPGA5 session active; elapsed=12s, UART=71 bytes
+[fpga_run] FPGA5 session active; elapsed=42s, UART=71 bytes
+[fpga_run] FPGA5 session active; elapsed=72s, UART=71 bytes
+[fpga_run] FPGA5 session active; elapsed=102s, UART=71 bytes
+[fpga_run] FPGA5 session active; elapsed=132s, UART=71 bytes
+[fpga_run] FPGA5 session active; elapsed=162s, UART=71 bytes
+[fpga_run] FPGA5 session active; elapsed=192s, UART=71 bytes
+[fpga_run] FPGA5 session active; elapsed=222s, UART=71 bytes
+[fpga_run] FPGA5 session active; elapsed=252s, UART=71 bytes
+[fpga_run] FPGA5 session active; elapsed=282s, UART=71 bytes
+[fpga_run] FPGA5 session active; elapsed=312s, UART=71 bytes
+[fpga_run] FPGA5 session active; elapsed=342s, UART=71 bytes
+[fpga_run] FPGA5 session active; elapsed=372s, UART=71 bytes
+[fpga_run] FPGA5 session active; elapsed=402s, UART=71 bytes
+[fpga_run] FPGA5 session active; elapsed=432s, UART=71 bytes
+[fpga_run] FPGA5 session active; elapsed=462s, UART=71 bytes
+[fpga_run] FPGA5 session active; elapsed=492s, UART=71 bytes
+[fpga_run] FPGA5 session active; elapsed=522s, UART=71 bytes
+[fpga_run] FPGA5 session active; elapsed=552s, UART=71 bytes
+[fpga_run] FPGA5 session active; elapsed=582s, UART=71 bytes
+[fpga_run] FPGA5 session active; elapsed=612s, UART=71 bytes
+[fpga_run] FPGA5 session active; elapsed=642s, UART=71 bytes
+[fpga_run] FPGA5 session active; elapsed=672s, UART=71 bytes
+[fpga_run] FPGA5 session active; elapsed=702s, UART=71 bytes
+[fpga_run] FPGA5 session active; elapsed=732s, UART=71 bytes
+[fpga_run] FPGA5 session active; elapsed=762s, UART=71 bytes
+[fpga_run] FPGA5 session active; elapsed=792s, UART=71 bytes
+[fpga_run] FPGA5 session active; elapsed=822s, UART=71 bytes
+[nr] RA entered; clearing application BSS
+[nr] mstatus=0x8000000A00006000; launch BEGIN
+[text] prompt count=00000010 ids=0002505C 00000368 000000C6 00000EFE 00000176 00002599 0000001E 0002505D 000000C6 0002505C 00012D23 000000C6 00025073 0000010F 00025074 0000010F encode_cycles=000000000002F12D
+verify fixed prompt tokenizer: PASS
+[text] mode=fixed-validation; EOS is recorded, never early-stops
+[model] prefill begin position=00000000 input_token=0002505C
+[compare] logits position=0000000F count=00025180 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] key_cache position=0000000F count=00070000 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] value_cache position=0000000F count=00070000 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[model] selected position=0000000F 0000BF68:41F54266 00000176:403AF82E 00000108:BFA95B79 00000C4A:40B287E5 00001CEF:3FB8EFE0 00000130:3F543ECD 000012B3:40241D5F 00001427:409B5EA5 0000000B:40C03C92
+[model] kv position=0000000F layer=00000000 k=BEFA4528 v=3B3D6C2F
+[model] kv position=0000000F layer=00000001 k=C01DFA19 v=3D152C2B
+[model] kv position=0000000F layer=00000002 k=BEDB2217 v=BD2ABF52
+[model] kv position=0000000F layer=00000003 k=3EA27C58 v=BE6667A0
+[model] kv position=0000000F layer=00000004 k=3E1648FE v=BE351127
+[model] kv position=0000000F layer=00000005 k=BD36E00C v=BE1B01E3
+[model] kv position=0000000F layer=00000006 k=3F2CA93C v=BDDAC571
+[model] kv position=0000000F layer=00000007 k=BE9397FF v=3E8511E6
+[model] kv position=0000000F layer=00000008 k=3E1FD079 v=3EDE051B
+[model] kv position=0000000F layer=00000009 k=BDEFD52C v=BD87C13B
+[model] kv position=0000000F layer=0000000A k=BE6555E7 v=3D8EE820
+[model] kv position=0000000F layer=0000000B k=BE3C4A64 v=3D113D85
+[model] kv position=0000000F layer=0000000C k=3EB4F451 v=BD5D8BF9
+[model] kv position=0000000F layer=0000000D k=3E8D1BD8 v=BFBF8FDE
+[model] kv position=0000000F layer=0000000E k=3D53990A v=3EA63362
+[model] kv position=0000000F layer=0000000F k=C08DCA8C v=BE0D2EC5
+[model] kv position=0000000F layer=00000010 k=3E3DD582 v=BE84E98C
+[model] kv position=0000000F layer=00000011 k=3F30A9E1 v=BFC27C17
+[model] kv position=0000000F layer=00000012 k=3EDB2EE7 v=C017603B
+[model] kv position=0000000F layer=00000013 k=3DD61774 v=3FA44126
+[model] kv position=0000000F layer=00000014 k=4015D4A0 v=3F5AD3B1
+[model] kv position=0000000F layer=00000015 k=3FE5ADF3 v=40223239
+[model] kv position=0000000F layer=00000016 k=BE8BFC16 v=C0A1BA2A
+[model] kv position=0000000F layer=00000017 k=BECAF156 v=4073E2C4
+[model] kv position=0000000F layer=00000018 k=BF92E593 v=BFB6540E
+[model] kv position=0000000F layer=00000019 k=402A4554 v=4088071E
+[model] kv position=0000000F layer=0000001A k=3F73B88D v=40C2C4BF
+[model] kv position=0000000F layer=0000001B k=BE82BBAB v=BF050E35
+[model] prefill position=00000000 token=0000BF68 logit_bits=41F54266 compute_cycles=00000000DA059258 preparation_cycles=0000000001117460 selection_cycles=0000000000278AD7 cache_retention_cycles=0000000002C373B2 model_cycles=00000000DE020541 total_with_uart_cycles=00000000DE874C31 scratch_bytes=000000000805C995
+[text] prediction=00000000 token=0000BF68 eos=00000000 bytes=00000006 hex=4672616e6365
+[model] decode begin position=00000010 input_token=0000BF68
+[compare] logits position=00000010 count=00025180 max_abs_bits=35800000 mean_abs_bits=2D25A266 PASS
+[compare] key_cache position=00000010 count=00077000 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] value_cache position=00000010 count=00077000 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[model] selected position=00000010 0000BF68:40898398 00000176:41D7BB85 00000108:411FA698 00000C4A:40C2F934 00001CEF:40F443E6 00000130:413550E4 000012B3:4016D960 00001427:3F8092BF 0000000B:41A7EAE5
+[model] kv position=00000010 layer=00000000 k=BFF17525 v=BE3D68E0
+[model] kv position=00000010 layer=00000001 k=BFB93C7A v=3C0F6CEA
+[model] kv position=00000010 layer=00000002 k=BE67A43C v=BDE0013F
+[model] kv position=00000010 layer=00000003 k=3FE59F65 v=BDB2B5F0
+[model] kv position=00000010 layer=00000004 k=3F42B00A v=3E07F81D
+[model] kv position=00000010 layer=00000005 k=3ED72FF8 v=BF2CE8A9
+[model] kv position=00000010 layer=00000006 k=3F07B116 v=BF17C6A2
+[model] kv position=00000010 layer=00000007 k=BE885C05 v=3F0B799D
+[model] kv position=00000010 layer=00000008 k=BE87B0F5 v=BF01525D
+[model] kv position=00000010 layer=00000009 k=BE7E9102 v=BF2841DF
+[model] kv position=00000010 layer=0000000A k=BDF7FDF8 v=BEE85398
+[model] kv position=00000010 layer=0000000B k=BEDD0854 v=C08F8706
+[model] kv position=00000010 layer=0000000C k=3D925026 v=BF1F16A4
+[model] kv position=00000010 layer=0000000D k=3F006117 v=BF3F547E
+[model] kv position=00000010 layer=0000000E k=394D0D80 v=3F72458B
+[model] kv position=00000010 layer=0000000F k=BF2E2640 v=3DFE6BE8
+[model] kv position=00000010 layer=00000010 k=BE3914D8 v=BFEE3830
+[model] kv position=00000010 layer=00000011 k=3EA8424D v=3FEDB3AF
+[model] kv position=00000010 layer=00000012 k=BF7FEBD8 v=C0136B85
+[model] kv position=00000010 layer=00000013 k=3E9585C0 v=3FCB4D7D
+[model] kv position=00000010 layer=00000014 k=3F8DDB22 v=BFDE41BA
+[model] kv position=00000010 layer=00000015 k=BF68F5C3 v=BF2BF602
+[model] kv position=00000010 layer=00000016 k=BE1055EE v=3F8B7092
+[model] kv position=00000010 layer=00000017 k=BD2046C7 v=401F5941
+[model] kv position=00000010 layer=00000018 k=C05003CD v=C1659A85
+[model] kv position=00000010 layer=00000019 k=40818B42 v=4138C365
+[model] kv position=00000010 layer=0000001A k=3E9E461A v=C0B903A1
+[model] kv position=00000010 layer=0000001B k=3F71DB90 v=C0B5F0F5
+[model] decode position=00000010 token=00000176 logit_bits=41D7BB85 compute_cycles=000000003B414327 preparation_cycles=000000000018AE36 selection_cycles=0000000000278AC8 cache_retention_cycles=0000000002C37440 model_cycles=000000003E44F065 total_with_uart_cycles=000000003FD831E2 scratch_bytes=000000000575E315
+[text] prediction=00000001 token=00000176 eos=00000000 bytes=00000003 hex=206973
+[model] decode begin position=00000011 input_token=00000176
+[compare] logits position=00000011 count=00025180 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] key_cache position=00000011 count=0007E000 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] value_cache position=00000011 count=0007E000 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[model] selected position=00000011 0000BF68:40C2166B 00000176:4119AE5F 00000108:41CDCF21 00000C4A:413827B3 00001CEF:41889C5B 00000130:413C2BD3 000012B3:40DD604D 00001427:409FBD3A 0000000B:4136E737
+[model] kv position=00000011 layer=00000000 k=BEA4E2C2 v=3D207A7F
+[model] kv position=00000011 layer=00000001 k=C05A4FE2 v=3DF5FC2A
+[model] kv position=00000011 layer=00000002 k=BED6C382 v=BE458F55
+[model] kv position=00000011 layer=00000003 k=3F7D66EA v=BE89B329
+[model] kv position=00000011 layer=00000004 k=3F25D30E v=3EA17F33
+[model] kv position=00000011 layer=00000005 k=3F549A2B v=3E7C2466
+[model] kv position=00000011 layer=00000006 k=3BED8920 v=3DFA12CC
+[model] kv position=00000011 layer=00000007 k=BDBF4E63 v=BC6FC92A
+[model] kv position=00000011 layer=00000008 k=BF0806F7 v=3E7235A2
+[model] kv position=00000011 layer=00000009 k=3C00A7A8 v=BDC785B9
+[model] kv position=00000011 layer=0000000A k=3D442B50 v=BEFE5268
+[model] kv position=00000011 layer=0000000B k=3E18FADE v=C02AD128
+[model] kv position=00000011 layer=0000000C k=BEE13190 v=BEEB4AFF
+[model] kv position=00000011 layer=0000000D k=BDDB8BF0 v=BFE59E9B
+[model] kv position=00000011 layer=0000000E k=BC3473C0 v=BF3785E0
+[model] kv position=00000011 layer=0000000F k=40211ED0 v=BF86721D
+[model] kv position=00000011 layer=00000010 k=BE9E73F3 v=BFD546B9
+[model] kv position=00000011 layer=00000011 k=3EA82F0B v=3EADB5FE
+[model] kv position=00000011 layer=00000012 k=3FF1AEC7 v=C0040BD3
+[model] kv position=00000011 layer=00000013 k=3D9347A4 v=BEF4378A
+[model] kv position=00000011 layer=00000014 k=BF96FEE6 v=BF9D73F0
+[model] kv position=00000011 layer=00000015 k=BE8891E6 v=3EACBC26
+[model] kv position=00000011 layer=00000016 k=3E8B7CFA v=3EEDFF4E
+[model] kv position=00000011 layer=00000017 k=BE5B588A v=3F22944D
+[model] kv position=00000011 layer=00000018 k=BDF56291 v=C0D38E1E
+[model] kv position=00000011 layer=00000019 k=C02F5651 v=BC5BC3ED
+[model] kv position=00000011 layer=0000001A k=BFC6185C v=C1036592
+[model] kv position=00000011 layer=0000001B k=3F853114 v=C0B645E8
+[model] decode position=00000011 token=00000108 logit_bits=41CDCF21 compute_cycles=000000003B6E621E preparation_cycles=000000000018AD56 selection_cycles=0000000000278A88 cache_retention_cycles=0000000002C37675 model_cycles=000000003E721071 total_with_uart_cycles=00000000401AB8F0 scratch_bytes=000000000575E315
+[text] prediction=00000002 token=00000108 eos=00000000 bytes=00000002 hex=2061
+[model] decode begin position=00000012 input_token=00000108
+[compare] logits position=00000012 count=00025180 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] key_cache position=00000012 count=00085000 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] value_cache position=00000012 count=00085000 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[model] selected position=00000012 0000BF68:40333453 00000176:403148B5 00000108:40C709AA 00000C4A:419F64B5 00001CEF:40D3921B 00000130:4011DF7D 000012B3:40F4672A 00001427:C10B889A 0000000B:4073A925
+[model] kv position=00000012 layer=00000000 k=3E379484 v=BB340DDD
+[model] kv position=00000012 layer=00000001 k=3FFFB1BA v=3D3C2660
+[model] kv position=00000012 layer=00000002 k=3F0028DE v=BE8DECC7
+[model] kv position=00000012 layer=00000003 k=3EAB0015 v=BD8E3EDE
+[model] kv position=00000012 layer=00000004 k=BDE7DDEE v=3E2041FF
+[model] kv position=00000012 layer=00000005 k=BE2B92DE v=BF177DBC
+[model] kv position=00000012 layer=00000006 k=BD3D7BEB v=BE8D09EC
+[model] kv position=00000012 layer=00000007 k=3E975058 v=BE95DB4A
+[model] kv position=00000012 layer=00000008 k=BE890D64 v=3F2268E2
+[model] kv position=00000012 layer=00000009 k=BE3A2BCE v=BE96A380
+[model] kv position=00000012 layer=0000000A k=3E8075DF v=3D933E8C
+[model] kv position=00000012 layer=0000000B k=3EC359F9 v=C02990E8
+[model] kv position=00000012 layer=0000000C k=BF45B5F7 v=3EA5D637
+[model] kv position=00000012 layer=0000000D k=BF3285BC v=C015D7E9
+[model] kv position=00000012 layer=0000000E k=3D2018C8 v=BEB22A69
+[model] kv position=00000012 layer=0000000F k=413171DE v=3E0F4C0A
+[model] kv position=00000012 layer=00000010 k=BF21A270 v=BFC4C450
+[model] kv position=00000012 layer=00000011 k=BF8100D7 v=3E625865
+[model] kv position=00000012 layer=00000012 k=3F86CA0E v=BFA9BEE6
+[model] kv position=00000012 layer=00000013 k=BDC0E458 v=BF84FF22
+[model] kv position=00000012 layer=00000014 k=C0265879 v=3E0C58E9
+[model] kv position=00000012 layer=00000015 k=BF79E53F v=3C93DC0D
+[model] kv position=00000012 layer=00000016 k=BF1A3562 v=BFCA6667
+[model] kv position=00000012 layer=00000017 k=3D4700CC v=C0C6F019
+[model] kv position=00000012 layer=00000018 k=3F78C5E5 v=C08A5C20
+[model] kv position=00000012 layer=00000019 k=C09555B4 v=C00131A0
+[model] kv position=00000012 layer=0000001A k=BFBBE55E v=3FB81D18
+[model] kv position=00000012 layer=0000001B k=3F3BC733 v=C147F87A
+[model] decode position=00000012 token=00000C4A logit_bits=419F64B5 compute_cycles=000000003B839C64 preparation_cycles=0000000000188417 selection_cycles=0000000000278ACB cache_retention_cycles=0000000002C3745D model_cycles=000000003E871FA3 total_with_uart_cycles=000000004045595B scratch_bytes=000000000575E315
+[text] prediction=00000003 token=00000C4A eos=00000000 bytes=00000008 hex=20636f756e747279
+[model] decode begin position=00000013 input_token=00000C4A
+[compare] logits position=00000013 count=00025180 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] key_cache position=00000013 count=0008C000 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] value_cache position=00000013 count=0008C000 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[model] selected position=00000013 0000BF68:401F60D7 00000176:411C58F3 00000108:40F17E03 00000C4A:40D590D9 00001CEF:41BF485C 00000130:41B80273 000012B3:40FE45EA 00001427:40931D4F 0000000B:41808CE4
+[model] kv position=00000013 layer=00000000 k=400715D1 v=BE13C8A1
+[model] kv position=00000013 layer=00000001 k=406916B1 v=BE09612D
+[model] kv position=00000013 layer=00000002 k=3E7CF63D v=BCA24D63
+[model] kv position=00000013 layer=00000003 k=BF4C4B18 v=3E648055
+[model] kv position=00000013 layer=00000004 k=BF61892E v=BE808931
+[model] kv position=00000013 layer=00000005 k=BF014C5E v=BE8F3DD2
+[model] kv position=00000013 layer=00000006 k=BE6C591C v=BF9DAF12
+[model] kv position=00000013 layer=00000007 k=3EFDF1B8 v=3DF89244
+[model] kv position=00000013 layer=00000008 k=3E1479BF v=3E12B0ED
+[model] kv position=00000013 layer=00000009 k=3E39E7A7 v=BF27C550
+[model] kv position=00000013 layer=0000000A k=BE367AC6 v=BEC2E0D7
+[model] kv position=00000013 layer=0000000B k=3F0FDCB8 v=C0960894
+[model] kv position=00000013 layer=0000000C k=BD101B88 v=BE737A35
+[model] kv position=00000013 layer=0000000D k=BF3352DE v=C0177BB8
+[model] kv position=00000013 layer=0000000E k=3D82957A v=3D7EF929
+[model] kv position=00000013 layer=0000000F k=BF3A1AD3 v=3FA7496A
+[model] kv position=00000013 layer=00000010 k=3E1C63F0 v=BE15C325
+[model] kv position=00000013 layer=00000011 k=BDE08C26 v=3F16BCCB
+[model] kv position=00000013 layer=00000012 k=3F05B142 v=BDAE0761
+[model] kv position=00000013 layer=00000013 k=BD0306E8 v=C0240513
+[model] kv position=00000013 layer=00000014 k=BF43A3C6 v=BF5EDD63
+[model] kv position=00000013 layer=00000015 k=3F3813EA v=3F5A0C6F
+[model] kv position=00000013 layer=00000016 k=BEA89CF8 v=40ED306E
+[model] kv position=00000013 layer=00000017 k=3E656EAF v=C0D99DA7
+[model] kv position=00000013 layer=00000018 k=3F1E0C18 v=C16F242D
+[model] kv position=00000013 layer=00000019 k=C0865A05 v=4105F7A4
+[model] kv position=00000013 layer=0000001A k=3EB95DCD v=40A0494D
+[model] kv position=00000013 layer=0000001B k=BF35F431 v=C0B774E8
+[model] decode position=00000013 token=00001CEF logit_bits=41BF485C compute_cycles=000000003BBB24F7 preparation_cycles=0000000000189E55 selection_cycles=0000000000278AAA cache_retention_cycles=0000000002C373E3 model_cycles=000000003EBEC1D9 total_with_uart_cycles=0000000040924888 scratch_bytes=000000000575E315
+[text] prediction=00000004 token=00001CEF eos=00000000 bytes=00000008 hex=206c6f6361746564
+[model] decode begin position=00000014 input_token=00001CEF
+[compare] logits position=00000014 count=00025180 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] key_cache position=00000014 count=00093000 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] value_cache position=00000014 count=00093000 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[model] selected position=00000014 0000BF68:408A73B4 00000176:411A24CA 00000108:40F5F8EE 00000C4A:4112ED6A 00001CEF:41240B71 00000130:41D48D33 000012B3:4112E5AD 00001427:3FC75163 0000000B:412471A2
+[model] kv position=00000014 layer=00000000 k=3ECD7A3B v=3E401C48
+[model] kv position=00000014 layer=00000001 k=40D9EE07 v=BDEC37AE
+[model] kv position=00000014 layer=00000002 k=3F1AB49E v=BD03FEA1
+[model] kv position=00000014 layer=00000003 k=BE267B56 v=3DDC55F2
+[model] kv position=00000014 layer=00000004 k=BE20FF01 v=3E647FEC
+[model] kv position=00000014 layer=00000005 k=BFA10CDC v=3E45EE03
+[model] kv position=00000014 layer=00000006 k=BE3225D4 v=BE873664
+[model] kv position=00000014 layer=00000007 k=3ED4DC02 v=BEAF8E1E
+[model] kv position=00000014 layer=00000008 k=3EBD6A64 v=3ECE6C3F
+[model] kv position=00000014 layer=00000009 k=3D80D2A6 v=BE280EBF
+[model] kv position=00000014 layer=0000000A k=BEDB0501 v=BE6F24EE
+[model] kv position=00000014 layer=0000000B k=3FBA86C8 v=BFCD4E55
+[model] kv position=00000014 layer=0000000C k=3F6B0DCC v=3EF2DFA9
+[model] kv position=00000014 layer=0000000D k=BC08D420 v=BFAAD830
+[model] kv position=00000014 layer=0000000E k=3CE14B44 v=BF2DD0F7
+[model] kv position=00000014 layer=0000000F k=C01C64C6 v=3F396BD3
+[model] kv position=00000014 layer=00000010 k=3F3693D9 v=BFCF0DD7
+[model] kv position=00000014 layer=00000011 k=BECC566E v=3F9F70CE
+[model] kv position=00000014 layer=00000012 k=BF699A6B v=C07FD413
+[model] kv position=00000014 layer=00000013 k=3EA2985D v=3D187ADB
+[model] kv position=00000014 layer=00000014 k=3FC59668 v=40025DB7
+[model] kv position=00000014 layer=00000015 k=3E553AFA v=40C27579
+[model] kv position=00000014 layer=00000016 k=BF2D627A v=411A47DB
+[model] kv position=00000014 layer=00000017 k=3E119A1E v=3EF52A4F
+[model] kv position=00000014 layer=00000018 k=BE2BA9F9 v=C158CF12
+[model] kv position=00000014 layer=00000019 k=40275E6C v=41281C14
+[model] kv position=00000014 layer=0000001A k=3F8868ED v=C07F274B
+[model] kv position=00000014 layer=0000001B k=BFAE30EE v=BF97DF60
+[model] decode position=00000014 token=00000130 logit_bits=41D48D33 compute_cycles=000000003BD42926 preparation_cycles=000000000018AFB3 selection_cycles=0000000000278A38 cache_retention_cycles=0000000002C37299 model_cycles=000000003ED7D5AA total_with_uart_cycles=0000000040C0B3C3 scratch_bytes=000000000575E315
+[text] prediction=00000005 token=00000130 eos=00000000 bytes=00000003 hex=20696e
+[model] decode begin position=00000015 input_token=00000130
+[compare] logits position=00000015 count=00025180 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] key_cache position=00000015 count=0009A000 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] value_cache position=00000015 count=0009A000 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[model] selected position=00000015 0000BF68:408D7CAA 00000176:40BC3741 00000108:4124355A 00000C4A:3F5B57F5 00001CEF:40ACBB43 00000130:4100B411 000012B3:41A8CD4C 00001427:40F44EDD 0000000B:410D9BF0
+[model] kv position=00000015 layer=00000000 k=BBCDAF40 v=3D50BACF
+[model] kv position=00000015 layer=00000001 k=BF8C4442 v=BDA047CB
+[model] kv position=00000015 layer=00000002 k=BEA5BD80 v=BDACE879
+[model] kv position=00000015 layer=00000003 k=3D8FBEE8 v=3EE17B72
+[model] kv position=00000015 layer=00000004 k=3E68B6E8 v=3DC015D0
+[model] kv position=00000015 layer=00000005 k=3E892ACF v=B91F440A
+[model] kv position=00000015 layer=00000006 k=BE5CD5A0 v=BE8F5BB9
+[model] kv position=00000015 layer=00000007 k=BE34154F v=BE1EC9B3
+[model] kv position=00000015 layer=00000008 k=3EF23217 v=3E0FE7F0
+[model] kv position=00000015 layer=00000009 k=3CCB7860 v=3D817B14
+[model] kv position=00000015 layer=0000000A k=BF40CB90 v=3D080A50
+[model] kv position=00000015 layer=0000000B k=3E920AA6 v=3CB9A8D5
+[model] kv position=00000015 layer=0000000C k=3EDC56E3 v=3F5031B3
+[model] kv position=00000015 layer=0000000D k=3F1014DF v=BFFD37FC
+[model] kv position=00000015 layer=0000000E k=BDFC3692 v=BE169CBF
+[model] kv position=00000015 layer=0000000F k=C171FE27 v=3F27E42F
+[model] kv position=00000015 layer=00000010 k=3F5A7F5E v=BF7A52CB
+[model] kv position=00000015 layer=00000011 k=3F7380E8 v=3FAC9865
+[model] kv position=00000015 layer=00000012 k=BF9226A5 v=BE6161F5
+[model] kv position=00000015 layer=00000013 k=3F87884B v=BF81B869
+[model] kv position=00000015 layer=00000014 k=4024C124 v=BF65C5E5
+[model] kv position=00000015 layer=00000015 k=3F67DFB3 v=C0862B18
+[model] kv position=00000015 layer=00000016 k=3EAAF2EE v=C10FF10F
+[model] kv position=00000015 layer=00000017 k=BF32CA1E v=3EAEFBD1
+[model] kv position=00000015 layer=00000018 k=BF39BA99 v=C0DAD141
+[model] kv position=00000015 layer=00000019 k=40CD14B3 v=3FDD730E
+[model] kv position=00000015 layer=0000001A k=3FB17D04 v=C0E27629
+[model] kv position=00000015 layer=0000001B k=BF9BD58E v=C1B92226
+[model] decode position=00000015 token=000012B3 logit_bits=41A8CD4C compute_cycles=000000003C076AA7 preparation_cycles=000000000018A5C9 selection_cycles=0000000000278AB1 cache_retention_cycles=0000000002C375D4 model_cycles=000000003F0B10F5 total_with_uart_cycles=0000000041095F8C scratch_bytes=000000000575E315
+[text] prediction=00000006 token=000012B3 eos=00000000 bytes=00000006 hex=204e6f727468
+[model] decode begin position=00000016 input_token=000012B3
+[compare] logits position=00000016 count=00025180 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] key_cache position=00000016 count=000A1000 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] value_cache position=00000016 count=000A1000 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[model] selected position=00000016 0000BF68:4040C1D0 00000176:40A8AB20 00000108:4094548F 00000C4A:BE15ECF1 00001CEF:405ACD26 00000130:40C8B4A2 000012B3:41429556 00001427:4196A15C 0000000B:414EB691
+[model] kv position=00000016 layer=00000000 k=BFF05E56 v=3D98776A
+[model] kv position=00000016 layer=00000001 k=C02EA721 v=BD6EB98F
+[model] kv position=00000016 layer=00000002 k=BF90CC8C v=BDAAABE3
+[model] kv position=00000016 layer=00000003 k=40066C42 v=3E8429CC
+[model] kv position=00000016 layer=00000004 k=3F4BD582 v=3F05DDD0
+[model] kv position=00000016 layer=00000005 k=3F0D60E0 v=BDBEF863
+[model] kv position=00000016 layer=00000006 k=40181AA4 v=BF1D0208
+[model] kv position=00000016 layer=00000007 k=BF9463AA v=3E2EB754
+[model] kv position=00000016 layer=00000008 k=BADCA670 v=3F2C61B8
+[model] kv position=00000016 layer=00000009 k=BEFA0819 v=BF22134E
+[model] kv position=00000016 layer=0000000A k=3FA35F30 v=BEAD0246
+[model] kv position=00000016 layer=0000000B k=BE8B6A47 v=3FBB5E35
+[model] kv position=00000016 layer=0000000C k=3EE4B7A6 v=3F185B27
+[model] kv position=00000016 layer=0000000D k=3F63AA48 v=BFD7A598
+[model] kv position=00000016 layer=0000000E k=3E049591 v=BF711E43
+[model] kv position=00000016 layer=0000000F k=C145E484 v=3ED1FBC3
+[model] kv position=00000016 layer=00000010 k=3D2C53D2 v=BF3F152C
+[model] kv position=00000016 layer=00000011 k=3FA3CB26 v=3FA55660
+[model] kv position=00000016 layer=00000012 k=BED67A5A v=BF26508D
+[model] kv position=00000016 layer=00000013 k=3E736BE3 v=BEFFD21D
+[model] kv position=00000016 layer=00000014 k=3FEAE772 v=BF886D5A
+[model] kv position=00000016 layer=00000015 k=3F4087FC v=BFC1B699
+[model] kv position=00000016 layer=00000016 k=3FEC3B60 v=402C1D53
+[model] kv position=00000016 layer=00000017 k=3E32FA48 v=C18B9828
+[model] kv position=00000016 layer=00000018 k=BFF00834 v=C06CFB4A
+[model] kv position=00000016 layer=00000019 k=400A51B2 v=C0D4CFE0
+[model] kv position=00000016 layer=0000001A k=BE76C2BB v=C16CB061
+[model] kv position=00000016 layer=0000001B k=BF11911B v=C12E1F57
+[model] decode position=00000016 token=00001427 logit_bits=4196A15C compute_cycles=000000003C1E2DB7 preparation_cycles=0000000000189CB6 selection_cycles=0000000000278A84 cache_retention_cycles=0000000002C374B4 model_cycles=000000003F21C9A5 total_with_uart_cycles=0000000041358BF5 scratch_bytes=000000000575E315
+[text] prediction=00000007 token=00001427 eos=00000000 bytes=00000008 hex=20416d6572696361
+[model] decode begin position=00000017 input_token=00001427
+[compare] logits position=00000017 count=00025180 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] key_cache position=00000017 count=000A8000 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] value_cache position=00000017 count=000A8000 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[model] selected position=00000017 0000BF68:409423B9 00000176:4138CDE0 00000108:410C0ECD 00000C4A:410E4321 00001CEF:4186BC64 00000130:4189872E 000012B3:41028BD1 00001427:408AAE6D 0000000B:41B2BF22
+[model] kv position=00000017 layer=00000000 k=BEAFC038 v=3DDD4CCB
+[model] kv position=00000017 layer=00000001 k=C00DB060 v=3E0F7C73
+[model] kv position=00000017 layer=00000002 k=3F0419C3 v=BE39087D
+[model] kv position=00000017 layer=00000003 k=3F195C56 v=3F72110A
+[model] kv position=00000017 layer=00000004 k=3F0D59E6 v=BD5A2C83
+[model] kv position=00000017 layer=00000005 k=3F037DD0 v=BF79274B
+[model] kv position=00000017 layer=00000006 k=3F1C8025 v=BF3841D6
+[model] kv position=00000017 layer=00000007 k=3E53E2EA v=3F1581C2
+[model] kv position=00000017 layer=00000008 k=BF87F3BB v=3E9C152F
+[model] kv position=00000017 layer=00000009 k=BF233A49 v=BF051FC8
+[model] kv position=00000017 layer=0000000A k=3F596C1D v=3F1C7901
+[model] kv position=00000017 layer=0000000B k=BFEDF427 v=3EA9F79A
+[model] kv position=00000017 layer=0000000C k=BE69F84A v=3F810639
+[model] kv position=00000017 layer=0000000D k=3EEDB050 v=3E163379
+[model] kv position=00000017 layer=0000000E k=3CFCD49C v=3F2257BA
+[model] kv position=00000017 layer=0000000F k=C067648E v=BE9DA30A
+[model] kv position=00000017 layer=00000010 k=BF839415 v=C036004E
+[model] kv position=00000017 layer=00000011 k=3DEA7A19 v=402B5CA2
+[model] kv position=00000017 layer=00000012 k=BEFC9BF8 v=BF701A41
+[model] kv position=00000017 layer=00000013 k=BE0A0AA4 v=BF083485
+[model] kv position=00000017 layer=00000014 k=BF7A99A4 v=BD7FC80B
+[model] kv position=00000017 layer=00000015 k=3C3BF7F8 v=C091020E
+[model] kv position=00000017 layer=00000016 k=3F040B82 v=40424B1A
+[model] kv position=00000017 layer=00000017 k=BD3A9386 v=C13A74C1
+[model] kv position=00000017 layer=00000018 k=BF9094D2 v=C1241638
+[model] kv position=00000017 layer=00000019 k=BF9B0AFE v=40994FFD
+[model] kv position=00000017 layer=0000001A k=BCF83CE4 v=BE2E6C11
+[model] kv position=00000017 layer=0000001B k=3FA3D86C v=3FB81A0C
+[model] decode position=00000017 token=0000000B logit_bits=41B2BF22 compute_cycles=000000003C535386 preparation_cycles=0000000000188FA9 selection_cycles=0000000000278A20 cache_retention_cycles=0000000002C3747B model_cycles=000000003F56E1CA total_with_uart_cycles=0000000041800BA1 scratch_bytes=000000000575E315
+[text] prediction=00000008 token=0000000B eos=00000000 bytes=00000001 hex=2c
+[text] finish hex=
+[text] output bytes=0000002D hex=4672616e6365206973206120636f756e747279206c6f636174656420696e204e6f72746820416d65726963612c
+[text] BEGIN
+France is a country located in North America,
+[text] END
+verify fixed text validation: PASS
+[nr] launch cycles=0x00000002E9228BB8 status=0x00000000
+[nr] RA returned: PASS
+verify NR runtime: PASS
+[fpga_run] FPGA5 session active; elapsed=852s, UART=26431 bytes
+[fpga_run] Finished: 26431 UART bytes; DDR readback matches

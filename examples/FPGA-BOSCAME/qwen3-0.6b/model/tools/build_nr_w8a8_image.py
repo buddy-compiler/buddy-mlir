@@ -266,14 +266,111 @@ def emit_workspace(name, size):
     ]
 
 
+def console_config(args):
+    mode = getattr(args, 'console_mode', 'ring')
+    if mode not in ('ring', 'append-only'):
+        raise ValueError('--console-mode must be ring or append-only')
+    drain_mode = getattr(args, 'console_drain', 'live')
+    if drain_mode not in ('live', 'after-completion'):
+        raise ValueError('--console-drain must be live or after-completion')
+    if drain_mode == 'after-completion':
+        if mode != 'append-only' or args.interactive:
+            raise ValueError('--console-drain=after-completion requires finite --console-mode=append-only validation')
+        if (getattr(args, 'hang_watch', None) or
+                getattr(args, 'profile_watch', False) or
+                getattr(args, 'uart_probe', False)):
+            raise ValueError('--console-drain=after-completion cannot combine with --hang-watch, --profile-watch or --uart-probe')
+    capacity = getattr(args, 'console_capacity', None)
+    if capacity is None:
+        capacity = (512 if mode == 'append-only' else 64) * 1024
+    if (type(capacity) is not int or not 64 <= capacity <= (1 << 30) or
+            capacity & (capacity - 1)):
+        raise ValueError('--console-capacity must be a power of two from 64 to 1073741824 bytes')
+    if mode == 'append-only':
+        if args.interactive:
+            raise ValueError('--console-mode=append-only is for finite validation, not --interactive')
+        if getattr(args, 'hang_console', 'blocking') == 'bounded':
+            raise ValueError('--hang-console=bounded requires --console-mode=ring')
+    return {'mode': mode, 'capacity_bytes': capacity, 'drain': drain_mode,
+            'overflow_policy': ('drop remaining output and force final NR FAIL'
+                                if mode == 'append-only' else 'wait for NH consumption'),
+            'ra_waits_for_nh_consumed': mode == 'ring',
+            'nh_console_and_input_service_during_compute': drain_mode == 'live',
+            'drain_limits': ('RA log appears only after RA_SIGNAL reports completion; '
+                             'a stalled run retains its log in DDR without live UART evidence; '
+                             'completion-mailbox polling remains active'
+                             if drain_mode == 'after-completion' else None)}
+
+
+def tile_probe_adapter(args):
+    from kernel_profile import parse_probe
+    probe = parse_probe(getattr(args, 'profile_probe', None))
+    if not probe or not getattr(args, 'archive', None):
+        return None
+    case = probe['symbol'].removeprefix('_mlir_ciface_kernel_')
+    return args.archive.parent / 'evidence' / case / 'adapter.c'
+
+
 def check_contract(report, segment, args):
     """Match generated descriptors to actual imported ABI AND final LLVM ranks.
 
     LLVM opaque pointers erase dtype and static extent information. Checking
     ranks alone can accept a cap512 graph backed by a cap32 allocation.
     """
+    console_config(args)
+    boundary_manifest = getattr(args, 'boundary_sync_manifest', None)
+    if boundary_manifest is not None:
+        if (getattr(args, 'profile_kernels', False) or
+                getattr(args, 'intermediate_arrays', None) or getattr(args, 'hang_watch', None)):
+            raise ValueError('--boundary-sync-manifest cannot combine with --profile-kernels, --intermediate-arrays or --hang-watch')
+        if boundary_manifest.is_symlink() or not boundary_manifest.is_file():
+            raise ValueError('--boundary-sync-manifest must be an existing non-symlink manifest')
+        from check_intermediates import validate_manifest
+        prior_manifest = json.loads(boundary_manifest.read_text())
+        if not isinstance(prior_manifest, dict) or prior_manifest.get('schema_version') != 2:
+            raise ValueError('--boundary-sync-manifest requires selected-layer schema_version 2')
+        validate_manifest(prior_manifest)
+        if any(prior_manifest.get(key) != value for key, value in (
+                ('layers', args.layers), ('prefill_len', args.prefill_len), ('decode_steps', args.decode_steps))):
+            raise ValueError('--boundary-sync-manifest dimensions differ from the image')
+    hang_watch = getattr(args, 'hang_watch', None)
+    hang_console = getattr(args, 'hang_console', 'blocking')
+    if hang_console not in ('blocking', 'bounded'):
+        raise ValueError('--hang-console must be blocking or bounded')
+    if hang_console != 'blocking' and not hang_watch:
+        raise ValueError('--hang-console=bounded requires --hang-watch')
+    if hang_watch:
+        if (getattr(args, 'profile_kernels', False) or
+                getattr(args, 'intermediate_arrays', None)):
+            raise ValueError('--hang-watch cannot be combined with profiling or intermediate probes')
+        from hang_watch import validate_watch
+        validate_watch(args.adapters, hang_watch)
     if getattr(args, 'profile_progress', False) and not getattr(args, 'profile_kernels', False):
         raise ValueError('--profile-progress requires --profile-kernels')
+    profile_sync = getattr(args, 'profile_sync', 'ame-resync')
+    if profile_sync not in ('ame-resync', 'fence'):
+        raise ValueError('--profile-sync must be ame-resync or fence')
+    if profile_sync != 'ame-resync' and not getattr(args, 'profile_kernels', False):
+        raise ValueError('--profile-sync=fence requires --profile-kernels')
+    if getattr(args, 'graph_sync', 'ame-resync') not in ('ame-resync', 'fence'):
+        raise ValueError('--graph-sync must be ame-resync or fence')
+    if getattr(args, 'ame_startup', 'none') not in ('none', 'prime', 'fence', 'layout'):
+        raise ValueError('--ame-startup must be none, prime, fence or layout')
+    if getattr(args, 'ame_cache_sync', 'none') not in ('none', 'workspace'):
+        raise ValueError('--ame-cache-sync must be none or workspace')
+    if getattr(args, 'profile_watch', False):
+        if not (getattr(args, 'profile_kernels', False) and
+                getattr(args, 'profile_progress', False) and getattr(args, 'profile_probe', None)):
+            raise ValueError('--profile-watch requires --profile-kernels, --profile-progress and --profile-probe')
+        from hang_watch import validate_watch
+        validate_watch(args.adapters, args.profile_probe)
+    if getattr(args, 'profile_tile_probe', False):
+        if not (getattr(args, 'profile_kernels', False) and
+                getattr(args, 'profile_progress', False) and
+                getattr(args, 'profile_probe', None)):
+            raise ValueError('--profile-tile-probe requires --profile-kernels, --profile-progress and --profile-probe')
+        from kernel_profile import validate_tile_probe
+        validate_tile_probe(args.adapters, args.profile_probe, tile_probe_adapter(args))
     if getattr(args, 'profile_probe', None):
         if not (getattr(args, 'profile_kernels', False) and getattr(args, 'profile_progress', False)):
             raise ValueError('--profile-probe requires --profile-kernels and --profile-progress')
@@ -423,6 +520,7 @@ def generate(report, segment, args):
     """Emit ABI glue and session control; arithmetic stays in the compiled graph."""
     contract = check_contract(report, segment, args)
     layers, capacity, width = args.layers, args.cache_len, args.head_dim
+    ame_cache_sync = getattr(args, 'ame_cache_sync', 'none')
     kv_elements = 8 * capacity * width
     graph = report["graphs"][args.graph]
     dec_graph = report["graphs"].get("decode") if args.decode_ir else None
@@ -430,12 +528,46 @@ def generate(report, segment, args):
     prompt = fixed_prompt_bytes(args)
     offsets = {p["name"]: p["offset_bytes"] for p in segment["placement"]}
     out = ['#include "support.h"', '#include "nr_runtime.h"']
+    # Debug-only boundaries distinguish graph execution, completion, selection,
+    # and KV retention. Default/profiling-only images retain their old path.
+    out += ['static void graph_phase(const char *phase) {']
+    if getattr(args, 'profile_progress', False):
+        out += ['  nr_puts("[graph-phase] "); nr_puts(phase); nr_puts("\\r\\n");']
+    else:
+        out += ['  (void)phase;']
+    out += ['}']
     if getattr(args, 'intermediate_arrays', None):
         out += ['extern void qwen_intermediate_begin(unsigned, unsigned);',
                 'extern int qwen_intermediate_end(void);']
     if getattr(args, 'profile_kernels', False):
         out += ['extern void qwen_profile_reset(void);',
                 'extern void qwen_profile_report(unsigned position);']
+    if getattr(args, 'hang_watch', None):
+        out += ['extern void qwen_hang_reset(unsigned position);']
+    startup = getattr(args, 'ame_startup', 'none')
+    if startup in ('prime', 'fence', 'layout'):
+        startup_action = {
+            'prime': '    ame_fence();',
+            'fence': '    __asm__ volatile ("fence rw, rw" ::: "memory");',
+            'layout': '    __asm__ volatile ("" ::: "memory");',
+        }[startup]
+        out += [
+            'static void prime_ame_once(void) {',
+            '  static int primed;',
+            '  if (!primed) {',
+            startup_action,
+            '    primed = 1;',
+            '  }',
+            '}']
+    if getattr(args, 'graph_entry_fence', False):
+        out += [
+            '#ifdef HOST_TEST',
+            'extern void qwen_graph_entry_fence(void);',
+            '#else',
+            'static inline void qwen_graph_entry_fence(void) {',
+            '  __asm__ volatile ("fence rw, rw" ::: "memory");',
+            '}',
+            '#endif']
     if args.interactive or prompt is not None:
         out.append('#include "tokenizer_resource.h"')
     out += [f'#define LAYERS {layers}', f'#define CAPACITY {capacity}',
@@ -504,6 +636,7 @@ static void float_bits(float f) {
 static uint64_t selection_cycles, cache_retention_cycles;
 static int collect(GraphResults *r, unsigned position, unsigned *token,
                    float *score, int trace) {
+  graph_phase("collect begin");
   uint64_t selection_begin = nr_cycles();
   if (!r->logits.aligned || r->logits.sizes[0] != 1 ||
       r->logits.sizes[1] < 1 || r->logits.sizes[2] != VOCAB) return -1;
@@ -517,11 +650,13 @@ static int collect(GraphResults *r, unsigned position, unsigned *token,
   }
   uint64_t retention_begin = nr_cycles();
   selection_cycles = retention_begin - selection_begin;
+  graph_phase("selection done; retain cache begin");
   for (unsigned l = 0; l < LAYERS; ++l) {
     if (retain_cache(k_cache_f + l * KV_ELEMENTS, &r->cache[l].key) ||
         retain_cache(v_cache_f + l * KV_ELEMENTS, &r->cache[l].value)) return -1;
   }
   cache_retention_cycles = nr_cycles() - retention_begin;
+  graph_phase("retain cache done; compare begin");
 #ifdef REF_LENGTH
   int numeric_status = compare_reference(r, position, scores, r->logits.strides[2]);
 #else
@@ -565,6 +700,32 @@ static int report_error(const char *name, unsigned position, float max, float su
   nr_puts(ok ? " PASS\r\n" : " FAIL\r\n");
   return ok ? 0 : -1;
 }
+/* Failure-only second pass: keep the successful graph and comparison path
+ * unchanged, and distinguish old-cache corruption from a new-position error. */
+static void report_cache_first_difference(const char *name, unsigned position,
+                                         const float *actual, const float *gold) {
+  for (unsigned l = 0; l < LAYERS; ++l)
+    for (unsigned h = 0; h < 8; ++h)
+      for (unsigned t = 0; t <= position; ++t)
+        for (unsigned d = 0; d < 128; ++d) {
+          float value = actual[(l*8+h)*CAPACITY*128+t*128+d];
+          float expected = gold[(l*8+h)*REF_LENGTH*128+t*128+d];
+          float diff = value - expected;
+          if (diff < 0) diff = -diff;
+          if (diff == 0) continue;
+          nr_puts("[compare-detail] "); nr_puts(name);
+          nr_puts(" position="); nr_hex32(position);
+          nr_puts(" layer="); nr_hex32(l);
+          nr_puts(" head="); nr_hex32(h);
+          nr_puts(" cache_position="); nr_hex32(t);
+          nr_puts(" dimension="); nr_hex32(d);
+          nr_puts(" actual_bits="); float_bits(value);
+          nr_puts(" expected_bits="); float_bits(expected);
+          nr_puts(" abs_bits="); float_bits(diff);
+          nr_puts(" first_unequal\r\n");
+          return;
+        }
+}
 static int compare_reference(const GraphResults *r, unsigned position,
                              const float *scores, int64_t stride) {
   (void)r;
@@ -594,8 +755,11 @@ static int compare_reference(const GraphResults *r, unsigned position,
             if (!(diff <= 3.402823466e38f)) return -1;
             if (diff > max) max = diff; sum += diff;
           }
-    status |= report_error(which ? "value_cache" : "key_cache", position, max, sum,
-                           LAYERS * 8 * (position+1) * 128);
+    const char *name = which ? "value_cache" : "key_cache";
+    int cache_status = report_error(name, position, max, sum,
+                                   LAYERS * 8 * (position+1) * 128);
+    if (cache_status) report_cache_first_difference(name, position, actual, gold);
+    status |= cache_status;
   }
   return status;
 }
@@ -649,16 +813,55 @@ static int compare_reference(const GraphResults *r, unsigned position,
                 '    nr_hex32((unsigned)input_ids[0]); nr_puts("\\r\\n"); }']
         if getattr(args, 'profile_kernels', False):
             out.append('  qwen_profile_reset();')
+        if getattr(args, 'profile_watch', False):
+            out.append('  nr_diag_reset(position);')
+        if getattr(args, 'hang_watch', None):
+            out.append('  qwen_hang_reset(position);')
         if getattr(args, 'intermediate_arrays', None):
             out.append(f'  qwen_intermediate_begin(position, {length});')
+        if getattr(args, 'ame_startup', 'none') in ('prime', 'fence', 'layout'):
+            out.append('  prime_ame_once();')
         out += [
-                '  uint64_t begin = nr_cycles();',
-                f'  _mlir_ciface_forward_{kind}(&result, ' + ', '.join(params) + ');',
-                '  ame_fence();',
-                '  uint64_t compute = nr_cycles() - begin;',
-                f'  int status = collect(&result, position + {length} - 1, token, score, trace);',
+                '  graph_phase("graph call begin");',
+                '  uint64_t begin = nr_cycles();']
+        if ame_cache_sync == 'workspace':
+            # This is an explicit diagnostic ownership transfer.  The model
+            # workspace is contiguous, but the graph may create new CPU-written
+            # values between kernels; this range sync only isolates stale data
+            # crossing the graph boundary and is not a complete SYNC_MEM ABI.
+            out += [
+                f'  nr_ame_cache_clean(k_cache_raw, {layers * kv_elements * 4});',
+                f'  nr_ame_cache_clean(v_cache_raw, {layers * kv_elements * 4});',
+                f'  nr_ame_cache_clean(input_ids, {args.prefill_len * 8});',
+                '  nr_ame_cache_clean(cache_position, 64);',
+                f'  nr_ame_cache_clean(ws_{kind}_raw, {ws[kind][1]});']
+        if getattr(args, 'graph_entry_fence', False):
+            out.append('  qwen_graph_entry_fence();')
+        out.append(f'  _mlir_ciface_forward_{kind}(&result, ' + ', '.join(params) + ');')
+        if getattr(args, 'hang_watch', None) or getattr(args, 'profile_watch', False):
+            out.append('  nr_diag_mark(NR_DIAG_GRAPH_RETURN, 0);')
+        out += [
+                '  graph_phase("graph returned; fence begin");',
+                ('  ame_fence();' if getattr(args, 'graph_sync', 'ame-resync') == 'ame-resync'
+                 else '  __asm__ volatile ("fence rw, rw" ::: "memory");'),
+                '  graph_phase("graph fence done");',
+                '  uint64_t compute = nr_cycles() - begin;']
+        if ame_cache_sync == 'workspace':
+            out += [
+                f'  nr_ame_cache_invalidate(k_cache_raw, {layers * kv_elements * 4});',
+                f'  nr_ame_cache_invalidate(v_cache_raw, {layers * kv_elements * 4});',
+                f'  nr_ame_cache_invalidate(ws_{kind}_raw, {ws[kind][1]});']
+        if getattr(args, 'hang_watch', None) or getattr(args, 'profile_watch', False):
+            out += ['  nr_diag_mark(NR_DIAG_SYNC_DONE, 0);',
+                    '  nr_diag_mark(NR_DIAG_COLLECT_BEGIN, 0);']
+        out.append(f'  int status = collect(&result, position + {length} - 1, token, score, trace);')
+        if getattr(args, 'hang_watch', None) or getattr(args, 'profile_watch', False):
+            out.append('  nr_diag_mark(NR_DIAG_COLLECT_DONE, (uint64_t)status);')
+        out += [
+                '  graph_phase("collect done; heap reset begin");',
                 '  uintptr_t peak = nr_heap_mark();',
                 '  nr_heap_reset(mark);',
+                '  graph_phase("heap reset done");',
                 f'  if (trace) {{ nr_puts("[model] {kind} position="); nr_hex32(position);',
                 '    nr_puts(" token="); nr_hex32(*token);',
                 '    nr_puts(" logit_bits="); float_bits(*score);',
@@ -772,7 +975,51 @@ static int interactive(void) {
         "profile_kernels": getattr(args, 'profile_kernels', False),
         "profile_progress": getattr(args, 'profile_progress', False),
         "profile_probe": getattr(args, 'profile_probe', None),
-        "cycle_scope": {"compute_cycles": "compiled graph plus final AME fence (and optional profiler overhead)",
+        **({"boundary_sync_requested": {
+                "manifest": str(args.boundary_sync_manifest),
+                "manifest_sha256": hashlib.sha256(args.boundary_sync_manifest.read_bytes()).hexdigest(),
+                "scope": "selected adapter synchronization only; no intermediate reference arrays or comparisons",
+                "limits": "build must generate and record boundary_sync before execution; added synchronization changes timing and layout"}}
+           if getattr(args, 'boundary_sync_manifest', None) else {}),
+        **({"profile_tile_probe": True} if getattr(args, 'profile_tile_probe', False) else {}),
+        **({"profile_watch": True} if getattr(args, 'profile_watch', False) else {}),
+        "hang_watch": getattr(args, 'hang_watch', None),
+        "hang_console": getattr(args, 'hang_console', 'blocking'),
+        "console": console_config(args),
+        "hang_watch_limits": ([
+            "NH prints directly to UART; RA writes only a selected-call shared record",
+            "fence is not cache clean; a stable stale record cannot prove RA stopped",
+            "blocking retains console waits; bounded may drop bytes, invalidating complete UART numerical acceptance",
+            "diagnostic instrumentation changes timing and layout; no throughput or root-cause conclusion from one run",
+        ] if getattr(args, 'hang_watch', None) else []),
+        "completion_sync": (getattr(args, 'profile_sync', 'ame-resync')
+                            if getattr(args, 'profile_kernels', False) else None),
+        "graph_completion_sync": getattr(args, 'graph_sync', 'ame-resync'),
+        "ame_startup": getattr(args, 'ame_startup', 'none'),
+        "ame_cache_sync": ame_cache_sync,
+        "graph_entry_fence": bool(getattr(args, 'graph_entry_fence', False)),
+        "entry_sync_limits": [
+            "prime calls the public NR ame_fence once before the first generated graph call per RA boot/BSS initialization; repeated launch calls and interactive prompts do not re-prime",
+            "prime is deferred until a graph is actually called, after operands/workspace preparation; it is outside compute_cycles and performs no AME correctness self-test",
+            "graph_entry_fence emits ordinary fence rw,rw immediately before each generated graph call, after preparation; its cost is inside compute_cycles",
+            "both options default off and leave graph-final/profiler synchronization and kernel arithmetic unchanged; ordinary fence is not cache clean and board validation is still required",
+        ],
+        "graph_sync_limits": [
+            "graph_completion_sync selects only synchronization after the compiled graph returns; kernel instructions and profiler synchronization are independent",
+            "fence uses the platform developer's fence rw,rw sequence without the extra 1x1 AME resync; board correctness and cache behavior still need verification",
+            "changing synchronization also changes timing and code layout; one successful run does not identify the failure mechanism",
+        ],
+        "ame_cache_sync_limits": [
+            "workspace sync is an opt-in diagnostic range walk, not the platform SYNC_MEM ABI",
+            "it covers k/v cache, input ids, cache position and the contiguous graph workspace at graph boundaries",
+            "it does not flush CPU-written intermediates between individual kernels or handle strided aliases",
+            "the diagnostic build requires RA CBO support and may trap if the board does not implement cbo.flush/inval",
+        ],
+        "profile_sync_limits": [
+            "completion_sync selects only the profiler wrapper's additional synchronization; production kernels are unchanged and graph_completion_sync independently selects graph-final synchronization",
+            "fence is a controlled diagnostic mode; fence-only kernel timings do not establish AME completion or validated throughput",
+        ],
+        "cycle_scope": {"compute_cycles": "compiled graph plus selected final synchronization (and optional profiler overhead)",
                         "model_cycles": "per-call descriptor/workspace preparation + graph + token selection + cache retention; excludes validation and UART",
                         "excluded": "session cache reset, tokenizer, input forwarding, validation, UART, scoped-heap reset",
                         "diagnostic_override": "--profile-progress adds UART inside graph timing; --profile-probe also adds returned/synced UART inside the selected kernel timing; --intermediate-arrays adds comparison inside graph timing. These diagnostic timings are not model throughput."},
@@ -807,9 +1054,19 @@ def build(args, output):
              "-fno-builtin", "-fno-pie", "-fno-vectorize", "-fno-slp-vectorize",
              "-ffp-contract=off", f"-I{qwen}", f"-I{nr}", f"-I{common}/uart",
              f"-I{Path(__file__).resolve().parent.parent / 'text'}"]
+    console = console_config(args)
+    console_flags = [f'-DNR_CONSOLE_CAPACITY={console["capacity_bytes"]}',
+                     f'-DNR_CONSOLE_APPEND_ONLY={int(console["mode"] == "append-only")}',
+                     f'-DNR_CONSOLE_DRAIN_AFTER_COMPLETION={int(console["drain"] == "after-completion")}']
+    if getattr(args, 'ame_cache_sync', 'none') == 'workspace':
+        console_flags.append('-DNR_RA_AME_CACHE_DIAGNOSTIC=1')
     if args.uart_probe:
         # the NH-side UART sample in the runtime
         flags.append("-DNR_UART_DEBUG")
+    if getattr(args, 'hang_watch', None) or getattr(args, 'profile_watch', False):
+        flags.append('-DNR_HANG_DIAGNOSTICS')
+        if getattr(args, 'hang_console', 'blocking') == 'bounded':
+            flags.append('-DNR_HANG_CONSOLE_BOUNDED')
 
     # graph IR -> assembly -> AME encoding -> fence insertion -> object
     assembly = output / "forward_prefill.s"
@@ -840,9 +1097,22 @@ def build(args, output):
 
     objects = [graph_object]
     profile_flags = []
+    if getattr(args, 'hang_watch', None):
+        from hang_watch import generate_watch
+        watch_source, watch_flags = generate_watch(args.adapters, output, args.hang_watch)
+        obj = output / 'hang-watch.o'
+        result = run([llvm / 'clang', *flags, '-c', watch_source, '-o', obj])
+        if result.returncode:
+            return {'status': 'FAILED compiling hang watch', 'error': result.stderr}
+        objects.append(obj)
+        profile_flags += watch_flags
     if getattr(args, 'intermediate_arrays', None):
         from intermediate_probe import generate_intermediate
-        probe_source, probe_asm, probe_flags, _ = generate_intermediate(args, output)
+        probe_source, probe_asm, probe_flags, probe_manifest = generate_intermediate(args, output)
+        plan_path = output / 'w8a8-image-plan.json'
+        plan = json.loads(plan_path.read_text())
+        plan['intermediate_probe'] = probe_manifest
+        plan_path.write_text(json.dumps(plan, indent=2) + '\n')
         for source in (probe_source, probe_asm):
             obj = output / (source.stem + '.o')
             result = run([llvm / 'clang', *flags, '-c', source, '-o', obj])
@@ -850,11 +1120,29 @@ def build(args, output):
                 return {'status': 'FAILED compiling intermediate probe', 'error': result.stderr}
             objects.append(obj)
         profile_flags += probe_flags
+    if getattr(args, 'boundary_sync_manifest', None):
+        from intermediate_probe import generate_boundary_sync
+        boundary_source, boundary_flags, boundary_manifest = generate_boundary_sync(args, output)
+        plan_path = output / 'w8a8-image-plan.json'
+        plan = json.loads(plan_path.read_text())
+        plan['boundary_sync'] = boundary_manifest
+        plan_path.write_text(json.dumps(plan, indent=2) + '\n')
+        obj = output / 'boundary-sync.o'
+        result = run([llvm / 'clang', *flags, '-c', boundary_source, '-o', obj])
+        if result.returncode:
+            return {'status': 'FAILED compiling boundary synchronization', 'error': result.stderr}
+        objects.append(obj)
+        profile_flags += boundary_flags
     if getattr(args, 'profile_kernels', False):
         from kernel_profile import generate_profile
         profile_source, kernel_profile_flags = generate_profile(
             args.adapters, output, progress=getattr(args, 'profile_progress', False),
-            probe=getattr(args, 'profile_probe', None))
+            probe=getattr(args, 'profile_probe', None),
+            completion_sync=getattr(args, 'profile_sync', 'ame-resync'),
+            tile_probe=getattr(args, 'profile_tile_probe', False),
+            watch=getattr(args, 'profile_watch', False),
+            raw_adapter=(tile_probe_adapter(args)
+                         if getattr(args, 'profile_tile_probe', False) else None))
         profile_flags += kernel_profile_flags
         obj = output / 'kernel-profile.o'
         result = run([llvm / 'clang', *flags, '-c', profile_source, '-o', obj])
@@ -922,15 +1210,16 @@ def build(args, output):
     for name, source, extra in (("model_main", output / "model_main.c", []),
                                 ("adapters", args.adapters, []),
                                 ("crt", nr / "crt.S", []),
-                                ("nr_runtime", nr / "nr_runtime.c", []),
+                                ("nr_runtime", nr / "nr_runtime.c", console_flags),
                                 ("nr_math", nr / "nr_math.c", []),
                                 ("ame_sync", nr / "ame_sync.c", []),
                                 ("nr_copy", nr / "nr_copy.S",
                                  ["-march=rv64gcv_zicbom"])):
         source_flags = flags
         if extra:
-            source_flags = [extra[0] if f.startswith("-march=") else f
-                            for f in flags]
+            source_flags = [f for f in flags
+                            if not (f.startswith('-march=') and
+                                    any(e.startswith('-march=') for e in extra))] + extra
         obj = output / f"{name}.o"
         result = run([llvm / "clang", *source_flags, "-c", source, "-o", obj])
         if result.returncode:
@@ -973,9 +1262,26 @@ def build(args, output):
         "input_sha256": {str(p): hashlib.sha256(p.read_bytes()).hexdigest()
                          for p in [args.graph_ir, args.adapters, args.archive,
                                    Path(__file__), nr / "nr_runtime.c", nr / "nr.ld",
+                                   nr / "nr_hang_watch.inc",
+                                   nr / "nr_console.inc",
                                    nr / "ame_sync.c", nr / "nr_runtime.h",
                                    nr / "nr_math.c", nr / "nr_copy.S", nr / "crt.S"]
-                         + ([args.decode_ir] if args.decode_ir else [])},
+                         + ([args.decode_ir] if args.decode_ir else [])
+                         + ([Path(__file__).with_name('hang_watch.py'),
+                             output / 'hang-watch.c']
+                            if getattr(args, 'hang_watch', None) else [])
+                         + ([Path(__file__).with_name('kernel_profile.py'),
+                             output / 'kernel-profile.c']
+                            if getattr(args, 'profile_kernels', False) else [])
+                         + ([tile_probe_adapter(args)]
+                            if getattr(args, 'profile_tile_probe', False) else [])
+                         + ([Path(__file__).with_name('intermediate_probe.py'),
+                             output / 'intermediate-probe.c',
+                             output / 'intermediate-reference.bin']
+                            if getattr(args, 'intermediate_arrays', None) else [])
+                         + ([args.boundary_sync_manifest, Path(__file__).with_name('intermediate_probe.py'),
+                             boundary_source]
+                            if getattr(args, 'boundary_sync_manifest', None) else [])},
     }
     (output / "image.json").write_text(json.dumps(report, indent=2) + "\n")
     print(json.dumps({k: v for k, v in report.items()
@@ -1034,11 +1340,58 @@ def main():
                              "adds fences/bookkeeping, reports counters after each graph call")
     parser.add_argument("--profile-progress", action="store_true",
                         help="diagnostic UART begin/end records for each kernel; requires --profile-kernels")
+    parser.add_argument("--profile-sync", choices=("ame-resync", "fence"), default="ame-resync",
+                        help="profiler-only synchronization after each kernel: default AME resync, "
+                             "or diagnostic fence rw,rw; independent of --graph-sync; "
+                             "fence requires --profile-kernels")
+    parser.add_argument("--graph-sync", choices=("ame-resync", "fence"), default="ame-resync",
+                        help="synchronization after each prefill/decode graph returns: default AME resync, "
+                             "or diagnostic fence rw,rw without the extra 1x1 AME operation; "
+                             "does not change kernel instructions or --profile-sync")
+    parser.add_argument('--ame-startup', choices=('none', 'prime', 'fence', 'layout'), default='none',
+                        help='startup diagnostic: prime runs ame_fence once, fence runs one ordinary '
+                             'fence, layout adds the same guarded call shape without a hardware op; '
+                             'all are deferred until operands are prepared and excluded from graph timing')
+    parser.add_argument('--graph-entry-fence', action='store_true',
+                        help='ordinary fence rw,rw immediately before each prepared graph call; '
+                             'independent of startup, graph-final and profiler synchronization')
+    parser.add_argument('--ame-cache-sync', choices=('none', 'workspace'), default='none',
+                        help='diagnostic only: clean/invalidate model workspace ranges at graph '
+                             'boundaries using RA cbo.*; default none, not the platform SYNC_MEM ABI')
     parser.add_argument("--profile-probe", metavar="SYMBOL:CALL_INDEX",
                         help="selected kernel occurrence: descriptor, returned-before-fence and synced-after-fence UART; "
                              "requires --profile-kernels and --profile-progress; decimal or 0x index resets per graph")
+    parser.add_argument('--profile-watch', action='store_true',
+                        help='diagnostic NH mailbox samples for the selected profile probe; not throughput evidence')
+    parser.add_argument('--profile-tile-probe', action='store_true',
+                        help='for the selected --profile-probe matmul_MxNxK occurrence only, '
+                             'print raw Triton tile begin/returned coordinates; validates the '
+                             '12-argument ABI against archive evidence and adds a raw linker wrapper')
+    parser.add_argument('--hang-watch', metavar='SYMBOL:CALL_INDEX',
+                        help='diagnostic NH heartbeat and silent RA progress for one rank-2 matrix kernel; '
+                             'zero-based occurrence resets each graph; incompatible with profiling')
+    parser.add_argument('--hang-console', choices=('blocking', 'bounded'), default='blocking',
+                        help='with --hang-watch, retain blocking console or bound waits and count dropped bytes; '
+                             'bounded is diagnostic only and cannot establish full UART numerical acceptance')
+    parser.add_argument('--console-mode', choices=('ring', 'append-only'), default='ring',
+                        help='RA output transport: existing blocking ring, or ModelZoo-style finite '
+                             'append-only log with overflow forcing NR FAIL; independent of graph sync')
+    parser.add_argument('--console-capacity', type=int,
+                        help='console bytes, power of two; defaults to 65536 for ring or 524288 for '
+                             'append-only; use the same explicit capacity for transport comparisons')
+    parser.add_argument('--console-drain', choices=('live', 'after-completion'), default='live',
+                        help='default live NH drain, or finite append-only diagnostic that buffers RA '
+                             'output until RA_SIGNAL completion; no concurrent input or NH watch; '
+                             'a hang produces no live RA log and completion-mailbox polling remains active')
     parser.add_argument('--intermediate-arrays', type=Path,
-                        help='optional one-layer independent Stage B intermediate NPZ; instrumentation only')
+                        help='independent intermediate NPZ; diagnostic comparisons only')
+    parser.add_argument('--boundary-sync-manifest', type=Path,
+                        help='reuse selected wrappers from an exact prior intermediate-probe.json for '
+                             'synchronization only, without intermediate reference arrays/comparisons; '
+                             'incompatible with profiling, intermediate arrays and hang watch')
+    parser.add_argument('--intermediate-layers',
+                        help='comma-separated layer indices for selected full-model norm/linear probes; '
+                             'omit for the historical one-layer Stage B probe')
     parser.add_argument('--intermediate-layout', type=Path,
                         help='value-matched weight-layout.json mapping graph parameters to checkpoint names')
     parser.add_argument('--intermediate-graph-dir', type=Path,
@@ -1054,6 +1407,8 @@ def main():
     parser.add_argument("--dry-run", action="store_true",
                         help="generate and report sizes without compiling")
     args = parser.parse_args()
+    if args.intermediate_layers is not None and args.intermediate_arrays is None:
+        parser.error('--intermediate-layers requires --intermediate-arrays')
     args.prompt_ids = [int(v) for v in args.prompt_ids.split(",") if v.strip()]
 
     report = json.loads(args.report.read_text())

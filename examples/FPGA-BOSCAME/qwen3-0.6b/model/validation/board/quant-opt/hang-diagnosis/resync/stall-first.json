@@ -1,0 +1,83 @@
+{
+  "status": "PROGRESS_SEQUENCE_VALID_SO_FAR",
+  "errors": [],
+  "graph_stages": [
+    {
+      "kind": "prefill",
+      "position": 0,
+      "completed_kernel_calls": 873,
+      "expected_kernel_calls": 873,
+      "graph_return_observed": true,
+      "last_completed_kernel": {
+        "index": 872,
+        "adapter": "qwen_graph_w8a8_mm_196_dequantize_1x151936",
+        "kernel": "_mlir_ciface_kernel_dequantize_1x151936",
+        "symbol_call_index": 0,
+        "region": "final_norm_lm_head",
+        "uart_line": 2627,
+        "real_kernel_return_observed": true,
+        "real_kernel_return_uart_line": 2628
+      },
+      "compute_cycles": 3698424725
+    },
+    {
+      "kind": "decode",
+      "position": 16,
+      "completed_kernel_calls": 454,
+      "expected_kernel_calls": 873,
+      "graph_return_observed": false,
+      "last_completed_kernel": {
+        "index": 453,
+        "adapter": "qwen_graph_w8a8_mm_101_quantize_1x2048",
+        "kernel": "_mlir_ciface_kernel_quantize_1x2048",
+        "symbol_call_index": 14,
+        "region": "decoder",
+        "decoder_block_index": 14,
+        "call_in_decoder_block": 18,
+        "uart_line": 4057,
+        "real_kernel_return_observed": true,
+        "real_kernel_return_uart_line": 4058
+      }
+    }
+  ],
+  "unpaired_begin": {
+    "index": 454,
+    "adapter": "qwen_graph_w8a8_mm_101_matmul_1x1024x2048",
+    "kernel": "_mlir_ciface_kernel_matmul_1x1024x2048",
+    "symbol_call_index": 14,
+    "region": "decoder",
+    "decoder_block_index": 14,
+    "call_in_decoder_block": 19,
+    "uart_line": 4060,
+    "real_kernel_return_observed": false
+  },
+  "runtime_completion": null,
+  "last_graph_phase": {
+    "phase": "graph call begin",
+    "uart_line": 2697,
+    "kind": "decode",
+    "position": 16
+  },
+  "limits": [
+    "Progress only; no numerical correctness or model acceptance claim.",
+    "An unpaired begin means end has not been observed, not a hang diagnosis.",
+    "real_kernel_return_observed means the matching post-call marker was seen; false does not prove the kernel has not returned.",
+    "A returned marker without end narrows the unobserved interval to the completion fence, bookkeeping, and end UART emission.",
+    "UART kernel rows have no timestamps; per-kernel elapsed wall time is unknown.",
+    "A kernel end follows the profiler-added public ame_fence and bookkeeping.",
+    "Graph cycles include diagnostic UART and per-kernel synchronization.",
+    "Decoder block indices are zero based and derived from verified repeated compiled-call structure."
+  ],
+  "sources_sha256": {
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/quant-opt/shared/replacement/triton-call-replacement.json": "1cc87643a1a9b83a7545bf0334a74d8bf0e4b7b7edfac4d52ba8897d0e6dc075",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/quant-opt/shared/replacement/qwen_triton_adapters.c": "3fd665c62263645a36863bacfcf704919fff07c4b5da21cab101b090bc2d1723",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/quant-opt/hang-phase-28l-cap128/image/kernel-profile.json": "0189e419764520ac9a369a997be0c33b8df4002e23e30d55633983567db6ba62",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/quant-opt/shared/nr-prefill/forward_prefill.ll": "1f04f5426877d94e12f4a818c2920cb70181cb84c8393ea4cd7fc83694dbea64",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/model/build/quant-opt/shared/nr-decode/forward_decode.ll": "1de21943c89fb0846168bf713e481312460cd8922296ead6ee86cf9d6b1f5e2a"
+  },
+  "uart_log": "examples/FPGA-BOSCAME/build/fpga-runs/run-1daeec434e5b4b52/uart.raw.log",
+  "uart_sha256": "88561d7467f38cc49cf3400b6ee7e07cd688079c83cff13913965bc3804aa474",
+  "uart_bytes": 333773,
+  "layers": 28,
+  "snapshot_utc": "2026-09-18T10:37:16.332839+00:00"
+}

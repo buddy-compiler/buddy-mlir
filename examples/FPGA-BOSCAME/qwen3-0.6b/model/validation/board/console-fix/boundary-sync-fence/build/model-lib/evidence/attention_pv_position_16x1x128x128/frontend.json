@@ -1,0 +1,61 @@
+{
+  "name": "attention_pv_position_16x1x128x128",
+  "family": "attention_pv",
+  "kernel": "attention_dot_position",
+  "kernel_module": "kernels_position",
+  "symbol": "triton_attention_pv_position_16x1x128x128",
+  "arguments": [
+    {
+      "name": "A",
+      "rank": 3,
+      "dtype": "f32"
+    },
+    {
+      "name": "B",
+      "rank": 3,
+      "dtype": "f32"
+    },
+    {
+      "name": "Position",
+      "rank": 1,
+      "dtype": "i32"
+    },
+    {
+      "name": "C",
+      "rank": 3,
+      "dtype": "f32"
+    }
+  ],
+  "signature": {
+    "A": "*fp32",
+    "B": "*fp32",
+    "Position": "*i32",
+    "C": "*fp32"
+  },
+  "constexprs": {
+    "M": 1,
+    "N": 128,
+    "K": 128,
+    "BM": 1,
+    "BN": 16,
+    "BK": 64,
+    "QK": false
+  },
+  "grid": [
+    1,
+    8,
+    16
+  ],
+  "directory": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/ame-v05/cap128-cases/position/attention_pv_position_16x1x128x128",
+  "launch_source": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/ame-v05/cap128-cases/position/attention_pv_position_16x1x128x128/launch.c",
+  "validation": "Unmodified parent launch.c and its independent numerical oracle",
+  "frontend": "triton.compiler.ASTSource -> CPUBackend.make_ttir -> triton-riscv _ttir_to_ttsharedir",
+  "triton_version": "3.8.0",
+  "kernels_sha256": "f89c28aeff34416c679b86c0d9bf11187b062ded1ae3437df2c2031221fc2d3e",
+  "kernel_module_sha256": "ea32ea04825723b5bb547d440e2e90e4a41750caae3cd9de6ec75c2cd8a764f4",
+  "exporter_sha256": "7bfd217e11bea1d2ed8c018aa138fb9d765470c64080218a3327468fd8379a1a",
+  "cases_sha256": "c3e5dab1f3321cbaa7368465b0595a891b7d99394f4dae937ae54eea5f255e1e",
+  "ttir_sha256": "d86a438185e0b3fc6082261d6d37c38884a9da2686bea5420d8a376945a5e1fe",
+  "linalg_sha256": "0247883bf4c45277967a95b207955f95e33be5b8078aedde7d55b19df6aef052",
+  "abi": "unranked memref: (i64 rank=0, rank-0 descriptor pointer) per tensor, then six i32 grid/pid values"
+}

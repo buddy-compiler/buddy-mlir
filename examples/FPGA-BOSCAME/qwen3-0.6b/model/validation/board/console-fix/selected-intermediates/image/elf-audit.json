@@ -1,0 +1,45 @@
+{
+  "status": "PASS",
+  "elf_sha256": "e0b41605e5d1d0dfb837d936b9f9855a345e7d2617a907b0095233a04a726a93",
+  "executable_sections": [
+    {
+      "name": ".text.init",
+      "address": "0x80000000",
+      "bytes": 252
+    },
+    {
+      "name": ".text",
+      "address": "0x80011000",
+      "bytes": 1479304
+    }
+  ],
+  "instructions": 539537,
+  "ame_instructions": 131,
+  "vector_memory_instructions": 189,
+  "rvv_instructions": {
+    "vfabs.v": 6,
+    "vfadd.vv": 6,
+    "vfcvt.f.x.v": 7,
+    "vfcvt.rtz.x.f.v": 6,
+    "vfdiv.vf": 6,
+    "vfmacc.vf": 18,
+    "vfmax.vf": 6,
+    "vfmax.vv": 6,
+    "vfmin.vf": 6,
+    "vfmul.vf": 7,
+    "vfmul.vv": 7,
+    "vfmv.f.s": 6,
+    "vfredmax.vs": 6,
+    "vle32.v": 95,
+    "vle8.v": 8,
+    "vmerge.vxm": 6,
+    "vmfge.vf": 6,
+    "vmv.v.x": 12,
+    "vnsrl.wi": 12,
+    "vse32.v": 72,
+    "vse8.v": 14,
+    "vsetivli": 65,
+    "vsetvli": 25
+  },
+  "errors": []
+}

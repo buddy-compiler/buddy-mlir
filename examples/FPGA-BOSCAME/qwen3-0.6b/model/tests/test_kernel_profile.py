@@ -68,6 +68,58 @@ define void @qwen_graph_project() {{
 
 
 class KernelProfileTests(unittest.TestCase):
+    def test_diagnostic_sync_changes_only_profiler_synchronization(self):
+        _, _, adapters, _, _, _ = fixture()
+        symbol = checker.PREFIX + 'norm'
+        with tempfile.TemporaryDirectory() as directory:
+            d = Path(directory)
+            (d / 'adapters.c').write_text(adapters)
+            source, default_flags = generator.generate_profile(
+                d / 'adapters.c', d, progress=True, probe=symbol + ':0')
+            default_source = source.read_text()
+            metadata = json.loads((d / 'kernel-profile.json').read_text())
+            self.assertEqual(metadata['completion_sync'], 'ame-resync')
+            source, explicit_flags = generator.generate_profile(
+                d / 'adapters.c', d, progress=True, probe=symbol + ':0',
+                completion_sync='ame-resync')
+            self.assertEqual(source.read_text(), default_source)
+            self.assertEqual(explicit_flags, default_flags)
+            source, fence_flags = generator.generate_profile(
+                d / 'adapters.c', d, progress=True, probe=symbol + ':0',
+                completion_sync='fence')
+            fence_source = source.read_text()
+            instruction = '__asm__ volatile ("fence rw, rw" ::: "memory");'
+            self.assertEqual(fence_source,
+                             default_source.replace('ame_fence();', instruction))
+            self.assertEqual(fence_flags, default_flags)
+            wrapper = fence_source.split('void __wrap_' + symbol, 1)[1]
+            phases = ['__real_' + symbol, '[kernel-phase] returned ' + symbol,
+                      instruction, '[probe] synced ' + symbol, '[kernel] end ' + symbol]
+            offsets = [wrapper.index(phase) for phase in phases]
+            self.assertEqual(offsets, sorted(offsets))
+            metadata = json.loads((d / 'kernel-profile.json').read_text())
+            self.assertEqual(metadata['completion_sync'], 'fence')
+            self.assertIn('does not prove AME completion', ' '.join(metadata['limits']))
+            self.assertEqual(metadata['source_sha256'], checker.sha256(fence_source.encode()))
+            with self.assertRaisesRegex(ValueError, '--profile-sync'):
+                generator.generate_profile(d / 'adapters.c', d, completion_sync='none')
+
+    def test_progress_separates_kernel_return_from_completion_sequence(self):
+        _, _, adapters, _, _, _ = fixture()
+        symbol = checker.PREFIX + 'norm'
+        with tempfile.TemporaryDirectory() as directory:
+            d = Path(directory)
+            (d / 'adapters.c').write_text(adapters)
+            source, _ = generator.generate_profile(d / 'adapters.c', d)
+            self.assertNotIn('[kernel-phase]', source.read_text())
+            source, _ = generator.generate_profile(d / 'adapters.c', d, progress=True)
+            wrapper = source.read_text().split('void __wrap_' + symbol, 1)[1].split('}\n', 1)[0]
+            phases = [f'[kernel] begin {symbol}', '__real_' + symbol,
+                      f'[kernel-phase] returned {symbol}', 'ame_fence();',
+                      f'[kernel] end {symbol}']
+            offsets = [wrapper.index(phase) for phase in phases]
+            self.assertEqual(offsets, sorted(offsets))
+
     def test_progress_pairs_and_counts_with_missing_duplicate_and_unknown_records(self):
         symbol = checker.PREFIX + 'norm'
         expected = {'prefill': {symbol: 1}, 'decode': {symbol: 1}}
@@ -201,11 +253,34 @@ done:
                     '--steps', '2', '--output', str(d/'out.json')]
             with patch.object(sys, 'argv', argv), contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(checker.main(), 0)
-            self.assertEqual(len(json.loads((d/'out.json').read_text())['inputs_sha256']), 7)
+            result = json.loads((d/'out.json').read_text())
+            self.assertEqual(len(result['inputs_sha256']), 7)
+            self.assertEqual(result['image_identity']['status'], 'NOT_CHECKED')
+            plan = {'profile_kernels': True, 'profile_progress': False,
+                    'profile_probe': None, 'completion_sync': 'ame-resync'}
+            build = {'input_sha256': {str(path): checker.sha256(path.read_bytes())
+                                     for path in (source, d/'adapters.c')}}
+            (d/'image-plan.json').write_text(json.dumps(plan))
+            (d/'image.json').write_text(json.dumps(build))
+            bound_argv = argv + ['--image-plan', str(d/'image-plan.json'), '--image-build', str(d/'image.json')]
+            with patch.object(sys, 'argv', bound_argv), contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(checker.main(), 0)
+            self.assertEqual(json.loads((d/'out.json').read_text())['image_identity']['status'],
+                             'BUILD_SOURCE_AND_PLAN_VERIFIED')
+            with patch.object(sys, 'argv', argv + ['--image-plan', str(d/'image-plan.json')]), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(checker.main(), 1)
+            self.assertIn('supplied together', json.loads((d/'out.json').read_text())['errors'][0])
             source.write_text(source.read_text() + '/* changed */\n')
             with patch.object(sys, 'argv', argv), contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(checker.main(), 1)
             self.assertIn('source hash mismatch', json.loads((d/'out.json').read_text())['errors'][0])
+            manifest = json.loads((d/'kernel-profile.json').read_text())
+            manifest['source_sha256'] = checker.sha256(source.read_bytes())
+            (d/'kernel-profile.json').write_text(json.dumps(manifest))
+            with patch.object(sys, 'argv', bound_argv), contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(checker.main(), 1)
+            self.assertIn('build-time input hash', json.loads((d/'out.json').read_text())['errors'][0])
 
     def test_complete_phase_telemetry_must_sum_and_fit_total(self):
         _, _, _, _, expected, log = fixture()

@@ -1,0 +1,34 @@
+{
+  "elf": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/console-fix-20260921/boundary-sync-fence/image/qwen_model.elf",
+  "elf_sha256": "e95577fe1299c8b318f78d43c767a767d39c5ca4d6ea5c2b7c307602cf0291ad",
+  "segments": [
+    {
+      "name": "model",
+      "file": "image.bin",
+      "address": 2147483648,
+      "size": 12594048,
+      "sha256": "3aa5589b6613a6b2fcaeb88c015ac9de939269aabc62bd576334aa3d2f28005e"
+    },
+    {
+      "name": "weights",
+      "file": "weights-w8a8.bin",
+      "address": 3087007744,
+      "size": 598230784,
+      "sha256": "0ddd3640545b26c09a3e2fa6829f7675a2d1a5b128490635b7037efd697e33a7",
+      "arena_end": 3685238528
+    },
+    {
+      "name": "tokenizer",
+      "file": "tokenizer.bin",
+      "address": 3714598848,
+      "size": 5222976,
+      "sha256": "7e436961bdc35adbcca4887a6f767cdbdaabc69cc0349298a40c54a400b4bcc4",
+      "arena_end": 3719821824
+    }
+  ],
+  "boot_bin_matches_elf": true,
+  "elf_objcopy_bytes": 12593985,
+  "per_resource_arena_bounds_verified": true,
+  "workspace_end": "0xe206e100",
+  "execution": "prepared only; no hardware result"
+}

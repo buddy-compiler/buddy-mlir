@@ -1,0 +1,35 @@
+{
+  "status": "INCOMPLETE_INTERRUPTED_AFTER_STALL",
+  "run_id": "run-912dfb70b06d4c03",
+  "configuration": {"layers": 28, "capacity": 128, "prefill": 16, "decode_steps": 8},
+  "console": {"mode": "append-only", "capacity_bytes": 4194304, "ra_waits_for_nh_consumed": false},
+  "profile_sync": "fence",
+  "graph_sync": "ame-resync",
+  "uart_bytes": 152326,
+  "last_line": "[kernel] begin _mlir_ciface_kernel_matmul_16x3072x1024 call=0000000000000026",
+  "observed_kernel_occurrence_zero_based": 38,
+  "inferred_layer_index": 19,
+  "inferred_operation": "gate projection, qwen_graph_w8a8_mm_137_matmul_16x3072x1024",
+  "observed_completed_decode_steps": 0,
+  "unchanged_uart_worker_elapsed_seconds": [201, 231, 261, 291, 321, 351, 381, 411],
+  "ddr_readback_matches": true,
+  "boot_sha256": "1ea8c402dd45db6c2cd1a269a3dd778136c587dec4fb0f08b6068ec8393a6e01",
+  "limits": [
+    "The final UART boundary is not a hardware PC, and missing return UART does not alone establish a kernel stall.",
+    "Replacing extra per-kernel AME resync with ordinary fence did not remove this observation. Neither experiment has a full-ring consumer wait.",
+    "Graph-final resync has not been reached; startup prime remains disabled.",
+    "Static argument ranges are valid, but the actual descriptors at the failing call have not been observed in this run.",
+    "This result is incomplete, not numerical acceptance or a throughput result."
+  ],
+  "evidence_sha256": {
+    "elf-audit.json": "b75e76525b6c17c3e137777f80befc83f1bf3868522838c0065f327fa62b3826",
+    "image.json": "a509c78ead02f346d3dc83bcd09fdee9e1c3805be6a6b35323faa7580990afb7",
+    "kernel-profile.json": "a555344ebb496a047c6fa5b729a412158703c483eac06a3e25b03c35007aadc5",
+    "result.json": "b4df9dc09e847c96b2d6eb5bbbd130fb75470ba63eb5f1a60e508ed785061b69",
+    "run-manifest.json": "f138bcc66790cca4e7c7d6c32cdf8256d75745e5510f9d99d94affbbb807b7e7",
+    "uart.raw.log": "89167c9ff7bd90a081ebef0aaa954cd0bf7ba13c63532a3f0fd51b52ead4e864",
+    "uvhs.log": "4fcf2bc370e0cdb8b4c0517898d8dd8f97c7fe7e106de33afb7d27b95f9c071e",
+    "w8a8-image-plan.json": "045f4c0622cf83ca9b03a371ff916d089151e8ddbde9d99dd22f34e0e6704748",
+    "worker.log": "38a8f4d4cb41bfb3f06e45cadb6d1d888d981a83763d4c63935c830066a52ceb"
+  }
+}

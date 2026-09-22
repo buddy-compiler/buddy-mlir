@@ -1,0 +1,55 @@
+{
+  "name": "matmul_1x2048x1024",
+  "family": "matmul_i8",
+  "kernel": "linear",
+  "kernel_module": "kernels",
+  "symbol": "triton_matmul_1x2048x1024",
+  "arguments": [
+    {
+      "name": "A",
+      "rank": 2,
+      "dtype": "i8"
+    },
+    {
+      "name": "B",
+      "rank": 2,
+      "dtype": "i8"
+    },
+    {
+      "name": "C",
+      "rank": 2,
+      "dtype": "i32"
+    }
+  ],
+  "signature": {
+    "A": "*i8",
+    "B": "*i8",
+    "C": "*i32"
+  },
+  "constexprs": {
+    "M": 1,
+    "N": 2048,
+    "K": 1024,
+    "BM": 1,
+    "BN": 64,
+    "BK": 1024,
+    "INTEGER": true
+  },
+  "grid": [
+    1,
+    32,
+    1
+  ],
+  "directory": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/matmul_1x2048x1024",
+  "launch_source": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/matmul_1x2048x1024/launch.c",
+  "validation": "Unmodified parent launch.c and its independent numerical oracle",
+  "frontend": "triton.compiler.ASTSource -> CPUBackend.make_ttir -> triton-riscv _ttir_to_ttsharedir",
+  "triton_version": "3.8.0",
+  "kernels_sha256": "f89c28aeff34416c679b86c0d9bf11187b062ded1ae3437df2c2031221fc2d3e",
+  "kernel_module_sha256": "f89c28aeff34416c679b86c0d9bf11187b062ded1ae3437df2c2031221fc2d3e",
+  "exporter_sha256": "7bfd217e11bea1d2ed8c018aa138fb9d765470c64080218a3327468fd8379a1a",
+  "cases_sha256": "c3e5dab1f3321cbaa7368465b0595a891b7d99394f4dae937ae54eea5f255e1e",
+  "ttir_sha256": "c511818d2764a88c6b9850d227fac7cc5c99193a61c73547291fa6a2189fc97e",
+  "linalg_sha256": "9c1c371f3d8b7452f412b8de5239781c6e83c14618308349b170063ab131b4bd",
+  "abi": "unranked memref: (i64 rank=0, rank-0 descriptor pointer) per tensor, then six i32 grid/pid values"
+}

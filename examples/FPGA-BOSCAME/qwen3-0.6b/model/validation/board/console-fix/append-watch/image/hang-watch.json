@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "adapter_sha256": "3fd665c62263645a36863bacfcf704919fff07c4b5da21cab101b090bc2d1723",
+  "source_sha256": "ba9960379364d035c140db40fede5a928218fb5c088dbd9667c36cc48a9e1dcf",
+  "watch": {
+    "symbol": "_mlir_ciface_kernel_matmul_1x1024x2048",
+    "call_index": 14
+  },
+  "linker_flags": [
+    "--wrap=_mlir_ciface_kernel_matmul_1x1024x2048"
+  ],
+  "argument_types": [
+    "MemRef2 *",
+    "MemRef2 *",
+    "MemRef2 *"
+  ],
+  "return_type": "void",
+  "call_index_scope": "zero-based per selected symbol; reset before every graph invocation",
+  "reset_symbol": "qwen_hang_reset",
+  "operands": [
+    {
+      "index": 0,
+      "rank": 2,
+      "dtype": null,
+      "dtype_evidence": "unknown: the typed adapter MemRef2 uses void *",
+      "offset_unit": "elements",
+      "stride_unit": "elements",
+      "descriptor_and_aligned_unit": "byte address"
+    },
+    {
+      "index": 1,
+      "rank": 2,
+      "dtype": null,
+      "dtype_evidence": "unknown: the typed adapter MemRef2 uses void *",
+      "offset_unit": "elements",
+      "stride_unit": "elements",
+      "descriptor_and_aligned_unit": "byte address"
+    },
+    {
+      "index": 2,
+      "rank": 2,
+      "dtype": null,
+      "dtype_evidence": "unknown: the typed adapter MemRef2 uses void *",
+      "offset_unit": "elements",
+      "stride_unit": "elements",
+      "descriptor_and_aligned_unit": "byte address"
+    }
+  ],
+  "phases": {
+    "1": "GRAPH_BEGIN",
+    "2": "KERNEL_ENTER",
+    "3": "KERNEL_RETURN",
+    "4": "GRAPH_RETURN",
+    "5": "SYNC_DONE",
+    "6": "COLLECT_BEGIN",
+    "7": "COLLECT_DONE"
+  },
+  "wrapper_marks": [
+    "KERNEL_ENTER",
+    "KERNEL_RETURN"
+  ],
+  "mark_detail": "selected zero-based call_index",
+  "progress_uart_in_wrapper": false,
+  "extra_ame_sync_in_wrapper": false,
+  "limits": [
+    "The wrapper observes one selected occurrence per graph and changes no kernel arithmetic.",
+    "The selected call snapshots three descriptors before KERNEL_ENTER; invalid descriptor pointers can fault during observation.",
+    "Null descriptor pointers are recorded as zeros and passed unchanged to the original kernel.",
+    "KERNEL_RETURN means the C function returned; it does not assert AME or DDR completion.",
+    "Descriptor offsets and strides are elements, not bytes; this ABI does not encode dtype or element size.",
+    "The runtime mailbox and NH polling can perturb timing and depend on the platform cache contract.",
+    "A last observed ENTER alone cannot distinguish a kernel stall, a visibility failure, a trap, or an observer that stopped.",
+    "One observation cannot establish cache incoherence or unsupported instructions as the cause.",
+    "Graph, synchronization and collection markers must be supplied by the model launch code."
+  ]
+}

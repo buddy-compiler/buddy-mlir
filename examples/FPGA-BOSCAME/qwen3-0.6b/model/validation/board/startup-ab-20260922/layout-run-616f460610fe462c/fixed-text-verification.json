@@ -1,0 +1,11 @@
+{
+  "status": "NOT_ACCEPTED",
+  "errors": [
+    "truncated final UART diagnostic line"
+  ],
+  "scope": "post-run fixed-text verification",
+  "inputs_sha256": {
+    "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/validation/board/startup-ab-20260922/.derived-run-archive-kbc6fsow/run/uart.raw.log": "abbe59f6b0475174144d58635f75bccf548547a7d889f328a76a5d8ebae54a4f",
+    "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/validation/board/startup-ab-20260922/.derived-run-archive-kbc6fsow/source-prime/w8a8-image-plan.json": "3a7da9a0e7af0da6a017f7e366775f6ba9654fe6cc9bc1dbbc890c9f69138868"
+  }
+}

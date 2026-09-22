@@ -207,6 +207,8 @@ nr_probe_trap:
   csrr a1, mepc
   csrr a2, mtval
   addi sp, sp, 32
+  mv a3, ra
+  mv a4, sp
   tail nr_ra_trap
   .size nr_probe_trap, .-nr_probe_trap
   .option pop

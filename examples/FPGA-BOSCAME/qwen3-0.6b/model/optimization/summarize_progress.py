@@ -24,6 +24,9 @@ BEGIN = re.compile(r'\[model\] (prefill|decode) begin position=([0-9A-Fa-f]{8}) 
                    r'input_token=([0-9A-Fa-f]{8})')
 KERNEL = re.compile(r'\[kernel\] (begin|end) (' + SYMBOL +
                     r') call=([0-9A-Fa-f]{16})')
+RETURNED = re.compile(r'\[kernel-phase\] returned (' + SYMBOL +
+                      r') call=([0-9A-Fa-f]{16})')
+GRAPH_PHASE = re.compile(r'\[graph-phase\] (\S.*)')
 
 
 def sha(path):
@@ -68,6 +71,39 @@ def ordered_calls(body):
     calls = [call for _, names in call_blocks for call in names]
     require(Counter(calls) == proven_counts, 'CFG call sequence/count mismatch')
     return calls
+
+
+def decoder_block_width(names, layers):
+    """Verify the actual repeated structure, including shared quantization."""
+    require(layers > 0 and len(names) > 5, 'missing decoder calls')
+    require(names[0].startswith('embedding_w8a8_'), 'missing leading embedding')
+    width, remainder = divmod(len(names) - 5, layers)
+    require(remainder == 0 and width in (31, 34),
+            'expected embedding + identical 31- or 34-call decoder blocks + final head')
+    families = [
+        'rmsnorm_', 'quantize_', 'matmul_', 'dequantize_', 'rmsnorm_',
+        'quantize_', 'matmul_', 'dequantize_', 'rmsnorm_', 'quantize_',
+        'matmul_', 'dequantize_', 'layout_context_', 'kv_cache_update_',
+        'layout_context_', 'kv_cache_update_', 'attention_qk_',
+        'attention_scale_mask_', 'softmax_', 'attention_pv_', 'quantize_',
+        'matmul_', 'dequantize_', 'rmsnorm_', 'quantize_', 'matmul_',
+        'dequantize_', 'silu_', 'quantize_', 'matmul_', 'dequantize_',
+        'quantize_', 'matmul_', 'dequantize_',
+    ]
+    if width == 31:
+        # Q/K/V share the first quantization; gate/up share the second.
+        # These are positions in the verified 34-call decoder structure.
+        families = [family for i, family in enumerate(families) if i not in (5, 9, 28)]
+    block = names[1:1 + width]
+    require(all(name.startswith(family) for name, family in zip(block, families)),
+            'unexpected decoder kernel structure/order')
+    for layer in range(layers):
+        require(names[1 + layer * width:1 + (layer + 1) * width] == block,
+                'decoder kernel sequences are not identical')
+    require(names[-4].startswith('rmsnorm_') and
+            names[-3:] == ['quantize_1x1024', 'matmul_1x151936x1024',
+                           'dequantize_1x151936'], 'unexpected final head')
+    return width
 
 
 def expected_sequence(build, layers, profile=None):
@@ -117,40 +153,23 @@ def expected_sequence(build, layers, profile=None):
         # The mapping is accepted only when the actual graph has exactly this
         # repeated decoder structure. No numerical suffix in a symbol is used
         # as a layer index. The block index is zero based, in execution order.
-        require(names[0].startswith('embedding_w8a8_'), 'missing leading embedding')
-        require(len(names) == 1 + layers * 34 + 4,
-                'expected embedding + layers * 34 calls + final norm/lm_head')
-        block = names[1:35]
-        require(block[0].startswith('rmsnorm_') and
-                block[-2].startswith('matmul_') and
-                block[-1].startswith('dequantize_'), 'unexpected decoder boundaries')
-        require(sum(n.startswith('matmul_') for n in block) == 7 and
-                sum(n.startswith('kv_cache_update_') for n in block) == 2 and
-                sum(n.startswith('attention_qk_') for n in block) == 1 and
-                sum(n.startswith('attention_pv_') for n in block) == 1 and
-                sum(n.startswith('rmsnorm_') for n in block) == 4 and
-                sum(n.startswith('silu_') for n in block) == 1,
-                'unexpected decoder kernel structure')
-        for layer in range(layers):
-            require(names[1 + layer * 34:1 + (layer + 1) * 34] == block,
-                    'decoder kernel sequences are not identical')
-        require(names[-4].startswith('rmsnorm_') and
-                names[-3:] == ['quantize_1x1024', 'matmul_1x151936x1024',
-                               'dequantize_1x151936'], 'unexpected final head')
+        width = decoder_block_width(names, layers)
         for entry in sequence:
             index = entry['index']
             entry['region'] = ('embedding' if index == 0 else
-                               'decoder' if index <= layers * 34 else 'final_norm_lm_head')
+                               'decoder' if index <= layers * width else 'final_norm_lm_head')
             if entry['region'] == 'decoder':
-                entry['decoder_block_index'] = (index - 1) // 34
-                entry['call_in_decoder_block'] = (index - 1) % 34
+                entry['decoder_block_index'] = (index - 1) // width
+                entry['call_in_decoder_block'] = (index - 1) % width
         sequences[kind] = sequence
     return sequences, sources
 
 
-def summarize(log, sequences):
+def summarize(log, sequences, *, completion_sync='ame-resync'):
+    require(completion_sync in ('ame-resync', 'fence'),
+            'unknown profiler completion_sync: ' + str(completion_sync))
     stages, errors, active, pending = [], [], None, None
-    runtime = None
+    runtime, last_graph_phase = None, None
     # A growing UART log may end in a partial line. Do not diagnose that line.
     complete = log.rsplit('\n', 1)[0] if not log.endswith('\n') else log
     for number, line in enumerate(complete.splitlines(), 1):
@@ -177,13 +196,28 @@ def summarize(log, sequences):
                 expected = seq[index]
                 if (symbol, occurrence) != (expected['kernel'], expected['symbol_call_index']):
                     errors.append(f'kernel sequence mismatch at line {number}: expected {expected}')
-                pending = {**expected, 'uart_line': number}
+                pending = {**expected, 'uart_line': number,
+                           'real_kernel_return_observed': False}
             elif pending is None or (symbol, occurrence) != (pending['kernel'], pending['symbol_call_index']):
                 errors.append(f'unmatched kernel end at line {number}')
             else:
                 active['completed_kernel_calls'] += 1
                 active['last_completed_kernel'] = pending
                 pending = None
+        elif m := RETURNED.fullmatch(line):
+            symbol, occurrence = m[1], int(m[2], 16)
+            if active is None or pending is None or (symbol, occurrence) != (
+                    pending['kernel'], pending['symbol_call_index']):
+                errors.append(f'unmatched real kernel return at line {number}')
+            elif pending['real_kernel_return_observed']:
+                errors.append(f'duplicate real kernel return at line {number}')
+            else:
+                pending['real_kernel_return_observed'] = True
+                pending['real_kernel_return_uart_line'] = number
+        elif m := GRAPH_PHASE.fullmatch(line):
+            last_graph_phase = {'phase': m[1], 'uart_line': number}
+            if active is not None:
+                last_graph_phase.update(kind=active['kind'], position=active['position'])
         elif m := STAGE.fullmatch(line):
             if active is None or (m[1], int(m[2], 16)) != (active['kind'], active['position']):
                 errors.append(f'unmatched graph return at line {number}')
@@ -192,18 +226,24 @@ def summarize(log, sequences):
                 active['compute_cycles'] = int(m[5], 16)
                 if pending or active['completed_kernel_calls'] != active['expected_kernel_calls']:
                     errors.append(f'graph returned without complete kernel sequence at line {number}')
-        elif line.startswith('[kernel]') or '[model]' in line and ' begin position=' in line:
+        elif line.startswith(('[kernel]', '[kernel-phase]', '[graph-phase]')) or \
+                '[model]' in line and ' begin position=' in line:
             errors.append(f'malformed progress record at line {number}')
         if line.startswith('[nr] RA returned:'):
             runtime = line
     return {'status': 'PROGRESS_SEQUENCE_ERROR' if errors else 'PROGRESS_SEQUENCE_VALID_SO_FAR',
             'errors': errors, 'graph_stages': stages, 'unpaired_begin': pending,
-            'runtime_completion': runtime,
+            'runtime_completion': runtime, 'last_graph_phase': last_graph_phase,
+            'completion_sync': completion_sync,
             'limits': [
                 'Progress only; no numerical correctness or model acceptance claim.',
                 'An unpaired begin means end has not been observed, not a hang diagnosis.',
+                'real_kernel_return_observed means the matching post-call marker was seen; false does not prove the kernel has not returned.',
+                'A returned marker without end narrows the unobserved interval to the selected completion synchronization, bookkeeping, and end UART emission.',
                 'UART kernel rows have no timestamps; per-kernel elapsed wall time is unknown.',
-                'A kernel end follows the profiler-added public ame_fence and bookkeeping.',
+                ('A kernel end follows the profiler-added public ame_fence resync sequence and bookkeeping.'
+                 if completion_sync == 'ame-resync' else
+                 'A kernel end follows the profiler-added fence rw,rw and bookkeeping; it does not by itself prove AME completion.'),
                 'Graph cycles include diagnostic UART and per-kernel synchronization.',
                 'Decoder block indices are zero based and derived from verified repeated compiled-call structure.',
             ]}
@@ -221,7 +261,11 @@ def main():
     sequences, sources = expected_sequence(args.build, args.layers, args.profile)
     # Read once: the runner may append to the log while the parser runs.
     uart_bytes = args.uart_log.read_bytes()
-    result = summarize(uart_bytes.decode(errors='replace'), sequences)
+    # Older profiler manifests predate the selector and always used ame_fence.
+    completion_sync = (json.loads(args.profile.read_text()).get('completion_sync', 'ame-resync')
+                       if args.profile else 'ame-resync')
+    result = summarize(uart_bytes.decode(errors='replace'), sequences,
+                       completion_sync=completion_sync)
     result.update({'sources_sha256': sources, 'uart_log': str(args.uart_log),
                    'uart_sha256': hashlib.sha256(uart_bytes).hexdigest(),
                    'uart_bytes': len(uart_bytes), 'layers': args.layers,

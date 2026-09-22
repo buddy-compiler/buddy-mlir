@@ -1,0 +1,42 @@
+{
+  "status": "RA_TRAP",
+  "acceptance": "NOT_ACCEPTED",
+  "run_id": "run-aa2729001d4049d1",
+  "configuration": {"layers": 28, "capacity": 128, "prefill": 16, "decode_steps_requested": 8},
+  "console": {"mode": "append-only", "capacity_bytes": 4194304, "drain": "after-completion"},
+  "boundary_sync": {"adapter_wrappers": 90, "calls_per_graph": 45, "completion_sync": "ame-resync", "intermediate_comparisons": false},
+  "boot_sha256": "67c6446e8b3d03ab89232e43469b8928611127724acbc429cbe8dd572508dc40",
+  "elf_sha256": "b24d84d3f513c0c50f4f951b19026b9b9542e50d196e324c7313e18b22bb5283",
+  "ddr_readback_matches": true,
+  "uart_bytes": 3563,
+  "prefill": {"full_logits": "PASS", "effective_key_cache": "PASS", "effective_value_cache": "PASS", "max_abs": 0, "mean_abs": 0, "token": 49000},
+  "decode": {"position": 16, "last_partial_line": "[compare] logits position=00000010 count=", "numerical_acceptance": "NOT_COMPLETED"},
+  "trap": {
+    "mcause": "0x2",
+    "mepc": "0x801e1bea",
+    "mtval": "0x367fbfcf",
+    "elf_section": ".rodata",
+    "text_range": ["0x80011000", "0x8017894c"],
+    "rodata_range": ["0x80178980", "0x80c02a88"],
+    "model_reference_raw": "0x80178980",
+    "bytes_at_mepc": "cfbf7f36",
+    "bytes_equal_mtval_little_endian": true,
+    "interpretation": "Reported execution reached numeric reference data, outside the compiled code section. This is not an unsupported AME instruction at a legitimate kernel PC.",
+    "unresolved": "The previous control transfer, interrupted return address, stack pointer, and reason control reached this data are not recorded by this image. Software memory corruption and hardware control-flow/visibility faults remain unseparated."
+  },
+  "limits": [
+    "Only prefill completed numerical acceptance; this is not an eight-step PASS.",
+    "Selected synchronization alone did not make this image complete reliably.",
+    "This image removes comparisons and changes code/data placement relative to the twice-passing diagnostic image.",
+    "No post-failure board memory readback or register snapshot was taken; the bytes are from the exact uploaded ELF/bin and the trap-reported mtval."
+  ],
+  "evidence_sha256": {
+    "uart.raw.log": "949ff2e72b395c1b39fa0060b40adad902664cb69ca7b30f56cdee1fc211a14a",
+    "result.json": "3e74b8d65c09e0f22fa7dcd6a49f57a66ae701c89e27f439004fe8145ce25c7f",
+    "run-manifest.json": "f9a8ffe3be61c0d44849c8b9d8ebda5199d6cd32bbcb3692328d5f20ae524623",
+    "qwen_model.elf": "b24d84d3f513c0c50f4f951b19026b9b9542e50d196e324c7313e18b22bb5283",
+    "image.json": "bdf2ac92261897c92fcbad68fa5f1a02c26e678bb7ce5e82e90a3274018b5cd6",
+    "boundary-sync.c": "8b129f83819c272847b3c27aa93717364bd98fe9a717367edaeb531cc62d65f7",
+    "boundary-sync.json": "9aee1a416f98202f6707e34c3da9e6473f514301c733b38f8020e5c5e96be1eb"
+  }
+}

@@ -1,0 +1,39 @@
+
+[nr] NH boot; RA operator runtime
+[nr] RA entry=0x0000000080000040
+[nh-watch] enabled; stable samples may still be stale
+[nr] RA entered; clearing application BSS
+[nr] mstatus=0x8000000A00006000; launch BEGIN
+[text] prompt count=00000010 ids=0002505C 00000368 000000C6 00000EFE 00000176 00002599 0000001E 0002505D 000000C6 0002505C 00012D23 000000C6 00025073 0000010F 00025074 0000010F encode_cycles=000000000002A719
+verify fixed prompt tokenizer: PASS
+[text] mode=fixed-validation; EOS is recorded, never early-stops
+[model] prefill begin position=00000000 input_token=0002505C
+[graph-phase] graph call begin
+[kernel] begin _mlir_ciface_kernel_embedding_w8a8_16x1024 call=0000000000000000
+[kernel-phase] returned _mlir_ciface_kernel_embedding_w8a8_16x1024 call=0000000000000000
+[kernel] end _mlir_ciface_kernel_embedding_w8a8_16x1024 call=0000000000000000
+[kernel] begin _mlir_ciface_kernel_rmsnorm_16x1024 call=0000000000000000
+[kernel-phase] returned _mlir_ciface_kernel_rmsnorm_16x1024 call=0000000000000000
+[kernel] end _mlir_ciface_kernel_rmsnorm_16x1024 call=0000000000000000
+[kernel] begin _mlir_ciface_kernel_quantize_16x1024 call=0000000000000000
+[kernel-phase] returned _mlir_ciface_kernel_quantize_16x1024 call=0000000000000000
+[kernel] end _mlir_ciface_kernel_quantize_16x1024 call=0000000000000000
+[kernel] begin _mlir_ciface_kernel_matmul_16x2048x1024 call=0000000000000000
+[kernel-phase] returned _mlir_ciface_kernel_matmul_16x2048x1024 call=0000000000000000
+[kernel] end _mlir_ciface_kernel_matmul_16x2048x1024 call=0000000000000000
+[kernel] begin _mlir_ciface_kernel_dequantize_16x2048 call=0000000000000000
+[kernel-phase] returned _mlir_ciface_kernel_dequantize_16x2048 call=0000000000000000
+[kernel] end _mlir_ciface_kernel_dequantize_16x2048 call=0000000000000000
+[kernel] begin _mlir_ciface_kernel_rmsnorm_256x128 call=0000000000000000
+[kernel-phase] returned _mlir_ciface_kernel_rmsnorm_256x128 call=0000000000000000
+[kernel] end _mlir_ciface_kernel_rmsnorm_256x128 call=0000000000000000
+[kernel] begin _mlir_ciface_kernel_matmul_16x1024x1024 call=0000000000000000
+[kernel-phase] returned _mlir_ciface_kernel_matmul_16x1024x1024 call=0000000000000000
+[kernel] end _mlir_ciface_kernel_matmul_16x1024x1024 call=0000000000000000
+[kernel] begin _mlir_ciface_kernel_dequantize_16x1024 call=0000000000000000
+[kernel-phase] returned _mlir_ciface_kernel_dequantize_16x1024 call=0000000000000000
+[kernel] end _mlir_ciface_kernel_dequantize_16x1024 call=0000000000000000
+[kernel] begin _mlir_ciface_kernel_rmsnorm_128x128 call=0000000000000000
+[kernel-phase] returned _mlir_ciface_kernel_rmsnorm_128x128 call=0000000000000000
+[kernel] end _mlir_ciface_kernel_rmsnorm_128x128 call=0000000000000000
+[kernel] begin _mlir_ciface_kernel_matmul_16x1024x1024 call=0000000000000001

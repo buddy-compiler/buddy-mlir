@@ -1,0 +1,657 @@
+plan       : /home/hjuser/Desktop/fpga-tester-ISCAS/fpga-runs/run-51ef77a6f71b4e4f/ddr-load.plan
+segments   : 3
+  model: address=0x0000000080000000 size=12592832 ddr[196762:0]
+  weights: address=0x00000000b8000000 size=598230784 ddr[24027419:14680064]
+  tokenizer: address=0x00000000dd6847c0 size=5222976 ddr[24567783:24486175]
+runtime Tcl: /home/hjuser/Desktop/fpga-tester-ISCAS/cmd/ddr-load_uv_run5.tcl
+runtime     : uvhs2_shell -t runtime -d V1 -workdir ./ -script ./user_script/hw_run/hw_run5.tcl -bypass_vivado_version_check
+                                                                       
+        UniVista Verification Hardware Systems Gen2 (UVHS-2) - Prototyping
+                                                                       
+        Version: 2025.06.P3-20260115 Build Date: 2026-Jan-15 (Release)
+        Copyright 2023 Shanghai UniVista Industrial Software Group Co., Ltd.
+        All rights reserved worldwide.
+                                                                       
+Start Time: 2026-Sep-22 05:02:46
+Process ID: 5081, Hostname: localhost.localdomain, Username: hjuser
+
+Command: query -user 
+
+Connnected User Table:
+----------------------------------
+System Name      User             
+----------------------------------
+uvhs-0           hjuser           
+
+Command: query -fpgas -all 
+
+Installed DUT FPGA Status:
+-------------------------------------------------------------------------------------------------
+System Name      Board   FPGA    Power   Status                Owner                 Booked      
+-------------------------------------------------------------------------------------------------
+uvhs-0           B0      F0      on      link down                                   false       
+uvhs-0           B0      F1      on      link up                                     false       
+uvhs-0           B0      F2      on      link down                                   false       
+uvhs-0           B0      F3      on      link down                                   false       
+uvhs-0           B1      F0      on      link down                                   false       
+uvhs-0           B1      F1      on      link down                                   false       
+uvhs-0           B1      F2      on      link up                                     false       
+uvhs-0           B1      F3      on      link up               hjuser                false       
+
+Command: query -version 
+
+Table of the Versions of Components:
+--------------------------------------------------------------------------------------------------------------------------------------
+System Name      Components                         Version                                                                           
+--------------------------------------------------------------------------------------------------------------------------------------
+-                uvshell                            2025.06.P3-20260115 Build Date: 2026-Jan-15 (Release)                             
+-                daemon service                     2025.06.P3-202601151849-10264246                                                  
+-                PCIe driver                        2025.06.P3-202601151849-10264246                                                  
+-                PCIe DC                            1.4.0.20250521                                                                    
+uvhs-0           B0,V1 FPGA Bitstream               0.0.1.20250904                                                                    
+uvhs-0           B0,V1 BSP BOOT                     1.0.2.20251105                                                                    
+uvhs-0           B0,V1 APP uv_ps_daemon             1.0.0.20251105                                                                    
+uvhs-0           B0,V1 APP Libchip                  1.0.0.20251105                                                                    
+uvhs-0           B0,V1 CTRL MCU                     1.0.0.20250519                                                                    
+uvhs-0           B0,V1 DUT0 MCU                     1.1.3.20250612                                                                    
+uvhs-0           B0,V1 DUT1 MCU                     1.1.3.20250612                                                                    
+uvhs-0           B0,V1 DUT2 MCU                     1.1.3.20250612                                                                    
+uvhs-0           B0,V1 DUT3 MCU                     1.1.3.20250612                                                                    
+uvhs-0           B1,V1 FPGA Bitstream               0.0.1.20250904                                                                    
+uvhs-0           B1,V1 BSP BOOT                     1.0.2.20251105                                                                    
+uvhs-0           B1,V1 APP uv_ps_daemon             1.0.0.20251105                                                                    
+uvhs-0           B1,V1 APP Libchip                  1.0.0.20251105                                                                    
+uvhs-0           B1,V1 CTRL MCU                     1.0.0.20250519                                                                    
+uvhs-0           B1,V1 DUT0 MCU                     1.1.3.20250612                                                                    
+uvhs-0           B1,V1 DUT1 MCU                     1.1.3.20250612                                                                    
+uvhs-0           B1,V1 DUT2 MCU                     1.1.3.20250612                                                                    
+uvhs-0           B1,V1 DUT3 MCU                     1.1.3.20250612                                                                    
+
+Command: load_db -release 
+[05:02:48] [RTM-138] WARN: no db loaded.
+[05:02:48] INFO:Done: unload db success!
+Command: load_db -db ./hw.dat -to b1.f1 
+INFO: Loading symmetry data is complete.
+[05:02:48] [RDB-018] INFO: The RuntimeDB being loaded is written by program with version '2025.06.P3-20260115 Build Date: 2026-Jan-15 (Release)'.
+[05:02:48] [CMN-016] INFO: CPU memory monitor: [PERF]::STEP=LOAD_RTDB::TOTAL_ELAPSED=1.50::WALL=0.01::CPU=0.00::SYS=0.00::PEAK=1073.67::VIRT=1073.67::PHYS=397.87::INCV=1.00::INCP=0.74::HWMINCR=0.74 .
+loading mapping db ...
+[05:02:48] INFO:open runtime DB success from: /home/hjuser/Desktop/RAV0.5_FPGA_ALPHA_260908/hw.dat
+[05:02:48] INFO:Ice Mode
+[05:02:48] WARN:In future versions, load_db [-to] will no longer be supported to occupy resources. Need to use "allocate" command to allocate resources.
+elapse time: 1.6776 (s)
+Use platform root path /home/data/UVHS/2506p3_0115/platform
+
+Table of Used Fpga:
+------------------------------------------------------------------------------------------------------
+Board   FPGA    Bitstream File                                                                        
+------------------------------------------------------------------------------------------------------
+B1      F1      /home/hjuser/Desktop/RAV0.5_FPGA_ALPHA_260908/hw.dat/Compile/PnR/B0/F0/MOD_b0_f0.bin  
+
+
+Table of Used Clock:
+------------------------------------------------------------------------------------------------
+Board       Index   Frequency(MHz)        Clock Signal Name                         Type        
+------------------------------------------------------------------------------------------------
+ALL         6       16.260162             sys_clk                                   PLL         
+
+
+Table of Replay Used Reset:
+----------------------------------------------------
+Index   Polarity   Reset Name            Value      
+----------------------------------------------------
+0       1          cpu_reset             0          
+
+[05:03:12] INFO:Done: load db success in prototyping mode!
+Command: config -connector 
+[05:03:12] INFO:Done: set connector voltage success
+Command: query -connector -type fmc 
+
+Table of Connectors:
+----------------------------------------------------------------------------------------------------
+Connector Name        Connector Type   Connector Status      Bank        Bank Voltage Range (mV)    
+----------------------------------------------------------------------------------------------------
+
+Command: query -voltage 
+
+Table of the Voltages under monitoring:
+--------------------------------------------------------------------------------------------------------------------------
+System Name      Board   FPGA    Index   Enable      Voltage (mV)     Expect Voltage (mV)   Over    Name                  
+--------------------------------------------------------------------------------------------------------------------------
+uvhs-0           TB1     F0      0       Enable      1201             1200                  No      VDD1V2_DDR4_1         
+uvhs-0           TB1     F0      1       Enable      1198             1200                  No      VDD1V2_DDR4_2         
+uvhs-0           TB1     F1      2       Enable      1203             1200                  No      VDD1V2_DDR4_1         
+uvhs-0           TB1     F1      3       Enable      1198             1200                  No      VDD1V2_DDR4_2         
+uvhs-0           TB1     F2      4       Enable      1206             1200                  No      VDD1V2_DDR4_1         
+uvhs-0           TB1     F2      5       Enable      1203             1200                  No      VDD1V2_DDR4_2         
+uvhs-0           TB1     F3      6       Enable      1203             1200                  No      VDD1V2_DDR4_1         
+uvhs-0           TB1     F3      7       Enable      1205             1200                  No      VDD1V2_DDR4_2         
+uvhs-0           TB1     FC      8       Enable      902              900                   No      MGTAVCC_0P9V          
+uvhs-0           TB1     FC      9       Enable      1198             1200                  No      MGTAVTT_1P2V          
+uvhs-0           TB1     FC      10      Enable      1201             1200                  No      PS_DDR4_VDDQ_1P2V     
+uvhs-0           TB1     FC      11      Enable      850              850                   No      VCCINT_0P85V          
+uvhs-0           TB1     FC      0       Disable     0                -                     No      
+uvhs-0           TB1     F0      12      Enable      1803             1800                  No      VDD1V8_VCCO           
+uvhs-0           TB1     F0      13      Enable      3326             3300                  No      VDD3V3_VCCO           
+uvhs-0           TB1     F0      14      Enable      1506             1500                  No      VDD1V5_VCCO           
+uvhs-0           TB1     F0      15      Enable      1502             1500                  No      VDD1V5_MGTVCCAUX      
+uvhs-0           TB1     F1      16      Enable      1812             1800                  No      VDD1V8_VCCO           
+uvhs-0           TB1     F1      17      Enable      3296             3300                  No      VDD3V3_VCCO           
+uvhs-0           TB1     F1      18      Enable      1505             1500                  No      VDD1V5_VCCO           
+uvhs-0           TB1     F1      19      Enable      1501             1500                  No      VDD1V5_MGTVCCAUX      
+uvhs-0           TB1     F2      20      Enable      1810             1800                  No      VDD1V8_VCCO           
+uvhs-0           TB1     F2      21      Enable      3311             3300                  No      VDD3V3_VCCO           
+uvhs-0           TB1     F2      22      Enable      1503             1500                  No      VDD1V5_VCCO           
+uvhs-0           TB1     F2      23      Enable      1506             1500                  No      VDD1V5_MGTVCCAUX      
+uvhs-0           TB1     F3      24      Enable      1798             1800                  No      VDD1V8_VCCO           
+uvhs-0           TB1     F3      25      Enable      3301             3300                  No      VDD3V3_VCCO           
+uvhs-0           TB1     F3      26      Enable      1502             1500                  No      VDD1V5_VCCO           
+uvhs-0           TB1     F3      27      Enable      1498             1500                  No      VDD1V5_MGTVCCAUX      
+uvhs-0           TB1     F0      28      Enable      799              800                   No      VDD0V8_VCCINT0_01     
+uvhs-0           TB1     F0      28      Enable      799              800                   No      VDD0V8_VCCINT0_01     
+uvhs-0           TB1     F0      29      Enable      799              800                   No      VDD0V8_VCCINT0_23     
+uvhs-0           TB1     F0      29      Enable      799              800                   No      VDD0V8_VCCINT0_23     
+uvhs-0           TB1     F0      30      Enable      799              800                   No      VDD0V8_VCCINT1_01     
+uvhs-0           TB1     F0      30      Enable      799              800                   No      VDD0V8_VCCINT1_01     
+uvhs-0           TB1     F0      31      Enable      799              800                   No      VDD0V8_VCCINT1_23     
+uvhs-0           TB1     F0      31      Enable      799              800                   No      VDD0V8_VCCINT1_23     
+uvhs-0           TB1     F0      32      Enable      799              800                   No      VDD0V8_VCCINT2_01     
+uvhs-0           TB1     F0      32      Enable      799              800                   No      VDD0V8_VCCINT2_01     
+uvhs-0           TB1     F0      33      Enable      799              800                   No      VDD0V8_VCCINT2_23     
+uvhs-0           TB1     F0      33      Enable      798              800                   No      VDD0V8_VCCINT2_23     
+uvhs-0           TB1     F0      34      Enable      798              800                   No      VDD0V8_VCCINT3_01     
+uvhs-0           TB1     F0      34      Enable      798              800                   No      VDD0V8_VCCINT3_01     
+uvhs-0           TB1     F0      35      Enable      799              800                   No      VDD0V8_VCCINT3_23     
+uvhs-0           TB1     F0      35      Enable      800              800                   No      VDD0V8_VCCINT3_23     
+uvhs-0           TB1     F1      36      Enable      799              800                   No      VDD0V8_VCCINT0_01     
+uvhs-0           TB1     F1      36      Enable      799              800                   No      VDD0V8_VCCINT0_01     
+uvhs-0           TB1     F1      37      Enable      799              800                   No      VDD0V8_VCCINT0_23     
+uvhs-0           TB1     F1      37      Enable      799              800                   No      VDD0V8_VCCINT0_23     
+uvhs-0           TB1     F1      38      Enable      799              800                   No      VDD0V8_VCCINT1_01     
+uvhs-0           TB1     F1      38      Enable      798              800                   No      VDD0V8_VCCINT1_01     
+uvhs-0           TB1     F1      39      Enable      799              800                   No      VDD0V8_VCCINT1_23     
+uvhs-0           TB1     F1      39      Enable      799              800                   No      VDD0V8_VCCINT1_23     
+uvhs-0           TB1     F1      40      Enable      799              800                   No      VDD0V8_VCCINT2_01     
+uvhs-0           TB1     F1      40      Enable      799              800                   No      VDD0V8_VCCINT2_01     
+uvhs-0           TB1     F1      41      Enable      798              800                   No      VDD0V8_VCCINT2_23     
+uvhs-0           TB1     F1      41      Enable      798              800                   No      VDD0V8_VCCINT2_23     
+uvhs-0           TB1     F1      42      Enable      799              800                   No      VDD0V8_VCCINT3_01     
+uvhs-0           TB1     F1      42      Enable      799              800                   No      VDD0V8_VCCINT3_01     
+uvhs-0           TB1     F1      43      Enable      798              800                   No      VDD0V8_VCCINT3_23     
+uvhs-0           TB1     F1      43      Enable      798              800                   No      VDD0V8_VCCINT3_23     
+uvhs-0           TB1     F2      44      Enable      799              800                   No      VDD0V8_VCCINT0_01     
+uvhs-0           TB1     F2      44      Enable      799              800                   No      VDD0V8_VCCINT0_01     
+uvhs-0           TB1     F2      45      Enable      799              800                   No      VDD0V8_VCCINT0_23     
+uvhs-0           TB1     F2      45      Enable      800              800                   No      VDD0V8_VCCINT0_23     
+uvhs-0           TB1     F2      46      Enable      799              800                   No      VDD0V8_VCCINT1_01     
+uvhs-0           TB1     F2      46      Enable      799              800                   No      VDD0V8_VCCINT1_01     
+uvhs-0           TB1     F2      47      Enable      799              800                   No      VDD0V8_VCCINT1_23     
+uvhs-0           TB1     F2      47      Enable      800              800                   No      VDD0V8_VCCINT1_23     
+uvhs-0           TB1     F2      48      Enable      799              800                   No      VDD0V8_VCCINT2_01     
+uvhs-0           TB1     F2      48      Enable      799              800                   No      VDD0V8_VCCINT2_01     
+uvhs-0           TB1     F2      49      Enable      799              800                   No      VDD0V8_VCCINT2_23     
+uvhs-0           TB1     F2      49      Enable      799              800                   No      VDD0V8_VCCINT2_23     
+uvhs-0           TB1     F2      50      Enable      798              800                   No      VDD0V8_VCCINT3_01     
+uvhs-0           TB1     F2      50      Enable      799              800                   No      VDD0V8_VCCINT3_01     
+uvhs-0           TB1     F2      51      Enable      799              800                   No      VDD0V8_VCCINT3_23     
+uvhs-0           TB1     F2      51      Enable      799              800                   No      VDD0V8_VCCINT3_23     
+uvhs-0           TB1     F3      52      Enable      799              800                   No      VDD0V8_VCCINT0_01     
+uvhs-0           TB1     F3      52      Enable      799              800                   No      VDD0V8_VCCINT0_01     
+uvhs-0           TB1     F3      53      Enable      798              800                   No      VDD0V8_VCCINT0_23     
+uvhs-0           TB1     F3      53      Enable      798              800                   No      VDD0V8_VCCINT0_23     
+uvhs-0           TB1     F3      54      Enable      798              800                   No      VDD0V8_VCCINT1_01     
+uvhs-0           TB1     F3      54      Enable      798              800                   No      VDD0V8_VCCINT1_01     
+uvhs-0           TB1     F3      55      Enable      799              800                   No      VDD0V8_VCCINT1_23     
+uvhs-0           TB1     F3      55      Enable      799              800                   No      VDD0V8_VCCINT1_23     
+uvhs-0           TB1     F3      56      Enable      798              800                   No      VDD0V8_VCCINT2_01     
+uvhs-0           TB1     F3      56      Enable      799              800                   No      VDD0V8_VCCINT2_01     
+uvhs-0           TB1     F3      57      Enable      799              800                   No      VDD0V8_VCCINT2_23     
+uvhs-0           TB1     F3      57      Enable      799              800                   No      VDD0V8_VCCINT2_23     
+uvhs-0           TB1     F3      58      Enable      799              800                   No      VDD0V8_VCCINT3_01     
+uvhs-0           TB1     F3      58      Enable      799              800                   No      VDD0V8_VCCINT3_01     
+uvhs-0           TB1     F3      59      Enable      799              800                   No      VDD0V8_VCCINT3_23     
+uvhs-0           TB1     F3      59      Enable      799              800                   No      VDD0V8_VCCINT3_23     
+uvhs-0           TB1     F0      60      Enable      1503             1500                  No      VDD1V5_VCCAUX         
+uvhs-0           TB1     F0      61      Enable      917              920                   No      VDD0V92_MGTAVCC       
+uvhs-0           TB1     F0      62      Enable      1198             1200                  No      VDD1V2_MGTAVTT        
+uvhs-0           TB1     F1      63      Enable      1497             1500                  No      VDD1V5_VCCAUX         
+uvhs-0           TB1     F1      64      Enable      917              920                   No      VDD0V92_MGTAVCC       
+uvhs-0           TB1     F1      65      Enable      1201             1200                  No      VDD1V2_MGTAVTT        
+uvhs-0           TB1     F2      66      Enable      1508             1500                  No      VDD1V5_VCCAUX         
+uvhs-0           TB1     F2      67      Enable      913              920                   No      VDD0V92_MGTAVCC       
+uvhs-0           TB1     F2      68      Enable      1198             1200                  No      VDD1V2_MGTAVTT        
+uvhs-0           TB1     F3      69      Enable      1502             1500                  No      VDD1V5_VCCAUX         
+uvhs-0           TB1     F3      70      Enable      915              920                   No      VDD0V92_MGTAVCC       
+uvhs-0           TB1     F3      71      Enable      1198             1200                  No      VDD1V2_MGTAVTT        
+uvhs-0           TB1     F0      0       Disable     0                -                     No      APC0_1_2.FPGA         
+uvhs-0           TB1     F0      0       Disable     0                -                     No      APC0_1_2.ADJ          
+uvhs-0           TB1     F0      1       Disable     0                -                     No      APC3_4_5.FPGA         
+uvhs-0           TB1     F0      1       Disable     0                -                     No      APC3_4_5.ADJ          
+uvhs-0           TB1     F0      2       Disable     0                -                     No      APC6_7_8.FPGA         
+uvhs-0           TB1     F0      2       Disable     0                -                     No      APC6_7_8.ADJ          
+uvhs-0           TB1     F0      3       Disable     0                -                     No      APC9_10_11.FPGA       
+uvhs-0           TB1     F0      3       Disable     0                -                     No      APC9_10_11.ADJ        
+uvhs-0           TB1     F0      4       Disable     0                -                     No      APC12_13_14.FPGA      
+uvhs-0           TB1     F0      4       Disable     0                -                     No      APC12_13_14.ADJ       
+uvhs-0           TB1     F0      5       Disable     0                -                     No      APC15_16_17.FPGA      
+uvhs-0           TB1     F0      5       Disable     0                -                     No      APC15_16_17.ADJ       
+uvhs-0           TB1     F0      6       Disable     0                -                     No      APC18_19_20.FPGA      
+uvhs-0           TB1     F0      6       Disable     0                -                     No      APC18_19_20.ADJ       
+uvhs-0           TB1     F0      7       Disable     0                -                     No      APC21_22_23.FPGA      
+uvhs-0           TB1     F0      7       Disable     0                -                     No      APC21_22_23.ADJ       
+uvhs-0           TB1     F0      8       Disable     0                -                     No      APC24_25_26.FPGA      
+uvhs-0           TB1     F0      8       Disable     0                -                     No      APC24_25_26.ADJ       
+uvhs-0           TB1     F0      9       Disable     0                -                     No      APC27_28_29.FPGA      
+uvhs-0           TB1     F0      9       Disable     0                -                     No      APC27_28_29.ADJ       
+uvhs-0           TB1     F0      10      Disable     0                -                     No      APC30_31_32.FPGA      
+uvhs-0           TB1     F0      10      Disable     0                -                     No      APC30_31_32.ADJ       
+uvhs-0           TB1     F0      11      Disable     0                -                     No      APC33_34_35.FPGA      
+uvhs-0           TB1     F0      11      Disable     0                -                     No      APC33_34_35.ADJ       
+uvhs-0           TB1     F1      0       Enable      1502             1500                  No      APC0_1_2.FPGA         
+uvhs-0           TB1     F1      0       Enable      1502             1500                  No      APC0_1_2.ADJ          
+uvhs-0           TB1     F1      1       Enable      1502             1500                  No      APC3_4_5.FPGA         
+uvhs-0           TB1     F1      1       Enable      1502             1500                  No      APC3_4_5.ADJ          
+uvhs-0           TB1     F1      2       Enable      1464             1500                  No      APC6_7_8.FPGA         
+uvhs-0           TB1     F1      2       Enable      1464             1500                  No      APC6_7_8.ADJ          
+uvhs-0           TB1     F1      3       Enable      1502             1500                  No      APC9_10_11.FPGA       
+uvhs-0           TB1     F1      3       Enable      1502             1500                  No      APC9_10_11.ADJ        
+uvhs-0           TB1     F1      4       Enable      1502             1500                  No      APC12_13_14.FPGA      
+uvhs-0           TB1     F1      4       Enable      1502             1500                  No      APC12_13_14.ADJ       
+uvhs-0           TB1     F1      5       Enable      1464             1500                  No      APC15_16_17.FPGA      
+uvhs-0           TB1     F1      5       Enable      1464             1500                  No      APC15_16_17.ADJ       
+uvhs-0           TB1     F1      6       Enable      1502             1500                  No      APC18_19_20.FPGA      
+uvhs-0           TB1     F1      6       Enable      1502             1500                  No      APC18_19_20.ADJ       
+uvhs-0           TB1     F1      7       Enable      1502             1500                  No      APC21_22_23.FPGA      
+uvhs-0           TB1     F1      7       Enable      1502             1500                  No      APC21_22_23.ADJ       
+uvhs-0           TB1     F1      8       Enable      1502             1500                  No      APC24_25_26.FPGA      
+uvhs-0           TB1     F1      8       Enable      1502             1500                  No      APC24_25_26.ADJ       
+uvhs-0           TB1     F1      9       Enable      1539             1500                  No      APC27_28_29.FPGA      
+uvhs-0           TB1     F1      9       Enable      1502             1500                  No      APC27_28_29.ADJ       
+uvhs-0           TB1     F1      10      Enable      1502             1500                  No      APC30_31_32.FPGA      
+uvhs-0           TB1     F1      10      Enable      1502             1500                  No      APC30_31_32.ADJ       
+uvhs-0           TB1     F1      11      Enable      1502             1500                  No      APC33_34_35.FPGA      
+uvhs-0           TB1     F1      11      Enable      1502             1500                  No      APC33_34_35.ADJ       
+uvhs-0           TB1     F2      0       Disable     0                -                     No      APC0_1_2.FPGA         
+uvhs-0           TB1     F2      0       Disable     0                -                     No      APC0_1_2.ADJ          
+uvhs-0           TB1     F2      1       Disable     0                -                     No      APC3_4_5.FPGA         
+uvhs-0           TB1     F2      1       Disable     0                -                     No      APC3_4_5.ADJ          
+uvhs-0           TB1     F2      2       Disable     0                -                     No      APC6_7_8.FPGA         
+uvhs-0           TB1     F2      2       Disable     0                -                     No      APC6_7_8.ADJ          
+uvhs-0           TB1     F2      3       Disable     0                -                     No      APC9_10_11.FPGA       
+uvhs-0           TB1     F2      3       Disable     0                -                     No      APC9_10_11.ADJ        
+uvhs-0           TB1     F2      4       Disable     0                -                     No      APC12_13_14.FPGA      
+uvhs-0           TB1     F2      4       Disable     0                -                     No      APC12_13_14.ADJ       
+uvhs-0           TB1     F2      5       Disable     0                -                     No      APC15_16_17.FPGA      
+uvhs-0           TB1     F2      5       Disable     0                -                     No      APC15_16_17.ADJ       
+uvhs-0           TB1     F2      6       Disable     0                -                     No      APC18_19_20.FPGA      
+uvhs-0           TB1     F2      6       Disable     0                -                     No      APC18_19_20.ADJ       
+uvhs-0           TB1     F2      7       Disable     0                -                     No      APC21_22_23.FPGA      
+uvhs-0           TB1     F2      7       Disable     0                -                     No      APC21_22_23.ADJ       
+uvhs-0           TB1     F2      8       Disable     0                -                     No      APC24_25_26.FPGA      
+uvhs-0           TB1     F2      8       Disable     0                -                     No      APC24_25_26.ADJ       
+uvhs-0           TB1     F2      9       Disable     0                -                     No      APC27_28_29.FPGA      
+uvhs-0           TB1     F2      9       Disable     0                -                     No      APC27_28_29.ADJ       
+uvhs-0           TB1     F2      10      Disable     0                -                     No      APC30_31_32.FPGA      
+uvhs-0           TB1     F2      10      Disable     0                -                     No      APC30_31_32.ADJ       
+uvhs-0           TB1     F2      11      Disable     0                -                     No      APC33_34_35.FPGA      
+uvhs-0           TB1     F2      11      Disable     0                -                     No      APC33_34_35.ADJ       
+uvhs-0           TB1     F3      0       Disable     0                -                     No      APC0_1_2.FPGA         
+uvhs-0           TB1     F3      0       Disable     0                -                     No      APC0_1_2.ADJ          
+uvhs-0           TB1     F3      1       Disable     0                -                     No      APC3_4_5.FPGA         
+uvhs-0           TB1     F3      1       Disable     0                -                     No      APC3_4_5.ADJ          
+uvhs-0           TB1     F3      2       Disable     0                -                     No      APC6_7_8.FPGA         
+uvhs-0           TB1     F3      2       Disable     0                -                     No      APC6_7_8.ADJ          
+uvhs-0           TB1     F3      3       Disable     0                -                     No      APC9_10_11.FPGA       
+uvhs-0           TB1     F3      3       Disable     0                -                     No      APC9_10_11.ADJ        
+uvhs-0           TB1     F3      4       Disable     0                -                     No      APC12_13_14.FPGA      
+uvhs-0           TB1     F3      4       Disable     0                -                     No      APC12_13_14.ADJ       
+uvhs-0           TB1     F3      5       Disable     0                -                     No      APC15_16_17.FPGA      
+uvhs-0           TB1     F3      5       Disable     0                -                     No      APC15_16_17.ADJ       
+uvhs-0           TB1     F3      6       Disable     0                -                     No      APC18_19_20.FPGA      
+uvhs-0           TB1     F3      6       Disable     0                -                     No      APC18_19_20.ADJ       
+uvhs-0           TB1     F3      7       Disable     0                -                     No      APC21_22_23.FPGA      
+uvhs-0           TB1     F3      7       Disable     0                -                     No      APC21_22_23.ADJ       
+uvhs-0           TB1     F3      8       Disable     0                -                     No      APC24_25_26.FPGA      
+uvhs-0           TB1     F3      8       Disable     0                -                     No      APC24_25_26.ADJ       
+uvhs-0           TB1     F3      9       Disable     0                -                     No      APC27_28_29.FPGA      
+uvhs-0           TB1     F3      9       Disable     0                -                     No      APC27_28_29.ADJ       
+uvhs-0           TB1     F3      10      Disable     0                -                     No      APC30_31_32.FPGA      
+uvhs-0           TB1     F3      10      Disable     0                -                     No      APC30_31_32.ADJ       
+uvhs-0           TB1     F3      11      Disable     0                -                     No      APC33_34_35.FPGA      
+uvhs-0           TB1     F3      11      Disable     0                -                     No      APC33_34_35.ADJ       
+uvhs-0           TB2     F0      0       Enable      1206             1200                  No      VDD1V2_DDR4_1         
+uvhs-0           TB2     F0      1       Enable      1201             1200                  No      VDD1V2_DDR4_2         
+uvhs-0           TB2     F1      2       Enable      1201             1200                  No      VDD1V2_DDR4_1         
+uvhs-0           TB2     F1      3       Enable      1206             1200                  No      VDD1V2_DDR4_2         
+uvhs-0           TB2     F2      4       Enable      1201             1200                  No      VDD1V2_DDR4_1         
+uvhs-0           TB2     F2      5       Enable      1201             1200                  No      VDD1V2_DDR4_2         
+uvhs-0           TB2     F3      6       Enable      1203             1200                  No      VDD1V2_DDR4_1         
+uvhs-0           TB2     F3      7       Enable      1206             1200                  No      VDD1V2_DDR4_2         
+uvhs-0           TB2     FC      8       Enable      900              900                   No      MGTAVCC_0P9V          
+uvhs-0           TB2     FC      9       Enable      1198             1200                  No      MGTAVTT_1P2V          
+uvhs-0           TB2     FC      10      Enable      1198             1200                  No      PS_DDR4_VDDQ_1P2V     
+uvhs-0           TB2     FC      11      Enable      851              850                   No      VCCINT_0P85V          
+uvhs-0           TB2     FC      0       Disable     0                -                     No      
+uvhs-0           TB2     F0      12      Enable      1797             1800                  No      VDD1V8_VCCO           
+uvhs-0           TB2     F0      13      Enable      3298             3300                  No      VDD3V3_VCCO           
+uvhs-0           TB2     F0      14      Enable      1501             1500                  No      VDD1V5_VCCO           
+uvhs-0           TB2     F0      15      Enable      1505             1500                  No      VDD1V5_MGTVCCAUX      
+uvhs-0           TB2     F1      16      Enable      1802             1800                  No      VDD1V8_VCCO           
+uvhs-0           TB2     F1      17      Enable      3310             3300                  No      VDD3V3_VCCO           
+uvhs-0           TB2     F1      18      Enable      1500             1500                  No      VDD1V5_VCCO           
+uvhs-0           TB2     F1      19      Enable      1503             1500                  No      VDD1V5_MGTVCCAUX      
+uvhs-0           TB2     F2      20      Enable      1801             1800                  No      VDD1V8_VCCO           
+uvhs-0           TB2     F2      21      Enable      3315             3300                  No      VDD3V3_VCCO           
+uvhs-0           TB2     F2      22      Enable      1501             1500                  No      VDD1V5_VCCO           
+uvhs-0           TB2     F2      23      Enable      1503             1500                  No      VDD1V5_MGTVCCAUX      
+uvhs-0           TB2     F3      24      Enable      1812             1800                  No      VDD1V8_VCCO           
+uvhs-0           TB2     F3      25      Enable      3312             3300                  No      VDD3V3_VCCO           
+uvhs-0           TB2     F3      26      Enable      1498             1500                  No      VDD1V5_VCCO           
+uvhs-0           TB2     F3      27      Enable      1500             1500                  No      VDD1V5_MGTVCCAUX      
+uvhs-0           TB2     F0      28      Enable      800              800                   No      VDD0V8_VCCINT0_01     
+uvhs-0           TB2     F0      28      Enable      800              800                   No      VDD0V8_VCCINT0_01     
+uvhs-0           TB2     F0      29      Enable      800              800                   No      VDD0V8_VCCINT0_23     
+uvhs-0           TB2     F0      29      Enable      800              800                   No      VDD0V8_VCCINT0_23     
+uvhs-0           TB2     F0      30      Enable      800              800                   No      VDD0V8_VCCINT1_01     
+uvhs-0           TB2     F0      30      Enable      800              800                   No      VDD0V8_VCCINT1_01     
+uvhs-0           TB2     F0      31      Enable      800              800                   No      VDD0V8_VCCINT1_23     
+uvhs-0           TB2     F0      31      Enable      800              800                   No      VDD0V8_VCCINT1_23     
+uvhs-0           TB2     F0      32      Enable      799              800                   No      VDD0V8_VCCINT2_01     
+uvhs-0           TB2     F0      32      Enable      799              800                   No      VDD0V8_VCCINT2_01     
+uvhs-0           TB2     F0      33      Enable      800              800                   No      VDD0V8_VCCINT2_23     
+uvhs-0           TB2     F0      33      Enable      799              800                   No      VDD0V8_VCCINT2_23     
+uvhs-0           TB2     F0      34      Enable      799              800                   No      VDD0V8_VCCINT3_01     
+uvhs-0           TB2     F0      34      Enable      799              800                   No      VDD0V8_VCCINT3_01     
+uvhs-0           TB2     F0      35      Enable      800              800                   No      VDD0V8_VCCINT3_23     
+uvhs-0           TB2     F0      35      Enable      800              800                   No      VDD0V8_VCCINT3_23     
+uvhs-0           TB2     F1      36      Enable      800              800                   No      VDD0V8_VCCINT0_01     
+uvhs-0           TB2     F1      36      Enable      799              800                   No      VDD0V8_VCCINT0_01     
+uvhs-0           TB2     F1      37      Enable      799              800                   No      VDD0V8_VCCINT0_23     
+uvhs-0           TB2     F1      37      Enable      799              800                   No      VDD0V8_VCCINT0_23     
+uvhs-0           TB2     F1      38      Enable      799              800                   No      VDD0V8_VCCINT1_01     
+uvhs-0           TB2     F1      38      Enable      799              800                   No      VDD0V8_VCCINT1_01     
+uvhs-0           TB2     F1      39      Enable      799              800                   No      VDD0V8_VCCINT1_23     
+uvhs-0           TB2     F1      39      Enable      799              800                   No      VDD0V8_VCCINT1_23     
+uvhs-0           TB2     F1      40      Enable      798              800                   No      VDD0V8_VCCINT2_01     
+uvhs-0           TB2     F1      40      Enable      799              800                   No      VDD0V8_VCCINT2_01     
+uvhs-0           TB2     F1      41      Enable      799              800                   No      VDD0V8_VCCINT2_23     
+uvhs-0           TB2     F1      41      Enable      799              800                   No      VDD0V8_VCCINT2_23     
+uvhs-0           TB2     F1      42      Enable      799              800                   No      VDD0V8_VCCINT3_01     
+uvhs-0           TB2     F1      42      Enable      799              800                   No      VDD0V8_VCCINT3_01     
+uvhs-0           TB2     F1      43      Enable      799              800                   No      VDD0V8_VCCINT3_23     
+uvhs-0           TB2     F1      43      Enable      799              800                   No      VDD0V8_VCCINT3_23     
+uvhs-0           TB2     F2      44      Enable      799              800                   No      VDD0V8_VCCINT0_01     
+uvhs-0           TB2     F2      44      Enable      799              800                   No      VDD0V8_VCCINT0_01     
+uvhs-0           TB2     F2      45      Enable      800              800                   No      VDD0V8_VCCINT0_23     
+uvhs-0           TB2     F2      45      Enable      800              800                   No      VDD0V8_VCCINT0_23     
+uvhs-0           TB2     F2      46      Enable      800              800                   No      VDD0V8_VCCINT1_01     
+uvhs-0           TB2     F2      46      Enable      799              800                   No      VDD0V8_VCCINT1_01     
+uvhs-0           TB2     F2      47      Enable      801              800                   No      VDD0V8_VCCINT1_23     
+uvhs-0           TB2     F2      47      Enable      801              800                   No      VDD0V8_VCCINT1_23     
+uvhs-0           TB2     F2      48      Enable      800              800                   No      VDD0V8_VCCINT2_01     
+uvhs-0           TB2     F2      48      Enable      800              800                   No      VDD0V8_VCCINT2_01     
+uvhs-0           TB2     F2      49      Enable      799              800                   No      VDD0V8_VCCINT2_23     
+uvhs-0           TB2     F2      49      Enable      799              800                   No      VDD0V8_VCCINT2_23     
+uvhs-0           TB2     F2      50      Enable      799              800                   No      VDD0V8_VCCINT3_01     
+uvhs-0           TB2     F2      50      Enable      799              800                   No      VDD0V8_VCCINT3_01     
+uvhs-0           TB2     F2      51      Enable      799              800                   No      VDD0V8_VCCINT3_23     
+uvhs-0           TB2     F2      51      Enable      799              800                   No      VDD0V8_VCCINT3_23     
+uvhs-0           TB2     F3      52      Enable      799              800                   No      VDD0V8_VCCINT0_01     
+uvhs-0           TB2     F3      52      Enable      799              800                   No      VDD0V8_VCCINT0_01     
+uvhs-0           TB2     F3      53      Enable      799              800                   No      VDD0V8_VCCINT0_23     
+uvhs-0           TB2     F3      53      Enable      800              800                   No      VDD0V8_VCCINT0_23     
+uvhs-0           TB2     F3      54      Enable      799              800                   No      VDD0V8_VCCINT1_01     
+uvhs-0           TB2     F3      54      Enable      799              800                   No      VDD0V8_VCCINT1_01     
+uvhs-0           TB2     F3      55      Enable      799              800                   No      VDD0V8_VCCINT1_23     
+uvhs-0           TB2     F3      55      Enable      799              800                   No      VDD0V8_VCCINT1_23     
+uvhs-0           TB2     F3      56      Enable      798              800                   No      VDD0V8_VCCINT2_01     
+uvhs-0           TB2     F3      56      Enable      799              800                   No      VDD0V8_VCCINT2_01     
+uvhs-0           TB2     F3      57      Enable      799              800                   No      VDD0V8_VCCINT2_23     
+uvhs-0           TB2     F3      57      Enable      799              800                   No      VDD0V8_VCCINT2_23     
+uvhs-0           TB2     F3      58      Enable      799              800                   No      VDD0V8_VCCINT3_01     
+uvhs-0           TB2     F3      58      Enable      799              800                   No      VDD0V8_VCCINT3_01     
+uvhs-0           TB2     F3      59      Enable      799              800                   No      VDD0V8_VCCINT3_23     
+uvhs-0           TB2     F3      59      Enable      800              800                   No      VDD0V8_VCCINT3_23     
+uvhs-0           TB2     F0      60      Enable      1502             1500                  No      VDD1V5_VCCAUX         
+uvhs-0           TB2     F0      61      Enable      915              920                   No      VDD0V92_MGTAVCC       
+uvhs-0           TB2     F0      62      Enable      1198             1200                  No      VDD1V2_MGTAVTT        
+uvhs-0           TB2     F1      63      Enable      1502             1500                  No      VDD1V5_VCCAUX         
+uvhs-0           TB2     F1      64      Enable      917              920                   No      VDD0V92_MGTAVCC       
+uvhs-0           TB2     F1      65      Enable      1198             1200                  No      VDD1V2_MGTAVTT        
+uvhs-0           TB2     F2      66      Enable      1502             1500                  No      VDD1V5_VCCAUX         
+uvhs-0           TB2     F2      67      Enable      917              920                   No      VDD0V92_MGTAVCC       
+uvhs-0           TB2     F2      68      Enable      1198             1200                  No      VDD1V2_MGTAVTT        
+uvhs-0           TB2     F3      69      Enable      1502             1500                  No      VDD1V5_VCCAUX         
+uvhs-0           TB2     F3      70      Enable      918              920                   No      VDD0V92_MGTAVCC       
+uvhs-0           TB2     F3      71      Enable      1198             1200                  No      VDD1V2_MGTAVTT        
+uvhs-0           TB2     F0      0       Disable     0                -                     No      APC0_1_2.FPGA         
+uvhs-0           TB2     F0      0       Disable     0                -                     No      APC0_1_2.ADJ          
+uvhs-0           TB2     F0      1       Disable     0                -                     No      APC3_4_5.FPGA         
+uvhs-0           TB2     F0      1       Disable     0                -                     No      APC3_4_5.ADJ          
+uvhs-0           TB2     F0      2       Disable     0                -                     No      APC6_7_8.FPGA         
+uvhs-0           TB2     F0      2       Disable     0                -                     No      APC6_7_8.ADJ          
+uvhs-0           TB2     F0      3       Disable     0                -                     No      APC9_10_11.FPGA       
+uvhs-0           TB2     F0      3       Disable     0                -                     No      APC9_10_11.ADJ        
+uvhs-0           TB2     F0      4       Disable     0                -                     No      APC12_13_14.FPGA      
+uvhs-0           TB2     F0      4       Disable     0                -                     No      APC12_13_14.ADJ       
+uvhs-0           TB2     F0      5       Disable     0                -                     No      APC15_16_17.FPGA      
+uvhs-0           TB2     F0      5       Disable     0                -                     No      APC15_16_17.ADJ       
+uvhs-0           TB2     F0      6       Disable     0                -                     No      APC18_19_20.FPGA      
+uvhs-0           TB2     F0      6       Disable     0                -                     No      APC18_19_20.ADJ       
+uvhs-0           TB2     F0      7       Disable     0                -                     No      APC21_22_23.FPGA      
+uvhs-0           TB2     F0      7       Disable     0                -                     No      APC21_22_23.ADJ       
+uvhs-0           TB2     F0      8       Disable     0                -                     No      APC24_25_26.FPGA      
+uvhs-0           TB2     F0      8       Disable     0                -                     No      APC24_25_26.ADJ       
+uvhs-0           TB2     F0      9       Disable     0                -                     No      APC27_28_29.FPGA      
+uvhs-0           TB2     F0      9       Disable     0                -                     No      APC27_28_29.ADJ       
+uvhs-0           TB2     F0      10      Disable     0                -                     No      APC30_31_32.FPGA      
+uvhs-0           TB2     F0      10      Disable     0                -                     No      APC30_31_32.ADJ       
+uvhs-0           TB2     F0      11      Disable     0                -                     No      APC33_34_35.FPGA      
+uvhs-0           TB2     F0      11      Disable     0                -                     No      APC33_34_35.ADJ       
+uvhs-0           TB2     F1      0       Enable      1502             1500                  No      APC0_1_2.FPGA         
+uvhs-0           TB2     F1      0       Enable      1464             1500                  No      APC0_1_2.ADJ          
+uvhs-0           TB2     F1      1       Enable      1464             1500                  No      APC3_4_5.FPGA         
+uvhs-0           TB2     F1      1       Enable      1464             1500                  No      APC3_4_5.ADJ          
+uvhs-0           TB2     F1      2       Enable      1502             1500                  No      APC6_7_8.FPGA         
+uvhs-0           TB2     F1      2       Enable      1464             1500                  No      APC6_7_8.ADJ          
+uvhs-0           TB2     F1      3       Enable      1502             1500                  No      APC9_10_11.FPGA       
+uvhs-0           TB2     F1      3       Enable      1464             1500                  No      APC9_10_11.ADJ        
+uvhs-0           TB2     F1      4       Enable      1464             1500                  No      APC12_13_14.FPGA      
+uvhs-0           TB2     F1      4       Enable      1464             1500                  No      APC12_13_14.ADJ       
+uvhs-0           TB2     F1      5       Enable      1502             1500                  No      APC15_16_17.FPGA      
+uvhs-0           TB2     F1      5       Enable      1464             1500                  No      APC15_16_17.ADJ       
+uvhs-0           TB2     F1      6       Enable      1502             1500                  No      APC18_19_20.FPGA      
+uvhs-0           TB2     F1      6       Enable      1502             1500                  No      APC18_19_20.ADJ       
+uvhs-0           TB2     F1      7       Enable      1464             1500                  No      APC21_22_23.FPGA      
+uvhs-0           TB2     F1      7       Enable      1464             1500                  No      APC21_22_23.ADJ       
+uvhs-0           TB2     F1      8       Enable      1502             1500                  No      APC24_25_26.FPGA      
+uvhs-0           TB2     F1      8       Enable      1502             1500                  No      APC24_25_26.ADJ       
+uvhs-0           TB2     F1      9       Enable      1502             1500                  No      APC27_28_29.FPGA      
+uvhs-0           TB2     F1      9       Enable      1502             1500                  No      APC27_28_29.ADJ       
+uvhs-0           TB2     F1      10      Enable      1502             1500                  No      APC30_31_32.FPGA      
+uvhs-0           TB2     F1      10      Enable      1464             1500                  No      APC30_31_32.ADJ       
+uvhs-0           TB2     F1      11      Enable      1502             1500                  No      APC33_34_35.FPGA      
+uvhs-0           TB2     F1      11      Enable      1464             1500                  No      APC33_34_35.ADJ       
+uvhs-0           TB2     F2      0       Enable      1464             1500                  No      APC0_1_2.FPGA         
+uvhs-0           TB2     F2      0       Enable      1464             1500                  No      APC0_1_2.ADJ          
+uvhs-0           TB2     F2      1       Enable      1464             1500                  No      APC3_4_5.FPGA         
+uvhs-0           TB2     F2      1       Enable      1502             1500                  No      APC3_4_5.ADJ          
+uvhs-0           TB2     F2      2       Enable      1502             1500                  No      APC6_7_8.FPGA         
+uvhs-0           TB2     F2      2       Enable      1502             1500                  No      APC6_7_8.ADJ          
+uvhs-0           TB2     F2      3       Enable      1464             1500                  No      APC9_10_11.FPGA       
+uvhs-0           TB2     F2      3       Enable      1464             1500                  No      APC9_10_11.ADJ        
+uvhs-0           TB2     F2      4       Enable      1502             1500                  No      APC12_13_14.FPGA      
+uvhs-0           TB2     F2      4       Enable      1464             1500                  No      APC12_13_14.ADJ       
+uvhs-0           TB2     F2      5       Enable      1502             1500                  No      APC15_16_17.FPGA      
+uvhs-0           TB2     F2      5       Enable      1464             1500                  No      APC15_16_17.ADJ       
+uvhs-0           TB2     F2      6       Enable      1502             1500                  No      APC18_19_20.FPGA      
+uvhs-0           TB2     F2      6       Enable      1464             1500                  No      APC18_19_20.ADJ       
+uvhs-0           TB2     F2      7       Enable      1502             1500                  No      APC21_22_23.FPGA      
+uvhs-0           TB2     F2      7       Enable      1502             1500                  No      APC21_22_23.ADJ       
+uvhs-0           TB2     F2      8       Enable      1502             1500                  No      APC24_25_26.FPGA      
+uvhs-0           TB2     F2      8       Enable      1502             1500                  No      APC24_25_26.ADJ       
+uvhs-0           TB2     F2      9       Enable      1464             1500                  No      APC27_28_29.FPGA      
+uvhs-0           TB2     F2      9       Enable      1464             1500                  No      APC27_28_29.ADJ       
+uvhs-0           TB2     F2      10      Enable      1502             1500                  No      APC30_31_32.FPGA      
+uvhs-0           TB2     F2      10      Enable      1502             1500                  No      APC30_31_32.ADJ       
+uvhs-0           TB2     F2      11      Enable      1502             1500                  No      APC33_34_35.FPGA      
+uvhs-0           TB2     F2      11      Enable      1502             1500                  No      APC33_34_35.ADJ       
+uvhs-0           TB2     F3      0       Enable      1464             1500                  No      APC0_1_2.FPGA         
+uvhs-0           TB2     F3      0       Enable      1464             1500                  No      APC0_1_2.ADJ          
+uvhs-0           TB2     F3      1       Enable      1464             1500                  No      APC3_4_5.FPGA         
+uvhs-0           TB2     F3      1       Enable      1502             1500                  No      APC3_4_5.ADJ          
+uvhs-0           TB2     F3      2       Enable      1464             1500                  No      APC6_7_8.FPGA         
+uvhs-0           TB2     F3      2       Enable      1502             1500                  No      APC6_7_8.ADJ          
+uvhs-0           TB2     F3      3       Enable      1464             1500                  No      APC9_10_11.FPGA       
+uvhs-0           TB2     F3      3       Enable      1464             1500                  No      APC9_10_11.ADJ        
+uvhs-0           TB2     F3      4       Enable      1502             1500                  No      APC12_13_14.FPGA      
+uvhs-0           TB2     F3      4       Enable      1502             1500                  No      APC12_13_14.ADJ       
+uvhs-0           TB2     F3      5       Enable      1464             1500                  No      APC15_16_17.FPGA      
+uvhs-0           TB2     F3      5       Enable      1464             1500                  No      APC15_16_17.ADJ       
+uvhs-0           TB2     F3      6       Enable      1502             1500                  No      APC18_19_20.FPGA      
+uvhs-0           TB2     F3      6       Enable      1464             1500                  No      APC18_19_20.ADJ       
+uvhs-0           TB2     F3      7       Enable      1464             1500                  No      APC21_22_23.FPGA      
+uvhs-0           TB2     F3      7       Enable      1464             1500                  No      APC21_22_23.ADJ       
+uvhs-0           TB2     F3      8       Enable      1464             1500                  No      APC24_25_26.FPGA      
+uvhs-0           TB2     F3      8       Enable      1464             1500                  No      APC24_25_26.ADJ       
+uvhs-0           TB2     F3      9       Enable      1502             1500                  No      APC27_28_29.FPGA      
+uvhs-0           TB2     F3      9       Enable      1502             1500                  No      APC27_28_29.ADJ       
+uvhs-0           TB2     F3      10      Enable      1464             1500                  No      APC30_31_32.FPGA      
+uvhs-0           TB2     F3      10      Enable      1464             1500                  No      APC30_31_32.ADJ       
+uvhs-0           TB2     F3      11      Enable      1502             1500                  No      APC33_34_35.FPGA      
+uvhs-0           TB2     F3      11      Enable      1502             1500                  No      APC33_34_35.ADJ       
+
+Command: config -clock -frequency 14745600 sys_clk 
+[05:03:12] INFO:config -clock -frequency 14745600 -delay 5700ps -name sys_clk 
+[05:03:12] INFO:Done: set clock configurations success
+Command: config -clock -commit 
+[05:03:12] INFO:config -clock -commit
+[05:03:12] INFO:Done: commit and apply clock configurations success
+Command: query -clock 
+[05:03:12] INFO:No feedback clock information
+
+Table of Clock Signals:
+------------------------------------------------------------------------------------------------
+Board       Index   Frequency(MHz)        Clock Signal Name                         Type        
+------------------------------------------------------------------------------------------------
+ALL         6          14.745600          sys_clk                                   PLL         
+
+Command: reset -name cpu_reset -value 1 
+[05:03:12] INFO:reset -name cpu_reset -value 1 success
+Command: query -reset 
+
+Table of Reset Signals:
+----------------------------------------------------
+Index   Polarity   Reset Name            Value      
+----------------------------------------------------
+0       1          cpu_reset             1          
+
+Command: download 
+[05:03:18] event: download -target dut -board P0.B1.F1 by hjuser success
+[05:03:18] event: download complete, waiting link update and rescaning IP devices
+[05:03:31] event: F1 linked up on board P0.B1 by hjuser
+[05:03:31] INFO:Done: download success
+Command: query -ipinfo 
+
+System Bus Port IP Table:
+----------------------------------------------------------------------------------------------------------------------------------
+System Name      Board            FPGA    Port    IP ID   IP Name         Instance    Connector   Ip Version                      
+----------------------------------------------------------------------------------------------------------------------------------
+uvhs-0           B1               FC      0       IP0     systembus       0                       1,4.0.20200000(V1)              
+uvhs-0           B1               FC      1       IP3     ps              0                       0,0.1.20200000                  
+uvhs-0           B1               FC      2       IP2     glb             0                       0,1.1.20250004(V1)              
+uvhs-0           B1               FC      3       IP1     selectmap       0                       0,1.2.20250904(V1)              
+uvhs-0           B1               FC      4       IP1     selectmap       1                       0,1.2.20250904(V1)              
+uvhs-0           B1               FC      5       IP1     selectmap       2                       0,1.2.20250904(V1)              
+uvhs-0           B1               FC      6       IP1     selectmap       3                       0,1.2.20250904(V1)              
+uvhs-0           B1               FC      7       IP36    util            0                       0,0.0.20250731(V1)              
+uvhs-0           B1               FC      8       NA                                                                              
+uvhs-0           B1               FC      9       NA                                                                              
+uvhs-0           B1               FC      10      NA                                                                              
+uvhs-0           B1               FC      11      NA                                                                              
+uvhs-0           B1               FC      12      NA                                                                              
+uvhs-0           B1               FC      13      NA                                                                              
+uvhs-0           B1               FC      14      NA                                                                              
+uvhs-0           B1               FC      15      NA                                                                              
+uvhs-0           B1               F1      0       IP0     systembus       0                       1,4.0.20200000                  
+uvhs-0           B1               F1      1       IP20    tdmall          0                       1,4.3.20250805                  
+uvhs-0           B1               F1      2       NA                                                                              
+uvhs-0           B1               F1      3       NA                                                                              
+uvhs-0           B1               F1      4       IP40    ddr4_noc        0                       1,1.0.20260608(V1)              
+uvhs-0           B1               F1      5       NA                                                                              
+uvhs-0           B1               F1      6       IP34    pspl_dut        0                       0,0.2.20200000                  
+uvhs-0           B1               F1      7       NA                                                                              
+uvhs-0           B1               F1      8       NA                                                                              
+uvhs-0           B1               F1      9       NA                                                                              
+uvhs-0           B1               F1      10      NA                                                                              
+uvhs-0           B1               F1      11      NA                                                                              
+uvhs-0           B1               F1      12      NA                                                                              
+uvhs-0           B1               F1      13      NA                                                                              
+uvhs-0           B1               F1      14      NA                                                                              
+uvhs-0           B1               F1      15      IP35    fvd-cdiv        0                       1,0.0.20250912                  
+
+Command: initialize 
+[05:03:33] event: systembus initialize success
+[05:03:33] event: ps initialize success
+[05:03:34] event: DDR4 initialize success
+[05:03:34] event: fvd initialize success
+[05:03:35] INFO:Done: initialization complete success
+UV_RUN_PLAN_TCL=/home/hjuser/Desktop/fpga-tester-ISCAS/cmd/ddr-load_uv_run5.tcl
+DDR load plan: /home/hjuser/Desktop/fpga-tester-ISCAS/fpga-runs/run-51ef77a6f71b4e4f/ddr-load.plan
+segment model: address=0x0000000080000000 size=12592832
+writemem -rtl nanhu_xilinx.i_ddr[196762:0] -file /home/hjuser/Desktop/fpga-tester-ISCAS/fpga-runs/run-51ef77a6f71b4e4f/image.bin -file_type bin
+Command: writemem -rtl nanhu_xilinx.i_ddr[196762:0] -file /home/hjuser/Desktop/fpga-tester-ISCAS/fpga-runs/run-51ef77a6f71b4e4f/image.bin -file_type bin 
+[05:03:35] INFO:writeback DDR success
+readmem -rtl nanhu_xilinx.i_ddr[196762:0] -file /home/hjuser/Desktop/fpga-tester-ISCAS/fpga-runs/run-51ef77a6f71b4e4f/image.bin.readback -file_type bin
+Command: readmem -rtl nanhu_xilinx.i_ddr[196762:0] -file /home/hjuser/Desktop/fpga-tester-ISCAS/fpga-runs/run-51ef77a6f71b4e4f/image.bin.readback -file_type bin 
+[05:03:35] INFO:readback DDR success
+segment weights: address=0x00000000b8000000 size=598230784
+writemem -rtl nanhu_xilinx.i_ddr[24027419:14680064] -file /home/hjuser/Desktop/fpga-tester-ISCAS/fpga-runs/run-51ef77a6f71b4e4f/weights-w8a8.bin -file_type bin
+Command: writemem -rtl nanhu_xilinx.i_ddr[24027419:14680064] -file /home/hjuser/Desktop/fpga-tester-ISCAS/fpga-runs/run-51ef77a6f71b4e4f/weights-w8a8.bin -file_type bin 
+[05:03:36] INFO:writeback DDR success
+readmem -rtl nanhu_xilinx.i_ddr[24027419:14680064] -file /home/hjuser/Desktop/fpga-tester-ISCAS/fpga-runs/run-51ef77a6f71b4e4f/weights-w8a8.bin.readback -file_type bin
+Command: readmem -rtl nanhu_xilinx.i_ddr[24027419:14680064] -file /home/hjuser/Desktop/fpga-tester-ISCAS/fpga-runs/run-51ef77a6f71b4e4f/weights-w8a8.bin.readback -file_type bin 
+[05:03:36] INFO:readback DDR success
+segment tokenizer: address=0x00000000dd6847c0 size=5222976
+writemem -rtl nanhu_xilinx.i_ddr[24567783:24486175] -file /home/hjuser/Desktop/fpga-tester-ISCAS/fpga-runs/run-51ef77a6f71b4e4f/tokenizer.bin -file_type bin
+Command: writemem -rtl nanhu_xilinx.i_ddr[24567783:24486175] -file /home/hjuser/Desktop/fpga-tester-ISCAS/fpga-runs/run-51ef77a6f71b4e4f/tokenizer.bin -file_type bin 
+[05:03:36] INFO:writeback DDR success
+readmem -rtl nanhu_xilinx.i_ddr[24567783:24486175] -file /home/hjuser/Desktop/fpga-tester-ISCAS/fpga-runs/run-51ef77a6f71b4e4f/tokenizer.bin.readback -file_type bin
+Command: readmem -rtl nanhu_xilinx.i_ddr[24567783:24486175] -file /home/hjuser/Desktop/fpga-tester-ISCAS/fpga-runs/run-51ef77a6f71b4e4f/tokenizer.bin.readback -file_type bin 
+[05:03:36] INFO:readback DDR success
+Command: reset -name cpu_reset -value 1 
+[05:03:36] INFO:reset -name cpu_reset -value 1 success
+Command: query -reset 
+
+Table of Reset Signals:
+----------------------------------------------------
+Index   Polarity   Reset Name            Value      
+----------------------------------------------------
+0       1          cpu_reset             1          
+
+Command: reset -name cpu_reset -value 0 
+[05:03:36] INFO:reset -name cpu_reset -value 0 success
+Command: query -reset 
+
+Table of Reset Signals:
+----------------------------------------------------
+Index   Polarity   Reset Name            Value      
+----------------------------------------------------
+0       1          cpu_reset             0          
+
+hspRun> exit
+7[r8[05:17:47] INFO:unload runtime DB and flush used DUT FPGA(s)
+
+Messages summary:
+    Total FATAL:  0  suppressed:  0
+    Total ERROR:  0  suppressed:  0
+    Total WARN:   1  suppressed:  0
+    Total INFO:   2  suppressed:  0
+
+CPU Memory summary:
+    Total wallclock time (seconds):  906
+    Total cpu time (seconds):        19
+    Peak memory (mega bytes):        4927
+
+End Time: 2026-Sep-22 05:17:53
+Goodbye!
+

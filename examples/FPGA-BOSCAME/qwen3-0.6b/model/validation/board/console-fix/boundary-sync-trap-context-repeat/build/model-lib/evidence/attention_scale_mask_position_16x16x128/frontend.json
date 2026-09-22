@@ -1,0 +1,51 @@
+{
+  "name": "attention_scale_mask_position_16x16x128",
+  "family": "attention_scale_mask_position",
+  "kernel": "attention_scale_mask_position",
+  "kernel_module": "kernels",
+  "symbol": "triton_attention_scale_mask_position_16x16x128",
+  "arguments": [
+    {
+      "name": "X",
+      "rank": 3,
+      "dtype": "f32"
+    },
+    {
+      "name": "Position",
+      "rank": 1,
+      "dtype": "i32"
+    },
+    {
+      "name": "Out",
+      "rank": 3,
+      "dtype": "f32"
+    }
+  ],
+  "signature": {
+    "X": "*fp32",
+    "Position": "*i32",
+    "Out": "*fp32"
+  },
+  "constexprs": {
+    "SEQUENCE": 16,
+    "TOTAL": 128,
+    "BLOCK": 128
+  },
+  "grid": [
+    256,
+    1,
+    1
+  ],
+  "directory": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/ame-v05/cap128-cases/model/attention_scale_mask_position_16x16x128",
+  "launch_source": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/ame-v05/cap128-cases/model/attention_scale_mask_position_16x16x128/launch.c",
+  "validation": "Unmodified parent launch.c and its independent numerical oracle",
+  "frontend": "triton.compiler.ASTSource -> CPUBackend.make_ttir -> triton-riscv _ttir_to_ttsharedir",
+  "triton_version": "3.8.0",
+  "kernels_sha256": "f89c28aeff34416c679b86c0d9bf11187b062ded1ae3437df2c2031221fc2d3e",
+  "kernel_module_sha256": "f89c28aeff34416c679b86c0d9bf11187b062ded1ae3437df2c2031221fc2d3e",
+  "exporter_sha256": "7bfd217e11bea1d2ed8c018aa138fb9d765470c64080218a3327468fd8379a1a",
+  "cases_sha256": "c3e5dab1f3321cbaa7368465b0595a891b7d99394f4dae937ae54eea5f255e1e",
+  "ttir_sha256": "6ce3d27a985656049c8c737ee303ac0b0a88e910924b2ef55d19c390b62237d6",
+  "linalg_sha256": "fd654fa3bf89f36116cdfc58aaa71271042d0a8dd82d2ee09a96808e3ed89a40",
+  "abi": "unranked memref: (i64 rank=0, rank-0 descriptor pointer) per tensor, then six i32 grid/pid values"
+}

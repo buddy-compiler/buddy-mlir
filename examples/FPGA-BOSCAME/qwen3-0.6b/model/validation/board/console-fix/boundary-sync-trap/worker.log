@@ -1,0 +1,64 @@
+[fpga_run] UART ready: /dev/FPGA5, 115200, 8N1, no flow control
+[fpga_run] FPGA5 session active; elapsed=0s, UART=0 bytes
+
+[nr] NH boot; RA operator runtime
+[nr] RA entry=0x0000000080000040
+[fpga_run] FPGA5 started; capturing for 1500 seconds
+[fpga_run] FPGA5 session active; elapsed=7s, UART=71 bytes
+[fpga_run] FPGA5 session active; elapsed=37s, UART=71 bytes
+[fpga_run] FPGA5 session active; elapsed=67s, UART=71 bytes
+[fpga_run] FPGA5 session active; elapsed=97s, UART=71 bytes
+[fpga_run] FPGA5 session active; elapsed=127s, UART=71 bytes
+[fpga_run] FPGA5 session active; elapsed=157s, UART=71 bytes
+[fpga_run] FPGA5 session active; elapsed=187s, UART=71 bytes
+[fpga_run] FPGA5 session active; elapsed=217s, UART=71 bytes
+[fpga_run] FPGA5 session active; elapsed=247s, UART=71 bytes
+[fpga_run] FPGA5 session active; elapsed=277s, UART=71 bytes
+[fpga_run] FPGA5 session active; elapsed=307s, UART=71 bytes
+[nr] RA entered; clearing application BSS
+[nr] mstatus=0x8000000A00006000; launch BEGIN
+[text] prompt count=00000010 ids=0002505C 00000368 000000C6 00000EFE 00000176 00002599 0000001E 0002505D 000000C6 0002505C 00012D23 000000C6 00025073 0000010F 00025074 0000010F encode_cycles=000000000002A710
+verify fixed prompt tokenizer: PASS
+[text] mode=fixed-validation; EOS is recorded, never early-stops
+[model] prefill begin position=00000000 input_token=0002505C
+[compare] logits position=0000000F count=00025180 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] key_cache position=0000000F count=00070000 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[compare] value_cache position=0000000F count=00070000 max_abs_bits=00000000 mean_abs_bits=00000000 PASS
+[model] selected position=0000000F 0000BF68:41F54266 00000176:403AF82E 00000108:BFA95B79 00000C4A:40B287E5 00001CEF:3FB8EFE0 00000130:3F543ECD 000012B3:40241D5F 00001427:409B5EA5 0000000B:40C03C92
+[model] kv position=0000000F layer=00000000 k=BEFA4528 v=3B3D6C2F
+[model] kv position=0000000F layer=00000001 k=C01DFA19 v=3D152C2B
+[model] kv position=0000000F layer=00000002 k=BEDB2217 v=BD2ABF52
+[model] kv position=0000000F layer=00000003 k=3EA27C58 v=BE6667A0
+[model] kv position=0000000F layer=00000004 k=3E1648FE v=BE351127
+[model] kv position=0000000F layer=00000005 k=BD36E00C v=BE1B01E3
+[model] kv position=0000000F layer=00000006 k=3F2CA93C v=BDDAC571
+[model] kv position=0000000F layer=00000007 k=BE9397FF v=3E8511E6
+[model] kv position=0000000F layer=00000008 k=3E1FD079 v=3EDE051B
+[model] kv position=0000000F layer=00000009 k=BDEFD52C v=BD87C13B
+[model] kv position=0000000F layer=0000000A k=BE6555E7 v=3D8EE820
+[model] kv position=0000000F layer=0000000B k=BE3C4A64 v=3D113D85
+[model] kv position=0000000F layer=0000000C k=3EB4F451 v=BD5D8BF9
+[model] kv position=0000000F layer=0000000D k=3E8D1BD8 v=BFBF8FDE
+[model] kv position=0000000F layer=0000000E k=3D53990A v=3EA63362
+[model] kv position=0000000F layer=0000000F k=C08DCA8C v=BE0D2EC5
+[model] kv position=0000000F layer=00000010 k=3E3DD582 v=BE84E98C
+[model] kv position=0000000F layer=00000011 k=3F30A9E1 v=BFC27C17
+[model] kv position=0000000F layer=00000012 k=3EDB2EE7 v=C017603B
+[model] kv position=0000000F layer=00000013 k=3DD61774 v=3FA44126
+[model] kv position=0000000F layer=00000014 k=4015D4A0 v=3F5AD3B1
+[model] kv position=0000000F layer=00000015 k=3FE5ADF3 v=40223239
+[model] kv position=0000000F layer=00000016 k=BE8BFC16 v=C0A1BA2A
+[model] kv position=0000000F layer=00000017 k=BECAF156 v=4073E2C4
+[model] kv position=0000000F layer=00000018 k=BF92E593 v=BFB6540E
+[model] kv position=0000000F layer=00000019 k=402A4554 v=4088071E
+[model] kv position=0000000F layer=0000001A k=3F73B88D v=40C2C4BF
+[model] kv position=0000000F layer=0000001B k=BE82BBAB v=BF050E35
+[model] prefill position=00000000 token=0000BF68 logit_bits=41F54266 compute_cycles=00000000DC8DF81B preparation_cycles=00000000011388F5 selection_cycles=0000000000278AA2 cache_retention_cycles=0000000002C37555 model_cycles=00000000E08C8107 total_with_uart_cycles=00000000E10FB316 scratch_bytes=000000000805C995
+[text] prediction=00000000 token=0000BF68 eos=00000000 bytes=00000006 hex=4672616e6365
+[model] decode begin position=00000010 input_token=0000BF68
+[compare] logits position=00000010 count=
+[nr] RA TRAP mcause=0x0000000000000002 mepc=0x00000000801E1BEA mtval=0x00000000367FBFCF
+[nr] RA returned: FAIL
+verify NR runtime: FAIL
+[fpga_run] FPGA5 session active; elapsed=337s, UART=3563 bytes
+[fpga_run] ERROR: program reported a verification failure or trap

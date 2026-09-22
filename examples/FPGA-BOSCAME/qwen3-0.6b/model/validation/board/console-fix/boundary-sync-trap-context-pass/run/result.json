@@ -1,0 +1,19 @@
+{
+  "status": "OK",
+  "fpga": 5,
+  "sha256": "7c70609328c55d993d8ea8dbc864b284a29437f577916dd8eeebe5d8d996ddee",
+  "capture_seconds": 1500,
+  "baud": 115200,
+  "segment_readbacks": {
+    "image.bin": true,
+    "weights-w8a8.bin": true,
+    "tokenizer.bin": true
+  },
+  "ddr_readback_matches": true,
+  "uart_bytes": 26431,
+  "completion_marker": "[nr] RA returned:",
+  "completion_marker_seen": true,
+  "uart_input_bytes_written": 0,
+  "uart_interactive_bytes_written": 0,
+  "uart_input_unacknowledged_requests": 0
+}

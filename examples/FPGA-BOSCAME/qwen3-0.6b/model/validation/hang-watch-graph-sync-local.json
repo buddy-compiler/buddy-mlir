@@ -1,0 +1,43 @@
+{
+  "status": "LOCAL_BUILD_COMPARISON_PASS_NOT_BOARD_VALIDATED",
+  "date": "2026-09-20",
+  "procedure": "../optimization/HANG-WATCH.md",
+  "baseline": {
+    "directory": "build/hang-watch-20260920/blocking/image",
+    "graph_completion_sync": "ame-resync",
+    "elf_sha256": "8e40b9ccb4dbd83f69d5e37a792c1d9336e2785945ae34f5252754342830576c",
+    "ame_instructions": 131,
+    "kernel_address": "0x80176538"
+  },
+  "candidate": {
+    "directory": "build/hang-watch-20260920/fence-graph/image",
+    "graph_completion_sync": "fence",
+    "elf_sha256": "76fd94684513a7582029dd4e83bdb5ab57785c76ce05fc79b81ed7babc621885",
+    "ame_instructions": 121,
+    "kernel_address": "0x8017647c",
+    "elf_audit": "PASS",
+    "linked_ame_fence_or_ame_resync_symbol": false
+  },
+  "profile_kernels": false,
+  "hang_console": "blocking",
+  "hang_watch": "_mlir_ciface_kernel_matmul_1x1024x2048:14",
+  "kernel_symbol": "triton_matmul_1x1024x2048",
+  "kernel_bytes_identical": true,
+  "kernel_bytes": 640,
+  "kernel_text_sha256": "d0893340aad26f4fbaeca098c7ef984a7e43d848cf786d1d926bb84bfc46a024",
+  "identical_objects": [
+    "forward_prefill.nr.o", "forward_decode.nr.o", "adapters.o",
+    "nr_runtime.o", "nr_copy.o", "nr_math.o", "crt.o", "ame_sync.o",
+    "hang-watch.o"
+  ],
+  "launch_source_difference": "Only two graph-final ame_fence calls become asm volatile fence rw,rw with memory clobber",
+  "static_archive_sha256": "9e45eb8832b3bf8c0c578de762c684711f0030bcba78cac74b2bd0ee6e0fbe34",
+  "tests": { "passed": 42, "subtests_passed": 64 },
+  "server_operations": "NONE",
+  "limits": [
+    "This is local build and machine-code evidence, not FPGA execution evidence",
+    "Only the selected target function's linked bytes were compared; unchanged archive and graph objects do not guarantee unchanged final relocations everywhere",
+    "Overall code layout and synchronization timing differ",
+    "No cache-flush behavior or hang root cause is established"
+  ]
+}

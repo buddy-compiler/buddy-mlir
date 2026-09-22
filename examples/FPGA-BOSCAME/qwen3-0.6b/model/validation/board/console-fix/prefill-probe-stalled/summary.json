@@ -1,0 +1,38 @@
+{
+  "status": "INCOMPLETE_INTERRUPTED_AFTER_STALL",
+  "run_id": "run-e573730a84f74df1",
+  "configuration": {"layers": 28, "capacity": 128, "prefill": 16, "decode_steps": 8},
+  "profile_sync": "fence",
+  "graph_sync": "ame-resync",
+  "console": {"mode": "append-only", "capacity_bytes": 4194304},
+  "probe": "_mlir_ciface_kernel_matmul_16x3072x1024:38",
+  "operation": "layer index 19 gate projection, mm_137",
+  "boot_sha256": "db35268d3d8056db407514f8b27290152836eca133f4c43c39136ad8c1e3d0c2",
+  "uart_bytes": 153172,
+  "unchanged_uart_worker_elapsed_seconds": [189, 219, 249, 279, 309, 339, 369, 399, 429, 459],
+  "observed_operands": [
+    {"arg": 0, "descriptor": "0x820c9680", "aligned": "0xe0c5edc0", "offset": 0, "shape": [16, 1024], "strides": [1024, 1], "dtype_from_adapter": "i8", "exclusive_end": "0xe0c62dc0"},
+    {"arg": 1, "descriptor": "0x820c9648", "aligned": "0xc9398700", "offset": 0, "shape": [3072, 1024], "strides": [1024, 1], "dtype_from_adapter": "i8", "exclusive_end": "0xc9698700"},
+    {"arg": 2, "descriptor": "0x820c9610", "aligned": "0xe0c62e00", "offset": 0, "shape": [16, 3072], "strides": [3072, 1], "dtype_from_adapter": "i32", "exclusive_end": "0xe0c92e00"}
+  ],
+  "descriptor_checks": "All three observed operands match static graph/workspace placement, have zero offset and expected contiguous strides; element ranges are aligned, disjoint and inside linked weights/workspace.",
+  "kernel_return_observed": false,
+  "ddr_readback_matches": true,
+  "limits": [
+    "Valid descriptors do not prove that every actual machine load/store or AME transaction uses the intended address.",
+    "The last observation is operand logging before the real kernel call, not a hardware PC.",
+    "Missing return output can still involve runtime publication, cache visibility or observation failure.",
+    "This diagnostic run is not numerical acceptance or a throughput measurement."
+  ],
+  "evidence_sha256": {
+    "elf-audit.json": "a1f94568de552589f3768a18dbe52c15e2767c17e23e4c7a4d3c547981b7d8ad",
+    "image.json": "303cecbe42404fc3fad3aee2a8ddda8dc65e8fcac048928d73ee9b02e7a8774b",
+    "kernel-profile.json": "e890fb1110a6cf2c8e37a1724b006149ae4ead566ae35727edec1805031ba0a2",
+    "result.json": "2bd3a18ba79623b7d638838565f0c42a9f304e67b26f386c8bf2ecda243e404b",
+    "run-manifest.json": "7726667849f32fb92953aa051ea663c6701fd7c6a4cca03650f64b88ccc8dd78",
+    "uart.raw.log": "d8f2ef5d4273ff6314a34c346ff9679d1b39c5f00d48c888632a10a5afed38c2",
+    "uvhs.log": "615e9e99a6e3927d51d83d3ed7ca7dd7e7af60d5d3c810530af05fb0ed5d2671",
+    "w8a8-image-plan.json": "0b1db5870ad45167bdaf1dbf62a7e56569acf9d12f500de450e23c6066ed8d46",
+    "worker.log": "7874bfd76a2f7d3f6357e36d784d29c9af72df0e4f056a40d7cafeb99429ad42"
+  }
+}

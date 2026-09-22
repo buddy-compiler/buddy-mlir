@@ -1,0 +1,140 @@
+{
+  "patches": [
+    {
+      "function": "run_prefill",
+      "address": "0x80150c78",
+      "file_offset": "0x141c78",
+      "word": "0x7a21f0ef",
+      "bytes": "eff0217a",
+      "target": "0x8017041a",
+      "replacement_word": "0x00000013",
+      "replacement_bytes": "13000000"
+    },
+    {
+      "function": "run_decode",
+      "address": "0x80162412",
+      "file_offset": "0x153412",
+      "word": "0x0080e0ef",
+      "bytes": "efe08000",
+      "target": "0x8017041a",
+      "replacement_word": "0x00000013",
+      "replacement_bytes": "13000000"
+    }
+  ],
+  "byte_differences": [
+    {
+      "file_offset": "0x141c78",
+      "before": "ef",
+      "after": "13"
+    },
+    {
+      "file_offset": "0x141c79",
+      "before": "f0",
+      "after": "00"
+    },
+    {
+      "file_offset": "0x141c7a",
+      "before": "21",
+      "after": "00"
+    },
+    {
+      "file_offset": "0x141c7b",
+      "before": "7a",
+      "after": "00"
+    },
+    {
+      "file_offset": "0x153412",
+      "before": "ef",
+      "after": "13"
+    },
+    {
+      "file_offset": "0x153413",
+      "before": "e0",
+      "after": "00"
+    },
+    {
+      "file_offset": "0x153414",
+      "before": "80",
+      "after": "00"
+    }
+  ],
+  "graph_completion_calls": [
+    {
+      "function": "run_prefill",
+      "address": "0x801558d6",
+      "file_offset": "0x1468d6",
+      "word": "0x3451a0ef",
+      "bytes": "efa05134",
+      "target": "0x8017041a"
+    },
+    {
+      "function": "run_decode",
+      "address": "0x80167072",
+      "file_offset": "0x158072",
+      "word": "0x3a8090ef",
+      "bytes": "ef90803a",
+      "target": "0x8017041a"
+    }
+  ],
+  "invariants": {
+    "file_size_unchanged": true,
+    "section_headers_identical": true,
+    "symbol_tables_identical": true,
+    "all_other_elf_bytes_identical": true,
+    "graph_completion_calls_unchanged": true
+  },
+  "source_elf_sha256": "fed6d5bf1a3612e4e653ebb0e781ce27f2f30ef3d794bfc9fd66a6d6d763ad0d",
+  "elf_sha256": "c7ebf6a2b54bb0feef13f2d1cc0d1a7ce15fb813bc9043c6df6aaf2743d2401c",
+  "schema_version": 1,
+  "variant": "layout",
+  "status": "PASS",
+  "source_elf": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/console-fix-20260921/production-prime2/image/qwen_model.elf",
+  "elf": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/startup-ab-20260922/layout/image/qwen_model.elf",
+  "bin": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/startup-ab-20260922/layout/image/qwen_model.bin",
+  "tool_sha256": "530745086e56d414d354f8be733a44797650426e72b69d01c79867306b2562dc",
+  "limits": [
+    "diagnostic only; no production builder changes",
+    "removing startup work changes its AME state, data accesses, and timing",
+    "the two startup guards and primed stores remain unchanged"
+  ],
+  "commands": [
+    {
+      "argv": [
+        "/home/chh/gitprojects/buddy-mlir-for-fpga/llvm/build-2d26/bin/llvm-objcopy",
+        "-O",
+        "binary",
+        "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/startup-ab-20260922/layout/image/qwen_model.elf",
+        "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/startup-ab-20260922/layout/image/qwen_model.bin"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "/home/chh/miniconda3/envs/boscame/bin/python3",
+        "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/tools/check_nr_elf.py",
+        "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/startup-ab-20260922/layout/image/qwen_model.elf",
+        "--objdump",
+        "/home/chh/gitprojects/buddy-mlir-for-fpga/llvm/build-2d26/bin/llvm-objdump",
+        "--output",
+        "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/startup-ab-20260922/layout/image/elf-audit.json"
+      ],
+      "returncode": 0,
+      "stdout": "NR ELF audit PASS: 536612 instructions, 131 AME, 408 RVV; /home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/startup-ab-20260922/layout/image/qwen_model.elf\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "/home/chh/gitprojects/buddy-mlir-for-fpga/llvm/build-2d26/bin/llvm-nm",
+        "--undefined-only",
+        "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/model/build/startup-ab-20260922/layout/image/qwen_model.elf"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "bin_sha256": "65640cf046b085550b7adcd23323338d044d4ae7f6a409d2059f2a52c2c3c61c",
+  "undefined_symbols": []
+}

@@ -1,0 +1,245 @@
+{
+  "case": {
+    "name": "dequantize_1x1024",
+    "family": "dequantization",
+    "kernel": "dequantize_rows",
+    "kernel_module": "kernels_dequant",
+    "symbol": "triton_dequantize_1x1024",
+    "arguments": [
+      {
+        "name": "X",
+        "rank": 2,
+        "dtype": "i32"
+      },
+      {
+        "name": "Row",
+        "rank": 1,
+        "dtype": "f32"
+      },
+      {
+        "name": "Column",
+        "rank": 1,
+        "dtype": "f32"
+      },
+      {
+        "name": "Out",
+        "rank": 2,
+        "dtype": "f32"
+      }
+    ],
+    "signature": {
+      "X": "*i32",
+      "Row": "*fp32",
+      "Column": "*fp32",
+      "Out": "*fp32"
+    },
+    "constexprs": {
+      "ROWS": 1,
+      "COLS": 1024,
+      "BLOCK": 128
+    },
+    "grid": [
+      8,
+      1,
+      1
+    ],
+    "directory": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/dequantize_1x1024",
+    "launch_source": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/dequantize_1x1024/launch.c",
+    "validation": "Unmodified parent launch.c and its independent numerical oracle"
+  },
+  "host": false,
+  "image": "../model/build/ame-v05/rvv/dequantize_1x1024/nr/dequantize_1x1024.bin",
+  "sha256": "96b38d51bb4e258ebb672012a79ae33d7d4bf6668c0e0cfd0f654b6517063d49",
+  "configuration": {
+    "configuration_helper_sha256": "0189d330d27ec1fd342d32c6ae28bbdfd60cba4785b1891b5ddfb8d8a9297131",
+    "directory": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/dequantize_16x2048",
+    "tools": {
+      "BUDDY_OPT": {
+        "command": [
+          "../../../../build-migrate/bin/buddy-opt"
+        ],
+        "executable": "/home/chh/gitprojects/buddy-mlir-for-fpga/build-migrate/bin/buddy-opt",
+        "mtime_ns": 1789625427762871559,
+        "size": 233560976
+      },
+      "BUDDY_TRANSLATE": {
+        "command": [
+          "../../../../build-migrate/bin/buddy-translate"
+        ],
+        "executable": "/home/chh/gitprojects/buddy-mlir-for-fpga/build-migrate/bin/buddy-translate",
+        "mtime_ns": 1789561823467950389,
+        "size": 88421040
+      },
+      "HOST_CC": {
+        "command": [
+          "../../../../llvm/build-2d26/bin/clang"
+        ],
+        "executable": "/home/chh/gitprojects/buddy-mlir-for-fpga/llvm/build-2d26/bin/clang-24",
+        "mtime_ns": 1789561724771948036,
+        "size": 198446528
+      },
+      "LLC": {
+        "command": [
+          "../../../../llvm/build-2d26/bin/llc"
+        ],
+        "executable": "/home/chh/gitprojects/buddy-mlir-for-fpga/llvm/build-2d26/bin/llc",
+        "mtime_ns": 1789561707515947624,
+        "size": 105802208
+      },
+      "PYTHON": {
+        "command": [
+          "python3"
+        ],
+        "executable": "/home/chh/miniconda3/envs/boscame/bin/python3.12",
+        "mtime_ns": 1788849708114972236,
+        "size": 31509696
+      },
+      "RISCV_CC": {
+        "command": [
+          "../../../../llvm/build-2d26/bin/clang",
+          "--target=riscv64-unknown-elf"
+        ],
+        "executable": "/home/chh/gitprojects/buddy-mlir-for-fpga/llvm/build-2d26/bin/clang-24",
+        "mtime_ns": 1789561724771948036,
+        "size": 198446528
+      },
+      "RISCV_LD": {
+        "command": [
+          "/usr/bin/ld.lld-20"
+        ],
+        "executable": "/usr/lib/llvm-20/bin/lld",
+        "mtime_ns": 1752006269000000000,
+        "size": 5618256
+      },
+      "RISCV_OBJCOPY": {
+        "command": [
+          "../../../../llvm/build-2d26/bin/llvm-objcopy"
+        ],
+        "executable": "/home/chh/gitprojects/buddy-mlir-for-fpga/llvm/build-2d26/bin/llvm-objcopy",
+        "mtime_ns": 1789373748055466322,
+        "size": 8712848
+      },
+      "RISCV_OBJDUMP": {
+        "command": [
+          "../../../../llvm/build-2d26/bin/llvm-objdump"
+        ],
+        "executable": "/home/chh/gitprojects/buddy-mlir-for-fpga/llvm/build-2d26/bin/llvm-objdump",
+        "mtime_ns": 1789373755615466502,
+        "size": 22164480
+      }
+    },
+    "variables": {
+      "AME_GPR_MODE": "fixed",
+      "AME_PASS": "--lower-linalg-to-boscame=target=nr-fpga",
+      "BATCH_FP32_PASS": "--batchmatmul-optimize=vector-size=16",
+      "BUDDY_BIN": "../../../../build-migrate/bin",
+      "BUDDY_OPT": "../../../../build-migrate/bin/buddy-opt",
+      "BUDDY_TRANSLATE": "../../../../build-migrate/bin/buddy-translate",
+      "BUILD": "build",
+      "CFLAGS": "-march=rv64gc_zicbom -mabi=lp64d -mcmodel=medany -O2 -nostdlib -ffreestanding -fno-builtin -fno-pie -fno-vectorize -fno-slp-vectorize -ffp-contract=off -ffunction-sections -fdata-sections -I.. -I../../common/nr -I../../common/uart",
+      "FP32_PASS": "--matmul-transpose-b-vectorization-decode='vector-size=16 unroll=1 n-tile=1'",
+      "HOST_CC": "../../../../llvm/build-2d26/bin/clang",
+      "HOST_CFLAGS": "-O2 -ffp-contract=off -DHOST_TEST -I..",
+      "KERNEL_LLFLAGS": "-O2 -filetype=asm -mtriple=riscv64 -target-abi=lp64d -mattr=+m,+a,+f,+d,+c,-v,+xboscame -code-model=medium",
+      "LLC": "../../../../llvm/build-2d26/bin/llc",
+      "LLVM_BIN": "../../../../llvm/build-2d26/bin",
+      "LOWER": "--convert-linalg-to-loops --expand-strided-metadata --lower-affine --convert-vector-to-scf --convert-vector-to-llvm --convert-math-to-llvm --convert-math-to-libm --convert-scf-to-cf --convert-cf-to-llvm --convert-arith-to-llvm --convert-index-to-llvm --memref-expand --finalize-memref-to-llvm --convert-func-to-llvm --reconcile-unrealized-casts",
+      "MATMUL_FP32_PASS": "--matmul-vectorization='vector-size=16 vector-type=fixed'",
+      "NR": "../../common/nr",
+      "NR_COALESCE_FENCES": "0",
+      "PYTHON": "python3",
+      "RISCV_CC": "../../../../llvm/build-2d26/bin/clang --target=riscv64-unknown-elf",
+      "RISCV_LD": "/usr/bin/ld.lld-20",
+      "RISCV_OBJCOPY": "../../../../llvm/build-2d26/bin/llvm-objcopy",
+      "RISCV_OBJDUMP": "../../../../llvm/build-2d26/bin/llvm-objdump",
+      "ROOT": "..",
+      "RUNTIME_OBJS": "build/crt.o build/nr_runtime.o build/nr_math.o build/ame_sync.o build/nr_copy.o build/support.o",
+      "RVV_ENABLED": "0",
+      "RVV_FLAGS": "-mattr=+m,+a,+f,+d,+c,+v,+zvl512b,+xboscame -riscv-v-vector-bits-min=512",
+      "RVV_LINEAR_FLAGS": "-mattr=+m,+a,+f,+d,+c,+v,+zvl512b,+xboscame -riscv-v-vector-bits-min=512 -disable-machine-licm -disable-machine-cse",
+      "SCALAR_FLAGS": "-mattr=+m,+a,+f,+d,+c,-v,+xboscame",
+      "TOOLS": "../../tools"
+    }
+  },
+  "ttir_sha256": "96123ef090ae371b5efb5079546930b25b6d0e30342534167afed064fedf2f99",
+  "frontend_manifest_sha256": "44359e50e8074a677f03a9740be124656bb449b89a6bbbfd4abc4308a4217dd1",
+  "linalg_sha256": "045fa7de6a3fcd9dcc467e5e404f74782ef08883fd2054bbb3fe8b4fca522998",
+  "llvm_sha256": "8a3f57de272a4c62e62c429018e790f4cc71799154f714705e19c24d7aea5735",
+  "launch_sha256": "526a6fb83ca0e1e281aaf9d20adeb6cc293b463667e510bb2fe87a753252bdd8",
+  "adapter_sha256": "f9b04f539d5aac4ec1b9ae47d442f88094e18ef8d70a7b9d70335fd6d370d485",
+  "build_script_sha256": "3eb98a2a64bce65e43200f194b8f3b9e36e955874a45e8a947476e8af7f772c0",
+  "heap_allocations": 0,
+  "source_files": {
+    "examples/FPGA-BOSCAME/common/nr/ame_sync.c": "130a531600e734405289f4894d813012cf160f9df7e3507e51d5eebf9397e9da",
+    "examples/FPGA-BOSCAME/common/nr/crt.S": "75431219ba064928a9064d728608095d01e53c0f31e76b2cf38c0a2a35c5a706",
+    "examples/FPGA-BOSCAME/common/nr/nr.ld": "50ba0a1ebaa19929fad8fa68457f1080ce1d39653aff30825f3c7c18fcb5b366",
+    "examples/FPGA-BOSCAME/common/nr/nr_copy.S": "84e13b00c06a837fdf1967402780bd6c78a27cb58b45aed11406cd5f52f20a46",
+    "examples/FPGA-BOSCAME/common/nr/nr_math.c": "f0bb33d8e96cb2bf7ad596916acfa1fb2bcfdf2afbd16cf1facc042144d588e8",
+    "examples/FPGA-BOSCAME/common/nr/nr_runtime.c": "966a14bbddd91a78ae02dcbba074643c2b23b3394223b89fde518b4487f251c4",
+    "examples/FPGA-BOSCAME/common/nr/nr_runtime.h": "05133325005c5aaa0656aeac7e952ab8d2b003bccb03a5abd55210e44ade714b",
+    "examples/FPGA-BOSCAME/common/toolchain.mk": "ad47446fc294c85f67b94bec786028e5f848121c939f52b73f66981c14cf1cdb",
+    "examples/FPGA-BOSCAME/common/triton/setup-triton.sh": "090f13768ee7b5f9e9db6f65ed94cfab87e3ae2501b34aa1070e90784b1e4e66",
+    "examples/FPGA-BOSCAME/common/triton/toolchain-lock.json": "1d77043b8d76412ec51a48f834d8587cb6f3255898fae63433d46460fdcf29c6",
+    "examples/FPGA-BOSCAME/common/triton/triton-env.sh": "6756c899a5c6b42334040b677ebeee42260528d512914f7377407732ee0c8a44",
+    "examples/FPGA-BOSCAME/common/uart/uart.h": "cd8dc86559e8588e2d82cf0519fb3c912e8284f3d122b864c124d4cc967a65b0",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/common.mk": "5244a950bb22731606d857e1bf0945ca880d7c9ca222520ff7de5821899f8ed5",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/dequantize_1x1024/launch.c": "526a6fb83ca0e1e281aaf9d20adeb6cc293b463667e510bb2fe87a753252bdd8",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/dequantize_1x1024/metadata.json": "1c8fb453a6d57fb91c9caacba7a12eddbe39a418afc97f7340a65001c5b94726",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/support.c": "1748abf575678c8602aef1e69c47d9d3d11a9362879665b87ad8d219aa6b26f0",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/support.h": "0ee1e660c1be2847f88a11cbf220fa665eada68552103e46d645fbcebb1f7d7d",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/tools/build_suite.py": "0189d330d27ec1fd342d32c6ae28bbdfd60cba4785b1891b5ddfb8d8a9297131",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/tools/host_main.c": "b069c7f2d8465e1078275e3d52d9aab2263d2b98e2e0173fb418284757a7c729",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/tools/vectorize_nr.py": "df7849f281b3e0d76064ebdc493bffe8ac83f2ac68189e25f75f989241367f94",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/triton/build.py": "3eb98a2a64bce65e43200f194b8f3b9e36e955874a45e8a947476e8af7f772c0",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/triton/cases.py": "c3e5dab1f3321cbaa7368465b0595a891b7d99394f4dae937ae54eea5f255e1e",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/triton/export.py": "7bfd217e11bea1d2ed8c018aa138fb9d765470c64080218a3327468fd8379a1a",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/triton/kernels.py": "f89c28aeff34416c679b86c0d9bf11187b062ded1ae3437df2c2031221fc2d3e",
+    "examples/FPGA-BOSCAME/qwen3-0.6b/triton/kernels_dequant.py": "cea484317504ce2f12a757836f25d7ad59b2c4f72412ea0d118af45a06c111ed",
+    "examples/FPGA-BOSCAME/tools/ame_to_word.py": "d2899d577394f9732a4324c66fdf6fea0e803b3767b374e5f8d3e3842bb19441",
+    "examples/FPGA-BOSCAME/tools/check_nr_elf.py": "9545edf67d9c3143a74c4b5dd514f539af3a15f898ffb3c027698521898e5a51",
+    "examples/FPGA-BOSCAME/tools/nr_isa.py": "f2fd286fda695428fd66bbebdb290534b54a6c74c0a7f0beb015e22277707f15",
+    "examples/FPGA-BOSCAME/tools/restrict_fpga_assembly.py": "badc43f0163a05668222442c3926403def092bb9022e48e795c28c44199f69bd"
+  },
+  "elf_audit": {
+    "status": "PASS",
+    "elf_sha256": "c5351c7aa9cf50c0cfc34a4797079f9b202949670cf97dbeae3599b343b66706",
+    "executable_sections": [
+      {
+        "name": ".text.init",
+        "address": "0x80000000",
+        "bytes": 236
+      },
+      {
+        "name": ".text",
+        "address": "0x80011000",
+        "bytes": 2758
+      }
+    ],
+    "instructions": 985,
+    "ame_instructions": 0,
+    "vector_memory_instructions": 3,
+    "rvv_instructions": {
+      "vfcvt.f.x.v": 1,
+      "vfmul.vf": 1,
+      "vfmul.vv": 1,
+      "vle32.v": 2,
+      "vse32.v": 1,
+      "vsetivli": 1
+    },
+    "errors": []
+  },
+  "effective_kernel_llc_flags": [
+    "-O2",
+    "-filetype=asm",
+    "-mtriple=riscv64",
+    "-target-abi=lp64d",
+    "-mattr=+m,+a,+f,+d,+c,+v,+zvl512b,+xboscame",
+    "-riscv-v-vector-bits-min=512",
+    "-code-model=medium"
+  ],
+  "effective_ame_pass": [
+    "--lower-linalg-to-boscame=target=nr-fpga"
+  ],
+  "ame_gpr_mode": "fixed",
+  "nr_coalesce_fences": false
+}

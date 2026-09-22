@@ -1,0 +1,42 @@
+{
+  "status": "INCOMPLETE_INTERRUPTED_AFTER_STALL",
+  "run_id": "run-5eb565e2b8264980",
+  "configuration": {
+    "layers": 28,
+    "capacity": 128,
+    "prefill": 16,
+    "decode_steps": 8
+  },
+  "console": {
+    "mode": "append-only",
+    "capacity_bytes": 4194304,
+    "overflow_policy": "drop remaining output and force final NR FAIL",
+    "ra_waits_for_nh_consumed": false
+  },
+  "profile_sync": "ame-resync",
+  "graph_sync": "ame-resync",
+  "uart_bytes": 152326,
+  "last_line": "[kernel] begin _mlir_ciface_kernel_matmul_16x3072x1024 call=0000000000000026",
+  "observed_kernel_occurrence_zero_based": 38,
+  "inferred_layer_index": 19,
+  "observed_completed_decode_steps": 0,
+  "ddr_readback_matches": true,
+  "elf_sha256": "ef4420a0dba61eb18eaae09dad73391eef8021897030ee3d93c4a1d2cac08919",
+  "limits": [
+    "Last UART is a call boundary, not an observed hardware PC.",
+    "RA append-only output cannot wait on consumed; bytes written are well below the 4 MiB limit. This excludes a full ring acknowledgement wait for this image, not all NH/RA interactions.",
+    "Startup prime was not added; profiler and graph AME resync remain unchanged.",
+    "Source/layout differences and extra profiler AME operations prevent attributing the historical failures to one cause."
+  ],
+  "evidence_sha256": {
+    "image.json": "6ef590e6d29762e0d169d92b625633d4562f8c6226b8b0352379bd923a6cf147",
+    "uart.raw.log": "effb2911fe0576c496731d162061d3a66b5ec2c0da4d3efd5cd288d242462b95",
+    "result.json": "b202c0ee9a483179afbdd5dd6d75d1637222bb2a21baa8aa068a5239cd397caa",
+    "elf-audit.json": "6af71aa5fc8250de0839f104ffcd4da5e8de7a0c8775b45c8eb6db9702de4a44",
+    "kernel-profile.json": "b4b6abfd3909b60a5150d00d4a09dfdc0bd104d504546e41450eef5d86f3d9bf",
+    "run-manifest.json": "7d7fde62b55ef63e28211fb3978b8a8192407cbf373e1dfa62c1567d14bcb92c",
+    "w8a8-image-plan.json": "44b413f034ecb16334951f9582499f8a31955339c8f4f5f7c02bf809785c9932",
+    "worker.log": "e52c06e0583c52325fad8127829cb88ee6f7f33f2d6024908e55842df48a341c",
+    "uvhs.log": "031c812ef0760b3f51ab2ae5d820a8e98f437fe8cf5d035801684ea48001daf3"
+  }
+}

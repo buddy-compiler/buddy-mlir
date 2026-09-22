@@ -1,0 +1,18 @@
+
+examples/FPGA-BOSCAME/qwen3-0.6b/model/validation/board/console-fix/boundary-sync-trap/qwen_model.elf:	file format elf64-littleriscv
+
+Disassembly of section .rodata:
+
+0000000080178980 <model_reference_raw>:
+801e1bd0: bc de 8c c0  	.word	0xc08cdebc
+801e1bd4: 84 fa 8a bf  	.word	0xbf8afa84
+801e1bd8: a8 ae dd 3f  	.word	0x3fddaea8
+801e1bdc: 6e e8 79 c0  	.word	0xc079e86e
+801e1be0: be 73 43 c0  	.word	0xc04373be
+801e1be4: 30 d3 a9 c0  	.word	0xc0a9d330
+801e1be8: f3 d8 cf bf  	.word	0xbfcfd8f3
+801e1bec: 7f 36 90 3f  	.word	0x3f90367f
+801e1bf0: e2 33 57 c0  	.word	0xc05733e2
+801e1bf4: 84 0f c3 c0  	.word	0xc0c30f84
+801e1bf8: c8 6d dd c0  	.word	0xc0dd6dc8
+801e1bfc: c2 c5 19 c0  	.word	0xc019c5c2

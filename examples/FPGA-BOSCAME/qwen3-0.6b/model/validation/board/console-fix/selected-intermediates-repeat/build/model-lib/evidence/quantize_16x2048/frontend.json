@@ -1,0 +1,51 @@
+{
+  "name": "quantize_16x2048",
+  "family": "per_token_quantization",
+  "kernel": "quantize",
+  "quantization_lowering": "rvv",
+  "kernel_module": "kernels",
+  "symbol": "triton_quantize_16x2048",
+  "arguments": [
+    {
+      "name": "X",
+      "rank": 2,
+      "dtype": "f32"
+    },
+    {
+      "name": "Q",
+      "rank": 2,
+      "dtype": "i8"
+    },
+    {
+      "name": "Scale",
+      "rank": 1,
+      "dtype": "f32"
+    }
+  ],
+  "signature": {
+    "X": "*fp32",
+    "Q": "*i8",
+    "Scale": "*fp32"
+  },
+  "constexprs": {
+    "WIDTH": 2048,
+    "BLOCK": 2048
+  },
+  "grid": [
+    16,
+    1,
+    1
+  ],
+  "directory": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/quantize_16x2048",
+  "launch_source": "/home/chh/gitprojects/buddy-mlir-for-fpga/examples/FPGA-BOSCAME/qwen3-0.6b/quantize_16x2048/launch.c",
+  "validation": "Unmodified parent launch.c and its independent numerical oracle",
+  "frontend": "triton.compiler.ASTSource -> CPUBackend.make_ttir -> triton-riscv _ttir_to_ttsharedir",
+  "triton_version": "3.8.0",
+  "kernels_sha256": "f89c28aeff34416c679b86c0d9bf11187b062ded1ae3437df2c2031221fc2d3e",
+  "kernel_module_sha256": "f89c28aeff34416c679b86c0d9bf11187b062ded1ae3437df2c2031221fc2d3e",
+  "exporter_sha256": "7bfd217e11bea1d2ed8c018aa138fb9d765470c64080218a3327468fd8379a1a",
+  "cases_sha256": "a835838b12ed81f4b8d16f987354ec7b4fb7a7b792f6139118bc381c760c331a",
+  "ttir_sha256": "415aa989f7f63ccdc5535d7b43ba73370f15d6b841fdc85a796f2eb8ae061bd5",
+  "linalg_sha256": "4d55b12acb0072afd81597a1db42d7779662f54178f7d0e46eb1ae5968e17d26",
+  "abi": "unranked memref: (i64 rank=0, rank-0 descriptor pointer) per tensor, then six i32 grid/pid values"
+}

@@ -55,6 +55,47 @@ class ImageABI(unittest.TestCase):
         segment={'placement':[], 'bytes':64}
         return args, report, segment
 
+    def test_profile_sync_preserves_graph_calls_and_graph_final_resync(self):
+        with tempfile.TemporaryDirectory() as d:
+            args, report, segment = self.setup_case(d, 1)
+            args.profile_kernels = True
+            args.profile_progress = True
+            default_source, default_plan = image.generate(report, segment, args)
+            self.assertEqual(default_plan['completion_sync'], 'ame-resync')
+            args.profile_sync = 'fence'
+            fence_source, fence_plan = image.generate(report, segment, args)
+            self.assertEqual(fence_source, default_source)
+            self.assertEqual(fence_source.count('  ame_fence();'), 2)
+            self.assertEqual(fence_plan['completion_sync'], 'fence')
+            self.assertEqual(fence_plan['graph_completion_sync'], 'ame-resync')
+            self.assertIn('do not establish AME completion',
+                          ' '.join(fence_plan['profile_sync_limits']))
+
+    def test_ame_cache_sync_is_opt_in_and_boundary_scoped(self):
+        with tempfile.TemporaryDirectory() as d:
+            args, report, segment = self.setup_case(d, 1)
+            default, default_plan = image.generate(report, segment, args)
+            self.assertNotIn('nr_ame_cache_clean(', default)
+            self.assertEqual(default_plan['ame_cache_sync'], 'none')
+            args.ame_cache_sync = 'workspace'
+            diagnostic, plan = image.generate(report, segment, args)
+            self.assertIn('nr_ame_cache_clean(k_cache_raw,', diagnostic)
+            self.assertIn('nr_ame_cache_invalidate(ws_prefill_raw,', diagnostic)
+            self.assertEqual(plan['ame_cache_sync'], 'workspace')
+            self.assertTrue(any('not the platform SYNC_MEM ABI' in item
+                                for item in plan['ame_cache_sync_limits']))
+
+    def test_reject_diagnostic_sync_without_profiler_or_unknown_sync(self):
+        with tempfile.TemporaryDirectory() as d:
+            args, report, segment = self.setup_case(d, 1)
+            args.profile_sync = 'fence'
+            with self.assertRaisesRegex(ValueError, 'requires --profile-kernels'):
+                image.generate(report, segment, args)
+            args.profile_kernels = True
+            args.profile_sync = 'none'
+            with self.assertRaisesRegex(ValueError, '--profile-sync'):
+                image.generate(report, segment, args)
+
     def test_reject_layer_mismatch(self):
         with tempfile.TemporaryDirectory() as d:
             args,report,segment = self.setup_case(d,4)

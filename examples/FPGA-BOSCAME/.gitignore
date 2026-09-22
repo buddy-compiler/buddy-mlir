@@ -1,3 +1,13 @@
-/build/
-/*/build/
+# Rebuildable outputs, including generated C/IR and local virtual environments
+# inside build trees. Model archives selectively retain provenance below.
+build/
+build-*/
+build_*/
+
+# Local Python caches/environments, not source or board-run evidence.
 __pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv-buddy/
+venv-triton/

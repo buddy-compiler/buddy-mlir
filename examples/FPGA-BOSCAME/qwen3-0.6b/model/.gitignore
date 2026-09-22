@@ -3,6 +3,10 @@
 __pycache__/
 
 # Keep compact board evidence; retain full binary/IR archives locally.
+# Reopen archived build trees ignored by FPGA-BOSCAME/.gitignore so their
+# manifests, hashes and compiler logs remain visible. Filter generated code
+# and compiler listings below rather than hiding run evidence or all JSON.
+!/validation/board/**/build/
 /validation/board/**/*.o
 /validation/board/**/*.a
 /validation/board/**/*.elf
@@ -15,7 +19,15 @@ __pycache__/
 /validation/board/**/*.S
 /validation/board/**/*.ttir
 /validation/board/**/*.ttgir
-# Historical source snapshots include handwritten assembly.
+/validation/board/**/*.c
+/validation/board/**/*.h
+/validation/board/**/*.inc
+/validation/board/**/*.asm
+/validation/board/**/*.map
+/validation/board/**/*.symbols.txt
+/validation/board/**/*.disassembly
+# Historical source snapshots are evidence, not regenerable compiler output;
+# retain them, including handwritten C, headers, runtime includes and assembly.
 !/validation/board/**/sources/**
 
 # Detailed, reproducible per-operation inventory; summaries remain tracked.

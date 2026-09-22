@@ -128,6 +128,16 @@ profiler 停顿的排查候选，尚不能认定它导致停顿。
 还要核对 backend 依赖 msettype 判断 FPGA 编码的行为，保留显式 target
 属性，防止优化后意外生成 GEM5 的另一套编码。
 
+当前还提供一个显式诊断选项 `build_nr_w8a8_image.py --ame-cache-sync=workspace`。
+它在每次 prefill/decode 图调用前 clean k/v cache、token/position 和该图的连续
+workspace，返回后 invalidate k/v 与 workspace；默认值 `none`，不会改变已通过镜像。
+该选项只隔离图边界的缓存可见性，不能覆盖图内 kernel 之间的中间值，也不是文档规定
+的 `SYNC_MEM` ABI。FPGA5 的 1-layer 对照见
+`validation/board/cache-sync-probe-20260921.md`：逐行 RA CBO 镜像在 prefill 入口后
+522 秒无进展，未产生 trap 或完成标记；同一输入的默认 `none` 镜像随后 8 步 decode
+完成并返回 PASS。因此该 CBO 路径不能作为生产修复。若后续平台提供正式
+`SYNC_MEM` ABI，应以该 ABI 做独立对照；不能把当前 CBO 诊断结果当成模型算子问题。
+
 ### 5. FP8 和并行调度放到后续
 
 FP8 E4M3→FP32 是新文档支持的能力，但当前 kernel/白名单/量化参考只支持

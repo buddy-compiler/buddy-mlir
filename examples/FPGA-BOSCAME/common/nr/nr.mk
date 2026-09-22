@@ -19,3 +19,5 @@ $(NR_BUILD_DIR)/nr_copy.o: $(NR_DIR)/nr_copy.S | $(NR_BUILD_DIR)
 
 $(NR_BUILD_DIR)/%.o: $(NR_DIR)/%.c $(NR_DIR)/nr_runtime.h $(NR_DIR)/../uart/uart.h | $(NR_BUILD_DIR)
 	$(RISCV_CC) $(NR_CFLAGS) -c $< -o $@
+
+$(NR_BUILD_DIR)/nr_runtime.o: $(NR_DIR)/nr_hang_watch.inc $(NR_DIR)/nr_console.inc

@@ -1,0 +1,89 @@
+{
+  "status": "NUMERICAL_FAILURE",
+  "acceptance": "NOT_ACCEPTED",
+  "run_id": "run-72a2e4724ff14fe4",
+  "configuration": {"layers": 28, "capacity": 128, "prefill": 16, "decode_steps_requested": 8, "decode_steps_completed": 2},
+  "profile_sync": "fence",
+  "graph_sync": "ame-resync",
+  "console": {"mode": "append-only", "capacity_bytes": 4194304, "drain": "after-completion"},
+  "boot_sha256": "2db0481245d309ce98d0bcdd2ba4da3864b474c046aa35ca000314b876b5fcf3",
+  "elf_sha256": "ffdc22bf79581781b5d45c6026d567331a9d64de00557bd12a2b64b7073d93ea",
+  "uart_bytes": 662191,
+  "ddr_readback_matches": true,
+  "segment_readbacks": {"image.bin": true, "weights-w8a8.bin": true, "tokenizer.bin": true},
+  "ame_startup": "none",
+  "graph_entry_fence": false,
+  "full_tensor_check_counts": {"planned": 27, "completed": 9, "passed": 6, "failed": 3, "not_reached": 18},
+  "not_reached_positions": [18, 19, 20, 21, 22, 23],
+  "prefill_probe": {
+    "symbol": "_mlir_ciface_kernel_matmul_16x3072x1024",
+    "call_index": 38,
+    "returned_and_synced": true
+  },
+  "comparisons": [
+    {"position": 15, "logits": "PASS", "key_cache": "PASS", "value_cache": "PASS"},
+    {"position": 16, "logits": "PASS", "key_cache": "PASS", "value_cache": "PASS"},
+    {"position": 17, "logits": "FAIL", "key_cache": "FAIL", "value_cache": "FAIL",
+     "max_abs_bits": {"logits": "3FBE74DA", "key_cache": "4015B540", "value_cache": "403905F7"},
+     "mean_abs_bits": {"logits": "3E7E4282", "key_cache": "3B114FD8", "value_cache": "3C11E7AF"}}
+  ],
+  "generated_token_ids": [49000, 374, 264],
+  "position_17_errors": [
+    {"tensor": "logits", "count": 151936, "max_abs": 1.487941026687622, "mean_abs": 0.24830058217048645, "uart_line": 8013},
+    {"tensor": "key_cache", "count": 516096, "max_abs": 2.3391876220703125, "mean_abs": 0.002217283472418785, "uart_line": 8014},
+    {"tensor": "value_cache", "count": 516096, "max_abs": 2.890989065170288, "mean_abs": 0.008905335329473019, "uart_line": 8015}
+  ],
+  "graph_cycles_diagnostic_only": [
+    {"kind": "prefill", "start_position": 0, "output_position": 15, "compute_cycles": 3695728218, "model_cycles": 3762840437, "uart_line": 2674},
+    {"kind": "decode", "start_position": 16, "output_position": 16, "compute_cycles": 1032409940, "model_cycles": 1082986368, "uart_line": 5361},
+    {"kind": "decode", "start_position": 17, "output_position": 17, "compute_cycles": 1035394394, "model_cycles": 1085973263, "uart_line": 8047}
+  ],
+  "first_observed_kv_sample_difference": {
+    "position": 17,
+    "layer_index": 15,
+    "head": 0,
+    "dimension": 0,
+    "actual_k_bits": "403D7686",
+    "actual_v_bits": "BF76BA37",
+    "passing_run_k_bits": "40211ED0",
+    "passing_run_v_bits": "BF86721D",
+    "passing_run": "run-0496801ccb0344c3",
+    "earlier_layer_samples_equal": [0, 14],
+    "earlier_layer_samples_equal_semantics": "inclusive layer-index range",
+    "differing_layer_indices": [15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27],
+    "position_15_matching_layers": 28,
+    "position_16_matching_layers": 28,
+    "failure_uart_line": 8032,
+    "reference_uart_line": 100,
+    "reference_log": "../append-watch/uart.ra.log",
+    "reference_log_sha256": "f960e9f3629d5dbc4b247f4ef3bc6574568869efb224df83532110c5364ffad3",
+    "upstream_graph": "Layer 14 attention output mm_101, residual, gate/up/down mm_102..104, residual; then layer 15 RMSNorm mul_213 and shared mm_105_quantize; K uses mm_106, K norm, RoPE and kv_index_put_30; V uses mm_107 and kv_index_put_31.",
+    "historical_decode_boundary": "mm_101 is matmul_1x1024x2048 occurrence 14 (zero-based); this run records its begin/returned/end at UART lines 6751..6753. The sample boundary does not prove it caused this numerical failure."
+  },
+  "launch_cycles_hex": "16A30FCE5",
+  "launch_cycles": 6076562661,
+  "launch_status": 1,
+  "runtime_marker": "[nr] RA returned: FAIL",
+  "runtime_marker_uart_line": 8073,
+  "limits": [
+    "The firmware returned FAIL rather than timing out; numerical failure is not full-model acceptance.",
+    "Matching selected token IDs does not override the full logits and KV failures.",
+    "Equal sampled K/V elements do not establish that every tensor in preceding layers is correct.",
+    "Deferred console changes NH traffic, timing and linked addresses; this run does not prove a cache-coherence cause.",
+    "The graph, archive, weights and oracle are reused; this diagnostic is not uninstrumented throughput."
+  ],
+  "evidence_sha256": {
+    "ddr-load.plan": "950479026223d8fa0ec57366a42f56e76af462dadeeb2e300d4f2e6810115a3b",
+    "deployment.json": "d5c3ed183068ea61a5c00910996b7f8b5c651bd2083420571a114f2b16cf7dad",
+    "elf-audit.json": "d073f41d16c9fa9a7a8cbd43d3a42b3e1dee67c57e66105c7eeace24d1edd557",
+    "image.json": "a269e20e82b0ad4bf895477c1076236b50f1c70b60c4d8658b09779743d2e8c4",
+    "kernel-profile.json": "e890fb1110a6cf2c8e37a1724b006149ae4ead566ae35727edec1805031ba0a2",
+    "numeric-reference.json": "0b80cd00988466f1a48a311950e89065817d5f1142add26c4919543fdf614db7",
+    "result.json": "f0a4a1a0599103ecc319a6a2ee5eb00896e6a1caf7f39095ca2fc18784d406d7",
+    "run-manifest.json": "a126a5c88daa5767b2f2497e5a96023b3569007f0ebe98e23615fd37da461069",
+    "uart.raw.log": "7dcd470d40005bc3ee60ba4e4453d7f92e6dece239c2aa20111fffbf521d69ee",
+    "uvhs.log": "0a677db077ad4a6bd98b894996c73bd019576e5fbfb2bd48a0429eaba0b0304f",
+    "w8a8-image-plan.json": "6e7a0dcb01d1c076f6975df61065bff02c5687bf9f21217741acda14df58a888",
+    "worker.log": "8a48d89a65a288d85166618a47e979637b4cc8fb727de22f618fddd0c48d97f1"
+  }
+}

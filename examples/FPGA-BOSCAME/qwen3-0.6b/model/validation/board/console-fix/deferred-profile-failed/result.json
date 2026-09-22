@@ -1,0 +1,18 @@
+{
+  "status": "ERROR",
+  "fpga": 5,
+  "sha256": "2db0481245d309ce98d0bcdd2ba4da3864b474c046aa35ca000314b876b5fcf3",
+  "capture_seconds": 1500,
+  "baud": 115200,
+  "segment_readbacks": {
+    "image.bin": true,
+    "weights-w8a8.bin": true,
+    "tokenizer.bin": true
+  },
+  "ddr_readback_matches": true,
+  "uart_bytes": 662191,
+  "error": "program reported a verification failure or trap",
+  "uart_input_bytes_written": 0,
+  "uart_interactive_bytes_written": 0,
+  "uart_input_unacknowledged_requests": 0
+}
