@@ -18,9 +18,12 @@ BLD=${BLD:-$SRC/build-riscv-packed-f32-8}               # riscv build dir
 TC=${TC:-/home/huangguoning/code/buddy-mlir/build-rv/thirdparty/riscv-gnu-toolchain}
 LLVM_RV_LIBS=${LLVM_RV_LIBS:-/home/huangguoning/code/buddy-mlir/llvm/build-cross-mlir-rv/lib}
 FB_INCLUDE=${FB_INCLUDE:-/tmp/buddy-flatbuffers-include}
+# The worktree's llvm/ may be an empty placeholder; the shared LLVM/MLIR
+# checkout lives in the main workspace.
+LLVM_SRC=${LLVM_SRC:-/home/huangguoning/code/buddy-mlir/llvm}
 CXX=$TC/bin/riscv64-unknown-linux-gnu-g++
 
-LLVM_INC="-I$(readlink -f "$SRC"/llvm/llvm/include) -I$(readlink -f "$SRC"/llvm/build/include) -I$(readlink -f "$SRC"/llvm/mlir/include) -I$(readlink -f "$SRC"/llvm/build/tools/mlir/include"
+LLVM_INC="-I$LLVM_SRC/llvm/include -I$LLVM_SRC/build/include -I$LLVM_SRC/mlir/include -I$LLVM_SRC/build/tools/mlir/include"
 
 COMMON_FLAGS="-O2 -fPIC -fno-semantic-interposition -std=gnu++17 -UNDEBUG
  -D_DEBUG -D_GLIBCXX_ASSERTIONS -D_GLIBCXX_USE_CXX11_ABI=1
