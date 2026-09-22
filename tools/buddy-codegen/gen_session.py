@@ -344,6 +344,10 @@ def gen_impl_tiered(config: dict) -> str:
         f"MemRef<{w['cpp_type']}, 1> *" for w in weights
     )
     weight_addrs_internal = ", ".join(f"{w['tag']}_.get()" for w in weights)
+    decode_weight_addrs_internal = ", ".join(
+        f"{w['tag']}_decode_.get()" if w.get("decode_file") else f"{w['tag']}_.get()"
+        for w in weights
+    )
 
     p(_CPP_FILE_PROLOGUE)
     p('#include "buddy/runtime/models/ModelSession.h"')
@@ -663,13 +667,21 @@ def gen_impl_tiered(config: dict) -> str:
     p("  cachePosition_ = std::make_unique<MemRef<long long, 1>>(pshape);")
     p("}")
     p()
+    load_targets = [(idx, w, f"{w['tag']}_") for idx, w in enumerate(weights)]
+    next_idx = len(weights)
+    for w in weights:
+        if w.get("decode_file"):
+            load_targets.append((next_idx, w, f"{w['tag']}_decode_"))
+            next_idx += 1
+    n_paths = next_idx
+
     p("void ModelSession::loadWeights(const std::vector<std::string> &paths) {")
-    p(f"  if (paths.size() < {len(weights)}u)")
+    p(f"  if (paths.size() < {n_paths}u)")
     p(
-        f'    throw std::runtime_error("[BuddyRuntime] Expected {len(weights)} weight '
+        f'    throw std::runtime_error("[BuddyRuntime] Expected {n_paths} weight '
         f'file(s), got " + std::to_string(paths.size()));'
     )
-    for idx, w in enumerate(weights):
+    for idx, w, member in load_targets:
         tag = w["tag"]
         cpp_type = w["cpp_type"]
         macro_suffix = (
@@ -677,14 +689,14 @@ def gen_impl_tiered(config: dict) -> str:
         )
         p("  {")
         p(f"    intptr_t shape[1] = {{{mp}_{macro_suffix}}};")
-        p(f"    {tag}_ = std::make_unique<MemRef<{cpp_type}, 1>>(shape);")
+        p(f"    {member} = std::make_unique<MemRef<{cpp_type}, 1>>(shape);")
         p(f"    std::ifstream f(paths[{idx}], std::ios::binary);")
         p("    if (!f)")
         p(
             f'      throw std::runtime_error("[BuddyRuntime] Cannot open weights: " + paths[{idx}]);'
         )
-        p(f"    f.read(reinterpret_cast<char *>({tag}_->getData()),")
-        p(f"           sizeof({cpp_type}) * {tag}_->getSize());")
+        p(f"    f.read(reinterpret_cast<char *>({member}->getData()),")
+        p(f"           sizeof({cpp_type}) * {member}->getSize());")
         p("    if (f.fail())")
         p(
             f'      throw std::runtime_error("[BuddyRuntime] Read failed: " + paths[{idx}]);'
@@ -738,7 +750,7 @@ def gen_impl_tiered(config: dict) -> str:
     p(f"  for (int i = 0; i < {dummy_groups}; ++i)")
     p("    a.dummy(i).getData()[0] = (long long)position_;")
     p(
-        f"  callDecodeFn(impl_->decodeFns[impl_->activeSlot], a, {weight_addrs_internal},"
+        f"  callDecodeFn(impl_->decodeFns[impl_->activeSlot], a, {decode_weight_addrs_internal},"
     )
     p("               decodeTokenInput_.get(), cachePosition_.get());")
     p("  impl_->lastLogitsAreDecode = true;")

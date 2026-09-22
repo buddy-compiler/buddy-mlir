@@ -173,13 +173,8 @@ def build_stages(
             )
             opts.append("-matmul-vectorization-decode=vector-size=32")
         elif variant != "w8a8":
-            vector_size = 128 if tiered else 32
+            vector_size = 32
             if decode_pack and decode_pack.get("enabled"):
-                if decode_pack["vector_size"] != vector_size:
-                    raise ValueError(
-                        f"decode_pack vector_size={decode_pack['vector_size']} must "
-                        f"match the decode vector-size={vector_size} in use"
-                    )
                 # No packed-shapes: pack_decode_matmul_weights packed *every*
                 # matmul weight in the decode graph -- and refuses to run at all
                 # if it cannot -- so there is no list of exceptions to keep in
@@ -188,7 +183,9 @@ def build_stages(
                 # bytes as row-major and answer fluently and wrongly.
                 opts.append(
                     "-matmul-vectorization-decode-packed="
-                    f"vector-size={vector_size}"
+                    f"vector-size={vector_size} "
+                    "panels-per-iteration="
+                    f"{decode_pack.get('panels_per_iteration', 1)}"
                 )
             opts.append(
                 f"-matmul-vectorization-decode=vector-size={vector_size}"
