@@ -17,7 +17,9 @@
 #include "buddy/runtime/llm/TextGeneration.h"
 
 #include <algorithm>
+#include <array>
 #include <chrono>
+#include <cstdlib>
 #include <iomanip>
 #include <iostream>
 #include <limits>
@@ -51,6 +53,25 @@ void interruptHandler(int) { g_interrupted = true; }
 //===----------------------------------------------------------------------===//
 
 namespace {
+
+void dumpTopLogits(const char *phase, int step, const float *logits,
+                   int vocabSize) {
+  if (std::getenv("BUDDY_DUMP_TOP_LOGITS") == nullptr)
+    return;
+  std::array<std::pair<float, int>, 8> top{};
+  for (auto &entry : top)
+    entry = {-std::numeric_limits<float>::infinity(), -1};
+  for (int token = 0; token < vocabSize; ++token) {
+    if (logits[token] <= top.back().first)
+      continue;
+    top.back() = {logits[token], token};
+    std::sort(top.begin(), top.end(), std::greater<>());
+  }
+  std::cerr << "[TopLogits] phase=" << phase << " step=" << step;
+  for (const auto &[score, token] : top)
+    std::cerr << " token=" << token << ":" << std::setprecision(9) << score;
+  std::cerr << '\n';
+}
 
 /// Write a string literal with JSON escaping.
 void writeJsonString(std::ostream &os, std::string_view text) {
@@ -218,7 +239,7 @@ GenerationResult runGeneration(const std::string &prompt, LLMSession &session,
   int curToken = firstToken;
   const int maxSteps = (maxNewTokens <= 0)
                            ? std::numeric_limits<int>::max()
-                           : maxNewTokens - (int)inputTokens.getTokenCnt();
+                           : maxNewTokens - 1;
   double decodeAccumMs = 0.0;
   int decodeCount = 0;
 
@@ -256,6 +277,8 @@ GenerationResult runGeneration(const std::string &prompt, LLMSession &session,
                               .count();
     decodeAccumMs += stepMs;
     decodeCount += 1;
+
+    dumpTopLogits("decode", step, session.logitsData(), session.vocabSize());
 
     int nextToken =
         sampler.sample(session.logitsData(), session.vocabSize(), recentTokens);
@@ -354,7 +377,7 @@ GenerationResult runGeneration(const std::string &prompt, LLMSession &session,
   int curToken = firstToken;
   const int maxSteps = (maxNewTokens <= 0)
                            ? std::numeric_limits<int>::max()
-                           : maxNewTokens - (int)inputTokens.getTokenCnt();
+                           : maxNewTokens - 1;
   double decodeAccumMs = 0.0;
   int decodeCount = 0;
 
@@ -388,6 +411,8 @@ GenerationResult runGeneration(const std::string &prompt, LLMSession &session,
                               .count();
     decodeAccumMs += stepMs;
     decodeCount += 1;
+
+    dumpTopLogits("decode", step, session.logitsData(), session.vocabSize());
 
     int nextToken =
         sampler.sample(session.logitsData(), session.vocabSize(), recentTokens);
