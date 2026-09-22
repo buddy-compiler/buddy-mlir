@@ -675,13 +675,15 @@ def gen_impl_tiered(config: dict) -> str:
             next_idx += 1
     n_paths = next_idx
 
-    p("void ModelSession::loadWeights(const std::vector<std::string> &paths) {")
-    p(f"  if (paths.size() < {n_paths}u)")
-    p(
-        f'    throw std::runtime_error("[BuddyRuntime] Expected {n_paths} weight '
-        f'file(s), got " + std::to_string(paths.size()));'
-    )
-    for idx, w, member in load_targets:
+    # Staged loading (mirrors gen_impl): keep either the plain prefill Data or
+    # the panel-packed decode Data resident, never both (~6.7 GB each for
+    # DeepSeek-R1). Weights without a decode copy are always resident.
+    plain_targets = [(idx, w, f"{w['tag']}_") for idx, w in enumerate(weights)]
+    decode_targets = [(idx, w, member) for idx, w, member in load_targets
+                      if member.endswith("_decode_")]
+    has_staged_loading = len(decode_targets) > 0
+
+    def _emit_tiered_weight_load(idx, w, member):
         tag = w["tag"]
         cpp_type = w["cpp_type"]
         macro_suffix = (
@@ -690,21 +692,73 @@ def gen_impl_tiered(config: dict) -> str:
         p("  {")
         p(f"    intptr_t shape[1] = {{{mp}_{macro_suffix}}};")
         p(f"    {member} = std::make_unique<MemRef<{cpp_type}, 1>>(shape);")
-        p(f"    std::ifstream f(paths[{idx}], std::ios::binary);")
+        p(f"    std::ifstream f(weightPaths_[{idx}], std::ios::binary);")
         p("    if (!f)")
         p(
-            f'      throw std::runtime_error("[BuddyRuntime] Cannot open weights: " + paths[{idx}]);'
+            f'      throw std::runtime_error("[BuddyRuntime] Cannot open weights: " + weightPaths_[{idx}]);'
         )
         p(f"    f.read(reinterpret_cast<char *>({member}->getData()),")
         p(f"           sizeof({cpp_type}) * {member}->getSize());")
         p("    if (f.fail())")
         p(
-            f'      throw std::runtime_error("[BuddyRuntime] Read failed: " + paths[{idx}]);'
+            f'      throw std::runtime_error("[BuddyRuntime] Read failed: " + weightPaths_[{idx}]);'
         )
         p("  }")
-    p("}")
+
+    if has_staged_loading:
+        p("void ModelSession::loadWeights(const std::vector<std::string> &paths) {")
+        p(f"  if (paths.size() < {n_paths}u)")
+        p(
+            f'    throw std::runtime_error("[BuddyRuntime] Expected {n_paths} weight '
+            f'file(s), got " + std::to_string(paths.size()));'
+        )
+        p("  weightPaths_ = paths;")
+        for idx, w, member in plain_targets:
+            if not w.get("decode_file"):
+                _emit_tiered_weight_load(idx, w, member)
+        p("  loadPrefillWeights();")
+        p("}")
+        p()
+
+        p("void ModelSession::loadPrefillWeights() {")
+        p("  if (prefillWeightsLoaded_) return;")
+        for _idx, w, member in decode_targets:
+            p(f"  {member}.reset();")
+        p("  decodeWeightsLoaded_ = false;")
+        for idx, w, member in plain_targets:
+            if w.get("decode_file"):
+                _emit_tiered_weight_load(idx, w, member)
+        p("  prefillWeightsLoaded_ = true;")
+        p("}")
+        p()
+
+        p("void ModelSession::loadDecodeWeights() {")
+        p("  if (decodeWeightsLoaded_) return;")
+        for idx, w, member in plain_targets:
+            if w.get("decode_file"):
+                p(f"  {member}.reset();")
+        p("  prefillWeightsLoaded_ = false;")
+        for idx, w, member in decode_targets:
+            _emit_tiered_weight_load(idx, w, member)
+        p("  decodeWeightsLoaded_ = true;")
+        p("}")
+        p()
+    else:
+        p("void ModelSession::loadWeights(const std::vector<std::string> &paths) {")
+        p(f"  if (paths.size() < {n_paths}u)")
+        p(
+            f'    throw std::runtime_error("[BuddyRuntime] Expected {n_paths} weight '
+            f'file(s), got " + std::to_string(paths.size()));'
+        )
+        for idx, w, member in load_targets:
+            _emit_tiered_weight_load(idx, w, member)
+        p("}")
     p()
     p("void ModelSession::prefill(Text<size_t, 2> &tokens) {")
+    if has_staged_loading:
+        p("  // Staged loading: ensure plain weights are in memory for prefill.")
+        p("  loadPrefillWeights();")
+        p()
     p("  const int tokenCount = (int)tokens.getTokenCnt();")
     p("  const int cacheLen = selectPrefillSize(tokenCount);")
     p("  const int slot = cacheSizeIndex(cacheLen);")
@@ -726,11 +780,19 @@ def gen_impl_tiered(config: dict) -> str:
     p("  copyKVCache(impl_->prefillAbi[slot], impl_->decodeAbi[slot],")
     p("              cfg_.kvLayers, cfg_.headNum, cfg_.hiddenSize,")
     p("              cacheLen, cacheLen, tokenCount);")
+    if has_staged_loading:
+        p()
+        p("  // Staged loading: KV/logits are saved; swap to packed decode weights.")
+        p("  loadDecodeWeights();")
     p("  impl_->lastLogitsAreDecode = false;")
     p("  position_ = tokenCount;")
     p("}")
     p()
     p("void ModelSession::decode(int tokenId) {")
+    if has_staged_loading:
+        p("  // Staged loading: ensure packed decode weights are in memory.")
+        p("  loadDecodeWeights();")
+        p()
     p("  const int neededCacheLen = selectDecodeSize(position_ + 1);")
     p("  int neededSlot = cacheSizeIndex(neededCacheLen);")
     p("  if (neededSlot != impl_->activeSlot) {")
