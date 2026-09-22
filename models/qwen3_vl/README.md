@@ -7,6 +7,11 @@ model, compiles its vision encoder (ViT + DeepStack) and dense Qwen3 text decode
 run time. It uses the shared `buddy_add_model` entry with a Qwen3-VL-specific
 multimodal build kind because the model emits separate vision and decoder shims.
 
+By default the decoder is built as **KV prefill + single-token decode** with
+**panel-packed decode GEMV** weights (`BUDDY_QWEN3_VL_KV_DECODE=ON`). Pass
+`-DBUDDY_QWEN3_VL_KV_DECODE=OFF` for the legacy full-sequence recompute decoder.
+KV mode is incompatible with `BUDDY_MODEL_LAYER_PARTITION=ON`.
+
 ## Prerequisites
 
 - A built LLVM/MLIR and `buddy-mlir` (see the top-level [README](../../README.md)),
@@ -15,8 +20,11 @@ multimodal build kind because the model emits separate vision and decoder shims.
   env: Python 3.10, `torch`, `transformers` with native `qwen3_vl` support,
   `pillow`, `numpy`).
 - A local HuggingFace `Qwen3-VL-2B-Instruct` snapshot directory.
+- For SpacemiT / RVV packages: a configured RISC-V cross tree
+  (`IS_RVV_CROSSCOMPILE=ON`), host `buddy-opt`, and RISC-V `libomp` /
+  `libmlir_c_runner_utils`.
 
-## Build
+## Build (host)
 
 Use the same `tools/buddy-codegen/build_model.py` entry point as the other
 packaged models (DeepSeek R1, Whisper). It imports the model, compiles the vision
@@ -35,20 +43,49 @@ This assumes LLVM/MLIR and `buddy-mlir` are already built per the top-level
 [README](../../README.md) (the `build/` directory configured against the in-tree
 `llvm/build`).
 
-The import and the two MLIR compiles run as part of the target and are the slow
-part (a few minutes each). The build emits these artifacts under
-`build/models/qwen3_vl/`:
+The first KV import (vision + prefill + decode graphs) is the slow step. Later
+rebuilds that only change lowering/shim can keep
+`artifacts/.buddy_import_done_kv` and recompile objects / relink.
+
+Artifacts under `<build-dir>/models/qwen3_vl/`:
 
 | File | Description |
 | --- | --- |
 | `qwen3_vl.rax` | Model manifest (`model_name`, runner library, vocab) |
 | `qwen3_vl_runner.so` | `InferenceRunner` plugin loaded by `buddy-cli` |
-| `artifacts/vision/vision_shim.so` | Compiled vision encoder kernels (flat-C ABI) |
-| `artifacts/decoder_rt/decoder_shim.so` | Compiled Qwen3 decoder kernels (flat-C ABI) |
-| `vision_weights.data` / `decoder_weights.data` | External weight blobs |
+| `vision_shim.so` / `decoder_shim.so` | Staged shared libs (also under `artifacts/`) |
+| `artifacts/vision/vision_shim.so` | Compiled vision encoder |
+| `artifacts/decoder_rt/decoder_shim.so` | Decoder: KV prefill+decode (default) or legacy full forward |
+| `vision_weights.data` / `decoder_weights.data` | Vision + prefill (or legacy) weights |
+| `decoder_decode_weights.data` | Packed decode GEMV weights (KV mode only) |
 | `embed_table.bin` / `vocab.txt` | Tied embedding table / tokenizer vocab |
 
+## Build (RVV cross / SpacemiT)
+
+Configure a cross build with `IS_RVV_CROSSCOMPILE=ON` (same toolchain / omp /
+runner-utils setup as other RVV models). Then:
+
+```bash
+# If midend matmul passes changed, refresh host buddy-opt first:
+cmake --build <host-build> --target buddy-opt -j$(nproc)
+
+cmake -S . -B <cross-build> \
+  -DBUDDY_QWEN3_VL_KV_DECODE=ON \
+  -DBUDDY_QWEN3_VL_NUM_THREADS=8 \
+  -DBUDDY_QWEN3_VL_MODEL_PATH=/path/to/Qwen3-VL-2B-Instruct
+  # plus your existing IS_RVV_CROSSCOMPILE / toolchain cache entries
+
+cmake --build <cross-build> --target qwen3_vl_rax -j$(nproc)
+```
+
+Sync the package directory to the board (exclude `artifacts/`, CMake intermediates).
+On SpacemiT X100, matmul stays on the **RVV FP16** path (`+zvl256b`); do not
+enable XSMTIME `vfmadot` (SIGILL on board). Board-specific timings and package
+names live under [`reports/`](reports/).
+
 ## Run
+
+Host:
 
 ```bash
 ./build/bin/buddy-cli \
@@ -56,6 +93,30 @@ part (a few minutes each). The build emits these artifacts under
   --image ./models/qwen3_vl/test_text.png \
   --prompt "Read all the text in the image."
 ```
+
+On-device (after syncing the cross package next to a RISC-V `buddy-cli`):
+
+```bash
+export OMP_NUM_THREADS=8
+export OMP_PROC_BIND=close
+export OMP_PLACES=cores
+export LD_LIBRARY_PATH="$PWD:${LD_LIBRARY_PATH:-}"
+
+/path/to/buddy-cli \
+  --model ./qwen3_vl.rax \
+  --runner-so ./qwen3_vl_runner.so \
+  --image /path/to/test_text.png \
+  --prompt "Read all the text in the image." \
+  --max-tokens 32 \
+  --temperature 0.0 \
+  --cpus 0-7
+```
+
+With the default KV package, the runner auto-loads prefill/decode entry points
+and `decoder_decode_weights.data` from the package / rax payload — no
+`QWEN3_VL_DECODER_SO` / `QWEN3_VL_DECODE_WEIGHTS` overrides are required.
+Logs should include `using KV prefill/decode decoder shim` and
+`using packed decode weights from ...`.
 
 - `--image <path>` selects any input image; it is resized to the pinned canonical
   resolution (grid `[1,14,28]`, 98 image tokens) before encoding.
@@ -108,9 +169,11 @@ the existing buddy-cli interface and output behavior remain unchanged.
 
 ## Notes
 
-- The `.rax` and other artifacts live in `build/models/qwen3_vl/`.
+- The `.rax` and other artifacts live in `<build-dir>/models/qwen3_vl/`.
 - Runtime image decoding, resize and patchification use the pure-C++
   `ImagePreprocess.h` implementation; Python is only used while building the
   package and its fixed positional constants.
-- Greedy decode uses fixed-max-length recompute (no KV cache), and the image
-  resolution is pinned at import time (no dynamic resolution / crop modes yet).
+- Default greedy decode is **KV prefill once + per-token decode** (packed GEMV
+  on decode linears). Legacy full-sequence recompute:
+  `-DBUDDY_QWEN3_VL_KV_DECODE=OFF`. Image resolution is pinned at import time
+  (no dynamic resolution / crop modes yet).

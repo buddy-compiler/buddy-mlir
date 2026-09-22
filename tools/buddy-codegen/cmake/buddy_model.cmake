@@ -107,6 +107,8 @@ endif()
 #   [ASSET_FILES <list>]                    files copied next to the .rax
 #   [RUNTIME_LINK_LIBS <list>]              extra libraries for runner static lib
 #   [TEMPLATE_PARTITION_CAPABLE ON|OFF]     supports template partitioning
+#   [KV_DECODE ON|OFF]                      Qwen3-VL: KV prefill/decode + packed
+#                                           decode GEMV (default OFF unless set)
 # )
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -165,7 +167,7 @@ function(buddy_add_model)
   cmake_parse_arguments(
     MDL                                      # prefix
     ""                                       # flags
-    "NAME;SPEC;RUNNER_SRC;RUNNER_PLUGIN_SRC;RUNNER_HDR;SERVING_PLUGIN_SRC;SERVING_LIBRARY;EMBEDDING_PLUGIN_SRC;EMBEDDING_LIBRARY;MASKED_LM_PLUGIN_SRC;MASKED_LM_LIBRARY;TRANSCRIPTION_PLUGIN_SRC;TRANSCRIPTION_LIBRARY;HF_CONFIG;LOCAL_MODEL;BUILD_DIR;MLIR_DIR;NUM_THREADS;LLC_ATTRS;COMPILE_JOBS;TIERED_KV_CACHE;MODEL_KIND;IMPORT_SCRIPT;MANIFEST_SCRIPT;LOCAL_MODEL_ENV;MODEL_SO_NAME;TEMPLATE_PARTITION_CAPABLE"
+    "NAME;SPEC;RUNNER_SRC;RUNNER_PLUGIN_SRC;RUNNER_HDR;SERVING_PLUGIN_SRC;SERVING_LIBRARY;EMBEDDING_PLUGIN_SRC;EMBEDDING_LIBRARY;MASKED_LM_PLUGIN_SRC;MASKED_LM_LIBRARY;TRANSCRIPTION_PLUGIN_SRC;TRANSCRIPTION_LIBRARY;HF_CONFIG;LOCAL_MODEL;BUILD_DIR;MLIR_DIR;NUM_THREADS;LLC_ATTRS;COMPILE_JOBS;TIERED_KV_CACHE;MODEL_KIND;IMPORT_SCRIPT;MANIFEST_SCRIPT;LOCAL_MODEL_ENV;MODEL_SO_NAME;TEMPLATE_PARTITION_CAPABLE;KV_DECODE"
     "EXTRA_SRCS;TIERED_CACHE_SIZES;ASSET_FILES;RUNTIME_LINK_LIBS" # multi-value
     ${ARGN}
   )
@@ -190,6 +192,12 @@ function(buddy_add_model)
     string(APPEND _MDL_RISCV_MATTR ",+zfh,+zvfh")
   endif()
   if(IS_RVV_CROSSCOMPILE)
+    # SpacemiT X100 (K3): advertise Zvl256b + XSMTVDot. Do not use
+    # -mcpu=spacemit-x100 here — llc spills/SIGABRTs on the large decoder
+    # forward with that CPU model. Do not enable XSMTIME (vfmadot SIGILL).
+    if(MDL_NAME STREQUAL "qwen3_vl")
+      string(APPEND _MDL_RISCV_MATTR ",+zvl256b,+xsmtvdot")
+    endif()
     set(MDL_LLC_ATTRS "-march=riscv64 -mattr=${_MDL_RISCV_MATTR} -mtriple=riscv64-unknown-linux-gnu")
   elseif(NOT MDL_LLC_ATTRS)
     if(HAVE_LOCAL_RVV)
@@ -472,17 +480,23 @@ function(buddy_add_model)
   )
 
   set(RUNNER_PLUGIN_TARGET "buddy_models_${MDL_NAME}_runner")
-  add_library(${RUNNER_PLUGIN_TARGET} SHARED
-    "${CMAKE_CURRENT_SOURCE_DIR}/${MDL_RUNNER_PLUGIN_SRC}"
-  )
-  set_target_properties(${RUNNER_PLUGIN_TARGET} PROPERTIES
-    LIBRARY_OUTPUT_DIRECTORY "${BIN}"
-    RUNTIME_OUTPUT_DIRECTORY "${BIN}"
-    OUTPUT_NAME "${MDL_NAME}_runner"
-    PREFIX ""
-  )
-  target_link_libraries(${RUNNER_PLUGIN_TARGET} PRIVATE ${LIB_TARGET})
-  target_compile_features(${RUNNER_PLUGIN_TARGET} PRIVATE cxx_std_17)
+  set(_Q_CROSS_PLUGINS OFF)
+  if(IS_RVV_CROSSCOMPILE AND MDL_CUSTOM_QWEN3_VL)
+    set(_Q_CROSS_PLUGINS ON)
+  endif()
+  if(NOT _Q_CROSS_PLUGINS)
+    add_library(${RUNNER_PLUGIN_TARGET} SHARED
+      "${CMAKE_CURRENT_SOURCE_DIR}/${MDL_RUNNER_PLUGIN_SRC}"
+    )
+    set_target_properties(${RUNNER_PLUGIN_TARGET} PROPERTIES
+      LIBRARY_OUTPUT_DIRECTORY "${BIN}"
+      RUNTIME_OUTPUT_DIRECTORY "${BIN}"
+      OUTPUT_NAME "${MDL_NAME}_runner"
+      PREFIX ""
+    )
+    target_link_libraries(${RUNNER_PLUGIN_TARGET} PRIVATE ${LIB_TARGET})
+    target_compile_features(${RUNNER_PLUGIN_TARGET} PRIVATE cxx_std_17)
+  endif()
 
   # Qwen3-VL has a custom packaging path, so create the resident plugin before
   if(MDL_CUSTOM_QWEN3_VL)
@@ -490,16 +504,18 @@ function(buddy_add_model)
     set(SERVING_PLUGIN_TARGET "")
     if(MDL_SERVING_PLUGIN_SRC)
       set(SERVING_PLUGIN_TARGET "buddy_models_${MDL_NAME}_serving")
-      add_library(${SERVING_PLUGIN_TARGET} SHARED
-        "${CMAKE_CURRENT_SOURCE_DIR}/${MDL_SERVING_PLUGIN_SRC}")
-      set_target_properties(${SERVING_PLUGIN_TARGET} PROPERTIES
-        LIBRARY_OUTPUT_DIRECTORY "${BIN}"
-        RUNTIME_OUTPUT_DIRECTORY "${BIN}"
-        OUTPUT_NAME "${MDL_NAME}_serving"
-        PREFIX "")
-      target_link_libraries(${SERVING_PLUGIN_TARGET} PRIVATE ${LIB_TARGET})
-      target_compile_features(${SERVING_PLUGIN_TARGET} PRIVATE cxx_std_17)
-      install(TARGETS ${SERVING_PLUGIN_TARGET} EXPORT BuddyMLIRTargets COMPONENT buddy_runtime)
+      if(NOT _Q_CROSS_PLUGINS)
+        add_library(${SERVING_PLUGIN_TARGET} SHARED
+          "${CMAKE_CURRENT_SOURCE_DIR}/${MDL_SERVING_PLUGIN_SRC}")
+        set_target_properties(${SERVING_PLUGIN_TARGET} PROPERTIES
+          LIBRARY_OUTPUT_DIRECTORY "${BIN}"
+          RUNTIME_OUTPUT_DIRECTORY "${BIN}"
+          OUTPUT_NAME "${MDL_NAME}_serving"
+          PREFIX "")
+        target_link_libraries(${SERVING_PLUGIN_TARGET} PRIVATE ${LIB_TARGET})
+        target_compile_features(${SERVING_PLUGIN_TARGET} PRIVATE cxx_std_17)
+        install(TARGETS ${SERVING_PLUGIN_TARGET} EXPORT BuddyMLIRTargets COMPONENT buddy_runtime)
+      endif()
     endif()
 
   endif()
@@ -532,8 +548,26 @@ function(buddy_add_model)
       BUDDY_RAX_EMBED_PAYLOAD=${_Q_RAX_EMBED_PAYLOAD}
       QWEN3_VL_MODEL_PATH=${MDL_LOCAL_MODEL})
 
+    # KV prefill/decode + packed decode GEMV (opt-in via KV_DECODE / CACHE).
+    set(_Q_KV_DECODE OFF)
+    if(MDL_KV_DECODE)
+      set(_Q_KV_DECODE ON)
+    endif()
+    if(_Q_KV_DECODE AND MDL_LAYER_PARTITION)
+      message(FATAL_ERROR
+        "buddy_add_model (${MDL_NAME}): KV_DECODE is incompatible with "
+        "BUDDY_MODEL_LAYER_PARTITION; disable one of them")
+    endif()
+    if(_Q_KV_DECODE)
+      list(APPEND _Q_ENV QWEN3_VL_KV_DECODE=1)
+      message(STATUS
+        "[${MDL_NAME}] KV prefill/decode + packed decode GEMV enabled")
+    endif()
+
+    set(_Q_RUNNER_SO "${BIN}/${MDL_NAME}_runner.so")
+    set(_Q_SERVING_SO "${BIN}/${MDL_NAME}_serving.so")
     if(SERVING_PLUGIN_TARGET)
-      list(APPEND _Q_ENV QWEN3_VL_SERVING_SO=$<TARGET_FILE:${SERVING_PLUGIN_TARGET}>)
+      list(APPEND _Q_ENV QWEN3_VL_SERVING_SO=${_Q_SERVING_SO})
     endif()
 
     set(_Q_IMPORT_ARGS)
@@ -546,8 +580,22 @@ function(buddy_add_model)
       set(_Q_DEC_MLIR "${_Q_DEC}")
     endif()
 
-    set(_Q_IMPORT_STAMP "${_Q_ART}/.buddy_import_done")
-    if(MDL_LAYER_PARTITION)
+    if(_Q_KV_DECODE)
+      set(_Q_IMPORT_STAMP "${_Q_ART}/.buddy_import_done_kv")
+      set(_Q_IMPORT_BYPRODUCTS
+        "${_Q_VIS}/vision_forward.mlir"
+        "${_Q_VIS}/vision_subgraph0.mlir"
+        "${_Q_VIS}/vision_arg0.data"
+        "${_Q_DEC}/decoder_prefill_forward.mlir"
+        "${_Q_DEC}/decoder_prefill_subgraph0.mlir"
+        "${_Q_DEC}/decoder_prefill_arg0.data"
+        "${_Q_DEC}/decoder_decode_forward.mlir"
+        "${_Q_DEC}/decoder_decode_subgraph0.mlir"
+        "${_Q_DEC}/decoder_decode_arg0.data"
+        "${_Q_DEC}/decoder_decode_packed_shapes.txt"
+        "${_Q_DEC}/embed_table.bin")
+    elseif(MDL_LAYER_PARTITION)
+      set(_Q_IMPORT_STAMP "${_Q_ART}/.buddy_import_done")
       set(_Q_IMPORT_BYPRODUCTS
         "${_Q_VIS_MLIR}/vision_forward.mlir"
         "${_Q_VIS_MLIR}/partition_manifest.json"
@@ -557,6 +605,7 @@ function(buddy_add_model)
         "${_Q_DEC}/decoder_arg0.data"
         "${_Q_DEC}/embed_table.bin")
     else()
+      set(_Q_IMPORT_STAMP "${_Q_ART}/.buddy_import_done")
       set(_Q_IMPORT_BYPRODUCTS
         "${_Q_VIS}/vision_forward.mlir"
         "${_Q_VIS}/vision_subgraph0.mlir"
@@ -584,10 +633,20 @@ function(buddy_add_model)
       COMMENT "[${MDL_NAME}] Stage 1: importing Qwen3-VL vision/decoder"
       VERBATIM)
 
+    set(_Q_LOWER_TOOL_DEPS buddy-opt)
+    if(TARGET buddy-translate)
+      list(APPEND _Q_LOWER_TOOL_DEPS buddy-translate)
+    endif()
+    if(TARGET buddy-llc)
+      list(APPEND _Q_LOWER_TOOL_DEPS buddy-llc)
+    endif()
+
     function(_buddy_qwen3vl_obj dir name)
       add_custom_command(
         OUTPUT ${dir}/${name}.o
-        COMMAND bash ${_Q_CG}/lower_to_obj.sh
+        COMMAND ${CMAKE_COMMAND} -E env
+                "BUDDY_MLIR_BUILD_DIR=${BUDDY_MLIR_BUILD_DIR}"
+                bash ${_Q_CG}/lower_to_obj.sh
                 $<TARGET_FILE:buddy-opt> ${LLVM_TOOLS_BINARY_DIR}
                 ${dir}/${name}.mlir ${dir}/${name}.o
                 ${MDL_NUM_THREADS} ${MDL_LLC_ATTRS_LIST}
@@ -595,50 +654,93 @@ function(buddy_add_model)
           ${dir}/${name}.mlir
           ${_Q_IMPORT_STAMP}
           ${_Q_CG}/lower_to_obj.sh
-          buddy-opt
+          ${_Q_LOWER_TOOL_DEPS}
         COMMENT "[${MDL_NAME}] Stage 2: compiling ${name}.mlir"
         VERBATIM)
     endfunction()
 
     _buddy_qwen3vl_obj(${_Q_VIS_MLIR} vision_forward)
-    _buddy_qwen3vl_obj(${_Q_DEC_MLIR} decoder_forward)
 
-    if(MDL_LAYER_PARTITION)
-      _buddy_compile_generated_subgraphs(
-        OUTPUT "${_Q_VIS_MLIR}/vision_subgraphs.o"
-        MLIR_DIR "${_Q_VIS_MLIR}"
-        PATTERN "vision_subgraph0_forward_*.mlir"
-        LOWER_SCRIPT "${_Q_CG}/lower_to_obj.sh"
-        IMPORT_DEP "${_Q_IMPORT_STAMP}"
-        NUM_THREADS "${MDL_NUM_THREADS}"
-        LLC_ATTRS ${MDL_LLC_ATTRS_LIST}
-      )
-      _buddy_compile_generated_subgraphs(
-        OUTPUT "${_Q_DEC_MLIR}/decoder_subgraphs.o"
-        MLIR_DIR "${_Q_DEC_MLIR}"
-        PATTERN "decoder_subgraph0_forward_*.mlir"
-        LOWER_SCRIPT "${_Q_CG}/lower_to_obj.sh"
-        IMPORT_DEP "${_Q_IMPORT_STAMP}"
-        NUM_THREADS "${MDL_NUM_THREADS}"
-        LLC_ATTRS ${MDL_LLC_ATTRS_LIST}
-      )
-      set(_Q_VIS_COMPUTE_OBJ "${_Q_VIS_MLIR}/vision_subgraphs.o")
-      set(_Q_DEC_COMPUTE_OBJ "${_Q_DEC_MLIR}/decoder_subgraphs.o")
-    else()
+    if(_Q_KV_DECODE)
+      _buddy_qwen3vl_obj(${_Q_DEC} decoder_prefill_forward)
+      _buddy_qwen3vl_obj(${_Q_DEC} decoder_prefill_subgraph0)
+      _buddy_qwen3vl_obj(${_Q_DEC} decoder_decode_forward)
+      _buddy_qwen3vl_obj(${_Q_DEC} decoder_decode_subgraph0)
       _buddy_qwen3vl_obj(${_Q_VIS} vision_subgraph0)
-      _buddy_qwen3vl_obj(${_Q_DEC} decoder_subgraph0)
       set(_Q_VIS_COMPUTE_OBJ "${_Q_VIS}/vision_subgraph0.o")
-      set(_Q_DEC_COMPUTE_OBJ "${_Q_DEC}/decoder_subgraph0.o")
+    else()
+      _buddy_qwen3vl_obj(${_Q_DEC_MLIR} decoder_forward)
+
+      if(MDL_LAYER_PARTITION)
+        _buddy_compile_generated_subgraphs(
+          OUTPUT "${_Q_VIS_MLIR}/vision_subgraphs.o"
+          MLIR_DIR "${_Q_VIS_MLIR}"
+          PATTERN "vision_subgraph0_forward_*.mlir"
+          LOWER_SCRIPT "${_Q_CG}/lower_to_obj.sh"
+          IMPORT_DEP "${_Q_IMPORT_STAMP}"
+          NUM_THREADS "${MDL_NUM_THREADS}"
+          LLC_ATTRS ${MDL_LLC_ATTRS_LIST}
+        )
+        _buddy_compile_generated_subgraphs(
+          OUTPUT "${_Q_DEC_MLIR}/decoder_subgraphs.o"
+          MLIR_DIR "${_Q_DEC_MLIR}"
+          PATTERN "decoder_subgraph0_forward_*.mlir"
+          LOWER_SCRIPT "${_Q_CG}/lower_to_obj.sh"
+          IMPORT_DEP "${_Q_IMPORT_STAMP}"
+          NUM_THREADS "${MDL_NUM_THREADS}"
+          LLC_ATTRS ${MDL_LLC_ATTRS_LIST}
+        )
+        set(_Q_VIS_COMPUTE_OBJ "${_Q_VIS_MLIR}/vision_subgraphs.o")
+        set(_Q_DEC_COMPUTE_OBJ "${_Q_DEC_MLIR}/decoder_subgraphs.o")
+      else()
+        _buddy_qwen3vl_obj(${_Q_VIS} vision_subgraph0)
+        _buddy_qwen3vl_obj(${_Q_DEC} decoder_subgraph0)
+        set(_Q_VIS_COMPUTE_OBJ "${_Q_VIS}/vision_subgraph0.o")
+        set(_Q_DEC_COMPUTE_OBJ "${_Q_DEC}/decoder_subgraph0.o")
+      endif()
+    endif()
+
+    # Host builds link with the native C++ compiler + in-tree omp/runner-utils.
+    # IS_RVV_CROSSCOMPILE produces riscv64 .o (ELF EM:243); those must be linked
+    # with the host LLVM clang++ targeting riscv64, matching generic model.so.
+    set(_Q_SHIM_CXX "${CMAKE_CXX_COMPILER}")
+    set(_Q_SHIM_LINK_OPTS)
+    set(_Q_SHIM_LIBS
+      -L${LLVM_LIBRARY_DIR} -lmlir_c_runner_utils -L${_Q_OMP} -lomp
+      -Wl,-rpath,${LLVM_LIBRARY_DIR} -Wl,-rpath,${_Q_OMP})
+    if(IS_RVV_CROSSCOMPILE)
+      set(_Q_SHIM_CXX "${LLVM_TOOLS_BINARY_DIR}/clang++")
+      if(BUDDY_MLIR_BUILD_DIR AND
+         EXISTS "${BUDDY_MLIR_BUILD_DIR}/../llvm/build/bin/clang++")
+        set(_Q_SHIM_CXX
+          "${BUDDY_MLIR_BUILD_DIR}/../llvm/build/bin/clang++")
+      endif()
+      if(NOT EXISTS "${_Q_SHIM_CXX}")
+        message(FATAL_ERROR
+          "buddy_add_model (${MDL_NAME}): IS_RVV_CROSSCOMPILE=ON needs clang++ "
+          "at ${_Q_SHIM_CXX} (set BUDDY_MLIR_BUILD_DIR or LLVM_TOOLS_BINARY_DIR)")
+      endif()
+      set(_Q_SHIM_LINK_OPTS
+        --target=riscv64-unknown-linux-gnu
+        "--sysroot=${RISCV_GNU_TOOLCHAIN}/sysroot"
+        "--gcc-toolchain=${RISCV_GNU_TOOLCHAIN}"
+        "-Wl,-rpath,\$ORIGIN"
+        "-Wl,--allow-multiple-definition")
+      set(_Q_SHIM_LIBS
+        "${RISCV_OMP_SHARED}"
+        "${RISCV_MLIR_C_RUNNER_UTILS}"
+        -lm)
     endif()
 
     function(_buddy_qwen3vl_shim out src obj1 obj2)
       add_custom_command(
         OUTPUT ${out}
-        COMMAND ${CMAKE_CXX_COMPILER} -shared -fPIC -std=c++17 -O2
+        COMMAND ${_Q_SHIM_CXX} ${_Q_SHIM_LINK_OPTS}
+                -shared -fPIC -std=c++17 -O2
                 -I${BUDDY_SOURCE_DIR}/frontend/Interfaces
                 ${src} ${obj1} ${obj2}
-                -L${LLVM_LIBRARY_DIR} -lmlir_c_runner_utils -L${_Q_OMP} -lomp
-                -Wl,-rpath,${LLVM_LIBRARY_DIR} -Wl,-rpath,${_Q_OMP} -o ${out}
+                ${_Q_SHIM_LIBS}
+                -o ${out}
         DEPENDS ${src} ${obj1} ${obj2}
         COMMENT "[${MDL_NAME}] Stage 3: linking ${out}"
         VERBATIM)
@@ -648,24 +750,123 @@ function(buddy_add_model)
       ${_Q_CG}/vision_shim.cpp
       ${_Q_VIS_MLIR}/vision_forward.o
       ${_Q_VIS_COMPUTE_OBJ})
-    _buddy_qwen3vl_shim(
-      ${_Q_DEC}/decoder_shim.so
-      ${_Q_CG}/decoder_shim.cpp
-      ${_Q_DEC_MLIR}/decoder_forward.o
-      ${_Q_DEC_COMPUTE_OBJ})
+
+    if(_Q_KV_DECODE)
+      # Prefill + decode share the subgraph0 symbol; objcopy renames before link.
+      # Output stays decoder_shim.so so stage/rax/runner paths are unchanged.
+      add_custom_command(
+        OUTPUT ${_Q_DEC}/decoder_shim.so
+        COMMAND bash ${_Q_CG}/link_decoder_kv_shim.sh
+                ${_Q_SHIM_CXX}
+                ${BUDDY_SOURCE_DIR}/frontend/Interfaces
+                ${_Q_DEC}
+                ${_Q_CG}/decoder_kv_shim.cpp
+                ${_Q_DEC}/decoder_shim.so
+                --
+                ${_Q_SHIM_LINK_OPTS}
+                ${_Q_SHIM_LIBS}
+        DEPENDS
+          ${_Q_CG}/link_decoder_kv_shim.sh
+          ${_Q_CG}/decoder_kv_shim.cpp
+          ${_Q_DEC}/decoder_prefill_forward.o
+          ${_Q_DEC}/decoder_prefill_subgraph0.o
+          ${_Q_DEC}/decoder_decode_forward.o
+          ${_Q_DEC}/decoder_decode_subgraph0.o
+        COMMENT "[${MDL_NAME}] Stage 3: linking KV decoder_shim.so"
+        VERBATIM)
+      set(_Q_DEC_WEIGHT_DEPS
+        ${_Q_DEC}/decoder_prefill_arg0.data
+        ${_Q_DEC}/decoder_decode_arg0.data)
+    else()
+      _buddy_qwen3vl_shim(
+        ${_Q_DEC}/decoder_shim.so
+        ${_Q_CG}/decoder_shim.cpp
+        ${_Q_DEC_MLIR}/decoder_forward.o
+        ${_Q_DEC_COMPUTE_OBJ})
+      set(_Q_DEC_WEIGHT_DEPS ${_Q_DEC}/decoder_arg0.data)
+    endif()
+
+    if(_Q_CROSS_PLUGINS)
+      # Stamp outputs: the .so may already exist as an x86 host plugin from a
+      # previous configure. CMake would skip the custom command if OUTPUT is
+      # the .so itself.
+      # Do not pass host /usr/include when cross-compiling: it pulls x86
+      # pthread.h ahead of the RISC-V sysroot. Isolate FlatBuffers if needed.
+      set(_Q_FB_INC "${FLATBUFFERS_INCLUDE_DIR}")
+      if(IS_RVV_CROSSCOMPILE AND _Q_FB_INC STREQUAL "/usr/include")
+        set(_Q_FB_WRAP "${BIN}/.cross_includes")
+        file(MAKE_DIRECTORY "${_Q_FB_WRAP}")
+        if(NOT EXISTS "${_Q_FB_WRAP}/flatbuffers")
+          file(CREATE_LINK "${_Q_FB_INC}/flatbuffers" "${_Q_FB_WRAP}/flatbuffers"
+               SYMBOLIC)
+        endif()
+        set(_Q_FB_INC "${_Q_FB_WRAP}")
+      endif()
+      set(_Q_PLUGIN_INCS
+        -I${BUDDY_SOURCE_DIR}/runtime/include
+        -I${CMAKE_BINARY_DIR}/runtime/include
+        -I${_Q_FB_INC}
+        -I${BUDDY_SOURCE_DIR}/thirdparty/include
+        -I${BUDDY_SOURCE_DIR}/frontend/Interfaces
+        -I${BUDDY_BINARY_DIR}/frontend/Interfaces
+        -I${CMAKE_CURRENT_SOURCE_DIR}/include
+        -I${CMAKE_CURRENT_SOURCE_DIR})
+      set(_Q_PLUGIN_DEPS buddy-rax-gen)
+      set(_Q_RUNNER_STAMP "${_Q_RUNNER_SO}.cross-stamp")
+      add_custom_command(
+        OUTPUT ${_Q_RUNNER_STAMP}
+        COMMAND ${_Q_SHIM_CXX} ${_Q_SHIM_LINK_OPTS}
+                -shared -fPIC -std=c++17 -O2
+                ${_Q_PLUGIN_INCS}
+                ${CMAKE_CURRENT_SOURCE_DIR}/${MDL_RUNNER_PLUGIN_SRC}
+                ${CMAKE_CURRENT_SOURCE_DIR}/${MDL_RUNNER_SRC}
+                -ldl -lpthread -latomic
+                -o ${_Q_RUNNER_SO}
+        COMMAND ${CMAKE_COMMAND} -E touch ${_Q_RUNNER_STAMP}
+        DEPENDS
+          ${CMAKE_CURRENT_SOURCE_DIR}/${MDL_RUNNER_PLUGIN_SRC}
+          ${CMAKE_CURRENT_SOURCE_DIR}/${MDL_RUNNER_SRC}
+          ${_Q_PLUGIN_DEPS}
+        COMMENT "[${MDL_NAME}] Stage 3: cross-linking ${_Q_RUNNER_SO}"
+        VERBATIM)
+      add_custom_target(${RUNNER_PLUGIN_TARGET} DEPENDS ${_Q_RUNNER_STAMP})
+      if(MDL_SERVING_PLUGIN_SRC)
+        set(_Q_SERVING_STAMP "${_Q_SERVING_SO}.cross-stamp")
+        add_custom_command(
+          OUTPUT ${_Q_SERVING_STAMP}
+          COMMAND ${_Q_SHIM_CXX} ${_Q_SHIM_LINK_OPTS}
+                  -shared -fPIC -std=c++17 -O2
+                  ${_Q_PLUGIN_INCS}
+                  ${CMAKE_CURRENT_SOURCE_DIR}/${MDL_SERVING_PLUGIN_SRC}
+                  ${CMAKE_CURRENT_SOURCE_DIR}/Qwen3VLResidentModel.cpp
+                  ${CMAKE_CURRENT_SOURCE_DIR}/Qwen3VLRuntime.cpp
+                  -ldl -lpthread -latomic
+                  -o ${_Q_SERVING_SO}
+          COMMAND ${CMAKE_COMMAND} -E touch ${_Q_SERVING_STAMP}
+          DEPENDS
+            ${CMAKE_CURRENT_SOURCE_DIR}/${MDL_SERVING_PLUGIN_SRC}
+            ${CMAKE_CURRENT_SOURCE_DIR}/Qwen3VLResidentModel.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/Qwen3VLRuntime.cpp
+            ${_Q_PLUGIN_DEPS}
+          COMMENT "[${MDL_NAME}] Stage 3: cross-linking ${_Q_SERVING_SO}"
+          VERBATIM)
+        add_custom_target(${SERVING_PLUGIN_TARGET} DEPENDS ${_Q_SERVING_STAMP})
+      endif()
+    endif()
 
     set(MODEL_RAX "${BIN}/${MDL_NAME}.rax")
     add_custom_command(
       OUTPUT ${MODEL_RAX}
       COMMAND ${CMAKE_COMMAND} -E env ${_Q_ENV}
               RAX_PACK=$<TARGET_FILE:rax-pack>
-              QWEN3_VL_RUNNER_SO=$<TARGET_FILE:${RUNNER_PLUGIN_TARGET}>
+              QWEN3_VL_RUNNER_SO=${_Q_RUNNER_SO}
               ${Python3_EXECUTABLE} ${_Q_CODEGEN} stage
       DEPENDS ${_Q_CODEGEN}
               ${_Q_VIS}/vision_shim.so ${_Q_DEC}/decoder_shim.so
-              ${_Q_VIS}/vision_arg0.data ${_Q_DEC}/decoder_arg0.data
+              ${_Q_VIS}/vision_arg0.data ${_Q_DEC_WEIGHT_DEPS}
               ${_Q_DEC}/embed_table.bin ${RUNNER_PLUGIN_TARGET} rax-pack
               ${SERVING_PLUGIN_TARGET}
+              ${MDL_EXTRA_STAGE4_DEPS}
       COMMENT "[${MDL_NAME}] Stage 4: packing ${MDL_NAME}.rax"
       VERBATIM)
 

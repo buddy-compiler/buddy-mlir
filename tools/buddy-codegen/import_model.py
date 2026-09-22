@@ -1418,7 +1418,10 @@ def import_qwen3_vl_model(
         experimental_template_partitioned = export_template_partitioned
 
     module.cmd_import_vision(ImportArgs())
-    module.cmd_import_decoder_rt(ImportArgs())
+    if os.environ.get("QWEN3_VL_KV_DECODE"):
+        module.cmd_import_decoder_kv(ImportArgs())
+    else:
+        module.cmd_import_decoder_rt(ImportArgs())
 
 
 def main():

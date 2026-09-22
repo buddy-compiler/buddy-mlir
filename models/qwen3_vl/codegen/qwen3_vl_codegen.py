@@ -1,9 +1,45 @@
 #!/usr/bin/env python3
+# ===- qwen3_vl_codegen.py - Qwen3-VL import / pack / stage ---------------===//
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# ===----------------------------------------------------------------------===//
+#
+# Codegen entry for the Qwen3-VL multimodal OCR package. Invoked by
+# tools/buddy-codegen/import_model.py (when QWEN3_VL_KV_DECODE is set, the
+# decoder path uses import-decoder-kv) and by CMake stage4 (`stage`).
+#
+# Subcommands:
+#   import-vision      Import the pinned-grid vision encoder to MLIR.
+#   import-decoder-rt  Legacy full-sequence decoder (no KV cache).
+#   import-decoder-kv  Prefill + one-token decode graphs with GQA caches;
+#                      pack decode linear weights for packed GEMV lowering.
+#   preprocess         Emit per-query tensors for the runner (stage helper).
+#   stage              Assemble the runnable package and pack qwen3_vl.rax.
+#
+# Run in the buddy Python environment:
+#   conda activate buddy
+#   export BUDDY_MLIR_BUILD_DIR=$PWD/build
+#   export LLVM_MLIR_BUILD_DIR=$PWD/llvm/build
+#   export PYTHONPATH=${BUDDY_MLIR_BUILD_DIR}/python_packages:${PYTHONPATH}
+#
+# ===----------------------------------------------------------------------===//
 """Qwen3-VL codegen utilities.
 
 Subcommands:
   import-vision      Import the pinned-grid vision encoder to MLIR.
   import-decoder-rt  Import the runtime-position decoder to MLIR.
+  import-decoder-kv  Import prefill/decode graphs with fixed-length KV caches.
   preprocess         Emit per-query tensors for the runner.
   stage              Assemble the runnable package and pack qwen3_vl.rax.
 
@@ -67,8 +103,13 @@ PROCESSOR_EXCLUDE_SUFFIXES = (
 
 
 def rmsnorm(x, w, eps=1e-6):
-    v = x.pow(2).mean(-1, keepdim=True)
-    return w * (x * torch.rsqrt(v + eps))
+    # Match Qwen3VLTextRMSNorm: variance is accumulated in fp32, then
+    # the result is cast back to the activation dtype.
+    input_dtype = x.dtype
+    x32 = x.float()
+    v = x32.pow(2).mean(-1, keepdim=True)
+    y = w.float() * (x32 * torch.rsqrt(v + eps))
+    return y.to(dtype=input_dtype)
 
 
 def rotate_half(x):
@@ -77,7 +118,12 @@ def rotate_half(x):
     return torch.cat((-x2, x1), dim=-1)
 
 
-def load_processor_and_model(dtype=torch.float32, eager_attn=True):
+# Compiled shims and the runner speak raw IEEE fp16. Import, weights, and
+# the bundled positional tables must use the same dtype.
+COMPUTE_DTYPE = torch.float16
+
+
+def load_processor_and_model(dtype=COMPUTE_DTYPE, eager_attn=True):
     from transformers import AutoProcessor, Qwen3VLForConditionalGeneration
 
     if not MODEL_DIR:
@@ -93,6 +139,16 @@ def load_processor_and_model(dtype=torch.float32, eager_attn=True):
         MODEL_DIR, **kwargs
     ).eval()
     return processor, model
+
+
+def write_f16(value, path):
+    if torch.is_tensor(value):
+        array = (
+            value.detach().to(dtype=torch.float16).contiguous().cpu().numpy()
+        )
+    else:
+        array = np.ascontiguousarray(value, dtype=np.float16)
+    array.tofile(path)
 
 
 def load_processor_and_config():
@@ -215,7 +271,7 @@ def text_rotary(config, seq_len, hidden, rope_pos_n):
 
 
 def capture_decoder_golden():
-    processor, model = load_processor_and_model(torch.float32, eager_attn=True)
+    processor, model = load_processor_and_model(COMPUTE_DTYPE, eager_attn=True)
     inputs = encode_image_prompt(processor, TEST_IMAGE, PROMPT)
 
     grab = {}
@@ -277,7 +333,9 @@ class VisionTrace(nn.Module):
         k = k.transpose(0, 1).unsqueeze(0)
         v = v.transpose(0, 1).unsqueeze(0)
         aw = torch.matmul(q, k.transpose(2, 3)) * self.scaling
-        aw = torch.softmax(aw, dim=-1)
+        aw = torch.nn.functional.softmax(aw, dim=-1, dtype=torch.float32).to(
+            q.dtype
+        )
         out = torch.matmul(aw, v).transpose(1, 2).reshape(seq_len, -1)
         return attn.proj(out)
 
@@ -333,7 +391,9 @@ class DecoderTraceRT(nn.Module):
         k = k.repeat_interleave(rep, dim=1)
         v = v.repeat_interleave(rep, dim=1)
         aw = torch.matmul(q, k.transpose(2, 3)) * self.scaling + cmask
-        aw = torch.softmax(aw, dim=-1)
+        aw = torch.nn.functional.softmax(aw, dim=-1, dtype=torch.float32).to(
+            q.dtype
+        )
         o = torch.matmul(aw, v).transpose(1, 2).reshape(batch, seq_len, -1)
         return attn.o_proj(o)
 
@@ -364,12 +424,244 @@ class DecoderTraceRT(nn.Module):
         return h @ self.lm_head_w.t()
 
 
+class DecoderTracePrefillKV(DecoderTraceRT):
+    """Prefill that materializes fixed-length GQA K/V caches (pre-repeat).
+
+    Unlike the legacy full-forward decoder, each attention block returns
+    (output, K, V). After all layers we interleave K/V so the MLIR multi-result
+    ABI is logits + kv0..kv55 (28 layers × 2). Cache tensors keep the native
+    GQA shape [1, n_kv, N, head_dim] before head repeat — decode will
+    repeat_interleave when attending.
+    """
+
+    def _attn_prefill(self, attn, h, cos, sin, cmask):
+        batch, seq_len, _ = h.shape
+        q = rmsnorm(
+            attn.q_proj(h).view(batch, seq_len, self.n_heads, self.head_dim),
+            attn.q_norm.weight,
+            self.eps,
+        ).transpose(1, 2)
+        k = rmsnorm(
+            attn.k_proj(h).view(batch, seq_len, self.n_kv, self.head_dim),
+            attn.k_norm.weight,
+            self.eps,
+        ).transpose(1, 2)
+        v = (
+            attn.v_proj(h)
+            .view(batch, seq_len, self.n_kv, self.head_dim)
+            .transpose(1, 2)
+        )
+        q = q * cos + rotate_half(q) * sin
+        k = k * cos + rotate_half(k) * sin
+        rep = self.n_heads // self.n_kv
+        aw = (
+            torch.matmul(q, k.repeat_interleave(rep, dim=1).transpose(2, 3))
+            * self.scaling
+            + cmask
+        )
+        aw = torch.nn.functional.softmax(aw, dim=-1, dtype=torch.float32).to(
+            q.dtype
+        )
+        o = torch.matmul(aw, v.repeat_interleave(rep, dim=1))
+        o = o.transpose(1, 2).reshape(batch, seq_len, -1)
+        return attn.o_proj(o), k, v
+
+    def forward(self, inputs_embeds, cos, sin, cmask, ds0, ds1, ds2):
+        ds = [ds0, ds1, ds2]
+        c = cos.unsqueeze(0).unsqueeze(0)
+        s = sin.unsqueeze(0).unsqueeze(0)
+        h = inputs_embeds
+        keys = []
+        values = []
+        for i, layer in enumerate(self.layers):
+            residual = h
+            out, k, v = self._attn_prefill(
+                layer.self_attn,
+                rmsnorm(h, layer.input_layernorm.weight, self.eps),
+                c,
+                s,
+                cmask,
+            )
+            h = residual + out
+            residual = h
+            mlp = layer.mlp
+            pn = rmsnorm(h, layer.post_attention_layernorm.weight, self.eps)
+            h = residual + mlp.down_proj(
+                torch.nn.functional.silu(mlp.gate_proj(pn)) * mlp.up_proj(pn)
+            )
+            if i < self.deepstack_layers:
+                h = h + ds[i]
+            keys.append(k.contiguous())
+            values.append(v.contiguous())
+        h = rmsnorm(h, self.norm.weight, self.eps)
+        logits = h @ self.lm_head_w.t()
+        # Interleave K/V per layer so the C ABI matches DeepSeek-style kv0..kv55.
+        kv = []
+        for k, v in zip(keys, values):
+            kv.append(k)
+            kv.append(v)
+        return (logits, *kv)
+
+
+class DecoderTraceDecodeKV(DecoderTraceRT):
+    """One-token decode against the fixed-length K/V caches from prefill.
+
+    Writes the new K/V row into the cache at `pos` (index_copy) and attends
+    over the full padded length N with a [1,1,1,N] causal mask (visible
+    positions 0..pos). Deepstack inputs are zeros for decode steps — image
+    features were already fused during prefill.
+    """
+
+    def _attn_decode(self, attn, h, cos, sin, cmask, k_cache, v_cache, pos):
+        batch, seq_len, _ = h.shape
+        assert seq_len == 1
+        q = rmsnorm(
+            attn.q_proj(h).view(batch, 1, self.n_heads, self.head_dim),
+            attn.q_norm.weight,
+            self.eps,
+        ).transpose(1, 2)
+        k = rmsnorm(
+            attn.k_proj(h).view(batch, 1, self.n_kv, self.head_dim),
+            attn.k_norm.weight,
+            self.eps,
+        ).transpose(1, 2)
+        v = (
+            attn.v_proj(h)
+            .view(batch, 1, self.n_kv, self.head_dim)
+            .transpose(1, 2)
+        )
+        q = q * cos + rotate_half(q) * sin
+        k = k * cos + rotate_half(k) * sin
+        # Static-cache style write: keep rank-4 buffers, update one slot.
+        pos_idx = pos.reshape(-1)
+        k_cache = k_cache.index_copy(2, pos_idx, k)
+        v_cache = v_cache.index_copy(2, pos_idx, v)
+        rep = self.n_heads // self.n_kv
+        k_full = k_cache.repeat_interleave(rep, dim=1)
+        v_full = v_cache.repeat_interleave(rep, dim=1)
+        aw = torch.matmul(q, k_full.transpose(2, 3)) * self.scaling + cmask
+        aw = torch.nn.functional.softmax(aw, dim=-1, dtype=torch.float32).to(
+            q.dtype
+        )
+        o = torch.matmul(aw, v_full).transpose(1, 2).reshape(batch, 1, -1)
+        return attn.o_proj(o), k_cache, v_cache
+
+    def forward(
+        self,
+        inputs_embeds,
+        cos,
+        sin,
+        cmask,
+        ds0,
+        ds1,
+        ds2,
+        cache_position,
+        *past_kv,
+    ):
+        # past_kv: interleaved [k0,v0,k1,v1,...], each [1,n_kv,MAX,hd]
+        ds = [ds0, ds1, ds2]
+        c = cos.unsqueeze(0).unsqueeze(0)
+        s = sin.unsqueeze(0).unsqueeze(0)
+        h = inputs_embeds
+        out_kv = []
+        for i, layer in enumerate(self.layers):
+            k_in = past_kv[2 * i]
+            v_in = past_kv[2 * i + 1]
+            residual = h
+            out, k_out, v_out = self._attn_decode(
+                layer.self_attn,
+                rmsnorm(h, layer.input_layernorm.weight, self.eps),
+                c,
+                s,
+                cmask,
+                k_in,
+                v_in,
+                cache_position,
+            )
+            h = residual + out
+            residual = h
+            mlp = layer.mlp
+            pn = rmsnorm(h, layer.post_attention_layernorm.weight, self.eps)
+            h = residual + mlp.down_proj(
+                torch.nn.functional.silu(mlp.gate_proj(pn)) * mlp.up_proj(pn)
+            )
+            if i < self.deepstack_layers:
+                h = h + ds[i]
+            out_kv.append(k_out.contiguous())
+            out_kv.append(v_out.contiguous())
+        h = rmsnorm(h, self.norm.weight, self.eps)
+        logits = h @ self.lm_head_w.t()
+        return (logits, *out_kv)
+
+
+def pack_decode_linear_weights(graph, params, vecsize=16):
+    """Panel-pack static matmul B weights for decode GEMV; skip activation mats.
+
+    Decode is M=1 (GEMV). The packed layout used by
+    `-matmul-vectorization-decode-packed=vector-size=V` stores B as panels of
+    width V so the kernel can stream contiguous vector loads instead of
+    striding across a huge N (e.g. lm_head N=151936).
+
+    Layout transform on a [K, N] weight (N % vecsize == 0)::
+
+        [K, N] -> reshape [K, N/V, V] -> permute [N/V, K, V] -> reshape [K, N]
+
+    Unlike buddy's all-or-nothing ``pack_decode_matmul_weights``, Qwen3-VL
+    decode also has attention matmuls whose B is a KV *activation* (not a
+    Placeholder param). Those are left unpacked; only Placeholder B operands
+    are rewritten. Returns packed param indices and (K, N) shapes so
+    ``lower_to_obj.sh`` can detect the shapes file and enable the packed pass.
+    """
+    from buddy.compiler.graph.operation import AddMMOp, MatmulOp, PlaceholderOp
+
+    weight_operand = {MatmulOp: 1, AddMMOp: 2}
+    graph._params_ref = params
+    name_to_index = {p.name: i for i, p in enumerate(graph.params)}
+    packed_indices = []
+    packed_shapes = []
+    for node in graph.body:
+        operand = weight_operand.get(type(node))
+        if operand is None or len(node.args) <= operand:
+            continue
+        weight_name = str(node.args[operand])
+        index = name_to_index.get(weight_name)
+        # Skip non-params (activations) and already-packed duplicates.
+        if index is None or not isinstance(
+            graph.node_table.get(weight_name), PlaceholderOp
+        ):
+            continue
+        if index in packed_indices:
+            continue
+        weight = params[index]
+        if weight.dim() != 2:
+            continue
+        k, n = int(weight.shape[0]), int(weight.shape[1])
+        if n % vecsize != 0:
+            raise RuntimeError(
+                f"decode pack: weight '{weight_name}' N={n} not divisible by "
+                f"vecsize={vecsize}"
+            )
+        params[index] = (
+            weight.detach()
+            .reshape(k, n // vecsize, vecsize)
+            .permute(1, 0, 2)
+            .contiguous()
+            .reshape(k, n)
+        )
+        packed_indices.append(index)
+        packed_shapes.append((k, n))
+    return packed_indices, packed_shapes
+
+
 def import_graph(
     module,
     out_dir,
     prefix,
     *example_inputs,
     template_partitioned=False,
+    func_name="forward",
+    fuse_patterns=None,
+    pack_decode_vecsize=None,
 ):
     import numpy
     from buddy.compiler.frontend import DynamoCompiler
@@ -385,14 +677,48 @@ def import_graph(
     dynamo = DynamoCompiler(
         primary_registry=tosa.ops_registry,
         aot_autograd_decomposition=inductor_decomp,
-        func_name="forward",
+        func_name=func_name,
     )
     with torch.no_grad():
         graphs = dynamo.importer(module, *example_inputs)
-    print(f"[import] graphs={len(graphs)}")
+    print(f"[import] graphs={len(graphs)} func={func_name}")
     graph = graphs[0]
     params = dynamo.imported_params[graph]
-    graph.fuse_ops([simply_fuse])
+    patterns = fuse_patterns if fuse_patterns is not None else [simply_fuse]
+
+    packed_shapes = []
+    if pack_decode_vecsize:
+        from buddy.compiler.graph.transform.eliminate_matmul_transpose_reshape import (
+            eliminate_matmul_transpose_reshape,
+        )
+        from buddy.compiler.graph.transform.eliminate_weight_transpose import (
+            eliminate_transpose,
+        )
+
+        # Fold `A @ W.T` style graph edges into a transposed Placeholder so
+        # pack_decode sees a true weight B operand. Doing pack before this
+        # leaves 0 packed weights (B is still a Transpose of a param).
+        # Order matches DeepSeek's decode packing pipeline.
+        graph._params_ref = params
+        eliminate_transpose(graph)
+        eliminate_matmul_transpose_reshape(graph)
+        packed_idx, packed_shapes = pack_decode_linear_weights(
+            graph, params, vecsize=pack_decode_vecsize
+        )
+        shape_str = ",".join(f"{k}x{n}" for k, n in sorted(set(packed_shapes)))
+        print(
+            f"[pack] decode vec={pack_decode_vecsize} "
+            f"weights={len(packed_idx)} shapes={shape_str}"
+        )
+        # lower_to_obj.sh looks for decoder_decode_packed_shapes.txt next to
+        # the decode MLIR and enables -matmul-vectorization-decode-packed.
+        with open(
+            os.path.join(out_dir, f"{prefix}_packed_shapes.txt"), "w"
+        ) as f:
+            f.write(shape_str + "\n")
+            f.write(str(pack_decode_vecsize) + "\n")
+
+    graph.fuse_ops(patterns)
 
     if template_partitioned:
         mlir_dir = os.path.join(out_dir, "layer_partitioned")
@@ -481,9 +807,15 @@ def import_graph(
             "w",
         ) as module_file:
             print(driver.construct_main_graph(True), file=module_file)
-    all_param = numpy.concatenate(
-        [p.detach().numpy().reshape([-1]) for p in params]
-    )
+    flats = []
+    for param in params:
+        tensor = param.detach().cpu().contiguous()
+        if tensor.dtype != torch.float16:
+            raise RuntimeError(
+                f"qwen3_vl import expected float16 weights, got {tensor.dtype}"
+            )
+        flats.append(tensor.numpy().reshape([-1]))
+    all_param = numpy.concatenate(flats)
     all_param.tofile(os.path.join(out_dir, f"{prefix}_arg0.data"))
     return all_param.size
 
@@ -491,9 +823,9 @@ def import_graph(
 def cmd_import_vision(args):
     os.makedirs(VISION_DIR, exist_ok=True)
     torch.set_grad_enabled(False)
-    processor, model = load_processor_and_model(torch.float32, eager_attn=True)
+    processor, model = load_processor_and_model(COMPUTE_DTYPE, eager_attn=True)
     enc = encode_image_prompt(processor, TEST_IMAGE, "ocr")
-    pixel_values = enc["pixel_values"].float()
+    pixel_values = enc["pixel_values"].to(dtype=COMPUTE_DTYPE)
     grid_thw = enc["image_grid_thw"].long()
     print(
         f"[in] pixel_values {tuple(pixel_values.shape)} grid {grid_thw.tolist()}"
@@ -512,13 +844,22 @@ def cmd_import_vision(args):
     rotary = vm.rot_pos_emb(grid_thw)
     emb = torch.cat((rotary, rotary), dim=-1)
     trace = VisionTrace(vm, pos_embeds, emb.cos(), emb.sin()).eval()
+    trace = trace.to(dtype=COMPUTE_DTYPE)
     out = trace(pixel_values)
     pooled, ds = out[0], list(out[1:])
     dp = (pooled - ref_pooled).abs().max().item()
     dd = max((a - b).abs().max().item() for a, b in zip(ds, ref_ds))
-    print(f"[equiv] pooled max|delta|={dp:.3e}  deepstack max|delta|={dd:.3e}")
-    assert dp < 2e-2 and dd < 2e-2, (
-        "trace wrapper diverges from HF vision model"
+    pooled_scale = max(ref_pooled.abs().max().item(), 1e-6)
+    ds_scale = max(max(t.abs().max().item() for t in ref_ds), 1e-6)
+    print(
+        f"[equiv] pooled max|delta|={dp:.3e} ({dp / pooled_scale:.3e} rel)  "
+        f"deepstack max|delta|={dd:.3e} ({dd / ds_scale:.3e} rel)"
+    )
+    # fp16 accumulation through the ViT is looser than the f32 wrapper.
+    # A structural mismatch shows up as a large relative error, not ~1e-2.
+    assert dp / pooled_scale < 5e-2 and dd / ds_scale < 5e-2, (
+        "trace wrapper diverges from HF vision model "
+        f"(pooled {dp:.3e}, deepstack {dd:.3e})"
     )
     print("[equiv] OK: trace-friendly wrapper matches HF vision model")
 
@@ -555,21 +896,36 @@ def make_decoder_inputs(seq_len):
     tail = torch.arange(max_pos + 1, max_pos + 1 + (seq_len - prompt_len))
     tail = tail.view(1, 1, -1).expand(3, 1, seq_len - prompt_len)
     rope_pos_n = torch.cat([rope_pos, tail], dim=2)
-    cos, sin = lm.rotary_emb(torch.zeros(1, seq_len, hidden), rope_pos_n)
+    cos, sin = lm.rotary_emb(
+        torch.zeros(
+            1,
+            seq_len,
+            hidden,
+            dtype=COMPUTE_DTYPE,
+            device=inputs_embeds.device,
+        ),
+        rope_pos_n.to(device=inputs_embeds.device),
+    )
     cos, sin = cos[0], sin[0]
-    cmask = torch.triu(torch.full((seq_len, seq_len), float("-inf")), 1)
+    cmask = torch.triu(
+        torch.full((seq_len, seq_len), float("-inf"), dtype=COMPUTE_DTYPE), 1
+    )
     cmask = cmask.view(1, 1, seq_len, seq_len)
-    padded_embeds = torch.zeros(1, seq_len, hidden)
-    padded_embeds[:, :prompt_len] = inputs_embeds
+    padded_embeds = torch.zeros(1, seq_len, hidden, dtype=COMPUTE_DTYPE)
+    padded_embeds[:, :prompt_len] = inputs_embeds.to(dtype=COMPUTE_DTYPE)
     img_pos = vmask[0].nonzero(as_tuple=True)[0]
     padded_deepstack = []
     for d in deepstack:
-        f = torch.zeros(1, seq_len, hidden)
-        f[0, img_pos] = d.float()
+        f = torch.zeros(1, seq_len, hidden, dtype=COMPUTE_DTYPE)
+        f[0, img_pos] = d.to(dtype=COMPUTE_DTYPE)
         padded_deepstack.append(f)
+    cos = cos.to(dtype=COMPUTE_DTYPE)
+    sin = sin.to(dtype=COMPUTE_DTYPE)
     trace = DecoderTraceRT(
         lm, model.lm_head.weight, deepstack_layers=len(deepstack)
     ).eval()
+    trace = trace.to(dtype=COMPUTE_DTYPE)
+    ref_tok = int(golden["logits"][0, prompt_len - 1].argmax())
     return (
         trace,
         model,
@@ -579,22 +935,26 @@ def make_decoder_inputs(seq_len):
         sin,
         cmask,
         padded_deepstack,
+        ref_tok,
     )
 
 
 def cmd_import_decoder_rt(args):
     os.makedirs(DECODER_DIR, exist_ok=True)
     torch.set_grad_enabled(False)
-    trace, model, prompt_len, inputs_embeds, cos, sin, cmask, ds = (
+    trace, model, prompt_len, inputs_embeds, cos, sin, cmask, ds, ref_tok = (
         make_decoder_inputs(args.seq_len)
     )
     logits = trace(inputs_embeds, cos, sin, cmask, ds[0], ds[1], ds[2])
     tok = int(logits[0, prompt_len - 1].argmax())
-    print(f"[rt] N={args.seq_len} next token at prompt end = {tok} (expect 33)")
-    assert tok == 33
+    print(
+        f"[rt] N={args.seq_len} next token at prompt end = {tok} "
+        f"(hf fp16 {ref_tok})"
+    )
+    assert tok == ref_tok, f"fp16 trace token {tok} != HF fp16 token {ref_tok}"
 
-    model.lm_head.weight.detach().float().numpy().tofile(
-        os.path.join(DECODER_DIR, "embed_table.bin")
+    write_f16(
+        model.lm_head.weight, os.path.join(DECODER_DIR, "embed_table.bin")
     )
     if args.no_import:
         return
@@ -617,6 +977,112 @@ def cmd_import_decoder_rt(args):
     )
     print(
         f"[rt] imported -> {DECODER_DIR}/decoder_forward.mlir weights={weight_count}"
+    )
+
+
+def cmd_import_decoder_kv(args):
+    """Import prefill + decode graphs with fixed-length GQA KV caches.
+
+    Emits under DECODER_DIR (default artifacts/decoder_rt):
+
+      decoder_prefill_{forward,subgraph0}.mlir + decoder_prefill_arg0.data
+      decoder_decode_{forward,subgraph0}.mlir  + decoder_decode_arg0.data
+      decoder_decode_packed_shapes.txt         (triggers packed GEMV lower)
+      embed_table.bin
+
+    Prefill weights stay row-major for BLIS; decode weights are panel-packed
+    (vecsize=16 for +zvl256b f16). CMake links both via link_decoder_kv_shim.sh.
+    """
+    os.makedirs(DECODER_DIR, exist_ok=True)
+    torch.set_grad_enabled(False)
+    _, model, prompt_len, embeds, cos, sin, cmask, ds, ref_tok = (
+        make_decoder_inputs(args.seq_len)
+    )
+    lm = model.model.language_model
+    pre = (
+        DecoderTracePrefillKV(
+            lm, model.lm_head.weight, deepstack_layers=len(ds)
+        )
+        .eval()
+        .to(dtype=COMPUTE_DTYPE)
+    )
+    dec = (
+        DecoderTraceDecodeKV(lm, model.lm_head.weight, deepstack_layers=len(ds))
+        .eval()
+        .to(dtype=COMPUTE_DTYPE)
+    )
+
+    # Correctness gate: prefill next-token must match HF fp16 reference.
+    pre_out = pre(embeds, cos, sin, cmask, ds[0], ds[1], ds[2])
+    pre_logits, *kvs = pre_out
+    tok = int(pre_logits[0, prompt_len - 1].argmax())
+    print(
+        f"[kv] prefill next token = {tok} (hf fp16 {ref_tok}) "
+        f"kv_tensors={len(kvs)} shape={tuple(kvs[0].shape)}"
+    )
+    assert tok == ref_tok, f"prefill token {tok} != HF {ref_tok}"
+    assert len(kvs) == 2 * len(lm.layers)
+
+    # Example shapes for Dynamo import: one decode step at the prompt end.
+    pos = prompt_len
+    N = args.seq_len
+    HID = embeds.shape[-1]
+    emb = model.lm_head.weight[tok].view(1, 1, -1).to(dtype=COMPUTE_DTYPE)
+    cos1 = cos[pos : pos + 1]
+    sin1 = sin[pos : pos + 1]
+    cm1 = torch.full((1, 1, 1, N), float("-inf"), dtype=COMPUTE_DTYPE)
+    cm1[0, 0, 0, : pos + 1] = 0
+    # Distinct zero tensors: Dynamo aliases identical Python objects into one
+    # memref, which collapses three deepstack inputs into a single ABI slot.
+    z0 = torch.zeros(1, 1, HID, dtype=COMPUTE_DTYPE)
+    z1 = torch.zeros(1, 1, HID, dtype=COMPUTE_DTYPE)
+    z2 = torch.zeros(1, 1, HID, dtype=COMPUTE_DTYPE)
+    pos_t = torch.tensor([pos], dtype=torch.int64)
+    dec_out = dec(emb, cos1, sin1, cm1, z0, z1, z2, pos_t, *kvs)
+    print(
+        f"[kv] decode example logits {tuple(dec_out[0].shape)} "
+        f"token={int(dec_out[0][0, 0].argmax())}"
+    )
+
+    write_f16(
+        model.lm_head.weight, os.path.join(DECODER_DIR, "embed_table.bin")
+    )
+    if args.no_import:
+        return
+
+    # Prefill graph: same operand roles as the legacy full decoder (BLIS).
+    w_pre = import_graph(
+        pre,
+        DECODER_DIR,
+        "decoder_prefill",
+        embeds,
+        cos,
+        sin,
+        cmask,
+        ds[0],
+        ds[1],
+        ds[2],
+        func_name="forward_prefill",
+    )
+    # Decode graph: pack linear B weights (attn B = activation → skipped).
+    w_dec = import_graph(
+        dec,
+        DECODER_DIR,
+        "decoder_decode",
+        emb,
+        cos1,
+        sin1,
+        cm1,
+        z0,
+        z1,
+        z2,
+        pos_t,
+        *kvs,
+        func_name="forward_decode",
+        pack_decode_vecsize=16,
+    )
+    print(
+        f"[kv] imported prefill weights={w_pre} decode weights={w_dec} -> {DECODER_DIR}"
     )
 
 
@@ -650,24 +1116,18 @@ def cmd_preprocess(args):
     rope_pos_n = torch.cat([rope_pos, tail], dim=2)
     hidden = config.text_config.hidden_size
     cos, sin = text_rotary(config, MAX_SEQ_LEN, hidden, rope_pos_n)
-    cmask = np.triu(np.full((MAX_SEQ_LEN, MAX_SEQ_LEN), -np.inf, np.float32), 1)
+    cmask = np.triu(np.full((MAX_SEQ_LEN, MAX_SEQ_LEN), -np.inf, np.float16), 1)
     cmask = cmask.reshape(1, 1, MAX_SEQ_LEN, MAX_SEQ_LEN)
     img_pos = (input_ids[0] == IMAGE_TOKEN_ID).nonzero(as_tuple=True)[0].numpy()
 
-    inputs["pixel_values"].float().numpy().astype(np.float32).tofile(
-        os.path.join(out, "pixel_values.bin")
-    )
+    write_f16(inputs["pixel_values"], os.path.join(out, "pixel_values.bin"))
     input_ids[0].numpy().astype(np.int64).tofile(
         os.path.join(out, "input_ids.i64")
     )
     img_pos.astype(np.int64).tofile(os.path.join(out, "img_pos.i64"))
-    cos[0].float().numpy().astype(np.float32).tofile(
-        os.path.join(out, "cos.bin")
-    )
-    sin[0].float().numpy().astype(np.float32).tofile(
-        os.path.join(out, "sin.bin")
-    )
-    cmask.astype(np.float32).tofile(os.path.join(out, "cmask.bin"))
+    write_f16(cos[0], os.path.join(out, "cos.bin"))
+    write_f16(sin[0], os.path.join(out, "sin.bin"))
+    write_f16(cmask, os.path.join(out, "cmask.bin"))
     with open(os.path.join(out, "meta.txt"), "w") as f:
         f.write(
             f"{prompt_len} {MAX_SEQ_LEN} {len(img_pos)} {hidden} "
@@ -748,10 +1208,29 @@ def cmd_stage(args):
         os.path.join(VISION_DIR, "vision_arg0.data"),
         os.path.join(PKG_DIR, "vision_weights.data"),
     )
-    stage_file(
-        os.path.join(DECODER_DIR, "decoder_arg0.data"),
-        os.path.join(PKG_DIR, "decoder_weights.data"),
-    )
+    # KV builds emit separate prefill (row-major) and decode (panel-packed)
+    # weight blobs. Legacy full-forward builds only have decoder_arg0.data.
+    # Prefill weights are staged as decoder_weights.data so existing runner
+    # lookups keep working; packed decode weights become an extra rax resource.
+    prefill_weights = os.path.join(DECODER_DIR, "decoder_prefill_arg0.data")
+    decode_weights = os.path.join(DECODER_DIR, "decoder_decode_arg0.data")
+    legacy_weights = os.path.join(DECODER_DIR, "decoder_arg0.data")
+    if os.path.isfile(prefill_weights):
+        stage_file(
+            prefill_weights, os.path.join(PKG_DIR, "decoder_weights.data")
+        )
+        if not os.path.isfile(decode_weights):
+            raise RuntimeError(
+                "KV import produced decoder_prefill_arg0.data but missing "
+                f"{decode_weights}"
+            )
+        stage_file(
+            decode_weights, os.path.join(PKG_DIR, "decoder_decode_weights.data")
+        )
+    else:
+        stage_file(
+            legacy_weights, os.path.join(PKG_DIR, "decoder_weights.data")
+        )
     stage_file(
         os.path.join(DECODER_DIR, "embed_table.bin"),
         os.path.join(PKG_DIR, "embed_table.bin"),
@@ -810,6 +1289,13 @@ def cmd_stage(args):
         ("cmask", "cmask.bin"),
         ("meta", "meta.txt"),
     ]
+    decode_w_pkg = os.path.join(PKG_DIR, "decoder_decode_weights.data")
+    if os.path.isfile(decode_w_pkg):
+        # Bundle packed decode weights in the rax so the runner finds them via
+        # pkg.file("decoder_decode_weights", ...) without env overrides.
+        resources.insert(
+            2, ("decoder_decode_weights", "decoder_decode_weights.data")
+        )
     serving_attr = (
         ',\n    serving_library = "file:qwen3_vl_serving.so"'
         if serving_so
@@ -828,8 +1314,8 @@ def cmd_stage(args):
                                 backend = "cpu", uri = "file:vision_shim.so"}}
   rhal.codeobj @decoder_kernels {{id = 2 : i32, kind = "host_shared_lib",
                                 backend = "cpu", uri = "file:decoder_shim.so"}}
-  rhal.buffer @pixel  {{space = "host", type = tensor<392x1536xf32>}}
-  rhal.buffer @logits {{space = "host", type = tensor<1x{MAX_SEQ_LEN}x{VOCAB_SIZE}xf32>}}
+  rhal.buffer @pixel  {{space = "host", type = tensor<392x1536xf16>}}
+  rhal.buffer @logits {{space = "host", type = tensor<1x{MAX_SEQ_LEN}x{VOCAB_SIZE}xf16>}}
   rhal.func @forward_vision {{inputs = ["pixel"], outputs = ["logits"],
                       dispatch = "vision_kernels", args = ["pixel", "logits"]}}
   rhal.func @forward_decoder {{inputs = ["pixel"], outputs = ["logits"],
@@ -872,6 +1358,11 @@ def main():
     p.add_argument("--seq-len", type=int, default=MAX_SEQ_LEN)
     p.add_argument("--no-import", action="store_true")
     p.set_defaults(func=cmd_import_decoder_rt)
+
+    p = sub.add_parser("import-decoder-kv")
+    p.add_argument("--seq-len", type=int, default=MAX_SEQ_LEN)
+    p.add_argument("--no-import", action="store_true")
+    p.set_defaults(func=cmd_import_decoder_kv)
 
     p = sub.add_parser("preprocess")
     p.add_argument("image_path")
