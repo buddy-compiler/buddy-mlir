@@ -1,6 +1,6 @@
 {
   "report_version": 2,
-  "generated_at": "2026-09-18T06:53:13.526544+00:00",
+  "generated_at": "2026-09-23T08:41:56.617980+00:00",
   "mode": "static",
   "run_status": "completed",
   "exit_code": 0,
@@ -27,15 +27,15 @@
     }
   },
   "provenance": {
-    "git_revision": "73e3c79381a9244cbfec831d25c99b9a4d1479c4",
+    "git_revision": "7e36bc29faa4e2c4ea3081a83c2b56b5c49f742b",
     "dirty": true,
-    "source_sha256": "eb84220fcc35a46cc45308bb95d989533c860eaf89b1feafddffae1d148e9927",
+    "source_sha256": "e2b36e21164104f63614d16e594d0a789f4a7a89409c3012fe0bdbd7b5263d15",
     "files_sha256": {
-      "frontend/Python/frontend.py": "001a1ec2e47c18bc11d4c393cbe48536780e5ae81d215ae7131e5da1adc48dec",
+      "frontend/Python/frontend.py": "bb68c4b5e04b18a646941a4e7698c246040535630b4fdc69e5e73dbfc45a2208",
       "frontend/Python/graph/__init__.py": "3d2d48a2c14f34b52181bc3b206001d13931d0befd7a3991e76317aec4cd8b5e",
       "frontend/Python/graph/graph.py": "53407486d76d5e2927a56cf0e9cb8374c63130acf7f64faea7816f9e74d023a1",
       "frontend/Python/graph/graph_driver.py": "2e217981f937f390c6e6c85c9fbdf2e504110d4171bf39f8cfb2e445a5c528f6",
-      "frontend/Python/graph/operation.py": "3ce75fd0f4c2d0b2e0aa3b41164916e272e51384b54d09d6e741c59b17ba3641",
+      "frontend/Python/graph/operation.py": "37870b6d4ecd28d0c5b8d04e484b5a24b354f30c81caf5526b655d95618d04bc",
       "frontend/Python/graph/partitioned_graph_driver.py": "224be109626e8c8bea0295aaaeef3c5c6b1b940b472712d3a4642327882c8268",
       "frontend/Python/graph/source_meta.py": "8e62eb26ed277ccc432bfd3827b2c3687b888a782dc486abf5dc643b02f5044e",
       "frontend/Python/graph/structure_analysis.py": "f23befbe165f7ed48ff05cebea0f6b431280605f856467e162af855b97cb04b0",
@@ -60,7 +60,7 @@
       "frontend/Python/graph/type.py": "f00cec5f34697e5ee3e8e1817ac5979c29f5dd942a79ec8329ab6ee5bc10b54a",
       "frontend/Python/ops/__init__.py": "e3cbb6f957b003f0345c355237445a225a98af5d74a950d61fa4007a5de094f0",
       "frontend/Python/ops/func.py": "6246e74f3fa98e318171e8cb76fb195189755ee0484a5d7c5186d923aa32e907",
-      "frontend/Python/ops/linalg.py": "81e2aefca4fc54f5e5d8698f05feaf79740d4a52750d569c998bbe204c635289",
+      "frontend/Python/ops/linalg.py": "9b486ef2084285c14cf7658159817473e48b555571626bb4df129bc9fb2631ce",
       "frontend/Python/ops/math.py": "71b2c037d7706622d31d0b542d908d16f54c8c45fb0bf416f138a6acfe5f2e5a",
       "frontend/Python/ops/tosa.py": "43f617aaba600735ab6cc988003ba1a9295e89f15910dd53e857d08845c0f384",
       "frontend/Python/ops/ttir.py": "c7b640d15cc46641bf9a56330415026146f0153ef846a297e92c3a189cfa8bd5",
@@ -69,10 +69,10 @@
       "frontend/Python/trace/__init__.py": "9d9b31877d2a8c2a2c15e5e923a2b444538f4d134e216f1524a05f254fc4f86b",
       "frontend/Python/trace/config.py": "1417402997c35816e243e3d2322ec81fb14ce8541192666650d7db831a8492d9",
       "scripts/pytorch_op_coverage/classify.py": "707c47c6928eacedd0dd6a598064d8e1f2bc4e1fab92275e7420abf0b0d74e70",
-      "scripts/pytorch_op_coverage/data/target_ops_v1.json": "4d4d372dc10191ab74b6656e7cc278fc96096f88c7dbd7aabc99556903f33c5c",
+      "scripts/pytorch_op_coverage/data/target_ops_v1.json": "af3fbbd05e769fa2519d585bd2d761d242deb15a09a50df5e58bacfba8e7add4",
       "scripts/pytorch_op_coverage/parse_frontend.py": "4ffb93305c0e0bab60f0d146b3dcec89a479ceb172bc9fb39ca29736c576b639",
-      "scripts/pytorch_op_coverage/probes.py": "7d373ec185c0c03bbda9f264907962cb748eb4defdee1b9c62722fea951ec55a",
-      "scripts/pytorch_op_coverage/report.py": "7ae973da6153a0d9aae10c0a7487c6e8213cf5046543cb627a7b41ff3d8fbdcb",
+      "scripts/pytorch_op_coverage/probes.py": "72997ada8a19b460f07cf131e8aea658a74d574b75120abbf6bca504ae59fc43",
+      "scripts/pytorch_op_coverage/report.py": "4b9cf60f40f677514f30154645932e05739ffb5a4e5bec159304e3b59ac761dc",
       "scripts/pytorch_op_coverage/run_coverage.py": "c52c2aaf34963eb85317829ce199a7927388c0fd48103f3c75b459be981003b0",
       "scripts/pytorch_op_coverage/test_coverage.py": "e851f664f9718bfb0a1f3be54cdd40cef288e4b8e19e1273fe32cd8b81ef3239",
       "scripts/pytorch_op_coverage/test_probes.py": "27e36b41003adc020ec2c8cbaf80cfc651e4c3ca42d23b9e16f6b2c868e9149c",
@@ -84,7 +84,7 @@
   },
   "environment": {},
   "profile": {
-    "name": "cpu-export-v1",
+    "name": "cpu-export-v2",
     "cases": {
       "small-f32": {
         "rows": 4,
@@ -111,18 +111,18 @@
   },
   "summary": {
     "total_ops": 106,
-    "frontend_recognized": 95,
-    "registered_lowering": 95,
+    "frontend_recognized": 97,
+    "registered_lowering": 97,
     "alias_candidate": 4,
-    "unmapped": 7,
-    "known_limited": 17,
+    "unmapped": 5,
+    "known_limited": 15,
     "validated_for_profile": 0,
     "percentages": {
-      "frontend_recognized": 89.62,
-      "registered_lowering": 89.62,
+      "frontend_recognized": 91.51,
+      "registered_lowering": 91.51,
       "alias_candidate": 3.77,
-      "unmapped": 6.6,
-      "known_limited": 16.04,
+      "unmapped": 4.72,
+      "known_limited": 14.15,
       "validated_for_profile": 0.0
     },
     "case_counts": {
@@ -140,22 +140,22 @@
       "executed": 0,
       "correctness": 0
     },
-    "required_case_count": 72,
-    "operators_without_cases": 82,
+    "required_case_count": 192,
+    "operators_without_cases": 42,
     "moe_critical": {
       "total_ops": 47,
-      "frontend_recognized": 40,
-      "registered_lowering": 40,
+      "frontend_recognized": 42,
+      "registered_lowering": 42,
       "alias_candidate": 2,
-      "unmapped": 5,
-      "known_limited": 12,
+      "unmapped": 3,
+      "known_limited": 10,
       "validated_for_profile": 0,
       "percentages": {
-        "frontend_recognized": 85.11,
-        "registered_lowering": 85.11,
+        "frontend_recognized": 89.36,
+        "registered_lowering": 89.36,
         "alias_candidate": 4.26,
-        "unmapped": 10.64,
-        "known_limited": 25.53,
+        "unmapped": 6.38,
+        "known_limited": 21.28,
         "validated_for_profile": 0.0
       },
       "case_counts": {
@@ -173,8 +173,8 @@
         "executed": 0,
         "correctness": 0
       },
-      "required_case_count": 69,
-      "operators_without_cases": 24
+      "required_case_count": 93,
+      "operators_without_cases": 16
     }
   },
   "operators": [
@@ -265,7 +265,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -335,7 +339,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -354,7 +362,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -374,7 +386,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -393,7 +409,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -414,7 +434,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -433,7 +457,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -453,7 +481,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -520,7 +552,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -538,7 +574,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -557,7 +597,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -626,7 +670,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -667,7 +715,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -707,7 +759,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -726,7 +782,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -746,7 +806,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -765,7 +829,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -834,7 +902,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -853,7 +925,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -873,7 +949,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -892,7 +972,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -912,7 +996,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -931,7 +1019,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -951,7 +1043,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -1013,7 +1109,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -1032,7 +1132,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -1290,7 +1394,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -1308,7 +1416,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -1327,7 +1439,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -1346,7 +1462,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -1365,7 +1485,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -1383,7 +1507,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -1401,7 +1529,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -1419,7 +1551,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -1437,7 +1573,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -1455,7 +1595,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -1473,7 +1617,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -1689,7 +1837,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -1707,7 +1859,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -1754,12 +1910,14 @@
         "moe_critical"
       ],
       "pytorch_schema": "aten::index_add(Tensor self, int dim, Tensor index, Tensor source, *, Scalar alpha=1) -> Tensor",
-      "buddy_op": null,
-      "frontend_recognized": false,
-      "lowering_dialects": [],
+      "buddy_op": "IndexAddOp",
+      "frontend_recognized": true,
+      "lowering_dialects": [
+        "linalg"
+      ],
       "alias_candidates": [],
-      "static_status": "unmapped",
-      "known_limitations": "The cpu-export-v1 cases fail during Buddy import with KeyError: index_add.default.",
+      "static_status": "registered_lowering",
+      "known_limitations": null,
       "required_cases": [
         "small-f32",
         "rect-f32",
@@ -1774,12 +1932,14 @@
         "moe_critical"
       ],
       "pytorch_schema": "aten::index_copy(Tensor self, int dim, Tensor index, Tensor source) -> Tensor",
-      "buddy_op": null,
-      "frontend_recognized": false,
-      "lowering_dialects": [],
+      "buddy_op": "IndexCopyOp",
+      "frontend_recognized": true,
+      "lowering_dialects": [
+        "linalg"
+      ],
       "alias_candidates": [],
-      "static_status": "unmapped",
-      "known_limitations": "The cpu-export-v1 cases fail during Buddy import with KeyError: index_copy.default.",
+      "static_status": "registered_lowering",
+      "known_limitations": null,
       "required_cases": [
         "small-f32",
         "rect-f32",
@@ -2004,7 +2164,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },

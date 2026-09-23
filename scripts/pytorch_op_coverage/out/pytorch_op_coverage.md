@@ -1,11 +1,11 @@
 # PyTorch operator coverage
 
 - Mode: **static**; run: **completed**; exit: **0**
-- Generated (UTC): `2026-09-18T06:53:13.526544+00:00`
+- Generated (UTC): `2026-09-23T08:41:56.617980+00:00`
 - Target: **Buddy Target Op Set v1** / `1.0.0`; **106** unique operators
-- Source: `73e3c79381a9244cbfec831d25c99b9a4d1479c4`; dirty: `True`
-- Source SHA-256: `eb84220fcc35a46cc45308bb95d989533c860eaf89b1feafddffae1d148e9927`
-- Profile: `cpu-export-v1`; seed 0; rtol 1e-4; atol 1e-5; external calls disabled
+- Source: `7e36bc29faa4e2c4ea3081a83c2b56b5c49f742b`; dirty: `True`
+- Source SHA-256: `e2b36e21164104f63614d16e594d0a789f4a7a89409c3012fe0bdbd7b5263d15`
+- Profile: `cpu-export-v2`; seed 0; rtol 1e-4; atol 1e-5; external calls disabled
 
 > Registration and export are not compile/correctness evidence. Untested, skipped, failed and limited operators stay in the denominator.
 
@@ -17,18 +17,18 @@ Python: `3.13.13`; measured torch: `not loaded`; schema snapshot torch: `2.10.0+
 
 | Evidence | Count | % of fixed denominator |
 | --- | ---: | ---: |
-| frontend_recognized | 95 | 89.62% |
-| registered_lowering | 95 | 89.62% |
+| frontend_recognized | 97 | 91.51% |
+| registered_lowering | 97 | 91.51% |
 | alias_candidate | 4 | 3.77% |
-| unmapped | 7 | 6.6% |
-| known_limited | 17 | 16.04% |
+| unmapped | 5 | 4.72% |
+| known_limited | 15 | 14.15% |
 | validated_for_profile | 0 | 0.0% |
 
 Live validation: **not measured**. Confirmed end-to-end numerator: **0**.
-Operators without an input contract: **82**.
+Operators without an input contract: **42**.
 A completed run is not the 90% gate; use `--mode live --min-coverage 90` for that gate.
 
-MoE: **0/47** validated for profile (0.0%); **12** known limited.
+MoE: **0/47** validated for profile (0.0%); **10** known limited.
 
 ## Execution evidence
 
@@ -50,44 +50,44 @@ Case outcomes: `{"blocked": 0, "failed": 0, "passed": 0, "skipped": 0, "timeout"
 | `aten::mm.default` | registered_lowering | 3/0 | False |  |
 | `aten::bmm.default` | registered_lowering | 3/0 | False |  |
 | `aten::addmm.default` | registered_lowering | 3/0 | False |  |
-| `aten::baddbmm.default` | registered_lowering | 0/0 | False |  |
+| `aten::baddbmm.default` | registered_lowering | 3/0 | False |  |
 | `aten::add.Tensor` | registered_lowering | 3/0 | False |  |
 | `aten::mul.Tensor` | registered_lowering | 3/0 | False |  |
-| `aten::div.Tensor` | registered_lowering | 0/0 | False |  |
-| `aten::sub.Tensor` | registered_lowering | 0/0 | False |  |
-| `aten::neg.default` | registered_lowering | 0/0 | False |  |
-| `aten::pow.Tensor_Scalar` | registered_lowering | 0/0 | False |  |
-| `aten::rsqrt.default` | registered_lowering | 0/0 | False |  |
-| `aten::sqrt.default` | registered_lowering | 0/0 | False |  |
-| `aten::exp.default` | registered_lowering | 0/0 | False |  |
+| `aten::div.Tensor` | registered_lowering | 3/0 | False |  |
+| `aten::sub.Tensor` | registered_lowering | 3/0 | False |  |
+| `aten::neg.default` | registered_lowering | 3/0 | False |  |
+| `aten::pow.Tensor_Scalar` | registered_lowering | 3/0 | False |  |
+| `aten::rsqrt.default` | registered_lowering | 3/0 | False |  |
+| `aten::sqrt.default` | registered_lowering | 3/0 | False |  |
+| `aten::exp.default` | registered_lowering | 3/0 | False |  |
 | `aten::silu.default` | registered_lowering | 3/0 | False |  |
 | `aten::gelu.default` | registered_lowering | 3/0 | False |  |
-| `aten::relu.default` | registered_lowering | 0/0 | False |  |
-| `aten::sigmoid.default` | registered_lowering | 0/0 | False |  |
-| `aten::tanh.default` | registered_lowering | 0/0 | False |  |
+| `aten::relu.default` | registered_lowering | 3/0 | False |  |
+| `aten::sigmoid.default` | registered_lowering | 3/0 | False |  |
+| `aten::tanh.default` | registered_lowering | 3/0 | False |  |
 | `aten::_softmax.default` | registered_lowering | 3/0 | False |  |
 | `aten::native_layer_norm.default` | registered_lowering | 3/0 | False |  |
-| `aten::mean.dim` | registered_lowering | 0/0 | False |  |
+| `aten::mean.dim` | registered_lowering | 3/0 | False |  |
 | `aten::sum.dim_IntList` | registered_lowering | 3/0 | False |  |
-| `aten::amax.default` | registered_lowering | 0/0 | False |  |
+| `aten::amax.default` | registered_lowering | 3/0 | False |  |
 | `aten::embedding.default` | registered_lowering | 0/0 | False |  |
-| `aten::cat.default` | registered_lowering | 0/0 | False |  |
-| `aten::stack.default` | registered_lowering | 0/0 | False |  |
-| `aten::slice.Tensor` | registered_lowering | 0/0 | False |  |
-| `aten::select.int` | registered_lowering | 0/0 | False |  |
+| `aten::cat.default` | registered_lowering | 3/0 | False |  |
+| `aten::stack.default` | registered_lowering | 3/0 | False |  |
+| `aten::slice.Tensor` | registered_lowering | 3/0 | False |  |
+| `aten::select.int` | registered_lowering | 3/0 | False |  |
 | `aten::view.default` | registered_lowering | 3/0 | False |  |
 | `aten::reshape.default` | alias_candidate | 3/0 | False | Configured contiguous cases pass through AOT ViewOp. Non-contiguous reshape semantics remain untested. |
-| `aten::transpose.int` | registered_lowering | 0/0 | False |  |
-| `aten::permute.default` | registered_lowering | 0/0 | False |  |
-| `aten::unsqueeze.default` | registered_lowering | 0/0 | False |  |
-| `aten::squeeze.dim` | registered_lowering | 0/0 | False |  |
-| `aten::expand.default` | registered_lowering | 0/0 | False |  |
-| `aten::repeat.default` | registered_lowering | 0/0 | False |  |
-| `aten::clone.default` | registered_lowering | 0/0 | False |  |
+| `aten::transpose.int` | registered_lowering | 3/0 | False |  |
+| `aten::permute.default` | registered_lowering | 3/0 | False |  |
+| `aten::unsqueeze.default` | registered_lowering | 3/0 | False |  |
+| `aten::squeeze.dim` | registered_lowering | 3/0 | False |  |
+| `aten::expand.default` | registered_lowering | 3/0 | False |  |
+| `aten::repeat.default` | registered_lowering | 3/0 | False |  |
+| `aten::clone.default` | registered_lowering | 3/0 | False |  |
 | `aten::_to_copy.default` | registered_lowering | 0/0 | False |  |
 | `prims::convert_element_type.default` | registered_lowering | 3/0 | False |  |
-| `aten::where.self` | registered_lowering | 0/0 | False |  |
-| `aten::masked_fill.Scalar` | registered_lowering | 0/0 | False |  |
+| `aten::where.self` | registered_lowering | 3/0 | False |  |
+| `aten::masked_fill.Scalar` | registered_lowering | 3/0 | False |  |
 | `aten::arange.start` | registered_lowering | 0/0 | False |  |
 | `aten::arange.start_step` | registered_lowering | 0/0 | False |  |
 | `aten::ones.default` | registered_lowering | 0/0 | False |  |
@@ -100,17 +100,17 @@ Case outcomes: `{"blocked": 0, "failed": 0, "passed": 0, "skipped": 0, "timeout"
 | `aten::gather.default` | registered_lowering | 3/0 | False |  |
 | `aten::scatter_add.default` | registered_lowering | 3/0 | False |  |
 | `aten::slice_scatter.default` | registered_lowering | 0/0 | False |  |
-| `aten::cumsum.default` | registered_lowering | 0/0 | False |  |
-| `aten::eq.Scalar` | registered_lowering | 0/0 | False |  |
-| `aten::eq.Tensor` | registered_lowering | 0/0 | False |  |
-| `aten::ne.Scalar` | registered_lowering | 0/0 | False |  |
-| `aten::gt.Scalar` | registered_lowering | 0/0 | False |  |
-| `aten::lt.Scalar` | registered_lowering | 0/0 | False |  |
-| `aten::le.Scalar` | registered_lowering | 0/0 | False |  |
-| `aten::ge.Scalar` | registered_lowering | 0/0 | False |  |
-| `aten::maximum.default` | registered_lowering | 0/0 | False |  |
-| `aten::minimum.default` | registered_lowering | 0/0 | False |  |
-| `aten::clamp.default` | registered_lowering | 0/0 | False |  |
+| `aten::cumsum.default` | registered_lowering | 3/0 | False |  |
+| `aten::eq.Scalar` | registered_lowering | 3/0 | False |  |
+| `aten::eq.Tensor` | registered_lowering | 3/0 | False |  |
+| `aten::ne.Scalar` | registered_lowering | 3/0 | False |  |
+| `aten::gt.Scalar` | registered_lowering | 3/0 | False |  |
+| `aten::lt.Scalar` | registered_lowering | 3/0 | False |  |
+| `aten::le.Scalar` | registered_lowering | 3/0 | False |  |
+| `aten::ge.Scalar` | registered_lowering | 3/0 | False |  |
+| `aten::maximum.default` | registered_lowering | 3/0 | False |  |
+| `aten::minimum.default` | registered_lowering | 3/0 | False |  |
+| `aten::clamp.default` | registered_lowering | 3/0 | False |  |
 | `aten::split.Tensor` | registered_lowering | 0/0 | False |  |
 | `aten::split_with_sizes.default` | registered_lowering | 0/0 | False |  |
 | `aten::unbind.int` | registered_lowering | 0/0 | False |  |
@@ -121,12 +121,12 @@ Case outcomes: `{"blocked": 0, "failed": 0, "passed": 0, "skipped": 0, "timeout"
 | `aten::softmax.int` | alias_candidate | 3/0 | False | Configured last-dimension cases pass through AOT SoftmaxOp. Other dimensions and optional output dtype remain untested. |
 | `aten::argsort.default` | unmapped | 3/0 | False | Configured default-attribute cases pass through AOT SortOp. Other dimensions, descending order and non-contiguous inputs remain untested. |
 | `aten::sort.default` | registered_lowering | 3/0 | False |  |
-| `aten::argmax.default` | registered_lowering | 0/0 | False |  |
-| `aten::argmin.default` | registered_lowering | 0/0 | False |  |
+| `aten::argmax.default` | registered_lowering | 3/0 | False |  |
+| `aten::argmin.default` | registered_lowering | 3/0 | False |  |
 | `aten::_unsafe_index.Tensor` | registered_lowering | 0/0 | False |  |
 | `aten::index_put.default` | registered_lowering | 0/0 | False | Review pending: Accumulate / advanced indexing may be partial. |
-| `aten::index_add.default` | unmapped | 3/0 | False | The cpu-export-v1 cases fail during Buddy import with KeyError: index_add.default. |
-| `aten::index_copy.default` | unmapped | 3/0 | False | The cpu-export-v1 cases fail during Buddy import with KeyError: index_copy.default. |
+| `aten::index_add.default` | registered_lowering | 3/0 | False |  |
+| `aten::index_copy.default` | registered_lowering | 3/0 | False |  |
 | `aten::scatter.src` | registered_lowering | 0/0 | False |  |
 | `aten::scatter.value` | registered_lowering | 0/0 | False |  |
 | `aten::scatter.reduce` | registered_lowering | 0/0 | False | Review pending: Reduce mode / dtype coverage may be partial. |
@@ -138,7 +138,7 @@ Case outcomes: `{"blocked": 0, "failed": 0, "passed": 0, "skipped": 0, "timeout"
 | `aten::nonzero_static.default` | registered_lowering | 0/0 | False |  |
 | `aten::one_hot.default` | unmapped | 3/0 | False | Configured explicit-num_classes=4 cases pass through AOT decomposition after the bool-to-integer copy fix. Inferred class counts, empty inputs and invalid indices remain untested. |
 | `aten::bincount.default` | unmapped | 3/0 | False | The cpu-export-v1 cases fail during AOT import with DynamicOutputShapeException; minlength does not fix the data-dependent output extent. |
-| `aten::cumprod.default` | registered_lowering | 0/0 | False |  |
+| `aten::cumprod.default` | registered_lowering | 3/0 | False |  |
 | `aten::repeat_interleave.self_int` | registered_lowering | 0/0 | False |  |
 | `aten::repeat_interleave.Tensor` | registered_lowering | 0/0 | False |  |
 | `aten::convolution.default` | registered_lowering | 0/0 | False |  |

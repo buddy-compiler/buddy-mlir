@@ -408,6 +408,8 @@ class DynamoCompiler:
             "le.Scalar": LeScalarOp,
             "lt.Scalar": LtScalarOp,
             "index_select.default": IndexSelectOp,
+            "index_add.default": IndexAddOp,
+            "index_copy.default": IndexCopyOp,
             "scatter_add.default": ScatterAddOp,
             "arange.start_step": ArangeStartStepOp,
             "min.dim": MinDimOp,

@@ -59,7 +59,8 @@ all execution stages**, with no retained limitation/review flag. Failed,
 skipped, untested and limited operators remain in the denominator. Evidence
 categories overlap; their counts should not be added together.
 
-The `cpu-export-v1` profile configures 24 operators with three cases each:
+The `cpu-export-v2` profile configures 64 operators with three cases each
+(192 required cases, up from 72 in `cpu-export-v1`):
 two small float32 shapes and one float64 shape; integer-only operators retain
 integer inputs. Seed is 0. Floating outputs use rtol `1e-4` and atol `1e-5`;
 integer/bool outputs require exact equality. Output arity, order and dtype
@@ -97,7 +98,8 @@ Its native binaries come from the official
 [Buddy nightly v0.0.10.dev20260917](https://github.com/buddy-compiler/buddy-mlir/releases/tag/nightly/v0.0.10.dev20260917),
 at Buddy revision `669977354e8e47dc3d084e40c9317ef4dfccbaa7` and LLVM revision
 `2d26d272a0ff74b8c81eac0607b07f98b82ecc46`. The installed Python frontend includes
-the boolean-to-integer `_to_copy` fix and direct CPU GELU/layer-norm lowering;
+the boolean-to-integer `_to_copy` fix, direct CPU GELU/layer-norm lowering,
+and index-add/index-copy lowering;
 its sources are checked against this
 checkout. This is a prebuilt-runtime measurement, not a clean native rebuild.
 
@@ -120,9 +122,17 @@ output, mean and reciprocal standard deviation, including optional affine
 inputs and non-default epsilon. These direct lowerings support f32/f64;
 layer norm currently requires positive static shapes.
 
+`tests/Python/JIT/index_updates.py` checks index-add and index-copy across
+dimensions, empty indices and integer/floating data, including repeated-index
+accumulation, non-default alpha and unchanged inputs. These lowerings support
+static, non-scalar f32/f64/i32/i64 tensors with a one-dimensional integer index.
+Four subprocess checks verify that negative and out-of-range indices abort
+through a runtime assertion before destination memory access.
+They use sequential updates for correctness; no performance claim is made.
+
 The static/trace reports establish source/export evidence only. The live report
 adds CPU JIT results, including failures; inspect its environment and source hash
-before comparing runs. Input contracts for the remaining 82 operators are pending.
+before comparing runs. Input contracts for the remaining 42 operators are pending.
 For a 90% gate on this 106-entry set, at least **96 operators** must qualify;
 review flags must be resolved with evidence, not removed to raise the score.
 Passing that numerical gate is only part of issue #911 acceptance: representative

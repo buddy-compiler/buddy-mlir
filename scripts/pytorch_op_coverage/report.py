@@ -78,7 +78,7 @@ def build_report_payload(
         "provenance": provenance,
         "environment": environment,
         "profile": {
-            "name": "cpu-export-v1",
+            "name": "cpu-export-v2",
             "cases": PROFILES,
             "seed": 0,
             "rtol": 1e-4,

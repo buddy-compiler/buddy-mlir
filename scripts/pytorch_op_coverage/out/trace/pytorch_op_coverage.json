@@ -1,6 +1,6 @@
 {
   "report_version": 2,
-  "generated_at": "2026-09-18T00:55:31.384759+00:00",
+  "generated_at": "2026-09-23T08:53:08.243994+00:00",
   "mode": "trace",
   "run_status": "completed",
   "exit_code": 0,
@@ -27,15 +27,15 @@
     }
   },
   "provenance": {
-    "git_revision": "b9228a22ad1ef117d2179a6c620a6648d719ad54",
+    "git_revision": "7e36bc29faa4e2c4ea3081a83c2b56b5c49f742b",
     "dirty": true,
-    "source_sha256": "5084f96092069ea57633346098817118d7063154af653e746b9eed285d0fc767",
+    "source_sha256": "e2b36e21164104f63614d16e594d0a789f4a7a89409c3012fe0bdbd7b5263d15",
     "files_sha256": {
-      "frontend/Python/frontend.py": "001a1ec2e47c18bc11d4c393cbe48536780e5ae81d215ae7131e5da1adc48dec",
+      "frontend/Python/frontend.py": "bb68c4b5e04b18a646941a4e7698c246040535630b4fdc69e5e73dbfc45a2208",
       "frontend/Python/graph/__init__.py": "3d2d48a2c14f34b52181bc3b206001d13931d0befd7a3991e76317aec4cd8b5e",
       "frontend/Python/graph/graph.py": "53407486d76d5e2927a56cf0e9cb8374c63130acf7f64faea7816f9e74d023a1",
       "frontend/Python/graph/graph_driver.py": "2e217981f937f390c6e6c85c9fbdf2e504110d4171bf39f8cfb2e445a5c528f6",
-      "frontend/Python/graph/operation.py": "3ce75fd0f4c2d0b2e0aa3b41164916e272e51384b54d09d6e741c59b17ba3641",
+      "frontend/Python/graph/operation.py": "37870b6d4ecd28d0c5b8d04e484b5a24b354f30c81caf5526b655d95618d04bc",
       "frontend/Python/graph/partitioned_graph_driver.py": "224be109626e8c8bea0295aaaeef3c5c6b1b940b472712d3a4642327882c8268",
       "frontend/Python/graph/source_meta.py": "8e62eb26ed277ccc432bfd3827b2c3687b888a782dc486abf5dc643b02f5044e",
       "frontend/Python/graph/structure_analysis.py": "f23befbe165f7ed48ff05cebea0f6b431280605f856467e162af855b97cb04b0",
@@ -60,32 +60,32 @@
       "frontend/Python/graph/type.py": "f00cec5f34697e5ee3e8e1817ac5979c29f5dd942a79ec8329ab6ee5bc10b54a",
       "frontend/Python/ops/__init__.py": "e3cbb6f957b003f0345c355237445a225a98af5d74a950d61fa4007a5de094f0",
       "frontend/Python/ops/func.py": "6246e74f3fa98e318171e8cb76fb195189755ee0484a5d7c5186d923aa32e907",
-      "frontend/Python/ops/linalg.py": "81e2aefca4fc54f5e5d8698f05feaf79740d4a52750d569c998bbe204c635289",
+      "frontend/Python/ops/linalg.py": "9b486ef2084285c14cf7658159817473e48b555571626bb4df129bc9fb2631ce",
       "frontend/Python/ops/math.py": "71b2c037d7706622d31d0b542d908d16f54c8c45fb0bf416f138a6acfe5f2e5a",
-      "frontend/Python/ops/tosa.py": "ee6d01350220055a9ecd916714a7f97fb46044e40cff92c062f68e691c8ac09f",
+      "frontend/Python/ops/tosa.py": "43f617aaba600735ab6cc988003ba1a9295e89f15910dd53e857d08845c0f384",
       "frontend/Python/ops/ttir.py": "c7b640d15cc46641bf9a56330415026146f0153ef846a297e92c3a189cfa8bd5",
       "frontend/Python/ops/ttir_llm.py": "38c314dff4559742b64e87ef028082e8a41c5f85e3b73d14da5496bf254f6d25",
       "frontend/Python/ops/utils.py": "4174a8d0c1a3252d3b8f7d32603cee848b16aa33221dcdc2d31bead5fd6eb6b1",
       "frontend/Python/trace/__init__.py": "9d9b31877d2a8c2a2c15e5e923a2b444538f4d134e216f1524a05f254fc4f86b",
       "frontend/Python/trace/config.py": "1417402997c35816e243e3d2322ec81fb14ce8541192666650d7db831a8492d9",
       "scripts/pytorch_op_coverage/classify.py": "707c47c6928eacedd0dd6a598064d8e1f2bc4e1fab92275e7420abf0b0d74e70",
-      "scripts/pytorch_op_coverage/data/target_ops_v1.json": "4d4d372dc10191ab74b6656e7cc278fc96096f88c7dbd7aabc99556903f33c5c",
+      "scripts/pytorch_op_coverage/data/target_ops_v1.json": "af3fbbd05e769fa2519d585bd2d761d242deb15a09a50df5e58bacfba8e7add4",
       "scripts/pytorch_op_coverage/parse_frontend.py": "4ffb93305c0e0bab60f0d146b3dcec89a479ceb172bc9fb39ca29736c576b639",
-      "scripts/pytorch_op_coverage/probes.py": "7d373ec185c0c03bbda9f264907962cb748eb4defdee1b9c62722fea951ec55a",
-      "scripts/pytorch_op_coverage/report.py": "7ae973da6153a0d9aae10c0a7487c6e8213cf5046543cb627a7b41ff3d8fbdcb",
+      "scripts/pytorch_op_coverage/probes.py": "72997ada8a19b460f07cf131e8aea658a74d574b75120abbf6bca504ae59fc43",
+      "scripts/pytorch_op_coverage/report.py": "4b9cf60f40f677514f30154645932e05739ffb5a4e5bec159304e3b59ac761dc",
       "scripts/pytorch_op_coverage/run_coverage.py": "c52c2aaf34963eb85317829ce199a7927388c0fd48103f3c75b459be981003b0",
       "scripts/pytorch_op_coverage/test_coverage.py": "e851f664f9718bfb0a1f3be54cdd40cef288e4b8e19e1273fe32cd8b81ef3239",
       "scripts/pytorch_op_coverage/test_probes.py": "27e36b41003adc020ec2c8cbaf80cfc651e4c3ca42d23b9e16f6b2c868e9149c",
       "scripts/pytorch_op_coverage/worker.py": "858486810e0fa0ce832abf6ef63836c5e3640eb3de29eb9cc5d36a1c3ed53b2f",
       "tests/Python/AtenOpsCoverage/aten_coverage_runner.py": "cedb26ca659f25c9c5f487d57a5d36bc8f8cb8926d2d30b7b0cf68696e8acb36"
     },
-    "python": "3.12.3",
+    "python": "3.13.13",
     "changed_during_run": false
   },
   "environment": {
-    "python": "3.12.3",
+    "python": "3.13.13",
     "torch": "2.10.0+cpu",
-    "buddy": true,
+    "buddy": false,
     "schemas": {
       "aten::mm.default": "aten::mm(Tensor self, Tensor mat2) -> Tensor",
       "aten::bmm.default": "aten::bmm(Tensor self, Tensor mat2) -> Tensor",
@@ -196,55 +196,14 @@
     },
     "schema_errors": {},
     "platform": {
-      "system": "Linux",
-      "machine": "x86_64"
+      "system": "Windows",
+      "machine": "AMD64"
     },
-    "buddy_frontend_sha256": "ff68ade902476394fe831a42cc342a7236e3594bcd5e9a04ba23b48d2d2c945e",
-    "buddy_source_sha256": {
-      "__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "frontend.py": "ff68ade902476394fe831a42cc342a7236e3594bcd5e9a04ba23b48d2d2c945e",
-      "graph/__init__.py": "bfed5e8f37f3b5e95cad5e9c34ea95d6c09ce4aa9249200d4a36b278f803e28d",
-      "graph/graph.py": "415483237493f85cc0aed07243548d2c26df6b09d839aa9ea8d47abf5d94528c",
-      "graph/graph_driver.py": "743a8f6b09d5a0a39d6ffbc9da2536a2d91a947c866a0341978bc074cbee9d27",
-      "graph/operation.py": "2acdf6768a1e4de4f701a6b6126bcca5e145920f8a5b7f85cdece5c2d1544ed4",
-      "graph/partitioned_graph_driver.py": "92701323ac3fded8e49f53d710eb52713b7f8780a7b80288b47162081ce5e428",
-      "graph/source_meta.py": "57daf4d1f7613ee9682bb88ca4328500bb2d3d67dc34f97e1101b6bd86245418",
-      "graph/structure_analysis.py": "2d4be3b0b24aa4342d548cd8d2f9a2a35e9e4c1319e24c62738974ae39c08d5f",
-      "graph/transform/__init__.py": "8a724d2391a3e836b9a3b8a2080bb7c32666ed93e11564bc031ba4e05ebc3ebe",
-      "graph/transform/eliminate_matmul_transpose_reshape.py": "e1c73cd56bd7fe7f7a5ff4f3854235e0164a16bbbe0bd8281ca112b44b1526e8",
-      "graph/transform/eliminate_weight_transpose.py": "be7f753f5964a5f309873d9622c1a841a79eb0695b992fe4f29383c75a98777b",
-      "graph/transform/fuse_ops.py": "411cf34eeb6fcfde078e77b11e87551742e40ccf162780155b0054ea110be18f",
-      "graph/transform/onednn_replace.py": "4544f3f790b1ddc28928ae67cc52e28d80e6f7246b8a4b6ffd1750aa8c58920d",
-      "graph/transform/pack_decode_weights.py": "177b7f3c5415d2f6802352c832c08adbbca821937eefde87e8ddbc9b572bb757",
-      "graph/transform/quantization/__init__.py": "44becadbf02fbe7fe695a583fcd64c93159711fdbc4dac87da0a84c3429b9896",
-      "graph/transform/quantization/passes.py": "2f64a51084932a665cdc071f410d9cf04252dcd2ad49e24444ca8e776226f297",
-      "graph/transform/quantization/quantize.py": "04ff8ba58ffee541f6ec6932011279e7860d52ec018022523e853ca1bd0ba533",
-      "graph/transform/quantization/weight_only_channel_wise.py": "309b457c57fed47cdba6b68f8890dd89d2b621a8eefb73a6479bbb98d2a83abb",
-      "graph/transform/rand_replace.py": "e903d2ecc995dad23bca6d4cedac028864758d6233536c42af014eff8fa2758f",
-      "graph/transform/runtime_matmul_replace.py": "814e198e3b5b54d2330fb28c493cce52b2cbfc2a9084b39e8a38dc91f50bf80a",
-      "graph/transform/trace/__init__.py": "bea3cfe11ceeebbd9e9f439112b438cadac656d3e2b9e97a8a12bfb8c56ac42c",
-      "graph/transform/trace/lowering.py": "0e088f2807df3f26e5b6f292ac501148e77898b0205cbc49f415841143979dbd",
-      "graph/transform/trace/passes.py": "86ec78a031565f6af99c66e1e0ca372bc7bedba6257a22e6050a8f9ccec5553d",
-      "graph/transform/useless_op_eliminate.py": "c5a43fee24720607075ac389adfeec7a089450f0dcbaee67b9b4b21c3eecaf1a",
-      "graph/transformer_partition.py": "26e4614188951f975bffe0f2414be53d904abdfa458484b0cdf42ba15853d4ff",
-      "graph/ttir_import.py": "2f33f9f78544baf529c67896cf42ef74605a2c7d6f9b66eb93222dd41b261bad",
-      "graph/type.py": "033ca499c17cfd00ea37db6e4cd6270b1a3c8a7e0e80d21b661fa758b03c4f73",
-      "ops/__init__.py": "534783cd0116ac057bec2490cdc0709cc707d6108711cfe31574500618ae6ea2",
-      "ops/func.py": "6e99b4ecee260fe7f92d2d5058c752ed26b98e52e121efe46f22a7c50cd40d7c",
-      "ops/linalg.py": "1cb09f13b80cad0ee38cdab5e65d10a2d4a77cdfc2e5b6743b83d3be494249e6",
-      "ops/math.py": "a21fb127b89d19f859e83adcfea6988cf189e9e2605294c314694869963b963c",
-      "ops/tosa.py": "892141a8ff9e50fc6e59145f2658246c182c6aed739b4d18cc6651ec9296f29f",
-      "ops/ttir.py": "998fd39193a98eedf9fbd6191c9fa9701bd145a561398697bcb625fff1c9d366",
-      "ops/ttir_llm.py": "045e5c7f0e3cd5ae7c8bde0b41e8f5e16bc14dfa9a6f32040288b21e478954da",
-      "ops/utils.py": "a60d2b7e78674820d650a638bd7753be2a264082b457f3f6b37a4a583a6f0c0a",
-      "trace/__init__.py": "15b286df921778a79a1b40041cf4a6438e4ad21b52fc52c11cffba7cf6163f3a",
-      "trace/config.py": "11eaab61735eb3a0909df92222f1923b1de6a54d7f585b28a919c0d0fa11de23"
-    },
-    "buddy_distribution_version": "0.0.10.dev20260917",
+    "error": "buddy.compiler: ModuleNotFoundError: No module named 'buddy'",
     "worker_returncode": 0
   },
   "profile": {
-    "name": "cpu-export-v1",
+    "name": "cpu-export-v2",
     "cases": {
       "small-f32": {
         "rows": 4,
@@ -271,70 +230,70 @@
   },
   "summary": {
     "total_ops": 106,
-    "frontend_recognized": 95,
-    "registered_lowering": 95,
+    "frontend_recognized": 97,
+    "registered_lowering": 97,
     "alias_candidate": 4,
-    "unmapped": 7,
-    "known_limited": 17,
+    "unmapped": 5,
+    "known_limited": 15,
     "validated_for_profile": 0,
     "percentages": {
-      "frontend_recognized": 89.62,
-      "registered_lowering": 89.62,
+      "frontend_recognized": 91.51,
+      "registered_lowering": 91.51,
       "alias_candidate": 3.77,
-      "unmapped": 6.6,
-      "known_limited": 16.04,
+      "unmapped": 4.72,
+      "known_limited": 14.15,
       "validated_for_profile": 0.0
     },
     "case_counts": {
-      "passed": 72,
+      "passed": 192,
       "failed": 0,
-      "skipped": 82,
+      "skipped": 42,
       "blocked": 0,
       "timeout": 0
     },
     "stage_passed_cases": {
-      "exported": 72,
+      "exported": 192,
       "imported": 0,
       "lowered": 0,
       "compiled": 0,
       "executed": 0,
       "correctness": 0
     },
-    "required_case_count": 72,
-    "operators_without_cases": 82,
+    "required_case_count": 192,
+    "operators_without_cases": 42,
     "moe_critical": {
       "total_ops": 47,
-      "frontend_recognized": 40,
-      "registered_lowering": 40,
+      "frontend_recognized": 42,
+      "registered_lowering": 42,
       "alias_candidate": 2,
-      "unmapped": 5,
-      "known_limited": 12,
+      "unmapped": 3,
+      "known_limited": 10,
       "validated_for_profile": 0,
       "percentages": {
-        "frontend_recognized": 85.11,
-        "registered_lowering": 85.11,
+        "frontend_recognized": 89.36,
+        "registered_lowering": 89.36,
         "alias_candidate": 4.26,
-        "unmapped": 10.64,
-        "known_limited": 25.53,
+        "unmapped": 6.38,
+        "known_limited": 21.28,
         "validated_for_profile": 0.0
       },
       "case_counts": {
-        "passed": 69,
+        "passed": 93,
         "failed": 0,
-        "skipped": 24,
+        "skipped": 16,
         "blocked": 0,
         "timeout": 0
       },
       "stage_passed_cases": {
-        "exported": 69,
+        "exported": 93,
         "imported": 0,
         "lowered": 0,
         "compiled": 0,
         "executed": 0,
         "correctness": 0
       },
-      "required_case_count": 69,
-      "operators_without_cases": 24
+      "required_case_count": 93,
+      "operators_without_cases": 16
     }
   },
   "operators": [
@@ -878,18 +837,197 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [
         {
-          "case_id": "unconfigured",
-          "status": "skipped",
-          "reason": "No explicit input contract yet",
-          "exported": "not_run",
+          "case_id": "small-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
           "imported": "not_run",
           "lowered": "not_run",
           "compiled": "not_run",
           "executed": "not_run",
-          "correctness": "not_run"
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                2,
+                4,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                20,
+                5,
+                1
+              ]
+            },
+            {
+              "shape": [
+                2,
+                4,
+                8
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                32,
+                8,
+                1
+              ]
+            },
+            {
+              "shape": [
+                2,
+                8,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                40,
+                5,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::baddbmm.default": 1
+          },
+          "observed_schemas": {
+            "aten::baddbmm.default": "aten::baddbmm(Tensor self, Tensor batch1, Tensor batch2, *, Scalar beta=1, Scalar alpha=1) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "rect-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                2,
+                3,
+                4
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                12,
+                4,
+                1
+              ]
+            },
+            {
+              "shape": [
+                2,
+                3,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                15,
+                5,
+                1
+              ]
+            },
+            {
+              "shape": [
+                2,
+                5,
+                4
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                20,
+                4,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::baddbmm.default": 1
+          },
+          "observed_schemas": {
+            "aten::baddbmm.default": "aten::baddbmm(Tensor self, Tensor batch1, Tensor batch2, *, Scalar beta=1, Scalar alpha=1) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "small-f64",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                2,
+                4,
+                5
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                20,
+                5,
+                1
+              ]
+            },
+            {
+              "shape": [
+                2,
+                4,
+                8
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                32,
+                8,
+                1
+              ]
+            },
+            {
+              "shape": [
+                2,
+                8,
+                5
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                40,
+                5,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::baddbmm.default": 1
+          },
+          "observed_schemas": {
+            "aten::baddbmm.default": "aten::baddbmm(Tensor self, Tensor batch1, Tensor batch2, *, Scalar beta=1, Scalar alpha=1) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
         }
       ],
       "validated_for_profile": false
@@ -1232,18 +1370,146 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [
         {
-          "case_id": "unconfigured",
-          "status": "skipped",
-          "reason": "No explicit input contract yet",
-          "exported": "not_run",
+          "case_id": "small-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
           "imported": "not_run",
           "lowered": "not_run",
           "compiled": "not_run",
           "executed": "not_run",
-          "correctness": "not_run"
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                8,
+                1
+              ]
+            },
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::div.Tensor": 1
+          },
+          "observed_schemas": {
+            "aten::div.Tensor": "aten::div.Tensor(Tensor self, Tensor other) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "rect-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                3,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                5,
+                1
+              ]
+            },
+            {
+              "shape": [
+                3,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                5,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::div.Tensor": 1
+          },
+          "observed_schemas": {
+            "aten::div.Tensor": "aten::div.Tensor(Tensor self, Tensor other) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "small-f64",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                8,
+                1
+              ]
+            },
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::div.Tensor": 1
+          },
+          "observed_schemas": {
+            "aten::div.Tensor": "aten::div.Tensor(Tensor self, Tensor other) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
         }
       ],
       "validated_for_profile": false
@@ -1263,18 +1529,146 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [
         {
-          "case_id": "unconfigured",
-          "status": "skipped",
-          "reason": "No explicit input contract yet",
-          "exported": "not_run",
+          "case_id": "small-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
           "imported": "not_run",
           "lowered": "not_run",
           "compiled": "not_run",
           "executed": "not_run",
-          "correctness": "not_run"
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                8,
+                1
+              ]
+            },
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::sub.Tensor": 1
+          },
+          "observed_schemas": {
+            "aten::sub.Tensor": "aten::sub.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "rect-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                3,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                5,
+                1
+              ]
+            },
+            {
+              "shape": [
+                3,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                5,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::sub.Tensor": 1
+          },
+          "observed_schemas": {
+            "aten::sub.Tensor": "aten::sub.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "small-f64",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                8,
+                1
+              ]
+            },
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::sub.Tensor": 1
+          },
+          "observed_schemas": {
+            "aten::sub.Tensor": "aten::sub.Tensor(Tensor self, Tensor other, *, Scalar alpha=1) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
         }
       ],
       "validated_for_profile": false
@@ -1295,18 +1689,113 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [
         {
-          "case_id": "unconfigured",
-          "status": "skipped",
-          "reason": "No explicit input contract yet",
-          "exported": "not_run",
+          "case_id": "small-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
           "imported": "not_run",
           "lowered": "not_run",
           "compiled": "not_run",
           "executed": "not_run",
-          "correctness": "not_run"
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::neg.default": 1
+          },
+          "observed_schemas": {
+            "aten::neg.default": "aten::neg(Tensor self) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "rect-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                3,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                5,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::neg.default": 1
+          },
+          "observed_schemas": {
+            "aten::neg.default": "aten::neg(Tensor self) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "small-f64",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::neg.default": 1
+          },
+          "observed_schemas": {
+            "aten::neg.default": "aten::neg(Tensor self) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
         }
       ],
       "validated_for_profile": false
@@ -1326,18 +1815,113 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [
         {
-          "case_id": "unconfigured",
-          "status": "skipped",
-          "reason": "No explicit input contract yet",
-          "exported": "not_run",
+          "case_id": "small-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
           "imported": "not_run",
           "lowered": "not_run",
           "compiled": "not_run",
           "executed": "not_run",
-          "correctness": "not_run"
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::pow.Tensor_Scalar": 1
+          },
+          "observed_schemas": {
+            "aten::pow.Tensor_Scalar": "aten::pow.Tensor_Scalar(Tensor self, Scalar exponent) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "rect-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                3,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                5,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::pow.Tensor_Scalar": 1
+          },
+          "observed_schemas": {
+            "aten::pow.Tensor_Scalar": "aten::pow.Tensor_Scalar(Tensor self, Scalar exponent) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "small-f64",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::pow.Tensor_Scalar": 1
+          },
+          "observed_schemas": {
+            "aten::pow.Tensor_Scalar": "aten::pow.Tensor_Scalar(Tensor self, Scalar exponent) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
         }
       ],
       "validated_for_profile": false
@@ -1359,18 +1943,113 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [
         {
-          "case_id": "unconfigured",
-          "status": "skipped",
-          "reason": "No explicit input contract yet",
-          "exported": "not_run",
+          "case_id": "small-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
           "imported": "not_run",
           "lowered": "not_run",
           "compiled": "not_run",
           "executed": "not_run",
-          "correctness": "not_run"
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::rsqrt.default": 1
+          },
+          "observed_schemas": {
+            "aten::rsqrt.default": "aten::rsqrt(Tensor self) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "rect-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                3,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                5,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::rsqrt.default": 1
+          },
+          "observed_schemas": {
+            "aten::rsqrt.default": "aten::rsqrt(Tensor self) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "small-f64",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::rsqrt.default": 1
+          },
+          "observed_schemas": {
+            "aten::rsqrt.default": "aten::rsqrt(Tensor self) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
         }
       ],
       "validated_for_profile": false
@@ -1390,18 +2069,113 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [
         {
-          "case_id": "unconfigured",
-          "status": "skipped",
-          "reason": "No explicit input contract yet",
-          "exported": "not_run",
+          "case_id": "small-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
           "imported": "not_run",
           "lowered": "not_run",
           "compiled": "not_run",
           "executed": "not_run",
-          "correctness": "not_run"
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::sqrt.default": 1
+          },
+          "observed_schemas": {
+            "aten::sqrt.default": "aten::sqrt(Tensor self) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "rect-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                3,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                5,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::sqrt.default": 1
+          },
+          "observed_schemas": {
+            "aten::sqrt.default": "aten::sqrt(Tensor self) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "small-f64",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::sqrt.default": 1
+          },
+          "observed_schemas": {
+            "aten::sqrt.default": "aten::sqrt(Tensor self) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
         }
       ],
       "validated_for_profile": false
@@ -1422,18 +2196,113 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [
         {
-          "case_id": "unconfigured",
-          "status": "skipped",
-          "reason": "No explicit input contract yet",
-          "exported": "not_run",
+          "case_id": "small-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
           "imported": "not_run",
           "lowered": "not_run",
           "compiled": "not_run",
           "executed": "not_run",
-          "correctness": "not_run"
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::exp.default": 1
+          },
+          "observed_schemas": {
+            "aten::exp.default": "aten::exp(Tensor self) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "rect-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                3,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                5,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::exp.default": 1
+          },
+          "observed_schemas": {
+            "aten::exp.default": "aten::exp(Tensor self) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "small-f64",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::exp.default": 1
+          },
+          "observed_schemas": {
+            "aten::exp.default": "aten::exp(Tensor self) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
         }
       ],
       "validated_for_profile": false
@@ -1575,6 +2444,7 @@
       "buddy_op": "GeluOp",
       "frontend_recognized": true,
       "lowering_dialects": [
+        "tosa",
         "ttir_llm"
       ],
       "alias_candidates": [],
@@ -1706,18 +2576,113 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [
         {
-          "case_id": "unconfigured",
-          "status": "skipped",
-          "reason": "No explicit input contract yet",
-          "exported": "not_run",
+          "case_id": "small-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
           "imported": "not_run",
           "lowered": "not_run",
           "compiled": "not_run",
           "executed": "not_run",
-          "correctness": "not_run"
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::relu.default": 1
+          },
+          "observed_schemas": {
+            "aten::relu.default": "aten::relu(Tensor self) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "rect-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                3,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                5,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::relu.default": 1
+          },
+          "observed_schemas": {
+            "aten::relu.default": "aten::relu(Tensor self) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "small-f64",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::relu.default": 1
+          },
+          "observed_schemas": {
+            "aten::relu.default": "aten::relu(Tensor self) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
         }
       ],
       "validated_for_profile": false
@@ -1736,18 +2701,113 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [
         {
-          "case_id": "unconfigured",
-          "status": "skipped",
-          "reason": "No explicit input contract yet",
-          "exported": "not_run",
+          "case_id": "small-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
           "imported": "not_run",
           "lowered": "not_run",
           "compiled": "not_run",
           "executed": "not_run",
-          "correctness": "not_run"
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::sigmoid.default": 1
+          },
+          "observed_schemas": {
+            "aten::sigmoid.default": "aten::sigmoid(Tensor self) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "rect-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                3,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                5,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::sigmoid.default": 1
+          },
+          "observed_schemas": {
+            "aten::sigmoid.default": "aten::sigmoid(Tensor self) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "small-f64",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::sigmoid.default": 1
+          },
+          "observed_schemas": {
+            "aten::sigmoid.default": "aten::sigmoid(Tensor self) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
         }
       ],
       "validated_for_profile": false
@@ -1767,18 +2827,113 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [
         {
-          "case_id": "unconfigured",
-          "status": "skipped",
-          "reason": "No explicit input contract yet",
-          "exported": "not_run",
+          "case_id": "small-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
           "imported": "not_run",
           "lowered": "not_run",
           "compiled": "not_run",
           "executed": "not_run",
-          "correctness": "not_run"
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::tanh.default": 1
+          },
+          "observed_schemas": {
+            "aten::tanh.default": "aten::tanh(Tensor self) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "rect-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                3,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                5,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::tanh.default": 1
+          },
+          "observed_schemas": {
+            "aten::tanh.default": "aten::tanh(Tensor self) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "small-f64",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::tanh.default": 1
+          },
+          "observed_schemas": {
+            "aten::tanh.default": "aten::tanh(Tensor self) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
         }
       ],
       "validated_for_profile": false
@@ -1920,6 +3075,7 @@
       "buddy_op": "NativeLayerNormOp",
       "frontend_recognized": true,
       "lowering_dialects": [
+        "tosa",
         "ttir_llm"
       ],
       "alias_candidates": [],
@@ -2107,18 +3263,113 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [
         {
-          "case_id": "unconfigured",
-          "status": "skipped",
-          "reason": "No explicit input contract yet",
-          "exported": "not_run",
+          "case_id": "small-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
           "imported": "not_run",
           "lowered": "not_run",
           "compiled": "not_run",
           "executed": "not_run",
-          "correctness": "not_run"
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::mean.dim": 1
+          },
+          "observed_schemas": {
+            "aten::mean.dim": "aten::mean.dim(Tensor self, int[1]? dim, bool keepdim=False, *, ScalarType? dtype=None) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "rect-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                3,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                5,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::mean.dim": 1
+          },
+          "observed_schemas": {
+            "aten::mean.dim": "aten::mean.dim(Tensor self, int[1]? dim, bool keepdim=False, *, ScalarType? dtype=None) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "small-f64",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::mean.dim": 1
+          },
+          "observed_schemas": {
+            "aten::mean.dim": "aten::mean.dim(Tensor self, int[1]? dim, bool keepdim=False, *, ScalarType? dtype=None) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
         }
       ],
       "validated_for_profile": false
@@ -2263,18 +3514,113 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [
         {
-          "case_id": "unconfigured",
-          "status": "skipped",
-          "reason": "No explicit input contract yet",
-          "exported": "not_run",
+          "case_id": "small-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
           "imported": "not_run",
           "lowered": "not_run",
           "compiled": "not_run",
           "executed": "not_run",
-          "correctness": "not_run"
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::amax.default": 1
+          },
+          "observed_schemas": {
+            "aten::amax.default": "aten::amax(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "rect-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                3,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                5,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::amax.default": 1
+          },
+          "observed_schemas": {
+            "aten::amax.default": "aten::amax(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "small-f64",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::amax.default": 1
+          },
+          "observed_schemas": {
+            "aten::amax.default": "aten::amax(Tensor self, int[1] dim=[], bool keepdim=False) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
         }
       ],
       "validated_for_profile": false
@@ -2327,18 +3673,146 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [
         {
-          "case_id": "unconfigured",
-          "status": "skipped",
-          "reason": "No explicit input contract yet",
-          "exported": "not_run",
+          "case_id": "small-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
           "imported": "not_run",
           "lowered": "not_run",
           "compiled": "not_run",
           "executed": "not_run",
-          "correctness": "not_run"
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                8,
+                1
+              ]
+            },
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::cat.default": 1
+          },
+          "observed_schemas": {
+            "aten::cat.default": "aten::cat(Tensor[] tensors, int dim=0) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "rect-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                3,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                5,
+                1
+              ]
+            },
+            {
+              "shape": [
+                3,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                5,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::cat.default": 1
+          },
+          "observed_schemas": {
+            "aten::cat.default": "aten::cat(Tensor[] tensors, int dim=0) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "small-f64",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                8,
+                1
+              ]
+            },
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::cat.default": 1
+          },
+          "observed_schemas": {
+            "aten::cat.default": "aten::cat(Tensor[] tensors, int dim=0) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
         }
       ],
       "validated_for_profile": false
@@ -2358,18 +3832,146 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [
         {
-          "case_id": "unconfigured",
-          "status": "skipped",
-          "reason": "No explicit input contract yet",
-          "exported": "not_run",
+          "case_id": "small-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
           "imported": "not_run",
           "lowered": "not_run",
           "compiled": "not_run",
           "executed": "not_run",
-          "correctness": "not_run"
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                8,
+                1
+              ]
+            },
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::stack.default": 1
+          },
+          "observed_schemas": {
+            "aten::stack.default": "aten::stack(Tensor[] tensors, int dim=0) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "rect-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                3,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                5,
+                1
+              ]
+            },
+            {
+              "shape": [
+                3,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                5,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::stack.default": 1
+          },
+          "observed_schemas": {
+            "aten::stack.default": "aten::stack(Tensor[] tensors, int dim=0) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "small-f64",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                8,
+                1
+              ]
+            },
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::stack.default": 1
+          },
+          "observed_schemas": {
+            "aten::stack.default": "aten::stack(Tensor[] tensors, int dim=0) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
         }
       ],
       "validated_for_profile": false
@@ -2390,18 +3992,113 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [
         {
-          "case_id": "unconfigured",
-          "status": "skipped",
-          "reason": "No explicit input contract yet",
-          "exported": "not_run",
+          "case_id": "small-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
           "imported": "not_run",
           "lowered": "not_run",
           "compiled": "not_run",
           "executed": "not_run",
-          "correctness": "not_run"
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::slice.Tensor": 1
+          },
+          "observed_schemas": {
+            "aten::slice.Tensor": "aten::slice.Tensor(Tensor(a) self, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor(a)"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "rect-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                3,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                5,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::slice.Tensor": 1
+          },
+          "observed_schemas": {
+            "aten::slice.Tensor": "aten::slice.Tensor(Tensor(a) self, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor(a)"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "small-f64",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::slice.Tensor": 1
+          },
+          "observed_schemas": {
+            "aten::slice.Tensor": "aten::slice.Tensor(Tensor(a) self, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor(a)"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
         }
       ],
       "validated_for_profile": false
@@ -2421,18 +4118,113 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [
         {
-          "case_id": "unconfigured",
-          "status": "skipped",
-          "reason": "No explicit input contract yet",
-          "exported": "not_run",
+          "case_id": "small-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
           "imported": "not_run",
           "lowered": "not_run",
           "compiled": "not_run",
           "executed": "not_run",
-          "correctness": "not_run"
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::select.int": 1
+          },
+          "observed_schemas": {
+            "aten::select.int": "aten::select.int(Tensor(a) self, int dim, SymInt index) -> Tensor(a)"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "rect-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                3,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                5,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::select.int": 1
+          },
+          "observed_schemas": {
+            "aten::select.int": "aten::select.int(Tensor(a) self, int dim, SymInt index) -> Tensor(a)"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "small-f64",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::select.int": 1
+          },
+          "observed_schemas": {
+            "aten::select.int": "aten::select.int(Tensor(a) self, int dim, SymInt index) -> Tensor(a)"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
         }
       ],
       "validated_for_profile": false
@@ -2708,18 +4500,113 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [
         {
-          "case_id": "unconfigured",
-          "status": "skipped",
-          "reason": "No explicit input contract yet",
-          "exported": "not_run",
+          "case_id": "small-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
           "imported": "not_run",
           "lowered": "not_run",
           "compiled": "not_run",
           "executed": "not_run",
-          "correctness": "not_run"
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::transpose.int": 1
+          },
+          "observed_schemas": {
+            "aten::transpose.int": "aten::transpose.int(Tensor(a) self, int dim0, int dim1) -> Tensor(a)"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "rect-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                3,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                5,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::transpose.int": 1
+          },
+          "observed_schemas": {
+            "aten::transpose.int": "aten::transpose.int(Tensor(a) self, int dim0, int dim1) -> Tensor(a)"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "small-f64",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::transpose.int": 1
+          },
+          "observed_schemas": {
+            "aten::transpose.int": "aten::transpose.int(Tensor(a) self, int dim0, int dim1) -> Tensor(a)"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
         }
       ],
       "validated_for_profile": false
@@ -2739,18 +4626,113 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [
         {
-          "case_id": "unconfigured",
-          "status": "skipped",
-          "reason": "No explicit input contract yet",
-          "exported": "not_run",
+          "case_id": "small-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
           "imported": "not_run",
           "lowered": "not_run",
           "compiled": "not_run",
           "executed": "not_run",
-          "correctness": "not_run"
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::permute.default": 1
+          },
+          "observed_schemas": {
+            "aten::permute.default": "aten::permute(Tensor(a) self, int[] dims) -> Tensor(a)"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "rect-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                3,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                5,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::permute.default": 1
+          },
+          "observed_schemas": {
+            "aten::permute.default": "aten::permute(Tensor(a) self, int[] dims) -> Tensor(a)"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "small-f64",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::permute.default": 1
+          },
+          "observed_schemas": {
+            "aten::permute.default": "aten::permute(Tensor(a) self, int[] dims) -> Tensor(a)"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
         }
       ],
       "validated_for_profile": false
@@ -2771,18 +4753,113 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [
         {
-          "case_id": "unconfigured",
-          "status": "skipped",
-          "reason": "No explicit input contract yet",
-          "exported": "not_run",
+          "case_id": "small-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
           "imported": "not_run",
           "lowered": "not_run",
           "compiled": "not_run",
           "executed": "not_run",
-          "correctness": "not_run"
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::unsqueeze.default": 1
+          },
+          "observed_schemas": {
+            "aten::unsqueeze.default": "aten::unsqueeze(Tensor(a) self, int dim) -> Tensor(a)"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "rect-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                3,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                5,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::unsqueeze.default": 1
+          },
+          "observed_schemas": {
+            "aten::unsqueeze.default": "aten::unsqueeze(Tensor(a) self, int dim) -> Tensor(a)"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "small-f64",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::unsqueeze.default": 1
+          },
+          "observed_schemas": {
+            "aten::unsqueeze.default": "aten::unsqueeze(Tensor(a) self, int dim) -> Tensor(a)"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
         }
       ],
       "validated_for_profile": false
@@ -2802,18 +4879,119 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [
         {
-          "case_id": "unconfigured",
-          "status": "skipped",
-          "reason": "No explicit input contract yet",
-          "exported": "not_run",
+          "case_id": "small-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
           "imported": "not_run",
           "lowered": "not_run",
           "compiled": "not_run",
           "executed": "not_run",
-          "correctness": "not_run"
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                1,
+                8
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                8,
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::squeeze.dim": 1
+          },
+          "observed_schemas": {
+            "aten::squeeze.dim": "aten::squeeze.dim(Tensor(a) self, int dim) -> Tensor(a)"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "rect-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                3,
+                1,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                5,
+                5,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::squeeze.dim": 1
+          },
+          "observed_schemas": {
+            "aten::squeeze.dim": "aten::squeeze.dim(Tensor(a) self, int dim) -> Tensor(a)"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "small-f64",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                1,
+                8
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                8,
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::squeeze.dim": 1
+          },
+          "observed_schemas": {
+            "aten::squeeze.dim": "aten::squeeze.dim(Tensor(a) self, int dim) -> Tensor(a)"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
         }
       ],
       "validated_for_profile": false
@@ -2834,18 +5012,113 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [
         {
-          "case_id": "unconfigured",
-          "status": "skipped",
-          "reason": "No explicit input contract yet",
-          "exported": "not_run",
+          "case_id": "small-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
           "imported": "not_run",
           "lowered": "not_run",
           "compiled": "not_run",
           "executed": "not_run",
-          "correctness": "not_run"
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                1
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                1,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::expand.default": 1
+          },
+          "observed_schemas": {
+            "aten::expand.default": "aten::expand(Tensor(a) self, SymInt[] size, *, bool implicit=False) -> Tensor(a)"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "rect-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                3,
+                1
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                1,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::expand.default": 1
+          },
+          "observed_schemas": {
+            "aten::expand.default": "aten::expand(Tensor(a) self, SymInt[] size, *, bool implicit=False) -> Tensor(a)"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "small-f64",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                1
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                1,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::expand.default": 1
+          },
+          "observed_schemas": {
+            "aten::expand.default": "aten::expand(Tensor(a) self, SymInt[] size, *, bool implicit=False) -> Tensor(a)"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
         }
       ],
       "validated_for_profile": false
@@ -2865,18 +5138,113 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [
         {
-          "case_id": "unconfigured",
-          "status": "skipped",
-          "reason": "No explicit input contract yet",
-          "exported": "not_run",
+          "case_id": "small-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
           "imported": "not_run",
           "lowered": "not_run",
           "compiled": "not_run",
           "executed": "not_run",
-          "correctness": "not_run"
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::repeat.default": 1
+          },
+          "observed_schemas": {
+            "aten::repeat.default": "aten::repeat(Tensor self, SymInt[] repeats) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "rect-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                3,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                5,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::repeat.default": 1
+          },
+          "observed_schemas": {
+            "aten::repeat.default": "aten::repeat(Tensor self, SymInt[] repeats) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "small-f64",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::repeat.default": 1
+          },
+          "observed_schemas": {
+            "aten::repeat.default": "aten::repeat(Tensor self, SymInt[] repeats) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
         }
       ],
       "validated_for_profile": false
@@ -2897,18 +5265,113 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [
         {
-          "case_id": "unconfigured",
-          "status": "skipped",
-          "reason": "No explicit input contract yet",
-          "exported": "not_run",
+          "case_id": "small-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
           "imported": "not_run",
           "lowered": "not_run",
           "compiled": "not_run",
           "executed": "not_run",
-          "correctness": "not_run"
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::clone.default": 1
+          },
+          "observed_schemas": {
+            "aten::clone.default": "aten::clone(Tensor self, *, MemoryFormat? memory_format=None) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "rect-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                3,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                5,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::clone.default": 1
+          },
+          "observed_schemas": {
+            "aten::clone.default": "aten::clone(Tensor self, *, MemoryFormat? memory_format=None) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "small-f64",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::clone.default": 1
+          },
+          "observed_schemas": {
+            "aten::clone.default": "aten::clone(Tensor self, *, MemoryFormat? memory_format=None) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
         }
       ],
       "validated_for_profile": false
@@ -3086,18 +5549,179 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [
         {
-          "case_id": "unconfigured",
-          "status": "skipped",
-          "reason": "No explicit input contract yet",
-          "exported": "not_run",
+          "case_id": "small-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
           "imported": "not_run",
           "lowered": "not_run",
           "compiled": "not_run",
           "executed": "not_run",
-          "correctness": "not_run"
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.bool",
+              "stride": [
+                8,
+                1
+              ]
+            },
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                8,
+                1
+              ]
+            },
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::where.self": 1
+          },
+          "observed_schemas": {
+            "aten::where.self": "aten::where.self(Tensor condition, Tensor self, Tensor other) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "rect-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                3,
+                5
+              ],
+              "dtype": "torch.bool",
+              "stride": [
+                5,
+                1
+              ]
+            },
+            {
+              "shape": [
+                3,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                5,
+                1
+              ]
+            },
+            {
+              "shape": [
+                3,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                5,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::where.self": 1
+          },
+          "observed_schemas": {
+            "aten::where.self": "aten::where.self(Tensor condition, Tensor self, Tensor other) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "small-f64",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.bool",
+              "stride": [
+                8,
+                1
+              ]
+            },
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                8,
+                1
+              ]
+            },
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::where.self": 1
+          },
+          "observed_schemas": {
+            "aten::where.self": "aten::where.self(Tensor condition, Tensor self, Tensor other) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
         }
       ],
       "validated_for_profile": false
@@ -3117,18 +5741,146 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [
         {
-          "case_id": "unconfigured",
-          "status": "skipped",
-          "reason": "No explicit input contract yet",
-          "exported": "not_run",
+          "case_id": "small-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
           "imported": "not_run",
           "lowered": "not_run",
           "compiled": "not_run",
           "executed": "not_run",
-          "correctness": "not_run"
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                8,
+                1
+              ]
+            },
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.bool",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::masked_fill.Scalar": 1
+          },
+          "observed_schemas": {
+            "aten::masked_fill.Scalar": "aten::masked_fill.Scalar(Tensor self, Tensor mask, Scalar value) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "rect-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                3,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                5,
+                1
+              ]
+            },
+            {
+              "shape": [
+                3,
+                5
+              ],
+              "dtype": "torch.bool",
+              "stride": [
+                5,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::masked_fill.Scalar": 1
+          },
+          "observed_schemas": {
+            "aten::masked_fill.Scalar": "aten::masked_fill.Scalar(Tensor self, Tensor mask, Scalar value) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "small-f64",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                8,
+                1
+              ]
+            },
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.bool",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::masked_fill.Scalar": 1
+          },
+          "observed_schemas": {
+            "aten::masked_fill.Scalar": "aten::masked_fill.Scalar(Tensor self, Tensor mask, Scalar value) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
         }
       ],
       "validated_for_profile": false
@@ -3930,18 +6682,113 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [
         {
-          "case_id": "unconfigured",
-          "status": "skipped",
-          "reason": "No explicit input contract yet",
-          "exported": "not_run",
+          "case_id": "small-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
           "imported": "not_run",
           "lowered": "not_run",
           "compiled": "not_run",
           "executed": "not_run",
-          "correctness": "not_run"
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::cumsum.default": 1
+          },
+          "observed_schemas": {
+            "aten::cumsum.default": "aten::cumsum(Tensor self, int dim, *, ScalarType? dtype=None) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "rect-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                3,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                5,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::cumsum.default": 1
+          },
+          "observed_schemas": {
+            "aten::cumsum.default": "aten::cumsum(Tensor self, int dim, *, ScalarType? dtype=None) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "small-f64",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::cumsum.default": 1
+          },
+          "observed_schemas": {
+            "aten::cumsum.default": "aten::cumsum(Tensor self, int dim, *, ScalarType? dtype=None) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
         }
       ],
       "validated_for_profile": false
@@ -3960,18 +6807,113 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [
         {
-          "case_id": "unconfigured",
-          "status": "skipped",
-          "reason": "No explicit input contract yet",
-          "exported": "not_run",
+          "case_id": "small-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
           "imported": "not_run",
           "lowered": "not_run",
           "compiled": "not_run",
           "executed": "not_run",
-          "correctness": "not_run"
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::eq.Scalar": 1
+          },
+          "observed_schemas": {
+            "aten::eq.Scalar": "aten::eq.Scalar(Tensor self, Scalar other) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "rect-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                3,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                5,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::eq.Scalar": 1
+          },
+          "observed_schemas": {
+            "aten::eq.Scalar": "aten::eq.Scalar(Tensor self, Scalar other) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "small-f64",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::eq.Scalar": 1
+          },
+          "observed_schemas": {
+            "aten::eq.Scalar": "aten::eq.Scalar(Tensor self, Scalar other) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
         }
       ],
       "validated_for_profile": false
@@ -3991,18 +6933,146 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [
         {
-          "case_id": "unconfigured",
-          "status": "skipped",
-          "reason": "No explicit input contract yet",
-          "exported": "not_run",
+          "case_id": "small-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
           "imported": "not_run",
           "lowered": "not_run",
           "compiled": "not_run",
           "executed": "not_run",
-          "correctness": "not_run"
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                8,
+                1
+              ]
+            },
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::eq.Tensor": 1
+          },
+          "observed_schemas": {
+            "aten::eq.Tensor": "aten::eq.Tensor(Tensor self, Tensor other) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "rect-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                3,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                5,
+                1
+              ]
+            },
+            {
+              "shape": [
+                3,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                5,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::eq.Tensor": 1
+          },
+          "observed_schemas": {
+            "aten::eq.Tensor": "aten::eq.Tensor(Tensor self, Tensor other) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "small-f64",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                8,
+                1
+              ]
+            },
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::eq.Tensor": 1
+          },
+          "observed_schemas": {
+            "aten::eq.Tensor": "aten::eq.Tensor(Tensor self, Tensor other) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
         }
       ],
       "validated_for_profile": false
@@ -4022,18 +7092,113 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [
         {
-          "case_id": "unconfigured",
-          "status": "skipped",
-          "reason": "No explicit input contract yet",
-          "exported": "not_run",
+          "case_id": "small-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
           "imported": "not_run",
           "lowered": "not_run",
           "compiled": "not_run",
           "executed": "not_run",
-          "correctness": "not_run"
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::ne.Scalar": 1
+          },
+          "observed_schemas": {
+            "aten::ne.Scalar": "aten::ne.Scalar(Tensor self, Scalar other) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "rect-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                3,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                5,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::ne.Scalar": 1
+          },
+          "observed_schemas": {
+            "aten::ne.Scalar": "aten::ne.Scalar(Tensor self, Scalar other) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "small-f64",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::ne.Scalar": 1
+          },
+          "observed_schemas": {
+            "aten::ne.Scalar": "aten::ne.Scalar(Tensor self, Scalar other) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
         }
       ],
       "validated_for_profile": false
@@ -4053,18 +7218,113 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [
         {
-          "case_id": "unconfigured",
-          "status": "skipped",
-          "reason": "No explicit input contract yet",
-          "exported": "not_run",
+          "case_id": "small-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
           "imported": "not_run",
           "lowered": "not_run",
           "compiled": "not_run",
           "executed": "not_run",
-          "correctness": "not_run"
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::gt.Scalar": 1
+          },
+          "observed_schemas": {
+            "aten::gt.Scalar": "aten::gt.Scalar(Tensor self, Scalar other) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "rect-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                3,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                5,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::gt.Scalar": 1
+          },
+          "observed_schemas": {
+            "aten::gt.Scalar": "aten::gt.Scalar(Tensor self, Scalar other) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "small-f64",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::gt.Scalar": 1
+          },
+          "observed_schemas": {
+            "aten::gt.Scalar": "aten::gt.Scalar(Tensor self, Scalar other) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
         }
       ],
       "validated_for_profile": false
@@ -4083,18 +7343,113 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [
         {
-          "case_id": "unconfigured",
-          "status": "skipped",
-          "reason": "No explicit input contract yet",
-          "exported": "not_run",
+          "case_id": "small-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
           "imported": "not_run",
           "lowered": "not_run",
           "compiled": "not_run",
           "executed": "not_run",
-          "correctness": "not_run"
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::lt.Scalar": 1
+          },
+          "observed_schemas": {
+            "aten::lt.Scalar": "aten::lt.Scalar(Tensor self, Scalar other) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "rect-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                3,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                5,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::lt.Scalar": 1
+          },
+          "observed_schemas": {
+            "aten::lt.Scalar": "aten::lt.Scalar(Tensor self, Scalar other) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "small-f64",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::lt.Scalar": 1
+          },
+          "observed_schemas": {
+            "aten::lt.Scalar": "aten::lt.Scalar(Tensor self, Scalar other) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
         }
       ],
       "validated_for_profile": false
@@ -4113,18 +7468,113 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [
         {
-          "case_id": "unconfigured",
-          "status": "skipped",
-          "reason": "No explicit input contract yet",
-          "exported": "not_run",
+          "case_id": "small-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
           "imported": "not_run",
           "lowered": "not_run",
           "compiled": "not_run",
           "executed": "not_run",
-          "correctness": "not_run"
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::le.Scalar": 1
+          },
+          "observed_schemas": {
+            "aten::le.Scalar": "aten::le.Scalar(Tensor self, Scalar other) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "rect-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                3,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                5,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::le.Scalar": 1
+          },
+          "observed_schemas": {
+            "aten::le.Scalar": "aten::le.Scalar(Tensor self, Scalar other) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "small-f64",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::le.Scalar": 1
+          },
+          "observed_schemas": {
+            "aten::le.Scalar": "aten::le.Scalar(Tensor self, Scalar other) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
         }
       ],
       "validated_for_profile": false
@@ -4143,18 +7593,113 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [
         {
-          "case_id": "unconfigured",
-          "status": "skipped",
-          "reason": "No explicit input contract yet",
-          "exported": "not_run",
+          "case_id": "small-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
           "imported": "not_run",
           "lowered": "not_run",
           "compiled": "not_run",
           "executed": "not_run",
-          "correctness": "not_run"
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::ge.Scalar": 1
+          },
+          "observed_schemas": {
+            "aten::ge.Scalar": "aten::ge.Scalar(Tensor self, Scalar other) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "rect-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                3,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                5,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::ge.Scalar": 1
+          },
+          "observed_schemas": {
+            "aten::ge.Scalar": "aten::ge.Scalar(Tensor self, Scalar other) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "small-f64",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::ge.Scalar": 1
+          },
+          "observed_schemas": {
+            "aten::ge.Scalar": "aten::ge.Scalar(Tensor self, Scalar other) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
         }
       ],
       "validated_for_profile": false
@@ -4173,18 +7718,146 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [
         {
-          "case_id": "unconfigured",
-          "status": "skipped",
-          "reason": "No explicit input contract yet",
-          "exported": "not_run",
+          "case_id": "small-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
           "imported": "not_run",
           "lowered": "not_run",
           "compiled": "not_run",
           "executed": "not_run",
-          "correctness": "not_run"
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                8,
+                1
+              ]
+            },
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::maximum.default": 1
+          },
+          "observed_schemas": {
+            "aten::maximum.default": "aten::maximum(Tensor self, Tensor other) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "rect-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                3,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                5,
+                1
+              ]
+            },
+            {
+              "shape": [
+                3,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                5,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::maximum.default": 1
+          },
+          "observed_schemas": {
+            "aten::maximum.default": "aten::maximum(Tensor self, Tensor other) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "small-f64",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                8,
+                1
+              ]
+            },
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::maximum.default": 1
+          },
+          "observed_schemas": {
+            "aten::maximum.default": "aten::maximum(Tensor self, Tensor other) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
         }
       ],
       "validated_for_profile": false
@@ -4203,18 +7876,146 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [
         {
-          "case_id": "unconfigured",
-          "status": "skipped",
-          "reason": "No explicit input contract yet",
-          "exported": "not_run",
+          "case_id": "small-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
           "imported": "not_run",
           "lowered": "not_run",
           "compiled": "not_run",
           "executed": "not_run",
-          "correctness": "not_run"
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                8,
+                1
+              ]
+            },
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::minimum.default": 1
+          },
+          "observed_schemas": {
+            "aten::minimum.default": "aten::minimum(Tensor self, Tensor other) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "rect-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                3,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                5,
+                1
+              ]
+            },
+            {
+              "shape": [
+                3,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                5,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::minimum.default": 1
+          },
+          "observed_schemas": {
+            "aten::minimum.default": "aten::minimum(Tensor self, Tensor other) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "small-f64",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                8,
+                1
+              ]
+            },
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::minimum.default": 1
+          },
+          "observed_schemas": {
+            "aten::minimum.default": "aten::minimum(Tensor self, Tensor other) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
         }
       ],
       "validated_for_profile": false
@@ -4233,18 +8034,113 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [
         {
-          "case_id": "unconfigured",
-          "status": "skipped",
-          "reason": "No explicit input contract yet",
-          "exported": "not_run",
+          "case_id": "small-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
           "imported": "not_run",
           "lowered": "not_run",
           "compiled": "not_run",
           "executed": "not_run",
-          "correctness": "not_run"
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::clamp.default": 1
+          },
+          "observed_schemas": {
+            "aten::clamp.default": "aten::clamp(Tensor self, Scalar? min=None, Scalar? max=None) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "rect-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                3,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                5,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::clamp.default": 1
+          },
+          "observed_schemas": {
+            "aten::clamp.default": "aten::clamp(Tensor self, Scalar? min=None, Scalar? max=None) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "small-f64",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::clamp.default": 1
+          },
+          "observed_schemas": {
+            "aten::clamp.default": "aten::clamp(Tensor self, Scalar? min=None, Scalar? max=None) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
         }
       ],
       "validated_for_profile": false
@@ -4945,18 +8841,113 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [
         {
-          "case_id": "unconfigured",
-          "status": "skipped",
-          "reason": "No explicit input contract yet",
-          "exported": "not_run",
+          "case_id": "small-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
           "imported": "not_run",
           "lowered": "not_run",
           "compiled": "not_run",
           "executed": "not_run",
-          "correctness": "not_run"
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::argmax.default": 1
+          },
+          "observed_schemas": {
+            "aten::argmax.default": "aten::argmax(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "rect-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                3,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                5,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::argmax.default": 1
+          },
+          "observed_schemas": {
+            "aten::argmax.default": "aten::argmax(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "small-f64",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::argmax.default": 1
+          },
+          "observed_schemas": {
+            "aten::argmax.default": "aten::argmax(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
         }
       ],
       "validated_for_profile": false
@@ -4975,18 +8966,113 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [
         {
-          "case_id": "unconfigured",
-          "status": "skipped",
-          "reason": "No explicit input contract yet",
-          "exported": "not_run",
+          "case_id": "small-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
           "imported": "not_run",
           "lowered": "not_run",
           "compiled": "not_run",
           "executed": "not_run",
-          "correctness": "not_run"
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::argmin.default": 1
+          },
+          "observed_schemas": {
+            "aten::argmin.default": "aten::argmin(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "rect-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                3,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                5,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::argmin.default": 1
+          },
+          "observed_schemas": {
+            "aten::argmin.default": "aten::argmin(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "small-f64",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::argmin.default": 1
+          },
+          "observed_schemas": {
+            "aten::argmin.default": "aten::argmin(Tensor self, int? dim=None, bool keepdim=False) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
         }
       ],
       "validated_for_profile": false
@@ -5058,12 +9144,14 @@
         "moe_critical"
       ],
       "pytorch_schema": "aten::index_add(Tensor self, int dim, Tensor index, Tensor source, *, Scalar alpha=1) -> Tensor",
-      "buddy_op": null,
-      "frontend_recognized": false,
-      "lowering_dialects": [],
+      "buddy_op": "IndexAddOp",
+      "frontend_recognized": true,
+      "lowering_dialects": [
+        "linalg"
+      ],
       "alias_candidates": [],
-      "static_status": "unmapped",
-      "known_limitations": "The cpu-export-v1 cases fail during Buddy import with KeyError: index_add.default.",
+      "static_status": "registered_lowering",
+      "known_limitations": null,
       "required_cases": [
         "small-f32",
         "rect-f32",
@@ -5241,12 +9329,14 @@
         "moe_critical"
       ],
       "pytorch_schema": "aten::index_copy(Tensor self, int dim, Tensor index, Tensor source) -> Tensor",
-      "buddy_op": null,
-      "frontend_recognized": false,
-      "lowering_dialects": [],
+      "buddy_op": "IndexCopyOp",
+      "frontend_recognized": true,
+      "lowering_dialects": [
+        "linalg"
+      ],
       "alias_candidates": [],
-      "static_status": "unmapped",
-      "known_limitations": "The cpu-export-v1 cases fail during Buddy import with KeyError: index_copy.default.",
+      "static_status": "registered_lowering",
+      "known_limitations": null,
       "required_cases": [
         "small-f32",
         "rect-f32",
@@ -5954,18 +10044,113 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [
         {
-          "case_id": "unconfigured",
-          "status": "skipped",
-          "reason": "No explicit input contract yet",
-          "exported": "not_run",
+          "case_id": "small-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
           "imported": "not_run",
           "lowered": "not_run",
           "compiled": "not_run",
           "executed": "not_run",
-          "correctness": "not_run"
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::cumprod.default": 1
+          },
+          "observed_schemas": {
+            "aten::cumprod.default": "aten::cumprod(Tensor self, int dim, *, ScalarType? dtype=None) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "rect-f32",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                3,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                5,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::cumprod.default": 1
+          },
+          "observed_schemas": {
+            "aten::cumprod.default": "aten::cumprod(Tensor self, int dim, *, ScalarType? dtype=None) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
+        },
+        {
+          "case_id": "small-f64",
+          "status": "passed",
+          "reason": "",
+          "exported": "passed",
+          "imported": "not_run",
+          "lowered": "not_run",
+          "compiled": "not_run",
+          "executed": "not_run",
+          "correctness": "not_run",
+          "active_stage": null,
+          "inputs": [
+            {
+              "shape": [
+                4,
+                8
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                8,
+                1
+              ]
+            }
+          ],
+          "observed_ops": {
+            "aten::cumprod.default": 1
+          },
+          "observed_schemas": {
+            "aten::cumprod.default": "aten::cumprod(Tensor self, int dim, *, ScalarType? dtype=None) -> Tensor"
+          },
+          "graph_count": 1,
+          "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
+          "worker_returncode": 0
         }
       ],
       "validated_for_profile": false

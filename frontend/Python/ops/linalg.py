@@ -26,6 +26,7 @@ import numpy
 from buddy_mlir.dialects import (
     arith,
     bufferization,
+    cf,
     linalg,
     math,
     memref,
@@ -7618,6 +7619,111 @@ def scatter_add_op(
     return result
 
 
+def _index_update_op(node, symbol_table, accumulate):
+    """Update slices sequentially, preserving repeated-index accumulation."""
+    destination, index, source = (
+        symbol_table[(str(node.args[i]), 0)] for i in (0, 2, 3)
+    )
+    destination_type = ir.RankedTensorType(destination.type)
+    source_type = ir.RankedTensorType(source.type)
+    index_type = ir.RankedTensorType(index.type)
+    shape, src_shape = list(destination_type.shape), list(source_type.shape)
+    dtype = destination_type.element_type
+    rank = len(shape)
+    dim = node.args[1]
+    if dim < 0:
+        dim += rank
+    if (
+        not rank
+        or not 0 <= dim < rank
+        or len(src_shape) != rank
+        or len(index_type.shape) != 1
+        or any(size < 0 for size in shape + src_shape)
+        or index_type.shape[0] != src_shape[dim]
+        or any(shape[i] != src_shape[i] for i in range(rank) if i != dim)
+    ):
+        raise NotImplementedError(
+            "Index updates require matching static tensor shapes and a vector index"
+        )
+    if (
+        str(dtype) not in ("f32", "f64", "i32", "i64")
+        or source_type.element_type != dtype
+        or str(index_type.element_type) not in ("i32", "i64")
+    ):
+        raise NotImplementedError(
+            "Index updates require f32/f64/i32/i64 data and integer indices"
+        )
+
+    def buffer(value, tensor_type):
+        return bufferization.ToBufferOp(
+            ir.MemRefType.get(
+                list(tensor_type.shape), tensor_type.element_type
+            ),
+            value,
+        ).result
+
+    output = memref.AllocOp(ir.MemRefType.get(shape, dtype), [], []).result
+    linalg.copy(buffer(destination, destination_type), outs=[output])
+    source_buffer = buffer(source, source_type)
+    index_buffer = buffer(index, index_type)
+
+    def index_constant(number):
+        return arith.ConstantOp(ir.IndexType.get(), number).result
+
+    zero, one = index_constant(0), index_constant(1)
+    bounds = [index_constant(size) for size in src_shape]
+    destination_bound = index_constant(shape[dim])
+    floating = str(dtype) in ("f32", "f64")
+    if accumulate:
+        alpha = node.kwargs.get("alpha", 1)
+        attr = (
+            ir.FloatAttr.get(dtype, float(alpha))
+            if floating
+            else ir.IntegerAttr.get(dtype, int(alpha))
+        )
+        scale = arith.ConstantOp(dtype, attr).result
+
+    def loop(depth, indices):
+        if depth < rank:
+            region = scf.ForOp(zero, bounds[depth], one)
+            with ir.InsertionPoint(region.body):
+                loop(depth + 1, indices + [region.induction_variable])
+                scf.YieldOp(region.inner_iter_args)
+            return
+        selected = memref.LoadOp(index_buffer, [indices[dim]]).result
+        selected = arith.IndexCastOp(ir.IndexType.get(), selected).result
+        # Unsigned comparison also rejects negative indices before memory access.
+        in_bounds = arith.CmpIOp(6, selected, destination_bound).result
+        cf.AssertOp(in_bounds, "index update index out of bounds")
+        target_indices = list(indices)
+        target_indices[dim] = selected
+        value = memref.LoadOp(source_buffer, indices).result
+        if accumulate:
+            previous = memref.LoadOp(output, target_indices).result
+            value = (
+                arith.MulFOp(value, scale).result
+                if floating
+                else arith.MulIOp(value, scale).result
+            )
+            value = (
+                arith.AddFOp(previous, value).result
+                if floating
+                else arith.AddIOp(previous, value).result
+            )
+        memref.StoreOp(value, output, target_indices)
+
+    loop(0, [])
+    return bufferization.ToTensorOp(destination_type, output, restrict=True)
+
+
+def index_add_op(node: IndexAddOp, symbol_table):
+    return _index_update_op(node, symbol_table, accumulate=True)
+
+
+def index_copy_op(node: IndexCopyOp, symbol_table):
+    return _index_update_op(node, symbol_table, accumulate=False)
+
+
 def index_select_op(
     node: IndexSelectOp,
     symbol_table: dict[tuple[str, int], ir.Operation],
@@ -13005,6 +13111,8 @@ ops_registry = {
     "ScatterValueOp": scatter_value_op,
     "ScatterReduceOp": scatter_reduce_op,
     "IndexSelectOp": index_select_op,
+    "IndexAddOp": index_add_op,
+    "IndexCopyOp": index_copy_op,
     "GatherOp": gather_op,
     "SearchSortedOp": searchsorted_op,
     "BucketizeOp": bucketize_op,

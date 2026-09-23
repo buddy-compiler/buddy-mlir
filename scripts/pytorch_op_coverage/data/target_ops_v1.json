@@ -186,8 +186,6 @@
     "aten::one_hot.default": "Configured explicit-num_classes=4 cases pass through AOT decomposition after the bool-to-integer copy fix. Inferred class counts, empty inputs and invalid indices remain untested.",
     "aten::bincount.default": "The cpu-export-v1 cases fail during AOT import with DynamicOutputShapeException; minlength does not fix the data-dependent output extent.",
     "aten::argsort.default": "Configured default-attribute cases pass through AOT SortOp. Other dimensions, descending order and non-contiguous inputs remain untested.",
-    "aten::index_add.default": "The cpu-export-v1 cases fail during Buddy import with KeyError: index_add.default.",
-    "aten::index_copy.default": "The cpu-export-v1 cases fail during Buddy import with KeyError: index_copy.default.",
     "aten::contiguous.default": "Review pending: May be elided or cloned depending on strides; requires layout-specific cases.",
     "aten::reshape.default": "Configured contiguous cases pass through AOT ViewOp. Non-contiguous reshape semantics remain untested.",
     "aten::softmax.int": "Configured last-dimension cases pass through AOT SoftmaxOp. Other dimensions and optional output dtype remain untested.",

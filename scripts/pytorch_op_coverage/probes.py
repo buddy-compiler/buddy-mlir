@@ -32,6 +32,46 @@ OPERATORS = (
     "aten::native_layer_norm.default",
     "aten::sum.dim_IntList",
     "prims::convert_element_type.default",
+    "aten::baddbmm.default",
+    "aten::div.Tensor",
+    "aten::sub.Tensor",
+    "aten::eq.Tensor",
+    "aten::maximum.default",
+    "aten::minimum.default",
+    "aten::neg.default",
+    "aten::rsqrt.default",
+    "aten::sqrt.default",
+    "aten::exp.default",
+    "aten::relu.default",
+    "aten::sigmoid.default",
+    "aten::tanh.default",
+    "aten::clone.default",
+    "aten::mean.dim",
+    "aten::amax.default",
+    "aten::argmax.default",
+    "aten::argmin.default",
+    "aten::cumsum.default",
+    "aten::cumprod.default",
+    "aten::pow.Tensor_Scalar",
+    "aten::clamp.default",
+    "aten::eq.Scalar",
+    "aten::ne.Scalar",
+    "aten::gt.Scalar",
+    "aten::lt.Scalar",
+    "aten::le.Scalar",
+    "aten::ge.Scalar",
+    "aten::where.self",
+    "aten::masked_fill.Scalar",
+    "aten::transpose.int",
+    "aten::permute.default",
+    "aten::unsqueeze.default",
+    "aten::squeeze.dim",
+    "aten::expand.default",
+    "aten::repeat.default",
+    "aten::slice.Tensor",
+    "aten::select.int",
+    "aten::cat.default",
+    "aten::stack.default",
 )
 WORKLOADS = ("transformer_block", "moe_block")
 
@@ -66,6 +106,60 @@ def build_case(name, profile):
         args = (x, rand(d, n + 1))
     elif name == "aten::bmm.default":
         args = (rand(2, n, d), rand(2, d, n + 1))
+    elif name == "aten::baddbmm.default":
+        args = (rand(2, n, n + 1), rand(2, n, d), rand(2, d, n + 1))
+    elif name in (
+        "aten::div.Tensor",
+        "aten::sub.Tensor",
+        "aten::eq.Tensor",
+        "aten::maximum.default",
+        "aten::minimum.default",
+    ):
+        args = (x, rand(n, d).abs() + 0.5)
+    elif name in ("aten::rsqrt.default", "aten::sqrt.default"):
+        args = (x.abs() + 0.5,)
+    elif name == "aten::pow.Tensor_Scalar":
+        fn, args = lambda a: op(a, 2), (x,)
+    elif name == "aten::clamp.default":
+        fn, args = lambda a: op(a, -0.5, 0.5), (x,)
+    elif name in (
+        "aten::eq.Scalar",
+        "aten::ne.Scalar",
+        "aten::gt.Scalar",
+        "aten::lt.Scalar",
+        "aten::le.Scalar",
+        "aten::ge.Scalar",
+    ):
+        x[0, 0] = 0
+        fn, args = lambda a: op(a, 0), (x,)
+    elif name == "aten::where.self":
+        args = (x > 0, x, rand(n, d))
+    elif name == "aten::masked_fill.Scalar":
+        fn, args = lambda a, mask: op(a, mask, -2), (x, x > 0)
+    elif name in ("aten::mean.dim", "aten::amax.default"):
+        fn, args = lambda a: op(a, [-1], False), (x,)
+    elif name in ("aten::argmax.default", "aten::argmin.default"):
+        fn, args = lambda a: op(a, -1, False), (x,)
+    elif name in ("aten::cumsum.default", "aten::cumprod.default"):
+        fn, args = lambda a: op(a, -1), (x,)
+    elif name == "aten::transpose.int":
+        fn, args = lambda a: op(a, 0, 1), (x,)
+    elif name == "aten::permute.default":
+        fn, args = lambda a: op(a, [1, 0]), (x,)
+    elif name == "aten::unsqueeze.default":
+        fn, args = lambda a: op(a, 1), (x,)
+    elif name == "aten::squeeze.dim":
+        fn, args = lambda a: op(a, 1), (x.unsqueeze(1),)
+    elif name == "aten::expand.default":
+        fn, args = lambda a: op(a, [n, d]), (rand(n, 1),)
+    elif name == "aten::repeat.default":
+        fn, args = lambda a: op(a, [1, 2]), (x,)
+    elif name == "aten::slice.Tensor":
+        fn, args = lambda a: op(a, 1, 1, d, 2), (x,)
+    elif name == "aten::select.int":
+        fn, args = lambda a: op(a, 1, d - 1), (x,)
+    elif name in ("aten::cat.default", "aten::stack.default"):
+        fn, args = lambda a, b: op([a, b], 1), (x, rand(n, d))
     elif name == "aten::addmm.default":
         args = (rand(n, n + 1), x, rand(d, n + 1))
     elif name == "aten::_softmax.default":

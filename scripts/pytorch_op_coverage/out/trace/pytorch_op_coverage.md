@@ -1,47 +1,49 @@
 # PyTorch operator coverage
 
 - Mode: **trace**; run: **completed**; exit: **0**
-- Generated (UTC): `2026-09-18T00:55:31.384759+00:00`
+- Generated (UTC): `2026-09-23T08:53:08.243994+00:00`
 - Target: **Buddy Target Op Set v1** / `1.0.0`; **106** unique operators
-- Source: `b9228a22ad1ef117d2179a6c620a6648d719ad54`; dirty: `True`
-- Source SHA-256: `5084f96092069ea57633346098817118d7063154af653e746b9eed285d0fc767`
-- Profile: `cpu-export-v1`; seed 0; rtol 1e-4; atol 1e-5; external calls disabled
+- Source: `7e36bc29faa4e2c4ea3081a83c2b56b5c49f742b`; dirty: `True`
+- Source SHA-256: `e2b36e21164104f63614d16e594d0a789f4a7a89409c3012fe0bdbd7b5263d15`
+- Profile: `cpu-export-v2`; seed 0; rtol 1e-4; atol 1e-5; external calls disabled
 
 > Registration and export are not compile/correctness evidence. Untested, skipped, failed and limited operators stay in the denominator.
 
 > v1 has 106 entries versus v0's 108: two Buddy cache helpers were removed; Prim namespace and softmax overload were corrected. Percentages are not directly comparable.
 
-Python: `3.12.3`; measured torch: `2.10.0+cpu`; schema snapshot torch: `2.10.0+cpu`.
+Stack diagnostic: buddy.compiler: ModuleNotFoundError: No module named 'buddy'
+
+Python: `3.13.13`; measured torch: `2.10.0+cpu`; schema snapshot torch: `2.10.0+cpu`.
 
 ## Coverage
 
 | Evidence | Count | % of fixed denominator |
 | --- | ---: | ---: |
-| frontend_recognized | 95 | 89.62% |
-| registered_lowering | 95 | 89.62% |
+| frontend_recognized | 97 | 91.51% |
+| registered_lowering | 97 | 91.51% |
 | alias_candidate | 4 | 3.77% |
-| unmapped | 7 | 6.6% |
-| known_limited | 17 | 16.04% |
+| unmapped | 5 | 4.72% |
+| known_limited | 15 | 14.15% |
 | validated_for_profile | 0 | 0.0% |
 
 Live validation: **not measured**. Confirmed end-to-end numerator: **0**.
-Operators without an input contract: **82**.
+Operators without an input contract: **42**.
 A completed run is not the 90% gate; use `--mode live --min-coverage 90` for that gate.
 
-MoE: **0/47** validated for profile (0.0%); **12** known limited.
+MoE: **0/47** validated for profile (0.0%); **10** known limited.
 
 ## Execution evidence
 
 | Stage | Passed cases |
 | --- | ---: |
-| exported | 72 |
+| exported | 192 |
 | imported | 0 |
 | lowered | 0 |
 | compiled | 0 |
 | executed | 0 |
 | correctness | 0 |
 
-Case outcomes: `{"blocked": 0, "failed": 0, "passed": 72, "skipped": 82, "timeout": 0}`
+Case outcomes: `{"blocked": 0, "failed": 0, "passed": 192, "skipped": 42, "timeout": 0}`
 
 ## Operator details
 
@@ -50,44 +52,44 @@ Case outcomes: `{"blocked": 0, "failed": 0, "passed": 72, "skipped": 82, "timeou
 | `aten::mm.default` | registered_lowering | 3/0 | False |  |
 | `aten::bmm.default` | registered_lowering | 3/0 | False |  |
 | `aten::addmm.default` | registered_lowering | 3/0 | False |  |
-| `aten::baddbmm.default` | registered_lowering | 0/0 | False |  |
+| `aten::baddbmm.default` | registered_lowering | 3/0 | False |  |
 | `aten::add.Tensor` | registered_lowering | 3/0 | False |  |
 | `aten::mul.Tensor` | registered_lowering | 3/0 | False |  |
-| `aten::div.Tensor` | registered_lowering | 0/0 | False |  |
-| `aten::sub.Tensor` | registered_lowering | 0/0 | False |  |
-| `aten::neg.default` | registered_lowering | 0/0 | False |  |
-| `aten::pow.Tensor_Scalar` | registered_lowering | 0/0 | False |  |
-| `aten::rsqrt.default` | registered_lowering | 0/0 | False |  |
-| `aten::sqrt.default` | registered_lowering | 0/0 | False |  |
-| `aten::exp.default` | registered_lowering | 0/0 | False |  |
+| `aten::div.Tensor` | registered_lowering | 3/0 | False |  |
+| `aten::sub.Tensor` | registered_lowering | 3/0 | False |  |
+| `aten::neg.default` | registered_lowering | 3/0 | False |  |
+| `aten::pow.Tensor_Scalar` | registered_lowering | 3/0 | False |  |
+| `aten::rsqrt.default` | registered_lowering | 3/0 | False |  |
+| `aten::sqrt.default` | registered_lowering | 3/0 | False |  |
+| `aten::exp.default` | registered_lowering | 3/0 | False |  |
 | `aten::silu.default` | registered_lowering | 3/0 | False |  |
 | `aten::gelu.default` | registered_lowering | 3/0 | False |  |
-| `aten::relu.default` | registered_lowering | 0/0 | False |  |
-| `aten::sigmoid.default` | registered_lowering | 0/0 | False |  |
-| `aten::tanh.default` | registered_lowering | 0/0 | False |  |
+| `aten::relu.default` | registered_lowering | 3/0 | False |  |
+| `aten::sigmoid.default` | registered_lowering | 3/0 | False |  |
+| `aten::tanh.default` | registered_lowering | 3/0 | False |  |
 | `aten::_softmax.default` | registered_lowering | 3/0 | False |  |
 | `aten::native_layer_norm.default` | registered_lowering | 3/0 | False |  |
-| `aten::mean.dim` | registered_lowering | 0/0 | False |  |
+| `aten::mean.dim` | registered_lowering | 3/0 | False |  |
 | `aten::sum.dim_IntList` | registered_lowering | 3/0 | False |  |
-| `aten::amax.default` | registered_lowering | 0/0 | False |  |
+| `aten::amax.default` | registered_lowering | 3/0 | False |  |
 | `aten::embedding.default` | registered_lowering | 0/0 | False |  |
-| `aten::cat.default` | registered_lowering | 0/0 | False |  |
-| `aten::stack.default` | registered_lowering | 0/0 | False |  |
-| `aten::slice.Tensor` | registered_lowering | 0/0 | False |  |
-| `aten::select.int` | registered_lowering | 0/0 | False |  |
+| `aten::cat.default` | registered_lowering | 3/0 | False |  |
+| `aten::stack.default` | registered_lowering | 3/0 | False |  |
+| `aten::slice.Tensor` | registered_lowering | 3/0 | False |  |
+| `aten::select.int` | registered_lowering | 3/0 | False |  |
 | `aten::view.default` | registered_lowering | 3/0 | False |  |
 | `aten::reshape.default` | alias_candidate | 3/0 | False | Configured contiguous cases pass through AOT ViewOp. Non-contiguous reshape semantics remain untested. |
-| `aten::transpose.int` | registered_lowering | 0/0 | False |  |
-| `aten::permute.default` | registered_lowering | 0/0 | False |  |
-| `aten::unsqueeze.default` | registered_lowering | 0/0 | False |  |
-| `aten::squeeze.dim` | registered_lowering | 0/0 | False |  |
-| `aten::expand.default` | registered_lowering | 0/0 | False |  |
-| `aten::repeat.default` | registered_lowering | 0/0 | False |  |
-| `aten::clone.default` | registered_lowering | 0/0 | False |  |
+| `aten::transpose.int` | registered_lowering | 3/0 | False |  |
+| `aten::permute.default` | registered_lowering | 3/0 | False |  |
+| `aten::unsqueeze.default` | registered_lowering | 3/0 | False |  |
+| `aten::squeeze.dim` | registered_lowering | 3/0 | False |  |
+| `aten::expand.default` | registered_lowering | 3/0 | False |  |
+| `aten::repeat.default` | registered_lowering | 3/0 | False |  |
+| `aten::clone.default` | registered_lowering | 3/0 | False |  |
 | `aten::_to_copy.default` | registered_lowering | 0/0 | False |  |
 | `prims::convert_element_type.default` | registered_lowering | 3/0 | False |  |
-| `aten::where.self` | registered_lowering | 0/0 | False |  |
-| `aten::masked_fill.Scalar` | registered_lowering | 0/0 | False |  |
+| `aten::where.self` | registered_lowering | 3/0 | False |  |
+| `aten::masked_fill.Scalar` | registered_lowering | 3/0 | False |  |
 | `aten::arange.start` | registered_lowering | 0/0 | False |  |
 | `aten::arange.start_step` | registered_lowering | 0/0 | False |  |
 | `aten::ones.default` | registered_lowering | 0/0 | False |  |
@@ -100,17 +102,17 @@ Case outcomes: `{"blocked": 0, "failed": 0, "passed": 72, "skipped": 82, "timeou
 | `aten::gather.default` | registered_lowering | 3/0 | False |  |
 | `aten::scatter_add.default` | registered_lowering | 3/0 | False |  |
 | `aten::slice_scatter.default` | registered_lowering | 0/0 | False |  |
-| `aten::cumsum.default` | registered_lowering | 0/0 | False |  |
-| `aten::eq.Scalar` | registered_lowering | 0/0 | False |  |
-| `aten::eq.Tensor` | registered_lowering | 0/0 | False |  |
-| `aten::ne.Scalar` | registered_lowering | 0/0 | False |  |
-| `aten::gt.Scalar` | registered_lowering | 0/0 | False |  |
-| `aten::lt.Scalar` | registered_lowering | 0/0 | False |  |
-| `aten::le.Scalar` | registered_lowering | 0/0 | False |  |
-| `aten::ge.Scalar` | registered_lowering | 0/0 | False |  |
-| `aten::maximum.default` | registered_lowering | 0/0 | False |  |
-| `aten::minimum.default` | registered_lowering | 0/0 | False |  |
-| `aten::clamp.default` | registered_lowering | 0/0 | False |  |
+| `aten::cumsum.default` | registered_lowering | 3/0 | False |  |
+| `aten::eq.Scalar` | registered_lowering | 3/0 | False |  |
+| `aten::eq.Tensor` | registered_lowering | 3/0 | False |  |
+| `aten::ne.Scalar` | registered_lowering | 3/0 | False |  |
+| `aten::gt.Scalar` | registered_lowering | 3/0 | False |  |
+| `aten::lt.Scalar` | registered_lowering | 3/0 | False |  |
+| `aten::le.Scalar` | registered_lowering | 3/0 | False |  |
+| `aten::ge.Scalar` | registered_lowering | 3/0 | False |  |
+| `aten::maximum.default` | registered_lowering | 3/0 | False |  |
+| `aten::minimum.default` | registered_lowering | 3/0 | False |  |
+| `aten::clamp.default` | registered_lowering | 3/0 | False |  |
 | `aten::split.Tensor` | registered_lowering | 0/0 | False |  |
 | `aten::split_with_sizes.default` | registered_lowering | 0/0 | False |  |
 | `aten::unbind.int` | registered_lowering | 0/0 | False |  |
@@ -121,12 +123,12 @@ Case outcomes: `{"blocked": 0, "failed": 0, "passed": 72, "skipped": 82, "timeou
 | `aten::softmax.int` | alias_candidate | 3/0 | False | Configured last-dimension cases pass through AOT SoftmaxOp. Other dimensions and optional output dtype remain untested. |
 | `aten::argsort.default` | unmapped | 3/0 | False | Configured default-attribute cases pass through AOT SortOp. Other dimensions, descending order and non-contiguous inputs remain untested. |
 | `aten::sort.default` | registered_lowering | 3/0 | False |  |
-| `aten::argmax.default` | registered_lowering | 0/0 | False |  |
-| `aten::argmin.default` | registered_lowering | 0/0 | False |  |
+| `aten::argmax.default` | registered_lowering | 3/0 | False |  |
+| `aten::argmin.default` | registered_lowering | 3/0 | False |  |
 | `aten::_unsafe_index.Tensor` | registered_lowering | 0/0 | False |  |
 | `aten::index_put.default` | registered_lowering | 0/0 | False | Review pending: Accumulate / advanced indexing may be partial. |
-| `aten::index_add.default` | unmapped | 3/0 | False | The cpu-export-v1 cases fail during Buddy import with KeyError: index_add.default. |
-| `aten::index_copy.default` | unmapped | 3/0 | False | The cpu-export-v1 cases fail during Buddy import with KeyError: index_copy.default. |
+| `aten::index_add.default` | registered_lowering | 3/0 | False |  |
+| `aten::index_copy.default` | registered_lowering | 3/0 | False |  |
 | `aten::scatter.src` | registered_lowering | 0/0 | False |  |
 | `aten::scatter.value` | registered_lowering | 0/0 | False |  |
 | `aten::scatter.reduce` | registered_lowering | 0/0 | False | Review pending: Reduce mode / dtype coverage may be partial. |
@@ -138,7 +140,7 @@ Case outcomes: `{"blocked": 0, "failed": 0, "passed": 72, "skipped": 82, "timeou
 | `aten::nonzero_static.default` | registered_lowering | 0/0 | False |  |
 | `aten::one_hot.default` | unmapped | 3/0 | False | Configured explicit-num_classes=4 cases pass through AOT decomposition after the bool-to-integer copy fix. Inferred class counts, empty inputs and invalid indices remain untested. |
 | `aten::bincount.default` | unmapped | 3/0 | False | The cpu-export-v1 cases fail during AOT import with DynamicOutputShapeException; minlength does not fix the data-dependent output extent. |
-| `aten::cumprod.default` | registered_lowering | 0/0 | False |  |
+| `aten::cumprod.default` | registered_lowering | 3/0 | False |  |
 | `aten::repeat_interleave.self_int` | registered_lowering | 0/0 | False |  |
 | `aten::repeat_interleave.Tensor` | registered_lowering | 0/0 | False |  |
 | `aten::convolution.default` | registered_lowering | 0/0 | False |  |
@@ -158,34 +160,8 @@ Case outcomes: `{"blocked": 0, "failed": 0, "passed": 72, "skipped": 82, "timeou
 
 | Operator | Case | Status | Stage | Reason |
 | --- | --- | --- | --- | --- |
-| `aten::baddbmm.default` | unconfigured | skipped | — | No explicit input contract yet |
-| `aten::div.Tensor` | unconfigured | skipped | — | No explicit input contract yet |
-| `aten::sub.Tensor` | unconfigured | skipped | — | No explicit input contract yet |
-| `aten::neg.default` | unconfigured | skipped | — | No explicit input contract yet |
-| `aten::pow.Tensor_Scalar` | unconfigured | skipped | — | No explicit input contract yet |
-| `aten::rsqrt.default` | unconfigured | skipped | — | No explicit input contract yet |
-| `aten::sqrt.default` | unconfigured | skipped | — | No explicit input contract yet |
-| `aten::exp.default` | unconfigured | skipped | — | No explicit input contract yet |
-| `aten::relu.default` | unconfigured | skipped | — | No explicit input contract yet |
-| `aten::sigmoid.default` | unconfigured | skipped | — | No explicit input contract yet |
-| `aten::tanh.default` | unconfigured | skipped | — | No explicit input contract yet |
-| `aten::mean.dim` | unconfigured | skipped | — | No explicit input contract yet |
-| `aten::amax.default` | unconfigured | skipped | — | No explicit input contract yet |
 | `aten::embedding.default` | unconfigured | skipped | — | No explicit input contract yet |
-| `aten::cat.default` | unconfigured | skipped | — | No explicit input contract yet |
-| `aten::stack.default` | unconfigured | skipped | — | No explicit input contract yet |
-| `aten::slice.Tensor` | unconfigured | skipped | — | No explicit input contract yet |
-| `aten::select.int` | unconfigured | skipped | — | No explicit input contract yet |
-| `aten::transpose.int` | unconfigured | skipped | — | No explicit input contract yet |
-| `aten::permute.default` | unconfigured | skipped | — | No explicit input contract yet |
-| `aten::unsqueeze.default` | unconfigured | skipped | — | No explicit input contract yet |
-| `aten::squeeze.dim` | unconfigured | skipped | — | No explicit input contract yet |
-| `aten::expand.default` | unconfigured | skipped | — | No explicit input contract yet |
-| `aten::repeat.default` | unconfigured | skipped | — | No explicit input contract yet |
-| `aten::clone.default` | unconfigured | skipped | — | No explicit input contract yet |
 | `aten::_to_copy.default` | unconfigured | skipped | — | No explicit input contract yet |
-| `aten::where.self` | unconfigured | skipped | — | No explicit input contract yet |
-| `aten::masked_fill.Scalar` | unconfigured | skipped | — | No explicit input contract yet |
 | `aten::arange.start` | unconfigured | skipped | — | No explicit input contract yet |
 | `aten::arange.start_step` | unconfigured | skipped | — | No explicit input contract yet |
 | `aten::ones.default` | unconfigured | skipped | — | No explicit input contract yet |
@@ -195,25 +171,12 @@ Case outcomes: `{"blocked": 0, "failed": 0, "passed": 72, "skipped": 82, "timeou
 | `aten::_scaled_dot_product_flash_attention_for_cpu.default` | unconfigured | skipped | — | No explicit input contract yet |
 | `aten::index.Tensor` | unconfigured | skipped | — | No explicit input contract yet |
 | `aten::slice_scatter.default` | unconfigured | skipped | — | No explicit input contract yet |
-| `aten::cumsum.default` | unconfigured | skipped | — | No explicit input contract yet |
-| `aten::eq.Scalar` | unconfigured | skipped | — | No explicit input contract yet |
-| `aten::eq.Tensor` | unconfigured | skipped | — | No explicit input contract yet |
-| `aten::ne.Scalar` | unconfigured | skipped | — | No explicit input contract yet |
-| `aten::gt.Scalar` | unconfigured | skipped | — | No explicit input contract yet |
-| `aten::lt.Scalar` | unconfigured | skipped | — | No explicit input contract yet |
-| `aten::le.Scalar` | unconfigured | skipped | — | No explicit input contract yet |
-| `aten::ge.Scalar` | unconfigured | skipped | — | No explicit input contract yet |
-| `aten::maximum.default` | unconfigured | skipped | — | No explicit input contract yet |
-| `aten::minimum.default` | unconfigured | skipped | — | No explicit input contract yet |
-| `aten::clamp.default` | unconfigured | skipped | — | No explicit input contract yet |
 | `aten::split.Tensor` | unconfigured | skipped | — | No explicit input contract yet |
 | `aten::split_with_sizes.default` | unconfigured | skipped | — | No explicit input contract yet |
 | `aten::unbind.int` | unconfigured | skipped | — | No explicit input contract yet |
 | `aten::contiguous.default` | unconfigured | skipped | — | No explicit input contract yet |
 | `aten::copy.default` | unconfigured | skipped | — | No explicit input contract yet |
 | `aten::lift_fresh_copy.default` | unconfigured | skipped | — | No explicit input contract yet |
-| `aten::argmax.default` | unconfigured | skipped | — | No explicit input contract yet |
-| `aten::argmin.default` | unconfigured | skipped | — | No explicit input contract yet |
 | `aten::_unsafe_index.Tensor` | unconfigured | skipped | — | No explicit input contract yet |
 | `aten::index_put.default` | unconfigured | skipped | — | No explicit input contract yet |
 | `aten::scatter.src` | unconfigured | skipped | — | No explicit input contract yet |
@@ -225,7 +188,6 @@ Case outcomes: `{"blocked": 0, "failed": 0, "passed": 72, "skipped": 82, "timeou
 | `aten::masked_select.default` | unconfigured | skipped | — | No explicit input contract yet |
 | `aten::nonzero.default` | unconfigured | skipped | — | No explicit input contract yet |
 | `aten::nonzero_static.default` | unconfigured | skipped | — | No explicit input contract yet |
-| `aten::cumprod.default` | unconfigured | skipped | — | No explicit input contract yet |
 | `aten::repeat_interleave.self_int` | unconfigured | skipped | — | No explicit input contract yet |
 | `aten::repeat_interleave.Tensor` | unconfigured | skipped | — | No explicit input contract yet |
 | `aten::convolution.default` | unconfigured | skipped | — | No explicit input contract yet |
