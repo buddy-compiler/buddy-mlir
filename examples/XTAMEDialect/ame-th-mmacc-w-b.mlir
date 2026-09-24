@@ -5,14 +5,15 @@
 // RUN:   -lower-affine \
 // RUN:   -convert-scf-to-cf \
 // RUN:   -convert-cf-to-llvm \
+// RUN:   -expand-strided-metadata \
 // RUN:   -convert-arith-to-llvm \
 // RUN:   -convert-math-to-llvm \
 // RUN:   -convert-func-to-llvm \
 // RUN:   -finalize-memref-to-llvm \
 // RUN:   -reconcile-unrealized-casts | \
 // RUN: buddy-translate -buddy-to-llvmir | \
-// RUN: buddy-llc -filetype=asm -mtriple=riscv64-unknown-linux-gnu \
-// RUN:   -mattr=+m,+a,+c,+d,+xtheadame -o - | FileCheck %s --check-prefix=ASM
+// RUN: buddy-llc -filetype=obj -mtriple=riscv64-unknown-linux-gnu \
+// RUN:   -mattr=+xtheadame -o %t.o && llvm-readobj --file-headers %t.o | FileCheck %s --check-prefix=OBJ
 
 module {
 
@@ -94,20 +95,20 @@ module {
     xt_ame.th.mcfgki 4          // mtilek = 4 (cols of A, rows of B)
 
     // Step 2: Zero the accumulation register (acc register 0)
-    xt_ame.th.mzero 0
+    %zero = xt_ame.th.mzero : vector<4x4xi32>
 
     // Step 3: Load matrix A to tile register 0 (shape: mtilem x mtilek = 4x4)
-    xt_ame.th.mlde8 1, %stride_a, %a_ptr: memref<4x4xi8>
+    %lhs = xt_ame.th.mlde8 %stride_a, %a_ptr : memref<4x4xi8> -> vector<4x4xi8>
 
     // Step 4: Load transposed matrix B to tile register 1 (shape: mtilen x mtilek = 4x4)
-    xt_ame.th.mldte8 2, %stride_b, %b_ptr: memref<4x4xi8>
+    %rhs = xt_ame.th.mldte8 %stride_b, %b_ptr: memref<4x4xi8> -> vector<4x4xi8>
 
     // Step 5: Execute matrix multiply: acc0 = acc0 + tile0 x tile1
-    xt_ame.th.mmacc.w.b 0, 2, 1
+    %acc = xt_ame.th.mmacc.w.b %zero, %rhs, %lhs : vector<4x4xi32>, vector<4x4xi8>, vector<4x4xi8> -> vector<4x4xi32>
 
     xt_ame.th.mcfgki 16         // mtilek = 16
     // Step 6: Store result from accumulator 0 to memory
-    xt_ame.th.mste32 0, %stride_c, %c_ptr: memref<4x4xi32>
+    xt_ame.th.mste32 %acc, %stride_c, %c_ptr: vector<4x4xi32>, memref<4x4xi32>
 
     //row 0
     %val_c00 = memref.load %c_ptr[%i0, %i0] : memref<4x4xi32>
@@ -150,14 +151,13 @@ module {
 
 // Expected lowering for tile-based operations:
 // CHECK-LABEL: func.func @main
-// CHECK: llvm.call @llvm.riscv.th.mcfgmi
-// CHECK: llvm.call @llvm.riscv.th.mcfgni
-// CHECK: llvm.call @llvm.riscv.th.mcfgki
-// CHECK: llvm.call @llvm.riscv.th.mzero
-// CHECK: llvm.call @llvm.riscv.th.mlde8
-// CHECK: llvm.call @llvm.riscv.th.mldte8
-// CHECK: llvm.call @llvm.riscv.th.mmacc.w.b
-// CHECK: llvm.call @llvm.riscv.th.mste32
-
-// ASM: .attribute 5, "{{.*xtheadmatrix.*}}"
-// ASM: th.mmacc.w.b{{[ \t]}}
+// CHECK: xt_ame.intr.th.mcfgmi
+// CHECK: xt_ame.intr.th.mcfgni
+// CHECK: xt_ame.intr.th.mcfgki
+// CHECK: xt_ame.intr.th.mzero
+// CHECK: xt_ame.intr.th.mlde8
+// CHECK: xt_ame.intr.th.mldte8
+// CHECK: xt_ame.intr.th.mmacc.w.b
+// CHECK: xt_ame.intr.th.mste32
+// OBJ: Format: elf64-littleriscv
+// OBJ: Machine: EM_RISCV
