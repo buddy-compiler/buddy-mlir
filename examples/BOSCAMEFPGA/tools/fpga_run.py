@@ -1,12 +1,4 @@
 #!/usr/bin/env python3
-"""Local half of the NR FPGA runner.
-
-Uploads a .bin over one managed SSH session to ssh-host:remote-dir, launches
-the remote worker (fpga_remote.py copied as runner.py), and relays UART bytes
-to stdout while status goes to stderr. No local compilation is performed.
-Close minicom before running.
-"""
-
 # ===- fpga_run.py -------------------------------------------------------------
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,6 +14,14 @@ Close minicom before running.
 # limitations under the License.
 #
 # ===---------------------------------------------------------------------------
+
+"""Local half of the NR FPGA runner.
+
+Uploads a .bin over one managed SSH session to ssh-host:remote-dir, launches
+the remote worker (fpga_remote.py copied as runner.py), and relays UART bytes
+to stdout while status goes to stderr. No local compilation is performed.
+Close minicom before running.
+"""
 
 import argparse
 import hashlib

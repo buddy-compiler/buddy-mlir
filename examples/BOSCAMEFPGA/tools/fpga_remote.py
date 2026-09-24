@@ -1,12 +1,4 @@
 #!/usr/bin/env python3
-"""Remote half of fpga_run.py for the NR FPGA server.
-
-Runs inside an approved workdir: claims the board, opens UART, loads the
-image via make uv_runN, captures serial output, verifies DDR readback, and
-writes result.json. Supports --detach (start once), --background (worker),
-and --relay (resume UART from a byte offset without reloading hardware).
-"""
-
 # ===- fpga_remote.py ----------------------------------------------------------
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,6 +14,14 @@ and --relay (resume UART from a byte offset without reloading hardware).
 # limitations under the License.
 #
 # ===---------------------------------------------------------------------------
+
+"""Remote half of fpga_run.py for the NR FPGA server.
+
+Runs inside an approved workdir: claims the board, opens UART, loads the
+image via make uv_runN, captures serial output, verifies DDR readback, and
+writes result.json. Supports --detach (start once), --background (worker),
+and --relay (resume UART from a byte offset without reloading hardware).
+"""
 
 import argparse
 import errno
@@ -416,87 +416,91 @@ def run(args, root=None, run_dir=None, device=None, control_fd=0):
         uart_tail = b""
         failed_uart = False
         heartbeat = time.monotonic()
-        # Parenthesized multi-with is 3.10+; FPGA servers often ship 3.8/3.9.
-        with (run_dir / "uvhs.log").open("wb") as uvlog, (
-            run_dir / "uart.raw.log"
-        ).open("wb") as uart:
-            while True:
-                if stopped():
-                    raise InterruptedError(
-                        "interrupted; releasing this session"
-                    )
-                now = time.monotonic()
-                if now - heartbeat >= 30:
-                    elapsed = int(now - started) if started is not None else 0
-                    log(
-                        f"FPGA{args.fpga} session active; elapsed={elapsed}s, "
-                        f"UART={uart_total} bytes"
-                    )
-                    heartbeat = now
-                if started is None and now >= deadline:
-                    raise RuntimeError("FPGA startup timed out; see uvhs.log")
-                if (
-                    started is not None
-                    and exit_sent is None
-                    and now - started >= args.capture_seconds
-                ):
-                    os.write(master, b"exit\n")
-                    exit_sent = now
-                if exit_sent is not None and now - exit_sent > 20:
-                    raise RuntimeError("UVHS did not exit after capture")
-                ready, _, _ = select.select([master, serial], [], [], 0.1)
-                for fd in ready:
-                    try:
-                        data = os.read(fd, 65536)
-                    except OSError as e:
-                        if fd == master and e.errno == errno.EIO:
-                            data = b""
-                        else:
-                            raise
-                    if fd == serial:
-                        if not data:
-                            raise RuntimeError("UART disconnected")
-                        uart.write(data)
-                        uart.flush()
-                        uart_total += len(data)
-                        uart_tail = (uart_tail + data)[-8192:]
-                        failed_uart |= bool(UART_FAILURE.search(uart_tail))
-                        sys.stdout.buffer.write(data)
-                        sys.stdout.buffer.flush()
-                    else:
-                        uvlog.write(data)
-                        uvlog.flush()
-                        output.extend(data)
-                        if ERROR.search(output):
-                            raise RuntimeError(
-                                "platform reported ERROR/FATAL; see uvhs.log"
-                            )
-                        if started is None and b"hspRun>" in output:
-                            if (
-                                b"UV_RUN_IMAGE=" not in output
-                                or b"reset -name cpu_reset -value 0 success"
-                                not in output
-                            ):
-                                raise RuntimeError(
-                                    "UVHS reached its prompt without "
-                                    "loading/starting the image"
-                                )
-                            started = time.monotonic()
-                            log(
-                                f"FPGA{args.fpga} started; capturing for "
-                                f"{args.capture_seconds} seconds"
-                            )
-                if process.poll() is not None:
-                    if (
-                        process.returncode
-                        or started is None
-                        or exit_sent is None
-                    ):
-                        raise RuntimeError(
-                            f"platform exited unexpectedly "
-                            f"({process.returncode}); see uvhs.log"
+        # Nested with is 3.8-safe. SIM117 wants a parenthesized multi-with,
+        # which needs Python 3.10 and fails on the FPGA servers.
+        with (run_dir / "uvhs.log").open("wb") as uvlog:  # noqa: SIM117
+            with (run_dir / "uart.raw.log").open("wb") as uart:
+                while True:
+                    if stopped():
+                        raise InterruptedError(
+                            "interrupted; releasing this session"
                         )
-                    break
+                    now = time.monotonic()
+                    if now - heartbeat >= 30:
+                        elapsed = (
+                            int(now - started) if started is not None else 0
+                        )
+                        log(
+                            f"FPGA{args.fpga} session active; elapsed={elapsed}s, "
+                            f"UART={uart_total} bytes"
+                        )
+                        heartbeat = now
+                    if started is None and now >= deadline:
+                        raise RuntimeError(
+                            "FPGA startup timed out; see uvhs.log"
+                        )
+                    if (
+                        started is not None
+                        and exit_sent is None
+                        and now - started >= args.capture_seconds
+                    ):
+                        os.write(master, b"exit\n")
+                        exit_sent = now
+                    if exit_sent is not None and now - exit_sent > 20:
+                        raise RuntimeError("UVHS did not exit after capture")
+                    ready, _, _ = select.select([master, serial], [], [], 0.1)
+                    for fd in ready:
+                        try:
+                            data = os.read(fd, 65536)
+                        except OSError as e:
+                            if fd == master and e.errno == errno.EIO:
+                                data = b""
+                            else:
+                                raise
+                        if fd == serial:
+                            if not data:
+                                raise RuntimeError("UART disconnected")
+                            uart.write(data)
+                            uart.flush()
+                            uart_total += len(data)
+                            uart_tail = (uart_tail + data)[-8192:]
+                            failed_uart |= bool(UART_FAILURE.search(uart_tail))
+                            sys.stdout.buffer.write(data)
+                            sys.stdout.buffer.flush()
+                        else:
+                            uvlog.write(data)
+                            uvlog.flush()
+                            output.extend(data)
+                            if ERROR.search(output):
+                                raise RuntimeError(
+                                    "platform reported ERROR/FATAL; see uvhs.log"
+                                )
+                            if started is None and b"hspRun>" in output:
+                                if (
+                                    b"UV_RUN_IMAGE=" not in output
+                                    or b"reset -name cpu_reset -value 0 success"
+                                    not in output
+                                ):
+                                    raise RuntimeError(
+                                        "UVHS reached its prompt without "
+                                        "loading/starting the image"
+                                    )
+                                started = time.monotonic()
+                                log(
+                                    f"FPGA{args.fpga} started; capturing for "
+                                    f"{args.capture_seconds} seconds"
+                                )
+                    if process.poll() is not None:
+                        if (
+                            process.returncode
+                            or started is None
+                            or exit_sent is None
+                        ):
+                            raise RuntimeError(
+                                f"platform exited unexpectedly "
+                                f"({process.returncode}); see uvhs.log"
+                            )
+                        break
         result["padded_sha256"] = verify_readback(
             run_dir, bytes(output), args.sha256
         )
