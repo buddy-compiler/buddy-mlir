@@ -17,6 +17,7 @@
 #include "Qwen3VLRuntime.h"
 
 #define STB_IMAGE_IMPLEMENTATION
+#include "F16Bits.h"
 #include "ImagePreprocess.h"
 #include "buddy/LLM/TextContainer.h"
 #include "buddy/runtime/core/ModelManifest.h"
@@ -45,19 +46,19 @@ namespace buddy {
 namespace runtime {
 namespace {
 
-using VisionFn = void (*)(const float *, long, const float *, float *, float *,
-                          float *, float *);
-using DecoderFn = void (*)(const float *, long, const float *, const float *,
-                           const float *, const float *, const float *,
-                           const float *, const float *, float *, long, long,
-                           long, long);
+using F16 = uint16_t;
+using VisionFn = void (*)(const F16 *, long, const F16 *, F16 *, F16 *, F16 *,
+                          F16 *);
+using DecoderFn = void (*)(const F16 *, long, const F16 *, const F16 *,
+                           const F16 *, const F16 *, const F16 *, const F16 *,
+                           const F16 *, F16 *, long, long, long, long);
 
-struct MappedFloats {
-  const float *data = nullptr;
+struct MappedF16 {
+  const F16 *data = nullptr;
   std::size_t count = 0;
   void *base = nullptr;
   std::size_t bytes = 0;
-  ~MappedFloats() {
+  ~MappedF16() {
     if (base && base != MAP_FAILED)
       munmap(base, bytes);
   }
@@ -74,7 +75,7 @@ struct MappedI64 {
       munmap(base, bytes);
   }
 };
-void mapFloats(const std::string &path, MappedFloats &out) {
+void mapF16(const std::string &path, MappedF16 &out) {
   int fd = open(path.c_str(), O_RDONLY);
   if (fd < 0)
     throw std::runtime_error("qwen3_vl: cannot open " + path);
@@ -84,9 +85,9 @@ void mapFloats(const std::string &path, MappedFloats &out) {
     throw std::runtime_error("qwen3_vl: fstat failed " + path);
   }
   out.bytes = static_cast<std::size_t>(st.st_size);
-  if (out.bytes == 0 || out.bytes % sizeof(float) != 0) {
+  if (out.bytes == 0 || out.bytes % sizeof(F16) != 0) {
     close(fd);
-    throw std::runtime_error("qwen3_vl: invalid float file size: " + path);
+    throw std::runtime_error("qwen3_vl: invalid fp16 file size: " + path);
   }
   out.base = mmap(nullptr, out.bytes, PROT_READ, MAP_PRIVATE, fd, 0);
   close(fd);
@@ -94,8 +95,8 @@ void mapFloats(const std::string &path, MappedFloats &out) {
     out.base = nullptr;
     throw std::runtime_error("qwen3_vl: mmap failed " + path);
   }
-  out.data = reinterpret_cast<const float *>(out.base);
-  out.count = out.bytes / sizeof(float);
+  out.data = reinterpret_cast<const F16 *>(out.base);
+  out.count = out.bytes / sizeof(F16);
 }
 
 void mapI64(const std::string &path, MappedI64 &out) {
@@ -122,20 +123,20 @@ void mapI64(const std::string &path, MappedI64 &out) {
   out.data = reinterpret_cast<const int64_t *>(out.base);
   out.count = out.bytes / sizeof(int64_t);
 }
-std::vector<float> readFloats(const std::string &path, std::size_t expected) {
+std::vector<F16> readF16(const std::string &path, std::size_t expected) {
   std::ifstream f(path, std::ios::binary | std::ios::ate);
   if (!f)
     throw std::runtime_error("qwen3_vl: cannot open " + path);
   const std::streamoff end = f.tellg();
-  if (end < 0 || static_cast<std::size_t>(end) % sizeof(float) != 0)
-    throw std::runtime_error("qwen3_vl: invalid float file size: " + path);
-  const std::size_t count = static_cast<std::size_t>(end) / sizeof(float);
+  if (end < 0 || static_cast<std::size_t>(end) % sizeof(F16) != 0)
+    throw std::runtime_error("qwen3_vl: invalid fp16 file size: " + path);
+  const std::size_t count = static_cast<std::size_t>(end) / sizeof(F16);
   if (expected != 0 && count != expected)
-    throw std::runtime_error("qwen3_vl: unexpected float count in " + path);
+    throw std::runtime_error("qwen3_vl: unexpected fp16 count in " + path);
   f.seekg(0);
-  std::vector<float> values(count);
+  std::vector<F16> values(count);
   f.read(reinterpret_cast<char *>(values.data()),
-         static_cast<std::streamsize>(count * sizeof(float)));
+         static_cast<std::streamsize>(count * sizeof(F16)));
   if (!f)
     throw std::runtime_error("qwen3_vl: short read from " + path);
   return values;
@@ -218,13 +219,13 @@ public:
     if (vocabPath.empty())
       throw std::runtime_error("qwen3_vl: manifest has no vocab_uri");
 
-    mapFloats(resourcePath(manifest, "vision_weights"), visionWeights);
-    mapFloats(resourcePath(manifest, "decoder_weights"), decoderWeights);
-    mapFloats(resourcePath(manifest, "embed_table"), embedTable);
+    mapF16(resourcePath(manifest, "vision_weights"), visionWeights);
+    mapF16(resourcePath(manifest, "decoder_weights"), decoderWeights);
+    mapF16(resourcePath(manifest, "embed_table"), embedTable);
     mapI64(resourcePath(manifest, "img_pos"), imagePositions);
-    cos = readFloats(resourcePath(manifest, "cos"), 0);
-    sin = readFloats(resourcePath(manifest, "sin"), 0);
-    causalMask = readFloats(resourcePath(manifest, "cmask"), 0);
+    cos = readF16(resourcePath(manifest, "cos"), 0);
+    sin = readF16(resourcePath(manifest, "sin"), 0);
+    causalMask = readF16(resourcePath(manifest, "cmask"), 0);
 
     std::ifstream meta(resourcePath(manifest, "meta"));
     if (!meta)
@@ -276,9 +277,9 @@ public:
   std::string vocabPath;
   std::size_t packagedPromptLength = 0;
   std::size_t N = 0, NIMG = 0, HID = 0, VOCAB = 0;
-  MappedFloats visionWeights, decoderWeights, embedTable;
+  MappedF16 visionWeights, decoderWeights, embedTable;
   MappedI64 imagePositions;
-  std::vector<float> cos, sin, causalMask;
+  std::vector<F16> cos, sin, causalMask;
   void *visionHandle = nullptr;
   void *decoderHandle = nullptr;
   VisionFn vision = nullptr;
@@ -331,24 +332,26 @@ CompletionResult Qwen3VLRuntime::Impl::generate(
                              std::to_string(packagedPromptLength) +
                              "; rebuild positional constants for this prompt");
 
-  std::vector<float> pixel;
+  std::vector<F16> pixel;
   const bool bundled = images.empty() || images.front().uri.empty() ||
                        images.front().uri == "bundled";
   const auto prefillStart = std::chrono::high_resolution_clock::now();
   if (bundled) {
-    pixel = readFloats(resourcePath(manifest, "pixel_values"), 392u * 1536u);
+    pixel = readF16(resourcePath(manifest, "pixel_values"), 392u * 1536u);
   } else {
     std::error_code fileError;
     const auto fileBytes = fs::file_size(images.front().uri, fileError);
     if (!fileError && fileBytes > 64u * 1024u * 1024u)
       throw std::runtime_error("qwen3_vl: image file is too large");
-    qwen3vl_image::preprocessImage(images.front().uri, pixel);
+    std::vector<float> pixelF32;
+    qwen3vl_image::preprocessImage(images.front().uri, pixelF32);
+    pixel = f32ToF16Bits(pixelF32);
   }
   if (pixel.size() != 392u * 1536u)
     throw std::runtime_error("qwen3_vl: pixel_values has unexpected size");
 
-  std::vector<float> pooled(NIMG * HID);
-  std::vector<float> ds0(NIMG * HID), ds1(NIMG * HID), ds2(NIMG * HID);
+  std::vector<F16> pooled(NIMG * HID);
+  std::vector<F16> ds0(NIMG * HID), ds1(NIMG * HID), ds2(NIMG * HID);
   {
     std::lock_guard<std::mutex> lock(kernelMutex);
     vision(visionWeights.data, static_cast<long>(visionWeights.count),
@@ -367,7 +370,7 @@ CompletionResult Qwen3VLRuntime::Impl::generate(
       throw std::runtime_error("qwen3_vl: prompt token is out of range");
     return embedTable.data + static_cast<std::size_t>(token) * HID;
   };
-  std::vector<float> inputs(N * HID, 0.0f);
+  std::vector<F16> inputs(N * HID, 0);
   for (std::size_t i = 0; i < promptCount; ++i)
     std::copy(embedRow(inputIds[i]), embedRow(inputIds[i]) + HID,
               inputs.begin() + i * HID);
@@ -377,8 +380,7 @@ CompletionResult Qwen3VLRuntime::Impl::generate(
     std::copy(pooled.begin() + i * HID, pooled.begin() + (i + 1) * HID,
               inputs.begin() + off);
   }
-  std::vector<float> full0(N * HID, 0.0f), full1(N * HID, 0.0f),
-      full2(N * HID, 0.0f);
+  std::vector<F16> full0(N * HID, 0), full1(N * HID, 0), full2(N * HID, 0);
   for (std::size_t i = 0; i < imagePositions.count; ++i) {
     const std::size_t off =
         static_cast<std::size_t>(imagePositions.data[i]) * HID;
@@ -392,7 +394,7 @@ CompletionResult Qwen3VLRuntime::Impl::generate(
 
   Text<size_t, 2> output;
   output.loadVocab(vocabPath);
-  std::vector<float> logits(N * VOCAB);
+  std::vector<F16> logits(N * VOCAB);
   const std::size_t contextNew = N - promptCount;
   const std::size_t maxNew =
       sampling.maxTokens <= 0
@@ -420,11 +422,8 @@ CompletionResult Qwen3VLRuntime::Impl::generate(
     decodeMs += std::chrono::duration<double, std::milli>(
                     std::chrono::high_resolution_clock::now() - stepStart)
                     .count();
-    const float *row = logits.data() + t * VOCAB;
-    int token = 0;
-    for (std::size_t j = 1; j < VOCAB; ++j)
-      if (row[j] > row[token])
-        token = static_cast<int>(j);
+    const F16 *row = logits.data() + t * VOCAB;
+    int token = argmaxF16(row, VOCAB);
     if (token == 151645 || token == 151643 ||
         std::find(sampling.stopTokenIds.begin(), sampling.stopTokenIds.end(),
                   static_cast<long long>(token)) !=

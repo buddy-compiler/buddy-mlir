@@ -16,6 +16,9 @@ set(BUDDY_QWEN3_VL_NUM_THREADS "1" CACHE STRING
   "OpenMP thread count baked into Qwen3-VL compiled kernels")
 set(BUDDY_QWEN3_VL_LLC_ATTRS "" CACHE STRING
   "Optional Qwen3-VL LLC target attributes; empty uses buddy_add_model platform defaults")
+option(BUDDY_QWEN3_VL_KV_DECODE
+  "Build Qwen3-VL with KV prefill/decode + packed decode GEMV (default ON)"
+  ON)
 
 buddy_add_model(
   NAME qwen3_vl
@@ -29,4 +32,5 @@ buddy_add_model(
   LOCAL_MODEL "${BUDDY_QWEN3_VL_MODEL_PATH}"
   NUM_THREADS "${BUDDY_QWEN3_VL_NUM_THREADS}"
   LLC_ATTRS "${BUDDY_QWEN3_VL_LLC_ATTRS}"
+  KV_DECODE ${BUDDY_QWEN3_VL_KV_DECODE}
 )

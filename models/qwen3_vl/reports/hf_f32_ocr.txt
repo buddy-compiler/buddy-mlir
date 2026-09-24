@@ -1,0 +1,24 @@
+# HF F32 reference — single-image OCR (summary)
+
+config: hf_f32_reference
+precision: F32
+platform: x86_64 host (HuggingFace `transformers`, not on-board)
+image: `models/qwen3_vl/test_text.png`
+prompt: `Read all the text in the image.`
+max_new_tokens: 32
+
+## Result
+
+| Metric | Value |
+|---|---|
+| OCR | Pass — `Buddy MLIR` / `Qwen-3-VL 0.0` / `2026` |
+| generated_tokens | 21 |
+| model_load_s | 1.023 |
+| preprocess_s | 0.044 |
+| generate_e2e_s | 1.405 |
+| tokens_per_sec | 14.94 |
+
+Notes:
+- `generate_e2e` includes vision + decode inside HF `generate`; not split by stage.
+- Not same-hardware as SpacemiT K3; order-of-magnitude reference only.
+- Status: `HF_REF_OK`
