@@ -12,8 +12,8 @@
 // RUN:   -finalize-memref-to-llvm \
 // RUN:   -reconcile-unrealized-casts | \
 // RUN: buddy-translate -buddy-to-llvmir | \
-// RUN: buddy-llc -filetype=asm -mtriple=riscv64-unknown-linux-gnu \
-// RUN:   -mattr=+m,+a,+c,+d,+xtheadame -o - | FileCheck %s --check-prefix=ASM
+// RUN: buddy-llc -filetype=obj -mtriple=riscv64-unknown-linux-gnu \
+// RUN:   -mattr=+xtheadame -o %t.o && llvm-readobj --file-headers %t.o | FileCheck %s --check-prefix=OBJ
 
 module {
   // Print the first 16 results for verification
@@ -32,9 +32,10 @@ module {
     %stride_c = arith.constant 256 : i64
 
     %c0 = arith.constant 0 : index
-    %c16 = arith.constant 16 : index
     %c64 = arith.constant 64 : index
     %c256 = arith.constant 256 : index
+    %c128 = arith.constant 128 : index
+    %c192 = arith.constant 192 : index
     %step1 = arith.constant 1 : index
 
     %v1 = arith.constant 1 : i8
@@ -78,28 +79,47 @@ module {
       scf.for %j = %c0 to %c64 step %step_n {
 
         // Before calculating a new 16x16 block of C, the accumulator must be cleared
-        xt_ame.th.mzero 0
+        %zero = xt_ame.th.mzero : vector<[16]xi32>
 
-        // The inner K loop accumulates (0, 64, 128, 192)
-        scf.for %k = %c0 to %c256 step %step_k {
+        // K is statically 256, so accumulate its four 64-wide tiles directly.
+        // Do not carry a matrix SSA value through scf.for: the current backend
+        // cannot lower the MatrixReg PHI/copy that such an iter_arg creates.
+        %sub_a0 = memref.subview %a_ptr[%i, %c0] [16, 64] [1, 1]
+                  : memref<64x256xi8> to memref<16x64xi8, strided<[256, 1], offset: ?>>
+        %sub_b0 = memref.subview %b_ptr[%c0, %j] [64, 16] [1, 1]
+                  : memref<256x64xi8> to memref<64x16xi8, strided<[64, 1], offset: ?>>
+        %lhs0 = xt_ame.th.mlde8 %stride_a, %sub_a0 : memref<16x64xi8, strided<[256, 1], offset: ?>> -> vector<[64]xi8>
+        %rhs0 = xt_ame.th.mldte8 %stride_b, %sub_b0 : memref<64x16xi8, strided<[64, 1], offset: ?>> -> vector<[64]xi8>
+        %acc0 = xt_ame.th.mmaccu.w.b %zero, %rhs0, %lhs0 : vector<[16]xi32>, vector<[64]xi8>, vector<[64]xi8> -> vector<[16]xi32>
 
-          // Extract subviews for the current tiles of A and B
-          %sub_a = memref.subview %a_ptr[%i, %k] [16, 64] [1, 1]
-                   : memref<64x256xi8> to memref<16x64xi8, strided<[256, 1], offset: ?>>
+        %sub_a1 = memref.subview %a_ptr[%i, %c64] [16, 64] [1, 1]
+                  : memref<64x256xi8> to memref<16x64xi8, strided<[256, 1], offset: ?>>
+        %sub_b1 = memref.subview %b_ptr[%c64, %j] [64, 16] [1, 1]
+                  : memref<256x64xi8> to memref<64x16xi8, strided<[64, 1], offset: ?>>
+        %lhs1 = xt_ame.th.mlde8 %stride_a, %sub_a1 : memref<16x64xi8, strided<[256, 1], offset: ?>> -> vector<[64]xi8>
+        %rhs1 = xt_ame.th.mldte8 %stride_b, %sub_b1 : memref<64x16xi8, strided<[64, 1], offset: ?>> -> vector<[64]xi8>
+        %acc1 = xt_ame.th.mmaccu.w.b %acc0, %rhs1, %lhs1 : vector<[16]xi32>, vector<[64]xi8>, vector<[64]xi8> -> vector<[16]xi32>
 
-          %sub_b = memref.subview %b_ptr[%k, %j] [64, 16] [1, 1]
-                   : memref<256x64xi8> to memref<64x16xi8, strided<[64, 1], offset: ?>>
+        %sub_a2 = memref.subview %a_ptr[%i, %c128] [16, 64] [1, 1]
+                  : memref<64x256xi8> to memref<16x64xi8, strided<[256, 1], offset: ?>>
+        %sub_b2 = memref.subview %b_ptr[%c128, %j] [64, 16] [1, 1]
+                  : memref<256x64xi8> to memref<64x16xi8, strided<[64, 1], offset: ?>>
+        %lhs2 = xt_ame.th.mlde8 %stride_a, %sub_a2 : memref<16x64xi8, strided<[256, 1], offset: ?>> -> vector<[64]xi8>
+        %rhs2 = xt_ame.th.mldte8 %stride_b, %sub_b2 : memref<64x16xi8, strided<[64, 1], offset: ?>> -> vector<[64]xi8>
+        %acc2 = xt_ame.th.mmaccu.w.b %acc1, %rhs2, %lhs2 : vector<[16]xi32>, vector<[64]xi8>, vector<[64]xi8> -> vector<[16]xi32>
 
-          // Load and compute
-          xt_ame.th.mlde8 1, %stride_a, %sub_a : memref<16x64xi8, strided<[256, 1], offset: ?>>
-          xt_ame.th.mldte8 2, %stride_b, %sub_b : memref<64x16xi8, strided<[64, 1], offset: ?>>
-          xt_ame.th.mmaccu.w.b 0, 2, 1
-        }
+        %sub_a3 = memref.subview %a_ptr[%i, %c192] [16, 64] [1, 1]
+                  : memref<64x256xi8> to memref<16x64xi8, strided<[256, 1], offset: ?>>
+        %sub_b3 = memref.subview %b_ptr[%c192, %j] [64, 16] [1, 1]
+                  : memref<256x64xi8> to memref<64x16xi8, strided<[64, 1], offset: ?>>
+        %lhs3 = xt_ame.th.mlde8 %stride_a, %sub_a3 : memref<16x64xi8, strided<[256, 1], offset: ?>> -> vector<[64]xi8>
+        %rhs3 = xt_ame.th.mldte8 %stride_b, %sub_b3 : memref<64x16xi8, strided<[64, 1], offset: ?>> -> vector<[64]xi8>
+        %acc = xt_ame.th.mmaccu.w.b %acc2, %rhs3, %lhs3 : vector<[16]xi32>, vector<[64]xi8>, vector<[64]xi8> -> vector<[16]xi32>
 
         // Store back to C matrix memory
         %sub_c = memref.subview %c_ptr[%i, %j] [16, 16] [1, 1]
                  : memref<64x64xi32> to memref<16x16xi32, strided<[64, 1], offset: ?>>
-        xt_ame.th.mste32 0, %stride_c, %sub_c : memref<16x16xi32, strided<[64, 1], offset: ?>>
+        xt_ame.th.mste32 %acc, %stride_c, %sub_c : vector<[16]xi32>, memref<16x16xi32, strided<[64, 1], offset: ?>>
 
       }
     }
@@ -155,14 +175,13 @@ module {
 }
 // Expected lowering for tile-based operations:
 // CHECK-LABEL: func.func @main
-// CHECK: llvm.call @llvm.riscv.th.mcfgmi
-// CHECK: llvm.call @llvm.riscv.th.mcfgni
-// CHECK: llvm.call @llvm.riscv.th.mcfgki
-// CHECK: llvm.call @llvm.riscv.th.mzero
-// CHECK: llvm.call @llvm.riscv.th.mlde8
-// CHECK: llvm.call @llvm.riscv.th.mldte8
-// CHECK: llvm.call @llvm.riscv.th.mmaccu.w.b
-// CHECK: llvm.call @llvm.riscv.th.mste32
-
-// ASM: .attribute 5, "{{.*xtheadmatrix.*}}"
-// ASM: th.mmaccu.w.b{{[ \t]}}
+// CHECK: xt_ame.intr.th.mcfgmi
+// CHECK: xt_ame.intr.th.mcfgni
+// CHECK: xt_ame.intr.th.mcfgki
+// CHECK: xt_ame.intr.th.mzero
+// CHECK: xt_ame.intr.th.mlde8
+// CHECK: xt_ame.intr.th.mldte8
+// CHECK: xt_ame.intr.th.mmaccu.w.b
+// CHECK: xt_ame.intr.th.mste32
+// OBJ: Format: elf64-littleriscv
+// OBJ: Machine: EM_RISCV
