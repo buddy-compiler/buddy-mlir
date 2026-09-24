@@ -308,6 +308,21 @@ function(buddy_add_model)
 
     get_filename_component(RISCV_OMP_BASENAME "${RISCV_OMP_SHARED}" NAME)
     get_filename_component(RISCV_MLIR_RUNNER_BASENAME "${RISCV_MLIR_C_RUNNER_UTILS}" NAME)
+    string(REPLACE "libmlir_c_runner_utils" "libmlir_apfloat_wrappers"
+      RISCV_MLIR_APFLOAT_WRAPPERS "${RISCV_MLIR_C_RUNNER_UTILS}")
+    string(REPLACE "libmlir_c_runner_utils" "libmlir_float16_utils"
+      RISCV_MLIR_FLOAT16_UTILS "${RISCV_MLIR_C_RUNNER_UTILS}")
+    foreach(_buddy_riscv_mlir_dep IN ITEMS
+        "${RISCV_MLIR_APFLOAT_WRAPPERS}" "${RISCV_MLIR_FLOAT16_UTILS}")
+      if(NOT EXISTS "${_buddy_riscv_mlir_dep}")
+        message(FATAL_ERROR
+          "Missing RISC-V MLIR C runner dependency: ${_buddy_riscv_mlir_dep}")
+      endif()
+    endforeach()
+    get_filename_component(RISCV_MLIR_APFLOAT_BASENAME
+      "${RISCV_MLIR_APFLOAT_WRAPPERS}" NAME)
+    get_filename_component(RISCV_MLIR_FLOAT16_BASENAME
+      "${RISCV_MLIR_FLOAT16_UTILS}" NAME)
     if(RISCV_OMP_BASENAME STREQUAL "")
       message(FATAL_ERROR "RISCV_OMP_SHARED has no basename: ${RISCV_OMP_SHARED}")
     endif()
@@ -318,23 +333,33 @@ function(buddy_add_model)
 
     set(RISCV_OMP_LOCAL "${BIN}/${RISCV_OMP_BASENAME}")
     set(RISCV_MLIR_RUNNER_LOCAL "${BIN}/${RISCV_MLIR_RUNNER_BASENAME}")
+    set(RISCV_MLIR_APFLOAT_LOCAL "${BIN}/${RISCV_MLIR_APFLOAT_BASENAME}")
+    set(RISCV_MLIR_FLOAT16_LOCAL "${BIN}/${RISCV_MLIR_FLOAT16_BASENAME}")
 
     add_custom_command(
       OUTPUT "${RISCV_OMP_LOCAL}" "${RISCV_MLIR_RUNNER_LOCAL}"
+             "${RISCV_MLIR_APFLOAT_LOCAL}" "${RISCV_MLIR_FLOAT16_LOCAL}"
       COMMAND ${CMAKE_COMMAND} -E copy_if_different "${RISCV_OMP_SHARED}" "${RISCV_OMP_LOCAL}"
       COMMAND ${CMAKE_COMMAND} -E copy_if_different "${RISCV_MLIR_C_RUNNER_UTILS}" "${RISCV_MLIR_RUNNER_LOCAL}"
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different "${RISCV_MLIR_APFLOAT_WRAPPERS}" "${RISCV_MLIR_APFLOAT_LOCAL}"
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different "${RISCV_MLIR_FLOAT16_UTILS}" "${RISCV_MLIR_FLOAT16_LOCAL}"
       DEPENDS "${RISCV_OMP_SHARED}" "${RISCV_MLIR_C_RUNNER_UTILS}"
-      COMMENT "[${MDL_NAME}] Copying RVV runtime deps (omp/mlir_c_runner_utils)"
+              "${RISCV_MLIR_APFLOAT_WRAPPERS}" "${RISCV_MLIR_FLOAT16_UTILS}"
+      COMMENT "[${MDL_NAME}] Copying RVV runtime deps (OpenMP and MLIR runner closure)"
       VERBATIM
     )
 
     list(APPEND MDL_GEN_MANIFEST_ARGS
       --dep-shared-lib "file:${RISCV_OMP_BASENAME}"
+      --dep-shared-lib "file:${RISCV_MLIR_APFLOAT_BASENAME}"
+      --dep-shared-lib "file:${RISCV_MLIR_FLOAT16_BASENAME}"
       --dep-shared-lib "file:${RISCV_MLIR_RUNNER_BASENAME}")
 
     list(APPEND MDL_EXTRA_STAGE4_DEPS
       "${RISCV_OMP_LOCAL}"
-      "${RISCV_MLIR_RUNNER_LOCAL}")
+      "${RISCV_MLIR_RUNNER_LOCAL}"
+      "${RISCV_MLIR_APFLOAT_LOCAL}"
+      "${RISCV_MLIR_FLOAT16_LOCAL}")
   endif()
 
   # ════════════════════════════════════════════════════════════════════════════

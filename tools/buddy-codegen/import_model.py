@@ -244,6 +244,8 @@ def compile_and_export_tiered_graphs(
     pattern_decode = [simply_fuse, apply_classic_fusion, gqa_attention_fusion]
 
     params = None
+    packed_decode_params = None
+    decode_pack = config.get("decode_pack", {"enabled": False})
     mlir_output_dir = output_dir
     partition_manifest = {
         "tiered": True,
@@ -405,6 +407,10 @@ def compile_and_export_tiered_graphs(
         assert len(graphs) == 1
         graph = graphs[0]
         graph.perform([eliminate_transpose, eliminate_matmul_transpose_reshape])
+        if decode_pack.get("enabled"):
+            pack_decode_weights(graph, decode_pack)
+            if packed_decode_params is None:
+                packed_decode_params = graph._params_ref
         graph.fuse_ops(pattern_decode)
 
         name = (
@@ -491,7 +497,7 @@ def compile_and_export_tiered_graphs(
             file=sys.stderr,
         )
 
-    return params
+    return params, packed_decode_params
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -1235,12 +1241,8 @@ def import_model(
             raise ValueError(
                 "tiered KV cache import does not support quantized variants"
             )
-        if config.get("decode_pack", {}).get("enabled"):
-            raise ValueError(
-                "decode_pack is not yet supported with tiered_kv_cache"
-            )
         with timed_import_step("compile_tiered_graphs"):
-            original_params = compile_and_export_tiered_graphs(
+            original_params, packed_decode_params = compile_and_export_tiered_graphs(
                 model,
                 config,
                 output_dir,
@@ -1258,6 +1260,17 @@ def import_model(
                 actual_sizes = export_plain_weights_direct(
                     original_params, config, output_dir
                 )
+                if config.get("decode_pack", {}).get("enabled"):
+                    if packed_decode_params is None:
+                        raise RuntimeError(
+                            "tiered decode packing produced no parameter list"
+                        )
+                    export_plain_weights_direct(
+                        packed_decode_params,
+                        config,
+                        output_dir,
+                        file_key="decode_file",
+                    )
                 update_config(config, actual_sizes, output_dir)
                 write_weights_manifest(config, output_dir)
             else:

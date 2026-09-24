@@ -129,9 +129,11 @@ class MatMulVectorizationDecodePackedPattern : public ConversionPattern {
 public:
   MatMulVectorizationDecodePackedPattern(
       MLIRContext *ctx, ModuleOp module, int64_t vecSize,
+      int64_t panelsPerIteration,
       llvm::SmallDenseSet<std::pair<int64_t, int64_t>, 4> packedShapes)
       : ConversionPattern(linalg::MatmulOp::getOperationName(), 1, ctx),
         module(module), vecSize(vecSize),
+        panelsPerIteration(panelsPerIteration),
         packedShapes(std::move(packedShapes)) {}
 
   bool matchesPackedShape(linalg::MatmulOp op) const {
@@ -162,7 +164,7 @@ public:
     if (aElementType != bElementType || bElementType != cElementType ||
         !isa<FloatType>(cElementType))
       return false;
-    if (n % vecSize != 0)
+    if (panelsPerIteration <= 0 || n % (vecSize * panelsPerIteration) != 0)
       return false;
     // Empty `packed-shapes` means every m==1 matmul weight in this module is
     // packed -- what pack_decode_matmul_weights guarantees -- so take them all.
@@ -207,7 +209,8 @@ public:
     Value c0 = arith::ConstantIndexOp::create(rewriter, loc, 0);
     Value c1 = arith::ConstantIndexOp::create(rewriter, loc, 1);
     Value cK = arith::ConstantIndexOp::create(rewriter, loc, K);
-    Value step = arith::ConstantIndexOp::create(rewriter, loc, vecSize);
+    Value step = arith::ConstantIndexOp::create(
+        rewriter, loc, vecSize * panelsPerIteration);
 
     Value n = memref::DimOp::create(rewriter, loc, C, c1);
     Value k = memref::DimOp::create(rewriter, loc, A, c1);
@@ -221,40 +224,55 @@ public:
         /*steps=*/ValueRange{step},
         [&](OpBuilder &builder, Location loc, ValueRange ivs) {
           Value nIdx = ivs.front();
-          Value cVec;
-          if (zeroInitialized) {
-            Value zero = arith::ConstantOp::create(
+          SmallVector<Value> panelIndices;
+          SmallVector<Value> panelBases;
+          SmallVector<Value> accumulators;
+          Value zero;
+          if (zeroInitialized)
+            zero = arith::ConstantOp::create(
                 builder, loc, elementType, builder.getZeroAttr(elementType));
-            cVec = vector::BroadcastOp::create(builder, loc, vectorType, zero);
-          } else {
-            cVec = vector::LoadOp::create(builder, loc, vectorType, C,
-                                          ValueRange{c0, nIdx});
+          for (int64_t panel = 0; panel < panelsPerIteration; ++panel) {
+            Value panelOffset =
+                arith::ConstantIndexOp::create(builder, loc, panel * vecSize);
+            Value panelIdx =
+                arith::AddIOp::create(builder, loc, nIdx, panelOffset);
+            panelIndices.push_back(panelIdx);
+            panelBases.push_back(
+                arith::MulIOp::create(builder, loc, panelIdx, cK));
+            if (zeroInitialized)
+              accumulators.push_back(vector::BroadcastOp::create(
+                  builder, loc, vectorType, zero));
+            else
+              accumulators.push_back(vector::LoadOp::create(
+                  builder, loc, vectorType, C, ValueRange{c0, panelIdx}));
           }
 
-          // Panel base offset: nt*K*vecSize == nIdx*K, since nIdx is always
-          // an exact multiple of vecSize (the scf.parallel step).
-          Value panelBase = arith::MulIOp::create(builder, loc, nIdx, cK);
-
           auto sumIter = scf::ForOp::create(
-              builder, loc, c0, k, c1, ValueRange{cVec},
+              builder, loc, c0, k, c1, ValueRange{accumulators},
               [&](OpBuilder &builder, Location loc, Value kIdx,
                   ValueRange iterArgs) {
                 Value aElem = memref::LoadOp::create(builder, loc, A,
                                                      ValueRange{c0, kIdx});
                 Value aVec = vector::BroadcastOp::create(builder, loc,
                                                          vectorType, aElem);
-                Value kOffset = arith::MulIOp::create(builder, loc, kIdx, step);
-                Value linOffset =
-                    arith::AddIOp::create(builder, loc, panelBase, kOffset);
-                Value bVec = vector::LoadOp::create(
-                    builder, loc, vectorType, flatB, ValueRange{linOffset});
-                Value res = vector::FMAOp::create(builder, loc, aVec, bVec,
-                                                  iterArgs.front());
-                scf::YieldOp::create(builder, loc, res);
+                SmallVector<Value> results;
+                for (int64_t panel = 0; panel < panelsPerIteration; ++panel) {
+                  Value panelKOffset = arith::MulIOp::create(
+                      builder, loc, kIdx,
+                      arith::ConstantIndexOp::create(builder, loc, vecSize));
+                  Value linOffset = arith::AddIOp::create(
+                      builder, loc, panelBases[panel], panelKOffset);
+                  Value bVec = vector::LoadOp::create(
+                      builder, loc, vectorType, flatB, ValueRange{linOffset});
+                  results.push_back(vector::FMAOp::create(
+                      builder, loc, aVec, bVec, iterArgs[panel]));
+                }
+                scf::YieldOp::create(builder, loc, results);
               });
 
-          vector::StoreOp::create(builder, loc, sumIter.getResult(0), C,
-                                  ValueRange{c0, nIdx});
+          for (int64_t panel = 0; panel < panelsPerIteration; ++panel)
+            vector::StoreOp::create(builder, loc, sumIter.getResult(panel), C,
+                                    ValueRange{c0, panelIndices[panel]});
         });
 
     rewriter.eraseOp(op);
@@ -272,6 +290,7 @@ public:
 private:
   ModuleOp module;
   int64_t vecSize;
+  int64_t panelsPerIteration;
   llvm::SmallDenseSet<std::pair<int64_t, int64_t>, 4> packedShapes;
 };
 
@@ -316,13 +335,13 @@ public:
     target.addDynamicallyLegalOp<linalg::MatmulOp>(
         [&](linalg::MatmulOp op) -> bool {
           MatMulVectorizationDecodePackedPattern matcher(
-              context, module, vectorSize, packedShapes);
+              context, module, vectorSize, panelsPerIteration, packedShapes);
           return !matcher.matchesPackedShape(op);
         });
 
     RewritePatternSet patterns(context);
     patterns.add<MatMulVectorizationDecodePackedPattern>(
-        context, module, vectorSize, packedShapes);
+        context, module, vectorSize, panelsPerIteration, packedShapes);
 
     if (failed(applyPartialConversion(module, target, std::move(patterns))))
       signalPassFailure();
@@ -334,6 +353,11 @@ public:
                      "this pass's addressing math. Must match the width "
                      "the weight file was packed with."),
       llvm::cl::init(32)};
+  Option<int64_t> panelsPerIteration{
+      *this, "panels-per-iteration",
+      llvm::cl::desc("Number of adjacent packed N panels accumulated together "
+                     "so one A scalar load feeds multiple vector FMAs."),
+      llvm::cl::init(1)};
   Option<std::string> packedShapesOpt{
       *this, "packed-shapes",
       llvm::cl::desc("Comma-separated KxN pairs (e.g. '1536x8960,8960x1536') "

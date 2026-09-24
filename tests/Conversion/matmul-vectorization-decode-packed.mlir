@@ -1,4 +1,5 @@
 // RUN: buddy-opt %s -matmul-vectorization-decode-packed="vector-size=32 packed-shapes=128x64" | FileCheck %s
+// RUN: buddy-opt %s -matmul-vectorization-decode-packed="vector-size=32 panels-per-iteration=2 packed-shapes=128x64" | FileCheck %s --check-prefix=PANEL2
 
 // %B is expected to already be physically repacked offline into N-tile
 // panels: Bpacked[nt][k][v] == B[k, nt*32 + v]. This pass only changes how
@@ -18,13 +19,20 @@ func.func @matmul_decode_packed(%A: memref<1x128xf32>,
 // CHECK: memref.extract_strided_metadata %arg1
 // CHECK: memref.reinterpret_cast %base_buffer to offset: [%offset], sizes: [8192], strides: [1]
 // CHECK: scf.parallel
-// CHECK: %[[PANEL_BASE:.*]] = arith.muli %arg3, %c128
+// CHECK: %[[PANEL_IDX:.*]] = arith.addi %arg3, %{{.*}}
+// CHECK: %[[PANEL_BASE:.*]] = arith.muli %[[PANEL_IDX]], %c128
 // CHECK: scf.for
 // CHECK: %[[K_OFF:.*]] = arith.muli %arg4, %c32
 // CHECK: %[[LIN:.*]] = arith.addi %[[PANEL_BASE]], %[[K_OFF]]
 // CHECK: vector.load %reinterpret_cast[%[[LIN]]]
 // CHECK: vector.fma
 // CHECK-NOT: linalg.matmul
+
+// PANEL2-LABEL: func.func @matmul_decode_packed
+// PANEL2: scf.parallel
+// PANEL2: scf.for {{.*}} iter_args(%{{.*}} = %{{.*}}, %{{.*}} = %{{.*}})
+// PANEL2-COUNT-2: vector.fma
+// PANEL2-COUNT-2: vector.store
 
 // A (K, N) shape not listed in packed-shapes must be left as a plain
 // linalg.matmul (no matching pattern fires).

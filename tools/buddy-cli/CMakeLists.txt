@@ -6,6 +6,10 @@ target_compile_features(buddy-cli PRIVATE cxx_std_17)
 target_compile_definitions(buddy-cli PRIVATE
   BUDDY_VERSION="${BUDDY_PACKAGE_VERSION}")
 
+option(BUDDY_CLI_LINK_BUILTIN_MODELS
+  "Statically link model runners into buddy-cli instead of using RAX plugins"
+  OFF)
+
 # buddy_models_<name> is produced by model subdirectories under models/.
 target_link_libraries(buddy-cli PRIVATE
   buddy_runtime_core
@@ -14,17 +18,18 @@ target_link_libraries(buddy-cli PRIVATE
   ${CMAKE_DL_LIBS}
 )
 
-if(BUDDY_BUILD_DEEPSEEK_R1_MODEL)
+if(BUDDY_CLI_LINK_BUILTIN_MODELS AND BUDDY_BUILD_DEEPSEEK_R1_MODEL)
   target_link_libraries(buddy-cli PRIVATE buddy_models_deepseek_r1)
   target_compile_definitions(buddy-cli PRIVATE BUDDY_CLI_HAVE_DEEPSEEK_R1_MODEL)
 endif()
 
-if(BUDDY_BUILD_LLAMA31_TT_MODEL OR BUDDY_BUILD_LLAMA32_TT_MODEL)
+if(BUDDY_CLI_LINK_BUILTIN_MODELS AND
+   (BUDDY_BUILD_LLAMA31_TT_MODEL OR BUDDY_BUILD_LLAMA32_TT_MODEL))
   target_link_libraries(buddy-cli PRIVATE buddy_models_llama31_tt)
   target_compile_definitions(buddy-cli PRIVATE BUDDY_CLI_HAVE_LLAMA31_TT_MODEL)
 endif()
 
-if(BUDDY_BUILD_BGE_M3_MODEL)
+if(BUDDY_CLI_LINK_BUILTIN_MODELS AND BUDDY_BUILD_BGE_M3_MODEL)
   target_link_libraries(buddy-cli PRIVATE buddy_models_bge_m3)
 endif()
 target_link_libraries(buddy-cli PRIVATE
