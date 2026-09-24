@@ -1,0 +1,31 @@
+== 清理历史孤儿 server ==
+== 当前内存 ==
+               total        used        free      shared  buff/cache   available
+内存：            31           0           6           0          24          30
+== 残留进程检查(应为空) ==
+(无)
+
+===== OMP_NUM_THREADS=16 (port 8146) =====
+  就绪(预热完成)。实测 2 次,单位秒:
+  20.561765
+  20.075934
+
+===== OMP_NUM_THREADS=8 (port 8138) =====
+  就绪(预热完成)。实测 2 次,单位秒:
+  20.764627
+  20.936416
+
+===== OMP_NUM_THREADS=4 (port 8134) =====
+  就绪(预热完成)。实测 2 次,单位秒:
+  32.635430
+  33.016966
+
+===== OMP_NUM_THREADS=1 (port 8131) =====
+  就绪(预热完成)。实测 2 次,单位秒:
+  49.269313
+  49.280662
+
+== 完成。最终内存 ==
+               total        used        free      shared  buff/cache   available
+内存：            31           1           6           0          24          30
+输出 → /home/user/buddy-k3/buddy-mlir/issue888/results/thread_scaling.txt

@@ -18,6 +18,10 @@ if(BUDDY_DEEPSEEKR1_EXAMPLES)
   add_subdirectory(BuddyDeepSeekR1)
 endif()
 
+if(BUDDY_BGEM3_EXAMPLES)
+  add_subdirectory(BuddyBgeM3)
+endif()
+
 if(BUDDY_QWEN3_EXAMPLES)
   add_subdirectory(BuddyQwen3)
 endif()
