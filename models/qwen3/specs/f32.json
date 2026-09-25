@@ -1,0 +1,13 @@
+{
+  "hf_model_path": "Qwen/Qwen3-0.6B",
+  "model_family": "qwen3",
+  "variant": "f32",
+  "max_token_len": 1024,
+  "num_threads": 48,
+  "weights_override": {
+    "total": 596049984,
+    "linear_elements": 440401920,
+    "linear_output_channels": 344064,
+    "other_elements": 155648064
+  }
+}
