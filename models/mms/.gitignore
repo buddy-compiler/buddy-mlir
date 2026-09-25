@@ -1,0 +1,21 @@
+# Build / generated artifacts
+arg0.data
+arg0*.data
+layer_partitioned/
+generated/
+*.mlir
+*.o
+*.so
+*.rax
+
+# Python
+__pycache__/
+*.pyc
+
+# Staged HuggingFace snapshot files (kept in the HF cache, not the repo)
+config.json
+model.safetensors
+pytorch_model.bin
+vocab.json
+special_tokens_map.json
+tokenizer_config.json
