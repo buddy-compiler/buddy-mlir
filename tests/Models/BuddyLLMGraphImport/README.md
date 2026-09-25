@@ -3,6 +3,37 @@
 This directory contains model-specific import tests that verify a Hugging Face
 LLM can be imported by `DynamoCompiler`, lowered to MLIR, and written to disk.
 
+The directory also includes lightweight LLM/NLP architecture coverage tests.
+Those tests use tiny random-weight configs to cover graph structure without
+downloading large checkpoints.
+
+## Covered Models
+
+| Model | Test file |
+| --- | --- |
+| ALBERT | `test_import_albert.py` |
+| BART | `test_import_bart.py` |
+| ChatGLM3-6B | `test_import_chatglm3_6b.py` |
+| DeepSeek-R1-Distill-Llama-8B | `test_import_deepseek_r1_llama_8b.py` |
+| DistilBERT | `test_import_distilbert.py` |
+| ELECTRA | `test_import_electra.py` |
+| Gemma 2 9B | `test_import_gemma2_9b.py` |
+| Gemma 4 E2B IT | `test_import_gemma4_E2B_it.py` |
+| GPT-2 | `test_import_gpt2.py` |
+| Llama 3.1 8B | `test_import_llama3_1_8b.py` |
+| Mistral 7B | `test_import_mistral_7b.py` |
+| MobileBERT | `test_import_mobilebert.py` |
+| OPT | `test_import_opt.py` |
+| Pegasus | `test_import_pegasus.py` |
+| Phi-3 Mini 4K | `test_import_phi3_mini_4k.py` |
+| Pythia / GPT-NeoX | `test_import_pythia.py` |
+| Qwen2.5 7B | `test_import_qwen2_5_7b.py` |
+| RoBERTa | `test_import_roberta.py` |
+| Solar 10.7B | `test_import_solar_10_7b.py` |
+| TinyLlama 1.1B | `test_import_tinyllama_1_1b.py` |
+| XLM-RoBERTa | `test_import_xlm_roberta.py` |
+| Yi-Coder 9B | `test_import_yi_coder_9b.py` |
+
 ## What This Test Checks
 
 Each `test_import_*.py` script follows the same workflow:
