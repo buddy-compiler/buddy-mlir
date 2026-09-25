@@ -41,7 +41,7 @@ option(BUDDY_RAX_EMBED_PAYLOAD
   ON)
 
 option(IS_RVV_CROSSCOMPILE
-  "Enable RVV cross-compilation for model.so (riscv64 target)"
+  "Enable RVV cross-compilation for the model and runner package (riscv64 target)"
   OFF)
 option(BUDDY_MODEL_LAYER_PARTITION
   "Build supported models with template-based layer partitioning"
@@ -161,6 +161,53 @@ function(_buddy_compile_generated_subgraphs)
   )
 endfunction()
 
+# Build a model plugin shared library. On cross builds the plugin is loaded by
+# the RISC-V runner, so compile the plugin plus the model runtime sources with
+# the cross clang (the host static library is not usable for the target).
+function(_buddy_add_model_plugin)
+  cmake_parse_arguments(P "" "TARGET;NAME;SRC;LIB_TARGET" "EXTRA_SRCS" ${ARGN})
+  if(IS_RVV_CROSSCOMPILE)
+    set(_out "${BIN}/${P_NAME}.so")
+    set(_sources "${CMAKE_CURRENT_SOURCE_DIR}/${P_SRC}")
+    foreach(_extra ${P_EXTRA_SRCS})
+      list(APPEND _sources "${CMAKE_CURRENT_SOURCE_DIR}/${_extra}")
+    endforeach()
+    add_custom_command(
+      OUTPUT "${_out}"
+      COMMAND "${MDL_CROSS_CXX_COMPILER}" ${MDL_CROSS_TARGET_FLAGS}
+              -shared -fPIC -std=c++17
+              -Wl,-z,defs -Wl,-z,nodelete
+              "-Wl,-soname,${P_NAME}.so"
+              "-Wl,-rpath,\$ORIGIN"
+              ${MDL_CROSS_PLUGIN_INCLUDES}
+              -I${GEN_DIR}
+              -I${CMAKE_CURRENT_SOURCE_DIR}/include
+              -I${BUDDY_SOURCE_DIR}/runtime/include
+              -I${CMAKE_BINARY_DIR}/runtime/include
+              -I${BUDDY_SOURCE_DIR}/frontend/Interfaces
+              -I${BUDDY_BINARY_DIR}/frontend/Interfaces
+              -idirafter ${FLATBUFFERS_INCLUDE_DIR}
+              ${_sources}
+              ${MDL_CROSS_PLUGIN_OBJECTS}
+              -lm -o "${_out}"
+      DEPENDS ${_sources} ${MDL_CROSS_PLUGIN_OBJECTS}
+              ${MDL_CROSS_PLUGIN_DEPS} buddy-rax-gen
+      COMMENT "[${P_NAME}] Cross-compiling ${P_NAME}.so for RISC-V"
+      VERBATIM)
+    add_custom_target(${P_TARGET} DEPENDS "${_out}")
+  else()
+    add_library(${P_TARGET} SHARED "${CMAKE_CURRENT_SOURCE_DIR}/${P_SRC}")
+    set_target_properties(${P_TARGET} PROPERTIES
+      LIBRARY_OUTPUT_DIRECTORY "${BIN}"
+      RUNTIME_OUTPUT_DIRECTORY "${BIN}"
+      OUTPUT_NAME "${P_NAME}"
+      PREFIX "")
+    target_link_libraries(${P_TARGET} PRIVATE ${P_LIB_TARGET})
+    target_compile_features(${P_TARGET} PRIVATE cxx_std_17)
+    install(TARGETS ${P_TARGET} EXPORT BuddyMLIRTargets COMPONENT buddy_runtime)
+  endif()
+endfunction()
+
 function(buddy_add_model)
   cmake_parse_arguments(
     MDL                                      # prefix
@@ -262,6 +309,9 @@ function(buddy_add_model)
   endif()
 
   set(MDL_GEN_MANIFEST_ARGS)
+  if(DEFINED BUDDY_PACKAGE_VERSION AND NOT BUDDY_PACKAGE_VERSION STREQUAL "")
+    list(APPEND MDL_GEN_MANIFEST_ARGS --version "${BUDDY_PACKAGE_VERSION}")
+  endif()
   set(MDL_EXTRA_STAGE4_DEPS)
   if(MDL_SERVING_PLUGIN_SRC AND NOT MDL_SERVING_LIBRARY)
     set(MDL_SERVING_LIBRARY "${MDL_NAME}_serving.so")
@@ -319,6 +369,28 @@ function(buddy_add_model)
     set(RISCV_OMP_LOCAL "${BIN}/${RISCV_OMP_BASENAME}")
     set(RISCV_MLIR_RUNNER_LOCAL "${BIN}/${RISCV_MLIR_RUNNER_BASENAME}")
 
+    # mlir_c_runner_utils depends on the float16/apfloat wrappers; ship them too
+    # (loaded before mlir_c_runner_utils by the runner).
+    get_filename_component(RISCV_RUNTIME_LIB_DIR
+      "${RISCV_MLIR_C_RUNNER_UTILS}" DIRECTORY)
+    set(RISCV_EXTRA_LOCAL)
+    set(RISCV_EXTRA_ARGS)
+    foreach(_name libmlir_float16_utils libmlir_apfloat_wrappers)
+      set(_cand "${RISCV_RUNTIME_LIB_DIR}/${_name}${CMAKE_SHARED_LIBRARY_SUFFIX}")
+      if(EXISTS "${_cand}")
+        set(_dst "${BIN}/${_name}${CMAKE_SHARED_LIBRARY_SUFFIX}")
+        add_custom_command(
+          OUTPUT "${_dst}"
+          COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_cand}" "${_dst}"
+          DEPENDS "${_cand}"
+          COMMENT "[${MDL_NAME}] Copying RVV runtime dep ${_name}"
+          VERBATIM)
+        list(APPEND RISCV_EXTRA_LOCAL "${_dst}")
+        list(APPEND RISCV_EXTRA_ARGS
+          --dep-shared-lib "file:${_name}${CMAKE_SHARED_LIBRARY_SUFFIX}")
+      endif()
+    endforeach()
+
     add_custom_command(
       OUTPUT "${RISCV_OMP_LOCAL}" "${RISCV_MLIR_RUNNER_LOCAL}"
       COMMAND ${CMAKE_COMMAND} -E copy_if_different "${RISCV_OMP_SHARED}" "${RISCV_OMP_LOCAL}"
@@ -329,12 +401,55 @@ function(buddy_add_model)
     )
 
     list(APPEND MDL_GEN_MANIFEST_ARGS
-      --dep-shared-lib "file:${RISCV_OMP_BASENAME}"
-      --dep-shared-lib "file:${RISCV_MLIR_RUNNER_BASENAME}")
+      ${RISCV_EXTRA_ARGS}
+      --dep-shared-lib "file:${RISCV_MLIR_RUNNER_BASENAME}"
+      --dep-shared-lib "file:${RISCV_OMP_BASENAME}")
 
     list(APPEND MDL_EXTRA_STAGE4_DEPS
-      "${RISCV_OMP_LOCAL}"
-      "${RISCV_MLIR_RUNNER_LOCAL}")
+      ${RISCV_EXTRA_LOCAL}
+      "${RISCV_MLIR_RUNNER_LOCAL}"
+      "${RISCV_OMP_LOCAL}")
+  endif()
+
+  if(NOT IS_RVV_CROSSCOMPILE AND NOT APPLE)
+    # Native builds must ship the runtime dependencies inside the .rax: the
+    # runner dlopens them (RTLD_GLOBAL) before the model, and the model .so
+    # resolves them through its $ORIGIN rpath. Order matters: transitive deps
+    # (float16 / apfloat) are loaded before the libraries that need them.
+    set(_NATIVE_RUNTIME_DEPS)
+    foreach(_cand
+        "${LLVM_LIBRARY_DIR}/libmlir_float16_utils${CMAKE_SHARED_LIBRARY_SUFFIX}"
+        "${LLVM_LIBRARY_DIR}/libmlir_apfloat_wrappers${CMAKE_SHARED_LIBRARY_SUFFIX}"
+        "${LLVM_LIBRARY_DIR}/libmlir_c_runner_utils${CMAKE_SHARED_LIBRARY_SUFFIX}")
+      if(EXISTS "${_cand}")
+        list(APPEND _NATIVE_RUNTIME_DEPS "${_cand}")
+      endif()
+    endforeach()
+    if(BUDDY_OPENMP_RUNTIME_LIBRARY AND EXISTS "${BUDDY_OPENMP_RUNTIME_LIBRARY}")
+      list(APPEND _NATIVE_RUNTIME_DEPS "${BUDDY_OPENMP_RUNTIME_LIBRARY}")
+    else()
+      get_filename_component(_NATIVE_LLVM_BUILD_DIR "${LLVM_LIBRARY_DIR}" DIRECTORY)
+      set(_NATIVE_OMP
+        "${_NATIVE_LLVM_BUILD_DIR}/runtimes/runtimes-bins/openmp/runtime/src/libomp${CMAKE_SHARED_LIBRARY_SUFFIX}")
+      if(EXISTS "${_NATIVE_OMP}")
+        list(APPEND _NATIVE_RUNTIME_DEPS "${_NATIVE_OMP}")
+      endif()
+    endif()
+    foreach(_dep ${_NATIVE_RUNTIME_DEPS})
+      # Copy under the library's real (SONAME) name so it matches the NEEDED
+      # entries of the model and of the other runtime deps.
+      get_filename_component(_dep_real "${_dep}" REALPATH)
+      get_filename_component(_dep_name "${_dep_real}" NAME)
+      add_custom_command(
+        OUTPUT "${BIN}/${_dep_name}"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${_dep_real}" "${BIN}/${_dep_name}"
+        DEPENDS "${_dep_real}"
+        COMMENT "[${MDL_NAME}] Copying runtime dep ${_dep_name}"
+        VERBATIM)
+      list(APPEND MDL_GEN_MANIFEST_ARGS --dep-shared-lib "file:${_dep_name}")
+      list(APPEND MDL_EXTRA_STAGE4_DEPS "${BIN}/${_dep_name}")
+    endforeach()
   endif()
 
   # ════════════════════════════════════════════════════════════════════════════
@@ -472,17 +587,83 @@ function(buddy_add_model)
   )
 
   set(RUNNER_PLUGIN_TARGET "buddy_models_${MDL_NAME}_runner")
-  add_library(${RUNNER_PLUGIN_TARGET} SHARED
-    "${CMAKE_CURRENT_SOURCE_DIR}/${MDL_RUNNER_PLUGIN_SRC}"
-  )
-  set_target_properties(${RUNNER_PLUGIN_TARGET} PROPERTIES
-    LIBRARY_OUTPUT_DIRECTORY "${BIN}"
-    RUNTIME_OUTPUT_DIRECTORY "${BIN}"
-    OUTPUT_NAME "${MDL_NAME}_runner"
-    PREFIX ""
-  )
-  target_link_libraries(${RUNNER_PLUGIN_TARGET} PRIVATE ${LIB_TARGET})
-  target_compile_features(${RUNNER_PLUGIN_TARGET} PRIVATE cxx_std_17)
+  if(IS_RVV_CROSSCOMPILE AND MDL_MODEL_KIND STREQUAL "single_forward")
+    # The model build tree remains a native build because it must execute
+    # buddy-opt, rax-pack, and the Python importers.  Compile the runtime
+    # plugin as a separate RISC-V artifact instead of changing CMake's global
+    # compiler after native targets have already been configured.
+    set(MDL_CROSS_CXX_COMPILER
+      "${BUDDY_MLIR_BUILD_DIR}/../llvm/build/bin/clang++")
+    set(MDL_CROSS_TARGET_FLAGS
+      --target=riscv64-unknown-linux-gnu
+      "--sysroot=${RISCV_GNU_TOOLCHAIN}/sysroot"
+      "--gcc-toolchain=${RISCV_GNU_TOOLCHAIN}")
+    set(MDL_CROSS_PLUGIN "${BIN}/${MDL_NAME}_runner.so")
+    set(MDL_CROSS_PLUGIN_SOURCES
+      "${CMAKE_CURRENT_SOURCE_DIR}/${MDL_RUNNER_SRC}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/${MDL_RUNNER_PLUGIN_SRC}")
+    # Model runtime sources (e.g. WhisperRuntime.cpp / BgeM3Runtime.cpp) were
+    # only compiled into the host static library, so the cross plugin link
+    # failed with undefined references. Compile them for the target as well.
+    foreach(_extra ${MDL_EXTRA_SRCS})
+      list(APPEND MDL_CROSS_PLUGIN_SOURCES
+        "${CMAKE_CURRENT_SOURCE_DIR}/${_extra}")
+    endforeach()
+    set(MDL_CROSS_PLUGIN_INCLUDES)
+    foreach(_inc ${LLVM_INCLUDE_DIRS} ${MLIR_INCLUDE_DIRS})
+      list(APPEND MDL_CROSS_PLUGIN_INCLUDES "-I${_inc}")
+    endforeach()
+    set(MDL_CROSS_PLUGIN_OBJECTS)
+    set(MDL_CROSS_PLUGIN_DEPS)
+    if("BuddyLibDAP" IN_LIST MDL_RUNTIME_LINK_LIBS)
+      # Whisper's host-side audio preprocessing is generated from DAP.mlir.
+      # DAP-extend.o is PIC and contains the whisper preprocessing entrypoint;
+      # avoid the native BuddyLibDAP archive and link this target object into
+      # the RISC-V plugin directly.
+      set(MDL_CROSS_DAP_OBJECT
+        "${CMAKE_BINARY_DIR}/frontend/Interfaces/lib/DAP-extend.o")
+      list(APPEND MDL_CROSS_PLUGIN_OBJECTS "${MDL_CROSS_DAP_OBJECT}")
+      list(APPEND MDL_CROSS_PLUGIN_DEPS BuddyLibDAP)
+    endif()
+    add_custom_command(
+      OUTPUT "${MDL_CROSS_PLUGIN}"
+      COMMAND "${MDL_CROSS_CXX_COMPILER}" ${MDL_CROSS_TARGET_FLAGS}
+              -shared -fPIC -std=c++17
+              -Wl,-z,defs -Wl,-z,nodelete
+              "-Wl,-soname,${MDL_NAME}_runner.so"
+              "-Wl,-rpath,\$ORIGIN"
+              ${MDL_CROSS_PLUGIN_INCLUDES}
+              -I${GEN_DIR}
+              -I${CMAKE_CURRENT_SOURCE_DIR}/include
+              -I${BUDDY_SOURCE_DIR}/runtime/include
+              -I${CMAKE_BINARY_DIR}/runtime/include
+              -I${BUDDY_SOURCE_DIR}/frontend/Interfaces
+              -I${BUDDY_BINARY_DIR}/frontend/Interfaces
+              -idirafter ${FLATBUFFERS_INCLUDE_DIR}
+              ${MDL_CROSS_PLUGIN_SOURCES}
+              ${MDL_CROSS_PLUGIN_OBJECTS}
+              -lm -o "${MDL_CROSS_PLUGIN}"
+      DEPENDS ${MDL_CROSS_PLUGIN_SOURCES}
+              ${MDL_CROSS_PLUGIN_OBJECTS}
+              ${MDL_CROSS_PLUGIN_DEPS}
+              buddy-rax-gen
+      COMMENT "[${MDL_NAME}] Cross-compiling ${MDL_NAME}_runner.so for RISC-V"
+      VERBATIM)
+    add_custom_target(${RUNNER_PLUGIN_TARGET}
+      DEPENDS "${MDL_CROSS_PLUGIN}")
+  else()
+    add_library(${RUNNER_PLUGIN_TARGET} SHARED
+      "${CMAKE_CURRENT_SOURCE_DIR}/${MDL_RUNNER_PLUGIN_SRC}"
+    )
+    set_target_properties(${RUNNER_PLUGIN_TARGET} PROPERTIES
+      LIBRARY_OUTPUT_DIRECTORY "${BIN}"
+      RUNTIME_OUTPUT_DIRECTORY "${BIN}"
+      OUTPUT_NAME "${MDL_NAME}_runner"
+      PREFIX ""
+    )
+    target_link_libraries(${RUNNER_PLUGIN_TARGET} PRIVATE ${LIB_TARGET})
+    target_compile_features(${RUNNER_PLUGIN_TARGET} PRIVATE cxx_std_17)
+  endif()
 
   # Qwen3-VL has a custom packaging path, so create the resident plugin before
   if(MDL_CUSTOM_QWEN3_VL)
@@ -529,6 +710,7 @@ function(buddy_add_model)
       QWEN3_VL_OUT_DIR=${_Q_ART}
       QWEN3_VL_PKG=${BIN}
       QWEN3_VL_SPEC=${MDL_SPEC}
+      BUDDY_PACKAGE_VERSION=${BUDDY_PACKAGE_VERSION}
       BUDDY_RAX_EMBED_PAYLOAD=${_Q_RAX_EMBED_PAYLOAD}
       QWEN3_VL_MODEL_PATH=${MDL_LOCAL_MODEL})
 
@@ -677,64 +859,36 @@ function(buddy_add_model)
 
   if(MDL_SERVING_PLUGIN_SRC)
     set(SERVING_PLUGIN_TARGET "buddy_models_${MDL_NAME}_serving")
-    add_library(${SERVING_PLUGIN_TARGET} SHARED
-      "${CMAKE_CURRENT_SOURCE_DIR}/${MDL_SERVING_PLUGIN_SRC}"
-    )
-    set_target_properties(${SERVING_PLUGIN_TARGET} PROPERTIES
-      LIBRARY_OUTPUT_DIRECTORY "${BIN}"
-      RUNTIME_OUTPUT_DIRECTORY "${BIN}"
-      OUTPUT_NAME "${MDL_NAME}_serving"
-      PREFIX ""
-    )
-    target_link_libraries(${SERVING_PLUGIN_TARGET} PRIVATE ${LIB_TARGET})
-    target_compile_features(${SERVING_PLUGIN_TARGET} PRIVATE cxx_std_17)
+    _buddy_add_model_plugin(
+      TARGET "${SERVING_PLUGIN_TARGET}" NAME "${MDL_NAME}_serving"
+      SRC "${MDL_SERVING_PLUGIN_SRC}" LIB_TARGET "${LIB_TARGET}"
+      EXTRA_SRCS ${MDL_EXTRA_SRCS})
   endif()
 
   if(MDL_EMBEDDING_PLUGIN_SRC)
     set(EMBEDDING_PLUGIN_TARGET "buddy_models_${MDL_NAME}_embedding")
-    add_library(${EMBEDDING_PLUGIN_TARGET} SHARED
-      "${CMAKE_CURRENT_SOURCE_DIR}/${MDL_EMBEDDING_PLUGIN_SRC}"
-    )
-    set_target_properties(${EMBEDDING_PLUGIN_TARGET} PROPERTIES
-      LIBRARY_OUTPUT_DIRECTORY "${BIN}"
-      RUNTIME_OUTPUT_DIRECTORY "${BIN}"
-      OUTPUT_NAME "${MDL_NAME}_embedding"
-      PREFIX ""
-    )
-    target_link_libraries(${EMBEDDING_PLUGIN_TARGET} PRIVATE ${LIB_TARGET})
-    target_compile_features(${EMBEDDING_PLUGIN_TARGET} PRIVATE cxx_std_17)
-    install(TARGETS ${EMBEDDING_PLUGIN_TARGET} EXPORT BuddyMLIRTargets COMPONENT buddy_runtime)
+    _buddy_add_model_plugin(
+      TARGET "${EMBEDDING_PLUGIN_TARGET}" NAME "${MDL_NAME}_embedding"
+      SRC "${MDL_EMBEDDING_PLUGIN_SRC}" LIB_TARGET "${LIB_TARGET}"
+      EXTRA_SRCS ${MDL_EXTRA_SRCS})
   endif()
 
   if(MDL_MASKED_LM_PLUGIN_SRC)
     set(MASKED_LM_PLUGIN_TARGET "buddy_models_${MDL_NAME}_masked_lm")
-    add_library(${MASKED_LM_PLUGIN_TARGET} SHARED
-      "${CMAKE_CURRENT_SOURCE_DIR}/${MDL_MASKED_LM_PLUGIN_SRC}")
-    set_target_properties(${MASKED_LM_PLUGIN_TARGET} PROPERTIES
-      LIBRARY_OUTPUT_DIRECTORY "${BIN}"
-      RUNTIME_OUTPUT_DIRECTORY "${BIN}"
-      OUTPUT_NAME "${MDL_NAME}_masked_lm"
-      PREFIX "")
-    target_link_libraries(${MASKED_LM_PLUGIN_TARGET} PRIVATE ${LIB_TARGET})
-    target_compile_features(${MASKED_LM_PLUGIN_TARGET} PRIVATE cxx_std_17)
-    install(TARGETS ${MASKED_LM_PLUGIN_TARGET} EXPORT BuddyMLIRTargets COMPONENT buddy_runtime)
+    _buddy_add_model_plugin(
+      TARGET "${MASKED_LM_PLUGIN_TARGET}" NAME "${MDL_NAME}_masked_lm"
+      SRC "${MDL_MASKED_LM_PLUGIN_SRC}" LIB_TARGET "${LIB_TARGET}"
+      EXTRA_SRCS ${MDL_EXTRA_SRCS})
   endif()
 
-  # ════════════════════════════════════════════════════════════════════════════
+  # ═══════════════════════════════════════════════════════════════════════════
   if(MDL_TRANSCRIPTION_PLUGIN_SRC)
     set(TRANSCRIPTION_PLUGIN_TARGET
       "buddy_models_${MDL_NAME}_transcription")
-    add_library(${TRANSCRIPTION_PLUGIN_TARGET} SHARED
-      "${CMAKE_CURRENT_SOURCE_DIR}/${MDL_TRANSCRIPTION_PLUGIN_SRC}")
-    set_target_properties(${TRANSCRIPTION_PLUGIN_TARGET} PROPERTIES
-      LIBRARY_OUTPUT_DIRECTORY "${BIN}"
-      RUNTIME_OUTPUT_DIRECTORY "${BIN}"
-      OUTPUT_NAME "${MDL_NAME}_transcription"
-      PREFIX "")
-    target_link_libraries(${TRANSCRIPTION_PLUGIN_TARGET} PRIVATE ${LIB_TARGET})
-    target_compile_features(${TRANSCRIPTION_PLUGIN_TARGET} PRIVATE cxx_std_17)
-    install(TARGETS ${TRANSCRIPTION_PLUGIN_TARGET}
-      EXPORT BuddyMLIRTargets COMPONENT buddy_runtime)
+    _buddy_add_model_plugin(
+      TARGET "${TRANSCRIPTION_PLUGIN_TARGET}" NAME "${MDL_NAME}_transcription"
+      SRC "${MDL_TRANSCRIPTION_PLUGIN_SRC}" LIB_TARGET "${LIB_TARGET}"
+      EXTRA_SRCS ${MDL_EXTRA_SRCS})
   endif()
 
   # Part 2: Model compilation pipeline (MLIR → .o → .so)
@@ -788,7 +942,14 @@ function(buddy_add_model)
         "tools/buddy-codegen/build_model.py passes this by default.")
     endif()
 
+    # Model trees sync buddy.compiler locally, while buddy_mlir's native
+    # extension is built in the host Buddy tree. Put both roots on PYTHONPATH.
     set(BUDDY_PY_PKG_ROOT "${CMAKE_BINARY_DIR}/python_packages")
+    if(DEFINED BUDDY_MLIR_BUILD_DIR
+       AND IS_DIRECTORY "${BUDDY_MLIR_BUILD_DIR}/python_packages")
+      set(BUDDY_PY_PKG_ROOT
+        "${BUDDY_PY_PKG_ROOT}:${BUDDY_MLIR_BUILD_DIR}/python_packages")
+    endif()
     set(IMPORT_DEPS "${GEN_CONFIG}" "${MDL_IMPORT_SCRIPT}")
     if(TARGET python-package-buddy)
       list(APPEND IMPORT_DEPS python-package-buddy)
@@ -841,8 +1002,10 @@ function(buddy_add_model)
               ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
               ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
               ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj -relocation-model=pic
+                ${MDL_LLC_ATTRS_LIST}
                 -O0 -o "${_SINGLE_FORWARD_MLIR_DIR}/forward.o"
       DEPENDS "${IMPORT_STAMP}" buddy-opt
+        ${LLVM_TOOLS_BINARY_DIR}/llc
       COMMENT "[${MDL_NAME}] Stage 2: forward.mlir -> forward.o"
       VERBATIM)
 
@@ -903,8 +1066,10 @@ function(buddy_add_model)
                 ${LLVM_TOOLS_BINARY_DIR}/mlir-translate -mlir-to-llvmir |
                 ${LLVM_TOOLS_BINARY_DIR}/llvm-as |
                 ${LLVM_TOOLS_BINARY_DIR}/llc -filetype=obj
-                  -relocation-model=pic -O3 -o "${BIN}/subgraph0.o"
+                  -relocation-model=pic ${MDL_LLC_ATTRS_LIST}
+                  -O3 -o "${BIN}/subgraph0.o"
         DEPENDS "${IMPORT_STAMP}" buddy-opt
+          ${LLVM_TOOLS_BINARY_DIR}/llc
         COMMENT "[${MDL_NAME}] Stage 2: subgraph0.mlir -> subgraph0.o"
         VERBATIM)
     endif()
@@ -950,7 +1115,14 @@ function(buddy_add_model)
       set(IMPORT_STAMP "${BIN}/.buddy_import_done")
       # Synced by frontend/Python → build/python_packages/buddy/compiler (target
       # python-package-buddy). import_model needs PYTHONPATH to that tree.
+      # Reuse the host buddy_mlir extension; only buddy.compiler is synced into
+      # this model build tree.
       set(BUDDY_PY_PKG_ROOT "${CMAKE_BINARY_DIR}/python_packages")
+      if(DEFINED BUDDY_MLIR_BUILD_DIR
+         AND IS_DIRECTORY "${BUDDY_MLIR_BUILD_DIR}/python_packages")
+        set(BUDDY_PY_PKG_ROOT
+          "${BUDDY_PY_PKG_ROOT}:${BUDDY_MLIR_BUILD_DIR}/python_packages")
+      endif()
       set(IMPORT_DEPS "${GEN_CONFIG}" "${BUDDY_CODEGEN_DIR}/import_model.py")
       # BUDDY_MLIR_ENABLE_PYTHON_PACKAGES is required above; target is always defined.
       if(TARGET python-package-buddy)
@@ -1135,6 +1307,9 @@ function(buddy_add_model)
       "${RISCV_OMP_SHARED}"
       "${RISCV_MLIR_C_RUNNER_UTILS}"
       -lm)
+  elseif(NOT APPLE)
+    # Native builds resolve the embedded runtime deps relative to the model.
+    list(APPEND MDL_STAGE3_LINK_OPTS "-Wl,-rpath,\$ORIGIN")
   endif()
 
   if(APPLE)

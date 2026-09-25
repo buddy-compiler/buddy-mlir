@@ -48,6 +48,7 @@ def gen_manifest(
     embedding_library: str | None = None,
     masked_lm_library: str | None = None,
     transcription_library: str | None = None,
+    version: str = "0.1.0",
 ) -> str:
     """Generate the complete RHAL .mlir manifest text."""
     out = StringIO()
@@ -99,7 +100,7 @@ def gen_manifest(
 
     # -- Module header ---------------------------------------------------------
     p(f"rhal.module @{model_family} attributes {{")
-    p('    version = "0.1.0",')
+    p(f'    version = "{version}",')
     p(f'    model_name = "{model_id}",')
     p(f'    vocab_uri = "file:{vocab_file}",')
     p(f'    runner_library = "{runner_uri}"', end="")
@@ -292,6 +293,11 @@ def main():
             "Audio transcription plugin URI/name to place into module attrs."
         ),
     )
+    parser.add_argument(
+        "--version",
+        default="0.1.0",
+        help="RAX module version string (usually the CLI release version).",
+    )
     args = parser.parse_args()
 
     with open(args.config) as f:
@@ -306,6 +312,7 @@ def main():
             embedding_library=args.embedding_library,
             masked_lm_library=args.masked_lm_library,
             transcription_library=args.transcription_library,
+            version=args.version,
         )
     except (ValueError, RuntimeError, OSError) as e:
         print(f"error: {e}", file=sys.stderr)

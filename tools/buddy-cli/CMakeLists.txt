@@ -27,11 +27,6 @@ endif()
 if(BUDDY_BUILD_BGE_M3_MODEL)
   target_link_libraries(buddy-cli PRIVATE buddy_models_bge_m3)
 endif()
-target_link_libraries(buddy-cli PRIVATE
-  StaticMLIRCRunnerUtils
-  LLVMSupport
-)
-target_link_directories(buddy-cli PRIVATE ${LLVM_LIBRARY_DIR})
 
 # ── libnuma (optional but strongly recommended on NUMA systems) ────────────
 find_library(NUMA_LIB numa)
