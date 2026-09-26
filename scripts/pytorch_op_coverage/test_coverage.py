@@ -198,7 +198,11 @@ class EvidenceTests(unittest.TestCase):
         self.assertEqual(len(subset[0].cases), 3)
 
     def test_schema_drift_even_on_untested_operator_fails(self):
-        row = next(r for r in self.records if not r.required_cases)
+        row = classify.OpCoverageRecord(
+            operator="aten::unconfigured_fixture.default",
+            families=["fixture"],
+            pytorch_schema="expected schema",
+        )
         env = {
             "torch": "fixture",
             "buddy": True,

@@ -59,12 +59,24 @@ all execution stages**, with no retained limitation/review flag. Failed,
 skipped, untested and limited operators remain in the denominator. Evidence
 categories overlap; their counts should not be added together.
 
-The `cpu-export-v2` profile configures 64 operators with three cases each
-(192 required cases, up from 72 in `cpu-export-v1`):
+The `cpu-export-v5` profile configures all 106 operators with three cases each
+(318 required cases, unchanged from `cpu-export-v4`):
 two small float32 shapes and one float64 shape; integer-only operators retain
-integer inputs. Seed is 0. Floating outputs use rtol `1e-4` and atol `1e-5`;
+integer inputs. Factory cases have no tensor inputs and specify output dtype
+and shape explicitly; `_to_copy` cases convert between f32 and f64. Vision cases
+use small NCHW inputs with rectangular shapes. Seed is 0. Floating outputs use
+rtol `1e-4` and atol `1e-5`;
 integer/bool outputs require exact equality. Output arity, order and dtype
-must match. Coverage applies only to the declared small contiguous CPU cases.
+must match. Coverage applies only to the declared small CPU cases. The
+`contiguous` fixture uses a strided input. New indexing and scatter fixtures
+include duplicate indices where accumulation is defined; attention uses causal
+rectangular sequences. Dynamic-output and unsupported cases remain in the
+measurement and denominator.
+
+Reshape, contiguous, argsort and softmax cases retain their previous result and
+also check a boundary result: an internal strided slice, non-last sorting axis
+with descending order, or a transposed softmax with dtype conversion. Each case
+must match every returned result.
 
 The live path uses strict `torch.export`, Buddy `_compile_fx`, TOSA-priority
 registries and `dynamo_run()`, with external calls disabled and no user-supplied
@@ -97,11 +109,10 @@ PyTorch 2.10.0+cpu.
 Its native binaries come from the official
 [Buddy nightly v0.0.10.dev20260917](https://github.com/buddy-compiler/buddy-mlir/releases/tag/nightly/v0.0.10.dev20260917),
 at Buddy revision `669977354e8e47dc3d084e40c9317ef4dfccbaa7` and LLVM revision
-`2d26d272a0ff74b8c81eac0607b07f98b82ecc46`. The installed Python frontend includes
-the boolean-to-integer `_to_copy` fix, direct CPU GELU/layer-norm lowering,
-and index-add/index-copy lowering;
-its sources are checked against this
-checkout. This is a prebuilt-runtime measurement, not a clean native rebuild.
+`2d26d272a0ff74b8c81eac0607b07f98b82ecc46`. The installed Python frontend uses
+this checkout, including the lowerings and CPU layout handling described below;
+its sources are checked against the repository. This is a prebuilt-runtime
+measurement, not a clean native rebuild.
 
 ## Verify and accept
 
@@ -115,26 +126,39 @@ stage handling using a fake backend. Fake-backend tests are not Buddy coverage.
 The core tests also run through the repository's Python lit suite. Apply the
 repository's pinned Ruff checks before submission.
 
-`tests/Python/JIT/to_copy_bool.py` separately exercises boolean-to-integer
-conversion and the one-hot decomposition through real CPU JIT execution.
-`tests/Python/JIT/gelu_layer_norm.py` checks both GELU forms and layer norm's
-output, mean and reciprocal standard deviation, including optional affine
-inputs and non-default epsilon. These direct lowerings support f32/f64;
-layer norm currently requires positive static shapes.
+The CPU regressions in `tests/Python/JIT/` cover:
 
-`tests/Python/JIT/index_updates.py` checks index-add and index-copy across
-dimensions, empty indices and integer/floating data, including repeated-index
-accumulation, non-default alpha and unchanged inputs. These lowerings support
-static, non-scalar f32/f64/i32/i64 tensors with a one-dimensional integer index.
-Four subprocess checks verify that negative and out-of-range indices abort
-through a runtime assertion before destination memory access.
-They use sequential updates for correctness; no performance claim is made.
+- `to_copy_bool.py`, `dtype_views.py`: casts, range precision, broadcasts and
+  strided slice updates, including empty outputs and signed zero.
+- `gelu_layer_norm.py`, `mean_stack_clamp.py`: activation/reduction results,
+  auxiliary layer-norm outputs, default/negative axes and scalar clamp bounds.
+- `index_updates.py`, `scatter_reductions.py`: duplicate-index accumulation,
+  include-self modes, unchanged inputs and runtime bounds assertions.
+- `slice_select.py`, `layout_sort_softmax.py`: offset/strided layouts,
+  scalar/empty results, sort axes and stable ties, NaNs and softmax dtype changes.
+- `causal_attention.py`: attention output and log-sum-exp for causal/noncausal
+  f32/f64 inputs, unequal sequence lengths and custom scales.
 
-The static/trace reports establish source/export evidence only. The live report
-adds CPU JIT results, including failures; inspect its environment and source hash
-before comparing runs. Input contracts for the remaining 42 operators are pending.
-For a 90% gate on this 106-entry set, at least **96 operators** must qualify;
-review flags must be resolved with evidence, not removed to raise the score.
-Passing that numerical gate is only part of issue #911 acceptance: representative
-model execution, prioritized missing-operator implementations with correctness
-regressions, and reproducibility on a built Buddy runtime remain required.
+For example, run `python tests/Python/JIT/layout_sort_softmax.py` in the same
+Buddy environment as the live measurement. Existing FileCheck tests cover
+the corresponding import IR; JIT tests provide numerical evidence.
+
+These lowerings target static CPU inputs. Mean supports f32/f64 without dtype
+conversion; layer norm requires positive static shapes. Stack requires matching
+shapes and dtypes; scalar clamp supports f32/f64/i32/i64 and rejects overflowing
+integer bounds. Scatter mean remains unsupported. Additional restrictions are
+retained in the target file and excluded from the strict numerator.
+
+The CPU pipeline preserves runtime offsets and strides. Matmul vectorization
+runs only when all relevant operands have proven unit minor strides; otherwise
+the module uses loop lowering. The Dynamo adapter copies inputs to contiguous
+storage, while direct Graph callers retain general layouts unless they explicitly
+promise contiguous inputs. Reshape/clone may add copies, and sorting uses
+sequential adjacent swaps. Full-model performance has not been validated.
+
+For a 90% gate on this 106-entry set, at least **96 operators** must qualify.
+Resolve review flags with evidence; do not remove them merely to raise the score.
+The gate is only part of issue #911 acceptance: representative model execution,
+correctness regressions for prioritized missing operators, and reproduction on
+a built Buddy runtime remain required. Inspect report source hashes before
+comparing runs; configured or exported cases alone do not establish support.

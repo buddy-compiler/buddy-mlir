@@ -72,6 +72,48 @@ OPERATORS = (
     "aten::select.int",
     "aten::cat.default",
     "aten::stack.default",
+    "aten::embedding.default",
+    "aten::_to_copy.default",
+    "aten::arange.start",
+    "aten::arange.start_step",
+    "aten::ones.default",
+    "aten::zeros.default",
+    "aten::full.default",
+    "aten::scalar_tensor.default",
+    "aten::slice_scatter.default",
+    "aten::split.Tensor",
+    "aten::split_with_sizes.default",
+    "aten::unbind.int",
+    "aten::copy.default",
+    "aten::lift_fresh_copy.default",
+    "aten::repeat_interleave.self_int",
+    "aten::constant_pad_nd.default",
+    "aten::convolution.default",
+    "aten::avg_pool2d.default",
+    "aten::_adaptive_avg_pool2d.default",
+    "aten::max_pool2d_with_indices.default",
+    "aten::upsample_bilinear2d.vec",
+    "aten::upsample_nearest2d.vec",
+    "aten::grid_sampler_2d.default",
+    "aten::reflection_pad2d.default",
+    "aten::pixel_shuffle.default",
+    "aten::pixel_unshuffle.default",
+    "aten::_scaled_dot_product_flash_attention_for_cpu.default",
+    "aten::index.Tensor",
+    "aten::contiguous.default",
+    "aten::_unsafe_index.Tensor",
+    "aten::index_put.default",
+    "aten::scatter.src",
+    "aten::scatter.value",
+    "aten::scatter.reduce",
+    "aten::scatter.value_reduce",
+    "aten::scatter_reduce.two",
+    "aten::masked_scatter.default",
+    "aten::masked_select.default",
+    "aten::nonzero.default",
+    "aten::nonzero_static.default",
+    "aten::repeat_interleave.Tensor",
+    "aten::pad.default",
 )
 WORKLOADS = ("transformer_block", "moe_block")
 
@@ -100,7 +142,148 @@ def build_case(name, profile):
         return build_workload(name, x, rand)
     op = resolve_operator(name)
     fn = op
-    if name in ("aten::add.Tensor", "aten::mul.Tensor"):
+    if name == "aten::_scaled_dot_product_flash_attention_for_cpu.default":
+
+        def fn(q, k, v):
+            return op(q, k, v, 0.0, True)
+
+        args = (rand(1, 2, n, 4), rand(1, 2, d, 4), rand(1, 2, d, 4))
+    elif name in ("aten::index.Tensor", "aten::_unsafe_index.Tensor"):
+        fn, args = lambda a, i: op(a, [i]), (x, torch.tensor([0, n - 1, 0]))
+    elif name == "aten::contiguous.default":
+        fn, args = lambda a: (op(a), op(a[:, 1::2])), (x[:, ::2],)
+    elif name == "aten::index_put.default":
+        fn, args = (
+            lambda a, i, s: op(a, [i], s, True),
+            (x, torch.tensor([0, 0]), rand(2, d)),
+        )
+    elif name in (
+        "aten::scatter.src",
+        "aten::scatter.value",
+        "aten::scatter.reduce",
+        "aten::scatter.value_reduce",
+        "aten::scatter_reduce.two",
+    ):
+        index = torch.tensor([0, 1, d - 1]).repeat(n, 1)
+        source = rand(n, 3)
+        if name == "aten::scatter.src":
+            fn, args = lambda a, i, s: op(a, 1, i, s), (x, index, source)
+        elif name == "aten::scatter.value":
+            fn, args = lambda a, i: op(a, 1, i, -2), (x, index)
+        elif name == "aten::scatter.reduce":
+            index[:, 1] = 0
+            fn, args = (
+                lambda a, i, s: op(a, 1, i, s, reduce="add"),
+                (x, index, source),
+            )
+        elif name == "aten::scatter.value_reduce":
+            index[:, 1] = 0
+            fn, args = (
+                lambda a, i: op(a, 1, i, 2, reduce="multiply"),
+                (x, index),
+            )
+        else:
+            index[:, 1] = 0
+
+            def fn(a, i, s):
+                return op(a, 1, i, s, "sum", include_self=False)
+
+            args = (x, index, source)
+    elif name == "aten::masked_scatter.default":
+        args = (x, x > 0, rand(n * d))
+    elif name == "aten::masked_select.default":
+        args = (x, x > 0)
+    elif name == "aten::nonzero.default":
+        args = (x * (x > 0),)
+    elif name == "aten::nonzero_static.default":
+        fn, args = lambda a: op(a, size=d, fill_value=-1), (x * (x > 0),)
+    elif name == "aten::repeat_interleave.Tensor":
+        fn, args = lambda a: op(a, output_size=3), (torch.tensor([1, 0, 2]),)
+    elif name == "aten::pad.default":
+        fn, args = lambda a: op(a, [1, 2], "reflect"), (x,)
+    elif name == "aten::embedding.default":
+        args = (x, torch.tensor([0, n - 1, 1, 0]))
+    elif name == "aten::_to_copy.default":
+        target_dtype = (
+            torch.float64 if dtype == torch.float32 else torch.float32
+        )
+        fn, args = lambda a: op(a, dtype=target_dtype), (x,)
+    elif name in ("aten::arange.start", "aten::arange.start_step"):
+        step = 2 if name.endswith("start_step") else None
+
+        def fn():
+            return op(
+                2,
+                2 + 2 * d,
+                *(() if step is None else (step,)),
+                dtype=dtype,
+                device="cpu",
+            )
+
+        args = ()
+    elif name in ("aten::ones.default", "aten::zeros.default"):
+        fn, args = lambda: op([n, d], dtype=dtype, device="cpu"), ()
+    elif name == "aten::full.default":
+        fn, args = lambda: op([n, d], -2.5, dtype=dtype, device="cpu"), ()
+    elif name == "aten::scalar_tensor.default":
+        fn, args = lambda: op(2.5, dtype=dtype, device="cpu"), ()
+    elif name == "aten::slice_scatter.default":
+        fn, args = (
+            lambda a, b: op(a, b, 1, 1, d, 2),
+            (x, rand(n, len(range(1, d, 2)))),
+        )
+    elif name == "aten::split.Tensor":
+        fn, args = lambda a: op(a, 2, 1), (x,)
+    elif name == "aten::split_with_sizes.default":
+        fn, args = lambda a: op(a, [1, 2, d - 3], 1), (x,)
+    elif name == "aten::unbind.int":
+        fn, args = lambda a: op(a, 0), (x,)
+    elif name == "aten::copy.default":
+        args = (x, rand(n, d))
+    elif name == "aten::repeat_interleave.self_int":
+        fn, args = lambda a: op(a, 2, 1), (x,)
+    elif name == "aten::constant_pad_nd.default":
+        fn, args = lambda a: op(a, [1, 2], 0.5), (x,)
+    elif name == "aten::convolution.default":
+
+        def fn(a, w, b):
+            return op(a, w, b, [1, 1], [1, 1], [1, 1], False, [0, 0], 1)
+
+        args = (rand(1, 2, n + 1, d), rand(3, 2, 3, 3), rand(3))
+    elif name == "aten::avg_pool2d.default":
+        fn, args = (
+            lambda a: op(a, [2, 2], [2, 2], [0, 0], False, True),
+            (rand(1, 2, n + 1, d),),
+        )
+    elif name == "aten::_adaptive_avg_pool2d.default":
+        fn, args = lambda a: op(a, [2, 2]), (rand(1, 2, n + 1, d),)
+    elif name == "aten::max_pool2d_with_indices.default":
+        fn, args = (
+            lambda a: op(a, [2, 2], [2, 2], [0, 0], [1, 1], False),
+            (rand(1, 2, n + 1, d),),
+        )
+    elif name == "aten::upsample_bilinear2d.vec":
+        fn, args = (
+            lambda a: op(a, [n + 3, d + 2], False, None),
+            (rand(1, 2, n + 1, d),),
+        )
+    elif name == "aten::upsample_nearest2d.vec":
+        fn, args = (
+            lambda a: op(a, [n + 3, d + 2], None),
+            (rand(1, 2, n + 1, d),),
+        )
+    elif name == "aten::grid_sampler_2d.default":
+        fn, args = (
+            lambda a, grid: op(a, grid, 0, 0, False),
+            (rand(1, 2, n + 1, d), torch.rand(1, n, 3, 2, dtype=dtype) * 2 - 1),
+        )
+    elif name == "aten::reflection_pad2d.default":
+        fn, args = lambda a: op(a, [1, 2, 1, 1]), (rand(1, 2, n + 1, d),)
+    elif name == "aten::pixel_shuffle.default":
+        fn, args = lambda a: op(a, 2), (rand(1, 8, n, d),)
+    elif name == "aten::pixel_unshuffle.default":
+        fn, args = lambda a: op(a, 2), (rand(1, 2, 2 * n, 2 * d),)
+    elif name in ("aten::add.Tensor", "aten::mul.Tensor"):
         args = (x, rand(n, d))
     elif name == "aten::mm.default":
         args = (x, rand(d, n + 1))
@@ -165,7 +348,12 @@ def build_case(name, profile):
     elif name == "aten::_softmax.default":
         fn, args = lambda a: op(a, -1, False), (x,)
     elif name == "aten::softmax.int":
-        fn, args = lambda a: op(a, -1), (x,)
+        target_dtype = (
+            torch.float64 if dtype == torch.float32 else torch.float32
+        )
+        fn, args = lambda a: (op(a, -1), op(a.T, 0, dtype=target_dtype)), (x,)
+    elif name == "aten::argsort.default":
+        fn, args = lambda a: (op(a), op(a.T, 0, True)), (x,)
     elif name == "aten::topk.default":
         fn, args = lambda a: op(a, 2, -1, True, True), (x,)
     elif name == "aten::gather.default":
@@ -195,8 +383,10 @@ def build_case(name, profile):
         fn, args = lambda a: op(a, 4), (torch.tensor([0, 3, 1, 0]),)
     elif name == "aten::bincount.default":
         fn, args = lambda a: op(a, minlength=4), (torch.tensor([0, 3, 1, 0]),)
-    elif name in ("aten::view.default", "aten::reshape.default"):
+    elif name == "aten::view.default":
         fn, args = lambda a: op(a, [d, n]), (x,)
+    elif name == "aten::reshape.default":
+        fn, args = lambda a: (op(a, [d, n]), op(a[:, 1::2], [-1])), (x,)
     elif name == "aten::native_layer_norm.default":
 
         def fn(a, w, b):
