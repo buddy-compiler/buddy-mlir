@@ -1,6 +1,6 @@
 {
   "report_version": 2,
-  "generated_at": "2026-09-23T08:41:56.617980+00:00",
+  "generated_at": "2026-09-26T09:25:30.465100+00:00",
   "mode": "static",
   "run_status": "completed",
   "exit_code": 0,
@@ -27,13 +27,13 @@
     }
   },
   "provenance": {
-    "git_revision": "7e36bc29faa4e2c4ea3081a83c2b56b5c49f742b",
+    "git_revision": "0cde280f44ee339554872d8a77ea27e6e4e166bd",
     "dirty": true,
-    "source_sha256": "e2b36e21164104f63614d16e594d0a789f4a7a89409c3012fe0bdbd7b5263d15",
+    "source_sha256": "71e9828484b4bcde09435b3565cf2b0b6a11f71da412ea3ee14b2517d675fdf1",
     "files_sha256": {
-      "frontend/Python/frontend.py": "bb68c4b5e04b18a646941a4e7698c246040535630b4fdc69e5e73dbfc45a2208",
+      "frontend/Python/frontend.py": "14afd42027f60d127c2d0f9c9a415e79a6b2995e98dd1e82ee357b6dbd0df827",
       "frontend/Python/graph/__init__.py": "3d2d48a2c14f34b52181bc3b206001d13931d0befd7a3991e76317aec4cd8b5e",
-      "frontend/Python/graph/graph.py": "53407486d76d5e2927a56cf0e9cb8374c63130acf7f64faea7816f9e74d023a1",
+      "frontend/Python/graph/graph.py": "488b96b8db0d06367c8632bf883709be02457e40f899b298e86160b7c0508333",
       "frontend/Python/graph/graph_driver.py": "2e217981f937f390c6e6c85c9fbdf2e504110d4171bf39f8cfb2e445a5c528f6",
       "frontend/Python/graph/operation.py": "37870b6d4ecd28d0c5b8d04e484b5a24b354f30c81caf5526b655d95618d04bc",
       "frontend/Python/graph/partitioned_graph_driver.py": "224be109626e8c8bea0295aaaeef3c5c6b1b940b472712d3a4642327882c8268",
@@ -60,21 +60,21 @@
       "frontend/Python/graph/type.py": "f00cec5f34697e5ee3e8e1817ac5979c29f5dd942a79ec8329ab6ee5bc10b54a",
       "frontend/Python/ops/__init__.py": "e3cbb6f957b003f0345c355237445a225a98af5d74a950d61fa4007a5de094f0",
       "frontend/Python/ops/func.py": "6246e74f3fa98e318171e8cb76fb195189755ee0484a5d7c5186d923aa32e907",
-      "frontend/Python/ops/linalg.py": "9b486ef2084285c14cf7658159817473e48b555571626bb4df129bc9fb2631ce",
+      "frontend/Python/ops/linalg.py": "84cd4d8be3a3af64ca0441b0de87f9372356d79f424ca728708296ac94761615",
       "frontend/Python/ops/math.py": "71b2c037d7706622d31d0b542d908d16f54c8c45fb0bf416f138a6acfe5f2e5a",
-      "frontend/Python/ops/tosa.py": "43f617aaba600735ab6cc988003ba1a9295e89f15910dd53e857d08845c0f384",
+      "frontend/Python/ops/tosa.py": "67b79632c9bffccc55620cf37a9c3b2f5901451c13cd4d9f4371c47fb299c8c7",
       "frontend/Python/ops/ttir.py": "c7b640d15cc46641bf9a56330415026146f0153ef846a297e92c3a189cfa8bd5",
       "frontend/Python/ops/ttir_llm.py": "38c314dff4559742b64e87ef028082e8a41c5f85e3b73d14da5496bf254f6d25",
-      "frontend/Python/ops/utils.py": "4174a8d0c1a3252d3b8f7d32603cee848b16aa33221dcdc2d31bead5fd6eb6b1",
+      "frontend/Python/ops/utils.py": "9ca4fbec8e36c5b11be735974707352c0fd838a78498a129cf695c170ce598c4",
       "frontend/Python/trace/__init__.py": "9d9b31877d2a8c2a2c15e5e923a2b444538f4d134e216f1524a05f254fc4f86b",
       "frontend/Python/trace/config.py": "1417402997c35816e243e3d2322ec81fb14ce8541192666650d7db831a8492d9",
       "scripts/pytorch_op_coverage/classify.py": "707c47c6928eacedd0dd6a598064d8e1f2bc4e1fab92275e7420abf0b0d74e70",
-      "scripts/pytorch_op_coverage/data/target_ops_v1.json": "af3fbbd05e769fa2519d585bd2d761d242deb15a09a50df5e58bacfba8e7add4",
+      "scripts/pytorch_op_coverage/data/target_ops_v1.json": "1e550203edd684d5b23958cbe02f1152583ac08f359e93c7bab54b9704112edc",
       "scripts/pytorch_op_coverage/parse_frontend.py": "4ffb93305c0e0bab60f0d146b3dcec89a479ceb172bc9fb39ca29736c576b639",
-      "scripts/pytorch_op_coverage/probes.py": "72997ada8a19b460f07cf131e8aea658a74d574b75120abbf6bca504ae59fc43",
-      "scripts/pytorch_op_coverage/report.py": "4b9cf60f40f677514f30154645932e05739ffb5a4e5bec159304e3b59ac761dc",
+      "scripts/pytorch_op_coverage/probes.py": "149c41847fc04eb8adf98f7c6e7b66b4afa9fb2f4dba376b2c4fcd7465c0694a",
+      "scripts/pytorch_op_coverage/report.py": "17e217fcbe23786309a258168507d6257e07bb0ad48cd08311b79328e8ddc7d8",
       "scripts/pytorch_op_coverage/run_coverage.py": "c52c2aaf34963eb85317829ce199a7927388c0fd48103f3c75b459be981003b0",
-      "scripts/pytorch_op_coverage/test_coverage.py": "e851f664f9718bfb0a1f3be54cdd40cef288e4b8e19e1273fe32cd8b81ef3239",
+      "scripts/pytorch_op_coverage/test_coverage.py": "85500a059c366b82538d17caa4981cadd8bb5916781d2d0cdf671ac71c5755b3",
       "scripts/pytorch_op_coverage/test_probes.py": "27e36b41003adc020ec2c8cbaf80cfc651e4c3ca42d23b9e16f6b2c868e9149c",
       "scripts/pytorch_op_coverage/worker.py": "858486810e0fa0ce832abf6ef63836c5e3640eb3de29eb9cc5d36a1c3ed53b2f",
       "tests/Python/AtenOpsCoverage/aten_coverage_runner.py": "cedb26ca659f25c9c5f487d57a5d36bc8f8cb8926d2d30b7b0cf68696e8acb36"
@@ -84,7 +84,7 @@
   },
   "environment": {},
   "profile": {
-    "name": "cpu-export-v2",
+    "name": "cpu-export-v5",
     "cases": {
       "small-f32": {
         "rows": 4,
@@ -107,7 +107,7 @@
     "atol": 1e-05,
     "external_calls": false,
     "path": "strict torch.export -> Buddy _compile_fx -> tosa-priority -> JIT",
-    "scope": "Explicit small contiguous CPU inputs; no claim for arbitrary shapes/dtypes or full models"
+    "scope": "Explicit small CPU inputs, including a strided contiguous() fixture; no claim for arbitrary shapes/dtypes or full models"
   },
   "summary": {
     "total_ops": 106,
@@ -115,14 +115,14 @@
     "registered_lowering": 97,
     "alias_candidate": 4,
     "unmapped": 5,
-    "known_limited": 15,
+    "known_limited": 10,
     "validated_for_profile": 0,
     "percentages": {
       "frontend_recognized": 91.51,
       "registered_lowering": 91.51,
       "alias_candidate": 3.77,
       "unmapped": 4.72,
-      "known_limited": 14.15,
+      "known_limited": 9.43,
       "validated_for_profile": 0.0
     },
     "case_counts": {
@@ -140,22 +140,22 @@
       "executed": 0,
       "correctness": 0
     },
-    "required_case_count": 192,
-    "operators_without_cases": 42,
+    "required_case_count": 318,
+    "operators_without_cases": 0,
     "moe_critical": {
       "total_ops": 47,
       "frontend_recognized": 42,
       "registered_lowering": 42,
       "alias_candidate": 2,
       "unmapped": 3,
-      "known_limited": 10,
+      "known_limited": 6,
       "validated_for_profile": 0,
       "percentages": {
         "frontend_recognized": 89.36,
         "registered_lowering": 89.36,
         "alias_candidate": 4.26,
         "unmapped": 6.38,
-        "known_limited": 21.28,
+        "known_limited": 12.77,
         "validated_for_profile": 0.0
       },
       "case_counts": {
@@ -173,8 +173,8 @@
         "executed": 0,
         "correctness": 0
       },
-      "required_case_count": 93,
-      "operators_without_cases": 16
+      "required_case_count": 141,
+      "operators_without_cases": 0
     }
   },
   "operators": [
@@ -739,7 +739,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -877,7 +881,7 @@
         "aten::_unsafe_view.default"
       ],
       "static_status": "alias_candidate",
-      "known_limitations": "Configured contiguous cases pass through AOT ViewOp. Non-contiguous reshape semantics remain untested.",
+      "known_limitations": null,
       "required_cases": [
         "small-f32",
         "rect-f32",
@@ -1066,7 +1070,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -1155,7 +1163,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -1174,7 +1186,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -1193,7 +1209,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -1212,7 +1232,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -1231,7 +1255,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -1250,7 +1278,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -1267,8 +1299,12 @@
       ],
       "alias_candidates": [],
       "static_status": "registered_lowering",
-      "known_limitations": "tosa.py:scaled_dot_product_flash_attention_for_cpu_op asserts dropout_p == 0 for explicit dropout arguments.",
-      "required_cases": [],
+      "known_limitations": "Causal/noncausal f32/f64 and custom scales have CPU regressions. Mask broadcasting and fully masked rows remain unresolved.",
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -1288,7 +1324,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": "Review pending: Advanced indexing / None / boolean masks may be partial.",
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -1375,7 +1415,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -1639,7 +1683,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -1658,7 +1706,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -1677,7 +1729,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -1694,8 +1750,12 @@
         "aten::clone.default"
       ],
       "static_status": "alias_candidate",
-      "known_limitations": "Review pending: May be elided or cloned depending on strides; requires layout-specific cases.",
-      "required_cases": [],
+      "known_limitations": null,
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -1713,7 +1773,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -1732,7 +1796,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -1771,7 +1839,7 @@
         "aten::_softmax.default"
       ],
       "static_status": "alias_candidate",
-      "known_limitations": "Configured last-dimension cases pass through AOT SoftmaxOp. Other dimensions and optional output dtype remain untested.",
+      "known_limitations": null,
       "required_cases": [
         "small-f32",
         "rect-f32",
@@ -1791,7 +1859,7 @@
       "lowering_dialects": [],
       "alias_candidates": [],
       "static_status": "unmapped",
-      "known_limitations": "Configured default-attribute cases pass through AOT SortOp. Other dimensions, descending order and non-contiguous inputs remain untested.",
+      "known_limitations": null,
       "required_cases": [
         "small-f32",
         "rect-f32",
@@ -1881,7 +1949,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -1900,7 +1972,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": "Review pending: Accumulate / advanced indexing may be partial.",
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -1962,7 +2038,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -1980,7 +2060,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -1997,8 +2081,12 @@
       ],
       "alias_candidates": [],
       "static_status": "registered_lowering",
-      "known_limitations": "Review pending: Reduce mode / dtype coverage may be partial.",
-      "required_cases": [],
+      "known_limitations": null,
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -2016,7 +2104,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -2033,8 +2125,12 @@
       ],
       "alias_candidates": [],
       "static_status": "registered_lowering",
-      "known_limitations": "Review pending: Reduce mode / dtype coverage may be partial.",
-      "required_cases": [],
+      "known_limitations": "Sum/product/min/max include-self semantics have CPU regressions; mean remains explicitly unsupported.",
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -2052,7 +2148,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -2070,7 +2170,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -2088,7 +2192,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -2106,7 +2214,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -2186,7 +2298,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -2204,7 +2320,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -2223,7 +2343,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -2241,7 +2365,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -2259,7 +2387,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -2277,7 +2409,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -2295,7 +2431,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -2313,7 +2453,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -2331,7 +2475,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -2349,7 +2497,11 @@
       ],
       "static_status": "alias_candidate",
       "known_limitations": "Review pending: General padding modes are not established by a constant_pad_nd mapping.",
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -2367,7 +2519,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -2385,7 +2541,11 @@
       "alias_candidates": [],
       "static_status": "registered_lowering",
       "known_limitations": null,
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -2401,7 +2561,11 @@
       "alias_candidates": [],
       "static_status": "unmapped",
       "known_limitations": "Review pending: Vision path; may be unsupported.",
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     },
@@ -2417,7 +2581,11 @@
       "alias_candidates": [],
       "static_status": "unmapped",
       "known_limitations": "Review pending: Vision path; may be unsupported.",
-      "required_cases": [],
+      "required_cases": [
+        "small-f32",
+        "rect-f32",
+        "small-f64"
+      ],
       "cases": [],
       "validated_for_profile": false
     }
