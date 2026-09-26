@@ -309,7 +309,21 @@ static LogicalResult computeShapeAndVL(linalg::LinalgOp linalgOp,
 static buddy::vir::SetVLOp createSetVLRegion(PatternRewriter &rewriter,
                                              Location loc, Value vlVal);
 
-enum class SupportedReduceCombinerKind { AddF, MaxNumF };
+enum class SupportedReduceCombinerKind {
+  Add,
+  Mul,
+  MinUI,
+  MinSI,
+  MaxUI,
+  MaxSI,
+  And,
+  Or,
+  Xor,
+  MinNumF,
+  MaxNumF,
+  MinimumF,
+  MaximumF,
+};
 
 static FailureOr<SupportedReduceCombinerKind>
 getSupportedReduceCombinerKind(linalg::ReduceOp reduceOp,
@@ -331,21 +345,98 @@ getSupportedReduceCombinerKind(linalg::ReduceOp reduceOp,
   if (!combiner || yield.getOperand(0) != combiner->getResult(0))
     return failure();
 
-  if (isa<arith::AddFOp>(combiner))
-    return SupportedReduceCombinerKind::AddF;
+  if (isa<arith::AddFOp, arith::AddIOp>(combiner))
+    return SupportedReduceCombinerKind::Add;
+  if (isa<arith::MulFOp, arith::MulIOp>(combiner))
+    return SupportedReduceCombinerKind::Mul;
+  if (isa<arith::MinUIOp>(combiner))
+    return SupportedReduceCombinerKind::MinUI;
+  if (isa<arith::MinSIOp>(combiner))
+    return SupportedReduceCombinerKind::MinSI;
+  if (isa<arith::MaxUIOp>(combiner))
+    return SupportedReduceCombinerKind::MaxUI;
+  if (isa<arith::MaxSIOp>(combiner))
+    return SupportedReduceCombinerKind::MaxSI;
+  if (isa<arith::AndIOp>(combiner))
+    return SupportedReduceCombinerKind::And;
+  if (isa<arith::OrIOp>(combiner))
+    return SupportedReduceCombinerKind::Or;
+  if (isa<arith::XOrIOp>(combiner))
+    return SupportedReduceCombinerKind::Xor;
+  if (isa<arith::MinNumFOp>(combiner))
+    return SupportedReduceCombinerKind::MinNumF;
   if (isa<arith::MaxNumFOp>(combiner))
     return SupportedReduceCombinerKind::MaxNumF;
+  if (isa<arith::MinimumFOp>(combiner))
+    return SupportedReduceCombinerKind::MinimumF;
+  if (isa<arith::MaximumFOp>(combiner))
+    return SupportedReduceCombinerKind::MaximumF;
   return failure();
 }
 
-static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
-                                             PatternRewriter &rewriter) {
+static bool isReduceKindSupportedForType(SupportedReduceCombinerKind kind,
+                                         Type elemTy) {
+  switch (kind) {
+  case SupportedReduceCombinerKind::Add:
+  case SupportedReduceCombinerKind::Mul:
+    return elemTy.isIntOrIndexOrFloat();
+  case SupportedReduceCombinerKind::MinUI:
+  case SupportedReduceCombinerKind::MinSI:
+  case SupportedReduceCombinerKind::MaxUI:
+  case SupportedReduceCombinerKind::MaxSI:
+  case SupportedReduceCombinerKind::And:
+  case SupportedReduceCombinerKind::Or:
+  case SupportedReduceCombinerKind::Xor:
+    return elemTy.isIntOrIndex();
+  case SupportedReduceCombinerKind::MinNumF:
+  case SupportedReduceCombinerKind::MaxNumF:
+  case SupportedReduceCombinerKind::MinimumF:
+  case SupportedReduceCombinerKind::MaximumF:
+    return isa<FloatType>(elemTy);
+  }
+  llvm_unreachable("unknown reduce combiner");
+}
+
+static StringRef kindToString(SupportedReduceCombinerKind kind) {
+  switch (kind) {
+  case SupportedReduceCombinerKind::Add:
+    return "add";
+  case SupportedReduceCombinerKind::Mul:
+    return "mul";
+  case SupportedReduceCombinerKind::MinUI:
+    return "minui";
+  case SupportedReduceCombinerKind::MinSI:
+    return "minsi";
+  case SupportedReduceCombinerKind::MaxUI:
+    return "maxui";
+  case SupportedReduceCombinerKind::MaxSI:
+    return "maxsi";
+  case SupportedReduceCombinerKind::And:
+    return "and";
+  case SupportedReduceCombinerKind::Or:
+    return "or";
+  case SupportedReduceCombinerKind::Xor:
+    return "xor";
+  case SupportedReduceCombinerKind::MinNumF:
+    return "minnum";
+  case SupportedReduceCombinerKind::MaxNumF:
+    return "maxnum";
+  case SupportedReduceCombinerKind::MinimumF:
+    return "minimum";
+  case SupportedReduceCombinerKind::MaximumF:
+    return "maximum";
+  }
+  llvm_unreachable("unknown reduce combiner");
+}
+
+static LogicalResult lowerReduceToVIRReduce(linalg::ReduceOp reduceOp,
+                                            PatternRewriter &rewriter) {
   if (!reduceOp.hasPureBufferSemantics())
     return rewriter.notifyMatchFailure(reduceOp,
                                        "expected pure buffer semantics");
   if (reduceOp.getInputs().size() != 1 || reduceOp.getInits().size() != 1)
     return rewriter.notifyMatchFailure(
-        reduceOp, "only single-input single-output reduce supported");
+        reduceOp, "only single-input single-output reductions use vir.reduce");
 
   Value input = *reduceOp.getInputs().begin();
   Value init = *reduceOp.getInits().begin();
@@ -353,16 +444,17 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
   auto outTy = dyn_cast<MemRefType>(init.getType());
   if (!inTy || !outTy)
     return rewriter.notifyMatchFailure(reduceOp, "expected memref operands");
-  if (!inTy.getElementType().isF32() || !outTy.getElementType().isF32())
+  auto inElemTy = inTy.getElementType();
+  auto outElemTy = outTy.getElementType();
+  if (inElemTy != outElemTy)
     return rewriter.notifyMatchFailure(reduceOp,
-                                       "only f32 reduction supported");
+                                       "input/output element types must match");
 
   auto combinerKind = getSupportedReduceCombinerKind(reduceOp, rewriter);
-  if (failed(combinerKind))
+  if (failed(combinerKind) ||
+      !isReduceKindSupportedForType(*combinerKind, inElemTy))
     return rewriter.notifyMatchFailure(
-        reduceOp,
-        "unsupported reduce combiner (expected single-op addf/maxnumf with "
-        "linalg.yield)");
+        reduceOp, "unsupported single-op reduce combiner for vir.reduce");
 
   ArrayRef<int64_t> dims = reduceOp.getDimensions();
 
@@ -370,16 +462,6 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
   rewriter.setInsertionPoint(reduceOp);
   Value lower = arith::ConstantIndexOp::create(rewriter, loc, 0);
   Value step = arith::ConstantIndexOp::create(rewriter, loc, 1);
-
-  auto kindToString = [&](SupportedReduceCombinerKind k) -> StringRef {
-    switch (k) {
-    case SupportedReduceCombinerKind::AddF:
-      return "add";
-    case SupportedReduceCombinerKind::MaxNumF:
-      return "maxnum";
-    }
-    llvm_unreachable("unknown reduce combiner");
-  };
 
   // Case A: rank-1 -> rank-0, dimensions = [0].
   // Reduce the full 1D buffer into a scalar accumulator.
@@ -655,6 +737,146 @@ static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
       "only rank-1 -> rank-0 (dimensions=[0]) and rank-2 -> rank-1 "
       "(dimensions=[1] or static-shape dimensions=[0]) plus static-shape "
       "rank-3 -> rank-2 (dimensions=[0]) reductions are supported");
+}
+
+static LogicalResult lowerReduceToScalarLoop(linalg::ReduceOp reduceOp,
+                                             PatternRewriter &rewriter) {
+  if (!reduceOp.hasPureBufferSemantics())
+    return rewriter.notifyMatchFailure(reduceOp,
+                                       "expected pure buffer semantics");
+
+  ValueRange inputs = reduceOp.getInputs();
+  ValueRange inits = reduceOp.getInits();
+  if (inputs.empty() || inits.empty())
+    return rewriter.notifyMatchFailure(reduceOp, "expected inputs and outputs");
+
+  auto firstInputTy = dyn_cast<MemRefType>(inputs.front().getType());
+  if (!firstInputTy)
+    return rewriter.notifyMatchFailure(reduceOp, "expected memref inputs");
+
+  int64_t inputRank = firstInputTy.getRank();
+  ArrayRef<int64_t> reductionDims = reduceOp.getDimensions();
+  if (reductionDims.empty())
+    return rewriter.notifyMatchFailure(reduceOp,
+                                       "expected reduction dimensions");
+  if (static_cast<int64_t>(reductionDims.size()) > inputRank)
+    return rewriter.notifyMatchFailure(reduceOp,
+                                       "too many reduction dimensions");
+
+  SmallVector<int64_t> reductionDimToOperand(inputRank, -1);
+  for (auto [pos, dim] : llvm::enumerate(reductionDims)) {
+    if (dim < 0 || dim >= inputRank)
+      return rewriter.notifyMatchFailure(reduceOp,
+                                         "reduction dimension out of range");
+    if (reductionDimToOperand[dim] != -1)
+      return rewriter.notifyMatchFailure(reduceOp,
+                                         "duplicate reduction dimension");
+    reductionDimToOperand[dim] = static_cast<int64_t>(pos);
+  }
+
+  int64_t outputRank = inputRank - static_cast<int64_t>(reductionDims.size());
+  for (Value input : inputs) {
+    auto inputTy = dyn_cast<MemRefType>(input.getType());
+    if (!inputTy || inputTy.getRank() != inputRank)
+      return rewriter.notifyMatchFailure(
+          reduceOp, "all inputs must be memrefs with the same rank");
+  }
+  for (Value init : inits) {
+    auto initTy = dyn_cast<MemRefType>(init.getType());
+    if (!initTy || initTy.getRank() != outputRank)
+      return rewriter.notifyMatchFailure(
+          reduceOp, "all outputs must match the reduced rank");
+  }
+
+  Block *body = reduceOp.getBody();
+  auto yield = dyn_cast_or_null<linalg::YieldOp>(body->getTerminator());
+  if (!yield || yield.getNumOperands() != inits.size())
+    return rewriter.notifyMatchFailure(reduceOp, "invalid linalg.reduce body");
+  if (body->getNumArguments() != inputs.size() + inits.size())
+    return rewriter.notifyMatchFailure(
+        reduceOp, "body argument count must match inputs plus outputs");
+
+  Location loc = reduceOp.getLoc();
+  rewriter.setInsertionPoint(reduceOp);
+  Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
+  Value c1 = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+
+  SmallVector<Value> outputIvs(outputRank);
+  SmallVector<Value> reductionIvs(reductionDims.size());
+
+  auto emitReductionBody = [&]() {
+    SmallVector<Value> inputIndices(inputRank);
+    SmallVector<Value> outputIndices(outputIvs.begin(), outputIvs.end());
+    int64_t outputDim = 0;
+    for (int64_t dim = 0; dim < inputRank; ++dim) {
+      int64_t reductionPos = reductionDimToOperand[dim];
+      if (reductionPos >= 0) {
+        inputIndices[dim] = reductionIvs[reductionPos];
+      } else {
+        inputIndices[dim] = outputIvs[outputDim++];
+      }
+    }
+
+    IRMapping mapper;
+    for (auto [idx, input] : llvm::enumerate(inputs)) {
+      Value loaded = rewriter.create<memref::LoadOp>(loc, input, inputIndices);
+      mapper.map(body->getArgument(idx), loaded);
+    }
+    for (auto [idx, init] : llvm::enumerate(inits)) {
+      Value loaded = rewriter.create<memref::LoadOp>(loc, init, outputIndices);
+      mapper.map(body->getArgument(inputs.size() + idx), loaded);
+    }
+
+    for (Operation &inner : body->without_terminator()) {
+      if (auto indexOp = dyn_cast<linalg::IndexOp>(inner)) {
+        int64_t dim = indexOp.getDim();
+        if (dim < 0 || dim >= inputRank)
+          return;
+        mapper.map(indexOp.getResult(), inputIndices[dim]);
+        continue;
+      }
+      rewriter.clone(inner, mapper);
+    }
+
+    for (auto [idx, operand] : llvm::enumerate(yield.getOperands())) {
+      Value yielded = mapper.lookupOrDefault(operand);
+      rewriter.create<memref::StoreOp>(loc, yielded, inits[idx], outputIndices);
+    }
+  };
+
+  auto emitReductionNest = [&](auto &&emitReductionNest,
+                               unsigned depth) -> void {
+    if (depth == reductionDims.size()) {
+      emitReductionBody();
+      return;
+    }
+
+    Value upper = rewriter.create<memref::DimOp>(loc, inputs.front(),
+                                                 reductionDims[depth]);
+    auto loop = rewriter.create<scf::ForOp>(loc, c0, upper, c1);
+    OpBuilder::InsertionGuard guard(rewriter);
+    rewriter.setInsertionPointToStart(loop.getBody());
+    reductionIvs[depth] = loop.getInductionVar();
+    emitReductionNest(emitReductionNest, depth + 1);
+  };
+
+  auto emitOutputNest = [&](auto &&emitOutputNest, unsigned depth) -> void {
+    if (depth == static_cast<unsigned>(outputRank)) {
+      emitReductionNest(emitReductionNest, 0);
+      return;
+    }
+
+    Value upper = rewriter.create<memref::DimOp>(loc, inits.front(), depth);
+    auto loop = rewriter.create<scf::ForOp>(loc, c0, upper, c1);
+    OpBuilder::InsertionGuard guard(rewriter);
+    rewriter.setInsertionPointToStart(loop.getBody());
+    outputIvs[depth] = loop.getInductionVar();
+    emitOutputNest(emitOutputNest, depth + 1);
+  };
+
+  emitOutputNest(emitOutputNest, 0);
+  rewriter.eraseOp(reduceOp);
+  return success();
 }
 
 static LogicalResult
@@ -1874,6 +2096,24 @@ static LogicalResult lowerFillRng2DToVIR(linalg::FillRng2DOp op,
   return success();
 }
 
+static LogicalResult lowerRank0FillToScalarStore(linalg::FillOp op,
+                                                 PatternRewriter &rewriter) {
+  if (!op.hasPureBufferSemantics())
+    return rewriter.notifyMatchFailure(op, "expected pure buffer semantics");
+  if (op.getInputs().size() != 1 || op.getOutputs().size() != 1)
+    return rewriter.notifyMatchFailure(op, "expected one input and one output");
+
+  Value out = op.getOutputs()[0];
+  auto outTy = dyn_cast<MemRefType>(out.getType());
+  if (!outTy || outTy.getRank() != 0)
+    return rewriter.notifyMatchFailure(op, "expected rank-0 output");
+
+  Location loc = op.getLoc();
+  rewriter.create<memref::StoreOp>(loc, op.getInputs()[0], out, ValueRange{});
+  rewriter.eraseOp(op);
+  return success();
+}
+
 static LogicalResult lowerSoftmaxToVIR(linalg::SoftmaxOp op,
                                        PatternRewriter &rewriter) {
   if (!op.hasPureBufferSemantics())
@@ -2362,14 +2602,30 @@ struct LinalgReduceToVIRPattern : public RewritePattern {
     auto reduceOp = dyn_cast<linalg::ReduceOp>(op);
     if (!reduceOp)
       return rewriter.notifyMatchFailure(op, "expected linalg.reduce");
+    if (succeeded(lowerReduceToVIRReduce(reduceOp, rewriter)))
+      return success();
     if (succeeded(lowerReduceToScalarLoop(reduceOp, rewriter)))
       return success();
     reduceOp.emitError(
         "unsupported linalg.reduce for -lower-linalg-to-vir; supported forms "
         "are rank-1->rank-0 dimensions=[0], rank-2->rank-1 dimensions=[1], "
         "static-shape rank-2->rank-1 dimensions=[0], and static-shape "
-        "rank-3->rank-2 dimensions=[0], all with f32 addf/maxnumf combiner");
+        "rank-3->rank-2 dimensions=[0] with simple VIR reductions, plus "
+        "generic scalar-loop lowering for other pure-buffer reductions");
     return failure();
+  }
+};
+
+struct LinalgFillToVIRPattern : public RewritePattern {
+  LinalgFillToVIRPattern(MLIRContext *ctx)
+      : RewritePattern(MatchAnyOpTypeTag(), /*benefit=*/3, ctx) {}
+
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override {
+    auto fillOp = dyn_cast<linalg::FillOp>(op);
+    if (!fillOp)
+      return rewriter.notifyMatchFailure(op, "expected linalg.fill");
+    return lowerRank0FillToScalarStore(fillOp, rewriter);
   }
 };
 
@@ -2467,6 +2723,7 @@ public:
   void runOnOperation() override {
     MLIRContext *ctx = &getContext();
     RewritePatternSet patterns(ctx);
+    patterns.add<LinalgFillToVIRPattern>(ctx);
     patterns.add<LinalgReduceToVIRPattern>(ctx);
     patterns.add<LinalgContractionNamedToVIRPattern>(ctx);
     patterns.add<LinalgMatmulToVIRPattern>(ctx);
