@@ -26,6 +26,7 @@ import numpy
 from buddy_mlir.dialects import (
     arith,
     bufferization,
+    cf,
     linalg,
     math,
     memref,
@@ -528,53 +529,10 @@ def masked_fill_op(
     return op
 
 
-def slice_op(
-    node: SliceOp,
-    symbol_table: dict[tuple[str, int], ir.Operation],
-):
-    """
-    Import the tensor slice operation.
-    From buddy SliceOp to MLIR tensor `extract_slice` operation.
-
-    Note: This op, get the slice of input node1.
-    Args:
-        node: Containing information from the input graph node.
-        symbol_table: A dictionary mapping symbols to their corresponding
-        operations.
-
-    Returns:
-        op: The operation return the tensor.extract_slice op.
-    """
-    input1 = symbol_table.get((str(node.args[0]), 0))
-    if input1 is None:
-        return
-    dim = int(node.args[1])
-    start = int(node.args[2])
-    end = int(node.args[3])
-    input_shape = ir.RankedTensorType(input1.type).shape
-    if end > input_shape[dim]:
-        end = input_shape[dim]
-    if len(node.args) < 5:
-        step = 1
-    else:
-        step = node.args[4]
-    offset = [0 for x in input_shape]
-    offset[dim] = start
-    offset_attr = ir._denseI64ArrayAttr(offset, None)
-    output_shape = list(node.tensor_meta["shape"])
-    size_attr = ir._denseI64ArrayAttr(output_shape, None)
-    stride = [1 for x in output_shape]
-    stride[dim] = step
-    stride_attr = ir._denseI64ArrayAttr(stride, None)
-    dtype = node.tensor_meta["dtype"]
-    dtype = mlir_element_type_get(dtype)
-    tensor_type = ir.RankedTensorType.get(output_shape, dtype)
-
-    op = tensor.ExtractSliceOp(
-        tensor_type, input1, [], [], [], offset_attr, size_attr, stride_attr
-    )
-
-    return op
+def slice_op(node: SliceOp, symbol_table):
+    """Preserve ATen slice bounds and strides in the tensor dialect."""
+    input_tensor = symbol_table[(str(node.args[0]), 0)]
+    return slice_tensor(input_tensor, *node.args[1:], **node.kwargs)
 
 
 def expand_op(
@@ -688,9 +646,65 @@ def to_copy_op(
     output_shape = list(node.tensor_meta["shape"])
     dtype = node.tensor_meta["dtype"]
 
+    source_type = ir.RankedTensorType(input1.type).element_type
+    target_type = mlir_element_type_get(dtype)
+    if (
+        str(source_type) in ("f32", "f64")
+        and str(target_type) in ("f32", "f64")
+        and source_type != target_type
+    ):
+        result_type = ir.RankedTensorType.get(output_shape, target_type)
+        output = tensor.EmptyOp(output_shape, target_type)
+        identity = ir.AffineMapAttr.get(
+            ir.AffineMap.get_identity(len(output_shape))
+        )
+        op = linalg.GenericOp(
+            [result_type],
+            [input1],
+            [output.result],
+            ir.ArrayAttr.get([identity, identity]),
+            ir.ArrayAttr.get(
+                [ir.Attribute.parse("#linalg.iterator_type<parallel>")]
+                * len(output_shape)
+            ),
+        )
+        block = ir.Block.create_at_start(op.region, [source_type, target_type])
+        with ir.InsertionPoint(block):
+            cast = arith.ExtFOp if str(target_type) == "f64" else arith.TruncFOp
+            linalg.YieldOp([cast(target_type, block.arguments[0]).result])
+        return op
+
     op = None  # Initialize op to None
 
-    if dtype == TensorDType.Bool:
+    if str(ir.RankedTensorType(input1.type).element_type) == "i1" and dtype in (
+        TensorDType.Int8,
+        TensorDType.Int32,
+        TensorDType.Int64,
+    ):
+        # Boolean true must become +1, not the -1 produced by sign extension.
+        element_type = mlir_element_type_get(dtype)
+        tensor_type = ir.RankedTensorType.get(output_shape, element_type)
+        output = tensor.EmptyOp(output_shape, element_type)
+        identity = ir.AffineMapAttr.get(
+            _safe_get_permutation(list(range(len(output_shape))))
+        )
+        op = linalg.GenericOp(
+            [tensor_type],
+            [input1],
+            [output],
+            ir.ArrayAttr.get([identity, identity]),
+            ir.ArrayAttr.get(
+                [ir.Attribute.parse("#linalg.iterator_type<parallel>")]
+                * len(output_shape)
+            ),
+        )
+        block = ir.Block.create_at_start(
+            op.region, [ir.IntegerType.get_signless(1), element_type]
+        )
+        converted = arith.ExtUIOp(element_type, block.arguments[0])
+        block.append(converted)
+        block.append(linalg.YieldOp([converted.result]))
+    elif dtype == TensorDType.Bool:
         if str(ir.RankedTensorType(input1.type).element_type) == "f32":
             tensor_type = ir.RankedTensorType.get(
                 output_shape, ir.IntegerType.get_signless(1)
@@ -3316,73 +3330,55 @@ def copy_op(node: CopyOp, symbol_table):
 
 
 def slice_scatter_op(node: SliceScatterOp, symbol_table):
-    """
-    Scatter a source tensor into a slice of the input tensor.
+    """Insert a source into a clipped static slice, preserving positive steps."""
+    value = symbol_table[(str(node.args[0]), 0)]
+    source = symbol_table[(str(node.args[1]), 0)]
+    shape = list(ir.RankedTensorType(value.type).shape)
+    if any(size < 0 for size in shape):
+        raise NotImplementedError("Slice scatter requires static shapes")
 
-    Args:
-        node (SliceScatterOp): The slice_scatter operation node.
-        symbol_table: Mapping of variable names to tensor references.
+    def arg(name, index, default):
+        return node.kwargs.get(
+            name, node.args[index] if len(node.args) > index else default
+        )
 
-    Returns:
-        Tensor: The resulting tensor after inserting the source tensor.
-    """
-    # Retrieve input tensor and scatter-related parameters
-    input_tensor = symbol_table.get((str(node.args[0]), 0), node.args[0])
-    source_tensor = symbol_table.get((str(node.args[1]), 0), node.args[1])
-    dim = node.args[2]  # The dimension to insert into
-    start = node.args[3]  # Start index
-    end = node.args[4]  # End index
-
-    input_shape = input_tensor.type.shape
-    if dim < 0:
-        dim += len(input_shape)  # Handle negative indices
-
-    if end == 9223372036854775807:
-        end = input_shape[dim]  # Adjust end index if it is set to max value
-
-    tensor_rank = len(input_shape)
-    default_sizes = list(input_shape)
-    default_strides = [1] * tensor_rank
-
-    # 1. Compute slice offsets
-    offsets = [0] * tensor_rank
-    offsets[dim] = start  # Offset only in the target dimension
-    offsets_attr = ir._denseI64ArrayAttr(offsets, None)
-
-    # 2. Compute slice sizes
-    sizes = list(default_sizes)
-    sizes[dim] = end - start  # Modify only the target dimension size
-    sizes_attr = ir._denseI64ArrayAttr(sizes, None)
-
-    # 3. Compute slice strides
-    strides = list(default_strides)
-    strides_attr = ir._denseI64ArrayAttr(strides, None)
-
-    # 4. Extract target slice
-    slice_op = tensor.ExtractSliceOp(
-        source_tensor.type,  # Target type is the same as source_tensor
-        input_tensor,
-        [],
-        [],
-        [],
-        offsets_attr,
-        sizes_attr,
-        strides_attr,
+    dim, start, end, step = (
+        arg("dim", 2, 0),
+        arg("start", 3, None),
+        arg("end", 4, None),
+        arg("step", 5, 1),
     )
-
-    # 5. Insert source_tensor into the target position
-    insert_op = tensor.InsertSliceOp(
-        source_tensor,
-        input_tensor,
+    if not -len(shape) <= dim < len(shape) or step <= 0:
+        raise ValueError(
+            "Slice scatter requires a valid dimension and positive step"
+        )
+    dim %= len(shape)
+    start, end, step = slice(start, end, step).indices(shape[dim])
+    sizes = shape.copy()
+    sizes[dim] = len(range(start, end, step))
+    source_type = ir.RankedTensorType(source.type)
+    if (
+        list(source_type.shape) != sizes
+        or source_type.element_type
+        != ir.RankedTensorType(value.type).element_type
+    ):
+        raise ValueError(
+            "Slice scatter source must match the slice shape and dtype"
+        )
+    if 0 in sizes:
+        return value
+    offsets, strides = [0] * len(shape), [1] * len(shape)
+    offsets[dim], strides[dim] = start, step
+    return tensor.InsertSliceOp(
+        source,
+        value,
         [],
         [],
         [],
-        offsets_attr,
-        sizes_attr,
-        strides_attr,
-    )
-
-    return insert_op.result
+        ir._denseI64ArrayAttr(offsets, None),
+        ir._denseI64ArrayAttr(sizes, None),
+        ir._denseI64ArrayAttr(strides, None),
+    ).result
 
 
 def _get_vectorizable_trailing_dims(input2, input3_shape, accumulate):
@@ -4597,189 +4593,125 @@ def gcd_op(
     ).result
 
 
-def sort_op(
-    node,
-    symbol_table: dict[tuple[str, int], ir.Operation],
-):
-    """
-    Converts a Buddy SortOp operation to MLIR operations.
-
-    This is a bubble sort implementation using scf.ForOp loops for 2D tensors.
-    Returns (sorted_values, indices).
-
-    Parameters:
-        node: The Buddy SortOp node containing the operation details and tensor metadata.
-        symbol_table (dict): A dictionary mapping tensor names to their corresponding MLIR operations.
-
-    Returns:
-        tuple: (values, indices) as MLIR operations.
-    """
-    shape_meta = node.tensor_meta["shape"]
-    dtype_meta = node.tensor_meta["dtype"]
-
-    # tensor_meta for sort contains tuple of (values_shape, indices_shape)
-    if isinstance(shape_meta, tuple):
-        output_shape = list(shape_meta[0])
-    else:
-        output_shape = list(shape_meta)
-
-    if isinstance(dtype_meta, tuple):
-        dtype = dtype_meta[0]
-    else:
-        dtype = dtype_meta
-
-    mlir_dtype = mlir_element_type_get(dtype)
-    input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
-
-    dim = node.args[1] if len(node.args) > 1 else -1
-    descending = node.args[2] if len(node.args) > 2 else False
-
-    if dim == -1:
-        dim += len(output_shape)
-
-    output_tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
-    indices_tensor_type = ir.RankedTensorType.get(
-        output_shape, ir.IntegerType.get_signless(64)
+def sort_op(node, symbol_table):
+    """Stable adjacent-swap sort along a static tensor dimension."""
+    value = symbol_table[(str(node.args[0]), 0)]
+    value_type = ir.RankedTensorType(value.type)
+    shape = list(value_type.shape)
+    dtype = value_type.element_type
+    rank = len(shape)
+    dim = int(
+        node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", -1)
     )
-
-    # Convert input to memref for in-place sorting
-    input_memref_type = ir.MemRefType.get(output_shape, mlir_dtype)
-    input_memref = bufferization.ToBufferOp(input_memref_type, input1)
-
-    # Create indices memref
-    indices_memref_type = ir.MemRefType.get(
-        output_shape, ir.IntegerType.get_signless(64)
+    descending = bool(
+        node.args[2]
+        if len(node.args) > 2
+        else node.kwargs.get("descending", False)
     )
-    indices_memref = memref.AllocOp(indices_memref_type, [], [])
+    if any(size < 0 for size in shape):
+        raise NotImplementedError("Sort requires static shapes")
+    if not -max(rank, 1) <= dim < max(rank, 1):
+        raise ValueError("Sort dimension out of range")
+    dim %= max(rank, 1)
+    is_float = isinstance(
+        dtype, (ir.F16Type, ir.BF16Type, ir.F32Type, ir.F64Type)
+    )
+    if not is_float and not isinstance(dtype, ir.IntegerType):
+        raise NotImplementedError(
+            "Sort requires real floating or integer input"
+        )
+    index_type = ir.IndexType.get()
+    i64 = ir.IntegerType.get_signless(64)
+    output = memref.AllocOp(ir.MemRefType.get(shape, dtype), [], [])
+    indices = memref.AllocOp(ir.MemRefType.get(shape, i64), [], [])
+    zero = arith.ConstantOp(index_type, 0).result
+    one = arith.ConstantOp(index_type, 1).result
+    bounds = [arith.ConstantOp(index_type, size).result for size in shape]
 
-    # Initialize indices with sequential values along the sort dimension
-    lb = arith.ConstantOp(ir.IndexType.get(), 0)
-    step = arith.ConstantOp(ir.IndexType.get(), 1)
-    ub0 = arith.ConstantOp(ir.IndexType.get(), output_shape[0])
-    ub1 = arith.ConstantOp(ir.IndexType.get(), output_shape[1])
+    def loops(axes, coordinates, action):
+        if not axes:
+            action(coordinates)
+            return
+        axis, *rest = axes
+        loop = scf.ForOp(zero, bounds[axis], one)
+        with ir.InsertionPoint(loop.body):
+            current = list(coordinates)
+            current[axis] = loop.induction_variable
+            loops(rest, current, action)
+            scf.YieldOp([])
 
-    # Initialize indices: indices[i][j] = j (for dim=1)
-    init_loop0 = scf.ForOp(lb, ub0, step)
-    with ir.InsertionPoint(init_loop0.body):
-        init_loop1 = scf.ForOp(lb, ub1, step)
-        with ir.InsertionPoint(init_loop1.body):
-            idx_val = arith.IndexCastOp(
-                ir.IntegerType.get_signless(64), init_loop1.induction_variable
-            )
-            memref.StoreOp(
-                idx_val,
-                indices_memref,
-                [init_loop0.induction_variable, init_loop1.induction_variable],
-            )
-            scf.YieldOp(init_loop1.inner_iter_args)
-        scf.YieldOp(init_loop0.inner_iter_args)
+    def initialize(coordinates):
+        element = tensor.ExtractOp(value, coordinates).result
+        idx = arith.IndexCastOp(i64, coordinates[dim] if rank else zero).result
+        memref.StoreOp(element, output, coordinates)
+        memref.StoreOp(idx, indices, coordinates)
 
-    # Bubble sort along dim=1
-    sort_size = output_shape[dim]
-    outer_ub = arith.ConstantOp(ir.IndexType.get(), sort_size - 1)
+    loops(list(range(rank)), [zero] * rank, initialize)
 
-    # Outer loop (over rows for 2D, dim=1)
-    row_loop = scf.ForOp(lb, ub0, step)
-    with ir.InsertionPoint(row_loop.body):
-        # Bubble sort passes
-        pass_loop = scf.ForOp(lb, outer_ub, step)
-        with ir.InsertionPoint(pass_loop.body):
-            # Compare adjacent elements
-            inner_ub = arith.SubIOp(outer_ub, pass_loop.induction_variable)
-            compare_loop = scf.ForOp(lb, inner_ub, step)
-            with ir.InsertionPoint(compare_loop.body):
-                next_idx = arith.AddIOp(compare_loop.induction_variable, step)
-
-                # Load current and next values
-                val_curr = memref.LoadOp(
-                    input_memref,
-                    [
-                        row_loop.induction_variable,
-                        compare_loop.induction_variable,
-                    ],
-                )
-                val_next = memref.LoadOp(
-                    input_memref, [row_loop.induction_variable, next_idx]
-                )
-
-                # Load indices
-                idx_curr = memref.LoadOp(
-                    indices_memref,
-                    [
-                        row_loop.induction_variable,
-                        compare_loop.induction_variable,
-                    ],
-                )
-                idx_next = memref.LoadOp(
-                    indices_memref, [row_loop.induction_variable, next_idx]
-                )
-
-                # Compare: for ascending, swap if curr > next
-                if str(mlir_dtype).startswith("f"):
-                    if descending:
-                        should_swap = arith.CmpFOp(
-                            arith.CmpFPredicate.OLT, val_curr, val_next
-                        )
-                    else:
-                        should_swap = arith.CmpFOp(
-                            arith.CmpFPredicate.OGT, val_curr, val_next
-                        )
+    def sort_line(coordinates):
+        upper = arith.ConstantOp(index_type, max(shape[dim] - 1, 0)).result
+        passes = scf.ForOp(zero, upper, one)
+        with ir.InsertionPoint(passes.body):
+            remaining = arith.SubIOp(upper, passes.induction_variable).result
+            comparisons = scf.ForOp(zero, remaining, one)
+            with ir.InsertionPoint(comparisons.body):
+                left, right = list(coordinates), list(coordinates)
+                left[dim] = comparisons.induction_variable
+                right[dim] = arith.AddIOp(left[dim], one).result
+                a = memref.LoadOp(output, left).result
+                b = memref.LoadOp(output, right).result
+                if is_float:
+                    pred = (
+                        arith.CmpFPredicate.OLT
+                        if descending
+                        else arith.CmpFPredicate.OGT
+                    )
+                    ordered = arith.CmpFOp(pred, a, b).result
+                    # NaNs sort last ascending and first descending.
+                    a_nan = arith.CmpFOp(arith.CmpFPredicate.UNO, a, a).result
+                    b_nan = arith.CmpFOp(arith.CmpFPredicate.UNO, b, b).result
+                    a_number = arith.CmpFOp(
+                        arith.CmpFPredicate.ORD, a, a
+                    ).result
+                    b_number = arith.CmpFOp(
+                        arith.CmpFPredicate.ORD, b, b
+                    ).result
+                    nan_swap = (
+                        arith.AndIOp(a_number, b_nan).result
+                        if descending
+                        else arith.AndIOp(a_nan, b_number).result
+                    )
+                    swap = arith.OrIOp(ordered, nan_swap).result
                 else:
-                    if descending:
-                        should_swap = arith.CmpIOp(
-                            arith.CmpIPredicate.slt, val_curr, val_next
-                        )
-                    else:
-                        should_swap = arith.CmpIOp(
-                            arith.CmpIPredicate.sgt, val_curr, val_next
-                        )
-
-                # Conditional swap using scf.if
-                if_op = scf.IfOp(should_swap, has_else=False)
-                with ir.InsertionPoint(if_op.then_block):
-                    # Swap values
-                    memref.StoreOp(
-                        val_next,
-                        input_memref,
-                        [
-                            row_loop.induction_variable,
-                            compare_loop.induction_variable,
-                        ],
+                    pred = (
+                        arith.CmpIPredicate.slt
+                        if descending
+                        else arith.CmpIPredicate.sgt
                     )
-                    memref.StoreOp(
-                        val_curr,
-                        input_memref,
-                        [row_loop.induction_variable, next_idx],
-                    )
-                    # Swap indices
-                    memref.StoreOp(
-                        idx_next,
-                        indices_memref,
-                        [
-                            row_loop.induction_variable,
-                            compare_loop.induction_variable,
-                        ],
-                    )
-                    memref.StoreOp(
-                        idx_curr,
-                        indices_memref,
-                        [row_loop.induction_variable, next_idx],
-                    )
+                    swap = arith.CmpIOp(pred, a, b).result
+                condition = scf.IfOp(swap, has_else=False)
+                with ir.InsertionPoint(condition.then_block):
+                    ai = memref.LoadOp(indices, left).result
+                    bi = memref.LoadOp(indices, right).result
+                    memref.StoreOp(b, output, left)
+                    memref.StoreOp(a, output, right)
+                    memref.StoreOp(bi, indices, left)
+                    memref.StoreOp(ai, indices, right)
                     scf.YieldOp([])
+                scf.YieldOp([])
+            scf.YieldOp([])
 
-                scf.YieldOp(compare_loop.inner_iter_args)
-            scf.YieldOp(pass_loop.inner_iter_args)
-        scf.YieldOp(row_loop.inner_iter_args)
-
-    # Convert back to tensors
-    values = bufferization.ToTensorOp(
-        output_tensor_type, input_memref, restrict=True
+    if rank:
+        loops(
+            [axis for axis in range(rank) if axis != dim],
+            [zero] * rank,
+            sort_line,
+        )
+    values = bufferization.ToTensorOp(value_type, output.result, restrict=True)
+    index_tensor = bufferization.ToTensorOp(
+        ir.RankedTensorType.get(shape, i64), indices.result, restrict=True
     )
-    indices = bufferization.ToTensorOp(
-        indices_tensor_type, indices_memref, restrict=True
-    )
-
-    return (values.result, indices.result)
+    return values.result, index_tensor.result
 
 
 def tensor_constant_op(
@@ -5676,6 +5608,9 @@ def scatter_reduce_op(
         if len(node.args) > 5
         else bool(node.kwargs.get("include_self", True))
     )
+    reduce_op = {"add": "sum", "multiply": "prod"}.get(reduce_op, reduce_op)
+    if reduce_op not in ("sum", "prod", "amax", "amin"):
+        raise NotImplementedError(f"Unsupported scatter reduction: {reduce_op}")
 
     if index_tensor is None:
         return
@@ -5689,6 +5624,9 @@ def scatter_reduce_op(
     if dim < 0:
         dim += tensor_rank
 
+    if not 0 <= dim < tensor_rank:
+        raise ValueError("scatter reduction dimension out of range")
+
     # Get shapes
     input_shape = list(ir.RankedTensorType(input_tensor.type).shape)
     index_shape = list(ir.RankedTensorType(index_tensor.type).shape)
@@ -5698,11 +5636,13 @@ def scatter_reduce_op(
         else []
     )
 
-    # Convert tensors to memrefs for in-place operations
+    # Keep the functional input intact, including other uses in the same graph.
     input_memref_type = ir.MemRefType.get(
         input_shape, ir.RankedTensorType(input_tensor.type).element_type
     )
-    input_memref = bufferization.ToBufferOp(input_memref_type, input_tensor)
+    original_memref = bufferization.ToBufferOp(input_memref_type, input_tensor)
+    input_memref = memref.AllocOp(input_memref_type, [], [])
+    linalg.copy(original_memref.result, outs=[input_memref.result])
 
     index_memref_type = ir.MemRefType.get(
         index_shape, ir.RankedTensorType(index_tensor.type).element_type
@@ -5721,6 +5661,38 @@ def scatter_reduce_op(
     lb = arith.ConstantOp(ir.IndexType.get(), 0)
     step = arith.ConstantOp(ir.IndexType.get(), 1)
     ubs = [arith.ConstantOp(ir.IndexType.get(), s) for s in index_shape]
+
+    visited = None
+    if not include_self:
+        flag_type = ir.IntegerType.get_signless(1)
+        visited = memref.AllocOp(
+            ir.MemRefType.get(input_shape, flag_type), [], []
+        )
+        unseen = arith.ConstantOp(flag_type, 0)
+        linalg.fill(unseen.result, outs=[visited.result])
+        seen = arith.ConstantOp(flag_type, 1)
+
+    def checked_current(target_indices):
+        target = target_indices[dim]
+        upper = arith.ConstantOp(ir.IndexType.get(), input_shape[dim])
+        nonnegative = arith.CmpIOp(arith.CmpIPredicate.sge, target, lb)
+        below = arith.CmpIOp(arith.CmpIPredicate.slt, target, upper)
+        cf.AssertOp(
+            arith.AndIOp(nonnegative.result, below.result).result,
+            "scatter reduction index out of bounds",
+        )
+        current = memref.LoadOp(input_memref, target_indices).result
+        was_seen = None
+        if visited is not None:
+            was_seen = memref.LoadOp(visited, target_indices).result
+            memref.StoreOp(seen, visited, target_indices)
+        return current, was_seen
+
+    def store_result(result, source, was_seen, target_indices):
+        if was_seen is not None:
+            # The first update replaces self; subsequent duplicate indices reduce.
+            result = arith.SelectOp(was_seen, result.result, source)
+        memref.StoreOp(result, input_memref, target_indices)
 
     # Determine if we're working with integers or floats
     is_float = str(mlir_dtype).startswith("f")
@@ -5748,7 +5720,7 @@ def scatter_reduce_op(
             target_indices = list(indices)
             target_indices[dim] = scatter_idx
             # Load the current value at target position
-            curr_val = memref.LoadOp(input_memref, target_indices).result
+            curr_val, was_seen = checked_current(target_indices)
 
             # Apply the reduction operation
             if reduce_op == "sum":
@@ -5771,15 +5743,8 @@ def scatter_reduce_op(
                     new_val = arith.MinimumFOp(curr_val, src_val)
                 else:
                     new_val = arith.MinSIOp(curr_val, src_val)
-            else:
-                # Default to sum for unsupported operations
-                if is_float:
-                    new_val = arith.AddFOp(curr_val, src_val)
-                else:
-                    new_val = arith.AddIOp(curr_val, src_val)
-
             # Store the result
-            memref.StoreOp(new_val, input_memref, target_indices)
+            store_result(new_val, src_val, was_seen, target_indices)
         else:
             # Create a loop for the current dimension
             loop = scf.ForOp(lb, ubs[depth], step)
@@ -5810,7 +5775,7 @@ def scatter_reduce_op(
                 src_val = memref.LoadOp(src_memref, indices).result
                 target_indices = list(indices)
                 target_indices[dim] = scatter_idx
-                curr_val = memref.LoadOp(input_memref, target_indices).result
+                curr_val, was_seen = checked_current(target_indices)
 
                 if reduce_op == "sum":
                     if is_float:
@@ -5832,13 +5797,7 @@ def scatter_reduce_op(
                         new_val = arith.MinimumFOp(curr_val, src_val)
                     else:
                         new_val = arith.MinSIOp(curr_val, src_val)
-                else:
-                    if is_float:
-                        new_val = arith.AddFOp(curr_val, src_val)
-                    else:
-                        new_val = arith.AddIOp(curr_val, src_val)
-
-                memref.StoreOp(new_val, input_memref, target_indices)
+                store_result(new_val, src_val, was_seen, target_indices)
                 return
 
             loop = scf.ForOp(lb, ubs_src[depth], step)
@@ -7588,6 +7547,111 @@ def scatter_add_op(
         output_type, output_memref.result, restrict=True
     )
     return result
+
+
+def _index_update_op(node, symbol_table, accumulate):
+    """Update slices sequentially, preserving repeated-index accumulation."""
+    destination, index, source = (
+        symbol_table[(str(node.args[i]), 0)] for i in (0, 2, 3)
+    )
+    destination_type = ir.RankedTensorType(destination.type)
+    source_type = ir.RankedTensorType(source.type)
+    index_type = ir.RankedTensorType(index.type)
+    shape, src_shape = list(destination_type.shape), list(source_type.shape)
+    dtype = destination_type.element_type
+    rank = len(shape)
+    dim = node.args[1]
+    if dim < 0:
+        dim += rank
+    if (
+        not rank
+        or not 0 <= dim < rank
+        or len(src_shape) != rank
+        or len(index_type.shape) != 1
+        or any(size < 0 for size in shape + src_shape)
+        or index_type.shape[0] != src_shape[dim]
+        or any(shape[i] != src_shape[i] for i in range(rank) if i != dim)
+    ):
+        raise NotImplementedError(
+            "Index updates require matching static tensor shapes and a vector index"
+        )
+    if (
+        str(dtype) not in ("f32", "f64", "i32", "i64")
+        or source_type.element_type != dtype
+        or str(index_type.element_type) not in ("i32", "i64")
+    ):
+        raise NotImplementedError(
+            "Index updates require f32/f64/i32/i64 data and integer indices"
+        )
+
+    def buffer(value, tensor_type):
+        return bufferization.ToBufferOp(
+            ir.MemRefType.get(
+                list(tensor_type.shape), tensor_type.element_type
+            ),
+            value,
+        ).result
+
+    output = memref.AllocOp(ir.MemRefType.get(shape, dtype), [], []).result
+    linalg.copy(buffer(destination, destination_type), outs=[output])
+    source_buffer = buffer(source, source_type)
+    index_buffer = buffer(index, index_type)
+
+    def index_constant(number):
+        return arith.ConstantOp(ir.IndexType.get(), number).result
+
+    zero, one = index_constant(0), index_constant(1)
+    bounds = [index_constant(size) for size in src_shape]
+    destination_bound = index_constant(shape[dim])
+    floating = str(dtype) in ("f32", "f64")
+    if accumulate:
+        alpha = node.kwargs.get("alpha", 1)
+        attr = (
+            ir.FloatAttr.get(dtype, float(alpha))
+            if floating
+            else ir.IntegerAttr.get(dtype, int(alpha))
+        )
+        scale = arith.ConstantOp(dtype, attr).result
+
+    def loop(depth, indices):
+        if depth < rank:
+            region = scf.ForOp(zero, bounds[depth], one)
+            with ir.InsertionPoint(region.body):
+                loop(depth + 1, indices + [region.induction_variable])
+                scf.YieldOp(region.inner_iter_args)
+            return
+        selected = memref.LoadOp(index_buffer, [indices[dim]]).result
+        selected = arith.IndexCastOp(ir.IndexType.get(), selected).result
+        # Unsigned comparison also rejects negative indices before memory access.
+        in_bounds = arith.CmpIOp(6, selected, destination_bound).result
+        cf.AssertOp(in_bounds, "index update index out of bounds")
+        target_indices = list(indices)
+        target_indices[dim] = selected
+        value = memref.LoadOp(source_buffer, indices).result
+        if accumulate:
+            previous = memref.LoadOp(output, target_indices).result
+            value = (
+                arith.MulFOp(value, scale).result
+                if floating
+                else arith.MulIOp(value, scale).result
+            )
+            value = (
+                arith.AddFOp(previous, value).result
+                if floating
+                else arith.AddIOp(previous, value).result
+            )
+        memref.StoreOp(value, output, target_indices)
+
+    loop(0, [])
+    return bufferization.ToTensorOp(destination_type, output, restrict=True)
+
+
+def index_add_op(node: IndexAddOp, symbol_table):
+    return _index_update_op(node, symbol_table, accumulate=True)
+
+
+def index_copy_op(node: IndexCopyOp, symbol_table):
+    return _index_update_op(node, symbol_table, accumulate=False)
 
 
 def index_select_op(
@@ -12977,6 +13041,8 @@ ops_registry = {
     "ScatterValueOp": scatter_value_op,
     "ScatterReduceOp": scatter_reduce_op,
     "IndexSelectOp": index_select_op,
+    "IndexAddOp": index_add_op,
+    "IndexCopyOp": index_copy_op,
     "GatherOp": gather_op,
     "SearchSortedOp": searchsorted_op,
     "BucketizeOp": bucketize_op,

@@ -322,6 +322,18 @@ class IndexSelectOp(Op):
         self._op_type = OpType.ReshapeType
 
 
+class IndexAddOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReduceType
+
+
+class IndexCopyOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReshapeType
+
+
 class CatOp(Op):
     def __init__(self) -> None:
         super().__init__()

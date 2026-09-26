@@ -408,6 +408,8 @@ class DynamoCompiler:
             "le.Scalar": LeScalarOp,
             "lt.Scalar": LtScalarOp,
             "index_select.default": IndexSelectOp,
+            "index_add.default": IndexAddOp,
+            "index_copy.default": IndexCopyOp,
             "scatter_add.default": ScatterAddOp,
             "arange.start_step": ArangeStartStepOp,
             "min.dim": MinDimOp,
@@ -1371,7 +1373,9 @@ class DynamoCompiler:
 
             return os.path.join(lib_base_path, "libomp" + lib_extension)
 
-        graph.compile()
+        # exec_buddy_graph copies every input to contiguous CPU storage below.
+        # Expose that boundary contract without assuming internal views are tight.
+        graph.compile(contiguous_inputs=True)
 
         # Collect dependency libraries.
         lib_extension = get_lib_extension()
