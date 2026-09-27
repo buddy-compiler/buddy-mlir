@@ -96,7 +96,8 @@ def compare_outputs(expected, actual, torch):
             ref,
             rtol=1e-4 if floating else 0,
             atol=1e-5 if floating else 0,
-            equal_nan=False,
+            # Expected NaNs must occupy exactly the same output positions.
+            equal_nan=True,
         )
 
 
@@ -135,7 +136,7 @@ def run_case(name, profile, mode, path):
             if not ref_leaves or len(ref_leaves) != len(exported_leaves):
                 raise AssertionError("Exported output arity mismatch")
             for ref, out in zip(ref_leaves, exported_leaves):
-                torch.testing.assert_close(out, ref, equal_nan=False)
+                torch.testing.assert_close(out, ref, equal_nan=True)
         targets = Counter()
         schemas = {}
         for node in exported.graph.nodes:

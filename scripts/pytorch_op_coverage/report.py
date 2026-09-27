@@ -78,11 +78,12 @@ def build_report_payload(
         "provenance": provenance,
         "environment": environment,
         "profile": {
-            "name": "cpu-export-v5",
+            "name": "cpu-export-v9",
             "cases": PROFILES,
             "seed": 0,
             "rtol": 1e-4,
             "atol": 1e-5,
+            "equal_nan": True,
             "external_calls": False,
             "path": "strict torch.export -> Buddy _compile_fx -> tosa-priority -> JIT",
             "scope": "Explicit small CPU inputs, including a strided contiguous() fixture; no claim for arbitrary shapes/dtypes or full models",

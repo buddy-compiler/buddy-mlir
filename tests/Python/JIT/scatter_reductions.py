@@ -66,7 +66,7 @@ for dtype in (torch.float32, torch.float64, torch.int32, torch.int64):
     x = torch.arange(15).reshape(3, 5).to(dtype) - 7
     src = torch.tensor([[2, -3, 4], [5, 2, -1], [-2, 3, 2]], dtype=dtype)
     index = torch.tensor([[0, 0, 2], [3, 1, 3], [2, 2, 2]])
-    for reduction in ("sum", "prod", "amax", "amin"):
+    for reduction in ("sum", "prod", "mean", "amax", "amin"):
         for include in (True, False):
             for empty in (False, True):
                 args = (x, index[:, :0] if empty else index, src)
@@ -93,7 +93,7 @@ for dtype in (torch.float32, torch.float64, torch.int32, torch.int64):
             (x, index, src),
         )
         count += 2
-    for reduction in ("prod", "amax", "amin"):
+    for reduction in ("prod", "mean", "amax", "amin"):
         for include in (True, False):
             check(
                 lambda x, i, s, r=reduction, inc=include: (
@@ -105,7 +105,7 @@ for dtype in (torch.float32, torch.float64, torch.int32, torch.int64):
             )
             count += 1
     # Transposition exercises dimension zero and noncontiguous caller inputs.
-    for reduction in ("sum", "prod", "amax", "amin"):
+    for reduction in ("sum", "prod", "mean", "amax", "amin"):
         check(
             lambda x, i, s, r=reduction: torch.ops.aten.scatter_reduce.two(
                 x, 0, i, s, r, include_self=False
@@ -115,7 +115,7 @@ for dtype in (torch.float32, torch.float64, torch.int32, torch.int64):
         count += 1
     if dtype.is_floating_point:
         src[0, 0] = float("nan")
-        for reduction in ("sum", "prod", "amax", "amin"):
+        for reduction in ("sum", "prod", "mean", "amax", "amin"):
             check(
                 lambda x, i, s, r=reduction: torch.ops.aten.scatter_reduce.two(
                     x, 1, i, s, r, include_self=False
@@ -123,28 +123,33 @@ for dtype in (torch.float32, torch.float64, torch.int32, torch.int64):
                 (x, index, src),
             )
             count += 1
+    # A rank-three case exercises repeated indices and a partially used source.
+    values = torch.arange(24).reshape(2, 3, 4).to(dtype) - 19
+    updates = torch.arange(40).reshape(2, 5, 4).to(dtype) - 31
+    indices = torch.tensor([0, 0, 2, 0]).reshape(1, 4, 1).expand(2, 4, 4)
+    for include in (True, False):
+        check(
+            lambda x, i, s, inc=include: torch.ops.aten.scatter_reduce.two(
+                x, 1, i, s, "mean", include_self=inc
+            ),
+            (values, indices, updates),
+        )
+        count += 1
+    if dtype.is_floating_point:
+        # Excluded self must not poison touched entries with NaNs or infinities.
+        values = torch.tensor(
+            [float("nan"), float("inf"), -0.0, 7], dtype=dtype
+        )
+        updates = torch.tensor([-3, -2, 4], dtype=dtype)
+        for include in (True, False):
+            check(
+                lambda x, i, s, inc=include: torch.ops.aten.scatter_reduce.two(
+                    x, 0, i, s, "mean", include_self=inc
+                ),
+                (values, torch.tensor([0, 0, 1]), updates),
+            )
+            count += 1
 print(f"Scatter reductions: {count} cases passed")
-
-# Unsupported reductions must never silently fall back to summation.
-model = Case(
-    lambda x, i, s: torch.ops.aten.scatter_reduce.two(x, 1, i, s, "mean")
-)
-args = (
-    torch.zeros(3, 5),
-    torch.zeros(3, 2, dtype=torch.int64),
-    torch.ones(3, 2),
-)
-exported = torch.export.export(model, args, strict=True)
-compiler = DynamoCompiler(
-    primary_registry=tosa.ops_registry, enable_external_calls=False
-)
-compiler._compile_fx(exported.graph_module, list(args))
-try:
-    compiler.dynamo_run()
-except NotImplementedError as error:
-    assert "Unsupported scatter reduction: mean" in str(error)
-else:
-    raise AssertionError("Unsupported mean reduction was accepted")
 
 for index_value in (-1, 5):
     child = subprocess.run(
@@ -155,4 +160,4 @@ for index_value in (-1, 5):
     )
     assert "Executing invalid index" in child.stdout, child.stderr
     assert child.returncode == -signal.SIGABRT, (child.returncode, child.stderr)
-print("Scatter reductions: mean rejection and 2 runtime bounds checks passed")
+print("Scatter reductions: 2 runtime bounds checks passed")

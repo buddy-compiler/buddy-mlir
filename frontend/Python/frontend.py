@@ -275,6 +275,8 @@ class DynamoCompiler:
             "exponential.out": ExponentialOp,
             "exponential_.default": ExponentialOp,
             "constant_pad_nd.default": ConstantPadNdOp,
+            "pixel_shuffle.default": PixelShuffleOp,
+            "pixel_unshuffle.default": PixelUnshuffleOp,
             "reciprocal.default": ReciprocalOp,
             "clamp_min.default": ClampMinOp,
             "clamp_max.default": ClampMaxOp,

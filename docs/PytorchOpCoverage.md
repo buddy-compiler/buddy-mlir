@@ -59,15 +59,16 @@ all execution stages**, with no retained limitation/review flag. Failed,
 skipped, untested and limited operators remain in the denominator. Evidence
 categories overlap; their counts should not be added together.
 
-The `cpu-export-v5` profile configures all 106 operators with three cases each
-(318 required cases, unchanged from `cpu-export-v4`):
+The `cpu-export-v9` profile configures all 106 operators with three cases each
+(318 required cases, unchanged from `cpu-export-v8`):
 two small float32 shapes and one float64 shape; integer-only operators retain
 integer inputs. Factory cases have no tensor inputs and specify output dtype
 and shape explicitly; `_to_copy` cases convert between f32 and f64. Vision cases
 use small NCHW inputs with rectangular shapes. Seed is 0. Floating outputs use
 rtol `1e-4` and atol `1e-5`;
 integer/bool outputs require exact equality. Output arity, order and dtype
-must match. Coverage applies only to the declared small CPU cases. The
+must match. Expected NaNs must appear in the same positions; missing or extra
+NaNs fail comparison. Coverage applies only to the declared small CPU cases. The
 `contiguous` fixture uses a strided input. New indexing and scatter fixtures
 include duplicate indices where accumulation is defined; attention uses causal
 rectangular sequences. Dynamic-output and unsupported cases remain in the
@@ -77,6 +78,27 @@ Reshape, contiguous, argsort and softmax cases retain their previous result and
 also check a boundary result: an internal strided slice, non-last sorting axis
 with descending order, or a transposed softmax with dtype conversion. Each case
 must match every returned result.
+
+Scatter-reduce cases preserve the previous sum result and additionally check
+mean with both include-self modes. CPU regressions cover duplicate indices,
+untouched entries, empty indices, and integer mean rounding toward negative
+infinity for f32/f64/i32/i64 inputs.
+
+Pixel-shuffle cases retain their original output and also check an internal
+strided slice. Pixel-unshuffle handles non-empty static inputs, but empty inputs
+are rejected: PyTorch 2.10 eager and export disagree on their output shape.
+Its limitation flag remains, so passing configured cases does not credit it
+toward the validated numerator.
+
+Attention cases preserve the causal unmasked outputs and add rank-2/rank-4
+additive masks, including a fully masked row. Both attention output and
+log-sum-exp must match PyTorch; fully masked rows return zeros. Regressions
+also cover mask broadcasting, strided masks and f32 masks with f64 queries.
+
+Top-k cases retain the original result and add a non-last axis on a strided
+view and a NaN input. The lowering selects distinct indices and supports static
+shapes and k. Regression checks allow PyTorch's unspecified ordering for ties
+and `sorted=False`, while requiring correct selected values and valid indices.
 
 The live path uses strict `torch.export`, Buddy `_compile_fx`, TOSA-priority
 registries and `dynamo_run()`, with external calls disabled and no user-supplied
@@ -137,7 +159,11 @@ The CPU regressions in `tests/Python/JIT/` cover:
 - `slice_select.py`, `layout_sort_softmax.py`: offset/strided layouts,
   scalar/empty results, sort axes and stable ties, NaNs and softmax dtype changes.
 - `causal_attention.py`: attention output and log-sum-exp for causal/noncausal
-  f32/f64 inputs, unequal sequence lengths and custom scales.
+  f32/f64 inputs, unequal sequence lengths, custom scales and additive masks.
+- `pixel_rearrange.py`: exact pixel shuffle/unshuffle results across ranks,
+  factors and strided views; empty shuffle and explicit empty-unshuffle guards.
+- `topk.py`: NaNs, infinities, integer limits, ties, scalar/empty outputs,
+  arbitrary axes and strided views; input preservation and index uniqueness.
 
 For example, run `python tests/Python/JIT/layout_sort_softmax.py` in the same
 Buddy environment as the live measurement. Existing FileCheck tests cover
@@ -146,7 +172,7 @@ the corresponding import IR; JIT tests provide numerical evidence.
 These lowerings target static CPU inputs. Mean supports f32/f64 without dtype
 conversion; layer norm requires positive static shapes. Stack requires matching
 shapes and dtypes; scalar clamp supports f32/f64/i32/i64 and rejects overflowing
-integer bounds. Scatter mean remains unsupported. Additional restrictions are
+integer bounds. Scatter mean uses floor rounding for integer inputs. Additional restrictions are
 retained in the target file and excluded from the strict numerator.
 
 The CPU pipeline preserves runtime offsets and strides. Matmul vectorization

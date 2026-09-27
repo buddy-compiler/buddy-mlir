@@ -1,11 +1,11 @@
 # PyTorch operator coverage
 
 - Mode: **live**; run: **failed**; exit: **1**
-- Generated (UTC): `2026-09-26T09:37:26.348458+00:00`
+- Generated (UTC): `2026-09-27T10:49:13.982054+00:00`
 - Target: **Buddy Target Op Set v1** / `1.0.0`; **106** unique operators
-- Source: `0cde280f44ee339554872d8a77ea27e6e4e166bd`; dirty: `True`
-- Source SHA-256: `71e9828484b4bcde09435b3565cf2b0b6a11f71da412ea3ee14b2517d675fdf1`
-- Profile: `cpu-export-v5`; seed 0; rtol 1e-4; atol 1e-5; external calls disabled
+- Source: `32d217ce08e1d2ab3a01eb54d8f44ae7c2206d80`; dirty: `True`
+- Source SHA-256: `5af93e9b6b1dc294d7b416b9d087d595ba1af35c106216395ab49ba3df773d68`
+- Profile: `cpu-export-v9`; seed 0; rtol 1e-4; atol 1e-5; external calls disabled
 
 > Registration and export are not compile/correctness evidence. Untested, skipped, failed and limited operators stay in the denominator.
 
@@ -17,31 +17,31 @@ Python: `3.12.3`; measured torch: `2.10.0+cpu`; schema snapshot torch: `2.10.0+c
 
 | Evidence | Count | % of fixed denominator |
 | --- | ---: | ---: |
-| frontend_recognized | 97 | 91.51% |
-| registered_lowering | 97 | 91.51% |
+| frontend_recognized | 99 | 93.4% |
+| registered_lowering | 99 | 93.4% |
 | alias_candidate | 4 | 3.77% |
-| unmapped | 5 | 4.72% |
-| known_limited | 10 | 9.43% |
-| validated_for_profile | 92 | 86.79% |
+| unmapped | 3 | 2.83% |
+| known_limited | 6 | 5.66% |
+| validated_for_profile | 96 | 90.57% |
 
-Live validation: **requested**. Confirmed end-to-end numerator: **92**.
+Live validation: **requested**. Confirmed end-to-end numerator: **96**.
 Operators without an input contract: **0**.
 A completed run is not the 90% gate; use `--mode live --min-coverage 90` for that gate.
 
-MoE: **39/47** validated for profile (82.98%); **6** known limited.
+MoE: **41/47** validated for profile (87.23%); **4** known limited.
 
 ## Execution evidence
 
 | Stage | Passed cases |
 | --- | ---: |
 | exported | 318 |
-| imported | 303 |
-| lowered | 300 |
-| compiled | 294 |
-| executed | 294 |
-| correctness | 294 |
+| imported | 309 |
+| lowered | 306 |
+| compiled | 300 |
+| executed | 300 |
+| correctness | 300 |
 
-Case outcomes: `{"blocked": 0, "failed": 24, "passed": 294, "skipped": 0, "timeout": 0}`
+Case outcomes: `{"blocked": 0, "failed": 18, "passed": 300, "skipped": 0, "timeout": 0}`
 
 ## Operator details
 
@@ -94,7 +94,7 @@ Case outcomes: `{"blocked": 0, "failed": 24, "passed": 294, "skipped": 0, "timeo
 | `aten::zeros.default` | registered_lowering | 3/3 | True |  |
 | `aten::full.default` | registered_lowering | 3/3 | True |  |
 | `aten::scalar_tensor.default` | registered_lowering | 3/3 | True |  |
-| `aten::_scaled_dot_product_flash_attention_for_cpu.default` | registered_lowering | 3/3 | False | Causal/noncausal f32/f64 and custom scales have CPU regressions. Mask broadcasting and fully masked rows remain unresolved. |
+| `aten::_scaled_dot_product_flash_attention_for_cpu.default` | registered_lowering | 3/3 | True |  |
 | `aten::index.Tensor` | registered_lowering | 3/3 | False | Review pending: Advanced indexing / None / boolean masks may be partial. |
 | `aten::index_select.default` | registered_lowering | 3/3 | True |  |
 | `aten::gather.default` | registered_lowering | 3/3 | True |  |
@@ -117,7 +117,7 @@ Case outcomes: `{"blocked": 0, "failed": 24, "passed": 294, "skipped": 0, "timeo
 | `aten::contiguous.default` | alias_candidate | 3/3 | True | aten::clone.default |
 | `aten::copy.default` | registered_lowering | 3/3 | True |  |
 | `aten::lift_fresh_copy.default` | registered_lowering | 3/3 | True |  |
-| `aten::topk.default` | registered_lowering | 3/3 | False | linalg.py:topk_op requires static shapes and a static integer k; complex types are rejected. |
+| `aten::topk.default` | registered_lowering | 3/3 | True |  |
 | `aten::softmax.int` | alias_candidate | 3/3 | True | aten::_softmax.default |
 | `aten::argsort.default` | unmapped | 3/3 | True |  |
 | `aten::sort.default` | registered_lowering | 3/3 | True |  |
@@ -131,7 +131,7 @@ Case outcomes: `{"blocked": 0, "failed": 24, "passed": 294, "skipped": 0, "timeo
 | `aten::scatter.value` | registered_lowering | 3/3 | True |  |
 | `aten::scatter.reduce` | registered_lowering | 3/3 | True |  |
 | `aten::scatter.value_reduce` | registered_lowering | 3/3 | True |  |
-| `aten::scatter_reduce.two` | registered_lowering | 3/3 | False | Sum/product/min/max include-self semantics have CPU regressions; mean remains explicitly unsupported. |
+| `aten::scatter_reduce.two` | registered_lowering | 3/3 | True |  |
 | `aten::masked_scatter.default` | registered_lowering | 3/3 | True |  |
 | `aten::masked_select.default` | registered_lowering | 3/0 | False |  |
 | `aten::nonzero.default` | registered_lowering | 3/0 | False |  |
@@ -151,22 +151,22 @@ Case outcomes: `{"blocked": 0, "failed": 24, "passed": 294, "skipped": 0, "timeo
 | `aten::pad.default` | alias_candidate | 3/0 | False | Review pending: General padding modes are not established by a constant_pad_nd mapping. |
 | `aten::constant_pad_nd.default` | registered_lowering | 3/3 | True |  |
 | `aten::reflection_pad2d.default` | registered_lowering | 3/3 | True |  |
-| `aten::pixel_shuffle.default` | unmapped | 3/0 | False | Review pending: Vision path; may be unsupported. |
-| `aten::pixel_unshuffle.default` | unmapped | 3/0 | False | Review pending: Vision path; may be unsupported. |
+| `aten::pixel_shuffle.default` | registered_lowering | 3/3 | True |  |
+| `aten::pixel_unshuffle.default` | registered_lowering | 3/3 | False | Non-empty static CPU inputs have numerical regressions. Empty inputs are explicitly rejected because PyTorch 2.10 eager output shape disagrees with export metadata. |
 
 ## Failed, blocked and untested cases
 
 | Operator | Case | Status | Stage | Reason |
 | --- | --- | --- | --- | --- |
-| `aten::masked_select.default` | small-f32 | failed | imported | DynamicOutputShapeException: aten.masked_select.default<br><br>While executing %masked_select : [num_users=2] = call_function[target=torch.ops.aten.masked_select.default](args = (%args_0, %args_1), kwargs = {})<br>Original traceback:<br>  File "/opt/venv/lib/python3.12/site-packages/torch/_dynamo/functional_export.py", line 216, in forward<br>    res = self._export_root(*args, **kwargs)<br>  File "/workspace/scripts/pytorch_op_coverage/probes.py", line 410, in forward<br>    return fn(*args)<br><br>Use tlparse to see full graph. (https://github.com/pytorch/tlparse?tab=readme-ov-file#tlparse-parse-structured-pt2-logs) |
-| `aten::masked_select.default` | rect-f32 | failed | imported | DynamicOutputShapeException: aten.masked_select.default<br><br>While executing %masked_select : [num_users=2] = call_function[target=torch.ops.aten.masked_select.default](args = (%args_0, %args_1), kwargs = {})<br>Original traceback:<br>  File "/opt/venv/lib/python3.12/site-packages/torch/_dynamo/functional_export.py", line 216, in forward<br>    res = self._export_root(*args, **kwargs)<br>  File "/workspace/scripts/pytorch_op_coverage/probes.py", line 410, in forward<br>    return fn(*args)<br><br>Use tlparse to see full graph. (https://github.com/pytorch/tlparse?tab=readme-ov-file#tlparse-parse-structured-pt2-logs) |
-| `aten::masked_select.default` | small-f64 | failed | imported | DynamicOutputShapeException: aten.masked_select.default<br><br>While executing %masked_select : [num_users=2] = call_function[target=torch.ops.aten.masked_select.default](args = (%args_0, %args_1), kwargs = {})<br>Original traceback:<br>  File "/opt/venv/lib/python3.12/site-packages/torch/_dynamo/functional_export.py", line 216, in forward<br>    res = self._export_root(*args, **kwargs)<br>  File "/workspace/scripts/pytorch_op_coverage/probes.py", line 410, in forward<br>    return fn(*args)<br><br>Use tlparse to see full graph. (https://github.com/pytorch/tlparse?tab=readme-ov-file#tlparse-parse-structured-pt2-logs) |
-| `aten::nonzero.default` | small-f32 | failed | imported | DynamicOutputShapeException: aten.nonzero.default<br><br>While executing %nonzero : [num_users=2] = call_function[target=torch.ops.aten.nonzero.default](args = (%args_0,), kwargs = {})<br>Original traceback:<br>  File "/opt/venv/lib/python3.12/site-packages/torch/_dynamo/functional_export.py", line 216, in forward<br>    res = self._export_root(*args, **kwargs)<br>  File "/workspace/scripts/pytorch_op_coverage/probes.py", line 410, in forward<br>    return fn(*args)<br><br>Use tlparse to see full graph. (https://github.com/pytorch/tlparse?tab=readme-ov-file#tlparse-parse-structured-pt2-logs) |
-| `aten::nonzero.default` | rect-f32 | failed | imported | DynamicOutputShapeException: aten.nonzero.default<br><br>While executing %nonzero : [num_users=2] = call_function[target=torch.ops.aten.nonzero.default](args = (%args_0,), kwargs = {})<br>Original traceback:<br>  File "/opt/venv/lib/python3.12/site-packages/torch/_dynamo/functional_export.py", line 216, in forward<br>    res = self._export_root(*args, **kwargs)<br>  File "/workspace/scripts/pytorch_op_coverage/probes.py", line 410, in forward<br>    return fn(*args)<br><br>Use tlparse to see full graph. (https://github.com/pytorch/tlparse?tab=readme-ov-file#tlparse-parse-structured-pt2-logs) |
-| `aten::nonzero.default` | small-f64 | failed | imported | DynamicOutputShapeException: aten.nonzero.default<br><br>While executing %nonzero : [num_users=2] = call_function[target=torch.ops.aten.nonzero.default](args = (%args_0,), kwargs = {})<br>Original traceback:<br>  File "/opt/venv/lib/python3.12/site-packages/torch/_dynamo/functional_export.py", line 216, in forward<br>    res = self._export_root(*args, **kwargs)<br>  File "/workspace/scripts/pytorch_op_coverage/probes.py", line 410, in forward<br>    return fn(*args)<br><br>Use tlparse to see full graph. (https://github.com/pytorch/tlparse?tab=readme-ov-file#tlparse-parse-structured-pt2-logs) |
-| `aten::bincount.default` | small-f32 | failed | imported | DynamicOutputShapeException: aten.bincount.default<br><br>While executing %bincount : [num_users=2] = call_function[target=torch.ops.aten.bincount.default](args = (%args_0, None, 4), kwargs = {})<br>Original traceback:<br>  File "/opt/venv/lib/python3.12/site-packages/torch/_dynamo/functional_export.py", line 216, in forward<br>    res = self._export_root(*args, **kwargs)<br>  File "/workspace/scripts/pytorch_op_coverage/probes.py", line 410, in forward<br>    return fn(*args)<br>  File "/workspace/scripts/pytorch_op_coverage/probes.py", line 385, in <lambda><br>    fn, args = lambda a: op(a, minlength=4), (torch.tensor([0, 3, 1, 0]),)<br><br>Use tlparse to see full graph. (https://github.com/pytorch/tlparse?tab=readme-ov-file#tlparse-parse-structured-pt2-logs) |
-| `aten::bincount.default` | rect-f32 | failed | imported | DynamicOutputShapeException: aten.bincount.default<br><br>While executing %bincount : [num_users=2] = call_function[target=torch.ops.aten.bincount.default](args = (%args_0, None, 4), kwargs = {})<br>Original traceback:<br>  File "/opt/venv/lib/python3.12/site-packages/torch/_dynamo/functional_export.py", line 216, in forward<br>    res = self._export_root(*args, **kwargs)<br>  File "/workspace/scripts/pytorch_op_coverage/probes.py", line 410, in forward<br>    return fn(*args)<br>  File "/workspace/scripts/pytorch_op_coverage/probes.py", line 385, in <lambda><br>    fn, args = lambda a: op(a, minlength=4), (torch.tensor([0, 3, 1, 0]),)<br><br>Use tlparse to see full graph. (https://github.com/pytorch/tlparse?tab=readme-ov-file#tlparse-parse-structured-pt2-logs) |
-| `aten::bincount.default` | small-f64 | failed | imported | DynamicOutputShapeException: aten.bincount.default<br><br>While executing %bincount : [num_users=2] = call_function[target=torch.ops.aten.bincount.default](args = (%args_0, None, 4), kwargs = {})<br>Original traceback:<br>  File "/opt/venv/lib/python3.12/site-packages/torch/_dynamo/functional_export.py", line 216, in forward<br>    res = self._export_root(*args, **kwargs)<br>  File "/workspace/scripts/pytorch_op_coverage/probes.py", line 410, in forward<br>    return fn(*args)<br>  File "/workspace/scripts/pytorch_op_coverage/probes.py", line 385, in <lambda><br>    fn, args = lambda a: op(a, minlength=4), (torch.tensor([0, 3, 1, 0]),)<br><br>Use tlparse to see full graph. (https://github.com/pytorch/tlparse?tab=readme-ov-file#tlparse-parse-structured-pt2-logs) |
+| `aten::masked_select.default` | small-f32 | failed | imported | DynamicOutputShapeException: aten.masked_select.default<br><br>While executing %masked_select : [num_users=2] = call_function[target=torch.ops.aten.masked_select.default](args = (%args_0, %args_1), kwargs = {})<br>Original traceback:<br>  File "/opt/venv/lib/python3.12/site-packages/torch/_dynamo/functional_export.py", line 216, in forward<br>    res = self._export_root(*args, **kwargs)<br>  File "/workspace/scripts/pytorch_op_coverage/probes.py", line 435, in forward<br>    return fn(*args)<br><br>Use tlparse to see full graph. (https://github.com/pytorch/tlparse?tab=readme-ov-file#tlparse-parse-structured-pt2-logs) |
+| `aten::masked_select.default` | rect-f32 | failed | imported | DynamicOutputShapeException: aten.masked_select.default<br><br>While executing %masked_select : [num_users=2] = call_function[target=torch.ops.aten.masked_select.default](args = (%args_0, %args_1), kwargs = {})<br>Original traceback:<br>  File "/opt/venv/lib/python3.12/site-packages/torch/_dynamo/functional_export.py", line 216, in forward<br>    res = self._export_root(*args, **kwargs)<br>  File "/workspace/scripts/pytorch_op_coverage/probes.py", line 435, in forward<br>    return fn(*args)<br><br>Use tlparse to see full graph. (https://github.com/pytorch/tlparse?tab=readme-ov-file#tlparse-parse-structured-pt2-logs) |
+| `aten::masked_select.default` | small-f64 | failed | imported | DynamicOutputShapeException: aten.masked_select.default<br><br>While executing %masked_select : [num_users=2] = call_function[target=torch.ops.aten.masked_select.default](args = (%args_0, %args_1), kwargs = {})<br>Original traceback:<br>  File "/opt/venv/lib/python3.12/site-packages/torch/_dynamo/functional_export.py", line 216, in forward<br>    res = self._export_root(*args, **kwargs)<br>  File "/workspace/scripts/pytorch_op_coverage/probes.py", line 435, in forward<br>    return fn(*args)<br><br>Use tlparse to see full graph. (https://github.com/pytorch/tlparse?tab=readme-ov-file#tlparse-parse-structured-pt2-logs) |
+| `aten::nonzero.default` | small-f32 | failed | imported | DynamicOutputShapeException: aten.nonzero.default<br><br>While executing %nonzero : [num_users=2] = call_function[target=torch.ops.aten.nonzero.default](args = (%args_0,), kwargs = {})<br>Original traceback:<br>  File "/opt/venv/lib/python3.12/site-packages/torch/_dynamo/functional_export.py", line 216, in forward<br>    res = self._export_root(*args, **kwargs)<br>  File "/workspace/scripts/pytorch_op_coverage/probes.py", line 435, in forward<br>    return fn(*args)<br><br>Use tlparse to see full graph. (https://github.com/pytorch/tlparse?tab=readme-ov-file#tlparse-parse-structured-pt2-logs) |
+| `aten::nonzero.default` | rect-f32 | failed | imported | DynamicOutputShapeException: aten.nonzero.default<br><br>While executing %nonzero : [num_users=2] = call_function[target=torch.ops.aten.nonzero.default](args = (%args_0,), kwargs = {})<br>Original traceback:<br>  File "/opt/venv/lib/python3.12/site-packages/torch/_dynamo/functional_export.py", line 216, in forward<br>    res = self._export_root(*args, **kwargs)<br>  File "/workspace/scripts/pytorch_op_coverage/probes.py", line 435, in forward<br>    return fn(*args)<br><br>Use tlparse to see full graph. (https://github.com/pytorch/tlparse?tab=readme-ov-file#tlparse-parse-structured-pt2-logs) |
+| `aten::nonzero.default` | small-f64 | failed | imported | DynamicOutputShapeException: aten.nonzero.default<br><br>While executing %nonzero : [num_users=2] = call_function[target=torch.ops.aten.nonzero.default](args = (%args_0,), kwargs = {})<br>Original traceback:<br>  File "/opt/venv/lib/python3.12/site-packages/torch/_dynamo/functional_export.py", line 216, in forward<br>    res = self._export_root(*args, **kwargs)<br>  File "/workspace/scripts/pytorch_op_coverage/probes.py", line 435, in forward<br>    return fn(*args)<br><br>Use tlparse to see full graph. (https://github.com/pytorch/tlparse?tab=readme-ov-file#tlparse-parse-structured-pt2-logs) |
+| `aten::bincount.default` | small-f32 | failed | imported | DynamicOutputShapeException: aten.bincount.default<br><br>While executing %bincount : [num_users=2] = call_function[target=torch.ops.aten.bincount.default](args = (%args_0, None, 4), kwargs = {})<br>Original traceback:<br>  File "/opt/venv/lib/python3.12/site-packages/torch/_dynamo/functional_export.py", line 216, in forward<br>    res = self._export_root(*args, **kwargs)<br>  File "/workspace/scripts/pytorch_op_coverage/probes.py", line 435, in forward<br>    return fn(*args)<br>  File "/workspace/scripts/pytorch_op_coverage/probes.py", line 410, in <lambda><br>    fn, args = lambda a: op(a, minlength=4), (torch.tensor([0, 3, 1, 0]),)<br><br>Use tlparse to see full graph. (https://github.com/pytorch/tlparse?tab=readme-ov-file#tlparse-parse-structured-pt2-logs) |
+| `aten::bincount.default` | rect-f32 | failed | imported | DynamicOutputShapeException: aten.bincount.default<br><br>While executing %bincount : [num_users=2] = call_function[target=torch.ops.aten.bincount.default](args = (%args_0, None, 4), kwargs = {})<br>Original traceback:<br>  File "/opt/venv/lib/python3.12/site-packages/torch/_dynamo/functional_export.py", line 216, in forward<br>    res = self._export_root(*args, **kwargs)<br>  File "/workspace/scripts/pytorch_op_coverage/probes.py", line 435, in forward<br>    return fn(*args)<br>  File "/workspace/scripts/pytorch_op_coverage/probes.py", line 410, in <lambda><br>    fn, args = lambda a: op(a, minlength=4), (torch.tensor([0, 3, 1, 0]),)<br><br>Use tlparse to see full graph. (https://github.com/pytorch/tlparse?tab=readme-ov-file#tlparse-parse-structured-pt2-logs) |
+| `aten::bincount.default` | small-f64 | failed | imported | DynamicOutputShapeException: aten.bincount.default<br><br>While executing %bincount : [num_users=2] = call_function[target=torch.ops.aten.bincount.default](args = (%args_0, None, 4), kwargs = {})<br>Original traceback:<br>  File "/opt/venv/lib/python3.12/site-packages/torch/_dynamo/functional_export.py", line 216, in forward<br>    res = self._export_root(*args, **kwargs)<br>  File "/workspace/scripts/pytorch_op_coverage/probes.py", line 435, in forward<br>    return fn(*args)<br>  File "/workspace/scripts/pytorch_op_coverage/probes.py", line 410, in <lambda><br>    fn, args = lambda a: op(a, minlength=4), (torch.tensor([0, 3, 1, 0]),)<br><br>Use tlparse to see full graph. (https://github.com/pytorch/tlparse?tab=readme-ov-file#tlparse-parse-structured-pt2-logs) |
 | `aten::upsample_bilinear2d.vec` | small-f32 | failed | compiled | MLIRError: Failure while executing pass pipeline:<br>error: unknown: 'arith.index_cast' op operand #0 must be signless-non-zero-bitwidth-integer-like or memref of signless-integer, but got 'f32'<br> note: unknown: see current operation: %101 = "arith.index_cast"(%arg14) : (f32) -> index |
 | `aten::upsample_bilinear2d.vec` | rect-f32 | failed | compiled | MLIRError: Failure while executing pass pipeline:<br>error: unknown: 'arith.index_cast' op operand #0 must be signless-non-zero-bitwidth-integer-like or memref of signless-integer, but got 'f32'<br> note: unknown: see current operation: %101 = "arith.index_cast"(%arg14) : (f32) -> index |
 | `aten::upsample_bilinear2d.vec` | small-f64 | failed | compiled | MLIRError: Failure while executing pass pipeline:<br>error: unknown: 'arith.index_cast' op operand #0 must be signless-non-zero-bitwidth-integer-like or memref of signless-integer, but got 'f64'<br> note: unknown: see current operation: %101 = "arith.index_cast"(%arg14) : (f64) -> index |
@@ -176,12 +176,6 @@ Case outcomes: `{"blocked": 0, "failed": 24, "passed": 294, "skipped": 0, "timeo
 | `aten::pad.default` | small-f32 | failed | lowered | ValueError: not enough values to unpack (expected 3, got 2) |
 | `aten::pad.default` | rect-f32 | failed | lowered | ValueError: not enough values to unpack (expected 3, got 2) |
 | `aten::pad.default` | small-f64 | failed | lowered | ValueError: not enough values to unpack (expected 3, got 2) |
-| `aten::pixel_shuffle.default` | small-f32 | failed | imported | KeyError: 'pixel_shuffle.default' |
-| `aten::pixel_shuffle.default` | rect-f32 | failed | imported | KeyError: 'pixel_shuffle.default' |
-| `aten::pixel_shuffle.default` | small-f64 | failed | imported | KeyError: 'pixel_shuffle.default' |
-| `aten::pixel_unshuffle.default` | small-f32 | failed | imported | KeyError: 'pixel_unshuffle.default' |
-| `aten::pixel_unshuffle.default` | rect-f32 | failed | imported | KeyError: 'pixel_unshuffle.default' |
-| `aten::pixel_unshuffle.default` | small-f64 | failed | imported | KeyError: 'pixel_unshuffle.default' |
 
 ## Representative block workloads
 

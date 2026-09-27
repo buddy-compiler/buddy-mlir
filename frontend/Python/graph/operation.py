@@ -237,6 +237,18 @@ class ViewDtypeOp(Op):
         self._op_type = OpType.ReshapeType
 
 
+class PixelShuffleOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReshapeType
+
+
+class PixelUnshuffleOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReshapeType
+
+
 class EmbeddingOp(Op):
     def __init__(self) -> None:
         super().__init__()

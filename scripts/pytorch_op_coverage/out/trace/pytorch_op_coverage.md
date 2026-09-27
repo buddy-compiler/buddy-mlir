@@ -1,36 +1,34 @@
 # PyTorch operator coverage
 
 - Mode: **trace**; run: **completed**; exit: **0**
-- Generated (UTC): `2026-09-26T09:33:07.092345+00:00`
+- Generated (UTC): `2026-09-27T10:42:23.306142+00:00`
 - Target: **Buddy Target Op Set v1** / `1.0.0`; **106** unique operators
-- Source: `0cde280f44ee339554872d8a77ea27e6e4e166bd`; dirty: `True`
-- Source SHA-256: `71e9828484b4bcde09435b3565cf2b0b6a11f71da412ea3ee14b2517d675fdf1`
-- Profile: `cpu-export-v5`; seed 0; rtol 1e-4; atol 1e-5; external calls disabled
+- Source: `32d217ce08e1d2ab3a01eb54d8f44ae7c2206d80`; dirty: `True`
+- Source SHA-256: `5af93e9b6b1dc294d7b416b9d087d595ba1af35c106216395ab49ba3df773d68`
+- Profile: `cpu-export-v9`; seed 0; rtol 1e-4; atol 1e-5; external calls disabled
 
 > Registration and export are not compile/correctness evidence. Untested, skipped, failed and limited operators stay in the denominator.
 
 > v1 has 106 entries versus v0's 108: two Buddy cache helpers were removed; Prim namespace and softmax overload were corrected. Percentages are not directly comparable.
 
-Stack diagnostic: buddy.compiler: ModuleNotFoundError: No module named 'buddy'
-
-Python: `3.13.13`; measured torch: `2.10.0+cpu`; schema snapshot torch: `2.10.0+cpu`.
+Python: `3.12.3`; measured torch: `2.10.0+cpu`; schema snapshot torch: `2.10.0+cpu`.
 
 ## Coverage
 
 | Evidence | Count | % of fixed denominator |
 | --- | ---: | ---: |
-| frontend_recognized | 97 | 91.51% |
-| registered_lowering | 97 | 91.51% |
+| frontend_recognized | 99 | 93.4% |
+| registered_lowering | 99 | 93.4% |
 | alias_candidate | 4 | 3.77% |
-| unmapped | 5 | 4.72% |
-| known_limited | 10 | 9.43% |
+| unmapped | 3 | 2.83% |
+| known_limited | 6 | 5.66% |
 | validated_for_profile | 0 | 0.0% |
 
 Live validation: **not measured**. Confirmed end-to-end numerator: **0**.
 Operators without an input contract: **0**.
 A completed run is not the 90% gate; use `--mode live --min-coverage 90` for that gate.
 
-MoE: **0/47** validated for profile (0.0%); **6** known limited.
+MoE: **0/47** validated for profile (0.0%); **4** known limited.
 
 ## Execution evidence
 
@@ -96,7 +94,7 @@ Case outcomes: `{"blocked": 0, "failed": 0, "passed": 318, "skipped": 0, "timeou
 | `aten::zeros.default` | registered_lowering | 3/0 | False |  |
 | `aten::full.default` | registered_lowering | 3/0 | False |  |
 | `aten::scalar_tensor.default` | registered_lowering | 3/0 | False |  |
-| `aten::_scaled_dot_product_flash_attention_for_cpu.default` | registered_lowering | 3/0 | False | Causal/noncausal f32/f64 and custom scales have CPU regressions. Mask broadcasting and fully masked rows remain unresolved. |
+| `aten::_scaled_dot_product_flash_attention_for_cpu.default` | registered_lowering | 3/0 | False |  |
 | `aten::index.Tensor` | registered_lowering | 3/0 | False | Review pending: Advanced indexing / None / boolean masks may be partial. |
 | `aten::index_select.default` | registered_lowering | 3/0 | False |  |
 | `aten::gather.default` | registered_lowering | 3/0 | False |  |
@@ -119,7 +117,7 @@ Case outcomes: `{"blocked": 0, "failed": 0, "passed": 318, "skipped": 0, "timeou
 | `aten::contiguous.default` | alias_candidate | 3/0 | False | aten::clone.default |
 | `aten::copy.default` | registered_lowering | 3/0 | False |  |
 | `aten::lift_fresh_copy.default` | registered_lowering | 3/0 | False |  |
-| `aten::topk.default` | registered_lowering | 3/0 | False | linalg.py:topk_op requires static shapes and a static integer k; complex types are rejected. |
+| `aten::topk.default` | registered_lowering | 3/0 | False |  |
 | `aten::softmax.int` | alias_candidate | 3/0 | False | aten::_softmax.default |
 | `aten::argsort.default` | unmapped | 3/0 | False |  |
 | `aten::sort.default` | registered_lowering | 3/0 | False |  |
@@ -133,7 +131,7 @@ Case outcomes: `{"blocked": 0, "failed": 0, "passed": 318, "skipped": 0, "timeou
 | `aten::scatter.value` | registered_lowering | 3/0 | False |  |
 | `aten::scatter.reduce` | registered_lowering | 3/0 | False |  |
 | `aten::scatter.value_reduce` | registered_lowering | 3/0 | False |  |
-| `aten::scatter_reduce.two` | registered_lowering | 3/0 | False | Sum/product/min/max include-self semantics have CPU regressions; mean remains explicitly unsupported. |
+| `aten::scatter_reduce.two` | registered_lowering | 3/0 | False |  |
 | `aten::masked_scatter.default` | registered_lowering | 3/0 | False |  |
 | `aten::masked_select.default` | registered_lowering | 3/0 | False |  |
 | `aten::nonzero.default` | registered_lowering | 3/0 | False |  |
@@ -153,8 +151,8 @@ Case outcomes: `{"blocked": 0, "failed": 0, "passed": 318, "skipped": 0, "timeou
 | `aten::pad.default` | alias_candidate | 3/0 | False | Review pending: General padding modes are not established by a constant_pad_nd mapping. |
 | `aten::constant_pad_nd.default` | registered_lowering | 3/0 | False |  |
 | `aten::reflection_pad2d.default` | registered_lowering | 3/0 | False |  |
-| `aten::pixel_shuffle.default` | unmapped | 3/0 | False | Review pending: Vision path; may be unsupported. |
-| `aten::pixel_unshuffle.default` | unmapped | 3/0 | False | Review pending: Vision path; may be unsupported. |
+| `aten::pixel_shuffle.default` | registered_lowering | 3/0 | False |  |
+| `aten::pixel_unshuffle.default` | registered_lowering | 3/0 | False | Non-empty static CPU inputs have numerical regressions. Empty inputs are explicitly rejected because PyTorch 2.10 eager output shape disagrees with export metadata. |
 
 ## Representative block workloads
 

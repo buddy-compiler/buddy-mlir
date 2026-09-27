@@ -2636,6 +2636,108 @@ def _copy_logical_reshape(value, shape):
     return op.result
 
 
+def _pixel_rearrange(node, symbol_table, *, inverse):
+    """Copy channel/spatial coordinates, retaining leading batch dimensions."""
+    value = symbol_table[(str(node.args[0]), 0)]
+    source_type = ir.RankedTensorType(value.type)
+    source_shape = list(source_type.shape)
+    factor = int(node.args[1])
+    if factor <= 0 or len(source_shape) < 3:
+        raise ValueError(
+            "Pixel rearrangement requires rank >= 3 and factor > 0"
+        )
+    if any(size < 0 for size in source_shape):
+        raise NotImplementedError("Pixel rearrangement requires static shapes")
+    if inverse and 0 in source_shape:
+        # PyTorch 2.10 eager returns the input shape for empty unshuffle, while
+        # export metadata uses the rearranged shape. Reject this inconsistency.
+        raise NotImplementedError(
+            "Empty pixel unshuffle has inconsistent export metadata"
+        )
+    channels, height, width = source_shape[-3:]
+    if inverse:
+        if height % factor or width % factor:
+            raise ValueError(
+                "Pixel unshuffle spatial sizes must divide by factor"
+            )
+        shape = source_shape[:-3] + [
+            channels * factor * factor,
+            height // factor,
+            width // factor,
+        ]
+    else:
+        if channels % (factor * factor):
+            raise ValueError(
+                "Pixel shuffle channels must divide by factor squared"
+            )
+        shape = source_shape[:-3] + [
+            channels // (factor * factor),
+            height * factor,
+            width * factor,
+        ]
+    if shape != list(node.tensor_meta["shape"]):
+        raise ValueError("Pixel rearrangement output metadata mismatch")
+    element_type = source_type.element_type
+    output = tensor.EmptyOp(shape, element_type)
+    if 0 in shape:
+        return output.result
+    rank = len(shape)
+    op = linalg.GenericOp(
+        [ir.RankedTensorType.get(shape, element_type)],
+        [],
+        [output],
+        ir.ArrayAttr.get(
+            [ir.AffineMapAttr.get(ir.AffineMap.get_identity(rank))]
+        ),
+        ir.ArrayAttr.get(
+            [ir.Attribute.parse("#linalg.iterator_type<parallel>")] * rank
+        ),
+    )
+    block = ir.Block.create_at_start(op.region, [element_type])
+    with ir.InsertionPoint(block):
+        coordinates = [
+            linalg.IndexOp(ir._i64Attr(d, None)).result for d in range(rank)
+        ]
+        channel, row, col = coordinates[-3:]
+        r = arith.ConstantOp(ir.IndexType.get(), factor).result
+        rr = arith.ConstantOp(ir.IndexType.get(), factor * factor).result
+        if inverse:
+            source_channel = arith.DivUIOp(channel, rr).result
+            row_offset = arith.RemUIOp(
+                arith.DivUIOp(channel, r).result, r
+            ).result
+            col_offset = arith.RemUIOp(channel, r).result
+            source_row = arith.AddIOp(
+                arith.MulIOp(row, r).result, row_offset
+            ).result
+            source_col = arith.AddIOp(
+                arith.MulIOp(col, r).result, col_offset
+            ).result
+        else:
+            offset = arith.AddIOp(
+                arith.MulIOp(arith.RemUIOp(row, r).result, r).result,
+                arith.RemUIOp(col, r).result,
+            ).result
+            source_channel = arith.AddIOp(
+                arith.MulIOp(channel, rr).result, offset
+            ).result
+            source_row = arith.DivUIOp(row, r).result
+            source_col = arith.DivUIOp(col, r).result
+        element = tensor.ExtractOp(
+            value, coordinates[:-3] + [source_channel, source_row, source_col]
+        ).result
+        linalg.YieldOp([element])
+    return op.result
+
+
+def pixel_shuffle_op(node, symbol_table):
+    return _pixel_rearrange(node, symbol_table, inverse=False)
+
+
+def pixel_unshuffle_op(node, symbol_table):
+    return _pixel_rearrange(node, symbol_table, inverse=True)
+
+
 def view_dtype_op(node: ViewDtypeOp, symbol_table):
     input_tensor = symbol_table.get((str(node.args[0]), 0))
     if input_tensor is None:
@@ -4166,71 +4268,100 @@ def scaled_dot_product_flash_attention_for_cpu_op(
         1 / numpy.sqrt(query.type.shape[-1]) if scale is None else scale
     )
 
-    # Initialize attention bias
     dtype = node.tensor_meta["dtype"][0]
-    attn_bias_shape = [L, S]
     mlir_dtype = mlir_element_type_get(dtype)
-    zero_attr = mlir_element_attr_get(dtype, 0.0)
-    attn_bias = splat_tensor_value(attn_bias_shape, mlir_dtype, zero_attr)
+    heads = query_shape[1]
+    attn_bias_shape = [query_shape[0] * heads, L, S]
     if attn_mask is not None:
-        attn_mask = symbol_table.get((str(attn_mask), 0), attn_mask)
-        if attn_mask.type.element_type == ir.IntegerType.get_signless(1):
-            assert attn_mask.type.element_type == ir.IntegerType.get_signless(1)
-            tensor_type = ir.RankedTensorType.get(
-                attn_mask.type.shape, ir.IntegerType.get_signless(1)
+        attn_mask = symbol_table[(str(attn_mask), 0)]
+        mask_type = ir.RankedTensorType(attn_mask.type)
+        mask_shape = list(mask_type.shape)
+        promote_mask = (
+            mask_type.element_type == ir.F32Type.get()
+            and mlir_dtype == ir.F64Type.get()
+        )
+        if len(mask_shape) not in (2, 4) or (
+            mask_type.element_type != mlir_dtype and not promote_mask
+        ):
+            raise NotImplementedError(
+                "CPU attention requires a rank-2/rank-4 mask matching query dtype, "
+                "or an f32 mask with f64 queries"
             )
-            true_tensor = arith.ConstantOp(
-                tensor_type,
-                ir.DenseElementsAttr.get_splat(
-                    tensor_type, ir.BoolAttr.get(True)
-                ),
-            )
-            attn_mask = arith.XOrIOp(attn_mask, true_tensor)
-            minus_inf_tensor = arith.ConstantOp(
-                attn_mask.type,
-                ir.DenseElementsAttr.get_splat(
-                    attn_mask.type,
-                    ir.FloatAttr.get(ir.F32Type.get(), float("-inf")),
-                ),
-            )
-            attn_bias = tensor.SelectOp(
-                attn_mask, minus_inf_tensor, attn_bias
-            ).result
-        else:
-            if attn_mask.type.shape != attn_bias.type.shape:
-                attn_mask_operand = _create_shape_operand(
-                    list(attn_bias.type.shape)
-                )
-                attn_mask = tosa.ReshapeOp(attn_mask, attn_mask_operand)
-            attn_bias = tosa.AddOp(attn_bias.type, attn_bias, attn_mask).result
+        padded_shape = [1] * (4 - len(mask_shape)) + mask_shape
+        target_shape = [query_shape[0], heads, L, S]
+        if any(
+            size not in (1, target)
+            for size, target in zip(padded_shape, target_shape)
+        ):
+            raise ValueError("Attention mask is not broadcastable to scores")
 
-    if is_causal:
-        # PyTorch uses the upper-left triangle, including for unequal L and S.
-        bias_type = ir.RankedTensorType.get(attn_bias_shape, mlir_dtype)
-        identity = ir.AffineMapAttr.get(ir.AffineMap.get_identity(2))
-        causal_bias = linalg.GenericOp(
-            [bias_type],
-            [attn_bias],
-            [tensor.EmptyOp(attn_bias_shape, mlir_dtype)],
+    bias_type = ir.RankedTensorType.get(attn_bias_shape, mlir_dtype)
+    bias = linalg.GenericOp(
+        [bias_type],
+        [],
+        [tensor.EmptyOp(attn_bias_shape, mlir_dtype)],
+        ir.ArrayAttr.get([ir.AffineMapAttr.get(ir.AffineMap.get_identity(3))]),
+        ir.ArrayAttr.get(
+            [ir.Attribute.parse("#linalg.iterator_type<parallel>")] * 3
+        ),
+    )
+    block = ir.Block.create_at_start(bias.region, [mlir_dtype])
+    with ir.InsertionPoint(block):
+        flat = linalg.IndexOp(ir._i64Attr(0, None)).result
+        row = linalg.IndexOp(ir._i64Attr(1, None)).result
+        col = linalg.IndexOp(ir._i64Attr(2, None)).result
+        zero = arith.ConstantOp(mlir_dtype, 0.0).result
+        element = zero
+        if attn_mask is not None:
+            head_count = arith.ConstantOp(ir.IndexType.get(), heads).result
+            coordinates = [
+                arith.DivUIOp(flat, head_count).result,
+                arith.RemUIOp(flat, head_count).result,
+                row,
+                col,
+            ]
+            zero_index = arith.ConstantOp(ir.IndexType.get(), 0).result
+            indices = [
+                zero_index if size == 1 else index
+                for size, index in zip(
+                    mask_shape, coordinates[-len(mask_shape) :]
+                )
+            ]
+            element = tensor.ExtractOp(attn_mask, indices).result
+            if promote_mask:
+                element = arith.ExtFOp(mlir_dtype, element).result
+        if is_causal:
+            visible = arith.CmpIOp(arith.CmpIPredicate.sle, col, row).result
+            masked = arith.ConstantOp(mlir_dtype, float("-inf")).result
+            element = arith.SelectOp(visible, element, masked).result
+        linalg.YieldOp([element])
+    attn_bias = bias.result
+
+    def zero_negative_infinity(value):
+        # Fully masked rows use a zero max for normalization and a zero LSE.
+        shape = list(value.type.shape)
+        identity = ir.AffineMapAttr.get(ir.AffineMap.get_identity(len(shape)))
+        op = linalg.GenericOp(
+            [value.type],
+            [value],
+            [tensor.EmptyOp(shape, mlir_dtype)],
             ir.ArrayAttr.get([identity, identity]),
             ir.ArrayAttr.get(
-                [ir.Attribute.parse("#linalg.iterator_type<parallel>")] * 2
+                [ir.Attribute.parse("#linalg.iterator_type<parallel>")]
+                * len(shape)
             ),
         )
-        block = ir.Block.create_at_start(
-            causal_bias.region, [mlir_dtype, mlir_dtype]
-        )
-        with ir.InsertionPoint(block):
-            row = linalg.IndexOp(ir._i64Attr(0, None)).result
-            col = linalg.IndexOp(ir._i64Attr(1, None)).result
-            visible = arith.CmpIOp(arith.CmpIPredicate.sle, col, row).result
-            masked = arith.ConstantOp(
-                mlir_dtype, ir.FloatAttr.get(mlir_dtype, float("-inf"))
+        body = ir.Block.create_at_start(op.region, [mlir_dtype, mlir_dtype])
+        with ir.InsertionPoint(body):
+            negative_inf = arith.ConstantOp(mlir_dtype, float("-inf")).result
+            zero = arith.ConstantOp(mlir_dtype, 0.0).result
+            masked = arith.CmpFOp(
+                arith.CmpFPredicate.OEQ, body.arguments[0], negative_inf
             ).result
             linalg.YieldOp(
-                [arith.SelectOp(visible, block.arguments[0], masked).result]
+                [arith.SelectOp(masked, zero, body.arguments[0]).result]
             )
-        attn_bias = causal_bias.result
+        return op.result
 
     # Matrix multiplication of query and key
     query_reshape_operand = _create_shape_operand(
@@ -4307,7 +4438,6 @@ def scaled_dot_product_flash_attention_for_cpu_op(
 
     # Add attention bias to the result
     add_op = _gen_arith_binary_op(mul_op.result, attn_bias, tosa.AddOp)
-    # add_op = tosa.AddOp(matmul_result_type, mul_op.result, attn_bias)
     # Apply softmax to the result
     softmax_output_shape = list(add_op.result.type.shape)
     softmax_dim = len(softmax_output_shape) - 1
@@ -4315,11 +4445,13 @@ def scaled_dot_product_flash_attention_for_cpu_op(
     # Subtract the maximum value along the dimension where softmax is applied to
     # prevent overflow during the exp operation.
     max_vals = tosa.ReduceMaxOp(add_op.result, softmax_dim)
-    sub_op = tosa.SubOp(add_op.result.type, add_op, max_vals)
+    safe_max = zero_negative_infinity(max_vals.result)
+    sub_op = tosa.SubOp(add_op.result.type, add_op, safe_max)
     exp_op = math.ExpOp(sub_op.result)
     reduce_sum_op = tosa.ReduceSumOp(exp_op, softmax_dim)
     log_op = tosa.LogOp(reduce_sum_op.result.type, reduce_sum_op)
-    log_sumexp = tosa.AddOp(max_vals.result.type, max_vals, log_op)
+    log_sumexp = tosa.AddOp(max_vals.result.type, safe_max, log_op)
+    log_sumexp = zero_negative_infinity(log_sumexp.result)
     log_weights = tosa.SubOp(add_op.result.type, add_op, log_sumexp)
     softmax_result = math.ExpOp(log_weights.result)
     new_shape = [
@@ -4340,7 +4472,7 @@ def scaled_dot_product_flash_attention_for_cpu_op(
         ]
     )
     value_reshape_op = tosa.ReshapeOp(value, value_reshape_operand)
-    matmul_result_shp = matmul_result_shp = [
+    matmul_result_shp = [
         key_shape[0] * key_shape[1],
         query_shape[2],
         value_shape[3],
@@ -14818,6 +14950,8 @@ ops_registry = {
     "VarMeanOp": var_mean_op,
     "AddMMOp": addmm_op,
     "ReshapeOp": reshape_op,
+    "PixelShuffleOp": pixel_shuffle_op,
+    "PixelUnshuffleOp": pixel_unshuffle_op,
     "ViewOp": reshape_op,
     "ViewDtypeOp": view_dtype_op,
     "SelectOp": select_op,

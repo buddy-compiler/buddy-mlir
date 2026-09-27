@@ -1,6 +1,6 @@
 {
   "report_version": 2,
-  "generated_at": "2026-09-26T09:37:26.348458+00:00",
+  "generated_at": "2026-09-27T10:49:13.982054+00:00",
   "mode": "live",
   "run_status": "failed",
   "exit_code": 1,
@@ -27,15 +27,15 @@
     }
   },
   "provenance": {
-    "git_revision": "0cde280f44ee339554872d8a77ea27e6e4e166bd",
+    "git_revision": "32d217ce08e1d2ab3a01eb54d8f44ae7c2206d80",
     "dirty": true,
-    "source_sha256": "71e9828484b4bcde09435b3565cf2b0b6a11f71da412ea3ee14b2517d675fdf1",
+    "source_sha256": "5af93e9b6b1dc294d7b416b9d087d595ba1af35c106216395ab49ba3df773d68",
     "files_sha256": {
-      "frontend/Python/frontend.py": "14afd42027f60d127c2d0f9c9a415e79a6b2995e98dd1e82ee357b6dbd0df827",
+      "frontend/Python/frontend.py": "5934822d742cf59ff1ff906e16012b36fc2fb6e95b0ff5f0bf0b2ced867d4669",
       "frontend/Python/graph/__init__.py": "3d2d48a2c14f34b52181bc3b206001d13931d0befd7a3991e76317aec4cd8b5e",
       "frontend/Python/graph/graph.py": "488b96b8db0d06367c8632bf883709be02457e40f899b298e86160b7c0508333",
       "frontend/Python/graph/graph_driver.py": "2e217981f937f390c6e6c85c9fbdf2e504110d4171bf39f8cfb2e445a5c528f6",
-      "frontend/Python/graph/operation.py": "37870b6d4ecd28d0c5b8d04e484b5a24b354f30c81caf5526b655d95618d04bc",
+      "frontend/Python/graph/operation.py": "f98dc5e013da6a9a667eeedf854a11b5be653a4edd02c4ac10ad00f918a73cd9",
       "frontend/Python/graph/partitioned_graph_driver.py": "224be109626e8c8bea0295aaaeef3c5c6b1b940b472712d3a4642327882c8268",
       "frontend/Python/graph/source_meta.py": "8e62eb26ed277ccc432bfd3827b2c3687b888a782dc486abf5dc643b02f5044e",
       "frontend/Python/graph/structure_analysis.py": "f23befbe165f7ed48ff05cebea0f6b431280605f856467e162af855b97cb04b0",
@@ -60,23 +60,23 @@
       "frontend/Python/graph/type.py": "f00cec5f34697e5ee3e8e1817ac5979c29f5dd942a79ec8329ab6ee5bc10b54a",
       "frontend/Python/ops/__init__.py": "e3cbb6f957b003f0345c355237445a225a98af5d74a950d61fa4007a5de094f0",
       "frontend/Python/ops/func.py": "6246e74f3fa98e318171e8cb76fb195189755ee0484a5d7c5186d923aa32e907",
-      "frontend/Python/ops/linalg.py": "84cd4d8be3a3af64ca0441b0de87f9372356d79f424ca728708296ac94761615",
+      "frontend/Python/ops/linalg.py": "590653e0ae54ef0bccd1b9cacf8a253477f3498255ae043ce3c521c73fabd94d",
       "frontend/Python/ops/math.py": "71b2c037d7706622d31d0b542d908d16f54c8c45fb0bf416f138a6acfe5f2e5a",
-      "frontend/Python/ops/tosa.py": "67b79632c9bffccc55620cf37a9c3b2f5901451c13cd4d9f4371c47fb299c8c7",
+      "frontend/Python/ops/tosa.py": "672b1f078325bba847ebd3fc1f1c7eae676627a54a07af8694f573b1aef47e08",
       "frontend/Python/ops/ttir.py": "c7b640d15cc46641bf9a56330415026146f0153ef846a297e92c3a189cfa8bd5",
       "frontend/Python/ops/ttir_llm.py": "38c314dff4559742b64e87ef028082e8a41c5f85e3b73d14da5496bf254f6d25",
       "frontend/Python/ops/utils.py": "9ca4fbec8e36c5b11be735974707352c0fd838a78498a129cf695c170ce598c4",
       "frontend/Python/trace/__init__.py": "9d9b31877d2a8c2a2c15e5e923a2b444538f4d134e216f1524a05f254fc4f86b",
       "frontend/Python/trace/config.py": "1417402997c35816e243e3d2322ec81fb14ce8541192666650d7db831a8492d9",
       "scripts/pytorch_op_coverage/classify.py": "707c47c6928eacedd0dd6a598064d8e1f2bc4e1fab92275e7420abf0b0d74e70",
-      "scripts/pytorch_op_coverage/data/target_ops_v1.json": "1e550203edd684d5b23958cbe02f1152583ac08f359e93c7bab54b9704112edc",
+      "scripts/pytorch_op_coverage/data/target_ops_v1.json": "fa6aa62b37785482b7cfe49c7033abf9b8653bbc117070a51ec441de12bf9e04",
       "scripts/pytorch_op_coverage/parse_frontend.py": "4ffb93305c0e0bab60f0d146b3dcec89a479ceb172bc9fb39ca29736c576b639",
-      "scripts/pytorch_op_coverage/probes.py": "149c41847fc04eb8adf98f7c6e7b66b4afa9fb2f4dba376b2c4fcd7465c0694a",
-      "scripts/pytorch_op_coverage/report.py": "17e217fcbe23786309a258168507d6257e07bb0ad48cd08311b79328e8ddc7d8",
+      "scripts/pytorch_op_coverage/probes.py": "19367f73478642602c04696490450a95eb03a8d1ccfe8fe2b1e5762487b2426a",
+      "scripts/pytorch_op_coverage/report.py": "70d880745bf3b31f80a488c7d736cc2865282d303b33bf9487d93023f7978ac8",
       "scripts/pytorch_op_coverage/run_coverage.py": "c52c2aaf34963eb85317829ce199a7927388c0fd48103f3c75b459be981003b0",
-      "scripts/pytorch_op_coverage/test_coverage.py": "85500a059c366b82538d17caa4981cadd8bb5916781d2d0cdf671ac71c5755b3",
-      "scripts/pytorch_op_coverage/test_probes.py": "27e36b41003adc020ec2c8cbaf80cfc651e4c3ca42d23b9e16f6b2c868e9149c",
-      "scripts/pytorch_op_coverage/worker.py": "858486810e0fa0ce832abf6ef63836c5e3640eb3de29eb9cc5d36a1c3ed53b2f",
+      "scripts/pytorch_op_coverage/test_coverage.py": "ed389c2c6e952c7dfbc81a393b2840361470738937e1917fec5707d54f90531c",
+      "scripts/pytorch_op_coverage/test_probes.py": "f58443099d003169cece4f9180604650dfdd6cb7f097700176d066581dfecc4b",
+      "scripts/pytorch_op_coverage/worker.py": "7c382351e6b0b42ea4f09d832004f4fe1a5465938a087860d7a33126b4125711",
       "tests/Python/AtenOpsCoverage/aten_coverage_runner.py": "cedb26ca659f25c9c5f487d57a5d36bc8f8cb8926d2d30b7b0cf68696e8acb36"
     },
     "python": "3.12.3",
@@ -199,14 +199,14 @@
       "system": "Linux",
       "machine": "x86_64"
     },
-    "buddy_frontend_sha256": "14afd42027f60d127c2d0f9c9a415e79a6b2995e98dd1e82ee357b6dbd0df827",
+    "buddy_frontend_sha256": "5934822d742cf59ff1ff906e16012b36fc2fb6e95b0ff5f0bf0b2ced867d4669",
     "buddy_source_sha256": {
       "__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "frontend.py": "48941e8dd5937d9994db2d4c90d204b401adc29ef5483c7915c8b8ef135c9fe2",
+      "frontend.py": "6d60ab5a54f1edd038f308512de33907bc2c9e1d06b6dd20b2886ef9889e6e9b",
       "graph/__init__.py": "bfed5e8f37f3b5e95cad5e9c34ea95d6c09ce4aa9249200d4a36b278f803e28d",
       "graph/graph.py": "95f0871faf6765765b31b60ce2f55963e7ecf62633ef049afc91ce29e015d671",
       "graph/graph_driver.py": "743a8f6b09d5a0a39d6ffbc9da2536a2d91a947c866a0341978bc074cbee9d27",
-      "graph/operation.py": "3bec0b88ab0fb0fad25e49a8c51cb2e2b87f464c807a96dd602c5d88d7848c6e",
+      "graph/operation.py": "402b5e951629024bf4288510adc05d9acfc32b6aae61e06c113e845fb7a72bbc",
       "graph/partitioned_graph_driver.py": "92701323ac3fded8e49f53d710eb52713b7f8780a7b80288b47162081ce5e428",
       "graph/source_meta.py": "57daf4d1f7613ee9682bb88ca4328500bb2d3d67dc34f97e1101b6bd86245418",
       "graph/structure_analysis.py": "2d4be3b0b24aa4342d548cd8d2f9a2a35e9e4c1319e24c62738974ae39c08d5f",
@@ -231,9 +231,9 @@
       "graph/type.py": "033ca499c17cfd00ea37db6e4cd6270b1a3c8a7e0e80d21b661fa758b03c4f73",
       "ops/__init__.py": "534783cd0116ac057bec2490cdc0709cc707d6108711cfe31574500618ae6ea2",
       "ops/func.py": "6e99b4ecee260fe7f92d2d5058c752ed26b98e52e121efe46f22a7c50cd40d7c",
-      "ops/linalg.py": "3d4ae021eab0e57b0d6da45b7ca9831996a290e2dbb8fa4bbb39b9e4dd07b515",
+      "ops/linalg.py": "86a32fcf88e606944a68959e27dd71e5239d15ff6f49022dca13923df8f18311",
       "ops/math.py": "a21fb127b89d19f859e83adcfea6988cf189e9e2605294c314694869963b963c",
-      "ops/tosa.py": "d676bc05468350b2107ef4e7907779529763bf7a34ded9e1b15d6a170ee54f94",
+      "ops/tosa.py": "8fe58770f1904b05c7ab75d9963aa7c0db8bb04904bc1e506ce93a262ebbba0d",
       "ops/ttir.py": "998fd39193a98eedf9fbd6191c9fa9701bd145a561398697bcb625fff1c9d366",
       "ops/ttir_llm.py": "045e5c7f0e3cd5ae7c8bde0b41e8f5e16bc14dfa9a6f32040288b21e478954da",
       "ops/utils.py": "749f300cd97c5a060f39fc418c7358341173c20d95adaccccf9ad335b91b0e6e",
@@ -249,7 +249,7 @@
     }
   },
   "profile": {
-    "name": "cpu-export-v5",
+    "name": "cpu-export-v9",
     "cases": {
       "small-f32": {
         "rows": 4,
@@ -270,40 +270,41 @@
     "seed": 0,
     "rtol": 0.0001,
     "atol": 1e-05,
+    "equal_nan": true,
     "external_calls": false,
     "path": "strict torch.export -> Buddy _compile_fx -> tosa-priority -> JIT",
     "scope": "Explicit small CPU inputs, including a strided contiguous() fixture; no claim for arbitrary shapes/dtypes or full models"
   },
   "summary": {
     "total_ops": 106,
-    "frontend_recognized": 97,
-    "registered_lowering": 97,
+    "frontend_recognized": 99,
+    "registered_lowering": 99,
     "alias_candidate": 4,
-    "unmapped": 5,
-    "known_limited": 10,
-    "validated_for_profile": 92,
+    "unmapped": 3,
+    "known_limited": 6,
+    "validated_for_profile": 96,
     "percentages": {
-      "frontend_recognized": 91.51,
-      "registered_lowering": 91.51,
+      "frontend_recognized": 93.4,
+      "registered_lowering": 93.4,
       "alias_candidate": 3.77,
-      "unmapped": 4.72,
-      "known_limited": 9.43,
-      "validated_for_profile": 86.79
+      "unmapped": 2.83,
+      "known_limited": 5.66,
+      "validated_for_profile": 90.57
     },
     "case_counts": {
-      "passed": 294,
-      "failed": 24,
+      "passed": 300,
+      "failed": 18,
       "skipped": 0,
       "blocked": 0,
       "timeout": 0
     },
     "stage_passed_cases": {
       "exported": 318,
-      "imported": 303,
-      "lowered": 300,
-      "compiled": 294,
-      "executed": 294,
-      "correctness": 294
+      "imported": 309,
+      "lowered": 306,
+      "compiled": 300,
+      "executed": 300,
+      "correctness": 300
     },
     "required_case_count": 318,
     "operators_without_cases": 0,
@@ -313,15 +314,15 @@
       "registered_lowering": 42,
       "alias_candidate": 2,
       "unmapped": 3,
-      "known_limited": 6,
-      "validated_for_profile": 39,
+      "known_limited": 4,
+      "validated_for_profile": 41,
       "percentages": {
         "frontend_recognized": 89.36,
         "registered_lowering": 89.36,
         "alias_candidate": 4.26,
         "unmapped": 6.38,
-        "known_limited": 12.77,
-        "validated_for_profile": 82.98
+        "known_limited": 8.51,
+        "validated_for_profile": 87.23
       },
       "case_counts": {
         "passed": 132,
@@ -7401,7 +7402,7 @@
       ],
       "alias_candidates": [],
       "static_status": "registered_lowering",
-      "known_limitations": "Causal/noncausal f32/f64 and custom scales have CPU regressions. Mask broadcasting and fully masked rows remain unresolved.",
+      "known_limitations": null,
       "required_cases": [
         "small-f32",
         "rect-f32",
@@ -7464,20 +7465,38 @@
                 4,
                 1
               ]
+            },
+            {
+              "shape": [
+                1,
+                2,
+                4,
+                8
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                64,
+                32,
+                8,
+                1
+              ]
             }
           ],
           "observed_ops": {
-            "aten::_scaled_dot_product_flash_attention_for_cpu.default": 1
+            "aten::_scaled_dot_product_flash_attention_for_cpu.default": 3,
+            "aten::select.int": 2
           },
           "observed_schemas": {
-            "aten::_scaled_dot_product_flash_attention_for_cpu.default": "aten::_scaled_dot_product_flash_attention_for_cpu(Tensor query, Tensor key, Tensor value, float dropout_p=0., bool is_causal=False, *, Tensor? attn_mask=None, float? scale=None) -> (Tensor output, Tensor logsumexp)"
+            "aten::_scaled_dot_product_flash_attention_for_cpu.default": "aten::_scaled_dot_product_flash_attention_for_cpu(Tensor query, Tensor key, Tensor value, float dropout_p=0., bool is_causal=False, *, Tensor? attn_mask=None, float? scale=None) -> (Tensor output, Tensor logsumexp)",
+            "aten::select.int": "aten::select.int(Tensor(a) self, int dim, SymInt index) -> Tensor(a)"
           },
           "graph_count": 1,
           "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
           "buddy_graph_ops": {
-            "PlaceholderOp": 3,
-            "ScaledDotProductFlashAttentionForCpuOp": 1,
-            "GetItemOp": 2,
+            "PlaceholderOp": 4,
+            "ScaledDotProductFlashAttentionForCpuOp": 3,
+            "GetItemOp": 6,
+            "SelectOp": 2,
             "OutputOp": 1
           },
           "worker_returncode": 0
@@ -7538,20 +7557,38 @@
                 4,
                 1
               ]
+            },
+            {
+              "shape": [
+                1,
+                2,
+                3,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                30,
+                15,
+                5,
+                1
+              ]
             }
           ],
           "observed_ops": {
-            "aten::_scaled_dot_product_flash_attention_for_cpu.default": 1
+            "aten::_scaled_dot_product_flash_attention_for_cpu.default": 3,
+            "aten::select.int": 2
           },
           "observed_schemas": {
-            "aten::_scaled_dot_product_flash_attention_for_cpu.default": "aten::_scaled_dot_product_flash_attention_for_cpu(Tensor query, Tensor key, Tensor value, float dropout_p=0., bool is_causal=False, *, Tensor? attn_mask=None, float? scale=None) -> (Tensor output, Tensor logsumexp)"
+            "aten::_scaled_dot_product_flash_attention_for_cpu.default": "aten::_scaled_dot_product_flash_attention_for_cpu(Tensor query, Tensor key, Tensor value, float dropout_p=0., bool is_causal=False, *, Tensor? attn_mask=None, float? scale=None) -> (Tensor output, Tensor logsumexp)",
+            "aten::select.int": "aten::select.int(Tensor(a) self, int dim, SymInt index) -> Tensor(a)"
           },
           "graph_count": 1,
           "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
           "buddy_graph_ops": {
-            "PlaceholderOp": 3,
-            "ScaledDotProductFlashAttentionForCpuOp": 1,
-            "GetItemOp": 2,
+            "PlaceholderOp": 4,
+            "ScaledDotProductFlashAttentionForCpuOp": 3,
+            "GetItemOp": 6,
+            "SelectOp": 2,
             "OutputOp": 1
           },
           "worker_returncode": 0
@@ -7612,26 +7649,44 @@
                 4,
                 1
               ]
+            },
+            {
+              "shape": [
+                1,
+                2,
+                4,
+                8
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                64,
+                32,
+                8,
+                1
+              ]
             }
           ],
           "observed_ops": {
-            "aten::_scaled_dot_product_flash_attention_for_cpu.default": 1
+            "aten::_scaled_dot_product_flash_attention_for_cpu.default": 3,
+            "aten::select.int": 2
           },
           "observed_schemas": {
-            "aten::_scaled_dot_product_flash_attention_for_cpu.default": "aten::_scaled_dot_product_flash_attention_for_cpu(Tensor query, Tensor key, Tensor value, float dropout_p=0., bool is_causal=False, *, Tensor? attn_mask=None, float? scale=None) -> (Tensor output, Tensor logsumexp)"
+            "aten::_scaled_dot_product_flash_attention_for_cpu.default": "aten::_scaled_dot_product_flash_attention_for_cpu(Tensor query, Tensor key, Tensor value, float dropout_p=0., bool is_causal=False, *, Tensor? attn_mask=None, float? scale=None) -> (Tensor output, Tensor logsumexp)",
+            "aten::select.int": "aten::select.int(Tensor(a) self, int dim, SymInt index) -> Tensor(a)"
           },
           "graph_count": 1,
           "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
           "buddy_graph_ops": {
-            "PlaceholderOp": 3,
-            "ScaledDotProductFlashAttentionForCpuOp": 1,
-            "GetItemOp": 2,
+            "PlaceholderOp": 4,
+            "ScaledDotProductFlashAttentionForCpuOp": 3,
+            "GetItemOp": 6,
+            "SelectOp": 2,
             "OutputOp": 1
           },
           "worker_returncode": 0
         }
       ],
-      "validated_for_profile": false
+      "validated_for_profile": true
     },
     {
       "operator": "aten::index.Tensor",
@@ -11074,7 +11129,7 @@
       ],
       "alias_candidates": [],
       "static_status": "registered_lowering",
-      "known_limitations": "linalg.py:topk_op requires static shapes and a static integer k; complex types are rejected.",
+      "known_limitations": null,
       "required_cases": [
         "small-f32",
         "rect-f32",
@@ -11103,20 +11158,35 @@
                 8,
                 1
               ]
+            },
+            {
+              "shape": [
+                4
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                1
+              ]
             }
           ],
           "observed_ops": {
-            "aten::topk.default": 1
+            "aten::numpy_T.default": 1,
+            "aten::slice.Tensor": 1,
+            "aten::topk.default": 3
           },
           "observed_schemas": {
-            "aten::topk.default": "aten::topk(Tensor self, SymInt k, int dim=-1, bool largest=True, bool sorted=True) -> (Tensor values, Tensor indices)"
+            "aten::topk.default": "aten::topk(Tensor self, SymInt k, int dim=-1, bool largest=True, bool sorted=True) -> (Tensor values, Tensor indices)",
+            "aten::slice.Tensor": "aten::slice.Tensor(Tensor(a) self, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor(a)",
+            "aten::numpy_T.default": "aten::numpy_T(Tensor(a) self) -> Tensor(a)"
           },
           "graph_count": 1,
           "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
           "buddy_graph_ops": {
-            "PlaceholderOp": 1,
-            "TopkOp": 1,
-            "GetItemOp": 2,
+            "PlaceholderOp": 2,
+            "TopkOp": 3,
+            "GetItemOp": 6,
+            "SliceOp": 1,
+            "PermuteOp": 1,
             "OutputOp": 1
           },
           "worker_returncode": 0
@@ -11143,20 +11213,35 @@
                 5,
                 1
               ]
+            },
+            {
+              "shape": [
+                4
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                1
+              ]
             }
           ],
           "observed_ops": {
-            "aten::topk.default": 1
+            "aten::numpy_T.default": 1,
+            "aten::slice.Tensor": 1,
+            "aten::topk.default": 3
           },
           "observed_schemas": {
-            "aten::topk.default": "aten::topk(Tensor self, SymInt k, int dim=-1, bool largest=True, bool sorted=True) -> (Tensor values, Tensor indices)"
+            "aten::topk.default": "aten::topk(Tensor self, SymInt k, int dim=-1, bool largest=True, bool sorted=True) -> (Tensor values, Tensor indices)",
+            "aten::slice.Tensor": "aten::slice.Tensor(Tensor(a) self, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor(a)",
+            "aten::numpy_T.default": "aten::numpy_T(Tensor(a) self) -> Tensor(a)"
           },
           "graph_count": 1,
           "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
           "buddy_graph_ops": {
-            "PlaceholderOp": 1,
-            "TopkOp": 1,
-            "GetItemOp": 2,
+            "PlaceholderOp": 2,
+            "TopkOp": 3,
+            "GetItemOp": 6,
+            "SliceOp": 1,
+            "PermuteOp": 1,
             "OutputOp": 1
           },
           "worker_returncode": 0
@@ -11183,26 +11268,41 @@
                 8,
                 1
               ]
+            },
+            {
+              "shape": [
+                4
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                1
+              ]
             }
           ],
           "observed_ops": {
-            "aten::topk.default": 1
+            "aten::numpy_T.default": 1,
+            "aten::slice.Tensor": 1,
+            "aten::topk.default": 3
           },
           "observed_schemas": {
-            "aten::topk.default": "aten::topk(Tensor self, SymInt k, int dim=-1, bool largest=True, bool sorted=True) -> (Tensor values, Tensor indices)"
+            "aten::topk.default": "aten::topk(Tensor self, SymInt k, int dim=-1, bool largest=True, bool sorted=True) -> (Tensor values, Tensor indices)",
+            "aten::slice.Tensor": "aten::slice.Tensor(Tensor(a) self, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor(a)",
+            "aten::numpy_T.default": "aten::numpy_T(Tensor(a) self) -> Tensor(a)"
           },
           "graph_count": 1,
           "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
           "buddy_graph_ops": {
-            "PlaceholderOp": 1,
-            "TopkOp": 1,
-            "GetItemOp": 2,
+            "PlaceholderOp": 2,
+            "TopkOp": 3,
+            "GetItemOp": 6,
+            "SliceOp": 1,
+            "PermuteOp": 1,
             "OutputOp": 1
           },
           "worker_returncode": 0
         }
       ],
-      "validated_for_profile": false
+      "validated_for_profile": true
     },
     {
       "operator": "aten::softmax.int",
@@ -13469,7 +13569,7 @@
       ],
       "alias_candidates": [],
       "static_status": "registered_lowering",
-      "known_limitations": "Sum/product/min/max include-self semantics have CPU regressions; mean remains explicitly unsupported.",
+      "known_limitations": null,
       "required_cases": [
         "small-f32",
         "rect-f32",
@@ -13523,7 +13623,7 @@
             }
           ],
           "observed_ops": {
-            "aten::scatter_reduce.two": 1
+            "aten::scatter_reduce.two": 3
           },
           "observed_schemas": {
             "aten::scatter_reduce.two": "aten::scatter_reduce.two(Tensor self, int dim, Tensor index, Tensor src, str reduce, *, bool include_self=True) -> Tensor"
@@ -13532,7 +13632,7 @@
           "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
           "buddy_graph_ops": {
             "PlaceholderOp": 3,
-            "ScatterReduceOp": 1,
+            "ScatterReduceOp": 3,
             "OutputOp": 1
           },
           "worker_returncode": 0
@@ -13584,7 +13684,7 @@
             }
           ],
           "observed_ops": {
-            "aten::scatter_reduce.two": 1
+            "aten::scatter_reduce.two": 3
           },
           "observed_schemas": {
             "aten::scatter_reduce.two": "aten::scatter_reduce.two(Tensor self, int dim, Tensor index, Tensor src, str reduce, *, bool include_self=True) -> Tensor"
@@ -13593,7 +13693,7 @@
           "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
           "buddy_graph_ops": {
             "PlaceholderOp": 3,
-            "ScatterReduceOp": 1,
+            "ScatterReduceOp": 3,
             "OutputOp": 1
           },
           "worker_returncode": 0
@@ -13645,7 +13745,7 @@
             }
           ],
           "observed_ops": {
-            "aten::scatter_reduce.two": 1
+            "aten::scatter_reduce.two": 3
           },
           "observed_schemas": {
             "aten::scatter_reduce.two": "aten::scatter_reduce.two(Tensor self, int dim, Tensor index, Tensor src, str reduce, *, bool include_self=True) -> Tensor"
@@ -13654,13 +13754,13 @@
           "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
           "buddy_graph_ops": {
             "PlaceholderOp": 3,
-            "ScatterReduceOp": 1,
+            "ScatterReduceOp": 3,
             "OutputOp": 1
           },
           "worker_returncode": 0
         }
       ],
-      "validated_for_profile": false
+      "validated_for_profile": true
     },
     {
       "operator": "aten::masked_scatter.default",
@@ -13885,7 +13985,7 @@
         {
           "case_id": "small-f32",
           "status": "failed",
-          "reason": "DynamicOutputShapeException: aten.masked_select.default\n\nWhile executing %masked_select : [num_users=2] = call_function[target=torch.ops.aten.masked_select.default](args = (%args_0, %args_1), kwargs = {})\nOriginal traceback:\n  File \"/opt/venv/lib/python3.12/site-packages/torch/_dynamo/functional_export.py\", line 216, in forward\n    res = self._export_root(*args, **kwargs)\n  File \"/workspace/scripts/pytorch_op_coverage/probes.py\", line 410, in forward\n    return fn(*args)\n\nUse tlparse to see full graph. (https://github.com/pytorch/tlparse?tab=readme-ov-file#tlparse-parse-structured-pt2-logs)",
+          "reason": "DynamicOutputShapeException: aten.masked_select.default\n\nWhile executing %masked_select : [num_users=2] = call_function[target=torch.ops.aten.masked_select.default](args = (%args_0, %args_1), kwargs = {})\nOriginal traceback:\n  File \"/opt/venv/lib/python3.12/site-packages/torch/_dynamo/functional_export.py\", line 216, in forward\n    res = self._export_root(*args, **kwargs)\n  File \"/workspace/scripts/pytorch_op_coverage/probes.py\", line 435, in forward\n    return fn(*args)\n\nUse tlparse to see full graph. (https://github.com/pytorch/tlparse?tab=readme-ov-file#tlparse-parse-structured-pt2-logs)",
           "exported": "passed",
           "imported": "failed",
           "lowered": "not_run",
@@ -13937,7 +14037,7 @@
         {
           "case_id": "rect-f32",
           "status": "failed",
-          "reason": "DynamicOutputShapeException: aten.masked_select.default\n\nWhile executing %masked_select : [num_users=2] = call_function[target=torch.ops.aten.masked_select.default](args = (%args_0, %args_1), kwargs = {})\nOriginal traceback:\n  File \"/opt/venv/lib/python3.12/site-packages/torch/_dynamo/functional_export.py\", line 216, in forward\n    res = self._export_root(*args, **kwargs)\n  File \"/workspace/scripts/pytorch_op_coverage/probes.py\", line 410, in forward\n    return fn(*args)\n\nUse tlparse to see full graph. (https://github.com/pytorch/tlparse?tab=readme-ov-file#tlparse-parse-structured-pt2-logs)",
+          "reason": "DynamicOutputShapeException: aten.masked_select.default\n\nWhile executing %masked_select : [num_users=2] = call_function[target=torch.ops.aten.masked_select.default](args = (%args_0, %args_1), kwargs = {})\nOriginal traceback:\n  File \"/opt/venv/lib/python3.12/site-packages/torch/_dynamo/functional_export.py\", line 216, in forward\n    res = self._export_root(*args, **kwargs)\n  File \"/workspace/scripts/pytorch_op_coverage/probes.py\", line 435, in forward\n    return fn(*args)\n\nUse tlparse to see full graph. (https://github.com/pytorch/tlparse?tab=readme-ov-file#tlparse-parse-structured-pt2-logs)",
           "exported": "passed",
           "imported": "failed",
           "lowered": "not_run",
@@ -13989,7 +14089,7 @@
         {
           "case_id": "small-f64",
           "status": "failed",
-          "reason": "DynamicOutputShapeException: aten.masked_select.default\n\nWhile executing %masked_select : [num_users=2] = call_function[target=torch.ops.aten.masked_select.default](args = (%args_0, %args_1), kwargs = {})\nOriginal traceback:\n  File \"/opt/venv/lib/python3.12/site-packages/torch/_dynamo/functional_export.py\", line 216, in forward\n    res = self._export_root(*args, **kwargs)\n  File \"/workspace/scripts/pytorch_op_coverage/probes.py\", line 410, in forward\n    return fn(*args)\n\nUse tlparse to see full graph. (https://github.com/pytorch/tlparse?tab=readme-ov-file#tlparse-parse-structured-pt2-logs)",
+          "reason": "DynamicOutputShapeException: aten.masked_select.default\n\nWhile executing %masked_select : [num_users=2] = call_function[target=torch.ops.aten.masked_select.default](args = (%args_0, %args_1), kwargs = {})\nOriginal traceback:\n  File \"/opt/venv/lib/python3.12/site-packages/torch/_dynamo/functional_export.py\", line 216, in forward\n    res = self._export_root(*args, **kwargs)\n  File \"/workspace/scripts/pytorch_op_coverage/probes.py\", line 435, in forward\n    return fn(*args)\n\nUse tlparse to see full graph. (https://github.com/pytorch/tlparse?tab=readme-ov-file#tlparse-parse-structured-pt2-logs)",
           "exported": "passed",
           "imported": "failed",
           "lowered": "not_run",
@@ -14064,7 +14164,7 @@
         {
           "case_id": "small-f32",
           "status": "failed",
-          "reason": "DynamicOutputShapeException: aten.nonzero.default\n\nWhile executing %nonzero : [num_users=2] = call_function[target=torch.ops.aten.nonzero.default](args = (%args_0,), kwargs = {})\nOriginal traceback:\n  File \"/opt/venv/lib/python3.12/site-packages/torch/_dynamo/functional_export.py\", line 216, in forward\n    res = self._export_root(*args, **kwargs)\n  File \"/workspace/scripts/pytorch_op_coverage/probes.py\", line 410, in forward\n    return fn(*args)\n\nUse tlparse to see full graph. (https://github.com/pytorch/tlparse?tab=readme-ov-file#tlparse-parse-structured-pt2-logs)",
+          "reason": "DynamicOutputShapeException: aten.nonzero.default\n\nWhile executing %nonzero : [num_users=2] = call_function[target=torch.ops.aten.nonzero.default](args = (%args_0,), kwargs = {})\nOriginal traceback:\n  File \"/opt/venv/lib/python3.12/site-packages/torch/_dynamo/functional_export.py\", line 216, in forward\n    res = self._export_root(*args, **kwargs)\n  File \"/workspace/scripts/pytorch_op_coverage/probes.py\", line 435, in forward\n    return fn(*args)\n\nUse tlparse to see full graph. (https://github.com/pytorch/tlparse?tab=readme-ov-file#tlparse-parse-structured-pt2-logs)",
           "exported": "passed",
           "imported": "failed",
           "lowered": "not_run",
@@ -14105,7 +14205,7 @@
         {
           "case_id": "rect-f32",
           "status": "failed",
-          "reason": "DynamicOutputShapeException: aten.nonzero.default\n\nWhile executing %nonzero : [num_users=2] = call_function[target=torch.ops.aten.nonzero.default](args = (%args_0,), kwargs = {})\nOriginal traceback:\n  File \"/opt/venv/lib/python3.12/site-packages/torch/_dynamo/functional_export.py\", line 216, in forward\n    res = self._export_root(*args, **kwargs)\n  File \"/workspace/scripts/pytorch_op_coverage/probes.py\", line 410, in forward\n    return fn(*args)\n\nUse tlparse to see full graph. (https://github.com/pytorch/tlparse?tab=readme-ov-file#tlparse-parse-structured-pt2-logs)",
+          "reason": "DynamicOutputShapeException: aten.nonzero.default\n\nWhile executing %nonzero : [num_users=2] = call_function[target=torch.ops.aten.nonzero.default](args = (%args_0,), kwargs = {})\nOriginal traceback:\n  File \"/opt/venv/lib/python3.12/site-packages/torch/_dynamo/functional_export.py\", line 216, in forward\n    res = self._export_root(*args, **kwargs)\n  File \"/workspace/scripts/pytorch_op_coverage/probes.py\", line 435, in forward\n    return fn(*args)\n\nUse tlparse to see full graph. (https://github.com/pytorch/tlparse?tab=readme-ov-file#tlparse-parse-structured-pt2-logs)",
           "exported": "passed",
           "imported": "failed",
           "lowered": "not_run",
@@ -14146,7 +14246,7 @@
         {
           "case_id": "small-f64",
           "status": "failed",
-          "reason": "DynamicOutputShapeException: aten.nonzero.default\n\nWhile executing %nonzero : [num_users=2] = call_function[target=torch.ops.aten.nonzero.default](args = (%args_0,), kwargs = {})\nOriginal traceback:\n  File \"/opt/venv/lib/python3.12/site-packages/torch/_dynamo/functional_export.py\", line 216, in forward\n    res = self._export_root(*args, **kwargs)\n  File \"/workspace/scripts/pytorch_op_coverage/probes.py\", line 410, in forward\n    return fn(*args)\n\nUse tlparse to see full graph. (https://github.com/pytorch/tlparse?tab=readme-ov-file#tlparse-parse-structured-pt2-logs)",
+          "reason": "DynamicOutputShapeException: aten.nonzero.default\n\nWhile executing %nonzero : [num_users=2] = call_function[target=torch.ops.aten.nonzero.default](args = (%args_0,), kwargs = {})\nOriginal traceback:\n  File \"/opt/venv/lib/python3.12/site-packages/torch/_dynamo/functional_export.py\", line 216, in forward\n    res = self._export_root(*args, **kwargs)\n  File \"/workspace/scripts/pytorch_op_coverage/probes.py\", line 435, in forward\n    return fn(*args)\n\nUse tlparse to see full graph. (https://github.com/pytorch/tlparse?tab=readme-ov-file#tlparse-parse-structured-pt2-logs)",
           "exported": "passed",
           "imported": "failed",
           "lowered": "not_run",
@@ -14489,7 +14589,7 @@
         {
           "case_id": "small-f32",
           "status": "failed",
-          "reason": "DynamicOutputShapeException: aten.bincount.default\n\nWhile executing %bincount : [num_users=2] = call_function[target=torch.ops.aten.bincount.default](args = (%args_0, None, 4), kwargs = {})\nOriginal traceback:\n  File \"/opt/venv/lib/python3.12/site-packages/torch/_dynamo/functional_export.py\", line 216, in forward\n    res = self._export_root(*args, **kwargs)\n  File \"/workspace/scripts/pytorch_op_coverage/probes.py\", line 410, in forward\n    return fn(*args)\n  File \"/workspace/scripts/pytorch_op_coverage/probes.py\", line 385, in <lambda>\n    fn, args = lambda a: op(a, minlength=4), (torch.tensor([0, 3, 1, 0]),)\n\nUse tlparse to see full graph. (https://github.com/pytorch/tlparse?tab=readme-ov-file#tlparse-parse-structured-pt2-logs)",
+          "reason": "DynamicOutputShapeException: aten.bincount.default\n\nWhile executing %bincount : [num_users=2] = call_function[target=torch.ops.aten.bincount.default](args = (%args_0, None, 4), kwargs = {})\nOriginal traceback:\n  File \"/opt/venv/lib/python3.12/site-packages/torch/_dynamo/functional_export.py\", line 216, in forward\n    res = self._export_root(*args, **kwargs)\n  File \"/workspace/scripts/pytorch_op_coverage/probes.py\", line 435, in forward\n    return fn(*args)\n  File \"/workspace/scripts/pytorch_op_coverage/probes.py\", line 410, in <lambda>\n    fn, args = lambda a: op(a, minlength=4), (torch.tensor([0, 3, 1, 0]),)\n\nUse tlparse to see full graph. (https://github.com/pytorch/tlparse?tab=readme-ov-file#tlparse-parse-structured-pt2-logs)",
           "exported": "passed",
           "imported": "failed",
           "lowered": "not_run",
@@ -14528,7 +14628,7 @@
         {
           "case_id": "rect-f32",
           "status": "failed",
-          "reason": "DynamicOutputShapeException: aten.bincount.default\n\nWhile executing %bincount : [num_users=2] = call_function[target=torch.ops.aten.bincount.default](args = (%args_0, None, 4), kwargs = {})\nOriginal traceback:\n  File \"/opt/venv/lib/python3.12/site-packages/torch/_dynamo/functional_export.py\", line 216, in forward\n    res = self._export_root(*args, **kwargs)\n  File \"/workspace/scripts/pytorch_op_coverage/probes.py\", line 410, in forward\n    return fn(*args)\n  File \"/workspace/scripts/pytorch_op_coverage/probes.py\", line 385, in <lambda>\n    fn, args = lambda a: op(a, minlength=4), (torch.tensor([0, 3, 1, 0]),)\n\nUse tlparse to see full graph. (https://github.com/pytorch/tlparse?tab=readme-ov-file#tlparse-parse-structured-pt2-logs)",
+          "reason": "DynamicOutputShapeException: aten.bincount.default\n\nWhile executing %bincount : [num_users=2] = call_function[target=torch.ops.aten.bincount.default](args = (%args_0, None, 4), kwargs = {})\nOriginal traceback:\n  File \"/opt/venv/lib/python3.12/site-packages/torch/_dynamo/functional_export.py\", line 216, in forward\n    res = self._export_root(*args, **kwargs)\n  File \"/workspace/scripts/pytorch_op_coverage/probes.py\", line 435, in forward\n    return fn(*args)\n  File \"/workspace/scripts/pytorch_op_coverage/probes.py\", line 410, in <lambda>\n    fn, args = lambda a: op(a, minlength=4), (torch.tensor([0, 3, 1, 0]),)\n\nUse tlparse to see full graph. (https://github.com/pytorch/tlparse?tab=readme-ov-file#tlparse-parse-structured-pt2-logs)",
           "exported": "passed",
           "imported": "failed",
           "lowered": "not_run",
@@ -14567,7 +14667,7 @@
         {
           "case_id": "small-f64",
           "status": "failed",
-          "reason": "DynamicOutputShapeException: aten.bincount.default\n\nWhile executing %bincount : [num_users=2] = call_function[target=torch.ops.aten.bincount.default](args = (%args_0, None, 4), kwargs = {})\nOriginal traceback:\n  File \"/opt/venv/lib/python3.12/site-packages/torch/_dynamo/functional_export.py\", line 216, in forward\n    res = self._export_root(*args, **kwargs)\n  File \"/workspace/scripts/pytorch_op_coverage/probes.py\", line 410, in forward\n    return fn(*args)\n  File \"/workspace/scripts/pytorch_op_coverage/probes.py\", line 385, in <lambda>\n    fn, args = lambda a: op(a, minlength=4), (torch.tensor([0, 3, 1, 0]),)\n\nUse tlparse to see full graph. (https://github.com/pytorch/tlparse?tab=readme-ov-file#tlparse-parse-structured-pt2-logs)",
+          "reason": "DynamicOutputShapeException: aten.bincount.default\n\nWhile executing %bincount : [num_users=2] = call_function[target=torch.ops.aten.bincount.default](args = (%args_0, None, 4), kwargs = {})\nOriginal traceback:\n  File \"/opt/venv/lib/python3.12/site-packages/torch/_dynamo/functional_export.py\", line 216, in forward\n    res = self._export_root(*args, **kwargs)\n  File \"/workspace/scripts/pytorch_op_coverage/probes.py\", line 435, in forward\n    return fn(*args)\n  File \"/workspace/scripts/pytorch_op_coverage/probes.py\", line 410, in <lambda>\n    fn, args = lambda a: op(a, minlength=4), (torch.tensor([0, 3, 1, 0]),)\n\nUse tlparse to see full graph. (https://github.com/pytorch/tlparse?tab=readme-ov-file#tlparse-parse-structured-pt2-logs)",
           "exported": "passed",
           "imported": "failed",
           "lowered": "not_run",
@@ -16697,12 +16797,14 @@
         "vision_transformer_extra"
       ],
       "pytorch_schema": "aten::pixel_shuffle(Tensor self, int upscale_factor) -> Tensor",
-      "buddy_op": null,
-      "frontend_recognized": false,
-      "lowering_dialects": [],
+      "buddy_op": "PixelShuffleOp",
+      "frontend_recognized": true,
+      "lowering_dialects": [
+        "tosa"
+      ],
       "alias_candidates": [],
-      "static_status": "unmapped",
-      "known_limitations": "Review pending: Vision path; may be unsupported.",
+      "static_status": "registered_lowering",
+      "known_limitations": null,
       "required_cases": [
         "small-f32",
         "rect-f32",
@@ -16711,15 +16813,15 @@
       "cases": [
         {
           "case_id": "small-f32",
-          "status": "failed",
-          "reason": "KeyError: 'pixel_shuffle.default'",
+          "status": "passed",
+          "reason": "",
           "exported": "passed",
-          "imported": "failed",
-          "lowered": "not_run",
-          "compiled": "not_run",
-          "executed": "not_run",
-          "correctness": "not_run",
-          "active_stage": "imported",
+          "imported": "passed",
+          "lowered": "passed",
+          "compiled": "passed",
+          "executed": "passed",
+          "correctness": "passed",
+          "active_stage": null,
           "inputs": [
             {
               "shape": [
@@ -16738,27 +16840,34 @@
             }
           ],
           "observed_ops": {
-            "aten::pixel_shuffle.default": 1
+            "aten::pixel_shuffle.default": 2,
+            "aten::slice.Tensor": 1
           },
           "observed_schemas": {
-            "aten::pixel_shuffle.default": "aten::pixel_shuffle(Tensor self, int upscale_factor) -> Tensor"
+            "aten::pixel_shuffle.default": "aten::pixel_shuffle(Tensor self, int upscale_factor) -> Tensor",
+            "aten::slice.Tensor": "aten::slice.Tensor(Tensor(a) self, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor(a)"
           },
           "graph_count": 1,
           "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
-          "worker_returncode": 0,
-          "stderr_tail": ""
+          "buddy_graph_ops": {
+            "PlaceholderOp": 1,
+            "PixelShuffleOp": 2,
+            "SliceOp": 1,
+            "OutputOp": 1
+          },
+          "worker_returncode": 0
         },
         {
           "case_id": "rect-f32",
-          "status": "failed",
-          "reason": "KeyError: 'pixel_shuffle.default'",
+          "status": "passed",
+          "reason": "",
           "exported": "passed",
-          "imported": "failed",
-          "lowered": "not_run",
-          "compiled": "not_run",
-          "executed": "not_run",
-          "correctness": "not_run",
-          "active_stage": "imported",
+          "imported": "passed",
+          "lowered": "passed",
+          "compiled": "passed",
+          "executed": "passed",
+          "correctness": "passed",
+          "active_stage": null,
           "inputs": [
             {
               "shape": [
@@ -16777,27 +16886,34 @@
             }
           ],
           "observed_ops": {
-            "aten::pixel_shuffle.default": 1
+            "aten::pixel_shuffle.default": 2,
+            "aten::slice.Tensor": 1
           },
           "observed_schemas": {
-            "aten::pixel_shuffle.default": "aten::pixel_shuffle(Tensor self, int upscale_factor) -> Tensor"
+            "aten::pixel_shuffle.default": "aten::pixel_shuffle(Tensor self, int upscale_factor) -> Tensor",
+            "aten::slice.Tensor": "aten::slice.Tensor(Tensor(a) self, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor(a)"
           },
           "graph_count": 1,
           "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
-          "worker_returncode": 0,
-          "stderr_tail": ""
+          "buddy_graph_ops": {
+            "PlaceholderOp": 1,
+            "PixelShuffleOp": 2,
+            "SliceOp": 1,
+            "OutputOp": 1
+          },
+          "worker_returncode": 0
         },
         {
           "case_id": "small-f64",
-          "status": "failed",
-          "reason": "KeyError: 'pixel_shuffle.default'",
+          "status": "passed",
+          "reason": "",
           "exported": "passed",
-          "imported": "failed",
-          "lowered": "not_run",
-          "compiled": "not_run",
-          "executed": "not_run",
-          "correctness": "not_run",
-          "active_stage": "imported",
+          "imported": "passed",
+          "lowered": "passed",
+          "compiled": "passed",
+          "executed": "passed",
+          "correctness": "passed",
+          "active_stage": null,
           "inputs": [
             {
               "shape": [
@@ -16816,18 +16932,25 @@
             }
           ],
           "observed_ops": {
-            "aten::pixel_shuffle.default": 1
+            "aten::pixel_shuffle.default": 2,
+            "aten::slice.Tensor": 1
           },
           "observed_schemas": {
-            "aten::pixel_shuffle.default": "aten::pixel_shuffle(Tensor self, int upscale_factor) -> Tensor"
+            "aten::pixel_shuffle.default": "aten::pixel_shuffle(Tensor self, int upscale_factor) -> Tensor",
+            "aten::slice.Tensor": "aten::slice.Tensor(Tensor(a) self, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor(a)"
           },
           "graph_count": 1,
           "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
-          "worker_returncode": 0,
-          "stderr_tail": ""
+          "buddy_graph_ops": {
+            "PlaceholderOp": 1,
+            "PixelShuffleOp": 2,
+            "SliceOp": 1,
+            "OutputOp": 1
+          },
+          "worker_returncode": 0
         }
       ],
-      "validated_for_profile": false
+      "validated_for_profile": true
     },
     {
       "operator": "aten::pixel_unshuffle.default",
@@ -16835,12 +16958,14 @@
         "vision_transformer_extra"
       ],
       "pytorch_schema": "aten::pixel_unshuffle(Tensor self, int downscale_factor) -> Tensor",
-      "buddy_op": null,
-      "frontend_recognized": false,
-      "lowering_dialects": [],
+      "buddy_op": "PixelUnshuffleOp",
+      "frontend_recognized": true,
+      "lowering_dialects": [
+        "tosa"
+      ],
       "alias_candidates": [],
-      "static_status": "unmapped",
-      "known_limitations": "Review pending: Vision path; may be unsupported.",
+      "static_status": "registered_lowering",
+      "known_limitations": "Non-empty static CPU inputs have numerical regressions. Empty inputs are explicitly rejected because PyTorch 2.10 eager output shape disagrees with export metadata.",
       "required_cases": [
         "small-f32",
         "rect-f32",
@@ -16849,15 +16974,15 @@
       "cases": [
         {
           "case_id": "small-f32",
-          "status": "failed",
-          "reason": "KeyError: 'pixel_unshuffle.default'",
+          "status": "passed",
+          "reason": "",
           "exported": "passed",
-          "imported": "failed",
-          "lowered": "not_run",
-          "compiled": "not_run",
-          "executed": "not_run",
-          "correctness": "not_run",
-          "active_stage": "imported",
+          "imported": "passed",
+          "lowered": "passed",
+          "compiled": "passed",
+          "executed": "passed",
+          "correctness": "passed",
+          "active_stage": null,
           "inputs": [
             {
               "shape": [
@@ -16883,20 +17008,24 @@
           },
           "graph_count": 1,
           "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
-          "worker_returncode": 0,
-          "stderr_tail": ""
+          "buddy_graph_ops": {
+            "PlaceholderOp": 1,
+            "PixelUnshuffleOp": 1,
+            "OutputOp": 1
+          },
+          "worker_returncode": 0
         },
         {
           "case_id": "rect-f32",
-          "status": "failed",
-          "reason": "KeyError: 'pixel_unshuffle.default'",
+          "status": "passed",
+          "reason": "",
           "exported": "passed",
-          "imported": "failed",
-          "lowered": "not_run",
-          "compiled": "not_run",
-          "executed": "not_run",
-          "correctness": "not_run",
-          "active_stage": "imported",
+          "imported": "passed",
+          "lowered": "passed",
+          "compiled": "passed",
+          "executed": "passed",
+          "correctness": "passed",
+          "active_stage": null,
           "inputs": [
             {
               "shape": [
@@ -16922,20 +17051,24 @@
           },
           "graph_count": 1,
           "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
-          "worker_returncode": 0,
-          "stderr_tail": ""
+          "buddy_graph_ops": {
+            "PlaceholderOp": 1,
+            "PixelUnshuffleOp": 1,
+            "OutputOp": 1
+          },
+          "worker_returncode": 0
         },
         {
           "case_id": "small-f64",
-          "status": "failed",
-          "reason": "KeyError: 'pixel_unshuffle.default'",
+          "status": "passed",
+          "reason": "",
           "exported": "passed",
-          "imported": "failed",
-          "lowered": "not_run",
-          "compiled": "not_run",
-          "executed": "not_run",
-          "correctness": "not_run",
-          "active_stage": "imported",
+          "imported": "passed",
+          "lowered": "passed",
+          "compiled": "passed",
+          "executed": "passed",
+          "correctness": "passed",
+          "active_stage": null,
           "inputs": [
             {
               "shape": [
@@ -16961,8 +17094,12 @@
           },
           "graph_count": 1,
           "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
-          "worker_returncode": 0,
-          "stderr_tail": ""
+          "buddy_graph_ops": {
+            "PlaceholderOp": 1,
+            "PixelUnshuffleOp": 1,
+            "OutputOp": 1
+          },
+          "worker_returncode": 0
         }
       ],
       "validated_for_profile": false
@@ -17912,7 +18049,7 @@
       },
       "in_target": true,
       "static_status": "registered_lowering",
-      "validated_for_profile": false
+      "validated_for_profile": true
     },
     {
       "operator": "aten::zeros_like.default",

@@ -1,6 +1,6 @@
 {
   "report_version": 2,
-  "generated_at": "2026-09-26T09:33:07.092345+00:00",
+  "generated_at": "2026-09-27T10:42:23.306142+00:00",
   "mode": "trace",
   "run_status": "completed",
   "exit_code": 0,
@@ -27,15 +27,15 @@
     }
   },
   "provenance": {
-    "git_revision": "0cde280f44ee339554872d8a77ea27e6e4e166bd",
+    "git_revision": "32d217ce08e1d2ab3a01eb54d8f44ae7c2206d80",
     "dirty": true,
-    "source_sha256": "71e9828484b4bcde09435b3565cf2b0b6a11f71da412ea3ee14b2517d675fdf1",
+    "source_sha256": "5af93e9b6b1dc294d7b416b9d087d595ba1af35c106216395ab49ba3df773d68",
     "files_sha256": {
-      "frontend/Python/frontend.py": "14afd42027f60d127c2d0f9c9a415e79a6b2995e98dd1e82ee357b6dbd0df827",
+      "frontend/Python/frontend.py": "5934822d742cf59ff1ff906e16012b36fc2fb6e95b0ff5f0bf0b2ced867d4669",
       "frontend/Python/graph/__init__.py": "3d2d48a2c14f34b52181bc3b206001d13931d0befd7a3991e76317aec4cd8b5e",
       "frontend/Python/graph/graph.py": "488b96b8db0d06367c8632bf883709be02457e40f899b298e86160b7c0508333",
       "frontend/Python/graph/graph_driver.py": "2e217981f937f390c6e6c85c9fbdf2e504110d4171bf39f8cfb2e445a5c528f6",
-      "frontend/Python/graph/operation.py": "37870b6d4ecd28d0c5b8d04e484b5a24b354f30c81caf5526b655d95618d04bc",
+      "frontend/Python/graph/operation.py": "f98dc5e013da6a9a667eeedf854a11b5be653a4edd02c4ac10ad00f918a73cd9",
       "frontend/Python/graph/partitioned_graph_driver.py": "224be109626e8c8bea0295aaaeef3c5c6b1b940b472712d3a4642327882c8268",
       "frontend/Python/graph/source_meta.py": "8e62eb26ed277ccc432bfd3827b2c3687b888a782dc486abf5dc643b02f5044e",
       "frontend/Python/graph/structure_analysis.py": "f23befbe165f7ed48ff05cebea0f6b431280605f856467e162af855b97cb04b0",
@@ -60,32 +60,32 @@
       "frontend/Python/graph/type.py": "f00cec5f34697e5ee3e8e1817ac5979c29f5dd942a79ec8329ab6ee5bc10b54a",
       "frontend/Python/ops/__init__.py": "e3cbb6f957b003f0345c355237445a225a98af5d74a950d61fa4007a5de094f0",
       "frontend/Python/ops/func.py": "6246e74f3fa98e318171e8cb76fb195189755ee0484a5d7c5186d923aa32e907",
-      "frontend/Python/ops/linalg.py": "84cd4d8be3a3af64ca0441b0de87f9372356d79f424ca728708296ac94761615",
+      "frontend/Python/ops/linalg.py": "590653e0ae54ef0bccd1b9cacf8a253477f3498255ae043ce3c521c73fabd94d",
       "frontend/Python/ops/math.py": "71b2c037d7706622d31d0b542d908d16f54c8c45fb0bf416f138a6acfe5f2e5a",
-      "frontend/Python/ops/tosa.py": "67b79632c9bffccc55620cf37a9c3b2f5901451c13cd4d9f4371c47fb299c8c7",
+      "frontend/Python/ops/tosa.py": "672b1f078325bba847ebd3fc1f1c7eae676627a54a07af8694f573b1aef47e08",
       "frontend/Python/ops/ttir.py": "c7b640d15cc46641bf9a56330415026146f0153ef846a297e92c3a189cfa8bd5",
       "frontend/Python/ops/ttir_llm.py": "38c314dff4559742b64e87ef028082e8a41c5f85e3b73d14da5496bf254f6d25",
       "frontend/Python/ops/utils.py": "9ca4fbec8e36c5b11be735974707352c0fd838a78498a129cf695c170ce598c4",
       "frontend/Python/trace/__init__.py": "9d9b31877d2a8c2a2c15e5e923a2b444538f4d134e216f1524a05f254fc4f86b",
       "frontend/Python/trace/config.py": "1417402997c35816e243e3d2322ec81fb14ce8541192666650d7db831a8492d9",
       "scripts/pytorch_op_coverage/classify.py": "707c47c6928eacedd0dd6a598064d8e1f2bc4e1fab92275e7420abf0b0d74e70",
-      "scripts/pytorch_op_coverage/data/target_ops_v1.json": "1e550203edd684d5b23958cbe02f1152583ac08f359e93c7bab54b9704112edc",
+      "scripts/pytorch_op_coverage/data/target_ops_v1.json": "fa6aa62b37785482b7cfe49c7033abf9b8653bbc117070a51ec441de12bf9e04",
       "scripts/pytorch_op_coverage/parse_frontend.py": "4ffb93305c0e0bab60f0d146b3dcec89a479ceb172bc9fb39ca29736c576b639",
-      "scripts/pytorch_op_coverage/probes.py": "149c41847fc04eb8adf98f7c6e7b66b4afa9fb2f4dba376b2c4fcd7465c0694a",
-      "scripts/pytorch_op_coverage/report.py": "17e217fcbe23786309a258168507d6257e07bb0ad48cd08311b79328e8ddc7d8",
+      "scripts/pytorch_op_coverage/probes.py": "19367f73478642602c04696490450a95eb03a8d1ccfe8fe2b1e5762487b2426a",
+      "scripts/pytorch_op_coverage/report.py": "70d880745bf3b31f80a488c7d736cc2865282d303b33bf9487d93023f7978ac8",
       "scripts/pytorch_op_coverage/run_coverage.py": "c52c2aaf34963eb85317829ce199a7927388c0fd48103f3c75b459be981003b0",
-      "scripts/pytorch_op_coverage/test_coverage.py": "85500a059c366b82538d17caa4981cadd8bb5916781d2d0cdf671ac71c5755b3",
-      "scripts/pytorch_op_coverage/test_probes.py": "27e36b41003adc020ec2c8cbaf80cfc651e4c3ca42d23b9e16f6b2c868e9149c",
-      "scripts/pytorch_op_coverage/worker.py": "858486810e0fa0ce832abf6ef63836c5e3640eb3de29eb9cc5d36a1c3ed53b2f",
+      "scripts/pytorch_op_coverage/test_coverage.py": "ed389c2c6e952c7dfbc81a393b2840361470738937e1917fec5707d54f90531c",
+      "scripts/pytorch_op_coverage/test_probes.py": "f58443099d003169cece4f9180604650dfdd6cb7f097700176d066581dfecc4b",
+      "scripts/pytorch_op_coverage/worker.py": "7c382351e6b0b42ea4f09d832004f4fe1a5465938a087860d7a33126b4125711",
       "tests/Python/AtenOpsCoverage/aten_coverage_runner.py": "cedb26ca659f25c9c5f487d57a5d36bc8f8cb8926d2d30b7b0cf68696e8acb36"
     },
-    "python": "3.13.13",
+    "python": "3.12.3",
     "changed_during_run": false
   },
   "environment": {
-    "python": "3.13.13",
+    "python": "3.12.3",
     "torch": "2.10.0+cpu",
-    "buddy": false,
+    "buddy": true,
     "schemas": {
       "aten::mm.default": "aten::mm(Tensor self, Tensor mat2) -> Tensor",
       "aten::bmm.default": "aten::bmm(Tensor self, Tensor mat2) -> Tensor",
@@ -196,10 +196,51 @@
     },
     "schema_errors": {},
     "platform": {
-      "system": "Windows",
-      "machine": "AMD64"
+      "system": "Linux",
+      "machine": "x86_64"
     },
-    "error": "buddy.compiler: ModuleNotFoundError: No module named 'buddy'",
+    "buddy_frontend_sha256": "5934822d742cf59ff1ff906e16012b36fc2fb6e95b0ff5f0bf0b2ced867d4669",
+    "buddy_source_sha256": {
+      "__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "frontend.py": "6d60ab5a54f1edd038f308512de33907bc2c9e1d06b6dd20b2886ef9889e6e9b",
+      "graph/__init__.py": "bfed5e8f37f3b5e95cad5e9c34ea95d6c09ce4aa9249200d4a36b278f803e28d",
+      "graph/graph.py": "95f0871faf6765765b31b60ce2f55963e7ecf62633ef049afc91ce29e015d671",
+      "graph/graph_driver.py": "743a8f6b09d5a0a39d6ffbc9da2536a2d91a947c866a0341978bc074cbee9d27",
+      "graph/operation.py": "402b5e951629024bf4288510adc05d9acfc32b6aae61e06c113e845fb7a72bbc",
+      "graph/partitioned_graph_driver.py": "92701323ac3fded8e49f53d710eb52713b7f8780a7b80288b47162081ce5e428",
+      "graph/source_meta.py": "57daf4d1f7613ee9682bb88ca4328500bb2d3d67dc34f97e1101b6bd86245418",
+      "graph/structure_analysis.py": "2d4be3b0b24aa4342d548cd8d2f9a2a35e9e4c1319e24c62738974ae39c08d5f",
+      "graph/transform/__init__.py": "8a724d2391a3e836b9a3b8a2080bb7c32666ed93e11564bc031ba4e05ebc3ebe",
+      "graph/transform/eliminate_matmul_transpose_reshape.py": "e1c73cd56bd7fe7f7a5ff4f3854235e0164a16bbbe0bd8281ca112b44b1526e8",
+      "graph/transform/eliminate_weight_transpose.py": "be7f753f5964a5f309873d9622c1a841a79eb0695b992fe4f29383c75a98777b",
+      "graph/transform/fuse_ops.py": "411cf34eeb6fcfde078e77b11e87551742e40ccf162780155b0054ea110be18f",
+      "graph/transform/onednn_replace.py": "4544f3f790b1ddc28928ae67cc52e28d80e6f7246b8a4b6ffd1750aa8c58920d",
+      "graph/transform/pack_decode_weights.py": "177b7f3c5415d2f6802352c832c08adbbca821937eefde87e8ddbc9b572bb757",
+      "graph/transform/quantization/__init__.py": "44becadbf02fbe7fe695a583fcd64c93159711fdbc4dac87da0a84c3429b9896",
+      "graph/transform/quantization/passes.py": "2f64a51084932a665cdc071f410d9cf04252dcd2ad49e24444ca8e776226f297",
+      "graph/transform/quantization/quantize.py": "04ff8ba58ffee541f6ec6932011279e7860d52ec018022523e853ca1bd0ba533",
+      "graph/transform/quantization/weight_only_channel_wise.py": "309b457c57fed47cdba6b68f8890dd89d2b621a8eefb73a6479bbb98d2a83abb",
+      "graph/transform/rand_replace.py": "e903d2ecc995dad23bca6d4cedac028864758d6233536c42af014eff8fa2758f",
+      "graph/transform/runtime_matmul_replace.py": "814e198e3b5b54d2330fb28c493cce52b2cbfc2a9084b39e8a38dc91f50bf80a",
+      "graph/transform/trace/__init__.py": "bea3cfe11ceeebbd9e9f439112b438cadac656d3e2b9e97a8a12bfb8c56ac42c",
+      "graph/transform/trace/lowering.py": "0e088f2807df3f26e5b6f292ac501148e77898b0205cbc49f415841143979dbd",
+      "graph/transform/trace/passes.py": "86ec78a031565f6af99c66e1e0ca372bc7bedba6257a22e6050a8f9ccec5553d",
+      "graph/transform/useless_op_eliminate.py": "c5a43fee24720607075ac389adfeec7a089450f0dcbaee67b9b4b21c3eecaf1a",
+      "graph/transformer_partition.py": "26e4614188951f975bffe0f2414be53d904abdfa458484b0cdf42ba15853d4ff",
+      "graph/ttir_import.py": "2f33f9f78544baf529c67896cf42ef74605a2c7d6f9b66eb93222dd41b261bad",
+      "graph/type.py": "033ca499c17cfd00ea37db6e4cd6270b1a3c8a7e0e80d21b661fa758b03c4f73",
+      "ops/__init__.py": "534783cd0116ac057bec2490cdc0709cc707d6108711cfe31574500618ae6ea2",
+      "ops/func.py": "6e99b4ecee260fe7f92d2d5058c752ed26b98e52e121efe46f22a7c50cd40d7c",
+      "ops/linalg.py": "86a32fcf88e606944a68959e27dd71e5239d15ff6f49022dca13923df8f18311",
+      "ops/math.py": "a21fb127b89d19f859e83adcfea6988cf189e9e2605294c314694869963b963c",
+      "ops/tosa.py": "8fe58770f1904b05c7ab75d9963aa7c0db8bb04904bc1e506ce93a262ebbba0d",
+      "ops/ttir.py": "998fd39193a98eedf9fbd6191c9fa9701bd145a561398697bcb625fff1c9d366",
+      "ops/ttir_llm.py": "045e5c7f0e3cd5ae7c8bde0b41e8f5e16bc14dfa9a6f32040288b21e478954da",
+      "ops/utils.py": "749f300cd97c5a060f39fc418c7358341173c20d95adaccccf9ad335b91b0e6e",
+      "trace/__init__.py": "15b286df921778a79a1b40041cf4a6438e4ad21b52fc52c11cffba7cf6163f3a",
+      "trace/config.py": "11eaab61735eb3a0909df92222f1923b1de6a54d7f585b28a919c0d0fa11de23"
+    },
+    "buddy_distribution_version": "0.0.10.dev20260917",
     "worker_returncode": 0,
     "worker_orchestration": {
       "isolated_processes": 4,
@@ -208,7 +249,7 @@
     }
   },
   "profile": {
-    "name": "cpu-export-v5",
+    "name": "cpu-export-v9",
     "cases": {
       "small-f32": {
         "rows": 4,
@@ -229,24 +270,25 @@
     "seed": 0,
     "rtol": 0.0001,
     "atol": 1e-05,
+    "equal_nan": true,
     "external_calls": false,
     "path": "strict torch.export -> Buddy _compile_fx -> tosa-priority -> JIT",
     "scope": "Explicit small CPU inputs, including a strided contiguous() fixture; no claim for arbitrary shapes/dtypes or full models"
   },
   "summary": {
     "total_ops": 106,
-    "frontend_recognized": 97,
-    "registered_lowering": 97,
+    "frontend_recognized": 99,
+    "registered_lowering": 99,
     "alias_candidate": 4,
-    "unmapped": 5,
-    "known_limited": 10,
+    "unmapped": 3,
+    "known_limited": 6,
     "validated_for_profile": 0,
     "percentages": {
-      "frontend_recognized": 91.51,
-      "registered_lowering": 91.51,
+      "frontend_recognized": 93.4,
+      "registered_lowering": 93.4,
       "alias_candidate": 3.77,
-      "unmapped": 4.72,
-      "known_limited": 9.43,
+      "unmapped": 2.83,
+      "known_limited": 5.66,
       "validated_for_profile": 0.0
     },
     "case_counts": {
@@ -272,14 +314,14 @@
       "registered_lowering": 42,
       "alias_candidate": 2,
       "unmapped": 3,
-      "known_limited": 6,
+      "known_limited": 4,
       "validated_for_profile": 0,
       "percentages": {
         "frontend_recognized": 89.36,
         "registered_lowering": 89.36,
         "alias_candidate": 4.26,
         "unmapped": 6.38,
-        "known_limited": 12.77,
+        "known_limited": 8.51,
         "validated_for_profile": 0.0
       },
       "case_counts": {
@@ -6666,7 +6708,7 @@
       ],
       "alias_candidates": [],
       "static_status": "registered_lowering",
-      "known_limitations": "Causal/noncausal f32/f64 and custom scales have CPU regressions. Mask broadcasting and fully masked rows remain unresolved.",
+      "known_limitations": null,
       "required_cases": [
         "small-f32",
         "rect-f32",
@@ -6729,13 +6771,30 @@
                 4,
                 1
               ]
+            },
+            {
+              "shape": [
+                1,
+                2,
+                4,
+                8
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                64,
+                32,
+                8,
+                1
+              ]
             }
           ],
           "observed_ops": {
-            "aten::_scaled_dot_product_flash_attention_for_cpu.default": 1
+            "aten::_scaled_dot_product_flash_attention_for_cpu.default": 3,
+            "aten::select.int": 2
           },
           "observed_schemas": {
-            "aten::_scaled_dot_product_flash_attention_for_cpu.default": "aten::_scaled_dot_product_flash_attention_for_cpu(Tensor query, Tensor key, Tensor value, float dropout_p=0., bool is_causal=False, *, Tensor? attn_mask=None, float? scale=None) -> (Tensor output, Tensor logsumexp)"
+            "aten::_scaled_dot_product_flash_attention_for_cpu.default": "aten::_scaled_dot_product_flash_attention_for_cpu(Tensor query, Tensor key, Tensor value, float dropout_p=0., bool is_causal=False, *, Tensor? attn_mask=None, float? scale=None) -> (Tensor output, Tensor logsumexp)",
+            "aten::select.int": "aten::select.int(Tensor(a) self, int dim, SymInt index) -> Tensor(a)"
           },
           "graph_count": 1,
           "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
@@ -6797,13 +6856,30 @@
                 4,
                 1
               ]
+            },
+            {
+              "shape": [
+                1,
+                2,
+                3,
+                5
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                30,
+                15,
+                5,
+                1
+              ]
             }
           ],
           "observed_ops": {
-            "aten::_scaled_dot_product_flash_attention_for_cpu.default": 1
+            "aten::_scaled_dot_product_flash_attention_for_cpu.default": 3,
+            "aten::select.int": 2
           },
           "observed_schemas": {
-            "aten::_scaled_dot_product_flash_attention_for_cpu.default": "aten::_scaled_dot_product_flash_attention_for_cpu(Tensor query, Tensor key, Tensor value, float dropout_p=0., bool is_causal=False, *, Tensor? attn_mask=None, float? scale=None) -> (Tensor output, Tensor logsumexp)"
+            "aten::_scaled_dot_product_flash_attention_for_cpu.default": "aten::_scaled_dot_product_flash_attention_for_cpu(Tensor query, Tensor key, Tensor value, float dropout_p=0., bool is_causal=False, *, Tensor? attn_mask=None, float? scale=None) -> (Tensor output, Tensor logsumexp)",
+            "aten::select.int": "aten::select.int(Tensor(a) self, int dim, SymInt index) -> Tensor(a)"
           },
           "graph_count": 1,
           "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
@@ -6865,13 +6941,30 @@
                 4,
                 1
               ]
+            },
+            {
+              "shape": [
+                1,
+                2,
+                4,
+                8
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                64,
+                32,
+                8,
+                1
+              ]
             }
           ],
           "observed_ops": {
-            "aten::_scaled_dot_product_flash_attention_for_cpu.default": 1
+            "aten::_scaled_dot_product_flash_attention_for_cpu.default": 3,
+            "aten::select.int": 2
           },
           "observed_schemas": {
-            "aten::_scaled_dot_product_flash_attention_for_cpu.default": "aten::_scaled_dot_product_flash_attention_for_cpu(Tensor query, Tensor key, Tensor value, float dropout_p=0., bool is_causal=False, *, Tensor? attn_mask=None, float? scale=None) -> (Tensor output, Tensor logsumexp)"
+            "aten::_scaled_dot_product_flash_attention_for_cpu.default": "aten::_scaled_dot_product_flash_attention_for_cpu(Tensor query, Tensor key, Tensor value, float dropout_p=0., bool is_causal=False, *, Tensor? attn_mask=None, float? scale=None) -> (Tensor output, Tensor logsumexp)",
+            "aten::select.int": "aten::select.int(Tensor(a) self, int dim, SymInt index) -> Tensor(a)"
           },
           "graph_count": 1,
           "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
@@ -9979,7 +10072,7 @@
       ],
       "alias_candidates": [],
       "static_status": "registered_lowering",
-      "known_limitations": "linalg.py:topk_op requires static shapes and a static integer k; complex types are rejected.",
+      "known_limitations": null,
       "required_cases": [
         "small-f32",
         "rect-f32",
@@ -10008,13 +10101,26 @@
                 8,
                 1
               ]
+            },
+            {
+              "shape": [
+                4
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                1
+              ]
             }
           ],
           "observed_ops": {
-            "aten::topk.default": 1
+            "aten::numpy_T.default": 1,
+            "aten::slice.Tensor": 1,
+            "aten::topk.default": 3
           },
           "observed_schemas": {
-            "aten::topk.default": "aten::topk(Tensor self, SymInt k, int dim=-1, bool largest=True, bool sorted=True) -> (Tensor values, Tensor indices)"
+            "aten::topk.default": "aten::topk(Tensor self, SymInt k, int dim=-1, bool largest=True, bool sorted=True) -> (Tensor values, Tensor indices)",
+            "aten::slice.Tensor": "aten::slice.Tensor(Tensor(a) self, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor(a)",
+            "aten::numpy_T.default": "aten::numpy_T(Tensor(a) self) -> Tensor(a)"
           },
           "graph_count": 1,
           "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
@@ -10042,13 +10148,26 @@
                 5,
                 1
               ]
+            },
+            {
+              "shape": [
+                4
+              ],
+              "dtype": "torch.float32",
+              "stride": [
+                1
+              ]
             }
           ],
           "observed_ops": {
-            "aten::topk.default": 1
+            "aten::numpy_T.default": 1,
+            "aten::slice.Tensor": 1,
+            "aten::topk.default": 3
           },
           "observed_schemas": {
-            "aten::topk.default": "aten::topk(Tensor self, SymInt k, int dim=-1, bool largest=True, bool sorted=True) -> (Tensor values, Tensor indices)"
+            "aten::topk.default": "aten::topk(Tensor self, SymInt k, int dim=-1, bool largest=True, bool sorted=True) -> (Tensor values, Tensor indices)",
+            "aten::slice.Tensor": "aten::slice.Tensor(Tensor(a) self, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor(a)",
+            "aten::numpy_T.default": "aten::numpy_T(Tensor(a) self) -> Tensor(a)"
           },
           "graph_count": 1,
           "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
@@ -10076,13 +10195,26 @@
                 8,
                 1
               ]
+            },
+            {
+              "shape": [
+                4
+              ],
+              "dtype": "torch.float64",
+              "stride": [
+                1
+              ]
             }
           ],
           "observed_ops": {
-            "aten::topk.default": 1
+            "aten::numpy_T.default": 1,
+            "aten::slice.Tensor": 1,
+            "aten::topk.default": 3
           },
           "observed_schemas": {
-            "aten::topk.default": "aten::topk(Tensor self, SymInt k, int dim=-1, bool largest=True, bool sorted=True) -> (Tensor values, Tensor indices)"
+            "aten::topk.default": "aten::topk(Tensor self, SymInt k, int dim=-1, bool largest=True, bool sorted=True) -> (Tensor values, Tensor indices)",
+            "aten::slice.Tensor": "aten::slice.Tensor(Tensor(a) self, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor(a)",
+            "aten::numpy_T.default": "aten::numpy_T(Tensor(a) self) -> Tensor(a)"
           },
           "graph_count": 1,
           "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
@@ -12146,7 +12278,7 @@
       ],
       "alias_candidates": [],
       "static_status": "registered_lowering",
-      "known_limitations": "Sum/product/min/max include-self semantics have CPU regressions; mean remains explicitly unsupported.",
+      "known_limitations": null,
       "required_cases": [
         "small-f32",
         "rect-f32",
@@ -12200,7 +12332,7 @@
             }
           ],
           "observed_ops": {
-            "aten::scatter_reduce.two": 1
+            "aten::scatter_reduce.two": 3
           },
           "observed_schemas": {
             "aten::scatter_reduce.two": "aten::scatter_reduce.two(Tensor self, int dim, Tensor index, Tensor src, str reduce, *, bool include_self=True) -> Tensor"
@@ -12256,7 +12388,7 @@
             }
           ],
           "observed_ops": {
-            "aten::scatter_reduce.two": 1
+            "aten::scatter_reduce.two": 3
           },
           "observed_schemas": {
             "aten::scatter_reduce.two": "aten::scatter_reduce.two(Tensor self, int dim, Tensor index, Tensor src, str reduce, *, bool include_self=True) -> Tensor"
@@ -12312,7 +12444,7 @@
             }
           ],
           "observed_ops": {
-            "aten::scatter_reduce.two": 1
+            "aten::scatter_reduce.two": 3
           },
           "observed_schemas": {
             "aten::scatter_reduce.two": "aten::scatter_reduce.two(Tensor self, int dim, Tensor index, Tensor src, str reduce, *, bool include_self=True) -> Tensor"
@@ -15044,12 +15176,14 @@
         "vision_transformer_extra"
       ],
       "pytorch_schema": "aten::pixel_shuffle(Tensor self, int upscale_factor) -> Tensor",
-      "buddy_op": null,
-      "frontend_recognized": false,
-      "lowering_dialects": [],
+      "buddy_op": "PixelShuffleOp",
+      "frontend_recognized": true,
+      "lowering_dialects": [
+        "tosa"
+      ],
       "alias_candidates": [],
-      "static_status": "unmapped",
-      "known_limitations": "Review pending: Vision path; may be unsupported.",
+      "static_status": "registered_lowering",
+      "known_limitations": null,
       "required_cases": [
         "small-f32",
         "rect-f32",
@@ -15085,10 +15219,12 @@
             }
           ],
           "observed_ops": {
-            "aten::pixel_shuffle.default": 1
+            "aten::pixel_shuffle.default": 2,
+            "aten::slice.Tensor": 1
           },
           "observed_schemas": {
-            "aten::pixel_shuffle.default": "aten::pixel_shuffle(Tensor self, int upscale_factor) -> Tensor"
+            "aten::pixel_shuffle.default": "aten::pixel_shuffle(Tensor self, int upscale_factor) -> Tensor",
+            "aten::slice.Tensor": "aten::slice.Tensor(Tensor(a) self, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor(a)"
           },
           "graph_count": 1,
           "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
@@ -15123,10 +15259,12 @@
             }
           ],
           "observed_ops": {
-            "aten::pixel_shuffle.default": 1
+            "aten::pixel_shuffle.default": 2,
+            "aten::slice.Tensor": 1
           },
           "observed_schemas": {
-            "aten::pixel_shuffle.default": "aten::pixel_shuffle(Tensor self, int upscale_factor) -> Tensor"
+            "aten::pixel_shuffle.default": "aten::pixel_shuffle(Tensor self, int upscale_factor) -> Tensor",
+            "aten::slice.Tensor": "aten::slice.Tensor(Tensor(a) self, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor(a)"
           },
           "graph_count": 1,
           "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
@@ -15161,10 +15299,12 @@
             }
           ],
           "observed_ops": {
-            "aten::pixel_shuffle.default": 1
+            "aten::pixel_shuffle.default": 2,
+            "aten::slice.Tensor": 1
           },
           "observed_schemas": {
-            "aten::pixel_shuffle.default": "aten::pixel_shuffle(Tensor self, int upscale_factor) -> Tensor"
+            "aten::pixel_shuffle.default": "aten::pixel_shuffle(Tensor self, int upscale_factor) -> Tensor",
+            "aten::slice.Tensor": "aten::slice.Tensor(Tensor(a) self, int dim=0, SymInt? start=None, SymInt? end=None, SymInt step=1) -> Tensor(a)"
           },
           "graph_count": 1,
           "decomposition": "no user decomposition table; Buddy AOT functionalization may rewrite ops",
@@ -15179,12 +15319,14 @@
         "vision_transformer_extra"
       ],
       "pytorch_schema": "aten::pixel_unshuffle(Tensor self, int downscale_factor) -> Tensor",
-      "buddy_op": null,
-      "frontend_recognized": false,
-      "lowering_dialects": [],
+      "buddy_op": "PixelUnshuffleOp",
+      "frontend_recognized": true,
+      "lowering_dialects": [
+        "tosa"
+      ],
       "alias_candidates": [],
-      "static_status": "unmapped",
-      "known_limitations": "Review pending: Vision path; may be unsupported.",
+      "static_status": "registered_lowering",
+      "known_limitations": "Non-empty static CPU inputs have numerical regressions. Empty inputs are explicitly rejected because PyTorch 2.10 eager output shape disagrees with export metadata.",
       "required_cases": [
         "small-f32",
         "rect-f32",

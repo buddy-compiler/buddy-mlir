@@ -5609,7 +5609,7 @@ def scatter_reduce_op(
         else bool(node.kwargs.get("include_self", True))
     )
     reduce_op = {"add": "sum", "multiply": "prod"}.get(reduce_op, reduce_op)
-    if reduce_op not in ("sum", "prod", "amax", "amin"):
+    if reduce_op not in ("sum", "prod", "mean", "amax", "amin"):
         raise NotImplementedError(f"Unsupported scatter reduction: {reduce_op}")
 
     if index_tensor is None:
@@ -5662,6 +5662,16 @@ def scatter_reduce_op(
     step = arith.ConstantOp(ir.IndexType.get(), 1)
     ubs = [arith.ConstantOp(ir.IndexType.get(), s) for s in index_shape]
 
+    counts = None
+    if reduce_op == "mean":
+        count_type = ir.IntegerType.get_signless(64)
+        counts = memref.AllocOp(
+            ir.MemRefType.get(input_shape, count_type), [], []
+        )
+        initial_count = arith.ConstantOp(count_type, int(include_self))
+        linalg.fill(initial_count.result, outs=[counts.result])
+        one_count = arith.ConstantOp(count_type, 1)
+
     visited = None
     if not include_self:
         flag_type = ir.IntegerType.get_signless(1)
@@ -5682,6 +5692,10 @@ def scatter_reduce_op(
             "scatter reduction index out of bounds",
         )
         current = memref.LoadOp(input_memref, target_indices).result
+        if counts is not None:
+            count = memref.LoadOp(counts, target_indices)
+            incremented = arith.AddIOp(count.result, one_count.result)
+            memref.StoreOp(incremented, counts, target_indices)
         was_seen = None
         if visited is not None:
             was_seen = memref.LoadOp(visited, target_indices).result
@@ -5723,7 +5737,7 @@ def scatter_reduce_op(
             curr_val, was_seen = checked_current(target_indices)
 
             # Apply the reduction operation
-            if reduce_op == "sum":
+            if reduce_op in ("sum", "mean"):
                 if is_float:
                     new_val = arith.AddFOp(curr_val, src_val)
                 else:
@@ -5777,7 +5791,7 @@ def scatter_reduce_op(
                 target_indices[dim] = scatter_idx
                 curr_val, was_seen = checked_current(target_indices)
 
-                if reduce_op == "sum":
+                if reduce_op in ("sum", "mean"):
                     if is_float:
                         new_val = arith.AddFOp(curr_val, src_val)
                     else:
@@ -5811,6 +5825,32 @@ def scatter_reduce_op(
         raise NotImplementedError(
             "scatter_reduce requires index rank to match tensor rank"
         )
+
+    if counts is not None:
+
+        def normalize_mean(depth, indices):
+            if depth == tensor_rank:
+                value = memref.LoadOp(input_memref, indices)
+                count = memref.LoadOp(counts, indices)
+                # Untouched entries retain self, including include_self=False.
+                divisor = arith.MaxSIOp(count.result, one_count.result).result
+                if is_float:
+                    denominator = arith.SIToFPOp(mlir_dtype, divisor)
+                    result = arith.DivFOp(value.result, denominator.result)
+                else:
+                    if mlir_dtype != count_type:
+                        divisor = arith.TruncIOp(mlir_dtype, divisor).result
+                    # ATen integer mean rounds toward negative infinity.
+                    result = arith.FloorDivSIOp(value.result, divisor)
+                memref.StoreOp(result, input_memref, indices)
+                return
+            upper = arith.ConstantOp(ir.IndexType.get(), input_shape[depth])
+            loop = scf.ForOp(lb, upper, step)
+            with ir.InsertionPoint(loop.body):
+                normalize_mean(depth + 1, indices + [loop.induction_variable])
+                scf.YieldOp(loop.inner_iter_args)
+
+        normalize_mean(0, [])
 
     # Convert back to tensor
     output_tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
@@ -8034,329 +8074,145 @@ def avg_pool3d_op(
     return result
 
 
-def topk_op(
-    node: TopkOp,
-    symbol_table: dict[tuple[str, int], ir.Operation],
-):
-    """
-    Import the topk operation.
-    From buddy TopkOp to MLIR operations using scf.for loops.
-    aten.topk(input, k, dim, largest, sorted) -> (values, indices)
+def topk_op(node: TopkOp, symbol_table):
+    """Select distinct indices along a static axis; NaNs rank above numbers.
 
-    Returns the k largest (or smallest) elements along a dimension.
-    Uses a selection-sort based approach with scf.for loops.
+    Results are sorted even when sorted=False, which permits either order.
+    Equal values retain their first unused index; PyTorch does not promise a
+    particular index order for ties. Work is proportional to axis length * k.
     """
-    input_tensor = symbol_table.get((str(node.args[0]), 0))
+    source = symbol_table[(str(node.args[0]), 0)]
+    source_type = ir.RankedTensorType(source.type)
+    shape = list(source_type.shape)
+    dtype = source_type.element_type
     k = node.args[1]
-    dim = node.args[2] if len(node.args) > 2 else -1
-    largest = node.args[3] if len(node.args) > 3 else True
-    # sorted_result = node.args[4] if len(node.args) > 4 else True  # We always sort
-
-    if not isinstance(k, int):
-        raise NotImplementedError("topk requires static integer k")
-
-    input_shape = list(ir.RankedTensorType(input_tensor.type).shape)
-    input_dtype = ir.RankedTensorType(input_tensor.type).element_type
-    ndim = len(input_shape)
-    if any(dim_size < 0 for dim_size in input_shape):
-        raise NotImplementedError("topk requires static shapes")
-
-    # Handle negative dim
+    dim = node.args[2] if len(node.args) > 2 else node.kwargs.get("dim", -1)
+    largest = (
+        node.args[3] if len(node.args) > 3 else node.kwargs.get("largest", True)
+    )
+    if not isinstance(k, int) or any(size < 0 for size in shape):
+        raise NotImplementedError("topk requires static shapes and integer k")
+    rank = len(shape)
     if dim < 0:
-        dim = ndim + dim
-    if dim < 0 or dim >= ndim:
-        raise NotImplementedError("topk dim out of range")
-
-    # Output shape: same as input but dim becomes k
-    output_shape = input_shape.copy()
-    output_shape[dim] = k
-
-    values_type = ir.RankedTensorType.get(output_shape, input_dtype)
-    indices_type = ir.RankedTensorType.get(
-        output_shape, ir.IntegerType.get_signless(64)
-    )
-    values_memref_type = ir.MemRefType.get(output_shape, input_dtype)
-    indices_memref_type = ir.MemRefType.get(
-        output_shape, ir.IntegerType.get_signless(64)
-    )
-
-    # Allocate output memrefs
-    values_memref = memref.AllocOp(values_memref_type, [], [])
-    indices_memref = memref.AllocOp(indices_memref_type, [], [])
-
-    # Convert input to memref
-    input_memref = bufferization.ToBufferOp(
-        ir.MemRefType.get(input_shape, input_dtype), input_tensor
-    ).result
-
-    dim_size = input_shape[dim]
-    if dim_size < 0:
-        raise NotImplementedError("topk requires static dim size")
-    if k < 0 or k > dim_size:
-        raise NotImplementedError("topk k out of range")
-
-    is_float = _is_float_type(input_dtype)
-    is_int = isinstance(input_dtype, ir.IntegerType)
-    if not is_float and not is_int:
+        dim += max(rank, 1)
+    if not 0 <= dim < max(rank, 1):
+        raise ValueError("topk dimension out of range")
+    extent = shape[dim] if rank else 1
+    if not 0 <= k <= extent:
+        raise ValueError("topk k out of range")
+    is_float = _is_float_type(dtype)
+    if not is_float and (
+        not isinstance(dtype, ir.IntegerType) or dtype.width == 1
+    ):
         raise NotImplementedError(
-            "topk only supports integer or floating types"
+            "topk requires real floating or integer values"
         )
 
-    def _integer_bounds(dtype: ir.Type) -> tuple[int, int]:
-        bitwidth = ir.IntegerType(dtype).width
-        if bitwidth == 1:
-            return 0, 1
-        min_val = -(1 << (bitwidth - 1))
-        max_val = (1 << (bitwidth - 1)) - 1
-        return min_val, max_val
+    output_shape = shape.copy()
+    if rank:
+        output_shape[dim] = k
+    i64 = ir.IntegerType.get_signless(64)
+    values_type = ir.RankedTensorType.get(output_shape, dtype)
+    indices_type = ir.RankedTensorType.get(output_shape, i64)
+    if 0 in output_shape:
+        return tensor.EmptyOp(output_shape, dtype), tensor.EmptyOp(
+            output_shape, i64
+        )
+    values = memref.AllocOp(ir.MemRefType.get(output_shape, dtype), [], [])
+    indices = memref.AllocOp(ir.MemRefType.get(output_shape, i64), [], [])
+    if not rank:
+        memref.StoreOp(tensor.ExtractOp(source, []).result, values, [])
+        memref.StoreOp(arith.ConstantOp(i64, 0).result, indices, [])
+    else:
+        index_type = ir.IndexType.get()
+        c0 = arith.ConstantOp(index_type, 0).result
+        c1 = arith.ConstantOp(index_type, 1).result
+        missing = arith.ConstantOp(index_type, -1).result
+        limit = arith.ConstantOp(index_type, extent).result
+        count = arith.ConstantOp(index_type, k).result
+        flag_type = ir.IntegerType.get_signless(1)
+        seen = arith.ConstantOp(flag_type, 1).result
+        unseen = arith.ConstantOp(flag_type, 0).result
+        used = memref.AllocOp(ir.MemRefType.get(shape, flag_type), [], [])
+        linalg.fill(unseen, outs=[used.result])
+        initial = arith.ConstantOp(dtype, 0.0 if is_float else 0).result
 
-    def _best_init_value() -> ir.Value:
-        if is_float:
-            init = float("-inf") if largest else float("inf")
-            return arith.ConstantOp(
-                input_dtype, ir.FloatAttr.get(input_dtype, init)
-            ).result
-        min_val, max_val = _integer_bounds(input_dtype)
-        init = min_val if largest else max_val
-        return arith.ConstantOp(
-            input_dtype, ir.IntegerAttr.get(input_dtype, init)
-        ).result
-
-    def _is_better(val: ir.Value, best: ir.Value) -> ir.Value:
-        if is_float:
+        def better(value, best):
+            if not is_float:
+                pred = (
+                    arith.CmpIPredicate.sgt
+                    if largest
+                    else arith.CmpIPredicate.slt
+                )
+                return arith.CmpIOp(pred, value, best).result
             pred = (
                 arith.CmpFPredicate.OGT if largest else arith.CmpFPredicate.OLT
             )
-            return arith.CmpFOp(pred, val, best).result
-        pred = arith.CmpIPredicate.sgt if largest else arith.CmpIPredicate.slt
-        return arith.CmpIOp(pred, val, best).result
-
-    # Create index constants
-    c0 = arith.ConstantOp(
-        ir.IndexType.get(), ir.IntegerAttr.get(ir.IndexType.get(), 0)
-    ).result
-    c1 = arith.ConstantOp(
-        ir.IndexType.get(), ir.IntegerAttr.get(ir.IndexType.get(), 1)
-    ).result
-    ck = arith.ConstantOp(
-        ir.IndexType.get(), ir.IntegerAttr.get(ir.IndexType.get(), k)
-    ).result
-    cdim_size = arith.ConstantOp(
-        ir.IndexType.get(), ir.IntegerAttr.get(ir.IndexType.get(), dim_size)
-    ).result
-
-    # For simplicity, we handle the 1D and 2D cases
-    # Full n-dimensional would require more complex index handling
-
-    if ndim == 1:
-        # 1D case: topk along the only dimension
-        # Allocate auxiliary memrefs for tracking used indices
-        used_memref_type = ir.MemRefType.get(
-            [dim_size], ir.IntegerType.get_signless(1)
-        )
-        used_memref = memref.AllocOp(used_memref_type, [], [])
-
-        # Initialize used flags to 0 (false)
-        c0_i1 = arith.ConstantOp(
-            ir.IntegerType.get_signless(1),
-            ir.IntegerAttr.get(ir.IntegerType.get_signless(1), 0),
-        ).result
-        c1_i1 = arith.ConstantOp(
-            ir.IntegerType.get_signless(1),
-            ir.IntegerAttr.get(ir.IntegerType.get_signless(1), 1),
-        ).result
-        init_loop = scf.ForOp(c0, cdim_size, c1)
-        with ir.InsertionPoint(init_loop.body):
-            i = init_loop.induction_variable
-            memref.StoreOp(c0_i1, used_memref.result, [i])
-            scf.YieldOp([])
-
-        # Find k largest/smallest
-        k_loop = scf.ForOp(c0, ck, c1)
-        with ir.InsertionPoint(k_loop.body):
-            ki = k_loop.induction_variable
-
-            # Local memrefs for best value and index
-            best_val_memref = memref.AllocaOp(
-                ir.MemRefType.get([], input_dtype), [], []
-            )
-            best_idx_memref = memref.AllocaOp(
-                ir.MemRefType.get([], ir.IndexType.get()), [], []
-            )
-
-            # Initialize with extreme value
-            memref.StoreOp(_best_init_value(), best_val_memref.result, [])
-            memref.StoreOp(c0, best_idx_memref.result, [])
-
-            # Find best unused value
-            search_loop = scf.ForOp(c0, cdim_size, c1)
-            with ir.InsertionPoint(search_loop.body):
-                j = search_loop.induction_variable
-
-                used_flag = memref.LoadOp(used_memref.result, [j]).result
-                not_used = arith.CmpIOp(
-                    arith.CmpIPredicate.ne, used_flag, c1_i1
-                ).result
-
-                check_if = scf.IfOp(not_used, has_else=False)
-                with ir.InsertionPoint(check_if.then_block):
-                    val = memref.LoadOp(input_memref, [j]).result
-                    best_val = memref.LoadOp(best_val_memref.result, []).result
-
-                    is_better = _is_better(val, best_val)
-
-                    update_if = scf.IfOp(is_better, has_else=False)
-                    with ir.InsertionPoint(update_if.then_block):
-                        memref.StoreOp(val, best_val_memref.result, [])
-                        memref.StoreOp(j, best_idx_memref.result, [])
-                        scf.YieldOp([])
-                    scf.YieldOp([])
-                scf.YieldOp([])
-
-            # Store result and mark as used
-            best_val_final = memref.LoadOp(best_val_memref.result, []).result
-            best_idx_final = memref.LoadOp(best_idx_memref.result, []).result
-            memref.StoreOp(best_val_final, values_memref.result, [ki])
-            best_idx_i64 = arith.IndexCastOp(
-                ir.IntegerType.get_signless(64), best_idx_final
+            ordered = arith.CmpFOp(pred, value, best).result
+            value_nan = arith.CmpFOp(
+                arith.CmpFPredicate.UNO, value, value
             ).result
-            memref.StoreOp(best_idx_i64, indices_memref.result, [ki])
-            memref.StoreOp(c1_i1, used_memref.result, [best_idx_final])
-            scf.YieldOp([])
+            best_nan = arith.CmpFOp(arith.CmpFPredicate.UNO, best, best).result
+            nan_wins = arith.AndIOp(
+                value_nan if largest else best_nan,
+                arith.XOrIOp(best_nan if largest else value_nan, seen).result,
+            ).result
+            return arith.OrIOp(ordered, nan_wins).result
 
-    elif ndim == 2:
-        # 2D case
-        other_dim = 1 - dim
-        cother = arith.ConstantOp(
-            ir.IndexType.get(),
-            ir.IntegerAttr.get(ir.IndexType.get(), input_shape[other_dim]),
-        ).result
-
-        # Allocate used flags for each row/col
-        used_memref_type = ir.MemRefType.get(
-            [input_shape[other_dim], dim_size], ir.IntegerType.get_signless(1)
-        )
-        used_memref = memref.AllocOp(used_memref_type, [], [])
-
-        c0_i1 = arith.ConstantOp(
-            ir.IntegerType.get_signless(1),
-            ir.IntegerAttr.get(ir.IntegerType.get_signless(1), 0),
-        ).result
-        c1_i1 = arith.ConstantOp(
-            ir.IntegerType.get_signless(1),
-            ir.IntegerAttr.get(ir.IntegerType.get_signless(1), 1),
-        ).result
-
-        # Initialize used flags
-        init_outer = scf.ForOp(c0, cother, c1)
-        with ir.InsertionPoint(init_outer.body):
-            io = init_outer.induction_variable
-            init_inner = scf.ForOp(c0, cdim_size, c1)
-            with ir.InsertionPoint(init_inner.body):
-                ii = init_inner.induction_variable
-                memref.StoreOp(c0_i1, used_memref.result, [io, ii])
+        def visit_axis(coordinates):
+            select_loop = scf.ForOp(c0, count, c1)
+            with ir.InsertionPoint(select_loop.body):
+                search = scf.ForOp(c0, limit, c1, [initial, missing])
+                with ir.InsertionPoint(search.body):
+                    at = list(coordinates)
+                    at[dim] = search.induction_variable
+                    value = tensor.ExtractOp(source, at).result
+                    taken = memref.LoadOp(used, at).result
+                    best, best_index = search.inner_iter_args
+                    first = arith.CmpIOp(
+                        arith.CmpIPredicate.eq, best_index, missing
+                    ).result
+                    choose = arith.AndIOp(
+                        arith.XOrIOp(taken, seen).result,
+                        arith.OrIOp(first, better(value, best)).result,
+                    ).result
+                    scf.YieldOp(
+                        [
+                            arith.SelectOp(choose, value, best).result,
+                            arith.SelectOp(
+                                choose, search.induction_variable, best_index
+                            ).result,
+                        ]
+                    )
+                target = list(coordinates)
+                target[dim] = select_loop.induction_variable
+                memref.StoreOp(search.results[0], values, target)
+                selected_index = arith.IndexCastOp(
+                    i64, search.results[1]
+                ).result
+                memref.StoreOp(selected_index, indices, target)
+                selected = list(coordinates)
+                selected[dim] = search.results[1]
+                memref.StoreOp(seen, used, selected)
                 scf.YieldOp([])
-            scf.YieldOp([])
 
-        # Outer loop over the other dimension
-        outer_loop = scf.ForOp(c0, cother, c1)
-        with ir.InsertionPoint(outer_loop.body):
-            outer_idx = outer_loop.induction_variable
-
-            # Find k elements
-            k_loop = scf.ForOp(c0, ck, c1)
-            with ir.InsertionPoint(k_loop.body):
-                ki = k_loop.induction_variable
-
-                best_val_memref = memref.AllocaOp(
-                    ir.MemRefType.get([], input_dtype), [], []
-                )
-                best_idx_memref = memref.AllocaOp(
-                    ir.MemRefType.get([], ir.IndexType.get()), [], []
-                )
-
-                memref.StoreOp(_best_init_value(), best_val_memref.result, [])
-                memref.StoreOp(c0, best_idx_memref.result, [])
-
-                search_loop = scf.ForOp(c0, cdim_size, c1)
-                with ir.InsertionPoint(search_loop.body):
-                    j = search_loop.induction_variable
-
-                    used_flag = memref.LoadOp(
-                        used_memref.result, [outer_idx, j]
-                    ).result
-                    not_used = arith.CmpIOp(
-                        arith.CmpIPredicate.ne, used_flag, c1_i1
-                    ).result
-
-                    check_if = scf.IfOp(not_used, has_else=False)
-                    with ir.InsertionPoint(check_if.then_block):
-                        if dim == 1:
-                            val = memref.LoadOp(
-                                input_memref, [outer_idx, j]
-                            ).result
-                        else:
-                            val = memref.LoadOp(
-                                input_memref, [j, outer_idx]
-                            ).result
-                        best_val = memref.LoadOp(
-                            best_val_memref.result, []
-                        ).result
-
-                        is_better = _is_better(val, best_val)
-
-                        update_if = scf.IfOp(is_better, has_else=False)
-                        with ir.InsertionPoint(update_if.then_block):
-                            memref.StoreOp(val, best_val_memref.result, [])
-                            memref.StoreOp(j, best_idx_memref.result, [])
-                            scf.YieldOp([])
-                        scf.YieldOp([])
+        def visit(depth, coordinates):
+            if depth == rank:
+                visit_axis(coordinates)
+            elif depth == dim:
+                visit(depth + 1, coordinates + [c0])
+            else:
+                upper = arith.ConstantOp(index_type, shape[depth]).result
+                loop = scf.ForOp(c0, upper, c1)
+                with ir.InsertionPoint(loop.body):
+                    visit(depth + 1, coordinates + [loop.induction_variable])
                     scf.YieldOp([])
 
-                best_val_final = memref.LoadOp(
-                    best_val_memref.result, []
-                ).result
-                best_idx_final = memref.LoadOp(
-                    best_idx_memref.result, []
-                ).result
-
-                if dim == 1:
-                    memref.StoreOp(
-                        best_val_final, values_memref.result, [outer_idx, ki]
-                    )
-                    best_idx_i64 = arith.IndexCastOp(
-                        ir.IntegerType.get_signless(64), best_idx_final
-                    ).result
-                    memref.StoreOp(
-                        best_idx_i64, indices_memref.result, [outer_idx, ki]
-                    )
-                else:
-                    memref.StoreOp(
-                        best_val_final, values_memref.result, [ki, outer_idx]
-                    )
-                    best_idx_i64 = arith.IndexCastOp(
-                        ir.IntegerType.get_signless(64), best_idx_final
-                    ).result
-                    memref.StoreOp(
-                        best_idx_i64, indices_memref.result, [ki, outer_idx]
-                    )
-                memref.StoreOp(
-                    c1_i1, used_memref.result, [outer_idx, best_idx_final]
-                )
-                scf.YieldOp([])
-            scf.YieldOp([])
-
-    else:
-        raise NotImplementedError("topk only supports rank-1/2 tensors")
-
-    values_result = bufferization.ToTensorOp(
-        values_type, values_memref.result, restrict=True
+        visit(0, [])
+    return (
+        bufferization.ToTensorOp(values_type, values, restrict=True),
+        bufferization.ToTensorOp(indices_type, indices, restrict=True),
     )
-    indices_result = bufferization.ToTensorOp(
-        indices_type, indices_memref.result, restrict=True
-    )
-
-    return values_result, indices_result
 
 
 def kthvalue_op(

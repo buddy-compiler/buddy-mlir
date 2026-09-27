@@ -91,7 +91,7 @@ class TorchTests(unittest.TestCase):
                     )
                     self.assertEqual(len(expected_leaves), len(actual_leaves))
                     for ref, out in zip(expected_leaves, actual_leaves):
-                        torch.testing.assert_close(out, ref, equal_nan=False)
+                        torch.testing.assert_close(out, ref, equal_nan=True)
 
     def test_moe_matches_explicit_token_expert_reference(self):
         torch = self.torch
@@ -132,6 +132,25 @@ class TorchTests(unittest.TestCase):
                 worker.compare_outputs(
                     torch.tensor([100000]), torch.tensor([100001]), torch
                 )
+
+    def test_compare_requires_matching_nan_positions(self):
+        torch = self.torch
+        expected = torch.tensor([float("nan"), 2.0, float("inf")])
+        with mock_modules({"aten_coverage_runner": self.helper}):
+            worker.compare_outputs(expected, expected.clone(), torch)
+            for values in (
+                [0.0, 2.0, float("inf")],
+                [float("nan"), float("nan"), float("inf")],
+                [2.0, float("nan"), float("inf")],
+                [float("nan"), 2.0, float("-inf")],
+            ):
+                with (
+                    self.subTest(values=values),
+                    self.assertRaises(AssertionError),
+                ):
+                    worker.compare_outputs(
+                        expected, torch.tensor(values), torch
+                    )
 
     def test_adapter_stage_boundaries_with_fake_backend(self):
         # This validates orchestration only, and is never a coverage measurement.

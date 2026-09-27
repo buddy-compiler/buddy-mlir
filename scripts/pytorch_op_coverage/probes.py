@@ -144,10 +144,17 @@ def build_case(name, profile):
     fn = op
     if name == "aten::_scaled_dot_product_flash_attention_for_cpu.default":
 
-        def fn(q, k, v):
-            return op(q, k, v, 0.0, True)
+        def fn(q, k, v, mask):
+            return (
+                *op(q, k, v, 0.0, True),
+                *op(q, k, v, 0.0, True, attn_mask=mask),
+                *op(q, k, v, 0.0, False, attn_mask=mask[0, 0]),
+            )
 
         args = (rand(1, 2, n, 4), rand(1, 2, d, 4), rand(1, 2, d, 4))
+        mask = rand(1, 2, n, d)
+        mask[..., 0, :] = float("-inf")
+        args = (*args, mask)
     elif name in ("aten::index.Tensor", "aten::_unsafe_index.Tensor"):
         fn, args = lambda a, i: op(a, [i]), (x, torch.tensor([0, n - 1, 0]))
     elif name == "aten::contiguous.default":
@@ -186,7 +193,11 @@ def build_case(name, profile):
             index[:, 1] = 0
 
             def fn(a, i, s):
-                return op(a, 1, i, s, "sum", include_self=False)
+                return (
+                    op(a, 1, i, s, "sum", include_self=False),
+                    op(a, 1, i, s, "mean", include_self=False),
+                    op(a, 1, i, s, "mean", include_self=True),
+                )
 
             args = (x, index, source)
     elif name == "aten::masked_scatter.default":
@@ -280,7 +291,10 @@ def build_case(name, profile):
     elif name == "aten::reflection_pad2d.default":
         fn, args = lambda a: op(a, [1, 2, 1, 1]), (rand(1, 2, n + 1, d),)
     elif name == "aten::pixel_shuffle.default":
-        fn, args = lambda a: op(a, 2), (rand(1, 8, n, d),)
+        fn, args = (
+            lambda a: (op(a, 2), op(a[..., 1::2], 2)),
+            (rand(1, 8, n, d),),
+        )
     elif name == "aten::pixel_unshuffle.default":
         fn, args = lambda a: op(a, 2), (rand(1, 2, 2 * n, 2 * d),)
     elif name in ("aten::add.Tensor", "aten::mul.Tensor"):
@@ -355,7 +369,18 @@ def build_case(name, profile):
     elif name == "aten::argsort.default":
         fn, args = lambda a: (op(a), op(a.T, 0, True)), (x,)
     elif name == "aten::topk.default":
-        fn, args = lambda a: op(a, 2, -1, True, True), (x,)
+
+        def fn(a, edge):
+            return (
+                *op(a, 2, -1, True, True),
+                *op(a[:, ::2].T, 2, 0, False, True),
+                *op(edge, 2, -1, True, True),
+            )
+
+        args = (
+            x,
+            torch.tensor([float("nan"), 3, 1, float("-inf")], dtype=dtype),
+        )
     elif name == "aten::gather.default":
 
         def fn(a, b):

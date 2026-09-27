@@ -42,6 +42,13 @@ class EvidenceTests(unittest.TestCase):
         self.assertTrue(item.alias_candidates)
 
     def test_live_pass_and_failure_do_not_change_source_counts(self):
+        # Accounting must not depend on a real operator remaining unsupported.
+        limited = next(
+            r for r in self.records if r.operator == "aten::topk.default"
+        )
+        limited.known_limitations = (
+            "Synthetic limitation for this accounting test"
+        )
         before = classify.summarize(self.records)
         for r in self.records:
             r.cases = [passed(case_id) for case_id in r.required_cases]
@@ -56,9 +63,6 @@ class EvidenceTests(unittest.TestCase):
             "total_ops",
         ):
             self.assertEqual(before[key], after[key])
-        limited = next(
-            r for r in self.records if r.operator == "aten::topk.default"
-        )
         self.assertFalse(limited.validated())
         self.assertTrue(limited.known_limitations)
 
