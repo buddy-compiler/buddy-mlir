@@ -3,10 +3,10 @@ BUDDY_TRANSLATE := ../../build/bin/buddy-translate
 BUDDY_LLC := ../../build/bin/buddy-llc
 
 .PHONY: all clean help \
-    ame-th-mmacc-w-b ame-th-mmacc-w-b-lower ame-th-mmacc-w-b-translate ame-th-mmacc-w-b-asm \
-	ame-th-mmaccu-w-b ame-th-mmaccu-w-b-lower ame-th-mmaccu-w-b-translate ame-th-mmaccu-w-b-asm \
-	ame-th-mfmacc-d-s ame-th-mfmacc-d-s-lower ame-th-mfmacc-d-s-translate ame-th-mfmacc-d-s-asm \
-	ame-th-mfmacc-s ame-th-mfmacc-s-lower ame-th-mfmacc-s-translate ame-th-mfmacc-s-asm
+    ame-th-mmacc-w-b ame-th-mmacc-w-b-lower ame-th-mmacc-w-b-translate ame-th-mmacc-w-b-obj \
+	ame-th-mmaccu-w-b ame-th-mmaccu-w-b-lower ame-th-mmaccu-w-b-translate ame-th-mmaccu-w-b-obj \
+	ame-th-mfmacc-d-s ame-th-mfmacc-d-s-lower ame-th-mfmacc-d-s-translate ame-th-mfmacc-d-s-obj \
+	ame-th-mfmacc-s ame-th-mfmacc-s-lower ame-th-mfmacc-s-translate ame-th-mfmacc-s-obj
 
 all: ame-th-mmacc-w-b ame-th-mmaccu-w-b ame-th-mfmacc-d-s ame-th-mfmacc-s
 
@@ -37,7 +37,7 @@ ame-th-mmacc-w-b-translate:
 	        -o ame-th-mmacc-w-b.ll
 	@echo "LLVM IR saved to ame-th-mmacc-w-b.ll"
 
-ame-th-mmacc-w-b-asm:
+ame-th-mmacc-w-b-obj:
 	@echo "=== Generating assembly for tile-based MMACC with B operand demo ==="
 	@${BUDDY_OPT} ame-th-mmacc-w-b.mlir \
 	        --lower-xt-ame \
@@ -51,10 +51,11 @@ ame-th-mmacc-w-b-asm:
 	        -finalize-memref-to-llvm \
 	        -reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
-	${BUDDY_LLC}  -filetype=asm -mtriple=riscv64-unknown-linux-gnu \
-	        -mattr=+xtheadame \
-	        -o ame-th-mmacc-w-b.s
-	@echo "Assembly saved to ame-th-mmacc-w-b.s"
+	${BUDDY_LLC}  -filetype=obj -mtriple=riscv64-unknown-linux-gnu \
+			-target-abi=lp64d \
+	        -mattr=+m,+a,+f,+d,+c,+v,+xtheadame \
+	        -o ame-th-mmacc-w-b.o
+	@echo "Assembly saved to ame-th-mmacc-w-b.o"
 
 ame-th-mmaccu-w-b: ame-th-mmaccu-w-b-lower
 
@@ -82,7 +83,7 @@ ame-th-mmaccu-w-b-translate:
 	        -o ame-th-mmaccu-w-b.ll
 	@echo "LLVM IR saved to ame-th-mmaccu-w-b.ll"
 
-ame-th-mmaccu-w-b-asm:
+ame-th-mmaccu-w-b-obj:
 	@echo "=== Generating assembly for tile-based MMACC-U with B operand demo ==="
 	@${BUDDY_OPT} ame-th-mmaccu-w-b.mlir \
 	        --lower-xt-ame \
@@ -97,10 +98,10 @@ ame-th-mmaccu-w-b-asm:
 	        -finalize-memref-to-llvm \
 	        -reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
-	${BUDDY_LLC}  -filetype=asm -mtriple=riscv64-unknown-linux-gnu \
-	        -mattr=+xtheadame \
-	        -o ame-th-mmaccu-w-b.s
-	@echo "Assembly saved to ame-th-mmaccu-w-b.s"
+	${BUDDY_LLC}  -filetype=obj -mtriple=riscv64-unknown-linux-gnu \
+	        -mattr=+m,+a,+f,+d,+c,+v,+xtheadame \
+	        -o ame-th-mmaccu-w-b.o
+	@echo "Assembly saved to ame-th-mmaccu-w-b.o"
 
 ame-th-mfmacc-d-s: ame-th-mfmacc-d-s-lower
 
@@ -128,7 +129,7 @@ ame-th-mfmacc-d-s-translate:
 	        -o ame-th-mfmacc-d-s.ll
 	@echo "LLVM IR saved to ame-th-mfmacc-d-s.ll"
 
-ame-th-mfmacc-d-s-asm:
+ame-th-mfmacc-d-s-obj:
 	@echo "=== Generating assembly for tile-based MFMACC with D and S operand demo ==="
 	@${BUDDY_OPT} ame-th-mfmacc-d-s.mlir \
 	        --lower-xt-ame \
@@ -142,10 +143,11 @@ ame-th-mfmacc-d-s-asm:
 	        -finalize-memref-to-llvm \
 	        -reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
-	${BUDDY_LLC}  -filetype=asm -mtriple=riscv64-unknown-linux-gnu \
-	        -mattr=+xtheadame \
-	        -o ame-th-mfmacc-d-s.s
-	@echo "Assembly saved to ame-th-mfmacc-d-s.s"
+	${BUDDY_LLC}  -filetype=obj -mtriple=riscv64-unknown-linux-gnu \
+			-target-abi=lp64d \
+	        -mattr=+m,+a,+f,+d,+c,+v,+xtheadame \
+	        -o ame-th-mfmacc-d-s.o
+	@echo "Object file saved to ame-th-mfmacc-d-s.o"
 
 ame-th-mfmacc-s: ame-th-mfmacc-s-lower
 
@@ -173,7 +175,7 @@ ame-th-mfmacc-s-translate:
 	        -o ame-th-mfmacc-s.ll
 	@echo "LLVM IR saved to ame-th-mfmacc-s.ll"
 
-ame-th-mfmacc-s-asm:
+ame-th-mfmacc-s-obj:
 	@echo "=== Generating assembly for tile-based MFMACC with S operand demo ==="
 	@${BUDDY_OPT} ame-th-mfmacc-s.mlir \
 	        --lower-xt-ame \
@@ -187,10 +189,11 @@ ame-th-mfmacc-s-asm:
 	        -finalize-memref-to-llvm \
 	        -reconcile-unrealized-casts | \
 	${BUDDY_TRANSLATE} --buddy-to-llvmir | \
-	${BUDDY_LLC}  -filetype=asm -mtriple=riscv64-unknown-linux-gnu \
-	        -mattr=+xtheadame \
-	        -o ame-th-mfmacc-s.s
-	@echo "Assembly saved to ame-th-mfmacc-s.s"
+	${BUDDY_LLC}  -filetype=obj -mtriple=riscv64 \
+			-target-abi=lp64d \
+	        -mattr=+m,+a,+f,+d,+c,+v,+xtheadame \
+	        -o ame-th-mfmacc-s.o
+	@echo "Assembly saved to ame-th-mfmacc-s.o"
 
 clean:
-	rm -f *.ll *.s *-lowered.mlir
+	rm -f *.ll *.o *-lowered.mlir

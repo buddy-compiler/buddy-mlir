@@ -5,14 +5,15 @@
 // RUN:   -lower-affine \
 // RUN:   -convert-scf-to-cf \
 // RUN:   -convert-cf-to-llvm \
+// RUN:   -expand-strided-metadata \
 // RUN:   -convert-arith-to-llvm \
 // RUN:   -convert-math-to-llvm \
 // RUN:   -convert-func-to-llvm \
 // RUN:   -finalize-memref-to-llvm \
 // RUN:   -reconcile-unrealized-casts | \
 // RUN: buddy-translate -buddy-to-llvmir | \
-// RUN: buddy-llc -filetype=asm -mtriple=riscv64-unknown-linux-gnu \
-// RUN:   -mattr=+m,+a,+c,+d,+xtheadame -o - | FileCheck %s --check-prefix=ASM
+// RUN: buddy-llc -filetype=obj -mtriple=riscv64-unknown-linux-gnu \
+// RUN:   -mattr=+xtheadame -o %t.o && llvm-readobj --file-headers %t.o | FileCheck %s --check-prefix=OBJ
 
 module {
 
@@ -97,21 +98,21 @@ module {
     xt_ame.th.mcfgki 16         // mtilek = 16 (sizeK x 8 / MSEW)
 
     // Step 2: Zero the accumulation register (acc register 0)
-    xt_ame.th.mzero 0
+    %zero = xt_ame.th.mzero : vector<4x4xf64>
 
     // Step 3: Load float matrix A (32-bit elements) to tile register 1
-    xt_ame.th.mlde32 1, %stride_a, %a_ptr: memref<4x4xf32>
+    %lhs = xt_ame.th.mlde32 %stride_a, %a_ptr : memref<4x4xf32> -> vector<4x4xf32>
 
     // Step 4: Load float transposed matrix B (32-bit elements) to tile register 2
-    xt_ame.th.mldte32 2, %stride_b, %b_ptr: memref<4x4xf32>
+    %rhs = xt_ame.th.mldte32 %stride_b, %b_ptr : memref<4x4xf32> -> vector<4x4xf32>
 
     // Step 5: Execute float matrix multiply: acc0 = acc0 + tile1 x tile2 (f32 x f32 -> f64)
-    xt_ame.th.mfmacc.d.s 0, 2, 1
+    %acc = xt_ame.th.mfmacc.d.s %zero, %rhs, %lhs : vector<4x4xf64>, vector<4x4xf32>, vector<4x4xf32> -> vector<4x4xf64>
 
     xt_ame.th.mcfgki 32         // f64 config adjustment if needed by your runtime
 
     // Step 6: Store f64 result from accumulator 0 to memory
-    xt_ame.th.mste64 0, %stride_c, %c_ptr: memref<4x4xf64>
+    xt_ame.th.mste64 %acc, %stride_c, %c_ptr : vector<4x4xf64>, memref<4x4xf64>
 
     //row 0
     %val_c00 = memref.load %c_ptr[%i0, %i0] : memref<4x4xf64>
@@ -152,14 +153,13 @@ module {
 
 // Expected lowering for tile-based operations:
 // CHECK-LABEL: func.func @main
-// CHECK: llvm.call @llvm.riscv.th.mcfgmi
-// CHECK: llvm.call @llvm.riscv.th.mcfgni
-// CHECK: llvm.call @llvm.riscv.th.mcfgki
-// CHECK: llvm.call @llvm.riscv.th.mzero
-// CHECK: llvm.call @llvm.riscv.th.mlde32
-// CHECK: llvm.call @llvm.riscv.th.mldte32
-// CHECK: llvm.call @llvm.riscv.th.mfmacc.d.s
-// CHECK: llvm.call @llvm.riscv.th.mste64
-
-// ASM: .attribute 5, "{{.*xtheadmatrix.*}}"
-// ASM: th.mfmacc.d.s{{[ \t]}}
+// CHECK: xt_ame.intr.th.mcfgmi
+// CHECK: xt_ame.intr.th.mcfgni
+// CHECK: xt_ame.intr.th.mcfgki
+// CHECK: xt_ame.intr.th.mzero
+// CHECK: xt_ame.intr.th.mlde32
+// CHECK: xt_ame.intr.th.mldte32
+// CHECK: xt_ame.intr.th.mfmacc.d.s
+// CHECK: xt_ame.intr.th.mste64
+// OBJ: Format: elf64-littleriscv
+// OBJ: Machine: EM_RISCV

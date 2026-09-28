@@ -84,6 +84,7 @@ tool_dirs = [config.buddy_tools_dir, config.llvm_tools_dir]
 tools = [
     "buddy-opt",
     "buddy-translate",
+    "buddy-llc",
     "buddy-container-test",
     "buddy-audio-container-test",
     "buddy-text-container-test",
