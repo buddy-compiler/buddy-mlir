@@ -1242,12 +1242,14 @@ def import_model(
                 "tiered KV cache import does not support quantized variants"
             )
         with timed_import_step("compile_tiered_graphs"):
-            original_params, packed_decode_params = compile_and_export_tiered_graphs(
-                model,
-                config,
-                output_dir,
-                export_layer_partitioned=export_layer_partitioned,
-                export_template_partitioned=export_template_partitioned,
+            original_params, packed_decode_params = (
+                compile_and_export_tiered_graphs(
+                    model,
+                    config,
+                    output_dir,
+                    export_layer_partitioned=export_layer_partitioned,
+                    export_template_partitioned=export_template_partitioned,
+                )
             )
         with timed_import_step("export_weights"):
             if reuse_existing_weights and can_reuse_existing_weights(

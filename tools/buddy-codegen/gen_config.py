@@ -328,9 +328,7 @@ def derive_decode_pack(hf: dict, spec: dict) -> dict:
     return {
         "enabled": True,
         "vector_size": vecsize,
-        "panels_per_iteration": spec.get(
-            "decode_pack_panels_per_iteration", 1
-        ),
+        "panels_per_iteration": spec.get("decode_pack_panels_per_iteration", 1),
         # Divisibility of every weight's N by vecsize is checked by the graph
         # transform, which is the only thing that knows the full weight set --
         # it covers lm_head and the attention projections, not just the FFN.

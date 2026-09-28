@@ -345,7 +345,9 @@ def gen_impl_tiered(config: dict) -> str:
     )
     weight_addrs_internal = ", ".join(f"{w['tag']}_.get()" for w in weights)
     decode_weight_addrs_internal = ", ".join(
-        f"{w['tag']}_decode_.get()" if w.get("decode_file") else f"{w['tag']}_.get()"
+        f"{w['tag']}_decode_.get()"
+        if w.get("decode_file")
+        else f"{w['tag']}_.get()"
         for w in weights
     )
 
@@ -679,8 +681,11 @@ def gen_impl_tiered(config: dict) -> str:
     # the panel-packed decode Data resident, never both (~6.7 GB each for
     # DeepSeek-R1). Weights without a decode copy are always resident.
     plain_targets = [(idx, w, f"{w['tag']}_") for idx, w in enumerate(weights)]
-    decode_targets = [(idx, w, member) for idx, w, member in load_targets
-                      if member.endswith("_decode_")]
+    decode_targets = [
+        (idx, w, member)
+        for idx, w, member in load_targets
+        if member.endswith("_decode_")
+    ]
     has_staged_loading = len(decode_targets) > 0
 
     def _emit_tiered_weight_load(idx, w, member):
@@ -706,7 +711,9 @@ def gen_impl_tiered(config: dict) -> str:
         p("  }")
 
     if has_staged_loading:
-        p("void ModelSession::loadWeights(const std::vector<std::string> &paths) {")
+        p(
+            "void ModelSession::loadWeights(const std::vector<std::string> &paths) {"
+        )
         p(f"  if (paths.size() < {n_paths}u)")
         p(
             f'    throw std::runtime_error("[BuddyRuntime] Expected {n_paths} weight '
@@ -744,7 +751,9 @@ def gen_impl_tiered(config: dict) -> str:
         p("}")
         p()
     else:
-        p("void ModelSession::loadWeights(const std::vector<std::string> &paths) {")
+        p(
+            "void ModelSession::loadWeights(const std::vector<std::string> &paths) {"
+        )
         p(f"  if (paths.size() < {n_paths}u)")
         p(
             f'    throw std::runtime_error("[BuddyRuntime] Expected {n_paths} weight '
@@ -756,7 +765,9 @@ def gen_impl_tiered(config: dict) -> str:
     p()
     p("void ModelSession::prefill(Text<size_t, 2> &tokens) {")
     if has_staged_loading:
-        p("  // Staged loading: ensure plain weights are in memory for prefill.")
+        p(
+            "  // Staged loading: ensure plain weights are in memory for prefill."
+        )
         p("  loadPrefillWeights();")
         p()
     p("  const int tokenCount = (int)tokens.getTokenCnt();")
@@ -782,7 +793,9 @@ def gen_impl_tiered(config: dict) -> str:
     p("              cacheLen, cacheLen, tokenCount);")
     if has_staged_loading:
         p()
-        p("  // Staged loading: KV/logits are saved; swap to packed decode weights.")
+        p(
+            "  // Staged loading: KV/logits are saved; swap to packed decode weights."
+        )
         p("  loadDecodeWeights();")
     p("  impl_->lastLogitsAreDecode = false;")
     p("  position_ = tokenCount;")
