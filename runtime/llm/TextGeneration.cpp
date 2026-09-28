@@ -237,9 +237,8 @@ GenerationResult runGeneration(const std::string &prompt, LLMSession &session,
 
   // ── Decode loop ─────────────────────────────────────────────────────────
   int curToken = firstToken;
-  const int maxSteps = (maxNewTokens <= 0)
-                           ? std::numeric_limits<int>::max()
-                           : maxNewTokens - 1;
+  const int maxSteps =
+      (maxNewTokens <= 0) ? std::numeric_limits<int>::max() : maxNewTokens - 1;
   double decodeAccumMs = 0.0;
   int decodeCount = 0;
 
@@ -375,9 +374,8 @@ GenerationResult runGeneration(const std::string &prompt, LLMSession &session,
 
   // ── Decode loop ─────────────────────────────────────────────────────────
   int curToken = firstToken;
-  const int maxSteps = (maxNewTokens <= 0)
-                           ? std::numeric_limits<int>::max()
-                           : maxNewTokens - 1;
+  const int maxSteps =
+      (maxNewTokens <= 0) ? std::numeric_limits<int>::max() : maxNewTokens - 1;
   double decodeAccumMs = 0.0;
   int decodeCount = 0;
 
