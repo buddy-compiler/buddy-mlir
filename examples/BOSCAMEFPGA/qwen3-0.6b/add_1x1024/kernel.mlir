@@ -1,5 +1,5 @@
 // Residual add for Qwen3-0.6B (1x1024 f32). Part of the NR operator example
-// suite; see ../../common/README.md for provenance.
+// suite.
 #map = affine_map<(d0, d1) -> (d0, d1)>
 
 module {

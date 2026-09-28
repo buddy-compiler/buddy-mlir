@@ -102,20 +102,20 @@ FailureOr<int64_t> getFpgaMtypeImm(Type elementType, FpgaMtypePhase phase) {
   return failure();
 }
 
-/// Element type that the FPGA prototype convention accepts for one operand or
-/// result role of an AME matrix operation.
+// Element type that the FPGA prototype convention accepts for one operand or
+// result role of an AME matrix operation.
 enum class AmeRole { Tile, Accumulator };
 
-/// Roles of the matrix operands and results of one AME operation.  An MMA has
-/// both an accumulator operand and tile operands, so the role is tracked per
-/// operand rather than per operation.
+// Roles of the matrix operands and results of one AME operation.  An MMA has
+// both an accumulator operand and tile operands, so the role is tracked per
+// operand rather than per operation.
 struct AmeRoleSpec {
   std::optional<AmeRole> operand[3];
   std::optional<AmeRole> result;
 };
 
-/// Classify an AME operation by mnemonic.  Returns std::nullopt for operations
-/// the FPGA convention does not support.
+// Classify an AME operation by mnemonic.  Returns std::nullopt for operations
+// the FPGA convention does not support.
 static std::optional<AmeRoleSpec> classifyAmeMnemonic(llvm::StringRef name) {
   AmeRoleSpec spec;
 

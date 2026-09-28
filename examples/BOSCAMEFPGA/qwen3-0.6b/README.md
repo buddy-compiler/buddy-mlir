@@ -36,13 +36,12 @@ examples/BOSCAMEFPGA/fpga_run.sh \
 Success on UART: `verify <op>: PASS`. Shared launcher notes:
 [`../README.md`](../README.md), [`../tools/README.md`](../tools/README.md).
 
-## Pipeline (every operator)
+## Pipeline (`add_1x1024`)
 
 Via `common.mk`:
 
 1. `buddy-opt --lower-linalg-to-boscame=target=nr-fpga` stamps the NR contract
-2. Further lowering depends on the kernel (elementwise → `convert-linalg-to-loops`;
-   matmul / AME paths differ — see each directory’s `kernel.mlir`)
+2. `convert-linalg-to-loops` lowers the elementwise add
 3. `tools/ame_to_word.py` → `restrict_fpga_assembly.py` → link with `nr.ld`
 4. `tools/check_nr_elf.py` audits the linked ELF
 
@@ -58,8 +57,8 @@ qwen3-0.6b/
 ├── support.h / support.c  # MemRef / workspace / print_check
 ├── tools/
 │   ├── host_main.c        # Host `main` for make check
-│   ├── build_suite.py     # Multi-operator image packing
-│   └── vectorize_nr.py    # Optional matmul vectorization driver
+│   ├── build_suite.py     # Config stamp and lowering audit for common.mk
+│   └── vectorize_nr.py    # Copies the kernel through for kind=add
 └── <op>/                  # One directory per operator (see table above)
     ├── makefile           # include ../common.mk
     ├── kernel.mlir

@@ -23,9 +23,6 @@
 # Clobbers v8, vl, and vtype; callers must not retain vector state across the
 # call.
 #
-# Adapted from ModelZoo runtime/asm/qwen35_rvv_copy.S (commit
-# 8815b74fb6d3cd6288c4d99ac6fd7c5d041a7cc3). See README.md for provenance.
-#
 #===----------------------------------------------------------------------===#
 
   .text

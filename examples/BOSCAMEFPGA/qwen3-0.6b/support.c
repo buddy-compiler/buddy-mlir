@@ -16,7 +16,7 @@
 //
 // Host and board implementations of workspace() and print_check.
 // HOST_TEST uses a static arena and stdio; board builds place qwen_arena in
-// .workspace (NOLOAD). See ../common/README.md for provenance.
+// .workspace (NOLOAD).
 //
 //===----------------------------------------------------------------------===//
 

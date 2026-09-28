@@ -20,9 +20,6 @@
 The source remains linalg. This driver invokes compiler passes and validates
 that the requested FP32 matrix work was lowered into vector FMA; it does not
 replace kernels with handwritten C or assembly implementations.
-
-Part of the NR operator example suite; see ../../common/README.md for
-provenance. This tree does not invent license text for ModelZoo-derived sources.
 """
 
 import argparse

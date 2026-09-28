@@ -14,13 +14,9 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// Adapted from ModelZoo examples/tools/bare_runtime.c, commit
-// 8815b74fb6d3cd6288c4d99ac6fd7c5d041a7cc3. NR uses non-transposed B loads
-// and integer accumulator stores. Every AME instruction is fenced, as in
-// ModelZoo's NR assembly restriction stage. See README.md for provenance.
-//
-// Call ame_fence() only at operator boundaries to resync 1x1 AME state after
-// kernel execution — not inside hot loops.
+// NR uses non-transposed B loads and integer accumulator stores. Every AME
+// instruction is fenced. Call ame_fence() only at operator boundaries to
+// resync 1x1 AME state after kernel execution — not inside hot loops.
 //
 //===----------------------------------------------------------------------===//
 
@@ -89,12 +85,11 @@ static inline void ame_mlae8(const int8_t *base, int stride_bytes) {
 }
 
 // mlbe8.m: non-transposed B load. a0 = base, a1 = stride. 0x08b50077.
-static inline void ame_mlbt8(const int8_t *base, int stride_bytes) {
+// NR does not support transposed B loads (mlbte / mlbt).
+static inline void ame_mlbe8(const int8_t *base, int stride_bytes) {
   register const int8_t *a0 asm("a0") = base;
   register size_t a1 asm("a1") = (size_t)stride_bytes;
-  // The resync tile is exactly 1x1: ordinary and transposed B loads have
-  // identical layout. NR FPGA0 traps on the transposed form.
-  __asm__ volatile("fence rw, rw\n\t.word 0x08b500f7\n\tfence rw, rw" ::"r"(a0),
+  __asm__ volatile("fence rw, rw\n\t.word 0x08b50077\n\tfence rw, rw" ::"r"(a0),
                    "r"(a1)
                    : "memory");
 }
@@ -133,7 +128,7 @@ static void ame_resync_state(void) {
 
   ame_msettype(AME_MTYPE_INT8);
   ame_mlae8(ame_sync_a, (int)sizeof(int8_t));
-  ame_mlbt8(ame_sync_b, (int)sizeof(int8_t));
+  ame_mlbe8(ame_sync_b, (int)sizeof(int8_t));
   ame_mqma_b();
 
   ame_msettype(AME_MTYPE_INT32);

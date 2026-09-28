@@ -18,9 +18,6 @@
 // Applications implement launch() on RA. NH owns UART MMIO and relays the
 // console ring; RA uses nr_puts / nr_write / nr_getchar.
 //
-// Adapted from ModelZoo thirdparty/nr and FPGA platform NH/RA sources.
-// See README.md for provenance.
-//
 //===----------------------------------------------------------------------===//
 
 #ifndef BUDDY_FPGA_NR_RUNTIME_H

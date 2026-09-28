@@ -15,14 +15,13 @@
  *===----------------------------------------------------------------------===
  *
  * Memory map for NH/RA operator images:
- *   - NH boots at 0x80000000; fixed RA mailbox at 0x80010000 (NOLOAD).
+ *   - NH boots at 0x80000000. 0x80010000 is the completion byte (NOLOAD):
+ *     0 running, 1 PASS, 2 FAIL. The RA entry PC is 0x50000000+0x100.
  *   - Code, BSS, dual stacks, and bump heap stay in low DDR (< 0xb0000000).
- *   - ModelZoo reports RA faults in [0xb0000000, 0xb8000000); the large
+ *   - RA faults have been observed in [0xb0000000, 0xb8000000); the large
  *     operator .workspace therefore starts at 0xb8000000 as NOLOAD so the
  *     uploaded .bin stays small. launch() must initialize every element it
  *     reads.
- *
- * Adapted from ModelZoo NR platform linker layout; see README.md.
  *
  *===----------------------------------------------------------------------===*/
 
@@ -56,7 +55,7 @@ SECTIONS {
   .text.init 0x80000000 : { KEEP(*(.text.init)) } > LOW :boot
   ASSERT(. <= 0x80010000, "NR startup overlaps RA mailbox")
 
-  /* Fixed mailbox page: NH writes RA entry / completion; RA polls it. */
+  /* Completion byte only. RA's entry PC is not stored in this page. */
   .nr_mailbox 0x80010000 (NOLOAD) : {
     ra_sig = .;
     . += 0x1000;

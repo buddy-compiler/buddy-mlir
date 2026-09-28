@@ -21,9 +21,6 @@ Walk every SHF_EXECINSTR byte range from the ELF section table. LLVM objdump
 supplies RVV mnemonic names, but raw ELF bytes determine CSR/AME detection and
 fence adjacency, so data-mapped .word encodings cannot bypass the audit.
 This checks the NR AME/RVV contract, not arbitrary scalar ISA compatibility.
-
-Uses nr_isa.py (ModelZoo-adapted allowlists). See common/README.md for
-provenance; this tree does not invent license text for those sources.
 """
 
 import argparse

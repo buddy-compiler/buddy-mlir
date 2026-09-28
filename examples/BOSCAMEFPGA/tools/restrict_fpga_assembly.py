@@ -17,11 +17,6 @@
 
 """Validate NR AME/RVV forms and fence AME/vector memory instructions.
 
-Adapted from ModelZoo examples/buddy-qwen35-fpga/python/qwen35/compiler/
-restrict_fpga_assembly.py, commit 8815b74fb6d3cd6288c4d99ac6fd7c5d041a7cc3:
-https://gitlink.org.cn/michaelcjl/ModelZoo.git
-This tree does not invent license text for those sources.
-
 Run AFTER ame_to_word.py. NR rejects transposed B loads, unverified AME
 encodings, vector CSR reads/spills and raw RVV encodings. Data sections are
 preserved exactly: an AME-looking floating-point constant is not an instruction.

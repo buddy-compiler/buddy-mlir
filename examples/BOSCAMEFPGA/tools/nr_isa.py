@@ -1,15 +1,3 @@
-"""Verified instruction contract for the current NR NH/RA FPGA.
-
-RVV allowlist and disassembly helpers adapted from ModelZoo's
-examples/buddy-qwen35-fpga/python/qwen35/compiler/qwen35_fpga_isa.py,
-commit 8815b74fb6d3cd6288c4d99ac6fd7c5d041a7cc3:
-https://gitlink.org.cn/michaelcjl/ModelZoo.git
-
-The AME validation below is NR-specific: accumulator memory contains raw i32,
-only the signed-i8 datapath is verified, and transposed B loads are unsupported.
-It validates instruction forms, not runtime values supplied to msettype.
-"""
-
 # ===- nr_isa.py -------------------------------------------------------------
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,6 +13,13 @@ It validates instruction forms, not runtime values supplied to msettype.
 # limitations under the License.
 #
 # ===----------------------------------------------------------------------
+
+"""Verified instruction contract for the current NR NH/RA FPGA.
+
+The AME validation below is NR-specific: accumulator memory contains raw i32,
+only the signed-i8 datapath is verified, and transposed B loads are unsupported.
+It validates instruction forms, not runtime values supplied to msettype.
+"""
 
 import re
 

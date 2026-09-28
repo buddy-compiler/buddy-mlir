@@ -14,13 +14,9 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// exp/log tables and freestanding routines migrated from ModelZoo
-// examples/buddy-qwen35-fpga/runtime/src/qwen35_bare_math.c, commit
-// 8815b74fb6d3cd6288c4d99ac6fd7c5d041a7cc3. Arm exp/log tables are from MIT
-// licensed optimized-routines. See README.md for provenance.
-//
 // Soft-float helpers used by MLIR kernels on RA (no libm). Not a full IEEE
-// math library — coverage matches what the operator suite needs.
+// math library — coverage matches what the operator suite needs. Arm exp/log
+// tables are from MIT licensed optimized-routines.
 //
 //===----------------------------------------------------------------------===//
 

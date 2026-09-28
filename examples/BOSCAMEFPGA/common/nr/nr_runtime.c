@@ -15,8 +15,7 @@
 //===----------------------------------------------------------------------===//
 //
 // NH owns UART MMIO and starts RA; RA runs launch() and writes the console
-// ring. Cache maintenance (cbo.flush / cbo.inval) is NH-only. Adapted from
-// ModelZoo thirdparty/nr and FPGA platform NH/RA sources; see README.md.
+// ring. Cache maintenance (cbo.flush / cbo.inval) is NH-only.
 //
 //===----------------------------------------------------------------------===//
 
@@ -24,8 +23,7 @@
 #include "../uart/uart.h"
 
 // NR's RA does not use NH cache-management instructions. NH invalidates each
-// shared line before reading it; RA publishes data with volatile + fences,
-// matching ModelZoo's validated NR console and completion protocol.
+// shared line before reading it; RA publishes data with volatile + fences.
 //
 // RA_SIGNAL is the fixed mailbox byte at 0x80010000 (nr.ld .nr_mailbox):
 //   0 = RA still running, 1 = launch returned 0 (PASS), 2 = FAIL.
@@ -184,8 +182,8 @@ uint64_t nr_cycles(void) {
   __asm__ volatile("rdcycle %0" : "=r"(value));
   return value;
 }
-// Compatibility with ModelZoo standalone operator diagnostics. Only NH calls
-// the real uart_init: application code always runs on RA.
+// Compatibility stubs for print_uart* / init_uart names used by launch code.
+// Only NH calls the real uart_init: application code always runs on RA.
 void init_uart(uint32_t frequency, uint32_t baud) {
   (void)frequency;
   (void)baud;

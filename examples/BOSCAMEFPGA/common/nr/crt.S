@@ -25,7 +25,6 @@
 #   and TBSS (not .workspace), then jump to nr_ra_main -> launch().
 #
 # Trap paths reset the matching stack and tail-call C reporters.
-# Adapted from ModelZoo thirdparty/nr/startup/crt_uart.S; see README.md.
 #
 #===----------------------------------------------------------------------===#
 
@@ -54,7 +53,8 @@ _start:
   .globl _ra_start
   .type _ra_start,@function
 _ra_start:
-  # RA entry address is written into the NH->RA mailbox by nr_nh_main.
+  # nr_nh_main stores this PC in the RA control block at 0x50000000+0x100.
+  # 0x80010000 is only the completion byte: 0 running, 1 PASS, 2 FAIL.
   csrw mie, zero
   # VS[10:9], FS[14:13], XS[16:15], AME MS[26:25] — required for AME/RVV paths.
   li t0, 0x0601e600

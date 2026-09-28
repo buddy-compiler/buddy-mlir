@@ -54,7 +54,8 @@ ring filled by NH and returns `-1` when empty.
 ## Memory
 
 Ordinary BSS is cleared by RA. NH and RA each have a 1 MiB stack. The
-fixed mailbox is `0x80010000`. Code, BSS, stacks, and the bump heap stay
+completion byte is `0x80010000` (0 running, 1 PASS, 2 FAIL). NH writes the
+RA entry PC to `0x50000000+0x100`. Code, BSS, stacks, and the bump heap stay
 in low DDR below `0xb0000000`.
 
 Large arenas start at `0xb8000000` (ModelZoo notes faults in

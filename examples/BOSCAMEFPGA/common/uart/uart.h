@@ -28,8 +28,6 @@
 //   - Fixed baud divisor 8 (14.7456 MHz / 115200), 8N1
 //   - init_uart(freq, baud) keeps the classical API but ignores both arguments
 //
-// Adapted from ModelZoo thirdparty/nr UART sources; see common/README.md.
-//
 //===----------------------------------------------------------------------===//
 
 #ifndef __UART_H

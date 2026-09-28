@@ -64,24 +64,24 @@ using mlir::LogicalResult;
 using mlir::Operation;
 using mlir::Type;
 
-/// Module attribute that selects the AME hardware contract.
-///
-///   module attributes {bosc_ame.target = "upstream"}     // default
-///   module attributes {bosc_ame.target = "qwen3-fpga"}
-///   module attributes {bosc_ame.target = "nr-fpga"}
+// Module attribute that selects the AME hardware contract.
+//
+//   module attributes {bosc_ame.target = "upstream"}     // default
+//   module attributes {bosc_ame.target = "qwen3-fpga"}
+//   module attributes {bosc_ame.target = "nr-fpga"}
 inline constexpr llvm::StringLiteral kAmeTargetAttrName = "bosc_ame.target";
 
-/// Subtarget feature that selects the FPGA register-file convention in the
-/// RISC-V backend.  It is a prototype convention and is therefore opt-in: the
-/// default `+xboscame` target keeps the upstream mapping.
+// Subtarget feature that selects the FPGA register-file convention in the
+// RISC-V backend.  It is a prototype convention and is therefore opt-in: the
+// default `+xboscame` target keeps the upstream mapping.
 inline constexpr llvm::StringLiteral kFPGATargetFeature = "+xboscame-fpga";
 
 enum class AmeTargetProfile {
-  /// Default: upstream/main value semantics, GEM5-compatible.
+  // Default: upstream/main value semantics, GEM5-compatible.
   Upstream,
-  /// Qwen3 FPGA RTL: bit-field `mtype` CSR and the FPGA W8A8 schedule.
+  // Qwen3 FPGA RTL: bit-field `mtype` CSR and the FPGA W8A8 schedule.
   Qwen3Fpga,
-  /// NR FPGA: raw i32 accumulator memory and non-transposed B loads only.
+  // NR FPGA: raw i32 accumulator memory and non-transposed B loads only.
   NrFpga,
 };
 
@@ -92,76 +92,76 @@ inline bool isFpgaTarget(AmeTargetProfile profile) {
 llvm::StringRef stringifyAmeTargetProfile(AmeTargetProfile profile);
 std::optional<AmeTargetProfile> symbolizeAmeTargetProfile(llvm::StringRef name);
 
-/// Resolve the AME profile of `op` (usually the module being lowered).
-///
-/// `option` is the raw pass-option value; an empty string means "not set".
-/// Resolution rules:
-///   * option set, attribute set, values differ  -> failure (diagnostic)
-///   * option set                                -> option wins
-///   * attribute set                             -> attribute wins
-///   * neither                                   -> Upstream
-/// An unparsable value on either side is a failure.
+// Resolve the AME profile of `op` (usually the module being lowered).
+//
+// `option` is the raw pass-option value; an empty string means "not set".
+// Resolution rules:
+//   * option set, attribute set, values differ  -> failure (diagnostic)
+//   * option set                                -> option wins
+//   * attribute set                             -> attribute wins
+//   * neither                                   -> Upstream
+// An unparsable value on either side is a failure.
 FailureOr<AmeTargetProfile> resolveAmeTarget(Operation *op,
                                              llvm::StringRef option);
 
-/// Phase of the FPGA datapath that the `mtype` CSR is being programmed for.
+// Phase of the FPGA datapath that the `mtype` CSR is being programmed for.
 enum class FpgaMtypePhase {
-  /// i8 x i8 -> i32 MMA datapath.
+  // i8 x i8 -> i32 MMA datapath.
   Mma,
-  /// i32 accumulator datapath (initial load and final write-back).
+  // i32 accumulator datapath (initial load and final write-back).
   Accumulator,
 };
 
-/// Bit-field `mtype` CSR encoding for the Qwen3 FPGA RTL.
-///
-/// Layout (RISC-V Matrix Extension v0.5 / Qwen3 RTL, see
-/// `kernel/src/backends/ame/core/ame_core.c`):
-///
-///   bit 16    : mma  (matrix multiply-accumulate enable)
-///   bit 12    : mf64, bit 11: mf32, bit 10: mbf16, bit 9: mf16
-///   bit  8    : mint4
-///   bit  7    : mint64, bit 6: mint32, bit 5: mint16, bit 4: mint8
-///   bits 1:0  : msew (element width: 0=e8, 1=e16, 2=e32, 3=e64)
-///
-/// The FPGA RTL expects this bit-field value, *not* the raw element width that
-/// `getMsetTypeImm()` produces for the upstream pathway.
-/// Encode one `mtype` CSR value.
+// Bit-field `mtype` CSR encoding for the Qwen3 FPGA RTL.
+//
+// Layout (RISC-V Matrix Extension v0.5 / Qwen3 RTL, see
+// `kernel/src/backends/ame/core/ame_core.c`):
+//
+//   bit 16    : mma  (matrix multiply-accumulate enable)
+//   bit 12    : mf64, bit 11: mf32, bit 10: mbf16, bit 9: mf16
+//   bit  8    : mint4
+//   bit  7    : mint64, bit 6: mint32, bit 5: mint16, bit 4: mint8
+//   bits 1:0  : msew (element width: 0=e8, 1=e16, 2=e32, 3=e64)
+//
+// The FPGA RTL expects this bit-field value, *not* the raw element width that
+// `getMsetTypeImm()` produces for the upstream pathway.
+// Encode one `mtype` CSR value.
 constexpr int64_t encodeFpgaMtype(unsigned msew, unsigned typeBit) {
   return (int64_t{1} << 16) | (int64_t{1} << typeBit) |
          static_cast<int64_t>(msew);
 }
 
 struct FpgaMtype {
-  /// i8 x i8 MMA datapath: mma=1, mint8=1, msew=0 (0x10010, 65552).
+  // i8 x i8 MMA datapath: mma=1, mint8=1, msew=0 (0x10010, 65552).
   static constexpr int64_t mmaI8 = encodeFpgaMtype(/*msew=*/0, /*typeBit=*/4);
-  /// i32 accumulator datapath: mma=1, mint32=1, msew=2 (0x10042, 65602).
+  // i32 accumulator datapath: mma=1, mint32=1, msew=2 (0x10042, 65602).
   static constexpr int64_t accumulatorI32 =
       encodeFpgaMtype(/*msew=*/2, /*typeBit=*/6);
 };
 
-/// `mtype` value for an FPGA phase, or failure with a diagnostic when the
-/// element type has no verified FPGA encoding.
+// `mtype` value for an FPGA phase, or failure with a diagnostic when the
+// element type has no verified FPGA encoding.
 FailureOr<int64_t> getFpgaMtypeImm(Type elementType, FpgaMtypePhase phase);
 
-/// Diagnose AME operations that the FPGA register-file convention cannot
-/// represent.
-///
-/// The prototype convention selects the register file (tile vs accumulator)
-/// from the element width, so any matrix value outside the W8A8 datapath - i8
-/// A/B tiles with an i32 accumulator - would silently pick the wrong register
-/// file.  This walk turns that into a compile error naming the operation, which
-/// is the safety net for AME operations that reach the module from another
-/// pass or from hand-written input.
-///
-/// `root` is usually the module being lowered.  Emits at most one diagnostic.
+// Diagnose AME operations that the FPGA register-file convention cannot
+// represent.
+//
+// The prototype convention selects the register file (tile vs accumulator)
+// from the element width, so any matrix value outside the W8A8 datapath - i8
+// A/B tiles with an i32 accumulator - would silently pick the wrong register
+// file.  This walk turns that into a compile error naming the operation, which
+// is the safety net for AME operations that reach the module from another
+// pass or from hand-written input.
+//
+// `root` is usually the module being lowered.  Emits at most one diagnostic.
 LogicalResult verifyFpgaAmeCapabilities(Operation *root);
 
-/// True when the FPGA pathway has a verified instruction for an
-/// `lhs x lhs -> acc` MMA with these element types.
+// True when the FPGA pathway has a verified instruction for an
+// `lhs x lhs -> acc` MMA with these element types.
 bool isFpgaMmaSupported(Type lhsElementType, Type accElementType);
 
-/// True when the FPGA pathway has a verified accumulator load/store pair that
-/// reads/writes `memoryElementType` for an `accElementType` accumulator.
+// True when the FPGA pathway has a verified accumulator load/store pair that
+// reads/writes `memoryElementType` for an `accElementType` accumulator.
 bool isFpgaAccumulatorMemorySupported(Type accElementType,
                                       Type memoryElementType);
 

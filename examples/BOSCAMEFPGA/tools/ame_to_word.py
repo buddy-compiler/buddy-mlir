@@ -17,10 +17,6 @@
 
 """Encode the verified NR FPGA AME subset with explicit GPR handling.
 
-Adapted from ModelZoo's examples/tools/ame_to_word.py, commit
-8815b74fb6d3cd6288c4d99ac6fd7c5d041a7cc3:
-https://gitlink.org.cn/michaelcjl/ModelZoo.git
-
 This example-side tool targets NR only. GEM5 uses the compiler backend directly.
 Run restrict_fpga_assembly.py afterwards to validate raw words and insert the
 required fence before AND after every AME instruction. No UART/MMIO tracing,
