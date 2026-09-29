@@ -30,7 +30,7 @@ struct EndOpInterface
     : public BufferizableOpInterface::ExternalModel<EndOpInterface, EndOp> {
   bool bufferizesToMemoryRead(Operation *, OpOperand &,
                               const AnalysisState &) const {
-    return false;
+    return true;
   }
 
   bool bufferizesToMemoryWrite(Operation *, OpOperand &,

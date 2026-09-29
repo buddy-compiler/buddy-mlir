@@ -14,7 +14,7 @@ file(WRITE ${BUDDY_MLIR_PYTHON_PACKAGES_DIR}/buddy/compiler/__init__.py "")
 file(WRITE ${BUDDY_MLIR_PYTHON_PACKAGES_DIR}/buddy/utils/__init__.py "")
 
 # Recursively retrieve all python files from the current directory.
-file(GLOB_RECURSE ALL_PY_FILES RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "*.py")
+file(GLOB_RECURSE ALL_PY_FILES CONFIGURE_DEPENDS RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "*.py")
 
 set(PYTHON_OUTPUT_FILES "")
 foreach(FILE ${ALL_PY_FILES})

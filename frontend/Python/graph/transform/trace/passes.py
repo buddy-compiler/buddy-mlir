@@ -15,20 +15,6 @@
 # ===---------------------------------------------------------------------------
 
 from ....trace.config import TraceConfig, normalize_trace_meta
-from .lowering import trace_op_result, trace_op_start
-
-
-def _wrap_registry(ops_registry: dict):
-    wrapped = {}
-    for op_name, lower in ops_registry.items():
-
-        def traced_lower(node, *args, _lower=lower, **kwargs):
-            trace_op_start(node)
-            op_ret = _lower(node, *args, **kwargs)
-            return trace_op_result(node, op_ret)
-
-        wrapped[op_name] = traced_lower
-    return wrapped
 
 
 class TraceInsertionPass:
@@ -57,7 +43,6 @@ class TraceInsertionPass:
             )
 
         self.trace.matched_nodes = matched_nodes
-        graph._ops_registry = _wrap_registry(graph._ops_registry)
 
 
 def trace_insertion(trace: TraceConfig):
