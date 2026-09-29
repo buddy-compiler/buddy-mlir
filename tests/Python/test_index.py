@@ -29,8 +29,11 @@ print(graph._imported_module)
 
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
-# CHECK: %{{.*}} = tensor.empty
-# CHECK: %{{.*}} = linalg.generic
+# CHECK: %{{.*}} = memref.alloc
+# CHECK: scf.for
+# CHECK: cf.assert
+# CHECK: tensor.extract
+# CHECK: memref.store
 # CHECK: return %{{.*}}
 # CHECK: }
 # CHECK: }

@@ -4,6 +4,7 @@
 import math
 
 import torch
+from buddy.compiler.export import export
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import tosa
 
@@ -22,7 +23,8 @@ class Rearrange(torch.nn.Module):
             if self.inverse
             else torch.ops.aten.pixel_shuffle.default
         )
-        return op(value, self.factor), x
+        result = op(value, self.factor)
+        return result, result.transpose(-1, -2), x
 
 
 def check(shape, dtype, inverse, factor, sliced):
@@ -33,23 +35,13 @@ def check(shape, dtype, inverse, factor, sliced):
     original = x.clone()
     model = Rearrange(inverse, factor, sliced)
     expected = model(x)
-    exported = torch.export.export(model, (x,), strict=True)
+    exported = export(model, (x,), strict=True)
     compiler = DynamoCompiler(
         primary_registry=tosa.ops_registry, enable_external_calls=False
     )
     compiler._compile_fx(exported.graph_module, [x])
-    if inverse and 0 in shape:
-        try:
-            compiler.dynamo_run()
-        except NotImplementedError as error:
-            assert "Empty pixel unshuffle" in str(error)
-        else:
-            raise AssertionError(
-                "Empty pixel unshuffle must reject inconsistent metadata"
-            )
-        return False
     actual = compiler.dynamo_run()(x)
-    assert len(actual) == len(expected) == 2
+    assert len(actual) == len(expected) == 3
     for result, reference in zip(actual, expected):
         torch.testing.assert_close(
             result,
@@ -64,7 +56,6 @@ def check(shape, dtype, inverse, factor, sliced):
 
 torch.set_num_threads(1)
 count = 0
-guards = 0
 for dtype in (torch.float32, torch.float64, torch.int32, torch.int64):
     for inverse in (False, True):
         for factor in (1, 2, 3):
@@ -75,10 +66,37 @@ for dtype in (torch.float32, torch.float64, torch.int32, torch.int64):
             )
             for batch in ((), (2,), (2, 1), (0,)):
                 for sliced in (False, True):
-                    if check(batch + spatial, dtype, inverse, factor, sliced):
-                        count += 1
-                    else:
-                        guards += 1
+                    check(batch + spatial, dtype, inverse, factor, sliced)
+                    count += 1
+for dtype in (torch.float32, torch.int64):
+    for shape in ((2, 0, 4, 6), (2, 2, 0, 6), (2, 2, 4, 0)):
+        check(shape, dtype, True, 2, False)
+        count += 1
+
+# The raw PyTorch export path must not silently accept contradictory metadata.
+x = torch.empty((0, 2, 4, 6))
+model = Rearrange(True, 2, False)
+raw = torch.export.export(model, (x,), strict=True)
+compiler = DynamoCompiler(
+    primary_registry=tosa.ops_registry, enable_external_calls=False
+)
+compiler._compile_fx(raw.graph_module, [x])
+try:
+    compiler.dynamo_run()
+except ValueError as error:
+    assert "output metadata mismatch" in str(error)
+else:
+    raise AssertionError("Conflicting raw metadata was accepted")
+
+for shape, factor in (((0, 2, 3, 4), 2), ((0, 2, 4, 4), 0), ((0, 4), 2)):
+    try:
+        export(
+            Rearrange(True, factor, False), (torch.empty(shape),), strict=True
+        )
+    except (RuntimeError, ValueError):
+        pass
+    else:
+        raise AssertionError("Invalid empty input was accepted")
 print(
-    f"Pixel rearrangements: {count} cases and {guards} empty-input guards passed"
+    f"Pixel rearrangements: {count} numerical cases and 4 metadata/input guards passed"
 )

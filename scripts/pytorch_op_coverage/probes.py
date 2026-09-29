@@ -296,7 +296,10 @@ def build_case(name, profile):
             (rand(1, 8, n, d),),
         )
     elif name == "aten::pixel_unshuffle.default":
-        fn, args = lambda a: op(a, 2), (rand(1, 2, 2 * n, 2 * d),)
+        fn, args = (
+            lambda a: (op(a, 2), op(a[:0], 2)),
+            (rand(1, 2, 2 * n, 2 * d),),
+        )
     elif name in ("aten::add.Tensor", "aten::mul.Tensor"):
         args = (x, rand(n, d))
     elif name == "aten::mm.default":
@@ -405,7 +408,10 @@ def build_case(name, profile):
         else:
             fn, args = lambda a, b, c: op(a, 0, b, c), (x, indices, rand(2, d))
     elif name == "aten::one_hot.default":
-        fn, args = lambda a: op(a, 4), (torch.tensor([0, 3, 1, 0]),)
+        fn, args = (
+            lambda a: (op(a, 4), op(a, -1), op(a[:0], 4)),
+            (torch.tensor([0, 3, 1, 0]),),
+        )
     elif name == "aten::bincount.default":
         fn, args = lambda a: op(a, minlength=4), (torch.tensor([0, 3, 1, 0]),)
     elif name == "aten::view.default":

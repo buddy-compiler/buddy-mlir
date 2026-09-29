@@ -176,14 +176,7 @@
       "aten::constant_pad_nd.default"
     ]
   },
-  "known_partial_or_limited": {
-    "aten::index_put.default": "Review pending: Accumulate / advanced indexing may be partial.",
-    "aten::index.Tensor": "Review pending: Advanced indexing / None / boolean masks may be partial.",
-    "aten::one_hot.default": "Configured explicit-num_classes=4 cases pass through AOT decomposition after the bool-to-integer copy fix. Inferred class counts, empty inputs and invalid indices remain untested.",
-    "aten::bincount.default": "The cpu-export-v1 cases fail during AOT import with DynamicOutputShapeException; minlength does not fix the data-dependent output extent.",
-    "aten::pad.default": "Review pending: General padding modes are not established by a constant_pad_nd mapping.",
-    "aten::pixel_unshuffle.default": "Non-empty static CPU inputs have numerical regressions. Empty inputs are explicitly rejected because PyTorch 2.10 eager output shape disagrees with export metadata."
-  },
+  "known_partial_or_limited": {},
   "schema_source": {
     "torch_version": "2.10.0+cpu",
     "api": "torch.ops.<namespace>.<op>.<overload>._schema"

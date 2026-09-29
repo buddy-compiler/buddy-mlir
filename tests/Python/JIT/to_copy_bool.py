@@ -42,6 +42,12 @@ for dtype in (torch.int8, torch.int32, torch.int64):
         torch.tensor([[True, False, True], [False, True, False]]),
     ):
         check(Cast(dtype), value)
-for value in (torch.tensor([0, 3, 1, 0]), torch.tensor([[0, 2], [3, 1]])):
+for value in (
+    torch.tensor([0, 3, 1, 0]),
+    torch.tensor([[0, 2], [3, 1]]),
+    torch.empty((0,), dtype=torch.int64),
+    torch.empty((2, 0), dtype=torch.int64),
+    torch.tensor(3),
+):
     check(OneHot(), value)
-print("Boolean casts and one_hot: 14 CPU JIT cases passed")
+print("Boolean casts and one_hot: 17 CPU JIT cases passed")

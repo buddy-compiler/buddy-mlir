@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import platform
 import sys
@@ -13,6 +14,22 @@ from pathlib import Path
 
 from classify import STAGES
 from probes import WORKLOADS, build_case, resolve_operator
+
+
+def export_adapter(mode):
+    """Use the installed adapter for live runs and its source for torch-only trace."""
+    if mode == "live":
+        from buddy.compiler import export as adapter
+
+        return adapter
+    name = "_buddy_coverage_export"
+    if name not in sys.modules:
+        path = Path(__file__).resolve().parents[2] / "frontend/Python/export.py"
+        spec = importlib.util.spec_from_file_location(name, path)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[name] = module
+        spec.loader.exec_module(module)
+    return sys.modules[name]
 
 
 def write_result(path, result):
@@ -128,7 +145,14 @@ def run_case(name, profile, mode, path):
         write_result(path, result)
         with torch.no_grad():
             expected = module(*args)
-            exported = torch.export.export(module, args, strict=True)
+            adapter = (
+                export_adapter(mode)
+                if name
+                in ("aten::one_hot.default", "aten::pixel_unshuffle.default")
+                else None
+            )
+            export_fn = adapter.export if adapter else torch.export.export
+            exported = export_fn(module, args, strict=True)
             from torch.utils._pytree import tree_leaves
 
             ref_leaves = tree_leaves(expected)
@@ -152,7 +176,23 @@ def run_case(name, profile, mode, path):
             graph_count=1,
             decomposition="no user decomposition table; Buddy AOT functionalization may rewrite ops",
         )
-        if name not in WORKLOADS and name not in targets:
+        adapted_target = (
+            adapter.ADAPTED_OPERATORS.get(name) if adapter else None
+        )
+        result["export_adapter"] = (
+            {
+                "requested": name,
+                "observed": adapted_target,
+                "implementation": "buddy.compiler.export",
+            }
+            if adapted_target in targets
+            else None
+        )
+        if (
+            name not in WORKLOADS
+            and name not in targets
+            and adapted_target not in targets
+        ):
             result.update(
                 status="skipped",
                 reason="Requested overload was elided or rewritten during export",
@@ -174,7 +214,20 @@ def run_case(name, profile, mode, path):
         compiler = DynamoCompiler(
             primary_registry=tosa.ops_registry, enable_external_calls=False
         )
-        compiler._compile_fx(exported.graph_module, list(args))
+        # Reuse the export FakeTensor mode so AOT retains unbacked dimensions.
+        # Keep real arguments separately for runtime parameter storage.
+        compiler._compile_fx(
+            exported.graph_module,
+            list(args),
+            tracing_inputs=[
+                n.meta["val"]
+                for n in exported.graph.nodes
+                if n.op == "placeholder"
+            ],
+        )
+        result["aot_tracing"] = (
+            "export placeholder metadata; runtime values unchanged"
+        )
         graphs = compiler.imported_graphs
         if len(graphs) != 1:
             raise RuntimeError(f"Expected one graph, received {len(graphs)}")

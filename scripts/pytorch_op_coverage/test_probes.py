@@ -83,7 +83,13 @@ class TorchTests(unittest.TestCase):
                 with self.subTest(name=name, profile=profile), torch.no_grad():
                     module, args = probes.build_case(name, profile)
                     expected = module(*args)
-                    exported = torch.export.export(module, args, strict=True)
+                    adapter = worker.export_adapter("trace")
+                    export_fn = (
+                        adapter.export
+                        if name in adapter.ADAPTED_OPERATORS
+                        else torch.export.export
+                    )
+                    exported = export_fn(module, args, strict=True)
                     actual = exported.module()(*args)
                     expected_leaves, actual_leaves = (
                         tree_leaves(expected),
@@ -109,6 +115,39 @@ class TorchTests(unittest.TestCase):
                         hidden @ down[expert]
                     )
             torch.testing.assert_close(module(*args), reference)
+
+    def test_checked_export_records_real_targets(self):
+        adapter = worker.export_adapter("trace")
+        with tempfile.TemporaryDirectory() as directory:
+            for name, observed in adapter.ADAPTED_OPERATORS.items():
+                result = worker.run_case(
+                    name, "small-f32", "trace", Path(directory) / "result.json"
+                )
+                self.assertEqual(result["status"], "passed")
+                self.assertIn(observed, result["observed_ops"])
+                self.assertEqual(result["export_adapter"]["requested"], name)
+                self.assertEqual(result["export_adapter"]["observed"], observed)
+                self.assertEqual(result["correctness"], "not_run")
+
+    def test_checked_export_is_scoped_and_keeps_runtime_errors(self):
+        torch = self.torch
+        adapter = worker.export_adapter("trace")
+        module, args = probes.build_case("aten::one_hot.default", "small-f32")
+        graph = adapter.export(module, args, strict=True).module()
+        for label in (-1, 4):
+            with self.assertRaises(RuntimeError):
+                graph(torch.tensor([0, label, 1, 0]))
+
+        class Plain(torch.nn.Module):
+            def forward(self, x):
+                return torch.nn.functional.one_hot(x, 4)
+
+        raw = torch.export.export(Plain(), args, strict=True)
+        targets = [
+            str(n.target) for n in raw.graph.nodes if n.op == "call_function"
+        ]
+        self.assertIn("aten.one_hot.default", targets)
+        self.assertNotIn("buddy_export.checked_one_hot.default", targets)
 
     def test_compare_rejects_arity_dtype_order_and_values(self):
         torch = self.torch
@@ -170,7 +209,15 @@ class TorchTests(unittest.TestCase):
                 def __init__(self, **kwargs):
                     self.imported_graphs = []
 
-                def _compile_fx(self, gm, args):
+                def _compile_fx(self, gm, args, *, tracing_inputs):
+                    placeholders = [
+                        n for n in gm.graph.nodes if n.op == "placeholder"
+                    ]
+                    assert len(tracing_inputs) == len(args) == len(placeholders)
+                    assert all(
+                        a is n.meta["val"]
+                        for a, n in zip(tracing_inputs, placeholders)
+                    )
                     if self.failure_mode == "imported":
                         raise RuntimeError("import fixture failure")
                     self.gm = gm

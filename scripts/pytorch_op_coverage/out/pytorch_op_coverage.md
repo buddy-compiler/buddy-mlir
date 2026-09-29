@@ -1,15 +1,17 @@
 # PyTorch operator coverage
 
 - Mode: **static**; run: **completed**; exit: **0**
-- Generated (UTC): `2026-09-27T10:31:32.522671+00:00`
+- Generated (UTC): `2026-09-29T10:11:06.380332+00:00`
 - Target: **Buddy Target Op Set v1** / `1.0.0`; **106** unique operators
-- Source: `32d217ce08e1d2ab3a01eb54d8f44ae7c2206d80`; dirty: `True`
-- Source SHA-256: `5af93e9b6b1dc294d7b416b9d087d595ba1af35c106216395ab49ba3df773d68`
-- Profile: `cpu-export-v9`; seed 0; rtol 1e-4; atol 1e-5; external calls disabled
+- Source: `d173db9e65670f4eeca89107d025418742a16b57`; dirty: `True`
+- Source SHA-256: `409b9e8345e0b47ff061d40550aff647e22e36c4581bd7ee3fd821accf59eb6f`
+- Profile: `cpu-export-v13`; seed 0; rtol 1e-4; atol 1e-5; external calls disabled
 
 > Registration and export are not compile/correctness evidence. Untested, skipped, failed and limited operators stay in the denominator.
 
 > v1 has 106 entries versus v0's 108: two Buddy cache helpers were removed; Prim namespace and softmax overload were corrected. Percentages are not directly comparable.
+
+Export uses `buddy.compiler.export` for checked one-hot and pixel-unshuffle semantics. Actual custom targets are recorded per case; this profile does not claim the unadapted export path supports these boundaries.
 
 Python: `3.12.3`; measured torch: `not loaded`; schema snapshot torch: `2.10.0+cpu`.
 
@@ -17,18 +19,18 @@ Python: `3.12.3`; measured torch: `not loaded`; schema snapshot torch: `2.10.0+c
 
 | Evidence | Count | % of fixed denominator |
 | --- | ---: | ---: |
-| frontend_recognized | 99 | 93.4% |
-| registered_lowering | 99 | 93.4% |
+| frontend_recognized | 100 | 94.34% |
+| registered_lowering | 100 | 94.34% |
 | alias_candidate | 4 | 3.77% |
-| unmapped | 3 | 2.83% |
-| known_limited | 6 | 5.66% |
+| unmapped | 2 | 1.89% |
+| known_limited | 0 | 0.0% |
 | validated_for_profile | 0 | 0.0% |
 
 Live validation: **not measured**. Confirmed end-to-end numerator: **0**.
 Operators without an input contract: **0**.
 A completed run is not the 90% gate; use `--mode live --min-coverage 90` for that gate.
 
-MoE: **0/47** validated for profile (0.0%); **4** known limited.
+MoE: **0/47** validated for profile (0.0%); **0** known limited.
 
 ## Execution evidence
 
@@ -95,7 +97,7 @@ Case outcomes: `{"blocked": 0, "failed": 0, "passed": 0, "skipped": 0, "timeout"
 | `aten::full.default` | registered_lowering | 3/0 | False |  |
 | `aten::scalar_tensor.default` | registered_lowering | 3/0 | False |  |
 | `aten::_scaled_dot_product_flash_attention_for_cpu.default` | registered_lowering | 3/0 | False |  |
-| `aten::index.Tensor` | registered_lowering | 3/0 | False | Review pending: Advanced indexing / None / boolean masks may be partial. |
+| `aten::index.Tensor` | registered_lowering | 3/0 | False |  |
 | `aten::index_select.default` | registered_lowering | 3/0 | False |  |
 | `aten::gather.default` | registered_lowering | 3/0 | False |  |
 | `aten::scatter_add.default` | registered_lowering | 3/0 | False |  |
@@ -124,7 +126,7 @@ Case outcomes: `{"blocked": 0, "failed": 0, "passed": 0, "skipped": 0, "timeout"
 | `aten::argmax.default` | registered_lowering | 3/0 | False |  |
 | `aten::argmin.default` | registered_lowering | 3/0 | False |  |
 | `aten::_unsafe_index.Tensor` | registered_lowering | 3/0 | False |  |
-| `aten::index_put.default` | registered_lowering | 3/0 | False | Review pending: Accumulate / advanced indexing may be partial. |
+| `aten::index_put.default` | registered_lowering | 3/0 | False |  |
 | `aten::index_add.default` | registered_lowering | 3/0 | False |  |
 | `aten::index_copy.default` | registered_lowering | 3/0 | False |  |
 | `aten::scatter.src` | registered_lowering | 3/0 | False |  |
@@ -136,8 +138,8 @@ Case outcomes: `{"blocked": 0, "failed": 0, "passed": 0, "skipped": 0, "timeout"
 | `aten::masked_select.default` | registered_lowering | 3/0 | False |  |
 | `aten::nonzero.default` | registered_lowering | 3/0 | False |  |
 | `aten::nonzero_static.default` | registered_lowering | 3/0 | False |  |
-| `aten::one_hot.default` | unmapped | 3/0 | False | Configured explicit-num_classes=4 cases pass through AOT decomposition after the bool-to-integer copy fix. Inferred class counts, empty inputs and invalid indices remain untested. |
-| `aten::bincount.default` | unmapped | 3/0 | False | The cpu-export-v1 cases fail during AOT import with DynamicOutputShapeException; minlength does not fix the data-dependent output extent. |
+| `aten::one_hot.default` | unmapped | 3/0 | False |  |
+| `aten::bincount.default` | registered_lowering | 3/0 | False |  |
 | `aten::cumprod.default` | registered_lowering | 3/0 | False |  |
 | `aten::repeat_interleave.self_int` | registered_lowering | 3/0 | False |  |
 | `aten::repeat_interleave.Tensor` | registered_lowering | 3/0 | False |  |
@@ -148,11 +150,11 @@ Case outcomes: `{"blocked": 0, "failed": 0, "passed": 0, "skipped": 0, "timeout"
 | `aten::upsample_bilinear2d.vec` | registered_lowering | 3/0 | False |  |
 | `aten::upsample_nearest2d.vec` | registered_lowering | 3/0 | False |  |
 | `aten::grid_sampler_2d.default` | registered_lowering | 3/0 | False |  |
-| `aten::pad.default` | alias_candidate | 3/0 | False | Review pending: General padding modes are not established by a constant_pad_nd mapping. |
+| `aten::pad.default` | alias_candidate | 3/0 | False | aten::constant_pad_nd.default |
 | `aten::constant_pad_nd.default` | registered_lowering | 3/0 | False |  |
 | `aten::reflection_pad2d.default` | registered_lowering | 3/0 | False |  |
 | `aten::pixel_shuffle.default` | registered_lowering | 3/0 | False |  |
-| `aten::pixel_unshuffle.default` | registered_lowering | 3/0 | False | Non-empty static CPU inputs have numerical regressions. Empty inputs are explicitly rejected because PyTorch 2.10 eager output shape disagrees with export metadata. |
+| `aten::pixel_unshuffle.default` | registered_lowering | 3/0 | False |  |
 
 ## Remaining work
 

@@ -78,7 +78,7 @@ def build_report_payload(
         "provenance": provenance,
         "environment": environment,
         "profile": {
-            "name": "cpu-export-v9",
+            "name": "cpu-export-v13",
             "cases": PROFILES,
             "seed": 0,
             "rtol": 1e-4,
@@ -86,6 +86,10 @@ def build_report_payload(
             "equal_nan": True,
             "external_calls": False,
             "path": "strict torch.export -> Buddy _compile_fx -> tosa-priority -> JIT",
+            "export_adapters": {
+                "aten::one_hot.default": "buddy_export::checked_one_hot.default",
+                "aten::pixel_unshuffle.default": "buddy_export::checked_pixel_unshuffle.default",
+            },
             "scope": "Explicit small CPU inputs, including a strided contiguous() fixture; no claim for arbitrary shapes/dtypes or full models",
         },
         "summary": summarize(records),
@@ -145,6 +149,11 @@ def write_markdown(payload, path: Path):
             "",
         ]
     env = payload["environment"]
+    if payload.get("profile", {}).get("export_adapters"):
+        lines += [
+            "Export uses `buddy.compiler.export` for checked one-hot and pixel-unshuffle semantics. Actual custom targets are recorded per case; this profile does not claim the unadapted export path supports these boundaries.",
+            "",
+        ]
     lines += [
         f"Python: `{provenance['python']}`; measured torch: `{env.get('torch', 'not loaded')}`; schema snapshot torch: `{(target.get('schema_source') or {}).get('torch_version', 'unknown')}`.",
         "",

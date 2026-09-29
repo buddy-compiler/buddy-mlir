@@ -1,6 +1,6 @@
 {
   "report_version": 2,
-  "generated_at": "2026-09-27T10:31:32.522671+00:00",
+  "generated_at": "2026-09-29T10:11:06.380332+00:00",
   "mode": "static",
   "run_status": "completed",
   "exit_code": 0,
@@ -27,15 +27,16 @@
     }
   },
   "provenance": {
-    "git_revision": "32d217ce08e1d2ab3a01eb54d8f44ae7c2206d80",
+    "git_revision": "d173db9e65670f4eeca89107d025418742a16b57",
     "dirty": true,
-    "source_sha256": "5af93e9b6b1dc294d7b416b9d087d595ba1af35c106216395ab49ba3df773d68",
+    "source_sha256": "409b9e8345e0b47ff061d40550aff647e22e36c4581bd7ee3fd821accf59eb6f",
     "files_sha256": {
-      "frontend/Python/frontend.py": "5934822d742cf59ff1ff906e16012b36fc2fb6e95b0ff5f0bf0b2ced867d4669",
+      "frontend/Python/export.py": "5a57194ad2ff5b0e81dee567ceed77d6002d8aa3a6db217e73483bb3cae8e3c7",
+      "frontend/Python/frontend.py": "fd7702072ecc3f89aad949d226dbca4513bea3b602eb59a6885000112256535d",
       "frontend/Python/graph/__init__.py": "3d2d48a2c14f34b52181bc3b206001d13931d0befd7a3991e76317aec4cd8b5e",
       "frontend/Python/graph/graph.py": "488b96b8db0d06367c8632bf883709be02457e40f899b298e86160b7c0508333",
       "frontend/Python/graph/graph_driver.py": "2e217981f937f390c6e6c85c9fbdf2e504110d4171bf39f8cfb2e445a5c528f6",
-      "frontend/Python/graph/operation.py": "f98dc5e013da6a9a667eeedf854a11b5be653a4edd02c4ac10ad00f918a73cd9",
+      "frontend/Python/graph/operation.py": "6a290e9bd151fe09907bcf2b389cd209daa1b7c0158039cb792735730ea67d76",
       "frontend/Python/graph/partitioned_graph_driver.py": "224be109626e8c8bea0295aaaeef3c5c6b1b940b472712d3a4642327882c8268",
       "frontend/Python/graph/source_meta.py": "8e62eb26ed277ccc432bfd3827b2c3687b888a782dc486abf5dc643b02f5044e",
       "frontend/Python/graph/structure_analysis.py": "f23befbe165f7ed48ff05cebea0f6b431280605f856467e162af855b97cb04b0",
@@ -60,23 +61,25 @@
       "frontend/Python/graph/type.py": "f00cec5f34697e5ee3e8e1817ac5979c29f5dd942a79ec8329ab6ee5bc10b54a",
       "frontend/Python/ops/__init__.py": "e3cbb6f957b003f0345c355237445a225a98af5d74a950d61fa4007a5de094f0",
       "frontend/Python/ops/func.py": "6246e74f3fa98e318171e8cb76fb195189755ee0484a5d7c5186d923aa32e907",
-      "frontend/Python/ops/linalg.py": "590653e0ae54ef0bccd1b9cacf8a253477f3498255ae043ce3c521c73fabd94d",
+      "frontend/Python/ops/linalg.py": "1c8486da9095027d3058753afbec0323b39ee7ffa20c81d34de14eed44032052",
       "frontend/Python/ops/math.py": "71b2c037d7706622d31d0b542d908d16f54c8c45fb0bf416f138a6acfe5f2e5a",
-      "frontend/Python/ops/tosa.py": "672b1f078325bba847ebd3fc1f1c7eae676627a54a07af8694f573b1aef47e08",
+      "frontend/Python/ops/tosa.py": "cb0d20959056c5c1cb12465b01e0eb1e3fdedcd55569f8fde4092e8924e0ed74",
       "frontend/Python/ops/ttir.py": "c7b640d15cc46641bf9a56330415026146f0153ef846a297e92c3a189cfa8bd5",
       "frontend/Python/ops/ttir_llm.py": "38c314dff4559742b64e87ef028082e8a41c5f85e3b73d14da5496bf254f6d25",
       "frontend/Python/ops/utils.py": "9ca4fbec8e36c5b11be735974707352c0fd838a78498a129cf695c170ce598c4",
       "frontend/Python/trace/__init__.py": "9d9b31877d2a8c2a2c15e5e923a2b444538f4d134e216f1524a05f254fc4f86b",
       "frontend/Python/trace/config.py": "1417402997c35816e243e3d2322ec81fb14ce8541192666650d7db831a8492d9",
       "scripts/pytorch_op_coverage/classify.py": "707c47c6928eacedd0dd6a598064d8e1f2bc4e1fab92275e7420abf0b0d74e70",
-      "scripts/pytorch_op_coverage/data/target_ops_v1.json": "fa6aa62b37785482b7cfe49c7033abf9b8653bbc117070a51ec441de12bf9e04",
+      "scripts/pytorch_op_coverage/data/target_ops_v1.json": "86265a2ae989c8dd8f3fe9041cb89b9d63c919fb84561bf8e339763a8af58a65",
       "scripts/pytorch_op_coverage/parse_frontend.py": "4ffb93305c0e0bab60f0d146b3dcec89a479ceb172bc9fb39ca29736c576b639",
-      "scripts/pytorch_op_coverage/probes.py": "19367f73478642602c04696490450a95eb03a8d1ccfe8fe2b1e5762487b2426a",
-      "scripts/pytorch_op_coverage/report.py": "70d880745bf3b31f80a488c7d736cc2865282d303b33bf9487d93023f7978ac8",
+      "scripts/pytorch_op_coverage/probes.py": "3c7cb57257765e71cf61b8e19db71367f6832d72c463e717eb90d50e50ae9adb",
+      "scripts/pytorch_op_coverage/report.py": "5242feb2154d2caa9119ea4ee2cbe8f3aa25d0b54cfa09bcaa58ea9ecd7776c9",
       "scripts/pytorch_op_coverage/run_coverage.py": "c52c2aaf34963eb85317829ce199a7927388c0fd48103f3c75b459be981003b0",
+      "scripts/pytorch_op_coverage/run_model_validation.py": "a4acc9f5c2131488e391b0cc0de287d860f96dc36d11fa5b19a066b6f739fda4",
       "scripts/pytorch_op_coverage/test_coverage.py": "ed389c2c6e952c7dfbc81a393b2840361470738937e1917fec5707d54f90531c",
-      "scripts/pytorch_op_coverage/test_probes.py": "f58443099d003169cece4f9180604650dfdd6cb7f097700176d066581dfecc4b",
-      "scripts/pytorch_op_coverage/worker.py": "7c382351e6b0b42ea4f09d832004f4fe1a5465938a087860d7a33126b4125711",
+      "scripts/pytorch_op_coverage/test_model_validation.py": "b09b9bd3f895fc38ab28060f9856feffd20369295f5946070089c5ca50414c85",
+      "scripts/pytorch_op_coverage/test_probes.py": "5d0acdab2b403030d6f70f3564f36fe6eaff348a866cb4883c9fda13481f8c79",
+      "scripts/pytorch_op_coverage/worker.py": "fa3dac33c60205c86641e9d256cebff6442e84e699726fcdc933f81d1084d4c7",
       "tests/Python/AtenOpsCoverage/aten_coverage_runner.py": "cedb26ca659f25c9c5f487d57a5d36bc8f8cb8926d2d30b7b0cf68696e8acb36"
     },
     "python": "3.12.3",
@@ -84,7 +87,7 @@
   },
   "environment": {},
   "profile": {
-    "name": "cpu-export-v9",
+    "name": "cpu-export-v13",
     "cases": {
       "small-f32": {
         "rows": 4,
@@ -108,22 +111,26 @@
     "equal_nan": true,
     "external_calls": false,
     "path": "strict torch.export -> Buddy _compile_fx -> tosa-priority -> JIT",
+    "export_adapters": {
+      "aten::one_hot.default": "buddy_export::checked_one_hot.default",
+      "aten::pixel_unshuffle.default": "buddy_export::checked_pixel_unshuffle.default"
+    },
     "scope": "Explicit small CPU inputs, including a strided contiguous() fixture; no claim for arbitrary shapes/dtypes or full models"
   },
   "summary": {
     "total_ops": 106,
-    "frontend_recognized": 99,
-    "registered_lowering": 99,
+    "frontend_recognized": 100,
+    "registered_lowering": 100,
     "alias_candidate": 4,
-    "unmapped": 3,
-    "known_limited": 6,
+    "unmapped": 2,
+    "known_limited": 0,
     "validated_for_profile": 0,
     "percentages": {
-      "frontend_recognized": 93.4,
-      "registered_lowering": 93.4,
+      "frontend_recognized": 94.34,
+      "registered_lowering": 94.34,
       "alias_candidate": 3.77,
-      "unmapped": 2.83,
-      "known_limited": 5.66,
+      "unmapped": 1.89,
+      "known_limited": 0.0,
       "validated_for_profile": 0.0
     },
     "case_counts": {
@@ -145,18 +152,18 @@
     "operators_without_cases": 0,
     "moe_critical": {
       "total_ops": 47,
-      "frontend_recognized": 42,
-      "registered_lowering": 42,
+      "frontend_recognized": 43,
+      "registered_lowering": 43,
       "alias_candidate": 2,
-      "unmapped": 3,
-      "known_limited": 4,
+      "unmapped": 2,
+      "known_limited": 0,
       "validated_for_profile": 0,
       "percentages": {
-        "frontend_recognized": 89.36,
-        "registered_lowering": 89.36,
+        "frontend_recognized": 91.49,
+        "registered_lowering": 91.49,
         "alias_candidate": 4.26,
-        "unmapped": 6.38,
-        "known_limited": 8.51,
+        "unmapped": 4.26,
+        "known_limited": 0.0,
         "validated_for_profile": 0.0
       },
       "case_counts": {
@@ -1324,7 +1331,7 @@
       ],
       "alias_candidates": [],
       "static_status": "registered_lowering",
-      "known_limitations": "Review pending: Advanced indexing / None / boolean masks may be partial.",
+      "known_limitations": null,
       "required_cases": [
         "small-f32",
         "rect-f32",
@@ -1972,7 +1979,7 @@
       ],
       "alias_candidates": [],
       "static_status": "registered_lowering",
-      "known_limitations": "Review pending: Accumulate / advanced indexing may be partial.",
+      "known_limitations": null,
       "required_cases": [
         "small-f32",
         "rect-f32",
@@ -2234,7 +2241,7 @@
       "lowering_dialects": [],
       "alias_candidates": [],
       "static_status": "unmapped",
-      "known_limitations": "Configured explicit-num_classes=4 cases pass through AOT decomposition after the bool-to-integer copy fix. Inferred class counts, empty inputs and invalid indices remain untested.",
+      "known_limitations": null,
       "required_cases": [
         "small-f32",
         "rect-f32",
@@ -2249,12 +2256,14 @@
         "moe_critical"
       ],
       "pytorch_schema": "aten::bincount(Tensor self, Tensor? weights=None, SymInt minlength=0) -> Tensor",
-      "buddy_op": null,
-      "frontend_recognized": false,
-      "lowering_dialects": [],
+      "buddy_op": "BincountOp",
+      "frontend_recognized": true,
+      "lowering_dialects": [
+        "linalg"
+      ],
       "alias_candidates": [],
-      "static_status": "unmapped",
-      "known_limitations": "The cpu-export-v1 cases fail during AOT import with DynamicOutputShapeException; minlength does not fix the data-dependent output extent.",
+      "static_status": "registered_lowering",
+      "known_limitations": null,
       "required_cases": [
         "small-f32",
         "rect-f32",
@@ -2497,7 +2506,7 @@
         "aten::constant_pad_nd.default"
       ],
       "static_status": "alias_candidate",
-      "known_limitations": "Review pending: General padding modes are not established by a constant_pad_nd mapping.",
+      "known_limitations": null,
       "required_cases": [
         "small-f32",
         "rect-f32",
@@ -2585,7 +2594,7 @@
       ],
       "alias_candidates": [],
       "static_status": "registered_lowering",
-      "known_limitations": "Non-empty static CPU inputs have numerical regressions. Empty inputs are explicitly rejected because PyTorch 2.10 eager output shape disagrees with export metadata.",
+      "known_limitations": null,
       "required_cases": [
         "small-f32",
         "rect-f32",
