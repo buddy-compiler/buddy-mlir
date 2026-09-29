@@ -192,6 +192,7 @@ MemRef<T, N>::MemRef(intptr_t sizes[N], bool needMalloc, intptr_t offset)
   if (needMalloc) {
     size_t size = product(sizes);
     allocated = (T *)malloc(sizeof(T) * size);
+    aligned = allocated;
   }
 }
 
@@ -215,6 +216,7 @@ MemRef<T, N>::MemRef(std::vector<size_t> sizes, bool needMalloc,
   if (needMalloc) {
     size_t size = product(this->sizes);
     allocated = (T *)malloc(sizeof(T) * size);
+    aligned = allocated;
   }
 }
 

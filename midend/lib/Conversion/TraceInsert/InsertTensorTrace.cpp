@@ -539,9 +539,9 @@ private:
   }
 
   LogicalResult lowerEndOp(::buddy::trace::EndOp op) {
-    if (modes.tensorTrace && failed(insertTensorTraceCall(op)))
-      return failure();
     if (modes.cycleTrace && failed(insertCycleEndCall(op)))
+      return failure();
+    if (modes.tensorTrace && failed(insertTensorTraceCall(op)))
       return failure();
 
     op.getOutput().replaceAllUsesWith(op.getInput());

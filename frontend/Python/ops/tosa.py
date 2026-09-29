@@ -362,56 +362,11 @@ def _to_nhwc(val, channels, elem_ty, nchw_meta=None):
     )
 
 
-def _fix_chan_bcast(a, b):
-    """NCHW channel scale (C / Cx1 / Cx1x1 / 1xCx1x1) -> 1x1x1xC for NHWC act."""
-
-    def _scale_to_nhwc(act, scale):
-        sa = [int(x) for x in ir.RankedTensorType(act.type).shape]
-        ss = [int(x) for x in ir.RankedTensorType(scale.type).shape]
-        if len(sa) != 4:
-            return None
-        c = sa[3]
-        if ss not in ([c], [c, 1], [c, 1, 1], [1, c, 1, 1]):
-            return None
-        return tosa.ReshapeOp(scale, _create_shape_operand([1, 1, 1, c])).result
-
-    fixed = _scale_to_nhwc(a, b)
-    if fixed is not None:
-        return a, fixed
-    fixed = _scale_to_nhwc(b, a)
-    if fixed is not None:
-        return fixed, b
-    return a, b
-
-
-def _align_nchw_nhwc(a, b):
-    """If ranks match and shapes are NCHW<->NHWC mirrors, transpose NCHW to NHWC."""
-    sa = [int(x) for x in ir.RankedTensorType(a.type).shape]
-    sb = [int(x) for x in ir.RankedTensorType(b.type).shape]
-    if len(sa) != 4 or len(sb) != 4:
-        return a, b
-    elem_a = ir.RankedTensorType(a.type).element_type
-    elem_b = ir.RankedTensorType(b.type).element_type
-    if sa != sb and sa == [sb[0], sb[3], sb[1], sb[2]]:
-        out_ty = ir.RankedTensorType.get([sa[0], sa[2], sa[3], sa[1]], elem_a)
-        a = tosa.TransposeOp(
-            out_ty, a, _create_permutation_attr([0, 2, 3, 1])
-        ).result
-    elif sa != sb and sb == [sa[0], sa[3], sa[1], sa[2]]:
-        out_ty = ir.RankedTensorType.get([sb[0], sb[2], sb[3], sb[1]], elem_b)
-        b = tosa.TransposeOp(
-            out_ty, b, _create_permutation_attr([0, 2, 3, 1])
-        ).result
-    return a, b
-
-
 def _gen_arith_binary_op(input1, input2, op_func):
     """Generate arithmetic binary operation. Most binary operations follow the
     same pattern.
     So we can use one function to generate them, avoiding code duplication."""
     input1, input2 = _normalize_binary_operator_args(input1, input2)
-    input1, input2 = _align_nchw_nhwc(input1, input2)
-    input1, input2 = _fix_chan_bcast(input1, input2)
 
     input1_shape = ir.RankedTensorType(input1.type).shape
     input2_shape = ir.RankedTensorType(input2.type).shape
@@ -2425,8 +2380,6 @@ def ne_tensor_op(node: NeTensorOp, symbol_table):
 
 def _broadcast_binary_operands(input1, input2):
     input1, input2 = _normalize_binary_operator_args(input1, input2)
-    input1, input2 = _align_nchw_nhwc(input1, input2)
-    input1, input2 = _fix_chan_bcast(input1, input2)
     input1_shape = list(ir.RankedTensorType(input1.type).shape)
     input2_shape = list(ir.RankedTensorType(input2.type).shape)
 
