@@ -244,9 +244,8 @@ class GraphDriver:
 
         # Analysis topology order to sort subgraph call.
         topo_order = self.topological_sort_subgraph()
-        if topo_order == None:
-            print("Error : Graph Partitioning is illegal!")
-            return None
+        if topo_order is None:
+            raise ValueError("graph partitioning contains a dependency cycle")
         # Adding CallOp to invoke the single subgraph
         for i, subgraph_name in enumerate(topo_order):
             call_node = CallOp()
@@ -275,10 +274,28 @@ class GraphDriver:
             main_graph.add_node(call_node)
         # Adding GetItemOps to retrieve individual output tensors
         output_node = OutputOp()
-        for i, output in enumerate(self._subgraphs_outputs[topo_order[-1]]):
+        original_output = next(
+            node for node in self._graph.body if isinstance(node, OutputOp)
+        )
+        for i, output in enumerate(original_output.args):
+            if output in main_graph.node_table:
+                output_node.add_argument(output)
+                continue
+            producer = next(
+                (
+                    name
+                    for name, outputs in self._subgraphs_outputs.items()
+                    if output in outputs
+                ),
+                None,
+            )
+            if producer is None:
+                raise ValueError(f"no subgraph produces graph output {output}")
             getitem_node = GetItemOp()
-            getitem_node.add_argument(call_node.name)
-            getitem_node.add_argument(i)
+            getitem_node.add_argument(self._call_table[producer].name)
+            getitem_node.add_argument(
+                self._subgraphs_outputs[producer].index(output)
+            )
             getitem_node.name = f"getitem{i}"
             output_node.add_argument(getitem_node.name)
             main_graph.add_node(getitem_node)

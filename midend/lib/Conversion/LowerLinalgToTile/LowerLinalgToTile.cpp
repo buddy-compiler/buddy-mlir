@@ -1389,9 +1389,12 @@ public:
 
 } // namespace
 
-void populateLowerLinalgToTileConversionPatterns(RewritePatternSet &patterns) {
+void populateLowerLinalgToTileConversionPatterns(RewritePatternSet &patterns,
+                                                 bool quantizedOnly) {
   patterns.add<QuantF32ToI8Lowering, MegaKernelGenericLowering>(
       patterns.getContext());
+  if (quantizedOnly)
+    return;
   patterns.add<ReluGenericLowering>(patterns.getContext());
   patterns.add<MatmulLowering>(patterns.getContext());
   patterns.add<BatchMatMulOpLowering>(patterns.getContext());
@@ -1601,7 +1604,12 @@ class LowerLinalgToTilePass
 public:
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(LowerLinalgToTilePass);
   LowerLinalgToTilePass() = default;
-  LowerLinalgToTilePass(const LowerLinalgToTilePass &) {}
+  LowerLinalgToTilePass(const LowerLinalgToTilePass &other)
+      : PassWrapper(other) {}
+  Option<bool> quantizedOnly{
+      *this, "quantized-only",
+      llvm::cl::desc("Lower only explicitly quantized regions"),
+      llvm::cl::init(false)};
   StringRef getArgument() const final { return "convert-linalg-to-tile"; }
   StringRef getDescription() const final {
     return "convert linalg dialect to tile dialect";
@@ -1629,9 +1637,12 @@ public:
       }
       return true;
     });
-    target.addIllegalOp<linalg::TransposeOp>();
+    if (quantizedOnly)
+      target.addLegalDialect<linalg::LinalgDialect>();
+    else
+      target.addIllegalOp<linalg::TransposeOp>();
     RewritePatternSet patterns(context);
-    populateLowerLinalgToTileConversionPatterns(patterns);
+    populateLowerLinalgToTileConversionPatterns(patterns, quantizedOnly);
     if (failed(applyPartialConversion(module, target, std::move(patterns))))
       signalPassFailure();
   }

@@ -1264,10 +1264,13 @@ class GraphImporter:
             node (Op): The buddy node representing the operation.
 
         """
+        from .transform.trace.lowering import trace_op_result, trace_op_start
+
         op_name = node.__class__.__name__
-        op_ret: ir.Operation | ir.Value | tuple | list | ir.OpResult = (
-            self._ops_registry[op_name](node, self._symbol_table)
-        )
+        with ir.Location.name(node.name):
+            trace_op_start(node)
+            op_ret = self._ops_registry[op_name](node, self._symbol_table)
+            op_ret = trace_op_result(node, op_ret)
         if op_ret is None:
             raise ValueError(
                 f"lowering returned no value for {node.name} ({op_name})"
