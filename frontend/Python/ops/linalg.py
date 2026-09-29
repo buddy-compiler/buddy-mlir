@@ -12725,8 +12725,12 @@ def _make_tosa_mul_shift():
     return tosa.ConstOp(attr).results[0]
 
 
-def _quantize_activation_i8(activation, symbol_table):
+def _quantize_activation_i8(activation, symbol_table, granularity="per_tensor"):
     """Generate MLIR ops for dynamic per-tensor activation quantization f32→i8.
+
+    granularity="per_tensor": one scale for the whole tensor, shape [1, 1].
+    granularity="per_token":  one scale per pow, reduce over K only, [M, 1].
+
     Returns (activation_i8, activation_scale_f32)."""
     act_type = ir.RankedTensorType(activation.type)
     act_shape = list(act_type.shape)
@@ -12736,11 +12740,18 @@ def _quantize_activation_i8(activation, symbol_table):
 
     abs_result = tosa.AbsOp(activation.type, activation).result
 
-    for dim in range(len(act_shape)):
+    if granularity == "per_token":
+        reduce_dims = [len(act_shape) - 1]
+    else:
+        reduce_dims = list(range(len(act_shape)))
+
+    for dim in reduce_dims:
         dim_attr = ir.IntegerAttr.get(ir.IntegerType.get_signless(32), dim)
         abs_result = tosa.ReduceMaxOp(abs_result, dim_attr).result
 
     scalar_shape = [1] * len(act_shape)
+    if granularity == "per_token":
+        scalar_shape[0] = act_shape[0]
     scalar_type = ir.RankedTensorType.get(scalar_shape, f32)
 
     c127 = arith.ConstantOp(
@@ -12797,6 +12808,8 @@ def _quantize_activation_i8(activation, symbol_table):
 def quantized_matmul_op(node, symbol_table):
     """W8A8 quantized matmul: args = [activation(f32), weight(i8), weight_scale(f32)]
     Generates: dynamic_quant(activation) → i8×i8→i32 matmul → rescale → f32"""
+    granularity = node.kwargs.get("activation_granularity", "per_tensor")
+
     activation = symbol_table.get((str(node.args[0]), 0))
     weight_i8 = symbol_table.get((str(node.args[1]), 0))
     weight_scale = symbol_table.get((str(node.args[2]), 0))
@@ -12809,7 +12822,7 @@ def quantized_matmul_op(node, symbol_table):
     out_shape = [act_shape[0], w_shape[1]]
 
     # Dynamic quantize activation
-    act_i8, act_scale = _quantize_activation_i8(activation, symbol_table)
+    act_i8, act_scale = _quantize_activation_i8(activation, symbol_table, granularity)
 
     # i8 × i8 → i32 matmul
     i32_type = ir.RankedTensorType.get(out_shape, i32)
@@ -12837,8 +12850,16 @@ def quantized_matmul_op(node, symbol_table):
     result_f32 = tosa.CastOp(f32_type, matmul.result).result
 
     # Rescale: result * act_scale * weight_scale
+    if granularity == "per_token":
+        # act_scale [M, 1] * weight_scale [1, N] -> [M, N]
+        combined_type = ir.RankedTensorType.get(out_shape, f32)
+    elif granularity == "per_tensor":
+        # act_scale [1, 1] * weight_scale [1, N] -> [1, N]
+        combined_type = weight_scale.type
+    else:
+        raise ValueError(f"Got granularity: {granularity}")
     combined_scale = tosa.MulOp(
-        weight_scale.type, act_scale, weight_scale, _make_tosa_mul_shift()
+        combined_type, act_scale, weight_scale, _make_tosa_mul_shift()
     ).result
     result = tosa.MulOp(
         f32_type, result_f32, combined_scale, _make_tosa_mul_shift()
