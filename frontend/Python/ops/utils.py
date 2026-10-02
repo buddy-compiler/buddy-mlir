@@ -27,6 +27,37 @@ LARGE_SPLAT_TENSOR_ELEMENT_THRESHOLD = 10_000
 LARGE_ZERO_TENSOR_ELEMENT_THRESHOLD = LARGE_SPLAT_TENSOR_ELEMENT_THRESHOLD
 
 
+def slice_tensor(input_tensor, dim=0, start=None, end=None, step=1):
+    """Lower a static ATen slice, including clipped bounds and positive steps."""
+    tensor_type = ir.RankedTensorType(input_tensor.type)
+    shape = list(tensor_type.shape)
+    if any(size < 0 for size in shape):
+        raise NotImplementedError("Slice requires static tensor shapes")
+    rank = len(shape)
+    if not -rank <= dim < rank:
+        raise ValueError("Slice dimension is out of range")
+    dim %= rank
+    if step <= 0:
+        raise ValueError("Slice step must be positive")
+    start, end, step = slice(start, end, step).indices(shape[dim])
+    sizes = shape.copy()
+    sizes[dim] = len(range(start, end, step))
+    if 0 in sizes:
+        return tensor.EmptyOp(sizes, tensor_type.element_type)
+    offsets, strides = [0] * rank, [1] * rank
+    offsets[dim], strides[dim] = start, step
+    return tensor.ExtractSliceOp(
+        ir.RankedTensorType.get(sizes, tensor_type.element_type),
+        input_tensor,
+        [],
+        [],
+        [],
+        ir._denseI64ArrayAttr(offsets, None),
+        ir._denseI64ArrayAttr(sizes, None),
+        ir._denseI64ArrayAttr(strides, None),
+    )
+
+
 def _static_element_count(shape: list[int]) -> int | None:
     if not shape:
         return 1

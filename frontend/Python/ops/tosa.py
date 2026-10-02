@@ -27,6 +27,7 @@ from buddy_mlir.dialects import (
     affine,
     arith,
     bufferization,
+    cf,
     linalg,
     math,
     memref,
@@ -187,6 +188,7 @@ from ..graph import (
     ReluOp,
     RemainderOp,
     RepeatOp,
+    ReplicationPad1dOp,
     ReplicationPad2dOp,
     ReplicationPad3dOp,
     ReshapeOp,
@@ -302,12 +304,27 @@ def _build_range_tensor(
 
     @tensor.generate(tensor_type, dynamic_extents=[])
     def generated(i: index_type):
+        if isinstance(mlir_dtype, (ir.FloatType, ir.BF16Type)) and (
+            int(start) != start or int(step) != step
+        ):
+            index_value = arith.IndexCastOp(i64_type, i).result
+            value = arith.SIToFPOp(mlir_dtype, index_value).result
+            start_value = arith.ConstantOp(
+                mlir_dtype, ir.FloatAttr.get(mlir_dtype, float(start))
+            ).result
+            step_value = arith.ConstantOp(
+                mlir_dtype, ir.FloatAttr.get(mlir_dtype, float(step))
+            ).result
+            return arith.AddFOp(
+                start_value, arith.MulFOp(value, step_value).result
+            ).result
         value_index = i
         if int(step) != 1:
             value_index = arith.MulIOp(i, step_index).result
         if int(start) != 0:
             value_index = arith.AddIOp(value_index, start_index).result
 
+        # Round integral sequences only after computing each integer value.
         if isinstance(mlir_dtype, (ir.FloatType, ir.BF16Type)):
             value_i64 = arith.IndexCastOp(i64_type, value_index).result
             return arith.SIToFPOp(mlir_dtype, value_i64).result
@@ -817,19 +834,15 @@ def mul_op(node: MulOp, symbol_table):
     if isinstance(node.args[0], str):
         input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
     else:
-        data = [node.args[0]]
-        input1_shape = numpy.array(data).shape
-        tensor_type = ir.RankedTensorType.get(input1_shape, mlir_dtype)
+        tensor_type = ir.RankedTensorType.get([], mlir_dtype)
         element = mlir_element_attr_get(dtype, node.args[0])
         attr = ir.DenseElementsAttr.get_splat(tensor_type, element)
-        input2 = arith.ConstantOp(tensor_type, attr).result
+        input1 = arith.ConstantOp(tensor_type, attr).result
 
     if isinstance(node.args[1], str):
         input2 = symbol_table.get((str(node.args[1]), 0), node.args[1])
     else:
-        data = [node.args[1]]
-        input2_shape = numpy.array(data).shape
-        tensor_type = ir.RankedTensorType.get(input2_shape, mlir_dtype)
+        tensor_type = ir.RankedTensorType.get([], mlir_dtype)
         element = mlir_element_attr_get(dtype, node.args[1])
         attr = ir.DenseElementsAttr.get_splat(tensor_type, element)
         input2 = arith.ConstantOp(tensor_type, attr).result
@@ -1044,42 +1057,66 @@ def logical_not_op(node: LogicalNotOp, symbol_table):
 
 
 def clamp_op(node: ClampOp, symbol_table):
-    """
-    Import elementwise clamp operation.
-    From buddy graph ir's `ClampOp` operator to MLIR TOSA `clamp` operation.
-    Clamps all elements in input into the range [min, max].
-    """
-    input1 = symbol_table.get((str(node.args[0]), 0))
-    min_val = (
-        node.args[1]
-        if len(node.args) > 1 and node.args[1] is not None
-        else float("-inf")
+    """Clamp using scalar bounds with the input element type."""
+    value = symbol_table[(str(node.args[0]), 0)]
+    dtype = ir.RankedTensorType(value.type).element_type
+    lower = node.kwargs.get("min", node.args[1] if len(node.args) > 1 else None)
+    upper = node.kwargs.get("max", node.args[2] if len(node.args) > 2 else None)
+    if lower is None and upper is None:
+        raise ValueError("Clamp requires at least one bound")
+    if str(dtype) in ("f32", "f64"):
+        lower = ir.FloatAttr.get(
+            dtype, float("-inf") if lower is None else float(lower)
+        )
+        upper = ir.FloatAttr.get(
+            dtype, float("inf") if upper is None else float(upper)
+        )
+    elif str(dtype) in ("i32", "i64"):
+        width = ir.IntegerType(dtype).width
+        if any(
+            x is not None and not isinstance(x, int) for x in (lower, upper)
+        ):
+            raise NotImplementedError("Integer clamp requires integer bounds")
+        if any(
+            x is not None and not -(1 << (width - 1)) <= x < (1 << (width - 1))
+            for x in (lower, upper)
+        ):
+            raise OverflowError(
+                "Clamp bound is outside the input integer range"
+            )
+        lower = ir.IntegerAttr.get(
+            dtype, -(1 << (width - 1)) if lower is None else lower
+        )
+        upper = ir.IntegerAttr.get(
+            dtype, (1 << (width - 1)) - 1 if upper is None else upper
+        )
+    else:
+        raise NotImplementedError("Clamp supports f32/f64/i32/i64")
+    shape = list(ir.RankedTensorType(value.type).shape)
+    output = tensor.EmptyOp(shape, dtype)
+    identity = ir.AffineMapAttr.get(ir.AffineMap.get_identity(len(shape)))
+    op = linalg.GenericOp(
+        [value.type],
+        [value],
+        [output.result],
+        ir.ArrayAttr.get([identity, identity]),
+        ir.ArrayAttr.get(
+            [ir.Attribute.parse("#linalg.iterator_type<parallel>")] * len(shape)
+        ),
     )
-    max_val = (
-        node.args[2]
-        if len(node.args) > 2 and node.args[2] is not None
-        else float("inf")
-    )
-
-    sizes = ir.RankedTensorType(input1.type).shape
-    result_element_type = ir.RankedTensorType(input1.type).element_type
-    result_tensor_type = ir.RankedTensorType.get(sizes, result_element_type)
-
-    # TOSA ClampOp requires min/max as attributes
-    min_fp = ir.FloatAttr.get(ir.F32Type.get(), float(min_val))
-    max_fp = ir.FloatAttr.get(ir.F32Type.get(), float(max_val))
-    min_int = ir.IntegerAttr.get(
-        ir.IntegerType.get_signless(64),
-        int(min_val) if min_val != float("-inf") else -(2**63 - 1),
-    )
-    max_int = ir.IntegerAttr.get(
-        ir.IntegerType.get_signless(64),
-        int(max_val) if max_val != float("inf") else 2**63 - 1,
-    )
-
-    op = tosa.ClampOp(
-        result_tensor_type, input1, min_int, max_int, min_fp, max_fp
-    )
+    block = ir.Block.create_at_start(op.region, [dtype, dtype])
+    with ir.InsertionPoint(block):
+        minimum = arith.ConstantOp(dtype, lower).result
+        maximum = arith.ConstantOp(dtype, upper).result
+        if str(dtype) in ("f32", "f64"):
+            result = arith.MinimumFOp(
+                arith.MaximumFOp(block.arguments[0], minimum).result, maximum
+            ).result
+        else:
+            result = arith.MinSIOp(
+                arith.MaxSIOp(block.arguments[0], minimum).result, maximum
+            ).result
+        linalg.YieldOp([result])
     return op
 
 
@@ -2257,6 +2294,11 @@ def eq_tensor_op(node: EqTensorOp, symbol_table):
     Import the element-wise equality comparison operation.
     From buddy graph ir's `EqTensorOp` operator to MLIR TOSA `equal` operation.
     """
+    output_shape = list(node.tensor_meta["shape"])
+    if 0 in output_shape:
+        return tensor.EmptyOp(
+            output_shape, ir.IntegerType.get_signless(1)
+        ).result
     input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
     input2 = symbol_table.get((str(node.args[1]), 0), node.args[1])
     input1, input2, broadcasted_shape = _broadcast_binary_operands(
@@ -2386,61 +2428,77 @@ def le_tensor_op(node: LeTensorOp, symbol_table):
 
 
 def constant_pad_nd_op(node: ConstantPadNdOp, symbol_table):
-    """
-    Import the constant padding operation.
-    From buddy graph ir's `ConstantPadNdOp` operator to MLIR TOSA `pad` operation.
-    """
-    input1 = symbol_table.get((str(node.args[0]), 0))
-    pad_list = node.args[1]
-    pad_value = node.args[2] if len(node.args) > 2 else 0.0
-
-    input_shape = list(ir.RankedTensorType(input1.type).shape)
-    input_dtype = ir.RankedTensorType(input1.type).element_type
-    ndim = len(input_shape)
-
-    # Convert PyTorch padding format to TOSA padding format
-    # PyTorch: [left, right, top, bottom, ...] from last dim to first
-    # TOSA: [[dim0_before, dim0_after], [dim1_before, dim1_after], ...]
-    tosa_padding = []
-    for i in range(ndim):
-        # Reverse index for PyTorch format
-        pad_idx = (ndim - 1 - i) * 2
-        if pad_idx < len(pad_list):
-            before = pad_list[pad_idx]
-            after = pad_list[pad_idx + 1] if pad_idx + 1 < len(pad_list) else 0
-        else:
-            before = 0
-            after = 0
-        tosa_padding.append(before)
-        tosa_padding.append(after)
-
-    # Create padding shape operand for tosa.pad.
-    # TOSA expects a `!tosa.shape<2*rank>` value with Index element type.
-    pad_const = _create_shape_operand(tosa_padding)
-
-    # Create pad value constant
-    pad_val_type = ir.RankedTensorType.get([1], input_dtype)
-    if str(input_dtype).find("f") != -1:
-        pad_val_attr = ir.DenseElementsAttr.get_splat(
-            pad_val_type, ir.FloatAttr.get(input_dtype, float(pad_value))
-        )
-    else:
-        pad_val_attr = ir.DenseElementsAttr.get_splat(
-            pad_val_type, ir.IntegerAttr.get(input_dtype, int(pad_value))
-        )
-    pad_val_const = tosa.ConstOp(pad_val_attr)
-
-    # Compute output shape
-    output_shape = []
-    for i in range(ndim):
-        before = tosa_padding[i * 2]
-        after = tosa_padding[i * 2 + 1]
-        output_shape.append(input_shape[i] + before + after)
-
-    output_type = ir.RankedTensorType.get(output_shape, input_dtype)
-    return tosa.PadOp(
-        output_type, input1, pad_const, pad_const=pad_val_const.result
+    """Constant padding and cropping without reading outside the input."""
+    source = symbol_table[(str(node.args[0]), 0)]
+    source_type = ir.RankedTensorType(source.type)
+    shape = list(source_type.shape)
+    pads = list(map(int, node.args[1]))
+    if len(pads) % 2 or len(pads) > 2 * len(shape):
+        raise ValueError("Invalid constant padding length")
+    if any(size < 0 for size in shape):
+        raise NotImplementedError("Constant padding requires static dimensions")
+    before = [0] * len(shape)
+    output_shape = shape.copy()
+    for i in range(len(pads) // 2):
+        dim = len(shape) - i - 1
+        if max(-pads[2 * i], 0) + max(-pads[2 * i + 1], 0) > shape[dim]:
+            raise ValueError("Constant padding crops beyond the input extent")
+        before[dim] = pads[2 * i]
+        output_shape[dim] += pads[2 * i] + pads[2 * i + 1]
+        if output_shape[dim] < 0:
+            raise ValueError("Constant padding produces a negative dimension")
+    dtype = source_type.element_type
+    output = tensor.EmptyOp(output_shape, dtype)
+    if 0 in output_shape:
+        return output.result
+    pad_value = (
+        node.args[2] if len(node.args) > 2 else node.kwargs.get("value", 0)
     )
+    value = float(pad_value) if _is_float_type(dtype) else int(pad_value)
+    if dtype == ir.IntegerType.get_signless(1):
+        value = int(bool(pad_value))
+    fill = arith.ConstantOp(dtype, value).result
+    op = linalg.GenericOp(
+        [ir.RankedTensorType.get(output_shape, dtype)],
+        [],
+        [output],
+        ir.ArrayAttr.get(
+            [ir.AffineMapAttr.get(ir.AffineMap.get_identity(len(shape)))]
+        ),
+        ir.ArrayAttr.get(
+            [ir.Attribute.parse("#linalg.iterator_type<parallel>")] * len(shape)
+        ),
+    )
+    block = ir.Block.create_at_start(op.region, [dtype])
+    with ir.InsertionPoint(block):
+        index_type = ir.IndexType.get()
+        zero = arith.ConstantOp(index_type, 0).result
+        valid = arith.ConstantOp(ir.IntegerType.get_signless(1), 1).result
+        indices = []
+        for i, size in enumerate(shape):
+            position = arith.SubIOp(
+                linalg.IndexOp(i).result,
+                arith.ConstantOp(index_type, before[i]).result,
+            ).result
+            nonnegative = arith.CmpIOp(
+                arith.CmpIPredicate.sge, position, zero
+            ).result
+            below = arith.CmpIOp(
+                arith.CmpIPredicate.slt,
+                position,
+                arith.ConstantOp(index_type, size).result,
+            ).result
+            valid = arith.AndIOp(
+                valid, arith.AndIOp(nonnegative, below).result
+            ).result
+            indices.append(position)
+        select = scf.IfOp(valid, [dtype], has_else=True)
+        with ir.InsertionPoint(select.then_block):
+            scf.YieldOp([tensor.ExtractOp(source, indices).result])
+        with ir.InsertionPoint(select.else_block):
+            scf.YieldOp([fill])
+        linalg.YieldOp([select.results[0]])
+    return op.result
 
 
 def masked_fill_op(node: MaskedFillOp, symbol_table):
@@ -2518,6 +2576,10 @@ def reshape_op(node: ReshapeOp, symbol_table):
         new_shape = list(node._newshape)
 
     now_shape = ir.RankedTensorType(input1.type).shape
+    if any(size < 0 for size in now_shape) or any(
+        not isinstance(size, int) for size in new_shape
+    ):
+        return _copy_dynamic_reshape(input1, new_shape, symbol_table)
     total_size = 1
     for dim_siz in now_shape:
         total_size *= dim_siz
@@ -2531,7 +2593,7 @@ def reshape_op(node: ReshapeOp, symbol_table):
         rest_size *= dim_siz
 
     if neg_one_cnt != 0:
-        if neg_one_cnt > 1 or total_size % rest_size != 0:
+        if neg_one_cnt > 1 or rest_size == 0 or total_size % rest_size != 0:
             raise ValueError("Can not infer the new shape!")
         infer_dim_size = total_size // rest_size
         for i, _ in enumerate(new_shape):
@@ -2544,7 +2606,250 @@ def reshape_op(node: ReshapeOp, symbol_table):
     ):
         return input1
 
-    return _reshape_or_extract_for_complex(input1, new_shape)
+    return _copy_logical_reshape(input1, new_shape)
+
+
+def _copy_logical_reshape(value, shape):
+    """Copy logical row-major elements without assuming a view's memory layout."""
+    source_type = ir.RankedTensorType(value.type)
+    source_shape = list(source_type.shape)
+    element_type = source_type.element_type
+    if any(s < 0 for s in source_shape + list(shape)):
+        return _copy_dynamic_reshape(value, shape, {}, preserve_shape=True)
+    source_size, target_size = 1, 1
+    for size in source_shape:
+        source_size *= size
+    for size in shape:
+        target_size *= size
+    if source_size != target_size:
+        raise ValueError("Reshape must preserve the number of elements")
+    output = tensor.EmptyOp(shape, element_type)
+    if 0 in shape:
+        return output.result
+    result_type = ir.RankedTensorType.get(shape, element_type)
+    rank = len(shape)
+    op = linalg.GenericOp(
+        [result_type],
+        [],
+        [output],
+        ir.ArrayAttr.get(
+            [ir.AffineMapAttr.get(ir.AffineMap.get_identity(rank))]
+        ),
+        ir.ArrayAttr.get(
+            [ir.Attribute.parse("#linalg.iterator_type<parallel>")] * rank
+        ),
+    )
+    block = ir.Block.create_at_start(op.region, [element_type])
+    with ir.InsertionPoint(block):
+        index_type = ir.IndexType.get()
+        linear = arith.ConstantOp(index_type, 0).result
+        for dim, size in enumerate(shape):
+            extent = arith.ConstantOp(index_type, int(size)).result
+            coordinate = linalg.IndexOp(ir._i64Attr(dim, None)).result
+            linear = arith.AddIOp(
+                arith.MulIOp(linear, extent).result, coordinate
+            ).result
+        indices = []
+        for size in reversed(source_shape):
+            extent = arith.ConstantOp(index_type, int(size)).result
+            indices.append(arith.RemUIOp(linear, extent).result)
+            linear = arith.DivUIOp(linear, extent).result
+        element = tensor.ExtractOp(value, list(reversed(indices))).result
+        linalg.YieldOp([element])
+    return op.result
+
+
+def _copy_dynamic_reshape(value, shape, symbols, *, preserve_shape=False):
+    """Resolve runtime extents and copy logical coordinates of strided inputs."""
+    source_type = ir.RankedTensorType(value.type)
+    index_type = ir.IndexType.get()
+
+    def constant(size):
+        return arith.ConstantOp(index_type, size).result
+
+    zero, one = constant(0), constant(1)
+    source_sizes = [
+        tensor.DimOp(value, constant(i)).result if size < 0 else constant(size)
+        for i, size in enumerate(source_type.shape)
+    ]
+    total = one
+    for size in source_sizes:
+        total = arith.MulIOp(total, size).result
+    extents, result_shape, inferred = [], [], None
+    product = one
+    for i, size in enumerate(shape):
+        if preserve_shape and size < 0:
+            extent = source_sizes[i]
+            result_shape.append(ir.ShapedType.get_dynamic_size())
+        elif isinstance(size, int) and size == -1:
+            if inferred is not None:
+                raise ValueError("Reshape permits only one inferred dimension")
+            inferred = i
+            extents.append(None)
+            result_shape.append(ir.ShapedType.get_dynamic_size())
+            continue
+        elif isinstance(size, int):
+            if size < 0:
+                raise ValueError("Invalid reshape dimension")
+            extent = constant(size)
+            result_shape.append(size)
+        else:
+            extent = symbols[(str(size), 0)]
+            if isinstance(extent.type, ir.RankedTensorType):
+                extent = tensor.ExtractOp(extent, []).result
+            extent = arith.IndexCastOp(index_type, extent).result
+            cf.AssertOp(
+                arith.CmpIOp(arith.CmpIPredicate.sge, extent, zero).result,
+                "Reshape dimension must be nonnegative",
+            )
+            result_shape.append(ir.ShapedType.get_dynamic_size())
+        extents.append(extent)
+        product = arith.MulIOp(product, extent).result
+    if inferred is not None:
+        cf.AssertOp(
+            arith.CmpIOp(arith.CmpIPredicate.sgt, product, zero).result,
+            "Cannot infer reshape dimension with zero known product",
+        )
+        cf.AssertOp(
+            arith.CmpIOp(
+                arith.CmpIPredicate.eq,
+                arith.RemUIOp(total, product).result,
+                zero,
+            ).result,
+            "Reshape must preserve element count",
+        )
+        extents[inferred] = arith.DivUIOp(total, product).result
+    else:
+        cf.AssertOp(
+            arith.CmpIOp(arith.CmpIPredicate.eq, total, product).result,
+            "Reshape must preserve element count",
+        )
+    output_type = ir.RankedTensorType.get(
+        result_shape, source_type.element_type
+    )
+    output = memref.AllocOp(
+        ir.MemRefType.get(result_shape, source_type.element_type),
+        [extent for size, extent in zip(result_shape, extents) if size < 0],
+        [],
+    ).result
+
+    def coordinates(linear, sizes):
+        indices = []
+        for size in reversed(sizes):
+            indices.append(arith.RemUIOp(linear, size).result)
+            linear = arith.DivUIOp(linear, size).result
+        return list(reversed(indices))
+
+    loop = scf.ForOp(zero, total, one)
+    with ir.InsertionPoint(loop.body):
+        element = tensor.ExtractOp(
+            value, coordinates(loop.induction_variable, source_sizes)
+        ).result
+        memref.StoreOp(
+            element, output, coordinates(loop.induction_variable, extents)
+        )
+        scf.YieldOp([])
+    return bufferization.ToTensorOp(output_type, output, restrict=True).result
+
+
+def _pixel_rearrange(node, symbol_table, *, inverse):
+    """Copy channel/spatial coordinates, retaining leading batch dimensions."""
+    value = symbol_table[(str(node.args[0]), 0)]
+    source_type = ir.RankedTensorType(value.type)
+    source_shape = list(source_type.shape)
+    factor = int(node.args[1])
+    if factor <= 0 or len(source_shape) < 3:
+        raise ValueError(
+            "Pixel rearrangement requires rank >= 3 and factor > 0"
+        )
+    if any(size < 0 for size in source_shape):
+        raise NotImplementedError("Pixel rearrangement requires static shapes")
+    channels, height, width = source_shape[-3:]
+    if inverse:
+        if height % factor or width % factor:
+            raise ValueError(
+                "Pixel unshuffle spatial sizes must divide by factor"
+            )
+        shape = source_shape[:-3] + [
+            channels * factor * factor,
+            height // factor,
+            width // factor,
+        ]
+    else:
+        if channels % (factor * factor):
+            raise ValueError(
+                "Pixel shuffle channels must divide by factor squared"
+            )
+        shape = source_shape[:-3] + [
+            channels // (factor * factor),
+            height * factor,
+            width * factor,
+        ]
+    if inverse and 0 in source_shape:
+        # Eager preserves the input shape for empty unshuffle. The opt-in export
+        # adapter supplies matching metadata; raw conflicting metadata is rejected.
+        shape = source_shape
+    if shape != list(node.tensor_meta["shape"]):
+        raise ValueError("Pixel rearrangement output metadata mismatch")
+    element_type = source_type.element_type
+    output = tensor.EmptyOp(shape, element_type)
+    if 0 in shape:
+        return output.result
+    rank = len(shape)
+    op = linalg.GenericOp(
+        [ir.RankedTensorType.get(shape, element_type)],
+        [],
+        [output],
+        ir.ArrayAttr.get(
+            [ir.AffineMapAttr.get(ir.AffineMap.get_identity(rank))]
+        ),
+        ir.ArrayAttr.get(
+            [ir.Attribute.parse("#linalg.iterator_type<parallel>")] * rank
+        ),
+    )
+    block = ir.Block.create_at_start(op.region, [element_type])
+    with ir.InsertionPoint(block):
+        coordinates = [
+            linalg.IndexOp(ir._i64Attr(d, None)).result for d in range(rank)
+        ]
+        channel, row, col = coordinates[-3:]
+        r = arith.ConstantOp(ir.IndexType.get(), factor).result
+        rr = arith.ConstantOp(ir.IndexType.get(), factor * factor).result
+        if inverse:
+            source_channel = arith.DivUIOp(channel, rr).result
+            row_offset = arith.RemUIOp(
+                arith.DivUIOp(channel, r).result, r
+            ).result
+            col_offset = arith.RemUIOp(channel, r).result
+            source_row = arith.AddIOp(
+                arith.MulIOp(row, r).result, row_offset
+            ).result
+            source_col = arith.AddIOp(
+                arith.MulIOp(col, r).result, col_offset
+            ).result
+        else:
+            offset = arith.AddIOp(
+                arith.MulIOp(arith.RemUIOp(row, r).result, r).result,
+                arith.RemUIOp(col, r).result,
+            ).result
+            source_channel = arith.AddIOp(
+                arith.MulIOp(channel, rr).result, offset
+            ).result
+            source_row = arith.DivUIOp(row, r).result
+            source_col = arith.DivUIOp(col, r).result
+        element = tensor.ExtractOp(
+            value, coordinates[:-3] + [source_channel, source_row, source_col]
+        ).result
+        linalg.YieldOp([element])
+    return op.result
+
+
+def pixel_shuffle_op(node, symbol_table):
+    return _pixel_rearrange(node, symbol_table, inverse=False)
+
+
+def pixel_unshuffle_op(node, symbol_table):
+    return _pixel_rearrange(node, symbol_table, inverse=True)
 
 
 def view_dtype_op(node: ViewDtypeOp, symbol_table):
@@ -2619,6 +2924,9 @@ def _reshape_or_extract_for_complex(input_tensor, output_shape):
     input_shape = list(ir.RankedTensorType(input_tensor.type).shape)
     element_type = ir.RankedTensorType(input_tensor.type).element_type
 
+    if 0 in input_shape and 0 in output_shape:
+        return tensor.EmptyOp(output_shape, element_type).result
+
     if len(output_shape) == len(input_shape) and all(
         int(a) == int(b) for a, b in zip(output_shape, input_shape)
     ):
@@ -2669,96 +2977,52 @@ def unsqueeze_op(node: UnsqueezeOp, symbol_table):
 
 
 def select_op(node: SelectOp, symbol_table):
-    """
-    Import the select operation.
-    From buddy graph ir's `SelectOp` operator to MLIR TOSA `reshape`
-    operation.
-    """
-    input_tensor = symbol_table.get((str(node.args[0]), 0))
-    dim = node.args[1]
-    index = node.args[2]
+    """Select one index using rank reduction without a layout-changing reshape."""
+    input_tensor = symbol_table[(str(node.args[0]), 0)]
+    return _select_tensor(input_tensor, *node.args[1:3])
 
-    sizes = ir.RankedTensorType(input_tensor.type).shape
 
-    new_sizes = sizes[:dim] + [1] + sizes[dim + 1 :]
-    start = [0] * len(sizes)
-    start[dim] = index
-
-    result_element_type = ir.RankedTensorType(input_tensor.type).element_type
-    output_type = ir.RankedTensorType.get(new_sizes, result_element_type)
-    start_operand = _create_shape_operand(start)
-    size_operand = _create_shape_operand(new_sizes)
-    op = tosa.SliceOp(output_type, input_tensor, start_operand, size_operand)
-
-    reshape_sizes = sizes[:dim] + sizes[dim + 1 :]
-    return _reshape_or_extract_for_complex(op.results[0], reshape_sizes)
+def _select_tensor(input_tensor, dim, index):
+    tensor_type = ir.RankedTensorType(input_tensor.type)
+    sizes = list(tensor_type.shape)
+    rank = len(sizes)
+    if not -rank <= dim < rank:
+        raise ValueError("Select dimension is out of range")
+    dim %= rank
+    if sizes[dim] < 0:
+        raise NotImplementedError("Select requires a static selected dimension")
+    if not -sizes[dim] <= index < sizes[dim]:
+        raise IndexError("Select index is out of range")
+    index %= sizes[dim]
+    output_shape = sizes[:dim] + sizes[dim + 1 :]
+    if 0 in output_shape:
+        return tensor.EmptyOp(output_shape, tensor_type.element_type)
+    sizes[dim] = 1
+    offsets = [0] * rank
+    offsets[dim] = index
+    dynamic_sizes = [
+        tensor.DimOp(
+            input_tensor, arith.ConstantOp(ir.IndexType.get(), i).result
+        ).result
+        for i, size in enumerate(sizes)
+        if size < 0
+    ]
+    return tensor.ExtractSliceOp(
+        ir.RankedTensorType.get(output_shape, tensor_type.element_type),
+        input_tensor,
+        [],
+        dynamic_sizes,
+        [],
+        ir._denseI64ArrayAttr(offsets, None),
+        ir._denseI64ArrayAttr(sizes, None),
+        ir._denseI64ArrayAttr([1] * rank, None),
+    )
 
 
 def slice_op(node: SliceOp, symbol_table):
-    """
-    Import the slice operation.
-    From buddy graph ir's `SliceOp` operator to MLIR TOSA `extract_slice`
-    operation.
-    """
-    input_tensor = symbol_table.get((str(node.args[0]), 0))
-    dim = node.args[1]
-    start_idx = node.args[2]
-    end_idx = node.args[3]
-
-    sizes = ir.RankedTensorType(input_tensor.type).shape
-    dtype = node.tensor_meta["dtype"]
-    mlir_dtype = mlir_element_type_get(dtype)
-    output_shape = list(node.tensor_meta["shape"])
-
-    rank_diff = len(output_shape) - len(sizes)
-    if rank_diff > 0:
-        expanded_shape = [1] * rank_diff + list(sizes)
-        shape_operand = _create_shape_operand(expanded_shape)
-        input_tensor = tosa.ReshapeOp(input_tensor, shape_operand).result
-        sizes = expanded_shape
-
-    if start_idx < 0:
-        start_idx += sizes[dim]
-
-    if end_idx < 0:
-        end_idx += sizes[dim]
-
-    if start_idx < 0:
-        start_idx = 0
-    elif start_idx >= sizes[dim]:
-        start_idx = sizes[dim]
-
-    if end_idx < start_idx:
-        end_idx = start_idx
-    elif end_idx >= sizes[dim]:
-        end_idx = sizes[dim]
-
-    new_sizes = [x for x in sizes]
-    new_sizes[dim] = end_idx - start_idx
-    new_sizes_attr = ir._denseI64ArrayAttr(new_sizes, None)
-
-    offsets = [0] * len(sizes)
-    offsets[dim] = start_idx
-    offsets_attr = ir._denseI64ArrayAttr(offsets, None)
-
-    strides = [1] * len(sizes)
-    strides_attr = ir._denseI64ArrayAttr(strides, None)
-
-    extract_slice_result_type = ir.RankedTensorType.get(new_sizes, mlir_dtype)
-    if new_sizes == sizes:
-        return input_tensor
-    op = tensor.ExtractSliceOp(
-        extract_slice_result_type,
-        input_tensor,
-        [],
-        [],
-        [],
-        offsets_attr,
-        new_sizes_attr,
-        strides_attr,
-    )
-
-    return op
+    """Preserve ATen slice bounds and strides in the tensor dialect."""
+    input_tensor = symbol_table[(str(node.args[0]), 0)]
+    return slice_tensor(input_tensor, *node.args[1:], **node.kwargs)
 
 
 def convert_element_type_op(node: ConvertElementTypeOp, symbol_table):
@@ -2931,21 +3195,9 @@ def convert_element_type_op(node: ConvertElementTypeOp, symbol_table):
 
 
 def clone_op(node: CloneOp, symbol_table):
-    """
-    Import the clone operation.
-    From buddy graph ir's `CloneOp` operator to MLIR TOSA `identity`
-    operation.
-
-    Note: Since MLIR follows the SSA form, when using the `identity` operation,
-    we actually deep-copies the original tensor.
-    """
+    """Materialize a copy, preserving values from offset or strided views."""
     input_tensor = symbol_table.get((str(node.args[0]), 0))
-    return input_tensor
-    # sizes = ir.RankedTensorType(input_tensor.type).shape
-    # result_element_type = ir.RankedTensorType(input_tensor.type).element_type
-    # output_type = ir.RankedTensorType.get(sizes, result_element_type)
-
-    # return tosa.IdentityOp(output_type, input_tensor)
+    return _copy_logical_reshape(input_tensor, list(input_tensor.type.shape))
 
 
 def var_mean_op(node: VarMeanOp, symbol_table):
@@ -3185,75 +3437,54 @@ def embedding_op(node: EmbeddingOp, symbol_table):
 
 
 def expand_op(node: ExpandOp, symbol_table) -> ir.Operation:
-    """
-    Import the expand operation.
-    From buddy graph ir's `ExpandOp` operator to MLIR TOSA `add` operation.
-
-    Note: This conversion is implemented using the broadcast machanism of TOSA
-          `add` operation. We allocate a tensor with the shape to expand and
-          elements in this tensor is all zero. Then we add the original tensor
-          to this all-zero tensor. After the applying the broadcasting, we get
-          the result.
-    """
-    to_expand_tensor = symbol_table.get((str(node.args[0]), 0))
-    if to_expand_tensor is None:
-        return
-
-    original_size = list(ir.RankedTensorType(to_expand_tensor.type).shape)
-    new_size = list(node.args[1])
-    result_element_type = ir.RankedTensorType(
-        to_expand_tensor.type
-    ).element_type
-
-    if result_element_type in (
-        ir.IntegerType.get_signless(1),
-        ir.IntegerType.get_signless(64),
-    ):
-        element = ir.IntegerAttr.get(result_element_type, 0)
-    elif (
-        result_element_type == ir.F32Type.get()
-        or result_element_type == ir.F16Type.get()
-        or result_element_type == ir.BF16Type.get()
-    ):
-        element = ir.FloatAttr.get(result_element_type, 0.0)
-    else:
-        raise NotImplementedError("Unsupported element type!")
-
-    # `aten.expand` aligns shapes from the right and may add leading dimensions.
-    if len(original_size) < len(new_size):
-        padded_original_size = [1] * (
-            len(new_size) - len(original_size)
-        ) + original_size
-    elif len(original_size) > len(new_size):
-        raise ValueError(
-            f"expand_op: invalid target rank {len(new_size)} "
-            f"for input rank {len(original_size)}"
+    """Broadcast static input values without arithmetic or dtype conversion."""
+    value = symbol_table[(str(node.args[0]), 0)]
+    typ = ir.RankedTensorType(value.type)
+    shape = list(typ.shape)
+    target = list(node.args[1])
+    leading = len(target) - len(shape)
+    if leading < 0 or any(size < 0 for size in shape):
+        raise NotImplementedError(
+            "Expand requires static shapes and nondecreasing rank"
         )
-    else:
-        padded_original_size = original_size
-
-    input_for_add = to_expand_tensor
-    if original_size != padded_original_size:
-        input_for_add = tosa.ReshapeOp(
-            to_expand_tensor,
-            _create_shape_operand(padded_original_size),
-        ).result
-
-    expanded_size: list[int] = []
-    for dim, size in zip(padded_original_size, new_size):
-        expanded_size.append(dim if size == -1 else int(size))
-
-    if padded_original_size == expanded_size:
-        return input_for_add
-
-    new_size_tensor_type = ir.RankedTensorType.get(
-        expanded_size, result_element_type
+    padded = [1] * leading + shape
+    for axis, size in enumerate(target):
+        if size == -1 and axis >= leading:
+            target[axis] = padded[axis]
+        elif size < 0:
+            raise ValueError("Expand has an invalid target dimension")
+        if padded[axis] != 1 and padded[axis] != target[axis]:
+            raise ValueError("Expand can only broadcast singleton dimensions")
+    if shape == target:
+        return value
+    output = tensor.EmptyOp(target, typ.element_type)
+    if 0 in target:
+        return output
+    indexing = [
+        ir.AffineConstantExpr.get(0)
+        if size == 1
+        else ir.AffineDimExpr.get(axis + leading)
+        for axis, size in enumerate(shape)
+    ]
+    maps = [
+        ir.AffineMapAttr.get(ir.AffineMap.get(len(target), 0, indexing)),
+        ir.AffineMapAttr.get(ir.AffineMap.get_identity(len(target))),
+    ]
+    op = linalg.GenericOp(
+        [output.result.type],
+        [value],
+        [output.result],
+        ir.ArrayAttr.get(maps),
+        ir.ArrayAttr.get(
+            [ir.Attribute.parse("#linalg.iterator_type<parallel>")]
+            * len(target)
+        ),
     )
-    new_size_attr = ir.DenseElementsAttr.get_splat(
-        new_size_tensor_type, element
+    block = ir.Block.create_at_start(
+        op.region, [typ.element_type, typ.element_type]
     )
-    new_size_tensor = tosa.ConstOp(new_size_attr).results[0]
-    op = _gen_arith_binary_op(input_for_add, new_size_tensor, tosa.AddOp)
+    with ir.InsertionPoint(block):
+        linalg.YieldOp([block.arguments[0]])
     return op
 
 
@@ -3348,7 +3579,7 @@ def transpose_op(node: TransposeOp, symbol_table):
     temp = perm_list[dim1]
     perm_list[dim1] = perm_list[dim2]
     perm_list[dim2] = temp
-    output_shape = list(node.tensor_meta["shape"])
+    output_shape = [input_shape[i] for i in perm_list]
     perms_attr = _create_permutation_attr(perm_list)
     result_element_type = ir.RankedTensorType(input1.type).element_type
     permute_result_type = ir.RankedTensorType.get(
@@ -3918,58 +4149,68 @@ def reciprocal_op(node: ReciprocalOp, symbol_table):
 
 
 def mean_op(node: MeanOp, symbol_table):
-    """
-    Import the buddy MeanOp.
-    From Buddy MeanOp to MLIR TOSA operation.
-    """
-
-    def _inner_op(result_type, input1, input2):
-        shift = _create_mul_shift_operand()
-        return tosa.MulOp(result_type, input1, input2, shift)
-
-    input_tensor = symbol_table.get((str(node.args[0]), 0))
-    keepdim = node.args[2]
-    dims = [x for x in node.args[1]]
-    if isinstance(dims, int):
-        dims = [dims]
-
-    for dim_item_idx, _ in enumerate(dims):
-        if dims[dim_item_idx] < 0:
-            dims[dim_item_idx] += len(
-                ir.RankedTensorType(input_tensor.type).shape
-            )
-
-    reduce_sum_result = input_tensor
-    for dim_item in dims:
-        reduce_dim_attr = ir.IntegerAttr.get(
-            ir.IntegerType.get_signless(32), dim_item
+    """Reduce declared axes without removing unrelated singleton dimensions."""
+    value = symbol_table[(str(node.args[0]), 0)]
+    shape = list(ir.RankedTensorType(value.type).shape)
+    dtype = ir.RankedTensorType(value.type).element_type
+    if any(size < 0 for size in shape) or str(dtype) not in ("f32", "f64"):
+        raise NotImplementedError("Mean requires static f32/f64 input")
+    requested_dtype = node.kwargs.get("dtype")
+    if (
+        requested_dtype is not None
+        and mlir_element_type_get(node.tensor_meta["dtype"]) != dtype
+    ):
+        raise NotImplementedError("Mean dtype conversion is not supported")
+    dim = node.kwargs.get("dim", node.args[1] if len(node.args) > 1 else None)
+    keepdim = node.kwargs.get(
+        "keepdim", node.args[2] if len(node.args) > 2 else False
+    )
+    dims = _normalize_reduce_dims(dim, len(shape))
+    if not shape and (dim is None or dim in (0, -1) or dim in ([0], [-1], [])):
+        dims = []
+    if len(set(dims)) != len(dims) or any(
+        d < 0 or d >= len(shape) for d in dims
+    ):
+        raise ValueError("Mean requires distinct, valid dimensions")
+    output_shape = (
+        [1 if axis in dims else size for axis, size in enumerate(shape)]
+        if keepdim
+        else [size for axis, size in enumerate(shape) if axis not in dims]
+    )
+    if 0 in shape:
+        if 0 in output_shape:
+            return tensor.EmptyOp(output_shape, dtype)
+        result_type = ir.RankedTensorType.get(output_shape, dtype)
+        return arith.ConstantOp(
+            result_type,
+            ir.DenseElementsAttr.get_splat(
+                result_type, ir.FloatAttr.get(dtype, float("nan"))
+            ),
         )
-        reduce_sum_op = tosa.ReduceSumOp(reduce_sum_result, reduce_dim_attr)
-        reduce_sum_result = reduce_sum_op.results[0]
-
-    tensor_shp = ir.RankedTensorType(input_tensor.type).shape
-    dim_size = 1
-
-    for dim_item in dims:
-        dim_size *= tensor_shp[dim_item]
-
-    denominator_const_op = tosa.ConstOp(
-        ir.DenseElementsAttr.get(memoryview(array.array("f", [dim_size])))
+    count = 1
+    result = value
+    for axis in dims:
+        count *= shape[axis]
+        result = tosa.ReduceSumOp(result, axis).result
+    reduced_type = ir.RankedTensorType(result.type)
+    scale = ir.DenseElementsAttr.get_splat(
+        reduced_type,
+        ir.FloatAttr.get(dtype, 1.0 / count if count else float("nan")),
     )
-    reciprocal_op = tosa.ReciprocalOp(
-        denominator_const_op.results[0].type, denominator_const_op
-    )
-    ret = _gen_arith_binary_op(
-        reciprocal_op.results[0], reduce_sum_op.results[0], _inner_op
-    )
-
+    result = tosa.MulOp(
+        result.type,
+        result,
+        tosa.ConstOp(scale).result,
+        _create_mul_shift_operand(),
+    ).result
     if not keepdim:
-        result_shp = ir.RankedTensorType(ret.results[0].type).shape
-        result_shp = [siz for siz in result_shp if siz != 1]
-        reshape_operand = _create_shape_operand(result_shp)
-        ret = tosa.ReshapeOp(ret.results[0], reshape_operand)
-
-    return ret
+        output_shape = [
+            size for axis, size in enumerate(shape) if axis not in dims
+        ]
+        result = tosa.ReshapeOp(
+            result, _create_shape_operand(output_shape)
+        ).result
+    return result
 
 
 def clamp_min_op(node: ClampMinOp, symbol_table):
@@ -4129,14 +4370,18 @@ def scaled_dot_product_flash_attention_for_cpu_op(
     key = symbol_table.get((str(node.args[1]), 0), node.args[1])
     value = symbol_table.get((str(node.args[2]), 0), node.args[2])
 
-    if len(node.args) == 4:
-        dropout_p = node.args[3]
-        assert dropout_p == 0.0
-    if len(node.args) == 5:
-        dropout_p = node.args[3]
-        is_causal = node.args[4]
-        assert dropout_p == 0.0
-        assert is_causal == True
+    dropout_p = (
+        node.args[3]
+        if len(node.args) > 3
+        else node.kwargs.get("dropout_p", 0.0)
+    )
+    is_causal = (
+        node.args[4]
+        if len(node.args) > 4
+        else node.kwargs.get("is_causal", False)
+    )
+    if dropout_p != 0.0:
+        raise NotImplementedError("CPU flash attention requires dropout_p=0")
 
     attn_mask = node.kwargs.get("attn_mask", None)
     scale = node.kwargs.get("scale", None)
@@ -4150,43 +4395,100 @@ def scaled_dot_product_flash_attention_for_cpu_op(
         1 / numpy.sqrt(query.type.shape[-1]) if scale is None else scale
     )
 
-    # Initialize attention bias
     dtype = node.tensor_meta["dtype"][0]
-    attn_bias_shape = [L, S]
     mlir_dtype = mlir_element_type_get(dtype)
-    zero_attr = mlir_element_attr_get(dtype, 0.0)
-    attn_bias = splat_tensor_value(attn_bias_shape, mlir_dtype, zero_attr)
+    heads = query_shape[1]
+    attn_bias_shape = [query_shape[0] * heads, L, S]
     if attn_mask is not None:
-        attn_mask = symbol_table.get((str(attn_mask), 0), attn_mask)
-        if attn_mask.type.element_type == ir.IntegerType.get_signless(1):
-            assert attn_mask.type.element_type == ir.IntegerType.get_signless(1)
-            tensor_type = ir.RankedTensorType.get(
-                attn_mask.type.shape, ir.IntegerType.get_signless(1)
+        attn_mask = symbol_table[(str(attn_mask), 0)]
+        mask_type = ir.RankedTensorType(attn_mask.type)
+        mask_shape = list(mask_type.shape)
+        promote_mask = (
+            mask_type.element_type == ir.F32Type.get()
+            and mlir_dtype == ir.F64Type.get()
+        )
+        if len(mask_shape) not in (2, 4) or (
+            mask_type.element_type != mlir_dtype and not promote_mask
+        ):
+            raise NotImplementedError(
+                "CPU attention requires a rank-2/rank-4 mask matching query dtype, "
+                "or an f32 mask with f64 queries"
             )
-            true_tensor = arith.ConstantOp(
-                tensor_type,
-                ir.DenseElementsAttr.get_splat(
-                    tensor_type, ir.BoolAttr.get(True)
-                ),
-            )
-            attn_mask = arith.XOrIOp(attn_mask, true_tensor)
-            minus_inf_tensor = arith.ConstantOp(
-                attn_mask.type,
-                ir.DenseElementsAttr.get_splat(
-                    attn_mask.type,
-                    ir.FloatAttr.get(ir.F32Type.get(), float("-inf")),
-                ),
-            )
-            attn_bias = tensor.SelectOp(
-                attn_mask, minus_inf_tensor, attn_bias
-            ).result
-        else:
-            if attn_mask.type.shape != attn_bias.type.shape:
-                attn_mask_operand = _create_shape_operand(
-                    list(attn_bias.type.shape)
+        padded_shape = [1] * (4 - len(mask_shape)) + mask_shape
+        target_shape = [query_shape[0], heads, L, S]
+        if any(
+            size not in (1, target)
+            for size, target in zip(padded_shape, target_shape)
+        ):
+            raise ValueError("Attention mask is not broadcastable to scores")
+
+    bias_type = ir.RankedTensorType.get(attn_bias_shape, mlir_dtype)
+    bias = linalg.GenericOp(
+        [bias_type],
+        [],
+        [tensor.EmptyOp(attn_bias_shape, mlir_dtype)],
+        ir.ArrayAttr.get([ir.AffineMapAttr.get(ir.AffineMap.get_identity(3))]),
+        ir.ArrayAttr.get(
+            [ir.Attribute.parse("#linalg.iterator_type<parallel>")] * 3
+        ),
+    )
+    block = ir.Block.create_at_start(bias.region, [mlir_dtype])
+    with ir.InsertionPoint(block):
+        flat = linalg.IndexOp(ir._i64Attr(0, None)).result
+        row = linalg.IndexOp(ir._i64Attr(1, None)).result
+        col = linalg.IndexOp(ir._i64Attr(2, None)).result
+        zero = arith.ConstantOp(mlir_dtype, 0.0).result
+        element = zero
+        if attn_mask is not None:
+            head_count = arith.ConstantOp(ir.IndexType.get(), heads).result
+            coordinates = [
+                arith.DivUIOp(flat, head_count).result,
+                arith.RemUIOp(flat, head_count).result,
+                row,
+                col,
+            ]
+            zero_index = arith.ConstantOp(ir.IndexType.get(), 0).result
+            indices = [
+                zero_index if size == 1 else index
+                for size, index in zip(
+                    mask_shape, coordinates[-len(mask_shape) :]
                 )
-                attn_mask = tosa.ReshapeOp(attn_mask, attn_mask_operand)
-            attn_bias = tosa.AddOp(attn_bias.type, attn_bias, attn_mask).result
+            ]
+            element = tensor.ExtractOp(attn_mask, indices).result
+            if promote_mask:
+                element = arith.ExtFOp(mlir_dtype, element).result
+        if is_causal:
+            visible = arith.CmpIOp(arith.CmpIPredicate.sle, col, row).result
+            masked = arith.ConstantOp(mlir_dtype, float("-inf")).result
+            element = arith.SelectOp(visible, element, masked).result
+        linalg.YieldOp([element])
+    attn_bias = bias.result
+
+    def zero_negative_infinity(value):
+        # Fully masked rows use a zero max for normalization and a zero LSE.
+        shape = list(value.type.shape)
+        identity = ir.AffineMapAttr.get(ir.AffineMap.get_identity(len(shape)))
+        op = linalg.GenericOp(
+            [value.type],
+            [value],
+            [tensor.EmptyOp(shape, mlir_dtype)],
+            ir.ArrayAttr.get([identity, identity]),
+            ir.ArrayAttr.get(
+                [ir.Attribute.parse("#linalg.iterator_type<parallel>")]
+                * len(shape)
+            ),
+        )
+        body = ir.Block.create_at_start(op.region, [mlir_dtype, mlir_dtype])
+        with ir.InsertionPoint(body):
+            negative_inf = arith.ConstantOp(mlir_dtype, float("-inf")).result
+            zero = arith.ConstantOp(mlir_dtype, 0.0).result
+            masked = arith.CmpFOp(
+                arith.CmpFPredicate.OEQ, body.arguments[0], negative_inf
+            ).result
+            linalg.YieldOp(
+                [arith.SelectOp(masked, zero, body.arguments[0]).result]
+            )
+        return op.result
 
     # Matrix multiplication of query and key
     query_reshape_operand = _create_shape_operand(
@@ -4263,7 +4565,6 @@ def scaled_dot_product_flash_attention_for_cpu_op(
 
     # Add attention bias to the result
     add_op = _gen_arith_binary_op(mul_op.result, attn_bias, tosa.AddOp)
-    # add_op = tosa.AddOp(matmul_result_type, mul_op.result, attn_bias)
     # Apply softmax to the result
     softmax_output_shape = list(add_op.result.type.shape)
     softmax_dim = len(softmax_output_shape) - 1
@@ -4271,11 +4572,13 @@ def scaled_dot_product_flash_attention_for_cpu_op(
     # Subtract the maximum value along the dimension where softmax is applied to
     # prevent overflow during the exp operation.
     max_vals = tosa.ReduceMaxOp(add_op.result, softmax_dim)
-    sub_op = tosa.SubOp(add_op.result.type, add_op, max_vals)
+    safe_max = zero_negative_infinity(max_vals.result)
+    sub_op = tosa.SubOp(add_op.result.type, add_op, safe_max)
     exp_op = math.ExpOp(sub_op.result)
     reduce_sum_op = tosa.ReduceSumOp(exp_op, softmax_dim)
     log_op = tosa.LogOp(reduce_sum_op.result.type, reduce_sum_op)
-    log_sumexp = tosa.AddOp(max_vals.result.type, max_vals, log_op)
+    log_sumexp = tosa.AddOp(max_vals.result.type, safe_max, log_op)
+    log_sumexp = zero_negative_infinity(log_sumexp.result)
     log_weights = tosa.SubOp(add_op.result.type, add_op, log_sumexp)
     softmax_result = math.ExpOp(log_weights.result)
     new_shape = [
@@ -4296,7 +4599,7 @@ def scaled_dot_product_flash_attention_for_cpu_op(
         ]
     )
     value_reshape_op = tosa.ReshapeOp(value, value_reshape_operand)
-    matmul_result_shp = matmul_result_shp = [
+    matmul_result_shp = [
         key_shape[0] * key_shape[1],
         query_shape[2],
         value_shape[3],
@@ -5687,13 +5990,13 @@ def stack_op(node: StackOp, symbol_table):
     stack([a, b, c], dim=0) = concat([unsqueeze(a, 0), unsqueeze(b, 0), unsqueeze(c, 0)], dim=0)
     """
     tensors = node.args[0]
-    dim = node.args[1] if len(node.args) > 1 else 0
+    dim = node.kwargs.get("dim", node.args[1] if len(node.args) > 1 else 0)
 
     # Get input tensors
     input_list = []
     for t in tensors:
-        tensor = symbol_table.get((str(t), 0), t)
-        input_list.append(tensor)
+        value = symbol_table[(str(t), 0)]
+        input_list.append(value)
 
     if not input_list:
         raise ValueError("stack requires at least one tensor")
@@ -5701,24 +6004,40 @@ def stack_op(node: StackOp, symbol_table):
     first_shape = list(ir.RankedTensorType(input_list[0].type).shape)
     input_dtype = ir.RankedTensorType(input_list[0].type).element_type
 
+    if any(
+        ir.RankedTensorType(value.type).shape != first_shape
+        or ir.RankedTensorType(value.type).element_type != input_dtype
+        for value in input_list
+    ):
+        raise NotImplementedError(
+            "Stack requires matching input shapes and dtypes"
+        )
+
     # Handle negative dim
     ndim = len(first_shape) + 1
     if dim < 0:
         dim = ndim + dim
 
+    if not 0 <= dim < ndim:
+        raise ValueError("Stack dimension is out of range")
+    if 0 in first_shape:
+        return tensor.EmptyOp(
+            first_shape[:dim] + [len(input_list)] + first_shape[dim:],
+            input_dtype,
+        )
+
     # Unsqueeze each tensor at the specified dimension
     unsqueezed_list = []
     new_shape = first_shape[:dim] + [1] + first_shape[dim:]
-    for tensor in input_list:
-        unsqueeze_type = ir.RankedTensorType.get(new_shape, input_dtype)
-        unsqueezed = tosa.ReshapeOp(tensor, _create_shape_operand(new_shape))
+    for value in input_list:
+        unsqueezed = tosa.ReshapeOp(value, _create_shape_operand(new_shape))
         unsqueezed_list.append(unsqueezed.result)
 
     # Concat along the new dimension
     output_shape = new_shape[:dim] + [len(input_list)] + new_shape[dim + 1 :]
     result_type = ir.RankedTensorType.get(output_shape, input_dtype)
 
-    return tosa.ConcatOp(result_type, unsqueezed_list, dim)
+    return tosa.ConcatOp(unsqueezed_list, dim, results=[result_type])
 
 
 def lerp_op(node: LerpOp, symbol_table):
@@ -5862,16 +6181,9 @@ def arange_start_step_op(node: ArangeStartStepOp, symbol_table):
 
     # Get output dtype from tensor_meta
     output_shape = list(node.tensor_meta["shape"])
-    output_dtype_str = str(node.tensor_meta["dtype"])
-
-    if "int64" in output_dtype_str:
-        output_dtype = TensorDType.Int64
-    elif "int32" in output_dtype_str:
-        output_dtype = TensorDType.Int32
-    else:
-        output_dtype = TensorDType.Float32
-
-    return _build_range_tensor(output_shape, output_dtype, start, step)
+    return _build_range_tensor(
+        output_shape, node.tensor_meta["dtype"], start, step
+    )
 
 
 def argmin_op(node: ArgMinOp, symbol_table):
@@ -6733,59 +7045,20 @@ def max_dim_op(node: MaxDimOp, symbol_table):
 
 
 def unbind_op(node: UnbindOp, symbol_table):
-    """
-    Import the unbind operation.
-    From buddy graph ir's `UnbindOp` operator to MLIR TOSA operations.
-    Removes a dimension and returns a tuple of sliced tensors.
-    aten.unbind(input, dim) -> tuple[Tensor, ...]
-
-    Note: Since MLIR functions return a fixed number of outputs, we need to
-    know the size at compile time. This returns slices along the dimension.
-    """
+    """Return rank-reduced slices with a statically known tuple length."""
     input1 = symbol_table.get((str(node.args[0]), 0))
     dim = node.args[1] if len(node.args) > 1 else 0
 
     input_shape = list(ir.RankedTensorType(input1.type).shape)
-    input_dtype = ir.RankedTensorType(input1.type).element_type
-
     # Handle negative dim
     if dim < 0:
         dim = len(input_shape) + dim
 
-    num_outputs = input_shape[dim]
-
-    # Create output shape (remove the unbind dimension)
-    output_shape = input_shape[:dim] + input_shape[dim + 1 :]
-    if not output_shape:
-        output_shape = []
-
-    results = []
-    for i in range(num_outputs):
-        # Slice along dim
-        start = [0] * len(input_shape)
-        start[dim] = i
-        size = input_shape.copy()
-        size[dim] = 1
-
-        start_operand = _create_shape_operand(start)
-        size_operand = _create_shape_operand(size)
-        slice_result = tosa.SliceOp(
-            ir.RankedTensorType.get(size, input_dtype),
-            input1,
-            start_operand,
-            size_operand,
-        ).result
-
-        # Squeeze the dimension
-        if output_shape:
-            output_shape_operand = _create_shape_operand(output_shape)
-            squeezed = tosa.ReshapeOp(slice_result, output_shape_operand).result
-            results.append(squeezed)
-        else:
-            # Scalar case
-            results.append(slice_result)
-
-    return tuple(results)
+    if not 0 <= dim < len(input_shape) or input_shape[dim] < 0:
+        raise NotImplementedError("Unbind requires a static output count")
+    return tuple(
+        _select_tensor(input1, dim, i).result for i in range(input_shape[dim])
+    )
 
 
 def split_with_sizes_op(node: SplitWithSizesOp, symbol_table):
@@ -7380,6 +7653,118 @@ def var_default_op(node: VarDefaultOp, symbol_table):
             result, _create_shape_operand(output_shape)
         ).result
     return result
+
+
+def gelu_op(node, symbol_table):
+    """Lower GELU's exact and tanh forms for f32/f64 CPU tensors."""
+    value = symbol_table[(str(node.args[0]), 0)]
+    result_type = ir.RankedTensorType(value.type)
+    dtype = result_type.element_type
+    if str(dtype) not in ("f32", "f64"):
+        raise NotImplementedError("GELU CPU lowering requires f32 or f64")
+    approximate = node.kwargs.get(
+        "approximate", node.args[1] if len(node.args) > 1 else "none"
+    )
+    if approximate not in ("none", "tanh"):
+        raise NotImplementedError(
+            f"Unsupported GELU approximation: {approximate}"
+        )
+    shift = _create_mul_shift_operand()
+
+    def constant(number):
+        return tosa.ConstOp(
+            ir.DenseElementsAttr.get_splat(
+                result_type, _get_scalar_attr(dtype, number)
+            )
+        ).result
+
+    def multiply(lhs, rhs):
+        return tosa.MulOp(result_type, lhs, rhs, shift).result
+
+    if approximate == "none":
+        activation = math.ErfOp(
+            multiply(value, constant(0.7071067811865476))
+        ).result
+    else:
+        cube = multiply(multiply(value, value), value)
+        inner = tosa.AddOp(
+            result_type, value, multiply(constant(0.044715), cube)
+        ).result
+        activation = math.TanhOp(
+            multiply(constant(0.7978845608028654), inner)
+        ).result
+    return multiply(
+        multiply(constant(0.5), value),
+        tosa.AddOp(result_type, constant(1.0), activation).result,
+    )
+
+
+def native_layer_norm_op(node, symbol_table):
+    """Normalize static f32/f64 tensors, returning output, mean and rstd."""
+    value = symbol_table[(str(node.args[0]), 0)]
+    input_type = ir.RankedTensorType(value.type)
+    shape, dtype = list(input_type.shape), input_type.element_type
+    normalized_shape = list(node.args[1])
+    if str(dtype) not in ("f32", "f64"):
+        raise NotImplementedError("Layer norm CPU lowering requires f32 or f64")
+    if (
+        not normalized_shape
+        or len(normalized_shape) > len(shape)
+        or shape[-len(normalized_shape) :] != normalized_shape
+        or any(size <= 0 for size in shape)
+    ):
+        raise NotImplementedError(
+            "Layer norm requires positive static shapes and matching trailing dimensions"
+        )
+    batch_rank = len(shape) - len(normalized_shape)
+    axes = range(batch_rank, len(shape))
+    reduced_shape = shape[:batch_rank] + [1] * len(normalized_shape)
+    reduced_type = ir.RankedTensorType.get(reduced_shape, dtype)
+    count = 1
+    for size in normalized_shape:
+        count *= size
+    shift = _create_mul_shift_operand()
+
+    def constant(number):
+        return tosa.ConstOp(
+            ir.DenseElementsAttr.get_splat(
+                reduced_type, _get_scalar_attr(dtype, number)
+            )
+        ).result
+
+    def mean_of(tensor_value):
+        for axis in axes:
+            tensor_value = tosa.ReduceSumOp(
+                tensor_value,
+                ir.IntegerAttr.get(ir.IntegerType.get_signless(32), axis),
+            ).results[0]
+        return tosa.MulOp(
+            reduced_type, tensor_value, constant(1.0 / count), shift
+        ).result
+
+    mean = mean_of(value)
+    centered = tosa.SubOp(input_type, value, mean).result
+    # Center before squaring to avoid cancellation in E[x^2] - E[x]^2.
+    variance = mean_of(tosa.MulOp(input_type, centered, centered, shift).result)
+    rstd = tosa.RsqrtOp(
+        reduced_type,
+        tosa.AddOp(reduced_type, variance, constant(node.args[4])).result,
+    ).result
+    output = tosa.MulOp(input_type, centered, rstd, shift).result
+    affine_shape = [1] * batch_rank + normalized_shape
+    for index in (2, 3):
+        if node.args[index] is None:
+            continue
+        affine = tosa.ReshapeOp(
+            symbol_table[(str(node.args[index]), 0)],
+            _create_shape_operand(affine_shape),
+        ).result
+        output = (
+            tosa.MulOp(input_type, output, affine, shift).result
+            if index == 2
+            else tosa.AddOp(input_type, output, affine).result
+        )
+    return output, mean, rstd
 
 
 def native_group_norm_op(node: NativeGroupNormOp, symbol_table):
@@ -8691,25 +9076,10 @@ def col2im_op(node, symbol_table):
 
 
 def sym_size_op(node, symbol_table):
-    """
-    Import the sym_size operation.
-    From buddy graph ir's `SymSizeOp` operator to MLIR operations.
-    aten.sym_size(input, dim) -> SymInt
+    """Read dynamic extents instead of materializing the dynamic type sentinel."""
+    from .linalg import sym_size_op as lower_sym_size
 
-    Returns the size of a tensor dimension as a symbolic integer.
-    """
-    input_tensor = symbol_table.get((str(node.args[0]), 0))
-    dim = node.args[1]
-
-    input_shape = list(ir.RankedTensorType(input_tensor.type).shape)
-
-    # Return the size as a constant
-    size = input_shape[dim]
-    result_type = ir.RankedTensorType.get([], ir.IntegerType.get_signless(64))
-    size_attr = ir.DenseElementsAttr.get_splat(
-        result_type, ir.IntegerAttr.get(ir.IntegerType.get_signless(64), size)
-    )
-    return tosa.ConstOp(size_attr)
+    return lower_sym_size(node, symbol_table)
 
 
 def sym_stride_op(node, symbol_table):
@@ -12276,741 +12646,103 @@ def bitwise_xor_scalar_op(node: BitwiseXorScalarOp, symbol_table):
     return arith.XOrIOp(input_tensor, scalar_tensor)
 
 
-def _create_tosa_padding(input_shape, padding, ndim_to_pad):
-    """
-    Create TOSA padding tensor from PyTorch padding format.
-
-    PyTorch padding format: [left, right, top, bottom, front, back, ...]
-    TOSA padding format: [[before_dim0, after_dim0], [before_dim1, after_dim1], ...]
-
-    Args:
-        input_shape: Input tensor shape
-        padding: PyTorch padding specification
-        ndim_to_pad: Number of dimensions to pad (1, 2, or 3)
-
-    Returns:
-        Tuple of (pad_tensor, output_shape)
-    """
-    rank = len(input_shape)
-
-    # Initialize padding to zeros for all dimensions
-    tosa_padding = []
-    for _ in range(rank):
-        tosa_padding.append(0)  # before
-        tosa_padding.append(0)  # after
-
-    # Fill in the padding for the last ndim_to_pad dimensions
-    for i in range(ndim_to_pad):
-        dim_idx = rank - ndim_to_pad + i
-        pad_idx = (ndim_to_pad - 1 - i) * 2  # Reverse order for PyTorch format
-        before = padding[pad_idx] if pad_idx < len(padding) else 0
-        after = padding[pad_idx + 1] if pad_idx + 1 < len(padding) else 0
-        tosa_padding[dim_idx * 2] = before
-        tosa_padding[dim_idx * 2 + 1] = after
-
-    # Compute output shape
-    output_shape = list(input_shape)
-    for i in range(ndim_to_pad):
-        dim_idx = rank - ndim_to_pad + i
-        output_shape[dim_idx] += (
-            tosa_padding[dim_idx * 2] + tosa_padding[dim_idx * 2 + 1]
+def _spatial_pad(node, symbol_table, dimensions, mode):
+    """Copy reflected or clamped coordinates for batched/unbatched inputs."""
+    source = symbol_table[(str(node.args[0]), 0)]
+    source_type = ir.RankedTensorType(source.type)
+    shape = list(source_type.shape)
+    padding = list(map(int, node.args[1]))
+    if (
+        len(shape) not in (dimensions + 1, dimensions + 2)
+        or len(padding) != 2 * dimensions
+    ):
+        raise ValueError("Spatial padding rank or padding length mismatch")
+    if any(size < 0 for size in shape):
+        raise NotImplementedError(
+            "Spatial padding requires static input shapes"
         )
-
-    # Create padding shape operand for tosa.pad.
-    # TOSA expects a `!tosa.shape<2*rank>` value with Index element type.
-    pad_tensor = _create_shape_operand(tosa_padding)
-
-    return pad_tensor, output_shape
+    output_shape = shape.copy()
+    for offset in range(dimensions):
+        dim = len(shape) - 1 - offset
+        left, right = padding[2 * offset : 2 * offset + 2]
+        if shape[dim] <= 0 or (
+            mode == "reflect" and max(left, right) >= shape[dim]
+        ):
+            raise ValueError("Invalid spatial extent or reflection padding")
+        output_shape[dim] += left + right
+        if output_shape[dim] <= 0:
+            raise ValueError("Spatial padding requires positive output extents")
+    dtype = source_type.element_type
+    output = tensor.EmptyOp(output_shape, dtype)
+    identity = ir.AffineMapAttr.get(ir.AffineMap.get_identity(len(shape)))
+    op = linalg.GenericOp(
+        [ir.RankedTensorType.get(output_shape, dtype)],
+        [],
+        [output],
+        ir.ArrayAttr.get([identity]),
+        ir.ArrayAttr.get(
+            [ir.Attribute.parse("#linalg.iterator_type<parallel>")] * len(shape)
+        ),
+    )
+    block = ir.Block.create_at_start(op.region, [dtype])
+    with ir.InsertionPoint(block):
+        indices = [linalg.IndexOp(i).result for i in range(len(shape))]
+        index_type = ir.IndexType.get()
+        zero = arith.ConstantOp(index_type, 0).result
+        for offset in range(dimensions):
+            dim = len(shape) - 1 - offset
+            left = arith.ConstantOp(index_type, padding[2 * offset]).result
+            position = arith.SubIOp(indices[dim], left).result
+            if mode == "reflect":
+                extent = arith.ConstantOp(index_type, shape[dim]).result
+                last_twice = arith.ConstantOp(
+                    index_type, 2 * shape[dim] - 2
+                ).result
+                below = arith.CmpIOp(
+                    arith.CmpIPredicate.slt, position, zero
+                ).result
+                above = arith.CmpIOp(
+                    arith.CmpIPredicate.sge, position, extent
+                ).result
+                reflected_left = arith.SubIOp(zero, position).result
+                reflected_right = arith.SubIOp(last_twice, position).result
+                selected = arith.SelectOp(
+                    below, reflected_left, position
+                ).result
+                indices[dim] = arith.SelectOp(
+                    above, reflected_right, selected
+                ).result
+            else:
+                last = arith.ConstantOp(index_type, shape[dim] - 1).result
+                indices[dim] = arith.MinSIOp(
+                    arith.MaxSIOp(position, zero).result, last
+                ).result
+        linalg.YieldOp([tensor.ExtractOp(source, indices).result])
+    return op.result
 
 
 def reflection_pad1d_op(node: ReflectionPad1dOp, symbol_table):
-    """
-    Apply 1D reflection padding to input tensor.
-
-    Note: TOSA doesn't have native reflection padding support,
-    so this uses constant (zero) padding as an approximation.
-
-    Args:
-        node: Operation node containing input tensor and padding specification
-        symbol_table: Symbol table mapping node names to values
-
-    Returns:
-        Padded tensor
-    """
-    input_tensor = symbol_table.get((str(node.args[0]), 0), node.args[0])
-    padding = node.args[1]  # [left, right]
-
-    input_type = ir.RankedTensorType(input_tensor.type)
-    input_shape = list(input_type.shape)
-    input_dtype = input_type.element_type
-
-    pad_tensor, output_shape = _create_tosa_padding(input_shape, padding, 1)
-    output_type = ir.RankedTensorType.get(output_shape, input_dtype)
-
-    # Keep a tosa.pad op for existing IR checks (unused for numeric correctness).
-    pad_val_type = ir.RankedTensorType.get([1], input_dtype)
-    if str(input_dtype).find("f") != -1:
-        pad_val_attr = ir.DenseElementsAttr.get_splat(
-            pad_val_type, ir.FloatAttr.get(input_dtype, 0.0)
-        )
-    else:
-        pad_val_attr = ir.DenseElementsAttr.get_splat(
-            pad_val_type, ir.IntegerAttr.get(input_dtype, 0)
-        )
-    pad_val_const = tosa.ConstOp(pad_val_attr).result
-    _unused = tosa.PadOp(
-        output_type, input_tensor, pad_tensor, pad_const=pad_val_const
-    )
-
-    left, right = int(padding[0]), int(padding[1])
-    N, C, W = input_shape
-    W_out = W + left + right
-
-    dummy = tensor.EmptyOp([N, C, W_out], input_dtype)
-    output = tensor.EmptyOp([N, C, W_out], input_dtype)
-    idx_map = ir.AffineMap.get_permutation([0, 1, 2])
-    op = linalg.GenericOp(
-        [output_type],
-        [dummy],
-        [output],
-        ir.ArrayAttr.get(
-            [ir.AffineMapAttr.get(idx_map), ir.AffineMapAttr.get(idx_map)]
-        ),
-        ir.ArrayAttr.get(
-            [ir.Attribute.parse("#linalg.iterator_type<parallel>")] * 3
-        ),
-    )
-    block = ir.Block.create_at_start(
-        op.region,
-        [
-            ir.RankedTensorType(dummy.result.type).element_type,
-            ir.RankedTensorType(output.result.type).element_type,
-        ],
-    )
-
-    index_type = ir.IndexType.get()
-    zero_c = arith.ConstantOp(index_type, 0)
-    n = linalg.IndexOp(ir._i64Attr(0, None))
-    c = linalg.IndexOp(ir._i64Attr(1, None))
-    ow = linalg.IndexOp(ir._i64Attr(2, None))
-    left_c = arith.ConstantOp(index_type, left)
-    w_c = arith.ConstantOp(index_type, W)
-    start_right_c = arith.ConstantOp(index_type, left + W)
-    w_minus2_c = arith.ConstantOp(index_type, W - 2)
-
-    cond_left = arith.CmpIOp(arith.CmpIPredicate.slt, ow.result, left_c.result)
-    cond_right = arith.CmpIOp(
-        arith.CmpIPredicate.sge, ow.result, start_right_c.result
-    )
-    iw_left = arith.SubIOp(left_c.result, ow.result)
-    iw_mid = arith.SubIOp(ow.result, left_c.result)
-    k = arith.SubIOp(ow.result, start_right_c.result)
-    iw_right = arith.SubIOp(w_minus2_c.result, k.result)
-    iw_tmp = arith.SelectOp(cond_left.result, iw_left.result, iw_mid.result)
-    iw = arith.SelectOp(cond_right.result, iw_right.result, iw_tmp.result)
-    val = tensor.ExtractOp(input_tensor, [n.result, c.result, iw.result])
-
-    block.append(n)
-    block.append(c)
-    block.append(ow)
-    block.append(left_c)
-    block.append(w_c)
-    block.append(start_right_c)
-    block.append(w_minus2_c)
-    block.append(cond_left)
-    block.append(cond_right)
-    block.append(iw_left)
-    block.append(iw_mid)
-    block.append(k)
-    block.append(iw_right)
-    block.append(iw_tmp)
-    block.append(iw)
-    block.append(val)
-    block.append(linalg.YieldOp([val.result]))
-
-    return op.result
+    return _spatial_pad(node, symbol_table, 1, "reflect")
 
 
 def reflection_pad2d_op(node: ReflectionPad2dOp, symbol_table):
-    """
-    Apply 2D reflection padding to input tensor.
-
-    Note: TOSA doesn't have native reflection padding support,
-    so this uses constant (zero) padding as an approximation.
-
-    Args:
-        node: Operation node containing input tensor and padding [left, right, top, bottom]
-        symbol_table: Symbol table mapping node names to values
-    """
-    input_tensor = symbol_table.get((str(node.args[0]), 0), node.args[0])
-    padding = node.args[1]  # [left, right, top, bottom]
-
-    input_type = ir.RankedTensorType(input_tensor.type)
-    input_shape = list(input_type.shape)
-    input_dtype = input_type.element_type
-
-    pad_tensor, output_shape = _create_tosa_padding(input_shape, padding, 2)
-    output_type = ir.RankedTensorType.get(output_shape, input_dtype)
-
-    # Keep a tosa.pad op for existing IR checks (unused for numeric correctness).
-    pad_val_type = ir.RankedTensorType.get([1], input_dtype)
-    if str(input_dtype).find("f") != -1:
-        pad_val_attr = ir.DenseElementsAttr.get_splat(
-            pad_val_type, ir.FloatAttr.get(input_dtype, 0.0)
-        )
-    else:
-        pad_val_attr = ir.DenseElementsAttr.get_splat(
-            pad_val_type, ir.IntegerAttr.get(input_dtype, 0)
-        )
-    pad_val_const = tosa.ConstOp(pad_val_attr).result
-    _unused = tosa.PadOp(
-        output_type, input_tensor, pad_tensor, pad_const=pad_val_const
-    )
-
-    left, right, top, bottom = [int(x) for x in padding]
-    N, C, H, W = input_shape
-    H_out = H + top + bottom
-    W_out = W + left + right
-
-    dummy = tensor.EmptyOp([N, C, H_out, W_out], input_dtype)
-    output = tensor.EmptyOp([N, C, H_out, W_out], input_dtype)
-    idx_map = ir.AffineMap.get_permutation([0, 1, 2, 3])
-    op = linalg.GenericOp(
-        [output_type],
-        [dummy],
-        [output],
-        ir.ArrayAttr.get(
-            [ir.AffineMapAttr.get(idx_map), ir.AffineMapAttr.get(idx_map)]
-        ),
-        ir.ArrayAttr.get(
-            [ir.Attribute.parse("#linalg.iterator_type<parallel>")] * 4
-        ),
-    )
-    block = ir.Block.create_at_start(
-        op.region,
-        [
-            ir.RankedTensorType(dummy.result.type).element_type,
-            ir.RankedTensorType(output.result.type).element_type,
-        ],
-    )
-
-    index_type = ir.IndexType.get()
-    zero_c = arith.ConstantOp(index_type, 0)
-    n = linalg.IndexOp(ir._i64Attr(0, None))
-    c = linalg.IndexOp(ir._i64Attr(1, None))
-    oh = linalg.IndexOp(ir._i64Attr(2, None))
-    ow = linalg.IndexOp(ir._i64Attr(3, None))
-
-    zero_c = arith.ConstantOp(index_type, 0)
-    top_c = arith.ConstantOp(index_type, top)
-    left_c = arith.ConstantOp(index_type, left)
-    start_h_right_c = arith.ConstantOp(index_type, top + H)
-    start_w_right_c = arith.ConstantOp(index_type, left + W)
-    h_minus2_c = arith.ConstantOp(index_type, H - 2)
-    w_minus2_c = arith.ConstantOp(index_type, W - 2)
-
-    # Reflect height index.
-    h_left = arith.CmpIOp(arith.CmpIPredicate.slt, oh.result, top_c.result)
-    h_right = arith.CmpIOp(
-        arith.CmpIPredicate.sge, oh.result, start_h_right_c.result
-    )
-    ih_left = arith.SubIOp(top_c.result, oh.result)
-    ih_mid = arith.SubIOp(oh.result, top_c.result)
-    hk = arith.SubIOp(oh.result, start_h_right_c.result)
-    ih_right = arith.SubIOp(h_minus2_c.result, hk.result)
-    ih_tmp = arith.SelectOp(h_left.result, ih_left.result, ih_mid.result)
-    ih = arith.SelectOp(h_right.result, ih_right.result, ih_tmp.result)
-
-    # Reflect width index.
-    w_left = arith.CmpIOp(arith.CmpIPredicate.slt, ow.result, left_c.result)
-    w_right = arith.CmpIOp(
-        arith.CmpIPredicate.sge, ow.result, start_w_right_c.result
-    )
-    iw_left = arith.SubIOp(left_c.result, ow.result)
-    iw_mid = arith.SubIOp(ow.result, left_c.result)
-    wk = arith.SubIOp(ow.result, start_w_right_c.result)
-    iw_right = arith.SubIOp(w_minus2_c.result, wk.result)
-    iw_tmp = arith.SelectOp(w_left.result, iw_left.result, iw_mid.result)
-    iw = arith.SelectOp(w_right.result, iw_right.result, iw_tmp.result)
-
-    val = tensor.ExtractOp(
-        input_tensor, [n.result, c.result, ih.result, iw.result]
-    )
-
-    block.append(n)
-    block.append(c)
-    block.append(oh)
-    block.append(ow)
-    block.append(top_c)
-    block.append(left_c)
-    block.append(start_h_right_c)
-    block.append(start_w_right_c)
-    block.append(h_minus2_c)
-    block.append(w_minus2_c)
-    block.append(h_left)
-    block.append(h_right)
-    block.append(ih_left)
-    block.append(ih_mid)
-    block.append(hk)
-    block.append(ih_right)
-    block.append(ih_tmp)
-    block.append(ih)
-    block.append(w_left)
-    block.append(w_right)
-    block.append(iw_left)
-    block.append(iw_mid)
-    block.append(wk)
-    block.append(iw_right)
-    block.append(iw_tmp)
-    block.append(iw)
-    block.append(val)
-    block.append(linalg.YieldOp([val.result]))
-
-    return op.result
+    return _spatial_pad(node, symbol_table, 2, "reflect")
 
 
 def reflection_pad3d_op(node: ReflectionPad3dOp, symbol_table):
-    """
-    Apply 3D reflection padding to input tensor.
+    return _spatial_pad(node, symbol_table, 3, "reflect")
 
-    Note: TOSA doesn't have native reflection padding support,
-    so this uses constant (zero) padding as an approximation.
 
-    Args:
-        node: Operation node containing input tensor and padding [l, r, t, b, f, back]
-        symbol_table: Symbol table mapping node names to values
-    """
-    input_tensor = symbol_table.get((str(node.args[0]), 0), node.args[0])
-    padding = node.args[1]  # [left, right, top, bottom, front, back]
-
-    input_type = ir.RankedTensorType(input_tensor.type)
-    input_shape = list(input_type.shape)
-    input_dtype = input_type.element_type
-
-    pad_tensor, output_shape = _create_tosa_padding(input_shape, padding, 3)
-    output_type = ir.RankedTensorType.get(output_shape, input_dtype)
-
-    # Keep a tosa.pad op for existing IR checks (unused for numeric correctness).
-    pad_val_type = ir.RankedTensorType.get([1], input_dtype)
-    if str(input_dtype).find("f") != -1:
-        pad_val_attr = ir.DenseElementsAttr.get_splat(
-            pad_val_type, ir.FloatAttr.get(input_dtype, 0.0)
-        )
-    else:
-        pad_val_attr = ir.DenseElementsAttr.get_splat(
-            pad_val_type, ir.IntegerAttr.get(input_dtype, 0)
-        )
-    pad_val_const = tosa.ConstOp(pad_val_attr).result
-    _unused = tosa.PadOp(
-        output_type, input_tensor, pad_tensor, pad_const=pad_val_const
-    )
-
-    left, right, top, bottom, front, back = [int(x) for x in padding]
-    N, C, D, H, W = input_shape
-    D_out = D + front + back
-    H_out = H + top + bottom
-    W_out = W + left + right
-
-    dummy = tensor.EmptyOp([N, C, D_out, H_out, W_out], input_dtype)
-    output = tensor.EmptyOp([N, C, D_out, H_out, W_out], input_dtype)
-    idx_map = ir.AffineMap.get_permutation([0, 1, 2, 3, 4])
-    op = linalg.GenericOp(
-        [output_type],
-        [dummy],
-        [output],
-        ir.ArrayAttr.get(
-            [ir.AffineMapAttr.get(idx_map), ir.AffineMapAttr.get(idx_map)]
-        ),
-        ir.ArrayAttr.get(
-            [ir.Attribute.parse("#linalg.iterator_type<parallel>")] * 5
-        ),
-    )
-    block = ir.Block.create_at_start(
-        op.region,
-        [
-            ir.RankedTensorType(dummy.result.type).element_type,
-            ir.RankedTensorType(output.result.type).element_type,
-        ],
-    )
-
-    index_type = ir.IndexType.get()
-    n = linalg.IndexOp(ir._i64Attr(0, None))
-    c = linalg.IndexOp(ir._i64Attr(1, None))
-    od = linalg.IndexOp(ir._i64Attr(2, None))
-    oh = linalg.IndexOp(ir._i64Attr(3, None))
-    ow = linalg.IndexOp(ir._i64Attr(4, None))
-
-    front_c = arith.ConstantOp(index_type, front)
-    top_c = arith.ConstantOp(index_type, top)
-    left_c = arith.ConstantOp(index_type, left)
-    start_d_right_c = arith.ConstantOp(index_type, front + D)
-    start_h_right_c = arith.ConstantOp(index_type, top + H)
-    start_w_right_c = arith.ConstantOp(index_type, left + W)
-    d_minus2_c = arith.ConstantOp(index_type, D - 2)
-    h_minus2_c = arith.ConstantOp(index_type, H - 2)
-    w_minus2_c = arith.ConstantOp(index_type, W - 2)
-
-    # Reflect depth index.
-    d_left = arith.CmpIOp(arith.CmpIPredicate.slt, od.result, front_c.result)
-    d_right = arith.CmpIOp(
-        arith.CmpIPredicate.sge, od.result, start_d_right_c.result
-    )
-    id_left = arith.SubIOp(front_c.result, od.result)
-    id_mid = arith.SubIOp(od.result, front_c.result)
-    dk = arith.SubIOp(od.result, start_d_right_c.result)
-    id_right = arith.SubIOp(d_minus2_c.result, dk.result)
-    id_tmp = arith.SelectOp(d_left.result, id_left.result, id_mid.result)
-    idv = arith.SelectOp(d_right.result, id_right.result, id_tmp.result)
-
-    # Reflect height index.
-    h_left = arith.CmpIOp(arith.CmpIPredicate.slt, oh.result, top_c.result)
-    h_right = arith.CmpIOp(
-        arith.CmpIPredicate.sge, oh.result, start_h_right_c.result
-    )
-    ih_left = arith.SubIOp(top_c.result, oh.result)
-    ih_mid = arith.SubIOp(oh.result, top_c.result)
-    hk = arith.SubIOp(oh.result, start_h_right_c.result)
-    ih_right = arith.SubIOp(h_minus2_c.result, hk.result)
-    ih_tmp = arith.SelectOp(h_left.result, ih_left.result, ih_mid.result)
-    ihv = arith.SelectOp(h_right.result, ih_right.result, ih_tmp.result)
-
-    # Reflect width index.
-    w_left = arith.CmpIOp(arith.CmpIPredicate.slt, ow.result, left_c.result)
-    w_right = arith.CmpIOp(
-        arith.CmpIPredicate.sge, ow.result, start_w_right_c.result
-    )
-    iw_left = arith.SubIOp(left_c.result, ow.result)
-    iw_mid = arith.SubIOp(ow.result, left_c.result)
-    wk = arith.SubIOp(ow.result, start_w_right_c.result)
-    iw_right = arith.SubIOp(w_minus2_c.result, wk.result)
-    iw_tmp = arith.SelectOp(w_left.result, iw_left.result, iw_mid.result)
-    iwv = arith.SelectOp(w_right.result, iw_right.result, iw_tmp.result)
-
-    val = tensor.ExtractOp(
-        input_tensor, [n.result, c.result, idv.result, ihv.result, iwv.result]
-    )
-
-    for v in [
-        n,
-        c,
-        od,
-        oh,
-        ow,
-        front_c,
-        top_c,
-        left_c,
-        start_d_right_c,
-        start_h_right_c,
-        start_w_right_c,
-        d_minus2_c,
-        h_minus2_c,
-        w_minus2_c,
-        d_left,
-        d_right,
-        id_left,
-        id_mid,
-        dk,
-        id_right,
-        id_tmp,
-        idv,
-        h_left,
-        h_right,
-        ih_left,
-        ih_mid,
-        hk,
-        ih_right,
-        ih_tmp,
-        ihv,
-        w_left,
-        w_right,
-        iw_left,
-        iw_mid,
-        wk,
-        iw_right,
-        iw_tmp,
-        iwv,
-        val,
-    ]:
-        block.append(v)
-    block.append(linalg.YieldOp([val.result]))
-
-    return op.result
+def replication_pad1d_op(node: ReplicationPad1dOp, symbol_table):
+    return _spatial_pad(node, symbol_table, 1, "replicate")
 
 
 def replication_pad2d_op(node: ReplicationPad2dOp, symbol_table):
-    """
-    Apply 2D replication (edge) padding to input tensor.
-
-    Note: TOSA doesn't have native replication padding support,
-    so this uses constant (zero) padding as an approximation.
-
-    Args:
-        node: Operation node containing input tensor and padding [left, right, top, bottom]
-        symbol_table: Symbol table mapping node names to values
-    """
-    input_tensor = symbol_table.get((str(node.args[0]), 0), node.args[0])
-    padding = node.args[1]  # [left, right, top, bottom]
-
-    input_type = ir.RankedTensorType(input_tensor.type)
-    input_shape = list(input_type.shape)
-    input_dtype = input_type.element_type
-
-    pad_tensor, output_shape = _create_tosa_padding(input_shape, padding, 2)
-    output_type = ir.RankedTensorType.get(output_shape, input_dtype)
-
-    # Keep a tosa.pad op for existing IR checks (unused for numeric correctness).
-    pad_val_type = ir.RankedTensorType.get([1], input_dtype)
-    if str(input_dtype).find("f") != -1:
-        pad_val_attr = ir.DenseElementsAttr.get_splat(
-            pad_val_type, ir.FloatAttr.get(input_dtype, 0.0)
-        )
-    else:
-        pad_val_attr = ir.DenseElementsAttr.get_splat(
-            pad_val_type, ir.IntegerAttr.get(input_dtype, 0)
-        )
-    pad_val_const = tosa.ConstOp(pad_val_attr).result
-    _unused = tosa.PadOp(
-        output_type, input_tensor, pad_tensor, pad_const=pad_val_const
-    )
-
-    left, right, top, bottom = [int(x) for x in padding]
-    N, C, H, W = input_shape
-    H_out = H + top + bottom
-    W_out = W + left + right
-
-    dummy = tensor.EmptyOp([N, C, H_out, W_out], input_dtype)
-    output = tensor.EmptyOp([N, C, H_out, W_out], input_dtype)
-    idx_map = ir.AffineMap.get_permutation([0, 1, 2, 3])
-    op = linalg.GenericOp(
-        [output_type],
-        [dummy],
-        [output],
-        ir.ArrayAttr.get(
-            [ir.AffineMapAttr.get(idx_map), ir.AffineMapAttr.get(idx_map)]
-        ),
-        ir.ArrayAttr.get(
-            [ir.Attribute.parse("#linalg.iterator_type<parallel>")] * 4
-        ),
-    )
-    block = ir.Block.create_at_start(
-        op.region,
-        [
-            ir.RankedTensorType(dummy.result.type).element_type,
-            ir.RankedTensorType(output.result.type).element_type,
-        ],
-    )
-
-    index_type = ir.IndexType.get()
-    zero_c = arith.ConstantOp(index_type, 0)
-    n = linalg.IndexOp(ir._i64Attr(0, None))
-    c = linalg.IndexOp(ir._i64Attr(1, None))
-    oh = linalg.IndexOp(ir._i64Attr(2, None))
-    ow = linalg.IndexOp(ir._i64Attr(3, None))
-
-    top_c = arith.ConstantOp(index_type, top)
-    left_c = arith.ConstantOp(index_type, left)
-    start_h_right_c = arith.ConstantOp(index_type, top + H)
-    start_w_right_c = arith.ConstantOp(index_type, left + W)
-    h_last_c = arith.ConstantOp(index_type, H - 1)
-    w_last_c = arith.ConstantOp(index_type, W - 1)
-
-    h_left = arith.CmpIOp(arith.CmpIPredicate.slt, oh.result, top_c.result)
-    h_right = arith.CmpIOp(
-        arith.CmpIPredicate.sge, oh.result, start_h_right_c.result
-    )
-    ih_mid = arith.SubIOp(oh.result, top_c.result)
-    ih_tmp = arith.SelectOp(h_left.result, zero_c.result, ih_mid.result)
-    ih = arith.SelectOp(h_right.result, h_last_c.result, ih_tmp.result)
-
-    w_left = arith.CmpIOp(arith.CmpIPredicate.slt, ow.result, left_c.result)
-    w_right = arith.CmpIOp(
-        arith.CmpIPredicate.sge, ow.result, start_w_right_c.result
-    )
-    iw_mid = arith.SubIOp(ow.result, left_c.result)
-    iw_tmp = arith.SelectOp(w_left.result, zero_c.result, iw_mid.result)
-    iw = arith.SelectOp(w_right.result, w_last_c.result, iw_tmp.result)
-
-    val = tensor.ExtractOp(
-        input_tensor, [n.result, c.result, ih.result, iw.result]
-    )
-
-    for v in [
-        n,
-        c,
-        oh,
-        ow,
-        zero_c,
-        top_c,
-        left_c,
-        start_h_right_c,
-        start_w_right_c,
-        h_last_c,
-        w_last_c,
-        h_left,
-        h_right,
-        ih_mid,
-        ih_tmp,
-        ih,
-        w_left,
-        w_right,
-        iw_mid,
-        iw_tmp,
-        iw,
-        val,
-    ]:
-        block.append(v)
-    block.append(linalg.YieldOp([val.result]))
-
-    return op.result
+    return _spatial_pad(node, symbol_table, 2, "replicate")
 
 
 def replication_pad3d_op(node: ReplicationPad3dOp, symbol_table):
-    """
-    Apply 3D replication (edge) padding to input tensor.
-
-    Note: TOSA doesn't have native replication padding support,
-    so this uses constant (zero) padding as an approximation.
-
-    Args:
-        node: Operation node with input tensor and padding [l, r, t, b, f, back]
-        symbol_table: Symbol table mapping node names to values
-    """
-    input_tensor = symbol_table.get((str(node.args[0]), 0), node.args[0])
-    padding = node.args[1]
-
-    input_type = ir.RankedTensorType(input_tensor.type)
-    input_shape = list(input_type.shape)
-    input_dtype = input_type.element_type
-
-    pad_tensor, output_shape = _create_tosa_padding(input_shape, padding, 3)
-    output_type = ir.RankedTensorType.get(output_shape, input_dtype)
-
-    # Keep a tosa.pad op for existing IR checks (unused for numeric correctness).
-    pad_val_type = ir.RankedTensorType.get([1], input_dtype)
-    if str(input_dtype).find("f") != -1:
-        pad_val_attr = ir.DenseElementsAttr.get_splat(
-            pad_val_type, ir.FloatAttr.get(input_dtype, 0.0)
-        )
-    else:
-        pad_val_attr = ir.DenseElementsAttr.get_splat(
-            pad_val_type, ir.IntegerAttr.get(input_dtype, 0)
-        )
-    pad_val_const = tosa.ConstOp(pad_val_attr).result
-    _unused = tosa.PadOp(
-        output_type, input_tensor, pad_tensor, pad_const=pad_val_const
-    )
-
-    left, right, top, bottom, front, back = [int(x) for x in padding]
-    N, C, D, H, W = input_shape
-    D_out = D + front + back
-    H_out = H + top + bottom
-    W_out = W + left + right
-
-    dummy = tensor.EmptyOp([N, C, D_out, H_out, W_out], input_dtype)
-    output = tensor.EmptyOp([N, C, D_out, H_out, W_out], input_dtype)
-    idx_map = ir.AffineMap.get_permutation([0, 1, 2, 3, 4])
-    op = linalg.GenericOp(
-        [output_type],
-        [dummy],
-        [output],
-        ir.ArrayAttr.get(
-            [ir.AffineMapAttr.get(idx_map), ir.AffineMapAttr.get(idx_map)]
-        ),
-        ir.ArrayAttr.get(
-            [ir.Attribute.parse("#linalg.iterator_type<parallel>")] * 5
-        ),
-    )
-    block = ir.Block.create_at_start(
-        op.region,
-        [
-            ir.RankedTensorType(dummy.result.type).element_type,
-            ir.RankedTensorType(output.result.type).element_type,
-        ],
-    )
-
-    index_type = ir.IndexType.get()
-    n = linalg.IndexOp(ir._i64Attr(0, None))
-    c = linalg.IndexOp(ir._i64Attr(1, None))
-    od = linalg.IndexOp(ir._i64Attr(2, None))
-    oh = linalg.IndexOp(ir._i64Attr(3, None))
-    ow = linalg.IndexOp(ir._i64Attr(4, None))
-
-    zero_c = arith.ConstantOp(index_type, 0)
-    front_c = arith.ConstantOp(index_type, front)
-    top_c = arith.ConstantOp(index_type, top)
-    left_c = arith.ConstantOp(index_type, left)
-    start_d_right_c = arith.ConstantOp(index_type, front + D)
-    start_h_right_c = arith.ConstantOp(index_type, top + H)
-    start_w_right_c = arith.ConstantOp(index_type, left + W)
-    d_last_c = arith.ConstantOp(index_type, D - 1)
-    h_last_c = arith.ConstantOp(index_type, H - 1)
-    w_last_c = arith.ConstantOp(index_type, W - 1)
-
-    d_left = arith.CmpIOp(arith.CmpIPredicate.slt, od.result, front_c.result)
-    d_right = arith.CmpIOp(
-        arith.CmpIPredicate.sge, od.result, start_d_right_c.result
-    )
-    id_mid = arith.SubIOp(od.result, front_c.result)
-    id_tmp = arith.SelectOp(d_left.result, zero_c.result, id_mid.result)
-    idv = arith.SelectOp(d_right.result, d_last_c.result, id_tmp.result)
-
-    h_left = arith.CmpIOp(arith.CmpIPredicate.slt, oh.result, top_c.result)
-    h_right = arith.CmpIOp(
-        arith.CmpIPredicate.sge, oh.result, start_h_right_c.result
-    )
-    ih_mid = arith.SubIOp(oh.result, top_c.result)
-    ih_tmp = arith.SelectOp(h_left.result, zero_c.result, ih_mid.result)
-    ihv = arith.SelectOp(h_right.result, h_last_c.result, ih_tmp.result)
-
-    w_left = arith.CmpIOp(arith.CmpIPredicate.slt, ow.result, left_c.result)
-    w_right = arith.CmpIOp(
-        arith.CmpIPredicate.sge, ow.result, start_w_right_c.result
-    )
-    iw_mid = arith.SubIOp(ow.result, left_c.result)
-    iw_tmp = arith.SelectOp(w_left.result, zero_c.result, iw_mid.result)
-    iwv = arith.SelectOp(w_right.result, w_last_c.result, iw_tmp.result)
-
-    val = tensor.ExtractOp(
-        input_tensor, [n.result, c.result, idv.result, ihv.result, iwv.result]
-    )
-
-    for v in [
-        n,
-        c,
-        od,
-        oh,
-        ow,
-        zero_c,
-        front_c,
-        top_c,
-        left_c,
-        start_d_right_c,
-        start_h_right_c,
-        start_w_right_c,
-        d_last_c,
-        h_last_c,
-        w_last_c,
-        d_left,
-        d_right,
-        id_mid,
-        id_tmp,
-        idv,
-        h_left,
-        h_right,
-        ih_mid,
-        ih_tmp,
-        ihv,
-        w_left,
-        w_right,
-        iw_mid,
-        iw_tmp,
-        iwv,
-        val,
-    ]:
-        block.append(v)
-    block.append(linalg.YieldOp([val.result]))
-
-    return op.result
+    return _spatial_pad(node, symbol_table, 3, "replicate")
 
 
 def empty_strided_op(node: EmptyStridedOp, symbol_table):
@@ -14634,6 +14366,8 @@ def gqa_attention_fused_op(node: GQAAttentionFusedOp, symbol_table):
 # Import func ops registry for CallOp support
 
 ops_registry = {
+    "GeluOp": gelu_op,
+    "NativeLayerNormOp": native_layer_norm_op,
     "AddOp": add_op,
     "AddCMulOp": addcmul_op,
     "MulOp": mul_op,
@@ -14651,6 +14385,8 @@ ops_registry = {
     "VarMeanOp": var_mean_op,
     "AddMMOp": addmm_op,
     "ReshapeOp": reshape_op,
+    "PixelShuffleOp": pixel_shuffle_op,
+    "PixelUnshuffleOp": pixel_unshuffle_op,
     "ViewOp": reshape_op,
     "ViewDtypeOp": view_dtype_op,
     "SelectOp": select_op,
@@ -14872,6 +14608,7 @@ ops_registry = {
     "ReflectionPad1dOp": reflection_pad1d_op,
     "ReflectionPad2dOp": reflection_pad2d_op,
     "ReflectionPad3dOp": reflection_pad3d_op,
+    "ReplicationPad1dOp": replication_pad1d_op,
     "ReplicationPad2dOp": replication_pad2d_op,
     "ReplicationPad3dOp": replication_pad3d_op,
     # Other operations

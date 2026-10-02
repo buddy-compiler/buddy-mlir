@@ -27,7 +27,11 @@ def test_arange_start_step():
 # CHECK: func.func @forward
 # CHECK: tensor.generate
 # CHECK: arith.index_cast
-# CHECK: arith.sitofp
+# CHECK: tensor.yield %{{.*}} : i64
+# CHECK: linalg.generic
+# CHECK: arith.sitofp %{{.*}} : i64 to f32
+# CHECK: linalg.yield %{{.*}} : f32
+# CHECK: } -> tensor<5xf32>
 # CHECK: return
 
 test_arange_start_step()

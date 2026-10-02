@@ -275,6 +275,8 @@ class DynamoCompiler:
             "exponential.out": ExponentialOp,
             "exponential_.default": ExponentialOp,
             "constant_pad_nd.default": ConstantPadNdOp,
+            "pixel_shuffle.default": PixelShuffleOp,
+            "pixel_unshuffle.default": PixelUnshuffleOp,
             "reciprocal.default": ReciprocalOp,
             "clamp_min.default": ClampMinOp,
             "clamp_max.default": ClampMaxOp,
@@ -391,6 +393,7 @@ class DynamoCompiler:
             "isinf.default": IsInfOp,
             "isnan.default": IsNanOp,
             "floor_divide.default": FloorDivideOp,
+            "floordiv": SymIntFloorDivOp,
             "fmod.Tensor": FmodOp,
             "fmod.Scalar": FmodOp,
             "remainder.Tensor": RemainderOp,
@@ -408,6 +411,8 @@ class DynamoCompiler:
             "le.Scalar": LeScalarOp,
             "lt.Scalar": LtScalarOp,
             "index_select.default": IndexSelectOp,
+            "index_add.default": IndexAddOp,
+            "index_copy.default": IndexCopyOp,
             "scatter_add.default": ScatterAddOp,
             "arange.start_step": ArangeStartStepOp,
             "min.dim": MinDimOp,
@@ -617,6 +622,9 @@ class DynamoCompiler:
             "split_with_sizes.default": SplitWithSizesOp,
             "max.dim": MaxDimOp,
             "nonzero.default": NonzeroOp,
+            "bincount.default": BincountOp,
+            "checked_one_hot.default": OneHotOp,
+            "checked_pixel_unshuffle.default": PixelUnshuffleOp,
             "masked_select.default": MaskedSelectOp,
             "masked_select.out": MaskedSelectOp,
             # Standard deviation operations
@@ -657,6 +665,8 @@ class DynamoCompiler:
             "reflection_pad1d.default": ReflectionPad1dOp,
             "reflection_pad2d.default": ReflectionPad2dOp,
             "reflection_pad3d.default": ReflectionPad3dOp,
+            "replication_pad1d.default": ReplicationPad1dOp,
+            "new_empty.default": NewEmptyOp,
             "replication_pad2d.default": ReplicationPad2dOp,
             "replication_pad3d.default": ReplicationPad3dOp,
             # Other missing core aten operations
@@ -904,6 +914,8 @@ class DynamoCompiler:
         gm: torch.fx.GraphModule,
         inputs: list[torch.Tensor],
         return_type: str = "eager",
+        *,
+        tracing_inputs: list[torch.Tensor] | None = None,
     ) -> Any:
         """
         Compiles the provided FX Graph to Buddy Graph.
@@ -915,6 +927,9 @@ class DynamoCompiler:
                 receives from the Buddy compiler.
                 - "eager": return the FX graph forward (legacy behavior).
                 - "buddy": return a Buddy MLIR execution callable.
+            tracing_inputs: Optional export placeholder values for AOT tracing.
+                Reuse their FakeTensor mode to retain data-dependent symbolic
+                dimensions. Real inputs still supply runtime parameter storage.
 
         Returns:
             dynamo_run: The function of the ahead-of-time compiled module,
@@ -1197,9 +1212,13 @@ class DynamoCompiler:
                 f"Unsupported return_type={return_type!r}; expected 'eager' or 'buddy'."
             )
 
+        if tracing_inputs is not None and len(tracing_inputs) != len(inputs):
+            raise ValueError(
+                "Tracing inputs must match the runtime input count"
+            )
         return aot_module_simplified(
             gm,
-            inputs,
+            inputs if tracing_inputs is None else tracing_inputs,
             fw_compiler=_compiler,
             decompositions=self._aot_autograd_decomposition,
         )
@@ -1371,7 +1390,9 @@ class DynamoCompiler:
 
             return os.path.join(lib_base_path, "libomp" + lib_extension)
 
-        graph.compile()
+        # exec_buddy_graph copies every input to contiguous CPU storage below.
+        # Expose that boundary contract without assuming internal views are tight.
+        graph.compile(contiguous_inputs=True)
 
         # Collect dependency libraries.
         lib_extension = get_lib_extension()

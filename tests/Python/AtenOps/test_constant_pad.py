@@ -27,5 +27,7 @@ graph.lower_to_top_level_ir()
 print(graph._imported_module)
 
 # CHECK: func.func
-# CHECK: tosa.pad
+# CHECK: linalg.generic
+# CHECK: scf.if
+# CHECK: tensor.extract
 # CHECK: return

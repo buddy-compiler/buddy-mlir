@@ -27,5 +27,6 @@ print(graph._imported_module)
 
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
-# CHECK: tosa.pad
+# CHECK: linalg.generic
+# CHECK: tensor.extract
 # CHECK: return

@@ -237,6 +237,18 @@ class ViewDtypeOp(Op):
         self._op_type = OpType.ReshapeType
 
 
+class PixelShuffleOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReshapeType
+
+
+class PixelUnshuffleOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReshapeType
+
+
 class EmbeddingOp(Op):
     def __init__(self) -> None:
         super().__init__()
@@ -317,6 +329,18 @@ class IndexOp(Op):
 
 
 class IndexSelectOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReshapeType
+
+
+class IndexAddOp(Op):
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReduceType
+
+
+class IndexCopyOp(Op):
     def __init__(self) -> None:
         super().__init__()
         self._op_type = OpType.ReshapeType
@@ -2403,6 +2427,30 @@ class NonzeroOp(Op):
         self._op_type = OpType.ReshapeType
 
 
+class SymIntFloorDivOp(Op):
+    """Exact integer floor division for symbolic shape arithmetic."""
+
+    def __init__(self):
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
+class OneHotOp(Op):
+    """One-hot encoding with checked labels and optional runtime class count."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReshapeType
+
+
+class BincountOp(Op):
+    """Count or sum weights for nonnegative integer bins."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReduceType
+
+
 class MaskedSelectOp(Op):
     """
     Masked select operation.
@@ -2740,6 +2788,18 @@ class ReflectionPad3dOp(Op):
     """3D reflection padding"""
 
     def __init__(self) -> None:
+        super().__init__()
+        self._op_type = OpType.ReshapeType
+
+
+class ReplicationPad1dOp(Op):
+    def __init__(self):
+        super().__init__()
+        self._op_type = OpType.ReshapeType
+
+
+class NewEmptyOp(Op):
+    def __init__(self):
         super().__init__()
         self._op_type = OpType.ReshapeType
 
