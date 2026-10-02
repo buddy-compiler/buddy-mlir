@@ -1,12 +1,10 @@
 # RUN: %PYTHON %s 2>&1 | FileCheck %s
 
 import torch
-import torch._dynamo as dynamo
 import torch.nn.functional as F
-from torch._inductor.decomposition import decompositions as inductor_decomp
-
 from buddy.compiler.frontend import DynamoCompiler
 from buddy.compiler.ops import tosa
+from torch._inductor.decomposition import decompositions as inductor_decomp
 
 
 def foo(x):
@@ -33,6 +31,8 @@ graph.lower_to_top_level_ir()
 print(graph._imported_module)
 
 # CHECK: func.func
-# CHECK: tosa.reshape
-# CHECK: tosa.transpose
-# CHECK: return
+# CHECK: linalg.generic
+# CHECK: tensor.extract %{{.*}}[{{.*}}] : tensor<1x4x9xf32>
+# CHECK: } -> tensor<1x1x2x2x3x3xf32>
+# CHECK: tosa.transpose %{{.*}} {perms = array<i32: 0, 1, 2, 4, 3, 5>}
+# CHECK: return %{{.*}} : tensor<1x1x4x4xf32>

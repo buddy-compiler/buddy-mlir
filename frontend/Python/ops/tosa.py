@@ -27,6 +27,7 @@ from buddy_mlir.dialects import (
     affine,
     arith,
     bufferization,
+    cf,
     linalg,
     math,
     memref,
@@ -833,19 +834,15 @@ def mul_op(node: MulOp, symbol_table):
     if isinstance(node.args[0], str):
         input1 = symbol_table.get((str(node.args[0]), 0), node.args[0])
     else:
-        data = [node.args[0]]
-        input1_shape = numpy.array(data).shape
-        tensor_type = ir.RankedTensorType.get(input1_shape, mlir_dtype)
+        tensor_type = ir.RankedTensorType.get([], mlir_dtype)
         element = mlir_element_attr_get(dtype, node.args[0])
         attr = ir.DenseElementsAttr.get_splat(tensor_type, element)
-        input2 = arith.ConstantOp(tensor_type, attr).result
+        input1 = arith.ConstantOp(tensor_type, attr).result
 
     if isinstance(node.args[1], str):
         input2 = symbol_table.get((str(node.args[1]), 0), node.args[1])
     else:
-        data = [node.args[1]]
-        input2_shape = numpy.array(data).shape
-        tensor_type = ir.RankedTensorType.get(input2_shape, mlir_dtype)
+        tensor_type = ir.RankedTensorType.get([], mlir_dtype)
         element = mlir_element_attr_get(dtype, node.args[1])
         attr = ir.DenseElementsAttr.get_splat(tensor_type, element)
         input2 = arith.ConstantOp(tensor_type, attr).result
@@ -2579,6 +2576,10 @@ def reshape_op(node: ReshapeOp, symbol_table):
         new_shape = list(node._newshape)
 
     now_shape = ir.RankedTensorType(input1.type).shape
+    if any(size < 0 for size in now_shape) or any(
+        not isinstance(size, int) for size in new_shape
+    ):
+        return _copy_dynamic_reshape(input1, new_shape, symbol_table)
     total_size = 1
     for dim_siz in now_shape:
         total_size *= dim_siz
@@ -2614,7 +2615,7 @@ def _copy_logical_reshape(value, shape):
     source_shape = list(source_type.shape)
     element_type = source_type.element_type
     if any(s < 0 for s in source_shape + list(shape)):
-        raise NotImplementedError("Logical reshape requires static shapes")
+        return _copy_dynamic_reshape(value, shape, {}, preserve_shape=True)
     source_size, target_size = 1, 1
     for size in source_shape:
         source_size *= size
@@ -2656,6 +2657,99 @@ def _copy_logical_reshape(value, shape):
         element = tensor.ExtractOp(value, list(reversed(indices))).result
         linalg.YieldOp([element])
     return op.result
+
+
+def _copy_dynamic_reshape(value, shape, symbols, *, preserve_shape=False):
+    """Resolve runtime extents and copy logical coordinates of strided inputs."""
+    source_type = ir.RankedTensorType(value.type)
+    index_type = ir.IndexType.get()
+
+    def constant(size):
+        return arith.ConstantOp(index_type, size).result
+
+    zero, one = constant(0), constant(1)
+    source_sizes = [
+        tensor.DimOp(value, constant(i)).result if size < 0 else constant(size)
+        for i, size in enumerate(source_type.shape)
+    ]
+    total = one
+    for size in source_sizes:
+        total = arith.MulIOp(total, size).result
+    extents, result_shape, inferred = [], [], None
+    product = one
+    for i, size in enumerate(shape):
+        if preserve_shape and size < 0:
+            extent = source_sizes[i]
+            result_shape.append(ir.ShapedType.get_dynamic_size())
+        elif isinstance(size, int) and size == -1:
+            if inferred is not None:
+                raise ValueError("Reshape permits only one inferred dimension")
+            inferred = i
+            extents.append(None)
+            result_shape.append(ir.ShapedType.get_dynamic_size())
+            continue
+        elif isinstance(size, int):
+            if size < 0:
+                raise ValueError("Invalid reshape dimension")
+            extent = constant(size)
+            result_shape.append(size)
+        else:
+            extent = symbols[(str(size), 0)]
+            if isinstance(extent.type, ir.RankedTensorType):
+                extent = tensor.ExtractOp(extent, []).result
+            extent = arith.IndexCastOp(index_type, extent).result
+            cf.AssertOp(
+                arith.CmpIOp(arith.CmpIPredicate.sge, extent, zero).result,
+                "Reshape dimension must be nonnegative",
+            )
+            result_shape.append(ir.ShapedType.get_dynamic_size())
+        extents.append(extent)
+        product = arith.MulIOp(product, extent).result
+    if inferred is not None:
+        cf.AssertOp(
+            arith.CmpIOp(arith.CmpIPredicate.sgt, product, zero).result,
+            "Cannot infer reshape dimension with zero known product",
+        )
+        cf.AssertOp(
+            arith.CmpIOp(
+                arith.CmpIPredicate.eq,
+                arith.RemUIOp(total, product).result,
+                zero,
+            ).result,
+            "Reshape must preserve element count",
+        )
+        extents[inferred] = arith.DivUIOp(total, product).result
+    else:
+        cf.AssertOp(
+            arith.CmpIOp(arith.CmpIPredicate.eq, total, product).result,
+            "Reshape must preserve element count",
+        )
+    output_type = ir.RankedTensorType.get(
+        result_shape, source_type.element_type
+    )
+    output = memref.AllocOp(
+        ir.MemRefType.get(result_shape, source_type.element_type),
+        [extent for size, extent in zip(result_shape, extents) if size < 0],
+        [],
+    ).result
+
+    def coordinates(linear, sizes):
+        indices = []
+        for size in reversed(sizes):
+            indices.append(arith.RemUIOp(linear, size).result)
+            linear = arith.DivUIOp(linear, size).result
+        return list(reversed(indices))
+
+    loop = scf.ForOp(zero, total, one)
+    with ir.InsertionPoint(loop.body):
+        element = tensor.ExtractOp(
+            value, coordinates(loop.induction_variable, source_sizes)
+        ).result
+        memref.StoreOp(
+            element, output, coordinates(loop.induction_variable, extents)
+        )
+        scf.YieldOp([])
+    return bufferization.ToTensorOp(output_type, output, restrict=True).result
 
 
 def _pixel_rearrange(node, symbol_table, *, inverse):
@@ -2885,15 +2979,18 @@ def unsqueeze_op(node: UnsqueezeOp, symbol_table):
 def select_op(node: SelectOp, symbol_table):
     """Select one index using rank reduction without a layout-changing reshape."""
     input_tensor = symbol_table[(str(node.args[0]), 0)]
+    return _select_tensor(input_tensor, *node.args[1:3])
+
+
+def _select_tensor(input_tensor, dim, index):
     tensor_type = ir.RankedTensorType(input_tensor.type)
     sizes = list(tensor_type.shape)
     rank = len(sizes)
-    dim, index = node.args[1:3]
-    if any(size < 0 for size in sizes):
-        raise NotImplementedError("Select requires static tensor shapes")
     if not -rank <= dim < rank:
         raise ValueError("Select dimension is out of range")
     dim %= rank
+    if sizes[dim] < 0:
+        raise NotImplementedError("Select requires a static selected dimension")
     if not -sizes[dim] <= index < sizes[dim]:
         raise IndexError("Select index is out of range")
     index %= sizes[dim]
@@ -2903,11 +3000,18 @@ def select_op(node: SelectOp, symbol_table):
     sizes[dim] = 1
     offsets = [0] * rank
     offsets[dim] = index
+    dynamic_sizes = [
+        tensor.DimOp(
+            input_tensor, arith.ConstantOp(ir.IndexType.get(), i).result
+        ).result
+        for i, size in enumerate(sizes)
+        if size < 0
+    ]
     return tensor.ExtractSliceOp(
         ir.RankedTensorType.get(output_shape, tensor_type.element_type),
         input_tensor,
         [],
-        [],
+        dynamic_sizes,
         [],
         ir._denseI64ArrayAttr(offsets, None),
         ir._denseI64ArrayAttr(sizes, None),
@@ -3475,7 +3579,7 @@ def transpose_op(node: TransposeOp, symbol_table):
     temp = perm_list[dim1]
     perm_list[dim1] = perm_list[dim2]
     perm_list[dim2] = temp
-    output_shape = list(node.tensor_meta["shape"])
+    output_shape = [input_shape[i] for i in perm_list]
     perms_attr = _create_permutation_attr(perm_list)
     result_element_type = ir.RankedTensorType(input1.type).element_type
     permute_result_type = ir.RankedTensorType.get(
@@ -6941,59 +7045,20 @@ def max_dim_op(node: MaxDimOp, symbol_table):
 
 
 def unbind_op(node: UnbindOp, symbol_table):
-    """
-    Import the unbind operation.
-    From buddy graph ir's `UnbindOp` operator to MLIR TOSA operations.
-    Removes a dimension and returns a tuple of sliced tensors.
-    aten.unbind(input, dim) -> tuple[Tensor, ...]
-
-    Note: Since MLIR functions return a fixed number of outputs, we need to
-    know the size at compile time. This returns slices along the dimension.
-    """
+    """Return rank-reduced slices with a statically known tuple length."""
     input1 = symbol_table.get((str(node.args[0]), 0))
     dim = node.args[1] if len(node.args) > 1 else 0
 
     input_shape = list(ir.RankedTensorType(input1.type).shape)
-    input_dtype = ir.RankedTensorType(input1.type).element_type
-
     # Handle negative dim
     if dim < 0:
         dim = len(input_shape) + dim
 
-    num_outputs = input_shape[dim]
-
-    # Create output shape (remove the unbind dimension)
-    output_shape = input_shape[:dim] + input_shape[dim + 1 :]
-    if not output_shape:
-        output_shape = []
-
-    results = []
-    for i in range(num_outputs):
-        # Slice along dim
-        start = [0] * len(input_shape)
-        start[dim] = i
-        size = input_shape.copy()
-        size[dim] = 1
-
-        start_operand = _create_shape_operand(start)
-        size_operand = _create_shape_operand(size)
-        slice_result = tosa.SliceOp(
-            ir.RankedTensorType.get(size, input_dtype),
-            input1,
-            start_operand,
-            size_operand,
-        ).result
-
-        # Squeeze the dimension
-        if output_shape:
-            output_shape_operand = _create_shape_operand(output_shape)
-            squeezed = tosa.ReshapeOp(slice_result, output_shape_operand).result
-            results.append(squeezed)
-        else:
-            # Scalar case
-            results.append(slice_result)
-
-    return tuple(results)
+    if not 0 <= dim < len(input_shape) or input_shape[dim] < 0:
+        raise NotImplementedError("Unbind requires a static output count")
+    return tuple(
+        _select_tensor(input1, dim, i).result for i in range(input_shape[dim])
+    )
 
 
 def split_with_sizes_op(node: SplitWithSizesOp, symbol_table):
@@ -9011,25 +9076,10 @@ def col2im_op(node, symbol_table):
 
 
 def sym_size_op(node, symbol_table):
-    """
-    Import the sym_size operation.
-    From buddy graph ir's `SymSizeOp` operator to MLIR operations.
-    aten.sym_size(input, dim) -> SymInt
+    """Read dynamic extents instead of materializing the dynamic type sentinel."""
+    from .linalg import sym_size_op as lower_sym_size
 
-    Returns the size of a tensor dimension as a symbolic integer.
-    """
-    input_tensor = symbol_table.get((str(node.args[0]), 0))
-    dim = node.args[1]
-
-    input_shape = list(ir.RankedTensorType(input_tensor.type).shape)
-
-    # Return the size as a constant
-    size = input_shape[dim]
-    result_type = ir.RankedTensorType.get([], ir.IntegerType.get_signless(64))
-    size_attr = ir.DenseElementsAttr.get_splat(
-        result_type, ir.IntegerAttr.get(ir.IntegerType.get_signless(64), size)
-    )
-    return tosa.ConstOp(size_attr)
+    return lower_sym_size(node, symbol_table)
 
 
 def sym_stride_op(node, symbol_table):

@@ -393,6 +393,7 @@ class DynamoCompiler:
             "isinf.default": IsInfOp,
             "isnan.default": IsNanOp,
             "floor_divide.default": FloorDivideOp,
+            "floordiv": SymIntFloorDivOp,
             "fmod.Tensor": FmodOp,
             "fmod.Scalar": FmodOp,
             "remainder.Tensor": RemainderOp,

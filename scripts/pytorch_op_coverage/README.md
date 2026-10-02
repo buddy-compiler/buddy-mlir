@@ -7,7 +7,7 @@ Internal evaluation for issue #911. See [methodology, commands and acceptance cr
 produces JSON and Markdown in static, trace or live mode. `worker.py` isolates
 execution; `classify.py` and `report.py` preserve separate evidence levels.
 
-`run_model_validation.py` checks pinned BERT weights and standard Mixtral paths
+`run_model_validation.py` checks pinned BERT weights and standard Mixtral/OLMoE paths
 separately, retaining model failures without awarding operator coverage credit.
 
 `test_coverage.py` covers accounting and failures without optional dependencies.

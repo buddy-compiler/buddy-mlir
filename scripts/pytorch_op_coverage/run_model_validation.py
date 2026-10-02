@@ -143,6 +143,21 @@ def build_case(name, metadata):
         implementation = OlmoeSparseMoeBlock
         module = OlmoeSparseMoeBlock(config).eval()
         batches = [(torch.randn(2, 4, 16),) for _ in range(2)]
+        batches.extend(
+            (torch.full((2, 4, 16), value),) for value in (0.0, 1.0, -1.0)
+        )
+        with torch.no_grad():
+            metadata["expert_token_counts"] = [
+                torch.bincount(
+                    module.gate(args[0].reshape(-1, 16))
+                    .topk(2, dim=-1)
+                    .indices.flatten(),
+                    minlength=4,
+                ).tolist()
+                for args in batches
+            ]
+        if not any(0 in counts for counts in metadata["expert_token_counts"]):
+            raise AssertionError("OLMoE validation must include unused experts")
     else:
         config = MixtralConfig(
             vocab_size=32,

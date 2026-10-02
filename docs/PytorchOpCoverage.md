@@ -27,8 +27,8 @@ Each run writes `pytorch_op_coverage.json` and `pytorch_op_coverage.md`.
 See the [live CPU snapshot](../scripts/pytorch_op_coverage/out/live/pytorch_op_coverage.md)
 for measured results and scope. The checked-in `cpu-export-v13` snapshot passes
 the 100% gate: **106/106** target operators, **318/318** operator cases and all
-six block cases. The MoE subset is **47/47**. Full-model and clean-build
-acceptance are separate, as described below.
+six block cases. The MoE subset is **47/47**. The snapshot uses a clean native
+build; separate model and regression results are described below.
 The `cpu-export-v13` inference profile uses `buddy.compiler.export.export` for
 one-hot and pixel-unshuffle. This opt-in wrapper preserves runtime label checks
 and inferred class counts through AOT, and aligns empty unshuffle metadata with
@@ -72,8 +72,8 @@ all execution stages**, with no retained limitation/review flag. Failed,
 skipped, untested and limited operators remain in the denominator. Evidence
 categories overlap; their counts should not be added together.
 
-The `cpu-export-v10` profile configures all 106 operators with three cases each
-(318 required cases, unchanged from `cpu-export-v9`):
+The profile configures all 106 operators with three cases each
+(318 required cases):
 two small float32 shapes and one float64 shape; integer-only operators retain
 integer inputs. Factory cases have no tensor inputs and specify output dtype
 and shape explicitly; `_to_copy` cases convert between f32 and f64. Vision cases
@@ -143,14 +143,13 @@ runner input; its percentages are not directly comparable with v1. Retained v0
 review flags are conservative exclusions, not all confirmed restrictions.
 
 The live snapshot uses Linux x86-64, Python 3.12.3, NumPy 2.4.2 and
-PyTorch 2.10.0+cpu.
-Its native binaries come from the official
-[Buddy nightly v0.0.10.dev20260917](https://github.com/buddy-compiler/buddy-mlir/releases/tag/nightly/v0.0.10.dev20260917),
-at Buddy revision `669977354e8e47dc3d084e40c9317ef4dfccbaa7` and LLVM revision
-`2d26d272a0ff74b8c81eac0607b07f98b82ecc46`. The installed Python frontend uses
-this checkout, including the lowerings and CPU layout handling described below;
-its sources are checked against the repository. This is a prebuilt-runtime
-measurement, not a clean native rebuild.
+PyTorch 2.10.0+cpu. LLVM and Buddy were built in fresh build directories with
+Release mode, assertions, and Python bindings enabled. LLVM uses revision
+`2d26d272a0ff74b8c81eac0607b07f98b82ecc46`, with the X86/RISCV targets and OpenMP
+runtime. Buddy uses this checkout's sources; loaded Python sources are checked
+against the repository. Reports retain the actual pre-commit Git revision and
+dirty state, together with the tested source hashes. The profile definition
+remains `cpu-export-v13`; rebuilding does not change its cases or denominator.
 
 ## Verify and accept
 
@@ -164,9 +163,12 @@ python scripts/pytorch_op_coverage/run_model_validation.py \
   --model bert-tiny --out-dir /tmp/buddy-models
 python scripts/pytorch_op_coverage/run_model_validation.py \
   --model mixtral-block --out-dir /tmp/buddy-models
+python scripts/pytorch_op_coverage/run_model_validation.py \
+  --model olmoe-block --out-dir /tmp/buddy-models
 ```
 
-The BERT check downloads the pinned `prajjwal1/bert-tiny` checkpoint and compares
+The [BERT check](../scripts/pytorch_op_coverage/out/models/bert-tiny.json)
+downloads the pinned `prajjwal1/bert-tiny` checkpoint and compares
 hidden states and pooled outputs for two padded text batches, reusing one
 compiled graph. Mixtral checks use the standard implementation with small random
 weights and four experts/top-2 routing. Additional choices are
@@ -180,13 +182,31 @@ Each check writes JSON and a worker log, records model/runtime/source versions,
 and uses an isolated process with a configurable `--timeout` (300 seconds by
 default). Exit 0 requires successful numerical comparison; failures and timeouts
 exit 1 and retain the failing stage. In the tested stack, standard Mixtral
-dispatch fails during export at the data-dependent expert loop; passing the
+dispatch [fails during export](../scripts/pytorch_op_coverage/out/models/mixtral-block.json)
+at the data-dependent expert loop; passing the
 small fixed-shape MoE coverage block does not resolve that limitation.
-Preserving export symbols lets OLMoE pass AOT import; it currently fails during
-lowering of reshape with data-dependent output dimensions; dynamic advanced
-indexing now lowers successfully.
+The standard OLMoE block
+[passes numerical comparison](../scripts/pytorch_op_coverage/out/models/olmoe-block.json)
+on five input batches
+using one compiled graph, including routes with unused experts. The check
+records per-expert token counts and exercises runtime-sized selection, reshape,
+expert GEMMs and accumulation. This is a random-weight block check, not
+pretrained full-model validation.
 
 ### Regression checks
+
+For a native build with Python bindings enabled, run both repository suites:
+
+```bash
+ninja -C build check-buddy
+ctest --test-dir build --output-on-failure
+```
+
+The recorded Linux x86-64 CPU build passes 608 lit tests (237 examples and
+371 regression tests) and all nine CTest tests. Four lit tests require unavailable
+AMX/scalable-vector capabilities or external Buckyball dialects and are reported
+as unsupported. Optional model E2E targets and other hardware configurations are
+outside this run.
 
 ```bash
 python -m unittest discover -s scripts/pytorch_op_coverage -p 'test_*.py' -v
@@ -237,6 +257,9 @@ The CPU regressions in `tests/Python/JIT/` cover:
 - `nonzero_dynamic.py`: nonzero and masked-select outputs with runtime-varying
   lengths, including empty and scalar inputs, using one compiled graph per
   input shape/dtype.
+- `dynamic_expert_ops.py`: runtime-selected rows, strided reshape, expert GEMMs,
+  SiLU and index-add/copy for f32/f64; empty, full, single and mixed selection
+  reuse the same compiled graphs and check input preservation.
 
 For example, run `python tests/Python/JIT/layout_sort_softmax.py` in the same
 Buddy environment as the live measurement. Existing FileCheck tests cover

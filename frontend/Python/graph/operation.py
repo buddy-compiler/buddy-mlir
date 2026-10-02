@@ -2427,6 +2427,14 @@ class NonzeroOp(Op):
         self._op_type = OpType.ReshapeType
 
 
+class SymIntFloorDivOp(Op):
+    """Exact integer floor division for symbolic shape arithmetic."""
+
+    def __init__(self):
+        super().__init__()
+        self._op_type = OpType.ElementwiseType
+
+
 class OneHotOp(Op):
     """One-hot encoding with checked labels and optional runtime class count."""
 

@@ -1230,7 +1230,32 @@ def matmul_op(
     generic_map = _safe_get_permutation([0, 1, 2])
     element = mlir_element_attr_get(dtype, 0.0)
     tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
-    matmul_result_buffer = zero_tensor_value(output_shape, mlir_dtype, element)
+    if any(size < 0 for size in input1_shape + input2_shape):
+        index_type = ir.IndexType.get()
+
+        def dim(value, axis):
+            return tensor.DimOp(
+                value, arith.ConstantOp(index_type, axis).result
+            ).result
+
+        cf.AssertOp(
+            arith.CmpIOp(
+                arith.CmpIPredicate.eq, dim(input1, 1), dim(input2, 0)
+            ).result,
+            "Matmul contracting dimensions must match",
+        )
+        sizes = [
+            dim(input1, 0) if output_shape[0] < 0 else output_shape[0],
+            dim(input2, 1) if output_shape[1] < 0 else output_shape[1],
+        ]
+        empty = tensor.EmptyOp(sizes, mlir_dtype)
+        matmul_result_buffer = linalg.fill(
+            arith.ConstantOp(mlir_dtype, element).result, outs=[empty.result]
+        )
+    else:
+        matmul_result_buffer = zero_tensor_value(
+            output_shape, mlir_dtype, element
+        )
     op = linalg.MatmulOp(
         result_tensors=[tensor_type],
         inputs=[input1, input2],
@@ -2150,11 +2175,19 @@ def silu_op(
     if input1 is None:
         return
 
-    output_shape = list(node.tensor_meta["shape"])
+    output_shape = list(ir.RankedTensorType(input1.type).shape)
     dtype = node.tensor_meta["dtype"]
     mlir_dtype = mlir_element_type_get(dtype)
     tensor_type = ir.RankedTensorType.get(output_shape, mlir_dtype)
-    output = tensor.EmptyOp(output_shape, mlir_dtype)
+    sizes = [
+        tensor.DimOp(
+            input1, arith.ConstantOp(ir.IndexType.get(), i).result
+        ).result
+        if size < 0
+        else size
+        for i, size in enumerate(output_shape)
+    ]
+    output = tensor.EmptyOp(sizes, mlir_dtype)
     generic_map = _safe_get_permutation([i for i in range(len(output_shape))])
     op = linalg.GenericOp(
         [tensor_type],
@@ -3540,16 +3573,12 @@ def sym_size_op(
     index_type = ir.IndexType.get()
     dim_index = arith.ConstantOp(index_type, dim).result
 
-    memref_type = ir.MemRefType.get(
-        list(input_type.shape), input_type.element_type
-    )
-    input_memref = bufferization.ToBufferOp(memref_type, input_tensor).result
-    size_index = memref.DimOp(input_memref, dim_index).result
+    size_index = tensor.DimOp(input_tensor, dim_index).result
 
     i64_type = ir.IntegerType.get_signless(64)
     size_i64 = arith.IndexCastOp(i64_type, size_index).result
     result_type = ir.RankedTensorType.get([], i64_type)
-    return tensor.FromElementsOp(result_type, size_i64)
+    return tensor.FromElementsOp(result_type, [size_i64])
 
 
 def gcd_op(
@@ -6700,12 +6729,9 @@ def _index_update_op(node, symbol_table, accumulate):
         or not 0 <= dim < rank
         or len(src_shape) != rank
         or len(index_type.shape) != 1
-        or any(size < 0 for size in shape + src_shape)
-        or index_type.shape[0] != src_shape[dim]
-        or any(shape[i] != src_shape[i] for i in range(rank) if i != dim)
     ):
         raise NotImplementedError(
-            "Index updates require matching static tensor shapes and a vector index"
+            "Index updates require equal tensor ranks and a vector index"
         )
     if (
         str(dtype) not in ("f32", "f64", "i32", "i64")
@@ -6716,25 +6742,46 @@ def _index_update_op(node, symbol_table, accumulate):
             "Index updates require f32/f64/i32/i64 data and integer indices"
         )
 
-    def buffer(value, tensor_type):
-        return bufferization.ToBufferOp(
-            ir.MemRefType.get(
-                list(tensor_type.shape), tensor_type.element_type
-            ),
-            value,
-        ).result
-
-    output = memref.AllocOp(ir.MemRefType.get(shape, dtype), [], []).result
-    linalg.copy(buffer(destination, destination_type), outs=[output])
-    source_buffer = buffer(source, source_type)
-    index_buffer = buffer(index, index_type)
-
     def index_constant(number):
+        if isinstance(number, ir.Value):
+            return number
         return arith.ConstantOp(ir.IndexType.get(), number).result
 
     zero, one = index_constant(0), index_constant(1)
-    bounds = [index_constant(size) for size in src_shape]
-    destination_bound = index_constant(shape[dim])
+
+    def sizes(value, dimensions):
+        return [
+            tensor.DimOp(value, index_constant(i)).result
+            if size < 0
+            else index_constant(size)
+            for i, size in enumerate(dimensions)
+        ]
+
+    bounds = sizes(source, src_shape)
+    destination_sizes = sizes(destination, shape)
+    for i in range(rank):
+        expected = (
+            sizes(index, list(index_type.shape))[0]
+            if i == dim
+            else destination_sizes[i]
+        )
+        cf.AssertOp(
+            arith.CmpIOp(arith.CmpIPredicate.eq, bounds[i], expected).result,
+            "Index update source dimensions must match destination and index",
+        )
+    output = memref.AllocOp(
+        ir.MemRefType.get(shape, dtype),
+        [extent for size, extent in zip(shape, destination_sizes) if size < 0],
+        [],
+    ).result
+
+    def copy(indices):
+        memref.StoreOp(
+            tensor.ExtractOp(destination, indices).result, output, indices
+        )
+
+    _advanced_index_loops(destination_sizes, index_constant, zero, one, copy)
+    destination_bound = destination_sizes[dim]
     floating = str(dtype) in ("f32", "f64")
     if accumulate:
         alpha = node.kwargs.get("alpha", 1)
@@ -6752,14 +6799,14 @@ def _index_update_op(node, symbol_table, accumulate):
                 loop(depth + 1, indices + [region.induction_variable])
                 scf.YieldOp(region.inner_iter_args)
             return
-        selected = memref.LoadOp(index_buffer, [indices[dim]]).result
+        selected = tensor.ExtractOp(index, [indices[dim]]).result
         selected = arith.IndexCastOp(ir.IndexType.get(), selected).result
         # Unsigned comparison also rejects negative indices before memory access.
         in_bounds = arith.CmpIOp(6, selected, destination_bound).result
         cf.AssertOp(in_bounds, "index update index out of bounds")
         target_indices = list(indices)
         target_indices[dim] = selected
-        value = memref.LoadOp(source_buffer, indices).result
+        value = tensor.ExtractOp(source, indices).result
         if accumulate:
             previous = memref.LoadOp(output, target_indices).result
             value = (
@@ -10446,6 +10493,38 @@ def nonzero_op(
     )
 
 
+def symint_floor_div_op(node, symbol_table):
+    i64 = ir.IntegerType.get_signless(64)
+
+    def operand(arg):
+        if isinstance(arg, int):
+            return arith.ConstantOp(i64, arg).result
+        return tensor.ExtractOp(symbol_table[(str(arg), 0)], []).result
+
+    lhs, rhs = (operand(arg) for arg in node.args)
+    zero = arith.ConstantOp(i64, 0).result
+    cf.AssertOp(
+        arith.CmpIOp(arith.CmpIPredicate.ne, rhs, zero).result,
+        "Symbolic floor division by zero",
+    )
+    overflow = arith.AndIOp(
+        arith.CmpIOp(
+            arith.CmpIPredicate.eq, lhs, arith.ConstantOp(i64, -(2**63)).result
+        ).result,
+        arith.CmpIOp(
+            arith.CmpIPredicate.eq, rhs, arith.ConstantOp(i64, -1).result
+        ).result,
+    ).result
+    cf.AssertOp(
+        arith.XOrIOp(
+            overflow, arith.ConstantOp(ir.IntegerType.get_signless(1), 1).result
+        ).result,
+        "Symbolic floor division overflow",
+    )
+    result = arith.FloorDivSIOp(lhs, rhs).result
+    return tensor.FromElementsOp(ir.RankedTensorType.get([], i64), [result])
+
+
 def one_hot_op(node: OneHotOp, symbol_table):
     """Checked one-hot with a runtime class dimension when classes are inferred."""
     source = symbol_table[(str(node.args[0]), 0)]
@@ -12201,6 +12280,7 @@ ops_registry = {
     "NonzeroOp": nonzero_op,
     "BincountOp": bincount_op,
     "OneHotOp": one_hot_op,
+    "SymIntFloorDivOp": symint_floor_div_op,
     "NonzeroStaticOp": nonzero_static_op,
     "MaskedSelectOp": masked_select_op,
     "ComplexOp": complex_op,
