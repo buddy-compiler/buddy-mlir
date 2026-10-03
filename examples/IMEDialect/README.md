@@ -2,6 +2,9 @@
 
 This document provides a comprehensive guide for using the IME (Integrated Matrix Extension) dialect in buddy-mlir.
 
+For K3 / SpacemiT A100, see [the A100 SSA interface and hardware tests](A100.md).
+The legacy tile sizes and `+xsmtime` commands below describe the K1 path.
+
 ## Table of Contents
 
 1. [File Structure](#file-structure)
