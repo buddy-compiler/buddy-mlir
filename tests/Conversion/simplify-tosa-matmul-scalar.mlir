@@ -30,7 +30,7 @@ func.func @non_scalar_k(%arg0: tensor<1x64x3xf32>, %arg1: tensor<1x3x1xf32>) -> 
 
 // CHECK-LABEL: func.func @scalar_like_matmul
 // CHECK-SAME:  (%arg0: tensor<1x64x1xf32>, %arg1: tensor<1x1x1xf32>) -> tensor<1x64x1xf32>
-// CHECK:       %[[SHIFT:.*]] = "tosa.const"() <{values = dense<0> : tensor<1xi8>}> : () -> tensor<1xi8>
+// CHECK:       %[[SHIFT:.*]] = tosa.const values(dense<0> : tensor<1xi8>) : () -> tensor<1xi8>
 // CHECK:       %[[MUL:.*]] = tosa.mul %arg0, %arg1, %[[SHIFT]] : (tensor<1x64x1xf32>, tensor<1x1x1xf32>, tensor<1xi8>) -> tensor<1x64x1xf32>
 // CHECK-NEXT:  return %[[MUL]] : tensor<1x64x1xf32>
 // CHECK-NOT:   tosa.matmul

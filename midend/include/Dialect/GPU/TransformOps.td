@@ -105,6 +105,7 @@ def VectorToMMAConversionOp : Op<Transform_Dialect, "buddy.vector.vector_to_mma_
 
   let assemblyFormat = [{
     $target
+    prop-dict
     attr-dict
     `:` functional-type($target, results)
   }];

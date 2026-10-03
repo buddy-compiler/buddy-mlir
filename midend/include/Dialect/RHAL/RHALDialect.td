@@ -60,6 +60,8 @@ def RHAL_Dialect : Dialect {
   }];
 
   let cppNamespace = "::buddy::rhal";
+  // Preserve the existing manifest attr-dict syntax for inherent attributes.
+  let useStrictPropertiesInAssemblyFormat = 0;
 }
 
 #endif // BUDDY_MIDEND_RHAL_RHALDIALECT_TD
