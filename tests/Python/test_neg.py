@@ -29,7 +29,7 @@ print(graph._imported_module)
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
 # CHECK: %{{.*}} = tensor.empty
-# CHECK: %{{.*}} = linalg.negf
+# CHECK: %{{.*}} = linalg.elementwise <negf>
 # CHECK: return %{{.*}}
 # CHECK: }
 # CHECK: }

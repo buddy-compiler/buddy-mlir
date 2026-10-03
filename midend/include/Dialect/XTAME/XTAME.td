@@ -1465,241 +1465,247 @@ def ThMfmaccSE5m2Op : XTAME_Op<"th.mfmacc.s.e5m2"> {
 
 //===----------------------------------------------------------------------===//
 // AME Intrinsic Operation Definitions (for LLVM IR translation)
-// These map directly to LLVM intrinsics defined in IntrinsicsRISCVExt.td
+// These map to the SSA matrix intrinsics in IntrinsicsRISCVXTExt.td.
+// Matrix operands here are SSA values, not physical register indices.
+// The high-level fixed-register operations retain their legacy asm lowering.
 //===----------------------------------------------------------------------===//
 
 // Base class for AME intrinsic ops
-// Note: enumName must match the intrinsic name pattern: riscv_buddy_<name>
-class XTAME_IntrOpBase<string mnemonic, int numResults = 0, list<Trait> traits = []> :
+// Floating-point intrinsic enum names have an additional _m suffix.
+class XTAME_IntrOpBase<string mnemonic, int numResults = 0,
+                       list<int> overloadedResults = [],
+                       list<int> overloadedOperands = [],
+                       list<Trait> traits = []> :
   LLVM_IntrOpBase</*Dialect dialect=*/XTAME_Dialect,
                   /*string opName=*/"intr." # mnemonic,
-                  /*string enumName=*/"riscv_" # !subst(".", "_", mnemonic),
-                  /*list<int> overloadedResults=*/[],
-                  /*list<int> overloadedOperands=*/[],
+                  /*string enumName=*/"riscv_" # !subst(".", "_", mnemonic) #
+                    !if(!eq(!find(mnemonic, "th.mfmacc"), 0), "_m", ""),
+                  /*list<int> overloadedResults=*/overloadedResults,
+                  /*list<int> overloadedOperands=*/overloadedOperands,
                   /*list<Trait> traits=*/traits,
                   /*int numResults=*/numResults>;
 
 // Configuration intrinsics (with register)
-def XTAME_ThMcfg_IntrOp : XTAME_IntrOpBase<"th.mcfg">,
+def XTAME_ThMcfg_IntrOp : XTAME_IntrOpBase<"th.mcfg", 0, [], [0]>,
   Arguments<(ins LLVM_Type:$mtype)>;
-def XTAME_ThMcfgm_IntrOp : XTAME_IntrOpBase<"th.mcfgm">,
+def XTAME_ThMcfgm_IntrOp : XTAME_IntrOpBase<"th.mcfgm", 0, [], [0]>,
   Arguments<(ins LLVM_Type:$tilem)>;
-def XTAME_ThMcfgn_IntrOp : XTAME_IntrOpBase<"th.mcfgn">,
+def XTAME_ThMcfgn_IntrOp : XTAME_IntrOpBase<"th.mcfgn", 0, [], [0]>,
   Arguments<(ins LLVM_Type:$tilen)>;
-def XTAME_ThMcfgk_IntrOp : XTAME_IntrOpBase<"th.mcfgk">,
+def XTAME_ThMcfgk_IntrOp : XTAME_IntrOpBase<"th.mcfgk", 0, [], [0]>,
   Arguments<(ins LLVM_Type:$tilek)>;
 
 // Configuration intrinsics (with immediate value)
-def XTAME_ThMcfgmi_IntrOp : XTAME_IntrOpBase<"th.mcfgmi">,
+def XTAME_ThMcfgmi_IntrOp : XTAME_IntrOpBase<"th.mcfgmi", 0, [], [0]>,
   Arguments<(ins LLVM_Type:$tilem)>;
-def XTAME_ThMcfgni_IntrOp : XTAME_IntrOpBase<"th.mcfgni">,
+def XTAME_ThMcfgni_IntrOp : XTAME_IntrOpBase<"th.mcfgni", 0, [], [0]>,
   Arguments<(ins LLVM_Type:$tilen)>;
-def XTAME_ThMcfgki_IntrOp : XTAME_IntrOpBase<"th.mcfgki">,
+def XTAME_ThMcfgki_IntrOp : XTAME_IntrOpBase<"th.mcfgki", 0, [], [0]>,
   Arguments<(ins LLVM_Type:$tilek)>;
 
 // Matrix zero intrinsic
-def XTAME_ThMzero_IntrOp : XTAME_IntrOpBase<"th.mzero">,
-  Arguments<(ins LLVM_Type:$md)>;
-def XTAME_ThMzero2r_IntrOp : XTAME_IntrOpBase<"th.mzero2r">,
-  Arguments<(ins LLVM_Type:$md)>;
-def XTAME_ThMzero4r_IntrOp : XTAME_IntrOpBase<"th.mzero4r">,
-  Arguments<(ins LLVM_Type:$md)>;
-def XTAME_ThMzero8r_IntrOp : XTAME_IntrOpBase<"th.mzero8r">,
-  Arguments<(ins LLVM_Type:$md)>;
+def XTAME_ThMzero_IntrOp : XTAME_IntrOpBase<"th.mzero", 1, [0], []>,
+  Arguments<(ins )>;
+def XTAME_ThMzero2r_IntrOp : XTAME_IntrOpBase<"th.mzero2r", 1, [0], []>,
+  Arguments<(ins )>;
+def XTAME_ThMzero4r_IntrOp : XTAME_IntrOpBase<"th.mzero4r", 1, [0], []>,
+  Arguments<(ins )>;
+def XTAME_ThMzero8r_IntrOp : XTAME_IntrOpBase<"th.mzero8r", 1, [0], []>,
+  Arguments<(ins )>;
 
 // MISC Intrinsics (Data Move, Pack, Broadcast)
 // Matrix to Matrix Move
-def XTAME_ThMmovMm_IntrOp : XTAME_IntrOpBase<"th.mmov.mm">,
-  Arguments<(ins LLVM_Type:$md, LLVM_Type:$ms1)>;
+def XTAME_ThMmovMm_IntrOp : XTAME_IntrOpBase<"th.mmov.mm", 1, [0], []>,
+  Arguments<(ins LLVM_Type:$ms1)>;
 
 // Duplicate Scalar to Matrix
-def XTAME_ThMdupbMX_IntrOp : XTAME_IntrOpBase<"th.mdupb.m.x">,
-  Arguments<(ins LLVM_Type:$md, LLVM_Type:$rs2)>;
-def XTAME_ThMduphMX_IntrOp : XTAME_IntrOpBase<"th.mduph.m.x">,
-  Arguments<(ins LLVM_Type:$md, LLVM_Type:$rs2)>;
-def XTAME_ThMdupwMX_IntrOp : XTAME_IntrOpBase<"th.mdupw.m.x">,
-  Arguments<(ins LLVM_Type:$md, LLVM_Type:$rs2)>;
-def XTAME_ThMdupdMX_IntrOp : XTAME_IntrOpBase<"th.mdupd.m.x">,
-  Arguments<(ins LLVM_Type:$md, LLVM_Type:$rs2)>;
+def XTAME_ThMdupbMX_IntrOp : XTAME_IntrOpBase<"th.mdupb.m.x", 1, [0], [0]>,
+  Arguments<(ins LLVM_Type:$rs2)>;
+def XTAME_ThMduphMX_IntrOp : XTAME_IntrOpBase<"th.mduph.m.x", 1, [0], [0]>,
+  Arguments<(ins LLVM_Type:$rs2)>;
+def XTAME_ThMdupwMX_IntrOp : XTAME_IntrOpBase<"th.mdupw.m.x", 1, [0], [0]>,
+  Arguments<(ins LLVM_Type:$rs2)>;
+def XTAME_ThMdupdMX_IntrOp : XTAME_IntrOpBase<"th.mdupd.m.x", 1, [0], [0]>,
+  Arguments<(ins LLVM_Type:$rs2)>;
 
 // Scalar to Matrix Element
-def XTAME_ThMmovbMX_IntrOp : XTAME_IntrOpBase<"th.mmovb.m.x">,
-  Arguments<(ins LLVM_Type:$md, LLVM_Type:$rs2, LLVM_Type:$rs1)>;
-def XTAME_ThMmovhMX_IntrOp : XTAME_IntrOpBase<"th.mmovh.m.x">,
-  Arguments<(ins LLVM_Type:$md, LLVM_Type:$rs2, LLVM_Type:$rs1)>;
-def XTAME_ThMmovwMX_IntrOp : XTAME_IntrOpBase<"th.mmovw.m.x">,
-  Arguments<(ins LLVM_Type:$md, LLVM_Type:$rs2, LLVM_Type:$rs1)>;
-def XTAME_ThMmovdMX_IntrOp : XTAME_IntrOpBase<"th.mmovd.m.x">,
-  Arguments<(ins LLVM_Type:$md, LLVM_Type:$rs2, LLVM_Type:$rs1)>;
+def XTAME_ThMmovbMX_IntrOp : XTAME_IntrOpBase<"th.mmovb.m.x", 1, [0], [0, 1]>,
+  Arguments<(ins LLVM_Type:$rs2, LLVM_Type:$rs1)>;
+def XTAME_ThMmovhMX_IntrOp : XTAME_IntrOpBase<"th.mmovh.m.x", 1, [0], [0, 1]>,
+  Arguments<(ins LLVM_Type:$rs2, LLVM_Type:$rs1)>;
+def XTAME_ThMmovwMX_IntrOp : XTAME_IntrOpBase<"th.mmovw.m.x", 1, [0], [0, 1]>,
+  Arguments<(ins LLVM_Type:$rs2, LLVM_Type:$rs1)>;
+def XTAME_ThMmovdMX_IntrOp : XTAME_IntrOpBase<"th.mmovd.m.x", 1, [0], [0, 1]>,
+  Arguments<(ins LLVM_Type:$rs2, LLVM_Type:$rs1)>;
 
 // Matrix to Scalar Element (Requires Return Value!)
-def XTAME_ThMmovbXM_IntrOp : XTAME_IntrOpBase<"th.mmovb.x.m", 1>,
+def XTAME_ThMmovbXM_IntrOp : XTAME_IntrOpBase<"th.mmovb.x.m", 1, [0], [0, 1]>,
   Arguments<(ins LLVM_Type:$ms2, LLVM_Type:$rs1)>;
-def XTAME_ThMmovhXM_IntrOp : XTAME_IntrOpBase<"th.mmovh.x.m", 1>,
+def XTAME_ThMmovhXM_IntrOp : XTAME_IntrOpBase<"th.mmovh.x.m", 1, [0], [0, 1]>,
   Arguments<(ins LLVM_Type:$ms2, LLVM_Type:$rs1)>;
-def XTAME_ThMmovwXM_IntrOp : XTAME_IntrOpBase<"th.mmovw.x.m", 1>,
+def XTAME_ThMmovwXM_IntrOp : XTAME_IntrOpBase<"th.mmovw.x.m", 1, [0], [0, 1]>,
   Arguments<(ins LLVM_Type:$ms2, LLVM_Type:$rs1)>;
-def XTAME_ThMmovdXM_IntrOp : XTAME_IntrOpBase<"th.mmovd.x.m", 1>,
+def XTAME_ThMmovdXM_IntrOp : XTAME_IntrOpBase<"th.mmovd.x.m", 1, [0], [0, 1]>,
   Arguments<(ins LLVM_Type:$ms2, LLVM_Type:$rs1)>;
 
 // Broadcast Instructions (row broadcast)
-def XTAME_ThMmovMvI_IntrOp : XTAME_IntrOpBase<"th.mmov.mv.i">,
-  Arguments<(ins LLVM_Type:$md, LLVM_Type:$ms1, LLVM_Type:$uimm3)>;
+def XTAME_ThMmovMvI_IntrOp : XTAME_IntrOpBase<"th.mmov.mv.i", 1, [0], [1]>,
+  Arguments<(ins LLVM_Type:$ms1, LLVM_Type:$uimm3)>;
 
 // Broadcast Instructions (column broadcast)
-def XTAME_ThMcmovbMvI_IntrOp : XTAME_IntrOpBase<"th.mcmovb.mv.i">,
-  Arguments<(ins LLVM_Type:$md, LLVM_Type:$ms1, LLVM_Type:$uimm3)>;
-def XTAME_ThMcmovhMvI_IntrOp : XTAME_IntrOpBase<"th.mcmovh.mv.i">,
-  Arguments<(ins LLVM_Type:$md, LLVM_Type:$ms1, LLVM_Type:$uimm3)>;
-def XTAME_ThMcmovwMvI_IntrOp : XTAME_IntrOpBase<"th.mcmovw.mv.i">,
-  Arguments<(ins LLVM_Type:$md, LLVM_Type:$ms1, LLVM_Type:$uimm3)>;
-def XTAME_ThMcmovdMvI_IntrOp : XTAME_IntrOpBase<"th.mcmovd.mv.i">,
-  Arguments<(ins LLVM_Type:$md, LLVM_Type:$ms1, LLVM_Type:$uimm3)>;
+def XTAME_ThMcmovbMvI_IntrOp : XTAME_IntrOpBase<"th.mcmovb.mv.i", 1, [0], [1]>,
+  Arguments<(ins LLVM_Type:$ms1, LLVM_Type:$uimm3)>;
+def XTAME_ThMcmovhMvI_IntrOp : XTAME_IntrOpBase<"th.mcmovh.mv.i", 1, [0], [1]>,
+  Arguments<(ins LLVM_Type:$ms1, LLVM_Type:$uimm3)>;
+def XTAME_ThMcmovwMvI_IntrOp : XTAME_IntrOpBase<"th.mcmovw.mv.i", 1, [0], [1]>,
+  Arguments<(ins LLVM_Type:$ms1, LLVM_Type:$uimm3)>;
+def XTAME_ThMcmovdMvI_IntrOp : XTAME_IntrOpBase<"th.mcmovd.mv.i", 1, [0], [1]>,
+  Arguments<(ins LLVM_Type:$ms1, LLVM_Type:$uimm3)>;
 
 // Matrix Pack Instructions
-def XTAME_ThMpackMm_IntrOp : XTAME_IntrOpBase<"th.mpack.mm">,
-  Arguments<(ins LLVM_Type:$md, LLVM_Type:$ms2, LLVM_Type:$ms1)>;
-def XTAME_ThMpackhlMm_IntrOp : XTAME_IntrOpBase<"th.mpackhl.mm">,
-  Arguments<(ins LLVM_Type:$md, LLVM_Type:$ms2, LLVM_Type:$ms1)>;
-def XTAME_ThMpackhhMm_IntrOp : XTAME_IntrOpBase<"th.mpackhh.mm">,
-  Arguments<(ins LLVM_Type:$md, LLVM_Type:$ms2, LLVM_Type:$ms1)>;
+def XTAME_ThMpackMm_IntrOp : XTAME_IntrOpBase<"th.mpack.mm", 1, [0], []>,
+  Arguments<(ins LLVM_Type:$ms2, LLVM_Type:$ms1)>;
+def XTAME_ThMpackhlMm_IntrOp : XTAME_IntrOpBase<"th.mpackhl.mm", 1, [0], []>,
+  Arguments<(ins LLVM_Type:$ms2, LLVM_Type:$ms1)>;
+def XTAME_ThMpackhhMm_IntrOp : XTAME_IntrOpBase<"th.mpackhh.mm", 1, [0], []>,
+  Arguments<(ins LLVM_Type:$ms2, LLVM_Type:$ms1)>;
 
 // Matrix load intrinsics (to tile registers)
-def XTAME_ThMlde8_IntrOp : XTAME_IntrOpBase<"th.mlde8">,
-  Arguments<(ins LLVM_Type:$md, LLVM_Type:$stride, LLVM_Type:$base)>;
-def XTAME_ThMlde16_IntrOp : XTAME_IntrOpBase<"th.mlde16">,
-  Arguments<(ins LLVM_Type:$md, LLVM_Type:$stride, LLVM_Type:$base)>;
-def XTAME_ThMlde32_IntrOp : XTAME_IntrOpBase<"th.mlde32">,
-  Arguments<(ins LLVM_Type:$md, LLVM_Type:$stride, LLVM_Type:$base)>;
-def XTAME_ThMlde64_IntrOp : XTAME_IntrOpBase<"th.mlde64">,
-  Arguments<(ins LLVM_Type:$md, LLVM_Type:$stride, LLVM_Type:$base)>;
+def XTAME_ThMlde8_IntrOp : XTAME_IntrOpBase<"th.mlde8", 1, [0], [0]>,
+  Arguments<(ins LLVM_Type:$stride, LLVM_Type:$base)>;
+def XTAME_ThMlde16_IntrOp : XTAME_IntrOpBase<"th.mlde16", 1, [0], [0]>,
+  Arguments<(ins LLVM_Type:$stride, LLVM_Type:$base)>;
+def XTAME_ThMlde32_IntrOp : XTAME_IntrOpBase<"th.mlde32", 1, [0], [0]>,
+  Arguments<(ins LLVM_Type:$stride, LLVM_Type:$base)>;
+def XTAME_ThMlde64_IntrOp : XTAME_IntrOpBase<"th.mlde64", 1, [0], [0]>,
+  Arguments<(ins LLVM_Type:$stride, LLVM_Type:$base)>;
 
 // Matrix transpose load intrinsics (to tile registers)
-def XTAME_ThMldte8_IntrOp : XTAME_IntrOpBase<"th.mldte8">,
-  Arguments<(ins LLVM_Type:$md, LLVM_Type:$stride, LLVM_Type:$base)>;
-def XTAME_ThMldte16_IntrOp : XTAME_IntrOpBase<"th.mldte16">,
-  Arguments<(ins LLVM_Type:$md, LLVM_Type:$stride, LLVM_Type:$base)>;
-def XTAME_ThMldte32_IntrOp : XTAME_IntrOpBase<"th.mldte32">,
-  Arguments<(ins LLVM_Type:$md, LLVM_Type:$stride, LLVM_Type:$base)>;
-def XTAME_ThMldte64_IntrOp : XTAME_IntrOpBase<"th.mldte64">,
-  Arguments<(ins LLVM_Type:$md, LLVM_Type:$stride, LLVM_Type:$base)>;
+def XTAME_ThMldte8_IntrOp : XTAME_IntrOpBase<"th.mldte8", 1, [0], [0]>,
+  Arguments<(ins LLVM_Type:$stride, LLVM_Type:$base)>;
+def XTAME_ThMldte16_IntrOp : XTAME_IntrOpBase<"th.mldte16", 1, [0], [0]>,
+  Arguments<(ins LLVM_Type:$stride, LLVM_Type:$base)>;
+def XTAME_ThMldte32_IntrOp : XTAME_IntrOpBase<"th.mldte32", 1, [0], [0]>,
+  Arguments<(ins LLVM_Type:$stride, LLVM_Type:$base)>;
+def XTAME_ThMldte64_IntrOp : XTAME_IntrOpBase<"th.mldte64", 1, [0], [0]>,
+  Arguments<(ins LLVM_Type:$stride, LLVM_Type:$base)>;
 
 // Matrix stream load intrinsics (to tile registers)
-def XTAME_ThMslde8_IntrOp : XTAME_IntrOpBase<"th.mslde8">,
-  Arguments<(ins LLVM_Type:$md, LLVM_Type:$stride, LLVM_Type:$base)>;
-def XTAME_ThMslde16_IntrOp : XTAME_IntrOpBase<"th.mslde16">,
-  Arguments<(ins LLVM_Type:$md, LLVM_Type:$stride, LLVM_Type:$base)>;
-def XTAME_ThMslde32_IntrOp : XTAME_IntrOpBase<"th.mslde32">,
-  Arguments<(ins LLVM_Type:$md, LLVM_Type:$stride, LLVM_Type:$base)>;
-def XTAME_ThMslde64_IntrOp : XTAME_IntrOpBase<"th.mslde64">,
-  Arguments<(ins LLVM_Type:$md, LLVM_Type:$stride, LLVM_Type:$base)>;
+def XTAME_ThMslde8_IntrOp : XTAME_IntrOpBase<"th.mslde8", 1, [0], [0]>,
+  Arguments<(ins LLVM_Type:$stride, LLVM_Type:$base)>;
+def XTAME_ThMslde16_IntrOp : XTAME_IntrOpBase<"th.mslde16", 1, [0], [0]>,
+  Arguments<(ins LLVM_Type:$stride, LLVM_Type:$base)>;
+def XTAME_ThMslde32_IntrOp : XTAME_IntrOpBase<"th.mslde32", 1, [0], [0]>,
+  Arguments<(ins LLVM_Type:$stride, LLVM_Type:$base)>;
+def XTAME_ThMslde64_IntrOp : XTAME_IntrOpBase<"th.mslde64", 1, [0], [0]>,
+  Arguments<(ins LLVM_Type:$stride, LLVM_Type:$base)>;
 
 // Matrix transpose stream load intrinsics (to tile registers)
-def XTAME_ThMsldte8_IntrOp : XTAME_IntrOpBase<"th.msldte8">,
-  Arguments<(ins LLVM_Type:$md, LLVM_Type:$stride, LLVM_Type:$base)>;
-def XTAME_ThMsldte16_IntrOp : XTAME_IntrOpBase<"th.msldte16">,
-  Arguments<(ins LLVM_Type:$md, LLVM_Type:$stride, LLVM_Type:$base)>;
-def XTAME_ThMsldte32_IntrOp : XTAME_IntrOpBase<"th.msldte32">,
-  Arguments<(ins LLVM_Type:$md, LLVM_Type:$stride, LLVM_Type:$base)>;
-def XTAME_ThMsldte64_IntrOp : XTAME_IntrOpBase<"th.msldte64">,
-  Arguments<(ins LLVM_Type:$md, LLVM_Type:$stride, LLVM_Type:$base)>;
+def XTAME_ThMsldte8_IntrOp : XTAME_IntrOpBase<"th.msldte8", 1, [0], [0]>,
+  Arguments<(ins LLVM_Type:$stride, LLVM_Type:$base)>;
+def XTAME_ThMsldte16_IntrOp : XTAME_IntrOpBase<"th.msldte16", 1, [0], [0]>,
+  Arguments<(ins LLVM_Type:$stride, LLVM_Type:$base)>;
+def XTAME_ThMsldte32_IntrOp : XTAME_IntrOpBase<"th.msldte32", 1, [0], [0]>,
+  Arguments<(ins LLVM_Type:$stride, LLVM_Type:$base)>;
+def XTAME_ThMsldte64_IntrOp : XTAME_IntrOpBase<"th.msldte64", 1, [0], [0]>,
+  Arguments<(ins LLVM_Type:$stride, LLVM_Type:$base)>;
 
 // Prefetch Load Intrinsics
-def XTAME_ThMplde8_IntrOp : XTAME_IntrOpBase<"th.mplde8">,
+def XTAME_ThMplde8_IntrOp : XTAME_IntrOpBase<"th.mplde8", 0, [], [0]>,
   Arguments<(ins LLVM_Type:$stride, LLVM_Type:$base)>;
-def XTAME_ThMplde16_IntrOp : XTAME_IntrOpBase<"th.mplde16">,
+def XTAME_ThMplde16_IntrOp : XTAME_IntrOpBase<"th.mplde16", 0, [], [0]>,
   Arguments<(ins LLVM_Type:$stride, LLVM_Type:$base)>;
-def XTAME_ThMplde32_IntrOp : XTAME_IntrOpBase<"th.mplde32">,
+def XTAME_ThMplde32_IntrOp : XTAME_IntrOpBase<"th.mplde32", 0, [], [0]>,
   Arguments<(ins LLVM_Type:$stride, LLVM_Type:$base)>;
-def XTAME_ThMplde64_IntrOp : XTAME_IntrOpBase<"th.mplde64">,
+def XTAME_ThMplde64_IntrOp : XTAME_IntrOpBase<"th.mplde64", 0, [], [0]>,
   Arguments<(ins LLVM_Type:$stride, LLVM_Type:$base)>;
 
 // Prefetch Transpose Load Intrinsics
-def XTAME_ThMpldte8_IntrOp : XTAME_IntrOpBase<"th.mpldte8">,
+def XTAME_ThMpldte8_IntrOp : XTAME_IntrOpBase<"th.mpldte8", 0, [], [0]>,
   Arguments<(ins LLVM_Type:$stride, LLVM_Type:$base)>;
-def XTAME_ThMpldte16_IntrOp : XTAME_IntrOpBase<"th.mpldte16">,
+def XTAME_ThMpldte16_IntrOp : XTAME_IntrOpBase<"th.mpldte16", 0, [], [0]>,
   Arguments<(ins LLVM_Type:$stride, LLVM_Type:$base)>;
-def XTAME_ThMpldte32_IntrOp : XTAME_IntrOpBase<"th.mpldte32">,
+def XTAME_ThMpldte32_IntrOp : XTAME_IntrOpBase<"th.mpldte32", 0, [], [0]>,
   Arguments<(ins LLVM_Type:$stride, LLVM_Type:$base)>;
-def XTAME_ThMpldte64_IntrOp : XTAME_IntrOpBase<"th.mpldte64">,
+def XTAME_ThMpldte64_IntrOp : XTAME_IntrOpBase<"th.mpldte64", 0, [], [0]>,
   Arguments<(ins LLVM_Type:$stride, LLVM_Type:$base)>;
 
 // Matrix store intrinsics (from tile registers)
-def XTAME_ThMste8_IntrOp : XTAME_IntrOpBase<"th.mste8">,
+def XTAME_ThMste8_IntrOp : XTAME_IntrOpBase<"th.mste8", 0, [], [0, 1]>,
   Arguments<(ins LLVM_Type:$ms3, LLVM_Type:$stride, LLVM_Type:$base)>;
-def XTAME_ThMste16_IntrOp : XTAME_IntrOpBase<"th.mste16">,
+def XTAME_ThMste16_IntrOp : XTAME_IntrOpBase<"th.mste16", 0, [], [0, 1]>,
   Arguments<(ins LLVM_Type:$ms3, LLVM_Type:$stride, LLVM_Type:$base)>;
-def XTAME_ThMste32_IntrOp : XTAME_IntrOpBase<"th.mste32">,
+def XTAME_ThMste32_IntrOp : XTAME_IntrOpBase<"th.mste32", 0, [], [0, 1]>,
   Arguments<(ins LLVM_Type:$ms3, LLVM_Type:$stride, LLVM_Type:$base)>;
-def XTAME_ThMste64_IntrOp : XTAME_IntrOpBase<"th.mste64">,
+def XTAME_ThMste64_IntrOp : XTAME_IntrOpBase<"th.mste64", 0, [], [0, 1]>,
   Arguments<(ins LLVM_Type:$ms3, LLVM_Type:$stride, LLVM_Type:$base)>;
 
 // Matrix transpose store intrinsics (from tile registers)
-def XTAME_ThMstte8_IntrOp : XTAME_IntrOpBase<"th.mstte8">,
+def XTAME_ThMstte8_IntrOp : XTAME_IntrOpBase<"th.mstte8", 0, [], [0, 1]>,
   Arguments<(ins LLVM_Type:$ms3, LLVM_Type:$stride, LLVM_Type:$base)>;
-def XTAME_ThMstte16_IntrOp : XTAME_IntrOpBase<"th.mstte16">,
+def XTAME_ThMstte16_IntrOp : XTAME_IntrOpBase<"th.mstte16", 0, [], [0, 1]>,
   Arguments<(ins LLVM_Type:$ms3, LLVM_Type:$stride, LLVM_Type:$base)>;
-def XTAME_ThMstte32_IntrOp : XTAME_IntrOpBase<"th.mstte32">,
+def XTAME_ThMstte32_IntrOp : XTAME_IntrOpBase<"th.mstte32", 0, [], [0, 1]>,
   Arguments<(ins LLVM_Type:$ms3, LLVM_Type:$stride, LLVM_Type:$base)>;
-def XTAME_ThMstte64_IntrOp : XTAME_IntrOpBase<"th.mstte64">,
+def XTAME_ThMstte64_IntrOp : XTAME_IntrOpBase<"th.mstte64", 0, [], [0, 1]>,
   Arguments<(ins LLVM_Type:$ms3, LLVM_Type:$stride, LLVM_Type:$base)>;
 
 // Matrix stream store intrinsics (from tile registers)
-def XTAME_ThMsste8_IntrOp : XTAME_IntrOpBase<"th.msste8">,
+def XTAME_ThMsste8_IntrOp : XTAME_IntrOpBase<"th.msste8", 0, [], [0, 1]>,
   Arguments<(ins LLVM_Type:$ms3, LLVM_Type:$stride, LLVM_Type:$base)>;
-def XTAME_ThMsste16_IntrOp : XTAME_IntrOpBase<"th.msste16">,
+def XTAME_ThMsste16_IntrOp : XTAME_IntrOpBase<"th.msste16", 0, [], [0, 1]>,
   Arguments<(ins LLVM_Type:$ms3, LLVM_Type:$stride, LLVM_Type:$base)>;
-def XTAME_ThMsste32_IntrOp : XTAME_IntrOpBase<"th.msste32">,
+def XTAME_ThMsste32_IntrOp : XTAME_IntrOpBase<"th.msste32", 0, [], [0, 1]>,
   Arguments<(ins LLVM_Type:$ms3, LLVM_Type:$stride, LLVM_Type:$base)>;
-def XTAME_ThMsste64_IntrOp : XTAME_IntrOpBase<"th.msste64">,
+def XTAME_ThMsste64_IntrOp : XTAME_IntrOpBase<"th.msste64", 0, [], [0, 1]>,
   Arguments<(ins LLVM_Type:$ms3, LLVM_Type:$stride, LLVM_Type:$base)>;
 
 // Matrix transpose stream store intrinsics (from tile registers)
-def XTAME_ThMsstte8_IntrOp : XTAME_IntrOpBase<"th.msstte8">,
+def XTAME_ThMsstte8_IntrOp : XTAME_IntrOpBase<"th.msstte8", 0, [], [0, 1]>,
   Arguments<(ins LLVM_Type:$ms3, LLVM_Type:$stride, LLVM_Type:$base)>;
-def XTAME_ThMsstte16_IntrOp : XTAME_IntrOpBase<"th.msstte16">,
+def XTAME_ThMsstte16_IntrOp : XTAME_IntrOpBase<"th.msstte16", 0, [], [0, 1]>,
   Arguments<(ins LLVM_Type:$ms3, LLVM_Type:$stride, LLVM_Type:$base)>;
-def XTAME_ThMsstte32_IntrOp : XTAME_IntrOpBase<"th.msstte32">,
+def XTAME_ThMsstte32_IntrOp : XTAME_IntrOpBase<"th.msstte32", 0, [], [0, 1]>,
   Arguments<(ins LLVM_Type:$ms3, LLVM_Type:$stride, LLVM_Type:$base)>;
-def XTAME_ThMsstte64_IntrOp : XTAME_IntrOpBase<"th.msstte64">,
+def XTAME_ThMsstte64_IntrOp : XTAME_IntrOpBase<"th.msstte64", 0, [], [0, 1]>,
   Arguments<(ins LLVM_Type:$ms3, LLVM_Type:$stride, LLVM_Type:$base)>;
 
 // Tile register matrix multiplication intrinsics
-def XTAME_ThMmaccWB_IntrOp : XTAME_IntrOpBase<"th.mmacc.w.b">,
+def XTAME_ThMmaccWB_IntrOp : XTAME_IntrOpBase<"th.mmacc.w.b", 1, [0], [1]>,
   Arguments<(ins LLVM_Type:$md, LLVM_Type:$ms2, LLVM_Type:$ms1)>;
-def XTAME_ThMmaccuWB_IntrOp : XTAME_IntrOpBase<"th.mmaccu.w.b">,
+def XTAME_ThMmaccuWB_IntrOp : XTAME_IntrOpBase<"th.mmaccu.w.b", 1, [0], [1]>,
   Arguments<(ins LLVM_Type:$md, LLVM_Type:$ms2, LLVM_Type:$ms1)>;
-def XTAME_ThMmaccusWB_IntrOp : XTAME_IntrOpBase<"th.mmaccus.w.b">,
+def XTAME_ThMmaccusWB_IntrOp : XTAME_IntrOpBase<"th.mmaccus.w.b", 1, [0], [1]>,
   Arguments<(ins LLVM_Type:$md, LLVM_Type:$ms2, LLVM_Type:$ms1)>;
-def XTAME_ThMmaccsuWB_IntrOp : XTAME_IntrOpBase<"th.mmaccsu.w.b">,
+def XTAME_ThMmaccsuWB_IntrOp : XTAME_IntrOpBase<"th.mmaccsu.w.b", 1, [0], [1]>,
   Arguments<(ins LLVM_Type:$md, LLVM_Type:$ms2, LLVM_Type:$ms1)>;
 
 // Tile register matrix multiply intrinsics for floating-point types
-def XTAME_ThMfmaccH_IntrOp : XTAME_IntrOpBase<"th.mfmacc.h">,
+def XTAME_ThMfmaccH_IntrOp : XTAME_IntrOpBase<"th.mfmacc.h", 1, [0], []>,
   Arguments<(ins LLVM_Type:$md, LLVM_Type:$ms2, LLVM_Type:$ms1)>;
-def XTAME_ThMfmaccBf16_IntrOp : XTAME_IntrOpBase<"th.mfmacc.bf16">,
+def XTAME_ThMfmaccBf16_IntrOp : XTAME_IntrOpBase<"th.mfmacc.bf16", 1, [0], []>,
   Arguments<(ins LLVM_Type:$md, LLVM_Type:$ms2, LLVM_Type:$ms1)>;
-def XTAME_ThMfmaccS_IntrOp : XTAME_IntrOpBase<"th.mfmacc.s">,
+def XTAME_ThMfmaccS_IntrOp : XTAME_IntrOpBase<"th.mfmacc.s", 1, [0], []>,
   Arguments<(ins LLVM_Type:$md, LLVM_Type:$ms2, LLVM_Type:$ms1)>;
-def XTAME_ThMfmaccD_IntrOp : XTAME_IntrOpBase<"th.mfmacc.d">,
+def XTAME_ThMfmaccD_IntrOp : XTAME_IntrOpBase<"th.mfmacc.d", 1, [0], []>,
   Arguments<(ins LLVM_Type:$md, LLVM_Type:$ms2, LLVM_Type:$ms1)>;
-def XTAME_ThMfmaccHE4m3_IntrOp : XTAME_IntrOpBase<"th.mfmacc.h.e4m3">,
+def XTAME_ThMfmaccHE4m3_IntrOp : XTAME_IntrOpBase<"th.mfmacc.h.e4m3", 1, [0], [1]>,
   Arguments<(ins LLVM_Type:$md, LLVM_Type:$ms2, LLVM_Type:$ms1)>;
-def XTAME_ThMfmaccHE5m2_IntrOp : XTAME_IntrOpBase<"th.mfmacc.h.e5m2">,
+def XTAME_ThMfmaccHE5m2_IntrOp : XTAME_IntrOpBase<"th.mfmacc.h.e5m2", 1, [0], [1]>,
   Arguments<(ins LLVM_Type:$md, LLVM_Type:$ms2, LLVM_Type:$ms1)>;
-def XTAME_ThMfmaccBf16E4m3_IntrOp : XTAME_IntrOpBase<"th.mfmacc.bf16.e4m3">,
+def XTAME_ThMfmaccBf16E4m3_IntrOp : XTAME_IntrOpBase<"th.mfmacc.bf16.e4m3", 1, [0], [1]>,
   Arguments<(ins LLVM_Type:$md, LLVM_Type:$ms2, LLVM_Type:$ms1)>;
-def XTAME_ThMfmaccBf16E5m2_IntrOp : XTAME_IntrOpBase<"th.mfmacc.bf16.e5m2">,
+def XTAME_ThMfmaccBf16E5m2_IntrOp : XTAME_IntrOpBase<"th.mfmacc.bf16.e5m2", 1, [0], [1]>,
   Arguments<(ins LLVM_Type:$md, LLVM_Type:$ms2, LLVM_Type:$ms1)>;
-def XTAME_ThMfmaccSH_IntrOp : XTAME_IntrOpBase<"th.mfmacc.s.h">,
+def XTAME_ThMfmaccSH_IntrOp : XTAME_IntrOpBase<"th.mfmacc.s.h", 1, [0], [1]>,
   Arguments<(ins LLVM_Type:$md, LLVM_Type:$ms2, LLVM_Type:$ms1)>;
-def XTAME_ThMfmaccSBf16_IntrOp : XTAME_IntrOpBase<"th.mfmacc.s.bf16">,
+def XTAME_ThMfmaccSBf16_IntrOp : XTAME_IntrOpBase<"th.mfmacc.s.bf16", 1, [0], [1]>,
   Arguments<(ins LLVM_Type:$md, LLVM_Type:$ms2, LLVM_Type:$ms1)>;
-def XTAME_ThMfmaccDS_IntrOp : XTAME_IntrOpBase<"th.mfmacc.d.s">,
+def XTAME_ThMfmaccDS_IntrOp : XTAME_IntrOpBase<"th.mfmacc.d.s", 1, [0], [1]>,
   Arguments<(ins LLVM_Type:$md, LLVM_Type:$ms2, LLVM_Type:$ms1)>;
-def XTAME_ThMfmaccSE4m3_IntrOp : XTAME_IntrOpBase<"th.mfmacc.s.e4m3">,
+def XTAME_ThMfmaccSE4m3_IntrOp : XTAME_IntrOpBase<"th.mfmacc.s.e4m3", 1, [0], [1]>,
   Arguments<(ins LLVM_Type:$md, LLVM_Type:$ms2, LLVM_Type:$ms1)>;
-def XTAME_ThMfmaccSE5m2_IntrOp : XTAME_IntrOpBase<"th.mfmacc.s.e5m2">,
+def XTAME_ThMfmaccSE5m2_IntrOp : XTAME_IntrOpBase<"th.mfmacc.s.e5m2", 1, [0], [1]>,
   Arguments<(ins LLVM_Type:$md, LLVM_Type:$ms2, LLVM_Type:$ms1)>;
 
 #endif // XTAME_DIALECT

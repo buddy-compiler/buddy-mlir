@@ -31,11 +31,11 @@ graph.lower_to_top_level_ir()
 print(graph._imported_module)
 # CHECK: module {
 # CHECK-LABEL: func.func @forward
-# CHECK: %{{.*}} = "tosa.const"
+# CHECK: %{{.*}} = tosa.const
 # CHECK: %{{.*}} = tosa.transpose
 # CHECK: %{{.*}} = tosa.transpose
-# CHECK: %{{.*}} = "tosa.const"()
-# CHECK: %{{.*}} = "tosa.const"()
+# CHECK: %{{.*}} = tosa.const values(
+# CHECK: %{{.*}} = tosa.const values(
 # CHECK: %{{.*}} = tosa.conv2d
 # CHECK: %{{.*}} = tosa.transpose
 # CHECK: return %{{.*}}

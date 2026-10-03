@@ -17,6 +17,7 @@
 #include "Dialect/XTAME/Transform.h"
 #include "Dialect/XTAME/XTAMEDialect.h"
 #include "Dialect/XTAME/XTAMEOps.h"
+#include "llvm/ADT/StringSwitch.h"
 #include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
 #include "mlir/Conversion/LLVMCommon/Pattern.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
@@ -30,23 +31,39 @@ using namespace buddy::xtame;
 
 namespace {
 
-//===----------------------------------------------------------------------===//
-// Helper Functions
-//===----------------------------------------------------------------------===//
+// Preserve the fixed-register contract of the high-level XTAME operations.
+// LLVM's native XTAME intrinsics now take SSA matrix values; passing register
+// indices to those intrinsics would produce invalid IR. Use side-effecting asm
+// for the legacy interface and declare the matrix state and memory clobbers.
+static FailureOr<LLVM::InlineAsmOp>
+createXTAMEAsm(ConversionPatternRewriter &rewriter, Operation *op,
+               StringRef mnemonic, const Twine &arguments,
+               ValueRange operands = {}, TypeRange results = {}) {
+  for (StringRef name : {"md", "ms1", "ms2", "ms3"}) {
+    if (auto attr = op->getAttrOfType<IntegerAttr>(name)) {
+      if (attr.getInt() < 0 || attr.getInt() > 7) {
+        op->emitOpError("matrix register index must be in [0, 7]");
+        return failure();
+      }
+    }
+  }
 
-static FlatSymbolRefAttr
-getOrInsertIntrinsic(ConversionPatternRewriter &rewriter, ModuleOp module,
-                     StringRef intrinsicName, LLVM::LLVMFunctionType funcType) {
-  auto *ctx = rewriter.getContext();
-  if (module.lookupSymbol<LLVM::LLVMFuncOp>(intrinsicName))
-    return FlatSymbolRefAttr::get(ctx, intrinsicName);
+  std::string constraints;
+  if (!results.empty())
+    constraints = "=r,";
+  for (size_t i = 0; i < operands.size(); ++i)
+    constraints += "r,";
+  constraints += "~{memory},~{m0},~{m1},~{m2},~{m3},~{m4},~{m5},~{m6},~{m7}";
+  return LLVM::InlineAsmOp::create(
+      rewriter, op->getLoc(), results, operands,
+      (mnemonic + " " + arguments).str(), constraints,
+      /*has_side_effects=*/true, /*is_align_stack=*/false,
+      LLVM::tailcallkind::TailCallKind::None, /*convergent=*/false,
+      LLVM::AsmDialectAttr{}, ArrayAttr{});
+}
 
-  auto savedInsertionPoint = rewriter.saveInsertionPoint();
-  rewriter.setInsertionPointToEnd(module.getBody());
-  LLVM::LLVMFuncOp::create(rewriter, module.getLoc(), intrinsicName, funcType,
-                           LLVM::Linkage::External, false, LLVM::CConv::C);
-  rewriter.restoreInsertionPoint(savedInsertionPoint);
-  return FlatSymbolRefAttr::get(ctx, intrinsicName);
+static std::string matrixReg(uint64_t index) {
+  return (Twine("m") + Twine(index)).str();
 }
 
 static Value extractPointerFromMemref(ConversionPatternRewriter &rewriter,
@@ -57,439 +74,175 @@ static Value extractPointerFromMemref(ConversionPatternRewriter &rewriter,
   Value idx =
       memref::ExtractAlignedPointerAsIndexOp::create(rewriter, loc, memref);
   Value i64Val = arith::IndexCastOp::create(rewriter, loc, i64Type, idx);
-  Value ptr = LLVM::IntToPtrOp::create(rewriter, loc, ptrType, i64Val);
-  return ptr;
+  return LLVM::IntToPtrOp::create(rewriter, loc, ptrType, i64Val);
 }
 
-//===----------------------------------------------------------------------===//
-// XTAME Lowering Patterns
-//===----------------------------------------------------------------------===//
-
-//===----------------------------------------------------------------------===//
-// Configuration Operations Lowering
-//===----------------------------------------------------------------------===//
 template <typename OpTy>
-struct XTAMEConfigLowering : public ConvertOpToLLVMPattern<OpTy> {
-  StringRef intrinsicName;
+struct XTAMEAsmLowering : public ConvertOpToLLVMPattern<OpTy> {
+  StringRef mnemonic;
+  XTAMEAsmLowering(LLVMTypeConverter &converter, StringRef mnemonic)
+      : ConvertOpToLLVMPattern<OpTy>(converter), mnemonic(mnemonic) {}
 
-  XTAMEConfigLowering(LLVMTypeConverter &typeConverter, StringRef intrinsicName)
-      : ConvertOpToLLVMPattern<OpTy>(typeConverter),
-        intrinsicName(intrinsicName) {}
+  LogicalResult emit(OpTy op, ConversionPatternRewriter &rewriter,
+                     const Twine &arguments, ValueRange operands = {}) const {
+    auto result = createXTAMEAsm(rewriter, op, mnemonic, arguments, operands,
+                                 op->getResultTypes());
+    if (failed(result))
+      return failure();
+    rewriter.replaceOp(op, result->getResults());
+    return success();
+  }
+};
 
+template <typename OpTy>
+struct XTAMEConfigLowering : public XTAMEAsmLowering<OpTy> {
+  using XTAMEAsmLowering<OpTy>::XTAMEAsmLowering;
   LogicalResult
   matchAndRewrite(OpTy op, typename OpTy::Adaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    auto loc = op.getLoc();
-    auto *ctx = rewriter.getContext();
-    auto module = op->template getParentOfType<ModuleOp>();
-    if (!module)
-      return failure();
-
-    auto i64Type = IntegerType::get(ctx, 64);
-    auto funcType =
-        LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx), {i64Type});
-    auto intrinsicNameSym =
-        getOrInsertIntrinsic(rewriter, module, intrinsicName, funcType);
-
-    Value configVal = adaptor.getOperands()[0];
-
-    LLVM::CallOp::create(rewriter, loc, TypeRange{}, intrinsicNameSym,
-                         ValueRange{configVal});
-    rewriter.eraseOp(op);
-    return success();
+    return this->emit(op, rewriter, "$0", adaptor.getOperands());
   }
 };
 
 template <typename OpTy, uint64_t (OpTy::*AttrGetter)()>
-struct XTAMEConfigImmLowering : public ConvertOpToLLVMPattern<OpTy> {
-  StringRef intrinsicName;
-  XTAMEConfigImmLowering(LLVMTypeConverter &typeConverter,
-                         StringRef intrinsicName)
-      : ConvertOpToLLVMPattern<OpTy>(typeConverter),
-        intrinsicName(intrinsicName) {}
-
+struct XTAMEConfigImmLowering : public XTAMEAsmLowering<OpTy> {
+  using XTAMEAsmLowering<OpTy>::XTAMEAsmLowering;
   LogicalResult
   matchAndRewrite(OpTy op, typename OpTy::Adaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    auto loc = op.getLoc();
-    auto *ctx = rewriter.getContext();
-    auto module = op->template getParentOfType<ModuleOp>();
-    if (!module)
+    return this->emit(op, rewriter, Twine((op.*AttrGetter)()));
+  }
+};
+
+template <typename OpTy>
+struct XTAMEZeroLowering : public XTAMEAsmLowering<OpTy> {
+  using XTAMEAsmLowering<OpTy>::XTAMEAsmLowering;
+  LogicalResult
+  matchAndRewrite(OpTy op, typename OpTy::Adaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    return this->emit(op, rewriter, matrixReg(op.getMd()));
+  }
+};
+
+template <typename OpTy>
+struct XTAMEDualAttrLowering : public XTAMEAsmLowering<OpTy> {
+  using XTAMEAsmLowering<OpTy>::XTAMEAsmLowering;
+  LogicalResult
+  matchAndRewrite(OpTy op, typename OpTy::Adaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    return this->emit(op, rewriter,
+                      matrixReg(op.getMd()) + ", " + matrixReg(op.getMs1()));
+  }
+};
+
+template <typename OpTy>
+struct XTAMEDupLowering : public XTAMEAsmLowering<OpTy> {
+  using XTAMEAsmLowering<OpTy>::XTAMEAsmLowering;
+  LogicalResult
+  matchAndRewrite(OpTy op, typename OpTy::Adaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    return this->emit(op, rewriter, matrixReg(op.getMd()) + ", $0",
+                      adaptor.getOperands());
+  }
+};
+
+template <typename OpTy>
+struct XTAMEMmovMXLowering : public XTAMEAsmLowering<OpTy> {
+  using XTAMEAsmLowering<OpTy>::XTAMEAsmLowering;
+  LogicalResult
+  matchAndRewrite(OpTy op, typename OpTy::Adaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    return this->emit(op, rewriter, matrixReg(op.getMd()) + ", $0, $1",
+                      adaptor.getOperands());
+  }
+};
+
+template <typename OpTy>
+struct XTAMEMmovXMLowering : public XTAMEAsmLowering<OpTy> {
+  using XTAMEAsmLowering<OpTy>::XTAMEAsmLowering;
+  LogicalResult
+  matchAndRewrite(OpTy op, typename OpTy::Adaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    return this->emit(op, rewriter, "$0, " + matrixReg(op.getMs2()) + ", $1",
+                      adaptor.getOperands());
+  }
+};
+
+template <typename OpTy>
+struct XTAMECmovMvILowering : public XTAMEAsmLowering<OpTy> {
+  using XTAMEAsmLowering<OpTy>::XTAMEAsmLowering;
+  LogicalResult
+  matchAndRewrite(OpTy op, typename OpTy::Adaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (op.getUimm3() > 7)
+      return op.emitOpError("broadcast index must be in [0, 7]");
+
+    // The current LLVM XTAME instruction printer emits ms1[index], but its
+    // assembler cannot parse that operand. All broadcast operands are constant,
+    // so emit the encoding from RVInstXTAMEDB via .insn until the parser supports
+    // this syntax. Matrix and memory clobbers still model the legacy state.
+    uint32_t encoding = 0x0400002b; // th.mmov.mv.i: func4=0, uop=2.
+    if (this->mnemonic.starts_with("th.mcmov")) {
+      unsigned size = llvm::StringSwitch<unsigned>(this->mnemonic)
+                          .Case("th.mcmovb.mv.i", 0)
+                          .Case("th.mcmovh.mv.i", 1)
+                          .Case("th.mcmovw.mv.i", 2)
+                          .Case("th.mcmovd.mv.i", 3);
+      encoding = 0x5c00002b | (size << 10); // func4=5, uop=6.
+    }
+    encoding |= op.getMs1() << 18 | op.getMd() << 15 | op.getUimm3() << 7;
+    auto result = createXTAMEAsm(rewriter, op, ".insn", "4, " + Twine(encoding));
+    if (failed(result))
       return failure();
-
-    auto i64Type = IntegerType::get(ctx, 64);
-    auto funcType =
-        LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx), {i64Type});
-    auto intrinsicNameSym =
-        getOrInsertIntrinsic(rewriter, module, intrinsicName, funcType);
-
-    uint64_t attrVal = (op.*AttrGetter)();
-    Value val = LLVM::ConstantOp::create(rewriter, loc, i64Type,
-                                         rewriter.getI64IntegerAttr(attrVal));
-
-    LLVM::CallOp::create(rewriter, loc, TypeRange{}, intrinsicNameSym,
-                         ValueRange{val});
     rewriter.eraseOp(op);
     return success();
   }
 };
 
-/// Lowering pattern for mzero
 template <typename OpTy>
-struct XTAMEZeroLowering : public ConvertOpToLLVMPattern<OpTy> {
-  StringRef intrinsicName;
-  XTAMEZeroLowering(LLVMTypeConverter &typeConverter, StringRef intrinsicName)
-      : ConvertOpToLLVMPattern<OpTy>(typeConverter),
-        intrinsicName(intrinsicName) {}
-
+struct XTAMELoadLowering : public XTAMEAsmLowering<OpTy> {
+  using XTAMEAsmLowering<OpTy>::XTAMEAsmLowering;
   LogicalResult
   matchAndRewrite(OpTy op, typename OpTy::Adaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    auto loc = op.getLoc();
-    auto *ctx = rewriter.getContext();
-    auto module = op->template getParentOfType<ModuleOp>();
-    if (!module)
-      return failure();
-
-    auto i64Type = IntegerType::get(ctx, 64);
-    auto funcType =
-        LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx), {i64Type});
-    auto intrinsicNameSym =
-        getOrInsertIntrinsic(rewriter, module, intrinsicName, funcType);
-
-    Value mdVal = LLVM::ConstantOp::create(
-        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
-
-    LLVM::CallOp::create(rewriter, loc, TypeRange{}, intrinsicNameSym,
-                         ValueRange{mdVal});
-    rewriter.eraseOp(op);
-    return success();
+    Value base = extractPointerFromMemref(rewriter, op.getLoc(), op.getBase());
+    return this->emit(op, rewriter, matrixReg(op.getMd()) + ", $0, $1",
+                      {adaptor.getStride(), base});
   }
 };
 
-/// Data Move Instructions between Matrix Registers
 template <typename OpTy>
-struct XTAMEDualAttrLowering : public ConvertOpToLLVMPattern<OpTy> {
-  StringRef intrinsicName;
-  XTAMEDualAttrLowering(LLVMTypeConverter &typeConverter,
-                        StringRef intrinsicName)
-      : ConvertOpToLLVMPattern<OpTy>(typeConverter),
-        intrinsicName(intrinsicName) {}
-
+struct XTAMEPrefetchLowering : public XTAMEAsmLowering<OpTy> {
+  using XTAMEAsmLowering<OpTy>::XTAMEAsmLowering;
   LogicalResult
   matchAndRewrite(OpTy op, typename OpTy::Adaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    auto loc = op.getLoc();
-    auto *ctx = rewriter.getContext();
-    auto module = op->template getParentOfType<ModuleOp>();
-    if (!module)
-      return failure();
-
-    auto i64Type = IntegerType::get(ctx, 64);
-    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
-                                                {i64Type, i64Type});
-    auto intrinsicNameSym =
-        getOrInsertIntrinsic(rewriter, module, intrinsicName, funcType);
-
-    Value mdVal = LLVM::ConstantOp::create(
-        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
-    Value ms1Val = LLVM::ConstantOp::create(
-        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getMs1()));
-
-    LLVM::CallOp::create(rewriter, loc, TypeRange{}, intrinsicNameSym,
-                         ValueRange{mdVal, ms1Val});
-    rewriter.eraseOp(op);
-    return success();
+    Value base = extractPointerFromMemref(rewriter, op.getLoc(), op.getBase());
+    return this->emit(op, rewriter, "$0, $1", {adaptor.getStride(), base});
   }
 };
 
-/// Data Move Instructions between Integer and Matrix (Duplicate)
 template <typename OpTy>
-struct XTAMEDupLowering : public ConvertOpToLLVMPattern<OpTy> {
-  StringRef intrinsicName;
-  XTAMEDupLowering(LLVMTypeConverter &typeConverter, StringRef intrinsicName)
-      : ConvertOpToLLVMPattern<OpTy>(typeConverter),
-        intrinsicName(intrinsicName) {}
-
+struct XTAMEStoreLowering : public XTAMEAsmLowering<OpTy> {
+  using XTAMEAsmLowering<OpTy>::XTAMEAsmLowering;
   LogicalResult
   matchAndRewrite(OpTy op, typename OpTy::Adaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    auto loc = op.getLoc();
-    auto *ctx = rewriter.getContext();
-    auto module = op->template getParentOfType<ModuleOp>();
-    if (!module)
-      return failure();
-
-    auto i64Type = IntegerType::get(ctx, 64);
-    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
-                                                {i64Type, i64Type});
-    auto intrinsicNameSym =
-        getOrInsertIntrinsic(rewriter, module, intrinsicName, funcType);
-
-    Value mdVal = LLVM::ConstantOp::create(
-        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
-
-    LLVM::CallOp::create(rewriter, loc, TypeRange{}, intrinsicNameSym,
-                         ValueRange{mdVal, adaptor.getRs2()});
-    rewriter.eraseOp(op);
-    return success();
+    Value base = extractPointerFromMemref(rewriter, op.getLoc(), op.getBase());
+    return this->emit(op, rewriter, matrixReg(op.getMs3()) + ", $0, $1",
+                      {adaptor.getStride(), base});
   }
 };
 
-/// Data Move Instructions between Integer and Matrix (Scalar to Matrix)
 template <typename OpTy>
-struct XTAMEMmovMXLowering : public ConvertOpToLLVMPattern<OpTy> {
-  StringRef intrinsicName;
-  XTAMEMmovMXLowering(LLVMTypeConverter &typeConverter, StringRef intrinsicName)
-      : ConvertOpToLLVMPattern<OpTy>(typeConverter),
-        intrinsicName(intrinsicName) {}
-
+struct XTAMETernaryOpLowering : public XTAMEAsmLowering<OpTy> {
+  using XTAMEAsmLowering<OpTy>::XTAMEAsmLowering;
   LogicalResult
   matchAndRewrite(OpTy op, typename OpTy::Adaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    auto loc = op.getLoc();
-    auto *ctx = rewriter.getContext();
-    auto module = op->template getParentOfType<ModuleOp>();
-    if (!module)
-      return failure();
-
-    auto i64Type = IntegerType::get(ctx, 64);
-    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
-                                                {i64Type, i64Type, i64Type});
-    auto intrinsicNameSym =
-        getOrInsertIntrinsic(rewriter, module, intrinsicName, funcType);
-
-    Value mdVal = LLVM::ConstantOp::create(
-        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
-
-    LLVM::CallOp::create(rewriter, loc, TypeRange{}, intrinsicNameSym,
-                         ValueRange{mdVal, adaptor.getRs2(), adaptor.getRs1()});
-    rewriter.eraseOp(op);
-    return success();
-  }
-};
-
-/// Data Move Instructions between Integer and Matrix (Matrix to Scalar)
-template <typename OpTy>
-struct XTAMEMmovXMLowering : public ConvertOpToLLVMPattern<OpTy> {
-  StringRef intrinsicName;
-  XTAMEMmovXMLowering(LLVMTypeConverter &typeConverter, StringRef intrinsicName)
-      : ConvertOpToLLVMPattern<OpTy>(typeConverter),
-        intrinsicName(intrinsicName) {}
-
-  LogicalResult
-  matchAndRewrite(OpTy op, typename OpTy::Adaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    auto loc = op.getLoc();
-    auto *ctx = rewriter.getContext();
-    auto module = op->template getParentOfType<ModuleOp>();
-    if (!module)
-      return failure();
-
-    auto i64Type = IntegerType::get(ctx, 64);
-    auto funcType = LLVM::LLVMFunctionType::get(i64Type, {i64Type, i64Type});
-    auto intrinsicNameSym =
-        getOrInsertIntrinsic(rewriter, module, intrinsicName, funcType);
-
-    Value ms2Val = LLVM::ConstantOp::create(
-        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getMs2()));
-
-    auto callOp = LLVM::CallOp::create(rewriter, loc, i64Type, intrinsicNameSym,
-                                       ValueRange{ms2Val, adaptor.getRs1()});
-    rewriter.replaceOp(op, callOp.getResults());
-    return success();
-  }
-};
-
-/// Data Broadcast Instructions
-template <typename OpTy>
-struct XTAMECmovMvILowering : public ConvertOpToLLVMPattern<OpTy> {
-  StringRef intrinsicName;
-  XTAMECmovMvILowering(LLVMTypeConverter &typeConverter,
-                       StringRef intrinsicName)
-      : ConvertOpToLLVMPattern<OpTy>(typeConverter),
-        intrinsicName(intrinsicName) {}
-
-  LogicalResult
-  matchAndRewrite(OpTy op, typename OpTy::Adaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    auto loc = op.getLoc();
-    auto *ctx = rewriter.getContext();
-    auto module = op->template getParentOfType<ModuleOp>();
-    if (!module)
-      return failure();
-
-    auto i64Type = IntegerType::get(ctx, 64);
-    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
-                                                {i64Type, i64Type, i64Type});
-    auto intrinsicNameSym =
-        getOrInsertIntrinsic(rewriter, module, intrinsicName, funcType);
-
-    Value mdVal = LLVM::ConstantOp::create(
-        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
-    Value ms1Val = LLVM::ConstantOp::create(
-        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getMs1()));
-    Value uimm3Val = LLVM::ConstantOp::create(
-        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getUimm3()));
-
-    LLVM::CallOp::create(rewriter, loc, TypeRange{}, intrinsicNameSym,
-                         ValueRange{mdVal, ms1Val, uimm3Val});
-    rewriter.eraseOp(op);
-    return success();
-  }
-};
-
-//===----------------------------------------------------------------------===//
-// Load Operations Lowering
-//===----------------------------------------------------------------------===//
-template <typename OpTy>
-struct XTAMELoadLowering : public ConvertOpToLLVMPattern<OpTy> {
-  StringRef intrinsicName;
-
-  XTAMELoadLowering(LLVMTypeConverter &typeConverter, StringRef intrinsicName)
-      : ConvertOpToLLVMPattern<OpTy>(typeConverter),
-        intrinsicName(intrinsicName) {}
-
-  LogicalResult
-  matchAndRewrite(OpTy op, typename OpTy::Adaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    auto loc = op.getLoc();
-    auto *ctx = rewriter.getContext();
-    auto module = op->template getParentOfType<ModuleOp>();
-    if (!module)
-      return failure();
-
-    auto i64Type = IntegerType::get(ctx, 64);
-    auto ptrType = LLVM::LLVMPointerType::get(ctx);
-    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
-                                                {i64Type, i64Type, ptrType});
-
-    auto intrinsicNameSym =
-        getOrInsertIntrinsic(rewriter, module, intrinsicName, funcType);
-
-    Value mdVal = LLVM::ConstantOp::create(
-        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
-    Value basePtr = extractPointerFromMemref(rewriter, loc, op.getBase());
-
-    LLVM::CallOp::create(rewriter, loc, TypeRange{}, intrinsicNameSym,
-                         ValueRange{mdVal, adaptor.getStride(), basePtr});
-    rewriter.eraseOp(op);
-    return success();
-  }
-};
-
-// Prefetch Instructions Lowering
-template <typename OpTy>
-struct XTAMEPrefetchLowering : public ConvertOpToLLVMPattern<OpTy> {
-  StringRef intrinsicName;
-  XTAMEPrefetchLowering(LLVMTypeConverter &typeConverter,
-                        StringRef intrinsicName)
-      : ConvertOpToLLVMPattern<OpTy>(typeConverter),
-        intrinsicName(intrinsicName) {}
-
-  LogicalResult
-  matchAndRewrite(OpTy op, typename OpTy::Adaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    auto loc = op.getLoc();
-    auto *ctx = rewriter.getContext();
-    auto module = op->template getParentOfType<ModuleOp>();
-    if (!module)
-      return failure();
-
-    auto i64Type = IntegerType::get(ctx, 64);
-    auto ptrType = LLVM::LLVMPointerType::get(ctx);
-    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
-                                                {i64Type, ptrType});
-    auto intrinsicNameSym =
-        getOrInsertIntrinsic(rewriter, module, intrinsicName, funcType);
-
-    Value basePtr = extractPointerFromMemref(rewriter, loc, op.getBase());
-
-    LLVM::CallOp::create(rewriter, loc, TypeRange{}, intrinsicNameSym,
-                         ValueRange{adaptor.getStride(), basePtr});
-    rewriter.eraseOp(op);
-    return success();
-  }
-};
-
-//===----------------------------------------------------------------------===//
-// Store Operations Lowering
-//===----------------------------------------------------------------------===//
-template <typename OpTy>
-struct XTAMEStoreLowering : public ConvertOpToLLVMPattern<OpTy> {
-  StringRef intrinsicName;
-
-  XTAMEStoreLowering(LLVMTypeConverter &typeConverter, StringRef intrinsicName)
-      : ConvertOpToLLVMPattern<OpTy>(typeConverter),
-        intrinsicName(intrinsicName) {}
-
-  LogicalResult
-  matchAndRewrite(OpTy op, typename OpTy::Adaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    auto loc = op.getLoc();
-    auto *ctx = rewriter.getContext();
-    auto module = op->template getParentOfType<ModuleOp>();
-    if (!module)
-      return failure();
-
-    auto i64Type = IntegerType::get(ctx, 64);
-    auto ptrType = LLVM::LLVMPointerType::get(ctx);
-    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
-                                                {i64Type, i64Type, ptrType});
-
-    auto intrinsicNameSym =
-        getOrInsertIntrinsic(rewriter, module, intrinsicName, funcType);
-
-    Value ms3Val = LLVM::ConstantOp::create(
-        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getMs3()));
-    Value basePtr = extractPointerFromMemref(rewriter, loc, op.getBase());
-
-    LLVM::CallOp::create(rewriter, loc, TypeRange{}, intrinsicNameSym,
-                         ValueRange{ms3Val, adaptor.getStride(), basePtr});
-    rewriter.eraseOp(op);
-    return success();
-  }
-};
-
-// ===----------------------------------------------------------------------===//
-// Tile Register Matrix Multiply Lowering
-// ===----------------------------------------------------------------------===//
-template <typename OpTy>
-struct XTAMETernaryOpLowering : public ConvertOpToLLVMPattern<OpTy> {
-  StringRef intrinsicName;
-
-  XTAMETernaryOpLowering(LLVMTypeConverter &typeConverter,
-                         StringRef intrinsicName)
-      : ConvertOpToLLVMPattern<OpTy>(typeConverter),
-        intrinsicName(intrinsicName) {}
-
-  LogicalResult
-  matchAndRewrite(OpTy op, typename OpTy::Adaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    auto loc = op.getLoc();
-    auto *ctx = rewriter.getContext();
-    auto module = op->template getParentOfType<ModuleOp>();
-    if (!module)
-      return failure();
-
-    auto i64Type = IntegerType::get(ctx, 64);
-    auto funcType = LLVM::LLVMFunctionType::get(LLVM::LLVMVoidType::get(ctx),
-                                                {i64Type, i64Type, i64Type});
-
-    auto intrinsicNameSym =
-        getOrInsertIntrinsic(rewriter, module, intrinsicName, funcType);
-
-    Value mdVal = LLVM::ConstantOp::create(
-        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getMd()));
-    Value ms2Val = LLVM::ConstantOp::create(
-        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getMs2()));
-    Value ms1Val = LLVM::ConstantOp::create(
-        rewriter, loc, i64Type, rewriter.getI64IntegerAttr(op.getMs1()));
-
-    LLVM::CallOp::create(rewriter, loc, TypeRange{}, intrinsicNameSym,
-                         ValueRange{mdVal, ms2Val, ms1Val});
-    rewriter.eraseOp(op);
-    return success();
+    return this->emit(op, rewriter,
+                      matrixReg(op.getMd()) + ", " + matrixReg(op.getMs2()) +
+                          ", " + matrixReg(op.getMs1()));
   }
 };
 
@@ -532,192 +285,192 @@ struct LegalizeXTAMEForLLVMExport
 
     // Configuration patterns
     patterns.add<XTAMEConfigLowering<ThMcfgOp>>(typeConverter,
-                                                "llvm.riscv.th.mcfg");
+                                                "th.mcfg");
     patterns.add<XTAMEConfigLowering<ThMcfgmOp>>(typeConverter,
-                                                 "llvm.riscv.th.mcfgm");
+                                                 "th.mcfgm");
     patterns.add<XTAMEConfigLowering<ThMcfgnOp>>(typeConverter,
-                                                 "llvm.riscv.th.mcfgn");
+                                                 "th.mcfgn");
     patterns.add<XTAMEConfigLowering<ThMcfgkOp>>(typeConverter,
-                                                 "llvm.riscv.th.mcfgk");
+                                                 "th.mcfgk");
     patterns.add<XTAMEConfigImmLowering<ThMcfgmiOp, &ThMcfgmiOp::getTilem>>(
-        typeConverter, "llvm.riscv.th.mcfgmi");
+        typeConverter, "th.mcfgmi");
     patterns.add<XTAMEConfigImmLowering<ThMcfgniOp, &ThMcfgniOp::getTilen>>(
-        typeConverter, "llvm.riscv.th.mcfgni");
+        typeConverter, "th.mcfgni");
     patterns.add<XTAMEConfigImmLowering<ThMcfgkiOp, &ThMcfgkiOp::getTilek>>(
-        typeConverter, "llvm.riscv.th.mcfgki");
+        typeConverter, "th.mcfgki");
 
     // MISC patterns
     patterns.add<XTAMEZeroLowering<ThMzeroOp>>(typeConverter,
-                                               "llvm.riscv.th.mzero");
+                                               "th.mzero");
     patterns.add<XTAMEZeroLowering<ThMzero2rOp>>(typeConverter,
-                                                 "llvm.riscv.th.mzero2r");
+                                                 "th.mzero2r");
     patterns.add<XTAMEZeroLowering<ThMzero4rOp>>(typeConverter,
-                                                 "llvm.riscv.th.mzero4r");
+                                                 "th.mzero4r");
     patterns.add<XTAMEZeroLowering<ThMzero8rOp>>(typeConverter,
-                                                 "llvm.riscv.th.mzero8r");
+                                                 "th.mzero8r");
     patterns.add<XTAMEDualAttrLowering<ThMmovMmOp>>(typeConverter,
-                                                    "llvm.riscv.th.mmov.mm");
+                                                    "th.mmov.mm");
     patterns.add<XTAMEDupLowering<ThMdupbMXOp>>(typeConverter,
-                                                "llvm.riscv.th.mdupb.m.x");
+                                                "th.mdupb.m.x");
     patterns.add<XTAMEDupLowering<ThMduphMXOp>>(typeConverter,
-                                                "llvm.riscv.th.mduph.m.x");
+                                                "th.mduph.m.x");
     patterns.add<XTAMEDupLowering<ThMdupwMXOp>>(typeConverter,
-                                                "llvm.riscv.th.mdupw.m.x");
+                                                "th.mdupw.m.x");
     patterns.add<XTAMEDupLowering<ThMdupdMXOp>>(typeConverter,
-                                                "llvm.riscv.th.mdupd.m.x");
+                                                "th.mdupd.m.x");
     patterns.add<XTAMEMmovMXLowering<ThMmovbMXOp>>(typeConverter,
-                                                   "llvm.riscv.th.mmovb.m.x");
+                                                   "th.mmovb.m.x");
     patterns.add<XTAMEMmovMXLowering<ThMmovhMXOp>>(typeConverter,
-                                                   "llvm.riscv.th.mmovh.m.x");
+                                                   "th.mmovh.m.x");
     patterns.add<XTAMEMmovMXLowering<ThMmovwMXOp>>(typeConverter,
-                                                   "llvm.riscv.th.mmovw.m.x");
+                                                   "th.mmovw.m.x");
     patterns.add<XTAMEMmovMXLowering<ThMmovdMXOp>>(typeConverter,
-                                                   "llvm.riscv.th.mmovd.m.x");
+                                                   "th.mmovd.m.x");
     patterns.add<XTAMEMmovXMLowering<ThMmovbXMOp>>(typeConverter,
-                                                   "llvm.riscv.th.mmovb.x.m");
+                                                   "th.mmovb.x.m");
     patterns.add<XTAMEMmovXMLowering<ThMmovhXMOp>>(typeConverter,
-                                                   "llvm.riscv.th.mmovh.x.m");
+                                                   "th.mmovh.x.m");
     patterns.add<XTAMEMmovXMLowering<ThMmovwXMOp>>(typeConverter,
-                                                   "llvm.riscv.th.mmovw.x.m");
+                                                   "th.mmovw.x.m");
     patterns.add<XTAMEMmovXMLowering<ThMmovdXMOp>>(typeConverter,
-                                                   "llvm.riscv.th.mmovd.x.m");
+                                                   "th.mmovd.x.m");
     patterns.add<XTAMECmovMvILowering<ThMmovMvIOp>>(typeConverter,
-                                                    "llvm.riscv.th.mmov.mv.i");
+                                                    "th.mmov.mv.i");
     patterns.add<XTAMECmovMvILowering<ThMcmovbMvIOp>>(
-        typeConverter, "llvm.riscv.th.mcmovb.mv.i");
+        typeConverter, "th.mcmovb.mv.i");
     patterns.add<XTAMECmovMvILowering<ThMcmovhMvIOp>>(
-        typeConverter, "llvm.riscv.th.mcmovh.mv.i");
+        typeConverter, "th.mcmovh.mv.i");
     patterns.add<XTAMECmovMvILowering<ThMcmovwMvIOp>>(
-        typeConverter, "llvm.riscv.th.mcmovw.mv.i");
+        typeConverter, "th.mcmovw.mv.i");
     patterns.add<XTAMECmovMvILowering<ThMcmovdMvIOp>>(
-        typeConverter, "llvm.riscv.th.mcmovd.mv.i");
+        typeConverter, "th.mcmovd.mv.i");
     patterns.add<XTAMETernaryOpLowering<ThMpackMmOp>>(typeConverter,
-                                                      "llvm.riscv.th.mpack.mm");
+                                                      "th.mpack.mm");
     patterns.add<XTAMETernaryOpLowering<ThMpackhlMmOp>>(
-        typeConverter, "llvm.riscv.th.mpackhl.mm");
+        typeConverter, "th.mpackhl.mm");
     patterns.add<XTAMETernaryOpLowering<ThMpackhhMmOp>>(
-        typeConverter, "llvm.riscv.th.mpackhh.mm");
+        typeConverter, "th.mpackhh.mm");
 
     // Load/Store patterns
     patterns.add<XTAMELoadLowering<ThMlde8Op>>(typeConverter,
-                                               "llvm.riscv.th.mlde8");
+                                               "th.mlde8");
     patterns.add<XTAMELoadLowering<ThMlde16Op>>(typeConverter,
-                                                "llvm.riscv.th.mlde16");
+                                                "th.mlde16");
     patterns.add<XTAMELoadLowering<ThMlde32Op>>(typeConverter,
-                                                "llvm.riscv.th.mlde32");
+                                                "th.mlde32");
     patterns.add<XTAMELoadLowering<ThMlde64Op>>(typeConverter,
-                                                "llvm.riscv.th.mlde64");
+                                                "th.mlde64");
     patterns.add<XTAMELoadLowering<ThMldte8Op>>(typeConverter,
-                                                "llvm.riscv.th.mldte8");
+                                                "th.mldte8");
     patterns.add<XTAMELoadLowering<ThMldte16Op>>(typeConverter,
-                                                 "llvm.riscv.th.mldte16");
+                                                 "th.mldte16");
     patterns.add<XTAMELoadLowering<ThMldte32Op>>(typeConverter,
-                                                 "llvm.riscv.th.mldte32");
+                                                 "th.mldte32");
     patterns.add<XTAMELoadLowering<ThMldte64Op>>(typeConverter,
-                                                 "llvm.riscv.th.mldte64");
+                                                 "th.mldte64");
     patterns.add<XTAMELoadLowering<ThMslde8Op>>(typeConverter,
-                                                "llvm.riscv.th.mslde8");
+                                                "th.mslde8");
     patterns.add<XTAMELoadLowering<ThMslde16Op>>(typeConverter,
-                                                 "llvm.riscv.th.mslde16");
+                                                 "th.mslde16");
     patterns.add<XTAMELoadLowering<ThMslde32Op>>(typeConverter,
-                                                 "llvm.riscv.th.mslde32");
+                                                 "th.mslde32");
     patterns.add<XTAMELoadLowering<ThMslde64Op>>(typeConverter,
-                                                 "llvm.riscv.th.mslde64");
+                                                 "th.mslde64");
     patterns.add<XTAMELoadLowering<ThMsldte8Op>>(typeConverter,
-                                                 "llvm.riscv.th.msldte8");
+                                                 "th.msldte8");
     patterns.add<XTAMELoadLowering<ThMsldte16Op>>(typeConverter,
-                                                  "llvm.riscv.th.msldte16");
+                                                  "th.msldte16");
     patterns.add<XTAMELoadLowering<ThMsldte32Op>>(typeConverter,
-                                                  "llvm.riscv.th.msldte32");
+                                                  "th.msldte32");
     patterns.add<XTAMELoadLowering<ThMsldte64Op>>(typeConverter,
-                                                  "llvm.riscv.th.msldte64");
+                                                  "th.msldte64");
 
     patterns.add<XTAMEPrefetchLowering<ThMplde8Op>>(typeConverter,
-                                                    "llvm.riscv.th.mplde8");
+                                                    "th.mplde8");
     patterns.add<XTAMEPrefetchLowering<ThMplde16Op>>(typeConverter,
-                                                     "llvm.riscv.th.mplde16");
+                                                     "th.mplde16");
     patterns.add<XTAMEPrefetchLowering<ThMplde32Op>>(typeConverter,
-                                                     "llvm.riscv.th.mplde32");
+                                                     "th.mplde32");
     patterns.add<XTAMEPrefetchLowering<ThMplde64Op>>(typeConverter,
-                                                     "llvm.riscv.th.mplde64");
+                                                     "th.mplde64");
     patterns.add<XTAMEPrefetchLowering<ThMpldte8Op>>(typeConverter,
-                                                     "llvm.riscv.th.mpldte8");
+                                                     "th.mpldte8");
     patterns.add<XTAMEPrefetchLowering<ThMpldte16Op>>(typeConverter,
-                                                      "llvm.riscv.th.mpldte16");
+                                                      "th.mpldte16");
     patterns.add<XTAMEPrefetchLowering<ThMpldte32Op>>(typeConverter,
-                                                      "llvm.riscv.th.mpldte32");
+                                                      "th.mpldte32");
     patterns.add<XTAMEPrefetchLowering<ThMpldte64Op>>(typeConverter,
-                                                      "llvm.riscv.th.mpldte64");
+                                                      "th.mpldte64");
 
     patterns.add<XTAMEStoreLowering<ThMste8Op>>(typeConverter,
-                                                "llvm.riscv.th.mste8");
+                                                "th.mste8");
     patterns.add<XTAMEStoreLowering<ThMste16Op>>(typeConverter,
-                                                 "llvm.riscv.th.mste16");
+                                                 "th.mste16");
     patterns.add<XTAMEStoreLowering<ThMste32Op>>(typeConverter,
-                                                 "llvm.riscv.th.mste32");
+                                                 "th.mste32");
     patterns.add<XTAMEStoreLowering<ThMste64Op>>(typeConverter,
-                                                 "llvm.riscv.th.mste64");
+                                                 "th.mste64");
     patterns.add<XTAMEStoreLowering<ThMstte8Op>>(typeConverter,
-                                                 "llvm.riscv.th.mstte8");
+                                                 "th.mstte8");
     patterns.add<XTAMEStoreLowering<ThMstte16Op>>(typeConverter,
-                                                  "llvm.riscv.th.mstte16");
+                                                  "th.mstte16");
     patterns.add<XTAMEStoreLowering<ThMstte32Op>>(typeConverter,
-                                                  "llvm.riscv.th.mstte32");
+                                                  "th.mstte32");
     patterns.add<XTAMEStoreLowering<ThMstte64Op>>(typeConverter,
-                                                  "llvm.riscv.th.mstte64");
+                                                  "th.mstte64");
     patterns.add<XTAMEStoreLowering<ThMsste8Op>>(typeConverter,
-                                                 "llvm.riscv.th.msste8");
+                                                 "th.msste8");
     patterns.add<XTAMEStoreLowering<ThMsste16Op>>(typeConverter,
-                                                  "llvm.riscv.th.msste16");
+                                                  "th.msste16");
     patterns.add<XTAMEStoreLowering<ThMsste32Op>>(typeConverter,
-                                                  "llvm.riscv.th.msste32");
+                                                  "th.msste32");
     patterns.add<XTAMEStoreLowering<ThMsste64Op>>(typeConverter,
-                                                  "llvm.riscv.th.msste64");
+                                                  "th.msste64");
     patterns.add<XTAMEStoreLowering<ThMsstte8Op>>(typeConverter,
-                                                  "llvm.riscv.th.msstte8");
+                                                  "th.msstte8");
     patterns.add<XTAMEStoreLowering<ThMsstte16Op>>(typeConverter,
-                                                   "llvm.riscv.th.msstte16");
+                                                   "th.msstte16");
     patterns.add<XTAMEStoreLowering<ThMsstte32Op>>(typeConverter,
-                                                   "llvm.riscv.th.msstte32");
+                                                   "th.msstte32");
     patterns.add<XTAMEStoreLowering<ThMsstte64Op>>(typeConverter,
-                                                   "llvm.riscv.th.msstte64");
+                                                   "th.msstte64");
 
     // Tile register matrix multiply patterns
     patterns.add<XTAMETernaryOpLowering<ThMmaccWBOp>>(
-        typeConverter, "llvm.riscv.th.mmacc.w.b");
+        typeConverter, "th.mmacc.w.b");
     patterns.add<XTAMETernaryOpLowering<ThMmaccuWBOp>>(
-        typeConverter, "llvm.riscv.th.mmaccu.w.b");
+        typeConverter, "th.mmaccu.w.b");
     patterns.add<XTAMETernaryOpLowering<ThMmaccusWBOp>>(
-        typeConverter, "llvm.riscv.th.mmaccus.w.b");
+        typeConverter, "th.mmaccus.w.b");
     patterns.add<XTAMETernaryOpLowering<ThMmaccsuWBOp>>(
-        typeConverter, "llvm.riscv.th.mmaccsu.w.b");
+        typeConverter, "th.mmaccsu.w.b");
 
     patterns.add<XTAMETernaryOpLowering<ThMfmaccHOp>>(typeConverter,
-                                                      "llvm.riscv.th.mfmacc.h");
+                                                      "th.mfmacc.h");
     patterns.add<XTAMETernaryOpLowering<ThMfmaccBf16Op>>(
-        typeConverter, "llvm.riscv.th.mfmacc.bf16");
+        typeConverter, "th.mfmacc.bf16");
     patterns.add<XTAMETernaryOpLowering<ThMfmaccSOp>>(typeConverter,
-                                                      "llvm.riscv.th.mfmacc.s");
+                                                      "th.mfmacc.s");
     patterns.add<XTAMETernaryOpLowering<ThMfmaccDOp>>(typeConverter,
-                                                      "llvm.riscv.th.mfmacc.d");
+                                                      "th.mfmacc.d");
     patterns.add<XTAMETernaryOpLowering<ThMfmaccHE4m3Op>>(
-        typeConverter, "llvm.riscv.th.mfmacc.h.e4m3");
+        typeConverter, "th.mfmacc.h.e4m3");
     patterns.add<XTAMETernaryOpLowering<ThMfmaccHE5m2Op>>(
-        typeConverter, "llvm.riscv.th.mfmacc.h.e5m2");
+        typeConverter, "th.mfmacc.h.e5m2");
     patterns.add<XTAMETernaryOpLowering<ThMfmaccBf16E4m3Op>>(
-        typeConverter, "llvm.riscv.th.mfmacc.bf16.e4m3");
+        typeConverter, "th.mfmacc.bf16.e4m3");
     patterns.add<XTAMETernaryOpLowering<ThMfmaccBf16E5m2Op>>(
-        typeConverter, "llvm.riscv.th.mfmacc.bf16.e5m2");
+        typeConverter, "th.mfmacc.bf16.e5m2");
     patterns.add<XTAMETernaryOpLowering<ThMfmaccSHOp>>(
-        typeConverter, "llvm.riscv.th.mfmacc.s.h");
+        typeConverter, "th.mfmacc.s.h");
     patterns.add<XTAMETernaryOpLowering<ThMfmaccSBf16Op>>(
-        typeConverter, "llvm.riscv.th.mfmacc.s.bf16");
+        typeConverter, "th.mfmacc.s.bf16");
     patterns.add<XTAMETernaryOpLowering<ThMfmaccDSOp>>(
-        typeConverter, "llvm.riscv.th.mfmacc.d.s");
+        typeConverter, "th.mfmacc.d.s");
     patterns.add<XTAMETernaryOpLowering<ThMfmaccSE4m3Op>>(
-        typeConverter, "llvm.riscv.th.mfmacc.s.e4m3");
+        typeConverter, "th.mfmacc.s.e4m3");
     patterns.add<XTAMETernaryOpLowering<ThMfmaccSE5m2Op>>(
-        typeConverter, "llvm.riscv.th.mfmacc.s.e5m2");
+        typeConverter, "th.mfmacc.s.e5m2");
 
     if (failed(applyPartialConversion(module, target, std::move(patterns))))
       signalPassFailure();
@@ -728,189 +481,189 @@ struct LegalizeXTAMEForLLVMExport
 void mlir::populateXTAMELegalizeForLLVMExportPatterns(
     LLVMTypeConverter &converter, RewritePatternSet &patterns) {
   // Configuration patterns
-  patterns.add<XTAMEConfigLowering<ThMcfgOp>>(converter, "llvm.riscv.th.mcfg");
+  patterns.add<XTAMEConfigLowering<ThMcfgOp>>(converter, "th.mcfg");
   patterns.add<XTAMEConfigLowering<ThMcfgmOp>>(converter,
-                                               "llvm.riscv.th.mcfgm");
+                                               "th.mcfgm");
   patterns.add<XTAMEConfigLowering<ThMcfgnOp>>(converter,
-                                               "llvm.riscv.th.mcfgn");
+                                               "th.mcfgn");
   patterns.add<XTAMEConfigLowering<ThMcfgkOp>>(converter,
-                                               "llvm.riscv.th.mcfgk");
+                                               "th.mcfgk");
   patterns.add<XTAMEConfigImmLowering<ThMcfgmiOp, &ThMcfgmiOp::getTilem>>(
-      converter, "llvm.riscv.th.mcfgmi");
+      converter, "th.mcfgmi");
   patterns.add<XTAMEConfigImmLowering<ThMcfgniOp, &ThMcfgniOp::getTilen>>(
-      converter, "llvm.riscv.th.mcfgni");
+      converter, "th.mcfgni");
   patterns.add<XTAMEConfigImmLowering<ThMcfgkiOp, &ThMcfgkiOp::getTilek>>(
-      converter, "llvm.riscv.th.mcfgki");
+      converter, "th.mcfgki");
 
   // MISC patterns
-  patterns.add<XTAMEZeroLowering<ThMzeroOp>>(converter, "llvm.riscv.th.mzero");
+  patterns.add<XTAMEZeroLowering<ThMzeroOp>>(converter, "th.mzero");
   patterns.add<XTAMEZeroLowering<ThMzero2rOp>>(converter,
-                                               "llvm.riscv.th.mzero2r");
+                                               "th.mzero2r");
   patterns.add<XTAMEZeroLowering<ThMzero4rOp>>(converter,
-                                               "llvm.riscv.th.mzero4r");
+                                               "th.mzero4r");
   patterns.add<XTAMEZeroLowering<ThMzero8rOp>>(converter,
-                                               "llvm.riscv.th.mzero8r");
+                                               "th.mzero8r");
   patterns.add<XTAMEDualAttrLowering<ThMmovMmOp>>(converter,
-                                                  "llvm.riscv.th.mmov.mm");
+                                                  "th.mmov.mm");
   patterns.add<XTAMEDupLowering<ThMdupbMXOp>>(converter,
-                                              "llvm.riscv.th.mdupb.m.x");
+                                              "th.mdupb.m.x");
   patterns.add<XTAMEDupLowering<ThMduphMXOp>>(converter,
-                                              "llvm.riscv.th.mduph.m.x");
+                                              "th.mduph.m.x");
   patterns.add<XTAMEDupLowering<ThMdupwMXOp>>(converter,
-                                              "llvm.riscv.th.mdupw.m.x");
+                                              "th.mdupw.m.x");
   patterns.add<XTAMEDupLowering<ThMdupdMXOp>>(converter,
-                                              "llvm.riscv.th.mdupd.m.x");
+                                              "th.mdupd.m.x");
   patterns.add<XTAMEMmovMXLowering<ThMmovbMXOp>>(converter,
-                                                 "llvm.riscv.th.mmovb.m.x");
+                                                 "th.mmovb.m.x");
   patterns.add<XTAMEMmovMXLowering<ThMmovhMXOp>>(converter,
-                                                 "llvm.riscv.th.mmovh.m.x");
+                                                 "th.mmovh.m.x");
   patterns.add<XTAMEMmovMXLowering<ThMmovwMXOp>>(converter,
-                                                 "llvm.riscv.th.mmovw.m.x");
+                                                 "th.mmovw.m.x");
   patterns.add<XTAMEMmovMXLowering<ThMmovdMXOp>>(converter,
-                                                 "llvm.riscv.th.mmovd.m.x");
+                                                 "th.mmovd.m.x");
   patterns.add<XTAMEMmovXMLowering<ThMmovbXMOp>>(converter,
-                                                 "llvm.riscv.th.mmovb.x.m");
+                                                 "th.mmovb.x.m");
   patterns.add<XTAMEMmovXMLowering<ThMmovhXMOp>>(converter,
-                                                 "llvm.riscv.th.mmovh.x.m");
+                                                 "th.mmovh.x.m");
   patterns.add<XTAMEMmovXMLowering<ThMmovwXMOp>>(converter,
-                                                 "llvm.riscv.th.mmovw.x.m");
+                                                 "th.mmovw.x.m");
   patterns.add<XTAMEMmovXMLowering<ThMmovdXMOp>>(converter,
-                                                 "llvm.riscv.th.mmovd.x.m");
+                                                 "th.mmovd.x.m");
   patterns.add<XTAMECmovMvILowering<ThMmovMvIOp>>(converter,
-                                                  "llvm.riscv.th.mmov.mv.i");
+                                                  "th.mmov.mv.i");
   patterns.add<XTAMECmovMvILowering<ThMcmovbMvIOp>>(
-      converter, "llvm.riscv.th.mcmovb.mv.i");
+      converter, "th.mcmovb.mv.i");
   patterns.add<XTAMECmovMvILowering<ThMcmovhMvIOp>>(
-      converter, "llvm.riscv.th.mcmovh.mv.i");
+      converter, "th.mcmovh.mv.i");
   patterns.add<XTAMECmovMvILowering<ThMcmovwMvIOp>>(
-      converter, "llvm.riscv.th.mcmovw.mv.i");
+      converter, "th.mcmovw.mv.i");
   patterns.add<XTAMECmovMvILowering<ThMcmovdMvIOp>>(
-      converter, "llvm.riscv.th.mcmovd.mv.i");
+      converter, "th.mcmovd.mv.i");
   patterns.add<XTAMETernaryOpLowering<ThMpackMmOp>>(converter,
-                                                    "llvm.riscv.th.mpack.mm");
+                                                    "th.mpack.mm");
   patterns.add<XTAMETernaryOpLowering<ThMpackhlMmOp>>(
-      converter, "llvm.riscv.th.mpackhl.mm");
+      converter, "th.mpackhl.mm");
   patterns.add<XTAMETernaryOpLowering<ThMpackhhMmOp>>(
-      converter, "llvm.riscv.th.mpackhh.mm");
+      converter, "th.mpackhh.mm");
 
   // Load/Store patterns
-  patterns.add<XTAMELoadLowering<ThMlde8Op>>(converter, "llvm.riscv.th.mlde8");
+  patterns.add<XTAMELoadLowering<ThMlde8Op>>(converter, "th.mlde8");
   patterns.add<XTAMELoadLowering<ThMlde16Op>>(converter,
-                                              "llvm.riscv.th.mlde16");
+                                              "th.mlde16");
   patterns.add<XTAMELoadLowering<ThMlde32Op>>(converter,
-                                              "llvm.riscv.th.mlde32");
+                                              "th.mlde32");
   patterns.add<XTAMELoadLowering<ThMlde64Op>>(converter,
-                                              "llvm.riscv.th.mlde64");
+                                              "th.mlde64");
   patterns.add<XTAMELoadLowering<ThMldte8Op>>(converter,
-                                              "llvm.riscv.th.mldte8");
+                                              "th.mldte8");
   patterns.add<XTAMELoadLowering<ThMldte16Op>>(converter,
-                                               "llvm.riscv.th.mldte16");
+                                               "th.mldte16");
   patterns.add<XTAMELoadLowering<ThMldte32Op>>(converter,
-                                               "llvm.riscv.th.mldte32");
+                                               "th.mldte32");
   patterns.add<XTAMELoadLowering<ThMldte64Op>>(converter,
-                                               "llvm.riscv.th.mldte64");
+                                               "th.mldte64");
   patterns.add<XTAMELoadLowering<ThMslde8Op>>(converter,
-                                              "llvm.riscv.th.mslde8");
+                                              "th.mslde8");
   patterns.add<XTAMELoadLowering<ThMslde16Op>>(converter,
-                                               "llvm.riscv.th.mslde16");
+                                               "th.mslde16");
   patterns.add<XTAMELoadLowering<ThMslde32Op>>(converter,
-                                               "llvm.riscv.th.mslde32");
+                                               "th.mslde32");
   patterns.add<XTAMELoadLowering<ThMslde64Op>>(converter,
-                                               "llvm.riscv.th.mslde64");
+                                               "th.mslde64");
   patterns.add<XTAMELoadLowering<ThMsldte8Op>>(converter,
-                                               "llvm.riscv.th.msldte8");
+                                               "th.msldte8");
   patterns.add<XTAMELoadLowering<ThMsldte16Op>>(converter,
-                                                "llvm.riscv.th.msldte16");
+                                                "th.msldte16");
   patterns.add<XTAMELoadLowering<ThMsldte32Op>>(converter,
-                                                "llvm.riscv.th.msldte32");
+                                                "th.msldte32");
   patterns.add<XTAMELoadLowering<ThMsldte64Op>>(converter,
-                                                "llvm.riscv.th.msldte64");
+                                                "th.msldte64");
 
   patterns.add<XTAMEPrefetchLowering<ThMplde8Op>>(converter,
-                                                  "llvm.riscv.th.mplde8");
+                                                  "th.mplde8");
   patterns.add<XTAMEPrefetchLowering<ThMplde16Op>>(converter,
-                                                   "llvm.riscv.th.mplde16");
+                                                   "th.mplde16");
   patterns.add<XTAMEPrefetchLowering<ThMplde32Op>>(converter,
-                                                   "llvm.riscv.th.mplde32");
+                                                   "th.mplde32");
   patterns.add<XTAMEPrefetchLowering<ThMplde64Op>>(converter,
-                                                   "llvm.riscv.th.mplde64");
+                                                   "th.mplde64");
   patterns.add<XTAMEPrefetchLowering<ThMpldte8Op>>(converter,
-                                                   "llvm.riscv.th.mpldte8");
+                                                   "th.mpldte8");
   patterns.add<XTAMEPrefetchLowering<ThMpldte16Op>>(converter,
-                                                    "llvm.riscv.th.mpldte16");
+                                                    "th.mpldte16");
   patterns.add<XTAMEPrefetchLowering<ThMpldte32Op>>(converter,
-                                                    "llvm.riscv.th.mpldte32");
+                                                    "th.mpldte32");
   patterns.add<XTAMEPrefetchLowering<ThMpldte64Op>>(converter,
-                                                    "llvm.riscv.th.mpldte64");
+                                                    "th.mpldte64");
 
-  patterns.add<XTAMEStoreLowering<ThMste8Op>>(converter, "llvm.riscv.th.mste8");
+  patterns.add<XTAMEStoreLowering<ThMste8Op>>(converter, "th.mste8");
   patterns.add<XTAMEStoreLowering<ThMste16Op>>(converter,
-                                               "llvm.riscv.th.mste16");
+                                               "th.mste16");
   patterns.add<XTAMEStoreLowering<ThMste32Op>>(converter,
-                                               "llvm.riscv.th.mste32");
+                                               "th.mste32");
   patterns.add<XTAMEStoreLowering<ThMste64Op>>(converter,
-                                               "llvm.riscv.th.mste64");
+                                               "th.mste64");
   patterns.add<XTAMEStoreLowering<ThMstte8Op>>(converter,
-                                               "llvm.riscv.th.mstte8");
+                                               "th.mstte8");
   patterns.add<XTAMEStoreLowering<ThMstte16Op>>(converter,
-                                                "llvm.riscv.th.mstte16");
+                                                "th.mstte16");
   patterns.add<XTAMEStoreLowering<ThMstte32Op>>(converter,
-                                                "llvm.riscv.th.mstte32");
+                                                "th.mstte32");
   patterns.add<XTAMEStoreLowering<ThMstte64Op>>(converter,
-                                                "llvm.riscv.th.mstte64");
+                                                "th.mstte64");
   patterns.add<XTAMEStoreLowering<ThMsste8Op>>(converter,
-                                               "llvm.riscv.th.msste8");
+                                               "th.msste8");
   patterns.add<XTAMEStoreLowering<ThMsste16Op>>(converter,
-                                                "llvm.riscv.th.msste16");
+                                                "th.msste16");
   patterns.add<XTAMEStoreLowering<ThMsste32Op>>(converter,
-                                                "llvm.riscv.th.msste32");
+                                                "th.msste32");
   patterns.add<XTAMEStoreLowering<ThMsste64Op>>(converter,
-                                                "llvm.riscv.th.msste64");
+                                                "th.msste64");
   patterns.add<XTAMEStoreLowering<ThMsstte8Op>>(converter,
-                                                "llvm.riscv.th.msstte8");
+                                                "th.msstte8");
   patterns.add<XTAMEStoreLowering<ThMsstte16Op>>(converter,
-                                                 "llvm.riscv.th.msstte16");
+                                                 "th.msstte16");
   patterns.add<XTAMEStoreLowering<ThMsstte32Op>>(converter,
-                                                 "llvm.riscv.th.msstte32");
+                                                 "th.msstte32");
   patterns.add<XTAMEStoreLowering<ThMsstte64Op>>(converter,
-                                                 "llvm.riscv.th.msstte64");
+                                                 "th.msstte64");
 
   patterns.add<XTAMETernaryOpLowering<ThMmaccWBOp>>(converter,
-                                                    "llvm.riscv.th.mmacc.w.b");
+                                                    "th.mmacc.w.b");
   patterns.add<XTAMETernaryOpLowering<ThMmaccuWBOp>>(
-      converter, "llvm.riscv.th.mmaccu.w.b");
+      converter, "th.mmaccu.w.b");
   patterns.add<XTAMETernaryOpLowering<ThMmaccusWBOp>>(
-      converter, "llvm.riscv.th.mmaccus.w.b");
+      converter, "th.mmaccus.w.b");
   patterns.add<XTAMETernaryOpLowering<ThMmaccsuWBOp>>(
-      converter, "llvm.riscv.th.mmaccsu.w.b");
+      converter, "th.mmaccsu.w.b");
 
   // Tile register matrix multiply patterns (float-point types)
   patterns.add<XTAMETernaryOpLowering<ThMfmaccHOp>>(converter,
-                                                    "llvm.riscv.th.mfmacc.h");
+                                                    "th.mfmacc.h");
   patterns.add<XTAMETernaryOpLowering<ThMfmaccBf16Op>>(
-      converter, "llvm.riscv.th.mfmacc.bf16");
+      converter, "th.mfmacc.bf16");
   patterns.add<XTAMETernaryOpLowering<ThMfmaccSOp>>(converter,
-                                                    "llvm.riscv.th.mfmacc.s");
+                                                    "th.mfmacc.s");
   patterns.add<XTAMETernaryOpLowering<ThMfmaccDOp>>(converter,
-                                                    "llvm.riscv.th.mfmacc.d");
+                                                    "th.mfmacc.d");
   patterns.add<XTAMETernaryOpLowering<ThMfmaccHE4m3Op>>(
-      converter, "llvm.riscv.th.mfmacc.h.e4m3");
+      converter, "th.mfmacc.h.e4m3");
   patterns.add<XTAMETernaryOpLowering<ThMfmaccHE5m2Op>>(
-      converter, "llvm.riscv.th.mfmacc.h.e5m2");
+      converter, "th.mfmacc.h.e5m2");
   patterns.add<XTAMETernaryOpLowering<ThMfmaccBf16E4m3Op>>(
-      converter, "llvm.riscv.th.mfmacc.bf16.e4m3");
+      converter, "th.mfmacc.bf16.e4m3");
   patterns.add<XTAMETernaryOpLowering<ThMfmaccBf16E5m2Op>>(
-      converter, "llvm.riscv.th.mfmacc.bf16.e5m2");
+      converter, "th.mfmacc.bf16.e5m2");
   patterns.add<XTAMETernaryOpLowering<ThMfmaccSHOp>>(
-      converter, "llvm.riscv.th.mfmacc.s.h");
+      converter, "th.mfmacc.s.h");
   patterns.add<XTAMETernaryOpLowering<ThMfmaccSBf16Op>>(
-      converter, "llvm.riscv.th.mfmacc.s.bf16");
+      converter, "th.mfmacc.s.bf16");
   patterns.add<XTAMETernaryOpLowering<ThMfmaccDSOp>>(
-      converter, "llvm.riscv.th.mfmacc.d.s");
+      converter, "th.mfmacc.d.s");
   patterns.add<XTAMETernaryOpLowering<ThMfmaccSE4m3Op>>(
-      converter, "llvm.riscv.th.mfmacc.s.e4m3");
+      converter, "th.mfmacc.s.e4m3");
   patterns.add<XTAMETernaryOpLowering<ThMfmaccSE5m2Op>>(
-      converter, "llvm.riscv.th.mfmacc.s.e5m2");
+      converter, "th.mfmacc.s.e5m2");
 }
 
 void mlir::configureXTAMELegalizeForExportTarget(LLVMConversionTarget &target) {
