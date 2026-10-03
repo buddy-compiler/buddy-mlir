@@ -17,7 +17,6 @@
 #include "Dialect/XTAME/Transform.h"
 #include "Dialect/XTAME/XTAMEDialect.h"
 #include "Dialect/XTAME/XTAMEOps.h"
-#include "llvm/ADT/StringSwitch.h"
 #include "mlir/Conversion/LLVMCommon/ConversionTarget.h"
 #include "mlir/Conversion/LLVMCommon/Pattern.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
@@ -25,6 +24,7 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Pass/Pass.h"
+#include "llvm/ADT/StringSwitch.h"
 
 using namespace mlir;
 using namespace buddy::xtame;
@@ -179,8 +179,9 @@ struct XTAMECmovMvILowering : public XTAMEAsmLowering<OpTy> {
 
     // The current LLVM XTAME instruction printer emits ms1[index], but its
     // assembler cannot parse that operand. All broadcast operands are constant,
-    // so emit the encoding from RVInstXTAMEDB via .insn until the parser supports
-    // this syntax. Matrix and memory clobbers still model the legacy state.
+    // so emit the encoding from RVInstXTAMEDB via .insn until the parser
+    // supports this syntax. Matrix and memory clobbers still model the legacy
+    // state.
     uint32_t encoding = 0x0400002b; // th.mmov.mv.i: func4=0, uop=2.
     if (this->mnemonic.starts_with("th.mcmov")) {
       unsigned size = llvm::StringSwitch<unsigned>(this->mnemonic)
@@ -191,7 +192,8 @@ struct XTAMECmovMvILowering : public XTAMEAsmLowering<OpTy> {
       encoding = 0x5c00002b | (size << 10); // func4=5, uop=6.
     }
     encoding |= op.getMs1() << 18 | op.getMd() << 15 | op.getUimm3() << 7;
-    auto result = createXTAMEAsm(rewriter, op, ".insn", "4, " + Twine(encoding));
+    auto result =
+        createXTAMEAsm(rewriter, op, ".insn", "4, " + Twine(encoding));
     if (failed(result))
       return failure();
     rewriter.eraseOp(op);
@@ -284,14 +286,10 @@ struct LegalizeXTAMEForLLVMExport
     RewritePatternSet patterns(&context);
 
     // Configuration patterns
-    patterns.add<XTAMEConfigLowering<ThMcfgOp>>(typeConverter,
-                                                "th.mcfg");
-    patterns.add<XTAMEConfigLowering<ThMcfgmOp>>(typeConverter,
-                                                 "th.mcfgm");
-    patterns.add<XTAMEConfigLowering<ThMcfgnOp>>(typeConverter,
-                                                 "th.mcfgn");
-    patterns.add<XTAMEConfigLowering<ThMcfgkOp>>(typeConverter,
-                                                 "th.mcfgk");
+    patterns.add<XTAMEConfigLowering<ThMcfgOp>>(typeConverter, "th.mcfg");
+    patterns.add<XTAMEConfigLowering<ThMcfgmOp>>(typeConverter, "th.mcfgm");
+    patterns.add<XTAMEConfigLowering<ThMcfgnOp>>(typeConverter, "th.mcfgn");
+    patterns.add<XTAMEConfigLowering<ThMcfgkOp>>(typeConverter, "th.mcfgk");
     patterns.add<XTAMEConfigImmLowering<ThMcfgmiOp, &ThMcfgmiOp::getTilem>>(
         typeConverter, "th.mcfgmi");
     patterns.add<XTAMEConfigImmLowering<ThMcfgniOp, &ThMcfgniOp::getTilen>>(
@@ -300,24 +298,16 @@ struct LegalizeXTAMEForLLVMExport
         typeConverter, "th.mcfgki");
 
     // MISC patterns
-    patterns.add<XTAMEZeroLowering<ThMzeroOp>>(typeConverter,
-                                               "th.mzero");
-    patterns.add<XTAMEZeroLowering<ThMzero2rOp>>(typeConverter,
-                                                 "th.mzero2r");
-    patterns.add<XTAMEZeroLowering<ThMzero4rOp>>(typeConverter,
-                                                 "th.mzero4r");
-    patterns.add<XTAMEZeroLowering<ThMzero8rOp>>(typeConverter,
-                                                 "th.mzero8r");
+    patterns.add<XTAMEZeroLowering<ThMzeroOp>>(typeConverter, "th.mzero");
+    patterns.add<XTAMEZeroLowering<ThMzero2rOp>>(typeConverter, "th.mzero2r");
+    patterns.add<XTAMEZeroLowering<ThMzero4rOp>>(typeConverter, "th.mzero4r");
+    patterns.add<XTAMEZeroLowering<ThMzero8rOp>>(typeConverter, "th.mzero8r");
     patterns.add<XTAMEDualAttrLowering<ThMmovMmOp>>(typeConverter,
                                                     "th.mmov.mm");
-    patterns.add<XTAMEDupLowering<ThMdupbMXOp>>(typeConverter,
-                                                "th.mdupb.m.x");
-    patterns.add<XTAMEDupLowering<ThMduphMXOp>>(typeConverter,
-                                                "th.mduph.m.x");
-    patterns.add<XTAMEDupLowering<ThMdupwMXOp>>(typeConverter,
-                                                "th.mdupw.m.x");
-    patterns.add<XTAMEDupLowering<ThMdupdMXOp>>(typeConverter,
-                                                "th.mdupd.m.x");
+    patterns.add<XTAMEDupLowering<ThMdupbMXOp>>(typeConverter, "th.mdupb.m.x");
+    patterns.add<XTAMEDupLowering<ThMduphMXOp>>(typeConverter, "th.mduph.m.x");
+    patterns.add<XTAMEDupLowering<ThMdupwMXOp>>(typeConverter, "th.mdupw.m.x");
+    patterns.add<XTAMEDupLowering<ThMdupdMXOp>>(typeConverter, "th.mdupd.m.x");
     patterns.add<XTAMEMmovMXLowering<ThMmovbMXOp>>(typeConverter,
                                                    "th.mmovb.m.x");
     patterns.add<XTAMEMmovMXLowering<ThMmovhMXOp>>(typeConverter,
@@ -336,57 +326,40 @@ struct LegalizeXTAMEForLLVMExport
                                                    "th.mmovd.x.m");
     patterns.add<XTAMECmovMvILowering<ThMmovMvIOp>>(typeConverter,
                                                     "th.mmov.mv.i");
-    patterns.add<XTAMECmovMvILowering<ThMcmovbMvIOp>>(
-        typeConverter, "th.mcmovb.mv.i");
-    patterns.add<XTAMECmovMvILowering<ThMcmovhMvIOp>>(
-        typeConverter, "th.mcmovh.mv.i");
-    patterns.add<XTAMECmovMvILowering<ThMcmovwMvIOp>>(
-        typeConverter, "th.mcmovw.mv.i");
-    patterns.add<XTAMECmovMvILowering<ThMcmovdMvIOp>>(
-        typeConverter, "th.mcmovd.mv.i");
+    patterns.add<XTAMECmovMvILowering<ThMcmovbMvIOp>>(typeConverter,
+                                                      "th.mcmovb.mv.i");
+    patterns.add<XTAMECmovMvILowering<ThMcmovhMvIOp>>(typeConverter,
+                                                      "th.mcmovh.mv.i");
+    patterns.add<XTAMECmovMvILowering<ThMcmovwMvIOp>>(typeConverter,
+                                                      "th.mcmovw.mv.i");
+    patterns.add<XTAMECmovMvILowering<ThMcmovdMvIOp>>(typeConverter,
+                                                      "th.mcmovd.mv.i");
     patterns.add<XTAMETernaryOpLowering<ThMpackMmOp>>(typeConverter,
                                                       "th.mpack.mm");
-    patterns.add<XTAMETernaryOpLowering<ThMpackhlMmOp>>(
-        typeConverter, "th.mpackhl.mm");
-    patterns.add<XTAMETernaryOpLowering<ThMpackhhMmOp>>(
-        typeConverter, "th.mpackhh.mm");
+    patterns.add<XTAMETernaryOpLowering<ThMpackhlMmOp>>(typeConverter,
+                                                        "th.mpackhl.mm");
+    patterns.add<XTAMETernaryOpLowering<ThMpackhhMmOp>>(typeConverter,
+                                                        "th.mpackhh.mm");
 
     // Load/Store patterns
-    patterns.add<XTAMELoadLowering<ThMlde8Op>>(typeConverter,
-                                               "th.mlde8");
-    patterns.add<XTAMELoadLowering<ThMlde16Op>>(typeConverter,
-                                                "th.mlde16");
-    patterns.add<XTAMELoadLowering<ThMlde32Op>>(typeConverter,
-                                                "th.mlde32");
-    patterns.add<XTAMELoadLowering<ThMlde64Op>>(typeConverter,
-                                                "th.mlde64");
-    patterns.add<XTAMELoadLowering<ThMldte8Op>>(typeConverter,
-                                                "th.mldte8");
-    patterns.add<XTAMELoadLowering<ThMldte16Op>>(typeConverter,
-                                                 "th.mldte16");
-    patterns.add<XTAMELoadLowering<ThMldte32Op>>(typeConverter,
-                                                 "th.mldte32");
-    patterns.add<XTAMELoadLowering<ThMldte64Op>>(typeConverter,
-                                                 "th.mldte64");
-    patterns.add<XTAMELoadLowering<ThMslde8Op>>(typeConverter,
-                                                "th.mslde8");
-    patterns.add<XTAMELoadLowering<ThMslde16Op>>(typeConverter,
-                                                 "th.mslde16");
-    patterns.add<XTAMELoadLowering<ThMslde32Op>>(typeConverter,
-                                                 "th.mslde32");
-    patterns.add<XTAMELoadLowering<ThMslde64Op>>(typeConverter,
-                                                 "th.mslde64");
-    patterns.add<XTAMELoadLowering<ThMsldte8Op>>(typeConverter,
-                                                 "th.msldte8");
-    patterns.add<XTAMELoadLowering<ThMsldte16Op>>(typeConverter,
-                                                  "th.msldte16");
-    patterns.add<XTAMELoadLowering<ThMsldte32Op>>(typeConverter,
-                                                  "th.msldte32");
-    patterns.add<XTAMELoadLowering<ThMsldte64Op>>(typeConverter,
-                                                  "th.msldte64");
+    patterns.add<XTAMELoadLowering<ThMlde8Op>>(typeConverter, "th.mlde8");
+    patterns.add<XTAMELoadLowering<ThMlde16Op>>(typeConverter, "th.mlde16");
+    patterns.add<XTAMELoadLowering<ThMlde32Op>>(typeConverter, "th.mlde32");
+    patterns.add<XTAMELoadLowering<ThMlde64Op>>(typeConverter, "th.mlde64");
+    patterns.add<XTAMELoadLowering<ThMldte8Op>>(typeConverter, "th.mldte8");
+    patterns.add<XTAMELoadLowering<ThMldte16Op>>(typeConverter, "th.mldte16");
+    patterns.add<XTAMELoadLowering<ThMldte32Op>>(typeConverter, "th.mldte32");
+    patterns.add<XTAMELoadLowering<ThMldte64Op>>(typeConverter, "th.mldte64");
+    patterns.add<XTAMELoadLowering<ThMslde8Op>>(typeConverter, "th.mslde8");
+    patterns.add<XTAMELoadLowering<ThMslde16Op>>(typeConverter, "th.mslde16");
+    patterns.add<XTAMELoadLowering<ThMslde32Op>>(typeConverter, "th.mslde32");
+    patterns.add<XTAMELoadLowering<ThMslde64Op>>(typeConverter, "th.mslde64");
+    patterns.add<XTAMELoadLowering<ThMsldte8Op>>(typeConverter, "th.msldte8");
+    patterns.add<XTAMELoadLowering<ThMsldte16Op>>(typeConverter, "th.msldte16");
+    patterns.add<XTAMELoadLowering<ThMsldte32Op>>(typeConverter, "th.msldte32");
+    patterns.add<XTAMELoadLowering<ThMsldte64Op>>(typeConverter, "th.msldte64");
 
-    patterns.add<XTAMEPrefetchLowering<ThMplde8Op>>(typeConverter,
-                                                    "th.mplde8");
+    patterns.add<XTAMEPrefetchLowering<ThMplde8Op>>(typeConverter, "th.mplde8");
     patterns.add<XTAMEPrefetchLowering<ThMplde16Op>>(typeConverter,
                                                      "th.mplde16");
     patterns.add<XTAMEPrefetchLowering<ThMplde32Op>>(typeConverter,
@@ -402,32 +375,19 @@ struct LegalizeXTAMEForLLVMExport
     patterns.add<XTAMEPrefetchLowering<ThMpldte64Op>>(typeConverter,
                                                       "th.mpldte64");
 
-    patterns.add<XTAMEStoreLowering<ThMste8Op>>(typeConverter,
-                                                "th.mste8");
-    patterns.add<XTAMEStoreLowering<ThMste16Op>>(typeConverter,
-                                                 "th.mste16");
-    patterns.add<XTAMEStoreLowering<ThMste32Op>>(typeConverter,
-                                                 "th.mste32");
-    patterns.add<XTAMEStoreLowering<ThMste64Op>>(typeConverter,
-                                                 "th.mste64");
-    patterns.add<XTAMEStoreLowering<ThMstte8Op>>(typeConverter,
-                                                 "th.mstte8");
-    patterns.add<XTAMEStoreLowering<ThMstte16Op>>(typeConverter,
-                                                  "th.mstte16");
-    patterns.add<XTAMEStoreLowering<ThMstte32Op>>(typeConverter,
-                                                  "th.mstte32");
-    patterns.add<XTAMEStoreLowering<ThMstte64Op>>(typeConverter,
-                                                  "th.mstte64");
-    patterns.add<XTAMEStoreLowering<ThMsste8Op>>(typeConverter,
-                                                 "th.msste8");
-    patterns.add<XTAMEStoreLowering<ThMsste16Op>>(typeConverter,
-                                                  "th.msste16");
-    patterns.add<XTAMEStoreLowering<ThMsste32Op>>(typeConverter,
-                                                  "th.msste32");
-    patterns.add<XTAMEStoreLowering<ThMsste64Op>>(typeConverter,
-                                                  "th.msste64");
-    patterns.add<XTAMEStoreLowering<ThMsstte8Op>>(typeConverter,
-                                                  "th.msstte8");
+    patterns.add<XTAMEStoreLowering<ThMste8Op>>(typeConverter, "th.mste8");
+    patterns.add<XTAMEStoreLowering<ThMste16Op>>(typeConverter, "th.mste16");
+    patterns.add<XTAMEStoreLowering<ThMste32Op>>(typeConverter, "th.mste32");
+    patterns.add<XTAMEStoreLowering<ThMste64Op>>(typeConverter, "th.mste64");
+    patterns.add<XTAMEStoreLowering<ThMstte8Op>>(typeConverter, "th.mstte8");
+    patterns.add<XTAMEStoreLowering<ThMstte16Op>>(typeConverter, "th.mstte16");
+    patterns.add<XTAMEStoreLowering<ThMstte32Op>>(typeConverter, "th.mstte32");
+    patterns.add<XTAMEStoreLowering<ThMstte64Op>>(typeConverter, "th.mstte64");
+    patterns.add<XTAMEStoreLowering<ThMsste8Op>>(typeConverter, "th.msste8");
+    patterns.add<XTAMEStoreLowering<ThMsste16Op>>(typeConverter, "th.msste16");
+    patterns.add<XTAMEStoreLowering<ThMsste32Op>>(typeConverter, "th.msste32");
+    patterns.add<XTAMEStoreLowering<ThMsste64Op>>(typeConverter, "th.msste64");
+    patterns.add<XTAMEStoreLowering<ThMsstte8Op>>(typeConverter, "th.msstte8");
     patterns.add<XTAMEStoreLowering<ThMsstte16Op>>(typeConverter,
                                                    "th.msstte16");
     patterns.add<XTAMEStoreLowering<ThMsstte32Op>>(typeConverter,
@@ -436,41 +396,41 @@ struct LegalizeXTAMEForLLVMExport
                                                    "th.msstte64");
 
     // Tile register matrix multiply patterns
-    patterns.add<XTAMETernaryOpLowering<ThMmaccWBOp>>(
-        typeConverter, "th.mmacc.w.b");
-    patterns.add<XTAMETernaryOpLowering<ThMmaccuWBOp>>(
-        typeConverter, "th.mmaccu.w.b");
-    patterns.add<XTAMETernaryOpLowering<ThMmaccusWBOp>>(
-        typeConverter, "th.mmaccus.w.b");
-    patterns.add<XTAMETernaryOpLowering<ThMmaccsuWBOp>>(
-        typeConverter, "th.mmaccsu.w.b");
+    patterns.add<XTAMETernaryOpLowering<ThMmaccWBOp>>(typeConverter,
+                                                      "th.mmacc.w.b");
+    patterns.add<XTAMETernaryOpLowering<ThMmaccuWBOp>>(typeConverter,
+                                                       "th.mmaccu.w.b");
+    patterns.add<XTAMETernaryOpLowering<ThMmaccusWBOp>>(typeConverter,
+                                                        "th.mmaccus.w.b");
+    patterns.add<XTAMETernaryOpLowering<ThMmaccsuWBOp>>(typeConverter,
+                                                        "th.mmaccsu.w.b");
 
     patterns.add<XTAMETernaryOpLowering<ThMfmaccHOp>>(typeConverter,
                                                       "th.mfmacc.h");
-    patterns.add<XTAMETernaryOpLowering<ThMfmaccBf16Op>>(
-        typeConverter, "th.mfmacc.bf16");
+    patterns.add<XTAMETernaryOpLowering<ThMfmaccBf16Op>>(typeConverter,
+                                                         "th.mfmacc.bf16");
     patterns.add<XTAMETernaryOpLowering<ThMfmaccSOp>>(typeConverter,
                                                       "th.mfmacc.s");
     patterns.add<XTAMETernaryOpLowering<ThMfmaccDOp>>(typeConverter,
                                                       "th.mfmacc.d");
-    patterns.add<XTAMETernaryOpLowering<ThMfmaccHE4m3Op>>(
-        typeConverter, "th.mfmacc.h.e4m3");
-    patterns.add<XTAMETernaryOpLowering<ThMfmaccHE5m2Op>>(
-        typeConverter, "th.mfmacc.h.e5m2");
+    patterns.add<XTAMETernaryOpLowering<ThMfmaccHE4m3Op>>(typeConverter,
+                                                          "th.mfmacc.h.e4m3");
+    patterns.add<XTAMETernaryOpLowering<ThMfmaccHE5m2Op>>(typeConverter,
+                                                          "th.mfmacc.h.e5m2");
     patterns.add<XTAMETernaryOpLowering<ThMfmaccBf16E4m3Op>>(
         typeConverter, "th.mfmacc.bf16.e4m3");
     patterns.add<XTAMETernaryOpLowering<ThMfmaccBf16E5m2Op>>(
         typeConverter, "th.mfmacc.bf16.e5m2");
-    patterns.add<XTAMETernaryOpLowering<ThMfmaccSHOp>>(
-        typeConverter, "th.mfmacc.s.h");
-    patterns.add<XTAMETernaryOpLowering<ThMfmaccSBf16Op>>(
-        typeConverter, "th.mfmacc.s.bf16");
-    patterns.add<XTAMETernaryOpLowering<ThMfmaccDSOp>>(
-        typeConverter, "th.mfmacc.d.s");
-    patterns.add<XTAMETernaryOpLowering<ThMfmaccSE4m3Op>>(
-        typeConverter, "th.mfmacc.s.e4m3");
-    patterns.add<XTAMETernaryOpLowering<ThMfmaccSE5m2Op>>(
-        typeConverter, "th.mfmacc.s.e5m2");
+    patterns.add<XTAMETernaryOpLowering<ThMfmaccSHOp>>(typeConverter,
+                                                       "th.mfmacc.s.h");
+    patterns.add<XTAMETernaryOpLowering<ThMfmaccSBf16Op>>(typeConverter,
+                                                          "th.mfmacc.s.bf16");
+    patterns.add<XTAMETernaryOpLowering<ThMfmaccDSOp>>(typeConverter,
+                                                       "th.mfmacc.d.s");
+    patterns.add<XTAMETernaryOpLowering<ThMfmaccSE4m3Op>>(typeConverter,
+                                                          "th.mfmacc.s.e4m3");
+    patterns.add<XTAMETernaryOpLowering<ThMfmaccSE5m2Op>>(typeConverter,
+                                                          "th.mfmacc.s.e5m2");
 
     if (failed(applyPartialConversion(module, target, std::move(patterns))))
       signalPassFailure();
@@ -482,12 +442,9 @@ void mlir::populateXTAMELegalizeForLLVMExportPatterns(
     LLVMTypeConverter &converter, RewritePatternSet &patterns) {
   // Configuration patterns
   patterns.add<XTAMEConfigLowering<ThMcfgOp>>(converter, "th.mcfg");
-  patterns.add<XTAMEConfigLowering<ThMcfgmOp>>(converter,
-                                               "th.mcfgm");
-  patterns.add<XTAMEConfigLowering<ThMcfgnOp>>(converter,
-                                               "th.mcfgn");
-  patterns.add<XTAMEConfigLowering<ThMcfgkOp>>(converter,
-                                               "th.mcfgk");
+  patterns.add<XTAMEConfigLowering<ThMcfgmOp>>(converter, "th.mcfgm");
+  patterns.add<XTAMEConfigLowering<ThMcfgnOp>>(converter, "th.mcfgn");
+  patterns.add<XTAMEConfigLowering<ThMcfgkOp>>(converter, "th.mcfgk");
   patterns.add<XTAMEConfigImmLowering<ThMcfgmiOp, &ThMcfgmiOp::getTilem>>(
       converter, "th.mcfgmi");
   patterns.add<XTAMEConfigImmLowering<ThMcfgniOp, &ThMcfgniOp::getTilen>>(
@@ -497,173 +454,113 @@ void mlir::populateXTAMELegalizeForLLVMExportPatterns(
 
   // MISC patterns
   patterns.add<XTAMEZeroLowering<ThMzeroOp>>(converter, "th.mzero");
-  patterns.add<XTAMEZeroLowering<ThMzero2rOp>>(converter,
-                                               "th.mzero2r");
-  patterns.add<XTAMEZeroLowering<ThMzero4rOp>>(converter,
-                                               "th.mzero4r");
-  patterns.add<XTAMEZeroLowering<ThMzero8rOp>>(converter,
-                                               "th.mzero8r");
-  patterns.add<XTAMEDualAttrLowering<ThMmovMmOp>>(converter,
-                                                  "th.mmov.mm");
-  patterns.add<XTAMEDupLowering<ThMdupbMXOp>>(converter,
-                                              "th.mdupb.m.x");
-  patterns.add<XTAMEDupLowering<ThMduphMXOp>>(converter,
-                                              "th.mduph.m.x");
-  patterns.add<XTAMEDupLowering<ThMdupwMXOp>>(converter,
-                                              "th.mdupw.m.x");
-  patterns.add<XTAMEDupLowering<ThMdupdMXOp>>(converter,
-                                              "th.mdupd.m.x");
-  patterns.add<XTAMEMmovMXLowering<ThMmovbMXOp>>(converter,
-                                                 "th.mmovb.m.x");
-  patterns.add<XTAMEMmovMXLowering<ThMmovhMXOp>>(converter,
-                                                 "th.mmovh.m.x");
-  patterns.add<XTAMEMmovMXLowering<ThMmovwMXOp>>(converter,
-                                                 "th.mmovw.m.x");
-  patterns.add<XTAMEMmovMXLowering<ThMmovdMXOp>>(converter,
-                                                 "th.mmovd.m.x");
-  patterns.add<XTAMEMmovXMLowering<ThMmovbXMOp>>(converter,
-                                                 "th.mmovb.x.m");
-  patterns.add<XTAMEMmovXMLowering<ThMmovhXMOp>>(converter,
-                                                 "th.mmovh.x.m");
-  patterns.add<XTAMEMmovXMLowering<ThMmovwXMOp>>(converter,
-                                                 "th.mmovw.x.m");
-  patterns.add<XTAMEMmovXMLowering<ThMmovdXMOp>>(converter,
-                                                 "th.mmovd.x.m");
-  patterns.add<XTAMECmovMvILowering<ThMmovMvIOp>>(converter,
-                                                  "th.mmov.mv.i");
-  patterns.add<XTAMECmovMvILowering<ThMcmovbMvIOp>>(
-      converter, "th.mcmovb.mv.i");
-  patterns.add<XTAMECmovMvILowering<ThMcmovhMvIOp>>(
-      converter, "th.mcmovh.mv.i");
-  patterns.add<XTAMECmovMvILowering<ThMcmovwMvIOp>>(
-      converter, "th.mcmovw.mv.i");
-  patterns.add<XTAMECmovMvILowering<ThMcmovdMvIOp>>(
-      converter, "th.mcmovd.mv.i");
-  patterns.add<XTAMETernaryOpLowering<ThMpackMmOp>>(converter,
-                                                    "th.mpack.mm");
-  patterns.add<XTAMETernaryOpLowering<ThMpackhlMmOp>>(
-      converter, "th.mpackhl.mm");
-  patterns.add<XTAMETernaryOpLowering<ThMpackhhMmOp>>(
-      converter, "th.mpackhh.mm");
+  patterns.add<XTAMEZeroLowering<ThMzero2rOp>>(converter, "th.mzero2r");
+  patterns.add<XTAMEZeroLowering<ThMzero4rOp>>(converter, "th.mzero4r");
+  patterns.add<XTAMEZeroLowering<ThMzero8rOp>>(converter, "th.mzero8r");
+  patterns.add<XTAMEDualAttrLowering<ThMmovMmOp>>(converter, "th.mmov.mm");
+  patterns.add<XTAMEDupLowering<ThMdupbMXOp>>(converter, "th.mdupb.m.x");
+  patterns.add<XTAMEDupLowering<ThMduphMXOp>>(converter, "th.mduph.m.x");
+  patterns.add<XTAMEDupLowering<ThMdupwMXOp>>(converter, "th.mdupw.m.x");
+  patterns.add<XTAMEDupLowering<ThMdupdMXOp>>(converter, "th.mdupd.m.x");
+  patterns.add<XTAMEMmovMXLowering<ThMmovbMXOp>>(converter, "th.mmovb.m.x");
+  patterns.add<XTAMEMmovMXLowering<ThMmovhMXOp>>(converter, "th.mmovh.m.x");
+  patterns.add<XTAMEMmovMXLowering<ThMmovwMXOp>>(converter, "th.mmovw.m.x");
+  patterns.add<XTAMEMmovMXLowering<ThMmovdMXOp>>(converter, "th.mmovd.m.x");
+  patterns.add<XTAMEMmovXMLowering<ThMmovbXMOp>>(converter, "th.mmovb.x.m");
+  patterns.add<XTAMEMmovXMLowering<ThMmovhXMOp>>(converter, "th.mmovh.x.m");
+  patterns.add<XTAMEMmovXMLowering<ThMmovwXMOp>>(converter, "th.mmovw.x.m");
+  patterns.add<XTAMEMmovXMLowering<ThMmovdXMOp>>(converter, "th.mmovd.x.m");
+  patterns.add<XTAMECmovMvILowering<ThMmovMvIOp>>(converter, "th.mmov.mv.i");
+  patterns.add<XTAMECmovMvILowering<ThMcmovbMvIOp>>(converter,
+                                                    "th.mcmovb.mv.i");
+  patterns.add<XTAMECmovMvILowering<ThMcmovhMvIOp>>(converter,
+                                                    "th.mcmovh.mv.i");
+  patterns.add<XTAMECmovMvILowering<ThMcmovwMvIOp>>(converter,
+                                                    "th.mcmovw.mv.i");
+  patterns.add<XTAMECmovMvILowering<ThMcmovdMvIOp>>(converter,
+                                                    "th.mcmovd.mv.i");
+  patterns.add<XTAMETernaryOpLowering<ThMpackMmOp>>(converter, "th.mpack.mm");
+  patterns.add<XTAMETernaryOpLowering<ThMpackhlMmOp>>(converter,
+                                                      "th.mpackhl.mm");
+  patterns.add<XTAMETernaryOpLowering<ThMpackhhMmOp>>(converter,
+                                                      "th.mpackhh.mm");
 
   // Load/Store patterns
   patterns.add<XTAMELoadLowering<ThMlde8Op>>(converter, "th.mlde8");
-  patterns.add<XTAMELoadLowering<ThMlde16Op>>(converter,
-                                              "th.mlde16");
-  patterns.add<XTAMELoadLowering<ThMlde32Op>>(converter,
-                                              "th.mlde32");
-  patterns.add<XTAMELoadLowering<ThMlde64Op>>(converter,
-                                              "th.mlde64");
-  patterns.add<XTAMELoadLowering<ThMldte8Op>>(converter,
-                                              "th.mldte8");
-  patterns.add<XTAMELoadLowering<ThMldte16Op>>(converter,
-                                               "th.mldte16");
-  patterns.add<XTAMELoadLowering<ThMldte32Op>>(converter,
-                                               "th.mldte32");
-  patterns.add<XTAMELoadLowering<ThMldte64Op>>(converter,
-                                               "th.mldte64");
-  patterns.add<XTAMELoadLowering<ThMslde8Op>>(converter,
-                                              "th.mslde8");
-  patterns.add<XTAMELoadLowering<ThMslde16Op>>(converter,
-                                               "th.mslde16");
-  patterns.add<XTAMELoadLowering<ThMslde32Op>>(converter,
-                                               "th.mslde32");
-  patterns.add<XTAMELoadLowering<ThMslde64Op>>(converter,
-                                               "th.mslde64");
-  patterns.add<XTAMELoadLowering<ThMsldte8Op>>(converter,
-                                               "th.msldte8");
-  patterns.add<XTAMELoadLowering<ThMsldte16Op>>(converter,
-                                                "th.msldte16");
-  patterns.add<XTAMELoadLowering<ThMsldte32Op>>(converter,
-                                                "th.msldte32");
-  patterns.add<XTAMELoadLowering<ThMsldte64Op>>(converter,
-                                                "th.msldte64");
+  patterns.add<XTAMELoadLowering<ThMlde16Op>>(converter, "th.mlde16");
+  patterns.add<XTAMELoadLowering<ThMlde32Op>>(converter, "th.mlde32");
+  patterns.add<XTAMELoadLowering<ThMlde64Op>>(converter, "th.mlde64");
+  patterns.add<XTAMELoadLowering<ThMldte8Op>>(converter, "th.mldte8");
+  patterns.add<XTAMELoadLowering<ThMldte16Op>>(converter, "th.mldte16");
+  patterns.add<XTAMELoadLowering<ThMldte32Op>>(converter, "th.mldte32");
+  patterns.add<XTAMELoadLowering<ThMldte64Op>>(converter, "th.mldte64");
+  patterns.add<XTAMELoadLowering<ThMslde8Op>>(converter, "th.mslde8");
+  patterns.add<XTAMELoadLowering<ThMslde16Op>>(converter, "th.mslde16");
+  patterns.add<XTAMELoadLowering<ThMslde32Op>>(converter, "th.mslde32");
+  patterns.add<XTAMELoadLowering<ThMslde64Op>>(converter, "th.mslde64");
+  patterns.add<XTAMELoadLowering<ThMsldte8Op>>(converter, "th.msldte8");
+  patterns.add<XTAMELoadLowering<ThMsldte16Op>>(converter, "th.msldte16");
+  patterns.add<XTAMELoadLowering<ThMsldte32Op>>(converter, "th.msldte32");
+  patterns.add<XTAMELoadLowering<ThMsldte64Op>>(converter, "th.msldte64");
 
-  patterns.add<XTAMEPrefetchLowering<ThMplde8Op>>(converter,
-                                                  "th.mplde8");
-  patterns.add<XTAMEPrefetchLowering<ThMplde16Op>>(converter,
-                                                   "th.mplde16");
-  patterns.add<XTAMEPrefetchLowering<ThMplde32Op>>(converter,
-                                                   "th.mplde32");
-  patterns.add<XTAMEPrefetchLowering<ThMplde64Op>>(converter,
-                                                   "th.mplde64");
-  patterns.add<XTAMEPrefetchLowering<ThMpldte8Op>>(converter,
-                                                   "th.mpldte8");
-  patterns.add<XTAMEPrefetchLowering<ThMpldte16Op>>(converter,
-                                                    "th.mpldte16");
-  patterns.add<XTAMEPrefetchLowering<ThMpldte32Op>>(converter,
-                                                    "th.mpldte32");
-  patterns.add<XTAMEPrefetchLowering<ThMpldte64Op>>(converter,
-                                                    "th.mpldte64");
+  patterns.add<XTAMEPrefetchLowering<ThMplde8Op>>(converter, "th.mplde8");
+  patterns.add<XTAMEPrefetchLowering<ThMplde16Op>>(converter, "th.mplde16");
+  patterns.add<XTAMEPrefetchLowering<ThMplde32Op>>(converter, "th.mplde32");
+  patterns.add<XTAMEPrefetchLowering<ThMplde64Op>>(converter, "th.mplde64");
+  patterns.add<XTAMEPrefetchLowering<ThMpldte8Op>>(converter, "th.mpldte8");
+  patterns.add<XTAMEPrefetchLowering<ThMpldte16Op>>(converter, "th.mpldte16");
+  patterns.add<XTAMEPrefetchLowering<ThMpldte32Op>>(converter, "th.mpldte32");
+  patterns.add<XTAMEPrefetchLowering<ThMpldte64Op>>(converter, "th.mpldte64");
 
   patterns.add<XTAMEStoreLowering<ThMste8Op>>(converter, "th.mste8");
-  patterns.add<XTAMEStoreLowering<ThMste16Op>>(converter,
-                                               "th.mste16");
-  patterns.add<XTAMEStoreLowering<ThMste32Op>>(converter,
-                                               "th.mste32");
-  patterns.add<XTAMEStoreLowering<ThMste64Op>>(converter,
-                                               "th.mste64");
-  patterns.add<XTAMEStoreLowering<ThMstte8Op>>(converter,
-                                               "th.mstte8");
-  patterns.add<XTAMEStoreLowering<ThMstte16Op>>(converter,
-                                                "th.mstte16");
-  patterns.add<XTAMEStoreLowering<ThMstte32Op>>(converter,
-                                                "th.mstte32");
-  patterns.add<XTAMEStoreLowering<ThMstte64Op>>(converter,
-                                                "th.mstte64");
-  patterns.add<XTAMEStoreLowering<ThMsste8Op>>(converter,
-                                               "th.msste8");
-  patterns.add<XTAMEStoreLowering<ThMsste16Op>>(converter,
-                                                "th.msste16");
-  patterns.add<XTAMEStoreLowering<ThMsste32Op>>(converter,
-                                                "th.msste32");
-  patterns.add<XTAMEStoreLowering<ThMsste64Op>>(converter,
-                                                "th.msste64");
-  patterns.add<XTAMEStoreLowering<ThMsstte8Op>>(converter,
-                                                "th.msstte8");
-  patterns.add<XTAMEStoreLowering<ThMsstte16Op>>(converter,
-                                                 "th.msstte16");
-  patterns.add<XTAMEStoreLowering<ThMsstte32Op>>(converter,
-                                                 "th.msstte32");
-  patterns.add<XTAMEStoreLowering<ThMsstte64Op>>(converter,
-                                                 "th.msstte64");
+  patterns.add<XTAMEStoreLowering<ThMste16Op>>(converter, "th.mste16");
+  patterns.add<XTAMEStoreLowering<ThMste32Op>>(converter, "th.mste32");
+  patterns.add<XTAMEStoreLowering<ThMste64Op>>(converter, "th.mste64");
+  patterns.add<XTAMEStoreLowering<ThMstte8Op>>(converter, "th.mstte8");
+  patterns.add<XTAMEStoreLowering<ThMstte16Op>>(converter, "th.mstte16");
+  patterns.add<XTAMEStoreLowering<ThMstte32Op>>(converter, "th.mstte32");
+  patterns.add<XTAMEStoreLowering<ThMstte64Op>>(converter, "th.mstte64");
+  patterns.add<XTAMEStoreLowering<ThMsste8Op>>(converter, "th.msste8");
+  patterns.add<XTAMEStoreLowering<ThMsste16Op>>(converter, "th.msste16");
+  patterns.add<XTAMEStoreLowering<ThMsste32Op>>(converter, "th.msste32");
+  patterns.add<XTAMEStoreLowering<ThMsste64Op>>(converter, "th.msste64");
+  patterns.add<XTAMEStoreLowering<ThMsstte8Op>>(converter, "th.msstte8");
+  patterns.add<XTAMEStoreLowering<ThMsstte16Op>>(converter, "th.msstte16");
+  patterns.add<XTAMEStoreLowering<ThMsstte32Op>>(converter, "th.msstte32");
+  patterns.add<XTAMEStoreLowering<ThMsstte64Op>>(converter, "th.msstte64");
 
-  patterns.add<XTAMETernaryOpLowering<ThMmaccWBOp>>(converter,
-                                                    "th.mmacc.w.b");
-  patterns.add<XTAMETernaryOpLowering<ThMmaccuWBOp>>(
-      converter, "th.mmaccu.w.b");
-  patterns.add<XTAMETernaryOpLowering<ThMmaccusWBOp>>(
-      converter, "th.mmaccus.w.b");
-  patterns.add<XTAMETernaryOpLowering<ThMmaccsuWBOp>>(
-      converter, "th.mmaccsu.w.b");
+  patterns.add<XTAMETernaryOpLowering<ThMmaccWBOp>>(converter, "th.mmacc.w.b");
+  patterns.add<XTAMETernaryOpLowering<ThMmaccuWBOp>>(converter,
+                                                     "th.mmaccu.w.b");
+  patterns.add<XTAMETernaryOpLowering<ThMmaccusWBOp>>(converter,
+                                                      "th.mmaccus.w.b");
+  patterns.add<XTAMETernaryOpLowering<ThMmaccsuWBOp>>(converter,
+                                                      "th.mmaccsu.w.b");
 
   // Tile register matrix multiply patterns (float-point types)
-  patterns.add<XTAMETernaryOpLowering<ThMfmaccHOp>>(converter,
-                                                    "th.mfmacc.h");
-  patterns.add<XTAMETernaryOpLowering<ThMfmaccBf16Op>>(
-      converter, "th.mfmacc.bf16");
-  patterns.add<XTAMETernaryOpLowering<ThMfmaccSOp>>(converter,
-                                                    "th.mfmacc.s");
-  patterns.add<XTAMETernaryOpLowering<ThMfmaccDOp>>(converter,
-                                                    "th.mfmacc.d");
-  patterns.add<XTAMETernaryOpLowering<ThMfmaccHE4m3Op>>(
-      converter, "th.mfmacc.h.e4m3");
-  patterns.add<XTAMETernaryOpLowering<ThMfmaccHE5m2Op>>(
-      converter, "th.mfmacc.h.e5m2");
+  patterns.add<XTAMETernaryOpLowering<ThMfmaccHOp>>(converter, "th.mfmacc.h");
+  patterns.add<XTAMETernaryOpLowering<ThMfmaccBf16Op>>(converter,
+                                                       "th.mfmacc.bf16");
+  patterns.add<XTAMETernaryOpLowering<ThMfmaccSOp>>(converter, "th.mfmacc.s");
+  patterns.add<XTAMETernaryOpLowering<ThMfmaccDOp>>(converter, "th.mfmacc.d");
+  patterns.add<XTAMETernaryOpLowering<ThMfmaccHE4m3Op>>(converter,
+                                                        "th.mfmacc.h.e4m3");
+  patterns.add<XTAMETernaryOpLowering<ThMfmaccHE5m2Op>>(converter,
+                                                        "th.mfmacc.h.e5m2");
   patterns.add<XTAMETernaryOpLowering<ThMfmaccBf16E4m3Op>>(
       converter, "th.mfmacc.bf16.e4m3");
   patterns.add<XTAMETernaryOpLowering<ThMfmaccBf16E5m2Op>>(
       converter, "th.mfmacc.bf16.e5m2");
-  patterns.add<XTAMETernaryOpLowering<ThMfmaccSHOp>>(
-      converter, "th.mfmacc.s.h");
-  patterns.add<XTAMETernaryOpLowering<ThMfmaccSBf16Op>>(
-      converter, "th.mfmacc.s.bf16");
-  patterns.add<XTAMETernaryOpLowering<ThMfmaccDSOp>>(
-      converter, "th.mfmacc.d.s");
-  patterns.add<XTAMETernaryOpLowering<ThMfmaccSE4m3Op>>(
-      converter, "th.mfmacc.s.e4m3");
-  patterns.add<XTAMETernaryOpLowering<ThMfmaccSE5m2Op>>(
-      converter, "th.mfmacc.s.e5m2");
+  patterns.add<XTAMETernaryOpLowering<ThMfmaccSHOp>>(converter,
+                                                     "th.mfmacc.s.h");
+  patterns.add<XTAMETernaryOpLowering<ThMfmaccSBf16Op>>(converter,
+                                                        "th.mfmacc.s.bf16");
+  patterns.add<XTAMETernaryOpLowering<ThMfmaccDSOp>>(converter,
+                                                     "th.mfmacc.d.s");
+  patterns.add<XTAMETernaryOpLowering<ThMfmaccSE4m3Op>>(converter,
+                                                        "th.mfmacc.s.e4m3");
+  patterns.add<XTAMETernaryOpLowering<ThMfmaccSE5m2Op>>(converter,
+                                                        "th.mfmacc.s.e5m2");
 }
 
 void mlir::configureXTAMELegalizeForExportTarget(LLVMConversionTarget &target) {
