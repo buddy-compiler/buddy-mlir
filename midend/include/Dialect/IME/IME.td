@@ -30,6 +30,7 @@ include "mlir/Dialect/LLVMIR/LLVMOpBase.td"
 def IME_Dialect : Dialect {
   let name = "ime";
   let cppNamespace = "::buddy::ime";
+  let useStrictPropertiesInAssemblyFormat = 0;
   let description = [{
     The IME dialect provides operations for the SpacemiT Intelligent Matrix Extension (IME).
     IME is an extension to RISC-V Vector Extension (RVV) that provides matrix multiply-accumulate
@@ -327,31 +328,91 @@ def VfmadotnOp : IME_Op<"vfmadotn"> {
 //===----------------------------------------------------------------------===//
 // IME Intrinsic operation definitions
 //===----------------------------------------------------------------------===//
+// SSA vectors model values, never physical registers. The LLVM backend chooses
+// register groups and enforces tied accumulators / parameter-register classes.
 class IME_IntrOpBase<string mnemonic, list<Trait> traits = []> :
-  LLVM_IntrOpBase</*Dialect dialect=*/IME_Dialect,
-                  /*string opName=*/"intr." # mnemonic,
-                  /*string enumName=*/"riscv_ime_" # !subst(".", "_", mnemonic),
-                  /*list<int> overloadedResults=*/[],
-                  /*list<int> overloadedOperands=*/[],
-                  /*list<Trait> traits=*/traits,
-                  /*int numResults=*/0>;
+  LLVM_IntrOpBase<IME_Dialect, "intr." # mnemonic,
+                  "riscv_ime_" # !subst(".", "_", mnemonic),
+                  [0], [1, 2], !listconcat([Pure], traits), 1> {
+  let hasVerifier = 1;
+}
 
 // Integer matrix multiply-accumulate intrinsics
 def IME_Vmadot_IntrOp : IME_IntrOpBase<"vmadot">,
-  Arguments<(ins LLVM_Type:$vd, LLVM_Type:$vs1, LLVM_Type:$vs2)>;
+  Arguments<(ins LLVM_AnyScalableVector:$vd, LLVM_AnyScalableVector:$vs1, LLVM_AnyScalableVector:$vs2)>;
 
 def IME_Vmadotu_IntrOp : IME_IntrOpBase<"vmadotu">,
-  Arguments<(ins LLVM_Type:$vd, LLVM_Type:$vs1, LLVM_Type:$vs2)>;
+  Arguments<(ins LLVM_AnyScalableVector:$vd, LLVM_AnyScalableVector:$vs1, LLVM_AnyScalableVector:$vs2)>;
 
 def IME_Vmadotsu_IntrOp : IME_IntrOpBase<"vmadotsu">,
-  Arguments<(ins LLVM_Type:$vd, LLVM_Type:$vs1, LLVM_Type:$vs2)>;
+  Arguments<(ins LLVM_AnyScalableVector:$vd, LLVM_AnyScalableVector:$vs1, LLVM_AnyScalableVector:$vs2)>;
 
 def IME_Vmadotus_IntrOp : IME_IntrOpBase<"vmadotus">,
-  Arguments<(ins LLVM_Type:$vd, LLVM_Type:$vs1, LLVM_Type:$vs2)>;
+  Arguments<(ins LLVM_AnyScalableVector:$vd, LLVM_AnyScalableVector:$vs1, LLVM_AnyScalableVector:$vs2)>;
 
 // Floating-point matrix multiply-accumulate intrinsic
 def IME_Vfmadot_IntrOp : IME_IntrOpBase<"vfmadot">,
-  Arguments<(ins LLVM_Type:$vd, LLVM_Type:$vs1, LLVM_Type:$vs2)>;
+  Arguments<(ins LLVM_AnyScalableVector:$vd, LLVM_AnyScalableVector:$vs1, LLVM_AnyScalableVector:$vs2)>;
+
+// Native A100 fixed signatures require VLEN=1024 (vscale=16). zvl1024b
+// guarantees only a minimum; the runtime must check vlenb=128 on an A100 core.
+class IME_A100Vector<int lanes, string element> : Type<CPred<
+  "::llvm::isa<::mlir::VectorType>($_self) && "
+  "::llvm::cast<::mlir::VectorType>($_self) == "
+  "::mlir::VectorType::get({" # lanes # "}, " # element # ", true)">,
+  "A100 scalable tile vector">;
+def IME_A100I8 : IME_A100Vector<8, "::mlir::IntegerType::get($_self.getContext(), 8)">;
+def IME_A100I8Pair : IME_A100Vector<16, "::mlir::IntegerType::get($_self.getContext(), 8)">;
+def IME_A100I32Pair : IME_A100Vector<4, "::mlir::IntegerType::get($_self.getContext(), 32)">;
+def IME_A100F16 : IME_A100Vector<4, "::mlir::Float16Type::get($_self.getContext())">;
+
+class IME_A100IntrOp<string mnemonic, list<int> results = [],
+                    list<int> operands = [], list<int> immPositions = [],
+                    list<string> immNames = []> :
+  LLVM_IntrOpBase<IME_Dialect, "intr." # mnemonic,
+                  "riscv_ime_" # !subst(".", "_", mnemonic),
+                  results, operands, [Pure], 1, 0, 0, 0, 0, 0,
+                  immPositions, immNames>;
+
+class IME_HPIntrOp<string mnemonic> :
+    IME_A100IntrOp<mnemonic # ".hp", [], [], [4], ["group"]> {
+  let summary = "A100 int8 dot with per-column FP16 scaling and FP16 accumulation";
+  let description = [{
+    C += dot(A, transposed B) * scales[group*8 + column].
+    C and scales each occupy one register. The runtime must establish
+    MCPM.BF16=0; LLVM allocates scales to v0/v1. group is 0..7.
+  }];
+  let arguments = (ins IME_A100F16:$vd, IME_A100I8:$vs1,
+                       IME_A100I8:$vs2, IME_A100F16:$scales,
+                       ConfinedAttr<I32Attr, [IntMinValue<0>, IntMaxValue<7>]>:$group);
+  let results = (outs IME_A100F16:$res);
+}
+class IME_SPIntrOp<string mnemonic> :
+    IME_A100IntrOp<mnemonic # ".sp", [], [], [4], ["group"]> {
+  let summary = "A100 4:2 sparse int8 dot with int32 accumulation";
+  let arguments = (ins IME_A100I32Pair:$vd, IME_A100I8Pair:$vs1,
+                       IME_A100I8:$vs2, IME_A100I8:$parameters,
+                       ConfinedAttr<I32Attr, [IntMinValue<0>, IntMaxValue<3>]>:$group);
+  let results = (outs IME_A100I32Pair:$res);
+}
+foreach suffix = ["", "u", "su", "us"] in {
+  def IME_Vmadot # suffix # _HP_IntrOp : IME_HPIntrOp<"vmadot" # suffix>;
+  def IME_Vmadot # suffix # _SP_IntrOp : IME_SPIntrOp<"vmadot" # suffix>;
+}
+
+class IME_PackIntrOp<string mnemonic, list<int> results, list<int> operands> :
+    IME_A100IntrOp<mnemonic, results, operands, [2], ["block"]> {
+  let hasVerifier = 1;
+  let arguments = (ins AnyVectorOfAnyRank:$vs1, AnyVectorOfAnyRank:$vs2,
+                       ConfinedAttr<I32Attr, [IntMinValue<0>, IntMaxValue<3>]>:$block);
+  let results = (outs AnyVectorOfAnyRank:$res);
+}
+def IME_Vpack_IntrOp : IME_PackIntrOp<"vpack", [0], []>;
+def IME_Vupack_IntrOp : IME_PackIntrOp<"vupack", [0], []>;
+def IME_Vnpack_IntrOp : IME_PackIntrOp<"vnpack", [], [0]>;
+def IME_Vnspack_IntrOp : IME_PackIntrOp<"vnspack", [], [0]>;
+def IME_Vnpack4_IntrOp : IME_PackIntrOp<"vnpack4", [], []>;
+def IME_Vnspack4_IntrOp : IME_PackIntrOp<"vnspack4", [], []>;
 
 //===----------------------------------------------------------------------===//
 // Sliding-window Integer Matrix Multiply-Accumulate Intrinsics
@@ -359,70 +420,70 @@ def IME_Vfmadot_IntrOp : IME_IntrOpBase<"vfmadot">,
 
 // slide-1 intrinsics
 def IME_Vmadot1_IntrOp : IME_IntrOpBase<"vmadot1">,
-  Arguments<(ins LLVM_Type:$vd, LLVM_Type:$vs1, LLVM_Type:$vs2)>;
+  Arguments<(ins LLVM_AnyScalableVector:$vd, LLVM_AnyScalableVector:$vs1, LLVM_AnyScalableVector:$vs2)>;
 
 def IME_Vmadot1u_IntrOp : IME_IntrOpBase<"vmadot1u">,
-  Arguments<(ins LLVM_Type:$vd, LLVM_Type:$vs1, LLVM_Type:$vs2)>;
+  Arguments<(ins LLVM_AnyScalableVector:$vd, LLVM_AnyScalableVector:$vs1, LLVM_AnyScalableVector:$vs2)>;
 
 def IME_Vmadot1su_IntrOp : IME_IntrOpBase<"vmadot1su">,
-  Arguments<(ins LLVM_Type:$vd, LLVM_Type:$vs1, LLVM_Type:$vs2)>;
+  Arguments<(ins LLVM_AnyScalableVector:$vd, LLVM_AnyScalableVector:$vs1, LLVM_AnyScalableVector:$vs2)>;
 
 def IME_Vmadot1us_IntrOp : IME_IntrOpBase<"vmadot1us">,
-  Arguments<(ins LLVM_Type:$vd, LLVM_Type:$vs1, LLVM_Type:$vs2)>;
+  Arguments<(ins LLVM_AnyScalableVector:$vd, LLVM_AnyScalableVector:$vs1, LLVM_AnyScalableVector:$vs2)>;
 
 // slide-2 intrinsics
 def IME_Vmadot2_IntrOp : IME_IntrOpBase<"vmadot2">,
-  Arguments<(ins LLVM_Type:$vd, LLVM_Type:$vs1, LLVM_Type:$vs2)>;
+  Arguments<(ins LLVM_AnyScalableVector:$vd, LLVM_AnyScalableVector:$vs1, LLVM_AnyScalableVector:$vs2)>;
 
 def IME_Vmadot2u_IntrOp : IME_IntrOpBase<"vmadot2u">,
-  Arguments<(ins LLVM_Type:$vd, LLVM_Type:$vs1, LLVM_Type:$vs2)>;
+  Arguments<(ins LLVM_AnyScalableVector:$vd, LLVM_AnyScalableVector:$vs1, LLVM_AnyScalableVector:$vs2)>;
 
 def IME_Vmadot2su_IntrOp : IME_IntrOpBase<"vmadot2su">,
-  Arguments<(ins LLVM_Type:$vd, LLVM_Type:$vs1, LLVM_Type:$vs2)>;
+  Arguments<(ins LLVM_AnyScalableVector:$vd, LLVM_AnyScalableVector:$vs1, LLVM_AnyScalableVector:$vs2)>;
 
 def IME_Vmadot2us_IntrOp : IME_IntrOpBase<"vmadot2us">,
-  Arguments<(ins LLVM_Type:$vd, LLVM_Type:$vs1, LLVM_Type:$vs2)>;
+  Arguments<(ins LLVM_AnyScalableVector:$vd, LLVM_AnyScalableVector:$vs1, LLVM_AnyScalableVector:$vs2)>;
 
 // slide-3 intrinsics
 def IME_Vmadot3_IntrOp : IME_IntrOpBase<"vmadot3">,
-  Arguments<(ins LLVM_Type:$vd, LLVM_Type:$vs1, LLVM_Type:$vs2)>;
+  Arguments<(ins LLVM_AnyScalableVector:$vd, LLVM_AnyScalableVector:$vs1, LLVM_AnyScalableVector:$vs2)>;
 
 def IME_Vmadot3u_IntrOp : IME_IntrOpBase<"vmadot3u">,
-  Arguments<(ins LLVM_Type:$vd, LLVM_Type:$vs1, LLVM_Type:$vs2)>;
+  Arguments<(ins LLVM_AnyScalableVector:$vd, LLVM_AnyScalableVector:$vs1, LLVM_AnyScalableVector:$vs2)>;
 
 def IME_Vmadot3su_IntrOp : IME_IntrOpBase<"vmadot3su">,
-  Arguments<(ins LLVM_Type:$vd, LLVM_Type:$vs1, LLVM_Type:$vs2)>;
+  Arguments<(ins LLVM_AnyScalableVector:$vd, LLVM_AnyScalableVector:$vs1, LLVM_AnyScalableVector:$vs2)>;
 
 def IME_Vmadot3us_IntrOp : IME_IntrOpBase<"vmadot3us">,
-  Arguments<(ins LLVM_Type:$vd, LLVM_Type:$vs1, LLVM_Type:$vs2)>;
+  Arguments<(ins LLVM_AnyScalableVector:$vd, LLVM_AnyScalableVector:$vs1, LLVM_AnyScalableVector:$vs2)>;
 
 // slide-n intrinsics (with dynamic slide value in GPR)
 def IME_Vmadotn_IntrOp : IME_IntrOpBase<"vmadotn">,
-  Arguments<(ins LLVM_Type:$vd, LLVM_Type:$vs1, LLVM_Type:$vs2, LLVM_Type:$slide)>;
+  Arguments<(ins LLVM_AnyScalableVector:$vd, LLVM_AnyScalableVector:$vs1, LLVM_AnyScalableVector:$vs2, I64:$slide)>;
 
 def IME_Vmadotnu_IntrOp : IME_IntrOpBase<"vmadotnu">,
-  Arguments<(ins LLVM_Type:$vd, LLVM_Type:$vs1, LLVM_Type:$vs2, LLVM_Type:$slide)>;
+  Arguments<(ins LLVM_AnyScalableVector:$vd, LLVM_AnyScalableVector:$vs1, LLVM_AnyScalableVector:$vs2, I64:$slide)>;
 
 def IME_Vmadotnsu_IntrOp : IME_IntrOpBase<"vmadotnsu">,
-  Arguments<(ins LLVM_Type:$vd, LLVM_Type:$vs1, LLVM_Type:$vs2, LLVM_Type:$slide)>;
+  Arguments<(ins LLVM_AnyScalableVector:$vd, LLVM_AnyScalableVector:$vs1, LLVM_AnyScalableVector:$vs2, I64:$slide)>;
 
 def IME_Vmadotnus_IntrOp : IME_IntrOpBase<"vmadotnus">,
-  Arguments<(ins LLVM_Type:$vd, LLVM_Type:$vs1, LLVM_Type:$vs2, LLVM_Type:$slide)>;
+  Arguments<(ins LLVM_AnyScalableVector:$vd, LLVM_AnyScalableVector:$vs1, LLVM_AnyScalableVector:$vs2, I64:$slide)>;
 
 //===----------------------------------------------------------------------===//
 // Sliding-window Floating-Point Matrix Multiply-Accumulate Intrinsics
 //===----------------------------------------------------------------------===//
 
 def IME_Vfmadot1_IntrOp : IME_IntrOpBase<"vfmadot1">,
-  Arguments<(ins LLVM_Type:$vd, LLVM_Type:$vs1, LLVM_Type:$vs2)>;
+  Arguments<(ins LLVM_AnyScalableVector:$vd, LLVM_AnyScalableVector:$vs1, LLVM_AnyScalableVector:$vs2)>;
 
 def IME_Vfmadot2_IntrOp : IME_IntrOpBase<"vfmadot2">,
-  Arguments<(ins LLVM_Type:$vd, LLVM_Type:$vs1, LLVM_Type:$vs2)>;
+  Arguments<(ins LLVM_AnyScalableVector:$vd, LLVM_AnyScalableVector:$vs1, LLVM_AnyScalableVector:$vs2)>;
 
 def IME_Vfmadot3_IntrOp : IME_IntrOpBase<"vfmadot3">,
-  Arguments<(ins LLVM_Type:$vd, LLVM_Type:$vs1, LLVM_Type:$vs2)>;
+  Arguments<(ins LLVM_AnyScalableVector:$vd, LLVM_AnyScalableVector:$vs1, LLVM_AnyScalableVector:$vs2)>;
 
 def IME_Vfmadotn_IntrOp : IME_IntrOpBase<"vfmadotn">,
-  Arguments<(ins LLVM_Type:$vd, LLVM_Type:$vs1, LLVM_Type:$vs2, LLVM_Type:$slide)>;
+  Arguments<(ins LLVM_AnyScalableVector:$vd, LLVM_AnyScalableVector:$vs1, LLVM_AnyScalableVector:$vs2, I64:$slide)>;
 
 #endif // IME_DIALECT
