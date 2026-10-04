@@ -207,14 +207,40 @@ def compile_graphs(model, config: dict):
     return graphs_prefill, graphs_decode, params
 
 
+def _warmed_static_cache(model, max_token_len: int):
+    """A StaticCache whose layers are allocated: StaticCache allocates them on
+    the first update, and a cache passed to a trace must already hold its
+    tensors so that they become graph inputs. Allocated by a one-token call
+    at position 0, which also advances the cache by one token."""
+    cache = StaticCache(config=model.config, max_cache_len=max_token_len)
+    model(
+        input_ids=torch.zeros((1, 1), dtype=torch.int64),
+        past_key_values=cache,
+        use_cache=True,
+        cache_implementation="static",
+    )
+    return cache
+
+
 def compile_chunk_graphs(model, config: dict):
     """Like compile_graphs, for chunked prefill (config["prefill_chunk"]):
     forward_prefill is traced like forward_decode, with prefill_chunk tokens
-    and their positions in and the KV cache in and out, so that the session
-    prefills a prompt chunk by chunk (docs/ChunkedPrefill.md). Both graphs
-    have the decode ABI and differ in the number of tokens only."""
+    and their start position in and the KV cache in and out, so that the
+    session prefills a prompt chunk by chunk (docs/ChunkedPrefill.md). Both
+    graphs have the decode ABI and differ in the number of tokens only.
+
+    Each trace gets its own cache: tracing runs the model and advances the
+    cache it is given. forward_prefill is traced on an empty cache (allocated,
+    then reset) at positions 0 .. prefill_chunk - 1, which are in range for
+    any prefill_chunk <= max_token_len. forward_decode is traced as in
+    compile_graphs."""
     max_token_len = config["shape"]["max_token_len"]
     chunk = int(config["prefill_chunk"])
+    if not 0 < chunk <= max_token_len:
+        raise ValueError(
+            f"prefill_chunk ({chunk}) must be in 1 .. max_token_len "
+            f"({max_token_len})"
+        )
 
     prefill_compiler = DynamoCompiler(
         primary_registry=tosa.ops_registry,
@@ -228,27 +254,24 @@ def compile_chunk_graphs(model, config: dict):
     )
 
     with torch.no_grad():
-        past_kv = StaticCache(config=model.config, max_cache_len=max_token_len)
-        model(
-            input_ids=torch.zeros((1, 1), dtype=torch.int64),
-            past_key_values=past_kv,
-            use_cache=True,
-            cache_implementation="static",
-        )
+        past_kv_prefill = _warmed_static_cache(model, max_token_len)
+        past_kv_prefill.reset()  # logically empty: no tokens, zero K/V
         graphs_prefill = prefill_compiler.importer(
             model,
             input_ids=torch.zeros((1, chunk), dtype=torch.int64),
             use_cache=True,
-            cache_position=torch.arange(200, 200 + chunk, dtype=torch.int64),
-            past_key_values=past_kv,
+            cache_position=torch.arange(chunk, dtype=torch.int64),
+            past_key_values=past_kv_prefill,
             cache_implementation="static",
         )
+
+        past_kv_decode = _warmed_static_cache(model, max_token_len)
         graphs_decode = decode_compiler.importer(
             model,
             input_ids=torch.zeros((1, 1), dtype=torch.int64),
             use_cache=True,
             cache_position=torch.tensor([200], dtype=torch.int64),
-            past_key_values=past_kv,
+            past_key_values=past_kv_decode,
             cache_implementation="static",
         )
 
