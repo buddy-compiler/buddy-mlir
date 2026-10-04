@@ -30,8 +30,7 @@ model = Qwen2ForCausalLM(
     )
 ).eval()
 
-# forward_decode is traced at position 200, as in compile_graphs.
-MAX_TOKEN_LEN = 256
+MAX_TOKEN_LEN = 32
 
 
 def shapes(graph):
@@ -51,7 +50,7 @@ def shapes(graph):
     return ids, logits
 
 
-for chunk in (64, MAX_TOKEN_LEN):
+for chunk in (8, MAX_TOKEN_LEN):
     config = {
         "shape": {"max_token_len": MAX_TOKEN_LEN},
         "prefill_chunk": chunk,
@@ -59,16 +58,16 @@ for chunk in (64, MAX_TOKEN_LEN):
     prefill, decode, params = import_model.compile_chunk_graphs(model, config)
     print(f"chunk {chunk}: prefill {shapes(prefill[0])}")
     print(f"chunk {chunk}: decode {shapes(decode[0])}")
-# CHECK: chunk 64: prefill ([(1, 64)], [(1, 64, 128)])
-# CHECK: chunk 64: decode ([(1, 1)], [(1, 1, 128)])
-# CHECK: chunk 256: prefill ([(1, 256)], [(1, 256, 128)])
-# CHECK: chunk 256: decode ([(1, 1)], [(1, 1, 128)])
+# CHECK: chunk 8: prefill ([(1, 8)], [(1, 8, 128)])
+# CHECK: chunk 8: decode ([(1, 1)], [(1, 1, 128)])
+# CHECK: chunk 32: prefill ([(1, 32)], [(1, 32, 128)])
+# CHECK: chunk 32: decode ([(1, 1)], [(1, 1, 128)])
 
 try:
     import_model.compile_chunk_graphs(
         model,
-        {"shape": {"max_token_len": MAX_TOKEN_LEN}, "prefill_chunk": 257},
+        {"shape": {"max_token_len": MAX_TOKEN_LEN}, "prefill_chunk": 33},
     )
 except ValueError as e:
     print("ValueError:", e)
-# CHECK: ValueError: prefill_chunk (257) must be in 1 .. max_token_len (256)
+# CHECK: ValueError: prefill_chunk (33) must be in 1 .. max_token_len (32)
