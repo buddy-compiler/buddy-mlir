@@ -207,6 +207,63 @@ def compile_graphs(model, config: dict):
     return graphs_prefill, graphs_decode, params
 
 
+def compile_chunk_graphs(model, config: dict):
+    """Like compile_graphs, for chunked prefill (config["prefill_chunk"]):
+    forward_prefill is traced like forward_decode, with prefill_chunk tokens
+    and their positions in and the KV cache in and out, so that the session
+    prefills a prompt chunk by chunk (docs/ChunkedPrefill.md). Both graphs
+    have the decode ABI and differ in the number of tokens only."""
+    max_token_len = config["shape"]["max_token_len"]
+    chunk = int(config["prefill_chunk"])
+
+    prefill_compiler = DynamoCompiler(
+        primary_registry=tosa.ops_registry,
+        aot_autograd_decomposition=inductor_decomp,
+        func_name="forward_prefill",
+    )
+    decode_compiler = DynamoCompiler(
+        primary_registry=tosa.ops_registry,
+        aot_autograd_decomposition=inductor_decomp,
+        func_name="forward_decode",
+    )
+
+    with torch.no_grad():
+        past_kv = StaticCache(config=model.config, max_cache_len=max_token_len)
+        model(
+            input_ids=torch.zeros((1, 1), dtype=torch.int64),
+            past_key_values=past_kv,
+            use_cache=True,
+            cache_implementation="static",
+        )
+        graphs_prefill = prefill_compiler.importer(
+            model,
+            input_ids=torch.zeros((1, chunk), dtype=torch.int64),
+            use_cache=True,
+            cache_position=torch.arange(200, 200 + chunk, dtype=torch.int64),
+            past_key_values=past_kv,
+            cache_implementation="static",
+        )
+        graphs_decode = decode_compiler.importer(
+            model,
+            input_ids=torch.zeros((1, 1), dtype=torch.int64),
+            use_cache=True,
+            cache_position=torch.tensor([200], dtype=torch.int64),
+            past_key_values=past_kv,
+            cache_implementation="static",
+        )
+
+    assert len(graphs_prefill) == 1
+    assert len(graphs_decode) == 1
+
+    params = prefill_compiler.imported_params[graphs_prefill[0]]
+    print(
+        f"[import] Graphs imported (prefill chunk {chunk}): "
+        f"{len(params)} parameters",
+        file=sys.stderr,
+    )
+    return graphs_prefill, graphs_decode, params
+
+
 def is_tiered_kv_cache(config: dict) -> bool:
     return bool(config.get("tiered_kv_cache", {}).get("enabled", False))
 
@@ -530,13 +587,17 @@ def apply_pre_transforms(graph_prefill, graph_decode):
     )
 
 
-def apply_fusion(graph_prefill, graph_decode):
+def apply_fusion(graph_prefill, graph_decode, chunked_prefill=False):
     """Apply fusion patterns and rename subgraphs."""
     pattern_prefill = [
         simply_fuse,
         apply_classic_fusion,
         flash_attention_prefill,
     ]
+    if chunked_prefill:
+        # The chunk attends to the KV cache, like decode; flash attention
+        # covers the full-prompt prefill graph.
+        pattern_prefill = [simply_fuse, apply_classic_fusion]
     pattern_decode = [simply_fuse, apply_classic_fusion, gqa_attention_fusion]
 
     graph_prefill.fuse_ops(pattern_prefill)
@@ -1225,6 +1286,13 @@ def import_model(
     os.makedirs(output_dir, exist_ok=True)
     variant = config["variant"]
     is_quantized = variant.startswith("w")
+    chunked_prefill = bool(config.get("prefill_chunk"))
+    if chunked_prefill and (
+        export_layer_partitioned or export_template_partitioned
+    ):
+        raise ValueError(
+            "prefill_chunk is not supported with partitioned exports"
+        )
 
     # 1. Load model
     with timed_import_step("load_model"):
@@ -1272,8 +1340,10 @@ def import_model(
 
     # 2. Compile graphs
     with timed_import_step("compile_graphs"):
-        graphs_prefill, graphs_decode, original_params = compile_graphs(
-            model, config
+        graphs_prefill, graphs_decode, original_params = (
+            compile_chunk_graphs(model, config)
+            if chunked_prefill
+            else compile_graphs(model, config)
         )
 
     # 3. Pre-fusion transforms
@@ -1325,7 +1395,9 @@ def import_model(
 
     # 6. Fusion + subgraph rename
     with timed_import_step("fusion"):
-        apply_fusion(graphs_prefill[0], graphs_decode[0])
+        apply_fusion(
+            graphs_prefill[0], graphs_decode[0], chunked_prefill=chunked_prefill
+        )
 
     if export_layer_partitioned:
         with timed_import_step("export_layer_partitioned_mlir"):

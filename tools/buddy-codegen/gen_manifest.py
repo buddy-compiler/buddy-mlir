@@ -164,8 +164,12 @@ def gen_manifest(
     p()
 
     # -- Buffer descriptors ----------------------------------------------------
+    # Chunked prefill (prefill_chunk > 0): forward_prefill takes `chunk` tokens
+    # and their start position, like forward_decode.
+    chunk = int(config.get("prefill_chunk", 0))
+    prefill_len = chunk or max_token_len
     p(
-        f'  rhal.buffer @prefill_tokens {{space = "host", type = tensor<1x{max_token_len}xi64>}}'
+        f'  rhal.buffer @prefill_tokens {{space = "host", type = tensor<1x{prefill_len}xi64>}}'
     )
     p('  rhal.buffer @decode_token   {space = "host", type = tensor<1x1xi64>}')
     p('  rhal.buffer @cache_position {space = "host", type = tensor<1xi64>}')
@@ -177,7 +181,7 @@ def gen_manifest(
         p(f'  rhal.buffer @kv{i}{pad} {{space = "dram", type = {kv_tensor}}}')
     p()
 
-    logits_pfx = f"tensor<1x{max_token_len}x{vocab_size}x{logits_mlir}>"
+    logits_pfx = f"tensor<1x{prefill_len}x{vocab_size}x{logits_mlir}>"
     logits_dec = f"tensor<1x1x{vocab_size}x{logits_mlir}>"
     p(f'  rhal.buffer @logits_prefill {{space = "host", type = {logits_pfx}}}')
     p(f'  rhal.buffer @logits_decode  {{space = "host", type = {logits_dec}}}')
@@ -206,9 +210,12 @@ def gen_manifest(
     # Weights are bound via rhal.constant and resolved separately by rax-pack.
 
     # -- forward_prefill -------------------------------------------------------
-    prefill_args = ['"prefill_tokens"'] + _kv_names() + ['"logits_prefill"']
+    prefill_inputs = ['"prefill_tokens"']
+    if chunk:
+        prefill_inputs.append('"cache_position"')
+    prefill_args = prefill_inputs + _kv_names() + ['"logits_prefill"']
     p("  rhal.func @forward_prefill {")
-    p('    inputs   = ["prefill_tokens"],')
+    p(f"    inputs   = [{', '.join(prefill_inputs)}],")
     p('    outputs  = ["logits_prefill"],')
     p('    dispatch = "model_kernels",')
     p(f"    args     = [{_format_args(prefill_args)}]}}")
