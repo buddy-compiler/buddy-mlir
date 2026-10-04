@@ -175,7 +175,7 @@ def load_trace_config(path: Path) -> dict:
     result = {}
     ids = set()
     for item in items:
-        extra_keys = set(item) - {"node", "id", "tag"}
+        extra_keys = set(item) - {"node", "id", "tag", "extend"}
         if extra_keys:
             names = ", ".join(sorted(extra_keys))
             raise ValueError(f"unsupported trace.node fields: {names}")
@@ -195,6 +195,10 @@ def load_trace_config(path: Path) -> dict:
             "id": flat_id,
             "id_path": list(id_path),
             "tag": tag,
-            "extend": extend,
+            "extend": (
+                _parse_extend(node, item["extend"])
+                if "extend" in item
+                else extend
+            ),
         }
     return result

@@ -3852,8 +3852,16 @@ def index_put_op(
 
     input1_elem_type = input1.type.element_type
     input1_memref_type = ir.MemRefType.get(input1_shape, input1_elem_type)
+    input1_source_type = ir.MemRefType.get(
+        input1_shape,
+        input1_elem_type,
+        ir.StridedLayoutAttr.get(
+            ir.ShapedType.get_dynamic_size(),
+            [ir.ShapedType.get_dynamic_size()] * len(input1_shape),
+        ),
+    )
     input1_src_memref = bufferization.ToBufferOp(
-        input1_memref_type, input1
+        input1_source_type, input1, read_only=True
     ).result
     input1_memref = memref.AllocOp(input1_memref_type, [], []).result
     memref.CopyOp(input1_src_memref, input1_memref)
@@ -3880,7 +3888,9 @@ def index_put_op(
         input3_memref_type = ir.MemRefType.get(
             input3_shape, input3_memref_element_type
         )
-        input3_memref = bufferization.ToBufferOp(input3_memref_type, input3)
+        input3_memref = bufferization.ToBufferOp(
+            input3_memref_type, input3, read_only=True
+        )
 
         # Convert index tensors to memrefs (only for non-None ones in loop dims)
         input2_memref_list = []
@@ -3904,7 +3914,9 @@ def index_put_op(
                     input3_shape[:num_loop_dims], index_elem_type
                 )
                 input2_memref_list.append(
-                    bufferization.ToBufferOp(memref_type, index_tensor)
+                    bufferization.ToBufferOp(
+                        memref_type, index_tensor, read_only=True
+                    )
                 )
             except Exception:
                 # If broadcasting fails, fall back to scalar path
@@ -4046,7 +4058,7 @@ def index_put_op(
         index_elem_type = ir.RankedTensorType(index_tensor.type).element_type
         memref_type = ir.MemRefType.get(memref_shape, index_elem_type)
         input2_memref.append(
-            bufferization.ToBufferOp(memref_type, index_tensor)
+            bufferization.ToBufferOp(memref_type, index_tensor, read_only=True)
         )
         input2_use_full_shape.append(use_full_shape)
 
@@ -4054,7 +4066,9 @@ def index_put_op(
     input3_memref_type = ir.MemRefType.get(
         input3_shape, input3_memref_element_type
     )
-    input3_memref = bufferization.ToBufferOp(input3_memref_type, input3)
+    input3_memref = bufferization.ToBufferOp(
+        input3_memref_type, input3, read_only=True
+    )
 
     lb = arith.ConstantOp(ir.IndexType.get(), 0)
     step = arith.ConstantOp(ir.IndexType.get(), 1)
@@ -13362,19 +13376,11 @@ def mega_max_pool2d_op(node, symbol_table):
     )
     output_type = ir.RankedTensorType.get(output_shape, i8)
     output = tensor.EmptyOp(output_shape, i8)
-    dims = [ir.AffineExpr.get_dim(i) for i in range(4)]
-    pooled_h = ir.AffineExpr.get_floor_div(dims[1], node._stride)
-    pooled_w = ir.AffineExpr.get_floor_div(dims[2], node._stride)
-    input_map = ir.AffineMap.get_identity(4)
-    output_map = ir.AffineMap.get(
-        4,
-        0,
-        (
-            [dims[0], dims[3], pooled_h, pooled_w]
-            if node._final_output
-            else [dims[0], pooled_h, pooled_w, dims[3]]
-        ),
-    )
+    # This is a marker consumed by Tile lowering, like Mega Conv. Iterate
+    # over the output; input-sized loops overrun odd-sized pooling results.
+    zero = ir.AffineExpr.get_constant(0)
+    input_map = ir.AffineMap.get(4, 0, [zero, zero, zero, zero])
+    output_map = ir.AffineMap.get_identity(4)
     op = linalg.GenericOp(
         [output_type],
         [input_value],

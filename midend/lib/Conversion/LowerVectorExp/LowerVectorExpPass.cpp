@@ -36,7 +36,7 @@
 #include "VectorExp/VectorExpOps.h"
 
 using namespace mlir;
-using namespace buddy;
+using namespace ::buddy;
 
 //===----------------------------------------------------------------------===//
 // Rewrite Pattern
@@ -241,8 +241,8 @@ public:
       return failure();
     }
     auto lmulVal = arith::ConstantIndexOp::create(rewriter, loc, lmulConfig);
-    auto maxVLOp = buddy::rvv::RVVSetVlOp::create(rewriter, loc, indexType,
-                                                  maxVLVal, sewVal, lmulVal);
+    auto maxVLOp = ::buddy::rvv::RVVSetVlOp::create(rewriter, loc, indexType,
+                                                    maxVLVal, sewVal, lmulVal);
 
     rewriter.replaceOp(op, maxVLOp);
     return success();
@@ -350,8 +350,8 @@ public:
     auto lmulVal = arith::ConstantIndexOp::create(rewriter, loc, lmulConfig);
     // Generate RVV SetVL operation.
     IndexType indexType = IndexType::get(ctx);
-    buddy::rvv::RVVSetVlOp::create(rewriter, loc, indexType, avlValue, sewVal,
-                                   lmulVal);
+    ::buddy::rvv::RVVSetVlOp::create(rewriter, loc, indexType, avlValue, sewVal,
+                                     lmulVal);
 
     // Access the Region
     Region &region = op.getRegion();
@@ -376,14 +376,14 @@ public:
         Value lhsVal = symbolTable[lhsOrigVal];
         Value rhsOrigVal = addIOp.getRhs();
         Value rhsVal = symbolTable[rhsOrigVal];
-        Value resultValue = buddy::rvv::RVVAddOp::create(
+        Value resultValue = ::buddy::rvv::RVVAddOp::create(
             rewriter, loc, scalableVectorType, lhsVal, rhsVal, avlValue);
         symbolTable[innerOp.getResult(0)] = resultValue;
       } else if (isa<vector::LoadOp>(innerOp)) {
         vector::LoadOp loadOp = cast<vector::LoadOp>(innerOp);
         auto baseOp = loadOp.getBase();
         auto idx = loadOp.getIndices().front();
-        Value resultValue = buddy::rvv::RVVLoadOp::create(
+        Value resultValue = ::buddy::rvv::RVVLoadOp::create(
             rewriter, loc, scalableVectorType, baseOp, idx, avlValue);
         symbolTable[innerOp.getResult(0)] = resultValue;
       } else if (isa<vector::StoreOp>(innerOp)) {
@@ -392,8 +392,8 @@ public:
         Value valueToStore = symbolTable[origValueToStore];
         auto baseOp = storeOp.getBase();
         auto idx = storeOp.getIndices().front();
-        buddy::rvv::RVVStoreOp::create(rewriter, loc, valueToStore, baseOp, idx,
-                                       avlValue);
+        ::buddy::rvv::RVVStoreOp::create(rewriter, loc, valueToStore, baseOp,
+                                         idx, avlValue);
       }
     }
 
@@ -435,10 +435,10 @@ public:
     // clang-format off
     registry.insert<
         arith::ArithDialect,
-        buddy::vector_exp::VectorExpDialect,
+        ::buddy::vector_exp::VectorExpDialect,
         func::FuncDialect,
         memref::MemRefDialect,
-        buddy::rvv::RVVDialect,
+        ::buddy::rvv::RVVDialect,
         LLVM::LLVMDialect>();
     // clang-format on
   }
@@ -454,7 +454,7 @@ void LowerVectorExpPass::runOnOperation() {
       arith::ArithDialect,
       func::FuncDialect,
       memref::MemRefDialect,
-      buddy::rvv::RVVDialect,
+      ::buddy::rvv::RVVDialect,
       LLVM::LLVMDialect
     >();
   // clang-format on

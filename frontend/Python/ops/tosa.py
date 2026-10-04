@@ -264,6 +264,7 @@ from ..graph import (
     ZerosLikeOp,
     ZerosOp,
 )
+from ..graph.transform.layout.provenance import has_nhwc_layout
 from .utils import *
 
 
@@ -2652,12 +2653,6 @@ def reshape_op(node: ReshapeOp, symbol_table):
             if new_shape[i] == -1:
                 new_shape[i] = infer_dim_size
 
-    if len(new_shape) == len(now_shape) and all(
-        int(new_dim) == int(old_dim)
-        for new_dim, old_dim in zip(new_shape, now_shape)
-    ):
-        return input1
-
     producer = input1.owner
     if isinstance(producer, ir.OpView):
         producer = producer.operation
@@ -2675,76 +2670,23 @@ def reshape_op(node: ReshapeOp, symbol_table):
         ):
             return _reshape_or_extract_for_complex(input1, new_shape)
 
-    # Sticky layout: do not reshape NHWC <-> NCHW (same numel); that is a
-    # layout change. Keep NHWC; only transpose when going NCHW -> NHWC.
-    if len(now_shape) == 4 and len(new_shape) == 4:
-        ns = [int(x) for x in now_shape]
-        nw = [int(x) for x in new_shape]
-        if ns == [nw[0], nw[2], nw[3], nw[1]]:
-            return input1
-        if nw == [ns[0], ns[2], ns[3], ns[1]]:
-            elem = ir.RankedTensorType(input1.type).element_type
-            out_ty = ir.RankedTensorType.get(nw, elem)
-            return tosa.TransposeOp(
-                out_ty, input1, _create_permutation_attr([0, 2, 3, 1])
-            )
-
-        # 4D NHWC -> non-mirror 4D (e.g. YOLO attention view of NCHW):
-        # PyTorch reshapes NCHW; SSA is sticky NHWC — transpose first.
-        meta = _reshape_input_nchw_meta(node, symbol_table)
-        if meta is None:
+    if len(now_shape) == 4 and has_nhwc_layout(input1):
+        input_meta = _reshape_input_nchw_meta(node, symbol_table)
+        if input_meta is None or len(input_meta) != 4:
             raise RuntimeError(
-                f"reshape 4D->4D without input meta: ssa={ns} new={nw}"
+                "reshape of NHWC activation requires Torch input shape"
             )
-        if len(meta) != 4:
+        n, c, h, w = input_meta
+        if list(now_shape) != [n, h, w, c]:
             raise RuntimeError(
-                f"reshape 4D->4D input meta rank mismatch: meta={meta} ssa={ns}"
+                f"reshape NHWC layout mismatch: ssa={list(now_shape)} torch={input_meta}"
             )
-        n_m, c_m, h_m, w_m = meta
-        nchw = [n_m, c_m, h_m, w_m]
-        nhwc = [n_m, h_m, w_m, c_m]
-        prod_new = 1
-        for d in nw:
-            prod_new *= d
-        if prod_new != n_m * c_m * h_m * w_m:
-            raise RuntimeError(
-                f"reshape numel mismatch: meta_nchw={nchw} new={nw}"
-            )
-        elem = ir.RankedTensorType(input1.type).element_type
-        if ns == nhwc:
-            nchw_ty = ir.RankedTensorType.get(nchw, elem)
-            input1 = tosa.TransposeOp(
-                nchw_ty, input1, _create_permutation_attr([0, 3, 1, 2])
-            ).result
-            now_shape = nchw
-            if nw == nchw:
-                return input1
-        elif ns == nchw:
-            pass
-        else:
-            raise RuntimeError(
-                f"reshape 4D->4D layout mismatch: ssa={ns} meta_nchw={meta} new={nw}"
-            )
-
-    # Leaving 4D sticky NHWC for FC/flatten: materialize NCHW so weight
-    # order matches PyTorch (NHWC flat != NCHW flat unless H=W=1).
-    if len(now_shape) == 4 and len(new_shape) != 4:
-        ns = [int(x) for x in now_shape]
-        meta = _reshape_input_nchw_meta(node, symbol_table)
-        if meta is not None and len(meta) == 4:
-            n_m, c_m, h_m, w_m = meta
-            nhwc = [n_m, h_m, w_m, c_m]
-            if ns == nhwc:
-                elem = ir.RankedTensorType(input1.type).element_type
-                nchw_ty = ir.RankedTensorType.get([n_m, c_m, h_m, w_m], elem)
-                input1 = tosa.TransposeOp(
-                    nchw_ty, input1, _create_permutation_attr([0, 3, 1, 2])
-                ).result
-                now_shape = [n_m, c_m, h_m, w_m]
-                if len(new_shape) == len(now_shape) and all(
-                    int(a) == int(b) for a, b in zip(new_shape, now_shape)
-                ):
-                    return input1
+        element_type = ir.RankedTensorType(input1.type).element_type
+        input1 = tosa.TransposeOp(
+            ir.RankedTensorType.get(input_meta, element_type),
+            input1,
+            _create_permutation_attr([0, 3, 1, 2]),
+        ).result
 
     return _reshape_or_extract_for_complex(input1, new_shape)
 
@@ -2906,6 +2848,9 @@ def slice_op(node: SliceOp, symbol_table):
     dim = node.args[1]
     start_idx = node.args[2]
     end_idx = node.args[3]
+    step = node.args[4] if len(node.args) > 4 else 1
+    if step <= 0:
+        raise ValueError("aten.slice requires a positive step")
 
     sizes = ir.RankedTensorType(input_tensor.type).shape
     dtype = node.tensor_meta["dtype"]
@@ -2936,7 +2881,7 @@ def slice_op(node: SliceOp, symbol_table):
         end_idx = sizes[dim]
 
     new_sizes = [x for x in sizes]
-    new_sizes[dim] = end_idx - start_idx
+    new_sizes[dim] = (end_idx - start_idx + step - 1) // step
     new_sizes_attr = ir._denseI64ArrayAttr(new_sizes, None)
 
     offsets = [0] * len(sizes)
@@ -2944,10 +2889,11 @@ def slice_op(node: SliceOp, symbol_table):
     offsets_attr = ir._denseI64ArrayAttr(offsets, None)
 
     strides = [1] * len(sizes)
+    strides[dim] = step
     strides_attr = ir._denseI64ArrayAttr(strides, None)
 
     extract_slice_result_type = ir.RankedTensorType.get(new_sizes, mlir_dtype)
-    if new_sizes == sizes:
+    if new_sizes == sizes and step == 1:
         return input_tensor
     op = tensor.ExtractSliceOp(
         extract_slice_result_type,

@@ -92,6 +92,7 @@ class GraphDriver:
                     if (
                         self._graph.node_table[parent]
                         not in self._graph.op_groups[subgraph_name]
+                        and parent not in subgraphs_inputs[subgraph_name]
                     ):
                         subgraphs_inputs[subgraph_name].append(parent)
         subgraphs_outputs = {}
@@ -109,7 +110,8 @@ class GraphDriver:
             for op in self._graph.op_groups[subgraph_name]:
                 for key in subgraphs_inputs.keys():
                     if op.name in subgraphs_inputs[key]:
-                        subgraphs_outputs[subgraph_name].append(op.name)
+                        if op.name not in subgraphs_outputs[subgraph_name]:
+                            subgraphs_outputs[subgraph_name].append(op.name)
                         self._subgraph_dependencies[subgraph_name].add(key)
                 if (op.name in output_node) and (
                     op.name not in subgraphs_outputs[subgraph_name]

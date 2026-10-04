@@ -1,5 +1,6 @@
 add_mlir_dialect_library(BuddyRVV
   RVVDialect.cpp
+  Arithmetic.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${CMAKE_CURRENT_BINARY_DIR}/include/Dialect/RISCVV

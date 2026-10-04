@@ -142,6 +142,23 @@ class RVV_BinaryAAXNoMask_Op<string mnemonic, string op_description,
 def RVVAddOp : RVV_BinaryAAXNoMask_Op<"add", "addition">;
 def RVVMulOp : RVV_BinaryAAXNoMask_Op<"mul", "multiplication">;
 
+
+class RVV_FloatBinaryOp<string mnemonic> :
+  RVV_Op<mnemonic, [Pure, AllTypesMatch<["src1", "dst"]>]> {
+  let arguments = (ins ScalableVectorOfAnyRank<[F32]>:$src1,
+                       AnyTypeOf<[F32, ScalableVectorOfAnyRank<[F32]>]>:$src2,
+                       AnySignlessIntegerOrIndex:$length);
+  let results = (outs ScalableVectorOfAnyRank<[F32]>:$dst);
+  let hasVerifier = 1;
+  let assemblyFormat = "$src1 `,` $src2 `,` $length attr-dict `:` type($src1) "
+                       "`,` type($src2) `,` type($length)";
+}
+
+def RVVFAddOp : RVV_FloatBinaryOp<"fadd">;
+def RVVFSubOp : RVV_FloatBinaryOp<"fsub">;
+def RVVFMulOp : RVV_FloatBinaryOp<"fmul">;
+def RVVFDivOp : RVV_FloatBinaryOp<"fdiv">;
+
 //===----------------------------------------------------------------------===//
 // RVV intrinsic operation definitions
 //===----------------------------------------------------------------------===//
@@ -210,5 +227,15 @@ def RVVIntrAddOp : RVV_BinaryAAXNoMask_IntrOp<"vadd">,
   Arguments<(ins AnyScalableVectorOfAnyRank, AnyScalableVectorOfAnyRank, AnyType, AnyInteger)>;
 def RVVIntrMulOp : RVV_BinaryAAXNoMask_IntrOp<"vmul">,
   Arguments<(ins AnyScalableVectorOfAnyRank, AnyScalableVectorOfAnyRank, AnyType, AnyInteger)>;
+
+class RVV_FloatBinaryIntrOp<string mnemonic> :
+  RVV_BinaryAAXNoMask_IntrOp<mnemonic>,
+  Arguments<(ins AnyScalableVectorOfAnyRank, AnyScalableVectorOfAnyRank,
+                 AnyType, AnyInteger, AnyInteger)>;
+
+def RVVIntrFAddOp : RVV_FloatBinaryIntrOp<"vfadd">;
+def RVVIntrFSubOp : RVV_FloatBinaryIntrOp<"vfsub">;
+def RVVIntrFMulOp : RVV_FloatBinaryIntrOp<"vfmul">;
+def RVVIntrFDivOp : RVV_FloatBinaryIntrOp<"vfdiv">;
 
 #endif // RVV_OPS

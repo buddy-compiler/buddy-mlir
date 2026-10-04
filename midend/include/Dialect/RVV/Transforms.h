@@ -27,12 +27,18 @@ using OwningRewritePatternList = RewritePatternSet;
 /// Collect a set of patterns to lower RVV ops to ops that map to LLVM
 /// intrinsics.
 void populateRVVLegalizeForLLVMExportPatterns(LLVMTypeConverter &converter,
-                                              RewritePatternSet &patterns,
-                                              int64_t RVVIndexBitwidth);
+                                              RewritePatternSet &patterns);
+
+void populateRVVArithmeticPatterns(LLVMTypeConverter &converter,
+                                   RewritePatternSet &patterns);
 
 /// Configure the target to support lowering RVV ops to ops that map to LLVM
 /// intrinsics.
 void configureRVVLegalizeForExportTarget(LLVMConversionTarget &target);
+
+namespace buddy {
+void registerVectorToRVVPass();
+}
 
 } // namespace mlir
 
